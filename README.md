@@ -37,7 +37,9 @@ GEMINI_API_KEY=AIza...        # Google Gemini API Key
 DATABASE_URL=postgres://...   # Neon 가상 DB 연결 URL
 GOOGLE_CLIENT_ID=             # Google OAuth Client ID (선택)
 GOOGLE_CLIENT_SECRET=         # Google OAuth Client Secret (선택)
+AUTH_SECRET=                  # 세션 암호화용 비밀키
 AUTH_DISABLED=true            # 로컬 테스트 시 인증 비활성화 여부
+APP_BASE_URL=http://localhost:8080 # 앱 베이스 URL (OAuth 리다이렉트용)
 ```
 
 ---
