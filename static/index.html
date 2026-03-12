@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message Consolidator Premium</title>
+    <link rel="stylesheet" href="static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme">
+    <div class="glass-container">
+        <header>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <h1>Message <span class="accent">Consolidator</span></h1>
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <a href="#" id="archiveLink" class="link-btn" style="color: var(--text-dim); margin-top: 0;">📦 Archive</a>
+                    <select id="languageSelect" class="badge" style="cursor: pointer; background: rgba(255,255,255,0.05); color: var(--text-color); border: 1px solid var(--border-color); padding: 0.3rem 0.8rem; border-radius: 8px;">
+                        <option value="ko">한국어</option>
+                        <option value="en">English</option>
+                        <option value="id">Bahasa Indonesia</option>
+                        <option value="th">ไทย</option>
+                    </select>
+                </div>
+            </div>
+            <p id="subTitle">Automated Slack & WhatsApp Task Dashboard</p>
+        </header>
+
+        <main>
+            <section class="dashboard-header">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <h2>Real-time Tasks</h2>
+                    <button id="scanBtn" class="badge" style="cursor: pointer; border-color: var(--accent-color); color: var(--accent-color);">
+                        🔄 Scan Now
+                    </button>
+                </div>
+                <div class="status-indicators">
+                    <span id="slackStatus" class="badge">Slack: Monitoring</span>
+                    <span id="waStatus" class="badge">WhatsApp: Monitoring</span>
+                </div>
+            </section>
+
+            <!-- WhatsApp Login Section -->
+            <section id="waLoginSection" class="hidden glass-card" style="margin-bottom: 2rem; text-align: center; padding: 2rem;">
+                <h3>WhatsApp Connection Required</h3>
+                <p style="color: var(--text-dim); margin-bottom: 1.5rem;">Please scan the QR code with your mobile WhatsApp app.</p>
+                <div id="qrContainer" style="background: white; padding: 1rem; display: inline-block; border-radius: 16px; margin-bottom: 1.5rem;">
+                    <img id="waQRImg" style="width: 200px; height: 200px;" class="hidden" />
+                    <div id="qrPlaceholder" style="width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: 800;">Generating...</div>
+                </div>
+                <div>
+                    <button id="getQRBtn" class="primary-btn" style="width: auto; padding: 0.8rem 2rem;">Get New QR Code</button>
+                </div>
+            </section>
+
+            <div id="loading" class="hidden">
+                <div class="spinner"></div>
+                <p>Gemini is scanning for new tasks...</p>
+            </div>
+
+            <div class="layout-split">
+                <div class="column">
+                    <h3 class="column-title">My Tasks <span class="badge count" id="myCount">0</span></h3>
+                    <div id="myTasksGrid" class="message-grid single-col">
+                        <!-- My Cards will be injected here -->
+                    </div>
+                </div>
+                <div class="column">
+                    <h3 class="column-title">Other Tasks <span class="badge count" id="otherCount">0</span></h3>
+                    <div id="otherTasksGrid" class="message-grid single-col">
+                        <!-- Other Cards will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Archive View (Hidden by default) -->
+            <section id="archiveSection" class="hidden glass-card" style="margin-top: 2rem; padding: 2rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                    <h2>Archive <span class="badge count" id="archiveCount">0</span></h2>
+                    <div style="display: flex; gap: 1rem;">
+                        <button id="exportCsvBtn" class="badge" style="cursor: pointer; border-color: #25d366; color: #25d366;">📥 Export CSV</button>
+                        <button id="closeArchiveBtn" class="badge" style="cursor: pointer;">✖ Close</button>
+                    </div>
+                </div>
+                <div class="table-container" style="overflow-x: auto;">
+                    <table class="archive-table">
+                        <thead>
+                            <tr>
+                                <th>Source</th>
+                                <th>Room</th>
+                                <th>Task</th>
+                                <th>Requester</th>
+                                <th>Assignee</th>
+                                <th>Time</th>
+                                <th>Completed At</th>
+                            </tr>
+                        </thead>
+                        <tbody id="archiveBody">
+                            <!-- Archived rows will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>© 2026 Antigravity Lab. Powered by Gemini 3 Flash.</p>
+        </footer>
+    </div>
+    <script src="static/app.js"></script>
+</body>
+</html>

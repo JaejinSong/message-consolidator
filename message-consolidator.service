@@ -1,0 +1,16 @@
+[Unit]
+Description=Message Consolidator Service
+After=network.target
+
+[Service]
+Type=simple
+User=jinro
+WorkingDirectory=/home/jinro/.gemini/message-consolidator
+ExecStart=/home/jinro/.gemini/message-consolidator/message-consolidator
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/jinro/.gemini/message-consolidator/server.log
+StandardError=append:/home/jinro/.gemini/message-consolidator/server.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+# Binaries
+app
+app_*
+message-consolidator
+message-consolidator-vps
+
+# Databases
+*.db
+
+# Logs
+*.log
+
+# Environment
+.env
