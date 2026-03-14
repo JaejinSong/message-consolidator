@@ -203,8 +203,8 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 }
 
 func startBackgroundScanner() {
-	log.Println("Background scanner started...")
-	ticker := time.NewTicker(2 * time.Minute)
+	log.Println("Background scanner started (1m interval)...")
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	// Initial Scan (Default: Korean)
@@ -220,29 +220,40 @@ func scan(language string) {
 	ctx := context.Background()
 
 	// Slack Scan
-	scanSlack(ctx, language)
+	newSlack := scanSlack(ctx, language)
 
 	// WhatsApp Scan
-	scanWhatsApp(ctx, language)
+	newWA := scanWhatsApp(ctx, language)
+
+	// Refresh cache only if new messages were actually saved
+	if newSlack || newWA {
+		log.Println("[SCAN] New messages found, refreshing cache...")
+		if err := RefreshCache(); err != nil {
+			log.Printf("Error refreshing cache after scan: %v", err)
+		}
+	} else {
+		log.Println("[SCAN] No new messages found, skipping DB cache refresh.")
+	}
 }
 
-func scanSlack(ctx context.Context, language string) {
+func scanSlack(ctx context.Context, language string) bool {
 	log.Println("[SCAN-SLACK] Starting Slack scan...")
+	hasNew := false
 	if cfg.SlackToken == "" {
 		log.Println("[SCAN-SLACK] Skip: Missing token")
-		return
+		return false
 	}
 	sc := NewSlackClient(cfg.SlackToken)
 	sc.FetchUsers()
 
-	// 1. Get all channels the bot is member of
+	// ... previous logic to fetch channels ...
 	params := &slack.GetConversationsParameters{
 		Types: []string{"public_channel", "private_channel"},
 	}
 	channels, _, err := sc.api.GetConversations(params)
 	if err != nil {
 		log.Printf("[SCAN-SLACK] Error fetching channels: %v", err)
-		return
+		return false
 	}
 	var channelsToScan []slack.Channel
 	for _, c := range channels {
@@ -251,17 +262,15 @@ func scanSlack(ctx context.Context, language string) {
 		}
 	}
 
-	// Always ensure the configured channel is included if it exists in .env
-	hasConfigured := false
 	if cfg.SlackChannelID != "" {
+		found := false
 		for _, c := range channelsToScan {
 			if c.ID == cfg.SlackChannelID {
-				hasConfigured = true
+				found = true
 				break
 			}
 		}
-		if !hasConfigured {
-			// Fetch it specifically
+		if !found {
 			info, err := sc.api.GetConversationInfo(&slack.GetConversationInfoInput{ChannelID: cfg.SlackChannelID})
 			if err == nil {
 				channelsToScan = append(channelsToScan, *info)
@@ -269,17 +278,11 @@ func scanSlack(ctx context.Context, language string) {
 		}
 	}
 
-	log.Printf("[SCAN-SLACK] Will scan %d channels", len(channelsToScan))
 	for _, channel := range channelsToScan {
-		log.Printf("[SCAN-SLACK] Scanning channel: %s (%s)", channel.Name, channel.ID)
-
-		// Last 24 hours
 		msgs, err := sc.GetMessages(channel.ID, time.Now().Add(-24*time.Hour))
 		if err != nil {
-			log.Printf("[SCAN-SLACK] Slack Scan Error (%s): %v", channel.Name, err)
 			continue
 		}
-		log.Printf("[SCAN-SLACK] Fetched %d messages from %s", len(msgs), channel.Name)
 		if len(msgs) == 0 {
 			continue
 		}
@@ -293,23 +296,18 @@ func scanSlack(ctx context.Context, language string) {
 			sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s%s: %s\n", m.RawTS, m.Timestamp.Format("15:04"), m.User, toPart, m.Text))
 		}
 
-		log.Printf("[SCAN-SLACK] AI Input Context for %s:\n---\n%s\n---", channel.Name, sb.String())
 		gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey)
 		if err != nil {
-			log.Printf("AI Client Initialization Error (Slack): %v", err)
 			continue
 		}
 		items, err := gc.Analyze(ctx, sb.String(), language)
 		if err != nil {
-			log.Printf("AI Analysis Error (Slack): %v", err)
 			continue
 		}
 
-		log.Printf("[SCAN-SLACK] AI found %d tasks in %s", len(items), channel.Name)
 		for _, item := range items {
 			link := fmt.Sprintf("https://slack.com/app_redirect?channel=%s&message_ts=%s", channel.ID, item.SourceTS)
 			
-			// 1. Resolve Assignee Name
 			assignee := item.Assignee
 			if strings.HasPrefix(assignee, "U") || (strings.HasPrefix(assignee, "<@U") && strings.HasSuffix(assignee, ">")) {
 				cleanID := strings.TrimPrefix(assignee, "<@")
@@ -317,7 +315,6 @@ func scanSlack(ctx context.Context, language string) {
 				assignee = sc.GetUserName(cleanID)
 			}
 
-			// 2. Format Time to KST
 			assignedAt := item.AssignedAt
 			if item.SourceTS != "" {
 				parts := strings.Split(item.SourceTS, ".")
@@ -328,7 +325,7 @@ func scanSlack(ctx context.Context, language string) {
 				}
 			}
 
-			SaveMessage(ConsolidatedMessage{
+			saved, _ := SaveMessage(ConsolidatedMessage{
 				Source:     "slack",
 				Room:       "#" + channel.Name,
 				Task:       item.Task,
@@ -338,26 +335,20 @@ func scanSlack(ctx context.Context, language string) {
 				Link:       link,
 				SourceTS:   item.SourceTS,
 			})
+			if saved {
+				hasNew = true
+			}
 		}
 	}
+	return hasNew
 }
 
-func scanWhatsApp(ctx context.Context, language string) {
+func scanWhatsApp(ctx context.Context, language string) bool {
 	log.Printf("[SCAN-WA] Starting WhatsApp scan (Buffer JIDs: %d)", len(waMessageBuffer))
+	hasNew := false
 	if waClient == nil || !waClient.IsLoggedIn() {
 		log.Printf("[SCAN-WA] Skip: Client not initialized or not logged in")
-		return
-	}
-
-	// Logging joined groups
-	groups, err := waClient.GetJoinedGroups(ctx)
-	if err != nil {
-		log.Printf("[SCAN-WA] Error fetching joined groups: %v", err)
-	} else {
-		log.Printf("[SCAN-WA] Joined Groups (%d):", len(groups))
-		for _, g := range groups {
-			log.Printf(" - %s (%s)", g.Name, g.JID)
-		}
+		return false
 	}
 
 	waBufferMu.RLock()
@@ -367,7 +358,6 @@ func scanWhatsApp(ctx context.Context, language string) {
 		if len(msgs) == 0 {
 			continue
 		}
-		log.Printf("[SCAN-WA] Processing %d messages for JID: %s", len(msgs), jid)
 		
 		groupName := GetGroupName(jid)
 		msgMap := make(map[string]time.Time)
@@ -383,30 +373,25 @@ func scanWhatsApp(ctx context.Context, language string) {
 
 		gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey)
 		if err != nil {
-			log.Printf("[SCAN-WA] AI Client Initialization Error (WA %s): %v", jid, err)
 			continue
 		}
 		items, err := gc.Analyze(ctx, sb.String(), language)
 		if err != nil {
-			log.Printf("[SCAN-WA] AI Analysis Error (WA %s): %v", jid, err)
 			continue
 		}
 
-		log.Printf("[SCAN-WA] AI found %d tasks for JID: %s", len(items), jid)
 		for _, item := range items {
 			assignedAt := item.AssignedAt
-			// Use the original timestamp from msgMap if SourceTS is valid
 			if ts, ok := msgMap[item.SourceTS]; ok {
 				kst := time.FixedZone("KST", 9*60*60)
 				assignedAt = ts.In(kst).Format("2006-01-02 15:04:05 KST")
 			} else if sec, err := strconv.ParseInt(assignedAt, 10, 64); err == nil {
-				// Fallback to parsing as unix if it happens to be one
 				t := time.Unix(sec, 0)
 				kst := time.FixedZone("KST", 9*60*60)
 				assignedAt = t.In(kst).Format("2006-01-02 15:04:05 KST")
 			}
 
-			SaveMessage(ConsolidatedMessage{
+			saved, _ := SaveMessage(ConsolidatedMessage{
 				Source:     "whatsapp",
 				Room:       groupName,
 				Task:       item.Task,
@@ -415,8 +400,10 @@ func scanWhatsApp(ctx context.Context, language string) {
 				AssignedAt: assignedAt,
 				SourceTS:   item.SourceTS,
 			})
+			if saved {
+				hasNew = true
+			}
 		}
-		// Optional: Clear buffer after scan or keep it windowed
 	}
-	log.Printf("[SCAN-WA] WhatsApp scan completed")
+	return hasNew
 }
