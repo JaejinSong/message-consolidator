@@ -5,18 +5,22 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/slack-go/slack"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var cfg *Config
 
 func main() {
+	initLogging()
 	cfg = LoadConfig()
 
 	// Initialize DB
@@ -406,4 +410,34 @@ func scanWhatsApp(ctx context.Context, language string) bool {
 		}
 	}
 	return hasNew
+}
+
+func initLogging() {
+	lumberjackLogger := &lumberjack.Logger{
+		Filename:   "logs/app.log",
+		MaxSize:    100, // megabytes
+		MaxBackups: 30,
+		MaxAge:     7,    // days (Requirement 3)
+		Compress:   true,
+		LocalTime:  true,
+	}
+
+	// Double output to console and file (Requirement 1)
+	multiWriter := io.MultiWriter(os.Stdout, lumberjackLogger)
+	log.SetOutput(multiWriter)
+
+	// Daily rotation logic (Requirement 2)
+	go func() {
+		for {
+			now := time.Now()
+			// Calculate time until next midnight
+			nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+			time.Sleep(time.Until(nextMidnight))
+			
+			log.Println("[LOG] Rotating log file for new day...")
+			if err := lumberjackLogger.Rotate(); err != nil {
+				log.Printf("[LOG] Error rotating log: %v", err)
+			}
+		}
+	}()
 }
