@@ -1,0 +1,42 @@
+# Message Consolidator Deployment Procedure
+
+This document outlines the steps to build and deploy the application to the VPS environment.
+
+## Prerequisites
+- Google Cloud SDK (`gcloud`) configured with the target project.
+- Access to the target VPS (`chat-analyzer-vps`).
+- `.env` file with correct production credentials.
+
+## Deployment Steps
+
+### 1. Build the Binary
+Build the Go binary for the target production environment (Linux/AMD64).
+```bash
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o message-consolidator-vps .
+```
+
+### 2. Transfer Files to VPS
+Upload the built binary, configuration files, and static assets to the VPS home directory.
+```bash
+# Transfer binary and config
+gcloud compute scp message-consolidator-vps .env docker-compose.yml chat-analyzer-vps:~/ --zone=us-central1-a --project=gemini-enterprise-487906
+
+# Transfer static folder (recursive)
+gcloud compute scp --recurse static chat-analyzer-vps:~/ --zone=us-central1-a --project=gemini-enterprise-487906
+```
+
+### 3. Restart the Service
+Connect to the VPS via SSH and use Docker Compose to rebuild the image and restart the container.
+```bash
+gcloud compute ssh chat-analyzer-vps --zone=us-central1-a --project=gemini-enterprise-487906 --command="cd ~ && sudo docker-compose down && sudo docker-compose up -d --build"
+```
+
+### 4. Verify Logs
+Check the application logs to ensure successful startup and initialization.
+```bash
+gcloud compute ssh chat-analyzer-vps --zone=us-central1-a --project=gemini-enterprise-487906 --command="sudo docker logs jinro_app_1 --tail 50"
+```
+
+## Important Notes
+- **Static Assets**: If you only modified files in the `static/` directory, you only need to run the `scp` for the static folder and then `docker-compose restart app` (or use `--build` to ensure they are baked into the image).
+- **Environment Variables**: Always verify the `.env` file on the VPS matches the production requirements, especially the Google OAuth credentials and `APP_BASE_URL`.
