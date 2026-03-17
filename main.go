@@ -363,8 +363,8 @@ func handleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 }
 
 func startBackgroundScanner() {
-	log.Println("Background scanner started (30m interval)...")
-	ticker := time.NewTicker(30 * time.Minute)
+	log.Println("Background scanner started (5m interval)...")
+	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
 	// Run initial scan

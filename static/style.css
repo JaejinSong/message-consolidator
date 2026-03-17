@@ -42,6 +42,19 @@ header {
     margin-bottom: 2rem;
 }
 
+.top-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.user-actions {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+}
+
 .user-profile {
     display: flex;
     align-items: center;
@@ -114,6 +127,13 @@ h1 {
     color: var(--text-dim);
     text-transform: uppercase;
     letter-spacing: 1px;
+}
+
+/* For mobile testing, we will hide it here temporarily if needed, but let's just see if it's there */
+.task-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 .tabs {
@@ -490,4 +510,367 @@ footer {
 
 .remove-alias:hover {
     color: #ff4b2b;
+}
+/* New Integration Status Styles */
+.integration-status {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+}
+
+.status-icon-large {
+    width: 90px;
+    height: 90px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    color: var(--text-dim);
+}
+
+.status-label {
+    margin-top: 2px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-icon-large svg {
+    width: 38px;
+    height: 38px;
+    transition: transform 0.3s ease;
+}
+
+.status-icon-large.inactive {
+    filter: grayscale(1) opacity(0.4);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.status-icon-large.active.slack {
+    color: #fff;
+    background: rgba(74, 21, 75, 0.15);
+    border-color: #4a154b;
+    box-shadow: 0 0 30px rgba(74, 21, 75, 0.25), inset 0 0 15px rgba(74, 21, 75, 0.1);
+}
+
+.status-icon-large.active.whatsapp {
+    color: #fff;
+    background: rgba(37, 211, 102, 0.12);
+    border-color: #25d366;
+    box-shadow: 0 0 30px rgba(37, 211, 102, 0.25), inset 0 0 15px rgba(37, 211, 102, 0.1);
+}
+
+.status-icon-large.active svg {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 8px currentColor);
+}
+
+.status-label {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+}
+
+.status-icon-large.active .status-label {
+    color: #fff;
+}
+
+/* Enhanced Scan Button */
+.scan-container {
+    flex: 1;
+}
+
+.large-scan-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+    padding: 1rem 1.5rem;
+    background: rgba(var(--accent-glow), 0.1);
+    border: 1.5px solid var(--accent-color);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+}
+
+.large-scan-btn:hover:not(:disabled) {
+    background: rgba(var(--accent-glow), 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(0, 242, 255, 0.2);
+}
+
+.delete-btn {
+    background: rgba(255, 59, 48, 0.1);
+    color: #ff3b30;
+    border: 1px solid #ff3b30;
+    padding: 0.4rem 0.8rem;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.delete-btn:hover {
+    background: rgba(255, 59, 48, 0.2);
+    transform: translateY(-1px);
+}
+
+.large-scan-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    border-color: var(--text-dim);
+}
+
+.scan-icon {
+    font-size: 1.8rem;
+}
+
+.scan-text-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.scan-label {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--accent-color);
+}
+
+.scan-nuance {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    font-weight: 400;
+    opacity: 0.8;
+}
+
+/* User Profile Refinements */
+.user-info-group {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.logout-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    color: #ff4b2b;
+    background: rgba(255, 75, 43, 0.1);
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.logout-icon-btn:hover {
+    background: #ff4b2b;
+    color: #fff;
+}
+
+.logout-icon-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Navigation Buttons */
+.nav-links {
+    display: flex;
+    gap: 0.8rem;
+}
+
+.nav-btn {
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    padding: 0.5rem 1rem;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.nav-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--accent-color);
+}
+
+.language-picker {
+    width: 60px;
+    padding: 0.4rem;
+    font-weight: 800;
+    text-align: center;
+}
+
+/* Mobile Responsive Adjustments */
+@media (max-width: 1000px) {
+    body {
+        padding: 0.8rem;
+        align-items: flex-start;
+        display: block;
+    }
+
+    .glass-container {
+        padding: 1.2rem;
+        border-radius: 24px;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .top-nav {
+        flex-direction: column !important;
+        gap: 1.2rem;
+        align-items: stretch !important;
+    }
+
+    .user-actions {
+        flex-direction: column !important;
+        gap: 1rem;
+        width: 100%;
+    }
+
+    .user-profile {
+        width: 100%;
+        justify-content: space-between;
+        padding: 0.6rem 1rem;
+    }
+
+    .nav-links {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        width: 100%;
+    }
+
+    .nav-btn {
+        justify-content: center;
+        padding: 0.8rem;
+    }
+
+    .language-picker {
+        width: 100%;
+    }
+
+    h1 {
+        font-size: 2rem;
+        text-align: center;
+    }
+
+    .dashboard-header {
+        margin-top: 2rem;
+    }
+
+    .header-main {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .integration-status {
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 1rem;
+        border-radius: 20px;
+        border: 1px solid var(--glass-border);
+    }
+
+    .status-icon-large {
+        width: 100px;
+        height: 100px;
+    }
+
+    .status-icon-large svg {
+        width: 40px;
+        height: 40px;
+    }
+
+    .large-scan-btn {
+        padding: 1.2rem;
+    }
+
+    .tabs {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .tab-btn {
+        padding: 0.8rem 0.4rem;
+        font-size: 0.85rem;
+        flex-direction: column;
+        gap: 0.3rem;
+    }
+
+    .task-list-header {
+        display: none;
+    }
+
+    .card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+        padding: 1.5rem 1rem;
+        border-radius: 20px;
+    }
+
+    .card::before {
+        width: 100%;
+        height: 6px;
+        top: 0;
+        left: 0;
+    }
+
+    .task-title {
+        white-space: normal !important;
+        font-size: 1.15rem;
+        line-height: 1.5;
+        overflow: visible;
+    }
+
+    .col-actions {
+        margin-top: 1.2rem;
+        display: flex;
+        gap: 0.8rem;
+        width: 100%;
+    }
+
+    .done-btn {
+        flex: 1;
+        padding: 0.8rem 1rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+    }
+
+    .delete-btn {
+        width: 52px;
+        height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem !important;
+        border-radius: 12px !important;
+        flex-shrink: 0;
+    }
 }
