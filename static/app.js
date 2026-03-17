@@ -21,7 +21,9 @@ const I18N_DATA = {
         myTasks: "내 업무",
         otherTasks: "기타 업무",
         allTasks: "전체",
-        logout: "로그아웃"
+        logout: "로그아웃",
+        statusOn: "연결됨",
+        statusOff: "연결 안됨"
     },
     en: {
         subTitle: "Automated Slack & WhatsApp Task Dashboard",
@@ -45,7 +47,9 @@ const I18N_DATA = {
         myTasks: "My Tasks",
         otherTasks: "Other Tasks",
         allTasks: "All Tasks",
-        logout: "Logout"
+        logout: "Logout",
+        statusOn: "ON",
+        statusOff: "OFF"
     },
     id: {
         subTitle: "Dasbor Tugas Slack & WhatsApp Otomatis",
@@ -69,7 +73,9 @@ const I18N_DATA = {
         myTasks: "Tugas Saya",
         otherTasks: "Tugas Lainnya",
         allTasks: "Semua Tugas",
-        logout: "Keluar"
+        logout: "Keluar",
+        statusOn: "AKTIF",
+        statusOff: "MATI"
     },
     th: {
         subTitle: "แดชบอร์ดงาน Slack & WhatsApp อัตโนมัติ",
@@ -93,7 +99,9 @@ const I18N_DATA = {
         myTasks: "งานของฉัน",
         otherTasks: "งานอื่นๆ",
         allTasks: "งานทั้งหมด",
-        logout: "ออกจากระบบ"
+        logout: "ออกจากระบบ",
+        statusOn: "เปิด",
+        statusOff: "ปิด"
     }
 };
 
@@ -107,15 +115,22 @@ const updateUILanguage = (lang) => {
     if (!data) return;
 
     document.getElementById('subTitle').textContent = data.subTitle;
-    document.querySelector('.dashboard-header h2').textContent = data.realTimeTasks;
     
-    const scanBtn = document.getElementById('scanBtn');
-    if (!scanBtn.disabled) {
-        scanBtn.textContent = data.scanNow;
+    // Update Scan Button
+    const scanLabel = document.querySelector('.scan-label');
+    if (scanLabel) {
+        scanLabel.textContent = data.scanNow.replace('🔄 ', ''); // Icon is separate now
+    }
+    
+    const nuance = document.querySelector('.scan-nuance');
+    if (nuance) {
+        nuance.textContent = lang === 'ko' ? '5분마다 자동 스캔 중' : 
+                          lang === 'id' ? 'Pemindaian otomatis setiap 5 menit' :
+                          lang === 'th' ? 'สแกนอัตโนมัติทุก 5 นาที' :
+                          'Every 5m automatic scan';
     }
 
-    document.getElementById('slackStatus').textContent = data.slackMonitoring;
-    // WhatsApp status is handled by checkWhatsAppStatus but we can update its base text if needed
+    // WhatsApp status handled by checkWhatsAppStatus
     
     document.querySelector('#waLoginSection h3').textContent = data.waReqTitle;
     document.querySelector('#waLoginSection p').textContent = data.waReqDesc;
@@ -131,11 +146,20 @@ const updateUILanguage = (lang) => {
     if (myTab) myTab.innerHTML = `${data.myTasks} <span class="badge count" id="myCount">0</span>`;
     if (otherTab) otherTab.innerHTML = `${data.otherTasks} <span class="badge count" id="otherCount">0</span>`;
     if (allTab) allTab.innerHTML = `${data.allTasks} <span class="badge count" id="allCount">0</span>`;
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.textContent = `🚪 ${data.logout || 'Logout'}`;
-    }
 
+    // Refresh status text immediately
+    const slackText = document.getElementById('slackStatusText');
+    const waText = document.getElementById('waStatusText');
+    const slackIcon = document.getElementById('slackStatusLarge');
+    const waIcon = document.getElementById('waStatusLarge');
+
+    if (slackText && slackIcon) {
+        slackText.textContent = slackIcon.classList.contains('active') ? data.statusOn : data.statusOff;
+    }
+    if (waText && waIcon) {
+        waText.textContent = waIcon.classList.contains('active') ? data.statusOn : data.statusOff;
+    }
+    
     // Refresh messages to update card buttons
     fetchMessages();
 };
@@ -209,31 +233,32 @@ const renderMessages = (messages) => {
             (m.requester && m.requester.toLowerCase().includes(kw.toLowerCase()))
         );
 
-        const card = createCardElement(m, data);
-        
-        // All tasks grid
-        if (allGrid) {
-            allGrid.appendChild(card.cloneNode(true));
-        } else {
-            console.error('allTasksList element not found!');
-        }
+        // Create separate elements for each grid to ensure event listeners work (cloneNode doesn't clone listeners)
+        const cardAll = createCardElement(m, data);
+        if (allGrid) allGrid.appendChild(cardAll);
         allCount++;
 
+        const cardFiltered = createCardElement(m, data);
         if (isMyTask) {
-            if (myGrid) myGrid.appendChild(card);
-            myCount++;
+            if (myGrid) {
+                myGrid.appendChild(cardFiltered);
+                myCount++;
+            }
         } else {
-            if (otherGrid) otherGrid.appendChild(card);
-            otherCount++;
+            if (otherGrid) {
+                otherGrid.appendChild(cardFiltered);
+                otherCount++;
+            }
         }
     });
-
+    
     const myCountEl = document.getElementById('myCount');
     const otherCountEl = document.getElementById('otherCount');
     const allCountEl = document.getElementById('allCount');
     if (myCountEl) myCountEl.textContent = myCount;
     if (otherCountEl) otherCountEl.textContent = otherCount;
     if (allCountEl) allCountEl.textContent = allCount;
+    console.log("Fetched active messages count:", messages.length);
 };
 
 const createCardElement = (m, data) => {
@@ -277,7 +302,7 @@ const createCardElement = (m, data) => {
             <button class="done-btn" data-id="${m.id}" data-done="${!m.done}">
                 ${m.done ? data.doneBtn : data.markDone}
             </button>
-            <button class="delete-btn" data-id="${m.id}" style="background: rgba(255, 59, 48, 0.1); color: #ff3b30; border-color: #ff3b30; padding: 0.3rem 0.6rem; border-radius: 8px; border: 1px solid; cursor: pointer; font-size: 0.7rem;">
+            <button class="delete-btn" data-id="${m.id}">
                 🗑️
             </button>
         </div>
@@ -328,60 +353,76 @@ const checkWhatsAppStatus = async () => {
     try {
         const resp = await fetch('/api/whatsapp/status');
         const data = await resp.json();
-        const waStatusBadge = document.getElementById('waStatus');
-        const waLoginSection = document.getElementById('waLoginSection');
-        const i18n = I18N_DATA[currentLang];
+        const waIcon = document.getElementById('waStatusLarge');
+        const waText = document.getElementById('waStatusText');
+        const waLoginSection = document.getElementById('waLoginSection'); // Keep this for login section visibility
 
-        if (data.status && data.status.toLowerCase() === 'connected') {
-            waConnected = true;
-            waStatusBadge.textContent = i18n.waConnected;
-            waStatusBadge.style.background = 'rgba(37, 211, 102, 0.2)';
-            waStatusBadge.style.color = '#25d366';
-            waLoginSection.classList.add('hidden');
-        } else {
-            waConnected = false;
-            waStatusBadge.textContent = i18n.waDisconnected;
-            waStatusBadge.style.background = 'rgba(255, 255, 255, 0.08)';
-            waStatusBadge.style.color = 'var(--text-dim)';
-            waLoginSection.classList.remove('hidden');
+        if (waIcon) {
+            if (data.status === 'CONNECTED') {
+                waConnected = true; // Update global state
+                waIcon.classList.remove('inactive');
+                waIcon.classList.add('active');
+                if (waText) waText.textContent = I18N_DATA[currentLang].statusOn;
+                if (waLoginSection) waLoginSection.classList.add('hidden'); // Hide login section
+            } else {
+                waConnected = false; // Update global state
+                waIcon.classList.remove('active');
+                waIcon.classList.add('inactive');
+                if (waText) waText.textContent = I18N_DATA[currentLang].statusOff;
+                if (waLoginSection) waLoginSection.classList.remove('hidden'); // BUG FIX: Keep hidden if connected, but wait, if NOT connected show it.
+                // Wait, if not connected, we SHOULD show the login section.
+                if (waLoginSection) waLoginSection.classList.remove('hidden');
+            }
         }
     } catch (e) {
-        console.error("Failed to check WA status:", e);
+        console.error("WA status check failed:", e);
     }
 };
 
-// QR logic moved to initApp
+// Periodic Slack status update within fetchMessages or separate
+const updateSlackStatus = (messages) => {
+    const slackIcon = document.getElementById('slackStatusLarge');
+    const slackText = document.getElementById('slackStatusText');
+    if (!slackIcon) return;
+
+    // In this app, Slack is considered "Monitoring" if we have any data or by default
+    // since it's an API token based connection. Let's make it active if we got messages.
+    const hasSlack = messages.some(m => m.source.toLowerCase() === 'slack');
+    if (hasSlack) {
+        slackIcon.classList.remove('inactive');
+        slackIcon.classList.add('active');
+        if (slackText) slackText.textContent = I18N_DATA[currentLang].statusOn;
+    } else {
+        slackIcon.classList.remove('active');
+        slackIcon.classList.add('inactive');
+        if (slackText) slackText.textContent = I18N_DATA[currentLang].statusOff;
+    }
+};
 
 const triggerScan = async () => {
     const btn = document.getElementById('scanBtn');
+    const scanLabel = document.getElementById('scanBtnText');
     const loading = document.getElementById('loading');
     const i18n = I18N_DATA[currentLang];
-    
+
     btn.disabled = true;
-    btn.textContent = i18n.scanning;
+    if (scanLabel) scanLabel.textContent = i18n.scanning.replace('⌛ ', '');
     loading.classList.remove('hidden');
 
-    // Map code to Gemini readable language name
-    const langMap = {
-        'ko': 'Korean',
-        'en': 'English',
-        'id': 'Indonesian',
-        'th': 'Thai'
-    };
-
     try {
+        const langMap = { 'ko': 'Korean', 'en': 'English', 'id': 'Indonesian', 'th': 'Thai' };
         const langParam = langMap[currentLang] || 'Korean';
         await fetch(`/api/scan?lang=${langParam}`);
         setTimeout(() => {
             fetchMessages();
             btn.disabled = false;
-            btn.textContent = i18n.scanNow;
+            if (scanLabel) scanLabel.textContent = i18n.scanNow.replace('🔄 ', '');
             loading.classList.add('hidden');
         }, 5000);
     } catch (e) {
         console.error(e);
         btn.disabled = false;
-        btn.textContent = i18n.scanNow;
+        if (scanLabel) scanLabel.textContent = i18n.scanNow.replace('🔄 ', '');
         loading.classList.add('hidden');
     }
 };
@@ -391,7 +432,7 @@ const triggerScan = async () => {
 const translateExistingTasks = async (lang) => {
     const loading = document.getElementById('loading');
     loading.classList.remove('hidden');
-    
+
     const langMap = {
         'ko': 'Korean',
         'en': 'English',
@@ -419,7 +460,7 @@ const translateExistingTasks = async (lang) => {
 const startIntervals = () => {
     if (window.fetchInterval) clearInterval(window.fetchInterval);
     if (window.statusInterval) clearInterval(window.statusInterval);
-    
+
     window.fetchInterval = setInterval(fetchMessages, 30000);
     window.statusInterval = setInterval(checkWhatsAppStatus, 30000);
 };
@@ -438,7 +479,7 @@ const fetchArchive = async () => {
 const renderArchive = (messages) => {
     const body = document.getElementById('archiveBody');
     body.innerHTML = '';
-    
+
     document.getElementById('archiveCount').textContent = messages.length;
 
     if (!messages || messages.length === 0) {
@@ -474,6 +515,7 @@ const fetchMessages = async () => {
         const data = await resp.json();
         console.log("Fetched active messages count:", data.length);
         renderMessages(data);
+        updateSlackStatus(data);
     } catch (e) {
         console.error("fetchMessages error:", e);
     }
@@ -489,27 +531,34 @@ const fetchUserProfile = async () => {
             return;
         }
         const data = await resp.json();
-        console.log("User profile received:", data.email);
-        userProfile = data;
-        userAliases = data.aliases || [];
-        
+        console.log("User profile received:", data);
+
+        // Handle potential case differences in JSON keys
+        const email = data.email || data.Email || "";
+        const picture = data.picture || data.Picture || data.Avatar || "";
+        const aliases = data.aliases || data.Aliases || [];
+
+        userProfile = { ...data, email, picture, aliases };
+        userAliases = aliases;
+
         const profileDiv = document.getElementById('userProfile');
-        const img = document.getElementById('userPicture');
-        const email = document.getElementById('userEmail');
-        
-        if (data.email) {
-            email.textContent = data.email;
-            if (data.picture && data.picture !== "") {
-                img.src = data.picture;
+        const imgEl = document.getElementById('userPicture');
+        const emailEl = document.getElementById('userEmail');
+
+        if (email) {
+            emailEl.textContent = email;
+            if (picture) {
+                imgEl.src = picture;
             } else {
-                img.src = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
+                imgEl.src = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
             }
             profileDiv.classList.remove('hidden');
-            console.log("Profile visible for:", data.email);
+            console.log("Profile UI updated and visible for:", email);
         } else {
-            console.warn("User profile data empty!");
+            console.warn("User email missing from profile data:", data);
         }
-        // Re-render messages with user info for better filtering
+
+        // Final refresh to ensure everything is in sync
         fetchMessages();
     } catch (e) {
         console.error("Failed to fetch user profile:", e);
@@ -593,7 +642,7 @@ const removeAlias = async (alias) => {
 // Initial load
 const initApp = () => {
     console.log("Initializing App...");
-    
+
     // Set initial value
     const langSelect = document.getElementById('languageSelect');
     if (langSelect) {
@@ -611,13 +660,13 @@ const initApp = () => {
         console.log("Switching to tab:", tabId);
         const tabs = document.querySelectorAll('.tab-btn');
         const contents = document.querySelectorAll('.tab-content');
-        
+
         tabs.forEach(b => b.classList.remove('active'));
         contents.forEach(c => c.classList.remove('active'));
-        
+
         const activeBtn = document.querySelector(`[data-tab="${tabId}"]`);
         const activeContent = document.getElementById(tabId);
-        
+
         if (activeBtn) activeBtn.classList.add('active');
         if (activeContent) {
             activeContent.classList.add('active');
