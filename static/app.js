@@ -17,7 +17,10 @@ const I18N_DATA = {
         viewOriginal: "🔗 원문 보기",
         markDone: "완료로 표시",
         doneBtn: "✓ 완료",
-        qrError: "QR 발급 실패: "
+        qrError: "QR 발급 실패: ",
+        myTasks: "내 업무",
+        otherTasks: "기타 업무",
+        logout: "로그아웃"
     },
     en: {
         subTitle: "Automated Slack & WhatsApp Task Dashboard",
@@ -37,7 +40,10 @@ const I18N_DATA = {
         viewOriginal: "🔗 View Original",
         markDone: "Mark as Done",
         doneBtn: "✓ Done",
-        qrError: "QR Generation Failed: "
+        qrError: "QR Generation Failed: ",
+        myTasks: "My Tasks",
+        otherTasks: "Other Tasks",
+        logout: "Logout"
     },
     id: {
         subTitle: "Dasbor Tugas Slack & WhatsApp Otomatis",
@@ -57,7 +63,10 @@ const I18N_DATA = {
         viewOriginal: "🔗 Lihat Asli",
         markDone: "Tandai Selesai",
         doneBtn: "✓ Selesai",
-        qrError: "Gagal Menghasilkan QR: "
+        qrError: "Gagal Menghasilkan QR: ",
+        myTasks: "Tugas Saya",
+        otherTasks: "Tugas Lainnya",
+        logout: "Keluar"
     },
     th: {
         subTitle: "แดชบอร์ดงาน Slack & WhatsApp อัตโนมัติ",
@@ -77,9 +86,15 @@ const I18N_DATA = {
         viewOriginal: "🔗 ดูต้นฉบับ",
         markDone: "ทำเครื่องหมายว่าเสร็จสิ้น",
         doneBtn: "✓ เสร็จสิ้น",
-        qrError: "การสร้าง QR ล้มเหลว: "
+        qrError: "การสร้าง QR ล้มเหลว: ",
+        myTasks: "งานของฉัน",
+        otherTasks: "งานอื่นๆ",
+        logout: "ออกจากระบบ"
     }
 };
+
+let userProfile = { email: "", picture: "", name: "" };
+let userAliases = [];
 
 let currentLang = localStorage.getItem('mc_lang') || 'ko';
 
@@ -104,39 +119,58 @@ const updateUILanguage = (lang) => {
     document.getElementById('getQRBtn').textContent = data.getQR;
     document.querySelector('#loading p').textContent = data.loading;
 
+    // Update Tab Labels
+    const myTab = document.querySelector('.tab-btn[data-tab="my"]');
+    const otherTab = document.querySelector('.tab-btn[data-tab="other"]');
+    
+    if (myTab) myTab.innerHTML = `${data.myTasks || 'My Tasks'} <span class="badge count" id="myCount">0</span>`;
+    if (otherTab) otherTab.innerHTML = `${data.otherTasks || 'Other Tasks'} <span class="badge count" id="otherCount">0</span>`;
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.textContent = `🚪 ${data.logout || 'Logout'}`;
+    }
+
     // Refresh messages to update card buttons
     fetchMessages();
 };
 
-const fetchMessages = async () => {
-    try {
-        const resp = await fetch('/api/messages');
-        if (!resp.ok) throw new Error("Failed to fetch");
-        const data = await resp.json();
-        renderMessages(data);
-    } catch (e) {
-        console.error(e);
-    }
-};
-
 const renderMessages = (messages) => {
-    const myGrid = document.getElementById('myTasksGrid');
-    const otherGrid = document.getElementById('otherTasksGrid');
+    const myGrid = document.getElementById('myTasksList');
+    const otherGrid = document.getElementById('otherTasksList');
     myGrid.innerHTML = '';
     otherGrid.innerHTML = '';
 
     const data = I18N_DATA[currentLang];
-    const keywords = ["송재진", "jj", "jjsong", "jaejin song"];
+    
+    // Keywords for local filtering (name/email based)
+    const keywords = [userProfile.email];
+    if (userProfile.name) keywords.push(userProfile.name);
+    // Add common variations
+    if (userProfile.email && userProfile.email.includes('@')) {
+        keywords.push(userProfile.email.split('@')[0]);
+    }
+    
+    // Add Aliases from backend for precise matches
+    if (userAliases && Array.isArray(userAliases)) {
+        userAliases.forEach(alias => {
+            if (alias && alias.trim()) keywords.push(alias.trim());
+        });
+    }
 
     if (!messages || messages.length === 0) {
-        myGrid.innerHTML = `<p style="text-align: center; color: var(--text-dim); margin-top: 1rem;">${data.noTasks}</p>`;
-        otherGrid.innerHTML = `<p style="text-align: center; color: var(--text-dim); margin-top: 1rem;">${data.noTasks}</p>`;
+        const noMsg = `<p style="text-align: center; color: var(--text-dim); margin-top: 1rem; width: 100%;">${data.noTasks}</p>`;
+        myGrid.innerHTML = noMsg;
+        otherGrid.innerHTML = noMsg;
         document.getElementById('myCount').textContent = '0';
         document.getElementById('otherCount').textContent = '0';
         return;
     }
+    
+    // Filter out deleted messages if any (server side handles this but just in case)
+    const activeMessages = messages.filter(m => !m.is_deleted);
 
-    const sorted = [...messages].sort((a, b) => {
+    const sorted = activeMessages.sort((a, b) => {
         if (a.done === b.done) {
             return new Date(b.created_at) - new Date(a.created_at);
         }
@@ -147,6 +181,7 @@ const renderMessages = (messages) => {
     let otherCount = 0;
 
     sorted.forEach(m => {
+        // Medium confidence: keyword match (name, email prefix, aliases)
         const isMyTask = keywords.some(kw => 
             (m.task && m.task.toLowerCase().includes(kw.toLowerCase())) || 
             (m.assignee && m.assignee.toLowerCase().includes(kw.toLowerCase())) ||
@@ -174,21 +209,23 @@ const createCardElement = (m, data) => {
     
     let linkHtml = '';
     if (m.link) {
-        linkHtml = `<a href="${m.link}" target="_blank" class="link-btn">${data.viewOriginal}</a>`;
+        linkHtml = `<a href="${m.link}" target="_blank" class="link-btn" style="margin-top: 0;">${data.viewOriginal}</a>`;
     }
 
     card.innerHTML = `
-        <div class="task-title">${m.task}</div>
-        <div class="meta-row">
-            <div><span class="tag">ROOM:</span> ${m.room || 'Unknown'}</div>
-            <div><span class="tag">FROM:</span> ${m.requester}</div>
-            <div><span class="tag">TO:</span> ${m.assignee}</div>
-            <div><span class="tag">TIME:</span> ${m.assigned_at}</div>
-        </div>
-        <div class="btn-group">
+        <div class="col-source"><span class="badge">${m.source}</span></div>
+        <div class="col-room meta-val">${m.room || '-'}</div>
+        <div class="col-task task-title" title="${m.task}">${m.task}</div>
+        <div class="col-requester meta-val">${m.requester}</div>
+        <div class="col-assignee meta-val">${m.assignee}</div>
+        <div class="col-time meta-val" style="font-size: 0.75rem;">${m.assigned_at}</div>
+        <div class="col-actions">
             ${linkHtml}
             <button class="done-btn" onclick="toggleDone(${m.id}, ${!m.done})">
                 ${m.done ? data.doneBtn : data.markDone}
+            </button>
+            <button class="delete-btn" onclick="deleteTask(${m.id})" style="background: rgba(255, 59, 48, 0.1); color: #ff3b30; border-color: #ff3b30; padding: 0.3rem 0.6rem; border-radius: 8px; border: 1px solid; cursor: pointer; font-size: 0.7rem;">
+                🗑️
             </button>
         </div>
     `;
@@ -210,6 +247,23 @@ const toggleDone = async (id, done) => {
     }
 };
 
+const deleteTask = async (id) => {
+    if (!confirm("Are you sure you want to delete this task? It will be moved to the archive.")) return;
+    try {
+        const resp = await fetch('/api/messages/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
+        if (resp.ok) {
+            fetchMessages();
+            fetchArchive(); // Update archive table if it's currently open
+        }
+    } catch (e) {
+        console.error("Failed to delete task:", e);
+    }
+};
+
 let waConnected = false;
 
 const checkWhatsAppStatus = async () => {
@@ -220,7 +274,7 @@ const checkWhatsAppStatus = async () => {
         const waLoginSection = document.getElementById('waLoginSection');
         const i18n = I18N_DATA[currentLang];
 
-        if (data.status === 'connected') {
+        if (data.status && data.status.toLowerCase() === 'connected') {
             waConnected = true;
             waStatusBadge.textContent = i18n.waConnected;
             waStatusBadge.style.background = 'rgba(37, 211, 102, 0.2)';
@@ -238,39 +292,7 @@ const checkWhatsAppStatus = async () => {
     }
 };
 
-document.getElementById('getQRBtn').addEventListener('click', async () => {
-    const btn = document.getElementById('getQRBtn');
-    const img = document.getElementById('waQRImg');
-    const placeholder = document.getElementById('qrPlaceholder');
-    const i18n = I18N_DATA[currentLang];
-
-    btn.disabled = true;
-    placeholder.textContent = i18n.generating;
-    placeholder.classList.remove('hidden');
-    img.classList.add('hidden');
-
-    try {
-        const resp = await fetch('/api/whatsapp/qr');
-        const data = await resp.json();
-        if (data.qr) {
-            img.src = `data:image/png;base64,${data.qr}`;
-            img.classList.remove('hidden');
-            placeholder.classList.add('hidden');
-
-            const poll = setInterval(async () => {
-                await checkWhatsAppStatus();
-                if (waConnected) {
-                    clearInterval(poll);
-                    btn.disabled = false;
-                }
-            }, 3000);
-        }
-    } catch (e) {
-        placeholder.textContent = 'Error';
-        alert(i18n.qrError + e.message);
-        btn.disabled = false;
-    }
-});
+// QR logic moved to initApp
 
 const triggerScan = async () => {
     const btn = document.getElementById('scanBtn');
@@ -306,7 +328,7 @@ const triggerScan = async () => {
     }
 };
 
-document.getElementById('scanBtn').addEventListener('click', triggerScan);
+// Scan listener moved to initApp
 
 const translateExistingTasks = async (lang) => {
     const loading = document.getElementById('loading');
@@ -333,20 +355,16 @@ const translateExistingTasks = async (lang) => {
 };
 
 // Language Selector Logic
-document.getElementById('languageSelect').addEventListener('change', async (e) => {
-    currentLang = e.target.value;
-    localStorage.setItem('mc_lang', currentLang);
-    updateUILanguage(currentLang);
-    await translateExistingTasks(currentLang);
-});
+// Language listeners moved to initApp
 
-// Set initial value
-document.getElementById('languageSelect').value = currentLang;
-updateUILanguage(currentLang);
-
-// Initial check
-checkWhatsAppStatus();
-setInterval(checkWhatsAppStatus, 30000);
+// Periodic check functions (referenced in initApp)
+const startIntervals = () => {
+    if (window.fetchInterval) clearInterval(window.fetchInterval);
+    if (window.statusInterval) clearInterval(window.statusInterval);
+    
+    window.fetchInterval = setInterval(fetchMessages, 30000);
+    window.statusInterval = setInterval(checkWhatsAppStatus, 30000);
+};
 
 // Archive View Logic
 const fetchArchive = async () => {
@@ -386,24 +404,292 @@ const renderArchive = (messages) => {
     });
 };
 
-document.getElementById('archiveLink').addEventListener('click', (e) => {
-    e.preventDefault();
-    document.querySelector('.layout-split').classList.add('hidden');
-    document.querySelector('.dashboard-header').classList.add('hidden');
-    document.getElementById('archiveSection').classList.remove('hidden');
-    fetchArchive();
-});
+// Event listeners moved to initApp
 
-document.getElementById('closeArchiveBtn').addEventListener('click', () => {
-    document.querySelector('.layout-split').classList.remove('hidden');
-    document.querySelector('.dashboard-header').classList.remove('hidden');
-    document.getElementById('archiveSection').classList.add('hidden');
-});
+const fetchMessages = async () => {
+    try {
+        const resp = await fetch('/api/messages');
+        if (!resp.ok) {
+            console.error("Messages fetch failed:", resp.status);
+            return;
+        }
+        const data = await resp.json();
+        console.log("Fetched active messages count:", data.length);
+        renderMessages(data);
+    } catch (e) {
+        console.error("fetchMessages error:", e);
+    }
+};
 
-document.getElementById('exportCsvBtn').addEventListener('click', () => {
-    window.location.href = '/api/messages/archive/export';
-});
+const fetchUserProfile = async () => {
+    try {
+        console.log("Fetching user profile...");
+        const resp = await fetch('/api/user/info');
+        if (!resp.ok) {
+            console.error("User info fetch failed:", resp.status);
+            fetchMessages(); // Try fetching anyway
+            return;
+        }
+        const data = await resp.json();
+        console.log("User profile received:", data.email);
+        userProfile = data;
+        userAliases = data.aliases || [];
+        
+        const profileDiv = document.getElementById('userProfile');
+        const img = document.getElementById('userPicture');
+        const email = document.getElementById('userEmail');
+        
+        if (data.email) {
+            email.textContent = data.email;
+            if (data.picture && data.picture !== "") {
+                img.src = data.picture;
+            } else {
+                img.src = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
+            }
+            profileDiv.classList.remove('hidden');
+            console.log("Profile visible for:", data.email);
+        } else {
+            console.warn("User profile data empty!");
+        }
+        // Re-render messages with user info for better filtering
+        fetchMessages();
+    } catch (e) {
+        console.error("Failed to fetch user profile:", e);
+        fetchMessages(); // Try fetching anyway
+    }
+};
+
+// Alias Management Functions
+const fetchAliases = async () => {
+    try {
+        const resp = await fetch('/api/user/aliases');
+        if (resp.ok) {
+            const aliases = await resp.json();
+            userAliases = aliases;
+            renderAliasList();
+            fetchMessages(); // Refresh filter
+        }
+    } catch (e) {
+        console.error("Failed to fetch aliases:", e);
+    }
+};
+
+const renderAliasList = () => {
+    const list = document.getElementById('aliasList');
+    if (!list) return;
+    list.innerHTML = '';
+    userAliases.forEach(alias => {
+        const item = document.createElement('div');
+        item.className = 'alias-item';
+        item.innerHTML = `
+            <span>${alias}</span>
+            <button class="remove-alias" data-alias="${alias}">&times;</button>
+        `;
+        list.appendChild(item);
+    });
+
+    // Add listners for removal
+    list.querySelectorAll('.remove-alias').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const alias = btn.getAttribute('data-alias');
+            removeAlias(alias);
+        });
+    });
+};
+
+const addAlias = async () => {
+    const input = document.getElementById('newAliasInput');
+    const alias = input.value.trim();
+    if (!alias) return;
+
+    try {
+        const resp = await fetch('/api/user/alias/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ alias })
+        });
+        if (resp.ok) {
+            input.value = '';
+            fetchAliases();
+        }
+    } catch (e) {
+        console.error("Failed to add alias:", e);
+    }
+};
+
+const removeAlias = async (alias) => {
+    try {
+        const resp = await fetch('/api/user/alias/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ alias })
+        });
+        if (resp.ok) {
+            fetchAliases();
+        }
+    } catch (e) {
+        console.error("Failed to remove alias:", e);
+    }
+};
 
 // Initial load
-fetchMessages();
-setInterval(fetchMessages, 30000);
+const initApp = () => {
+    console.log("Initializing App...");
+    
+    // Set initial value
+    const langSelect = document.getElementById('languageSelect');
+    if (langSelect) {
+        langSelect.value = currentLang;
+        langSelect.addEventListener('change', async (e) => {
+            currentLang = e.target.value;
+            localStorage.setItem('mc_lang', currentLang);
+            updateUILanguage(currentLang);
+            await translateExistingTasks(currentLang);
+        });
+    }
+
+    // Tab Switching Logic
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            console.log("Tab clicked:", btn.getAttribute('data-tab'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            btn.classList.add('active');
+            const tabId = btn.getAttribute('data-tab');
+            const targetTab = document.getElementById(`${tabId}TasksTab`);
+            if (targetTab) {
+                targetTab.classList.add('active');
+                console.log("Active tab set to:", targetTab.id);
+            } else {
+                console.error("Target tab not found for ID:", tabId);
+            }
+        });
+    });
+
+    // Archive Logic
+    const archiveLink = document.getElementById('archiveLink');
+    if (archiveLink) {
+        archiveLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.querySelector('.layout-split').classList.add('hidden');
+            document.querySelector('.dashboard-header').classList.add('hidden');
+            document.getElementById('archiveSection').classList.remove('hidden');
+            fetchArchive();
+        });
+    }
+
+    const closeArchiveBtn = document.getElementById('closeArchiveBtn');
+    if (closeArchiveBtn) {
+        closeArchiveBtn.addEventListener('click', () => {
+            document.querySelector('.layout-split').classList.remove('hidden');
+            document.querySelector('.dashboard-header').classList.remove('hidden');
+            document.getElementById('archiveSection').classList.add('hidden');
+        });
+    }
+
+    const exportCsvBtn = document.getElementById('exportCsvBtn');
+    if (exportCsvBtn) {
+        exportCsvBtn.addEventListener('click', () => {
+            window.location.href = '/api/messages/archive/export';
+        });
+    }
+
+    // QR Logic
+    const getQRBtn = document.getElementById('getQRBtn');
+    if (getQRBtn) {
+        getQRBtn.addEventListener('click', async () => {
+            const btn = document.getElementById('getQRBtn');
+            const img = document.getElementById('waQRImg');
+            const placeholder = document.getElementById('qrPlaceholder');
+            const i18n = I18N_DATA[currentLang];
+
+            btn.disabled = true;
+            placeholder.textContent = i18n.generating;
+            placeholder.classList.remove('hidden');
+            img.classList.add('hidden');
+
+            try {
+                const resp = await fetch('/api/whatsapp/qr');
+                const data = await resp.json();
+                if (data.qr) {
+                    img.src = `data:image/png;base64,${data.qr}`;
+                    img.classList.remove('hidden');
+                    placeholder.classList.add('hidden');
+
+                    const poll = setInterval(async () => {
+                        await checkWhatsAppStatus();
+                        if (waConnected) {
+                            clearInterval(poll);
+                            btn.disabled = false;
+                        }
+                    }, 3000);
+                }
+            } catch (e) {
+                placeholder.textContent = 'Error';
+                alert(i18n.qrError + e.message);
+                btn.disabled = false;
+            }
+        });
+    }
+
+    // Scan Logic
+    const scanBtn = document.getElementById('scanBtn');
+    if (scanBtn) {
+        scanBtn.addEventListener('click', triggerScan);
+    }
+
+    // Settings Modal Logic
+    const settingsBtn = document.getElementById('settingsBtn');
+    const settingsModal = document.getElementById('settingsModal');
+    const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', () => {
+            settingsModal.classList.remove('hidden');
+            renderAliasList();
+        });
+    }
+
+    if (closeSettingsBtn) {
+        closeSettingsBtn.addEventListener('click', () => {
+            settingsModal.classList.add('hidden');
+        });
+    }
+
+    window.addEventListener('click', (e) => {
+        if (e.target === settingsModal) {
+            settingsModal.classList.add('hidden');
+        }
+    });
+
+    const addAliasBtn = document.getElementById('addAliasBtn');
+    if (addAliasBtn) {
+        addAliasBtn.addEventListener('click', addAlias);
+    }
+    const aliasInput = document.getElementById('newAliasInput');
+    if (aliasInput) {
+        aliasInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addAlias();
+        });
+    }
+
+    // Initial Data Fetch
+    updateUILanguage(currentLang);
+    checkWhatsAppStatus();
+    fetchUserProfile();
+
+    // Start periodic refreshes
+    startIntervals();
+    console.log("App initialization complete.");
+};
+
+window.addEventListener('error', (e) => {
+    console.error("Global JS Error:", e.message, "at", e.filename, ":", e.lineno);
+});
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}

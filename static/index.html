@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Message Consolidator Premium</title>
-    <link rel="stylesheet" href="static/style.css">
+    <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
+    <link rel="stylesheet" href="static/style.css?v=4">
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap" rel="stylesheet">
 </head>
 <body class="dark-theme">
@@ -12,8 +13,14 @@
         <header>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                 <h1>Message <span class="accent">Consolidator</span></h1>
-                <div style="display: flex; gap: 1rem; align-items: center;">
+                <div style="display: flex; gap: 1.5rem; align-items: center;">
+                    <div id="userProfile" class="user-profile hidden">
+                        <img id="userPicture" src="" alt="Profile" class="profile-img">
+                        <span id="userEmail" class="user-email"></span>
+                    </div>
                     <a href="#" id="archiveLink" class="link-btn" style="color: var(--text-dim); margin-top: 0;">📦 Archive</a>
+                    <button id="settingsBtn" class="link-btn" style="color: var(--text-dim); background: none; border: none; cursor: pointer; padding: 0; font-size: 0.85rem; font-weight: 600;">⚙ Settings</button>
+                    <a href="/auth/logout" id="logoutBtn" class="link-btn" style="color: #ff4b2b; margin-top: 0;">🚪 Logout</a>
                     <select id="languageSelect" class="badge" style="cursor: pointer; background: rgba(255,255,255,0.05); color: var(--text-color); border: 1px solid var(--border-color); padding: 0.3rem 0.8rem; border-radius: 8px;">
                         <option value="ko">한국어</option>
                         <option value="en">English</option>
@@ -57,16 +64,29 @@
                 <p>Gemini is scanning for new tasks...</p>
             </div>
 
-            <div class="layout-split">
-                <div class="column">
-                    <h3 class="column-title">My Tasks <span class="badge count" id="myCount">0</span></h3>
-                    <div id="myTasksGrid" class="message-grid single-col">
+            <div class="tabs-container">
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="my">My Tasks <span class="badge count" id="myCount">0</span></button>
+                    <button class="tab-btn" data-tab="other">Other Tasks <span class="badge count" id="otherCount">0</span></button>
+                </div>
+                
+                <div class="task-list-header">
+                    <div class="col-source">Source</div>
+                    <div class="col-room">Room</div>
+                    <div class="col-task">Task</div>
+                    <div class="col-requester">Requester</div>
+                    <div class="col-assignee">Assignee</div>
+                    <div class="col-time">Time</div>
+                    <div class="col-actions">Actions</div>
+                </div>
+
+                <div id="myTasksTab" class="tab-content active">
+                    <div id="myTasksList" class="task-list">
                         <!-- My Cards will be injected here -->
                     </div>
                 </div>
-                <div class="column">
-                    <h3 class="column-title">Other Tasks <span class="badge count" id="otherCount">0</span></h3>
-                    <div id="otherTasksGrid" class="message-grid single-col">
+                <div id="otherTasksTab" class="tab-content">
+                    <div id="otherTasksList" class="task-list">
                         <!-- Other Cards will be injected here -->
                     </div>
                 </div>
@@ -106,6 +126,30 @@
             <p>© 2026 Antigravity Lab. Powered by Gemini 3 Flash.</p>
         </footer>
     </div>
-    <script src="static/app.js"></script>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal hidden">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h3>User Settings</h3>
+                <button id="closeSettingsBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <section>
+                    <h4>My Aliases</h4>
+                    <p class="desc">Add names or nicknames that refer to you (e.g., "송재진", "JJ"). Tasks containing these names will appear in 'My Tasks'.</p>
+                    <div class="alias-input-group">
+                        <input type="text" id="newAliasInput" placeholder="Enter new alias...">
+                        <button id="addAliasBtn" class="primary-btn">Add</button>
+                    </div>
+                    <div id="aliasList" class="alias-list">
+                        <!-- Aliases will be listed here -->
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script src="static/app.js?v=4"></script>
 </body>
 </html>

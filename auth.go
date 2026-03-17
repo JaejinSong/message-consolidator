@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -15,15 +16,36 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
-var googleOauthConfig *oauth2.Config
+var (
+	googleOauthConfig *oauth2.Config
+	AuthDisabled      bool
+)
 
 // SetupOAuth initializes the Google OAuth2 config
+type contextKey string
+
+const userEmailKey contextKey = "userEmail"
+
+func GetUserEmail(r *http.Request) string {
+	if AuthDisabled {
+		return "jjsong@whatap.io" // Default user when auth is disabled
+	}
+	email, ok := r.Context().Value(userEmailKey).(string)
+	if !ok || email == "" {
+		return "jjsong@whatap.io"
+	}
+	return email
+}
+
 func SetupOAuth() {
 	googleOauthConfig = &oauth2.Config{
 		RedirectURL:  fmt.Sprintf("%s/auth/callback", cfg.AppBaseURL),
 		ClientID:     cfg.GoogleClientID,
 		ClientSecret: cfg.GoogleClientSecret,
-		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.email"},
+		Scopes:       []string{
+			"https://www.googleapis.com/auth/userinfo.email",
+			"https://www.googleapis.com/auth/userinfo.profile",
+		},
 		Endpoint:     google.Endpoint,
 	}
 }
@@ -57,16 +79,47 @@ func handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	defer response.Body.Close()
 
 	var userInfo struct {
-		Email string `json:"email"`
+		Email   string `json:"email"`
+		Name    string `json:"name"`
+		Picture string `json:"picture"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&userInfo); err != nil {
 		fmt.Fprintf(w, "Failed decoding user info: %s", err.Error())
 		return
 	}
 
-	// Session Management (Simple encrypted cookie for demo)
-	// In a real app, use a proper session store
+	// Create or Update user in DB
+	user, err := GetOrCreateUser(userInfo.Email, userInfo.Name, userInfo.Picture)
+	if err != nil {
+		log.Printf("Failed to sync user to DB: %v", err)
+	} else {
+		// Automatically attempt to find the user's Slack ID and Aliases
+		sc := NewSlackClient(os.Getenv("SLACK_TOKEN"))
+		slackUser, err := sc.LookupUserByEmail(user.Email)
+		if err == nil && slackUser != nil {
+			UpdateUserSlackID(user.Email, slackUser.ID)
+			AddUserAlias(user.ID, slackUser.RealName)
+			if slackUser.Profile.DisplayName != "" {
+				AddUserAlias(user.ID, slackUser.Profile.DisplayName)
+			}
+			log.Printf("Auto-discovered Slack ID %s and aliases for %s", slackUser.ID, user.Email)
+		}
+	}
+
 	setSessionCookie(w, userInfo.Email)
+	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+}
+
+func handleLogout(w http.ResponseWriter, r *http.Request) {
+	cookie := http.Cookie{
+		Name:     "session_token",
+		Value:    "",
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+		Secure:   false, // Allow local development
+		Path:     "/",
+	}
+	http.SetCookie(w, &cookie)
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 
@@ -79,7 +132,7 @@ func generateStateCookie(w http.ResponseWriter) string {
 		Value:    state,
 		Expires:  time.Now().Add(20 * time.Minute),
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   false,
 		Path:     "/",
 	}
 	http.SetCookie(w, &cookie)
@@ -95,23 +148,22 @@ func setSessionCookie(w http.ResponseWriter, email string) {
 		Value:    base64.URLEncoding.EncodeToString([]byte(email)),
 		Expires:  time.Now().Add(24 * time.Hour),
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   false,
 		Path:     "/",
 	}
 	http.SetCookie(w, &cookie)
 }
 
-// AuthMiddleware protects routes
-func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if cfg.AuthDisabled {
-			next(w, r)
+func AuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if AuthDisabled {
+			ctx := context.WithValue(r.Context(), userEmailKey, "jjsong@whatap.io")
+			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 
-		sessionCookie, err := r.Cookie("session_token")
-		if err != nil || sessionCookie.Value == "" {
-			// Not authenticated
+		cookie, err := r.Cookie("session_token")
+		if err != nil {
 			if strings.HasPrefix(r.URL.Path, "/api/") {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
@@ -120,7 +172,15 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// Optional: Verify user domain or specific email if needed
-		next(w, r)
-	}
+		decodedEmailBytes, err := base64.URLEncoding.DecodeString(cookie.Value)
+		if err != nil {
+			log.Printf("Error decoding session cookie: %v", err)
+			http.Redirect(w, r, "/auth/login", http.StatusTemporaryRedirect)
+			return
+		}
+		email := string(decodedEmailBytes)
+
+		ctx := context.WithValue(r.Context(), userEmailKey, email)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }

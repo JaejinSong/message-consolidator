@@ -1,16 +1,18 @@
+# Build stage
+FROM golang:1.25-alpine AS builder
+RUN apk add --no-cache git gcc musl-dev
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=1 GOOS=linux go build -o chat-analyzer .
+
 # Final stage
 FROM alpine:latest
-RUN apk --no-cache add ca-certificates tzdata
-
+RUN apk --no-cache add ca-certificates tzdata libc6-compat
 WORKDIR /app
-
-# Copy pre-built binary
-COPY message-consolidator-vps ./chat-analyzer
+COPY --from=builder /app/chat-analyzer .
 COPY static ./static
-
-# /data is mounted as a persistent volume
 VOLUME ["/data"]
-
 EXPOSE 8080
-
 CMD ["./chat-analyzer"]

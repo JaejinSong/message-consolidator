@@ -14,13 +14,7 @@ type SlackClient struct {
 	userMap map[string]string
 }
 
-type RawChatMessage struct {
-	User           string
-	InteractedUser string // 답장 대상 또는 멘션된 사용자
-	Text           string
-	Timestamp      time.Time
-	RawTS          string
-}
+// RawChatMessage is now defined in whatsapp.go
 
 func NewSlackClient(token string) *SlackClient {
 	return &SlackClient{
@@ -113,4 +107,12 @@ func (s *SlackClient) GetChannelName(channelID string) string {
 		return channelID
 	}
 	return channel.Name
+}
+
+func (s *SlackClient) LookupUserByEmail(email string) (*slack.User, error) {
+	user, err := s.api.GetUserByEmail(email)
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
 }

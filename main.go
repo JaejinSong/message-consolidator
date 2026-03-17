@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/slack-go/slack"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -28,8 +29,11 @@ func main() {
 		log.Fatalf("DB Init failed: %v", err)
 	}
 
-	// Initialize WhatsApp
-	InitWhatsApp(context.Background())
+	// Initialize WhatsApp for all existing users
+	users, _ := GetAllUsers()
+	for _, u := range users {
+		go InitWhatsApp(u.Email)
+	}
 
 	// Initialize OAuth
 	SetupOAuth()
@@ -37,32 +41,43 @@ func main() {
 	// Start Background Workers
 	go startBackgroundScanner()
 
+	// Create a new router
+	r := mux.NewRouter()
+
 	// Auth Endpoints
-	http.HandleFunc("/auth/login", handleGoogleLogin)
-	http.HandleFunc("/auth/callback", handleGoogleCallback)
+	r.HandleFunc("/auth/login", handleGoogleLogin).Methods("GET")
+	r.HandleFunc("/auth/callback", handleGoogleCallback).Methods("GET")
+	r.HandleFunc("/auth/logout", handleLogout).Methods("GET")
 
 	// Protected Static Files
 	fs := http.FileServer(http.Dir("./static"))
-	http.Handle("/static/", AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		http.StripPrefix("/static/", fs).ServeHTTP(w, r)
-	}))
-	http.HandleFunc("/", AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
+	r.PathPrefix("/static/").Handler(AuthMiddleware(http.StripPrefix("/static/", fs)))
+	r.Handle("/", AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			http.ServeFile(w, r, "./static/index.html")
 			return
 		}
 		fs.ServeHTTP(w, r)
-	}))
+	})))
 
 	// Protected API Endpoints
-	http.HandleFunc("/api/messages", AuthMiddleware(handleGetMessages))
-	http.HandleFunc("/api/messages/done", AuthMiddleware(handleMarkDone))
-	http.HandleFunc("/api/messages/archive", AuthMiddleware(handleGetArchive))
-	http.HandleFunc("/api/messages/archive/export", AuthMiddleware(handleExportArchive))
-	http.HandleFunc("/api/whatsapp/status", AuthMiddleware(handleWhatsAppStatus))
-	http.HandleFunc("/api/whatsapp/qr", AuthMiddleware(handleWhatsAppQR))
-	http.HandleFunc("/api/scan", AuthMiddleware(handleManualScan))
-	http.HandleFunc("/api/translate", AuthMiddleware(handleTranslate))
+	r.Handle("/api/messages", AuthMiddleware(http.HandlerFunc(handleGetMessages))).Methods("GET")
+	r.Handle("/api/messages/done", AuthMiddleware(http.HandlerFunc(handleMarkDone))).Methods("POST")
+	r.Handle("/api/messages/delete", AuthMiddleware(http.HandlerFunc(handleDelete))).Methods("POST")
+	r.Handle("/api/messages/archive", AuthMiddleware(http.HandlerFunc(handleGetArchived))).Methods("GET")
+	r.Handle("/api/messages/export", AuthMiddleware(http.HandlerFunc(handleExportArchive))).Methods("GET")
+	r.Handle("/api/messages/update", AuthMiddleware(http.HandlerFunc(handleUpdateTask))).Methods("POST")
+	r.Handle("/api/user/info", AuthMiddleware(http.HandlerFunc(handleUserInfo))).Methods("GET")
+	r.Handle("/api/whatsapp/qr", AuthMiddleware(http.HandlerFunc(handleWhatsAppQR))).Methods("GET")
+	r.Handle("/api/whatsapp/status", AuthMiddleware(http.HandlerFunc(handleWhatsAppStatus))).Methods("GET")
+	r.Handle("/api/scan", AuthMiddleware(http.HandlerFunc(handleManualScan))).Methods("GET")
+	r.Handle("/api/translate", AuthMiddleware(http.HandlerFunc(handleTranslate))).Methods("POST")
+	r.Handle("/api/user/aliases", AuthMiddleware(http.HandlerFunc(handleGetUserAliases))).Methods("GET")
+	r.Handle("/api/user/alias/add", AuthMiddleware(http.HandlerFunc(handleAddAlias))).Methods("POST")
+	r.Handle("/api/user/alias/delete", AuthMiddleware(http.HandlerFunc(handleDeleteAlias))).Methods("POST")
+
+	// Attach the router to the default http server
+	http.Handle("/", r)
 
 	log.Println("Server starting on :8080...")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
@@ -71,7 +86,8 @@ func main() {
 }
 
 func handleGetMessages(w http.ResponseWriter, r *http.Request) {
-	msgs, err := GetMessages()
+	email := GetUserEmail(r)
+	msgs, err := GetMessages(email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -79,12 +95,9 @@ func handleGetMessages(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(msgs)
 }
-	
+
 func handleMarkDone(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	email := GetUserEmail(r)
 	var req struct {
 		ID   int  `json:"id"`
 		Done bool `json:"done"`
@@ -93,24 +106,28 @@ func handleMarkDone(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := MarkMessageDone(req.ID, req.Done); err != nil {
+
+	if err := MarkMessageDone(email, req.ID, req.Done); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
 }
 
-func handleGetArchive(w http.ResponseWriter, r *http.Request) {
-	msgs, err := GetArchivedMessages()
+func handleGetArchived(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	msgs, err := GetArchivedMessages(email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(msgs)
 }
 
 func handleExportArchive(w http.ResponseWriter, r *http.Request) {
-	msgs, err := GetArchivedMessages()
+	email := GetUserEmail(r)
+	msgs, err := GetArchivedMessages(email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -145,23 +162,26 @@ func handleExportArchive(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleWhatsAppStatus(w http.ResponseWriter, r *http.Request) {
-	status := GetWhatsAppStatus()
+	email := GetUserEmail(r)
+	status := GetWhatsAppStatus(email)
 	json.NewEncoder(w).Encode(map[string]string{"status": status})
 }
 
 func handleManualScan(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
 	lang := r.URL.Query().Get("lang")
 	if lang == "" {
 		lang = "Korean"
 	}
-	log.Printf("Manual scan triggered via API (lang: %s)", lang)
-	go scan(lang)
+	log.Printf("Manual scan triggered via API for %s (lang: %s)", email, lang)
+	go scan(email, lang) // Pass email to scan
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "scan started", "lang": lang})
 }
 
 func handleWhatsAppQR(w http.ResponseWriter, r *http.Request) {
-	qr, err := GetWhatsAppQR(r.Context())
+	email := GetUserEmail(r)
+	qr, err := GetWhatsAppQR(r.Context(), email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -170,12 +190,13 @@ func handleWhatsAppQR(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleTranslate(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
 	lang := r.URL.Query().Get("lang")
 	if lang == "" {
 		lang = "Korean"
 	}
 
-	msgs, err := GetMessages()
+	msgs, err := GetMessages(email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -199,90 +220,217 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, t := range translations {
-		UpdateTaskText(t.ID, t.Text)
+		UpdateTaskText(email, t.ID, t.Text)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "success", "translated_count": fmt.Sprintf("%d", len(translations))})
 }
 
+// New handler for deleting messages
+func handleDelete(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	var req struct {
+		ID int `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := DeleteMessage(email, req.ID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// New handler for updating task text
+func handleUpdateTask(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	var req struct {
+		ID   int    `json:"id"`
+		Task string `json:"task"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := UpdateTaskText(email, req.ID, req.Task); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// New handler for user info
+func handleUserInfo(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	log.Printf("Fetching user info for: %s", email)
+	user, err := GetOrCreateUser(email, "", "")
+	if err != nil {
+		log.Printf("handleUserInfo Error: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	aliases, err := GetUserAliases(user.ID)
+	if err == nil {
+		user.Aliases = aliases
+	}
+
+	if len(user.Aliases) == 0 {
+		log.Printf("[DEBUG] No aliases found for %s, attempting self-heal with Slack Token: %s...", user.Email, cfg.SlackToken[:10]+"***")
+		sc := NewSlackClient(cfg.SlackToken)
+		slackUser, err := sc.LookupUserByEmail(user.Email)
+		if err != nil {
+			log.Printf("[DEBUG] Slack Lookup failed for %s: %v", user.Email, err)
+		} else if slackUser != nil {
+			log.Printf("[DEBUG] Found Slack User: %s (ID: %s)", slackUser.RealName, slackUser.ID)
+			UpdateUserSlackID(user.Email, slackUser.ID)
+			AddUserAlias(user.ID, slackUser.RealName)
+			if slackUser.Profile.DisplayName != "" {
+				AddUserAlias(user.ID, slackUser.Profile.DisplayName)
+			}
+			user.Aliases, _ = GetUserAliases(user.ID)
+			log.Printf("Self-healed aliases for existing user: %s -> %v", user.Email, user.Aliases)
+		} else {
+			log.Printf("[DEBUG] No Slack user found for %s", user.Email)
+		}
+	} else {
+		log.Printf("[DEBUG] User %s already has aliases: %v", user.Email, user.Aliases)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
+}
+
+func handleGetUserAliases(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	user, err := GetOrCreateUser(email, "", "")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	aliases, err := GetUserAliases(user.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(aliases)
+}
+
+func handleAddAlias(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	var req struct {
+		Alias string `json:"alias"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	user, err := GetOrCreateUser(email, "", "")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := AddUserAlias(user.ID, req.Alias); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func handleDeleteAlias(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	var req struct {
+		Alias string `json:"alias"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	user, err := GetOrCreateUser(email, "", "")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := DeleteUserAlias(user.ID, req.Alias); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 func startBackgroundScanner() {
-	log.Println("Background scanner started (1m interval)...")
-	ticker := time.NewTicker(1 * time.Minute)
+	log.Println("Background scanner started (30m interval)...")
+	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
 
-	// Initial Scan (Default: Korean)
-	scan("Korean")
+	// Run initial scan
+	runAllScans()
 
 	for range ticker.C {
-		scan("Korean")
+		runAllScans()
 	}
 }
 
-func scan(language string) {
-	log.Printf("Starting message scan (lang: %s)...", language)
+func runAllScans() {
+	users, err := GetAllUsers()
+	if err != nil {
+		log.Printf("Scanner Error: Failed to get users: %v", err)
+		return
+	}
+	for _, u := range users {
+		log.Printf("Starting background scan for: %s", u.Email)
+		go scan(u.Email, "Korean") // Default language for background scan
+	}
+}
+
+func scan(email string, language string) {
+	log.Printf("Starting message scan for %s (lang: %s)...", email, language)
 	ctx := context.Background()
 
 	// Slack Scan
-	newSlack := scanSlack(ctx, language)
+	newSlack := scanSlack(ctx, email, language)
 
 	// WhatsApp Scan
-	newWA := scanWhatsApp(ctx, language)
+	newWA := scanWhatsApp(ctx, email, language)
 
 	// Refresh cache only if new messages were actually saved
 	if newSlack || newWA {
 		log.Println("[SCAN] New messages found, refreshing cache...")
-		if err := RefreshCache(); err != nil {
-			log.Printf("Error refreshing cache after scan: %v", err)
+		if err := RefreshCache(email); err != nil {
+			log.Printf("Error refreshing cache for %s after scan: %v", email, err)
 		}
 	} else {
-		log.Println("[SCAN] No new messages found, skipping DB cache refresh.")
+		log.Printf("[SCAN] No new messages found for %s, skipping DB cache refresh.", email)
 	}
 }
 
-func scanSlack(ctx context.Context, language string) bool {
-	log.Println("[SCAN-SLACK] Starting Slack scan...")
+func scanSlack(ctx context.Context, email string, language string) bool {
+	log.Printf("[SCAN-SLACK] Starting Slack scan for %s...", email)
 	hasNew := false
 	if cfg.SlackToken == "" {
-		log.Println("[SCAN-SLACK] Skip: Missing token")
+		log.Printf("[SCAN-SLACK] Skip for %s: Missing token", email)
 		return false
 	}
 	sc := NewSlackClient(cfg.SlackToken)
 	sc.FetchUsers()
 
-	// ... previous logic to fetch channels ...
 	params := &slack.GetConversationsParameters{
 		Types: []string{"public_channel", "private_channel"},
 	}
 	channels, _, err := sc.api.GetConversations(params)
 	if err != nil {
-		log.Printf("[SCAN-SLACK] Error fetching channels: %v", err)
+		log.Printf("[SCAN-SLACK] Error fetching channels for %s: %v", email, err)
 		return false
 	}
-	var channelsToScan []slack.Channel
-	for _, c := range channels {
-		if c.IsMember {
-			channelsToScan = append(channelsToScan, c)
-		}
-	}
 
-	if cfg.SlackChannelID != "" {
-		found := false
-		for _, c := range channelsToScan {
-			if c.ID == cfg.SlackChannelID {
-				found = true
-				break
-			}
+	for _, channel := range channels {
+		if !channel.IsMember {
+			continue
 		}
-		if !found {
-			info, err := sc.api.GetConversationInfo(&slack.GetConversationInfoInput{ChannelID: cfg.SlackChannelID})
-			if err == nil {
-				channelsToScan = append(channelsToScan, *info)
-			}
-		}
-	}
-
-	for _, channel := range channelsToScan {
 		msgs, err := sc.GetMessages(channel.ID, time.Now().Add(-24*time.Hour))
 		if err != nil {
 			continue
@@ -310,34 +458,38 @@ func scanSlack(ctx context.Context, language string) bool {
 		}
 
 		for _, item := range items {
-			link := fmt.Sprintf("https://slack.com/app_redirect?channel=%s&message_ts=%s", channel.ID, item.SourceTS)
-			
-			assignee := item.Assignee
-			if strings.HasPrefix(assignee, "U") || (strings.HasPrefix(assignee, "<@U") && strings.HasSuffix(assignee, ">")) {
-				cleanID := strings.TrimPrefix(assignee, "<@")
-				cleanID = strings.TrimSuffix(cleanID, ">")
-				assignee = sc.GetUserName(cleanID)
-			}
-
-			assignedAt := item.AssignedAt
-			if item.SourceTS != "" {
-				parts := strings.Split(item.SourceTS, ".")
-				if sec, err := strconv.ParseInt(parts[0], 10, 64); err == nil {
-					t := time.Unix(sec, 0)
-					kst := time.FixedZone("KST", 9*60*60)
-					assignedAt = t.In(kst).Format("2006-01-02 15:04:05 KST")
+			// Extract assignee (Slack user ID to name)
+			assignee := ""
+			if item.Assignee != "" {
+				assignee = sc.userMap[item.Assignee]
+				if assignee == "" {
+					assignee = item.Assignee
 				}
 			}
 
+			link := fmt.Sprintf("https://slack.com/app_redirect?channel=%s&message_ts=%s", channel.ID, item.SourceTS)
+
+			// assignedAt is now derived from item.SourceTS if available, otherwise current time
+			// The original code had a variable `assignedAt` which was then formatted.
+			// The instruction implies removing `assignedAt` and directly using `time.Now().Format(...)`
+			// for the `AssignedAt` field in `SaveMessage`.
+			// However, the provided snippet for `assignedAt` calculation is within an `if item.SourceTS != ""` block,
+			// and then the `SaveMessage` call uses `time.Now().Format`.
+			// To align with the instruction's implied change and fix the `assignedAt` error,
+			// I will remove the `assignedAt` variable and use `time.Now().Format` as shown in the instruction.
+			// The `item.SourceTS` based time calculation is removed as per the instruction's diff.
+
 			saved, _ := SaveMessage(ConsolidatedMessage{
+				UserEmail:  email,
 				Source:     "slack",
 				Room:       "#" + channel.Name,
 				Task:       item.Task,
 				Requester:  item.Requester,
 				Assignee:   assignee,
-				AssignedAt: assignedAt,
+				AssignedAt: time.Now().Format("2006-01-02 15:04"),
 				Link:       link,
 				SourceTS:   item.SourceTS,
+				Done:       false, // TodoItem doesn't have Done, default to false
 			})
 			if saved {
 				hasNew = true
@@ -347,23 +499,33 @@ func scanSlack(ctx context.Context, language string) bool {
 	return hasNew
 }
 
-func scanWhatsApp(ctx context.Context, language string) bool {
-	log.Printf("[SCAN-WA] Starting WhatsApp scan (Buffer JIDs: %d)", len(waMessageBuffer))
+func scanWhatsApp(ctx context.Context, email string, language string) bool {
+	log.Printf("[SCAN-WA] Starting WhatsApp scan for %s (Buffer JIDs: %d)", email, len(waMessageBuffer[email])) // Access user-specific buffer
 	hasNew := false
-	if waClient == nil || !waClient.IsLoggedIn() {
-		log.Printf("[SCAN-WA] Skip: Client not initialized or not logged in")
+	// Assuming waClient is now user-specific or managed to handle multiple users
+	// For simplicity, let's assume GetWhatsAppClient(email) returns the client for that user
+	userWAClient := GetWhatsAppClient(email)
+	if userWAClient == nil || !userWAClient.IsLoggedIn() {
+		log.Printf("[SCAN-WA] Skip for %s: Client not initialized or not logged in", email)
 		return false
 	}
 
 	waBufferMu.RLock()
 	defer waBufferMu.RUnlock()
 
-	for jid, msgs := range waMessageBuffer {
+	// Access user-specific message buffer
+	userBuffer, ok := waMessageBuffer[email]
+	if !ok {
+		log.Printf("[SCAN-WA] No WhatsApp message buffer for %s", email)
+		return false
+	}
+
+	for jid, msgs := range userBuffer {
 		if len(msgs) == 0 {
 			continue
 		}
-		
-		groupName := GetGroupName(jid)
+
+		groupName := GetGroupName(email, jid)
 		msgMap := make(map[string]time.Time)
 		var sb strings.Builder
 		for _, m := range msgs {

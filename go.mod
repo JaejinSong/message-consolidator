@@ -4,6 +4,7 @@ go 1.25.6
 
 require (
 	github.com/google/generative-ai-go v0.20.1
+	github.com/gorilla/mux v1.8.1
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.11.2
 	github.com/mattn/go-sqlite3 v1.14.34
@@ -12,6 +13,7 @@ require (
 	go.mau.fi/whatsmeow v0.0.0-20260305215846-fc65416c22c4
 	golang.org/x/oauth2 v0.36.0
 	google.golang.org/api v0.271.0
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
@@ -58,5 +60,4 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
 	google.golang.org/grpc v1.79.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
-	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )

@@ -3,14 +3,8 @@ services:
     build: .
     ports:
       - "127.0.0.1:8080:8080"
-    environment:
-      - SLACK_TOKEN=${SLACK_TOKEN}
-      - SLACK_CHANNEL_ID=${SLACK_CHANNEL_ID}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - DATABASE_URL=${DATABASE_URL}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - AUTH_SECRET=${AUTH_SECRET}
-      - AUTH_DISABLED=${AUTH_DISABLED}
-      - APP_BASE_URL=${APP_BASE_URL}
+    env_file:
+      - .env
+    volumes:
+      - ./static:/app/static
     restart: always
