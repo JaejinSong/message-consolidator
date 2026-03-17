@@ -7,7 +7,9 @@ This document outlines the steps to build and deploy the application to the VPS 
 - Access to the target VPS (`chat-analyzer-vps`).
 - `.env` file with correct production credentials.
 
-## Deployment Steps
+## Deploy to VPS
+# Address: https://34.67.133.18.nip.io/
+# Service port: 8080
 
 ### 1. Build the Binary Locally
 Build the Go binary for the target production environment (Linux/AMD64) on your local machine. This is much faster than building on a low-spec VPS.
