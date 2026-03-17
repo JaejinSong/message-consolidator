@@ -426,40 +426,36 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 	// Collect channels to scan
 	targetChannels := make(map[string]string) // ID -> Name
 
-	// 1. Add explicit channel from env
-	if cfg.SlackChannelID != "" {
-		channel, err := sc.api.GetConversationInfo(&slack.GetConversationInfoInput{
-			ChannelID: cfg.SlackChannelID,
-		})
+	// Discover rooms the bot is a member of with pagination
+	cursor := ""
+	for {
+		params := &slack.GetConversationsParameters{
+			Types:  []string{"public_channel", "private_channel"},
+			Cursor: cursor,
+			Limit:  100,
+		}
+		
+		log.Printf("[SCAN-SLACK] Discovering rooms for %s (cursor: %s)...", email, cursor)
+		channels, nextCursor, err := sc.api.GetConversations(params)
 		if err != nil {
-			log.Printf("[SCAN-SLACK] Error getting info for target channel %s: %v", cfg.SlackChannelID, err)
-		} else {
-			log.Printf("[SCAN-SLACK] Target Channel Found: Name=#%s, ID=%s, IsMember=%v", channel.Name, channel.ID, channel.IsMember)
-			if channel.IsMember {
-				targetChannels[channel.ID] = channel.Name
-			}
+			log.Printf("[SCAN-SLACK] Error fetching rooms for %s: %v", email, err)
+			break
 		}
-	}
 
-	// 2. Discover other channels the bot is in
-	params := &slack.GetConversationsParameters{
-		Types: []string{"public_channel", "private_channel"},
-	}
-	log.Printf("[SCAN-SLACK] Calling GetConversations for %s...", email)
-	channels, _, err := sc.api.GetConversations(params)
-	if err != nil {
-		log.Printf("[SCAN-SLACK] Error fetching channels for %s: %v", email, err)
-	} else {
-		log.Printf("[SCAN-SLACK] Found %d channels for %s", len(channels), email)
 		for _, channel := range channels {
-			log.Printf("[SCAN-SLACK] Discovered channel: #%s (%s), IsMember=%v", channel.Name, channel.ID, channel.IsMember)
 			if channel.IsMember {
+				log.Printf("[SCAN-SLACK] Found membership in #%s (%s)", channel.Name, channel.ID)
 				targetChannels[channel.ID] = channel.Name
 			}
 		}
+
+		if nextCursor == "" {
+			break
+		}
+		cursor = nextCursor
 	}
 
-	log.Printf("[SCAN-SLACK] Total unique channels to scan for %s: %d", email, len(targetChannels))
+	log.Printf("[SCAN-SLACK] Total rooms to scan for %s: %d", email, len(targetChannels))
 
 	if len(sc.userMap) == 0 {
 		sc.FetchUsers()
