@@ -391,11 +391,15 @@ func scan(email string, language string) {
 	log.Printf("Starting message scan for %s (lang: %s)...", email, language)
 	ctx := context.Background()
 
-	// Slack Scan
+	// Slack Scan - Synchronous for debugging
+	log.Printf("[SCAN] About to call scanSlack for %s", email)
 	newSlack := scanSlack(ctx, email, language)
+	log.Printf("[SCAN] scanSlack finished for %s, hasNew: %v", email, newSlack)
 
 	// WhatsApp Scan
+	log.Printf("[SCAN] About to call scanWhatsApp for %s", email)
 	newWA := scanWhatsApp(ctx, email, language)
+	log.Printf("[SCAN] scanWhatsApp finished for %s, hasNew: %v", email, newWA)
 
 	// Refresh cache only if new messages were actually saved
 	if newSlack || newWA {
@@ -409,32 +413,67 @@ func scan(email string, language string) {
 }
 
 func scanSlack(ctx context.Context, email string, language string) bool {
-	log.Printf("[SCAN-SLACK] Starting Slack scan for %s...", email)
-	hasNew := false
-	if cfg.SlackToken == "" {
-		log.Printf("[SCAN-SLACK] Skip for %s: Missing token", email)
-		return false
-	}
-	sc := NewSlackClient(cfg.SlackToken)
-	sc.FetchUsers()
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[SCAN-SLACK] PANIC RECOVERED for %s: %v", email, r)
+		}
+	}()
 
+	log.Printf("TRACELOG: Starting Slack scan for %s...", email)
+	hasNew := false
+	sc := NewSlackClient(cfg.SlackToken)
+	
+	// Collect channels to scan
+	targetChannels := make(map[string]string) // ID -> Name
+
+	// 1. Add explicit channel from env
+	if cfg.SlackChannelID != "" {
+		channel, err := sc.api.GetConversationInfo(&slack.GetConversationInfoInput{
+			ChannelID: cfg.SlackChannelID,
+		})
+		if err != nil {
+			log.Printf("[SCAN-SLACK] Error getting info for target channel %s: %v", cfg.SlackChannelID, err)
+		} else {
+			log.Printf("[SCAN-SLACK] Target Channel Found: Name=#%s, ID=%s, IsMember=%v", channel.Name, channel.ID, channel.IsMember)
+			if channel.IsMember {
+				targetChannels[channel.ID] = channel.Name
+			}
+		}
+	}
+
+	// 2. Discover other channels the bot is in
 	params := &slack.GetConversationsParameters{
 		Types: []string{"public_channel", "private_channel"},
 	}
+	log.Printf("[SCAN-SLACK] Calling GetConversations for %s...", email)
 	channels, _, err := sc.api.GetConversations(params)
 	if err != nil {
 		log.Printf("[SCAN-SLACK] Error fetching channels for %s: %v", email, err)
-		return false
+	} else {
+		log.Printf("[SCAN-SLACK] Found %d channels for %s", len(channels), email)
+		for _, channel := range channels {
+			log.Printf("[SCAN-SLACK] Discovered channel: #%s (%s), IsMember=%v", channel.Name, channel.ID, channel.IsMember)
+			if channel.IsMember {
+				targetChannels[channel.ID] = channel.Name
+			}
+		}
 	}
 
-	for _, channel := range channels {
-		if !channel.IsMember {
-			continue
-		}
-		msgs, err := sc.GetMessages(channel.ID, time.Now().Add(-24*time.Hour))
+	log.Printf("[SCAN-SLACK] Total unique channels to scan for %s: %d", email, len(targetChannels))
+
+	if len(sc.userMap) == 0 {
+		sc.FetchUsers()
+	}
+
+	since := time.Now().Add(-24 * time.Hour)
+	for id, name := range targetChannels {
+		log.Printf("[SCAN-SLACK] Processing messages from #%s (%s)", name, id)
+		msgs, err := sc.GetMessages(id, since)
 		if err != nil {
+			log.Printf("[SCAN-SLACK] Error getting messages for #%s: %v", name, err)
 			continue
 		}
+		log.Printf("[SCAN-SLACK] Fetched %d messages from #%s", len(msgs), name)
 		if len(msgs) == 0 {
 			continue
 		}
@@ -452,10 +491,15 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 		if err != nil {
 			continue
 		}
+		log.Printf("[SCAN-SLACK] Sending %d messages to Gemini for analysis (language: %s)", len(msgs), language)
 		items, err := gc.Analyze(ctx, sb.String(), language)
 		if err != nil {
+			log.Printf("[SCAN-SLACK] Gemini Analyze Error: %v", err)
 			continue
 		}
+		
+		itemsJSON, _ := json.Marshal(items)
+		log.Printf("[SCAN-SLACK] Gemini Analysis Result for #%s: %s", name, string(itemsJSON))
 
 		for _, item := range items {
 			// Extract assignee (Slack user ID to name)
@@ -467,7 +511,7 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 				}
 			}
 
-			link := fmt.Sprintf("https://slack.com/app_redirect?channel=%s&message_ts=%s", channel.ID, item.SourceTS)
+			link := fmt.Sprintf("https://slack.com/app_redirect?channel=%s&message_ts=%s", id, item.SourceTS)
 
 			// assignedAt is now derived from item.SourceTS if available, otherwise current time
 			// The original code had a variable `assignedAt` which was then formatted.
@@ -482,7 +526,7 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 			saved, _ := SaveMessage(ConsolidatedMessage{
 				UserEmail:  email,
 				Source:     "slack",
-				Room:       "#" + channel.Name,
+				Room:       "#" + name,
 				Task:       item.Task,
 				Requester:  item.Requester,
 				Assignee:   assignee,
