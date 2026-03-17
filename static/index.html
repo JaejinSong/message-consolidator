@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Message Consolidator Premium</title>
     <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
-    <link rel="stylesheet" href="static/style.css?v=4">
+    <link rel="stylesheet" href="static/style.css?v=11">
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap" rel="stylesheet">
 </head>
 <body class="dark-theme">
@@ -66,8 +66,9 @@
 
             <div class="tabs-container">
                 <div class="tabs">
-                    <button class="tab-btn active" data-tab="my">My Tasks <span class="badge count" id="myCount">0</span></button>
-                    <button class="tab-btn" data-tab="other">Other Tasks <span class="badge count" id="otherCount">0</span></button>
+                    <button class="tab-btn active" data-tab="myTasksTab">My Tasks <span class="badge count" id="myCount">0</span></button>
+                    <button class="tab-btn" data-tab="otherTasksTab">Other Tasks <span class="badge count" id="otherCount">0</span></button>
+                    <button class="tab-btn" data-tab="allTasksTab">All Tasks <span class="badge count" id="allCount">0</span></button>
                 </div>
                 
                 <div class="task-list-header">
@@ -88,6 +89,11 @@
                 <div id="otherTasksTab" class="tab-content">
                     <div id="otherTasksList" class="task-list">
                         <!-- Other Cards will be injected here -->
+                    </div>
+                </div>
+                <div id="allTasksTab" class="tab-content">
+                    <div id="allTasksList" class="task-list">
+                        <!-- All Cards will be injected here -->
                     </div>
                 </div>
             </div>
@@ -150,6 +156,6 @@
         </div>
     </div>
 
-    <script src="static/app.js?v=4"></script>
+    <script src="static/app.js?v=11"></script>
 </body>
 </html>

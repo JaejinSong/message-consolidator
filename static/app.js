@@ -20,6 +20,7 @@ const I18N_DATA = {
         qrError: "QR 발급 실패: ",
         myTasks: "내 업무",
         otherTasks: "기타 업무",
+        allTasks: "전체",
         logout: "로그아웃"
     },
     en: {
@@ -43,6 +44,7 @@ const I18N_DATA = {
         qrError: "QR Generation Failed: ",
         myTasks: "My Tasks",
         otherTasks: "Other Tasks",
+        allTasks: "All Tasks",
         logout: "Logout"
     },
     id: {
@@ -66,6 +68,7 @@ const I18N_DATA = {
         qrError: "Gagal Menghasilkan QR: ",
         myTasks: "Tugas Saya",
         otherTasks: "Tugas Lainnya",
+        allTasks: "Semua Tugas",
         logout: "Keluar"
     },
     th: {
@@ -89,6 +92,7 @@ const I18N_DATA = {
         qrError: "การสร้าง QR ล้มเหลว: ",
         myTasks: "งานของฉัน",
         otherTasks: "งานอื่นๆ",
+        allTasks: "งานทั้งหมด",
         logout: "ออกจากระบบ"
     }
 };
@@ -120,12 +124,13 @@ const updateUILanguage = (lang) => {
     document.querySelector('#loading p').textContent = data.loading;
 
     // Update Tab Labels
-    const myTab = document.querySelector('.tab-btn[data-tab="my"]');
-    const otherTab = document.querySelector('.tab-btn[data-tab="other"]');
+    const myTab = document.querySelector('[data-tab="myTasksTab"]');
+    const otherTab = document.querySelector('[data-tab="otherTasksTab"]');
+    const allTab = document.querySelector('[data-tab="allTasksTab"]');
     
-    if (myTab) myTab.innerHTML = `${data.myTasks || 'My Tasks'} <span class="badge count" id="myCount">0</span>`;
-    if (otherTab) otherTab.innerHTML = `${data.otherTasks || 'Other Tasks'} <span class="badge count" id="otherCount">0</span>`;
-
+    if (myTab) myTab.innerHTML = `${data.myTasks} <span class="badge count" id="myCount">0</span>`;
+    if (otherTab) otherTab.innerHTML = `${data.otherTasks} <span class="badge count" id="otherCount">0</span>`;
+    if (allTab) allTab.innerHTML = `${data.allTasks} <span class="badge count" id="allCount">0</span>`;
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
         logoutBtn.textContent = `🚪 ${data.logout || 'Logout'}`;
@@ -138,8 +143,10 @@ const updateUILanguage = (lang) => {
 const renderMessages = (messages) => {
     const myGrid = document.getElementById('myTasksList');
     const otherGrid = document.getElementById('otherTasksList');
-    myGrid.innerHTML = '';
-    otherGrid.innerHTML = '';
+    const allGrid = document.getElementById('allTasksList');
+    if (myGrid) myGrid.innerHTML = '';
+    if (otherGrid) otherGrid.innerHTML = '';
+    if (allGrid) allGrid.innerHTML = '';
 
     const data = I18N_DATA[currentLang];
     
@@ -160,10 +167,15 @@ const renderMessages = (messages) => {
 
     if (!messages || messages.length === 0) {
         const noMsg = `<p style="text-align: center; color: var(--text-dim); margin-top: 1rem; width: 100%;">${data.noTasks}</p>`;
-        myGrid.innerHTML = noMsg;
-        otherGrid.innerHTML = noMsg;
-        document.getElementById('myCount').textContent = '0';
-        document.getElementById('otherCount').textContent = '0';
+        if (myGrid) myGrid.innerHTML = noMsg;
+        if (otherGrid) otherGrid.innerHTML = noMsg;
+        if (allGrid) allGrid.innerHTML = noMsg;
+        const myCountEl = document.getElementById('myCount');
+        const otherCountEl = document.getElementById('otherCount');
+        const allCountEl = document.getElementById('allCount');
+        if (myCountEl) myCountEl.textContent = '0';
+        if (otherCountEl) otherCountEl.textContent = '0';
+        if (allCountEl) allCountEl.textContent = '0';
         return;
     }
     
@@ -171,14 +183,23 @@ const renderMessages = (messages) => {
     const activeMessages = messages.filter(m => !m.is_deleted);
 
     const sorted = activeMessages.sort((a, b) => {
-        if (a.done === b.done) {
-            return new Date(b.created_at) - new Date(a.created_at);
+        // First priority: Done status (done at the bottom)
+        const aDone = !!a.done;
+        const bDone = !!b.done;
+        if (aDone !== bDone) {
+            return aDone ? 1 : -1;
         }
-        return a.done ? 1 : -1;
+        
+        // Second priority: CreatedAt (newest first)
+        const dateA = new Date(a.created_at);
+        const dateB = new Date(b.created_at);
+        return dateB - dateA;
     });
+    console.log("Sorted messages sample:", sorted.slice(0, 3).map(m => ({task: m.task, done: m.done, created: m.created_at})));
 
     let myCount = 0;
     let otherCount = 0;
+    let allCount = 0;
 
     sorted.forEach(m => {
         // Medium confidence: keyword match (name, email prefix, aliases)
@@ -190,17 +211,29 @@ const renderMessages = (messages) => {
 
         const card = createCardElement(m, data);
         
+        // All tasks grid
+        if (allGrid) {
+            allGrid.appendChild(card.cloneNode(true));
+        } else {
+            console.error('allTasksList element not found!');
+        }
+        allCount++;
+
         if (isMyTask) {
-            myGrid.appendChild(card);
+            if (myGrid) myGrid.appendChild(card);
             myCount++;
         } else {
-            otherGrid.appendChild(card);
+            if (otherGrid) otherGrid.appendChild(card);
             otherCount++;
         }
     });
 
-    document.getElementById('myCount').textContent = myCount;
-    document.getElementById('otherCount').textContent = otherCount;
+    const myCountEl = document.getElementById('myCount');
+    const otherCountEl = document.getElementById('otherCount');
+    const allCountEl = document.getElementById('allCount');
+    if (myCountEl) myCountEl.textContent = myCount;
+    if (otherCountEl) otherCountEl.textContent = otherCount;
+    if (allCountEl) allCountEl.textContent = allCount;
 };
 
 const createCardElement = (m, data) => {
@@ -212,8 +245,28 @@ const createCardElement = (m, data) => {
         linkHtml = `<a href="${m.link}" target="_blank" class="link-btn" style="margin-top: 0;">${data.viewOriginal}</a>`;
     }
 
+    let sourceIcon = '';
+    if (m.source.toLowerCase() === 'slack') {
+        sourceIcon = `
+            <svg viewBox="0 0 100 100" style="width: 20px; height: 20px;">
+                <path fill="#E01E5A" d="M22.9,53.8V42.3c0-3.2-2.6-5.8-5.8-5.8s-5.8,2.6-5.8,5.8v11.5c0,3.2,2.6,5.8,5.8,5.8S22.9,57,22.9,53.8z"/>
+                <path fill="#E01E5A" d="M28.6,42.3c0-3.2,2.6-5.8,5.8-5.8h11.5c3.2,0,5.8,2.6,5.8,5.8s-2.6,5.8-5.8,5.8H34.4C31.2,48.1,28.6,45.5,28.6,42.3z"/>
+                <path fill="#36C5F0" d="M46.2,22.9h11.5c3.2,0,5.8-2.6,5.8-5.8s-2.6-5.8-5.8-5.8H46.2c-3.2,0-5.8,2.6-5.8,5.8S43,22.9,46.2,22.9z"/>
+                <path fill="#36C5F0" d="M57.7,28.6c3.2,0,5.8,2.6,5.8,5.8v11.5c0,3.2-2.6,5.8-5.8,5.8s-5.8-2.6-5.8-5.8V34.4C51.9,31.2,54.5,28.6,57.7,28.6z"/>
+                <path fill="#2EB67D" d="M77.1,46.2v11.5c0,3.2,2.6,5.8,5.8,5.8s5.8-2.6,5.8-5.8V46.2c0-3.2-2.6-5.8-5.8-5.8S77.1,43,77.1,46.2z"/>
+                <path fill="#2EB67D" d="M71.4,57.7c0,3.2-2.6,5.8-5.8,5.8H54.1c-3.2,0-5.8-2.6-5.8-5.8s2.6-5.8,5.8-5.8h11.5C68.8,51.9,71.4,54.5,71.4,57.7z"/>
+                <path fill="#ECB22E" d="M53.8,77.1H42.3c-3.2,0-5.8,2.6-5.8,5.8s2.6,5.8,5.8,5.8h11.5c3.2,0,5.8-2.6,5.8-5.8S57,77.1,53.8,77.1z"/>
+                <path fill="#ECB22E" d="M42.3,71.4c-3.2,0-5.8-2.6-5.8-5.8V54.1c0-3.2,2.6-5.8,5.8-5.8c3.2,0,5.8,2.6,5.8,5.8v11.5C48.1,68.8,45.5,71.4,42.3,71.4z"/>
+            </svg>`;
+    } else if (m.source.toLowerCase() === 'whatsapp') {
+        sourceIcon = `
+            <svg viewBox="0 0 448 512" style="width: 20px; height: 20px; fill: #25d366;">
+                <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-5.5-2.8-23.2-8.5-44.2-27.1-16.4-14.6-27.4-32.7-30.6-38.2-3.2-5.6-.3-8.6 2.4-11.3 2.5-2.4 5.5-6.5 8.3-9.7 2.8-3.3 3.7-5.6 5.6-9.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 13.2 5.7 23.5 9.2 31.6 11.8 13.3 4.2 25.4 3.6 35 2.2 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/>
+            </svg>`;
+    }
+
     card.innerHTML = `
-        <div class="col-source"><span class="badge">${m.source}</span></div>
+        <div class="col-source" title="${m.source}">${sourceIcon || '<span class="badge">' + m.source + '</span>'}</div>
         <div class="col-room meta-val">${m.room || '-'}</div>
         <div class="col-task task-title" title="${m.task}">${m.task}</div>
         <div class="col-requester meta-val">${m.requester}</div>
@@ -221,14 +274,19 @@ const createCardElement = (m, data) => {
         <div class="col-time meta-val" style="font-size: 0.75rem;">${m.assigned_at}</div>
         <div class="col-actions">
             ${linkHtml}
-            <button class="done-btn" onclick="toggleDone(${m.id}, ${!m.done})">
+            <button class="done-btn" data-id="${m.id}" data-done="${!m.done}">
                 ${m.done ? data.doneBtn : data.markDone}
             </button>
-            <button class="delete-btn" onclick="deleteTask(${m.id})" style="background: rgba(255, 59, 48, 0.1); color: #ff3b30; border-color: #ff3b30; padding: 0.3rem 0.6rem; border-radius: 8px; border: 1px solid; cursor: pointer; font-size: 0.7rem;">
+            <button class="delete-btn" data-id="${m.id}" style="background: rgba(255, 59, 48, 0.1); color: #ff3b30; border-color: #ff3b30; padding: 0.3rem 0.6rem; border-radius: 8px; border: 1px solid; cursor: pointer; font-size: 0.7rem;">
                 🗑️
             </button>
         </div>
     `;
+
+    // Add event listeners to the buttons within the card
+    card.querySelector('.done-btn').addEventListener('click', () => toggleDone(m.id, !m.done));
+    card.querySelector('.delete-btn').addEventListener('click', () => deleteTask(m.id));
+
     return card;
 };
 
@@ -549,31 +607,50 @@ const initApp = () => {
     }
 
     // Tab Switching Logic
+    const switchTab = (tabId) => {
+        console.log("Switching to tab:", tabId);
+        const tabs = document.querySelectorAll('.tab-btn');
+        const contents = document.querySelectorAll('.tab-content');
+        
+        tabs.forEach(b => b.classList.remove('active'));
+        contents.forEach(c => c.classList.remove('active'));
+        
+        const activeBtn = document.querySelector(`[data-tab="${tabId}"]`);
+        const activeContent = document.getElementById(tabId);
+        
+        if (activeBtn) activeBtn.classList.add('active');
+        if (activeContent) {
+            activeContent.classList.add('active');
+            console.log("Tab content is now active:", tabId);
+        } else {
+            console.error("CRITICAL: Tab content element NOT FOUND for ID:", tabId);
+            // Fallback: search for all content divs and log their IDs
+            console.log("Available tab-content IDs:", Array.from(contents).map(c => c.id));
+        }
+    };
+
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            console.log("Tab clicked:", btn.getAttribute('data-tab'));
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            
-            btn.classList.add('active');
             const tabId = btn.getAttribute('data-tab');
-            const targetTab = document.getElementById(`${tabId}TasksTab`);
-            if (targetTab) {
-                targetTab.classList.add('active');
-                console.log("Active tab set to:", targetTab.id);
-            } else {
-                console.error("Target tab not found for ID:", tabId);
-            }
+            switchTab(tabId);
         });
     });
+
+    // Forced Initial Tab Setup
+    setTimeout(() => {
+        console.log("Forcing initial tab state: myTasksTab");
+        switchTab('myTasksTab');
+    }, 500);
 
     // Archive Logic
     const archiveLink = document.getElementById('archiveLink');
     if (archiveLink) {
         archiveLink.addEventListener('click', (e) => {
             e.preventDefault();
-            document.querySelector('.layout-split').classList.add('hidden');
-            document.querySelector('.dashboard-header').classList.add('hidden');
+            const tabsContainer = document.querySelector('.tabs-container');
+            const dashboardHeader = document.querySelector('.dashboard-header');
+            if (tabsContainer) tabsContainer.classList.add('hidden');
+            if (dashboardHeader) dashboardHeader.classList.add('hidden');
             document.getElementById('archiveSection').classList.remove('hidden');
             fetchArchive();
         });
@@ -582,8 +659,10 @@ const initApp = () => {
     const closeArchiveBtn = document.getElementById('closeArchiveBtn');
     if (closeArchiveBtn) {
         closeArchiveBtn.addEventListener('click', () => {
-            document.querySelector('.layout-split').classList.remove('hidden');
-            document.querySelector('.dashboard-header').classList.remove('hidden');
+            const tabsContainer = document.querySelector('.tabs-container');
+            const dashboardHeader = document.querySelector('.dashboard-header');
+            if (tabsContainer) tabsContainer.classList.remove('hidden');
+            if (dashboardHeader) dashboardHeader.classList.remove('hidden');
             document.getElementById('archiveSection').classList.add('hidden');
         });
     }
