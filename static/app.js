@@ -46,6 +46,13 @@ const checkWhatsAppStatus = async () => {
     } catch (e) { console.error(e); }
 };
 
+const checkGmailStatus = async () => {
+    try {
+        const data = await api.fetchGmailStatus();
+        renderer.updateGmailStatus(data.connected);
+    } catch (e) { console.error(e); }
+};
+
 const triggerScan = async () => {
     const btn = document.getElementById('scanBtn');
     const scanBtnText = document.getElementById('scanBtnText');
@@ -232,8 +239,17 @@ const initApp = () => {
 
     fetchUserProfile();
     checkWhatsAppStatus();
+    checkGmailStatus();
     setInterval(fetchMessages, 30000);
     setInterval(checkWhatsAppStatus, 30000);
+    setInterval(checkGmailStatus, 60000);
+
+    // Gmail icon click: connect when OFF, show info when ON
+    document.getElementById('gmailStatusLarge')?.addEventListener('click', () => {
+        if (!state.gmailConnected) {
+            window.location.href = '/auth/gmail/connect';
+        }
+    });
 };
 
 document.addEventListener('DOMContentLoaded', initApp);

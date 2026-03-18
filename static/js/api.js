@@ -89,5 +89,11 @@ export const api = {
         const resp = await fetch('/api/whatsapp/qr');
         if (!resp.ok) throw new Error(`QR fetch failed: ${resp.status}`);
         return await resp.json();
+    },
+
+    async fetchGmailStatus() {
+        const resp = await fetch('/api/gmail/status');
+        if (!resp.ok) throw new Error(`Gmail status check failed: ${resp.status}`);
+        return await resp.json();
     }
 };

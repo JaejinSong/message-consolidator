@@ -81,6 +81,11 @@ func InitDB(connStr string) error {
 		alias_name TEXT,
 		UNIQUE(user_id, alias_name)
 	);
+	CREATE TABLE IF NOT EXISTS gmail_tokens (
+		user_email TEXT PRIMARY KEY,
+		token_json TEXT NOT NULL,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
 	CREATE TABLE IF NOT EXISTS messages (
 		id SERIAL PRIMARY KEY,
 		user_email TEXT,
@@ -389,4 +394,28 @@ func AddUserAlias(userID int, alias string) error {
 func DeleteUserAlias(userID int, alias string) error {
 	_, err := db.Exec("DELETE FROM user_aliases WHERE user_id = $1 AND alias_name = $2", userID, alias)
 	return err
+}
+
+func SaveGmailToken(email, tokenJSON string) error {
+	_, err := db.Exec(`
+		INSERT INTO gmail_tokens (user_email, token_json, updated_at)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT (user_email) DO UPDATE SET token_json = $2, updated_at = NOW()`,
+		email, tokenJSON)
+	return err
+}
+
+func GetGmailToken(email string) (string, error) {
+	var tokenJSON string
+	err := db.QueryRow("SELECT token_json FROM gmail_tokens WHERE user_email = $1", email).Scan(&tokenJSON)
+	if err != nil {
+		return "", err
+	}
+	return tokenJSON, nil
+}
+
+func HasGmailToken(email string) bool {
+	var count int
+	db.QueryRow("SELECT COUNT(*) FROM gmail_tokens WHERE user_email = $1", email).Scan(&count)
+	return count > 0
 }

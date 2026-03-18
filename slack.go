@@ -14,8 +14,6 @@ type SlackClient struct {
 	userMap map[string]string
 }
 
-// RawChatMessage is now defined in whatsapp.go
-
 func NewSlackClient(token string) *SlackClient {
 	return &SlackClient{
 		api:     slack.New(token),
