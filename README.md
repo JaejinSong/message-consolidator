@@ -57,7 +57,7 @@ Docker Compose를 사용하여 간편하게 배포할 수 있습니다.
 ### 1. 바이너리 빌드 (최적화 적용)
 ```bash
 CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o message-consolidator-vps .
-upx --best message-consolidator-vps
+upx -1 message-consolidator-vps
 ```
 
 ### 2. Docker 실행
@@ -67,7 +67,7 @@ docker-compose up -d --build
 
 ### 💡 Build Speed & Size Tips
 - **Binary Size Optimization**: Build with `-ldflags="-s -w"` to strip symbols and debug info.
-- **Binary Compression**: Use `upx --best` to further compress the binary (37MB -> ~10MB).
+- **Binary Compression**: Use `upx -1` to optimize build speed while still reducing binary size.
 - **Keep CGO Disabled**: Use `CGO_ENABLED=0` for faster, statically linked binaries unless CGO is strictly required.
 - **GOCACHE on RAM Disk**: Since `jjsong-devmachine` has 32GB RAM, use `tmpfs` to speed up I/O.
   ```bash

@@ -9,7 +9,7 @@ COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o message-consolidator . && \
-    upx --best message-consolidator
+    upx -1 message-consolidator
 
 # Final stage
 FROM alpine:latest
