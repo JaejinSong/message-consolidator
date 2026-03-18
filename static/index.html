@@ -25,7 +25,7 @@
                     </div>
                     <div class="nav-links">
                         <a href="#" id="archiveLink" class="nav-btn archive-btn">📦 <span class="nav-text">Archive</span></a>
-                        <button id="settingsBtn" class="nav-btn settings-btn">⚙️ <span class="nav-text">Settings</span></button>
+                        <button type="button" id="settingsBtn" class="nav-btn settings-btn">⚙️ <span class="nav-text">Settings</span></button>
                     </div>
                     <select id="languageSelect" class="badge language-picker">
                         <option value="ko">KO</option>
@@ -41,7 +41,7 @@
         <main>
             <section class="dashboard-header">
                 <div class="integration-status">
-                    <button id="scanBtn" class="status-icon-large scan-btn" title="Scan Now">
+                    <button type="button" id="scanBtn" class="status-icon-large scan-btn" title="Scan Now">
                         <div class="scan-icon-container">
                             <svg class="radar-svg" viewBox="0 0 100 100">
                                 <circle class="radar-ring" cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="2" />
@@ -100,9 +100,9 @@
 
             <div class="tabs-container">
                 <div class="tabs">
-                    <button class="tab-btn active" data-tab="myTasksTab"><span id="tabMy">My Tasks</span> <span class="badge count" id="myCount">0</span></button>
-                    <button class="tab-btn" data-tab="otherTasksTab"><span id="tabOther">Other Tasks</span> <span class="badge count" id="otherCount">0</span></button>
-                    <button class="tab-btn" data-tab="allTasksTab"><span id="tabAll">All Tasks</span> <span class="badge count" id="allCount">0</span></button>
+                    <button type="button" class="tab-btn active" data-tab="myTasksTab"><span id="tabMy">My Tasks</span> <span class="badge count" id="myCount">0</span></button>
+                    <button type="button" class="tab-btn" data-tab="otherTasksTab"><span id="tabOther">Other Tasks</span> <span class="badge count" id="otherCount">0</span></button>
+                    <button type="button" class="tab-btn" data-tab="allTasksTab"><span id="tabAll">All Tasks</span> <span class="badge count" id="allCount">0</span></button>
                 </div>
                 
                 <div class="task-list-header">
@@ -137,8 +137,8 @@
                 <div class="archive-header">
                     <h2>Archive <span class="badge count" id="archiveCount">0</span></h2>
                     <div class="archive-actions">
-                        <button id="exportCsvBtn" class="badge" style="cursor: pointer; border-color: #25d366; color: #25d366;">📥 Export CSV</button>
-                        <button id="closeArchiveBtn" class="badge" style="cursor: pointer;">✖ Close</button>
+                        <button type="button" id="exportCsvBtn" class="badge" style="cursor: pointer; border-color: #25d366; color: #25d366;">📥 Export CSV</button>
+                        <button type="button" id="closeArchiveBtn" class="badge" style="cursor: pointer;">✖ Close</button>
                     </div>
                 </div>
                 <div class="table-container" style="overflow-x: auto;">
@@ -180,7 +180,7 @@
                     <p class="desc" id="settingsAliasDesc">Add names or nicknames that refer to you (e.g., "송재진", "JJ"). Tasks containing these names will appear in 'My Tasks'.</p>
                     <div class="alias-input-group">
                         <input type="text" id="newAliasInput" placeholder="Enter new alias...">
-                        <button id="addAliasBtn" class="primary-btn">Add</button>
+                        <button type="button" id="addAliasBtn" class="primary-btn">Add</button>
                     </div>
                     <div id="aliasList" class="alias-list">
                         <!-- Aliases will be listed here -->

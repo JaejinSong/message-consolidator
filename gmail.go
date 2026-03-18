@@ -106,6 +106,7 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 	// Collect all email contents to send to Gemini at once for efficiency
 	var sb strings.Builder
 	contentMap := make(map[string]string) // MsgID -> FullContent for modal
+	classificationMap := make(map[string]string) // MsgID -> classification
 	
 	for _, m := range msgs.Messages {
 		fullMsg, err := svc.Users.Messages.Get("me", m.Id).Format("full").Do()
@@ -115,6 +116,8 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 		
 		subject := ""
 		from := ""
+		to := ""
+		cc := ""
 		body := ""
 		date := ""
 		
@@ -125,9 +128,29 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 			if h.Name == "From" {
 				from = h.Value
 			}
+			if h.Name == "To" {
+				to = h.Value
+			}
+			if h.Name == "Cc" {
+				cc = h.Value
+			}
 			if h.Name == "Date" {
 				date = h.Value
 			}
+		}
+
+		// Filter rules for jjsong@whatap.io
+		isDirect := strings.Contains(strings.ToLower(to), "jjsong@whatap.io")
+		isCc := strings.Contains(strings.ToLower(cc), "jjsong@whatap.io")
+
+		// If not explicitly in To or Cc, exclude it (covers group mail exclusion)
+		if !isDirect && !isCc {
+			continue
+		}
+
+		classification := "기타 업무"
+		if isDirect {
+			classification = "내 업무"
 		}
 		
 		if fullMsg.Payload.Body.Data != "" {
@@ -145,7 +168,9 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 
 		fullEmailContent := fmt.Sprintf("Subject: %s\nFrom: %s\nDate: %s\n\n%s", subject, from, date, body)
 		contentMap[m.Id] = fullEmailContent
-		sb.WriteString(fmt.Sprintf("[ID:%s] From: %s, Subject: %s\nContent: %s\n---\n", m.Id, from, subject, body))
+		// Store classification for this message
+		classificationMap[m.Id] = classification
+		sb.WriteString(fmt.Sprintf("[ID:%s] From: %s, To: %s, Subject: %s\nContent: %s\n---\n", m.Id, from, to, subject, body))
 	}
 	
 	if sb.Len() > 0 {
@@ -163,8 +188,13 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 		for i, item := range items {
 			link := fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS)
 			
+			// Use classification from our map
+			assignee := classificationMap[item.SourceTS]
+			if assignee == "" {
+				assignee = item.Assignee
+			}
+
 			// Store individual tasks
-			// Using unique SourceTS for each task from the same email
 			uniqueSourceTS := fmt.Sprintf("gmail-%s-%d", item.SourceTS, i)
 			
 			originalText := contentMap[item.SourceTS]
@@ -178,7 +208,7 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 				Room:         "Gmail",
 				Task:         item.Task,
 				Requester:    item.Requester,
-				Assignee:     item.Assignee,
+				Assignee:     assignee,
 				AssignedAt:   time.Now().Format(time.RFC3339),
 				Link:         link,
 				SourceTS:     uniqueSourceTS,

@@ -78,7 +78,7 @@ export const renderer = {
         const data = I18N_DATA[state.currentLang];
         
         // Keywords for local filtering
-        const keywords = [state.userProfile.email];
+        const keywords = [state.userProfile.email, '내 업무'];
         if (state.userProfile.name) keywords.push(state.userProfile.name);
         if (state.userProfile.email && state.userProfile.email.includes('@')) {
             keywords.push(state.userProfile.email.split('@')[0]);
@@ -178,7 +178,7 @@ export const renderer = {
         // 1. View Original Modal (Eye icon)
         if (m.original_text) {
             const escapedText = m.original_text.replace(/'/g, "\\'").replace(/\n/g, "\\n");
-            actionBtnHtml += `<button class="action-btn original-btn" onclick="showOriginalMessage('${escapedText}')" title="${data.viewOriginal}">${viewOriginalIcon}</button>`;
+            actionBtnHtml += `<button type="button" class="action-btn original-btn" onclick="showOriginalMessage('${escapedText}')" title="${data.viewOriginal}">${viewOriginalIcon}</button>`;
         }
         
         // 2. Direct Link to Source (External Icon)
@@ -197,17 +197,25 @@ export const renderer = {
             <div class="col-time meta-val" style="font-size: 0.75rem;">${formatDisplayTime(m.assigned_at, state.currentLang)}</div>
             <div class="col-actions">
                 ${actionBtnHtml}
-                <button class="action-btn done-btn" data-id="${m.id}" data-done="${!m.done}" title="${m.done ? data.doneBtn : data.markDone}">
+                <button type="button" class="action-btn done-btn" data-id="${m.id}" data-done="${!m.done}" title="${m.done ? data.doneBtn : data.markDone}">
                     ${doneIcon}
                 </button>
-                <button class="action-btn delete-btn" data-id="${m.id}" title="Delete">
+                <button type="button" class="action-btn delete-btn" data-id="${m.id}" title="Delete">
                     ${deleteIcon}
                 </button>
             </div>
         `;
 
-        card.querySelector('.done-btn').addEventListener('click', () => handlers.onToggleDone(m.id, !m.done));
-        card.querySelector('.delete-btn').addEventListener('click', () => handlers.onDeleteTask(m.id));
+        card.querySelector('.done-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handlers.onToggleDone(m.id, !m.done);
+        });
+        card.querySelector('.delete-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handlers.onDeleteTask(m.id);
+        });
 
         return card;
     },
