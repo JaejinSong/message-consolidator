@@ -1,4 +1,5 @@
 ---
+name: commit
 description: Commit Workflow (Optimized)
 ---
 

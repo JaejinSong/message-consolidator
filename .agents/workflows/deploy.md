@@ -1,4 +1,5 @@
 ---
+name: deploy
 description: VPS 배포 워크플로우 (Google Artifact Registry 활용)
 ---
 
