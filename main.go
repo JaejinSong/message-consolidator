@@ -37,6 +37,7 @@ func main() {
 
 	// Initialize OAuth
 	SetupOAuth()
+	SetupGmailOAuth()
 
 	// Start Background Workers
 	go startBackgroundScanner()
@@ -75,6 +76,11 @@ func main() {
 	r.Handle("/api/user/aliases", AuthMiddleware(http.HandlerFunc(handleGetUserAliases))).Methods("GET")
 	r.Handle("/api/user/alias/add", AuthMiddleware(http.HandlerFunc(handleAddAlias))).Methods("POST")
 	r.Handle("/api/user/alias/delete", AuthMiddleware(http.HandlerFunc(handleDeleteAlias))).Methods("POST")
+
+	// Gmail OAuth Endpoints
+	r.Handle("/auth/gmail/connect", AuthMiddleware(http.HandlerFunc(handleGmailConnect))).Methods("GET")
+	r.HandleFunc("/auth/gmail/callback", handleGmailCallback).Methods("GET")
+	r.Handle("/api/gmail/status", AuthMiddleware(http.HandlerFunc(handleGmailStatus))).Methods("GET")
 
 	// Attach the router to the default http server
 	http.Handle("/", r)
@@ -204,7 +210,11 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 
 	var reqs []TranslateRequest
 	for _, m := range msgs {
-		reqs = append(reqs, TranslateRequest{ID: m.ID, Text: m.Task})
+		reqs = append(reqs, TranslateRequest{
+			ID:           m.ID,
+			Text:         m.Task,
+			OriginalText: m.OriginalText,
+		})
 	}
 
 	gc, err := NewGeminiClient(r.Context(), cfg.GeminiAPIKey)
@@ -391,7 +401,7 @@ func scan(email string, language string) {
 	log.Printf("Starting message scan for %s (lang: %s)...", email, language)
 	ctx := context.Background()
 
-	// Slack Scan - Synchronous for debugging
+	// Slack Scan
 	log.Printf("[SCAN] About to call scanSlack for %s", email)
 	newSlack := scanSlack(ctx, email, language)
 	log.Printf("[SCAN] scanSlack finished for %s, hasNew: %v", email, newSlack)
@@ -401,8 +411,13 @@ func scan(email string, language string) {
 	newWA := scanWhatsApp(ctx, email, language)
 	log.Printf("[SCAN] scanWhatsApp finished for %s, hasNew: %v", email, newWA)
 
+	// Gmail Scan
+	log.Printf("[SCAN] About to call ScanGmail for %s", email)
+	newGmail := ScanGmail(ctx, email, language)
+	log.Printf("[SCAN] ScanGmail finished for %s, hasNew: %v", email, newGmail)
+
 	// Refresh cache only if new messages were actually saved
-	if newSlack || newWA {
+	if newSlack || newWA || newGmail {
 		log.Println("[SCAN] New messages found, refreshing cache...")
 		if err := RefreshCache(email); err != nil {
 			log.Printf("Error refreshing cache for %s after scan: %v", email, err)
@@ -474,12 +489,14 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 			continue
 		}
 
+		msgMap := make(map[string]time.Time)
 		var sb strings.Builder
 		for _, m := range msgs {
 			toPart := ""
 			if m.InteractedUser != "" {
 				toPart = fmt.Sprintf(" -> %s", m.InteractedUser)
 			}
+			msgMap[m.RawTS] = m.Timestamp
 			sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s%s: %s\n", m.RawTS, m.Timestamp.Format("15:04"), m.User, toPart, m.Text))
 		}
 
@@ -519,6 +536,11 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 			// I will remove the `assignedAt` variable and use `time.Now().Format` as shown in the instruction.
 			// The `item.SourceTS` based time calculation is removed as per the instruction's diff.
 
+			assignedAt := time.Now().Format(time.RFC3339)
+			if ts, ok := msgMap[item.SourceTS]; ok {
+				assignedAt = ts.Format(time.RFC3339)
+			}
+
 			saved, _ := SaveMessage(ConsolidatedMessage{
 				UserEmail:  email,
 				Source:     "slack",
@@ -526,11 +548,11 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 				Task:       item.Task,
 				Requester:  item.Requester,
 				Assignee:   assignee,
-				AssignedAt: time.Now().Format("2006-01-02 15:04"),
+				AssignedAt: assignedAt,
 				Link:       link,
 				SourceTS:   item.SourceTS,
 				OriginalText: item.OriginalText,
-				Done:       false, // TodoItem doesn't have Done, default to false
+				Done:       false, 
 			})
 			if saved {
 				hasNew = true
@@ -590,12 +612,12 @@ func scanWhatsApp(ctx context.Context, email string, language string) bool {
 		for _, item := range items {
 			assignedAt := item.AssignedAt
 			if ts, ok := msgMap[item.SourceTS]; ok {
-				kst := time.FixedZone("KST", 9*60*60)
-				assignedAt = ts.In(kst).Format("2006-01-02 15:04:05 KST")
+				assignedAt = ts.Format(time.RFC3339)
 			} else if sec, err := strconv.ParseInt(assignedAt, 10, 64); err == nil {
-				t := time.Unix(sec, 0)
-				kst := time.FixedZone("KST", 9*60*60)
-				assignedAt = t.In(kst).Format("2006-01-02 15:04:05 KST")
+				assignedAt = time.Unix(sec, 0).Format(time.RFC3339)
+			} else {
+				// Fallback if Gemini returns an invalid or partial time (like "05:01")
+				assignedAt = time.Now().Format(time.RFC3339)
 			}
 
 			saved, _ := SaveMessage(ConsolidatedMessage{

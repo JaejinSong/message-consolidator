@@ -119,6 +119,7 @@ h1 {
 .task-list-header {
     display: flex;
     padding: 0.8rem 1.5rem;
+    gap: 1rem;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 12px 12px 0 0;
     margin-bottom: 0.2rem;
@@ -172,13 +173,13 @@ h1 {
     font-weight: 800;
 }
 
-.col-source { width: 60px; flex-shrink: 0; display: flex; align-items: center; }
-.col-room { width: 140px; flex-shrink: 0; display: flex; align-items: center; }
-.col-task { flex: 1; min-width: 250px; display: flex; align-items: center; overflow: hidden; }
+.col-source { width: 40px; flex-shrink: 0; display: flex; align-items: center; }
+.col-room { width: 220px; flex-shrink: 0; display: flex; align-items: center; }
+.col-task { flex: 1; min-width: 200px; display: flex; align-items: center; overflow: hidden; padding-right: 1rem; }
 .col-requester { width: 100px; flex-shrink: 0; display: flex; align-items: center; }
 .col-assignee { width: 100px; flex-shrink: 0; display: flex; align-items: center; }
 .col-time { width: 160px; flex-shrink: 0; display: flex; align-items: center; }
-.col-actions { width: 220px; flex-shrink: 0; display: flex; gap: 0.5rem; justify-content: flex-end; align-items: center; }
+.col-actions { width: 120px; flex-shrink: 0; display: flex; gap: 0.4rem; justify-content: flex-end; align-items: center; }
 
 .card {
     background: rgba(255, 255, 255, 0.02);
@@ -214,6 +215,7 @@ h1 {
 
 .card.whatsapp::before { background: #25d366; }
 .card.slack::before { background: #4a154b; }
+.card.gmail::before { background: #EA4335; }
 
 .task-title {
     font-size: 0.95rem;
@@ -241,8 +243,9 @@ h1 {
 }
 
 .action-btn {
+    width: 32px;
     height: 32px;
-    padding: 0 0.8rem;
+    padding: 0;
     border-radius: 8px;
     font-size: 0.75rem;
     font-weight: 700;
@@ -597,6 +600,13 @@ footer {
     background: rgba(37, 211, 102, 0.12);
     border-color: #25d366;
     box-shadow: 0 0 30px rgba(37, 211, 102, 0.25), inset 0 0 15px rgba(37, 211, 102, 0.1);
+}
+
+.status-icon-large.active.gmail {
+    color: #fff;
+    background: rgba(234, 67, 53, 0.12);
+    border-color: #EA4335;
+    box-shadow: 0 0 30px rgba(234, 67, 53, 0.25), inset 0 0 15px rgba(234, 67, 53, 0.1);
 }
 
 .status-icon-large.active svg {
@@ -974,6 +984,15 @@ footer {
         font-size: 1.15rem;
         line-height: 1.5;
         overflow: visible;
+        margin-bottom: 0.5rem;
+    }
+
+    .col-room, .col-requester, .col-assignee, .col-time {
+        width: 100% !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+        margin-bottom: 0.3rem;
     }
 
     .col-actions {

@@ -25,7 +25,20 @@ export const I18N_DATA = {
         allTasks: "전체",
         logout: "로그아웃",
         statusOn: "연결됨",
-        statusOff: "연결 안됨"
+        statusOff: "연결 안됨",
+        hSource: "채널",
+        hRoom: "룸",
+        hTask: "업무 내역",
+        hRequester: "요청자",
+        hAssignee: "담당자",
+        hTime: "시간",
+        hActions: "관리",
+        hCompletedAt: "완료 시간",
+        settingsTitle: "사용자 설정",
+        settingsAliasTitle: "내 별칭 설정",
+        settingsAliasDesc: "자신을 지칭하는 이름이나 별명(예: '송재진', 'JJ')을 추가하세요. 이 이름이 포함된 업무는 '내 업무' 탭에 표시됩니다.",
+        originalMessageTitle: "메시지 원문",
+        archiveTitle: "보관함"
     },
     en: {
         subTitle: "Automated Slack & WhatsApp Task Dashboard",
@@ -51,7 +64,20 @@ export const I18N_DATA = {
         allTasks: "All Tasks",
         logout: "Logout",
         statusOn: "ON",
-        statusOff: "OFF"
+        statusOff: "OFF",
+        hSource: "Source",
+        hRoom: "Room",
+        hTask: "Task",
+        hRequester: "Requester",
+        hAssignee: "Assignee",
+        hTime: "Time",
+        hActions: "Actions",
+        hCompletedAt: "Completed At",
+        settingsTitle: "User Settings",
+        settingsAliasTitle: "My Aliases",
+        settingsAliasDesc: "Add names or nicknames that refer to you (e.g., 'JJ'). Tasks with these names will appear in 'My Tasks'.",
+        originalMessageTitle: "Original Message",
+        archiveTitle: "Archive"
     },
     id: {
         subTitle: "Dasbor Tugas Slack & WhatsApp Otomatis",
@@ -77,7 +103,20 @@ export const I18N_DATA = {
         allTasks: "Semua Tugas",
         logout: "Keluar",
         statusOn: "AKTIF",
-        statusOff: "MATI"
+        statusOff: "MATI",
+        hSource: "Sumber",
+        hRoom: "Ruangan",
+        hTask: "Tugas",
+        hRequester: "Pemohon",
+        hAssignee: "Penerima",
+        hTime: "Waktu",
+        hActions: "Tindakan",
+        hCompletedAt: "Selesai Pada",
+        settingsTitle: "Pengaturan Pengguna",
+        settingsAliasTitle: "Alias Saya",
+        settingsAliasDesc: "Tambahkan nama atau nama panggilan yang merujuk pada Anda. Tugas dengan nama-nama ini akan muncul di 'Tugas Saya'.",
+        originalMessageTitle: "Pesan Asli",
+        archiveTitle: "Arsip"
     },
     th: {
         subTitle: "แดชบอร์ดงาน Slack & WhatsApp อัตโนมัติ",
@@ -103,7 +142,20 @@ export const I18N_DATA = {
         allTasks: "งานทั้งหมด",
         logout: "ออกจากระบบ",
         statusOn: "เปิด",
-        statusOff: "ปิด"
+        statusOff: "ปิด",
+        hSource: "แหล่งที่มา",
+        hRoom: "ห้อง",
+        hTask: "งาน",
+        hRequester: "ผู้ร้องขอ",
+        hAssignee: "ผู้รับผิดชอบ",
+        hTime: "เวลา",
+        hActions: "การดำเนินการ",
+        hCompletedAt: "เสร็จสิ้นเมื่อ",
+        settingsTitle: "การตั้งค่าผู้ใช้",
+        settingsAliasTitle: "นามแฝงของฉัน",
+        settingsAliasDesc: "เพิ่มชื่อหรือชื่อเล่นที่อ้างถึงคุณ งานที่มีชื่อเหล่านี้จะปรากฏใน 'งานของฉัน'",
+        originalMessageTitle: "ข้อความต้นฉบับ",
+        archiveTitle: "คลังข้อมูล"
     }
 };
 
@@ -148,4 +200,38 @@ export const updateUILanguage = (lang) => {
     if (waText && waIcon) {
         waText.textContent = waIcon.classList.contains('active') ? data.statusOn : data.statusOff;
     }
+
+    // Update Table Headers
+    ['hSource', 'hRoom', 'hTask', 'hRequester', 'hAssignee', 'hTime', 'hActions', 'ahSource', 'ahRoom', 'ahTask', 'ahRequester', 'ahAssignee', 'ahTime', 'ahCompletedAt'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = data[id.replace('ah', 'h')] || data[id];
+    });
+
+    // Update Modal/Section Titles
+    const settingsTitle = document.querySelector('#settingsModal h3');
+    if (settingsTitle) settingsTitle.textContent = data.settingsTitle;
+    
+    const settingsAliasTitle = document.getElementById('settingsAliasTitle');
+    if (settingsAliasTitle) settingsAliasTitle.textContent = data.settingsAliasTitle;
+    
+    const settingsAliasDesc = document.getElementById('settingsAliasDesc');
+    if (settingsAliasDesc) settingsAliasDesc.textContent = data.settingsAliasDesc;
+
+    const originalMessageTitle = document.querySelector('#originalMessageModal h3');
+    if (originalMessageTitle) originalMessageTitle.textContent = data.originalMessageTitle;
+
+    const archiveTitle = document.querySelector('#archiveSection h2');
+    if (archiveTitle) {
+        const archiveCount = document.getElementById('archiveCount');
+        const countText = archiveCount ? archiveCount.outerHTML : '';
+        archiveTitle.innerHTML = `${data.archiveTitle} ${countText}`;
+    }
+
+    // Update Tab Spans (labels only)
+    const tabMy = document.getElementById('tabMy');
+    const tabOther = document.getElementById('tabOther');
+    const tabAll = document.getElementById('tabAll');
+    if (tabMy) tabMy.textContent = data.myTasks;
+    if (tabOther) tabOther.textContent = data.otherTasks;
+    if (tabAll) tabAll.textContent = data.allTasks;
 };

@@ -3,6 +3,8 @@ app
 app_*
 message-consolidator
 message-consolidator-vps
+mc_test
+tmp_build
 
 # Databases
 *.db
@@ -12,3 +14,6 @@ message-consolidator-vps
 
 # Environment
 .env
+
+# Temporary/Other
+tasks_migration.csv

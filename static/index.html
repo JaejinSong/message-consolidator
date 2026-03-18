@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Message Consolidator Premium</title>
     <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
-    <link rel="stylesheet" href="static/style.css?v=101">
+    <link rel="stylesheet" href="static/style.css?v=106">
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap" rel="stylesheet">
 </head>
 <body class="dark-theme">
@@ -35,7 +35,7 @@
                     </select>
                 </div>
             </div>
-            <p id="subTitle">Automated Slack & WhatsApp Task Dashboard</p>
+            <p id="subTitle">Automated Slack, WhatsApp &amp; Gmail Task Dashboard</p>
         </header>
 
         <main>
@@ -71,6 +71,12 @@
                         </svg>
                         <span id="waStatusText" class="status-label">OFF</span>
                     </div>
+                    <div id="gmailStatusLarge" class="status-icon-large gmail inactive" title="Gmail: Click to connect" style="cursor: pointer;">
+                        <svg viewBox="0 0 512 512">
+                            <path fill="#EA4335" d="M48 64C21.5 64 0 85.5 0 112v288c0 26.5 21.5 48 48 48h416c26.5 0 48-21.5 48-48V112c0-26.5-21.5-48-48-48H48zM48 96h416c8.8 0 16 7.2 16 16v21.3L256 295.1 32 133.3V112c0-8.8 7.2-16 16-16zm-16 70.6l208 147.3L448 166.6V400c0 8.8-7.2 16-16 16H80c-8.8 0-16-7.2-16-16V166.6z"/>
+                        </svg>
+                        <span id="gmailStatusText" class="status-label">OFF</span>
+                    </div>
                 </div>
             </section>
 
@@ -94,19 +100,19 @@
 
             <div class="tabs-container">
                 <div class="tabs">
-                    <button class="tab-btn active" data-tab="myTasksTab">My Tasks <span class="badge count" id="myCount">0</span></button>
-                    <button class="tab-btn" data-tab="otherTasksTab">Other Tasks <span class="badge count" id="otherCount">0</span></button>
-                    <button class="tab-btn" data-tab="allTasksTab">All Tasks <span class="badge count" id="allCount">0</span></button>
+                    <button class="tab-btn active" data-tab="myTasksTab"><span id="tabMy">My Tasks</span> <span class="badge count" id="myCount">0</span></button>
+                    <button class="tab-btn" data-tab="otherTasksTab"><span id="tabOther">Other Tasks</span> <span class="badge count" id="otherCount">0</span></button>
+                    <button class="tab-btn" data-tab="allTasksTab"><span id="tabAll">All Tasks</span> <span class="badge count" id="allCount">0</span></button>
                 </div>
                 
                 <div class="task-list-header">
-                    <div class="col-source">Source</div>
-                    <div class="col-room">Room</div>
-                    <div class="col-task">Task</div>
-                    <div class="col-requester">Requester</div>
-                    <div class="col-assignee">Assignee</div>
-                    <div class="col-time">Time</div>
-                    <div class="col-actions">Actions</div>
+                    <div class="col-source" id="hSource">Source</div>
+                    <div class="col-room" id="hRoom">Room</div>
+                    <div class="col-task" id="hTask">Task</div>
+                    <div class="col-requester" id="hRequester">Requester</div>
+                    <div class="col-assignee" id="hAssignee">Assignee</div>
+                    <div class="col-time" id="hTime">Time</div>
+                    <div class="col-actions" id="hActions">Actions</div>
                 </div>
 
                 <div id="myTasksTab" class="tab-content active">
@@ -139,13 +145,13 @@
                     <table class="archive-table">
                         <thead>
                             <tr>
-                                <th>Source</th>
-                                <th>Room</th>
-                                <th>Task</th>
-                                <th>Requester</th>
-                                <th>Assignee</th>
-                                <th>Time</th>
-                                <th>Completed At</th>
+                                <th id="ahSource">Source</th>
+                                <th id="ahRoom">Room</th>
+                                <th id="ahTask">Task</th>
+                                <th id="ahRequester">Requester</th>
+                                <th id="ahAssignee">Assignee</th>
+                                <th id="ahTime">Time</th>
+                                <th id="ahCompletedAt">Completed At</th>
                             </tr>
                         </thead>
                         <tbody id="archiveBody">
@@ -170,14 +176,23 @@
             </div>
             <div class="modal-body">
                 <section>
-                    <h4>My Aliases</h4>
-                    <p class="desc">Add names or nicknames that refer to you (e.g., "송재진", "JJ"). Tasks containing these names will appear in 'My Tasks'.</p>
+                    <h4 id="settingsAliasTitle">My Aliases</h4>
+                    <p class="desc" id="settingsAliasDesc">Add names or nicknames that refer to you (e.g., "송재진", "JJ"). Tasks containing these names will appear in 'My Tasks'.</p>
                     <div class="alias-input-group">
                         <input type="text" id="newAliasInput" placeholder="Enter new alias...">
                         <button id="addAliasBtn" class="primary-btn">Add</button>
                     </div>
                     <div id="aliasList" class="alias-list">
                         <!-- Aliases will be listed here -->
+                    </div>
+                </section>
+                <hr style="border-color: var(--glass-border); margin: 1.5rem 0;">
+                <section>
+                    <h4>Gmail Integration</h4>
+                    <p class="desc">Click the Gmail icon on the dashboard to connect your company Gmail account.</p>
+                    <div id="gmailConnectedStatus" class="hidden" style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; background: rgba(234,67,53,0.08); border: 1px solid rgba(234,67,53,0.25); border-radius: 12px;">
+                        <span style="color: #EA4335; font-size: 1.1rem;">✓</span>
+                        <span style="color: var(--text-main); font-size: 0.9rem;">Gmail Connected</span>
                     </div>
                 </section>
             </div>
@@ -198,7 +213,7 @@
         </div>
     </div>
 
-    <script type="module" src="static/app.js?v=105"></script>
+    <script type="module" src="static/app.js?v=106"></script>
 
 </body>
 </html>

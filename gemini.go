@@ -47,14 +47,14 @@ func (g *GeminiClient) Analyze(ctx context.Context, conversationText string, lan
 
 	prompt := fmt.Sprintf(`Analyze the following conversation and extract To-do items. 
 Return a JSON array of objects with fields: "task", "requester", "assignee", "assigned_at", "source_ts", "original_text".
-Translate "task" and "requester" to %s. 
+CRITICAL: "task" and "requester" MUST be translated to %s. Even if the input is in English, the "task" MUST be in %s.
 "original_text" MUST be the exact original message content before translation.
 Use the [TS:timestamp] tag to find "source_ts".
 
 Conversation:
 ---
 %s
----`, language, conversationText)
+---`, language, language, conversationText)
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
@@ -76,8 +76,9 @@ Conversation:
 }
 
 type TranslateRequest struct {
-	ID   int    `json:"id"`
-	Text string `json:"text"`
+	ID           int    `json:"id"`
+	Text         string `json:"text"` // current task text
+	OriginalText string `json:"original_text"`
 }
 
 type TranslateResponse struct {
@@ -96,11 +97,18 @@ func (g *GeminiClient) Translate(ctx context.Context, tasks []TranslateRequest, 
 	model.ResponseMIMEType = "application/json"
 
 	tasksJSON, _ := json.Marshal(tasks)
-	prompt := fmt.Sprintf(`Translate the "text" field of each object in the following JSON array to %s. 
-Return a JSON object with a "translations" field containing the array of objects with their original "id" and translated "text".
+	prompt := fmt.Sprintf(`You are a task translation and summarization expert. 
+Translate or re-summarize the following tasks to %s.
+
+For each object:
+1. If "original_text" is provided, use it to create a NEW concise one-line summary in %s.
+2. If "original_text" is missing or too short, translate the existing "text" field to %s.
+3. The output "text" MUST be strictly in %s. Do NOT return English technical phrases if they can be translated.
+
+Return a JSON object with a "translations" field containing the array of objects with their original "id" and the new "text".
 
 JSON:
-%s`, language, string(tasksJSON))
+%s`, language, language, language, language, string(tasksJSON))
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
