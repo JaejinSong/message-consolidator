@@ -1,0 +1,6 @@
+{
+    "window.autoDetectColorScheme": true,
+    "ag-usage.lowQuotaNotificationThreshold": 20,
+    "ag-usage.maxHistoryItems": 30,
+    "ag-usage.notifyOnFullQuota": true
+}
