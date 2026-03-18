@@ -62,6 +62,13 @@ CGO_ENABLED=0 GOOS=linux go build -o message-consolidator-vps .
 docker-compose up -d --build
 ```
 
+### 💡 Build Speed Tips
+- **Keep CGO Disabled**: Use `CGO_ENABLED=0` for faster, statically linked binaries unless CGO is strictly required.
+- **GOCACHE on RAM Disk**: Since `jjsong-devmachine` has 32GB RAM, use `tmpfs` to speed up I/O.
+  ```bash
+  sudo mount -t tmpfs -o size=2G tmpfs /home/jinro/.cache/go-build
+  ```
+
 ---
 
 ## 📁 프로젝트 구조
