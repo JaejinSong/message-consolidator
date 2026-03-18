@@ -172,13 +172,13 @@ h1 {
     font-weight: 800;
 }
 
-.col-source { width: 80px; }
-.col-room { width: 150px; }
-.col-task { flex: 1; min-width: 200px; }
-.col-requester { width: 120px; }
-.col-assignee { width: 120px; }
-.col-time { width: 180px; }
-.col-actions { width: 180px; display: flex; gap: 0.5rem; }
+.col-source { width: 60px; flex-shrink: 0; display: flex; align-items: center; }
+.col-room { width: 140px; flex-shrink: 0; display: flex; align-items: center; }
+.col-task { flex: 1; min-width: 250px; display: flex; align-items: center; overflow: hidden; }
+.col-requester { width: 100px; flex-shrink: 0; display: flex; align-items: center; }
+.col-assignee { width: 100px; flex-shrink: 0; display: flex; align-items: center; }
+.col-time { width: 160px; flex-shrink: 0; display: flex; align-items: center; }
+.col-actions { width: 220px; flex-shrink: 0; display: flex; gap: 0.5rem; justify-content: flex-end; align-items: center; }
 
 .card {
     background: rgba(255, 255, 255, 0.02);
@@ -234,18 +234,49 @@ h1 {
 }
 
 .link-btn {
-    display: inline-block;
-    margin-top: 1rem;
     color: var(--accent-color);
     text-decoration: none;
-    font-size: 0.85rem;
-    font-weight: 600;
-    transition: opacity 0.2s;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.action-btn {
+    height: 32px;
+    padding: 0 0.8rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+}
+
+.original-btn {
+    color: var(--accent-color);
+    border-color: rgba(0, 242, 255, 0.3);
+}
+
+.original-btn:hover {
+    background: rgba(0, 242, 255, 0.1);
+    border-color: var(--accent-color);
+}
+
+.link-btn {
+    color: var(--accent-color);
+    border-color: rgba(0, 242, 255, 0.3);
 }
 
 .link-btn:hover {
-    opacity: 0.7;
-    text-decoration: underline;
+    background: rgba(0, 242, 255, 0.1);
+    border-color: var(--accent-color);
+    text-decoration: none;
+    opacity: 1;
 }
 
 /* Done Task Styling */
@@ -283,14 +314,14 @@ h1 {
 }
 
 .done-btn:hover {
-    background: var(--accent-color);
-    color: #000;
-    border-color: var(--accent-color);
+    background: rgba(255, 255, 255, 0.15);
+    border-color: var(--text-main);
 }
 
 .card.done .done-btn {
-    background: var(--accent-color);
-    color: #000;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-dim);
+    border-color: transparent;
 }
 
 .card.done .done-btn:hover {
@@ -668,9 +699,11 @@ footer {
 .delete-btn {
     background: rgba(255, 59, 48, 0.1);
     color: #ff3b30;
-    border: 1px solid #ff3b30;
-    padding: 0.4rem 0.8rem;
-    border-radius: 10px;
+    border: 1px solid rgba(255, 59, 48, 0.3);
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
     cursor: pointer;
     font-size: 0.9rem;
     transition: all 0.2s;
@@ -681,7 +714,76 @@ footer {
 
 .delete-btn:hover {
     background: rgba(255, 59, 48, 0.2);
+    border-color: #ff3b30;
     transform: translateY(-1px);
+}
+
+/* Modal Styling */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    z-index: 2000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-content {
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    border-radius: 20px;
+    overflow: hidden;
+    animation: modal-appear 0.3s ease-out;
+}
+
+@keyframes modal-appear {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--glass-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    background: var(--brand-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 1.8rem;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.close-btn:hover {
+    color: var(--text-main);
 }
 
 /* Removed old scan text styles */

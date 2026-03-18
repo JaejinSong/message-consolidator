@@ -529,6 +529,7 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 				AssignedAt: time.Now().Format("2006-01-02 15:04"),
 				Link:       link,
 				SourceTS:   item.SourceTS,
+				OriginalText: item.OriginalText,
 				Done:       false, // TodoItem doesn't have Done, default to false
 			})
 			if saved {
@@ -605,6 +606,7 @@ func scanWhatsApp(ctx context.Context, email string, language string) bool {
 				Assignee:   item.Assignee,
 				AssignedAt: assignedAt,
 				SourceTS:   item.SourceTS,
+				OriginalText: item.OriginalText,
 			})
 			if saved {
 				hasNew = true
