@@ -1,6 +1,26 @@
 import { state } from './state.js';
 import { I18N_DATA } from './i18n.js';
 
+window.showOriginalMessage = function(text) {
+    const modal = document.getElementById('originalMessageModal');
+    const content = document.getElementById('originalTextContent');
+    if (modal && content) {
+        content.textContent = text;
+        modal.classList.remove('hidden');
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    const closeBtn = document.getElementById('closeOriginalBtn');
+    const modal = document.getElementById('originalMessageModal');
+    if (closeBtn && modal) {
+        closeBtn.onclick = () => modal.classList.add('hidden');
+        modal.onclick = (e) => {
+            if (e.target === modal) modal.classList.add('hidden');
+        };
+    }
+});
+
 export const renderer = {
     renderMessages(messages, handlers) {
         const myGrid = document.getElementById('myTasksList');
@@ -84,22 +104,30 @@ export const renderer = {
         const card = document.createElement('div');
         card.className = `card ${m.source} ${m.done ? 'done' : ''}`;
         
-        let linkHtml = m.link ? `<a href="${m.link}" target="_blank" class="link-btn" style="margin-top: 0;">${data.viewOriginal}</a>` : '';
+        let actionBtnHtml = '';
+        if (m.link) {
+            actionBtnHtml = `<a href="${m.link}" target="_blank" class="action-btn link-btn">${data.viewOriginal}</a>`;
+        } else if (m.original_text) {
+            // Escape single quotes for the onclick handler
+            const escapedText = m.original_text.replace(/'/g, "\\'");
+            actionBtnHtml = `<button class="action-btn original-btn" onclick="showOriginalMessage('${escapedText}')">${data.viewOriginal}</button>`;
+        }
+
         let sourceIcon = this.getSourceIcon(m.source);
 
         card.innerHTML = `
             <div class="col-source" title="${m.source}">${sourceIcon || '<span class="badge">' + m.source + '</span>'}</div>
-            <div class="col-room meta-val">${m.room || '-'}</div>
+            <div class="col-room meta-val" title="${m.room || ''}">${m.room || '-'}</div>
             <div class="col-task task-title" title="${m.task}">${m.task}</div>
-            <div class="col-requester meta-val">${m.requester}</div>
-            <div class="col-assignee meta-val">${m.assignee}</div>
+            <div class="col-requester meta-val" title="${m.requester}">${m.requester}</div>
+            <div class="col-assignee meta-val" title="${m.assignee}">${m.assignee}</div>
             <div class="col-time meta-val" style="font-size: 0.75rem;">${m.assigned_at}</div>
             <div class="col-actions">
-                ${linkHtml}
-                <button class="done-btn" data-id="${m.id}" data-done="${!m.done}">
+                ${actionBtnHtml}
+                <button class="action-btn done-btn" data-id="${m.id}" data-done="${!m.done}">
                     ${m.done ? data.doneBtn : data.markDone}
                 </button>
-                <button class="delete-btn" data-id="${m.id}">🗑️</button>
+                <button class="action-btn delete-btn" data-id="${m.id}">🗑️</button>
             </div>
         `;
 

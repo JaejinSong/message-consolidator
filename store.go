@@ -21,6 +21,7 @@ type ConsolidatedMessage struct {
 	AssignedAt  string     `json:"assigned_at"`
 	Link        string     `json:"link"`
 	SourceTS    string     `json:"source_ts"`
+	OriginalText string     `json:"original_text"`
 	Done        bool       `json:"done"`
 	IsDeleted   bool       `json:"is_deleted"`
 	CreatedAt   time.Time  `json:"created_at"`
@@ -90,7 +91,8 @@ func InitDB(connStr string) error {
 		assignee TEXT,
 		assigned_at TEXT,
 		link TEXT,
-		source_ts TEXT UNIQUE,
+		source_ts TEXT,
+		original_text TEXT,
 		done INTEGER DEFAULT 0,
 		is_deleted INTEGER DEFAULT 0,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -123,6 +125,8 @@ func InitDB(connStr string) error {
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS done INTEGER DEFAULT 0;")
 	// Add completed_at column if it doesn't exist
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP;")
+	// Add original_text column if it doesn't exist
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS original_text TEXT;")
 
 	// Initialize Cache for all existing users
 	if err := RefreshAllCaches(); err != nil {
@@ -202,7 +206,7 @@ func RefreshCache(email string) error {
 
 	// 1. Fetch Active Messages
 	queryActive := `
-		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, done, is_deleted, created_at, completed_at 
+		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at 
 		FROM messages 
 		WHERE user_email = $1 AND is_deleted = 0 AND (done = 0 OR (done = 1 AND (completed_at IS NULL OR completed_at > NOW() - INTERVAL '7 days')))
 		ORDER BY created_at DESC 
@@ -218,7 +222,7 @@ func RefreshCache(email string) error {
 	for rows.Next() {
 		var m ConsolidatedMessage
 		var doneInt, delInt int
-		if err := rows.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &doneInt, &delInt, &m.CreatedAt, &m.CompletedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &doneInt, &delInt, &m.CreatedAt, &m.CompletedAt); err != nil {
 			return err
 		}
 		m.Done = doneInt == 1
@@ -230,7 +234,7 @@ func RefreshCache(email string) error {
 
 	// 2. Fetch Archived Messages (is_deleted = 1 OR long completed)
 	queryArchive := `
-		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, done, is_deleted, created_at, completed_at 
+		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at 
 		FROM messages 
 		WHERE user_email = $1 AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '7 days'))
 		ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
@@ -245,7 +249,7 @@ func RefreshCache(email string) error {
 	for rowsArch.Next() {
 		var m ConsolidatedMessage
 		var doneInt, delInt int
-		if err := rowsArch.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &doneInt, &delInt, &m.CreatedAt, &m.CompletedAt); err != nil {
+		if err := rowsArch.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &doneInt, &delInt, &m.CreatedAt, &m.CompletedAt); err != nil {
 			return err
 		}
 		m.Done = doneInt == 1
@@ -267,10 +271,10 @@ func SaveMessage(msg ConsolidatedMessage) (bool, error) {
 	}
 	cacheMu.RUnlock()
 
-	query := `INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts) 
-			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	query := `INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text) 
+			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			  ON CONFLICT(user_email, source_ts) DO NOTHING;`
-	res, err := db.Exec(query, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS)
+	res, err := db.Exec(query, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText)
 	if err != nil {
 		log.Printf("SaveMessage Error: %v", err)
 		return false, err

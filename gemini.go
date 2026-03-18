@@ -15,6 +15,7 @@ type TodoItem struct {
 	Assignee   string `json:"assignee"`
 	AssignedAt string `json:"assigned_at"`
 	SourceTS   string `json:"source_ts"`
+	OriginalText string `json:"original_text"`
 }
 
 type GeminiClient struct {
@@ -45,8 +46,9 @@ func (g *GeminiClient) Analyze(ctx context.Context, conversationText string, lan
 	model.ResponseMIMEType = "application/json"
 
 	prompt := fmt.Sprintf(`Analyze the following conversation and extract To-do items. 
-Return a JSON array of objects with fields: "task", "requester", "assignee", "assigned_at", "source_ts".
-Translate content to %s.
+Return a JSON array of objects with fields: "task", "requester", "assignee", "assigned_at", "source_ts", "original_text".
+Translate "task" and "requester" to %s. 
+"original_text" MUST be the exact original message content before translation.
 Use the [TS:timestamp] tag to find "source_ts".
 
 Conversation:
