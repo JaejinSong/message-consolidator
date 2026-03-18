@@ -142,7 +142,40 @@ func InitDB(connStr string) error {
 	_, _ = db.Exec("ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_source_ts_key;")
 	_, _ = db.Exec("ALTER TABLE messages ADD CONSTRAINT messages_user_ts_unique UNIQUE (user_email, source_ts);")
 
+	// Create scan_metadata table for incremental scanning
+	query = `CREATE TABLE IF NOT EXISTS scan_metadata (
+		id SERIAL PRIMARY KEY,
+		user_email TEXT NOT NULL,
+		source TEXT NOT NULL,
+		target_id TEXT NOT NULL,
+		last_ts TEXT,
+		UNIQUE(user_email, source, target_id)
+	);`
+	_, err = db.Exec(query)
+	if err != nil {
+		return fmt.Errorf("failed to create scan_metadata table: %w", err)
+	}
+
 	return nil
+}
+
+func GetLastScan(userEmail, source, targetID string) string {
+	var lastTS string
+	err := db.QueryRow("SELECT last_ts FROM scan_metadata WHERE user_email = $1 AND source = $2 AND target_id = $3",
+		userEmail, source, targetID).Scan(&lastTS)
+	if err != nil {
+		return ""
+	}
+	return lastTS
+}
+
+func UpdateLastScan(userEmail, source, targetID, ts string) error {
+	query := `INSERT INTO scan_metadata (user_email, source, target_id, last_ts)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_email, source, target_id)
+		DO UPDATE SET last_ts = EXCLUDED.last_ts;`
+	_, err := db.Exec(query, userEmail, source, targetID, ts)
+	return err
 }
 
 func GetAllUsers() ([]User, error) {

@@ -480,7 +480,9 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 	since := time.Now().Add(-7 * 24 * time.Hour)
 	for id, name := range targetChannels {
 		log.Printf("[SCAN-SLACK] Processing messages from #%s (%s)", name, id)
-		msgs, err := sc.GetMessages(id, since)
+		
+		lastTS := GetLastScan(email, "slack", id)
+		msgs, err := sc.GetMessages(id, since, lastTS)
 		if err != nil {
 			log.Printf("[SCAN-SLACK] Error getting messages for #%s: %v", name, err)
 			continue
@@ -492,71 +494,58 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 
 		msgMap := make(map[string]time.Time)
 		var sb strings.Builder
-		for _, m := range msgs {
-			toPart := ""
-			if m.InteractedUser != "" {
-				toPart = fmt.Sprintf(" -> %s", m.InteractedUser)
-			}
-			msgMap[m.RawTS] = m.Timestamp
-			sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s%s: %s\n", m.RawTS, m.Timestamp.Format("15:04"), m.User, toPart, m.Text))
-		}
-
-		gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey)
-		if err != nil {
-			continue
-		}
-		log.Printf("[SCAN-SLACK] Sending %d messages to Gemini for analysis (language: %s)", len(msgs), language)
-		items, err := gc.Analyze(ctx, sb.String(), language)
-		if err != nil {
-			log.Printf("[SCAN-SLACK] Gemini Analyze Error: %v", err)
-			continue
-		}
+		maxTS := lastTS
 		
-		itemsJSON, _ := json.Marshal(items)
-		log.Printf("[SCAN-SLACK] Gemini Analysis Result for #%s: %s", name, string(itemsJSON))
+		for _, m := range msgs {
+			msgMap[m.RawTS] = m.Timestamp
+			sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s: %s\n", m.RawTS, m.Timestamp.Format("15:04"), m.User, m.Text))
+			
+			if m.RawTS > maxTS {
+				maxTS = m.RawTS
+			}
+		}
 
-		for _, item := range items {
-			// Extract assignee (Slack user ID to name)
-			assignee := ""
-			if item.Assignee != "" {
-				assignee = sc.userMap[item.Assignee]
-				if assignee == "" {
-					assignee = item.Assignee
+		if sb.Len() > 0 {
+			gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey)
+			if err != nil {
+				log.Printf("[SCAN-SLACK] Failed to create Gemini client: %v", err)
+				continue
+			}
+
+			items, err := gc.Analyze(ctx, sb.String(), language)
+			if err != nil {
+				log.Printf("[SCAN-SLACK] Gemini analyze error for #%s: %v", name, err)
+				continue
+			}
+			
+			for _, item := range items {
+				assignedAt := time.Now().Format(time.RFC3339)
+				if ts, ok := msgMap[item.SourceTS]; ok {
+					assignedAt = ts.Format(time.RFC3339)
+				}
+				
+				link := fmt.Sprintf("https://slack.com/app_redirect?channel=%s&message_ts=%s", id, item.SourceTS)
+				
+				saved, _ := SaveMessage(ConsolidatedMessage{
+					UserEmail:    email,
+					Source:       "slack",
+					Room:         "#" + name,
+					Task:         item.Task,
+					Requester:    item.Requester,
+					Assignee:     item.Assignee,
+					AssignedAt:   assignedAt,
+					Link:         link,
+					SourceTS:     item.SourceTS,
+					OriginalText: item.OriginalText,
+				})
+				if saved {
+					hasNew = true
 				}
 			}
-
-			link := fmt.Sprintf("https://slack.com/app_redirect?channel=%s&message_ts=%s", id, item.SourceTS)
-
-			// assignedAt is now derived from item.SourceTS if available, otherwise current time
-			// The original code had a variable `assignedAt` which was then formatted.
-			// The instruction implies removing `assignedAt` and directly using `time.Now().Format(...)`
-			// for the `AssignedAt` field in `SaveMessage`.
-			// However, the provided snippet for `assignedAt` calculation is within an `if item.SourceTS != ""` block,
-			// and then the `SaveMessage` call uses `time.Now().Format`.
-			// To align with the instruction's implied change and fix the `assignedAt` error,
-			// I will remove the `assignedAt` variable and use `time.Now().Format` as shown in the instruction.
-			// The `item.SourceTS` based time calculation is removed as per the instruction's diff.
-
-			assignedAt := time.Now().Format(time.RFC3339)
-			if ts, ok := msgMap[item.SourceTS]; ok {
-				assignedAt = ts.Format(time.RFC3339)
-			}
-
-			saved, _ := SaveMessage(ConsolidatedMessage{
-				UserEmail:  email,
-				Source:     "slack",
-				Room:       "#" + name,
-				Task:       item.Task,
-				Requester:  item.Requester,
-				Assignee:   assignee,
-				AssignedAt: assignedAt,
-				Link:       link,
-				SourceTS:   item.SourceTS,
-				OriginalText: item.OriginalText,
-				Done:       false, 
-			})
-			if saved {
-				hasNew = true
+			
+			// Update last scanned TS for this channel
+			if maxTS != "" && maxTS != lastTS {
+				UpdateLastScan(email, "slack", id, maxTS)
 			}
 		}
 	}
