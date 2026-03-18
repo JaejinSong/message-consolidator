@@ -6,7 +6,7 @@ INSTALL_DIR=/home/jinro/.gemini/message-consolidator
 
 build:
 	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY_NAME) .
-	upx --best $(BINARY_NAME)
+	upx -1 $(BINARY_NAME)
 
 run: build
 	./$(BINARY_NAME)

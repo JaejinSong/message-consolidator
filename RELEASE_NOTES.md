@@ -1,4 +1,11 @@
-# Release Notes - v1.3.4 (Latest)
+# Release Notes - v1.3.5 (Latest)
+
+## 🐳 UPX Compression Optimization
+- **Faster Builds**: Changed UPX compression level from `--best` to `-1` to significantly reduce build and compression times, optimizing the Docker and local development workflows.
+
+---
+
+# Release Notes - v1.3.4 (Old)
 
 ## 🧹 Auto-Archive Older Tasks (7 Days)
 - **Automatic Task Management**: Tasks older than 7 days are now automatically moved to the "Archive" section to keep your active dashboard clean.
