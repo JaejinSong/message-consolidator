@@ -1,4 +1,14 @@
-# Release Notes - v1.3.2 (Latest)
+# Release Notes - v1.3.3 (Latest)
+
+## 🪵 Leveled Logging & Dynamic Config
+- **Leveled Logging System**: Introduced `debugf`, `infof`, `warnf`, and `errorf` helper functions to categorize application logs.
+- **Dynamic LOG_LEVEL**: Added support for the `LOG_LEVEL` environment variable (set via `.env` or system env).
+- **Reduced Verbosity**: By default (`INFO` level), verbose debug and trace logs are now hidden, resulting in much cleaner production logs on the VPS.
+- **Library Integration**: Successfully mapped the internal `whatsmeow` WhatsApp library logs to the application's global `LOG_LEVEL` setting.
+
+---
+
+# Release Notes - v1.3.2 (Old)
 
 ## 🐳 Docker Build Optimization
 - **BuildKit Cache Mounts**: Added `--mount=type=cache` to `Dockerfile` for both Go module downloads and build outputs. This allows Docker to reuse the build cache during incremental builds, resulting in significant speed improvements.

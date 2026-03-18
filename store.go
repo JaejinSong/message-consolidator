@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -127,7 +126,7 @@ func InitDB(connStr string) error {
 	// Migration: Assign existing data to jjsong@whatap.io
 	_, err = db.Exec("UPDATE messages SET user_email = 'jjsong@whatap.io' WHERE user_email IS NULL OR user_email = '';")
 	if err != nil {
-		log.Printf("Migration error: %v", err)
+		errorf("Migration error: %v", err)
 	}
 	// Ensure is_deleted is not null
 	_, _ = db.Exec("UPDATE messages SET is_deleted = 0 WHERE is_deleted IS NULL;")
@@ -145,7 +144,7 @@ func InitDB(connStr string) error {
 
 	// Initialize Cache for all existing users
 	if err := RefreshAllCaches(); err != nil {
-		log.Printf("Warning: Failed to initial cache load: %v", err)
+		warnf("Failed to initial cache load: %v", err)
 	}
 
 	// Migration: Update UNIQUE constraint for multi-tenancy
@@ -173,7 +172,7 @@ func LoadMetadata() error {
 	metadataMu.Lock()
 	defer metadataMu.Unlock()
 
-	log.Println("[CACHE] Initializing metadata cache from DB...")
+	infof("[CACHE] Initializing metadata cache from DB...")
 
 	// 1. Load Users
 	rows, err := db.Query("SELECT id, email, COALESCE(name, ''), COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), created_at FROM users")
@@ -237,7 +236,7 @@ func LoadMetadata() error {
 		tokenCache[email] = tokenJSON
 	}
 
-	log.Printf("[CACHE] Loaded %d users, %d scan metadata entries, %d tokens.", len(userCache), len(scanCache), len(tokenCache))
+	infof("[CACHE] Loaded %d users, %d scan metadata entries, %d tokens.", len(userCache), len(scanCache), len(tokenCache))
 	return nil
 }
 
@@ -259,7 +258,7 @@ func UpdateLastScan(userEmail, source, targetID, ts string) error {
 	}
 	metadataMu.Unlock()
 
-	log.Printf("[CACHE] Updated memory scan_ts for %s:%s -> %s (dirty: %v)", source, targetID, ts, ts != oldTS)
+	debugf("[CACHE] Updated memory scan_ts for %s:%s -> %s (dirty: %v)", source, targetID, ts, ts != oldTS)
 	return nil
 }
 
@@ -351,7 +350,7 @@ func RefreshAllCaches() error {
 	}
 	for _, u := range users {
 		if err := RefreshCache(u.Email); err != nil {
-			log.Printf("Failed to refresh cache for %s: %v", u.Email, err)
+			errorf("Failed to refresh cache for %s: %v", u.Email, err)
 		}
 	}
 	return nil
@@ -445,7 +444,7 @@ func SaveMessage(msg ConsolidatedMessage) (bool, error) {
 			  ON CONFLICT(user_email, source_ts) DO NOTHING;`
 	res, err := db.Exec(query, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText)
 	if err != nil {
-		log.Printf("SaveMessage Error: %v", err)
+		errorf("SaveMessage Error: %v", err)
 		return false, err
 	}
 
@@ -466,7 +465,7 @@ func SaveMessage(msg ConsolidatedMessage) (bool, error) {
 
 func GetMessages(email string) ([]ConsolidatedMessage, error) {
 	if err := EnsureCacheInitialized(email); err != nil {
-		log.Printf("Failed to ensure cache initialized for %s in GetMessages: %v", email, err)
+		errorf("Failed to ensure cache initialized for %s in GetMessages: %v", email, err)
 	}
 
 	cacheMu.RLock()
@@ -514,7 +513,7 @@ func DeleteMessage(email string, id int) error {
 	res, err := db.Exec("UPDATE messages SET is_deleted = 1 WHERE id = $1 AND user_email = $2", id, email)
 	if err == nil {
 		rows, _ := res.RowsAffected()
-		log.Printf("[DB] Soft-delete message ID %d, affected rows: %d", id, rows)
+		debugf("[DB] Soft-delete message ID %d, affected rows: %d", id, rows)
 		go RefreshCache(email)
 	}
 	return err
@@ -524,7 +523,7 @@ func HardDeleteMessage(email string, id int) error {
 	res, err := db.Exec("DELETE FROM messages WHERE id = $1 AND user_email = $2", id, email)
 	if err == nil {
 		rows, _ := res.RowsAffected()
-		log.Printf("[DB] Hard-delete message ID %d, affected rows: %d", id, rows)
+		debugf("[DB] Hard-delete message ID %d, affected rows: %d", id, rows)
 		go RefreshCache(email)
 	}
 	return err
@@ -534,7 +533,7 @@ func RestoreMessage(email string, id int) error {
 	res, err := db.Exec("UPDATE messages SET is_deleted = 0 WHERE id = $1 AND user_email = $2", id, email)
 	if err == nil {
 		rows, _ := res.RowsAffected()
-		log.Printf("[DB] Restore message ID %d, affected rows: %d", id, rows)
+		debugf("[DB] Restore message ID %d, affected rows: %d", id, rows)
 		go RefreshCache(email)
 	}
 	return err
