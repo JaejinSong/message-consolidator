@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -60,7 +59,7 @@ func handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	oauthState, _ := r.Cookie("oauthstate")
 
 	if r.FormValue("state") != oauthState.Value {
-		log.Println("Invalid oauth google state")
+		errorf("Invalid oauth google state")
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
@@ -91,7 +90,7 @@ func handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	// Create or Update user in DB
 	user, err := GetOrCreateUser(userInfo.Email, userInfo.Name, userInfo.Picture)
 	if err != nil {
-		log.Printf("Failed to sync user to DB: %v", err)
+		errorf("Failed to sync user to DB: %v", err)
 	} else {
 		// Automatically attempt to find the user's Slack ID and Aliases
 		sc := NewSlackClient(os.Getenv("SLACK_TOKEN"))
@@ -102,7 +101,7 @@ func handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 			if slackUser.Profile.DisplayName != "" {
 				AddUserAlias(user.ID, slackUser.Profile.DisplayName)
 			}
-			log.Printf("Auto-discovered Slack ID %s and aliases for %s", slackUser.ID, user.Email)
+			infof("Auto-discovered Slack ID %s and aliases for %s", slackUser.ID, user.Email)
 		}
 	}
 
@@ -174,7 +173,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		decodedEmailBytes, err := base64.URLEncoding.DecodeString(cookie.Value)
 		if err != nil {
-			log.Printf("Error decoding session cookie: %v", err)
+			debugf("Error decoding session cookie: %v", err)
 			http.Redirect(w, r, "/auth/login", http.StatusTemporaryRedirect)
 			return
 		}

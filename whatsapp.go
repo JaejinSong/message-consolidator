@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,13 +19,13 @@ import (
 )
 
 var (
-	waClients        = make(map[string]*whatsmeow.Client)
-	waMessageBuffer  = make(map[string]map[types.JID][]RawChatMessage)
-	waLatestQR       = make(map[string]string)
-	waBufferMu       sync.RWMutex
-	waLogLevel       = "INFO"
-	waContainer      *sqlstore.Container
-	waContainerOnce  sync.Once
+	waClients       = make(map[string]*whatsmeow.Client)
+	waMessageBuffer = make(map[string]map[types.JID][]RawChatMessage)
+	waLatestQR      = make(map[string]string)
+	waBufferMu      sync.RWMutex
+	waLogLevel      = "INFO"
+	waContainer     *sqlstore.Container
+	waContainerOnce sync.Once
 )
 
 func InitWhatsApp(email string) {
@@ -38,19 +38,27 @@ func InitWhatsApp(email string) {
 
 	var err error
 	waContainerOnce.Do(func() {
-		dbLog := waLog.Stdout("Database", waLogLevel, true)
+		logLevel := waLogLevel
+		if cfg != nil {
+			if strings.ToUpper(cfg.LogLevel) == "DEBUG" {
+				logLevel = "DEBUG"
+			} else if strings.ToUpper(cfg.LogLevel) == "ERROR" {
+				logLevel = "ERROR"
+			}
+		}
+		dbLog := waLog.Stdout("Database", logLevel, true)
 		waContainer, err = sqlstore.New(context.Background(), "postgres", os.Getenv("DATABASE_URL"), dbLog)
 	})
-	
+
 	if err != nil || waContainer == nil {
-		log.Printf("WA Store failed for %s: %v", email, err)
+		infof("WA Store failed for %s: %v", email, err)
 		return
 	}
 
 	// Load user to get WAJID
 	user, err := GetOrCreateUser(email, "", "")
 	if err != nil {
-		log.Printf("InitWA: User %s not found in DB: %v", email, err)
+		infof("InitWA: User %s not found in DB: %v", email, err)
 		return
 	}
 
@@ -59,7 +67,7 @@ func InitWhatsApp(email string) {
 		jid, _ := types.ParseJID(user.WAJID)
 		device, err = waContainer.GetDevice(context.Background(), jid)
 		if err != nil {
-			log.Printf("WA Device Store failed for %s (JID: %s): %v", email, user.WAJID, err)
+			debugf("WA Device Store failed for %s (JID: %s): %v", email, user.WAJID, err)
 		}
 	}
 
@@ -67,9 +75,17 @@ func InitWhatsApp(email string) {
 		device = waContainer.NewDevice()
 	}
 
-	clientLog := waLog.Stdout("Client", waLogLevel, true)
+	logLevel := waLogLevel
+	if cfg != nil {
+		if strings.ToUpper(cfg.LogLevel) == "DEBUG" {
+			logLevel = "DEBUG"
+		} else if strings.ToUpper(cfg.LogLevel) == "ERROR" {
+			logLevel = "ERROR"
+		}
+	}
+	clientLog := waLog.Stdout("Client", logLevel, true)
 	client := whatsmeow.NewClient(device, clientLog)
-	
+
 	waBufferMu.Lock()
 	waClients[email] = client
 	if _, ok := waMessageBuffer[email]; !ok {
@@ -82,14 +98,14 @@ func InitWhatsApp(email string) {
 	})
 
 	if client.Store.ID == nil {
-		log.Printf("WA: No existing session found for %s, please scan QR code.", email)
+		infof("WA: No existing session found for %s, please scan QR code.", email)
 	} else {
-		log.Printf("WA: Found existing session ID for %s, connecting...", email)
+		infof("WA: Found existing session ID for %s, connecting...", email)
 		err = client.Connect()
 		if err != nil {
-			log.Printf("WA Connect failed for %s: %v", email, err)
+			infof("WA Connect failed for %s: %v", email, err)
 		} else {
-			log.Printf("WA: Connected successfully for %s", email)
+			infof("WA: Connected successfully for %s", email)
 			client.SendPresence(context.Background(), types.PresenceAvailable)
 		}
 	}
@@ -101,12 +117,12 @@ func handleWhatsAppEvent(email string, client *whatsmeow.Client, evt interface{}
 		if v.Info.IsFromMe {
 			return
 		}
-		
+
 		waBufferMu.Lock()
 		if _, ok := waMessageBuffer[email]; !ok {
 			waMessageBuffer[email] = make(map[types.JID][]RawChatMessage)
 		}
-		
+
 		sender := v.Info.Sender.String()
 		if v.Info.PushName != "" {
 			sender = v.Info.PushName
@@ -131,17 +147,17 @@ func handleWhatsAppEvent(email string, client *whatsmeow.Client, evt interface{}
 			}
 		}
 		waBufferMu.Unlock()
-		log.Printf("[WA-EVENT][%s] Message from %s (Chat: %s): %s", email, sender, v.Info.Chat, msgText)
+		debugf("[WA-EVENT][%s] Message from %s (Chat: %s): %s", email, sender, v.Info.Chat, msgText)
 
 	case *events.Connected:
-		log.Printf("[WA-EVENT][%s] Connected to WhatsApp", email)
+		debugf("[WA-EVENT][%s] Connected to WhatsApp", email)
 		if client.Store.ID != nil {
 			UpdateUserWAJID(email, client.Store.ID.String())
 		}
 	case *events.OfflineSyncCompleted:
-		log.Printf("[WA-EVENT][%s] Offline sync completed", email)
+		debugf("[WA-EVENT][%s] Offline sync completed", email)
 	case *events.LoggedOut:
-		log.Printf("[WA-EVENT][%s] Logged out from WhatsApp", email)
+		debugf("[WA-EVENT][%s] Logged out from WhatsApp", email)
 		UpdateUserWAJID(email, "")
 		waBufferMu.Lock()
 		delete(waClients, email)
@@ -156,7 +172,7 @@ func GetWhatsAppQR(ctx context.Context, email string) (string, error) {
 	waBufferMu.RLock()
 	client, ok1 := waClients[email]
 	waBufferMu.RUnlock()
-	
+
 	if !ok1 {
 		return "", fmt.Errorf("client not initialized for %s", email)
 	}
@@ -167,7 +183,7 @@ func GetWhatsAppQR(ctx context.Context, email string) (string, error) {
 
 	qrChan, err := client.GetQRChannel(ctx)
 	if err != nil {
-		log.Printf("[WA-TRACE][%s] GetQRChannel initial error: %v", email, err)
+		debugf("[WA-TRACE][%s] GetQRChannel initial error: %v", email, err)
 	}
 
 	if !client.IsConnected() {
@@ -211,7 +227,7 @@ func GetWhatsAppStatus(email string) string {
 	waBufferMu.RLock()
 	client, ok := waClients[email]
 	waBufferMu.RUnlock()
-	
+
 	if !ok {
 		return "DISCONNECTED"
 	}
@@ -224,12 +240,12 @@ func GetWhatsAppStatus(email string) string {
 func GetWhatsAppMessages(email string) map[types.JID][]RawChatMessage {
 	waBufferMu.Lock()
 	defer waBufferMu.Unlock()
-	
+
 	msgs, ok := waMessageBuffer[email]
 	if !ok {
 		return nil
 	}
-	
+
 	result := make(map[types.JID][]RawChatMessage)
 	for k, v := range msgs {
 		result[k] = v
@@ -242,7 +258,7 @@ func GetGroupName(email string, jid types.JID) string {
 	waBufferMu.RLock()
 	client, ok := waClients[email]
 	waBufferMu.RUnlock()
-	
+
 	if !ok {
 		return jid.String()
 	}

@@ -20,6 +20,54 @@ import (
 
 var cfg *Config
 
+const (
+	LevelDebug = iota
+	LevelInfo
+	LevelWarn
+	LevelError
+)
+
+var levelMap = map[string]int{
+	"DEBUG": LevelDebug,
+	"INFO":  LevelInfo,
+	"WARN":  LevelWarn,
+	"ERROR": LevelError,
+}
+
+func getLogLevel() int {
+	if cfg == nil {
+		return LevelInfo
+	}
+	if level, ok := levelMap[strings.ToUpper(cfg.LogLevel)]; ok {
+		return level
+	}
+	return LevelInfo
+}
+
+func debugf(format string, v ...interface{}) {
+	if getLogLevel() <= LevelDebug {
+		log.Printf("[DEBUG] "+format, v...)
+	}
+}
+
+func infof(format string, v ...interface{}) {
+	if getLogLevel() <= LevelInfo {
+		log.Printf("[INFO] "+format, v...)
+	}
+}
+
+func warnf(format string, v ...interface{}) {
+	if getLogLevel() <= LevelWarn {
+		log.Printf("[WARN] "+format, v...)
+	}
+}
+
+func errorf(format string, v ...interface{}) {
+	if getLogLevel() <= LevelError {
+		log.Printf("[ERROR] "+format, v...)
+	}
+}
+
 func main() {
 	initLogging()
 	cfg = LoadConfig()
@@ -31,7 +79,7 @@ func main() {
 
 	// Load Metadata into Memory Cache
 	if err := LoadMetadata(); err != nil {
-		log.Printf("Warning: Failed to load metadata cache: %v", err)
+		warnf("Failed to load metadata cache: %v", err)
 	}
 
 	// Initialize WhatsApp for all existing users
@@ -92,7 +140,7 @@ func main() {
 	// Attach the router to the default http server
 	http.Handle("/", r)
 
-	log.Println("Server starting on :8080...")
+	infof("Server starting on :8080...")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatal(err)
 	}
@@ -186,7 +234,7 @@ func handleManualScan(w http.ResponseWriter, r *http.Request) {
 	if lang == "" {
 		lang = "Korean"
 	}
-	log.Printf("Manual scan triggered via API for %s (lang: %s)", email, lang)
+	debugf("Manual scan triggered via API for %s (lang: %s)", email, lang)
 	go scan(email, lang) // Pass email to scan
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "scan started", "lang": lang})
@@ -255,7 +303,7 @@ func handleDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	
+
 	ids := req.IDs
 	if len(ids) == 0 && req.ID != 0 {
 		ids = []int{req.ID}
@@ -318,10 +366,10 @@ func handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 // New handler for user info
 func handleUserInfo(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
-	log.Printf("Fetching user info for: %s", email)
+	debugf("Fetching user info for: %s", email)
 	user, err := GetOrCreateUser(email, "", "")
 	if err != nil {
-		log.Printf("handleUserInfo Error: %v", err)
+		errorf("handleUserInfo Error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -332,25 +380,25 @@ func handleUserInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(user.Aliases) == 0 {
-		log.Printf("[DEBUG] No aliases found for %s, attempting self-heal with Slack Token: %s...", user.Email, cfg.SlackToken[:10]+"***")
+		debugf("No aliases found for %s, attempting self-heal with Slack Token: %s...", user.Email, cfg.SlackToken[:10]+"***")
 		sc := NewSlackClient(cfg.SlackToken)
 		slackUser, err := sc.LookupUserByEmail(user.Email)
 		if err != nil {
-			log.Printf("[DEBUG] Slack Lookup failed for %s: %v", user.Email, err)
+			debugf("Slack Lookup failed for %s: %v", user.Email, err)
 		} else if slackUser != nil {
-			log.Printf("[DEBUG] Found Slack User: %s (ID: %s)", slackUser.RealName, slackUser.ID)
+			debugf("Found Slack User: %s (ID: %s)", slackUser.RealName, slackUser.ID)
 			UpdateUserSlackID(user.Email, slackUser.ID)
 			AddUserAlias(user.ID, slackUser.RealName)
 			if slackUser.Profile.DisplayName != "" {
 				AddUserAlias(user.ID, slackUser.Profile.DisplayName)
 			}
 			user.Aliases, _ = GetUserAliases(user.ID)
-			log.Printf("Self-healed aliases for existing user: %s -> %v", user.Email, user.Aliases)
+			infof("Self-healed aliases for existing user: %s -> %v", user.Email, user.Aliases)
 		} else {
-			log.Printf("[DEBUG] No Slack user found for %s", user.Email)
+			debugf("No Slack user found for %s", user.Email)
 		}
 	} else {
-		log.Printf("[DEBUG] User %s already has aliases: %v", user.Email, user.Aliases)
+		debugf("User %s already has aliases: %v", user.Email, user.Aliases)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -416,7 +464,7 @@ func handleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 }
 
 func startBackgroundScanner() {
-	log.Println("Background scanner started (1m interval)...")
+	infof("Background scanner started (1m interval)...")
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
@@ -431,22 +479,22 @@ func startBackgroundScanner() {
 func runAllScans() {
 	users, err := GetAllUsers()
 	if err != nil {
-		log.Printf("Scanner Error: Failed to get users: %v", err)
+		errorf("Scanner Error: Failed to get users: %v", err)
 		return
 	}
 	for _, u := range users {
-		log.Printf("Starting background scan for: %s", u.Email)
+		debugf("Starting background scan for: %s", u.Email)
 		go scan(u.Email, "Korean") // Default language for background scan
 	}
 }
 
 func scan(email string, language string) {
-	log.Printf("Starting message scan for %s (lang: %s)...", email, language)
+	debugf("Starting message scan for %s (lang: %s)...", email, language)
 	ctx := context.Background()
 
 	user, err := GetOrCreateUser(email, "", "")
 	if err != nil {
-		log.Printf("[SCAN] Error: Failed to get user %s: %v", email, err)
+		errorf("[SCAN] Error: Failed to get user %s: %v", email, err)
 		return
 	}
 	aliases, _ := GetUserAliases(user.ID)
@@ -454,46 +502,45 @@ func scan(email string, language string) {
 	aliases = append(aliases, user.Email, user.Name)
 
 	// Slack Scan
-	log.Printf("[SCAN] About to call scanSlack for %s", email)
+	debugf("About to call scanSlack for %s", email)
 	newSlack := scanSlack(ctx, user, aliases, language)
-	log.Printf("[SCAN] scanSlack finished for %s, hasNew: %v", email, newSlack)
+	debugf("scanSlack finished for %s, hasNew: %v", email, newSlack)
 
 	// WhatsApp Scan
-	log.Printf("[SCAN] About to call scanWhatsApp for %s", email)
+	debugf("About to call scanWhatsApp for %s", email)
 	newWA := scanWhatsApp(ctx, user, aliases, language)
-	log.Printf("[SCAN] scanWhatsApp finished for %s, hasNew: %v", email, newWA)
+	debugf("scanWhatsApp finished for %s, hasNew: %v", email, newWA)
 
 	// Gmail Scan
-	log.Printf("[SCAN] About to call ScanGmail for %s", email)
+	debugf("About to call ScanGmail for %s", email)
 	newGmail := ScanGmail(ctx, email, language)
-	log.Printf("[SCAN] ScanGmail finished for %s, hasNew: %v", email, newGmail)
+	debugf("ScanGmail finished for %s, hasNew: %v", email, newGmail)
 
 	// Refresh cache only if new messages were actually saved
 	if newSlack || newWA || newGmail {
-		log.Println("[SCAN] New messages found, refreshing cache and persisting metadata...")
+		infof("[SCAN] New messages found, refreshing cache and persisting metadata...")
 		if err := RefreshCache(email); err != nil {
-			log.Printf("Error refreshing cache for %s after scan: %v", email, err)
+			errorf("Error refreshing cache for %s after scan: %v", email, err)
 		}
 		// Persist all updated memory scan TS to DB since it's already awake
 		PersistAllScanMetadata(email)
 	} else {
-		log.Printf("[SCAN] No new messages found for %s, skipping DB interactions.", email)
+		debugf("No new messages found for %s, skipping DB interactions.", email)
 	}
 }
-
 
 func scanSlack(ctx context.Context, user *User, aliases []string, language string) bool {
 	email := user.Email
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("[SCAN-SLACK] PANIC RECOVERED for %s: %v", email, r)
+			errorf("[SCAN-SLACK] PANIC RECOVERED for %s: %v", email, r)
 		}
 	}()
 
-	log.Printf("TRACELOG: Starting Slack scan for %s...", email)
+	debugf("TRACELOG: Starting Slack scan for %s...", email)
 	hasNew := false
 	sc := NewSlackClient(cfg.SlackToken)
-	
+
 	// Collect channels to scan
 	targetChannels := make(map[string]*slack.Channel) // ID -> Channel info
 
@@ -505,17 +552,17 @@ func scanSlack(ctx context.Context, user *User, aliases []string, language strin
 			Cursor: cursor,
 			Limit:  100,
 		}
-		
-		log.Printf("[SCAN-SLACK] Discovering rooms for %s (cursor: %s)...", email, cursor)
+
+		debugf("[SCAN-SLACK] Discovering rooms for %s (cursor: %s)...", email, cursor)
 		channels, nextCursor, err := sc.api.GetConversations(params)
 		if err != nil {
-			log.Printf("[SCAN-SLACK] Error fetching rooms for %s: %v", email, err)
+			errorf("[SCAN-SLACK] Error fetching rooms for %s: %v", email, err)
 			break
 		}
 
 		for _, channel := range channels {
 			if channel.IsMember || channel.IsIM {
-				log.Printf("[SCAN-SLACK] Found membership in #%s (%s), isIM: %v", channel.Name, channel.ID, channel.IsIM)
+				debugf("[SCAN-SLACK] Found membership in #%s (%s), isIM: %v", channel.Name, channel.ID, channel.IsIM)
 				targetChannels[channel.ID] = &channel
 			}
 		}
@@ -526,7 +573,7 @@ func scanSlack(ctx context.Context, user *User, aliases []string, language strin
 		cursor = nextCursor
 	}
 
-	log.Printf("[SCAN-SLACK] Total rooms to scan for %s: %d", email, len(targetChannels))
+	debugf("[SCAN-SLACK] Total rooms to scan for %s: %d", email, len(targetChannels))
 
 	if len(sc.userMap) == 0 {
 		sc.FetchUsers()
@@ -535,15 +582,15 @@ func scanSlack(ctx context.Context, user *User, aliases []string, language strin
 	// Scan last 7 days to capture older threads with new activity
 	since := time.Now().Add(-7 * 24 * time.Hour)
 	for id, channel := range targetChannels {
-		log.Printf("[SCAN-SLACK] Processing messages from #%s (%s)", channel.Name, id)
-		
+		debugf("[SCAN-SLACK] Processing messages from #%s (%s)", channel.Name, id)
+
 		lastTS := GetLastScan(email, "slack", id)
 		msgs, err := sc.GetMessages(id, since, lastTS)
 		if err != nil {
-			log.Printf("[SCAN-SLACK] Error getting messages for #%s: %v", channel.Name, err)
+			debugf("[SCAN-SLACK] Error getting messages for #%s: %v", channel.Name, err)
 			continue
 		}
-		log.Printf("[SCAN-SLACK] Fetched %d messages from #%s", len(msgs), channel.Name)
+		debugf("[SCAN-SLACK] Fetched %d messages from #%s", len(msgs), channel.Name)
 		if len(msgs) == 0 {
 			continue
 		}
@@ -551,11 +598,11 @@ func scanSlack(ctx context.Context, user *User, aliases []string, language strin
 		msgMap := make(map[string]RawChatMessage)
 		var sb strings.Builder
 		maxTS := lastTS
-		
+
 		for _, m := range msgs {
 			msgMap[m.RawTS] = m
 			sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s: %s\n", m.RawTS, m.Timestamp.Format("15:04"), m.User, m.Text))
-			
+
 			if m.RawTS > maxTS {
 				maxTS = m.RawTS
 			}
@@ -564,23 +611,23 @@ func scanSlack(ctx context.Context, user *User, aliases []string, language strin
 		if sb.Len() > 0 {
 			gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey)
 			if err != nil {
-				log.Printf("[SCAN-SLACK] Failed to create Gemini client: %v", err)
+				debugf("[SCAN-SLACK] Failed to create Gemini client: %v", err)
 				continue
 			}
 
 			items, err := gc.Analyze(ctx, sb.String(), language)
 			if err != nil {
-				log.Printf("[SCAN-SLACK] Gemini analyze error for #%s: %v", channel.Name, err)
+				debugf("[SCAN-SLACK] Gemini analyze error for #%s: %v", channel.Name, err)
 				continue
 			}
-			
+
 			for _, item := range items {
 				assignedAt := time.Now().Format(time.RFC3339)
 				originalMsg, ok := msgMap[item.SourceTS]
 				if ok {
 					assignedAt = originalMsg.Timestamp.Format(time.RFC3339)
 				}
-				
+
 				// Classification logic
 				classification := "기타 업무"
 				isDM := channel.IsIM || channel.IsMpIM
@@ -602,7 +649,7 @@ func scanSlack(ctx context.Context, user *User, aliases []string, language strin
 				}
 
 				link := fmt.Sprintf("https://slack.com/app_redirect?channel=%s&message_ts=%s", id, item.SourceTS)
-				
+
 				saved, _ := SaveMessage(ConsolidatedMessage{
 					UserEmail:    email,
 					Source:       "slack",
@@ -619,7 +666,7 @@ func scanSlack(ctx context.Context, user *User, aliases []string, language strin
 					hasNew = true
 				}
 			}
-			
+
 			// Update last scanned TS for this channel
 			if maxTS != "" && maxTS != lastTS {
 				UpdateLastScan(email, "slack", id, maxTS)
@@ -629,15 +676,14 @@ func scanSlack(ctx context.Context, user *User, aliases []string, language strin
 	return hasNew
 }
 
-
 func scanWhatsApp(ctx context.Context, user *User, aliases []string, language string) bool {
 	email := user.Email
-	log.Printf("[SCAN-WA] Starting WhatsApp scan for %s (Buffer JIDs: %d)", email, len(waMessageBuffer[email])) // Access user-specific buffer
+	debugf("[SCAN-WA] Starting WhatsApp scan for %s (Buffer JIDs: %d)", email, len(waMessageBuffer[email])) // Access user-specific buffer
 	hasNew := false
 	// Assuming waClient is now user-specific or managed to handle multiple users
 	userWAClient := GetWhatsAppClient(email)
 	if userWAClient == nil || !userWAClient.IsLoggedIn() {
-		log.Printf("[SCAN-WA] Skip for %s: Client not initialized or not logged in", email)
+		debugf("[SCAN-WA] Skip for %s: Client not initialized or not logged in", email)
 		return false
 	}
 
@@ -647,7 +693,7 @@ func scanWhatsApp(ctx context.Context, user *User, aliases []string, language st
 	// Access user-specific message buffer
 	userBuffer, ok := waMessageBuffer[email]
 	if !ok {
-		log.Printf("[SCAN-WA] No WhatsApp message buffer for %s", email)
+		debugf("[SCAN-WA] No WhatsApp message buffer for %s", email)
 		return false
 	}
 
@@ -722,13 +768,12 @@ func scanWhatsApp(ctx context.Context, user *User, aliases []string, language st
 	return hasNew
 }
 
-
 func initLogging() {
 	lumberjackLogger := &lumberjack.Logger{
 		Filename:   "logs/app.log",
 		MaxSize:    100, // megabytes
 		MaxBackups: 30,
-		MaxAge:     7,    // days (Requirement 3)
+		MaxAge:     7, // days (Requirement 3)
 		Compress:   true,
 		LocalTime:  true,
 	}
@@ -744,12 +789,11 @@ func initLogging() {
 			// Calculate time until next midnight
 			nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
 			time.Sleep(time.Until(nextMidnight))
-			
-			log.Println("[LOG] Rotating log file for new day...")
+
+			infof("[LOG] Rotating log file for new day...")
 			if err := lumberjackLogger.Rotate(); err != nil {
-				log.Printf("[LOG] Error rotating log: %v", err)
+				errorf("[LOG] Error rotating log: %v", err)
 			}
 		}
 	}()
 }
-

@@ -1,6 +1,6 @@
 # Build stage
 FROM golang:1.25-alpine AS builder
-RUN apk add --no-cache git gcc musl-dev
+RUN apk add --no-cache git gcc musl-dev upx
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -8,14 +8,15 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -o chat-analyzer .
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o message-consolidator . && \
+    upx --best message-consolidator
 
 # Final stage
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates tzdata libc6-compat
 WORKDIR /app
-COPY --from=builder /app/chat-analyzer .
+COPY --from=builder /app/message-consolidator .
 COPY static ./static
 VOLUME ["/data"]
 EXPOSE 8080
-CMD ["./chat-analyzer"]
+CMD ["./message-consolidator"]

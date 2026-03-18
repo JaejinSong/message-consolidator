@@ -44,6 +44,7 @@ GOOGLE_CLIENT_ID=...          # Google OAuth Client ID
 GOOGLE_CLIENT_SECRET=...      # Google OAuth Client Secret
 AUTH_SECRET=...               # 세션 암호화용 비밀키
 APP_BASE_URL=https://...      # 앱 베이스 URL
+LOG_LEVEL=INFO                # 로그 레벨 (DEBUG, INFO, WARN, ERROR)
 ```
 
 ---
@@ -52,9 +53,10 @@ APP_BASE_URL=https://...      # 앱 베이스 URL
 
 Docker Compose를 사용하여 간편하게 배포할 수 있습니다.
 
-### 1. 바이너리 빌드 (Linux 정적 바이너리)
+### 1. 바이너리 빌드 (최적화 적용)
 ```bash
-CGO_ENABLED=0 GOOS=linux go build -o message-consolidator-vps .
+CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o message-consolidator-vps .
+upx --best message-consolidator-vps
 ```
 
 ### 2. Docker 실행
@@ -62,7 +64,9 @@ CGO_ENABLED=0 GOOS=linux go build -o message-consolidator-vps .
 docker-compose up -d --build
 ```
 
-### 💡 Build Speed Tips
+### 💡 Build Speed & Size Tips
+- **Binary Size Optimization**: Build with `-ldflags="-s -w"` to strip symbols and debug info.
+- **Binary Compression**: Use `upx --best` to further compress the binary (37MB -> ~10MB).
 - **Keep CGO Disabled**: Use `CGO_ENABLED=0` for faster, statically linked binaries unless CGO is strictly required.
 - **GOCACHE on RAM Disk**: Since `jjsong-devmachine` has 32GB RAM, use `tmpfs` to speed up I/O.
   ```bash

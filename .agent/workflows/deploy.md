@@ -3,6 +3,7 @@ description: VPS 배포 워크플로우 (Google Artifact Registry 활용)
 ---
 
 // turbo-all
+# Size Optimization: Binary stripped with -ldflags="-s -w" and compressed with upx (~37MB -> ~10MB)
 1. 로컬에서 Docker 이미지 빌드 및 푸시
 ```bash
 # Artifact Registry 인증 (최초 1회 필요)
