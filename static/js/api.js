@@ -17,13 +17,34 @@ export const api = {
         return resp;
     },
 
-    async deleteTask(id) {
+    async deleteTask(idOrIds) {
+        const body = Array.isArray(idOrIds) ? { ids: idOrIds } : { id: idOrIds };
         const resp = await fetch('/api/messages/delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id })
+            body: JSON.stringify(body)
         });
         if (!resp.ok) throw new Error(`Delete task failed: ${resp.status}`);
+        return resp;
+    },
+
+    async hardDeleteTasks(ids) {
+        const resp = await fetch('/api/messages/hard-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+        });
+        if (!resp.ok) throw new Error(`Hard delete failed: ${resp.status}`);
+        return resp;
+    },
+
+    async restoreTasks(ids) {
+        const resp = await fetch('/api/messages/restore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+        });
+        if (!resp.ok) throw new Error(`Restore failed: ${resp.status}`);
         return resp;
     },
 

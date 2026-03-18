@@ -382,6 +382,24 @@ footer {
     border-radius: 24px;
 }
 
+.archive-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.archive-actions {
+    display: flex;
+    gap: 0.8rem;
+    align-items: center;
+}
+
+.archive-actions .badge:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+}
+
 .archive-table {
     width: 100%;
     border-collapse: collapse;

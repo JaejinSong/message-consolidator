@@ -251,14 +251,14 @@ export const renderer = {
         if (countEl) countEl.textContent = messages.length;
 
         if (!messages || messages.length === 0) {
-            body.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-dim);">No archived tasks.</td></tr>`;
+            body.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-dim);">No archived tasks.</td></tr>`;
             return;
         }
 
         messages.forEach(m => {
             const tr = document.createElement('tr');
-            const compAt = m.completed_at ? new Date(m.completed_at).toLocaleString() : '-';
             tr.innerHTML = `
+                <td><input type="checkbox" class="archive-checkbox" data-id="${m.id}"></td>
                 <td><span class="badge">${m.source}</span></td>
                 <td>${m.room || '-'}</td>
                 <td style="font-weight: 600;">${m.task}</td>

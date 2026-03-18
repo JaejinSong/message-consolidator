@@ -135,8 +135,15 @@
             <!-- Archive View (Hidden by default) -->
             <section id="archiveSection" class="hidden glass-card" style="margin-top: 2rem; padding: 2rem;">
                 <div class="archive-header">
-                    <h2>Archive <span class="badge count" id="archiveCount">0</span></h2>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <button type="button" id="backToDashBtn" class="action-btn" title="Back to Dashboard" style="width: 40px; height: 40px;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                        </button>
+                        <h2>Archive <span class="badge count" id="archiveCount">0</span></h2>
+                    </div>
                     <div class="archive-actions">
+                        <button type="button" id="restoreSelectedBtn" class="badge" style="cursor: pointer; border-color: var(--accent-color); color: var(--accent-color); display: none;">🔄 Restore Selected</button>
+                        <button type="button" id="hardDeleteSelectedBtn" class="badge" style="cursor: pointer; border-color: #ff3b30; color: #ff3b30; display: none;">🗑 Permanent Delete</button>
                         <button type="button" id="exportCsvBtn" class="badge" style="cursor: pointer; border-color: #25d366; color: #25d366;">📥 Export CSV</button>
                         <button type="button" id="closeArchiveBtn" class="badge" style="cursor: pointer;">✖ Close</button>
                     </div>
@@ -145,6 +152,7 @@
                     <table class="archive-table">
                         <thead>
                             <tr>
+                                <th style="width: 40px;"><input type="checkbox" id="selectAllArchive"></th>
                                 <th id="ahSource">Source</th>
                                 <th id="ahRoom">Room</th>
                                 <th id="ahTask">Task</th>

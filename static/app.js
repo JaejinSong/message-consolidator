@@ -164,22 +164,79 @@ const initApp = () => {
     setTimeout(() => switchTab('myTasksTab'), 500);
 
     // Archive
+    const updateArchiveActionsVisibility = () => {
+        const checkedCount = document.querySelectorAll('.archive-checkbox:checked').length;
+        const restoreBtn = document.getElementById('restoreSelectedBtn');
+        const hardDeleteBtn = document.getElementById('hardDeleteSelectedBtn');
+        if (restoreBtn) restoreBtn.style.display = checkedCount > 0 ? 'inline-block' : 'none';
+        if (hardDeleteBtn) hardDeleteBtn.style.display = checkedCount > 0 ? 'inline-block' : 'none';
+    };
+
+    const getSelectedArchiveIds = () => {
+        return Array.from(document.querySelectorAll('.archive-checkbox:checked')).map(cb => parseInt(cb.getAttribute('data-id')));
+    };
+
     document.getElementById('archiveLink')?.addEventListener('click', (e) => {
         e.preventDefault();
         document.querySelector('.tabs-container')?.classList.add('hidden');
         document.querySelector('.dashboard-header')?.classList.add('hidden');
         document.getElementById('archiveSection')?.classList.remove('hidden');
+        // Reset selection
+        const selectAll = document.getElementById('selectAllArchive');
+        if (selectAll) selectAll.checked = false;
+        updateArchiveActionsVisibility();
         fetchArchive();
     });
 
-    document.getElementById('closeArchiveBtn')?.addEventListener('click', () => {
+    const closeArchive = () => {
         document.querySelector('.tabs-container')?.classList.remove('hidden');
         document.querySelector('.dashboard-header')?.classList.remove('hidden');
         document.getElementById('archiveSection')?.classList.add('hidden');
+    };
+
+    document.getElementById('closeArchiveBtn')?.addEventListener('click', closeArchive);
+    document.getElementById('backToDashBtn')?.addEventListener('click', closeArchive);
+
+    document.getElementById('selectAllArchive')?.addEventListener('change', (e) => {
+        const checked = e.target.checked;
+        document.querySelectorAll('.archive-checkbox').forEach(cb => cb.checked = checked);
+        updateArchiveActionsVisibility();
+    });
+
+    document.getElementById('archiveBody')?.addEventListener('change', (e) => {
+        if (e.target.classList.contains('archive-checkbox')) {
+            updateArchiveActionsVisibility();
+        }
+    });
+
+    document.getElementById('restoreSelectedBtn')?.addEventListener('click', async () => {
+        const ids = getSelectedArchiveIds();
+        if (ids.length === 0) return;
+        try {
+            await api.restoreTasks(ids);
+            const selectAll = document.getElementById('selectAllArchive');
+            if (selectAll) selectAll.checked = false;
+            updateArchiveActionsVisibility();
+            fetchArchive();
+            fetchMessages();
+        } catch (e) { alert('Restore failed: ' + e.message); }
+    });
+
+    document.getElementById('hardDeleteSelectedBtn')?.addEventListener('click', async () => {
+        const ids = getSelectedArchiveIds();
+        if (ids.length === 0) return;
+        if (!confirm(`Are you sure you want to PERMANENTLY delete ${ids.length} items?`)) return;
+        try {
+            await api.hardDeleteTasks(ids);
+            const selectAll = document.getElementById('selectAllArchive');
+            if (selectAll) selectAll.checked = false;
+            updateArchiveActionsVisibility();
+            fetchArchive();
+        } catch (e) { alert('Hard delete failed: ' + e.message); }
     });
 
     document.getElementById('exportCsvBtn')?.addEventListener('click', () => {
-        window.location.href = '/api/messages/archive/export';
+        window.location.href = '/api/messages/export';
     });
 
     // WhatsApp QR
