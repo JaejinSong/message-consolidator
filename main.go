@@ -244,13 +244,18 @@ func handleDelete(w http.ResponseWriter, r *http.Request) {
 		ID int `json:"id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("[API] Delete error (decode): %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	
+	log.Printf("[API] Deleting task ID %d for %s", req.ID, email)
 	if err := DeleteMessage(email, req.ID); err != nil {
+		log.Printf("[API] Delete error (DB): %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	
 	w.WriteHeader(http.StatusOK)
 }
 

@@ -179,7 +179,7 @@ h1 {
 .col-requester { width: 100px; flex-shrink: 0; display: flex; align-items: center; }
 .col-assignee { width: 100px; flex-shrink: 0; display: flex; align-items: center; }
 .col-time { width: 160px; flex-shrink: 0; display: flex; align-items: center; }
-.col-actions { width: 140px; flex-shrink: 0; display: flex; gap: 0.4rem; justify-content: flex-end; align-items: center; }
+.col-actions { width: 180px; flex-shrink: 0; display: flex; gap: 0.4rem; justify-content: flex-end; align-items: center; }
 
 .card {
     background: rgba(255, 255, 255, 0.02);
@@ -248,16 +248,18 @@ h1 {
     padding: 0;
     border-radius: 8px;
     font-size: 0.75rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
-    white-space: nowrap;
-    border: 1px solid var(--glass-border);
     background: rgba(255, 255, 255, 0.05);
-    color: var(--text-main);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.action-btn svg {
+    pointer-events: none;
 }
 
 .original-btn {
@@ -280,6 +282,12 @@ h1 {
     border-color: var(--accent-color);
     text-decoration: none;
     opacity: 1;
+}
+
+.delete-btn:hover {
+    background: rgba(235, 67, 53, 0.1) !important;
+    border-color: rgba(235, 67, 53, 0.3) !important;
+    color: #ea4335 !important;
 }
 
 /* Done Task Styling */
