@@ -1,3 +1,18 @@
+# Release Notes - v1.3.0 (Latest)
+
+## 📧 What's New: Gmail Integration & Better UX
+
+### 🚀 Gmail as a New Message Source
+- **Automated Email Scanning**: Connect your company Gmail to automatically scan for task-related emails.
+- **AI-Powered Inbox Analysis**: Uses Gemini Pro to extract tasks from plain-text email bodies, identifying requesters and due dates just like Slack and WhatsApp messages.
+- **Secure Token Management**: Each user can securely connect their Gmail account via OAuth 2.0 (`gmail.readonly` scope). Tokens are stored safely in the database and auto-refreshed as needed.
+
+### 🎨 Improved Connection UX
+- **Icon-Driven Connectivity**: You can now connect your WhatsApp or Gmail account by simply clicking their respective icons in the header when they are in the "OFF" state.
+- **Visual Feedback**: Dashboard header icons now use standard colors for "Connected" and grayscale for "Disconnected," with interactive status tooltips.
+
+---
+
 # Release Notes - v1.2.0 (Stable)
 
 ## 🚀 What's New

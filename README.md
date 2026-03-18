@@ -6,9 +6,10 @@
 
 ## 🌟 주요 기능
 
-- **메시지 통합 수집**: Slack 채널 및 WhatsApp 그룹 메시지를 실시간/정기적으로 스캔합니다.
-- **AI 업무 분석**: Google Gemini Pro를 사용하여 메시지 본문에서 작업(Task), 요청자(Requester), 담당자(Assignee), 기한 등을 자동으로 추출합니다.
-- **다중 사용자 지원**: Google 로그인(OAuth 2.0)을 통해 개별 사용자별로 전용 대시보드와 WhatsApp 연동을 지원합니다.
+- **메시지 통합 수집**: Slack 채널, WhatsApp 그룹 메시지 및 **Gmail 이메일**을 정기적으로 스캔합니다.
+- **AI 업무 분석**: Google Gemini Pro를 사용하여 메시지 본문 및 이메일 내용에서 작업(Task), 요청자(Requester), 담당자(Assignee), 기한 등을 자동으로 추출합니다.
+- **다중 사용자 지원**: Google 로그인(OAuth 2.0)을 통해 개별 사용자별로 전용 대시보드와 WhatsApp 및 Gmail 연동을 지원합니다.
+- **간편한 연동 UX**: 대시보드 헤더의 서비스 아이콘을 클릭하여 WhatsApp(QR 코드)이나 Gmail(OAuth)을 즉시 연결할 수 있습니다.
 - **탭 기반 웹 대시보드**: 'My Tasks'와 'Other Tasks' 탭을 통해 업무를 효율적으로 분류하여 관리할 수 있습니다.
 - **프로필 연동**: Google 프로필 사진을 대시보드에서 바로 확인할 수 있습니다.
 - **소프트 삭제 (Soft Delete)**: 업무를 삭제하면 DB에서 완전히 지워지지 않고 '아카이브'로 이동하여 나중에 확인할 수 있습니다.
@@ -71,6 +72,7 @@ docker-compose up -d --build
 - `whatsapp.go`: 다중 사용자별 WhatsApp 연동 및 스캔
 - `slack.go`: Slack 메시지 수집 로직
 - `gemini.go`: AI 분석 및 번역 (Google Generative AI)
+- `gmail.go`: Gmail API 연동 및 이메일 본문 분석 로직
 - `static/`: 프론트엔드 (index.html, app.js, style.css)
 - `docker-compose.yml` / `Dockerfile`: 컨테이너라이제이션 설정
 
