@@ -44,41 +44,54 @@ func (s *SlackClient) GetUserName(id string) string {
 }
 
 func (s *SlackClient) GetMessages(channelID string, since time.Time) ([]RawChatMessage, error) {
-	params := &slack.GetConversationHistoryParameters{
-		ChannelID: channelID,
-		Oldest:    fmt.Sprintf("%d", since.Unix()),
-	}
-	history, err := s.api.GetConversationHistory(params)
-	if err != nil {
-		return nil, err
-	}
-
-	var msgs []RawChatMessage
-	for _, m := range history.Messages {
-		if m.User == "" || m.Text == "" {
-			continue
+	var allMsgs []RawChatMessage
+	cursor := ""
+	
+	for {
+		params := &slack.GetConversationHistoryParameters{
+			ChannelID: channelID,
+			Oldest:    fmt.Sprintf("%d", since.Unix()),
+			Cursor:    cursor,
+			Limit:     100, // Fetch in batches
 		}
 		
-		// Add main message
-		msgs = append(msgs, s.parseMessage(m))
+		history, err := s.api.GetConversationHistory(params)
+		if err != nil {
+			return nil, err
+		}
 
-		// Add thread replies if any
-		if m.ReplyCount > 0 {
-			replies, _, _, err := s.api.GetConversationReplies(&slack.GetConversationRepliesParameters{
-				ChannelID: channelID,
-				Timestamp: m.Timestamp,
-			})
-			if err == nil {
-				for _, r := range replies {
-					// Skip the parent as it's already added
-					if r.Timestamp != m.Timestamp {
-						msgs = append(msgs, s.parseMessage(r))
+		for _, m := range history.Messages {
+			if m.User == "" || m.Text == "" {
+				continue
+			}
+			
+			// Add main message
+			allMsgs = append(allMsgs, s.parseMessage(m))
+
+			// Add thread replies if any
+			if m.ReplyCount > 0 {
+				replies, _, _, err := s.api.GetConversationReplies(&slack.GetConversationRepliesParameters{
+					ChannelID: channelID,
+					Timestamp: m.Timestamp,
+				})
+				if err == nil {
+					for _, r := range replies {
+						// Skip the parent as it's already added
+						if r.Timestamp != m.Timestamp {
+							allMsgs = append(allMsgs, s.parseMessage(r))
+						}
 					}
 				}
 			}
 		}
+
+		if !history.HasMore {
+			break
+		}
+		cursor = history.ResponseMetadata.Cursor
 	}
-	return msgs, nil
+	
+	return allMsgs, nil
 }
 
 func (s *SlackClient) parseMessage(m slack.Message) RawChatMessage {

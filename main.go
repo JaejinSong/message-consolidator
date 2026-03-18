@@ -476,7 +476,8 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 		sc.FetchUsers()
 	}
 
-	since := time.Now().Add(-24 * time.Hour)
+	// Scan last 7 days to capture older threads with new activity
+	since := time.Now().Add(-7 * 24 * time.Hour)
 	for id, name := range targetChannels {
 		log.Printf("[SCAN-SLACK] Processing messages from #%s (%s)", name, id)
 		msgs, err := sc.GetMessages(id, since)
