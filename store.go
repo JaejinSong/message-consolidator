@@ -389,7 +389,27 @@ func DeleteMessage(email string, id int) error {
 	res, err := db.Exec("UPDATE messages SET is_deleted = 1 WHERE id = $1 AND user_email = $2", id, email)
 	if err == nil {
 		rows, _ := res.RowsAffected()
-		log.Printf("[DB] Delete message ID %d, affected rows: %d", id, rows)
+		log.Printf("[DB] Soft-delete message ID %d, affected rows: %d", id, rows)
+		go RefreshCache(email)
+	}
+	return err
+}
+
+func HardDeleteMessage(email string, id int) error {
+	res, err := db.Exec("DELETE FROM messages WHERE id = $1 AND user_email = $2", id, email)
+	if err == nil {
+		rows, _ := res.RowsAffected()
+		log.Printf("[DB] Hard-delete message ID %d, affected rows: %d", id, rows)
+		go RefreshCache(email)
+	}
+	return err
+}
+
+func RestoreMessage(email string, id int) error {
+	res, err := db.Exec("UPDATE messages SET is_deleted = 0 WHERE id = $1 AND user_email = $2", id, email)
+	if err == nil {
+		rows, _ := res.RowsAffected()
+		log.Printf("[DB] Restore message ID %d, affected rows: %d", id, rows)
 		go RefreshCache(email)
 	}
 	return err

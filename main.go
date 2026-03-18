@@ -65,6 +65,8 @@ func main() {
 	r.Handle("/api/messages", AuthMiddleware(http.HandlerFunc(handleGetMessages))).Methods("GET")
 	r.Handle("/api/messages/done", AuthMiddleware(http.HandlerFunc(handleMarkDone))).Methods("POST")
 	r.Handle("/api/messages/delete", AuthMiddleware(http.HandlerFunc(handleDelete))).Methods("POST")
+	r.Handle("/api/messages/hard-delete", AuthMiddleware(http.HandlerFunc(handleHardDelete))).Methods("POST")
+	r.Handle("/api/messages/restore", AuthMiddleware(http.HandlerFunc(handleRestore))).Methods("POST")
 	r.Handle("/api/messages/archive", AuthMiddleware(http.HandlerFunc(handleGetArchived))).Methods("GET")
 	r.Handle("/api/messages/export", AuthMiddleware(http.HandlerFunc(handleExportArchive))).Methods("GET")
 	r.Handle("/api/messages/update", AuthMiddleware(http.HandlerFunc(handleUpdateTask))).Methods("POST")
@@ -241,21 +243,52 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 func handleDelete(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	var req struct {
-		ID int `json:"id"`
+		ID  int   `json:"id"`
+		IDs []int `json:"ids"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("[API] Delete error (decode): %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	
-	log.Printf("[API] Deleting task ID %d for %s", req.ID, email)
-	if err := DeleteMessage(email, req.ID); err != nil {
-		log.Printf("[API] Delete error (DB): %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	ids := req.IDs
+	if len(ids) == 0 && req.ID != 0 {
+		ids = []int{req.ID}
+	}
+
+	for _, id := range ids {
+		DeleteMessage(email, id)
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func handleHardDelete(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	var req struct {
+		IDs []int `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	
+	for _, id := range req.IDs {
+		HardDeleteMessage(email, id)
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func handleRestore(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	var req struct {
+		IDs []int `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	for _, id := range req.IDs {
+		RestoreMessage(email, id)
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
