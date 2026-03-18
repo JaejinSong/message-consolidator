@@ -91,9 +91,9 @@ h1 {
 
 .dashboard-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
-    margin-bottom: 2rem;
+    margin-bottom: 3rem;
 }
 
 .status-indicators {
@@ -531,6 +531,8 @@ footer {
     border: 1px solid var(--glass-border);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     color: var(--text-dim);
+    cursor: default;
+    padding: 0;
 }
 
 .status-label {
@@ -585,28 +587,82 @@ footer {
 }
 
 /* Enhanced Scan Button */
-.scan-container {
-    flex: 1;
+.scan-btn {
+    cursor: pointer;
+    background: rgba(0, 242, 255, 0.05);
+    border-color: rgba(0, 242, 255, 0.3);
+    color: var(--accent-color);
 }
 
-.large-scan-btn {
-    width: 100%;
+.scan-btn:hover:not(:disabled) {
+    background: rgba(0, 242, 255, 0.1);
+    border-color: var(--accent-color);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 242, 255, 0.3);
+}
+
+/* Radar SVG Icon */
+.scan-icon-container {
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
-    gap: 1.2rem;
-    padding: 1rem 1.5rem;
-    background: rgba(var(--accent-glow), 0.1);
-    border: 1.5px solid var(--accent-color);
-    border-radius: 20px;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-align: left;
+    justify-content: center;
+    margin-bottom: 8px;
+    position: relative;
 }
 
-.large-scan-btn:hover:not(:disabled) {
-    background: rgba(var(--accent-glow), 0.2);
-    transform: translateY(-2px);
-    box-shadow: 0 10px 30px rgba(0, 242, 255, 0.2);
+.radar-svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 0 5px rgba(0, 242, 255, 0.5));
+}
+
+.radar-sweep {
+    transform-origin: 50% 50%;
+    animation: radar-sweep 3s linear infinite;
+    opacity: 0.8;
+}
+
+.radar-ring {
+    transform-origin: 50% 50%;
+    animation: radar-pulse 2s ease-out infinite;
+    opacity: 0.3;
+}
+
+.radar-ring:nth-child(2) {
+    animation-delay: 1s;
+}
+
+@keyframes radar-sweep {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes radar-pulse {
+    0% { transform: scale(0.6); opacity: 0.8; }
+    100% { transform: scale(1.2); opacity: 0; }
+}
+
+/* Loading state for the radar */
+.scan-btn:disabled .radar-sweep {
+    animation-duration: 1s; /* Spin faster when scanning */
+    stroke: #fff;
+}
+
+.scan-btn:disabled .radar-ring {
+    stroke: #fff;
+    animation-duration: 1s;
+}
+
+.scan-btn:hover .radar-sweep {
+    animation-duration: 1.5s; /* Speed up on hover */
+}
+
+.scan-btn:disabled {
+    opacity: 1; /* Keep it visible during scan */
+    background: rgba(0, 242, 255, 0.2);
+    cursor: not-allowed;
 }
 
 .delete-btn {
@@ -628,33 +684,7 @@ footer {
     transform: translateY(-1px);
 }
 
-.large-scan-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    border-color: var(--text-dim);
-}
-
-.scan-icon {
-    font-size: 1.8rem;
-}
-
-.scan-text-group {
-    display: flex;
-    flex-direction: column;
-}
-
-.scan-label {
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: var(--accent-color);
-}
-
-.scan-nuance {
-    font-size: 0.75rem;
-    color: var(--text-dim);
-    font-weight: 400;
-    opacity: 0.8;
-}
+/* Removed old scan text styles */
 
 /* User Profile Refinements */
 .user-info-group {
