@@ -7,7 +7,6 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.11.2
-	github.com/mattn/go-sqlite3 v1.14.34
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/slack-go/slack v0.19.0
 	go.mau.fi/whatsmeow v0.0.0-20260305215846-fc65416c22c4

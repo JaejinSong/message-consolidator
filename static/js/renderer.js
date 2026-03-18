@@ -78,14 +78,21 @@ export const renderer = {
         const data = I18N_DATA[state.currentLang];
         
         // Keywords for local filtering
-        const keywords = [state.userProfile.email, '내 업무'];
-        if (state.userProfile.name) keywords.push(state.userProfile.name);
-        if (state.userProfile.email && state.userProfile.email.includes('@')) {
-            keywords.push(state.userProfile.email.split('@')[0]);
+        const keywords = [];
+        if (state.userProfile.email && state.userProfile.email.trim()) {
+            keywords.push(state.userProfile.email.trim().toLowerCase());
+            if (state.userProfile.email.includes('@')) {
+                keywords.push(state.userProfile.email.trim().split('@')[0].toLowerCase());
+            }
         }
+        if (state.userProfile.name && state.userProfile.name.trim()) {
+            keywords.push(state.userProfile.name.trim().toLowerCase());
+        }
+        keywords.push('내 업무');
+
         if (state.userAliases && Array.isArray(state.userAliases)) {
             state.userAliases.forEach(alias => {
-                if (alias && alias.trim()) keywords.push(alias.trim());
+                if (alias && alias.trim()) keywords.push(alias.trim().toLowerCase());
             });
         }
 
@@ -109,11 +116,21 @@ export const renderer = {
         let myCount = 0, otherCount = 0, allCount = 0;
 
         sorted.forEach(m => {
-            const isMyTask = keywords.some(kw => 
-                (m.task && m.task.toLowerCase().includes(kw.toLowerCase())) || 
-                (m.assignee && m.assignee.toLowerCase().includes(kw.toLowerCase())) ||
-                (m.requester && m.requester.toLowerCase().includes(kw.toLowerCase()))
-            );
+            const rawAssignee = (m.assignee || "").trim();
+            let isMyTask = false;
+
+            if (rawAssignee === '내 업무') {
+                isMyTask = true;
+            } else if (rawAssignee === '기타 업무') {
+                isMyTask = false;
+            } else {
+                // Fallback for legacy data or actual names
+                isMyTask = keywords.some(kw => 
+                    (m.task && m.task.toLowerCase().includes(kw)) || 
+                    (rawAssignee && rawAssignee.toLowerCase().includes(kw)) ||
+                    (m.requester && m.requester.toLowerCase().includes(kw))
+                );
+            }
 
             const cardAll = this.createCardElement(m, data, handlers);
             if (allGrid) allGrid.appendChild(cardAll);
@@ -163,7 +180,7 @@ export const renderer = {
             </svg>`;
         
         const doneIcon = `
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width: 18px; height: 18px;">
                 <polyline points="20 6 9 17 4 12"></polyline>
             </svg>`;
         
@@ -177,12 +194,11 @@ export const renderer = {
         
         // 1. View Original Modal (Eye icon)
         if (m.original_text) {
-            const escapedText = m.original_text.replace(/'/g, "\\'").replace(/\n/g, "\\n");
-            actionBtnHtml += `<button type="button" class="action-btn original-btn" onclick="showOriginalMessage('${escapedText}')" title="${data.viewOriginal}">${viewOriginalIcon}</button>`;
+            actionBtnHtml += `<button type="button" class="action-btn original-btn" data-id="${m.id}" title="${data.viewOriginal}">${viewOriginalIcon}</button>`;
         }
         
-        // 2. Direct Link to Source (External Icon)
-        if (m.link) {
+        // 2. Direct Link to Source (External Icon) - Removed for Gmail as requested
+        if (m.link && m.source.toLowerCase() !== 'gmail') {
             actionBtnHtml += `<a href="${m.link}" target="_blank" class="action-btn link-btn" title="Open in ${m.source}">${linkIcon}</a>`;
         }
 
@@ -191,7 +207,7 @@ export const renderer = {
         card.innerHTML = `
             <div class="col-source" title="${m.source}">${sourceIcon || '<span class="badge">' + m.source + '</span>'}</div>
             <div class="col-room meta-val" title="${m.room || ''}">${m.room || '-'}</div>
-            <div class="col-task task-title" title="${m.task}">${m.task}</div>
+            <div class="col-task task-title" title="${m.task}">${m.task || ''}</div>
             <div class="col-requester meta-val" title="${m.requester}">${m.requester}</div>
             <div class="col-assignee meta-val" title="${m.assignee}">${m.assignee}</div>
             <div class="col-time meta-val" style="font-size: 0.75rem;">${formatDisplayTime(m.assigned_at, state.currentLang)}</div>
@@ -205,6 +221,15 @@ export const renderer = {
                 </button>
             </div>
         `;
+
+        const originalBtn = card.querySelector('.original-btn');
+        if (originalBtn && m.original_text) {
+            originalBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.showOriginalMessage(m.original_text);
+            });
+        }
 
         card.querySelector('.done-btn').addEventListener('click', (e) => {
             e.preventDefault();

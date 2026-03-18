@@ -48,13 +48,13 @@ func (g *GeminiClient) Analyze(ctx context.Context, conversationText string, lan
 	prompt := fmt.Sprintf(`Analyze the following conversation and extract To-do items. 
 Return a JSON array of objects with fields: "task", "requester", "assignee", "assigned_at", "source_ts", "original_text".
 CRITICAL: "task" and "requester" MUST be translated to %s. Even if the input is in English, the "task" MUST be in %s.
-"original_text" MUST be the exact original message content before translation.
+"original_text" MUST be a concise text summary of the original message, in %s. Do NOT include raw HTML.
 Use the [TS:timestamp] tag to find "source_ts".
 
 Conversation:
 ---
 %s
----`, language, language, conversationText)
+---`, language, language, language, conversationText)
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
