@@ -12,8 +12,6 @@ const handlers = {
         } catch (e) { console.error(e); }
     },
     async onDeleteTask(id) {
-        const confirmMsg = I18N_DATA[state.currentLang].confirmDelete || "Are you sure?";
-        if (!confirm(confirmMsg)) return;
         try {
             await api.deleteTask(id);
             fetchMessages();

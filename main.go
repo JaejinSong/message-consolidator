@@ -29,6 +29,11 @@ func main() {
 		log.Fatalf("DB Init failed: %v", err)
 	}
 
+	// Load Metadata into Memory Cache
+	if err := LoadMetadata(); err != nil {
+		log.Printf("Warning: Failed to load metadata cache: %v", err)
+	}
+
 	// Initialize WhatsApp for all existing users
 	users, _ := GetAllUsers()
 	for _, u := range users {
@@ -411,8 +416,8 @@ func handleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 }
 
 func startBackgroundScanner() {
-	log.Println("Background scanner started (5m interval)...")
-	ticker := time.NewTicker(5 * time.Minute)
+	log.Println("Background scanner started (1m interval)...")
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	// Run initial scan
@@ -439,14 +444,23 @@ func scan(email string, language string) {
 	log.Printf("Starting message scan for %s (lang: %s)...", email, language)
 	ctx := context.Background()
 
+	user, err := GetOrCreateUser(email, "", "")
+	if err != nil {
+		log.Printf("[SCAN] Error: Failed to get user %s: %v", email, err)
+		return
+	}
+	aliases, _ := GetUserAliases(user.ID)
+	// Include email and name as default aliases
+	aliases = append(aliases, user.Email, user.Name)
+
 	// Slack Scan
 	log.Printf("[SCAN] About to call scanSlack for %s", email)
-	newSlack := scanSlack(ctx, email, language)
+	newSlack := scanSlack(ctx, user, aliases, language)
 	log.Printf("[SCAN] scanSlack finished for %s, hasNew: %v", email, newSlack)
 
 	// WhatsApp Scan
 	log.Printf("[SCAN] About to call scanWhatsApp for %s", email)
-	newWA := scanWhatsApp(ctx, email, language)
+	newWA := scanWhatsApp(ctx, user, aliases, language)
 	log.Printf("[SCAN] scanWhatsApp finished for %s, hasNew: %v", email, newWA)
 
 	// Gmail Scan
@@ -456,16 +470,20 @@ func scan(email string, language string) {
 
 	// Refresh cache only if new messages were actually saved
 	if newSlack || newWA || newGmail {
-		log.Println("[SCAN] New messages found, refreshing cache...")
+		log.Println("[SCAN] New messages found, refreshing cache and persisting metadata...")
 		if err := RefreshCache(email); err != nil {
 			log.Printf("Error refreshing cache for %s after scan: %v", email, err)
 		}
+		// Persist all updated memory scan TS to DB since it's already awake
+		PersistAllScanMetadata(email)
 	} else {
-		log.Printf("[SCAN] No new messages found for %s, skipping DB cache refresh.", email)
+		log.Printf("[SCAN] No new messages found for %s, skipping DB interactions.", email)
 	}
 }
 
-func scanSlack(ctx context.Context, email string, language string) bool {
+
+func scanSlack(ctx context.Context, user *User, aliases []string, language string) bool {
+	email := user.Email
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[SCAN-SLACK] PANIC RECOVERED for %s: %v", email, r)
@@ -477,13 +495,13 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 	sc := NewSlackClient(cfg.SlackToken)
 	
 	// Collect channels to scan
-	targetChannels := make(map[string]string) // ID -> Name
+	targetChannels := make(map[string]*slack.Channel) // ID -> Channel info
 
 	// Discover rooms the bot is a member of with pagination
 	cursor := ""
 	for {
 		params := &slack.GetConversationsParameters{
-			Types:  []string{"public_channel", "private_channel"},
+			Types:  []string{"public_channel", "private_channel", "mpim", "im"},
 			Cursor: cursor,
 			Limit:  100,
 		}
@@ -496,9 +514,9 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 		}
 
 		for _, channel := range channels {
-			if channel.IsMember {
-				log.Printf("[SCAN-SLACK] Found membership in #%s (%s)", channel.Name, channel.ID)
-				targetChannels[channel.ID] = channel.Name
+			if channel.IsMember || channel.IsIM {
+				log.Printf("[SCAN-SLACK] Found membership in #%s (%s), isIM: %v", channel.Name, channel.ID, channel.IsIM)
+				targetChannels[channel.ID] = &channel
 			}
 		}
 
@@ -516,26 +534,26 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 
 	// Scan last 7 days to capture older threads with new activity
 	since := time.Now().Add(-7 * 24 * time.Hour)
-	for id, name := range targetChannels {
-		log.Printf("[SCAN-SLACK] Processing messages from #%s (%s)", name, id)
+	for id, channel := range targetChannels {
+		log.Printf("[SCAN-SLACK] Processing messages from #%s (%s)", channel.Name, id)
 		
 		lastTS := GetLastScan(email, "slack", id)
 		msgs, err := sc.GetMessages(id, since, lastTS)
 		if err != nil {
-			log.Printf("[SCAN-SLACK] Error getting messages for #%s: %v", name, err)
+			log.Printf("[SCAN-SLACK] Error getting messages for #%s: %v", channel.Name, err)
 			continue
 		}
-		log.Printf("[SCAN-SLACK] Fetched %d messages from #%s", len(msgs), name)
+		log.Printf("[SCAN-SLACK] Fetched %d messages from #%s", len(msgs), channel.Name)
 		if len(msgs) == 0 {
 			continue
 		}
 
-		msgMap := make(map[string]time.Time)
+		msgMap := make(map[string]RawChatMessage)
 		var sb strings.Builder
 		maxTS := lastTS
 		
 		for _, m := range msgs {
-			msgMap[m.RawTS] = m.Timestamp
+			msgMap[m.RawTS] = m
 			sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s: %s\n", m.RawTS, m.Timestamp.Format("15:04"), m.User, m.Text))
 			
 			if m.RawTS > maxTS {
@@ -552,25 +570,46 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 
 			items, err := gc.Analyze(ctx, sb.String(), language)
 			if err != nil {
-				log.Printf("[SCAN-SLACK] Gemini analyze error for #%s: %v", name, err)
+				log.Printf("[SCAN-SLACK] Gemini analyze error for #%s: %v", channel.Name, err)
 				continue
 			}
 			
 			for _, item := range items {
 				assignedAt := time.Now().Format(time.RFC3339)
-				if ts, ok := msgMap[item.SourceTS]; ok {
-					assignedAt = ts.Format(time.RFC3339)
+				originalMsg, ok := msgMap[item.SourceTS]
+				if ok {
+					assignedAt = originalMsg.Timestamp.Format(time.RFC3339)
 				}
 				
+				// Classification logic
+				classification := "기타 업무"
+				isDM := channel.IsIM || channel.IsMpIM
+				isMentioned := false
+				if user.SlackID != "" && strings.Contains(originalMsg.Text, "<@"+user.SlackID+">") {
+					isMentioned = true
+				}
+				if !isMentioned {
+					for _, alias := range aliases {
+						if alias != "" && strings.Contains(strings.ToLower(originalMsg.Text), strings.ToLower(alias)) {
+							isMentioned = true
+							break
+						}
+					}
+				}
+
+				if isDM || isMentioned {
+					classification = "내 업무"
+				}
+
 				link := fmt.Sprintf("https://slack.com/app_redirect?channel=%s&message_ts=%s", id, item.SourceTS)
 				
 				saved, _ := SaveMessage(ConsolidatedMessage{
 					UserEmail:    email,
 					Source:       "slack",
-					Room:         "#" + name,
+					Room:         "#" + channel.Name,
 					Task:         item.Task,
 					Requester:    item.Requester,
-					Assignee:     item.Assignee,
+					Assignee:     classification,
 					AssignedAt:   assignedAt,
 					Link:         link,
 					SourceTS:     item.SourceTS,
@@ -590,11 +629,12 @@ func scanSlack(ctx context.Context, email string, language string) bool {
 	return hasNew
 }
 
-func scanWhatsApp(ctx context.Context, email string, language string) bool {
+
+func scanWhatsApp(ctx context.Context, user *User, aliases []string, language string) bool {
+	email := user.Email
 	log.Printf("[SCAN-WA] Starting WhatsApp scan for %s (Buffer JIDs: %d)", email, len(waMessageBuffer[email])) // Access user-specific buffer
 	hasNew := false
 	// Assuming waClient is now user-specific or managed to handle multiple users
-	// For simplicity, let's assume GetWhatsAppClient(email) returns the client for that user
 	userWAClient := GetWhatsAppClient(email)
 	if userWAClient == nil || !userWAClient.IsLoggedIn() {
 		log.Printf("[SCAN-WA] Skip for %s: Client not initialized or not logged in", email)
@@ -617,14 +657,14 @@ func scanWhatsApp(ctx context.Context, email string, language string) bool {
 		}
 
 		groupName := GetGroupName(email, jid)
-		msgMap := make(map[string]time.Time)
+		msgMap := make(map[string]RawChatMessage)
 		var sb strings.Builder
 		for _, m := range msgs {
 			toPart := ""
 			if m.InteractedUser != "" {
 				toPart = fmt.Sprintf(" -> %s", m.InteractedUser)
 			}
-			msgMap[m.RawTS] = m.Timestamp
+			msgMap[m.RawTS] = m
 			sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s%s: %s\n", m.RawTS, m.Timestamp.Format("15:04"), m.User, toPart, m.Text))
 		}
 
@@ -639,23 +679,39 @@ func scanWhatsApp(ctx context.Context, email string, language string) bool {
 
 		for _, item := range items {
 			assignedAt := item.AssignedAt
-			if ts, ok := msgMap[item.SourceTS]; ok {
-				assignedAt = ts.Format(time.RFC3339)
+			originalMsg, ok := msgMap[item.SourceTS]
+			if ok {
+				assignedAt = originalMsg.Timestamp.Format(time.RFC3339)
 			} else if sec, err := strconv.ParseInt(assignedAt, 10, 64); err == nil {
 				assignedAt = time.Unix(sec, 0).Format(time.RFC3339)
 			} else {
-				// Fallback if Gemini returns an invalid or partial time (like "05:01")
 				assignedAt = time.Now().Format(time.RFC3339)
 			}
 
+			// Classification logic
+			classification := "기타 업무"
+			is1to1 := jid.Server == "s.whatsapp.net"
+			isMentioned := false
+			for _, alias := range aliases {
+				if alias != "" && strings.Contains(strings.ToLower(originalMsg.Text), strings.ToLower(alias)) {
+					isMentioned = true
+					break
+				}
+			}
+
+			if is1to1 || isMentioned {
+				classification = "내 업무"
+			}
+
 			saved, _ := SaveMessage(ConsolidatedMessage{
-				Source:     "whatsapp",
-				Room:       groupName,
-				Task:       item.Task,
-				Requester:  item.Requester,
-				Assignee:   item.Assignee,
-				AssignedAt: assignedAt,
-				SourceTS:   item.SourceTS,
+				UserEmail:    email,
+				Source:       "whatsapp",
+				Room:         groupName,
+				Task:         item.Task,
+				Requester:    item.Requester,
+				Assignee:     classification, // Use unified classification
+				AssignedAt:   assignedAt,
+				SourceTS:     item.SourceTS,
 				OriginalText: item.OriginalText,
 			})
 			if saved {
@@ -665,6 +721,7 @@ func scanWhatsApp(ctx context.Context, email string, language string) bool {
 	}
 	return hasNew
 }
+
 
 func initLogging() {
 	lumberjackLogger := &lumberjack.Logger{
@@ -695,3 +752,10 @@ func initLogging() {
 		}
 	}()
 }
+// test
+// second test
+// cgo disabled test
+// scale test 1
+// scale test 8
+// linker check
+// forced internal linker

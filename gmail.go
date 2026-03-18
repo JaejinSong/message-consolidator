@@ -118,6 +118,7 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 		from := ""
 		to := ""
 		cc := ""
+		bcc := ""
 		body := ""
 		date := ""
 		
@@ -134,6 +135,9 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 			if h.Name == "Cc" {
 				cc = h.Value
 			}
+			if h.Name == "Bcc" {
+				bcc = h.Value
+			}
 			if h.Name == "Date" {
 				date = h.Value
 			}
@@ -142,9 +146,10 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 		// Filter rules for jjsong@whatap.io
 		isDirect := strings.Contains(strings.ToLower(to), "jjsong@whatap.io")
 		isCc := strings.Contains(strings.ToLower(cc), "jjsong@whatap.io")
+		isBcc := strings.Contains(strings.ToLower(bcc), "jjsong@whatap.io")
 
-		// If not explicitly in To or Cc, exclude it (covers group mail exclusion)
-		if !isDirect && !isCc {
+		// If not explicitly in To, Cc or Bcc, exclude it (covers group mail exclusion)
+		if !isDirect && !isCc && !isBcc {
 			continue
 		}
 
@@ -152,25 +157,15 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 		if isDirect {
 			classification = "내 업무"
 		}
+
 		
-		if fullMsg.Payload.Body.Data != "" {
-			data, _ := base64.URLEncoding.DecodeString(fullMsg.Payload.Body.Data)
-			body = string(data)
-		} else if len(fullMsg.Payload.Parts) > 0 {
-			for _, part := range fullMsg.Payload.Parts {
-				if part.MimeType == "text/plain" && part.Body.Data != "" {
-					data, _ := base64.URLEncoding.DecodeString(part.Body.Data)
-					body = string(data)
-					break
-				}
-			}
-		}
+		body = extractBody(fullMsg.Payload)
 
 		fullEmailContent := fmt.Sprintf("Subject: %s\nFrom: %s\nDate: %s\n\n%s", subject, from, date, body)
 		contentMap[m.Id] = fullEmailContent
 		// Store classification for this message
 		classificationMap[m.Id] = classification
-		sb.WriteString(fmt.Sprintf("[ID:%s] From: %s, To: %s, Subject: %s\nContent: %s\n---\n", m.Id, from, to, subject, body))
+		sb.WriteString(fmt.Sprintf("[TS:%s] From: %s, To: %s, Subject: %s\nContent: %s\n---\n", m.Id, from, to, subject, body))
 	}
 	
 	if sb.Len() > 0 {
@@ -197,10 +192,7 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 			// Store individual tasks
 			uniqueSourceTS := fmt.Sprintf("gmail-%s-%d", item.SourceTS, i)
 			
-			originalText := contentMap[item.SourceTS]
-			if originalText == "" {
-				originalText = item.OriginalText
-			}
+			originalText := item.OriginalText
 
 			saved, _ := SaveMessage(ConsolidatedMessage{
 				UserEmail:    email,
@@ -220,9 +212,11 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 		}
 	}
 	
-	// Update last scan TS for Gmail
-	UpdateLastScan(email, "gmail", "inbox", nowTS)
-	
+	// 새 메시지가 실제로 저장된 경우에만 scanTS 갱신 (DB Sleep 최적화)
+	if hasNew {
+		UpdateLastScan(email, "gmail", "inbox", nowTS)
+	}
+
 	return hasNew
 }
 

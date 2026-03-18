@@ -5,7 +5,7 @@ INSTALL_DIR=/home/jinro/.gemini/message-consolidator
 .PHONY: build run install-service uninstall-service status logs
 
 build:
-	go build -o $(BINARY_NAME) .
+	CGO_ENABLED=0 go build -o $(BINARY_NAME) .
 
 run: build
 	./$(BINARY_NAME)

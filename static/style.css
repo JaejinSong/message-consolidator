@@ -314,30 +314,36 @@ h1 {
 }
 
 .done-btn {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--glass-border);
-    color: var(--text-main);
-    padding: 0.3rem 0.8rem;
+    background: rgba(0, 242, 255, 0.05);
+    border: 1px solid rgba(0, 242, 255, 0.3);
+    color: var(--accent-color);
+    padding: 0;
+    width: 32px;
+    height: 32px;
     border-radius: 8px;
-    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
     transition: all 0.2s;
 }
 
 .done-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: var(--text-main);
+    background: rgba(0, 242, 255, 0.2);
+    border-color: var(--accent-color);
+    transform: translateY(-1px);
 }
 
 .card.done .done-btn {
     background: rgba(255, 255, 255, 0.1);
-    color: var(--text-dim);
-    border-color: transparent;
+    color: var(--text-main);
+    border-color: var(--text-main);
+    opacity: 0.8;
 }
 
 .card.done .done-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.2);
+    opacity: 1;
 }
 
 footer {

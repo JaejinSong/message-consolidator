@@ -1,27 +1,38 @@
 ---
-description: VPS 배포 워크플로우 (GCP VPS 자동 배포)
+description: VPS 배포 워크플로우 (Google Artifact Registry 활용)
 ---
 
 // turbo-all
-1. 로컬에서 바이너리 빌드 (Linux/AMD64)
+1. 로컬에서 Docker 이미지 빌드 및 푸시
 ```bash
-go mod tidy
-CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o message-consolidator-vps .
+# Artifact Registry 인증 (최초 1회 필요)
+gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+# 이미지 빌드 및 푸시
+docker build -t us-central1-docker.pkg.dev/gemini-enterprise-487906/message-consolidator-repo/app:latest .
+docker push us-central1-docker.pkg.dev/gemini-enterprise-487906/message-consolidator-repo/app:latest
 ```
 
-2. VPS로 파일 및 정적 자산 전송
+2. 설정 파일(docker-compose.yml, .env)을 GCS에 업로드
 ```bash
-gcloud compute scp .env docker-compose.yml Dockerfile.runtime go.mod go.sum message-consolidator-vps chat-analyzer-vps:~/message-consolidator/ --zone=us-central1-a --project=gemini-enterprise-487906
-gcloud compute scp --recurse static chat-analyzer-vps:~/message-consolidator/ --zone=us-central1-a --project=gemini-enterprise-487906
+gcloud storage cp .env docker-compose.yml gs://message-consolidator-deploy-gemini-enterprise-487906/vps/ --project=gemini-enterprise-487906
 ```
 
-3. VPS에서 컨테이너 재시작 및 배포 완료
+3. VPS에서 이미지 Pull 및 컨테이너 재설작
 ```bash
-gcloud compute ssh chat-analyzer-vps --zone=us-central1-a --project=gemini-enterprise-487906 --command="cd ~/message-consolidator && cp Dockerfile.runtime Dockerfile && docker-compose down && docker-compose up -d"
+gcloud compute ssh chat-analyzer-vps --zone=us-central1-a --project=gemini-enterprise-487906 --command="
+  mkdir -p ~/message-consolidator && 
+  cd ~/message-consolidator && 
+  gcloud auth configure-docker us-central1-docker.pkg.dev --quiet &&
+  gcloud storage cp gs://message-consolidator-deploy-gemini-enterprise-487906/vps/.env . && 
+  gcloud storage cp gs://message-consolidator-deploy-gemini-enterprise-487906/vps/docker-compose.yml . && 
+  sudo docker-compose pull && 
+  sudo docker-compose up -d
+"
 ```
 
 4. VPS 배포 상태 및 실시간 검증
 - **검증 주소**: https://34.67.133.18.nip.io/
 - **확인 항목**:
     1. 메인 화면 로드 확인
-    2. `/api/scan?lang=Korean` 호출 후 `scan started` 응답 확인 (브라우저 sub-agent 사용 권장)
+    2. `/api/scan?lang=Korean` 호출 후 `scan started` 응답 확인

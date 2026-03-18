@@ -5,7 +5,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=1 GOOS=linux go build -o chat-analyzer .
+RUN CGO_ENABLED=0 GOOS=linux go build -o chat-analyzer .
 
 # Final stage
 FROM alpine:latest

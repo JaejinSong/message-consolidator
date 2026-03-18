@@ -1,4 +1,13 @@
-# Release Notes - v1.3.0 (Latest)
+# Release Notes - v1.3.1 (Latest)
+
+## ⚡ Build Optimization & Clean-up
+- **CGO Disabled (Static Builds)**: Removed `sqlite3` (CGO) dependency in favor of a faster, fully static Go build process.
+- **Linker Performance**: Optimized build scripts (`Makefile`, `Dockerfile`, `.deploy`) to ensure `CGO_ENABLED=0` for significantly faster incremental builds on dev machines.
+- **Standardized Build**: Updated all build procedures to consistently use the optimized flags across local and container environments.
+
+---
+
+# Release Notes - v1.3.0 (Old)
 
 ## 📧 What's New: Gmail Integration & Better UX
 
