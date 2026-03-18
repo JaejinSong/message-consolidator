@@ -1,7 +1,7 @@
 ---
-description: Commit 하며 할 일
+description: Commit Workflow (Optimized)
 ---
 
-README 업데이트
-RELEASE_NOTES 업데이트 
-git pull 및 push 진행 
+1. README.md & RELEASE_NOTES.md 업데이트
+// turbo
+2. git add . && git commit -m "[feat/fix]: [Description]" && git push

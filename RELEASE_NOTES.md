@@ -1,4 +1,13 @@
-# Release Notes - v1.3.3 (Latest)
+# Release Notes - v1.3.4 (Latest)
+
+## 🧹 Auto-Archive Older Tasks (7 Days)
+- **Automatic Task Management**: Tasks older than 7 days are now automatically moved to the "Archive" section to keep your active dashboard clean.
+- **NeonDB Sleep Optimization**: The archival logic uses a "piggybacking" strategy, running only when the database is already awake during message scans.
+- **Rate-Limited Maintenance**: Archival updates are throttled to run at most once every 6 hours, ensuring minimal impact on performance.
+
+---
+
+# Release Notes - v1.3.3 (Old)
 
 ## 🪵 Leveled Logging & Dynamic Config
 - **Leveled Logging System**: Introduced `debugf`, `infof`, `warnf`, and `errorf` helper functions to categorize application logs.

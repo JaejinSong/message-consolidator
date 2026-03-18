@@ -524,6 +524,8 @@ func scan(email string, language string) {
 		}
 		// Persist all updated memory scan TS to DB since it's already awake
 		PersistAllScanMetadata(email)
+		// Piggyback: Archive old tasks only when the DB is already active
+		_ = ArchiveOldTasks()
 	} else {
 		debugf("No new messages found for %s, skipping DB interactions.", email)
 	}
