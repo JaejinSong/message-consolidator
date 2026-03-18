@@ -386,8 +386,10 @@ func UpdateTaskText(email string, id int, task string) error {
 }
 
 func DeleteMessage(email string, id int) error {
-	_, err := db.Exec("UPDATE messages SET is_deleted = 1 WHERE id = $1 AND user_email = $2", id, email)
+	res, err := db.Exec("UPDATE messages SET is_deleted = 1 WHERE id = $1 AND user_email = $2", id, email)
 	if err == nil {
+		rows, _ := res.RowsAffected()
+		log.Printf("[DB] Delete message ID %d, affected rows: %d", id, rows)
 		go RefreshCache(email)
 	}
 	return err
