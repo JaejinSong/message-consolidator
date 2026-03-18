@@ -752,10 +752,4 @@ func initLogging() {
 		}
 	}()
 }
-// test
-// second test
-// cgo disabled test
-// scale test 1
-// scale test 8
-// linker check
-// forced internal linker
+
