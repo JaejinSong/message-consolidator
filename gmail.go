@@ -77,8 +77,8 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 		return false
 	}
 
-	// Fetch messages from the last 24 hours
-	since := time.Now().Add(-24 * time.Hour)
+	// Fetch messages from the last 7 days
+	since := time.Now().Add(-7 * 24 * time.Hour)
 	query := fmt.Sprintf("in:inbox after:%d", since.Unix())
 
 	msgs, err := svc.Users.Messages.List("me").Q(query).MaxResults(50).Do()
