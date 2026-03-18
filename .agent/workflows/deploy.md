@@ -34,5 +34,6 @@ gcloud compute ssh chat-analyzer-vps --zone=us-central1-a --project=gemini-enter
 4. VPS 배포 상태 및 실시간 검증
 - **검증 주소**: https://34.67.133.18.nip.io/
 - **확인 항목**:
-    1. 메인 화면 로드 확인
-    2. `/api/scan?lang=Korean` 호출 후 `scan started` 응답 확인
+    1. 기동 로그 확인
+    2. 메인 화면 로드 확인
+    . `/api/scan?lang=Korean` 호출 후 `scan started` 응답 확인

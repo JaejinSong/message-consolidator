@@ -1,4 +1,12 @@
-# Release Notes - v1.3.1 (Latest)
+# Release Notes - v1.3.2 (Latest)
+
+## 🐳 Docker Build Optimization
+- **BuildKit Cache Mounts**: Added `--mount=type=cache` to `Dockerfile` for both Go module downloads and build outputs. This allows Docker to reuse the build cache during incremental builds, resulting in significant speed improvements.
+- **Fast Re-builds**: Second-time builds in Docker now benefit from partial compilation and cached dependencies, mimicking local machine performance.
+
+---
+
+# Release Notes - v1.3.1 (Old)
 
 ## ⚡ Build Optimization & Clean-up
 - **CGO Disabled (Static Builds)**: Removed `sqlite3` (CGO) dependency in favor of a faster, fully static Go build process.
