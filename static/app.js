@@ -12,7 +12,8 @@ const handlers = {
         } catch (e) { console.error(e); }
     },
     async onDeleteTask(id) {
-        if (!confirm("Are you sure you want to delete this task? It will be moved to the archive.")) return;
+        const confirmMsg = I18N_DATA[state.currentLang].confirmDelete || "Are you sure?";
+        if (!confirm(confirmMsg)) return;
         try {
             await api.deleteTask(id);
             fetchMessages();

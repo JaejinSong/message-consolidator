@@ -38,7 +38,8 @@ export const I18N_DATA = {
         settingsAliasTitle: "내 별칭 설정",
         settingsAliasDesc: "자신을 지칭하는 이름이나 별명(예: '송재진', 'JJ')을 추가하세요. 이 이름이 포함된 업무는 '내 업무' 탭에 표시됩니다.",
         originalMessageTitle: "메시지 원문",
-        archiveTitle: "보관함"
+        archiveTitle: "보관함",
+        confirmDelete: "정말 이 업무를 삭제하시겠습니까? 삭제된 업무는 보관함으로 이동합니다."
     },
     en: {
         subTitle: "Automated Slack & WhatsApp Task Dashboard",
@@ -77,7 +78,8 @@ export const I18N_DATA = {
         settingsAliasTitle: "My Aliases",
         settingsAliasDesc: "Add names or nicknames that refer to you (e.g., 'JJ'). Tasks with these names will appear in 'My Tasks'.",
         originalMessageTitle: "Original Message",
-        archiveTitle: "Archive"
+        archiveTitle: "Archive",
+        confirmDelete: "Are you sure you want to delete this task? It will be moved to the archive."
     },
     id: {
         subTitle: "Dasbor Tugas Slack & WhatsApp Otomatis",
@@ -116,7 +118,8 @@ export const I18N_DATA = {
         settingsAliasTitle: "Alias Saya",
         settingsAliasDesc: "Tambahkan nama atau nama panggilan yang merujuk pada Anda. Tugas dengan nama-nama ini akan muncul di 'Tugas Saya'.",
         originalMessageTitle: "Pesan Asli",
-        archiveTitle: "Arsip"
+        archiveTitle: "Arsip",
+        confirmDelete: "Apakah Anda yakin ingin menghapus tugas ini? Tugas akan dipindahkan ke arsip."
     },
     th: {
         subTitle: "แดชบอร์ดงาน Slack & WhatsApp อัตโนมัติ",
@@ -155,7 +158,8 @@ export const I18N_DATA = {
         settingsAliasTitle: "นามแฝงของฉัน",
         settingsAliasDesc: "เพิ่มชื่อหรือชื่อเล่นที่อ้างถึงคุณ งานที่มีชื่อเหล่านี้จะปรากฏใน 'งานของฉัน'",
         originalMessageTitle: "ข้อความต้นฉบับ",
-        archiveTitle: "คลังข้อมูล"
+        archiveTitle: "คลังข้อมูล",
+        confirmDelete: "คุณแน่ใจหรือไม่ว่าต้องการลบงานนี้? งานจะถูกย้ายไปยังคลังข้อมูล"
     }
 };
 
