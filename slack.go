@@ -43,16 +43,22 @@ func (s *SlackClient) GetUserName(id string) string {
 	return id
 }
 
-func (s *SlackClient) GetMessages(channelID string, since time.Time) ([]RawChatMessage, error) {
+func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS string) ([]RawChatMessage, error) {
 	var allMsgs []RawChatMessage
-	cursor := ""
 	
+	// Determine the effective starting point
+	oldest := fmt.Sprintf("%d.%06d", since.Unix(), 0)
+	if lastTS != "" {
+		oldest = lastTS
+	}
+	
+	cursor := ""
 	for {
 		params := &slack.GetConversationHistoryParameters{
 			ChannelID: channelID,
-			Oldest:    fmt.Sprintf("%d", since.Unix()),
+			Oldest:    oldest,
 			Cursor:    cursor,
-			Limit:     100, // Fetch in batches
+			Limit:     50, // Smaller batches for efficiency
 		}
 		
 		history, err := s.api.GetConversationHistory(params)
@@ -68,15 +74,17 @@ func (s *SlackClient) GetMessages(channelID string, since time.Time) ([]RawChatM
 			// Add main message
 			allMsgs = append(allMsgs, s.parseMessage(m))
 
-			// Add thread replies if any
-			if m.ReplyCount > 0 {
+			// Add thread replies if any and if thread has NEW updates after our last scan
+			// Note: Slack's LatestReply is a timestamp string
+			if m.ReplyCount > 0 && (lastTS == "" || m.LatestReply > lastTS) {
 				replies, _, _, err := s.api.GetConversationReplies(&slack.GetConversationRepliesParameters{
 					ChannelID: channelID,
 					Timestamp: m.Timestamp,
+					Oldest:    oldest, // Only fetch new replies
 				})
 				if err == nil {
 					for _, r := range replies {
-						// Skip the parent as it's already added
+						// Skip the parent as it's already added OR if it's older than lastTS
 						if r.Timestamp != m.Timestamp {
 							allMsgs = append(allMsgs, s.parseMessage(r))
 						}

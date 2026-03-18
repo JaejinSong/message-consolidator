@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -77,8 +78,16 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 		return false
 	}
 
-	// Fetch messages from the last 7 days
-	since := time.Now().Add(-7 * 24 * time.Hour)
+	// Fetch messages depuis le last scan
+	lastTS := GetLastScan(email, "gmail", "inbox")
+	var since time.Time
+	if lastTS != "" {
+		sec, _ := strconv.ParseInt(lastTS, 10, 64)
+		since = time.Unix(sec, 0)
+	} else {
+		since = time.Now().Add(-7 * 24 * time.Hour)
+	}
+	
 	query := fmt.Sprintf("in:inbox after:%d", since.Unix())
 
 	msgs, err := svc.Users.Messages.List("me").Q(query).MaxResults(50).Do()
@@ -88,99 +97,101 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 	}
 
 	if len(msgs.Messages) == 0 {
-		log.Printf("[SCAN-GMAIL] No new emails for %s", email)
-		return false
-	}
-
-	log.Printf("[SCAN-GMAIL] Found %d emails for %s", len(msgs.Messages), email)
-	
-	var sb strings.Builder
-	msgMap := make(map[string]time.Time)     // message-id -> received time
-	contentMap := make(map[string]string)   // message-id -> full content (Subject + Body)
-	
-	for _, msgRef := range msgs.Messages {
-		msg, err := svc.Users.Messages.Get("me", msgRef.Id).Format("full").Do()
-		if err != nil {
-			log.Printf("[SCAN-GMAIL] Failed to get message %s: %v", msgRef.Id, err)
-			continue
-		}
-		
-		subject := getHeader(msg.Payload.Headers, "Subject")
-		from := getHeader(msg.Payload.Headers, "From")
-		body := extractBody(msg.Payload)
-		if body == "" {
-			continue
-		}
-		
-		receivedAt := time.Unix(msg.InternalDate/1000, 0)
-		msgMap[msgRef.Id] = receivedAt
-		
-		msgContent := fmt.Sprintf("Subject: %s\nFrom: %s\n\n%s", subject, from, body)
-		contentMap[msgRef.Id] = msgContent
-		
-		sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s\n\n",
-			msgRef.Id,
-			receivedAt.Format("15:04"),
-			msgContent,
-		))
-	}
-	
-	if sb.Len() == 0 {
-		log.Printf("[SCAN-GMAIL] No readable content for %s", email)
 		return false
 	}
 	
-	gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey)
-	if err != nil {
-		log.Printf("[SCAN-GMAIL] Failed to create Gemini client: %v", err)
-		return false
-	}
-	
-	items, err := gc.Analyze(ctx, sb.String(), language)
-	if err != nil {
-		log.Printf("[SCAN-GMAIL] Gemini analyze error for %s: %v", email, err)
-		return false
-	}
-	
-	log.Printf("[SCAN-GMAIL] Gemini extracted %d tasks for %s", len(items), email)
-	
+	nowTS := fmt.Sprintf("%d", time.Now().Unix())
 	hasNew := false
-	for i, item := range items {
-		assignedAt := time.Now().Format(time.RFC3339)
-		if ts, ok := msgMap[item.SourceTS]; ok {
-			assignedAt = ts.Format(time.RFC3339)
+	
+	// Collect all email contents to send to Gemini at once for efficiency
+	var sb strings.Builder
+	contentMap := make(map[string]string) // MsgID -> FullContent for modal
+	
+	for _, m := range msgs.Messages {
+		fullMsg, err := svc.Users.Messages.Get("me", m.Id).Format("full").Do()
+		if err != nil {
+			continue
 		}
 		
-		link := ""
-		if item.SourceTS != "" {
-			link = fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS)
+		subject := ""
+		from := ""
+		body := ""
+		date := ""
+		
+		for _, h := range fullMsg.Payload.Headers {
+			if h.Name == "Subject" {
+				subject = h.Value
+			}
+			if h.Name == "From" {
+				from = h.Value
+			}
+			if h.Name == "Date" {
+				date = h.Value
+			}
 		}
 		
-		// Use the full email content as OriginalText
-		originalText := contentMap[item.SourceTS]
-		if originalText == "" {
-			originalText = item.OriginalText
+		if fullMsg.Payload.Body.Data != "" {
+			data, _ := base64.URLEncoding.DecodeString(fullMsg.Payload.Body.Data)
+			body = string(data)
+		} else if len(fullMsg.Payload.Parts) > 0 {
+			for _, part := range fullMsg.Payload.Parts {
+				if part.MimeType == "text/plain" && part.Body.Data != "" {
+					data, _ := base64.URLEncoding.DecodeString(part.Body.Data)
+					body = string(data)
+					break
+				}
+			}
+		}
+
+		fullEmailContent := fmt.Sprintf("Subject: %s\nFrom: %s\nDate: %s\n\n%s", subject, from, date, body)
+		contentMap[m.Id] = fullEmailContent
+		sb.WriteString(fmt.Sprintf("[ID:%s] From: %s, Subject: %s\nContent: %s\n---\n", m.Id, from, subject, body))
+	}
+	
+	if sb.Len() > 0 {
+		gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey)
+		if err != nil {
+			return false
 		}
 		
-		// Multi-task support: Ensure each task from the same email has a unique SourceTS
-		uniqueSourceTS := fmt.Sprintf("gmail-%s-%d", item.SourceTS, i)
+		items, err := gc.Analyze(ctx, sb.String(), language)
+		if err != nil {
+			log.Printf("[SCAN-GMAIL] Gemini Analyze Error: %v", err)
+			return false
+		}
 		
-		saved, _ := SaveMessage(ConsolidatedMessage{
-			UserEmail:    email,
-			Source:       "gmail",
-			Room:         "Inbox",
-			Task:         item.Task,
-			Requester:    item.Requester,
-			Assignee:     item.Assignee,
-			AssignedAt:   assignedAt,
-			Link:         link,
-			SourceTS:     uniqueSourceTS,
-			OriginalText: originalText,
-		})
-		if saved {
-			hasNew = true
+		for i, item := range items {
+			link := fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS)
+			
+			// Store individual tasks
+			// Using unique SourceTS for each task from the same email
+			uniqueSourceTS := fmt.Sprintf("gmail-%s-%d", item.SourceTS, i)
+			
+			originalText := contentMap[item.SourceTS]
+			if originalText == "" {
+				originalText = item.OriginalText
+			}
+
+			saved, _ := SaveMessage(ConsolidatedMessage{
+				UserEmail:    email,
+				Source:       "gmail",
+				Room:         "Gmail",
+				Task:         item.Task,
+				Requester:    item.Requester,
+				Assignee:     item.Assignee,
+				AssignedAt:   time.Now().Format(time.RFC3339),
+				Link:         link,
+				SourceTS:     uniqueSourceTS,
+				OriginalText: originalText,
+			})
+			if saved {
+				hasNew = true
+			}
 		}
 	}
+	
+	// Update last scan TS for Gmail
+	UpdateLastScan(email, "gmail", "inbox", nowTS)
 	
 	return hasNew
 }
