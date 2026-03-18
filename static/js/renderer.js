@@ -155,6 +155,13 @@ export const renderer = {
                 <circle cx="12" cy="12" r="3"></circle>
             </svg>`;
         
+        const linkIcon = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>`;
+        
         const doneIcon = `
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
                 <polyline points="20 6 9 17 4 12"></polyline>
@@ -167,12 +174,16 @@ export const renderer = {
             </svg>`;
 
         let actionBtnHtml = '';
+        
+        // 1. View Original Modal (Eye icon)
+        if (m.original_text) {
+            const escapedText = m.original_text.replace(/'/g, "\\'").replace(/\n/g, "\\n");
+            actionBtnHtml += `<button class="action-btn original-btn" onclick="showOriginalMessage('${escapedText}')" title="${data.viewOriginal}">${viewOriginalIcon}</button>`;
+        }
+        
+        // 2. Direct Link to Source (External Icon)
         if (m.link) {
-            actionBtnHtml = `<a href="${m.link}" target="_blank" class="action-btn link-btn" title="${data.viewOriginal}">${viewOriginalIcon}</a>`;
-        } else if (m.original_text) {
-            // Escape single quotes for the onclick handler
-            const escapedText = m.original_text.replace(/'/g, "\\'");
-            actionBtnHtml = `<button class="action-btn original-btn" onclick="showOriginalMessage('${escapedText}')" title="${data.viewOriginal}">${viewOriginalIcon}</button>`;
+            actionBtnHtml += `<a href="${m.link}" target="_blank" class="action-btn link-btn" title="Open in ${m.source}">${linkIcon}</a>`;
         }
 
         let sourceIcon = this.getSourceIcon(m.source);
