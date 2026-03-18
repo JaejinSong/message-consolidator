@@ -11,21 +11,21 @@ import (
 )
 
 type ConsolidatedMessage struct {
-	ID          int        `json:"id"`
-	UserEmail   string     `json:"user_email"`
-	Source      string     `json:"source"` // slack or whatsapp
-	Room        string     `json:"room"`
-	Task        string     `json:"task"`
-	Requester   string     `json:"requester"`
-	Assignee    string     `json:"assignee"`
-	AssignedAt  string     `json:"assigned_at"`
-	Link        string     `json:"link"`
-	SourceTS    string     `json:"source_ts"`
+	ID           int        `json:"id"`
+	UserEmail    string     `json:"user_email"`
+	Source       string     `json:"source"` // slack or whatsapp
+	Room         string     `json:"room"`
+	Task         string     `json:"task"`
+	Requester    string     `json:"requester"`
+	Assignee     string     `json:"assignee"`
+	AssignedAt   string     `json:"assigned_at"`
+	Link         string     `json:"link"`
+	SourceTS     string     `json:"source_ts"`
 	OriginalText string     `json:"original_text"`
-	Done        bool       `json:"done"`
-	IsDeleted   bool       `json:"is_deleted"`
-	CreatedAt   time.Time  `json:"created_at"`
-	CompletedAt *time.Time `json:"completed_at"`
+	Done         bool       `json:"done"`
+	IsDeleted    bool       `json:"is_deleted"`
+	CreatedAt    time.Time  `json:"created_at"`
+	CompletedAt  *time.Time `json:"completed_at"`
 }
 
 type User struct {
@@ -46,20 +46,22 @@ type UserAlias struct {
 }
 
 var (
-	db           *sql.DB
-	messageCache = make(map[string][]ConsolidatedMessage)
-	archiveCache = make(map[string][]ConsolidatedMessage)
+	db               *sql.DB
+	messageCache     = make(map[string][]ConsolidatedMessage)
+	archiveCache     = make(map[string][]ConsolidatedMessage)
 	knownTS          = make(map[string]map[string]bool) // user_email -> source_ts -> bool
 	cacheInitialized = make(map[string]bool)
 	cacheMu          sync.RWMutex
 
 	// Memory Caches for Metadata (to avoid DB hits during idle scans)
-	userCache    = make(map[string]*User)
-	aliasCache   = make(map[int][]string)
-	scanCache    = make(map[string]string) // key: email:source:targetID -> lastTS
-	dirtyScanKeys = make(map[string]bool)  // DB에 아직 persist 안 된 변경된 scanTS 목록
-	tokenCache   = make(map[string]string) // email -> gmail token json
+	userCache     = make(map[string]*User)
+	aliasCache    = make(map[int][]string)
+	scanCache     = make(map[string]string) // key: email:source:targetID -> lastTS
+	dirtyScanKeys = make(map[string]bool)   // DB에 아직 persist 안 된 변경된 scanTS 목록
+	tokenCache    = make(map[string]string) // email -> gmail token json
 	metadataMu   sync.RWMutex
+	lastArchiveTime time.Time
+	archiveMu       sync.Mutex
 )
 
 func InitDB(connStr string) error {
@@ -122,7 +124,7 @@ func InitDB(connStr string) error {
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS user_email TEXT;")
 	// Add is_deleted column if it doesn't exist
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_deleted INTEGER DEFAULT 0;")
-	
+
 	// Migration: Assign existing data to jjsong@whatap.io
 	_, err = db.Exec("UPDATE messages SET user_email = 'jjsong@whatap.io' WHERE user_email IS NULL OR user_email = '';")
 	if err != nil {
@@ -507,6 +509,31 @@ func UpdateTaskText(email string, id int, task string) error {
 		go RefreshCache(email)
 	}
 	return err
+}
+
+func ArchiveOldTasks() error {
+	archiveMu.Lock()
+	defer archiveMu.Unlock()
+
+	// Rate-limit: Run at most once every 6 hours
+	if time.Since(lastArchiveTime) < 6*time.Hour {
+		return nil
+	}
+
+	infof("[DB] Auto-archiving tasks older than 7 days...")
+	res, err := db.Exec("UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND created_at < NOW() - INTERVAL '7 days'")
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	infof("[DB] Auto-archived %d tasks.", rows)
+	
+	lastArchiveTime = time.Now()
+
+	if rows > 0 {
+		_ = RefreshAllCaches()
+	}
+	return nil
 }
 
 func DeleteMessage(email string, id int) error {
