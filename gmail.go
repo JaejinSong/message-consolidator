@@ -93,67 +93,78 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 	}
 
 	log.Printf("[SCAN-GMAIL] Found %d emails for %s", len(msgs.Messages), email)
-
+	
 	var sb strings.Builder
-	msgMap := make(map[string]time.Time) // message-id -> received time
-
+	msgMap := make(map[string]time.Time)     // message-id -> received time
+	contentMap := make(map[string]string)   // message-id -> full content (Subject + Body)
+	
 	for _, msgRef := range msgs.Messages {
 		msg, err := svc.Users.Messages.Get("me", msgRef.Id).Format("full").Do()
 		if err != nil {
 			log.Printf("[SCAN-GMAIL] Failed to get message %s: %v", msgRef.Id, err)
 			continue
 		}
-
+		
 		subject := getHeader(msg.Payload.Headers, "Subject")
 		from := getHeader(msg.Payload.Headers, "From")
 		body := extractBody(msg.Payload)
 		if body == "" {
 			continue
 		}
-
+		
 		receivedAt := time.Unix(msg.InternalDate/1000, 0)
 		msgMap[msgRef.Id] = receivedAt
-
-		sb.WriteString(fmt.Sprintf("[TS:%s] [%s] From:%s Subject:%s\n%s\n\n",
+		
+		msgContent := fmt.Sprintf("Subject: %s\nFrom: %s\n\n%s", subject, from, body)
+		contentMap[msgRef.Id] = msgContent
+		
+		sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s\n\n",
 			msgRef.Id,
 			receivedAt.Format("15:04"),
-			from,
-			subject,
-			body,
+			msgContent,
 		))
 	}
-
+	
 	if sb.Len() == 0 {
 		log.Printf("[SCAN-GMAIL] No readable content for %s", email)
 		return false
 	}
-
+	
 	gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey)
 	if err != nil {
 		log.Printf("[SCAN-GMAIL] Failed to create Gemini client: %v", err)
 		return false
 	}
-
+	
 	items, err := gc.Analyze(ctx, sb.String(), language)
 	if err != nil {
 		log.Printf("[SCAN-GMAIL] Gemini analyze error for %s: %v", email, err)
 		return false
 	}
-
+	
 	log.Printf("[SCAN-GMAIL] Gemini extracted %d tasks for %s", len(items), email)
-
+	
 	hasNew := false
-	for _, item := range items {
+	for i, item := range items {
 		assignedAt := time.Now().Format(time.RFC3339)
 		if ts, ok := msgMap[item.SourceTS]; ok {
 			assignedAt = ts.Format(time.RFC3339)
 		}
-
+		
 		link := ""
 		if item.SourceTS != "" {
 			link = fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS)
 		}
-
+		
+		// Use the full email content as OriginalText
+		originalText := contentMap[item.SourceTS]
+		if originalText == "" {
+			originalText = item.OriginalText
+		}
+		
+		// Multi-task support: Ensure each task from the same email has a unique SourceTS
+		uniqueSourceTS := fmt.Sprintf("gmail-%s-%d", item.SourceTS, i)
+		
 		saved, _ := SaveMessage(ConsolidatedMessage{
 			UserEmail:    email,
 			Source:       "gmail",
@@ -163,14 +174,14 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 			Assignee:     item.Assignee,
 			AssignedAt:   assignedAt,
 			Link:         link,
-			SourceTS:     "gmail-" + item.SourceTS,
-			OriginalText: item.OriginalText,
+			SourceTS:     uniqueSourceTS,
+			OriginalText: originalText,
 		})
 		if saved {
 			hasNew = true
 		}
 	}
-
+	
 	return hasNew
 }
 
