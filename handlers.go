@@ -14,10 +14,29 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
+// applyTranslations는 추출된 메시지 배열에 번역본을 매핑하는 공통 헬퍼 함수입니다.
+func applyTranslations(msgs []store.ConsolidatedMessage, lang string) {
+	if lang == "" || len(msgs) == 0 {
+		return
+	}
+	ids := make([]int, len(msgs))
+	for i, m := range msgs {
+		ids[i] = m.ID
+	}
+	translations, err := store.GetTaskTranslationsBatch(ids, lang)
+	if err == nil {
+		for i := range msgs {
+			if t, ok := translations[msgs[i].ID]; ok {
+				msgs[i].Task = t
+			}
+		}
+	}
+}
+
 func handleGetMessages(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	lang := r.URL.Query().Get("lang")
-	
+
 	msgsRaw, err := store.GetMessages(email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -28,20 +47,7 @@ func handleGetMessages(w http.ResponseWriter, r *http.Request) {
 	msgs := make([]store.ConsolidatedMessage, len(msgsRaw))
 	copy(msgs, msgsRaw)
 
-	if lang != "" && len(msgs) > 0 {
-		ids := make([]int, len(msgs))
-		for i, m := range msgs {
-			ids[i] = m.ID
-		}
-		translations, err := store.GetTaskTranslationsBatch(ids, lang)
-		if err == nil {
-			for i := range msgs {
-				if t, ok := translations[msgs[i].ID]; ok {
-					msgs[i].Task = t
-				}
-			}
-		}
-	}
+	applyTranslations(msgs, lang) // 통합된 함수 사용
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(msgs)
@@ -91,21 +97,8 @@ func handleGetArchived(w http.ResponseWriter, r *http.Request) {
 	msgs := make([]store.ConsolidatedMessage, len(msgsRaw))
 	copy(msgs, msgsRaw)
 
-	if lang != "" && len(msgs) > 0 {
-		ids := make([]int, len(msgs))
-		for i, m := range msgs {
-			ids[i] = m.ID
-		}
-		translations, err := store.GetTaskTranslationsBatch(ids, lang)
-		if err == nil {
-			for i := range msgs {
-				if t, ok := translations[msgs[i].ID]; ok {
-					msgs[i].Task = t
-				}
-			}
-		}
-	}
-	
+	applyTranslations(msgs, lang) // 통합된 함수 사용
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"messages": msgs,
@@ -116,13 +109,13 @@ func handleGetArchived(w http.ResponseWriter, r *http.Request) {
 func handleGetArchivedCount(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	q := r.URL.Query().Get("q")
-	
+
 	_, total, err := store.GetArchivedMessagesFiltered(email, 1, 0, q, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]int{"total": total})
 }
@@ -163,7 +156,7 @@ func handleExportExcel(w http.ResponseWriter, r *http.Request) {
 		if m.CompletedAt != nil {
 			compAt = m.CompletedAt.Format("2006-01-02 15:04:05")
 		}
-		
+
 		f.SetCellValue(sheet, fmt.Sprintf("A%d", row), m.ID)
 		f.SetCellValue(sheet, fmt.Sprintf("B%d", row), m.Source)
 		f.SetCellValue(sheet, fmt.Sprintf("C%d", row), m.Room)
@@ -189,7 +182,7 @@ func handleExportExcel(w http.ResponseWriter, r *http.Request) {
 func handleExportArchive(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	q := r.URL.Query().Get("q")
-	
+
 	msgs, _, err := store.GetArchivedMessagesFiltered(email, 10000, 0, q, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -558,4 +551,3 @@ func handleDeleteTenantAlias(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 }
-
