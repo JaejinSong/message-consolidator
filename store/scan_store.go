@@ -43,6 +43,13 @@ func LoadMetadata() error {
 		aliasCache[userID] = append(aliasCache[userID], alias)
 	}
 
+	// 2.1 Ensure all users have an entry in aliasCache to prevent DB hits
+	for _, u := range userCache {
+		if _, ok := aliasCache[u.ID]; !ok {
+			aliasCache[u.ID] = []string{}
+		}
+	}
+
 	// 3. Load Scan Metadata
 	logger.Infof("[SCAN] Loading existing scan metadata into memory...")
 	scanRows, err := db.Query("SELECT user_email, source, target_id, last_ts FROM scan_metadata")
@@ -61,16 +68,31 @@ func LoadMetadata() error {
 	}
 	logger.Infof("[SCAN] Loaded %d scan metadata entries.", len(scanCache))
 
+	// 4. Load Gmail Tokens
+	logger.Infof("[SCAN] Loading existing gmail tokens into memory...")
+	tokenRows, err := db.Query("SELECT user_email, token_json FROM gmail_tokens")
+	if err != nil {
+		return fmt.Errorf("failed to load gmail tokens: %w", err)
+	}
+	defer tokenRows.Close()
+
+	for tokenRows.Next() {
+		var email, token string
+		if err := tokenRows.Scan(&email, &token); err == nil {
+			tokenCache[email] = token
+		}
+	}
+
 	// 5. Load Tenant Aliases
-	aliasRows, err = db.Query("SELECT user_email, original_name, primary_name FROM tenant_aliases")
+	tenantRows, err := db.Query("SELECT user_email, original_name, primary_name FROM tenant_aliases")
 	if err != nil {
 		return fmt.Errorf("failed to load tenant aliases: %w", err)
 	}
-	defer aliasRows.Close()
+	defer tenantRows.Close()
 
-	for aliasRows.Next() {
+	for tenantRows.Next() {
 		var email, original, primary string
-		if err := aliasRows.Scan(&email, &original, &primary); err != nil {
+		if err := tenantRows.Scan(&email, &original, &primary); err != nil {
 			continue
 		}
 		if _, ok := tenantAliasCache[email]; !ok {
@@ -117,20 +139,53 @@ func PersistAllScanMetadata(userEmail string) {
 	metadataMu.RLock()
 	var toPersist []struct{ source, target, ts string }
 	prefix := userEmail + ":"
-	for key, ts := range scanCache {
-		if strings.HasPrefix(key, prefix) && dirtyScanKeys[key] {
+	for key := range dirtyScanKeys {
+		if strings.HasPrefix(key, prefix) {
 			parts := strings.Split(key, ":")
 			if len(parts) == 3 {
+				ts := scanCache[key]
 				toPersist = append(toPersist, struct{ source, target, ts string }{parts[1], parts[2], ts})
 			}
 		}
 	}
 	metadataMu.RUnlock()
 
-	for _, item := range toPersist {
-		_ = PersistScanMetadata(userEmail, item.source, item.target, item.ts)
-		metadataMu.Lock()
-		delete(dirtyScanKeys, userEmail+":"+item.source+":"+item.target)
-		metadataMu.Unlock()
+	if len(toPersist) == 0 {
+		return // 변경된 내역이 없으면 DB 연결 시도조차 하지 않음 (Sleep 유지)
 	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		logger.Errorf("Failed to begin tx for scan metadata: %v", err)
+		return
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`INSERT INTO scan_metadata (user_email, source, target_id, last_ts)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_email, source, target_id)
+		DO UPDATE SET last_ts = EXCLUDED.last_ts;`)
+	if err != nil {
+		logger.Errorf("Failed to prepare stmt for scan metadata: %v", err)
+		return
+	}
+	defer stmt.Close()
+
+	for _, item := range toPersist {
+		if _, err := stmt.Exec(userEmail, item.source, item.target, item.ts); err != nil {
+			logger.Errorf("Failed to exec stmt for scan metadata: %v", err)
+			return // 에러 발생 시 rollback
+		}
+	}
+	_ = tx.Commit()
+
+	metadataMu.Lock()
+	for _, item := range toPersist {
+		key := userEmail + ":" + item.source + ":" + item.target
+		// 동시성 방어: DB에 쓰는 동안 새 업데이트가 발생하지 않았을 때만 dirty 플래그 해제
+		if scanCache[key] == item.ts {
+			delete(dirtyScanKeys, key)
+		}
+	}
+	metadataMu.Unlock()
 }

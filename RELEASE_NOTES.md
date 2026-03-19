@@ -1,4 +1,13 @@
-# Release Notes - v1.7.0 (Latest)
+# Release Notes - v1.7.1 (Latest)
+
+## ⚡ Neon DB Sleep & Persistence Optimization
+- **Intelligent Metadata Persistence**: Optimized `PersistAllScanMetadata` to only trigger database connections when actual changes exist (`dirtyScanKeys`), allowing Neon DB to remain in sleep mode during idle periods.
+- **High-Efficiency Scanning**: Switched to iterating over `dirtyScanKeys` instead of the entire `scanCache` during persistence, significantly reducing CPU overhead for users with large metadata sets.
+- **Concurrency-Safe Updates**: Implemented a "version-check" defense mechanism to prevent race conditions. The system now verifies if a cached value has changed during the database write window before clearing its "dirty" flag, ensuring no scan updates are ever lost.
+
+---
+
+# Release Notes - v1.7.0 (Old)
 
 ## 🏗️ Package Refactoring & Modularization
 - **`store/` Package**: Extracted all storage logic from the monolithic `store.go` into a dedicated `store/` package containing specialized files (`db.go`, `message_store.go`, `user_store.go`, `token_store.go`, `types.go`, `cache_store.go`, `scan_store.go`, `translation_store.go`), significantly improving readability and maintainability.
