@@ -1,4 +1,17 @@
-# Release Notes - v1.7.4 (Latest)
+# Release Notes - v1.8.0 (Latest)
+
+## 👤 Advanced Name Normalization & Cost Observability
+- **Contact Alias Mapping**: Introduced a new `contacts` table to manage aliases for non-app users (clients, partners). Supports multiple aliases per representative name via comma-separated values.
+- **Tiered Normalization Engine**: Upgraded `NormalizeName` with a 4-tier priority system: Tenant Aliases > Primary Names > User Aliases > Contact Mappings.
+- **Memory-Cached Metadata**: All normalization mappings and contacts are now cached in memory on startup, eliminating per-message DB lookups during high-volume scans.
+- **Token Usage Observability**: Implemented granular tracking of Gemini input/output tokens per user. Data is persisted to a new `token_usage` table for cost monitoring.
+- **NeonDB Sleep Optimization (Flush strategy)**: Token usage and scan metadata are now buffered in memory and flushed to the DB periodically (every 1 hour or when dirty), ensuring NeonDB can maintain its sleep state longer during idle periods.
+- **JSON Export Support**: Added `.json` export option to the archive view, providing a machine-readable format for integration with external tools.
+- **Maintenance Piggybacking**: Integrated `FlushTokenUsageIfNeeded` into the background heartbeat, ensuring maintenance tasks only run when the system is already active.
+
+---
+
+# Release Notes - v1.7.4 (Old)
 
 ## 🏗️ Data Model Unification & I18n Refactoring
 - **RawMessage Consolidation**: Unified Slack, Gmail, and WhatsApp into a single `RawMessage` struct, removing redundant fields (`User`, `RawTS`) for a leaner data model.

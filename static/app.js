@@ -367,6 +367,13 @@ const initApp = () => {
         closeExport();
     });
 
+    document.getElementById('confirmExportJson')?.addEventListener('click', () => {
+        const query = state.archiveSearch ? `?q=${encodeURIComponent(state.archiveSearch)}` : '';
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_');
+        downloadFile(`/api/messages/export/json${query}`, `Message_Archive_${timestamp}.json`);
+        closeExport();
+    });
+
     document.getElementById('restoreSelectedBtn')?.addEventListener('click', async () => {
         const ids = getSelectedArchiveIds();
         if (ids.length === 0) return;

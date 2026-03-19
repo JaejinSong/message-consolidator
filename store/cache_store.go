@@ -21,6 +21,7 @@ var (
 	dirtyScanKeys = make(map[string]bool)   // DB에 아직 persist 안 된 변경된 scanTS 목록
 	tokenCache    = make(map[string]string) // email -> gmail token json
 	tenantAliasCache = make(map[string]map[string]string) // tenant_email -> original_name -> primary_name
+	contactsCache    = make(map[string][]AliasMapping)    // email -> mappings
 	metadataMu   sync.RWMutex
 	lastArchiveTime time.Time
 	archiveMu       sync.Mutex

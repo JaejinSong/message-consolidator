@@ -154,6 +154,10 @@ func InitDB(connStr string) error {
 		return fmt.Errorf("failed to create scan_metadata table: %w", err)
 	}
 
+	// Initialize New Tables
+	InitContactsTable()
+	InitTokenUsageTable()
+
 	return nil
 }
 

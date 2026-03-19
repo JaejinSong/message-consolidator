@@ -230,6 +230,30 @@ func handleExportArchive(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func handleExportJSON(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	q := r.URL.Query().Get("q")
+
+	msgs, _, err := store.GetArchivedMessagesFiltered(email, 10000, 0, q, "", "")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	timestamp := time.Now().Format("20060102_150405")
+	filename := fmt.Sprintf("Message_Archive_%s.json", timestamp)
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	w.Header().Set("Access-Control-Expose-Headers", "Content-Disposition")
+
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ") // JSON을 읽기 쉽도록 예쁘게 포맷팅
+	if err := encoder.Encode(msgs); err != nil {
+		logger.Errorf("Failed to write json export: %v", err)
+	}
+}
+
 func handleWhatsAppStatus(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	status := GetWhatsAppStatus(email)
@@ -342,7 +366,7 @@ func TranslateMessagesByID(ctx context.Context, email string, ids []int, lang st
 		return 0, err
 	}
 
-	translations, err := gc.Translate(ctx, toTranslate, lang)
+	translations, err := gc.Translate(ctx, email, toTranslate, lang)
 	if err != nil {
 		logger.Errorf("[TRANSLATE] Gemini Translation Error for %s: %v", email, err)
 		return 0, err
@@ -553,6 +577,43 @@ func handleDeleteTenantAlias(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := store.DeleteTenantAlias(email, req.Original); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func handleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	todayTotal, err := store.GetDailyTokenUsage(email)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	respondJSON(w, map[string]int{"todayTotal": todayTotal})
+}
+
+func handleGetMappings(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	mappings, err := store.GetContactsMappings(email)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	respondJSON(w, mappings)
+}
+
+func handleAddMapping(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	var req struct {
+		RepName string `json:"rep_name"`
+		Aliases string `json:"aliases"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := store.AddContactMapping(email, req.RepName, req.Aliases); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

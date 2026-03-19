@@ -73,7 +73,8 @@ func NormalizeName(tenantEmail, name string) string {
 		}
 	}
 
-	return name
+	// 4. Check Contacts Mappings (LOWEST PRIORITY)
+	return NormalizeContactName(tenantEmail, name)
 }
 
 func GetTenantAliases(email string) (map[string]string, error) {

@@ -185,7 +185,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 		return false
 	}
 
-	items, err := gc.Analyze(ctx, sb.String(), language, "gmail")
+	items, err := gc.Analyze(ctx, email, sb.String(), language, "gmail")
 	if err != nil {
 		logger.Errorf("[SCAN-GMAIL] Gemini Analyze Error for %s: %v", email, err)
 		return false

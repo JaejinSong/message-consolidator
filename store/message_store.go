@@ -25,7 +25,7 @@ func SaveMessage(msg ConsolidatedMessage) (bool, int, error) {
 			  ON CONFLICT(user_email, source_ts) DO NOTHING
 			  RETURNING id;`
 	err := db.QueryRow(query, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText).Scan(&lastID)
-	
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return false, 0, nil
@@ -124,7 +124,7 @@ func GetArchivedMessagesFiltered(email string, limit, offset int, search string,
 		FROM messages 
 		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '6 days'))
 		%s`, searchQuery)
-	
+
 	var total int
 	err := db.QueryRow(countQuery, args...).Scan(&total)
 	if err != nil {
@@ -135,7 +135,7 @@ func GetArchivedMessagesFiltered(email string, limit, offset int, search string,
 	if limit <= 0 {
 		limit = 100
 	}
-	
+
 	orderBy := "CASE WHEN is_deleted = true THEN created_at ELSE completed_at END DESC"
 	whitelist := map[string]string{
 		"source":       "source",
@@ -165,9 +165,9 @@ func GetArchivedMessagesFiltered(email string, limit, offset int, search string,
 		%s
 		ORDER BY %s
 		LIMIT $%d OFFSET $%d`, searchQuery, orderBy, argIdx, argIdx+1)
-	
+
 	args = append(args, limit, offset)
-	
+
 	rows, err := db.Query(dataQuery, args...)
 	if err != nil {
 		return nil, 0, err
@@ -214,13 +214,13 @@ func DeleteMessage(email string, id int) error {
 	if err != nil {
 		return err
 	}
-	
+
 	rows, _ := res.RowsAffected()
 	logger.Debugf("[DB] Soft-delete message ID %d, affected rows: %d", id, rows)
-	
+
 	cacheMu.Lock()
 	defer cacheMu.Unlock()
-	
+
 	patch := func(list []ConsolidatedMessage) {
 		for i := range list {
 			if list[i].ID == id {
@@ -240,13 +240,13 @@ func HardDeleteMessage(email string, id int) error {
 	if err != nil {
 		return err
 	}
-	
+
 	rows, _ := res.RowsAffected()
 	logger.Debugf("[DB] Hard-delete message ID %d, affected rows: %d", id, rows)
-	
+
 	cacheMu.Lock()
 	defer cacheMu.Unlock()
-	
+
 	removeFromList := func(list []ConsolidatedMessage) []ConsolidatedMessage {
 		for i := range list {
 			if list[i].ID == id {
@@ -266,13 +266,13 @@ func RestoreMessage(email string, id int) error {
 	if err != nil {
 		return err
 	}
-	
+
 	rows, _ := res.RowsAffected()
 	logger.Debugf("[DB] Restore message ID %d, affected rows: %d", id, rows)
-	
+
 	cacheMu.Lock()
 	defer cacheMu.Unlock()
-	
+
 	patch := func(list []ConsolidatedMessage) {
 		for i := range list {
 			if list[i].ID == id {

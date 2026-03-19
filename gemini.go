@@ -39,7 +39,7 @@ func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translat
 	}, nil
 }
 
-func (g *GeminiClient) Analyze(ctx context.Context, conversationText string, language string, source string) ([]store.TodoItem, error) {
+func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText string, language string, source string) ([]store.TodoItem, error) {
 	if g == nil || g.client == nil {
 		return nil, fmt.Errorf("Gemini client is not initialized")
 	}
@@ -78,6 +78,11 @@ Emails:
 		return nil, err
 	}
 
+	// Record Token Usage
+	if resp.UsageMetadata != nil {
+		store.AddTokenUsage(email, int(resp.UsageMetadata.PromptTokenCount), int(resp.UsageMetadata.CandidatesTokenCount))
+	}
+
 	var rawJSON string
 	for _, part := range resp.Candidates[0].Content.Parts {
 		if t, ok := part.(genai.Text); ok {
@@ -94,7 +99,7 @@ Emails:
 	return items, nil
 }
 
-func (g *GeminiClient) Translate(ctx context.Context, tasks []store.TranslateRequest, language string) ([]store.TranslateRequest, error) {
+func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []store.TranslateRequest, language string) ([]store.TranslateRequest, error) {
 	if g == nil || g.client == nil {
 		return nil, fmt.Errorf("Gemini client is not initialized")
 	}
@@ -117,6 +122,11 @@ func (g *GeminiClient) Translate(ctx context.Context, tasks []store.TranslateReq
 	if err != nil {
 		logger.Errorf("[GEMINI] Translation failed: %v", err)
 		return nil, err
+	}
+
+	// Record Token Usage
+	if resp.UsageMetadata != nil {
+		store.AddTokenUsage(email, int(resp.UsageMetadata.PromptTokenCount), int(resp.UsageMetadata.CandidatesTokenCount))
 	}
 
 	var rawJSON string
