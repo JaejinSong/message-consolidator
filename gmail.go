@@ -48,7 +48,7 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 
 	var token oauth2.Token
 	if err := json.Unmarshal([]byte(tokenJSON), &token); err != nil {
-		return nil, fmt.Errorf("failed to parse gmail token: %w", email, err)
+		return nil, fmt.Errorf("failed to parse gmail token for %s: %w", email, err)
 	}
 
 	tokenSource := gmailOauthConfig.TokenSource(ctx, &token)
