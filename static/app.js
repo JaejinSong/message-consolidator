@@ -58,7 +58,7 @@ const updateArchivePaginationUI = () => {
     const totalPages = Math.ceil(state.archiveTotalCount / state.archiveLimit) || 1;
     const pageInfo = document.getElementById('archivePageInfo');
     if (pageInfo) pageInfo.textContent = `Page ${state.archivePage} / ${totalPages} (Total: ${state.archiveTotalCount})`;
-    
+
     const prevBtn = document.getElementById('prevArchivePage');
     const nextBtn = document.getElementById('nextArchivePage');
     if (prevBtn) prevBtn.disabled = state.archivePage <= 1;
@@ -177,7 +177,7 @@ const removeTenantAliasMapping = async (original) => {
 // --- Initialization ---
 const initApp = () => {
     console.log("Initializing Modular App...");
-    
+
     updateUILanguage(state.currentLang);
 
     const langSelect = document.getElementById('languageSelect');
@@ -304,7 +304,7 @@ const initApp = () => {
     const closeExport = () => exportModal.classList.add('hidden');
     document.getElementById('closeExportModalBtn')?.addEventListener('click', closeExport);
     document.getElementById('cancelExportBtn')?.addEventListener('click', closeExport);
-    
+
     const downloadFile = async (url, defaultFilename) => {
         console.log(`[DEBUG] Starting download: ${url}, default: ${defaultFilename}`);
         const loading = document.getElementById('loading');
@@ -312,7 +312,7 @@ const initApp = () => {
         try {
             const resp = await fetch(url, { credentials: 'same-origin' });
             if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
-            
+
             // Try to get filename from header
             const disposition = resp.headers.get('Content-Disposition');
             console.log(`[DEBUG] Disposition header: ${disposition}`);
@@ -325,11 +325,11 @@ const initApp = () => {
                 }
             }
             console.log(`[DEBUG] Final filename: ${filename}`);
-            
+
             const rawBlob = await resp.blob();
             const blob = new Blob([rawBlob], { type: 'application/octet-stream' });
             const blobUrl = window.URL.createObjectURL(blob);
-            
+
             const a = document.createElement('a');
             a.style.display = 'none';
             a.href = blobUrl;
@@ -338,7 +338,7 @@ const initApp = () => {
             console.log(`[DEBUG] Triggering browser download for: ${filename}`);
             a.click();
             document.body.removeChild(a);
-            
+
             // Wait a bit before cleanup to ensure browser starts download
             setTimeout(() => {
                 window.URL.revokeObjectURL(blobUrl);
@@ -440,7 +440,7 @@ const initApp = () => {
                         clearInterval(poll);
                         btn.disabled = false;
                     }
-                }, 3000);
+                }, 3001); // 3초 근접 소수(Prime)로 지터링 적용
             }
         } catch (e) {
             placeholder.textContent = 'Error';
@@ -471,7 +471,7 @@ const initApp = () => {
     document.getElementById('newAliasInput')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') addAlias();
     });
-    
+
     document.getElementById('addNormBtn')?.addEventListener('click', addTenantAliasMapping);
     document.getElementById('normPrimaryInput')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') addTenantAliasMapping();
@@ -480,9 +480,9 @@ const initApp = () => {
     fetchUserProfile();
     checkWhatsAppStatus();
     checkGmailStatus();
-    setInterval(fetchMessages, 30000);
-    setInterval(checkWhatsAppStatus, 30000);
-    setInterval(checkGmailStatus, 60000);
+    setInterval(fetchMessages, 29009);       // 약 29초 (소수 ms) - 백그라운드 충돌 회피
+    setInterval(checkWhatsAppStatus, 31013); // 약 31초 (소수 ms)
+    setInterval(checkGmailStatus, 61001);    // 약 61초 (소수 ms)
 
     // Gmail icon click: connect when OFF, show info when ON
     document.getElementById('gmailStatusLarge')?.addEventListener('click', () => {
