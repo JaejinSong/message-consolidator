@@ -29,6 +29,18 @@ var (
 	waContainerOnce sync.Once
 )
 
+func getWALogLevel() string {
+	logLevel := waLogLevel
+	if cfg != nil {
+		if strings.ToUpper(cfg.LogLevel) == "DEBUG" {
+			logLevel = "DEBUG"
+		} else if strings.ToUpper(cfg.LogLevel) == "ERROR" {
+			logLevel = "ERROR"
+		}
+	}
+	return logLevel
+}
+
 func InitWhatsApp(email string) {
 	waBufferMu.Lock()
 	if _, ok := waClients[email]; ok {
@@ -39,15 +51,7 @@ func InitWhatsApp(email string) {
 
 	var err error
 	waContainerOnce.Do(func() {
-		logLevel := waLogLevel
-		if cfg != nil {
-			if strings.ToUpper(cfg.LogLevel) == "DEBUG" {
-				logLevel = "DEBUG"
-			} else if strings.ToUpper(cfg.LogLevel) == "ERROR" {
-				logLevel = "ERROR"
-			}
-		}
-		dbLog := waLog.Stdout("Database", logLevel, true)
+		dbLog := waLog.Stdout("Database", getWALogLevel(), true)
 		dbURL := cfg.NeonDBURL
 		if dbURL == "" {
 			logger.Debugf("[WA-INIT] NeonDB URL is empty in config")
@@ -93,15 +97,7 @@ func InitWhatsApp(email string) {
 		device = waContainer.NewDevice()
 	}
 
-	logLevel := waLogLevel
-	if cfg != nil {
-		if strings.ToUpper(cfg.LogLevel) == "DEBUG" {
-			logLevel = "DEBUG"
-		} else if strings.ToUpper(cfg.LogLevel) == "ERROR" {
-			logLevel = "ERROR"
-		}
-	}
-	clientLog := waLog.Stdout("Client", logLevel, true)
+	clientLog := waLog.Stdout("Client", getWALogLevel(), true)
 	client := whatsmeow.NewClient(device, clientLog)
 
 	waBufferMu.Lock()
@@ -136,9 +132,15 @@ func handleWhatsAppEvent(email string, client *whatsmeow.Client, evt interface{}
 			return
 		}
 
-		waBufferMu.Lock()
-		if _, ok := waMessageBuffer[email]; !ok {
-			waMessageBuffer[email] = make(map[types.JID][]appStore.RawChatMessage)
+		// 1. 메시지 텍스트 추출 (Lock 없이 수행 가능)
+		msgText := v.Message.GetConversation()
+		if msgText == "" {
+			msgText = v.Message.GetExtendedTextMessage().GetText()
+		}
+
+		// 메시지가 비어있다면 처리 중단 (Lock 경합 방지)
+		if msgText == "" {
+			return
 		}
 
 		sender := v.Info.Sender.String()
@@ -146,28 +148,31 @@ func handleWhatsAppEvent(email string, client *whatsmeow.Client, evt interface{}
 			sender = v.Info.PushName
 		}
 
-		msgText := ""
-		if v.Message.GetConversation() != "" {
-			msgText = v.Message.GetConversation()
-		} else if v.Message.GetExtendedTextMessage().GetText() != "" {
-			msgText = v.Message.GetExtendedTextMessage().GetText()
+		// 2. 버퍼 업데이트를 위해 Write Lock 획득
+		waBufferMu.Lock()
+		if _, ok := waMessageBuffer[email]; !ok {
+			waMessageBuffer[email] = make(map[types.JID][]appStore.RawChatMessage)
 		}
 
-		if msgText != "" {
-			waMessageBuffer[email][v.Info.Chat] = append(waMessageBuffer[email][v.Info.Chat], appStore.RawChatMessage{
-				ID:        v.Info.ID,
-				User:      sender,
-				Sender:    sender,
-				Text:      msgText,
-				Timestamp: v.Info.Timestamp,
-				Time:      v.Info.Timestamp,
-				RawTS:     v.Info.ID,
-			})
-			if len(waMessageBuffer[email][v.Info.Chat]) > 200 {
-				waMessageBuffer[email][v.Info.Chat] = waMessageBuffer[email][v.Info.Chat][len(waMessageBuffer[email][v.Info.Chat])-200:]
-			}
+		// Map 조회를 최소화하기 위해 변수 사용
+		chatBuffer := waMessageBuffer[email][v.Info.Chat]
+		chatBuffer = append(chatBuffer, appStore.RawChatMessage{
+			ID:        v.Info.ID,
+			User:      sender,
+			Sender:    sender,
+			Text:      msgText,
+			Timestamp: v.Info.Timestamp,
+			Time:      v.Info.Timestamp,
+			RawTS:     v.Info.ID,
+		})
+
+		// 버퍼 크기 제한 (최신 200개)
+		if len(chatBuffer) > 200 {
+			chatBuffer = chatBuffer[len(chatBuffer)-200:]
 		}
+		waMessageBuffer[email][v.Info.Chat] = chatBuffer
 		waBufferMu.Unlock()
+
 		logger.Debugf("[WA-EVENT][%s] Message from %s (Chat: %s): %s", email, sender, v.Info.Chat, msgText)
 
 	case *events.Connected:
@@ -202,21 +207,17 @@ func GetWhatsAppQR(ctx context.Context, email string) (string, error) {
 		return "CONNECTED", nil
 	}
 
-	qrChan, err := client.GetQRChannel(ctx)
-	if err != nil {
-		logger.Debugf("[WA-TRACE][%s] GetQRChannel initial error: %v", email, err)
-	}
-
+	// 먼저 연결 상태를 확인하고 필요하면 연결합니다.
 	if !client.IsConnected() {
 		if err := client.Connect(); err != nil {
 			return "", fmt.Errorf("failed to connect for %s: %v", email, err)
 		}
-		if qrChan == nil {
-			qrChan, err = client.GetQRChannel(ctx)
-			if err != nil {
-				return "", fmt.Errorf("failed to get QR after connect for %s: %v", email, err)
-			}
-		}
+	}
+
+	// 확실히 연결이 보장된 후 QR 채널을 단 1번만 요청합니다.
+	qrChan, err := client.GetQRChannel(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get QR channel for %s: %v", email, err)
 	}
 
 	for {

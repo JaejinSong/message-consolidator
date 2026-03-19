@@ -5,6 +5,10 @@
 - **Rendering Overhead Reduction**: Optimized `style.css` by reducing heavy visual effects like extreme background blurs and deep shadows, resulting in smoother scrolling and lower CPU/GPU usage on the client side.
 - **Improved Modal Responsiveness**: Refined modal backdrop and content animations for a snappier user experience.
 - **Build Speed Optimization**: Refactored `Dockerfile` with optimized layering. Introduced separate copying for static assets to leverage Docker's build cache, skipping minification if static files are unchanged.
+- **WhatsApp Connectivity & Stability**: 
+    - **Deep Concurrency Optimization**: Refactored event handlers to process message extraction before acquiring write locks, significantly reducing contention.
+    - **Fail-Safe Connection Strategy**: Added 5-attempt retry logic for store initialization to handle DB cold starts or transient latency.
+    - **QR Channel Reliability**: Re-ordered connection steps to ensure stable QR code generation and subscription.
 
 ---
 

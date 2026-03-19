@@ -123,7 +123,7 @@ func scanSlack(user store.User, aliases []string) {
 			classification := classifyMessage(channel, &user, aliases, m)
 			if classification == "내 업무" {
 				link := fmt.Sprintf("https://slack.com/archives/%s/p%s", channel.ID, strings.ReplaceAll(m.RawTS, ".", ""))
-			store.SaveMessage(store.ConsolidatedMessage{
+				store.SaveMessage(store.ConsolidatedMessage{
 					UserEmail:    user.Email,
 					Source:       "slack",
 					Room:         sc.GetChannelName(channel.ID),
@@ -144,46 +144,37 @@ func scanSlack(user store.User, aliases []string) {
 	}
 }
 
-func originalMsgTimestamp(msgMap map[string]store.RawChatMessage, ts string) string {
-	if m, ok := msgMap[ts]; ok {
-		return m.Timestamp.Format(time.RFC3339)
-	}
-	return time.Now().Format(time.RFC3339)
-}
-
 func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m store.RawChatMessage) string {
-	isDM := channel.IsIM || channel.IsMpIM
-	isMentioned := false
-	if user.SlackID != "" && strings.Contains(m.Text, "<@"+user.SlackID+">") {
-		isMentioned = true
-	}
-	if !isMentioned {
-		for _, alias := range aliases {
-			if alias != "" && strings.Contains(strings.ToLower(m.Text), strings.ToLower(alias)) {
-				isMentioned = true
-				break
-			}
-		}
-	}
-	if !isMentioned {
-		senderName := strings.ToLower(m.User)
-		for _, alias := range aliases {
-			if alias != "" && strings.Contains(senderName, strings.ToLower(alias)) {
-				isMentioned = true
-				break
-			}
-		}
-	}
-	if isDM || isMentioned {
+	// 1. DM이거나 직접 멘션된 경우 즉시 반환 (Early Return)
+	if channel.IsIM || channel.IsMpIM {
 		return "내 업무"
 	}
+	if user.SlackID != "" && strings.Contains(m.Text, "<@"+user.SlackID+">") {
+		return "내 업무"
+	}
+
+	// 2. 소문자 변환을 반복문 밖에서 1번만 수행하여 성능 확보
+	lowerText := strings.ToLower(m.Text)
+	senderName := strings.ToLower(m.User)
+
+	// 3. 본문과 발신자 확인을 하나의 루프로 통합
+	for _, alias := range aliases {
+		if alias == "" {
+			continue
+		}
+		lowerAlias := strings.ToLower(alias)
+		if strings.Contains(lowerText, lowerAlias) || strings.Contains(senderName, lowerAlias) {
+			return "내 업무"
+		}
+	}
+
 	return "기타 업무"
 }
 
 func scanWhatsApp(ctx context.Context, user store.User, aliases []string, language string) []int {
 	email := user.Email
 	var newIDs []int
-	
+
 	waBufferMu.Lock()
 	userBuffer, ok := waMessageBuffer[email]
 	if !ok || len(userBuffer) == 0 {
