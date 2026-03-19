@@ -146,6 +146,34 @@ const removeAlias = async (alias) => {
     } catch (e) { console.error(e); }
 };
 
+const fetchTenantAliases = async () => {
+    try {
+        const aliases = await api.fetchTenantAliases();
+        renderer.renderTenantAliasList(aliases, removeTenantAliasMapping);
+    } catch (e) { console.error(e); }
+};
+
+const addTenantAliasMapping = async () => {
+    const origInput = document.getElementById('normOriginalInput');
+    const primInput = document.getElementById('normPrimaryInput');
+    const original = origInput.value.trim();
+    const primary = primInput.value.trim();
+    if (!original || !primary) return;
+    try {
+        await api.addTenantAlias(original, primary);
+        origInput.value = '';
+        primInput.value = '';
+        fetchTenantAliases();
+    } catch (e) { console.error(e); }
+};
+
+const removeTenantAliasMapping = async (original) => {
+    try {
+        await api.removeTenantAlias(original);
+        fetchTenantAliases();
+    } catch (e) { console.error(e); }
+};
+
 // --- Initialization ---
 const initApp = () => {
     console.log("Initializing Modular App...");
@@ -428,6 +456,7 @@ const initApp = () => {
     document.getElementById('settingsBtn')?.addEventListener('click', () => {
         settingsModal.classList.remove('hidden');
         renderer.renderAliasList(state.userAliases, removeAlias);
+        fetchTenantAliases();
     });
 
     document.getElementById('closeSettingsBtn')?.addEventListener('click', () => {
@@ -441,6 +470,11 @@ const initApp = () => {
     document.getElementById('addAliasBtn')?.addEventListener('click', addAlias);
     document.getElementById('newAliasInput')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') addAlias();
+    });
+    
+    document.getElementById('addNormBtn')?.addEventListener('click', addTenantAliasMapping);
+    document.getElementById('normPrimaryInput')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') addTenantAliasMapping();
     });
 
     fetchUserProfile();

@@ -1,4 +1,4 @@
-package main
+package logger
 
 import (
 	"io"
@@ -24,41 +24,39 @@ var levelMap = map[string]int{
 	"ERROR": LevelError,
 }
 
-func getLogLevel() int {
-	if cfg == nil {
-		return LevelInfo
+var currentLevel = LevelInfo
+
+func SetLevel(levelStr string) {
+	if level, ok := levelMap[strings.ToUpper(levelStr)]; ok {
+		currentLevel = level
 	}
-	if level, ok := levelMap[strings.ToUpper(cfg.LogLevel)]; ok {
-		return level
-	}
-	return LevelInfo
 }
 
-func debugf(format string, v ...interface{}) {
-	if getLogLevel() <= LevelDebug {
+func Debugf(format string, v ...interface{}) {
+	if currentLevel <= LevelDebug {
 		log.Printf("[DEBUG] "+format, v...)
 	}
 }
 
-func infof(format string, v ...interface{}) {
-	if getLogLevel() <= LevelInfo {
+func Infof(format string, v ...interface{}) {
+	if currentLevel <= LevelInfo {
 		log.Printf("[INFO] "+format, v...)
 	}
 }
 
-func warnf(format string, v ...interface{}) {
-	if getLogLevel() <= LevelWarn {
+func Warnf(format string, v ...interface{}) {
+	if currentLevel <= LevelWarn {
 		log.Printf("[WARN] "+format, v...)
 	}
 }
 
-func errorf(format string, v ...interface{}) {
-	if getLogLevel() <= LevelError {
+func Errorf(format string, v ...interface{}) {
+	if currentLevel <= LevelError {
 		log.Printf("[ERROR] "+format, v...)
 	}
 }
 
-func initLogging() {
+func InitLogging() {
 	lumberjackLogger := &lumberjack.Logger{
 		Filename:   "logs/app.log",
 		MaxSize:    100, // megabytes
@@ -78,9 +76,9 @@ func initLogging() {
 			nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
 			time.Sleep(time.Until(nextMidnight))
 
-			infof("[LOG] Rotating log file for new day...")
+			Infof("[LOG] Rotating log file for new day...")
 			if err := lumberjackLogger.Rotate(); err != nil {
-				errorf("[LOG] Error rotating log: %v", err)
+				Errorf("[LOG] Error rotating log: %v", err)
 			}
 		}
 	}()

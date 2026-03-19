@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"message-consolidator/logger"
+	"message-consolidator/store"
 	"strings"
 	"sync"
 	"time"
@@ -12,7 +14,7 @@ import (
 )
 
 func startBackgroundScanner() {
-	infof("Background scanner started (1m interval)...")
+	logger.Infof("Background scanner started (1m interval)...")
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
@@ -25,249 +27,131 @@ func startBackgroundScanner() {
 }
 
 func runAllScans() {
-	users, err := GetAllUsers()
+	users, err := store.GetAllUsers()
 	if err != nil {
-		errorf("Scanner Error: Failed to get users: %v", err)
+		logger.Errorf("Scanner Error: Failed to get users: %v", err)
 		return
 	}
-	for _, u := range users {
-		debugf("Starting background scan for: %s", u.Email)
-		go scan(u.Email, "Korean") // Default language for background scan
-	}
-}
-
-func scan(email string, language string) {
-	infof("[SCAN] Starting message scan for %s (lang: %s)...", email, language)
-	ctx := context.Background()
-
-	user, err := GetOrCreateUser(email, "", "")
-	if err != nil {
-		errorf("[SCAN] Error: Failed to get user %s: %v", email, err)
-		return
-	}
-	aliases, _ := GetUserAliases(user.ID)
-	aliases = append(aliases, user.Email, user.Name)
-
-	var newIDs []int
-	var mu sync.Mutex
-	var hasNewGmail bool
 	var wg sync.WaitGroup
+	for _, user := range users {
+		// Get aliases for this user
+		aliases, _ := store.GetUserAliases(user.ID)
 
-	// Slack Scan
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		debugf("[SCAN] Starting Parallel Slack scan for %s", email)
-		ids := scanSlack(ctx, user, aliases, language)
-		mu.Lock()
-		newIDs = append(newIDs, ids...)
-		mu.Unlock()
-	}()
-
-	// WhatsApp Scan
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		debugf("[SCAN] Starting Parallel WhatsApp scan for %s", email)
-		ids := scanWhatsApp(ctx, user, aliases, language)
-		mu.Lock()
-		newIDs = append(newIDs, ids...)
-		mu.Unlock()
-	}()
-
-	// Gmail Scan
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		debugf("[SCAN] Starting Parallel Gmail scan for %s", email)
-		res := ScanGmail(ctx, email, language)
-		mu.Lock()
-		if res {
-			hasNewGmail = true
-		}
-		mu.Unlock()
-	}()
-
-	wg.Wait()
-
-	// Refresh cache only if new messages were actually saved
-	if len(newIDs) > 0 || hasNewGmail {
-		infof("[SCAN] New messages found (%d from chat), refreshing cache and persisting metadata...", len(newIDs))
-		
-		// Proactive Translation for Chat Messages
-		if len(newIDs) > 0 {
-			targetLangs := []string{"English", "Indonesian", "Thai", "Korean"}
-			// Proactive translation can also be parallelized by language
-			var twg sync.WaitGroup
-			for _, lang := range targetLangs {
-				twg.Add(1)
-				go func(l string) {
-					defer twg.Done()
-					debugf("[SCAN] Proactive translation started for %s -> %s", email, l)
-					count, err := TranslateMessagesByID(ctx, email, newIDs, l)
-					if err != nil {
-						errorf("[SCAN] Proactive translation failed for %s (%s): %v", email, l, err)
-					} else {
-						debugf("[SCAN] Proactive translation finished for %s -> %s (%d messages)", email, l, count)
-					}
-				}(lang)
-			}
-			twg.Wait()
-		}
-
-		if err := RefreshCache(email); err != nil {
-			errorf("Error refreshing cache for %s after scan: %v", email, err)
-		}
-		PersistAllScanMetadata(email)
-		_ = ArchiveOldTasks()
-	} else {
-		debugf("[SCAN] No new messages found for %s, skipping DB interactions.", email)
-	}
-	infof("[SCAN] Finished message scan for %s", email)
-}
-
-func scanSlack(ctx context.Context, user *User, aliases []string, language string) []int {
-	email := user.Email
-	defer func() {
-		if r := recover(); r != nil {
-			errorf("[SCAN-SLACK] PANIC RECOVERED for %s: %v", email, r)
-		}
-	}()
-
-	debugf("TRACELOG: Starting Slack scan for %s...", email)
-	var newIDs []int
-	sc := NewSlackClient(cfg.SlackToken)
-
-	targetChannels := make(map[string]*slack.Channel)
-
-	cursor := ""
-	for {
-		params := &slack.GetConversationsParameters{
-			Types:  []string{"public_channel", "private_channel", "mpim", "im"},
-			Cursor: cursor,
-			Limit:  100,
-		}
-
-		channels, nextCursor, err := sc.api.GetConversations(params)
-		if err != nil {
-			if strings.Contains(err.Error(), "missing_scope") {
-				errorf("[SCAN-SLACK] Permission error for %s: %v. Please ensure your Slack App has 'im:read' and 'mpim:read' scopes.", email, err)
-				
-				// Fallback: try only public and private channels if full list fails
-				if len(params.Types) > 2 {
-					debugf("[SCAN-SLACK] Retrying with limited channel types (public/private only)...")
-					params.Types = []string{"public_channel", "private_channel"}
-					continue
-				}
-			} else {
-				errorf("[SCAN-SLACK] Error fetching rooms for %s: %v", email, err)
-			}
-			break
-		}
-
-		for _, channel := range channels {
-			if channel.IsMember || channel.IsIM {
-				targetChannels[channel.ID] = &channel
-			}
-		}
-
-		if nextCursor == "" {
-			break
-		}
-		cursor = nextCursor
-	}
-
-	if len(sc.userMap) == 0 {
-		sc.FetchUsers()
-	}
-
-	since := time.Now().Add(-7 * 24 * time.Hour)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-
-	for id, channel := range targetChannels {
 		wg.Add(1)
-		go func(cid string, ch slack.Channel) {
+		go func(u store.User, al []string) {
 			defer wg.Done()
-			
-			lastTS := GetLastScan(email, "slack", cid)
-			msgs, err := sc.GetMessages(cid, since, lastTS)
-			if err != nil || len(msgs) == 0 {
-				return
-			}
-
-			msgMap := make(map[string]RawChatMessage)
-			var sb strings.Builder
-			maxTS := lastTS
-
-			for _, m := range msgs {
-				msgMap[m.RawTS] = m
-				sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s: %s\n", m.RawTS, m.Timestamp.Format("15:04"), m.User, m.Text))
-				if m.RawTS > maxTS {
-					maxTS = m.RawTS
-				}
-			}
-
-			if sb.Len() > 0 {
-				gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
-				if err != nil {
-					return
-				}
-
-				items, err := gc.Analyze(ctx, sb.String(), language, "slack")
-				if err != nil {
-					return
-				}
-
-				var localNewIDs []int
-				for _, item := range items {
-					assignedAt := originalMsgTimestamp(msgMap, item.SourceTS)
-					classification := classifyMessage(ch, user, aliases, msgMap[item.SourceTS])
-					link := fmt.Sprintf("https://slack.com/app_redirect?channel=%s&message_ts=%s", cid, item.SourceTS)
-
-					assignee := item.Assignee
-					if assignee == "" || assignee == "me" || assignee == "나" || assignee == "담당자" {
-						assignee = classification
-					}
-
-					saved, newID, _ := SaveMessage(ConsolidatedMessage{
-						UserEmail:    email,
-						Source:       "slack",
-						Room:         "#" + ch.Name,
-						Task:         item.Task,
-						Requester:    item.Requester,
-						Assignee:     assignee,
-						AssignedAt:   assignedAt,
-						Link:         link,
-						SourceTS:     item.SourceTS,
-						OriginalText: item.OriginalText,
-					})
-					if saved {
-						localNewIDs = append(localNewIDs, newID)
-					}
-				}
-
-				mu.Lock()
-				newIDs = append(newIDs, localNewIDs...)
-				if maxTS != "" && maxTS != lastTS {
-					UpdateLastScan(email, "slack", cid, maxTS)
-				}
-				mu.Unlock()
-			}
-		}(id, *channel)
+			scanAllSources(u, al)
+		}(user, aliases)
 	}
 	wg.Wait()
-	return newIDs
 }
 
-func originalMsgTimestamp(msgMap map[string]RawChatMessage, ts string) string {
+func scanAllSources(user store.User, aliases []string) {
+	logger.Debugf("[SCAN] Scanning for user: %s", user.Email)
+
+	// Gmail scan
+	if store.HasGmailToken(user.Email) {
+		logger.Debugf("[SCAN] Starting Gmail scan for %s", user.Email)
+		ScanGmail(context.Background(), user.Email, "Korean") // Default to Korean for background scan
+	}
+
+	// Slack scan (currently shared, but can be filtered by aliases/user)
+	logger.Debugf("[SCAN] Starting Slack scan for %s", user.Email)
+	scanSlack(user, aliases)
+
+	// Persistence of scan metadata
+	store.PersistAllScanMetadata(user.Email)
+
+	// Archive old tasks
+	if err := store.ArchiveOldTasks(); err != nil {
+		logger.Errorf("[SCAN] Failed to archive old tasks for %s: %v", user.Email, err)
+	}
+}
+
+func scan(email string, lang string) {
+	user, err := store.GetOrCreateUser(email, "", "")
+	if err != nil {
+		logger.Errorf("[SCAN] Failed to get user %s: %v", email, err)
+		return
+	}
+	aliases, _ := store.GetUserAliases(user.ID)
+
+	// Gmail
+	if store.HasGmailToken(email) {
+		ScanGmail(context.Background(), email, lang)
+	}
+
+	// Slack
+	scanSlack(*user, aliases)
+
+	// WhatsApp
+	scanWhatsApp(context.Background(), *user, aliases, lang)
+}
+
+func scanSlack(user store.User, aliases []string) {
+	if cfg.SlackToken == "" {
+		return
+	}
+	sc := NewSlackClient(cfg.SlackToken)
+	if err := sc.FetchUsers(); err != nil {
+		logger.Errorf("[SCAN-SLACK] Failed to fetch users: %v", err)
+	}
+
+	// Use the Slack API to get all public channels
+	channels, _, err := sc.api.GetConversations(&slack.GetConversationsParameters{
+		Types: []string{"public_channel", "private_channel", "im", "mpim"},
+	})
+	if err != nil {
+		logger.Errorf("[SCAN-SLACK] Failed to fetch channels: %v", err)
+		return
+	}
+
+	for _, channel := range channels {
+		lastTS := store.GetLastScan(user.Email, "slack", channel.ID)
+		msgs, err := sc.GetMessages(channel.ID, time.Now().Add(-24*time.Hour), lastTS)
+		if err != nil {
+			logger.Debugf("[SCAN-SLACK] Failed to fetch messages for %s: %v", channel.Name, err)
+			continue
+		}
+
+		if len(msgs) == 0 {
+			continue
+		}
+
+		newLastTS := lastTS
+		for _, m := range msgs {
+			classification := classifyMessage(channel, &user, aliases, m)
+			if classification == "내 업무" {
+				link := fmt.Sprintf("https://slack.com/archives/%s/p%s", channel.ID, strings.ReplaceAll(m.RawTS, ".", ""))
+			store.SaveMessage(store.ConsolidatedMessage{
+					UserEmail:    user.Email,
+					Source:       "slack",
+					Room:         sc.GetChannelName(channel.ID),
+					Task:         m.Text,
+					Requester:    m.User,
+					Assignee:     "내 업무",
+					AssignedAt:   m.Timestamp.Format(time.RFC3339),
+					Link:         link,
+					SourceTS:     m.RawTS,
+					OriginalText: m.Text,
+				})
+			}
+			if m.RawTS > newLastTS {
+				newLastTS = m.RawTS
+			}
+		}
+		store.UpdateLastScan(user.Email, "slack", channel.ID, newLastTS)
+	}
+}
+
+func originalMsgTimestamp(msgMap map[string]store.RawChatMessage, ts string) string {
 	if m, ok := msgMap[ts]; ok {
 		return m.Timestamp.Format(time.RFC3339)
 	}
 	return time.Now().Format(time.RFC3339)
 }
 
-func classifyMessage(channel slack.Channel, user *User, aliases []string, m RawChatMessage) string {
+func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m store.RawChatMessage) string {
 	isDM := channel.IsIM || channel.IsMpIM
 	isMentioned := false
 	if user.SlackID != "" && strings.Contains(m.Text, "<@"+user.SlackID+">") {
@@ -296,7 +180,7 @@ func classifyMessage(channel slack.Channel, user *User, aliases []string, m RawC
 	return "기타 업무"
 }
 
-func scanWhatsApp(ctx context.Context, user *User, aliases []string, language string) []int {
+func scanWhatsApp(ctx context.Context, user store.User, aliases []string, language string) []int {
 	email := user.Email
 	var newIDs []int
 	
@@ -307,14 +191,14 @@ func scanWhatsApp(ctx context.Context, user *User, aliases []string, language st
 		return nil
 	}
 	// Copy and clear buffer to avoid holding lock during analysis
-	bufferCopy := make(map[string][]RawChatMessage)
+	bufferCopy := make(map[string][]store.RawChatMessage)
 	for jid, msgs := range userBuffer {
 		if len(msgs) > 0 {
 			bufferCopy[jid.String()] = msgs
 		}
 	}
 	// Clear the user's buffer in the global map
-	waMessageBuffer[email] = make(map[types.JID][]RawChatMessage)
+	waMessageBuffer[email] = make(map[types.JID][]store.RawChatMessage)
 	waBufferMu.Unlock()
 
 	var mu sync.Mutex
@@ -322,12 +206,12 @@ func scanWhatsApp(ctx context.Context, user *User, aliases []string, language st
 
 	for jidStr, msgs := range bufferCopy {
 		wg.Add(1)
-		go func(js string, rrms []RawChatMessage) {
+		go func(js string, rrms []store.RawChatMessage) {
 			defer wg.Done()
-			
+
 			jid, _ := types.ParseJID(js)
 			groupName := GetGroupName(email, jid)
-			msgMap := make(map[string]RawChatMessage)
+			msgMap := make(map[string]store.RawChatMessage)
 			var sb strings.Builder
 			for _, m := range rrms {
 				msgMap[m.RawTS] = m
@@ -349,7 +233,7 @@ func scanWhatsApp(ctx context.Context, user *User, aliases []string, language st
 				if m, ok := msgMap[item.SourceTS]; ok {
 					assignedAt = m.Timestamp.Format(time.RFC3339)
 				}
-				
+
 				is1to1 := jid.Server == "s.whatsapp.net"
 				isMentioned := false
 				lowerText := strings.ToLower(item.OriginalText)
@@ -370,7 +254,7 @@ func scanWhatsApp(ctx context.Context, user *User, aliases []string, language st
 					assignee = classification
 				}
 
-				saved, newID, _ := SaveMessage(ConsolidatedMessage{
+				saved, newID, _ := store.SaveMessage(store.ConsolidatedMessage{
 					UserEmail:    email,
 					Source:       "whatsapp",
 					Room:         groupName,

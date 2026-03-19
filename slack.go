@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"message-consolidator/store"
 	"strconv"
 	"strings"
 	"time"
@@ -43,8 +44,8 @@ func (s *SlackClient) GetUserName(id string) string {
 	return id
 }
 
-func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS string) ([]RawChatMessage, error) {
-	var allMsgs []RawChatMessage
+func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS string) ([]store.RawChatMessage, error) {
+	var allMsgs []store.RawChatMessage
 	
 	// Determine the effective starting point
 	oldest := fmt.Sprintf("%d.%06d", since.Unix(), 0)
@@ -102,14 +103,14 @@ func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS stri
 	return allMsgs, nil
 }
 
-func (s *SlackClient) parseMessage(m slack.Message) RawChatMessage {
+func (s *SlackClient) parseMessage(m slack.Message) store.RawChatMessage {
 	parts := strings.Split(m.Timestamp, ".")
 	var ts time.Time
 	if len(parts) > 0 {
 		sec, _ := strconv.ParseInt(parts[0], 10, 64)
 		ts = time.Unix(sec, 0)
 	}
-	return RawChatMessage{
+	return store.RawChatMessage{
 		User:      s.GetUserName(m.User),
 		Text:      m.Text,
 		Timestamp: ts,

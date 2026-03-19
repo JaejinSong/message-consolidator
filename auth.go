@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"message-consolidator/logger"
+	"message-consolidator/store"
 	"net/http"
 	"os"
 	"strings"
@@ -59,7 +61,7 @@ func handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	oauthState, _ := r.Cookie("oauthstate")
 
 	if r.FormValue("state") != oauthState.Value {
-		errorf("Invalid oauth google state")
+		logger.Errorf("Invalid oauth google state")
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
@@ -88,20 +90,20 @@ func handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create or Update user in DB
-	user, err := GetOrCreateUser(userInfo.Email, userInfo.Name, userInfo.Picture)
+	user, err := store.GetOrCreateUser(userInfo.Email, userInfo.Name, userInfo.Picture)
 	if err != nil {
-		errorf("Failed to sync user to DB: %v", err)
+		logger.Errorf("Failed to sync user to DB: %v", err)
 	} else {
 		// Automatically attempt to find the user's Slack ID and Aliases
 		sc := NewSlackClient(os.Getenv("SLACK_TOKEN"))
 		slackUser, err := sc.LookupUserByEmail(user.Email)
 		if err == nil && slackUser != nil {
-			UpdateUserSlackID(user.Email, slackUser.ID)
-			AddUserAlias(user.ID, slackUser.RealName)
+			store.UpdateUserSlackID(user.Email, slackUser.ID)
+			store.AddUserAlias(user.ID, slackUser.RealName)
 			if slackUser.Profile.DisplayName != "" {
-				AddUserAlias(user.ID, slackUser.Profile.DisplayName)
+				store.AddUserAlias(user.ID, slackUser.Profile.DisplayName)
 			}
-			infof("Auto-discovered Slack ID %s and aliases for %s", slackUser.ID, user.Email)
+			logger.Infof("Auto-discovered Slack ID %s and aliases for %s", slackUser.ID, user.Email)
 		}
 	}
 
@@ -173,7 +175,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		decodedEmailBytes, err := base64.URLEncoding.DecodeString(cookie.Value)
 		if err != nil {
-			debugf("Error decoding session cookie: %v", err)
+			logger.Debugf("Error decoding session cookie: %v", err)
 			http.Redirect(w, r, "/auth/login", http.StatusTemporaryRedirect)
 			return
 		}
