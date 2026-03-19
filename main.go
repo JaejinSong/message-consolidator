@@ -28,6 +28,21 @@ func main() {
 		logger.Warnf("Failed to load metadata cache: %v", err)
 	}
 
+	// Setup WhatsApp Manager Callbacks to Decouple DB dependencies
+	DefaultWAManager.FetchUserWAJID = func(email string) (string, error) {
+		u, err := store.GetOrCreateUser(email, "", "")
+		if err != nil {
+			return "", err
+		}
+		return u.WAJID, nil
+	}
+	DefaultWAManager.OnConnected = func(email, wajid string) {
+		store.UpdateUserWAJID(email, wajid)
+	}
+	DefaultWAManager.OnLoggedOut = func(email string) {
+		store.UpdateUserWAJID(email, "")
+	}
+
 	// Initialize WhatsApp for all existing users
 	users, _ := store.GetAllUsers()
 	for _, u := range users {

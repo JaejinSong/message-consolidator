@@ -144,29 +144,29 @@ func scanSlack(user store.User, aliases []string) {
 		for _, m := range msgs {
 			classification := classifyMessage(channel, &user, aliases, m)
 			if classification == "내 업무" {
-				link := fmt.Sprintf("https://slack.com/archives/%s/p%s", channel.ID, strings.ReplaceAll(m.RawTS, ".", ""))
+				link := fmt.Sprintf("https://slack.com/archives/%s/p%s", channel.ID, strings.ReplaceAll(m.ID, ".", ""))
 				store.SaveMessage(store.ConsolidatedMessage{
 					UserEmail:    user.Email,
 					Source:       "slack",
 					Room:         sc.GetChannelName(channel.ID),
 					Task:         m.Text,
-					Requester:    m.User,
+					Requester:    m.Sender,
 					Assignee:     "내 업무",
 					AssignedAt:   m.Timestamp.Format(time.RFC3339),
 					Link:         link,
-					SourceTS:     m.RawTS,
+					SourceTS:     m.ID,
 					OriginalText: m.Text,
 				})
 			}
-			if m.RawTS > newLastTS {
-				newLastTS = m.RawTS
+			if m.ID > newLastTS {
+				newLastTS = m.ID
 			}
 		}
 		store.UpdateLastScan(user.Email, "slack", channel.ID, newLastTS)
 	}
 }
 
-func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m store.RawChatMessage) string {
+func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m RawMessage) string {
 	// 1. DM이거나 직접 멘션된 경우 즉시 반환 (Early Return)
 	if channel.IsIM || channel.IsMpIM {
 		return "내 업무"
@@ -177,7 +177,7 @@ func classifyMessage(channel slack.Channel, user *store.User, aliases []string, 
 
 	// 2. 소문자 변환을 반복문 밖에서 1번만 수행하여 성능 확보
 	lowerText := strings.ToLower(m.Text)
-	senderName := strings.ToLower(m.User)
+	senderName := strings.ToLower(m.Sender)
 
 	// 3. 본문과 발신자 확인을 하나의 루프로 통합
 	for _, alias := range aliases {
@@ -197,38 +197,26 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 	email := user.Email
 	var newIDs []int
 
-	waBufferMu.Lock()
-	userBuffer, ok := waMessageBuffer[email]
-	if !ok || len(userBuffer) == 0 {
-		waBufferMu.Unlock()
+	bufferCopy := DefaultWAManager.PopMessages(email)
+	if len(bufferCopy) == 0 {
 		return nil
 	}
-	// Copy and clear buffer to avoid holding lock during analysis
-	bufferCopy := make(map[string][]store.RawChatMessage)
-	for jid, msgs := range userBuffer {
-		if len(msgs) > 0 {
-			bufferCopy[jid.String()] = msgs
-		}
-	}
-	// Clear the user's buffer in the global map
-	waMessageBuffer[email] = make(map[types.JID][]store.RawChatMessage)
-	waBufferMu.Unlock()
 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
 	for jidStr, msgs := range bufferCopy {
 		wg.Add(1)
-		go func(js string, rrms []store.RawChatMessage) {
+		go func(js string, rrms []RawMessage) {
 			defer wg.Done()
 
 			jid, _ := types.ParseJID(js)
 			groupName := GetGroupName(email, jid)
-			msgMap := make(map[string]store.RawChatMessage)
+			msgMap := make(map[string]RawMessage)
 			var sb strings.Builder
 			for _, m := range rrms {
-				msgMap[m.RawTS] = m
-				sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s: %s\n", m.RawTS, m.Timestamp.Format("15:04"), m.User, m.Text))
+				msgMap[m.ID] = m
+				sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s: %s\n", m.ID, m.Timestamp.Format("15:04"), m.Sender, m.Text))
 			}
 
 			gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)

@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"message-consolidator/logger"
-	appStore "message-consolidator/store"
 	"strings"
 	"sync"
 	"time"
@@ -19,18 +18,35 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var (
-	waClients       = make(map[string]*whatsmeow.Client)
-	waMessageBuffer = make(map[string]map[types.JID][]appStore.RawChatMessage)
-	waLatestQR      = make(map[string]string)
-	waBufferMu      sync.RWMutex
-	waLogLevel      = "INFO"
-	waContainer     *sqlstore.Container
-	waContainerOnce sync.Once
-)
+type WAManager struct {
+	clients       map[string]*whatsmeow.Client
+	messageBuffer map[string]map[types.JID][]RawMessage
+	latestQR      map[string]string
+	mu            sync.RWMutex
+	container     *sqlstore.Container
+	containerOnce sync.Once
 
-func getWALogLevel() string {
-	logLevel := waLogLevel
+	// Callbacks for Decoupling
+	FetchUserWAJID func(email string) (string, error)
+	OnConnected    func(email, wajid string)
+	OnLoggedOut    func(email string)
+}
+
+func NewWAManager() *WAManager {
+	return &WAManager{
+		clients:        make(map[string]*whatsmeow.Client),
+		messageBuffer:  make(map[string]map[types.JID][]RawMessage),
+		latestQR:       make(map[string]string),
+		FetchUserWAJID: func(email string) (string, error) { return "", nil },
+		OnConnected:    func(email, wajid string) {},
+		OnLoggedOut:    func(email string) {},
+	}
+}
+
+var DefaultWAManager = NewWAManager()
+
+func (m *WAManager) getLogLevel() string {
+	logLevel := "INFO"
 	if cfg != nil {
 		if strings.ToUpper(cfg.LogLevel) == "DEBUG" {
 			logLevel = "DEBUG"
@@ -41,18 +57,17 @@ func getWALogLevel() string {
 	return logLevel
 }
 
-func InitWhatsApp(email string) {
-	waBufferMu.Lock()
-	if _, ok := waClients[email]; ok {
-		waBufferMu.Unlock()
+func (m *WAManager) InitClient(email string, dbURL string) {
+	m.mu.Lock()
+	if _, ok := m.clients[email]; ok {
+		m.mu.Unlock()
 		return
 	}
-	waBufferMu.Unlock()
+	m.mu.Unlock()
 
 	var err error
-	waContainerOnce.Do(func() {
-		dbLog := waLog.Stdout("Database", getWALogLevel(), true)
-		dbURL := cfg.NeonDBURL
+	m.containerOnce.Do(func() {
+		dbLog := waLog.Stdout("Database", m.getLogLevel(), true)
 		if dbURL == "" {
 			logger.Debugf("[WA-INIT] NeonDB URL is empty in config")
 			return
@@ -61,7 +76,7 @@ func InitWhatsApp(email string) {
 		// Retry logic for DB connection (helpful during cold starts or high-load migrations)
 		maxRetries := 5
 		for i := 1; i <= maxRetries; i++ {
-			waContainer, err = sqlstore.New(context.Background(), "postgres", dbURL, dbLog)
+			m.container, err = sqlstore.New(context.Background(), "postgres", dbURL, dbLog)
 			if err == nil {
 				break
 			}
@@ -72,43 +87,43 @@ func InitWhatsApp(email string) {
 		}
 	})
 
-	if err != nil || waContainer == nil {
+	if err != nil || m.container == nil {
 		logger.Errorf("WA Store permanently failed for %s: %v", email, err)
 		return
 	}
 
 	// Load user to get WAJID
-	user, err := appStore.GetOrCreateUser(email, "", "")
+	wajid, err := m.FetchUserWAJID(email)
 	if err != nil {
-		logger.Infof("InitWA: User %s not found in DB: %v", email, err)
+		logger.Infof("InitWA: Failed to fetch WAJID for %s: %v", email, err)
 		return
 	}
 
 	var device *store.Device
-	if user.WAJID != "" {
-		jid, _ := types.ParseJID(user.WAJID)
-		device, err = waContainer.GetDevice(context.Background(), jid)
+	if wajid != "" {
+		jid, _ := types.ParseJID(wajid)
+		device, err = m.container.GetDevice(context.Background(), jid)
 		if err != nil {
-			logger.Debugf("WA Device Store failed for %s (JID: %s): %v", email, user.WAJID, err)
+			logger.Debugf("WA Device Store failed for %s (JID: %s): %v", email, wajid, err)
 		}
 	}
 
 	if device == nil {
-		device = waContainer.NewDevice()
+		device = m.container.NewDevice()
 	}
 
-	clientLog := waLog.Stdout("Client", getWALogLevel(), true)
+	clientLog := waLog.Stdout("Client", m.getLogLevel(), true)
 	client := whatsmeow.NewClient(device, clientLog)
 
-	waBufferMu.Lock()
-	waClients[email] = client
-	if _, ok := waMessageBuffer[email]; !ok {
-		waMessageBuffer[email] = make(map[types.JID][]appStore.RawChatMessage)
+	m.mu.Lock()
+	m.clients[email] = client
+	if _, ok := m.messageBuffer[email]; !ok {
+		m.messageBuffer[email] = make(map[types.JID][]RawMessage)
 	}
-	waBufferMu.Unlock()
+	m.mu.Unlock()
 
 	client.AddEventHandler(func(evt interface{}) {
-		handleWhatsAppEvent(email, client, evt)
+		m.handleEvent(email, client, evt)
 	})
 
 	if client.Store.ID == nil {
@@ -125,7 +140,7 @@ func InitWhatsApp(email string) {
 	}
 }
 
-func handleWhatsAppEvent(email string, client *whatsmeow.Client, evt interface{}) {
+func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt interface{}) {
 	switch v := evt.(type) {
 	case *events.Message:
 		if v.Info.IsFromMe {
@@ -149,55 +164,52 @@ func handleWhatsAppEvent(email string, client *whatsmeow.Client, evt interface{}
 		}
 
 		// 2. 버퍼 업데이트를 위해 Write Lock 획득
-		waBufferMu.Lock()
-		if _, ok := waMessageBuffer[email]; !ok {
-			waMessageBuffer[email] = make(map[types.JID][]appStore.RawChatMessage)
+		m.mu.Lock()
+		if _, ok := m.messageBuffer[email]; !ok {
+			m.messageBuffer[email] = make(map[types.JID][]RawMessage)
 		}
 
 		// Map 조회를 최소화하기 위해 변수 사용
-		chatBuffer := waMessageBuffer[email][v.Info.Chat]
-		chatBuffer = append(chatBuffer, appStore.RawChatMessage{
+		chatBuffer := m.messageBuffer[email][v.Info.Chat]
+		chatBuffer = append(chatBuffer, RawMessage{
 			ID:        v.Info.ID,
-			User:      sender,
 			Sender:    sender,
 			Text:      msgText,
 			Timestamp: v.Info.Timestamp,
-			Time:      v.Info.Timestamp,
-			RawTS:     v.Info.ID,
 		})
 
 		// 버퍼 크기 제한 (최신 200개)
 		if len(chatBuffer) > 200 {
 			chatBuffer = chatBuffer[len(chatBuffer)-200:]
 		}
-		waMessageBuffer[email][v.Info.Chat] = chatBuffer
-		waBufferMu.Unlock()
+		m.messageBuffer[email][v.Info.Chat] = chatBuffer
+		m.mu.Unlock()
 
 		logger.Debugf("[WA-EVENT][%s] Message from %s (Chat: %s): %s", email, sender, v.Info.Chat, msgText)
 
 	case *events.Connected:
 		logger.Debugf("[WA-EVENT][%s] Connected to WhatsApp", email)
 		if client.Store.ID != nil {
-			appStore.UpdateUserWAJID(email, client.Store.ID.String())
+			m.OnConnected(email, client.Store.ID.String())
 		}
 	case *events.OfflineSyncCompleted:
 		logger.Debugf("[WA-EVENT][%s] Offline sync completed", email)
 	case *events.LoggedOut:
 		logger.Debugf("[WA-EVENT][%s] Logged out from WhatsApp", email)
-		appStore.UpdateUserWAJID(email, "")
-		waBufferMu.Lock()
-		delete(waClients, email)
-		delete(waMessageBuffer, email)
-		delete(waLatestQR, email)
-		waBufferMu.Unlock()
+		m.OnLoggedOut(email)
+		m.mu.Lock()
+		delete(m.clients, email)
+		delete(m.messageBuffer, email)
+		delete(m.latestQR, email)
+		m.mu.Unlock()
 	default:
 	}
 }
 
-func GetWhatsAppQR(ctx context.Context, email string) (string, error) {
-	waBufferMu.RLock()
-	client, ok1 := waClients[email]
-	waBufferMu.RUnlock()
+func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
+	m.mu.RLock()
+	client, ok1 := m.clients[email]
+	m.mu.RUnlock()
 
 	if !ok1 {
 		return "", fmt.Errorf("client not initialized for %s", email)
@@ -234,9 +246,9 @@ func GetWhatsAppQR(ctx context.Context, email string) (string, error) {
 					return "", fmt.Errorf("failed to encode QR: %v", err)
 				}
 				encoded := "base64:" + base64.StdEncoding.EncodeToString(png)
-				waBufferMu.Lock()
-				waLatestQR[email] = encoded
-				waBufferMu.Unlock()
+				m.mu.Lock()
+				m.latestQR[email] = encoded
+				m.mu.Unlock()
 				return encoded, nil
 			} else if evt.Event == "success" {
 				return "CONNECTED", nil
@@ -245,10 +257,10 @@ func GetWhatsAppQR(ctx context.Context, email string) (string, error) {
 	}
 }
 
-func GetWhatsAppStatus(email string) string {
-	waBufferMu.RLock()
-	client, ok := waClients[email]
-	waBufferMu.RUnlock()
+func (m *WAManager) GetStatus(email string) string {
+	m.mu.RLock()
+	client, ok := m.clients[email]
+	m.mu.RUnlock()
 
 	if !ok {
 		return "DISCONNECTED"
@@ -259,10 +271,10 @@ func GetWhatsAppStatus(email string) string {
 	return "DISCONNECTED"
 }
 
-func GetGroupName(email string, jid types.JID) string {
-	waBufferMu.RLock()
-	client, ok := waClients[email]
-	waBufferMu.RUnlock()
+func (m *WAManager) GetGroupName(email string, jid types.JID) string {
+	m.mu.RLock()
+	client, ok := m.clients[email]
+	m.mu.RUnlock()
 
 	if !ok {
 		return jid.String()
@@ -279,8 +291,56 @@ func GetGroupName(email string, jid types.JID) string {
 	return jid.User
 }
 
+func (m *WAManager) GetClient(email string) *whatsmeow.Client {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.clients[email]
+}
+
+// PopMessages returns the accumulated messages for a user and clears the buffer.
+func (m *WAManager) PopMessages(email string) map[string][]RawMessage {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	userBuffer, ok := m.messageBuffer[email]
+	if !ok || len(userBuffer) == 0 {
+		return nil
+	}
+
+	bufferCopy := make(map[string][]RawMessage)
+	for jid, msgs := range userBuffer {
+		if len(msgs) > 0 {
+			bufferCopy[jid.String()] = msgs
+		}
+	}
+	m.messageBuffer[email] = make(map[types.JID][]RawMessage)
+	return bufferCopy
+}
+
+// ---------------------------------------------------------
+// 아래는 기존 다른 핸들러 파일들과의 호환성을 유지하기 위한 래퍼(Wrapper) 함수들입니다.
+// 향후 다른 파일들도 `DefaultWAManager` 메서드를 직접 호출하도록 점진적으로 리팩토링할 수 있습니다.
+// ---------------------------------------------------------
+
+func InitWhatsApp(email string) {
+	dbURL := ""
+	if cfg != nil {
+		dbURL = cfg.NeonDBURL
+	}
+	DefaultWAManager.InitClient(email, dbURL)
+}
+
+func GetWhatsAppQR(ctx context.Context, email string) (string, error) {
+	return DefaultWAManager.GetQR(ctx, email)
+}
+
+func GetWhatsAppStatus(email string) string {
+	return DefaultWAManager.GetStatus(email)
+}
+
+func GetGroupName(email string, jid types.JID) string {
+	return DefaultWAManager.GetGroupName(email, jid)
+}
+
 func GetWhatsAppClient(email string) *whatsmeow.Client {
-	waBufferMu.RLock()
-	defer waBufferMu.RUnlock()
-	return waClients[email]
+	return DefaultWAManager.GetClient(email)
 }
