@@ -5,10 +5,10 @@
 - **`logger/` Package**: Centralized all application logging into a dedicated `logger/` package, making logging consistent and easily configurable across all modules.
 - **Type Consolidation**: Moved all shared data types (`ConsolidatedMessage`, `User`, `TodoItem`, `TranslateRequest`, etc.) into `store/types.go` as the single source of truth.
 
-## 🔐 Gemini Prompt Privacy Improvements
-- **Name Exclusion from Summaries**: Updated the Gemini `Analyze` prompt to explicitly instruct the model to **exclude person names** from the `task` description field, replacing them with roles/pronouns.
-- **Name Masking in Original Text**: The `original_text` field now masks person names with `[NAME]` for privacy while preserving the full message context.
-- **Translation Privacy**: The `Translate` prompt now includes a strict instruction to remove person names from all translated outputs.
+## 🔤 Consistent Name Normalization
+- **Alias-Based Name Normalization**: Implemented `NormalizeName` to map various representations of the same person (e.g., `"YOSEP PARK"`, `"박요셉"`) to a single primary name using user/tenant-defined aliases.
+- **Tenant Alias Support**: Per-tenant alias tables allow each user to define their own name mappings for their workspace context.
+- **Consistent Requester/Assignee Display**: Normalization is applied when saving messages, so requester and assignee fields always reflect the canonical name.
 
 ---
 

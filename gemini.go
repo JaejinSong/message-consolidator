@@ -52,11 +52,10 @@ func (g *GeminiClient) Analyze(ctx context.Context, conversationText string, lan
 	model.ResponseMIMEType = "application/json"
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(fmt.Sprintf(`Extract tasks as a JSON array: [{"task", "requester", "assignee", "assigned_at", "source_ts", "original_text"}]
-1. "task": Concise task description in %s. CRITICAL: EXCLUDE all person names/nicks. Use pronouns or roles (e.g., "The requester", "The developer") if needed.
-2. "requester", "assignee": Extract accurately from text. Names/IDs are okay here.
-3. "original_text": The literal original text of the message. Do NOT summarize, but MASK person names with [NAME] for privacy.
-4. "source_ts": Find via [TS:timestamp].
-Task context must be clear without person names in the "task" field.`, language))},
+1. "task": Concise task description in %s.
+2. "requester", "assignee": Extract accurately from text. Use names/IDs as they appear.
+3. "original_text": The literal original text of the message (single-line, no modification).
+4. "source_ts": Find via [TS:timestamp].`, language))},
 	}
 
 	var userPrompt string
@@ -81,10 +80,8 @@ Emails:
 
 	var rawJSON string
 	for _, part := range resp.Candidates[0].Content.Parts {
-		if text, ok := part.(genai.Part); ok {
-			if t, ok := text.(genai.Text); ok {
-				rawJSON += string(t)
-			}
+		if t, ok := part.(genai.Text); ok {
+			rawJSON += string(t)
 		}
 	}
 
@@ -109,9 +106,9 @@ func (g *GeminiClient) Translate(ctx context.Context, tasks []store.TranslateReq
 	model.ResponseMIMEType = "application/json"
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(fmt.Sprintf(`Translate tasks to %s. Return JSON: {"translations": [{"id", "text"}]}.
-1. Resulting "text" must be in %s.
-2. CRITICAL: EXCLUDE all person names from the translated "text".
-3. Use "original_text" if "text" is unclear, but ensure names are REMOVED.`, language, language))},
+1. Use "original_text" if provided, else "text".
+2. Resulting "text" must be in %s.
+3. Preserve names as they appear in the source text.`, language, language))},
 	}
 
 	logger.Debugf("[GEMINI] Translating %d tasks to %s...", len(tasks), language)
