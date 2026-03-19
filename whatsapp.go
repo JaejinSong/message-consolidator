@@ -53,11 +53,23 @@ func InitWhatsApp(email string) {
 			logger.Debugf("[WA-INIT] NeonDB URL is empty in config")
 			return
 		}
-		waContainer, err = sqlstore.New(context.Background(), "postgres", dbURL, dbLog)
+
+		// Retry logic for DB connection (helpful during cold starts or high-load migrations)
+		maxRetries := 5
+		for i := 1; i <= maxRetries; i++ {
+			waContainer, err = sqlstore.New(context.Background(), "postgres", dbURL, dbLog)
+			if err == nil {
+				break
+			}
+			logger.Warnf("WA Store init attempt %d failed: %v. Retrying...", i, err)
+			if i < maxRetries {
+				time.Sleep(2 * time.Second)
+			}
+		}
 	})
 
 	if err != nil || waContainer == nil {
-		logger.Infof("WA Store failed for %s: %v", email, err)
+		logger.Errorf("WA Store permanently failed for %s: %v", email, err)
 		return
 	}
 
