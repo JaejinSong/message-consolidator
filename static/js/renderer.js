@@ -273,7 +273,7 @@ export const renderer = {
         const body = document.getElementById('archiveBody');
         const countEl = document.getElementById('archiveCount');
         if (body) body.innerHTML = '';
-        if (countEl) countEl.textContent = messages.length;
+        if (countEl) countEl.textContent = state.archiveTotalCount;
 
         if (!messages || messages.length === 0) {
             body.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-dim);">No archived tasks.</td></tr>`;

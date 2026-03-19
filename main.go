@@ -15,6 +15,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/slack-go/slack"
+	"github.com/xuri/excelize/v2"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -121,7 +122,9 @@ func main() {
 	r.Handle("/api/messages/hard-delete", AuthMiddleware(http.HandlerFunc(handleHardDelete))).Methods("POST")
 	r.Handle("/api/messages/restore", AuthMiddleware(http.HandlerFunc(handleRestore))).Methods("POST")
 	r.Handle("/api/messages/archive", AuthMiddleware(http.HandlerFunc(handleGetArchived))).Methods("GET")
+	r.Handle("/api/messages/archive/count", AuthMiddleware(http.HandlerFunc(handleGetArchivedCount))).Methods("GET")
 	r.Handle("/api/messages/export", AuthMiddleware(http.HandlerFunc(handleExportArchive))).Methods("GET")
+	r.Handle("/api/messages/export/excel", AuthMiddleware(http.HandlerFunc(handleExportExcel))).Methods("GET")
 	r.Handle("/api/messages/update", AuthMiddleware(http.HandlerFunc(handleUpdateTask))).Methods("POST")
 	r.Handle("/api/user/info", AuthMiddleware(http.HandlerFunc(handleUserInfo))).Methods("GET")
 	r.Handle("/api/whatsapp/qr", AuthMiddleware(http.HandlerFunc(handleWhatsAppQR))).Methods("GET")
@@ -177,18 +180,109 @@ func handleMarkDone(w http.ResponseWriter, r *http.Request) {
 
 func handleGetArchived(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
-	msgs, err := GetArchivedMessages(email)
+	q := r.URL.Query().Get("q")
+	limitStr := r.URL.Query().Get("limit")
+	offsetStr := r.URL.Query().Get("offset")
+
+	limit, _ := strconv.Atoi(limitStr)
+	offset, _ := strconv.Atoi(offsetStr)
+
+	if limit <= 0 {
+		limit = 50
+	}
+
+	msgs, total, err := GetArchivedMessagesFiltered(email, limit, offset, q)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(msgs)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"messages": msgs,
+		"total":    total,
+	})
+}
+
+func handleGetArchivedCount(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	q := r.URL.Query().Get("q")
+	
+	_, total, err := GetArchivedMessagesFiltered(email, 1, 0, q)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]int{"total": total})
+}
+
+func handleExportExcel(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	q := r.URL.Query().Get("q")
+
+	// Export up to 10,000 items for now
+	msgs, _, err := GetArchivedMessagesFiltered(email, 10000, 0, q)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	f := excelize.NewFile()
+	defer f.Close()
+
+	sheet := "Tasks"
+	index, _ := f.NewSheet(sheet)
+	f.SetActiveSheet(index)
+	f.DeleteSheet("Sheet1")
+
+	// Header
+	headers := []string{"ID", "Source", "Room", "Task", "Requester", "Assignee", "Assigned At", "Created At", "Completed At"}
+	for i, h := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue(sheet, cell, h)
+	}
+
+	// Style for header
+	style, _ := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{Bold: true},
+		Fill: excelize.Fill{Type: "pattern", Color: []string{"#E0E0E0"}, Pattern: 1},
+	})
+	f.SetRowStyle(sheet, 1, 1, style)
+
+	for i, m := range msgs {
+		row := i + 2
+		compAt := ""
+		if m.CompletedAt != nil {
+			compAt = m.CompletedAt.Format("2006-01-02 15:04:05")
+		}
+		
+		f.SetCellValue(sheet, fmt.Sprintf("A%d", row), m.ID)
+		f.SetCellValue(sheet, fmt.Sprintf("B%d", row), m.Source)
+		f.SetCellValue(sheet, fmt.Sprintf("C%d", row), m.Room)
+		f.SetCellValue(sheet, fmt.Sprintf("D%d", row), m.Task)
+		f.SetCellValue(sheet, fmt.Sprintf("E%d", row), m.Requester)
+		f.SetCellValue(sheet, fmt.Sprintf("F%d", row), m.Assignee)
+		f.SetCellValue(sheet, fmt.Sprintf("G%d", row), m.AssignedAt)
+		f.SetCellValue(sheet, fmt.Sprintf("H%d", row), m.CreatedAt.Format("2006-01-02 15:04:05"))
+		f.SetCellValue(sheet, fmt.Sprintf("I%d", row), compAt)
+	}
+
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Disposition", "attachment; filename=tasks_archive.xlsx")
+
+	if err := f.Write(w); err != nil {
+		errorf("Failed to write excel: %v", err)
+	}
 }
 
 func handleExportArchive(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
-	msgs, err := GetArchivedMessages(email)
+	q := r.URL.Query().Get("q")
+	
+	// Export up to 10,000 items
+	msgs, _, err := GetArchivedMessagesFiltered(email, 10000, 0, q)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -617,7 +711,7 @@ func scanSlack(ctx context.Context, user *User, aliases []string, language strin
 				continue
 			}
 
-			items, err := gc.Analyze(ctx, sb.String(), language)
+			items, err := gc.Analyze(ctx, sb.String(), language, "slack")
 			if err != nil {
 				debugf("[SCAN-SLACK] Gemini analyze error for #%s: %v", channel.Name, err)
 				continue
@@ -720,7 +814,7 @@ func scanWhatsApp(ctx context.Context, user *User, aliases []string, language st
 		if err != nil {
 			continue
 		}
-		items, err := gc.Analyze(ctx, sb.String(), language)
+		items, err := gc.Analyze(ctx, sb.String(), language, "whatsapp")
 		if err != nil {
 			continue
 		}

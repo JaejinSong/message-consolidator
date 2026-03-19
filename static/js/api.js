@@ -68,9 +68,21 @@ export const api = {
         return await resp.json();
     },
 
-    async fetchArchive() {
-        const resp = await fetch('/api/messages/archive');
+    async fetchArchive(params = {}) {
+        const query = new URLSearchParams();
+        if (params.q) query.set('q', params.q);
+        if (params.limit) query.set('limit', params.limit);
+        if (params.offset) query.set('offset', params.offset);
+        
+        const resp = await fetch(`/api/messages/archive?${query.toString()}`);
         if (!resp.ok) throw new Error(`Fetch archive failed: ${resp.status}`);
+        return await resp.json();
+    },
+
+    async fetchArchiveCount(q = '') {
+        const query = q ? `?q=${encodeURIComponent(q)}` : '';
+        const resp = await fetch(`/api/messages/archive/count${query}`);
+        if (!resp.ok) throw new Error(`Fetch archive count failed: ${resp.status}`);
         return await resp.json();
     },
 

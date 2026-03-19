@@ -153,6 +153,16 @@ func InitDB(connStr string) error {
 	_, _ = db.Exec("ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_source_ts_key;")
 	_, _ = db.Exec("ALTER TABLE messages ADD CONSTRAINT messages_user_ts_unique UNIQUE (user_email, source_ts);")
 
+	// Index migrations for performance optimization
+	_, _ = db.Exec("CREATE EXTENSION IF NOT EXISTS pg_trgm;")
+	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_task_trgm ON messages USING gin (task gin_trgm_ops);")
+	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_room_trgm ON messages USING gin (room gin_trgm_ops);")
+	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_requester_trgm ON messages USING gin (requester gin_trgm_ops);")
+	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_original_text_trgm ON messages USING gin (original_text gin_trgm_ops);")
+	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_created_at_desc ON messages (created_at DESC);")
+	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_user_email ON messages (user_email);")
+	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_is_deleted ON messages (is_deleted);")
+
 	// Create scan_metadata table for incremental scanning
 	query = `CREATE TABLE IF NOT EXISTS scan_metadata (
 		id SERIAL PRIMARY KEY,
@@ -366,7 +376,7 @@ func RefreshCache(email string) error {
 	queryActive := `
 		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at 
 		FROM messages 
-		WHERE user_email = $1 AND is_deleted = 0 AND (done = 0 OR (done = 1 AND (completed_at IS NULL OR completed_at > NOW() - INTERVAL '7 days')))
+		WHERE user_email = $1 AND is_deleted = 0 AND (done = 0 OR (done = 1 AND (completed_at IS NULL OR completed_at > NOW() - INTERVAL '6 days')))
 		ORDER BY created_at DESC 
 		LIMIT 200`
 	rows, err := db.Query(queryActive, email)
@@ -394,7 +404,7 @@ func RefreshCache(email string) error {
 	queryArchive := `
 		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at 
 		FROM messages 
-		WHERE user_email = $1 AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '7 days'))
+		WHERE user_email = $1 AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '6 days'))
 		ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
 		LIMIT 100`
 	rowsArch, err := db.Query(queryArchive, email)
@@ -503,6 +513,73 @@ func GetArchivedMessages(email string) ([]ConsolidatedMessage, error) {
 	return []ConsolidatedMessage{}, nil
 }
 
+func GetArchivedMessagesFiltered(email string, limit, offset int, search string) ([]ConsolidatedMessage, int, error) {
+	searchQuery := ""
+	args := []interface{}{email}
+	argIdx := 2
+
+	if search != "" {
+		pattern := "%" + strings.ToLower(search) + "%"
+		searchQuery = fmt.Sprintf(` AND (
+			LOWER(task) ILIKE $%d OR 
+			LOWER(room) ILIKE $%d OR 
+			LOWER(requester) ILIKE $%d OR 
+			LOWER(original_text) ILIKE $%d OR
+			LOWER(source) ILIKE $%d
+		)`, argIdx, argIdx, argIdx, argIdx, argIdx)
+		args = append(args, pattern)
+		argIdx++
+	}
+
+	// 1. Get Count
+	countQuery := fmt.Sprintf(`
+		SELECT COUNT(*) 
+		FROM messages 
+		WHERE user_email = $1 AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '6 days'))
+		%s`, searchQuery)
+	
+	var total int
+	err := db.QueryRow(countQuery, args...).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 2. Get Data
+	if limit <= 0 {
+		limit = 100
+	}
+	
+	dataQuery := fmt.Sprintf(`
+		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at 
+		FROM messages 
+		WHERE user_email = $1 AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '6 days'))
+		%s
+		ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
+		LIMIT $%d OFFSET $%d`, searchQuery, argIdx, argIdx+1)
+	
+	args = append(args, limit, offset)
+	
+	rows, err := db.Query(dataQuery, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var msgs []ConsolidatedMessage
+	for rows.Next() {
+		var m ConsolidatedMessage
+		var doneInt, delInt int
+		if err := rows.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &doneInt, &delInt, &m.CreatedAt, &m.CompletedAt); err != nil {
+			return nil, 0, err
+		}
+		m.Done = doneInt == 1
+		m.IsDeleted = delInt == 1
+		msgs = append(msgs, m)
+	}
+
+	return msgs, total, nil
+}
+
 func UpdateTaskText(email string, id int, task string) error {
 	_, err := db.Exec("UPDATE messages SET task = $1 WHERE id = $2 AND user_email = $3", task, id, email)
 	if err == nil {
@@ -520,8 +597,8 @@ func ArchiveOldTasks() error {
 		return nil
 	}
 
-	infof("[DB] Auto-archiving tasks older than 7 days...")
-	res, err := db.Exec("UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND created_at < NOW() - INTERVAL '7 days'")
+	infof("[DB] Auto-archiving tasks completed more than 6 days ago...")
+	res, err := db.Exec("UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND done = 1 AND completed_at < NOW() - INTERVAL '6 days'")
 	if err != nil {
 		return err
 	}

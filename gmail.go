@@ -172,7 +172,7 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 			return false
 		}
 
-		items, err := gc.Analyze(ctx, sb.String(), language)
+		items, err := gc.Analyze(ctx, sb.String(), language, "gmail")
 		if err != nil {
 			debugf("[SCAN-GMAIL] Gemini Analyze Error: %v", err)
 			return false

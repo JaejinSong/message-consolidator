@@ -39,7 +39,14 @@ export const I18N_DATA = {
         settingsAliasDesc: "자신을 지칭하는 이름이나 별명(예: '송재진', 'JJ')을 추가하세요. 이 이름이 포함된 업무는 '내 업무' 탭에 표시됩니다.",
         originalMessageTitle: "메시지 원문",
         archiveTitle: "보관함",
-        confirmDelete: "정말 이 업무를 삭제하시겠습니까? 삭제된 업무는 보관함으로 이동합니다."
+        confirmDelete: "정말 이 업무를 삭제하시겠습니까? 삭제된 업무는 보관함으로 이동합니다.",
+        archiveSearchPlaceholder: "아카이브 검색...",
+        exportSummaryTitle: "내보내기 요약",
+        exportSummaryText: "개의 업무를 내보낼 준비가 되었습니다.",
+        exportExcelBtn: "Excel로 다운로드 (.xlsx)",
+        exportCsvBtn: "CSV로 다운로드 (.csv)",
+        cancelBtn: "취소",
+        exportWarning: "* 검색어가 입력된 경우 필터링된 결과만 내보내집니다."
     },
     en: {
         subTitle: "Automated Slack & WhatsApp Task Dashboard",
@@ -79,7 +86,14 @@ export const I18N_DATA = {
         settingsAliasDesc: "Add names or nicknames that refer to you (e.g., 'JJ'). Tasks with these names will appear in 'My Tasks'.",
         originalMessageTitle: "Original Message",
         archiveTitle: "Archive",
-        confirmDelete: "Are you sure you want to delete this task? It will be moved to the archive."
+        confirmDelete: "Are you sure you want to delete this task? It will be moved to the archive.",
+        archiveSearchPlaceholder: "Search archive...",
+        exportSummaryTitle: "Export Summary",
+        exportSummaryText: "tasks are ready to be exported.",
+        exportExcelBtn: "Download as Excel (.xlsx)",
+        exportCsvBtn: "Download as CSV (.csv)",
+        cancelBtn: "Cancel",
+        exportWarning: "* Only filtered results will be exported if a search query is active."
     },
     id: {
         subTitle: "Dasbor Tugas Slack & WhatsApp Otomatis",
@@ -235,7 +249,30 @@ export const updateUILanguage = (lang) => {
     const tabMy = document.getElementById('tabMy');
     const tabOther = document.getElementById('tabOther');
     const tabAll = document.getElementById('tabAll');
-    if (tabMy) tabMy.textContent = data.myTasks;
-    if (tabOther) tabOther.textContent = data.otherTasks;
     if (tabAll) tabAll.textContent = data.allTasks;
+
+    // Archive Search & Export Modal
+    const arcSearch = document.getElementById('archiveSearchInput');
+    if (arcSearch) arcSearch.placeholder = data.archiveSearchPlaceholder || "Search archive...";
+
+    const expTitle = document.querySelector('#exportModal h3');
+    if (expTitle) expTitle.textContent = data.exportSummaryTitle || "Export Summary";
+
+    const arcExportBtn = document.getElementById('openExportModalBtn');
+    if (arcExportBtn) arcExportBtn.textContent = `📥 ${lang === 'ko' ? '내보내기' : 'Export'}`;
+
+    const excelBtn = document.getElementById('confirmExportExcel');
+    if (excelBtn) excelBtn.textContent = data.exportExcelBtn || "Download as Excel (.xlsx)";
+
+    const csvBtn = document.getElementById('confirmExportCsv');
+    if (csvBtn) csvBtn.textContent = data.exportCsvBtn || "Download as CSV (.csv)";
+
+    const cancelExp = document.getElementById('cancelExportBtn');
+    if (cancelExp) cancelExp.textContent = data.cancelBtn || "Cancel";
+
+    const expSumText = document.getElementById('exportSummaryText');
+    if (expSumText) expSumText.textContent = data.exportSummaryText || "tasks are ready to be exported.";
+
+    const arcWarning = document.querySelector('#exportModal .modal-body p:last-child');
+    if (arcWarning) arcWarning.textContent = data.exportWarning || "";
 };

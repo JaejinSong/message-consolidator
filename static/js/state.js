@@ -3,7 +3,12 @@ export const state = {
     userAliases: [],
     currentLang: localStorage.getItem('mc_lang') || 'ko',
     waConnected: false,
-    gmailConnected: false
+    gmailConnected: false,
+    // Archive state
+    archivePage: 1,
+    archiveLimit: 20,
+    archiveSearch: "",
+    archiveTotalCount: 0
 };
 
 export const updateLang = (lang) => {

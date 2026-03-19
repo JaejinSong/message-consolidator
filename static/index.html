@@ -141,14 +141,17 @@
                         </button>
                         <h2>Archive <span class="badge count" id="archiveCount">0</span></h2>
                     </div>
-                    <div class="archive-actions">
+                    <div class="archive-actions" style="flex-wrap: wrap; gap: 0.5rem;">
+                        <div class="search-box">
+                            <input type="text" id="archiveSearchInput" placeholder="Search archive..." class="badge" style="width: 200px; height: 38px; padding: 0 1rem; border-radius: 20px;">
+                        </div>
                         <button type="button" id="restoreSelectedBtn" class="badge" style="cursor: pointer; border-color: var(--accent-color); color: var(--accent-color); display: none;">🔄 Restore Selected</button>
                         <button type="button" id="hardDeleteSelectedBtn" class="badge" style="cursor: pointer; border-color: #ff3b30; color: #ff3b30; display: none;">🗑 Permanent Delete</button>
-                        <button type="button" id="exportCsvBtn" class="badge" style="cursor: pointer; border-color: #25d366; color: #25d366;">📥 Export CSV</button>
+                        <button type="button" id="openExportModalBtn" class="badge" style="cursor: pointer; border-color: #25d366; color: #25d366;">📥 Export</button>
                         <button type="button" id="closeArchiveBtn" class="badge" style="cursor: pointer;">✖ Close</button>
                     </div>
                 </div>
-                <div class="table-container" style="overflow-x: auto;">
+                <div class="table-container" style="overflow-x: auto; margin-bottom: 1rem;">
                     <table class="archive-table">
                         <thead>
                             <tr>
@@ -166,6 +169,11 @@
                             <!-- Archived rows will be injected here -->
                         </tbody>
                     </table>
+                </div>
+                <div class="pagination-controls" style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1rem;">
+                    <button type="button" id="prevArchivePage" class="action-btn" style="width: auto; padding: 0.5rem 1rem;">&larr; Prev</button>
+                    <span id="archivePageInfo" style="color: var(--text-main); font-size: 0.9rem;">Page 1 / 1</span>
+                    <button type="button" id="nextArchivePage" class="action-btn" style="width: auto; padding: 0.5rem 1rem;">Next &rarr;</button>
                 </div>
             </section>
         </main>
@@ -203,6 +211,29 @@
                         <span style="color: var(--text-main); font-size: 0.9rem;">Gmail Connected</span>
                     </div>
                 </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Summary Modal -->
+    <div id="exportModal" class="modal hidden">
+        <div class="modal-content glass-card" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Export Summary</h3>
+                <button id="closeExportModalBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body" style="text-align: center;">
+                <div id="exportSummaryIcon" style="font-size: 3rem; margin-bottom: 1rem;">📊</div>
+                <p style="margin-bottom: 1.5rem; color: var(--text-main);">
+                    <span id="exportCount" style="font-weight: 800; color: var(--accent-color);">0</span>
+                    <span id="exportSummaryText">tasks are ready to be exported.</span>
+                </p>
+                <div class="export-options" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <button type="button" id="confirmExportExcel" class="primary-btn" style="background: #1d6f42;">Download as Excel (.xlsx)</button>
+                    <button type="button" id="confirmExportCsv" class="primary-btn" style="background: #25d366;">Download as CSV (.csv)</button>
+                    <button type="button" id="cancelExportBtn" class="action-btn" style="width: 100%;">Cancel</button>
+                </div>
+                <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 1rem;">* Only filtered results will be exported if a search query is active.</p>
             </div>
         </div>
     </div>
