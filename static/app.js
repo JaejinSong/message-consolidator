@@ -33,9 +33,27 @@ const fetchMessages = async () => {
 
 const fetchArchive = async () => {
     try {
-        const data = await api.fetchArchive();
-        renderer.renderArchive(data);
+        const params = {
+            q: state.archiveSearch,
+            limit: state.archiveLimit,
+            offset: (state.archivePage - 1) * state.archiveLimit
+        };
+        const data = await api.fetchArchive(params);
+        state.archiveTotalCount = data.total;
+        renderer.renderArchive(data.messages);
+        updateArchivePaginationUI();
     } catch (e) { console.error(e); }
+};
+
+const updateArchivePaginationUI = () => {
+    const totalPages = Math.ceil(state.archiveTotalCount / state.archiveLimit) || 1;
+    const pageInfo = document.getElementById('archivePageInfo');
+    if (pageInfo) pageInfo.textContent = `Page ${state.archivePage} / ${totalPages} (Total: ${state.archiveTotalCount})`;
+    
+    const prevBtn = document.getElementById('prevArchivePage');
+    const nextBtn = document.getElementById('nextArchivePage');
+    if (prevBtn) prevBtn.disabled = state.archivePage <= 1;
+    if (nextBtn) nextBtn.disabled = state.archivePage >= totalPages;
 };
 
 const checkWhatsAppStatus = async () => {
@@ -207,6 +225,58 @@ const initApp = () => {
         }
     });
 
+    // Archive Search & Pagination
+    let searchTimeout;
+    document.getElementById('archiveSearchInput')?.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            state.archiveSearch = e.target.value;
+            state.archivePage = 1; // Reset to page 1 on search
+            fetchArchive();
+        }, 500);
+    });
+
+    document.getElementById('prevArchivePage')?.addEventListener('click', () => {
+        if (state.archivePage > 1) {
+            state.archivePage--;
+            fetchArchive();
+        }
+    });
+
+    document.getElementById('nextArchivePage')?.addEventListener('click', () => {
+        const totalPages = Math.ceil(state.archiveTotalCount / state.archiveLimit);
+        if (state.archivePage < totalPages) {
+            state.archivePage++;
+            fetchArchive();
+        }
+    });
+
+    // Export Modal Logic
+    const exportModal = document.getElementById('exportModal');
+    document.getElementById('openExportModalBtn')?.addEventListener('click', async () => {
+        try {
+            const countData = await api.fetchArchiveCount(state.archiveSearch);
+            document.getElementById('exportCount').textContent = countData.count;
+            exportModal.classList.remove('hidden');
+        } catch (e) { alert('Failed to get archive count: ' + e.message); }
+    });
+
+    const closeExport = () => exportModal.classList.add('hidden');
+    document.getElementById('closeExportModalBtn')?.addEventListener('click', closeExport);
+    document.getElementById('cancelExportBtn')?.addEventListener('click', closeExport);
+    
+    document.getElementById('confirmExportExcel')?.addEventListener('click', () => {
+        const query = state.archiveSearch ? `?q=${encodeURIComponent(state.archiveSearch)}` : '';
+        window.location.href = `/api/messages/export/excel${query}`;
+        closeExport();
+    });
+
+    document.getElementById('confirmExportCsv')?.addEventListener('click', () => {
+        const query = state.archiveSearch ? `?q=${encodeURIComponent(state.archiveSearch)}` : '';
+        window.location.href = `/api/messages/export${query}`;
+        closeExport();
+    });
+
     document.getElementById('restoreSelectedBtn')?.addEventListener('click', async () => {
         const ids = getSelectedArchiveIds();
         if (ids.length === 0) return;
@@ -233,9 +303,6 @@ const initApp = () => {
         } catch (e) { alert('Hard delete failed: ' + e.message); }
     });
 
-    document.getElementById('exportCsvBtn')?.addEventListener('click', () => {
-        window.location.href = '/api/messages/export';
-    });
 
     // WhatsApp QR
     document.getElementById('getQRBtn')?.addEventListener('click', async () => {

@@ -33,7 +33,7 @@ func NewGeminiClient(ctx context.Context, apiKey string) (*GeminiClient, error) 
 	return &GeminiClient{client: client}, nil
 }
 
-func (g *GeminiClient) Analyze(ctx context.Context, conversationText string, language string) ([]TodoItem, error) {
+func (g *GeminiClient) Analyze(ctx context.Context, conversationText string, language string, source string) ([]TodoItem, error) {
 	if g == nil || g.client == nil {
 		return nil, fmt.Errorf("Gemini client is not initialized")
 	}
@@ -45,16 +45,47 @@ func (g *GeminiClient) Analyze(ctx context.Context, conversationText string, lan
 	model := g.client.GenerativeModel("gemini-3-flash-preview")
 	model.ResponseMIMEType = "application/json"
 
-	prompt := fmt.Sprintf(`Analyze the following conversation and extract To-do items. 
+	var prompt string
+	switch source {
+	case "gmail":
+		prompt = fmt.Sprintf(`Analyze the following email messages and extract To-do items. 
+If the sender's email domain is NOT @whatap.io, EXCLUDE simple informational, notification, or guidance content. Only extract actual actionable tasks or requests.
 Return a JSON array of objects with fields: "task", "requester", "assignee", "assigned_at", "source_ts", "original_text".
-CRITICAL: "task" and "requester" MUST be translated to %s. Even if the input is in English, the "task" MUST be in %s.
-"original_text" MUST be a concise text summary of the original message, in %s. Do NOT include raw HTML.
+CRITICAL: "task" MUST be translated to %s. Even if the input is in English, the "task" MUST be in %s.
+"requester" and "assignee" MUST be kept EXACTLY as they appear in the original text (do NOT translate or transliterate names).
+"original_text" MUST be a concise text summary of the original message, in %s.
+Use the [TS:timestamp] tag to find "source_ts".
+
+Emails:
+---
+%s
+---`, language, language, language, conversationText)
+	case "slack", "whatsapp":
+		prompt = fmt.Sprintf(`Analyze the following chat conversation from %s and extract To-do items. 
+Identify clear requests, task assignments, or follow-up items from the chat context.
+Return a JSON array of objects with fields: "task", "requester", "assignee", "assigned_at", "source_ts", "original_text".
+CRITICAL: "task" MUST be translated to %s. Even if the input is in English, the "task" MUST be in %s.
+"requester" and "assignee" MUST be kept EXACTLY as they appear in the original text (do NOT translate or transliterate names).
+"original_text" MUST be a concise text summary of the original message, in %s.
 Use the [TS:timestamp] tag to find "source_ts".
 
 Conversation:
 ---
 %s
+---`, source, language, language, language, conversationText)
+	default:
+		prompt = fmt.Sprintf(`Analyze the following text and extract To-do items. 
+Return a JSON array of objects with fields: "task", "requester", "assignee", "assigned_at", "source_ts", "original_text".
+CRITICAL: "task" MUST be translated to %s. Even if the input is in English, the "task" MUST be in %s.
+"requester" and "assignee" MUST be kept EXACTLY as they appear in the original text (do NOT translate or transliterate names).
+"original_text" MUST be a concise text summary of the original message, in %s.
+Use the [TS:timestamp] tag to find "source_ts".
+
+Content:
+---
+%s
 ---`, language, language, language, conversationText)
+	}
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {

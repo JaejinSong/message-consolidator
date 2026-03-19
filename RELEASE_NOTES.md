@@ -1,4 +1,15 @@
-# Release Notes - v1.3.5 (Latest)
+# Release Notes - v1.4.0 (Latest)
+
+## 🗄️ Archive Enhancements & Search Optimization
+- **Advanced Archive Search**: Implemented case-insensitive search across tasks, rooms, requesters, and original text using `ILIKE` for better historical data retrieval.
+- **Efficient Pagination**: Added server-side pagination (limit/offset) to the Archive view, ensuring snappy performance even with thousands of archived messages.
+- **Excel (.xlsx) Export**: Integrated `excelize/v2` to support high-quality Excel exports, solving potential encoding issues with CSV and providing better formatting.
+- **Export Summary Modal**: Added a confirmation modal before exporting, showing the total count of items to be processed based on current filters.
+- **DB Search Performance**: Optimized the PostgreSQL backend by enabling the `pg_trgm` extension and creating GIN trigram indexes on key searchable fields.
+
+---
+
+# Release Notes - v1.3.5 (Old)
 
 ## 🐳 UPX Compression Optimization
 - **Faster Builds**: Changed UPX compression level from `--best` to `-1` to significantly reduce build and compression times, optimizing the Docker and local development workflows.
