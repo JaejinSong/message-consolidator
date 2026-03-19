@@ -181,10 +181,13 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 		for i, item := range items {
 			link := fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS)
 
-			// Use classification from our map
-			assignee := classificationMap[item.SourceTS]
-			if assignee == "" {
-				assignee = item.Assignee
+			// AI가 추출한 담당자를 우선적으로 사용
+			assignee := item.Assignee
+			if assignee == "" || assignee == "me" || assignee == "나" || assignee == "담당자" {
+				// AI 결과가 모호한 경우 기존 분류 로직 사용
+				if cls, ok := classificationMap[item.SourceTS]; ok {
+					assignee = cls
+				}
 			}
 
 			// Store individual tasks

@@ -7,7 +7,7 @@
 ## 🌟 주요 기능
 
 - **메시지 통합 수집**: Slack 채널, WhatsApp 그룹 메시지 및 **Gmail 이메일**을 정기적으로 스캔합니다.
-- **AI 업무 분석**: Google Gemini 3 Flash Preview를 사용하여 메시지 본문 및 이메일 내용에서 작업(Task), 요청자(Requester), 담당자(Assignee), 기한 등을 자동으로 추출합니다.
+- **AI 업무 분석**: Google Gemini 3 Flash Preview를 사용하여 메시지 본문 및 이메일 내용에서 작업(Task), 요청자(Requester), 담당자(Assignee), 기한 등을 자동으로 추출합니다. 특히, 할당자(Assignee) 정보를 단순히 "내 업무"로만 표시하지 않고 실제 수신자나 언급된 사람의 정보를 우선적으로 표시하도록 개선되었습니다.
 - **다중 사용자 지원**: Google 로그인(OAuth 2.0)을 통해 개별 사용자별로 전용 대시보드와 WhatsApp 및 Gmail 연동을 지원합니다.
 - **간편한 연동 UX**: 대시보드 헤더의 서비스 아이콘을 클릭하여 WhatsApp(QR 코드)이나 Gmail(OAuth)을 즉시 연결할 수 있습니다.
 - **탭 기반 웹 대시보드**: 'My Tasks'와 'Other Tasks' 탭을 통해 업무를 효율적으로 분류하여 관리할 수 있습니다.

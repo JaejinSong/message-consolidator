@@ -196,14 +196,19 @@ func scanSlack(ctx context.Context, user *User, aliases []string, language strin
 
 				link := fmt.Sprintf("https://slack.com/app_redirect?channel=%s&message_ts=%s", id, item.SourceTS)
 
-				saved, _ := SaveMessage(ConsolidatedMessage{
-					UserEmail:    email,
-					Source:       "slack",
-					Room:         "#" + channel.Name,
-					Task:         item.Task,
-					Requester:    item.Requester,
-					Assignee:     classification,
-					AssignedAt:   assignedAt,
+					assignee := item.Assignee
+					if assignee == "" || assignee == "me" || assignee == "나" || assignee == "담당자" {
+						assignee = classification
+					}
+
+					saved, _ := SaveMessage(ConsolidatedMessage{
+						UserEmail:    email,
+						Source:       "slack",
+						Room:         "#" + channel.Name,
+						Task:         item.Task,
+						Requester:    item.Requester,
+						Assignee:     assignee,
+						AssignedAt:   assignedAt,
 					Link:         link,
 					SourceTS:     item.SourceTS,
 					OriginalText: item.OriginalText,
@@ -288,13 +293,18 @@ func scanWhatsApp(ctx context.Context, user *User, aliases []string, language st
 				classification = "내 업무"
 			}
 
+			assignee := item.Assignee
+			if assignee == "" || assignee == "me" || assignee == "나" || assignee == "담당자" {
+				assignee = classification
+			}
+
 			saved, _ := SaveMessage(ConsolidatedMessage{
 				UserEmail:    email,
 				Source:       "whatsapp",
 				Room:         groupName,
 				Task:         item.Task,
 				Requester:    item.Requester,
-				Assignee:     classification,
+				Assignee:     assignee,
 				AssignedAt:   assignedAt,
 				SourceTS:     item.SourceTS,
 				OriginalText: item.OriginalText,
