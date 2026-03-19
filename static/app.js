@@ -266,14 +266,16 @@ const initApp = () => {
     document.getElementById('cancelExportBtn')?.addEventListener('click', closeExport);
     
     const downloadFile = async (url, defaultFilename) => {
+        console.log(`[DEBUG] Starting download: ${url}, default: ${defaultFilename}`);
         const loading = document.getElementById('loading');
         loading.classList.remove('hidden');
         try {
-            const resp = await fetch(url);
+            const resp = await fetch(url, { credentials: 'same-origin' });
             if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
             
             // Try to get filename from header
             const disposition = resp.headers.get('Content-Disposition');
+            console.log(`[DEBUG] Disposition header: ${disposition}`);
             let filename = defaultFilename;
             if (disposition && disposition.indexOf('filename=') !== -1) {
                 const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
@@ -282,17 +284,29 @@ const initApp = () => {
                     filename = matches[1].replace(/['"]/g, '');
                 }
             }
+            console.log(`[DEBUG] Final filename: ${filename}`);
             
-            const blob = await resp.blob();
+            const rawBlob = await resp.blob();
+            const blob = new Blob([rawBlob], { type: 'application/octet-stream' });
             const blobUrl = window.URL.createObjectURL(blob);
+            
             const a = document.createElement('a');
+            a.style.display = 'none';
             a.href = blobUrl;
             a.download = filename;
             document.body.appendChild(a);
+            console.log(`[DEBUG] Triggering browser download for: ${filename}`);
             a.click();
-            window.URL.revokeObjectURL(blobUrl);
-            a.remove();
+            document.body.removeChild(a);
+            
+            // Wait a bit before cleanup to ensure browser starts download
+            setTimeout(() => {
+                window.URL.revokeObjectURL(blobUrl);
+                document.body.removeChild(a);
+                console.log(`[DEBUG] Download triggered for ${filename}`);
+            }, 1000);
         } catch (e) {
+            console.error('[DEBUG] Download error:', e);
             alert('Download failed: ' + e.message);
         } finally {
             loading.classList.add('hidden');
