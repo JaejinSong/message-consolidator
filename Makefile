@@ -5,8 +5,17 @@ INSTALL_DIR=/home/jinro/.gemini/message-consolidator
 .PHONY: build run install-service uninstall-service status logs
 
 build:
+	@echo "Minifying static files..."
+	@# (Optional) go install github.com/tdewolff/minify/v2/cmd/minify@latest
+	@if command -v minify > /dev/null; then \
+		minify -r -o static-min/ static/; \
+	else \
+		echo "Warning: minify not found, skipping minification."; \
+		cp -r static static-min; \
+	fi
 	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY_NAME) .
 	upx -1 $(BINARY_NAME)
+	@rm -rf static-min
 
 run: build
 	./$(BINARY_NAME)
