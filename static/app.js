@@ -265,15 +265,51 @@ const initApp = () => {
     document.getElementById('closeExportModalBtn')?.addEventListener('click', closeExport);
     document.getElementById('cancelExportBtn')?.addEventListener('click', closeExport);
     
+    const downloadFile = async (url, defaultFilename) => {
+        const loading = document.getElementById('loading');
+        loading.classList.remove('hidden');
+        try {
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
+            
+            // Try to get filename from header
+            const disposition = resp.headers.get('Content-Disposition');
+            let filename = defaultFilename;
+            if (disposition && disposition.indexOf('filename=') !== -1) {
+                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                const matches = filenameRegex.exec(disposition);
+                if (matches != null && matches[1]) {
+                    filename = matches[1].replace(/['"]/g, '');
+                }
+            }
+            
+            const blob = await resp.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(blobUrl);
+            a.remove();
+        } catch (e) {
+            alert('Download failed: ' + e.message);
+        } finally {
+            loading.classList.add('hidden');
+        }
+    };
+
     document.getElementById('confirmExportExcel')?.addEventListener('click', () => {
         const query = state.archiveSearch ? `?q=${encodeURIComponent(state.archiveSearch)}` : '';
-        window.location.href = `/api/messages/export/excel${query}`;
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_');
+        downloadFile(`/api/messages/export/excel${query}`, `Message_Archive_${timestamp}.xlsx`);
         closeExport();
     });
 
     document.getElementById('confirmExportCsv')?.addEventListener('click', () => {
         const query = state.archiveSearch ? `?q=${encodeURIComponent(state.archiveSearch)}` : '';
-        window.location.href = `/api/messages/export${query}`;
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_');
+        downloadFile(`/api/messages/export${query}`, `Message_Archive_${timestamp}.csv`);
         closeExport();
     });
 
