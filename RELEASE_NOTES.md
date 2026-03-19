@@ -1,4 +1,13 @@
-# Release Notes - v1.7.1 (Latest)
+# Release Notes - v1.7.2 (Latest)
+
+## 🎨 UI Performance & Asset Optimization
+- **Static Asset Minification**: Integrated `tdewolff/minify` into the Docker build process and `Makefile`. All HTML, CSS, and JS files are now automatically minified during deployment, reducing payload size and improving load times.
+- **Rendering Overhead Reduction**: Optimized `style.css` by reducing heavy visual effects like extreme background blurs and deep shadows, resulting in smoother scrolling and lower CPU/GPU usage on the client side.
+- **Improved Modal Responsiveness**: Refined modal backdrop and content animations for a snappier user experience.
+
+---
+
+# Release Notes - v1.7.1 (Old)
 
 ## ⚡ Neon DB Sleep & Persistence Optimization
 - **Intelligent Metadata Persistence**: Optimized `PersistAllScanMetadata` to only trigger database connections when actual changes exist (`dirtyScanKeys`), allowing Neon DB to remain in sleep mode during idle periods.
