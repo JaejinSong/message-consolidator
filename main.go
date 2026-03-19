@@ -85,6 +85,7 @@ func main() {
 	r.Handle("/api/messages/archive/count", AuthMiddleware(http.HandlerFunc(handleGetArchivedCount))).Methods("GET")
 	r.Handle("/api/messages/export", AuthMiddleware(http.HandlerFunc(handleExportArchive))).Methods("GET")
 	r.Handle("/api/messages/export/excel", AuthMiddleware(http.HandlerFunc(handleExportExcel))).Methods("GET")
+	r.Handle("/api/messages/export/json", AuthMiddleware(http.HandlerFunc(handleExportJSON))).Methods("GET")
 	r.Handle("/api/messages/update", AuthMiddleware(http.HandlerFunc(handleUpdateTask))).Methods("POST")
 	r.Handle("/api/user/info", AuthMiddleware(http.HandlerFunc(handleUserInfo))).Methods("GET")
 	r.Handle("/api/whatsapp/qr", AuthMiddleware(http.HandlerFunc(handleWhatsAppQR))).Methods("GET")
@@ -97,6 +98,9 @@ func main() {
 	r.Handle("/api/tenant/aliases", AuthMiddleware(http.HandlerFunc(handleGetTenantAliases))).Methods("GET")
 	r.Handle("/api/tenant/alias/add", AuthMiddleware(http.HandlerFunc(handleAddTenantAlias))).Methods("POST")
 	r.Handle("/api/tenant/alias/delete", AuthMiddleware(http.HandlerFunc(handleDeleteTenantAlias))).Methods("POST")
+	r.Handle("/api/user/token-usage", AuthMiddleware(http.HandlerFunc(handleGetTokenUsage))).Methods("GET")
+	r.Handle("/api/contacts/mappings", AuthMiddleware(http.HandlerFunc(handleGetMappings))).Methods("GET")
+	r.Handle("/api/contacts/mapping/add", AuthMiddleware(http.HandlerFunc(handleAddMapping))).Methods("POST")
 
 	// Gmail OAuth Endpoints
 	r.Handle("/auth/gmail/connect", AuthMiddleware(http.HandlerFunc(handleGmailConnect))).Methods("GET")

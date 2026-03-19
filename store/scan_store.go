@@ -118,7 +118,19 @@ func LoadMetadata() error {
 		tenantAliasCache[email][original] = primary
 	}
 
-	logger.Infof("[CACHE] Loaded %d users, %d scan entries, %d tokens, %d tenant aliases.", len(userCache), len(scanCache), len(tokenCache), len(tenantAliasCache))
+	// 6. Load Contacts
+	contactRows, err := db.Query("SELECT user_email, rep_name, aliases FROM contacts")
+	if err == nil {
+		defer contactRows.Close()
+		for contactRows.Next() {
+			var email, repName, aliases string
+			if err := contactRows.Scan(&email, &repName, &aliases); err == nil {
+				contactsCache[email] = append(contactsCache[email], AliasMapping{RepName: repName, Aliases: aliases})
+			}
+		}
+	}
+
+	logger.Infof("[CACHE] Loaded %d users, %d scan entries, %d tokens, %d tenant aliases, %d contact mappings.", len(userCache), len(scanCache), len(tokenCache), len(tenantAliasCache), len(contactsCache))
 	return nil
 }
 

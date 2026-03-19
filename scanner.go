@@ -49,6 +49,9 @@ func runAllScans() {
 	if err := store.ArchiveOldTasks(); err != nil {
 		logger.Errorf("Scanner Error: Failed to archive old tasks: %v", err)
 	}
+
+	// 주기적(1시간)으로 메모리에 쌓인 미반영 토큰 사용량을 DB에 플러시하여 NeonDB Sleep 보장
+	store.FlushTokenUsageIfNeeded()
 }
 
 func scanAllSources(user store.User, aliases []string) {
@@ -224,7 +227,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 				logger.Errorf("[SCAN-WA] Failed to init Gemini client for %s: %v", email, err)
 				return
 			}
-			items, err := gc.Analyze(ctx, sb.String(), language, "whatsapp")
+			items, err := gc.Analyze(ctx, email, sb.String(), language, "whatsapp")
 			if err != nil {
 				logger.Errorf("[SCAN-WA] Gemini Analyze Error for %s: %v", email, err)
 				return
