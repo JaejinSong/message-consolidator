@@ -4,7 +4,24 @@ import (
 	"fmt"
 	"message-consolidator/logger"
 	"strings"
+	"time"
 )
+
+// WithDBRetry executes a database operation with exponential backoff,
+// designed to gracefully handle serverless DB (NeonDB) cold starts.
+func WithDBRetry(operationName string, fn func() error) error {
+	var err error
+	maxRetries := 3
+	for i := 1; i <= maxRetries; i++ {
+		err = fn()
+		if err == nil {
+			return nil
+		}
+		logger.Warnf("[DB-RETRY] %s failed (attempt %d/%d). DB waking up? Err: %v", operationName, i, maxRetries, err)
+		time.Sleep(time.Duration(i*2) * time.Second) // Wait 2s, 4s, 6s
+	}
+	return err
+}
 
 func LoadMetadata() error {
 	metadataMu.Lock()
@@ -154,30 +171,34 @@ func PersistAllScanMetadata(userEmail string) {
 		return // 변경된 내역이 없으면 DB 연결 시도조차 하지 않음 (Sleep 유지)
 	}
 
-	tx, err := db.Begin()
-	if err != nil {
-		logger.Errorf("Failed to begin tx for scan metadata: %v", err)
-		return
-	}
-	defer tx.Rollback()
-
-	stmt, err := tx.Prepare(`INSERT INTO scan_metadata (user_email, source, target_id, last_ts)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (user_email, source, target_id)
-		DO UPDATE SET last_ts = EXCLUDED.last_ts;`)
-	if err != nil {
-		logger.Errorf("Failed to prepare stmt for scan metadata: %v", err)
-		return
-	}
-	defer stmt.Close()
-
-	for _, item := range toPersist {
-		if _, err := stmt.Exec(userEmail, item.source, item.target, item.ts); err != nil {
-			logger.Errorf("Failed to exec stmt for scan metadata: %v", err)
-			return // 에러 발생 시 rollback
+	err := WithDBRetry("PersistAllScanMetadata", func() error {
+		tx, err := db.Begin()
+		if err != nil {
+			return err
 		}
+		defer tx.Rollback() // 성공 시 Commit 되므로 지장 없음
+
+		stmt, err := tx.Prepare(`INSERT INTO scan_metadata (user_email, source, target_id, last_ts)
+			VALUES ($1, $2, $3, $4)
+			ON CONFLICT (user_email, source, target_id)
+			DO UPDATE SET last_ts = EXCLUDED.last_ts;`)
+		if err != nil {
+			return err
+		}
+		defer stmt.Close()
+
+		for _, item := range toPersist {
+			if _, err := stmt.Exec(userEmail, item.source, item.target, item.ts); err != nil {
+				return err
+			}
+		}
+		return tx.Commit()
+	})
+
+	if err != nil {
+		logger.Errorf("Failed to persist scan metadata after retries: %v", err)
+		return
 	}
-	_ = tx.Commit()
 
 	metadataMu.Lock()
 	for _, item := range toPersist {
