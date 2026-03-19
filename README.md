@@ -1,102 +1,64 @@
 # Message Consolidator 🚀
 
-**Message Consolidator**는 Slack과 WhatsApp에서 흩어져 있는 업무 요청사항 및 메시지를 AI(Google Gemini)를 통해 분석하여 하나의 대시보드에서 통합 관리할 수 있게 해주는 도구입니다.
+**흩어져 있는 업무 메시지를 한 곳에서 스마트하게 관리하세요.**
+
+Slack, WhatsApp, Gmail 등 다양한 채널을 통해 쏟아지는 업무 요청과 메시지를 정리하는 데 어려움을 겪고 계신가요? **Message Consolidator**는 분산된 메시지를 자동으로 수집하고, AI를 통해 핵심 작업(Task)을 추출하여 하나의 대시보드에서 효율적으로 관리할 수 있도록 돕습니다.
 
 ---
 
-## 🌟 주요 기능
+## 🤔 왜 Message Consolidator인가요?
 
-- **메시지 통합 수집**: Slack 채널, WhatsApp 그룹 메시지 및 **Gmail 이메일**을 정기적으로 스캔합니다.
-- **AI 업무 분석**: Google Gemini 3 Flash Preview를 사용하여 메시지 본문 및 이메일 내용에서 작업(Task), 요청자(Requester), 담당자(Assignee), 기한 등을 자동으로 추출합니다. 특히, 할당자(Assignee) 정보를 단순히 "내 업무"로만 표시하지 않고 실제 수신자나 언급된 사람의 정보를 우선적으로 표시하도록 개선되었습니다.
-- **다중 사용자 지원**: Google 로그인(OAuth 2.0)을 통해 개별 사용자별로 전용 대시보드와 WhatsApp 및 Gmail 연동을 지원합니다.
-- **간편한 연동 UX**: 대시보드 헤더의 서비스 아이콘을 클릭하여 WhatsApp(QR 코드)이나 Gmail(OAuth)을 즉시 연결할 수 있습니다.
-- **탭 기반 웹 대시보드**: 'My Tasks'와 'Other Tasks' 탭을 통해 업무를 효율적으로 분류하여 관리할 수 있습니다.
-- **프로필 연동**: Google 프로필 사진을 대시보드에서 바로 확인할 수 있습니다.
-- **소프트 삭제 (Soft Delete)**: 업무를 삭제하면 DB에서 완전히 지워지지 않고 '아카이브'로 이동하여 나중에 확인할 수 있습니다.
-- **자동 아카이브 (Auto-Archive)**: 생성된 지 7일이 지난 오래된 업무는 데이터베이스 최적화 스케줄링을 통해 자동으로 아카이브되어 대시보드를 깔끔하게 유지합니다.
-- **아카이브 및 고성능 검색**: 완료되거나 삭제된 업무를 관리하며, **GIN 트리그램 인덱스** 및 **복합 인덱스(Compound Indexes)** 기반의 고성능 검색과 서버 사이드 정렬, 페이징 처리를 통해 대량의 데이터를 효율적으로 조회할 수 있습니다.
-- **실시간 로딩 인디케이터**: Archive 데이터를 불러오거나 정렬할 때 사용자에게 즉각적인 시각적 피드백을 제공합니다.
-- **스마트 내보내기 (Export)**: 필터링된 검색 결과를 CSV 또는 **Excel(.xlsx)** 형식으로 내보낼 수 있으며, 실행 전 요약 정보를 제공하는 모달이 추가되었습니다.
-- **다국어 번역**: 수집된 업무 내용을 실시간으로 원하는 언어(한국어 등)로 번역할 수 있습니다.
-- **로그 자동 관리**: Lumberjack을 사용하여 일간 로그 로테이션 및 7일 보관 기능을 지원합니다.
-- **데이터베이스 최적화**: Neon DB의 sleep 모드를 활용하기 위해 인메모리 캐싱 및 연결 풀 최적화가 적용되어 있으며, **번역 캐싱** 기능을 통해 실시간 언어 전환 성능이 극대화되었습니다.
+*   **메시지 파편화 해결**: 여러 앱을 번갈아 확인할 필요 없이, 모든 채널의 업무를 한 곳에서 볼 수 있습니다.
+*   **업무 자동 정리**: AI(Gemini)가 긴 대화 속에서 실제 해야 할 일을 찾아내고 담당자와 기한을 정리해 줍니다.
+*   **관리의 연속성**: 놓치기 쉬운 요청 사항을 대시보드에 고정하고, 완료된 업무는 아카이브하여 필요할 때 언제든 검색할 수 있습니다.
 
 ---
 
-## 🛠 Tech Stack
+## 🚀 주요 기능
 
-- **Backend**: Go (Golang)
-- **Database**: PostgreSQL (Neon Serverless DB)
-- **AI Engine**: Google Gemini 3 Flash Preview (Generative AI)
-- **Frontend**: Vanilla JS, HTML, CSS (Tabs Layout)
-- **Container**: Docker, Docker Compose
-- **Auth**: Google OAuth 2.0 (with Profile Picture)
+### 1. 전 채널 통합 수집 및 스캔
+- **Slack**: 내가 속한 채널 및 DM의 대화를 실시간에 가깝게 스캔합니다.
+- **WhatsApp**: 개인 메시지 및 그룹 채팅에서 발생하는 업무 사항을 가져옵니다.
+- **Gmail**: 받은 편지함의 이메일을 분석하여 중요한 업무 요청을 추출합니다.
 
----
+### 2. AI 기반 지능형 업무 분석
+- **자동 업무 추출**: 단순한 메시지 전달이 아닌, 구체적으로 '해야 할 일'을 문장 형태로 정리합니다.
+- **스마트 담당자 감지**: 멘션(@)이나 이메일 수신자, 문맥을 분석하여 실제 담당자(Assignee)를 정확하게 표시합니다.
+- **실시간 번역**: 외국어로 된 업무 요청도 내가 원하는 언어(한국어 등)로 즉시 번업/요약하여 보여줍니다.
 
-## ⚙️ 설정 가이드 (Environment Variables)
+### 3. 직관적인 업무 관리 대시보드
+- **탭 기반 분류**: 'My Tasks'와 'Other Tasks'로 내 업무와 참고 업무를 명확히 구분합니다.
+- **원문 확인**: AI가 요약한 내용의 실제 원본 메시지를 즉시 확인하여 맥락을 파악할 수 있습니다.
+- **아카이브 및 강력한 검색**: 삭제하거나 완료된 업무를 따로 보관하며, 고성능 엔진을 통해 수만 개의 데이터 중에서도 원하는 정보를 즉시 찾아냅니다.
 
-프로젝트 루트의 `.env` 파일 또는 Docker Compose 환경 변수를 통해 설정합니다.
-
-```env
-SLACK_TOKEN=xoxb-...          # Slack Bot Token
-SLACK_CHANNEL_ID=C...         # 스캔할 기본 Slack 채널 ID (선택)
-GEMINI_API_KEY=AIza...        # Google Gemini API Key
-DATABASE_URL=postgres://...   # Neon DB 연결 URL
-GOOGLE_CLIENT_ID=...          # Google OAuth Client ID
-GOOGLE_CLIENT_SECRET=...      # Google OAuth Client Secret
-AUTH_SECRET=...               # 세션 암호화용 비밀키
-APP_BASE_URL=https://...      # 앱 베이스 URL
-LOG_LEVEL=INFO                # 로그 레벨 (DEBUG, INFO, WARN, ERROR)
-```
+### 4. 데이터 활용 및 정산
+- **Excel/CSV 내보내기**: 관리 중인 업무 리스트를 엑셀 파일로 내려받아 보고서 작성이나 정산에 활용할 수 있습니다.
 
 ---
 
-## 🚀 배포 가이드 (Docker)
+## 💡 활용 가이드
 
-Docker Compose를 사용하여 간편하게 배포할 수 있습니다.
+### 1️⃣ 서비스 연동하기
+데스크탑 또는 모바일 대시보드 상단의 서비스 아이콘을 클릭하여 WhatsApp(QR 코드 스캔)이나 Gmail(Google 로그인)을 즉시 연결하세요.
 
-### 1. 바이너리 빌드 (최적화 적용)
-```bash
-CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o message-consolidator-vps .
-upx -1 message-consolidator-vps
-```
+### 2️⃣ 업무 확인 및 처리
+- 수집된 메시지는 **My Tasks** 탭에서 확인할 수 있습니다.
+- 업무가 완료되면 체크 표시를 눌러 목록에서 제거하세요. (삭제된 업무는 아카이브로 이동합니다.)
+- 외국어 메시지는 번역 아이콘을 클릭하여 내 언어로 확인하세요.
 
-### 2. Docker 실행
-```bash
-docker-compose up -d --build
-```
-
-### 💡 Build Speed & Size Tips
-- **Binary Size Optimization**: Build with `-ldflags="-s -w"` to strip symbols and debug info.
-- **Binary Compression**: Use `upx -1` to optimize build speed while still reducing binary size.
-- **Keep CGO Disabled**: Use `CGO_ENABLED=0` for faster, statically linked binaries unless CGO is strictly required.
-- **GOCACHE on RAM Disk**: Since `jjsong-devmachine` has 32GB RAM, use `tmpfs` to speed up I/O.
-  ```bash
-  sudo mount -t tmpfs -o size=2G tmpfs /home/jinro/.cache/go-build
-  ```
+### 3️⃣ 아카이브 활용하기
+과거에 진행했던 업무나 놓친 메시지가 있다면 **Archive** 메뉴를 여세요. 강력한 필터링과 정렬 기능을 통해 수개월 전 기록도 1초 만에 찾을 수 있습니다.
 
 ---
 
-## 📁 프로젝트 구조
+## 🛠 설치 및 시작 (관리자용)
 
-- `main.go`: 서버 초기화 및 라우팅 설정
-- `handlers.go`: 모든 HTTP 핸들러 (API 엔드포인트)
-- `scanner.go`: 각 서비스별 메시지 스캔 및 비즈니스 로직
-- `logger.go`: 레벨별 로깅 시스템 구현
-- `types.go`: 공통 데이터 구조 및 상수 정의
-- `auth.go`: Google OAuth 및 세션 관리
-- `store.go`: PostgreSQL 연동 및 번역 캐싱 로직
-- `whatsapp.go`: WhatsApp 연동 및 세션 관리
-- `slack.go`: Slack 메시지 수집 로직
-- `gemini.go`: AI 분석 및 번역 (System Instruction 최적화)
-- `gmail.go`: Gmail API 연동 및 이메일 연동
-- `static/`: 프론트엔드 (index.html, app.js, style.css)
-- `docker-compose.yml` / `Dockerfile`: 컨테이너라이제이션 설정
+기술적인 상세 설정이나 자가 호스팅(Self-hosting)이 필요한 경우 아래 가이드를 참고하세요.
+
+- **빌드 및 실행**: Docker Compose를 통해 간편하게 배포 가능 (`docker-compose up -d`)
+- **환경 설정**: `.env` 파일에 API Key와 DB 정보 설정
+- **로그 확인**: `LOG_LEVEL` 설정을 통해 디버깅 및 운영 로그 관리
 
 ---
-
-## 📝 라이선스
 
 © 2026 Jaejin Song. All rights reserved.
-
