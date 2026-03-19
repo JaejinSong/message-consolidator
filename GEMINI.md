@@ -8,3 +8,6 @@
 
 ## Versioning Policy
 - **보수적인 버전 넘버링**: 기능 추가나 구조 개선 시 버전 번호를 급격하게 올리기보다, 소수점 단위(Patch/Minor)로 보수적으로 업데이트합니다. 
+
+## 검증
+- message-consolidator 는 개발환경인 jjsong-devmachine 에서는 실행하지 않는다. 실행을 통한 검증은 VPS 에서 

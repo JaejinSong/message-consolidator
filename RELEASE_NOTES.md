@@ -1,4 +1,23 @@
-# Release Notes - v1.6.2 (Latest)
+# Release Notes - v1.6.4 (Latest)
+
+## 👤 Sender-Aware Task Classification
+- **Self-Initiated Task Recognition**: Improved the classification logic to automatically categorize tasks as **"My Tasks"** if the sender is the user or one of their aliases.
+- **Context-Free Attribution**: Tasks sent by the user in public channels are now correctly attributed to them even if their name is not explicitly mentioned in the message text.
+- **Cross-Channel Support**: This enhancement applies to both Slack and WhatsApp message sources.
+
+---
+
+# Release Notes - v1.6.3 (Old)
+
+## 🧹 Codebase Cleanup & Optimization
+- **Backend Refactoring**: Removed redundant helper functions and unused variables in `gmail.go` and `whatsapp.go` to improve code clarity.
+- **Improved Configuration Consistency**: Standardized database connection handling in the WhatsApp module to use centralized configuration (`cfg.NeonDBURL`), ensuring more reliable connectivity.
+- **Dependency Optimization**: Performed a thorough dependency audit and cleanup using `go mod tidy` to ensure a minimal and efficient build.
+- **Enhanced Maintainability**: Eliminated "dead code" (populated but unread variables) to reduce cognitive load for future development.
+
+---
+
+# Release Notes - v1.6.2 (Old)
 
 ## 🪵 Service Startup Indicator
 - **Startup Complete Log**: Added a specific "Startup Complete" log message in English to confirm when the database connection, metadata caching, and background workers are fully initialized.

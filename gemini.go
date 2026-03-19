@@ -13,10 +13,12 @@ import (
 
 
 type GeminiClient struct {
-	client *genai.Client
+	client           *genai.Client
+	analysisModel    string
+	translationModel string
 }
 
-func NewGeminiClient(ctx context.Context, apiKey string) (*GeminiClient, error) {
+func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translationModel string) (*GeminiClient, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY is not set")
 	}
@@ -24,7 +26,17 @@ func NewGeminiClient(ctx context.Context, apiKey string) (*GeminiClient, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &GeminiClient{client: client}, nil
+	if analysisModel == "" {
+		analysisModel = "gemini-3-flash-preview"
+	}
+	if translationModel == "" {
+		translationModel = "gemini-3.1-flash-lite"
+	}
+	return &GeminiClient{
+		client:           client,
+		analysisModel:    analysisModel,
+		translationModel: translationModel,
+	}, nil
 }
 
 func (g *GeminiClient) Analyze(ctx context.Context, conversationText string, language string, source string) ([]TodoItem, error) {
@@ -36,7 +48,7 @@ func (g *GeminiClient) Analyze(ctx context.Context, conversationText string, lan
 		language = "Korean"
 	}
 
-	model := g.client.GenerativeModel("gemini-3-flash-preview") // Use Gemini 3 Flash Preview model
+	model := g.client.GenerativeModel(g.analysisModel) // Use Analysis Model
 	model.ResponseMIMEType = "application/json"
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(fmt.Sprintf(`You are a task extraction expert.
@@ -90,7 +102,7 @@ func (g *GeminiClient) Translate(ctx context.Context, tasks []TranslateRequest, 
 		return nil, nil
 	}
 
-	model := g.client.GenerativeModel("gemini-3-flash-preview")
+	model := g.client.GenerativeModel(g.translationModel) // Use Translation Model
 	model.ResponseMIMEType = "application/json"
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(fmt.Sprintf(`You are a task translation expert.

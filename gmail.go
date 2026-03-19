@@ -104,7 +104,6 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 
 	// Collect all email contents to send to Gemini at once for efficiency
 	var sb strings.Builder
-	contentMap := make(map[string]string)        // MsgID -> FullContent for modal
 	classificationMap := make(map[string]string) // MsgID -> classification
 
 	for _, m := range msgs.Messages {
@@ -119,8 +118,6 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 		cc := ""
 		bcc := ""
 		body := ""
-		date := ""
-
 		for _, h := range fullMsg.Payload.Headers {
 			if h.Name == "Subject" {
 				subject = h.Value
@@ -136,9 +133,6 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 			}
 			if h.Name == "Bcc" {
 				bcc = h.Value
-			}
-			if h.Name == "Date" {
-				date = h.Value
 			}
 		}
 
@@ -159,15 +153,13 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 
 		body = extractBody(fullMsg.Payload)
 
-		fullEmailContent := fmt.Sprintf("Subject: %s\nFrom: %s\nDate: %s\n\n%s", subject, from, date, body)
-		contentMap[m.Id] = fullEmailContent
 		// Store classification for this message
 		classificationMap[m.Id] = classification
 		sb.WriteString(fmt.Sprintf("[TS:%s] From: %s, To: %s, Subject: %s\nContent: %s\n---\n", m.Id, from, to, subject, body))
 	}
 
 	if sb.Len() > 0 {
-		gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey)
+		gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 		if err != nil {
 			return false
 		}
@@ -219,15 +211,6 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 	}
 
 	return hasNew
-}
-
-func getHeader(headers []*gmail.MessagePartHeader, name string) string {
-	for _, h := range headers {
-		if strings.EqualFold(h.Name, name) {
-			return h.Value
-		}
-	}
-	return ""
 }
 
 func extractBody(payload *gmail.MessagePart) string {

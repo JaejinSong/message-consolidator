@@ -158,7 +158,7 @@ func scanSlack(ctx context.Context, user *User, aliases []string, language strin
 		}
 
 		if sb.Len() > 0 {
-			gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey)
+			gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 			if err != nil {
 				continue
 			}
@@ -184,6 +184,17 @@ func scanSlack(ctx context.Context, user *User, aliases []string, language strin
 				if !isMentioned {
 					for _, alias := range aliases {
 						if alias != "" && strings.Contains(strings.ToLower(originalMsg.Text), strings.ToLower(alias)) {
+							isMentioned = true
+							break
+						}
+					}
+				}
+
+				// Check if the sender is the user themselves
+				if !isMentioned {
+					senderName := strings.ToLower(originalMsg.User)
+					for _, alias := range aliases {
+						if alias != "" && strings.Contains(senderName, strings.ToLower(alias)) {
 							isMentioned = true
 							break
 						}
@@ -259,7 +270,7 @@ func scanWhatsApp(ctx context.Context, user *User, aliases []string, language st
 			sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s%s: %s\n", m.RawTS, m.Timestamp.Format("15:04"), m.User, toPart, m.Text))
 		}
 
-		gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey)
+		gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 		if err != nil {
 			continue
 		}
@@ -286,6 +297,17 @@ func scanWhatsApp(ctx context.Context, user *User, aliases []string, language st
 				if alias != "" && strings.Contains(strings.ToLower(originalMsg.Text), strings.ToLower(alias)) {
 					isMentioned = true
 					break
+				}
+			}
+
+			// Check if the sender is the user themselves
+			if !isMentioned {
+				senderName := strings.ToLower(originalMsg.User)
+				for _, alias := range aliases {
+					if alias != "" && strings.Contains(senderName, strings.ToLower(alias)) {
+						isMentioned = true
+						break
+					}
 				}
 			}
 
