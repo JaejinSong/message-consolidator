@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/slack-go/slack"
+	"go.mau.fi/whatsmeow/types"
 )
 
 func startBackgroundScanner() {
@@ -36,7 +37,7 @@ func runAllScans() {
 }
 
 func scan(email string, language string) {
-	debugf("Starting message scan for %s (lang: %s)...", email, language)
+	infof("[SCAN] Starting message scan for %s (lang: %s)...", email, language)
 	ctx := context.Background()
 
 	user, err := GetOrCreateUser(email, "", "")
@@ -45,40 +46,87 @@ func scan(email string, language string) {
 		return
 	}
 	aliases, _ := GetUserAliases(user.ID)
-	// Include email and name as default aliases
 	aliases = append(aliases, user.Email, user.Name)
 
+	var newIDs []int
+	var mu sync.Mutex
+	var hasNewGmail bool
+	var wg sync.WaitGroup
+
 	// Slack Scan
-	debugf("About to call scanSlack for %s", email)
-	newSlack := scanSlack(ctx, user, aliases, language)
-	debugf("scanSlack finished for %s, hasNew: %v", email, newSlack)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		debugf("[SCAN] Starting Parallel Slack scan for %s", email)
+		ids := scanSlack(ctx, user, aliases, language)
+		mu.Lock()
+		newIDs = append(newIDs, ids...)
+		mu.Unlock()
+	}()
 
 	// WhatsApp Scan
-	debugf("About to call scanWhatsApp for %s", email)
-	newWA := scanWhatsApp(ctx, user, aliases, language)
-	debugf("scanWhatsApp finished for %s, hasNew: %v", email, newWA)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		debugf("[SCAN] Starting Parallel WhatsApp scan for %s", email)
+		ids := scanWhatsApp(ctx, user, aliases, language)
+		mu.Lock()
+		newIDs = append(newIDs, ids...)
+		mu.Unlock()
+	}()
 
 	// Gmail Scan
-	debugf("About to call ScanGmail for %s", email)
-	newGmail := ScanGmail(ctx, email, language)
-	debugf("ScanGmail finished for %s, hasNew: %v", email, newGmail)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		debugf("[SCAN] Starting Parallel Gmail scan for %s", email)
+		res := ScanGmail(ctx, email, language)
+		mu.Lock()
+		if res {
+			hasNewGmail = true
+		}
+		mu.Unlock()
+	}()
+
+	wg.Wait()
 
 	// Refresh cache only if new messages were actually saved
-	if newSlack || newWA || newGmail {
-		infof("[SCAN] New messages found, refreshing cache and persisting metadata...")
+	if len(newIDs) > 0 || hasNewGmail {
+		infof("[SCAN] New messages found (%d from chat), refreshing cache and persisting metadata...", len(newIDs))
+		
+		// Proactive Translation for Chat Messages
+		if len(newIDs) > 0 {
+			targetLangs := []string{"English", "Indonesian", "Thai", "Korean"}
+			// Proactive translation can also be parallelized by language
+			var twg sync.WaitGroup
+			for _, lang := range targetLangs {
+				twg.Add(1)
+				go func(l string) {
+					defer twg.Done()
+					debugf("[SCAN] Proactive translation started for %s -> %s", email, l)
+					count, err := TranslateMessagesByID(ctx, email, newIDs, l)
+					if err != nil {
+						errorf("[SCAN] Proactive translation failed for %s (%s): %v", email, l, err)
+					} else {
+						debugf("[SCAN] Proactive translation finished for %s -> %s (%d messages)", email, l, count)
+					}
+				}(lang)
+			}
+			twg.Wait()
+		}
+
 		if err := RefreshCache(email); err != nil {
 			errorf("Error refreshing cache for %s after scan: %v", email, err)
 		}
-		// Persist all updated memory scan TS to DB since it's already awake
 		PersistAllScanMetadata(email)
-		// Piggyback: Archive old tasks only when the DB is already active
 		_ = ArchiveOldTasks()
 	} else {
-		debugf("No new messages found for %s, skipping DB interactions.", email)
+		debugf("[SCAN] No new messages found for %s, skipping DB interactions.", email)
 	}
+	infof("[SCAN] Finished message scan for %s", email)
 }
 
-func scanSlack(ctx context.Context, user *User, aliases []string, language string) bool {
+func scanSlack(ctx context.Context, user *User, aliases []string, language string) []int {
 	email := user.Email
 	defer func() {
 		if r := recover(); r != nil {
@@ -87,7 +135,7 @@ func scanSlack(ctx context.Context, user *User, aliases []string, language strin
 	}()
 
 	debugf("TRACELOG: Starting Slack scan for %s...", email)
-	hasNew := false
+	var newIDs []int
 	sc := NewSlackClient(cfg.SlackToken)
 
 	targetChannels := make(map[string]*slack.Channel)
@@ -134,207 +182,215 @@ func scanSlack(ctx context.Context, user *User, aliases []string, language strin
 	}
 
 	since := time.Now().Add(-7 * 24 * time.Hour)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
 	for id, channel := range targetChannels {
-		lastTS := GetLastScan(email, "slack", id)
-		msgs, err := sc.GetMessages(id, since, lastTS)
-		if err != nil {
-			continue
-		}
-		if len(msgs) == 0 {
-			continue
-		}
-
-		msgMap := make(map[string]RawChatMessage)
-		var sb strings.Builder
-		maxTS := lastTS
-
-		for _, m := range msgs {
-			msgMap[m.RawTS] = m
-			sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s: %s\n", m.RawTS, m.Timestamp.Format("15:04"), m.User, m.Text))
-
-			if m.RawTS > maxTS {
-				maxTS = m.RawTS
-			}
-		}
-
-		if sb.Len() > 0 {
-			gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
-			if err != nil {
-				continue
+		wg.Add(1)
+		go func(cid string, ch slack.Channel) {
+			defer wg.Done()
+			
+			lastTS := GetLastScan(email, "slack", cid)
+			msgs, err := sc.GetMessages(cid, since, lastTS)
+			if err != nil || len(msgs) == 0 {
+				return
 			}
 
-			items, err := gc.Analyze(ctx, sb.String(), language, "slack")
-			if err != nil {
-				continue
+			msgMap := make(map[string]RawChatMessage)
+			var sb strings.Builder
+			maxTS := lastTS
+
+			for _, m := range msgs {
+				msgMap[m.RawTS] = m
+				sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s: %s\n", m.RawTS, m.Timestamp.Format("15:04"), m.User, m.Text))
+				if m.RawTS > maxTS {
+					maxTS = m.RawTS
+				}
 			}
 
-			for _, item := range items {
-				assignedAt := time.Now().Format(time.RFC3339)
-				originalMsg, ok := msgMap[item.SourceTS]
-				if ok {
-					assignedAt = originalMsg.Timestamp.Format(time.RFC3339)
+			if sb.Len() > 0 {
+				gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+				if err != nil {
+					return
 				}
 
-				classification := "기타 업무"
-				isDM := channel.IsIM || channel.IsMpIM
-				isMentioned := false
-				if user.SlackID != "" && strings.Contains(originalMsg.Text, "<@"+user.SlackID+">") {
-					isMentioned = true
-				}
-				if !isMentioned {
-					for _, alias := range aliases {
-						if alias != "" && strings.Contains(strings.ToLower(originalMsg.Text), strings.ToLower(alias)) {
-							isMentioned = true
-							break
-						}
-					}
+				items, err := gc.Analyze(ctx, sb.String(), language, "slack")
+				if err != nil {
+					return
 				}
 
-				// Check if the sender is the user themselves
-				if !isMentioned {
-					senderName := strings.ToLower(originalMsg.User)
-					for _, alias := range aliases {
-						if alias != "" && strings.Contains(senderName, strings.ToLower(alias)) {
-							isMentioned = true
-							break
-						}
-					}
-				}
-
-				if isDM || isMentioned {
-					classification = "내 업무"
-				}
-
-				link := fmt.Sprintf("https://slack.com/app_redirect?channel=%s&message_ts=%s", id, item.SourceTS)
+				var localNewIDs []int
+				for _, item := range items {
+					assignedAt := originalMsgTimestamp(msgMap, item.SourceTS)
+					classification := classifyMessage(ch, user, aliases, msgMap[item.SourceTS])
+					link := fmt.Sprintf("https://slack.com/app_redirect?channel=%s&message_ts=%s", cid, item.SourceTS)
 
 					assignee := item.Assignee
 					if assignee == "" || assignee == "me" || assignee == "나" || assignee == "담당자" {
 						assignee = classification
 					}
 
-					saved, _ := SaveMessage(ConsolidatedMessage{
+					saved, newID, _ := SaveMessage(ConsolidatedMessage{
 						UserEmail:    email,
 						Source:       "slack",
-						Room:         "#" + channel.Name,
+						Room:         "#" + ch.Name,
 						Task:         item.Task,
 						Requester:    item.Requester,
 						Assignee:     assignee,
 						AssignedAt:   assignedAt,
-					Link:         link,
-					SourceTS:     item.SourceTS,
-					OriginalText: item.OriginalText,
-				})
-				if saved {
-					hasNew = true
+						Link:         link,
+						SourceTS:     item.SourceTS,
+						OriginalText: item.OriginalText,
+					})
+					if saved {
+						localNewIDs = append(localNewIDs, newID)
+					}
 				}
-			}
 
-			if maxTS != "" && maxTS != lastTS {
-				UpdateLastScan(email, "slack", id, maxTS)
+				mu.Lock()
+				newIDs = append(newIDs, localNewIDs...)
+				if maxTS != "" && maxTS != lastTS {
+					UpdateLastScan(email, "slack", cid, maxTS)
+				}
+				mu.Unlock()
 			}
-		}
+		}(id, *channel)
 	}
-	return hasNew
+	wg.Wait()
+	return newIDs
 }
 
-func scanWhatsApp(ctx context.Context, user *User, aliases []string, language string) bool {
+func originalMsgTimestamp(msgMap map[string]RawChatMessage, ts string) string {
+	if m, ok := msgMap[ts]; ok {
+		return m.Timestamp.Format(time.RFC3339)
+	}
+	return time.Now().Format(time.RFC3339)
+}
+
+func classifyMessage(channel slack.Channel, user *User, aliases []string, m RawChatMessage) string {
+	isDM := channel.IsIM || channel.IsMpIM
+	isMentioned := false
+	if user.SlackID != "" && strings.Contains(m.Text, "<@"+user.SlackID+">") {
+		isMentioned = true
+	}
+	if !isMentioned {
+		for _, alias := range aliases {
+			if alias != "" && strings.Contains(strings.ToLower(m.Text), strings.ToLower(alias)) {
+				isMentioned = true
+				break
+			}
+		}
+	}
+	if !isMentioned {
+		senderName := strings.ToLower(m.User)
+		for _, alias := range aliases {
+			if alias != "" && strings.Contains(senderName, strings.ToLower(alias)) {
+				isMentioned = true
+				break
+			}
+		}
+	}
+	if isDM || isMentioned {
+		return "내 업무"
+	}
+	return "기타 업무"
+}
+
+func scanWhatsApp(ctx context.Context, user *User, aliases []string, language string) []int {
 	email := user.Email
-	hasNew := false
-	userWAClient := GetWhatsAppClient(email)
-	if userWAClient == nil || !userWAClient.IsLoggedIn() {
-		return false
-	}
-
-	waBufferMu.RLock()
-	defer waBufferMu.RUnlock()
-
+	var newIDs []int
+	
+	waBufferMu.Lock()
 	userBuffer, ok := waMessageBuffer[email]
-	if !ok {
-		return false
+	if !ok || len(userBuffer) == 0 {
+		waBufferMu.Unlock()
+		return nil
 	}
-
+	// Copy and clear buffer to avoid holding lock during analysis
+	bufferCopy := make(map[string][]RawChatMessage)
 	for jid, msgs := range userBuffer {
-		if len(msgs) == 0 {
-			continue
+		if len(msgs) > 0 {
+			bufferCopy[jid.String()] = msgs
 		}
+	}
+	// Clear the user's buffer in the global map
+	waMessageBuffer[email] = make(map[types.JID][]RawChatMessage)
+	waBufferMu.Unlock()
 
-		groupName := GetGroupName(email, jid)
-		msgMap := make(map[string]RawChatMessage)
-		var sb strings.Builder
-		for _, m := range msgs {
-			toPart := ""
-			if m.InteractedUser != "" {
-				toPart = fmt.Sprintf(" -> %s", m.InteractedUser)
-			}
-			msgMap[m.RawTS] = m
-			sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s%s: %s\n", m.RawTS, m.Timestamp.Format("15:04"), m.User, toPart, m.Text))
-		}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 
-		gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
-		if err != nil {
-			continue
-		}
-		items, err := gc.Analyze(ctx, sb.String(), language, "whatsapp")
-		if err != nil {
-			continue
-		}
-
-		for _, item := range items {
-			assignedAt := item.AssignedAt
-			originalMsg, ok := msgMap[item.SourceTS]
-			if ok {
-				assignedAt = originalMsg.Timestamp.Format(time.RFC3339)
-			} else if sec, err := strconv.ParseInt(assignedAt, 10, 64); err == nil {
-				assignedAt = time.Unix(sec, 0).Format(time.RFC3339)
-			} else {
-				assignedAt = time.Now().Format(time.RFC3339)
+	for jidStr, msgs := range bufferCopy {
+		wg.Add(1)
+		go func(js string, rrms []RawChatMessage) {
+			defer wg.Done()
+			
+			jid, _ := types.ParseJID(js)
+			groupName := GetGroupName(email, jid)
+			msgMap := make(map[string]RawChatMessage)
+			var sb strings.Builder
+			for _, m := range rrms {
+				msgMap[m.RawTS] = m
+				sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s: %s\n", m.RawTS, m.Timestamp.Format("15:04"), m.User, m.Text))
 			}
 
-			classification := "기타 업무"
-			is1to1 := jid.Server == "s.whatsapp.net"
-			isMentioned := false
-			for _, alias := range aliases {
-				if alias != "" && strings.Contains(strings.ToLower(originalMsg.Text), strings.ToLower(alias)) {
-					isMentioned = true
-					break
+			gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+			if err != nil {
+				return
+			}
+			items, err := gc.Analyze(ctx, sb.String(), language, "whatsapp")
+			if err != nil {
+				return
+			}
+
+			var localNewIDs []int
+			for _, item := range items {
+				assignedAt := time.Now().Format(time.RFC3339)
+				if m, ok := msgMap[item.SourceTS]; ok {
+					assignedAt = m.Timestamp.Format(time.RFC3339)
 				}
-			}
-
-			// Check if the sender is the user themselves
-			if !isMentioned {
-				senderName := strings.ToLower(originalMsg.User)
+				
+				is1to1 := jid.Server == "s.whatsapp.net"
+				isMentioned := false
+				lowerText := strings.ToLower(item.OriginalText)
 				for _, alias := range aliases {
-					if alias != "" && strings.Contains(senderName, strings.ToLower(alias)) {
+					if alias != "" && strings.Contains(lowerText, strings.ToLower(alias)) {
 						isMentioned = true
 						break
 					}
 				}
+
+				classification := "기타 업무"
+				if is1to1 || isMentioned {
+					classification = "내 업무"
+				}
+
+				assignee := item.Assignee
+				if assignee == "" || assignee == "me" || assignee == "나" || assignee == "담당자" {
+					assignee = classification
+				}
+
+				saved, newID, _ := SaveMessage(ConsolidatedMessage{
+					UserEmail:    email,
+					Source:       "whatsapp",
+					Room:         groupName,
+					Task:         item.Task,
+					Requester:    item.Requester,
+					Assignee:     assignee,
+					AssignedAt:   assignedAt,
+					SourceTS:     item.SourceTS,
+					OriginalText: item.OriginalText,
+				})
+				if saved {
+					localNewIDs = append(localNewIDs, newID)
+				}
 			}
 
-			if is1to1 || isMentioned {
-				classification = "내 업무"
-			}
-
-			assignee := item.Assignee
-			if assignee == "" || assignee == "me" || assignee == "나" || assignee == "담당자" {
-				assignee = classification
-			}
-
-			saved, _ := SaveMessage(ConsolidatedMessage{
-				UserEmail:    email,
-				Source:       "whatsapp",
-				Room:         groupName,
-				Task:         item.Task,
-				Requester:    item.Requester,
-				Assignee:     assignee,
-				AssignedAt:   assignedAt,
-				SourceTS:     item.SourceTS,
-				OriginalText: item.OriginalText,
-			})
-			if saved {
-				hasNew = true
-			}
-		}
+			mu.Lock()
+			newIDs = append(newIDs, localNewIDs...)
+			mu.Unlock()
+		}(jidStr, msgs)
 	}
-	return hasNew
+	wg.Wait()
+	return newIDs
 }

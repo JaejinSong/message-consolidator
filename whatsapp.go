@@ -143,10 +143,13 @@ func handleWhatsAppEvent(email string, client *whatsmeow.Client, evt interface{}
 
 		if msgText != "" {
 			waMessageBuffer[email][v.Info.Chat] = append(waMessageBuffer[email][v.Info.Chat], RawChatMessage{
-				ID:     v.Info.ID,
-				Sender: sender,
-				Text:   msgText,
-				Time:   v.Info.Timestamp,
+				ID:        v.Info.ID,
+				User:      sender,
+				Sender:    sender,
+				Text:      msgText,
+				Timestamp: v.Info.Timestamp,
+				Time:      v.Info.Timestamp,
+				RawTS:     v.Info.ID,
 			})
 			if len(waMessageBuffer[email][v.Info.Chat]) > 200 {
 				waMessageBuffer[email][v.Info.Chat] = waMessageBuffer[email][v.Info.Chat][len(waMessageBuffer[email][v.Info.Chat])-200:]

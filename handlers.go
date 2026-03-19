@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -15,17 +16,27 @@ func handleGetMessages(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	lang := r.URL.Query().Get("lang")
 	
-	msgs, err := GetMessages(email)
+	msgsRaw, err := GetMessages(email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if lang != "" && lang != "Korean" {
-		for i := range msgs {
-			translated, err := GetTaskTranslation(msgs[i].ID, lang)
-			if err == nil && translated != "" {
-				msgs[i].Task = translated
+	// Create a copy of the slice to avoid polluting the global cache when we apply translations
+	msgs := make([]ConsolidatedMessage, len(msgsRaw))
+	copy(msgs, msgsRaw)
+
+	if lang != "" && len(msgs) > 0 {
+		ids := make([]int, len(msgs))
+		for i, m := range msgs {
+			ids[i] = m.ID
+		}
+		translations, err := GetTaskTranslationsBatch(ids, lang)
+		if err == nil {
+			for i := range msgs {
+				if t, ok := translations[msgs[i].ID]; ok {
+					msgs[i].Task = t
+				}
 			}
 		}
 	}
@@ -68,17 +79,27 @@ func handleGetArchived(w http.ResponseWriter, r *http.Request) {
 		limit = 50
 	}
 
-	msgs, total, err := GetArchivedMessagesFiltered(email, limit, offset, q, sort, order)
+	msgsRaw, total, err := GetArchivedMessagesFiltered(email, limit, offset, q, sort, order)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if lang != "" && lang != "Korean" {
-		for i := range msgs {
-			translated, err := GetTaskTranslation(msgs[i].ID, lang)
-			if err == nil && translated != "" {
-				msgs[i].Task = translated
+	// Create a copy to avoid cache pollution
+	msgs := make([]ConsolidatedMessage, len(msgsRaw))
+	copy(msgs, msgsRaw)
+
+	if lang != "" && len(msgs) > 0 {
+		ids := make([]int, len(msgs))
+		for i, m := range msgs {
+			ids[i] = m.ID
+		}
+		translations, err := GetTaskTranslationsBatch(ids, lang)
+		if err == nil {
+			for i := range msgs {
+				if t, ok := translations[msgs[i].ID]; ok {
+					msgs[i].Task = t
+				}
 			}
 		}
 	}
@@ -237,7 +258,9 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	lang := r.URL.Query().Get("lang")
 	if lang == "" {
-		lang = "Korean"
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "skipped", "reason": "empty language"})
+		return
 	}
 
 	msgs, err := GetMessages(email)
@@ -252,41 +275,85 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 		msgs = append(msgs, archived...)
 	}
 
-	var toTranslate []TranslateRequest
+	var idList []int
 	for _, m := range msgs {
-		cached, _ := GetTaskTranslation(m.ID, lang)
-		if cached == "" && lang != "Korean" {
-			toTranslate = append(toTranslate, TranslateRequest{
-				ID:           m.ID,
-				Text:         m.Task,
-				OriginalText: m.OriginalText,
-			})
+		idList = append(idList, m.ID)
+	}
+	existingTranslations, _ := GetTaskTranslationsBatch(idList, lang)
+
+	var toTranslateIDs []int
+	for _, m := range msgs {
+		if _, ok := existingTranslations[m.ID]; !ok {
+			toTranslateIDs = append(toTranslateIDs, m.ID)
 		}
 	}
 
-	if len(toTranslate) > 0 {
-		gc, err := NewGeminiClient(r.Context(), cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+	infof("[TRANSLATE] Found %d messages needing translation to %s for %s", len(toTranslateIDs), lang, email)
+
+	if len(toTranslateIDs) > 0 {
+		count, err := TranslateMessagesByID(r.Context(), email, toTranslateIDs, lang)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		translations, err := gc.Translate(r.Context(), toTranslate, lang)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		for _, t := range translations {
-			SaveTaskTranslation(t.ID, lang, t.Text)
-		}
+		infof("[TRANSLATE] Successfully translated %d/%d messages to %s", count, len(toTranslateIDs), lang)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":           "success",
-		"translated_count": fmt.Sprintf("%d", len(toTranslate)),
+		"translated_count": fmt.Sprintf("%d", len(toTranslateIDs)),
 	})
+}
+
+// TranslateMessagesByID is a helper to translate specific messages for a user
+func TranslateMessagesByID(ctx context.Context, email string, ids []int, lang string) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+
+	// 1. Get detailed message data for these IDs
+	var toTranslate []TranslateRequest
+	for _, id := range ids {
+		// We can get from DB directly to ensure we have the latest
+		var m ConsolidatedMessage
+		err := db.QueryRow("SELECT id, task, COALESCE(original_text, '') FROM messages WHERE id = $1", id).Scan(&m.ID, &m.Task, &m.OriginalText)
+		if err != nil {
+			continue
+		}
+		toTranslate = append(toTranslate, TranslateRequest{
+			ID:           m.ID,
+			Text:         m.Task,
+			OriginalText: m.OriginalText,
+		})
+	}
+
+	if len(toTranslate) == 0 {
+		return 0, nil
+	}
+
+	// 2. Call Gemini
+	gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+	if err != nil {
+		return 0, err
+	}
+
+	translations, err := gc.Translate(ctx, toTranslate, lang)
+	if err != nil {
+		return 0, err
+	}
+
+	// 3. Save
+	count := 0
+	for _, t := range translations {
+		if err := SaveTaskTranslation(t.ID, lang, t.Text); err == nil {
+			count++
+		} else {
+			errorf("[TRANSLATE] Failed to save translation for ID %d (%s): %v", t.ID, lang, err)
+		}
+	}
+
+	return count, nil
 }
 
 func handleDelete(w http.ResponseWriter, r *http.Request) {
