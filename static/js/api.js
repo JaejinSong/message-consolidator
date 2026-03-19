@@ -78,6 +78,8 @@ export const api = {
         if (params.q) query.set('q', params.q);
         if (params.limit) query.set('limit', params.limit);
         if (params.offset) query.set('offset', params.offset);
+        if (params.sort) query.set('sort', params.sort);
+        if (params.order) query.set('order', params.order);
         query.set('lang', langParam);
         
         const resp = await fetch(`/api/messages/archive?${query.toString()}`);

@@ -58,6 +58,8 @@ func handleGetArchived(w http.ResponseWriter, r *http.Request) {
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
 	lang := r.URL.Query().Get("lang")
+	sort := r.URL.Query().Get("sort")
+	order := r.URL.Query().Get("order")
 
 	limit, _ := strconv.Atoi(limitStr)
 	offset, _ := strconv.Atoi(offsetStr)
@@ -66,7 +68,7 @@ func handleGetArchived(w http.ResponseWriter, r *http.Request) {
 		limit = 50
 	}
 
-	msgs, total, err := GetArchivedMessagesFiltered(email, limit, offset, q)
+	msgs, total, err := GetArchivedMessagesFiltered(email, limit, offset, q, sort, order)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -92,7 +94,7 @@ func handleGetArchivedCount(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	q := r.URL.Query().Get("q")
 	
-	_, total, err := GetArchivedMessagesFiltered(email, 1, 0, q)
+	_, total, err := GetArchivedMessagesFiltered(email, 1, 0, q, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -106,7 +108,7 @@ func handleExportExcel(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	q := r.URL.Query().Get("q")
 
-	msgs, _, err := GetArchivedMessagesFiltered(email, 10000, 0, q)
+	msgs, _, err := GetArchivedMessagesFiltered(email, 10000, 0, q, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -165,7 +167,7 @@ func handleExportArchive(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	q := r.URL.Query().Get("q")
 	
-	msgs, _, err := GetArchivedMessagesFiltered(email, 10000, 0, q)
+	msgs, _, err := GetArchivedMessagesFiltered(email, 10000, 0, q, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

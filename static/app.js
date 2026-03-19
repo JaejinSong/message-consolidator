@@ -32,18 +32,26 @@ const fetchMessages = async () => {
 };
 
 const fetchArchive = async () => {
+    const loader = document.getElementById('archiveLoading');
+    if (loader) loader.classList.add('active');
     try {
         const params = {
             q: state.archiveSearch,
             limit: state.archiveLimit,
             offset: (state.archivePage - 1) * state.archiveLimit,
-            lang: state.currentLang
+            lang: state.currentLang,
+            sort: state.archiveSort,
+            order: state.archiveOrder
         };
         const data = await api.fetchArchive(params);
         state.archiveTotalCount = data.total;
         renderer.renderArchive(data.messages);
         updateArchivePaginationUI();
-    } catch (e) { console.error(e); }
+    } catch (e) {
+        console.error(e);
+    } finally {
+        if (loader) loader.classList.remove('active');
+    }
 };
 
 const updateArchivePaginationUI = () => {
@@ -182,7 +190,7 @@ const initApp = () => {
 
     // Archive
     const updateArchiveActionsVisibility = () => {
-        const checkedCount = document.querySelectorAll('.archive-checkbox:checked').length;
+        const checkedCount = document.querySelectorAll('.archive-check:checked').length;
         const restoreBtn = document.getElementById('restoreSelectedBtn');
         const hardDeleteBtn = document.getElementById('hardDeleteSelectedBtn');
         if (restoreBtn) restoreBtn.style.display = checkedCount > 0 ? 'inline-block' : 'none';
@@ -190,7 +198,7 @@ const initApp = () => {
     };
 
     const getSelectedArchiveIds = () => {
-        return Array.from(document.querySelectorAll('.archive-checkbox:checked')).map(cb => parseInt(cb.getAttribute('data-id')));
+        return Array.from(document.querySelectorAll('.archive-check:checked')).map(cb => parseInt(cb.getAttribute('data-id')));
     };
 
     document.getElementById('archiveLink')?.addEventListener('click', (e) => {
@@ -216,12 +224,12 @@ const initApp = () => {
 
     document.getElementById('selectAllArchive')?.addEventListener('change', (e) => {
         const checked = e.target.checked;
-        document.querySelectorAll('.archive-checkbox').forEach(cb => cb.checked = checked);
+        document.querySelectorAll('.archive-check').forEach(cb => cb.checked = checked);
         updateArchiveActionsVisibility();
     });
 
     document.getElementById('archiveBody')?.addEventListener('change', (e) => {
-        if (e.target.classList.contains('archive-checkbox')) {
+        if (e.target.classList.contains('archive-check')) {
             updateArchiveActionsVisibility();
         }
     });
@@ -353,6 +361,27 @@ const initApp = () => {
             fetchArchive();
         } catch (e) { alert('Hard delete failed: ' + e.message); }
     });
+
+
+    // Archive sorting listeners
+    const triggerArchiveSort = (field) => {
+        if (state.archiveSort === field) {
+            state.archiveOrder = state.archiveOrder === 'ASC' ? 'DESC' : 'ASC';
+        } else {
+            state.archiveSort = field;
+            state.archiveOrder = 'DESC';
+        }
+        state.archivePage = 1;
+        fetchArchive();
+    };
+
+    document.getElementById('ahSource')?.addEventListener('click', () => triggerArchiveSort('source'));
+    document.getElementById('ahRoom')?.addEventListener('click', () => triggerArchiveSort('room'));
+    document.getElementById('ahTask')?.addEventListener('click', () => triggerArchiveSort('task'));
+    document.getElementById('ahRequester')?.addEventListener('click', () => triggerArchiveSort('requester'));
+    document.getElementById('ahAssignee')?.addEventListener('click', () => triggerArchiveSort('assignee'));
+    document.getElementById('ahTime')?.addEventListener('click', () => triggerArchiveSort('time'));
+    document.getElementById('ahCompletedAt')?.addEventListener('click', () => triggerArchiveSort('completed_at'));
 
 
     // WhatsApp QR

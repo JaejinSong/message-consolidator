@@ -1,4 +1,15 @@
-# Release Notes - v1.5.0 (Latest)
+# Release Notes - v1.6.0 (Latest)
+
+## ⚡ Archive Performance & UX Optimization
+- **High-Speed Server-Side Sorting**: Implemented dynamic sorting for all Archive columns (Source, Room, Task, Requester, Assignee, Time, Completed At) directly in SQL for maximum efficiency.
+- **NeonDB Compound Indexes**: Created specialized compound indexes `idx_messages_archive_sort_created` and `idx_messages_archive_sort_completed` to ensure near-instant sorting even with massive historical datasets.
+- **Improved UI Responsiveness**: Added a sleek loading overlay and spinner to the Archive view, providing immediate visual feedback during data fetching and re-sorting.
+- **Icon-Driven Channel Display**: Replaced text-based channel names with modern SVG icons (Slack, WhatsApp, Gmail) in the Archive table, saving horizontal space and improving visual consistency with the main dashboard.
+- **Flexible Sorting UI**: Added interactive sort indicators (↑/↓) to table headers, allowing users to easily toggle between ascending and descending orders.
+
+---
+
+# Release Notes - v1.5.0 (Old)
 
 ## 🏗️ Structural Refactoring & Performance Optimization
 - **Code Modularization**: Refactored the monolithic `main.go` into specialized modules (`handlers.go`, `scanner.go`, `logger.go`, `types.go`) for vastly improved maintainability and readability.

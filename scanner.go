@@ -102,7 +102,18 @@ func scanSlack(ctx context.Context, user *User, aliases []string, language strin
 
 		channels, nextCursor, err := sc.api.GetConversations(params)
 		if err != nil {
-			errorf("[SCAN-SLACK] Error fetching rooms for %s: %v", email, err)
+			if strings.Contains(err.Error(), "missing_scope") {
+				errorf("[SCAN-SLACK] Permission error for %s: %v. Please ensure your Slack App has 'im:read' and 'mpim:read' scopes.", email, err)
+				
+				// Fallback: try only public and private channels if full list fails
+				if len(params.Types) > 2 {
+					debugf("[SCAN-SLACK] Retrying with limited channel types (public/private only)...")
+					params.Types = []string{"public_channel", "private_channel"}
+					continue
+				}
+			} else {
+				errorf("[SCAN-SLACK] Error fetching rooms for %s: %v", email, err)
+			}
 			break
 		}
 

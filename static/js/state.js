@@ -8,6 +8,8 @@ export const state = {
     archivePage: 1,
     archiveLimit: 20,
     archiveSearch: "",
+    archiveSort: '',
+    archiveOrder: 'DESC',
     archiveTotalCount: 0
 };
 

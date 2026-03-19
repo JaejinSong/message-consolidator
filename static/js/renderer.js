@@ -269,31 +269,67 @@ export const renderer = {
         return '';
     },
 
-    renderArchive(messages) {
+    renderArchive(messages, totalCount, page, limit) {
         const body = document.getElementById('archiveBody');
-        const countEl = document.getElementById('archiveCount');
-        if (body) body.innerHTML = '';
-        if (countEl) countEl.textContent = state.archiveTotalCount;
+        const lang = state.currentLang;
+        const i18n = I18N_DATA[lang];
 
-        if (!messages || messages.length === 0) {
-            body.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-dim);">No archived tasks.</td></tr>`;
+        // Update headers with sort indicators
+        const headers = {
+            'ahSource': 'source',
+            'ahRoom': 'room',
+            'ahTask': 'task',
+            'ahRequester': 'requester',
+            'ahAssignee': 'assignee',
+            'ahTime': 'time',
+            'ahCompletedAt': 'completed_at'
+        };
+
+        Object.keys(headers).forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            
+            // Clear existing indicator
+            const baseText = el.textContent.replace(/[↑↓]/g, '').trim();
+            
+            if (state.archiveSort === headers[id]) {
+                const arrow = state.archiveOrder === 'ASC' ? '↑' : '↓';
+                el.innerHTML = `${baseText} <span style="font-size: 0.8rem; margin-left: 4px; color: var(--accent-color);">${arrow}</span>`;
+                el.style.color = 'var(--accent-color)';
+            } else {
+                el.innerHTML = baseText;
+                el.style.color = '';
+            }
+            el.style.cursor = 'pointer';
+        });
+
+        if (messages.length === 0) {
+            body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-dim);">${i18n.noResults}</td></tr>`;
             return;
         }
 
-        messages.forEach(m => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td><input type="checkbox" class="archive-checkbox" data-id="${m.id}"></td>
-                <td><span class="badge">${m.source}</span></td>
-                <td>${m.room || '-'}</td>
-                <td style="font-weight: 600;">${m.task}</td>
-                <td>${m.requester}</td>
-                <td>${m.assignee}</td>
-                <td style="font-size: 0.8rem; color: var(--text-dim);">${formatDisplayTime(m.assigned_at, state.currentLang)}</td>
-                <td style="font-size: 0.8rem; color: var(--accent-color);">${m.completed_at ? formatDisplayTime(m.completed_at, state.currentLang) : '-'}</td>
+        body.innerHTML = messages.map(m => {
+            const time = new Date(m.created_at).toLocaleString();
+            const completedAt = m.completed_at ? new Date(m.completed_at).toLocaleString() : '-';
+            const sourceIcon = this.getSourceIcon(m.source);
+            
+            return `
+                <tr>
+                    <td><input type="checkbox" class="archive-check" data-id="${m.id}"></td>
+                    <td>
+                        <div title="${m.source}" style="display: flex; justify-content: center;">
+                            ${sourceIcon || '<span class="badge">' + m.source + '</span>'}
+                        </div>
+                    </td>
+                    <td class="archive-room">${m.room}</td>
+                    <td class="archive-task">${m.task}</td>
+                    <td>${m.requester}</td>
+                    <td>${m.assignee}</td>
+                    <td style="font-size: 0.8rem; color: var(--text-dim);">${time}</td>
+                    <td style="font-size: 0.8rem; color: var(--text-dim);">${completedAt}</td>
+                </tr>
             `;
-            body.appendChild(tr);
-        });
+        }).join('');
     },
 
     renderAliasList(aliases, onRemove) {
