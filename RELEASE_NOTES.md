@@ -1,4 +1,15 @@
-# Release Notes - v1.4.0 (Latest)
+# Release Notes - v1.5.0 (Latest)
+
+## 🏗️ Structural Refactoring & Performance Optimization
+- **Code Modularization**: Refactored the monolithic `main.go` into specialized modules (`handlers.go`, `scanner.go`, `logger.go`, `types.go`) for vastly improved maintainability and readability.
+- **Gemini 3 Flash Preview**: Upgraded the AI engine to `gemini-3-flash-preview`, offering cutting-edge performance and responsiveness.
+- **Translation Caching**: Introduced a dedicated `task_translations` table in PostgreSQL to cache AI-generated translations, resulting in near-instant language switching for recurring tasks.
+- **Prompt Engineering**: Transitioned to `SystemInstruction` API for Gemini calls, optimizing token usage and ensuring more consistent and reliable task extraction.
+- **Configuration Management**: Created `GEMINI.md` to formally document and manage AI model preferences.
+
+---
+
+# Release Notes - v1.4.0 (Old)
 
 ## 🗄️ Archive Enhancements & Search Optimization
 - **Advanced Archive Search**: Implemented case-insensitive search across tasks, rooms, requesters, and original text using `ILIKE` for better historical data retrieval.

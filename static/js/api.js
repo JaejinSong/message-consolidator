@@ -1,8 +1,10 @@
 import { state } from './state.js';
 
 export const api = {
-    async fetchMessages() {
-        const resp = await fetch('/api/messages');
+    async fetchMessages(lang) {
+        const langMap = { 'ko': 'Korean', 'en': 'English', 'id': 'Indonesian', 'th': 'Thai' };
+        const langParam = langMap[lang] || 'Korean';
+        const resp = await fetch(`/api/messages?lang=${langParam}`);
         if (!resp.ok) throw new Error(`Fetch messages failed: ${resp.status}`);
         return await resp.json();
     },
@@ -70,9 +72,13 @@ export const api = {
 
     async fetchArchive(params = {}) {
         const query = new URLSearchParams();
+        const langMap = { 'ko': 'Korean', 'en': 'English', 'id': 'Indonesian', 'th': 'Thai' };
+        const langParam = langMap[params.lang] || 'Korean';
+        
         if (params.q) query.set('q', params.q);
         if (params.limit) query.set('limit', params.limit);
         if (params.offset) query.set('offset', params.offset);
+        query.set('lang', langParam);
         
         const resp = await fetch(`/api/messages/archive?${query.toString()}`);
         if (!resp.ok) throw new Error(`Fetch archive failed: ${resp.status}`);

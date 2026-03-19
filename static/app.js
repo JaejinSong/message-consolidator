@@ -25,7 +25,7 @@ const handlers = {
 // --- Core Logic ---
 const fetchMessages = async () => {
     try {
-        const data = await api.fetchMessages();
+        const data = await api.fetchMessages(state.currentLang);
         renderer.renderMessages(data, handlers);
         renderer.updateSlackStatus(data);
     } catch (e) { console.error(e); }
@@ -36,7 +36,8 @@ const fetchArchive = async () => {
         const params = {
             q: state.archiveSearch,
             limit: state.archiveLimit,
-            offset: (state.archivePage - 1) * state.archiveLimit
+            offset: (state.archivePage - 1) * state.archiveLimit,
+            lang: state.currentLang
         };
         const data = await api.fetchArchive(params);
         state.archiveTotalCount = data.total;

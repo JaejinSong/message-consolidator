@@ -10,40 +10,8 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type ConsolidatedMessage struct {
-	ID           int        `json:"id"`
-	UserEmail    string     `json:"user_email"`
-	Source       string     `json:"source"` // slack or whatsapp
-	Room         string     `json:"room"`
-	Task         string     `json:"task"`
-	Requester    string     `json:"requester"`
-	Assignee     string     `json:"assignee"`
-	AssignedAt   string     `json:"assigned_at"`
-	Link         string     `json:"link"`
-	SourceTS     string     `json:"source_ts"`
-	OriginalText string     `json:"original_text"`
-	Done         bool       `json:"done"`
-	IsDeleted    bool       `json:"is_deleted"`
-	CreatedAt    time.Time  `json:"created_at"`
-	CompletedAt  *time.Time `json:"completed_at"`
-}
+// Types moved to types.go
 
-type User struct {
-	ID        int       `json:"id"`
-	Email     string    `json:"email"`
-	Name      string    `json:"name"`
-	SlackID   string    `json:"slack_id"`
-	WAJID     string    `json:"wa_jid"`
-	Picture   string    `json:"picture"`
-	Aliases   []string  `json:"aliases"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-type UserAlias struct {
-	ID        int    `json:"id"`
-	UserID    int    `json:"user_id"`
-	AliasName string `json:"alias_name"`
-}
 
 var (
 	db               *sql.DB
@@ -113,6 +81,12 @@ func InitDB(connStr string) error {
 		is_deleted INTEGER DEFAULT 0,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		completed_at TIMESTAMP
+	);
+	CREATE TABLE IF NOT EXISTS task_translations (
+		message_id INTEGER REFERENCES messages(id) ON DELETE CASCADE,
+		language TEXT NOT NULL,
+		translated_text TEXT NOT NULL,
+		PRIMARY KEY (message_id, language)
 	);`
 
 	_, err = db.Exec(query)
@@ -730,4 +704,24 @@ func HasGmailToken(email string) bool {
 	_, ok := tokenCache[email]
 	metadataMu.RUnlock()
 	return ok
+}
+
+// Translation Caching Functions
+
+func GetTaskTranslation(messageID int, language string) (string, error) {
+	var translatedText string
+	err := db.QueryRow("SELECT translated_text FROM task_translations WHERE message_id = $1 AND language = $2", messageID, language).Scan(&translatedText)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return translatedText, err
+}
+
+func SaveTaskTranslation(messageID int, language, translatedText string) error {
+	_, err := db.Exec(`
+		INSERT INTO task_translations (message_id, language, translated_text)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (message_id, language) DO UPDATE SET translated_text = EXCLUDED.translated_text`,
+		messageID, language, translatedText)
+	return err
 }
