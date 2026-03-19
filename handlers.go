@@ -321,6 +321,7 @@ func TranslateMessagesByID(ctx context.Context, email string, ids []int, lang st
 		// We can get from DB directly to ensure we have the latest
 		m, err := store.GetMessageByID(id)
 		if err != nil {
+			logger.Warnf("[TRANSLATE] Failed to get message ID %d for %s: %v", id, email, err)
 			continue
 		}
 		toTranslate = append(toTranslate, store.TranslateRequest{
@@ -337,11 +338,13 @@ func TranslateMessagesByID(ctx context.Context, email string, ids []int, lang st
 	// 2. Call Gemini
 	gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 	if err != nil {
+		logger.Errorf("[TRANSLATE] Failed to init Gemini client: %v", err)
 		return 0, err
 	}
 
 	translations, err := gc.Translate(ctx, toTranslate, lang)
 	if err != nil {
+		logger.Errorf("[TRANSLATE] Gemini Translation Error for %s: %v", email, err)
 		return 0, err
 	}
 

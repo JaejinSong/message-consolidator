@@ -132,7 +132,7 @@ func scanSlack(user store.User, aliases []string) {
 		lastTS := store.GetLastScan(user.Email, "slack", channel.ID)
 		msgs, err := sc.GetMessages(channel.ID, time.Now().Add(-24*time.Hour), lastTS)
 		if err != nil {
-			logger.Debugf("[SCAN-SLACK] Failed to fetch messages for %s: %v", channel.Name, err)
+			logger.Warnf("[SCAN-SLACK] Failed to fetch messages for channel %s (user: %s): %v", channel.Name, user.Email, err)
 			continue
 		}
 
@@ -221,10 +221,12 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 
 			gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 			if err != nil {
+				logger.Errorf("[SCAN-WA] Failed to init Gemini client for %s: %v", email, err)
 				return
 			}
 			items, err := gc.Analyze(ctx, sb.String(), language, "whatsapp")
 			if err != nil {
+				logger.Errorf("[SCAN-WA] Gemini Analyze Error for %s: %v", email, err)
 				return
 			}
 

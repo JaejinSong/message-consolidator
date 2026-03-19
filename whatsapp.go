@@ -222,6 +222,7 @@ func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
 	// 먼저 연결 상태를 확인하고 필요하면 연결합니다.
 	if !client.IsConnected() {
 		if err := client.Connect(); err != nil {
+			logger.Errorf("[WA-QR] Failed to connect client for %s: %v", email, err)
 			return "", fmt.Errorf("failed to connect for %s: %v", email, err)
 		}
 	}
@@ -229,6 +230,7 @@ func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
 	// 확실히 연결이 보장된 후 QR 채널을 단 1번만 요청합니다.
 	qrChan, err := client.GetQRChannel(ctx)
 	if err != nil {
+		logger.Errorf("[WA-QR] Failed to get QR channel for %s: %v", email, err)
 		return "", fmt.Errorf("failed to get QR channel for %s: %v", email, err)
 	}
 
