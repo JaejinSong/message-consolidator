@@ -33,6 +33,18 @@ func applyTranslations(msgs []store.ConsolidatedMessage, lang string) {
 	}
 }
 
+// 공통 헬퍼: HTTP 요청에서 JSON 파싱 및 Body 안전하게 닫기 (메모리 누수 방지)
+func decodeJSON(r *http.Request, v interface{}) error {
+	defer r.Body.Close()
+	return json.NewDecoder(r.Body).Decode(v)
+}
+
+// 공통 헬퍼: HTTP 응답에 JSON 포맷으로 쓰기
+func respondJSON(w http.ResponseWriter, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(data)
+}
+
 func handleGetMessages(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	lang := r.URL.Query().Get("lang")
@@ -49,8 +61,7 @@ func handleGetMessages(w http.ResponseWriter, r *http.Request) {
 
 	applyTranslations(msgs, lang) // 통합된 함수 사용
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(msgs)
+	respondJSON(w, msgs)
 }
 
 func handleMarkDone(w http.ResponseWriter, r *http.Request) {
@@ -59,7 +70,7 @@ func handleMarkDone(w http.ResponseWriter, r *http.Request) {
 		ID   int  `json:"id"`
 		Done bool `json:"done"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -99,8 +110,7 @@ func handleGetArchived(w http.ResponseWriter, r *http.Request) {
 
 	applyTranslations(msgs, lang) // 통합된 함수 사용
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	respondJSON(w, map[string]interface{}{
 		"messages": msgs,
 		"total":    total,
 	})
@@ -116,8 +126,7 @@ func handleGetArchivedCount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]int{"total": total})
+	respondJSON(w, map[string]int{"total": total})
 }
 
 func handleExportExcel(w http.ResponseWriter, r *http.Request) {
@@ -224,7 +233,7 @@ func handleExportArchive(w http.ResponseWriter, r *http.Request) {
 func handleWhatsAppStatus(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	status := GetWhatsAppStatus(email)
-	json.NewEncoder(w).Encode(map[string]string{"status": status})
+	respondJSON(w, map[string]string{"status": status})
 }
 
 func handleManualScan(w http.ResponseWriter, r *http.Request) {
@@ -247,15 +256,14 @@ func handleWhatsAppQR(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"qr": qr})
+	respondJSON(w, map[string]string{"qr": qr})
 }
 
 func handleTranslate(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	lang := r.URL.Query().Get("lang")
 	if lang == "" {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "skipped", "reason": "empty language"})
+		respondJSON(w, map[string]string{"status": "skipped", "reason": "empty language"})
 		return
 	}
 
@@ -295,8 +303,7 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 		logger.Infof("[TRANSLATE] Successfully translated %d/%d messages to %s", count, len(toTranslateIDs), lang)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	respondJSON(w, map[string]string{
 		"status":           "success",
 		"translated_count": fmt.Sprintf("%d", len(toTranslateIDs)),
 	})
@@ -357,7 +364,7 @@ func handleDelete(w http.ResponseWriter, r *http.Request) {
 		ID  int   `json:"id"`
 		IDs []int `json:"ids"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -378,7 +385,7 @@ func handleHardDelete(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		IDs []int `json:"ids"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -393,7 +400,7 @@ func handleRestore(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		IDs []int `json:"ids"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -409,7 +416,7 @@ func handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		ID   int    `json:"id"`
 		Task string `json:"task"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -446,8 +453,7 @@ func handleUserInfo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	respondJSON(w, user)
 }
 
 func handleGetUserAliases(w http.ResponseWriter, r *http.Request) {
@@ -462,8 +468,7 @@ func handleGetUserAliases(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(aliases)
+	respondJSON(w, aliases)
 }
 
 func handleAddAlias(w http.ResponseWriter, r *http.Request) {
@@ -471,7 +476,7 @@ func handleAddAlias(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Alias string `json:"alias"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -492,7 +497,7 @@ func handleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Alias string `json:"alias"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -515,8 +520,7 @@ func handleGetTenantAliases(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(aliases)
+	respondJSON(w, aliases)
 }
 
 func handleAddTenantAlias(w http.ResponseWriter, r *http.Request) {
@@ -525,7 +529,7 @@ func handleAddTenantAlias(w http.ResponseWriter, r *http.Request) {
 		Original string `json:"original"`
 		Primary  string `json:"primary"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -541,7 +545,7 @@ func handleDeleteTenantAlias(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Original string `json:"original"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

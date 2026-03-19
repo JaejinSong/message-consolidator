@@ -43,11 +43,11 @@ func SetupOAuth() {
 		RedirectURL:  fmt.Sprintf("%s/auth/callback", cfg.AppBaseURL),
 		ClientID:     cfg.GoogleClientID,
 		ClientSecret: cfg.GoogleClientSecret,
-		Scopes:       []string{
+		Scopes: []string{
 			"https://www.googleapis.com/auth/userinfo.email",
 			"https://www.googleapis.com/auth/userinfo.profile",
 		},
-		Endpoint:     google.Endpoint,
+		Endpoint: google.Endpoint,
 	}
 }
 

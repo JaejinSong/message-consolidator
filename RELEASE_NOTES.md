@@ -1,4 +1,15 @@
-# Release Notes - v1.7.2 (Latest)
+# Release Notes - v1.7.3 (Latest)
+
+## ⚡ Architectural Refinement & Background Scanner Optimization
+- **Multithreaded Background Scanning**: Parallelized Gmail, Slack, and WhatsApp sources for every user, significantly reducing overall heartbeat duration.
+- **DRY API Handlers**: Unified handler logic with `decodeJSON`, `respondJSON`, and `applyTranslations` helpers, improving maintainability and ensuring proper resource cleanup.
+- **Gmail & Slack Modularization**: Extracted source-specific logic into modular helpers for clearer traceability and future extensibility.
+- **Anti-Resonance Scheduler**: Adjusted scanner interval to 59s to prevent execution alignment with other periodic system tasks.
+- **High-Performance Classification**: Optimized alias/mention detection logic with pre-calculated lowercasting and unified loops.
+
+---
+
+# Release Notes - v1.7.2 (Old)
 
 ## 🎨 UI Performance & Asset Optimization
 - **Static Asset Minification**: Integrated `tdewolff/minify` into the Docker build process and `Makefile`. All HTML, CSS, and JS files are now automatically minified during deployment, reducing payload size and improving load times.

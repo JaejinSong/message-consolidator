@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"message-consolidator/logger"
 	"message-consolidator/store"
 	"strconv"
 	"strings"
@@ -46,13 +47,13 @@ func (s *SlackClient) GetUserName(id string) string {
 
 func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS string) ([]store.RawChatMessage, error) {
 	var allMsgs []store.RawChatMessage
-	
+
 	// Determine the effective starting point
 	oldest := fmt.Sprintf("%d.%06d", since.Unix(), 0)
 	if lastTS != "" {
 		oldest = lastTS
 	}
-	
+
 	cursor := ""
 	for {
 		params := &slack.GetConversationHistoryParameters{
@@ -61,7 +62,7 @@ func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS stri
 			Cursor:    cursor,
 			Limit:     50, // Smaller batches for efficiency
 		}
-		
+
 		history, err := s.api.GetConversationHistory(params)
 		if err != nil {
 			return nil, err
@@ -71,26 +72,14 @@ func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS stri
 			if m.User == "" || m.Text == "" {
 				continue
 			}
-			
+
 			// Add main message
 			allMsgs = append(allMsgs, s.parseMessage(m))
 
 			// Add thread replies if any and if thread has NEW updates after our last scan
 			// Note: Slack's LatestReply is a timestamp string
 			if m.ReplyCount > 0 && (lastTS == "" || m.LatestReply > lastTS) {
-				replies, _, _, err := s.api.GetConversationReplies(&slack.GetConversationRepliesParameters{
-					ChannelID: channelID,
-					Timestamp: m.Timestamp,
-					Oldest:    oldest, // Only fetch new replies
-				})
-				if err == nil {
-					for _, r := range replies {
-						// Skip the parent as it's already added OR if it's older than lastTS
-						if r.Timestamp != m.Timestamp {
-							allMsgs = append(allMsgs, s.parseMessage(r))
-						}
-					}
-				}
+				allMsgs = append(allMsgs, s.fetchThreadReplies(channelID, m.Timestamp, oldest)...)
 			}
 		}
 
@@ -99,8 +88,31 @@ func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS stri
 		}
 		cursor = history.ResponseMetadata.Cursor
 	}
-	
+
 	return allMsgs, nil
+}
+
+// 별도로 분리된 스레드 답글 수집 헬퍼 함수
+func (s *SlackClient) fetchThreadReplies(channelID, threadTS, oldest string) []store.RawChatMessage {
+	var threadMsgs []store.RawChatMessage
+
+	replies, _, _, err := s.api.GetConversationReplies(&slack.GetConversationRepliesParameters{
+		ChannelID: channelID,
+		Timestamp: threadTS,
+		Oldest:    oldest, // Only fetch new replies
+	})
+	if err != nil {
+		logger.Debugf("[SCAN-SLACK] Failed to fetch replies for thread %s in channel %s: %v", threadTS, channelID, err)
+		return threadMsgs
+	}
+
+	for _, r := range replies {
+		// Skip the parent as it's already added in the main conversation history
+		if r.Timestamp != threadTS {
+			threadMsgs = append(threadMsgs, s.parseMessage(r))
+		}
+	}
+	return threadMsgs
 }
 
 func (s *SlackClient) parseMessage(m slack.Message) store.RawChatMessage {

@@ -79,71 +79,74 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 		return false
 	}
 
-	// Fetch messages depuis le last scan
-	lastTS := store.GetLastScan(email, "gmail", "inbox")
-	var since time.Time
-	if lastTS != "" {
-		sec, _ := strconv.ParseInt(lastTS, 10, 64)
-		since = time.Unix(sec, 0)
-	} else {
-		since = time.Now().Add(-7 * 24 * time.Hour)
-	}
-
+	since := getGmailScanTime(email)
 	query := fmt.Sprintf("in:inbox after:%d", since.Unix())
 
 	msgs, err := svc.Users.Messages.List("me").Q(query).MaxResults(50).Do()
-	if err != nil {
-		logger.Debugf("[SCAN-GMAIL] Failed to list messages for %s: %v", email, err)
+	if err != nil || len(msgs.Messages) == 0 {
+		if err != nil {
+			logger.Debugf("[SCAN-GMAIL] Failed to list messages for %s: %v", email, err)
+		}
 		return false
 	}
 
-	if len(msgs.Messages) == 0 {
+	sb, classificationMap := parseNewEmails(svc, msgs.Messages)
+	if sb.Len() == 0 {
 		return false
 	}
 
-	nowTS := fmt.Sprintf("%d", time.Now().Unix())
-	hasNew := false
+	hasNew := analyzeAndSaveEmails(ctx, email, language, sb.String(), classificationMap)
+	if hasNew {
+		store.UpdateLastScan(email, "gmail", "inbox", fmt.Sprintf("%d", time.Now().Unix()))
+	}
 
-	// Collect all email contents to send to Gemini at once for efficiency
+	return hasNew
+}
+
+func getGmailScanTime(email string) time.Time {
+	lastTS := store.GetLastScan(email, "gmail", "inbox")
+	if lastTS != "" {
+		sec, _ := strconv.ParseInt(lastTS, 10, 64)
+		return time.Unix(sec, 0)
+	}
+	return time.Now().Add(-7 * 24 * time.Hour)
+}
+
+func parseNewEmails(svc *gmail.Service, messages []*gmail.Message) (strings.Builder, map[string]string) {
 	var sb strings.Builder
-	classificationMap := make(map[string]string) // MsgID -> classification
+	classificationMap := make(map[string]string)
 
-	for _, m := range msgs.Messages {
+	for _, m := range messages {
 		fullMsg, err := svc.Users.Messages.Get("me", m.Id).Format("full").Do()
 		if err != nil {
 			continue
 		}
 
-		subject := ""
-		from := ""
-		to := ""
-		cc := ""
-		bcc := ""
-		body := ""
+		var subject, from, to, cc, bcc string
 		for _, h := range fullMsg.Payload.Headers {
-			if h.Name == "Subject" {
+			switch h.Name {
+			case "Subject":
 				subject = h.Value
-			}
-			if h.Name == "From" {
+			case "From":
 				from = h.Value
-			}
-			if h.Name == "To" {
+			case "To":
 				to = h.Value
-			}
-			if h.Name == "Cc" {
+			case "Cc":
 				cc = h.Value
-			}
-			if h.Name == "Bcc" {
+			case "Bcc":
 				bcc = h.Value
 			}
 		}
 
 		// Filter rules for jjsong@whatap.io
-		isDirect := strings.Contains(strings.ToLower(to), "jjsong@whatap.io")
-		isCc := strings.Contains(strings.ToLower(cc), "jjsong@whatap.io")
-		isBcc := strings.Contains(strings.ToLower(bcc), "jjsong@whatap.io")
+		toLower := strings.ToLower(to)
+		ccLower := strings.ToLower(cc)
+		bccLower := strings.ToLower(bcc)
 
-		// If not explicitly in To, Cc or Bcc, exclude it (covers group mail exclusion)
+		isDirect := strings.Contains(toLower, "jjsong@whatap.io")
+		isCc := strings.Contains(ccLower, "jjsong@whatap.io")
+		isBcc := strings.Contains(bccLower, "jjsong@whatap.io")
+
 		if !isDirect && !isCc && !isBcc {
 			continue
 		}
@@ -153,63 +156,56 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 			classification = "내 업무"
 		}
 
-		body = extractBody(fullMsg.Payload)
-
-		// Store classification for this message
 		classificationMap[m.Id] = classification
+		body := extractBody(fullMsg.Payload)
 		sb.WriteString(fmt.Sprintf("[TS:%s] From: %s, To: %s, Subject: %s\nContent: %s\n---\n", m.Id, from, to, subject, body))
 	}
 
-	if sb.Len() > 0 {
-		gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
-		if err != nil {
-			return false
-		}
+	return sb, classificationMap
+}
 
-		items, err := gc.Analyze(ctx, sb.String(), language, "gmail")
-		if err != nil {
-			logger.Debugf("[SCAN-GMAIL] Gemini Analyze Error: %v", err)
-			return false
-		}
-
-		for i, item := range items {
-			link := fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS)
-
-			// AI가 추출한 담당자를 우선적으로 사용
-			assignee := item.Assignee
-			if assignee == "" || assignee == "me" || assignee == "나" || assignee == "담당자" {
-				// AI 결과가 모호한 경우 기존 분류 로직 사용
-				if cls, ok := classificationMap[item.SourceTS]; ok {
-					assignee = cls
-				}
-			}
-
-			// Store individual tasks
-			uniqueSourceTS := fmt.Sprintf("gmail-%s-%d", item.SourceTS, i)
-
-			originalText := item.OriginalText
-
-			saved, _, _ := store.SaveMessage(store.ConsolidatedMessage{
-				UserEmail:    email,
-				Source:       "gmail",
-				Room:         "Gmail",
-				Task:         item.Task,
-				Requester:    item.Requester,
-				Assignee:     assignee,
-				AssignedAt:   time.Now().Format(time.RFC3339),
-				Link:         link,
-				SourceTS:     uniqueSourceTS,
-				OriginalText: originalText,
-			})
-			if saved {
-				hasNew = true
-			}
-		}
+func analyzeAndSaveEmails(ctx context.Context, email, language, conversationText string, classificationMap map[string]string) bool {
+	gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+	if err != nil {
+		logger.Errorf("[SCAN-GMAIL] Failed to init Gemini client: %v", err)
+		return false
 	}
 
-	// 새 메시지가 실제로 저장된 경우에만 scanTS 갱신 (DB Sleep 최적화)
-	if hasNew {
-		store.UpdateLastScan(email, "gmail", "inbox", nowTS)
+	items, err := gc.Analyze(ctx, conversationText, language, "gmail")
+	if err != nil {
+		logger.Debugf("[SCAN-GMAIL] Gemini Analyze Error: %v", err)
+		return false
+	}
+
+	hasNew := false
+	nowStr := time.Now().Format(time.RFC3339)
+
+	for i, item := range items {
+		link := fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS)
+
+		assignee := item.Assignee
+		if assignee == "" || assignee == "me" || assignee == "나" || assignee == "담당자" {
+			if cls, ok := classificationMap[item.SourceTS]; ok {
+				assignee = cls
+			}
+		}
+
+		uniqueSourceTS := fmt.Sprintf("gmail-%s-%d", item.SourceTS, i)
+		saved, _, _ := store.SaveMessage(store.ConsolidatedMessage{
+			UserEmail:    email,
+			Source:       "gmail",
+			Room:         "Gmail",
+			Task:         item.Task,
+			Requester:    item.Requester,
+			Assignee:     assignee,
+			AssignedAt:   nowStr,
+			Link:         link,
+			SourceTS:     uniqueSourceTS,
+			OriginalText: item.OriginalText,
+		})
+		if saved {
+			hasNew = true
+		}
 	}
 
 	return hasNew

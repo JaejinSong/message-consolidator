@@ -14,8 +14,8 @@ import (
 )
 
 func startBackgroundScanner() {
-	logger.Infof("Background scanner started (1m interval)...")
-	ticker := time.NewTicker(1 * time.Minute)
+	logger.Infof("Background scanner started (59s interval for anti-resonance)...")
+	ticker := time.NewTicker(59 * time.Second)
 	defer ticker.Stop()
 
 	// Run initial scan
@@ -44,28 +44,50 @@ func runAllScans() {
 		}(user, aliases)
 	}
 	wg.Wait()
+
+	// 글로벌 유지보수 작업 (사용자 루프 밖에서 1번만 실행)
+	if err := store.ArchiveOldTasks(); err != nil {
+		logger.Errorf("Scanner Error: Failed to archive old tasks: %v", err)
+	}
 }
 
 func scanAllSources(user store.User, aliases []string) {
 	logger.Debugf("[SCAN] Scanning for user: %s", user.Email)
 
-	// Gmail scan
+	var wg sync.WaitGroup
+
+	// 1. Gmail 스캔 (병렬 처리)
 	if store.HasGmailToken(user.Email) {
-		logger.Debugf("[SCAN] Starting Gmail scan for %s", user.Email)
-		ScanGmail(context.Background(), user.Email, "Korean") // Default to Korean for background scan
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			logger.Debugf("[SCAN] Starting Gmail scan for %s", user.Email)
+			ScanGmail(context.Background(), user.Email, "Korean")
+		}()
 	}
 
-	// Slack scan (currently shared, but can be filtered by aliases/user)
-	logger.Debugf("[SCAN] Starting Slack scan for %s", user.Email)
-	scanSlack(user, aliases)
+	// 2. Slack 스캔 (병렬 처리)
+	if cfg.SlackToken != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			logger.Debugf("[SCAN] Starting Slack scan for %s", user.Email)
+			scanSlack(user, aliases)
+		}()
+	}
+
+	// 3. WhatsApp 스캔 (병렬 처리 및 누락된 호출 복구)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		logger.Debugf("[SCAN] Starting WhatsApp scan for %s", user.Email)
+		scanWhatsApp(context.Background(), user, aliases, "Korean")
+	}()
+
+	wg.Wait() // 모든 채널의 스캔이 끝날 때까지 대기
 
 	// Persistence of scan metadata
 	store.PersistAllScanMetadata(user.Email)
-
-	// Archive old tasks
-	if err := store.ArchiveOldTasks(); err != nil {
-		logger.Errorf("[SCAN] Failed to archive old tasks for %s: %v", user.Email, err)
-	}
 }
 
 func scan(email string, lang string) {
