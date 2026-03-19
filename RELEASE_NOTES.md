@@ -1,4 +1,13 @@
-# Release Notes - v1.6.0 (Latest)
+# Release Notes - v1.6.1 (Latest)
+
+## 👤 Intelligent Assignee Detection
+- **Smart Assignee Extraction**: Upgraded the extraction logic to prioritize actual names or email recipients found within messages instead of generic "My Task" or "Other Task" labels.
+- **Improved Source Consistency**: This logic now applies across all supported channels (Gmail, Slack, and WhatsApp).
+- **Fallback Logic**: Maintained standard classification as a fallback if the AI cannot confidently identify a specific person, ensuring "My Tasks" filtering remains robust.
+
+---
+
+# Release Notes - v1.6.0 (Old)
 
 ## ⚡ Archive Performance & UX Optimization
 - **High-Speed Server-Side Sorting**: Implemented dynamic sorting for all Archive columns (Source, Room, Task, Requester, Assignee, Time, Completed At) directly in SQL for maximum efficiency.
