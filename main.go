@@ -85,7 +85,7 @@ func main() {
 	// Attach the router to the default http server
 	http.Handle("/", r)
 
-	infof("Startup Complete (Server starting on :8080...)")
+	infof("기동 완료 (Server starting on :8080...)")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatal(err)
 	}

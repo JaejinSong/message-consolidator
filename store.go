@@ -99,6 +99,25 @@ func InitDB(connStr string) error {
 	// Add is_deleted column if it doesn't exist
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_deleted INTEGER DEFAULT 0;")
 
+	// Migration: Clean up duplicates before assigning existing data to jjsong@whatap.io
+	// This prevents "duplicate key value violates unique constraint" when applying user_email
+	_, err = db.Exec(`
+		DELETE FROM messages 
+		WHERE id NOT IN (
+			SELECT MIN(id) 
+			FROM messages 
+			GROUP BY 
+				CASE 
+					WHEN user_email IS NULL OR user_email = '' THEN 'jjsong@whatap.io' 
+					ELSE user_email 
+				END, 
+				source_ts
+		);
+	`)
+	if err != nil {
+		warnf("Migration cleanup error: %v", err)
+	}
+
 	// Migration: Assign existing data to jjsong@whatap.io
 	_, err = db.Exec("UPDATE messages SET user_email = 'jjsong@whatap.io' WHERE user_email IS NULL OR user_email = '';")
 	if err != nil {

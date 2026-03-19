@@ -1,4 +1,14 @@
-# Release Notes - v1.6.4 (Latest)
+# Release Notes - v1.6.5 (Latest)
+
+## 🛠️ Infrastructure & Data Reliability
+- **Migration & Data Guard**: Fixed a critical "duplicate key value" error in the database migration process. Added a pre-migration cleanup step in `store.go` to ensure a smooth transition when assigning user emails to legacy data.
+- **Improved Performance with Gemini Flash Lite**: Updated the translation engine to `gemini-3.1-flash-lite-preview`, optimizing for faster response times and significantly reducing token costs while maintaining high-quality Korean translations.
+- **Enhanced VPS Monitoring Tools**: Introduced `vps-logs.sh` and `vps-log-file.sh` utility scripts. These tools allow developers to monitor application logs directly from the development environment, simplifying troubleshooting on the production VPS.
+- **Localized Startup Indicator**: Updated the service boot-up message to "기동 완료" to provide clearer confirmation of system readiness during deployment.
+
+---
+
+# Release Notes - v1.6.4 (Old)
 
 ## 👤 Sender-Aware Task Classification
 - **Self-Initiated Task Recognition**: Improved the classification logic to automatically categorize tasks as **"My Tasks"** if the sender is the user or one of their aliases.

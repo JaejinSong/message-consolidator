@@ -30,7 +30,7 @@ func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translat
 		analysisModel = "gemini-3-flash-preview"
 	}
 	if translationModel == "" {
-		translationModel = "gemini-3.1-flash-lite"
+		translationModel = "gemini-3.1-flash-lite-preview"
 	}
 	return &GeminiClient{
 		client:           client,
