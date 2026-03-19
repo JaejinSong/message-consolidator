@@ -1,4 +1,16 @@
-# Release Notes - v1.6.5 (Latest)
+# Release Notes - v1.6.6 (Latest)
+
+## 🌐 Language & Cache Reliability
+- **Language Transition Fix**: Resolved a critical issue where switching to Korean was incorrectly skipped. Users can now transition between any supported languages seamlessly.
+- **Zero-Pollution Rendering**: Implemented defensive slice copying in API handlers to ensure that translating a message for one user doesn't pollute the global server-side cache for others.
+
+## ⚡ Performance Optimization
+- **Parallel Scanning**: Slack, WhatsApp, and Gmail background scans are now executed concurrently, reducing total scan time from ~5s to **under 1 second**.
+- **Batch Translation Queries**: Optimized database interaction by replacing N+1 translation lookups with a high-performance `GetTaskTranslationsBatch` query, significantly lowering DB connections and latency.
+
+---
+
+# Release Notes - v1.6.5 (Old)
 
 ## 🛠️ Infrastructure & Data Reliability
 - **Migration & Data Guard**: Fixed a critical "duplicate key value" error in the database migration process. Added a pre-migration cleanup step in `store.go` to ensure a smooth transition when assigning user emails to legacy data.

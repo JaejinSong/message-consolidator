@@ -187,7 +187,7 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 
 			originalText := item.OriginalText
 
-			saved, _ := SaveMessage(ConsolidatedMessage{
+			saved, _, _ := SaveMessage(ConsolidatedMessage{
 				UserEmail:    email,
 				Source:       "gmail",
 				Room:         "Gmail",

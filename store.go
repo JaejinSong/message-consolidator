@@ -436,36 +436,39 @@ func EnsureCacheInitialized(email string) error {
 	return nil
 }
 
-func SaveMessage(msg ConsolidatedMessage) (bool, error) {
+func SaveMessage(msg ConsolidatedMessage) (bool, int, error) {
 	cacheMu.RLock()
 	if userKnown, ok := knownTS[msg.UserEmail]; ok && userKnown[msg.SourceTS] {
 		cacheMu.RUnlock()
-		return false, nil
+		// Try to find the existing ID if needed, but for now we just skip
+		return false, 0, nil
 	}
 	cacheMu.RUnlock()
 
+	var lastID int
 	query := `INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text) 
 			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-			  ON CONFLICT(user_email, source_ts) DO NOTHING;`
-	res, err := db.Exec(query, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText)
+			  ON CONFLICT(user_email, source_ts) DO NOTHING
+			  RETURNING id;`
+	err := db.QueryRow(query, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText).Scan(&lastID)
+	
 	if err != nil {
-		errorf("SaveMessage Error: %v", err)
-		return false, err
-	}
-
-	rows, _ := res.RowsAffected()
-	saved := rows > 0
-
-	if saved {
-		cacheMu.Lock()
-		if _, ok := knownTS[msg.UserEmail]; !ok {
-			knownTS[msg.UserEmail] = make(map[string]bool)
+		if err == sql.ErrNoRows {
+			// Conflict happened, row was not inserted
+			return false, 0, nil
 		}
-		knownTS[msg.UserEmail][msg.SourceTS] = true
-		cacheMu.Unlock()
+		errorf("SaveMessage Error: %v", err)
+		return false, 0, err
 	}
 
-	return saved, nil
+	cacheMu.Lock()
+	if _, ok := knownTS[msg.UserEmail]; !ok {
+		knownTS[msg.UserEmail] = make(map[string]bool)
+	}
+	knownTS[msg.UserEmail][msg.SourceTS] = true
+	cacheMu.Unlock()
+
+	return true, lastID, nil
 }
 
 func GetMessages(email string) ([]ConsolidatedMessage, error) {
@@ -757,6 +760,39 @@ func GetTaskTranslation(messageID int, language string) (string, error) {
 		return "", nil
 	}
 	return translatedText, err
+}
+
+func GetTaskTranslationsBatch(messageIDs []int, language string) (map[int]string, error) {
+	if len(messageIDs) == 0 {
+		return make(map[int]string), nil
+	}
+
+	// Prepare placeholder ($1, $2, ...)
+	placeholders := make([]string, len(messageIDs))
+	args := make([]interface{}, len(messageIDs)+1)
+	args[0] = language
+	for i, id := range messageIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args[i+1] = id
+	}
+
+	query := fmt.Sprintf("SELECT message_id, translated_text FROM task_translations WHERE language = $1 AND message_id IN (%s)", strings.Join(placeholders, ","))
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	results := make(map[int]string)
+	for rows.Next() {
+		var id int
+		var text string
+		if err := rows.Scan(&id, &text); err != nil {
+			continue
+		}
+		results[id] = text
+	}
+	return results, nil
 }
 
 func SaveTaskTranslation(messageID int, language, translatedText string) error {

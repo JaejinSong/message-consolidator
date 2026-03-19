@@ -73,22 +73,28 @@ Emails:
 		userPrompt = conversationText
 	}
 
+	infof("[GEMINI] Analyzing conversation (%s) in %s...", source, language)
 	resp, err := model.GenerateContent(ctx, genai.Text(userPrompt))
 	if err != nil {
+		errorf("[GEMINI] Analysis failed: %v", err)
 		return nil, err
 	}
 
 	var rawJSON string
 	for _, part := range resp.Candidates[0].Content.Parts {
-		if text, ok := part.(genai.Text); ok {
-			rawJSON += string(text)
+		if text, ok := part.(genai.Part); ok {
+			if t, ok := text.(genai.Text); ok {
+				rawJSON += string(t)
+			}
 		}
 	}
 
 	var items []TodoItem
 	if err := json.Unmarshal([]byte(rawJSON), &items); err != nil {
+		errorf("[GEMINI] JSON unmarshal failed: %v, RAW: %s", err, rawJSON)
 		return nil, err
 	}
+	infof("[GEMINI] Successfully extracted %d tasks", len(items))
 	return items, nil
 }
 
@@ -113,9 +119,11 @@ Output JSON: { "translations": [ { "id": number, "text": "translated or summariz
 3. Output "text" MUST be strictly in %s.`, language, language))},
 	}
 
+	debugf("[GEMINI] Translating %d tasks to %s...", len(tasks), language)
 	tasksJSON, _ := json.Marshal(tasks)
 	resp, err := model.GenerateContent(ctx, genai.Text(string(tasksJSON)))
 	if err != nil {
+		errorf("[GEMINI] Translation failed: %v", err)
 		return nil, err
 	}
 
@@ -128,7 +136,9 @@ Output JSON: { "translations": [ { "id": number, "text": "translated or summariz
 
 	var tr TranslateResponse
 	if err := json.Unmarshal([]byte(rawJSON), &tr); err != nil {
+		errorf("[GEMINI] Translation JSON unmarshal failed: %v, RAW: %s", err, rawJSON)
 		return nil, err
 	}
+	debugf("[GEMINI] Successfully translated %d items to %s", len(tr.Translations), language)
 	return tr.Translations, nil
 }
