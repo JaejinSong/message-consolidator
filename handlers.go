@@ -246,6 +246,12 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Also fetch recent archived messages for translation
+	archived, _, err := GetArchivedMessagesFiltered(email, 200, 0, "", "", "")
+	if err == nil {
+		msgs = append(msgs, archived...)
+	}
+
 	var toTranslate []TranslateRequest
 	for _, m := range msgs {
 		cached, _ := GetTaskTranslation(m.ID, lang)
@@ -259,7 +265,7 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(toTranslate) > 0 {
-		gc, err := NewGeminiClient(r.Context(), cfg.GeminiAPIKey)
+		gc, err := NewGeminiClient(r.Context(), cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

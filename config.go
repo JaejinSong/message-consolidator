@@ -15,7 +15,9 @@ type Config struct {
 	AuthDisabled       bool
 	AppBaseURL         string
 	NeonDBURL          string
-	LogLevel           string
+	GeminiAnalysisModel    string
+	GeminiTranslationModel string
+	LogLevel               string
 }
 
 func LoadConfig() *Config {
@@ -30,15 +32,27 @@ func LoadConfig() *Config {
 		logLevel = "INFO"
 	}
 
+	geminiAnalysisModel := os.Getenv("GEMINI_ANALYSIS_MODEL")
+	if geminiAnalysisModel == "" {
+		geminiAnalysisModel = "gemini-3-flash-preview"
+	}
+
+	geminiTranslationModel := os.Getenv("GEMINI_TRANSLATION_MODEL")
+	if geminiTranslationModel == "" {
+		geminiTranslationModel = "gemini-3.1-flash-lite"
+	}
+
 	return &Config{
-		SlackToken:         os.Getenv("SLACK_TOKEN"),
-		GeminiAPIKey:       os.Getenv("GEMINI_API_KEY"),
-		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		AuthSecret:         os.Getenv("AUTH_SECRET"),
-		AuthDisabled:       os.Getenv("AUTH_DISABLED") == "true",
-		AppBaseURL:         os.Getenv("APP_BASE_URL"),
-		NeonDBURL:          os.Getenv("DATABASE_URL"),
-		LogLevel:           logLevel,
+		SlackToken:             os.Getenv("SLACK_TOKEN"),
+		GeminiAPIKey:           os.Getenv("GEMINI_API_KEY"),
+		GoogleClientID:         os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret:     os.Getenv("GOOGLE_CLIENT_SECRET"),
+		AuthSecret:             os.Getenv("AUTH_SECRET"),
+		AuthDisabled:           os.Getenv("AUTH_DISABLED") == "true",
+		AppBaseURL:             os.Getenv("APP_BASE_URL"),
+		NeonDBURL:              os.Getenv("DATABASE_URL"),
+		LogLevel:               logLevel,
+		GeminiAnalysisModel:    geminiAnalysisModel,
+		GeminiTranslationModel: geminiTranslationModel,
 	}
 }

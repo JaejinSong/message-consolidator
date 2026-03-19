@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -47,7 +46,14 @@ func InitWhatsApp(email string) {
 			}
 		}
 		dbLog := waLog.Stdout("Database", logLevel, true)
-		waContainer, err = sqlstore.New(context.Background(), "postgres", os.Getenv("DATABASE_URL"), dbLog)
+		dbURL := cfg.NeonDBURL
+		if dbURL == "" {
+			debugf("[WA-INIT] NeonDB URL is empty in config")
+			// This return is from the anonymous function, not InitWhatsApp.
+			// The error will be handled by the check below.
+			return
+		}
+		waContainer, err = sqlstore.New(context.Background(), "postgres", dbURL, dbLog)
 	})
 
 	if err != nil || waContainer == nil {
@@ -235,23 +241,6 @@ func GetWhatsAppStatus(email string) string {
 		return "CONNECTED"
 	}
 	return "DISCONNECTED"
-}
-
-func GetWhatsAppMessages(email string) map[types.JID][]RawChatMessage {
-	waBufferMu.Lock()
-	defer waBufferMu.Unlock()
-
-	msgs, ok := waMessageBuffer[email]
-	if !ok {
-		return nil
-	}
-
-	result := make(map[types.JID][]RawChatMessage)
-	for k, v := range msgs {
-		result[k] = v
-	}
-	waMessageBuffer[email] = make(map[types.JID][]RawChatMessage)
-	return result
 }
 
 func GetGroupName(email string, jid types.JID) string {

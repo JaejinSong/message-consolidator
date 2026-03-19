@@ -164,6 +164,9 @@ const initApp = () => {
             try {
                 await api.translateTasks(lang);
                 await fetchMessages();
+                if (!document.getElementById('archiveSection').classList.contains('hidden')) {
+                    fetchArchive();
+                }
             } finally {
                 loading.classList.add('hidden');
             }
