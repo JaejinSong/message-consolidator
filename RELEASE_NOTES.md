@@ -4,6 +4,7 @@
 - **Static Asset Minification**: Integrated `tdewolff/minify` into the Docker build process and `Makefile`. All HTML, CSS, and JS files are now automatically minified during deployment, reducing payload size and improving load times.
 - **Rendering Overhead Reduction**: Optimized `style.css` by reducing heavy visual effects like extreme background blurs and deep shadows, resulting in smoother scrolling and lower CPU/GPU usage on the client side.
 - **Improved Modal Responsiveness**: Refined modal backdrop and content animations for a snappier user experience.
+- **Build Speed Optimization**: Refactored `Dockerfile` with optimized layering. Introduced separate copying for static assets to leverage Docker's build cache, skipping minification if static files are unchanged.
 
 ---
 
