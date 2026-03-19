@@ -269,8 +269,11 @@ func handleExportExcel(w http.ResponseWriter, r *http.Request) {
 		f.SetCellValue(sheet, fmt.Sprintf("I%d", row), compAt)
 	}
 
+	timestamp := time.Now().Format("20060102_150405")
+	filename := fmt.Sprintf("Message_Archive_%s.xlsx", timestamp)
+
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", "attachment; filename=tasks_archive.xlsx")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 
 	if err := f.Write(w); err != nil {
 		errorf("Failed to write excel: %v", err)
@@ -288,8 +291,14 @@ func handleExportArchive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", "attachment;filename=tasks_archive.csv")
+	timestamp := time.Now().Format("20060102_150405")
+	filename := fmt.Sprintf("Message_Archive_%s.csv", timestamp)
+
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+
+	// Write UTF-8 BOM for Excel compatibility
+	w.Write([]byte("\xEF\xBB\xBF"))
 
 	writer := csv.NewWriter(w)
 	defer writer.Flush()
