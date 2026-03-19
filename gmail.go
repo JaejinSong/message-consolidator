@@ -90,12 +90,12 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 		return false
 	}
 
-	sb, classificationMap := parseNewEmails(svc, msgs.Messages)
-	if sb.Len() == 0 {
+	rawMsgs, classificationMap := parseNewEmails(svc, msgs.Messages)
+	if len(rawMsgs) == 0 {
 		return false
 	}
 
-	hasNew := analyzeAndSaveEmails(ctx, email, language, sb.String(), classificationMap)
+	hasNew := analyzeAndSaveEmails(ctx, email, language, rawMsgs, classificationMap)
 	if hasNew {
 		store.UpdateLastScan(email, "gmail", "inbox", fmt.Sprintf("%d", time.Now().Unix()))
 	}
@@ -112,8 +112,8 @@ func getGmailScanTime(email string) time.Time {
 	return time.Now().Add(-7 * 24 * time.Hour)
 }
 
-func parseNewEmails(svc *gmail.Service, messages []*gmail.Message) (strings.Builder, map[string]string) {
-	var sb strings.Builder
+func parseNewEmails(svc *gmail.Service, messages []*gmail.Message) ([]RawMessage, map[string]string) {
+	var rawMsgs []RawMessage
 	classificationMap := make(map[string]string)
 
 	for _, m := range messages {
@@ -158,27 +158,40 @@ func parseNewEmails(svc *gmail.Service, messages []*gmail.Message) (strings.Buil
 
 		classificationMap[m.Id] = classification
 		body := extractBody(fullMsg.Payload)
-		sb.WriteString(fmt.Sprintf("[TS:%s] From: %s, To: %s, Subject: %s\nContent: %s\n---\n", m.Id, from, to, subject, body))
+
+		rawMsgs = append(rawMsgs, RawMessage{
+			ID:        m.Id,
+			Sender:    from,
+			Text:      fmt.Sprintf("To: %s, Subject: %s\nContent: %s", to, subject, body),
+			Timestamp: time.Unix(fullMsg.InternalDate/1000, 0), // 이메일 실제 수신 시간
+		})
 	}
 
-	return sb, classificationMap
+	return rawMsgs, classificationMap
 }
 
-func analyzeAndSaveEmails(ctx context.Context, email, language, conversationText string, classificationMap map[string]string) bool {
+func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []RawMessage, classificationMap map[string]string) bool {
+	var sb strings.Builder
+	msgMap := make(map[string]RawMessage)
+
+	for _, m := range rawMsgs {
+		msgMap[m.ID] = m
+		sb.WriteString(fmt.Sprintf("[TS:%s] From: %s, %s\n---\n", m.ID, m.Sender, m.Text))
+	}
+
 	gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 	if err != nil {
 		logger.Errorf("[SCAN-GMAIL] Failed to init Gemini client: %v", err)
 		return false
 	}
 
-	items, err := gc.Analyze(ctx, conversationText, language, "gmail")
+	items, err := gc.Analyze(ctx, sb.String(), language, "gmail")
 	if err != nil {
 		logger.Debugf("[SCAN-GMAIL] Gemini Analyze Error: %v", err)
 		return false
 	}
 
 	hasNew := false
-	nowStr := time.Now().Format(time.RFC3339)
 
 	for i, item := range items {
 		link := fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS)
@@ -190,6 +203,11 @@ func analyzeAndSaveEmails(ctx context.Context, email, language, conversationText
 			}
 		}
 
+		assignedAt := time.Now().Format(time.RFC3339)
+		if m, ok := msgMap[item.SourceTS]; ok {
+			assignedAt = m.Timestamp.Format(time.RFC3339) // DB 저장 시 실제 이메일 수신 시간 기록
+		}
+
 		uniqueSourceTS := fmt.Sprintf("gmail-%s-%d", item.SourceTS, i)
 		saved, _, _ := store.SaveMessage(store.ConsolidatedMessage{
 			UserEmail:    email,
@@ -198,7 +216,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language, conversationText
 			Task:         item.Task,
 			Requester:    item.Requester,
 			Assignee:     assignee,
-			AssignedAt:   nowStr,
+			AssignedAt:   assignedAt,
 			Link:         link,
 			SourceTS:     uniqueSourceTS,
 			OriginalText: item.OriginalText,
