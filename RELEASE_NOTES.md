@@ -1,4 +1,12 @@
-# Release Notes - v1.6.1 (Latest)
+# Release Notes - v1.6.2 (Latest)
+
+## 🪵 Service Startup Indicator
+- **Startup Complete Log**: Added a specific "Startup Complete" log message in English to confirm when the database connection, metadata caching, and background workers are fully initialized.
+- **Enhanced Deployment Verification**: Updated the VPS deployment workflow (`deploy.md`) to include proactive verification of the "Startup Complete" log, ensuring the service is operational after each update.
+
+---
+
+# Release Notes - v1.6.1 (Old)
 
 ## 👤 Intelligent Assignee Detection
 - **Smart Assignee Extraction**: Upgraded the extraction logic to prioritize actual names or email recipients found within messages instead of generic "My Task" or "Other Task" labels.
