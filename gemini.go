@@ -53,7 +53,7 @@ func (g *GeminiClient) Analyze(ctx context.Context, conversationText string, lan
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(fmt.Sprintf(`Extract tasks as a JSON array: [{"task", "requester", "assignee", "assigned_at", "source_ts", "original_text"}]
 1. "task": Concise task description in %s.
-2. "requester", "assignee": Extract accurately from text. Use names/IDs as they appear.
+2. "requester", "assignee": Extract accurately from the text.
 3. "original_text": The literal original text of the message (single-line, no modification).
 4. "source_ts": Find via [TS:timestamp].`, language))},
 	}
