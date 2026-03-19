@@ -487,7 +487,7 @@ func GetArchivedMessages(email string) ([]ConsolidatedMessage, error) {
 	return []ConsolidatedMessage{}, nil
 }
 
-func GetArchivedMessagesFiltered(email string, limit, offset int, search string) ([]ConsolidatedMessage, int, error) {
+func GetArchivedMessagesFiltered(email string, limit, offset int, search string, sortField, sortOrder string) ([]ConsolidatedMessage, int, error) {
 	searchQuery := ""
 	args := []interface{}{email}
 	argIdx := 2
@@ -523,13 +523,36 @@ func GetArchivedMessagesFiltered(email string, limit, offset int, search string)
 		limit = 100
 	}
 	
+	// Default sorting
+	orderBy := "CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC"
+	whitelist := map[string]string{
+		"source":       "source",
+		"room":         "room",
+		"task":         "task",
+		"requester":    "requester",
+		"assignee":     "assignee",
+		"created_at":   "created_at",
+		"completed_at": "completed_at",
+		"time":         "created_at",
+	}
+
+	if sortField != "" {
+		if dbField, ok := whitelist[sortField]; ok {
+			order := "ASC"
+			if strings.ToUpper(sortOrder) == "DESC" {
+				order = "DESC"
+			}
+			orderBy = fmt.Sprintf("%s %s", dbField, order)
+		}
+	}
+
 	dataQuery := fmt.Sprintf(`
 		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at 
 		FROM messages 
 		WHERE user_email = $1 AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '6 days'))
 		%s
-		ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
-		LIMIT $%d OFFSET $%d`, searchQuery, argIdx, argIdx+1)
+		ORDER BY %s
+		LIMIT $%d OFFSET $%d`, searchQuery, orderBy, argIdx, argIdx+1)
 	
 	args = append(args, limit, offset)
 	

@@ -133,7 +133,10 @@
             </div>
 
             <!-- Archive View (Hidden by default) -->
-            <section id="archiveSection" class="hidden glass-card" style="margin-top: 2rem; padding: 2rem;">
+            <section id="archiveSection" class="hidden glass-card" style="margin-top: 2rem; padding: 2rem; position: relative;">
+                <div id="archiveLoading" class="loading-overlay">
+                    <div class="spinner-small"></div>
+                </div>
                 <div class="archive-header">
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <button type="button" id="backToDashBtn" class="action-btn" title="Back to Dashboard" style="width: 40px; height: 40px;">
