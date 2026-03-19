@@ -4,7 +4,9 @@
 - **Advanced Archive Search**: Implemented case-insensitive search across tasks, rooms, requesters, and original text using `ILIKE` for better historical data retrieval.
 - **Efficient Pagination**: Added server-side pagination (limit/offset) to the Archive view, ensuring snappy performance even with thousands of archived messages.
 - **Excel (.xlsx) Export**: Integrated `excelize/v2` to support high-quality Excel exports, solving potential encoding issues with CSV and providing better formatting.
+- **Robust Multi-Browser Download**: Resolved a critical issue where Chrome would rename downloads to a UUID. Implemented a `Blob` based download strategy with `Access-Control-Expose-Headers` and `inline` disposition for maximum reliability across browsers.
 - **Export Summary Modal**: Added a confirmation modal before exporting, showing the total count of items to be processed based on current filters.
+- **CSV Improvements**: Added UTF-8 BOM to CSV exports to ensure perfect compatibility with Korean characters in Microsoft Excel.
 - **DB Search Performance**: Optimized the PostgreSQL backend by enabling the `pg_trgm` extension and creating GIN trigram indexes on key searchable fields.
 
 ---
