@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"message-consolidator/logger"
+	"message-consolidator/store"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -12,21 +14,22 @@ var cfg *Config
 // Constants and logging functions moved to logger.go
 
 func main() {
-	initLogging()
+	logger.InitLogging()
 	cfg = LoadConfig()
+	logger.SetLevel(cfg.LogLevel)
 
 	// Initialize DB
-	if err := InitDB(cfg.NeonDBURL); err != nil {
+	if err := store.InitDB(cfg.NeonDBURL); err != nil {
 		log.Fatalf("DB Init failed: %v", err)
 	}
 
 	// Load Metadata into Memory Cache
-	if err := LoadMetadata(); err != nil {
-		warnf("Failed to load metadata cache: %v", err)
+	if err := store.LoadMetadata(); err != nil {
+		logger.Warnf("Failed to load metadata cache: %v", err)
 	}
 
 	// Initialize WhatsApp for all existing users
-	users, _ := GetAllUsers()
+	users, _ := store.GetAllUsers()
 	for _, u := range users {
 		go InitWhatsApp(u.Email)
 	}
@@ -76,6 +79,9 @@ func main() {
 	r.Handle("/api/user/aliases", AuthMiddleware(http.HandlerFunc(handleGetUserAliases))).Methods("GET")
 	r.Handle("/api/user/alias/add", AuthMiddleware(http.HandlerFunc(handleAddAlias))).Methods("POST")
 	r.Handle("/api/user/alias/delete", AuthMiddleware(http.HandlerFunc(handleDeleteAlias))).Methods("POST")
+	r.Handle("/api/tenant/aliases", AuthMiddleware(http.HandlerFunc(handleGetTenantAliases))).Methods("GET")
+	r.Handle("/api/tenant/alias/add", AuthMiddleware(http.HandlerFunc(handleAddTenantAlias))).Methods("POST")
+	r.Handle("/api/tenant/alias/delete", AuthMiddleware(http.HandlerFunc(handleDeleteTenantAlias))).Methods("POST")
 
 	// Gmail OAuth Endpoints
 	r.Handle("/auth/gmail/connect", AuthMiddleware(http.HandlerFunc(handleGmailConnect))).Methods("GET")
@@ -85,7 +91,7 @@ func main() {
 	// Attach the router to the default http server
 	http.Handle("/", r)
 
-	infof("기동 완료 (Server starting on :8080...)")
+	logger.Infof("기동 완료 (Server starting on :8080...)")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatal(err)
 	}

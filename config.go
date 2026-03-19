@@ -1,6 +1,7 @@
 package main
 
 import (
+	"message-consolidator/logger"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -24,7 +25,7 @@ func LoadConfig() *Config {
 	// .env 파일 로드 (파일이 없어도 환경 변수가 설정되어 있을 수 있으므로 에러 무시 가능)
 	err := godotenv.Load()
 	if err != nil {
-		infof("No .env file found, using system environment variables")
+		logger.Infof("No .env file found, using system environment variables")
 	}
 
 	logLevel := os.Getenv("LOG_LEVEL")

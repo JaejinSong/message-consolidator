@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"message-consolidator/logger"
+	"message-consolidator/store"
 	"net/http"
 	"strconv"
 	"strings"
@@ -39,14 +41,14 @@ func ExchangeGmailCode(ctx context.Context, code string) (*oauth2.Token, error) 
 }
 
 func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) {
-	tokenJSON, err := GetGmailToken(email)
+	tokenJSON, err := store.GetGmailToken(email)
 	if err != nil {
 		return nil, fmt.Errorf("no gmail token for %s: %w", email, err)
 	}
 
 	var token oauth2.Token
 	if err := json.Unmarshal([]byte(tokenJSON), &token); err != nil {
-		return nil, fmt.Errorf("failed to parse gmail token: %w", err)
+		return nil, fmt.Errorf("failed to parse gmail token: %w", email, err)
 	}
 
 	tokenSource := gmailOauthConfig.TokenSource(ctx, &token)
@@ -58,7 +60,7 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 	}
 	if newToken.AccessToken != token.AccessToken {
 		newTokenJSON, _ := json.Marshal(newToken)
-		_ = SaveGmailToken(email, string(newTokenJSON))
+		_ = store.SaveGmailToken(email, string(newTokenJSON))
 	}
 
 	svc, err := gmail.NewService(ctx, option.WithTokenSource(tokenSource))
@@ -69,16 +71,16 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 }
 
 func ScanGmail(ctx context.Context, email string, language string) bool {
-	debugf("[SCAN-GMAIL] Starting Gmail scan for %s", email)
+	logger.Debugf("[SCAN-GMAIL] Starting Gmail scan for %s", email)
 
 	svc, err := GetGmailService(ctx, email)
 	if err != nil {
-		debugf("[SCAN-GMAIL] Skipping %s (no token or service error): %v", email, err)
+		logger.Debugf("[SCAN-GMAIL] Skipping %s (no token or service error): %v", email, err)
 		return false
 	}
 
 	// Fetch messages depuis le last scan
-	lastTS := GetLastScan(email, "gmail", "inbox")
+	lastTS := store.GetLastScan(email, "gmail", "inbox")
 	var since time.Time
 	if lastTS != "" {
 		sec, _ := strconv.ParseInt(lastTS, 10, 64)
@@ -91,7 +93,7 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 
 	msgs, err := svc.Users.Messages.List("me").Q(query).MaxResults(50).Do()
 	if err != nil {
-		debugf("[SCAN-GMAIL] Failed to list messages for %s: %v", email, err)
+		logger.Debugf("[SCAN-GMAIL] Failed to list messages for %s: %v", email, err)
 		return false
 	}
 
@@ -166,7 +168,7 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 
 		items, err := gc.Analyze(ctx, sb.String(), language, "gmail")
 		if err != nil {
-			debugf("[SCAN-GMAIL] Gemini Analyze Error: %v", err)
+			logger.Debugf("[SCAN-GMAIL] Gemini Analyze Error: %v", err)
 			return false
 		}
 
@@ -187,7 +189,7 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 
 			originalText := item.OriginalText
 
-			saved, _, _ := SaveMessage(ConsolidatedMessage{
+			saved, _, _ := store.SaveMessage(store.ConsolidatedMessage{
 				UserEmail:    email,
 				Source:       "gmail",
 				Room:         "Gmail",
@@ -207,7 +209,7 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 
 	// 새 메시지가 실제로 저장된 경우에만 scanTS 갱신 (DB Sleep 최적화)
 	if hasNew {
-		UpdateLastScan(email, "gmail", "inbox", nowTS)
+		store.UpdateLastScan(email, "gmail", "inbox", nowTS)
 	}
 
 	return hasNew
@@ -264,7 +266,7 @@ func handleGmailCallback(w http.ResponseWriter, r *http.Request) {
 
 	token, err := ExchangeGmailCode(ctx, code)
 	if err != nil {
-		debugf("[GMAIL-CALLBACK] Token exchange failed for %s: %v", email, err)
+		logger.Debugf("[GMAIL-CALLBACK] Token exchange failed for %s: %v", email, err)
 		http.Error(w, "Token exchange failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -275,19 +277,19 @@ func handleGmailCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := SaveGmailToken(email, string(tokenJSON)); err != nil {
-		debugf("[GMAIL-CALLBACK] Failed to save token for %s: %v", email, err)
+	if err := store.SaveGmailToken(email, string(tokenJSON)); err != nil {
+		logger.Debugf("[GMAIL-CALLBACK] Failed to save token for %s: %v", email, err)
 		http.Error(w, "Failed to save token", http.StatusInternalServerError)
 		return
 	}
 
-	infof("[GMAIL-CALLBACK] Gmail connected for %s", email)
+	logger.Infof("[GMAIL-CALLBACK] Gmail connected for %s", email)
 	http.Redirect(w, r, "/?gmail=connected", http.StatusTemporaryRedirect)
 }
 
 func handleGmailStatus(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
-	connected := HasGmailToken(email)
+	connected := store.HasGmailToken(email)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"connected": connected})
 }

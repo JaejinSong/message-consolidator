@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"message-consolidator/logger"
+	"message-consolidator/store"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
 )
-
-// Types moved to types.go
 
 
 type GeminiClient struct {
@@ -39,7 +39,7 @@ func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translat
 	}, nil
 }
 
-func (g *GeminiClient) Analyze(ctx context.Context, conversationText string, language string, source string) ([]TodoItem, error) {
+func (g *GeminiClient) Analyze(ctx context.Context, conversationText string, language string, source string) ([]store.TodoItem, error) {
 	if g == nil || g.client == nil {
 		return nil, fmt.Errorf("Gemini client is not initialized")
 	}
@@ -51,13 +51,12 @@ func (g *GeminiClient) Analyze(ctx context.Context, conversationText string, lan
 	model := g.client.GenerativeModel(g.analysisModel) // Use Analysis Model
 	model.ResponseMIMEType = "application/json"
 	model.SystemInstruction = &genai.Content{
-		Parts: []genai.Part{genai.Text(fmt.Sprintf(`You are a task extraction expert.
-Analyze the provided content and extract actual actionable tasks or requests.
-Return a JSON array of objects with fields: "task", "requester", "assignee", "assigned_at", "source_ts", "original_text".
-"task" MUST be in %s.
-"requester" and "assignee" MUST be kept EXACTLY as they appear in the original text.
-"original_text" MUST be a concise one-line summary of the original message in %s.
-Use the [TS:timestamp] tag to find "source_ts".`, language, language))},
+		Parts: []genai.Part{genai.Text(fmt.Sprintf(`Extract tasks as a JSON array: [{"task", "requester", "assignee", "assigned_at", "source_ts", "original_text"}]
+1. "task": Concise task description in %s. CRITICAL: EXCLUDE all person names/nicks. Use pronouns or roles (e.g., "The requester", "The developer") if needed.
+2. "requester", "assignee": Extract accurately from text. Names/IDs are okay here.
+3. "original_text": The literal original text of the message. Do NOT summarize, but MASK person names with [NAME] for privacy.
+4. "source_ts": Find via [TS:timestamp].
+Task context must be clear without person names in the "task" field.`, language))},
 	}
 
 	var userPrompt string
@@ -73,10 +72,10 @@ Emails:
 		userPrompt = conversationText
 	}
 
-	infof("[GEMINI] Analyzing conversation (%s) in %s...", source, language)
+	logger.Infof("[GEMINI] Analyzing conversation (%s) in %s...", source, language)
 	resp, err := model.GenerateContent(ctx, genai.Text(userPrompt))
 	if err != nil {
-		errorf("[GEMINI] Analysis failed: %v", err)
+		logger.Errorf("[GEMINI] Analysis failed: %v", err)
 		return nil, err
 	}
 
@@ -89,18 +88,16 @@ Emails:
 		}
 	}
 
-	var items []TodoItem
+	var items []store.TodoItem
 	if err := json.Unmarshal([]byte(rawJSON), &items); err != nil {
-		errorf("[GEMINI] JSON unmarshal failed: %v, RAW: %s", err, rawJSON)
+		logger.Errorf("[GEMINI] JSON unmarshal failed: %v, RAW: %s", err, rawJSON)
 		return nil, err
 	}
-	infof("[GEMINI] Successfully extracted %d tasks", len(items))
+	logger.Infof("[GEMINI] Successfully extracted %d tasks", len(items))
 	return items, nil
 }
 
-
-
-func (g *GeminiClient) Translate(ctx context.Context, tasks []TranslateRequest, language string) ([]TranslateRequest, error) {
+func (g *GeminiClient) Translate(ctx context.Context, tasks []store.TranslateRequest, language string) ([]store.TranslateRequest, error) {
 	if g == nil || g.client == nil {
 		return nil, fmt.Errorf("Gemini client is not initialized")
 	}
@@ -111,19 +108,17 @@ func (g *GeminiClient) Translate(ctx context.Context, tasks []TranslateRequest, 
 	model := g.client.GenerativeModel(g.translationModel) // Use Translation Model
 	model.ResponseMIMEType = "application/json"
 	model.SystemInstruction = &genai.Content{
-		Parts: []genai.Part{genai.Text(fmt.Sprintf(`You are a task translation expert.
-Translate or re-summarize tasks into %s.
-Output JSON: { "translations": [ { "id": number, "text": "translated or summarized text" } ] }
-1. Use "original_text" if provided.
-2. If missing, translate "text".
-3. Output "text" MUST be strictly in %s.`, language, language))},
+		Parts: []genai.Part{genai.Text(fmt.Sprintf(`Translate tasks to %s. Return JSON: {"translations": [{"id", "text"}]}.
+1. Resulting "text" must be in %s.
+2. CRITICAL: EXCLUDE all person names from the translated "text".
+3. Use "original_text" if "text" is unclear, but ensure names are REMOVED.`, language, language))},
 	}
 
-	debugf("[GEMINI] Translating %d tasks to %s...", len(tasks), language)
+	logger.Debugf("[GEMINI] Translating %d tasks to %s...", len(tasks), language)
 	tasksJSON, _ := json.Marshal(tasks)
 	resp, err := model.GenerateContent(ctx, genai.Text(string(tasksJSON)))
 	if err != nil {
-		errorf("[GEMINI] Translation failed: %v", err)
+		logger.Errorf("[GEMINI] Translation failed: %v", err)
 		return nil, err
 	}
 
@@ -134,11 +129,11 @@ Output JSON: { "translations": [ { "id": number, "text": "translated or summariz
 		}
 	}
 
-	var tr TranslateResponse
+	var tr store.TranslateResponse
 	if err := json.Unmarshal([]byte(rawJSON), &tr); err != nil {
-		errorf("[GEMINI] Translation JSON unmarshal failed: %v, RAW: %s", err, rawJSON)
+		logger.Errorf("[GEMINI] Translation JSON unmarshal failed: %v, RAW: %s", err, rawJSON)
 		return nil, err
 	}
-	debugf("[GEMINI] Successfully translated %d items to %s", len(tr.Translations), language)
+	logger.Debugf("[GEMINI] Successfully translated %d items to %s", len(tr.Translations), language)
 	return tr.Translations, nil
 }

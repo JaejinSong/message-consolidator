@@ -5,6 +5,8 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"message-consolidator/logger"
+	"message-consolidator/store"
 	"net/http"
 	"strconv"
 	"time"
@@ -16,14 +18,14 @@ func handleGetMessages(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	lang := r.URL.Query().Get("lang")
 	
-	msgsRaw, err := GetMessages(email)
+	msgsRaw, err := store.GetMessages(email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Create a copy of the slice to avoid polluting the global cache when we apply translations
-	msgs := make([]ConsolidatedMessage, len(msgsRaw))
+	msgs := make([]store.ConsolidatedMessage, len(msgsRaw))
 	copy(msgs, msgsRaw)
 
 	if lang != "" && len(msgs) > 0 {
@@ -31,7 +33,7 @@ func handleGetMessages(w http.ResponseWriter, r *http.Request) {
 		for i, m := range msgs {
 			ids[i] = m.ID
 		}
-		translations, err := GetTaskTranslationsBatch(ids, lang)
+		translations, err := store.GetTaskTranslationsBatch(ids, lang)
 		if err == nil {
 			for i := range msgs {
 				if t, ok := translations[msgs[i].ID]; ok {
@@ -56,7 +58,7 @@ func handleMarkDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := MarkMessageDone(email, req.ID, req.Done); err != nil {
+	if err := store.MarkMessageDone(email, req.ID, req.Done); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -79,14 +81,14 @@ func handleGetArchived(w http.ResponseWriter, r *http.Request) {
 		limit = 50
 	}
 
-	msgsRaw, total, err := GetArchivedMessagesFiltered(email, limit, offset, q, sort, order)
+	msgsRaw, total, err := store.GetArchivedMessagesFiltered(email, limit, offset, q, sort, order)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Create a copy to avoid cache pollution
-	msgs := make([]ConsolidatedMessage, len(msgsRaw))
+	msgs := make([]store.ConsolidatedMessage, len(msgsRaw))
 	copy(msgs, msgsRaw)
 
 	if lang != "" && len(msgs) > 0 {
@@ -94,7 +96,7 @@ func handleGetArchived(w http.ResponseWriter, r *http.Request) {
 		for i, m := range msgs {
 			ids[i] = m.ID
 		}
-		translations, err := GetTaskTranslationsBatch(ids, lang)
+		translations, err := store.GetTaskTranslationsBatch(ids, lang)
 		if err == nil {
 			for i := range msgs {
 				if t, ok := translations[msgs[i].ID]; ok {
@@ -115,7 +117,7 @@ func handleGetArchivedCount(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	q := r.URL.Query().Get("q")
 	
-	_, total, err := GetArchivedMessagesFiltered(email, 1, 0, q, "", "")
+	_, total, err := store.GetArchivedMessagesFiltered(email, 1, 0, q, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -129,7 +131,7 @@ func handleExportExcel(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	q := r.URL.Query().Get("q")
 
-	msgs, _, err := GetArchivedMessagesFiltered(email, 10000, 0, q, "", "")
+	msgs, _, err := store.GetArchivedMessagesFiltered(email, 10000, 0, q, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -180,7 +182,7 @@ func handleExportExcel(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	w.Header().Set("Access-Control-Expose-Headers", "Content-Disposition")
 	if err := f.Write(w); err != nil {
-		errorf("Failed to write excel: %v", err)
+		logger.Errorf("Failed to write excel: %v", err)
 	}
 }
 
@@ -188,7 +190,7 @@ func handleExportArchive(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
 	q := r.URL.Query().Get("q")
 	
-	msgs, _, err := GetArchivedMessagesFiltered(email, 10000, 0, q, "", "")
+	msgs, _, err := store.GetArchivedMessagesFiltered(email, 10000, 0, q, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -238,10 +240,11 @@ func handleManualScan(w http.ResponseWriter, r *http.Request) {
 	if lang == "" {
 		lang = "Korean"
 	}
-	debugf("Manual scan triggered via API for %s (lang: %s)", email, lang)
+	logger.Debugf("Manual scan triggered via API for %s (lang: %s)", email, lang)
 	go scan(email, lang)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "scan started", "lang": lang})
+	store.PersistAllScanMetadata(email)
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func handleWhatsAppQR(w http.ResponseWriter, r *http.Request) {
@@ -263,14 +266,14 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msgs, err := GetMessages(email)
+	msgs, err := store.GetMessages(email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Also fetch recent archived messages for translation
-	archived, _, err := GetArchivedMessagesFiltered(email, 200, 0, "", "", "")
+	archived, _, err := store.GetArchivedMessagesFiltered(email, 200, 0, "", "", "")
 	if err == nil {
 		msgs = append(msgs, archived...)
 	}
@@ -279,7 +282,7 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 	for _, m := range msgs {
 		idList = append(idList, m.ID)
 	}
-	existingTranslations, _ := GetTaskTranslationsBatch(idList, lang)
+	existingTranslations, _ := store.GetTaskTranslationsBatch(idList, lang)
 
 	var toTranslateIDs []int
 	for _, m := range msgs {
@@ -288,7 +291,7 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	infof("[TRANSLATE] Found %d messages needing translation to %s for %s", len(toTranslateIDs), lang, email)
+	logger.Infof("[TRANSLATE] Found %d messages needing translation to %s for %s", len(toTranslateIDs), lang, email)
 
 	if len(toTranslateIDs) > 0 {
 		count, err := TranslateMessagesByID(r.Context(), email, toTranslateIDs, lang)
@@ -296,7 +299,7 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		infof("[TRANSLATE] Successfully translated %d/%d messages to %s", count, len(toTranslateIDs), lang)
+		logger.Infof("[TRANSLATE] Successfully translated %d/%d messages to %s", count, len(toTranslateIDs), lang)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -313,15 +316,14 @@ func TranslateMessagesByID(ctx context.Context, email string, ids []int, lang st
 	}
 
 	// 1. Get detailed message data for these IDs
-	var toTranslate []TranslateRequest
+	var toTranslate []store.TranslateRequest
 	for _, id := range ids {
 		// We can get from DB directly to ensure we have the latest
-		var m ConsolidatedMessage
-		err := db.QueryRow("SELECT id, task, COALESCE(original_text, '') FROM messages WHERE id = $1", id).Scan(&m.ID, &m.Task, &m.OriginalText)
+		m, err := store.GetMessageByID(id)
 		if err != nil {
 			continue
 		}
-		toTranslate = append(toTranslate, TranslateRequest{
+		toTranslate = append(toTranslate, store.TranslateRequest{
 			ID:           m.ID,
 			Text:         m.Task,
 			OriginalText: m.OriginalText,
@@ -346,10 +348,10 @@ func TranslateMessagesByID(ctx context.Context, email string, ids []int, lang st
 	// 3. Save
 	count := 0
 	for _, t := range translations {
-		if err := SaveTaskTranslation(t.ID, lang, t.Text); err == nil {
+		if err := store.SaveTaskTranslation(t.ID, lang, t.Text); err == nil {
 			count++
 		} else {
-			errorf("[TRANSLATE] Failed to save translation for ID %d (%s): %v", t.ID, lang, err)
+			logger.Errorf("[TRANSLATE] Failed to save translation for ID %d (%s): %v", t.ID, lang, err)
 		}
 	}
 
@@ -373,7 +375,7 @@ func handleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, id := range ids {
-		DeleteMessage(email, id)
+		store.DeleteMessage(email, id)
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -388,7 +390,7 @@ func handleHardDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, id := range req.IDs {
-		HardDeleteMessage(email, id)
+		store.HardDeleteMessage(email, id)
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -403,7 +405,7 @@ func handleRestore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, id := range req.IDs {
-		RestoreMessage(email, id)
+		store.RestoreMessage(email, id)
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -418,7 +420,7 @@ func handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := UpdateTaskText(email, req.ID, req.Task); err != nil {
+	if err := store.UpdateTaskText(email, req.ID, req.Task); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -427,13 +429,13 @@ func handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 
 func handleUserInfo(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
-	user, err := GetOrCreateUser(email, "", "")
+	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	aliases, err := GetUserAliases(user.ID)
+	aliases, err := store.GetUserAliases(user.ID)
 	if err == nil {
 		user.Aliases = aliases
 	}
@@ -442,12 +444,12 @@ func handleUserInfo(w http.ResponseWriter, r *http.Request) {
 		sc := NewSlackClient(cfg.SlackToken)
 		slackUser, err := sc.LookupUserByEmail(user.Email)
 		if err == nil && slackUser != nil {
-			UpdateUserSlackID(user.Email, slackUser.ID)
-			AddUserAlias(user.ID, slackUser.RealName)
+			store.UpdateUserSlackID(user.Email, slackUser.ID)
+			store.AddUserAlias(user.ID, slackUser.RealName)
 			if slackUser.Profile.DisplayName != "" {
-				AddUserAlias(user.ID, slackUser.Profile.DisplayName)
+				store.AddUserAlias(user.ID, slackUser.Profile.DisplayName)
 			}
-			user.Aliases, _ = GetUserAliases(user.ID)
+			user.Aliases, _ = store.GetUserAliases(user.ID)
 		}
 	}
 
@@ -457,12 +459,12 @@ func handleUserInfo(w http.ResponseWriter, r *http.Request) {
 
 func handleGetUserAliases(w http.ResponseWriter, r *http.Request) {
 	email := GetUserEmail(r)
-	user, err := GetOrCreateUser(email, "", "")
+	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	aliases, err := GetUserAliases(user.ID)
+	aliases, err := store.GetUserAliases(user.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -480,12 +482,12 @@ func handleAddAlias(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	user, err := GetOrCreateUser(email, "", "")
+	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := AddUserAlias(user.ID, req.Alias); err != nil {
+	if err := store.AddUserAlias(user.ID, req.Alias); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -501,12 +503,56 @@ func handleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	user, err := GetOrCreateUser(email, "", "")
+	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := DeleteUserAlias(user.ID, req.Alias); err != nil {
+	if err := store.DeleteUserAlias(user.ID, req.Alias); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func handleGetTenantAliases(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	aliases, err := store.GetTenantAliases(email)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(aliases)
+}
+
+func handleAddTenantAlias(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	var req struct {
+		Original string `json:"original"`
+		Primary  string `json:"primary"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := store.AddTenantAlias(email, req.Original, req.Primary); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func handleDeleteTenantAlias(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	var req struct {
+		Original string `json:"original"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := store.DeleteTenantAlias(email, req.Original); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

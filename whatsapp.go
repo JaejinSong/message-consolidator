@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"message-consolidator/logger"
+	appStore "message-consolidator/store"
 	"strings"
 	"sync"
 	"time"
@@ -19,7 +21,7 @@ import (
 
 var (
 	waClients       = make(map[string]*whatsmeow.Client)
-	waMessageBuffer = make(map[string]map[types.JID][]RawChatMessage)
+	waMessageBuffer = make(map[string]map[types.JID][]appStore.RawChatMessage)
 	waLatestQR      = make(map[string]string)
 	waBufferMu      sync.RWMutex
 	waLogLevel      = "INFO"
@@ -48,23 +50,21 @@ func InitWhatsApp(email string) {
 		dbLog := waLog.Stdout("Database", logLevel, true)
 		dbURL := cfg.NeonDBURL
 		if dbURL == "" {
-			debugf("[WA-INIT] NeonDB URL is empty in config")
-			// This return is from the anonymous function, not InitWhatsApp.
-			// The error will be handled by the check below.
+			logger.Debugf("[WA-INIT] NeonDB URL is empty in config")
 			return
 		}
 		waContainer, err = sqlstore.New(context.Background(), "postgres", dbURL, dbLog)
 	})
 
 	if err != nil || waContainer == nil {
-		infof("WA Store failed for %s: %v", email, err)
+		logger.Infof("WA Store failed for %s: %v", email, err)
 		return
 	}
 
 	// Load user to get WAJID
-	user, err := GetOrCreateUser(email, "", "")
+	user, err := appStore.GetOrCreateUser(email, "", "")
 	if err != nil {
-		infof("InitWA: User %s not found in DB: %v", email, err)
+		logger.Infof("InitWA: User %s not found in DB: %v", email, err)
 		return
 	}
 
@@ -73,7 +73,7 @@ func InitWhatsApp(email string) {
 		jid, _ := types.ParseJID(user.WAJID)
 		device, err = waContainer.GetDevice(context.Background(), jid)
 		if err != nil {
-			debugf("WA Device Store failed for %s (JID: %s): %v", email, user.WAJID, err)
+			logger.Debugf("WA Device Store failed for %s (JID: %s): %v", email, user.WAJID, err)
 		}
 	}
 
@@ -95,7 +95,7 @@ func InitWhatsApp(email string) {
 	waBufferMu.Lock()
 	waClients[email] = client
 	if _, ok := waMessageBuffer[email]; !ok {
-		waMessageBuffer[email] = make(map[types.JID][]RawChatMessage)
+		waMessageBuffer[email] = make(map[types.JID][]appStore.RawChatMessage)
 	}
 	waBufferMu.Unlock()
 
@@ -104,14 +104,14 @@ func InitWhatsApp(email string) {
 	})
 
 	if client.Store.ID == nil {
-		infof("WA: No existing session found for %s, please scan QR code.", email)
+		logger.Infof("WA: No existing session found for %s, please scan QR code.", email)
 	} else {
-		infof("WA: Found existing session ID for %s, connecting...", email)
+		logger.Infof("WA: Found existing session ID for %s, connecting...", email)
 		err = client.Connect()
 		if err != nil {
-			infof("WA Connect failed for %s: %v", email, err)
+			logger.Infof("WA Connect failed for %s: %v", email, err)
 		} else {
-			infof("WA: Connected successfully for %s", email)
+			logger.Infof("WA: Connected successfully for %s", email)
 			client.SendPresence(context.Background(), types.PresenceAvailable)
 		}
 	}
@@ -126,7 +126,7 @@ func handleWhatsAppEvent(email string, client *whatsmeow.Client, evt interface{}
 
 		waBufferMu.Lock()
 		if _, ok := waMessageBuffer[email]; !ok {
-			waMessageBuffer[email] = make(map[types.JID][]RawChatMessage)
+			waMessageBuffer[email] = make(map[types.JID][]appStore.RawChatMessage)
 		}
 
 		sender := v.Info.Sender.String()
@@ -142,7 +142,7 @@ func handleWhatsAppEvent(email string, client *whatsmeow.Client, evt interface{}
 		}
 
 		if msgText != "" {
-			waMessageBuffer[email][v.Info.Chat] = append(waMessageBuffer[email][v.Info.Chat], RawChatMessage{
+			waMessageBuffer[email][v.Info.Chat] = append(waMessageBuffer[email][v.Info.Chat], appStore.RawChatMessage{
 				ID:        v.Info.ID,
 				User:      sender,
 				Sender:    sender,
@@ -156,18 +156,18 @@ func handleWhatsAppEvent(email string, client *whatsmeow.Client, evt interface{}
 			}
 		}
 		waBufferMu.Unlock()
-		debugf("[WA-EVENT][%s] Message from %s (Chat: %s): %s", email, sender, v.Info.Chat, msgText)
+		logger.Debugf("[WA-EVENT][%s] Message from %s (Chat: %s): %s", email, sender, v.Info.Chat, msgText)
 
 	case *events.Connected:
-		debugf("[WA-EVENT][%s] Connected to WhatsApp", email)
+		logger.Debugf("[WA-EVENT][%s] Connected to WhatsApp", email)
 		if client.Store.ID != nil {
-			UpdateUserWAJID(email, client.Store.ID.String())
+			appStore.UpdateUserWAJID(email, client.Store.ID.String())
 		}
 	case *events.OfflineSyncCompleted:
-		debugf("[WA-EVENT][%s] Offline sync completed", email)
+		logger.Debugf("[WA-EVENT][%s] Offline sync completed", email)
 	case *events.LoggedOut:
-		debugf("[WA-EVENT][%s] Logged out from WhatsApp", email)
-		UpdateUserWAJID(email, "")
+		logger.Debugf("[WA-EVENT][%s] Logged out from WhatsApp", email)
+		appStore.UpdateUserWAJID(email, "")
 		waBufferMu.Lock()
 		delete(waClients, email)
 		delete(waMessageBuffer, email)
@@ -192,7 +192,7 @@ func GetWhatsAppQR(ctx context.Context, email string) (string, error) {
 
 	qrChan, err := client.GetQRChannel(ctx)
 	if err != nil {
-		debugf("[WA-TRACE][%s] GetQRChannel initial error: %v", email, err)
+		logger.Debugf("[WA-TRACE][%s] GetQRChannel initial error: %v", email, err)
 	}
 
 	if !client.IsConnected() {

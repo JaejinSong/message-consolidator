@@ -136,5 +136,31 @@ export const api = {
         const resp = await fetch('/api/gmail/status');
         if (!resp.ok) throw new Error(`Gmail status check failed: ${resp.status}`);
         return await resp.json();
+    },
+    
+    async fetchTenantAliases() {
+        const resp = await fetch('/api/tenant/aliases');
+        if (!resp.ok) throw new Error(`Fetch tenant aliases failed: ${resp.status}`);
+        return await resp.json();
+    },
+
+    async addTenantAlias(original, primary) {
+        const resp = await fetch('/api/tenant/alias/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ original, primary })
+        });
+        if (!resp.ok) throw new Error(`Add tenant alias failed: ${resp.status}`);
+        return resp;
+    },
+
+    async removeTenantAlias(original) {
+        const resp = await fetch('/api/tenant/alias/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ original })
+        });
+        if (!resp.ok) throw new Error(`Remove tenant alias failed: ${resp.status}`);
+        return resp;
     }
 };

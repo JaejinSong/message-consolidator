@@ -1,4 +1,18 @@
-# Release Notes - v1.6.6 (Latest)
+# Release Notes - v1.7.0 (Latest)
+
+## 🏗️ Package Refactoring & Modularization
+- **`store/` Package**: Extracted all storage logic from the monolithic `store.go` into a dedicated `store/` package containing specialized files (`db.go`, `message_store.go`, `user_store.go`, `token_store.go`, `types.go`, `cache_store.go`, `scan_store.go`, `translation_store.go`), significantly improving readability and maintainability.
+- **`logger/` Package**: Centralized all application logging into a dedicated `logger/` package, making logging consistent and easily configurable across all modules.
+- **Type Consolidation**: Moved all shared data types (`ConsolidatedMessage`, `User`, `TodoItem`, `TranslateRequest`, etc.) into `store/types.go` as the single source of truth.
+
+## 🔐 Gemini Prompt Privacy Improvements
+- **Name Exclusion from Summaries**: Updated the Gemini `Analyze` prompt to explicitly instruct the model to **exclude person names** from the `task` description field, replacing them with roles/pronouns.
+- **Name Masking in Original Text**: The `original_text` field now masks person names with `[NAME]` for privacy while preserving the full message context.
+- **Translation Privacy**: The `Translate` prompt now includes a strict instruction to remove person names from all translated outputs.
+
+---
+
+# Release Notes - v1.6.6 (Old)
 
 ## 🌐 Language & Cache Reliability
 - **Language Transition Fix**: Resolved a critical issue where switching to Korean was incorrectly skipped. Users can now transition between any supported languages seamlessly.
