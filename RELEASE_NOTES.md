@@ -4,6 +4,8 @@
 - **RawMessage Consolidation**: Unified Slack, Gmail, and WhatsApp into a single `RawMessage` struct, removing redundant fields (`User`, `RawTS`) for a leaner data model.
 - **`WAManager` Struct Implementation**: Refactored WhatsApp integration into a dedicated manager with callbacks (`OnConnected`, `FetchUserWAJID`), decoupling it from the `store` package.
 - **I18n Architecture Overhaul**: Moved UI text to `locales.js` and simplified `i18n.js` to use `data-i18n` attributes, improving maintainability and reducing JS bundle overhead.
+- **NeonDB Cold Start Resilience**: Implemented `WithDBRetry` with exponential backoff (2s, 4s, 6s) to gracefully handle serverless database wake-ups.
+- **Connection Pool Tuning**: Optimized `MaxIdleTime` (1m) and `MaxOpenConns` (20) specifically for Neon's autosuspend behavior, ensuring clean scale-to-zero while maintaining high burst readiness.
 - **Gmail Timestamp Precision**: Updated `AssignedAt` logic to use actual email receipt time (`InternalDate`) for better historical accuracy.
 - **Deployment Size Optimization**: Binary is now stripped and compressed with UPX, reducing container image size by ~70%.
 

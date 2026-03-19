@@ -17,9 +17,9 @@ func InitDB(connStr string) error {
 	}
 
 	// Connection Pool Optimization for Neon (Scale to Zero)
-	db.SetConnMaxIdleTime(3 * time.Minute) // Close idle connections before Neon's 5-minute timeout
+	db.SetConnMaxIdleTime(1 * time.Minute) // DB가 Sleep 하기 전에 앱 단에서 먼저 유휴 커넥션을 깔끔하게 닫음
 	db.SetMaxIdleConns(2)                  // Allow up to 2 idle connections for better performance
-	db.SetMaxOpenConns(10)                 // Safety limit
+	db.SetMaxOpenConns(20)                 // Cold Start 후 한 번에 몰리는 쿼리를 감당할 수 있도록 최대 연결 수 확장
 
 	query := `
 	CREATE TABLE IF NOT EXISTS users (
@@ -255,7 +255,7 @@ func ArchiveOldTasks() error {
 	}
 	rows, _ := res.RowsAffected()
 	logger.Infof("[DB] Auto-archived %d tasks.", rows)
-	
+
 	lastArchiveTime = time.Now()
 
 	if rows > 0 {

@@ -79,11 +79,11 @@ func NormalizeName(tenantEmail, name string) string {
 func GetTenantAliases(email string) (map[string]string, error) {
 	metadataMu.RLock()
 	defer metadataMu.RUnlock()
-	
+
 	if m, ok := tenantAliasCache[email]; ok {
 		return m, nil
 	}
-	
+
 	// If not in cache, we could load it here, but LoadMetadata should handle it.
 	// Let's return empty if not found.
 	return make(map[string]string), nil
@@ -131,17 +131,14 @@ func GetOrCreateUser(email, name, picture string) (*User, error) {
 
 	// Not in cache, fetch from DB or Create
 	var u User
-	err := db.QueryRow("SELECT id, email, COALESCE(name, ''), COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), created_at FROM users WHERE email = $1", email).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.CreatedAt)
-	if err == sql.ErrNoRows {
-		err = db.QueryRow("INSERT INTO users (email, name, picture) VALUES ($1, $2, $3) RETURNING id, email, name, COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), created_at", email, name, picture).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.CreatedAt)
-		if err != nil {
-			return nil, err
+	err := WithDBRetry("GetOrCreateUser", func() error {
+		errQuery := db.QueryRow("SELECT id, email, COALESCE(name, ''), COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), created_at FROM users WHERE email = $1", email).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.CreatedAt)
+		if errQuery == sql.ErrNoRows {
+			return db.QueryRow("INSERT INTO users (email, name, picture) VALUES ($1, $2, $3) RETURNING id, email, name, COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), created_at", email, name, picture).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.CreatedAt)
 		}
-		metadataMu.Lock()
-		userCache[email] = &u
-		metadataMu.Unlock()
-		return &u, nil
-	}
+		return errQuery
+	})
+
 	if err != nil {
 		return nil, err
 	}
