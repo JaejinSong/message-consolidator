@@ -1,3 +1,13 @@
+# Release Notes - v1.8.4 (2026-03-20 04:15 UTC)
+
+## 📱 WhatsApp Name Extraction & Mention Resolution
+- **[NEW] Real-time Mention Resolution**: Automatically resolves `@number` mentions to human-readable names (e.g., `@Andy Phan`) before AI analysis, ensuring accurate task assignment.
+- **[NEW] Auto-Contact Discovery**: Senders' names and phone numbers are now automatically mapped and cached in the `contacts` table for persistent name resolution.
+- **[FIX] Robust Name Preservation**: Refined Gemini extraction prompts to preserve full names including parentheses and non-Latin characters (梁威浩, 박요셉, etc.).
+- **[FIX] Name Normalization Fallback**: Enhanced the name normalization layer to resolve phone numbers to names using the newly established contact directory.
+
+---
+
 # Release Notes - v1.8.3 (2026-03-20 04:05 UTC)
 
 ## 📢 UI Enhancements & Quick Alias Mapping

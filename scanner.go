@@ -11,6 +11,7 @@ import (
 
 	"github.com/slack-go/slack"
 	"go.mau.fi/whatsmeow/types"
+	"regexp"
 )
 
 func startBackgroundScanner() {
@@ -235,6 +236,19 @@ func IsAliasMatched(text, sender, alias string) bool {
 	return false
 }
 
+func resolveWAMentions(email, text string) string {
+	// WhatsApp mentions are "@12345678"
+	re := regexp.MustCompile(`@([0-9]+)`)
+	return re.ReplaceAllStringFunc(text, func(m string) string {
+		number := m[1:]
+		name := store.GetNameByWhatsAppNumber(email, number)
+		if name != "" {
+			return fmt.Sprintf("@%s", name)
+		}
+		return m
+	})
+}
+
 func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m RawMessage) string {
 	// 1. DM이거나 직접 멘션된 경우 즉시 반환 (Early Return)
 	if channel.IsIM || channel.IsMpIM {
@@ -276,7 +290,9 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 			var sb strings.Builder
 			for _, m := range rrms {
 				msgMap[m.ID] = m
-				sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s: %s\n", m.ID, m.Timestamp.Format("15:04"), m.Sender, m.Text))
+				// Resolve mentions in the text for better Gemini extraction
+				resolvedText := resolveWAMentions(email, m.Text)
+				sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s: %s\n", m.ID, m.Timestamp.Format("15:04"), m.Sender, resolvedText))
 			}
 
 			gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
