@@ -1,3 +1,12 @@
+# Release Notes - v2.0.7 (2026-03-20 18:30 UTC)
+
+## 🎮 Gamification Infrastructure & DB Optimization
+- **[PLAN] Gamification Roadmap**: Developed a comprehensive roadmap for points, streaks, and leveling systems in `TODO.md`, including a "Minimalist Mode" for professional environments.
+- **[OPTIMIZE] Neon DB Scale-to-Zero**: Configured `MaxIdleConns(0)` to ensure database connections are released immediately when idle, allowing Neon serverless instances to scale to zero effectively.
+- **[OPTIMIZE] Consolidated DB Connection Pool**: Integrated the separate WhatsApp storage pool into the main application pool using `sqlstore.NewWithDB` to reduce connection overhead.
+
+---
+
 # Release Notes - v2.0.6 (2026-03-20 17:40 UTC)
 
 ## ⚡ Bulk Database Operations & Performance Optimization
