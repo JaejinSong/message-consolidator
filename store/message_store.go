@@ -286,7 +286,11 @@ func HardDeleteMessage(email string, id int) error {
 }
 
 func RestoreMessage(email string, id int) error {
-	res, err := db.Exec("UPDATE messages SET is_deleted = false WHERE id = $1 AND user_email = $2", id, email)
+	// 복원 시 단순히 is_deleted만 끄는 것이 아니라, 
+	// 1. 완료 상태(done)도 해제하고 
+	// 2. 완료 시간(completed_at)도 초기화해야 
+	// 아카이브 필터링 조건(done=true AND old)에서 벗어나 대시보드로 돌아옵니다.
+	res, err := db.Exec("UPDATE messages SET is_deleted = false, done = false, completed_at = NULL WHERE id = $1 AND user_email = $2", id, email)
 	if err != nil {
 		return err
 	}
@@ -294,19 +298,13 @@ func RestoreMessage(email string, id int) error {
 	rows, _ := res.RowsAffected()
 	logger.Debugf("[DB] Restore message ID %d, affected rows: %d", id, rows)
 
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-
-	patch := func(list []ConsolidatedMessage) {
-		for i := range list {
-			if list[i].ID == id {
-				list[i].IsDeleted = false
-				break
-			}
+	if rows > 0 {
+		// 메모리 캐시 정합성을 위해 해당 사용자의 캐시를 전체 갱신합니다.
+		if err := RefreshCache(email); err != nil {
+			logger.Errorf("[STORE] RefreshCache error during restore for %s: %v", email, err)
+			return err
 		}
 	}
-	patch(messageCache[email])
-	patch(archiveCache[email])
 
 	return nil
 }
