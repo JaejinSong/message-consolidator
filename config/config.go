@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"message-consolidator/logger"
@@ -8,14 +8,14 @@ import (
 )
 
 type Config struct {
-	SlackToken         string
-	GeminiAPIKey       string
-	GoogleClientID     string
-	GoogleClientSecret string
-	AuthSecret         string
-	AuthDisabled       bool
-	AppBaseURL         string
-	NeonDBURL          string
+	SlackToken             string
+	GeminiAPIKey           string
+	GoogleClientID         string
+	GoogleClientSecret     string
+	AuthSecret             string
+	AuthDisabled           bool
+	AppBaseURL             string
+	NeonDBURL              string
 	GeminiAnalysisModel    string
 	GeminiTranslationModel string
 	LogLevel               string

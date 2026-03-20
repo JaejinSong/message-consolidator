@@ -1,3 +1,13 @@
+# Release Notes - v1.9.0 (2026-03-20 05:15 UTC)
+
+## 🏗️ Major Architecture Refactoring & Modularization
+- **[NEW] Package-Based Structure**: Reorganized the monolithic root directory into clean, domain-driven packages: `ai`, `auth`, `channels`, `config`, `handlers`, `logger`, `store`, and `types`.
+- **[NEW] Refined Gmail Scanning**: Switched from `is:unread` to a more robust time-based query (`in:inbox after:timestamp`), ensuring comprehensive synchronization across multiple scans.
+- **[NEW] WhatsApp Integration Cleanup**: Introduced top-level wrapper functions for status and QR code retrieval, significantly simplifying the handler layer and reducing coupling.
+- **[FIX] Circular Dependency Resolution**: Decoupled package interactions using callbacks and unified storage interfaces, resulting in a more stable and maintainable codebase.
+
+---
+
 # Release Notes - v1.8.5 (2026-03-20 04:23 UTC)
 
 ## 📧 Gmail Thread Analysis Refinement

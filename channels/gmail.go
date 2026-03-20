@@ -1,13 +1,14 @@
-package main
+package channels
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"message-consolidator/ai"
+	"message-consolidator/config"
 	"message-consolidator/logger"
 	"message-consolidator/store"
-	"net/http"
+	"message-consolidator/types"
 	"net/mail"
 	"strconv"
 	"strings"
@@ -19,10 +20,10 @@ import (
 	"google.golang.org/api/option"
 )
 
-var gmailOauthConfig *oauth2.Config
+var GmailOauthConfig *oauth2.Config
 
-func SetupGmailOAuth() {
-	gmailOauthConfig = &oauth2.Config{
+func SetupGmailOAuth(cfg *config.Config) {
+	GmailOauthConfig = &oauth2.Config{
 		RedirectURL:  fmt.Sprintf("%s/auth/gmail/callback", cfg.AppBaseURL),
 		ClientID:     cfg.GoogleClientID,
 		ClientSecret: cfg.GoogleClientSecret,
@@ -34,11 +35,11 @@ func SetupGmailOAuth() {
 }
 
 func GetGmailAuthURL(state string) string {
-	return gmailOauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
+	return GmailOauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 }
 
 func ExchangeGmailCode(ctx context.Context, code string) (*oauth2.Token, error) {
-	return gmailOauthConfig.Exchange(ctx, code)
+	return GmailOauthConfig.Exchange(ctx, code)
 }
 
 func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) {
@@ -52,7 +53,7 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 		return nil, fmt.Errorf("failed to parse gmail token for %s: %w", email, err)
 	}
 
-	tokenSource := gmailOauthConfig.TokenSource(ctx, &token)
+	tokenSource := GmailOauthConfig.TokenSource(ctx, &token)
 
 	// Refresh and persist updated token if needed
 	newToken, err := tokenSource.Token()
@@ -71,7 +72,7 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 	return svc, nil
 }
 
-func ScanGmail(ctx context.Context, email string, language string) {
+func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config) {
 	logger.Debugf("[SCAN-GMAIL] Starting Gmail scan for %s", email)
 
 	svc, err := GetGmailService(ctx, email)
@@ -83,20 +84,20 @@ func ScanGmail(ctx context.Context, email string, language string) {
 	since := getGmailScanTime(email)
 	query := fmt.Sprintf("in:inbox after:%d", since.Unix())
 
-	msgs, err := svc.Users.Messages.List("me").Q(query).MaxResults(50).Do()
-	if err != nil || len(msgs.Messages) == 0 {
+	res, err := svc.Users.Messages.List("me").Q(query).MaxResults(50).Do()
+	if err != nil || len(res.Messages) == 0 {
 		if err != nil {
 			logger.Debugf("[SCAN-GMAIL] Failed to list messages for %s: %v", email, err)
 		}
 		return
 	}
 
-	rawMsgs, classificationMap, toMap := parseNewEmails(svc, msgs.Messages, email)
+	rawMsgs, classificationMap, toMap := parseNewEmails(svc, res.Messages, email)
 	if len(rawMsgs) == 0 {
 		return
 	}
 
-	analyzeAndSaveEmails(ctx, email, language, rawMsgs, classificationMap, toMap)
+	analyzeAndSaveEmails(ctx, email, language, rawMsgs, classificationMap, toMap, cfg)
 	store.UpdateLastScan(email, "gmail", "inbox", fmt.Sprintf("%d", time.Now().Unix()))
 }
 
@@ -109,8 +110,8 @@ func getGmailScanTime(email string) time.Time {
 	return time.Now().Add(-7 * 24 * time.Hour)
 }
 
-func parseNewEmails(svc *gmail.Service, messages []*gmail.Message, email string) ([]RawMessage, map[string]string, map[string]string) {
-	var rawMsgs []RawMessage
+func parseNewEmails(svc *gmail.Service, messages []*gmail.Message, email string) ([]types.RawMessage, map[string]string, map[string]string) {
+	var rawMsgs []types.RawMessage
 	classificationMap := make(map[string]string)
 	toMap := make(map[string]string)
 
@@ -159,27 +160,27 @@ func parseNewEmails(svc *gmail.Service, messages []*gmail.Message, email string)
 		toMap[m.Id] = to
 		body := extractBody(fullMsg.Payload)
 
-		rawMsgs = append(rawMsgs, RawMessage{
+		rawMsgs = append(rawMsgs, types.RawMessage{
 			ID:        m.Id,
 			Sender:    from,
 			Text:      fmt.Sprintf("To: %s, Subject: %s\nContent: %s", to, subject, body),
-			Timestamp: time.Unix(fullMsg.InternalDate/1000, 0), // 이메일 실제 수신 시간
+			Timestamp: time.Unix(fullMsg.InternalDate/1000, 0),
 		})
 	}
 
 	return rawMsgs, classificationMap, toMap
 }
 
-func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []RawMessage, classificationMap map[string]string, toMap map[string]string) {
+func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config) {
 	var sb strings.Builder
-	msgMap := make(map[string]RawMessage)
+	msgMap := make(map[string]types.RawMessage)
 
 	for _, m := range rawMsgs {
 		msgMap[m.ID] = m
 		sb.WriteString(fmt.Sprintf("[TS:%s] From: %s, %s\n---\n", m.ID, m.Sender, m.Text))
 	}
 
-	gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 	if err != nil {
 		logger.Errorf("[SCAN-GMAIL] Failed to init Gemini client: %v", err)
 		return
@@ -209,10 +210,9 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 			if cls == "내 업무" {
 				assignee = fallbackAssignee
 			} else {
-				assignee = extractNameFromEmail(toHeader)
+				assignee = ExtractNameFromEmail(toHeader)
 			}
 		} else if cls == "기타 업무" {
-			// 내가 CC/BCC로 수신한 경우, AI가 나를 담당자로 오탐하더라도 실제 To 수신자로 담당자 강제 교체
 			isMe := strings.EqualFold(assignee, fallbackAssignee) || strings.EqualFold(assignee, user.Name) || strings.EqualFold(assignee, email)
 			for _, alias := range aliases {
 				if alias != "" && strings.EqualFold(assignee, alias) {
@@ -221,13 +221,13 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 				}
 			}
 			if isMe {
-				assignee = extractNameFromEmail(toHeader)
+				assignee = ExtractNameFromEmail(toHeader)
 			}
 		}
 
 		assignedAt := time.Now().Format(time.RFC3339)
 		if m, ok := msgMap[item.SourceTS]; ok {
-			assignedAt = m.Timestamp.Format(time.RFC3339) // DB 저장 시 실제 이메일 수신 시간 기록
+			assignedAt = m.Timestamp.Format(time.RFC3339)
 		}
 
 		uniqueSourceTS := fmt.Sprintf("gmail-%s-%d", item.SourceTS, i)
@@ -246,8 +246,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 	}
 }
 
-// extractNameFromEmail은 이메일 포맷("Name <email@domain.com>")에서 사람이 읽기 좋은 이름만 깔끔하게 추출합니다.
-func extractNameFromEmail(header string) string {
+func ExtractNameFromEmail(header string) string {
 	if header == "" {
 		return ""
 	}
@@ -279,24 +278,20 @@ func extractBody(payload *gmail.MessagePart) string {
 		return ""
 	}
 
-	// Prefer text/plain
 	if payload.MimeType == "text/plain" && payload.Body != nil && payload.Body.Data != "" {
 		return decodeBase64URL(payload.Body.Data)
 	}
 
-	// Recurse into parts
 	for _, part := range payload.Parts {
 		if part.MimeType == "text/plain" && part.Body != nil && part.Body.Data != "" {
 			return decodeBase64URL(part.Body.Data)
 		}
 	}
 
-	// Fallback: try any text/*
 	for _, part := range payload.Parts {
 		if strings.HasPrefix(part.MimeType, "text/") && part.Body != nil && part.Body.Data != "" {
 			return decodeBase64URL(part.Body.Data)
 		}
-		// Recurse for multipart
 		if result := extractBody(part); result != "" {
 			return result
 		}
@@ -305,62 +300,10 @@ func extractBody(payload *gmail.MessagePart) string {
 	return ""
 }
 
-func handleGmailConnect(w http.ResponseWriter, r *http.Request) {
-	email := GetUserEmail(r)
-	state := "gmail:" + email
-	url := GetGmailAuthURL(state)
-	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
-}
-
-func handleGmailCallback(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	state := r.URL.Query().Get("state")
-	code := r.URL.Query().Get("code")
-
-	if !strings.HasPrefix(state, "gmail:") {
-		http.Error(w, "Invalid state", http.StatusBadRequest)
-		return
-	}
-	email := strings.TrimPrefix(state, "gmail:")
-
-	token, err := ExchangeGmailCode(ctx, code)
-	if err != nil {
-		logger.Debugf("[GMAIL-CALLBACK] Token exchange failed for %s: %v", email, err)
-		http.Error(w, "Token exchange failed: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	tokenJSON, err := json.Marshal(token)
-	if err != nil {
-		http.Error(w, "Failed to marshal token", http.StatusInternalServerError)
-		return
-	}
-
-	if err := store.SaveGmailToken(email, string(tokenJSON)); err != nil {
-		logger.Debugf("[GMAIL-CALLBACK] Failed to save token for %s: %v", email, err)
-		http.Error(w, "Failed to save token", http.StatusInternalServerError)
-		return
-	}
-
-	logger.Infof("[GMAIL-CALLBACK] Gmail connected for %s", email)
-	http.Redirect(w, r, "/?gmail=connected", http.StatusTemporaryRedirect)
-}
-
-func handleGmailStatus(w http.ResponseWriter, r *http.Request) {
-	email := GetUserEmail(r)
-	connected := store.HasGmailToken(email)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]bool{"connected": connected})
-}
-
 func decodeBase64URL(data string) string {
-	decoded, err := base64.URLEncoding.DecodeString(data)
+	decoded, err := ai.DecodeBase64URL(data)
 	if err != nil {
-		// Try standard encoding as fallback
-		decoded, err = base64.StdEncoding.DecodeString(data)
-		if err != nil {
-			return ""
-		}
+		return ""
 	}
-	return string(decoded)
+	return decoded
 }

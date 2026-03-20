@@ -1,7 +1,8 @@
-package main
+package ai
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"message-consolidator/logger"
@@ -47,7 +48,7 @@ func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText stri
 		language = "Korean"
 	}
 
-	model := g.client.GenerativeModel(g.analysisModel) // Use Analysis Model
+	model := g.client.GenerativeModel(g.analysisModel)
 	model.ResponseMIMEType = "application/json"
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(fmt.Sprintf(`Extract tasks as a JSON array: [{"task", "requester", "assignee", "assigned_at", "source_ts", "original_text"}]
@@ -79,7 +80,6 @@ Emails:
 		return nil, err
 	}
 
-	// Record Token Usage
 	if resp.UsageMetadata != nil {
 		store.AddTokenUsage(email, int(resp.UsageMetadata.PromptTokenCount), int(resp.UsageMetadata.CandidatesTokenCount))
 	}
@@ -108,7 +108,7 @@ func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []stor
 		return nil, nil
 	}
 
-	model := g.client.GenerativeModel(g.translationModel) // Use Translation Model
+	model := g.client.GenerativeModel(g.translationModel)
 	model.ResponseMIMEType = "application/json"
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(fmt.Sprintf(`Translate tasks to %s. Return JSON: {"translations": [{"id", "text"}]}.
@@ -125,7 +125,6 @@ func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []stor
 		return nil, err
 	}
 
-	// Record Token Usage
 	if resp.UsageMetadata != nil {
 		store.AddTokenUsage(email, int(resp.UsageMetadata.PromptTokenCount), int(resp.UsageMetadata.CandidatesTokenCount))
 	}
@@ -144,4 +143,15 @@ func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []stor
 	}
 	logger.Debugf("[GEMINI] Successfully translated %d items to %s", len(tr.Translations), language)
 	return tr.Translations, nil
+}
+
+func DecodeBase64URL(data string) (string, error) {
+	decoded, err := base64.URLEncoding.DecodeString(data)
+	if err != nil {
+		decoded, err = base64.StdEncoding.DecodeString(data)
+		if err != nil {
+			return "", err
+		}
+	}
+	return string(decoded), nil
 }
