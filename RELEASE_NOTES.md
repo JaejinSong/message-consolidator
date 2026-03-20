@@ -1,3 +1,10 @@
+# Release Notes - v1.8.5 (2026-03-20 04:23 UTC)
+
+## 📧 Gmail Thread Analysis Refinement
+- **[NEW] Thread-Aware Extraction**: Added a critical instruction to Gemini to focus ONLY on the latest message in an email thread, effectively preventing duplicate task extraction from quoted replies or forwarded messages.
+
+---
+
 # Release Notes - v1.8.4 (2026-03-20 04:15 UTC)
 
 ## 📱 WhatsApp Name Extraction & Mention Resolution

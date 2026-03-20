@@ -62,6 +62,7 @@ func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText stri
 	switch source {
 	case "gmail":
 		userPrompt = fmt.Sprintf(`If the sender domain is NOT @whatap.io, EXCLUDE simple informational or notification content.
+CRITICAL: Focus ONLY on the newest/latest email message in the thread. DO NOT extract tasks from previous quoted replies or forwarded messages below it.
 Emails:
 %s`, conversationText)
 	case "slack", "whatsapp":
