@@ -6,6 +6,8 @@ import (
 	"message-consolidator/logger"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 func SaveMessage(msg ConsolidatedMessage) (bool, int, error) {
@@ -46,6 +48,85 @@ func SaveMessage(msg ConsolidatedMessage) (bool, int, error) {
 	cacheMu.Unlock()
 
 	return true, lastID, nil
+}
+
+func SaveMessages(msgs []ConsolidatedMessage) ([]int, error) {
+	if len(msgs) == 0 {
+		return nil, nil
+	}
+
+	var toInsert []ConsolidatedMessage
+	cacheMu.RLock()
+	for _, msg := range msgs {
+		if userKnown, ok := knownTS[msg.UserEmail]; ok && userKnown[msg.SourceTS] {
+			continue
+		}
+		toInsert = append(toInsert, msg)
+	}
+	cacheMu.RUnlock()
+
+	if len(toInsert) == 0 {
+		return nil, nil
+	}
+
+	for i := range toInsert {
+		toInsert[i].Requester = NormalizeName(toInsert[i].UserEmail, toInsert[i].Requester)
+		toInsert[i].Assignee = NormalizeName(toInsert[i].UserEmail, toInsert[i].Assignee)
+	}
+
+	valueStrings := make([]string, 0, len(toInsert))
+	valueArgs := make([]interface{}, 0, len(toInsert)*10)
+
+	for i, msg := range toInsert {
+		offset := i * 10
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+9, offset+10))
+		valueArgs = append(valueArgs, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText)
+	}
+
+	query := fmt.Sprintf(`INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text) 
+			  VALUES %s
+			  ON CONFLICT(user_email, source_ts) DO NOTHING
+			  RETURNING id, source_ts, user_email;`, strings.Join(valueStrings, ","))
+
+	rows, err := db.Query(query, valueArgs...)
+	if err != nil {
+		logger.Errorf("SaveMessages Bulk Insert Error: %v", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var newIDs []int
+	now := time.Now()
+	insertedIDs := make(map[string]map[string]int)
+
+	for rows.Next() {
+		var id int
+		var ts, email string
+		if err := rows.Scan(&id, &ts, &email); err == nil {
+			newIDs = append(newIDs, id)
+			if insertedIDs[email] == nil {
+				insertedIDs[email] = make(map[string]int)
+			}
+			insertedIDs[email][ts] = id
+		}
+	}
+
+	cacheMu.Lock()
+	for _, msg := range toInsert {
+		if id, ok := insertedIDs[msg.UserEmail][msg.SourceTS]; ok {
+			msg.ID = id
+			msg.CreatedAt = now
+			if _, exists := knownTS[msg.UserEmail]; !exists {
+				knownTS[msg.UserEmail] = make(map[string]bool)
+			}
+			knownTS[msg.UserEmail][msg.SourceTS] = true
+			messageCache[msg.UserEmail] = append([]ConsolidatedMessage{msg}, messageCache[msg.UserEmail]...)
+		}
+	}
+	cacheMu.Unlock()
+
+	return newIDs, nil
 }
 
 func GetMessages(email string) ([]ConsolidatedMessage, error) {
@@ -208,14 +289,16 @@ func UpdateTaskAssignee(email string, id int, assignee string) error {
 	return nil
 }
 
-func DeleteMessage(email string, id int) error {
-	res, err := db.Exec("UPDATE messages SET is_deleted = true WHERE id = $1 AND user_email = $2", id, email)
+func DeleteMessages(email string, ids []int) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	res, err := db.Exec("UPDATE messages SET is_deleted = true WHERE user_email = $1 AND id = ANY($2)", email, pq.Array(ids))
 	if err != nil {
 		return err
 	}
 
 	rows, _ := res.RowsAffected()
-	logger.Debugf("[DB] Soft-delete message ID %d, affected rows: %d", id, rows)
 
 	if rows > 0 {
 		_ = RefreshCache(email)
@@ -224,14 +307,16 @@ func DeleteMessage(email string, id int) error {
 	return nil
 }
 
-func HardDeleteMessage(email string, id int) error {
-	res, err := db.Exec("DELETE FROM messages WHERE id = $1 AND user_email = $2", id, email)
+func HardDeleteMessages(email string, ids []int) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	res, err := db.Exec("DELETE FROM messages WHERE user_email = $1 AND id = ANY($2)", email, pq.Array(ids))
 	if err != nil {
 		return err
 	}
 
 	rows, _ := res.RowsAffected()
-	logger.Debugf("[DB] Hard-delete message ID %d, affected rows: %d", id, rows)
 
 	if rows > 0 {
 		_ = RefreshCache(email)
@@ -240,18 +325,16 @@ func HardDeleteMessage(email string, id int) error {
 	return nil
 }
 
-func RestoreMessage(email string, id int) error {
-	// 복원 시 단순히 is_deleted만 끄는 것이 아니라,
-	// 1. 완료 상태(done)도 해제하고
-	// 2. 완료 시간(completed_at)도 초기화해야
-	// 아카이브 필터링 조건(done=true AND old)에서 벗어나 대시보드로 돌아옵니다.
-	res, err := db.Exec("UPDATE messages SET is_deleted = false, done = false, completed_at = NULL WHERE id = $1 AND user_email = $2", id, email)
+func RestoreMessages(email string, ids []int) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	res, err := db.Exec("UPDATE messages SET is_deleted = false, done = false, completed_at = NULL WHERE user_email = $1 AND id = ANY($2)", email, pq.Array(ids))
 	if err != nil {
 		return err
 	}
 
 	rows, _ := res.RowsAffected()
-	logger.Debugf("[DB] Restore message ID %d, affected rows: %d", id, rows)
 
 	if rows > 0 {
 		// 메모리 캐시 정합성을 위해 해당 사용자의 캐시를 전체 갱신합니다.
