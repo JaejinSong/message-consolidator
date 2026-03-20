@@ -186,6 +186,16 @@ export const api = {
         return resp;
     },
 
+    async removeContactMapping(repName) {
+        const resp = await fetch('/api/contacts/mapping/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rep_name: repName })
+        });
+        if (!resp.ok) throw new Error(`Remove contact mapping failed: ${resp.status}`);
+        return resp;
+    },
+
     async fetchReleaseNotes() {
         const resp = await fetch('/api/release-notes');
         if (!resp.ok) throw new Error(`Fetch release notes failed: ${resp.status}`);

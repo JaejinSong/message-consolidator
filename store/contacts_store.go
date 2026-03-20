@@ -28,12 +28,16 @@ func InitContactsTable() {
 
 func GetContactsMappings(email string) ([]AliasMapping, error) {
 	metadataMu.RLock()
+	defer metadataMu.RUnlock()
 	mappings, ok := contactsCache[email]
-	metadataMu.RUnlock()
 	if !ok {
 		return []AliasMapping{}, nil
 	}
-	return mappings, nil
+
+	// Data Race 방지를 위해 복사본 반환
+	result := make([]AliasMapping, len(mappings))
+	copy(result, mappings)
+	return result, nil
 }
 
 func AddContactMapping(email, repName, aliases string) error {
@@ -75,7 +79,7 @@ func SaveWhatsAppContact(email, number, name string) error {
 	// or create a new entry.
 	// However, for WhatsApp, it's better to have name as rep_name and number as the primary alias.
 
-	metadataMu.Lock()
+	metadataMu.RLock()
 	mappings := contactsCache[email]
 	var currentAliases string
 	exists := false
@@ -86,7 +90,7 @@ func SaveWhatsAppContact(email, number, name string) error {
 			break
 		}
 	}
-	metadataMu.Unlock()
+	metadataMu.RUnlock()
 
 	newAliases := number
 	if exists {
@@ -140,7 +144,7 @@ func NormalizeContactName(email, rawName string) string {
 	}
 
 	normalizedRaw := strings.TrimSpace(strings.ToLower(rawName))
-	
+
 	// If it's a number, try exact match first
 	for _, m := range mappings {
 		aliases := strings.Split(m.Aliases, ",")
@@ -152,4 +156,22 @@ func NormalizeContactName(email, rawName string) string {
 	}
 
 	return rawName
+}
+
+func DeleteContactMapping(email, repName string) error {
+	query := `DELETE FROM contacts WHERE user_email = $1 AND rep_name = $2`
+	_, err := db.Exec(query, email, repName)
+	if err == nil {
+		metadataMu.Lock()
+		defer metadataMu.Unlock()
+		if mappings, ok := contactsCache[email]; ok {
+			for i, m := range mappings {
+				if m.RepName == repName {
+					contactsCache[email] = append(mappings[:i], mappings[i+1:]...)
+					break
+				}
+			}
+		}
+	}
+	return err
 }

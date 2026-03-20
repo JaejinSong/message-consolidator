@@ -187,7 +187,7 @@ const fetchTokenUsage = async () => {
 const fetchContactMappings = async () => {
     try {
         const mappings = await api.fetchContactMappings();
-        renderer.renderContactMappings(mappings);
+        renderer.renderContactMappings(mappings, removeContactMapping);
     } catch (e) { console.error(e); }
 };
 
@@ -204,6 +204,14 @@ const addContactMapping = async () => {
         fetchContactMappings();
     } catch (e) { console.error(e); }
 };
+
+const removeContactMapping = async (repName) => {
+    try {
+        await api.removeContactMapping(repName);
+        fetchContactMappings();
+    } catch (e) { console.error(e); }
+};
+window.removeContactMapping = removeContactMapping;
 
 // Global helper for Quick Alias Mapping from UI
 window.openAliasMapping = (name) => {
@@ -301,24 +309,44 @@ const initApp = () => {
         return Array.from(document.querySelectorAll('.archive-check:checked')).map(cb => parseInt(cb.getAttribute('data-id')));
     };
 
-    document.getElementById('archiveLink')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        document.querySelector('.tabs-container')?.classList.add('hidden');
-        document.querySelector('.dashboard-header')?.classList.add('hidden');
-        document.getElementById('archiveSection')?.classList.remove('hidden');
-        // Reset selection
-        const selectAll = document.getElementById('selectAllArchive');
-        if (selectAll) selectAll.checked = false;
-        updateArchiveActionsVisibility();
-        fetchArchive();
-    });
+    // --- Unified View Switching (Dashboard vs Archive) ---
+    const showView = (view) => {
+        const dashboardTabs = document.querySelector('.tabs-container');
+        const dashboardHeader = document.querySelector('.dashboard-header');
+        const archiveSection = document.getElementById('archiveSection');
+        const navTabs = document.querySelectorAll('.nav-tab');
 
-    const closeArchive = () => {
-        document.querySelector('.tabs-container')?.classList.remove('hidden');
-        document.querySelector('.dashboard-header')?.classList.remove('hidden');
-        document.getElementById('archiveSection')?.classList.add('hidden');
+        if (view === 'archive') {
+            dashboardTabs?.classList.add('hidden');
+            dashboardHeader?.classList.add('hidden');
+            archiveSection?.classList.remove('hidden');
+            // Reset selection
+            const selectAll = document.getElementById('selectAllArchive');
+            if (selectAll) selectAll.checked = false;
+            updateArchiveActionsVisibility();
+            fetchArchive();
+        } else {
+            dashboardTabs?.classList.remove('hidden');
+            dashboardHeader?.classList.remove('hidden');
+            archiveSection?.classList.add('hidden');
+            fetchMessages();
+        }
+
+        // Active state update
+        navTabs.forEach(tab => {
+            const isMatch = tab.getAttribute('data-view') === view;
+            tab.classList.toggle('active', isMatch);
+        });
     };
 
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const view = tab.getAttribute('data-view');
+            showView(view);
+        });
+    });
+
+    const closeArchive = () => showView('dashboard');
     document.getElementById('closeArchiveBtn')?.addEventListener('click', closeArchive);
     document.getElementById('backToDashBtn')?.addEventListener('click', closeArchive);
 
@@ -575,6 +603,8 @@ const initApp = () => {
     window.addEventListener('click', (e) => {
         if (e.target === settingsModal) settingsModal.classList.add('hidden');
     });
+
+    document.getElementById('updatesBtn')?.addEventListener('click', showReleaseNotes);
 
     document.getElementById('addAliasBtn')?.addEventListener('click', addAlias);
     document.getElementById('newAliasInput')?.addEventListener('keypress', (e) => {
