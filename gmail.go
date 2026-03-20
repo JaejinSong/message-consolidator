@@ -71,13 +71,13 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 	return svc, nil
 }
 
-func ScanGmail(ctx context.Context, email string, language string) bool {
+func ScanGmail(ctx context.Context, email string, language string) {
 	logger.Debugf("[SCAN-GMAIL] Starting Gmail scan for %s", email)
 
 	svc, err := GetGmailService(ctx, email)
 	if err != nil {
 		logger.Debugf("[SCAN-GMAIL] Skipping %s (no token or service error): %v", email, err)
-		return false
+		return
 	}
 
 	since := getGmailScanTime(email)
@@ -88,20 +88,16 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 		if err != nil {
 			logger.Debugf("[SCAN-GMAIL] Failed to list messages for %s: %v", email, err)
 		}
-		return false
+		return
 	}
 
 	rawMsgs, classificationMap, toMap := parseNewEmails(svc, msgs.Messages, email)
 	if len(rawMsgs) == 0 {
-		return false
+		return
 	}
 
-	hasNew := analyzeAndSaveEmails(ctx, email, language, rawMsgs, classificationMap, toMap)
-	if hasNew {
-		store.UpdateLastScan(email, "gmail", "inbox", fmt.Sprintf("%d", time.Now().Unix()))
-	}
-
-	return hasNew
+	analyzeAndSaveEmails(ctx, email, language, rawMsgs, classificationMap, toMap)
+	store.UpdateLastScan(email, "gmail", "inbox", fmt.Sprintf("%d", time.Now().Unix()))
 }
 
 func getGmailScanTime(email string) time.Time {
@@ -174,7 +170,7 @@ func parseNewEmails(svc *gmail.Service, messages []*gmail.Message, email string)
 	return rawMsgs, classificationMap, toMap
 }
 
-func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []RawMessage, classificationMap map[string]string, toMap map[string]string) bool {
+func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []RawMessage, classificationMap map[string]string, toMap map[string]string) {
 	var sb strings.Builder
 	msgMap := make(map[string]RawMessage)
 
@@ -186,16 +182,14 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 	gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 	if err != nil {
 		logger.Errorf("[SCAN-GMAIL] Failed to init Gemini client: %v", err)
-		return false
+		return
 	}
 
 	items, err := gc.Analyze(ctx, email, sb.String(), language, "gmail")
 	if err != nil {
 		logger.Errorf("[SCAN-GMAIL] Gemini Analyze Error for %s: %v", email, err)
-		return false
+		return
 	}
-
-	hasNew := false
 
 	user, _ := store.GetOrCreateUser(email, "", "")
 	aliases, _ := store.GetUserAliases(user.ID)
@@ -218,7 +212,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 				assignee = extractNameFromEmail(toHeader)
 			}
 		} else if cls == "기타 업무" {
-			// 내가 CC/BCC로 수신한 경우, AI가 나를 담당자로 오탐하더라도 빈칸으로 초기화
+			// 내가 CC/BCC로 수신한 경우, AI가 나를 담당자로 오탐하더라도 실제 To 수신자로 담당자 강제 교체
 			isMe := strings.EqualFold(assignee, fallbackAssignee) || strings.EqualFold(assignee, user.Name) || strings.EqualFold(assignee, email)
 			for _, alias := range aliases {
 				if alias != "" && strings.EqualFold(assignee, alias) {
@@ -237,7 +231,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 		}
 
 		uniqueSourceTS := fmt.Sprintf("gmail-%s-%d", item.SourceTS, i)
-		saved, _, _ := store.SaveMessage(store.ConsolidatedMessage{
+		store.SaveMessage(store.ConsolidatedMessage{
 			UserEmail:    email,
 			Source:       "gmail",
 			Room:         "Gmail",
@@ -249,12 +243,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 			SourceTS:     uniqueSourceTS,
 			OriginalText: item.OriginalText,
 		})
-		if saved {
-			hasNew = true
-		}
 	}
-
-	return hasNew
 }
 
 // extractNameFromEmail은 이메일 포맷("Name <email@domain.com>")에서 사람이 읽기 좋은 이름만 깔끔하게 추출합니다.
