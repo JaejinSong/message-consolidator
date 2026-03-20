@@ -3,6 +3,8 @@ import { updateUILanguage } from './js/i18n.js';
 import { I18N_DATA } from './js/locales.js';
 import { api } from './js/api.js';
 import { renderer } from './js/renderer.js';
+import { archive } from './js/archive.js';
+import { modals } from './js/modals.js';
 
 // --- Global Event Handlers for Renderer ---
 const handlers = {
@@ -16,8 +18,8 @@ const handlers = {
         try {
             await api.deleteTask(id);
             fetchMessages();
-            if (!document.getElementById('archiveSection').classList.contains('hidden')) {
-                fetchArchive();
+            if (archive.isVisible()) {
+                archive.fetch();
             }
         } catch (e) { console.error(e); }
     }
@@ -30,48 +32,6 @@ const fetchMessages = async () => {
         renderer.renderMessages(data, handlers);
         renderer.updateSlackStatus(data);
     } catch (e) { console.error(e); }
-};
-
-const fetchArchive = async () => {
-    const loader = document.getElementById('archiveLoading');
-    if (loader) loader.classList.add('active');
-    try {
-        const params = {
-            q: state.archiveSearch,
-            limit: state.archiveLimit,
-            offset: (state.archivePage - 1) * state.archiveLimit,
-            lang: state.currentLang,
-            sort: state.archiveSort,
-            order: state.archiveOrder
-        };
-        const data = await api.fetchArchive(params);
-        state.archiveTotalCount = data.total;
-        renderer.renderArchive(data.messages);
-        updateArchivePaginationUI();
-    } catch (e) {
-        console.error(e);
-    } finally {
-        if (loader) loader.classList.remove('active');
-    }
-};
-
-const updateArchivePaginationUI = () => {
-    const totalPages = Math.ceil(state.archiveTotalCount / state.archiveLimit) || 1;
-    const pageInfo = document.getElementById('archivePageInfo');
-    const i18n = I18N_DATA[state.currentLang];
-
-    if (pageInfo && i18n) {
-        let text = i18n.archivePageInfo || `Page {page} / {totalPages} (Total: {totalCount})`;
-        text = text.replace('{page}', state.archivePage)
-            .replace('{totalPages}', totalPages)
-            .replace('{totalCount}', state.archiveTotalCount);
-        pageInfo.textContent = text;
-    }
-
-    const prevBtn = document.getElementById('prevArchivePage');
-    const nextBtn = document.getElementById('nextArchivePage');
-    if (prevBtn) prevBtn.disabled = state.archivePage <= 1;
-    if (nextBtn) nextBtn.disabled = state.archivePage >= totalPages;
 };
 
 const checkWhatsAppStatus = async () => {
@@ -128,123 +88,6 @@ const fetchUserProfile = async () => {
     }
 };
 
-const fetchAliases = async () => {
-    try {
-        const aliases = await api.fetchAliases();
-        state.userAliases = aliases;
-        renderer.renderAliasList(state.userAliases, removeAlias);
-        fetchMessages();
-    } catch (e) { console.error(e); }
-};
-
-const addAlias = async () => {
-    const input = document.getElementById('newAliasInput');
-    const rawValue = input.value;
-    if (!rawValue.trim()) return;
-
-    const aliases = rawValue.split(',').map(a => a.trim()).filter(a => a);
-    try {
-        await Promise.all(aliases.map(a => api.addAlias(a)));
-        input.value = '';
-        fetchAliases();
-    } catch (e) { console.error(e); }
-};
-
-const removeAlias = async (alias) => {
-    try {
-        await api.removeAlias(alias);
-        fetchAliases();
-    } catch (e) { console.error(e); }
-};
-
-const fetchTenantAliases = async () => {
-    try {
-        const aliases = await api.fetchTenantAliases();
-        renderer.renderTenantAliasList(aliases, removeTenantAliasMapping);
-    } catch (e) { console.error(e); }
-};
-
-const addTenantAliasMapping = async () => {
-    const origInput = document.getElementById('normOriginalInput');
-    const primInput = document.getElementById('normPrimaryInput');
-    const original = origInput.value.trim();
-    const primary = primInput.value.trim();
-    if (!original || !primary) return;
-    try {
-        await api.addTenantAlias(original, primary);
-        origInput.value = '';
-        primInput.value = '';
-        fetchTenantAliases();
-    } catch (e) { console.error(e); }
-};
-
-const removeTenantAliasMapping = async (original) => {
-    try {
-        await api.removeTenantAlias(original);
-        fetchTenantAliases();
-    } catch (e) { console.error(e); }
-};
-
-const fetchTokenUsage = async () => {
-    try {
-        const usage = await api.fetchTokenUsage();
-        renderer.updateTokenBadge(usage);
-    } catch (e) { console.error(e); }
-};
-
-const fetchContactMappings = async () => {
-    try {
-        const mappings = await api.fetchContactMappings();
-        renderer.renderContactMappings(mappings, removeContactMapping);
-    } catch (e) { console.error(e); }
-};
-
-const addContactMapping = async () => {
-    const repInput = document.getElementById('contactRepInput');
-    const aliasInput = document.getElementById('contactAliasesInput');
-    const repName = repInput.value.trim();
-    const aliases = aliasInput.value.trim();
-    if (!repName || !aliases) return;
-    try {
-        await api.addContactMapping(repName, aliases);
-        repInput.value = '';
-        aliasInput.value = '';
-        fetchContactMappings();
-    } catch (e) { console.error(e); }
-};
-
-const removeContactMapping = async (repName) => {
-    try {
-        await api.removeContactMapping(repName);
-        fetchContactMappings();
-    } catch (e) { console.error(e); }
-};
-window.removeContactMapping = removeContactMapping;
-
-// Global helper for Quick Alias Mapping from UI
-window.openAliasMapping = (name) => {
-    const settingsModal = document.getElementById('settingsModal');
-    if (settingsModal) {
-        settingsModal.classList.remove('hidden');
-
-        // Settings 모달을 열 때 Mappings 탭으로 전환
-        const mappingsTabBtn = document.querySelector('[data-settings-tab="mappingsTab"]');
-        if (mappingsTabBtn) mappingsTabBtn.click();
-
-        fetchTenantAliases();
-        fetchContactMappings();
-
-        const origInput = document.getElementById('normOriginalInput');
-        const contactAliasInput = document.getElementById('contactAliasesInput');
-        if (origInput) {
-            origInput.value = name;
-            if (contactAliasInput) contactAliasInput.value = name;
-            document.getElementById('normPrimaryInput')?.focus();
-        }
-    }
-};
-
-
 // --- Initialization ---
 const initApp = () => {
     console.log("Initializing Modular App...");
@@ -285,8 +128,8 @@ const initApp = () => {
             try {
                 await api.translateTasks(lang);
                 await fetchMessages();
-                if (!document.getElementById('archiveSection').classList.contains('hidden')) {
-                    fetchArchive();
+                if (archive.isVisible()) {
+                    archive.fetch();
                 }
             } finally {
                 loading.classList.add('hidden');
@@ -327,18 +170,11 @@ const initApp = () => {
 
     setTimeout(() => switchTab('myTasksTab'), 500);
 
-    // Archive
-    const updateArchiveActionsVisibility = () => {
-        const checkedCount = document.querySelectorAll('.archive-check:checked').length;
-        const restoreBtn = document.getElementById('restoreSelectedBtn');
-        const hardDeleteBtn = document.getElementById('hardDeleteSelectedBtn');
-        if (restoreBtn) restoreBtn.style.display = checkedCount > 0 ? 'inline-block' : 'none';
-        if (hardDeleteBtn) hardDeleteBtn.style.display = checkedCount > 0 ? 'inline-block' : 'none';
-    };
+    // Initialize Archive Controller
+    archive.init(fetchMessages);
 
-    const getSelectedArchiveIds = () => {
-        return Array.from(document.querySelectorAll('.archive-check:checked')).map(cb => parseInt(cb.getAttribute('data-id')));
-    };
+    // Initialize Modals Controller
+    modals.init(fetchMessages);
 
     // --- Unified View Switching (Dashboard vs Archive) ---
     const showView = (view) => {
@@ -351,11 +187,7 @@ const initApp = () => {
             dashboardTabs?.classList.add('hidden');
             dashboardHeader?.classList.add('hidden');
             archiveSection?.classList.remove('hidden');
-            // Reset selection
-            const selectAll = document.getElementById('selectAllArchive');
-            if (selectAll) selectAll.checked = false;
-            updateArchiveActionsVisibility();
-            fetchArchive();
+            archive.onShow();
         } else {
             dashboardTabs?.classList.remove('hidden');
             dashboardHeader?.classList.remove('hidden');
@@ -380,176 +212,6 @@ const initApp = () => {
     const closeArchive = () => showView('dashboard');
     document.getElementById('closeArchiveBtn')?.addEventListener('click', closeArchive);
     document.getElementById('backToDashBtn')?.addEventListener('click', closeArchive);
-
-    document.getElementById('selectAllArchive')?.addEventListener('change', (e) => {
-        const checked = e.target.checked;
-        document.querySelectorAll('.archive-check').forEach(cb => cb.checked = checked);
-        updateArchiveActionsVisibility();
-    });
-
-    document.getElementById('archiveBody')?.addEventListener('change', (e) => {
-        if (e.target.classList.contains('archive-check')) {
-            updateArchiveActionsVisibility();
-        }
-    });
-
-    // Archive Search & Pagination
-    let searchTimeout;
-    document.getElementById('archiveSearchInput')?.addEventListener('input', (e) => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            state.archiveSearch = e.target.value;
-            state.archivePage = 1; // Reset to page 1 on search
-            fetchArchive();
-        }, 500);
-    });
-
-    document.getElementById('prevArchivePage')?.addEventListener('click', () => {
-        if (state.archivePage > 1) {
-            state.archivePage--;
-            fetchArchive();
-        }
-    });
-
-    document.getElementById('nextArchivePage')?.addEventListener('click', () => {
-        const totalPages = Math.ceil(state.archiveTotalCount / state.archiveLimit);
-        if (state.archivePage < totalPages) {
-            state.archivePage++;
-            fetchArchive();
-        }
-    });
-
-    // Export Modal Logic
-    const exportModal = document.getElementById('exportModal');
-    document.getElementById('openExportModalBtn')?.addEventListener('click', async () => {
-        try {
-            const countData = await api.fetchArchiveCount(state.archiveSearch);
-            document.getElementById('exportCount').textContent = countData.count;
-            exportModal.classList.remove('hidden');
-        } catch (e) {
-            alert((I18N_DATA[state.currentLang]?.errorArchiveCount || 'Error: ') + e.message);
-        }
-    });
-
-    const closeExport = () => exportModal.classList.add('hidden');
-    document.getElementById('closeExportModalBtn')?.addEventListener('click', closeExport);
-    document.getElementById('cancelExportBtn')?.addEventListener('click', closeExport);
-
-    const downloadFile = (url, defaultFilename) => {
-        console.log(`[DEBUG] Starting native download: ${url}, default: ${defaultFilename}`);
-        const loading = document.getElementById('loading');
-        if (loading) loading.classList.remove('hidden');
-
-        // 브라우저 네이티브 다운로드 방식을 사용하여 Chrome의 UUID 버그를 원천 차단합니다.
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = defaultFilename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-        // 네이티브 다운로드는 콜백이 없으므로 일정 시간 후 로딩 스피너를 숨깁니다.
-        setTimeout(() => {
-            if (loading) loading.classList.add('hidden');
-        }, 2000);
-    };
-
-    document.getElementById('confirmExportExcel')?.addEventListener('click', () => {
-        const query = state.archiveSearch ? `?q=${encodeURIComponent(state.archiveSearch)}` : '';
-        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_');
-        downloadFile(`/api/messages/export/excel${query}`, `Message_Archive_${timestamp}.xlsx`);
-        closeExport();
-    });
-
-    document.getElementById('confirmExportCsv')?.addEventListener('click', () => {
-        const query = state.archiveSearch ? `?q=${encodeURIComponent(state.archiveSearch)}` : '';
-        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_');
-        downloadFile(`/api/messages/export${query}`, `Message_Archive_${timestamp}.csv`);
-        closeExport();
-    });
-
-    document.getElementById('confirmExportJson')?.addEventListener('click', () => {
-        const query = state.archiveSearch ? `?q=${encodeURIComponent(state.archiveSearch)}` : '';
-        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_');
-        downloadFile(`/api/messages/export/json${query}`, `Message_Archive_${timestamp}.json`);
-        closeExport();
-    });
-
-    document.getElementById('restoreSelectedBtn')?.addEventListener('click', async () => {
-        const ids = getSelectedArchiveIds();
-        if (ids.length === 0) return;
-        try {
-            await api.restoreTasks(ids);
-            const selectAll = document.getElementById('selectAllArchive');
-            if (selectAll) selectAll.checked = false;
-            updateArchiveActionsVisibility();
-            fetchArchive();
-            fetchMessages();
-        } catch (e) {
-            alert((I18N_DATA[state.currentLang]?.errorRestore || 'Error: ') + e.message);
-        }
-    });
-
-    // Custom Delete Confirmation Modal Logic
-    const deleteConfirmModal = document.getElementById('deleteConfirmModal');
-    let deletePendingIds = [];
-
-    document.getElementById('hardDeleteSelectedBtn')?.addEventListener('click', () => {
-        deletePendingIds = getSelectedArchiveIds();
-        if (deletePendingIds.length === 0) return;
-
-        const countSpan = document.getElementById('deleteConfirmCount');
-        if (countSpan) countSpan.textContent = deletePendingIds.length;
-        deleteConfirmModal.classList.remove('hidden');
-    });
-
-    const closeDeleteConfirm = () => {
-        deleteConfirmModal.classList.add('hidden');
-        deletePendingIds = [];
-    };
-
-    document.getElementById('closeDeleteConfirmBtn')?.addEventListener('click', closeDeleteConfirm);
-    document.getElementById('cancelDeleteConfirmBtn')?.addEventListener('click', closeDeleteConfirm);
-
-    window.addEventListener('click', (e) => {
-        if (e.target === deleteConfirmModal) closeDeleteConfirm();
-    });
-
-    document.getElementById('confirmHardDeleteBtn')?.addEventListener('click', async () => {
-        if (deletePendingIds.length === 0) return;
-        try {
-            await api.hardDeleteTasks(deletePendingIds);
-            const selectAll = document.getElementById('selectAllArchive');
-            if (selectAll) selectAll.checked = false;
-            updateArchiveActionsVisibility();
-            fetchArchive();
-            closeDeleteConfirm();
-        } catch (error) {
-            alert((I18N_DATA[state.currentLang]?.errorHardDelete || 'Error: ') + error.message);
-        }
-    });
-
-
-    // Archive sorting listeners
-    const triggerArchiveSort = (field) => {
-        if (state.archiveSort === field) {
-            state.archiveOrder = state.archiveOrder === 'ASC' ? 'DESC' : 'ASC';
-        } else {
-            state.archiveSort = field;
-            state.archiveOrder = 'DESC';
-        }
-        state.archivePage = 1;
-        fetchArchive();
-    };
-
-    document.getElementById('ahSource')?.addEventListener('click', () => triggerArchiveSort('source'));
-    document.getElementById('ahRoom')?.addEventListener('click', () => triggerArchiveSort('room'));
-    document.getElementById('ahTask')?.addEventListener('click', () => triggerArchiveSort('task'));
-    document.getElementById('ahRequester')?.addEventListener('click', () => triggerArchiveSort('requester'));
-    document.getElementById('ahAssignee')?.addEventListener('click', () => triggerArchiveSort('assignee'));
-    document.getElementById('ahTime')?.addEventListener('click', () => triggerArchiveSort('time'));
-    document.getElementById('ahCompletedAt')?.addEventListener('click', () => triggerArchiveSort('completed_at'));
 
     // WhatsApp QR
     document.getElementById('getQRBtn')?.addEventListener('click', async () => {
@@ -586,74 +248,6 @@ const initApp = () => {
     });
 
     document.getElementById('scanBtn')?.addEventListener('click', triggerScan);
-
-    // Release Notes
-    const releaseNotesModal = document.getElementById('releaseNotesModal');
-    const showReleaseNotes = async () => {
-        try {
-            const data = await api.fetchReleaseNotes();
-            if (data && data.content) {
-                renderer.renderReleaseNotes(data.content);
-            }
-        } catch (e) {
-            console.error('Failed to fetch release notes:', e);
-        }
-    };
-
-    document.getElementById('releaseNotesBtn')?.addEventListener('click', showReleaseNotes);
-    document.getElementById('closeReleaseNotesBtn')?.addEventListener('click', () => {
-        releaseNotesModal.classList.add('hidden');
-    });
-    document.getElementById('confirmReleaseNotesBtn')?.addEventListener('click', () => {
-        releaseNotesModal.classList.add('hidden');
-    });
-    window.addEventListener('click', (e) => {
-        if (e.target === releaseNotesModal) releaseNotesModal.classList.add('hidden');
-    });
-
-    // Original Message Modal
-    const originalModal = document.getElementById('originalMessageModal');
-    document.getElementById('closeOriginalBtn')?.addEventListener('click', () => {
-        originalModal.classList.add('hidden');
-    });
-    window.addEventListener('click', (e) => {
-        if (e.target === originalModal) originalModal.classList.add('hidden');
-    });
-
-    // Settings
-    const settingsModal = document.getElementById('settingsModal');
-    document.getElementById('settingsBtn')?.addEventListener('click', () => {
-        settingsModal.classList.remove('hidden');
-        renderer.renderAliasList(state.userAliases, removeAlias);
-        fetchTenantAliases();
-        fetchContactMappings();
-        fetchTokenUsage();
-    });
-
-    document.getElementById('closeSettingsBtn')?.addEventListener('click', () => {
-        settingsModal.classList.add('hidden');
-    });
-
-    window.addEventListener('click', (e) => {
-        if (e.target === settingsModal) settingsModal.classList.add('hidden');
-    });
-
-    document.getElementById('updatesBtn')?.addEventListener('click', showReleaseNotes);
-
-    document.getElementById('addAliasBtn')?.addEventListener('click', addAlias);
-    document.getElementById('newAliasInput')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') addAlias();
-    });
-
-    document.getElementById('addNormBtn')?.addEventListener('click', addTenantAliasMapping);
-    document.getElementById('normPrimaryInput')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') addTenantAliasMapping();
-    });
-
-    document.getElementById('addContactBtn')?.addEventListener('click', addContactMapping);
-    document.getElementById('contactAliasesInput')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') addContactMapping();
-    });
 
     updateUILanguage(state.currentLang); // 초기 언어 적용
     fetchUserProfile();                  // 내부에서 fetchMessages()를 이어 호출함

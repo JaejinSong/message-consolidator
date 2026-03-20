@@ -166,6 +166,11 @@ body.light-theme .nav-tab.active {
     transform: translateY(-1px);
 }
 
+#settingsBtn:hover {
+    color: var(--accent-color) !important;
+    text-shadow: 0 0 10px var(--accent-glow);
+}
+
 .lang-wrapper {
     margin-left: 0.4rem;
     padding-left: 0.4rem;
@@ -710,16 +715,19 @@ footer {
     padding: 2.5rem;
     position: relative;
     background: #0f111a;
-    border: 1px solid var(--accent-color);
+    /* Default for dark theme */
+    border: 2px solid var(--accent-color);
     box-shadow: 0 0 50px rgba(0, 242, 255, 0.15);
     border-radius: 24px;
     max-height: 90vh;
     overflow-y: auto;
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
-#settingsBtn:hover {
-    color: var(--accent-color) !important;
-    text-shadow: 0 0 10px var(--accent-glow);
+body.light-theme .modal-content {
+    background: #ffffff;
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 10px 40px rgba(15, 23, 42, 0.15);
 }
 
 .modal-header {
@@ -1387,41 +1395,6 @@ body.light-theme .scan-btn.active {
     }
 }
 
-/* Extra Small Mobile Devices */
-@media (max-width: 480px) {
-    .glass-container {
-        padding: 1rem;
-        border-radius: 20px;
-    }
-
-    h1 {
-        font-size: 1.8rem;
-    }
-
-    .status-icon-large {
-        width: 80px;
-        height: 80px;
-    }
-
-    .status-icon-large svg {
-        width: 32px;
-        height: 32px;
-    }
-
-    .status-label {
-        font-size: 0.7rem;
-    }
-
-    .settings-main {
-        padding: 1.2rem;
-    }
-
-    .modal-content {
-        width: 95%;
-        padding: 1.5rem;
-    }
-}
-
 .loading-overlay {
     position: absolute;
     top: 0;
@@ -1690,6 +1663,38 @@ body.light-theme .scan-btn.active {
         flex: 1;
         justify-content: center;
     }
+
+    .glass-container {
+        padding: 1rem;
+        border-radius: 20px;
+    }
+
+    h1 {
+        font-size: 1.8rem;
+    }
+
+    .status-icon-large {
+        width: 80px;
+        height: 80px;
+    }
+
+    .status-icon-large svg {
+        width: 32px;
+        height: 32px;
+    }
+
+    .status-label {
+        font-size: 0.7rem;
+    }
+
+    .settings-main {
+        padding: 1.2rem;
+    }
+
+    .modal-content {
+        width: 95%;
+        padding: 1.5rem;
+    }
 }
 
 /* Empty State Witty Message */
@@ -1717,11 +1722,17 @@ body.light-theme .scan-btn.active {
     word-break: keep-all;
 }
 
+body.light-theme .empty-state-witty {
+    background: rgba(14, 165, 233, 0.05); /* Light blue background */
+    border: 1px dashed var(--accent-color);
+}
+
 @keyframes fadeInSlide {
     from {
         opacity: 0;
         transform: translateY(10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);

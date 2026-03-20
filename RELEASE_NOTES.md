@@ -1,3 +1,12 @@
+# Release Notes - v1.9.8 (2026-03-20 16:30 UTC)
+
+## 🏗️ Frontend Modularization & UI Logic Fixes
+- **[NEW] Frontend Architecture Refactoring**: Refactored monolithic frontend logic into clean, domain-specific modules (`taskFilter.js`, `icons.js`, `archive.js`, `modals.js`) to improve maintainability and scalability.
+- **[FIX] Modal Theme Mismatch**: Resolved a critical readability issue in the light theme by ensuring the details modal uses theme-aware background colors.
+- **[FIX] Empty State Visibility**: Corrected the logic to ensure witty messages appear correctly for each section (My Tasks / Other Tasks) independently.
+
+---
+
 # Release Notes - v1.9.7 (2026-03-20 15:00 UTC)
 
 ## 🎊 Witty Empty States & Emotional UX Enhancement
