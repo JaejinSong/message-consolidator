@@ -34,11 +34,15 @@ func SaveMessage(msg ConsolidatedMessage) (bool, int, error) {
 		return false, 0, err
 	}
 
+	msg.ID = lastID
+	msg.CreatedAt = time.Now()
+
 	cacheMu.Lock()
 	if _, ok := knownTS[msg.UserEmail]; !ok {
 		knownTS[msg.UserEmail] = make(map[string]bool)
 	}
 	knownTS[msg.UserEmail][msg.SourceTS] = true
+	messageCache[msg.UserEmail] = append([]ConsolidatedMessage{msg}, messageCache[msg.UserEmail]...)
 	cacheMu.Unlock()
 
 	return true, lastID, nil
