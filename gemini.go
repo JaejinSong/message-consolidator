@@ -52,8 +52,8 @@ func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText stri
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(fmt.Sprintf(`Extract tasks as a JSON array: [{"task", "requester", "assignee", "assigned_at", "source_ts", "original_text"}]
 1. "task": Concise task description in %s.
-2. "requester": The exact name of the person requesting the task.
-3. "assignee": The exact name of the person responsible for the task. Do NOT use generic pronouns like '나', '저', 'me', 'you'. Resolve pronouns to actual names based on context (e.g., sender/recipient). If someone is mentioned with '@', prioritize that name. If strictly unknown, leave it empty.
+2. "requester": The exact name of the person requesting the task. Preserve full names exactly as they appear (including parentheses and non-Latin characters like Korean/Chinese).
+3. "assignee": The exact name of the person responsible for the task. Do NOT use generic pronouns. Resolve pronouns to actual names based on context. If someone is mentioned with '@', prioritize that name.
 4. "original_text": The literal original text of the message (single-line, no modification).
 5. "source_ts": Find via [TS:timestamp].`, language))},
 	}

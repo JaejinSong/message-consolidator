@@ -5,18 +5,22 @@ import (
 	"encoding/base64"
 	"fmt"
 	"message-consolidator/logger"
+	"message-consolidator/store"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/store"
+	waStore "go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
+
+var waMentionRegex = regexp.MustCompile(`@([0-9]+)`)
 
 type WAManager struct {
 	clients       map[string]*whatsmeow.Client
@@ -99,7 +103,7 @@ func (m *WAManager) InitClient(email string, dbURL string) {
 		return
 	}
 
-	var device *store.Device
+	var device *waStore.Device
 	if wajid != "" {
 		jid, _ := types.ParseJID(wajid)
 		device, err = m.container.GetDevice(context.Background(), jid)
@@ -161,7 +165,37 @@ func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt inte
 		sender := v.Info.Sender.String()
 		if v.Info.PushName != "" {
 			sender = v.Info.PushName
+			// Store mapping for mention resolution later
+			go store.SaveWhatsAppContact(email, v.Info.Sender.User, v.Info.PushName)
 		}
+
+		// WhatsApp 멘션(@전화번호)을 캐시된 실제 이름(@Name)으로 치환
+		msgText = waMentionRegex.ReplaceAllStringFunc(msgText, func(match string) string {
+			number := match[1:]
+			name := store.GetNameByWhatsAppNumber(email, number)
+			if name != "" {
+				return "@" + name
+			}
+
+			// DB 캐시에 없을 경우 whatsmeow 내부 연락처 스토어에서 조회 (Fallback)
+			jid := types.NewJID(number, types.DefaultUserServer)
+			if contact, err := client.Store.Contacts.GetContact(jid); err == nil {
+				resolvedName := contact.PushName
+				if contact.FullName != "" {
+					resolvedName = contact.FullName
+				} else if contact.BusinessName != "" {
+					resolvedName = contact.BusinessName
+				}
+
+				if resolvedName != "" {
+					// 새로 찾은 이름은 DB에 캐시하여 다음부터 빠르게 조회되도록 비동기 저장
+					go store.SaveWhatsAppContact(email, number, resolvedName)
+					return "@" + resolvedName
+				}
+			}
+
+			return match // 연락처 캐시에 없으면 원래의 숫자 문자열 유지
+		})
 
 		// 2. 버퍼 업데이트를 위해 Write Lock 획득
 		m.mu.Lock()

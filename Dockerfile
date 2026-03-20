@@ -29,6 +29,7 @@ RUN apk --no-cache add ca-certificates tzdata libc6-compat
 WORKDIR /app
 COPY --from=builder /app/message-consolidator .
 COPY --from=builder /app/static-min ./static
+COPY RELEASE_NOTES_USER.md .
 VOLUME ["/data"]
 EXPOSE 8080
 CMD ["./message-consolidator"]
