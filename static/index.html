@@ -20,8 +20,8 @@
                 </div>
                 
                 <nav class="header-center">
-                    <button type="button" id="dashViewBtn" class="nav-tab active">Dashboard</button>
-                    <button type="button" id="archiveViewBtn" class="nav-tab">Archive</button>
+                    <button type="button" id="dashViewBtn" class="nav-tab active" data-view="dashboard">Dashboard</button>
+                    <button type="button" id="archiveViewBtn" class="nav-tab" data-view="archive">Archive</button>
                 </nav>
 
                 <div class="header-right">
@@ -151,7 +151,7 @@
                 </div>
 
                 <div class="task-list-header">
-                    <div class="col-source" id="hSource">Source</div>
+                    <div class="col-source" id="hSource" title="Source">#</div>
                     <div class="col-room" id="hRoom">Room</div>
                     <div class="col-task" id="hTask">Task</div>
                     <div class="col-requester" id="hRequester">Requester</div>
@@ -217,7 +217,7 @@
                         <thead>
                             <tr>
                                 <th style="width: 40px;"><input type="checkbox" id="selectAllArchive"></th>
-                                <th id="ahSource">Source</th>
+                                <th id="ahSource" title="Source" style="width: 40px;">#</th>
                                 <th id="ahRoom">Room</th>
                                 <th id="ahTask">Task</th>
                                 <th id="ahRequester">Requester</th>
