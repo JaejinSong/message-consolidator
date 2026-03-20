@@ -1,5 +1,6 @@
 import { state, updateLang } from './js/state.js';
-import { I18N_DATA, updateUILanguage } from './js/i18n.js';
+import { updateUILanguage } from './js/i18n.js';
+import { I18N_DATA } from './js/locales.js';
 import { api } from './js/api.js';
 import { renderer } from './js/renderer.js';
 
@@ -171,6 +172,34 @@ const removeTenantAliasMapping = async (original) => {
     try {
         await api.removeTenantAlias(original);
         fetchTenantAliases();
+    } catch (e) { console.error(e); }
+};
+
+const fetchTokenUsage = async () => {
+    try {
+        const usage = await api.fetchTokenUsage();
+        renderer.updateTokenBadge(usage);
+    } catch (e) { console.error(e); }
+};
+
+const fetchContactMappings = async () => {
+    try {
+        const mappings = await api.fetchContactMappings();
+        renderer.renderContactMappings(mappings);
+    } catch (e) { console.error(e); }
+};
+
+const addContactMapping = async () => {
+    const repInput = document.getElementById('contactRepInput');
+    const aliasInput = document.getElementById('contactAliasesInput');
+    const repName = repInput.value.trim();
+    const aliases = aliasInput.value.trim();
+    if (!repName || !aliases) return;
+    try {
+        await api.addContactMapping(repName, aliases);
+        repInput.value = '';
+        aliasInput.value = '';
+        fetchContactMappings();
     } catch (e) { console.error(e); }
 };
 
@@ -421,7 +450,6 @@ const initApp = () => {
     document.getElementById('ahTime')?.addEventListener('click', () => triggerArchiveSort('time'));
     document.getElementById('ahCompletedAt')?.addEventListener('click', () => triggerArchiveSort('completed_at'));
 
-
     // WhatsApp QR
     document.getElementById('getQRBtn')?.addEventListener('click', async () => {
         const btn = document.getElementById('getQRBtn');
@@ -447,7 +475,7 @@ const initApp = () => {
                         clearInterval(poll);
                         btn.disabled = false;
                     }
-                }, 3001); // 3초 근접 소수(Prime)로 지터링 적용
+                }, 3001);
             }
         } catch (e) {
             placeholder.textContent = 'Error';
@@ -464,6 +492,8 @@ const initApp = () => {
         settingsModal.classList.remove('hidden');
         renderer.renderAliasList(state.userAliases, removeAlias);
         fetchTenantAliases();
+        fetchContactMappings();
+        fetchTokenUsage();
     });
 
     document.getElementById('closeSettingsBtn')?.addEventListener('click', () => {
@@ -484,12 +514,20 @@ const initApp = () => {
         if (e.key === 'Enter') addTenantAliasMapping();
     });
 
-    fetchUserProfile();
+    document.getElementById('addContactBtn')?.addEventListener('click', addContactMapping);
+    document.getElementById('contactAliasesInput')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') addContactMapping();
+    });
+
+    updateUILanguage(state.currentLang); // 초기 언어 적용
+    fetchUserProfile();                  // 내부에서 fetchMessages()를 이어 호출함
     checkWhatsAppStatus();
     checkGmailStatus();
-    setInterval(fetchMessages, 29009);       // 약 29초 (소수 ms) - 백그라운드 충돌 회피
-    setInterval(checkWhatsAppStatus, 31013); // 약 31초 (소수 ms)
-    setInterval(checkGmailStatus, 61001);    // 약 61초 (소수 ms)
+    
+    // 주기적 업데이트
+    setInterval(fetchMessages, 29009);
+    setInterval(checkWhatsAppStatus, 31013);
+    setInterval(checkGmailStatus, 61001);
 
     // Gmail icon click: connect when OFF, show info when ON
     document.getElementById('gmailStatusLarge')?.addEventListener('click', () => {

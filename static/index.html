@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Message Consolidator Premium</title>
     <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
-    <link rel="stylesheet" href="static/style.css?v=106">
+    <link rel="stylesheet" href="static/style.css?v=1.8.1">
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap" rel="stylesheet">
 </head>
 
@@ -256,17 +256,33 @@
                 </section>
                 <hr style="border-color: var(--glass-border); margin: 1.5rem 0;">
                 <section>
-                    <h4>Contact Name Normalization</h4>
-                    <p class="desc">Map name variations (e.g., "YOSEP PARK") to a single primary name (e.g., "박요셉") for
-                        your view.</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <h4 style="margin: 0;">Contact Name Mapping</h4>
+                        <span id="tokenUsageBadge" class="badge" title="Today's Token Usage" style="background: rgba(var(--accent-rgb), 0.1); color: var(--accent-light); border: 1px solid var(--accent-color);">Token: 0</span>
+                    </div>
+                    <p class="desc">Map representative names (e.g., "홍길동") to their aliases (e.g., "Gildong, Gil-Dong"). Helps group messages from the same person across platforms.</p>
                     <div class="alias-input-group" style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
-                        <input type="text" id="normOriginalInput" placeholder="Original Name" style="flex: 1;">
-                        <input type="text" id="normPrimaryInput" placeholder="Primary Name" style="flex: 1;">
+                        <input type="text" id="contactRepInput" placeholder="Rep. Name" style="flex: 1;">
+                        <input type="text" id="contactAliasesInput" placeholder="Aliases (comma separated)" style="flex: 2;">
+                        <button type="button" id="addContactBtn" class="primary-btn"
+                            style="width: auto; padding: 0 1.5rem;">Add</button>
+                    </div>
+                    <div id="contactList" class="alias-list" style="max-height: 200px; overflow-y: auto;">
+                        <!-- Contact mappings will be listed here -->
+                    </div>
+                </section>
+                <hr style="border-color: var(--glass-border); margin: 1.5rem 0;">
+                <section>
+                    <h4>Tenant Name Normalization</h4>
+                    <p class="desc">Shared mappings for this tenant/workspace (e.g., "YOSEP PARK" → "박요셉").</p>
+                    <div class="alias-input-group" style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                        <input type="text" id="normOriginalInput" placeholder="Original" style="flex: 1;">
+                        <input type="text" id="normPrimaryInput" placeholder="Primary" style="flex: 1;">
                         <button type="button" id="addNormBtn" class="primary-btn"
                             style="width: auto; padding: 0 1.5rem;">Map</button>
                     </div>
-                    <div id="normList" class="alias-list" style="max-height: 200px; overflow-y: auto;">
-                        <!-- Mappings will be listed here -->
+                    <div id="normList" class="alias-list" style="max-height: 150px; overflow-y: auto;">
+                        <!-- Tenant mappings will be listed here -->
                     </div>
                 </section>
                 <hr style="border-color: var(--glass-border); margin: 1.5rem 0;">
@@ -327,7 +343,7 @@
         </div>
     </div>
 
-    <script type="module" src="static/app.js?v=106"></script>
+    <script type="module" src="static/app.js?v=1.8.1"></script>
 
 </body>
 

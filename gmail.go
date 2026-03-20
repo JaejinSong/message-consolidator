@@ -8,6 +8,7 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
+	"net/mail"
 	"strconv"
 	"strings"
 	"time"
@@ -90,12 +91,12 @@ func ScanGmail(ctx context.Context, email string, language string) bool {
 		return false
 	}
 
-	rawMsgs, classificationMap := parseNewEmails(svc, msgs.Messages)
+	rawMsgs, classificationMap, toMap := parseNewEmails(svc, msgs.Messages, email)
 	if len(rawMsgs) == 0 {
 		return false
 	}
 
-	hasNew := analyzeAndSaveEmails(ctx, email, language, rawMsgs, classificationMap)
+	hasNew := analyzeAndSaveEmails(ctx, email, language, rawMsgs, classificationMap, toMap)
 	if hasNew {
 		store.UpdateLastScan(email, "gmail", "inbox", fmt.Sprintf("%d", time.Now().Unix()))
 	}
@@ -112,9 +113,10 @@ func getGmailScanTime(email string) time.Time {
 	return time.Now().Add(-7 * 24 * time.Hour)
 }
 
-func parseNewEmails(svc *gmail.Service, messages []*gmail.Message) ([]RawMessage, map[string]string) {
+func parseNewEmails(svc *gmail.Service, messages []*gmail.Message, email string) ([]RawMessage, map[string]string, map[string]string) {
 	var rawMsgs []RawMessage
 	classificationMap := make(map[string]string)
+	toMap := make(map[string]string)
 
 	for _, m := range messages {
 		fullMsg, err := svc.Users.Messages.Get("me", m.Id).Format("full").Do()
@@ -138,14 +140,15 @@ func parseNewEmails(svc *gmail.Service, messages []*gmail.Message) ([]RawMessage
 			}
 		}
 
-		// Filter rules for jjsong@whatap.io
+		// Filter rules for user
+		emailLower := strings.ToLower(email)
 		toLower := strings.ToLower(to)
 		ccLower := strings.ToLower(cc)
 		bccLower := strings.ToLower(bcc)
 
-		isDirect := strings.Contains(toLower, "jjsong@whatap.io")
-		isCc := strings.Contains(ccLower, "jjsong@whatap.io")
-		isBcc := strings.Contains(bccLower, "jjsong@whatap.io")
+		isDirect := strings.Contains(toLower, emailLower)
+		isCc := strings.Contains(ccLower, emailLower)
+		isBcc := strings.Contains(bccLower, emailLower)
 
 		if !isDirect && !isCc && !isBcc {
 			continue
@@ -157,6 +160,7 @@ func parseNewEmails(svc *gmail.Service, messages []*gmail.Message) ([]RawMessage
 		}
 
 		classificationMap[m.Id] = classification
+		toMap[m.Id] = to
 		body := extractBody(fullMsg.Payload)
 
 		rawMsgs = append(rawMsgs, RawMessage{
@@ -167,10 +171,10 @@ func parseNewEmails(svc *gmail.Service, messages []*gmail.Message) ([]RawMessage
 		})
 	}
 
-	return rawMsgs, classificationMap
+	return rawMsgs, classificationMap, toMap
 }
 
-func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []RawMessage, classificationMap map[string]string) bool {
+func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []RawMessage, classificationMap map[string]string, toMap map[string]string) bool {
 	var sb strings.Builder
 	msgMap := make(map[string]RawMessage)
 
@@ -193,13 +197,37 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 
 	hasNew := false
 
+	user, _ := store.GetOrCreateUser(email, "", "")
+	aliases, _ := store.GetUserAliases(user.ID)
+	fallbackAssignee := user.Name
+	if fallbackAssignee == "" {
+		fallbackAssignee = email
+	}
+
 	for i, item := range items {
 		link := fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS)
 
 		assignee := item.Assignee
+		cls := classificationMap[item.SourceTS]
+		toHeader := toMap[item.SourceTS]
+
 		if assignee == "" || assignee == "me" || assignee == "나" || assignee == "담당자" {
-			if cls, ok := classificationMap[item.SourceTS]; ok {
-				assignee = cls
+			if cls == "내 업무" {
+				assignee = fallbackAssignee
+			} else {
+				assignee = extractNameFromEmail(toHeader)
+			}
+		} else if cls == "기타 업무" {
+			// 내가 CC/BCC로 수신한 경우, AI가 나를 담당자로 오탐하더라도 빈칸으로 초기화
+			isMe := strings.EqualFold(assignee, fallbackAssignee) || strings.EqualFold(assignee, user.Name) || strings.EqualFold(assignee, email)
+			for _, alias := range aliases {
+				if alias != "" && strings.EqualFold(assignee, alias) {
+					isMe = true
+					break
+				}
+			}
+			if isMe {
+				assignee = extractNameFromEmail(toHeader)
 			}
 		}
 
@@ -227,6 +255,34 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 	}
 
 	return hasNew
+}
+
+// extractNameFromEmail은 이메일 포맷("Name <email@domain.com>")에서 사람이 읽기 좋은 이름만 깔끔하게 추출합니다.
+func extractNameFromEmail(header string) string {
+	if header == "" {
+		return ""
+	}
+	addrs, err := mail.ParseAddressList(header)
+	if err == nil && len(addrs) > 0 {
+		if addrs[0].Name != "" {
+			return addrs[0].Name
+		}
+		return addrs[0].Address
+	}
+
+	firstRecip := strings.Split(header, ",")[0]
+	if idx := strings.Index(firstRecip, "<"); idx != -1 {
+		name := strings.TrimSpace(firstRecip[:idx])
+		name = strings.Trim(name, "\"")
+		if name != "" {
+			return name
+		}
+		endIdx := strings.Index(firstRecip, ">")
+		if endIdx > idx {
+			return strings.TrimSpace(firstRecip[idx+1 : endIdx])
+		}
+	}
+	return strings.TrimSpace(firstRecip)
 }
 
 func extractBody(payload *gmail.MessagePart) string {

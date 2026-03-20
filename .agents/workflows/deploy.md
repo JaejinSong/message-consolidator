@@ -29,7 +29,8 @@ gcloud compute ssh chat-analyzer-vps --zone=us-central1-a --project=gemini-enter
   gcloud storage cp gs://message-consolidator-deploy-gemini-enterprise-487906/vps/.env . && 
   gcloud storage cp gs://message-consolidator-deploy-gemini-enterprise-487906/vps/docker-compose.yml . && 
   sudo docker-compose pull && 
-  sudo docker-compose up -d
+  sudo docker-compose up -d &&
+  sudo docker image prune -f
 "
 ```
 
