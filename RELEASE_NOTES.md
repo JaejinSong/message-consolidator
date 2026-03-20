@@ -1,3 +1,48 @@
+# Release Notes - v1.9.6 (2026-03-20 14:40 UTC)
+
+## 🌐 Advanced I18n & Deployment Automation
+- **[NEW] Global Expansion**: Enhanced multilingual support with Indonesian (ID) and Thai (TH) locales, including localized tooltips for a seamless global experience.
+- **[NEW] Automated Deployment Pipeline**: Introduced `deploy.sh` to automate local building, GCS uploading, and remote VPS updates in a single command.
+- **[UI] Tab Visibility Tuning**: Refined active tab contrast in the light theme for better navigation clarity.
+- **[SYS] Store Logic Stabilization**: Improved data store and cache handling to ensure consistency during concurrent synchronization.
+
+---
+
+# Release Notes - v1.9.5 (2026-03-19)
+
+## ⚡ Archive Search & Performance Optimization
+- **[NEW] Full-Text Search Optimization**: Implemented GIN Trigram indexes across all key searchable fields of the archive.
+- **[NEW] Assignee-Based Filtering**: Added a dedicated assignee filter to help users find specific owner tasks quickly among thousands of archived items.
+- **[SYS] Database Scalability**: Introduced functional and partial indexes to maintain near-instant sorting and auto-archival performance for massive datasets.
+
+---
+
+# Release Notes - v1.9.4 (2026-03-18)
+
+## 🎨 Premium Light Theme & UI Polish
+- **[UI] Slate & Deep Indigo Palette**: Introduced a high-contrast premium light theme for better text legibility and modern aesthetics.
+- **[UI] Active Tab Visibility**: Enhanced active tab text to white on a purple background to highlight the current view clearly.
+- **[UI] Dashboard Icon Overhaul**: Redesigned Slack, WhatsApp, and Gmail icons with better borders and drop shadows for refined visibility.
+
+---
+
+# Release Notes - v1.9.3 (2026-03-17)
+
+## 🛠️ Export Reliability & Layout Stabilization
+- **[FIX] Force Download Handler**: Updated export handlers to use `attachment` disposition, ensuring direct downloads across all browsers.
+- **[FIX] Table Header Alignment**: Replaced "SOURCE" text with a compact "#" icon and tooltip to prevent header overflow and layout breaking.
+
+---
+
+# Release Notes - v1.9.2 (2026-03-16)
+
+## 🚀 Header Grid & UX Performance
+- **[NEW] 3-Segment Grid Header**: Restructured header layout into Branding, Navigation, and Utility sections for improved balance.
+- **[NEW] Hardware-Accelerated Transitions**: Applied GPU acceleration (`will-change`, `translateZ`) to all UI transitions for buttery-smooth interactivity.
+- **[NEW] Mobile-Adaptive Headings**: Implemented CSS Grid areas to optimize layout automatically for 1024px, 768px, and 480px widths.
+
+---
+
 # Release Notes - v1.9.1 (2026-03-20 07:15 UTC)
 
 ## 🎨 User Settings UI & I18n Refinement

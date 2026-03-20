@@ -5,15 +5,23 @@ export const updateUILanguage = (lang) => {
     const data = I18N_DATA[lang];
     if (!data) return;
 
-    // 1. data-i18n 속성 텍스트 일괄 매핑
+    // Update generic text
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
-        if (data[key]) {
-            el.textContent = data[key];
+        if (I18N_DATA[lang] && I18N_DATA[lang][key]) {
+            el.textContent = I18N_DATA[lang][key];
         }
     });
 
-    // 2. data-i18n-placeholder 속성 일괄 매핑 (검색창 등)
+    // Update titles (tooltips)
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        const key = el.getAttribute('data-i18n-title');
+        if (I18N_DATA[lang] && I18N_DATA[lang][key]) {
+            el.title = I18N_DATA[lang][key];
+        }
+    });
+
+    // Update placeholders (검색창 등)
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
         const key = el.getAttribute('data-i18n-placeholder');
         if (data[key]) {

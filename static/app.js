@@ -58,7 +58,15 @@ const fetchArchive = async () => {
 const updateArchivePaginationUI = () => {
     const totalPages = Math.ceil(state.archiveTotalCount / state.archiveLimit) || 1;
     const pageInfo = document.getElementById('archivePageInfo');
-    if (pageInfo) pageInfo.textContent = `Page ${state.archivePage} / ${totalPages} (Total: ${state.archiveTotalCount})`;
+    const i18n = I18N_DATA[state.currentLang];
+
+    if (pageInfo && i18n) {
+        let text = i18n.archivePageInfo || `Page {page} / {totalPages} (Total: {totalCount})`;
+        text = text.replace('{page}', state.archivePage)
+            .replace('{totalPages}', totalPages)
+            .replace('{totalCount}', state.archiveTotalCount);
+        pageInfo.textContent = text;
+    }
 
     const prevBtn = document.getElementById('prevArchivePage');
     const nextBtn = document.getElementById('nextArchivePage');
@@ -96,13 +104,13 @@ const triggerScan = async () => {
             fetchMessages();
             if (btn) btn.disabled = false;
             // Use status-label text from i18n but keep it concise for the small box
-            if (scanBtnText) scanBtnText.textContent = 'SCAN';
+            if (scanBtnText) scanBtnText.textContent = i18n.scanBtnText || 'SCAN';
             if (loading) loading.classList.add('hidden');
         }, 5000);
     } catch (e) {
         console.error(e);
         if (btn) btn.disabled = false;
-        if (scanBtnText) scanBtnText.textContent = 'SCAN';
+        if (scanBtnText) scanBtnText.textContent = i18n.scanBtnText || 'SCAN';
         if (loading) loading.classList.add('hidden');
     }
 };
@@ -235,6 +243,7 @@ window.openAliasMapping = (name) => {
         }
     }
 };
+
 
 // --- Initialization ---
 const initApp = () => {
@@ -417,7 +426,9 @@ const initApp = () => {
             const countData = await api.fetchArchiveCount(state.archiveSearch);
             document.getElementById('exportCount').textContent = countData.count;
             exportModal.classList.remove('hidden');
-        } catch (e) { alert('Failed to get archive count: ' + e.message); }
+        } catch (e) {
+            alert((I18N_DATA[state.currentLang]?.errorArchiveCount || 'Error: ') + e.message);
+        }
     });
 
     const closeExport = () => exportModal.classList.add('hidden');
@@ -465,7 +476,7 @@ const initApp = () => {
             }, 1000);
         } catch (e) {
             console.error('[DEBUG] Download error:', e);
-            alert('Download failed: ' + e.message);
+            alert((I18N_DATA[state.currentLang]?.errorDownload || 'Error: ') + e.message);
         } finally {
             loading.classList.add('hidden');
         }
@@ -502,20 +513,48 @@ const initApp = () => {
             updateArchiveActionsVisibility();
             fetchArchive();
             fetchMessages();
-        } catch (e) { alert('Restore failed: ' + e.message); }
+        } catch (e) {
+            alert((I18N_DATA[state.currentLang]?.errorRestore || 'Error: ') + e.message);
+        }
     });
 
-    document.getElementById('hardDeleteSelectedBtn')?.addEventListener('click', async () => {
-        const ids = getSelectedArchiveIds();
-        if (ids.length === 0) return;
-        if (!confirm(`Are you sure you want to PERMANENTLY delete ${ids.length} items?`)) return;
+    // Custom Delete Confirmation Modal Logic
+    const deleteConfirmModal = document.getElementById('deleteConfirmModal');
+    let deletePendingIds = [];
+
+    document.getElementById('hardDeleteSelectedBtn')?.addEventListener('click', () => {
+        deletePendingIds = getSelectedArchiveIds();
+        if (deletePendingIds.length === 0) return;
+
+        const countSpan = document.getElementById('deleteConfirmCount');
+        if (countSpan) countSpan.textContent = deletePendingIds.length;
+        deleteConfirmModal.classList.remove('hidden');
+    });
+
+    const closeDeleteConfirm = () => {
+        deleteConfirmModal.classList.add('hidden');
+        deletePendingIds = [];
+    };
+
+    document.getElementById('closeDeleteConfirmBtn')?.addEventListener('click', closeDeleteConfirm);
+    document.getElementById('cancelDeleteConfirmBtn')?.addEventListener('click', closeDeleteConfirm);
+
+    window.addEventListener('click', (e) => {
+        if (e.target === deleteConfirmModal) closeDeleteConfirm();
+    });
+
+    document.getElementById('confirmHardDeleteBtn')?.addEventListener('click', async () => {
+        if (deletePendingIds.length === 0) return;
         try {
-            await api.hardDeleteTasks(ids);
+            await api.hardDeleteTasks(deletePendingIds);
             const selectAll = document.getElementById('selectAllArchive');
             if (selectAll) selectAll.checked = false;
             updateArchiveActionsVisibility();
             fetchArchive();
-        } catch (e) { alert('Hard delete failed: ' + e.message); }
+            closeDeleteConfirm();
+        } catch (error) {
+            alert((I18N_DATA[state.currentLang]?.errorHardDelete || 'Error: ') + error.message);
+        }
     });
 
 
@@ -567,7 +606,7 @@ const initApp = () => {
                 }, 3001);
             }
         } catch (e) {
-            placeholder.textContent = 'Error';
+            placeholder.textContent = i18n.error || 'Error';
             alert(i18n.qrError + e.message);
             btn.disabled = false;
         }

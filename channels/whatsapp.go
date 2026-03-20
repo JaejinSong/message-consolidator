@@ -266,9 +266,10 @@ func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
 			if !ok {
 				return "", fmt.Errorf("QR channel closed")
 			}
-			if evt.Event == "code" {
+			switch evt.Event {
+			case "code":
 				png, err := qrcode.Encode(evt.Code, qrcode.Medium, 256)
-				if err != nil {
+				if (err != nil) {
 					return "", fmt.Errorf("failed to encode QR: %v", err)
 				}
 				encoded := "base64:" + base64.StdEncoding.EncodeToString(png)
@@ -276,7 +277,7 @@ func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
 				m.latestQR[email] = encoded
 				m.mu.Unlock()
 				return encoded, nil
-			} else if evt.Event == "success" {
+			case "success":
 				return "CONNECTED", nil
 			}
 		}

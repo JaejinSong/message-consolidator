@@ -37,16 +37,20 @@ const formatDisplayTime = (isoStr, lang) => {
         const diffHours = Math.floor(diffMins / 60);
 
         if (diffHours < 24 && now.getDate() === date.getDate()) {
-            if (diffMins < 1) return lang === 'ko' ? '방금 전' : 'Just now';
-            if (diffMins < 60) return lang === 'ko' ? `${diffMins}분 전` : `${diffMins}m ago`;
-            return lang === 'ko' ? `${diffHours}시간 전` : `${diffHours}h ago`;
+            const i18n = I18N_DATA[lang] || I18N_DATA['en'];
+            if (diffMins < 1) return i18n.justNow || '방금 전';
+            if (diffMins < 60) return (i18n.minAgo || '{n}m ago').replace('{n}', diffMins);
+            return (i18n.hourAgo || '{n}h ago').replace('{n}', diffHours);
         }
 
-        const yesterday = new Date(now);
-        yesterday.setDate(now.getDate() - 1);
-        const isYesterday = date.getDate() === yesterday.getDate() &&
-            date.getMonth() === yesterday.getMonth() &&
-            date.getFullYear() === yesterday.getFullYear();
+        const yesterdayDate = new Date(now);
+        yesterdayDate.setDate(now.getDate() - 1);
+        if (date.getDate() === yesterdayDate.getDate() &&
+            date.getMonth() === yesterdayDate.getMonth() &&
+            date.getFullYear() === yesterdayDate.getFullYear()) {
+            const i18n = I18N_DATA[lang] || I18N_DATA['en'];
+            return i18n.yesterday || '어제';
+        }
 
         const config = {
             ko: { offset: 9, label: 'KST' },
@@ -258,7 +262,8 @@ export const renderer = {
 
         // 2. Direct Link to Source (External Icon) - Removed for Gmail as requested
         if (m.link && m.source.toLowerCase() !== 'gmail') {
-            actionBtnHtml += `<a href="${m.link}" target="_blank" class="action-btn link-btn" title="Open in ${m.source}">${linkIcon}</a>`;
+            const openInText = data.openIn ? data.openIn.replace('{source}', m.source) : `Open in ${m.source}`;
+            actionBtnHtml += `<a href="${m.link}" target="_blank" class="action-btn link-btn" title="${openInText}">${linkIcon}</a>`;
         }
 
         let sourceIcon = this.getSourceIcon(m.source);
@@ -267,15 +272,15 @@ export const renderer = {
             <div class="col-source" title="${m.source}">${sourceIcon || '<span class="badge">' + m.source + '</span>'}</div>
             <div class="col-room" title="${escapeHTML(m.room)}"><span class="badge-room">${escapeHTML(m.room) || '-'}</span></div>
             <div class="col-task task-title" title="${escapeHTML(m.task)}">${escapeHTML(m.task)}</div>
-            <div class="col-requester meta-val clickable-name" title="Click to map alias: ${escapeHTML(m.requester)}">${escapeHTML(m.requester)}</div>
-            <div class="col-assignee meta-val clickable-name" title="Click to map alias: ${escapeHTML(m.assignee)}">${escapeHTML(m.assignee)}</div>
+            <div class="col-requester meta-val clickable-name" title="${data.clickToMapAlias || 'Click to map alias: '}${escapeHTML(m.requester)}">${escapeHTML(m.requester)}</div>
+            <div class="col-assignee meta-val clickable-name" title="${data.clickToMapAlias || 'Click to map alias: '}${escapeHTML(m.assignee)}">${escapeHTML(m.assignee)}</div>
             <div class="col-time meta-val" style="font-size: 0.75rem;">${formatDisplayTime(m.assigned_at, state.currentLang)}</div>
             <div class="col-actions">
                 ${actionBtnHtml}
                 <button type="button" class="action-btn done-btn" data-id="${m.id}" data-done="${!m.done}" title="${m.done ? data.doneBtn : data.markDone}">
                     ${doneIcon}
                 </button>
-                <button type="button" class="action-btn delete-btn" data-id="${m.id}" title="Delete">
+                <button type="button" class="action-btn delete-btn" data-id="${m.id}" title="${data.deleteBtnText || 'Delete'}">
                     ${deleteIcon}
                 </button>
             </div>
@@ -482,20 +487,21 @@ export const renderer = {
         const gmailIcon = document.getElementById('gmailStatusLarge');
         const gmailText = document.getElementById('gmailStatusText');
         const connectedStatus = document.getElementById('gmailConnectedStatus');
+        const i18n = I18N_DATA[state.currentLang] || {};
 
         if (gmailIcon) {
             if (connected) {
                 gmailIcon.classList.remove('inactive');
                 gmailIcon.classList.add('active');
                 gmailIcon.style.cursor = 'default';
-                gmailIcon.title = 'Gmail: Connected';
+                gmailIcon.title = i18n.gmailStatusConnectedTitle || 'Gmail: Connected';
                 if (gmailText) gmailText.textContent = I18N_DATA[state.currentLang].statusOn;
                 if (connectedStatus) connectedStatus.classList.remove('hidden');
             } else {
                 gmailIcon.classList.remove('active');
                 gmailIcon.classList.add('inactive');
                 gmailIcon.style.cursor = 'pointer';
-                gmailIcon.title = 'Gmail: Click to connect';
+                gmailIcon.title = i18n.gmailStatusClickToConnect || 'Gmail: Click to connect';
                 if (gmailText) gmailText.textContent = I18N_DATA[state.currentLang].statusOff;
                 if (connectedStatus) connectedStatus.classList.add('hidden');
             }
@@ -543,6 +549,7 @@ export const renderer = {
     updateTokenBadge(usage) {
         const badge = document.getElementById('tokenUsageBadge');
         if (badge) {
+            const i18n = I18N_DATA[state.currentLang] || {};
             const total = usage.todayTotal || 0;
             const prompt = usage.todayPrompt || 0;
             const completion = usage.todayCompletion || 0;
@@ -571,8 +578,22 @@ export const renderer = {
                 return num.toString();
             };
 
+            const monthCostString = state.currentLang === 'ko'
+                ? `≈${(monthCostUSD * 1400).toFixed(1)}원`
+                : `$${monthCostUSD.toFixed(3)}`;
+
+            const tooltipTitle = (i18n.tokenTooltipToday || "Today Usage")
+                .replace('{prompt}', prompt.toLocaleString())
+                .replace('{completion}', completion.toLocaleString());
+
+            const tooltipMonth = (i18n.tokenTooltipMonth || "Month Total")
+                .replace('{monthTotal}', formatTokens(monthTotal))
+                .replace('{costString}', monthCostString);
+
+            badge.title = `${tooltipTitle}\n${tooltipMonth}`;
             badge.textContent = `Token: ${formatTokens(total)} (${costString})`;
-            badge.title = `[Today] Prompt: ${prompt.toLocaleString()} / Completion: ${completion.toLocaleString()}\n[This Month] Total: ${formatTokens(monthTotal)} (≈$${monthCostUSD.toFixed(2)})`;
+            badge.classList.remove('hidden');
+
 
             if (total > 500000) badge.style.color = '#ff3b30';
             else if (total > 200000) badge.style.color = '#f39c12';
