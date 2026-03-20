@@ -1,3 +1,20 @@
+# Release Notes - v2.0.3 (2026-03-20 17:15 UTC)
+
+## 🛠️ Build System Hotfix
+- **[FIX] Dependency Version Mismatch**: Resolved a critical build error in `generative-ai-go` caused by a proto version conflict. Downgraded to a stable dependency set (`genai@v0.13.0`, `api@v0.186.0`) to restore buildability.
+
+---
+
+# Release Notes - v2.0.2 (2026-03-20 17:15 UTC)
+
+## ⚡ Backend Cache Optimization & Archive Restore Fixes
+- **[NEW] Unified Cache Refresh Strategy**: Refactored `MarkMessageDone`, `DeleteMessage`, `HardDeleteMessage`, `UpdateTaskText`, and `UpdateTaskAssignee` to use a centralized `RefreshCache` mechanism, ensuring 100% data consistency across all views.
+- **[NEW] High-Performance Prepend**: Optimized `SaveMessage` by directly prepending new tasks to the in-memory cache, providing near-instant UI feedback for new entries.
+- **[FIX] Archive Restore Reliability**: Fixed a bug where restored messages would remain hidden or fail to appear in the active dashboard due to cache misses and status conflicts.
+- **[FIX] Slack Status Accuracy**: Improved Slack connection detection by verifying token existence via a dedicated status endpoint.
+
+---
+
 # Release Notes - v2.0.1 (2026-03-20 16:35 UTC)
 
 ## 🏗️ Frontend Modularization & UI Logic Fixes
