@@ -1691,3 +1691,39 @@ body.light-theme .scan-btn.active {
         justify-content: center;
     }
 }
+
+/* Empty State Witty Message */
+.empty-state-witty {
+    background: rgba(0, 242, 255, 0.03);
+    border: 1px dashed var(--accent-color);
+    border-radius: 20px;
+    padding: 2.5rem 2rem;
+    margin: 1.5rem 0;
+    text-align: center;
+    animation: fadeInSlide 0.5s ease-out;
+    width: 100%;
+}
+
+.empty-state-witty.small {
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.witty-message {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--accent-color);
+    line-height: 1.4;
+    word-break: keep-all;
+}
+
+@keyframes fadeInSlide {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

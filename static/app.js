@@ -435,51 +435,24 @@ const initApp = () => {
     document.getElementById('closeExportModalBtn')?.addEventListener('click', closeExport);
     document.getElementById('cancelExportBtn')?.addEventListener('click', closeExport);
 
-    const downloadFile = async (url, defaultFilename) => {
-        console.log(`[DEBUG] Starting download: ${url}, default: ${defaultFilename}`);
+    const downloadFile = (url, defaultFilename) => {
+        console.log(`[DEBUG] Starting native download: ${url}, default: ${defaultFilename}`);
         const loading = document.getElementById('loading');
-        loading.classList.remove('hidden');
-        try {
-            const resp = await fetch(url, { credentials: 'same-origin' });
-            if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
+        if (loading) loading.classList.remove('hidden');
 
-            // Try to get filename from header
-            const disposition = resp.headers.get('Content-Disposition');
-            console.log(`[DEBUG] Disposition header: ${disposition}`);
-            let filename = defaultFilename;
-            if (disposition && disposition.indexOf('filename=') !== -1) {
-                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
-                const matches = filenameRegex.exec(disposition);
-                if (matches != null && matches[1]) {
-                    filename = matches[1].replace(/['"]/g, '');
-                }
-            }
-            console.log(`[DEBUG] Final filename: ${filename}`);
+        // 브라우저 네이티브 다운로드 방식을 사용하여 Chrome의 UUID 버그를 원천 차단합니다.
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = defaultFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
 
-            const rawBlob = await resp.blob();
-            const blob = new Blob([rawBlob], { type: 'application/octet-stream' });
-            const blobUrl = window.URL.createObjectURL(blob);
-
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = blobUrl;
-            a.download = filename;
-            document.body.appendChild(a);
-            console.log(`[DEBUG] Triggering browser download for: ${filename}`);
-            a.click();
-            document.body.removeChild(a);
-
-            // Wait a bit before cleanup to ensure browser starts download
-            setTimeout(() => {
-                window.URL.revokeObjectURL(blobUrl);
-                console.log(`[DEBUG] Download triggered for ${filename}`);
-            }, 1000);
-        } catch (e) {
-            console.error('[DEBUG] Download error:', e);
-            alert((I18N_DATA[state.currentLang]?.errorDownload || 'Error: ') + e.message);
-        } finally {
-            loading.classList.add('hidden');
-        }
+        // 네이티브 다운로드는 콜백이 없으므로 일정 시간 후 로딩 스피너를 숨깁니다.
+        setTimeout(() => {
+            if (loading) loading.classList.add('hidden');
+        }, 2000);
     };
 
     document.getElementById('confirmExportExcel')?.addEventListener('click', () => {

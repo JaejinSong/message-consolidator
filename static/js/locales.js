@@ -101,7 +101,19 @@ export const I18N_DATA = {
         minAgo: "{n}분 전",
         hourAgo: "{n}시간 전",
         yesterday: "어제",
-        dashboardTitle: "대시보드"
+        dashboardTitle: "대시보드",
+        emptyStateMessages: [
+            "훌륭합니다! 지금 당장 커피 한 잔의 여유를 즐기세요. ☕",
+            "업무 제로 달성! 당신은 화력 발전소인가요? 🔥",
+            "모든 업무 완료. 이제 아무도 당신을 막을 수 없습니다. 🚀",
+            "텅 빈 목록만큼 평화로운 건 없죠. 수고하셨습니다! ✨",
+            "완벽하네요! 오늘 남은 시간은 보너스입니다. 🎁",
+            "업무가 하나도 없다니, 실력이 너무 좋으신 거 아닌가요? 😎",
+            "축하합니다! 메인 퀘스트를 모두 클리어하셨습니다. 🎮",
+            "할 일이 없네요. 이제 세상을 구하러 가실 시간인가요? 🌍",
+            "기록적인 속도입니다! 당신의 효율성에 무릎을 탁 치고 갑니다. 👏",
+            "업무 끝! 이제 맛있는 거 먹으러 가도 될 것 같아요. 🍕"
+        ]
     },
     en: {
         subTitle: "Automated Slack & WhatsApp Task Dashboard",
@@ -205,7 +217,19 @@ export const I18N_DATA = {
         minAgo: "{n}m ago",
         hourAgo: "{n}h ago",
         yesterday: "Yesterday",
-        dashboardTitle: "Dashboard"
+        dashboardTitle: "Dashboard",
+        emptyStateMessages: [
+            "Excellent! Enjoy a well-deserved coffee break right now. ☕",
+            "Zero tasks! Are you a productivity powerhouse? 🔥",
+            "Everything is done. Nothing can stop you now. 🚀",
+            "Nothing's as peaceful as an empty list. Well done! ✨",
+            "Perfect! The rest of the day is your bonus. 🎁",
+            "No tasks at all? You're too good at this! 😎",
+            "Congratulations! You've cleared all the main quests. 🎮",
+            "Nothing to do. Time to save the world? 🌍",
+            "Record speed! I'm impressed by your efficiency. 👏",
+            "Work's over! Time for something delicious. 🍕"
+        ]
     },
     id: {
         subTitle: "Dasbor Tugas Slack & WhatsApp Otomatis",
@@ -309,7 +333,19 @@ export const I18N_DATA = {
         minAgo: "{n} menit yang lalu",
         hourAgo: "{n} jam yang lalu",
         yesterday: "Kemarin",
-        dashboardTitle: "Dasbor"
+        dashboardTitle: "Dasbor",
+        emptyStateMessages: [
+            "Luar biasa! Nikmati waktu istirahat kopi Anda sekarang. ☕",
+            "Nol tugas! Apakah Anda pembangkit tenaga produktivitas? 🔥",
+            "Semua selesai. Tidak ada yang bisa menghentikan Anda sekarang. 🚀",
+            "Tidak ada yang sedamai daftar kosong. Kerja bagus! ✨",
+            "Sempurna! Sisa hari ini adalah bonus Anda. 🎁",
+            "Tidak ada tugas sama sekali? Anda terlalu jago! 😎",
+            "Selamat! Anda telah menyelesaikan semua misi utama. 🎮",
+            "Tidak ada yang harus dilakukan. Waktunya menyelamatkan dunia? 🌍",
+            "Kecepatan rekor! Saya kagum dengan efisiensi Anda. 👏",
+            "Pekerjaan selesai! Waktunya makan yang enak. 🍕"
+        ]
     },
     th: {
         subTitle: "แดชบอร์ดงาน Slack & WhatsApp อัตโนมัติ",
@@ -413,6 +449,18 @@ export const I18N_DATA = {
         minAgo: "{n} นาทีที่แล้ว",
         hourAgo: "{n} ชั่วโมงที่แล้ว",
         yesterday: "เมื่อวาน",
-        dashboardTitle: "แดชบอร์ด"
+        dashboardTitle: "แดชบอร์ด",
+        emptyStateMessages: [
+            "ยอดเยี่ยมมาก! ได้เวลาพักจิบกาแฟสบายๆ แล้วครับ ☕",
+            "งานเป็นศูนย์! คุณคือโรงไฟฟ้าด้านผลิตผลหรือเปล่าครับเนี่ย? 🔥",
+            "ทุกอย่างเสร็จสิ้น ไม่มีอะไรหยุดคุณได้แล้วในตอนนี้ 🚀",
+            "ไม่มีอะไรสงบเท่ารายการงานที่ว่างเปล่า ยินดีด้วยครับ! ✨",
+            "สมบูรณ์แบบ! เวลาที่เหลือของวันนี้คือโบนัสของคุณครับ 🎁",
+            "ไม่มีงานเลยเหรอ? คุณเก่งเกินไปแล้วนะเนี่ย! 😎",
+            "ยินดีด้วย! คุณเคลียร์เควสต์หลักทั้งหมดเรียบร้อยแล้ว 🎮",
+            "ไม่มีอะไรต้องทำ ได้เวลาออกไปกู้โลกหรือยังครับ? 🌍",
+            "ความเร็วระดับสถิติ! ประทับใจในประสิทธิภาพของคุณจริงๆ ครับ 👏",
+            "จบงาน! ได้เวลาหาของอร่อยๆ ทานแล้วครับ 🍕"
+        ]
     }
 };

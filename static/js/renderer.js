@@ -139,8 +139,15 @@ export const renderer = {
         }
 
         if (!messages || messages.length === 0) {
-            const noMsg = `<p style="text-align: center; color: var(--text-dim); margin-top: 1rem; width: 100%;">${data.noTasks}</p>`;
-            if (myGrid) myGrid.innerHTML = noMsg;
+            const noMsg = `<p style="text-align: center; color: var(--text-dim); margin-top: 2rem; width: 100%; font-size: 1.1rem;">${data.noTasks}</p>`;
+            if (myGrid) {
+                const randomMsg = data.emptyStateMessages[Math.floor(Math.random() * data.emptyStateMessages.length)];
+                myGrid.innerHTML = `
+                    <div class="empty-state-witty">
+                        <div class="witty-message">${randomMsg}</div>
+                        <p style="text-align: center; color: var(--text-dim); margin-top: 1rem; font-size: 0.9rem;">${data.noTasks}</p>
+                    </div>`;
+            }
             if (otherGrid) otherGrid.innerHTML = noMsg;
             if (allGrid) allGrid.innerHTML = noMsg;
             this.updateCounts(0, 0, 0);
@@ -156,6 +163,7 @@ export const renderer = {
         });
 
         let myCount = 0, otherCount = 0, allCount = 0;
+        let myPendingCount = 0;
 
         sorted.forEach(m => {
             const rawAssignee = (m.assignee || "").trim();
@@ -204,6 +212,7 @@ export const renderer = {
                 if (myGrid) {
                     myGrid.appendChild(cardFiltered);
                     myCount++;
+                    if (!m.done) myPendingCount++;
                 }
             } else {
                 if (otherGrid) {
@@ -212,6 +221,16 @@ export const renderer = {
                 }
             }
         });
+
+        if (myCount > 0 && myPendingCount === 0) {
+            const randomMsg = data.emptyStateMessages[Math.floor(Math.random() * data.emptyStateMessages.length)];
+            const wittyEl = document.createElement('div');
+            wittyEl.className = 'empty-state-witty small';
+            wittyEl.innerHTML = `<div class="witty-message">${randomMsg}</div>`;
+            if (myGrid) {
+                myGrid.insertBefore(wittyEl, myGrid.firstChild);
+            }
+        }
 
         this.updateCounts(myCount, otherCount, allCount);
     },
