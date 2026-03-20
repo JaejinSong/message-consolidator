@@ -1,3 +1,12 @@
+# Release Notes (기술 버전 - 국문) - v1.9.3 (2026-03-20 08:38 UTC)
+
+## 🛠️ 아카이브 다운로드 핸들러 및 UI 안정화
+- **[FIX] Content-Disposition 최적화**: `handlers_exports.go`에서 엑셀, CSV, JSON 응답 헤더를 `inline`에서 `attachment`로 변경하여 모든 브라우저에서 강제 다운로드(Save As)가 발생하도록 수정했습니다.
+- **[FIX] 내비게이션 상태 동기화**: `index.html` 내비게이션 탭에 `data-view` 속성을 추가하여 `app.js`의 `showView` 엔진과 완벽하게 호환되도록 복구했습니다.
+- **[UI] 컬럼 레이아웃 안정화**: 가로 폭이 좁은 환경에서 'SOURCE' 헤더 텍스트로 인한 레이아웃 깨짐을 방지하기 위해 기호('#') 및 `title` 속성 기반 툴팁으로 교체했습니다.
+
+---
+
 # Release Notes (기술 버전 - 국문) - v1.9.2 (2026-03-20 08:18 UTC)
 
 ## 🚀 헤더 레이아웃 최적화 및 GPU 가속 기반 UX 개선
