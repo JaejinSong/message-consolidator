@@ -209,6 +209,29 @@ func UpdateTaskText(email string, id int, task string) error {
 	return nil
 }
 
+func UpdateTaskAssignee(email string, id int, assignee string) error {
+	_, err := db.Exec("UPDATE messages SET assignee = $1 WHERE id = $2 AND user_email = $3", assignee, id, email)
+	if err != nil {
+		return err
+	}
+
+	cacheMu.Lock()
+	defer cacheMu.Unlock()
+
+	patch := func(list []ConsolidatedMessage) {
+		for i := range list {
+			if list[i].ID == id {
+				list[i].Assignee = assignee
+				break
+			}
+		}
+	}
+	patch(messageCache[email])
+	patch(archiveCache[email])
+
+	return nil
+}
+
 func DeleteMessage(email string, id int) error {
 	res, err := db.Exec("UPDATE messages SET is_deleted = true WHERE id = $1 AND user_email = $2", id, email)
 	if err != nil {

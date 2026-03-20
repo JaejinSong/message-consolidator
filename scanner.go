@@ -54,10 +54,26 @@ func runAllScans() {
 	store.FlushTokenUsageIfNeeded()
 }
 
+// getEffectiveAliases는 사용자가 명시적으로 등록한 별칭 외에
+// 본인의 이름과 이메일 아이디를 자동으로 포함시켜 스캔 시 감지 누락을 방지합니다.
+func getEffectiveAliases(user store.User, aliases []string) []string {
+	effective := append([]string{}, aliases...)
+	if user.Name != "" {
+		effective = append(effective, user.Name)
+	}
+	if user.Email != "" {
+		if idx := strings.Index(user.Email, "@"); idx != -1 {
+			effective = append(effective, user.Email[:idx])
+		}
+	}
+	return effective
+}
+
 func scanAllSources(user store.User, aliases []string) {
 	logger.Debugf("[SCAN] Scanning for user: %s", user.Email)
 
 	var wg sync.WaitGroup
+	effectiveAliases := getEffectiveAliases(user, aliases)
 
 	// 1. Gmail 스캔 (병렬 처리)
 	if store.HasGmailToken(user.Email) {
@@ -75,7 +91,7 @@ func scanAllSources(user store.User, aliases []string) {
 		go func() {
 			defer wg.Done()
 			logger.Debugf("[SCAN] Starting Slack scan for %s", user.Email)
-			scanSlack(user, aliases)
+			scanSlack(user, effectiveAliases)
 		}()
 	}
 
@@ -84,7 +100,7 @@ func scanAllSources(user store.User, aliases []string) {
 	go func() {
 		defer wg.Done()
 		logger.Debugf("[SCAN] Starting WhatsApp scan for %s", user.Email)
-		scanWhatsApp(context.Background(), user, aliases, "Korean")
+		scanWhatsApp(context.Background(), user, effectiveAliases, "Korean")
 	}()
 
 	wg.Wait() // 모든 채널의 스캔이 끝날 때까지 대기
@@ -100,6 +116,7 @@ func scan(email string, lang string) {
 		return
 	}
 	aliases, _ := store.GetUserAliases(user.ID)
+	effectiveAliases := getEffectiveAliases(*user, aliases)
 
 	// Gmail
 	if store.HasGmailToken(email) {
@@ -107,10 +124,10 @@ func scan(email string, lang string) {
 	}
 
 	// Slack
-	scanSlack(*user, aliases)
+	scanSlack(*user, effectiveAliases)
 
 	// WhatsApp
-	scanWhatsApp(context.Background(), *user, aliases, lang)
+	scanWhatsApp(context.Background(), *user, effectiveAliases, lang)
 }
 
 func scanSlack(user store.User, aliases []string) {
@@ -148,13 +165,19 @@ func scanSlack(user store.User, aliases []string) {
 			classification := classifyMessage(channel, &user, aliases, m)
 			if classification == "내 업무" {
 				link := fmt.Sprintf("https://slack.com/archives/%s/p%s", channel.ID, strings.ReplaceAll(m.ID, ".", ""))
+
+				assigneeName := user.Name
+				if assigneeName == "" {
+					assigneeName = user.Email
+				}
+
 				store.SaveMessage(store.ConsolidatedMessage{
 					UserEmail:    user.Email,
 					Source:       "slack",
 					Room:         sc.GetChannelName(channel.ID),
 					Task:         m.Text,
 					Requester:    m.Sender,
-					Assignee:     "내 업무",
+					Assignee:     assigneeName,
 					AssignedAt:   m.Timestamp.Format(time.RFC3339),
 					Link:         link,
 					SourceTS:     m.ID,
@@ -169,6 +192,49 @@ func scanSlack(user store.User, aliases []string) {
 	}
 }
 
+// IsAliasMatched는 짧은 별칭('나', 'me')이나 일반 대명사로 인한 오탐을 방지하기 위한 안전한 매칭 함수입니다.
+func IsAliasMatched(text, sender, alias string) bool {
+	lowerAlias := strings.ToLower(strings.TrimSpace(alias))
+	if lowerAlias == "" {
+		return false
+	}
+	aliasLen := len([]rune(lowerAlias))
+
+	// 1. 발신자 일치 검사
+	if sender != "" {
+		lowerSender := strings.ToLower(sender)
+		if lowerSender == lowerAlias {
+			return true
+		}
+		// 2글자 이상인 경우만 발신자 이름 부분 일치 허용 ('나'가 '유나'에 매칭되는 것 방지)
+		if aliasLen > 1 && strings.Contains(lowerSender, lowerAlias) {
+			return true
+		}
+	}
+
+	// 2. 본문 일치 검사
+	if text != "" {
+		lowerText := strings.ToLower(text)
+		if aliasLen <= 2 {
+			// 짧은 별칭은 띄어쓰기 단위로 분리하여 엄격하게 검사
+			words := strings.Fields(lowerText)
+			for _, w := range words {
+				// 완전히 일치하거나, 한국어 조사 처리를 위해 접두어로 쓰인 경우 허용 ("나", "나는", "me")
+				if w == lowerAlias || (strings.HasPrefix(w, lowerAlias) && len([]rune(w)) <= aliasLen+2) {
+					return true
+				}
+			}
+		} else {
+			// 길이가 긴 고유 별칭은 기존처럼 유연하게 부분 일치 허용
+			if strings.Contains(lowerText, lowerAlias) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m RawMessage) string {
 	// 1. DM이거나 직접 멘션된 경우 즉시 반환 (Early Return)
 	if channel.IsIM || channel.IsMpIM {
@@ -178,17 +244,8 @@ func classifyMessage(channel slack.Channel, user *store.User, aliases []string, 
 		return "내 업무"
 	}
 
-	// 2. 소문자 변환을 반복문 밖에서 1번만 수행하여 성능 확보
-	lowerText := strings.ToLower(m.Text)
-	senderName := strings.ToLower(m.Sender)
-
-	// 3. 본문과 발신자 확인을 하나의 루프로 통합
 	for _, alias := range aliases {
-		if alias == "" {
-			continue
-		}
-		lowerAlias := strings.ToLower(alias)
-		if strings.Contains(lowerText, lowerAlias) || strings.Contains(senderName, lowerAlias) {
+		if alias != "" && IsAliasMatched(m.Text, m.Sender, alias) {
 			return "내 업무"
 		}
 	}
@@ -242,9 +299,8 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 
 				is1to1 := jid.Server == "s.whatsapp.net"
 				isMentioned := false
-				lowerText := strings.ToLower(item.OriginalText)
 				for _, alias := range aliases {
-					if alias != "" && strings.Contains(lowerText, strings.ToLower(alias)) {
+					if alias != "" && IsAliasMatched(item.OriginalText, item.Requester, alias) {
 						isMentioned = true
 						break
 					}
@@ -257,7 +313,15 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 
 				assignee := item.Assignee
 				if assignee == "" || assignee == "me" || assignee == "나" || assignee == "담당자" {
-					assignee = classification
+					if classification == "내 업무" {
+						assignee = user.Name
+						if assignee == "" {
+							assignee = email
+						}
+					} else {
+						// "기타 업무" 대신 빈 문자열을 넣어 UI에서 자연스럽게 보이도록 유도
+						assignee = ""
+					}
 				}
 
 				saved, newID, _ := store.SaveMessage(store.ConsolidatedMessage{

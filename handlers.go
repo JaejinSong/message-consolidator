@@ -9,6 +9,7 @@ import (
 	"message-consolidator/store"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/xuri/excelize/v2"
@@ -267,8 +268,11 @@ func handleManualScan(w http.ResponseWriter, r *http.Request) {
 		lang = "Korean"
 	}
 	logger.Debugf("Manual scan triggered via API for %s (lang: %s)", email, lang)
-	go scan(email, lang)
-	store.PersistAllScanMetadata(email)
+
+	go func() {
+		scan(email, lang)
+		store.PersistAllScanMetadata(email)
+	}()
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -618,4 +622,266 @@ func handleAddMapping(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+func handleReclassifyOldData(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+	user, err := store.GetOrCreateUser(email, "", "")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	aliases, _ := store.GetUserAliases(user.ID)
+
+	allMyIdentities := getEffectiveAliases(*user, aliases)
+
+	msgs, err := store.GetMessages(email)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	fixedCount := 0
+	for _, m := range msgs {
+		rawAssignee := strings.TrimSpace(m.Assignee)
+		normalizedAssignee := strings.ToLower(rawAssignee)
+
+		// 1. "기타 업무", "미지정" 등 불필요한 더미 데이터는 아예 빈칸으로 초기화
+		if normalizedAssignee == "기타 업무" || normalizedAssignee == "기타업무" || normalizedAssignee == "other tasks" || normalizedAssignee == "미지정" {
+			_ = store.UpdateTaskAssignee(email, m.ID, "")
+			fixedCount++
+			continue
+		}
+
+		// Gmail인 경우 직접 수신인(To:) 여부 미리 확인
+		isDirectGmail := true
+		if m.Source == "gmail" {
+			lowOrig := strings.ToLower(m.OriginalText)
+			lowEmail := strings.ToLower(user.Email)
+
+			toIdx := strings.Index(lowOrig, "to: ")
+			ccIdx := strings.Index(lowOrig, "cc: ")
+			bccIdx := strings.Index(lowOrig, "bcc: ")
+			subjIdx := strings.Index(lowOrig, "subject: ")
+
+			limitIdx := -1
+			if ccIdx != -1 {
+				limitIdx = ccIdx
+			}
+			if bccIdx != -1 && (limitIdx == -1 || bccIdx < limitIdx) {
+				limitIdx = bccIdx
+			}
+			if subjIdx != -1 && (limitIdx == -1 || subjIdx < limitIdx) {
+				limitIdx = subjIdx
+			}
+
+			isDirect := false
+			if toIdx != -1 {
+				toBlock := ""
+				if limitIdx != -1 && limitIdx > toIdx {
+					toBlock = lowOrig[toIdx:limitIdx]
+				} else {
+					toBlock = lowOrig[toIdx:]
+				}
+				if strings.Contains(toBlock, lowEmail) {
+					isDirect = true
+				}
+			}
+			isDirectGmail = isDirect
+		}
+
+		isMarkedAsMine := false
+		if normalizedAssignee == "내 업무" || normalizedAssignee == "내업무" || normalizedAssignee == "my tasks" || normalizedAssignee == "mytasks" {
+			isMarkedAsMine = true
+		} else {
+			// 이미 내 별칭 중 하나로 할당되어 있다면 '내 업무'로 간주 (보존 대상)
+			for _, a := range allMyIdentities {
+				if a != "" && strings.EqualFold(rawAssignee, a) {
+					isMarkedAsMine = true
+					break
+				}
+			}
+		}
+
+		// 현재 별칭들 + 기본 별칭(나, me)으로 다시 매칭 시도
+		matchedByAlias := false
+		allCheckAliases := append([]string{"나", "me"}, allMyIdentities...)
+		for _, a := range allCheckAliases {
+			if a != "" {
+				// Gmail인 경우 OriginalText에 헤더가 포함되므로 Task(제목) 위주로 매칭하되,
+				// 직접 수신인인 경우에만 alias 매칭을 인정함
+				if m.Source == "gmail" {
+					if isDirectGmail && IsAliasMatched(m.Task, m.Requester, a) {
+						matchedByAlias = true
+						break
+					}
+				} else {
+					if IsAliasMatched(m.OriginalText, m.Requester, a) {
+						matchedByAlias = true
+						break
+					}
+				}
+			}
+		}
+
+		// 1. "내 업무" 레이블 처리
+		if isMarkedAsMine {
+			// Gmail인 경우 CC/BCC 체크로 걸러내기
+			if m.Source == "gmail" && !isDirectGmail {
+				currentAssignee := strings.ToLower(m.Assignee)
+				isGeneric := currentAssignee == "내 업무" || currentAssignee == "나" || currentAssignee == "me" || currentAssignee == ""
+				if isGeneric {
+					_ = store.UpdateTaskAssignee(email, m.ID, "")
+					fixedCount++
+					continue
+				}
+			}
+
+			newAssignee := m.Assignee
+			changed := false
+
+			// matchedByAlias를 그대로 사용하여 "나", "me" 등 정상적인 키워드 매칭도 보호
+			if matchedByAlias {
+				newAssignee = user.Name
+				if newAssignee == "" {
+					newAssignee = email
+				}
+				if m.Assignee != newAssignee {
+					changed = true
+				}
+			} else {
+				// If not matched, and it was a generic label, clear it
+				lowCurr := strings.ToLower(m.Assignee)
+				if lowCurr == "내 업무" || lowCurr == "나" || lowCurr == "me" {
+					newAssignee = ""
+					changed = true
+				}
+			}
+
+			if changed {
+				_ = store.UpdateTaskAssignee(email, m.ID, newAssignee)
+				fixedCount++
+			}
+			continue
+		}
+
+		// 2. 담당자가 지정되지 않은 업무 중, 내 별칭과 매칭되는 경우에만 내 업무로 복구 (타인 업무 덮어쓰기 방지)
+		if matchedByAlias && strings.TrimSpace(m.Assignee) == "" {
+			// Gmail인 경우 이미 isDirectGmail 위에서 체크됨
+			assigneeName := user.Name
+			if assigneeName == "" {
+				assigneeName = user.Email
+			}
+			_ = store.UpdateTaskAssignee(email, m.ID, assigneeName)
+			fixedCount++
+		}
+
+	}
+
+	respondJSON(w, map[string]interface{}{"status": "success", "fixed_count": fixedCount})
+}
+
+func handleRestoreGmailCC(w http.ResponseWriter, r *http.Request) {
+	email := GetUserEmail(r)
+
+	// Gmail API 서비스 가져오기 (Fallback 용)
+	svc, err := GetGmailService(r.Context(), email)
+	if err != nil {
+		http.Error(w, "Gmail service error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	user, _ := store.GetOrCreateUser(email, "", "")
+	aliases, _ := store.GetUserAliases(user.ID)
+
+	// 현재 활성화된 업무 + 보관함(Archive) 업무 모두 가져오기
+	activeMsgs, _ := store.GetMessages(email)
+	archivedMsgs, _, _ := store.GetArchivedMessagesFiltered(email, 10000, 0, "", "", "")
+
+	var allMsgs []store.ConsolidatedMessage
+	allMsgs = append(allMsgs, activeMsgs...)
+	allMsgs = append(allMsgs, archivedMsgs...)
+
+	fixedCount := 0
+	for _, m := range allMsgs {
+		if m.Source != "gmail" {
+			continue
+		}
+
+		// 1. OriginalText에서 To: 헤더 고속 추출 시도
+		toIdx := strings.Index(m.OriginalText, "To: ")
+		subjIdx := strings.Index(m.OriginalText, ", Subject: ")
+
+		var toHeader string
+		if toIdx != -1 && subjIdx != -1 && subjIdx > toIdx {
+			toHeader = m.OriginalText[toIdx+4 : subjIdx]
+		}
+
+		// 만약 To 헤더에 내 이메일이 포함되어 있다면 직접 받은 메일(CC 아님)이므로 건너뜀
+		if toHeader != "" && strings.Contains(strings.ToLower(toHeader), strings.ToLower(user.Email)) {
+			// 단, 담당자가 비어있다면 내 이름으로 보완해 줌 (보너스 복구 기능)
+			if strings.TrimSpace(m.Assignee) == "" {
+				assigneeName := user.Name
+				if assigneeName == "" {
+					assigneeName = user.Email
+				}
+				_ = store.UpdateTaskAssignee(email, m.ID, assigneeName)
+				fixedCount++
+			}
+			continue
+		}
+
+		// CC로 수신된 메일(To에 내가 없음) 판별
+		// 현재 담당자가 비어있거나 '나(사용자)'로 잘못 지정된 경우
+		currentAssignee := strings.TrimSpace(m.Assignee)
+		lowerAssignee := strings.ToLower(currentAssignee)
+
+		isWronglyAssignedToMe := lowerAssignee == "" || lowerAssignee == "내 업무" || lowerAssignee == "내업무" || lowerAssignee == "나" || lowerAssignee == "me" || strings.EqualFold(currentAssignee, user.Name) || strings.EqualFold(currentAssignee, user.Email)
+
+		if !isWronglyAssignedToMe {
+			for _, alias := range aliases {
+				if alias != "" && strings.EqualFold(currentAssignee, alias) {
+					isWronglyAssignedToMe = true
+					break
+				}
+			}
+		}
+
+		// 내가 CC로 받았는데 내게 할당된 상태라면 정제 타겟!
+		if isWronglyAssignedToMe {
+			actualAssignee := ""
+			if toHeader != "" {
+				actualAssignee = extractNameFromEmail(toHeader)
+			}
+
+			// OriginalText 파싱 실패 시에만 최후의 수단으로 Gmail API 직접 호출 (Fallback)
+			if actualAssignee == "" {
+				msgID := m.SourceTS
+				if strings.HasPrefix(msgID, "gmail-") {
+					parts := strings.Split(msgID, "-")
+					if len(parts) >= 2 {
+						msgID = parts[1]
+					}
+				}
+
+				msg, err := svc.Users.Messages.Get("me", msgID).Format("metadata").MetadataHeaders("To").Do()
+				if err == nil && msg.Payload != nil {
+					for _, h := range msg.Payload.Headers {
+						if h.Name == "To" {
+							actualAssignee = extractNameFromEmail(h.Value)
+							break
+						}
+					}
+				}
+			}
+
+			// 실제 To 수신자로 담당자 강제 교체
+			if actualAssignee != "" && currentAssignee != actualAssignee {
+				_ = store.UpdateTaskAssignee(email, m.ID, actualAssignee)
+				fixedCount++
+			}
+		}
+	}
+
+	respondJSON(w, map[string]interface{}{"status": "success", "fixed_count": fixedCount})
 }

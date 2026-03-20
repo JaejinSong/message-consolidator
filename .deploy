@@ -39,7 +39,8 @@ gcloud compute ssh chat-analyzer-vps --zone=us-central1-a --project=gemini-enter
   gcloud storage cp -r gs://message-consolidator-deploy-gemini-enterprise-487906/vps/static . &&
   cp Dockerfile.runtime Dockerfile && 
   sudo docker-compose down && 
-  sudo docker-compose up -d
+  sudo docker-compose up -d &&
+  sudo docker image prune -f
 "
 ```
 

@@ -101,6 +101,8 @@ func main() {
 	r.Handle("/api/user/token-usage", AuthMiddleware(http.HandlerFunc(handleGetTokenUsage))).Methods("GET")
 	r.Handle("/api/contacts/mappings", AuthMiddleware(http.HandlerFunc(handleGetMappings))).Methods("GET")
 	r.Handle("/api/contacts/mapping/add", AuthMiddleware(http.HandlerFunc(handleAddMapping))).Methods("POST")
+	r.Handle("/api/admin/reclassify", AuthMiddleware(http.HandlerFunc(handleReclassifyOldData))).Methods("GET")
+	r.Handle("/api/admin/restore-gmail-cc", AuthMiddleware(http.HandlerFunc(handleRestoreGmailCC))).Methods("GET")
 
 	// Gmail OAuth Endpoints
 	r.Handle("/auth/gmail/connect", AuthMiddleware(http.HandlerFunc(handleGmailConnect))).Methods("GET")

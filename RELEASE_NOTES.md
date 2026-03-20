@@ -1,15 +1,15 @@
-# Release Notes - v1.8.0 (Latest)
+# Release Notes - v1.8.1 (Latest)
 
-## 👤 Advanced Name Normalization & Cost Observability
-- **Contact Alias Mapping**: Introduced a new `contacts` table to manage aliases for non-app users (clients, partners). Supports multiple aliases per representative name via comma-separated values.
-- **Tiered Normalization Engine**: Upgraded `NormalizeName` with a 4-tier priority system: Tenant Aliases > Primary Names > User Aliases > Contact Mappings.
-- **Memory-Cached Metadata**: All normalization mappings and contacts are now cached in memory on startup, eliminating per-message DB lookups during high-volume scans.
-- **Token Usage Observability**: Implemented granular tracking of Gemini input/output tokens per user. Data is persisted to a new `token_usage` table for cost monitoring.
-- **NeonDB Sleep Optimization (Flush strategy)**: Token usage and scan metadata are now buffered in memory and flushed to the DB periodically (every 1 hour or when dirty), ensuring NeonDB can maintain its sleep state longer during idle periods.
-- **JSON Export Support**: Added `.json` export option to the archive view, providing a machine-readable format for integration with external tools.
-- **Maintenance Piggybacking**: Integrated `FlushTokenUsageIfNeeded` into the background heartbeat, ensuring maintenance tasks only run when the system is already active.
+## 🎯 Gmail CC/BCC Refinement & Frontend Sync
+- **Gmail Recipient Filtering**: Re-engineered Gmail task attribution to strictly handle `To`, `CC`, and `BCC` headers. Tasks are now only assigned to the user if they are a direct recipient (`To:`), matching explicit intent.
+- **Recursive Identity Matching**: Introduced `getEffectiveAliases` which automatically includes the user's primary Name and Email prefix as implicit aliases, ensuring high-accuracy detection across Slack, WhatsApp, and Gmail.
+- **Remediation API**: Added `/api/admin/restore-gmail-cc` for retroactive cleanup of wrongly attributed Gmail tasks. It uses a hybrid approach of high-speed header parsing from `OriginalText` and Gmail API fallback.
+- **Frontend State Synchronization**: Standardized JS module imports by removing version suffixes (`?v=1.8.1`). This fixes the bug where multiple `state` instances led to "My Tasks" count mismatches in the UI.
+- **Robust Reclassification**: Refined the reclassification logic to prevent "hijacking" of already assigned tasks while still allowing for safe name normalization and removal of dummy labels ("내 업무", "미지정").
 
 ---
+
+# Release Notes - v1.8.0 (Old)
 
 # Release Notes - v1.7.4 (Old)
 

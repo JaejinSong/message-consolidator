@@ -1,7 +1,7 @@
 import { state } from './state.js';
-import { I18N_DATA } from './i18n.js';
+import { I18N_DATA } from './locales.js';
 
-window.showOriginalMessage = function(text) {
+window.showOriginalMessage = function (text) {
     const modal = document.getElementById('originalMessageModal');
     const content = document.getElementById('originalTextContent');
     if (modal && content) {
@@ -12,7 +12,7 @@ window.showOriginalMessage = function(text) {
 
 const formatDisplayTime = (isoStr, lang) => {
     if (!isoStr) return '-';
-    
+
     let dateStr = isoStr;
     // Handle legacy suffix from database
     if (typeof dateStr === 'string') {
@@ -38,7 +38,7 @@ const formatDisplayTime = (isoStr, lang) => {
         };
 
         const { offset, label } = config[lang] || config.en;
-        
+
         // Accurate timezone conversion using UTC components
         const local = new Date(date.getTime() + (3600000 * offset));
 
@@ -76,24 +76,44 @@ export const renderer = {
         if (allGrid) allGrid.innerHTML = '';
 
         const data = I18N_DATA[state.currentLang];
-        
+
         // Keywords for local filtering
-        const keywords = [];
+        const uniqueKeywords = [];
         if (state.userProfile.email && state.userProfile.email.trim()) {
-            keywords.push(state.userProfile.email.trim().toLowerCase());
-            if (state.userProfile.email.includes('@')) {
-                keywords.push(state.userProfile.email.trim().split('@')[0].toLowerCase());
+            const lowEmail = state.userProfile.email.trim().toLowerCase();
+            uniqueKeywords.push(lowEmail);
+            if (lowEmail.includes('@')) {
+                const prefix = lowEmail.split('@')[0];
+                uniqueKeywords.push(prefix);
             }
         }
         if (state.userProfile.name && state.userProfile.name.trim()) {
-            keywords.push(state.userProfile.name.trim().toLowerCase());
+            const lowName = state.userProfile.name.trim().toLowerCase();
+            uniqueKeywords.push(lowName);
+            const noSpaceName = lowName.replace(/\s+/g, '');
+            if (noSpaceName !== lowName) {
+                uniqueKeywords.push(noSpaceName);
+            }
         }
-        keywords.push('내 업무');
 
         if (state.userAliases && Array.isArray(state.userAliases)) {
             state.userAliases.forEach(alias => {
-                if (alias && alias.trim()) keywords.push(alias.trim().toLowerCase());
+                if (alias && typeof alias === 'string' && alias.trim()) {
+                    const lowAlias = alias.trim().toLowerCase();
+                    uniqueKeywords.push(lowAlias);
+                    // 띄어쓰기 제거 버전도 추가하여 normalizedAssignee와 비교 가능하게 함
+                    const noSpaceAlias = lowAlias.replace(/\s+/g, '');
+                    if (noSpaceAlias !== lowAlias) {
+                        uniqueKeywords.push(noSpaceAlias);
+                    }
+                }
             });
+        }
+
+        // 일반 지칭 대명사 (완전 일치 검사용 - 오탐 방지)
+        const genericKeywords = ['내업무', '사용자', '나', 'me', 'user', 'mytasks'];
+        if (data && data.myTasks) {
+            genericKeywords.push(data.myTasks.replace(/\s+/g, '').toLowerCase());
         }
 
         if (!messages || messages.length === 0) {
@@ -104,7 +124,7 @@ export const renderer = {
             this.updateCounts(0, 0, 0);
             return;
         }
-        
+
         const activeMessages = messages.filter(m => !m.is_deleted);
         const sorted = activeMessages.sort((a, b) => {
             const aDone = !!a.done;
@@ -117,19 +137,40 @@ export const renderer = {
 
         sorted.forEach(m => {
             const rawAssignee = (m.assignee || "").trim();
+            const normalizedAssignee = rawAssignee.replace(/\s+/g, '').toLowerCase();
+            const normalizedRequester = (m.requester || "").replace(/\s+/g, '').toLowerCase();
             let isMyTask = false;
 
-            if (rawAssignee === '내 업무') {
+            // 1. Explicit labels & Direct Name/Alias match
+            const isExplicitMine = normalizedAssignee === '내업무' || normalizedAssignee === 'mytasks' || 
+                                   rawAssignee === (data && data.myTasks) ||
+                                   uniqueKeywords.includes(normalizedAssignee);
+            
+            if (isExplicitMine) {
                 isMyTask = true;
-            } else if (rawAssignee === '기타 업무') {
+            } else if (normalizedAssignee === '기타업무' || normalizedAssignee === 'othertasks' || rawAssignee === (data && data.otherTasks)) {
                 isMyTask = false;
             } else {
-                // Fallback for legacy data or actual names
-                isMyTask = keywords.some(kw => 
-                    (m.task && m.task.toLowerCase().includes(kw)) || 
-                    (rawAssignee && rawAssignee.toLowerCase().includes(kw)) ||
-                    (m.requester && m.requester.toLowerCase().includes(kw))
-                );
+                // 2. Keyword matching
+                // 2-1. 고유 식별자는 업무 본문, 담당자, 요청자에 유연하게 포함되어 있는지 검사
+                isMyTask = uniqueKeywords.some(kw => {
+                    if (!kw) return false;
+                    const lowKw = kw.toLowerCase();
+                    return (m.task && m.task.toLowerCase().includes(lowKw)) ||
+                        (rawAssignee && rawAssignee.toLowerCase().includes(lowKw)) ||
+                        (m.requester && m.requester.toLowerCase().includes(lowKw));
+                });
+
+                // 2-2. 일반 지칭 대명사('나', 'me' 등)는 담당자나 요청자 이름과 '정확히 일치'할 때만 내 업무로 처리
+                if (!isMyTask) {
+                    isMyTask = genericKeywords.includes(normalizedAssignee) || genericKeywords.includes(normalizedRequester);
+                }
+            }
+            
+            if (isMyTask && m.id === 7512) {
+                console.log("[DEBUG] isMyTask=TRUE for 7512", { normalizedAssignee, uniqueKeywords, isExplicitMine });
+            } else if (m.id === 7512) {
+                console.log("[DEBUG] isMyTask=FALSE for 7512", { normalizedAssignee, uniqueKeywords, isExplicitMine });
             }
 
             const cardAll = this.createCardElement(m, data, handlers);
@@ -149,7 +190,7 @@ export const renderer = {
                 }
             }
         });
-        
+
         this.updateCounts(myCount, otherCount, allCount);
     },
 
@@ -165,25 +206,25 @@ export const renderer = {
     createCardElement(m, data, handlers) {
         const card = document.createElement('div');
         card.className = `card ${m.source} ${m.done ? 'done' : ''}`;
-        
+
         const viewOriginalIcon = `
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                 <circle cx="12" cy="12" r="3"></circle>
             </svg>`;
-        
+
         const linkIcon = `
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                 <polyline points="15 3 21 3 21 9"></polyline>
                 <line x1="10" y1="14" x2="21" y2="3"></line>
             </svg>`;
-        
+
         const doneIcon = `
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width: 18px; height: 18px;">
                 <polyline points="20 6 9 17 4 12"></polyline>
             </svg>`;
-        
+
         const deleteIcon = `
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
                 <polyline points="3 6 5 6 21 6"></polyline>
@@ -191,12 +232,12 @@ export const renderer = {
             </svg>`;
 
         let actionBtnHtml = '';
-        
+
         // 1. View Original Modal (Eye icon)
         if (m.original_text) {
             actionBtnHtml += `<button type="button" class="action-btn original-btn" data-id="${m.id}" title="${data.viewOriginal}">${viewOriginalIcon}</button>`;
         }
-        
+
         // 2. Direct Link to Source (External Icon) - Removed for Gmail as requested
         if (m.link && m.source.toLowerCase() !== 'gmail') {
             actionBtnHtml += `<a href="${m.link}" target="_blank" class="action-btn link-btn" title="Open in ${m.source}">${linkIcon}</a>`;
@@ -288,10 +329,10 @@ export const renderer = {
         Object.keys(headers).forEach(id => {
             const el = document.getElementById(id);
             if (!el) return;
-            
+
             // Clear existing indicator
             const baseText = el.textContent.replace(/[↑↓]/g, '').trim();
-            
+
             if (state.archiveSort === headers[id]) {
                 const arrow = state.archiveOrder === 'ASC' ? '↑' : '↓';
                 el.innerHTML = `${baseText} <span style="font-size: 0.8rem; margin-left: 4px; color: var(--accent-color);">${arrow}</span>`;
@@ -312,7 +353,7 @@ export const renderer = {
             const time = new Date(m.created_at).toLocaleString();
             const completedAt = m.completed_at ? new Date(m.completed_at).toLocaleString() : '-';
             const sourceIcon = this.getSourceIcon(m.source);
-            
+
             return `
                 <tr>
                     <td><input type="checkbox" class="archive-check" data-id="${m.id}"></td>
@@ -357,7 +398,8 @@ export const renderer = {
         const emailEl = document.getElementById('userEmail');
 
         if (profile.email) {
-            emailEl.textContent = profile.email;
+            // Use User.name if it exists, otherwise email
+            emailEl.textContent = profile.name || profile.email;
             imgEl.src = profile.picture || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
             profileDiv.classList.remove('hidden');
         }
@@ -453,5 +495,43 @@ export const renderer = {
             item.querySelector('.remove-btn').onclick = () => onRemove(original);
             list.appendChild(item);
         });
+    },
+
+    renderContactMappings(mappings) {
+        const list = document.getElementById('contactList');
+        if (!list) return;
+        list.innerHTML = '';
+        Object.entries(mappings).forEach(([repName, aliases]) => {
+            const item = document.createElement('div');
+            item.className = 'alias-item';
+            item.style.display = 'flex';
+            item.style.justifyContent = 'space-between';
+            item.style.alignItems = 'center';
+            item.style.padding = '0.5rem 0.75rem';
+            item.style.marginBottom = '0.4rem';
+            item.style.background = 'rgba(var(--accent-rgb), 0.05)';
+            item.style.borderRadius = '8px';
+            item.style.fontSize = '0.9rem';
+
+            item.innerHTML = `
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-weight: 800; color: var(--accent-light);">${repName}</span>
+                    <span style="font-size: 0.8rem; color: var(--text-dim);">${aliases}</span>
+                </div>
+            `;
+            list.appendChild(item);
+        });
+    },
+
+    updateTokenBadge(usage) {
+        const badge = document.getElementById('tokenUsageBadge');
+        if (badge) {
+            const total = usage.todayTotal || 0;
+            badge.textContent = `Token: ${total.toLocaleString()}`;
+            // Optional: color change based on usage
+            if (total > 500000) badge.style.color = '#ff3b30';
+            else if (total > 200000) badge.style.color = '#f39c12';
+            else badge.style.color = 'var(--accent-light)';
+        }
     }
 };

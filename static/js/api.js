@@ -162,5 +162,27 @@ export const api = {
         });
         if (!resp.ok) throw new Error(`Remove tenant alias failed: ${resp.status}`);
         return resp;
+    },
+
+    async fetchTokenUsage() {
+        const resp = await fetch('/api/user/token-usage');
+        if (!resp.ok) throw new Error(`Fetch token usage failed: ${resp.status}`);
+        return await resp.json();
+    },
+
+    async fetchContactMappings() {
+        const resp = await fetch('/api/contacts/mappings');
+        if (!resp.ok) throw new Error(`Fetch contact mappings failed: ${resp.status}`);
+        return await resp.json();
+    },
+
+    async addContactMapping(repName, aliases) {
+        const resp = await fetch('/api/contacts/mapping/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rep_name: repName, aliases })
+        });
+        if (!resp.ok) throw new Error(`Add contact mapping failed: ${resp.status}`);
+        return resp;
     }
 };
