@@ -1,3 +1,12 @@
+# Release Notes - v2.0.6 (2026-03-20 17:40 UTC)
+
+## ⚡ Bulk Database Operations & Performance Optimization
+- **[FEAT] Bulk DB Access**: Implemented `SaveMessages`, `DeleteMessages`, `RestoreMessages`, and `HardDeleteMessages` using single-query batch patterns for massive throughput gains.
+- **[OPTIMIZE] Enhanced Scanners**: Refactored channel scanners (Slack, WhatsApp, Gmail) to use batch saves, reducing database connection overhead and improving scan speed.
+- **[FEAT] Lazy Loading Implementation**: Successfully decoupled original text from the main dashboard payload, reducing memory footprint and initial API response size.
+
+---
+
 # Release Notes - v2.0.5 (2026-03-20 17:25 UTC)
 
 ## ⚡ On-Demand Original Message Fetching (Lazy Loading)

@@ -160,6 +160,7 @@ func scanSlack(user store.User, aliases []string) {
 			continue
 		}
 
+		var msgsToSave []store.ConsolidatedMessage
 		newLastTS := lastTS
 		for _, m := range msgs {
 			classification := classifyMessage(channel, &user, aliases, m)
@@ -171,7 +172,7 @@ func scanSlack(user store.User, aliases []string) {
 					assigneeName = user.Email
 				}
 
-				store.SaveMessage(store.ConsolidatedMessage{
+				msgsToSave = append(msgsToSave, store.ConsolidatedMessage{
 					UserEmail:    user.Email,
 					Source:       "slack",
 					Room:         sc.GetChannelName(channel.ID),
@@ -187,6 +188,9 @@ func scanSlack(user store.User, aliases []string) {
 			if m.ID > newLastTS {
 				newLastTS = m.ID
 			}
+		}
+		if len(msgsToSave) > 0 {
+			store.SaveMessages(msgsToSave)
 		}
 		store.UpdateLastScan(user.Email, "slack", channel.ID, newLastTS)
 	}
@@ -296,6 +300,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 				return
 			}
 
+			var localMsgsToSave []store.ConsolidatedMessage
 			var localNewIDs []int
 			for _, item := range items {
 				assignedAt := time.Now().Format(time.RFC3339)
@@ -309,7 +314,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 				is1to1 := !strings.Contains(js, "@g.us")
 				isMentioned := false
 				for _, alias := range aliases {
-					if alias != "" && IsAliasMatched(item.OriginalText, item.Requester, alias) {
+					if alias != "" && IsAliasMatched(origText, item.Requester, alias) {
 						isMentioned = true
 						break
 					}
@@ -333,7 +338,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 					}
 				}
 
-				saved, newID, _ := store.SaveMessage(store.ConsolidatedMessage{
+				localMsgsToSave = append(localMsgsToSave, store.ConsolidatedMessage{
 					UserEmail:    email,
 					Source:       "whatsapp",
 					Room:         groupName,
@@ -344,9 +349,11 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 					SourceTS:     item.SourceTS,
 					OriginalText: origText,
 				})
-				if saved {
-					localNewIDs = append(localNewIDs, newID)
-				}
+			}
+
+			if len(localMsgsToSave) > 0 {
+				savedIDs, _ := store.SaveMessages(localMsgsToSave)
+				localNewIDs = append(localNewIDs, savedIDs...)
 			}
 
 			mu.Lock()

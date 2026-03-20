@@ -1,3 +1,12 @@
+# Release Notes (기술 버전 - 국문) - v2.0.6 (2026-03-20 17:40 UTC)
+
+## ⚡ 대량 데이터 처리 및 성능 최적화 (Bulk Operations)
+- **[FEAT] 대량 처리 엔진**: `SaveMessages`, `DeleteMessages`, `RestoreMessages`, `HardDeleteMessages`를 단일 쿼리 배치 처리 방식으로 구현하여 DB 성능을 획기적으로 개선했습니다.
+- **[OPTIMIZE] 스캐너 리팩토링**: Slack, WhatsApp, Gmail 스캐너가 업무를 개별적으로 저장하지 않고 모아서 한 번에 저장하도록 구조를 변경하여 스캔 속도를 높였습니다.
+- **[FEAT] 페이로드 최적화 완성**: 목록 조회 시 원문 텍스트를 제거하여 대시보드 로딩 성능을 극대화했습니다.
+
+---
+
 # Release Notes (기술 버전 - 국문) - v2.0.5 (2026-03-20 17:25 UTC)
 
 ## ⚡ 원문 메시지 온디맨드 로딩 (Lazy Loading)

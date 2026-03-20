@@ -221,6 +221,8 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 		fallbackAssignee = email
 	}
 
+	var msgsToSave []store.ConsolidatedMessage
+
 	for i, item := range items {
 		link := fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS)
 
@@ -255,7 +257,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 		}
 
 		uniqueSourceTS := fmt.Sprintf("gmail-%s-%d", item.SourceTS, i)
-		store.SaveMessage(store.ConsolidatedMessage{
+		msgsToSave = append(msgsToSave, store.ConsolidatedMessage{
 			UserEmail:    email,
 			Source:       "gmail",
 			Room:         "Gmail",
@@ -267,6 +269,10 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 			SourceTS:     uniqueSourceTS,
 			OriginalText: origText,
 		})
+	}
+
+	if len(msgsToSave) > 0 {
+		store.SaveMessages(msgsToSave)
 	}
 }
 

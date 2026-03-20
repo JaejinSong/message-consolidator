@@ -117,9 +117,7 @@ func HandleDelete(w http.ResponseWriter, r *http.Request) {
 		ids = []int{req.ID}
 	}
 
-	for _, id := range ids {
-		store.DeleteMessage(email, id)
-	}
+	store.DeleteMessages(email, ids)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -156,9 +154,7 @@ func HandleHardDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	for _, id := range req.IDs {
-		store.HardDeleteMessage(email, id)
-	}
+	store.HardDeleteMessages(email, req.IDs)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -171,9 +167,7 @@ func HandleRestore(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	for _, id := range req.IDs {
-		store.RestoreMessage(email, id)
-	}
+	store.RestoreMessages(email, req.IDs)
 	w.WriteHeader(http.StatusOK)
 }
 
