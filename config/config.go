@@ -22,6 +22,8 @@ type Config struct {
 	LogLevel               string
 	GmailSkipSenders       string
 	AutoArchiveDays        int
+	CloudRunMode           bool
+	InternalScanSecret     string
 }
 
 func LoadConfig() *Config {
@@ -67,5 +69,7 @@ func LoadConfig() *Config {
 		GeminiTranslationModel: geminiTranslationModel,
 		GmailSkipSenders:       os.Getenv("GMAIL_SKIP_SENDERS"),
 		AutoArchiveDays:        autoArchiveDays,
+		CloudRunMode:           os.Getenv("CLOUD_RUN_MODE") == "true",
+		InternalScanSecret:     os.Getenv("INTERNAL_SCAN_SECRET"),
 	}
 }

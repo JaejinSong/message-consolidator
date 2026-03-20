@@ -9,6 +9,7 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/mux"
 )
@@ -59,9 +60,14 @@ func main() {
 	// Initialize Handlers
 	handlers.Init(cfg)
 	handlers.ScanFunc = scan
+	handlers.FullScanFunc = RunAllScans
 
-	// Start Background Workers
-	go startBackgroundScanner()
+	// Start Background Workers (Only if NOT in Cloud Run mode)
+	if !cfg.CloudRunMode {
+		go startBackgroundScanner()
+	} else {
+		logger.Infof("Cloud Run Mode: Background scanner disabled. Triggers via API expected.")
+	}
 
 	// Create a new router
 	r := mux.NewRouter()
@@ -107,6 +113,7 @@ func main() {
 	r.Handle("/api/whatsapp/qr", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleWhatsAppQR))).Methods("GET")
 	r.Handle("/api/whatsapp/status", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleWhatsAppStatus))).Methods("GET")
 	r.Handle("/api/scan", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleManualScan))).Methods("GET")
+	r.HandleFunc("/api/internal/scan", handlers.HandleInternalScan).Methods("GET")
 	r.Handle("/api/translate", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleTranslate))).Methods("POST")
 	r.Handle("/api/user/aliases", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleGetUserAliases))).Methods("GET")
 	r.Handle("/api/user/alias/add", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleAddAlias))).Methods("POST")
@@ -130,8 +137,13 @@ func main() {
 	// Attach the router to the default http server
 	http.Handle("/", r)
 
-	logger.Infof("기동 완료 (Server starting on :8080...)")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	logger.Infof("기동 완료 (Server starting on :%s...)", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
 	}
 }

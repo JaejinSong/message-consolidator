@@ -21,14 +21,14 @@ func startBackgroundScanner() {
 	defer ticker.Stop()
 
 	// Run initial scan
-	runAllScans()
+	RunAllScans()
 
 	for range ticker.C {
-		runAllScans()
+		RunAllScans()
 	}
 }
 
-func runAllScans() {
+func RunAllScans() {
 	users, err := store.GetAllUsers()
 	if err != nil {
 		logger.Errorf("Scanner Error: Failed to get users: %v", err)
