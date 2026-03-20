@@ -1,13 +1,16 @@
-# Release Notes - v1.8.2 (2026-03-20 03:41 UTC)
+# Release Notes - v1.8.3 (2026-03-20 04:05 UTC)
 
-## 🐳 System Maintenance & Gmail Reliability
-- **Docker Image Automation**: Implemented automated daily Docker image cleanup (`docker image prune -a`) on the VPS to optimize disk usage and system performance.
-- **Gmail Scan Cursor Fix**: Resolved a regression where the Gmail scan cursor (last message ID) was not persisting correctly, ensuring continuous and non-redundant message scanning.
-- **Gmail Logic Refactoring**: Simplified Gmail scanning and analysis functions by removing redundant boolean return types and unused direct return captures, resulting in cleaner and more efficient code.
-- **Improved Gmail Attribution Commenting**: Updated internal comments for better clarity on CC/BCC filtering logic.
-- **Multi-format Release Documentation (v1.8.2)**: Split release notes into three distinct files (`RELEASE_NOTES.md`, `RELEASE_NOTES_KR.md`, `RELEASE_NOTES_USER.md`) with explicit timestamps for better traceability.
-- **Recursive Identity Detection**: Enhanced the identity matching engine to automatically detect user names and email prefixes as aliases.
-- **Frontend State Synchronization**: Standardized JS module imports to prevent multi-instance state conflicts, fixing UI task count mismatches.
+## 📢 UI Enhancements & Quick Alias Mapping
+- **[NEW] Release Notes UI Integration**: Added a 📢 **Updates** button to the dashboard to view the latest improvements directly within the app.
+- **[NEW] Quick Alias Mapping from UI**: Click any requester or assignee name in the task list (including the Archive) to quickly map it to a canonical name in settings.
+- **[NEW] Multi-Alias Support**: Updated alias management to allow adding multiple aliases at once using comma separation.
+- **[SEC] Global XSS Protection**: Implemented HTML escaping for all dynamically rendered text (tasks, rooms, names) across the dashboard and archive for enhanced security.
+- **[UI] Robust Markdown Rendering**: Developed a custom, lightweight markdown-to-HTML formatter specifically for the release notes modal.
+- **[API] Release Notes Endpoint**: Created a new server-side handler `/api/release-notes` to serve the user-facing release notes.
+
+---
+
+# Release Notes - v1.8.2 (2026-03-20 03:41 UTC)
 
 ---
 

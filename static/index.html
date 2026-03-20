@@ -33,6 +33,8 @@
                     <div class="nav-links">
                         <a href="#" id="archiveLink" class="nav-btn archive-btn">📦 <span
                                 class="nav-text">Archive</span></a>
+                        <button type="button" id="releaseNotesBtn" class="nav-btn release-notes-btn">📢 <span
+                                class="nav-text">Updates</span></button>
                         <button type="button" id="settingsBtn" class="nav-btn settings-btn">⚙️ <span
                                 class="nav-text">Settings</span></button>
                     </div>
@@ -343,7 +345,25 @@
         </div>
     </div>
 
-    <script type="module" src="static/app.js?v=1.8.1"></script>
+    <!-- Release Notes Modal -->
+    <div id="releaseNotesModal" class="modal hidden">
+        <div class="modal-content glass-card" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>업데이트 소식</h3>
+                <button id="closeReleaseNotesBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="releaseNotesContent" class="release-notes-body" style="font-size: 0.95rem; line-height: 1.7; color: var(--text-main);">
+                    <!-- Content will be injected here -->
+                </div>
+            </div>
+            <div class="modal-footer" style="padding-top: 1rem; text-align: right;">
+                <button type="button" id="confirmReleaseNotesBtn" class="primary-btn" style="width: auto; padding: 0.6rem 2rem;">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="static/app.js?v=1.8.2"></script>
 
 </body>
 

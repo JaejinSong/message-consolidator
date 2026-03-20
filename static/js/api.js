@@ -184,5 +184,11 @@ export const api = {
         });
         if (!resp.ok) throw new Error(`Add contact mapping failed: ${resp.status}`);
         return resp;
+    },
+
+    async fetchReleaseNotes() {
+        const resp = await fetch('/api/release-notes');
+        if (!resp.ok) throw new Error(`Fetch release notes failed: ${resp.status}`);
+        return await resp.json();
     }
 };
