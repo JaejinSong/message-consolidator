@@ -185,9 +185,6 @@ func RefreshAllCaches() error {
 }
 
 func RefreshCache(email string) error {
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-
 	// 1. Fetch Active Messages
 	queryActive := fmt.Sprintf(`
 		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at 
@@ -211,7 +208,6 @@ func RefreshCache(email string) error {
 		newActive = append(newActive, m)
 		newKnownTS[m.SourceTS] = true
 	}
-	messageCache[email] = newActive
 
 	// 2. Fetch Archived Messages (is_deleted = 1 OR long completed)
 	queryArchive := fmt.Sprintf(`
@@ -235,9 +231,13 @@ func RefreshCache(email string) error {
 		newArchive = append(newArchive, m)
 		newKnownTS[m.SourceTS] = true
 	}
+
+	cacheMu.Lock()
+	messageCache[email] = newActive
 	archiveCache[email] = newArchive
 	knownTS[email] = newKnownTS
 	cacheInitialized[email] = true
+	cacheMu.Unlock()
 
 	return nil
 }
