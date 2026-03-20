@@ -1,9 +1,20 @@
-# Release Notes - v1.9.8 (2026-03-20 16:30 UTC)
+# Release Notes - v2.0.1 (2026-03-20 16:35 UTC)
 
 ## 🏗️ Frontend Modularization & UI Logic Fixes
 - **[NEW] Frontend Architecture Refactoring**: Refactored monolithic frontend logic into clean, domain-specific modules (`taskFilter.js`, `icons.js`, `archive.js`, `modals.js`) to improve maintainability and scalability.
 - **[FIX] Modal Theme Mismatch**: Resolved a critical readability issue in the light theme by ensuring the details modal uses theme-aware background colors.
 - **[FIX] Empty State Visibility**: Corrected the logic to ensure witty messages appear correctly for each section (My Tasks / Other Tasks) independently.
+
+---
+
+# Release Notes - v2.0.0 (2026-03-20 15:50 UTC)
+
+## ☁️ Google Cloud Run Serverless Migration
+- **[NEW] Serverless Optimization**: Introduced `CLOUD_RUN_MODE` to disable background scanners and use API-triggered scanning for optimal serverless execution.
+- **[NEW] Internal Scan API**: Added `/api/internal/scan` for external triggers (e.g., Cloud Scheduler) with `X-Internal-Secret` security.
+- **[NEW] Anti-Resonance Jitter**: Implemented 0-5s random delays to distribute load across concurrent instances.
+- **[NEW] Automated Deployment Workflow**: Created `cloud-run-deploy.sh` and `cloud-scheduler-setup.sh` for full serverless pipeline automation.
+- **[FIX] Dynamic Port Binding**: Updated server startup to respect the `$PORT` environment variable.
 
 ---
 
