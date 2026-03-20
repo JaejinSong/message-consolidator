@@ -15,3 +15,11 @@ func HandleGetReleaseNotes(w http.ResponseWriter, r *http.Request) {
 	}
 	respondJSON(w, map[string]string{"content": string(data)})
 }
+
+func HandleSlackStatus(w http.ResponseWriter, r *http.Request) {
+	status := "DISCONNECTED"
+	if cfg.SlackToken != "" {
+		status = "CONNECTED"
+	}
+	respondJSON(w, map[string]string{"status": status})
+}

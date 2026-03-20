@@ -112,6 +112,7 @@ func main() {
 	r.Handle("/api/user/info", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleUserInfo))).Methods("GET")
 	r.Handle("/api/whatsapp/qr", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleWhatsAppQR))).Methods("GET")
 	r.Handle("/api/whatsapp/status", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleWhatsAppStatus))).Methods("GET")
+	r.Handle("/api/slack/status", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleSlackStatus))).Methods("GET")
 	r.Handle("/api/scan", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleManualScan))).Methods("GET")
 	r.HandleFunc("/api/internal/scan", handlers.HandleInternalScan).Methods("GET")
 	r.Handle("/api/translate", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleTranslate))).Methods("POST")

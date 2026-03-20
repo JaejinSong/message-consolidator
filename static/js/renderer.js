@@ -384,13 +384,12 @@ export const renderer = {
         }
     },
 
-    updateSlackStatus(messages) {
+    updateSlackStatus(connected) {
         const slackIcon = document.getElementById('slackStatusLarge');
         const slackText = document.getElementById('slackStatusText');
         if (!slackIcon) return;
 
-        const hasSlack = messages.some(m => m.source.toLowerCase() === 'slack');
-        if (hasSlack) {
+        if (connected) {
             slackIcon.classList.remove('inactive');
             slackIcon.classList.add('active');
             if (slackText) slackText.textContent = I18N_DATA[state.currentLang].statusOn;
