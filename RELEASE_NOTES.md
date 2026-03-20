@@ -1,3 +1,11 @@
+# Release Notes - v1.9.7 (2026-03-20 15:00 UTC)
+
+## 🎊 Witty Empty States & Emotional UX Enhancement
+- **[NEW] Witty Empty States**: Added 10+ random witty messages per language (KO, EN, ID, TH) that appear when "My Tasks" are complete.
+- **[UI] Polished Empty View**: Implemented a new design with subtle animations and borders for a more engaging "Zero Tasks" experience.
+
+---
+
 # Release Notes - v1.9.6 (2026-03-20 14:40 UTC)
 
 ## 🌐 Advanced I18n & Deployment Automation
