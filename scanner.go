@@ -141,8 +141,8 @@ func scanSlack(user store.User, aliases []string) {
 		logger.Errorf("[SCAN-SLACK] Failed to fetch users: %v", err)
 	}
 
-	// Use the Slack API to get all public channels
-	chans, _, err := sc.LookupChannels() // SlackClient might need this method
+	// Use the Slack API to get channels the bot is a member of
+	chans, _, err := sc.LookupChannels()
 	if err != nil {
 		logger.Errorf("[SCAN-SLACK] Failed to fetch channels: %v", err)
 		return
