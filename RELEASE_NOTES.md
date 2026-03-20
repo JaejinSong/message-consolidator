@@ -1,11 +1,24 @@
 # Release Notes - v1.8.1 (Latest)
 
-## 🎯 Gmail CC/BCC Refinement & Frontend Sync
+## 👤 1. Developer Notes (EN - Technical)
 - **Gmail Recipient Filtering**: Re-engineered Gmail task attribution to strictly handle `To`, `CC`, and `BCC` headers. Tasks are now only assigned to the user if they are a direct recipient (`To:`), matching explicit intent.
-- **Recursive Identity Matching**: Introduced `getEffectiveAliases` which automatically includes the user's primary Name and Email prefix as implicit aliases, ensuring high-accuracy detection across Slack, WhatsApp, and Gmail.
-- **Remediation API**: Added `/api/admin/restore-gmail-cc` for retroactive cleanup of wrongly attributed Gmail tasks. It uses a hybrid approach of high-speed header parsing from `OriginalText` and Gmail API fallback.
-- **Frontend State Synchronization**: Standardized JS module imports by removing version suffixes (`?v=1.8.1`). This fixes the bug where multiple `state` instances led to "My Tasks" count mismatches in the UI.
-- **Robust Reclassification**: Refined the reclassification logic to prevent "hijacking" of already assigned tasks while still allowing for safe name normalization and removal of dummy labels ("내 업무", "미지정").
+- **Recursive Identity Matching**: Introduced `getEffectiveAliases` which automatically includes the user's primary Name and Email prefix as implicit aliases, ensuring high-accuracy detection across all channels.
+- **Scan Cursor Optimization**: Fixed the Gmail scan poll logic to always update `LastScan` to the entry point time, preventing redundant Gemini token usage for already filtered or duplicate messages.
+- **Remediation API**: Added `/api/admin/restore-gmail-cc` for retroactive cleanup of wrongly attributed Gmail tasks using a hybrid approach of high-speed header parsing and API fallback.
+- **Frontend State Sync**: Standardized JS module imports by removing version suffixes (`?v=1.8.1`), fixing a critical bug where multiple `state` instances led to "My Tasks" count mismatches.
+
+## 👤 2. 개발자 노트 (KR - Technical)
+- **Gmail 수신자 필터링 정교화**: `To`, `CC`, `BCC` 헤더를 엄격하게 구분하여 사용자가 직접 수신인(`To:`)인 경우에만 '내 업무'로 자동 분류되도록 개선했습니다.
+- **재귀적 본인 식별 매칭**: `getEffectiveAliases`를 통해 사용자 이름과 이메일 아이디를 기반으로 별칭을 수동으로 등록하지 않아도 자동으로 본인을 식별하도록 매칭 로직을 고도화했습니다.
+- **스캔 커서 최적화**: Gmail 스캔 성공 시 새 업무 저장 여부와 상관없이 무조건 `LastScan`을 업데이트하도록 하여, 필터링된 메일에 대한 불필요한 Gemini 분석 요청 및 토큰 낭비를 방지했습니다.
+- **데이터 정제 API**: CC로 잘못 분류되었던 기존 업무들을 일괄 수정할 수 있는 `/api/admin/restore-gmail-cc` 엔드포인트를 추가했습니다.
+- **프론트엔드 상태 동기화**: JS 모듈 임포트 방식을 표준화하여 'My Tasks' 개수가 브라우저에서 0으로 표기되던 상태 불일치 문제를 해결했습니다.
+
+## 👤 3. 사용자 업데이트 소식 (General - Casual)
+- **똑똑해진 담당자 찾기**: 이제 내가 직접 받은 메일(수신인)만 내 업무 탭에 표시됩니다. 참조(CC/BCC)로 들어온 메일은 내 업무가 아닌 '기타 업무'로 실시간 필터링됩니다.
+- **수동 설정 없이 내 이름 인식**: 별칭을 따로 등록하지 않아도 내 이름이나 이메일 주소만으로도 나에게 온 업무를 척척 찾아냅니다.
+- **대시보드 숫자 불일치 해결**: 간혹 업무 숫자가 0으로 보이거나 실제 리스트와 맞지 않던 현상을 수정하여 더 정확한 업무 현황을 확인할 수 있습니다.
+- **기존 데이터 깔끔 정리**: 과거에 CC로 들어와 내 업무 탭을 차지하고 있던 오래된 작업들을 실제 수신자 이름으로 깔끔하게 자동 정리해 주는 기능이 추가되었습니다.
 
 ---
 
