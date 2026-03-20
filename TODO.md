@@ -46,3 +46,29 @@
   - [x] 3단계: 치환된 텍스트와 경제적(Economic) 프롬프트를 결합하여 AI 분석 노이즈 제거
 - [x] **VPS 배포 프로세스 자동화 고도화**
   - [x] VPS Docker 이미지 자동 정리(Cleanup) 스케줄러 적용
+
+---
+
+## 게이미피케이션 (Gamification) - 보상 및 중독성 설계
+
+사용자의 업무 완료를 독려하고 지속적인 사용을 유도하기 위한 심리학 기반 게임 요소를 도입합니다.
+
+- [ ] **DB 스키마 확장 및 마이그레이션**
+  - `users` 테이블: `points`(INT), `streak`(INT), `last_completed_at`(TIMESTAMP), `daily_goal`(INT) 컬럼 추가
+- [ ] **백엔드 로직 구현 (Go)**
+  - `AwardPoints`: 업무 완료 시 포인트 지급 (기본 10p, 크리티컬 히트 5% 확률로 2배)
+  - `UpdateStreak`: 매일 업무 완료 시 스트릭 유지/갱신 로직 (24시간~48시간 기준)
+  - `StreakFreeze`: 모은 포인트로 스트릭을 보호하는 아이템/로직 구현
+- [ ] **프론트엔드 UI/UX 강화 (Addictive Design)**
+  - [ ] **Immediate Feedback**: `canvas-confetti` 라이브러리를 이용한 업무 완료 시 시각적 보상(꽃가루)
+  - [ ] **Combo System**: 단시간 내 연속 완료 시 콤보 게이지 및 포인트 배율 상승 UI
+  - [ ] **Visual Progression**: 경험치 바(Level Bar) 및 레벨업 애니메이션 구현
+  - [ ] **Achievement Badges**: 특정 조건 달성 시(예: '새벽의 지배자') 수집 가능한 배지 시스템
+- [ ] **통계 및 대시보드**
+  - 사용자 프로필 영역에 현재 포인트, 스트릭, 레벨 정보 상시 표시
+
+- [ ] **[옵션] 미니멀/프로페셔널 모드 검토**
+  - [ ] **성취감 위주 설계**: 가차(Gacha), 콤보(Combo) 등 액션 요소를 배제하고 꾸준함과 성과 위주 시각화
+  - [ ] **Productivity Score**: 단순 포인트가 아닌 '누적 성과 점수'로 네이밍 및 UI 구성 (전문성 강조)
+  - [ ] **Subtle Visuals**: 화려한 꽃가루 대신 미세한 마이크로 피드백(햅틱/체크 애니메이션)으로 성취감 전달
+  - [ ] **Consistency Graph**: GitHub 커밋 히트맵과 같은 형태의 일일 업무 달성도 시각화 고려

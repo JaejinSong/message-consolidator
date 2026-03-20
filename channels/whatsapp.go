@@ -74,23 +74,7 @@ func (m *WAManager) InitWhatsApp(email string, dbURL string, cfg *config.Config)
 	var err error
 	m.containerOnce.Do(func() {
 		dbLog := waLog.Stdout("Database", m.getLogLevel(cfg), true)
-		if dbURL == "" {
-			logger.Debugf("[WA-INIT] NeonDB URL is empty in config")
-			return
-		}
-
-		// Retry logic for DB connection
-		maxRetries := 5
-		for i := 1; i <= maxRetries; i++ {
-			m.container, err = sqlstore.New(context.Background(), "postgres", dbURL, dbLog)
-			if err == nil {
-				break
-			}
-			logger.Warnf("WA Store init attempt %d failed: %v. Retrying...", i, err)
-			if i < maxRetries {
-				time.Sleep(2 * time.Second)
-			}
-		}
+		m.container = sqlstore.NewWithDB(store.GetDB(), "postgres", dbLog)
 	})
 
 	if err != nil || m.container == nil {
@@ -269,7 +253,7 @@ func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
 			switch evt.Event {
 			case "code":
 				png, err := qrcode.Encode(evt.Code, qrcode.Medium, 256)
-				if (err != nil) {
+				if err != nil {
 					return "", fmt.Errorf("failed to encode QR: %v", err)
 				}
 				encoded := "base64:" + base64.StdEncoding.EncodeToString(png)

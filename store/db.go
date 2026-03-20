@@ -17,9 +17,8 @@ func InitDB(connStr string) error {
 	}
 
 	// Connection Pool Optimization for Neon (Scale to Zero)
-	db.SetConnMaxIdleTime(1 * time.Minute) // DB가 Sleep 하기 전에 앱 단에서 먼저 유휴 커넥션을 깔끔하게 닫음
-	db.SetMaxIdleConns(2)                  // Allow up to 2 idle connections for better performance
-	db.SetMaxOpenConns(20)                 // Cold Start 후 한 번에 몰리는 쿼리를 감당할 수 있도록 최대 연결 수 확장
+	db.SetMaxIdleConns(0)  // 유휴 커넥션 즉시 종료 (Scale-to-Zero 비용 최적화)
+	db.SetMaxOpenConns(20) // Cold Start 후 한 번에 몰리는 쿼리를 감당할 수 있도록 최대 연결 수 확장
 
 	query := `
 	CREATE TABLE IF NOT EXISTS users (
@@ -169,6 +168,10 @@ func InitDB(connStr string) error {
 	InitTokenUsageTable()
 
 	return nil
+}
+
+func GetDB() *sql.DB {
+	return db
 }
 
 func RefreshAllCaches() error {

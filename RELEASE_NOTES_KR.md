@@ -1,3 +1,12 @@
+# Release Notes (기술 버전 - 국문) - v2.0.7 (2026-03-20 18:30 UTC)
+
+## 🎮 게이미피케이션 인프라 및 DB 원가 최적화
+- **[PLAN] 게이미피케이션 설계**: 사용자의 지속적인 동기부여를 위한 포인트, 스트릭, 레벨업 시스템의 상세 구현 계획을 `TODO.md`에 수립했습니다. (비즈니스용 미니멀 모드 옵션 포함)
+- **[OPTIMIZE] Neon DB Scale-to-Zero 최적화**: `SetMaxIdleConns(0)` 지정을 통해 사용량이 없을 때 DB 커넥션을 즉시 반환하여 Neon 서버리스 런타임이 Sleep 모드에 진입할 수 있도록 최적화했습니다.
+- **[OPTIMIZE] DB 커넥션 풀 통합**: 별도로 운영되던 WhatsApp 세션 관리용 DB 풀을 메인 애플리케이션 풀로 통합(`sqlstore.NewWithDB`)하여 리소스 낭비를 줄였습니다.
+
+---
+
 # Release Notes (기술 버전 - 국문) - v2.0.6 (2026-03-20 17:40 UTC)
 
 ## ⚡ 대량 데이터 처리 및 성능 최적화 (Bulk Operations)
