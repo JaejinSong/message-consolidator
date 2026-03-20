@@ -1,3 +1,11 @@
+# Release Notes - v2.0.4 (2026-03-20 17:15 UTC)
+
+## ⚡ Token Optimization & Prompt Streamlining
+- **[FEAT] Reduced AI Cost**: Optimized system prompts in `ai/gemini.go` to be more concise while maintaining extraction accuracy.
+- **[FEAT] Cost-Efficient Model Selection**: Defined and implemented a tiered model selection strategy (Lite for translation, Flash for analysis) in `GEMINI.md`.
+
+---
+
 # Release Notes - v2.0.3 (2026-03-20 17:15 UTC)
 
 ## 🛠️ Build System Hotfix

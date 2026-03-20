@@ -51,12 +51,12 @@ func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText stri
 	model := g.client.GenerativeModel(g.analysisModel)
 	model.ResponseMIMEType = "application/json"
 	model.SystemInstruction = &genai.Content{
-		Parts: []genai.Part{genai.Text(fmt.Sprintf(`Extract tasks as a JSON array: [{"task", "requester", "assignee", "assigned_at", "source_ts", "original_text"}]
-1. "task": Concise task description in %s. Remove [TS:*] and stamps.
-2. "requester": The exact name of the person requesting the task. Preserve full names exactly as they appear (including parentheses and non-Latin characters).
-3. "assignee": Map pronouns/@id to actual names from context. Prioritize names mentioned with '@'.
-4. "original_text": Chat message only. Remove [TS:*] and timestamps.
-5. "source_ts": Find via [TS:timestamp].`, language))},
+		Parts: []genai.Part{genai.Text(fmt.Sprintf(`Extract tasks as JSON array: [{"task", "requester", "assignee", "assigned_at", "source_ts", "original_text"}]
+- "task": Concise %s summary. No stamps.
+- "requester": Full name (preserve special/non-Latin).
+- "assignee": Resolved name (pronouns/@id -> name).
+- "source_ts": From [TS:timestamp].
+- "original_text": Clean message body.`, language))},
 	}
 
 	var userPrompt string
@@ -112,7 +112,7 @@ func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []stor
 	model.ResponseMIMEType = "application/json"
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(fmt.Sprintf(`Translate tasks to %s. JSON: {"translations": [{"id", "text"}]}
-Result "text" in %s. Map @id to names from context. Preserve existing names.`, language, language))},
+Result "text" in %s. Map @id to names. Preserve others.`, language, language))},
 	}
 
 	logger.Debugf("[GEMINI] Translating %d tasks to %s...", len(tasks), language)
