@@ -1,5 +1,4 @@
 ---
-name: deploy
 description: VPS 배포 워크플로우 (Google Artifact Registry 활용)
 ---
 
@@ -37,5 +36,5 @@ gcloud compute ssh chat-analyzer-vps --zone=us-central1-a --project=gemini-enter
 4. VPS 배포 상태 및 실시간 검증
 - **로그 및 기동 검증**: 
     1. `sudo docker-compose logs | grep "Startup Complete"` 로그가 출력되는지 확인
-    2. 메인 화면 로드 확인 (https://34.67.133.18.nip.io/)
-    3. `/api/scan?lang=Korean` 호출 후 `scan started` 응답 확인 (상태 정상)
+    2. 브라우저 실행 없이 메인 화면 로드 확인 (https://34.67.133.18.nip.io/)
+    3. `/api/scan?lang=Korean` curl 호출 후 `scan started` 응답 확인 (상태 정상)
