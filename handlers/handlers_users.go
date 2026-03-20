@@ -138,12 +138,16 @@ func HandleDeleteTenantAlias(w http.ResponseWriter, r *http.Request) {
 
 func HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	todayTotal, err := store.GetDailyTokenUsage(email)
+	prompt, completion, err := store.GetDailyTokenUsage(email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	respondJSON(w, map[string]int{"todayTotal": todayTotal})
+	respondJSON(w, map[string]int{
+		"todayPrompt":     prompt,
+		"todayCompletion": completion,
+		"todayTotal":      prompt + completion,
+	})
 }
 
 func HandleGetMappings(w http.ResponseWriter, r *http.Request) {
@@ -167,6 +171,22 @@ func HandleAddMapping(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := store.AddContactMapping(email, req.RepName, req.Aliases); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	var req struct {
+		RepName string `json:"rep_name"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := store.DeleteContactMapping(email, req.RepName); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

@@ -116,6 +116,7 @@ func main() {
 	r.Handle("/api/user/token-usage", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleGetTokenUsage))).Methods("GET")
 	r.Handle("/api/contacts/mappings", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleGetMappings))).Methods("GET")
 	r.Handle("/api/contacts/mapping/add", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleAddMapping))).Methods("POST")
+	r.Handle("/api/contacts/mapping/delete", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleDeleteMapping))).Methods("POST")
 	r.Handle("/api/admin/reclassify", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleReclassifyOldData))).Methods("GET")
 	r.Handle("/api/admin/restore-gmail-cc", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleRestoreGmailCC))).Methods("GET")
 	r.Handle("/api/release-notes", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleGetReleaseNotes))).Methods("GET")

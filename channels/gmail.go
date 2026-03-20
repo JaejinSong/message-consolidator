@@ -92,7 +92,7 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 		return
 	}
 
-	rawMsgs, classificationMap, toMap := parseNewEmails(svc, res.Messages, email)
+	rawMsgs, classificationMap, toMap := parseNewEmails(svc, res.Messages, email, cfg)
 	if len(rawMsgs) == 0 {
 		return
 	}
@@ -110,10 +110,20 @@ func getGmailScanTime(email string) time.Time {
 	return time.Now().Add(-7 * 24 * time.Hour)
 }
 
-func parseNewEmails(svc *gmail.Service, messages []*gmail.Message, email string) ([]types.RawMessage, map[string]string, map[string]string) {
+func parseNewEmails(svc *gmail.Service, messages []*gmail.Message, email string, cfg *config.Config) ([]types.RawMessage, map[string]string, map[string]string) {
 	var rawMsgs []types.RawMessage
 	classificationMap := make(map[string]string)
 	toMap := make(map[string]string)
+
+	var skips []string
+	if cfg.GmailSkipSenders != "" {
+		for _, s := range strings.Split(cfg.GmailSkipSenders, ",") {
+			s = strings.TrimSpace(strings.ToLower(s))
+			if s != "" {
+				skips = append(skips, s)
+			}
+		}
+	}
 
 	for _, m := range messages {
 		fullMsg, err := svc.Users.Messages.Get("me", m.Id).Format("full").Do()
@@ -138,6 +148,18 @@ func parseNewEmails(svc *gmail.Service, messages []*gmail.Message, email string)
 		}
 
 		// Filter rules for user
+		fromLower := strings.ToLower(from)
+		isSkip := false
+		for _, s := range skips {
+			if strings.Contains(fromLower, s) {
+				logger.Debugf("[SCAN-GMAIL] Skipping noise email from: %s (matches skip rule: %s)", from, s)
+				isSkip = true
+				break
+			}
+		}
+		if isSkip {
+			continue
+		}
 		emailLower := strings.ToLower(email)
 		toLower := strings.ToLower(to)
 		ccLower := strings.ToLower(cc)

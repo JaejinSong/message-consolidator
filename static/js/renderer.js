@@ -406,15 +406,13 @@ export const renderer = {
     },
 
     updateUserProfile(profile) {
-        const profileDiv = document.getElementById('userProfile');
-        const imgEl = document.getElementById('userPicture');
-        const emailEl = document.getElementById('userEmail');
+        const imgEl = document.getElementById('userAvatar');
 
         if (profile.email) {
-            // Use User.name if it exists, otherwise email
-            emailEl.textContent = profile.name || profile.email;
-            imgEl.src = profile.picture || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
-            profileDiv.classList.remove('hidden');
+            if (imgEl) {
+                imgEl.src = profile.picture || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
+                imgEl.title = profile.name || profile.email;
+            }
         }
     },
 
@@ -501,19 +499,21 @@ export const renderer = {
         });
     },
 
-    renderContactMappings(mappings) {
+    renderContactMappings(mappings, onRemove) {
         const list = document.getElementById('contactList');
         if (!list) return;
         list.innerHTML = '';
-        Object.entries(mappings).forEach(([repName, aliases]) => {
+        mappings.forEach(({rep_name, aliases}) => {
             const item = document.createElement('div');
             item.className = 'alias-item';
             item.innerHTML = `
                 <div class="alias-info">
-                    <span class="alias-original">${repName}</span>
+                    <span class="alias-original">${rep_name}</span>
                     <span class="alias-primary">${aliases}</span>
                 </div>
+                <button type="button" class="remove-btn">&times;</button>
             `;
+            item.querySelector('.remove-btn').onclick = () => onRemove(rep_name);
             list.appendChild(item);
         });
     },
@@ -522,8 +522,17 @@ export const renderer = {
         const badge = document.getElementById('tokenUsageBadge');
         if (badge) {
             const total = usage.todayTotal || 0;
-            badge.textContent = `Token: ${total.toLocaleString()}`;
-            // Optional: color change based on usage
+            const prompt = usage.todayPrompt || 0;
+            const completion = usage.todayCompletion || 0;
+
+            // Gemini 1.5 Flash / Gemini 3 Flash Preview pricing
+            // Input: $0.075/1M, Output: $0.3/1M, Rate: 1,400 KRW/$
+            const inputCost = (prompt / 1000000) * 0.075 * 1400;
+            const outputCost = (completion / 1000000) * 0.3 * 1400;
+            const totalCost = inputCost + outputCost;
+
+            badge.textContent = `Token: ${total.toLocaleString()} (≈${totalCost.toFixed(1)}원)`;
+            
             if (total > 500000) badge.style.color = '#ff3b30';
             else if (total > 200000) badge.style.color = '#f39c12';
             else badge.style.color = 'var(--accent-light)';

@@ -119,21 +119,22 @@ func FlushTokenUsageIfNeeded() {
 	}
 }
 
-func GetDailyTokenUsage(email string) (int, error) {
-	var total int
-	query := `SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE user_email = $1 AND date = CURRENT_DATE`
-	err := db.QueryRow(query, email).Scan(&total)
+func GetDailyTokenUsage(email string) (int, int, error) {
+	var prompt, completion int
+	query := `SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) FROM token_usage WHERE user_email = $1 AND date = CURRENT_DATE`
+	err := db.QueryRow(query, email).Scan(&prompt, &completion)
 	if err != nil && err != sql.ErrNoRows {
-		return 0, err
+		return 0, 0, err
 	}
 
 	tokenMu.Lock()
 	if data, ok := tokenDirtyData[email]; ok {
-		total += data.Prompt + data.Completion
+		prompt += data.Prompt
+		completion += data.Completion
 	}
 	tokenMu.Unlock()
 
-	return total, nil
+	return prompt, completion, nil
 }
 
 func SaveGmailToken(email, tokenJSON string) error {

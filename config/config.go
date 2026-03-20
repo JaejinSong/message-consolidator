@@ -19,6 +19,7 @@ type Config struct {
 	GeminiAnalysisModel    string
 	GeminiTranslationModel string
 	LogLevel               string
+	GmailSkipSenders       string
 }
 
 func LoadConfig() *Config {
@@ -55,5 +56,6 @@ func LoadConfig() *Config {
 		LogLevel:               logLevel,
 		GeminiAnalysisModel:    geminiAnalysisModel,
 		GeminiTranslationModel: geminiTranslationModel,
+		GmailSkipSenders:       os.Getenv("GMAIL_SKIP_SENDERS"),
 	}
 }
