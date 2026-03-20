@@ -56,6 +56,12 @@ export const api = {
         return await resp.json();
     },
 
+    async fetchSlackStatus() {
+        const resp = await fetch('/api/slack/status');
+        if (!resp.ok) throw new Error(`Slack status check failed: ${resp.status}`);
+        return await resp.json();
+    },
+
     async triggerScan(lang) {
         const langMap = { 'ko': 'Korean', 'en': 'English', 'id': 'Indonesian', 'th': 'Thai' };
         const langParam = langMap[lang] || 'Korean';

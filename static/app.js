@@ -30,7 +30,13 @@ const fetchMessages = async () => {
     try {
         const data = await api.fetchMessages(state.currentLang);
         renderer.renderMessages(data, handlers);
-        renderer.updateSlackStatus(data);
+    } catch (e) { console.error(e); }
+};
+
+const checkSlackStatus = async () => {
+    try {
+        const data = await api.fetchSlackStatus();
+        renderer.updateSlackStatus(data.status === 'CONNECTED');
     } catch (e) { console.error(e); }
 };
 
@@ -252,11 +258,13 @@ const initApp = () => {
     updateUILanguage(state.currentLang); // 초기 언어 적용
     fetchUserProfile();                  // 내부에서 fetchMessages()를 이어 호출함
     checkWhatsAppStatus();
+    checkSlackStatus();
     checkGmailStatus();
 
     // 주기적 업데이트
     setInterval(fetchMessages, 29009);
     setInterval(checkWhatsAppStatus, 31013);
+    setInterval(checkSlackStatus, 41017);
     setInterval(checkGmailStatus, 61001);
 
     // Gmail icon click: connect when OFF, show info when ON
