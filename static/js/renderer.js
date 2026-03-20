@@ -194,7 +194,7 @@ export const renderer = {
         let actionBtnHtml = '';
 
         // 1. View Original Modal (Eye icon)
-        if (m.original_text) {
+        if (m.original_text || m.has_original) {
             actionBtnHtml += `<button type="button" class="action-btn original-btn" data-id="${m.id}" title="${data.viewOriginal}">${ICONS.viewOriginal}</button>`;
         }
 
@@ -225,11 +225,28 @@ export const renderer = {
         `;
 
         const originalBtn = card.querySelector('.original-btn');
-        if (originalBtn && m.original_text) {
-            originalBtn.addEventListener('click', (e) => {
+        if (originalBtn && (m.original_text || m.has_original)) {
+            originalBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                window.showOriginalMessage(m.original_text);
+
+                if (m.original_text) {
+                    window.showOriginalMessage(m.original_text);
+                } else {
+                    originalBtn.style.opacity = '0.5';
+                    try {
+                        const res = await fetch(`/api/messages/${m.id}/original`);
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        const data = await res.json();
+                        m.original_text = data.original_text; // 가져온 데이터 캐싱
+                        window.showOriginalMessage(m.original_text);
+                    } catch (err) {
+                        console.error('Failed to load original text:', err);
+                        alert((I18N_DATA[state.currentLang]?.error || 'Error') + ': Failed to load original text.');
+                    } finally {
+                        originalBtn.style.opacity = '1';
+                    }
+                }
             });
         }
 

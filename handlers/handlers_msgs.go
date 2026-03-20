@@ -5,6 +5,8 @@ import (
 	"message-consolidator/store"
 	"net/http"
 	"strconv"
+
+	"github.com/gorilla/mux"
 )
 
 func HandleGetMessages(w http.ResponseWriter, r *http.Request) {
@@ -21,6 +23,11 @@ func HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	copy(msgs, msgsRaw)
 
 	applyTranslations(msgs, lang)
+
+	for i := range msgs {
+		msgs[i].HasOriginal = msgs[i].OriginalText != ""
+		msgs[i].OriginalText = "" // 페이로드 압축을 위해 원문 제거 (Lazy Loading)
+	}
 
 	respondJSON(w, msgs)
 }
@@ -70,6 +77,11 @@ func HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 
 	applyTranslations(msgs, lang)
 
+	for i := range msgs {
+		msgs[i].HasOriginal = msgs[i].OriginalText != ""
+		msgs[i].OriginalText = ""
+	}
+
 	respondJSON(w, map[string]interface{}{
 		"messages": msgs,
 		"total":    total,
@@ -109,6 +121,30 @@ func HandleDelete(w http.ResponseWriter, r *http.Request) {
 		store.DeleteMessage(email, id)
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+func HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	msg, err := store.GetMessageByID(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if msg.UserEmail != email {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	respondJSON(w, map[string]string{"original_text": msg.OriginalText})
 }
 
 func HandleHardDelete(w http.ResponseWriter, r *http.Request) {
