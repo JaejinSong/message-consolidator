@@ -18,14 +18,16 @@
                     <h1>Message <span class="accent">Consolidator</span></h1>
                     <p id="subTitle">Automated Slack, WhatsApp &amp; Gmail Task Dashboard</p>
                 </div>
-                
+
                 <nav class="header-center">
-                    <button type="button" id="dashViewBtn" class="nav-tab active" data-view="dashboard">Dashboard</button>
+                    <button type="button" id="dashViewBtn" class="nav-tab active"
+                        data-view="dashboard">Dashboard</button>
                     <button type="button" id="archiveViewBtn" class="nav-tab" data-view="archive">Archive</button>
                 </nav>
 
                 <div class="header-right">
                     <div class="utility-group">
+                        <button type="button" id="themeToggleBtn" class="utility-btn" title="Toggle Theme"></button>
                         <button type="button" id="releaseNotesBtn" class="utility-btn" title="Updates">
                             <span class="icon">📢</span>
                         </button>
@@ -41,7 +43,7 @@
                             </select>
                         </div>
                     </div>
-                    
+
                     <div id="userProfile" class="user-profile-compact hidden">
                         <div class="profile-avatar-wrapper">
                             <img id="userPicture" src="" alt="Profile" class="profile-img-small">
@@ -256,18 +258,23 @@
             </div>
             <div class="settings-layout">
                 <aside class="settings-sidebar">
-                    <button type="button" class="settings-tab-btn active" data-settings-tab="generalTab" data-i18n="tabGeneral">General</button>
-                    <button type="button" class="settings-tab-btn" data-settings-tab="mappingsTab" data-i18n="tabMappings">Mappings</button>
+                    <button type="button" class="settings-tab-btn active" data-settings-tab="generalTab"
+                        data-i18n="tabGeneral">General</button>
+                    <button type="button" class="settings-tab-btn" data-settings-tab="mappingsTab"
+                        data-i18n="tabMappings">Mappings</button>
                 </aside>
                 <div class="settings-main">
                     <!-- General Tab -->
                     <div id="generalTab" class="settings-tab-content active">
                         <section class="settings-section">
                             <h4 data-i18n="settingsAliasTitle">My Aliases</h4>
-                            <p class="desc" data-i18n="settingsAliasDesc">Add names or nicknames that refer to you (e.g., "송재진", "JJ"). Tasks with these names will appear in 'My Tasks'.</p>
+                            <p class="desc" data-i18n="settingsAliasDesc">Add names or nicknames that refer to you
+                                (e.g., "송재진", "JJ"). Tasks with these names will appear in 'My Tasks'.</p>
                             <div class="alias-input-group">
-                                <input type="text" id="newAliasInput" data-i18n-placeholder="aliasInputPlaceholder" placeholder="Enter new alias...">
-                                <button type="button" id="addAliasBtn" class="primary-btn" data-i18n="mappingAddBtn">Add</button>
+                                <input type="text" id="newAliasInput" data-i18n-placeholder="aliasInputPlaceholder"
+                                    placeholder="Enter new alias...">
+                                <button type="button" id="addAliasBtn" class="primary-btn"
+                                    data-i18n="mappingAddBtn">Add</button>
                             </div>
                             <div id="aliasList" class="alias-list">
                                 <!-- Aliases will be listed here -->
@@ -278,7 +285,8 @@
 
                         <section class="settings-section">
                             <h4 data-i18n="gmailTitle">Gmail Integration</h4>
-                            <p class="desc" data-i18n="gmailDesc">Click the Gmail icon on the dashboard to connect your company Gmail account.</p>
+                            <p class="desc" data-i18n="gmailDesc">Click the Gmail icon on the dashboard to connect your
+                                company Gmail account.</p>
                             <div id="gmailConnectedStatus" class="hidden status-pill gmail-pill">
                                 <span class="check-mark">✓</span>
                                 <span data-i18n="gmailStatusConnected">Gmail Connected</span>
@@ -299,11 +307,16 @@
                     <div id="mappingsTab" class="settings-tab-content">
                         <section class="settings-section">
                             <h4 data-i18n="nameMappingTitle">Contact Name Mapping</h4>
-                            <p class="desc" data-i18n="contactMappingDesc">Map representative names to their aliases across platforms.</p>
+                            <p class="desc" data-i18n="contactMappingDesc">Map representative names to their aliases
+                                across platforms.</p>
                             <div class="alias-input-group mapping-grid">
-                                <input type="text" id="contactRepInput" data-i18n-placeholder="contactRepPlaceholder" placeholder="Rep. Name">
-                                <input type="text" id="contactAliasesInput" data-i18n-placeholder="contactAliasesPlaceholder" placeholder="Aliases (comma separated)">
-                                <button type="button" id="addContactBtn" class="primary-btn" data-i18n="mappingAddBtn">Add</button>
+                                <input type="text" id="contactRepInput" data-i18n-placeholder="contactRepPlaceholder"
+                                    placeholder="Rep. Name">
+                                <input type="text" id="contactAliasesInput"
+                                    data-i18n-placeholder="contactAliasesPlaceholder"
+                                    placeholder="Aliases (comma separated)">
+                                <button type="button" id="addContactBtn" class="primary-btn"
+                                    data-i18n="mappingAddBtn">Add</button>
                             </div>
                             <div id="contactList" class="alias-list mapping-scroll">
                                 <!-- Contact mappings will be listed here -->
@@ -314,11 +327,15 @@
 
                         <section class="settings-section">
                             <h4 data-i18n="tenantMappingTitle">Tenant Name Normalization</h4>
-                            <p class="desc" data-i18n="tenantMappingDesc">Shared mappings for this workspace (e.g., "YOSEP PARK" → "박요셉").</p>
+                            <p class="desc" data-i18n="tenantMappingDesc">Shared mappings for this workspace (e.g.,
+                                "YOSEP PARK" → "박요셉").</p>
                             <div class="alias-input-group mapping-grid">
-                                <input type="text" id="normOriginalInput" data-i18n-placeholder="normOriginalPlaceholder" placeholder="Original">
-                                <input type="text" id="normPrimaryInput" data-i18n-placeholder="normPrimaryPlaceholder" placeholder="Primary">
-                                <button type="button" id="addNormBtn" class="primary-btn" data-i18n="mappingAddBtn">Map</button>
+                                <input type="text" id="normOriginalInput"
+                                    data-i18n-placeholder="normOriginalPlaceholder" placeholder="Original">
+                                <input type="text" id="normPrimaryInput" data-i18n-placeholder="normPrimaryPlaceholder"
+                                    placeholder="Primary">
+                                <button type="button" id="addNormBtn" class="primary-btn"
+                                    data-i18n="mappingAddBtn">Map</button>
                             </div>
                             <div id="normList" class="alias-list mapping-scroll">
                                 <!-- Tenant mappings will be listed here -->
@@ -382,12 +399,14 @@
                 <button id="closeReleaseNotesBtn" class="close-btn">&times;</button>
             </div>
             <div class="modal-body">
-                <div id="releaseNotesContent" class="release-notes-body" style="font-size: 0.95rem; line-height: 1.7; color: var(--text-main);">
+                <div id="releaseNotesContent" class="release-notes-body"
+                    style="font-size: 0.95rem; line-height: 1.7; color: var(--text-main);">
                     <!-- Content will be injected here -->
                 </div>
             </div>
             <div class="modal-footer" style="padding-top: 1rem; text-align: right;">
-                <button type="button" id="confirmReleaseNotesBtn" class="primary-btn" style="width: auto; padding: 0.6rem 2rem;">확인</button>
+                <button type="button" id="confirmReleaseNotesBtn" class="primary-btn"
+                    style="width: auto; padding: 0.6rem 2rem;">확인</button>
             </div>
         </div>
     </div>

@@ -30,6 +30,24 @@ const formatDisplayTime = (isoStr, lang) => {
         const date = new Date(dateStr);
         if (isNaN(date.getTime())) return isoStr;
 
+        // 상대 시간 계산 (당일 24시간 이내)
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMins / 60);
+
+        if (diffHours < 24 && now.getDate() === date.getDate()) {
+            if (diffMins < 1) return lang === 'ko' ? '방금 전' : 'Just now';
+            if (diffMins < 60) return lang === 'ko' ? `${diffMins}분 전` : `${diffMins}m ago`;
+            return lang === 'ko' ? `${diffHours}시간 전` : `${diffHours}h ago`;
+        }
+
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const isYesterday = date.getDate() === yesterday.getDate() &&
+            date.getMonth() === yesterday.getMonth() &&
+            date.getFullYear() === yesterday.getFullYear();
+
         const config = {
             ko: { offset: 9, label: 'KST' },
             id: { offset: 7, label: 'JKT' },
@@ -42,14 +60,18 @@ const formatDisplayTime = (isoStr, lang) => {
         // Accurate timezone conversion using UTC components
         const local = new Date(date.getTime() + (3600000 * offset));
 
-        const yyyy = local.getUTCFullYear();
         const mm = String(local.getUTCMonth() + 1).padStart(2, '0');
         const dd = String(local.getUTCDate()).padStart(2, '0');
         const hh = String(local.getUTCHours()).padStart(2, '0');
         const min = String(local.getUTCMinutes()).padStart(2, '0');
-        const ss = String(local.getUTCSeconds()).padStart(2, '0');
 
-        return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss} ${label}`;
+        if (isYesterday) {
+            const ydayLabels = { ko: '어제', en: 'Yesterday', id: 'Kemarin', th: 'เมื่อวาน' };
+            const ydayLabel = ydayLabels[lang] || ydayLabels.en;
+            return `${ydayLabel} ${hh}:${min}`;
+        }
+
+        return `${mm}-${dd} ${hh}:${min} ${label}`;
     } catch (e) {
         return isoStr;
     }
@@ -243,7 +265,7 @@ export const renderer = {
 
         card.innerHTML = `
             <div class="col-source" title="${m.source}">${sourceIcon || '<span class="badge">' + m.source + '</span>'}</div>
-            <div class="col-room meta-val" title="${escapeHTML(m.room)}">${escapeHTML(m.room) || '-'}</div>
+            <div class="col-room" title="${escapeHTML(m.room)}"><span class="badge-room">${escapeHTML(m.room) || '-'}</span></div>
             <div class="col-task task-title" title="${escapeHTML(m.task)}">${escapeHTML(m.task)}</div>
             <div class="col-requester meta-val clickable-name" title="Click to map alias: ${escapeHTML(m.requester)}">${escapeHTML(m.requester)}</div>
             <div class="col-assignee meta-val clickable-name" title="Click to map alias: ${escapeHTML(m.assignee)}">${escapeHTML(m.assignee)}</div>
@@ -503,7 +525,7 @@ export const renderer = {
         const list = document.getElementById('contactList');
         if (!list) return;
         list.innerHTML = '';
-        mappings.forEach(({rep_name, aliases}) => {
+        mappings.forEach(({ rep_name, aliases }) => {
             const item = document.createElement('div');
             item.className = 'alias-item';
             item.innerHTML = `
@@ -525,14 +547,33 @@ export const renderer = {
             const prompt = usage.todayPrompt || 0;
             const completion = usage.todayCompletion || 0;
 
-            // Gemini 1.5 Flash / Gemini 3 Flash Preview pricing
-            // Input: $0.075/1M, Output: $0.3/1M, Rate: 1,400 KRW/$
-            const inputCost = (prompt / 1000000) * 0.075 * 1400;
-            const outputCost = (completion / 1000000) * 0.3 * 1400;
-            const totalCost = inputCost + outputCost;
+            const monthTotal = usage.monthTotal || 0;
+            const monthCostUSD = ((usage.monthPrompt || 0) / 1000000) * 0.075 + ((usage.monthCompletion || 0) / 1000000) * 0.3;
 
-            badge.textContent = `Token: ${total.toLocaleString()} (≈${totalCost.toFixed(1)}원)`;
-            
+            // Gemini 1.5 Flash / Gemini 3 Flash Preview pricing
+            // Input: $0.075/1M, Output: $0.3/1M
+            const inputCostUSD = (prompt / 1000000) * 0.075;
+            const outputCostUSD = (completion / 1000000) * 0.3;
+            const totalCostUSD = inputCostUSD + outputCostUSD;
+
+            // Language-based currency formatting
+            let costString = '';
+            if (state.currentLang === 'ko') {
+                costString = `≈${(totalCostUSD * 1400).toFixed(1)}원`;
+            } else {
+                costString = `≈$${totalCostUSD.toFixed(3)}`;
+            }
+
+            // Compact format (e.g., 1.2M, 500K) to save UI space
+            const formatTokens = (num) => {
+                if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
+                if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+                return num.toString();
+            };
+
+            badge.textContent = `Token: ${formatTokens(total)} (${costString})`;
+            badge.title = `[Today] Prompt: ${prompt.toLocaleString()} / Completion: ${completion.toLocaleString()}\n[This Month] Total: ${formatTokens(monthTotal)} (≈$${monthCostUSD.toFixed(2)})`;
+
             if (total > 500000) badge.style.color = '#ff3b30';
             else if (total > 200000) badge.style.color = '#f39c12';
             else badge.style.color = 'var(--accent-light)';

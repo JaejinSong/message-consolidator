@@ -23,8 +23,11 @@ func NewSlackClient(token string) *SlackClient {
 }
 
 func (s *SlackClient) LookupChannels() ([]slack.Channel, string, error) {
-	return s.api.GetConversations(&slack.GetConversationsParameters{
-		Types: []string{"public_channel", "private_channel", "im", "mpim"},
+	// GetConversationsForUser를 사용하면 봇(Bot)이 초대된 채널과 DM 목록만 정확히 반환합니다.
+	return s.api.GetConversationsForUser(&slack.GetConversationsForUserParameters{
+		Types:           []string{"public_channel", "private_channel", "im", "mpim"},
+		ExcludeArchived: true,
+		Limit:           1000,
 	})
 }
 
