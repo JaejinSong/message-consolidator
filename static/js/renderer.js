@@ -55,6 +55,13 @@ const formatDisplayTime = (isoStr, lang) => {
     }
 };
 
+const escapeHTML = (str) => {
+    if (!str) return '';
+    return String(str).replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    }[tag]));
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     const closeBtn = document.getElementById('closeOriginalBtn');
     const modal = document.getElementById('originalMessageModal');
@@ -142,10 +149,10 @@ export const renderer = {
             let isMyTask = false;
 
             // 1. Explicit labels & Direct Name/Alias match
-            const isExplicitMine = normalizedAssignee === '내업무' || normalizedAssignee === 'mytasks' || 
-                                   rawAssignee === (data && data.myTasks) ||
-                                   uniqueKeywords.includes(normalizedAssignee);
-            
+            const isExplicitMine = normalizedAssignee === '내업무' || normalizedAssignee === 'mytasks' ||
+                rawAssignee === (data && data.myTasks) ||
+                uniqueKeywords.includes(normalizedAssignee);
+
             if (isExplicitMine) {
                 isMyTask = true;
             } else if (normalizedAssignee === '기타업무' || normalizedAssignee === 'othertasks' || rawAssignee === (data && data.otherTasks)) {
@@ -166,7 +173,7 @@ export const renderer = {
                     isMyTask = genericKeywords.includes(normalizedAssignee) || genericKeywords.includes(normalizedRequester);
                 }
             }
-            
+
             if (isMyTask && m.id === 7512) {
                 console.log("[DEBUG] isMyTask=TRUE for 7512", { normalizedAssignee, uniqueKeywords, isExplicitMine });
             } else if (m.id === 7512) {
@@ -247,10 +254,10 @@ export const renderer = {
 
         card.innerHTML = `
             <div class="col-source" title="${m.source}">${sourceIcon || '<span class="badge">' + m.source + '</span>'}</div>
-            <div class="col-room meta-val" title="${m.room || ''}">${m.room || '-'}</div>
-            <div class="col-task task-title" title="${m.task}">${m.task || ''}</div>
-            <div class="col-requester meta-val" title="${m.requester}">${m.requester}</div>
-            <div class="col-assignee meta-val" title="${m.assignee}">${m.assignee}</div>
+            <div class="col-room meta-val" title="${escapeHTML(m.room)}">${escapeHTML(m.room) || '-'}</div>
+            <div class="col-task task-title" title="${escapeHTML(m.task)}">${escapeHTML(m.task)}</div>
+            <div class="col-requester meta-val clickable-name" title="Click to map alias: ${escapeHTML(m.requester)}">${escapeHTML(m.requester)}</div>
+            <div class="col-assignee meta-val clickable-name" title="Click to map alias: ${escapeHTML(m.assignee)}">${escapeHTML(m.assignee)}</div>
             <div class="col-time meta-val" style="font-size: 0.75rem;">${formatDisplayTime(m.assigned_at, state.currentLang)}</div>
             <div class="col-actions">
                 ${actionBtnHtml}
@@ -281,6 +288,14 @@ export const renderer = {
             e.preventDefault();
             e.stopPropagation();
             handlers.onDeleteTask(m.id);
+        });
+
+        card.querySelectorAll('.clickable-name').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (window.openAliasMapping) window.openAliasMapping(el.textContent);
+            });
         });
 
         return card;
@@ -358,19 +373,28 @@ export const renderer = {
                 <tr>
                     <td><input type="checkbox" class="archive-check" data-id="${m.id}"></td>
                     <td>
-                        <div title="${m.source}" style="display: flex; justify-content: center;">
-                            ${sourceIcon || '<span class="badge">' + m.source + '</span>'}
+                        <div title="${escapeHTML(m.source)}" style="display: flex; justify-content: center;">
+                            ${sourceIcon || '<span class="badge">' + escapeHTML(m.source) + '</span>'}
                         </div>
                     </td>
-                    <td class="archive-room">${m.room}</td>
-                    <td class="archive-task">${m.task}</td>
-                    <td>${m.requester}</td>
-                    <td>${m.assignee}</td>
+                    <td class="archive-room">${escapeHTML(m.room)}</td>
+                    <td class="archive-task">${escapeHTML(m.task)}</td>
+                    <td class="clickable-name">${escapeHTML(m.requester)}</td>
+                    <td class="clickable-name">${escapeHTML(m.assignee)}</td>
                     <td style="font-size: 0.8rem; color: var(--text-dim);">${time}</td>
                     <td style="font-size: 0.8rem; color: var(--text-dim);">${completedAt}</td>
                 </tr>
             `;
         }).join('');
+
+        // Apply click handlers for archive names too
+        body.querySelectorAll('.clickable-name').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (window.openAliasMapping) window.openAliasMapping(el.textContent);
+            });
+        });
     },
 
     renderAliasList(aliases, onRemove) {
@@ -533,5 +557,51 @@ export const renderer = {
             else if (total > 200000) badge.style.color = '#f39c12';
             else badge.style.color = 'var(--accent-light)';
         }
+    },
+
+    renderReleaseNotes(markdown) {
+        const contentEl = document.getElementById('releaseNotesContent');
+        if (!contentEl) return;
+
+        // More robust markdown-like formatter for the specific RELEASE_NOTES_USER.md structure
+        let html = markdown
+            .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+            .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+            .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+        // Handle lists logic
+        const lines = html.split('\n');
+        let inList = false;
+        let formattedLines = [];
+
+        lines.forEach(line => {
+            const listMatch = line.match(/^[\-\*]\s+(.*)$/);
+            if (listMatch) {
+                if (!inList) {
+                    formattedLines.push('<ul>');
+                    inList = true;
+                }
+                formattedLines.push(`<li>${listMatch[1]}</li>`);
+            } else {
+                if (inList) {
+                    formattedLines.push('</ul>');
+                    inList = false;
+                }
+                if (line.trim()) {
+                    // Check if it's already a tag
+                    if (!line.trim().startsWith('<')) {
+                        formattedLines.push(`<p>${line}</p>`);
+                    } else {
+                        formattedLines.push(line);
+                    }
+                }
+            }
+        });
+
+        if (inList) formattedLines.push('</ul>');
+
+        contentEl.innerHTML = formattedLines.join('\n');
+        document.getElementById('releaseNotesModal').classList.remove('hidden');
     }
 };

@@ -131,10 +131,14 @@ const fetchAliases = async () => {
 
 const addAlias = async () => {
     const input = document.getElementById('newAliasInput');
-    const alias = input.value.trim();
-    if (!alias) return;
+    const rawValue = input.value;
+    if (!rawValue.trim()) return;
+
+    const aliases = rawValue.split(',').map(a => a.trim()).filter(a => a);
     try {
-        await api.addAlias(alias);
+        for (const a of aliases) {
+            await api.addAlias(a);
+        }
         input.value = '';
         fetchAliases();
     } catch (e) { console.error(e); }
@@ -201,6 +205,23 @@ const addContactMapping = async () => {
         aliasInput.value = '';
         fetchContactMappings();
     } catch (e) { console.error(e); }
+};
+
+// Global helper for Quick Alias Mapping from UI
+window.openAliasMapping = (name) => {
+    const settingsModal = document.getElementById('settingsModal');
+    if (settingsModal) {
+        settingsModal.classList.remove('hidden');
+
+        // Settings 모달을 열 때 탭 데이터 최신화
+        fetchTenantAliases();
+
+        const origInput = document.getElementById('normOriginalInput');
+        if (origInput) {
+            origInput.value = name;
+            document.getElementById('normPrimaryInput')?.focus();
+        }
+    }
 };
 
 // --- Initialization ---
@@ -486,6 +507,30 @@ const initApp = () => {
 
     document.getElementById('scanBtn')?.addEventListener('click', triggerScan);
 
+    // Release Notes
+    const releaseNotesModal = document.getElementById('releaseNotesModal');
+    const showReleaseNotes = async () => {
+        try {
+            const data = await api.fetchReleaseNotes();
+            if (data && data.content) {
+                renderer.renderReleaseNotes(data.content);
+            }
+        } catch (e) {
+            console.error('Failed to fetch release notes:', e);
+        }
+    };
+
+    document.getElementById('releaseNotesBtn')?.addEventListener('click', showReleaseNotes);
+    document.getElementById('closeReleaseNotesBtn')?.addEventListener('click', () => {
+        releaseNotesModal.classList.add('hidden');
+    });
+    document.getElementById('confirmReleaseNotesBtn')?.addEventListener('click', () => {
+        releaseNotesModal.classList.add('hidden');
+    });
+    window.addEventListener('click', (e) => {
+        if (e.target === releaseNotesModal) releaseNotesModal.classList.add('hidden');
+    });
+
     // Settings
     const settingsModal = document.getElementById('settingsModal');
     document.getElementById('settingsBtn')?.addEventListener('click', () => {
@@ -523,7 +568,7 @@ const initApp = () => {
     fetchUserProfile();                  // 내부에서 fetchMessages()를 이어 호출함
     checkWhatsAppStatus();
     checkGmailStatus();
-    
+
     // 주기적 업데이트
     setInterval(fetchMessages, 29009);
     setInterval(checkWhatsAppStatus, 31013);
