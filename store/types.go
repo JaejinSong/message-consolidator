@@ -9,7 +9,7 @@ type RawChatMessage struct {
 	ID             string
 	User           string
 	Sender         string
-	InteractedUser string 
+	InteractedUser string
 	Text           string
 	Timestamp      time.Time
 	Time           time.Time // Compatibility with WhatsApp
@@ -28,7 +28,8 @@ type ConsolidatedMessage struct {
 	AssignedAt   string     `json:"assigned_at"`
 	Link         string     `json:"link"`
 	SourceTS     string     `json:"source_ts"`
-	OriginalText string     `json:"original_text"`
+	OriginalText string     `json:"original_text,omitempty"`
+	HasOriginal  bool       `json:"has_original,omitempty"`
 	Done         bool       `json:"done"`
 	IsDeleted    bool       `json:"is_deleted"`
 	CreatedAt    time.Time  `json:"created_at"`
@@ -63,12 +64,11 @@ type UserAlias struct {
 
 // TodoItem is the task structure returned by Gemini Analyze
 type TodoItem struct {
-	Task         string `json:"task"`
-	Requester    string `json:"requester"`
-	Assignee     string `json:"assignee"`
-	AssignedAt   string `json:"assigned_at"`
-	SourceTS     string `json:"source_ts"`
-	OriginalText string `json:"original_text"`
+	Task       string `json:"task"`
+	Requester  string `json:"requester"`
+	Assignee   string `json:"assignee"`
+	AssignedAt string `json:"assigned_at"`
+	SourceTS   string `json:"source_ts"`
 }
 
 // TranslateRequest represents a request to translate a specific task

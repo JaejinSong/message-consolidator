@@ -248,8 +248,10 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 		}
 
 		assignedAt := time.Now().Format(time.RFC3339)
+		origText := ""
 		if m, ok := msgMap[item.SourceTS]; ok {
 			assignedAt = m.Timestamp.Format(time.RFC3339)
+			origText = m.Text
 		}
 
 		uniqueSourceTS := fmt.Sprintf("gmail-%s-%d", item.SourceTS, i)
@@ -263,7 +265,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 			AssignedAt:   assignedAt,
 			Link:         link,
 			SourceTS:     uniqueSourceTS,
-			OriginalText: item.OriginalText,
+			OriginalText: origText,
 		})
 	}
 }

@@ -1,3 +1,12 @@
+# Release Notes - v2.0.5 (2026-03-20 17:25 UTC)
+
+## ⚡ On-Demand Original Message Fetching (Lazy Loading)
+- **[FEAT] Token Optimization**: Removed `original_text` from AI extraction. The system now preserves raw message text during scanning and fetches it only when requested by the user.
+- **[OPTIMIZE] Payload Reduction**: Active dashboard and archive lists no longer include full original text by default, significantly reducing initial page load size.
+- **[FIX] API Implementation**: Added `/api/messages/{id}/original` endpoint for authenticated lazy loading of message source text.
+
+---
+
 # Release Notes - v2.0.4 (2026-03-20 17:15 UTC)
 
 ## ⚡ Token Optimization & Prompt Streamlining

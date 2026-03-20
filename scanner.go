@@ -299,8 +299,10 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 			var localNewIDs []int
 			for _, item := range items {
 				assignedAt := time.Now().Format(time.RFC3339)
+				origText := ""
 				if m, ok := msgMap[item.SourceTS]; ok {
 					assignedAt = m.Timestamp.Format(time.RFC3339)
+					origText = m.Text
 				}
 
 				// Check if it's 1:1 or mentioned
@@ -340,7 +342,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 					Assignee:     assignee,
 					AssignedAt:   assignedAt,
 					SourceTS:     item.SourceTS,
-					OriginalText: item.OriginalText,
+					OriginalText: origText,
 				})
 				if saved {
 					localNewIDs = append(localNewIDs, newID)

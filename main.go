@@ -109,6 +109,7 @@ func main() {
 	r.Handle("/api/messages/export/excel", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleExportExcel))).Methods("GET")
 	r.Handle("/api/messages/export/json", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleExportJSON))).Methods("GET")
 	r.Handle("/api/messages/update", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleUpdateTask))).Methods("POST")
+	r.Handle("/api/messages/{id:[0-9]+}/original", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleGetOriginal))).Methods("GET")
 	r.Handle("/api/user/info", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleUserInfo))).Methods("GET")
 	r.Handle("/api/whatsapp/qr", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleWhatsAppQR))).Methods("GET")
 	r.Handle("/api/whatsapp/status", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleWhatsAppStatus))).Methods("GET")

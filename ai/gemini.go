@@ -51,12 +51,11 @@ func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText stri
 	model := g.client.GenerativeModel(g.analysisModel)
 	model.ResponseMIMEType = "application/json"
 	model.SystemInstruction = &genai.Content{
-		Parts: []genai.Part{genai.Text(fmt.Sprintf(`Extract tasks as JSON array: [{"task", "requester", "assignee", "assigned_at", "source_ts", "original_text"}]
+		Parts: []genai.Part{genai.Text(fmt.Sprintf(`Extract tasks as JSON array (Return [] for casual chat or no tasks): [{"task", "requester", "assignee", "assigned_at", "source_ts"}]
 - "task": Concise %s summary. No stamps.
 - "requester": Full name (preserve special/non-Latin).
 - "assignee": Resolved name (pronouns/@id -> name).
-- "source_ts": From [TS:timestamp].
-- "original_text": Clean message body.`, language))},
+- "source_ts": From [TS:timestamp].`, language))},
 	}
 
 	var userPrompt string
