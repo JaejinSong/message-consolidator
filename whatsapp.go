@@ -179,7 +179,7 @@ func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt inte
 
 			// DB 캐시에 없을 경우 whatsmeow 내부 연락처 스토어에서 조회 (Fallback)
 			jid := types.NewJID(number, types.DefaultUserServer)
-			if contact, err := client.Store.Contacts.GetContact(jid); err == nil {
+			if contact, err := client.Store.Contacts.GetContact(context.Background(), jid); err == nil {
 				resolvedName := contact.PushName
 				if contact.FullName != "" {
 					resolvedName = contact.FullName
