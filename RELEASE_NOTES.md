@@ -1,3 +1,14 @@
+# Release Notes - v1.9.1 (2026-03-20 07:15 UTC)
+
+## 🎨 User Settings UI & I18n Refinement
+- **[NEW] Tabbed Settings Layout**: Refactored the settings modal with a sidebar navigation, separating "General" and "Name Rules" for improved focus and readability.
+- **[NEW] Purpose-Oriented UX**: Renamed technical terms like "Normalization" to user-friendly titles like "Group Same Person" and "Auto Name Formatting" with intuitive descriptions.
+- **[NEW] Mobile-Optimized Settings**: Implemented a responsive design where the sidebar transforms into a horizontal tab bar on small screens, ensuring full accessibility on mobile.
+- **[NEW] Deep I18n Integration**: Fully localized all new settings elements, placeholders, and tooltips in both Korean and English.
+- **[FIX] Contextual Mapping Flow**: Improved the "Quick Mapping" experience by auto-populating mapping fields when navigating from the task list.
+
+---
+
 # Release Notes - v1.9.0 (2026-03-20 05:15 UTC)
 
 ## 🏗️ Major Architecture Refactoring & Modularization

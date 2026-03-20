@@ -62,17 +62,6 @@ const escapeHTML = (str) => {
     }[tag]));
 };
 
-document.addEventListener('DOMContentLoaded', () => {
-    const closeBtn = document.getElementById('closeOriginalBtn');
-    const modal = document.getElementById('originalMessageModal');
-    if (closeBtn && modal) {
-        closeBtn.onclick = () => modal.classList.add('hidden');
-        modal.onclick = (e) => {
-            if (e.target === modal) modal.classList.add('hidden');
-        };
-    }
-});
-
 export const renderer = {
     renderMessages(messages, handlers) {
         const myGrid = document.getElementById('myTasksList');
@@ -500,21 +489,12 @@ export const renderer = {
         Object.entries(aliases).forEach(([original, primary]) => {
             const item = document.createElement('div');
             item.className = 'alias-item';
-            item.style.display = 'flex';
-            item.style.justifyContent = 'space-between';
-            item.style.alignItems = 'center';
-            item.style.padding = '0.5rem 0.75rem';
-            item.style.marginBottom = '0.4rem';
-            item.style.background = 'rgba(255,255,255,0.03)';
-            item.style.borderRadius = '8px';
-            item.style.fontSize = '0.9rem';
-
             item.innerHTML = `
-                <div style="display: flex; flex-direction: column;">
-                    <span style="font-weight: 800; color: var(--accent-light);">${original}</span>
-                    <span style="font-size: 0.8rem; color: var(--text-dim);">→ ${primary}</span>
+                <div class="alias-info">
+                    <span class="alias-original">${original}</span>
+                    <span class="alias-primary">→ ${primary}</span>
                 </div>
-                <button type="button" class="remove-btn" style="background: none; border: none; color: #ff3b30; cursor: pointer; padding: 4px;">&times;</button>
+                <button type="button" class="remove-btn">&times;</button>
             `;
             item.querySelector('.remove-btn').onclick = () => onRemove(original);
             list.appendChild(item);
@@ -528,19 +508,10 @@ export const renderer = {
         Object.entries(mappings).forEach(([repName, aliases]) => {
             const item = document.createElement('div');
             item.className = 'alias-item';
-            item.style.display = 'flex';
-            item.style.justifyContent = 'space-between';
-            item.style.alignItems = 'center';
-            item.style.padding = '0.5rem 0.75rem';
-            item.style.marginBottom = '0.4rem';
-            item.style.background = 'rgba(var(--accent-rgb), 0.05)';
-            item.style.borderRadius = '8px';
-            item.style.fontSize = '0.9rem';
-
             item.innerHTML = `
-                <div style="display: flex; flex-direction: column;">
-                    <span style="font-weight: 800; color: var(--accent-light);">${repName}</span>
-                    <span style="font-size: 0.8rem; color: var(--text-dim);">${aliases}</span>
+                <div class="alias-info">
+                    <span class="alias-original">${repName}</span>
+                    <span class="alias-primary">${aliases}</span>
                 </div>
             `;
             list.appendChild(item);
