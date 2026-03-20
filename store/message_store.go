@@ -65,28 +65,17 @@ func MarkMessageDone(email string, id int, done bool) error {
 		now := time.Now()
 		completeTime = &now
 	}
-	_, err := db.Exec("UPDATE messages SET done = $1, completed_at = $2 WHERE id = $3 AND user_email = $4", done, completeTime, id, email)
+	res, err := db.Exec("UPDATE messages SET done = $1, completed_at = $2 WHERE id = $3 AND user_email = $4", done, completeTime, id, email)
 	if err != nil {
 		return err
 	}
 
-	// Local Cache Patching
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
+	rows, _ := res.RowsAffected()
+	logger.Debugf("[STORE] Mark message ID %d done=%v, affected rows: %d", id, done, rows)
 
-	patch := func(list []ConsolidatedMessage) {
-		for i := range list {
-			if list[i].ID == id {
-				list[i].Done = done
-				list[i].CompletedAt = completeTime
-				break
-			}
-		}
+	if rows > 0 {
+		_ = RefreshCache(email)
 	}
-	patch(messageCache[email])
-	patch(archiveCache[email])
-
-	logger.Debugf("[STORE] Patched DONE state in messageCache for user %s, msgID %d (Done=%v)", email, id, done)
 
 	return nil
 }
@@ -188,47 +177,29 @@ func GetArchivedMessagesFiltered(email string, limit, offset int, search string,
 }
 
 func UpdateTaskText(email string, id int, task string) error {
-	_, err := db.Exec("UPDATE messages SET task = $1 WHERE id = $2 AND user_email = $3", task, id, email)
+	res, err := db.Exec("UPDATE messages SET task = $1 WHERE id = $2 AND user_email = $3", task, id, email)
 	if err != nil {
 		return err
 	}
 
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-
-	patch := func(list []ConsolidatedMessage) {
-		for i := range list {
-			if list[i].ID == id {
-				list[i].Task = task
-				break
-			}
-		}
+	rows, _ := res.RowsAffected()
+	if rows > 0 {
+		_ = RefreshCache(email)
 	}
-	patch(messageCache[email])
-	patch(archiveCache[email])
 
 	return nil
 }
 
 func UpdateTaskAssignee(email string, id int, assignee string) error {
-	_, err := db.Exec("UPDATE messages SET assignee = $1 WHERE id = $2 AND user_email = $3", assignee, id, email)
+	res, err := db.Exec("UPDATE messages SET assignee = $1 WHERE id = $2 AND user_email = $3", assignee, id, email)
 	if err != nil {
 		return err
 	}
 
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-
-	patch := func(list []ConsolidatedMessage) {
-		for i := range list {
-			if list[i].ID == id {
-				list[i].Assignee = assignee
-				break
-			}
-		}
+	rows, _ := res.RowsAffected()
+	if rows > 0 {
+		_ = RefreshCache(email)
 	}
-	patch(messageCache[email])
-	patch(archiveCache[email])
 
 	return nil
 }
@@ -242,19 +213,9 @@ func DeleteMessage(email string, id int) error {
 	rows, _ := res.RowsAffected()
 	logger.Debugf("[DB] Soft-delete message ID %d, affected rows: %d", id, rows)
 
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-
-	patch := func(list []ConsolidatedMessage) {
-		for i := range list {
-			if list[i].ID == id {
-				list[i].IsDeleted = true
-				break
-			}
-		}
+	if rows > 0 {
+		_ = RefreshCache(email)
 	}
-	patch(messageCache[email])
-	patch(archiveCache[email])
 
 	return nil
 }
@@ -268,27 +229,17 @@ func HardDeleteMessage(email string, id int) error {
 	rows, _ := res.RowsAffected()
 	logger.Debugf("[DB] Hard-delete message ID %d, affected rows: %d", id, rows)
 
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-
-	removeFromList := func(list []ConsolidatedMessage) []ConsolidatedMessage {
-		for i := range list {
-			if list[i].ID == id {
-				return append(list[:i], list[i+1:]...)
-			}
-		}
-		return list
+	if rows > 0 {
+		_ = RefreshCache(email)
 	}
-	messageCache[email] = removeFromList(messageCache[email])
-	archiveCache[email] = removeFromList(archiveCache[email])
 
 	return nil
 }
 
 func RestoreMessage(email string, id int) error {
-	// 복원 시 단순히 is_deleted만 끄는 것이 아니라, 
-	// 1. 완료 상태(done)도 해제하고 
-	// 2. 완료 시간(completed_at)도 초기화해야 
+	// 복원 시 단순히 is_deleted만 끄는 것이 아니라,
+	// 1. 완료 상태(done)도 해제하고
+	// 2. 완료 시간(completed_at)도 초기화해야
 	// 아카이브 필터링 조건(done=true AND old)에서 벗어나 대시보드로 돌아옵니다.
 	res, err := db.Exec("UPDATE messages SET is_deleted = false, done = false, completed_at = NULL WHERE id = $1 AND user_email = $2", id, email)
 	if err != nil {
