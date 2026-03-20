@@ -136,9 +136,7 @@ const addAlias = async () => {
 
     const aliases = rawValue.split(',').map(a => a.trim()).filter(a => a);
     try {
-        for (const a of aliases) {
-            await api.addAlias(a);
-        }
+        await Promise.all(aliases.map(a => api.addAlias(a)));
         input.value = '';
         fetchAliases();
     } catch (e) { console.error(e); }
@@ -213,12 +211,18 @@ window.openAliasMapping = (name) => {
     if (settingsModal) {
         settingsModal.classList.remove('hidden');
 
-        // Settings 모달을 열 때 탭 데이터 최신화
+        // Settings 모달을 열 때 Mappings 탭으로 전환
+        const mappingsTabBtn = document.querySelector('[data-settings-tab="mappingsTab"]');
+        if (mappingsTabBtn) mappingsTabBtn.click();
+
         fetchTenantAliases();
+        fetchContactMappings();
 
         const origInput = document.getElementById('normOriginalInput');
+        const contactAliasInput = document.getElementById('contactAliasesInput');
         if (origInput) {
             origInput.value = name;
+            if (contactAliasInput) contactAliasInput.value = name;
             document.getElementById('normPrimaryInput')?.focus();
         }
     }
@@ -251,10 +255,9 @@ const initApp = () => {
         });
     }
 
-    // Tab Switching
     const switchTab = (tabId) => {
-        const tabs = document.querySelectorAll('.tab-btn');
-        const contents = document.querySelectorAll('.tab-content');
+        const tabs = document.querySelectorAll('.tab-btn:not(.settings-tab-btn)');
+        const contents = document.querySelectorAll('.tab-content:not(.settings-tab-content)');
         tabs.forEach(b => b.classList.remove('active'));
         contents.forEach(c => c.classList.remove('active'));
         const activeBtn = document.querySelector(`[data-tab="${tabId}"]`);
@@ -263,8 +266,24 @@ const initApp = () => {
         if (activeContent) activeContent.classList.add('active');
     };
 
-    document.querySelectorAll('.tab-btn').forEach(btn => {
+    document.querySelectorAll('.tab-btn:not(.settings-tab-btn)').forEach(btn => {
         btn.addEventListener('click', () => switchTab(btn.getAttribute('data-tab')));
+    });
+
+    // Settings Tab Switching
+    const switchSettingsTab = (tabId) => {
+        const tabs = document.querySelectorAll('.settings-tab-btn');
+        const contents = document.querySelectorAll('.settings-tab-content');
+        tabs.forEach(b => b.classList.remove('active'));
+        contents.forEach(c => c.classList.remove('active'));
+        const activeBtn = document.querySelector(`[data-settings-tab="${tabId}"]`);
+        const activeContent = document.getElementById(tabId);
+        if (activeBtn) activeBtn.classList.add('active');
+        if (activeContent) activeContent.classList.add('active');
+    };
+
+    document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => switchSettingsTab(btn.getAttribute('data-settings-tab')));
     });
 
     setTimeout(() => switchTab('myTasksTab'), 500);
@@ -392,7 +411,6 @@ const initApp = () => {
             // Wait a bit before cleanup to ensure browser starts download
             setTimeout(() => {
                 window.URL.revokeObjectURL(blobUrl);
-                document.body.removeChild(a);
                 console.log(`[DEBUG] Download triggered for ${filename}`);
             }, 1000);
         } catch (e) {
@@ -529,6 +547,15 @@ const initApp = () => {
     });
     window.addEventListener('click', (e) => {
         if (e.target === releaseNotesModal) releaseNotesModal.classList.add('hidden');
+    });
+
+    // Original Message Modal
+    const originalModal = document.getElementById('originalMessageModal');
+    document.getElementById('closeOriginalBtn')?.addEventListener('click', () => {
+        originalModal.classList.add('hidden');
+    });
+    window.addEventListener('click', (e) => {
+        if (e.target === originalModal) originalModal.classList.add('hidden');
     });
 
     // Settings
