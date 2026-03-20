@@ -1,3 +1,14 @@
+# Release Notes (기술 버전 - 국문) - v2.0.0 (2026-03-20 15:50 UTC)
+
+## ☁️ Google Cloud Run 서버리스 마이그레이션 완성
+- **[NEW] Cloud Run 최적화 모드**: `CLOUD_RUN_MODE` 환경 변수를 통해 배경 스캐너를 비활성화하고 이벤트 기반(API 트리거)으로 동작하는 서버리스 최적화 모드를 도입했습니다.
+- **[NEW] 내부 스캔 전용 API**: Cloud Scheduler 등 외부 트리거를 위한 `/api/internal/scan` 엔드포인트를 추가하고, `X-Internal-Secret` 기반의 보안 레이어를 구축했습니다.
+- **[NEW] 공진 방지 지터(Jitter)**: 여러 인스턴스가 동시에 실행될 때의 부하를 분산하기 위해 0~5초 사이의 랜덤 지연 로직을 적용했습니다.
+- **[NEW] 배포 자동화 스크립트**: `cloud-run-deploy.sh` 및 `cloud-scheduler-setup.sh`를 통해 빌드부터 스케줄러 설정까지의 전 과정을 자동화했습니다.
+- **[FIX] 동적 포트 바인딩**: Cloud Run의 `$PORT` 환경 변수를 동적으로 수용하도록 서버 기동 로직을 개선했습니다.
+
+---
+
 # Release Notes (기술 버전 - 국문) - v1.9.7 (2026-03-20 15:00 UTC)
 
 ## 🎊 위트 있는 Empty State 및 UX 감성 고도화

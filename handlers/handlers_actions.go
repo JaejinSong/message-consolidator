@@ -2,15 +2,23 @@ package handlers
 
 import (
 	"fmt"
+	"math/rand"
 	"message-consolidator/auth"
 	"message-consolidator/channels"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 )
 
 var ScanFunc func(string, string)
+var FullScanFunc func()
+var (
+	scanMutex  sync.Mutex
+	isScanning bool
+)
 
 func HandleManualScan(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
@@ -28,6 +36,54 @@ func HandleManualScan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+func HandleInternalScan(w http.ResponseWriter, r *http.Request) {
+	if cfg.InternalScanSecret == "" {
+		logger.Warnf("[INTERNAL-SCAN] Internal scan attempt for unconfigured secret from %s", r.RemoteAddr)
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+	secret := r.Header.Get("X-Internal-Secret")
+	if secret != cfg.InternalScanSecret {
+		logger.Warnf("[INTERNAL-SCAN] Unauthorized access attempt from %s", r.RemoteAddr)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	scanMutex.Lock()
+	if isScanning {
+		scanMutex.Unlock()
+		logger.Warnf("[INTERNAL-SCAN] Full scan skipped: already in progress")
+		respondJSON(w, map[string]string{"status": "skipped", "reason": "scan already in progress"})
+		return
+	}
+	isScanning = true
+	scanMutex.Unlock()
+
+	defer func() {
+		scanMutex.Lock()
+		isScanning = false
+		scanMutex.Unlock()
+	}()
+
+	// Cloud Run 모드일 때만 0~5초 사이의 랜덤한 jitter 추가 (공진 방지)
+	if cfg.CloudRunMode {
+		jitter := time.Duration(rand.Intn(5)) * time.Second
+		logger.Debugf("[INTERNAL-SCAN] Cloud Run Mode: Sleeping for %v jitter...", jitter)
+		time.Sleep(jitter)
+	}
+
+	logger.Infof("[INTERNAL-SCAN] Starting full scan triggered via API")
+	if FullScanFunc != nil {
+		FullScanFunc()
+	} else {
+		logger.Errorf("[INTERNAL-SCAN] FullScanFunc not initialized")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "Scan completed successfully")
 }
 
 func HandleTranslate(w http.ResponseWriter, r *http.Request) {
