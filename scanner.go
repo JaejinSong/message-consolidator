@@ -3,15 +3,16 @@ package main
 import (
 	"context"
 	"fmt"
+	"message-consolidator/ai"
+	"message-consolidator/channels"
 	"message-consolidator/logger"
 	"message-consolidator/store"
+	"message-consolidator/types"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/slack-go/slack"
-	"go.mau.fi/whatsmeow/types"
-	"regexp"
 )
 
 func startBackgroundScanner() {
@@ -82,7 +83,7 @@ func scanAllSources(user store.User, aliases []string) {
 		go func() {
 			defer wg.Done()
 			logger.Debugf("[SCAN] Starting Gmail scan for %s", user.Email)
-			ScanGmail(context.Background(), user.Email, "Korean")
+			channels.ScanGmail(context.Background(), user.Email, "Korean", cfg)
 		}()
 	}
 
@@ -121,7 +122,7 @@ func scan(email string, lang string) {
 
 	// Gmail
 	if store.HasGmailToken(email) {
-		ScanGmail(context.Background(), email, lang)
+		channels.ScanGmail(context.Background(), email, lang, cfg)
 	}
 
 	// Slack
@@ -135,21 +136,19 @@ func scanSlack(user store.User, aliases []string) {
 	if cfg.SlackToken == "" {
 		return
 	}
-	sc := NewSlackClient(cfg.SlackToken)
+	sc := channels.NewSlackClient(cfg.SlackToken)
 	if err := sc.FetchUsers(); err != nil {
 		logger.Errorf("[SCAN-SLACK] Failed to fetch users: %v", err)
 	}
 
 	// Use the Slack API to get all public channels
-	channels, _, err := sc.api.GetConversations(&slack.GetConversationsParameters{
-		Types: []string{"public_channel", "private_channel", "im", "mpim"},
-	})
+	chans, _, err := sc.LookupChannels() // SlackClient might need this method
 	if err != nil {
 		logger.Errorf("[SCAN-SLACK] Failed to fetch channels: %v", err)
 		return
 	}
 
-	for _, channel := range channels {
+	for _, channel := range chans {
 		lastTS := store.GetLastScan(user.Email, "slack", channel.ID)
 		msgs, err := sc.GetMessages(channel.ID, time.Now().Add(-24*time.Hour), lastTS)
 		if err != nil {
@@ -238,18 +237,10 @@ func IsAliasMatched(text, sender, alias string) bool {
 
 func resolveWAMentions(email, text string) string {
 	// WhatsApp mentions are "@12345678"
-	re := regexp.MustCompile(`@([0-9]+)`)
-	return re.ReplaceAllStringFunc(text, func(m string) string {
-		number := m[1:]
-		name := store.GetNameByWhatsAppNumber(email, number)
-		if name != "" {
-			return fmt.Sprintf("@%s", name)
-		}
-		return m
-	})
+	return channels.ResolveWAMentions(email, text) // Might need this in channels
 }
 
-func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m RawMessage) string {
+func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m types.RawMessage) string {
 	// 1. DM이거나 직접 멘션된 경우 즉시 반환 (Early Return)
 	if channel.IsIM || channel.IsMpIM {
 		return "내 업무"
@@ -271,7 +262,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 	email := user.Email
 	var newIDs []int
 
-	bufferCopy := DefaultWAManager.PopMessages(email)
+	bufferCopy := channels.DefaultWAManager.PopMessages(email)
 	if len(bufferCopy) == 0 {
 		return nil
 	}
@@ -281,21 +272,20 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 
 	for jidStr, msgs := range bufferCopy {
 		wg.Add(1)
-		go func(js string, rrms []RawMessage) {
+		go func(js string, rrms []types.RawMessage) {
 			defer wg.Done()
 
-			jid, _ := types.ParseJID(js)
-			groupName := GetGroupName(email, jid)
-			msgMap := make(map[string]RawMessage)
+			groupName := channels.DefaultWAManager.GetGroupName(email, js)
+			msgMap := make(map[string]types.RawMessage)
 			var sb strings.Builder
 			for _, m := range rrms {
 				msgMap[m.ID] = m
 				// Resolve mentions in the text for better Gemini extraction
-				resolvedText := resolveWAMentions(email, m.Text)
+				resolvedText := channels.ResolveWAMentions(email, m.Text)
 				sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s: %s\n", m.ID, m.Timestamp.Format("15:04"), m.Sender, resolvedText))
 			}
 
-			gc, err := NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+			gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 			if err != nil {
 				logger.Errorf("[SCAN-WA] Failed to init Gemini client for %s: %v", email, err)
 				return
@@ -313,7 +303,8 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 					assignedAt = m.Timestamp.Format(time.RFC3339)
 				}
 
-				is1to1 := jid.Server == "s.whatsapp.net"
+				// Check if it's 1:1 or mentioned
+				is1to1 := !strings.Contains(js, "@g.us")
 				isMentioned := false
 				for _, alias := range aliases {
 					if alias != "" && IsAliasMatched(item.OriginalText, item.Requester, alias) {

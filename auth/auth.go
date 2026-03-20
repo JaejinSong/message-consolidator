@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"context"
@@ -6,10 +6,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"message-consolidator/config"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -18,28 +18,28 @@ import (
 )
 
 var (
-	googleOauthConfig *oauth2.Config
+	GoogleOauthConfig *oauth2.Config
 	AuthDisabled      bool
 )
 
-// SetupOAuth initializes the Google OAuth2 config
 type contextKey string
 
-const userEmailKey contextKey = "userEmail"
+const UserEmailKey contextKey = "userEmail"
 
 func GetUserEmail(r *http.Request) string {
 	if AuthDisabled {
 		return "jjsong@whatap.io" // Default user when auth is disabled
 	}
-	email, ok := r.Context().Value(userEmailKey).(string)
+	email, ok := r.Context().Value(UserEmailKey).(string)
 	if !ok || email == "" {
 		return "jjsong@whatap.io"
 	}
 	return email
 }
 
-func SetupOAuth() {
-	googleOauthConfig = &oauth2.Config{
+func SetupOAuth(cfg *config.Config) {
+	AuthDisabled = cfg.AuthDisabled
+	GoogleOauthConfig = &oauth2.Config{
 		RedirectURL:  fmt.Sprintf("%s/auth/callback", cfg.AppBaseURL),
 		ClientID:     cfg.GoogleClientID,
 		ClientSecret: cfg.GoogleClientSecret,
@@ -51,13 +51,13 @@ func SetupOAuth() {
 	}
 }
 
-func handleGoogleLogin(w http.ResponseWriter, r *http.Request) {
+func HandleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 	state := generateStateCookie(w)
-	url := googleOauthConfig.AuthCodeURL(state)
+	url := GoogleOauthConfig.AuthCodeURL(state)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
-func handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
+func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken string, lookupUserByEmail func(string) (string, string, error)) {
 	oauthState, _ := r.Cookie("oauthstate")
 
 	if r.FormValue("state") != oauthState.Value {
@@ -66,7 +66,7 @@ func handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := googleOauthConfig.Exchange(context.Background(), r.FormValue("code"))
+	token, err := GoogleOauthConfig.Exchange(r.Context(), r.FormValue("code"))
 	if err != nil {
 		fmt.Fprintf(w, "Code exchange failed: %s", err.Error())
 		return
@@ -94,24 +94,20 @@ func handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger.Errorf("Failed to sync user to DB: %v", err)
 	} else {
-		// Automatically attempt to find the user's Slack ID and Aliases
-		sc := NewSlackClient(os.Getenv("SLACK_TOKEN"))
-		slackUser, err := sc.LookupUserByEmail(user.Email)
-		if err == nil && slackUser != nil {
-			store.UpdateUserSlackID(user.Email, slackUser.ID)
-			store.AddUserAlias(user.ID, slackUser.RealName)
-			if slackUser.Profile.DisplayName != "" {
-				store.AddUserAlias(user.ID, slackUser.Profile.DisplayName)
-			}
-			logger.Infof("Auto-discovered Slack ID %s and aliases for %s", slackUser.ID, user.Email)
+		// Use the callback for Slack lookup to avoid dependency on main
+		slackID, realName, err := lookupUserByEmail(user.Email)
+		if err == nil && slackID != "" {
+			store.UpdateUserSlackID(user.Email, slackID)
+			store.AddUserAlias(user.ID, realName)
+			logger.Infof("Auto-discovered Slack ID %s and aliases for %s", slackID, user.Email)
 		}
 	}
 
-	setSessionCookie(w, userInfo.Email)
+	SetSessionCookie(w, userInfo.Email)
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 
-func handleLogout(w http.ResponseWriter, r *http.Request) {
+func HandleLogout(w http.ResponseWriter, r *http.Request) {
 	cookie := http.Cookie{
 		Name:     "session_token",
 		Value:    "",
@@ -140,10 +136,7 @@ func generateStateCookie(w http.ResponseWriter) string {
 	return state
 }
 
-func setSessionCookie(w http.ResponseWriter, email string) {
-	// For production, this should be signed/encrypted with AuthSecret
-	// Since we are adding it for the first time, we'll keep it simple
-	// but secure with HttpOnly and Secure flags.
+func SetSessionCookie(w http.ResponseWriter, email string) {
 	cookie := http.Cookie{
 		Name:     "session_token",
 		Value:    base64.URLEncoding.EncodeToString([]byte(email)),
@@ -158,7 +151,7 @@ func setSessionCookie(w http.ResponseWriter, email string) {
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if AuthDisabled {
-			ctx := context.WithValue(r.Context(), userEmailKey, "jjsong@whatap.io")
+			ctx := context.WithValue(r.Context(), UserEmailKey, "jjsong@whatap.io")
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
@@ -181,7 +174,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		}
 		email := string(decodedEmailBytes)
 
-		ctx := context.WithValue(r.Context(), userEmailKey, email)
+		ctx := context.WithValue(r.Context(), UserEmailKey, email)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
