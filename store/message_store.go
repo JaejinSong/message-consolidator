@@ -112,8 +112,9 @@ func GetArchivedMessagesFiltered(email string, limit, offset int, search string,
 			LOWER(room) ILIKE $%d OR 
 			LOWER(requester) ILIKE $%d OR 
 			LOWER(original_text) ILIKE $%d OR
-			LOWER(source) ILIKE $%d
-		)`, argIdx, argIdx, argIdx, argIdx, argIdx)
+			LOWER(source) ILIKE $%d OR
+			LOWER(assignee) ILIKE $%d
+		)`, argIdx, argIdx, argIdx, argIdx, argIdx, argIdx)
 		args = append(args, pattern)
 		argIdx++
 	}
@@ -122,8 +123,8 @@ func GetArchivedMessagesFiltered(email string, limit, offset int, search string,
 	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*) 
 		FROM messages 
-		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '6 days'))
-		%s`, searchQuery)
+		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '%d days'))
+		%s`, autoArchiveDays, searchQuery)
 
 	var total int
 	err := db.QueryRow(countQuery, args...).Scan(&total)
@@ -161,10 +162,10 @@ func GetArchivedMessagesFiltered(email string, limit, offset int, search string,
 	dataQuery := fmt.Sprintf(`
 		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at 
 		FROM messages 
-		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '6 days'))
+		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '%d days'))
 		%s
 		ORDER BY %s
-		LIMIT $%d OFFSET $%d`, searchQuery, orderBy, argIdx, argIdx+1)
+		LIMIT $%d OFFSET $%d`, autoArchiveDays, searchQuery, orderBy, argIdx, argIdx+1)
 
 	args = append(args, limit, offset)
 

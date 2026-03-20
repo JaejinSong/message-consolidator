@@ -11,27 +11,35 @@
 </head>
 
 <body class="dark-theme">
+    <script>
+        if (localStorage.getItem('mc_theme') === 'light') {
+            document.body.classList.add('light-theme');
+        }
+    </script>
     <div class="glass-container">
         <header>
             <div class="header-container">
                 <div class="header-left">
                     <h1>Message <span class="accent">Consolidator</span></h1>
-                    <p id="subTitle">Automated Slack, WhatsApp &amp; Gmail Task Dashboard</p>
+                    <p id="subTitle" data-i18n="subTitle">Automated Slack, WhatsApp &amp; Gmail Task Dashboard</p>
                 </div>
 
                 <nav class="header-center">
                     <button type="button" id="dashViewBtn" class="nav-tab active"
-                        data-view="dashboard">Dashboard</button>
-                    <button type="button" id="archiveViewBtn" class="nav-tab" data-view="archive">Archive</button>
+                        data-view="dashboard" data-i18n="dashboardTitle">Dashboard</button>
+                    <button type="button" id="archiveViewBtn" class="nav-tab" data-view="archive" data-i18n="archiveTitle">Archive</button>
                 </nav>
 
                 <div class="header-right">
                     <div class="utility-group">
-                        <button type="button" id="themeToggleBtn" class="utility-btn" title="Toggle Theme"></button>
-                        <button type="button" id="releaseNotesBtn" class="utility-btn" title="Updates">
+                        <button type="button" id="themeToggleBtn" class="utility-btn" title="Toggle Theme"
+                            data-i18n-title="themeToggleTitle"></button>
+                        <button type="button" id="releaseNotesBtn" class="utility-btn" title="Updates"
+                            data-i18n-title="updatesTitle">
                             <span class="icon">📢</span>
                         </button>
-                        <button type="button" id="settingsBtn" class="utility-btn" title="Settings">
+                        <button type="button" id="settingsBtn" class="utility-btn" title="Settings"
+                            data-i18n-title="settingsTitle">
                             <span class="icon">⚙️</span>
                         </button>
                         <div class="lang-wrapper">
@@ -49,7 +57,8 @@
                             <img id="userPicture" src="" alt="Profile" class="profile-img-small">
                             <span id="userEmail" class="hidden"></span>
                         </div>
-                        <a href="/auth/logout" id="logoutBtn" class="logout-minimal" title="Logout">
+                        <a href="/auth/logout" id="logoutBtn" class="logout-minimal" title="Logout"
+                            data-i18n-title="logout">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                 stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -65,7 +74,8 @@
         <main>
             <section class="dashboard-header">
                 <div class="integration-status">
-                    <div id="slackStatusLarge" class="status-icon-large slack inactive" title="Slack Monitoring">
+                    <div id="slackStatusLarge" class="status-icon-large slack inactive" title="Slack Monitoring"
+                        data-i18n-title="slackMonitoring">
                         <svg viewBox="0 0 100 100">
                             <path fill="#E01E5A"
                                 d="M22.9,53.8V42.3c0-3.2-2.6-5.8-5.8-5.8s-5.8,2.6-5.8,5.8v11.5c0,3.2,2.6,5.8,5.8,5.8S22.9,57,22.9,53.8z" />
@@ -86,7 +96,8 @@
                         </svg>
                         <span id="slackStatusText" class="status-label">OFF</span>
                     </div>
-                    <div id="waStatusLarge" class="status-icon-large whatsapp inactive" title="WhatsApp Monitoring">
+                    <div id="waStatusLarge" class="status-icon-large whatsapp inactive" title="WhatsApp Monitoring"
+                        data-i18n-title="waMonitoring">
                         <svg viewBox="0 0 448 512">
                             <path fill="#25D366"
                                 d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-5.5-2.8-23.2-8.5-44.2-27.1-16.4-14.6-27.4-32.7-30.6-38.2-3.2-5.6-.3-8.6 2.4-11.3 2.5-2.4 5.5-6.5 8.3-9.7 2.8-3.3 3.7-5.6 5.6-9.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 13.2 5.7 23.5 9.2 31.6 11.8 13.3 4.2 25.4 3.6 35 2.2 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
@@ -94,14 +105,15 @@
                         <span id="waStatusText" class="status-label">OFF</span>
                     </div>
                     <div id="gmailStatusLarge" class="status-icon-large gmail inactive" title="Gmail: Click to connect"
-                        style="cursor: pointer;">
+                        data-i18n-title="gmailStatusClickToConnect" style="cursor: pointer;">
                         <svg viewBox="0 0 512 512">
                             <path fill="#EA4335"
                                 d="M48 64C21.5 64 0 85.5 0 112v288c0 26.5 21.5 48 48 48h416c26.5 0 48-21.5 48-48V112c0-26.5-21.5-48-48-48H48zM48 96h416c8.8 0 16 7.2 16 16v21.3L256 295.1 32 133.3V112c0-8.8 7.2-16 16-16zm-16 70.6l208 147.3L448 166.6V400c0 8.8-7.2 16-16 16H80c-8.8 0-16-7.2-16-16V166.6z" />
                         </svg>
                         <span id="gmailStatusText" class="status-label">OFF</span>
                     </div>
-                    <button type="button" id="scanBtn" class="status-icon-large scan-btn" title="Scan Now">
+                    <button type="button" id="scanBtn" class="status-icon-large scan-btn" title="Scan Now"
+                        data-i18n-title="scanNow">
                         <div class="scan-icon-container">
                             <svg class="radar-svg" viewBox="0 0 100 100">
                                 <circle class="radar-ring" cx="50" cy="50" r="45" fill="none" stroke="currentColor"
@@ -121,39 +133,39 @@
             <!-- WhatsApp Login Section -->
             <section id="waLoginSection" class="hidden glass-card"
                 style="margin-bottom: 2rem; text-align: center; padding: 2rem;">
-                <h3>WhatsApp Connection Required</h3>
-                <p style="color: var(--text-dim); margin-bottom: 1.5rem;">Please scan the QR code with your mobile
+                <h3 data-i18n="waReqTitle">WhatsApp Connection Required</h3>
+                <p style="color: var(--text-dim); margin-bottom: 1.5rem;" data-i18n="waReqDesc">Please scan the QR code with your mobile
                     WhatsApp app.</p>
                 <div id="qrContainer"
                     style="background: white; padding: 1rem; display: inline-block; border-radius: 16px; margin-bottom: 1.5rem;">
                     <img id="waQRImg" style="width: 200px; height: 200px;" class="hidden" />
                     <div id="qrPlaceholder"
-                        style="width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: 800;">
+                        style="width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: 800;" data-i18n="generating">
                         Generating...</div>
                 </div>
                 <div>
-                    <button id="getQRBtn" class="primary-btn" style="width: auto; padding: 0.8rem 2rem;">Get New QR
+                    <button id="getQRBtn" class="primary-btn" style="width: auto; padding: 0.8rem 2rem;" data-i18n="getQR">Get New QR
                         Code</button>
                 </div>
             </section>
 
             <div id="loading" class="hidden">
                 <div class="spinner"></div>
-                <p>Gemini is scanning for new tasks...</p>
+                <p data-i18n="loading">Gemini is scanning for new tasks...</p>
             </div>
 
             <div class="tabs-container">
                 <div class="tabs">
-                    <button type="button" class="tab-btn active" data-tab="myTasksTab"><span id="tabMy">My Tasks</span>
+                    <button type="button" class="tab-btn active" data-tab="myTasksTab"><span id="tabMy" data-i18n="myTasks">My Tasks</span>
                         <span class="badge count" id="myCount">0</span></button>
-                    <button type="button" class="tab-btn" data-tab="otherTasksTab"><span id="tabOther">Other
+                    <button type="button" class="tab-btn" data-tab="otherTasksTab"><span id="tabOther" data-i18n="otherTasks">Other
                             Tasks</span> <span class="badge count" id="otherCount">0</span></button>
-                    <button type="button" class="tab-btn" data-tab="allTasksTab"><span id="tabAll">All Tasks</span>
+                    <button type="button" class="tab-btn" data-tab="allTasksTab"><span id="tabAll" data-i18n="allTasks">All Tasks</span>
                         <span class="badge count" id="allCount">0</span></button>
                 </div>
 
                 <div class="task-list-header">
-                    <div class="col-source" id="hSource" title="Source">#</div>
+                    <div class="col-source" id="hSource" title="Source" data-i18n-title="hSource">#</div>
                     <div class="col-room" id="hRoom">Room</div>
                     <div class="col-task" id="hTask">Task</div>
                     <div class="col-requester" id="hRequester">Requester</div>
@@ -188,7 +200,7 @@
                 <div class="archive-header">
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <button type="button" id="backToDashBtn" class="action-btn" title="Back to Dashboard"
-                            style="width: 40px; height: 40px;">
+                            data-i18n-title="backToDashTitle" style="width: 40px; height: 40px;">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                 stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -219,7 +231,7 @@
                         <thead>
                             <tr>
                                 <th style="width: 40px;"><input type="checkbox" id="selectAllArchive"></th>
-                                <th id="ahSource" title="Source" style="width: 40px;">#</th>
+                                <th id="ahSource" title="Source" style="width: 40px;" data-i18n-title="hSource">#</th>
                                 <th id="ahRoom">Room</th>
                                 <th id="ahTask">Task</th>
                                 <th id="ahRequester">Requester</th>
@@ -235,10 +247,10 @@
                 </div>
                 <div class="pagination-controls"
                     style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1rem;">
-                    <button type="button" id="prevArchivePage" class="action-btn"
+                    <button type="button" id="prevArchivePage" class="action-btn" data-i18n="prevBtn"
                         style="width: auto; padding: 0.5rem 1rem;">&larr; Prev</button>
                     <span id="archivePageInfo" style="color: var(--text-main); font-size: 0.9rem;">Page 1 / 1</span>
-                    <button type="button" id="nextArchivePage" class="action-btn"
+                    <button type="button" id="nextArchivePage" class="action-btn" data-i18n="nextBtn"
                         style="width: auto; padding: 0.5rem 1rem;">Next &rarr;</button>
                 </div>
             </section>
@@ -351,26 +363,57 @@
     <div id="exportModal" class="modal hidden">
         <div class="modal-content glass-card" style="max-width: 400px;">
             <div class="modal-header">
-                <h3>Export Summary</h3>
+                <h3 data-i18n="exportSummaryTitle">Export Summary</h3>
                 <button id="closeExportModalBtn" class="close-btn">&times;</button>
             </div>
             <div class="modal-body" style="text-align: center;">
                 <div id="exportSummaryIcon" style="font-size: 3rem; margin-bottom: 1rem;">📊</div>
                 <p style="margin-bottom: 1.5rem; color: var(--text-main);">
                     <span id="exportCount" style="font-weight: 800; color: var(--accent-color);">0</span>
-                    <span id="exportSummaryText">tasks are ready to be exported.</span>
+                    <span id="exportSummaryText" data-i18n="exportSummaryText">tasks are ready to be exported.</span>
                 </p>
                 <div class="export-options" style="display: flex; flex-direction: column; gap: 0.75rem;">
-                    <button type="button" id="confirmExportExcel" class="primary-btn"
-                        style="background: #1d6f42;">Download as Excel (.xlsx)</button>
-                    <button type="button" id="confirmExportCsv" class="primary-btn"
-                        style="background: #25d366;">Download as CSV (.csv)</button>
-                    <button type="button" id="confirmExportJson" class="primary-btn"
-                        style="background: #f39c12;">Download as JSON (.json)</button>
-                    <button type="button" id="cancelExportBtn" class="action-btn" style="width: 100%;">Cancel</button>
+                    <button type="button" id="confirmExportExcel" class="primary-btn" style="background: #1d6f42;"
+                        data-i18n="exportExcelBtn">Download as Excel (.xlsx)</button>
+                    <button type="button" id="confirmExportCsv" class="primary-btn" style="background: #25d366;"
+                        data-i18n="exportCsvBtn">Download as CSV (.csv)</button>
+                    <button type="button" id="confirmExportJson" class="primary-btn" style="background: #f39c12;"
+                        data-i18n="exportJsonBtn">Download as JSON (.json)</button>
+                    <button type="button" id="cancelExportBtn" class="action-btn" style="width: 100%;"
+                        data-i18n="cancelBtn">Cancel</button>
                 </div>
-                <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 1rem;">* Only filtered results will be
+                <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 1rem;" data-i18n="exportWarning">*
+                    Only filtered results will be
                     exported if a search query is active.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteConfirmModal" class="modal hidden">
+        <div class="modal-content glass-card" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3 style="color: #ff3b30;" data-i18n="hardDeleteTitle">Permanent Delete</h3>
+                <button id="closeDeleteConfirmBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body" style="text-align: center;">
+                <div style="font-size: 3.5rem; margin-bottom: 1rem;">🗑️</div>
+                <p style="margin-bottom: 1rem; color: var(--text-main); font-size: 1.1rem;">
+                    <span data-i18n="hardDeletePromptPrefix">Are you sure you want to delete </span><span
+                        id="deleteConfirmCount" style="font-weight: 800; color: #ff3b30;">0</span><span
+                        data-i18n="hardDeletePromptSuffix"> items?</span>
+                </p>
+                <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 2rem;" data-i18n="hardDeleteDesc">
+                    This action cannot be undone and will permanently remove the data.
+                </p>
+                <div class="export-options" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <button type="button" id="confirmHardDeleteBtn" class="primary-btn"
+                        style="background: rgba(255, 59, 48, 0.1); color: #ff3b30; border: 1px solid #ff3b30;"
+                        data-i18n="hardDeleteConfirmBtn">Yes,
+                        Delete Permanently</button>
+                    <button type="button" id="cancelDeleteConfirmBtn" class="action-btn" style="width: 100%;"
+                        data-i18n="cancelBtn">Cancel</button>
+                </div>
             </div>
         </div>
     </div>
@@ -379,7 +422,7 @@
     <div id="originalMessageModal" class="modal hidden">
         <div class="modal-content glass-card">
             <div class="modal-header">
-                <h3>Original Message</h3>
+                <h3 data-i18n="originalMessageTitle">Original Message</h3>
                 <button id="closeOriginalBtn" class="close-btn">&times;</button>
             </div>
             <div class="modal-body">
@@ -395,7 +438,7 @@
     <div id="releaseNotesModal" class="modal hidden">
         <div class="modal-content glass-card" style="max-width: 600px;">
             <div class="modal-header">
-                <h3>업데이트 소식</h3>
+                <h3 data-i18n="releaseNotesTitle">업데이트 소식</h3>
                 <button id="closeReleaseNotesBtn" class="close-btn">&times;</button>
             </div>
             <div class="modal-body">
@@ -406,7 +449,7 @@
             </div>
             <div class="modal-footer" style="padding-top: 1rem; text-align: right;">
                 <button type="button" id="confirmReleaseNotesBtn" class="primary-btn"
-                    style="width: auto; padding: 0.6rem 2rem;">확인</button>
+                    style="width: auto; padding: 0.6rem 2rem;" data-i18n="confirmBtn">확인</button>
             </div>
         </div>
     </div>

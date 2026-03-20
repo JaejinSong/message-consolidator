@@ -21,6 +21,7 @@ func main() {
 	logger.SetLevel(cfg.LogLevel)
 
 	// Initialize DB
+	store.SetAutoArchiveDays(cfg.AutoArchiveDays)
 	if err := store.InitDB(cfg.NeonDBURL); err != nil {
 		log.Fatalf("DB Init failed: %v", err)
 	}

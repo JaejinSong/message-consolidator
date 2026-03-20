@@ -135,10 +135,20 @@ func InitDB(connStr string) error {
 	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_task_trgm ON messages USING gin (task gin_trgm_ops);")
 	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_room_trgm ON messages USING gin (room gin_trgm_ops);")
 	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_requester_trgm ON messages USING gin (requester gin_trgm_ops);")
+	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_assignee_trgm ON messages USING gin (assignee gin_trgm_ops);")
 	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_original_text_trgm ON messages USING gin (original_text gin_trgm_ops);")
 	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_created_at_desc ON messages (created_at DESC);")
 	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_user_email ON messages (user_email);")
 	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_is_deleted ON messages (is_deleted);")
+
+	// 완료된 업무의 빠른 조회 및 자동 아카이빙 성능을 위한 부분 인덱스
+	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_completed_at ON messages (completed_at) WHERE done = true;")
+
+	// 1. 아카이브 검색 병목 해결: OR 조건 중 누락되었던 source 컬럼의 Trigram 인덱스 추가
+	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_source_trgm ON messages USING gin (source gin_trgm_ops);")
+
+	// 2. 아카이브 정렬 최적화: CASE 구문 결과를 미리 색인해두는 복합 함수형 인덱스
+	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_archive_sort ON messages (user_email, (CASE WHEN is_deleted = true THEN created_at ELSE completed_at END) DESC);")
 
 	// Create scan_metadata table for incremental scanning
 	query = `CREATE TABLE IF NOT EXISTS scan_metadata (
@@ -179,12 +189,12 @@ func RefreshCache(email string) error {
 	defer cacheMu.Unlock()
 
 	// 1. Fetch Active Messages
-	queryActive := `
+	queryActive := fmt.Sprintf(`
 		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at 
 		FROM messages 
-		WHERE user_email = $1 AND is_deleted = false AND (done = false OR (done = true AND (completed_at IS NULL OR completed_at > NOW() - INTERVAL '6 days')))
+		WHERE user_email = $1 AND is_deleted = false AND (done = false OR (done = true AND (completed_at IS NULL OR completed_at > NOW() - INTERVAL '%d days')))
 		ORDER BY created_at DESC 
-		LIMIT 200`
+		LIMIT 200`, autoArchiveDays)
 	rows, err := db.Query(queryActive, email)
 	if err != nil {
 		return err
@@ -204,12 +214,12 @@ func RefreshCache(email string) error {
 	messageCache[email] = newActive
 
 	// 2. Fetch Archived Messages (is_deleted = 1 OR long completed)
-	queryArchive := `
+	queryArchive := fmt.Sprintf(`
 		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at 
 		FROM messages 
-		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '6 days'))
+		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '%d days'))
 		ORDER BY CASE WHEN is_deleted = true THEN created_at ELSE completed_at END DESC
-		LIMIT 100`
+		LIMIT 100`, autoArchiveDays)
 	rowsArch, err := db.Query(queryArchive, email)
 	if err != nil {
 		return err
@@ -252,8 +262,9 @@ func ArchiveOldTasks() error {
 		return nil
 	}
 
-	logger.Infof("[DB] Auto-archiving tasks completed more than 6 days ago...")
-	res, err := db.Exec("UPDATE messages SET is_deleted = true WHERE is_deleted = false AND done = true AND completed_at < NOW() - INTERVAL '6 days'")
+	logger.Infof("[DB] Auto-archiving tasks completed more than %d days ago...", autoArchiveDays)
+	query := fmt.Sprintf("UPDATE messages SET is_deleted = true WHERE is_deleted = false AND done = true AND completed_at < NOW() - INTERVAL '%d days'", autoArchiveDays)
+	res, err := db.Exec(query)
 	if err != nil {
 		return err
 	}

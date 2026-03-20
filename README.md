@@ -60,7 +60,8 @@ Slack, WhatsApp, Gmail 등 다양한 채널을 통해 쏟아지는 업무 요청
 
 기술적인 상세 설정이나 자가 호스팅(Self-hosting)이 필요한 경우 아래 가이드를 참고하세요.
 
-- **빌드 및 실행**: 패키지 기반 모듈화 구조로 설계되었으며, Docker Compose를 통해 간편하게 배포 가능 (`docker-compose up -d`)
+- **빌드 및 실행**: 패키지 기반 모듈화 구조로 설계되었으며, `deploy.sh`를 통해 로컬 빌드부터 VPS 배포까지 자동화가 가능합니다. (`./deploy.sh` 실행)
+- **컨테이너 관리**: Docker Compose를 통해 간편하게 서비스를 운영할 수 있습니다. (`docker-compose up -d`)
 - **패키지 구조**: `ai`, `auth`, `channels`, `config`, `handlers`, `logger`, `store`, `types` 등 도메인별로 분리되어 높은 유지보수성 제공
 - **환경 설정**: `.env` 파일에 API Key와 DB 정보 설정
 - **로그 확인**: `LOG_LEVEL` 설정을 통해 디버깅 및 운영 로그 관리

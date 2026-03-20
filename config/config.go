@@ -3,6 +3,7 @@ package config
 import (
 	"message-consolidator/logger"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
@@ -20,6 +21,7 @@ type Config struct {
 	GeminiTranslationModel string
 	LogLevel               string
 	GmailSkipSenders       string
+	AutoArchiveDays        int
 }
 
 func LoadConfig() *Config {
@@ -44,6 +46,13 @@ func LoadConfig() *Config {
 		geminiTranslationModel = "gemini-3.1-flash-lite"
 	}
 
+	autoArchiveDays := 6
+	if daysStr := os.Getenv("AUTO_ARCHIVE_DAYS"); daysStr != "" {
+		if days, err := strconv.Atoi(daysStr); err == nil {
+			autoArchiveDays = days
+		}
+	}
+
 	return &Config{
 		SlackToken:             os.Getenv("SLACK_TOKEN"),
 		GeminiAPIKey:           os.Getenv("GEMINI_API_KEY"),
@@ -57,5 +66,6 @@ func LoadConfig() *Config {
 		GeminiAnalysisModel:    geminiAnalysisModel,
 		GeminiTranslationModel: geminiTranslationModel,
 		GmailSkipSenders:       os.Getenv("GMAIL_SKIP_SENDERS"),
+		AutoArchiveDays:        autoArchiveDays,
 	}
 }
