@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"message-consolidator/auth"
+	"message-consolidator/services"
 	"message-consolidator/store"
 	"net/http"
 	"strconv"
@@ -45,17 +46,9 @@ func HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := store.MarkMessageDone(email, req.ID, req.Done); err != nil {
+	if err := services.HandleTaskCompletion(email, req.ID, req.Done); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	// Gamification: Reward user if task is marked as done
-	if req.Done {
-		user, err := store.GetOrCreateUser(email, "", "")
-		if err == nil {
-			_ = user.ProcessTaskCompletion()
-		}
 	}
 
 	w.WriteHeader(http.StatusOK)
