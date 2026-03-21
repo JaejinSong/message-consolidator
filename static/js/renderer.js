@@ -87,6 +87,51 @@ const escapeHTML = (str) => {
     }[tag]));
 };
 
+// --- [UI Helper Functions] ---
+const getDeadlineBadge = (deadline) => {
+    if (!deadline) return '';
+    return `<span style="display: inline-flex; align-items: center; background: rgba(255,149,0,0.15); color: #ff9500; padding: 2px 6px; border-radius: 6px; font-size: 0.75rem; margin-left: 8px; font-weight: 600; white-space: nowrap;">⏳ ${escapeHTML(deadline)}</span>`;
+};
+
+const attachAliasMappingListeners = (container) => {
+    if (!container) return;
+    container.querySelectorAll('.clickable-name').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (window.openAliasMapping) window.openAliasMapping(el.textContent);
+        });
+    });
+};
+
+const renderEmptyGrid = (grid, type, data) => {
+    if (!grid) return;
+    if (type === 'witty' && data.emptyStateMessages) {
+        const randomMsg = data.emptyStateMessages[Math.floor(Math.random() * data.emptyStateMessages.length)];
+        grid.innerHTML = `
+            <div class="empty-state-witty">
+                <div class="witty-message">${randomMsg}</div>
+                <p style="text-align: center; color: var(--text-dim); margin-top: 1rem; font-size: 0.9rem;">${data.noTasks}</p>
+            </div>`;
+    } else {
+        grid.innerHTML = `<p style="text-align: center; color: var(--text-dim); margin-top: 2rem; width: 100%; font-size: 1.1rem;">${data.noTasks}</p>`;
+    }
+};
+
+const updateServiceStatusUI = (iconId, textId, isConnected, extraLogic, lang) => {
+    const iconEl = document.getElementById(iconId);
+    const textEl = document.getElementById(textId);
+    if (!iconEl) return;
+
+    iconEl.classList.toggle('active', isConnected);
+    iconEl.classList.toggle('inactive', !isConnected);
+
+    if (textEl) {
+        textEl.textContent = isConnected ? I18N_DATA[lang].statusOn : I18N_DATA[lang].statusOff;
+    }
+    if (extraLogic) extraLogic(isConnected, iconEl);
+};
+
 export const renderer = {
     renderMessages(messages, handlers) {
         const myGrid = document.getElementById('myTasksList');
@@ -102,18 +147,10 @@ export const renderer = {
         const checkIsMyTask = createTaskFilter(state, data);
 
         if (!messages || messages.length === 0) {
-            const noMsg = `<p style="text-align: center; color: var(--text-dim); margin-top: 2rem; width: 100%; font-size: 1.1rem;">${data.noTasks}</p>`;
-            if (myGrid) {
-                const randomMsg = data.emptyStateMessages[Math.floor(Math.random() * data.emptyStateMessages.length)];
-                myGrid.innerHTML = `
-                    <div class="empty-state-witty">
-                        <div class="witty-message">${randomMsg}</div>
-                        <p style="text-align: center; color: var(--text-dim); margin-top: 1rem; font-size: 0.9rem;">${data.noTasks}</p>
-                    </div>`;
-            }
-            if (otherGrid) otherGrid.innerHTML = noMsg;
-            if (waitingGrid) waitingGrid.innerHTML = noMsg;
-            if (allGrid) allGrid.innerHTML = noMsg;
+            renderEmptyGrid(myGrid, 'witty', data);
+            renderEmptyGrid(otherGrid, 'normal', data);
+            renderEmptyGrid(waitingGrid, 'normal', data);
+            renderEmptyGrid(allGrid, 'normal', data);
             this.updateCounts(0, 0, 0, 0);
             return;
         }
@@ -159,14 +196,7 @@ export const renderer = {
 
         // Grid-specific empty states when messages exist but current grid is empty
         if (myCount === 0) {
-            const randomMsg = data.emptyStateMessages[Math.floor(Math.random() * data.emptyStateMessages.length)];
-            if (myGrid) {
-                myGrid.innerHTML = `
-                    <div class="empty-state-witty">
-                        <div class="witty-message">${randomMsg}</div>
-                        <p style="text-align: center; color: var(--text-dim); margin-top: 1rem; font-size: 0.9rem;">${data.noTasks}</p>
-                    </div>`;
-            }
+            renderEmptyGrid(myGrid, 'witty', data);
         } else if (myPendingCount === 0) {
             const randomMsg = data.emptyStateMessages[Math.floor(Math.random() * data.emptyStateMessages.length)];
             const wittyEl = document.createElement('div');
@@ -178,11 +208,11 @@ export const renderer = {
         }
 
         if (otherCount === 0 && otherGrid) {
-            otherGrid.innerHTML = `<p style="text-align: center; color: var(--text-dim); margin-top: 2rem; width: 100%; font-size: 1.1rem;">${data.noTasks}</p>`;
+            renderEmptyGrid(otherGrid, 'normal', data);
         }
 
         if (waitingCount === 0 && waitingGrid) {
-            waitingGrid.innerHTML = `<p style="text-align: center; color: var(--text-dim); margin-top: 2rem; width: 100%; font-size: 1.1rem;">${data.noTasks}</p>`;
+            renderEmptyGrid(waitingGrid, 'normal', data);
         }
 
         this.updateCounts(myCount, otherCount, waitingCount, allCount);
@@ -218,12 +248,10 @@ export const renderer = {
 
         let sourceIcon = this.getSourceIcon(m.source);
 
-        const deadlineHtml = m.deadline ? `<span style="display: inline-flex; align-items: center; background: rgba(255,149,0,0.15); color: #ff9500; padding: 2px 6px; border-radius: 6px; font-size: 0.75rem; margin-left: 8px; font-weight: 600; white-space: nowrap;">⏳ ${escapeHTML(m.deadline)}</span>` : '';
-
         card.innerHTML = `
             <div class="col-source" title="${m.source}">${sourceIcon || '<span class="badge">' + m.source + '</span>'}</div>
             <div class="col-room" title="${escapeHTML(m.room)}"><span class="badge-room">${escapeHTML(m.room) || '-'}</span></div>
-            <div class="col-task task-title" title="${escapeHTML(m.task)}">${escapeHTML(m.task)}${deadlineHtml}</div>
+            <div class="col-task task-title" title="${escapeHTML(m.task)}">${escapeHTML(m.task)}${getDeadlineBadge(m.deadline)}</div>
             <div class="col-requester meta-val clickable-name" title="${data.clickToMapAlias || 'Click to map alias: '}${escapeHTML(m.requester)}">${escapeHTML(m.requester)}</div>
             <div class="col-assignee meta-val clickable-name" title="${data.clickToMapAlias || 'Click to map alias: '}${escapeHTML(m.assignee)}">${escapeHTML(m.assignee)}</div>
             <div class="col-time meta-val" style="font-size: 0.75rem;">${formatDisplayTime(m.assigned_at, state.currentLang)}</div>
@@ -275,13 +303,7 @@ export const renderer = {
             handlers.onDeleteTask(m.id);
         });
 
-        card.querySelectorAll('.clickable-name').forEach(el => {
-            el.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (window.openAliasMapping) window.openAliasMapping(el.textContent);
-            });
-        });
+        attachAliasMappingListeners(card);
 
         return card;
     },
@@ -334,7 +356,6 @@ export const renderer = {
             const time = new Date(m.created_at).toLocaleString();
             const completedAt = m.completed_at ? new Date(m.completed_at).toLocaleString() : '-';
             const sourceIcon = this.getSourceIcon(m.source);
-            const deadlineHtml = m.deadline ? `<span style="display: inline-flex; align-items: center; background: rgba(255,149,0,0.15); color: #ff9500; padding: 2px 6px; border-radius: 6px; font-size: 0.75rem; margin-left: 6px; font-weight: 600;">⏳ ${escapeHTML(m.deadline)}</span>` : '';
 
             return `
                 <tr>
@@ -345,7 +366,7 @@ export const renderer = {
                         </div>
                     </td>
                     <td class="archive-room">${escapeHTML(m.room)}</td>
-                    <td class="archive-task">${escapeHTML(m.task)}${deadlineHtml}</td>
+                    <td class="archive-task">${escapeHTML(m.task)}${getDeadlineBadge(m.deadline)}</td>
                     <td class="clickable-name">${escapeHTML(m.requester)}</td>
                     <td class="clickable-name">${escapeHTML(m.assignee)}</td>
                     <td style="font-size: 0.8rem; color: var(--text-dim);">${time}</td>
@@ -355,13 +376,7 @@ export const renderer = {
         }).join('');
 
         // Apply click handlers for archive names too
-        body.querySelectorAll('.clickable-name').forEach(el => {
-            el.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (window.openAliasMapping) window.openAliasMapping(el.textContent);
-            });
-        });
+        attachAliasMappingListeners(body);
     },
 
     renderAliasList(aliases, onRemove) {
@@ -495,67 +510,28 @@ export const renderer = {
     },
 
     updateWhatsAppStatus(status) {
-        const waIcon = document.getElementById('waStatusLarge');
-        const waText = document.getElementById('waStatusText');
-        const waLoginSection = document.getElementById('waLoginSection');
-
-        if (waIcon) {
-            if (status === 'CONNECTED') {
-                state.waConnected = true;
-                waIcon.classList.remove('inactive');
-                waIcon.classList.add('active');
-                if (waText) waText.textContent = I18N_DATA[state.currentLang].statusOn;
-                if (waLoginSection) waLoginSection.classList.add('hidden');
-            } else {
-                state.waConnected = false;
-                waIcon.classList.remove('active');
-                waIcon.classList.add('inactive');
-                if (waText) waText.textContent = I18N_DATA[state.currentLang].statusOff;
-                if (waLoginSection) waLoginSection.classList.remove('hidden');
-            }
-        }
+        const isConnected = (status === 'CONNECTED');
+        state.waConnected = isConnected;
+        updateServiceStatusUI('waStatusLarge', 'waStatusText', isConnected, (connected) => {
+            const loginSec = document.getElementById('waLoginSection');
+            if (loginSec) loginSec.classList.toggle('hidden', connected);
+        }, state.currentLang);
     },
 
     updateSlackStatus(connected) {
-        const slackIcon = document.getElementById('slackStatusLarge');
-        const slackText = document.getElementById('slackStatusText');
-        if (!slackIcon) return;
-
-        if (connected) {
-            slackIcon.classList.remove('inactive');
-            slackIcon.classList.add('active');
-            if (slackText) slackText.textContent = I18N_DATA[state.currentLang].statusOn;
-        } else {
-            slackIcon.classList.remove('active');
-            slackIcon.classList.add('inactive');
-            if (slackText) slackText.textContent = I18N_DATA[state.currentLang].statusOff;
-        }
+        updateServiceStatusUI('slackStatusLarge', 'slackStatusText', connected, null, state.currentLang);
     },
 
     updateGmailStatus(connected) {
         state.gmailConnected = connected;
-        const gmailIcon = document.getElementById('gmailStatusLarge');
-        const gmailText = document.getElementById('gmailStatusText');
-        const connectedStatus = document.getElementById('gmailConnectedStatus');
         const i18n = I18N_DATA[state.currentLang] || {};
 
-        if (gmailIcon) {
-            if (connected) {
-                gmailIcon.classList.remove('inactive');
-                gmailIcon.classList.add('active');
-                gmailIcon.style.cursor = 'default';
-                gmailIcon.title = i18n.gmailStatusConnectedTitle || 'Gmail: Connected';
-                if (gmailText) gmailText.textContent = I18N_DATA[state.currentLang].statusOn;
-                if (connectedStatus) connectedStatus.classList.remove('hidden');
-            } else {
-                gmailIcon.classList.remove('active');
-                gmailIcon.classList.add('inactive');
-                gmailIcon.style.cursor = 'pointer';
-                gmailIcon.title = i18n.gmailStatusClickToConnect || 'Gmail: Click to connect';
-                if (gmailText) gmailText.textContent = I18N_DATA[state.currentLang].statusOff;
-                if (connectedStatus) connectedStatus.classList.add('hidden');
-            }
-        }
+        updateServiceStatusUI('gmailStatusLarge', 'gmailStatusText', connected, (isConnected, iconEl) => {
+            const connectedStatus = document.getElementById('gmailConnectedStatus');
+            iconEl.style.cursor = isConnected ? 'default' : 'pointer';
+            iconEl.title = isConnected ? (i18n.gmailStatusConnectedTitle || 'Gmail: Connected') : (i18n.gmailStatusClickToConnect || 'Gmail: Click to connect');
+            if (connectedStatus) connectedStatus.classList.toggle('hidden', !isConnected);
+        }, state.currentLang);
     },
 
     renderTenantAliasList(aliases, onRemove) {

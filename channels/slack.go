@@ -72,6 +72,31 @@ func (s *SlackClient) GetChannelName(id string) string {
 	return id
 }
 
+// withSlackRetry는 API Rate Limit 발생 시 지정된 시간만큼 대기 후 재시도하는 래퍼 함수입니다.
+func withSlackRetry(maxRetries int, contextMsg string, attemptFunc func() error) error {
+	var err error
+	for i := 0; i <= maxRetries; i++ {
+		err = attemptFunc()
+		if err == nil {
+			return nil
+		}
+		var rateLimitedError *slack.RateLimitedError
+		if errors.As(err, &rateLimitedError) {
+			logger.Warnf("[SLACK-API] Rate limited on %s. Retrying after %v (attempt %d/%d)", contextMsg, rateLimitedError.RetryAfter, i+1, maxRetries)
+			time.Sleep(rateLimitedError.RetryAfter)
+			continue
+		}
+		break
+	}
+	return err
+}
+
+func parseSlackTimestamp(ts string) time.Time {
+	var sec, nsec int64
+	fmt.Sscanf(ts, "%d.%d", &sec, &nsec)
+	return time.Unix(sec, nsec*1000)
+}
+
 func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS string) ([]types.RawMessage, error) {
 	var msgs []types.RawMessage
 	cursor := ""
@@ -86,23 +111,11 @@ func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS stri
 		}
 
 		var history *slack.GetConversationHistoryResponse
-		var err error
-
-		for i := 0; i <= maxRetries; i++ {
-			history, err = s.api.GetConversationHistory(params)
-			if err == nil {
-				break // 정상 응답 시 루프 탈출
-			}
-
-			// Slack Rate Limit(HTTP 429) 에러인 경우 감지
-			var rateLimitedError *slack.RateLimitedError
-			if errors.As(err, &rateLimitedError) {
-				logger.Warnf("[SLACK-API] Rate limited on channel %s. Retrying after %v (attempt %d/%d)", channelID, rateLimitedError.RetryAfter, i+1, maxRetries)
-				time.Sleep(rateLimitedError.RetryAfter) // Slack이 요구한 시간만큼 정확히 대기 후 재시도
-				continue
-			}
-			break // Rate Limit 이외의 에러(토큰 만료 등)는 즉시 중단
-		}
+		err := withSlackRetry(maxRetries, fmt.Sprintf("channel %s", channelID), func() error {
+			var e error
+			history, e = s.api.GetConversationHistory(params)
+			return e
+		})
 
 		if err != nil {
 			return nil, err
@@ -114,10 +127,7 @@ func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS stri
 				continue
 			}
 
-			// Slack TS is something like 1612345678.000100
-			var sec, nsec int64
-			fmt.Sscanf(m.Timestamp, "%d.%d", &sec, &nsec)
-			ts := time.Unix(sec, nsec*1000)
+			ts := parseSlackTimestamp(m.Timestamp)
 
 			if ts.Before(since) {
 				continue
@@ -168,22 +178,12 @@ func (s *SlackClient) FetchNewThreadReplies(channelID, threadTS, sinceTS string)
 		var replies []slack.Message
 		var hasMore bool
 		var nextCursor string
-		var err error
 
-		for i := 0; i <= maxRetries; i++ {
-			replies, hasMore, nextCursor, err = s.api.GetConversationReplies(params)
-			if err == nil {
-				break
-			}
-
-			var rateLimitedError *slack.RateLimitedError
-			if errors.As(err, &rateLimitedError) {
-				logger.Warnf("[SLACK-API] Rate limited on thread replies. Retrying after %v (attempt %d/%d)", rateLimitedError.RetryAfter, i+1, maxRetries)
-				time.Sleep(rateLimitedError.RetryAfter)
-				continue
-			}
-			break
-		}
+		err := withSlackRetry(maxRetries, "thread replies", func() error {
+			var e error
+			replies, hasMore, nextCursor, e = s.api.GetConversationReplies(params)
+			return e
+		})
 
 		if err != nil {
 			return nil, err
@@ -198,9 +198,7 @@ func (s *SlackClient) FetchNewThreadReplies(channelID, threadTS, sinceTS string)
 				continue
 			}
 
-			var sec, nsec int64
-			fmt.Sscanf(m.Timestamp, "%d.%d", &sec, &nsec)
-			ts := time.Unix(sec, nsec*1000)
+			ts := parseSlackTimestamp(m.Timestamp)
 
 			msgs = append(msgs, types.RawMessage{
 				ID:        m.Timestamp,

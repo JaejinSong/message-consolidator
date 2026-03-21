@@ -210,6 +210,22 @@ func parseNewEmails(svc *gmail.Service, messages []*gmail.Message, email string,
 	return rawMsgs, classificationMap, toMap
 }
 
+// isAssigneeMe는 AI가 추출한 담당자(Assignee)가 현재 사용자 본인인지 판별합니다.
+func isAssigneeMe(assignee, email, userName, fallback string, aliases []string) bool {
+	lower := strings.ToLower(assignee)
+	if lower == "" || lower == "me" || lower == "나" || lower == "담당자" {
+		return true
+	} else if strings.EqualFold(assignee, fallback) || strings.EqualFold(assignee, userName) || strings.EqualFold(assignee, email) {
+		return true
+	}
+	for _, alias := range aliases {
+		if alias != "" && strings.EqualFold(assignee, alias) {
+			return true
+		}
+	}
+	return false
+}
+
 func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config) {
 	var sb strings.Builder
 	msgMap := make(map[string]types.RawMessage)
@@ -248,20 +264,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 		toHeader := toMap[item.SourceTS]
 
 		// 담당자가 나(User)인지 판단
-		isMe := false
-		lowerAssignee := strings.ToLower(assignee)
-		if lowerAssignee == "" || lowerAssignee == "me" || lowerAssignee == "나" || lowerAssignee == "담당자" {
-			isMe = true
-		} else if strings.EqualFold(assignee, fallbackAssignee) || strings.EqualFold(assignee, user.Name) || strings.EqualFold(assignee, email) {
-			isMe = true
-		} else {
-			for _, alias := range aliases {
-				if alias != "" && strings.EqualFold(assignee, alias) {
-					isMe = true
-					break
-				}
-			}
-		}
+		isMe := isAssigneeMe(assignee, email, user.Name, fallbackAssignee, aliases)
 
 		taskText := item.Task
 

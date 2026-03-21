@@ -12,6 +12,22 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// stripOriginalText는 페이로드 압축(Lazy Loading)을 위해 메시지의 원문을 제거하고 상태를 표시합니다.
+func stripOriginalText(msgs []store.ConsolidatedMessage) {
+	for i := range msgs {
+		msgs[i].HasOriginal = msgs[i].OriginalText != ""
+		msgs[i].OriginalText = ""
+	}
+}
+
+func handleContextError(w http.ResponseWriter, err error) {
+	if errors.Is(err, context.Canceled) {
+		http.Error(w, "Client Closed Request", 499)
+		return
+	}
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+
 func HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	lang := r.URL.Query().Get("lang")
@@ -27,11 +43,7 @@ func HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 
 	applyTranslations(msgs, lang)
 
-	for i := range msgs {
-		msgs[i].HasOriginal = msgs[i].OriginalText != ""
-		msgs[i].OriginalText = "" // 페이로드 압축을 위해 원문 제거 (Lazy Loading)
-	}
-
+	stripOriginalText(msgs)
 	respondJSON(w, msgs)
 }
 
@@ -70,13 +82,17 @@ func HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 		limit = 50
 	}
 
-	msgsRaw, total, err := store.GetArchivedMessagesFiltered(r.Context(), email, limit, offset, q, sort, order)
+	filter := store.ArchiveFilter{
+		Email:  email,
+		Limit:  limit,
+		Offset: offset,
+		Query:  q,
+		Sort:   sort,
+		Order:  order,
+	}
+	msgsRaw, total, err := store.GetArchivedMessagesFiltered(r.Context(), filter)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			http.Error(w, "Client Closed Request", 499)
-			return
-		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		handleContextError(w, err)
 		return
 	}
 
@@ -84,11 +100,7 @@ func HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 	copy(msgs, msgsRaw)
 
 	applyTranslations(msgs, lang)
-
-	for i := range msgs {
-		msgs[i].HasOriginal = msgs[i].OriginalText != ""
-		msgs[i].OriginalText = ""
-	}
+	stripOriginalText(msgs)
 
 	respondJSON(w, map[string]interface{}{
 		"messages": msgs,
@@ -100,17 +112,18 @@ func HandleGetArchivedCount(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	q := r.URL.Query().Get("q")
 
-	_, total, err := store.GetArchivedMessagesFiltered(r.Context(), email, 1, 0, q, "", "")
+	filter := store.ArchiveFilter{
+		Email: email,
+		Query: q,
+		Limit: 1,
+	}
+	_, total, err := store.GetArchivedMessagesFiltered(r.Context(), filter)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			http.Error(w, "Client Closed Request", 499)
-			return
-		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		handleContextError(w, err)
 		return
 	}
 
-	respondJSON(w, map[string]int{"total": total})
+	respondJSON(w, map[string]int{"count": total})
 }
 
 func HandleDelete(w http.ResponseWriter, r *http.Request) {
@@ -145,11 +158,7 @@ func HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := store.GetMessageByID(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			http.Error(w, "Client Closed Request", 499)
-			return
-		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		handleContextError(w, err)
 		return
 	}
 

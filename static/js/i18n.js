@@ -39,6 +39,7 @@ export const updateUILanguage = (lang) => {
     };
     updateTab('myTasksTab', 'myTasks', 'myCount');
     updateTab('otherTasksTab', 'otherTasks', 'otherCount');
+    updateTab('waitingTasksTab', 'waitingTasks', 'waitingCount');
     updateTab('allTasksTab', 'allTasks', 'allCount');
 
     // 아카이브 타이틀 뱃지 유지 처리

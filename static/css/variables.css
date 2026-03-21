@@ -1,0 +1,65 @@
+:root {
+    /* Colors */
+    --bg-color: #050608;
+    --card-bg: rgba(255, 255, 255, 0.03);
+    --accent-color: #00f2ff;
+    --accent-glow: rgba(0, 242, 255, 0.3);
+    --accent-light: #63eeff;
+    --accent-rgb: 0, 242, 255;
+    --text-main: #f0f0f0;
+    --text-dim: #9ca3af;
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --shadow-main: 0 20px 40px rgba(0, 0, 0, 0.4);
+    --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.2);
+
+    /* Spacing */
+    --space-xxs: 0.25rem;
+    --space-xs: 0.5rem;
+    --space-sm: 0.8rem;
+    --space-md: 1.25rem;
+    --space-lg: 2rem;
+    --space-xl: 3rem;
+
+    /* Border Radius */
+    --radius-xs: 4px;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    --radius-xxl: 32px;
+    --radius-full: 100px;
+
+    /* Transitions */
+    --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Z-Index */
+    --z-nav: 100;
+    --z-dropdown: 500;
+    --z-sticky: 1000;
+    --z-modal: 2000;
+    --z-tooltip: 3000;
+}
+
+/* Light Theme Overrides - High Contrast Premium Slate */
+body.light-theme {
+    --bg-color: #f1f5f9;
+    /* Slate 100 - More solid foundation */
+    --card-bg: #ffffff;
+    --accent-color: #4338ca;
+    /* Indigo 700 - Deeper for contrast */
+    --accent-glow: rgba(67, 56, 202, 0.15);
+    --accent-light: #6366f1;
+    /* Indigo 500 */
+    --accent-rgb: 67, 56, 202;
+    --text-main: #020617;
+    /* Slate 950 - Near black for readability */
+    --text-dim: #475569;
+    /* Slate 600 - Clearer contrast */
+    --glass-border: #cbd5e1;
+    /* Slate 300 - Distinct boundaries */
+    --shadow-main: 0 10px 30px rgba(15, 23, 42, 0.1);
+    --shadow-card: 0 4px 12px rgba(15, 23, 42, 0.08);
+    background-image: radial-gradient(circle at 50% -20%, #e2e8f0, var(--bg-color));
+}

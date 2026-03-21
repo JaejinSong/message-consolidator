@@ -5,59 +5,47 @@ import { api } from './js/api.js';
 import { renderer } from './js/renderer.js';
 import { archive } from './js/archive.js';
 import { modals } from './js/modals.js';
+import { insights } from './js/insights.js';
 import { events, EVENTS } from './js/events.js';
+import { safeAsync } from './js/utils.js';
 
 // --- Global Event Handlers for Renderer ---
 const handlers = {
-    async onToggleDone(id, done) {
-        try {
-            await api.toggleDone(id, done);
-            if (done) {
-                events.emit(EVENTS.TASK_COMPLETED, { id });
-            } else {
-                fetchMessages();
-            }
-        } catch (e) { console.error(e); }
-    },
-    async onDeleteTask(id) {
-        try {
-            await api.deleteTask(id);
+    onToggleDone: safeAsync(async (id, done) => {
+        await api.toggleDone(id, done);
+        if (done) {
+            events.emit(EVENTS.TASK_COMPLETED, { id });
+        } else {
             fetchMessages();
-            if (archive.isVisible()) {
-                archive.fetch();
-            }
-        } catch (e) { console.error(e); }
-    }
+        }
+    }),
+    onDeleteTask: safeAsync(async (id) => {
+        await api.deleteTask(id);
+        fetchMessages();
+        if (archive.isVisible()) archive.fetch();
+    })
 };
 
 // --- Core Logic ---
-const fetchMessages = async () => {
-    try {
-        const data = await api.fetchMessages(state.currentLang);
-        renderer.renderMessages(data, handlers);
-    } catch (e) { console.error(e); }
-};
+const fetchMessages = safeAsync(async () => {
+    const data = await api.fetchMessages(state.currentLang);
+    renderer.renderMessages(data, handlers);
+});
 
-const checkSlackStatus = async () => {
-    try {
-        const data = await api.fetchSlackStatus();
-        renderer.updateSlackStatus(data.status === 'CONNECTED');
-    } catch (e) { console.error(e); }
-};
+const checkSlackStatus = safeAsync(async () => {
+    const data = await api.fetchSlackStatus();
+    renderer.updateSlackStatus(data.status === 'CONNECTED');
+});
 
-const checkWhatsAppStatus = async () => {
-    try {
-        const data = await api.fetchWhatsAppStatus();
-        renderer.updateWhatsAppStatus(data.status);
-    } catch (e) { console.error(e); }
-};
+const checkWhatsAppStatus = safeAsync(async () => {
+    const data = await api.fetchWhatsAppStatus();
+    renderer.updateWhatsAppStatus(data.status);
+});
 
-const checkGmailStatus = async () => {
-    try {
-        const data = await api.fetchGmailStatus();
-        renderer.updateGmailStatus(data.connected);
-    } catch (e) { console.error(e); }
-};
+const checkGmailStatus = safeAsync(async () => {
+    const data = await api.fetchGmailStatus();
+    renderer.updateGmailStatus(data.connected);
+});
 
 const triggerScan = async () => {
     const btn = document.getElementById('scanBtn');
@@ -110,13 +98,7 @@ events.on(EVENTS.USER_PROFILE_UPDATED, (profile) => {
     renderer.updateUserProfile(profile);
 });
 
-// --- Initialization ---
-const initApp = () => {
-    console.log("Initializing Modular App...");
-
-    updateUILanguage(state.currentLang);
-
-    // Theme initialization
+const initTheme = () => {
     if (state.currentTheme === 'light') {
         document.body.classList.add('light-theme');
     }
@@ -137,7 +119,23 @@ const initApp = () => {
             updateThemeIcon(isLight);
         });
     }
+};
 
+const setupTabs = (btnSelector, contentSelector, attrName) => {
+    const tabs = document.querySelectorAll(btnSelector);
+    const contents = document.querySelectorAll(contentSelector);
+
+    const switchTab = (tabId) => {
+        tabs.forEach(b => b.classList.toggle('active', b.getAttribute(attrName) === tabId));
+        contents.forEach(c => c.classList.toggle('active', c.id === tabId));
+    };
+
+    tabs.forEach(btn => {
+        btn.addEventListener('click', () => switchTab(btn.getAttribute(attrName)));
+    });
+};
+
+const initLanguageSelector = () => {
     const langSelect = document.getElementById('languageSelect');
     if (langSelect) {
         langSelect.value = state.currentLang;
@@ -158,62 +156,33 @@ const initApp = () => {
             }
         });
     }
+};
 
-    const switchTab = (tabId) => {
-        const tabs = document.querySelectorAll('.tab-btn:not(.settings-tab-btn)');
-        const contents = document.querySelectorAll('.tab-content:not(.settings-tab-content)');
-        tabs.forEach(b => b.classList.remove('active'));
-        contents.forEach(c => c.classList.remove('active'));
-        const activeBtn = document.querySelector(`[data-tab="${tabId}"]`);
-        const activeContent = document.getElementById(tabId);
-        if (activeBtn) activeBtn.classList.add('active');
-        if (activeContent) activeContent.classList.add('active');
-    };
-
-    document.querySelectorAll('.tab-btn:not(.settings-tab-btn)').forEach(btn => {
-        btn.addEventListener('click', () => switchTab(btn.getAttribute('data-tab')));
-    });
-
-    // Settings Tab Switching
-    const switchSettingsTab = (tabId) => {
-        const tabs = document.querySelectorAll('.settings-tab-btn');
-        const contents = document.querySelectorAll('.settings-tab-content');
-        tabs.forEach(b => b.classList.remove('active'));
-        contents.forEach(c => c.classList.remove('active'));
-        const activeBtn = document.querySelector(`[data-settings-tab="${tabId}"]`);
-        const activeContent = document.getElementById(tabId);
-        if (activeBtn) activeBtn.classList.add('active');
-        if (activeContent) activeContent.classList.add('active');
-    };
-
-    document.querySelectorAll('.settings-tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => switchSettingsTab(btn.getAttribute('data-settings-tab')));
-    });
-
-    setTimeout(() => switchTab('myTasksTab'), 500);
-
-    // Initialize Archive Controller
-    archive.init(fetchMessages);
-
-    // Initialize Modals Controller
-    modals.init(fetchMessages);
-
-    // --- Unified View Switching (Dashboard vs Archive) ---
+const initNavigation = () => {
     const showView = (view) => {
         const dashboardTabs = document.querySelector('.tabs-container');
         const dashboardHeader = document.querySelector('.dashboard-header');
         const archiveSection = document.getElementById('archiveSection');
+        const insightsSection = document.getElementById('insightsSection');
         const navTabs = document.querySelectorAll('.nav-tab');
 
         if (view === 'archive') {
             dashboardTabs?.classList.add('hidden');
             dashboardHeader?.classList.add('hidden');
+            insightsSection?.classList.add('hidden');
             archiveSection?.classList.remove('hidden');
             archive.onShow();
+        } else if (view === 'insights') {
+            dashboardTabs?.classList.add('hidden');
+            dashboardHeader?.classList.add('hidden');
+            archiveSection?.classList.add('hidden');
+            insightsSection?.classList.remove('hidden');
+            insights.onShow();
         } else {
             dashboardTabs?.classList.remove('hidden');
             dashboardHeader?.classList.remove('hidden');
             archiveSection?.classList.add('hidden');
+            insightsSection?.classList.add('hidden');
             fetchMessages();
         }
 
@@ -234,8 +203,9 @@ const initApp = () => {
     const closeArchive = () => showView('dashboard');
     document.getElementById('closeArchiveBtn')?.addEventListener('click', closeArchive);
     document.getElementById('backToDashBtn')?.addEventListener('click', closeArchive);
+};
 
-    // WhatsApp QR
+const initActionButtons = () => {
     document.getElementById('getQRBtn')?.addEventListener('click', async () => {
         const btn = document.getElementById('getQRBtn');
         const img = document.getElementById('waQRImg');
@@ -271,26 +241,49 @@ const initApp = () => {
 
     document.getElementById('scanBtn')?.addEventListener('click', triggerScan);
 
-    updateUILanguage(state.currentLang); // 초기 언어 적용
-    fetchUserProfile();                  // 내부에서 fetchMessages()를 이어 호출함
-    checkWhatsAppStatus();
-    checkSlackStatus();
-    checkGmailStatus();
-    modals.fetchTokenUsage(); // 대시보드 로딩 시 우측 상단 토큰 배지 업데이트
-
-    // 주기적 업데이트
-    setInterval(fetchMessages, 29009);
-    setInterval(checkWhatsAppStatus, 31013);
-    setInterval(checkSlackStatus, 41017);
-    setInterval(checkGmailStatus, 61001);
-    setInterval(() => modals.fetchTokenUsage(), 60000); // 1분마다 토큰 사용량 동기화
-
     // Gmail icon click: connect when OFF, show info when ON
     document.getElementById('gmailStatusLarge')?.addEventListener('click', () => {
         if (!state.gmailConnected) {
             window.location.href = '/auth/gmail/connect';
         }
     });
+};
+
+const initPolling = () => {
+    setInterval(fetchMessages, 29009);
+    setInterval(checkWhatsAppStatus, 31013);
+    setInterval(checkSlackStatus, 41017);
+    setInterval(checkGmailStatus, 61001);
+    setInterval(() => modals.fetchTokenUsage(), 60000); // 1분마다 토큰 사용량 동기화
+};
+
+// --- Initialization ---
+const initApp = () => {
+    console.log("Initializing Modular App...");
+
+    updateUILanguage(state.currentLang);
+    initTheme();
+    initLanguageSelector();
+
+    // Tab Setup (DRY)
+    setupTabs('.tab-btn:not(.settings-tab-btn)', '.tab-content:not(.settings-tab-content)', 'data-tab');
+    setupTabs('.settings-tab-btn', '.settings-tab-content', 'data-settings-tab');
+    setTimeout(() => document.querySelector('[data-tab="myTasksTab"]')?.click(), 500);
+
+    initNavigation();
+    initActionButtons();
+
+    archive.init(fetchMessages);
+    modals.init(fetchMessages);
+    insights.init();
+
+    fetchUserProfile();                  // 내부에서 fetchMessages()를 이어 호출함
+    checkWhatsAppStatus();
+    checkSlackStatus();
+    checkGmailStatus();
+    modals.fetchTokenUsage(); // 대시보드 로딩 시 우측 상단 토큰 배지 업데이트
+
+    initPolling();
 };
 
 document.addEventListener('DOMContentLoaded', initApp);
