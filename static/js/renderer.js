@@ -47,12 +47,9 @@ const formatDisplayTime = (isoStr, lang) => {
 
         const yesterdayDate = new Date(now);
         yesterdayDate.setDate(now.getDate() - 1);
-        if (date.getDate() === yesterdayDate.getDate() &&
+        const isYesterday = (date.getDate() === yesterdayDate.getDate() &&
             date.getMonth() === yesterdayDate.getMonth() &&
-            date.getFullYear() === yesterdayDate.getFullYear()) {
-            const i18n = I18N_DATA[lang] || I18N_DATA['en'];
-            return i18n.yesterday || '어제';
-        }
+            date.getFullYear() === yesterdayDate.getFullYear());
 
         const config = {
             ko: { offset: 9, label: 'KST' },
@@ -72,8 +69,8 @@ const formatDisplayTime = (isoStr, lang) => {
         const min = String(local.getUTCMinutes()).padStart(2, '0');
 
         if (isYesterday) {
-            const ydayLabels = { ko: '어제', en: 'Yesterday', id: 'Kemarin', th: 'เมื่อวาน' };
-            const ydayLabel = ydayLabels[lang] || ydayLabels.en;
+            const i18n = I18N_DATA[lang] || I18N_DATA['en'];
+            const ydayLabel = i18n.yesterday || '어제';
             return `${ydayLabel} ${hh}:${min}`;
         }
 
@@ -517,11 +514,11 @@ export const renderer = {
                 ? `≈${(monthCostUSD * 1400).toFixed(1)}원`
                 : `$${monthCostUSD.toFixed(3)}`;
 
-            const tooltipTitle = (i18n.tokenTooltipToday || "Today Usage")
+            const tooltipTitle = (i18n.tokenTooltipToday || "[Today] Prompt: {prompt} / Completion: {completion}")
                 .replace('{prompt}', prompt.toLocaleString())
                 .replace('{completion}', completion.toLocaleString());
 
-            const tooltipMonth = (i18n.tokenTooltipMonth || "Month Total")
+            const tooltipMonth = (i18n.tokenTooltipMonth || "[This Month] Total: {monthTotal} ({costString})")
                 .replace('{monthTotal}', formatTokens(monthTotal))
                 .replace('{costString}', monthCostString);
 

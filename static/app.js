@@ -260,12 +260,14 @@ const initApp = () => {
     checkWhatsAppStatus();
     checkSlackStatus();
     checkGmailStatus();
+    modals.fetchTokenUsage(); // 대시보드 로딩 시 우측 상단 토큰 배지 업데이트
 
     // 주기적 업데이트
     setInterval(fetchMessages, 29009);
     setInterval(checkWhatsAppStatus, 31013);
     setInterval(checkSlackStatus, 41017);
     setInterval(checkGmailStatus, 61001);
+    setInterval(() => modals.fetchTokenUsage(), 60000); // 1분마다 토큰 사용량 동기화
 
     // Gmail icon click: connect when OFF, show info when ON
     document.getElementById('gmailStatusLarge')?.addEventListener('click', () => {
