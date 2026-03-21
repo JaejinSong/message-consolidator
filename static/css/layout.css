@@ -1,22 +1,33 @@
-/* --- Header & Layout --- */
-header {
-    margin-bottom: var(--space-lg);
+.glass-container {
     width: 100%;
-    max-width: 1200px;
+    max-width: 1400px;
+    margin: 0 auto;
+    min-height: 90vh;
+    padding: var(--space-xl);
+    background: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(25px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-xxl);
+    box-shadow: var(--shadow-main);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xl);
+    position: relative;
+    overflow: hidden;
 }
 
-.top-nav {
+header {
+    width: 100%;
+}
+
+.header-container {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: var(--card-bg);
-    padding: var(--space-sm) var(--space-lg);
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--glass-border);
-    backdrop-filter: blur(20px);
+    gap: var(--space-md);
 }
 
-.logo-section h1 {
+.header-left h1 {
     font-size: 1.5rem;
     font-weight: 900;
     background: linear-gradient(135deg, var(--text-main) 0%, var(--accent-color) 100%);
@@ -24,6 +35,26 @@ header {
     background-clip: text;
     -webkit-text-fill-color: transparent;
     letter-spacing: -0.5px;
+}
+
+.header-center {
+    display: flex;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.4rem;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--glass-border);
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 /* --- Dashboard Header --- */
