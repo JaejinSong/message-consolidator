@@ -223,14 +223,12 @@ func GetArchivedMessagesFiltered(email string, limit, offset int, search string,
 		"time":         "created_at",
 	}
 
-	if sortField != "" {
-		if dbField, ok := whitelist[sortField]; ok {
-			order := "ASC"
-			if strings.ToUpper(sortOrder) == "DESC" {
-				order = "DESC"
-			}
-			orderBy = fmt.Sprintf("%s %s", dbField, order)
+	if dbField, ok := whitelist[sortField]; ok {
+		order := "ASC"
+		if strings.ToUpper(sortOrder) == "DESC" {
+			order = "DESC"
 		}
+		orderBy = fmt.Sprintf("%s %s", dbField, order)
 	}
 
 	dataQuery := fmt.Sprintf(`

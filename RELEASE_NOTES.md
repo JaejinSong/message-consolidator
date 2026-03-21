@@ -1,3 +1,12 @@
+# Release Notes - v2.0.9 (2026-03-21 07:48 UTC)
+
+## ⚡ Slack API Optimization & Scanner Architecture Refactoring
+- **[OPTIMIZE] Slack Rate Limit Handling**: Implemented smart retries for Slack API calls. When a `Rate Limit(HTTP 429)` is encountered, the scanner now waits for the exact `Retry-After` duration and retries up to 3 times before failing.
+- **[REFACTOR] Scanner Package Migration**: Successfully migrated monolithic scanner logic from `main.go` to a dedicated `scanner` package, significantly improving code modularity and maintainability.
+- **[CLEANUP] Redundant Code Removal**: Deleted the legacy `scanner.go` from the root directory to align with the new package-based architecture.
+
+---
+
 # Release Notes - v2.0.8 (2026-03-21 07:07 UTC)
 
 ## ⚡ DB Connection Pool Auto-Optimization
