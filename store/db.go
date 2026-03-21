@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"message-consolidator/logger"
+	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -17,7 +18,13 @@ func InitDB(connStr string) error {
 	}
 
 	// Connection Pool Optimization for Neon (Scale to Zero)
-	db.SetMaxIdleConns(0)  // 유휴 커넥션 즉시 종료 (Scale-to-Zero 비용 최적화)
+	if strings.Contains(connStr, ".neon.tech") {
+		logger.Infof("[DB] NeonDB detected. Setting MaxIdleConns to 0 for scale-to-zero.")
+		db.SetMaxIdleConns(0) // NeonDB: 유휴 커넥션 즉시 종료 (Scale-to-Zero 비용 최적화)
+	} else {
+		logger.Infof("[DB] Standard DB detected. Setting MaxIdleConns to 2.")
+		db.SetMaxIdleConns(2) // 일반 DB: 최소 2개의 유휴 커넥션 유지
+	}
 	db.SetMaxOpenConns(20) // Cold Start 후 한 번에 몰리는 쿼리를 감당할 수 있도록 최대 연결 수 확장
 
 	query := `
