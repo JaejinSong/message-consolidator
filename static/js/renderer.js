@@ -383,8 +383,18 @@ export const renderer = {
         });
     },
 
+    calculateXPProgress(xp) {
+        const currentXP = xp || 0;
+        const currentLevelXP = currentXP % 100;
+        return {
+            currentLevelXP,
+            progress: currentLevelXP, // 1 level = 100 XP
+            nextLevelXP: 100
+        };
+    },
+
     updateUserProfile(profile) {
-        const imgEl = document.getElementById('userPicture'); // index.html has userPicture
+        const imgEl = document.getElementById('userPicture');
         const gamificationStats = document.getElementById('gamificationStats');
         const userLevel = document.getElementById('userLevel');
         const userStreak = document.getElementById('userStreak');
@@ -398,10 +408,8 @@ export const renderer = {
                 imgEl.title = profile.name || profile.email;
             }
 
-            // Update Gamification UI
             if (gamificationStats) {
                 gamificationStats.classList.remove('hidden');
-
                 if (userLevel) userLevel.textContent = profile.level || 1;
 
                 const streak = profile.streak || 0;
@@ -412,13 +420,10 @@ export const renderer = {
 
                 if (userPoints) userPoints.textContent = (profile.points || 0).toLocaleString();
 
-                // XP Calculation for Progress Bar (Level 1: 100, Level 2: 200, etc.)
-                const currentXP = profile.xp || 0;
-                const currentLevelXP = currentXP % 100; // 현재 레벨 내에서의 획득 경험치 (0~99)
-                const progress = currentLevelXP; // 1레벨당 100XP 필요하므로 퍼센트와 동일
+                const { currentLevelXP, progress, nextLevelXP } = this.calculateXPProgress(profile.xp);
 
                 if (xpBar) xpBar.style.width = `${progress}%`;
-                if (xpText) xpText.textContent = `${currentLevelXP} / 100 XP`;
+                if (xpText) xpText.textContent = `${currentLevelXP} / ${nextLevelXP} XP`;
             }
         }
     },

@@ -1,3 +1,12 @@
+# Release Notes - v2.1.5 (2026-03-21 13:10 UTC)
+
+## 🏗️ Architectural Refactoring for Insights & Gamification
+- **[REFACTOR] Backend Service Layer**: Introduced a `services` package to decouple business logic (XP, Streaks, Task Completion) from the data-access layer (`store`) and API handlers.
+- **[REFACTOR] Frontend Event-Driven Architecture**: Implemented a central event bus (`events.js`) to decouple core application actions from UI-specific side effects like animations and statistics updates.
+- **[OPTIMIZE] Modular UI Rendering**: Refined `renderer.js` logic to extract reusable calculation utilities, preparing the foundation for the upcoming 'Insights' dashboard.
+
+---
+
 # Release Notes - v2.1.4 (2026-03-21 12:10 UTC)
 
 ## 💎 Real-time Resource Updates & UI Refinement
@@ -60,7 +69,7 @@
 # Release Notes - v2.0.7 (2026-03-20 18:30 UTC)
 
 ## 🎮 Gamification Infrastructure & DB Optimization
-- **[PLAN] Gamification Roadmap**: Developed a comprehensive roadmap for points, streaks, and leveling systems in `TODO.md`, including a "Minimalist Mode" for professional environments.
+- **[PLAN] Gamification Roadmap**: Developed a comprehensive roadmap for points, streaks, and leveling systems in `planning/TODO.md`, including a "Minimalist Mode" for professional environments.
 - **[OPTIMIZE] Neon DB Scale-to-Zero**: Configured `MaxIdleConns(0)` to ensure database connections are released immediately when idle, allowing Neon serverless instances to scale to zero effectively.
 - **[OPTIMIZE] Consolidated DB Connection Pool**: Integrated the separate WhatsApp storage pool into the main application pool using `sqlstore.NewWithDB` to reduce connection overhead.
 

@@ -5,6 +5,7 @@ import { api } from './js/api.js';
 import { renderer } from './js/renderer.js';
 import { archive } from './js/archive.js';
 import { modals } from './js/modals.js';
+import { events, EVENTS } from './js/events.js';
 
 // --- Global Event Handlers for Renderer ---
 const handlers = {
@@ -12,11 +13,10 @@ const handlers = {
         try {
             await api.toggleDone(id, done);
             if (done) {
-                renderer.triggerConfetti();
-                renderer.triggerXPAnimation(); // 경험치 획득 애니메이션 추가
-                fetchUserProfile(); // Update stats
+                events.emit(EVENTS.TASK_COMPLETED, { id });
+            } else {
+                fetchMessages();
             }
-            fetchMessages();
         } catch (e) { console.error(e); }
     },
     async onDeleteTask(id) {
@@ -91,13 +91,24 @@ const fetchUserProfile = async () => {
         const data = await api.fetchUserProfile();
         state.userProfile = data;
         state.userAliases = data.aliases || [];
-        renderer.updateUserProfile(state.userProfile);
+        events.emit(EVENTS.USER_PROFILE_UPDATED, state.userProfile);
         fetchMessages();
     } catch (e) {
         console.error(e);
         fetchMessages();
     }
 };
+
+// --- Event Subscriptions ---
+events.on(EVENTS.TASK_COMPLETED, (data) => {
+    renderer.triggerConfetti();
+    renderer.triggerXPAnimation();
+    fetchUserProfile(); // This will update stats via EVENT.USER_PROFILE_UPDATED
+});
+
+events.on(EVENTS.USER_PROFILE_UPDATED, (profile) => {
+    renderer.updateUserProfile(profile);
+});
 
 // --- Initialization ---
 const initApp = () => {
