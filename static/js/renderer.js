@@ -91,9 +91,11 @@ export const renderer = {
     renderMessages(messages, handlers) {
         const myGrid = document.getElementById('myTasksList');
         const otherGrid = document.getElementById('otherTasksList');
+        const waitingGrid = document.getElementById('waitingTasksList');
         const allGrid = document.getElementById('allTasksList');
         if (myGrid) myGrid.innerHTML = '';
         if (otherGrid) otherGrid.innerHTML = '';
+        if (waitingGrid) waitingGrid.innerHTML = '';
         if (allGrid) allGrid.innerHTML = '';
 
         const data = I18N_DATA[state.currentLang];
@@ -110,8 +112,9 @@ export const renderer = {
                     </div>`;
             }
             if (otherGrid) otherGrid.innerHTML = noMsg;
+            if (waitingGrid) waitingGrid.innerHTML = noMsg;
             if (allGrid) allGrid.innerHTML = noMsg;
-            this.updateCounts(0, 0, 0);
+            this.updateCounts(0, 0, 0, 0);
             return;
         }
 
@@ -123,18 +126,24 @@ export const renderer = {
             return new Date(b.created_at) - new Date(a.created_at);
         });
 
-        let myCount = 0, otherCount = 0, allCount = 0;
+        let myCount = 0, otherCount = 0, waitingCount = 0, allCount = 0;
         let myPendingCount = 0;
 
         sorted.forEach(m => {
             const isMyTask = checkIsMyTask(m);
-
             const cardAll = this.createCardElement(m, data, handlers);
             if (allGrid) allGrid.appendChild(cardAll);
             allCount++;
 
+            const isWaiting = m.category === 'waiting';
+
             const cardFiltered = this.createCardElement(m, data, handlers);
-            if (isMyTask) {
+            if (isWaiting) {
+                if (waitingGrid) {
+                    waitingGrid.appendChild(cardFiltered);
+                    waitingCount++;
+                }
+            } else if (isMyTask) {
                 if (myGrid) {
                     myGrid.appendChild(cardFiltered);
                     myCount++;
@@ -172,15 +181,21 @@ export const renderer = {
             otherGrid.innerHTML = `<p style="text-align: center; color: var(--text-dim); margin-top: 2rem; width: 100%; font-size: 1.1rem;">${data.noTasks}</p>`;
         }
 
-        this.updateCounts(myCount, otherCount, allCount);
+        if (waitingCount === 0 && waitingGrid) {
+            waitingGrid.innerHTML = `<p style="text-align: center; color: var(--text-dim); margin-top: 2rem; width: 100%; font-size: 1.1rem;">${data.noTasks}</p>`;
+        }
+
+        this.updateCounts(myCount, otherCount, waitingCount, allCount);
     },
 
-    updateCounts(my, other, all) {
+    updateCounts(my, other, waiting, all) {
         const myCountEl = document.getElementById('myCount');
         const otherCountEl = document.getElementById('otherCount');
+        const waitingCountEl = document.getElementById('waitingCount');
         const allCountEl = document.getElementById('allCount');
         if (myCountEl) myCountEl.textContent = my;
         if (otherCountEl) otherCountEl.textContent = other;
+        if (waitingCountEl) waitingCountEl.textContent = waiting;
         if (allCountEl) allCountEl.textContent = all;
     },
 
@@ -203,10 +218,12 @@ export const renderer = {
 
         let sourceIcon = this.getSourceIcon(m.source);
 
+        const deadlineHtml = m.deadline ? `<span style="display: inline-flex; align-items: center; background: rgba(255,149,0,0.15); color: #ff9500; padding: 2px 6px; border-radius: 6px; font-size: 0.75rem; margin-left: 8px; font-weight: 600; white-space: nowrap;">⏳ ${escapeHTML(m.deadline)}</span>` : '';
+
         card.innerHTML = `
             <div class="col-source" title="${m.source}">${sourceIcon || '<span class="badge">' + m.source + '</span>'}</div>
             <div class="col-room" title="${escapeHTML(m.room)}"><span class="badge-room">${escapeHTML(m.room) || '-'}</span></div>
-            <div class="col-task task-title" title="${escapeHTML(m.task)}">${escapeHTML(m.task)}</div>
+            <div class="col-task task-title" title="${escapeHTML(m.task)}">${escapeHTML(m.task)}${deadlineHtml}</div>
             <div class="col-requester meta-val clickable-name" title="${data.clickToMapAlias || 'Click to map alias: '}${escapeHTML(m.requester)}">${escapeHTML(m.requester)}</div>
             <div class="col-assignee meta-val clickable-name" title="${data.clickToMapAlias || 'Click to map alias: '}${escapeHTML(m.assignee)}">${escapeHTML(m.assignee)}</div>
             <div class="col-time meta-val" style="font-size: 0.75rem;">${formatDisplayTime(m.assigned_at, state.currentLang)}</div>
@@ -317,6 +334,7 @@ export const renderer = {
             const time = new Date(m.created_at).toLocaleString();
             const completedAt = m.completed_at ? new Date(m.completed_at).toLocaleString() : '-';
             const sourceIcon = this.getSourceIcon(m.source);
+            const deadlineHtml = m.deadline ? `<span style="display: inline-flex; align-items: center; background: rgba(255,149,0,0.15); color: #ff9500; padding: 2px 6px; border-radius: 6px; font-size: 0.75rem; margin-left: 6px; font-weight: 600;">⏳ ${escapeHTML(m.deadline)}</span>` : '';
 
             return `
                 <tr>
@@ -327,7 +345,7 @@ export const renderer = {
                         </div>
                     </td>
                     <td class="archive-room">${escapeHTML(m.room)}</td>
-                    <td class="archive-task">${escapeHTML(m.task)}</td>
+                    <td class="archive-task">${escapeHTML(m.task)}${deadlineHtml}</td>
                     <td class="clickable-name">${escapeHTML(m.requester)}</td>
                     <td class="clickable-name">${escapeHTML(m.assignee)}</td>
                     <td style="font-size: 0.8rem; color: var(--text-dim);">${time}</td>

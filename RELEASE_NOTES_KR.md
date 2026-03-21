@@ -1,3 +1,12 @@
+# Release Notes (기술 버전 - 국문) - v2.1.3 (2026-03-21 11:10 UTC)
+
+## ⚡ 배포 프로세스 최적화 및 Slack API 페이지네이션 도입
+- **[FEAT] VPS 배포 자동화 및 최적화**: Google Artifact Registry와 GCS를 활용한 신규 배포 파이프라인을 구축했습니다. 바이너리 스트리핑(`-s -w`)과 UPX 압축을 적용하여 이미지 크기를 획기적으로 줄였습니다 (~10MB).
+- **[OPTIMIZE] Slack API 페이지네이션 지원**: `SlackClient`의 `GetMessages`에 커서 기반 페이지네이션을 도입하여, 한 번에 100개가 넘는 메시지가 발생해도 누락 없이 수집할 수 있도록 개선했습니다.
+- **[FIX] Slack 스캐너 안정화**: `SlowSweeper`의 컴파일 오류를 수정하고, `ResponseMetaData`에 대한 잘못된 nil 체크 로직을 바로잡아 백그라운드 스캔의 안정성을 확보했습니다.
+
+---
+
 # Release Notes (기술 버전 - 국문) - v2.1.2 (2026-03-21 09:55 UTC)
 
 ## 📱 모바일 UI 전면 최적화 및 레이아웃 안정화

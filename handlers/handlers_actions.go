@@ -100,7 +100,7 @@ func HandleTranslate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	archived, _, err := store.GetArchivedMessagesFiltered(email, 200, 0, "", "", "")
+	archived, _, err := store.GetArchivedMessagesFiltered(r.Context(), email, 200, 0, "", "", "")
 	if err == nil {
 		msgs = append(msgs, archived...)
 	}
@@ -292,7 +292,7 @@ func HandleRestoreGmailCC(w http.ResponseWriter, r *http.Request) {
 	aliases, _ := store.GetUserAliases(user.ID)
 
 	activeMsgs, _ := store.GetMessages(email)
-	archivedMsgs, _, _ := store.GetArchivedMessagesFiltered(email, 10000, 0, "", "", "")
+	archivedMsgs, _, _ := store.GetArchivedMessagesFiltered(r.Context(), email, 10000, 0, "", "", "")
 
 	var allMsgs []store.ConsolidatedMessage
 	allMsgs = append(allMsgs, activeMsgs...)

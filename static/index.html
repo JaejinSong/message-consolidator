@@ -26,9 +26,10 @@
                 </div>
 
                 <nav class="header-center">
-                    <button type="button" id="dashViewBtn" class="nav-tab active"
-                        data-view="dashboard" data-i18n="dashboardTitle">Dashboard</button>
-                    <button type="button" id="archiveViewBtn" class="nav-tab" data-view="archive" data-i18n="archiveTitle">Archive</button>
+                    <button type="button" id="dashViewBtn" class="nav-tab active" data-view="dashboard"
+                        data-i18n="dashboardTitle">Dashboard</button>
+                    <button type="button" id="archiveViewBtn" class="nav-tab" data-view="archive"
+                        data-i18n="archiveTitle">Archive</button>
                 </nav>
 
                 <div class="header-right">
@@ -155,17 +156,20 @@
             <section id="waLoginSection" class="hidden glass-card"
                 style="margin-bottom: 2rem; text-align: center; padding: 2rem;">
                 <h3 data-i18n="waReqTitle">WhatsApp Connection Required</h3>
-                <p style="color: var(--text-dim); margin-bottom: 1.5rem;" data-i18n="waReqDesc">Please scan the QR code with your mobile
+                <p style="color: var(--text-dim); margin-bottom: 1.5rem;" data-i18n="waReqDesc">Please scan the QR code
+                    with your mobile
                     WhatsApp app.</p>
                 <div id="qrContainer"
                     style="background: white; padding: 1rem; display: inline-block; border-radius: 16px; margin-bottom: 1.5rem;">
                     <img id="waQRImg" style="width: 200px; height: 200px;" class="hidden" />
                     <div id="qrPlaceholder"
-                        style="width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: 800;" data-i18n="generating">
+                        style="width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: 800;"
+                        data-i18n="generating">
                         Generating...</div>
                 </div>
                 <div>
-                    <button id="getQRBtn" class="primary-btn" style="width: auto; padding: 0.8rem 2rem;" data-i18n="getQR">Get New QR
+                    <button id="getQRBtn" class="primary-btn" style="width: auto; padding: 0.8rem 2rem;"
+                        data-i18n="getQR">Get New QR
                         Code</button>
                 </div>
             </section>
@@ -177,11 +181,17 @@
 
             <div class="tabs-container">
                 <div class="tabs">
-                    <button type="button" class="tab-btn active" data-tab="myTasksTab"><span id="tabMy" data-i18n="myTasks">My Tasks</span>
+                    <button type="button" class="tab-btn active" data-tab="myTasksTab"><span id="tabMy"
+                            data-i18n="myTasks">My Tasks</span>
                         <span class="badge count" id="myCount">0</span></button>
-                    <button type="button" class="tab-btn" data-tab="otherTasksTab"><span id="tabOther" data-i18n="otherTasks">Other
+                    <button type="button" class="tab-btn" data-tab="otherTasksTab"><span id="tabOther"
+                            data-i18n="otherTasks">Other
                             Tasks</span> <span class="badge count" id="otherCount">0</span></button>
-                    <button type="button" class="tab-btn" data-tab="allTasksTab"><span id="tabAll" data-i18n="allTasks">All Tasks</span>
+                    <button type="button" class="tab-btn" data-tab="waitingTasksTab"><span id="tabWaiting"
+                            data-i18n="waitingTasks">Waiting On</span>
+                        <span class="badge count" id="waitingCount">0</span></button>
+                    <button type="button" class="tab-btn" data-tab="allTasksTab"><span id="tabAll"
+                            data-i18n="allTasks">All Tasks</span>
                         <span class="badge count" id="allCount">0</span></button>
                 </div>
 
@@ -203,6 +213,11 @@
                 <div id="otherTasksTab" class="tab-content">
                     <div id="otherTasksList" class="task-list">
                         <!-- Other Cards will be injected here -->
+                    </div>
+                </div>
+                <div id="waitingTasksTab" class="tab-content">
+                    <div id="waitingTasksList" class="task-list">
+                        <!-- Waiting Cards will be injected here -->
                     </div>
                 </div>
                 <div id="allTasksTab" class="tab-content">

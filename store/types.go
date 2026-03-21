@@ -34,6 +34,8 @@ type ConsolidatedMessage struct {
 	IsDeleted    bool       `json:"is_deleted"`
 	CreatedAt    time.Time  `json:"created_at"`
 	CompletedAt  *time.Time `json:"completed_at"`
+	Category     string     `json:"category"`
+	Deadline     string     `json:"deadline,omitempty"`
 }
 
 // User represents an application user
@@ -71,7 +73,6 @@ type UserAchievement struct {
 	UnlockedAt    time.Time `json:"unlocked_at"`
 }
 
-
 // TaskTranslation represents a cached translation for a task
 type TaskTranslation struct {
 	MessageID      int    `json:"message_id"`
@@ -93,6 +94,8 @@ type TodoItem struct {
 	Assignee   string `json:"assignee"`
 	AssignedAt string `json:"assigned_at"`
 	SourceTS   string `json:"source_ts"`
+	Category   string `json:"category"`
+	Deadline   string `json:"deadline"`
 }
 
 // TranslateRequest represents a request to translate a specific task

@@ -42,7 +42,14 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 				msgMap[m.ID] = m
 				// Resolve mentions in the text for better Gemini extraction
 				resolvedText := channels.ResolveWAMentions(email, m.Text)
-				sb.WriteString(fmt.Sprintf("[TS:%s] [%s] %s: %s\n", m.ID, m.Timestamp.Format("15:04"), m.Sender, resolvedText))
+
+				replyCtx := ""
+				if m.ReplyToID != "" {
+					replyCtx = fmt.Sprintf("[ReplyTo:%s] ", m.ReplyToID)
+				}
+
+				// [TS:m.ID] remains for backward compatibility with prompt, but adding IDs for better context
+				sb.WriteString(fmt.Sprintf("[ID:%s] %s[%s] %s: %s\n", m.ID, replyCtx, m.Timestamp.Format("15:04"), m.Sender, resolvedText))
 			}
 
 			gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
@@ -76,21 +83,34 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 					}
 				}
 
-				classification := "기타 업무"
-				if is1to1 || isMentioned {
-					classification = "내 업무"
+				checkIsMe := func(name string) bool {
+					lower := strings.ToLower(name)
+					if lower == "" || lower == "me" || lower == "나" || lower == "담당자" {
+						return true
+					}
+					if strings.EqualFold(name, user.Name) || strings.EqualFold(name, email) {
+						return true
+					}
+					for _, alias := range aliases {
+						if alias != "" && strings.EqualFold(name, alias) {
+							return true
+						}
+					}
+					return false
 				}
 
+				isReqMe := checkIsMe(item.Requester)
+				isAssMe := checkIsMe(item.Assignee)
+
+				taskText := item.Task
 				assignee := item.Assignee
-				if assignee == "" || assignee == "me" || assignee == "나" || assignee == "담당자" {
-					if classification == "내 업무" {
-						assignee = user.Name
-						if assignee == "" {
-							assignee = email
-						}
-					} else {
-						// "기타 업무" 대신 빈 문자열을 넣어 UI에서 자연스럽게 보이도록 유도
-						assignee = ""
+
+				if isReqMe && !isAssMe {
+					taskText = "[회신 대기] " + taskText // 내가 남에게 요청한 경우
+				} else if isAssMe || is1to1 || isMentioned {
+					assignee = user.Name
+					if assignee == "" {
+						assignee = email
 					}
 				}
 
@@ -98,12 +118,13 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 					UserEmail:    email,
 					Source:       "whatsapp",
 					Room:         groupName,
-					Task:         item.Task,
+					Task:         taskText,
 					Requester:    item.Requester,
 					Assignee:     assignee,
 					AssignedAt:   assignedAt,
 					SourceTS:     item.SourceTS,
 					OriginalText: origText,
+					Deadline:     item.Deadline,
 				})
 			}
 

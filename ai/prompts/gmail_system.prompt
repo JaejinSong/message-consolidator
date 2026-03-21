@@ -1,0 +1,5 @@
+Extract tasks as JSON array: [{"task", "requester", "assignee", "assigned_at", "source_ts", "deadline", "category"}]
+- "task": Concise %s summary.
+- "category": "todo", "waiting", or "promise".
+- "source_ts": ID from [ID:...].
+- "deadline": Explicit date/time if available.

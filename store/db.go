@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"message-consolidator/logger"
@@ -26,6 +27,10 @@ func InitDB(connStr string) error {
 		db.SetMaxIdleConns(2) // 일반 DB: 최소 2개의 유휴 커넥션 유지
 	}
 	db.SetMaxOpenConns(20) // Cold Start 후 한 번에 몰리는 쿼리를 감당할 수 있도록 최대 연결 수 확장
+
+	// 안전장치: 좀비 커넥션 방지 및 네트워크 단절 대처
+	db.SetConnMaxLifetime(5 * time.Minute) // 커넥션의 최대 수명을 5분으로 제한 (5분 후 무조건 재생성)
+	db.SetConnMaxIdleTime(1 * time.Minute) // 유휴 상태로 1분이 지나면 연결 해제 (MaxIdleConns 방어용)
 
 	query := `
 	CREATE TABLE IF NOT EXISTS users (
@@ -63,7 +68,8 @@ func InitDB(connStr string) error {
 		done BOOLEAN DEFAULT false,
 		is_deleted BOOLEAN DEFAULT false,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		completed_at TIMESTAMP
+		completed_at TIMESTAMP,
+		category TEXT DEFAULT 'todo'
 	);
 	CREATE TABLE IF NOT EXISTS task_translations (
 		message_id INTEGER REFERENCES messages(id) ON DELETE CASCADE,
@@ -126,6 +132,14 @@ func InitDB(connStr string) error {
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP;")
 	// Add original_text column if it doesn't exist
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS original_text TEXT;")
+	// Add category column if it doesn't exist
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'todo';")
+	// Add deadline column if it doesn't exist
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS deadline TEXT;")
+
+	// Migration: Categorize existing tasks based on prefix
+	_, _ = db.Exec("UPDATE messages SET category = 'waiting' WHERE task LIKE '[회신 대기]%';")
+	_, _ = db.Exec("UPDATE messages SET category = 'promise' WHERE task LIKE '[나의 약속]%';")
 
 	// Initialize Cache for all existing users
 	if err := RefreshAllCaches(); err != nil {
@@ -195,14 +209,18 @@ func RefreshAllCaches() error {
 }
 
 func RefreshCache(email string) error {
+	// 최대 10초 대기 후 강제 취소 (무한 Hang 원천 차단)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	// 1. Fetch Active Messages
 	queryActive := fmt.Sprintf(`
-		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at 
+		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') 
 		FROM messages 
 		WHERE user_email = $1 AND is_deleted = false AND (done = false OR (done = true AND (completed_at IS NULL OR completed_at > NOW() - INTERVAL '%d days')))
 		ORDER BY created_at DESC 
 		LIMIT 200`, autoArchiveDays)
-	rows, err := db.Query(queryActive, email)
+	rows, err := db.QueryContext(ctx, queryActive, email)
 	if err != nil {
 		return err
 	}
@@ -212,7 +230,7 @@ func RefreshCache(email string) error {
 	newKnownTS := make(map[string]bool)
 	for rows.Next() {
 		var m ConsolidatedMessage
-		if err := rows.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt, &m.Category, &m.Deadline); err != nil {
 			return err
 		}
 		newActive = append(newActive, m)
@@ -221,12 +239,12 @@ func RefreshCache(email string) error {
 
 	// 2. Fetch Archived Messages (is_deleted = 1 OR long completed)
 	queryArchive := fmt.Sprintf(`
-		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at 
+		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') 
 		FROM messages 
 		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '%d days'))
 		ORDER BY CASE WHEN is_deleted = true THEN created_at ELSE completed_at END DESC
 		LIMIT 100`, autoArchiveDays)
-	rowsArch, err := db.Query(queryArchive, email)
+	rowsArch, err := db.QueryContext(ctx, queryArchive, email)
 	if err != nil {
 		return err
 	}
@@ -235,7 +253,7 @@ func RefreshCache(email string) error {
 	var newArchive = []ConsolidatedMessage{}
 	for rowsArch.Next() {
 		var m ConsolidatedMessage
-		if err := rowsArch.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt); err != nil {
+		if err := rowsArch.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt, &m.Category, &m.Deadline); err != nil {
 			return err
 		}
 		newArchive = append(newArchive, m)
@@ -272,9 +290,13 @@ func ArchiveOldTasks() error {
 		return nil
 	}
 
+	// 백그라운드 아카이브 작업은 최대 15초 대기
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
 	logger.Infof("[DB] Auto-archiving tasks completed more than %d days ago...", autoArchiveDays)
 	query := fmt.Sprintf("UPDATE messages SET is_deleted = true WHERE is_deleted = false AND done = true AND completed_at < NOW() - INTERVAL '%d days'", autoArchiveDays)
-	res, err := db.Exec(query)
+	res, err := db.ExecContext(ctx, query)
 	if err != nil {
 		return err
 	}
@@ -287,4 +309,12 @@ func ArchiveOldTasks() error {
 		_ = RefreshAllCaches()
 	}
 	return nil
+}
+
+func LogDBStats() {
+	if db == nil {
+		return
+	}
+	stats := db.Stats()
+	logger.Infof("[DB-STATS] Open: %d | InUse: %d | Idle: %d | WaitCount: %d", stats.OpenConnections, stats.InUse, stats.Idle, stats.WaitCount)
 }

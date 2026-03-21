@@ -82,7 +82,8 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 	}
 
 	since := getGmailScanTime(email)
-	query := fmt.Sprintf("in:inbox after:%d", since.Unix())
+	// (in:inbox OR from:me) to get both received and sent emails for thread context
+	query := fmt.Sprintf("(in:inbox OR from:me) after:%d", since.Unix())
 
 	res, err := svc.Users.Messages.List("me").Q(query).MaxResults(50).Do()
 	if err != nil || len(res.Messages) == 0 {
@@ -150,6 +151,12 @@ func parseNewEmails(svc *gmail.Service, messages []*gmail.Message, email string,
 		// Filter rules for user
 		fromLower := strings.ToLower(from)
 		isSkip := false
+
+		// [고도화] 시스템 자동 발송, 노리플라이 메일 등 노이즈 원천 차단
+		if strings.Contains(fromLower, "no-reply") || strings.Contains(fromLower, "noreply") || strings.Contains(fromLower, "do-not-reply") || strings.Contains(fromLower, "mailer-daemon") {
+			continue
+		}
+
 		for _, s := range skips {
 			if strings.Contains(fromLower, s) {
 				logger.Debugf("[SCAN-GMAIL] Skipping noise email from: %s (matches skip rule: %s)", from, s)
@@ -165,27 +172,37 @@ func parseNewEmails(svc *gmail.Service, messages []*gmail.Message, email string,
 		ccLower := strings.ToLower(cc)
 		bccLower := strings.ToLower(bcc)
 
+		isFromMe := strings.Contains(fromLower, emailLower)
 		isDirect := strings.Contains(toLower, emailLower)
 		isCc := strings.Contains(ccLower, emailLower)
 		isBcc := strings.Contains(bccLower, emailLower)
 
-		if !isDirect && !isCc && !isBcc {
+		// 만약 내가 보낸 메일도 아니고, 수신인 목록에도 없다면 스킵
+		if !isFromMe && !isDirect && !isCc && !isBcc {
 			continue
 		}
 
 		classification := "기타 업무"
-		if isDirect {
-			classification = "내 업무"
+		if isFromMe {
+			classification = "발신 메일" // 내가 보낸 메일 (본인 약속 or 회신 대기)
+		} else if isDirect {
+			classification = "내 업무" // 나에게 직접 온 업무
 		}
 
 		classificationMap[m.Id] = classification
 		toMap[m.Id] = to
 		body := extractBody(fullMsg.Payload)
+		cleanBody := cleanEmailBody(body)
+
+		// 본문이 비어있거나 인용구만 남아있다면 스킵
+		if cleanBody == "" {
+			continue
+		}
 
 		rawMsgs = append(rawMsgs, types.RawMessage{
 			ID:        m.Id,
 			Sender:    from,
-			Text:      fmt.Sprintf("To: %s, Subject: %s\nContent: %s", to, subject, body),
+			Text:      fmt.Sprintf("To: %s\nSubject: %s\nContent:\n%s", to, subject, cleanBody),
 			Timestamp: time.Unix(fullMsg.InternalDate/1000, 0),
 		})
 	}
@@ -230,21 +247,35 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 		cls := classificationMap[item.SourceTS]
 		toHeader := toMap[item.SourceTS]
 
-		if assignee == "" || assignee == "me" || assignee == "나" || assignee == "담당자" {
-			if cls == "내 업무" {
-				assignee = fallbackAssignee
-			} else {
-				assignee = ExtractNameFromEmail(toHeader)
-			}
-		} else if cls == "기타 업무" {
-			isMe := strings.EqualFold(assignee, fallbackAssignee) || strings.EqualFold(assignee, user.Name) || strings.EqualFold(assignee, email)
+		// 담당자가 나(User)인지 판단
+		isMe := false
+		lowerAssignee := strings.ToLower(assignee)
+		if lowerAssignee == "" || lowerAssignee == "me" || lowerAssignee == "나" || lowerAssignee == "담당자" {
+			isMe = true
+		} else if strings.EqualFold(assignee, fallbackAssignee) || strings.EqualFold(assignee, user.Name) || strings.EqualFold(assignee, email) {
+			isMe = true
+		} else {
 			for _, alias := range aliases {
 				if alias != "" && strings.EqualFold(assignee, alias) {
 					isMe = true
 					break
 				}
 			}
+		}
+
+		taskText := item.Task
+
+		if cls == "발신 메일" {
 			if isMe {
+				taskText = "[나의 약속] " + taskText
+				assignee = fallbackAssignee
+			} else {
+				taskText = "[회신 대기] " + taskText // 수신자에게 무언가를 요청하고 기다리는 상태
+			}
+		} else {
+			if isMe && cls == "내 업무" {
+				assignee = fallbackAssignee
+			} else if (isMe && cls == "기타 업무") || assignee == "" {
 				assignee = ExtractNameFromEmail(toHeader)
 			}
 		}
@@ -261,13 +292,14 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 			UserEmail:    email,
 			Source:       "gmail",
 			Room:         "Gmail",
-			Task:         item.Task,
+			Task:         taskText,
 			Requester:    item.Requester,
 			Assignee:     assignee,
 			AssignedAt:   assignedAt,
 			Link:         link,
 			SourceTS:     uniqueSourceTS,
 			OriginalText: origText,
+			Deadline:     item.Deadline,
 		})
 	}
 
@@ -336,4 +368,38 @@ func decodeBase64URL(data string) string {
 		return ""
 	}
 	return decoded
+}
+
+// cleanEmailBody는 이메일 본문에서 이전 스레드(인용구)와 서명을 제거하여 순수한 새 메시지만 추출합니다.
+func cleanEmailBody(body string) string {
+	lines := strings.Split(body, "\n")
+	var cleaned []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// 1. 영어/한국어 일반적인 답장 인용구 시작 패턴 차단
+		if (strings.HasPrefix(trimmed, "On ") && strings.HasSuffix(trimmed, "wrote:")) ||
+			strings.HasSuffix(trimmed, "작성:") ||
+			strings.HasPrefix(trimmed, "-----Original Message-----") ||
+			strings.HasPrefix(trimmed, "----- 원본 메시지 -----") ||
+			strings.HasPrefix(trimmed, "________________________________") {
+			break // 인용구 이하는 모두 버림
+		}
+
+		// 2. '>' 로 시작하는 인용 라인 건너뛰기
+		if strings.HasPrefix(trimmed, ">") {
+			continue
+		}
+
+		cleaned = append(cleaned, line)
+	}
+
+	// 3. 서명(Signature) 제거 패턴 (--) 감지
+	result := strings.Join(cleaned, "\n")
+	if idx := strings.Index(result, "\n-- \n"); idx != -1 {
+		result = result[:idx]
+	}
+
+	return strings.TrimSpace(result)
 }

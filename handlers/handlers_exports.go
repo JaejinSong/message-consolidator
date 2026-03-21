@@ -17,7 +17,7 @@ func HandleExportExcel(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	q := r.URL.Query().Get("q")
 
-	msgs, _, err := store.GetArchivedMessagesFiltered(email, 10000, 0, q, "", "")
+	msgs, _, err := store.GetArchivedMessagesFiltered(r.Context(), email, 10000, 0, q, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -76,7 +76,7 @@ func HandleExportArchive(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	q := r.URL.Query().Get("q")
 
-	msgs, _, err := store.GetArchivedMessagesFiltered(email, 10000, 0, q, "", "")
+	msgs, _, err := store.GetArchivedMessagesFiltered(r.Context(), email, 10000, 0, q, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -118,7 +118,7 @@ func HandleExportJSON(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	q := r.URL.Query().Get("q")
 
-	msgs, _, err := store.GetArchivedMessagesFiltered(email, 10000, 0, q, "", "")
+	msgs, _, err := store.GetArchivedMessagesFiltered(r.Context(), email, 10000, 0, q, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

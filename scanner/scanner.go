@@ -26,6 +26,9 @@ func StartBackgroundScanner() {
 	// Run initial scan
 	RunAllScans()
 
+	// Start Slow Sweeper as a separate background worker
+	go startSlowSweeper()
+
 	for range ticker.C {
 		RunAllScans()
 	}
@@ -63,6 +66,9 @@ func RunAllScans() {
 
 	// 주기적(1시간)으로 메모리에 쌓인 미반영 토큰 사용량을 DB에 플러시하여 NeonDB Sleep 보장
 	store.FlushTokenUsageIfNeeded()
+
+	// DB 커넥션 풀 상태 모니터링 로깅 (NeonDB Sleep 진입 전 커넥션 반환 확인용)
+	store.LogDBStats()
 }
 
 // getEffectiveAliases는 사용자가 명시적으로 등록한 별칭 외에

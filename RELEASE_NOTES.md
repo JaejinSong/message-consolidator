@@ -1,3 +1,12 @@
+# Release Notes - v2.1.3 (2026-03-21 11:10 UTC)
+
+## ⚡ Optimized Deployment & Slack API Pagination
+- **[FEAT] Optimized VPS Deployment**: Implemented a modern deployment pipeline using Google Artifact Registry and GCS. Images are now size-optimized using `-ldflags="-s -w"` and `upx` compression (~10MB total).
+- **[OPTIMIZE] Slack API Pagination Support**: Enhanced `GetMessages` in `SlackClient` to handle more than 100 messages using recursive cursor-based pagination, ensuring no missing history during peak activity.
+- **[FIX] Slack Scanner Reliability**: Fixed a compilation error in `SlowSweeper` and resolved an invalid nil check for `ResponseMetaData` in the Slack client to ensure stable background scanning.
+
+---
+
 # Release Notes - v2.1.2 (2026-03-21 09:55 UTC)
 
 ## 📱 Mobile UI Optimization & Layout Stabilization
