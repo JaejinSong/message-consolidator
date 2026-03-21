@@ -55,8 +55,37 @@ body {
     box-shadow: var(--shadow-main);
 }
 
+h1 {
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: -1.2px;
+    line-height: 1;
+    margin-bottom: 0.3rem;
+}
+
+.accent {
+    color: var(--accent-color);
+    text-shadow: 0 0 20px var(--accent-glow);
+}
+
+#subTitle {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    font-weight: 400;
+    letter-spacing: 0.2px;
+}
+
 .hidden {
     display: none !important;
+}
+
+/* Base styles for tab content */
+.tab-content {
+    display: none !important;
+}
+
+.tab-content.active {
+    display: block !important;
 }
 
 .clickable-name {
