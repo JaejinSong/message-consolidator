@@ -1,3 +1,11 @@
+# Release Notes - v2.1.4 (2026-03-21 12:10 UTC)
+
+## 💎 Real-time Resource Updates & UI Refinement
+- **[FEAT] UI Token Real-time Update**: Token usage status is now synchronized in real-time, providing immediate visibility into AI resource consumption without manual refresh.
+- **[UI] DASHBOARD FINE-TUNING**: Polished various UI components for a more premium and professional aesthetic across the main dashboard.
+
+---
+
 # Release Notes - v2.1.3 (2026-03-21 11:10 UTC)
 
 ## ⚡ Optimized Deployment & Slack API Pagination
