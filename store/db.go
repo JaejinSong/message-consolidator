@@ -195,6 +195,23 @@ func GetDB() *sql.DB {
 	return db
 }
 
+// RunInTx executes a database transaction and automatically rolls it back if an error occurs.
+// This wrapper enforces the "Transaction Management" concern and will be used
+// extensively when Gamification logic becomes more complex.
+func RunInTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	if err := fn(tx); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func RefreshAllCaches() error {
 	users, err := GetAllUsers()
 	if err != nil {

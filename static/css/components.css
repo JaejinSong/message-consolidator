@@ -1,0 +1,243 @@
+/* --- Badges --- */
+.badge {
+    padding: var(--space-xxs) var(--space-xs);
+    border-radius: var(--radius-sm);
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.badge-new {
+    background: var(--accent-color);
+    color: #000;
+}
+
+/* --- Navigation Buttons --- */
+.nav-links {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.nav-btn {
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.nav-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--accent-color);
+}
+
+/* --- Cards & Panels --- */
+.glass-container {
+    background: var(--card-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-xxl);
+    padding: var(--space-lg);
+    width: 100%;
+    max-width: 1200px;
+}
+
+/* --- Tabs --- */
+.tabs {
+    display: flex;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    padding: var(--space-sm) 0;
+    cursor: pointer;
+    font-weight: 700;
+    position: relative;
+    transition: color var(--transition-fast);
+}
+
+.tab-btn.active {
+    color: var(--accent-color);
+}
+
+.tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: var(--accent-color);
+    box-shadow: 0 0 10px var(--accent-glow);
+}
+
+/* --- Modals Base --- */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: var(--z-modal);
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+}
+
+.modal-content {
+    background: #111418;
+    margin: 5% auto;
+    padding: 2rem;
+    border: 1px solid var(--glass-border);
+    width: 500px;
+    border-radius: var(--radius-xl);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+}
+
+body.light-theme .modal-content {
+    background: #ffffff;
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 10px 40px rgba(15, 23, 42, 0.15);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-lg);
+}
+
+.modal-header h3 {
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 2rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.close-btn:hover {
+    color: #ff4b2b;
+}
+
+.modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+}
+
+/* --- Buttons --- */
+.primary-btn {
+    background: var(--accent-color);
+    color: #000;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 0.8rem var(--space-md);
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+.primary-btn:hover {
+    transform: translateY(-2px);
+    opacity: 0.9;
+}
+
+.delete-btn {
+    background: rgba(255, 59, 48, 0.1);
+    color: #ff3b30;
+    border: 1px solid rgba(255, 59, 48, 0.3);
+    font-size: 0.9rem;
+}
+
+.delete-btn:hover {
+    background: rgba(255, 59, 48, 0.2);
+    border-color: #ff3b30;
+    transform: translateY(-1px);
+}
+
+/* --- Loading Overlay & Spinner --- */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    backdrop-filter: blur(2px);
+    border-radius: 12px;
+}
+
+.loading-overlay.active {
+    display: flex;
+}
+
+.spinner-small {
+    width: 30px;
+    height: 30px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top: 3px solid var(--accent-color);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+/* --- Tooltip (Pure CSS) --- */
+/* 스택 바 컨테이너 툴팁 클리핑(잘림) 방지를 위해 overflow: hidden 제거 후 개별 라운딩 처리 */
+.stacked-bar-container {
+    overflow: visible !important;
+}
+
+/* 초경량 CSS 툴팁 */
+[data-tooltip] {
+    position: relative;
+    cursor: pointer;
+}
+
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(5px);
+    background: rgba(20, 20, 25, 0.9);
+    backdrop-filter: blur(4px);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    pointer-events: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    z-index: var(--z-tooltip);
+}
+
+[data-tooltip]:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}

@@ -109,3 +109,14 @@ type TranslateRequest struct {
 type TranslateResponse struct {
 	Translations []TranslateRequest `json:"translations"`
 }
+
+// ArchiveFilter encapsulates the parameters for querying archived messages
+// to prevent long argument lists and improve maintainability.
+type ArchiveFilter struct {
+	Email  string
+	Limit  int
+	Offset int
+	Query  string
+	Sort   string
+	Order  string
+}

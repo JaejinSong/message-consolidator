@@ -175,13 +175,13 @@ func GetArchivedMessages(email string) ([]ConsolidatedMessage, error) {
 	return []ConsolidatedMessage{}, nil
 }
 
-func GetArchivedMessagesFiltered(ctx context.Context, email string, limit, offset int, search string, sortField, sortOrder string) ([]ConsolidatedMessage, int, error) {
+func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]ConsolidatedMessage, int, error) {
 	searchQuery := ""
-	args := []interface{}{email}
+	args := []interface{}{filter.Email}
 	argIdx := 2
 
-	if search != "" {
-		pattern := "%" + strings.ToLower(search) + "%"
+	if filter.Query != "" {
+		pattern := "%" + strings.ToLower(filter.Query) + "%"
 		searchQuery = fmt.Sprintf(` AND (
 			LOWER(task) ILIKE $%d OR 
 			LOWER(room) ILIKE $%d OR 
@@ -208,8 +208,8 @@ func GetArchivedMessagesFiltered(ctx context.Context, email string, limit, offse
 	}
 
 	// 2. Get Data
-	if limit <= 0 {
-		limit = 100
+	if filter.Limit <= 0 {
+		filter.Limit = 100
 	}
 
 	orderBy := "CASE WHEN is_deleted = true THEN created_at ELSE completed_at END DESC"
@@ -224,9 +224,9 @@ func GetArchivedMessagesFiltered(ctx context.Context, email string, limit, offse
 		"time":         "created_at",
 	}
 
-	if dbField, ok := whitelist[sortField]; ok {
+	if dbField, ok := whitelist[filter.Sort]; ok {
 		order := "ASC"
-		if strings.ToUpper(sortOrder) == "DESC" {
+		if strings.ToUpper(filter.Order) == "DESC" {
 			order = "DESC"
 		}
 		orderBy = fmt.Sprintf("%s %s", dbField, order)
@@ -240,7 +240,7 @@ func GetArchivedMessagesFiltered(ctx context.Context, email string, limit, offse
 		ORDER BY %s
 		LIMIT $%d OFFSET $%d`, autoArchiveDays, searchQuery, orderBy, argIdx, argIdx+1)
 
-	args = append(args, limit, offset)
+	args = append(args, filter.Limit, filter.Offset)
 
 	rows, err := db.QueryContext(ctx, dataQuery, args...)
 	if err != nil {

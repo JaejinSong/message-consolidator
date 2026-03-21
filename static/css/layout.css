@@ -1,0 +1,45 @@
+/* --- Header & Layout --- */
+header {
+    margin-bottom: var(--space-lg);
+    width: 100%;
+    max-width: 1200px;
+}
+
+.top-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--card-bg);
+    padding: var(--space-sm) var(--space-lg);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(20px);
+}
+
+.logo-section h1 {
+    font-size: 1.5rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--text-main) 0%, var(--accent-color) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
+}
+
+/* --- Dashboard Header --- */
+.dashboard-header {
+    margin-bottom: var(--space-xl);
+    text-align: center;
+}
+
+.dashboard-header h2 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 900;
+    margin-bottom: var(--space-xs);
+    letter-spacing: -2px;
+}
+
+.dashboard-header p {
+    color: var(--text-dim);
+    font-size: 1.1rem;
+}

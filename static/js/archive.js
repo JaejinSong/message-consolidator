@@ -2,6 +2,7 @@ import { state } from './state.js';
 import { I18N_DATA } from './locales.js';
 import { api } from './api.js';
 import { renderer } from './renderer.js';
+import { safeAsync } from './utils.js';
 
 let onTasksChangedCallback = null;
 
@@ -22,7 +23,7 @@ export const archive = {
         this.fetch();
     },
 
-    async fetch() {
+    fetch: safeAsync(async function () {
         const loader = document.getElementById('archiveLoading');
         if (loader) loader.classList.add('active');
         try {
@@ -38,12 +39,10 @@ export const archive = {
             state.archiveTotalCount = data.total;
             renderer.renderArchive(data.messages);
             this.updatePaginationUI();
-        } catch (e) {
-            console.error(e);
         } finally {
             if (loader) loader.classList.remove('active');
         }
-    },
+    }),
 
     updatePaginationUI() {
         const totalPages = Math.ceil(state.archiveTotalCount / state.archiveLimit) || 1;
@@ -115,20 +114,19 @@ export const archive = {
         });
 
         // Restore Selected
-        document.getElementById('restoreSelectedBtn')?.addEventListener('click', async () => {
+        document.getElementById('restoreSelectedBtn')?.addEventListener('click', safeAsync(async () => {
             const ids = this.getSelectedIds();
             if (ids.length === 0) return;
-            try {
-                await api.restoreTasks(ids);
-                const selectAll = document.getElementById('selectAllArchive');
-                if (selectAll) selectAll.checked = false;
-                this.updateActionsVisibility();
-                this.fetch();
-                if (onTasksChangedCallback) onTasksChangedCallback();
-            } catch (e) {
-                alert((I18N_DATA[state.currentLang]?.errorRestore || 'Error: ') + e.message);
-            }
-        });
+
+            await api.restoreTasks(ids);
+            const selectAll = document.getElementById('selectAllArchive');
+            if (selectAll) selectAll.checked = false;
+            this.updateActionsVisibility();
+            this.fetch();
+            if (onTasksChangedCallback) onTasksChangedCallback();
+        }, (e) => {
+            alert((I18N_DATA[state.currentLang]?.errorRestore || 'Error: ') + e.message);
+        }));
 
         // Sorting
         const triggerArchiveSort = (field) => {
@@ -142,13 +140,14 @@ export const archive = {
             this.fetch();
         };
 
-        document.getElementById('ahSource')?.addEventListener('click', () => triggerArchiveSort('source'));
-        document.getElementById('ahRoom')?.addEventListener('click', () => triggerArchiveSort('room'));
-        document.getElementById('ahTask')?.addEventListener('click', () => triggerArchiveSort('task'));
-        document.getElementById('ahRequester')?.addEventListener('click', () => triggerArchiveSort('requester'));
-        document.getElementById('ahAssignee')?.addEventListener('click', () => triggerArchiveSort('assignee'));
-        document.getElementById('ahTime')?.addEventListener('click', () => triggerArchiveSort('time'));
-        document.getElementById('ahCompletedAt')?.addEventListener('click', () => triggerArchiveSort('completed_at'));
+        const sortHeaders = {
+            'ahSource': 'source', 'ahRoom': 'room', 'ahTask': 'task',
+            'ahRequester': 'requester', 'ahAssignee': 'assignee',
+            'ahTime': 'time', 'ahCompletedAt': 'completed_at'
+        };
+        Object.entries(sortHeaders).forEach(([id, field]) => {
+            document.getElementById(id)?.addEventListener('click', () => triggerArchiveSort(field));
+        });
 
         this.setupExportModal();
         this.setupDeleteModal();
@@ -156,15 +155,13 @@ export const archive = {
 
     setupExportModal() {
         const exportModal = document.getElementById('exportModal');
-        document.getElementById('openExportModalBtn')?.addEventListener('click', async () => {
-            try {
-                const countData = await api.fetchArchiveCount(state.archiveSearch);
-                document.getElementById('exportCount').textContent = countData.count;
-                exportModal.classList.remove('hidden');
-            } catch (e) {
-                alert((I18N_DATA[state.currentLang]?.errorArchiveCount || 'Error: ') + e.message);
-            }
-        });
+        document.getElementById('openExportModalBtn')?.addEventListener('click', safeAsync(async () => {
+            const countData = await api.fetchArchiveCount(state.archiveSearch);
+            document.getElementById('exportCount').textContent = countData.count;
+            exportModal.classList.remove('hidden');
+        }, (e) => {
+            alert((I18N_DATA[state.currentLang]?.errorArchiveCount || 'Error: ') + e.message);
+        }));
 
         const closeExport = () => exportModal.classList.add('hidden');
         document.getElementById('closeExportModalBtn')?.addEventListener('click', closeExport);
@@ -188,25 +185,19 @@ export const archive = {
             }, 2000);
         };
 
-        document.getElementById('confirmExportExcel')?.addEventListener('click', () => {
-            const query = state.archiveSearch ? `?q=${encodeURIComponent(state.archiveSearch)}` : '';
-            const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_');
-            downloadFile(`/api/messages/export/excel${query}`, `Message_Archive_${timestamp}.xlsx`);
-            closeExport();
-        });
+        const exportFormats = [
+            { id: 'confirmExportExcel', path: '/api/messages/export/excel', ext: 'xlsx' },
+            { id: 'confirmExportCsv', path: '/api/messages/export', ext: 'csv' },
+            { id: 'confirmExportJson', path: '/api/messages/export/json', ext: 'json' }
+        ];
 
-        document.getElementById('confirmExportCsv')?.addEventListener('click', () => {
-            const query = state.archiveSearch ? `?q=${encodeURIComponent(state.archiveSearch)}` : '';
-            const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_');
-            downloadFile(`/api/messages/export${query}`, `Message_Archive_${timestamp}.csv`);
-            closeExport();
-        });
-
-        document.getElementById('confirmExportJson')?.addEventListener('click', () => {
-            const query = state.archiveSearch ? `?q=${encodeURIComponent(state.archiveSearch)}` : '';
-            const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_');
-            downloadFile(`/api/messages/export/json${query}`, `Message_Archive_${timestamp}.json`);
-            closeExport();
+        exportFormats.forEach(({ id, path, ext }) => {
+            document.getElementById(id)?.addEventListener('click', () => {
+                const query = state.archiveSearch ? `?q=${encodeURIComponent(state.archiveSearch)}` : '';
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_');
+                downloadFile(`${path}${query}`, `Message_Archive_${timestamp}.${ext}`);
+                closeExport();
+            });
         });
     },
 
@@ -235,18 +226,16 @@ export const archive = {
             if (e.target === deleteConfirmModal) closeDeleteConfirm();
         });
 
-        document.getElementById('confirmHardDeleteBtn')?.addEventListener('click', async () => {
+        document.getElementById('confirmHardDeleteBtn')?.addEventListener('click', safeAsync(async () => {
             if (deletePendingIds.length === 0) return;
-            try {
-                await api.hardDeleteTasks(deletePendingIds);
-                const selectAll = document.getElementById('selectAllArchive');
-                if (selectAll) selectAll.checked = false;
-                this.updateActionsVisibility();
-                this.fetch();
-                closeDeleteConfirm();
-            } catch (error) {
-                alert((I18N_DATA[state.currentLang]?.errorHardDelete || 'Error: ') + error.message);
-            }
-        });
+            await api.hardDeleteTasks(deletePendingIds);
+            const selectAll = document.getElementById('selectAllArchive');
+            if (selectAll) selectAll.checked = false;
+            this.updateActionsVisibility();
+            this.fetch();
+            closeDeleteConfirm();
+        }, (error) => {
+            alert((I18N_DATA[state.currentLang]?.errorHardDelete || 'Error: ') + error.message);
+        }));
     }
 };
