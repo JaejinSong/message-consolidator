@@ -1,9 +1,15 @@
-# Release Notes - v2.1.1 (2026-03-21 08:48 UTC)
+# Release Notes - v2.1.2 (2026-03-21 09:55 UTC)
 
-## ⚡ Real-time Token Sync & UI Polish
-- **[FEAT] Real-time Token Usage Sync**: Implemented automatic token usage background updates every 60 seconds in `app.js`, ensuring the dashboard reflects the latest AI costs without manual refreshes.
-- **[OPTIMIZE] I18n Date Formatting**: Refactored `renderer.js` to use unified i18n data for the "Yesterday" label, improving consistency across all supported languages.
-- **[UI] Detailed Token Tooltip**: Enhanced the token badge tooltip to explicitly display Prompt, Completion, and Monthly Cost breakdowns in a more readable format.
+## 📱 Mobile UI Optimization & Layout Stabilization
+- **[UI] Responsive Layout Enhancement**: Overhauled media queries for 480px and 768px (Tablet/Landscape) to eliminate content overflow and "cutting off" issues in the header.
+- **[UI] Header Element Stacking**: Implemented a vertical stacking strategy for Logo, Gamification Stats, and Utility groups on narrow screens, using `space-evenly` for improved visual balance.
+- **[UI] Integration Status Grid**: Rearranged Slack, WhatsApp, and Gmail status icons into a 3-column grid, improving legibility and touch target size on mobile.
+- **[FIX] XP Animation Positioning**: Refined the position calculation logic for XP gain animations to ensure they remain fully contained within the mobile viewport.
+- **[SYS] Go Dependency Cleanup**: Explicitly defined direct dependencies like `golang.org/x/sync` via `go mod tidy`.
+
+---
+
+# Release Notes - v2.1.1 (2026-03-21 08:48 UTC)
 
 ---
 
