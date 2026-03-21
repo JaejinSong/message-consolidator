@@ -203,3 +203,27 @@ func HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 }
+
+func HandleGetAchievements(w http.ResponseWriter, r *http.Request) {
+	achievements, err := store.GetAchievements()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	respondJSON(w, achievements)
+}
+
+func HandleGetUserAchievements(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	user, err := store.GetOrCreateUser(email, "", "")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	ua, err := store.GetUserAchievements(user.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	respondJSON(w, ua)
+}

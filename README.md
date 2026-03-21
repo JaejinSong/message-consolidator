@@ -1,4 +1,4 @@
-# Message Consolidator 🚀
+# Message Consolidator 🚀 v2.1.2
 
 **흩어져 있는 업무 메시지를 한 곳에서 스마트하게 관리하세요.**
 

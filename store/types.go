@@ -38,15 +38,39 @@ type ConsolidatedMessage struct {
 
 // User represents an application user
 type User struct {
-	ID        int       `json:"id"`
-	Email     string    `json:"email"`
-	Name      string    `json:"name"`
-	SlackID   string    `json:"slack_id"`
-	WAJID     string    `json:"wa_jid"`
-	Picture   string    `json:"picture"`
-	Aliases   []string  `json:"aliases"`
-	CreatedAt time.Time `json:"created_at"`
+	ID              int        `json:"id"`
+	Email           string     `json:"email"`
+	Name            string     `json:"name"`
+	SlackID         string     `json:"slack_id"`
+	WAJID           string     `json:"wa_jid"`
+	Picture         string     `json:"picture"`
+	Aliases         []string   `json:"aliases"`
+	Points          int        `json:"points"`
+	Streak          int        `json:"streak"`
+	Level           int        `json:"level"`
+	XP              int        `json:"xp"`
+	DailyGoal       int        `json:"daily_goal"`
+	LastCompletedAt *time.Time `json:"last_completed_at"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
+
+// Achievement represents a gamification milestone
+type Achievement struct {
+	ID            int    `json:"id"`
+	Name          string `json:"name"`
+	Description   string `json:"description"`
+	Icon          string `json:"icon"`
+	CriteriaType  string `json:"criteria_type"`
+	CriteriaValue int    `json:"criteria_value"`
+}
+
+// UserAchievement joins users and achievements
+type UserAchievement struct {
+	UserID        int       `json:"user_id"`
+	AchievementID int       `json:"achievement_id"`
+	UnlockedAt    time.Time `json:"unlocked_at"`
+}
+
 
 // TaskTranslation represents a cached translation for a task
 type TaskTranslation struct {

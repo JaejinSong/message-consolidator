@@ -8,6 +8,7 @@
     <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
     <link rel="stylesheet" href="static/style.css?v=1.8.1">
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
 
 <body class="dark-theme">
@@ -31,6 +32,26 @@
                 </nav>
 
                 <div class="header-right">
+                    <div id="gamificationStats" class="gamification-stats hidden">
+                        <div class="stat-item" title="Current Level" data-i18n-title="levelTitle">
+                            <span class="stat-label" data-i18n="levelLabel">LVL</span>
+                            <span id="userLevel" class="stat-value">1</span>
+                        </div>
+                        <div class="stat-item" style="width: 100px;">
+                            <div class="xp-container">
+                                <div id="xpBar" class="xp-bar" style="width: 0%;"></div>
+                            </div>
+                            <span id="xpText" class="stat-label">0 / 0 XP</span>
+                        </div>
+                        <div class="stat-item" title="Daily Streak" data-i18n-title="streakTitle">
+                            <span class="stat-label" data-i18n="streakLabel">STREAK</span>
+                            <span id="userStreak" class="stat-value">0🔥</span>
+                        </div>
+                        <div class="stat-item" title="Total Points" data-i18n-title="pointsTitle">
+                            <span class="stat-label" data-i18n="pointsLabel">PTS</span>
+                            <span id="userPoints" class="stat-value">0</span>
+                        </div>
+                    </div>
                     <div class="utility-group">
                         <button type="button" id="themeToggleBtn" class="utility-btn" title="Toggle Theme"
                             data-i18n-title="themeToggleTitle"></button>

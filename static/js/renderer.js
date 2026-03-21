@@ -366,14 +366,109 @@ export const renderer = {
     },
 
     updateUserProfile(profile) {
-        const imgEl = document.getElementById('userAvatar');
+        const imgEl = document.getElementById('userPicture'); // index.html has userPicture
+        const gamificationStats = document.getElementById('gamificationStats');
+        const userLevel = document.getElementById('userLevel');
+        const userStreak = document.getElementById('userStreak');
+        const userPoints = document.getElementById('userPoints');
+        const xpBar = document.getElementById('xpBar');
+        const xpText = document.getElementById('xpText');
 
         if (profile.email) {
             if (imgEl) {
                 imgEl.src = profile.picture || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
                 imgEl.title = profile.name || profile.email;
             }
+
+            // Update Gamification UI
+            if (gamificationStats) {
+                gamificationStats.classList.remove('hidden');
+
+                if (userLevel) userLevel.textContent = profile.level || 1;
+
+                const streak = profile.streak || 0;
+                if (userStreak) {
+                    userStreak.textContent = `${streak}🔥`;
+                    userStreak.classList.toggle('streak-active', streak > 0);
+                }
+
+                if (userPoints) userPoints.textContent = (profile.points || 0).toLocaleString();
+
+                // XP Calculation for Progress Bar (Level 1: 100, Level 2: 200, etc.)
+                const currentXP = profile.xp || 0;
+                const currentLevelXP = currentXP % 100; // 현재 레벨 내에서의 획득 경험치 (0~99)
+                const progress = currentLevelXP; // 1레벨당 100XP 필요하므로 퍼센트와 동일
+
+                if (xpBar) xpBar.style.width = `${progress}%`;
+                if (xpText) xpText.textContent = `${currentLevelXP} / 100 XP`;
+            }
         }
+    },
+
+    triggerConfetti() {
+        // 10% 확률로만 화려한 꽃가루 터뜨리기 (가변적 보상을 통한 중독성 극대화)
+        if (typeof confetti === 'function' && Math.random() < 0.10) {
+            confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#00f2ff', '#bc00ff', '#25d366', '#ff9500']
+            });
+        }
+    },
+
+    triggerXPAnimation() {
+        const statsEl = document.getElementById('gamificationStats');
+
+        // 연속 클릭 시 완벽히 겹치는 것을 방지하기 위한 미세한 난수 오프셋
+        const offsetX = Math.random() * 30 - 15;
+        const offsetY = Math.random() * 15;
+
+        let topPos = 80 + offsetY;
+        let rightPos = (window.innerWidth / 2) - 50 + offsetX; // 기본값 (중앙 상단)
+
+        if (statsEl && !statsEl.classList.contains('hidden')) {
+            const rect = statsEl.getBoundingClientRect();
+            topPos = rect.bottom + 15 + offsetY;
+            // 모바일에서는 중앙 근처, 데스크탑에서는 요소 근처
+            if (window.innerWidth < 480) {
+                rightPos = (window.innerWidth - 200) / 2 + offsetX; // 200 is approx width of floatEl
+            } else {
+                rightPos = window.innerWidth - rect.right + 20 + offsetX;
+            }
+        }
+
+        // Ensure rightPos is not negative and stays within viewport
+        rightPos = Math.max(10, Math.min(rightPos, window.innerWidth - 210));
+
+        const floatEl = document.createElement('div');
+        floatEl.innerHTML = `<span style="color: #ff9500; font-weight: 800; margin-right: 12px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">+10 XP</span>
+                             <span style="color: #00f2ff; font-weight: 800; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">+5 PTS</span>`;
+        floatEl.style.position = 'fixed';
+        floatEl.style.top = `${topPos}px`;
+        floatEl.style.right = `${rightPos}px`;
+        floatEl.style.padding = '8px 16px';
+        floatEl.style.background = 'rgba(20, 20, 25, 0.85)';
+        floatEl.style.border = '1px solid rgba(255,255,255,0.15)';
+        floatEl.style.borderRadius = '20px';
+        floatEl.style.boxShadow = '0 8px 16px rgba(0,0,0,0.3)';
+        floatEl.style.zIndex = '9999';
+        floatEl.style.opacity = '0';
+        floatEl.style.transform = 'translateY(20px) scale(0.8)';
+        floatEl.style.transition = 'all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        floatEl.style.pointerEvents = 'none'; // 마우스 클릭 방해 방지
+
+        document.body.appendChild(floatEl);
+        void floatEl.offsetWidth; // Trigger reflow
+
+        floatEl.style.opacity = '1';
+        floatEl.style.transform = 'translateY(0) scale(1)';
+
+        setTimeout(() => {
+            floatEl.style.opacity = '0';
+            floatEl.style.transform = 'translateY(-30px) scale(0.9)';
+            setTimeout(() => floatEl.remove(), 500); // DOM에서 완전 제거
+        }, 1200);
     },
 
     updateWhatsAppStatus(status) {

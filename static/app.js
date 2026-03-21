@@ -11,6 +11,11 @@ const handlers = {
     async onToggleDone(id, done) {
         try {
             await api.toggleDone(id, done);
+            if (done) {
+                renderer.triggerConfetti();
+                renderer.triggerXPAnimation(); // 경험치 획득 애니메이션 추가
+                fetchUserProfile(); // Update stats
+            }
             fetchMessages();
         } catch (e) { console.error(e); }
     },

@@ -47,6 +47,15 @@ func HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Gamification: Reward user if task is marked as done
+	if req.Done {
+		user, err := store.GetOrCreateUser(email, "", "")
+		if err == nil {
+			_ = user.ProcessTaskCompletion()
+		}
+	}
+
 	w.WriteHeader(http.StatusOK)
 }
 

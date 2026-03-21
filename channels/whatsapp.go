@@ -77,8 +77,8 @@ func (m *WAManager) InitWhatsApp(email string, dbURL string, cfg *config.Config)
 		m.container = sqlstore.NewWithDB(store.GetDB(), "postgres", dbLog)
 	})
 
-	if err != nil || m.container == nil {
-		logger.Errorf("WA Store permanently failed for %s: %v", email, err)
+	if m.container == nil {
+		logger.Errorf("WA Store permanently failed for %s", email)
 		return
 	}
 

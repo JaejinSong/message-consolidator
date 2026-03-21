@@ -128,6 +128,8 @@ func main() {
 	r.Handle("/api/user/aliases", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleGetUserAliases))).Methods("GET")
 	r.Handle("/api/user/alias/add", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleAddAlias))).Methods("POST")
 	r.Handle("/api/user/alias/delete", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleDeleteAlias))).Methods("POST")
+	r.Handle("/api/achievements", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleGetAchievements))).Methods("GET")
+	r.Handle("/api/user/achievements", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleGetUserAchievements))).Methods("GET")
 	r.Handle("/api/tenant/aliases", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleGetTenantAliases))).Methods("GET")
 	r.Handle("/api/tenant/alias/add", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleAddTenantAlias))).Methods("POST")
 	r.Handle("/api/tenant/alias/delete", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleDeleteTenantAlias))).Methods("POST")
@@ -144,20 +146,14 @@ func main() {
 	r.HandleFunc("/auth/gmail/callback", handlers.HandleGmailCallback).Methods("GET")
 	r.Handle("/api/gmail/status", auth.AuthMiddleware(http.HandlerFunc(handlers.HandleGmailStatus))).Methods("GET")
 
-	// Attach the router to the default http server
-	http.Handle("/", r)
-
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	logger.Infof("기동 완료 (Server starting on :%s...)", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
-		log.Fatal(err)
 	srv := &http.Server{
 		Addr:    ":" + port,
-		Handler: nil,
+		Handler: r,
 	}
 
 	go func() {
@@ -166,6 +162,7 @@ func main() {
 			log.Fatalf("Server error: %v", err)
 		}
 	}()
+
 
 	// Graceful Shutdown 설정
 	quit := make(chan os.Signal, 1)
