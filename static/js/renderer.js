@@ -418,6 +418,9 @@ export const renderer = {
         const xpText = document.getElementById('xpText');
 
         if (profile.email) {
+            const userProfileEl = document.getElementById('userProfile');
+            if (userProfileEl) userProfileEl.classList.remove('hidden');
+
             if (imgEl) {
                 imgEl.src = profile.picture || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
                 imgEl.title = profile.name || profile.email;
