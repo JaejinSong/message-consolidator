@@ -1,22 +1,6 @@
-/* 
-   Message Consolidator - Main Style Entry Point
-   This file imports all modular CSS components.
-*/
-
-/* Core & Variables */
-@import url('css/variables.css');
-@import url('css/base.css');
-@import url('css/animations.css');
-
-/* Layout & Structure */
-@import url('css/layout.css');
-@import url('css/components.css');
-
-/* Feature Modules */
-@import url('css/modules/integration.css');
-@import url('css/modules/gamification.css');
-@import url('css/modules/settings.css');
-@import url('css/modules/dashboard.css');
-
-/* Responsive Overrides */
-@import url('css/responsive.css');
+@import "css/variables.css";
+@import "css/base.css";
+@import "css/layout.css";
+@import "css/components.css";
+@import "css/animations.css";
+@import "css/responsive.css";

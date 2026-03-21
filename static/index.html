@@ -28,8 +28,6 @@
                 <nav class="header-center">
                     <button type="button" id="dashViewBtn" class="nav-tab active" data-view="dashboard"
                         data-i18n="dashboardTitle">Dashboard</button>
-                    <button type="button" id="insightsViewBtn" class="nav-tab" data-view="insights"
-                        data-i18n="insightsTitle">Insights</button>
                     <button type="button" id="archiveViewBtn" class="nav-tab" data-view="archive"
                         data-i18n="archiveTitle">Archive</button>
                 </nav>
@@ -176,84 +174,127 @@
                 </div>
             </section>
 
-            <div id="waitingTasksList" class="task-list">
-                <!-- Waiting Cards will be injected here -->
+            <div id="loading" class="hidden">
+                <div class="spinner"></div>
+                <p data-i18n="loading">Gemini is scanning for new tasks...</p>
             </div>
-    </div>
-    <div id="allTasksTab" class="tab-content">
-        <div id="allTasksList" class="task-list">
-            <!-- All Cards will be injected here -->
-        </div>
-    </div>
-    </div>
 
-    <!-- Archive View (Hidden by default) -->
-    <section id="archiveSection" class="hidden glass-card" style="margin-top: 2rem; padding: 2rem; position: relative;">
-        <div id="archiveLoading" class="loading-overlay">
-            <div class="spinner-small"></div>
-        </div>
-        <div class="archive-header">
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <button type="button" id="backToDashBtn" class="action-btn" title="Back to Dashboard"
-                    data-i18n-title="backToDashTitle" style="width: 40px; height: 40px;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                    </svg>
-                </button>
-                <h2>Archive <span class="badge count" id="archiveCount">0</span></h2>
-            </div>
-            <div class="archive-actions" style="flex-wrap: wrap; gap: 0.5rem;">
-                <div class="search-box">
-                    <input type="text" id="archiveSearchInput" placeholder="Search archive..." class="badge"
-                        style="width: 200px; height: 38px; padding: 0 1rem; border-radius: 20px;">
+            <div class="tabs-container">
+                <div class="tabs">
+                    <button type="button" class="tab-btn active" data-tab="myTasksTab"><span id="tabMy"
+                            data-i18n="myTasks">My Tasks</span>
+                        <span class="badge count" id="myCount">0</span></button>
+                    <button type="button" class="tab-btn" data-tab="otherTasksTab"><span id="tabOther"
+                            data-i18n="otherTasks">Other
+                            Tasks</span> <span class="badge count" id="otherCount">0</span></button>
+                    <button type="button" class="tab-btn" data-tab="waitingTasksTab"><span id="tabWaiting"
+                            data-i18n="waitingTasks">Waiting On</span>
+                        <span class="badge count" id="waitingCount">0</span></button>
+                    <button type="button" class="tab-btn" data-tab="allTasksTab"><span id="tabAll"
+                            data-i18n="allTasks">All Tasks</span>
+                        <span class="badge count" id="allCount">0</span></button>
                 </div>
-                <button type="button" id="restoreSelectedBtn" class="badge"
-                    style="cursor: pointer; border-color: var(--accent-color); color: var(--accent-color); display: none;">🔄
-                    Restore Selected</button>
-                <button type="button" id="hardDeleteSelectedBtn" class="badge"
-                    style="cursor: pointer; border-color: #ff3b30; color: #ff3b30; display: none;">🗑 Permanent
-                    Delete</button>
-                <button type="button" id="openExportModalBtn" class="badge"
-                    style="cursor: pointer; border-color: #25d366; color: #25d366;">📥 Export</button>
-                <button type="button" id="closeArchiveBtn" class="badge" style="cursor: pointer;">✖
-                    Close</button>
-            </div>
-        </div>
-        <div class="table-container" style="overflow-x: auto; margin-bottom: 1rem;">
-            <table class="archive-table">
-                <thead>
-                    <tr>
-                        <th style="width: 40px;"><input type="checkbox" id="selectAllArchive"></th>
-                        <th id="ahSource" title="Source" style="width: 40px;" data-i18n-title="hSource">#</th>
-                        <th id="ahRoom">Room</th>
-                        <th id="ahTask">Task</th>
-                        <th id="ahRequester">Requester</th>
-                        <th id="ahAssignee">Assignee</th>
-                        <th id="ahTime">Time</th>
-                        <th id="ahCompletedAt">Completed At</th>
-                    </tr>
-                </thead>
-                <tbody id="archiveBody">
-                    <!-- Archived rows will be injected here -->
-                </tbody>
-            </table>
-        </div>
-        <div class="pagination-controls"
-            style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1rem;">
-            <button type="button" id="prevArchivePage" class="action-btn" data-i18n="prevBtn"
-                style="width: auto; padding: 0.5rem 1rem;">&larr; Prev</button>
-            <span id="archivePageInfo" style="color: var(--text-main); font-size: 0.9rem;">Page 1 / 1</span>
-            <button type="button" id="nextArchivePage" class="action-btn" data-i18n="nextBtn"
-                style="width: auto; padding: 0.5rem 1rem;">Next &rarr;</button>
-        </div>
-    </section>
-    </main>
 
-    <footer>
-        <p>© 2026 Antigravity Lab. Powered by Gemini 3 Flash.</p>
-    </footer>
+                <div class="task-list-header">
+                    <div class="col-source" id="hSource" title="Source" data-i18n-title="hSource">#</div>
+                    <div class="col-room" id="hRoom">Room</div>
+                    <div class="col-task" id="hTask">Task</div>
+                    <div class="col-requester" id="hRequester">Requester</div>
+                    <div class="col-assignee" id="hAssignee">Assignee</div>
+                    <div class="col-time" id="hTime">Time</div>
+                    <div class="col-actions" id="hActions">Actions</div>
+                </div>
+
+                <div id="myTasksTab" class="tab-content active">
+                    <div id="myTasksList" class="task-list">
+                        <!-- My Cards will be injected here -->
+                    </div>
+                </div>
+                <div id="otherTasksTab" class="tab-content">
+                    <div id="otherTasksList" class="task-list">
+                        <!-- Other Cards will be injected here -->
+                    </div>
+                </div>
+                <div id="waitingTasksTab" class="tab-content">
+                    <div id="waitingTasksList" class="task-list">
+                        <!-- Waiting Cards will be injected here -->
+                    </div>
+                </div>
+                <div id="allTasksTab" class="tab-content">
+                    <div id="allTasksList" class="task-list">
+                        <!-- All Cards will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Archive View (Hidden by default) -->
+            <section id="archiveSection" class="hidden glass-card"
+                style="margin-top: 2rem; padding: 2rem; position: relative;">
+                <div id="archiveLoading" class="loading-overlay">
+                    <div class="spinner-small"></div>
+                </div>
+                <div class="archive-header">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <button type="button" id="backToDashBtn" class="action-btn" title="Back to Dashboard"
+                            data-i18n-title="backToDashTitle" style="width: 40px; height: 40px;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                            </svg>
+                        </button>
+                        <h2>Archive <span class="badge count" id="archiveCount">0</span></h2>
+                    </div>
+                    <div class="archive-actions" style="flex-wrap: wrap; gap: 0.5rem;">
+                        <div class="search-box">
+                            <input type="text" id="archiveSearchInput" placeholder="Search archive..." class="badge"
+                                style="width: 200px; height: 38px; padding: 0 1rem; border-radius: 20px;">
+                        </div>
+                        <button type="button" id="restoreSelectedBtn" class="badge"
+                            style="cursor: pointer; border-color: var(--accent-color); color: var(--accent-color); display: none;">🔄
+                            Restore Selected</button>
+                        <button type="button" id="hardDeleteSelectedBtn" class="badge"
+                            style="cursor: pointer; border-color: #ff3b30; color: #ff3b30; display: none;">🗑 Permanent
+                            Delete</button>
+                        <button type="button" id="openExportModalBtn" class="badge"
+                            style="cursor: pointer; border-color: #25d366; color: #25d366;">📥 Export</button>
+                        <button type="button" id="closeArchiveBtn" class="badge" style="cursor: pointer;">✖
+                            Close</button>
+                    </div>
+                </div>
+                <div class="table-container" style="overflow-x: auto; margin-bottom: 1rem;">
+                    <table class="archive-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;"><input type="checkbox" id="selectAllArchive"></th>
+                                <th id="ahSource" title="Source" style="width: 40px;" data-i18n-title="hSource">#</th>
+                                <th id="ahRoom">Room</th>
+                                <th id="ahTask">Task</th>
+                                <th id="ahRequester">Requester</th>
+                                <th id="ahAssignee">Assignee</th>
+                                <th id="ahTime">Time</th>
+                                <th id="ahCompletedAt">Completed At</th>
+                            </tr>
+                        </thead>
+                        <tbody id="archiveBody">
+                            <!-- Archived rows will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination-controls"
+                    style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1rem;">
+                    <button type="button" id="prevArchivePage" class="action-btn" data-i18n="prevBtn"
+                        style="width: auto; padding: 0.5rem 1rem;">&larr; Prev</button>
+                    <span id="archivePageInfo" style="color: var(--text-main); font-size: 0.9rem;">Page 1 / 1</span>
+                    <button type="button" id="nextArchivePage" class="action-btn" data-i18n="nextBtn"
+                        style="width: auto; padding: 0.5rem 1rem;">Next &rarr;</button>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>© 2026 Antigravity Lab. Powered by Gemini 3 Flash.</p>
+        </footer>
     </div>
 
     <!-- Settings Modal -->
