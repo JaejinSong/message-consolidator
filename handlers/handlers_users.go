@@ -3,6 +3,7 @@ package handlers
 import (
 	"message-consolidator/auth"
 	"message-consolidator/channels"
+	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
 )
@@ -143,10 +144,20 @@ func HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	monthPrompt, monthCompletion, err := store.GetMonthlyTokenUsage(email)
+	if err != nil {
+		// Log error but continue with daily data if monthly fails
+		logger.Errorf("[HANDLER] Failed to get monthly token usage: %v", err)
+	}
+
 	respondJSON(w, map[string]int{
-		"todayPrompt":     prompt,
-		"todayCompletion": completion,
-		"todayTotal":      prompt + completion,
+		"todayPrompt":      prompt,
+		"todayCompletion":  completion,
+		"todayTotal":       prompt + completion,
+		"monthPrompt":      monthPrompt,
+		"monthCompletion":  monthCompletion,
+		"monthTotal":       monthPrompt + monthCompletion,
 	})
 }
 

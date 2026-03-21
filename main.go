@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"message-consolidator/auth"
 	"message-consolidator/channels"
@@ -11,6 +12,9 @@ import (
 	"message-consolidator/store"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -151,5 +155,47 @@ func main() {
 	logger.Infof("기동 완료 (Server starting on :%s...)", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: nil,
 	}
+
+	go func() {
+		logger.Infof("기동 완료 (Server starting on :%s...)", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server error: %v", err)
+		}
+	}()
+
+	// Graceful Shutdown 설정
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit // OS 시그널(Ctrl+C 또는 컨테이너 종료) 대기
+
+	logger.Infof("Shutting down server gracefully...")
+
+	// 1. 웹소켓 및 외부 연결 안전하게 종료 (WhatsApp)
+	channels.DisconnectAllWhatsApp()
+
+	// 2. 메모리에 남은 지연 쓰기(Lazy Write) 데이터들 강제 플러시
+	if err := store.FlushTokenUsage(); err != nil {
+		logger.Errorf("Failed to flush token usage during shutdown: %v", err)
+	}
+	store.FlushAllScanMetadata()
+	logger.Infof("In-memory metadata flushed successfully.")
+
+	// 3. 실행 중인 HTTP 요청이 끝날 때까지 최대 5초 대기 후 서버 종료
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Errorf("Server shutdown error: %v", err)
+	}
+
+	// 4. DB 커넥션 풀 완전 종료 (NeonDB 자원 즉시 반환)
+	if db := store.GetDB(); db != nil {
+		logger.Infof("Closing database connections...")
+		db.Close()
+	}
+
+	logger.Infof("Server exited successfully")
 }

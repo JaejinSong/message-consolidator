@@ -137,6 +137,28 @@ func GetDailyTokenUsage(email string) (int, int, error) {
 	return prompt, completion, nil
 }
 
+func GetMonthlyTokenUsage(email string) (int, int, error) {
+	var prompt, completion int
+	// Query for current month (starting from the 1st day of the current month)
+	query := `SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) 
+			  FROM token_usage 
+			  WHERE user_email = $1 AND date >= date_trunc('month', CURRENT_DATE)`
+	err := db.QueryRow(query, email).Scan(&prompt, &completion)
+	if err != nil && err != sql.ErrNoRows {
+		return 0, 0, err
+	}
+
+	// Add currently dirty data as it belongs to 'today' (which is part of 'this month')
+	tokenMu.Lock()
+	if data, ok := tokenDirtyData[email]; ok {
+		prompt += data.Prompt
+		completion += data.Completion
+	}
+	tokenMu.Unlock()
+
+	return prompt, completion, nil
+}
+
 func SaveGmailToken(email, tokenJSON string) error {
 	metadataMu.Lock()
 	tokenCache[email] = tokenJSON
