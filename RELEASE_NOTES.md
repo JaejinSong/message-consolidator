@@ -1,3 +1,13 @@
+# Release Notes - v2.0.8 (2026-03-21 07:07 UTC)
+
+## ⚡ DB Connection Pool Auto-Optimization
+- **[FEAT] Intelligent DB Detection**: Implemented automatic connection string detection to distinguish between Neon DB and standard PostgreSQL.
+- **[OPTIMIZE] Dynamic Connection Pooling**: 
+    - **Neon DB**: Automatically sets `MaxIdleConns(0)` for optimal scale-to-zero cost efficiency.
+    - **Standard DB**: Sets `MaxIdleConns(2)` to maintain a minimum pool for reduced latency on non-serverless environments.
+
+---
+
 # Release Notes - v2.0.7 (2026-03-20 18:30 UTC)
 
 ## 🎮 Gamification Infrastructure & DB Optimization
