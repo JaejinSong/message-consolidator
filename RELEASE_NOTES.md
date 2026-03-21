@@ -1,3 +1,12 @@
+# Release Notes - v2.1.1 (2026-03-21 08:48 UTC)
+
+## ⚡ Real-time Token Sync & UI Polish
+- **[FEAT] Real-time Token Usage Sync**: Implemented automatic token usage background updates every 60 seconds in `app.js`, ensuring the dashboard reflects the latest AI costs without manual refreshes.
+- **[OPTIMIZE] I18n Date Formatting**: Refactored `renderer.js` to use unified i18n data for the "Yesterday" label, improving consistency across all supported languages.
+- **[UI] Detailed Token Tooltip**: Enhanced the token badge tooltip to explicitly display Prompt, Completion, and Monthly Cost breakdowns in a more readable format.
+
+---
+
 # Release Notes - v2.1.0 (2026-03-21 08:45 UTC)
 
 ## ⚡ Monthly Token Usage & Graceful Shutdown
