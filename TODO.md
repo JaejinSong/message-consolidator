@@ -29,14 +29,14 @@
   - [ ] **스트릭 프리즈**: 포인트로 구매 가능한 스트릭 보호권
   - [ ] **생산성 히트맵**: GitHub 커밋 그래프 형태의 일일 업무 달성도 시각화
 - [ ] **보상 및 피드백 (Rewards & Flow)**
-  - [ ] **XP & Level System**: 업무 완료 시 XP 지급 및 레벨업 시스템 (RPG Style)
+  - [x] **XP & Level System**: 업무 완료 시 XP 지급 및 레벨업 시스템 (RPG Style)
   - [ ] **Critical Hit**: 업무 완료 시 5% 확률로 포인트/XP 2배 보너스
-  - [ ] **Visual Celebration**: `canvas-confetti`를 활용한 꽃가루 연출 (Todoist Style)
+  - [x] **Visual Celebration**: `canvas-confetti`를 활용한 꽃가루 연출 (Todoist Style)
   - [ ] **Combo System**: 단시간 내 연속 완료 시 콤보 배율 상승 UI
 - [ ] **업적 및 배지 (Achievements)**
   - [ ] **Morning Star**: 오전 8시 이전 업무 3개 완료 시 지급
   - [ ] **Fire Extinguisher**: 높은 우선순위 업무를 신속히 처리 시 지급
   - [ ] **태스크 마스터**: 누적 업무 완료 마일스톤 (100, 500, 1000개)
 - [ ] **통계 및 대시보드**
-  - [ ] 사용자 프로필 영역에 포인트, 스트릭, 레벨 정보 실시간 표시
+  - [x] 사용자 프로필 영역에 포인트, 스트릭, 레벨 정보 실시간 표시
   - [ ] 전문성 강조를 위한 'Productivity Score' 네이밍 및 UI 검토
