@@ -1,7 +1,9 @@
 package channels
 
 import (
+	"errors"
 	"fmt"
+	"message-consolidator/logger"
 	"message-consolidator/types"
 	"time"
 
@@ -77,7 +79,27 @@ func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS stri
 		Limit:     100,
 	}
 
-	history, err := s.api.GetConversationHistory(params)
+	var history *slack.GetConversationHistoryResponse
+	var err error
+	maxRetries := 3 // 최대 3번까지 재시도 허용
+
+	for i := 0; i <= maxRetries; i++ {
+		history, err = s.api.GetConversationHistory(params)
+		if err == nil {
+			break // 정상 응답 시 루프 탈출
+		}
+
+		// Slack Rate Limit(HTTP 429) 에러인 경우 감지
+		var rateLimitedError *slack.RateLimitedError
+		if errors.As(err, &rateLimitedError) {
+			logger.Warnf("[SLACK-API] Rate limited on channel %s. Retrying after %v (attempt %d/%d)", channelID, rateLimitedError.RetryAfter, i+1, maxRetries)
+			time.Sleep(rateLimitedError.RetryAfter) // Slack이 요구한 시간만큼 정확히 대기 후 재시도
+			continue
+		}
+
+		break // Rate Limit 이외의 에러(토큰 만료 등)는 즉시 중단
+	}
+
 	if err != nil {
 		return nil, err
 	}

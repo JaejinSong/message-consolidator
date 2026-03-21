@@ -7,6 +7,7 @@ import (
 	"message-consolidator/config"
 	"message-consolidator/handlers"
 	"message-consolidator/logger"
+	"message-consolidator/scanner"
 	"message-consolidator/store"
 	"net/http"
 	"os"
@@ -57,14 +58,17 @@ func main() {
 	auth.SetupOAuth(cfg)
 	channels.SetupGmailOAuth(cfg)
 
+	// Initialize Scanner
+	scanner.Init(cfg)
+
 	// Initialize Handlers
 	handlers.Init(cfg)
-	handlers.ScanFunc = scan
-	handlers.FullScanFunc = RunAllScans
+	handlers.ScanFunc = scanner.Scan
+	handlers.FullScanFunc = scanner.RunAllScans
 
 	// Start Background Workers (Only if NOT in Cloud Run mode)
 	if !cfg.CloudRunMode {
-		go startBackgroundScanner()
+		go scanner.StartBackgroundScanner()
 	} else {
 		logger.Infof("Cloud Run Mode: Background scanner disabled. Triggers via API expected.")
 	}
