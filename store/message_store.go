@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"message-consolidator/logger"
@@ -22,11 +23,11 @@ func SaveMessage(msg ConsolidatedMessage) (bool, int, error) {
 	msg.Assignee = NormalizeName(msg.UserEmail, msg.Assignee)
 
 	var lastID int
-	query := `INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text) 
-			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	query := `INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline) 
+			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			  ON CONFLICT(user_email, source_ts) DO NOTHING
 			  RETURNING id;`
-	err := db.QueryRow(query, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText).Scan(&lastID)
+	err := db.QueryRow(query, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline).Scan(&lastID)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -75,16 +76,16 @@ func SaveMessages(msgs []ConsolidatedMessage) ([]int, error) {
 	}
 
 	valueStrings := make([]string, 0, len(toInsert))
-	valueArgs := make([]interface{}, 0, len(toInsert)*10)
+	valueArgs := make([]interface{}, 0, len(toInsert)*11)
 
 	for i, msg := range toInsert {
-		offset := i * 10
-		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
-			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+9, offset+10))
-		valueArgs = append(valueArgs, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText)
+		offset := i * 12
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+9, offset+10, offset+11, offset+12))
+		valueArgs = append(valueArgs, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline)
 	}
 
-	query := fmt.Sprintf(`INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text) 
+	query := fmt.Sprintf(`INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline) 
 			  VALUES %s
 			  ON CONFLICT(user_email, source_ts) DO NOTHING
 			  RETURNING id, source_ts, user_email;`, strings.Join(valueStrings, ","))
@@ -174,7 +175,7 @@ func GetArchivedMessages(email string) ([]ConsolidatedMessage, error) {
 	return []ConsolidatedMessage{}, nil
 }
 
-func GetArchivedMessagesFiltered(email string, limit, offset int, search string, sortField, sortOrder string) ([]ConsolidatedMessage, int, error) {
+func GetArchivedMessagesFiltered(ctx context.Context, email string, limit, offset int, search string, sortField, sortOrder string) ([]ConsolidatedMessage, int, error) {
 	searchQuery := ""
 	args := []interface{}{email}
 	argIdx := 2
@@ -201,7 +202,7 @@ func GetArchivedMessagesFiltered(email string, limit, offset int, search string,
 		%s`, autoArchiveDays, searchQuery)
 
 	var total int
-	err := db.QueryRow(countQuery, args...).Scan(&total)
+	err := db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -232,7 +233,7 @@ func GetArchivedMessagesFiltered(email string, limit, offset int, search string,
 	}
 
 	dataQuery := fmt.Sprintf(`
-		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at 
+		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') 
 		FROM messages 
 		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '%d days'))
 		%s
@@ -241,7 +242,7 @@ func GetArchivedMessagesFiltered(email string, limit, offset int, search string,
 
 	args = append(args, limit, offset)
 
-	rows, err := db.Query(dataQuery, args...)
+	rows, err := db.QueryContext(ctx, dataQuery, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -250,7 +251,7 @@ func GetArchivedMessagesFiltered(email string, limit, offset int, search string,
 	var msgs []ConsolidatedMessage
 	for rows.Next() {
 		var m ConsolidatedMessage
-		if err := rows.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt, &m.Category, &m.Deadline); err != nil {
 			return nil, 0, err
 		}
 		msgs = append(msgs, m)
@@ -345,9 +346,9 @@ func RestoreMessages(email string, ids []int) error {
 	return nil
 }
 
-func GetMessageByID(id int) (ConsolidatedMessage, error) {
+func GetMessageByID(ctx context.Context, id int) (ConsolidatedMessage, error) {
 	var m ConsolidatedMessage
-	err := db.QueryRow("SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at FROM messages WHERE id = $1", id).Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt)
+	err := db.QueryRowContext(ctx, "SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') FROM messages WHERE id = $1", id).Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt, &m.Category, &m.Deadline)
 	if err != nil {
 		return m, err
 	}

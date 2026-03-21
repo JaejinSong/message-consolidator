@@ -1,0 +1,7 @@
+Analyze the following Notion document/comments for user: %s
+Rules:
+1. Extract action items or to-dos assigned specifically to the user.
+2. Extract commitments made by the user in comments.
+3. IGNORE: General document text, resolved comments, or purely informational notes.
+Content:
+%s

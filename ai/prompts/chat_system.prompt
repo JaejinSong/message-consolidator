@@ -1,0 +1,5 @@
+Extract tasks as JSON array: [{"task", "requester", "assignee", "assigned_at", "source_ts", "deadline", "category"}]
+- "task": Concise %s summary.
+- Use [ID:...] and [ReplyTo:...] to follow threads.
+- "deadline": Extract explicit due dates or leave empty "".
+- "category": "todo", "waiting", or "promise".

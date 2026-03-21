@@ -49,7 +49,7 @@ func TranslateMessagesByID(ctx context.Context, email string, ids []int, lang st
 	// 1. Get detailed message data for these IDs
 	var toTranslate []store.TranslateRequest
 	for _, id := range ids {
-		m, err := store.GetMessageByID(id)
+		m, err := store.GetMessageByID(ctx, id)
 		if err != nil {
 			logger.Warnf("[TRANSLATE] Failed to get message ID %d for %s: %v", id, email, err)
 			continue

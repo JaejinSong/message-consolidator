@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"context"
+	"errors"
 	"message-consolidator/auth"
 	"message-consolidator/store"
 	"net/http"
@@ -75,8 +77,12 @@ func HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 		limit = 50
 	}
 
-	msgsRaw, total, err := store.GetArchivedMessagesFiltered(email, limit, offset, q, sort, order)
+	msgsRaw, total, err := store.GetArchivedMessagesFiltered(r.Context(), email, limit, offset, q, sort, order)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			http.Error(w, "Client Closed Request", 499)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -101,8 +107,12 @@ func HandleGetArchivedCount(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	q := r.URL.Query().Get("q")
 
-	_, total, err := store.GetArchivedMessagesFiltered(email, 1, 0, q, "", "")
+	_, total, err := store.GetArchivedMessagesFiltered(r.Context(), email, 1, 0, q, "", "")
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			http.Error(w, "Client Closed Request", 499)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -140,8 +150,12 @@ func HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := store.GetMessageByID(id)
+	msg, err := store.GetMessageByID(r.Context(), id)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			http.Error(w, "Client Closed Request", 499)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

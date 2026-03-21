@@ -133,13 +133,16 @@ func (m *WAManager) InitWhatsApp(email string, dbURL string, cfg *config.Config)
 func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt interface{}) {
 	switch v := evt.(type) {
 	case *events.Message:
-		if v.Info.IsFromMe {
-			return
-		}
+		var msgText string
+		var replyToID string
 
-		msgText := v.Message.GetConversation()
-		if msgText == "" {
-			msgText = v.Message.GetExtendedTextMessage().GetText()
+		if v.Message.GetConversation() != "" {
+			msgText = v.Message.GetConversation()
+		} else if extMsg := v.Message.GetExtendedTextMessage(); extMsg != nil {
+			msgText = extMsg.GetText()
+			if extMsg.ContextInfo != nil && extMsg.ContextInfo.StanzaID != nil {
+				replyToID = *extMsg.ContextInfo.StanzaID
+			}
 		}
 
 		if msgText == "" {
@@ -147,7 +150,9 @@ func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt inte
 		}
 
 		sender := v.Info.Sender.String()
-		if v.Info.PushName != "" {
+		if v.Info.IsFromMe {
+			sender = "나" // 내가 보낸 메시지임을 AI가 인지하도록 명시
+		} else if v.Info.PushName != "" {
 			sender = v.Info.PushName
 			go store.SaveWhatsAppContact(email, v.Info.Sender.User, v.Info.PushName)
 		}
@@ -187,6 +192,7 @@ func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt inte
 			Sender:    sender,
 			Text:      msgText,
 			Timestamp: v.Info.Timestamp,
+			ReplyToID: replyToID,
 		})
 
 		if len(chatBuffer) > 200 {

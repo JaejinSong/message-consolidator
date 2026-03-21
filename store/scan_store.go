@@ -238,3 +238,59 @@ func FlushAllScanMetadata() {
 		PersistAllScanMetadata(email)
 	}
 }
+
+type SlackThreadMeta struct {
+	UserEmail string
+	ChannelID string
+	ThreadTS  string
+	LastTS    string
+}
+
+func RegisterActiveSlackThread(email, channelID, threadTS string) error {
+	targetID := channelID + "|" + threadTS
+	key := fmt.Sprintf("%s:slack_thread:%s", email, targetID)
+
+	// DB를 깨우지 않고 지연 쓰기(Lazy Write)를 위해 메모리와 Dirty 캐시에만 등록
+	metadataMu.Lock()
+	if _, exists := scanCache[key]; !exists {
+		scanCache[key] = threadTS
+		dirtyScanKeys[key] = true
+	}
+	metadataMu.Unlock()
+	return nil
+}
+
+func GetActiveSlackThreads() ([]SlackThreadMeta, error) {
+	var threads []SlackThreadMeta
+	// DB를 조회하지 않고 서버 구동 시 로드된 메모리 캐시(scanCache)에서 즉시 필터링
+	metadataMu.RLock()
+	for key, lastTS := range scanCache {
+		parts := strings.Split(key, ":")
+		if len(parts) == 3 && parts[1] == "slack_thread" {
+			targetParts := strings.Split(parts[2], "|")
+			if len(targetParts) == 2 {
+				threads = append(threads, SlackThreadMeta{UserEmail: parts[0], ChannelID: targetParts[0], ThreadTS: targetParts[1], LastTS: lastTS})
+			}
+		}
+	}
+	metadataMu.RUnlock()
+	return threads, nil
+}
+
+func UpdateSlackThreadLastTS(email, channelID, threadTS, lastTS string) error {
+	// 즉시 DB에 쓰지 않고 기존 메인 스캐너의 지연 쓰기 파이프라인에 묻어서(Piggybacking) 처리
+	return UpdateLastScan(email, "slack_thread", channelID+"|"+threadTS, lastTS)
+}
+
+func RemoveActiveSlackThread(email, channelID, threadTS string) error {
+	targetID := channelID + "|" + threadTS
+	key := fmt.Sprintf("%s:slack_thread:%s", email, targetID)
+
+	metadataMu.Lock()
+	delete(scanCache, key)
+	delete(dirtyScanKeys, key)
+	metadataMu.Unlock()
+
+	_, err := db.Exec("DELETE FROM scan_metadata WHERE user_email = $1 AND source = 'slack_thread' AND target_id = $2", email, targetID)
+	return err
+}
