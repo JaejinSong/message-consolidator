@@ -347,3 +347,14 @@ func GetWhatsAppStatus(email string) string {
 func GetWhatsAppQR(ctx context.Context, email string) (string, error) {
 	return DefaultWAManager.GetQR(ctx, email)
 }
+
+func DisconnectAllWhatsApp() {
+	DefaultWAManager.mu.Lock()
+	defer DefaultWAManager.mu.Unlock()
+	for email, client := range DefaultWAManager.clients {
+		if client.IsConnected() {
+			logger.Infof("[WA] Disconnecting client for %s...", email)
+			client.Disconnect()
+		}
+	}
+}

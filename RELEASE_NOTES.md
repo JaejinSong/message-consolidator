@@ -1,3 +1,11 @@
+# Release Notes - v2.1.0 (2026-03-21 08:45 UTC)
+
+## ⚡ Monthly Token Usage & Graceful Shutdown
+- **[FEAT] Monthly Token Usage Tracking**: Added monthly cumulative token usage aggregation and display. The token badge tooltip now shows both daily and monthly totals with cost estimates.
+- **[FEAT] Graceful Shutdown Implementation**: Implemented a robust server shutdown sequence in `main.go`. The server now handles `SIGINT` and `SIGTERM` to safely flush in-memory data (tokens, metadata), disconnect WhatsApp sessions, and close database connections before exiting.
+
+---
+
 # Release Notes - v2.0.9 (2026-03-21 07:48 UTC)
 
 ## ⚡ Slack API Optimization & Scanner Architecture Refactoring

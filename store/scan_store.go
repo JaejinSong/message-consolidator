@@ -222,3 +222,19 @@ func PersistAllScanMetadata(userEmail string) {
 	}
 	metadataMu.Unlock()
 }
+
+func FlushAllScanMetadata() {
+	metadataMu.RLock()
+	usersToFlush := make(map[string]bool)
+	for key := range dirtyScanKeys {
+		parts := strings.Split(key, ":")
+		if len(parts) >= 1 {
+			usersToFlush[parts[0]] = true
+		}
+	}
+	metadataMu.RUnlock()
+
+	for email := range usersToFlush {
+		PersistAllScanMetadata(email)
+	}
+}
