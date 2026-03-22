@@ -1,3 +1,12 @@
+# Release Notes (User) - v2.2.5 (2026-03-22 14:05 UTC)
+
+## 💎 Better Deployment & Smarter Insights
+- **[NEW] Deployment Safety Check (`deploy.sh`)**: We've added a new safety step that automatically verifies the code (build tests and logic checks) before it's sent to the server. If anything is broken, the deployment stops immediately, ensuring the service stays stable for you.
+- **[IMPROVED] Clearer Business Insights**: We've updated the "Insights" tab with better visual highlights for pending tasks and more readable activity charts, helping you stay on top of your work more easily.
+- **[SYS] System Integrity**: General maintenance and background improvements to ensure the platform remains reliable and ready for upcoming features.
+
+---
+
 # 업데이트 소식 (사용자용) - v2.2.4 (2026-03-22 13:20 UTC)
 
 ## 🌍 타임존 정합성 강화 및 글로벌 다국어 지원 확장

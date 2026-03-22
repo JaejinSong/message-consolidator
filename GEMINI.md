@@ -7,7 +7,7 @@
 - **Purpose**: Task extraction, translation, and analysis.
 
 ## Versioning Policy
-- **보수적인 버전 넘버링**: 기능 추가나 구조 개선 시 버전 번호를 급격하게 올리기보다, 소수점 단위(Patch/Minor)로 보수적으로 업데이트한다. 패치/마이너 버전은 2~3 자리 단위를 사용한다. (예: 2.1.981) 버전 이력을 촘촘하게 관리한다.
+- **보수적인 버전 넘버링**: 기능 추가나 구조 개선 시 버전 번호를 급격하게 올리기보다, Patch로 보수적으로 업데이트하며 버전은 2~3 자리 단위를 사용한다. (예: 2.1.981) 버전 이력을 촘촘하게 관리한다.
 
 ## Token Optimization Strategy (Cost Saving)
 - **Model Selection**: 

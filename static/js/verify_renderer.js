@@ -166,6 +166,7 @@ function testShowToast() {
             appendChild(child) { this.children.push(child); },
             remove() { this._removed = true; }
         }),
+        querySelectorAll: (selector) => [], // Added to fix TypeError in showToast
         body: mockBody
     };
 

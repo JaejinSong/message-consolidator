@@ -111,6 +111,10 @@ export const I18N_DATA = {
         dashboardTitle: "대시보드",
         insightsTitle: "인사이트",
         summaryDaily: "오늘의 한 줄 요약",
+        glanceTotalCompleted: "지금까지 총 {count}개의 업무를 완료했습니다. ",
+        glancePeakTime: "가장 집중한 시간대는 {time}입니다.",
+        glanceAbandoned: "⚠️ {count}개의 업무가 3일 이상 방치되었습니다. 확인이 필요합니다!",
+        glanceAllClear: "✨ 완벽합니다! 방치된 업무가 없습니다. 계속 유지해 보세요!",
         heatmapTitle: "최근 30일 활동",
         sourceDistTitle: "채널별 분포",
         waitingTasks: "대기 중인 업무",
@@ -150,7 +154,9 @@ export const I18N_DATA = {
             "할 일이 없네요. 당당하게 이 화면을 팀장님께 보여주세요! 📈"
         ],
         stale: "정체됨",
-        abandoned: "방치됨"
+        abandoned: "방치됨",
+        heatmapTaskTooltip: "{count}개의 업무 완료 ({date})",
+        hourlyTaskTooltip: "{count}개의 업무 완료 ({time})"
     },
     en: {
         subTitle: "Automated Slack & WhatsApp Task Dashboard",
@@ -264,6 +270,10 @@ export const I18N_DATA = {
         dashboardTitle: "Dashboard",
         insightsTitle: "Insights",
         summaryDaily: "Daily Glance",
+        glanceTotalCompleted: "You've completed {count} tasks so far. ",
+        glancePeakTime: "Your peak focus time is {time}.",
+        glanceAbandoned: "⚠️ {count} items have been pending for over 3 days. Time to clear them up!",
+        glanceAllClear: "✨ All caught up! No stale tasks found. Keep it up!",
         heatmapTitle: "Activity (Last 30 Days)",
         sourceDistTitle: "Channel Distribution",
         waitingTasks: "Pending Tasks",
@@ -303,7 +313,9 @@ export const I18N_DATA = {
             "No tasks left. Show this screen proudly to your manager! 📈"
         ],
         stale: "Stale",
-        abandoned: "Abandoned"
+        abandoned: "Abandoned",
+        heatmapTaskTooltip: "{count} tasks completed ({date})",
+        hourlyTaskTooltip: "{count} tasks completed ({time})"
     },
     id: {
         subTitle: "Dasbor Tugas Slack & WhatsApp Otomatis",
@@ -411,6 +423,10 @@ export const I18N_DATA = {
         dashboardTitle: "Dasbor",
         insightsTitle: "Wawasan",
         summaryDaily: "Sekilas Hari Ini",
+        glanceTotalCompleted: "Anda telah menyelesaikan {count} tugas sejauh ini. ",
+        glancePeakTime: "Waktu fokus puncak Anda adalah {time}.",
+        glanceAbandoned: "⚠️ {count} tugas telah tertunda lebih dari 3 hari. Saatnya menyelesaikannya!",
+        glanceAllClear: "✨ Sempurna! Tidak ada tugas yang terabaikan. Pertahankan!",
         heatmapTitle: "Aktivitas (30 Hari Terakhir)",
         sourceDistTitle: "Distribusi Saluran",
         pendingMeTasks: "Tugas Tertunda Saya",
@@ -446,7 +462,9 @@ export const I18N_DATA = {
             "Tidak ada tugas tersisa. Tunjukkan layar ini dengan bangga kepada manajer Anda! 📈"
         ],
         stale: "Tertunda",
-        abandoned: "Terabaikan"
+        abandoned: "Terabaikan",
+        heatmapTaskTooltip: "{count} tugas selesai ({date})",
+        hourlyTaskTooltip: "{count} tugas selesai ({time})"
     },
     th: {
         subTitle: "แดชบอร์ดงาน Slack & WhatsApp อัตโนมัติ",
@@ -554,6 +572,10 @@ export const I18N_DATA = {
         dashboardTitle: "แดชบอร์ด",
         insightsTitle: "ข้อมูลเชิงลึก",
         summaryDaily: "สรุปประจำวัน",
+        glanceTotalCompleted: "คุณทำเสร็จไปแล้ว {count} งาน ",
+        glancePeakTime: "เวลาโฟกัสสูงสุดของคุณคือ {time}",
+        glanceAbandoned: "⚠️ {count} งานถูกทิ้งไว้เกิน 3 วัน ได้เวลาจัดการแล้ว!",
+        glanceAllClear: "✨ สมบูรณ์แบบ! ไม่มีงานที่ค้างคา ทำได้ดีมาก!",
         heatmapTitle: "กิจกรรม (30 วันล่าสุด)",
         sourceDistTitle: "การกระจายช่องทาง",
         pendingMeTasks: "งานที่ฉันต้องทำ",
@@ -589,6 +611,8 @@ export const I18N_DATA = {
             "ไม่มีงานเหลือแล้ว โชว์หน้านี้ให้หัวหน้าดูอย่างภาคภูมิใจได้เลย! 📈"
         ],
         stale: "ค้างคา",
-        abandoned: "ถูกละเลย"
+        abandoned: "ถูกละเลย",
+        heatmapTaskTooltip: "เสร็จสิ้น {count} งาน ({date})",
+        hourlyTaskTooltip: "เสร็จสิ้น {count} งาน ({time})"
     }
 };

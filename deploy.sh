@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 # Configuration
 PROJECT_ID="gemini-enterprise-487906"
@@ -8,6 +9,29 @@ IMAGE_NAME="app"
 ZONE="us-central1-a"
 VPS_NAME="chat-analyzer-vps"
 BUCKET_NAME="message-consolidator-deploy-gemini-enterprise-487906"
+
+# 0. 로컬 사전 검증 (Local Pre-verification)
+echo "==> Step 0: Local Pre-verification..."
+
+echo "--> 0.1: Tidying Go modules..."
+go mod tidy
+
+echo "--> 0.2: Building Go project..."
+go build ./...
+
+echo "--> 0.3: Running Logic Verification..."
+if ! node static/js/verify_logic.js; then
+    echo "❌ Logic verification failed!"
+    exit 1
+fi
+
+echo "--> 0.4: Running Renderer Verification..."
+if ! node static/js/verify_renderer.js; then
+    echo "❌ Renderer verification failed!"
+    exit 1
+fi
+
+echo "✅ Local pre-verification passed!"
 
 # 1. 로컬에서 Docker 이미지 빌드 및 푸시
 echo "==> Step 1: Building and pushing Docker image..."

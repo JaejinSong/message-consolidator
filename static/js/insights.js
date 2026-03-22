@@ -108,16 +108,22 @@ export const insights = {
         const lang = state.currentLang || 'ko';
         const i18n = I18N_DATA[lang];
 
-        let html = `<p>${i18n.totalCompleted}: <span class="accent">${stats.total_completed}</span>. `;
+        let html = '<p>';
+
+        const totalHtml = `<span class="accent">${stats.total_completed}</span>`;
+        html += (i18n.glanceTotalCompleted || "Total completed: {count}. ").replace('{count}', totalHtml);
 
         if (stats.peak_time && stats.peak_time !== "-") {
-            html += `${i18n.peakFocusTime}: <span class="accent">${stats.peak_time}</span>. `;
+            const peakHtml = `<span class="accent">${stats.peak_time}</span>`;
+            html += (i18n.glancePeakTime || "Peak focus time: {time}. ").replace('{time}', peakHtml);
         }
 
         if (stats.abandoned_tasks > 0) {
-            html += `<br><span style="color:#ff3b30; font-weight:800;">⚠️ ${stats.abandoned_tasks}</span> items have been pending for over 3 days. Time to clear them up!`;
+            const abandonedText = (i18n.glanceAbandoned || '⚠️ {count} items have been pending...').replace('{count}', `<span style="color:#ff3b30; font-weight:800;">${stats.abandoned_tasks}</span>`);
+            html += `<br>${abandonedText}</p>`;
         } else {
-            html += `<br>✨ All caught up! No stale tasks found. Keep it up!`;
+            const clearText = i18n.glanceAllClear || '✨ All caught up! No stale tasks found.';
+            html += `<br><span style="font-weight:600;">${clearText}</span></p>`;
         }
 
         container.innerHTML = html;
@@ -129,6 +135,10 @@ export const insights = {
     renderActivityHeatmap(stats) {
         const container = document.getElementById('activityHeatmap');
         if (!container) return;
+        container.style.position = 'relative'; // 툴팁 위치 계산을 위해 추가
+
+        const lang = state.currentLang || 'ko';
+        const i18n = I18N_DATA[lang];
 
         let html = '<div class="heatmap-grid">';
         const today = new Date();
@@ -142,11 +152,18 @@ export const insights = {
             const taskCount = stats.daily_completions[dateStr] || 0;
             const level = calculateHeatmapLevel(taskCount);
 
-            html += `<div class="heatmap-day" data-level="${level}" title="${taskCount} tasks (${dateStr})"></div>`;
+            const tooltipText = (i18n.heatmapTaskTooltip || "{count} tasks completed ({date})")
+                .replace('{count}', taskCount)
+                .replace('{date}', dateStr);
+
+            // 브라우저 기본 title 대신 data-tooltip 사용
+            html += `<div class="heatmap-day" data-level="${level}" data-tooltip="${tooltipText}"></div>`;
         }
 
         html += '</div>';
+        html += '<div class="chart-tooltip hidden" id="dailyHeatmapTooltip"></div>';
         container.innerHTML = html;
+        this.bindHeatmapTooltip(container, 'dailyHeatmapTooltip');
     },
 
     /**
@@ -186,17 +203,22 @@ export const insights = {
         const container = document.getElementById('waitingMetrics');
         if (!container) return;
 
+        // 상위 카드를 찾아 눈에 띄는 하이라이트 클래스를 부여합니다.
+        const card = container.closest('.insights-card');
+        if (card) card.classList.add('highlight-card');
+
         const lang = state.currentLang || 'ko';
         const i18n = I18N_DATA[lang];
 
+        // 배경색이 카드에 칠해지므로, 내부 아이템의 테두리와 배경은 투명하게 없애 깔끔하게 만듭니다.
         container.innerHTML = `
-            <div class="metric-item">
-                <span class="label">${i18n.pendingMeTasks || 'My Pending Tasks'}</span>
-                <span class="value">${stats.pending_me || 0}</span>
+            <div class="metric-item" style="border:none; background:transparent; padding:0;">
+                <span class="label" style="display:block; font-size:0.9rem; color:var(--text-dim); margin-bottom:0.5rem;">${i18n.pendingMeTasks || 'My Pending Tasks'}</span>
+                <span class="value" style="font-size:2.5rem; font-weight:800; color:var(--text-main);">${stats.pending_me || 0}</span>
             </div>
-            <div class="metric-item">
-                <span class="label">${i18n.needsAttentionTasks || 'Needs Attention'}</span>
-                <span class="value">${stats.abandoned_tasks || 0}</span>
+            <div class="metric-item" style="border:none; background:transparent; padding:0;">
+                <span class="label" style="display:block; font-size:0.9rem; color:var(--text-dim); margin-bottom:0.5rem;">${i18n.needsAttentionTasks || 'Needs Attention'}</span>
+                <span class="value" style="font-size:2.5rem; font-weight:800; color:#ff3b30;">${stats.abandoned_tasks || 0}</span>
             </div>
         `;
     },
@@ -212,6 +234,10 @@ export const insights = {
             container.innerHTML = '<p class="empty-msg">Waiting for more completion data...</p>';
             return;
         }
+        container.style.position = 'relative';
+
+        const lang = state.currentLang || 'ko';
+        const i18n = I18N_DATA[lang];
 
         // Get max value for normalization
         let max = 0;
@@ -224,10 +250,49 @@ export const insights = {
             const count = stats.hourly_activity[h] || 0;
             // Level 0-4
             const level = max > 0 ? Math.ceil((count / max) * 4) : 0;
-            html += `<div class="heatmap-day" data-level="${level}" title="${count} tasks at ${h}:00"></div>`;
+
+            const timeStr = `${h}:00`;
+            const tooltipText = (i18n.hourlyTaskTooltip || "{count} tasks completed ({time})")
+                .replace('{count}', count)
+                .replace('{time}', timeStr);
+
+            html += `<div class="heatmap-day" data-level="${level}" data-tooltip="${tooltipText}"></div>`;
         }
         html += '</div>';
+        html += '<div class="chart-tooltip hidden" id="hourlyHeatmapTooltip"></div>';
         container.innerHTML = html;
+        this.bindHeatmapTooltip(container, 'hourlyHeatmapTooltip');
+    },
+
+    /**
+     * 히트맵용 커스텀 툴팁 이벤트를 바인딩합니다.
+     */
+    bindHeatmapTooltip(container, tooltipId) {
+        const tooltip = container.querySelector('#' + tooltipId);
+        if (!tooltip) return;
+
+        container.querySelectorAll('.heatmap-day').forEach(day => {
+            day.addEventListener('mouseenter', (e) => {
+                tooltip.innerHTML = `<div style="font-weight:600;">${e.currentTarget.dataset.tooltip}</div>`;
+                tooltip.classList.remove('hidden');
+            });
+            day.addEventListener('mousemove', (e) => {
+                const rect = container.getBoundingClientRect();
+                let leftPos = e.clientX - rect.left + 15;
+                let topPos = e.clientY - rect.top + 15;
+
+                if (leftPos + tooltip.offsetWidth > rect.width) {
+                    leftPos = (e.clientX - rect.left) - tooltip.offsetWidth - 15;
+                }
+                if (topPos + tooltip.offsetHeight > rect.height) {
+                    topPos = (e.clientY - rect.top) - tooltip.offsetHeight - 15;
+                }
+
+                tooltip.style.left = leftPos + 'px';
+                tooltip.style.top = topPos + 'px';
+            });
+            day.addEventListener('mouseleave', () => tooltip.classList.add('hidden'));
+        });
     },
 
     /**

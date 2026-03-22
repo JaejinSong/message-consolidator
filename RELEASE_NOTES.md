@@ -1,3 +1,12 @@
+# Release Notes - v2.2.5 (2026-03-22 14:05 UTC)
+
+## 💎 Better Deployment & Smarter Insights
+- **[SYS] Automated Pre-deployment Verification (`deploy.sh`)**: Introduced a pre-verification step (Step 0) in the deployment pipeline to run `go build`, `verify_logic.js`, and `verify_renderer.js` before building Docker images. This prevents broken code from being deployed.
+- **[FEAT] Improved Insights UI & Tooltip Clarity**: Enhanced the visual prominence of the "Pending Tasks" card and refined the heatmap tooltip formatting for better data readability.
+- **[FIX] Test Script Compatibility**: Resolved a DOM dependency issue in the Node.js verification tools by strictly mocking browser globals, ensuring reliable pre-commit checks.
+
+---
+
 # Release Notes - v2.2.4 (2026-03-22 13:20 UTC)
 
 ## 🌍 Global Consistency & Timezone-Aware Analytics
