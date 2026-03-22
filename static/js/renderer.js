@@ -19,7 +19,25 @@ import { ICONS } from './icons.js';
  */
 function getDeadlineBadge(timestamp, isDone) {
     if (isDone) return '';
-    const diffHours = (new Date() - new Date(timestamp)) / (1000 * 60 * 60);
+
+    const start = new Date(timestamp);
+    const now = new Date();
+    if (start >= now) return '';
+
+    let diffMs = now - start;
+    let current = new Date(start);
+    let weekendDays = 0;
+
+    current.setHours(0, 0, 0, 0);
+    let endObj = new Date(now);
+    endObj.setHours(0, 0, 0, 0);
+
+    while (current < endObj) {
+        current.setDate(current.getDate() + 1);
+        if (current.getDay() === 0 || current.getDay() === 6) weekendDays++;
+    }
+
+    const diffHours = (diffMs - (weekendDays * 24 * 60 * 60 * 1000)) / (1000 * 60 * 60);
     const lang = state.currentLang || 'ko';
 
     if (diffHours >= 72) {

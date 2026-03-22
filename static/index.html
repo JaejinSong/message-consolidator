@@ -2,6 +2,25 @@
 <html lang="ko">
 
 <head>
+    <!-- WhaTap Browser Agent (RUM) -->
+    <script>
+        (function (w, h, _a, t, a, b) {
+            w = w[a] = w[a] || {
+                config: {
+                    projectAccessKey: "x6060088bifs5-z3qdflm3g0egkt-z11ok9bcu7r1tb",
+                    pcode: 49154,
+                    sampleRate: 100,
+                    sessionReplaySampleRate: 100,
+                    proxyBaseUrl: "https://rum-ap-southeast-3.whatap-browser-agent.io/49154/",
+                },
+            };
+            a = h.createElement(_a);
+            a.async = 1;
+            a.src = t;
+            t = h.getElementsByTagName(_a)[0];
+            t.parentNode.insertBefore(a, t);
+        })(window, document, 'script', 'https://repo.whatap-browser-agent.io/rum/prod/v1/whatap-browser-agent.js', 'WhatapBrowserAgent', '');
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Message Consolidator Premium</title>

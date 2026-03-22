@@ -1,3 +1,23 @@
+# Release Notes (User) - v2.2.6 (2026-03-22 16:20 UTC)
+
+## 📊 WhaTap Real-time Monitoring & Performance Optimization
+- **[NEW] Real-time User Monitoring (RUM)**: We've integrated WhaTap Browser Agent to better understand your experience. This includes **Session Replay at 100%**, allowing us to see exactly how the app behaves and fix issues faster.
+- **[NEW] Full-stack Observability**: Backend performance is now monitored by WhaTap Go Agent, providing deep insights into database queries and system health.
+- **[OPTIMIZE] Database Stability**: Optimized NeonDB connection patterns to prevent session-related errors while maintaining efficient scale-to-zero capabilities.
+- **[NOTE] Resource Usage**: Monitoring features have increased the baseline memory footprint by approximately **150MB**. This is expected overhead for comprehensive real-time analysis.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.2.6 (2026-03-22 16:20 UTC)
+
+## 📊 WhaTap 실시간 모니터링 도입 및 성능 최적화
+- **[NEW] 실시간 사용자 경험 모니터링 (RUM)**: WhaTap 브라우저 에이전트를 도입하여 서비스 이용 중 발생하는 불편함을 더 정교하게 포착합니다. 특히 **세션 리플레이 100% 수집**을 통해 문제 발생 시의 상황을 생생하게 재현하고 개선할 수 있게 되었습니다.
+- **[NEW] 백엔드 성능 가시성 확보**: Go 에이전트를 통해 서버 로직과 데이터베이스 쿼리 성능을 실시간으로 추적합니다.
+- **[OPTIMIZE] 데이터베이스 연결 안정화**: NeonDB 환경에서 발생할 수 있는 SQL 세션 오류를 원천 차단하도록 쿼리 방식을 개선하고 연결 효율을 높였습니다.
+- **[NOTE] 리소스 사용 안내**: 정교한 실시간 분석을 위해 시스템 메모리 사용량이 약 **150MB** 증가했습니다. 더욱 안정적인 서비스를 위한 필수적인 모니터링 비용으로 이해해 주시면 감사하겠습니다.
+
+---
+
 # Release Notes (User) - v2.2.5 (2026-03-22 14:05 UTC)
 
 ## 💎 Better Deployment & Smarter Insights

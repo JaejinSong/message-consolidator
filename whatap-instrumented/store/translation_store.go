@@ -2,7 +2,8 @@ package store
 
 import (
 	"database/sql"
-	"github.com/lib/pq"
+	"fmt"
+	"strings"
 )
 
 func GetTaskTranslation(messageID int, language string) (string, error) {
@@ -19,8 +20,16 @@ func GetTaskTranslationsBatch(messageIDs []int, language string) (map[int]string
 		return make(map[int]string), nil
 	}
 
-	query := "SELECT message_id, translated_text FROM task_translations WHERE language = $1 AND message_id = ANY($2)"
-	rows, err := db.Query(query, language, pq.Array(messageIDs))
+	placeholders := make([]string, len(messageIDs))
+	args := make([]interface{}, len(messageIDs)+1)
+	args[0] = language
+	for i, id := range messageIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args[i+1] = id
+	}
+
+	query := fmt.Sprintf("SELECT message_id, translated_text FROM task_translations WHERE language = $1 AND message_id IN (%s)", strings.Join(placeholders, ","))
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}

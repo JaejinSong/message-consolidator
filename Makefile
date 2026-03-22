@@ -13,7 +13,7 @@ build:
 		echo "Warning: minify not found, skipping minification."; \
 		cp -r static static-min; \
 	fi
-	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY_NAME) .
+	CGO_ENABLED=0 whatap-go-inst go build -ldflags="-s -w" -o $(BINARY_NAME) .
 	upx -1 $(BINARY_NAME)
 	@rm -rf static-min
 

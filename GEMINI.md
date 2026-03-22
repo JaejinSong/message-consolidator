@@ -17,4 +17,8 @@
 - **Batch Processing**: 여러 업무를 묶음 처리하여 고정 오버헤드 토큰 발생을 억제한다.
 
 ## 검증
-- message-consolidator 는 개발환경인 jjsong-devmachine 에서는 실행하지 않는다. 실행을 통한 검증은 VPS 에서 수행한다.
+## WhaTap 모니터링 정보
+- **Backend Monitoring**: WhaTap Go Agent (`whatap-instrumented/`) 적용
+- **Browser Monitoring (RUM)**: WhaTap Browser Agent 적용
+- **Session Replay**: 100% 샘플링 설정 (`sessionReplaySampleRate: 100`)
+- **리소스 사용량**: 모니터링 에이전트 적용으로 인해 약 **150MB**의 추가 메모리 점유가 발생함을 인지하고 운영해야 함.

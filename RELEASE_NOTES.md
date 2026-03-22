@@ -1,4 +1,17 @@
+# Release Notes - v2.2.6 (2026-03-22 17:35 UTC)
+
+## 🔍 Comprehensive Monitoring with WhaTap
+- **[NEW] WhaTap Go Agent Integration**: Implemented deep backend monitoring using WhaTap Go Agent to track performance, errors, and SQL execution in real-time.
+- **[NEW] Real User Monitoring (RUM) & Session Replay**: Integrated WhaTap Browser Agent with **100% Session Replay** capture to visualize user interactions and debug frontend issues effectively.
+- **[SYS] Infrastructure Optimization**: 
+    - Resolved Nginx CSP violations for Browser Agent (`cdn.jsdelivr.net`).
+    - Optimized NeonDB connection pooling (`MaxIdleConns: 0`) for serverless compatibility.
+- **[NOTICE] Resource Usage**: Added monitoring agents results in an approximate **150MB increase in memory usage**.
+
+---
+
 # Release Notes - v2.2.5 (2026-03-22 14:05 UTC)
+
 
 ## 💎 Better Deployment & Smarter Insights
 - **[SYS] Automated Pre-deployment Verification (`deploy.sh`)**: Introduced a pre-verification step (Step 0) in the deployment pipeline to run `go build`, `verify_logic.js`, and `verify_renderer.js` before building Docker images. This prevents broken code from being deployed.

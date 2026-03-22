@@ -9,11 +9,12 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/whatap/go-api/instrumentation/database/sql/whatapsql"
 )
 
 func InitDB(connStr string) error {
 	var err error
-	db, err = sql.Open("postgres", connStr)
+	db, err = whatapsql.Open("postgres", connStr)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
@@ -39,7 +40,6 @@ func InitDB(connStr string) error {
 
 func setupConnectionPool(connStr string) {
 	if strings.Contains(connStr, ".neon.tech") {
-		// Neon Pooler (PG 통계/스케일링 제약) 환경을 고려하여 0으로 설정
 		logger.Infof("[DB] NeonDB detected. Setting MaxIdleConns to 0 for scale-to-zero.")
 		db.SetMaxIdleConns(0)
 	} else {

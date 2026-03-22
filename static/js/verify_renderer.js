@@ -17,6 +17,7 @@ global.document = {
 
 const { renderer } = await import('./renderer.js');
 const { I18N_DATA } = await import('./locales.js');
+const { insightsRenderer } = await import('./insightsRenderer.js');
 
 function testEmptyStateMessages() {
     console.log('--- Testing Empty State Messages ---');
@@ -188,8 +189,46 @@ function testShowToast() {
     console.log('✅ showToast verified');
 }
 
+function testInsightsRenderer() {
+    console.log('--- Testing insightsRenderer ---');
+
+    const mockGlanceContainer = { innerHTML: '' };
+    const mockMetricsContainer = {
+        innerHTML: '',
+        closest: () => ({ classList: { add: () => { } } }) // 하이라이트 카드 클래스용 mock
+    };
+
+    const originalGetElementById = global.document.getElementById;
+    global.document.getElementById = (id) => {
+        if (id === 'dailyGlance') return mockGlanceContainer;
+        if (id === 'waitingMetrics') return mockMetricsContainer;
+        return originalGetElementById(id);
+    };
+
+    const mockStats = {
+        total_completed: 42,
+        peak_time: '14:00',
+        abandoned_tasks: 3,
+        pending_me: 5
+    };
+
+    // 1. 오늘의 한 줄 요약 렌더링 검증
+    insightsRenderer.renderDailyGlance(mockStats);
+    console.assert(mockGlanceContainer.innerHTML.includes('42'), '총 완료된 업무 수(42)가 렌더링되어야 함');
+    console.assert(mockGlanceContainer.innerHTML.includes('14:00'), '가장 집중한 시간(14:00)이 렌더링되어야 함');
+    console.assert(mockGlanceContainer.innerHTML.includes('3'), '방치된 업무(3)가 렌더링되어야 함');
+
+    // 2. 대기 중인 업무 지표 렌더링 검증
+    insightsRenderer.renderWaitingMetrics(mockStats);
+    console.assert(mockMetricsContainer.innerHTML.includes('5'), '내가 해야 할 일(5)이 렌더링되어야 함');
+
+    global.document.getElementById = originalGetElementById;
+    console.log('✅ insightsRenderer verified');
+}
+
 testEmptyStateMessages();
 testUpdateTokenBadge();
 testRenderTenantAliasList();
 testRenderContactMappings();
 testShowToast();
+testInsightsRenderer();
