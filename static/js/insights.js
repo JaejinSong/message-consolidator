@@ -11,6 +11,13 @@ import { calculateHeatmapLevel, calculateSourceDistribution } from './logic.js';
 
 export const insights = {
     /**
+     * Initializes the insights module.
+     */
+    init() {
+        console.log("[Insights] Module Initialized");
+    },
+
+    /**
      * Called when the insights view is initialized or shown.
      */
     async onShow() {
@@ -24,14 +31,14 @@ export const insights = {
     async refreshData() {
         try {
             const [stats, allAch, userAch] = await Promise.all([
-                api.fetchUserStats(),
-                api.fetchAchievements(),
-                api.fetchUserAchievements()
+                api.fetchUserStats().catch(e => { console.error("[Insights] Stats failed:", e); return null; }),
+                api.fetchAchievements().catch(e => { console.error("[Insights] All achievements failed:", e); return []; }),
+                api.fetchUserAchievements().catch(e => { console.error("[Insights] User achievements failed:", e); return []; })
             ]);
-            
+
             this.renderAll(stats, allAch, userAch);
         } catch (e) {
-            console.error("[Insights] Failed to load statistics data", e);
+            console.error("[Insights] Unexpected error during refreshData", e);
         }
     },
 
@@ -63,11 +70,11 @@ export const insights = {
         const i18n = I18N_DATA[lang];
 
         let html = `<p>${i18n.totalCompleted}: <span class="accent">${stats.total_completed}</span>. `;
-        
+
         if (stats.peak_time && stats.peak_time !== "-") {
             html += `${i18n.peakFocusTime}: <span class="accent">${stats.peak_time}</span>. `;
         }
-        
+
         if (stats.abandoned_tasks > 0) {
             html += `<br><span style="color:#ff3b30; font-weight:800;">⚠️ ${stats.abandoned_tasks}</span> items have been pending for over 3 days. Time to clear them up!`;
         } else {
@@ -86,19 +93,19 @@ export const insights = {
 
         let html = '<div class="heatmap-grid">';
         const today = new Date();
-        
+
         // Render 30 days
         for (let i = 29; i >= 0; i--) {
             const d = new Date(today);
             d.setDate(d.getDate() - i);
             const dateStr = d.toISOString().split('T')[0];
-            
+
             const taskCount = stats.daily_completions[dateStr] || 0;
             const level = calculateHeatmapLevel(taskCount);
-            
+
             html += `<div class="heatmap-day" data-level="${level}" title="${taskCount} tasks (${dateStr})"></div>`;
         }
-        
+
         html += '</div>';
         container.innerHTML = html;
     },
@@ -111,7 +118,7 @@ export const insights = {
         if (!container) return;
 
         const dist = calculateSourceDistribution(stats.source_distribution);
-        
+
         if (dist.slack === 0 && dist.whatsapp === 0 && dist.gmail === 0) {
             container.innerHTML = '<p class="empty-msg">No channel data available.</p>';
             return;
@@ -201,7 +208,7 @@ export const insights = {
 
         container.innerHTML = allAch.map(ach => {
             const isUnlocked = userAchIds.has(ach.id);
-            
+
             let progress = 0;
             if (isUnlocked) {
                 progress = ach.target_value;

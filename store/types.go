@@ -132,5 +132,6 @@ type UserStats struct {
 	HourlyActivity     map[int]int    `json:"hourly_activity"`
 	PeakTime           string         `json:"peak_time"`
 	AbandonedTasks     int            `json:"abandoned_tasks"`
+	PendingMe          int            `json:"pending_me"`
 	SourceDistribution map[string]int `json:"source_distribution"`
 }
