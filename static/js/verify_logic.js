@@ -7,7 +7,8 @@ import {
     sortAndFilterMessages,
     classifyMessages,
     calculateHeatmapLevel,
-    calculateSourceDistribution
+    calculateSourceDistribution,
+    processTimeSeriesData
 } from './logic.js';
 
 const mockMessages = [
@@ -54,7 +55,7 @@ function testSortAndFilter() {
 
 function testClassify() {
     console.log('--- Testing classifyMessages ---');
-    
+
     const complexMock = [
         { id: 1, done: false, assignee: 'me' },
         { id: 2, done: false, assignee: 'other' },
@@ -64,17 +65,27 @@ function testClassify() {
     ];
 
     const counts = classifyMessages(complexMock);
-    
+
     // Logic: 
     // - all: all !done (1, 2, 3, 4) = 4
     // - my: !done && assignee === 'me' && !waiting_on (1) = 1
     // - others: !done && assignee !== 'me' && !waiting_on (2) = 1
     // - waiting: !done && waiting_on (3, 4) = 2
-    
+
     console.assert(counts.all === 4, `Expected all=4, got ${counts.all}`);
     console.assert(counts.my === 1, `Expected my=1, got ${counts.my}`);
     console.assert(counts.others === 1, `Expected others=1, got ${counts.others}`);
     console.assert(counts.waiting === 2, `Expected waiting=2, got ${counts.waiting}`);
+
+    // Extra Case: Verify ONLY completed tasks results in 0 counts
+    const onlyDoneMock = [
+        { id: 10, done: true, assignee: 'me' },
+        { id: 11, done: true, waiting_on: 'boss' }
+    ];
+    const emptyCounts = classifyMessages(onlyDoneMock);
+    console.assert(emptyCounts.all === 0, 'Completed tasks must not count towards total');
+    console.assert(emptyCounts.my === 0, 'Completed tasks must not count as my tasks');
+    console.assert(emptyCounts.waiting === 0, 'Completed tasks must not count as waiting tasks');
 
     console.log('✅ classifyMessages passed');
 }
@@ -102,12 +113,30 @@ function testSourceDistribution() {
 
     // 데이터가 0일 때 (Zero total) 예외 처리
     const distZero = calculateSourceDistribution({ slack: 0, whatsapp: 0, gmail: 0 });
-    console.assert(distZero.slack === 0 && distZero.whatsapp === 0 && distZero.gmail === 0, 'Should handle 0 total tasks');
+    console.assert(Object.keys(distZero).length === 0, 'Should handle 0 total tasks');
 
-    // 정의되지 않은 소스(Unknown source) 예외 처리
-    const distUnknown = calculateSourceDistribution({ slack: 10, unknown_app: 90 });
-    console.assert(distUnknown.slack === 100, 'Should ignore unknown sources and calculate strictly based on known channels');
+    // 동적 소스(Dynamic source) 확장 지원 확인
+    const distUnknown = calculateSourceDistribution({ slack: 10, telegram: 90 });
+    console.assert(distUnknown.slack === 10 && distUnknown.telegram === 90, 'Should handle new dynamic sources correctly');
     console.log('✅ calculateSourceDistribution passed');
+}
+
+function testProcessTimeSeriesData() {
+    console.log('--- Testing processTimeSeriesData ---');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yStr = yesterday.toISOString().split('T')[0];
+
+    const rawHistory = [
+        { date: yStr, counts: { slack: 5, telegram: 2 } }
+    ];
+
+    const processed = processTimeSeriesData(rawHistory, 3);
+    console.assert(processed.length === 3, 'Should generate exactly 3 continuous days');
+    console.assert(processed[1].cumulative === 7, 'Cumulative should calculate correctly');
+    console.log('✅ processTimeSeriesData passed');
 }
 
 function runAllTests() {
@@ -116,6 +145,7 @@ function runAllTests() {
         testClassify();
         testHeatmapLevel();
         testSourceDistribution();
+        testProcessTimeSeriesData();
         console.log('\n✨ ALL TESTS PASSED SUCCESSFULLY! ✨');
     } catch (e) {
         console.error('\n❌ TEST FAILED:');

@@ -119,16 +119,67 @@ export function calculateHeatmapLevel(count) {
  * @returns {Object} Standardized percentages (total 100).
  */
 export function calculateSourceDistribution(distributionMap = {}) {
-    const slack = distributionMap.slack || 0;
-    const whatsapp = distributionMap.whatsapp || 0;
-    const gmail = distributionMap.gmail || 0;
+    const total = Object.values(distributionMap).reduce((a, b) => a + b, 0);
+    if (total === 0) return {};
 
-    const total = slack + whatsapp + gmail;
-    if (total === 0) return { slack: 0, whatsapp: 0, gmail: 0 };
+    const result = {};
+    let currentSum = 0;
+    const entries = Object.entries(distributionMap).sort((a, b) => b[1] - a[1]); // 오차 보정을 위해 큰 값부터 정렬
 
-    const pSlack = Math.round((slack / total) * 100);
-    const pWa = Math.round((whatsapp / total) * 100);
-    const pGmail = 100 - pSlack - pWa; // Ensure sum is exactly 100
+    entries.forEach(([key, val], index) => {
+        if (index === entries.length - 1) {
+            result[key] = 100 - currentSum; // 마지막 채널이 남은 %를 모두 가져가 정확히 100% 보장
+        } else {
+            const p = Math.round((val / total) * 100);
+            result[key] = p;
+            currentSum += p;
+        }
+    });
+    return result;
+}
 
-    return { slack: pSlack, whatsapp: pWa, gmail: pGmail };
+/**
+ * Processes raw completion history into a continuous timeline for charts.
+ * @param {Array} history - Array of { date: 'YYYY-MM-DD', counts: { slack: n, ... } }
+ * @param {number} days - Number of past days to generate
+ * @returns {Array} Continuous array with zero-filled gaps and cumulative totals
+ */
+export function processTimeSeriesData(history, days) {
+    const result = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const historyMap = {};
+    let cumulative = 0;
+
+    if (history && Array.isArray(history)) {
+        const cutoffDate = new Date(today);
+        cutoffDate.setDate(cutoffDate.getDate() - days);
+        const cutoffStr = cutoffDate.toISOString().split('T')[0];
+
+        history.forEach(item => {
+            historyMap[item.date] = item.counts || {};
+            // 이전 데이터들의 누적치를 초기 cumulative에 더함
+            if (item.date < cutoffStr) {
+                cumulative += Object.values(item.counts || {}).reduce((a, b) => a + b, 0);
+            }
+        });
+    }
+
+    for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+
+        const counts = historyMap[dateStr] || {};
+        const total = Object.values(counts).reduce((a, b) => a + b, 0);
+
+        cumulative += total;
+
+        result.push({
+            date: dateStr, counts, total, cumulative
+        });
+    }
+
+    return result;
 }
