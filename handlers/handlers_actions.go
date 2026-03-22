@@ -6,6 +6,7 @@ import (
 	"message-consolidator/auth"
 	"message-consolidator/channels"
 	"message-consolidator/logger"
+	"message-consolidator/services"
 	"message-consolidator/store"
 	"net/http"
 	"strings"
@@ -32,6 +33,7 @@ func HandleManualScan(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			ScanFunc(email, lang)
 			store.PersistAllScanMetadata(email)
+			_ = services.FlushGamificationData() // Piggyback: 수동 스캔 후 메모리 큐 비우기
 		}()
 	}
 
@@ -80,6 +82,11 @@ func HandleInternalScan(w http.ResponseWriter, r *http.Request) {
 		logger.Errorf("[INTERNAL-SCAN] FullScanFunc not initialized")
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
+	}
+
+	// Piggyback: 정기 스캔으로 DB가 활성화된 김에 메모리에 쌓인 게이미피케이션 데이터를 플러시
+	if err := services.FlushGamificationData(); err != nil {
+		logger.Errorf("[INTERNAL-SCAN] Gamification flush error: %v", err)
 	}
 
 	w.WriteHeader(http.StatusOK)

@@ -2,7 +2,7 @@ services:
   app:
     image: us-central1-docker.pkg.dev/gemini-enterprise-487906/message-consolidator-repo/app:latest
     ports:
-      - "127.0.0.1:8080:8080"
+      - "8080:8080"
     env_file:
       - .env
     restart: always

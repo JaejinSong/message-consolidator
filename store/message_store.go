@@ -195,11 +195,16 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 	}
 
 	// 1. Get Count
+	safeArchiveDays := autoArchiveDays
+	if safeArchiveDays <= 0 {
+		safeArchiveDays = 6
+	}
+
 	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*) 
 		FROM messages 
 		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '%d days'))
-		%s`, autoArchiveDays, searchQuery)
+		%s`, safeArchiveDays, searchQuery)
 
 	var total int
 	err := db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
@@ -238,7 +243,7 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '%d days'))
 		%s
 		ORDER BY %s
-		LIMIT $%d OFFSET $%d`, autoArchiveDays, searchQuery, orderBy, argIdx, argIdx+1)
+		LIMIT $%d OFFSET $%d`, safeArchiveDays, searchQuery, orderBy, argIdx, argIdx+1)
 
 	args = append(args, filter.Limit, filter.Offset)
 
@@ -258,6 +263,41 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 	}
 
 	return msgs, total, nil
+}
+
+// GetArchivedMessagesCount fetches strictly the total count of archived items, skipping the data query.
+func GetArchivedMessagesCount(ctx context.Context, filter ArchiveFilter) (int, error) {
+	searchQuery := ""
+	args := []interface{}{filter.Email}
+	argIdx := 2
+
+	if filter.Query != "" {
+		pattern := "%" + strings.ToLower(filter.Query) + "%"
+		searchQuery = fmt.Sprintf(` AND (
+			LOWER(task) ILIKE $%d OR 
+			LOWER(room) ILIKE $%d OR 
+			LOWER(requester) ILIKE $%d OR 
+			LOWER(original_text) ILIKE $%d OR
+			LOWER(source) ILIKE $%d OR
+			LOWER(assignee) ILIKE $%d
+		)`, argIdx, argIdx, argIdx, argIdx, argIdx, argIdx)
+		args = append(args, pattern)
+	}
+
+	safeArchiveDays := autoArchiveDays
+	if safeArchiveDays <= 0 {
+		safeArchiveDays = 6
+	}
+
+	countQuery := fmt.Sprintf(`
+		SELECT COUNT(*) 
+		FROM messages 
+		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '%d days'))
+		%s`, safeArchiveDays, searchQuery)
+
+	var total int
+	err := db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
+	return total, err
 }
 
 func UpdateTaskText(email string, id int, task string) error {

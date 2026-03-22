@@ -280,12 +280,12 @@ func (m *WAManager) GetStatus(email string) string {
 	m.mu.RUnlock()
 
 	if !ok {
-		return "DISCONNECTED"
+		return "disconnected"
 	}
 	if client.IsConnected() && client.IsLoggedIn() {
-		return "CONNECTED"
+		return "connected"
 	}
-	return "DISCONNECTED"
+	return "disconnected"
 }
 
 func (m *WAManager) GetGroupName(email string, jidStr string) string {

@@ -163,10 +163,6 @@ export const archive = {
             alert((I18N_DATA[state.currentLang]?.errorArchiveCount || 'Error: ') + e.message);
         }));
 
-        const closeExport = () => exportModal.classList.add('hidden');
-        document.getElementById('closeExportModalBtn')?.addEventListener('click', closeExport);
-        document.getElementById('cancelExportBtn')?.addEventListener('click', closeExport);
-
         const downloadFile = (url, defaultFilename) => {
             console.log(`[DEBUG] Starting native download: ${url}, default: ${defaultFilename}`);
             const loading = document.getElementById('loading');
@@ -196,7 +192,7 @@ export const archive = {
                 const query = state.archiveSearch ? `?q=${encodeURIComponent(state.archiveSearch)}` : '';
                 const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_');
                 downloadFile(`${path}${query}`, `Message_Archive_${timestamp}.${ext}`);
-                closeExport();
+                exportModal.classList.add('hidden');
             });
         });
     },
@@ -214,18 +210,6 @@ export const archive = {
             deleteConfirmModal.classList.remove('hidden');
         });
 
-        const closeDeleteConfirm = () => {
-            deleteConfirmModal.classList.add('hidden');
-            deletePendingIds = [];
-        };
-
-        document.getElementById('closeDeleteConfirmBtn')?.addEventListener('click', closeDeleteConfirm);
-        document.getElementById('cancelDeleteConfirmBtn')?.addEventListener('click', closeDeleteConfirm);
-
-        window.addEventListener('click', (e) => {
-            if (e.target === deleteConfirmModal) closeDeleteConfirm();
-        });
-
         document.getElementById('confirmHardDeleteBtn')?.addEventListener('click', safeAsync(async () => {
             if (deletePendingIds.length === 0) return;
             await api.hardDeleteTasks(deletePendingIds);
@@ -233,7 +217,7 @@ export const archive = {
             if (selectAll) selectAll.checked = false;
             this.updateActionsVisibility();
             this.fetch();
-            closeDeleteConfirm();
+            deleteConfirmModal.classList.add('hidden');
         }, (error) => {
             alert((I18N_DATA[state.currentLang]?.errorHardDelete || 'Error: ') + error.message);
         }));

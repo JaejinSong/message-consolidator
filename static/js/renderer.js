@@ -1,678 +1,467 @@
-import { state } from './state.js';
+import { state, updateStats } from './state.js';
 import { I18N_DATA } from './locales.js';
-import { createTaskFilter } from './taskFilter.js';
+import { formatDisplayTime, escapeHTML } from './utils.js';
+
+import { sortAndFilterMessages, classifyMessages, calculateHeatmapLevel, calculateSourceDistribution } from './logic.js';
+import { DOM_IDS, STATUS_STATES, UI_TEXT } from './constants.js';
 import { ICONS } from './icons.js';
 
-window.showOriginalMessage = function (text) {
-    const modal = document.getElementById('originalMessageModal');
-    const content = document.getElementById('originalTextContent');
-    if (modal && content) {
-        content.textContent = text;
-        modal.classList.remove('hidden');
+/**
+ * @file renderer.js
+ * @description UI rendering module for tasks and user profile.
+ */
+
+/**
+ * Gets the deadline badge HTML based on the task timestamp.
+ * @param {string} timestamp - ISO timestamp string.
+ * @returns {string} HTML string for the badge.
+ */
+function getDeadlineBadge(timestamp) {
+    const diffHours = (new Date() - new Date(timestamp)) / (1000 * 60 * 60);
+    const lang = state.currentLang || 'ko';
+    
+    if (diffHours >= 72) {
+        return `<span class="badge badge-abandoned" style="margin-left: 0.3rem; display: inline-flex; align-items: center; gap: 4px;">${ICONS.abandoned}${I18N_DATA[lang].abandoned}</span>`;
     }
-};
-
-const formatDisplayTime = (isoStr, lang) => {
-    if (!isoStr) return '-';
-
-    let dateStr = isoStr;
-    // Handle legacy suffix from database
-    if (typeof dateStr === 'string') {
-        if (dateStr.includes(' KST')) dateStr = dateStr.replace(' KST', ' +0900');
-        else if (dateStr.includes(' JKT')) dateStr = dateStr.replace(' JKT', ' +0700');
-        else if (dateStr.includes(' ICT')) dateStr = dateStr.replace(' ICT', ' +0700');
-        else if (dateStr.match(/^\d{2}:\d{2}$/)) {
-            // If it's just HH:mm, it's likely a partial time from Gemini
-            // We'll show it as is since we lack the date context in this legacy record
-            return dateStr;
-        }
+    if (diffHours >= 24) {
+        return `<span class="badge badge-stale" style="margin-left: 0.3rem; display: inline-flex; align-items: center; gap: 4px;">${ICONS.stale}${I18N_DATA[lang].stale}</span>`;
     }
+    return '';
+}
 
-    try {
-        const date = new Date(dateStr);
-        if (isNaN(date.getTime())) return isoStr;
+/**
+ * Attaches event listeners for alias mapping interactions.
+ */
+// This function is now imported from modals.js, so it's removed from here.
 
-        // 상대 시간 계산 (당일 24시간 이내)
-        const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMins / 60);
-
-        if (diffHours < 24 && now.getDate() === date.getDate()) {
-            const i18n = I18N_DATA[lang] || I18N_DATA['en'];
-            if (diffMins < 1) return i18n.justNow || '방금 전';
-            if (diffMins < 60) return (i18n.minAgo || '{n}m ago').replace('{n}', diffMins);
-            return (i18n.hourAgo || '{n}h ago').replace('{n}', diffHours);
-        }
-
-        const yesterdayDate = new Date(now);
-        yesterdayDate.setDate(now.getDate() - 1);
-        const isYesterday = (date.getDate() === yesterdayDate.getDate() &&
-            date.getMonth() === yesterdayDate.getMonth() &&
-            date.getFullYear() === yesterdayDate.getFullYear());
-
-        const config = {
-            ko: { offset: 9, label: 'KST' },
-            id: { offset: 7, label: 'JKT' },
-            th: { offset: 7, label: 'ICT' },
-            en: { offset: 0, label: 'GMT' }
-        };
-
-        const { offset, label } = config[lang] || config.en;
-
-        // Accurate timezone conversion using UTC components
-        const local = new Date(date.getTime() + (3600000 * offset));
-
-        const mm = String(local.getUTCMonth() + 1).padStart(2, '0');
-        const dd = String(local.getUTCDate()).padStart(2, '0');
-        const hh = String(local.getUTCHours()).padStart(2, '0');
-        const min = String(local.getUTCMinutes()).padStart(2, '0');
-
-        if (isYesterday) {
-            const i18n = I18N_DATA[lang] || I18N_DATA['en'];
-            const ydayLabel = i18n.yesterday || '어제';
-            return `${ydayLabel} ${hh}:${min}`;
-        }
-
-        return `${mm}-${dd} ${hh}:${min} ${label}`;
-    } catch (e) {
-        return isoStr;
-    }
-};
-
-const escapeHTML = (str) => {
-    if (!str) return '';
-    return String(str).replace(/[&<>'"]/g, tag => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-    }[tag]));
-};
-
-// --- [UI Helper Functions] ---
-const getDeadlineBadge = (deadline) => {
-    if (!deadline) return '';
-    return `<span style="display: inline-flex; align-items: center; background: rgba(255,149,0,0.15); color: #ff9500; padding: 2px 6px; border-radius: 6px; font-size: 0.75rem; margin-left: 8px; font-weight: 600; white-space: nowrap;">⏳ ${escapeHTML(deadline)}</span>`;
-};
-
-const attachAliasMappingListeners = (container) => {
-    if (!container) return;
-    container.querySelectorAll('.clickable-name').forEach(el => {
-        el.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (window.openAliasMapping) window.openAliasMapping(el.textContent);
-        });
-    });
-};
-
-const renderEmptyGrid = (grid, type, data) => {
-    if (!grid) return;
-    if (type === 'witty' && data.emptyStateMessages) {
-        const randomMsg = data.emptyStateMessages[Math.floor(Math.random() * data.emptyStateMessages.length)];
+/**
+ * Renders an empty grid state when no tasks are found.
+ */
+function renderEmptyGrid(grid) {
+    if (grid) {
         grid.innerHTML = `
-            <div class="empty-state-witty">
-                <div class="witty-message">${randomMsg}</div>
-                <p style="text-align: center; color: var(--text-dim); margin-top: 1rem; font-size: 0.9rem;">${data.noTasks}</p>
-            </div>`;
-    } else {
-        grid.innerHTML = `<p style="text-align: center; color: var(--text-dim); margin-top: 2rem; width: 100%; font-size: 1.1rem;">${data.noTasks}</p>`;
-    }
-};
-
-const updateServiceStatusUI = (iconId, textId, isConnected, extraLogic, lang) => {
-    const iconEl = document.getElementById(iconId);
-    const textEl = document.getElementById(textId);
-    if (!iconEl) return;
-
-    iconEl.classList.toggle('active', isConnected);
-    iconEl.classList.toggle('inactive', !isConnected);
-
-    if (textEl) {
-        textEl.textContent = isConnected ? I18N_DATA[lang].statusOn : I18N_DATA[lang].statusOff;
-    }
-    if (extraLogic) extraLogic(isConnected, iconEl);
-};
-
-export const renderer = {
-    renderMessages(messages, handlers) {
-        const myGrid = document.getElementById('myTasksList');
-        const otherGrid = document.getElementById('otherTasksList');
-        const waitingGrid = document.getElementById('waitingTasksList');
-        const allGrid = document.getElementById('allTasksList');
-        if (myGrid) myGrid.innerHTML = '';
-        if (otherGrid) otherGrid.innerHTML = '';
-        if (waitingGrid) waitingGrid.innerHTML = '';
-        if (allGrid) allGrid.innerHTML = '';
-
-        const data = I18N_DATA[state.currentLang];
-        const checkIsMyTask = createTaskFilter(state, data);
-
-        if (!messages || messages.length === 0) {
-            renderEmptyGrid(myGrid, 'witty', data);
-            renderEmptyGrid(otherGrid, 'normal', data);
-            renderEmptyGrid(waitingGrid, 'normal', data);
-            renderEmptyGrid(allGrid, 'normal', data);
-            this.updateCounts(0, 0, 0, 0);
-            return;
-        }
-
-        const activeMessages = messages.filter(m => !m.is_deleted);
-        const sorted = activeMessages.sort((a, b) => {
-            const aDone = !!a.done;
-            const bDone = !!b.done;
-            if (aDone !== bDone) return aDone ? 1 : -1;
-            return new Date(b.created_at) - new Date(a.created_at);
-        });
-
-        let myCount = 0, otherCount = 0, waitingCount = 0, allCount = 0;
-        let myPendingCount = 0;
-
-        sorted.forEach(m => {
-            const isMyTask = checkIsMyTask(m);
-            const cardAll = this.createCardElement(m, data, handlers);
-            if (allGrid) allGrid.appendChild(cardAll);
-            allCount++;
-
-            const isWaiting = m.category === 'waiting';
-
-            const cardFiltered = this.createCardElement(m, data, handlers);
-            if (isWaiting) {
-                if (waitingGrid) {
-                    waitingGrid.appendChild(cardFiltered);
-                    waitingCount++;
-                }
-            } else if (isMyTask) {
-                if (myGrid) {
-                    myGrid.appendChild(cardFiltered);
-                    myCount++;
-                    if (!m.done) myPendingCount++;
-                }
-            } else {
-                if (otherGrid) {
-                    otherGrid.appendChild(cardFiltered);
-                    otherCount++;
-                }
-            }
-        });
-
-        // Grid-specific empty states when messages exist but current grid is empty
-        if (myCount === 0) {
-            renderEmptyGrid(myGrid, 'witty', data);
-        } else if (myPendingCount === 0) {
-            const randomMsg = data.emptyStateMessages[Math.floor(Math.random() * data.emptyStateMessages.length)];
-            const wittyEl = document.createElement('div');
-            wittyEl.className = 'empty-state-witty small';
-            wittyEl.innerHTML = `<div class="witty-message">${randomMsg}</div>`;
-            if (myGrid) {
-                myGrid.insertBefore(wittyEl, myGrid.firstChild);
-            }
-        }
-
-        if (otherCount === 0 && otherGrid) {
-            renderEmptyGrid(otherGrid, 'normal', data);
-        }
-
-        if (waitingCount === 0 && waitingGrid) {
-            renderEmptyGrid(waitingGrid, 'normal', data);
-        }
-
-        this.updateCounts(myCount, otherCount, waitingCount, allCount);
-    },
-
-    updateCounts(my, other, waiting, all) {
-        const myCountEl = document.getElementById('myCount');
-        const otherCountEl = document.getElementById('otherCount');
-        const waitingCountEl = document.getElementById('waitingCount');
-        const allCountEl = document.getElementById('allCount');
-        if (myCountEl) myCountEl.textContent = my;
-        if (otherCountEl) otherCountEl.textContent = other;
-        if (waitingCountEl) waitingCountEl.textContent = waiting;
-        if (allCountEl) allCountEl.textContent = all;
-    },
-
-    createCardElement(m, data, handlers) {
-        const card = document.createElement('div');
-        card.className = `card ${m.source} ${m.done ? 'done' : ''}`;
-
-        let actionBtnHtml = '';
-
-        // 1. View Original Modal (Eye icon)
-        if (m.original_text || m.has_original) {
-            actionBtnHtml += `<button type="button" class="action-btn original-btn" data-id="${m.id}" title="${data.viewOriginal}">${ICONS.viewOriginal}</button>`;
-        }
-
-        // 2. Direct Link to Source (External Icon) - Removed for Gmail as requested
-        if (m.link && m.source.toLowerCase() !== 'gmail') {
-            const openInText = data.openIn ? data.openIn.replace('{source}', m.source) : `Open in ${m.source}`;
-            actionBtnHtml += `<a href="${m.link}" target="_blank" class="action-btn link-btn" title="${openInText}">${ICONS.link}</a>`;
-        }
-
-        let sourceIcon = this.getSourceIcon(m.source);
-
-        card.innerHTML = `
-            <div class="col-source" title="${m.source}">${sourceIcon || '<span class="badge">' + m.source + '</span>'}</div>
-            <div class="col-room" title="${escapeHTML(m.room)}"><span class="badge-room">${escapeHTML(m.room) || '-'}</span></div>
-            <div class="col-task task-title" title="${escapeHTML(m.task)}">${escapeHTML(m.task)}${getDeadlineBadge(m.deadline)}</div>
-            <div class="col-requester meta-val clickable-name" title="${data.clickToMapAlias || 'Click to map alias: '}${escapeHTML(m.requester)}">${escapeHTML(m.requester)}</div>
-            <div class="col-assignee meta-val clickable-name" title="${data.clickToMapAlias || 'Click to map alias: '}${escapeHTML(m.assignee)}">${escapeHTML(m.assignee)}</div>
-            <div class="col-time meta-val" style="font-size: 0.75rem;">${formatDisplayTime(m.assigned_at, state.currentLang)}</div>
-            <div class="col-actions">
-                ${actionBtnHtml}
-                <button type="button" class="action-btn done-btn" data-id="${m.id}" data-done="${!m.done}" title="${m.done ? data.doneBtn : data.markDone}">
-                    ${ICONS.done}
-                </button>
-                <button type="button" class="action-btn delete-btn" data-id="${m.id}" title="${data.deleteBtnText || 'Delete'}">
-                    ${ICONS.delete}
-                </button>
+            <div class="empty-state">
+                <div class="empty-icon">📂</div>
+                <p>${I18N_DATA[state.currentLang].noTasks || 'No tasks found'}</p>
             </div>
         `;
+    }
+}
 
-        const originalBtn = card.querySelector('.original-btn');
-        if (originalBtn && (m.original_text || m.has_original)) {
-            originalBtn.addEventListener('click', async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
+/**
+ * Common utility to update service status in the UI dashboard and settings.
+ * @param {string} service - Service name (slack, wa, gmail).
+ * @param {string|boolean} status - Connection status.
+ */
+function updateServiceStatusUI(service, status) {
+    const isConnected = status === STATUS_STATES.CONNECTED ||
+        status === STATUS_STATES.AUTHENTICATED ||
+        status === true;
 
-                if (m.original_text) {
-                    window.showOriginalMessage(m.original_text);
-                } else {
-                    originalBtn.style.opacity = '0.5';
-                    try {
-                        const res = await fetch(`/api/messages/${m.id}/original`);
-                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                        const data = await res.json();
-                        m.original_text = data.original_text; // 가져온 데이터 캐싱
-                        window.showOriginalMessage(m.original_text);
-                    } catch (err) {
-                        console.error('Failed to load original text:', err);
-                        alert((I18N_DATA[state.currentLang]?.error || 'Error') + ': Failed to load original text.');
-                    } finally {
-                        originalBtn.style.opacity = '1';
-                    }
-                }
-            });
-        }
+    // 1. Large status icon/label in dashboard
+    const largeIcon = document.getElementById(DOM_IDS.STATUS_LARGE(service));
+    const largeLabel = document.getElementById(DOM_IDS.STATUS_TEXT(service));
 
-        card.querySelector('.done-btn').addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            handlers.onToggleDone(m.id, !m.done);
-        });
-        card.querySelector('.delete-btn').addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            handlers.onDeleteTask(m.id);
-        });
+    if (largeIcon) {
+        largeIcon.classList.toggle('active', isConnected);
+        largeIcon.classList.toggle('inactive', !isConnected);
+    }
+    if (largeLabel) {
+        largeLabel.textContent = isConnected ? UI_TEXT.ON : UI_TEXT.OFF;
+    }
 
-        attachAliasMappingListeners(card);
+    // 2. Settings menu status pills (if any)
+    const settingsPill = document.getElementById(`${service}ConnectedStatus`);
+    if (settingsPill) {
+        settingsPill.classList.toggle('hidden', !isConnected);
+    }
+}
 
-        return card;
-    },
+export const renderer = {
+    /**
+     * Renders message cards based on data and current state.
+     * @param {import('./logic.js').Message[]} messages - Array of messages.
+     * @param {Object} handlers - Event handlers for actions.
+     */
+    renderMessages(messages, handlers) {
+        const currentTab = document.querySelector('.tab-btn.active')?.getAttribute('data-tab') || 'myTasksTab';
+        const searchQuery = document.getElementById('taskSearch')?.value || '';
 
-    getSourceIcon(source) {
-        const s = source ? source.toLowerCase() : '';
-        return ICONS[s] || '';
-    },
+        // [DEBUG] renderMessages: rawCount=${messages.length}, currentTab=${currentTab}
+        const filtered = sortAndFilterMessages(messages, currentTab, searchQuery);
+        const counts = classifyMessages(messages);
+        console.log(`[DEBUG] renderMessages: filteredCount=${filtered.length}, counts=`, counts);
 
-    renderArchive(messages, totalCount, page, limit) {
-        const body = document.getElementById('archiveBody');
-        const lang = state.currentLang;
-        const i18n = I18N_DATA[lang];
-
-        // Update headers with sort indicators
-        const headers = {
-            'ahSource': 'source',
-            'ahRoom': 'room',
-            'ahTask': 'task',
-            'ahRequester': 'requester',
-            'ahAssignee': 'assignee',
-            'ahTime': 'time',
-            'ahCompletedAt': 'completed_at'
-        };
-
-        Object.keys(headers).forEach(id => {
+        // Update counts in UI
+        const updateCount = (id, count) => {
             const el = document.getElementById(id);
-            if (!el) return;
+            if (el) el.textContent = count;
+        };
+        updateCount('myCount', counts.my);
+        updateCount('otherCount', counts.others);
+        updateCount('waitingCount', counts.waiting);
+        updateCount('allCount', counts.all);
 
-            // Clear existing indicator
-            const baseText = el.textContent.replace(/[↑↓]/g, '').trim();
+        // 활성화된 탭 이름(예: allTasksTab)을 기반으로 리스트 컨테이너(allTasksList) 찾기
+        const gridId = currentTab.replace('Tab', 'List');
+        const grid = document.getElementById(gridId);
+        if (!grid) return;
 
-            if (state.archiveSort === headers[id]) {
-                const arrow = state.archiveOrder === 'ASC' ? '↑' : '↓';
-                el.innerHTML = `${baseText} <span style="font-size: 0.8rem; margin-left: 4px; color: var(--accent-color);">${arrow}</span>`;
-                el.style.color = 'var(--accent-color)';
-            } else {
-                el.innerHTML = baseText;
-                el.style.color = '';
-            }
-            el.style.cursor = 'pointer';
-        });
-
-        if (messages.length === 0) {
-            body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-dim);">${i18n.noResults}</td></tr>`;
+        if (filtered.length === 0) {
+            renderEmptyGrid(grid);
             return;
         }
 
-        body.innerHTML = messages.map(m => {
-            const time = new Date(m.created_at).toLocaleString();
-            const completedAt = m.completed_at ? new Date(m.completed_at).toLocaleString() : '-';
-            const sourceIcon = this.getSourceIcon(m.source);
+        grid.innerHTML = filtered.map(m => this.createCardElement(m)).join('');
+        this.attachCardEventListeners(filtered, handlers);
+
+    },
+
+    /**
+     * Creates HTML string for a single message card.
+     * @param {import('./logic.js').Message} m - Message object.
+     * @returns {string} HTML string.
+     */
+    createCardElement(m) {
+        const svgSlack = `<svg viewBox="0 0 100 100" width="20" height="20"><path fill="#E01E5A" d="M22.9,53.8V42.3c0-3.2-2.6-5.8-5.8-5.8s-5.8,2.6-5.8,5.8v11.5c0,3.2,2.6,5.8,5.8,5.8S22.9,57,22.9,53.8z"/><path fill="#E01E5A" d="M28.6,42.3c0-3.2,2.6-5.8,5.8-5.8h11.5c3.2,0,5.8,2.6,5.8,5.8s-2.6,5.8-5.8,5.8H34.4C31.2,48.1,28.6,45.5,28.6,42.3z"/><path fill="#36C5F0" d="M46.2,22.9h11.5c3.2,0,5.8-2.6,5.8-5.8s-2.6-5.8-5.8-5.8H46.2c-3.2,0-5.8,2.6-5.8,5.8S43,22.9,46.2,22.9z"/><path fill="#36C5F0" d="M57.7,28.6c3.2,0,5.8,2.6,5.8,5.8v11.5c0,3.2-2.6,5.8-5.8,5.8s-2.6-5.8-5.8-5.8V34.4C51.9,31.2,54.5,28.6,57.7,28.6z"/><path fill="#2EB67D" d="M77.1,46.2v11.5c0,3.2,2.6,5.8,5.8,5.8s5.8-2.6,5.8-5.8V46.2c0-3.2-2.6-5.8-5.8-5.8S77.1,43,77.1,46.2z"/><path fill="#2EB67D" d="M71.4,57.7c0,3.2-2.6,5.8-5.8,5.8H54.1c-3.2,0-5.8-2.6-5.8-5.8s2.6-5.8,5.8-5.8h11.5C68.8,51.9,71.4,54.5,71.4,57.7z"/><path fill="#ECB22E" d="M53.8,77.1H42.3c-3.2,0-5.8,2.6-5.8,5.8s2.6,5.8,5.8,5.8h11.5c3.2,0,5.8-2.6,5.8-5.8S57,77.1,53.8,77.1z"/><path fill="#ECB22E" d="M42.3,71.4c-3.2,0-5.8-2.6-5.8-5.8V54.1c0-3.2,2.6-5.8,5.8-5.8c3.2,0,5.8,2.6,5.8,5.8v11.5C48.1,68.8,45.5,71.4,42.3,71.4z"/></svg>`;
+        const svgWA = `<svg viewBox="0 0 448 512" width="20" height="20"><path fill="#25D366" d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-5.5-2.8-23.2-8.5-44.2-27.1-16.4-14.6-27.4-32.7-30.6-38.2-3.2-5.6-.3-8.6 2.4-11.3 2.5-2.4 5.5-6.5 8.3-9.7 2.8-3.3 3.7-5.6 5.6-9.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 13.2 5.7 23.5 9.2 31.6 11.8 13.3 4.2 25.4 3.6 35 2.2 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/></svg>`;
+        const svgGmail = `<svg viewBox="0 0 512 512" width="20" height="20"><path fill="#EA4335" d="M48 64C21.5 64 0 85.5 0 112v288c0 26.5 21.5 48 48 48h416c26.5 0 48-21.5 48-48V112c0-26.5-21.5-48-48-48H48zM48 96h416c8.8 0 16 7.2 16 16v21.3L256 295.1 32 133.3V112c0-8.8 7.2-16 16-16zm-16 70.6l208 147.3L448 166.6V400c0 8.8-7.2 16-16 16H80c-8.8 0-16-7.2-16-16V166.6z"/></svg>`;
+
+        const lang = state.currentLang;
+        const i18n = I18N_DATA[lang];
+        const ts = m.timestamp || m.created_at;
+        const displayTime = formatDisplayTime(ts, lang);
+        const deadlineBadge = getDeadlineBadge(ts);
+
+        const sourceIcon = m.source === 'slack' ? svgSlack : m.source === 'whatsapp' ? svgWA : svgGmail;
+        const assigneeText = m.assignee === 'me' ? `<span class="assignee-me">${i18n.assigneeMe}</span>` : `<span class="assignee-other">${m.assignee}</span>`;
+
+        return `
+            <div class="card ${m.source} ${m.done ? 'done' : ''}" id="task-${m.id}" data-id="${m.id}">
+                <div class="col-source" title="${m.source.toUpperCase()}">
+                    ${sourceIcon}
+                </div>
+                <div class="col-room">${m.room ? `<span class="badge-room">${escapeHTML(m.room)}</span>` : '-'}</div>
+                <div class="col-task">
+                    <span class="task-title">${escapeHTML(m.task)}</span>
+                    ${m.category === 'waiting' ? `<div class="waiting-tag" style="font-size: 0.75rem; color: var(--accent-color);">⏳ Waiting...</div>` : ''}
+                </div>
+                <div class="col-requester">
+                    <strong>${escapeHTML(m.requester)}</strong>
+                    <button class="map-alias-btn" data-name="${escapeHTML(m.requester)}" data-source="${m.source}" title="Map User" style="background:none;border:none;cursor:pointer;padding:0;font-size:0.9rem;">🔗</button>
+                </div>
+                <div class="col-assignee">${assigneeText}</div>
+                <div class="col-time">
+                    <span class="timestamp meta-val">${displayTime}</span>
+                    ${deadlineBadge}
+                </div>
+                <div class="col-actions">
+                    <button class="action-btn original-btn show-original" title="View Original">${ICONS.viewOriginal}</button>
+                    <button class="action-btn delete-btn delete-task" title="${i18n.delete}">${ICONS.delete}</button>
+                    <button class="done-btn toggle-done">
+                        ${m.done ? '↩️' : '✅'}
+                    </button>
+                </div>
+            </div>
+        `;
+    },
+
+    /**
+     * Attaches event listeners to message cards.
+     * @param {import('./logic.js').Message[]} messages - Array of messages.
+     * @param {Object} handlers - Event handlers.
+     */
+    attachCardEventListeners(messages, handlers) {
+        document.querySelectorAll('.card').forEach(card => {
+            const id = parseInt(card.getAttribute('data-id'));
+            const m = messages.find(item => item.id === id);
+
+            card.querySelector('.toggle-done')?.addEventListener('click', () => {
+                handlers.onToggleDone(id, !m.done);
+            });
+
+            card.querySelector('.delete-task')?.addEventListener('click', () => {
+                if (confirm(I18N_DATA[state.currentLang].confirmDelete)) {
+                    handlers.onDeleteTask(id);
+                }
+            });
+
+            // [Refactored] Removed window.showOriginalMessage
+            card.querySelector('.show-original')?.addEventListener('click', () => {
+                if (handlers.onShowOriginal) handlers.onShowOriginal(id);
+            });
+        });
+    },
+
+    /**
+     * Triggers XP animation in the UI.
+     */
+    triggerXPAnimation() {
+        const overlay = document.getElementById('xpOverlay');
+        if (!overlay) return;
+        overlay.classList.remove('hidden');
+        overlay.style.animation = 'none';
+        overlay.offsetHeight; // trigger reflow
+        overlay.style.animation = 'xpFloat 1.2s ease-out forwards';
+        setTimeout(() => overlay.classList.add('hidden'), 1200);
+    },
+
+    /**
+     * Triggers confetti animation.
+     */
+    triggerConfetti() {
+        if (typeof confetti === 'function') {
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#00d4ff', '#0052ff', '#ffffff']
+            });
+        }
+    },
+
+    /**
+     * Updates user profile UI with latest data.
+     * @param {Object} profile - User profile data.
+     */
+    updateUserProfile(profile) {
+        if (!profile) return;
+
+        // Unhide profile sections
+        const userProfile = document.getElementById('userProfile');
+        const gamificationStats = document.getElementById('gamificationStats');
+        if (userProfile) userProfile.classList.remove('hidden');
+        if (gamificationStats) gamificationStats.classList.remove('hidden');
+
+        // Update basic info
+        const userEmail = document.getElementById('userEmail');
+        const userPic = document.getElementById('userPicture');
+        if (userEmail) userEmail.textContent = profile.email || '';
+        if (userPic && profile.picture) {
+            userPic.src = profile.picture;
+            userPic.classList.remove('hidden');
+        }
+
+        const locale = I18N_DATA[state.currentLang];
+        const streakText = document.getElementById('userStreak');
+        const xpText = document.getElementById('xpText');
+        const xpBar = document.getElementById('xpBar');
+        const pointsText = document.getElementById('userPoints');
+        const levelText = document.getElementById('userLevel');
+
+        if (streakText) streakText.textContent = `${profile.streak || 0}🔥`;
+        if (xpText) xpText.textContent = `${profile.xp || 0} / 100 XP`;
+        if (xpBar) {
+            const progress = (profile.xp || 0) % 100;
+            xpBar.style.width = `${progress}%`;
+        }
+        if (pointsText) pointsText.textContent = profile.points || 0;
+        if (levelText) levelText.textContent = profile.level || 1;
+
+        // Updates for Streak Freezes
+        const freezeContainer = document.getElementById('streakFreezeContainer');
+        if (freezeContainer) {
+            const count = profile.streak_freezes || 0;
+            let html = `<span class="freeze-badge" title="Streak Freeze">❄️ × ${count}</span>`;
+
+            if (profile.points >= 50) {
+                html += `<button class="buy-freeze-btn" id="buyFreezeBtn">+ ❄️ (50 SCORE)</button>`;
+            }
+            freezeContainer.innerHTML = html;
+        }
+
+    },
+
+    /**
+     * Updates Slack connection status.
+     * @param {boolean|string} status - Status.
+     */
+    updateSlackStatus(status) {
+        updateServiceStatusUI('slack', status);
+    },
+
+    /**
+     * @param {Object} data - Connection status data, e.g., { status: 'CONNECTED' }
+     */
+    updateWhatsAppStatus: (statusStr) => {
+        const status = (statusStr || '').toLowerCase();
+        const isConnected = status === STATUS_STATES.CONNECTED.toLowerCase() || status === STATUS_STATES.AUTHENTICATED.toLowerCase();
+
+        console.log(`[DEBUG] WA Status Check: raw=${statusStr}, processed=${status}, isConnected=${isConnected}`);
+
+        const largeIcon = document.getElementById(DOM_IDS.WHATSAPP_DOT);
+        const textLabel = document.getElementById(DOM_IDS.WHATSAPP_TEXT);
+
+        if (largeIcon) {
+            largeIcon.classList.toggle('active', isConnected);
+            largeIcon.classList.toggle('inactive', !isConnected);
+        }
+        if (textLabel) {
+            textLabel.textContent = isConnected ? UI_TEXT.ON : UI_TEXT.OFF;
+        }
+    },
+
+    /**
+     * Updates Gmail connection status.
+     * @param {boolean} connected - Is connected.
+     */
+    updateGmailStatus(connected) {
+        updateServiceStatusUI('gmail', connected);
+    },
+
+    /**
+     * Updates the token usage badge in the header.
+     * @param {Object} usage - Token usage object.
+     */
+    updateTokenBadge(usage) {
+        const badge = document.getElementById('tokenUsageBadge');
+        if (badge && usage) {
+            badge.textContent = `Token: ${usage.todayTotal || 0}`;
+            // Optional: trigger subtle pop animation
+            badge.style.transform = 'scale(1.1)';
+            setTimeout(() => badge.style.transform = 'scale(1)', 200);
+        }
+    },
+
+    /**
+     * Renders archived messages in the archive table.
+     * @param {import('./logic.js').Message[]} messages - Array of archived messages.
+     */
+    renderArchive(messages) {
+        const tableBody = document.getElementById('archiveBody');
+        if (!tableBody) return;
+
+        if (!messages || messages.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="8" class="empty-state">No archived messages</td></tr>';
+            return;
+        }
+
+        tableBody.innerHTML = messages.map(m => {
+            const svgSlack = `<svg viewBox="0 0 100 100" width="16" height="16"><path fill="#E01E5A" d="M22.9,53.8V42.3c0-3.2-2.6-5.8-5.8-5.8s-5.8,2.6-5.8,5.8v11.5c0,3.2,2.6,5.8,5.8,5.8S22.9,57,22.9,53.8z"/><path fill="#E01E5A" d="M28.6,42.3c0-3.2,2.6-5.8,5.8-5.8h11.5c3.2,0,5.8,2.6,5.8,5.8s-2.6,5.8-5.8,5.8H34.4C31.2,48.1,28.6,45.5,28.6,42.3z"/><path fill="#36C5F0" d="M46.2,22.9h11.5c3.2,0,5.8-2.6,5.8-5.8s-2.6-5.8-5.8-5.8H46.2c-3.2,0-5.8,2.6-5.8,5.8S43,22.9,46.2,22.9z"/><path fill="#36C5F0" d="M57.7,28.6c3.2,0,5.8,2.6,5.8,5.8v11.5c0,3.2-2.6,5.8-5.8,5.8s-2.6-5.8-5.8-5.8V34.4C51.9,31.2,54.5,28.6,57.7,28.6z"/><path fill="#2EB67D" d="M77.1,46.2v11.5c0,3.2,2.6,5.8,5.8,5.8s5.8-2.6,5.8-5.8V46.2c0-3.2-2.6-5.8-5.8-5.8S77.1,43,77.1,46.2z"/><path fill="#2EB67D" d="M71.4,57.7c0,3.2-2.6,5.8-5.8,5.8H54.1c-3.2,0-5.8-2.6-5.8-5.8s2.6-5.8,5.8-5.8h11.5C68.8,51.9,71.4,54.5,71.4,57.7z"/><path fill="#ECB22E" d="M53.8,77.1H42.3c-3.2,0-5.8,2.6-5.8,5.8s2.6,5.8,5.8,5.8h11.5c3.2,0,5.8-2.6,5.8-5.8S57,77.1,53.8,77.1z"/><path fill="#ECB22E" d="M42.3,71.4c-3.2,0-5.8-2.6-5.8-5.8V54.1c0-3.2,2.6-5.8,5.8-5.8c3.2,0,5.8,2.6,5.8,5.8v11.5C48.1,68.8,45.5,71.4,42.3,71.4z"/></svg>`;
+            const svgWA = `<svg viewBox="0 0 448 512" width="16" height="16"><path fill="#25D366" d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-5.5-2.8-23.2-8.5-44.2-27.1-16.4-14.6-27.4-32.7-30.6-38.2-3.2-5.6-.3-8.6 2.4-11.3 2.5-2.4 5.5-6.5 8.3-9.7 2.8-3.3 3.7-5.6 5.6-9.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 13.2 5.7 23.5 9.2 31.6 11.8 13.3 4.2 25.4 3.6 35 2.2 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/></svg>`;
+            const svgGmail = `<svg viewBox="0 0 512 512" width="16" height="16"><path fill="#EA4335" d="M48 64C21.5 64 0 85.5 0 112v288c0 26.5 21.5 48 48 48h416c26.5 0 48-21.5 48-48V112c0-26.5-21.5-48-48-48H48zM48 96h416c8.8 0 16 7.2 16 16v21.3L256 295.1 32 133.3V112c0-8.8 7.2-16 16-16zm-16 70.6l208 147.3L448 166.6V400c0 8.8-7.2 16-16 16H80c-8.8 0-16-7.2-16-16V166.6z"/></svg>`;
+            const sourceIcon = m.source === 'slack' ? svgSlack : m.source === 'whatsapp' ? svgWA : svgGmail;
+            const ts = m.timestamp || m.created_at;
+            const compTs = m.completed_at || '-';
 
             return `
                 <tr>
                     <td><input type="checkbox" class="archive-check" data-id="${m.id}"></td>
-                    <td>
-                        <div title="${escapeHTML(m.source)}" style="display: flex; justify-content: center;">
-                            ${sourceIcon || '<span class="badge">' + escapeHTML(m.source) + '</span>'}
-                        </div>
-                    </td>
-                    <td class="archive-room">${escapeHTML(m.room)}</td>
-                    <td class="archive-task">${escapeHTML(m.task)}${getDeadlineBadge(m.deadline)}</td>
-                    <td class="clickable-name">${escapeHTML(m.requester)}</td>
-                    <td class="clickable-name">${escapeHTML(m.assignee)}</td>
-                    <td style="font-size: 0.8rem; color: var(--text-dim);">${time}</td>
-                    <td style="font-size: 0.8rem; color: var(--text-dim);">${completedAt}</td>
+                    <td title="${m.source.toUpperCase()}" style="display:flex;align-items:center;height:100%;">${sourceIcon}</td>
+                    <td>${m.room ? `<span class="room-badge">${escapeHTML(m.room)}</span>` : '-'}</td>
+                    <td>${escapeHTML(m.task)}</td>
+                    <td>${escapeHTML(m.requester)}</td>
+                    <td>${escapeHTML(m.assignee)}</td>
+                    <td>${formatDisplayTime(ts, state.currentLang)}</td>
+                    <td>${compTs !== '-' ? formatDisplayTime(compTs, state.currentLang) : '-'}</td>
                 </tr>
             `;
         }).join('');
-
-        // Apply click handlers for archive names too
-        attachAliasMappingListeners(body);
     },
 
+    /**
+     * Renders the list of user aliases in settings.
+     * @param {string[]} aliases - List of aliases.
+     * @param {Function} onRemove - Callback function when an alias is removed.
+     */
     renderAliasList(aliases, onRemove) {
-        const list = document.getElementById('aliasList');
-        if (!list) return;
-        list.innerHTML = '';
-        aliases.forEach(alias => {
-            const item = document.createElement('div');
-            item.className = 'alias-item';
-            item.innerHTML = `
-                <span>${alias}</span>
-                <button class="remove-alias" data-alias="${alias}">&times;</button>
-            `;
-            list.appendChild(item);
+        const container = document.getElementById('aliasList');
+        if (!container) return;
+
+        if (!aliases || aliases.length === 0) {
+            container.innerHTML = '<p class="empty-list">No aliases configured</p>';
+            return;
+        }
+
+        container.innerHTML = aliases.map(alias => `
+            <div class="alias-item">
+                <span>${escapeHTML(alias)}</span>
+                <button class="remove-alias-btn" data-alias="${escapeHTML(alias)}">&times;</button>
+            </div>
+        `).join('');
+
+        container.querySelectorAll('.remove-alias-btn').forEach(btn => {
+            btn.addEventListener('click', () => onRemove(btn.dataset.alias));
         });
-
-        list.querySelectorAll('.remove-alias').forEach(btn => {
-            btn.addEventListener('click', () => onRemove(btn.getAttribute('data-alias')));
-        });
     },
 
-    calculateXPProgress(xp) {
-        const currentXP = xp || 0;
-        const currentLevelXP = currentXP % 100;
-        return {
-            currentLevelXP,
-            progress: currentLevelXP, // 1 level = 100 XP
-            nextLevelXP: 100
-        };
-    },
-
-    updateUserProfile(profile) {
-        const imgEl = document.getElementById('userPicture');
-        const gamificationStats = document.getElementById('gamificationStats');
-        const userLevel = document.getElementById('userLevel');
-        const userStreak = document.getElementById('userStreak');
-        const userPoints = document.getElementById('userPoints');
-        const xpBar = document.getElementById('xpBar');
-        const xpText = document.getElementById('xpText');
-
-        if (profile.email) {
-            const userProfileEl = document.getElementById('userProfile');
-            if (userProfileEl) userProfileEl.classList.remove('hidden');
-
-            if (imgEl) {
-                imgEl.src = profile.picture || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
-                imgEl.title = profile.name || profile.email;
-            }
-
-            if (gamificationStats) {
-                gamificationStats.classList.remove('hidden');
-                if (userLevel) userLevel.textContent = profile.level || 1;
-
-                const streak = profile.streak || 0;
-                if (userStreak) {
-                    userStreak.textContent = `${streak}🔥`;
-                    userStreak.classList.toggle('streak-active', streak > 0);
-                }
-
-                if (userPoints) userPoints.textContent = (profile.points || 0).toLocaleString();
-
-                const { currentLevelXP, progress, nextLevelXP } = this.calculateXPProgress(profile.xp);
-
-                if (xpBar) xpBar.style.width = `${progress}%`;
-                if (xpText) xpText.textContent = `${currentLevelXP} / ${nextLevelXP} XP`;
-            }
-        }
-    },
-
-    triggerConfetti() {
-        // 10% 확률로만 화려한 꽃가루 터뜨리기 (가변적 보상을 통한 중독성 극대화)
-        if (typeof confetti === 'function' && Math.random() < 0.10) {
-            confetti({
-                particleCount: 150,
-                spread: 70,
-                origin: { y: 0.6 },
-                colors: ['#00f2ff', '#bc00ff', '#25d366', '#ff9500']
-            });
-        }
-    },
-
-    triggerXPAnimation() {
-        const statsEl = document.getElementById('gamificationStats');
-
-        // 연속 클릭 시 완벽히 겹치는 것을 방지하기 위한 미세한 난수 오프셋
-        const offsetX = Math.random() * 30 - 15;
-        const offsetY = Math.random() * 15;
-
-        let topPos = 80 + offsetY;
-        let rightPos = (window.innerWidth / 2) - 50 + offsetX; // 기본값 (중앙 상단)
-
-        if (statsEl && !statsEl.classList.contains('hidden')) {
-            const rect = statsEl.getBoundingClientRect();
-            topPos = rect.bottom + 15 + offsetY;
-            // 모바일에서는 중앙 근처, 데스크탑에서는 요소 근처
-            if (window.innerWidth < 480) {
-                rightPos = (window.innerWidth - 200) / 2 + offsetX; // 200 is approx width of floatEl
-            } else {
-                rightPos = window.innerWidth - rect.right + 20 + offsetX;
-            }
-        }
-
-        // Ensure rightPos is not negative and stays within viewport
-        rightPos = Math.max(10, Math.min(rightPos, window.innerWidth - 210));
-
-        const floatEl = document.createElement('div');
-        floatEl.innerHTML = `<span style="color: #ff9500; font-weight: 800; margin-right: 12px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">+10 XP</span>
-                             <span style="color: #00f2ff; font-weight: 800; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">+5 PTS</span>`;
-        floatEl.style.position = 'fixed';
-        floatEl.style.top = `${topPos}px`;
-        floatEl.style.right = `${rightPos}px`;
-        floatEl.style.padding = '8px 16px';
-        floatEl.style.background = 'rgba(20, 20, 25, 0.85)';
-        floatEl.style.border = '1px solid rgba(255,255,255,0.15)';
-        floatEl.style.borderRadius = '20px';
-        floatEl.style.boxShadow = '0 8px 16px rgba(0,0,0,0.3)';
-        floatEl.style.zIndex = '9999';
-        floatEl.style.opacity = '0';
-        floatEl.style.transform = 'translateY(20px) scale(0.8)';
-        floatEl.style.transition = 'all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-        floatEl.style.pointerEvents = 'none'; // 마우스 클릭 방해 방지
-
-        document.body.appendChild(floatEl);
-        void floatEl.offsetWidth; // Trigger reflow
-
-        floatEl.style.opacity = '1';
-        floatEl.style.transform = 'translateY(0) scale(1)';
-
-        setTimeout(() => {
-            floatEl.style.opacity = '0';
-            floatEl.style.transform = 'translateY(-30px) scale(0.9)';
-            setTimeout(() => floatEl.remove(), 500); // DOM에서 완전 제거
-        }, 1200);
-    },
-
-    updateWhatsAppStatus(status) {
-        const isConnected = (status === 'CONNECTED');
-        state.waConnected = isConnected;
-        updateServiceStatusUI('waStatusLarge', 'waStatusText', isConnected, (connected) => {
-            const loginSec = document.getElementById('waLoginSection');
-            if (loginSec) loginSec.classList.toggle('hidden', connected);
-        }, state.currentLang);
-    },
-
-    updateSlackStatus(connected) {
-        updateServiceStatusUI('slackStatusLarge', 'slackStatusText', connected, null, state.currentLang);
-    },
-
-    updateGmailStatus(connected) {
-        state.gmailConnected = connected;
-        const i18n = I18N_DATA[state.currentLang] || {};
-
-        updateServiceStatusUI('gmailStatusLarge', 'gmailStatusText', connected, (isConnected, iconEl) => {
-            const connectedStatus = document.getElementById('gmailConnectedStatus');
-            iconEl.style.cursor = isConnected ? 'default' : 'pointer';
-            iconEl.title = isConnected ? (i18n.gmailStatusConnectedTitle || 'Gmail: Connected') : (i18n.gmailStatusClickToConnect || 'Gmail: Click to connect');
-            if (connectedStatus) connectedStatus.classList.toggle('hidden', !isConnected);
-        }, state.currentLang);
-    },
-
+    /**
+     * Renders the list of tenant aliases in settings.
+     * @param {string[]} aliases - List of tenant aliases.
+     * @param {Function} onRemove - Callback function when an alias is removed.
+     */
     renderTenantAliasList(aliases, onRemove) {
-        const list = document.getElementById('normList');
-        if (!list) return;
-        list.innerHTML = '';
-        Object.entries(aliases).forEach(([original, primary]) => {
-            const item = document.createElement('div');
-            item.className = 'alias-item';
-            item.innerHTML = `
-                <div class="alias-info">
-                    <span class="alias-original">${original}</span>
-                    <span class="alias-primary">→ ${primary}</span>
-                </div>
-                <button type="button" class="remove-btn">&times;</button>
-            `;
-            item.querySelector('.remove-btn').onclick = () => onRemove(original);
-            list.appendChild(item);
-        });
-    },
+        const container = document.getElementById('normList');
+        if (!container) return;
 
-    renderContactMappings(mappings, onRemove) {
-        const list = document.getElementById('contactList');
-        if (!list) return;
-        list.innerHTML = '';
-        mappings.forEach(({ rep_name, aliases }) => {
-            const item = document.createElement('div');
-            item.className = 'alias-item';
-            item.innerHTML = `
-                <div class="alias-info">
-                    <span class="alias-original">${rep_name}</span>
-                    <span class="alias-primary">${aliases}</span>
-                </div>
-                <button type="button" class="remove-btn">&times;</button>
-            `;
-            item.querySelector('.remove-btn').onclick = () => onRemove(rep_name);
-            list.appendChild(item);
-        });
-    },
-
-    updateTokenBadge(usage) {
-        const badge = document.getElementById('tokenUsageBadge');
-        if (badge) {
-            const i18n = I18N_DATA[state.currentLang] || {};
-            const total = usage.todayTotal || 0;
-            const prompt = usage.todayPrompt || 0;
-            const completion = usage.todayCompletion || 0;
-
-            const monthTotal = usage.monthTotal || 0;
-            const monthCostUSD = ((usage.monthPrompt || 0) / 1000000) * 0.075 + ((usage.monthCompletion || 0) / 1000000) * 0.3;
-
-            // Gemini 1.5 Flash / Gemini 3 Flash Preview pricing
-            // Input: $0.075/1M, Output: $0.3/1M
-            const inputCostUSD = (prompt / 1000000) * 0.075;
-            const outputCostUSD = (completion / 1000000) * 0.3;
-            const totalCostUSD = inputCostUSD + outputCostUSD;
-
-            // Language-based currency formatting
-            let costString = '';
-            if (state.currentLang === 'ko') {
-                costString = `≈${(totalCostUSD * 1400).toFixed(1)}원`;
-            } else {
-                costString = `≈$${totalCostUSD.toFixed(3)}`;
-            }
-
-            // Compact format (e.g., 1.2M, 500K) to save UI space
-            const formatTokens = (num) => {
-                if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
-                if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-                return num.toString();
-            };
-
-            const monthCostString = state.currentLang === 'ko'
-                ? `≈${(monthCostUSD * 1400).toFixed(1)}원`
-                : `$${monthCostUSD.toFixed(3)}`;
-
-            const tooltipTitle = (i18n.tokenTooltipToday || "[Today] Prompt: {prompt} / Completion: {completion}")
-                .replace('{prompt}', prompt.toLocaleString())
-                .replace('{completion}', completion.toLocaleString());
-
-            const tooltipMonth = (i18n.tokenTooltipMonth || "[This Month] Total: {monthTotal} ({costString})")
-                .replace('{monthTotal}', formatTokens(monthTotal))
-                .replace('{costString}', monthCostString);
-
-            badge.title = `${tooltipTitle}\n${tooltipMonth}`;
-            badge.textContent = `Token: ${formatTokens(total)} (${costString})`;
-            badge.classList.remove('hidden');
-
-
-            if (total > 500000) badge.style.color = '#ff3b30';
-            else if (total > 200000) badge.style.color = '#f39c12';
-            else badge.style.color = 'var(--accent-light)';
+        if (!aliases || aliases.length === 0) {
+            container.innerHTML = '<p class="empty-list">No tenant aliases configured</p>';
+            return;
         }
+
+        container.innerHTML = aliases.map(alias => `
+            <div class="alias-item">
+                <span>${escapeHTML(alias)}</span>
+                <button class="remove-tenant-alias-btn" data-alias="${escapeHTML(alias)}">&times;</button>
+            </div>
+        `).join('');
+
+        container.querySelectorAll('.remove-tenant-alias-btn').forEach(btn => {
+            btn.addEventListener('click', () => onRemove(btn.dataset.alias));
+        });
     },
 
-    renderReleaseNotes(markdown) {
-        const contentEl = document.getElementById('releaseNotesContent');
-        if (!contentEl) return;
+    /**
+     * Renders contact mappings in settings.
+     * @param {Object[]} mappings - List of mappings.
+     * @param {Function} onRemove - Callback function when a mapping is removed.
+     */
+    renderContactMappings(mappings, onRemove) {
+        const container = document.getElementById('contactList');
+        if (!container) return;
 
-        // More robust markdown-like formatter for the specific RELEASE_NOTES_USER.md structure
-        let html = markdown
-            .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-            .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-            .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        if (!mappings || mappings.length === 0) {
+            container.innerHTML = '<p class="empty-list">No contact mappings</p>';
+            return;
+        }
 
-        // Handle lists logic
-        const lines = html.split('\n');
-        let inList = false;
-        let formattedLines = [];
+        container.innerHTML = mappings.map(m => `
+            <div class="mapping-item">
+                <span class="mapping-source">${m.source}: ${escapeHTML(m.name)}</span>
+                <span class="mapping-arrow">→</span>
+                <span class="mapping-target">${escapeHTML(m.alias)}</span>
+                <button class="remove-mapping-btn" data-id="${m.id}">&times;</button>
+            </div>
+        `).join('');
 
-        lines.forEach(line => {
-            const listMatch = line.match(/^[\-\*]\s+(.*)$/);
-            if (listMatch) {
-                if (!inList) {
-                    formattedLines.push('<ul>');
-                    inList = true;
-                }
-                formattedLines.push(`<li>${listMatch[1]}</li>`);
-            } else {
-                if (inList) {
-                    formattedLines.push('</ul>');
-                    inList = false;
-                }
-                if (line.trim()) {
-                    // Check if it's already a tag
-                    if (!line.trim().startsWith('<')) {
-                        formattedLines.push(`<p>${line}</p>`);
-                    } else {
-                        formattedLines.push(line);
-                    }
-                }
-            }
+        container.querySelectorAll('.remove-mapping-btn').forEach(btn => {
+            btn.addEventListener('click', () => onRemove(btn.dataset.id));
         });
+    },
 
-        if (inList) formattedLines.push('</ul>');
+    /**
+     * Renders release notes in the modal.
+     * @param {string} content - Markdown content of release notes.
+     */
+    renderReleaseNotes(content) {
+        const container = document.getElementById('releaseNotesContent');
+        if (!container) return;
 
-        contentEl.innerHTML = formattedLines.join('\n');
-        document.getElementById('releaseNotesModal').classList.remove('hidden');
+        // 유실되었던 '전용 마크다운-HTML 엔진' 복원 및 스타일 강화
+        const parseMarkdown = (text) => {
+            if (!text) return '';
+            return text
+                .replace(/^### (.*$)/gim, '<h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--text-main);">$1</h3>')
+                .replace(/^## (.*$)/gim, '<h2 style="margin-top: 1.8rem; margin-bottom: 0.8rem; color: var(--text-main); border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.3rem;">$1</h2>')
+                .replace(/^# (.*$)/gim, '<h1 style="margin-top: 2rem; margin-bottom: 1rem; color: var(--accent-color); font-size: 1.4rem;">$1</h1>')
+                .replace(/^\-\-\-/gim, '<hr class="settings-divider" style="margin: 2rem 0;">')
+                .replace(/\*\*(.*?)\*\*/gim, '<strong style="color: var(--text-main); font-weight: 800;">$1</strong>')
+                .replace(/`(.*?)`/gim, '<code style="background: rgba(255,255,255,0.1); padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.9em; font-family: monospace;">$1</code>')
+                .replace(/^\- (.*$)/gim, '<div style="padding-left: 1rem; text-indent: -0.8rem; margin-bottom: 0.5rem; color: var(--text-dim); line-height: 1.6;"><span style="color: var(--accent-color);">•</span> $1</div>')
+                .replace(/\n/gim, '<br>')
+                .replace(/(<\/h[1-3]>|<hr.*?>|<\/div>)<br>/gim, '$1'); // 블록 요소 뒤 불필요한 줄바꿈 정리
+        };
+
+        container.innerHTML = `<div class="release-notes-markdown">${parseMarkdown(content)}</div>`;
     }
 };

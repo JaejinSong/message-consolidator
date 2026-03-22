@@ -1,3 +1,5 @@
+import { I18N_DATA } from './locales.js';
+
 /**
  * 비동기 함수의 에러 핸들링을 공통화하는 고차 함수 (Higher-Order Function)
  * 중복되는 try-catch 블록을 제거하고, 호출부의 가독성을 높입니다.
@@ -6,9 +8,101 @@
  */
 export const safeAsync = (fn, onError) => async function (...args) {
     try {
-        return await fn.apply(this, args); // 원래 함수의 this 컨텍스트 유지
+        return await fn.apply(this, args);
     } catch (e) {
         console.error('[Async Error]', e);
+        if (e.isAuthError) {
+            console.warn('[safeAsync] AuthError detected. Attempting to show login overlay.');
+            const overlay = document.getElementById('loginOverlay');
+            if (overlay) {
+                overlay.classList.remove('hidden');
+                console.info('[safeAsync] Login overlay shown successfully.');
+            } else {
+                console.error('[safeAsync] Login overlay element NOT FOUND in document.');
+            }
+        }
         if (onError) onError(e);
+        throw e; // Rethrow to allow caller to handle if needed
     }
+};
+
+/**
+ * 날짜 문자열을 다국어가 지원되는 상대 시간 포맷(방금 전, n분 전 등) 또는 지정된 시간대로 변환합니다.
+ * @param {string} isoStr - 변환할 날짜 문자열
+ * @param {string} lang - 현재 설정된 언어 코드 (예: 'ko', 'en')
+ * @returns {string} 포맷팅된 시간 문자열
+ */
+export const formatDisplayTime = (isoStr, lang) => {
+    if (!isoStr) return '-';
+
+    let dateStr = isoStr;
+    // Handle legacy suffix from database
+    if (typeof dateStr === 'string') {
+        if (dateStr.includes(' KST')) dateStr = dateStr.replace(' KST', ' +0900');
+        else if (dateStr.includes(' JKT')) dateStr = dateStr.replace(' JKT', ' +0700');
+        else if (dateStr.includes(' ICT')) dateStr = dateStr.replace(' ICT', ' +0700');
+        else if (dateStr.match(/^\d{2}:\d{2}$/)) {
+            return dateStr;
+        }
+    }
+
+    try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return isoStr;
+
+        // 상대 시간 계산 (당일 24시간 이내)
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMins / 60);
+
+        if (diffHours < 24 && now.getDate() === date.getDate()) {
+            const i18n = I18N_DATA[lang] || I18N_DATA['en'];
+            if (diffMins < 1) return i18n.justNow || '방금 전';
+            if (diffMins < 60) return (i18n.minAgo || '{n}m ago').replace('{n}', diffMins);
+            return (i18n.hourAgo || '{n}h ago').replace('{n}', diffHours);
+        }
+
+        const yesterdayDate = new Date(now);
+        yesterdayDate.setDate(now.getDate() - 1);
+        const isYesterday = (date.getDate() === yesterdayDate.getDate() &&
+            date.getMonth() === yesterdayDate.getMonth() &&
+            date.getFullYear() === yesterdayDate.getFullYear());
+
+        const config = {
+            ko: { offset: 9, label: 'KST' },
+            id: { offset: 7, label: 'JKT' },
+            th: { offset: 7, label: 'ICT' },
+            en: { offset: 0, label: 'GMT' }
+        };
+
+        const { offset, label } = config[lang] || config.en;
+        const local = new Date(date.getTime() + (3600000 * offset));
+        const mm = String(local.getUTCMonth() + 1).padStart(2, '0');
+        const dd = String(local.getUTCDate()).padStart(2, '0');
+        const hh = String(local.getUTCHours()).padStart(2, '0');
+        const min = String(local.getUTCMinutes()).padStart(2, '0');
+
+        if (isYesterday) {
+            const i18n = I18N_DATA[lang] || I18N_DATA['en'];
+            const ydayLabel = i18n.yesterday || '어제';
+            return `${ydayLabel} ${hh}:${min}`;
+        }
+
+        return `${mm}-${dd} ${hh}:${min} ${label}`;
+    } catch (e) {
+        return isoStr;
+    }
+};
+
+/**
+ * XSS 방지를 위해 문자열 내 특수 문자를 HTML 엔티티로 치환합니다.
+ * @param {string} str - 원본 문자열
+ * @returns {string} 이스케이프 처리된 문자열
+ */
+export const escapeHTML = (str) => {
+    if (!str) return '';
+    return String(str).replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    }[tag]));
 };

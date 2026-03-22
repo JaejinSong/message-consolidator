@@ -29,8 +29,8 @@ func LoadMetadata() error {
 
 	logger.Infof("[CACHE] Initializing metadata cache from DB...")
 
-	// 1. Load Users
-	rows, err := db.Query("SELECT id, email, COALESCE(name, ''), COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), created_at FROM users")
+	// 1. Load Users (TRIM name for consistent mapping)
+	rows, err := db.Query("SELECT id, email, COALESCE(TRIM(name), ''), COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), created_at FROM users")
 	if err != nil {
 		return fmt.Errorf("failed to load users: %w", err)
 	}

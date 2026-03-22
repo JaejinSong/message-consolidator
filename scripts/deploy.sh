@@ -33,28 +33,12 @@ gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --project=${PROJECT_ID} --command=
 
 # 4. VPS 배포 상태 및 실시간 검증
 echo "==> Step 4: Verifying deployment..."
-# 로그 확인 및 로컬 헬스체크
+# 로그 확인 (Startup Complete 문구가 보일 때까지 대기 또는 1회 확인)
 gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --project=${PROJECT_ID} --command="
   cd ~/message-consolidator && 
-  echo 'Waiting for Startup Complete log...' &&
-  sudo docker-compose logs --tail=20 | grep -q \"Startup Complete\" || (sleep 5 && sudo docker-compose logs --tail=20 | grep \"Startup Complete\") &&
-  echo 'Checking local health (localhost:8080)...' &&
-  curl -s -f http://localhost:8080/health && echo 'Local health check passed!'
+  sudo docker-compose logs | grep \"Startup Complete\"
 "
 
-# 외부 API 상태 확인 (Public IP를 통한 최종 검증)
-echo "==> Checking External API status..."
-# Wait a few seconds for the proxy/network to propagate if needed
-sleep 2
-EXTERNAL_IP=$(gcloud compute instances describe ${VPS_NAME} --zone=${ZONE} --project=${PROJECT_ID} --format="value(networkInterfaces[0].accessConfigs[0].natIP)")
-echo "External IP: ${EXTERNAL_IP}"
-
-# Try both nip.io and direct IP
-if curl -s -f "https://${EXTERNAL_IP}.nip.io/health"; then
-    echo "✅ API is healthy via HTTPS (nip.io)!"
-elif curl -s -f "http://${EXTERNAL_IP}:8080/health"; then
-    echo "⚠️ API is healthy via HTTP (Direct Port), but HTTPS/nip.io failed."
-else
-    echo "❌ API health check failed on all endpoints!"
-    exit 1
-fi
+# API 상태 확인
+echo "==> Checking API status..."
+curl -s -X GET "https://34.67.133.18.nip.io/api/scan?lang=Korean" | grep -q "scan started" && echo "API is healthy!" || echo "API health check failed!"

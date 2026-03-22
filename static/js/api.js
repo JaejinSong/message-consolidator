@@ -1,12 +1,40 @@
 import { state } from './state.js';
 
+/**
+ * 전역 응답 처리 함수. 401 Unauthorized 발생 시 인증 에러를 던집니다.
+ */
+async function handleResponse(resp, customMsg) {
+    if (resp.status === 401) {
+        const err = new Error('Unauthorized');
+        err.isAuthError = true;
+        throw err;
+    }
+    
+    const contentType = resp.headers.get("content-type");
+    if (contentType && contentType.indexOf("text/html") !== -1) {
+        // If we expected JSON but got HTML, it's likely a redirect to login
+        const err = new Error('Session Expired or Unauthorized');
+        err.isAuthError = true;
+        throw err;
+    }
+
+    if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(customMsg || text || `Error ${resp.status}`);
+    }
+
+    if (contentType && contentType.indexOf("application/json") !== -1) {
+        return await resp.json();
+    }
+    return resp;
+}
+
 export const api = {
     async fetchMessages(lang) {
         const langMap = { 'ko': 'Korean', 'en': 'English', 'id': 'Indonesian', 'th': 'Thai' };
         const langParam = langMap[lang] || 'Korean';
         const resp = await fetch(`/api/messages?lang=${langParam}`);
-        if (!resp.ok) throw new Error(`Fetch messages failed: ${resp.status}`);
-        return await resp.json();
+        return handleResponse(resp, 'Fetch messages failed');
     },
 
     async toggleDone(id, done) {
@@ -15,8 +43,7 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id, done })
         });
-        if (!resp.ok) throw new Error(`Toggle done failed: ${resp.status}`);
-        return resp;
+        return handleResponse(resp, 'Toggle done failed');
     },
 
     async deleteTask(idOrIds) {
@@ -26,8 +53,7 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
-        if (!resp.ok) throw new Error(`Delete task failed: ${resp.status}`);
-        return resp;
+        return handleResponse(resp, 'Delete task failed');
     },
 
     async hardDeleteTasks(ids) {
@@ -36,8 +62,7 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids })
         });
-        if (!resp.ok) throw new Error(`Hard delete failed: ${resp.status}`);
-        return resp;
+        return handleResponse(resp, 'Hard delete failed');
     },
 
     async restoreTasks(ids) {
@@ -46,70 +71,78 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids })
         });
-        if (!resp.ok) throw new Error(`Restore failed: ${resp.status}`);
-        return resp;
+        return handleResponse(resp, 'Restore failed');
     },
 
     async fetchWhatsAppStatus() {
         const resp = await fetch('/api/whatsapp/status');
-        if (!resp.ok) throw new Error(`WA status check failed: ${resp.status}`);
-        return await resp.json();
+        return handleResponse(resp, 'WA status check failed');
     },
 
     async fetchSlackStatus() {
         const resp = await fetch('/api/slack/status');
-        if (!resp.ok) throw new Error(`Slack status check failed: ${resp.status}`);
-        return await resp.json();
+        return handleResponse(resp, 'Slack status check failed');
     },
 
     async triggerScan(lang) {
         const langMap = { 'ko': 'Korean', 'en': 'English', 'id': 'Indonesian', 'th': 'Thai' };
         const langParam = langMap[lang] || 'Korean';
-        return await fetch(`/api/scan?lang=${langParam}`);
+        const resp = await fetch(`/api/scan?lang=${langParam}`);
+        return handleResponse(resp, 'Scan failed');
     },
 
     async translateTasks(lang) {
         const langMap = { 'ko': 'Korean', 'en': 'English', 'id': 'Indonesian', 'th': 'Thai' };
         const langParam = langMap[lang] || 'Korean';
         const resp = await fetch(`/api/translate?lang=${langParam}`, { method: 'POST' });
-        if (!resp.ok) throw new Error(`Translation failed: ${resp.status}`);
-        return await resp.json();
+        return handleResponse(resp, 'Translation failed');
     },
 
     async fetchArchive(params = {}) {
         const query = new URLSearchParams();
         const langMap = { 'ko': 'Korean', 'en': 'English', 'id': 'Indonesian', 'th': 'Thai' };
         const langParam = langMap[params.lang] || 'Korean';
-        
+
         if (params.q) query.set('q', params.q);
         if (params.limit) query.set('limit', params.limit);
         if (params.offset) query.set('offset', params.offset);
         if (params.sort) query.set('sort', params.sort);
         if (params.order) query.set('order', params.order);
         query.set('lang', langParam);
-        
+
         const resp = await fetch(`/api/messages/archive?${query.toString()}`);
-        if (!resp.ok) throw new Error(`Fetch archive failed: ${resp.status}`);
-        return await resp.json();
+        return handleResponse(resp, 'Fetch archive failed');
     },
 
     async fetchArchiveCount(q = '') {
         const query = q ? `?q=${encodeURIComponent(q)}` : '';
         const resp = await fetch(`/api/messages/archive/count${query}`);
-        if (!resp.ok) throw new Error(`Fetch archive count failed: ${resp.status}`);
-        return await resp.json();
+        return handleResponse(resp, 'Fetch archive count failed');
     },
 
     async fetchUserProfile() {
         const resp = await fetch('/api/user/info');
-        if (!resp.ok) throw new Error(`User info fetch failed: ${resp.status}`);
-        return await resp.json();
+        return handleResponse(resp, 'User info fetch failed');
     },
 
     async fetchAliases() {
         const resp = await fetch('/api/user/aliases');
-        if (!resp.ok) throw new Error(`Fetch aliases failed: ${resp.status}`);
-        return await resp.json();
+        return handleResponse(resp, 'Fetch aliases failed');
+    },
+
+    async fetchUserStats() {
+        const resp = await fetch('/api/user/stats');
+        return handleResponse(resp, 'Fetch user stats failed');
+    },
+
+    async fetchAchievements() {
+        const resp = await fetch('/api/achievements');
+        return handleResponse(resp, 'Fetch achievements failed');
+    },
+
+    async fetchUserAchievements() {
+        const resp = await fetch('/api/user/achievements');
+        return handleResponse(resp, 'Fetch user achievements failed');
     },
 
     async addAlias(alias) {
@@ -118,8 +151,7 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ alias })
         });
-        if (!resp.ok) throw new Error(`Add alias failed: ${resp.status}`);
-        return resp;
+        return handleResponse(resp, 'Add alias failed');
     },
 
     async removeAlias(alias) {
@@ -128,26 +160,27 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ alias })
         });
-        if (!resp.ok) throw new Error(`Remove alias failed: ${resp.status}`);
-        return resp;
+        return handleResponse(resp, 'Remove alias failed');
     },
 
     async getWhatsAppQR() {
         const resp = await fetch('/api/whatsapp/qr');
-        if (!resp.ok) throw new Error(`QR fetch failed: ${resp.status}`);
-        return await resp.json();
+        return handleResponse(resp, 'QR fetch failed');
     },
 
     async fetchGmailStatus() {
         const resp = await fetch('/api/gmail/status');
-        if (!resp.ok) throw new Error(`Gmail status check failed: ${resp.status}`);
-        return await resp.json();
+        return handleResponse(resp, 'Gmail status check failed');
     },
-    
+
+    async buyStreakFreeze() {
+        const resp = await fetch('/api/user/buy-freeze', { method: 'POST' });
+        return handleResponse(resp, 'Purchase failed');
+    },
+
     async fetchTenantAliases() {
         const resp = await fetch('/api/tenant/aliases');
-        if (!resp.ok) throw new Error(`Fetch tenant aliases failed: ${resp.status}`);
-        return await resp.json();
+        return handleResponse(resp, 'Fetch tenant aliases failed');
     },
 
     async addTenantAlias(original, primary) {
@@ -156,8 +189,7 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ original, primary })
         });
-        if (!resp.ok) throw new Error(`Add tenant alias failed: ${resp.status}`);
-        return resp;
+        return handleResponse(resp, 'Add tenant alias failed');
     },
 
     async removeTenantAlias(original) {
@@ -166,20 +198,17 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ original })
         });
-        if (!resp.ok) throw new Error(`Remove tenant alias failed: ${resp.status}`);
-        return resp;
+        return handleResponse(resp, 'Remove tenant alias failed');
     },
 
     async fetchTokenUsage() {
         const resp = await fetch('/api/user/token-usage');
-        if (!resp.ok) throw new Error(`Fetch token usage failed: ${resp.status}`);
-        return await resp.json();
+        return handleResponse(resp, 'Fetch token usage failed');
     },
 
     async fetchContactMappings() {
         const resp = await fetch('/api/contacts/mappings');
-        if (!resp.ok) throw new Error(`Fetch contact mappings failed: ${resp.status}`);
-        return await resp.json();
+        return handleResponse(resp, 'Fetch contact mappings failed');
     },
 
     async addContactMapping(repName, aliases) {
@@ -188,8 +217,7 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ rep_name: repName, aliases })
         });
-        if (!resp.ok) throw new Error(`Add contact mapping failed: ${resp.status}`);
-        return resp;
+        return handleResponse(resp, 'Add contact mapping failed');
     },
 
     async removeContactMapping(repName) {
@@ -198,13 +226,33 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ rep_name: repName })
         });
-        if (!resp.ok) throw new Error(`Remove contact mapping failed: ${resp.status}`);
-        return resp;
+        return handleResponse(resp, 'Remove contact mapping failed');
     },
 
     async fetchReleaseNotes() {
         const resp = await fetch('/api/release-notes');
-        if (!resp.ok) throw new Error(`Fetch release notes failed: ${resp.status}`);
-        return await resp.json();
+        return handleResponse(resp, 'Fetch release notes failed');
+    },
+
+    async fetchOriginalMessage(id) {
+        const resp = await fetch(`/api/messages/${id}/original`);
+        return handleResponse(resp, 'Fetch original message failed');
+    },
+
+    /**
+     * Aggregates status from all channels and normalizes them.
+     */
+    async getChannelStatus() {
+        const [slack, whatsapp, gmail] = await Promise.all([
+            this.fetchSlackStatus().catch(() => ({ status: 'DISCONNECTED' })),
+            this.fetchWhatsAppStatus().catch(() => ({ status: 'DISCONNECTED' })),
+            this.fetchGmailStatus().catch(() => ({ connected: false }))
+        ]);
+
+        return {
+            slack: slack?.status === 'CONNECTED',
+            whatsapp: whatsapp?.status === 'CONNECTED',
+            gmail: gmail?.connected === true
+        };
     }
 };

@@ -21,5 +21,6 @@ func HandleSlackStatus(w http.ResponseWriter, r *http.Request) {
 	if cfg.SlackToken != "" {
 		status = "CONNECTED"
 	}
+	logger.Debugf("[CHANNEL] Slack token status: %s", status)
 	respondJSON(w, map[string]string{"status": status})
 }

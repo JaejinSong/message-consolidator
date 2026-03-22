@@ -120,12 +120,15 @@ func FlushTokenUsageIfNeeded() {
 }
 
 func GetDailyTokenUsage(email string) (int, int, error) {
-	var prompt, completion int
+	var promptNull, completionNull sql.NullInt64
 	query := `SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) FROM token_usage WHERE user_email = $1 AND date = CURRENT_DATE`
-	err := db.QueryRow(query, email).Scan(&prompt, &completion)
+	err := db.QueryRow(query, email).Scan(&promptNull, &completionNull)
 	if err != nil && err != sql.ErrNoRows {
 		return 0, 0, err
 	}
+
+	prompt := int(promptNull.Int64)
+	completion := int(completionNull.Int64)
 
 	tokenMu.Lock()
 	if data, ok := tokenDirtyData[email]; ok {
@@ -138,15 +141,18 @@ func GetDailyTokenUsage(email string) (int, int, error) {
 }
 
 func GetMonthlyTokenUsage(email string) (int, int, error) {
-	var prompt, completion int
+	var promptNull, completionNull sql.NullInt64
 	// Query for current month (starting from the 1st day of the current month)
 	query := `SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) 
 			  FROM token_usage 
 			  WHERE user_email = $1 AND date >= date_trunc('month', CURRENT_DATE)`
-	err := db.QueryRow(query, email).Scan(&prompt, &completion)
+	err := db.QueryRow(query, email).Scan(&promptNull, &completionNull)
 	if err != nil && err != sql.ErrNoRows {
 		return 0, 0, err
 	}
+
+	prompt := int(promptNull.Int64)
+	completion := int(completionNull.Int64)
 
 	// Add currently dirty data as it belongs to 'today' (which is part of 'this month')
 	tokenMu.Lock()
