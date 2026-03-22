@@ -1,3 +1,14 @@
+# Release Notes - v2.2.3 (2026-03-22 12:45 UTC)
+
+## 💎 Elegant Toast Notifications & Frontend Robustness
+- **[NEW] Glassmorphism Toast System**: Replaced intrusive browser alerts with a sleek, non-blocking toast notification system for success and error messages.
+- **[IMPROVED] Defensive Frontend Rendering**: Hardened all rendering logic to gracefully handle varied API response structures (arrays, objects, or empty states), ensuring the UI remains stable even during backend data shifts.
+- **[IMPROVED] Alias Mapping Visualization**: Updated 'Group Same Person' and 'Auto Name Formatting' lists to clearly show mapping relationships using arrow (→) indicators.
+- **[OPTIMIZE] Token Badge UX**: Simplified the token usage badge by removing redundant click alerts and focusing on instant information through hover tooltips.
+- **[SYS] Automated Quality Verification**: Expanded the Node.js test suite (`verify_renderer.js`) to mock browser environments, enabling comprehensive testing of UI-dependent logic before deployment.
+
+---
+
 # Release Notes - v2.1.5 (2026-03-21 13:10 UTC)
 
 ## 🏗️ Architectural Refactoring for Insights & Gamification
