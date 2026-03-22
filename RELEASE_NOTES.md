@@ -1,4 +1,4 @@
-# Release Notes - v2.3.0 (2026-03-22 13:20 UTC)
+# Release Notes - v2.2.4 (2026-03-22 13:20 UTC)
 
 ## 🌍 Global Consistency & Timezone-Aware Analytics
 - **[NEW] User-Local Timezone Analytics**: The Insights dashboard now respects your local timezone (`X-Timezone` header). Daily completion charts and hourly activity heatmaps will accurately reflect your local productivity patterns, regardless of your geographic location.
