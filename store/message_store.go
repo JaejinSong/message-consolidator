@@ -201,7 +201,7 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 	}
 
 	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*) 
+		SELECT COUNT(*)::int 
 		FROM messages 
 		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '%d days'))
 		%s`, safeArchiveDays, searchQuery)
@@ -290,7 +290,7 @@ func GetArchivedMessagesCount(ctx context.Context, filter ArchiveFilter) (int, e
 	}
 
 	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*) 
+		SELECT COUNT(*)::int 
 		FROM messages 
 		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '%d days'))
 		%s`, safeArchiveDays, searchQuery)

@@ -374,7 +374,7 @@ const initApp = () => {
 
     archive.init(fetchMessages);
     modals.init(fetchMessages);
-    insights.init();
+    insights.init?.();
 
     fetchUserProfile();
     checkWhatsAppStatus();

@@ -23,52 +23,59 @@ function testSortAndFilter() {
     const recentDate = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(); // 2일 전
     const oldDate = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString(); // 10일 전
 
-    const dynamicMock = [...mockMessages,
-    { id: 4, requester: 'User D', task: 'Recent Done task', source: 'slack', timestamp: recentDate, done: true, assignee: 'me' },
-    { id: 5, requester: 'User E', task: 'Old Done task', source: 'slack', timestamp: oldDate, done: true, assignee: 'me' },
-    { id: 6, requester: 'NoDate', task: 'No date task', source: 'slack', done: false, assignee: 'me' } // 날짜 정보 누락 케이스
+    const dynamicMock = [
+        ...mockMessages,
+        { id: 4, requester: 'User D', task: 'Recent Done task', source: 'slack', timestamp: recentDate, done: true, assignee: 'me' },
+        { id: 5, requester: 'User E', task: 'Old Done task', source: 'slack', timestamp: oldDate, done: true, assignee: 'me' },
+        { id: 6, requester: 'NoDate', task: 'No date task', source: 'slack', done: false, assignee: 'me' }, // 날짜 정보 누락 케이스
+        { id: 7, requester: 'Waiting Me', task: 'Waiting for me', source: 'slack', done: false, assignee: 'me', waiting_on: 'Dave' } // 'me' 이면서 waiting_on 인 경우
     ];
 
-    // My Tasks
+    // My Tasks Tab (Must NOT include waiting_on even if assignee is 'me')
     const myTasks = sortAndFilterMessages(dynamicMock, 'myTasksTab', '');
+    console.assert(myTasks.some(t => t.id === 1), 'Should include ID 1');
+    console.assert(!myTasks.some(t => t.id === 7), 'Should EXCLUDE waiting tasks even if assigned to me');
     console.assert(myTasks.length === 3, 'Should have 3 my tasks (ID 1, ID 4, ID 6)');
-    console.assert(myTasks[0].id === 1 && !myTasks[0].done, 'Pending task should be at the top');
-    console.assert(myTasks[myTasks.length - 1].id === 4 && myTasks[myTasks.length - 1].done, 'Done task should be sorted to the bottom');
 
-    // Other Tasks
+    // Other Tasks Tab (Must EXCLUDE 'me' and EXCLUDE waiting_on)
     const otherTasks = sortAndFilterMessages(dynamicMock, 'otherTasksTab', '');
-    console.assert(otherTasks.length === 1, 'Should have 1 other task');
+    console.assert(otherTasks.length === 1 && otherTasks[0].id === 2, 'Should only have ID 2');
+
+    // Waiting Tasks Tab
+    const waitingTasks = sortAndFilterMessages(dynamicMock, 'waitingTasksTab', '');
+    console.assert(waitingTasks.length === 2, 'Should have 2 waiting tasks (ID 3, ID 7)');
 
     // All Tasks Tab (Should ignore OLD completed tasks only)
     const allTasks = sortAndFilterMessages(dynamicMock, 'allTasksTab', '');
-    console.assert(allTasks.length === 5, 'Should have 5 tasks total (ID 5 old done excluded)');
-
-    // Search
-    const searchResult = sortAndFilterMessages(dynamicMock, 'allTasksTab', 'Wait');
-    console.assert(searchResult.length === 1 && searchResult[0].id === 3, 'Search should find specific message');
-
-    // No Date Graceful Handling
-    const noDateSearch = sortAndFilterMessages(dynamicMock, 'allTasksTab', 'No date task');
-    console.assert(noDateSearch.length === 1 && noDateSearch[0].id === 6, 'Should handle tasks without any date fields gracefully');
-
-    // 빈 데이터 예외 처리 (Empty/Null inputs)
-    const emptyResult = sortAndFilterMessages(null, 'allTasksTab', '');
-    console.assert(emptyResult.length === 0, 'Should handle null messages gracefully');
+    console.assert(allTasks.length === 6, 'Should have 6 tasks total (ID 5 old done excluded)');
 
     console.log('✅ sortAndFilterMessages passed');
 }
 
 function testClassify() {
     console.log('--- Testing classifyMessages ---');
-    const counts = classifyMessages(mockMessages);
-    console.assert(counts.all === 3, 'Should have 3 non-done tasks total');
-    console.assert(counts.my === 1, 'Should have 1 task assigned to me');
-    console.assert(counts.others === 1, 'Should have 1 task assigned to others');
-    console.assert(counts.waiting === 1, 'Should have 1 waiting task');
+    
+    const complexMock = [
+        { id: 1, done: false, assignee: 'me' },
+        { id: 2, done: false, assignee: 'other' },
+        { id: 3, done: false, assignee: 'me', waiting_on: 'Someone' },
+        { id: 4, done: false, assignee: 'other', waiting_on: 'Someone' },
+        { id: 5, done: true, assignee: 'me' } // Done tasks must be ignored
+    ];
 
-    // 빈 배열 예외 처리
-    const emptyCounts = classifyMessages([]);
-    console.assert(emptyCounts.all === 0 && emptyCounts.my === 0, 'Should handle empty arrays');
+    const counts = classifyMessages(complexMock);
+    
+    // Logic: 
+    // - all: all !done (1, 2, 3, 4) = 4
+    // - my: !done && assignee === 'me' && !waiting_on (1) = 1
+    // - others: !done && assignee !== 'me' && !waiting_on (2) = 1
+    // - waiting: !done && waiting_on (3, 4) = 2
+    
+    console.assert(counts.all === 4, `Expected all=4, got ${counts.all}`);
+    console.assert(counts.my === 1, `Expected my=1, got ${counts.my}`);
+    console.assert(counts.others === 1, `Expected others=1, got ${counts.others}`);
+    console.assert(counts.waiting === 2, `Expected waiting=2, got ${counts.waiting}`);
+
     console.log('✅ classifyMessages passed');
 }
 

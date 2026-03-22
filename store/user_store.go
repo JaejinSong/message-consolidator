@@ -256,7 +256,7 @@ func UpdateUserGamification(email string, points, streak, level, xp, dailyGoal i
 }
 
 func GetAchievements() ([]Achievement, error) {
-	rows, err := db.Query("SELECT id, name, description, icon, criteria_type, criteria_value, target_value, xp_reward FROM achievements")
+	rows, err := db.Query("SELECT id::int, name, COALESCE(description, ''), COALESCE(icon, ''), criteria_type, criteria_value::int, target_value::int, xp_reward::int FROM achievements")
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +274,7 @@ func GetAchievements() ([]Achievement, error) {
 }
 
 func GetUserAchievements(userID int) ([]UserAchievement, error) {
-	rows, err := db.Query("SELECT user_id, achievement_id, unlocked_at FROM user_achievements WHERE user_id = $1", userID)
+	rows, err := db.Query("SELECT user_id::int, achievement_id::int, unlocked_at FROM user_achievements WHERE user_id = $1", userID)
 	if err != nil {
 		return nil, err
 	}
@@ -315,7 +315,7 @@ func CheckAndUnlockAchievements(user User) ([]Achievement, error) {
 
 	// Get user's total completed tasks dynamically
 	var totalCompleted int
-	_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE user_email = $1 AND done = true", user.Email).Scan(&totalCompleted)
+	_ = db.QueryRow("SELECT COUNT(*)::int FROM messages WHERE user_email = $1 AND done = true", user.Email).Scan(&totalCompleted)
 
 	var newlyUnlocked []Achievement
 	for _, ach := range achievements {

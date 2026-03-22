@@ -41,9 +41,9 @@ export function sortAndFilterMessages(messages, currentTab, searchQuery) {
 
     // Filter by Tab
     if (currentTab === 'myTasksTab') {
-        filtered = filtered.filter(m => m.assignee === 'me');
+        filtered = filtered.filter(m => !m.waiting_on && m.assignee === 'me');
     } else if (currentTab === 'otherTasksTab') {
-        filtered = filtered.filter(m => m.assignee !== 'me' && !m.waiting_on);
+        filtered = filtered.filter(m => !m.waiting_on && m.assignee !== 'me');
     } else if (currentTab === 'waitingTasksTab') {
         filtered = filtered.filter(m => m.waiting_on);
     }
@@ -88,9 +88,13 @@ export function classifyMessages(messages) {
     messages.forEach(m => {
         if (m.done) return;
         counts.all++;
-        if (m.assignee === 'me') counts.my++;
-        else if (!m.waiting_on) counts.others++;
-        if (m.waiting_on) counts.waiting++;
+        if (m.waiting_on) {
+            counts.waiting++;
+        } else if (m.assignee === 'me') {
+            counts.my++;
+        } else {
+            counts.others++;
+        }
     });
 
     return counts;
