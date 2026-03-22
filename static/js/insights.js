@@ -2,19 +2,40 @@ import { api } from './api.js';
 import { state } from './state.js';
 import { escapeHTML } from './utils.js';
 import { I18N_DATA } from './locales.js';
-import { calculateHeatmapLevel, calculateSourceDistribution } from './logic.js';
+import { calculateHeatmapLevel, calculateSourceDistribution, processTimeSeriesData } from './logic.js';
 
 /**
  * @file insights.js
  * @description Professional Insights & Analytics module with Anki-style visualizations.
  */
 
+// 동적 채널별 고유 색상 매핑 (새로운 채널이 추가되면 기본 색상이 부여됨)
+const SOURCE_COLORS = {
+    slack: '#E01E5A',
+    whatsapp: '#25D366',
+    gmail: '#EA4335',
+    default: '#8b5cf6' // 세련된 보라빛 그레이 (Fallback)
+};
+
 export const insights = {
+    lastStats: null,
+    currentChartDays: 30,
+
     /**
      * Initializes the insights module.
      */
     init() {
         console.log("[Insights] Module Initialized");
+
+        // Bind chart filters
+        document.querySelectorAll('.chart-filters .filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.chart-filters .filter-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                this.currentChartDays = parseInt(e.target.dataset.days);
+                this.renderAnkiChart();
+            });
+        });
     },
 
     /**
@@ -29,6 +50,16 @@ export const insights = {
      * Refreshes stats and achievements data from the API and renders them.
      */
     async refreshData() {
+        const loading = document.getElementById('loading');
+        const lang = state.currentLang || 'ko';
+        const i18n = I18N_DATA[lang];
+
+        if (loading) {
+            const p = loading.querySelector('p');
+            if (p) p.textContent = "Loading insights data...";
+            loading.classList.remove('hidden');
+        }
+
         try {
             const [stats, allAch, userAch] = await Promise.all([
                 api.fetchUserStats().catch(e => { console.error("[Insights] Stats failed:", e); return null; }),
@@ -39,6 +70,12 @@ export const insights = {
             this.renderAll(stats, allAch, userAch);
         } catch (e) {
             console.error("[Insights] Unexpected error during refreshData", e);
+        } finally {
+            if (loading) {
+                loading.classList.add('hidden');
+                const p = loading.querySelector('p');
+                if (p) p.textContent = i18n.loading || "Gemini is scanning for new tasks..."; // 기본 문구 복구
+            }
         }
     },
 
@@ -50,6 +87,7 @@ export const insights = {
      */
     renderAll(stats, allAch, userAch) {
         if (!stats) return;
+        this.lastStats = stats;
 
         this.renderDailyGlance(stats);
         this.renderActivityHeatmap(stats);
@@ -57,6 +95,7 @@ export const insights = {
         this.renderWaitingMetrics(stats);
         this.renderHourlyActivity(stats);
         this.renderAchievements(allAch, userAch, stats);
+        this.renderAnkiChart();
     },
 
     /**
@@ -119,22 +158,24 @@ export const insights = {
 
         const dist = calculateSourceDistribution(stats.source_distribution);
 
-        if (dist.slack === 0 && dist.whatsapp === 0 && dist.gmail === 0) {
+        if (Object.keys(dist).length === 0) {
             container.innerHTML = '<p class="empty-msg">No channel data available.</p>';
             return;
         }
 
+        let barsHtml = '';
+        let legendHtml = '';
+        for (const [source, percentage] of Object.entries(dist)) {
+            if (percentage > 0) {
+                const color = SOURCE_COLORS[source] || SOURCE_COLORS.default;
+                barsHtml += `<div class="stacked-bar-segment" style="width: ${percentage}%; background-color: ${color};"></div>`;
+                legendHtml += `<span style="color: ${color}; font-weight: 600; text-transform: capitalize;">${source} (${percentage}%)</span>`;
+            }
+        }
+
         container.innerHTML = `
-            <div class="stacked-bar-container">
-                ${dist.slack > 0 ? `<div class="stacked-bar-segment slack" style="width: ${dist.slack}%"></div>` : ''}
-                ${dist.whatsapp > 0 ? `<div class="stacked-bar-segment whatsapp" style="width: ${dist.whatsapp}%"></div>` : ''}
-                ${dist.gmail > 0 ? `<div class="stacked-bar-segment gmail" style="width: ${dist.gmail}%"></div>` : ''}
-            </div>
-            <div class="distribution-legend">
-                ${dist.slack > 0 ? `<span class="slack">Slack (${dist.slack}%)</span>` : ''}
-                ${dist.whatsapp > 0 ? `<span class="whatsapp">WhatsApp (${dist.whatsapp}%)</span>` : ''}
-                ${dist.gmail > 0 ? `<span class="gmail">Gmail (${dist.gmail}%)</span>` : ''}
-            </div>
+            <div class="stacked-bar-container">${barsHtml}</div>
+            <div class="distribution-legend" style="display:flex; gap:1.2rem; flex-wrap:wrap; justify-content:center; margin-top:1rem; font-size:0.85rem;">${legendHtml}</div>
         `;
     },
 
@@ -150,11 +191,11 @@ export const insights = {
 
         container.innerHTML = `
             <div class="metric-item">
-                <span class="label">${i18n.waitingOnMe || 'Waiting on Me'}</span>
+                <span class="label">${i18n.pendingMeTasks || 'My Pending Tasks'}</span>
                 <span class="value">${stats.pending_me || 0}</span>
             </div>
             <div class="metric-item">
-                <span class="label">${i18n.waitingOnOthers || 'Waiting on Others'}</span>
+                <span class="label">${i18n.needsAttentionTasks || 'Needs Attention'}</span>
                 <span class="value">${stats.abandoned_tasks || 0}</span>
             </div>
         `;
@@ -240,5 +281,112 @@ export const insights = {
                 </div>
             `;
         }).join('');
+    },
+
+    /**
+     * Renders the Anki-style completion trend chart using zero-dependency SVG.
+     */
+    renderAnkiChart() {
+        const stats = this.lastStats;
+        if (!stats) return;
+
+        const container = document.getElementById('ankiChartContainer');
+        if (!container) return;
+
+        // Backend will need to provide completion_history
+        const history = stats.completion_history || [];
+        const data = processTimeSeriesData(history, this.currentChartDays);
+
+        const width = 800;
+        const height = 240;
+        const pad = { t: 20, r: 40, b: 20, l: 40 };
+        const innerW = width - pad.l - pad.r;
+        const innerH = height - pad.t - pad.b;
+
+        const maxTotal = Math.max(...data.map(d => d.total), 1);
+        const maxCum = Math.max(data[data.length - 1].cumulative, 1);
+
+        const barW = innerW / this.currentChartDays;
+        const barPad = this.currentChartDays <= 30 ? 2 : (this.currentChartDays <= 90 ? 1 : 0);
+        const actualBarW = Math.max(1, barW - barPad);
+
+        let barsHtml = '';
+        let lineD = '';
+
+        data.forEach((d, i) => {
+            const x = pad.l + i * barW + barPad / 2;
+            let currentY = pad.t + innerH;
+
+            const safeCounts = JSON.stringify(d.counts).replace(/"/g, '&quot;');
+            barsHtml += `<g class="chart-bar-group" data-date="${d.date}" data-total="${d.total}" data-cum="${d.cumulative}" data-counts="${safeCounts}">`;
+
+            for (const [source, val] of Object.entries(d.counts)) {
+                if (val > 0) {
+                    const h = (val / maxTotal) * innerH;
+                    currentY -= h;
+                    const color = SOURCE_COLORS[source] || SOURCE_COLORS.default;
+                    barsHtml += `<rect x="${x}" y="${currentY}" width="${actualBarW}" height="${h}" fill="${color}" />`;
+                }
+            }
+            barsHtml += `<rect x="${x}" y="${pad.t}" width="${barW}" height="${innerH}" fill="transparent" /></g>`;
+
+            const cx = pad.l + i * barW + barW / 2;
+            const cy = pad.t + innerH - (d.cumulative / maxCum) * innerH;
+            lineD += i === 0 ? `M ${cx} ${cy} ` : `L ${cx} ${cy} `;
+        });
+
+        const lineHtml = `<path d="${lineD}" fill="none" stroke="var(--accent-color)" stroke-width="2" stroke-linejoin="round" />`;
+        const labelsHtml = `
+            <text x="${pad.l - 10}" y="${pad.t + 5}" fill="var(--text-dim)" font-size="10" text-anchor="end">${maxTotal}</text>
+            <text x="${pad.l - 10}" y="${pad.t + innerH}" fill="var(--text-dim)" font-size="10" text-anchor="end">0</text>
+            <text x="${pad.l + innerW + 10}" y="${pad.t + 5}" fill="var(--accent-color)" font-size="10" text-anchor="start">${maxCum}</text>
+            <text x="${pad.l + innerW + 10}" y="${pad.t + innerH}" fill="var(--accent-color)" font-size="10" text-anchor="start">0</text>
+        `;
+
+        container.innerHTML = `
+            <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="width: 100%; height: 100%; overflow: visible;">
+                <line x1="${pad.l}" y1="${pad.t}" x2="${pad.l + innerW}" y2="${pad.t}" stroke="var(--glass-border)" stroke-dasharray="4" />
+                <line x1="${pad.l}" y1="${pad.t + innerH / 2}" x2="${pad.l + innerW}" y2="${pad.t + innerH / 2}" stroke="var(--glass-border)" stroke-dasharray="4" />
+                <line x1="${pad.l}" y1="${pad.t + innerH}" x2="${pad.l + innerW}" y2="${pad.t + innerH}" stroke="var(--glass-border)" />
+                ${labelsHtml}${barsHtml}${lineHtml}
+            </svg>
+            <div class="chart-tooltip hidden" id="ankiTooltip"></div>
+        `;
+
+        // Tooltip logic
+        const tooltip = document.getElementById('ankiTooltip');
+        container.querySelectorAll('.chart-bar-group').forEach(group => {
+            group.addEventListener('mouseenter', (e) => {
+                const d = e.currentTarget.dataset;
+                let countsHtml = '';
+                try {
+                    const countsMap = JSON.parse(d.counts || '{}');
+                    for (const [source, val] of Object.entries(countsMap)) {
+                        countsHtml += `<div style="display:flex; justify-content:space-between; gap:1.5rem; text-transform:capitalize;"><span>${source}</span> <strong>${val}</strong></div>`;
+                    }
+                } catch (e) { }
+
+                tooltip.innerHTML = `<div style="font-weight:800; color:var(--accent-color); margin-bottom:0.4rem;">${d.date}</div>${countsHtml}<hr class="settings-divider" style="margin: 0.4rem 0;"><div style="display:flex; justify-content:space-between;"><span>Total</span> <strong>${d.total}</strong></div><div style="display:flex; justify-content:space-between; color:var(--accent-color);"><span>Cumulative</span> <strong>${d.cum}</strong></div>`;
+                tooltip.classList.remove('hidden');
+            });
+            group.addEventListener('mousemove', (e) => {
+                const rect = container.getBoundingClientRect();
+                let leftPos = e.clientX - rect.left + 15;
+                let topPos = e.clientY - rect.top + 15;
+
+                // 화면(컨테이너) 오른쪽을 넘어가면 마우스 왼쪽으로 툴팁 반전
+                if (leftPos + tooltip.offsetWidth > rect.width) {
+                    leftPos = (e.clientX - rect.left) - tooltip.offsetWidth - 15;
+                }
+                // 화면(컨테이너) 아래쪽을 넘어가면 마우스 위쪽으로 툴팁 반전
+                if (topPos + tooltip.offsetHeight > rect.height) {
+                    topPos = (e.clientY - rect.top) - tooltip.offsetHeight - 15;
+                }
+
+                tooltip.style.left = leftPos + 'px';
+                tooltip.style.top = topPos + 'px';
+            });
+            group.addEventListener('mouseleave', () => tooltip.classList.add('hidden'));
+        });
     }
 };

@@ -1278,3 +1278,75 @@ body.light-theme .achievement-card.unlocked {
     color: var(--text-muted, #888);
     margin-top: 0.25rem;
 }
+
+/* Anki Style Chart Enhancements */
+.full-width {
+    grid-column: 1 / -1;
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.chart-filters {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.filter-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    color: var(--text-dim);
+    padding: 0.3rem 0.8rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+}
+
+.filter-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.filter-btn.active {
+    background: var(--accent-color);
+    color: #000;
+    border-color: var(--accent-color);
+}
+
+.svg-chart-container {
+    width: 100%;
+    height: 250px;
+    position: relative;
+}
+
+.chart-bar-group {
+    cursor: crosshair;
+}
+
+.chart-bar-group:hover rect[fill]:not([fill="transparent"]) {
+    filter: brightness(1.3);
+}
+
+.chart-tooltip {
+    position: absolute;
+    background: rgba(15, 17, 26, 0.95);
+    border: 1px solid var(--glass-border);
+    padding: 0.8rem;
+    border-radius: 8px;
+    color: var(--text-main);
+    font-size: 0.85rem;
+    pointer-events: none;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    white-space: nowrap;
+    backdrop-filter: blur(4px);
+}
+
+body.light-theme .chart-tooltip {
+    background: rgba(255, 255, 255, 0.95);
+    color: #334155;
+}

@@ -14,9 +14,11 @@ import { ICONS } from './icons.js';
 /**
  * Gets the deadline badge HTML based on the task timestamp.
  * @param {string} timestamp - ISO timestamp string.
+ * @param {boolean} isDone - Whether the task is completed.
  * @returns {string} HTML string for the badge.
  */
-function getDeadlineBadge(timestamp) {
+function getDeadlineBadge(timestamp, isDone) {
+    if (isDone) return '';
     const diffHours = (new Date() - new Date(timestamp)) / (1000 * 60 * 60);
     const lang = state.currentLang || 'ko';
 
@@ -139,7 +141,7 @@ export const renderer = {
         const i18n = I18N_DATA[lang];
         const ts = m.timestamp || m.created_at;
         const displayTime = formatDisplayTime(ts, lang);
-        const deadlineBadge = getDeadlineBadge(ts);
+        const deadlineBadge = getDeadlineBadge(ts, m.done);
 
         const sourceIcon = m.source === 'slack' ? ICONS.slack : m.source === 'whatsapp' ? ICONS.whatsapp : ICONS.gmail;
         const assigneeText = m.assignee === 'me' ? `<span class="assignee-me">${i18n.assigneeMe}</span>` : `<span class="assignee-other">${m.assignee}</span>`;
@@ -152,7 +154,7 @@ export const renderer = {
                 <div class="col-room">${m.room ? `<span class="badge-room">${escapeHTML(m.room)}</span>` : '-'}</div>
                 <div class="col-task">
                     <span class="task-title">${escapeHTML(m.task)}</span>
-                    ${m.category === 'waiting' ? `<div class="waiting-tag" style="font-size: 0.75rem; color: var(--accent-color);">⏳ Waiting...</div>` : ''}
+                    ${m.category === 'waiting' && !m.done ? `<div class="waiting-tag" style="font-size: 0.75rem; color: var(--accent-color);">⏳ Waiting...</div>` : ''}
                 </div>
                 <div class="col-requester">
                     <strong>${escapeHTML(m.requester)}</strong>

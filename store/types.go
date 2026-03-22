@@ -124,14 +124,21 @@ type ArchiveFilter struct {
 	Order  string
 }
 
+// TimeSeriesPoint represents daily task completions grouped by source
+type TimeSeriesPoint struct {
+	Date   string         `json:"date"`
+	Counts map[string]int `json:"counts"`
+}
+
 // UserStats represents various productivity metrics for a user
 type UserStats struct {
-	TotalCompleted     int            `json:"total_completed"`
-	DailyGoal          int            `json:"daily_goal"`
-	DailyCompletions   map[string]int `json:"daily_completions"`
-	HourlyActivity     map[int]int    `json:"hourly_activity"`
-	PeakTime           string         `json:"peak_time"`
-	AbandonedTasks     int            `json:"abandoned_tasks"`
-	PendingMe          int            `json:"pending_me"`
-	SourceDistribution map[string]int `json:"source_distribution"`
+	TotalCompleted     int               `json:"total_completed"`
+	DailyGoal          int               `json:"daily_goal"`
+	DailyCompletions   map[string]int    `json:"daily_completions"`
+	HourlyActivity     map[int]int       `json:"hourly_activity"`
+	PeakTime           string            `json:"peak_time"`
+	AbandonedTasks     int               `json:"abandoned_tasks"`
+	PendingMe          int               `json:"pending_me"`
+	SourceDistribution map[string]int    `json:"source_distribution"`
+	CompletionHistory  []TimeSeriesPoint `json:"completion_history"`
 }
