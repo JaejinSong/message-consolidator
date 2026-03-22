@@ -125,7 +125,7 @@ export const archive = {
             this.fetch();
             if (onTasksChangedCallback) onTasksChangedCallback();
         }, (e) => {
-            alert((I18N_DATA[state.currentLang]?.errorRestore || 'Error: ') + e.message);
+            renderer.showToast((I18N_DATA[state.currentLang]?.errorRestore || 'Error: ') + e.message, 'error');
         }));
 
         // Sorting
@@ -160,7 +160,7 @@ export const archive = {
             document.getElementById('exportCount').textContent = countData.count;
             exportModal.classList.remove('hidden');
         }, (e) => {
-            alert((I18N_DATA[state.currentLang]?.errorArchiveCount || 'Error: ') + e.message);
+            renderer.showToast((I18N_DATA[state.currentLang]?.errorArchiveCount || 'Error: ') + e.message, 'error');
         }));
 
         const downloadFile = (url, defaultFilename) => {
@@ -219,7 +219,7 @@ export const archive = {
             this.fetch();
             deleteConfirmModal.classList.add('hidden');
         }, (error) => {
-            alert((I18N_DATA[state.currentLang]?.errorHardDelete || 'Error: ') + error.message);
+            renderer.showToast((I18N_DATA[state.currentLang]?.errorHardDelete || 'Error: ') + error.message, 'error');
         }));
     }
 };

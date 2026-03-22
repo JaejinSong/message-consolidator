@@ -36,7 +36,7 @@ func main() {
 	if err != nil {
 		log.Fatal(fmt.Errorf("failed to read %s: %w", relFile, err))
 	}
-	
+
 	// Extract the latest version from the file to suggest the next one
 	versionRegex := regexp.MustCompile(`# 업데이트 소식 \(사용자용\) - v(\d+\.\d+\.\d+)`)
 	matches := versionRegex.FindStringSubmatch(string(content))
@@ -51,12 +51,12 @@ func main() {
 	if err != nil {
 		log.Fatal(fmt.Errorf("failed to get git log: %w", err))
 	}
-	
+
 	lines := strings.Split(string(out), "\n")
 	newCommits := []string{}
 	for _, line := range lines {
 		if strings.Contains(line, "v"+lastVersion) || strings.Contains(line, "("+lastVersion+")") {
-			break 
+			break
 		}
 		newCommits = append(newCommits, line)
 	}
@@ -79,9 +79,9 @@ func main() {
 	sysPrompt = strings.Replace(sysPrompt, "{LAST_RELEASE_NOTES}", string(content), 1) // Full file
 	sysPrompt = strings.Replace(sysPrompt, "{NEW_COMMITS}", commitContext, 1)
 	sysPrompt = strings.Replace(sysPrompt, "{DATE}", time.Now().Format("2006-01-02 15:04"), 1)
-	
+
 	nextVersion := incrementPatch(lastVersion)
-	sysPrompt = strings.Replace(sysPrompt, "{VERSION}", nextVersion, 1) 
+	sysPrompt = strings.Replace(sysPrompt, "{VERSION}", nextVersion, 1)
 
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(sysPrompt)},
@@ -106,7 +106,9 @@ func main() {
 
 func incrementPatch(v string) string {
 	parts := strings.Split(v, ".")
-	if len(parts) != 3 { return v }
+	if len(parts) != 3 {
+		return v
+	}
 	var patch int
 	fmt.Sscanf(parts[2], "%d", &patch)
 	return fmt.Sprintf("%s.%s.%d", parts[0], parts[1], patch+1)
