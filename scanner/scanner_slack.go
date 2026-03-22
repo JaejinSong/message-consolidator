@@ -70,13 +70,11 @@ func scanSlack(ctx context.Context, user store.User, aliases []string) {
 					}
 
 					taskText := m.Text
-					if m.ReplyToID != "" {
-						taskText = "[스레드 답글] " + taskText // UI에서 스레드임을 한눈에 파악할 수 있도록 말머리 추가
-					}
+					category := "todo"
 
 					if classification == "회신 대기" {
-						taskText = "[회신 대기] " + taskText
-						assigneeName = "수신자" // UI Waiting On 필터링을 위해 지정
+						category = "waiting"
+						// assigneeName을 임의의 '수신자'로 덮어쓰지 않고 원래 이름을 유지하거나 공백 처리
 					}
 
 					msgsToSave = append(msgsToSave, store.ConsolidatedMessage{
@@ -86,11 +84,11 @@ func scanSlack(ctx context.Context, user store.User, aliases []string) {
 						Task:         taskText,
 						Requester:    m.Sender,
 						Assignee:     assigneeName,
-						AssignedAt:   m.Timestamp.Format(time.RFC3339),
+						AssignedAt:   m.Timestamp,
 						Link:         link,
 						SourceTS:     m.ID,
 						OriginalText: m.Text,
-						Deadline:     "",
+						Category:     category,
 					})
 				}
 				if m.ID > newLastTS {
@@ -197,13 +195,13 @@ func sweepSlackThreads() {
 				if assigneeName == "" {
 					assigneeName = user.Email
 				}
-				taskText := "[스레드 답글] " + m.Text
+				taskText := m.Text
+				category := "todo"
 				if classification == "회신 대기" {
-					taskText = "[회신 대기] " + taskText
-					assigneeName = "수신자"
+					category = "waiting"
 				}
 				link := fmt.Sprintf("https://slack.com/archives/%s/p%s?thread_ts=%s", t.ChannelID, strings.ReplaceAll(m.ID, ".", ""), t.ThreadTS)
-				msgsToSave = append(msgsToSave, store.ConsolidatedMessage{UserEmail: user.Email, Source: "slack", Room: sc.GetChannelName(t.ChannelID), Task: taskText, Requester: m.Sender, Assignee: assigneeName, AssignedAt: m.Timestamp.Format(time.RFC3339), Link: link, SourceTS: m.ID, OriginalText: m.Text, Deadline: ""})
+				msgsToSave = append(msgsToSave, store.ConsolidatedMessage{UserEmail: user.Email, Source: "slack", Room: sc.GetChannelName(t.ChannelID), Task: taskText, Requester: m.Sender, Assignee: assigneeName, AssignedAt: m.Timestamp, Link: link, SourceTS: m.ID, OriginalText: m.Text, Category: category})
 			}
 			if m.ID > newLastTS {
 				newLastTS = m.ID

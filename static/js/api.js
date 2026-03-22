@@ -9,7 +9,7 @@ async function handleResponse(resp, customMsg) {
         err.isAuthError = true;
         throw err;
     }
-    
+
     const contentType = resp.headers.get("content-type");
     if (contentType && contentType.indexOf("text/html") !== -1) {
         // If we expected JSON but got HTML, it's likely a redirect to login
@@ -131,7 +131,11 @@ export const api = {
     },
 
     async fetchUserStats() {
-        const resp = await fetch('/api/user/stats');
+        // 사용자의 브라우저 타임존을 자동 추출 (예: 'Asia/Seoul', 'Europe/London')
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+        const resp = await fetch('/api/user/stats', {
+            headers: { 'X-Timezone': tz }
+        });
         return handleResponse(resp, 'Fetch user stats failed');
     },
 

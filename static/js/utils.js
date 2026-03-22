@@ -69,19 +69,16 @@ export const formatDisplayTime = (isoStr, lang) => {
             date.getMonth() === yesterdayDate.getMonth() &&
             date.getFullYear() === yesterdayDate.getFullYear());
 
-        const config = {
-            ko: { offset: 9, label: 'KST' },
-            id: { offset: 7, label: 'JKT' },
-            th: { offset: 7, label: 'ICT' },
-            en: { offset: 0, label: 'GMT' }
-        };
+        // 기기의 로컬 타임존을 자동으로 반영하여 변환
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        const hh = String(date.getHours()).padStart(2, '0');
+        const min = String(date.getMinutes()).padStart(2, '0');
 
-        const { offset, label } = config[lang] || config.en;
-        const local = new Date(date.getTime() + (3600000 * offset));
-        const mm = String(local.getUTCMonth() + 1).padStart(2, '0');
-        const dd = String(local.getUTCDate()).padStart(2, '0');
-        const hh = String(local.getUTCHours()).padStart(2, '0');
-        const min = String(local.getUTCMinutes()).padStart(2, '0');
+        // 타임존 약어 추출 (예: KST, EST, GMT+7 등 기기에 맞춰 자동 표시)
+        const label = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' })
+            .formatToParts(date)
+            .find(p => p.type === 'timeZoneName')?.value || '';
 
         if (isYesterday) {
             const i18n = I18N_DATA[lang] || I18N_DATA['en'];

@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-func GetUserStats(email string) (UserStats, error) {
+func GetUserStats(email string, userTz string) (UserStats, error) {
 	var stats UserStats
 	stats.DailyCompletions = make(map[string]int)
 	stats.SourceDistribution = make(map[string]int)
@@ -14,6 +14,11 @@ func GetUserStats(email string) (UserStats, error) {
 
 	var wg sync.WaitGroup
 	safeEmail := strings.ReplaceAll(email, "'", "''") // SQL Injection 방어
+
+	dbTz := userTz
+	if dbTz == "" {
+		dbTz = "UTC"
+	}
 
 	// 1. Total Completed
 	wg.Add(1)
@@ -50,11 +55,11 @@ func GetUserStats(email string) (UserStats, error) {
 	go func() {
 		defer wg.Done()
 		q := fmt.Sprintf(`
-		SELECT (TO_CHAR(completed_at, 'YYYY-MM-DD'))::text as d, COUNT(*)::int as c
+		SELECT (TO_CHAR(completed_at AT TIME ZONE '%s', 'YYYY-MM-DD'))::text as d, COUNT(*)::int as c
 		FROM messages 
 		WHERE user_email = '%s' AND done = true AND is_deleted = false 
 		AND completed_at > NOW() - INTERVAL '30 days'
-		GROUP BY 1 ORDER BY 1`, safeEmail)
+		GROUP BY 1 ORDER BY 1`, dbTz, safeEmail)
 		rows, err := db.Query(q)
 		if err == nil {
 			defer rows.Close()
@@ -73,10 +78,10 @@ func GetUserStats(email string) (UserStats, error) {
 	go func() {
 		defer wg.Done()
 		q := fmt.Sprintf(`
-		SELECT (EXTRACT(HOUR FROM completed_at))::int as hr, COUNT(*)::int as c
+		SELECT (EXTRACT(HOUR FROM completed_at AT TIME ZONE '%s'))::int as hr, COUNT(*)::int as c
 		FROM messages 
 		WHERE user_email = '%s' AND done = true AND is_deleted = false AND completed_at IS NOT NULL
-		GROUP BY 1 ORDER BY 1`, safeEmail)
+		GROUP BY 1 ORDER BY 1`, dbTz, safeEmail)
 		rows, err := db.Query(q)
 		if err == nil {
 			defer rows.Close()
@@ -141,16 +146,16 @@ func GetUserStats(email string) (UserStats, error) {
 	go func() {
 		defer wg.Done()
 		q := fmt.Sprintf(`
-		SELECT TO_CHAR(completed_at, 'YYYY-MM-DD') as c_date, source, COUNT(*)::int 
+		SELECT TO_CHAR(completed_at AT TIME ZONE '%s', 'YYYY-MM-DD') as c_date, source, COUNT(*)::int 
 		FROM messages 
 		WHERE user_email = '%s' AND done = true AND is_deleted = false 
 		AND completed_at >= NOW() - INTERVAL '365 days'
-		GROUP BY 1, 2 ORDER BY 1 ASC`, safeEmail)
+		GROUP BY 1, 2 ORDER BY 1 ASC`, dbTz, safeEmail)
 		rows, err := db.Query(q)
 		if err == nil {
 			defer rows.Close()
 			var currentData string
-			var currentCounts map[string]int
+			currentCounts := make(map[string]int)
 
 			for rows.Next() {
 				var d, s string

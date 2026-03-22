@@ -59,7 +59,7 @@ func createCoreTables() error {
 		slack_id TEXT,
 		wa_jid TEXT,
 		picture TEXT,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 	);
 	CREATE TABLE IF NOT EXISTS user_aliases (
 		id SERIAL PRIMARY KEY,
@@ -70,7 +70,7 @@ func createCoreTables() error {
 	CREATE TABLE IF NOT EXISTS gmail_tokens (
 		user_email TEXT PRIMARY KEY,
 		token_json TEXT NOT NULL,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 	);
 	CREATE TABLE IF NOT EXISTS messages (
 		id SERIAL PRIMARY KEY,
@@ -80,14 +80,14 @@ func createCoreTables() error {
 		task TEXT,
 		requester TEXT,
 		assignee TEXT,
-		assigned_at TEXT,
+		assigned_at TIMESTAMPTZ,
 		link TEXT,
 		source_ts TEXT,
 		original_text TEXT,
 		done BOOLEAN DEFAULT false,
 		is_deleted BOOLEAN DEFAULT false,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		completed_at TIMESTAMP,
+		created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+		completed_at TIMESTAMPTZ,
 		category TEXT DEFAULT 'todo'
 	);
 	CREATE TABLE IF NOT EXISTS task_translations (
@@ -122,7 +122,7 @@ func runMigrations() error {
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false;")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS room TEXT;")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS done BOOLEAN DEFAULT false;")
-	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP;")
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS original_text TEXT;")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'todo';")
 
@@ -132,7 +132,7 @@ func runMigrations() error {
 	_, _ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1;")
 	_, _ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS xp INTEGER DEFAULT 0;")
 	_, _ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_goal INTEGER DEFAULT 5;")
-	_, _ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_completed_at TIMESTAMP;")
+	_, _ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_completed_at TIMESTAMPTZ;")
 	_, _ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_freezes INTEGER DEFAULT 0;")
 
 	if _, err := db.Exec("ALTER TABLE achievements ADD COLUMN IF NOT EXISTS target_value INTEGER DEFAULT 0;"); err != nil {
@@ -141,6 +141,16 @@ func runMigrations() error {
 	if _, err := db.Exec("ALTER TABLE achievements ADD COLUMN IF NOT EXISTS xp_reward INTEGER DEFAULT 0;"); err != nil {
 		logger.Errorf("[DB-MIGRATE] Error adding xp_reward: %v", err)
 	}
+
+	// Migrate existing TIMESTAMP columns to TIMESTAMPTZ safely
+	_, _ = db.Exec(`
+		ALTER TABLE messages ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';
+		ALTER TABLE messages ALTER COLUMN completed_at TYPE TIMESTAMPTZ USING completed_at AT TIME ZONE 'UTC';
+		ALTER TABLE users ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';
+		ALTER TABLE users ALTER COLUMN last_completed_at TYPE TIMESTAMPTZ USING last_completed_at AT TIME ZONE 'UTC';
+		ALTER TABLE gmail_tokens ALTER COLUMN updated_at TYPE TIMESTAMPTZ USING updated_at AT TIME ZONE 'UTC';
+		ALTER TABLE user_achievements ALTER COLUMN unlocked_at TYPE TIMESTAMPTZ USING unlocked_at AT TIME ZONE 'UTC';
+	`)
 
 	migrateExistingData()
 	return nil
@@ -176,7 +186,7 @@ func setupGamification() error {
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS user_achievements (
 		user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
 		achievement_id INTEGER REFERENCES achievements(id) ON DELETE CASCADE,
-		unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		unlocked_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY (user_id, achievement_id)
 	);`); err != nil {
 		logger.Errorf("[DB-INIT] Failed to create user_achievements: %v", err)

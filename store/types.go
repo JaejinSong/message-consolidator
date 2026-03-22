@@ -25,7 +25,7 @@ type ConsolidatedMessage struct {
 	Task         string     `json:"task"`
 	Requester    string     `json:"requester"`
 	Assignee     string     `json:"assignee"`
-	AssignedAt   string     `json:"assigned_at"`
+	AssignedAt   time.Time  `json:"assigned_at"`
 	Link         string     `json:"link"`
 	SourceTS     string     `json:"source_ts"`
 	OriginalText string     `json:"original_text,omitempty"`
@@ -94,9 +94,9 @@ type UserAlias struct {
 type TodoItem struct {
 	Task       string `json:"task"`
 	Requester  string `json:"requester"`
-	Assignee   string `json:"assignee"`
-	AssignedAt string `json:"assigned_at"`
-	SourceTS   string `json:"source_ts"`
+	Assignee   string    `json:"assignee"`
+	AssignedAt string    `json:"assigned_at"`
+	SourceTS   string    `json:"source_ts"`
 	Category   string `json:"category"`
 	Deadline   string `json:"deadline"`
 }

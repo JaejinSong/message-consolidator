@@ -61,7 +61,7 @@ func HandleExportExcel(w http.ResponseWriter, r *http.Request) {
 		f.SetCellValue(sheet, fmt.Sprintf("D%d", row), m.Task)
 		f.SetCellValue(sheet, fmt.Sprintf("E%d", row), m.Requester)
 		f.SetCellValue(sheet, fmt.Sprintf("F%d", row), m.Assignee)
-		f.SetCellValue(sheet, fmt.Sprintf("G%d", row), m.AssignedAt)
+		f.SetCellValue(sheet, fmt.Sprintf("G%d", row), m.AssignedAt.Format("2006-01-02 15:04:05"))
 		f.SetCellValue(sheet, fmt.Sprintf("H%d", row), m.CreatedAt.Format("2006-01-02 15:04:05"))
 		f.SetCellValue(sheet, fmt.Sprintf("I%d", row), compAt)
 	}
@@ -117,7 +117,7 @@ func HandleExportArchive(w http.ResponseWriter, r *http.Request) {
 			m.Task,
 			m.Requester,
 			m.Assignee,
-			m.AssignedAt,
+			m.AssignedAt.Format("2006-01-02 15:04:05"),
 			m.CreatedAt.Format("2006-01-02 15:04:05"),
 			compAt,
 		})

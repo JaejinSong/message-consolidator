@@ -66,10 +66,10 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 			var localMsgsToSave []store.ConsolidatedMessage
 			var localNewIDs []int
 			for _, item := range items {
-				assignedAt := time.Now().Format(time.RFC3339)
+				assignedAt := time.Now()
 				origText := ""
 				if m, ok := msgMap[item.SourceTS]; ok {
-					assignedAt = m.Timestamp.Format(time.RFC3339)
+					assignedAt = m.Timestamp
 					origText = m.Text
 				}
 
@@ -104,9 +104,10 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 
 				taskText := item.Task
 				assignee := item.Assignee
+				category := item.Category
 
 				if isReqMe && !isAssMe {
-					taskText = "[회신 대기] " + taskText // 내가 남에게 요청한 경우
+					category = "waiting"
 				} else if isAssMe || is1to1 || isMentioned {
 					assignee = user.Name
 					if assignee == "" {
@@ -125,6 +126,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 					SourceTS:     item.SourceTS,
 					OriginalText: origText,
 					Deadline:     item.Deadline,
+					Category:     category,
 				})
 			}
 

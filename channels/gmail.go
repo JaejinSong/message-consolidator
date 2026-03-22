@@ -267,13 +267,14 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 		isMe := isAssigneeMe(assignee, email, user.Name, fallbackAssignee, aliases)
 
 		taskText := item.Task
+		category := item.Category
 
 		if cls == "발신 메일" {
 			if isMe {
-				taskText = "[나의 약속] " + taskText
+				category = "promise"
 				assignee = fallbackAssignee
 			} else {
-				taskText = "[회신 대기] " + taskText // 수신자에게 무언가를 요청하고 기다리는 상태
+				category = "waiting"
 			}
 		} else {
 			if isMe && cls == "내 업무" {
@@ -283,10 +284,10 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 			}
 		}
 
-		assignedAt := time.Now().Format(time.RFC3339)
+		assignedAt := time.Now()
 		origText := ""
 		if m, ok := msgMap[item.SourceTS]; ok {
-			assignedAt = m.Timestamp.Format(time.RFC3339)
+			assignedAt = m.Timestamp
 			origText = m.Text
 		}
 
@@ -303,6 +304,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 			SourceTS:     uniqueSourceTS,
 			OriginalText: origText,
 			Deadline:     item.Deadline,
+			Category:     category,
 		})
 	}
 

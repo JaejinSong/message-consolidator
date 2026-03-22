@@ -154,7 +154,8 @@ export const renderer = {
                 <div class="col-room">${m.room ? `<span class="badge-room">${escapeHTML(m.room)}</span>` : '-'}</div>
                 <div class="col-task">
                     <span class="task-title">${escapeHTML(m.task)}</span>
-                    ${m.category === 'waiting' && !m.done ? `<div class="waiting-tag" style="font-size: 0.75rem; color: var(--accent-color);">⏳ Waiting...</div>` : ''}
+                    ${m.category === 'waiting' && !m.done ? `<div class="waiting-tag" style="font-size: 0.75rem; color: var(--accent-color); margin-top: 4px; font-weight: 600;">⏳ ${i18n.waitingTag || 'Waiting...'}</div>` : ''}
+                    ${m.category === 'promise' && !m.done ? `<div class="promise-tag" style="font-size: 0.75rem; color: #34c759; margin-top: 4px; font-weight: 600;">🤝 ${i18n.promiseTag || 'My Promise'}</div>` : ''}
                 </div>
                 <div class="col-requester">
                     <strong>${escapeHTML(m.requester)}</strong>
@@ -476,10 +477,14 @@ export const renderer = {
         const toast = document.createElement('div');
         toast.className = `toast-popup toast-${type}`;
 
+        // 기존에 떠있는 토스트 개수를 파악하여 위로 쌓이게(Stack) 오프셋 계산
+        const existingToasts = document.querySelectorAll('.toast-popup');
+        const bottomOffset = 30 + (existingToasts.length * 70); // 기존 알림 1개당 70px씩 위로
+
         // 글래스모피즘 기반의 세련된 토스트 스타일링 (CSS 파일 없이 즉시 동작)
         Object.assign(toast.style, {
             position: 'fixed',
-            bottom: '30px',
+            bottom: `${bottomOffset}px`,
             right: '30px',
             background: type === 'error' ? 'rgba(255, 59, 48, 0.9)' : 'rgba(0, 212, 255, 0.9)',
             color: '#fff',

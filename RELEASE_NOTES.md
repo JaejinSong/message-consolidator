@@ -1,3 +1,13 @@
+# Release Notes - v2.3.0 (2026-03-22 13:20 UTC)
+
+## 🌍 Global Consistency & Timezone-Aware Analytics
+- **[NEW] User-Local Timezone Analytics**: The Insights dashboard now respects your local timezone (`X-Timezone` header). Daily completion charts and hourly activity heatmaps will accurately reflect your local productivity patterns, regardless of your geographic location.
+- **[NEW] Expanded Multilingual support for Tags**: Task status tags like `Waiting...` and `My Promise` are now fully translated into English, Indonesian, and Thai, providing a more localized experience for global teams.
+- **[REFACTOR] Database Schema Timezone Integrity (TIMESTAMPTZ)**: Migrated all core date/time columns to `TIMESTAMPTZ` to ensure point-in-time integrity across different server and client regions. This includes a re-optimized `idx_messages_archive_sort` index for better performance.
+- **[FIX] Archive Sorting Precision**: Refined the sorting logic for archived messages using composite conditions (based on `is_deleted`, `created_at`, or `completed_at`), ensuring your history is always perfectly ordered.
+
+---
+
 # Release Notes - v2.2.3 (2026-03-22 12:45 UTC)
 
 ## 💎 Elegant Toast Notifications & Frontend Robustness
