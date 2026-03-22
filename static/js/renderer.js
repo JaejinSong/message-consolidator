@@ -311,12 +311,25 @@ export const renderer = {
      */
     updateTokenBadge(usage) {
         const badge = document.getElementById('tokenUsageBadge');
-        if (badge && usage) {
-            badge.textContent = `Token: ${usage.todayTotal || 0}`;
-            // Optional: trigger subtle pop animation
-            badge.style.transform = 'scale(1.1)';
-            setTimeout(() => badge.style.transform = 'scale(1)', 200);
-        }
+        if (!badge) return;
+
+        // usage 데이터가 아예 넘어오지 않는 경우(0일 때)를 대비한 기본값 처리
+        const data = usage || {};
+        const todayTotal = data.todayTotal || 0;
+        const todayPrompt = data.todayPrompt || data.dailyPrompt || 0;
+        const todayComp = data.todayCompletion || data.dailyCompletion || 0;
+        const monthTotal = data.monthTotal || data.monthlyTotal || 0;
+
+        badge.classList.remove('hidden'); // 0일 때 숨김 처리되는 CSS 클래스 방지
+        badge.textContent = `Token: ${todayTotal.toLocaleString()}`;
+
+        // 마우스 호버 시 자연스럽게 보이도록 툴팁(title)만 유지합니다.
+        const tooltipText = `[오늘] 입력: ${todayPrompt.toLocaleString()} / 출력: ${todayComp.toLocaleString()}\n[이번 달] 총합: ${monthTotal.toLocaleString()}`;
+        badge.setAttribute('title', tooltipText);
+
+        // Optional: trigger subtle pop animation
+        badge.style.transform = 'scale(1.1)';
+        setTimeout(() => badge.style.transform = 'scale(1)', 200);
     },
 
     /**
@@ -354,19 +367,22 @@ export const renderer = {
 
     /**
      * Renders the list of user aliases in settings.
-     * @param {string[]} aliases - List of aliases.
+     * @param {string[]|Object} aliases - List of aliases.
      * @param {Function} onRemove - Callback function when an alias is removed.
      */
     renderAliasList(aliases, onRemove) {
         const container = document.getElementById('aliasList');
         if (!container) return;
 
-        if (!aliases || aliases.length === 0) {
+        // 백엔드 응답이 순수 배열이 아닌 객체 { aliases: [...] } 형태일 경우 방어
+        const list = Array.isArray(aliases) ? aliases : (aliases?.aliases || aliases?.data || []);
+
+        if (!list || list.length === 0) {
             container.innerHTML = '<p class="empty-list">No aliases configured</p>';
             return;
         }
 
-        container.innerHTML = aliases.map(alias => `
+        container.innerHTML = list.map(alias => `
             <div class="alias-item">
                 <span>${escapeHTML(alias)}</span>
                 <button class="remove-alias-btn" data-alias="${escapeHTML(alias)}">&times;</button>
@@ -380,24 +396,34 @@ export const renderer = {
 
     /**
      * Renders the list of tenant aliases in settings.
-     * @param {string[]} aliases - List of tenant aliases.
+     * @param {Object[]|Object} aliases - List of tenant aliases.
      * @param {Function} onRemove - Callback function when an alias is removed.
      */
     renderTenantAliasList(aliases, onRemove) {
         const container = document.getElementById('normList');
         if (!container) return;
 
-        if (!aliases || aliases.length === 0) {
+        // 백엔드 응답이 순수 배열이 아닌 { aliases: [...] } 형태일 경우를 대비한 방어 로직
+        const list = Array.isArray(aliases) ? aliases : (aliases?.aliases || aliases?.data || []);
+
+        if (!list || list.length === 0) {
             container.innerHTML = '<p class="empty-list">No tenant aliases configured</p>';
             return;
         }
 
-        container.innerHTML = aliases.map(alias => `
+        container.innerHTML = list.map(alias => {
+            // 구조체 필드 이름 보정 (안전하게 값을 추출)
+            const orig = alias.original_name || alias.original || alias;
+            const prim = alias.primary_name || alias.primary || '';
+            const displayStr = prim ? `${escapeHTML(orig)} → ${escapeHTML(prim)}` : escapeHTML(orig);
+
+            return `
             <div class="alias-item">
-                <span>${escapeHTML(alias)}</span>
-                <button class="remove-tenant-alias-btn" data-alias="${escapeHTML(alias)}">&times;</button>
+                <span>${displayStr}</span>
+                <button class="remove-tenant-alias-btn" data-alias="${escapeHTML(orig)}">&times;</button>
             </div>
-        `).join('');
+            `;
+        }).join('');
 
         container.querySelectorAll('.remove-tenant-alias-btn').forEach(btn => {
             btn.addEventListener('click', () => onRemove(btn.dataset.alias));
@@ -406,30 +432,96 @@ export const renderer = {
 
     /**
      * Renders contact mappings in settings.
-     * @param {Object[]} mappings - List of mappings.
+     * @param {Object[]|Object} mappings - List of mappings.
      * @param {Function} onRemove - Callback function when a mapping is removed.
      */
     renderContactMappings(mappings, onRemove) {
         const container = document.getElementById('contactList');
         if (!container) return;
 
-        if (!mappings || mappings.length === 0) {
+        // 백엔드 응답이 { mappings: [...] } 형태일 경우를 대비
+        const list = Array.isArray(mappings) ? mappings : (mappings?.mappings || mappings?.data || []);
+
+        if (!list || list.length === 0) {
             container.innerHTML = '<p class="empty-list">No contact mappings</p>';
             return;
         }
 
-        container.innerHTML = mappings.map(m => `
+        container.innerHTML = list.map(m => {
+            // 현재 백엔드 API 규격에 맞게 필드 이름 보정
+            const rep = m.rep_name || m.repName || m.name || '';
+            const aliases = m.aliases || m.aliasNames || m.alias || m.source || '';
+
+            return `
             <div class="mapping-item">
-                <span class="mapping-source">${m.source}: ${escapeHTML(m.name)}</span>
+                <span class="mapping-source">${escapeHTML(aliases)}</span>
                 <span class="mapping-arrow">→</span>
-                <span class="mapping-target">${escapeHTML(m.alias)}</span>
-                <button class="remove-mapping-btn" data-id="${m.id}">&times;</button>
+                <span class="mapping-target">${escapeHTML(rep)}</span>
+                <button class="remove-mapping-btn" data-id="${escapeHTML(rep)}">&times;</button>
             </div>
-        `).join('');
+            `;
+        }).join('');
 
         container.querySelectorAll('.remove-mapping-btn').forEach(btn => {
             btn.addEventListener('click', () => onRemove(btn.dataset.id));
         });
+    },
+
+    /**
+     * Shows a non-blocking toast notification.
+     * @param {string} message - Message to display.
+     * @param {string} type - 'error' or 'success'.
+     */
+    showToast(message, type = 'error') {
+        const toast = document.createElement('div');
+        toast.className = `toast-popup toast-${type}`;
+
+        // 글래스모피즘 기반의 세련된 토스트 스타일링 (CSS 파일 없이 즉시 동작)
+        Object.assign(toast.style, {
+            position: 'fixed',
+            bottom: '30px',
+            right: '30px',
+            background: type === 'error' ? 'rgba(255, 59, 48, 0.9)' : 'rgba(0, 212, 255, 0.9)',
+            color: '#fff',
+            padding: '16px 28px',
+            borderRadius: '16px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+            fontSize: '0.95rem',
+            fontWeight: '600',
+            zIndex: '9999',
+            opacity: '0',
+            transform: 'translateY(20px)',
+            transition: 'all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+        });
+
+        // 상태 아이콘 추가
+        const icon = document.createElement('span');
+        icon.textContent = type === 'error' ? '⚠️' : '✅';
+        toast.appendChild(icon);
+
+        const textNode = document.createElement('span');
+        textNode.textContent = message;
+        toast.appendChild(textNode);
+
+        document.body.appendChild(toast);
+
+        // 부드러운 등장 애니메이션
+        requestAnimationFrame(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+        });
+
+        // 3초 후 부드럽게 퇴장
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(20px)';
+            setTimeout(() => toast.remove(), 400);
+        }, 3000);
     },
 
     /**

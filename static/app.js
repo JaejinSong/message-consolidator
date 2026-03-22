@@ -129,10 +129,10 @@ const handleBuyStreakFreeze = safeAsync(async () => {
     if (!confirm('50 포인트를 사용하여 스트릭 보호권(❄️)을 구매하시겠습니까?')) return;
     try {
         await api.buyStreakFreeze();
-        alert('보호권이 구매되었습니다! 접속하지 못한 날 자동으로 사용되어 스트릭을 보호합니다.');
+        renderer.showToast('보호권이 구매되었습니다! 접속하지 못한 날 자동으로 사용되어 스트릭을 보호합니다.', 'success');
         fetchUserProfile();
     } catch (e) {
-        alert(e.message);
+        renderer.showToast(e.message, 'error');
     }
 });
 
@@ -152,7 +152,6 @@ events.on(EVENTS.TASK_COMPLETED, (data) => {
         if (gData.UnlockedAchievements && gData.UnlockedAchievements.length > 0) {
             gData.UnlockedAchievements.forEach(ach => {
                 renderer.triggerConfetti();
-                alert(`🎉 새로운 업적 달성!\n[${ach.icon} ${ach.name}]\n${ach.description}`);
             });
         }
     } else {
@@ -322,7 +321,7 @@ const initActionButtons = () => {
             }
         } catch (e) {
             placeholder.textContent = i18n.error || 'Error';
-            alert(i18n.qrError + e.message);
+            renderer.showToast(i18n.qrError + e.message, 'error');
             btn.disabled = false;
         }
     });

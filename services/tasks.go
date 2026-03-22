@@ -5,7 +5,7 @@ import (
 	"message-consolidator/store"
 )
 
-// HandleTaskCompletion orchestrates the process of marking a task as done, 
+// HandleTaskCompletion orchestrates the process of marking a task as done,
 // updating gamification stats, and potentially recording statistics for analytics.
 func HandleTaskCompletion(email string, taskID int, done bool) (GamificationResult, error) {
 	// 중복 보상 방지: 현재 상태 확인

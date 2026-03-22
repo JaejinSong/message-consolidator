@@ -240,14 +240,18 @@ export const insights = {
         const lang = state.currentLang || 'ko';
         const i18n = I18N_DATA[lang];
 
-        if (!allAch || allAch.length === 0) {
+        // API 응답이 { achievements: [...] } 형태일 수 있으므로 배열 추출
+        const allList = Array.isArray(allAch) ? allAch : (allAch?.achievements || allAch?.data || []);
+        const userList = Array.isArray(userAch) ? userAch : (userAch?.achievements || userAch?.data || []);
+
+        if (!allList || allList.length === 0) {
             container.innerHTML = '<p class="empty-msg">No milestones found.</p>';
             return;
         }
 
-        const userAchIds = new Set(userAch.map(ua => ua.achievement_id));
+        const userAchIds = new Set(userList.map(ua => ua.achievement_id));
 
-        container.innerHTML = allAch.map(ach => {
+        container.innerHTML = allList.map(ach => {
             const isUnlocked = userAchIds.has(ach.id);
 
             let progress = 0;
