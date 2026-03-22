@@ -28,13 +28,13 @@ const UserEmailKey contextKey = "userEmail"
 
 func GetUserEmail(r *http.Request) string {
 	if AuthDisabled {
-		return "jjsong@whatap.io" // Default user when auth is disabled
+		return "jjsong@whatap.io" // Default user ONLY when auth is strictly disabled for dev
 	}
 	email, ok := r.Context().Value(UserEmailKey).(string)
 	if !ok || email == "" {
-		return "jjsong@whatap.io"
+		return ""
 	}
-	return email
+	return strings.TrimSpace(strings.ToLower(email))
 }
 
 func SetupOAuth(cfg *config.Config) {
@@ -142,8 +142,9 @@ func SetSessionCookie(w http.ResponseWriter, email string) {
 		Value:    base64.URLEncoding.EncodeToString([]byte(email)),
 		Expires:  time.Now().Add(24 * time.Hour),
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   false, // Set to true if using HTTPS strictly
 		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, &cookie)
 }
@@ -151,6 +152,7 @@ func SetSessionCookie(w http.ResponseWriter, email string) {
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if AuthDisabled {
+			logger.Debugf("[AUTH] AuthDisabled is true. Bypassing authentication for %s", r.URL.Path)
 			ctx := context.WithValue(r.Context(), UserEmailKey, "jjsong@whatap.io")
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
@@ -158,6 +160,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		cookie, err := r.Cookie("session_token")
 		if err != nil {
+			logger.Warnf("[AUTH] Session cookie missing for path: %s", r.URL.Path)
 			if strings.HasPrefix(r.URL.Path, "/api/") {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
@@ -168,11 +171,16 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		decodedEmailBytes, err := base64.URLEncoding.DecodeString(cookie.Value)
 		if err != nil {
-			logger.Debugf("Error decoding session cookie: %v", err)
+			logger.Errorf("[AUTH] Error decoding session cookie for %s: %v (Value: %s)", r.URL.Path, err, cookie.Value)
+			if strings.HasPrefix(r.URL.Path, "/api/") {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
 			http.Redirect(w, r, "/auth/login", http.StatusTemporaryRedirect)
 			return
 		}
 		email := string(decodedEmailBytes)
+		logger.Debugf("[AUTH] Valid session for %s: %s", r.URL.Path, email)
 
 		ctx := context.WithValue(r.Context(), UserEmailKey, email)
 		next.ServeHTTP(w, r.WithContext(ctx))

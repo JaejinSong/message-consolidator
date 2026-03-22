@@ -1,5 +1,5 @@
 export const state = {
-    userProfile: { email: "", picture: "", name: "" },
+    userProfile: { email: "", picture: "", name: "", points: 0, streak: 0, streak_freezes: 0 },
     userAliases: [],
     currentLang: localStorage.getItem('mc_lang') || 'ko',
     currentTheme: localStorage.getItem('mc_theme') || 'dark',
@@ -22,4 +22,9 @@ export const updateLang = (lang) => {
 export const updateTheme = (theme) => {
     state.currentTheme = theme;
     localStorage.setItem('mc_theme', theme);
+};
+
+export const updateStats = (user) => {
+    if (!user) return;
+    state.userProfile = { ...state.userProfile, ...user };
 };

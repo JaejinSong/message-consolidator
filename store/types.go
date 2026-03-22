@@ -53,6 +53,7 @@ type User struct {
 	XP              int        `json:"xp"`
 	DailyGoal       int        `json:"daily_goal"`
 	LastCompletedAt *time.Time `json:"last_completed_at"`
+	StreakFreezes   int        `json:"streak_freezes"`
 	CreatedAt       time.Time  `json:"created_at"`
 }
 
@@ -64,6 +65,8 @@ type Achievement struct {
 	Icon          string `json:"icon"`
 	CriteriaType  string `json:"criteria_type"`
 	CriteriaValue int    `json:"criteria_value"`
+	TargetValue   int    `json:"target_value"` // Frontend compatibility alias
+	XPReward      int    `json:"xp_reward"`
 }
 
 // UserAchievement joins users and achievements
@@ -119,4 +122,15 @@ type ArchiveFilter struct {
 	Query  string
 	Sort   string
 	Order  string
+}
+
+// UserStats represents various productivity metrics for a user
+type UserStats struct {
+	TotalCompleted     int            `json:"total_completed"`
+	DailyGoal          int            `json:"daily_goal"`
+	DailyCompletions   map[string]int `json:"daily_completions"`
+	HourlyActivity     map[int]int    `json:"hourly_activity"`
+	PeakTime           string         `json:"peak_time"`
+	AbandonedTasks     int            `json:"abandoned_tasks"`
+	SourceDistribution map[string]int `json:"source_distribution"`
 }

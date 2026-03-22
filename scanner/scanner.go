@@ -5,6 +5,7 @@ import (
 	"message-consolidator/channels"
 	"message-consolidator/config"
 	"message-consolidator/logger"
+	"message-consolidator/services"
 	"message-consolidator/store"
 	"strings"
 	"time"
@@ -62,6 +63,11 @@ func RunAllScans() {
 	// 글로벌 유지보수 작업 (사용자 루프 밖에서 1번만 실행)
 	if err := store.ArchiveOldTasks(); err != nil {
 		logger.Errorf("Scanner Error: Failed to archive old tasks: %v", err)
+	}
+
+	// 게이미피케이션 데이터 주기적 반영 (Piggyback)
+	if err := services.FlushGamificationData(); err != nil {
+		logger.Errorf("Scanner Error: Failed to flush gamification data: %v", err)
 	}
 
 	// 주기적(1시간)으로 메모리에 쌓인 미반영 토큰 사용량을 DB에 플러시하여 NeonDB Sleep 보장
@@ -149,6 +155,9 @@ func Scan(email string, lang string) {
 
 	// WhatsApp
 	scanWhatsApp(ctx, *user, effectiveAliases, lang)
+
+	// Piggyback: 수동 스캔 완료 시점에 게이미피케이션 데이터 플러시
+	_ = services.FlushGamificationData()
 }
 
 // IsAliasMatched는 짧은 별칭('나', 'me')이나 일반 대명사로 인한 오탐을 방지하기 위한 안전한 매칭 함수입니다.

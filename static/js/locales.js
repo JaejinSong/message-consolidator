@@ -113,8 +113,19 @@ export const I18N_DATA = {
         summaryDaily: "오늘의 한 줄 요약",
         heatmapTitle: "최근 30일 활동",
         sourceDistTitle: "채널별 분포",
+        waitingTasks: "대기 중인 업무",
+        hourlyActivity: "시간대별 활동",
+        updatesTitle: "업적",
+        last30Days: "최근 30일",
+        totalCompleted: "누적 완료",
+        peakFocusTime: "최고 집중 시간",
+        unlocked: "해제됨",
+        locked: "잠김",
         waitingOnMe: "나의 회신 대기",
         waitingOnOthers: "상대방 회신 대기",
+        loginRequiredTitle: "인증 세션 만료",
+        loginRequiredDesc: "계속하려면 다시 로그인해 주세요.",
+        loginWithGoogle: "Google로 로그인",
         emptyStateMessages: [
             "훌륭합니다! 지금 당장 커피 한 잔의 여유를 즐기세요. ☕",
             "업무 제로 달성! 당신은 화력 발전소인가요? 🔥",
@@ -126,7 +137,9 @@ export const I18N_DATA = {
             "할 일이 없네요. 이제 세상을 구하러 가실 시간인가요? 🌍",
             "기록적인 속도입니다! 당신의 효율성에 무릎을 탁 치고 갑니다. 👏",
             "업무 끝! 이제 맛있는 거 먹으러 가도 될 것 같아요. 🍕"
-        ]
+        ],
+        stale: "정체됨",
+        abandoned: "방치됨"
     },
     en: {
         subTitle: "Automated Slack & WhatsApp Task Dashboard",
@@ -242,8 +255,19 @@ export const I18N_DATA = {
         summaryDaily: "Daily Glance",
         heatmapTitle: "Activity (Last 30 Days)",
         sourceDistTitle: "Channel Distribution",
+        waitingTasks: "Pending Tasks",
+        hourlyActivity: "Hourly Activity",
+        updatesTitle: "Achievements",
+        last30Days: "Last 30 Days",
+        totalCompleted: "Total Completed",
+        peakFocusTime: "Peak Focus Time",
+        unlocked: "Unlocked",
+        locked: "Locked",
         waitingOnMe: "Waiting on me",
         waitingOnOthers: "Waiting on others",
+        loginRequiredTitle: "Session Expired",
+        loginRequiredDesc: "Please login again to continue.",
+        loginWithGoogle: "Login with Google",
         emptyStateMessages: [
             "Excellent! Enjoy a well-deserved coffee break right now. ☕",
             "Zero tasks! Are you a productivity powerhouse? 🔥",
@@ -255,7 +279,9 @@ export const I18N_DATA = {
             "Nothing to do. Time to save the world? 🌍",
             "Record speed! I'm impressed by your efficiency. 👏",
             "Work's over! Time for something delicious. 🍕"
-        ]
+        ],
+        stale: "Stale",
+        abandoned: "Abandoned"
     },
     id: {
         subTitle: "Dasbor Tugas Slack & WhatsApp Otomatis",
@@ -378,7 +404,9 @@ export const I18N_DATA = {
             "Tidak ada yang harus dilakukan. Waktunya menyelamatkan dunia? 🌍",
             "Kecepatan rekor! Saya kagum dengan efisiensi Anda. 👏",
             "Pekerjaan selesai! Waktunya makan yang enak. 🍕"
-        ]
+        ],
+        stale: "Tertunda",
+        abandoned: "Terabaikan"
     },
     th: {
         subTitle: "แดชบอร์ดงาน Slack & WhatsApp อัตโนมัติ",
@@ -501,6 +529,8 @@ export const I18N_DATA = {
             "ไม่มีอะไรต้องทำ ได้เวลาออกไปกู้โลกหรือยังครับ? 🌍",
             "ความเร็วระดับสถิติ! ประทับใจในประสิทธิภาพของคุณจริงๆ ครับ 👏",
             "จบงาน! ได้เวลาหาของอร่อยๆ ทานแล้วครับ 🍕"
-        ]
+        ],
+        stale: "ค้างคา",
+        abandoned: "ถูกละเลย"
     }
 };

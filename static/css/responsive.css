@@ -69,6 +69,15 @@
     .card {
         flex-direction: column;
         align-items: stretch;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        grid-template-areas:
+            "source time"
+            "task task"
+            "room room"
+            "req assign"
+            "actions actions";
+        gap: 0.6rem;
         padding: 1.5rem 1rem;
         border-radius: 20px;
     }
@@ -86,6 +95,12 @@
         margin-bottom: 0.5rem;
     }
 
+    .col-source {
+        grid-area: source;
+        width: auto;
+        justify-content: flex-start;
+    }
+
     .col-room,
     .col-requester,
     .col-assignee,
@@ -95,12 +110,39 @@
         overflow: visible;
         text-overflow: clip;
         margin-bottom: 0.3rem;
+        margin-bottom: 0;
+    }
+
+    .col-task {
+        grid-area: task;
+        width: auto;
+        padding-right: 0;
+    }
+
+    .col-room {
+        grid-area: room;
+    }
+
+    .col-requester {
+        grid-area: req;
+    }
+
+    .col-assignee {
+        grid-area: assign;
+        justify-content: flex-end;
+    }
+
+    .col-time {
+        grid-area: time;
+        align-items: flex-end;
     }
 
     .col-actions {
-        margin-top: 1.2rem;
+        grid-area: actions;
+        margin-top: 1rem;
         gap: 0.8rem;
         width: 100%;
+        justify-content: space-between;
     }
 
     .done-btn {

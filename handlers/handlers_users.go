@@ -10,11 +10,14 @@ import (
 
 func HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
+	logger.Infof("[USER] Fetching info for email: %s", email)
 	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
+		logger.Errorf("[USER] Error fetching user %s: %v", email, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	logger.Debugf("[USER] Found user: ID=%d, Streak=%d, XP=%d", user.ID, user.Streak, user.XP)
 
 	aliases, err := store.GetUserAliases(user.ID)
 	if err == nil {
@@ -35,6 +38,24 @@ func HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, user)
+}
+
+func HandleBuyStreakFreeze(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	user, err := store.GetOrCreateUser(email, "", "")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if user.Points < 50 {
+		http.Error(w, "Not enough points (requires 50)", http.StatusBadRequest)
+		return
+	}
+
+	_ = store.UpdateUserGamification(email, user.Points-50, user.Streak, user.Level, user.XP, user.DailyGoal, user.LastCompletedAt, user.StreakFreezes+1)
+
+	respondJSON(w, map[string]interface{}{"success": true, "points": user.Points - 50, "streak_freezes": user.StreakFreezes + 1})
 }
 
 func HandleGetUserAliases(w http.ResponseWriter, r *http.Request) {
@@ -141,6 +162,7 @@ func HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	prompt, completion, err := store.GetDailyTokenUsage(email)
 	if err != nil {
+		logger.Errorf("[HANDLER] Failed to get prompt/completion for %s: %v", email, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -152,12 +174,12 @@ func HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, map[string]int{
-		"todayPrompt":      prompt,
-		"todayCompletion":  completion,
-		"todayTotal":       prompt + completion,
-		"monthPrompt":      monthPrompt,
-		"monthCompletion":  monthCompletion,
-		"monthTotal":       monthPrompt + monthCompletion,
+		"todayPrompt":     prompt,
+		"todayCompletion": completion,
+		"todayTotal":      prompt + completion,
+		"monthPrompt":     monthPrompt,
+		"monthCompletion": monthCompletion,
+		"monthTotal":      monthPrompt + monthCompletion,
 	})
 }
 
@@ -222,6 +244,7 @@ func HandleGetUserAchievements(w http.ResponseWriter, r *http.Request) {
 	}
 	ua, err := store.GetUserAchievements(user.ID)
 	if err != nil {
+		logger.Errorf("[HANDLER] Failed to get achievements for %s (ID:%d): %v", email, user.ID, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

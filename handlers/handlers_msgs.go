@@ -3,11 +3,14 @@ package handlers
 import (
 	"context"
 	"errors"
-	"message-consolidator/auth"
-	"message-consolidator/services"
-	"message-consolidator/store"
 	"net/http"
 	"strconv"
+	"strings"
+
+	"message-consolidator/auth"
+	"message-consolidator/logger"
+	"message-consolidator/services"
+	"message-consolidator/store"
 
 	"github.com/gorilla/mux"
 )
@@ -25,6 +28,7 @@ func handleContextError(w http.ResponseWriter, err error) {
 		http.Error(w, "Client Closed Request", 499)
 		return
 	}
+	logger.Errorf("[HANDLER] Internal Server Error: %v", err)
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
@@ -34,6 +38,7 @@ func HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 
 	msgsRaw, err := store.GetMessages(email)
 	if err != nil {
+		logger.Errorf("[HANDLER] HandleGetMessages error for %s: %v", email, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -42,8 +47,32 @@ func HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	copy(msgs, msgsRaw)
 
 	applyTranslations(msgs, lang)
-
 	stripOriginalText(msgs)
+
+	user, _ := store.GetOrCreateUser(email, "", "")
+
+	// Normalize Assignee for frontend ("me")
+	for i := range msgs {
+		msgs[i].Requester = store.NormalizeName(email, msgs[i].Requester)
+		msgs[i].Assignee = store.NormalizeName(email, msgs[i].Assignee)
+
+		assignee := strings.TrimSpace(msgs[i].Assignee)
+		if assignee == "" {
+			continue
+		}
+
+		userName := strings.TrimSpace(user.Name)
+		isMe := strings.EqualFold(assignee, userName) || strings.EqualFold(assignee, "me")
+
+		if isMe {
+			msgs[i].Assignee = "me"
+		} else {
+			// [INFO] 매핑 실패 추적을 위한 로그 강화 (프로덕션 환경 확인용)
+			logger.Infof("[ASSIGNEE_MAP] User: %s, Mismatched Assignee: '%s' (User.Name: '%s')",
+				email, assignee, user.Name)
+		}
+	}
+
 	respondJSON(w, msgs)
 }
 
@@ -58,7 +87,7 @@ func HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := services.HandleTaskCompletion(email, req.ID, req.Done); err != nil {
+	if _, err := services.HandleTaskCompletion(email, req.ID, req.Done); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -96,11 +125,30 @@ func HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msgs := make([]store.ConsolidatedMessage, len(msgsRaw))
-	copy(msgs, msgsRaw)
+	// DB 쿼리 결과로 새로 할당된 슬라이스이므로 캐시 오염 우려가 없어 복사 불필요
+	msgs := msgsRaw
 
 	applyTranslations(msgs, lang)
 	stripOriginalText(msgs)
+
+	user, _ := store.GetOrCreateUser(email, "", "")
+
+	// Normalize Assignee for frontend ("me")
+	for i := range msgs {
+		msgs[i].Requester = store.NormalizeName(email, msgs[i].Requester)
+		msgs[i].Assignee = store.NormalizeName(email, msgs[i].Assignee)
+
+		assignee := strings.TrimSpace(msgs[i].Assignee)
+		if assignee == "" {
+			continue
+		}
+
+		isMe := strings.EqualFold(assignee, user.Name) || strings.EqualFold(assignee, "me")
+
+		if isMe {
+			msgs[i].Assignee = "me"
+		}
+	}
 
 	respondJSON(w, map[string]interface{}{
 		"messages": msgs,
@@ -115,9 +163,8 @@ func HandleGetArchivedCount(w http.ResponseWriter, r *http.Request) {
 	filter := store.ArchiveFilter{
 		Email: email,
 		Query: q,
-		Limit: 1,
 	}
-	_, total, err := store.GetArchivedMessagesFiltered(r.Context(), filter)
+	total, err := store.GetArchivedMessagesCount(r.Context(), filter)
 	if err != nil {
 		handleContextError(w, err)
 		return
@@ -207,6 +254,7 @@ func HandleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := store.UpdateTaskText(email, req.ID, req.Task); err != nil {
+		logger.Errorf("[HANDLER] HandleUpdateTask error for %s, id=%d: %v", email, req.ID, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

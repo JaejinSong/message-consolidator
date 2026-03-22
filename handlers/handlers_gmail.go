@@ -54,6 +54,7 @@ func HandleGmailCallback(w http.ResponseWriter, r *http.Request) {
 func HandleGmailStatus(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	connected := store.HasGmailToken(email)
+	logger.Debugf("[CHANNEL] Gmail status for %s: connected=%v", email, connected)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"connected": connected})
 }
