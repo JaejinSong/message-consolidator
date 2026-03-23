@@ -276,7 +276,7 @@ func resolveActualAssignee(ctx context.Context, m store.ConsolidatedMessage, toH
 		}
 	}
 
-	msg, err := svc.Users.Messages.Get("me", msgID).Format("metadata").MetadataHeaders("To").Do()
+	msg, err := svc.Users.Messages.Get("me", msgID).Format("metadata").MetadataHeaders("To").Context(ctx).Do()
 	if err == nil && msg.Payload != nil {
 		for _, h := range msg.Payload.Headers {
 			if h.Name == "To" {
