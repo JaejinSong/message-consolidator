@@ -11,12 +11,33 @@
     background: rgba(236, 178, 46, 0.1);
     color: #ecb22e;
     border-color: rgba(236, 178, 46, 0.3);
+    backdrop-filter: blur(4px);
+    box-shadow: 0 0 10px rgba(236, 178, 46, 0.1);
 }
 
 .badge-abandoned {
     background: rgba(235, 87, 87, 0.1);
     color: #eb5757;
     border-color: rgba(235, 87, 87, 0.3);
+    backdrop-filter: blur(4px);
+    box-shadow: 0 0 15px rgba(235, 87, 87, 0.15);
+    animation: badge-pulse 2s infinite ease-in-out;
+}
+
+@keyframes badge-pulse {
+    0% { transform: scale(1); box-shadow: 0 0 10px rgba(235, 87, 87, 0.15); }
+    50% { transform: scale(1.02); box-shadow: 0 0 20px rgba(235, 87, 87, 0.3); }
+    100% { transform: scale(1); box-shadow: 0 0 10px rgba(235, 87, 87, 0.15); }
+}
+
+body.light-theme .badge-stale {
+    background: rgba(236, 178, 46, 0.08);
+    border-color: rgba(236, 178, 46, 0.2);
+}
+
+body.light-theme .badge-abandoned {
+    background: rgba(235, 87, 87, 0.08);
+    border-color: rgba(235, 87, 87, 0.2);
 }
 
 .task-list {

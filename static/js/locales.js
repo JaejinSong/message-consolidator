@@ -155,6 +155,7 @@ export const I18N_DATA = {
         ],
         stale: "정체됨",
         abandoned: "방치됨",
+        dayNames: ["일", "월", "화", "수", "목", "금", "토"],
         heatmapTaskTooltip: "{count}개의 업무 완료 ({date})",
         hourlyTaskTooltip: "{count}개의 업무 완료 ({time})",
         achievements: {
@@ -320,6 +321,7 @@ export const I18N_DATA = {
         ],
         stale: "Stale",
         abandoned: "Abandoned",
+        dayNames: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
         heatmapTaskTooltip: "{count} tasks completed ({date})",
         hourlyTaskTooltip: "{count} tasks completed ({time})",
         achievements: {
@@ -475,6 +477,7 @@ export const I18N_DATA = {
         ],
         stale: "Tertunda",
         abandoned: "Terabaikan",
+        dayNames: ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"],
         heatmapTaskTooltip: "{count} tugas selesai ({date})",
         hourlyTaskTooltip: "{count} tugas selesai ({time})",
         achievements: {
@@ -630,6 +633,7 @@ export const I18N_DATA = {
         ],
         stale: "ค้างคา",
         abandoned: "ถูกละเลย",
+        dayNames: ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."],
         heatmapTaskTooltip: "เสร็จสิ้น {count} งาน ({date})",
         hourlyTaskTooltip: "เสร็จสิ้น {count} งาน ({time})",
         achievements: {

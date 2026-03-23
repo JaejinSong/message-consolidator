@@ -1,4 +1,23 @@
-# Release Notes (User) - v2.2.7 (2026-03-23 04:50 UTC)
+# Release Notes (User) - v2.2.8 (2026-03-23 04:56 UTC)
+
+## 🕒 Improved Time Readability & Premium Status Icons
+- **[IMPROVED] Dynamic Time Formatting**: Refined the time display logic to show relative time (e.g., "5m ago") for recent tasks, day of week for tasks within 7 days, and compact date/time for older tasks.
+- **[NEW] Premium Status Icons**: Redesigned the "Stale" and "Abandoned" icons with modern SVG paths and glassmorphism styling.
+- **[NEW] Status Glow & Animations**: Added a subtle glow to stale tasks and a smooth pulse animation to abandoned tasks to improve visual urgency and professional aesthetics.
+- **[I18N] Localized Day Names**: Added support for day names in KR, EN, ID, and TH languages.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.2.8 (2026-03-23 04:56 UTC)
+
+## 🕒 시간 가독성 개선 및 프리미엄 상태 아이콘 도입
+- **[IMPROVED] 지능형 시간 포맷**: 최근 업무는 상대 시간(예: "5분 전"), 7일 이내는 요일 표시, 그 외는 간결한 날짜 포맷으로 자동 전환하여 가독성을 극대화했습니다.
+- **[NEW] 프리미엄 상태 아이콘**: '정체됨' 및 '방치됨' 아이콘을 세련된 SVG 디자인으로 개편하고 글래스모피즘 스타일을 적용했습니다.
+- **[NEW] 시각적 강조 효과**: 정체된 업무엔 은은한 빛(Glow)을, 방치된 업무엔 부드러운 맥박(Pulse) 애니메이션을 추가하여 업무의 시급성을 직관적으로 파악할 수 있게 했습니다.
+- **[I18N] 요일 다국어 지원**: 한국어, 영어, 인도네시아어, 태국어 로케일에 요일 명칭을 추가했습니다.
+
+---
+
 
 ## 🏆 Premium Achievements UI & Multi-language Support
 - **[NEW] Premium Achievement Design**: Redesigned the achievement cards with a sleek glassmorphism style, golden glow animations for unlocked milestones, and improved progress bars.

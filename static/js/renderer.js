@@ -41,10 +41,10 @@ function getDeadlineBadge(timestamp, isDone) {
     const lang = state.currentLang || 'ko';
 
     if (diffHours >= 72) {
-        return `<span class="badge badge-abandoned" style="margin-left: 0.3rem; display: inline-flex; align-items: center; gap: 4px;">${ICONS.abandoned}${I18N_DATA[lang].abandoned}</span>`;
+        return `<span class="badge badge-abandoned">${ICONS.abandoned}${I18N_DATA[lang].abandoned}</span>`;
     }
     if (diffHours >= 24) {
-        return `<span class="badge badge-stale" style="margin-left: 0.3rem; display: inline-flex; align-items: center; gap: 4px;">${ICONS.stale}${I18N_DATA[lang].stale}</span>`;
+        return `<span class="badge badge-stale">${ICONS.stale}${I18N_DATA[lang].stale}</span>`;
     }
     return '';
 }

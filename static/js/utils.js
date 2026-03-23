@@ -55,9 +55,9 @@ export const formatDisplayTime = (isoStr, lang) => {
         const diffMs = now - date;
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMins / 60);
+        const i18n = I18N_DATA[lang] || I18N_DATA['en'];
 
         if (diffHours < 24 && now.getDate() === date.getDate()) {
-            const i18n = I18N_DATA[lang] || I18N_DATA['en'];
             if (diffMins < 1) return i18n.justNow || '방금 전';
             if (diffMins < 60) return (i18n.minAgo || '{n}m ago').replace('{n}', diffMins);
             return (i18n.hourAgo || '{n}h ago').replace('{n}', diffHours);
@@ -69,24 +69,27 @@ export const formatDisplayTime = (isoStr, lang) => {
             date.getMonth() === yesterdayDate.getMonth() &&
             date.getFullYear() === yesterdayDate.getFullYear());
 
-        // 기기의 로컬 타임존을 자동으로 반영하여 변환
-        const mm = String(date.getMonth() + 1).padStart(2, '0');
-        const dd = String(date.getDate()).padStart(2, '0');
         const hh = String(date.getHours()).padStart(2, '0');
         const min = String(date.getMinutes()).padStart(2, '0');
 
-        // 타임존 약어 추출 (예: KST, EST, GMT+7 등 기기에 맞춰 자동 표시)
-        const label = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' })
-            .formatToParts(date)
-            .find(p => p.type === 'timeZoneName')?.value || '';
-
         if (isYesterday) {
-            const i18n = I18N_DATA[lang] || I18N_DATA['en'];
             const ydayLabel = i18n.yesterday || '어제';
             return `${ydayLabel} ${hh}:${min}`;
         }
 
-        return `${mm}-${dd} ${hh}:${min} ${label}`;
+        // 7일 이내면 요일 표시
+        const diffDays = Math.floor(diffHours / 24);
+        if (diffDays < 7) {
+            const dayNames = i18n.dayNames || ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const dayName = dayNames[date.getDay()];
+            return `${dayName} ${hh}:${min}`;
+        }
+
+        // 그 외엔 MM-DD HH:mm (타임존 제거하여 공간 확보)
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+
+        return `${mm}-${dd} ${hh}:${min}`;
     } catch (e) {
         return isoStr;
     }
