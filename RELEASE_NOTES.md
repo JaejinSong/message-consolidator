@@ -1,3 +1,13 @@
+# Release Notes - v2.3.0 (2026-03-24 07:44 UTC)
+
+## 🚀 Database Migration to Turso (libsql) & Stability Fixes
+- **[FEAT] Turso DB Infrastructure Migration**: Successfully migrated the primary data store from NeonDB (PostgreSQL) to Turso (libsql/SQLite). This transition leverages global edge distribution for lower latency and improved cost-efficiency.
+- **[FIX] Whatsmeow Dialect Compatibility**: Resolved a critical startup panic by mapping the `libsql` driver to the `sqlite3` dialect within the `whatsmeow` SQL store.
+- **[SYS] Environment Standardization**: Unified database configuration under `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`, streamlining deployment and management.
+- **[DATA] 100% Data Integrity Migration**: Performed a full schema and data migration, ensuring all legacy user content and system states were preserved during the transition.
+
+---
+
 # Release Notes - v2.2.13 (2026-03-23 08:53 UTC)
 
 ## ⚡ PgBouncer Compatibility & Batch Retrieval Optimization

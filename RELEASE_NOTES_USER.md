@@ -1,3 +1,25 @@
+# Release Notes (User) - v2.3.0 (2026-03-23 12:45 UTC)
+
+## 🚀 Major Infrastructure Migration to Turso (libsql)
+
+- **[NEW] Database Engine Migration**: Successfully migrated the entire backend database from NeonDB (PostgreSQL) to **Turso (libsql/SQLite)**. This provides faster edge performance and improved cost efficiency for global scale.
+- **[FIX] Startup Stability Enhancement**: Fixed a critical "unknown dialect" panic that occurred during WhatsApp session initialization when switching to the libsql driver. 
+- **[DATA] Seamless Data Preservation**: Successfully migrated 100% of existing data, including users, chat history, and achievement records, ensuring no data loss during the engine swap.
+- **[ENV] Unified Configuration Standard**: Synchronized environment variable naming (`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`) across the project and deployment scripts to match the latest internal standards.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.3.0 (2026-03-23 12:45 UTC)
+
+## 🚀 Turso(libsql) 인프라 대전환 및 안정성 강화
+
+- **[NEW] 데이터베이스 엔진 완전 교체**: 서비스의 심장부인 데이터베이스를 NeonDB(PostgreSQL)에서 전 세계 어디서나 빠른 **Turso(libsql/SQLite)**로 성공적으로 이전했습니다.
+- **[FIX] 기동 패닉 및 호환성 해결**: libsql 드라이버 도입 시 발생하던 WhatsApp 세션 초기화 충돌(`unknown dialect`) 문제를 완벽히 해결하여 서버 안정성을 확보했습니다.
+- **[DATA] 데이터 무결성 100% 보장**: 기존 사용자 정보, 대화 내역, 스캔 결과 등 모든 실데이터를 손실 없이 새로운 환경으로 안전하게 이관했습니다.
+- **[ENV] 설정 표준 일원화**: `TURSO_DATABASE_URL` 및 `TURSO_AUTH_TOKEN` 체계로 모든 환경 변수 명명을 통일하여 관리 및 배포 편의성을 높였습니다.
+
+---
+
 # Release Notes (User) - v2.2.13 (2026-03-23 08:53 UTC)
 
 ## ⚡ Data Consistency Fix & Backend Logic Optimization

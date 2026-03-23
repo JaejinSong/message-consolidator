@@ -1,3 +1,13 @@
+# 업데이트 소식 - v2.3.0 (2026-03-24 07:44 UTC)
+
+## 🚀 Turso DB 마이그레이션 및 서비스 안정화
+- **[FEAT] 전용 분산 DB Turso(libsql) 도입**: NeonDB(PostgreSQL)에서 SQLite 기반의 전역 분산 DB인 Turso로 마이그레이션을 완료했습니다. 더 빠른 응답 속도와 비용 효율성을 제공합니다.
+- **[FEAT] 데이터 완전 이관**: 기존의 모든 메시지, 업무, 사용자, 설정을 Turso DB로 안전하게 이전 완료했습니다.
+- **[FIX] libSQL 드라이버 호환성 패치**: `whatsmeow` 라이브러리의 SQLite dialect 인식 오류를 해결하여 서버 기동 시 발생하던 패닉 현상을 수정했습니다.
+- **[SYS] 환경변수 표준화**: `TURSO_DATABASE_URL` 및 `TURSO_AUTH_TOKEN` 체계로 환경 설정을 단일화하여 운영 복잡도를 낮췄습니다.
+
+---
+
 # 업데이트 소식 - v2.2.13 (2026-03-23 08:53 UTC)
 
 ## ⚡ PgBouncer 호환성 확보 및 배치 조회 엔진 고도화
