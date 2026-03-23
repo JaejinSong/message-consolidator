@@ -1,3 +1,13 @@
+# Release Notes - v2.2.13 (2026-03-23 08:53 UTC)
+
+## ⚡ PgBouncer Compatibility & Batch Retrieval Optimization
+- **[FIX] SQL Parameter Binding for PgBouncer**: Resolved "parameter count mismatch" errors (`08P01`) when using `ANY($1)` with `pgx` in pooled environments by transitioning to dynamic `IN` clause generation.
+- **[FEAT] Batch Message Retrieval Engine**: Refactored `TranslateMessagesByID` to use `GetMessagesByIDs` for batch loading instead of multiple single queries, significantly optimizing DB I/O.
+- **[PERF] Neon DB Connection Strategy**: Re-tuned server settings to `MaxIdleConns: 0` and `MaxOpenConns: 20` to better align with serverless DB traffic patterns and idle resource recovery.
+- **[SYS] Centralized Frontend Polling**: Centralized all data refresh intervals into `constants.js` for improved global performance management.
+
+---
+
 # Release Notes - v2.2.11 (2026-03-23 07:08 UTC)
 
 ## 🏗️ Backend Refactoring & Driver Migration

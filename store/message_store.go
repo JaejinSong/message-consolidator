@@ -196,7 +196,16 @@ func DeleteMessages(email string, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	res, err := db.Exec("UPDATE messages SET is_deleted = true WHERE user_email = $1 AND id = ANY($2)", email, ids)
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids)+1)
+	args[0] = email
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args[i+1] = id
+	}
+
+	query := fmt.Sprintf("UPDATE messages SET is_deleted = true WHERE user_email = $1 AND id IN (%s)", strings.Join(placeholders, ","))
+	res, err := db.Exec(query, args...)
 	if err != nil {
 		return err
 	}
@@ -214,7 +223,16 @@ func HardDeleteMessages(email string, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	res, err := db.Exec("DELETE FROM messages WHERE user_email = $1 AND id = ANY($2)", email, ids)
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids)+1)
+	args[0] = email
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args[i+1] = id
+	}
+
+	query := fmt.Sprintf("DELETE FROM messages WHERE user_email = $1 AND id IN (%s)", strings.Join(placeholders, ","))
+	res, err := db.Exec(query, args...)
 	if err != nil {
 		return err
 	}
@@ -232,7 +250,16 @@ func RestoreMessages(email string, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	res, err := db.Exec("UPDATE messages SET is_deleted = false, done = false, completed_at = NULL WHERE user_email = $1 AND id = ANY($2)", email, ids)
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids)+1)
+	args[0] = email
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args[i+1] = id
+	}
+
+	query := fmt.Sprintf("UPDATE messages SET is_deleted = false, done = false, completed_at = NULL WHERE user_email = $1 AND id IN (%s)", strings.Join(placeholders, ","))
+	res, err := db.Exec(query, args...)
 	if err != nil {
 		return err
 	}
@@ -257,4 +284,36 @@ func GetMessageByID(ctx context.Context, id int) (ConsolidatedMessage, error) {
 		return m, err
 	}
 	return m, nil
+}
+
+func GetMessagesByIDs(ctx context.Context, ids []int) ([]ConsolidatedMessage, error) {
+	if len(ids) == 0 {
+		return []ConsolidatedMessage{}, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') 
+	          FROM messages 
+	          WHERE id IN (%s)`, strings.Join(placeholders, ","))
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var msgs []ConsolidatedMessage
+	for rows.Next() {
+		var m ConsolidatedMessage
+		if err := rows.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt, &m.Category, &m.Deadline); err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs, rows.Err()
 }

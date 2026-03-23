@@ -1,3 +1,23 @@
+# Release Notes (User) - v2.2.13 (2026-03-23 08:53 UTC)
+
+## ⚡ Data Consistency Fix & Backend Logic Optimization
+
+- **[FIX] Resolved SQL Consistency Issues in PgBouncer**: Fixed a technical error where database queries could fail or return incomplete data when processing multiple tasks concurrently in specific connection pooling environments (PgBouncer).
+- **[OPTIMIZE] Implemented Batch Message Loading**: Upgraded the message retrieval logic for dashboard and translation features from individual fetches to batch loading, significantly reducing network overhead and improving response times.
+- **[REFACTOR] Centralized Polling Management**: Unified the automatic data refresh intervals into a central configuration, optimizing the balance between real-time updates and system resource usage.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.2.13 (2026-03-23 08:53 UTC)
+
+## ⚡ 데이터 정합성 오류 해결 및 백엔드 로직 정교화
+
+- **[FIX] PgBouncer 환경의 SQL 데이터 오류 해결**: 특정 데이터베이스 환경(PgBouncer)에서 여러 작업을 동시에 수행할 때 데이터가 정상적으로 전달되지 않던 기술적 오류를 해결하여 서비스 안정성을 높였습니다.
+- **[OPTIMIZE] 메시지 조회 로직 배치화(Batching) 적용**: 대시보드 및 번역 기능에서 메시지를 하나씩 호출하던 방식에서 묶음 처리(Batch) 방식으로 전환하여 로딩 및 반응 속도를 대폭 개선했습니다.
+- **[REFACTOR] 시스템 폴링(Polling) 설정 통합**: 서비스 전반의 데이터 갱신 주기를 중앙 관리 방식으로 개편하여 불필요한 리소스 낭비를 줄이고 시스템 부하를 최적화했습니다.
+
+---
+
 # Release Notes (User) - v2.2.12 (2026-03-23 07:40 UTC)
 
 ## 🛡️ Enhanced Data Integrity & Session Security

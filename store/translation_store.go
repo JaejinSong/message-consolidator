@@ -2,6 +2,8 @@ package store
 
 import (
 	"database/sql"
+	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -74,8 +76,17 @@ func GetTaskTranslationsBatch(messageIDs []int, language string) (map[int]string
 		return results, nil
 	}
 
-	query := "SELECT message_id, translated_text FROM task_translations WHERE language = $1 AND message_id = ANY($2)"
-	rows, err := db.Query(query, language, missingIDs)
+	// pgx/v5 stdlib가 []int64 타입의 ANY($1)를 지원하지 않는 경우를 위해 IN 처리
+	placeholders := make([]string, len(missingIDs))
+	args := make([]interface{}, len(missingIDs)+1)
+	args[0] = language
+	for i, id := range missingIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args[i+1] = id
+	}
+
+	query := fmt.Sprintf("SELECT message_id, translated_text FROM task_translations WHERE language = $1 AND message_id IN (%s)", strings.Join(placeholders, ","))
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}

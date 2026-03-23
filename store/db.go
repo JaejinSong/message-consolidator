@@ -38,16 +38,18 @@ func InitDB(connStr string) error {
 }
 
 func setupConnectionPool(connStr string) {
+	// Neon DB는 유휴 커넥션을 0으로 설정하여 Neon 인스턴스 자원 소모 최소화
+	// 일반 DB는 응답성 향상을 위해 10개의 유휴 커넥션 유지
+	idleConns := 10
 	if strings.Contains(connStr, ".neon.tech") {
-		// Neon Pooler (PG 통계/스케일링 제약) 환경을 고려하여 0으로 설정
-		logger.Infof("[DB] NeonDB detected. Setting MaxIdleConns to 0 for scale-to-zero.")
-		db.SetMaxIdleConns(0)
+		idleConns = 0
+		logger.Infof("[DB] NeonDB detected. Setting MaxIdleConns to %d, MaxOpenConns to 20.", idleConns)
 	} else {
-		logger.Infof("[DB] Standard DB detected. Setting MaxIdleConns to 2.")
-		db.SetMaxIdleConns(2)
+		logger.Infof("[DB] Standard DB detected. Setting MaxIdleConns to %d, MaxOpenConns to 20.", idleConns)
 	}
+	db.SetMaxIdleConns(idleConns)
 	db.SetMaxOpenConns(20)
-	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxLifetime(3 * time.Minute)
 	db.SetConnMaxIdleTime(1 * time.Minute)
 }
 
@@ -224,6 +226,7 @@ func createIndexes() {
 		"CREATE INDEX IF NOT EXISTS idx_messages_is_deleted ON messages (is_deleted);",
 		"CREATE INDEX IF NOT EXISTS idx_messages_completed_at ON messages (completed_at) WHERE done = true;",
 		"CREATE INDEX IF NOT EXISTS idx_messages_archive_sort ON messages (user_email, (CASE WHEN is_deleted = true THEN created_at ELSE completed_at END) DESC);",
+		"CREATE INDEX IF NOT EXISTS idx_task_translations_language ON task_translations (language);",
 	}
 	for _, idx := range indexes {
 		_, _ = db.Exec(idx)

@@ -46,14 +46,15 @@ func TranslateMessagesByID(ctx context.Context, email string, ids []int, lang st
 		return 0, nil
 	}
 
-	// 1. Get detailed message data for these IDs
+	// 1. Get detailed message data for these IDs in batch
+	messages, err := store.GetMessagesByIDs(ctx, ids)
+	if err != nil {
+		logger.Errorf("[TRANSLATE] Failed to get messages batch for %s: %v", email, err)
+		return 0, err
+	}
+
 	var toTranslate []store.TranslateRequest
-	for _, id := range ids {
-		m, err := store.GetMessageByID(ctx, id)
-		if err != nil {
-			logger.Warnf("[TRANSLATE] Failed to get message ID %d for %s: %v", id, email, err)
-			continue
-		}
+	for _, m := range messages {
 		toTranslate = append(toTranslate, store.TranslateRequest{
 			ID:           m.ID,
 			Text:         m.Task,

@@ -29,3 +29,11 @@ export const UI_TEXT = {
     ON: 'ON',
     OFF: 'OFF'
 };
+
+export const POLLING_INTERVALS = {
+    MESSAGES: 60000,
+    WHATSAPP: 10000,
+    SLACK: 10000,
+    GMAIL: 30000,
+    TOKEN_USAGE: 60000
+};
