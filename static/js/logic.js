@@ -1,3 +1,6 @@
+import { I18N_DATA } from './locales.js';
+import { ICONS } from './icons.js';
+
 /**
  * @file logic.js
  * @description Pure functions for data processing, sorting, and classification.
@@ -17,6 +20,9 @@
  * @property {string} [waiting_on]
  */
 
+/** 완료된 업무가 대시보드에 노출되는 기준일 (보관함 이관 기준) */
+export const ARCHIVE_THRESHOLD_DAYS = 1;
+
 /**
  * Sorts and filters messages based on the current view and search query.
  * @param {Message[]} messages - Array of message objects.
@@ -27,14 +33,14 @@
 export function sortAndFilterMessages(messages, currentTab, searchQuery) {
     if (!messages) return [];
 
-    // 6일 이내 완료된 업무인지 확인 (완료일이 없으면 생성일 기준)
+    // 1일 이내 완료된 업무인지 확인 (완료일이 없으면 생성일 기준)
     const isVisible = (m) => {
         if (!m.done) return true;
         const ts = m.completed_at || m.timestamp || m.created_at;
         if (!ts) return true; // 예외 처리: 날짜 정보가 전혀 없는 경우
         const refDate = new Date(ts);
         const diffDays = (new Date() - refDate) / (1000 * 60 * 60 * 24);
-        return diffDays <= 6;
+        return diffDays <= ARCHIVE_THRESHOLD_DAYS;
     };
 
     let filtered = messages.filter(isVisible);
@@ -138,6 +144,7 @@ export function calculateSourceDistribution(distributionMap = {}) {
     return result;
 }
 
+
 /**
  * Processes raw completion history into a continuous timeline for charts.
  * @param {Array} history - Array of { date: 'YYYY-MM-DD', counts: { slack: n, ... } }
@@ -182,4 +189,61 @@ export function processTimeSeriesData(history, days) {
     }
 
     return result;
+}
+
+/**
+ * Gets the deadline badge HTML based on the task timestamp.
+ * @param {string} timestamp - ISO timestamp string.
+ * @param {boolean} isDone - Whether the task is completed.
+ * @param {string} lang - Current language ('ko' or 'en').
+ * @returns {string} HTML string for the badge.
+ */
+export function getDeadlineBadge(timestamp, isDone, lang = 'ko') {
+    if (isDone) return '';
+
+    const start = new Date(timestamp);
+    const now = new Date();
+    if (start >= now) return '';
+
+    let diffMs = now - start;
+    let current = new Date(start);
+    let weekendDays = 0;
+
+    current.setHours(0, 0, 0, 0);
+    let endObj = new Date(now);
+    endObj.setHours(0, 0, 0, 0);
+
+    while (current < endObj) {
+        current.setDate(current.getDate() + 1);
+        if (current.getDay() === 0 || current.getDay() === 6) weekendDays++;
+    }
+
+    const diffHours = (diffMs - (weekendDays * 24 * 60 * 60 * 1000)) / (1000 * 60 * 60);
+
+    if (diffHours >= 72) {
+        return `<span class="badge badge-abandoned">${ICONS.abandoned}${I18N_DATA[lang].abandoned}</span>`;
+    }
+    if (diffHours >= 24) {
+        return `<span class="badge badge-stale">${ICONS.stale}${I18N_DATA[lang].stale}</span>`;
+    }
+    return '';
+}
+
+/**
+ * Custom markdown to HTML parser for release notes and descriptions.
+ * @param {string} text - Raw markdown text.
+ * @returns {string} Sanitized HTML.
+ */
+export function parseMarkdown(text) {
+    if (!text) return '';
+    return text
+        .replace(/^### (.*$)/gim, '<h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--text-main);">$1</h3>')
+        .replace(/^## (.*$)/gim, '<h2 style="margin-top: 1.8rem; margin-bottom: 0.8rem; color: var(--text-main); border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.3rem;">$1</h2>')
+        .replace(/^# (.*$)/gim, '<h1 style="margin-top: 2rem; margin-bottom: 1rem; color: var(--accent-color); font-size: 1.4rem;">$1</h1>')
+        .replace(/^\-\-\-/gim, '<hr class="settings-divider" style="margin: 2rem 0;">')
+        .replace(/\*\*(.*?)\*\*/gim, '<strong style="color: var(--text-main); font-weight: 800;">$1</strong>')
+        .replace(/`(.*?)`/gim, '<code style="background: rgba(255,255,255,0.1); padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.9em; font-family: monospace;">$1</code>')
+        .replace(/^\- (.*$)/gim, '<div style="padding-left: 1rem; text-indent: -0.8rem; margin-bottom: 0.5rem; color: var(--text-dim); line-height: 1.6;"><span style="color: var(--accent-color);">•</span> $1</div>')
+        .replace(/\n/gim, '<br>')
+        .replace(/(<\/h[1-3]>|<hr.*?>|<\/div>)<br>/gim, '$1'); // 블록 요소 뒤 불필요한 줄바꿈 정리
 }

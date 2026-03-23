@@ -8,7 +8,8 @@ import {
     classifyMessages,
     calculateHeatmapLevel,
     calculateSourceDistribution,
-    processTimeSeriesData
+    processTimeSeriesData,
+    ARCHIVE_THRESHOLD_DAYS
 } from './logic.js';
 
 const mockMessages = [
@@ -21,8 +22,8 @@ function testSortAndFilter() {
     console.log('--- Testing sortAndFilterMessages ---');
 
     const now = new Date();
-    const recentDate = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(); // 2일 전
-    const oldDate = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString(); // 10일 전
+    const recentDate = new Date(now.getTime() - (ARCHIVE_THRESHOLD_DAYS * 0.5) * 24 * 60 * 60 * 1000).toISOString(); // 기준일 절반의 시간 전 (대시보드 표시)
+    const oldDate = new Date(now.getTime() - (ARCHIVE_THRESHOLD_DAYS + 1) * 24 * 60 * 60 * 1000).toISOString(); // 기준일 + 1일 전 (보관함으로 이동)
 
     const dynamicMock = [
         ...mockMessages,
@@ -139,6 +140,27 @@ function testProcessTimeSeriesData() {
     console.log('✅ processTimeSeriesData passed');
 }
 
+function testLongStringPreservation() {
+    console.log('--- Testing Long String Preservation ---');
+    const veryLongString = "A".repeat(500);
+
+    const mock = [{
+        id: 99,
+        requester: veryLongString,
+        task: veryLongString,
+        source: 'slack',
+        done: false,
+        assignee: 'other'
+    }];
+
+    const allTasks = sortAndFilterMessages(mock, 'allTasksTab', '');
+
+    console.assert(allTasks[0].requester === veryLongString, 'Requester data must not be truncated in logic layer');
+    console.assert(allTasks[0].task === veryLongString, 'Task data must not be truncated in logic layer');
+
+    console.log('✅ Long String Preservation passed');
+}
+
 function runAllTests() {
     try {
         testSortAndFilter();
@@ -146,6 +168,7 @@ function runAllTests() {
         testHeatmapLevel();
         testSourceDistribution();
         testProcessTimeSeriesData();
+        testLongStringPreservation();
         console.log('\n✨ ALL TESTS PASSED SUCCESSFULLY! ✨');
     } catch (e) {
         console.error('\n❌ TEST FAILED:');

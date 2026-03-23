@@ -160,7 +160,7 @@ export const I18N_DATA = {
         hourlyTaskTooltip: "{count}개의 업무 완료 ({time})",
         achievements: {
             "Morning Star": { name: "모닝 스타", desc: "오전 9시 이전에 첫 번째 업무를 완료했습니다." },
-            "Task Master": { name: "태스크 마스터", desc: "하루에 10개 이상의 업무를 완료했습니다." },
+            "Task Master 10": { name: "태스크 마스터 (10)", desc: "누적 업무 10개를 완료했습니다." },
             "Streak Starter": { name: "스트릭 스타터", desc: "3일 연속으로 업무를 완료했습니다." },
             "Persistence King": { name: "끈기 끝판왕", desc: "7일 연속으로 업무를 완료했습니다." }
         }
@@ -326,7 +326,7 @@ export const I18N_DATA = {
         hourlyTaskTooltip: "{count} tasks completed ({time})",
         achievements: {
             "Morning Star": { name: "Morning Star", desc: "Completed the first task before 9 AM." },
-            "Task Master": { name: "Task Master", desc: "Completed 10 or more tasks in a single day." },
+            "Task Master 10": { name: "Task Master", desc: "Completed 10 or more tasks in a single day." },
             "Streak Starter": { name: "Streak Starter", desc: "Completed tasks for 3 consecutive days." },
             "Persistence King": { name: "Persistence King", desc: "Completed tasks for 7 consecutive days." }
         }
@@ -482,7 +482,7 @@ export const I18N_DATA = {
         hourlyTaskTooltip: "{count} tugas selesai ({time})",
         achievements: {
             "Morning Star": { name: "Bintang Pagi", desc: "Menyelesaikan tugas pertama sebelum pukul 9 pagi." },
-            "Task Master": { name: "Ahli Tugas", desc: "Menyelesaikan 10 tugas atau lebih dalam satu hari." },
+            "Task Master 10": { name: "Ahli Tugas", desc: "Menyelesaikan 10 tugas atau lebih dalam satu hari." },
             "Streak Starter": { name: "Pemicu Beruntun", desc: "Menyelesaikan tugas selama 3 hari berturut-turut." },
             "Persistence King": { name: "Raja Ketekunan", desc: "Menyelesaikan tugas selama 7 hari berturut-turut." }
         }
@@ -638,7 +638,7 @@ export const I18N_DATA = {
         hourlyTaskTooltip: "เสร็จสิ้น {count} งาน ({time})",
         achievements: {
             "Morning Star": { name: "ดาวรุ่งยามเช้า", desc: "ทำงานแรกเสร็จก่อน 9 โมงเช้า" },
-            "Task Master": { name: "ปรมาจารย์งาน", desc: "ทำงานเสร็จ 10 งานขึ้นไปในหนึ่งวัน" },
+            "Task Master 10": { name: "ปรมาจารย์งาน", desc: "ทำงานเสร็จ 10 งานขึ้นไปในหนึ่งวัน" },
             "Streak Starter": { name: "ผู้เริ่มสตรีค", desc: "ทำงานเสร็จติดต่อกัน 3 วัน" },
             "Persistence King": { name: "ราชาแห่งความพากเพียร", desc: "ทำงานเสร็จติดต่อกัน 7 วัน" }
         }

@@ -25,9 +25,20 @@
 }
 
 @keyframes badge-pulse {
-    0% { transform: scale(1); box-shadow: 0 0 10px rgba(235, 87, 87, 0.15); }
-    50% { transform: scale(1.02); box-shadow: 0 0 20px rgba(235, 87, 87, 0.3); }
-    100% { transform: scale(1); box-shadow: 0 0 10px rgba(235, 87, 87, 0.15); }
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 10px rgba(235, 87, 87, 0.15);
+    }
+
+    50% {
+        transform: scale(1.02);
+        box-shadow: 0 0 20px rgba(235, 87, 87, 0.3);
+    }
+
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 10px rgba(235, 87, 87, 0.15);
+    }
 }
 
 body.light-theme .badge-stale {
@@ -114,10 +125,11 @@ body.light-theme .tab-btn.active .count {
 }
 
 .col-room {
-    width: 220px;
+    width: 180px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
+    overflow: hidden;
 }
 
 .col-task {
@@ -134,24 +146,39 @@ body.light-theme .tab-btn.active .count {
     flex-shrink: 0;
     display: flex;
     align-items: center;
+    overflow: hidden;
 }
 
 .col-assignee {
-    width: 100px;
+    width: 140px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
+    overflow: hidden;
 }
 
 .col-time {
-    width: 160px;
+    width: 150px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
+    justify-content: flex-end;
+    overflow: hidden;
+    gap: 0.5rem;
+}
+
+.assignee-me,
+.assignee-other,
+.col-requester strong {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 
 .col-actions {
-    width: 180px;
+    width: 140px;
     flex-shrink: 0;
     display: flex;
     gap: 0.4rem;
@@ -322,6 +349,11 @@ body.light-theme .badge-room {
     background: rgba(255, 255, 255, 0.01);
 }
 
+.card.done:hover {
+    opacity: 0.95;
+    filter: grayscale(0);
+}
+
 .card.done .task-title {
     text-decoration: line-through;
     color: var(--text-dim);
@@ -363,12 +395,26 @@ body.light-theme .badge-room {
     background: rgba(255, 255, 255, 0.1);
     color: var(--text-main);
     border-color: var(--text-main);
-    opacity: 0.8;
+    opacity: 0.6;
 }
 
 .card.done .done-btn:hover {
     background: rgba(255, 255, 255, 0.2);
+    color: var(--accent-color);
+    border-color: var(--accent-color);
     opacity: 1;
+}
+
+.card.done .original-btn:hover {
+    background: rgba(0, 242, 255, 0.2);
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.card.done .delete-btn:hover {
+    background: rgba(255, 59, 48, 0.2);
+    border-color: #ff3b30;
+    color: #ff3b30;
 }
 
 footer {

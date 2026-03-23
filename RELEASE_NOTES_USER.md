@@ -1,3 +1,23 @@
+# Release Notes (User) - v2.2.9 (2026-03-23 06:15 UTC)
+
+## 🏗️ Backend Service Extraction & Logic Isolation
+- **[REFACTOR] Backend Architecture**: Established a dedicated `services` package to house complex business logic, reducing handler bloat and improving maintainability.
+- **[REFACTOR] Logic Isolation**: Isolated pure computational logic (`getDeadlineBadge`, `parseMarkdown`) from `renderer.js` into `logic.js` for better testability and reuse.
+- **[IMPROVED] Gmail Channel Parsing**: Modularized `parseNewEmails` and `analyzeAndSaveEmails` in `gmail.go` into smaller, task-specific functions, adhering to the 30-line function rule.
+- **[FIX] Linting & Type Integrity**: Resolved multiple variable declarations and type mismatches (`store.TodoItem`) across frontend and backend modules.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.2.9 (2026-03-23 06:15 UTC)
+
+## 🏗️ 백엔드 서비스 레이어 도입 및 로직 분리 가속화
+- **[REFACTOR] 백엔드 패키지 구조 개선**: 복잡한 비즈니스 로직(업무 재분류, Gmail CC 복원 등)을 별도의 `services` 패키지로 추출하여 핸들러의 단일 책임 원칙을 강화했습니다.
+- **[REFACTOR] 프론트엔드 로직 독립화**: 기존 `renderer.js`에 섞여 있던 순수 연산 로직(`getDeadlineBadge`, `parseMarkdown`)을 `logic.js`로 분리하여 코드의 재사용성과 테스트 용이성을 높였습니다.
+- **[IMPROVED] 지메일 수집 엔진 모듈화**: `gmail.go`의 방대한 파싱 함수들을 작은 단위의 조각 함수로 쪼개어 가독성을 높이고 유지보수 효율을 개선했습니다.
+- **[FIX] 코드 정합성 및 린트 오류 수정**: 프론트엔드 중복 선언 및 백엔드 타입 불일치 이슈를 해결하여 시스템 안정성을 강화했습니다.
+
+---
+
 # Release Notes (User) - v2.2.8 (2026-03-23 04:56 UTC)
 
 ## 🕒 Improved Time Readability & Premium Status Icons

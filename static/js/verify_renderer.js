@@ -348,6 +348,31 @@ function testRenderAchievements() {
     console.log('✅ renderAchievements verified');
 }
 
+function testCardTruncationAttributes() {
+    console.log('--- Testing Card Truncation & Title Attributes ---');
+
+    const longMsg = {
+        id: 999,
+        source: 'slack',
+        room: 'Very Long Room Name That Should Be Truncated',
+        task: 'Normal task',
+        requester: 'Super Long Requester Name',
+        assignee: 'Extremely Long Assignee Name',
+        timestamp: new Date().toISOString(),
+        done: false,
+        category: 'todo'
+    };
+
+    const html = renderer.createCardElement(longMsg);
+
+    console.assert(html.includes('title="Very Long Room Name That Should Be Truncated"'), 'Room column should have title attribute for tooltip');
+    console.assert(html.includes('title="Super Long Requester Name"'), 'Requester column should have title attribute for tooltip');
+    console.assert(html.includes('title="Extremely Long Assignee Name"'), 'Assignee span should have title attribute for tooltip');
+    console.assert(html.includes('class="assignee-other"'), 'Assignee span should use assignee-other class for CSS truncation');
+
+    console.log('✅ Card Truncation Attributes verified');
+}
+
 testEmptyStateMessages();
 testUpdateTokenBadge();
 testRenderTenantAliasList();
@@ -357,3 +382,4 @@ testInsightsRenderer();
 testSetScanLoading();
 testUpdateWhatsAppQR();
 testRenderAchievements();
+testCardTruncationAttributes();

@@ -9,7 +9,6 @@ import (
 	"message-consolidator/services"
 	"message-consolidator/store"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 )
@@ -155,138 +154,13 @@ func HandleReclassifyOldData(w http.ResponseWriter, r *http.Request) {
 	}
 	aliases, _ := store.GetUserAliases(user.ID)
 
-	allMyIdentities := GetEffectiveAliases(*user, aliases)
-
 	msgs, err := store.GetMessages(email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	fixedCount := 0
-	for _, m := range msgs {
-		rawAssignee := strings.TrimSpace(m.Assignee)
-		normalizedAssignee := strings.ToLower(rawAssignee)
-
-		if normalizedAssignee == "기타 업무" || normalizedAssignee == "기타업무" || normalizedAssignee == "other tasks" || normalizedAssignee == "미지정" {
-			_ = store.UpdateTaskAssignee(email, m.ID, "")
-			fixedCount++
-			continue
-		}
-
-		isDirectGmail := true
-		if m.Source == "gmail" {
-			lowOrig := strings.ToLower(m.OriginalText)
-			lowEmail := strings.ToLower(user.Email)
-
-			toIdx := strings.Index(lowOrig, "to: ")
-			ccIdx := strings.Index(lowOrig, "cc: ")
-			bccIdx := strings.Index(lowOrig, "bcc: ")
-			subjIdx := strings.Index(lowOrig, "subject: ")
-
-			limitIdx := -1
-			if ccIdx != -1 {
-				limitIdx = ccIdx
-			}
-			if bccIdx != -1 && (limitIdx == -1 || bccIdx < limitIdx) {
-				limitIdx = bccIdx
-			}
-			if subjIdx != -1 && (limitIdx == -1 || subjIdx < limitIdx) {
-				limitIdx = subjIdx
-			}
-
-			isDirect := false
-			if toIdx != -1 {
-				toBlock := ""
-				if limitIdx != -1 && limitIdx > toIdx {
-					toBlock = lowOrig[toIdx:limitIdx]
-				} else {
-					toBlock = lowOrig[toIdx:]
-				}
-				if strings.Contains(toBlock, lowEmail) {
-					isDirect = true
-				}
-			}
-			isDirectGmail = isDirect
-		}
-
-		isMarkedAsMine := false
-		if normalizedAssignee == "내 업무" || normalizedAssignee == "내업무" || normalizedAssignee == "my tasks" || normalizedAssignee == "mytasks" {
-			isMarkedAsMine = true
-		} else {
-			for _, a := range allMyIdentities {
-				if a != "" && strings.EqualFold(rawAssignee, a) {
-					isMarkedAsMine = true
-					break
-				}
-			}
-		}
-
-		matchedByAlias := false
-		allCheckAliases := append([]string{"나", "me"}, allMyIdentities...)
-		for _, a := range allCheckAliases {
-			if a != "" {
-				if m.Source == "gmail" {
-					if isDirectGmail && IsAliasMatched(m.Task, m.Requester, a) {
-						matchedByAlias = true
-						break
-					}
-				} else {
-					if IsAliasMatched(m.OriginalText, m.Requester, a) {
-						matchedByAlias = true
-						break
-					}
-				}
-			}
-		}
-
-		if isMarkedAsMine {
-			if m.Source == "gmail" && !isDirectGmail {
-				currentAssignee := strings.ToLower(m.Assignee)
-				isGeneric := currentAssignee == "내 업무" || currentAssignee == "나" || currentAssignee == "me" || currentAssignee == ""
-				if isGeneric {
-					_ = store.UpdateTaskAssignee(email, m.ID, "")
-					fixedCount++
-					continue
-				}
-			}
-
-			newAssignee := m.Assignee
-			changed := false
-
-			if matchedByAlias {
-				newAssignee = user.Name
-				if newAssignee == "" {
-					newAssignee = email
-				}
-				if m.Assignee != newAssignee {
-					changed = true
-				}
-			} else {
-				lowCurr := strings.ToLower(m.Assignee)
-				if lowCurr == "내 업무" || lowCurr == "나" || lowCurr == "me" {
-					newAssignee = ""
-					changed = true
-				}
-			}
-
-			if changed {
-				_ = store.UpdateTaskAssignee(email, m.ID, newAssignee)
-				fixedCount++
-			}
-			continue
-		}
-
-		if matchedByAlias && strings.TrimSpace(m.Assignee) == "" {
-			assigneeName := user.Name
-			if assigneeName == "" {
-				assigneeName = user.Email
-			}
-			_ = store.UpdateTaskAssignee(email, m.ID, assigneeName)
-			fixedCount++
-		}
-	}
-
+	fixedCount := services.ReclassifyUserTasks(email, user, aliases, msgs)
 	respondJSON(w, map[string]interface{}{"status": "success", "fixed_count": fixedCount})
 }
 
@@ -313,107 +187,6 @@ func HandleRestoreGmailCC(w http.ResponseWriter, r *http.Request) {
 	allMsgs = append(allMsgs, activeMsgs...)
 	allMsgs = append(allMsgs, archivedMsgs...)
 
-	fixedCount := 0
-	for _, m := range allMsgs {
-		if m.Source != "gmail" {
-			continue
-		}
-
-		toIdx := strings.Index(m.OriginalText, "To: ")
-		subjIdx := strings.Index(m.OriginalText, ", Subject: ")
-
-		var toHeader string
-		if toIdx != -1 && subjIdx != -1 && subjIdx > toIdx {
-			toHeader = m.OriginalText[toIdx+4 : subjIdx]
-		}
-
-		if toHeader != "" && strings.Contains(strings.ToLower(toHeader), strings.ToLower(user.Email)) {
-			if strings.TrimSpace(m.Assignee) == "" {
-				assigneeName := user.Name
-				if assigneeName == "" {
-					assigneeName = user.Email
-				}
-				_ = store.UpdateTaskAssignee(email, m.ID, assigneeName)
-				fixedCount++
-			}
-			continue
-		}
-
-		currentAssignee := strings.TrimSpace(m.Assignee)
-		lowerAssignee := strings.ToLower(currentAssignee)
-
-		isWronglyAssignedToMe := lowerAssignee == "" || lowerAssignee == "내 업무" || lowerAssignee == "내업무" || lowerAssignee == "나" || lowerAssignee == "me" || strings.EqualFold(currentAssignee, user.Name) || strings.EqualFold(currentAssignee, user.Email)
-
-		if !isWronglyAssignedToMe {
-			for _, alias := range aliases {
-				if alias != "" && strings.EqualFold(currentAssignee, alias) {
-					isWronglyAssignedToMe = true
-					break
-				}
-			}
-		}
-
-		if isWronglyAssignedToMe {
-			actualAssignee := ""
-			if toHeader != "" {
-				actualAssignee = channels.ExtractNameFromEmail(toHeader)
-			}
-
-			if actualAssignee == "" {
-				msgID := m.SourceTS
-				if strings.HasPrefix(msgID, "gmail-") {
-					parts := strings.Split(msgID, "-")
-					if len(parts) >= 2 {
-						msgID = parts[1]
-					}
-				}
-
-				msg, err := svc.Users.Messages.Get("me", msgID).Format("metadata").MetadataHeaders("To").Do()
-				if err == nil && msg.Payload != nil {
-					for _, h := range msg.Payload.Headers {
-						if h.Name == "To" {
-							actualAssignee = channels.ExtractNameFromEmail(h.Value)
-							break
-						}
-					}
-				}
-			}
-
-			if actualAssignee != "" && currentAssignee != actualAssignee {
-				_ = store.UpdateTaskAssignee(email, m.ID, actualAssignee)
-				fixedCount++
-			}
-		}
-	}
-
+	fixedCount := services.RestoreGmailCCAssignment(r.Context(), email, user, aliases, allMsgs, svc)
 	respondJSON(w, map[string]interface{}{"status": "success", "fixed_count": fixedCount})
-}
-
-func GetEffectiveAliases(user store.User, aliases []string) []string {
-	var all []string
-	if user.Name != "" {
-		all = append(all, user.Name)
-	}
-	all = append(all, aliases...)
-	return all
-}
-
-func IsAliasMatched(text, requester, alias string) bool {
-	if alias == "" || text == "" {
-		return false
-	}
-	// Case-insensitive match for name or mentions in text
-	textLower := strings.ToLower(text)
-	aliasLower := strings.ToLower(alias)
-
-	if strings.Contains(textLower, "@"+aliasLower) {
-		return true
-	}
-	// Also check if requester is NOT the alias themselves (to avoid self-assignment)
-	if !strings.EqualFold(requester, alias) {
-		if strings.Contains(textLower, aliasLower) {
-			return true
-		}
-	}
-	return false
 }

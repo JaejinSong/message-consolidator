@@ -91,7 +91,6 @@
         white-space: normal;
         font-size: 1.15rem;
         line-height: 1.5;
-        overflow: visible;
         margin-bottom: 0.5rem;
     }
 
@@ -106,11 +105,9 @@
     .col-assignee,
     .col-time {
         width: 100%;
-        white-space: normal;
-        overflow: visible;
-        text-overflow: clip;
-        margin-bottom: 0.3rem;
         margin-bottom: 0;
+        min-width: 0;
+        /* CSS Grid 내부에서 말줄임(ellipsis)이 작동하도록 허용 */
     }
 
     .col-task {
@@ -130,6 +127,8 @@
     .col-assignee {
         grid-area: assign;
         justify-content: flex-end;
+        max-width: 45vw;
+        /* 할당자 이름이 너무 길어 옆에 있는 요청자 이름을 밀어내지 않도록 방어 */
     }
 
     .col-time {
@@ -328,5 +327,21 @@
     .modal-content {
         width: 95%;
         padding: 1.5rem;
+    }
+}
+/* --- Ultra Wide & FHD Optimization --- */
+@media (min-width: 1800px) {
+    body {
+        padding: 3rem;
+    }
+
+    .glass-container {
+        padding: 4rem;
+        max-width: 1840px; /* layout.css와 동기화 */
+        border-radius: 40px;
+    }
+
+    .dashboard-header {
+        margin-bottom: 4rem;
     }
 }

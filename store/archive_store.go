@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 )
 
@@ -13,6 +15,18 @@ func GetArchivedMessages(email string) ([]ConsolidatedMessage, error) {
 		return msgs, nil
 	}
 	return []ConsolidatedMessage{}, nil
+}
+
+func getArchiveDays() int {
+	if envDays := os.Getenv("ARCHIVE_DAYS"); envDays != "" {
+		if parsed, err := strconv.Atoi(envDays); err == nil && parsed >= 0 {
+			return parsed
+		}
+	}
+	if autoArchiveDays > 0 {
+		return autoArchiveDays
+	}
+	return 1 // 기본값 1일
 }
 
 func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]ConsolidatedMessage, int, error) {
@@ -35,10 +49,7 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 	}
 
 	// 1. Get Count
-	safeArchiveDays := autoArchiveDays
-	if safeArchiveDays <= 0 {
-		safeArchiveDays = 6
-	}
+	safeArchiveDays := getArchiveDays()
 
 	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*)::int 
@@ -124,10 +135,7 @@ func GetArchivedMessagesCount(ctx context.Context, filter ArchiveFilter) (int, e
 		args = append(args, pattern)
 	}
 
-	safeArchiveDays := autoArchiveDays
-	if safeArchiveDays <= 0 {
-		safeArchiveDays = 6
-	}
+	safeArchiveDays := getArchiveDays()
 
 	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*)::int 

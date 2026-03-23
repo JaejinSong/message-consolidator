@@ -1,6 +1,6 @@
 .glass-container {
     width: 100%;
-    max-width: 1600px;
+    max-width: 1840px;
     background: var(--card-bg);
     backdrop-filter: blur(12px);
     /* 렌더링 부하 감소 */

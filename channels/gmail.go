@@ -20,6 +20,16 @@ import (
 	"google.golang.org/api/option"
 )
 
+const (
+	CategorySent   = "발신 메일"
+	CategoryMine   = "내 업무"
+	CategoryOthers = "기타 업무"
+)
+
+var genericMeAssignees = map[string]bool{
+	"me": true, "나": true, "담당자": true,
+}
+
 var GmailOauthConfig *oauth2.Config
 
 func SetupGmailOAuth(cfg *config.Config) {
@@ -116,15 +126,7 @@ func parseNewEmails(svc *gmail.Service, messages []*gmail.Message, email string,
 	classificationMap := make(map[string]string)
 	toMap := make(map[string]string)
 
-	var skips []string
-	if cfg.GmailSkipSenders != "" {
-		for _, s := range strings.Split(cfg.GmailSkipSenders, ",") {
-			s = strings.TrimSpace(strings.ToLower(s))
-			if s != "" {
-				skips = append(skips, s)
-			}
-		}
-	}
+	skips := getGmailSkips(cfg)
 
 	for _, m := range messages {
 		fullMsg, err := svc.Users.Messages.Get("me", m.Id).Format("full").Do()
@@ -132,69 +134,22 @@ func parseNewEmails(svc *gmail.Service, messages []*gmail.Message, email string,
 			continue
 		}
 
-		var subject, from, to, cc, bcc string
-		for _, h := range fullMsg.Payload.Headers {
-			switch h.Name {
-			case "Subject":
-				subject = h.Value
-			case "From":
-				from = h.Value
-			case "To":
-				to = h.Value
-			case "Cc":
-				cc = h.Value
-			case "Bcc":
-				bcc = h.Value
-			}
-		}
-
-		// Filter rules for user
-		fromLower := strings.ToLower(from)
-		isSkip := false
-
-		// [고도화] 시스템 자동 발송, 노리플라이 메일 등 노이즈 원천 차단
-		if strings.Contains(fromLower, "no-reply") || strings.Contains(fromLower, "noreply") || strings.Contains(fromLower, "do-not-reply") || strings.Contains(fromLower, "mailer-daemon") {
+		subject, from, to, cc, bcc := extractHeaders(fullMsg.Payload.Headers)
+		if isSkipSender(from, skips) {
 			continue
 		}
 
-		for _, s := range skips {
-			if strings.Contains(fromLower, s) {
-				logger.Debugf("[SCAN-GMAIL] Skipping noise email from: %s (matches skip rule: %s)", from, s)
-				isSkip = true
-				break
-			}
-		}
-		if isSkip {
-			continue
-		}
-		emailLower := strings.ToLower(email)
-		toLower := strings.ToLower(to)
-		ccLower := strings.ToLower(cc)
-		bccLower := strings.ToLower(bcc)
-
-		isFromMe := strings.Contains(fromLower, emailLower)
-		isDirect := strings.Contains(toLower, emailLower)
-		isCc := strings.Contains(ccLower, emailLower)
-		isBcc := strings.Contains(bccLower, emailLower)
-
-		// 만약 내가 보낸 메일도 아니고, 수신인 목록에도 없다면 스킵
+		isFromMe, isDirect, isCc, isBcc := checkRecipientStatus(email, from, to, cc, bcc)
 		if !isFromMe && !isDirect && !isCc && !isBcc {
 			continue
 		}
 
-		classification := "기타 업무"
-		if isFromMe {
-			classification = "발신 메일" // 내가 보낸 메일 (본인 약속 or 회신 대기)
-		} else if isDirect {
-			classification = "내 업무" // 나에게 직접 온 업무
-		}
-
+		classification := classifyGmail(isFromMe, isDirect)
 		classificationMap[m.Id] = classification
 		toMap[m.Id] = to
+
 		body := extractBody(fullMsg.Payload)
 		cleanBody := cleanEmailBody(body)
-
-		// 본문이 비어있거나 인용구만 남아있다면 스킵
 		if cleanBody == "" {
 			continue
 		}
@@ -210,10 +165,74 @@ func parseNewEmails(svc *gmail.Service, messages []*gmail.Message, email string,
 	return rawMsgs, classificationMap, toMap
 }
 
+func getGmailSkips(cfg *config.Config) []string {
+	var skips []string
+	if cfg.GmailSkipSenders == "" {
+		return skips
+	}
+	for _, s := range strings.Split(cfg.GmailSkipSenders, ",") {
+		s = strings.TrimSpace(strings.ToLower(s))
+		if s != "" {
+			skips = append(skips, s)
+		}
+	}
+	return skips
+}
+
+func extractHeaders(headers []*gmail.MessagePartHeader) (subject, from, to, cc, bcc string) {
+	for _, h := range headers {
+		switch h.Name {
+		case "Subject":
+			subject = h.Value
+		case "From":
+			from = h.Value
+		case "To":
+			to = h.Value
+		case "Cc":
+			cc = h.Value
+		case "Bcc":
+			bcc = h.Value
+		}
+	}
+	return
+}
+
+func isSkipSender(from string, skips []string) bool {
+	fromLower := strings.ToLower(from)
+	if strings.Contains(fromLower, "no-reply") || strings.Contains(fromLower, "noreply") || strings.Contains(fromLower, "do-not-reply") || strings.Contains(fromLower, "mailer-daemon") {
+		return true
+	}
+	for _, s := range skips {
+		if strings.Contains(fromLower, s) {
+			logger.Debugf("[SCAN-GMAIL] Skipping noise email from: %s (matches skip rule: %s)", from, s)
+			return true
+		}
+	}
+	return false
+}
+
+func checkRecipientStatus(email, from, to, cc, bcc string) (isFromMe, isDirect, isCc, isBcc bool) {
+	emailLower := strings.ToLower(email)
+	isFromMe = strings.Contains(strings.ToLower(from), emailLower)
+	isDirect = strings.Contains(strings.ToLower(to), emailLower)
+	isCc = strings.Contains(strings.ToLower(cc), emailLower)
+	isBcc = strings.Contains(strings.ToLower(bcc), emailLower)
+	return
+}
+
+func classifyGmail(isFromMe, isDirect bool) string {
+	if isFromMe {
+		return CategorySent
+	} else if isDirect {
+		return CategoryMine
+	}
+	return CategoryOthers
+}
+
 // isAssigneeMe는 AI가 추출한 담당자(Assignee)가 현재 사용자 본인인지 판별합니다.
 func isAssigneeMe(assignee, email, userName, fallback string, aliases []string) bool {
 	lower := strings.ToLower(assignee)
-	if lower == "" || lower == "me" || lower == "나" || lower == "담당자" {
+	if lower == "" || genericMeAssignees[lower] {
 		return true
 	} else if strings.EqualFold(assignee, fallback) || strings.EqualFold(assignee, userName) || strings.EqualFold(assignee, email) {
 		return true
@@ -227,18 +246,21 @@ func isAssigneeMe(assignee, email, userName, fallback string, aliases []string) 
 }
 
 func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config) {
-	var sb strings.Builder
-	msgMap := make(map[string]types.RawMessage)
-
-	for _, m := range rawMsgs {
-		msgMap[m.ID] = m
-		sb.WriteString(fmt.Sprintf("[TS:%s] From: %s, %s\n---\n", m.ID, m.Sender, m.Text))
+	if len(rawMsgs) == 0 {
+		return
 	}
 
 	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 	if err != nil {
 		logger.Errorf("[SCAN-GMAIL] Failed to init Gemini client: %v", err)
 		return
+	}
+
+	var sb strings.Builder
+	msgMap := make(map[string]types.RawMessage)
+	for _, m := range rawMsgs {
+		msgMap[m.ID] = m
+		sb.WriteString(fmt.Sprintf("[TS:%s] From: %s, %s\n---\n", m.ID, m.Sender, m.Text))
 	}
 
 	items, err := gc.Analyze(ctx, email, sb.String(), language, "gmail")
@@ -249,40 +271,23 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 
 	user, _ := store.GetOrCreateUser(email, "", "")
 	aliases, _ := store.GetUserAliases(user.ID)
-	fallbackAssignee := user.Name
-	if fallbackAssignee == "" {
-		fallbackAssignee = email
-	}
+	msgsToSave := processGeminiItems(email, user, aliases, items, classificationMap, toMap, msgMap)
 
+	if len(msgsToSave) > 0 {
+		store.SaveMessages(msgsToSave)
+	}
+}
+
+func processGeminiItems(email string, user *store.User, aliases []string, items []store.TodoItem, classificationMap, toMap map[string]string, msgMap map[string]types.RawMessage) []store.ConsolidatedMessage {
 	var msgsToSave []store.ConsolidatedMessage
+	fallbackAssignee := getPreferredName(user)
 
 	for i, item := range items {
-		link := fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS)
-
-		assignee := item.Assignee
+		isMe := isAssigneeMe(item.Assignee, email, user.Name, fallbackAssignee, aliases)
 		cls := classificationMap[item.SourceTS]
 		toHeader := toMap[item.SourceTS]
 
-		// 담당자가 나(User)인지 판단
-		isMe := isAssigneeMe(assignee, email, user.Name, fallbackAssignee, aliases)
-
-		taskText := item.Task
-		category := item.Category
-
-		if cls == "발신 메일" {
-			if isMe {
-				category = "promise"
-				assignee = fallbackAssignee
-			} else {
-				category = "waiting"
-			}
-		} else {
-			if isMe && cls == "내 업무" {
-				assignee = fallbackAssignee
-			} else if (isMe && cls == "기타 업무") || assignee == "" {
-				assignee = ExtractNameFromEmail(toHeader)
-			}
-		}
+		assignee, category := resolveGmailCategoryAndAssignee(item, isMe, cls, toHeader, fallbackAssignee)
 
 		assignedAt := time.Now()
 		origText := ""
@@ -291,26 +296,48 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 			origText = m.Text
 		}
 
-		uniqueSourceTS := fmt.Sprintf("gmail-%s-%d", item.SourceTS, i)
 		msgsToSave = append(msgsToSave, store.ConsolidatedMessage{
 			UserEmail:    email,
 			Source:       "gmail",
 			Room:         "Gmail",
-			Task:         taskText,
+			Task:         item.Task,
 			Requester:    item.Requester,
 			Assignee:     assignee,
 			AssignedAt:   assignedAt,
-			Link:         link,
-			SourceTS:     uniqueSourceTS,
+			Link:         fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS),
+			SourceTS:     fmt.Sprintf("gmail-%s-%d", item.SourceTS, i),
 			OriginalText: origText,
 			Deadline:     item.Deadline,
 			Category:     category,
 		})
 	}
+	return msgsToSave
+}
 
-	if len(msgsToSave) > 0 {
-		store.SaveMessages(msgsToSave)
+func resolveGmailCategoryAndAssignee(item store.TodoItem, isMe bool, cls, toHeader, fallback string) (string, string) {
+	assignee := item.Assignee
+	category := item.Category
+
+	if cls == CategorySent {
+		if isMe {
+			return fallback, "promise"
+		}
+		return assignee, "waiting"
 	}
+
+	if isMe && cls == CategoryMine {
+		assignee = fallback
+	} else if (isMe && cls == CategoryOthers) || assignee == "" {
+		assignee = ExtractNameFromEmail(toHeader)
+	}
+	return assignee, category
+}
+
+func getPreferredName(user *store.User) string {
+	if user.Name != "" {
+		return user.Name
+	}
+	return user.Email
 }
 
 func ExtractNameFromEmail(header string) string {
