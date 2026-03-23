@@ -161,7 +161,7 @@ func UpdateLastScan(userEmail, source, targetID, ts string) error {
 
 func PersistScanMetadata(userEmail, source, targetID, ts string) error {
 	query := `INSERT INTO scan_metadata (user_email, source, target_id, last_ts)
-		VALUES ($1, $2, $3, $4)
+		VALUES (?, ?, ?, ?)
 		ON CONFLICT (user_email, source, target_id)
 		DO UPDATE SET last_ts = EXCLUDED.last_ts;`
 	_, err := db.Exec(query, userEmail, source, targetID, ts)
@@ -195,7 +195,7 @@ func PersistAllScanMetadata(userEmail string) {
 		defer tx.Rollback() // 성공 시 Commit 되므로 지장 없음
 
 		stmt, err := tx.Prepare(`INSERT INTO scan_metadata (user_email, source, target_id, last_ts)
-			VALUES ($1, $2, $3, $4)
+			VALUES (?, ?, ?, ?)
 			ON CONFLICT (user_email, source, target_id)
 			DO UPDATE SET last_ts = EXCLUDED.last_ts;`)
 		if err != nil {
@@ -295,6 +295,6 @@ func RemoveActiveSlackThread(email, channelID, threadTS string) error {
 	delete(dirtyScanKeys, key)
 	metadataMu.Unlock()
 
-	_, err := db.Exec("DELETE FROM scan_metadata WHERE user_email = $1 AND source = 'slack_thread' AND target_id = $2", email, targetID)
+	_, err := db.Exec("DELETE FROM scan_metadata WHERE user_email = ? AND source = 'slack_thread' AND target_id = ?", email, targetID)
 	return err
 }

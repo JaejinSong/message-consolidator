@@ -22,7 +22,7 @@ func SaveMessage(msg ConsolidatedMessage) (bool, int, error) {
 
 	var lastID int
 	query := `INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline) 
-			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			  ON CONFLICT(user_email, source_ts) DO NOTHING
 			  RETURNING id;`
 	err := db.QueryRow(query, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline).Scan(&lastID)
@@ -76,10 +76,8 @@ func SaveMessages(msgs []ConsolidatedMessage) ([]int, error) {
 	valueStrings := make([]string, 0, len(toInsert))
 	valueArgs := make([]interface{}, 0, len(toInsert)*11)
 
-	for i, msg := range toInsert {
-		offset := i * 12
-		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
-			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+9, offset+10, offset+11, offset+12))
+	for _, msg := range toInsert {
+		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 		valueArgs = append(valueArgs, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline)
 	}
 
@@ -149,7 +147,7 @@ func MarkMessageDone(email string, id int, done bool) error {
 		now := time.Now()
 		completeTime = &now
 	}
-	res, err := db.Exec("UPDATE messages SET done = $1, completed_at = $2 WHERE id = $3 AND user_email = $4", done, completeTime, id, email)
+	res, err := db.Exec("UPDATE messages SET done = ?, completed_at = ? WHERE id = ? AND user_email = ?", done, completeTime, id, email)
 	if err != nil {
 		return err
 	}
@@ -165,7 +163,7 @@ func MarkMessageDone(email string, id int, done bool) error {
 }
 
 func UpdateTaskText(email string, id int, task string) error {
-	res, err := db.Exec("UPDATE messages SET task = $1 WHERE id = $2 AND user_email = $3", task, id, email)
+	res, err := db.Exec("UPDATE messages SET task = ? WHERE id = ? AND user_email = ?", task, id, email)
 	if err != nil {
 		return err
 	}
@@ -179,7 +177,7 @@ func UpdateTaskText(email string, id int, task string) error {
 }
 
 func UpdateTaskAssignee(email string, id int, assignee string) error {
-	res, err := db.Exec("UPDATE messages SET assignee = $1 WHERE id = $2 AND user_email = $3", assignee, id, email)
+	res, err := db.Exec("UPDATE messages SET assignee = ? WHERE id = ? AND user_email = ?", assignee, id, email)
 	if err != nil {
 		return err
 	}
@@ -199,12 +197,11 @@ func DeleteMessages(email string, ids []int) error {
 	placeholders := make([]string, len(ids))
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
-	for i, id := range ids {
-		placeholders[i] = fmt.Sprintf("$%d", i+2)
-		args[i+1] = id
+	for i := range ids {
+		placeholders[i] = "?"
 	}
 
-	query := fmt.Sprintf("UPDATE messages SET is_deleted = true WHERE user_email = $1 AND id IN (%s)", strings.Join(placeholders, ","))
+	query := fmt.Sprintf("UPDATE messages SET is_deleted = 1 WHERE user_email = ? AND id IN (%s)", strings.Join(placeholders, ","))
 	res, err := db.Exec(query, args...)
 	if err != nil {
 		return err
@@ -226,12 +223,11 @@ func HardDeleteMessages(email string, ids []int) error {
 	placeholders := make([]string, len(ids))
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
-	for i, id := range ids {
-		placeholders[i] = fmt.Sprintf("$%d", i+2)
-		args[i+1] = id
+	for i := range ids {
+		placeholders[i] = "?"
 	}
 
-	query := fmt.Sprintf("DELETE FROM messages WHERE user_email = $1 AND id IN (%s)", strings.Join(placeholders, ","))
+	query := fmt.Sprintf("DELETE FROM messages WHERE user_email = ? AND id IN (%s)", strings.Join(placeholders, ","))
 	res, err := db.Exec(query, args...)
 	if err != nil {
 		return err
@@ -253,12 +249,11 @@ func RestoreMessages(email string, ids []int) error {
 	placeholders := make([]string, len(ids))
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
-	for i, id := range ids {
-		placeholders[i] = fmt.Sprintf("$%d", i+2)
-		args[i+1] = id
+	for i := range ids {
+		placeholders[i] = "?"
 	}
 
-	query := fmt.Sprintf("UPDATE messages SET is_deleted = false, done = false, completed_at = NULL WHERE user_email = $1 AND id IN (%s)", strings.Join(placeholders, ","))
+	query := fmt.Sprintf("UPDATE messages SET is_deleted = 0, done = 0, completed_at = NULL WHERE user_email = ? AND id IN (%s)", strings.Join(placeholders, ","))
 	res, err := db.Exec(query, args...)
 	if err != nil {
 		return err
@@ -279,7 +274,7 @@ func RestoreMessages(email string, ids []int) error {
 
 func GetMessageByID(ctx context.Context, id int) (ConsolidatedMessage, error) {
 	var m ConsolidatedMessage
-	err := db.QueryRowContext(ctx, "SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') FROM messages WHERE id = $1", id).Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt, &m.Category, &m.Deadline)
+	err := db.QueryRowContext(ctx, "SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') FROM messages WHERE id = ?", id).Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt, &m.Category, &m.Deadline)
 	if err != nil {
 		return m, err
 	}
@@ -293,9 +288,9 @@ func GetMessagesByIDs(ctx context.Context, ids []int) ([]ConsolidatedMessage, er
 
 	placeholders := make([]string, len(ids))
 	args := make([]interface{}, len(ids))
-	for i, id := range ids {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = id
+	for i := range ids {
+		placeholders[i] = "?"
+		args[i] = ids[i]
 	}
 
 	query := fmt.Sprintf(`SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') 

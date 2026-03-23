@@ -21,6 +21,8 @@
 - [ ] Badges reflect the selected language (KO, EN, ID, TH).
 - [ ] Empty state messages rotate or display correctly as defined in `locales.js`.
 
-## 🧪 Automated Scripts
-- [ ] `node static/js/verify_logic.js` (Core logic validation)
-- [ ] `node static/js/verify_renderer.js` (DOM/HTML structure validation)
+## 🧪 Automated Tests (Vitest)
+- [ ] `make test-ui` (Runs all Vitest + Happy DOM tests)
+- [ ] `static/js/logic.test.js` (Core logic validation)
+- [ ] `static/js/renderer.test.js` (DOM/HTML structure validation)
+- [ ] `static/js/utils.test.js` (Utility functions & DOM interaction)

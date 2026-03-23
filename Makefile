@@ -2,7 +2,7 @@ BINARY_NAME=message-consolidator
 SERVICE_NAME=message-consolidator.service
 INSTALL_DIR=/home/jinro/.gemini/message-consolidator
 
-.PHONY: build run install-service uninstall-service status logs
+.PHONY: build run install-service uninstall-service status logs test-ui
 
 build:
 	@echo "Minifying static files..."
@@ -41,3 +41,6 @@ status:
 
 logs:
 	journalctl -u $(SERVICE_NAME) -n 100 -f
+
+test-ui:
+	npm test

@@ -15,5 +15,14 @@ tmp_build
 # Environment
 .env
 
+# JavaScript / Node
+node_modules/
+.vite/
+package-lock.json
+package.json
+vitest.config.ts
+
 # Temporary/Other
 tasks_migration.csv
+*.db
+*.log

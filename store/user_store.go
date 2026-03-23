@@ -56,9 +56,9 @@ func GetOrCreateUser(email, name, picture string) (*User, error) {
 func updateAndCacheUser(email, name, picture string) (*User, error) {
 	var u User
 	err := WithDBRetry("GetOrCreateUser", func() error {
-		errQuery := db.QueryRow("SELECT id, email, COALESCE(name, ''), COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), points, streak, level, xp, daily_goal, last_completed_at, created_at, streak_freezes FROM users WHERE email = $1", email).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &u.LastCompletedAt, &u.CreatedAt, &u.StreakFreezes)
+		errQuery := db.QueryRow("SELECT id, email, COALESCE(name, ''), COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), points, streak, level, xp, daily_goal, last_completed_at, created_at, streak_freezes FROM users WHERE email = ?", email).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &u.LastCompletedAt, &u.CreatedAt, &u.StreakFreezes)
 		if errQuery == sql.ErrNoRows {
-			return db.QueryRow("INSERT INTO users (email, name, picture) VALUES ($1, $2, $3) RETURNING id, email, name, COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), points, streak, level, xp, daily_goal, last_completed_at, created_at, streak_freezes", email, name, picture).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &u.LastCompletedAt, &u.CreatedAt, &u.StreakFreezes)
+			return db.QueryRow("INSERT INTO users (email, name, picture) VALUES (?, ?, ?) RETURNING id, email, name, COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), points, streak, level, xp, daily_goal, last_completed_at, created_at, streak_freezes", email, name, picture).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &u.LastCompletedAt, &u.CreatedAt, &u.StreakFreezes)
 		}
 		if errQuery != nil {
 			return errQuery
@@ -76,7 +76,7 @@ func updateAndCacheUser(email, name, picture string) (*User, error) {
 		}
 
 		if needsUpdate {
-			_, errUpdate := db.Exec("UPDATE users SET name = $1, picture = $2 WHERE email = $3", u.Name, u.Picture, email)
+			_, errUpdate := db.Exec("UPDATE users SET name = ?, picture = ? WHERE email = ?", u.Name, u.Picture, email)
 			return errUpdate
 		}
 		return nil
@@ -94,11 +94,11 @@ func updateAndCacheUser(email, name, picture string) (*User, error) {
 }
 
 func UpdateUserWAJID(email, wajid string) error {
-	_, err := db.Exec("UPDATE users SET wa_jid = $1 WHERE email = $2", wajid, email)
+	_, err := db.Exec("UPDATE users SET wa_jid = ? WHERE email = ?", wajid, email)
 	return err
 }
 
 func UpdateUserSlackID(email, slackID string) error {
-	_, err := db.Exec("UPDATE users SET slack_id = $1 WHERE email = $2", slackID, email)
+	_, err := db.Exec("UPDATE users SET slack_id = ? WHERE email = ?", slackID, email)
 	return err
 }

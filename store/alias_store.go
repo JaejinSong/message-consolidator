@@ -61,7 +61,7 @@ func AddTenantAlias(email, original, primary string) error {
 	if original == "" || primary == "" {
 		return nil
 	}
-	_, err := db.Exec("INSERT INTO tenant_aliases (user_email, original_name, primary_name) VALUES ($1, $2, $3) ON CONFLICT (user_email, original_name) DO UPDATE SET primary_name = EXCLUDED.primary_name", email, original, primary)
+	_, err := db.Exec("INSERT INTO tenant_aliases (user_email, original_name, primary_name) VALUES (?, ?, ?) ON CONFLICT (user_email, original_name) DO UPDATE SET primary_name = EXCLUDED.primary_name", email, original, primary)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func AddTenantAlias(email, original, primary string) error {
 }
 
 func DeleteTenantAlias(email, original string) error {
-	_, err := db.Exec("DELETE FROM tenant_aliases WHERE user_email = $1 AND original_name = $2", email, original)
+	_, err := db.Exec("DELETE FROM tenant_aliases WHERE user_email = ? AND original_name = ?", email, original)
 	if err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func GetUserAliases(userID int) ([]string, error) {
 		return aliases, nil
 	}
 
-	rows, err := db.Query("SELECT alias_name FROM user_aliases WHERE user_id = $1", userID)
+	rows, err := db.Query("SELECT alias_name FROM user_aliases WHERE user_id = ?", userID)
 	if err != nil {
 		return nil, err
 	}
@@ -123,11 +123,11 @@ func AddUserAlias(userID int, alias string) error {
 	if alias == "" {
 		return nil
 	}
-	_, err := db.Exec("INSERT INTO user_aliases (user_id, alias_name) VALUES ($1, $2) ON CONFLICT (user_id, alias_name) DO NOTHING", userID, alias)
+	_, err := db.Exec("INSERT INTO user_aliases (user_id, alias_name) VALUES (?, ?) ON CONFLICT (user_id, alias_name) DO NOTHING", userID, alias)
 	return err
 }
 
 func DeleteUserAlias(userID int, alias string) error {
-	_, err := db.Exec("DELETE FROM user_aliases WHERE user_id = $1 AND alias_name = $2", userID, alias)
+	_, err := db.Exec("DELETE FROM user_aliases WHERE user_id = ? AND alias_name = ?", userID, alias)
 	return err
 }

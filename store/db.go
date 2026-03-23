@@ -8,17 +8,20 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
-func InitDB(connStr string) error {
+func InitDB(dbURL, authToken string) error {
 	var err error
-	db, err = sql.Open("pgx", connStr)
+	if strings.HasPrefix(dbURL, "libsql://") && authToken != "" {
+		dbURL = fmt.Sprintf("%s?authToken=%s", dbURL, authToken)
+	}
+	db, err = sql.Open("libsql", dbURL)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 
-	setupConnectionPool(connStr)
+	setupConnectionPool(dbURL)
 
 	if err := createCoreTables(); err != nil {
 		return err
@@ -38,14 +41,15 @@ func InitDB(connStr string) error {
 }
 
 func setupConnectionPool(connStr string) {
-	// Neon DB는 유휴 커넥션을 0으로 설정하여 Neon 인스턴스 자원 소모 최소화
-	// 일반 DB는 응답성 향상을 위해 10개의 유휴 커넥션 유지
+	// Turso/libSQL은 Neon과 달리 서버리스 구조이므로 커넥션 풀을 유연하게 가져감.
+	// 로컬 SQLite 파일인 경우와 원격 libSQL 주소인 경우를 구분할 수 있음.
 	idleConns := 10
-	if strings.Contains(connStr, ".neon.tech") {
-		idleConns = 0
-		logger.Infof("[DB] NeonDB detected. Setting MaxIdleConns to %d, MaxOpenConns to 20.", idleConns)
+	if strings.HasPrefix(connStr, "libsql://") {
+		logger.Infof("[DB] Turso detected. Setting MaxIdleConns to 5, MaxOpenConns to 20.")
+		idleConns = 5
 	} else {
-		logger.Infof("[DB] Standard DB detected. Setting MaxIdleConns to %d, MaxOpenConns to 20.", idleConns)
+		logger.Infof("[DB] SQLite (Local) detected. Setting MaxIdleConns to %d, MaxOpenConns to 10.", idleConns)
+		idleConns = 2
 	}
 	db.SetMaxIdleConns(idleConns)
 	db.SetMaxOpenConns(20)
@@ -56,16 +60,16 @@ func setupConnectionPool(connStr string) {
 func createCoreTables() error {
 	query := `
 	CREATE TABLE IF NOT EXISTS users (
-		id SERIAL PRIMARY KEY,
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		email TEXT UNIQUE,
 		name TEXT,
 		slack_id TEXT,
 		wa_jid TEXT,
 		picture TEXT,
-		created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 	CREATE TABLE IF NOT EXISTS user_aliases (
-		id SERIAL PRIMARY KEY,
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		user_id INTEGER REFERENCES users(id),
 		alias_name TEXT,
 		UNIQUE(user_id, alias_name)
@@ -73,24 +77,24 @@ func createCoreTables() error {
 	CREATE TABLE IF NOT EXISTS gmail_tokens (
 		user_email TEXT PRIMARY KEY,
 		token_json TEXT NOT NULL,
-		updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 	CREATE TABLE IF NOT EXISTS messages (
-		id SERIAL PRIMARY KEY,
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		user_email TEXT,
 		source TEXT,
 		room TEXT,
 		task TEXT,
 		requester TEXT,
 		assignee TEXT,
-		assigned_at TIMESTAMPTZ,
+		assigned_at DATETIME,
 		link TEXT,
 		source_ts TEXT,
 		original_text TEXT,
-		done BOOLEAN DEFAULT false,
-		is_deleted BOOLEAN DEFAULT false,
-		created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-		completed_at TIMESTAMPTZ,
+		done BOOLEAN DEFAULT 0,
+		is_deleted BOOLEAN DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		completed_at DATETIME,
 		category TEXT DEFAULT 'todo'
 	);
 	CREATE TABLE IF NOT EXISTS task_translations (
@@ -100,14 +104,14 @@ func createCoreTables() error {
 		PRIMARY KEY (message_id, language)
 	);
 	CREATE TABLE IF NOT EXISTS tenant_aliases (
-		id SERIAL PRIMARY KEY,
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		user_email TEXT NOT NULL,
 		original_name TEXT NOT NULL,
 		primary_name TEXT NOT NULL,
 		UNIQUE(user_email, original_name)
 	);
 	CREATE TABLE IF NOT EXISTS scan_metadata (
-		id SERIAL PRIMARY KEY,
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		user_email TEXT NOT NULL,
 		source TEXT NOT NULL,
 		target_id TEXT NOT NULL,
@@ -121,39 +125,29 @@ func createCoreTables() error {
 
 func runMigrations() error {
 	// Column additions
-	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS user_email TEXT;")
-	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false;")
-	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS room TEXT;")
-	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS done BOOLEAN DEFAULT false;")
-	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;")
-	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS original_text TEXT;")
-	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'todo';")
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN user_email TEXT;")
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN is_deleted BOOLEAN DEFAULT 0;")
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN room TEXT;")
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN done BOOLEAN DEFAULT 0;")
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN completed_at DATETIME;")
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN original_text TEXT;")
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN category TEXT DEFAULT 'todo';")
 
 	// Users Gamification Columns
-	_, _ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS points INTEGER DEFAULT 0;")
-	_, _ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS streak INTEGER DEFAULT 0;")
-	_, _ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1;")
-	_, _ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS xp INTEGER DEFAULT 0;")
-	_, _ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_goal INTEGER DEFAULT 5;")
-	_, _ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_completed_at TIMESTAMPTZ;")
-	_, _ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_freezes INTEGER DEFAULT 0;")
+	_, _ = db.Exec("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0;")
+	_, _ = db.Exec("ALTER TABLE users ADD COLUMN streak INTEGER DEFAULT 0;")
+	_, _ = db.Exec("ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1;")
+	_, _ = db.Exec("ALTER TABLE users ADD COLUMN xp INTEGER DEFAULT 0;")
+	_, _ = db.Exec("ALTER TABLE users ADD COLUMN daily_goal INTEGER DEFAULT 5;")
+	_, _ = db.Exec("ALTER TABLE users ADD COLUMN last_completed_at DATETIME;")
+	_, _ = db.Exec("ALTER TABLE users ADD COLUMN streak_freezes INTEGER DEFAULT 0;")
 
-	if _, err := db.Exec("ALTER TABLE achievements ADD COLUMN IF NOT EXISTS target_value INTEGER DEFAULT 0;"); err != nil {
+	if _, err := db.Exec("ALTER TABLE achievements ADD COLUMN target_value INTEGER DEFAULT 0;"); err != nil {
 		logger.Errorf("[DB-MIGRATE] Error adding target_value: %v", err)
 	}
-	if _, err := db.Exec("ALTER TABLE achievements ADD COLUMN IF NOT EXISTS xp_reward INTEGER DEFAULT 0;"); err != nil {
+	if _, err := db.Exec("ALTER TABLE achievements ADD COLUMN xp_reward INTEGER DEFAULT 0;"); err != nil {
 		logger.Errorf("[DB-MIGRATE] Error adding xp_reward: %v", err)
 	}
-
-	// Migrate existing TIMESTAMP columns to TIMESTAMPTZ safely
-	_, _ = db.Exec(`
-		ALTER TABLE messages ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';
-		ALTER TABLE messages ALTER COLUMN completed_at TYPE TIMESTAMPTZ USING completed_at AT TIME ZONE 'UTC';
-		ALTER TABLE users ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';
-		ALTER TABLE users ALTER COLUMN last_completed_at TYPE TIMESTAMPTZ USING last_completed_at AT TIME ZONE 'UTC';
-		ALTER TABLE gmail_tokens ALTER COLUMN updated_at TYPE TIMESTAMPTZ USING updated_at AT TIME ZONE 'UTC';
-		ALTER TABLE user_achievements ALTER COLUMN unlocked_at TYPE TIMESTAMPTZ USING unlocked_at AT TIME ZONE 'UTC';
-	`)
 
 	migrateExistingData()
 	return nil
@@ -161,19 +155,18 @@ func runMigrations() error {
 
 func migrateExistingData() {
 	// Ensure basic fields are not null
-	_, _ = db.Exec("UPDATE messages SET is_deleted = false WHERE is_deleted IS NULL;")
+	_, _ = db.Exec("UPDATE messages SET is_deleted = 0 WHERE is_deleted IS NULL;")
 	_, _ = db.Exec("UPDATE messages SET room = '' WHERE room IS NULL;")
 	_, _ = db.Exec("UPDATE messages SET category = 'waiting' WHERE task LIKE '[회신 대기]%';")
 	_, _ = db.Exec("UPDATE messages SET category = 'promise' WHERE task LIKE '[나의 약속]%';")
 
-	// Constraint migration
-	_, _ = db.Exec("ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_source_ts_key;")
-	_, _ = db.Exec("ALTER TABLE messages ADD CONSTRAINT messages_user_ts_unique UNIQUE (user_email, source_ts);")
+	// Constraint migration (SQLite doesn't support DROP CONSTRAINT as easily)
+	// We'll skip this if it was a clean migration to Turso.
 }
 
 func setupGamification() error {
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS achievements (
-		id SERIAL PRIMARY KEY,
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
 		description TEXT,
 		icon TEXT,
@@ -187,7 +180,7 @@ func setupGamification() error {
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS user_achievements (
 		user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
 		achievement_id INTEGER REFERENCES achievements(id) ON DELETE CASCADE,
-		unlocked_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+		unlocked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY (user_id, achievement_id)
 	);`); err != nil {
 		logger.Errorf("[DB-INIT] Failed to create user_achievements: %v", err)
@@ -213,19 +206,17 @@ func seedAchievements() {
 }
 
 func createIndexes() {
-	_, _ = db.Exec("CREATE EXTENSION IF NOT EXISTS pg_trgm;")
 	indexes := []string{
-		"CREATE INDEX IF NOT EXISTS idx_messages_task_trgm ON messages USING gin (task gin_trgm_ops);",
-		"CREATE INDEX IF NOT EXISTS idx_messages_room_trgm ON messages USING gin (room gin_trgm_ops);",
-		"CREATE INDEX IF NOT EXISTS idx_messages_requester_trgm ON messages USING gin (requester gin_trgm_ops);",
-		"CREATE INDEX IF NOT EXISTS idx_messages_assignee_trgm ON messages USING gin (assignee gin_trgm_ops);",
-		"CREATE INDEX IF NOT EXISTS idx_messages_original_text_trgm ON messages USING gin (original_text gin_trgm_ops);",
-		"CREATE INDEX IF NOT EXISTS idx_messages_source_trgm ON messages USING gin (source gin_trgm_ops);",
+		"CREATE INDEX IF NOT EXISTS idx_messages_task ON messages (task);",
+		"CREATE INDEX IF NOT EXISTS idx_messages_room ON messages (room);",
+		"CREATE INDEX IF NOT EXISTS idx_messages_requester ON messages (requester);",
+		"CREATE INDEX IF NOT EXISTS idx_messages_assignee ON messages (assignee);",
+		"CREATE INDEX IF NOT EXISTS idx_messages_original_text ON messages (original_text);",
+		"CREATE INDEX IF NOT EXISTS idx_messages_source ON messages (source);",
 		"CREATE INDEX IF NOT EXISTS idx_messages_created_at_desc ON messages (created_at DESC);",
 		"CREATE INDEX IF NOT EXISTS idx_messages_user_email ON messages (user_email);",
 		"CREATE INDEX IF NOT EXISTS idx_messages_is_deleted ON messages (is_deleted);",
-		"CREATE INDEX IF NOT EXISTS idx_messages_completed_at ON messages (completed_at) WHERE done = true;",
-		"CREATE INDEX IF NOT EXISTS idx_messages_archive_sort ON messages (user_email, (CASE WHEN is_deleted = true THEN created_at ELSE completed_at END) DESC);",
+		"CREATE INDEX IF NOT EXISTS idx_messages_completed_at ON messages (completed_at) WHERE done = 1;",
 		"CREATE INDEX IF NOT EXISTS idx_task_translations_language ON task_translations (language);",
 	}
 	for _, idx := range indexes {
@@ -278,7 +269,7 @@ func RefreshCache(email string) error {
 	queryActive := fmt.Sprintf(`
 		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') 
 		FROM messages 
-		WHERE user_email = $1 AND is_deleted = false AND (done = false OR (done = true AND (completed_at IS NULL OR completed_at > NOW() - INTERVAL '%d days')))
+		WHERE user_email = ? AND is_deleted = 0 AND (done = 0 OR (done = 1 AND (completed_at IS NULL OR completed_at > datetime('now', '-%d days'))))
 		ORDER BY created_at DESC 
 		LIMIT 200`, safeArchiveDays)
 	rows, err := db.QueryContext(ctx, queryActive, email)
@@ -302,8 +293,8 @@ func RefreshCache(email string) error {
 	queryArchive := fmt.Sprintf(`
 		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') 
 		FROM messages 
-		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '%d days'))
-		ORDER BY CASE WHEN is_deleted = true THEN created_at ELSE completed_at END DESC
+		WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', '-%d days')))
+		ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
 		LIMIT 100`, safeArchiveDays)
 	rowsArch, err := db.QueryContext(ctx, queryArchive, email)
 	if err != nil {
@@ -358,7 +349,7 @@ func ArchiveOldTasks() error {
 	safeArchiveDays := getArchiveDays()
 
 	logger.Infof("[DB] Auto-archiving tasks completed more than %d days ago...", safeArchiveDays)
-	query := fmt.Sprintf("UPDATE messages SET is_deleted = true WHERE is_deleted = false AND done = true AND completed_at < NOW() - INTERVAL '%d days'", safeArchiveDays)
+	query := fmt.Sprintf("UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND done = 1 AND completed_at < datetime('now', '-%d days')", safeArchiveDays)
 	res, err := db.ExecContext(ctx, query)
 	if err != nil {
 		return err

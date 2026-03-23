@@ -16,7 +16,8 @@ type Config struct {
 	AuthSecret             string
 	AuthDisabled           bool
 	AppBaseURL             string
-	NeonDBURL              string
+	TursoURL               string
+	TursoToken             string
 	GeminiAnalysisModel    string
 	GeminiTranslationModel string
 	LogLevel               string
@@ -63,7 +64,8 @@ func LoadConfig() *Config {
 		AuthSecret:             os.Getenv("AUTH_SECRET"),
 		AuthDisabled:           os.Getenv("AUTH_DISABLED") == "true",
 		AppBaseURL:             os.Getenv("APP_BASE_URL"),
-		NeonDBURL:              os.Getenv("DATABASE_URL"),
+		TursoURL:               os.Getenv("TURSO_DATABASE_URL"),
+		TursoToken:             os.Getenv("TURSO_AUTH_TOKEN"),
 		LogLevel:               logLevel,
 		GeminiAnalysisModel:    geminiAnalysisModel,
 		GeminiTranslationModel: geminiTranslationModel,

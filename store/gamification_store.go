@@ -1,16 +1,14 @@
 package store
 
 import (
-	"fmt"
-	"strings"
 	"time"
 )
 
 func UpdateUserGamification(email string, points, streak, level, xp, dailyGoal int, lastCompleted *time.Time, streakFreezes int) error {
 	_, err := db.Exec(`
 		UPDATE users 
-		SET points = $1, streak = $2, level = $3, xp = $4, daily_goal = $5, last_completed_at = $6, streak_freezes = $7 
-		WHERE email = $8`,
+		SET points = ?, streak = ?, level = ?, xp = ?, daily_goal = ?, last_completed_at = ?, streak_freezes = ? 
+		WHERE email = ?`,
 		points, streak, level, xp, dailyGoal, lastCompleted, streakFreezes, email)
 
 	if err == nil {
@@ -48,8 +46,8 @@ func GetAchievements() ([]Achievement, error) {
 }
 
 func GetUserAchievements(userID int) ([]UserAchievement, error) {
-	query := fmt.Sprintf("SELECT user_id, achievement_id, unlocked_at FROM user_achievements WHERE user_id = %d", userID)
-	rows, err := db.Query(query)
+	query := "SELECT user_id, achievement_id, unlocked_at FROM user_achievements WHERE user_id = ?"
+	rows, err := db.Query(query, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +65,7 @@ func GetUserAchievements(userID int) ([]UserAchievement, error) {
 }
 
 func UnlockAchievement(userID, achievementID int) error {
-	_, err := db.Exec("INSERT INTO user_achievements (user_id, achievement_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", userID, achievementID)
+	_, err := db.Exec("INSERT INTO user_achievements (user_id, achievement_id) VALUES (?, ?) ON CONFLICT DO NOTHING", userID, achievementID)
 	return err
 }
 
@@ -89,8 +87,8 @@ func CheckAndUnlockAchievements(user User) ([]Achievement, error) {
 	}
 
 	var totalCompleted int
-	query := fmt.Sprintf("SELECT COUNT(*)::int FROM messages WHERE user_email = '%s' AND done = true", strings.ReplaceAll(user.Email, "'", "''"))
-	_ = db.QueryRow(query).Scan(&totalCompleted)
+	query := "SELECT COUNT(*) FROM messages WHERE user_email = ? AND done = 1"
+	_ = db.QueryRow(query, user.Email).Scan(&totalCompleted)
 
 	var newlyUnlocked []Achievement
 	for _, ach := range achievements {

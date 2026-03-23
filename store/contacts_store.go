@@ -13,11 +13,11 @@ type AliasMapping struct {
 func InitContactsTable() {
 	query := `
 	CREATE TABLE IF NOT EXISTS contacts (
-		id SERIAL PRIMARY KEY,
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		user_email VARCHAR(255) NOT NULL,
 		rep_name VARCHAR(255) NOT NULL,
 		aliases TEXT NOT NULL,
-		created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		UNIQUE(user_email, rep_name)
 	);`
 	_, err := db.Exec(query)
@@ -43,7 +43,7 @@ func GetContactsMappings(email string) ([]AliasMapping, error) {
 func AddContactMapping(email, repName, aliases string) error {
 	query := `
 		INSERT INTO contacts (user_email, rep_name, aliases)
-		VALUES ($1, $2, $3)
+		VALUES (?, ?, ?)
 		ON CONFLICT (user_email, rep_name)
 		DO UPDATE SET aliases = EXCLUDED.aliases
 	`
@@ -159,7 +159,7 @@ func NormalizeContactName(email, rawName string) string {
 }
 
 func DeleteContactMapping(email, repName string) error {
-	query := `DELETE FROM contacts WHERE user_email = $1 AND rep_name = $2`
+	query := `DELETE FROM contacts WHERE user_email = ? AND rep_name = ?`
 	_, err := db.Exec(query, email, repName)
 	if err == nil {
 		metadataMu.Lock()

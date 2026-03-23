@@ -32,29 +32,27 @@ func getArchiveDays() int {
 func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]ConsolidatedMessage, int, error) {
 	searchQuery := ""
 	args := []interface{}{filter.Email}
-	argIdx := 2
 
 	if filter.Query != "" {
 		pattern := "%" + strings.ToLower(filter.Query) + "%"
-		searchQuery = fmt.Sprintf(` AND (
-			LOWER(task) ILIKE $%d OR 
-			LOWER(room) ILIKE $%d OR 
-			LOWER(requester) ILIKE $%d OR 
-			LOWER(original_text) ILIKE $%d OR
-			LOWER(source) ILIKE $%d OR
-			LOWER(assignee) ILIKE $%d
-		)`, argIdx, argIdx, argIdx, argIdx, argIdx, argIdx)
-		args = append(args, pattern)
-		argIdx++
+		searchQuery = ` AND (
+			LOWER(task) LIKE ? OR 
+			LOWER(room) LIKE ? OR 
+			LOWER(requester) LIKE ? OR 
+			LOWER(original_text) LIKE ? OR
+			LOWER(source) LIKE ? OR
+			LOWER(assignee) LIKE ?
+		)`
+		args = append(args, pattern, pattern, pattern, pattern, pattern, pattern)
 	}
 
 	// 1. Get Count
 	safeArchiveDays := getArchiveDays()
 
 	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*)::int 
+		SELECT COUNT(*) 
 		FROM messages 
-		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '%d days'))
+		WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', '-%d days')))
 		%s`, safeArchiveDays, searchQuery)
 
 	var total int
@@ -68,7 +66,7 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 		filter.Limit = 100
 	}
 
-	orderBy := "CASE WHEN is_deleted = true THEN created_at ELSE completed_at END DESC"
+	orderBy := "CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC"
 	whitelist := map[string]string{
 		"source":       "source",
 		"room":         "room",
@@ -91,10 +89,10 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 	dataQuery := fmt.Sprintf(`
 		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') 
 		FROM messages 
-		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '%d days'))
+		WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', '-%d days')))
 		%s
 		ORDER BY %s
-		LIMIT $%d OFFSET $%d`, safeArchiveDays, searchQuery, orderBy, argIdx, argIdx+1)
+		LIMIT ? OFFSET ?`, safeArchiveDays, searchQuery, orderBy)
 
 	args = append(args, filter.Limit, filter.Offset)
 
@@ -120,30 +118,30 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 func GetArchivedMessagesCount(ctx context.Context, filter ArchiveFilter) (int, error) {
 	searchQuery := ""
 	args := []interface{}{filter.Email}
-	argIdx := 2
 
 	if filter.Query != "" {
 		pattern := "%" + strings.ToLower(filter.Query) + "%"
-		searchQuery = fmt.Sprintf(` AND (
-			LOWER(task) ILIKE $%d OR 
-			LOWER(room) ILIKE $%d OR 
-			LOWER(requester) ILIKE $%d OR 
-			LOWER(original_text) ILIKE $%d OR
-			LOWER(source) ILIKE $%d OR
-			LOWER(assignee) ILIKE $%d
-		)`, argIdx, argIdx, argIdx, argIdx, argIdx, argIdx)
-		args = append(args, pattern)
+		searchQuery = ` AND (
+			LOWER(task) LIKE ? OR 
+			LOWER(room) LIKE ? OR 
+			LOWER(requester) LIKE ? OR 
+			LOWER(original_text) LIKE ? OR
+			LOWER(source) LIKE ? OR
+			LOWER(assignee) LIKE ?
+		)`
+		args = append(args, pattern, pattern, pattern, pattern, pattern, pattern)
 	}
 
 	safeArchiveDays := getArchiveDays()
 
 	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*)::int 
+		SELECT COUNT(*) 
 		FROM messages 
-		WHERE user_email = $1 AND (is_deleted = true OR (done = true AND completed_at IS NOT NULL AND completed_at <= NOW() - INTERVAL '%d days'))
+		WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', '-%d days')))
 		%s`, safeArchiveDays, searchQuery)
 
 	var total int
 	err := db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
 	return total, err
 }
+

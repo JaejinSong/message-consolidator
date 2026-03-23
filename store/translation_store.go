@@ -23,7 +23,7 @@ func GetTaskTranslation(messageID int, language string) (string, error) {
 	translationMu.RUnlock()
 
 	var translatedText string
-	err := db.QueryRow("SELECT translated_text FROM task_translations WHERE message_id = $1 AND language = $2", messageID, language).Scan(&translatedText)
+	err := db.QueryRow("SELECT translated_text FROM task_translations WHERE message_id = ? AND language = ?", messageID, language).Scan(&translatedText)
 	if err == sql.ErrNoRows {
 		translationMu.Lock()
 		if translationCache[language] == nil {
@@ -81,11 +81,11 @@ func GetTaskTranslationsBatch(messageIDs []int, language string) (map[int]string
 	args := make([]interface{}, len(missingIDs)+1)
 	args[0] = language
 	for i, id := range missingIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		placeholders[i] = "?"
 		args[i+1] = id
 	}
 
-	query := fmt.Sprintf("SELECT message_id, translated_text FROM task_translations WHERE language = $1 AND message_id IN (%s)", strings.Join(placeholders, ","))
+	query := fmt.Sprintf("SELECT message_id, translated_text FROM task_translations WHERE language = ? AND message_id IN (%s)", strings.Join(placeholders, ","))
 	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, err
@@ -122,7 +122,7 @@ func GetTaskTranslationsBatch(messageIDs []int, language string) (map[int]string
 func SaveTaskTranslation(messageID int, language, translatedText string) error {
 	_, err := db.Exec(`
 		INSERT INTO task_translations (message_id, language, translated_text)
-		VALUES ($1, $2, $3)
+		VALUES (?, ?, ?)
 		ON CONFLICT (message_id, language) DO UPDATE SET translated_text = EXCLUDED.translated_text`,
 		messageID, language, translatedText)
 

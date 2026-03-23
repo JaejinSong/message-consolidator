@@ -63,7 +63,7 @@ func (m *WAManager) getLogLevel(cfg *config.Config) string {
 	return logLevel
 }
 
-func (m *WAManager) InitWhatsApp(email string, dbURL string, cfg *config.Config) {
+func (m *WAManager) InitWhatsApp(email string, cfg *config.Config) {
 	m.mu.Lock()
 	if _, ok := m.clients[email]; ok {
 		m.mu.Unlock()
@@ -74,7 +74,7 @@ func (m *WAManager) InitWhatsApp(email string, dbURL string, cfg *config.Config)
 	var err error
 	m.containerOnce.Do(func() {
 		dbLog := waLog.Stdout("Database", m.getLogLevel(cfg), true)
-		m.container = sqlstore.NewWithDB(store.GetDB(), "postgres", dbLog)
+		m.container = sqlstore.NewWithDB(store.GetDB(), "sqlite3", dbLog)
 	})
 
 	if m.container == nil {

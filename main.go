@@ -32,7 +32,7 @@ func main() {
 		cfg.AutoArchiveDays = 6
 	}
 	store.SetAutoArchiveDays(cfg.AutoArchiveDays)
-	if err := store.InitDB(cfg.NeonDBURL); err != nil {
+	if err := store.InitDB(cfg.TursoURL, cfg.TursoToken); err != nil {
 		log.Fatalf("DB Init failed: %v", err)
 	}
 
@@ -111,7 +111,7 @@ func setupApp(cfg *config.Config) *http.Server {
 	// Initialize WhatsApp for all existing users
 	users, _ := store.GetAllUsers()
 	for _, u := range users {
-		go channels.DefaultWAManager.InitWhatsApp(u.Email, cfg.NeonDBURL, cfg)
+		go channels.DefaultWAManager.InitWhatsApp(u.Email, cfg)
 	}
 
 	// Initialize OAuth

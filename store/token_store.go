@@ -34,9 +34,9 @@ var (
 func InitTokenUsageTable() {
 	query := `
 	CREATE TABLE IF NOT EXISTS token_usage (
-		id SERIAL PRIMARY KEY,
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		user_email VARCHAR(255) NOT NULL,
-		date DATE NOT NULL DEFAULT CURRENT_DATE,
+		date DATE NOT NULL DEFAULT (date('now')),
 		prompt_tokens INT DEFAULT 0,
 		completion_tokens INT DEFAULT 0,
 		total_tokens INT DEFAULT 0,
@@ -97,7 +97,7 @@ func FlushTokenUsage() error {
 
 		query := `
 			INSERT INTO token_usage (user_email, date, prompt_tokens, completion_tokens, total_tokens)
-			VALUES ($1, CURRENT_DATE, $2, $3, $4)
+			VALUES (?, date('now'), ?, ?, ?)
 			ON CONFLICT (user_email, date)
 			DO UPDATE SET 
 				prompt_tokens = token_usage.prompt_tokens + EXCLUDED.prompt_tokens,
@@ -162,7 +162,7 @@ func GetDailyTokenUsage(email string) (int, int, error) {
 	usageCacheMu.RUnlock()
 
 	var promptNull, completionNull sql.NullInt64
-	query := `SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) FROM token_usage WHERE user_email = $1 AND date = CURRENT_DATE`
+	query := `SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) FROM token_usage WHERE user_email = ? AND date = date('now')`
 
 	err := db.QueryRow(query, email).Scan(&promptNull, &completionNull)
 
@@ -211,7 +211,7 @@ func GetMonthlyTokenUsage(email string) (int, int, error) {
 	// Query for current month (starting from the 1st day of the current month)
 	query := `SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) 
 			  FROM token_usage 
-			  WHERE user_email = $1 AND date >= date_trunc('month', CURRENT_DATE)`
+			  WHERE user_email = ? AND date >= strftime('%Y-%m-01', 'now')`
 
 	err := db.QueryRow(query, email).Scan(&promptNull, &completionNull)
 
@@ -252,9 +252,9 @@ func SaveGmailToken(email, tokenJSON string) error {
 
 	_, err := db.Exec(`
 		INSERT INTO gmail_tokens (user_email, token_json, updated_at)
-		VALUES ($1, $2, NOW())
-		ON CONFLICT (user_email) DO UPDATE SET token_json = $2, updated_at = NOW()`,
-		email, tokenJSON)
+		VALUES (?, ?, DATETIME('now'))
+		ON CONFLICT (user_email) DO UPDATE SET token_json = ?, updated_at = DATETIME('now')`,
+		email, tokenJSON, tokenJSON)
 	return err
 }
 
@@ -267,7 +267,7 @@ func GetGmailToken(email string) (string, error) {
 	}
 
 	var tokenJSON string
-	err := db.QueryRow("SELECT token_json FROM gmail_tokens WHERE user_email = $1", email).Scan(&tokenJSON)
+	err := db.QueryRow("SELECT token_json FROM gmail_tokens WHERE user_email = ?", email).Scan(&tokenJSON)
 	if err != nil {
 		return "", err
 	}

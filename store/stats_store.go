@@ -34,7 +34,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		q := "SELECT COUNT(*)::int FROM messages WHERE user_email = $1 AND done = true AND is_deleted = false"
+		q := "SELECT COUNT(*) FROM messages WHERE user_email = ? AND done = 1 AND is_deleted = 0"
 		_ = db.QueryRow(q, email).Scan(&stats.TotalCompleted)
 	}()
 
@@ -43,8 +43,8 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 	go func() {
 		defer wg.Done()
 		var userName string
-		_ = db.QueryRow("SELECT name FROM users WHERE email = $1", email).Scan(&userName)
-		q := "SELECT COUNT(*)::int FROM messages WHERE user_email = $1 AND done = false AND is_deleted = false AND (assignee = $2 OR assignee = 'me')"
+		_ = db.QueryRow("SELECT name FROM users WHERE email = ?", email).Scan(&userName)
+		q := "SELECT COUNT(*) FROM messages WHERE user_email = ? AND done = 0 AND is_deleted = 0 AND (assignee = ? OR assignee = 'me')"
 		_ = db.QueryRow(q, email, userName).Scan(&stats.PendingMe)
 	}()
 
@@ -52,7 +52,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		q := "SELECT COALESCE(daily_goal, 5) FROM users WHERE email = $1"
+		q := "SELECT COALESCE(daily_goal, 5) FROM users WHERE email = ?"
 		_ = db.QueryRow(q, email).Scan(&stats.DailyGoal)
 		if stats.DailyGoal <= 0 {
 			stats.DailyGoal = 5 // Default
@@ -63,12 +63,12 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		q := fmt.Sprintf(`
-		SELECT (TO_CHAR(completed_at AT TIME ZONE '%s', 'YYYY-MM-DD'))::text as d, COUNT(*)::int as c
+		q := `
+		SELECT strftime('%Y-%m-%d', completed_at) as d, COUNT(*) as c
 		FROM messages 
-		WHERE user_email = $1 AND done = true AND is_deleted = false 
-		AND completed_at > NOW() - INTERVAL '30 days'
-		GROUP BY 1 ORDER BY 1`, dbTz)
+		WHERE user_email = ? AND done = 1 AND is_deleted = 0 
+		AND completed_at > datetime('now', '-30 days')
+		GROUP BY 1 ORDER BY 1`
 		rows, err := db.Query(q, email)
 		if err == nil {
 			defer rows.Close()
@@ -86,11 +86,11 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		q := fmt.Sprintf(`
-		SELECT (EXTRACT(HOUR FROM completed_at AT TIME ZONE '%s'))::int as hr, COUNT(*)::int as c
+		q := `
+		SELECT strftime('%H', completed_at) as hr, COUNT(*) as c
 		FROM messages 
-		WHERE user_email = $1 AND done = true AND is_deleted = false AND completed_at IS NOT NULL
-		GROUP BY 1 ORDER BY 1`, dbTz)
+		WHERE user_email = ? AND done = 1 AND is_deleted = 0 AND completed_at IS NOT NULL
+		GROUP BY 1 ORDER BY 1`
 		rows, err := db.Query(q, email)
 		if err == nil {
 			defer rows.Close()
@@ -125,9 +125,9 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 
 		threshold := getWorkingDaysAgo(3, time.Now()).Format(time.RFC3339)
 		q := `
-		SELECT COUNT(*)::int FROM messages 
-		WHERE user_email = $1 AND done = false AND is_deleted = false 
-		AND created_at < $2`
+		SELECT COUNT(*) FROM messages 
+		WHERE user_email = ? AND done = 0 AND is_deleted = 0 
+		AND created_at < ?`
 		_ = db.QueryRow(q, email, threshold).Scan(&stats.AbandonedTasks)
 	}()
 
@@ -136,8 +136,8 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 	go func() {
 		defer wg.Done()
 		q := `
-		SELECT source, COUNT(*)::int FROM messages 
-		WHERE user_email = $1 AND is_deleted = false
+		SELECT source, COUNT(*) FROM messages 
+		WHERE user_email = ? AND is_deleted = 0
 		GROUP BY source`
 		rows, err := db.Query(q, email)
 		if err == nil {
@@ -156,12 +156,12 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		q := fmt.Sprintf(`
-		SELECT TO_CHAR(completed_at AT TIME ZONE '%s', 'YYYY-MM-DD') as c_date, source, COUNT(*)::int 
+		q := `
+		SELECT strftime('%Y-%m-%d', completed_at) as c_date, source, COUNT(*) 
 		FROM messages 
-		WHERE user_email = $1 AND done = true AND is_deleted = false 
-		AND completed_at >= NOW() - INTERVAL '365 days'
-		GROUP BY 1, 2 ORDER BY 1 ASC`, dbTz)
+		WHERE user_email = ? AND done = 1 AND is_deleted = 0 
+		AND completed_at >= datetime('now', '-365 days')
+		GROUP BY 1, 2 ORDER BY 1 ASC`
 		rows, err := db.Query(q, email)
 		if err == nil {
 			defer rows.Close()
