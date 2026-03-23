@@ -39,9 +39,12 @@ func LoadMetadata() error {
 	for rows.Next() {
 		var u User
 		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.CreatedAt); err != nil {
-			return err
+			return fmt.Errorf("scan user failed: %w", err)
 		}
 		userCache[u.Email] = &u
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("rows error in users: %w", err)
 	}
 
 	// 2. Load User Aliases
@@ -55,7 +58,7 @@ func LoadMetadata() error {
 		var userID int
 		var alias string
 		if err := aliasRows.Scan(&userID, &alias); err != nil {
-			continue
+			return fmt.Errorf("scan alias failed: %w", err)
 		}
 		aliasCache[userID] = append(aliasCache[userID], alias)
 	}
@@ -95,9 +98,10 @@ func LoadMetadata() error {
 
 	for tokenRows.Next() {
 		var email, token string
-		if err := tokenRows.Scan(&email, &token); err == nil {
-			tokenCache[email] = token
+		if err := tokenRows.Scan(&email, &token); err != nil {
+			return fmt.Errorf("scan gmail token failed: %w", err)
 		}
+		tokenCache[email] = token
 	}
 
 	// 5. Load Tenant Aliases

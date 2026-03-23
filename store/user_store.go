@@ -19,9 +19,13 @@ func GetAllUsers() ([]User, error) {
 		for rows.Next() {
 			var u User
 			if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &u.LastCompletedAt, &u.CreatedAt, &u.StreakFreezes); err != nil {
-				continue
+				rows.Close()
+				return nil, err
 			}
 			userCache[u.Email] = &u
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
 		}
 	}
 	defer metadataMu.Unlock()

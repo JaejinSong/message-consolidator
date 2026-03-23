@@ -113,8 +113,9 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
-		Secure:   false, // Allow local development
+		Secure:   true, // Requirement for most modern browsers
 		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, &cookie)
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
@@ -129,8 +130,9 @@ func generateStateCookie(w http.ResponseWriter) string {
 		Value:    state,
 		Expires:  time.Now().Add(20 * time.Minute),
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   true,
 		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, &cookie)
 	return state
@@ -142,7 +144,7 @@ func SetSessionCookie(w http.ResponseWriter, email string) {
 		Value:    base64.URLEncoding.EncodeToString([]byte(email)),
 		Expires:  time.Now().Add(24 * time.Hour),
 		HttpOnly: true,
-		Secure:   false, // Set to true if using HTTPS strictly
+		Secure:   true,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
 	}

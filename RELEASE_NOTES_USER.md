@@ -1,3 +1,21 @@
+# Release Notes (User) - v2.2.12 (2026-03-23 07:40 UTC)
+
+## 🛡️ Enhanced Data Integrity & Session Security
+- **[FIX] Resolved "Twisted" Data State**: Fixed a critical issue where messages were incorrectly assigned to a default user. The system now ensures messages are correctly mapped to their original owners.
+- **[IMPROVED] Robust Error Handling**: Upgraded the internal data loading engine to properly handle and report database errors, ensuring the application always reflects the true state of your tasks.
+- **[SEC] Hardened Session Security**: Improved session cookie security with stricter browser policies (Secure & SameSite) to better protect your account.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.2.12 (2026-03-23 07:40 UTC)
+
+## 🛡️ 데이터 무결성 및 세션 보안 강화
+- **[FIX] 데이터 쏠림 현상 해결**: 특정 상황에서 모든 메시지가 한 사용자에게 잘못 배정되던 '데이터 꼬임' 문제를 해결했습니다. 이제 모든 업무가 원래 주인을 정확히 찾아가도록 보정되었습니다.
+- **[IMPROVED] 철저한 예외 처리 도입**: 데이터베이스 로딩 과정의 에러 핸들링을 강화하여, 시스템이 침묵하지 않고 정확한 상태를 보고하도록 개선했습니다. 이를 통해 더욱 믿을 수 있는 업무 목록을 제공합니다.
+- **[SEC] 세션 쿠키 보안 정책 강화**: 브라우저 보안 정책(Secure, SameSite)을 더욱 엄격하게 적용하여 사용자 계정을 더욱 안전하게 보호합니다.
+
+---
+
 # Release Notes (User) - v2.2.11 (2026-03-23 07:08 UTC)
 
 ## 🎯 Accurate Targeting & Precise Task Assignment

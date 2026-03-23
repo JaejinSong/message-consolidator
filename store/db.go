@@ -13,7 +13,7 @@ import (
 
 func InitDB(connStr string) error {
 	var err error
-	db, err = sql.Open("postgres", connStr)
+	db, err = sql.Open("pgx", connStr)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
@@ -158,9 +158,7 @@ func runMigrations() error {
 }
 
 func migrateExistingData() {
-	// Clean up duplicates and assign to default user
-	_, _ = db.Exec(`DELETE FROM messages WHERE id NOT IN (SELECT MIN(id) FROM messages GROUP BY CASE WHEN user_email IS NULL OR user_email = '' THEN 'jjsong@whatap.io' ELSE user_email END, source_ts);`)
-	_, _ = db.Exec("UPDATE messages SET user_email = 'jjsong@whatap.io' WHERE user_email IS NULL OR user_email = '';")
+	// Ensure basic fields are not null
 	_, _ = db.Exec("UPDATE messages SET is_deleted = false WHERE is_deleted IS NULL;")
 	_, _ = db.Exec("UPDATE messages SET room = '' WHERE room IS NULL;")
 	_, _ = db.Exec("UPDATE messages SET category = 'waiting' WHERE task LIKE '[회신 대기]%';")

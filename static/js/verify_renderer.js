@@ -373,6 +373,67 @@ function testCardTruncationAttributes() {
     console.log('✅ Card Truncation Attributes verified');
 }
 
+function testUpdateUserProfile() {
+    console.log('--- Testing updateUserProfile ---');
+    const mockProfile = { email: 'test@test.com', picture: 'pic.jpg', streak: 5, xp: 150, points: 120, level: 2, streak_freezes: 1 };
+    const mockIds = ['userProfile', 'gamificationStats', 'userEmail', 'userPicture', 'userStreak', 'xpText', 'xpBar', 'userPoints', 'userLevel', 'streakFreezeContainer'];
+    const mocks = {};
+    mockIds.forEach(id => mocks[id] = makeMockElement());
+
+    const originalGetElementById = global.document.getElementById;
+    global.document.getElementById = (id) => mocks[id] || null;
+
+    renderer.updateUserProfile(mockProfile);
+
+    console.assert(!mocks['userProfile'].classList.contains('hidden'), 'Profile container should be visible');
+    console.assert(mocks['userEmail'].textContent === 'test@test.com', 'Email should match');
+    console.assert(mocks['userPicture'].src === 'pic.jpg', 'Picture src should match');
+    console.assert(mocks['userStreak'].textContent === '5🔥', 'Streak should be formatted with fire icon');
+    console.assert(mocks['xpText'].textContent === '150 / 100 XP', 'XP should be formatted correctly');
+    console.assert(mocks['xpBar'].style.width === '50%', 'XP bar width should be calculated as modulus 100 (150 % 100 = 50%)');
+    console.assert(mocks['userPoints'].textContent === 120, 'Points should match');
+    console.assert(mocks['userLevel'].textContent === 2, 'Level should match');
+    console.assert(mocks['streakFreezeContainer'].innerHTML.includes('❄️ × 1'), 'Streak freezes count should be rendered');
+    console.assert(mocks['streakFreezeContainer'].innerHTML.includes('buy-freeze-btn'), 'Buy button should be shown if points >= 50');
+
+    global.document.getElementById = originalGetElementById;
+    console.log('✅ updateUserProfile verified');
+}
+
+function testRenderMessages() {
+    console.log('--- Testing renderMessages ---');
+    const mockList = makeMockElement();
+    const counts = { myCount: makeMockElement(), otherCount: makeMockElement(), waitingCount: makeMockElement(), allCount: makeMockElement() };
+
+    const originalGetElementById = global.document.getElementById;
+    const originalQuerySelector = global.document.querySelector;
+
+    global.document.getElementById = (id) => counts[id] || (id === 'myTasksList' ? mockList : null);
+    global.document.querySelector = (sel) => {
+        if (sel === '.tab-btn.active') return { getAttribute: () => 'myTasksTab' };
+        return null;
+    };
+
+    const mockMsgs = [
+        { id: 1, assignee: 'me', done: false, source: 'slack', task: 'Task 1', requester: 'Req1', timestamp: new Date().toISOString(), room: 'General' },
+        { id: 2, assignee: 'other', done: false, source: 'gmail', task: 'Task 2', requester: 'Req2', timestamp: new Date().toISOString(), room: '' }
+    ];
+
+    // 1. Populated state
+    renderer.renderMessages(mockMsgs, {});
+    console.assert(counts.myCount.textContent === 1, 'My count should be correctly calculated and updated');
+    console.assert(counts.allCount.textContent === 2, 'All count should be correctly calculated and updated');
+    console.assert(mockList.innerHTML.includes('Task 1'), 'Task 1 should be rendered in HTML');
+
+    // 2. Empty state
+    renderer.renderMessages([], {});
+    console.assert(mockList.innerHTML.includes('empty-state-witty'), 'Empty state component should be rendered when no tasks exist');
+
+    global.document.getElementById = originalGetElementById;
+    global.document.querySelector = originalQuerySelector;
+    console.log('✅ renderMessages verified');
+}
+
 testEmptyStateMessages();
 testUpdateTokenBadge();
 testRenderTenantAliasList();
@@ -383,3 +444,5 @@ testSetScanLoading();
 testUpdateWhatsAppQR();
 testRenderAchievements();
 testCardTruncationAttributes();
+testUpdateUserProfile();
+testRenderMessages();
