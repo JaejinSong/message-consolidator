@@ -3,8 +3,6 @@ package store
 import (
 	"database/sql"
 	"sync"
-
-	"github.com/lib/pq"
 )
 
 var (
@@ -77,7 +75,7 @@ func GetTaskTranslationsBatch(messageIDs []int, language string) (map[int]string
 	}
 
 	query := "SELECT message_id, translated_text FROM task_translations WHERE language = $1 AND message_id = ANY($2)"
-	rows, err := db.Query(query, language, pq.Array(missingIDs))
+	rows, err := db.Query(query, language, missingIDs)
 	if err != nil {
 		return nil, err
 	}

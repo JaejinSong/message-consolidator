@@ -319,19 +319,22 @@ export const renderer = {
         // usage 데이터가 아예 넘어오지 않는 경우(0일 때)를 대비한 기본값 처리
         const data = usage || {};
         const todayTotal = data.todayTotal || 0;
-        const todayPrompt = data.todayPrompt || data.dailyPrompt || 0;
-        const todayComp = data.todayCompletion || data.dailyCompletion || 0;
         const monthTotal = data.monthTotal || data.monthlyTotal || 0;
+        const monthCost = data.monthCost || 0;
 
         badge.classList.remove('hidden'); // 0일 때 숨김 처리되는 CSS 클래스 방지
-        badge.textContent = `Token: ${todayTotal.toLocaleString()}`;
+        
+        // 일 / 월 / 예상 비용 3가지 항목 표시
+        badge.textContent = `Day: ${todayTotal.toLocaleString()} / Month: ${monthTotal.toLocaleString()} / Est: $${monthCost.toFixed(2)}`;
 
-        // 마우스 호버 시 자연스럽게 보이도록 툴팁(title)만 유지합니다.
-        const tooltipText = `[오늘] 입력: ${todayPrompt.toLocaleString()} / 출력: ${todayComp.toLocaleString()}\n[이번 달] 총합: ${monthTotal.toLocaleString()}`;
+        // 마우스 호버 시 상세 내역 표시
+        const todayPrompt = data.todayPrompt || data.dailyPrompt || 0;
+        const todayComp = data.todayCompletion || data.dailyCompletion || 0;
+        const tooltipText = `[오늘] 입력: ${todayPrompt.toLocaleString()} / 출력: ${todayComp.toLocaleString()}\n[이번 달] 총합: ${monthTotal.toLocaleString()}\n[예상 비용] $${monthCost.toFixed(4)}`;
         badge.setAttribute('title', tooltipText);
 
         // Optional: trigger subtle pop animation
-        badge.style.transform = 'scale(1.1)';
+        badge.style.transform = 'scale(1.02)';
         setTimeout(() => badge.style.transform = 'scale(1)', 200);
     },
 

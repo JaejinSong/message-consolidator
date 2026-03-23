@@ -164,13 +164,7 @@ func GetDailyTokenUsage(email string) (int, int, error) {
 	var promptNull, completionNull sql.NullInt64
 	query := `SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) FROM token_usage WHERE user_email = $1 AND date = CURRENT_DATE`
 
-	// Transaction 래핑: Connection Pooler(PgBouncer 등) 환경에서 Unnamed Prepared Statement 충돌(08P01) 방지
-	tx, err := db.Begin()
-	if err != nil {
-		return 0, 0, err
-	}
-	err = tx.QueryRow(query, email).Scan(&promptNull, &completionNull)
-	tx.Commit() // 쿼리 종료 후 연결 풀 안전하게 반환
+	err := db.QueryRow(query, email).Scan(&promptNull, &completionNull)
 
 	if err != nil && err != sql.ErrNoRows {
 		return 0, 0, err
@@ -219,13 +213,7 @@ func GetMonthlyTokenUsage(email string) (int, int, error) {
 			  FROM token_usage 
 			  WHERE user_email = $1 AND date >= date_trunc('month', CURRENT_DATE)`
 
-	// Transaction 래핑: Connection Pooler(PgBouncer 등) 환경에서 Unnamed Prepared Statement 충돌(08P01) 방지
-	tx, err := db.Begin()
-	if err != nil {
-		return 0, 0, err
-	}
-	err = tx.QueryRow(query, email).Scan(&promptNull, &completionNull)
-	tx.Commit() // 쿼리 종료 후 연결 풀 안전하게 반환
+	err := db.QueryRow(query, email).Scan(&promptNull, &completionNull)
 
 	if err != nil && err != sql.ErrNoRows {
 		return 0, 0, err

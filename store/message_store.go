@@ -7,8 +7,6 @@ import (
 	"message-consolidator/logger"
 	"strings"
 	"time"
-
-	"github.com/lib/pq"
 )
 
 func SaveMessage(msg ConsolidatedMessage) (bool, int, error) {
@@ -198,7 +196,7 @@ func DeleteMessages(email string, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	res, err := db.Exec("UPDATE messages SET is_deleted = true WHERE user_email = $1 AND id = ANY($2)", email, pq.Array(ids))
+	res, err := db.Exec("UPDATE messages SET is_deleted = true WHERE user_email = $1 AND id = ANY($2)", email, ids)
 	if err != nil {
 		return err
 	}
@@ -216,7 +214,7 @@ func HardDeleteMessages(email string, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	res, err := db.Exec("DELETE FROM messages WHERE user_email = $1 AND id = ANY($2)", email, pq.Array(ids))
+	res, err := db.Exec("DELETE FROM messages WHERE user_email = $1 AND id = ANY($2)", email, ids)
 	if err != nil {
 		return err
 	}
@@ -234,7 +232,7 @@ func RestoreMessages(email string, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	res, err := db.Exec("UPDATE messages SET is_deleted = false, done = false, completed_at = NULL WHERE user_email = $1 AND id = ANY($2)", email, pq.Array(ids))
+	res, err := db.Exec("UPDATE messages SET is_deleted = false, done = false, completed_at = NULL WHERE user_email = $1 AND id = ANY($2)", email, ids)
 	if err != nil {
 		return err
 	}

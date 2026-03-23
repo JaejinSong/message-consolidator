@@ -8,7 +8,7 @@ import { modals } from './js/modals.js';
 import { insights } from './js/insights.js';
 import { events, EVENTS } from './js/events.js';
 import { safeAsync } from './js/utils.js';
-import { STATUS_STATES } from './js/constants.js';
+import { STATUS_STATES, POLLING_INTERVALS } from './js/constants.js';
 
 /**
  * @file app.js
@@ -317,11 +317,11 @@ const initActionButtons = () => {
  * Initializes background polling.
  */
 const initPolling = () => {
-    setInterval(fetchMessages, 29009);
-    setInterval(checkWhatsAppStatus, 31013);
-    setInterval(checkSlackStatus, 41017);
-    setInterval(checkGmailStatus, 61001);
-    setInterval(() => modals.fetchTokenUsage(), 60000);
+    setInterval(fetchMessages, POLLING_INTERVALS.MESSAGES);
+    setInterval(checkWhatsAppStatus, POLLING_INTERVALS.WHATSAPP);
+    setInterval(checkSlackStatus, POLLING_INTERVALS.SLACK);
+    setInterval(checkGmailStatus, POLLING_INTERVALS.GMAIL);
+    setInterval(() => modals.fetchTokenUsage(), POLLING_INTERVALS.TOKEN_USAGE);
 };
 
 /**

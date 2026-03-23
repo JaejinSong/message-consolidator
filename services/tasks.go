@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"message-consolidator/channels"
+	"message-consolidator/logger"
 	"message-consolidator/store"
 	"strings"
 
@@ -16,6 +17,40 @@ var (
 	// AI가 담당자를 나 자신으로 분류했을 때 반환하는 키워드 목록
 	genericMeAssignees = map[string]bool{"내 업무": true, "내업무": true, "my tasks": true, "mytasks": true, "나": true, "me": true}
 )
+
+// StripOriginalText removes the original text to reduce payload size.
+func StripOriginalText(msgs []store.ConsolidatedMessage) {
+	for i := range msgs {
+		msgs[i].HasOriginal = msgs[i].OriginalText != ""
+		msgs[i].OriginalText = ""
+	}
+}
+
+// FormatMessagesForClient normalizes requesters and assignees, and flags user's tasks.
+func FormatMessagesForClient(email string, msgs []store.ConsolidatedMessage) {
+	user, _ := store.GetOrCreateUser(email, "", "")
+
+	for i := range msgs {
+		msgs[i].Requester = store.NormalizeName(email, msgs[i].Requester)
+		msgs[i].Assignee = store.NormalizeName(email, msgs[i].Assignee)
+
+		assignee := strings.TrimSpace(msgs[i].Assignee)
+		if assignee == "" {
+			continue
+		}
+
+		userName := strings.TrimSpace(user.Name)
+		isMe := strings.EqualFold(assignee, userName) || strings.EqualFold(assignee, "me")
+
+		if isMe {
+			msgs[i].Assignee = "me"
+		} else {
+			// [INFO] 매핑 실패 추적을 위한 로그 강화 (프로덕션 환경 확인용)
+			logger.Infof("[ASSIGNEE_MAP] User: %s, Mismatched Assignee: '%s' (User.Name: '%s')",
+				email, assignee, user.Name)
+		}
+	}
+}
 
 // HandleTaskCompletion orchestrates the process of marking a task as done,
 // updating gamification stats, and potentially recording statistics for analytics.

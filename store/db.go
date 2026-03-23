@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func InitDB(connStr string) error {
@@ -271,10 +271,7 @@ func RefreshCache(email string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	safeArchiveDays := autoArchiveDays
-	if safeArchiveDays <= 0 {
-		safeArchiveDays = 6
-	}
+	safeArchiveDays := getArchiveDays()
 
 	// 1. Fetch Active Messages
 	queryActive := fmt.Sprintf(`
@@ -357,10 +354,7 @@ func ArchiveOldTasks() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	safeArchiveDays := autoArchiveDays
-	if safeArchiveDays <= 0 {
-		safeArchiveDays = 6
-	}
+	safeArchiveDays := getArchiveDays()
 
 	logger.Infof("[DB] Auto-archiving tasks completed more than %d days ago...", safeArchiveDays)
 	query := fmt.Sprintf("UPDATE messages SET is_deleted = true WHERE is_deleted = false AND done = true AND completed_at < NOW() - INTERVAL '%d days'", safeArchiveDays)

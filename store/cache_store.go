@@ -25,7 +25,7 @@ var (
 	metadataMu       sync.RWMutex
 	lastArchiveTime  time.Time
 	archiveMu        sync.Mutex
-	autoArchiveDays  int = 6
+	autoArchiveDays  int = 1
 )
 
 func SetAutoArchiveDays(days int) {

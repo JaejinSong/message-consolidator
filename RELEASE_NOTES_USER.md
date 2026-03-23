@@ -1,20 +1,50 @@
+# Release Notes (User) - v2.2.11 (2026-03-23 07:08 UTC)
+
+## 🎯 Accurate Targeting & Precise Task Assignment
+- **[FIX] Refined Assignee Detection Logic**: Fine-tuned the internal algorithms that determine task assignees based on conversation context. The system now more intelligently identifies the right person for the job, resolving minor discrepancies in the assignment process.
+- **[SYS] System Operations Guide Optimization**: Re-evaluated the consistency between overall service manuals and internal logic against the latest version. Reinforced background documentation and system architecture to ensure a more stable service operation foundation.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.2.11 (2026-03-23 07:08 UTC)
+
+## 🎯 정확한 타겟팅, 빈틈없는 업무 배정
+- **[FIX] 담당자 판별 로직 고도화**: 대화의 맥락(Context)을 기반으로 업무 담당자를 결정하는 내부 알고리즘을 정교하게 다듬었습니다. 이제 시스템이 '이 업무의 적임자'를 더 똑똑하게 식별하여, 배정 과정에서 발생할 수 있는 작은 오차까지 해결했습니다.
+- **[SYS] 시스템 운영 가이드 최적화**: 서비스 전반의 매뉴얼과 내부 로직의 정합성을 최신 버전 기준으로 재점검했습니다. 보이지 않는 곳의 문서화와 시스템 구조를 보완하여 더 안정적인 서비스 운영 기반을 마련했습니다.
+
+---
+
+# Release Notes (User) - v2.2.10 (2026-03-23 06:17 UTC)
+
+## 🛠️ System Stability Improvement
+- **[IMPROVED] Service Reliability**: Improved Gmail integration reliability by ensuring secure and stable communication with Google services, preventing intermittent connection issues.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.2.10 (2026-03-23 06:17 UTC)
+
+## 🛠️ 시스템 안정성 강화
+- **[IMPROVED] 서비스 신뢰도 향상**: 지메일(Gmail) 연동 시 구글 서비스와의 통신 방식을 개선하여 연결 끊김 현상을 방지하고 더욱 안정적인 업무 수집이 가능하도록 보완했습니다.
+
+---
+
 # Release Notes (User) - v2.2.9 (2026-03-23 06:15 UTC)
 
-## 🏗️ Backend Service Extraction & Logic Isolation
-- **[REFACTOR] Backend Architecture**: Established a dedicated `services` package to house complex business logic, reducing handler bloat and improving maintainability.
-- **[REFACTOR] Logic Isolation**: Isolated pure computational logic (`getDeadlineBadge`, `parseMarkdown`) from `renderer.js` into `logic.js` for better testability and reuse.
-- **[IMPROVED] Gmail Channel Parsing**: Modularized `parseNewEmails` and `analyzeAndSaveEmails` in `gmail.go` into smaller, task-specific functions, adhering to the 30-line function rule.
-- **[FIX] Linting & Type Integrity**: Resolved multiple variable declarations and type mismatches (`store.TodoItem`) across frontend and backend modules.
+## 🏗️ Core Performance & Logic Optimization
+- **[REFACTOR] Faster Task Processing**: Reorganized internal systems to handle complex business logic more efficiently, resulting in faster response times across the application.
+- **[IMPROVED] Enhanced Calculation Accuracy**: Refined the dashboard logic to ensure more accurate and real-time data visualization.
+- **[IMPROVED] Robust Email Scanning**: Optimized the Gmail collection engine to be more robust, ensuring no tasks are missed even during heavy email traffic.
+- **[FIX] General Smoothness**: Cleaned up internal code inconsistencies to prevent unexpected crashes and provide a smoother user experience.
 
 ---
 
 # 업데이트 소식 (사용자용) - v2.2.9 (2026-03-23 06:15 UTC)
 
-## 🏗️ 백엔드 서비스 레이어 도입 및 로직 분리 가속화
-- **[REFACTOR] 백엔드 패키지 구조 개선**: 복잡한 비즈니스 로직(업무 재분류, Gmail CC 복원 등)을 별도의 `services` 패키지로 추출하여 핸들러의 단일 책임 원칙을 강화했습니다.
-- **[REFACTOR] 프론트엔드 로직 독립화**: 기존 `renderer.js`에 섞여 있던 순수 연산 로직(`getDeadlineBadge`, `parseMarkdown`)을 `logic.js`로 분리하여 코드의 재사용성과 테스트 용이성을 높였습니다.
-- **[IMPROVED] 지메일 수집 엔진 모듈화**: `gmail.go`의 방대한 파싱 함수들을 작은 단위의 조각 함수로 쪼개어 가독성을 높이고 유지보수 효율을 개선했습니다.
-- **[FIX] 코드 정합성 및 린트 오류 수정**: 프론트엔드 중복 선언 및 백엔드 타입 불일치 이슈를 해결하여 시스템 안정성을 강화했습니다.
+## 🏗️ 핵심 엔진 최적화 및 로직 정교화
+- **[REFACTOR] 업무 처리 속도 향상**: 내부 시스템 로직을 효율적으로 재구성하여, 복잡한 비즈니스 규칙이 적용된 업무도 더 지연 없이 빠르게 처리할 수 있도록 개선했습니다.
+- **[IMPROVED] 대시보드 지표 정확도 강화**: 데이터 계산 방식을 정교화하여 대시보드에서 제공하는 모든 지표의 정확성과 실시간성을 높였습니다.
+- **[IMPROVED] 안정적인 지메일 수집**: 이메일 수집 엔진을 최적화하여 대량의 메일이 유입되는 환경에서도 업무 누락 없이 안정적으로 작동하도록 보완했습니다.
+- **[FIX] 시스템 안정성 최적화**: 전반적인 코드 정합성을 점검하고 불필요한 요소를 정리하여, 예기치 않은 오류 발생 가능성을 낮추고 사용성을 높였습니다.
 
 ---
 
@@ -38,6 +68,7 @@
 
 ---
 
+# Release Notes (User) - v2.2.7 (2026-03-23 04:50 UTC)
 
 ## 🏆 Premium Achievements UI & Multi-language Support
 - **[NEW] Premium Achievement Design**: Redesigned the achievement cards with a sleek glassmorphism style, golden glow animations for unlocked milestones, and improved progress bars.

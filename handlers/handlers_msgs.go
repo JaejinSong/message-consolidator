@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"message-consolidator/auth"
 	"message-consolidator/logger"
@@ -14,14 +13,6 @@ import (
 
 	"github.com/gorilla/mux"
 )
-
-// stripOriginalText는 페이로드 압축(Lazy Loading)을 위해 메시지의 원문을 제거하고 상태를 표시합니다.
-func stripOriginalText(msgs []store.ConsolidatedMessage) {
-	for i := range msgs {
-		msgs[i].HasOriginal = msgs[i].OriginalText != ""
-		msgs[i].OriginalText = ""
-	}
-}
 
 func handleContextError(w http.ResponseWriter, err error) {
 	if errors.Is(err, context.Canceled) {
@@ -47,31 +38,8 @@ func HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	copy(msgs, msgsRaw)
 
 	applyTranslations(msgs, lang)
-	stripOriginalText(msgs)
-
-	user, _ := store.GetOrCreateUser(email, "", "")
-
-	// Normalize Assignee for frontend ("me")
-	for i := range msgs {
-		msgs[i].Requester = store.NormalizeName(email, msgs[i].Requester)
-		msgs[i].Assignee = store.NormalizeName(email, msgs[i].Assignee)
-
-		assignee := strings.TrimSpace(msgs[i].Assignee)
-		if assignee == "" {
-			continue
-		}
-
-		userName := strings.TrimSpace(user.Name)
-		isMe := strings.EqualFold(assignee, userName) || strings.EqualFold(assignee, "me")
-
-		if isMe {
-			msgs[i].Assignee = "me"
-		} else {
-			// [INFO] 매핑 실패 추적을 위한 로그 강화 (프로덕션 환경 확인용)
-			logger.Infof("[ASSIGNEE_MAP] User: %s, Mismatched Assignee: '%s' (User.Name: '%s')",
-				email, assignee, user.Name)
-		}
-	}
+	services.StripOriginalText(msgs)
+	services.FormatMessagesForClient(email, msgs)
 
 	respondJSON(w, msgs)
 }
@@ -129,26 +97,8 @@ func HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 	msgs := msgsRaw
 
 	applyTranslations(msgs, lang)
-	stripOriginalText(msgs)
-
-	user, _ := store.GetOrCreateUser(email, "", "")
-
-	// Normalize Assignee for frontend ("me")
-	for i := range msgs {
-		msgs[i].Requester = store.NormalizeName(email, msgs[i].Requester)
-		msgs[i].Assignee = store.NormalizeName(email, msgs[i].Assignee)
-
-		assignee := strings.TrimSpace(msgs[i].Assignee)
-		if assignee == "" {
-			continue
-		}
-
-		isMe := strings.EqualFold(assignee, user.Name) || strings.EqualFold(assignee, "me")
-
-		if isMe {
-			msgs[i].Assignee = "me"
-		}
-	}
+	services.StripOriginalText(msgs)
+	services.FormatMessagesForClient(email, msgs)
 
 	respondJSON(w, map[string]interface{}{
 		"messages": msgs,

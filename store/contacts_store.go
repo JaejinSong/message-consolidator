@@ -17,7 +17,7 @@ func InitContactsTable() {
 		user_email VARCHAR(255) NOT NULL,
 		rep_name VARCHAR(255) NOT NULL,
 		aliases TEXT NOT NULL,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 		UNIQUE(user_email, rep_name)
 	);`
 	_, err := db.Exec(query)

@@ -1,12 +1,60 @@
+# Release Notes - v2.2.11 (2026-03-23 07:08 UTC)
+
+## 🏗️ Backend Refactoring & Driver Migration
+- **[REFACTOR] Centralized Task Logic**: Migrated message formatting and original text stripping from handlers to `services/tasks.go` to reduce redundancy.
+- **[SYS] DB Driver Migration (pgx)**: Successfully transitioned from `lib/pq` to `github.com/jackc/pgx/v5` for enhanced performance and modern PostgreSQL features.
+- **[FIX] SQL Injection Defense**: Replaced raw string formatting with parameterized queries (`$1`, `$2`) across `stats_store.go`.
+- **[OPTIMIZE] Token Usage Retrieval**: Removed unnecessary transaction wrapping for simple `QueryRow` calls in `token_store.go`, improving connection pool efficiency.
+- **[SYS] Polling Constant Integration**: Standardized frontend polling intervals using the `POLLING_INTERVALS` constant in `app.js`.
+- **[FIX] Archive Logic Integrity**: Fixed `safeArchiveDays` calculation to consistently use the system-defined setting.
+
+---
+
+# Release Notes - v2.2.10 (2026-03-23 06:17 UTC)
+
+## 🛠️ Maintenance & Lint Fix
+- **[FIX] Gmail API Context**: Resolved a lint issue by properly passing the `context.Context` to the Gmail API `Get` call in `services/tasks.go`.
+
+---
+
+# Release Notes - v2.2.9 (2026-03-23 06:15 UTC)
+
+## 🏗️ Backend Service Extraction & Logic Isolation
+- **[REFACTOR] Backend Architecture**: Established a dedicated `services` package to house complex business logic, reducing handler bloat and improving maintainability.
+- **[REFACTOR] Logic Isolation**: Isolated pure computational logic (`getDeadlineBadge`, `parseMarkdown`) from `renderer.js` into `logic.js` for better testability and reuse.
+- **[IMPROVED] Gmail Channel Parsing**: Modularized `parseNewEmails` and `analyzeAndSaveEmails` in `gmail.go` into smaller, task-specific functions, adhering to the 30-line function rule.
+- **[FIX] Linting & Type Integrity**: Resolved multiple variable declarations and type mismatches (`store.TodoItem`) across frontend and backend modules.
+
+---
+
+# Release Notes - v2.2.8 (2026-03-23 04:56 UTC)
+
+## 🕒 Improved Time Readability & Premium Status Icons
+- **[IMPROVED] Dynamic Time Formatting**: Refined the time display logic to show relative time (e.g., "5m ago") for recent tasks, day of week for tasks within 7 days, and compact date/time for older tasks.
+- **[NEW] Premium Status Icons**: Redesigned the "Stale" and "Abandoned" icons with modern SVG paths and glassmorphism styling.
+- **[NEW] Status Glow & Animations**: Added a subtle glow to stale tasks and a smooth pulse animation to abandoned tasks to improve visual urgency and professional aesthetics.
+- **[I18N] Localized Day Names**: Added support for day names in KR, EN, ID, and TH languages.
+
+---
+
+# Release Notes - v2.2.7 (2026-03-23 04:50 UTC)
+
+## 🏆 Premium Achievements UI & Multi-language Support
+- **[NEW] Premium Achievement Design**: Redesigned the achievement cards with a sleek glassmorphism style, golden glow animations for unlocked milestones, and improved progress bars.
+- **[NEW] Global Achievements (i18n)**: Achievement titles and descriptions are now fully localized in **Korean, English, Indonesian, and Thai**.
+- **[FIX] Achievement Sync**: Corrected the mapping between database achievement keys and localized UI strings to ensure all trophies display their correct names.
+
+---
+
 # Release Notes - v2.2.6 (2026-03-22 17:35 UTC)
 
 ## 🔍 Comprehensive Monitoring with WhaTap
-- **[NEW] WhaTap Go Agent Integration**: Implemented deep backend monitoring using WhaTap Go Agent to track performance, errors, and SQL execution in real-time.
-- **[NEW] Real User Monitoring (RUM) & Session Replay**: Integrated WhaTap Browser Agent with **100% Session Replay** capture to visualize user interactions and debug frontend issues effectively.
-- **[SYS] Infrastructure Optimization**: 
-    - Resolved Nginx CSP violations for Browser Agent (`cdn.jsdelivr.net`).
-    - Optimized NeonDB connection pooling (`MaxIdleConns: 0`) for serverless compatibility.
-- **[NOTICE] Resource Usage**: Added monitoring agents results in an approximate **150MB increase in memory usage**.
+- **[NEW] WhaTap Go Agent Integration**: Implemented deep backend monitoring for real-time performance tracking and SQL execution analysis.
+- **[NEW] Real User Monitoring (RUM) & Session Replay**: Integrated WhaTap Browser Agent with **100% Session Replay** for effective frontend debugging.
+- **[SYS] Infrastructure & DB Stability**: 
+    - Resolved Nginx CSP violations for the Browser Agent.
+    - Reinforced NeonDB connection pooling for serverless environments.
+- **[NOTICE] Resource Usage**: Added monitoring agents result in an approximate **150MB** increase in memory usage.
 
 ---
 
@@ -101,29 +149,30 @@
 
 # Release Notes - v2.0.8 (2026-03-21 07:07 UTC)
 
-## ⚡ DB Connection Pool Auto-Optimization
-- **[FEAT] Intelligent DB Detection**: Implemented automatic connection string detection to distinguish between Neon DB and standard PostgreSQL.
-- **[OPTIMIZE] Dynamic Connection Pooling**: 
-    - **Neon DB**: Automatically sets `MaxIdleConns(0)` for optimal scale-to-zero cost efficiency.
-    - **Standard DB**: Sets `MaxIdleConns(2)` to maintain a minimum pool for reduced latency on non-serverless environments.
+## ⚡ Intelligent DB Connection Management
+- **[FEAT] Automated DB Provider Detection**: Added logic to distinguish between Neon DB and standard PostgreSQL.
+- **[OPTIMIZE] Dynamic Pooling Strategy**: 
+    - **Neon DB**: Auto-configures `MaxIdleConns(0)` for optimal scale-to-zero efficiency.
+    - **Standard PostgreSQL**: Maintains a minimum pool of `MaxIdleConns(2)` for reduced latency.
 
 ---
 
 # Release Notes - v2.0.7 (2026-03-20 18:30 UTC)
 
-## 🎮 Gamification Infrastructure & DB Optimization
-- **[PLAN] Gamification Roadmap**: Developed a comprehensive roadmap for points, streaks, and leveling systems in `planning/TODO.md`, including a "Minimalist Mode" for professional environments.
-- **[OPTIMIZE] Neon DB Scale-to-Zero**: Configured `MaxIdleConns(0)` to ensure database connections are released immediately when idle, allowing Neon serverless instances to scale to zero effectively.
-- **[OPTIMIZE] Consolidated DB Connection Pool**: Integrated the separate WhatsApp storage pool into the main application pool using `sqlstore.NewWithDB` to reduce connection overhead.
+## 🎮 Gamification Infrastructure & DB Resource Cleanup
+- **[PLAN] Gamification Roadmap**: Outlined points, streaks, and leveling systems in `planning/TODO.md`.
+- **[OPTIMIZE] DB Performance Layer**: Initial scale-to-zero configuration applied. (Refined in v2.0.8)
+- **[OPTIMIZE] Consolidated DB Pool**: Merged the WhatsApp storage pool into the primary application pool to minimize connection overhead.
 
 ---
 
 # Release Notes - v2.0.6 (2026-03-20 17:40 UTC)
 
-## ⚡ Bulk Database Operations & Performance Optimization
-- **[FEAT] Bulk DB Access**: Implemented `SaveMessages`, `DeleteMessages`, `RestoreMessages`, and `HardDeleteMessages` using single-query batch patterns for massive throughput gains.
-- **[OPTIMIZE] Enhanced Scanners**: Refactored channel scanners (Slack, WhatsApp, Gmail) to use batch saves, reducing database connection overhead and improving scan speed.
-- **[FEAT] Lazy Loading Implementation**: Successfully decoupled original text from the main dashboard payload, reducing memory footprint and initial API response size.
+## ⚡ Bulk Operations & Performance Optimization
+- **[FEAT] Batch Processing Engine**: Implemented single-query batch patterns for massive throughput gains in `Save`, `Delete`, and `Restore` operations.
+- **[OPTIMIZE] Scanner Performance**: Refactored Slack, WhatsApp, and Gmail scanners to leverage batch saves, improving scan speed and reducing DB overhead.
+- **[FEAT] On-Demand Resource Loading (Lazy Loading)**: Successfully decoupled `original_text` from the main payload. Message source text is now fetched only when requested, drastically reducing memory footprint and initial page load size.
+- **[FIX] API Endpoint**: Added `/api/messages/{id}/original` for authenticated on-demand fetching.
 
 ---
 

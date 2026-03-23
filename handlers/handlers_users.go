@@ -173,13 +173,20 @@ func HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 		logger.Errorf("[HANDLER] Failed to get monthly token usage: %v", err)
 	}
 
-	respondJSON(w, map[string]int{
+	// Gemini 1.5 Flash pricing: Input $0.075/1M, Output $0.30/1M
+	calculateCost := func(p, c int) float64 {
+		return (float64(p)*0.075 + float64(c)*0.30) / 1000000
+	}
+
+	respondJSON(w, map[string]interface{}{
 		"todayPrompt":     prompt,
 		"todayCompletion": completion,
 		"todayTotal":      prompt + completion,
+		"todayCost":       calculateCost(prompt, completion),
 		"monthPrompt":     monthPrompt,
 		"monthCompletion": monthCompletion,
 		"monthTotal":      monthPrompt + monthCompletion,
+		"monthCost":       calculateCost(monthPrompt, monthCompletion),
 	})
 }
 

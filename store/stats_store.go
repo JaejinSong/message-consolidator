@@ -2,7 +2,6 @@ package store
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 )
@@ -26,8 +25,6 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 	stats.HourlyActivity = make(map[int]int)
 
 	var wg sync.WaitGroup
-	safeEmail := strings.ReplaceAll(email, "'", "''") // SQL Injection 방어
-
 	dbTz := userTz
 	if dbTz == "" {
 		dbTz = "UTC"
@@ -37,8 +34,8 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		q := fmt.Sprintf("SELECT COUNT(*)::int FROM messages WHERE user_email = '%s' AND done = true AND is_deleted = false", safeEmail)
-		_ = db.QueryRow(q).Scan(&stats.TotalCompleted)
+		q := "SELECT COUNT(*)::int FROM messages WHERE user_email = $1 AND done = true AND is_deleted = false"
+		_ = db.QueryRow(q, email).Scan(&stats.TotalCompleted)
 	}()
 
 	// 2. Pending Me
@@ -46,18 +43,17 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 	go func() {
 		defer wg.Done()
 		var userName string
-		_ = db.QueryRow(fmt.Sprintf("SELECT name FROM users WHERE email = '%s'", safeEmail)).Scan(&userName)
-		safeUserName := strings.ReplaceAll(userName, "'", "''")
-		q := fmt.Sprintf("SELECT COUNT(*)::int FROM messages WHERE user_email = '%s' AND done = false AND is_deleted = false AND (assignee = '%s' OR assignee = 'me')", safeEmail, safeUserName)
-		_ = db.QueryRow(q).Scan(&stats.PendingMe)
+		_ = db.QueryRow("SELECT name FROM users WHERE email = $1", email).Scan(&userName)
+		q := "SELECT COUNT(*)::int FROM messages WHERE user_email = $1 AND done = false AND is_deleted = false AND (assignee = $2 OR assignee = 'me')"
+		_ = db.QueryRow(q, email, userName).Scan(&stats.PendingMe)
 	}()
 
 	// 3. Daily Goal
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		q := fmt.Sprintf("SELECT COALESCE(daily_goal, 5) FROM users WHERE email = '%s'", safeEmail)
-		_ = db.QueryRow(q).Scan(&stats.DailyGoal)
+		q := "SELECT COALESCE(daily_goal, 5) FROM users WHERE email = $1"
+		_ = db.QueryRow(q, email).Scan(&stats.DailyGoal)
 		if stats.DailyGoal <= 0 {
 			stats.DailyGoal = 5 // Default
 		}
@@ -70,10 +66,10 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		q := fmt.Sprintf(`
 		SELECT (TO_CHAR(completed_at AT TIME ZONE '%s', 'YYYY-MM-DD'))::text as d, COUNT(*)::int as c
 		FROM messages 
-		WHERE user_email = '%s' AND done = true AND is_deleted = false 
+		WHERE user_email = $1 AND done = true AND is_deleted = false 
 		AND completed_at > NOW() - INTERVAL '30 days'
-		GROUP BY 1 ORDER BY 1`, dbTz, safeEmail)
-		rows, err := db.Query(q)
+		GROUP BY 1 ORDER BY 1`, dbTz)
+		rows, err := db.Query(q, email)
 		if err == nil {
 			defer rows.Close()
 			for rows.Next() {
@@ -93,9 +89,9 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		q := fmt.Sprintf(`
 		SELECT (EXTRACT(HOUR FROM completed_at AT TIME ZONE '%s'))::int as hr, COUNT(*)::int as c
 		FROM messages 
-		WHERE user_email = '%s' AND done = true AND is_deleted = false AND completed_at IS NOT NULL
-		GROUP BY 1 ORDER BY 1`, dbTz, safeEmail)
-		rows, err := db.Query(q)
+		WHERE user_email = $1 AND done = true AND is_deleted = false AND completed_at IS NOT NULL
+		GROUP BY 1 ORDER BY 1`, dbTz)
+		rows, err := db.Query(q, email)
 		if err == nil {
 			defer rows.Close()
 			for rows.Next() {
@@ -128,22 +124,22 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		defer wg.Done()
 
 		threshold := getWorkingDaysAgo(3, time.Now()).Format(time.RFC3339)
-		q := fmt.Sprintf(`
+		q := `
 		SELECT COUNT(*)::int FROM messages 
-		WHERE user_email = '%s' AND done = false AND is_deleted = false 
-		AND created_at < '%s'`, safeEmail, threshold)
-		_ = db.QueryRow(q).Scan(&stats.AbandonedTasks)
+		WHERE user_email = $1 AND done = false AND is_deleted = false 
+		AND created_at < $2`
+		_ = db.QueryRow(q, email, threshold).Scan(&stats.AbandonedTasks)
 	}()
 
 	// 7. Source Distribution
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		q := fmt.Sprintf(`
+		q := `
 		SELECT source, COUNT(*)::int FROM messages 
-		WHERE user_email = '%s' AND is_deleted = false
-		GROUP BY source`, safeEmail)
-		rows, err := db.Query(q)
+		WHERE user_email = $1 AND is_deleted = false
+		GROUP BY source`
+		rows, err := db.Query(q, email)
 		if err == nil {
 			defer rows.Close()
 			for rows.Next() {
@@ -163,10 +159,10 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		q := fmt.Sprintf(`
 		SELECT TO_CHAR(completed_at AT TIME ZONE '%s', 'YYYY-MM-DD') as c_date, source, COUNT(*)::int 
 		FROM messages 
-		WHERE user_email = '%s' AND done = true AND is_deleted = false 
+		WHERE user_email = $1 AND done = true AND is_deleted = false 
 		AND completed_at >= NOW() - INTERVAL '365 days'
-		GROUP BY 1, 2 ORDER BY 1 ASC`, dbTz, safeEmail)
-		rows, err := db.Query(q)
+		GROUP BY 1, 2 ORDER BY 1 ASC`, dbTz)
+		rows, err := db.Query(q, email)
 		if err == nil {
 			defer rows.Close()
 			var currentData string
