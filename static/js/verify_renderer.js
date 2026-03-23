@@ -19,6 +19,33 @@ const { renderer } = await import('./renderer.js');
 const { I18N_DATA } = await import('./locales.js');
 const { insightsRenderer } = await import('./insightsRenderer.js');
 
+// 테스트용 가짜 DOM 엘리먼트를 생성하는 헬퍼 함수
+const makeMockElement = (tag = 'div') => ({
+    tagName: tag,
+    disabled: false,
+    textContent: '',
+    src: '',
+    style: {},
+    children: [],
+    appendChild(child) { this.children.push(child); },
+    remove() { this._removed = true; },
+    classList: {
+        classes: new Set(),
+        add(c) { this.classes.add(c); },
+        remove(c) { this.classes.delete(c); },
+        toggle(c, force) {
+            if (force !== undefined) {
+                if (force) this.classes.add(c);
+                else this.classes.delete(c);
+            } else {
+                if (this.classes.has(c)) this.classes.delete(c);
+                else this.classes.add(c);
+            }
+        },
+        contains(c) { return this.classes.has(c); }
+    }
+});
+
 function testEmptyStateMessages() {
     console.log('--- Testing Empty State Messages ---');
     const lang = 'ko';
@@ -226,9 +253,107 @@ function testInsightsRenderer() {
     console.log('✅ insightsRenderer verified');
 }
 
+function testSetScanLoading() {
+    console.log('--- Testing setScanLoading ---');
+    const mockBtn = makeMockElement();
+    const mockIcon = makeMockElement();
+    const mockLoading = makeMockElement();
+    mockLoading.classList.add('hidden'); // 초기 상태
+
+    global.document = {
+        getElementById: (id) => {
+            if (id === 'scanBtn') return mockBtn;
+            if (id === 'scanBtnIcon') return mockIcon;
+            if (id === 'loading') return mockLoading;
+            return null;
+        }
+    };
+
+    // 1. 로딩 시작 상태
+    renderer.setScanLoading(true, 'ko');
+    console.assert(mockBtn.disabled === true, '로딩 중일 때 버튼은 비활성화되어야 함');
+    console.assert(mockIcon.style.animation === 'spin 1s linear infinite', '새로고침 아이콘에 회전 애니메이션이 적용되어야 함');
+    console.assert(!mockLoading.classList.contains('hidden'), '전체 오버레이가 표시되어야 함');
+
+    // 2. 로딩 종료 상태
+    renderer.setScanLoading(false, 'ko');
+    console.assert(mockBtn.disabled === false, '로딩이 끝나면 버튼이 활성화되어야 함');
+    console.assert(mockIcon.style.animation === '', '회전 애니메이션이 제거되어야 함');
+    console.assert(mockLoading.classList.contains('hidden'), '전체 오버레이가 숨겨져야 함');
+
+    console.log('✅ setScanLoading verified');
+}
+
+function testUpdateWhatsAppQR() {
+    console.log('--- Testing updateWhatsAppQR ---');
+    const mockBtn = makeMockElement();
+    const mockImg = makeMockElement();
+    const mockPlaceholder = makeMockElement();
+
+    global.document = {
+        getElementById: (id) => {
+            if (id === 'getQRBtn') return mockBtn;
+            if (id === 'waQRImg') return mockImg;
+            if (id === 'qrPlaceholder') return mockPlaceholder;
+            return null;
+        },
+        createElement: () => makeMockElement(),
+        body: { appendChild: () => { } },
+        querySelectorAll: () => [] // showToast 방어용
+    };
+    global.requestAnimationFrame = (cb) => cb(); // 애니메이션 프레임 즉시 실행
+
+    renderer.updateWhatsAppQR('generating', null, 'ko');
+    console.assert(mockBtn.disabled === true, '생성 중에는 버튼이 비활성화되어야 함');
+    console.assert(!mockPlaceholder.classList.contains('hidden'), 'Placeholder 텍스트가 표시되어야 함');
+
+    renderer.updateWhatsAppQR('show', 'base64str', 'ko');
+    console.assert(mockImg.src === 'data:image/png;base64,base64str', '올바른 포맷으로 base64 이미지가 주입되어야 함');
+    console.assert(!mockImg.classList.contains('hidden'), 'QR 이미지가 표시되어야 함');
+
+    renderer.updateWhatsAppQR('error', 'Network Error', 'ko');
+    console.assert(mockBtn.disabled === false, '에러 발생 시 다시 버튼이 활성화되어야 함');
+
+    console.log('✅ updateWhatsAppQR verified');
+}
+
+function testRenderAchievements() {
+    console.log('--- Testing renderAchievements (i18n) ---');
+    const mockContainer = { innerHTML: '' };
+    const originalGetElementById = global.document.getElementById;
+
+    global.document.getElementById = (id) => {
+        if (id === 'achievementsList') return mockContainer;
+        return originalGetElementById(id);
+    };
+
+    const mockAllAch = [
+        { id: 1, name: "Task Master 10", description: "Completed 10 tasks.", criteria_type: "total_tasks", target_value: 10, icon: "🥉" },
+        { id: 2, name: "Unknown Achievement", description: "Fallback desc.", criteria_type: "level", target_value: 2, icon: "❓" }
+    ];
+    const mockUserAch = [{ achievement_id: 1 }];
+    const mockStats = { total_completed: 12 };
+
+    insightsRenderer.renderAchievements(mockAllAch, mockUserAch, mockStats);
+
+    // 1. 다국어(i18n) 매핑 검증
+    console.assert(mockContainer.innerHTML.includes('태스크 마스터 (10)'), '번역된 업적 이름이 렌더링되어야 함');
+    console.assert(mockContainer.innerHTML.includes('누적 업무 10개를 완료했습니다.'), '번역된 업적 설명이 렌더링되어야 함');
+
+    // 2. 다국어 사전이 없을 경우 폴백(Fallback) 검증
+    console.assert(mockContainer.innerHTML.includes('Unknown Achievement'), '사전에 없는 업적은 원본 이름이 렌더링되어야 함');
+    console.assert(mockContainer.innerHTML.includes('Fallback desc.'), '사전에 없는 업적은 원본 설명이 렌더링되어야 함');
+
+    global.document.getElementById = originalGetElementById;
+    console.log('✅ renderAchievements verified');
+}
+
 testEmptyStateMessages();
 testUpdateTokenBadge();
 testRenderTenantAliasList();
 testRenderContactMappings();
 testShowToast();
 testInsightsRenderer();
+testSetScanLoading();
+testUpdateWhatsAppQR();
+testRenderAchievements();

@@ -2,15 +2,47 @@ package store
 
 import (
 	"database/sql"
+	"sync"
+
 	"github.com/lib/pq"
 )
 
+var (
+	translationCache = make(map[string]map[int]string) // language -> message_id -> translated_text
+	translationMu    sync.RWMutex
+)
+
 func GetTaskTranslation(messageID int, language string) (string, error) {
+	translationMu.RLock()
+	if langCache, ok := translationCache[language]; ok {
+		if text, exists := langCache[messageID]; exists {
+			translationMu.RUnlock()
+			return text, nil
+		}
+	}
+	translationMu.RUnlock()
+
 	var translatedText string
 	err := db.QueryRow("SELECT translated_text FROM task_translations WHERE message_id = $1 AND language = $2", messageID, language).Scan(&translatedText)
 	if err == sql.ErrNoRows {
+		translationMu.Lock()
+		if translationCache[language] == nil {
+			translationCache[language] = make(map[int]string)
+		}
+		translationCache[language][messageID] = "" // 번역 없음 상태도 캐싱
+		translationMu.Unlock()
 		return "", nil
 	}
+
+	if err == nil && translatedText != "" {
+		translationMu.Lock()
+		if translationCache[language] == nil {
+			translationCache[language] = make(map[int]string)
+		}
+		translationCache[language][messageID] = translatedText
+		translationMu.Unlock()
+	}
+
 	return translatedText, err
 }
 
@@ -19,22 +51,62 @@ func GetTaskTranslationsBatch(messageIDs []int, language string) (map[int]string
 		return make(map[int]string), nil
 	}
 
+	results := make(map[int]string)
+	var missingIDs []int
+
+	translationMu.RLock()
+	langCache, ok := translationCache[language]
+	if ok {
+		for _, id := range messageIDs {
+			if text, exists := langCache[id]; exists {
+				if text != "" {
+					results[id] = text
+				}
+			} else {
+				missingIDs = append(missingIDs, id)
+			}
+		}
+	} else {
+		missingIDs = append(missingIDs, messageIDs...) // 캐시에 해당 언어가 아예 없으면 전부 조회
+	}
+	translationMu.RUnlock()
+
+	// 모든 번역이 캐시에 존재한다면 DB 조회 없이 즉시 반환
+	if len(missingIDs) == 0 {
+		return results, nil
+	}
+
 	query := "SELECT message_id, translated_text FROM task_translations WHERE language = $1 AND message_id = ANY($2)"
-	rows, err := db.Query(query, language, pq.Array(messageIDs))
+	rows, err := db.Query(query, language, pq.Array(missingIDs))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	results := make(map[int]string)
+	dbResults := make(map[int]string)
 	for rows.Next() {
 		var id int
 		var text string
 		if err := rows.Scan(&id, &text); err != nil {
 			continue
 		}
+		dbResults[id] = text
 		results[id] = text
 	}
+
+	translationMu.Lock()
+	if translationCache[language] == nil {
+		translationCache[language] = make(map[int]string)
+	}
+	for _, id := range missingIDs {
+		if text, ok := dbResults[id]; ok {
+			translationCache[language][id] = text
+		} else {
+			translationCache[language][id] = "" // DB에 없는 ID도 빈 값으로 캐싱
+		}
+	}
+	translationMu.Unlock()
+
 	return results, nil
 }
 
@@ -44,5 +116,15 @@ func SaveTaskTranslation(messageID int, language, translatedText string) error {
 		VALUES ($1, $2, $3)
 		ON CONFLICT (message_id, language) DO UPDATE SET translated_text = EXCLUDED.translated_text`,
 		messageID, language, translatedText)
+
+	if err == nil {
+		translationMu.Lock()
+		if translationCache[language] == nil {
+			translationCache[language] = make(map[int]string)
+		}
+		translationCache[language][messageID] = translatedText
+		translationMu.Unlock()
+	}
+
 	return err
 }

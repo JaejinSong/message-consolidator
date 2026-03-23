@@ -282,7 +282,7 @@
         padding: 0.6rem;
     }
 
-    #subTitle {
+    .header__subtitle {
         display: none;
     }
 }
@@ -309,20 +309,6 @@
         height: auto;
         aspect-ratio: 1/1;
         padding: 0.5rem;
-    }
-
-    .scan-btn {
-        grid-column: span 3;
-        aspect-ratio: auto;
-        height: 60px;
-        flex-direction: row;
-        gap: 1rem;
-    }
-
-    .scan-icon-container {
-        margin-bottom: 0;
-        width: 32px;
-        height: 32px;
     }
 
     .status-icon-large svg {

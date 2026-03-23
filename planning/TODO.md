@@ -63,3 +63,7 @@
 - [x] **품질 검증 자동화**
   - [x] Node.js 기반의 핵심 비즈니스 로직(분류, 필터링) 테스트 케이스 보강
   - [x] Empty State 메시지 및 렌더링 리소스 검증 스크립트 추가
+
+- [ ] **시스템 안정성 및 데이터베이스 최적화 (Tech Debt)**
+  - [ ] Go 백엔드 DB 드라이버를 `lib/pq`에서 `pgx`로 마이그레이션
+  - [ ] PgBouncer 등 Connection Pooler 환경에서의 Prepared Statement 충돌(`08P01` 에러) 원천 차단

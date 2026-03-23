@@ -51,8 +51,30 @@ export const insightsRenderer = {
         const lang = state.currentLang || 'ko';
         const i18n = I18N_DATA[lang];
 
-        let html = '<div class="heatmap-grid">';
         const today = new Date();
+        const startDate = new Date(today);
+        startDate.setDate(today.getDate() - 29);
+
+        let html = '<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 0.5rem;">';
+
+        // 상단 요일 라벨 표시
+        const daysOfWeek = lang === 'ko'
+            ? ['일', '월', '화', '수', '목', '금', '토']
+            : ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+        let xLabels = '<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; font-size: 0.75rem; color: var(--text-dim); text-align: center; font-weight: 700;">';
+        daysOfWeek.forEach(d => { xLabels += `<div>${d}</div>`; });
+        xLabels += '</div>';
+
+        html += xLabels;
+
+        let gridHtml = '<div class="heatmap-grid" style="grid-template-columns: repeat(7, 1fr); gap: 6px;">';
+
+        // 시작 요일에 맞추어 앞부분 빈칸 채우기
+        const startDay = startDate.getDay();
+        for (let i = 0; i < startDay; i++) {
+            gridHtml += `<div class="heatmap-day" style="background: transparent; box-shadow: none; cursor: default;"></div>`;
+        }
 
         for (let i = 29; i >= 0; i--) {
             const d = new Date(today);
@@ -64,10 +86,16 @@ export const insightsRenderer = {
             const tooltipText = (i18n.heatmapTaskTooltip || "{count} tasks completed ({date})")
                 .replace('{count}', taskCount).replace('{date}', dateStr);
 
-            html += `<div class="heatmap-day" data-level="${level}" data-tooltip="${tooltipText}"></div>`;
+            // 오늘 날짜 강조 클래스 추가
+            const isToday = i === 0;
+            const extraClass = isToday ? ' today-highlight' : '';
+
+            gridHtml += `<div class="heatmap-day${extraClass}" data-level="${level}" data-tooltip="${tooltipText}"></div>`;
         }
 
-        html += '</div><div class="chart-tooltip hidden" id="dailyHeatmapTooltip"></div>';
+        gridHtml += '</div>';
+        html += gridHtml + '</div><div class="chart-tooltip hidden" id="dailyHeatmapTooltip"></div>';
+
         container.innerHTML = html;
         this.bindHeatmapTooltip(container, 'dailyHeatmapTooltip');
     },
@@ -202,15 +230,18 @@ export const insightsRenderer = {
             let progress = isUnlocked ? ach.target_value : (ach.criteria_type === 'total_tasks' ? (stats?.total_completed || 0) : (state.userProfile?.level || 1));
             const percent = Math.min(100, Math.round((progress / ach.target_value) * 100));
 
+            const localizedName = i18n.achievements?.[ach.name]?.name || ach.name;
+            const localizedDesc = i18n.achievements?.[ach.name]?.desc || ach.description;
+
             return `
                 <div class="achievement-card ${isUnlocked ? 'unlocked' : 'locked'}">
                     <div class="achievement-icon">${ach.icon}</div>
                     <div class="achievement-info">
                         <div class="achievement-header">
-                            <span class="achievement-name">${escapeHTML(ach.name)}</span>
+                            <span class="achievement-name">${escapeHTML(localizedName)}</span>
                             ${isUnlocked ? `<span class="status-badge">${i18n.unlocked}</span>` : ''}
                         </div>
-                        <p class="achievement-desc">${escapeHTML(ach.description)}</p>
+                        <p class="achievement-desc">${escapeHTML(localizedDesc)}</p>
                         <div class="achievement-progress-bar"><div class="progress-fill" style="width: ${percent}%"></div></div>
                         <div class="achievement-footer">
                             <span class="xp-reward">+${ach.xp_reward || 0} XP</span>

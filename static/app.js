@@ -84,28 +84,17 @@ const checkGmailStatus = safeAsync(async () => {
  * Triggers a message scan.
  */
 const triggerScan = async () => {
-    const btn = document.getElementById('scanBtn');
-    const scanBtnText = document.getElementById('scanBtnText');
-    const loading = document.getElementById('loading');
-    const i18n = I18N_DATA[state.currentLang];
-
-    if (btn) btn.disabled = true;
-    if (scanBtnText) scanBtnText.textContent = '...';
-    if (loading) loading.classList.remove('hidden');
+    renderer.setScanLoading(true, state.currentLang);
 
     try {
         await api.triggerScan(state.currentLang);
         setTimeout(() => {
             fetchMessages();
-            if (btn) btn.disabled = false;
-            if (scanBtnText) scanBtnText.textContent = i18n.scanBtnText || 'SCAN';
-            if (loading) loading.classList.add('hidden');
+            renderer.setScanLoading(false, state.currentLang);
         }, 5000);
     } catch (e) {
         console.error(e);
-        if (btn) btn.disabled = false;
-        if (scanBtnText) scanBtnText.textContent = i18n.scanBtnText || 'SCAN';
-        if (loading) loading.classList.add('hidden');
+        renderer.setScanLoading(false, state.currentLang);
     }
 };
 
@@ -146,16 +135,30 @@ events.on(EVENTS.TASK_COMPLETED, (data) => {
             renderer.triggerXPAnimation();
         }
         if (gData.IsCritical || gData.ComboActive) {
-            renderer.triggerConfetti();
+            renderer.triggerConfetti('star');
         }
 
         if (gData.UnlockedAchievements && gData.UnlockedAchievements.length > 0) {
+            const lang = state.currentLang || 'ko';
+            const i18n = I18N_DATA[lang];
+
             gData.UnlockedAchievements.forEach(ach => {
-                renderer.triggerConfetti();
+                renderer.triggerConfetti('star');
+
+                const localizedName = i18n.achievements?.[ach.name]?.name || ach.name;
+                const msg = lang === 'ko' ? `🏆 [${localizedName}] 배지를 획득했습니다!` : `🏆 Badge Unlocked: [${localizedName}]`;
+                setTimeout(() => renderer.showToast(msg, 'success'), 300); // 폭죽과 겹치지 않게 살짝 딜레이
             });
         }
     } else {
-        renderer.triggerConfetti();
+        const rand = Math.random();
+        if (rand < 0.05) { // 5% 확률로 기본 폭죽
+            renderer.triggerConfetti('classic');
+        } else if (rand < 0.08) { // 3% 확률로 별 모양
+            renderer.triggerConfetti('star');
+        } else if (rand < 0.10) { // 2% 확률로 눈송이
+            renderer.triggerConfetti('snow');
+        }
         renderer.triggerXPAnimation();
     }
     fetchUserProfile();
@@ -169,26 +172,10 @@ events.on(EVENTS.USER_PROFILE_UPDATED, (profile) => {
  * Initializes theme and theme toggle.
  */
 const initTheme = () => {
-    if (state.currentTheme === 'light') {
-        document.body.classList.add('light-theme');
-    }
-
-    const themeToggleBtn = document.getElementById('themeToggleBtn');
-    if (themeToggleBtn) {
-        const updateThemeIcon = (isLight) => {
-            themeToggleBtn.innerHTML = isLight
-                ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`
-                : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`;
-        };
-
-        updateThemeIcon(state.currentTheme === 'light');
-
-        themeToggleBtn.addEventListener('click', () => {
-            const isLight = document.body.classList.toggle('light-theme');
-            updateTheme(isLight ? 'light' : 'dark');
-            updateThemeIcon(isLight);
-        });
-    }
+    renderer.setTheme(state.currentTheme);
+    renderer.bindThemeToggle((isLight) => {
+        updateTheme(isLight ? 'light' : 'dark');
+    }, state.currentTheme === 'light');
 };
 
 /**
@@ -280,6 +267,7 @@ const initNavigation = () => {
     document.querySelectorAll('.nav-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             const view = tab.getAttribute('data-view');
+            if (!view) return; // Scan 버튼(수동 액션)일 경우 뷰 전환 무시
             showView(view);
         });
     });
@@ -293,53 +281,35 @@ const initNavigation = () => {
  * Initializes static action buttons and global event delegation.
  */
 const initActionButtons = () => {
-    document.getElementById('getQRBtn')?.addEventListener('click', async () => {
-        const btn = document.getElementById('getQRBtn');
-        const img = document.getElementById('waQRImg');
-        const placeholder = document.getElementById('qrPlaceholder');
-        const i18n = I18N_DATA[state.currentLang];
-
-        btn.disabled = true;
-        placeholder.textContent = i18n.generating;
-        placeholder.classList.remove('hidden');
-        img.classList.add('hidden');
-
+    renderer.bindGetQRBtn(async () => {
+        renderer.updateWhatsAppQR('generating', null, state.currentLang);
         try {
             const data = await api.getWhatsAppQR();
             if (data.qr) {
-                img.src = `data:image/png;base64,${data.qr}`;
-                img.classList.remove('hidden');
-                placeholder.classList.add('hidden');
-
+                renderer.updateWhatsAppQR('show', data.qr, state.currentLang);
                 const poll = setInterval(async () => {
                     await checkWhatsAppStatus();
                     if (state.waConnected) {
                         clearInterval(poll);
-                        btn.disabled = false;
+                        renderer.updateWhatsAppQR('success', null, state.currentLang);
                     }
                 }, 3001);
             }
         } catch (e) {
-            placeholder.textContent = i18n.error || 'Error';
-            renderer.showToast(i18n.qrError + e.message, 'error');
-            btn.disabled = false;
+            renderer.updateWhatsAppQR('error', e.message, state.currentLang);
         }
     });
 
-    document.getElementById('scanBtn')?.addEventListener('click', triggerScan);
+    renderer.bindScanBtn(triggerScan);
 
-    document.getElementById('gmailStatusLarge')?.addEventListener('click', () => {
+    renderer.bindGmailStatus(() => {
         if (!state.gmailConnected) {
             window.location.href = '/auth/gmail/connect';
         }
     });
 
-    // Global Event Delegation for dynamic elements
-    document.body.addEventListener('click', (e) => {
-        // Handle Streak Freeze purchase
-        if (e.target && e.target.closest('#buyFreezeBtn')) {
-            handleBuyStreakFreeze();
-        }
+    renderer.bindGlobalClicks({
+        onBuyFreeze: handleBuyStreakFreeze
     });
 };
 

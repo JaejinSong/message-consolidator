@@ -1,3 +1,21 @@
+# Release Notes (User) - v2.2.7 (2026-03-23 04:50 UTC)
+
+## 🏆 Premium Achievements UI & Multi-language Support
+- **[NEW] Premium Achievement Design**: Redesigned the achievement cards with a sleek glassmorphism style, golden glow animations for unlocked milestones, and improved progress bars.
+- **[NEW] Global Achievements (i18n)**: Achievement titles and descriptions are now fully localized in **Korean, English, Indonesian, and Thai**.
+- **[FIX] Achievement Sync**: Corrected the mapping between database achievement keys and localized UI strings to ensure all trophies display their correct names.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.2.7 (2026-03-23 04:50 UTC)
+
+## 🏆 프리미엄 업적 UI 도입 및 글로벌 다국어 지원 확장
+- **[NEW] 프리미엄 업적 디자인**: 업적 카드를 세련된 글래스모피즘 스타일로 전면 개편했습니다. 달성 시 황금빛 글로우 애니메이션과 개선된 게이지 바를 통해 성취감을 더했습니다.
+- **[NEW] 전 채널 다국어 지원 (i18n)**: 이제 업적의 이름과 설명이 **한국어, 영어, 인도네시아어, 태국어** 4개 국어로 완벽하게 번역되어 표시됩니다.
+- **[FIX] 업적 데이터 정합성 보정**: 데이터베이스의 업적 키와 다국어 사전 간의 매핑 오류를 수정하여, 모든 업적이 해당 국가의 언어로 정확하게 표시되도록 개선했습니다.
+
+---
+
 # Release Notes (User) - v2.2.6 (2026-03-22 16:20 UTC)
 
 ## 📊 WhaTap Real-time Monitoring & Performance Optimization

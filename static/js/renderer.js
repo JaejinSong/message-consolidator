@@ -237,14 +237,35 @@ export const renderer = {
 
     /**
      * Triggers confetti animation.
+     * @param {string} type - Animation type ('classic', 'star', 'snow')
      */
-    triggerConfetti() {
-        if (typeof confetti === 'function') {
+    triggerConfetti(type = 'classic') {
+        if (typeof confetti !== 'function') return;
+
+        if (type === 'star') {
             confetti({
                 particleCount: 100,
                 spread: 70,
                 origin: { y: 0.6 },
-                colors: ['#00d4ff', '#0052ff', '#ffffff']
+                colors: ['#FFD700', '#FDB813', '#FFFFFF'],
+                shapes: ['star', 'circle']
+            });
+        } else if (type === 'snow') {
+            confetti({
+                particleCount: 150,
+                spread: 100,
+                origin: { y: 0.4 },
+                colors: ['#ffffff', '#e0f7fa', '#b2ebf2'],
+                shapes: ['circle'],
+                gravity: 0.3,
+                scalar: 0.7
+            });
+        } else {
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#00d4ff', '#0052ff', '#ffffff', '#ff007f', '#32ff7e']
             });
         }
     },
@@ -571,5 +592,97 @@ export const renderer = {
         };
 
         container.innerHTML = `<div class="release-notes-markdown">${parseMarkdown(content)}</div>`;
+    },
+
+    /**
+     * 스캔 버튼 및 화면의 로딩 상태를 제어합니다.
+     */
+    setScanLoading(isLoading, lang) {
+        const btn = document.getElementById('scanBtn');
+        const scanBtnIcon = document.getElementById('scanBtnIcon');
+        const loading = document.getElementById('loading');
+
+        if (btn) btn.disabled = isLoading;
+        if (scanBtnIcon) scanBtnIcon.style.animation = isLoading ? 'spin 1s linear infinite' : '';
+        if (loading) loading.classList.toggle('hidden', !isLoading);
+    },
+
+    /**
+     * 초기 테마 상태를 UI(아이콘 및 Body 클래스)에 적용합니다.
+     */
+    setTheme(theme) {
+        const isLight = theme === 'light';
+        document.body.classList.toggle('light-theme', isLight);
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        if (themeToggleBtn) {
+            themeToggleBtn.innerHTML = isLight
+                ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`
+                : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`;
+        }
+    },
+
+    /**
+     * 테마 토글 버튼 클릭 이벤트를 바인딩합니다.
+     */
+    bindThemeToggle(onToggle) {
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        if (!themeToggleBtn) return;
+        themeToggleBtn.addEventListener('click', () => {
+            const isLight = document.body.classList.toggle('light-theme');
+            this.setTheme(isLight ? 'light' : 'dark');
+            if (onToggle) onToggle(isLight);
+        });
+    },
+
+    /**
+     * WhatsApp 연결 및 QR 관련 이벤트 바인딩/UI 업데이트
+     */
+    bindGetQRBtn(onClick) {
+        document.getElementById('getQRBtn')?.addEventListener('click', onClick);
+    },
+
+    updateWhatsAppQR(status, data, lang) {
+        const btn = document.getElementById('getQRBtn');
+        const img = document.getElementById('waQRImg');
+        const placeholder = document.getElementById('qrPlaceholder');
+        const i18n = I18N_DATA[lang || 'ko'];
+
+        if (!btn || !img || !placeholder) return;
+
+        if (status === 'generating') {
+            btn.disabled = true;
+            placeholder.textContent = i18n.generating || 'Generating...';
+            placeholder.classList.remove('hidden');
+            img.classList.add('hidden');
+        } else if (status === 'show') {
+            img.src = `data:image/png;base64,${data}`;
+            img.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+        } else if (status === 'success') {
+            btn.disabled = false;
+        } else if (status === 'error') {
+            placeholder.textContent = i18n.error || 'Error';
+            this.showToast((i18n.qrError || 'Error: ') + data, 'error');
+            btn.disabled = false;
+        }
+    },
+
+    /**
+     * 정적 버튼 및 전역 위임 이벤트 바인딩
+     */
+    bindScanBtn(onClick) {
+        document.getElementById('scanBtn')?.addEventListener('click', onClick);
+    },
+
+    bindGmailStatus(onClick) {
+        document.getElementById('gmailStatusLarge')?.addEventListener('click', onClick);
+    },
+
+    bindGlobalClicks(handlers) {
+        document.body.addEventListener('click', (e) => {
+            if (e.target && e.target.closest('#buyFreezeBtn')) {
+                if (handlers.onBuyFreeze) handlers.onBuyFreeze();
+            }
+        });
     }
 };
