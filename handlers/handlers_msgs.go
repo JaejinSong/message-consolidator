@@ -1,27 +1,16 @@
 package handlers
 
 import (
-	"context"
-	"errors"
 	"net/http"
 	"strconv"
 
 	"message-consolidator/auth"
-	"message-consolidator/logger"
 	"message-consolidator/services"
 	"message-consolidator/store"
 
 	"github.com/gorilla/mux"
 )
 
-func handleContextError(w http.ResponseWriter, err error) {
-	if errors.Is(err, context.Canceled) {
-		http.Error(w, "Client Closed Request", 499)
-		return
-	}
-	logger.Errorf("[HANDLER] Internal Server Error: %v", err)
-	http.Error(w, err.Error(), http.StatusInternalServerError)
-}
 
 func HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
@@ -29,17 +18,13 @@ func HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 
 	msgsRaw, err := store.GetMessages(email)
 	if err != nil {
-		logger.Errorf("[HANDLER] HandleGetMessages error for %s: %v", email, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, "Failed to fetch messages", err)
 		return
 	}
-
 	msgs := make([]store.ConsolidatedMessage, len(msgsRaw))
 	copy(msgs, msgsRaw)
 
-	applyTranslations(msgs, lang)
-	services.StripOriginalText(msgs)
-	services.FormatMessagesForClient(email, msgs)
+	services.PrepareMessagesForClient(email, msgs, lang)
 
 	respondJSON(w, msgs)
 }
@@ -56,7 +41,7 @@ func HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := services.HandleTaskCompletion(email, req.ID, req.Done); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, "Failed to complete task", err)
 		return
 	}
 
@@ -89,16 +74,14 @@ func HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 	}
 	msgsRaw, total, err := store.GetArchivedMessagesFiltered(r.Context(), filter)
 	if err != nil {
-		handleContextError(w, err)
+		respondError(w, http.StatusInternalServerError, "Failed to fetch archived messages", err)
 		return
 	}
 
 	// DB 쿼리 결과로 새로 할당된 슬라이스이므로 캐시 오염 우려가 없어 복사 불필요
 	msgs := msgsRaw
 
-	applyTranslations(msgs, lang)
-	services.StripOriginalText(msgs)
-	services.FormatMessagesForClient(email, msgs)
+	services.PrepareMessagesForClient(email, msgs, lang)
 
 	respondJSON(w, map[string]interface{}{
 		"messages": msgs,
@@ -116,7 +99,7 @@ func HandleGetArchivedCount(w http.ResponseWriter, r *http.Request) {
 	}
 	total, err := store.GetArchivedMessagesCount(r.Context(), filter)
 	if err != nil {
-		handleContextError(w, err)
+		respondError(w, http.StatusInternalServerError, "Failed to fetch archive count", err)
 		return
 	}
 
@@ -155,12 +138,12 @@ func HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := store.GetMessageByID(r.Context(), id)
 	if err != nil {
-		handleContextError(w, err)
+		respondError(w, http.StatusInternalServerError, "Failed to fetch original text", err)
 		return
 	}
 
 	if msg.UserEmail != email {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		respondError(w, http.StatusUnauthorized, "Unauthorized access", nil)
 		return
 	}
 
@@ -204,8 +187,7 @@ func HandleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := store.UpdateTaskText(email, req.ID, req.Task); err != nil {
-		logger.Errorf("[HANDLER] HandleUpdateTask error for %s, id=%d: %v", email, req.ID, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, "Failed to update task", err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

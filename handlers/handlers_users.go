@@ -13,8 +13,7 @@ func HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	logger.Infof("[USER] Fetching info for email: %s", email)
 	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
-		logger.Errorf("[USER] Error fetching user %s: %v", email, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, "Failed to fetch user info", err)
 		return
 	}
 	logger.Debugf("[USER] Found user: ID=%d, Streak=%d, XP=%d", user.ID, user.Streak, user.XP)
@@ -44,12 +43,12 @@ func HandleBuyStreakFreeze(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, "Failed to fetch user info", err)
 		return
 	}
 
 	if user.Points < 50 {
-		http.Error(w, "Not enough points (requires 50)", http.StatusBadRequest)
+		respondError(w, http.StatusBadRequest, "Not enough points (requires 50)", nil)
 		return
 	}
 
@@ -62,12 +61,12 @@ func HandleGetUserAliases(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, "Failed to fetch user info", err)
 		return
 	}
 	aliases, err := store.GetUserAliases(user.ID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, "Failed to get user aliases", err)
 		return
 	}
 	respondJSON(w, aliases)
@@ -88,7 +87,7 @@ func HandleAddAlias(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := store.AddUserAlias(user.ID, req.Alias); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, "Failed to add alias", err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -109,7 +108,7 @@ func HandleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := store.DeleteUserAlias(user.ID, req.Alias); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, "Failed to delete alias", err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

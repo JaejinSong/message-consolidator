@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { escapeHTML } from './utils.js';
+import { escapeHTML, TimeService } from './utils.js';
 import { I18N_DATA } from './locales.js';
 import { calculateHeatmapLevel, calculateSourceDistribution, processTimeSeriesData } from './logic.js';
 
@@ -79,7 +79,7 @@ export const insightsRenderer = {
         for (let i = 29; i >= 0; i--) {
             const d = new Date(today);
             d.setDate(d.getDate() - i);
-            const dateStr = d.toISOString().split('T')[0];
+            const dateStr = TimeService.getLocalDateString(d);
 
             const taskCount = stats.daily_completions[dateStr] || 0;
             const level = calculateHeatmapLevel(taskCount);

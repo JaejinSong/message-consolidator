@@ -1,3 +1,20 @@
+# Release Notes - v2.3.2 (2026-03-24 02:05 UTC)
+
+## 🏗️ Utility Standardization & Backend Logic Consolidation
+- **[REFACTOR] Utility Standardization**: Replaced custom date/time utilities with native `Intl` and `Date` APIs for better performance and maintainability.
+- **[REFACTOR] Logic Consolidation**: Unified message post-processing logic (`PrepareMessagesForClient`) and error handling (`respondError`) across the backend.
+- **[STABILITY] Enhanced Error Response**: Standardized error responses and added explicit handling for cancelled requests (HTTP 499).
+- **[PERF] Optimized Data Operations**: Improved database row scanning (`scanMessageRow`) and slice operations using Go 1.21+ `slices` package.
+
+---
+
+# Release Notes - v2.3.1 (2026-03-24 07:55 UTC)
+
+## ⚡ Turso Connection Stability Patch
+- **[FIX] "Stream is Closed" Error Mitigation**: Refined the database connection pool settings specifically for Turso/libsql to prevent idle streams from timing out. Set `MaxIdleConns: 2` and shortened `ConnMaxIdleTime` to 30s for better resource recycling.
+
+---
+
 # Release Notes - v2.3.0 (2026-03-24 07:44 UTC)
 
 ## 🚀 Database Migration to Turso (libsql) & Stability Fixes

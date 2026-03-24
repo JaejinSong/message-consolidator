@@ -4,18 +4,44 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"message-consolidator/config"
 	"message-consolidator/logger"
+	"net/url"
 	"strings"
 	"time"
 
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
+	_ "modernc.org/sqlite"
 )
 
-func InitDB(dbURL, authToken string) error {
+func InitDB(cfg *config.Config) error {
 	var err error
+	dbURL := cfg.TursoURL
+	authToken := cfg.TursoToken
+
+	// Remote-only Turso (libsql://)
 	if strings.HasPrefix(dbURL, "libsql://") && authToken != "" {
 		dbURL = fmt.Sprintf("%s?authToken=%s", dbURL, authToken)
 	}
+
+	// Embedded Replicas (file: path with sync_url)
+	if strings.HasPrefix(dbURL, "file:") && cfg.TursoSyncURL != "" {
+		u, parseErr := url.Parse(dbURL)
+		if parseErr == nil {
+			q := u.Query()
+			q.Set("sync_url", cfg.TursoSyncURL)
+			if authToken != "" {
+				q.Set("authToken", authToken)
+			}
+			if cfg.TursoSyncInterval != "" {
+				q.Set("sync_interval", cfg.TursoSyncInterval)
+			}
+			u.RawQuery = q.Encode()
+			dbURL = u.String()
+			logger.Infof("[DB] Embedded Replica mode enabled: %s (Sync with %s)", u.Path, cfg.TursoSyncURL)
+		}
+	}
+
 	db, err = sql.Open("libsql", dbURL)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
@@ -42,19 +68,21 @@ func InitDB(dbURL, authToken string) error {
 
 func setupConnectionPool(connStr string) {
 	// Turso/libSQL은 Neon과 달리 서버리스 구조이므로 커넥션 풀을 유연하게 가져감.
-	// 로컬 SQLite 파일인 경우와 원격 libSQL 주소인 경우를 구분할 수 있음.
-	idleConns := 10
+	// 커넥션이 끊어지는 'stream is closed' 오류 방지를 위해 더 보수적으로 설정함.
+	idleConns := 2
 	if strings.HasPrefix(connStr, "libsql://") {
-		logger.Infof("[DB] Turso detected. Setting MaxIdleConns to 5, MaxOpenConns to 20.")
-		idleConns = 5
+		// 원격 서버리스 환경에서는 유휴 커넥션 유지로 인한 bad connection 방지를 위해 0으로 설정
+		logger.Infof("[DB] Turso detected. Setting MaxIdleConns to 0, MaxOpenConns to 20.")
+		idleConns = 0
 	} else {
-		logger.Infof("[DB] SQLite (Local) detected. Setting MaxIdleConns to %d, MaxOpenConns to 10.", idleConns)
-		idleConns = 2
+		logger.Infof("[DB] SQLite (Local) detected. Setting MaxIdleConns to 2, MaxOpenConns to 10.")
 	}
 	db.SetMaxIdleConns(idleConns)
 	db.SetMaxOpenConns(20)
-	db.SetConnMaxLifetime(3 * time.Minute)
-	db.SetConnMaxIdleTime(1 * time.Minute)
+	db.SetConnMaxLifetime(1 * time.Minute)
+	if idleConns > 0 {
+		db.SetConnMaxIdleTime(30 * time.Second)
+	}
 }
 
 func createCoreTables() error {
@@ -281,8 +309,8 @@ func RefreshCache(email string) error {
 	var newActive = []ConsolidatedMessage{}
 	newKnownTS := make(map[string]bool)
 	for rows.Next() {
-		var m ConsolidatedMessage
-		if err := rows.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt, &m.Category, &m.Deadline); err != nil {
+		m, err := scanMessageRow(rows)
+		if err != nil {
 			return err
 		}
 		newActive = append(newActive, m)
@@ -304,8 +332,8 @@ func RefreshCache(email string) error {
 
 	var newArchive = []ConsolidatedMessage{}
 	for rowsArch.Next() {
-		var m ConsolidatedMessage
-		if err := rowsArch.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt, &m.Category, &m.Deadline); err != nil {
+		m, err := scanMessageRow(rowsArch)
+		if err != nil {
 			return err
 		}
 		newArchive = append(newArchive, m)
@@ -320,6 +348,17 @@ func RefreshCache(email string) error {
 	cacheMu.Unlock()
 
 	return nil
+}
+
+func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedMessage, error) {
+	var m ConsolidatedMessage
+	err := rows.Scan(
+		&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task,
+		&m.Requester, &m.Assignee, &m.AssignedAt, &m.Link,
+		&m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted,
+		&m.CreatedAt, &m.CompletedAt, &m.Category, &m.Deadline,
+	)
+	return m, err
 }
 
 func EnsureCacheInitialized(email string) error {

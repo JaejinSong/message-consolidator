@@ -190,7 +190,9 @@ export const archive = {
         exportFormats.forEach(({ id, path, ext }) => {
             document.getElementById(id)?.addEventListener('click', () => {
                 const query = state.archiveSearch ? `?q=${encodeURIComponent(state.archiveSearch)}` : '';
-                const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_');
+                const now = new Date();
+                const pad = (n) => String(n).padStart(2, '0');
+                const timestamp = `${now.getFullYear()}_${pad(now.getMonth() + 1)}_${pad(now.getDate())}_${pad(now.getHours())}_${pad(now.getMinutes())}`;
                 downloadFile(`${path}${query}`, `Message_Archive_${timestamp}.${ext}`);
                 exportModal.classList.add('hidden');
             });

@@ -3,30 +3,12 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"message-consolidator/ai"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
 )
-
-// applyTranslations는 추출된 메시지 배열에 번역본을 매핑하는 공통 헬퍼 함수입니다.
-func applyTranslations(msgs []store.ConsolidatedMessage, lang string) {
-	if lang == "" || len(msgs) == 0 {
-		return
-	}
-	ids := make([]int, len(msgs))
-	for i, m := range msgs {
-		ids[i] = m.ID
-	}
-	translations, err := store.GetTaskTranslationsBatch(ids, lang)
-	if err == nil {
-		for i := range msgs {
-			if t, ok := translations[msgs[i].ID]; ok {
-				msgs[i].Task = t
-			}
-		}
-	}
-}
 
 // 공통 헬퍼: HTTP 요청에서 JSON 파싱 및 Body 안전하게 닫기 (메모리 누수 방지)
 func decodeJSON(r *http.Request, v interface{}) error {
@@ -34,10 +16,24 @@ func decodeJSON(r *http.Request, v interface{}) error {
 	return json.NewDecoder(r.Body).Decode(v)
 }
 
-// 공통 헬퍼: HTTP 응답에 JSON 포맷으로 쓰기
+// respondJSON 공통 헬퍼: HTTP 응답에 JSON 포맷으로 쓰기
 func respondJSON(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
+}
+
+// respondError 공통 헬퍼: 에러 응답 처리 및 로깅 중앙화
+func respondError(w http.ResponseWriter, code int, message string, err error) {
+	if errors.Is(err, context.Canceled) {
+		http.Error(w, "Client Closed Request", 499)
+		return
+	}
+	if err != nil {
+		logger.Errorf("[API-ERROR] %s: %v", message, err)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
 
 // TranslateMessagesByID is a helper to translate specific messages for a user

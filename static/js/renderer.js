@@ -1,6 +1,6 @@
 import { state, updateStats } from './state.js';
 import { I18N_DATA } from './locales.js';
-import { formatDisplayTime, escapeHTML } from './utils.js';
+import { TimeService, escapeHTML } from './utils.js';
 
 import { sortAndFilterMessages, classifyMessages, calculateHeatmapLevel, calculateSourceDistribution, getDeadlineBadge, parseMarkdown } from './logic.js';
 import { DOM_IDS, STATUS_STATES, UI_TEXT } from './constants.js';
@@ -121,7 +121,7 @@ export const renderer = {
         const lang = state.currentLang;
         const i18n = I18N_DATA[lang];
         const ts = m.timestamp || m.created_at;
-        const displayTime = formatDisplayTime(ts, lang);
+        const displayTime = TimeService.formatDisplayTime(ts, lang);
         const deadlineBadge = getDeadlineBadge(ts, m.done, lang || 'ko');
 
         const sourceIcon = m.source === 'slack' ? ICONS.slack : m.source === 'whatsapp' ? ICONS.whatsapp : ICONS.gmail;
@@ -364,8 +364,8 @@ export const renderer = {
                     <td>${escapeHTML(m.task)}</td>
                     <td>${escapeHTML(m.requester)}</td>
                     <td>${escapeHTML(m.assignee)}</td>
-                    <td>${formatDisplayTime(ts, state.currentLang)}</td>
-                    <td>${compTs !== '-' ? formatDisplayTime(compTs, state.currentLang) : '-'}</td>
+                    <td>${TimeService.formatDisplayTime(ts, state.currentLang)}</td>
+                    <td>${compTs !== '-' ? TimeService.formatDisplayTime(compTs, state.currentLang) : '-'}</td>
                 </tr>
             `;
         }).join('');
@@ -482,34 +482,10 @@ export const renderer = {
         const toast = document.createElement('div');
         toast.className = `toast-popup toast-${type}`;
 
-        // 기존에 떠있는 토스트 개수를 파악하여 위로 쌓이게(Stack) 오프셋 계산
         const existingToasts = document.querySelectorAll('.toast-popup');
-        const bottomOffset = 30 + (existingToasts.length * 70); // 기존 알림 1개당 70px씩 위로
+        const bottomOffset = 30 + (existingToasts.length * 70);
+        toast.style.bottom = `${bottomOffset}px`;
 
-        // 글래스모피즘 기반의 세련된 토스트 스타일링 (CSS 파일 없이 즉시 동작)
-        Object.assign(toast.style, {
-            position: 'fixed',
-            bottom: `${bottomOffset}px`,
-            right: '30px',
-            background: type === 'error' ? 'rgba(255, 59, 48, 0.9)' : 'rgba(0, 212, 255, 0.9)',
-            color: '#fff',
-            padding: '16px 28px',
-            borderRadius: '16px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            zIndex: '9999',
-            opacity: '0',
-            transform: 'translateY(20px)',
-            transition: 'all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-        });
-
-        // 상태 아이콘 추가
         const icon = document.createElement('span');
         icon.textContent = type === 'error' ? '⚠️' : '✅';
         toast.appendChild(icon);
@@ -520,16 +496,14 @@ export const renderer = {
 
         document.body.appendChild(toast);
 
-        // 부드러운 등장 애니메이션
+        // Transition in
         requestAnimationFrame(() => {
-            toast.style.opacity = '1';
-            toast.style.transform = 'translateY(0)';
+            toast.classList.add('show');
         });
 
-        // 3초 후 부드럽게 퇴장
+        // Transition out
         setTimeout(() => {
-            toast.style.opacity = '0';
-            toast.style.transform = 'translateY(20px)';
+            toast.classList.remove('show');
             setTimeout(() => toast.remove(), 400);
         }, 3000);
     },

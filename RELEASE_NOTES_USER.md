@@ -1,3 +1,24 @@
+# Release Notes (User) - v2.3.2 (2026-03-24 02:05 UTC)
+- **[REFACTOR] Utility Standardization**: Replaced custom date/time utilities with native `Intl` and `Date` APIs for better performance and maintainability.
+- **[REFACTOR] Logic Consolidation**: Unified message post-processing logic and error handling across the backend.
+- **[STABILITY] Enhanced Error Response**: Standardized error responses and added explicit handling for cancelled requests (HTTP 499).
+- **[PERF] Optimized Data Operations**: Improved database row scanning and slice operations using Go 1.21+ `slices` package.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.3.2 (2026-03-24 02:05 UTC)
+- **[REFACTOR] 유틸리티 표준화**: 커스텀 날짜/시간 유틸리티를 브라우저 내장 `Intl` 및 `Date` API로 교체하여 성능 및 유지보수성을 향상했습니다.
+- **[REFACTOR] 로직 통합**: 백엔드 메시지 후처리 및 에러 핸들링 로직을 중앙 서비스 레이어로 통합하여 일관성을 확보했습니다.
+- **[STABILITY] 에러 응답 표준화**: 응답 체계 표준화 및 중단된 요청(HTTP 499)에 대한 명시적 처리를 추가하여 안정성을 높였습니다.
+- **[PERF] 데이터 처리 최적화**: Go 1.21+ `slices` 패키지 활용 및 DB 로우 스캔 로직 최적화로 처리 속도를 개선했습니다.
+
+---
+
+# Release Notes (User) - v2.3.1 (2026-03-24 07:55 UTC)
+- **[STABILITY] Enhanced DB Connection Reliability**: Optimized connection pooling for Turso/libsql to resolve intermittent "stream is closed" errors. This ensures more stable service performance.
+
+---
+
 # Release Notes (User) - v2.3.0 (2026-03-23 12:45 UTC)
 
 ## 🚀 Major Infrastructure Migration to Turso (libsql)

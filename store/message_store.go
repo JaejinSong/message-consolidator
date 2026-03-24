@@ -197,8 +197,9 @@ func DeleteMessages(email string, ids []int) error {
 	placeholders := make([]string, len(ids))
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
-	for i := range ids {
+	for i, id := range ids {
 		placeholders[i] = "?"
+		args[i+1] = id
 	}
 
 	query := fmt.Sprintf("UPDATE messages SET is_deleted = 1 WHERE user_email = ? AND id IN (%s)", strings.Join(placeholders, ","))
@@ -223,8 +224,9 @@ func HardDeleteMessages(email string, ids []int) error {
 	placeholders := make([]string, len(ids))
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
-	for i := range ids {
+	for i, id := range ids {
 		placeholders[i] = "?"
+		args[i+1] = id
 	}
 
 	query := fmt.Sprintf("DELETE FROM messages WHERE user_email = ? AND id IN (%s)", strings.Join(placeholders, ","))
@@ -249,8 +251,9 @@ func RestoreMessages(email string, ids []int) error {
 	placeholders := make([]string, len(ids))
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
-	for i := range ids {
+	for i, id := range ids {
 		placeholders[i] = "?"
+		args[i+1] = id
 	}
 
 	query := fmt.Sprintf("UPDATE messages SET is_deleted = 0, done = 0, completed_at = NULL WHERE user_email = ? AND id IN (%s)", strings.Join(placeholders, ","))

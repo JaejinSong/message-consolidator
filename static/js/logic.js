@@ -1,5 +1,6 @@
 import { I18N_DATA } from './locales.js';
 import { ICONS } from './icons.js';
+import { TimeService } from './utils.js';
 
 /**
  * @file logic.js
@@ -37,9 +38,9 @@ export function sortAndFilterMessages(messages, currentTab, searchQuery) {
     const isVisible = (m) => {
         if (!m.done) return true;
         const ts = m.completed_at || m.timestamp || m.created_at;
-        if (!ts) return true; // 예외 처리: 날짜 정보가 전혀 없는 경우
-        const refDate = new Date(ts);
-        const diffDays = (new Date() - refDate) / (1000 * 60 * 60 * 24);
+        if (!ts) return true;
+        
+        const diffDays = TimeService.getDiffInDays(new Date(ts), new Date());
         return diffDays <= ARCHIVE_THRESHOLD_DAYS;
     };
 
@@ -162,7 +163,7 @@ export function processTimeSeriesData(history, days) {
     if (history && Array.isArray(history)) {
         const cutoffDate = new Date(today);
         cutoffDate.setDate(cutoffDate.getDate() - days);
-        const cutoffStr = cutoffDate.toISOString().split('T')[0];
+        const cutoffStr = TimeService.getLocalDateString(cutoffDate);
 
         history.forEach(item => {
             historyMap[item.date] = item.counts || {};
@@ -176,7 +177,7 @@ export function processTimeSeriesData(history, days) {
     for (let i = days - 1; i >= 0; i--) {
         const d = new Date(today);
         d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
+        const dateStr = TimeService.getLocalDateString(d);
 
         const counts = historyMap[dateStr] || {};
         const total = Object.values(counts).reduce((a, b) => a + b, 0);

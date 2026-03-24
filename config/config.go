@@ -18,6 +18,8 @@ type Config struct {
 	AppBaseURL             string
 	TursoURL               string
 	TursoToken             string
+	TursoSyncURL           string
+	TursoSyncInterval      string
 	GeminiAnalysisModel    string
 	GeminiTranslationModel string
 	LogLevel               string
@@ -66,6 +68,8 @@ func LoadConfig() *Config {
 		AppBaseURL:             os.Getenv("APP_BASE_URL"),
 		TursoURL:               os.Getenv("TURSO_DATABASE_URL"),
 		TursoToken:             os.Getenv("TURSO_AUTH_TOKEN"),
+		TursoSyncURL:           os.Getenv("TURSO_SYNC_URL"),
+		TursoSyncInterval:      os.Getenv("TURSO_SYNC_INTERVAL"),
 		LogLevel:               logLevel,
 		GeminiAnalysisModel:    geminiAnalysisModel,
 		GeminiTranslationModel: geminiTranslationModel,

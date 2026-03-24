@@ -17,13 +17,13 @@ describe('insightsRenderer.js', () => {
         const glance = document.getElementById('dailyGlance');
         expect(glance.textContent).toContain('42');
         expect(glance.textContent).toContain('14:00');
-        expect(glance.textContent).toContain('완벽합니다');
+        expect(glance.textContent).toContain('원활하게');
     });
 
     it('should show warning in glance when abandoned tasks exist', () => {
         const data = { total_completed: 10, peak_time: '10:00', abandoned_tasks: 5 };
         insightsRenderer.renderDailyGlance(data, 'ko');
-        expect(document.getElementById('dailyGlance').textContent).toContain('방치되었습니다');
+        expect(document.getElementById('dailyGlance').textContent).toContain('정체 중입니다');
     });
 
     it('should render achievements with locked/unlocked states', () => {

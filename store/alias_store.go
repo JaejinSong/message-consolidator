@@ -1,6 +1,7 @@
 package store
 
 import (
+	"slices"
 	"strings"
 )
 
@@ -32,12 +33,12 @@ func NormalizeName(tenantEmail, name string) string {
 
 	// 3. Check App User Aliases
 	for userID, aliases := range aliasCache {
-		for _, alias := range aliases {
-			if strings.ToLower(alias) == nameLower {
-				for _, u := range userCache {
-					if u.ID == userID {
-						return u.Name
-					}
+		if slices.ContainsFunc(aliases, func(alias string) bool {
+			return strings.ToLower(alias) == nameLower
+		}) {
+			for _, u := range userCache {
+				if u.ID == userID {
+					return u.Name
 				}
 			}
 		}

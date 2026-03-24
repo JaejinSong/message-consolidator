@@ -20,9 +20,9 @@ describe('utils.js - formatDisplayTime', () => {
     expect(formatDisplayTime(now, 'ko')).toBe('방금 전');
   });
 
-  it('should return "1m ago" for 1 minute ago (en)', () => {
+  it('should return "1 min. ago" for 1 minute ago (en)', () => {
     const oneMinAgo = new Date(Date.now() - 60000).toISOString();
-    expect(formatDisplayTime(oneMinAgo, 'en')).toBe('1m ago');
+    expect(formatDisplayTime(oneMinAgo, 'en')).toBe('1 min. ago');
   });
 });
 

@@ -1426,3 +1426,36 @@ body.light-theme .chart-tooltip {
     background: rgba(255, 255, 255, 0.95);
     color: #334155;
 }
+/* Toast Notifications */
+.toast-popup {
+    position: fixed;
+    right: 30px;
+    color: #fff;
+    padding: 16px 28px;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    font-size: 0.95rem;
+    font-weight: 600;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.toast-popup.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast-error {
+    background: rgba(255, 59, 48, 0.9);
+}
+
+.toast-success {
+    background: rgba(0, 212, 255, 0.9);
+}

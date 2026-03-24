@@ -27,73 +27,85 @@ export const safeAsync = (fn, onError) => async function (...args) {
 };
 
 /**
- * 날짜 문자열을 다국어가 지원되는 상대 시간 포맷(방금 전, n분 전 등) 또는 지정된 시간대로 변환합니다.
- * @param {string} isoStr - 변환할 날짜 문자열
- * @param {string} lang - 현재 설정된 언어 코드 (예: 'ko', 'en')
- * @returns {string} 포맷팅된 시간 문자열
+ * TimeService provides a centralized system for all date/time operations.
  */
-export const formatDisplayTime = (isoStr, lang) => {
-    if (!isoStr) return '-';
+export const TimeService = {
+    /**
+     * Returns a 'YYYY-MM-DD' string for the user's local timezone.
+     */
+    getLocalDateString(date = new Date()) {
+        return date.toLocaleDateString('en-CA');
+    },
 
-    let dateStr = isoStr;
-    // Handle legacy suffix from database
-    if (typeof dateStr === 'string') {
-        if (dateStr.includes(' KST')) dateStr = dateStr.replace(' KST', ' +0900');
-        else if (dateStr.includes(' JKT')) dateStr = dateStr.replace(' JKT', ' +0700');
-        else if (dateStr.includes(' ICT')) dateStr = dateStr.replace(' ICT', ' +0700');
-        else if (dateStr.match(/^\d{2}:\d{2}$/)) {
-            return dateStr;
+    /**
+     * Calculates the absolute difference in days between two dates.
+     */
+    getDiffInDays(date1, date2) {
+        return Math.floor(Math.abs(date1 - date2) / (1000 * 60 * 60 * 24));
+    },
+
+    /**
+     * Formats a date string into a user-friendly display string using Intl APIs.
+     * Supports relative time (e.g., '3m ago') and absolute time (e.g., 'MM-DD HH:mm').
+     */
+    formatDisplayTime(isoStr, lang = 'en') {
+        if (!isoStr) return '-';
+
+        let dateStr = isoStr;
+        // Legacy handling
+        if (typeof dateStr === 'string') {
+            dateStr = dateStr.replace(' KST', ' +0900').replace(' JKT', ' +0700').replace(' ICT', ' +0700');
+            if (dateStr.match(/^\d{2}:\d{2}$/)) return dateStr;
         }
-    }
 
-    try {
         const date = new Date(dateStr);
         if (isNaN(date.getTime())) return isoStr;
 
-        // 상대 시간 계산 (당일 24시간 이내)
         const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMins / 60);
+        const diffSec = Math.floor((now - date) / 1000);
         const i18n = I18N_DATA[lang] || I18N_DATA['en'];
 
-        if (diffHours < 24 && now.getDate() === date.getDate()) {
-            if (diffMins < 1) return i18n.justNow || '방금 전';
-            if (diffMins < 60) return (i18n.minAgo || '{n}m ago').replace('{n}', diffMins);
-            return (i18n.hourAgo || '{n}h ago').replace('{n}', diffHours);
+        // Use Intl.RelativeTimeFormat for recent times (within 24 hours)
+        if (diffSec < 86400 && date.getDate() === now.getDate()) {
+            if (diffSec < 60) return i18n.justNow || '방금 전';
+            
+            const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'always', style: 'short' });
+            if (diffSec < 3600) {
+                return rtf.format(-Math.floor(diffSec / 60), 'minute');
+            }
+            return rtf.format(-Math.floor(diffSec / 3600), 'hour');
         }
 
-        const yesterdayDate = new Date(now);
-        yesterdayDate.setDate(now.getDate() - 1);
-        const isYesterday = (date.getDate() === yesterdayDate.getDate() &&
-            date.getMonth() === yesterdayDate.getMonth() &&
-            date.getFullYear() === yesterdayDate.getFullYear());
+        // Yesterday and older
+        const isSameYear = date.getFullYear() === now.getFullYear();
+        const options = {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        };
 
-        const hh = String(date.getHours()).padStart(2, '0');
-        const min = String(date.getMinutes()).padStart(2, '0');
+        if (!isSameYear) options.year = 'numeric';
+
+        // Check if it was "yesterday"
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const isYesterday = date.toDateString() === yesterday.toDateString();
 
         if (isYesterday) {
-            const ydayLabel = i18n.yesterday || '어제';
-            return `${ydayLabel} ${hh}:${min}`;
+            const timePart = date.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit', hour12: false });
+            return `${i18n.yesterday || '어제'} ${timePart}`;
         }
 
-        // 7일 이내면 요일 표시
-        const diffDays = Math.floor(diffHours / 24);
-        if (diffDays < 7) {
-            const dayNames = i18n.dayNames || ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            const dayName = dayNames[date.getDay()];
-            return `${dayName} ${hh}:${min}`;
-        }
-
-        // 그 외엔 MM-DD HH:mm (타임존 제거하여 공간 확보)
-        const mm = String(date.getMonth() + 1).padStart(2, '0');
-        const dd = String(date.getDate()).padStart(2, '0');
-
-        return `${mm}-${dd} ${hh}:${min}`;
-    } catch (e) {
-        return isoStr;
+        return new Intl.DateTimeFormat(lang, options).format(date).replace(',', '');
     }
 };
+
+// Compatibility exports
+export const getLocalDateString = TimeService.getLocalDateString;
+export const getDiffInDays = TimeService.getDiffInDays;
+export const formatDisplayTime = TimeService.formatDisplayTime;
 
 /**
  * XSS 방지를 위해 문자열 내 특수 문자를 HTML 엔티티로 치환합니다.

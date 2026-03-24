@@ -38,7 +38,7 @@ COPY --from=builder /tmp/usr/whatap /usr/whatap
 # Copy application artifacts
 COPY --from=builder /app/message-consolidator .
 COPY --from=builder /app/static-min ./static
-COPY RELEASE_NOTES_USER.md whatap.conf entrypoint.sh ./
+COPY RELEASE_NOTES_USER.md whatap.conf entrypoint.sh security.conf ./
 RUN chmod +x entrypoint.sh && \
     mkdir -p /usr/whatap/agent && \
     ln -s /app/whatap.conf /usr/whatap/agent/whatap.conf

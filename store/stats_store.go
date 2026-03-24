@@ -3,20 +3,8 @@ package store
 import (
 	"fmt"
 	"sync"
-	"time"
 )
 
-// getWorkingDaysAgo calculates the time 'days' working days ago from 'now'.
-func getWorkingDaysAgo(days int, now time.Time) time.Time {
-	t := now
-	for i := 0; i < days; {
-		t = t.AddDate(0, 0, -1)
-		if t.Weekday() != time.Saturday && t.Weekday() != time.Sunday {
-			i++
-		}
-	}
-	return t
-}
 
 func GetUserStats(email string, userTz string) (UserStats, error) {
 	var stats UserStats
@@ -25,10 +13,9 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 	stats.HourlyActivity = make(map[int]int)
 
 	var wg sync.WaitGroup
-	dbTz := userTz
-	if dbTz == "" {
-		dbTz = "UTC"
-	}
+	
+	// Centralized SQLite offset calculation
+	sqliteOffset := GetSQLiteOffset(userTz)
 
 	// 1. Total Completed
 	wg.Add(1)
@@ -64,12 +51,12 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 	go func() {
 		defer wg.Done()
 		q := `
-		SELECT strftime('%Y-%m-%d', completed_at) as d, COUNT(*) as c
+		SELECT strftime('%Y-%m-%d', completed_at, ?) as d, COUNT(*) as c
 		FROM messages 
 		WHERE user_email = ? AND done = 1 AND is_deleted = 0 
-		AND completed_at > datetime('now', '-30 days')
+		AND completed_at > datetime('now', ?, '-30 days')
 		GROUP BY 1 ORDER BY 1`
-		rows, err := db.Query(q, email)
+		rows, err := db.Query(q, sqliteOffset, email, sqliteOffset)
 		if err == nil {
 			defer rows.Close()
 			for rows.Next() {
@@ -87,11 +74,11 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 	go func() {
 		defer wg.Done()
 		q := `
-		SELECT strftime('%H', completed_at) as hr, COUNT(*) as c
+		SELECT strftime('%H', completed_at, ?) as hr, COUNT(*) as c
 		FROM messages 
 		WHERE user_email = ? AND done = 1 AND is_deleted = 0 AND completed_at IS NOT NULL
 		GROUP BY 1 ORDER BY 1`
-		rows, err := db.Query(q, email)
+		rows, err := db.Query(q, sqliteOffset, email)
 		if err == nil {
 			defer rows.Close()
 			for rows.Next() {
@@ -118,18 +105,22 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		}
 	}()
 
-	// 6. Abandoned Tasks (> 3 days)
+	// 6. Abandoned Tasks (> 3 days) - Excluding tasks assigned to 'me' or the user's name
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		var userName string
+		_ = db.QueryRow("SELECT name FROM users WHERE email = ?", email).Scan(&userName)
 
-		threshold := getWorkingDaysAgo(3, time.Now()).Format(time.RFC3339)
+		threshold := GetLocalThreshold(userTz, 3)
+		
 		q := `
 		SELECT COUNT(*) FROM messages 
 		WHERE user_email = ? AND done = 0 AND is_deleted = 0 
-		AND created_at < ?`
-		_ = db.QueryRow(q, email, threshold).Scan(&stats.AbandonedTasks)
+		AND created_at < ? AND (assignee != ? AND assignee != 'me')`
+		_ = db.QueryRow(q, email, threshold, userName).Scan(&stats.AbandonedTasks)
 	}()
+
 
 	// 7. Source Distribution
 	wg.Add(1)

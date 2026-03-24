@@ -2,6 +2,7 @@ package store
 
 import (
 	"message-consolidator/logger"
+	"slices"
 	"strings"
 )
 
@@ -56,12 +57,12 @@ func AddContactMapping(email, repName, aliases string) error {
 		if _, ok := contactsCache[email]; !ok {
 			contactsCache[email] = []AliasMapping{}
 		}
-		for i, m := range contactsCache[email] {
-			if m.RepName == repName {
-				contactsCache[email][i].Aliases = aliases
-				found = true
-				break
-			}
+		idx := slices.IndexFunc(contactsCache[email], func(m AliasMapping) bool {
+			return m.RepName == repName
+		})
+		if idx >= 0 {
+			contactsCache[email][idx].Aliases = aliases
+			found = true
 		}
 		if !found {
 			contactsCache[email] = append(contactsCache[email], AliasMapping{RepName: repName, Aliases: aliases})
@@ -96,13 +97,9 @@ func SaveWhatsAppContact(email, number, name string) error {
 	if exists {
 		// Check if number is already in aliases
 		parts := strings.Split(currentAliases, ",")
-		found := false
-		for _, p := range parts {
-			if strings.TrimSpace(p) == number {
-				found = true
-				break
-			}
-		}
+		found := slices.ContainsFunc(parts, func(p string) bool {
+			return strings.TrimSpace(p) == number
+		})
 		if found {
 			return nil // Already mapped
 		}
@@ -122,10 +119,10 @@ func GetNameByWhatsAppNumber(email, number string) string {
 
 	for _, m := range mappings {
 		parts := strings.Split(m.Aliases, ",")
-		for _, p := range parts {
-			if strings.TrimSpace(p) == number {
-				return m.RepName
-			}
+		if slices.ContainsFunc(parts, func(p string) bool {
+			return strings.TrimSpace(p) == number
+		}) {
+			return m.RepName
 		}
 	}
 	return ""
@@ -148,10 +145,10 @@ func NormalizeContactName(email, rawName string) string {
 	// If it's a number, try exact match first
 	for _, m := range mappings {
 		aliases := strings.Split(m.Aliases, ",")
-		for _, alias := range aliases {
-			if strings.TrimSpace(strings.ToLower(alias)) == normalizedRaw {
-				return m.RepName
-			}
+		if slices.ContainsFunc(aliases, func(alias string) bool {
+			return strings.TrimSpace(strings.ToLower(alias)) == normalizedRaw
+		}) {
+			return m.RepName
 		}
 	}
 
@@ -165,12 +162,9 @@ func DeleteContactMapping(email, repName string) error {
 		metadataMu.Lock()
 		defer metadataMu.Unlock()
 		if mappings, ok := contactsCache[email]; ok {
-			for i, m := range mappings {
-				if m.RepName == repName {
-					contactsCache[email] = append(mappings[:i], mappings[i+1:]...)
-					break
-				}
-			}
+			contactsCache[email] = slices.DeleteFunc(mappings, func(m AliasMapping) bool {
+				return m.RepName == repName
+			})
 		}
 	}
 	return err

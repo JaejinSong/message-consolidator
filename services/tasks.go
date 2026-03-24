@@ -52,6 +52,32 @@ func FormatMessagesForClient(email string, msgs []store.ConsolidatedMessage) {
 	}
 }
 
+// ApplyTranslations 매핑 헬퍼 (handlers에서 이동됨)
+func ApplyTranslations(msgs []store.ConsolidatedMessage, lang string) {
+	if lang == "" || len(msgs) == 0 {
+		return
+	}
+	ids := make([]int, len(msgs))
+	for i, m := range msgs {
+		ids[i] = m.ID
+	}
+	translations, err := store.GetTaskTranslationsBatch(ids, lang)
+	if err == nil {
+		for i := range msgs {
+			if t, ok := translations[msgs[i].ID]; ok {
+				msgs[i].Task = t
+			}
+		}
+	}
+}
+
+// PrepareMessagesForClient unifies translations, stripping, and formatting.
+func PrepareMessagesForClient(email string, msgs []store.ConsolidatedMessage, lang string) {
+	ApplyTranslations(msgs, lang)
+	StripOriginalText(msgs)
+	FormatMessagesForClient(email, msgs)
+}
+
 // HandleTaskCompletion orchestrates the process of marking a task as done,
 // updating gamification stats, and potentially recording statistics for analytics.
 func HandleTaskCompletion(email string, taskID int, done bool) (GamificationResult, error) {

@@ -32,7 +32,7 @@ func main() {
 		cfg.AutoArchiveDays = 6
 	}
 	store.SetAutoArchiveDays(cfg.AutoArchiveDays)
-	if err := store.InitDB(cfg.TursoURL, cfg.TursoToken); err != nil {
+	if err := store.InitDB(cfg); err != nil {
 		log.Fatalf("DB Init failed: %v", err)
 	}
 
