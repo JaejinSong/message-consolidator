@@ -1,3 +1,23 @@
+# Release Notes (User) - v2.3.3 (2026-03-24 03:30 UTC)
+- **[REFACTOR] SQL Query Architecture**: Standardized data projections by introducing SQL `VIEW`s (`v_messages`, `v_users`). Consolidated redundant query logic into centralized, parameterized SQL files for improved maintainability.
+- **[STABILITY] Automated View Management**: Implemented automatic database view creation/refresh during application startup to ensure schema consistency.
+- **[SYS] Enhanced Deployment Validation**: Integrated frontend testing (`npm test`) as a mandatory step in the deployment pipeline (`deploy.sh`) for pre-release verification.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.3.3 (2026-03-24 03:30 UTC)
+
+## 🏗️ SQL 쿼리 아키텍처 리팩토링 및 뷰 도입
+
+- **[REFACTOR] SQL 쿼리 표준화**: `v_messages`, `v_users` 등 SQL `VIEW`를 도입하여 데이터 프로젝션 방식을 표준화했습니다. 중복된 쿼리 로직을 중앙 집중식 파일로 통합하고 파라미터화하여 유지보수성을 극대화했습니다.
+- **[STABILITY] 뷰 자동 관리**: 애플리케이션 시작 시 데이터베이스 뷰를 자동으로 생성 및 갱신하도록 설계하여 스키마 정합성을 상시 보장합니다.
+
+## 🛡️ 배포 안정성 프로세스 강화
+
+- **[SYS] 코드 검증 자동화 단계 고도화**: 배포 스크립트(`deploy.sh`) 내에 프론트엔드 테스트(`npm test`) 과정을 필수로 추가하여, 업데이트 시 발생할 수 있는 결함을 사전에 차단하는 견고한 검역 체계를 구축했습니다.
+
+---
+
 # Release Notes (User) - v2.3.2 (2026-03-24 02:05 UTC)
 - **[REFACTOR] Utility Standardization**: Replaced custom date/time utilities with native `Intl` and `Date` APIs for better performance and maintainability.
 - **[REFACTOR] Logic Consolidation**: Unified message post-processing logic and error handling across the backend.

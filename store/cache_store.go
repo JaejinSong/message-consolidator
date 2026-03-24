@@ -31,3 +31,26 @@ var (
 func SetAutoArchiveDays(days int) {
 	autoArchiveDays = days
 }
+
+func ResetForTest() {
+	cacheMu.Lock()
+	messageCache = make(map[string][]ConsolidatedMessage)
+	archiveCache = make(map[string][]ConsolidatedMessage)
+	knownTS = make(map[string]map[string]bool)
+	cacheInitialized = make(map[string]bool)
+	cacheMu.Unlock()
+
+	metadataMu.Lock()
+	userCache = make(map[string]*User)
+	aliasCache = make(map[int][]string)
+	scanCache = make(map[string]string)
+	dirtyScanKeys = make(map[string]bool)
+	tokenCache = make(map[string]string)
+	tenantAliasCache = make(map[string]map[string]string)
+	contactsCache = make(map[string][]AliasMapping)
+	metadataMu.Unlock()
+
+	archiveMu.Lock()
+	lastArchiveTime = time.Time{}
+	archiveMu.Unlock()
+}

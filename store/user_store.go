@@ -9,7 +9,7 @@ func GetAllUsers() ([]User, error) {
 	if len(userCache) == 0 {
 		metadataMu.Unlock()
 		// Load from DB if cache is empty
-		rows, err := db.Query("SELECT id, email, COALESCE(name, ''), COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), points, streak, level, xp, daily_goal, last_completed_at, created_at, streak_freezes FROM users")
+		rows, err := db.Query(SQL.GetAllUsers)
 		if err != nil {
 			return nil, err
 		}
@@ -56,9 +56,9 @@ func GetOrCreateUser(email, name, picture string) (*User, error) {
 func updateAndCacheUser(email, name, picture string) (*User, error) {
 	var u User
 	err := WithDBRetry("GetOrCreateUser", func() error {
-		errQuery := db.QueryRow("SELECT id, email, COALESCE(name, ''), COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), points, streak, level, xp, daily_goal, last_completed_at, created_at, streak_freezes FROM users WHERE email = ?", email).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &u.LastCompletedAt, &u.CreatedAt, &u.StreakFreezes)
+		errQuery := db.QueryRow(SQL.GetUserByEmail, email).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &u.LastCompletedAt, &u.CreatedAt, &u.StreakFreezes)
 		if errQuery == sql.ErrNoRows {
-			return db.QueryRow("INSERT INTO users (email, name, picture) VALUES (?, ?, ?) RETURNING id, email, name, COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), points, streak, level, xp, daily_goal, last_completed_at, created_at, streak_freezes", email, name, picture).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &u.LastCompletedAt, &u.CreatedAt, &u.StreakFreezes)
+			return db.QueryRow(SQL.CreateUserReturningAll, email, name, picture, 5).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &u.LastCompletedAt, &u.CreatedAt, &u.StreakFreezes)
 		}
 		if errQuery != nil {
 			return errQuery
@@ -76,7 +76,7 @@ func updateAndCacheUser(email, name, picture string) (*User, error) {
 		}
 
 		if needsUpdate {
-			_, errUpdate := db.Exec("UPDATE users SET name = ?, picture = ? WHERE email = ?", u.Name, u.Picture, email)
+			_, errUpdate := db.Exec(SQL.UpdateUserNamePicture, u.Name, u.Picture, email)
 			return errUpdate
 		}
 		return nil
@@ -93,12 +93,22 @@ func updateAndCacheUser(email, name, picture string) (*User, error) {
 	return &u, nil
 }
 
+func CreateUser(email, name string) error {
+	_, err := db.Exec(SQL.CreateUser, email, name)
+	return err
+}
+
+func UpdateUserNamePicture(email, name, picture string) error {
+	_, err := db.Exec(SQL.UpdateUserNamePicture, name, picture, email)
+	return err
+}
+
 func UpdateUserWAJID(email, wajid string) error {
-	_, err := db.Exec("UPDATE users SET wa_jid = ? WHERE email = ?", wajid, email)
+	_, err := db.Exec(SQL.UpdateUserWAJID, wajid, email)
 	return err
 }
 
 func UpdateUserSlackID(email, slackID string) error {
-	_, err := db.Exec("UPDATE users SET slack_id = ? WHERE email = ?", slackID, email)
+	_, err := db.Exec(SQL.UpdateUserSlackID, slackID, email)
 	return err
 }

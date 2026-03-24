@@ -5,10 +5,7 @@ import (
 )
 
 func UpdateUserGamification(email string, points, streak, level, xp, dailyGoal int, lastCompleted *time.Time, streakFreezes int) error {
-	_, err := db.Exec(`
-		UPDATE users 
-		SET points = ?, streak = ?, level = ?, xp = ?, daily_goal = ?, last_completed_at = ?, streak_freezes = ? 
-		WHERE email = ?`,
+	_, err := db.Exec(SQL.UpdateUserGamification,
 		points, streak, level, xp, dailyGoal, lastCompleted, streakFreezes, email)
 
 	if err == nil {
@@ -28,7 +25,7 @@ func UpdateUserGamification(email string, points, streak, level, xp, dailyGoal i
 }
 
 func GetAchievements() ([]Achievement, error) {
-	rows, err := db.Query("SELECT id, name, COALESCE(description, ''), COALESCE(icon, ''), criteria_type, criteria_value, target_value, xp_reward FROM achievements")
+	rows, err := db.Query(SQL.GetAchievements)
 	if err != nil {
 		return nil, err
 	}
@@ -46,8 +43,7 @@ func GetAchievements() ([]Achievement, error) {
 }
 
 func GetUserAchievements(userID int) ([]UserAchievement, error) {
-	query := "SELECT user_id, achievement_id, unlocked_at FROM user_achievements WHERE user_id = ?"
-	rows, err := db.Query(query, userID)
+	rows, err := db.Query(SQL.GetUserAchievements, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +61,7 @@ func GetUserAchievements(userID int) ([]UserAchievement, error) {
 }
 
 func UnlockAchievement(userID, achievementID int) error {
-	_, err := db.Exec("INSERT INTO user_achievements (user_id, achievement_id) VALUES (?, ?) ON CONFLICT DO NOTHING", userID, achievementID)
+	_, err := db.Exec(SQL.UnlockAchievement, userID, achievementID)
 	return err
 }
 
@@ -87,8 +83,7 @@ func CheckAndUnlockAchievements(user User) ([]Achievement, error) {
 	}
 
 	var totalCompleted int
-	query := "SELECT COUNT(*) FROM messages WHERE user_email = ? AND done = 1"
-	_ = db.QueryRow(query, user.Email).Scan(&totalCompleted)
+	_ = db.QueryRow(SQL.GetTotalCompleted, user.Email).Scan(&totalCompleted)
 
 	var newlyUnlocked []Achievement
 	for _, ach := range achievements {

@@ -30,7 +30,7 @@ func LoadMetadata() error {
 	logger.Infof("[CACHE] Initializing metadata cache from DB...")
 
 	// 1. Load Users (TRIM name for consistent mapping)
-	rows, err := db.Query("SELECT id, email, COALESCE(TRIM(name), ''), COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), created_at FROM users")
+	rows, err := db.Query(SQL.LoadUsersSimple)
 	if err != nil {
 		return fmt.Errorf("failed to load users: %w", err)
 	}
@@ -48,7 +48,7 @@ func LoadMetadata() error {
 	}
 
 	// 2. Load User Aliases
-	aliasRows, err := db.Query("SELECT user_id, alias_name FROM user_aliases")
+	aliasRows, err := db.Query(SQL.LoadUserAliasesAll)
 	if err != nil {
 		return fmt.Errorf("failed to load user aliases: %w", err)
 	}
@@ -72,7 +72,7 @@ func LoadMetadata() error {
 
 	// 3. Load Scan Metadata
 	logger.Infof("[SCAN] Loading existing scan metadata into memory...")
-	scanRows, err := db.Query("SELECT user_email, source, target_id, last_ts FROM scan_metadata")
+	scanRows, err := db.Query(SQL.LoadScanMetadataAll)
 	if err != nil {
 		return fmt.Errorf("failed to load scan metadata: %w", err)
 	}
@@ -90,7 +90,7 @@ func LoadMetadata() error {
 
 	// 4. Load Gmail Tokens
 	logger.Infof("[SCAN] Loading existing gmail tokens into memory...")
-	tokenRows, err := db.Query("SELECT user_email, token_json FROM gmail_tokens")
+	tokenRows, err := db.Query(SQL.LoadGmailTokensAll)
 	if err != nil {
 		return fmt.Errorf("failed to load gmail tokens: %w", err)
 	}
@@ -105,7 +105,7 @@ func LoadMetadata() error {
 	}
 
 	// 5. Load Tenant Aliases
-	tenantRows, err := db.Query("SELECT user_email, original_name, primary_name FROM tenant_aliases")
+	tenantRows, err := db.Query(SQL.LoadTenantAliasesAll)
 	if err != nil {
 		return fmt.Errorf("failed to load tenant aliases: %w", err)
 	}
@@ -123,7 +123,7 @@ func LoadMetadata() error {
 	}
 
 	// 6. Load Contacts
-	contactRows, err := db.Query("SELECT user_email, rep_name, aliases FROM contacts")
+	contactRows, err := db.Query(SQL.LoadContactsAll)
 	if err == nil {
 		defer contactRows.Close()
 		for contactRows.Next() {
@@ -160,11 +160,7 @@ func UpdateLastScan(userEmail, source, targetID, ts string) error {
 }
 
 func PersistScanMetadata(userEmail, source, targetID, ts string) error {
-	query := `INSERT INTO scan_metadata (user_email, source, target_id, last_ts)
-		VALUES (?, ?, ?, ?)
-		ON CONFLICT (user_email, source, target_id)
-		DO UPDATE SET last_ts = EXCLUDED.last_ts;`
-	_, err := db.Exec(query, userEmail, source, targetID, ts)
+	_, err := db.Exec(SQL.UpsertScanMetadata, userEmail, source, targetID, ts)
 	return err
 }
 
@@ -194,10 +190,7 @@ func PersistAllScanMetadata(userEmail string) {
 		}
 		defer tx.Rollback() // 성공 시 Commit 되므로 지장 없음
 
-		stmt, err := tx.Prepare(`INSERT INTO scan_metadata (user_email, source, target_id, last_ts)
-			VALUES (?, ?, ?, ?)
-			ON CONFLICT (user_email, source, target_id)
-			DO UPDATE SET last_ts = EXCLUDED.last_ts;`)
+		stmt, err := tx.Prepare(SQL.UpsertScanMetadata)
 		if err != nil {
 			return err
 		}
@@ -295,6 +288,6 @@ func RemoveActiveSlackThread(email, channelID, threadTS string) error {
 	delete(dirtyScanKeys, key)
 	metadataMu.Unlock()
 
-	_, err := db.Exec("DELETE FROM scan_metadata WHERE user_email = ? AND source = 'slack_thread' AND target_id = ?", email, targetID)
+	_, err := db.Exec(SQL.DeleteScanMetadataSlackThread, email, "slack_thread", targetID)
 	return err
 }

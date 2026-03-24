@@ -86,68 +86,39 @@ func setupConnectionPool(connStr string) {
 }
 
 func createCoreTables() error {
-	query := `
-	CREATE TABLE IF NOT EXISTS users (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		email TEXT UNIQUE,
-		name TEXT,
-		slack_id TEXT,
-		wa_jid TEXT,
-		picture TEXT,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);
-	CREATE TABLE IF NOT EXISTS user_aliases (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		user_id INTEGER REFERENCES users(id),
-		alias_name TEXT,
-		UNIQUE(user_id, alias_name)
-	);
-	CREATE TABLE IF NOT EXISTS gmail_tokens (
-		user_email TEXT PRIMARY KEY,
-		token_json TEXT NOT NULL,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);
-	CREATE TABLE IF NOT EXISTS messages (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		user_email TEXT,
-		source TEXT,
-		room TEXT,
-		task TEXT,
-		requester TEXT,
-		assignee TEXT,
-		assigned_at DATETIME,
-		link TEXT,
-		source_ts TEXT,
-		original_text TEXT,
-		done BOOLEAN DEFAULT 0,
-		is_deleted BOOLEAN DEFAULT 0,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		completed_at DATETIME,
-		category TEXT DEFAULT 'todo'
-	);
-	CREATE TABLE IF NOT EXISTS task_translations (
-		message_id INTEGER REFERENCES messages(id) ON DELETE CASCADE,
-		language TEXT NOT NULL,
-		translated_text TEXT NOT NULL,
-		PRIMARY KEY (message_id, language)
-	);
-	CREATE TABLE IF NOT EXISTS tenant_aliases (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		user_email TEXT NOT NULL,
-		original_name TEXT NOT NULL,
-		primary_name TEXT NOT NULL,
-		UNIQUE(user_email, original_name)
-	);
-	CREATE TABLE IF NOT EXISTS scan_metadata (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		user_email TEXT NOT NULL,
-		source TEXT NOT NULL,
-		target_id TEXT NOT NULL,
-		last_ts TEXT,
-		UNIQUE(user_email, source, target_id)
-	);`
-
-	_, err := db.Exec(query)
+	_, err := db.Exec(SQL.CreateUsersTable)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(SQL.CreateUserAliasesTable)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(SQL.CreateGmailTokensTable)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(SQL.CreateMessagesTable)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(SQL.CreateTaskTranslationsTable)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(SQL.CreateTenantAliasesTable)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(SQL.CreateScanMetadataTable)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(SQL.CreateMessagesView)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(SQL.CreateUsersView)
 	return err
 }
 
@@ -160,6 +131,7 @@ func runMigrations() error {
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN completed_at DATETIME;")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN original_text TEXT;")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN category TEXT DEFAULT 'todo';")
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN deadline TEXT;")
 
 	// Users Gamification Columns
 	_, _ = db.Exec("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0;")
@@ -193,24 +165,10 @@ func migrateExistingData() {
 }
 
 func setupGamification() error {
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS achievements (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL,
-		description TEXT,
-		icon TEXT,
-		criteria_type TEXT,
-		criteria_value INTEGER,
-		target_value INTEGER DEFAULT 0,
-		xp_reward INTEGER DEFAULT 0
-	);`); err != nil {
+	if _, err := db.Exec(SQL.CreateAchievementsTable); err != nil {
 		logger.Errorf("[DB-INIT] Failed to create achievements: %v", err)
 	}
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS user_achievements (
-		user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-		achievement_id INTEGER REFERENCES achievements(id) ON DELETE CASCADE,
-		unlocked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		PRIMARY KEY (user_id, achievement_id)
-	);`); err != nil {
+	if _, err := db.Exec(SQL.CreateUserAchievementsTable); err != nil {
 		logger.Errorf("[DB-INIT] Failed to create user_achievements: %v", err)
 	}
 
@@ -294,13 +252,7 @@ func RefreshCache(email string) error {
 	safeArchiveDays := getArchiveDays()
 
 	// 1. Fetch Active Messages
-	queryActive := fmt.Sprintf(`
-		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') 
-		FROM messages 
-		WHERE user_email = ? AND is_deleted = 0 AND (done = 0 OR (done = 1 AND (completed_at IS NULL OR completed_at > datetime('now', '-%d days'))))
-		ORDER BY created_at DESC 
-		LIMIT 200`, safeArchiveDays)
-	rows, err := db.QueryContext(ctx, queryActive, email)
+	rows, err := db.QueryContext(ctx, SQL.RefreshCacheActive, email, safeArchiveDays)
 	if err != nil {
 		return err
 	}
@@ -318,13 +270,7 @@ func RefreshCache(email string) error {
 	}
 
 	// 2. Fetch Archived Messages (is_deleted = 1 OR long completed)
-	queryArchive := fmt.Sprintf(`
-		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') 
-		FROM messages 
-		WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', '-%d days')))
-		ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
-		LIMIT 100`, safeArchiveDays)
-	rowsArch, err := db.QueryContext(ctx, queryArchive, email)
+	rowsArch, err := db.QueryContext(ctx, SQL.RefreshCacheArchive, email, safeArchiveDays)
 	if err != nil {
 		return err
 	}
@@ -388,8 +334,7 @@ func ArchiveOldTasks() error {
 	safeArchiveDays := getArchiveDays()
 
 	logger.Infof("[DB] Auto-archiving tasks completed more than %d days ago...", safeArchiveDays)
-	query := fmt.Sprintf("UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND done = 1 AND completed_at < datetime('now', '-%d days')", safeArchiveDays)
-	res, err := db.ExecContext(ctx, query)
+	res, err := db.ExecContext(ctx, SQL.ArchiveOldTasks, safeArchiveDays)
 	if err != nil {
 		return err
 	}

@@ -32,17 +32,7 @@ var (
 )
 
 func InitTokenUsageTable() {
-	query := `
-	CREATE TABLE IF NOT EXISTS token_usage (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		user_email VARCHAR(255) NOT NULL,
-		date DATE NOT NULL DEFAULT (date('now')),
-		prompt_tokens INT DEFAULT 0,
-		completion_tokens INT DEFAULT 0,
-		total_tokens INT DEFAULT 0,
-		UNIQUE(user_email, date)
-	);`
-	_, err := db.Exec(query)
+	_, err := db.Exec(SQL.InitTokenUsageTable)
 	if err != nil {
 		logger.Errorf("Failed to initialize token_usage table: %v", err)
 	}
@@ -95,16 +85,7 @@ func FlushTokenUsage() error {
 		}
 		defer tx.Rollback()
 
-		query := `
-			INSERT INTO token_usage (user_email, date, prompt_tokens, completion_tokens, total_tokens)
-			VALUES (?, date('now'), ?, ?, ?)
-			ON CONFLICT (user_email, date)
-			DO UPDATE SET 
-				prompt_tokens = token_usage.prompt_tokens + EXCLUDED.prompt_tokens,
-				completion_tokens = token_usage.completion_tokens + EXCLUDED.completion_tokens,
-				total_tokens = token_usage.total_tokens + EXCLUDED.total_tokens;
-		`
-		stmt, err := tx.Prepare(query)
+		stmt, err := tx.Prepare(SQL.UpsertTokenUsage)
 		if err != nil {
 			return err
 		}
@@ -162,9 +143,7 @@ func GetDailyTokenUsage(email string) (int, int, error) {
 	usageCacheMu.RUnlock()
 
 	var promptNull, completionNull sql.NullInt64
-	query := `SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) FROM token_usage WHERE user_email = ? AND date = date('now')`
-
-	err := db.QueryRow(query, email).Scan(&promptNull, &completionNull)
+	err := db.QueryRow(SQL.GetDailyTokenUsage, email).Scan(&promptNull, &completionNull)
 
 	if err != nil && err != sql.ErrNoRows {
 		return 0, 0, err
@@ -208,12 +187,7 @@ func GetMonthlyTokenUsage(email string) (int, int, error) {
 	usageCacheMu.RUnlock()
 
 	var promptNull, completionNull sql.NullInt64
-	// Query for current month (starting from the 1st day of the current month)
-	query := `SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) 
-			  FROM token_usage 
-			  WHERE user_email = ? AND date >= strftime('%Y-%m-01', 'now')`
-
-	err := db.QueryRow(query, email).Scan(&promptNull, &completionNull)
+	err := db.QueryRow(SQL.GetMonthlyTokenUsage, email).Scan(&promptNull, &completionNull)
 
 	if err != nil && err != sql.ErrNoRows {
 		return 0, 0, err
@@ -250,10 +224,7 @@ func SaveGmailToken(email, tokenJSON string) error {
 	tokenCache[email] = tokenJSON
 	metadataMu.Unlock()
 
-	_, err := db.Exec(`
-		INSERT INTO gmail_tokens (user_email, token_json, updated_at)
-		VALUES (?, ?, DATETIME('now'))
-		ON CONFLICT (user_email) DO UPDATE SET token_json = ?, updated_at = DATETIME('now')`,
+	_, err := db.Exec(SQL.UpsertGmailToken,
 		email, tokenJSON, tokenJSON)
 	return err
 }
@@ -267,7 +238,7 @@ func GetGmailToken(email string) (string, error) {
 	}
 
 	var tokenJSON string
-	err := db.QueryRow("SELECT token_json FROM gmail_tokens WHERE user_email = ?", email).Scan(&tokenJSON)
+	err := db.QueryRow(SQL.GetGmailToken, email).Scan(&tokenJSON)
 	if err != nil {
 		return "", err
 	}

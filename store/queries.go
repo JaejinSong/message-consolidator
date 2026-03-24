@@ -1,0 +1,245 @@
+package store
+
+import (
+	"embed"
+	"fmt"
+	"strings"
+)
+
+//go:embed queries/*.sql
+var queryFS embed.FS
+
+// SQL defines all centralized SQL queries used in the application.
+// This provides a single source of truth for all database operations.
+var SQL = struct {
+	// Schema
+	CreateUsersTable            string
+	CreateUserAliasesTable      string
+	CreateGmailTokensTable      string
+	CreateMessagesTable         string
+	CreateTaskTranslationsTable string
+	CreateTenantAliasesTable    string
+	CreateScanMetadataTable     string
+	CreateAchievementsTable     string
+	CreateUserAchievementsTable string
+	CreateContactsTable         string
+
+	// Views
+	CreateMessagesView string
+	CreateUsersView    string
+
+	// Messages
+	SaveMessage          string
+	SaveMessagesBase     string
+	MarkMessageDone      string
+	UpdateTaskText       string
+	UpdateTaskAssignee   string
+	DeleteMessages       string
+	HardDeleteMessages   string
+	RestoreMessages      string
+	GetMessageByID       string
+	GetMessagesByIDs     string
+	GetMessagesByEmail   string
+	GetArchivedMessagesCountBase string
+	GetArchivedMessagesBase string
+	RefreshCacheActive   string
+	RefreshCacheArchive  string
+	ArchiveOldTasks      string
+
+	// Users
+	GetAllUsers            string
+	GetUserByEmail         string
+	GetUserByEmailSimple   string
+	CreateUser             string
+	CreateUserReturningAll string
+	UpdateUserNamePicture string
+	UpdateUserWAJID        string
+	UpdateUserSlackID      string
+
+	// Tokens
+	InitTokenUsageTable  string
+	UpsertTokenUsage     string
+	GetDailyTokenUsage   string
+	GetMonthlyTokenUsage string
+	UpsertGmailToken     string
+	GetGmailToken        string
+
+	// Contacts
+	UpsertContactMapping string
+	DeleteContactMapping string
+
+	// Stats
+	GetTotalCompleted      string
+	GetPendingMe           string
+	GetDailyGoal           string
+	GetDailyCompletions    string
+	GetHourlyActivity      string
+	GetAbandonedTasks      string
+	GetSourceDistribution  string
+	GetCompletionHistory   string
+
+	// Aliases
+	UpsertTenantAlias   string
+	DeleteTenantAlias   string
+	GetUserAliases      string
+	CreateUserAlias     string
+	DeleteUserAlias     string
+	GetAllTenantAliases string
+	GetAllUserAliases   string
+
+	// Scan
+	LoadUsersSimple              string
+	LoadUserAliasesAll           string
+	LoadScanMetadataAll          string
+	LoadGmailTokensAll           string
+	LoadTenantAliasesAll         string
+	LoadContactsAll              string
+	UpsertScanMetadata           string
+	DeleteScanMetadataSlackThread string
+
+	// Translations
+	GetTaskTranslation      string
+	GetTaskTranslationsBatch string
+	UpsertTaskTranslation    string
+
+	// Gamification
+	UpdateUserGamification string
+	GetAchievements        string
+	GetUserAchievements    string
+	UnlockAchievement      string
+}{}
+
+func init() {
+	if err := loadAllQueries(); err != nil {
+		panic(fmt.Sprintf("failed to load SQL queries: %v", err))
+	}
+}
+
+func loadAllQueries() error {
+	queries := make(map[string]string)
+	entries, err := queryFS.ReadDir("queries")
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".sql") {
+			continue
+		}
+		content, err := queryFS.ReadFile("queries/" + entry.Name())
+		if err != nil {
+			return err
+		}
+
+		lines := strings.Split(string(content), "\n")
+		var currentName string
+		var currentQuery strings.Builder
+
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "-- name: ") {
+				if currentName != "" {
+					queries[currentName] = strings.TrimSpace(currentQuery.String())
+					currentQuery.Reset()
+				}
+				parts := strings.Split(strings.TrimPrefix(trimmed, "-- name: "), " ")
+				currentName = parts[0]
+			} else if strings.HasPrefix(trimmed, "--") {
+				continue
+			} else if currentName != "" {
+				currentQuery.WriteString(line + "\n")
+			}
+		}
+		if currentName != "" {
+			queries[currentName] = strings.TrimSpace(currentQuery.String())
+		}
+	}
+
+	// Map to struct using reflection or manual assignment
+	// Manual assignment is safer and faster for this scale
+	SQL.CreateUsersTable = queries["CreateUsersTable"]
+	SQL.CreateUserAliasesTable = queries["CreateUserAliasesTable"]
+	SQL.CreateGmailTokensTable = queries["CreateGmailTokensTable"]
+	SQL.CreateMessagesTable = queries["CreateMessagesTable"]
+	SQL.CreateTaskTranslationsTable = queries["CreateTaskTranslationsTable"]
+	SQL.CreateTenantAliasesTable = queries["CreateTenantAliasesTable"]
+	SQL.CreateScanMetadataTable = queries["CreateScanMetadataTable"]
+	SQL.CreateAchievementsTable = queries["CreateAchievementsTable"]
+	SQL.CreateUserAchievementsTable = queries["CreateUserAchievementsTable"]
+	SQL.CreateContactsTable = queries["CreateContactsTable"]
+	SQL.CreateMessagesView = queries["CreateMessagesView"]
+	SQL.CreateUsersView = queries["CreateUsersView"]
+
+	SQL.SaveMessage = queries["SaveMessage"]
+	SQL.SaveMessagesBase = queries["SaveMessagesBase"]
+	SQL.MarkMessageDone = queries["MarkMessageDone"]
+	SQL.UpdateTaskText = queries["UpdateTaskText"]
+	SQL.UpdateTaskAssignee = queries["UpdateTaskAssignee"]
+	SQL.DeleteMessages = queries["DeleteMessages"]
+	SQL.HardDeleteMessages = queries["HardDeleteMessages"]
+	SQL.RestoreMessages = queries["RestoreMessages"]
+	SQL.GetMessageByID = queries["GetMessageByID"]
+	SQL.GetMessagesByIDs = queries["GetMessagesByIDs"]
+	SQL.GetMessagesByEmail = queries["GetMessagesByEmail"]
+	SQL.GetArchivedMessagesCountBase = queries["GetArchivedMessagesCountBase"]
+	SQL.GetArchivedMessagesBase = queries["GetArchivedMessagesBase"]
+	SQL.RefreshCacheActive = queries["RefreshCacheActive"]
+	SQL.RefreshCacheArchive = queries["RefreshCacheArchive"]
+	SQL.ArchiveOldTasks = queries["ArchiveOldTasks"]
+
+	SQL.GetAllUsers = queries["GetAllUsers"]
+	SQL.GetUserByEmail = queries["GetUserByEmail"]
+	SQL.GetUserByEmailSimple = queries["GetUserByEmailSimple"]
+	SQL.CreateUser = queries["CreateUser"]
+	SQL.CreateUserReturningAll = queries["CreateUserReturningAll"]
+	SQL.UpdateUserNamePicture = queries["UpdateUserNamePicture"]
+	SQL.UpdateUserWAJID = queries["UpdateUserWAJID"]
+	SQL.UpdateUserSlackID = queries["UpdateUserSlackID"]
+
+	SQL.InitTokenUsageTable = queries["InitTokenUsageTable"]
+	SQL.UpsertTokenUsage = queries["UpsertTokenUsage"]
+	SQL.GetDailyTokenUsage = queries["GetDailyTokenUsage"]
+	SQL.GetMonthlyTokenUsage = queries["GetMonthlyTokenUsage"]
+	SQL.UpsertGmailToken = queries["UpsertGmailToken"]
+	SQL.GetGmailToken = queries["GetGmailToken"]
+
+	SQL.UpsertContactMapping = queries["UpsertContactMapping"]
+	SQL.DeleteContactMapping = queries["DeleteContactMapping"]
+
+	SQL.GetTotalCompleted = queries["GetTotalCompleted"]
+	SQL.GetPendingMe = queries["GetPendingMe"]
+	SQL.GetDailyGoal = queries["GetDailyGoal"]
+	SQL.GetDailyCompletions = queries["GetDailyCompletions"]
+	SQL.GetHourlyActivity = queries["GetHourlyActivity"]
+	SQL.GetAbandonedTasks = queries["GetAbandonedTasks"]
+	SQL.GetSourceDistribution = queries["GetSourceDistribution"]
+	SQL.GetCompletionHistory = queries["GetCompletionHistory"]
+
+	SQL.UpsertTenantAlias = queries["UpsertTenantAlias"]
+	SQL.DeleteTenantAlias = queries["DeleteTenantAlias"]
+	SQL.GetUserAliases = queries["GetUserAliases"]
+	SQL.CreateUserAlias = queries["CreateUserAlias"]
+	SQL.DeleteUserAlias = queries["DeleteUserAlias"]
+	SQL.GetAllTenantAliases = queries["GetAllTenantAliases"]
+	SQL.GetAllUserAliases = queries["GetAllUserAliases"]
+
+	SQL.LoadUsersSimple = queries["LoadUsersSimple"]
+	SQL.LoadUserAliasesAll = queries["LoadUserAliasesAll"]
+	SQL.LoadScanMetadataAll = queries["LoadScanMetadataAll"]
+	SQL.LoadGmailTokensAll = queries["LoadGmailTokensAll"]
+	SQL.LoadTenantAliasesAll = queries["LoadTenantAliasesAll"]
+	SQL.LoadContactsAll = queries["LoadContactsAll"]
+	SQL.UpsertScanMetadata = queries["UpsertScanMetadata"]
+	SQL.DeleteScanMetadataSlackThread = queries["DeleteScanMetadataSlackThread"]
+
+	SQL.GetTaskTranslation = queries["GetTaskTranslation"]
+	SQL.GetTaskTranslationsBatch = queries["GetTaskTranslationsBatch"]
+	SQL.UpsertTaskTranslation = queries["UpsertTaskTranslation"]
+
+	SQL.UpdateUserGamification = queries["UpdateUserGamification"]
+	SQL.GetAchievements = queries["GetAchievements"]
+	SQL.GetUserAchievements = queries["GetUserAchievements"]
+	SQL.UnlockAchievement = queries["UnlockAchievement"]
+
+	return nil
+}

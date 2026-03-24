@@ -21,11 +21,7 @@ func SaveMessage(msg ConsolidatedMessage) (bool, int, error) {
 	msg.Assignee = NormalizeName(msg.UserEmail, msg.Assignee)
 
 	var lastID int
-	query := `INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline) 
-			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			  ON CONFLICT(user_email, source_ts) DO NOTHING
-			  RETURNING id;`
-	err := db.QueryRow(query, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline).Scan(&lastID)
+	err := db.QueryRow(SQL.SaveMessage, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline).Scan(&lastID)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -142,164 +138,101 @@ func GetMessages(email string) ([]ConsolidatedMessage, error) {
 }
 
 func MarkMessageDone(email string, id int, done bool) error {
-	var completeTime *time.Time = nil
+	completedAt := "NULL"
 	if done {
-		now := time.Now()
-		completeTime = &now
+		completedAt = "datetime('now')"
 	}
-	res, err := db.Exec("UPDATE messages SET done = ?, completed_at = ? WHERE id = ? AND user_email = ?", done, completeTime, id, email)
-	if err != nil {
-		return err
+	query := strings.ReplaceAll(SQL.MarkMessageDone, ":completed_at", completedAt)
+
+	_, err := db.Exec(query, done, id, email)
+	if err == nil {
+		RefreshCache(email)
 	}
-
-	rows, _ := res.RowsAffected()
-	logger.Debugf("[STORE] Mark message ID %d done=%v, affected rows: %d", id, done, rows)
-
-	if rows > 0 {
-		_ = RefreshCache(email)
-	}
-
-	return nil
+	return err
 }
 
 func UpdateTaskText(email string, id int, task string) error {
-	res, err := db.Exec("UPDATE messages SET task = ? WHERE id = ? AND user_email = ?", task, id, email)
-	if err != nil {
-		return err
+	_, err := db.Exec(SQL.UpdateTaskText, task, id, email)
+	if err == nil {
+		RefreshCache(email)
 	}
-
-	rows, _ := res.RowsAffected()
-	if rows > 0 {
-		_ = RefreshCache(email)
-	}
-
-	return nil
+	return err
 }
 
 func UpdateTaskAssignee(email string, id int, assignee string) error {
-	res, err := db.Exec("UPDATE messages SET assignee = ? WHERE id = ? AND user_email = ?", assignee, id, email)
-	if err != nil {
-		return err
+	_, err := db.Exec(SQL.UpdateTaskAssignee, assignee, id, email)
+	if err == nil {
+		RefreshCache(email)
 	}
-
-	rows, _ := res.RowsAffected()
-	if rows > 0 {
-		_ = RefreshCache(email)
-	}
-
-	return nil
+	return err
 }
 
 func DeleteMessages(email string, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	placeholders := make([]string, len(ids))
+	query := strings.ReplaceAll(SQL.DeleteMessages, "?", strings.Repeat("?,", len(ids)-1)+"?")
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
 	for i, id := range ids {
-		placeholders[i] = "?"
 		args[i+1] = id
 	}
-
-	query := fmt.Sprintf("UPDATE messages SET is_deleted = 1 WHERE user_email = ? AND id IN (%s)", strings.Join(placeholders, ","))
-	res, err := db.Exec(query, args...)
-	if err != nil {
-		return err
+	_, err := db.Exec(query, args...)
+	if err == nil {
+		RefreshCache(email)
 	}
-
-	rows, _ := res.RowsAffected()
-
-	if rows > 0 {
-		_ = RefreshCache(email)
-	}
-
-	return nil
+	return err
 }
 
 func HardDeleteMessages(email string, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	placeholders := make([]string, len(ids))
+	query := strings.ReplaceAll(SQL.HardDeleteMessages, "?", strings.Repeat("?,", len(ids)-1)+"?")
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
 	for i, id := range ids {
-		placeholders[i] = "?"
 		args[i+1] = id
 	}
-
-	query := fmt.Sprintf("DELETE FROM messages WHERE user_email = ? AND id IN (%s)", strings.Join(placeholders, ","))
-	res, err := db.Exec(query, args...)
-	if err != nil {
-		return err
+	_, err := db.Exec(query, args...)
+	if err == nil {
+		RefreshCache(email)
 	}
-
-	rows, _ := res.RowsAffected()
-
-	if rows > 0 {
-		_ = RefreshCache(email)
-	}
-
-	return nil
+	return err
 }
 
 func RestoreMessages(email string, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	placeholders := make([]string, len(ids))
+	query := strings.ReplaceAll(SQL.RestoreMessages, "?", strings.Repeat("?,", len(ids)-1)+"?")
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
 	for i, id := range ids {
-		placeholders[i] = "?"
 		args[i+1] = id
 	}
-
-	query := fmt.Sprintf("UPDATE messages SET is_deleted = 0, done = 0, completed_at = NULL WHERE user_email = ? AND id IN (%s)", strings.Join(placeholders, ","))
-	res, err := db.Exec(query, args...)
-	if err != nil {
-		return err
+	_, err := db.Exec(query, args...)
+	if err == nil {
+		RefreshCache(email)
 	}
-
-	rows, _ := res.RowsAffected()
-
-	if rows > 0 {
-		// 메모리 캐시 정합성을 위해 해당 사용자의 캐시를 전체 갱신합니다.
-		if err := RefreshCache(email); err != nil {
-			logger.Errorf("[STORE] RefreshCache error during restore for %s: %v", email, err)
-			return err
-		}
-	}
-
-	return nil
+	return err
 }
 
 func GetMessageByID(ctx context.Context, id int) (ConsolidatedMessage, error) {
-	var m ConsolidatedMessage
-	err := db.QueryRowContext(ctx, "SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') FROM messages WHERE id = ?", id).Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt, &m.Category, &m.Deadline)
-	if err != nil {
-		return m, err
-	}
-	return m, nil
+	row := db.QueryRowContext(ctx, SQL.GetMessageByID, id)
+	return scanMessageRow(row)
 }
 
 func GetMessagesByIDs(ctx context.Context, ids []int) ([]ConsolidatedMessage, error) {
 	if len(ids) == 0 {
 		return []ConsolidatedMessage{}, nil
 	}
-
-	placeholders := make([]string, len(ids))
-	args := make([]interface{}, len(ids))
-	for i := range ids {
-		placeholders[i] = "?"
-		args[i] = ids[i]
+	query := strings.ReplaceAll(SQL.GetMessagesByIDs, "?", strings.Repeat("?,", len(ids)-1)+"?")
+	interfaceIds := make([]interface{}, len(ids))
+	for i, v := range ids {
+		interfaceIds[i] = v
 	}
-
-	query := fmt.Sprintf(`SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') 
-	          FROM messages 
-	          WHERE id IN (%s)`, strings.Join(placeholders, ","))
-	rows, err := db.QueryContext(ctx, query, args...)
+	rows, err := db.QueryContext(ctx, query, interfaceIds...)
 	if err != nil {
 		return nil, err
 	}

@@ -12,16 +12,7 @@ type AliasMapping struct {
 }
 
 func InitContactsTable() {
-	query := `
-	CREATE TABLE IF NOT EXISTS contacts (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		user_email VARCHAR(255) NOT NULL,
-		rep_name VARCHAR(255) NOT NULL,
-		aliases TEXT NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		UNIQUE(user_email, rep_name)
-	);`
-	_, err := db.Exec(query)
+	_, err := db.Exec(SQL.CreateContactsTable)
 	if err != nil {
 		logger.Errorf("Failed to initialize contacts table: %v", err)
 	}
@@ -42,13 +33,7 @@ func GetContactsMappings(email string) ([]AliasMapping, error) {
 }
 
 func AddContactMapping(email, repName, aliases string) error {
-	query := `
-		INSERT INTO contacts (user_email, rep_name, aliases)
-		VALUES (?, ?, ?)
-		ON CONFLICT (user_email, rep_name)
-		DO UPDATE SET aliases = EXCLUDED.aliases
-	`
-	_, err := db.Exec(query, email, repName, aliases)
+	_, err := db.Exec(SQL.UpsertContactMapping, email, repName, aliases)
 	if err == nil {
 		metadataMu.Lock()
 		defer metadataMu.Unlock()
@@ -156,8 +141,7 @@ func NormalizeContactName(email, rawName string) string {
 }
 
 func DeleteContactMapping(email, repName string) error {
-	query := `DELETE FROM contacts WHERE user_email = ? AND rep_name = ?`
-	_, err := db.Exec(query, email, repName)
+	_, err := db.Exec(SQL.DeleteContactMapping, email, repName)
 	if err == nil {
 		metadataMu.Lock()
 		defer metadataMu.Unlock()

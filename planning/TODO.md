@@ -67,3 +67,4 @@
 - [x] **시스템 안정성 및 데이터베이스 최적화 (Tech Debt)**
   - [x] Go 백엔드 DB 드라이버를 `lib/pq`에서 `pgx`로 마이그레이션 및 파라미터 바인딩 안정화
   - [x] PgBouncer 등 Connection Pooler 환경에서의 Prepared Statement 충돌(`08P01` 에러) 원천 차단 (`ANY` -> `IN` 전환)
+  - [x] **SQL 쿼리 아키텍처 리팩토링**: SQL `VIEW` 도입을 통한 컬럼 프로젝션 표준화 및 중복 쿼리 통합 완료

@@ -48,15 +48,11 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 
 	// 1. Get Count
 	safeArchiveDays := getArchiveDays()
-
-	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*) 
-		FROM messages 
-		WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', '-%d days')))
-		%s`, safeArchiveDays, searchQuery)
+	daysParam := fmt.Sprintf("-%d days", safeArchiveDays)
+	countQuery := SQL.GetArchivedMessagesCountBase + searchQuery
 
 	var total int
-	err := db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
+	err := db.QueryRowContext(ctx, countQuery, append([]interface{}{filter.Email, daysParam}, args[1:]...)...).Scan(&total)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -86,17 +82,11 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 		orderBy = fmt.Sprintf("%s %s", dbField, order)
 	}
 
-	dataQuery := fmt.Sprintf(`
-		SELECT id, user_email, source, COALESCE(room, ''), task, requester, assignee, assigned_at, link, source_ts, COALESCE(original_text, ''), done, is_deleted, created_at, completed_at, COALESCE(category, 'todo'), COALESCE(deadline, '') 
-		FROM messages 
-		WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', '-%d days')))
-		%s
-		ORDER BY %s
-		LIMIT ? OFFSET ?`, safeArchiveDays, searchQuery, orderBy)
+	dataQuery := fmt.Sprintf("%s %s ORDER BY %s LIMIT ? OFFSET ?", SQL.GetArchivedMessagesBase, searchQuery, orderBy)
+	finalArgs := append([]interface{}{filter.Email, daysParam}, args[1:]...)
+	finalArgs = append(finalArgs, filter.Limit, filter.Offset)
 
-	args = append(args, filter.Limit, filter.Offset)
-
-	rows, err := db.QueryContext(ctx, dataQuery, args...)
+	rows, err := db.QueryContext(ctx, dataQuery, finalArgs...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -133,15 +123,11 @@ func GetArchivedMessagesCount(ctx context.Context, filter ArchiveFilter) (int, e
 	}
 
 	safeArchiveDays := getArchiveDays()
-
-	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*) 
-		FROM messages 
-		WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', '-%d days')))
-		%s`, safeArchiveDays, searchQuery)
+	daysParam := fmt.Sprintf("-%d days", safeArchiveDays)
+	countQuery := SQL.GetArchivedMessagesCountBase + searchQuery
 
 	var total int
-	err := db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
+	err := db.QueryRowContext(ctx, countQuery, append([]interface{}{filter.Email, daysParam}, args[1:]...)...).Scan(&total)
 	return total, err
 }
 
