@@ -125,7 +125,9 @@ export const renderer = {
         const deadlineBadge = getDeadlineBadge(ts, m.done, lang || 'ko');
 
         const sourceIcon = m.source === 'slack' ? ICONS.slack : m.source === 'whatsapp' ? ICONS.whatsapp : ICONS.gmail;
-        const assigneeText = m.assignee === 'me' ? `<span class="assignee-me">${i18n.assigneeMe}</span>` : `<span class="assignee-other">${m.assignee}</span>`;
+        const assigneeText = m.assignee === 'me'
+            ? `<span class="assignee-me">${i18n.assigneeMe}</span>`
+            : `<span class="assignee-other">${escapeHTML(m.assignee)}</span>`;
 
         return `
             <div class="card ${m.source} ${m.done ? 'done' : ''}" id="task-${m.id}" data-id="${m.id}">
@@ -135,8 +137,10 @@ export const renderer = {
                 <div class="col-room">${m.room ? `<span class="badge-room">${escapeHTML(m.room)}</span>` : '-'}</div>
                 <div class="col-task">
                     <span class="task-title">${escapeHTML(m.task)}</span>
-                    ${m.category === 'waiting' && !m.done ? `<div class="waiting-tag" style="font-size: 0.75rem; color: var(--accent-color); margin-top: 4px; font-weight: 600;">⏳ ${i18n.waitingTag || 'Waiting...'}</div>` : ''}
-                    ${m.category === 'promise' && !m.done ? `<div class="promise-tag" style="font-size: 0.75rem; color: #34c759; margin-top: 4px; font-weight: 600;">🤝 ${i18n.promiseTag || 'My Promise'}</div>` : ''}
+                    <div class="tag-container">
+                        ${m.category === 'waiting' && !m.done ? `<span class="tag-badge waiting-tag">⏳ ${i18n.waitingTag || 'Waiting...'}</span>` : ''}
+                        ${m.category === 'promise' && !m.done ? `<span class="tag-badge promise-tag">🤝 ${i18n.promiseTag || 'Commitment'}</span>` : ''}
+                    </div>
                 </div>
                 <div class="col-requester">
                     <strong>${escapeHTML(m.requester)}</strong>

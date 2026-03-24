@@ -1,3 +1,15 @@
+# Release Notes (User) - v2.3.4 (2026-03-24 07:15 UTC)
+- **[FIX] Gmail Assignee Attribution**: Resolved the issue where some Gmail tasks displayed as "undefined" by refining the AI extraction prompt and adding robust backend sanitization.
+- **[STABILITY] Enhanced Data Layer Safety**: Updated database views and internal scanning logic to provide consistent fallbacks for missing assignee data, ensuring 100% reliable rendering in the dashboard.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.3.4 (2026-03-24 07:15 UTC)
+- **[FIX] Gmail 담당자 식별 오류 해결**: 일부 Gmail 업무에서 담당자가 "undefined"로 표시되던 현상을 해결했습니다. AI 추출 프롬프트를 정교화하고 백엔드 검증 로직을 강화하여 데이터 정확도를 높였습니다.
+- **[STABILITY] 데이터 레이어 안정성 강화**: 데이터베이스 뷰와 스캔 로직을 개선하여 누락된 데이터에 대한 자동 보정 기능을 추가했습니다. 이제 대시보드에서 모든 업무의 담당자 정보를 더욱 안정적으로 확인하실 수 있습니다.
+
+---
+
 # Release Notes (User) - v2.3.3 (2026-03-24 03:30 UTC)
 - **[REFACTOR] SQL Query Architecture**: Standardized data projections by introducing SQL `VIEW`s (`v_messages`, `v_users`). Consolidated redundant query logic into centralized, parameterized SQL files for improved maintainability.
 - **[STABILITY] Automated View Management**: Implemented automatic database view creation/refresh during application startup to ensure schema consistency.

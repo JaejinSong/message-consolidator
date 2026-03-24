@@ -1,0 +1,72 @@
+/* Integration Status Styling */
+.integration-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    justify-content: center;
+    align-items: center;
+}
+
+.status-icon-large {
+    width: clamp(80px, 15vw, 100px);
+    height: clamp(80px, 15vw, 100px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    color: var(--text-dim);
+    cursor: default;
+    padding: 0;
+}
+
+.status-icon-large svg {
+    width: 38px;
+    height: 38px;
+    transition: transform 0.3s ease;
+}
+
+.status-label {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+}
+
+.status-icon-large.active svg {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 8px currentColor);
+}
+
+body.light-theme .status-icon-large {
+    background: #fff;
+    border-color: var(--glass-border);
+    box-shadow: var(--shadow-card);
+}
+
+body.light-theme .status-icon-large.active.slack { background: #fdf2f8; border-color: #be185d; color: #be185d; }
+body.light-theme .status-icon-large.active.whatsapp { background: #f0fdf4; border-color: #16a34a; color: #16a34a; }
+body.light-theme .status-icon-large.active.gmail { background: #fef2f2; border-color: #dc2626; color: #dc2626; }
+
+/* Status Pills */
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.gmail-pill {
+    background: rgba(234, 67, 53, 0.08);
+    border: 1px solid rgba(234, 67, 53, 0.25);
+    color: #EA4335;
+}

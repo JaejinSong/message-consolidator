@@ -203,6 +203,7 @@ func createIndexes() {
 		"CREATE INDEX IF NOT EXISTS idx_messages_user_email ON messages (user_email);",
 		"CREATE INDEX IF NOT EXISTS idx_messages_is_deleted ON messages (is_deleted);",
 		"CREATE INDEX IF NOT EXISTS idx_messages_completed_at ON messages (completed_at) WHERE done = 1;",
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_user_source_ts ON messages(user_email, source_ts);",
 		"CREATE INDEX IF NOT EXISTS idx_task_translations_language ON task_translations (language);",
 	}
 	for _, idx := range indexes {

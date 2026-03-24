@@ -35,6 +35,11 @@ func FormatMessagesForClient(email string, msgs []store.ConsolidatedMessage) {
 		msgs[i].Assignee = store.NormalizeName(email, msgs[i].Assignee)
 
 		assignee := strings.TrimSpace(msgs[i].Assignee)
+		if strings.EqualFold(assignee, "undefined") || strings.EqualFold(assignee, "unknown") {
+			msgs[i].Assignee = ""
+			assignee = ""
+		}
+
 		if assignee == "" {
 			continue
 		}

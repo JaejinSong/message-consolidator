@@ -3,3 +3,4 @@ Extract tasks as JSON array: [{"task", "requester", "assignee", "assigned_at", "
 - "category": "todo", "waiting", or "promise".
 - "source_ts": ID from [ID:...].
 - "deadline": Explicit date/time if available.
+- MISSING FIELDS: Use empty string "" for any unknown fields. NEVER use "undefined" or "unknown" as strings.

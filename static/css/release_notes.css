@@ -1,0 +1,26 @@
+/* Release Notes Styles */
+.release-notes-btn {
+    border-color: rgba(236, 178, 46, 0.4);
+    color: #ecb22e;
+}
+
+.release-notes-body {
+    max-height: 50vh;
+    overflow-y: auto;
+    padding-right: 1.5rem;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-color) transparent;
+}
+
+.release-notes-body h1,
+.release-notes-body h2,
+.release-notes-body h3 {
+    color: var(--accent-light);
+    margin: 1.5rem 0 1rem;
+    border-bottom: 1px solid var(--glass-border);
+    padding-bottom: 0.5rem;
+}
+
+.release-notes-body ul { margin-left: 1.5rem; margin-bottom: 1.5rem; }
+.release-notes-body li { margin-bottom: 0.75rem; }
+.release-notes-body strong { color: var(--accent-color); }

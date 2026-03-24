@@ -85,8 +85,8 @@ func GetTaskTranslationsBatch(messageIDs []int, language string) (map[int]string
 		args[i+1] = id
 	}
 
-	querySuffix := fmt.Sprintf(" AND message_id IN (%s)", strings.Join(placeholders, ","))
-	rows, err := db.Query(SQL.GetTaskTranslationsBatch + querySuffix, args...)
+	query := fmt.Sprintf(SQL.GetTaskTranslationsBatch, strings.Join(placeholders, ","))
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}

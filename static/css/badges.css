@@ -1,0 +1,108 @@
+/* Badge & Tag Styles */
+.badge {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--glass-border);
+    padding: 0.4rem 0.8rem;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    transition: all 0.2s ease;
+}
+
+.token-badge {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 600;
+    min-width: fit-content;
+    white-space: nowrap;
+}
+
+.badge-stale {
+    background: rgba(236, 178, 46, 0.1);
+    color: #ecb22e;
+    border-color: rgba(236, 178, 46, 0.3);
+    backdrop-filter: blur(4px);
+    box-shadow: 0 0 10px rgba(236, 178, 46, 0.1);
+}
+
+.badge-abandoned {
+    background: rgba(235, 87, 87, 0.1);
+    color: #eb5757;
+    border-color: rgba(235, 87, 87, 0.3);
+    backdrop-filter: blur(4px);
+    box-shadow: 0 0 15px rgba(235, 87, 87, 0.15);
+    animation: badge-pulse 2s infinite ease-in-out;
+}
+
+body.light-theme .badge-stale {
+    background: rgba(236, 178, 46, 0.08);
+    border-color: rgba(236, 178, 46, 0.2);
+}
+
+body.light-theme .badge-abandoned {
+    background: rgba(235, 87, 87, 0.08);
+    border-color: rgba(235, 87, 87, 0.2);
+}
+
+.badge-room {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--glass-border);
+    padding: 0.25rem 0.6rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body.light-theme .badge-room {
+    background: #e2e8f0;
+    color: #334155;
+    border-color: #cbd5e1;
+}
+
+.tag-container {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.tag-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1.2;
+    border: 1px solid transparent;
+}
+
+.promise-tag {
+    background: rgba(52, 199, 89, 0.1);
+    color: #34c759;
+    border-color: rgba(52, 199, 89, 0.2);
+}
+
+.waiting-tag {
+    background: rgba(0, 242, 255, 0.1);
+    color: var(--accent-color);
+    border-color: rgba(0, 242, 255, 0.2);
+}
+
+body.light-theme .promise-tag {
+    background: #f0fdf4;
+    color: #16a34a;
+    border-color: #bcf0da;
+}
+
+body.light-theme .waiting-tag {
+    background: #f0f9ff;
+    color: #0369a1;
+    border-color: #bae6fd;
+}

@@ -1,0 +1,238 @@
+/* Task Card Styles */
+.task-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.task-list-header {
+    display: flex;
+    padding: 0.8rem 1.5rem;
+    gap: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px 12px 0 0;
+    margin-bottom: 0.2rem;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.col-source { width: 40px; flex-shrink: 0; display: flex; align-items: center; }
+.col-room { width: 180px; flex-shrink: 0; display: flex; align-items: center; overflow: hidden; }
+.col-task {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    overflow: hidden;
+    padding-right: 1rem;
+}
+.col-requester { width: 100px; flex-shrink: 0; display: flex; align-items: center; overflow: hidden; }
+.col-assignee { width: 140px; flex-shrink: 0; display: flex; align-items: center; overflow: hidden; }
+.col-time {
+    width: 150px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    overflow: hidden;
+    gap: 0.5rem;
+}
+.col-actions {
+    width: 140px;
+    flex-shrink: 0;
+    display: flex;
+    gap: 0.4rem;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.assignee-me,
+.assignee-other,
+.col-requester strong {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+
+.card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--accent-color);
+}
+
+body.light-theme .card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+body.light-theme .card:hover {
+    background: #f8fafc;
+    border-color: var(--accent-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.col-source svg {
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.1));
+}
+
+.card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--accent-color);
+}
+
+.card.whatsapp::before { background: #25d366; }
+.card.slack::before { background: #4a154b; }
+.card.gmail::before { background: #EA4335; }
+
+.task-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+}
+
+.meta-val {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Actions Styles */
+.action-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.action-btn svg { pointer-events: none; }
+
+.original-btn {
+    color: var(--accent-color);
+    border-color: rgba(0, 242, 255, 0.3);
+}
+
+.original-btn:hover {
+    background: rgba(0, 242, 255, 0.1);
+    border-color: var(--accent-color);
+}
+
+/* Done Task Styling */
+.card.done {
+    opacity: 0.5;
+    filter: grayscale(1);
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.card.done:hover {
+    opacity: 0.95;
+    filter: grayscale(0);
+}
+
+.card.done .task-title {
+    text-decoration: line-through;
+    color: var(--text-dim);
+}
+
+.card.done::before {
+    background: #666 !important;
+}
+
+.done-btn {
+    background: rgba(0, 242, 255, 0.05);
+    border: 1px solid rgba(0, 242, 255, 0.3);
+    color: var(--accent-color);
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.done-btn:hover {
+    background: rgba(0, 242, 255, 0.2);
+    border-color: var(--accent-color);
+    transform: translateY(-1px);
+}
+
+.card.done .done-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+    border-color: var(--text-main);
+    opacity: 0.6;
+}
+
+.card.done .delete-btn:hover {
+    background: rgba(255, 59, 48, 0.2);
+    border-color: #ff3b30;
+    color: #ff3b30;
+}
+
+.delete-btn {
+    background: rgba(255, 59, 48, 0.1);
+    color: #ff3b30;
+    border: 1px solid rgba(255, 59, 48, 0.3);
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.delete-btn:hover {
+    background: rgba(255, 59, 48, 0.2);
+    border-color: #ff3b30;
+    transform: translateY(-1px);
+}

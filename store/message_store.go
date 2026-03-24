@@ -171,7 +171,7 @@ func DeleteMessages(email string, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	query := strings.ReplaceAll(SQL.DeleteMessages, "?", strings.Repeat("?,", len(ids)-1)+"?")
+	query := fmt.Sprintf(SQL.DeleteMessages, strings.Repeat("?,", len(ids)-1)+"?")
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
 	for i, id := range ids {
@@ -188,7 +188,7 @@ func HardDeleteMessages(email string, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	query := strings.ReplaceAll(SQL.HardDeleteMessages, "?", strings.Repeat("?,", len(ids)-1)+"?")
+	query := fmt.Sprintf(SQL.HardDeleteMessages, strings.Repeat("?,", len(ids)-1)+"?")
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
 	for i, id := range ids {
@@ -205,7 +205,7 @@ func RestoreMessages(email string, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	query := strings.ReplaceAll(SQL.RestoreMessages, "?", strings.Repeat("?,", len(ids)-1)+"?")
+	query := fmt.Sprintf(SQL.RestoreMessages, strings.Repeat("?,", len(ids)-1)+"?")
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
 	for i, id := range ids {
@@ -227,7 +227,7 @@ func GetMessagesByIDs(ctx context.Context, ids []int) ([]ConsolidatedMessage, er
 	if len(ids) == 0 {
 		return []ConsolidatedMessage{}, nil
 	}
-	query := strings.ReplaceAll(SQL.GetMessagesByIDs, "?", strings.Repeat("?,", len(ids)-1)+"?")
+	query := fmt.Sprintf(SQL.GetMessagesByIDs, strings.Repeat("?,", len(ids)-1)+"?")
 	interfaceIds := make([]interface{}, len(ids))
 	for i, v := range ids {
 		interfaceIds[i] = v

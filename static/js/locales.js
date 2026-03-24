@@ -135,7 +135,7 @@ export const I18N_DATA = {
         loginRequiredDesc: "계속하려면 다시 로그인해 주세요.",
         loginWithGoogle: "Google로 로그인",
         waitingTag: "회신 대기",
-        promiseTag: "나의 약속",
+        promiseTag: "확약",
         emptyStateMessages: [
             "훌륭합니다! 지금 당장 커피 한 잔의 여유를 즐기세요. ☕",
             "업무 제로 달성! 당신은 화력 발전소인가요? 🔥",
@@ -301,7 +301,7 @@ export const I18N_DATA = {
         loginRequiredDesc: "Please login again to continue.",
         loginWithGoogle: "Login with Google",
         waitingTag: "Waiting...",
-        promiseTag: "My Promise",
+        promiseTag: "Commitment",
         emptyStateMessages: [
             "Excellent! Enjoy a well-deserved coffee break right now. ☕",
             "Zero tasks! Are you a productivity powerhouse? 🔥",
@@ -457,7 +457,7 @@ export const I18N_DATA = {
         unlocked: "Terbuka",
         locked: "Terkunci",
         waitingTag: "Menunggu...",
-        promiseTag: "Janji Saya",
+        promiseTag: "Komitmen",
         emptyStateMessages: [
             "Luar biasa! Nikmati waktu istirahat kopi Anda sekarang. ☕",
             "Nol tugas! Apakah Anda pembangkit tenaga produktivitas? 🔥",
@@ -613,7 +613,7 @@ export const I18N_DATA = {
         unlocked: "ปลดล็อคแล้ว",
         locked: "ล็อคอยู่",
         waitingTag: "กำลังรอ...",
-        promiseTag: "คำสัญญาของฉัน",
+        promiseTag: "คำยืนยัน",
         emptyStateMessages: [
             "ยอดเยี่ยมมาก! ได้เวลาพักจิบกาแฟสบายๆ แล้วครับ ☕",
             "งานเป็นศูนย์! คุณคือโรงไฟฟ้าด้านผลิตผลหรือเปล่าครับเนี่ย? 🔥",
