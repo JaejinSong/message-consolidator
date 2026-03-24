@@ -19,15 +19,9 @@ go mod tidy
 echo "--> 0.2: Building Go project..."
 go build ./...
 
-echo "--> 0.3: Running Logic Verification..."
-if ! node static/js/verify_logic.js; then
-    echo "❌ Logic verification failed!"
-    exit 1
-fi
-
-echo "--> 0.4: Running Renderer Verification..."
-if ! node static/js/verify_renderer.js; then
-    echo "❌ Renderer verification failed!"
+echo "--> 0.3: Running Frontend Tests (Vitest)..."
+if ! npm test; then
+    echo "❌ Frontend tests failed!"
     exit 1
 fi
 
