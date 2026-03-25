@@ -1,3 +1,4 @@
+// v.2.1.982
 import { state, updateStats } from './state.js';
 import { I18N_DATA } from './locales.js';
 import { TimeService, escapeHTML } from './utils.js';
@@ -125,9 +126,12 @@ export const renderer = {
         const deadlineBadge = getDeadlineBadge(ts, m.done, lang || 'ko');
 
         const sourceIcon = m.source === 'slack' ? ICONS.slack : m.source === 'whatsapp' ? ICONS.whatsapp : ICONS.gmail;
+        
+        // Defensive: default to empty string if keys are missing
+        const meText = i18n?.assigneeMe || 'Me';
         const assigneeText = m.assignee === 'me'
-            ? `<span class="assignee-me">${i18n.assigneeMe}</span>`
-            : `<span class="assignee-other">${escapeHTML(m.assignee)}</span>`;
+            ? `<span class="assignee-me">${meText}</span>`
+            : `<span class="assignee-other">${escapeHTML(m.assignee || '')}</span>`;
 
         return `
             <div class="card ${m.source} ${m.done ? 'done' : ''}" id="task-${m.id}" data-id="${m.id}">
@@ -153,7 +157,7 @@ export const renderer = {
                 </div>
                 <div class="col-actions">
                     <button class="action-btn original-btn show-original" title="View Original">${ICONS.viewOriginal}</button>
-                    <button class="action-btn delete-btn delete-task" title="${i18n.delete}">${ICONS.delete}</button>
+                    <button class="action-btn delete-btn delete-task" title="${i18n?.delete || i18n?.deleteBtnText || 'Delete'}">${ICONS.delete}</button>
                     <button class="done-btn toggle-done">
                         ${m.done ? '↩️' : '✅'}
                     </button>

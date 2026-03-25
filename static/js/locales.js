@@ -1,3 +1,4 @@
+// v.2.1.982
 export const I18N_DATA = {
     ko: {
         subTitle: "자동화된 Slack & WhatsApp 업무 대시보드",
@@ -136,6 +137,8 @@ export const I18N_DATA = {
         loginWithGoogle: "Google로 로그인",
         waitingTag: "회신 대기",
         promiseTag: "확약",
+        assigneeMe: "나",
+        delete: "삭제",
         emptyStateMessages: [
             "훌륭합니다! 지금 당장 커피 한 잔의 여유를 즐기세요. ☕",
             "업무 제로 달성! 당신은 화력 발전소인가요? 🔥",
@@ -302,6 +305,8 @@ export const I18N_DATA = {
         loginWithGoogle: "Login with Google",
         waitingTag: "Waiting...",
         promiseTag: "Commitment",
+        assigneeMe: "Me",
+        delete: "Delete",
         emptyStateMessages: [
             "Excellent! Enjoy a well-deserved coffee break right now. ☕",
             "Zero tasks! Are you a productivity powerhouse? 🔥",
@@ -458,6 +463,8 @@ export const I18N_DATA = {
         locked: "Terkunci",
         waitingTag: "Menunggu...",
         promiseTag: "Komitmen",
+        assigneeMe: "Saya",
+        delete: "Hapus",
         emptyStateMessages: [
             "Luar biasa! Nikmati waktu istirahat kopi Anda sekarang. ☕",
             "Nol tugas! Apakah Anda pembangkit tenaga produktivitas? 🔥",
@@ -614,6 +621,8 @@ export const I18N_DATA = {
         locked: "ล็อคอยู่",
         waitingTag: "กำลังรอ...",
         promiseTag: "คำยืนยัน",
+        assigneeMe: "ฉัน",
+        delete: "ลบ",
         emptyStateMessages: [
             "ยอดเยี่ยมมาก! ได้เวลาพักจิบกาแฟสบายๆ แล้วครับ ☕",
             "งานเป็นศูนย์! คุณคือโรงไฟฟ้าด้านผลิตผลหรือเปล่าครับเนี่ย? 🔥",
