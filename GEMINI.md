@@ -1,24 +1,19 @@
-# Gemini Model Configuration
+# Gemini Configuration (v2.1.982)
 
-모델은 **Gemini 3 Flash Preview** (`gemini-3-flash-preview`)를 기본 모델로 사용한다.
+## Basic Specs
+- **Model**: `gemini-3-flash-preview` (Main), `gemini-3.1-flash-lite-preview` (Translation)
+- **Role**: Analysis, Task Extraction, Code Generation.
 
-## Configuration Details
-- **Model ID**: `gemini-3-flash-preview`
-- **Purpose**: Task extraction, translation, and analysis.
+## Token Optimization Strategy (TEP) 
+> [!IMPORTANT]
+> 토큰 소모를 최소화하면서 논리적 정합성과 품질을 유지합니다.
 
-## Versioning Policy
-- **보수적인 버전 넘버링**: 기능 추가나 구조 개선 시 버전 번호를 급격하게 올리기보다, Patch로 보수적으로 업데이트하며 버전은 2~3 자리 단위를 사용한다. (예: 2.1.981) 버전 이력을 촘촘하게 관리한다.
+1. **Surgical Read**: `view_file` 시 항상 `StartLine`, `EndLine`을 명시하여 필요한 범위(100~200라인 내외)만 로드한다. 위치 식별은 `grep`을 선행한다.
+2. **Artifact Slimming**: `task.md`의 완료 항목은 1줄 요약 후 아카이브하며, 중복된 사용자 요청은 아티팩트에서 제외한다. 
+3. **KI Leverage**: 복잡한 아키텍처나 분석 결과는 `knowledge/`에 저장하고 이후 참조만 하여 분석 비용을 절감한다.
+4. **Logic-First Verification**: 브라우저 기반 테스트를 지양하고 `Node.js`/`Go` 스크립트를 통한 논리 검증을 우선한다.
+5. **Dry Protocol**: 모든 답변과 아티팩트는 불필요한 서술 없이 기술적 팩트 위주로 압축하여 작성한다. (Rule 1.1 및 Rule 4 준수)
 
-## Token Optimization Strategy (Cost Saving)
-- **Model Selection**: 
-    - 분석(Analysis): `gemini-3-flash-preview` (정교한 태스크 추출 및 추론용)
-    - 번역(Translation): `gemini-3.1-flash-lite-preview` (단순 번역은 Lite 모델로 비용 효율화)
-- **Prompt Slimming**: 시스템 프롬프트를 핵심 요구사항 위주로 압축하여 불필요한 컨텍스트 토큰 소모를 줄인다. (최근 `ai/gemini.go` 반영 완료)
-- **Batch Processing**: 여러 업무를 묶음 처리하여 고정 오버헤드 토큰 발생을 억제한다.
-
-## 검증
-## WhaTap 모니터링 정보
-- **Backend Monitoring**: WhaTap Go Agent (`whatap-instrumented/`) 적용
-- **Browser Monitoring (RUM)**: WhaTap Browser Agent 적용
-- **Session Replay**: 100% 샘플링 설정 (`sessionReplaySampleRate: 100`)
-- **리소스 사용량**: 모니터링 에이전트 적용으로 인해 약 **150MB**의 추가 메모리 점유가 발생함을 인지하고 운영해야 함.
+## Monitoring (WhaTap)
+- **Agent**: Go/Browser Agent 적용 (`sessionReplaySampleRate: 100`)
+- **Resource**: 모니터링 에이전트로 인한 **150MB** 메모리 증분 인지 필요.

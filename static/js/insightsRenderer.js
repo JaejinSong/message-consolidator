@@ -10,7 +10,7 @@ import { calculateHeatmapLevel, calculateSourceDistribution, processTimeSeriesDa
 
 // 동적 채널별 고유 색상 매핑
 const SOURCE_COLORS = {
-    slack: '#E01E5A',
+    slack: '#36C5F0',
     whatsapp: '#25D366',
     gmail: '#EA4335',
     default: '#8b5cf6'
@@ -104,24 +104,40 @@ export const insightsRenderer = {
         const container = document.getElementById('sourceDistribution');
         if (!container) return;
 
-        const dist = calculateSourceDistribution(stats.source_distribution);
-        if (Object.keys(dist).length === 0) {
-            container.innerHTML = '<p class="empty-msg">No channel data available.</p>';
-            return;
-        }
+        const lang = state.currentLang || 'ko';
+        const i18n = I18N_DATA[lang];
 
-        let barsHtml = '', legendHtml = '';
-        for (const [source, percentage] of Object.entries(dist)) {
-            if (percentage > 0) {
-                const color = SOURCE_COLORS[source] || SOURCE_COLORS.default;
-                barsHtml += `<div class="stacked-bar-segment" style="width: ${percentage}%; background-color: ${color};"></div>`;
-                legendHtml += `<span style="color: ${color}; font-weight: 600; text-transform: capitalize;">${source} (${percentage}%)</span>`;
+        const distActive = calculateSourceDistribution(stats.source_distribution);
+        const distTotal = calculateSourceDistribution(stats.source_distribution_total);
+
+        const renderBar = (dist, label) => {
+            if (Object.keys(dist).length === 0) {
+                return `<div class="distribution-row"><span class="dist-row-label">${label}</span><p class="empty-msg" style="margin:0.5rem 0;">No data</p></div>`;
             }
-        }
+
+            let barsHtml = '', legendHtml = '';
+            for (const [source, percentage] of Object.entries(dist)) {
+                if (percentage > 0) {
+                    const color = SOURCE_COLORS[source] || SOURCE_COLORS.default;
+                    barsHtml += `<div class="stacked-bar-segment" style="width: ${percentage}%; background-color: ${color};"></div>`;
+                    legendHtml += `<span style="color: ${color}; font-weight: 600; text-transform: capitalize;">${source} (${percentage}%)</span>`;
+                }
+            }
+
+            return `
+                <div class="distribution-row" style="margin-bottom: 1.5rem;">
+                    <div class="dist-row-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                        <span class="dist-row-label" style="font-size:0.9rem; font-weight:700; color:var(--text-main);">${label}</span>
+                    </div>
+                    <div class="stacked-bar-container" style="height:12px; border-radius:6px; overflow:hidden; display:flex; background:var(--glass-border);">${barsHtml}</div>
+                    <div class="distribution-legend" style="display:flex; gap:1rem; flex-wrap:wrap; margin-top:0.5rem; font-size:0.75rem;">${legendHtml}</div>
+                </div>
+            `;
+        };
 
         container.innerHTML = `
-            <div class="stacked-bar-container">${barsHtml}</div>
-            <div class="distribution-legend" style="display:flex; gap:1.2rem; flex-wrap:wrap; justify-content:center; margin-top:1rem; font-size:0.85rem;">${legendHtml}</div>
+            ${renderBar(distTotal, i18n.sourceDistTotal || 'Total (incl. Archive)')}
+            ${renderBar(distActive, i18n.sourceDistCurrent || 'Current Dashboard')}
         `;
     },
 
@@ -225,21 +241,90 @@ export const insightsRenderer = {
         }
 
         const userAchIds = new Set(userList.map(ua => ua.achievement_id));
-        container.innerHTML = allList.map(ach => {
+
+        // Series configuration
+        const SERIES_GROUPS = {
+            'task-master': ['첫 걸음', '태스크 마스터 I', '태스크 마스터 II', '태스크 마스터 III'],
+            'streak': ['스트릭 스타터', '끈기 끝판왕']
+        };
+
+        const belongsToSeries = (name) => {
+            for (const [key, names] of Object.entries(SERIES_GROUPS)) {
+                if (names.includes(name)) return key;
+            }
+            return null;
+        };
+
+        const grouped = new Map();
+        const consolidated = [];
+
+        allList.forEach(ach => {
+            const seriesKey = belongsToSeries(ach.name);
+            if (seriesKey) {
+                if (!grouped.has(seriesKey)) grouped.set(seriesKey, []);
+                grouped.get(seriesKey).push(ach);
+            } else {
+                consolidated.push(ach);
+            }
+        });
+
+        // Consolidate each series
+        grouped.forEach((achievements, key) => {
+            // Sort by target_value to ensure tier order
+            achievements.sort((a, b) => a.target_value - b.target_value);
+
+            // Find the representative: first locked one, or the last unlocked one
+            let representative = achievements[0];
+            for (const ach of achievements) {
+                representative = ach;
+                if (!userAchIds.has(ach.id)) {
+                    break;
+                }
+            }
+            consolidated.push(representative);
+        });
+
+        // Sort: Unlocked first, then by target value or ID
+        consolidated.sort((a, b) => {
+            const aUnlocked = userAchIds.has(a.id);
+            const bUnlocked = userAchIds.has(b.id);
+            if (aUnlocked !== bUnlocked) return bUnlocked ? 1 : -1;
+            return a.target_value - b.target_value;
+        });
+
+        const INITIAL_VISIBLE = 4;
+        const totalCount = consolidated.length;
+
+        let html = consolidated.map((ach, index) => {
             const isUnlocked = userAchIds.has(ach.id);
-            let progress = isUnlocked ? ach.target_value : (ach.criteria_type === 'total_tasks' ? (stats?.total_completed || 0) : (state.userProfile?.level || 1));
+            const isHidden = index >= INITIAL_VISIBLE;
+            
+            let progress = 0;
+            if (isUnlocked) {
+                progress = ach.target_value;
+            } else {
+                switch (ach.criteria_type) {
+                    case 'total_tasks': progress = stats?.total_completed || 0; break;
+                    case 'level': progress = state.userProfile?.level || 1; break;
+                    case 'early_bird': progress = stats?.early_bird_count || 0; break;
+                    case 'daily_total': progress = stats?.max_daily_completed || 0; break;
+                    case 'streak': progress = state.userProfile?.streak || 0; break;
+                    default: progress = 0;
+                }
+            }
             const percent = Math.min(100, Math.round((progress / ach.target_value) * 100));
 
             const localizedName = i18n.achievements?.[ach.name]?.name || ach.name;
             const localizedDesc = i18n.achievements?.[ach.name]?.desc || ach.description;
 
             return `
-                <div class="achievement-card ${isUnlocked ? 'unlocked' : 'locked'}">
+                <div class="achievement-card ${isUnlocked ? 'unlocked' : 'locked'} ${isHidden ? 'hidden-ach' : ''}" 
+                     style="${isHidden ? 'display: none;' : ''}">
                     <div class="achievement-icon">${ach.icon}</div>
                     <div class="achievement-info">
                         <div class="achievement-header">
                             <span class="achievement-name">${escapeHTML(localizedName)}</span>
-                            ${isUnlocked ? `<span class="status-badge">${i18n.unlocked}</span>` : ''}
+                            ${isUnlocked ? `<span class="status-badge">${i18n.unlocked || 'Unlocked'}</span>` : ''}
                         </div>
                         <p class="achievement-desc">${escapeHTML(localizedDesc)}</p>
                         <div class="achievement-progress-bar"><div class="progress-fill" style="width: ${percent}%"></div></div>
@@ -250,6 +335,36 @@ export const insightsRenderer = {
                     </div>
                 </div>`;
         }).join('');
+
+        if (totalCount > INITIAL_VISIBLE) {
+            html += `
+                <div class="show-more-achievements">
+                    <button id="btnShowMoreAch" class="glass-btn">
+                        ${i18n.showMore || 'Show More'} <span class="count-pill">${totalCount - INITIAL_VISIBLE}</span>
+                    </button>
+                </div>
+            `;
+        }
+
+        container.innerHTML = html;
+
+        // Bind toggle event
+        const btn = document.getElementById('btnShowMoreAch');
+        if (btn) {
+            btn.addEventListener('click', () => {
+                const hiddenItems = container.querySelectorAll('.hidden-ach');
+                const isExpanding = btn.dataset.expanded !== 'true';
+
+                hiddenItems.forEach(item => {
+                    item.style.display = isExpanding ? 'flex' : 'none';
+                });
+
+                btn.dataset.expanded = isExpanding ? 'true' : 'false';
+                btn.innerHTML = isExpanding 
+                    ? `${i18n.showLess || 'Show Less'}` 
+                    : `${i18n.showMore || 'Show More'} <span class="count-pill">${totalCount - INITIAL_VISIBLE}</span>`;
+            });
+        }
     },
 
     renderAnkiChart(stats, currentChartDays) {
@@ -261,7 +376,7 @@ export const insightsRenderer = {
         const data = processTimeSeriesData(history, currentChartDays);
 
         const width = 800, height = 240;
-        const pad = { t: 20, r: 40, b: 20, l: 40 };
+        const pad = { t: 20, r: 55, b: 20, l: 50 };
         const innerW = width - pad.l - pad.r;
         const innerH = height - pad.t - pad.b;
 
@@ -301,7 +416,7 @@ export const insightsRenderer = {
             <text x="${pad.l + innerW + 10}" y="${pad.t + innerH}" fill="var(--accent-color)" font-size="10" text-anchor="start">0</text>
         `;
 
-        container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="width: 100%; height: 100%; overflow: visible;"><line x1="${pad.l}" y1="${pad.t}" x2="${pad.l + innerW}" y2="${pad.t}" stroke="var(--glass-border)" stroke-dasharray="4" /><line x1="${pad.l}" y1="${pad.t + innerH / 2}" x2="${pad.l + innerW}" y2="${pad.t + innerH / 2}" stroke="var(--glass-border)" stroke-dasharray="4" /><line x1="${pad.l}" y1="${pad.t + innerH}" x2="${pad.l + innerW}" y2="${pad.t + innerH}" stroke="var(--glass-border)" />${labelsHtml}${barsHtml}${lineHtml}</svg><div class="chart-tooltip hidden" id="ankiTooltip"></div>`;
+        container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="width: 100%; height: 100%;"><line x1="${pad.l}" y1="${pad.t}" x2="${pad.l + innerW}" y2="${pad.t}" stroke="var(--glass-border)" stroke-dasharray="4" /><line x1="${pad.l}" y1="${pad.t + innerH / 2}" x2="${pad.l + innerW}" y2="${pad.t + innerH / 2}" stroke="var(--glass-border)" stroke-dasharray="4" /><line x1="${pad.l}" y1="${pad.t + innerH}" x2="${pad.l + innerW}" y2="${pad.t + innerH}" stroke="var(--glass-border)" />${labelsHtml}${barsHtml}${lineHtml}</svg><div class="chart-tooltip hidden" id="ankiTooltip"></div>`;
 
         const tooltip = document.getElementById('ankiTooltip');
         container.querySelectorAll('.chart-bar-group').forEach(group => {

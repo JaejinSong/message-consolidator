@@ -10,13 +10,27 @@ import (
 	"strings"
 	"time"
 
+	"message-consolidator/ai"
+
+	"github.com/whatap/go-api/trace"
 	"golang.org/x/sync/errgroup"
 )
 
-var cfg *config.Config
+var (
+	cfg           *config.Config
+	completionSvc *services.CompletionService
+)
 
 func Init(c *config.Config) {
 	cfg = c
+	if cfg.GeminiAPIKey != "" {
+		gClient, err := ai.NewGeminiClient(context.Background(), cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+		if err != nil {
+			logger.Errorf("[SCANNER] Failed to init GeminiClient for completion service: %v", err)
+		} else {
+			completionSvc = services.NewCompletionService(gClient, &services.DefaultTaskStore{})
+		}
+	}
 }
 
 func StartBackgroundScanner() {
@@ -36,6 +50,9 @@ func StartBackgroundScanner() {
 }
 
 func RunAllScans() {
+	traceCtx, _ := trace.StartWithContext(context.Background(), "Background-RunAllScans")
+	defer trace.End(traceCtx, nil)
+
 	users, err := store.GetAllUsers()
 	if err != nil {
 		logger.Errorf("Scanner Error: Failed to get users: %v", err)
@@ -58,6 +75,18 @@ func RunAllScans() {
 	}
 	if err := eg.Wait(); err != nil {
 		logger.Errorf("Scanner Error: One or more user scans failed: %v", err)
+	}
+
+	// Slack API 호출 낭비를 막기 위해, 봇이 참여한 전체 채널을 1번만 순회하며 모든 유저의 메시지를 일괄 처리합니다.
+	if cfg.SlackToken != "" {
+		ctx, cancel := context.WithTimeout(traceCtx, 60*time.Second)
+		scanSlack(ctx, users)
+		cancel()
+
+		// Slack 스캔 완료 후 각 유저의 메타데이터 영속성 보장
+		for _, u := range users {
+			store.PersistAllScanMetadata(u.Email)
+		}
 	}
 
 	// 글로벌 유지보수 작업 (사용자 루프 밖에서 1번만 실행)
@@ -105,16 +134,12 @@ func scanAllSources(user store.User, aliases []string) {
 	if store.HasGmailToken(user.Email) {
 		eg.Go(func() error {
 			logger.Debugf("[SCAN] Starting Gmail scan for %s", user.Email)
-			channels.ScanGmail(ctx, user.Email, "Korean", cfg)
-			return nil
-		})
-	}
-
-	// 2. Slack 스캔 (병렬 처리)
-	if cfg.SlackToken != "" {
-		eg.Go(func() error {
-			logger.Debugf("[SCAN] Starting Slack scan for %s", user.Email)
-			scanSlack(ctx, user, effectiveAliases)
+			onSent := func(msg store.ConsolidatedMessage) {
+				if completionSvc != nil {
+					completionSvc.ProcessPotentialCompletion(context.Background(), msg)
+				}
+			}
+			channels.ScanGmail(ctx, user.Email, "Korean", cfg, onSent)
 			return nil
 		})
 	}
@@ -133,6 +158,9 @@ func scanAllSources(user store.User, aliases []string) {
 }
 
 func Scan(email string, lang string) {
+	traceCtx, _ := trace.StartWithContext(context.Background(), "ManualScan")
+	defer trace.End(traceCtx, nil)
+
 	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
 		logger.Errorf("[SCAN] Failed to get user %s: %v", email, err)
@@ -142,19 +170,27 @@ func Scan(email string, lang string) {
 	effectiveAliases := getEffectiveAliases(*user, aliases)
 
 	// 수동 스캔도 무한 대기 방지를 위해 타임아웃 적용 (최대 60초)
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(traceCtx, 60*time.Second)
 	defer cancel()
 
 	// Gmail
 	if store.HasGmailToken(email) {
-		channels.ScanGmail(ctx, email, lang, cfg)
+		onSent := func(msg store.ConsolidatedMessage) {
+			if completionSvc != nil {
+				completionSvc.ProcessPotentialCompletion(context.Background(), msg)
+			}
+		}
+		channels.ScanGmail(ctx, email, lang, cfg, onSent)
 	}
 
-	// Slack
-	scanSlack(ctx, *user, effectiveAliases)
+	// Slack (수동 스캔 시 단일 유저라도 동일 인터페이스 사용)
+	scanSlack(ctx, []store.User{*user})
 
 	// WhatsApp
 	scanWhatsApp(ctx, *user, effectiveAliases, lang)
+
+	// 수동 스캔 후 메타데이터 영구 저장
+	store.PersistAllScanMetadata(user.Email)
 
 	// Piggyback: 수동 스캔 완료 시점에 게이미피케이션 데이터 플러시
 	_ = services.FlushGamificationData()

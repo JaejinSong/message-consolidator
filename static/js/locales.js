@@ -118,6 +118,8 @@ export const I18N_DATA = {
         glanceAllClear: "✨ 팀의 모든 업무가 원활하게 진행 중입니다! 병목이 없네요.",
         heatmapTitle: "최근 30일 활동",
         sourceDistTitle: "채널별 분포",
+        sourceDistTotal: "전체(보관함 포함)",
+        sourceDistCurrent: "현재 대시보드",
         waitingTasks: "대기 중인 업무",
         hourlyActivity: "시간대별 활동",
         achievementsTitle: "업적",
@@ -163,10 +165,21 @@ export const I18N_DATA = {
         hourlyTaskTooltip: "{count}개의 업무 완료 ({time})",
         achievements: {
             "Morning Star": { name: "모닝 스타", desc: "오전 9시 이전에 첫 번째 업무를 완료했습니다." },
+            "첫 걸음": { name: "첫 걸음", desc: "첫 번째 업무를 완료했습니다." },
+            "Task Master": { name: "태스크 마스터", desc: "하루에 10개 이상의 업무를 완료했습니다." },
             "Task Master 10": { name: "태스크 마스터 (10)", desc: "누적 업무 10개를 완료했습니다." },
+            "태스크 마스터 I": { name: "태스크 마스터 I", desc: "누적 10개의 업무를 완료했습니다." },
+            "태스크 마스터 II": { name: "태스크 마스터 II", desc: "누적 50개의 업무를 완료했습니다." },
+            "태스크 마스터 III": { name: "태스크 마스터 III", desc: "누적 100개의 업무를 완료했습니다!" },
             "Streak Starter": { name: "스트릭 스타터", desc: "3일 연속으로 업무를 완료했습니다." },
-            "Persistence King": { name: "끈기 끝판왕", desc: "7일 연속으로 업무를 완료했습니다." }
-        }
+            "Persistence King": { name: "끈기 끝판왕", desc: "7일 연속으로 업무를 완료했습니다." },
+            "스트릭 스타터": { name: "스트릭 스타터", desc: "3일 연속으로 업무를 완료했습니다." },
+            "끈기 끝판왕": { name: "끈기 끝판왕", desc: "7일 연속으로 업무를 완료했습니다." },
+            "꾸준함의 시작": { name: "꾸준함의 시작", desc: "레벨 5에 도달했습니다." }
+        },
+        unlocked: "해제됨",
+        showMore: "더 보기",
+        showLess: "접기"
     },
     en: {
         subTitle: "Automated Slack & WhatsApp Task Dashboard",
@@ -286,6 +299,8 @@ export const I18N_DATA = {
         glanceAllClear: "✨ All caught up! No stale tasks found. Keep it up!",
         heatmapTitle: "Activity (Last 30 Days)",
         sourceDistTitle: "Channel Distribution",
+        sourceDistTotal: "Total (incl. Archive)",
+        sourceDistCurrent: "Current Dashboard",
         waitingTasks: "Pending Tasks",
         hourlyActivity: "Hourly Activity",
         achievementsTitle: "Achievements",
@@ -331,10 +346,21 @@ export const I18N_DATA = {
         hourlyTaskTooltip: "{count} tasks completed ({time})",
         achievements: {
             "Morning Star": { name: "Morning Star", desc: "Completed the first task before 9 AM." },
-            "Task Master 10": { name: "Task Master", desc: "Completed 10 or more tasks in a single day." },
+            "첫 걸음": { name: "First Step", desc: "Completed your very first task." },
+            "Task Master": { name: "Daily Task Master", desc: "Completed 10 or more tasks in a single day." },
+            "Task Master 10": { name: "Task Master (10)", desc: "Cumulative 10 tasks completed." },
+            "태스크 마스터 I": { name: "Task Master I", desc: "Cumulative 10 tasks completed." },
+            "태스크 마스터 II": { name: "Task Master II", desc: "Cumulative 50 tasks completed." },
+            "태스크 마스터 III": { name: "Task Master III", desc: "Cumulative 100 tasks completed!" },
             "Streak Starter": { name: "Streak Starter", desc: "Completed tasks for 3 consecutive days." },
-            "Persistence King": { name: "Persistence King", desc: "Completed tasks for 7 consecutive days." }
-        }
+            "Persistence King": { name: "Persistence King", desc: "Completed tasks for 7 consecutive days." },
+            "스트릭 스타터": { name: "Streak Starter", desc: "Completed tasks for 3 consecutive days." },
+            "끈기 끝판왕": { name: "Persistence King", desc: "Completed tasks for 7 consecutive days." },
+            "꾸준함의 시작": { name: "Consistency Starter", desc: "Reached Level 5." }
+        },
+        unlocked: "Unlocked",
+        showMore: "Show More",
+        showLess: "Show Less"
     },
     id: {
         subTitle: "Dasbor Tugas Slack & WhatsApp Otomatis",

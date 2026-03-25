@@ -7,7 +7,7 @@ import {
     processTimeSeriesData,
     getDeadlineBadge,
     parseMarkdown,
-    ARCHIVE_THRESHOLD_DAYS
+    getArchiveThresholdDays
 } from './logic.js';
 
 const mockMessages = [
@@ -19,8 +19,9 @@ const mockMessages = [
 describe('logic.js - sortAndFilterMessages', () => {
     it('should correctly filter tasks for each tab', () => {
         const now = new Date();
-        const recentDate = new Date(now.getTime() - (ARCHIVE_THRESHOLD_DAYS * 0.5) * 24 * 60 * 60 * 1000).toISOString();
-        const oldDate = new Date(now.getTime() - (ARCHIVE_THRESHOLD_DAYS + 1) * 24 * 60 * 60 * 1000).toISOString();
+        const threshold = getArchiveThresholdDays();
+        const recentDate = new Date(now.getTime() - (threshold * 0.5) * 24 * 60 * 60 * 1000).toISOString();
+        const oldDate = new Date(now.getTime() - (threshold + 1) * 24 * 60 * 60 * 1000).toISOString();
 
         const dynamicMock = [
             ...mockMessages,
@@ -173,6 +174,28 @@ describe('logic.js - sortAndFilterMessages (Search)', () => {
         const filteredByRequester = sortAndFilterMessages(messages, 'allTasksTab', 'bob');
         expect(filteredByRequester.length).toBe(1);
         expect(filteredByRequester[0].id).toBe(2);
+    });
+
+    it('should handle special characters in search query', () => {
+        const messages = [
+            { id: 1, task: 'Fix $ bug', requester: 'Alice', source: 'slack', done: false, timestamp: new Date().toISOString() },
+            { id: 2, task: 'Normal task', requester: 'Bob', source: 'slack', done: false, timestamp: new Date().toISOString() }
+        ];
+        const filtered = sortAndFilterMessages(messages, 'allTasksTab', '$');
+        expect(filtered.length).toBe(1);
+        expect(filtered[0].id).toBe(1);
+    });
+
+    it('should handle null or undefined fields graceully during filtering', () => {
+        const brokenMessages = [
+            { id: 1, task: null, requester: undefined, source: 'slack', done: false, timestamp: new Date().toISOString() }
+        ];
+        // Should not throw and should handle as empty strings
+        const filtered = sortAndFilterMessages(brokenMessages, 'allTasksTab', 'anything');
+        expect(filtered.length).toBe(0);
+        
+        const all = sortAndFilterMessages(brokenMessages, 'allTasksTab', '');
+        expect(all.length).toBe(1);
     });
 });
 

@@ -5,35 +5,41 @@ import (
 )
 
 func GetAllUsers() ([]User, error) {
-	metadataMu.Lock()
-	if len(userCache) == 0 {
-		metadataMu.Unlock()
-		// Load from DB if cache is empty
-		rows, err := db.Query(SQL.GetAllUsers)
-		if err != nil {
-			return nil, err
-		}
-		defer rows.Close()
-
-		metadataMu.Lock()
-		for rows.Next() {
-			var u User
-			if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &u.LastCompletedAt, &u.CreatedAt, &u.StreakFreezes); err != nil {
-				rows.Close()
-				return nil, err
-			}
-			userCache[u.Email] = &u
-		}
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
+	// Always load from DB to ensure consistency and discover new users
+	rows, err := db.Query(SQL.GetAllUsers)
+	if err != nil {
+		return nil, err
 	}
-	defer metadataMu.Unlock()
+	defer rows.Close()
 
 	var users []User
-	for _, u := range userCache {
-		users = append(users, *u)
+	metadataMu.Lock()
+	defer metadataMu.Unlock()
+
+	for rows.Next() {
+		var u User
+		var lastCompletedAt, createdAt DBTime
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes); err != nil {
+			return nil, err
+		}
+		if lastCompletedAt.Valid && !lastCompletedAt.Time.IsZero() {
+			u.LastCompletedAt = &lastCompletedAt.Time
+		}
+		u.CreatedAt = createdAt.Time
+
+		// Ensure DailyGoal is at least 1 (safety for legacy data)
+		if u.DailyGoal <= 0 {
+			u.DailyGoal = 5
+		}
+
+		// Sync to cache
+		userCache[u.Email] = &u
+		users = append(users, u)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return users, nil
 }
 
@@ -56,13 +62,18 @@ func GetOrCreateUser(email, name, picture string) (*User, error) {
 func updateAndCacheUser(email, name, picture string) (*User, error) {
 	var u User
 	err := WithDBRetry("GetOrCreateUser", func() error {
-		errQuery := db.QueryRow(SQL.GetUserByEmail, email).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &u.LastCompletedAt, &u.CreatedAt, &u.StreakFreezes)
+		var lastCompletedAt, createdAt DBTime
+		errQuery := db.QueryRow(SQL.GetUserByEmail, email).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes)
 		if errQuery == sql.ErrNoRows {
-			return db.QueryRow(SQL.CreateUserReturningAll, email, name, picture, 5).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &u.LastCompletedAt, &u.CreatedAt, &u.StreakFreezes)
+			errQuery = db.QueryRow(SQL.CreateUserReturningAll, email, name, picture, 5).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes)
 		}
 		if errQuery != nil {
 			return errQuery
 		}
+		if lastCompletedAt.Valid && !lastCompletedAt.Time.IsZero() {
+			u.LastCompletedAt = &lastCompletedAt.Time
+		}
+		u.CreatedAt = createdAt.Time
 
 		// Update if name/picture is provided and different
 		needsUpdate := false
@@ -73,6 +84,10 @@ func updateAndCacheUser(email, name, picture string) (*User, error) {
 		if picture != "" && u.Picture != picture {
 			u.Picture = picture
 			needsUpdate = true
+		}
+
+		if u.DailyGoal <= 0 {
+			u.DailyGoal = 5
 		}
 
 		if needsUpdate {

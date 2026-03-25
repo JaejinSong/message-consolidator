@@ -9,4 +9,5 @@ type RawMessage struct {
 	Text      string
 	Timestamp time.Time
 	ReplyToID string // ID of the message being replied to (if any)
+	ThreadID  string // Slack or Gmail thread ID
 }

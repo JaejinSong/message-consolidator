@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"testing"
+	"time"
 )
 
 func TestSQLFix_BatchOperations(t *testing.T) {
@@ -40,6 +41,7 @@ func TestSQLFix_BatchOperations(t *testing.T) {
 		if err != nil {
 			t.Errorf("DeleteMessages failed: %v", err)
 		}
+		time.Sleep(100 * time.Millisecond) // Allow background RefreshCache to finish
 	})
 
 	// 4. Test HardDeleteMessages
@@ -49,6 +51,7 @@ func TestSQLFix_BatchOperations(t *testing.T) {
 		if err != nil {
 			t.Errorf("HardDeleteMessages failed: %v", err)
 		}
+		time.Sleep(100 * time.Millisecond) // Allow background RefreshCache to finish
 	})
 
 	// 5. Test RestoreMessages

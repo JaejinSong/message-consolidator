@@ -33,14 +33,14 @@ func TestGetSQLiteOffset(t *testing.T) {
 func TestGetWorkingDaysAgo(t *testing.T) {
 	// 2026-03-24 (Tue)
 	now := time.Date(2026, 3, 24, 10, 0, 0, 0, time.UTC)
-	
+
 	// 1 working day ago -> 2026-03-23 (Mon)
 	got1 := GetWorkingDaysAgo(1, now)
 	if got1.Day() != 23 {
 		t.Errorf("GetWorkingDaysAgo(1) = %v; want day 23", got1)
 	}
 
-	// 3 working days ago -> 2026-03-19 (Thu) 
+	// 3 working days ago -> 2026-03-19 (Thu)
 	// (24-Tue, 23-Mon, 20-Fri, 19-Thu)
 	got3 := GetWorkingDaysAgo(3, now)
 	if got3.Day() != 19 {
@@ -54,5 +54,71 @@ func TestGetLocalThreshold(t *testing.T) {
 	_, err := time.Parse(time.RFC3339, res)
 	if err != nil {
 		t.Errorf("GetLocalThreshold produced invalid RFC3339: %v", err)
+	}
+}
+
+func TestDBTime_Scan(t *testing.T) {
+	now := time.Now().Round(time.Second) // 초 단위 절사
+	nowStr := now.Format("2006-01-02 15:04:05")
+
+	tests := []struct {
+		name      string
+		input     interface{}
+		wantValid bool
+		wantTime  time.Time
+		wantErr   bool
+	}{
+		{
+			name:      "Scan time.Time directly",
+			input:     now,
+			wantValid: true,
+			wantTime:  now,
+			wantErr:   false,
+		},
+		{
+			name:      "Scan standard DB string",
+			input:     nowStr,
+			wantValid: true,
+			wantTime:  now,
+			wantErr:   false,
+		},
+		{
+			name:      "Scan RFC3339 string",
+			input:     "2026-03-24T07:28:04Z",
+			wantValid: true,
+			wantTime:  time.Date(2026, 3, 24, 7, 28, 4, 0, time.UTC),
+			wantErr:   false,
+		},
+		{
+			name:      "Scan []byte",
+			input:     []byte("2026-03-24 07:28:04"),
+			wantValid: true,
+			wantTime:  time.Date(2026, 3, 24, 7, 28, 4, 0, time.UTC),
+			wantErr:   false,
+		},
+		{
+			name:      "Scan nil",
+			input:     nil,
+			wantValid: false,
+			wantTime:  time.Time{},
+			wantErr:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var d DBTime
+			err := d.Scan(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Scan() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if d.Valid != tt.wantValid {
+				t.Errorf("Scan() Valid = %v, want %v", d.Valid, tt.wantValid)
+			}
+			if !d.Time.Equal(tt.wantTime) {
+				t.Errorf("Scan() Time = %v, want %v", d.Time, tt.wantTime)
+			}
+		})
 	}
 }

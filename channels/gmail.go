@@ -11,6 +11,7 @@ import (
 	"message-consolidator/types"
 	"mime"
 	"net/mail"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -83,7 +84,7 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 	return svc, nil
 }
 
-func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config) {
+func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, onSent func(store.ConsolidatedMessage)) {
 	logger.Debugf("[SCAN-GMAIL] Starting Gmail scan for %s", email)
 
 	svc, err := GetGmailService(ctx, email)
@@ -95,7 +96,7 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 	since := getGmailScanTime(email)
 	// (in:inbox OR from:me) to get both received and sent emails for thread context
 	query := fmt.Sprintf("(in:inbox OR from:me) after:%d", since.Unix())
-	logger.Infof("[SCAN-GMAIL] Query: %s", query)
+	logger.Debugf("[SCAN-GMAIL] Query: %s", query)
 
 	var allMsgs []*gmail.Message
 	pageToken := ""
@@ -130,7 +131,7 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 		return
 	}
 
-	analyzeAndSaveEmails(ctx, email, language, rawMsgs, classificationMap, toMap, cfg)
+	analyzeAndSaveEmails(ctx, email, language, rawMsgs, classificationMap, toMap, cfg, onSent)
 
 	if maxTS > 0 {
 		store.UpdateLastScan(email, "gmail", "inbox", fmt.Sprintf("%d", maxTS))
@@ -176,7 +177,7 @@ func parseNewEmails(svc *gmail.Service, email string, messages []*gmail.Message,
 			continue
 		}
 
-		classification := classifyGmail(isFromMe, isDirect || isDelTo)
+		classification := classifyGmail(isFromMe, isDirect)
 		classificationMap[m.Id] = classification
 		toMap[m.Id] = to
 
@@ -189,8 +190,9 @@ func parseNewEmails(svc *gmail.Service, email string, messages []*gmail.Message,
 		rawMsgs = append(rawMsgs, types.RawMessage{
 			ID:        m.Id,
 			Sender:    from,
-			Text:      fmt.Sprintf("To: %s\nSubject: %s\nContent:\n%s", to, subject, cleanBody),
+			Text:      fmt.Sprintf("T: %s\nC: %s\nS: %s\nB:\n%s", to, cc, subject, cleanBody),
 			Timestamp: time.Unix(fullMsg.InternalDate/1000, 0),
+			ThreadID:  fullMsg.ThreadId,
 		})
 	}
 
@@ -255,10 +257,10 @@ func checkRecipientStatus(email, from, to, cc, bcc, deliveredTo string) (isFromM
 	return
 }
 
-func classifyGmail(isFromMe, isDirect bool) string {
+func classifyGmail(isFromMe, isTo bool) string {
 	if isFromMe {
 		return CategorySent
-	} else if isDirect {
+	} else if isTo {
 		return CategoryMine
 	}
 	return CategoryOthers
@@ -296,7 +298,7 @@ func isAssigneeMe(assignee, email, userName, fallback string, aliases []string) 
 	return false
 }
 
-func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config) {
+func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config, onSent func(store.ConsolidatedMessage)) {
 	if len(rawMsgs) == 0 {
 		return
 	}
@@ -323,12 +325,34 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 		msgMap := make(map[string]types.RawMessage)
 		for _, m := range batchMsgs {
 			msgMap[m.ID] = m
-			sb.WriteString(fmt.Sprintf("[TS:%s] From: %s, %s\n---\n", m.ID, m.Sender, m.Text))
+			sb.WriteString(fmt.Sprintf("[ID:%s] F: %s\n%s\n---\n", m.ID, m.Sender, m.Text))
+
+			// Check for completion if it's a sent mail
+			if classificationMap[m.ID] == CategorySent && onSent != nil {
+				onSent(store.ConsolidatedMessage{
+					UserEmail:    email,
+					Source:       "gmail",
+					ThreadID:     m.ThreadID,
+					OriginalText: m.Text,
+					SourceTS:     m.ID,
+				})
+			}
 		}
 
-		items, err := gc.Analyze(ctx, email, sb.String(), language, "gmail")
-		if err != nil {
-			logger.Errorf("[SCAN-GMAIL] Gemini Analyze Error for %s (batch %d-%d): %v", email, i, end, err)
+		var items []store.TodoItem
+		var analyzeErr error
+		// JSON 파싱 실패(unexpected end of JSON input) 등 일시적 오류에 대비한 자동 재시도 (최대 2회)
+		for attempt := 1; attempt <= 2; attempt++ {
+			items, analyzeErr = gc.Analyze(ctx, email, sb.String(), language, "gmail")
+			if analyzeErr == nil {
+				break
+			}
+			logger.Warnf("[SCAN-GMAIL] Gemini Analyze retry %d for %s: %v", attempt, email, analyzeErr)
+			time.Sleep(1 * time.Second)
+		}
+
+		if analyzeErr != nil {
+			logger.Errorf("[SCAN-GMAIL] Gemini Analyze Error for %s (batch %d-%d): %v", email, i, end, analyzeErr)
 			continue // 에러가 나도 다음 배치 계속 진행
 		}
 
@@ -370,6 +394,7 @@ func processGeminiItems(email string, user *store.User, aliases []string, items 
 			OriginalText: origText,
 			Deadline:     item.Deadline,
 			Category:     category,
+			ThreadID:     msgMap[item.SourceTS].ThreadID,
 		})
 	}
 	return msgsToSave
@@ -391,7 +416,9 @@ func resolveGmailCategoryAndAssignee(item store.TodoItem, isMe bool, cls, toHead
 
 	if isMe && cls == CategoryMine {
 		assignee = fallback
-	} else if (isMe && cls == CategoryOthers) || assignee == "" {
+	} else {
+		// CategoryOthers (CC or group mail) OR not identifying as me
+		// Force group/recipient name as assignee to avoid "me" categorization in UI
 		assignee = ExtractNameFromEmail(toHeader)
 	}
 	return assignee, category
@@ -445,6 +472,11 @@ func extractBody(payload *gmail.MessagePart) string {
 		return decodeBase64URL(payload.Body.Data)
 	}
 
+	// If no plain text, try HTML and convert to text
+	if payload.MimeType == "text/html" && payload.Body != nil && payload.Body.Data != "" {
+		return stripHTML(decodeBase64URL(payload.Body.Data))
+	}
+
 	for _, part := range payload.Parts {
 		if part.MimeType == "text/plain" && part.Body != nil && part.Body.Data != "" {
 			return decodeBase64URL(part.Body.Data)
@@ -452,8 +484,8 @@ func extractBody(payload *gmail.MessagePart) string {
 	}
 
 	for _, part := range payload.Parts {
-		if strings.HasPrefix(part.MimeType, "text/") && part.Body != nil && part.Body.Data != "" {
-			return decodeBase64URL(part.Body.Data)
+		if part.MimeType == "text/html" && part.Body != nil && part.Body.Data != "" {
+			return stripHTML(decodeBase64URL(part.Body.Data))
 		}
 		if result := extractBody(part); result != "" {
 			return result
@@ -461,6 +493,36 @@ func extractBody(payload *gmail.MessagePart) string {
 	}
 
 	return ""
+}
+
+var (
+	reScript  = regexp.MustCompile(`(?i)<script.*?>.*?</script>`)
+	reStyle   = regexp.MustCompile(`(?i)<style.*?>.*?</style>`)
+	reComment = regexp.MustCompile(`<!--.*?-->`)
+	reTags    = regexp.MustCompile(`<.*?>`)
+)
+
+func stripHTML(html string) string {
+	// 1. Remove script/style/comments first
+	s := reScript.ReplaceAllString(html, "")
+	s = reStyle.ReplaceAllString(s, "")
+	s = reComment.ReplaceAllString(s, "")
+
+	// 2. Remove all other tags
+	s = reTags.ReplaceAllString(s, " ")
+
+	// 3. Basic cleanup: replace multiple spaces/newlines and unescape entities
+	s = strings.ReplaceAll(s, "&nbsp;", " ")
+	s = strings.ReplaceAll(s, "&lt;", "<")
+	s = strings.ReplaceAll(s, "&gt;", ">")
+	s = strings.ReplaceAll(s, "&amp;", "&")
+	s = strings.ReplaceAll(s, "&quot;", "\"")
+	s = strings.ReplaceAll(s, "&#39;", "'")
+
+	// 4. Collapse multiple spaces and newlines for cleaner AI input
+	s = regexp.MustCompile(`\s+`).ReplaceAllString(s, " ")
+
+	return strings.TrimSpace(s)
 }
 
 func decodeBase64URL(data string) string {
@@ -471,26 +533,36 @@ func decodeBase64URL(data string) string {
 	return decoded
 }
 
-// cleanEmailBody는 이메일 본문에서 이전 스레드(인용구)와 서명을 제거하여 순수한 새 메시지만 추출합니다.
+// cleanEmailBody는 이메일 본문에서 서명을 제거하고, 인용된 이전 메일의 맥락을 위해 상단 일부만 남깁니다.
 func cleanEmailBody(body string) string {
 	lines := strings.Split(body, "\n")
 	var cleaned []string
+	isQuoted := false
+	quotedLines := 0
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
-		// 1. 영어/한국어 일반적인 답장 인용구 시작 패턴 차단
+		// 1. 영어/한국어 일반적인 답장 인용구 시작 패턴 감지
 		if (strings.HasPrefix(trimmed, "On ") && strings.HasSuffix(trimmed, "wrote:")) ||
 			strings.HasSuffix(trimmed, "님이 작성:") ||
 			strings.HasPrefix(trimmed, "-----Original Message-----") ||
 			strings.HasPrefix(trimmed, "----- 원본 메시지 -----") ||
 			strings.HasPrefix(trimmed, "________________________________") {
-			break // 인용구 이하는 모두 버림
+			isQuoted = true
 		}
 
-		// 2. '>' 로 시작하는 인용 라인 건너뛰기
+		// 2. '>' 로 시작하는 인용 라인 감지
 		if strings.HasPrefix(trimmed, ">") {
-			continue
+			isQuoted = true
+		}
+
+		if isQuoted {
+			quotedLines++
+			// 인용구는 최대 5라인 또는 300자 정도만 유지 (맥락용)
+			if quotedLines > 5 {
+				break
+			}
 		}
 
 		cleaned = append(cleaned, line)
@@ -502,5 +574,23 @@ func cleanEmailBody(body string) string {
 		result = result[:idx]
 	}
 
-	return strings.TrimSpace(result)
+	finalResult := strings.TrimSpace(result)
+
+	// 입력 컨텍스트가 너무 길어 AI 출력(JSON)이 잘리는 현상 방지 (안전장치)
+	const maxLen = 3000
+	if len(finalResult) > maxLen {
+		// UTF-8 문자열을 안전하게 자름 (글자 중간에서 잘리는 것 방지)
+		runes := []rune(finalResult)
+		if len(runes) > maxLen/2 { // 대략적인 글자 수 제한 (안전하게 maxLen 바이트 이내로)
+			// 실제 바이트 길이를 체크하며 조절하는 것이 좋지만,
+			// 여기서는 단순히 룬 단위로 잘라 안전성 확보
+			limit := maxLen
+			if len(runes) < limit {
+				limit = len(runes)
+			}
+			finalResult = string(runes[:limit]) + "\n...[TRUNCATED]"
+		}
+	}
+
+	return finalResult
 }

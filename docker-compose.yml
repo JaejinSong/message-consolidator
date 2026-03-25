@@ -1,5 +1,6 @@
 services:
   app:
+    container_name: message-consolidator
     image: us-central1-docker.pkg.dev/gemini-enterprise-487906/message-consolidator-repo/app:latest
     ports:
       - "8080:8080"
@@ -8,3 +9,8 @@ services:
     volumes:
       - ./db_data:/data
     restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

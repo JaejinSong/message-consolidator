@@ -11,7 +11,8 @@ export const state = {
     archiveSearch: "",
     archiveSort: '',
     archiveOrder: 'DESC',
-    archiveTotalCount: 0
+    archiveTotalCount: 0,
+    archiveThresholdDays: 7 // Default
 };
 
 export const updateLang = (lang) => {
@@ -25,6 +26,8 @@ export const updateTheme = (theme) => {
 };
 
 export const updateStats = (user) => {
-    if (!user) return;
+    if (user.archive_days) {
+        state.archiveThresholdDays = user.archive_days;
+    }
     state.userProfile = { ...state.userProfile, ...user };
 };

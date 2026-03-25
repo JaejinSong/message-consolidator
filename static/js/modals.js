@@ -62,7 +62,7 @@ export const modals = {
         await Promise.all(aliases.map(a => api.addAlias(a)));
         input.value = '';
         this.fetchAliases();
-    }),
+    }, { triggerAuthOverlay: true }),
 
     /**
      * Removes an alias.
@@ -71,7 +71,7 @@ export const modals = {
     removeAlias: safeAsync(async function (alias) {
         await api.removeAlias(alias);
         this.fetchAliases();
-    }),
+    }, { triggerAuthOverlay: true }),
 
     /**
      * Fetches and renders tenant aliases.
@@ -95,7 +95,7 @@ export const modals = {
         origInput.value = '';
         primInput.value = '';
         this.fetchTenantAliases();
-    }),
+    }, { triggerAuthOverlay: true }),
 
     /**
      * Removes a tenant alias mapping.
@@ -104,7 +104,7 @@ export const modals = {
     removeTenantAliasMapping: safeAsync(async function (original) {
         await api.removeTenantAlias(original);
         this.fetchTenantAliases();
-    }),
+    }, { triggerAuthOverlay: true }),
 
     /**
      * Fetches and updates token usage count.
@@ -136,7 +136,7 @@ export const modals = {
         repInput.value = '';
         aliasInput.value = '';
         this.fetchContactMappings();
-    }),
+    }, { triggerAuthOverlay: true }),
 
     /**
      * Removes a contact mapping.
@@ -145,7 +145,7 @@ export const modals = {
     removeContactMapping: safeAsync(async function (repName) {
         await api.removeContactMapping(repName);
         this.fetchContactMappings();
-    }),
+    }, { triggerAuthOverlay: true }),
 
     /**
      * Sets up release notes modal and triggers.

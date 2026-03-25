@@ -2,28 +2,41 @@ import { I18N_DATA } from './locales.js';
 
 /**
  * 비동기 함수의 에러 핸들링을 공통화하는 고차 함수 (Higher-Order Function)
- * 중복되는 try-catch 블록을 제거하고, 호출부의 가독성을 높입니다.
  * @param {Function} fn - 실행할 비동기 함수
- * @param {Function} [onError] - 에러 발생 시 실행할 커스텀 롤백 함수 (선택 사항)
+ * @param {Object} [options] - 옵션
+ * @param {boolean} [options.triggerAuthOverlay=false] - 인증 에러 시 로그인 오버레이 노출 여부
+ * @param {Function} [options.onError] - 에러 발생 시 커스텀 핸들러
  */
-export const safeAsync = (fn, onError) => async function (...args) {
+export const safeAsync = (fn, options = {}) => async function (...args) {
+    const { triggerAuthOverlay = false, onError } = options;
     try {
         return await fn.apply(this, args);
     } catch (e) {
         console.error('[Async Error]', e);
-        if (e.isAuthError) {
-            console.warn('[safeAsync] AuthError detected. Attempting to show login overlay.');
-            const overlay = document.getElementById('loginOverlay');
-            if (overlay) {
-                overlay.classList.remove('hidden');
-                console.info('[safeAsync] Login overlay shown successfully.');
+        if (e.isAuthError && triggerAuthOverlay) {
+            // Defensive check: only show overlay if we truly lack a session hint
+            if (!hasSessionHint()) {
+                console.warn('[safeAsync] AuthError and no session hint. Triggering login overlay.');
+                const overlay = document.getElementById('loginOverlay');
+                if (overlay) {
+                    overlay.classList.remove('hidden');
+                    overlay.style.display = 'flex'; // Explicitly show
+                }
             } else {
-                console.error('[safeAsync] Login overlay element NOT FOUND in document.');
+                console.warn('[safeAsync] AuthError detected but session hint exists. Ignoring overlay trigger.');
             }
         }
         if (onError) onError(e);
-        throw e; // Rethrow to allow caller to handle if needed
+        throw e;
     }
+};
+
+/**
+ * Checks if the user is likely authenticated based on the non-HttpOnly hint cookie.
+ * @returns {boolean}
+ */
+export const hasSessionHint = () => {
+    return document.cookie.split(';').some(item => item.trim().startsWith('session_active=true'));
 };
 
 /**

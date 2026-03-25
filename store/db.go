@@ -53,11 +53,11 @@ func InitDB(cfg *config.Config) error {
 		return err
 	}
 
-	if err := runMigrations(); err != nil {
+	if err := setupGamification(); err != nil {
 		return err
 	}
 
-	if err := setupGamification(); err != nil {
+	if err := runMigrations(); err != nil {
 		return err
 	}
 
@@ -132,6 +132,7 @@ func runMigrations() error {
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN original_text TEXT;")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN category TEXT DEFAULT 'todo';")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN deadline TEXT;")
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN thread_id TEXT;")
 
 	// Users Gamification Columns
 	_, _ = db.Exec("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0;")
@@ -142,12 +143,8 @@ func runMigrations() error {
 	_, _ = db.Exec("ALTER TABLE users ADD COLUMN last_completed_at DATETIME;")
 	_, _ = db.Exec("ALTER TABLE users ADD COLUMN streak_freezes INTEGER DEFAULT 0;")
 
-	if _, err := db.Exec("ALTER TABLE achievements ADD COLUMN target_value INTEGER DEFAULT 0;"); err != nil {
-		logger.Errorf("[DB-MIGRATE] Error adding target_value: %v", err)
-	}
-	if _, err := db.Exec("ALTER TABLE achievements ADD COLUMN xp_reward INTEGER DEFAULT 0;"); err != nil {
-		logger.Errorf("[DB-MIGRATE] Error adding xp_reward: %v", err)
-	}
+	_, _ = db.Exec("ALTER TABLE achievements ADD COLUMN target_value INTEGER DEFAULT 0;")
+	_, _ = db.Exec("ALTER TABLE achievements ADD COLUMN xp_reward INTEGER DEFAULT 0;")
 
 	migrateExistingData()
 	return nil
@@ -181,13 +178,20 @@ func setupGamification() error {
 func seedAchievements() {
 	var count int
 	_ = db.QueryRow("SELECT COUNT(*) FROM achievements").Scan(&count)
-	if count == 0 {
-		_, _ = db.Exec(`INSERT INTO achievements (name, description, icon, criteria_type, criteria_value, xp_reward) VALUES 
-			('첫 걸음', '첫 번째 업무를 완료했습니다.', '🌱', 'total_tasks', 1, 10),
-			('태스크 마스터 I', '누적 10개의 업무를 완료했습니다.', '🏅', 'total_tasks', 10, 50),
-			('태스크 마스터 II', '누적 50개의 업무를 완료했습니다.', '🎖️', 'total_tasks', 50, 100),
-			('태스크 마스터 III', '누적 100개의 업무를 완료했습니다!', '🏆', 'total_tasks', 100, 200),
-			('꾸준함의 시작', '레벨 5에 도달했습니다.', '⭐', 'level', 5, 100)`)
+	// 기존 업적 개수가 적거나 없으면 다시 시딩 (수정된 정의 반영을 위해 상시 체크 권장되나 여기서는 count 기반)
+	if count < 5 {
+		// 기존 데이터 삭제 후 재진입 (ID 보존이 필요 없다면. 여기서는 안전하게 INSERT OR REPLACE 또는 개별 체크 권장)
+		_, _ = db.Exec("DELETE FROM achievements;")
+		_, _ = db.Exec(`INSERT INTO achievements (name, description, icon, criteria_type, criteria_value, target_value, xp_reward) VALUES 
+			('첫 걸음', '첫 번째 업무를 완료했습니다.', '🌱', 'total_tasks', 1, 1, 10),
+			('모닝 스타', '오전 9시 이전에 첫 번째 업무를 완료했습니다.', '🌅', 'early_bird', 1, 1, 50),
+			('Task Master', '하루 10개 이상의 작업 완료', '🏆', 'daily_total', 10, 10, 50),
+			('스트릭 스타터', '3일 연속으로 업무를 완료했습니다.', '🔥', 'streak', 3, 3, 50),
+			('끈기 끝판왕', '7일 연속으로 업무를 완료했습니다.', '👑', 'streak', 7, 7, 50),
+			('태스크 마스터 I', '누적 10개의 업무를 완료했습니다.', '🏅', 'total_tasks', 10, 10, 50),
+			('태스크 마스터 II', '누적 50개의 업무를 완료했습니다.', '🎖️', 'total_tasks', 50, 50, 100),
+			('태스크 마스터 III', '누적 100개의 업무를 완료했습니다!', '🏆', 'total_tasks', 100, 100, 200),
+			('꾸준함의 시작', '레벨 5에 도달했습니다.', '⭐', 'level', 5, 5, 100)`)
 	}
 }
 
@@ -205,6 +209,8 @@ func createIndexes() {
 		"CREATE INDEX IF NOT EXISTS idx_messages_completed_at ON messages (completed_at) WHERE done = 1;",
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_user_source_ts ON messages(user_email, source_ts);",
 		"CREATE INDEX IF NOT EXISTS idx_task_translations_language ON task_translations (language);",
+		"CREATE INDEX IF NOT EXISTS idx_messages_user_deleted_created ON messages (user_email, is_deleted, created_at DESC);",
+		"CREATE INDEX IF NOT EXISTS idx_messages_user_done_completed ON messages (user_email, done, completed_at DESC);",
 	}
 	for _, idx := range indexes {
 		_, _ = db.Exec(idx)
@@ -251,9 +257,10 @@ func RefreshCache(email string) error {
 	defer cancel()
 
 	safeArchiveDays := getArchiveDays()
+	threshold := fmt.Sprintf("-%d days", safeArchiveDays)
 
 	// 1. Fetch Active Messages
-	rows, err := db.QueryContext(ctx, SQL.RefreshCacheActive, email, safeArchiveDays)
+	rows, err := db.QueryContext(ctx, SQL.RefreshCacheActive, email, threshold)
 	if err != nil {
 		return err
 	}
@@ -271,7 +278,7 @@ func RefreshCache(email string) error {
 	}
 
 	// 2. Fetch Archived Messages (is_deleted = 1 OR long completed)
-	rowsArch, err := db.QueryContext(ctx, SQL.RefreshCacheArchive, email, safeArchiveDays)
+	rowsArch, err := db.QueryContext(ctx, SQL.RefreshCacheArchive, email, threshold)
 	if err != nil {
 		return err
 	}
@@ -299,13 +306,28 @@ func RefreshCache(email string) error {
 
 func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedMessage, error) {
 	var m ConsolidatedMessage
+	var assignedAt, createdAt, completedAt DBTime
 	err := rows.Scan(
 		&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task,
-		&m.Requester, &m.Assignee, &m.AssignedAt, &m.Link,
+		&m.Requester, &m.Assignee, &assignedAt, &m.Link,
 		&m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted,
-		&m.CreatedAt, &m.CompletedAt, &m.Category, &m.Deadline,
+		&createdAt, &completedAt, &m.Category, &m.Deadline,
+		&m.ThreadID,
 	)
-	return m, err
+	if err != nil {
+		return m, err
+	}
+
+	m.AssignedAt = assignedAt.Time
+	m.CreatedAt = createdAt.Time
+	if completedAt.Valid && !completedAt.Time.IsZero() {
+		m.CompletedAt = &completedAt.Time
+	}
+
+	if m.AssignedAt.IsZero() && !m.CreatedAt.IsZero() {
+		m.AssignedAt = m.CreatedAt
+	}
+	return m, nil
 }
 
 func EnsureCacheInitialized(email string) error {
@@ -333,9 +355,10 @@ func ArchiveOldTasks() error {
 	defer cancel()
 
 	safeArchiveDays := getArchiveDays()
+	threshold := fmt.Sprintf("-%d days", safeArchiveDays)
 
 	logger.Infof("[DB] Auto-archiving tasks completed more than %d days ago...", safeArchiveDays)
-	res, err := db.ExecContext(ctx, SQL.ArchiveOldTasks, safeArchiveDays)
+	res, err := db.ExecContext(ctx, SQL.ArchiveOldTasks, threshold)
 	if err != nil {
 		return err
 	}
@@ -355,5 +378,5 @@ func LogDBStats() {
 		return
 	}
 	stats := db.Stats()
-	logger.Infof("[DB-STATS] Open: %d | InUse: %d | Idle: %d | WaitCount: %d", stats.OpenConnections, stats.InUse, stats.Idle, stats.WaitCount)
+	logger.Debugf("[DB-STATS] Open: %d | InUse: %d | Idle: %d | WaitCount: %d", stats.OpenConnections, stats.InUse, stats.Idle, stats.WaitCount)
 }

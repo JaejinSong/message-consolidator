@@ -26,7 +26,7 @@ func getArchiveDays() int {
 	if autoArchiveDays > 0 {
 		return autoArchiveDays
 	}
-	return 1 // 기본값 1일
+	return 7 // 기본값 7일
 }
 
 func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]ConsolidatedMessage, int, error) {
@@ -94,8 +94,8 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 
 	var msgs []ConsolidatedMessage
 	for rows.Next() {
-		var m ConsolidatedMessage
-		if err := rows.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt, &m.Category, &m.Deadline); err != nil {
+		m, err := scanMessageRow(rows)
+		if err != nil {
 			return nil, 0, err
 		}
 		msgs = append(msgs, m)
@@ -130,4 +130,3 @@ func GetArchivedMessagesCount(ctx context.Context, filter ArchiveFilter) (int, e
 	err := db.QueryRowContext(ctx, countQuery, append([]interface{}{filter.Email, daysParam}, args[1:]...)...).Scan(&total)
 	return total, err
 }
-

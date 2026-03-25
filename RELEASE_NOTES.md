@@ -1,3 +1,14 @@
+# Release Notes - v2.3.5 (2026-03-25 10:05 UTC)
+
+## 📊 Visual Analytics & Performance Optimization
+- **[FEAT] Anki-style Activity Chart**: Implemented a new hourly activity heatmap in the Insights dashboard, inspired by Anki's contribution graph, providing a granular view of message consolidation patterns.
+- **[OPTIMIZE] Network Delivery**: Optimized Nginx configuration with HTTP/2 support and Gzip compression. This significantly reduces asset delivery overhead and improves Time to First Byte (TTFB).
+- **[UI] Insights Dashboard Redesign**: Overhauled the Insights UI for better data density and aesthetic alignment with the "Premium Dark" theme.
+- **[FIX] Layout Regression**: Resolved a CSS z-index issue where the user profile dropdown and logout buttons were rendered inaccessible on specific mobile viewports.
+- **[STABILITY] Frontend Defensive Logic**: Enhanced React error boundaries and added defensive checks for statistical data mapping to prevent UI crashes during intermittent API delays.
+
+---
+
 # Release Notes - v2.3.2 (2026-03-24 02:05 UTC)
 
 ## 🏗️ Utility Standardization & Backend Logic Consolidation

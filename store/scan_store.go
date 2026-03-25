@@ -38,9 +38,11 @@ func LoadMetadata() error {
 
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.CreatedAt); err != nil {
+		var createdAt DBTime
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &createdAt); err != nil {
 			return fmt.Errorf("scan user failed: %w", err)
 		}
+		u.CreatedAt = createdAt.Time
 		userCache[u.Email] = &u
 	}
 	if err := rows.Err(); err != nil {

@@ -51,8 +51,13 @@ func LoadConfig() *Config {
 		geminiTranslationModel = "gemini-3.1-flash-lite"
 	}
 
-	autoArchiveDays := 6
+	autoArchiveDays := 7
 	if daysStr := os.Getenv("AUTO_ARCHIVE_DAYS"); daysStr != "" {
+		if days, err := strconv.Atoi(daysStr); err == nil {
+			autoArchiveDays = days
+		}
+	}
+	if daysStr := os.Getenv("ARCHIVE_DAYS"); daysStr != "" {
 		if days, err := strconv.Atoi(daysStr); err == nil {
 			autoArchiveDays = days
 		}

@@ -121,15 +121,19 @@ func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS stri
 			return nil, err
 		}
 
+		reachedOld := false
 		for _, m := range history.Messages {
-			// Skip bot messages or messages without text
-			if m.BotID != "" || m.Text == "" {
-				continue
-			}
-
 			ts := parseSlackTimestamp(m.Timestamp)
 
+			// Slack history is returned from newest to oldest.
+			// Stop if we hit messages older than the 'since' threshold.
 			if ts.Before(since) {
+				reachedOld = true
+				break
+			}
+
+			// Skip bot messages or messages without text
+			if m.BotID != "" || m.Text == "" {
 				continue
 			}
 
@@ -151,7 +155,7 @@ func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS stri
 			}
 		}
 
-		if !history.HasMore || history.ResponseMetaData.NextCursor == "" {
+		if reachedOld || !history.HasMore || history.ResponseMetaData.NextCursor == "" {
 			break
 		}
 		cursor = history.ResponseMetaData.NextCursor

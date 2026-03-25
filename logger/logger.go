@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -34,25 +35,25 @@ func SetLevel(levelStr string) {
 
 func Debugf(format string, v ...interface{}) {
 	if currentLevel <= LevelDebug {
-		log.Printf("[DEBUG] "+format, v...)
+		log.Output(2, fmt.Sprintf("[DEBUG] "+format, v...))
 	}
 }
 
 func Infof(format string, v ...interface{}) {
 	if currentLevel <= LevelInfo {
-		log.Printf("[INFO] "+format, v...)
+		log.Output(2, fmt.Sprintf("[INFO] "+format, v...))
 	}
 }
 
 func Warnf(format string, v ...interface{}) {
 	if currentLevel <= LevelWarn {
-		log.Printf("[WARN] "+format, v...)
+		log.Output(2, fmt.Sprintf("[WARN] "+format, v...))
 	}
 }
 
 func Errorf(format string, v ...interface{}) {
 	if currentLevel <= LevelError {
-		log.Printf("[ERROR] "+format, v...)
+		log.Output(2, fmt.Sprintf("[ERROR] "+format, v...))
 	}
 }
 

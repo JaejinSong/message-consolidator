@@ -27,12 +27,29 @@ describe('utils.js - formatDisplayTime', () => {
 });
 
 describe('utils.js - safeAsync (DOM Interaction)', () => {
-  it('should show login overlay when AuthError occurs', async () => {
+  it('should NOT show login overlay when AuthError occurs by default', async () => {
     // Setup Happy DOM environment
     document.body.innerHTML = '<div id="loginOverlay" class="hidden"></div>';
     
     const mockFn = vi.fn().mockRejectedValue({ isAuthError: true });
     const safeFn = safeAsync(mockFn);
+
+    try {
+      await safeFn();
+    } catch (e) {
+      // expected throw
+    }
+
+    const overlay = document.getElementById('loginOverlay');
+    expect(overlay.classList.contains('hidden')).toBe(true);
+  });
+
+  it('should show login overlay when AuthError occurs and triggerAuthOverlay is true', async () => {
+    // Setup Happy DOM environment
+    document.body.innerHTML = '<div id="loginOverlay" class="hidden"></div>';
+    
+    const mockFn = vi.fn().mockRejectedValue({ isAuthError: true });
+    const safeFn = safeAsync(mockFn, { triggerAuthOverlay: true });
 
     try {
       await safeFn();

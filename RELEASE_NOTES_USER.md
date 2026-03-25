@@ -1,3 +1,21 @@
+# Release Notes (User) - v2.3.5 (2026-03-25 10:05 UTC)
+
+- **[FEAT] Visualize Your Productivity**: Ever wondered when you're most active? We’ve added a beautiful, Anki-inspired activity heatmap. Now you can track your message consolidation trends at a glance.
+- **[PERF] Lightning Fast Loading**: We’ve upgraded our delivery engine with HTTP/2 and Gzip. The app now feels snappier and loads faster, even on slower connections.
+- **[UI] A Fresh Look for Insights**: Our Insights page just got a makeover. It’s cleaner, darker, and more informative than ever.
+- **[FIX] UI Polishing**: We fixed those pesky disappearing buttons. Your profile and logout options will now always be right where you expect them to be.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.3.5 (2026-03-25 10:05 UTC)
+
+- **[FEAT] 한눈에 보는 활동 기록**: 내가 언제 가장 업무에 집중했는지 궁금하셨나요? Anki 스타일의 세련된 활동 히트맵을 추가했습니다. 이제 나의 메시지 통합 패턴을 시각적으로 확인해 보세요.
+- **[PERF] 더 빨라진 체감 속도**: 서버 전송 방식(HTTP/2 및 Gzip)을 최적화했습니다. 이제 어떤 환경에서도 이전보다 훨씬 빠르고 쾌적하게 서비스를 이용하실 수 있습니다.
+- **[UI] 새로워진 인사이트**: 인사이트 페이지가 더 깔끔하고 고급스럽게 변했습니다. 데이터는 더 명확하게, 디자인은 더 세련되게 다듬었습니다.
+- **[FIX] 꼼꼼한 UI 수정**: 간혹 사라져서 당황하게 했던 로그아웃 버튼과 프로필 메뉴를 다시 제자리에 고정했습니다. 작은 디테일까지 놓치지 않고 개선했습니다.
+
+---
+
 # Release Notes (User) - v2.3.4 (2026-03-24 07:15 UTC)
 - **[FIX] Gmail Assignee Attribution**: Resolved the issue where some Gmail tasks displayed as "undefined" by refining the AI extraction prompt and adding robust backend sanitization.
 - **[STABILITY] Enhanced Data Layer Safety**: Updated database views and internal scanning logic to provide consistent fallbacks for missing assignee data, ensuring 100% reliable rendering in the dashboard.

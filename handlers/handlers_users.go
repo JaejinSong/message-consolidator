@@ -22,6 +22,7 @@ func HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		user.Aliases = aliases
 	}
+	user.ArchiveDays = store.GetAutoArchiveDays()
 
 	if len(user.Aliases) == 0 {
 		sc := channels.NewSlackClient(cfg.SlackToken)
@@ -36,7 +37,32 @@ func HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	respondJSON(w, user)
+	// 토큰 사용량 함께 반환
+	todayPrompt, todayCompletion, _ := store.GetDailyTokenUsage(email)
+	monthPrompt, monthCompletion, _ := store.GetMonthlyTokenUsage(email)
+
+	calculateCost := func(p, c int) float64 {
+		return (float64(p)*0.075 + float64(c)*0.30) / 1000000
+	}
+
+	tokenUsage := map[string]interface{}{
+		"todayPrompt":     todayPrompt,
+		"todayCompletion": todayCompletion,
+		"todayTotal":      todayPrompt + todayCompletion,
+		"todayCost":       calculateCost(todayPrompt, todayCompletion),
+		"monthPrompt":     monthPrompt,
+		"monthCompletion": monthCompletion,
+		"monthTotal":      monthPrompt + monthCompletion,
+		"monthCost":       calculateCost(monthPrompt, monthCompletion),
+	}
+
+	respondJSON(w, struct {
+		*store.User
+		TokenUsage map[string]interface{} `json:"token_usage"`
+	}{
+		User:       user,
+		TokenUsage: tokenUsage,
+	})
 }
 
 func HandleBuyStreakFreeze(w http.ResponseWriter, r *http.Request) {

@@ -21,23 +21,29 @@ import { ICONS } from './icons.js';
 /**
  * Renders an empty grid state when no tasks are found.
  */
-function renderEmptyGrid(grid) {
+function renderEmptyGrid(grid, isWitty = false) {
     if (grid) {
         const lang = state.currentLang || 'ko';
         const messages = I18N_DATA[lang].emptyStateMessages;
         let displayMsg = I18N_DATA[lang].noTasks || 'No tasks found';
 
-        if (messages && messages.length > 0) {
+        if (isWitty && messages && messages.length > 0) {
             const randomIndex = Math.floor(Math.random() * messages.length);
             displayMsg = messages[randomIndex];
+            grid.innerHTML = `
+                <div class="empty-state-witty">
+                    <div class="empty-icon" style="font-size: 3rem; margin-bottom: 1rem;">✨</div>
+                    <div class="witty-message">${displayMsg}</div>
+                </div>
+            `;
+        } else {
+            grid.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon" style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.5;">📭</div>
+                    <div class="witty-message" style="opacity: 0.7;">${displayMsg}</div>
+                </div>
+            `;
         }
-
-        grid.innerHTML = `
-            <div class="empty-state-witty">
-                <div class="empty-icon" style="font-size: 3rem; margin-bottom: 1rem;">✨</div>
-                <div class="witty-message">${displayMsg}</div>
-            </div>
-        `;
     }
 }
 
@@ -102,12 +108,25 @@ export const renderer = {
         const grid = document.getElementById(gridId);
         if (!grid) return;
 
-        if (filtered.length === 0) {
-            renderEmptyGrid(grid);
+        // "All Clear" witty message condition: Only for My Tasks tab when active count is 0 and not searching
+        const isMyTasksDone = (currentTab === 'myTasksTab' && counts.my === 0 && !searchQuery);
+
+        if (isMyTasksDone) {
+            // "My Tasks" are all done. Show witty message.
+            renderEmptyGrid(grid, true);
+            // If there are greyed-out completed tasks, show them BELOW the message
+            if (filtered.length > 0) {
+                const listHtml = filtered.map(m => this.createCardElement(m)).join('');
+                grid.insertAdjacentHTML('beforeend', `<div class="completed-list-divider"></div>` + listHtml);
+            }
+        } else if (filtered.length === 0) {
+            // General empty state for other tabs or when search yields nothing
+            renderEmptyGrid(grid, false);
             return;
+        } else {
+            grid.innerHTML = filtered.map(m => this.createCardElement(m)).join('');
         }
 
-        grid.innerHTML = filtered.map(m => this.createCardElement(m)).join('');
         this.attachCardEventListeners(filtered, handlers);
 
     },
@@ -129,9 +148,11 @@ export const renderer = {
         
         // Defensive: default to empty string if keys are missing
         const meText = i18n?.assigneeMe || 'Me';
-        const assigneeText = m.assignee === 'me'
+        const isMe = m.assignee === 'me';
+        const isInvalid = !m.assignee || m.assignee === 'undefined' || m.assignee === 'unknown';
+        const assigneeText = isMe
             ? `<span class="assignee-me">${meText}</span>`
-            : `<span class="assignee-other">${escapeHTML(m.assignee || '')}</span>`;
+            : `<span class="assignee-other">${isInvalid ? '' : escapeHTML(m.assignee)}</span>`;
 
         return `
             <div class="card ${m.source} ${m.done ? 'done' : ''}" id="task-${m.id}" data-id="${m.id}">
@@ -180,11 +201,16 @@ export const renderer = {
                 handlers.onToggleDone(id, !m.done);
             });
 
-            card.querySelector('.delete-task')?.addEventListener('click', () => {
-                if (confirm(I18N_DATA[state.currentLang].confirmDelete)) {
-                    handlers.onDeleteTask(id);
-                }
-            });
+            const btnDelete = card.querySelector('.delete-task');
+            if (btnDelete) {
+                btnDelete.onclick = (e) => {
+                    e.stopPropagation();
+                    // 'id' is already defined from card.getAttribute('data-id')
+                    if (id && handlers.onDeleteTask) {
+                        handlers.onDeleteTask(id);
+                    }
+                };
+            }
 
             // [Refactored] Removed window.showOriginalMessage
             card.querySelector('.show-original')?.addEventListener('click', () => {
@@ -271,7 +297,7 @@ export const renderer = {
         const levelText = document.getElementById('userLevel');
 
         if (streakText) streakText.textContent = `${profile.streak || 0}🔥`;
-        if (xpText) xpText.textContent = `${profile.xp || 0} / 100 XP`;
+        if (xpText) xpText.textContent = `${(profile.xp || 0) % 100} / 100 XP`;
         if (xpBar) {
             const progress = (profile.xp || 0) % 100;
             xpBar.style.width = `${progress}%`;

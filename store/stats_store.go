@@ -5,15 +5,15 @@ import (
 	"sync"
 )
 
-
 func GetUserStats(email string, userTz string) (UserStats, error) {
 	var stats UserStats
 	stats.DailyCompletions = make(map[string]int)
 	stats.SourceDistribution = make(map[string]int)
+	stats.SourceDistributionTotal = make(map[string]int)
 	stats.HourlyActivity = make(map[int]int)
 
 	var wg sync.WaitGroup
-	
+
 	// Centralized SQLite offset calculation
 	sqliteOffset := GetSQLiteOffset(userTz)
 
@@ -101,12 +101,12 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		_ = db.QueryRow(SQL.GetAbandonedTasks, email, threshold, userName).Scan(&stats.AbandonedTasks)
 	}()
 
-
-	// 7. Source Distribution
+	// 7. Source Distribution (Active & Total)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rows, err := db.Query(SQL.GetSourceDistribution, email)
+		// Active
+		rows, err := db.Query(SQL.GetSourceDistributionActive, email)
 		if err == nil {
 			defer rows.Close()
 			for rows.Next() {
@@ -117,13 +117,25 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 				}
 			}
 		}
+		// Total (including archive)
+		rowsTotal, err := db.Query(SQL.GetSourceDistributionTotal, email)
+		if err == nil {
+			defer rowsTotal.Close()
+			for rowsTotal.Next() {
+				var s string
+				var c int
+				if err := rowsTotal.Scan(&s, &c); err == nil {
+					stats.SourceDistributionTotal[s] = c
+				}
+			}
+		}
 	}()
 
 	// 8. Completion History (Last 365 days for Anki-style chart)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rows, err := db.Query(SQL.GetCompletionHistory, email)
+		rows, err := db.Query(SQL.GetCompletionHistory, sqliteOffset, email, sqliteOffset)
 		if err == nil {
 			defer rows.Close()
 			var currentData string

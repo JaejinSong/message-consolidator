@@ -1,4 +1,13 @@
 /* Insights Page Specific Styles */
+
+/* Anki-style bar chart container */
+.svg-chart-container {
+    position: relative;
+    width: 100%;
+    height: 220px;
+    overflow: hidden;
+}
+
 .insights-container {
     padding: 1rem 0;
     max-width: 1840px; /* Main container와 동일하게 확장 */
@@ -80,6 +89,7 @@
 .heatmap-grid {
     display: grid;
     gap: 6px;
+    align-content: start;
 }
 
 .heatmap-day {
@@ -144,7 +154,7 @@
 }
 
 .stacked-bar-segment.slack {
-    background: #E01E5A;
+    background: #36C5F0;
 }
 
 .stacked-bar-segment.whatsapp {
@@ -179,7 +189,7 @@
 }
 
 .distribution-legend .slack::before {
-    background: #E01E5A;
+    background: #36C5F0;
 }
 
 .distribution-legend .whatsapp::before {
@@ -355,6 +365,40 @@
 
 .xp-reward {
     color: #bc00ff;
+}
+
+.show-more-achievements {
+    display: flex;
+    justify-content: center;
+    margin-top: 1rem;
+    padding-top: 0.5rem;
+}
+
+.show-more-achievements .glass-btn {
+    width: 100%;
+    justify-content: center;
+    font-weight: 700;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+}
+
+.show-more-achievements .count-pill {
+    background: var(--accent-color);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.hidden-ach {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 /* Light Theme Overrides */

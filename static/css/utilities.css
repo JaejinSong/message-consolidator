@@ -75,3 +75,8 @@
 .toast-popup.show { opacity: 1; transform: translateY(0); }
 .toast-error { background: rgba(255, 59, 48, 0.9); }
 .toast-success { background: rgba(0, 212, 255, 0.9); }
+
+/* Visibility */
+.hidden {
+    display: none !important;
+}

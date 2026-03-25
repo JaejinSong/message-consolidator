@@ -39,10 +39,18 @@ func ProcessTaskCompletion(u *store.User) (GamificationResult, error) {
 
 	queueUserUpdate(u)
 
-	unlocked, err := store.CheckAndUnlockAchievements(*u)
-	if err == nil && len(unlocked) > 0 {
-		res.UnlockedAchievements = unlocked
-	}
+	// 비동기로 업적 체크 진행 (API 응답 지연 방지)
+	go func(user store.User) {
+		unlocked, err := store.CheckAndUnlockAchievements(user)
+		if err != nil {
+			logger.Errorf("[Gamification] Background achievement check failed for %s: %v", user.Email, err)
+			return
+		}
+		if len(unlocked) > 0 {
+			logger.Infof("[Gamification] User %s unlocked %d achievements in background", user.Email, len(unlocked))
+			// TODO: 실시간 알림(WebSocket 등)이 필요하다면 여기서 트리거
+		}
+	}(*u)
 
 	return res, nil
 }
@@ -91,13 +99,15 @@ func queueUserUpdate(u *store.User) {
 	defer gamificationMu.Unlock()
 	snapshot := *u
 	dirtyUsers[u.Email] = &snapshot
+	logger.Debugf("[Gamification] User %s queued for flush (XP: %d, Pts: %d)", u.Email, u.XP, u.Points)
 }
 
 // FlushGamificationData 는 DB가 스캔 등의 이유로 이미 깨어있는 시점(Piggyback)에 호출되어
 // 큐에 쌓인 변경사항을 한 번에 배치 처리합니다.
 func FlushGamificationData() error {
 	gamificationMu.Lock()
-	if len(dirtyUsers) == 0 {
+	count := len(dirtyUsers)
+	if count == 0 {
 		gamificationMu.Unlock()
 		return nil
 	}
@@ -106,6 +116,7 @@ func FlushGamificationData() error {
 	dirtyUsers = make(map[string]*store.User)
 	gamificationMu.Unlock()
 
+	logger.Infof("[Gamification] Starting piggyback flush for %d users...", count)
 	var errCount int
 	for email, u := range usersToUpdate {
 		err := store.UpdateUserGamification(email, u.Points, u.Streak, u.Level, u.XP, u.DailyGoal, u.LastCompletedAt, u.StreakFreezes)
@@ -119,11 +130,14 @@ func FlushGamificationData() error {
 				dirtyUsers[email] = u
 			}
 			gamificationMu.Unlock()
+		} else {
+			logger.Debugf("[Gamification] Successfully flushed data for %s", email)
 		}
 	}
 
 	if errCount > 0 {
 		return fmt.Errorf("failed to flush gamification data for %d users", errCount)
 	}
+	logger.Infof("[Gamification] Piggyback flush completed successfully for %d users.", count)
 	return nil
 }

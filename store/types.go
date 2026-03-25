@@ -36,6 +36,7 @@ type ConsolidatedMessage struct {
 	CompletedAt  *time.Time `json:"completed_at"`
 	Category     string     `json:"category"`
 	Deadline     string     `json:"deadline,omitempty"`
+	ThreadID     string     `json:"thread_id,omitempty"`
 }
 
 // User represents an application user
@@ -54,6 +55,7 @@ type User struct {
 	DailyGoal       int        `json:"daily_goal"`
 	LastCompletedAt *time.Time `json:"last_completed_at"`
 	StreakFreezes   int        `json:"streak_freezes"`
+	ArchiveDays     int        `json:"archive_days"`
 	CreatedAt       time.Time  `json:"created_at"`
 }
 
@@ -94,9 +96,9 @@ type UserAlias struct {
 type TodoItem struct {
 	Task       string `json:"task"`
 	Requester  string `json:"requester"`
-	Assignee   string    `json:"assignee"`
-	AssignedAt string    `json:"assigned_at"`
-	SourceTS   string    `json:"source_ts"`
+	Assignee   string `json:"assignee"`
+	AssignedAt string `json:"assigned_at"`
+	SourceTS   string `json:"source_ts"`
 	Category   string `json:"category"`
 	Deadline   string `json:"deadline"`
 }
@@ -139,6 +141,7 @@ type UserStats struct {
 	PeakTime           string            `json:"peak_time"`
 	AbandonedTasks     int               `json:"abandoned_tasks"`
 	PendingMe          int               `json:"pending_me"`
-	SourceDistribution map[string]int    `json:"source_distribution"`
-	CompletionHistory  []TimeSeriesPoint `json:"completion_history"`
+	SourceDistribution      map[string]int    `json:"source_distribution"`       // Active (Dashboard)
+	SourceDistributionTotal map[string]int    `json:"source_distribution_total"` // Total (including archive)
+	CompletionHistory       []TimeSeriesPoint `json:"completion_history"`
 }

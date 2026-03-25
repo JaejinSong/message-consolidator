@@ -19,9 +19,19 @@ go mod tidy
 echo "--> 0.2: Building Go project..."
 go build ./...
 
-echo "--> 0.3: Running Frontend Tests (Vitest)..."
-if ! npm test; then
-    echo "❌ Frontend tests failed!"
+echo "--> 0.3 & 0.4: Running Tests in Parallel (Go & Frontend)..."
+go test ./... &
+GO_PID=$!
+
+npm test &
+NPM_PID=$!
+
+FAIL=0
+wait $GO_PID || { echo "❌ Go backend tests failed!"; FAIL=1; }
+wait $NPM_PID || { echo "❌ Frontend tests failed!"; FAIL=1; }
+
+if [ $FAIL -ne 0 ]; then
+    echo "❌ Tests failed! Deployment aborted."
     exit 1
 fi
 
@@ -33,27 +43,17 @@ gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
 docker build -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}:latest .
 docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}:latest
 
-# 2. 설정 파일(docker-compose.yml, .env)을 GCS에 업로드
-echo "==> Step 2: Uploading config files to GCS..."
-gcloud storage cp .env docker-compose.yml gs://${BUCKET_NAME}/vps/ --project=${PROJECT_ID}
+echo "==> Step 2: Transferring config files directly to VPS (Skipping GCS)..."
+gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --project=${PROJECT_ID} --command="mkdir -p ~/message-consolidator"
+gcloud compute scp .env docker-compose.yml ${VPS_NAME}:~/message-consolidator/ --zone=${ZONE} --project=${PROJECT_ID}
 
-# 3. VPS에서 이미지 Pull 및 컨테이너 재시작
-echo "==> Step 3: Restarting container on VPS..."
+# 3. VPS 배포 및 실시간 검증 (SSH 접속 1회로 통합)
+echo "==> Step 3 & 4: Deploying and Verifying on VPS..."
 gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --project=${PROJECT_ID} --command="
-  mkdir -p ~/message-consolidator && 
   cd ~/message-consolidator && 
   gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet &&
-  gcloud storage cp gs://${BUCKET_NAME}/vps/.env . && 
-  gcloud storage cp gs://${BUCKET_NAME}/vps/docker-compose.yml . && 
-  sudo docker-compose pull && 
-  sudo docker-compose up -d
-"
-
-# 4. VPS 배포 상태 및 실시간 검증
-echo "==> Step 4: Verifying deployment..."
-# 로그 확인 및 로컬 헬스체크
-gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --project=${PROJECT_ID} --command="
-  cd ~/message-consolidator && 
+  sudo docker-compose pull &&
+  sudo docker-compose up -d &&
   echo 'Waiting for Startup Complete log...' &&
   sudo docker-compose logs --tail=20 | grep -q \"Startup Complete\" || (sleep 5 && sudo docker-compose logs --tail=20 | grep \"Startup Complete\") &&
   echo 'Checking local health (localhost:8080)...' &&

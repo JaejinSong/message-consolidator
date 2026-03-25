@@ -21,7 +21,7 @@ func SaveMessage(msg ConsolidatedMessage) (bool, int, error) {
 	msg.Assignee = NormalizeName(msg.UserEmail, msg.Assignee)
 
 	var lastID int
-	err := db.QueryRow(SQL.SaveMessage, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline).Scan(&lastID)
+	err := db.QueryRow(SQL.SaveMessage, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline, msg.ThreadID).Scan(&lastID)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -70,14 +70,14 @@ func SaveMessages(msgs []ConsolidatedMessage) ([]int, error) {
 	}
 
 	valueStrings := make([]string, 0, len(toInsert))
-	valueArgs := make([]interface{}, 0, len(toInsert)*11)
+	valueArgs := make([]interface{}, 0, len(toInsert)*13)
 
 	for _, msg := range toInsert {
-		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-		valueArgs = append(valueArgs, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline)
+		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		valueArgs = append(valueArgs, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline, msg.ThreadID)
 	}
 
-	query := fmt.Sprintf(`INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline) 
+	query := fmt.Sprintf(`INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id) 
 			  VALUES %s
 			  ON CONFLICT(user_email, source_ts) DO NOTHING
 			  RETURNING id, source_ts, user_email;`, strings.Join(valueStrings, ","))
@@ -138,15 +138,37 @@ func GetMessages(email string) ([]ConsolidatedMessage, error) {
 }
 
 func MarkMessageDone(email string, id int, done bool) error {
-	completedAt := "NULL"
+	var completedAt interface{}
+	now := time.Now()
 	if done {
-		completedAt = "datetime('now')"
+		completedAt = now
+	} else {
+		completedAt = nil
 	}
-	query := strings.ReplaceAll(SQL.MarkMessageDone, ":completed_at", completedAt)
 
-	_, err := db.Exec(query, done, id, email)
+	_, err := db.Exec(SQL.MarkMessageDone, done, completedAt, id, email)
 	if err == nil {
-		RefreshCache(email)
+		// 즉시 로컬 캐시 업데이트 (UI 반응성 개선)
+		cacheMu.Lock()
+		for i := range messageCache[email] {
+			if messageCache[email][i].ID == id {
+				messageCache[email][i].Done = done
+				if done {
+					messageCache[email][i].CompletedAt = &now
+				} else {
+					messageCache[email][i].CompletedAt = nil
+				}
+				break
+			}
+		}
+		cacheMu.Unlock()
+
+		// 백그라운드에서 전체 캐시 정합성 확보
+		go func() {
+			if err := RefreshCache(email); err != nil {
+				logger.Errorf("Background RefreshCache error for %s: %v", email, err)
+			}
+		}()
 	}
 	return err
 }
@@ -154,7 +176,16 @@ func MarkMessageDone(email string, id int, done bool) error {
 func UpdateTaskText(email string, id int, task string) error {
 	_, err := db.Exec(SQL.UpdateTaskText, task, id, email)
 	if err == nil {
-		RefreshCache(email)
+		cacheMu.Lock()
+		for i := range messageCache[email] {
+			if messageCache[email][i].ID == id {
+				messageCache[email][i].Task = task
+				break
+			}
+		}
+		cacheMu.Unlock()
+
+		go func() { _ = RefreshCache(email) }()
 	}
 	return err
 }
@@ -162,7 +193,16 @@ func UpdateTaskText(email string, id int, task string) error {
 func UpdateTaskAssignee(email string, id int, assignee string) error {
 	_, err := db.Exec(SQL.UpdateTaskAssignee, assignee, id, email)
 	if err == nil {
-		RefreshCache(email)
+		cacheMu.Lock()
+		for i := range messageCache[email] {
+			if messageCache[email][i].ID == id {
+				messageCache[email][i].Assignee = assignee
+				break
+			}
+		}
+		cacheMu.Unlock()
+
+		go func() { _ = RefreshCache(email) }()
 	}
 	return err
 }
@@ -179,7 +219,22 @@ func DeleteMessages(email string, ids []int) error {
 	}
 	_, err := db.Exec(query, args...)
 	if err == nil {
-		RefreshCache(email)
+		// 즉시 로컬 캐시에서 제거
+		cacheMu.Lock()
+		idMap := make(map[int]bool)
+		for _, id := range ids {
+			idMap[id] = true
+		}
+		var newActive []ConsolidatedMessage
+		for _, m := range messageCache[email] {
+			if !idMap[m.ID] {
+				newActive = append(newActive, m)
+			}
+		}
+		messageCache[email] = newActive
+		cacheMu.Unlock()
+
+		go func() { _ = RefreshCache(email) }()
 	}
 	return err
 }
@@ -196,7 +251,29 @@ func HardDeleteMessages(email string, ids []int) error {
 	}
 	_, err := db.Exec(query, args...)
 	if err == nil {
-		RefreshCache(email)
+		cacheMu.Lock()
+		idMap := make(map[int]bool)
+		for _, id := range ids {
+			idMap[id] = true
+		}
+		var newActive []ConsolidatedMessage
+		for _, m := range messageCache[email] {
+			if !idMap[m.ID] {
+				newActive = append(newActive, m)
+			}
+		}
+		messageCache[email] = newActive
+
+		var newArchive []ConsolidatedMessage
+		for _, m := range archiveCache[email] {
+			if !idMap[m.ID] {
+				newArchive = append(newArchive, m)
+			}
+		}
+		archiveCache[email] = newArchive
+		cacheMu.Unlock()
+
+		go func() { _ = RefreshCache(email) }()
 	}
 	return err
 }
@@ -213,7 +290,9 @@ func RestoreMessages(email string, ids []int) error {
 	}
 	_, err := db.Exec(query, args...)
 	if err == nil {
-		RefreshCache(email)
+		// Restore is complex since it might change categories back to active/archive.
+		// For simplicity, just trigger background refresh immediately.
+		go func() { _ = RefreshCache(email) }()
 	}
 	return err
 }
@@ -240,8 +319,29 @@ func GetMessagesByIDs(ctx context.Context, ids []int) ([]ConsolidatedMessage, er
 
 	var msgs []ConsolidatedMessage
 	for rows.Next() {
-		var m ConsolidatedMessage
-		if err := rows.Scan(&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task, &m.Requester, &m.Assignee, &m.AssignedAt, &m.Link, &m.SourceTS, &m.OriginalText, &m.Done, &m.IsDeleted, &m.CreatedAt, &m.CompletedAt, &m.Category, &m.Deadline); err != nil {
+		m, err := scanMessageRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs, rows.Err()
+}
+
+func GetIncompleteByThreadID(ctx context.Context, email, threadID string) ([]ConsolidatedMessage, error) {
+	if threadID == "" {
+		return []ConsolidatedMessage{}, nil
+	}
+	rows, err := db.QueryContext(ctx, SQL.GetIncompleteByThreadID, email, threadID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var msgs []ConsolidatedMessage
+	for rows.Next() {
+		m, err := scanMessageRow(rows)
+		if err != nil {
 			return nil, err
 		}
 		msgs = append(msgs, m)

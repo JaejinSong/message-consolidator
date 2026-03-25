@@ -7,7 +7,7 @@ import { archive } from './js/archive.js';
 import { modals } from './js/modals.js';
 import { insights } from './js/insights.js';
 import { events, EVENTS } from './js/events.js';
-import { safeAsync } from './js/utils.js';
+import { safeAsync, hasSessionHint } from './js/utils.js';
 import { STATUS_STATES, POLLING_INTERVALS } from './js/constants.js';
 
 /**
@@ -29,18 +29,18 @@ const handlers = {
         } else {
             fetchMessages();
         }
-    }),
+    }, { triggerAuthOverlay: true }),
     onDeleteTask: safeAsync(async (id) => {
         await api.deleteTask(id);
         fetchMessages();
         if (archive.isVisible()) archive.fetch();
-    }),
+    }, { triggerAuthOverlay: true }),
     onShowOriginal: safeAsync(async (id) => {
         const data = await api.fetchOriginalMessage(id);
         if (data && data.original_text) {
             modals.showOriginalModal(data.original_text);
         }
-    })
+    }, { triggerAuthOverlay: true })
 };
 
 /**
@@ -108,7 +108,7 @@ const fetchUserProfile = safeAsync(async () => {
     state.userAliases = data.aliases || [];
     events.emit(EVENTS.USER_PROFILE_UPDATED, state.userProfile);
     fetchMessages();
-});
+}, { triggerAuthOverlay: true });
 
 /**
  * Handles streak freeze purchase.
@@ -123,7 +123,7 @@ const handleBuyStreakFreeze = safeAsync(async () => {
     } catch (e) {
         renderer.showToast(e.message, 'error');
     }
-});
+}, { triggerAuthOverlay: true });
 
 // --- Event Subscriptions ---
 
@@ -329,6 +329,24 @@ const initPolling = () => {
  */
 const initApp = () => {
     console.log("Initializing Modular App...");
+
+    if (!hasSessionHint()) {
+        console.warn("No session hint found. Triggering login overlay.");
+        const overlay = document.getElementById('loginOverlay');
+        if (overlay) {
+            overlay.classList.remove('hidden');
+            overlay.style.display = 'flex';
+        }
+        // Do not proceed with initialization if no session hint
+        return;
+    }
+
+    // Explicitly hide overlay if session hint is present
+    const overlay = document.getElementById('loginOverlay');
+    if (overlay) {
+        overlay.classList.add('hidden');
+        overlay.style.display = 'none';
+    }
 
     updateUILanguage(state.currentLang);
     initTheme();

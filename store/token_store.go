@@ -91,9 +91,11 @@ func FlushTokenUsage() error {
 		}
 		defer stmt.Close()
 
+		today := time.Now().Format("2006-01-02")
+
 		for email, data := range tokenFlushingData {
 			totalTokens := data.Prompt + data.Completion
-			if _, err := stmt.Exec(email, data.Prompt, data.Completion, totalTokens); err != nil {
+			if _, err := stmt.Exec(email, data.Prompt, data.Completion, totalTokens, today); err != nil {
 				return err
 			}
 		}
@@ -143,7 +145,7 @@ func GetDailyTokenUsage(email string) (int, int, error) {
 	usageCacheMu.RUnlock()
 
 	var promptNull, completionNull sql.NullInt64
-	err := db.QueryRow(SQL.GetDailyTokenUsage, email).Scan(&promptNull, &completionNull)
+	err := db.QueryRow(SQL.GetDailyTokenUsage, email, today).Scan(&promptNull, &completionNull)
 
 	if err != nil && err != sql.ErrNoRows {
 		return 0, 0, err
@@ -185,9 +187,14 @@ func GetMonthlyTokenUsage(email string) (int, int, error) {
 		return mp, mc, nil
 	}
 	usageCacheMu.RUnlock()
+	firstDay := currentMonth + "-01"
+	// 현재 달의 1일을 기준으로 다음 달 1일을 계산하여 31일 등에서의 오버플로우 방지
+	now := time.Now()
+	firstOfThisMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	nextMonthFirstDay := firstOfThisMonth.AddDate(0, 1, 0).Format("2006-01-02")
 
 	var promptNull, completionNull sql.NullInt64
-	err := db.QueryRow(SQL.GetMonthlyTokenUsage, email).Scan(&promptNull, &completionNull)
+	err := db.QueryRow(SQL.GetMonthlyTokenUsage, email, firstDay, nextMonthFirstDay).Scan(&promptNull, &completionNull)
 
 	if err != nil && err != sql.ErrNoRows {
 		return 0, 0, err

@@ -1,7 +1,7 @@
 Analyze Emails for: %s
 Rules:
-1. Sender is User: Extract commitments (promise) & requests waiting for reply (waiting).
-2. Sender is others: Extract clear requests to User (todo).
+1. Sender is User: Extract commitments (promise) & waiting for reply (waiting).
+2. Sender is others: Extract requests to User (todo).
 3. IGNORE: Signatures, auto-replies.
 Emails:
 %s

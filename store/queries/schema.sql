@@ -49,8 +49,10 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     completed_at DATETIME,
     category TEXT DEFAULT 'todo',
-    deadline TEXT
+    deadline TEXT,
+    thread_id TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_thread_id ON messages(thread_id);
 
 -- name: CreateTaskTranslationsTable :exec
 CREATE TABLE IF NOT EXISTS task_translations (
@@ -120,7 +122,7 @@ SELECT
     task, 
     requester, 
     COALESCE(assignee, '') as assignee,
-    COALESCE(assigned_at, created_at) as assigned_at,
+    assigned_at,
     link, 
     source_ts, 
     COALESCE(original_text, '') as original_text, 
@@ -129,7 +131,8 @@ SELECT
     created_at, 
     completed_at, 
     COALESCE(category, 'todo') as category, 
-    COALESCE(deadline, '') as deadline 
+    COALESCE(deadline, '') as deadline,
+    COALESCE(thread_id, '') as thread_id
 FROM messages;
 
 -- name: CreateUsersView :exec

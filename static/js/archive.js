@@ -42,7 +42,7 @@ export const archive = {
         } finally {
             if (loader) loader.classList.remove('active');
         }
-    }),
+    }, { triggerAuthOverlay: true }),
 
     updatePaginationUI() {
         const totalPages = Math.ceil(state.archiveTotalCount / state.archiveLimit) || 1;
@@ -126,7 +126,7 @@ export const archive = {
             if (onTasksChangedCallback) onTasksChangedCallback();
         }, (e) => {
             renderer.showToast((I18N_DATA[state.currentLang]?.errorRestore || 'Error: ') + e.message, 'error');
-        }));
+        }, { triggerAuthOverlay: true }));
 
         // Sorting
         const triggerArchiveSort = (field) => {
@@ -161,7 +161,7 @@ export const archive = {
             exportModal.classList.remove('hidden');
         }, (e) => {
             renderer.showToast((I18N_DATA[state.currentLang]?.errorArchiveCount || 'Error: ') + e.message, 'error');
-        }));
+        }, { triggerAuthOverlay: true }));
 
         const downloadFile = (url, defaultFilename) => {
             console.log(`[DEBUG] Starting native download: ${url}, default: ${defaultFilename}`);
@@ -222,6 +222,6 @@ export const archive = {
             deleteConfirmModal.classList.add('hidden');
         }, (error) => {
             renderer.showToast((I18N_DATA[state.currentLang]?.errorHardDelete || 'Error: ') + error.message, 'error');
-        }));
+        }, { triggerAuthOverlay: true }));
     }
 };

@@ -4,6 +4,9 @@ SELECT * FROM v_users;
 -- name: GetUserByEmail :one
 SELECT * FROM v_users WHERE email = ?;
 
+-- name: GetUserByID :one
+SELECT * FROM v_users WHERE id = ?;
+
 -- name: CreateUser :one
 INSERT INTO users (email, name, picture) 
 VALUES (?, ?, ?) 

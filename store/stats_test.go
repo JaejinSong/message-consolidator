@@ -6,7 +6,11 @@ import (
 )
 
 func TestGetUserStats_IncludesArchived(t *testing.T) {
-	SetupTestDB()
+	cleanup, err := SetupTestDB()
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
 	defer ResetForTest()
 
 	email := "stats@example.com"
@@ -15,7 +19,7 @@ func TestGetUserStats_IncludesArchived(t *testing.T) {
 	// 1. Create a message that is DONE and ARCHIVED (is_deleted=1)
 	twoHoursAgo := time.Now().UTC().Add(-2 * time.Hour)
 	t1 := twoHoursAgo.Format(time.RFC3339)
-	_, err := db.Exec(`INSERT INTO messages 
+	_, err = db.Exec(`INSERT INTO messages 
 		(user_email, task, source, source_ts, done, is_deleted, completed_at, created_at) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		email, "Archived Task", "slack", "ts_archived", 1, 1, t1, t1)
@@ -77,5 +81,15 @@ func TestGetUserStats_IncludesArchived(t *testing.T) {
 	}
 	if stats.HourlyActivity[h2] == 0 {
 		t.Errorf("Expected activity at hour %d", h2)
+	}
+
+	// 4. Source Distribution checks
+	// Active: Active Task + Pending Task = 2
+	if stats.SourceDistribution["slack"] != 2 {
+		t.Errorf("Expected SourceDistribution[slack]=2, got %d", stats.SourceDistribution["slack"])
+	}
+	// Total: Archived + Active + Pending = 3
+	if stats.SourceDistributionTotal["slack"] != 3 {
+		t.Errorf("Expected SourceDistributionTotal[slack]=3, got %d", stats.SourceDistributionTotal["slack"])
 	}
 }

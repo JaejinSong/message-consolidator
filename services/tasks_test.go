@@ -1,6 +1,7 @@
 package services
 
 import (
+	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"testing"
 )
@@ -27,7 +28,7 @@ func TestStripOriginalText(t *testing.T) {
 
 func TestIsAssigneeMarkedAsMine(t *testing.T) {
 	identities := []string{"Jaejin Song", "jjsong"}
-	
+
 	tests := []struct {
 		assignee string
 		expected bool
@@ -48,7 +49,7 @@ func TestIsAssigneeMarkedAsMine(t *testing.T) {
 }
 
 func TestFormatMessagesForClient(t *testing.T) {
-	cleanup, err := store.SetupTestDB()
+	cleanup, err := testutil.SetupTestDB()
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
@@ -74,5 +75,26 @@ func TestFormatMessagesForClient(t *testing.T) {
 	}
 	if msgs[2].Assignee != "Other" {
 		t.Errorf("Expected assignee 'Other' for msg 2, got '%s'", msgs[2].Assignee)
+	}
+}
+
+func TestIsDirectlyAddressedToMe(t *testing.T) {
+	email := "me@example.com"
+
+	tests := []struct {
+		text     string
+		expected bool
+	}{
+		{"To: me@example.com\nSubject: Hello", true},
+		{"To: other@example.com\nCc: me@example.com\nSubject: Hello", false},
+		{"To: dev@group.com\nSubject: Hello", false}, // Even if I am in delivered-to (which is NOT in text)
+		{"to: me@example.com\nSubject: Hello", true}, // lowercase check
+	}
+
+	for _, tt := range tests {
+		m := store.ConsolidatedMessage{Source: "gmail", OriginalText: tt.text}
+		if got := IsDirectlyAddressedToMe(m, email); got != tt.expected {
+			t.Errorf("IsDirectlyAddressedToMe(%q) = %v; want %v", tt.text, got, tt.expected)
+		}
 	}
 }

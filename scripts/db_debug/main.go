@@ -39,7 +39,7 @@ func main() {
 	_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE user_email = ?", email).Scan(&total)
 	_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE user_email = ? AND done = 1 AND is_deleted = 0", email).Scan(&done)
 	_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE user_email = ? AND is_deleted = 1", email).Scan(&deleted)
-	
+
 	var allDone int
 	_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE user_email = ? AND done = 1", email).Scan(&allDone)
 
@@ -50,7 +50,7 @@ func main() {
 		var sample string
 		_ = db.QueryRow("SELECT completed_at FROM messages WHERE user_email = ? AND done = 1 AND completed_at IS NOT NULL LIMIT 1", email).Scan(&sample)
 		fmt.Printf("Sample completed_at: '%s'\n", sample)
-		
+
 		var hr string
 		_ = db.QueryRow("SELECT strftime('%H', completed_at) FROM messages WHERE user_email = ? AND done = 1 AND completed_at IS NOT NULL LIMIT 1", email).Scan(&hr)
 		fmt.Printf("strftime('%%H', sample): '%s'\n", hr)

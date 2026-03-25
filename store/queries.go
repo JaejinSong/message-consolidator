@@ -29,30 +29,32 @@ var SQL = struct {
 	CreateUsersView    string
 
 	// Messages
-	SaveMessage          string
-	SaveMessagesBase     string
-	MarkMessageDone      string
-	UpdateTaskText       string
-	UpdateTaskAssignee   string
-	DeleteMessages       string
-	HardDeleteMessages   string
-	RestoreMessages      string
-	GetMessageByID       string
-	GetMessagesByIDs     string
-	GetMessagesByEmail   string
+	SaveMessage                  string
+	SaveMessagesBase             string
+	MarkMessageDone              string
+	UpdateTaskText               string
+	UpdateTaskAssignee           string
+	DeleteMessages               string
+	HardDeleteMessages           string
+	RestoreMessages              string
+	GetMessageByID               string
+	GetMessagesByIDs             string
+	GetMessagesByEmail           string
+	GetIncompleteByThreadID      string
 	GetArchivedMessagesCountBase string
-	GetArchivedMessagesBase string
-	RefreshCacheActive   string
-	RefreshCacheArchive  string
-	ArchiveOldTasks      string
+	GetArchivedMessagesBase      string
+	RefreshCacheActive           string
+	RefreshCacheArchive          string
+	ArchiveOldTasks              string
 
 	// Users
 	GetAllUsers            string
 	GetUserByEmail         string
+	GetUserByID            string
 	GetUserByEmailSimple   string
 	CreateUser             string
 	CreateUserReturningAll string
-	UpdateUserNamePicture string
+	UpdateUserNamePicture  string
 	UpdateUserWAJID        string
 	UpdateUserSlackID      string
 
@@ -75,8 +77,11 @@ var SQL = struct {
 	GetDailyCompletions    string
 	GetHourlyActivity      string
 	GetAbandonedTasks      string
-	GetSourceDistribution  string
-	GetCompletionHistory   string
+	GetSourceDistributionActive  string
+	GetSourceDistributionTotal   string
+	GetCompletionHistory         string
+	GetEarlyBirdCompleted  string
+	GetMaxDailyCompleted   string
 
 	// Aliases
 	UpsertTenantAlias   string
@@ -88,17 +93,17 @@ var SQL = struct {
 	GetAllUserAliases   string
 
 	// Scan
-	LoadUsersSimple              string
-	LoadUserAliasesAll           string
-	LoadScanMetadataAll          string
-	LoadGmailTokensAll           string
-	LoadTenantAliasesAll         string
-	LoadContactsAll              string
-	UpsertScanMetadata           string
+	LoadUsersSimple               string
+	LoadUserAliasesAll            string
+	LoadScanMetadataAll           string
+	LoadGmailTokensAll            string
+	LoadTenantAliasesAll          string
+	LoadContactsAll               string
+	UpsertScanMetadata            string
 	DeleteScanMetadataSlackThread string
 
 	// Translations
-	GetTaskTranslation      string
+	GetTaskTranslation       string
 	GetTaskTranslationsBatch string
 	UpsertTaskTranslation    string
 
@@ -181,6 +186,7 @@ func loadAllQueries() error {
 	SQL.GetMessageByID = queries["GetMessageByID"]
 	SQL.GetMessagesByIDs = queries["GetMessagesByIDs"]
 	SQL.GetMessagesByEmail = queries["GetMessagesByEmail"]
+	SQL.GetIncompleteByThreadID = queries["GetIncompleteByThreadID"]
 	SQL.GetArchivedMessagesCountBase = queries["GetArchivedMessagesCountBase"]
 	SQL.GetArchivedMessagesBase = queries["GetArchivedMessagesBase"]
 	SQL.RefreshCacheActive = queries["RefreshCacheActive"]
@@ -189,6 +195,7 @@ func loadAllQueries() error {
 
 	SQL.GetAllUsers = queries["GetAllUsers"]
 	SQL.GetUserByEmail = queries["GetUserByEmail"]
+	SQL.GetUserByID = queries["GetUserByID"]
 	SQL.GetUserByEmailSimple = queries["GetUserByEmailSimple"]
 	SQL.CreateUser = queries["CreateUser"]
 	SQL.CreateUserReturningAll = queries["CreateUserReturningAll"]
@@ -212,8 +219,11 @@ func loadAllQueries() error {
 	SQL.GetDailyCompletions = queries["GetDailyCompletions"]
 	SQL.GetHourlyActivity = queries["GetHourlyActivity"]
 	SQL.GetAbandonedTasks = queries["GetAbandonedTasks"]
-	SQL.GetSourceDistribution = queries["GetSourceDistribution"]
+	SQL.GetSourceDistributionActive = queries["GetSourceDistributionActive"]
+	SQL.GetSourceDistributionTotal = queries["GetSourceDistributionTotal"]
 	SQL.GetCompletionHistory = queries["GetCompletionHistory"]
+	SQL.GetEarlyBirdCompleted = queries["GetEarlyBirdCompleted"]
+	SQL.GetMaxDailyCompleted = queries["GetMaxDailyCompleted"]
 
 	SQL.UpsertTenantAlias = queries["UpsertTenantAlias"]
 	SQL.DeleteTenantAlias = queries["DeleteTenantAlias"]

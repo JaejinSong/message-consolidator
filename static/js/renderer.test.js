@@ -112,4 +112,58 @@ describe('renderer.js - createCardElement', () => {
         const html = renderer.createCardElement(msg);
         expect(html).toContain('assignee-me');
     });
+
+    it('should handle literal "undefined" or "unknown" assignee by not rendering it', () => {
+        const msgUndef = { id: 4, source: 'gmail', task: 'Task', requester: 'Req', timestamp: new Date().toISOString(), done: false, assignee: 'undefined', room: 'R' };
+        const htmlUndef = renderer.createCardElement(msgUndef);
+        expect(htmlUndef).not.toContain('undefined');
+
+        const msgUnknown = { id: 5, source: 'gmail', task: 'Task', requester: 'Req', timestamp: new Date().toISOString(), done: false, assignee: 'unknown', room: 'R' };
+        const htmlUnknown = renderer.createCardElement(msgUnknown);
+        expect(htmlUnknown).not.toContain('unknown');
+    });
+
+    it('should escape HTML in task, requester, and room to prevent XSS', () => {
+        const xssMsg = { 
+            id: 6, 
+            source: 'slack', 
+            task: '<script>alert("xss")</script>', 
+            requester: '<b>Attacker</b>', 
+            room: '<img src=x onerror=alert(1)>',
+            timestamp: new Date().toISOString(), 
+            done: false 
+        };
+        const html = renderer.createCardElement(xssMsg);
+        expect(html).toContain('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+        expect(html).toContain('&lt;b&gt;Attacker&lt;/b&gt;');
+        expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+        expect(html).not.toContain('<script>');
+        expect(html).not.toContain('<b>');
+    });
 });
+
+describe('renderer.js - updateUserProfile', () => {
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <div id="userXP"></div>
+            <div id="xpText"></div>
+            <div id="xpBar"></div>
+            <div id="userPoints"></div>
+            <div id="userLevel"></div>
+            <div id="userStreak"></div>
+        `;
+    });
+
+    it('should display relative XP progress (modulo 100)', () => {
+        renderer.updateUserProfile({ xp: 165, level: 2, streak: 5, points: 50 });
+        expect(document.getElementById('xpText').textContent).toBe('65 / 100 XP');
+        expect(document.getElementById('xpBar').style.width).toBe('65%');
+    });
+
+    it('should handle zero or null XP', () => {
+        renderer.updateUserProfile({ xp: null, level: 1, streak: 0, points: 0 });
+        expect(document.getElementById('xpText').textContent).toBe('0 / 100 XP');
+        expect(document.getElementById('xpBar').style.width).toBe('0%');
+    });
+});
+

@@ -32,6 +32,10 @@ func SetAutoArchiveDays(days int) {
 	autoArchiveDays = days
 }
 
+func GetAutoArchiveDays() int {
+	return getArchiveDays()
+}
+
 func ResetForTest() {
 	cacheMu.Lock()
 	messageCache = make(map[string][]ConsolidatedMessage)

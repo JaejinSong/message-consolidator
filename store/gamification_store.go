@@ -1,7 +1,14 @@
 package store
 
 import (
+	"message-consolidator/logger"
+	"sync"
 	"time"
+)
+
+var (
+	achievementCache []Achievement
+	achCacheMu       sync.RWMutex
 )
 
 func UpdateUserGamification(email string, points, streak, level, xp, dailyGoal int, lastCompleted *time.Time, streakFreezes int) error {
@@ -25,6 +32,21 @@ func UpdateUserGamification(email string, points, streak, level, xp, dailyGoal i
 }
 
 func GetAchievements() ([]Achievement, error) {
+	achCacheMu.RLock()
+	if len(achievementCache) > 0 {
+		defer achCacheMu.RUnlock()
+		return achievementCache, nil
+	}
+	achCacheMu.RUnlock()
+
+	achCacheMu.Lock()
+	defer achCacheMu.Unlock()
+
+	// Double check after lock
+	if len(achievementCache) > 0 {
+		return achievementCache, nil
+	}
+
 	rows, err := db.Query(SQL.GetAchievements)
 	if err != nil {
 		return nil, err
@@ -39,10 +61,30 @@ func GetAchievements() ([]Achievement, error) {
 		}
 		achievements = append(achievements, a)
 	}
+
+	achievementCache = achievements
+	logger.Infof("[Store] Cached %d achievements", len(achievementCache))
 	return achievements, nil
 }
 
 func GetUserAchievements(userID int) ([]UserAchievement, error) {
+	// 1. 소급 적용을 위해 사용자 정보를 가져와 업적 체크를 먼저 수행
+	var u User
+	// SQL.GetUserByID (SELECT * FROM v_users WHERE id = ?)
+	err := db.QueryRow(SQL.GetUserByID, userID).Scan(
+		&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture,
+		&u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal,
+		&u.LastCompletedAt, &u.CreatedAt, &u.StreakFreezes,
+	)
+	if err == nil {
+		_, _ = CheckAndUnlockAchievements(u)
+	}
+
+	return getUnlockedAchievementsFromDB(userID)
+}
+
+// getUnlockedAchievementsFromDB는 순수하게 DB에서 해제된 업적 목록만 조회 (내부용)
+func getUnlockedAchievementsFromDB(userID int) ([]UserAchievement, error) {
 	rows, err := db.Query(SQL.GetUserAchievements, userID)
 	if err != nil {
 		return nil, err
@@ -52,9 +94,11 @@ func GetUserAchievements(userID int) ([]UserAchievement, error) {
 	var ua = []UserAchievement{}
 	for rows.Next() {
 		var a UserAchievement
-		if err := rows.Scan(&a.UserID, &a.AchievementID, &a.UnlockedAt); err != nil {
+		var unlockedAt DBTime
+		if err := rows.Scan(&a.UserID, &a.AchievementID, &unlockedAt); err != nil {
 			return nil, err
 		}
+		a.UnlockedAt = unlockedAt.Time
 		ua = append(ua, a)
 	}
 	return ua, nil
@@ -72,7 +116,8 @@ func CheckAndUnlockAchievements(user User) ([]Achievement, error) {
 		return nil, err
 	}
 
-	userAchievements, err := GetUserAchievements(user.ID)
+	// 순환 참조 방지를 위해 내부 함수 직접 호출
+	userAchievements, err := getUnlockedAchievementsFromDB(user.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -82,8 +127,10 @@ func CheckAndUnlockAchievements(user User) ([]Achievement, error) {
 		unlockedMap[ua.AchievementID] = true
 	}
 
-	var totalCompleted int
+	var totalCompleted, earlyBirdCount, maxDailyCount int
 	_ = db.QueryRow(SQL.GetTotalCompleted, user.Email).Scan(&totalCompleted)
+	_ = db.QueryRow(SQL.GetEarlyBirdCompleted, user.Email).Scan(&earlyBirdCount)
+	_ = db.QueryRow(SQL.GetMaxDailyCompleted, user.Email).Scan(&maxDailyCount)
 
 	var newlyUnlocked []Achievement
 	for _, ach := range achievements {
@@ -92,10 +139,17 @@ func CheckAndUnlockAchievements(user User) ([]Achievement, error) {
 		}
 
 		unlocked := false
-		if ach.CriteriaType == "total_tasks" && totalCompleted >= ach.CriteriaValue {
-			unlocked = true
-		} else if ach.CriteriaType == "level" && user.Level >= ach.CriteriaValue {
-			unlocked = true
+		switch ach.CriteriaType {
+		case "total_tasks":
+			unlocked = totalCompleted >= ach.CriteriaValue
+		case "level":
+			unlocked = user.Level >= ach.CriteriaValue
+		case "early_bird":
+			unlocked = earlyBirdCount >= ach.CriteriaValue
+		case "daily_total":
+			unlocked = maxDailyCount >= ach.CriteriaValue
+		case "streak":
+			unlocked = user.Streak >= ach.CriteriaValue
 		}
 
 		if unlocked && UnlockAchievement(user.ID, ach.ID) == nil {

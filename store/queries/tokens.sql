@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS token_usage (
 );
 
 -- name: UpsertTokenUsage :exec
-INSERT INTO token_usage (user_email, date, prompt_tokens, completion_tokens, total_tokens)
-VALUES (?, date('now'), ?, ?, ?)
+INSERT INTO token_usage (user_email, prompt_tokens, completion_tokens, total_tokens, date)
+VALUES (?, ?, ?, ?, ?)
 ON CONFLICT (user_email, date)
 DO UPDATE SET 
     prompt_tokens = token_usage.prompt_tokens + EXCLUDED.prompt_tokens,
@@ -21,12 +21,12 @@ DO UPDATE SET
 -- name: GetDailyTokenUsage :one
 SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) 
 FROM token_usage 
-WHERE user_email = ? AND date = date('now');
+WHERE user_email = ? AND date = ?;
 
 -- name: GetMonthlyTokenUsage :one
 SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) 
 FROM token_usage 
-WHERE user_email = ? AND date >= strftime('%Y-%m-01', 'now');
+WHERE user_email = ? AND date >= ? AND date < ?;
 
 -- name: UpsertGmailToken :exec
 INSERT INTO gmail_tokens (user_email, token_json, updated_at)

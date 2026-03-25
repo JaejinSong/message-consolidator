@@ -50,8 +50,8 @@ func FormatMessagesForClient(email string, msgs []store.ConsolidatedMessage) {
 		if isMe {
 			msgs[i].Assignee = "me"
 		} else {
-			// [INFO] 매핑 실패 추적을 위한 로그 강화 (프로덕션 환경 확인용)
-			logger.Infof("[ASSIGNEE_MAP] User: %s, Mismatched Assignee: '%s' (User.Name: '%s')",
+			// [DEBUG] 매핑 실패 추적 (너무 많은 INFO 로그가 쌓이는 것을 방지)
+			logger.Debugf("[ASSIGNEE_MAP] User: %s, Mismatched Assignee: '%s' (User.Name: '%s')",
 				email, assignee, user.Name)
 		}
 	}

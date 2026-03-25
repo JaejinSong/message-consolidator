@@ -1,11 +1,11 @@
 -- name: SaveMessage :one
-INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline) 
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id) 
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(user_email, source_ts) DO NOTHING
 RETURNING id;
 
 -- name: SaveMessagesBase :many
-INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline) 
+INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id) 
 VALUES %s
 ON CONFLICT(user_email, source_ts) DO NOTHING
 RETURNING id, source_ts, user_email;
@@ -39,21 +39,24 @@ SELECT * FROM v_messages WHERE user_email = ? AND is_deleted = 0 ORDER BY create
 
 -- name: RefreshCacheActive :many
 SELECT * FROM v_messages 
-WHERE user_email = ? AND is_deleted = 0 AND (done = 0 OR (done = 1 AND (completed_at IS NULL OR completed_at > datetime('now', '-%d days'))))
+WHERE user_email = ? AND is_deleted = 0 AND (done = 0 OR (done = 1 AND (completed_at IS NULL OR completed_at > datetime('now', ?))))
 ORDER BY created_at DESC 
 LIMIT 200;
 
 -- name: RefreshCacheArchive :many
 SELECT * FROM v_messages 
-WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', '-%d days')))
+WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)))
 ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
 LIMIT 100;
 
 -- name: GetArchivedMessagesCountBase
-SELECT COUNT(*) FROM messages WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)));
+SELECT COUNT(*) FROM messages WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)))
 
 -- name: GetArchivedMessagesBase
-SELECT * FROM v_messages WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)));
+SELECT * FROM v_messages WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)))
 
 -- name: ArchiveOldTasks :exec
-UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND done = 1 AND completed_at < datetime('now', '-%d days');
+UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND done = 1 AND completed_at < datetime('now', ?);
+
+-- name: GetIncompleteByThreadID :many
+SELECT * FROM v_messages WHERE user_email = ? AND thread_id = ? AND done = 0 AND is_deleted = 0;

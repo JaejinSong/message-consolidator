@@ -40,6 +40,18 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 			var sb strings.Builder
 			for _, m := range rrms {
 				msgMap[m.ID] = m
+
+				// NEW: Handle auto-completion for outgoing messages
+				if m.Sender == "나" && completionSvc != nil && m.ReplyToID != "" {
+					completionSvc.ProcessPotentialCompletion(ctx, store.ConsolidatedMessage{
+						UserEmail:    email,
+						Source:       "whatsapp",
+						ThreadID:     m.ReplyToID,
+						OriginalText: m.Text,
+						SourceTS:     m.ID,
+					})
+				}
+
 				// Resolve mentions in the text for better Gemini extraction
 				resolvedText := channels.ResolveWAMentions(email, m.Text)
 
@@ -68,9 +80,11 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 			for _, item := range items {
 				assignedAt := time.Now()
 				origText := ""
+				origThreadID := ""
 				if m, ok := msgMap[item.SourceTS]; ok {
 					assignedAt = m.Timestamp
 					origText = m.Text
+					origThreadID = m.ReplyToID
 				}
 
 				// Check if it's 1:1 or mentioned
@@ -127,6 +141,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 					OriginalText: origText,
 					Deadline:     item.Deadline,
 					Category:     category,
+					ThreadID:     origThreadID, // Store the reference if it's a reply
 				})
 			}
 

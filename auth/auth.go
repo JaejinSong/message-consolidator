@@ -20,6 +20,7 @@ import (
 var (
 	GoogleOauthConfig *oauth2.Config
 	AuthDisabled      bool
+	appBaseURL        string
 )
 
 type contextKey string
@@ -39,6 +40,7 @@ func GetUserEmail(r *http.Request) string {
 
 func SetupOAuth(cfg *config.Config) {
 	AuthDisabled = cfg.AuthDisabled
+	appBaseURL = cfg.AppBaseURL
 	GoogleOauthConfig = &oauth2.Config{
 		RedirectURL:  fmt.Sprintf("%s/auth/callback", cfg.AppBaseURL),
 		ClientID:     cfg.GoogleClientID,
@@ -58,10 +60,16 @@ func HandleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken string, lookupUserByEmail func(string) (string, string, error)) {
-	oauthState, _ := r.Cookie("oauthstate")
+	oauthState, err := r.Cookie("oauthstate")
+
+	if err != nil {
+		logger.Errorf("Missing oauth state cookie (Domain/HTTPS mismatch?): %v", err)
+		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		return
+	}
 
 	if r.FormValue("state") != oauthState.Value {
-		logger.Errorf("Invalid oauth google state")
+		logger.Errorf("Invalid oauth google state. Expected: %s, Got: %s", oauthState.Value, r.FormValue("state"))
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
@@ -108,29 +116,45 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 }
 
 func HandleLogout(w http.ResponseWriter, r *http.Request) {
+	isSecure := strings.HasPrefix(appBaseURL, "https://")
+	
+	// Clear primary session token
 	cookie := http.Cookie{
 		Name:     "session_token",
 		Value:    "",
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
-		Secure:   true, // Requirement for most modern browsers
+		Secure:   isSecure,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, &cookie)
+
+	// Clear frontend hint cookie
+	hintCookie := http.Cookie{
+		Name:     "session_active",
+		Value:    "",
+		Expires:  time.Unix(0, 0),
+		HttpOnly: false,
+		Secure:   isSecure,
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+	}
+	http.SetCookie(w, &hintCookie)
+
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 
 func generateStateCookie(w http.ResponseWriter) string {
 	var b [16]byte
 	rand.Read(b[:])
-	state := base64.URLEncoding.EncodeToString(b[:])
+	state := base64.RawURLEncoding.EncodeToString(b[:])
 	cookie := http.Cookie{
 		Name:     "oauthstate",
 		Value:    state,
 		Expires:  time.Now().Add(20 * time.Minute),
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   strings.HasPrefix(appBaseURL, "https://"),
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
 	}
@@ -139,16 +163,32 @@ func generateStateCookie(w http.ResponseWriter) string {
 }
 
 func SetSessionCookie(w http.ResponseWriter, email string) {
+	isSecure := strings.HasPrefix(appBaseURL, "https://")
+	
+	// 1. Primary Secure Session Token (HttpOnly)
 	cookie := http.Cookie{
 		Name:     "session_token",
-		Value:    base64.URLEncoding.EncodeToString([]byte(email)),
+		Value:    base64.RawURLEncoding.EncodeToString([]byte(email)),
 		Expires:  time.Now().Add(24 * time.Hour),
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   isSecure,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, &cookie)
+
+	// 2. Non-HttpOnly Hint Cookie for Frontend
+	// This allows the frontend to know a session *should* exist without reading the sensitive token.
+	hintCookie := http.Cookie{
+		Name:     "session_active",
+		Value:    "true",
+		Expires:  time.Now().Add(24 * time.Hour),
+		HttpOnly: false, // Accessible by JS
+		Secure:   isSecure,
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+	}
+	http.SetCookie(w, &hintCookie)
 }
 
 func AuthMiddleware(next http.Handler) http.Handler {
@@ -171,7 +211,10 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		decodedEmailBytes, err := base64.URLEncoding.DecodeString(cookie.Value)
+		decodedEmailBytes, err := base64.RawURLEncoding.DecodeString(cookie.Value)
+		if err != nil {
+			decodedEmailBytes, err = base64.URLEncoding.DecodeString(cookie.Value) // Fallback for old sessions
+		}
 		if err != nil {
 			logger.Errorf("[AUTH] Error decoding session cookie for %s: %v (Value: %s)", r.URL.Path, err, cookie.Value)
 			if strings.HasPrefix(r.URL.Path, "/api/") {

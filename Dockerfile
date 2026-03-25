@@ -12,14 +12,12 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
-# Pre-download and extract WhaTap Agent in builder to keep final image clean
-RUN wget -qO- https://s3.ap-northeast-2.amazonaws.com/repo.whatap.io/alpine/x86_64/whatap-agent.tar.gz | tar -xz -C /tmp
+# Minify static files first to leverage build cache
+COPY static/ ./static/
+RUN minify -r -o static-min/ static/
 
 # Copy source code
 COPY . .
-
-# Minify static files
-RUN minify -r -o static-min/ static/
 
 # Build and compress application
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -27,21 +25,25 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=0 GOOS=linux whatap-go-inst go build -ldflags="-s -w" -o message-consolidator . && \
     upx -1 message-consolidator
 
+# Pre-download WhaTap and create a staging area to minimize layers in the final image
+RUN wget -qO- https://s3.ap-northeast-2.amazonaws.com/repo.whatap.io/alpine/x86_64/whatap-agent.tar.gz | tar -xz -C /tmp && \
+    mkdir -p /stage/app /stage/usr && \
+    mv /tmp/usr/whatap /stage/usr/ && \
+    mv message-consolidator /stage/app/ && \
+    mv static-min /stage/app/static && \
+    cp RELEASE_NOTES_USER.md whatap.conf entrypoint.sh security.conf /stage/app/ && \
+    chmod +x /stage/app/entrypoint.sh
+
 # Final stage
 FROM alpine:latest
-RUN apk --no-cache add ca-certificates tzdata libc6-compat
+RUN apk --no-cache add ca-certificates tzdata libc6-compat && \
+    mkdir -p /usr/whatap/agent
+
+# Single COPY instruction to drastically reduce image layers
+COPY --from=builder /stage/ /
 WORKDIR /app
 
-# Copy WhaTap Agent from builder
-COPY --from=builder /tmp/usr/whatap /usr/whatap
-
-# Copy application artifacts
-COPY --from=builder /app/message-consolidator .
-COPY --from=builder /app/static-min ./static
-COPY RELEASE_NOTES_USER.md whatap.conf entrypoint.sh security.conf ./
-RUN chmod +x entrypoint.sh && \
-    mkdir -p /usr/whatap/agent && \
-    ln -s /app/whatap.conf /usr/whatap/agent/whatap.conf
+RUN ln -s /app/whatap.conf /usr/whatap/agent/whatap.conf
 
 VOLUME ["/data"]
 EXPOSE 8080

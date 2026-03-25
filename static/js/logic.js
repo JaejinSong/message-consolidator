@@ -1,6 +1,7 @@
 import { I18N_DATA } from './locales.js';
 import { ICONS } from './icons.js';
 import { TimeService } from './utils.js';
+import { state } from './state.js';
 
 /**
  * @file logic.js
@@ -22,7 +23,7 @@ import { TimeService } from './utils.js';
  */
 
 /** 완료된 업무가 대시보드에 노출되는 기준일 (보관함 이관 기준) */
-export const ARCHIVE_THRESHOLD_DAYS = 1;
+export const getArchiveThresholdDays = () => state.archiveThresholdDays || 7;
 
 /**
  * Sorts and filters messages based on the current view and search query.
@@ -34,14 +35,14 @@ export const ARCHIVE_THRESHOLD_DAYS = 1;
 export function sortAndFilterMessages(messages, currentTab, searchQuery) {
     if (!messages) return [];
 
-    // 1일 이내 완료된 업무인지 확인 (완료일이 없으면 생성일 기준)
+    // 7일 이내 완료된 업무인지 확인 (완료일이 없으면 생성일 기준)
     const isVisible = (m) => {
         if (!m.done) return true;
         const ts = m.completed_at || m.timestamp || m.created_at;
         if (!ts) return true;
         
         const diffDays = TimeService.getDiffInDays(new Date(ts), new Date());
-        return diffDays <= ARCHIVE_THRESHOLD_DAYS;
+        return diffDays <= getArchiveThresholdDays();
     };
 
     let filtered = messages.filter(isVisible);
@@ -59,8 +60,8 @@ export function sortAndFilterMessages(messages, currentTab, searchQuery) {
     if (searchQuery) {
         const q = searchQuery.toLowerCase();
         filtered = filtered.filter(m =>
-            m.task.toLowerCase().includes(q) ||
-            m.requester.toLowerCase().includes(q)
+            (m.task || "").toLowerCase().includes(q) ||
+            (m.requester || "").toLowerCase().includes(q)
         );
     }
 

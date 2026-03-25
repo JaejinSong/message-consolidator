@@ -12,13 +12,17 @@ import (
 	"time"
 
 	"github.com/slack-go/slack"
+	"github.com/whatap/go-api/trace"
 	"golang.org/x/sync/errgroup"
 )
 
-func scanSlack(ctx context.Context, user store.User, aliases []string) {
-	if cfg.SlackToken == "" {
+// scanSlack은 봇이 참여한 모든 채널을 한 번만 스캔하고, 가져온 메시지를 전체 유저에 대해 평가합니다.
+func scanSlack(ctx context.Context, users []store.User) {
+	if cfg.SlackToken == "" || len(users) == 0 {
 		return
 	}
+	logger.Debugf("[SCAN-SLACK] Starting global Slack scan for %d users", len(users))
+
 	sc := channels.NewSlackClient(cfg.SlackToken)
 	if err := sc.FetchUsers(); err != nil {
 		logger.Errorf("[SCAN-SLACK] Failed to fetch users: %v", err)
@@ -31,7 +35,17 @@ func scanSlack(ctx context.Context, user store.User, aliases []string) {
 		return
 	}
 
+	// 유저별 별칭 맵 미리 구성
+	userAliases := make(map[string][]string)
+	for _, u := range users {
+		aliases, _ := store.GetUserAliases(u.ID)
+		userAliases[u.Email] = getEffectiveAliases(u, aliases)
+	}
+
 	var eg errgroup.Group
+	// API Rate Limit 방어를 위해 한 번에 3개 채널씩만 천천히 스캔합니다.
+	eg.SetLimit(3)
+
 	for _, channel := range chans {
 		c := channel
 		eg.Go(func() error {
@@ -40,10 +54,22 @@ func scanSlack(ctx context.Context, user store.User, aliases []string) {
 				return err
 			}
 
-			lastTS := store.GetLastScan(user.Email, "slack", c.ID)
-			msgs, err := sc.GetMessages(c.ID, time.Now().Add(-24*time.Hour), lastTS)
+			// 여러 유저 중 가장 오래된 lastTS 탐색 (API 호출 범위 최소화)
+			minLastTS := ""
+			for _, u := range users {
+				ts := store.GetLastScan(u.Email, "slack", c.ID)
+				if ts == "" {
+					minLastTS = "" // 한번이라도 빈 값이면 채널 처음부터 스캔 (24시간 전 제한 작동)
+					break
+				}
+				if minLastTS == "" || ts < minLastTS {
+					minLastTS = ts
+				}
+			}
+
+			msgs, err := sc.GetMessages(c.ID, time.Now().Add(-24*time.Hour), minLastTS)
 			if err != nil {
-				logger.Warnf("[SCAN-SLACK] Failed to fetch messages for channel %s (user: %s): %v", c.Name, user.Email, err)
+				logger.Warnf("[SCAN-SLACK] Failed to fetch messages for channel %s: %v", c.Name, err)
 				return err
 			}
 
@@ -52,58 +78,94 @@ func scanSlack(ctx context.Context, user store.User, aliases []string) {
 			}
 
 			var msgsToSave []store.ConsolidatedMessage
-			newLastTS := lastTS
+			newUserLastTS := make(map[string]string)
+
 			for _, m := range msgs {
-				classification := classifyMessage(c, &user, aliases, m)
-				if classification == "내 업무" || classification == "회신 대기" {
-					link := fmt.Sprintf("https://slack.com/archives/%s/p%s", c.ID, strings.ReplaceAll(m.ID, ".", ""))
-					if m.ReplyToID != "" {
-						// 스레드 발견 시 스위퍼 감시 목록에 등록 (최초 등록만 수행)
-						_ = store.RegisterActiveSlackThread(user.Email, c.ID, m.ReplyToID)
-
-						link += fmt.Sprintf("?thread_ts=%s", m.ReplyToID) // 클릭 시 우측 스레드 창이 즉시 열리도록 링크 강화
+				for _, u := range users {
+					userLastTS := store.GetLastScan(u.Email, "slack", c.ID)
+					// 이 유저가 이미 처리한 메시지라면 건너뜀
+					if userLastTS != "" && m.ID <= userLastTS {
+						continue
 					}
 
-					assigneeName := user.Name
-					if assigneeName == "" {
-						assigneeName = user.Email
+					classification := classifyMessage(c, &u, userAliases[u.Email], m)
+
+					// Always capture the thread ID (ReplyToID if it's a thread message, otherwise itself)
+					threadID := m.ReplyToID
+					if threadID == "" {
+						threadID = m.ID // Thread start
 					}
 
-					taskText := m.Text
-					category := "todo"
-
-					if classification == "회신 대기" {
-						category = "waiting"
-						// assigneeName을 임의의 '수신자'로 덮어쓰지 않고 원래 이름을 유지하거나 공백 처리
+					// If the user sent this message, check if it completes any tasks in the thread
+					isFromMe := strings.EqualFold(m.Sender, u.Name) || strings.EqualFold(m.Sender, u.Email)
+					if isFromMe && completionSvc != nil {
+						// Don't call ProcessPotentialCompletion if it's already a "Waiting On" task (delegation)
+						if classification != "회신 대기" {
+							completionSvc.ProcessPotentialCompletion(ctx, store.ConsolidatedMessage{
+								UserEmail:    u.Email,
+								Source:       "slack",
+								ThreadID:     threadID,
+								OriginalText: m.Text,
+								SourceTS:     m.ID,
+							})
+						}
 					}
 
-					msgsToSave = append(msgsToSave, store.ConsolidatedMessage{
-						UserEmail:    user.Email,
-						Source:       "slack",
-						Room:         sc.GetChannelName(c.ID),
-						Task:         taskText,
-						Requester:    m.Sender,
-						Assignee:     assigneeName,
-						AssignedAt:   m.Timestamp,
-						Link:         link,
-						SourceTS:     m.ID,
-						OriginalText: m.Text,
-						Category:     category,
-					})
-				}
-				if m.ID > newLastTS {
-					newLastTS = m.ID
+					if classification == "내 업무" || classification == "회신 대기" {
+						link := fmt.Sprintf("https://slack.com/archives/%s/p%s", c.ID, strings.ReplaceAll(m.ID, ".", ""))
+						if m.ReplyToID != "" {
+							_ = store.RegisterActiveSlackThread(u.Email, c.ID, m.ReplyToID)
+							link += fmt.Sprintf("?thread_ts=%s", m.ReplyToID) // 클릭 시 우측 스레드 창이 즉시 열리도록 링크 강화
+						}
+
+						assigneeName := u.Name
+						if assigneeName == "" {
+							assigneeName = u.Email
+						}
+
+						taskText := m.Text
+						category := "todo"
+
+						if classification == "회신 대기" {
+							category = "waiting"
+						}
+
+						msgsToSave = append(msgsToSave, store.ConsolidatedMessage{
+							UserEmail:    u.Email,
+							Source:       "slack",
+							Room:         sc.GetChannelName(c.ID),
+							Task:         taskText,
+							Requester:    m.Sender,
+							Assignee:     assigneeName,
+							AssignedAt:   m.Timestamp,
+							Link:         link,
+							SourceTS:     m.ID,
+							OriginalText: m.Text,
+							Category:     category,
+							ThreadID:     threadID,
+						})
+					}
+
+					// 각 유저별로 가장 최신의 SourceTS 추적
+					if currTS, exists := newUserLastTS[u.Email]; !exists || m.ID > currTS {
+						newUserLastTS[u.Email] = m.ID
+					}
 				}
 			}
 			if len(msgsToSave) > 0 {
 				store.SaveMessages(msgsToSave)
 			}
-			store.UpdateLastScan(user.Email, "slack", c.ID, newLastTS)
+			for email, newTS := range newUserLastTS {
+				store.UpdateLastScan(email, "slack", c.ID, newTS)
+			}
+
+			// API Burst 방어를 위한 미세한 대기 시간
+			time.Sleep(500 * time.Millisecond)
 			return nil
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		logger.Debugf("[SCAN-SLACK] Partially completed with errors for %s: %v", user.Email, err)
+		logger.Debugf("[SCAN-SLACK] Partially completed with errors: %v", err)
 	}
 }
 
@@ -145,6 +207,9 @@ func startSlowSweeper() {
 }
 
 func sweepSlackThreads() {
+	traceCtx, _ := trace.StartWithContext(context.Background(), "Background-SweepSlackThreads")
+	defer trace.End(traceCtx, nil)
+
 	if cfg == nil || cfg.SlackToken == "" {
 		return
 	}

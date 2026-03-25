@@ -11,7 +11,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-
 func HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	lang := r.URL.Query().Get("lang")
