@@ -1,3 +1,21 @@
+# Release Notes (User) - v2.3.6 (2026-03-26 09:15 UTC)
+
+- **[FEAT] 24/7 Health Monitoring**: We’ve integrated WhaTap monitoring. Think of it as a "heart rate monitor" for our servers, ensuring your Message Consolidator stays healthy and responsive 24/7.
+- **[OPTIMIZE] Smarter "All Clear"**: That satisfying "Inbox Zero" moment is now more accurate. We’ve improved the logic that detects when you've finished all your tasks, so the dashboard updates instantly.
+- **[SYS] Reinforced Safety**: We’ve added extra "seatbelts" to our deployment process. New automatic tests now run before every update to ensure that only the most stable version reaches your screen.
+- **[REFACTOR] Lean & Clean Code**: We've completely reorganized our styling system and database structure. You won't see these changes directly, but the app is now leaner, cleaner, and ready for future features.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.3.6 (2026-03-26 09:15 UTC)
+
+- **[FEAT] 24시간 서버 안심 모니터링**: WhaTap 모니터링 시스템을 도입했습니다. 서버의 상태를 실시간으로 체크하여, 여러분이 서비스를 이용하는 동안 끊김 없는 쾌적한 환경을 제공합니다.
+- **[OPTIMIZE] 더 똑똑해진 '완료' 표시**: 업무를 모두 마쳤을 때의 'All Clear' 표시가 더 정확해졌습니다. 이제 모든 메시지를 처리하는 즉시 대시보드가 여러분의 생산성을 완벽하게 반영합니다.
+- **[SYS] 더 꼼꼼해진 업데이트**: 서비스 배포 전 자동화된 테스트 단계를 추가했습니다. 마치 자동차의 안전 검사처럼, 모든 기능이 완벽하게 작동하는지 확인된 버전만 여러분께 전달됩니다.
+- **[REFACTOR] 보이지 않는 곳까지 깔끔하게**: 앱의 디자인 코드와 데이터 구조를 새롭게 정리했습니다. 겉으로 크게 드러나지는 않지만, 더 빠르고 안정적인 서비스를 위한 튼튼한 기초 공사를 마쳤습니다.
+
+---
+
 # Release Notes (User) - v2.3.5 (2026-03-25 10:05 UTC)
 
 - **[FEAT] Visualize Your Productivity**: Ever wondered when you're most active? We’ve added a beautiful, Anki-inspired activity heatmap. Now you can track your message consolidation trends at a glance.

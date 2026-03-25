@@ -100,11 +100,15 @@ func HandleTranslate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msgs, err := store.GetMessages(email)
+	msgsRaw, err := store.GetMessages(email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// 캐시 배열 오염 방지를 위해 깊은 복사 (Deep Copy)
+	msgs := make([]store.ConsolidatedMessage, len(msgsRaw))
+	copy(msgs, msgsRaw)
 
 	filter := store.ArchiveFilter{
 		Email: email,
@@ -115,28 +119,51 @@ func HandleTranslate(w http.ResponseWriter, r *http.Request) {
 		msgs = append(msgs, archived...)
 	}
 
+	uniqueIDs := make(map[int]bool)
 	var idList []int
 	for _, m := range msgs {
-		idList = append(idList, m.ID)
+		if !uniqueIDs[m.ID] {
+			uniqueIDs[m.ID] = true
+			idList = append(idList, m.ID)
+		}
 	}
-	existingTranslations, _ := store.GetTaskTranslationsBatch(idList, lang)
+
+	existingTranslations, err := store.GetTaskTranslationsBatch(idList, lang)
+	if err != nil {
+		logger.Errorf("[TRANSLATE] DB query failed for existing translations: %v", err)
+		// DB 조회 실패 시, nil 맵으로 인해 모든 항목을 다시 번역하여 토큰이 폭발하는 현상 원천 차단
+		http.Error(w, "Failed to check existing translations", http.StatusInternalServerError)
+		return
+	}
 
 	var toTranslateIDs []int
-	for _, m := range msgs {
-		if _, ok := existingTranslations[m.ID]; !ok {
-			toTranslateIDs = append(toTranslateIDs, m.ID)
+	for _, id := range idList {
+		if _, ok := existingTranslations[id]; !ok {
+			toTranslateIDs = append(toTranslateIDs, id)
 		}
 	}
 
 	logger.Infof("[TRANSLATE] Found %d messages needing translation to %s for %s", len(toTranslateIDs), lang, email)
 
 	if len(toTranslateIDs) > 0 {
-		count, err := TranslateMessagesByID(r.Context(), email, toTranslateIDs, lang)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		const batchSize = 30 // 한 번에 AI로 보낼 최대 개수 (토큰 폭발 및 응답 잘림 방지)
+		var totalTranslated int
+
+		for i := 0; i < len(toTranslateIDs); i += batchSize {
+			end := i + batchSize
+			if end > len(toTranslateIDs) {
+				end = len(toTranslateIDs)
+			}
+			chunk := toTranslateIDs[i:end]
+
+			count, err := TranslateMessagesByID(r.Context(), email, chunk, lang)
+			if err != nil {
+				logger.Errorf("[TRANSLATE] Partial translation failed at chunk %d: %v", i, err)
+				break // 에러 발생 시 중단하되, 직전까지 성공한 번역본은 DB/캐시에 유지됨
+			}
+			totalTranslated += count
 		}
-		logger.Infof("[TRANSLATE] Successfully translated %d/%d messages to %s", count, len(toTranslateIDs), lang)
+		logger.Infof("[TRANSLATE] Successfully translated %d/%d messages to %s", totalTranslated, len(toTranslateIDs), lang)
 	}
 
 	respondJSON(w, map[string]string{

@@ -85,7 +85,8 @@ func GetTaskTranslationsBatch(messageIDs []int, language string) (map[int]string
 		args[i+1] = id
 	}
 
-	query := fmt.Sprintf(SQL.GetTaskTranslationsBatch, strings.Join(placeholders, ","))
+	// 외부 SQL 파일의 템플릿 변환 오류를 방지하기 위해 명시적으로 하드코딩된 쿼리 사용
+	query := fmt.Sprintf("SELECT message_id, translated_text FROM task_translations WHERE language = ? AND message_id IN (%s)", strings.Join(placeholders, ","))
 	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, err

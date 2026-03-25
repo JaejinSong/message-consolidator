@@ -1,3 +1,15 @@
+# Release Notes - v2.3.6 (2026-03-26 09:15 UTC)
+
+## 🛠️ System Observability & Architectural Refinement
+- **[FEAT] WhaTap Integration**: Integrated WhaTap monitoring for real-time server-side observability and performance tracking, including optimized Session Replay logic.
+- **[REFACTOR] SQL View Architecture**: Re-engineered SQL query architecture by migrating complex joins and data transformations into Database Views, significantly reducing application-layer complexity.
+- **[OPTIMIZE] Dashboard 'All Clear' Logic**: Refined the detection algorithm for the "All Clear" state in the dashboard to ensure immediate and accurate UI updates when all tasks are processed.
+- **[REFACTOR] CSS Modularization**: Decomposed monolithic CSS into a modular structure (base, layout, components, responsive) to improve code maintainability and eliminate dead styles.
+- **[SYS] Deployment Verification**: Updated `deploy.sh` to mandate `npm test` as a pre-verification step, preventing deployment of regressions to production.
+- **[FIX] Assignee Rendering**: Resolved a lingering edge case where assignee fields could render as 'undefined' under specific race conditions during message consolidation.
+
+---
+
 # Release Notes - v2.3.5 (2026-03-25 10:05 UTC)
 
 ## 📊 Visual Analytics & Performance Optimization

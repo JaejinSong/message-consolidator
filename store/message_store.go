@@ -211,7 +211,8 @@ func DeleteMessages(email string, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	query := fmt.Sprintf(SQL.DeleteMessages, strings.Repeat("?,", len(ids)-1)+"?")
+	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
+	query := fmt.Sprintf("UPDATE messages SET is_deleted = 1 WHERE user_email = ? AND id IN (%s)", placeholders)
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
 	for i, id := range ids {
@@ -243,7 +244,8 @@ func HardDeleteMessages(email string, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	query := fmt.Sprintf(SQL.HardDeleteMessages, strings.Repeat("?,", len(ids)-1)+"?")
+	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
+	query := fmt.Sprintf("DELETE FROM messages WHERE user_email = ? AND id IN (%s)", placeholders)
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
 	for i, id := range ids {
@@ -282,7 +284,8 @@ func RestoreMessages(email string, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	query := fmt.Sprintf(SQL.RestoreMessages, strings.Repeat("?,", len(ids)-1)+"?")
+	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
+	query := fmt.Sprintf("UPDATE messages SET is_deleted = 0 WHERE user_email = ? AND id IN (%s)", placeholders)
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
 	for i, id := range ids {
@@ -306,7 +309,10 @@ func GetMessagesByIDs(ctx context.Context, ids []int) ([]ConsolidatedMessage, er
 	if len(ids) == 0 {
 		return []ConsolidatedMessage{}, nil
 	}
-	query := fmt.Sprintf(SQL.GetMessagesByIDs, strings.Repeat("?,", len(ids)-1)+"?")
+
+	// scanMessageRow 함수가 기대하는 18개의 컬럼을 명시적으로 지정하여 스키마 변경 시에도 안전하게 작동하도록 보장합니다.
+	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
+	query := fmt.Sprintf("SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id FROM messages WHERE id IN (%s)", placeholders)
 	interfaceIds := make([]interface{}, len(ids))
 	for i, v := range ids {
 		interfaceIds[i] = v
