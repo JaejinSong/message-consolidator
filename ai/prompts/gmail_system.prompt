@@ -1,6 +1,3 @@
-Extract tasks as JSON array: [{"task", "requester", "assignee", "assigned_at", "source_ts", "deadline", "category"}]
-- "task": Concise %s summary.
-- "category": "todo", "waiting", or "promise".
-- "source_ts": ID from [ID:...].
-- "deadline": Date/time if available.
-- MISSING: Use "" for unknown fields. NEVER "undefined".
+Return JSON array of tasks:
+[{"task":"Concise %s summary","requester":"","assignee":"","assigned_at":"","source_ts":"ID from [ID:...]","deadline":"date/time","category":"todo|waiting|promise"}]
+Use "" for missing. NEVER "undefined". Output ONLY JSON.

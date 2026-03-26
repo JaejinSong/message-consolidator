@@ -167,22 +167,33 @@
             <!-- WhatsApp Login Section -->
             <section id="waLoginSection" class="hidden glass-card"
                 style="margin-bottom: 2rem; text-align: center; padding: 2rem;">
-                <h3 data-i18n="waReqTitle">WhatsApp Connection Required</h3>
-                <p style="color: var(--text-dim); margin-bottom: 1.5rem;" data-i18n="waReqDesc">Please scan the QR code
-                    with your mobile
-                    WhatsApp app.</p>
-                <div id="qrContainer"
-                    style="background: white; padding: 1rem; display: inline-block; border-radius: 16px; margin-bottom: 1.5rem;">
-                    <img id="waQRImg" style="width: 200px; height: 200px;" class="hidden" />
-                    <div id="qrPlaceholder"
-                        style="width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: 800;"
-                        data-i18n="generating">
-                        Generating...</div>
+                <div id="waQRSection">
+                    <h3 data-i18n="waReqTitle">WhatsApp Connection Required</h3>
+                    <p style="color: var(--text-dim); margin-bottom: 1.5rem;" data-i18n="waReqDesc">Please scan the QR code with your mobile WhatsApp app.</p>
+                    <div id="qrContainer" style="background: white; padding: 1.5rem; display: inline-block; border-radius: 12px; margin-bottom: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                        <img id="waQRImg" style="width: 256px; height: 256px; display: block;" class="hidden" />
+                        <div id="qrPlaceholder" data-i18n="generating" style="width: 256px; height: 256px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: 800; font-size: 1.2rem;">Generating...</div>
+                        <div id="qrTimerContainer" class="hidden" style="margin-top: 1rem; width: 100%;">
+                            <div style="height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; overflow: hidden;">
+                                <div id="qrProgressBar" style="width: 100%; height: 100%; background: var(--primary); transition: width 1s linear;"></div>
+                            </div>
+                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 0.5rem;" id="qrTimerText">Next refresh in 20s</div>
+                        </div>
+                    </div>
+                    <div>
+                        <button id="getQRBtn" class="primary-btn" style="width: auto; padding: 0.8rem 2rem;" data-i18n="getQR">Get New QR Code</button>
+                    </div>
                 </div>
-                <div>
-                    <button id="getQRBtn" class="primary-btn" style="width: auto; padding: 0.8rem 2rem;"
-                        data-i18n="getQR">Get New QR
-                        Code</button>
+
+                <!-- WhatsApp Connected Info (New) -->
+                <div id="waConnectedSection" class="hidden" style="text-align: center;">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">✅</div>
+                    <h3 data-i18n="waConnected">WhatsApp: Connected</h3>
+                    <p style="color: var(--text-dim); margin-bottom: 2rem;" data-i18n="waConnectedDesc">WhatsApp is securely connected and monitoring messages in real-time.</p>
+                    <div style="display: flex; gap: 1rem; justify-content: center;">
+                        <button id="waRelinkBtn" class="action-btn" style="width: auto; padding: 0.6rem 1.5rem;" data-i18n="waRelinkBtn">Relink</button>
+                        <button id="waLogoutBtn" class="primary-btn" style="width: auto; padding: 0.6rem 1.5rem; background: #ff3b30;" data-i18n="waLogoutBtn">Logout</button>
+                    </div>
                 </div>
             </section>
 
@@ -513,6 +524,30 @@
                         Delete Permanently</button>
                     <button type="button" id="cancelDeleteConfirmBtn" class="action-btn" data-action="close-modal"
                         style="width: 100%;" data-i18n="cancelBtn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gmail Modal (New) -->
+    <div id="gmailModal" class="modal hidden">
+        <div class="modal-content glass-card" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3 data-i18n="gmailTitle">Gmail Integration</h3>
+                <button id="closeGmailModalBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body" style="text-align: center; padding: 2rem;">
+                <div id="gmailConnectedInfo" class="hidden">
+                    <div style="font-size: 4rem; margin-bottom: 1.5rem;">📧</div>
+                    <h4 data-i18n="gmailStatusConnected" style="margin-bottom: 0.5rem;">Gmail Connected</h4>
+                    <p style="color: var(--text-dim); margin-bottom: 2rem;" data-i18n="gmailConnectedDesc">Gmail integration is complete. New task emails will be automatically detected.</p>
+                    <button id="gmailDisconnectBtn" class="primary-btn" style="background: #ff3b30; width: auto; padding: 0.8rem 2rem;" data-i18n="gmailDisconnectBtn">Disconnect</button>
+                </div>
+                <div id="gmailDisconnectedInfo">
+                    <div style="font-size: 4rem; margin-bottom: 1.5rem; opacity: 0.5;">📧</div>
+                    <h4 data-i18n="statusOff" style="margin-bottom: 0.5rem;">OFF</h4>
+                    <p style="color: var(--text-dim); margin-bottom: 2rem;" data-i18n="gmailDesc">Click the Gmail icon on the dashboard to connect your company account.</p>
+                    <a href="/auth/gmail/connect" class="primary-btn" style="text-decoration: none; display: inline-block; width: auto; padding: 0.8rem 2rem;" data-i18n="confirmBtn">Connect</a>
                 </div>
             </div>
         </div>

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"message-consolidator/logger"
 	"sync"
 	"time"
@@ -70,14 +71,23 @@ func GetAchievements() ([]Achievement, error) {
 func GetUserAchievements(userID int) ([]UserAchievement, error) {
 	// 1. 소급 적용을 위해 사용자 정보를 가져와 업적 체크를 먼저 수행
 	var u User
-	// SQL.GetUserByID (SELECT * FROM v_users WHERE id = ?)
+	var lastCompletedAt, createdAt DBTime
+	var slackID, waJID sql.NullString
 	err := db.QueryRow(SQL.GetUserByID, userID).Scan(
-		&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture,
+		&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture,
 		&u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal,
-		&u.LastCompletedAt, &u.CreatedAt, &u.StreakFreezes,
+		&lastCompletedAt, &createdAt, &u.StreakFreezes,
 	)
 	if err == nil {
+		u.SlackID = slackID.String
+		u.WAJID = waJID.String
+		if lastCompletedAt.Valid && !lastCompletedAt.Time.IsZero() {
+			u.LastCompletedAt = &lastCompletedAt.Time
+		}
+		u.CreatedAt = createdAt.Time
 		_, _ = CheckAndUnlockAchievements(u)
+	} else if err != sql.ErrNoRows {
+		logger.Warnf("[GAMIFICATION] Failed to get user for retroactive check (ID: %d): %v", userID, err)
 	}
 
 	return getUnlockedAchievementsFromDB(userID)

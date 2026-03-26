@@ -1,3 +1,16 @@
+# Release Notes - v2.3.7 (2026-03-26 02:46 UTC)
+
+## 🚀 Scalability & Global Data Integrity
+- **[FEAT] Database Migration to Turso**: Migrated the primary database architecture to Turso (libsql). This transition enhances edge-computing capabilities and resolves previous startup panic issues, ensuring a more resilient boot sequence.
+- **[FEAT] Batch Translation Chunking**: Implemented a chunking algorithm for the translation engine. Large message blocks are now intelligently segmented before processing to prevent API timeouts and ensure reliable multi-language support.
+- **[OPTIMIZE] Connection Pooling**: Optimized database connection pooling logic to handle higher concurrent loads, reducing latency during peak message consolidation windows.
+- **[FEAT] Global Timezone Support**: Fully migrated time-related schemas to `TIMESTAMPTZ`. This allows for accurate multi-timezone statistics and consistent activity tracking regardless of the user's geographical location.
+- **[UI] Real-time Toast Notifications**: Integrated a new toast notification system to provide immediate, non-intrusive feedback for background tasks and system status changes.
+- **[REFACTOR] Service Layer Isolation**: Decoupled backend services from utility functions and standardized core logic, improving testability and isolating frontend-specific data transformations.
+- **[STABILITY] Frontend Defensive Logic**: Strengthened frontend state management with defensive checks to prevent UI crashes during intermittent network fluctuations or data inconsistencies.
+
+---
+
 # Release Notes - v2.3.6 (2026-03-26 09:15 UTC)
 
 ## 🛠️ System Observability & Architectural Refinement

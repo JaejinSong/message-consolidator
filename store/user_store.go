@@ -18,10 +18,13 @@ func GetAllUsers() ([]User, error) {
 
 	for rows.Next() {
 		var u User
+		var slackID, waJID sql.NullString
 		var lastCompletedAt, createdAt DBTime
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes); err != nil {
 			return nil, err
 		}
+		u.SlackID = slackID.String
+		u.WAJID = waJID.String
 		if lastCompletedAt.Valid && !lastCompletedAt.Time.IsZero() {
 			u.LastCompletedAt = &lastCompletedAt.Time
 		}
@@ -62,14 +65,17 @@ func GetOrCreateUser(email, name, picture string) (*User, error) {
 func updateAndCacheUser(email, name, picture string) (*User, error) {
 	var u User
 	err := WithDBRetry("GetOrCreateUser", func() error {
+		var slackID, waJID sql.NullString
 		var lastCompletedAt, createdAt DBTime
-		errQuery := db.QueryRow(SQL.GetUserByEmail, email).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes)
+		errQuery := db.QueryRow(SQL.GetUserByEmail, email).Scan(&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes)
 		if errQuery == sql.ErrNoRows {
-			errQuery = db.QueryRow(SQL.CreateUserReturningAll, email, name, picture, 5).Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes)
+			errQuery = db.QueryRow(SQL.CreateUserReturningAll, email, name, picture, 5).Scan(&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes)
 		}
 		if errQuery != nil {
 			return errQuery
 		}
+		u.SlackID = slackID.String
+		u.WAJID = waJID.String
 		if lastCompletedAt.Valid && !lastCompletedAt.Time.IsZero() {
 			u.LastCompletedAt = &lastCompletedAt.Time
 		}

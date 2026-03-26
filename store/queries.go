@@ -65,6 +65,7 @@ var SQL = struct {
 	GetMonthlyTokenUsage string
 	UpsertGmailToken     string
 	GetGmailToken        string
+	DeleteGmailToken     string
 
 	// Contacts
 	UpsertContactMapping string
@@ -209,6 +210,7 @@ func loadAllQueries() error {
 	SQL.GetMonthlyTokenUsage = queries["GetMonthlyTokenUsage"]
 	SQL.UpsertGmailToken = queries["UpsertGmailToken"]
 	SQL.GetGmailToken = queries["GetGmailToken"]
+	SQL.DeleteGmailToken = queries["DeleteGmailToken"]
 
 	SQL.UpsertContactMapping = queries["UpsertContactMapping"]
 	SQL.DeleteContactMapping = queries["DeleteContactMapping"]

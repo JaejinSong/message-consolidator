@@ -71,6 +71,20 @@ function updateServiceStatusUI(service, status) {
         largeLabel.textContent = isConnected ? UI_TEXT.ON : UI_TEXT.OFF;
     }
 
+    if (service === 'wa') {
+        const qrSection = document.getElementById('waQRSection');
+        const connectedSection = document.getElementById('waConnectedSection');
+        if (qrSection) qrSection.classList.toggle('hidden', isConnected);
+        if (connectedSection) connectedSection.classList.toggle('hidden', !isConnected);
+    }
+
+    if (service === 'gmail') {
+        const connectedInfo = document.getElementById('gmailConnectedInfo');
+        const disconnectedInfo = document.getElementById('gmailDisconnectedInfo');
+        if (connectedInfo) connectedInfo.classList.toggle('hidden', !isConnected);
+        if (disconnectedInfo) disconnectedInfo.classList.toggle('hidden', isConnected);
+    }
+
     // 2. Settings menu status pills (if any)
     const settingsPill = document.getElementById(`${service}ConnectedStatus`);
     if (settingsPill) {
@@ -619,11 +633,32 @@ export const renderer = {
             placeholder.classList.add('hidden');
         } else if (status === 'success') {
             btn.disabled = false;
+            img.classList.add('hidden');
+            document.getElementById('qrTimerContainer')?.classList.add('hidden');
+            placeholder.textContent = '✅ Connected!';
+            placeholder.classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('waLoginSection')?.classList.add('hidden');
+            }, 2000);
+            this.showToast(i18n.waConnected || 'WhatsApp connected!', 'success');
         } else if (status === 'error') {
+            document.getElementById('qrTimerContainer')?.classList.add('hidden');
             placeholder.textContent = i18n.error || 'Error';
             this.showToast((i18n.qrError || 'Error: ') + data, 'error');
             btn.disabled = false;
         }
+    },
+
+    updateQRTimer(remaining, total) {
+        const container = document.getElementById('qrTimerContainer');
+        const bar = document.getElementById('qrProgressBar');
+        const text = document.getElementById('qrTimerText');
+        if (!container || !bar || !text) return;
+
+        container.classList.remove('hidden');
+        const percentage = (remaining / total) * 100;
+        bar.style.width = `${percentage}%`;
+        text.textContent = `Next refresh in ${remaining}s`;
     },
 
     /**
@@ -635,6 +670,25 @@ export const renderer = {
 
     bindGmailStatus(onClick) {
         document.getElementById('gmailStatusLarge')?.addEventListener('click', onClick);
+    },
+    
+    bindWhatsAppStatus(onClick) {
+        document.getElementById('waStatusLarge')?.addEventListener('click', onClick);
+    },
+    
+    toggleWaLoginSection(show) {
+        const section = document.getElementById('waLoginSection');
+        if (section) {
+            section.classList.toggle('hidden', !show);
+        }
+    },
+
+    showGmailModal() {
+        const modal = document.getElementById('gmailModal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+        }
     },
 
     bindGlobalClicks(handlers) {

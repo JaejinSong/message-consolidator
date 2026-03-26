@@ -51,6 +51,7 @@ func RegisterRoutes(r *mux.Router) {
 	r.Handle("/api/user/info", auth.AuthMiddleware(http.HandlerFunc(HandleUserInfo))).Methods("GET")
 	r.Handle("/api/whatsapp/qr", auth.AuthMiddleware(http.HandlerFunc(HandleWhatsAppQR))).Methods("GET")
 	r.Handle("/api/whatsapp/status", auth.AuthMiddleware(http.HandlerFunc(HandleWhatsAppStatus))).Methods("GET")
+	r.Handle("/api/whatsapp/logout", auth.AuthMiddleware(http.HandlerFunc(HandleWhatsAppLogout))).Methods("POST")
 	r.Handle("/api/slack/status", auth.AuthMiddleware(http.HandlerFunc(HandleSlackStatus))).Methods("GET")
 	r.Handle("/api/scan", auth.AuthMiddleware(http.HandlerFunc(HandleManualScan))).Methods("GET")
 	r.HandleFunc("/api/internal/scan", HandleInternalScan).Methods("GET")
@@ -77,6 +78,7 @@ func RegisterRoutes(r *mux.Router) {
 	r.Handle("/auth/gmail/connect", auth.AuthMiddleware(http.HandlerFunc(HandleGmailConnect))).Methods("GET")
 	r.HandleFunc("/auth/gmail/callback", HandleGmailCallback).Methods("GET")
 	r.Handle("/api/gmail/status", auth.AuthMiddleware(http.HandlerFunc(HandleGmailStatus))).Methods("GET")
+	r.Handle("/api/gmail/disconnect", auth.AuthMiddleware(http.HandlerFunc(HandleGmailDisconnect))).Methods("POST")
 
 	// Public Endpoints
 	r.HandleFunc("/health", HandleHealth).Methods("GET")

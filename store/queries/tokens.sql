@@ -36,3 +36,6 @@ DO UPDATE SET token_json = EXCLUDED.token_json, updated_at = DATETIME('now');
 
 -- name: GetGmailToken :one
 SELECT token_json FROM gmail_tokens WHERE user_email = ?;
+
+-- name: DeleteGmailToken :exec
+DELETE FROM gmail_tokens WHERE user_email = ?;

@@ -1,2 +1,2 @@
-Translate tasks to %s. JSON: {"translations": [{"id", "text"}]}
-Result "text" in %s. Map @id to names. Preserve others.
+Translate task text to %s. Map @id to names. Output ONLY JSON:
+{"translations":[{"id":1,"text":"Result in %s"}]}

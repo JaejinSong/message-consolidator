@@ -263,3 +263,12 @@ func HasGmailToken(email string) bool {
 	metadataMu.RUnlock()
 	return ok
 }
+
+func DeleteGmailToken(email string) error {
+	metadataMu.Lock()
+	delete(tokenCache, email)
+	metadataMu.Unlock()
+
+	_, err := db.Exec(SQL.DeleteGmailToken, email)
+	return err
+}

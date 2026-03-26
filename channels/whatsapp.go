@@ -15,6 +15,7 @@ import (
 
 	"github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	waStore "go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waTypes "go.mau.fi/whatsmeow/types"
@@ -73,8 +74,18 @@ func (m *WAManager) InitWhatsApp(email string, cfg *config.Config) {
 
 	var err error
 	m.containerOnce.Do(func() {
+		// Set device properties to look like a standard Chrome/macOS session
+		// This helps bypass the "Can't link new devices" error from WhatsApp
+		waStore.SetOSInfo("Mac OS", [3]uint32{10, 15, 7})
+		pType := waCompanionReg.DeviceProps_CHROME
+		waStore.DeviceProps.PlatformType = &pType
+
 		dbLog := waLog.Stdout("Database", m.getLogLevel(cfg), true)
 		m.container = sqlstore.NewWithDB(store.GetDB(), "sqlite3", dbLog)
+		// Explicitly trigger upgrade for fallback scenarios where auto-migration fails
+		if err := m.container.Upgrade(context.Background()); err != nil {
+			logger.Errorf("WA Store upgrade failed: %v", err)
+		}
 	})
 
 	if m.container == nil {
@@ -94,7 +105,7 @@ func (m *WAManager) InitWhatsApp(email string, cfg *config.Config) {
 		jid, _ := waTypes.ParseJID(wajid)
 		device, err = m.container.GetDevice(context.Background(), jid)
 		if err != nil {
-			logger.Debugf("WA Device Store failed for %s (JID: %s): %v", email, wajid, err)
+			logger.Errorf("WA Device Store failed for %s (JID: %s): %v", email, wajid, err)
 		}
 	}
 
@@ -235,17 +246,21 @@ func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
 		return "CONNECTED", nil
 	}
 
-	if !client.IsConnected() {
-		if err := client.Connect(); err != nil {
-			logger.Errorf("[WA-QR] Failed to connect client for %s: %v", email, err)
-			return "", fmt.Errorf("failed to connect for %s: %v", email, err)
-		}
+	// whatsmeow requires GetQRChannel to be called BEFORE Connect()
+	if client.IsConnected() {
+		logger.Infof("[WA-QR] Client already connected for %s, disconnecting to get QR channel...", email)
+		client.Disconnect()
 	}
 
 	qrChan, err := client.GetQRChannel(ctx)
 	if err != nil {
 		logger.Errorf("[WA-QR] Failed to get QR channel for %s: %v", email, err)
 		return "", fmt.Errorf("failed to get QR channel for %s: %v", email, err)
+	}
+
+	if err := client.Connect(); err != nil {
+		logger.Errorf("[WA-QR] Failed to connect client for %s: %v", email, err)
+		return "", fmt.Errorf("failed to connect for %s: %v", email, err)
 	}
 
 	for {
@@ -258,17 +273,22 @@ func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
 			}
 			switch evt.Event {
 			case "code":
-				png, err := qrcode.Encode(evt.Code, qrcode.Medium, 256)
+				png, err := qrcode.Encode(evt.Code, qrcode.High, 300)
 				if err != nil {
+					logger.Errorf("[WA-QR] Failed to encode QR for %s: %v", email, err)
 					return "", fmt.Errorf("failed to encode QR: %v", err)
 				}
-				encoded := "base64:" + base64.StdEncoding.EncodeToString(png)
+				encoded := base64.StdEncoding.EncodeToString(png)
 				m.mu.Lock()
 				m.latestQR[email] = encoded
 				m.mu.Unlock()
+				logger.Infof("[WA-QR] Generated new QR code for %s (len: %d)", email, len(encoded))
 				return encoded, nil
 			case "success":
+				logger.Infof("[WA-QR] QR Scan success for %s", email)
 				return "CONNECTED", nil
+			default:
+				logger.Debugf("[WA-QR] Received unknown QR event for %s: %s", email, evt.Event)
 			}
 		}
 	}
@@ -286,6 +306,33 @@ func (m *WAManager) GetStatus(email string) string {
 		return "connected"
 	}
 	return "disconnected"
+}
+
+func (m *WAManager) LogoutWhatsApp(email string) error {
+	m.mu.Lock()
+	client, ok := m.clients[email]
+	m.mu.Unlock()
+
+	if !ok {
+		return fmt.Errorf("client not initialized for %s", email)
+	}
+
+	if client.IsConnected() {
+		err := client.Logout(context.Background())
+		if err != nil {
+			logger.Errorf("[WA-LOGOUT] Failed to logout for %s: %v", email, err)
+			return err
+		}
+	}
+
+	m.mu.Lock()
+	delete(m.clients, email)
+	delete(m.messageBuffer, email)
+	delete(m.latestQR, email)
+	m.mu.Unlock()
+
+	logger.Infof("[WA-LOGOUT] Successfully logged out and cleaned up for %s", email)
+	return nil
 }
 
 func (m *WAManager) GetGroupName(email string, jidStr string) string {
@@ -352,6 +399,10 @@ func GetWhatsAppStatus(email string) string {
 
 func GetWhatsAppQR(ctx context.Context, email string) (string, error) {
 	return DefaultWAManager.GetQR(ctx, email)
+}
+
+func LogoutWhatsApp(email string) error {
+	return DefaultWAManager.LogoutWhatsApp(email)
 }
 
 func DisconnectAllWhatsApp() {

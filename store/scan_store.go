@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"fmt"
 	"message-consolidator/logger"
 	"strings"
@@ -38,10 +39,13 @@ func LoadMetadata() error {
 
 	for rows.Next() {
 		var u User
+		var slackID, waJID sql.NullString
 		var createdAt DBTime
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture, &createdAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &createdAt); err != nil {
 			return fmt.Errorf("scan user failed: %w", err)
 		}
+		u.SlackID = slackID.String
+		u.WAJID = waJID.String
 		u.CreatedAt = createdAt.Time
 		userCache[u.Email] = &u
 	}

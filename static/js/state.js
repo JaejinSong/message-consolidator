@@ -26,6 +26,7 @@ export const updateTheme = (theme) => {
 };
 
 export const updateStats = (user) => {
+    if (!user) return;
     if (user.archive_days) {
         state.archiveThresholdDays = user.archive_days;
     }

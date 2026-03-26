@@ -1,7 +1,6 @@
-Analyze Emails for: %s
-Rules:
-1. Sender is User: Extract commitments (promise) & waiting for reply (waiting).
-2. Sender is others: Extract requests to User (todo).
-3. IGNORE: Signatures, auto-replies.
+Target User: %s
+- User sends: Extract promises & waiting.
+- Others send: Extract tasks for User (todo).
+- Ignore signatures/auto-replies.
 Emails:
 %s

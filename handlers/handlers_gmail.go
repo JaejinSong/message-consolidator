@@ -56,5 +56,14 @@ func HandleGmailStatus(w http.ResponseWriter, r *http.Request) {
 	connected := store.HasGmailToken(email)
 	logger.Debugf("[CHANNEL] Gmail status for %s: connected=%v", email, connected)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]bool{"connected": connected})
+	respondJSON(w, map[string]bool{"connected": connected})
+}
+
+func HandleGmailDisconnect(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	if err := store.DeleteGmailToken(email); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	respondJSON(w, map[string]string{"status": "disconnected"})
 }

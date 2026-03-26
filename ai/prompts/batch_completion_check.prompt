@@ -1,14 +1,7 @@
-List of tasks:
+Tasks:
 %s
-
-User's reply:
+Reply:
 "%s"
 
-이 답장 메시지가 위 목록의 업무들 중 명확히 완료(완료, 해결, 끝났음 등)시킨 것이 있는지 판단하세요.
-완료된 업무의 ID들만 JSON 배열 형태로 반환하세요.
-해당되는 업무가 없다면 빈 배열 []을 반환하세요.
-응답은 반드시 JSON 배열 형태여야만 합니다 (예: [1, 3]).
-
-주의사항:
-- 단순히 질문하거나 상태를 공유하는 것은 완료가 아닙니다.
-- 답장에 '완료' 혹은 그에 준하는 표현이 있을 때만 ID를 포함하세요.
+Return a JSON array of Task IDs completely resolved by the Reply (e.g., [1, 3]).
+Return [] if none, or if the reply is just a question, delegation, or status update. Output ONLY JSON.

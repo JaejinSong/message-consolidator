@@ -1,2 +1,0 @@
-Translate tasks to %s. JSON: {"translations": [{"id", "text"}]}
-Result "text" in %s. Map @id to names. Preserve others.

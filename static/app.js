@@ -40,6 +40,31 @@ const handlers = {
         if (data && data.original_text) {
             modals.showOriginalModal(data.original_text);
         }
+    }, { triggerAuthOverlay: true }),
+    onWhatsAppLogout: safeAsync(async () => {
+        const lang = state.currentLang || 'ko';
+        if (!confirm(I18N_DATA[lang].logoutConfirm)) return;
+        await api.logoutWhatsApp();
+        renderer.showToast(lang === 'ko' ? '로그아웃 되었습니다.' : 'Logged out successfully.', 'success');
+        checkWhatsAppStatus();
+    }, { triggerAuthOverlay: true }),
+    onWhatsAppRelink: safeAsync(async () => {
+        renderer.updateWhatsAppQR('generating', null, state.currentLang);
+        renderer.toggleWaLoginSection(true);
+        // waQRSection과 waConnectedSection은 renderer.updateServiceStatusUI에서 처리되지만,
+        // 여기서는 강제로 QR 섹션을 보여줘야 함
+        document.getElementById('waQRSection')?.classList.remove('hidden');
+        document.getElementById('waConnectedSection')?.classList.add('hidden');
+        
+        await refreshWhatsAppQR();
+    }, { triggerAuthOverlay: true }),
+    onGmailDisconnect: safeAsync(async () => {
+        const lang = state.currentLang || 'ko';
+        if (!confirm(I18N_DATA[lang].disconnectConfirm)) return;
+        await api.disconnectGmail();
+        renderer.showToast(lang === 'ko' ? '연동이 해제되었습니다.' : 'Disconnected successfully.', 'success');
+        checkGmailStatus();
+        document.getElementById('gmailModal')?.classList.add('hidden');
     }, { triggerAuthOverlay: true })
 };
 
@@ -68,6 +93,7 @@ const checkSlackStatus = safeAsync(async () => {
 const checkWhatsAppStatus = safeAsync(async () => {
     const data = await api.fetchWhatsAppStatus();
     if (data) {
+        state.waConnected = (data.status === STATUS_STATES.CONNECTED);
         renderer.updateWhatsAppStatus(data.status);
     }
 });
@@ -77,6 +103,7 @@ const checkWhatsAppStatus = safeAsync(async () => {
  */
 const checkGmailStatus = safeAsync(async () => {
     const data = await api.fetchGmailStatus();
+    state.gmailConnected = data.connected;
     renderer.updateGmailStatus(data.connected);
 });
 
@@ -277,35 +304,86 @@ const initNavigation = () => {
     document.getElementById('backToDashBtn')?.addEventListener('click', closeArchive);
 };
 
+let qrRefreshInterval = null;
+let qrTimerInterval = null;
+const QR_EXPIRY_SECONDS = 20;
+
+/**
+ * Starts automatic QR refresh and countdown timer.
+ */
+const startQRAutoRefresh = () => {
+    stopQRAutoRefresh(); // Clear existing
+
+    let remaining = QR_EXPIRY_SECONDS;
+    renderer.updateQRTimer(remaining, QR_EXPIRY_SECONDS);
+
+    qrTimerInterval = setInterval(() => {
+        remaining--;
+        if (remaining < 0) remaining = 0;
+        renderer.updateQRTimer(remaining, QR_EXPIRY_SECONDS);
+    }, 1000);
+
+    qrRefreshInterval = setInterval(async () => {
+        if (state.waConnected) {
+            stopQRAutoRefresh();
+            return;
+        }
+        await refreshWhatsAppQR();
+    }, QR_EXPIRY_SECONDS * 1000);
+};
+
+const stopQRAutoRefresh = () => {
+    if (qrRefreshInterval) clearInterval(qrRefreshInterval);
+    if (qrTimerInterval) clearInterval(qrTimerInterval);
+};
+
+const refreshWhatsAppQR = async () => {
+    try {
+        const data = await api.getWhatsAppQR();
+        if (data.qr) {
+            renderer.updateWhatsAppQR('show', data.qr, state.currentLang);
+            startQRAutoRefresh(); // Reset timer on successful fetch
+        }
+    } catch (e) {
+        renderer.updateWhatsAppQR('error', e.message, state.currentLang);
+        stopQRAutoRefresh();
+    }
+};
+
 /**
  * Initializes static action buttons and global event delegation.
  */
 const initActionButtons = () => {
     renderer.bindGetQRBtn(async () => {
         renderer.updateWhatsAppQR('generating', null, state.currentLang);
-        try {
-            const data = await api.getWhatsAppQR();
-            if (data.qr) {
-                renderer.updateWhatsAppQR('show', data.qr, state.currentLang);
-                const poll = setInterval(async () => {
-                    await checkWhatsAppStatus();
-                    if (state.waConnected) {
-                        clearInterval(poll);
-                        renderer.updateWhatsAppQR('success', null, state.currentLang);
-                    }
-                }, 3001);
+        await refreshWhatsAppQR();
+        
+        const pollStatus = setInterval(async () => {
+            await checkWhatsAppStatus();
+            if (state.waConnected) {
+                clearInterval(pollStatus);
+                stopQRAutoRefresh();
+                renderer.updateWhatsAppQR('success', null, state.currentLang);
             }
-        } catch (e) {
-            renderer.updateWhatsAppQR('error', e.message, state.currentLang);
-        }
+        }, 3001);
     });
 
     renderer.bindScanBtn(triggerScan);
 
+    renderer.bindWhatsAppStatus(() => {
+        renderer.toggleWaLoginSection(true);
+    });
+
     renderer.bindGmailStatus(() => {
-        if (!state.gmailConnected) {
-            window.location.href = '/auth/gmail/connect';
-        }
+        renderer.showGmailModal();
+    });
+
+    // New Bindings for logout/disconnect/relink
+    document.getElementById('waLogoutBtn')?.addEventListener('click', handlers.onWhatsAppLogout);
+    document.getElementById('waRelinkBtn')?.addEventListener('click', handlers.onWhatsAppRelink);
+    document.getElementById('gmailDisconnectBtn')?.addEventListener('click', handlers.onGmailDisconnect);
+    document.getElementById('closeGmailModalBtn')?.addEventListener('click', () => {
+        document.getElementById('gmailModal')?.classList.add('hidden');
     });
 
     renderer.bindGlobalClicks({

@@ -172,9 +172,19 @@ export const api = {
         return handleResponse(resp, 'QR fetch failed');
     },
 
+    async logoutWhatsApp() {
+        const resp = await fetch('/api/whatsapp/logout', { method: 'POST' });
+        return handleResponse(resp, 'WhatsApp logout failed');
+    },
+
     async fetchGmailStatus() {
         const resp = await fetch('/api/gmail/status');
         return handleResponse(resp, 'Gmail status check failed');
+    },
+
+    async disconnectGmail() {
+        const resp = await fetch('/api/gmail/disconnect', { method: 'POST' });
+        return handleResponse(resp, 'Gmail disconnect failed');
     },
 
     async buyStreakFreeze() {

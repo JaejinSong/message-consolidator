@@ -1,3 +1,23 @@
+# Release Notes (User) - v2.3.7 (2026-03-26 02:46 UTC)
+
+- **[FEAT] Globally Minded Timekeeping**: Whether you're in Seoul or San Francisco, your message stats are now perfectly synced. We’ve upgraded our time engine to support every timezone on Earth with precision.
+- **[FEAT] Heavy-Duty Translation**: Translating massive amounts of text is now smoother than ever. Our new "chunking" technology breaks down huge tasks into bite-sized pieces, so the app never breaks a sweat.
+- **[OPTIMIZE] Turbo-Charged Database**: We’ve moved our engine to a faster, more modern "Turso" database. It’s like switching from a standard engine to a high-performance jet—faster response times and zero startup hiccups.
+- **[UI] Instant Feedback**: No more wondering "did that work?" Our new Toast Notifications will pop up to give you a quick "thumbs up" when tasks are completed or system updates occur.
+- **[STABILITY] Bulletproof Experience**: We've added extra layers of protection to the app’s "brain" to handle shaky internet connections or unexpected data errors gracefully.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.3.7 (2026-03-26 02:46 UTC)
+
+- **[FEAT] 전 세계 어디서나 정확한 시간**: 서울에 있든 런던에 있든, 이제 여러분의 활동 통계가 현지 시간에 맞춰 완벽하게 표시됩니다. 글로벌 기준에 맞춘 정밀한 시간 관리 기능을 경험해 보세요.
+- **[FEAT] 막힘없는 대용량 번역**: 아무리 긴 메시지도 문제없습니다. 데이터를 잘게 나누어 처리하는 새로운 기술을 도입하여, 대량의 번역 작업도 끊김 없이 부드럽게 완료됩니다.
+- **[OPTIMIZE] 더 빠르고 강력해진 엔진**: 데이터베이스를 최신 Turso 시스템으로 업그레이드했습니다. 마치 새 엔진을 단 자동차처럼, 서비스 응답 속도가 빨라지고 접속 시 발생하던 작은 오류들까지 모두 잡았습니다.
+- **[UI] 한눈에 확인하는 알림**: 작업이 완료되었는지 일일이 확인할 필요가 없습니다. 새롭게 도입된 토스트 알림이 화면 한쪽에서 작업 상태를 실시간으로 친절하게 알려줍니다.
+- **[STABILITY] 더 단단해진 안정성**: 인터넷 연결이 불안정한 상황에서도 앱이 당황하지 않고 차분하게 작동할 수 있도록 내부 방어 로직을 꼼꼼하게 보강했습니다.
+
+---
+
 # Release Notes (User) - v2.3.6 (2026-03-26 09:15 UTC)
 
 - **[FEAT] 24/7 Health Monitoring**: We’ve integrated WhaTap monitoring. Think of it as a "heart rate monitor" for our servers, ensuring your Message Consolidator stays healthy and responsive 24/7.
