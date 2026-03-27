@@ -1,0 +1,4 @@
+[ID:p1] Alice: Hi!
+[ID:p2] Bob: Hello!
+[ID:p3] Alice: How are you?
+[ID:p4] Bob: I'm good, thanks for asking.

@@ -61,10 +61,16 @@ func TestAnalyze_Regression(t *testing.T) {
 			}
 
 			// 3. Analyze 함수 실제 호출
-			// 기대 결과(Expected)에 한글이 있으면 한국어 추출을, 없으면 영어 추출을 시도합니다.
-			lang := "English"
-			if containsKorean(string(expectedBytes)) {
-				lang = "Korean"
+			// 언어 설정: _lang.txt 파일이 있으면 해당 값을 사용하고, 없으면 기대 결과에서 한글 여부로 판단합니다.
+			lang := ""
+			langPath := baseName + "_lang.txt"
+			if langBytes, err := os.ReadFile(langPath); err == nil {
+				lang = strings.TrimSpace(string(langBytes))
+			} else {
+				lang = "English"
+				if containsKorean(string(expectedBytes)) {
+					lang = "Korean"
+				}
 			}
 
 			actualTasks, err := client.Analyze(context.Background(), "test.user@example.com", string(inputBytes), lang, "slack")

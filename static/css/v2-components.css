@@ -98,7 +98,7 @@
 .c-btn--success:hover {
     background: var(--color-success);
     color: var(--white);
-    box-shadow: 0 4px 12px rgba(var(--color-success-rgb), 0.3);
+    box-shadow: 0 var(--spacing-xs) var(--spacing-md) rgba(var(--color-success-rgb), 0.3);
 }
 
 .c-btn--warning {
@@ -110,7 +110,7 @@
 .c-btn--warning:hover {
     background: var(--color-warning);
     color: var(--white);
-    box-shadow: 0 4px 12px rgba(var(--color-warning-rgb), 0.3);
+    box-shadow: 0 var(--spacing-xs) var(--spacing-md) rgba(var(--color-warning-rgb), 0.3);
 }
 
 .c-btn--outline {
@@ -141,7 +141,7 @@
 .c-input:focus {
     border-color: var(--accent-color);
     background: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 0 0 3px var(--accent-glow);
+    box-shadow: 0 0 0 0.1875rem var(--accent-glow);
 }
 
 .c-input::placeholder {
@@ -659,21 +659,21 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: var(--spacing-3xl);
+    height: var(--spacing-3xl);
     border-radius: var(--radius-md);
     background: rgba(255, 255, 255, 0.05);
 }
 
 .c-archive-table__source svg {
-    width: 18px;
-    height: 18px;
+    width: 1.125rem;
+    height: 1.125rem;
 }
 
 .c-archive-table__task {
     font-weight: 500;
     color: var(--text-main);
-    min-width: var(--archive-task-min-width, 300px);
+    min-width: var(--archive-task-min-width);
     white-space: normal;
     line-height: 1.5;
     word-break: break-word;
@@ -823,7 +823,7 @@
     width: 100%;
     height: 100%;
     background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(var(--spacing-xxs));
     display: none;
     justify-content: center;
     align-items: center;
@@ -837,21 +837,21 @@
 
 .spinner,
 .spinner-small {
-    border: 3px solid rgba(255, 255, 255, 0.1);
+    border: var(--spacing-xxs) solid rgba(255, 255, 255, 0.1);
     border-left-color: var(--accent-color);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
 
 .spinner {
-    width: 40px;
-    height: 40px;
+    width: var(--btn-size);
+    height: var(--btn-size);
     margin: 0 auto;
 }
 
 .spinner-small {
-    width: 24px;
-    height: 24px;
+    width: var(--spacing-2xl);
+    height: var(--spacing-2xl);
     margin: 0 auto;
 }
 
@@ -864,7 +864,7 @@
 /* --- Toast Notifications --- */
 .toast-popup {
     position: fixed;
-    bottom: -100px;
+    bottom: calc(var(--status-card-size) * -1);
     right: var(--spacing-xl);
     background: var(--card-bg);
     border: var(--border-thin) solid var(--glass-border);
@@ -927,8 +927,8 @@
 
 .archive-check {
     accent-color: var(--accent-color);
-    width: 16px;
-    height: 16px;
+    width: var(--spacing-lg);
+    height: var(--spacing-lg);
     cursor: pointer;
 }
 
@@ -947,7 +947,7 @@ body.light-theme .c-input {
 }
 
 body.light-theme .c-input:focus {
-    background: #ffffff;
+    background: var(--white);
 }
 
 body.light-theme .c-task-card:hover {

@@ -53,7 +53,7 @@ func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translat
 	}, nil
 }
 
-// generateWithRetry는 타임아웃이나 일시적 오류 발생 시 점진적 백오프(Exponential Backoff)를 적용하여 AI API를 안전하게 재시도합니다.
+// generateWithRetry safely retries AI API calls with exponential backoff to handle transient errors and rate limits gracefully, ensuring reliability under high load.
 func generateWithRetry(ctx context.Context, model *genai.GenerativeModel, prompt genai.Part, timeout time.Duration, maxRetries int) (*genai.GenerateContentResponse, error) {
 	var resp *genai.GenerateContentResponse
 	var err error
@@ -67,18 +67,18 @@ func generateWithRetry(ctx context.Context, model *genai.GenerativeModel, prompt
 			return resp, nil
 		}
 		if ctx.Err() != nil {
-			return nil, ctx.Err() // 호출자(클라이언트)에 의해 요청이 취소된 경우 즉시 종료
+			return nil, ctx.Err() // Exit immediately if the context was canceled by the caller (e.g. timeout or client disconnect)
 		}
 
 		logger.Warnf("[GEMINI] API call failed (attempt %d/%d): %v", attempt+1, maxRetries+1, err)
 		if attempt < maxRetries {
-			time.Sleep(time.Duration(1<<attempt) * 2 * time.Second) // 2초, 4초 대기 후 재시도
+			time.Sleep(time.Duration(1<<attempt) * 2 * time.Second) // Exponential backoff: Wait 2s, 4s, etc., before retrying to prevent overwhelming the API
 		}
 	}
 	return nil, fmt.Errorf("all %d attempts failed, last error: %w", maxRetries+1, err)
 }
 
-// logTokenUsage는 AI 응답에서 사용된 토큰을 추출하여 기록하고 트레이싱합니다.
+// logTokenUsage extracts and records token consumption from the AI response for cost monitoring and performance tracing.
 func logTokenUsage(ctx context.Context, email, stepName string, resp *genai.GenerateContentResponse) {
 	if resp != nil && resp.UsageMetadata != nil {
 		pTokens := int(resp.UsageMetadata.PromptTokenCount)
@@ -88,7 +88,7 @@ func logTokenUsage(ctx context.Context, email, stepName string, resp *genai.Gene
 	}
 }
 
-// extractResponseText는 AI 응답 텍스트를 안전하게 추출하며, 빈 응답이나 차단된 응답에 대한 예외를 처리합니다.
+// extractResponseText safely extracts the response text from the Gemini API, handling cases where the response is empty or blocked by safety settings.
 func extractResponseText(resp *genai.GenerateContentResponse) (string, error) {
 	if resp == nil || len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil || len(resp.Candidates[0].Content.Parts) == 0 {
 		return "", fmt.Errorf("empty or blocked response from Gemini")
@@ -122,7 +122,7 @@ func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText stri
 	model.ResponseMIMEType = "application/json"
 	// Token optimization: set explicit limits and low temperature for stability
 	model.SetTemperature(0.0)      // Strictly deterministic to prevent pronoun hallucinations
-	model.SetMaxOutputTokens(4096) // 충분한 공간 확보 (기존 1500에서 확장)
+	model.SetMaxOutputTokens(4096) // Allocate sufficient token space (expanded from 1500) to ensure large task extractions are not truncated
 
 	sysInst := `Extract tasks as JSON array (Return [] if no actionable task): [{"task", "requester", "assignee", "assigned_at", "source_ts", "deadline", "category"}]`
 	if analyzer != nil {
@@ -141,7 +141,7 @@ func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText stri
 	logger.Infof("[GEMINI] Analyzing conversation (%s) in %s using model %s...", source, language, modelName)
 
 	start := time.Now()
-	// 분석 로직: 가장 긴 프롬프트를 다루므로 45초 타임아웃, 최대 2회 재시도
+	// Analysis logic: Uses a 45-second timeout and up to 2 retries since this handles the longest prompts and is most prone to delays.
 	resp, err := generateWithRetry(ctx, model, genai.Text(userPrompt), 45*time.Second, 2)
 	elapsed := int(time.Since(start).Milliseconds())
 	trace.Step(ctx, "Gemini-Analyze", "", elapsed, 0)
@@ -185,7 +185,7 @@ func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []stor
 
 	start := time.Now()
 	tasksJSON, _ := json.Marshal(tasks)
-	// 번역 로직: 30초 타임아웃, 최대 2회 재시도
+	// Translation logic: Uses a 30-second timeout and up to 2 retries for optimal responsiveness during multi-language conversion.
 	resp, err := generateWithRetry(ctx, model, genai.Text(string(tasksJSON)), 30*time.Second, 2)
 	elapsed := int(time.Since(start).Milliseconds())
 	trace.Step(ctx, "Gemini-Translate", "", elapsed, 0)
@@ -215,7 +215,7 @@ func (g *GeminiClient) DoesReplyCompleteTask(ctx context.Context, email, taskTex
 		return false, fmt.Errorf("Gemini client is not initialized")
 	}
 
-	// 단순 Yes/No 분류는 가장 가볍고 빠른 모델(Lite)을 사용하여 API 지연 시간을 최소화합니다.
+	// Uses the lightest and fastest model (Lite) for simple Yes/No classification to minimize API latency.
 	model := g.client.GenerativeModel(g.translationModel)
 	model.SafetySettings = relaxedSafetySettings
 	model.SetTemperature(0.0) // Deterministic
@@ -226,7 +226,7 @@ func (g *GeminiClient) DoesReplyCompleteTask(ctx context.Context, email, taskTex
 	logger.Debugf("[GEMINI] Checking completion for task: %s", taskText)
 
 	start := time.Now()
-	// 완료 여부 단순 비교: 15초 타임아웃, 최대 2회 재시도
+	// Simple completion check: Uses a short 15-second timeout and up to 2 retries as the expected output is minimal.
 	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 15*time.Second, 2)
 	elapsed := int(time.Since(start).Milliseconds())
 	trace.Step(ctx, "Gemini-CheckCompletion", "", elapsed, 0)
@@ -256,7 +256,7 @@ func (g *GeminiClient) CheckTasksBatch(ctx context.Context, email, replyText str
 		return nil, nil
 	}
 
-	// 단순 배열(ID) 반환 작업도 가벼운 모델을 사용하여 처리 속도를 높입니다.
+	// Uses the lightweight model to quickly process batch array (ID) returns, maximizing throughput.
 	model := g.client.GenerativeModel(g.translationModel)
 	model.SafetySettings = relaxedSafetySettings
 	model.SetTemperature(0.0)
@@ -273,7 +273,7 @@ func (g *GeminiClient) CheckTasksBatch(ctx context.Context, email, replyText str
 	logger.Debugf("[GEMINI] Batch checking %d tasks for reply: %s", len(tasks), replyText)
 
 	start := time.Now()
-	// 배치 처리 로직: 30초 타임아웃, 최대 2회 재시도
+	// Batch processing logic: Uses a 30-second timeout and up to 2 retries to handle multiple tasks efficiently.
 	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 30*time.Second, 2)
 	elapsed := int(time.Since(start).Milliseconds())
 	trace.Step(ctx, "Gemini-BatchCheckCompletion", "", elapsed, 0)

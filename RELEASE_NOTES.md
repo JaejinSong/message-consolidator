@@ -1,3 +1,22 @@
+# Release Notes - v2.3.10 (2026-03-27 11:00 UTC)
+
+## 🚀 Database & Core Infrastructure
+- **[FEAT] Turso (libsql) Migration**: Successfully migrated the primary database to Turso for superior edge performance and lower latency. Resolved a critical startup panic issue related to driver initialization in distributed environments.
+- **[FEAT] Batch Translation Engine**: Implemented a sophisticated chunking logic for the translation engine. This allows for high-volume message processing without hitting rate limits or exhausting connection pools.
+- **[SYS] Automated Deployment Pre-verification**: Hardened the CI/CD pipeline by updating `deploy.sh` to enforce `npm test` verification. Deployments will now automatically abort if regression tests fail.
+
+## 🎨 Dashboard & User Interface
+- **[UI] Dashboard 'All Clear' Logic**: Refined the logic and aesthetics for the empty state. Users now receive a more intuitive and visually rewarding "All Clear" notification when all tasks are processed.
+- **[FEAT] Achievement & Status System**: Overhauled the achievements UI with improved internationalization support. Enhanced time readability and updated status icons for better at-a-glance task tracking.
+- **[UI] Toast Notification System**: Integrated a defensive frontend notification system to provide real-time feedback on background operations and error states.
+
+## 🐞 Bug Fixes & Stability
+- **[FIX] Gmail Assignee Regression**: Resolved a rendering bug where Gmail-sourced tasks occasionally displayed 'undefined' as the assignee. Logic now correctly resolves actual assignees using the context parameter.
+- **[FIX] AI Analysis Regression Tests**: Synchronized regression tests to account for the increased token limits and batch processing logic, ensuring analysis integrity across all message types.
+- **[STABILITY] Multi-timezone Statistics**: Fully transitioned to `TIMESTAMPTZ` to ensure consistent statistical reporting for users operating across different time zones.
+
+---
+
 # Release Notes - v2.3.9 (2026-03-27 07:56 UTC)
 
 ## 🛠️ System Architecture & Observability

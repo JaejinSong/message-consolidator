@@ -78,7 +78,7 @@ func (n *NotionAnalyzer) GetModelName(defaultModel string) string {
 }
 
 func (n *NotionAnalyzer) PreProcess(text string) string {
-	// 향후 마크다운 제거나 특정 블록 필터링 로직을 이곳에 추가할 수 있습니다.
+	// Future enhancement: Add markdown stripping or block filtering logic here to optimize token usage for Notion documents.
 	return text
 }
 
@@ -86,10 +86,10 @@ func getAnalyzer(source string) SourceAnalyzer {
 	switch source {
 	case "gmail":
 		return &GmailAnalyzer{}
-	case "slack", "whatsapp", "telegram": // Telegram은 기존 ChatAnalyzer를 그대로 재사용!
+	case "slack", "whatsapp", "telegram": // Reuse the existing ChatAnalyzer for Telegram as the message structure is similar.
 		return &ChatAnalyzer{Source: source}
 	case "notion":
-		return &NotionAnalyzer{} // 노션 전용 분석기 연결
+		return &NotionAnalyzer{} // Connect the dedicated Notion analyzer to handle its specific document format.
 	default:
 		return nil
 	}

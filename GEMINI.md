@@ -18,7 +18,8 @@
 7. **CSS Design System Enforcement**:
     - 모든 신규 UI는 BEM(`c-block__element--modifier`) 규칙을 필수적으로 준수한다.
     - 하드코딩된 값(px, hex) 사용을 금지하며, `variables.css`의 토큰 사용을 강제한다.
-    - 배포 전 `node verify-css.cjs`를 실행하여 정합성을 최종 검증한다.
+    - **모바일 최적화**: 가로 여백은 `0.5rem~1rem` 범위를 준수하고, `rem` 단위를 우선하여 해상도 대응력을 높인다.
+    - 배포 전 `node verify-css.cjs` 및 `npm test`를 실행하여 정합성을 최종 검증한다.
 
 ## Monitoring (WhaTap)
 - **Agent**: Go/Browser Agent 적용 (`sessionReplaySampleRate: 100`)

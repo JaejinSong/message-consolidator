@@ -33,11 +33,46 @@ AI_PID=$!
 (node tests/verify-loading-ui.cjs > loading_ui_test.log 2>&1) &
 LOADING_PID=$!
 
-echo "Waiting for tests: Go ($GO_PID), UI ($NPM_PID), AI ($AI_PID), Loading ($LOADING_PID)..."
-wait $GO_PID || { echo -e "${RED}❌ Go tests failed! Check go_test.log${NC}"; exit 1; }
-wait $NPM_PID || { echo -e "${RED}❌ Frontend tests failed! Check npm_test.log${NC}"; exit 1; }
-wait $AI_PID || { echo -e "${RED}❌ AI Regression failed! Check ai_test.log${NC}"; exit 1; }
-wait $LOADING_PID || { echo -e "${RED}❌ Loading UI verification failed! Check loading_ui_test.log${NC}"; exit 1; }
+GO_DONE=0; NPM_DONE=0; AI_DONE=0; LOADING_DONE=0;
+GO_EXIT=0; NPM_EXIT=0; AI_EXIT=0; LOADING_EXIT=0;
+
+echo -e "${BLUE}Waiting for tests to complete...${NC}"
+while [ $((GO_DONE + NPM_DONE + AI_DONE + LOADING_DONE)) -lt 4 ]; do
+    STATUS=""
+    if [ $GO_DONE -eq 0 ]; then
+        if ! kill -0 $GO_PID 2>/dev/null; then wait $GO_PID; GO_EXIT=$?; GO_DONE=1; fi
+    fi
+    if [ $NPM_DONE -eq 0 ]; then
+        if ! kill -0 $NPM_PID 2>/dev/null; then wait $NPM_PID; NPM_EXIT=$?; NPM_DONE=1; fi
+    fi
+    if [ $AI_DONE -eq 0 ]; then
+        if ! kill -0 $AI_PID 2>/dev/null; then wait $AI_PID; AI_EXIT=$?; AI_DONE=1; fi
+    fi
+    if [ $LOADING_DONE -eq 0 ]; then
+        if ! kill -0 $LOADING_PID 2>/dev/null; then wait $LOADING_PID; LOADING_EXIT=$?; LOADING_DONE=1; fi
+    fi
+
+    # Construct STATUS
+    [ $GO_DONE -eq 1 ] && ( [ $GO_EXIT -eq 0 ] && STATUS+="[Go ✅] " || STATUS+="[Go ❌] " ) || STATUS+="[Go ⏳] "
+    [ $NPM_DONE -eq 1 ] && ( [ $NPM_EXIT -eq 0 ] && STATUS+="[NPM ✅] " || STATUS+="[NPM ❌] " ) || STATUS+="[NPM ⏳] "
+    [ $AI_DONE -eq 1 ] && ( [ $AI_EXIT -eq 0 ] && STATUS+="[AI ✅] " || STATUS+="[AI ❌] " ) || STATUS+="[AI ⏳] "
+    [ $LOADING_DONE -eq 1 ] && ( [ $LOADING_EXIT -eq 0 ] && STATUS+="[Loading ✅] " || STATUS+="[Loading ❌] " ) || STATUS+="[Loading ⏳] "
+
+    echo -ne "\r$STATUS"
+    [ $((GO_DONE + NPM_DONE + AI_DONE + LOADING_DONE)) -eq 4 ] && break
+    sleep 2
+done
+echo -e "\n"
+
+# Final check
+if [ $((GO_EXIT + NPM_EXIT + AI_EXIT + LOADING_EXIT)) -ne 0 ]; then
+    echo -e "${RED}❌ Test failure detected!${NC}"
+    [ $GO_EXIT -ne 0 ] && echo " - Go tests failed (go_test.log)"
+    [ $NPM_EXIT -ne 0 ] && echo " - NPM tests failed (npm_test.log)"
+    [ $AI_EXIT -ne 0 ] && echo " - AI tests failed (ai_test.log)"
+    [ $LOADING_EXIT -ne 0 ] && echo " - Loading UI tests failed (loading_ui_test.log)"
+    exit 1
+fi
 
 echo -e "${GREEN}✅ All tests passed!${NC}"
 

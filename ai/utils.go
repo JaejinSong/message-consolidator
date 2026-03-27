@@ -49,25 +49,25 @@ func unmarshalTranslate(cleanJSON, rawJSON, language string) ([]store.TranslateR
 }
 
 func DecodeBase64URL(data string) (string, error) {
-	// 1. URL-safe 인코딩 (패딩 포함)
+	// 1. URL-safe encoding (with padding)
 	decoded, err := base64.URLEncoding.DecodeString(data)
 	if err == nil {
 		return string(decoded), nil
 	}
 
-	// 2. URL-safe 인코딩 (패딩 생략) - 주로 웹/토큰에서 자주 발생
+	// 2. URL-safe encoding (without padding) - common in web tokens and JWTs
 	decoded, err = base64.RawURLEncoding.DecodeString(data)
 	if err == nil {
 		return string(decoded), nil
 	}
 
-	// 3. 표준 인코딩 (패딩 포함)
+	// 3. Standard encoding (with padding)
 	decoded, err = base64.StdEncoding.DecodeString(data)
 	if err == nil {
 		return string(decoded), nil
 	}
 
-	// 4. 표준 인코딩 (패딩 생략)
+	// 4. Standard encoding (without padding)
 	decoded, err = base64.RawStdEncoding.DecodeString(data)
 	if err != nil {
 		return "", err
@@ -80,7 +80,7 @@ func DecodeBase64URL(data string) (string, error) {
 func sanitizeJSON(s string) string {
 	s = strings.TrimSpace(s)
 
-	// 1. 마크다운 코드 블록(```json 등) 파싱 시, 코드 블록 앞뒤에 붙은 불필요한 설명 텍스트 완벽 제거
+	// 1. Strip extraneous conversational text surrounding markdown code blocks (e.g., ```json) to extract raw JSON data accurately.
 	startIdx := strings.Index(s, "```json")
 	if startIdx == -1 {
 		startIdx = strings.Index(s, "```")
@@ -98,13 +98,13 @@ func sanitizeJSON(s string) string {
 
 	s = strings.TrimSpace(s)
 
-	// 2. 괄호 기반 최선 추출 (Best-effort extraction)
+	// 2. Best-effort extraction based on brackets to handle unformatted or malformed JSON responses.
 	start := strings.IndexAny(s, "[{")
 	end := strings.LastIndexAny(s, "]}")
 	if start != -1 && end != -1 && start < end {
 		extracted := s[start : end+1]
 
-		// [방어 로직] JSON 배열 잘림 복구 (Repair truncated JSON)
+		// [Defensive fallback] Repair truncated JSON arrays to salvage partial responses
 		if extracted[0] == '[' && extracted[len(extracted)-1] == '}' {
 			extracted += "]"
 		}

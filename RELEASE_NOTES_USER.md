@@ -1,3 +1,23 @@
+# Release Notes (User) - v2.3.10 (2026-03-27 11:00 UTC)
+
+- **[FEAT] The Great Database Move**: We've upgraded our brain! By migrating to Turso, Message Consolidator is now faster and more reliable, no matter where you are in the world.
+- **[UI] Celebrate the "All Clear"**: We've polished the dashboard so that clearing your task list feels even more satisfying. Enjoy the new "All Clear" look—you've earned it!
+- **[FIX] No More Mystery Assignees**: Fixed a pesky bug where some Gmail tasks forgot who was in charge. Everyone's name will now show up exactly where it should.
+- **[FEAT] Smarter Status Tracking**: We’ve updated our icons and time displays to be clearer and easier to read. Keeping track of your achievements is now a breeze.
+- **[STABILITY] Safety First Deployments**: We've added extra guardrails to our update process. This means every new update is tested more strictly before it reaches you, ensuring a smoother experience.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.3.10 (2026-03-27 11:00 UTC)
+
+- **[FEAT] 더 빠르고 강력해진 엔진**: 데이터베이스 시스템을 Turso로 업그레이드했습니다! 이제 세계 어디서나 더 빠르고 끊김 없는 서비스를 경험하실 수 있습니다.
+- **[UI] 기분 좋은 '업무 완료' 화면**: 대시보드의 빈 화면(Empty State)을 더 예쁘게 다듬었습니다. 모든 업무를 끝냈을 때의 성취감을 새로운 'All Clear' 화면과 함께 느껴보세요.
+- **[FIX] 이름 없는 담당자여 안녕**: Gmail에서 불러온 업무 중 담당자 이름이 'undefined'로 나오던 현상을 해결했습니다. 이제 누가 무엇을 해야 하는지 명확하게 확인하세요.
+- **[FEAT] 한눈에 들어오는 상태 아이콘**: 시간 표시 방식을 더 읽기 쉽게 바꾸고, 상태 아이콘을 직관적으로 개선했습니다. 여러분의 성과를 더 명확하게 확인하실 수 있습니다.
+- **[STABILITY] 더 꼼꼼해진 업데이트**: 새로운 기능을 배포하기 전에 자동으로 엄격한 테스트를 거치도록 시스템을 강화했습니다. 여러분께 항상 검증된 안정적인 기능만을 전달해 드립니다.
+
+---
+
 # Release Notes (User) - v2.3.9 (2026-03-27 07:56 UTC)
 
 - **[SYS] We’re Watching (In a Good Way)**: We've integrated WhaTap monitoring! It’s like giving our servers a 24/7 health check-up, ensuring everything stays smooth and responsive for you.

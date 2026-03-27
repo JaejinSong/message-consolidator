@@ -1,10 +1,10 @@
 .glass-container {
     width: 100%;
-    max-width: 1840px;
+    max-width: 115rem;
     background: var(--card-bg);
-    backdrop-filter: blur(12px);
+    backdrop-filter: blur(var(--blur-md));
     /* 렌더링 부하 감소 */
-    border: 1px solid var(--glass-border);
+    border: var(--border-thin) solid var(--glass-border);
     border-radius: var(--spacing-3xl);
     padding: 3rem;
     box-shadow: var(--shadow-main);
@@ -26,13 +26,13 @@ header {
 
 #settingsBtn:hover {
     color: var(--accent-color) !important;
-    text-shadow: 0 0 10px var(--accent-glow);
+    text-shadow: 0 0 0.625rem var(--accent-glow);
 }
 
 .lang-wrapper {
     margin-left: 0.4rem;
     padding-left: 0.4rem;
-    border-left: 1px solid var(--glass-border);
+    border-left: var(--border-thin) solid var(--glass-border);
 }
 
 .language-picker-compact {
@@ -42,7 +42,7 @@ header {
     font-size: 0.75rem;
     font-weight: 800;
     cursor: pointer;
-    padding: 4px;
+    padding: var(--spacing-xs);
 }
 
 .user-profile-compact {
@@ -61,10 +61,10 @@ header {
 
 
 .profile-img-small {
-    width: 42px;
-    height: 42px;
+    width: 2.625rem;
+    height: 2.625rem;
     border-radius: var(--radius-md);
-    border: 1px solid var(--glass-border);
+    border: var(--border-thin) solid var(--glass-border);
     background: var(--card-bg);
 }
 
@@ -75,12 +75,12 @@ header {
 
 .logout-minimal:hover {
     color: #ff4b2b;
-    transform: translateX(2px);
+    transform: translateX(var(--spacing-xxs));
 }
 
 .logout-minimal svg {
-    width: 20px;
-    height: 20px;
+    width: 1.25rem;
+    height: 1.25rem;
 }
 
 .header__subtitle {
@@ -114,6 +114,20 @@ header {
     }
 }
 
+/* iPhone 13 mini와 같은 작은 모바일 화면에서 가로 여백을 줄여 가독성을 높입니다. */
+@media (max-width: var(--bp-mobile)) {
+
+    /* --bp-mobile (480px) 토큰 사용 */
+    .glass-container {
+        /* 
+         * 아이폰 13 mini와 같은 매우 좁은 화면에서 콘텐츠 영역을 최대한 확보하기 위해
+         * 좌우 여백을 최소화합니다.
+         */
+        padding: 1.25rem 0.75rem;
+        border-radius: var(--radius-lg);
+    }
+}
+
 /* Empty State & Dividers */
 .empty-state {
     display: flex;
@@ -137,13 +151,13 @@ header {
     grid-column: 1 / -1;
     background: rgba(255, 255, 255, 0.02);
     border-radius: var(--radius-2xl);
-    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border: var(--border-thin) dashed rgba(255, 255, 255, 0.1);
     margin-bottom: 2rem;
 }
 
 .completed-list-divider {
     grid-column: 1 / -1;
-    height: 1px;
+    height: var(--border-thin);
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
     margin: 1rem 0 3rem 0;
     position: relative;
@@ -161,7 +175,7 @@ header {
     color: var(--text-dim);
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.0625rem;
 }
 
 body.light-theme .completed-list-divider::after {
