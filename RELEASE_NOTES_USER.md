@@ -1,3 +1,23 @@
+# Release Notes (User) - v2.3.9 (2026-03-27 07:56 UTC)
+
+- **[SYS] We’re Watching (In a Good Way)**: We've integrated WhaTap monitoring! It’s like giving our servers a 24/7 health check-up, ensuring everything stays smooth and responsive for you.
+- **[OPTIMIZE] Spring Cleaning**: We’ve scrubbed away old, unused code and "dead" CSS. The app is now lighter, leaner, and ready to move faster than ever.
+- **[REFACTOR] Smarter Data Handling**: By reorganizing how we talk to our database using "SQL Views," we’ve made the app’s brain much more efficient. Faster data loading means less waiting.
+- **[PERF] Heavy Lifting Made Easy**: We've tuned our database connections to handle huge spikes in messages. Even when you're at your busiest, Message Consolidator won't break a sweat.
+- [FIX] Smarter & More Thorough AI Analysis: Fixed an issue where the AI would sometimes stop mid-sentence when analyzing complex conversations. It now reads through even the longest threads to ensure no tasks are missed.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.3.9 (2026-03-27 07:56 UTC)
+
+- **[SYS] 24시간 철통 보안 감시**: WhaTap 실시간 모니터링 시스템을 도입했습니다. 서버의 건강 상태를 초 단위로 체크하여, 여러분이 서비스를 이용할 때 끊김 없는 쾌적한 환경을 유지합니다.
+- **[OPTIMIZE] 코드 대청소**: 오랫동안 사용하지 않았던 낡은 코드와 디자인 파일들을 말끔히 정리했습니다. 앱이 한층 가벼워져서 이전보다 훨씬 민첩하게 반응합니다.
+- **[REFACTOR] 데이터 처리의 정석**: 데이터베이스를 관리하는 방식을 더욱 똑똑하게 개선했습니다. 정보를 불러오는 과정이 단순해져서 앱 전반의 로딩 속도가 빨라졌습니다.
+- **[PERF] 대량의 메시지도 거뜬하게**: 메시지가 폭주하는 상황에서도 시스템이 지치지 않도록 엔진을 튜닝했습니다. 어떤 바쁜 순간에도 안정적인 서비스를 경험해 보세요.
+- [FIX] 더 똑똑하고 꼼꼼해진 AI 분석: AI가 복잡한 대화 내용을 분석하다가 도중에 말을 멈추던 현상을 해결했습니다. 이제 아무리 길고 복잡한 대화라도 끝까지 꼼꼼하게 읽고 할 일을 정확하게 찾아냅니다.
+
+---
+
 # Release Notes (User) - v2.3.8 (2026-03-27 01:12 UTC)
 
 - **[FEAT] Master Your Time with Heatmaps**: Love the "Anki" style grid? We've brought it to your Insights page. You can now see exactly which hours of the day you're most active in a beautiful, color-coded chart.

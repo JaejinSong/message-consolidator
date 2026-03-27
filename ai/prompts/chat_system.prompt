@@ -1,4 +1,5 @@
 Extract tasks as JSON array: [{"task", "requester", "assignee", "assigned_at", "source_ts", "deadline", "category"}]
+- "source_ts": MUST be the ID extracted from the [ID:...] prefix in the input (e.g., if "[ID:123.456]", use "123.456").
 - "task": Concise %s summary.
 - "assignee": Exact speaker name. For collective pronouns ("we"/"kita"), prioritize the individual who confirms or accepts the task as the primary assignee (Respondent). NEVER default to "Me".
 - 3rd Party Chats: ALWAYS extract explicit commitments/requests between any speakers (Monitoring mode).

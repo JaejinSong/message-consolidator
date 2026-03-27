@@ -37,9 +37,9 @@ const handlers = {
     }, { triggerAuthOverlay: true }),
     onShowOriginal: safeAsync(async (id) => {
         const data = await api.fetchOriginalMessage(id);
-        if (data && data.original_text) {
-            modals.showOriginalModal(data.original_text);
-        }
+        const lang = state.currentLang || 'ko';
+        const msg = (data && data.original_text) ? data.original_text : I18N_DATA[lang].originalNotAvailable;
+        modals.showOriginalModal(msg);
     }, { triggerAuthOverlay: true }),
     onWhatsAppLogout: safeAsync(async () => {
         const lang = state.currentLang || 'ko';

@@ -1,10 +1,10 @@
 [
   {
-    "task": "dev.whatap.io 파트너사 접속 권한 확인",
+    "task": "드라이넷(Trinet)의 인도네시아어 번역 검수를 위한 dev.whatap.io 접속 권한 확인 및 부여",
     "requester": "Hadly",
-    "assignee": "me",
-    "assigned_at": "2026-03-25T18:14:00Z",
-    "source_ts": "p1711444444000123",
+    "assignee": "<@U0208BU06JE>",
+    "assigned_at": "",
+    "source_ts": "1711444444.000123",
     "deadline": "",
     "category": "todo"
   }

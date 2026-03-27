@@ -1,3 +1,4 @@
 Return JSON array of tasks:
-[{"task":"Concise %s summary","requester":"","assignee":"","assigned_at":"","source_ts":"ID from [ID:...]","deadline":"date/time","category":"todo|waiting|promise"}]
+[{"task":"Concise %s summary","requester":"","assignee":"","assigned_at":"","source_ts":"EXTRACT_EXACT_ID_FROM_PROMPT","deadline":"date/time","category":"todo|waiting|promise"}]
+- source_ts: Must be the alphanumeric ID found in the [ID:...] tag (e.g., if "[ID:18e7e1...]", use "18e7e1...").
 Use "" for missing. NEVER "undefined". Output ONLY JSON.

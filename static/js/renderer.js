@@ -191,7 +191,7 @@ export const renderer = {
                     ${deadlineBadge}
                 </div>
                 <div class="c-task-card__actions">
-                    <button class="c-btn c-btn--ghost c-btn--icon show-original" title="View Original">${ICONS.viewOriginal}</button>
+                    ${m.has_original ? `<button class="c-btn c-btn--ghost c-btn--icon show-original" title="${i18n.viewOriginal || 'View Original'}">${ICONS.viewOriginal}</button>` : ''}
                     <button class="c-btn c-btn--danger c-btn--icon delete-task" title="${i18n?.delete || i18n?.deleteBtnText || 'Delete'}">${ICONS.delete}</button>
                     <button class="c-btn c-btn--primary c-btn--icon toggle-done">
                         ${m.done ? '↩️' : '✅'}

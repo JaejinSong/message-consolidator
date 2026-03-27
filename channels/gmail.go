@@ -376,10 +376,13 @@ func processGeminiItems(email string, user *store.User, aliases []string, items 
 
 		assignedAt := time.Now()
 		origText := ""
-		if m, ok := msgMap[item.SourceTS]; ok {
-			assignedAt = m.Timestamp
-			origText = m.Text
+		m, ok := msgMap[item.SourceTS]
+		if !ok {
+			logger.Warnf("[GMAIL-SCAN] Mismatch SourceTS: %s. Skipping this task item.", item.SourceTS)
+			continue
 		}
+		assignedAt = m.Timestamp
+		origText = m.Text
 
 		msgsToSave = append(msgsToSave, store.ConsolidatedMessage{
 			UserEmail:    email,

@@ -81,11 +81,14 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 				assignedAt := time.Now()
 				origText := ""
 				origThreadID := ""
-				if m, ok := msgMap[item.SourceTS]; ok {
-					assignedAt = m.Timestamp
-					origText = m.Text
-					origThreadID = m.ReplyToID
+				m, ok := msgMap[item.SourceTS]
+				if !ok {
+					logger.Warnf("[WA-SCAN] Mismatch SourceTS: %s. Skipping task item: %s", item.SourceTS, item.Task)
+					continue
 				}
+				assignedAt = m.Timestamp
+				origText = m.Text
+				origThreadID = m.ReplyToID
 
 				// Check if it's 1:1 or mentioned
 				is1to1 := !strings.Contains(js, "@g.us")

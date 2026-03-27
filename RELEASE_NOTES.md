@@ -1,3 +1,15 @@
+# Release Notes - v2.3.9 (2026-03-27 07:56 UTC)
+
+## 🛠️ System Architecture & Observability
+- **[REFACTOR] Unified Utility Library**: Consolidated disparate debug and utility tools into a centralized `mc-util` package. Updated all CI/CD workflows to reference this single source of truth, reducing dependency fragmentation.
+- **[SYS] WhaTap Observability Integration**: Integrated WhaTap monitoring for real-time application performance management (APM). This provides deeper insights into server-side bottlenecks and improves incident response times.
+- **[REFACTOR] SQL View Layering**: Re-architected complex data retrieval logic by implementing SQL Views. This abstracts multi-table joins, simplifies backend repository code, and improves query maintainability.
+- **[PERF] Connection Pool Optimization**: Fine-tuned database connection pooling parameters to handle higher concurrent message processing loads without exhausting system resources.
+- **[FIX] AI Analysis Truncation**: Increased `MaxOutputTokens` to 4096 for the Gemini analysis engine. This resolves issues where complex message extractions were being cut off prematurely, leading to incomplete task lists.
+- **[OPTIMIZE] Codebase Hygiene**: Performed a major cleanup by removing deprecated CSS classes and unused module folders, resulting in a leaner frontend bundle and faster build times.
+
+---
+
 # Release Notes - v2.3.8 (2026-03-27 01:12 UTC)
 
 ## 📊 Analytics & Performance Optimization
