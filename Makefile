@@ -15,6 +15,8 @@ build:
 	fi
 	CGO_ENABLED=0 whatap-go-inst go build -ldflags="-s -w" -o $(BINARY_NAME) .
 	upx -1 $(BINARY_NAME)
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o mc-util ./cmd/mc-util
+	upx -1 mc-util
 	@rm -rf static-min
 
 run: build

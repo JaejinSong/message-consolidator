@@ -1,0 +1,10 @@
+{
+  "title": "Frontend Tab & I18n Architecture",
+  "summary": "Documentation of I18n DOM stability fixes and the refactored setupTabs utility to prevent UI regressions and unresponsiveness.",
+  "created_at": "2026-03-26T07:47:00Z",
+  "updated_at": "2026-03-26T07:47:00Z",
+  "files": [
+    "artifacts/architecture_overview.md",
+    "artifacts/setup_tabs_utility.md"
+  ]
+}

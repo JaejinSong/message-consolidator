@@ -35,38 +35,33 @@ export const getArchiveThresholdDays = () => state.archiveThresholdDays || 7;
 export function sortAndFilterMessages(messages, currentTab, searchQuery) {
     if (!messages) return [];
 
-    // 7일 이내 완료된 업무인지 확인 (완료일이 없으면 생성일 기준)
-    const isVisible = (m) => {
-        if (!m.done) return true;
-        const ts = m.completed_at || m.timestamp || m.created_at;
-        if (!ts) return true;
-        
-        const diffDays = TimeService.getDiffInDays(new Date(ts), new Date());
-        return diffDays <= getArchiveThresholdDays();
-    };
+    const now = new Date();
+    const thresholdDays = getArchiveThresholdDays();
+    const q = searchQuery ? searchQuery.toLowerCase() : '';
 
-    let filtered = messages.filter(isVisible);
+    return messages.filter(m => {
+        // 1. Archive threshold check
+        if (m.done) {
+            const ts = m.completed_at || m.timestamp || m.created_at;
+            if (ts && TimeService.getDiffInDays(new Date(ts), now) > thresholdDays) {
+                return false;
+            }
+        }
 
-    // Filter by Tab
-    if (currentTab === 'myTasksTab') {
-        filtered = filtered.filter(m => !m.waiting_on && m.assignee === 'me');
-    } else if (currentTab === 'otherTasksTab') {
-        filtered = filtered.filter(m => !m.waiting_on && m.assignee !== 'me');
-    } else if (currentTab === 'waitingTasksTab') {
-        filtered = filtered.filter(m => m.waiting_on);
-    }
+        // 2. Filter by Tab
+        if (currentTab === 'myTasksTab' && (m.waiting_on || m.assignee !== 'me')) return false;
+        if (currentTab === 'otherTasksTab' && (m.waiting_on || m.assignee === 'me')) return false;
+        if (currentTab === 'waitingTasksTab' && !m.waiting_on) return false;
 
-    // Filter by Search Query
-    if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        filtered = filtered.filter(m =>
-            (m.task || "").toLowerCase().includes(q) ||
-            (m.requester || "").toLowerCase().includes(q)
-        );
-    }
+        // 3. Filter by Search Query
+        if (q) {
+            const taskStr = (m.task || "").toLowerCase();
+            const reqStr = (m.requester || "").toLowerCase();
+            if (!taskStr.includes(q) && !reqStr.includes(q)) return false;
+        }
 
-    // Sort by Timestamp/Created (Newest first)
-    return filtered.sort((a, b) => {
+        return true;
+    }).sort((a, b) => {
         // 1순위 정렬: 완료된(done) 업무는 맨 아래로 강제 이동
         if (a.done !== b.done) {
             return a.done ? 1 : -1;

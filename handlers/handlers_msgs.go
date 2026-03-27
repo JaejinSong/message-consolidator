@@ -55,6 +55,10 @@ func HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 	lang := r.URL.Query().Get("lang")
 	sort := r.URL.Query().Get("sort")
 	order := r.URL.Query().Get("order")
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "all"
+	}
 
 	limit, _ := strconv.Atoi(limitStr)
 	offset, _ := strconv.Atoi(offsetStr)
@@ -70,6 +74,7 @@ func HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 		Query:  q,
 		Sort:   sort,
 		Order:  order,
+		Status: status,
 	}
 	msgsRaw, total, err := store.GetArchivedMessagesFiltered(r.Context(), filter)
 	if err != nil {
@@ -91,10 +96,15 @@ func HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 func HandleGetArchivedCount(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	q := r.URL.Query().Get("q")
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "all"
+	}
 
 	filter := store.ArchiveFilter{
-		Email: email,
-		Query: q,
+		Email:  email,
+		Query:  q,
+		Status: status,
 	}
 	total, err := store.GetArchivedMessagesCount(r.Context(), filter)
 	if err != nil {

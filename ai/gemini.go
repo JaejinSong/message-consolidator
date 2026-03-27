@@ -121,7 +121,7 @@ func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText stri
 	model.SafetySettings = relaxedSafetySettings
 	model.ResponseMIMEType = "application/json"
 	// Token optimization: set explicit limits and low temperature for stability
-	model.SetTemperature(0.1)
+	model.SetTemperature(0.0)      // Strictly deterministic to prevent pronoun hallucinations
 	model.SetMaxOutputTokens(1500) // Extracted tasks are usually concise JSON
 
 	sysInst := `Extract tasks as JSON array (Return [] if no actionable task): [{"task", "requester", "assignee", "assigned_at", "source_ts", "deadline", "category"}]`

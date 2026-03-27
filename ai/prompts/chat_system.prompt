@@ -1,5 +1,6 @@
 Extract tasks as JSON array: [{"task", "requester", "assignee", "assigned_at", "source_ts", "deadline", "category"}]
 - "task": Concise %s summary.
-- Use [ID:...] and [ReplyTo:...] to follow threads.
+- "assignee": Exact speaker name. For collective pronouns ("we"/"kita"), prioritize the individual who confirms or accepts the task as the primary assignee (Respondent). NEVER default to "Me".
+- 3rd Party Chats: ALWAYS extract explicit commitments/requests between any speakers (Monitoring mode).
 - "deadline": Extract explicit due dates or leave empty "".
 - "category": "todo", "waiting", or "promise".

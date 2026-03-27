@@ -4,12 +4,24 @@ description: VPS 배포 워크플로우 (Google Artifact Registry 활용)
 
 // turbo-all
 # Size Optimization: Binary stripped with -ldflags="-s -w" and compressed with upx (~37MB -> ~10MB)
+
+0. 로컬 사전 검증 (Local Pre-verification)
+```bash
+# 1. 백엔드(Go) 및 프론트엔드(Node) 테스트 병렬 실행 (Faster)
+(go test ./... -v > go_test.log 2>&1) &
+(npm test > npm_test.log 2>&1) &
+wait
+
+# 2. AI 건전성(Regression) 및 DB 진단 (Must Pass)
+# GEMINI_API_KEY_FOR_TEST 환경변수 필요
+go test ./tests/regression -v
+go run cmd/mc-util/*.go db-diag
+```
+
 1. 로컬에서 Docker 이미지 빌드 및 푸시
 ```bash
-# Artifact Registry 인증 (최초 1회 필요)
+# Artifact Registry 인증 및 빌드/푸시
 gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
-
-# 이미지 빌드 및 푸시
 docker build -t us-central1-docker.pkg.dev/gemini-enterprise-487906/message-consolidator-repo/app:latest .
 docker push us-central1-docker.pkg.dev/gemini-enterprise-487906/message-consolidator-repo/app:latest
 ```
@@ -22,18 +34,16 @@ gcloud storage cp .env docker-compose.yml gs://message-consolidator-deploy-gemin
 3. VPS에서 이미지 Pull 및 컨테이너 재설작
 ```bash
 gcloud compute ssh chat-analyzer-vps --zone=us-central1-a --project=gemini-enterprise-487906 --command="
-  mkdir -p ~/message-consolidator && 
-  cd ~/message-consolidator && 
+  mkdir -p ~/message-consolidator && cd ~/message-consolidator && 
   gcloud auth configure-docker us-central1-docker.pkg.dev --quiet &&
   gcloud storage cp gs://message-consolidator-deploy-gemini-enterprise-487906/vps/.env . && 
   gcloud storage cp gs://message-consolidator-deploy-gemini-enterprise-487906/vps/docker-compose.yml . && 
-  sudo docker-compose pull && 
-  sudo docker-compose up -d
+  sudo docker-compose pull && sudo docker-compose up -d
 "
 ```
 
 4. VPS 배포 상태 및 실시간 검증
-- **로그 및 기동 검증**: 
-    1. `sudo docker-compose logs | grep "Startup Complete"` 로그가 출력되는지 확인
-    2. 브라우저 실행 없이 메인 화면 로드 확인 (https://34.67.133.18.nip.io/)
-    3. `/api/scan?lang=Korean` curl 호출 후 `scan started` 응답 확인 (상태 정상)
+- **로그 및 기동 검증 (Robust)**: 
+    1. `Startup Complete` 로그가 나올 때까지 최대 30초간 대기 루프 실행
+    2. API 헬스체크: `https://34.67.133.18.nip.io/api/scan?lang=Korean` 호출
+    3. `scan started` 응답 확인 시 최종 성공 판정

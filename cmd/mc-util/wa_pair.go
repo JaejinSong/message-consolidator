@@ -15,11 +15,10 @@ import (
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
-func main() {
+func runWAPair(cfg *config.Config) {
 	fmt.Println("=== WhatsApp CLI Pairing Tool ===")
 	fmt.Println("Connecting to Turso DB...")
 
-	cfg := config.LoadConfig()
 	if cfg.TursoURL == "" {
 		fmt.Println("Error: TURSO_DATABASE_URL is not set in .env")
 		os.Exit(1)

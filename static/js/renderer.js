@@ -32,15 +32,15 @@ function renderEmptyGrid(grid, isWitty = false) {
             displayMsg = messages[randomIndex];
             grid.innerHTML = `
                 <div class="empty-state-witty">
-                    <div class="empty-icon" style="font-size: 3rem; margin-bottom: 1rem;">✨</div>
-                    <div class="witty-message">${displayMsg}</div>
+                    <div class="empty-state__icon">✨</div>
+                    <div class="empty-state__message">${displayMsg}</div>
                 </div>
             `;
         } else {
             grid.innerHTML = `
                 <div class="empty-state">
-                    <div class="empty-icon" style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.5;">📭</div>
-                    <div class="witty-message" style="opacity: 0.7;">${displayMsg}</div>
+                    <div class="empty-state__icon">📭</div>
+                    <div class="empty-state__message">${displayMsg}</div>
                 </div>
             `;
         }
@@ -64,8 +64,8 @@ function updateServiceStatusUI(service, status) {
     const largeLabel = document.getElementById(DOM_IDS.STATUS_TEXT(service));
 
     if (largeIcon) {
-        largeIcon.classList.toggle('active', isConnected);
-        largeIcon.classList.toggle('inactive', !isConnected);
+        largeIcon.classList.toggle('c-status-card--active', isConnected);
+        largeIcon.classList.toggle('c-status-card--inactive', !isConnected);
     }
     if (largeLabel) {
         largeLabel.textContent = isConnected ? UI_TEXT.ON : UI_TEXT.OFF;
@@ -141,7 +141,7 @@ export const renderer = {
             grid.innerHTML = filtered.map(m => this.createCardElement(m)).join('');
         }
 
-        this.attachCardEventListeners(filtered, handlers);
+        this.attachCardEventListeners(grid, handlers);
 
     },
 
@@ -159,7 +159,7 @@ export const renderer = {
         const deadlineBadge = getDeadlineBadge(ts, m.done, lang || 'ko');
 
         const sourceIcon = m.source === 'slack' ? ICONS.slack : m.source === 'whatsapp' ? ICONS.whatsapp : ICONS.gmail;
-        
+
         // Defensive: default to empty string if keys are missing
         const meText = i18n?.assigneeMe || 'Me';
         const isMe = m.assignee === 'me';
@@ -169,31 +169,31 @@ export const renderer = {
             : `<span class="assignee-other">${isInvalid ? '' : escapeHTML(m.assignee)}</span>`;
 
         return `
-            <div class="card ${m.source} ${m.done ? 'done' : ''}" id="task-${m.id}" data-id="${m.id}">
-                <div class="col-source" title="${m.source.toUpperCase()}">
+            <div class="c-task-card ${m.source} ${m.done ? 'c-task-card--done' : ''}" id="task-${m.id}" data-id="${m.id}">
+                <div class="c-task-card__source" title="${m.source.toUpperCase()}">
                     ${sourceIcon}
                 </div>
-                <div class="col-room">${m.room ? `<span class="badge-room">${escapeHTML(m.room)}</span>` : '-'}</div>
-                <div class="col-task">
-                    <span class="task-title">${escapeHTML(m.task)}</span>
-                    <div class="tag-container">
+                <div class="c-task-card__room">${m.room ? `<span class="badge-room">${escapeHTML(m.room)}</span>` : '-'}</div>
+                <div class="c-task-card__content">
+                    <span class="c-task-card__title">${escapeHTML(m.task)}</span>
+                    <div class="c-task-card__tags">
                         ${m.category === 'waiting' && !m.done ? `<span class="tag-badge waiting-tag">⏳ ${i18n.waitingTag || 'Waiting...'}</span>` : ''}
                         ${m.category === 'promise' && !m.done ? `<span class="tag-badge promise-tag">🤝 ${i18n.promiseTag || 'Commitment'}</span>` : ''}
                     </div>
                 </div>
-                <div class="col-requester">
+                <div class="c-task-card__requester">
                     <strong>${escapeHTML(m.requester)}</strong>
-                    <button class="map-alias-btn" data-name="${escapeHTML(m.requester)}" data-source="${m.source}" title="Map User" style="background:none;border:none;cursor:pointer;padding:0;font-size:0.9rem;">🔗</button>
+                    <button class="c-btn c-btn--ghost c-btn--icon map-alias-btn" data-name="${escapeHTML(m.requester)}" data-source="${m.source}" title="Map User">🔗</button>
                 </div>
-                <div class="col-assignee">${assigneeText}</div>
-                <div class="col-time">
+                <div class="c-task-card__assignee">${assigneeText}</div>
+                <div class="c-task-card__time">
                     <span class="timestamp meta-val">${displayTime}</span>
                     ${deadlineBadge}
                 </div>
-                <div class="col-actions">
-                    <button class="action-btn original-btn show-original" title="View Original">${ICONS.viewOriginal}</button>
-                    <button class="action-btn delete-btn delete-task" title="${i18n?.delete || i18n?.deleteBtnText || 'Delete'}">${ICONS.delete}</button>
-                    <button class="done-btn toggle-done">
+                <div class="c-task-card__actions">
+                    <button class="c-btn c-btn--ghost c-btn--icon show-original" title="View Original">${ICONS.viewOriginal}</button>
+                    <button class="c-btn c-btn--danger c-btn--icon delete-task" title="${i18n?.delete || i18n?.deleteBtnText || 'Delete'}">${ICONS.delete}</button>
+                    <button class="c-btn c-btn--primary c-btn--icon toggle-done">
                         ${m.done ? '↩️' : '✅'}
                     </button>
                 </div>
@@ -202,34 +202,39 @@ export const renderer = {
     },
 
     /**
-     * Attaches event listeners to message cards.
-     * @param {import('./logic.js').Message[]} messages - Array of messages.
+     * Attaches event listeners to the message grid using Event Delegation.
+     * @param {HTMLElement} grid - The container element for the cards.
      * @param {Object} handlers - Event handlers.
      */
-    attachCardEventListeners(messages, handlers) {
-        document.querySelectorAll('.card').forEach(card => {
-            const id = parseInt(card.getAttribute('data-id'));
-            const m = messages.find(item => item.id === id);
+    attachCardEventListeners(grid, handlers) {
+        // 핸들러를 최신 상태로 갱신 (클로저 참조 오류 방지)
+        grid._handlers = handlers;
 
-            card.querySelector('.toggle-done')?.addEventListener('click', () => {
-                handlers.onToggleDone(id, !m.done);
-            });
+        // 이벤트 리스너가 중복 등록되지 않도록 방어
+        if (grid.dataset.eventsBound) return;
+        grid.dataset.eventsBound = 'true';
 
-            const btnDelete = card.querySelector('.delete-task');
-            if (btnDelete) {
-                btnDelete.onclick = (e) => {
-                    e.stopPropagation();
-                    // 'id' is already defined from card.getAttribute('data-id')
-                    if (id && handlers.onDeleteTask) {
-                        handlers.onDeleteTask(id);
-                    }
-                };
+        grid.addEventListener('click', (e) => {
+            const card = e.target.closest('.c-task-card');
+            if (!card) return;
+
+            const id = parseInt(card.dataset.id, 10);
+            const h = grid._handlers;
+
+            if (e.target.closest('.toggle-done')) {
+                const isDone = card.classList.contains('c-task-card--done');
+                if (h.onToggleDone) h.onToggleDone(id, !isDone);
+            } else if (e.target.closest('.delete-task')) {
+                e.stopPropagation();
+                if (h.onDeleteTask) h.onDeleteTask(id);
+            } else if (e.target.closest('.show-original')) {
+                if (h.onShowOriginal) h.onShowOriginal(id);
+            } else if (e.target.closest('.map-alias-btn')) {
+                const btn = e.target.closest('.map-alias-btn');
+                window.dispatchEvent(new CustomEvent('openAliasMapping', {
+                    detail: { name: btn.dataset.name }
+                }));
             }
-
-            // [Refactored] Removed window.showOriginalMessage
-            card.querySelector('.show-original')?.addEventListener('click', () => {
-                if (handlers.onShowOriginal) handlers.onShowOriginal(id);
-            });
         });
     },
 
@@ -297,13 +302,22 @@ export const renderer = {
         // Update basic info
         const userEmail = document.getElementById('userEmail');
         const userPic = document.getElementById('userPicture');
-        if (userEmail) userEmail.textContent = profile.email || '';
-        if (userPic && profile.picture) {
-            userPic.src = profile.picture;
-            userPic.classList.remove('hidden');
+
+        if (userEmail) {
+            userEmail.textContent = profile.email || '';
+            userEmail.classList.remove('hidden'); // Ensure email is visible
         }
 
-        const locale = I18N_DATA[state.currentLang];
+        if (userPic) {
+            if (profile.picture) {
+                userPic.src = profile.picture;
+                userPic.classList.remove('hidden');
+            } else {
+                // Fallback to a default avatar if needed, or hide but ensure container has size
+                userPic.classList.add('hidden');
+            }
+        }
+
         const streakText = document.getElementById('userStreak');
         const xpText = document.getElementById('xpText');
         const xpBar = document.getElementById('xpBar');
@@ -371,7 +385,7 @@ export const renderer = {
         const monthCost = data.monthCost || 0;
 
         badge.classList.remove('hidden'); // 0일 때 숨김 처리되는 CSS 클래스 방지
-        
+
         // 일 / 월 / 예상 비용 3가지 항목 표시
         badge.textContent = `Day: ${todayTotal.toLocaleString()} / Month: ${monthTotal.toLocaleString()} / Est: $${monthCost.toFixed(2)}`;
 
@@ -404,16 +418,25 @@ export const renderer = {
             const ts = m.timestamp || m.created_at;
             const compTs = m.completed_at || '-';
 
+            const isMe = m.assignee?.toLowerCase() === 'me';
+            const assigneeHtml = isMe
+                ? `<span class="c-badge c-badge--accent">${escapeHTML(m.assignee)}</span>`
+                : `<span class="c-badge c-badge--dim">${escapeHTML(m.assignee || '-')}</span>`;
+
             return `
                 <tr>
                     <td><input type="checkbox" class="archive-check" data-id="${m.id}"></td>
-                    <td title="${m.source.toUpperCase()}" style="display:flex;align-items:center;height:100%;">${sourceIcon}</td>
-                    <td>${m.room ? `<span class="room-badge">${escapeHTML(m.room)}</span>` : '-'}</td>
-                    <td>${escapeHTML(m.task)}</td>
-                    <td>${escapeHTML(m.requester)}</td>
-                    <td>${escapeHTML(m.assignee)}</td>
-                    <td>${TimeService.formatDisplayTime(ts, state.currentLang)}</td>
-                    <td>${compTs !== '-' ? TimeService.formatDisplayTime(compTs, state.currentLang) : '-'}</td>
+                    <td>
+                        <div class="c-archive-table__source" title="${m.source.toUpperCase()}">
+                            ${sourceIcon}
+                        </div>
+                    </td>
+                    <td>${m.room ? `<span class="c-badge c-badge--accent" style="background: rgba(var(--color-primary-rgb), 0.1);">${escapeHTML(m.room)}</span>` : '-'}</td>
+                    <td class="c-archive-table__task">${escapeHTML(m.task)}</td>
+                    <td class="c-archive-table__meta">${escapeHTML(m.requester)}</td>
+                    <td class="c-archive-table__meta">${assigneeHtml}</td>
+                    <td class="c-archive-table__meta">${TimeService.formatDisplayTime(ts, state.currentLang)}</td>
+                    <td class="c-archive-table__meta">${compTs !== '-' ? TimeService.formatDisplayTime(compTs, state.currentLang) : '-'}</td>
                 </tr>
             `;
         }).join('');
@@ -437,9 +460,9 @@ export const renderer = {
         }
 
         container.innerHTML = list.map(alias => `
-            <div class="alias-item">
+            <div class="c-settings__item">
                 <span>${escapeHTML(alias)}</span>
-                <button class="remove-alias-btn" data-alias="${escapeHTML(alias)}">&times;</button>
+                <button class="c-btn c-btn--ghost c-btn--icon remove-alias-btn" data-alias="${escapeHTML(alias)}">&times;</button>
             </div>
         `).join('');
 
@@ -472,9 +495,9 @@ export const renderer = {
             const displayStr = prim ? `${escapeHTML(orig)} → ${escapeHTML(prim)}` : escapeHTML(orig);
 
             return `
-            <div class="alias-item">
+            <div class="c-settings__item">
                 <span>${displayStr}</span>
-                <button class="remove-tenant-alias-btn" data-alias="${escapeHTML(orig)}">&times;</button>
+                <button class="c-btn c-btn--ghost c-btn--icon remove-tenant-alias-btn" data-alias="${escapeHTML(orig)}">&times;</button>
             </div>
             `;
         }).join('');
@@ -507,11 +530,11 @@ export const renderer = {
             const aliases = m.aliases || m.aliasNames || m.alias || m.source || '';
 
             return `
-            <div class="mapping-item">
-                <span class="mapping-source">${escapeHTML(aliases)}</span>
-                <span class="mapping-arrow">→</span>
-                <span class="mapping-target">${escapeHTML(rep)}</span>
-                <button class="remove-mapping-btn" data-id="${escapeHTML(rep)}">&times;</button>
+            <div class="c-settings__item">
+                <span>${escapeHTML(aliases)}</span>
+                <span style="color: var(--text-dim);">→</span>
+                <span style="font-weight: bold;">${escapeHTML(rep)}</span>
+                <button class="c-btn c-btn--ghost c-btn--icon remove-mapping-btn" data-id="${escapeHTML(rep)}">&times;</button>
             </div>
             `;
         }).join('');
@@ -638,7 +661,11 @@ export const renderer = {
             placeholder.textContent = '✅ Connected!';
             placeholder.classList.remove('hidden');
             setTimeout(() => {
-                document.getElementById('waLoginSection')?.classList.add('hidden');
+                const modal = document.getElementById('waModal');
+                if (modal) {
+                    modal.classList.add('hidden');
+                    modal.style.display = 'none';
+                }
             }, 2000);
             this.showToast(i18n.waConnected || 'WhatsApp connected!', 'success');
         } else if (status === 'error') {
@@ -671,15 +698,16 @@ export const renderer = {
     bindGmailStatus(onClick) {
         document.getElementById('gmailStatusLarge')?.addEventListener('click', onClick);
     },
-    
+
     bindWhatsAppStatus(onClick) {
         document.getElementById('waStatusLarge')?.addEventListener('click', onClick);
     },
-    
-    toggleWaLoginSection(show) {
-        const section = document.getElementById('waLoginSection');
-        if (section) {
-            section.classList.toggle('hidden', !show);
+
+    showWaModal() {
+        const modal = document.getElementById('waModal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
         }
     },
 

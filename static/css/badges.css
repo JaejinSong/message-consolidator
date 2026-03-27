@@ -1,12 +1,16 @@
 /* Badge & Tag Styles */
-.badge {
+.badge,
+.badge-room {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid var(--glass-border);
+    color: var(--text-dim);
+    transition: all 0.2s ease;
+}
+
+.badge {
     padding: 0.4rem 0.8rem;
     border-radius: 10px;
     font-size: 0.8rem;
-    color: var(--text-dim);
-    transition: all 0.2s ease;
 }
 
 .token-badge {
@@ -19,7 +23,7 @@
 
 .badge-stale {
     background: rgba(236, 178, 46, 0.1);
-    color: #ecb22e;
+    color: var(--color-warning);
     border-color: rgba(236, 178, 46, 0.3);
     backdrop-filter: blur(4px);
     box-shadow: 0 0 10px rgba(236, 178, 46, 0.1);
@@ -27,7 +31,7 @@
 
 .badge-abandoned {
     background: rgba(235, 87, 87, 0.1);
-    color: #eb5757;
+    color: var(--color-error);
     border-color: rgba(235, 87, 87, 0.3);
     backdrop-filter: blur(4px);
     box-shadow: 0 0 15px rgba(235, 87, 87, 0.15);
@@ -46,13 +50,10 @@ body.light-theme .badge-abandoned {
 
 .badge-room {
     display: inline-block;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid var(--glass-border);
     padding: 0.25rem 0.6rem;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     font-size: 0.75rem;
     font-weight: 600;
-    color: var(--text-dim);
     max-width: 100%;
     white-space: nowrap;
     overflow: hidden;
@@ -65,12 +66,6 @@ body.light-theme .badge-room {
     border-color: #cbd5e1;
 }
 
-.tag-container {
-    display: flex;
-    gap: 6px;
-    margin-top: 6px;
-    flex-wrap: wrap;
-}
 
 .tag-badge {
     display: inline-flex;
@@ -85,7 +80,7 @@ body.light-theme .badge-room {
 
 .promise-tag {
     background: rgba(52, 199, 89, 0.1);
-    color: #34c759;
+    color: var(--color-success);
     border-color: rgba(52, 199, 89, 0.2);
 }
 
@@ -105,4 +100,47 @@ body.light-theme .waiting-tag {
     background: #f0f9ff;
     color: #0369a1;
     border-color: #bae6fd;
+}
+
+.freeze-badge {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(0, 191, 255, 0.1);
+    color: #00bfff;
+    padding: 0.3rem 0.6rem;
+    border-radius: var(--radius-md);
+    font-size: 0.75rem;
+    font-weight: 700;
+    border: 1px solid rgba(0, 191, 255, 0.2);
+}
+
+.buy-freeze-btn {
+    background: transparent;
+    border: 1px solid rgba(0, 191, 255, 0.3);
+    color: #00bfff;
+    padding: 0.3rem 0.6rem;
+    border-radius: var(--radius-md);
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.buy-freeze-btn:hover {
+    background: rgba(0, 191, 255, 0.1);
+}
+
+body.light-theme .freeze-badge {
+    background: #e0f2fe;
+    color: #0284c7;
+    border-color: #bae6fd;
+}
+
+body.light-theme .buy-freeze-btn {
+    border-color: #7dd3fc;
+    color: #0284c7;
+}
+
+body.light-theme .buy-freeze-btn:hover {
+    background: #e0f2fe;
 }

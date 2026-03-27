@@ -1,0 +1,35 @@
+# AI 컨텍스트 제외 설정 (.aiexclude)
+
+# 1. 의존성 및 패키지
+node_modules/
+.npm/
+.yarn/
+
+# 2. 빌드 결과 및 바이너리
+bin/
+dist/
+out/
+target/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# 3. 데이터베이스 및 로그
+*.log
+*.sqlite
+*.db
+tmp/
+temp/
+
+# 4. 버전 관리 및 에디터 설정
+.git/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 5. 캐시 및 테스트 결과
+.cache/
+.nyc_output/
+coverage/

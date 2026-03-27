@@ -1,4 +1,5 @@
 :root {
+    --white: #ffffff;
     --bg-color: #050608;
     --card-bg: rgba(255, 255, 255, 0.03);
     --accent-color: #00f2ff;
@@ -8,25 +9,102 @@
     --glass-border: rgba(255, 255, 255, 0.08);
     --shadow-main: 0 20px 40px rgba(0, 0, 0, 0.4);
     --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.2);
+
+    /* Spacing & Radius Tokens */
+    --spacing-xxs: 2px;
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 20px;
+    --spacing-2xl: 24px;
+    --spacing-3xl: 32px;
+
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-2xl: 20px;
+    --radius-full: 9999px;
+
+    /* Layout & Effect Tokens */
+    --border-thin: 1px;
+    --blur-md: 12px;
+
+    --col-room: 120px;
+    --col-requester: 140px;
+    --col-assignee: 100px;
+    --col-time: 150px;
+    --col-actions: 140px;
+
+    --color-primary: #00f2ff;
+    --color-primary-rgb: 0, 226, 255;
+    /* #00e2ff */
+
+    /* Elevation & Spacing Tokens */
+    --view-subnav-gap: 0.75rem;
+    /* Semantic Colors (Dark) */
+    --color-success: #10b981;
+    --color-success-rgb: 16, 185, 129;
+    --color-warning: #fbbf24;
+    --color-warning-rgb: 251, 191, 36;
+    --color-error: #ff3b30;
+    --color-error-rgb: 255, 59, 48;
+    --color-info: #3b82f6;
+    --color-info-rgb: 59, 130, 246;
+
+    /* Platform Brand Colors */
+    --color-slack: #36C5F0;
+    --color-whatsapp: #25D366;
+    --color-gmail: #EA4335;
+
+    /* Breakpoint Tokens */
+    --bp-mobile: 480px;
+    --bp-tablet: 768px;
+    --bp-laptop: 1024px;
+    --bp-desktop: 1000px;
+    --bp-wide: 1800px;
+
+    /* Component Specific Tokens */
+    --status-card-size: 100px;
+    --status-card-min: 80px;
+    --status-card-icon: 38px;
+    --status-card-icon-sm: 30px;
+    --btn-size: 40px;
+    --btn-size-sm: 32px;
+    --border-thick: 6px;
+    --archive-task-min-width: 300px;
+    --insights-card-min-width: 350px;
+
+    /* Table Specific Tokens */
+    --table-cell-padding: 1.2rem 1rem;
+    --table-row-hover: rgba(255, 255, 255, 0.04);
+    --text-muted: rgba(240, 240, 240, 0.6);
 }
 
 /* Light Theme Overrides - High Contrast Premium Slate */
 body.light-theme {
     --bg-color: #f1f5f9;
-    /* Slate 100 - More solid foundation */
     --card-bg: #ffffff;
     --accent-color: #4338ca;
-    /* Indigo 700 - Deeper for contrast */
     --accent-glow: rgba(67, 56, 202, 0.15);
     --accent-light: #6366f1;
-    /* Indigo 500 */
     --text-main: #020617;
-    /* Slate 950 - Near black for readability */
     --text-dim: #475569;
-    /* Slate 600 - Clearer contrast */
     --glass-border: #cbd5e1;
-    /* Slate 300 - Distinct boundaries */
     --shadow-main: 0 10px 30px rgba(15, 23, 42, 0.1);
     --shadow-card: 0 4px 12px rgba(15, 23, 42, 0.08);
+
+    /* Semantic Colors (Light) */
+    --color-success: #059669;
+    --color-success-rgb: 5, 150, 105;
+    --color-warning: #d97706;
+    --color-warning-rgb: 217, 119, 6;
+    --color-error: #dc2626;
+    --color-error-rgb: 220, 38, 38;
+    --color-info: #2563eb;
+    --color-info-rgb: 37, 99, 235;
+    --table-row-hover: rgba(0, 0, 0, 0.03);
+    --text-muted: rgba(15, 23, 42, 0.6);
     background-image: radial-gradient(circle at 50% -20%, #e2e8f0, var(--bg-color));
 }

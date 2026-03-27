@@ -131,3 +131,41 @@ export const escapeHTML = (str) => {
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
     }[tag]));
 };
+
+/**
+ * 공통 탭 스위칭 로직을 설정합니다.
+
+ * @param {string} btnSelector - 탭 버튼 셀렉터
+ * @param {string} contentSelector - 콘텐츠 패널 셀렉터
+ * @param {string} attrName - 타겟 ID를 담은 속성 이름 (예: 'data-tab')
+ * @param {string} [activeClass='active'] - 활성화 클래스 이름
+ * @param {Function} [onSwitch] - 탭 전환 시 실행할 콜백 함수
+ */
+export const setupTabs = (btnSelector, contentSelector, attrName, activeClass = 'active', onSwitch = null) => {
+    const tabs = document.querySelectorAll(btnSelector);
+    const contents = document.querySelectorAll(contentSelector);
+
+    const switchTab = (tabId) => {
+        tabs.forEach(b => b.classList.toggle(activeClass, b.getAttribute(attrName) === tabId));
+        contents.forEach(c => {
+            const isActive = c.id === tabId;
+            c.classList.toggle('active', isActive);
+            
+            // BEM Modifier 지원: c- 로 시작하는 블록 클래스를 찾아 --active 수식어 토글
+            for (const cls of c.classList) {
+                if (cls.startsWith('c-') && !cls.includes('--')) {
+                    c.classList.toggle(`${cls}--active`, isActive);
+                    break; // 첫 번째로 매칭되는 BEM 블록만 처리
+                }
+            }
+        });
+    };
+
+    tabs.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetId = btn.getAttribute(attrName);
+            switchTab(targetId);
+            if (onSwitch) onSwitch(targetId);
+        });
+    });
+};

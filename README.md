@@ -68,6 +68,7 @@ Slack, WhatsApp, Gmail 등 다양한 채널을 통해 쏟아지는 업무 요청
 - **컨테이너 관리**: Docker Compose를 통해 간편하게 서비스를 운영할 수 있습니다. (`docker-compose up -d`)
 - **패키지 구조**: `ai`, `auth`, `channels`, `config`, `handlers`, `logger`, `store`, `types` 등 도메인별로 분리된 백엔드 구조와 `renderer`, `modals`, `archive`, `taskFilter` 등으로 세분화된 프론트엔드 모듈화를 통해 높은 유지보수성 제공
 - **환경 설정**: `.env` 파일에 API Key와 DB 정보 설정
+- **운영 도구 (mc-util)**: DB 진단, WhatsApp 페어링, 릴리스 노트 생성 등 모든 관리 작업을 하나의 통합 바이너리로 수행합니다. (`go run cmd/mc-util/*.go <command>`)
 - **로그 확인**: `LOG_LEVEL` 설정을 통해 디버깅 및 운영 로그 관리
 
 ---

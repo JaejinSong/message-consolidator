@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { escapeHTML, formatDisplayTime, safeAsync } from './utils.js';
+import { escapeHTML, formatDisplayTime, safeAsync, setupTabs } from './utils.js';
 
 describe('utils.js - escapeHTML', () => {
   it('should escape HTML special characters', () => {
@@ -60,4 +60,62 @@ describe('utils.js - safeAsync (DOM Interaction)', () => {
     const overlay = document.getElementById('loginOverlay');
     expect(overlay.classList.contains('hidden')).toBe(false);
   });
+});
+
+describe('utils.js - setupTabs', () => {
+    it('should toggle active class on tabs and contents correctly', () => {
+        document.body.innerHTML = `
+            <button class="tab" data-tab="tab1"></button>
+            <button class="tab" data-tab="tab2"></button>
+            <div id="tab1" class="content"></div>
+            <div id="tab2" class="content"></div>
+        `;
+        
+        setupTabs('.tab', '.content', 'data-tab');
+        
+        const tab1 = document.querySelector('[data-tab="tab1"]');
+        const tab2 = document.querySelector('[data-tab="tab2"]');
+        const content1 = document.getElementById('tab1');
+        const content2 = document.getElementById('tab2');
+        
+        // Initial click
+        tab1.click();
+        expect(tab1.classList.contains('active')).toBe(true);
+        expect(content1.classList.contains('active')).toBe(true);
+        expect(tab2.classList.contains('active')).toBe(false);
+        expect(content2.classList.contains('active')).toBe(false);
+        
+        // Switch click
+        tab2.click();
+        expect(tab1.classList.contains('active')).toBe(false);
+        expect(content1.classList.contains('active')).toBe(false);
+        expect(tab2.classList.contains('active')).toBe(true);
+        expect(content2.classList.contains('active')).toBe(true);
+    });
+
+    it('should trigger onSwitch callback with target ID', () => {
+        document.body.innerHTML = `
+            <button class="tab" data-tab="targetTab"></button>
+            <div id="targetTab" class="content"></div>
+        `;
+        
+        const onSwitch = vi.fn();
+        setupTabs('.tab', '.content', 'data-tab', 'active', onSwitch);
+        
+        document.querySelector('.tab').click();
+        expect(onSwitch).toHaveBeenCalledWith('targetTab');
+    });
+
+    it('should support BEM modifiers for settings panels', () => {
+        document.body.innerHTML = `
+            <button class="tab" data-tab="settingsPanel"></button>
+            <div id="settingsPanel" class="content c-settings__panel"></div>
+        `;
+        
+        setupTabs('.tab', '.content', 'data-tab');
+        
+        document.querySelector('.tab').click();
+        const panel = document.getElementById('settingsPanel');
+        expect(panel.classList.contains('c-settings__panel--active')).toBe(true);
+    });
 });

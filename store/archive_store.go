@@ -46,6 +46,14 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 		args = append(args, pattern, pattern, pattern, pattern, pattern, pattern)
 	}
 
+	// 💡 추가: 탭 상태(status) 필터링 조건 추가
+	switch filter.Status {
+	case "done":
+		searchQuery += " AND (done = 1 OR done = TRUE) AND (is_deleted = 0 OR is_deleted IS NULL)"
+	case "trash":
+		searchQuery += " AND (is_deleted = 1 OR is_deleted = TRUE)"
+	}
+
 	// 1. Get Count
 	safeArchiveDays := getArchiveDays()
 	daysParam := fmt.Sprintf("-%d days", safeArchiveDays)
@@ -120,6 +128,14 @@ func GetArchivedMessagesCount(ctx context.Context, filter ArchiveFilter) (int, e
 			LOWER(assignee) LIKE ?
 		)`
 		args = append(args, pattern, pattern, pattern, pattern, pattern, pattern)
+	}
+
+	// 💡 추가: 카운트 쿼리용 탭 상태(status) 필터링 조건 추가
+	switch filter.Status {
+	case "done":
+		searchQuery += " AND (done = 1 OR done = TRUE) AND (is_deleted = 0 OR is_deleted IS NULL)"
+	case "trash":
+		searchQuery += " AND (is_deleted = 1 OR is_deleted = TRUE)"
 	}
 
 	safeArchiveDays := getArchiveDays()

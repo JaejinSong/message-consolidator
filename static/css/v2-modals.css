@@ -1,0 +1,186 @@
+/* 
+   v2-modals.css
+   BEM (Block-Element-Modifier) based Modal System
+*/
+
+.c-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    /* Slightly more transparent */
+    backdrop-filter: blur(var(--blur-md));
+    -webkit-backdrop-filter: blur(var(--blur-md));
+    /* For Safari compatibility */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--spacing-md);
+    z-index: 2000;
+    animation: fadeIn 0.2s ease-out;
+    /* Faster fade-in */
+}
+
+.c-modal.hidden {
+    display: none;
+}
+
+.c-modal__content {
+    background: var(--card-bg);
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-xl);
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    padding: var(--spacing-xl);
+    position: relative;
+    box-shadow: var(--shadow-xl);
+    /* Stronger shadow for modal */
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Modifiers for different sizes */
+.c-modal__content--large {
+    max-width: 800px;
+}
+
+.c-modal__content--small {
+    max-width: 400px;
+}
+
+.c-modal__content--center {
+    text-align: center;
+    align-items: center;
+}
+
+.c-modal__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-xl);
+    padding-bottom: var(--spacing-md);
+    border-bottom: var(--border-thin) solid var(--glass-border);
+}
+
+.c-modal__title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin: 0;
+}
+
+.c-modal__icon {
+    font-size: 4rem;
+    margin-bottom: var(--spacing-lg);
+}
+
+.c-modal__close {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 1.8rem;
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+}
+
+.c-modal__close:hover {
+    color: var(--color-error);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.c-modal__body {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: var(--spacing-sm);
+}
+
+.c-modal__footer {
+    margin-top: var(--spacing-xl);
+    padding-top: var(--spacing-lg);
+    border-top: var(--border-thin) solid var(--glass-border);
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-md);
+}
+
+/* Scrollbar styling for modal body */
+.c-modal__body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.c-modal__body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.c-modal__body::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 3px;
+}
+
+/* Release Notes Specific Markdown Styles */
+.release-notes-body {
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: var(--text-main);
+}
+
+.release-notes-markdown h1 {
+    font-size: 1.4rem;
+    color: var(--accent-color);
+    margin: 1rem 0;
+}
+
+.release-notes-markdown h2 {
+    font-size: 1.2rem;
+    border-bottom: 1px solid var(--glass-border);
+    padding-bottom: 0.3rem;
+    margin: 1.5rem 0 0.8rem;
+}
+
+.release-notes-markdown h3 {
+    font-size: 1.05rem;
+    margin: 1.2rem 0 0.5rem;
+}
+
+.release-notes-markdown code {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-family: monospace;
+}
+
+.release-notes-markdown hr {
+    border: 0;
+    border-top: 1px solid var(--glass-border);
+    margin: 1.5rem 0;
+}
+
+/* Responsive Media Queries */
+@media (max-width: var(--bp-mobile)) {
+    .c-modal__content {
+        width: 95%;
+        padding: var(--spacing-lg);
+    }
+}
+
+/* --- Light Theme Overrides --- */
+body.light-theme .release-notes-markdown code {
+    background: rgba(0, 0, 0, 0.05);
+    color: #c026d3;
+}
+
+body.light-theme .c-modal__close:hover {
+    background: rgba(0, 0, 0, 0.05);
+}

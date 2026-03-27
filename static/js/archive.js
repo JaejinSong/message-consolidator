@@ -33,10 +33,13 @@ export const archive = {
                 offset: (state.archivePage - 1) * state.archiveLimit,
                 lang: state.currentLang,
                 sort: state.archiveSort,
-                order: state.archiveOrder
+                order: state.archiveOrder,
+                status: state.archiveStatus || 'all' // 탭 상태값 추가
             };
             const data = await api.fetchArchive(params);
             state.archiveTotalCount = data.total;
+            const archiveCountEl = document.getElementById('archiveCount');
+            if (archiveCountEl) archiveCountEl.textContent = data.total;
             renderer.renderArchive(data.messages);
             this.updatePaginationUI();
         } finally {
@@ -147,6 +150,27 @@ export const archive = {
         };
         Object.entries(sortHeaders).forEach(([id, field]) => {
             document.getElementById(id)?.addEventListener('click', () => triggerArchiveSort(field));
+        });
+
+        // 보관함 2단계 탭 바인딩 (전체 / 완료된 업무 / 삭제된 업무)
+        const archiveTabs = document.querySelectorAll('#archiveSection .tab-btn');
+        archiveTabs.forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                archiveTabs.forEach(btn => btn.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+
+                const target = e.currentTarget.getAttribute('data-tab');
+                if (target === 'archiveDoneTab') {
+                    state.archiveStatus = 'done';
+                } else if (target === 'archiveTrashTab') {
+                    state.archiveStatus = 'trash';
+                } else {
+                    state.archiveStatus = 'all';
+                }
+
+                state.archivePage = 1;
+                this.fetch();
+            });
         });
 
         this.setupExportModal();

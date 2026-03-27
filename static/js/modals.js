@@ -28,14 +28,19 @@ export const modals = {
      */
     attachGlobalCloseListeners() {
         document.body.addEventListener('click', (e) => {
-            // 1. '.close-btn' (X 버튼) 또는 'data-action="close-modal"' 속성을 가진 버튼 클릭 시
-            if (e.target.closest('.close-btn') || e.target.closest('[data-action="close-modal"]')) {
-                const modal = e.target.closest('.modal');
-                if (modal) modal.classList.add('hidden');
+            // 1. '.c-modal__close' (X 버튼) 또는 'data-action="close-modal"' 속성을 가진 버튼 클릭 시
+
+            if (e.target.closest('.c-modal__close') || e.target.closest('[data-action="close-modal"]')) {
+                const modal = e.target.closest('.c-modal');
+                if (modal) {
+                    modal.classList.add('hidden');
+                    console.log('[DEBUG] Modal Closed via Button:', modal.id);
+                }
             }
             // 2. 모달 콘텐츠 바깥(어두운 배경 영역) 클릭 시 닫기
-            else if (e.target.classList.contains('modal')) {
+            else if (e.target.classList.contains('c-modal')) {
                 e.target.classList.add('hidden');
+                console.log('[DEBUG] Modal Closed via Backdrop:', e.target.id);
             }
         });
     },

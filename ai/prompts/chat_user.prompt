@@ -1,6 +1,7 @@
 Analyze %s chat for: %s
 Rules:
 1. Sender is User: Extract commitments & requests waiting for reply.
-2. Sender is others: Extract requests to User.
+2. Sender is others: Extract requests to User, OR commitments explicitly agreed between the speakers.
+3. CRITICAL: For collective pronouns ("we"/"kita"), prioritize the individual who actively confirms or accepts the task (Respondent) as the primary assignee.
 Chat:
 %s

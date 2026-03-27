@@ -11,8 +11,9 @@ describe('insightsRenderer.js', () => {
     });
 
     it('should render daily glance correctly', () => {
-        const data = { total_completed: 42, peak_time: '14:00', abandoned_count: 0 };
-        insightsRenderer.renderDailyGlance(data, 'ko');
+        vi.spyOn(Math, 'random').mockReturnValue(0);
+        const data = { total_completed: 42, peak_time: '14:00', abandoned_tasks: 0 };
+        insightsRenderer.renderDailyGlance(data);
         
         const glance = document.getElementById('dailyGlance');
         expect(glance.textContent).toContain('42');
@@ -23,7 +24,9 @@ describe('insightsRenderer.js', () => {
     it('should show warning in glance when abandoned tasks exist', () => {
         const data = { total_completed: 10, peak_time: '10:00', abandoned_tasks: 5 };
         insightsRenderer.renderDailyGlance(data, 'ko');
-        expect(document.getElementById('dailyGlance').textContent).toContain('정체 중입니다');
+        const glance = document.getElementById('dailyGlance').textContent;
+        expect(glance).toContain('⚠️');
+        expect(glance).toContain('5');
     });
 
     it('should consolidate Task Master series into one card', () => {
@@ -37,7 +40,7 @@ describe('insightsRenderer.js', () => {
         
         insightsRenderer.renderAchievements(all, user, { total_completed: 15 });
         const list = document.getElementById('achievementsList');
-        const items = list.querySelectorAll('.achievement-card');
+        const items = list.querySelectorAll('.c-achievement');
         
         // Should only show '태스크 마스터 II' as the current target (first locked one)
         // because 첫 걸음 and 태스크 마스터 I are in the same series and unlocked.
@@ -58,7 +61,7 @@ describe('insightsRenderer.js', () => {
         insightsRenderer.renderAchievements(all, [], {});
         
         const list = document.getElementById('achievementsList');
-        const visibleItems = Array.from(list.querySelectorAll('.achievement-card'))
+        const visibleItems = Array.from(list.querySelectorAll('.c-achievement'))
             .filter(item => item.style.display !== 'none');
         
         expect(visibleItems.length).toBe(4);
@@ -69,7 +72,7 @@ describe('insightsRenderer.js', () => {
         const dist = { slack: 50, whatsapp: 50 };
         insightsRenderer.renderSourceDistribution({ source_distribution: dist, source_distribution_total: dist });
         const chart = document.getElementById('sourceDistribution');
-        expect(chart.querySelectorAll('.stacked-bar-segment').length).toBe(4); // 2 bars * 2 segments
+        expect(chart.querySelectorAll('.c-stacked-bar__segment').length).toBe(4); // 2 bars * 2 segments
         expect(chart.innerHTML).toContain('50%');
     });
 });

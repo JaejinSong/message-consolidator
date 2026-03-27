@@ -16,12 +16,12 @@ describe('modals.js', () => {
     beforeEach(() => {
         document.body.innerHTML = `
             <button id="settingsBtn"></button>
-            <div id="settingsModal" class="modal hidden">
-                <button class="close-btn"></button>
+            <div id="settingsModal" class="c-modal hidden">
+                <button class="c-modal__close"></button>
             </div>
-            <div id="exportModal" class="modal hidden"></div>
-            <div id="deleteConfirmModal" class="modal hidden"></div>
-            <div id="releaseNotesModal" class="modal hidden"></div>
+            <div id="exportModal" class="c-modal hidden"></div>
+            <div id="deleteConfirmModal" class="c-modal hidden"></div>
+            <div id="releaseNotesModal" class="c-modal hidden"></div>
         `;
         modals.init(() => {});
     });
@@ -39,7 +39,7 @@ describe('modals.js', () => {
         const modal = document.getElementById('settingsModal');
         modal.classList.remove('hidden');
         
-        const closeBtn = modal.querySelector('.close-btn');
+        const closeBtn = modal.querySelector('.c-modal__close');
         closeBtn.click();
         expect(modal.classList.contains('hidden')).toBe(true);
     });

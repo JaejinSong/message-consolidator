@@ -121,10 +121,28 @@ export const I18N_DATA = {
         dashboardTitle: "대시보드",
         insightsTitle: "인사이트",
         summaryDaily: "오늘의 한 줄 요약",
-        glanceTotalCompleted: "지금까지 총 {count}개의 업무를 완료했습니다. ",
-        glancePeakTime: "가장 집중한 시간대는 {time}입니다.",
-        glanceAbandoned: "⚠️ 동료의 업무 {count}개가 3영업일 이상 정체 중입니다. 함께 병목을 살펴볼까요?",
-        glanceAllClear: "✨ 팀의 모든 업무가 원활하게 진행 중입니다! 병목이 없네요.",
+        glanceTotalCompleted: [
+            "지금까지 총 {count}개의 업무를 완료했습니다. ",
+            "놀랍습니다! 벌써 {count}개의 업무를 해치우셨군요. ",
+            "오늘도 열일 중! 총 {count}개의 태스크를 완료했어요. ",
+            "좋은 흐름입니다. {count}개의 업무가 성공적으로 마무리되었습니다. "
+        ],
+        glancePeakTime: [
+            "가장 집중한 시간대는 {time}입니다.",
+            "주로 {time}에 업무 효율이 가장 높네요!",
+            "데이터가 말해주네요. 당신의 골든 타임은 {time}입니다.",
+            "{time}, 이 시간대의 당신은 아무도 막을 수 없군요!"
+        ],
+        glanceAbandoned: [
+            "⚠️ 동료의 업무 {count}개가 3영업일 이상 정체 중입니다. 함께 병목을 살펴볼까요?",
+            "⚠️ 앗, {count}개의 업무가 잊혀지고 있어요. 확인이 필요합니다!",
+            "⚠️ {count}개의 업무가 오랫동안 멈춰있습니다. 먼지를 털어볼 시간이에요."
+        ],
+        glanceAllClear: [
+            "✨ 팀의 모든 업무가 원활하게 진행 중입니다! 병목이 없네요.",
+            "✨ 완벽합니다! 방치된 업무 없이 쾌적한 상태를 유지 중이에요.",
+            "✨ 대단해요! 밀린 업무 없이 모든 것이 순조롭습니다."
+        ],
         heatmapTitle: "최근 30일 활동",
         sourceDistTitle: "채널별 분포",
         sourceDistTotal: "전체(보관함 포함)",
@@ -165,7 +183,12 @@ export const I18N_DATA = {
             "더 이상 잡을 몬스터가 없습니다. 마을에서 휴식하세요. 🏕️",
             "Gemini도 놀란 당신의 엄청난 업무 처리 속도! 🤖✨",
             "닌자처럼 흔적도 없이 모든 업무를 해치우셨군요. 🥷",
-            "할 일이 없네요. 당당하게 이 화면을 팀장님께 보여주세요! 📈"
+            "할 일이 없네요. 당당하게 이 화면을 팀장님께 보여주세요! 📈",
+            "모든 업무 완료! 이제 숨겨둔 간식을 꺼낼 시간입니다. 🍫",
+            "할 일이 없으니 왠지 허전하신가요? 정상입니다. 😂",
+            "더 이상 할 일이 없습니다. 퇴근 버튼은 어디 있죠? 🏃",
+            "오늘의 업무량 달성률 100%! 스스로에게 박수를 쳐주세요. 👏",
+            "업무함이 깨끗하네요. 바탕화면 정리라도 해볼까요? 🧹"
         ],
         stale: "정체됨",
         abandoned: "방치됨",
@@ -311,10 +334,28 @@ export const I18N_DATA = {
         dashboardTitle: "Dashboard",
         insightsTitle: "Insights",
         summaryDaily: "Daily Glance",
-        glanceTotalCompleted: "You've completed {count} tasks so far. ",
-        glancePeakTime: "Your peak focus time is {time}.",
-        glanceAbandoned: "⚠️ {count} items have been pending for over 3 working days. Time to clear them up!",
-        glanceAllClear: "✨ All caught up! No stale tasks found. Keep it up!",
+        glanceTotalCompleted: [
+            "You've completed {count} tasks so far. ",
+            "Amazing! You've already crushed {count} tasks. ",
+            "On fire today! {count} tasks have been completed. ",
+            "Great flow. You've successfully finished {count} tasks. "
+        ],
+        glancePeakTime: [
+            "Your peak focus time is {time}.",
+            "You seem to be most productive around {time}!",
+            "The data is in: your golden hour is {time}.",
+            "Around {time}, you're unstoppable!"
+        ],
+        glanceAbandoned: [
+            "⚠️ {count} items have been pending for over 3 working days. Time to clear them up!",
+            "⚠️ Oops, {count} tasks are gathering dust. They need your attention!",
+            "⚠️ {count} tasks have been stalled for a while. Let's unblock them."
+        ],
+        glanceAllClear: [
+            "✨ All caught up! No stale tasks found. Keep it up!",
+            "✨ Perfect! Everything is running smoothly with no bottlenecks.",
+            "✨ Incredible! You're completely on top of your tasks."
+        ],
         heatmapTitle: "Activity (Last 30 Days)",
         sourceDistTitle: "Channel Distribution",
         sourceDistTotal: "Total (incl. Archive)",
@@ -355,7 +396,12 @@ export const I18N_DATA = {
             "No more monsters to hunt. Rest in the village. 🏕️",
             "Even Gemini is amazed by your incredible speed! 🤖✨",
             "You cleared all tasks without a trace, like a ninja. 🥷",
-            "No tasks left. Show this screen proudly to your manager! 📈"
+            "No tasks left. Show this screen proudly to your manager! 📈",
+            "All tasks completed! Time to bring out the hidden snacks. 🍫",
+            "Feeling empty without tasks? That's completely normal. 😂",
+            "Nothing left to do. Where's the log off button? 🏃",
+            "100% daily quota achieved! Give yourself a round of applause. 👏",
+            "Your inbox is spotless. Maybe time to clean up that desktop? 🧹"
         ],
         stale: "Stale",
         abandoned: "Abandoned",
@@ -526,7 +572,12 @@ export const I18N_DATA = {
             "Tidak ada lagi monster untuk diburu. Beristirahatlah di desa. 🏕️",
             "Bahkan Gemini kagum dengan kecepatan luar biasa Anda! 🤖✨",
             "Anda menyelesaikan semua tugas tanpa jejak, seperti seorang ninja. 🥷",
-            "Tidak ada tugas tersisa. Tunjukkan layar ini dengan bangga kepada manajer Anda! 📈"
+            "Tidak ada tugas tersisa. Tunjukkan layar ini dengan bangga kepada manajer Anda! 📈",
+            "Semua tugas selesai! Waktunya mengeluarkan camilan tersembunyi. 🍫",
+            "Merasa hampa tanpa tugas? Itu hal yang sangat wajar. 😂",
+            "Tidak ada lagi yang harus dilakukan. Di mana tombol pulang? 🏃",
+            "Kuota harian 100% tercapai! Berikan tepuk tangan untuk diri sendiri. 👏",
+            "Kotak masuk Anda bersih. Mungkin waktunya merapikan desktop? 🧹"
         ],
         stale: "Tertunda",
         abandoned: "Terabaikan",
@@ -686,7 +737,12 @@ export const I18N_DATA = {
             "ไม่มีมอนสเตอร์ให้ล่าแล้ว พักผ่อนในหมู่บ้านเถอะ 🏕️",
             "แม้แต่ Gemini ยังทึ่งในความเร็วที่น่าทึ่งของคุณ! 🤖✨",
             "คุณจัดการงานทั้งหมดอย่างไร้ร่องรอยเหมือนนินจา 🥷",
-            "ไม่มีงานเหลือแล้ว โชว์หน้านี้ให้หัวหน้าดูอย่างภาคภูมิใจได้เลย! 📈"
+            "ไม่มีงานเหลือแล้ว โชว์หน้านี้ให้หัวหน้าดูอย่างภาคภูมิใจได้เลย! 📈",
+            "งานทั้งหมดเสร็จสิ้น! ได้เวลาหยิบขนมที่ซ่อนไว้ออกมาแล้ว 🍫",
+            "รู้สึกว่างเปล่าที่ไม่มีงานใช่ไหม? นั่นเป็นเรื่องปกติมาก 😂",
+            "ไม่มีอะไรต้องทำแล้ว ปุ่มเลิกงานอยู่ไหนเนี่ย? 🏃",
+            "บรรลุเป้าหมายรายวัน 100%! ปรบมือให้ตัวเองหน่อย 👏",
+            "กล่องข้อความของคุณสะอาดเอี่ยม ถึงเวลาจัดเดสก์ท็อปแล้วหรือยัง? 🧹"
         ],
         stale: "ค้างคา",
         abandoned: "ถูกละเลย",

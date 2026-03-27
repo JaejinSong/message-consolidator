@@ -1,7 +1,14 @@
 #!/bin/bash
 set -e
+set -o pipefail
 
-# Configuration
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+# Configuration (Updated step numbers)
 PROJECT_ID="gemini-enterprise-487906"
 REGION="us-central1"
 REPO_NAME="message-consolidator-repo"
@@ -10,69 +17,98 @@ ZONE="us-central1-a"
 VPS_NAME="chat-analyzer-vps"
 BUCKET_NAME="message-consolidator-deploy-gemini-enterprise-487906"
 
-# 0. 로컬 사전 검증 (Local Pre-verification)
-echo "==> Step 0: Local Pre-verification..."
+# 0. Pre-deployment verification
+echo -e "${BLUE}==> Step 0: Running all tests in parallel (Go, UI, AI)...${NC}"
 
-echo "--> 0.1: Tidying Go modules..."
-go mod tidy
+# Load env and export for subshells
+[ -f .env ] && { set -a; source .env; set +a; }
+export GEMINI_API_KEY_FOR_TEST=${GEMINI_API_KEY_FOR_TEST:-$GEMINI_API_KEY}
 
-echo "--> 0.2: Building Go project..."
-go build ./...
-
-echo "--> 0.3 & 0.4: Running Tests in Parallel (Go & Frontend)..."
-go test ./... &
+(go test ./... -v > go_test.log 2>&1) &
 GO_PID=$!
-
-npm test &
+(npm test > npm_test.log 2>&1) &
 NPM_PID=$!
+(go test ./tests/regression -v > ai_test.log 2>&1) &
+AI_PID=$!
+(node tests/verify-loading-ui.cjs > loading_ui_test.log 2>&1) &
+LOADING_PID=$!
 
-FAIL=0
-wait $GO_PID || { echo "❌ Go backend tests failed!"; FAIL=1; }
-wait $NPM_PID || { echo "❌ Frontend tests failed!"; FAIL=1; }
+echo "Waiting for tests: Go ($GO_PID), UI ($NPM_PID), AI ($AI_PID), Loading ($LOADING_PID)..."
+wait $GO_PID || { echo -e "${RED}❌ Go tests failed! Check go_test.log${NC}"; exit 1; }
+wait $NPM_PID || { echo -e "${RED}❌ Frontend tests failed! Check npm_test.log${NC}"; exit 1; }
+wait $AI_PID || { echo -e "${RED}❌ AI Regression failed! Check ai_test.log${NC}"; exit 1; }
+wait $LOADING_PID || { echo -e "${RED}❌ Loading UI verification failed! Check loading_ui_test.log${NC}"; exit 1; }
 
-if [ $FAIL -ne 0 ]; then
-    echo "❌ Tests failed! Deployment aborted."
-    exit 1
-fi
+echo -e "${GREEN}✅ All tests passed!${NC}"
 
-echo "✅ Local pre-verification passed!"
+# 1. Frontend Optimization (PurgeCSS)
+echo -e "${BLUE}==> Step 1: Optimizing CSS (PurgeCSS)...${NC}"
+npm run build:css || { echo -e "${RED}❌ PurgeCSS failed!${NC}"; exit 1; }
 
-# 1. 로컬에서 Docker 이미지 빌드 및 푸시
-echo "==> Step 1: Building and pushing Docker image..."
+# 2. Build and Push
+echo -e "${BLUE}==> Step 2: Building and pushing image...${NC}"
 gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
 docker build -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}:latest .
 docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}:latest
 
-echo "==> Step 2: Transferring config files directly to VPS (Skipping GCS)..."
-gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --project=${PROJECT_ID} --command="mkdir -p ~/message-consolidator"
-gcloud compute scp .env docker-compose.yml ${VPS_NAME}:~/message-consolidator/ --zone=${ZONE} --project=${PROJECT_ID}
+# 3. Upload config
+echo -e "${BLUE}==> Step 3: Uploading configs...${NC}"
+gcloud storage cp .env docker-compose.yml gs://${BUCKET_NAME}/vps/ --project=${PROJECT_ID}
 
-# 3. VPS 배포 및 실시간 검증 (SSH 접속 1회로 통합)
-echo "==> Step 3 & 4: Deploying and Verifying on VPS..."
+# 4. Deploy to VPS
+echo -e "${BLUE}==> Step 4: Restarting container on VPS...${NC}"
 gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --project=${PROJECT_ID} --command="
-  cd ~/message-consolidator && 
+  mkdir -p ~/message-consolidator && cd ~/message-consolidator && 
   gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet &&
-  sudo docker-compose pull &&
-  sudo docker-compose up -d &&
-  echo 'Waiting for Startup Complete log...' &&
-  sudo docker-compose logs --tail=20 | grep -q \"Startup Complete\" || (sleep 5 && sudo docker-compose logs --tail=20 | grep \"Startup Complete\") &&
-  echo 'Checking local health (localhost:8080)...' &&
-  curl -s -f http://localhost:8080/health && echo 'Local health check passed!'
+  gcloud storage cp gs://${BUCKET_NAME}/vps/.env . && 
+  gcloud storage cp gs://${BUCKET_NAME}/vps/docker-compose.yml . && 
+  sudo docker-compose pull && sudo docker-compose up -d
 "
 
-# 외부 API 상태 확인 (Public IP를 통한 최종 검증)
-echo "==> Checking External API status..."
-# Wait a few seconds for the proxy/network to propagate if needed
-sleep 2
-EXTERNAL_IP=$(gcloud compute instances describe ${VPS_NAME} --zone=${ZONE} --project=${PROJECT_ID} --format="value(networkInterfaces[0].accessConfigs[0].natIP)")
-echo "External IP: ${EXTERNAL_IP}"
+# 5. Verification
+echo -e "${BLUE}==> Step 5: Verifying deployment...${NC}"
+echo "Waiting for 'Startup Complete' log (Max 30s)..."
 
-# Try both nip.io and direct IP
-if curl -s -f "https://${EXTERNAL_IP}.nip.io/health"; then
-    echo "✅ API is healthy via HTTPS (nip.io)!"
-elif curl -s -f "http://${EXTERNAL_IP}:8080/health"; then
-    echo "⚠️ API is healthy via HTTP (Direct Port), but HTTPS/nip.io failed."
+MAX_RETRIES=15
+RETRY_COUNT=0
+IS_READY=0
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+  if gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --command="sudo docker logs message-consolidator --tail 100 | grep 'Startup Complete'" > /dev/null 2>&1; then
+    IS_READY=1
+    break
+  fi
+  echo -n "."
+  sleep 2
+  RETRY_COUNT=$((RETRY_COUNT+1))
+done
+
+if [ $IS_READY -eq 1 ]; then
+  echo -e "\n${GREEN}✅ Startup Complete log found!${NC}"
+  echo "Giving service 5s to stabilize background connections..."
+  sleep 5
 else
-    echo "❌ API health check failed on all endpoints!"
-    exit 1
+  echo -e "\n${RED}❌ Timeout: Startup Complete log not found.${NC}"
+  gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --command="sudo docker logs message-consolidator --tail 20"
+  exit 1
 fi
+
+# Multi-stage Health Check
+echo -e "${BLUE}==> Checking API status...${NC}"
+# Use public /health endpoint which returns "OK"
+HEALTH_CHECK_URL="https://34.67.133.18.nip.io/health"
+
+# Try external first
+if curl -s -k "$HEALTH_CHECK_URL" | grep -q "OK"; then
+  echo -e "${GREEN}✅ External API is healthy!${NC}"
+else
+  echo -e "${RED}⚠️ External health check failed. Trying internal...${NC}"
+  if gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --command="curl -s http://localhost:8080/health" | grep -q "OK"; then
+    echo -e "${GREEN}✅ Internal API is healthy! (External might be DNS or Propagation delay)${NC}"
+  else
+    echo -e "${RED}❌ Both health checks failed! Check logs.${NC}"
+    exit 1
+  fi
+fi
+
+echo -e "${GREEN}🚀 Deployment Successful!${NC}"

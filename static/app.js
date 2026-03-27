@@ -7,7 +7,7 @@ import { archive } from './js/archive.js';
 import { modals } from './js/modals.js';
 import { insights } from './js/insights.js';
 import { events, EVENTS } from './js/events.js';
-import { safeAsync, hasSessionHint } from './js/utils.js';
+import { safeAsync, hasSessionHint, setupTabs } from './js/utils.js';
 import { STATUS_STATES, POLLING_INTERVALS } from './js/constants.js';
 
 /**
@@ -50,12 +50,12 @@ const handlers = {
     }, { triggerAuthOverlay: true }),
     onWhatsAppRelink: safeAsync(async () => {
         renderer.updateWhatsAppQR('generating', null, state.currentLang);
-        renderer.toggleWaLoginSection(true);
+        renderer.showWaModal();
         // waQRSection과 waConnectedSection은 renderer.updateServiceStatusUI에서 처리되지만,
         // 여기서는 강제로 QR 섹션을 보여줘야 함
         document.getElementById('waQRSection')?.classList.remove('hidden');
         document.getElementById('waConnectedSection')?.classList.add('hidden');
-        
+
         await refreshWhatsAppQR();
     }, { triggerAuthOverlay: true }),
     onGmailDisconnect: safeAsync(async () => {
@@ -130,7 +130,6 @@ const triggerScan = async () => {
  */
 const fetchUserProfile = safeAsync(async () => {
     const data = await api.fetchUserProfile();
-    console.log('[DEBUG] User Profile Data:', data);
     state.userProfile = data;
     state.userAliases = data.aliases || [];
     events.emit(EVENTS.USER_PROFILE_UPDATED, state.userProfile);
@@ -205,28 +204,7 @@ const initTheme = () => {
     }, state.currentTheme === 'light');
 };
 
-/**
- * Sets up tab switching logic.
- */
-const setupTabs = (btnSelector, contentSelector, attrName) => {
-    const tabs = document.querySelectorAll(btnSelector);
-    const contents = document.querySelectorAll(contentSelector);
 
-    const switchTab = (tabId) => {
-        tabs.forEach(b => b.classList.toggle('active', b.getAttribute(attrName) === tabId));
-        contents.forEach(c => c.classList.toggle('active', c.id === tabId));
-    };
-
-    tabs.forEach(btn => {
-        btn.addEventListener('click', () => {
-            switchTab(btn.getAttribute(attrName));
-            // 대시보드 탭 변경 시 즉시 화면 리스트 갱신
-            if (btnSelector === '.tab-btn:not(.settings-tab-btn)') {
-                fetchMessages();
-            }
-        });
-    });
-};
 
 /**
  * Initializes language selector.
@@ -263,35 +241,32 @@ const initNavigation = () => {
         const dashboardHeader = document.querySelector('.dashboard-header');
         const archiveSection = document.getElementById('archiveSection');
         const insightsSection = document.getElementById('insightsSection');
-        const navTabs = document.querySelectorAll('.nav-tab');
+        const navTabs = document.querySelectorAll('.c-main-nav__item');
 
-        if (view === 'archive') {
-            dashboardTabs?.classList.add('hidden');
-            dashboardHeader?.classList.add('hidden');
-            insightsSection?.classList.add('hidden');
-            archiveSection?.classList.remove('hidden');
+        const isArchive = view === 'archive';
+        const isInsights = view === 'insights';
+        const isDashboard = !isArchive && !isInsights;
+
+        dashboardTabs?.classList.toggle('hidden', !isDashboard);
+        dashboardHeader?.classList.toggle('hidden', !isDashboard);
+        archiveSection?.classList.toggle('hidden', !isArchive);
+        insightsSection?.classList.toggle('hidden', !isInsights);
+
+        if (isArchive) {
             archive.onShow();
-        } else if (view === 'insights') {
-            dashboardTabs?.classList.add('hidden');
-            dashboardHeader?.classList.add('hidden');
-            archiveSection?.classList.add('hidden');
-            insightsSection?.classList.remove('hidden');
+        } else if (isInsights) {
             insights.onShow();
         } else {
-            dashboardTabs?.classList.remove('hidden');
-            dashboardHeader?.classList.remove('hidden');
-            archiveSection?.classList.add('hidden');
-            insightsSection?.classList.add('hidden');
             fetchMessages();
         }
 
         navTabs.forEach(tab => {
             const isMatch = tab.getAttribute('data-view') === view;
-            tab.classList.toggle('active', isMatch);
+            tab.classList.toggle('c-main-nav__item--active', isMatch);
         });
     };
 
-    document.querySelectorAll('.nav-tab').forEach(tab => {
+    document.querySelectorAll('.c-main-nav__item').forEach(tab => {
         tab.addEventListener('click', () => {
             const view = tab.getAttribute('data-view');
             if (!view) return; // Scan 버튼(수동 액션)일 경우 뷰 전환 무시
@@ -357,7 +332,7 @@ const initActionButtons = () => {
     renderer.bindGetQRBtn(async () => {
         renderer.updateWhatsAppQR('generating', null, state.currentLang);
         await refreshWhatsAppQR();
-        
+
         const pollStatus = setInterval(async () => {
             await checkWhatsAppStatus();
             if (state.waConnected) {
@@ -371,7 +346,7 @@ const initActionButtons = () => {
     renderer.bindScanBtn(triggerScan);
 
     renderer.bindWhatsAppStatus(() => {
-        renderer.toggleWaLoginSection(true);
+        renderer.showWaModal();
     });
 
     renderer.bindGmailStatus(() => {
@@ -384,6 +359,15 @@ const initActionButtons = () => {
     document.getElementById('gmailDisconnectBtn')?.addEventListener('click', handlers.onGmailDisconnect);
     document.getElementById('closeGmailModalBtn')?.addEventListener('click', () => {
         document.getElementById('gmailModal')?.classList.add('hidden');
+        document.getElementById('gmailModal').style.display = 'none';
+    });
+    document.getElementById('closeWaModalBtn')?.addEventListener('click', () => {
+        const modal = document.getElementById('waModal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+        }
+        stopQRAutoRefresh();
     });
 
     renderer.bindGlobalClicks({
@@ -430,8 +414,10 @@ const initApp = () => {
     initTheme();
     initLanguageSelector();
 
-    setupTabs('.tab-btn:not(.settings-tab-btn)', '.tab-content:not(.settings-tab-content)', 'data-tab');
-    setupTabs('.settings-tab-btn', '.settings-tab-content', 'data-settings-tab');
+    setupTabs('#dashboardContent .tab-btn', '#dashboardContent .c-tabs__panel', 'data-tab', 'active', () => {
+        fetchMessages();
+    });
+    setupTabs('.c-settings__tab', '.c-settings__panel', 'data-settings-tab', 'c-settings__tab--active');
     setTimeout(() => document.querySelector('[data-tab="myTasksTab"]')?.click(), 500);
 
     initNavigation();

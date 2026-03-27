@@ -307,20 +307,25 @@ func RefreshCache(email string) error {
 func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedMessage, error) {
 	var m ConsolidatedMessage
 	var assignedAt, createdAt, completedAt DBTime
-	var originalText, deadline, threadID sql.NullString
+	var room, requester, assignee, link, originalText, category, deadline, threadID sql.NullString
 
 	err := rows.Scan(
-		&m.ID, &m.UserEmail, &m.Source, &m.Room, &m.Task,
-		&m.Requester, &m.Assignee, &assignedAt, &m.Link,
+		&m.ID, &m.UserEmail, &m.Source, &room, &m.Task,
+		&requester, &assignee, &assignedAt, &link,
 		&m.SourceTS, &originalText, &m.Done, &m.IsDeleted,
-		&createdAt, &completedAt, &m.Category, &deadline,
+		&createdAt, &completedAt, &category, &deadline,
 		&threadID,
 	)
 	if err != nil {
 		return m, err
 	}
 
+	m.Room = room.String
+	m.Requester = requester.String
+	m.Assignee = assignee.String
+	m.Link = link.String
 	m.OriginalText = originalText.String
+	m.Category = category.String
 	m.Deadline = deadline.String
 	m.ThreadID = threadID.String
 

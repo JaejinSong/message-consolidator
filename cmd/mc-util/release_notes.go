@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 	"time"
 
+	"message-consolidator/config"
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
 )
@@ -20,8 +20,8 @@ type TargetFile struct {
 	Path string
 }
 
-func main() {
-	apiKey := os.Getenv("GEMINI_API_KEY")
+func runReleaseNotes(cfg *config.Config) {
+	apiKey := cfg.GeminiAPIKey
 	if apiKey == "" {
 		log.Fatal("GEMINI_API_KEY is not set")
 	}
@@ -84,7 +84,7 @@ func main() {
 		Parts: []genai.Part{genai.Text(sysPrompt)},
 	}
 
-	log.Printf("Generating synchronized release notes for v2.3.5...")
+	log.Printf("Generating synchronized release notes for v%s...", nextVersion)
 	resp, err := model.GenerateContent(ctx, genai.Text("Generate the combined release notes block now. Strictly follow the [FILENAME] header format."))
 	if err != nil {
 		log.Fatal(fmt.Errorf("AI generation failed: %w", err))
@@ -99,10 +99,10 @@ func main() {
 		}
 	}
 
-	sections := splitSections(fullResponse)
+	sections := mcSplitSections(fullResponse)
 	for _, t := range targets {
 		if content, ok := sections[t.Name]; ok {
-			updateFile(t.Path, content)
+			mcUpdateFile(t.Path, content)
 			log.Printf("Updated %s", t.Name)
 		}
 	}
@@ -118,7 +118,7 @@ func incrementPatch(v string) string {
 	return fmt.Sprintf("%d.%d.%d", major, minor, patch+1)
 }
 
-func splitSections(resp string) map[string]string {
+func mcSplitSections(resp string) map[string]string {
 	sections := make(map[string]string)
 	filenames := []string{"RELEASE_NOTES.md", "RELEASE_NOTES_KR.md", "RELEASE_NOTES_USER.md"}
 	for _, fname := range filenames {
@@ -143,7 +143,7 @@ func splitSections(resp string) map[string]string {
 	return sections
 }
 
-func updateFile(path, newContent string) {
+func mcUpdateFile(path, newContent string) {
 	oldContent, _ := ioutil.ReadFile(path)
 	finalContent := newContent + "\n\n---\n\n" + string(oldContent)
 	_ = ioutil.WriteFile(path, []byte(finalContent), 0644)

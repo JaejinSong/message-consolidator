@@ -30,24 +30,46 @@ export const updateUILanguage = (lang) => {
     });
 
     // 3. 자식 요소(Badge) 유지가 필요한 특수 탭 처리
-    const updateTab = (tabSelector, textKey, countId) => {
-        const tab = document.querySelector(`[data-tab="${tabSelector}"]`);
+    const updateCountBadge = (tabSelector, textKey, countId) => {
+        const tab = document.querySelector(`.tab-btn[data-tab="${tabSelector}"]`); 
         if (tab) {
-            const countVal = document.getElementById(countId)?.textContent || '0';
-            tab.innerHTML = `${data[textKey]} <span class="badge count" id="${countId}">${countVal}</span>`;
+            const labelEl = tab.querySelector(`[data-i18n="${textKey}"]`);
+            if (labelEl && data[textKey]) {
+                labelEl.textContent = data[textKey];
+            }
+            // Badge ID는 고유하므로 바로 접근 가능 (innerHTML 덮어쓰기 방지)
+            const badgeEl = document.getElementById(countId);
+            if (badgeEl) {
+                // 기존 숫자를 유지하거나 필요시 갱신 (이미 renderer.js에서 처리됨)
+            }
         }
     };
-    updateTab('myTasksTab', 'myTasks', 'myCount');
-    updateTab('otherTasksTab', 'otherTasks', 'otherCount');
-    updateTab('waitingTasksTab', 'waitingTasks', 'waitingCount');
-    updateTab('allTasksTab', 'allTasks', 'allCount');
 
-    // 아카이브 타이틀 뱃지 유지 처리
-    const archiveTitle = document.querySelector('#archiveSection h2');
-    if (archiveTitle) {
+    
+    // Main Nav Buttons (Dashboard, Archive, Insights)
+    const updateMainNavLink = (tabSelector, textKey) => {
+        const tab = document.querySelector(`.c-main-nav__item[data-tab="${tabSelector}"]`); // Specific to main nav
+        if (tab) {
+            tab.textContent = data[textKey] || tab.textContent;
+        }
+    };
+
+    updateMainNavLink('myTasksTab', 'dashboardTitle');
+    updateMainNavLink('archiveLink', 'archiveTitle');
+    updateMainNavLink('insightsLink', 'insightsTitle');
+
+    // Category Tabs (My Tasks, Other Tasks, etc.)
+    updateCountBadge('myTasksTab', 'myTasks', 'myCount');
+    updateCountBadge('otherTasksTab', 'otherTasks', 'otherCount');
+    updateCountBadge('waitingTasksTab', 'waitingTasks', 'waitingCount');
+    updateCountBadge('allTasksTab', 'allTasks', 'allCount');
+
+    // 아카이브 섹션 헤더 타이틀 (h2)
+    const archiveHeaderTitle = document.querySelector('#archiveSection h2');
+    if (archiveHeaderTitle) {
         const archiveCount = document.getElementById('archiveCount');
         const countText = archiveCount ? archiveCount.outerHTML : '';
-        archiveTitle.innerHTML = `${data.archiveTitle} ${countText}`;
+        archiveHeaderTitle.innerHTML = `${data.archiveTitle} ${countText}`;
     }
 
     // 4. 동적 텍스트 (ON / OFF 상태) 업데이트 처리

@@ -1,3 +1,23 @@
+# Release Notes (User) - v2.3.8 (2026-03-27 01:12 UTC)
+
+- **[FEAT] Master Your Time with Heatmaps**: Love the "Anki" style grid? We've brought it to your Insights page. You can now see exactly which hours of the day you're most active in a beautiful, color-coded chart.
+- **[PERF] Speeding Up the Pipes**: We've tuned our servers to use HTTP/2 and Gzip compression. It’s like upgrading from a garden hose to a fire hose—the app now loads noticeably faster.
+- **[FIX] No More "Mr. Undefined"**: Gmail tasks were having a bit of an identity crisis and showing "undefined" as the owner. We’ve given them their names back.
+- **[SYS] Bulletproof Deploys**: We’ve told our deployment robots to double-check everything with a test run before they go live. If something isn't perfect, it doesn't ship.
+- **[UI] Found Your Profile**: Did your logout button go on vacation? We caught it and pinned it back to the top right. Your profile settings are back where they belong.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.3.8 (2026-03-27 01:12 UTC)
+
+- **[FEAT] 나의 활동을 한눈에, 활동 히트맵**: Anki 스타일의 세련된 시간별 활동 차트를 추가했습니다. 하루 중 어느 시간에 가장 열정적으로 메시지를 처리했는지 멋진 그리드로 확인해 보세요.
+- **[PERF] 더 빨라진 로딩 속도**: 서버 통신 방식에 최신 압축 기술(HTTP/2 & Gzip)을 적용했습니다. 이제 앱을 열 때 기다리는 시간이 훨씬 줄어들어 쾌적한 사용이 가능합니다.
+- **[FIX] 사라진 담당자를 찾아서**: Gmail에서 가져온 작업들이 담당자를 'undefined'라고 표시하던 부끄러운 버그를 잡았습니다. 이제 누가 담당인지 정확히 표시됩니다.
+- **[STABILITY] 더 깐깐해진 업데이트**: 배포 시스템이 이제 업데이트 직전에 스스로 '자가 진단 테스트'를 수행합니다. 완벽하게 검증된 코드만 여러분에게 전달되도록 안전장치를 강화했습니다.
+- **[UI] 다시 돌아온 프로필 버튼**: 간혹 프로필 버튼이나 로그아웃 메뉴가 숨바꼭질하듯 사라지던 문제를 해결했습니다. 이제 언제나 제자리에서 여러분을 기다립니다.
+
+---
+
 # Release Notes (User) - v2.3.7 (2026-03-26 02:46 UTC)
 
 - **[FEAT] Globally Minded Timekeeping**: Whether you're in Seoul or San Francisco, your message stats are now perfectly synced. We’ve upgraded our time engine to support every timezone on Earth with precision.

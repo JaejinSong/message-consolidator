@@ -1,0 +1,194 @@
+/* 
+ * Message Consolidator - Settings Component (BEM)
+ * Block: .c-settings
+ */
+
+.c-settings {
+    display: flex;
+    height: 600px;
+    max-height: 70vh;
+    background: transparent;
+}
+
+/* Sidebar */
+.c-settings__sidebar {
+    width: 200px;
+    background: rgba(255, 255, 255, 0.03);
+    border-right: 1px solid var(--glass-border);
+    padding: var(--spacing-sm) 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+/* Tab Buttons */
+.c-settings__tab {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    padding: var(--spacing-md) var(--spacing-lg);
+    text-align: left;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all var(--transition-base);
+    border-left: 3px solid transparent;
+}
+
+.c-settings__tab:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+}
+
+.c-settings__tab--active {
+    background: rgba(0, 242, 255, 0.1);
+    color: var(--accent-color);
+    border-left-color: var(--accent-color);
+    font-weight: 600;
+}
+
+/* Main Content Area */
+.c-settings__main {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-xl);
+}
+
+/* Panels */
+.c-settings__panel {
+    display: none;
+    animation: fadeIn var(--transition-base);
+}
+
+.c-settings__panel--active {
+    display: block;
+}
+
+/* Sections */
+.c-settings__section {
+    margin-bottom: var(--spacing-xl);
+}
+
+.c-settings__section-title {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--text-main);
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.c-settings__section-desc {
+    font-size: 0.9rem;
+    color: var(--text-dim);
+    margin-bottom: var(--spacing-md);
+    line-height: 1.5;
+}
+
+.c-settings__divider {
+    border: 0;
+    border-top: 1px solid var(--glass-border);
+    margin: 2rem 0;
+}
+
+/* Groups and Lists */
+.c-settings__group {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.c-settings__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+}
+
+.c-settings__item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--glass-border);
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-radius: var(--radius-full);
+    font-size: 0.9rem;
+}
+
+/* Status Pills */
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-radius: var(--radius-full);
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-dim);
+}
+
+.status-pill.gmail-pill {
+    background: rgba(234, 67, 53, 0.1);
+    color: var(--color-gmail);
+    border: 1px solid rgba(234, 67, 53, 0.2);
+}
+
+/* Scrollbar customization */
+.c-settings__main::-webkit-scrollbar {
+    width: 6px;
+}
+
+.c-settings__main::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-lg);
+}
+
+/* Responsive Media Queries */
+@media (max-width: var(--bp-desktop)) {
+    .c-settings {
+        flex-direction: column;
+        height: auto;
+        max-height: 80vh;
+    }
+
+    .c-settings__sidebar {
+        width: 100%;
+        flex-direction: row;
+        border-right: none;
+        border-bottom: 1px solid var(--glass-border);
+        padding: 0 var(--spacing-sm);
+        overflow-x: auto;
+    }
+
+    .c-settings__tab {
+        white-space: nowrap;
+        border-left: none;
+        border-bottom: 3px solid transparent;
+    }
+
+    .c-settings__tab--active {
+        border-left-color: transparent;
+        border-bottom-color: var(--accent-color);
+    }
+}
+
+@media (max-width: var(--bp-mobile)) {
+    .c-settings__panel {
+        padding: var(--spacing-lg);
+    }
+}
+
+/* --- Light Theme Overrides --- */
+body.light-theme .c-settings__sidebar {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+body.light-theme .c-settings__tab:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+body.light-theme .c-settings__item {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+body.light-theme .status-pill {
+    background: rgba(0, 0, 0, 0.04);
+}

@@ -3,10 +3,12 @@ package scanner
 import (
 	"context"
 	"fmt"
+	"message-consolidator/ai"
 	"message-consolidator/channels"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +17,32 @@ import (
 	"github.com/whatap/go-api/trace"
 	"golang.org/x/sync/errgroup"
 )
+
+// slackMentionRegex는 Slack 멘션 포맷(<@U12345678>)을 찾기 위한 정규식입니다.
+var slackMentionRegex = regexp.MustCompile(`<@([A-Z0-9]+)>`)
+
+// slackUserResolver는 테스트 용이성을 위해 SlackClient의 의존성을 분리하는 인터페이스입니다.
+type slackUserResolver interface {
+	GetUserName(userID string) string
+}
+
+// resolveSlackMentions는 Slack 멘션(<@U...>)을 실제 사용자 이름(@Jaejin Song)으로 치환합니다.
+// API 호출을 최소화하기 위해 Slack 클라이언트 내의 사용자 캐시를 활용합니다.
+func resolveSlackMentions(text string, sc slackUserResolver) string {
+	return slackMentionRegex.ReplaceAllStringFunc(text, func(match string) string {
+		// ID 추출: <@U0208BU06JE> -> U0208BU06JE
+		userID := match[2 : len(match)-1]
+
+		// SlackClient에 캐시된 사용자 정보 조회 (sc.FetchUsers()가 미리 호출되어 있어야 함)
+		userName := sc.GetUserName(userID)
+
+		// 사용자 이름을 찾으면 @이름 형식으로, 못찾으면 원본 멘션 형식으로 반환
+		if userName != "" && userName != userID {
+			return "@" + userName
+		}
+		return match
+	})
+}
 
 // scanSlack은 봇이 참여한 모든 채널을 한 번만 스캔하고, 가져온 메시지를 전체 유저에 대해 평가합니다.
 func scanSlack(ctx context.Context, users []store.User) {
@@ -77,84 +105,35 @@ func scanSlack(ctx context.Context, users []store.User) {
 				return nil
 			}
 
-			var msgsToSave []store.ConsolidatedMessage
+			// Pre-filtering: Collect candidate messages that definitely contain tasks for each user
+			// map[UserEmail][]types.RawMessage
+			userCandidates := make(map[string][]types.RawMessage)
 			newUserLastTS := make(map[string]string)
 
 			for _, m := range msgs {
 				for _, u := range users {
 					userLastTS := store.GetLastScan(u.Email, "slack", c.ID)
-					// 이 유저가 이미 처리한 메시지라면 건너뜀
 					if userLastTS != "" && m.ID <= userLastTS {
 						continue
 					}
 
 					classification := classifyMessage(c, &u, userAliases[u.Email], m)
-
-					// Always capture the thread ID (ReplyToID if it's a thread message, otherwise itself)
-					threadID := m.ReplyToID
-					if threadID == "" {
-						threadID = m.ID // Thread start
-					}
-
-					// If the user sent this message, check if it completes any tasks in the thread
-					isFromMe := strings.EqualFold(m.Sender, u.Name) || strings.EqualFold(m.Sender, u.Email)
-					if isFromMe && completionSvc != nil {
-						// Don't call ProcessPotentialCompletion if it's already a "Waiting On" task (delegation)
-						if classification != "회신 대기" {
-							completionSvc.ProcessPotentialCompletion(ctx, store.ConsolidatedMessage{
-								UserEmail:    u.Email,
-								Source:       "slack",
-								ThreadID:     threadID,
-								OriginalText: m.Text,
-								SourceTS:     m.ID,
-							})
-						}
-					}
-
 					if classification == "내 업무" || classification == "회신 대기" {
-						link := fmt.Sprintf("https://slack.com/archives/%s/p%s", c.ID, strings.ReplaceAll(m.ID, ".", ""))
-						if m.ReplyToID != "" {
-							_ = store.RegisterActiveSlackThread(u.Email, c.ID, m.ReplyToID)
-							link += fmt.Sprintf("?thread_ts=%s", m.ReplyToID) // 클릭 시 우측 스레드 창이 즉시 열리도록 링크 강화
-						}
-
-						assigneeName := u.Name
-						if assigneeName == "" {
-							assigneeName = u.Email
-						}
-
-						taskText := m.Text
-						category := "todo"
-
-						if classification == "회신 대기" {
-							category = "waiting"
-						}
-
-						msgsToSave = append(msgsToSave, store.ConsolidatedMessage{
-							UserEmail:    u.Email,
-							Source:       "slack",
-							Room:         sc.GetChannelName(c.ID),
-							Task:         taskText,
-							Requester:    m.Sender,
-							Assignee:     assigneeName,
-							AssignedAt:   m.Timestamp,
-							Link:         link,
-							SourceTS:     m.ID,
-							OriginalText: m.Text,
-							Category:     category,
-							ThreadID:     threadID,
-						})
+						userCandidates[u.Email] = append(userCandidates[u.Email], m)
 					}
 
-					// 각 유저별로 가장 최신의 SourceTS 추적
 					if currTS, exists := newUserLastTS[u.Email]; !exists || m.ID > currTS {
 						newUserLastTS[u.Email] = m.ID
 					}
 				}
 			}
-			if len(msgsToSave) > 0 {
-				store.SaveMessages(msgsToSave)
+
+			// AI Analysis: Process candidates for each user
+			for email, candidates := range userCandidates {
+				user, _ := store.GetOrCreateUser(email, "", "")
+				analyzeAndSaveSlack(ctx, user, sc, c.ID, candidates)
 			}
+
 			for email, newTS := range newUserLastTS {
 				store.UpdateLastScan(email, "slack", c.ID, newTS)
 			}
@@ -249,35 +228,111 @@ func sweepSlackThreads() {
 			continue
 		}
 
-		var msgsToSave []store.ConsolidatedMessage
 		newLastTS := t.LastTS
-
+		var candidates []types.RawMessage
 		for _, m := range replies {
-			// 스위퍼에서는 채널의 메타데이터 전체가 필요하지 않으므로 ID만 임시 부여하여 분류합니다.
 			classification := classifyMessage(slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: t.ChannelID}}}, user, effectiveAliases, m)
 			if classification == "내 업무" || classification == "회신 대기" {
-				assigneeName := user.Name
-				if assigneeName == "" {
-					assigneeName = user.Email
-				}
-				taskText := m.Text
-				category := "todo"
-				if classification == "회신 대기" {
-					category = "waiting"
-				}
-				link := fmt.Sprintf("https://slack.com/archives/%s/p%s?thread_ts=%s", t.ChannelID, strings.ReplaceAll(m.ID, ".", ""), t.ThreadTS)
-				msgsToSave = append(msgsToSave, store.ConsolidatedMessage{UserEmail: user.Email, Source: "slack", Room: sc.GetChannelName(t.ChannelID), Task: taskText, Requester: m.Sender, Assignee: assigneeName, AssignedAt: m.Timestamp, Link: link, SourceTS: m.ID, OriginalText: m.Text, Category: category})
+				candidates = append(candidates, m)
 			}
 			if m.ID > newLastTS {
 				newLastTS = m.ID
 			}
 		}
-		if len(msgsToSave) > 0 {
-			store.SaveMessages(msgsToSave)
+
+		if len(candidates) > 0 {
+			analyzeAndSaveSlack(traceCtx, user, sc, t.ChannelID, candidates)
 		}
+
 		if newLastTS != t.LastTS {
 			_ = store.UpdateSlackThreadLastTS(t.UserEmail, t.ChannelID, t.ThreadTS, newLastTS)
 		}
 		time.Sleep(3 * time.Second) // API 호출 후 무조건 3초 대기 (분당 20회 제한 준수)
+	}
+}
+
+// analyzeAndSaveSlack encapsulates Gemini analysis and persistence for Slack messages.
+func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.SlackClient, channelID string, candidates []types.RawMessage) {
+	if len(candidates) == 0 {
+		return
+	}
+
+	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+	if err != nil {
+		logger.Errorf("[SCAN-SLACK] Failed to init Gemini client: %v", err)
+		return
+	}
+
+	var sb strings.Builder
+	msgMap := make(map[string]types.RawMessage)
+	for _, m := range candidates {
+		msgMap[m.ID] = m
+		resolvedText := resolveSlackMentions(m.Text, sc)
+		sb.WriteString(fmt.Sprintf("[ID:%s] %s: %s\n", m.ID, m.Sender, resolvedText))
+	}
+
+	items, err := gc.Analyze(ctx, user.Email, sb.String(), "Korean", "slack")
+	if err != nil {
+		logger.Errorf("[SCAN-SLACK] Gemini Analyze Error for %s: %v", user.Email, err)
+		return
+	}
+
+	var msgsToSave []store.ConsolidatedMessage
+	aliases, _ := store.GetUserAliases(user.ID)
+
+	for _, item := range items {
+		m, ok := msgMap[item.SourceTS]
+		if !ok {
+			continue
+		}
+
+		// Classification for saving metadata
+		classification := classifyMessage(slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: channelID}}}, user, aliases, m)
+
+		threadID := m.ReplyToID
+		if threadID == "" {
+			threadID = m.ID
+		}
+
+		link := fmt.Sprintf("https://slack.com/archives/%s/p%s", channelID, strings.ReplaceAll(m.ID, ".", ""))
+		if m.ReplyToID != "" {
+			_ = store.RegisterActiveSlackThread(user.Email, channelID, m.ReplyToID)
+			link += fmt.Sprintf("?thread_ts=%s", m.ReplyToID)
+		}
+
+		assignee := item.Assignee
+		category := item.Category
+
+		// Handle "Me" assignment logic
+		lowerAsg := strings.ToLower(assignee)
+		if lowerAsg == "" || lowerAsg == "me" || lowerAsg == "나" || strings.EqualFold(assignee, user.Name) {
+			assignee = user.Name
+			if assignee == "" {
+				assignee = user.Email
+			}
+		}
+
+		if classification == "회신 대기" {
+			category = "waiting"
+		}
+
+		msgsToSave = append(msgsToSave, store.ConsolidatedMessage{
+			UserEmail:    user.Email,
+			Source:       "slack",
+			Room:         sc.GetChannelName(channelID),
+			Task:         item.Task,
+			Requester:    item.Requester,
+			Assignee:     assignee,
+			AssignedAt:   m.Timestamp,
+			Link:         link,
+			SourceTS:     m.ID,
+			OriginalText: m.Text,
+			Category:     category,
+			ThreadID:     threadID,
+		})
+	}
+
+	if len(msgsToSave) > 0 {
+		store.SaveMessages(msgsToSave)
 	}
 }

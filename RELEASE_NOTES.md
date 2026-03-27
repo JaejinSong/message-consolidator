@@ -1,3 +1,16 @@
+# Release Notes - v2.3.8 (2026-03-27 01:12 UTC)
+
+## 📊 Analytics & Performance Optimization
+- **[FEAT] Anki-style Activity Heatmap**: Introduced a new hourly activity chart inspired by Anki's contribution grid. Users can now visualize productivity density across the 24-hour cycle within the Insights UI.
+- **[PERF] Nginx Optimization**: Enabled HTTP/2 protocol and Gzip compression on the reverse proxy layer. This significantly reduces TTFB (Time To First Byte) and improves asset loading speeds for mobile users.
+- **[REFACTOR] Gemini Client Abstraction**: Decoupled token usage logging and response text handling within the Gemini AI client. This improves maintainability and prepares the system for multi-modal model expansion.
+- **[FIX] Gmail Assignee Rendering**: Resolved a regression where tasks synchronized from Gmail incorrectly displayed "undefined" in the assignee field.
+- **[STABILITY] CI/CD Pre-verification**: Updated `deploy.sh` to include mandatory `npm test` execution. The deployment pipeline now automatically aborts if core unit tests fail, ensuring production stability.
+- **[UI] Dashboard State Refinement**: Enhanced the 'All Clear' logic on the main dashboard to accurately reflect task completion states across all consolidated channels.
+- **[FIX] Navigation UI Consistency**: Fixed a CSS z-index issue that occasionally caused the user profile dropdown and logout button to become invisible or unclickable.
+
+---
+
 # Release Notes - v2.3.7 (2026-03-26 02:46 UTC)
 
 ## 🚀 Scalability & Global Data Integrity

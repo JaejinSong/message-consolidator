@@ -24,22 +24,24 @@ export const insightsRenderer = {
         const lang = state.currentLang || 'ko';
         const i18n = I18N_DATA[lang];
 
+        const getRandomMsg = (msg) => Array.isArray(msg) ? msg[Math.floor(Math.random() * msg.length)] : msg;
         let html = '<p>';
-        const totalHtml = `<span class="accent">${stats.total_completed}</span>`;
-        html += (i18n.glanceTotalCompleted || "Total completed: {count}. ").replace('{count}', totalHtml);
+        const totalHtml = `<span class="c-insights-summary__accent">${stats.total_completed}</span>`;
+        html += getRandomMsg(i18n.glanceTotalCompleted || "Total completed: {count}. ").replace('{count}', totalHtml);
 
         if (stats.peak_time && stats.peak_time !== "-") {
-            const peakHtml = `<span class="accent">${stats.peak_time}</span>`;
-            html += (i18n.glancePeakTime || "Peak focus time: {time}. ").replace('{time}', peakHtml);
+            const peakHtml = `<span class="c-insights-summary__accent">${stats.peak_time}</span>`;
+            html += getRandomMsg(i18n.glancePeakTime || "Peak focus time: {time}. ").replace('{time}', peakHtml);
         }
 
         if (stats.abandoned_tasks > 0) {
-            const abandonedText = (i18n.glanceAbandoned || '⚠️ {count} items have been pending...').replace('{count}', `<span style="color:#ff3b30; font-weight:800;">${stats.abandoned_tasks}</span>`);
+            const abandonedText = getRandomMsg(i18n.glanceAbandoned || '⚠️ {count} items have been pending...').replace('{count}', `<span class="c-insights-summary__warning">${stats.abandoned_tasks}</span>`);
             html += `<br>${abandonedText}</p>`;
         } else {
-            const clearText = i18n.glanceAllClear || '✨ All caught up! No stale tasks found.';
+            const clearText = getRandomMsg(i18n.glanceAllClear || '✨ All caught up! No stale tasks found.');
             html += `<br><span style="font-weight:600;">${clearText}</span></p>`;
         }
+        container.className = 'c-insights-summary';
         container.innerHTML = html;
     },
 
@@ -55,20 +57,20 @@ export const insightsRenderer = {
         const startDate = new Date(today);
         startDate.setDate(today.getDate() - 29);
 
-        let html = '<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 0.5rem;">';
+        let html = '<div class="c-heatmap">';
 
         // 상단 요일 라벨 표시
         const daysOfWeek = lang === 'ko'
             ? ['일', '월', '화', '수', '목', '금', '토']
             : ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-        let xLabels = '<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; font-size: 0.75rem; color: var(--text-dim); text-align: center; font-weight: 700;">';
+        let xLabels = '<div class="c-heatmap__grid" style="grid-template-columns: repeat(7, 1fr); font-size: 0.75rem; color: var(--text-dim); text-align: center; font-weight: 700; margin-bottom: 8px;">';
         daysOfWeek.forEach(d => { xLabels += `<div>${d}</div>`; });
         xLabels += '</div>';
 
         html += xLabels;
 
-        let gridHtml = '<div class="heatmap-grid" style="grid-template-columns: repeat(7, 1fr); gap: 6px;">';
+        let gridHtml = '<div class="c-heatmap__grid" style="grid-template-columns: repeat(7, 1fr);">';
 
         // 시작 요일에 맞추어 앞부분 빈칸 채우기
         const startDay = startDate.getDay();
@@ -90,7 +92,7 @@ export const insightsRenderer = {
             const isToday = i === 0;
             const extraClass = isToday ? ' today-highlight' : '';
 
-            gridHtml += `<div class="heatmap-day${extraClass}" data-level="${level}" data-tooltip="${tooltipText}"></div>`;
+            gridHtml += `<div class="c-heatmap__day${extraClass}" data-level="${level}" data-tooltip="${tooltipText}"></div>`;
         }
 
         gridHtml += '</div>';
@@ -118,8 +120,10 @@ export const insightsRenderer = {
             let barsHtml = '', legendHtml = '';
             for (const [source, percentage] of Object.entries(dist)) {
                 if (percentage > 0) {
-                    const color = SOURCE_COLORS[source] || SOURCE_COLORS.default;
-                    barsHtml += `<div class="stacked-bar-segment" style="width: ${percentage}%; background-color: ${color};"></div>`;
+                    const normalizedSource = source.toLowerCase();
+                    const color = SOURCE_COLORS[normalizedSource] || SOURCE_COLORS.default;
+
+                    barsHtml += `<div class="c-stacked-bar__segment c-stacked-bar__segment--${normalizedSource}" style="width: ${percentage}%; background-color: ${color};"></div>`;
                     legendHtml += `<span style="color: ${color}; font-weight: 600; text-transform: capitalize;">${source} (${percentage}%)</span>`;
                 }
             }
@@ -129,7 +133,7 @@ export const insightsRenderer = {
                     <div class="dist-row-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
                         <span class="dist-row-label" style="font-size:0.9rem; font-weight:700; color:var(--text-main);">${label}</span>
                     </div>
-                    <div class="stacked-bar-container" style="height:12px; border-radius:6px; overflow:hidden; display:flex; background:var(--glass-border);">${barsHtml}</div>
+                    <div class="c-stacked-bar">${barsHtml}</div>
                     <div class="distribution-legend" style="display:flex; gap:1rem; flex-wrap:wrap; margin-top:0.5rem; font-size:0.75rem;">${legendHtml}</div>
                 </div>
             `;
@@ -139,6 +143,7 @@ export const insightsRenderer = {
             ${renderBar(distTotal, i18n.sourceDistTotal || 'Total (incl. Archive)')}
             ${renderBar(distActive, i18n.sourceDistCurrent || 'Current Dashboard')}
         `;
+        container.className = 'c-insights-card';
     },
 
     renderWaitingMetrics(stats) {
@@ -152,15 +157,16 @@ export const insightsRenderer = {
         const i18n = I18N_DATA[lang];
 
         container.innerHTML = `
-            <div class="metric-item" style="border:none; background:transparent; padding:0;">
-                <span class="label" style="display:block; font-size:0.9rem; color:var(--text-dim); margin-bottom:0.5rem;">${i18n.pendingMeTasks || 'My Pending Tasks'}</span>
-                <span class="value" style="font-size:2.5rem; font-weight:800; color:var(--text-main);">${stats.pending_me || 0}</span>
+            <div class="c-stat-item" style="border:none; background:transparent; padding:0;">
+                <span class="c-stat-item__label">${i18n.pendingMeTasks || 'My Pending Tasks'}</span>
+                <span class="c-stat-item__value">${stats.pending_me || 0}</span>
             </div>
-            <div class="metric-item" style="border:none; background:transparent; padding:0;">
-                <span class="label" style="display:block; font-size:0.9rem; color:var(--text-dim); margin-bottom:0.5rem;">${i18n.needsAttentionTasks || 'Needs Attention'}</span>
-                <span class="value" style="font-size:2.5rem; font-weight:800; color:#ff3b30;">${stats.abandoned_tasks || 0}</span>
+            <div class="c-stat-item" style="border:none; background:transparent; padding:0;">
+                <span class="c-stat-item__label">${i18n.needsAttentionTasks || 'Needs Attention'}</span>
+                <span class="c-stat-item__value" style="color:var(--color-error);">${stats.abandoned_tasks || 0}</span>
             </div>
         `;
+        container.className = 'c-stat-grid';
     },
 
     renderHourlyActivity(stats) {
@@ -170,36 +176,46 @@ export const insightsRenderer = {
             container.innerHTML = '<p class="empty-msg">Waiting for more completion data...</p>';
             return;
         }
-        container.style.position = 'relative';
 
         const lang = state.currentLang || 'ko';
         const i18n = I18N_DATA[lang];
 
         let max = 0;
-        for (let h = 0; h < 24; h++) if (stats.hourly_activity[h] > max) max = stats.hourly_activity[h];
+        for (let h = 0; h < 24; h++) {
+            const paddedH = String(h).padStart(2, '0');
+            const val = stats.hourly_activity[h] || stats.hourly_activity[paddedH] || stats.hourly_activity[String(h)] || 0;
+            if (val > max) max = val;
+        }
 
-        let html = '<div class="hourly-layout" style="display: flex; flex-direction: column; gap: 6px;">';
         const renderRow = (startHour, endHour, label) => {
-            let rowHtml = `<div style="display: flex; align-items: center; gap: 8px;">`;
-            rowHtml += `<span style="font-size: 0.7rem; color: var(--text-dim); width: 1.5rem; text-align: right; font-weight: 700;">${label}</span>`;
-            rowHtml += '<div class="heatmap-grid" style="grid-template-columns: repeat(12, 1fr); flex: 1; gap: 4px;">';
-
+            let cellsHtml = '';
             for (let h = startHour; h < endHour; h++) {
-                const count = stats.hourly_activity[h] || 0;
+                const paddedH = String(h).padStart(2, '0');
+                const count = stats.hourly_activity[h] || stats.hourly_activity[paddedH] || stats.hourly_activity[String(h)] || 0;
                 const level = max > 0 ? Math.ceil((count / max) * 4) : 0;
-                const tooltipText = (i18n.hourlyTaskTooltip || "{count} tasks completed ({time})").replace('{count}', count).replace('{time}', `${h}:00`);
-                rowHtml += `<div class="heatmap-day" data-level="${level}" data-tooltip="${tooltipText}"></div>`;
+                const tooltipText = (i18n.hourlyTaskTooltip || "{count} tasks completed ({time})").replace('{count}', count).replace('{time}', `${paddedH}:00`);
+                cellsHtml += `<div class="c-heatmap__day" data-level="${level}" data-tooltip="${tooltipText}"></div>`;
             }
-            return rowHtml + '</div></div>';
+            return `
+                <div class="c-hourly-heatmap__row">
+                    <span class="c-hourly-heatmap__label">${label}</span>
+                    <div class="c-hourly-heatmap__grid">${cellsHtml}</div>
+                </div>
+            `;
         };
 
-        html += renderRow(0, 12, 'AM') + renderRow(12, 24, 'PM');
-        html += '<div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;"><span style="width: 1.5rem;"></span>';
-        html += '<div style="display: grid; grid-template-columns: repeat(12, 1fr); flex: 1; gap: 4px; font-size: 0.65rem; color: var(--text-dim); text-align: center;">';
+        let axisLabelsHtml = '';
         for (let i = 0; i < 12; i++) {
-            html += `<div>${i === 0 ? '12' : i % 3 === 0 ? i : ''}</div>`;
+            axisLabelsHtml += `<div>${i === 0 ? '12' : i % 3 === 0 ? i : ''}</div>`;
         }
-        html += '</div></div></div><div class="chart-tooltip hidden" id="hourlyHeatmapTooltip"></div>';
+
+        const html = `
+            <div class="c-hourly-heatmap">
+                ${renderRow(0, 12, 'AM')}
+                ${renderRow(12, 24, 'PM')}
+                <div class="c-hourly-heatmap__row" style="margin-top: 2px;"><span class="c-hourly-heatmap__label"></span><div class="c-hourly-heatmap__axis-labels">${axisLabelsHtml}</div></div>
+            </div>
+            <div class="chart-tooltip hidden" id="hourlyHeatmapTooltip"></div>`;
 
         container.innerHTML = html;
         this.bindHeatmapTooltip(container, 'hourlyHeatmapTooltip');
@@ -208,19 +224,36 @@ export const insightsRenderer = {
     bindHeatmapTooltip(container, tooltipId) {
         const tooltip = container.querySelector('#' + tooltipId);
         if (!tooltip) return;
-        container.querySelectorAll('.heatmap-day').forEach(day => {
+
+        // 툴팁 찌그러짐 방지 및 마우스 간섭(깜빡임) 제거
+        tooltip.style.pointerEvents = 'none';
+        tooltip.style.whiteSpace = 'nowrap';
+        tooltip.style.width = 'max-content';
+        tooltip.style.position = 'absolute';
+        tooltip.style.zIndex = '1000';
+
+        container.querySelectorAll('.c-heatmap__day').forEach(day => {
             day.addEventListener('mouseenter', (e) => {
                 tooltip.innerHTML = `<div style="font-weight:600;">${e.currentTarget.dataset.tooltip}</div>`;
                 tooltip.classList.remove('hidden');
             });
             day.addEventListener('mousemove', (e) => {
                 const rect = container.getBoundingClientRect();
-                let leftPos = e.clientX - rect.left + 15;
-                let topPos = e.clientY - rect.top + 15;
-                if (leftPos + tooltip.offsetWidth > rect.width) leftPos = e.clientX - rect.left - tooltip.offsetWidth - 15;
-                if (topPos + tooltip.offsetHeight > rect.height) topPos = e.clientY - rect.top - tooltip.offsetHeight - 15;
-                tooltip.style.left = leftPos + 'px';
-                tooltip.style.top = topPos + 'px';
+                const tooltipWidth = tooltip.offsetWidth || 100;
+                const tooltipHeight = tooltip.offsetHeight || 40;
+                const margin = 15;
+
+                let left = e.clientX - rect.left;
+                let top = e.clientY - rect.top;
+
+                let finalLeft = (left + margin + tooltipWidth > rect.width) ? (left - tooltipWidth - margin) : (left + margin);
+                let finalTop = (top + margin + tooltipHeight > rect.height) ? (top - tooltipHeight - margin) : (top + margin);
+
+                finalLeft = Math.max(5, Math.min(finalLeft, rect.width - tooltipWidth - 5));
+                finalTop = Math.max(5, Math.min(finalTop, rect.height - tooltipHeight - 5));
+
+                tooltip.style.left = `${finalLeft}px`;
+                tooltip.style.top = `${finalTop}px`;
             });
             day.addEventListener('mouseleave', () => tooltip.classList.add('hidden'));
         });
@@ -298,7 +331,7 @@ export const insightsRenderer = {
         let html = consolidated.map((ach, index) => {
             const isUnlocked = userAchIds.has(ach.id);
             const isHidden = index >= INITIAL_VISIBLE;
-            
+
             let progress = 0;
             if (isUnlocked) {
                 progress = ach.target_value;
@@ -318,16 +351,16 @@ export const insightsRenderer = {
             const localizedDesc = i18n.achievements?.[ach.name]?.desc || ach.description;
 
             return `
-                <div class="achievement-card ${isUnlocked ? 'unlocked' : 'locked'} ${isHidden ? 'hidden-ach' : ''}" 
+                <div class="c-achievement ${isUnlocked ? 'c-achievement--unlocked' : 'c-achievement--locked'} ${isHidden ? 'hidden-ach' : ''}" 
                      style="${isHidden ? 'display: none;' : ''}">
-                    <div class="achievement-icon">${ach.icon}</div>
+                    <div class="c-achievement__icon">${ach.icon}</div>
                     <div class="achievement-info">
                         <div class="achievement-header">
-                            <span class="achievement-name">${escapeHTML(localizedName)}</span>
+                            <span class="c-achievement__title">${escapeHTML(localizedName)}</span>
                             ${isUnlocked ? `<span class="status-badge">${i18n.unlocked || 'Unlocked'}</span>` : ''}
                         </div>
                         <p class="achievement-desc">${escapeHTML(localizedDesc)}</p>
-                        <div class="achievement-progress-bar"><div class="progress-fill" style="width: ${percent}%"></div></div>
+                        <div class="c-achievement__progress-base"><div class="c-achievement__progress-fill" style="width: ${percent}%"></div></div>
                         <div class="achievement-footer">
                             <span class="xp-reward">+${ach.xp_reward || 0} XP</span>
                             <span class="progress-text">${Math.min(progress, ach.target_value)}/${ach.target_value}</span>
@@ -360,8 +393,8 @@ export const insightsRenderer = {
                 });
 
                 btn.dataset.expanded = isExpanding ? 'true' : 'false';
-                btn.innerHTML = isExpanding 
-                    ? `${i18n.showLess || 'Show Less'}` 
+                btn.innerHTML = isExpanding
+                    ? `${i18n.showLess || 'Show Less'}`
                     : `${i18n.showMore || 'Show More'} <span class="count-pill">${totalCount - INITIAL_VISIBLE}</span>`;
             });
         }
@@ -371,6 +404,7 @@ export const insightsRenderer = {
         if (!stats) return;
         const container = document.getElementById('ankiChartContainer');
         if (!container) return;
+        container.style.position = 'relative'; // Set positioning context for the tooltip
 
         const history = stats.completion_history || [];
         const data = processTimeSeriesData(history, currentChartDays);
@@ -419,6 +453,15 @@ export const insightsRenderer = {
         container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="width: 100%; height: 100%;"><line x1="${pad.l}" y1="${pad.t}" x2="${pad.l + innerW}" y2="${pad.t}" stroke="var(--glass-border)" stroke-dasharray="4" /><line x1="${pad.l}" y1="${pad.t + innerH / 2}" x2="${pad.l + innerW}" y2="${pad.t + innerH / 2}" stroke="var(--glass-border)" stroke-dasharray="4" /><line x1="${pad.l}" y1="${pad.t + innerH}" x2="${pad.l + innerW}" y2="${pad.t + innerH}" stroke="var(--glass-border)" />${labelsHtml}${barsHtml}${lineHtml}</svg><div class="chart-tooltip hidden" id="ankiTooltip"></div>`;
 
         const tooltip = document.getElementById('ankiTooltip');
+        if (tooltip) {
+            // 툴팁 찌그러짐 방지 및 마우스 간섭(깜빡임) 제거
+            tooltip.style.pointerEvents = 'none';
+            tooltip.style.whiteSpace = 'nowrap';
+            tooltip.style.width = 'max-content';
+            tooltip.style.position = 'absolute';
+            tooltip.style.zIndex = '1000';
+        }
+
         container.querySelectorAll('.chart-bar-group').forEach(group => {
             group.addEventListener('mouseenter', (e) => {
                 const d = e.currentTarget.dataset;
@@ -431,11 +474,25 @@ export const insightsRenderer = {
                 tooltip.classList.remove('hidden');
             });
             group.addEventListener('mousemove', (e) => {
-                const rect = container.getBoundingClientRect();
-                let leftPos = e.clientX - rect.left + 15, topPos = e.clientY - rect.top + 15;
-                if (leftPos + tooltip.offsetWidth > rect.width) leftPos = e.clientX - rect.left - tooltip.offsetWidth - 15;
-                if (topPos + tooltip.offsetHeight > rect.height) topPos = e.clientY - rect.top - tooltip.offsetHeight - 15;
-                tooltip.style.left = leftPos + 'px'; tooltip.style.top = topPos + 'px';
+                const containerRect = container.getBoundingClientRect();
+                const tooltipWidth = tooltip.offsetWidth || 150; // 렌더링 지연 시 기본값 부여
+                const tooltipHeight = tooltip.offsetHeight || 80;
+                const margin = 15;
+
+                // Position relative to container
+                let left = e.clientX - containerRect.left;
+                let top = e.clientY - containerRect.top;
+
+                // Default: bottom-right. Flip if overflowing.
+                let finalLeft = (left + margin + tooltipWidth > containerRect.width) ? (left - tooltipWidth - margin) : (left + margin);
+                let finalTop = (top + margin + tooltipHeight > containerRect.height) ? (top - tooltipHeight - margin) : (top + margin);
+
+                // Clamp to container edges to prevent ever going out of bounds
+                finalLeft = Math.max(5, Math.min(finalLeft, containerRect.width - tooltipWidth - 5));
+                finalTop = Math.max(5, Math.min(finalTop, containerRect.height - tooltipHeight - 5));
+
+                tooltip.style.left = `${finalLeft}px`;
+                tooltip.style.top = `${finalTop}px`;
             });
             group.addEventListener('mouseleave', () => tooltip.classList.add('hidden'));
         });

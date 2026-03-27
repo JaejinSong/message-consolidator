@@ -1,0 +1,324 @@
+/* 
+   v2-insights.css
+   BEM (Block-Element-Modifier) based Insights components 
+*/
+
+/* --- Heatmap Component --- */
+.c-heatmap {
+    padding: var(--spacing-xs) 0;
+}
+
+.c-heatmap__grid {
+    display: grid;
+    gap: 6px;
+    align-content: start;
+}
+
+.c-heatmap__day {
+    aspect-ratio: 1;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.05);
+    transition: all 0.2s ease;
+    cursor: help;
+}
+
+.c-heatmap__day[data-level="4"] {
+    background: var(--accent-color);
+    box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.c-heatmap__day:hover {
+    transform: scale(1.15);
+    z-index: 10;
+}
+
+/* Tooltip & Highlights */
+.chart-tooltip {
+    background: var(--card-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-main);
+    font-size: 0.8rem;
+    color: var(--text-main);
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.today-highlight {
+    border: 2px solid var(--accent-color);
+}
+
+/* --- Hourly Heatmap --- */
+.c-hourly-heatmap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    /* For tooltip positioning */
+}
+
+.c-hourly-heatmap__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.c-hourly-heatmap__label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    width: 1.5rem;
+    text-align: right;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.c-hourly-heatmap__grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    flex: 1;
+    gap: 4px;
+}
+
+.c-hourly-heatmap__axis-labels {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    flex: 1;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    text-align: center;
+}
+
+/* --- Stat Item --- */
+.c-stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-lg);
+}
+
+.c-stat-item {
+    background: var(--card-bg);
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.c-stat-item__label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    font-weight: 800;
+}
+
+
+.c-stat-item__value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+/* --- Insights Summary --- */
+.c-insights-summary {
+    background: var(--card-bg);
+    border: var(--border-thin) solid var(--glass-border);
+    backdrop-filter: blur(var(--blur-md));
+    border-radius: var(--radius-lg);
+    padding: 1.5rem 2rem;
+    margin-bottom: var(--spacing-lg);
+    color: var(--text-main);
+    font-size: 1.1rem;
+    line-height: 1.6;
+}
+
+.c-insights-summary__accent {
+    color: var(--accent-color);
+    font-weight: 800;
+    text-shadow: 0 0 10px var(--accent-glow);
+}
+
+.c-insights-summary__warning {
+    color: var(--color-error);
+    font-weight: 800;
+}
+
+/* --- Stacked Bar --- */
+.c-stacked-bar {
+    height: 12px;
+    background: var(--glass-border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    display: flex;
+    margin-top: var(--spacing-xs);
+}
+
+.c-stacked-bar__segment {
+    height: 100%;
+    transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* --- Achievement Card --- */
+.c-achievement {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+    border: var(--border-thin) solid rgba(255, 255, 255, 0.05);
+    padding: 1rem 1.2rem;
+    border-radius: var(--radius-lg);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.c-achievement--unlocked {
+    background: linear-gradient(145deg, rgba(251, 191, 36, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+    border-color: rgba(251, 191, 36, 0.3);
+    box-shadow: 0 4px 20px rgba(251, 191, 36, 0.05);
+}
+
+.c-achievement--locked {
+    opacity: 0.6;
+    filter: grayscale(0.8);
+}
+
+.c-achievement__icon {
+    font-size: 2.2rem;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.2));
+}
+
+.achievement-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 4px;
+    min-width: 0;
+}
+
+.c-achievement__title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+.c-achievement--unlocked .c-achievement__title {
+    color: var(--color-warning);
+}
+
+.achievement-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.status-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    background: rgba(251, 191, 36, 0.2);
+    color: var(--color-warning);
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+}
+
+.c-achievement__progress-base {
+    height: var(--spacing-xs);
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: var(--spacing-xs);
+}
+
+.c-achievement__progress-fill {
+    height: 100%;
+    background: var(--accent-color);
+    box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.achievement-desc {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin: 0 0 8px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.achievement-footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.xp-reward {
+    color: var(--accent-color);
+}
+
+.progress-text {
+    color: var(--text-dim);
+}
+
+.show-more-achievements {
+    display: flex;
+    justify-content: center;
+    margin-top: var(--spacing-md);
+}
+
+.glass-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    color: var(--text-main);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.glass-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.count-pill {
+    background: var(--accent-color);
+    color: #000;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+}
+
+/* --- Light Theme Overrides --- */
+body.light-theme .c-heatmap__day {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+body.light-theme .c-achievement {
+    background: linear-gradient(145deg, rgba(0, 0, 0, 0.02) 0%, rgba(0, 0, 0, 0) 100%);
+    border-color: rgba(0, 0, 0, 0.05);
+}
+
+body.light-theme .c-achievement--unlocked {
+    background: linear-gradient(145deg, rgba(217, 119, 6, 0.08) 0%, rgba(0, 0, 0, 0.02) 100%);
+    border-color: rgba(217, 119, 6, 0.3);
+}
+
+body.light-theme .c-achievement__progress-base {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+body.light-theme .glass-btn {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: var(--glass-border);
+}
+
+body.light-theme .glass-btn:hover {
+    background: rgba(0, 0, 0, 0.08);
+}

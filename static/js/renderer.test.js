@@ -165,5 +165,60 @@ describe('renderer.js - updateUserProfile', () => {
         expect(document.getElementById('xpText').textContent).toBe('0 / 100 XP');
         expect(document.getElementById('xpBar').style.width).toBe('0%');
     });
+
+    it('should unhide userEmail and handle profile picture visibility', () => {
+        document.body.innerHTML += `
+            <div id="userEmail" class="hidden"></div>
+            <img id="userPicture" src="" class="hidden">
+        `;
+        
+        // 1. With email and picture
+        renderer.updateUserProfile({ 
+            xp: 10, level: 1, email: 'test@example.com', 
+            picture: 'http://pic.jpg', streak: 0, points: 0
+        });
+        const emailEl = document.getElementById('userEmail');
+        expect(emailEl.classList.contains('hidden')).toBe(false);
+        expect(emailEl.textContent).toBe('test@example.com');
+        expect(document.getElementById('userPicture').classList.contains('hidden')).toBe(false);
+
+        // 2. Without picture
+        renderer.updateUserProfile({ 
+            xp: 10, level: 1, email: 'test@example.com', 
+            picture: '', streak: 0, points: 0
+        });
+        expect(document.getElementById('userPicture').classList.contains('hidden')).toBe(true);
+    });
 });
+
+describe('renderer.js - updateServiceStatusUI', () => {
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <div id="slackStatusLarge"></div>
+            <div id="slackStatusText"></div>
+            <div id="waQRSection"></div>
+            <div id="waConnectedSection"></div>
+            <div id="gmailConnectedInfo"></div>
+            <div id="gmailDisconnectedInfo"></div>
+        `;
+    });
+
+    it('should toggle active classes and sections via public methods', () => {
+        // Slack Connected
+        renderer.updateSlackStatus(true);
+        expect(document.getElementById('slackStatusLarge').classList.contains('c-status-card--active')).toBe(true);
+        
+        // WhatsApp Connected
+        renderer.updateWhatsAppStatus(true);
+        expect(document.getElementById('waQRSection').classList.contains('hidden')).toBe(true);
+        expect(document.getElementById('waConnectedSection').classList.contains('hidden')).toBe(false);
+
+        // WhatsApp Disconnected
+        renderer.updateWhatsAppStatus(false);
+        expect(document.getElementById('waQRSection').classList.contains('hidden')).toBe(false);
+        expect(document.getElementById('waConnectedSection').classList.contains('hidden')).toBe(true);
+    });
+});
+
+
 

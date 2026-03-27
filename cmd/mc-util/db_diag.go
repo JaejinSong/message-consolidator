@@ -4,14 +4,13 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"message-consolidator/config"
 	"os"
 
+	"message-consolidator/config"
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
-func main() {
-	cfg := config.LoadConfig()
+func runDBDiag(cfg *config.Config) {
 	if cfg.TursoURL == "" {
 		log.Fatal("TURSO_DATABASE_URL is not set")
 	}
@@ -32,7 +31,7 @@ func main() {
 		email = "jjsong@whatap.io"
 	}
 
-	fmt.Printf("--- Diagnosing for user: %s ---\n", email)
+	fmt.Printf("--- Bin-Diag for user: %s ---\n", email)
 
 	// 1. Total counts
 	var total, done, deleted int

@@ -140,7 +140,7 @@ func setupApp(cfg *config.Config) *http.Server {
 	}
 
 	go func() {
-		logger.Infof("Startup Complete: 기동 완료 (Server starting on :%s...)", port)
+		logger.Infof("Startup Complete (Server starting on :%s...)", port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server error: %v", err)
 		}

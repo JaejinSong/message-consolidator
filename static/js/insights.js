@@ -30,6 +30,27 @@ export const insights = {
                 }
             });
         });
+
+        // 2단계 탭 바인딩 (통계 / 보고서)
+        const statsTab = document.querySelector('[data-tab="insightsStatsTab"]');
+        const reportsTab = document.querySelector('[data-tab="insightsReportsTab"]');
+        const statsContent = document.querySelector('.insights-container:not(#insightsReportsContent)');
+        const reportsContent = document.getElementById('insightsReportsContent');
+
+        if (statsTab && reportsTab && statsContent && reportsContent) {
+            statsTab.addEventListener('click', () => {
+                statsTab.classList.add('active');
+                reportsTab.classList.remove('active');
+                statsContent.classList.remove('hidden');
+                reportsContent.classList.add('hidden');
+            });
+            reportsTab.addEventListener('click', () => {
+                reportsTab.classList.add('active');
+                statsTab.classList.remove('active');
+                reportsContent.classList.remove('hidden');
+                statsContent.classList.add('hidden');
+            });
+        }
     },
 
     /**

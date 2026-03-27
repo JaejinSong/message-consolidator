@@ -25,7 +25,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Message Consolidator Premium</title>
     <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
-    <link rel="stylesheet" href="static/style.css?v=1.8.4">
+    <link rel="stylesheet" href="static/style.css?v=2.1.984">
     <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
@@ -38,93 +38,80 @@
         }
     </script>
     <div class="glass-container">
-        <header>
-            <div class="header-container">
-                <div class="header-left">
-                    <h1>Message <span class="accent">Consolidator</span></h1>
-                    <p class="header__subtitle" data-i18n="subTitle">Automated Slack, WhatsApp &amp; Gmail Task
-                        Dashboard</p>
+        <header class="c-nav">
+            <div class="c-nav__brand">
+                <h1 class="c-nav__title">Message <span class="c-nav__title-accent">Consolidator</span></h1>
+                <p class="header__subtitle" data-i18n="subTitle">Automated Slack, WhatsApp &amp; Gmail Task Dashboard
+                </p>
+            </div>
+
+            <div class="header-right">
+                <div id="gamificationStats" class="gamification-stats hidden">
+                    <div class="stat-item" title="Current Level" data-i18n-title="levelTitle">
+                        <span class="stat-label" data-i18n="levelLabel">LVL</span>
+                        <span id="userLevel" class="stat-value">1</span>
+                    </div>
+                    <div class="stat-item" style="width: 100px;">
+                        <div class="xp-container">
+                            <div id="xpBar" class="xp-bar" style="width: 0%;"></div>
+                        </div>
+                        <span id="xpText" class="stat-label">0 / 0 XP</span>
+                    </div>
+                    <div class="stat-item" title="Daily Streak" data-i18n-title="streakTitle">
+                        <span class="stat-label" data-i18n="streakLabel">STREAK</span>
+                        <span id="userStreak" class="stat-value">0🔥</span>
+                    </div>
+                    <div class="stat-item" title="Total accumulated points" data-i18n-title="pointsTitle">
+                        <span class="stat-label" data-i18n="pointsLabel">PTS</span>
+                        <span id="userPoints" class="stat-value">0</span>
+                    </div>
+                </div>
+                <div class="c-utility">
+                    <button type="button" id="scanBtn" class="c-utility__btn" title="Scan Now" aria-label="Scan Now"
+                        data-i18n-title="scanNow">
+                        <span class="icon" id="scanBtnIcon" style="display: inline-block;">🔄</span>
+                    </button>
+                    <button type="button" id="themeToggleBtn" class="c-utility__btn" title="Toggle Theme"
+                        aria-label="Toggle Theme" data-i18n-title="themeToggleTitle"></button>
+                    <button type="button" id="releaseNotesBtn" class="c-utility__btn" title="Updates"
+                        aria-label="Updates" data-i18n-title="updatesTitle">
+                        <span class="icon">📢</span>
+                    </button>
+                    <button type="button" id="settingsBtn" class="c-utility__btn nav-btn--settings" title="Settings"
+                        aria-label="Settings" data-i18n-title="settingsTitle">
+                        <span class="icon">⚙️</span>
+                    </button>
+                    <div class="lang-wrapper">
+                        <select id="languageSelect" class="language-picker-compact" aria-label="Language Select">
+                            <option value="ko">KO</option>
+                            <option value="en">EN</option>
+                            <option value="id">ID</option>
+                            <option value="th">TH</option>
+                        </select>
+                    </div>
                 </div>
 
-                <nav class="header-center">
-                    <button type="button" id="dashViewBtn" class="nav-tab active" data-view="dashboard"
-                        data-i18n="dashboardTitle">Dashboard</button>
-                    <button type="button" id="archiveViewBtn" class="nav-tab" data-view="archive"
-                        data-i18n="archiveTitle">Archive</button>
-                    <button type="button" id="insightsViewBtn" class="nav-tab" data-view="insights"
-                        data-i18n="insightsTitle">Insights</button>
-                </nav>
-
-                <div class="header-right">
-                    <div id="gamificationStats" class="gamification-stats hidden">
-                        <div class="stat-item" title="Current Level" data-i18n-title="levelTitle">
-                            <span class="stat-label" data-i18n="levelLabel">LVL</span>
-                            <span id="userLevel" class="stat-value">1</span>
-                        </div>
-                        <div class="stat-item" style="width: 100px;">
-                            <div class="xp-container">
-                                <div id="xpBar" class="xp-bar" style="width: 0%;"></div>
-                            </div>
-                            <span id="xpText" class="stat-label">0 / 0 XP</span>
-                        </div>
-                        <div class="stat-item" title="Daily Streak" data-i18n-title="streakTitle">
-                            <span class="stat-label" data-i18n="streakLabel">STREAK</span>
-                            <span id="userStreak" class="stat-value">0🔥</span>
-                        </div>
-                        <div class="stat-item" title="Productivity Score" data-i18n-title="scoreTitle">
-                            <span class="stat-label" data-i18n="scoreLabel">SCORE</span>
-                            <span id="userPoints" class="stat-value">0</span>
-                        </div>
-                    </div>
-                    <div class="utility-group">
-                        <button type="button" id="scanBtn" class="utility-btn" title="Scan Now" aria-label="Scan Now"
-                            data-i18n-title="scanNow">
-                            <span class="icon" id="scanBtnIcon" style="display: inline-block;">🔄</span>
-                        </button>
-                        <button type="button" id="themeToggleBtn" class="utility-btn" title="Toggle Theme"
-                            aria-label="Toggle Theme" data-i18n-title="themeToggleTitle"></button>
-                        <button type="button" id="releaseNotesBtn" class="utility-btn" title="Updates"
-                            aria-label="Updates" data-i18n-title="updatesTitle">
-                            <span class="icon">📢</span>
-                        </button>
-                        <button type="button" id="settingsBtn" class="utility-btn nav-btn--settings" title="Settings"
-                            aria-label="Settings" data-i18n-title="settingsTitle">
-                            <span class="icon">⚙️</span>
-                        </button>
-                        <div class="lang-wrapper">
-                            <select id="languageSelect" class="language-picker-compact" aria-label="Language Select">
-                                <option value="ko">KO</option>
-                                <option value="en">EN</option>
-                                <option value="id">ID</option>
-                                <option value="th">TH</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div id="userProfile" class="user-profile-compact hidden">
-                        <div class="profile-avatar-wrapper">
-                            <img id="userPicture" src="" alt="Profile" class="profile-img-small">
-                            <span id="userEmail" class="hidden"></span>
-                        </div>
-                        <a href="/auth/logout" id="logoutBtn" class="logout-minimal" title="Logout"
-                            data-i18n-title="logout">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                                <polyline points="16 17 21 12 16 7"></polyline>
-                                <line x1="21" y1="12" x2="9" y2="12"></line>
-                            </svg>
-                        </a>
-                    </div>
+                <div id="userProfile" class="user-profile-compact c-utility hidden">
+                    <img id="userPicture" src="" alt="Profile" class="profile-img-small">
+                    <span id="userEmail" class="user-profile-compact__email hidden"></span>
+                    <a href="/auth/logout" id="logoutBtn" class="logout-minimal" title="Logout"
+                        data-i18n-title="logout">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                    </a>
                 </div>
             </div>
         </header>
 
         <main>
             <section class="dashboard-header">
-                <div class="integration-status">
-                    <div id="slackStatusLarge" class="status-icon-large slack inactive" title="Slack Monitoring"
-                        data-i18n-title="slackMonitoring">
+                <div class="c-status-group">
+                    <div id="slackStatusLarge" class="c-status-card c-status-card--slack c-status-card--inactive"
+                        title="Slack Monitoring" data-i18n-title="slackMonitoring">
                         <svg viewBox="0 0 100 100">
                             <path fill="#E01E5A"
                                 d="M22.9,53.8V42.3c0-3.2-2.6-5.8-5.8-5.8s-5.8,2.6-5.8,5.8v11.5c0,3.2,2.6,5.8,5.8,5.8S22.9,57,22.9,53.8z" />
@@ -143,82 +130,67 @@
                             <path fill="#ECB22E"
                                 d="M42.3,71.4c-3.2,0-5.8-2.6-5.8-5.8V54.1c0-3.2,2.6-5.8,5.8-5.8c3.2,0,5.8,2.6,5.8,5.8v11.5C48.1,68.8,45.5,71.4,42.3,71.4z" />
                         </svg>
-                        <span id="slackStatusText" class="status-label">OFF</span>
+                        <span id="slackStatusText" class="c-status-card__label">OFF</span>
                     </div>
-                    <div id="waStatusLarge" class="status-icon-large whatsapp inactive" title="WhatsApp Monitoring"
-                        data-i18n-title="waMonitoring">
+                    <div id="waStatusLarge" class="c-status-card c-status-card--whatsapp c-status-card--inactive"
+                        title="WhatsApp Monitoring" data-i18n-title="waMonitoring">
                         <svg viewBox="0 0 448 512">
                             <path fill="#25D366"
                                 d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-5.5-2.8-23.2-8.5-44.2-27.1-16.4-14.6-27.4-32.7-30.6-38.2-3.2-5.6-.3-8.6 2.4-11.3 2.5-2.4 5.5-6.5 8.3-9.7 2.8-3.3 3.7-5.6 5.6-9.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 13.2 5.7 23.5 9.2 31.6 11.8 13.3 4.2 25.4 3.6 35 2.2 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
                         </svg>
-                        <span id="waStatusText" class="status-label">OFF</span>
+                        <span id="waStatusText" class="c-status-card__label">OFF</span>
                     </div>
-                    <div id="gmailStatusLarge" class="status-icon-large gmail inactive" title="Gmail: Click to connect"
-                        data-i18n-title="gmailStatusClickToConnect" style="cursor: pointer;">
+                    <div id="gmailStatusLarge" class="c-status-card c-status-card--gmail c-status-card--inactive"
+                        title="Gmail: Click to connect" data-i18n-title="gmailStatusClickToConnect"
+                        style="cursor: pointer;">
                         <svg viewBox="0 0 512 512">
                             <path fill="#EA4335"
                                 d="M48 64C21.5 64 0 85.5 0 112v288c0 26.5 21.5 48 48 48h416c26.5 0 48-21.5 48-48V112c0-26.5-21.5-48-48-48H48zM48 96h416c8.8 0 16 7.2 16 16v21.3L256 295.1 32 133.3V112c0-8.8 7.2-16 16-16zm-16 70.6l208 147.3L448 166.6V400c0 8.8-7.2 16-16 16H80c-8.8 0-16-7.2-16-16V166.6z" />
                         </svg>
-                        <span id="gmailStatusText" class="status-label">OFF</span>
-                    </div>
-                </div>
-            </section>
-
-            <!-- WhatsApp Login Section -->
-            <section id="waLoginSection" class="hidden glass-card"
-                style="margin-bottom: 2rem; text-align: center; padding: 2rem;">
-                <div id="waQRSection">
-                    <h3 data-i18n="waReqTitle">WhatsApp Connection Required</h3>
-                    <p style="color: var(--text-dim); margin-bottom: 1.5rem;" data-i18n="waReqDesc">Please scan the QR code with your mobile WhatsApp app.</p>
-                    <div id="qrContainer" style="background: white; padding: 1.5rem; display: inline-block; border-radius: 12px; margin-bottom: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-                        <img id="waQRImg" style="width: 256px; height: 256px; display: block;" class="hidden" />
-                        <div id="qrPlaceholder" data-i18n="generating" style="width: 256px; height: 256px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: 800; font-size: 1.2rem;">Generating...</div>
-                        <div id="qrTimerContainer" class="hidden" style="margin-top: 1rem; width: 100%;">
-                            <div style="height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; overflow: hidden;">
-                                <div id="qrProgressBar" style="width: 100%; height: 100%; background: var(--primary); transition: width 1s linear;"></div>
-                            </div>
-                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 0.5rem;" id="qrTimerText">Next refresh in 20s</div>
-                        </div>
-                    </div>
-                    <div>
-                        <button id="getQRBtn" class="primary-btn" style="width: auto; padding: 0.8rem 2rem;" data-i18n="getQR">Get New QR Code</button>
+                        <span id="gmailStatusText" class="c-status-card__label">OFF</span>
                     </div>
                 </div>
 
-                <!-- WhatsApp Connected Info (New) -->
-                <div id="waConnectedSection" class="hidden" style="text-align: center;">
-                    <div style="font-size: 4rem; margin-bottom: 1rem;">✅</div>
-                    <h3 data-i18n="waConnected">WhatsApp: Connected</h3>
-                    <p style="color: var(--text-dim); margin-bottom: 2rem;" data-i18n="waConnectedDesc">WhatsApp is securely connected and monitoring messages in real-time.</p>
-                    <div style="display: flex; gap: 1rem; justify-content: center;">
-                        <button id="waRelinkBtn" class="action-btn" style="width: auto; padding: 0.6rem 1.5rem;" data-i18n="waRelinkBtn">Relink</button>
-                        <button id="waLogoutBtn" class="primary-btn" style="width: auto; padding: 0.6rem 1.5rem; background: #ff3b30;" data-i18n="waLogoutBtn">Logout</button>
-                    </div>
-                </div>
             </section>
+
+            <nav class="c-main-nav">
+                <button type="button" id="dashViewBtn" class="c-main-nav__item c-main-nav__item--active"
+                    data-view="dashboard">
+                    <span class="nav-icon" style="font-size: 1.5rem;">📊</span>
+                    <span class="nav-text" data-i18n="dashboardTitle">Dashboard</span>
+                </button>
+                <button type="button" id="archiveViewBtn" class="c-main-nav__item" data-view="archive">
+                    <span class="nav-icon" style="font-size: 1.5rem;">📦</span>
+                    <span class="nav-text" data-i18n="archiveTitle">Archive</span>
+                </button>
+                <button type="button" id="insightsViewBtn" class="c-main-nav__item" data-view="insights">
+                    <span class="nav-icon" style="font-size: 1.5rem;">💡</span>
+                    <span class="nav-text" data-i18n="insightsTitle">Insights</span>
+                </button>
+            </nav>
 
             <div id="loading" class="hidden">
                 <div class="spinner"></div>
                 <p data-i18n="loading">Gemini is scanning for new tasks...</p>
             </div>
 
-            <div class="tabs-container">
-                <div class="tabs">
-                    <button type="button" class="tab-btn active" data-tab="myTasksTab"><span id="tabMy"
-                            data-i18n="myTasks">My Tasks</span>
+            <div id="dashboardContent" class="tabs-container">
+                <div class="tabs c-tabs">
+                    <button type="button" class="tab-btn c-tabs__btn active" data-tab="myTasksTab"
+                        style="flex-shrink: 0; white-space: nowrap;"><span data-i18n="myTasks">My Tasks</span>
                         <span class="badge count" id="myCount">0</span></button>
-                    <button type="button" class="tab-btn" data-tab="otherTasksTab"><span id="tabOther"
-                            data-i18n="otherTasks">Other
+                    <button type="button" class="tab-btn c-tabs__btn" data-tab="otherTasksTab"
+                        style="flex-shrink: 0; white-space: nowrap;"><span data-i18n="otherTasks">Other
                             Tasks</span> <span class="badge count" id="otherCount">0</span></button>
-                    <button type="button" class="tab-btn" data-tab="waitingTasksTab"><span id="tabWaiting"
-                            data-i18n="waitingTasks">Waiting On</span>
+                    <button type="button" class="tab-btn c-tabs__btn" data-tab="waitingTasksTab"
+                        style="flex-shrink: 0; white-space: nowrap;"><span data-i18n="waitingTasks">Waiting On</span>
                         <span class="badge count" id="waitingCount">0</span></button>
-                    <button type="button" class="tab-btn" data-tab="allTasksTab"><span id="tabAll"
-                            data-i18n="allTasks">All Tasks</span>
+                    <button type="button" class="tab-btn c-tabs__btn" data-tab="allTasksTab"
+                        style="flex-shrink: 0; white-space: nowrap;"><span data-i18n="allTasks">All Tasks</span>
                         <span class="badge count" id="allCount">0</span></button>
                 </div>
 
-                <div class="task-list-header">
+                <div class="task-list-header c-table-header">
                     <div class="col-source" id="hSource" title="Source" data-i18n-title="hSource">#</div>
                     <div class="col-room" id="hRoom">Room</div>
                     <div class="col-task" id="hTask">Task</div>
@@ -228,22 +200,22 @@
                     <div class="col-actions" id="hActions">Actions</div>
                 </div>
 
-                <div id="myTasksTab" class="tab-content active">
+                <div id="myTasksTab" class="c-tabs__panel c-tabs__panel--active">
                     <div id="myTasksList" class="task-list">
                         <!-- My Cards will be injected here -->
                     </div>
                 </div>
-                <div id="otherTasksTab" class="tab-content">
+                <div id="otherTasksTab" class="c-tabs__panel">
                     <div id="otherTasksList" class="task-list">
                         <!-- Other Cards will be injected here -->
                     </div>
                 </div>
-                <div id="waitingTasksTab" class="tab-content">
+                <div id="waitingTasksTab" class="c-tabs__panel">
                     <div id="waitingTasksList" class="task-list">
                         <!-- Waiting Cards will be injected here -->
                     </div>
                 </div>
-                <div id="allTasksTab" class="tab-content">
+                <div id="allTasksTab" class="c-tabs__panel">
                     <div id="allTasksList" class="task-list">
                         <!-- All Cards will be injected here -->
                     </div>
@@ -252,6 +224,16 @@
 
             <!-- Insights Section -->
             <section id="insightsSection" class="hidden">
+                <!-- Insights 2단계 탭 메뉴 -->
+                <div class="tabs c-tabs">
+                    <button type="button" class="tab-btn c-tabs__btn active" data-tab="insightsStatsTab"
+                        style="flex-shrink: 0; white-space: nowrap;"><span data-i18n="insightsStats">통계</span></button>
+                    <button type="button" class="tab-btn c-tabs__btn" data-tab="insightsReportsTab"
+                        style="flex-shrink: 0; white-space: nowrap;"><span data-i18n="insightsReports">보고서
+                            (예정)</span></button>
+                </div>
+
+                <!-- 기존 통계 콘텐츠 영역 (Stats Tab) -->
                 <div class="insights-container">
                     <div class="insights-summary-card" id="dailyGlance">
                         <!-- Daily summary text will be rendered here -->
@@ -269,7 +251,8 @@
                                 <h3 data-i18n="reviewStatsTitle">Review Statistics</h3>
                                 <div class="chart-filters">
                                     <button type="button" class="filter-btn active" data-days="30"
-                                        data-i18n="filter1M">1 Month</button>
+                                        data-i18n="filter1M">1
+                                        Month</button>
                                     <button type="button" class="filter-btn" data-days="90" data-i18n="filter3M">3
                                         Months</button>
                                     <button type="button" class="filter-btn" data-days="365" data-i18n="filter1Y">1
@@ -300,45 +283,52 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 예정된 보고서 영역 (Reports Tab - Hidden by default) -->
+                <div id="insightsReportsContent" class="insights-container hidden">
+                    <div class="insights-card full-width" style="text-align: center; padding: 4rem 2rem;">
+                        <p style="color: var(--text-dim);">상세 보고서 기능이 곧 업데이트될 예정입니다. 🚀</p>
+                    </div>
+                </div>
             </section>
 
             <!-- Archive View (Hidden by default) -->
             <section id="archiveSection" class="hidden glass-card"
-                style="margin-top: 2rem; padding: 2rem; position: relative;">
+                style="margin-top: 0.5rem; padding: 1.25rem 1.5rem; position: relative;">
+
+                <!-- Archive 2단계 탭 메뉴 -->
+                <div class="tabs c-tabs">
+                    <button type="button" class="tab-btn c-tabs__btn active" data-tab="archiveAllTab">
+                        <span data-i18n="archiveAll">전체</span>
+                        <span class="badge count" id="archiveCount">0</span>
+                    </button>
+                    <button type="button" class="tab-btn c-tabs__btn" data-tab="archiveDoneTab">
+                        <span data-i18n="archiveDone">완료된 업무</span>
+                    </button>
+                    <button type="button" class="tab-btn c-tabs__btn" data-tab="archiveTrashTab">
+                        <span data-i18n="archiveTrash">삭제된 업무</span>
+                    </button>
+                </div>
                 <div id="archiveLoading" class="loading-overlay">
                     <div class="spinner-small"></div>
                 </div>
-                <div class="archive-header">
-                    <div style="display: flex; align-items: center; gap: 1rem;">
-                        <button type="button" id="backToDashBtn" class="action-btn" title="Back to Dashboard"
-                            data-i18n-title="backToDashTitle" style="width: 40px; height: 40px;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                                <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                            </svg>
-                        </button>
-                        <h2>Archive <span class="badge count" id="archiveCount">0</span></h2>
+                <!-- Archive Header with Actions -->
+                <div class="archive-header"
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
+                    <div class="search-box">
+                        <input type="text" id="archiveSearchInput" placeholder="Search archive..."
+                            class="c-input c-input--pill" style="width: 300px;">
                     </div>
-                    <div class="archive-actions" style="flex-wrap: wrap; gap: 0.5rem;">
-                        <div class="search-box">
-                            <input type="text" id="archiveSearchInput" placeholder="Search archive..." class="badge"
-                                style="width: 200px; height: 38px; padding: 0 1rem; border-radius: 20px;">
-                        </div>
-                        <button type="button" id="restoreSelectedBtn" class="badge"
-                            style="cursor: pointer; border-color: var(--accent-color); color: var(--accent-color); display: none;">🔄
-                            Restore Selected</button>
-                        <button type="button" id="hardDeleteSelectedBtn" class="badge"
-                            style="cursor: pointer; border-color: #ff3b30; color: #ff3b30; display: none;">🗑 Permanent
-                            Delete</button>
-                        <button type="button" id="openExportModalBtn" class="badge"
-                            style="cursor: pointer; border-color: #25d366; color: #25d366;">📥 Export</button>
-                        <button type="button" id="closeArchiveBtn" class="badge" style="cursor: pointer;">✖
-                            Close</button>
+                    <div class="archive-actions" style="display: flex; gap: 0.75rem; align-items: center;">
+                        <button type="button" id="restoreSelectedBtn" class="c-btn c-btn--outline"
+                            style="display: none;">🔄 Restore</button>
+                        <button type="button" id="hardDeleteSelectedBtn" class="c-btn c-btn--warning"
+                            style="display: none;">🗑 Delete</button>
+                        <button type="button" id="openExportModalBtn" class="c-btn c-btn--success">📥 Export</button>
                     </div>
                 </div>
                 <div class="table-container" style="overflow-x: auto; margin-bottom: 1rem;">
-                    <table class="archive-table">
+                    <table class="c-archive-table">
                         <thead>
                             <tr>
                                 <th style="width: 40px;"><input type="checkbox" id="selectAllArchive"></th>
@@ -356,13 +346,13 @@
                         </tbody>
                     </table>
                 </div>
-                <div class="pagination-controls"
-                    style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1rem;">
-                    <button type="button" id="prevArchivePage" class="action-btn" data-i18n="prevBtn"
-                        style="width: auto; padding: 0.5rem 1rem;">&larr; Prev</button>
-                    <span id="archivePageInfo" style="color: var(--text-main); font-size: 0.9rem;">Page 1 / 1</span>
-                    <button type="button" id="nextArchivePage" class="action-btn" data-i18n="nextBtn"
-                        style="width: auto; padding: 0.5rem 1rem;">Next &rarr;</button>
+                <div class="pagination-controls u-mb-4"
+                    style="display: flex; justify-content: center; align-items: center; gap: 1.5rem; margin-top: 2rem;">
+                    <button type="button" id="prevArchivePage" class="c-btn c-btn--outline" data-i18n="prevBtn">&larr;
+                        Prev</button>
+                    <span id="archivePageInfo" class="u-text-dim" style="font-weight: 600;">Page 1 / 1</span>
+                    <button type="button" id="nextArchivePage" class="c-btn c-btn--outline" data-i18n="nextBtn">Next
+                        &rarr;</button>
                 </div>
             </section>
         </main>
@@ -373,42 +363,46 @@
     </div>
 
     <!-- Settings Modal -->
-    <div id="settingsModal" class="modal hidden">
-        <div class="modal-content settings-modal-content glass-card">
-            <div class="modal-header">
-                <h3 data-i18n="settingsHeading">User Settings</h3>
-                <button id="closeSettingsBtn" class="close-btn">&times;</button>
+    <div id="settingsModal" class="c-modal hidden">
+        <div class="c-modal__content c-modal__content--large">
+            <div class="c-modal__header">
+                <h3 class="c-modal__title" data-i18n="settingsHeading">User Settings</h3>
+                <button id="closeSettingsBtn" class="c-modal__close">&times;</button>
             </div>
-            <div class="settings-layout">
-                <aside class="settings-sidebar">
-                    <button type="button" class="settings-tab-btn active" data-settings-tab="generalTab"
+            <div class="c-settings">
+                <aside class="c-settings__sidebar">
+                    <button type="button" class="c-settings__tab c-settings__tab--active" data-settings-tab="generalTab"
                         data-i18n="tabGeneral">General</button>
-                    <button type="button" class="settings-tab-btn" data-settings-tab="mappingsTab"
+                    <button type="button" class="c-settings__tab" data-settings-tab="mappingsTab"
                         data-i18n="tabMappings">Mappings</button>
                 </aside>
-                <div class="settings-main">
+                <div class="c-settings__main">
                     <!-- General Tab -->
-                    <div id="generalTab" class="settings-tab-content active">
-                        <section class="settings-section">
-                            <h4 data-i18n="settingsAliasTitle">My Aliases</h4>
-                            <p class="desc" data-i18n="settingsAliasDesc">Add names or nicknames that refer to you
+                    <div id="generalTab" class="c-settings__panel c-settings__panel--active">
+                        <section class="c-settings__section">
+                            <h4 class="c-settings__section-title" data-i18n="settingsAliasTitle">My Aliases</h4>
+                            <p class="c-settings__section-desc" data-i18n="settingsAliasDesc">Add names or nicknames
+                                that refer to you
                                 (e.g., "송재진", "JJ"). Tasks with these names will appear in 'My Tasks'.</p>
-                            <div class="alias-input-group">
+                            <div class="c-settings__group">
                                 <input type="text" id="newAliasInput" data-i18n-placeholder="aliasInputPlaceholder"
-                                    placeholder="Enter new alias...">
-                                <button type="button" id="addAliasBtn" class="primary-btn"
+                                    placeholder="Enter new alias..." class="c-input">
+                                <button type="button" id="addAliasBtn" class="c-btn c-btn--primary"
                                     data-i18n="mappingAddBtn">Add</button>
                             </div>
-                            <div id="aliasList" class="alias-list">
+                            <div id="aliasList" class="c-settings__list">
                                 <!-- Aliases will be listed here -->
                             </div>
                         </section>
 
-                        <hr class="settings-divider">
+                        <hr class="c-settings__divider">
+                        <hr class="c-settings__divider">
+                        <hr class="c-settings__divider">
 
-                        <section class="settings-section">
-                            <h4 data-i18n="gmailTitle">Gmail Integration</h4>
-                            <p class="desc" data-i18n="gmailDesc">Click the Gmail icon on the dashboard to connect your
+                        <section class="c-settings__section">
+                            <h4 class="c-settings__section-title" data-i18n="gmailTitle">Gmail Integration</h4>
+                            <p class="c-settings__section-desc" data-i18n="gmailDesc">Click the Gmail icon on the
+                                dashboard to connect your
                                 company Gmail account.</p>
                             <div id="gmailConnectedStatus" class="hidden status-pill gmail-pill">
                                 <span class="check-mark">✓</span>
@@ -416,51 +410,57 @@
                             </div>
                         </section>
 
-                        <hr class="settings-divider">
+                        <hr style="border: 0; border-top: 1px solid var(--glass-border); margin: 2rem 0;">
 
-                        <section class="settings-section">
+                        <section class="c-settings__section">
                             <h4 data-i18n="apiUsageTitle">API Usage</h4>
-                            <div class="api-usage-info">
+                            <div style="margin-top: var(--spacing-sm);">
                                 <span id="tokenUsageBadge" class="badge token-badge">Token: 0</span>
                             </div>
                         </section>
                     </div>
 
                     <!-- Mappings Tab -->
-                    <div id="mappingsTab" class="settings-tab-content">
-                        <section class="settings-section">
-                            <h4 data-i18n="nameMappingTitle">Contact Name Mapping</h4>
-                            <p class="desc" data-i18n="contactMappingDesc">Map representative names to their aliases
+                    <div id="mappingsTab" class="c-settings__panel">
+                        <section class="c-settings__section">
+                            <h4 class="c-settings__section-title" data-i18n="nameMappingTitle">Contact Name Mapping</h4>
+                            <p class="c-settings__section-desc" data-i18n="contactMappingDesc">Map representative names
+                                to their aliases
                                 across platforms.</p>
-                            <div class="alias-input-group mapping-grid">
+                            <div class="c-settings__group"
+                                style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 0.75rem;">
                                 <input type="text" id="contactRepInput" data-i18n-placeholder="contactRepPlaceholder"
-                                    placeholder="Rep. Name">
+                                    placeholder="Rep. Name" class="c-input">
                                 <input type="text" id="contactAliasesInput"
                                     data-i18n-placeholder="contactAliasesPlaceholder"
-                                    placeholder="Aliases (comma separated)">
-                                <button type="button" id="addContactBtn" class="primary-btn"
+                                    placeholder="Aliases (comma separated)" class="c-input">
+                                <button type="button" id="addContactBtn" class="c-btn c-btn--primary"
                                     data-i18n="mappingAddBtn">Add</button>
                             </div>
-                            <div id="contactList" class="alias-list mapping-scroll">
+                            <div id="contactList" class="c-settings__list" style="max-height: 250px; overflow-y: auto;">
                                 <!-- Contact mappings will be listed here -->
                             </div>
                         </section>
 
-                        <hr class="settings-divider">
+                        <hr style="border: 0; border-top: 1px solid var(--glass-border); margin: 2rem 0;">
 
-                        <section class="settings-section">
-                            <h4 data-i18n="tenantMappingTitle">Tenant Name Normalization</h4>
-                            <p class="desc" data-i18n="tenantMappingDesc">Shared mappings for this workspace (e.g.,
+                        <section class="c-settings__section">
+                            <h4 class="c-settings__section-title" data-i18n="tenantMappingTitle">Tenant Name
+                                Normalization</h4>
+                            <p class="c-settings__section-desc" data-i18n="tenantMappingDesc">Shared mappings for this
+                                workspace (e.g.,
                                 "YOSEP PARK" → "박요셉").</p>
-                            <div class="alias-input-group mapping-grid">
+                            <div class="c-settings__group"
+                                style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.75rem;">
                                 <input type="text" id="normOriginalInput"
-                                    data-i18n-placeholder="normOriginalPlaceholder" placeholder="Original">
+                                    data-i18n-placeholder="normOriginalPlaceholder" placeholder="Original"
+                                    class="c-input">
                                 <input type="text" id="normPrimaryInput" data-i18n-placeholder="normPrimaryPlaceholder"
-                                    placeholder="Primary">
-                                <button type="button" id="addNormBtn" class="primary-btn"
+                                    placeholder="Primary" class="c-input">
+                                <button type="button" id="addNormBtn" class="c-btn c-btn--primary"
                                     data-i18n="mappingAddBtn">Map</button>
                             </div>
-                            <div id="normList" class="alias-list mapping-scroll">
+                            <div id="normList" class="c-settings__list" style="max-height: 250px; overflow-y: auto;">
                                 <!-- Tenant mappings will be listed here -->
                             </div>
                         </section>
@@ -471,98 +471,151 @@
     </div>
 
     <!-- Export Summary Modal -->
-    <div id="exportModal" class="modal hidden">
-        <div class="modal-content glass-card" style="max-width: 400px;">
-            <div class="modal-header">
-                <h3 data-i18n="exportSummaryTitle">Export Summary</h3>
-                <button id="closeExportModalBtn" class="close-btn">&times;</button>
+    <div id="exportModal" class="c-modal hidden">
+        <div class="c-modal__content c-modal__content--small">
+            <div class="c-modal__header">
+                <h3 class="c-modal__title" data-i18n="exportSummaryTitle">Export Summary</h3>
+                <button id="closeExportModalBtn" class="c-modal__close">&times;</button>
             </div>
-            <div class="modal-body" style="text-align: center;">
+            <div class="c-modal__body" style="text-align: center;">
                 <div id="exportSummaryIcon" style="font-size: 3rem; margin-bottom: 1rem;">📊</div>
                 <p style="margin-bottom: 1.5rem; color: var(--text-main);">
                     <span id="exportCount" style="font-weight: 800; color: var(--accent-color);">0</span>
                     <span id="exportSummaryText" data-i18n="exportSummaryText">tasks are ready to be exported.</span>
                 </p>
-                <div class="export-options" style="display: flex; flex-direction: column; gap: 0.75rem;">
-                    <button type="button" id="confirmExportExcel" class="primary-btn" style="background: #1d6f42;"
-                        data-i18n="exportExcelBtn">Download as Excel (.xlsx)</button>
-                    <button type="button" id="confirmExportCsv" class="primary-btn" style="background: #25d366;"
+                <div class="c-modal__footer" style="flex-direction: column; border: none; padding: 0;">
+                    <button type="button" id="confirmExportExcel" class="c-btn"
+                        style="background: #1d6f42; width: 100%;" data-i18n="exportExcelBtn">Download as Excel
+                        (.xlsx)</button>
+                    <button type="button" id="confirmExportCsv" class="c-btn" style="background: #25d366; width: 100%;"
                         data-i18n="exportCsvBtn">Download as CSV (.csv)</button>
-                    <button type="button" id="confirmExportJson" class="primary-btn" style="background: #f39c12;"
-                        data-i18n="exportJsonBtn">Download as JSON (.json)</button>
-                    <button type="button" id="cancelExportBtn" class="action-btn" data-action="close-modal"
+                    <button type="button" id="confirmExportJson" class="c-btn" style="background: #f39c12; width: 100%;"
+                        data-i18n="exportJsonBtn">Download as JSON
+                        (.json)</button>
+                    <button type="button" id="cancelExportBtn" class="c-btn c-btn--ghost" data-action="close-modal"
                         style="width: 100%;" data-i18n="cancelBtn">Cancel</button>
                 </div>
-                <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 1rem;" data-i18n="exportWarning">*
-                    Only filtered results will be
-                    exported if a search query is active.</p>
+                <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 1rem;" data-i18n="exportWarning">
+                    * Only filtered results will be exported if a search query is active.
+                </p>
             </div>
         </div>
     </div>
 
     <!-- Delete Confirmation Modal -->
-    <div id="deleteConfirmModal" class="modal hidden">
-        <div class="modal-content glass-card" style="max-width: 400px;">
-            <div class="modal-header">
-                <h3 style="color: #ff3b30;" data-i18n="hardDeleteTitle">Permanent Delete</h3>
-                <button id="closeDeleteConfirmBtn" class="close-btn">&times;</button>
+    <div id="deleteConfirmModal" class="c-modal hidden">
+        <div class="c-modal__content c-modal__content--small">
+            <div class="c-modal__header">
+                <h3 class="c-modal__title" style="color: var(--color-error);" data-i18n="hardDeleteTitle">Permanent
+                    Delete</h3>
+                <button id="closeDeleteConfirmBtn" class="c-modal__close">&times;</button>
             </div>
-            <div class="modal-body" style="text-align: center;">
+            <div class="c-modal__body" style="text-align: center;">
                 <div style="font-size: 3.5rem; margin-bottom: 1rem;">🗑️</div>
                 <p style="margin-bottom: 1rem; color: var(--text-main); font-size: 1.1rem;">
                     <span data-i18n="hardDeletePromptPrefix">Are you sure you want to delete </span><span
-                        id="deleteConfirmCount" style="font-weight: 800; color: #ff3b30;">0</span><span
+                        id="deleteConfirmCount" style="font-weight: 800; color: var(--color-error);">0</span><span
                         data-i18n="hardDeletePromptSuffix"> items?</span>
                 </p>
                 <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 2rem;" data-i18n="hardDeleteDesc">
                     This action cannot be undone and will permanently remove the data.
                 </p>
-                <div class="export-options" style="display: flex; flex-direction: column; gap: 0.75rem;">
-                    <button type="button" id="confirmHardDeleteBtn" class="primary-btn"
-                        style="background: rgba(255, 59, 48, 0.1); color: #ff3b30; border: 1px solid #ff3b30;"
-                        data-i18n="hardDeleteConfirmBtn">Yes,
-                        Delete Permanently</button>
-                    <button type="button" id="cancelDeleteConfirmBtn" class="action-btn" data-action="close-modal"
-                        style="width: 100%;" data-i18n="cancelBtn">Cancel</button>
+                <div class="c-modal__footer" style="flex-direction: column; border: none; padding: 0;">
+                    <button type="button" id="confirmHardDeleteBtn" class="c-btn c-btn--danger" style="width: 100%;"
+                        data-i18n="hardDeleteConfirmBtn">Yes, Delete Permanently</button>
+                    <button type="button" id="cancelDeleteConfirmBtn" class="c-btn c-btn--ghost"
+                        data-action="close-modal" style="width: 100%;" data-i18n="cancelBtn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- WhatsApp Modal (New) -->
+    <div id="waModal" class="c-modal hidden">
+        <div class="c-modal__content c-modal__content--small">
+            <div class="c-modal__header">
+                <h3 class="c-modal__title" data-i18n="waReqTitle">WhatsApp Connection</h3>
+                <button id="closeWaModalBtn" class="c-modal__close">&times;</button>
+            </div>
+            <div class="c-modal__body" style="text-align: center; padding: var(--spacing-lg);">
+                <div id="waQRSection">
+                    <p style="color: var(--text-dim); margin-bottom: 1.5rem;" data-i18n="waReqDesc">Please scan the QR
+                        code with your mobile WhatsApp app.</p>
+                    <div id="qrContainer"
+                        style="background: white; padding: 1.5rem; display: inline-block; border-radius: 12px; margin-bottom: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                        <img id="waQRImg" style="width: 256px; height: 256px; display: block;" class="hidden" />
+                        <div id="qrPlaceholder" data-i18n="generating"
+                            style="width: 256px; height: 256px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: 800; font-size: 1.2rem;">
+                            Generating...</div>
+                        <div id="qrTimerContainer" class="hidden" style="margin-top: 1rem; width: 100%;">
+                            <div
+                                style="height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; overflow: hidden;">
+                                <div id="qrProgressBar"
+                                    style="width: 100%; height: 100%; background: var(--primary); transition: width 1s linear;">
+                                </div>
+                            </div>
+                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 0.5rem;"
+                                id="qrTimerText">Next refresh in 20s</div>
+                        </div>
+                    </div>
+                    <div>
+                        <button id="getQRBtn" class="c-btn c-btn--primary" data-i18n="getQR">Get New QR
+                            Code</button>
+                    </div>
+                </div>
+
+                <!-- WhatsApp Connected Info -->
+                <div id="waConnectedSection" class="hidden" style="text-align: center;">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">✅</div>
+                    <h4 data-i18n="waConnected" style="margin-bottom: 0.5rem;">WhatsApp Connected</h4>
+                    <p style="color: var(--text-dim); margin-bottom: 2rem;" data-i18n="waConnectedDesc">WhatsApp is
+                        securely connected and monitoring messages in real-time.</p>
+                    <div style="display: flex; gap: 1rem; justify-content: center;">
+                        <button id="waRelinkBtn" class="c-btn c-btn--ghost" data-i18n="waRelinkBtn">Relink</button>
+                        <button id="waLogoutBtn" class="c-btn c-btn--danger" data-i18n="waLogoutBtn">Logout</button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Gmail Modal (New) -->
-    <div id="gmailModal" class="modal hidden">
-        <div class="modal-content glass-card" style="max-width: 450px;">
-            <div class="modal-header">
-                <h3 data-i18n="gmailTitle">Gmail Integration</h3>
-                <button id="closeGmailModalBtn" class="close-btn">&times;</button>
+    <div id="gmailModal" class="c-modal hidden">
+        <div class="c-modal__content c-modal__content--small">
+            <div class="c-modal__header">
+                <h3 class="c-modal__title" data-i18n="gmailTitle">Gmail Integration</h3>
+                <button id="closeGmailModalBtn" class="c-modal__close">&times;</button>
             </div>
-            <div class="modal-body" style="text-align: center; padding: 2rem;">
-                <div id="gmailConnectedInfo" class="hidden">
-                    <div style="font-size: 4rem; margin-bottom: 1.5rem;">📧</div>
-                    <h4 data-i18n="gmailStatusConnected" style="margin-bottom: 0.5rem;">Gmail Connected</h4>
-                    <p style="color: var(--text-dim); margin-bottom: 2rem;" data-i18n="gmailConnectedDesc">Gmail integration is complete. New task emails will be automatically detected.</p>
-                    <button id="gmailDisconnectBtn" class="primary-btn" style="background: #ff3b30; width: auto; padding: 0.8rem 2rem;" data-i18n="gmailDisconnectBtn">Disconnect</button>
+            <div class="c-modal__body" style="text-align: center; padding: var(--spacing-lg);">
+                <div id="gmailConnectedInfo" class="hidden c-modal__content--center">
+                    <div class="c-modal__icon">📧</div>
+                    <h4 data-i18n="gmailStatusConnected" class="u-mb-1">Gmail Connected</h4>
+                    <p class="u-text-dim u-mb-4" data-i18n="gmailConnectedDesc">Gmail integration is complete. New task
+                        emails will be automatically detected.</p>
+                    <button id="gmailDisconnectBtn" class="c-btn c-btn--danger"
+                        data-i18n="gmailDisconnectBtn">Disconnect</button>
                 </div>
-                <div id="gmailDisconnectedInfo">
-                    <div style="font-size: 4rem; margin-bottom: 1.5rem; opacity: 0.5;">📧</div>
-                    <h4 data-i18n="statusOff" style="margin-bottom: 0.5rem;">OFF</h4>
-                    <p style="color: var(--text-dim); margin-bottom: 2rem;" data-i18n="gmailDesc">Click the Gmail icon on the dashboard to connect your company account.</p>
-                    <a href="/auth/gmail/connect" class="primary-btn" style="text-decoration: none; display: inline-block; width: auto; padding: 0.8rem 2rem;" data-i18n="confirmBtn">Connect</a>
+                <div id="gmailDisconnectedInfo" class="c-modal__content--center">
+                    <div class="c-modal__icon" style="opacity: 0.5;">📧</div>
+                    <h4 data-i18n="statusOff" class="u-mb-1">OFF</h4>
+                    <p class="u-text-dim u-mb-4" data-i18n="gmailDesc">Click the Gmail icon on the dashboard to connect
+                        your company account.</p>
+                    <a href="/auth/gmail/connect" class="c-btn c-btn--primary" data-i18n="confirmBtn">Connect</a>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Original Message Modal -->
-    <div id="originalMessageModal" class="modal hidden">
-        <div class="modal-content glass-card">
-            <div class="modal-header">
-                <h3 data-i18n="originalMessageTitle">Original Message</h3>
-                <button id="closeOriginalBtn" class="close-btn">&times;</button>
+    <div id="originalMessageModal" class="c-modal hidden">
+        <div class="c-modal__content">
+            <div class="c-modal__header">
+                <h3 class="c-modal__title" data-i18n="originalMessageTitle">Original Message</h3>
+                <button id="closeOriginalBtn" class="c-modal__close">&times;</button>
             </div>
-            <div class="modal-body">
-                <div id="originalTextContent"
-                    style="white-space: pre-wrap; color: var(--text-main); line-height: 1.6; font-size: 0.95rem; background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--glass-border);">
+            <div class="c-modal__body">
+                <div id="originalTextContent" class="c-input"
+                    style="white-space: pre-wrap; height: auto; min-height: 200px;">
                     <!-- Original text will be injected here -->
                 </div>
             </div>
@@ -570,35 +623,34 @@
     </div>
 
     <!-- Release Notes Modal -->
-    <div id="releaseNotesModal" class="modal hidden">
-        <div class="modal-content glass-card" style="max-width: 600px;">
-            <div class="modal-header">
-                <h3 data-i18n="releaseNotesTitle">업데이트 소식</h3>
-                <button id="closeReleaseNotesBtn" class="close-btn">&times;</button>
+    <div id="releaseNotesModal" class="c-modal hidden">
+        <div class="c-modal__content">
+            <div class="c-modal__header">
+                <h3 class="c-modal__title" data-i18n="releaseNotesTitle">업데이트 소식</h3>
+                <button id="closeReleaseNotesBtn" class="c-modal__close">&times;</button>
             </div>
-            <div class="modal-body">
+            <div class="c-modal__body">
                 <div id="releaseNotesContent" class="release-notes-body"
                     style="font-size: 0.95rem; line-height: 1.7; color: var(--text-main);">
                     <!-- Content will be injected here -->
                 </div>
             </div>
-            <div class="modal-footer" style="padding-top: 1rem; text-align: right;">
-                <button type="button" id="confirmReleaseNotesBtn" class="primary-btn" data-action="close-modal"
-                    style="width: auto; padding: 0.6rem 2rem;" data-i18n="confirmBtn">확인</button>
+            <div class="c-modal__footer">
+                <button type="button" id="confirmReleaseNotesBtn" class="c-btn c-btn--primary" data-action="close-modal"
+                    data-i18n="confirmBtn">확인</button>
             </div>
         </div>
     </div>
 
     <!-- Login Required Overlay -->
-    <div id="loginOverlay" class="modal hidden" style="display: none; z-index: 9999; backdrop-filter: blur(10px); background: rgba(0,0,0,0.8);">
-        <div class="modal-content glass-card" style="max-width: 400px; text-align: center; padding: 3rem 2rem;">
-            <div style="font-size: 4rem; margin-bottom: 1.5rem;">🔒</div>
-            <h2 id="loginTitle" data-i18n="loginRequiredTitle" style="margin-bottom: 1rem; color: var(--text-main);">
-                Session Expired</h2>
-            <p id="loginDesc" data-i18n="loginRequiredDesc" style="color: var(--text-dim); margin-bottom: 2.5rem;">
-                Please login again to continue.</p>
-            <a href="/auth/login" class="primary-btn"
-                style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 0.8rem; background: white; color: #1a1a1a; font-weight: 800; border: none;">
+    <div id="loginOverlay" class="c-modal hidden" style="display: none; z-index: 9999;">
+        <div class="c-modal__content c-modal__content--small c-modal__content--center">
+            <div class="c-modal__icon">🔒</div>
+            <h2 id="loginTitle" class="c-modal__title u-mb-2" data-i18n="loginRequiredTitle">Session Expired</h2>
+            <p id="loginDesc" data-i18n="loginRequiredDesc" class="u-text-dim u-mb-4">Please login again to continue.
+            </p>
+            <a href="/auth/login" class="c-btn c-btn--primary"
+                style="text-decoration: none; width: 100%; justify-content: center; gap: 0.8rem;">
                 <svg width="20" height="20" viewBox="0 0 24 24">
                     <path fill="#4285F4"
                         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -614,7 +666,7 @@
         </div>
     </div>
 
-    <script type="module" src="static/app.js?v=1.8.4"></script>
+    <script type="module" src="static/app.js?v=2.3.7"></script>
 
 </body>
 
