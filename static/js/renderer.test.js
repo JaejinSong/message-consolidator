@@ -84,11 +84,11 @@ describe('renderer.js - setScanLoading', () => {
     it('should toggle loading state', () => {
         renderer.setScanLoading(true, 'ko');
         expect(document.getElementById('scanBtn').disabled).toBe(true);
-        expect(document.getElementById('loading').classList.contains('hidden')).toBe(false);
+        expect(document.getElementById('loading').classList.contains('active')).toBe(true);
 
         renderer.setScanLoading(false, 'ko');
         expect(document.getElementById('scanBtn').disabled).toBe(false);
-        expect(document.getElementById('loading').classList.contains('hidden')).toBe(true);
+        expect(document.getElementById('loading').classList.contains('active')).toBe(false);
     });
 });
 

@@ -70,3 +70,70 @@ func TestRunInTx(t *testing.T) {
 		}
 	})
 }
+
+func TestBatchOperations(t *testing.T) {
+	cleanup, err := SetupTestDB()
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	email := "test@example.com"
+	ctx := context.Background()
+
+	// Seed data
+	for i := 1; i <= 3; i++ {
+		_, err := db.Exec("INSERT INTO messages (id, user_email, task, source, done, is_deleted, source_ts) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			i, email, fmt.Sprintf("Task %d", i), "slack", 0, 0, fmt.Sprintf("ts_%d", i))
+		if err != nil {
+			t.Fatalf("Failed to seed message %d: %v", i, err)
+		}
+	}
+
+	t.Run("GetMessagesByIDs", func(t *testing.T) {
+		msgs, err := GetMessagesByIDs(ctx, []int{1, 2})
+		if err != nil {
+			t.Fatalf("Failed to get messages: %v", err)
+		}
+		if len(msgs) != 2 {
+			t.Errorf("Expected 2 messages, got %d", len(msgs))
+		}
+	})
+
+	// To prevent "database is locked" errors in SQLite tests due to background RefreshCache goroutines,
+	// we force a single connection for the duration of this test.
+	oldMaxOpen := 20
+	db.SetMaxOpenConns(1)
+	defer db.SetMaxOpenConns(oldMaxOpen)
+
+	t.Run("DeleteAndRestoreMessages", func(t *testing.T) {
+		// 1. Soft Delete
+		if err := DeleteMessages(email, []int{1, 2}); err != nil {
+			t.Fatalf("Soft delete failed: %v", err)
+		}
+
+		var count int
+		_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE is_deleted = 1").Scan(&count)
+		if count != 2 {
+			t.Errorf("Expected 2 soft-deleted messages, got %d", count)
+		}
+
+		// 2. Restore
+		if err := RestoreMessages(email, []int{1}); err != nil {
+			t.Fatalf("Restore failed: %v", err)
+		}
+		_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE is_deleted = 1").Scan(&count)
+		if count != 1 {
+			t.Errorf("Expected 1 soft-deleted message after restoration, got %d", count)
+		}
+
+		// 3. Hard Delete
+		if err := HardDeleteMessages(email, []int{1, 2, 3}); err != nil {
+			t.Fatalf("Hard delete failed: %v", err)
+		}
+		_ = db.QueryRow("SELECT COUNT(*) FROM messages").Scan(&count)
+		if count != 0 {
+			t.Errorf("Expected 0 messages after hard delete, got %d", count)
+		}
+	})
+}

@@ -45,7 +45,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		return
 	}
 
-	// 1. Find all incomplete tasks in this thread for this user
+	// Retrieve all incomplete tasks associated with this thread to determine if the new message resolves any of them.
 	tasks, err := s.store.GetIncompleteByThreadID(ctx, msg.UserEmail, msg.ThreadID)
 	if err != nil {
 
@@ -57,9 +57,9 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		return
 	}
 
-	// 2. Defense: If the message contains a mention (@colleague), it's likely a delegation or asking for help.
-	// The scanner_slack.go's classifyMessage logic handles mentions by creating "Waiting On" tasks.
-	// We skip auto-completion here to avoid marking the task as done when it's just being pushed to someone else.
+	// Defense mechanism: A message containing an '@' mention typically indicates delegation rather than task completion.
+	// We bypass the auto-completion logic here to prevent prematurely closing a task that is merely being handed off,
+	// leaving the mention handling to the dedicated scanner logic.
 	if strings.Contains(msg.OriginalText, "@") {
 		logger.Infof("[COMPLETION] Skip auto-completion for thread %s (reply %s): Message contains mention", msg.ThreadID, msg.SourceTS)
 		return
@@ -67,7 +67,8 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 
 	logger.Infof("[COMPLETION] Found %d incomplete tasks in thread %s.", len(tasks), msg.ThreadID)
 
-	// 4. Optimization: If many tasks, use batch analysis to save tokens
+	// Optimization: For threads with numerous tasks (>= 3), process them in a single batch request to the AI model.
+	// This significantly reduces token consumption and API overhead compared to individual checks.
 	if len(tasks) >= 3 {
 		logger.Infof("[COMPLETION] Using batch analysis for %d tasks in thread %s", len(tasks), msg.ThreadID)
 		completedIDs, err := s.gemini.CheckTasksBatch(ctx, msg.UserEmail, msg.OriginalText, tasks)
@@ -85,7 +86,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		return
 	}
 
-	// 5. Individual check for fewer tasks
+	// Fallback: For threads with only 1 or 2 tasks, process them individually as the batching overhead is unnecessary.
 	for _, task := range tasks {
 		// Prevent self-completion
 		if task.SourceTS == msg.SourceTS {
@@ -106,4 +107,3 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		}
 	}
 }
-

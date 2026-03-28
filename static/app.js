@@ -237,26 +237,28 @@ const initLanguageSelector = () => {
  */
 const initNavigation = () => {
     const showView = (view) => {
-        const dashboardTabs = document.querySelector('.tabs-container');
+        console.log(`[Navigation] Switching to: ${view}`);
+        window.scrollTo(0, 0); // Reset scroll on view switch
+        const dashboardContent = document.getElementById('dashboardContent');
         const dashboardHeader = document.querySelector('.dashboard-header');
         const archiveSection = document.getElementById('archiveSection');
         const insightsSection = document.getElementById('insightsSection');
         const navTabs = document.querySelectorAll('.c-main-nav__item');
 
-        const isArchive = view === 'archive';
-        const isInsights = view === 'insights';
-        const isDashboard = !isArchive && !isInsights;
+        // Hide all major functional blocks
+        [dashboardContent, dashboardHeader, archiveSection, insightsSection].forEach(el => {
+            el?.classList.add('hidden');
+        });
 
-        dashboardTabs?.classList.toggle('hidden', !isDashboard);
-        dashboardHeader?.classList.toggle('hidden', !isDashboard);
-        archiveSection?.classList.toggle('hidden', !isArchive);
-        insightsSection?.classList.toggle('hidden', !isInsights);
-
-        if (isArchive) {
+        if (view === 'archive') {
+            archiveSection?.classList.remove('hidden');
             archive.onShow();
-        } else if (isInsights) {
+        } else if (view === 'insights') {
+            insightsSection?.classList.remove('hidden');
             insights.onShow();
         } else {
+            dashboardContent?.classList.remove('hidden');
+            dashboardHeader?.classList.remove('hidden');
             fetchMessages();
         }
 

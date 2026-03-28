@@ -33,3 +33,4 @@ Thumbs.db
 .cache/
 .nyc_output/
 coverage/
+vendor/

@@ -78,7 +78,7 @@ func (n *NotionAnalyzer) GetModelName(defaultModel string) string {
 }
 
 func (n *NotionAnalyzer) PreProcess(text string) string {
-	// Future enhancement: Add markdown stripping or block filtering logic here to optimize token usage for Notion documents.
+	// TODO: Add logic to remove markdown or filter specific blocks in the future
 	return text
 }
 
@@ -86,10 +86,10 @@ func getAnalyzer(source string) SourceAnalyzer {
 	switch source {
 	case "gmail":
 		return &GmailAnalyzer{}
-	case "slack", "whatsapp", "telegram": // Reuse the existing ChatAnalyzer for Telegram as the message structure is similar.
+	case "slack", "whatsapp", "telegram": // Reuse the existing ChatAnalyzer for Telegram
 		return &ChatAnalyzer{Source: source}
 	case "notion":
-		return &NotionAnalyzer{} // Connect the dedicated Notion analyzer to handle its specific document format.
+		return &NotionAnalyzer{} // Use the dedicated Notion analyzer
 	default:
 		return nil
 	}

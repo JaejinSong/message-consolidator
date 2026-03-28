@@ -13,6 +13,8 @@ module.exports = {
       'is-visible',
       'u-hidden',
       'u-flex',
+      /^c-/,
+      /^task-list-/,
       /^category-/,
       /^status-/,
       /^priority-/

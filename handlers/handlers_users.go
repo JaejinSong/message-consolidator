@@ -8,12 +8,12 @@ import (
 	"net/http"
 )
 
-func HandleUserInfo(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	logger.Infof("[USER] Fetching info for email: %s", email)
 	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch user info", err)
+		respondError(w, http.StatusInternalServerError, "Failed to fetch user info")
 		return
 	}
 	logger.Debugf("[USER] Found user: ID=%d, Streak=%d, XP=%d", user.ID, user.Streak, user.XP)
@@ -24,8 +24,10 @@ func HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	user.ArchiveDays = store.GetAutoArchiveDays()
 
+	// If the user has no aliases, automatically fetch and prepopulate them from Slack 
+	// to ensure task matching works correctly without manual configuration.
 	if len(user.Aliases) == 0 {
-		sc := channels.NewSlackClient(cfg.SlackToken)
+		sc := channels.NewSlackClient(a.Config.SlackToken)
 		slackUser, err := sc.LookupUserByEmail(user.Email)
 		if err == nil && slackUser != nil {
 			store.UpdateUserSlackID(user.Email, slackUser.ID)
@@ -37,7 +39,7 @@ func HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 토큰 사용량 함께 반환
+	// Return token usage along with user info
 	todayPrompt, todayCompletion, _ := store.GetDailyTokenUsage(email)
 	monthPrompt, monthCompletion, _ := store.GetMonthlyTokenUsage(email)
 
@@ -56,7 +58,7 @@ func HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 		"monthCost":       calculateCost(monthPrompt, monthCompletion),
 	}
 
-	respondJSON(w, struct {
+	respondJSON(w, http.StatusOK, struct {
 		*store.User
 		TokenUsage map[string]interface{} `json:"token_usage"`
 	}{
@@ -65,40 +67,40 @@ func HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func HandleBuyStreakFreeze(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleBuyStreakFreeze(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch user info", err)
+		respondError(w, http.StatusInternalServerError, "Failed to fetch user info")
 		return
 	}
 
 	if user.Points < 50 {
-		respondError(w, http.StatusBadRequest, "Not enough points (requires 50)", nil)
+		respondError(w, http.StatusBadRequest, "Not enough points (requires 50)")
 		return
 	}
 
 	_ = store.UpdateUserGamification(email, user.Points-50, user.Streak, user.Level, user.XP, user.DailyGoal, user.LastCompletedAt, user.StreakFreezes+1)
 
-	respondJSON(w, map[string]interface{}{"success": true, "points": user.Points - 50, "streak_freezes": user.StreakFreezes + 1})
+	respondJSON(w, http.StatusOK, map[string]interface{}{"success": true, "points": user.Points - 50, "streak_freezes": user.StreakFreezes + 1})
 }
 
-func HandleGetUserAliases(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleGetUserAliases(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch user info", err)
+		respondError(w, http.StatusInternalServerError, "Failed to fetch user info")
 		return
 	}
 	aliases, err := store.GetUserAliases(user.ID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to get user aliases", err)
+		respondError(w, http.StatusInternalServerError, "Failed to get user aliases")
 		return
 	}
-	respondJSON(w, aliases)
+	respondJSON(w, http.StatusOK, aliases)
 }
 
-func HandleAddAlias(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleAddAlias(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
 		Alias string `json:"alias"`
@@ -113,13 +115,13 @@ func HandleAddAlias(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := store.AddUserAlias(user.ID, req.Alias); err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to add alias", err)
+		respondError(w, http.StatusInternalServerError, "Failed to add alias")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
 }
 
-func HandleDeleteAlias(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
 		Alias string `json:"alias"`
@@ -134,23 +136,23 @@ func HandleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := store.DeleteUserAlias(user.ID, req.Alias); err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to delete alias", err)
+		respondError(w, http.StatusInternalServerError, "Failed to delete alias")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
 }
 
-func HandleGetTenantAliases(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleGetTenantAliases(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	aliases, err := store.GetTenantAliases(email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	respondJSON(w, aliases)
+	respondJSON(w, http.StatusOK, aliases)
 }
 
-func HandleAddTenantAlias(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleAddTenantAlias(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
 		Original string `json:"original"`
@@ -167,7 +169,7 @@ func HandleAddTenantAlias(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func HandleDeleteTenantAlias(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleDeleteTenantAlias(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
 		Original string `json:"original"`
@@ -183,7 +185,7 @@ func HandleDeleteTenantAlias(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	prompt, completion, err := store.GetDailyTokenUsage(email)
 	if err != nil {
@@ -203,7 +205,7 @@ func HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 		return (float64(p)*0.075 + float64(c)*0.30) / 1000000
 	}
 
-	respondJSON(w, map[string]interface{}{
+	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"todayPrompt":     prompt,
 		"todayCompletion": completion,
 		"todayTotal":      prompt + completion,
@@ -215,17 +217,17 @@ func HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func HandleGetMappings(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleGetMappings(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	mappings, err := store.GetContactsMappings(email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	respondJSON(w, mappings)
+	respondJSON(w, http.StatusOK, mappings)
 }
 
-func HandleAddMapping(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleAddMapping(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
 		RepName string `json:"rep_name"`
@@ -242,7 +244,7 @@ func HandleAddMapping(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
 		RepName string `json:"rep_name"`
@@ -258,16 +260,16 @@ func HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func HandleGetAchievements(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleGetAchievements(w http.ResponseWriter, r *http.Request) {
 	achievements, err := store.GetAchievements()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	respondJSON(w, achievements)
+	respondJSON(w, http.StatusOK, achievements)
 }
 
-func HandleGetUserAchievements(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleGetUserAchievements(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
@@ -280,5 +282,5 @@ func HandleGetUserAchievements(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	respondJSON(w, ua)
+	respondJSON(w, http.StatusOK, ua)
 }

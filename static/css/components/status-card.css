@@ -1,0 +1,85 @@
+/* --- Status Component (.c-status-card) --- */
+.c-status-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    justify-content: center;
+    align-items: center;
+}
+
+.c-status-card {
+    width: clamp(var(--status-card-min), 15vw, var(--status-card-size));
+    height: clamp(var(--status-card-min), 15vw, var(--status-card-size));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    border-radius: var(--radius-xl);
+    background: rgba(255, 255, 255, 0.03);
+    border: var(--border-thin) solid var(--glass-border);
+    transition: all var(--transition-base) cubic-bezier(0.4, 0, 0.2, 1);
+    color: var(--text-dim);
+    cursor: default;
+    padding: 0;
+}
+
+.c-status-card svg {
+    width: var(--status-card-icon);
+    height: var(--status-card-icon);
+    transition: transform var(--transition-base);
+}
+
+.c-status-card__label {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: normal;
+    color: var(--text-dim);
+}
+
+/* Status Card Modifiers */
+.c-status-card--active svg {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 var(--spacing-sm) currentColor);
+}
+
+.c-status-card--slack.c-status-card--active {
+    color: var(--color-slack);
+}
+
+.c-status-card--whatsapp.c-status-card--active {
+    color: var(--color-whatsapp);
+}
+
+.c-status-card--gmail.c-status-card--active {
+    color: var(--color-gmail);
+}
+
+/* Mobile Responsive */
+@media (max-width: 480px) {
+    .c-status-group {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--spacing-sm);
+        width: 100%;
+    }
+
+    .c-status-card {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1/1;
+        padding: var(--spacing-sm);
+    }
+
+    .c-status-card svg {
+        width: var(--status-card-icon-sm);
+        height: var(--status-card-icon-sm);
+    }
+
+    .c-status-card__label {
+        font-size: 0.65rem;
+        margin-top: 0.2rem;
+    }
+}

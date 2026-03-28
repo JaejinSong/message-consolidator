@@ -1,0 +1,72 @@
+/* --- Archive Table Component (.c-archive-table) --- */
+.c-archive-table {
+    width: 100%;
+    margin-top: 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-lg);
+    border: var(--border-thin) solid var(--glass-border);
+    overflow: hidden;
+    color: var(--text-main);
+    border-collapse: collapse;
+}
+
+.c-archive-table th {
+    padding: 1.25rem 1rem;
+    text-align: left;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    border-bottom: var(--border-thin) solid var(--glass-border);
+}
+
+.c-archive-table td {
+    padding: 1.25rem 1rem;
+    border-bottom: var(--border-thin) solid var(--glass-border);
+    font-size: 0.9rem;
+}
+
+.c-archive-table tr:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.c-archive-table tr:last-child td {
+    border-bottom: none;
+}
+
+.c-archive-table__source {
+    width: 3.125rem;
+    text-align: center;
+}
+
+.c-archive-table__title {
+    font-weight: 500;
+}
+
+.c-archive-table__actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* Row states */
+.archive-row-deleted {
+    color: var(--text-dim) !important;
+    opacity: 0.6;
+}
+
+.archive-row-deleted .c-archive-table__task {
+    text-decoration: line-through;
+}
+
+.trash-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    margin-right: 0.4rem;
+    filter: grayscale(1);
+    opacity: 0.8;
+}
+

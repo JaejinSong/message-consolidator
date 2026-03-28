@@ -104,6 +104,7 @@ export const api = {
         const langParam = langMap[params.lang] || 'Korean';
 
         if (params.q) query.set('q', params.q);
+        if (params.status) query.set('status', params.status);
         if (params.limit) query.set('limit', params.limit);
         if (params.offset) query.set('offset', params.offset);
         if (params.sort) query.set('sort', params.sort);
@@ -114,9 +115,11 @@ export const api = {
         return handleResponse(resp, 'Fetch archive failed');
     },
 
-    async fetchArchiveCount(q = '') {
-        const query = q ? `?q=${encodeURIComponent(q)}` : '';
-        const resp = await fetch(`/api/messages/archive/count${query}`);
+    async fetchArchiveCount(q = '', status = 'all') {
+        const query = new URLSearchParams();
+        if (q) query.set('q', q);
+        if (status) query.set('status', status);
+        const resp = await fetch(`/api/messages/archive/count?${query.toString()}`);
         return handleResponse(resp, 'Fetch archive count failed');
     },
 

@@ -3,7 +3,21 @@
 @import "css/layout.css";
 @import "css/badges.css";
 @import "css/v2-nav.css";
-@import "css/v2-components.css";
+
+/* Modular Components */
+@import "css/components/animations.css";
+@import "css/components/buttons.css";
+@import "css/components/inputs.css";
+@import "css/components/task-card.css";
+@import "css/components/status-card.css";
+@import "css/components/tabs.css";
+@import "css/components/table-header.css";
+@import "css/components/archive-table.css";
+@import "css/components/badge.css";
+@import "css/components/insights.css";
+@import "css/components/utilities.css";
+@import "css/components/spinners.css";
+
 @import "css/v2-insights.css";
 @import "css/v2-modals.css";
 @import "css/v2-settings.css";

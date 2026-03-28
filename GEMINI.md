@@ -21,6 +21,20 @@
     - **모바일 최적화**: 가로 여백은 `0.5rem~1rem` 범위를 준수하고, `rem` 단위를 우선하여 해상도 대응력을 높인다.
     - 배포 전 `node verify-css.cjs` 및 `npm test`를 실행하여 정합성을 최종 검증한다.
 
+## Coding Guidelines
+- **Self-Documenting Code First, Then Intent-Driven Comments**: Strive to write code that is self-documenting. Before adding a comment, first ask: "Can I make the code itself clearer?" If the code alone cannot express the 'why', then add a comment explaining the intent, not the implementation. All comments must be in English.
+  - **Use Descriptive Naming**: Function names should be verb phrases describing their outcome (e.g., `calculateTotalScore`, not `procData`). Variable names should be clear nouns (e.g., `remainingTasks`, not `list`).
+  - **Leverage Code Structure for Clarity**: Use language features to document intent. In Go tests, use `t.Run("should do X when Y", ...)` instead of procedural comments. Extract complex logic into small, well-named helper functions.
+  - **Reserve Comments for 'The Why'**: Only add comments for things the code cannot say on its own. Good examples include:
+    - Architectural trade-offs: `// Why: We use a standard context here because a failure in one channel scan should not cancel others.`
+    - External constraints: `// Why: The external API has a rate limit of 5 req/sec, so we add a delay.`
+    - Justifying "magic numbers": `// Why: Enforce a default of 6 days to prevent unbounded data growth if the config is missing.`
+
+  - **(원칙) 코드로 설명하고, 불가할 때만 '왜'를 주석으로 단다**: 주석을 달기 전, "코드를 더 명확하게 만들 수 없을까?"를 먼저 고민한다.
+    - **서술적인 이름 사용**: 함수 이름은 `calculateTotalScore`처럼 동사구로, 변수 이름은 `remainingTasks`처럼 명확한 명사로 짓는다.
+    - **코드 구조로 명확성 높이기**: Go 테스트에서는 `t.Run("X일 때 Y를 해야 한다", ...)`을 사용하고, 복잡한 로직은 이름이 분명한 헬퍼 함수로 추출하여 코드의 의도를 드러낸다.
+    - **'왜'에만 주석 달기**: 코드가 스스로 설명할 수 없는 내용에만 주석을 단다. (예: 아키텍처 결정, 외부 API 제약, 특정 상수의 존재 이유)
+
 ## Monitoring (WhaTap)
 - **Agent**: Go/Browser Agent 적용 (`sessionReplaySampleRate: 100`)
 - **Resource**: 모니터링 에이전트로 인한 **150MB** 메모리 증분 인지 필요.

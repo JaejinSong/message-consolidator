@@ -45,7 +45,7 @@
 
 .c-nav__title-accent {
     color: var(--accent-color);
-    text-shadow: 0 0 10px var(--accent-glow);
+    text-shadow: 0 0 var(--spacing-sm) var(--accent-glow);
 }
 
 .c-main-nav {
@@ -56,6 +56,10 @@
     border-radius: var(--radius-lg);
     border: var(--border-thin) solid var(--glass-border);
     margin-top: var(--spacing-sm);
+}
+
+.nav-icon {
+    font-size: 1.5rem;
 }
 
 .c-main-nav__item {
@@ -79,7 +83,7 @@
 .c-main-nav__item--active {
     background: var(--accent-color);
     color: white;
-    box-shadow: 0 4px 15px var(--accent-glow);
+    box-shadow: 0 var(--spacing-xs) var(--spacing-xl) var(--accent-glow);
 }
 
 @media (max-width: 480px) {
@@ -119,7 +123,7 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 2px;
+    gap: var(--spacing-xxs);
 }
 
 .stat-label {
@@ -137,18 +141,18 @@
 }
 
 .xp-container {
-    width: 100px;
-    height: 6px;
+    width: var(--col-assignee);
+    height: var(--border-thick);
     background: rgba(255, 255, 255, 0.1);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     overflow: hidden;
-    margin-top: 4px;
+    margin-top: var(--spacing-xs);
 }
 
 .xp-bar {
     height: 100%;
-    background: linear-gradient(90deg, var(--accent-color), #00f2fe);
-    box-shadow: 0 0 10px var(--accent-glow);
+    background: linear-gradient(90deg, var(--accent-color), var(--accent-color));
+    box-shadow: 0 0 var(--spacing-sm) var(--accent-glow);
     transition: width 0.3s ease;
 }
 
@@ -169,7 +173,7 @@
 
 .c-utility__btn:hover {
     background: rgba(255, 255, 255, 0.1);
-    transform: translateY(-2px);
+    transform: translateY(calc(var(--spacing-xxs) * -1));
     border-color: rgba(255, 255, 255, 0.2);
 }
 

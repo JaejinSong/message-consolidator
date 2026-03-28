@@ -6,21 +6,21 @@ import (
 	"os"
 )
 
-func HandleGetReleaseNotes(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleGetReleaseNotes(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile("./RELEASE_NOTES_USER.md")
 	if err != nil {
 		logger.Errorf("Failed to read RELEASE_NOTES_USER.md: %v", err)
 		http.Error(w, "Failed to load release notes", http.StatusInternalServerError)
 		return
 	}
-	respondJSON(w, map[string]string{"content": string(data)})
+	respondJSON(w, http.StatusOK, map[string]string{"content": string(data)})
 }
 
-func HandleSlackStatus(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleSlackStatus(w http.ResponseWriter, r *http.Request) {
 	status := "DISCONNECTED"
-	if cfg.SlackToken != "" {
+	if a.Config.SlackToken != "" {
 		status = "CONNECTED"
 	}
 	logger.Debugf("[CHANNEL] Slack token status: %s", status)
-	respondJSON(w, map[string]string{"status": status})
+	respondJSON(w, http.StatusOK, map[string]string{"status": status})
 }

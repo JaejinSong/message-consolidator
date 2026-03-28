@@ -1,0 +1,27 @@
+/* --- Inputs (.c-input) --- */
+.c-input {
+    background: rgba(255, 255, 255, 0.05);
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1.25rem;
+    color: var(--text-main);
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    outline: none;
+    width: 100%;
+}
+
+.c-input:focus {
+    border-color: var(--accent-color);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 0 0.1875rem var(--accent-glow);
+}
+
+.c-input::placeholder {
+    color: var(--text-dim);
+    opacity: 0.6;
+}
+
+.c-input--pill {
+    border-radius: var(--radius-full);
+}

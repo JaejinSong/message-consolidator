@@ -103,6 +103,12 @@ var SQL = struct {
 	UpsertScanMetadata            string
 	DeleteScanMetadataSlackThread string
 
+	// Slack Threads
+	CreateSlackThreadsTable string
+	GetActiveSlackThreadsNew  string
+	UpsertSlackThread        string
+	CloseSlackThread         string
+
 	// Translations
 	GetTaskTranslation       string
 	GetTaskTranslationsBatch string
@@ -243,6 +249,11 @@ func loadAllQueries() error {
 	SQL.LoadContactsAll = queries["LoadContactsAll"]
 	SQL.UpsertScanMetadata = queries["UpsertScanMetadata"]
 	SQL.DeleteScanMetadataSlackThread = queries["DeleteScanMetadataSlackThread"]
+
+	SQL.CreateSlackThreadsTable = queries["CreateSlackThreadsTable"]
+	SQL.GetActiveSlackThreadsNew = queries["GetActiveSlackThreadsNew"]
+	SQL.UpsertSlackThread = queries["UpsertSlackThread"]
+	SQL.CloseSlackThread = queries["CloseSlackThread"]
 
 	SQL.GetTaskTranslation = queries["GetTaskTranslation"]
 	SQL.GetTaskTranslationsBatch = queries["GetTaskTranslationsBatch"]

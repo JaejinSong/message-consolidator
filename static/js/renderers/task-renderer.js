@@ -1,0 +1,203 @@
+import { state } from '../state.js';
+import { I18N_DATA } from '../locales.js';
+import { TimeService, escapeHTML } from '../utils.js';
+import { sortAndFilterMessages, classifyMessages, getDeadlineBadge } from '../logic.js';
+import { ICONS } from '../icons.js';
+
+/**
+ * Renders an empty grid state when no tasks are found.
+ */
+export function renderEmptyGrid(grid, isWitty = false) {
+    if (grid) {
+        const lang = state.currentLang || 'ko';
+        const messages = I18N_DATA[lang].emptyStateMessages;
+        let displayMsg = I18N_DATA[lang].noTasks || 'No tasks found';
+
+        if (isWitty && messages && messages.length > 0) {
+            const randomIndex = Math.floor(Math.random() * messages.length);
+            displayMsg = messages[randomIndex];
+            grid.innerHTML = `
+                <div class="empty-state-witty">
+                    <div class="empty-state__icon">✨</div>
+                    <div class="empty-state__message">${displayMsg}</div>
+                </div>
+            `;
+        } else {
+            grid.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state__icon">📭</div>
+                    <div class="empty-state__message">${displayMsg}</div>
+                </div>
+            `;
+        }
+    }
+}
+
+/**
+ * Creates HTML string for a single message card.
+ */
+export function createCardElement(m) {
+    const lang = state.currentLang;
+    const i18n = I18N_DATA[lang];
+    const ts = m.timestamp || m.created_at;
+    const displayTime = TimeService.formatDisplayTime(ts, lang);
+    const deadlineBadge = getDeadlineBadge(ts, m.done, lang || 'ko');
+
+    const sourceIcon = m.source === 'slack' ? ICONS.slack : m.source === 'whatsapp' ? ICONS.whatsapp : ICONS.gmail;
+
+    const meText = i18n?.assigneeMe || 'Me';
+    const isMe = m.assignee === 'me';
+    const isInvalid = !m.assignee || m.assignee === 'undefined' || m.assignee === 'unknown';
+    const assigneeText = isMe
+        ? `<span class="assignee-me">${meText}</span>`
+        : `<span class="assignee-other">${isInvalid ? '' : escapeHTML(m.assignee)}</span>`;
+
+    return `
+        <div class="c-task-card ${m.source} ${m.done ? 'c-task-card--done' : ''}" id="task-${m.id}" data-id="${m.id}">
+            <div class="c-task-card__source" title="${m.source.toUpperCase()}">
+                ${sourceIcon}
+            </div>
+            <div class="c-task-card__room">${m.room ? `<span class="badge-room">${escapeHTML(m.room)}</span>` : '-'}</div>
+            <div class="c-task-card__content">
+                <span class="c-task-card__title">${escapeHTML(m.task)}</span>
+                <div class="c-task-card__tags">
+                    ${m.category === 'waiting' && !m.done ? `<span class="tag-badge waiting-tag">⏳ ${i18n.waitingTag || 'Waiting...'}</span>` : ''}
+                    ${m.category === 'promise' && !m.done ? `<span class="tag-badge promise-tag">🤝 ${i18n.promiseTag || 'Commitment'}</span>` : ''}
+                </div>
+            </div>
+            <div class="c-task-card__requester">
+                <strong>${escapeHTML(m.requester)}</strong>
+                <button class="c-btn c-btn--ghost c-btn--icon map-alias-btn" data-name="${escapeHTML(m.requester)}" data-source="${m.source}" title="Map User">🔗</button>
+            </div>
+            <div class="c-task-card__assignee">${assigneeText}</div>
+            <div class="c-task-card__time">
+                <span class="timestamp meta-val">${displayTime}</span>
+                ${deadlineBadge}
+            </div>
+            <div class="c-task-card__actions">
+                ${m.has_original ? `<button class="c-btn c-btn--ghost c-btn--icon show-original" title="${i18n.viewOriginal || 'View Original'}">${ICONS.viewOriginal}</button>` : ''}
+                <button class="c-btn c-btn--danger c-btn--icon delete-task" title="${i18n?.delete || i18n?.deleteBtnText || 'Delete'}">${ICONS.delete}</button>
+                <button class="c-btn c-btn--primary c-btn--icon toggle-done">
+                    ${m.done ? '↩️' : '✅'}
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Renders message cards based on data and current state.
+ */
+export function renderMessages(messages, handlers) {
+    const currentTab = document.querySelector('.tab-btn.active')?.getAttribute('data-tab') || 'myTasksTab';
+    const searchQuery = document.getElementById('taskSearch')?.value || '';
+
+    const filtered = sortAndFilterMessages(messages, currentTab, searchQuery);
+    const counts = classifyMessages(messages);
+
+    const updateCount = (id, count) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = count;
+    };
+    updateCount('myCount', counts.my);
+    updateCount('otherCount', counts.others);
+    updateCount('waitingCount', counts.waiting);
+    updateCount('allCount', counts.all);
+
+    const gridId = currentTab.replace('Tab', 'List');
+    const grid = document.getElementById(gridId);
+    if (!grid) return;
+
+    const isMyTasksDone = (currentTab === 'myTasksTab' && counts.my === 0 && !searchQuery);
+
+    if (isMyTasksDone) {
+        renderEmptyGrid(grid, true);
+        if (filtered.length > 0) {
+            const listHtml = filtered.map(m => createCardElement(m)).join('');
+            grid.insertAdjacentHTML('beforeend', `<div class="completed-list-divider"></div>` + listHtml);
+        }
+    } else if (filtered.length === 0) {
+        renderEmptyGrid(grid, false);
+    } else {
+        grid.innerHTML = filtered.map(m => createCardElement(m)).join('');
+    }
+
+    attachCardEventListeners(grid, handlers);
+}
+
+/**
+ * Attaches event listeners to the message grid using Event Delegation.
+ */
+export function attachCardEventListeners(grid, handlers) {
+    grid._handlers = handlers;
+    if (grid.dataset.eventsBound) return;
+    grid.dataset.eventsBound = 'true';
+
+    grid.addEventListener('click', (e) => {
+        const card = e.target.closest('.c-task-card');
+        if (!card) return;
+
+        const id = parseInt(card.dataset.id, 10);
+        const h = grid._handlers;
+
+        if (e.target.closest('.toggle-done')) {
+            const isDone = card.classList.contains('c-task-card--done');
+            if (h.onToggleDone) h.onToggleDone(id, !isDone);
+        } else if (e.target.closest('.delete-task')) {
+            e.stopPropagation();
+            if (h.onDeleteTask) h.onDeleteTask(id);
+        } else if (e.target.closest('.show-original')) {
+            if (h.onShowOriginal) h.onShowOriginal(id);
+        } else if (e.target.closest('.map-alias-btn')) {
+            const btn = e.target.closest('.map-alias-btn');
+            window.dispatchEvent(new CustomEvent('openAliasMapping', {
+                detail: { name: btn.dataset.name }
+            }));
+        }
+    });
+}
+
+/**
+ * Renders archived messages in the archive table.
+ */
+export function renderArchive(messages) {
+    const tableBody = document.getElementById('archiveBody');
+    if (!tableBody) return;
+
+    if (!messages || messages.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="8" class="empty-state">No archived messages</td></tr>';
+        return;
+    }
+
+    tableBody.innerHTML = messages.map(m => {
+        const sourceIcon = m.source === 'slack' ? ICONS.slack : m.source === 'whatsapp' ? ICONS.whatsapp : ICONS.gmail;
+        const ts = m.timestamp || m.created_at;
+        const compTs = m.completed_at || '-';
+
+        const isMe = m.assignee?.toLowerCase() === 'me';
+        const assigneeHtml = isMe
+            ? `<span class="c-badge c-badge--accent">${escapeHTML(m.assignee)}</span>`
+            : `<span class="c-badge c-badge--dim">${escapeHTML(m.assignee || '-')}</span>`;
+
+        const isDeleted = m.is_deleted === true || m.is_deleted === 1;
+        const trashIcon = isDeleted ? `<span class="trash-icon" title="${state.currentLang === 'ko' ? '취소함' : 'Canceled'}">🗑️</span> ` : '';
+        const rowClass = isDeleted ? 'archive-row-deleted' : '';
+
+        return `
+            <tr class="${rowClass}">
+                <td><input type="checkbox" class="archive-check" data-id="${m.id}"></td>
+                <td>
+                    <div class="c-archive-table__source" title="${m.source.toUpperCase()}">
+                        ${sourceIcon}
+                    </div>
+                </td>
+                <td>${m.room ? `<span class="c-badge c-badge--accent" style="background: rgba(var(--color-primary-rgb), 0.1);">${escapeHTML(m.room)}</span>` : '-'}</td>
+                <td class="c-archive-table__task">${trashIcon}${escapeHTML(m.task)}</td>
+                <td class="c-archive-table__meta">${escapeHTML(m.requester)}</td>
+                <td class="c-archive-table__meta">${assigneeHtml}</td>
+                <td class="c-archive-table__meta">${TimeService.formatDisplayTime(ts, state.currentLang)}</td>
+                <td class="c-archive-table__meta">${compTs !== '-' ? TimeService.formatDisplayTime(compTs, state.currentLang) : '-'}</td>
+            </tr>
+        `;
+    }).join('');
+}

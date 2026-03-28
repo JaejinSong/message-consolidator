@@ -4,63 +4,71 @@ import (
 	"testing"
 )
 
-func TestAchievementConsistency(t *testing.T) {
+// TestAchievementSeeding verifies that the initial achievement data is correctly seeded into the database.
+func TestAchievementSeeding(t *testing.T) {
 	cleanup, err := SetupTestDB()
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
 	defer cleanup()
 
-	// 1. 시딩 확인: 최소 9종의 업적이 등록되어 있어야 함
 	achievements, err := GetAchievements()
 	if err != nil {
-		t.Fatalf("Failed to get achievements: %v", err)
+		t.Fatalf("Failed to get all achievements during test setup: %v", err)
 	}
 
-	if len(achievements) < 9 {
-		t.Errorf("Expected at least 9 achievements, got %d", len(achievements))
-	}
+	t.Run("should seed a minimum number of achievements", func(t *testing.T) {
+		const minExpectedAchievements = 9
+		if len(achievements) < minExpectedAchievements {
+			t.Errorf("Expected at least %d achievements to be seeded, but found %d", minExpectedAchievements, len(achievements))
+		}
+	})
 
-	// 2. 특정 업적 존재 확인
-	foundMorningStar := false
-	for _, a := range achievements {
-		if a.Name == "모닝 스타" {
-			foundMorningStar = true
-			if a.CriteriaType != "early_bird" || a.CriteriaValue != 1 {
-				t.Errorf("Invalid criteria for Morning Star: %s=%d", a.CriteriaType, a.CriteriaValue)
+	t.Run("should contain a valid 'Morning Star' achievement", func(t *testing.T) {
+		var morningStarAchievement *Achievement
+		for i := range achievements {
+			if achievements[i].Name == "모닝 스타" {
+				morningStarAchievement = &achievements[i]
+				break
 			}
 		}
-	}
-	if !foundMorningStar {
-		t.Error("Morning Star achievement not found in seeded data")
-	}
+
+		if morningStarAchievement == nil {
+			t.Fatal("'Morning Star' achievement not found in seeded data")
+		}
+
+		// Why: These criteria are fundamental to the 'early_bird' trigger logic.
+		// If they are changed, the corresponding service logic might fail silently.
+		expectedType := "early_bird"
+		expectedValue := 1
+		if morningStarAchievement.CriteriaType != expectedType || morningStarAchievement.CriteriaValue != expectedValue {
+			t.Errorf("Invalid criteria for 'Morning Star'. got type=%s, value=%d; want type=%s, value=%d",
+				morningStarAchievement.CriteriaType, morningStarAchievement.CriteriaValue, expectedType, expectedValue)
+		}
+	})
 }
 
-func TestRetroactiveAchievementUnlock(t *testing.T) {
+// TestGetUserAchievements serves as a basic smoke test for the achievement retrieval logic.
+// It ensures that the function can be called for a new user without causing panics or errors,
+// which is a baseline requirement for the retroactive achievement calculation logic it contains.
+func TestGetUserAchievements(t *testing.T) {
 	cleanup, err := SetupTestDB()
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
 	defer cleanup()
 
-	t.Run("Check Logic Integration", func(t *testing.T) {
-		// 테스트용 사용자 생성
-		_, err := GetOrCreateUser("test_ach@example.com", "Test Ach User", "")
+	t.Run("should execute without error for a newly created user", func(t *testing.T) {
+		// Why: This test ensures that the complex logic inside GetUserAchievements,
+		// which might perform calculations or backfills, doesn't fail on a clean user slate.
+		user, err := GetOrCreateUser("test_ach@example.com", "Test Ach User", "")
 		if err != nil {
-			t.Fatalf("Failed to create test user: %v", err)
+			t.Fatalf("Failed to create a test user: %v", err)
 		}
-		
-		var u User
-		_ = db.QueryRow(SQL.GetUserByEmail, "test_ach@example.com").Scan(
-			&u.ID, &u.Email, &u.Name, &u.SlackID, &u.WAJID, &u.Picture,
-			&u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal,
-			&u.LastCompletedAt, &u.CreatedAt, &u.StreakFreezes,
-		)
 
-		// GetUserAchievements를 호출하여 리팩토링된 로직이 에러 없이 작동하는지 확인
-		_, err = GetUserAchievements(u.ID)
+		_, err = GetUserAchievements(user.ID)
 		if err != nil {
-			t.Errorf("GetUserAchievements failed: %v", err)
+			t.Errorf("GetUserAchievements failed for a new user: %v", err)
 		}
 	})
 }

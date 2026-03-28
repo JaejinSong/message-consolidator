@@ -1,9 +1,10 @@
 #!/bin/bash
 
-# VPS 애플리케이션 '내부'의 로그 파일(logs/app.log)을 tail -f로 확인하는 스크립트
-# Docker 컨테이너 내부에 쌓이는 파일을 실시간으로 스트리밍합니다.
+# Why: Simplifies the process of streaming application logs from the remote VPS.
+# Instead of manually SSHing and finding the dynamic Docker container ID,
+# this script automates the connection and log tailing.
 
-echo ">>> VPS(chat-analyzer-vps) 컨테이너 내부의 logs/app.log 를 확인합니다..."
+echo ">>> Streaming logs/app.log from the remote VPS container..."
 
 gcloud compute ssh chat-analyzer-vps \
   --zone=us-central1-a \

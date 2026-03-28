@@ -1,3 +1,22 @@
+# Release Notes - v2.3.11 (2026-03-28 07:07 UTC)
+
+## 🚀 AI & Data Intelligence
+- **[FIX] AI Analysis Truncation**: Resolved a critical issue where AI-generated analysis was being truncated prematurely. Enhanced the Gemini client with robust response text handling.
+- **[REFACTOR] Gemini Client Instrumentation**: Extracted token usage logging and standardized response parsing to improve debugging and cost tracking for AI operations.
+- **[FEAT] Insights Activity Chart**: Implemented an Anki-style hourly activity heatmap within the Insights UI, providing a high-density visualization of user productivity patterns.
+
+## 🛠️ System Architecture & Observability
+- **[FEAT] WhaTap Monitoring Integration**: Integrated WhaTap observability for real-time application performance monitoring (APM) and enhanced session replay capabilities.
+- **[REFACTOR] SQL View Transition**: Refactored the SQL query architecture to utilize database Views, reducing complexity in the application layer and optimizing query execution plans.
+- **[SYS] Utility Consolidation**: Centralized fragmented debug and utility tools into a core `mc-util` package to standardize backend logic and simplify workflows.
+
+## ⚡ Performance & Frontend
+- **[PERF] Nginx Optimization**: Enabled HTTP/2 and Gzip compression at the server level, significantly reducing TTFB (Time to First Byte) and asset payload sizes.
+- **[OPTIMIZE] Mobile UI Responsiveness**: Refined mobile viewport margins and layout padding to ensure a seamless dashboard experience on smaller screens.
+- **[STABILITY] Regression Suite Expansion**: Added new regression tests specifically for AI analysis consistency and mobile UI integrity.
+
+---
+
 # Release Notes - v2.3.10 (2026-03-27 11:00 UTC)
 
 ## 🚀 Database & Core Infrastructure

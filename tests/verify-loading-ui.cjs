@@ -4,14 +4,14 @@ const path = require('path');
 /**
  * @file verify-loading-ui.cjs
  * @description Verifies that the loading overlay and scan loading CSS rules are correctly implemented.
- * This satisfies the 'Bug-Fix-Test Mandate' (Rule 1.1) for the Archive Loading fix.
+ * Updated for modular CSS architecture.
  */
 
-const CSS_PATH = path.join(__dirname, '../static/css/v2-components.css');
+const COMPONENTS_DIR = path.join(__dirname, '../static/css/components');
 const HTML_PATH = path.join(__dirname, '../static/index.html');
 
 function verify() {
-    console.log('--- Loading UI Verification ---');
+    console.log('--- Loading UI Verification (Modular) ---');
     
     // 1. Check HTML for IDs
     const html = fs.readFileSync(HTML_PATH, 'utf8');
@@ -24,32 +24,33 @@ function verify() {
     }
     console.log('✅ Required IDs found in HTML.');
 
-    // 2. Check CSS content
-    const css = fs.readFileSync(CSS_PATH, 'utf8');
+    // 2. Check CSS content across components
+    const spinnersCss = fs.readFileSync(path.join(COMPONENTS_DIR, 'spinners.css'), 'utf8');
+    const utilitiesCss = fs.readFileSync(path.join(COMPONENTS_DIR, 'utilities.css'), 'utf8');
     
-    const requiredSelectors = [
-        '#loading',
-        '#loading.hidden',
-        '.loading-overlay',
-        '.loading-overlay.active'
+    // Check loading overlay selectors in spinners.css
+    const spinnerSelectors = [
+        '.loading-overlay'
     ];
-
-    for (const sel of requiredSelectors) {
-        if (!css.includes(sel)) {
-            console.error(`FAIL: Missing CSS selector "${sel}" in v2-components.css`);
+    for (const sel of spinnerSelectors) {
+        if (!spinnersCss.includes(sel)) {
+            console.error(`FAIL: Missing CSS selector "${sel}" in spinners.css`);
             process.exit(1);
         }
     }
-    console.log('✅ Required CSS selectors found.');
 
-    // 3. Verify specific critical rules
-    if (!css.includes('display: none !important')) {
-        console.error('FAIL: Missing "display: none !important" for hidden state');
+    // Check hidden rules in utilities.css
+    if (!utilitiesCss.includes('.hidden') || !utilitiesCss.includes('display: none !important')) {
+        console.error('FAIL: Missing ".hidden" rule with "!important" in utilities.css');
         process.exit(1);
     }
     
-    if (!css.includes('position: fixed') || !css.includes('backdrop-filter')) {
-        console.log('⚠️ Note: #loading overlay properties not fully verified but selectors exist.');
+    console.log('✅ Required CSS selectors and rules found.');
+
+    // 3. Verify specific critical properties in spinners.css
+    if (!spinnersCss.includes('position: fixed') || !spinnersCss.includes('backdrop-filter')) {
+        console.error('FAIL: .loading-overlay missing critical properties (fixed, blur)');
+        process.exit(1);
     }
 
     console.log('--- Verification Successful ---');

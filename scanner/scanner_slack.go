@@ -13,30 +13,35 @@ import (
 	"strings"
 	"time"
 
+	"sync"
+
 	"github.com/slack-go/slack"
 	"github.com/whatap/go-api/trace"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 )
 
-// slackMentionRegex는 Slack 멘션 포맷(<@U12345678>)을 찾기 위한 정규식입니다.
+// Why: Pre-compiling the regex avoids repeated compilation overhead during high-volume message processing.
 var slackMentionRegex = regexp.MustCompile(`<@([A-Z0-9]+)>`)
 
-// slackUserResolver는 테스트 용이성을 위해 SlackClient의 의존성을 분리하는 인터페이스입니다.
+// Why: Enforces a 1.2s delay between API calls to strictly comply with Slack's Tier 3 rate limits and prevent HTTP 429 errors.
+const SlackThrottlingInterval = 1200 * time.Millisecond
+
+// Why: A global rate limiter ensures that concurrent user scans do not collectively breach Slack's workspace-level API limits.
+var slackLimiter = rate.NewLimiter(rate.Every(SlackThrottlingInterval), 1)
+
+// Why: Abstracts the Slack client dependency to allow deterministic unit testing without requiring actual API connections.
 type slackUserResolver interface {
 	GetUserName(userID string) string
 }
 
-// resolveSlackMentions는 Slack 멘션(<@U...>)을 실제 사용자 이름(@Jaejin Song)으로 치환합니다.
-// API 호출을 최소화하기 위해 Slack 클라이언트 내의 사용자 캐시를 활용합니다.
+// Why: Gemini struggles with raw Slack user IDs (e.g., <@U123>). Resolving them to human-readable names improves AI extraction accuracy.
 func resolveSlackMentions(text string, sc slackUserResolver) string {
 	return slackMentionRegex.ReplaceAllStringFunc(text, func(match string) string {
-		// ID 추출: <@U0208BU06JE> -> U0208BU06JE
 		userID := match[2 : len(match)-1]
 
-		// SlackClient에 캐시된 사용자 정보 조회 (sc.FetchUsers()가 미리 호출되어 있어야 함)
 		userName := sc.GetUserName(userID)
 
-		// 사용자 이름을 찾으면 @이름 형식으로, 못찾으면 원본 멘션 형식으로 반환
 		if userName != "" && userName != userID {
 			return "@" + userName
 		}
@@ -44,9 +49,9 @@ func resolveSlackMentions(text string, sc slackUserResolver) string {
 	})
 }
 
-// scanSlack은 봇이 참여한 모든 채널을 한 번만 스캔하고, 가져온 메시지를 전체 유저에 대해 평가합니다.
+// Why: Scanning channels per user leads to redundant API calls and rate limit exhaustion. We scan each channel exactly once and map tasks to users in memory (Batching).
 func scanSlack(ctx context.Context, users []store.User) {
-	if cfg.SlackToken == "" || len(users) == 0 {
+	if cfg == nil || cfg.SlackToken == "" || len(users) == 0 {
 		return
 	}
 	logger.Debugf("[SCAN-SLACK] Starting global Slack scan for %d users", len(users))
@@ -63,36 +68,45 @@ func scanSlack(ctx context.Context, users []store.User) {
 		return
 	}
 
-	// 유저별 별칭 맵 미리 구성
+	// Why: Pre-compute user aliases to avoid redundant DB queries during the inner message scanning loop.
 	userAliases := make(map[string][]string)
 	for _, u := range users {
 		aliases, _ := store.GetUserAliases(u.ID)
 		userAliases[u.Email] = getEffectiveAliases(u, aliases)
 	}
 
+	// Batching: Collect candidates across all channels for each user
+	// map[UserEmail][]types.RawMessage
+	globalCandidates := make(map[string][]types.RawMessage)
+	globalNewTS := make(map[string]map[string]string) // UserEmail -> ChannelID -> NewTS
+	var candidateMu sync.Mutex
+
 	var eg errgroup.Group
-	// API Rate Limit 방어를 위해 한 번에 3개 채널씩만 천천히 스캔합니다.
 	eg.SetLimit(3)
 
 	for _, channel := range chans {
 		c := channel
 		eg.Go(func() error {
-			// 시작 전이나 처리 도중 타임아웃이 발생했는지 감지
 			if err := ctx.Err(); err != nil {
 				return err
 			}
 
-			// 여러 유저 중 가장 오래된 lastTS 탐색 (API 호출 범위 최소화)
+			// Why: To support batching, we must fetch messages starting from the oldest lastTS among all users in this channel.
 			minLastTS := ""
 			for _, u := range users {
 				ts := store.GetLastScan(u.Email, "slack", c.ID)
 				if ts == "" {
-					minLastTS = "" // 한번이라도 빈 값이면 채널 처음부터 스캔 (24시간 전 제한 작동)
+					minLastTS = ""
 					break
 				}
 				if minLastTS == "" || ts < minLastTS {
 					minLastTS = ts
 				}
+			}
+
+			// Why: Ensure we don't violate global Slack API rate limits before fetching history.
+			if err := slackLimiter.Wait(ctx); err != nil {
+				return err
 			}
 
 			msgs, err := sc.GetMessages(c.ID, time.Now().Add(-24*time.Hour), minLastTS)
@@ -105,10 +119,8 @@ func scanSlack(ctx context.Context, users []store.User) {
 				return nil
 			}
 
-			// Pre-filtering: Collect candidate messages that definitely contain tasks for each user
-			// map[UserEmail][]types.RawMessage
-			userCandidates := make(map[string][]types.RawMessage)
-			newUserLastTS := make(map[string]string)
+			candidateMu.Lock()
+			defer candidateMu.Unlock()
 
 			for _, m := range msgs {
 				for _, u := range users {
@@ -119,46 +131,60 @@ func scanSlack(ctx context.Context, users []store.User) {
 
 					classification := classifyMessage(c, &u, userAliases[u.Email], m)
 					if classification == "내 업무" || classification == "회신 대기" {
-						userCandidates[u.Email] = append(userCandidates[u.Email], m)
+						m.ChannelID = c.ID // 채널 ID 주입
+						globalCandidates[u.Email] = append(globalCandidates[u.Email], m)
 					}
 
-					if currTS, exists := newUserLastTS[u.Email]; !exists || m.ID > currTS {
-						newUserLastTS[u.Email] = m.ID
+					if globalNewTS[u.Email] == nil {
+						globalNewTS[u.Email] = make(map[string]string)
+					}
+					if currTS, exists := globalNewTS[u.Email][c.ID]; !exists || m.ID > currTS {
+						globalNewTS[u.Email][c.ID] = m.ID
 					}
 				}
 			}
-
-			// AI Analysis: Process candidates for each user
-			for email, candidates := range userCandidates {
-				user, _ := store.GetOrCreateUser(email, "", "")
-				analyzeAndSaveSlack(ctx, user, sc, c.ID, candidates)
-			}
-
-			for email, newTS := range newUserLastTS {
-				store.UpdateLastScan(email, "slack", c.ID, newTS)
-			}
-
-			// API Burst 방어를 위한 미세한 대기 시간
-			time.Sleep(500 * time.Millisecond)
 			return nil
 		})
 	}
-	if err := eg.Wait(); err != nil {
-		logger.Debugf("[SCAN-SLACK] Partially completed with errors: %v", err)
+	_ = eg.Wait()
+
+	// AI Analysis: Process all gathered candidates per user (Batching)
+	consecutiveFailures := 0
+	for email, candidates := range globalCandidates {
+		// Why: A circuit breaker prevents infinite error loops and database overload if the backend is down.
+		if consecutiveFailures >= 5 {
+			logger.Errorf("[SCAN-SLACK] Circuit breaker triggered after 5 consecutive user store failures. Aborting batch analysis.")
+			break
+		}
+
+		user, err := store.GetOrCreateUser(email, "", "")
+		if err != nil || user == nil {
+			logger.Errorf("[SCAN-SLACK] Failed to get user %s: %v. Skipping.", email, err)
+			consecutiveFailures++
+			continue
+		}
+		consecutiveFailures = 0 // 성공 시 리셋
+
+		analyzeAndSaveSlack(ctx, user, sc, candidates)
+	}
+
+	// Update Last Scanned Timestamps
+	for email, channelMap := range globalNewTS {
+		for chanID, newTS := range channelMap {
+			store.UpdateLastScan(email, "slack", chanID, newTS)
+		}
 	}
 }
 
 func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m types.RawMessage) string {
-	// 1. 발신자가 나인지 확인
 	isFromMe := strings.EqualFold(m.Sender, user.Name) || strings.EqualFold(m.Sender, user.Email)
 
-	// 내가 보낸 메시지인데, 다른 사람을 멘션(@U...)했다면 회신 대기로 판단
+	// Why: If the user sends a message mentioning someone else, it usually implies they are waiting for a reply.
 	if isFromMe && strings.Contains(m.Text, "<@U") && (user.SlackID == "" || !strings.Contains(m.Text, "<@"+user.SlackID+">")) {
 		return "회신 대기"
 	}
 
-	// 2. DM이거나 내가 멘션된 경우 내 업무 판단
-	// 1. DM이거나 직접 멘션된 경우 즉시 반환 (Early Return)
+	// Why: Direct messages or explicit mentions are high-signal indicators of tasks belonging to the user.
 	if channel.IsIM || channel.IsMpIM {
 		return "내 업무"
 	}
@@ -175,25 +201,33 @@ func classifyMessage(channel slack.Channel, user *store.User, aliases []string, 
 	return "기타 업무"
 }
 
-func startSlowSweeper() {
+func startSlowSweeper(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
 	logger.Infof("Slack Slow Sweeper started (monitoring old threads)...")
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		sweepSlackThreads()
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Infof("Slack Slow Sweeper stopping...")
+			return
+		case <-ticker.C:
+			sweepSlackThreads(ctx)
+		}
 	}
 }
 
-func sweepSlackThreads() {
-	traceCtx, _ := trace.StartWithContext(context.Background(), "Background-SweepSlackThreads")
+func sweepSlackThreads(ctx context.Context) {
+	traceCtx, _ := trace.StartWithContext(ctx, "Background-SweepSlackThreads")
 	defer trace.End(traceCtx, nil)
 
 	if cfg == nil || cfg.SlackToken == "" {
 		return
 	}
 
-	threads, err := store.GetActiveSlackThreads()
+	// Fetch active threads from the new targeted table
+	threads, err := store.GetTargetedActiveThreads()
 	if err != nil || len(threads) == 0 {
 		return
 	}
@@ -203,56 +237,168 @@ func sweepSlackThreads() {
 		logger.Warnf("[SCAN-SWEEPER] Failed to fetch users: %v", err)
 	}
 
+	// Identify Bot ID for loop prevention
+	auth, err := sc.GetAPI().AuthTest()
+	botID := ""
+	if err == nil {
+		botID = auth.UserID
+	}
+
 	for _, t := range threads {
-		// 14일 이상 경과한 오래된 스레드는 모니터링 종료 (자동 정리)
-		tsParts := strings.Split(t.ThreadTS, ".")
-		if len(tsParts) > 0 {
-			if sec, err := strconv.ParseInt(tsParts[0], 10, 64); err == nil {
-				if time.Since(time.Unix(sec, 0)) > 14*24*time.Hour {
-					_ = store.RemoveActiveSlackThread(t.UserEmail, t.ChannelID, t.ThreadTS)
-					continue
-				}
-			}
+		// 전역 Rate Limit 대기
+		if err := slackLimiter.Wait(traceCtx); err != nil {
+			return
 		}
 
-		user, err := store.GetOrCreateUser(t.UserEmail, "", "")
-		if err != nil {
-			continue
-		}
-		aliases, _ := store.GetUserAliases(user.ID)
-		effectiveAliases := getEffectiveAliases(*user, aliases)
-
-		replies, err := sc.FetchNewThreadReplies(t.ChannelID, t.ThreadTS, t.LastTS)
-		if err != nil || len(replies) == 0 {
-			time.Sleep(3 * time.Second) // Rate Limit 방어를 위한 지연
-			continue
-		}
-
-		newLastTS := t.LastTS
-		var candidates []types.RawMessage
-		for _, m := range replies {
-			classification := classifyMessage(slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: t.ChannelID}}}, user, effectiveAliases, m)
-			if classification == "내 업무" || classification == "회신 대기" {
-				candidates = append(candidates, m)
-			}
-			if m.ID > newLastTS {
-				newLastTS = m.ID
-			}
-		}
-
-		if len(candidates) > 0 {
-			analyzeAndSaveSlack(traceCtx, user, sc, t.ChannelID, candidates)
-		}
-
-		if newLastTS != t.LastTS {
-			_ = store.UpdateSlackThreadLastTS(t.UserEmail, t.ChannelID, t.ThreadTS, newLastTS)
-		}
-		time.Sleep(3 * time.Second) // API 호출 후 무조건 3초 대기 (분당 20회 제한 준수)
+		processSingleSlackThread(traceCtx, sc, t, botID)
 	}
 }
 
-// analyzeAndSaveSlack encapsulates Gemini analysis and persistence for Slack messages.
-func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.SlackClient, channelID string, candidates []types.RawMessage) {
+func processSingleSlackThread(ctx context.Context, sc *channels.SlackClient, t store.SlackThreadMeta, botID string) {
+	// Why: Auto-close threads after 7 days of inactivity to prevent the database of active threads from growing indefinitely.
+	if isThreadTimedOut(t.LastActivityTS, 7*24*time.Hour) {
+		closeMsg := "Due to inactivity, this issue has been marked as resolved and monitoring is closed. Please create a new thread for further technical support."
+		_, _, _ = sc.GetAPI().PostMessage(t.ChannelID, slack.MsgOptionText(closeMsg, false), slack.MsgOptionTS(t.ThreadTS))
+		_ = store.CloseTargetedThread(t.ChannelID, t.ThreadTS, t.UserEmail)
+		return
+	}
+
+	user, err := store.GetOrCreateUser(t.UserEmail, "", "")
+	if err != nil || user == nil {
+		logger.Errorf("[SCAN-SWEEPER] Failed to get user %s for thread %s", t.UserEmail, t.ThreadTS)
+		return
+	}
+	aliases, _ := store.GetUserAliases(user.ID)
+	effectiveAliases := getEffectiveAliases(*user, aliases)
+
+	// Fetch replies since last check
+	replies, _, _, err := sc.GetAPI().GetConversationReplies(&slack.GetConversationRepliesParameters{
+		ChannelID: t.ChannelID,
+		Timestamp: t.ThreadTS,
+		Oldest:    t.LastTS,
+		Limit:     100,
+	})
+	if err != nil || len(replies) == 0 {
+		return
+	}
+
+	result := scanThreadReplies(replies, t.ThreadTS, t.LastTS, t.LastActivityTS, botID)
+
+	// Why: We must collect candidates before checking the resolved status to ensure the final message that triggered the resolution is also analyzed.
+	var candidates []types.RawMessage
+	for _, m := range replies {
+		// Why: Skip messages already processed in previous sweeps to avoid duplicate task extraction.
+		if t.LastTS != "" && m.Timestamp <= t.LastTS {
+			continue
+		}
+
+		// Why: Sync candidates with the pure-logic scan result to strictly ignore messages arriving after the thread was resolved.
+		if result.isResolved && m.Timestamp > result.newLastTS {
+			continue
+		}
+
+		isBot := m.User == botID || m.BotID != ""
+		if !isBot && m.Text != "" {
+			classification := classifyMessage(slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: t.ChannelID}}}, user, effectiveAliases, types.RawMessage{Sender: m.User, Text: m.Text})
+			if classification == "내 업무" || classification == "회신 대기" {
+				candidates = append(candidates, types.RawMessage{
+					ID:        m.Timestamp,
+					Sender:    sc.GetUserName(m.User),
+					Text:      m.Text,
+					Timestamp: parseSlackTimestamp(m.Timestamp),
+					ReplyToID: t.ThreadTS,
+					ChannelID: t.ChannelID,
+				})
+			}
+		}
+	}
+
+	if len(candidates) > 0 {
+		analyzeAndSaveSlack(ctx, user, sc, candidates)
+	}
+
+	if result.isResolved {
+		closeMsg := "This issue has been marked as resolved and monitoring is closed. Please create a new thread for further technical support."
+		_, _, _ = sc.GetAPI().PostMessage(t.ChannelID, slack.MsgOptionText(closeMsg, false), slack.MsgOptionTS(t.ThreadTS))
+		_ = store.CloseTargetedThread(t.ChannelID, t.ThreadTS, t.UserEmail)
+		return
+	}
+
+	if result.newLastTS != t.LastTS || result.newLastActivity != t.LastActivityTS {
+		_ = store.UpdateTargetedThread(t.ChannelID, t.ThreadTS, result.newLastTS, result.newLastActivity, t.UserEmail)
+	}
+}
+
+// threadScanResult holds the pure-logic output of scanning a thread's replies.
+type threadScanResult struct {
+	isResolved      bool
+	newLastTS       string
+	newLastActivity string
+}
+
+// Why: Extracted as a pure function without side effects (API/DB calls) to make the core thread logic easily unit-testable.
+func scanThreadReplies(replies []slack.Message, threadTS, lastTS, lastActivityTS, botID string) threadScanResult {
+	newLastTS := lastTS
+	newLastActivity := lastActivityTS
+	isResolved := false
+
+	for _, m := range replies {
+		// Why: Ensure we only process new replies since the last sweep, regardless of whether it's the parent message or a child, to prevent duplicate analysis.
+		if lastTS != "" && m.Timestamp <= lastTS {
+			continue
+		}
+
+		// Why: A 'white_check_mark' reaction is the agreed-upon convention for users to mark a thread as resolved.
+		for _, r := range m.Reactions {
+			if r.Name == "white_check_mark" {
+				isResolved = true
+				break
+			}
+		}
+
+		// Why: Bot messages and resolution messages should not extend the thread's lifespan.
+		isBot := m.User == botID || m.BotID != ""
+		if !isBot && !isResolved && m.Timestamp > newLastActivity {
+			newLastActivity = m.Timestamp
+		}
+
+		if m.Timestamp > newLastTS {
+			newLastTS = m.Timestamp
+		}
+
+		// Why: Stop scanning immediately upon resolution to prevent post-resolution chatter from reopening the thread.
+		// newLastTS is updated before this check so the resolution message itself is marked as scanned.
+		if isResolved {
+			break
+		}
+	}
+
+	return threadScanResult{
+		isResolved:      isResolved,
+		newLastTS:       newLastTS,
+		newLastActivity: newLastActivity,
+	}
+}
+
+// Why: Helper function to determine if a thread has exceeded its allowed inactivity window.
+func isThreadTimedOut(lastActivityTS string, threshold time.Duration) bool {
+	sec, err := strconv.ParseInt(strings.Split(lastActivityTS, ".")[0], 10, 64)
+	if err != nil {
+		return false
+	}
+	return time.Since(time.Unix(sec, 0)) > threshold
+}
+
+func parseSlackTimestamp(ts string) time.Time {
+	parts := strings.Split(ts, ".")
+	if len(parts) == 0 {
+		return time.Now()
+	}
+	sec, _ := strconv.ParseInt(parts[0], 10, 64)
+	return time.Unix(sec, 0)
+}
+
+func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.SlackClient, candidates []types.RawMessage) {
 	if len(candidates) == 0 {
 		return
 	}
@@ -263,15 +409,9 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 		return
 	}
 
-	var sb strings.Builder
-	msgMap := make(map[string]types.RawMessage)
-	for _, m := range candidates {
-		msgMap[m.ID] = m
-		resolvedText := resolveSlackMentions(m.Text, sc)
-		sb.WriteString(fmt.Sprintf("[ID:%s] %s: %s\n", m.ID, m.Sender, resolvedText))
-	}
+	payload, msgMap := buildSlackAnalysisPayload(candidates, sc)
 
-	items, err := gc.Analyze(ctx, user.Email, sb.String(), "Korean", "slack")
+	items, err := gc.Analyze(ctx, user.Email, payload, "Korean", "slack")
 	if err != nil {
 		logger.Errorf("[SCAN-SLACK] Gemini Analyze Error for %s: %v", user.Email, err)
 		return
@@ -286,53 +426,81 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 			continue
 		}
 
-		// Classification for saving metadata
-		classification := classifyMessage(slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: channelID}}}, user, aliases, m)
-
-		threadID := m.ReplyToID
-		if threadID == "" {
-			threadID = m.ID
-		}
-
-		link := fmt.Sprintf("https://slack.com/archives/%s/p%s", channelID, strings.ReplaceAll(m.ID, ".", ""))
-		if m.ReplyToID != "" {
-			_ = store.RegisterActiveSlackThread(user.Email, channelID, m.ReplyToID)
-			link += fmt.Sprintf("?thread_ts=%s", m.ReplyToID)
-		}
-
-		assignee := item.Assignee
-		category := item.Category
-
-		// Handle "Me" assignment logic
-		lowerAsg := strings.ToLower(assignee)
-		if lowerAsg == "" || lowerAsg == "me" || lowerAsg == "나" || strings.EqualFold(assignee, user.Name) {
-			assignee = user.Name
-			if assignee == "" {
-				assignee = user.Email
-			}
-		}
-
-		if classification == "회신 대기" {
-			category = "waiting"
-		}
-
-		msgsToSave = append(msgsToSave, store.ConsolidatedMessage{
-			UserEmail:    user.Email,
-			Source:       "slack",
-			Room:         sc.GetChannelName(channelID),
-			Task:         item.Task,
-			Requester:    item.Requester,
-			Assignee:     assignee,
-			AssignedAt:   m.Timestamp,
-			Link:         link,
-			SourceTS:     m.ID,
-			OriginalText: m.Text,
-			Category:     category,
-			ThreadID:     threadID,
-		})
+		msgsToSave = append(msgsToSave, mapSlackItemToMessage(item, m, user, aliases, sc))
 	}
 
 	if len(msgsToSave) > 0 {
 		store.SaveMessages(msgsToSave)
 	}
+}
+
+// Why: Separating payload construction keeps the main workflow function clean and focused.
+func buildSlackAnalysisPayload(candidates []types.RawMessage, sc *channels.SlackClient) (string, map[string]types.RawMessage) {
+	var sb strings.Builder
+	msgMap := make(map[string]types.RawMessage)
+	for _, m := range candidates {
+		msgMap[m.ID] = m
+		resolvedText := resolveSlackMentions(m.Text, sc)
+		sb.WriteString(fmt.Sprintf("[ID:%s] %s: %s\n", m.ID, m.Sender, resolvedText))
+	}
+	return sb.String(), msgMap
+}
+
+// Why: Encapsulating the complex mapping and side-effects (thread registration) improves readability.
+func mapSlackItemToMessage(item store.TodoItem, m types.RawMessage, user *store.User, aliases []string, sc *channels.SlackClient) store.ConsolidatedMessage {
+	mChannel := slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: m.ChannelID}}}
+	classification := classifyMessage(mChannel, user, aliases, m)
+
+	threadID := m.ReplyToID
+	if threadID == "" {
+		threadID = m.ID
+	}
+
+	link := buildSlackLinkAndRegisterThread(m, user.Email)
+	assignee := normalizeSlackAssignee(item.Assignee, user)
+	category := item.Category
+
+	if classification == "회신 대기" {
+		category = "waiting"
+	}
+
+	return store.ConsolidatedMessage{
+		UserEmail:    user.Email,
+		Source:       "slack",
+		Room:         sc.GetChannelName(m.ChannelID),
+		Task:         item.Task,
+		Requester:    item.Requester,
+		Assignee:     assignee,
+		AssignedAt:   m.Timestamp,
+		Link:         link,
+		SourceTS:     m.ID,
+		OriginalText: m.Text,
+		Category:     category,
+		ThreadID:     threadID,
+	}
+}
+
+// Why: Isolates the specific heuristic logic for deciding when an assignee should be defaulted to the current user.
+func normalizeSlackAssignee(assignee string, user *store.User) string {
+	lowerAsg := strings.ToLower(assignee)
+	if lowerAsg == "" || lowerAsg == "me" || lowerAsg == "나" || strings.EqualFold(assignee, user.Name) {
+		if user.Name != "" {
+			return user.Name
+		}
+		return user.Email
+	}
+	return assignee
+}
+
+// Why: Abstracts the URL formatting and the side-effect of registering threads for continuous background sweeping.
+func buildSlackLinkAndRegisterThread(m types.RawMessage, email string) string {
+	link := fmt.Sprintf("https://slack.com/archives/%s/p%s", m.ChannelID, strings.ReplaceAll(m.ID, ".", ""))
+	// Why: Register the thread so the slow sweeper can continuously monitor it for follow-up replies.
+	if m.ReplyToID != "" {
+		if err := store.RegisterTargetedSlackThread(m.ChannelID, m.ReplyToID, m.ID, email); err == nil {
+			logger.Debugf("[INTAKE-SLACK] Targeted thread registered: %s (User: %s)", m.ReplyToID, email)
+		}
+		link += fmt.Sprintf("?thread_ts=%s", m.ReplyToID)
+	}
+	return link
 }

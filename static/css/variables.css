@@ -3,7 +3,8 @@
     --bg-color: #050608;
     --card-bg: rgba(255, 255, 255, 0.03);
     --accent-color: #00f2ff;
-    --accent-glow: rgba(0, 242, 255, 0.3);
+    --accent-rgb: 0, 242, 255;
+    --accent-glow: rgba(var(--accent-rgb), 0.3);
     /* 0 242 255 */
     --text-main: #f0f0f0;
     --text-dim: #9ca3af;
@@ -83,10 +84,12 @@
     --color-info: #3b82f6;
     --color-info-rgb: 59, 130, 246;
 
-    /* Platform Brand Colors */
     --color-slack: #36C5F0;
+    --color-slack-rgb: 54, 197, 240;
     --color-whatsapp: #25D366;
+    --color-whatsapp-rgb: 37, 211, 102;
     --color-gmail: #EA4335;
+    --color-gmail-rgb: 234, 67, 53;
 
     /* Breakpoint Tokens */
     --bp-mobile: 30rem;
@@ -109,6 +112,8 @@
     /* 38px */
     --status-card-icon-sm: 1.875rem;
     /* 30px */
+    --task-card-min-width: 25rem;
+    /* 400px */
     --btn-size: 2.5rem;
     /* 40px */
     --btn-size-sm: 2rem;
@@ -123,6 +128,12 @@
     --table-cell-padding: 1.2rem 1rem;
     --table-row-hover: rgba(255, 255, 255, 0.04);
     --text-muted: rgba(240, 240, 240, 0.6);
+
+    /* Z-Index Tokens (Layering) */
+    --z-index-sticky: 10;
+    --z-index-dropdown: 1000;
+    --z-index-modal: 2000;
+    --z-index-spinner: 10000;
 }
 
 /* Light Theme Overrides - High Contrast Premium Slate */
@@ -130,7 +141,8 @@ body.light-theme {
     --bg-color: #f1f5f9;
     --card-bg: #ffffff;
     --accent-color: #4338ca;
-    --accent-glow: rgba(67, 56, 202, 0.15);
+    --accent-rgb: 67, 56, 202;
+    --accent-glow: rgba(var(--accent-rgb), 0.15);
     --accent-light: #6366f1;
     --text-main: #020617;
     --text-dim: #475569;
@@ -152,4 +164,11 @@ body.light-theme {
     --table-row-hover: rgba(0, 0, 0, 0.03);
     --text-muted: rgba(15, 23, 42, 0.6);
     background-image: radial-gradient(circle at 50% -20%, #e2e8f0, var(--bg-color));
+    /* Brand Colors (Formalized) */
+    --brand-excel: #1d6f42;
+    --brand-excel-hover: #165a35;
+    --brand-whatsapp: #25d366;
+    --brand-whatsapp-hover: #1da851;
+    --brand-json: #f39c12;
+    --brand-json-hover: #d3850e;
 }

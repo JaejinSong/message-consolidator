@@ -1,0 +1,32 @@
+/* --- Utilities --- */
+.u-text-center { text-align: center; }
+.u-mt-1 { margin-top: 0.25rem; }
+.u-mt-2 { margin-top: 0.5rem; }
+.u-mt-4 { margin-top: 1rem; }
+.u-mb-2 { margin-bottom: 0.5rem; }
+.u-mb-4 { margin-bottom: 1rem; }
+.u-mb-6 { margin-bottom: 1.5rem; }
+.u-text-main { color: var(--text-main); }
+.u-text-dim { color: var(--text-dim); }
+.u-text-accent { color: var(--accent-color); }
+.u-text-error { color: var(--color-error); }
+.u-text-lg { font-size: 1.1rem; }
+.u-font-bold { font-weight: 800; }
+.u-flex { display: flex; }
+.u-items-center { align-items: center; }
+.u-gap-2 { gap: 0.5rem; }
+.u-hidden, .hidden { display: none !important; }
+.u-invisible { visibility: hidden !important; }
+
+/* XP Float Text */
+.xp-float {
+    /* @layout-override */
+    position: absolute;
+    color: var(--accent-color);
+    font-weight: bold;
+    font-size: 1.2rem;
+    pointer-events: none;
+    z-index: var(--z-index-dropdown);
+    text-shadow: 0 0 var(--spacing-sm) var(--accent-glow);
+    animation: xpFloat 1s ease-out forwards;
+}

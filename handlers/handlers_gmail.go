@@ -10,18 +10,19 @@ import (
 	"strings"
 )
 
-func HandleGmailConnect(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleGmailConnect(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	state := "gmail:" + email
 	url := channels.GetGmailAuthURL(state)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
-func HandleGmailCallback(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleGmailCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	state := r.URL.Query().Get("state")
 	code := r.URL.Query().Get("code")
 
+	// Ensure the callback originates from a Gmail auth flow to prevent CSRF or misrouted callbacks
 	if !strings.HasPrefix(state, "gmail:") {
 		http.Error(w, "Invalid state", http.StatusBadRequest)
 		return
@@ -51,19 +52,19 @@ func HandleGmailCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/?gmail=connected", http.StatusTemporaryRedirect)
 }
 
-func HandleGmailStatus(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleGmailStatus(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	connected := store.HasGmailToken(email)
 	logger.Debugf("[CHANNEL] Gmail status for %s: connected=%v", email, connected)
 	w.Header().Set("Content-Type", "application/json")
-	respondJSON(w, map[string]bool{"connected": connected})
+	respondJSON(w, http.StatusOK, map[string]bool{"connected": connected})
 }
 
-func HandleGmailDisconnect(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleGmailDisconnect(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	if err := store.DeleteGmailToken(email); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	respondJSON(w, map[string]string{"status": "disconnected"})
+	respondJSON(w, http.StatusOK, map[string]string{"status": "disconnected"})
 }

@@ -4,6 +4,7 @@
 */
 
 .c-modal {
+    /* @layout-override */
     position: fixed;
     top: 0;
     left: 0;
@@ -18,7 +19,7 @@
     justify-content: center;
     align-items: center;
     padding: var(--spacing-md);
-    z-index: 2000;
+    z-index: var(--z-index-modal);
     animation: fadeIn 0.2s ease-out;
     /* Faster fade-in */
 }
@@ -32,7 +33,7 @@
     border: var(--border-thin) solid var(--glass-border);
     border-radius: var(--radius-xl);
     width: 100%;
-    max-width: 600px;
+    max-width: var(--bp-laptop); /* Using 1000px/62.5rem token or approx */
     max-height: 90vh;
     padding: var(--spacing-xl);
     position: relative;
@@ -46,11 +47,11 @@
 
 /* Modifiers for different sizes */
 .c-modal__content--large {
-    max-width: 800px;
+    max-width: 50rem;
 }
 
 .c-modal__content--small {
-    max-width: 400px;
+    max-width: 25rem;
 }
 
 .c-modal__content--center {
@@ -90,8 +91,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: var(--btn-size-sm);
+    height: var(--btn-size-sm);
     border-radius: 50%;
 }
 
@@ -115,9 +116,40 @@
     gap: var(--spacing-md);
 }
 
+.c-modal__footer--stack {
+    flex-direction: column !important;
+    border: none !important;
+    padding: 0 !important;
+    gap: var(--spacing-sm) !important;
+}
+
+.c-modal__title--error {
+    color: var(--color-error) !important;
+}
+
+.c-modal__icon {
+    font-size: 3rem;
+    margin-bottom: var(--spacing-md);
+}
+
+.c-modal__icon--xl {
+    font-size: 3.5rem !important;
+}
+
+.c-modal__footnote {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 1rem;
+}
+
+/* --- Utility Classes --- */
+.u-invisible {
+    visibility: hidden !important;
+}
+
 /* Scrollbar styling for modal body */
 .c-modal__body::-webkit-scrollbar {
-    width: 6px;
+    width: var(--border-thick);
 }
 
 .c-modal__body::-webkit-scrollbar-track {
@@ -126,11 +158,82 @@
 
 .c-modal__body::-webkit-scrollbar-thumb {
     background: var(--glass-border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
 }
 
 /* Release Notes Specific Markdown Styles */
 .release-notes-body {
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: var(--text-main);
+}
+
+/* --- WhatsApp QR Modal --- */
+.c-wa-qr__desc {
+    color: var(--text-dim);
+    margin-bottom: 1.5rem;
+}
+
+.c-wa-qr__container {
+    background: white;
+    padding: 1.5rem;
+    display: inline-block;
+    border-radius: var(--radius-lg);
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow-card);
+}
+
+.c-wa-qr__img {
+    width: 16rem;
+    height: 16rem;
+    display: block;
+}
+
+.c-wa-qr__placeholder {
+    width: 16rem;
+    height: 16rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-weight: 800;
+    font-size: 1.2rem;
+}
+
+.c-wa-qr__timer {
+    margin-top: 1rem;
+    width: 100%;
+}
+
+.c-wa-qr__progress-base {
+    height: var(--spacing-xs);
+    background: rgba(0,0,0,0.1);
+    border-radius: var(--spacing-xxs);
+    overflow: hidden;
+}
+
+.c-wa-qr__progress-fill {
+    width: 100%;
+    height: 100%;
+    background: var(--color-primary);
+    transition: width 1s linear;
+}
+
+.c-wa-qr__timer-text {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-top: 0.5rem;
+}
+
+/* --- Original Message Modal --- */
+.c-original-message__text {
+    white-space: pre-wrap;
+    height: auto;
+    min-height: 12.5rem;
+}
+
+/* --- Release Notes --- */
+.c-release-notes {
     font-size: 0.95rem;
     line-height: 1.7;
     color: var(--text-main);
@@ -144,7 +247,7 @@
 
 .release-notes-markdown h2 {
     font-size: 1.2rem;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: var(--border-thin) solid var(--glass-border);
     padding-bottom: 0.3rem;
     margin: 1.5rem 0 0.8rem;
 }
@@ -157,13 +260,13 @@
 .release-notes-markdown code {
     background: rgba(255, 255, 255, 0.1);
     padding: 0.2rem 0.4rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     font-family: monospace;
 }
 
 .release-notes-markdown hr {
     border: 0;
-    border-top: 1px solid var(--glass-border);
+    border-top: var(--border-thin) solid var(--glass-border);
     margin: 1.5rem 0;
 }
 
@@ -178,7 +281,7 @@
 /* --- Light Theme Overrides --- */
 body.light-theme .release-notes-markdown code {
     background: rgba(0, 0, 0, 0.05);
-    color: #c026d3;
+    color: var(--accent-color);
 }
 
 body.light-theme .c-modal__close:hover {

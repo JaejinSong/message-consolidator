@@ -36,7 +36,8 @@ func TestHandleGetMessages(t *testing.T) {
 	req := NewMockRequest("GET", "/api/messages", email)
 	rr := httptest.NewRecorder()
 
-	HandleGetMessages(rr, req)
+	api := &API{}
+	api.HandleGetMessages(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
@@ -77,7 +78,8 @@ func TestHandleDelete(t *testing.T) {
 	req = req.WithContext(WithMockUser(req.Context(), email))
 	rr := httptest.NewRecorder()
 
-	HandleDelete(rr, req)
+	api := &API{}
+	api.HandleDelete(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)

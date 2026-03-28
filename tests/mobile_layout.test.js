@@ -9,7 +9,7 @@ describe('Mobile Layout Regression Tests', () => {
     it('base.css should have reduced body padding for mobile (480px)', () => {
         const content = fs.readFileSync(baseCssPath, 'utf8');
         // Check for media query and body padding
-        const hasMobilePadding = /@media\s*\(max-width:\s*480px\)\s*{\s*body\s*{\s*padding:\s*0\.5rem;/.test(content);
+        const hasMobilePadding = /@media\s*\(max-width:\s*var\(--bp-mobile\)\)\s*{\s*body\s*{\s*padding:\s*0\.5rem;/.test(content);
         expect(hasMobilePadding).toBe(true);
     });
 

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// GamificationResult 에는 프론트엔드 연출(꽃가루, 연속 콤보 이펙트)을 위한 정보가 담깁니다.
+// GamificationResult encapsulates the rewards earned from a task. This data drives frontend visual feedback (like confetti or combo animations) to enhance user engagement.
 type GamificationResult struct {
 	XPAdded              int
 	PointsAdded          int
@@ -39,7 +39,7 @@ func ProcessTaskCompletion(u *store.User) (GamificationResult, error) {
 
 	queueUserUpdate(u)
 
-	// 비동기로 업적 체크 진행 (API 응답 지연 방지)
+	// Evaluate achievement conditions asynchronously to ensure the main task completion API responds quickly without being blocked by database queries.
 	go func(user store.User) {
 		unlocked, err := store.CheckAndUnlockAchievements(user)
 		if err != nil {
@@ -48,22 +48,27 @@ func ProcessTaskCompletion(u *store.User) (GamificationResult, error) {
 		}
 		if len(unlocked) > 0 {
 			logger.Infof("[Gamification] User %s unlocked %d achievements in background", user.Email, len(unlocked))
-			// TODO: 실시간 알림(WebSocket 등)이 필요하다면 여기서 트리거
+			// TODO: Trigger real-time push notifications (e.g., via WebSockets) here to immediately alert the user of newly unlocked achievements.
 		}
 	}(*u)
 
 	return res, nil
 }
 
+// calculateRewards determines the XP and points awarded for completing a task.
+// It includes base rewards, combo bonuses, and a chance for a critical hit.
 func calculateRewards(u *store.User, now time.Time) GamificationResult {
+	// Start with base rewards for any task completion.
 	res := GamificationResult{XPAdded: 10, PointsAdded: 5}
 
+	// Apply a combo bonus if the user completes another task within 5 minutes.
 	if u.LastCompletedAt != nil && now.Sub(*u.LastCompletedAt) < 5*time.Minute {
 		res.ComboActive = true
 		res.XPAdded += 5
 		res.PointsAdded += 2
 	}
 
+	// Add a 5% chance for a "critical hit" that doubles the rewards.
 	if rand.Float32() < 0.05 {
 		res.IsCritical = true
 		res.XPAdded *= 2
@@ -72,38 +77,51 @@ func calculateRewards(u *store.User, now time.Time) GamificationResult {
 	return res
 }
 
-func updateStreak(currentStreak, currentFreezes int, lastCompletedAt *time.Time, now time.Time) (int, int) {
+// updateStreak calculates the new streak count and the number of freezes used.
+func updateStreak(currentStreak, currentFreezes int, lastCompletedAt *time.Time, now time.Time) (newStreak int, freezesUsed int) {
+	// If this is the user's first-ever completed task, start the streak at 1.
 	if lastCompletedAt == nil {
 		return 1, 0
 	}
+
+	// To compare dates accurately, we normalize both times to the start of their respective days.
 	last := *lastCompletedAt
 	lastDate := time.Date(last.Year(), last.Month(), last.Day(), 0, 0, 0, 0, last.Location())
 	nowDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	daysDiff := int(nowDate.Sub(lastDate).Hours() / 24)
 
-	if daysDiff == 1 {
+	switch {
+	case daysDiff == 1:
+		// The user completed a task on the very next day, so the streak continues.
 		return currentStreak + 1, 0
-	} else if daysDiff > 1 {
+	case daysDiff > 1:
+		// The user missed one or more days.
 		missedDays := daysDiff - 1
 		if currentFreezes >= missedDays {
-			// 보호권이 충분하면 공백을 메우고 오늘 분(+1) 추가
+			// If the user has accumulated enough 'streak freezes' to cover the missed days, consume them to preserve the streak and increment it for today.
 			return currentStreak + 1, missedDays
 		}
+		// Not enough freezes, so the streak resets to 1 for today's completion.
 		return 1, 0
+	default: // daysDiff is 0 or negative (e.g., multiple tasks on the same day)
+		// The streak does not increase, just maintained.
+		return currentStreak, 0
 	}
-	return currentStreak, 0
 }
 
+// queueUserUpdate adds a user's updated gamification state to a "dirty" map,
+// which will be batch-written to the database by FlushGamificationData.
 func queueUserUpdate(u *store.User) {
 	gamificationMu.Lock()
 	defer gamificationMu.Unlock()
+	// A snapshot of the user object is taken to prevent race conditions.
 	snapshot := *u
 	dirtyUsers[u.Email] = &snapshot
 	logger.Debugf("[Gamification] User %s queued for flush (XP: %d, Pts: %d)", u.Email, u.XP, u.Points)
 }
 
-// FlushGamificationData 는 DB가 스캔 등의 이유로 이미 깨어있는 시점(Piggyback)에 호출되어
-// 큐에 쌓인 변경사항을 한 번에 배치 처리합니다.
+// FlushGamificationData executes a batch update of all queued gamification state changes.
+// It is designed to be piggybacked onto existing database activity (like message scanning) to minimize dedicated connection overhead.
 func FlushGamificationData() error {
 	gamificationMu.Lock()
 	count := len(dirtyUsers)
@@ -111,7 +129,7 @@ func FlushGamificationData() error {
 		gamificationMu.Unlock()
 		return nil
 	}
-	// 안전한 복사 후 큐 비우기
+	// Swap the dirty users map with a fresh instance under the lock to allow concurrent updates while we process the current batch.
 	usersToUpdate := dirtyUsers
 	dirtyUsers = make(map[string]*store.User)
 	gamificationMu.Unlock()
@@ -124,7 +142,7 @@ func FlushGamificationData() error {
 			logger.Errorf("[Gamification] Failed to piggyback flush data for %s: %v", email, err)
 			errCount++
 
-			// 롤백: DB 저장에 실패한 유저는 다음 Flush 를 위해 큐에 복구
+			// Rollback mechanism: Re-queue any users whose updates failed, ensuring their gamification progress is preserved for the next flush attempt.
 			gamificationMu.Lock()
 			if _, exists := dirtyUsers[email]; !exists {
 				dirtyUsers[email] = u

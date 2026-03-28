@@ -55,7 +55,7 @@ func DecodeBase64URL(data string) (string, error) {
 		return string(decoded), nil
 	}
 
-	// 2. URL-safe encoding (without padding) - common in web tokens and JWTs
+	// 2. URL-safe encoding (without padding) - Commonly used in web/tokens
 	decoded, err = base64.RawURLEncoding.DecodeString(data)
 	if err == nil {
 		return string(decoded), nil
@@ -80,7 +80,7 @@ func DecodeBase64URL(data string) (string, error) {
 func sanitizeJSON(s string) string {
 	s = strings.TrimSpace(s)
 
-	// 1. Strip extraneous conversational text surrounding markdown code blocks (e.g., ```json) to extract raw JSON data accurately.
+	// 1. Completely strip any descriptive text surrounding markdown code blocks (e.g., ```json)
 	startIdx := strings.Index(s, "```json")
 	if startIdx == -1 {
 		startIdx = strings.Index(s, "```")
@@ -98,13 +98,13 @@ func sanitizeJSON(s string) string {
 
 	s = strings.TrimSpace(s)
 
-	// 2. Best-effort extraction based on brackets to handle unformatted or malformed JSON responses.
+	// 2. Best-effort extraction based on brackets
 	start := strings.IndexAny(s, "[{")
 	end := strings.LastIndexAny(s, "]}")
 	if start != -1 && end != -1 && start < end {
 		extracted := s[start : end+1]
 
-		// [Defensive fallback] Repair truncated JSON arrays to salvage partial responses
+		// [Fallback] Repair truncated JSON arrays
 		if extracted[0] == '[' && extracted[len(extracted)-1] == '}' {
 			extracted += "]"
 		}

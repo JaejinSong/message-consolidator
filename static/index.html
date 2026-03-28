@@ -25,7 +25,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Message Consolidator Premium</title>
     <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
-    <link rel="stylesheet" href="static/style.css?v=2.1.984">
+    <link rel="stylesheet" href="static/style.css?v=2.4.0">
     <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
@@ -156,48 +156,48 @@
             <nav class="c-main-nav">
                 <button type="button" id="dashViewBtn" class="c-main-nav__item c-main-nav__item--active"
                     data-view="dashboard">
-                    <span class="nav-icon" style="font-size: 1.5rem;">📊</span>
+                    <span class="nav-icon">📊</span>
                     <span class="nav-text" data-i18n="dashboardTitle">Dashboard</span>
                 </button>
                 <button type="button" id="archiveViewBtn" class="c-main-nav__item" data-view="archive">
-                    <span class="nav-icon" style="font-size: 1.5rem;">📦</span>
+                    <span class="nav-icon">📦</span>
                     <span class="nav-text" data-i18n="archiveTitle">Archive</span>
                 </button>
                 <button type="button" id="insightsViewBtn" class="c-main-nav__item" data-view="insights">
-                    <span class="nav-icon" style="font-size: 1.5rem;">💡</span>
+                    <span class="nav-icon">💡</span>
                     <span class="nav-text" data-i18n="insightsTitle">Insights</span>
                 </button>
             </nav>
 
-            <div id="loading" class="hidden">
+            <div id="loading" class="loading-overlay">
                 <div class="spinner"></div>
                 <p data-i18n="loading">Gemini is scanning for new tasks...</p>
             </div>
 
             <div id="dashboardContent" class="tabs-container">
                 <div class="tabs c-tabs">
-                    <button type="button" class="tab-btn c-tabs__btn active" data-tab="myTasksTab"
-                        style="flex-shrink: 0; white-space: nowrap;"><span data-i18n="myTasks">My Tasks</span>
+                    <button type="button" class="tab-btn c-tabs__btn active" data-tab="myTasksTab">
+                        <span data-i18n="myTasks">My Tasks</span>
                         <span class="badge count" id="myCount">0</span></button>
-                    <button type="button" class="tab-btn c-tabs__btn" data-tab="otherTasksTab"
-                        style="flex-shrink: 0; white-space: nowrap;"><span data-i18n="otherTasks">Other
-                            Tasks</span> <span class="badge count" id="otherCount">0</span></button>
-                    <button type="button" class="tab-btn c-tabs__btn" data-tab="waitingTasksTab"
-                        style="flex-shrink: 0; white-space: nowrap;"><span data-i18n="waitingTasks">Waiting On</span>
+                    <button type="button" class="tab-btn c-tabs__btn" data-tab="otherTasksTab">
+                        <span data-i18n="otherTasks">Other Tasks</span>
+                        <span class="badge count" id="otherCount">0</span></button>
+                    <button type="button" class="tab-btn c-tabs__btn" data-tab="waitingTasksTab">
+                        <span data-i18n="waitingTasks">Waiting On</span>
                         <span class="badge count" id="waitingCount">0</span></button>
-                    <button type="button" class="tab-btn c-tabs__btn" data-tab="allTasksTab"
-                        style="flex-shrink: 0; white-space: nowrap;"><span data-i18n="allTasks">All Tasks</span>
+                    <button type="button" class="tab-btn c-tabs__btn" data-tab="allTasksTab">
+                        <span data-i18n="allTasks">All Tasks</span>
                         <span class="badge count" id="allCount">0</span></button>
                 </div>
 
                 <div class="task-list-header c-table-header">
-                    <div class="col-source" id="hSource" title="Source" data-i18n-title="hSource">#</div>
-                    <div class="col-room" id="hRoom">Room</div>
-                    <div class="col-task" id="hTask">Task</div>
-                    <div class="col-requester" id="hRequester">Requester</div>
-                    <div class="col-assignee" id="hAssignee">Assignee</div>
-                    <div class="col-time" id="hTime">Time</div>
-                    <div class="col-actions" id="hActions">Actions</div>
+                    <div class="c-table-header__source" id="hSource" title="Source" data-i18n-title="hSource">#</div>
+                    <div class="c-table-header__room" id="hRoom">Room</div>
+                    <div class="c-table-header__content" id="hTask">Task</div>
+                    <div class="c-table-header__requester" id="hRequester">Requester</div>
+                    <div class="c-table-header__assignee" id="hAssignee">Assignee</div>
+                    <div class="c-table-header__time" id="hTime">Time</div>
+                    <div class="c-table-header__actions" id="hActions">Actions</div>
                 </div>
 
                 <div id="myTasksTab" class="c-tabs__panel c-tabs__panel--active">
@@ -239,14 +239,24 @@
                         <!-- Daily summary text will be rendered here -->
                     </div>
 
-                    <div class="insights-grid">
-                        <div class="insights-card full-width">
-                            <h3 data-i18n="waitingTasks">Pending Tasks</h3>
-                            <div id="waitingMetrics" class="metrics-grid"
-                                style="display: flex; gap: 4rem; margin-top: 1rem;"></div>
+                    <div class="insights-dashboard">
+                        <h2 class="insights-section-title" data-i18n="waitingTasks">Pending Tasks</h2>
+                        
+                        <div class="insights-card insights-card--square">
+                            <h3 data-i18n="pendingMeTasks">My Tasks</h3>
+                            <div id="waitingMetricsMe" class="c-stat-item__value">0</div>
                         </div>
 
-                        <div class="insights-card full-width">
+                        <div class="insights-card insights-card--square">
+                            <h3 data-i18n="needsAttentionTasks">Bottleneck</h3>
+                            <div id="waitingMetricsAttention" class="c-stat-item__value c-stat-item__value--error">0</div>
+                        </div>
+
+                        <!-- Empty slot for grid balance if needed, or just let it flow -->
+                        <div class="insights-card insights-card--square u-invisible"></div>
+
+                        <h2 class="insights-section-title" data-i18n="reviewStatsTitle">Completion Trends</h2>
+                        <div class="insights-card insights-card--full">
                             <div class="chart-header">
                                 <h3 data-i18n="reviewStatsTitle">Review Statistics</h3>
                                 <div class="chart-filters">
@@ -262,23 +272,24 @@
                             <div id="ankiChartContainer" class="svg-chart-container"></div>
                         </div>
 
-                        <div class="insights-card">
+                        <h2 class="insights-section-title" data-i18n="heatmapTitle">Activity Analysis</h2>
+                        <div class="insights-card insights-card--square">
                             <h3 data-i18n="heatmapTitle">Activity (Last 30 Days)</h3>
                             <div id="activityHeatmap" class="heatmap-container"></div>
                         </div>
 
-                        <div class="insights-card">
+                        <div class="insights-card insights-card--square">
                             <h3 data-i18n="sourceDistTitle">Channel Distribution</h3>
                             <div id="sourceDistribution" class="chart-container"></div>
                         </div>
 
-                        <div class="insights-card">
+                        <div class="insights-card insights-card--square">
                             <h3 data-i18n="hourlyActivity">Hourly Activity</h3>
                             <div id="hourlyActivity" class="heatmap-container"></div>
                         </div>
 
-                        <div class="insights-card">
-                            <h3 data-i18n="achievementsTitle">Achievements</h3>
+                        <h2 class="insights-section-title" data-i18n="achievementsTitle">Achievements</h2>
+                        <div class="insights-card insights-card--full">
                             <div id="achievementsList" class="achievements-mini-list"></div>
                         </div>
                     </div>
@@ -286,15 +297,14 @@
 
                 <!-- 예정된 보고서 영역 (Reports Tab - Hidden by default) -->
                 <div id="insightsReportsContent" class="insights-container hidden">
-                    <div class="insights-card full-width" style="text-align: center; padding: 4rem 2rem;">
-                        <p style="color: var(--text-dim);">상세 보고서 기능이 곧 업데이트될 예정입니다. 🚀</p>
+                    <div class="insights-card insights-card--full c-reports-placeholder">
+                        <p data-i18n="reportsComingSoon">상세 보고서 기능이 곧 업데이트될 예정입니다. 🚀</p>
                     </div>
                 </div>
             </section>
 
             <!-- Archive View (Hidden by default) -->
-            <section id="archiveSection" class="hidden glass-card"
-                style="margin-top: 0.5rem; padding: 1.25rem 1.5rem; position: relative;">
+            <section id="archiveSection" class="hidden glass-card">
 
                 <!-- Archive 2단계 탭 메뉴 -->
                 <div class="tabs c-tabs">
@@ -305,8 +315,8 @@
                     <button type="button" class="tab-btn c-tabs__btn" data-tab="archiveDoneTab">
                         <span data-i18n="archiveDone">완료된 업무</span>
                     </button>
-                    <button type="button" class="tab-btn c-tabs__btn" data-tab="archiveTrashTab">
-                        <span data-i18n="archiveTrash">삭제된 업무</span>
+                    <button type="button" class="tab-btn c-tabs__btn" data-tab="archiveCanceledTab">
+                        <span data-i18n="archiveCanceled">취소한 업무</span>
                     </button>
                 </div>
                 <div id="archiveLoading" class="loading-overlay">
@@ -477,25 +487,19 @@
                 <h3 class="c-modal__title" data-i18n="exportSummaryTitle">Export Summary</h3>
                 <button id="closeExportModalBtn" class="c-modal__close">&times;</button>
             </div>
-            <div class="c-modal__body" style="text-align: center;">
-                <div id="exportSummaryIcon" style="font-size: 3rem; margin-bottom: 1rem;">📊</div>
-                <p style="margin-bottom: 1.5rem; color: var(--text-main);">
-                    <span id="exportCount" style="font-weight: 800; color: var(--accent-color);">0</span>
+            <div class="c-modal__body c-modal__content--center">
+                <div id="exportSummaryIcon" class="c-modal__icon">📊</div>
+                <p class="u-mb-4 u-text-main">
+                    <span id="exportCount" class="u-text-accent u-font-bold">0</span>
                     <span id="exportSummaryText" data-i18n="exportSummaryText">tasks are ready to be exported.</span>
                 </p>
-                <div class="c-modal__footer" style="flex-direction: column; border: none; padding: 0;">
-                    <button type="button" id="confirmExportExcel" class="c-btn"
-                        style="background: #1d6f42; width: 100%;" data-i18n="exportExcelBtn">Download as Excel
-                        (.xlsx)</button>
-                    <button type="button" id="confirmExportCsv" class="c-btn" style="background: #25d366; width: 100%;"
-                        data-i18n="exportCsvBtn">Download as CSV (.csv)</button>
-                    <button type="button" id="confirmExportJson" class="c-btn" style="background: #f39c12; width: 100%;"
-                        data-i18n="exportJsonBtn">Download as JSON
-                        (.json)</button>
-                    <button type="button" id="cancelExportBtn" class="c-btn c-btn--ghost" data-action="close-modal"
-                        style="width: 100%;" data-i18n="cancelBtn">Cancel</button>
+                <div class="c-modal__footer c-modal__footer--stack">
+                    <button type="button" id="confirmExportExcel" class="c-btn c-btn--excel" data-i18n="exportExcelBtn">Download as Excel (.xlsx)</button>
+                    <button type="button" id="confirmExportCsv" class="c-btn c-btn--csv" data-i18n="exportCsvBtn">Download as CSV (.csv)</button>
+                    <button type="button" id="confirmExportJson" class="c-btn c-btn--json" data-i18n="exportJsonBtn">Download as JSON (.json)</button>
+                    <button type="button" id="cancelExportBtn" class="c-btn c-btn--ghost" data-action="close-modal" data-i18n="cancelBtn">Cancel</button>
                 </div>
-                <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 1rem;" data-i18n="exportWarning">
+                <p class="c-modal__footnote" data-i18n="exportWarning">
                     * Only filtered results will be exported if a search query is active.
                 </p>
             </div>
@@ -506,25 +510,22 @@
     <div id="deleteConfirmModal" class="c-modal hidden">
         <div class="c-modal__content c-modal__content--small">
             <div class="c-modal__header">
-                <h3 class="c-modal__title" style="color: var(--color-error);" data-i18n="hardDeleteTitle">Permanent
-                    Delete</h3>
+                <h3 class="c-modal__title c-modal__title--error" data-i18n="hardDeleteTitle">Permanent Delete</h3>
                 <button id="closeDeleteConfirmBtn" class="c-modal__close">&times;</button>
             </div>
-            <div class="c-modal__body" style="text-align: center;">
-                <div style="font-size: 3.5rem; margin-bottom: 1rem;">🗑️</div>
-                <p style="margin-bottom: 1rem; color: var(--text-main); font-size: 1.1rem;">
-                    <span data-i18n="hardDeletePromptPrefix">Are you sure you want to delete </span><span
-                        id="deleteConfirmCount" style="font-weight: 800; color: var(--color-error);">0</span><span
-                        data-i18n="hardDeletePromptSuffix"> items?</span>
+            <div class="c-modal__body c-modal__content--center">
+                <div class="c-modal__icon c-modal__icon--xl">🗑️</div>
+                <p class="u-mb-2 u-text-main u-text-lg">
+                    <span data-i18n="hardDeletePromptPrefix">Are you sure you want to delete </span>
+                    <span id="deleteConfirmCount" class="u-text-error u-font-bold">0</span>
+                    <span data-i18n="hardDeletePromptSuffix"> items?</span>
                 </p>
-                <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 2rem;" data-i18n="hardDeleteDesc">
+                <p class="u-text-dim u-mb-6" data-i18n="hardDeleteDesc">
                     This action cannot be undone and will permanently remove the data.
                 </p>
-                <div class="c-modal__footer" style="flex-direction: column; border: none; padding: 0;">
-                    <button type="button" id="confirmHardDeleteBtn" class="c-btn c-btn--danger" style="width: 100%;"
-                        data-i18n="hardDeleteConfirmBtn">Yes, Delete Permanently</button>
-                    <button type="button" id="cancelDeleteConfirmBtn" class="c-btn c-btn--ghost"
-                        data-action="close-modal" style="width: 100%;" data-i18n="cancelBtn">Cancel</button>
+                <div class="c-modal__footer c-modal__footer--stack">
+                    <button type="button" id="confirmHardDeleteBtn" class="c-btn c-btn--danger" data-i18n="hardDeleteConfirmBtn">Yes, Delete Permanently</button>
+                    <button type="button" id="cancelDeleteConfirmBtn" class="c-btn c-btn--ghost" data-action="close-modal" data-i18n="cancelBtn">Cancel</button>
                 </div>
             </div>
         </div>
@@ -539,23 +540,15 @@
             </div>
             <div class="c-modal__body" style="text-align: center; padding: var(--spacing-lg);">
                 <div id="waQRSection">
-                    <p style="color: var(--text-dim); margin-bottom: 1.5rem;" data-i18n="waReqDesc">Please scan the QR
-                        code with your mobile WhatsApp app.</p>
-                    <div id="qrContainer"
-                        style="background: white; padding: 1.5rem; display: inline-block; border-radius: 12px; margin-bottom: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-                        <img id="waQRImg" style="width: 256px; height: 256px; display: block;" class="hidden" />
-                        <div id="qrPlaceholder" data-i18n="generating"
-                            style="width: 256px; height: 256px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: 800; font-size: 1.2rem;">
-                            Generating...</div>
-                        <div id="qrTimerContainer" class="hidden" style="margin-top: 1rem; width: 100%;">
-                            <div
-                                style="height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; overflow: hidden;">
-                                <div id="qrProgressBar"
-                                    style="width: 100%; height: 100%; background: var(--primary); transition: width 1s linear;">
-                                </div>
+                    <p class="c-wa-qr__desc" data-i18n="waReqDesc">Please scan the QR code with your mobile WhatsApp app.</p>
+                    <div id="qrContainer" class="c-wa-qr__container">
+                        <img id="waQRImg" class="c-wa-qr__img hidden" />
+                        <div id="qrPlaceholder" class="c-wa-qr__placeholder" data-i18n="generating">Generating...</div>
+                        <div id="qrTimerContainer" class="c-wa-qr__timer hidden">
+                            <div class="c-wa-qr__progress-base">
+                                <div id="qrProgressBar" class="c-wa-qr__progress-fill"></div>
                             </div>
-                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 0.5rem;"
-                                id="qrTimerText">Next refresh in 20s</div>
+                            <div class="c-wa-qr__timer-text" id="qrTimerText">Next refresh in 20s</div>
                         </div>
                     </div>
                     <div>
@@ -568,7 +561,7 @@
                 <div id="waConnectedSection" class="hidden" style="text-align: center;">
                     <div style="font-size: 4rem; margin-bottom: 1rem;">✅</div>
                     <h4 data-i18n="waConnected" style="margin-bottom: 0.5rem;">WhatsApp Connected</h4>
-                    <p style="color: var(--text-dim); margin-bottom: 2rem;" data-i18n="waConnectedDesc">WhatsApp is
+                    <p class="u-text-dim u-mb-8" data-i18n="waConnectedDesc">WhatsApp is
                         securely connected and monitoring messages in real-time.</p>
                     <div style="display: flex; gap: 1rem; justify-content: center;">
                         <button id="waRelinkBtn" class="c-btn c-btn--ghost" data-i18n="waRelinkBtn">Relink</button>
@@ -614,8 +607,7 @@
                 <button id="closeOriginalBtn" class="c-modal__close">&times;</button>
             </div>
             <div class="c-modal__body">
-                <div id="originalTextContent" class="c-input"
-                    style="white-space: pre-wrap; height: auto; min-height: 200px;">
+                <div id="originalTextContent" class="c-input c-original-message__text">
                     <!-- Original text will be injected here -->
                 </div>
             </div>
@@ -630,8 +622,7 @@
                 <button id="closeReleaseNotesBtn" class="c-modal__close">&times;</button>
             </div>
             <div class="c-modal__body">
-                <div id="releaseNotesContent" class="release-notes-body"
-                    style="font-size: 0.95rem; line-height: 1.7; color: var(--text-main);">
+                <div id="releaseNotesContent" class="release-notes-body c-release-notes">
                     <!-- Content will be injected here -->
                 </div>
             </div>

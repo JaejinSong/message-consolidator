@@ -12,6 +12,7 @@ var (
 	achCacheMu       sync.RWMutex
 )
 
+// UpdateUserGamification updates the user's gamification stats in the database and synchronizes the memory cache.
 func UpdateUserGamification(email string, points, streak, level, xp, dailyGoal int, lastCompleted *time.Time, streakFreezes int) error {
 	_, err := db.Exec(SQL.UpdateUserGamification,
 		points, streak, level, xp, dailyGoal, lastCompleted, streakFreezes, email)
@@ -32,6 +33,7 @@ func UpdateUserGamification(email string, points, streak, level, xp, dailyGoal i
 	return err
 }
 
+// GetAchievements retrieves all available achievements. It utilizes a double-checked locking pattern to safely and efficiently manage the cache.
 func GetAchievements() ([]Achievement, error) {
 	achCacheMu.RLock()
 	if len(achievementCache) > 0 {
@@ -43,7 +45,7 @@ func GetAchievements() ([]Achievement, error) {
 	achCacheMu.Lock()
 	defer achCacheMu.Unlock()
 
-	// Double check after lock
+	// Double-check the cache after acquiring the write lock to prevent race conditions.
 	if len(achievementCache) > 0 {
 		return achievementCache, nil
 	}
@@ -68,8 +70,10 @@ func GetAchievements() ([]Achievement, error) {
 	return achievements, nil
 }
 
+// GetUserAchievements retrieves the list of achievements unlocked by the user.
+// It also performs a retroactive check to unlock any achievements the user might have met the criteria for since their last check.
 func GetUserAchievements(userID int) ([]UserAchievement, error) {
-	// 1. 소급 적용을 위해 사용자 정보를 가져와 업적 체크를 먼저 수행
+	// Fetch user info and trigger a retroactive achievement check before returning the list.
 	var u User
 	var lastCompletedAt, createdAt DBTime
 	var slackID, waJID sql.NullString
@@ -93,7 +97,7 @@ func GetUserAchievements(userID int) ([]UserAchievement, error) {
 	return getUnlockedAchievementsFromDB(userID)
 }
 
-// getUnlockedAchievementsFromDB는 순수하게 DB에서 해제된 업적 목록만 조회 (내부용)
+// getUnlockedAchievementsFromDB retrieves the list of unlocked achievements purely from the database (internal use only).
 func getUnlockedAchievementsFromDB(userID int) ([]UserAchievement, error) {
 	rows, err := db.Query(SQL.GetUserAchievements, userID)
 	if err != nil {
@@ -114,6 +118,7 @@ func getUnlockedAchievementsFromDB(userID int) ([]UserAchievement, error) {
 	return ua, nil
 }
 
+// UnlockAchievement persists a newly unlocked achievement for a user in the database.
 func UnlockAchievement(userID, achievementID int) error {
 	_, err := db.Exec(SQL.UnlockAchievement, userID, achievementID)
 	return err
@@ -126,7 +131,7 @@ func CheckAndUnlockAchievements(user User) ([]Achievement, error) {
 		return nil, err
 	}
 
-	// 순환 참조 방지를 위해 내부 함수 직접 호출
+	// Call the internal function directly to prevent infinite loops or circular dependencies.
 	userAchievements, err := getUnlockedAchievementsFromDB(user.ID)
 	if err != nil {
 		return nil, err

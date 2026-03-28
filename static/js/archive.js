@@ -34,12 +34,17 @@ export const archive = {
                 lang: state.currentLang,
                 sort: state.archiveSort,
                 order: state.archiveOrder,
-                status: state.archiveStatus || 'all' // 탭 상태값 추가
+                status: state.archiveStatus || 'all'
             };
             const data = await api.fetchArchive(params);
             state.archiveTotalCount = data.total;
-            const archiveCountEl = document.getElementById('archiveCount');
-            if (archiveCountEl) archiveCountEl.textContent = data.total;
+
+            // Only update the 'All' tab badge if we are actually viewing 'all'
+            if (params.status === 'all') {
+                const archiveCountEl = document.getElementById('archiveCount');
+                if (archiveCountEl) archiveCountEl.textContent = data.total;
+            }
+
             renderer.renderArchive(data.messages);
             this.updatePaginationUI();
         } finally {
@@ -152,7 +157,7 @@ export const archive = {
             document.getElementById(id)?.addEventListener('click', () => triggerArchiveSort(field));
         });
 
-        // 보관함 2단계 탭 바인딩 (전체 / 완료된 업무 / 삭제된 업무)
+        // 보관함 2단계 탭 바인딩 (전체 / 완료된 업무 / 취소한 업무)
         const archiveTabs = document.querySelectorAll('#archiveSection .tab-btn');
         archiveTabs.forEach(tab => {
             tab.addEventListener('click', (e) => {
@@ -162,8 +167,8 @@ export const archive = {
                 const target = e.currentTarget.getAttribute('data-tab');
                 if (target === 'archiveDoneTab') {
                     state.archiveStatus = 'done';
-                } else if (target === 'archiveTrashTab') {
-                    state.archiveStatus = 'trash';
+                } else if (target === 'archiveCanceledTab') {
+                    state.archiveStatus = 'canceled';
                 } else {
                     state.archiveStatus = 'all';
                 }
@@ -180,7 +185,8 @@ export const archive = {
     setupExportModal() {
         const exportModal = document.getElementById('exportModal');
         document.getElementById('openExportModalBtn')?.addEventListener('click', safeAsync(async () => {
-            const countData = await api.fetchArchiveCount(state.archiveSearch);
+            const currentStatus = state.archiveStatus || 'all';
+            const countData = await api.fetchArchiveCount(state.archiveSearch, currentStatus);
             document.getElementById('exportCount').textContent = countData.count;
             exportModal.classList.remove('hidden');
         }, (e) => {
@@ -213,11 +219,14 @@ export const archive = {
 
         exportFormats.forEach(({ id, path, ext }) => {
             document.getElementById(id)?.addEventListener('click', () => {
-                const query = state.archiveSearch ? `?q=${encodeURIComponent(state.archiveSearch)}` : '';
+                const query = new URLSearchParams();
+                if (state.archiveSearch) query.set('q', state.archiveSearch);
+                query.set('status', state.archiveStatus || 'all');
+
                 const now = new Date();
                 const pad = (n) => String(n).padStart(2, '0');
                 const timestamp = `${now.getFullYear()}_${pad(now.getMonth() + 1)}_${pad(now.getDate())}_${pad(now.getHours())}_${pad(now.getMinutes())}`;
-                downloadFile(`${path}${query}`, `Message_Archive_${timestamp}.${ext}`);
+                downloadFile(`${path}?${query.toString()}`, `Message_Archive_${timestamp}.${ext}`);
                 exportModal.classList.add('hidden');
             });
         });

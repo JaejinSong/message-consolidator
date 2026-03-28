@@ -69,3 +69,12 @@
   - [x] Go 백엔드 DB 드라이버를 `lib/pq`에서 `pgx`로 마이그레이션 및 파라미터 바인딩 안정화
   - [x] PgBouncer 등 Connection Pooler 환경에서의 Prepared Statement 충돌(`08P01` 에러) 원천 차단 (`ANY` -> `IN` 전환)
   - [x] **SQL 쿼리 아키텍처 리팩토링**: SQL `VIEW` 도입을 통한 컬럼 프로젝션 표준화 및 중복 쿼리 통합 완료
+
+---
+
+## 보관함(Archive) 최적화 및 명칭 개선 (Archive & Terminology)
+
+- [x] **보관함 분류 릴레이션 및 명칭 개선**
+  - [x] **완료 우선순위(Completion-Priority) 필터링**: 업무 완료 시 삭제 여부와 무관하게 '완료된 업무'로 분류 로직 동기화 (done=1 우선)
+  - [x] **능동형 명칭 도입 ('취소한 업무')**: '삭제된 업무' -> **'취소한 업무'**로 UI 및 다국어 설정(KR/EN) 전방위 업데이트
+  - [x] **API 파라미터 표준화**: 프론트-백엔드 간 `trash` -> `canceled` 상태 코드 동기화 및 유닛 테스트(Go/Vitest) 100% 통과

@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-func HandleGetStats(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 
 	tz := r.Header.Get("X-Timezone")
@@ -19,5 +19,5 @@ func HandleGetStats(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	respondJSON(w, stats)
+	respondJSON(w, http.StatusOK, stats)
 }

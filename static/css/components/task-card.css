@@ -1,0 +1,171 @@
+/* --- Task Card Component (.c-task-card) --- */
+.c-task-card {
+    background: var(--card-bg);
+    border: var(--border-thin) solid var(--glass-border);
+    backdrop-filter: blur(var(--blur-md));
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    margin-bottom: var(--spacing-sm);
+}
+
+.c-task-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(calc(var(--border-thin) * -1));
+    box-shadow: 0 var(--spacing-xs) var(--spacing-xl) rgba(0, 0, 0, 0.2);
+}
+
+/* Modifiers */
+.c-task-card--done {
+    opacity: 0.5;
+    filter: grayscale(0.5);
+}
+
+.c-task-card--done:hover {
+    opacity: 0.8;
+    filter: grayscale(0);
+}
+
+/* Elements */
+.c-task-card__source {
+    width: var(--spacing-2xl);
+    display: flex;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.c-task-card__room {
+    width: var(--col-room);
+    flex-shrink: 0;
+}
+
+.c-task-card__content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.c-task-card__title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-main);
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.c-task-card__tags {
+    display: flex;
+    gap: var(--spacing-xs);
+    flex-wrap: wrap;
+}
+
+.c-task-card__requester {
+    width: var(--col-requester);
+    font-size: 0.9rem;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.c-task-card__assignee {
+    width: var(--col-assignee);
+    display: flex;
+    align-items: center;
+    font-size: 0.8rem;
+}
+
+.c-task-card__time {
+    width: var(--col-time);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--spacing-xs);
+    font-size: 0.8rem;
+}
+
+.c-task-card__actions {
+    width: var(--col-actions);
+    display: flex;
+    gap: var(--spacing-xs);
+    justify-content: flex-end;
+}
+
+/* Mobile Responsive */
+@media (max-width: 1000px) {
+    .c-task-card {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        grid-template-areas:
+            "source time"
+            "task task"
+            "room room"
+            "req assign"
+            "actions actions";
+        gap: var(--spacing-sm);
+        padding: var(--spacing-lg) var(--spacing-md);
+        border-radius: var(--radius-xl);
+    }
+
+    .c-task-card__title {
+        white-space: normal;
+        font-size: 1rem;
+        line-height: 1.5;
+        margin-bottom: var(--spacing-xs);
+    }
+
+    .c-task-card__source {
+        grid-area: source;
+        width: auto;
+        justify-content: flex-start;
+    }
+
+    .c-task-card__room {
+        grid-area: room;
+        width: 100%;
+        margin: 0;
+    }
+
+    .c-task-card__requester {
+        grid-area: req;
+        width: 100%;
+        margin: 0;
+    }
+
+    .c-task-card__assignee {
+        grid-area: assign;
+        justify-content: flex-end;
+        width: 100%;
+        max-width: 45vw;
+        margin: 0;
+    }
+
+    .c-task-card__time {
+        grid-area: time;
+        align-items: flex-end;
+        width: 100%;
+    }
+
+    .c-task-card__actions {
+        grid-area: actions;
+        margin-top: var(--spacing-md);
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+@media (min-width: 1800px) {
+    .c-task-card {
+        padding: var(--spacing-lg) var(--spacing-xl);
+    }
+}

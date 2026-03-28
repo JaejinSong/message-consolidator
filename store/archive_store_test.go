@@ -77,24 +77,24 @@ func TestGetArchivedMessagesFiltered_Status(t *testing.T) {
 			name:         "Status Done",
 			statusFilter: "done",
 			limit:        10,
-			expectedLen:  1,
+			expectedLen:  2, // ID 1 (Done) + ID 3 (Done & Deleted)
 		},
 		{
-			name:         "Status Trash",
-			statusFilter: "trash",
+			name:         "Status Canceled",
+			statusFilter: "canceled",
 			limit:        10,
-			expectedLen:  2, // Trashed1 + Trashed2
+			expectedLen:  1, // ID 2 (Only Deleted, not Done)
 		},
 		{
-			name:         "Status Trash with Query (Matched)",
-			statusFilter: "trash",
+			name:         "Status Canceled with Query (Matched)",
+			statusFilter: "canceled",
 			query:        "Task 1",
 			limit:        10,
 			expectedLen:  1,
 		},
 		{
-			name:         "Status Trash with Query (Unmatched)",
-			statusFilter: "trash",
+			name:         "Status Canceled with Query (Unmatched)",
+			statusFilter: "canceled",
 			query:        "Done",
 			limit:        10,
 			expectedLen:  0,

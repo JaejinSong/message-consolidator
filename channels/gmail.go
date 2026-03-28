@@ -111,7 +111,7 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 			break
 		}
 		pageToken = res.NextPageToken
-		// 안전 장치: 너무 많은 페이지 방지 (최대 10페이지 = 1000개 메일)
+		// Safety limit: max 10 pages (~1000 emails) to prevent infinite loops
 		if len(allMsgs) >= 1000 {
 			break
 		}
@@ -124,7 +124,7 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 	logger.Infof("[SCAN-GMAIL] Found %d new messages for %s", len(allMsgs), email)
 	rawMsgs, classificationMap, toMap, maxTS := parseNewEmails(svc, email, allMsgs, cfg)
 	if len(rawMsgs) == 0 {
-		// 한 번도 스캔한 적 없는 경우 등 대비하여 maxTS가 있으면 업데이트
+		// Update maxTS for fresh scans even if no actionable messages were found
 		if maxTS > 0 {
 			store.UpdateLastScan(email, "gmail", "inbox", fmt.Sprintf("%d", maxTS))
 		}
@@ -266,7 +266,7 @@ func classifyGmail(isFromMe, isTo bool) string {
 	return CategoryOthers
 }
 
-// isAssigneeMe는 AI가 추출한 담당자(Assignee)가 현재 사용자 본인인지 판별합니다.
+// isAssigneeMe checks if the AI-extracted assignee refers to the current user.
 func isAssigneeMe(assignee, email, userName, fallback string, aliases []string) bool {
 	if assignee == "" || strings.EqualFold(assignee, "undefined") || strings.EqualFold(assignee, "unknown") {
 		return false
@@ -312,7 +312,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 	user, _ := store.GetOrCreateUser(email, "", "")
 	aliases, _ := store.GetUserAliases(user.ID)
 
-	// 메일 개수가 많을 경우를 대비한 배치 처리 (10개씩 묶어서 처리)
+	// Process emails in batches of 10 to avoid AI token limits
 	batchSize := 10
 	for i := 0; i < len(rawMsgs); i += batchSize {
 		end := i + batchSize
@@ -341,7 +341,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 
 		var items []store.TodoItem
 		var analyzeErr error
-		// JSON 파싱 실패(unexpected end of JSON input) 등 일시적 오류에 대비한 자동 재시도 (최대 2회)
+		// Retry up to 2 times for transient AI JSON parsing errors
 		for attempt := 1; attempt <= 2; attempt++ {
 			items, analyzeErr = gc.Analyze(ctx, email, sb.String(), language, "gmail")
 			if analyzeErr == nil {
@@ -353,7 +353,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 
 		if analyzeErr != nil {
 			logger.Errorf("[SCAN-GMAIL] Gemini Analyze Error for %s (batch %d-%d): %v", email, i, end, analyzeErr)
-			continue // 에러가 나도 다음 배치 계속 진행
+			continue
 		}
 
 		msgsToSave := processGeminiItems(email, user, aliases, items, classificationMap, toMap, msgMap)
@@ -451,7 +451,7 @@ func ExtractNameFromEmail(header string) string {
 		name := strings.TrimSpace(firstRecip[:idx])
 		name = strings.Trim(name, "\"")
 		if name != "" {
-			// RFC 2047 인코딩된 문자열 복호화 (=?UTF-8?B?...?=)
+			// Decode RFC 2047 encoded email headers (e.g., =?UTF-8?B?...?=)
 			dec := new(mime.WordDecoder)
 			if decoded, err := dec.DecodeHeader(name); err == nil {
 				name = decoded
@@ -499,10 +499,14 @@ func extractBody(payload *gmail.MessagePart) string {
 }
 
 var (
-	reScript  = regexp.MustCompile(`(?i)<script.*?>.*?</script>`)
-	reStyle   = regexp.MustCompile(`(?i)<style.*?>.*?</style>`)
-	reComment = regexp.MustCompile(`<!--.*?-->`)
-	reTags    = regexp.MustCompile(`<.*?>`)
+	reScript     = regexp.MustCompile(`(?i)<script.*?>.*?</script>`)
+	reStyle      = regexp.MustCompile(`(?i)<style.*?>.*?</style>`)
+	reComment    = regexp.MustCompile(`<!--.*?-->`)
+	reTags       = regexp.MustCompile(`<.*?>`)
+	reWhitespace = regexp.MustCompile(`\s+`)
+	reQuoteStart  = regexp.MustCompile(`(?i)^(on\s+.*\swrote:\s*$|.*님이\s*작성:\s*$|-----\s*original message\s*-----|-----\s*원본 메시지\s*-----|_{10,}|>)`)
+	reSignature   = regexp.MustCompile(`(?m)^--\s*$`)
+	reEmailHeader = regexp.MustCompile(`(?i)^(from|to|cc|bcc|subject|date|sent):\s`)
 )
 
 func stripHTML(html string) string {
@@ -523,7 +527,7 @@ func stripHTML(html string) string {
 	s = strings.ReplaceAll(s, "&#39;", "'")
 
 	// 4. Collapse multiple spaces and newlines for cleaner AI input
-	s = regexp.MustCompile(`\s+`).ReplaceAllString(s, " ")
+	s = reWhitespace.ReplaceAllString(s, " ")
 
 	return strings.TrimSpace(s)
 }
@@ -536,7 +540,7 @@ func decodeBase64URL(data string) string {
 	return decoded
 }
 
-// cleanEmailBody는 이메일 본문에서 서명을 제거하고, 인용된 이전 메일의 맥락을 위해 상단 일부만 남깁니다.
+// cleanEmailBody strips signatures and keeps only the top portion of quoted replies for context.
 func cleanEmailBody(body string) string {
 	lines := strings.Split(body, "\n")
 	var cleaned []string
@@ -546,23 +550,23 @@ func cleanEmailBody(body string) string {
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
-		// 1. 영어/한국어 일반적인 답장 인용구 시작 패턴 감지
-		if (strings.HasPrefix(trimmed, "On ") && strings.HasSuffix(trimmed, "wrote:")) ||
-			strings.HasSuffix(trimmed, "님이 작성:") ||
-			strings.HasPrefix(trimmed, "-----Original Message-----") ||
-			strings.HasPrefix(trimmed, "----- 원본 메시지 -----") ||
-			strings.HasPrefix(trimmed, "________________________________") {
+		// 1. Detect quote blocks using Regex
+		if !isQuoted && reQuoteStart.MatchString(trimmed) {
 			isQuoted = true
-		}
-
-		// 2. '>' 로 시작하는 인용 라인 감지
-		if strings.HasPrefix(trimmed, ">") {
-			isQuoted = true
+			// Include the trigger line (e.g. "On ... wrote:") but don't count it
+			// against the 5-line content limit.
+			cleaned = append(cleaned, line)
+			continue
 		}
 
 		if isQuoted {
+			// Skip email header lines (From:, To:, Cc:, Subject:) without counting against limit
+			if reEmailHeader.MatchString(trimmed) || trimmed == "" && quotedLines == 0 {
+				cleaned = append(cleaned, line)
+				continue
+			}
 			quotedLines++
-			// 인용구는 최대 5라인 또는 300자 정도만 유지 (맥락용)
+			// Keep up to 5 lines of quoted content for context
 			if quotedLines > 5 {
 				break
 			}
@@ -571,22 +575,21 @@ func cleanEmailBody(body string) string {
 		cleaned = append(cleaned, line)
 	}
 
-	// 3. 서명(Signature) 제거 패턴 (--) 감지
 	result := strings.Join(cleaned, "\n")
-	if idx := strings.Index(result, "\n-- \n"); idx != -1 {
-		result = result[:idx]
+
+	// 2. Detect and remove signatures using Regex
+	if loc := reSignature.FindStringIndex(result); loc != nil {
+		result = result[:loc[0]]
 	}
 
 	finalResult := strings.TrimSpace(result)
 
-	// 입력 컨텍스트가 너무 길어 AI 출력(JSON)이 잘리는 현상 방지 (안전장치)
+	// Safety fallback: truncate extremely long emails to prevent AI output JSON truncation
 	const maxLen = 3000
 	if len(finalResult) > maxLen {
-		// UTF-8 문자열을 안전하게 자름 (글자 중간에서 잘리는 것 방지)
+		// Use rune slice to safely truncate UTF-8 strings without breaking multi-byte characters
 		runes := []rune(finalResult)
-		if len(runes) > maxLen/2 { // 대략적인 글자 수 제한 (안전하게 maxLen 바이트 이내로)
-			// 실제 바이트 길이를 체크하며 조절하는 것이 좋지만,
-			// 여기서는 단순히 룬 단위로 잘라 안전성 확보
+		if len(runes) > maxLen/2 {
 			limit := maxLen
 			if len(runes) < limit {
 				limit = len(runes)

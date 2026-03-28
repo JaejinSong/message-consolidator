@@ -2,14 +2,14 @@
 .badge,
 .badge-room {
     background: rgba(255, 255, 255, 0.08);
-    border: 1px solid var(--glass-border);
+    border: var(--border-thin) solid var(--glass-border);
     color: var(--text-dim);
     transition: all 0.2s ease;
 }
 
 .badge {
     padding: 0.4rem 0.8rem;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     font-size: 0.8rem;
 }
 
@@ -22,19 +22,19 @@
 }
 
 .badge-stale {
-    background: rgba(236, 178, 46, 0.1);
+    background: rgba(var(--color-warning-rgb), 0.1);
     color: var(--color-warning);
-    border-color: rgba(236, 178, 46, 0.3);
-    backdrop-filter: blur(4px);
-    box-shadow: 0 0 10px rgba(236, 178, 46, 0.1);
+    border-color: rgba(var(--color-warning-rgb), 0.3);
+    backdrop-filter: blur(var(--blur-sm));
+    box-shadow: 0 0 var(--spacing-md) rgba(var(--color-warning-rgb), 0.1);
 }
 
 .badge-abandoned {
-    background: rgba(235, 87, 87, 0.1);
+    background: rgba(var(--color-error-rgb), 0.1);
     color: var(--color-error);
-    border-color: rgba(235, 87, 87, 0.3);
-    backdrop-filter: blur(4px);
-    box-shadow: 0 0 15px rgba(235, 87, 87, 0.15);
+    border-color: rgba(var(--color-error-rgb), 0.3);
+    backdrop-filter: blur(var(--blur-sm));
+    box-shadow: 0 0 var(--spacing-xl) rgba(var(--color-error-rgb), 0.15);
     animation: badge-pulse 2s infinite ease-in-out;
 }
 
@@ -61,21 +61,21 @@ body.light-theme .badge-abandoned {
 }
 
 body.light-theme .badge-room {
-    background: #e2e8f0;
-    color: #334155;
-    border-color: #cbd5e1;
+    background: var(--glass-border);
+    color: var(--text-dim);
+    border-color: var(--glass-border);
 }
 
 
 .tag-badge {
     display: inline-flex;
     align-items: center;
-    padding: 2px 8px;
-    border-radius: 6px;
+    padding: var(--spacing-xxs) var(--spacing-md);
+    border-radius: var(--radius-sm);
     font-size: 0.7rem;
     font-weight: 700;
     line-height: 1.2;
-    border: 1px solid transparent;
+    border: var(--border-thin) solid transparent;
 }
 
 .promise-tag {
@@ -91,33 +91,33 @@ body.light-theme .badge-room {
 }
 
 body.light-theme .promise-tag {
-    background: #f0fdf4;
-    color: #16a34a;
-    border-color: #bcf0da;
+    background: rgba(var(--color-success-rgb), 0.05);
+    color: var(--color-success);
+    border-color: rgba(var(--color-success-rgb), 0.2);
 }
 
 body.light-theme .waiting-tag {
-    background: #f0f9ff;
-    color: #0369a1;
-    border-color: #bae6fd;
+    background: rgba(var(--color-info-rgb), 0.05);
+    color: var(--color-info);
+    border-color: rgba(var(--color-info-rgb), 0.2);
 }
 
 .freeze-badge {
     display: inline-flex;
     align-items: center;
-    background: rgba(0, 191, 255, 0.1);
-    color: #00bfff;
+    background: rgba(var(--color-info-rgb), 0.1);
+    color: var(--color-info);
     padding: 0.3rem 0.6rem;
     border-radius: var(--radius-md);
     font-size: 0.75rem;
     font-weight: 700;
-    border: 1px solid rgba(0, 191, 255, 0.2);
+    border: var(--border-thin) solid rgba(var(--color-info-rgb), 0.2);
 }
 
 .buy-freeze-btn {
     background: transparent;
-    border: 1px solid rgba(0, 191, 255, 0.3);
-    color: #00bfff;
+    border: var(--border-thin) solid rgba(var(--color-info-rgb), 0.3);
+    color: var(--color-info);
     padding: 0.3rem 0.6rem;
     border-radius: var(--radius-md);
     font-size: 0.75rem;
@@ -131,16 +131,16 @@ body.light-theme .waiting-tag {
 }
 
 body.light-theme .freeze-badge {
-    background: #e0f2fe;
-    color: #0284c7;
-    border-color: #bae6fd;
+    background: var(--card-bg);
+    color: var(--accent-light);
+    border-color: var(--glass-border);
 }
 
 body.light-theme .buy-freeze-btn {
-    border-color: #7dd3fc;
-    color: #0284c7;
+    border-color: var(--glass-border);
+    color: var(--accent-light);
 }
 
 body.light-theme .buy-freeze-btn:hover {
-    background: #e0f2fe;
+    background: var(--card-bg);
 }

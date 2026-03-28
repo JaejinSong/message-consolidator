@@ -5,66 +5,53 @@ export const updateUILanguage = (lang) => {
     const data = I18N_DATA[lang];
     if (!data) return;
 
-    // Update generic text
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-        const key = el.getAttribute('data-i18n');
-        if (I18N_DATA[lang] && I18N_DATA[lang][key]) {
-            el.textContent = I18N_DATA[lang][key];
-        }
-    });
+    const translateAttribute = (attribute, property) => {
+        document.querySelectorAll(`[${attribute}]`).forEach(el => {
+            const key = el.getAttribute(attribute);
+            if (data[key]) {
+                el[property] = data[key];
+            }
+        });
+    };
 
-    // Update titles (tooltips)
-    document.querySelectorAll('[data-i18n-title]').forEach(el => {
-        const key = el.getAttribute('data-i18n-title');
-        if (I18N_DATA[lang] && I18N_DATA[lang][key]) {
-            el.title = I18N_DATA[lang][key];
-        }
-    });
+    // Generic translation for elements with data-i18n attributes.
+    translateAttribute('data-i18n', 'textContent');
+    translateAttribute('data-i18n-title', 'title');
+    translateAttribute('data-i18n-placeholder', 'placeholder');
 
-    // Update placeholders (검색창 등)
-    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-        const key = el.getAttribute('data-i18n-placeholder');
-        if (data[key]) {
-            el.placeholder = data[key];
-        }
-    });
-
-    // 3. 자식 요소(Badge) 유지가 필요한 특수 탭 처리
-    const updateCountBadge = (tabSelector, textKey, countId) => {
-        const tab = document.querySelector(`.tab-btn[data-tab="${tabSelector}"]`); 
+    // Why: This function updates only the text label of a tab, intentionally leaving the
+    // count badge (`<span class="count">`) untouched. The badge's content is managed
+    // by a separate rendering process (renderer.js) to prevent data overwrites.
+    const updateCountBadge = (tabSelector, textKey) => {
+        const tab = document.querySelector(`.tab-btn[data-tab="${tabSelector}"]`);
         if (tab) {
             const labelEl = tab.querySelector(`[data-i18n="${textKey}"]`);
             if (labelEl && data[textKey]) {
                 labelEl.textContent = data[textKey];
             }
-            // Badge ID는 고유하므로 바로 접근 가능 (innerHTML 덮어쓰기 방지)
-            const badgeEl = document.getElementById(countId);
-            if (badgeEl) {
-                // 기존 숫자를 유지하거나 필요시 갱신 (이미 renderer.js에서 처리됨)
-            }
         }
     };
 
-    
-    // Main Nav Buttons (Dashboard, Archive, Insights)
     const updateMainNavLink = (tabSelector, textKey) => {
-        const tab = document.querySelector(`.c-main-nav__item[data-tab="${tabSelector}"]`); // Specific to main nav
+        const tab = document.querySelector(`.c-main-nav__item[data-tab="${tabSelector}"]`);
         if (tab) {
             tab.textContent = data[textKey] || tab.textContent;
         }
     };
 
+    // Main navigation is simple text replacement.
     updateMainNavLink('myTasksTab', 'dashboardTitle');
     updateMainNavLink('archiveLink', 'archiveTitle');
     updateMainNavLink('insightsLink', 'insightsTitle');
 
-    // Category Tabs (My Tasks, Other Tasks, etc.)
-    updateCountBadge('myTasksTab', 'myTasks', 'myCount');
-    updateCountBadge('otherTasksTab', 'otherTasks', 'otherCount');
-    updateCountBadge('waitingTasksTab', 'waitingTasks', 'waitingCount');
-    updateCountBadge('allTasksTab', 'allTasks', 'allCount');
+    // Category tabs require special handling to preserve the count badge.
+    updateCountBadge('myTasksTab', 'myTasks');
+    updateCountBadge('otherTasksTab', 'otherTasks');
+    updateCountBadge('waitingTasksTab', 'waitingTasks');
+    updateCountBadge('allTasksTab', 'allTasks');
 
-    // 아카이브 섹션 헤더 타이틀 (h2)
+    // Why: Reconstruct the innerHTML to update the title text while preserving the count badge element,
+    // which is managed separately by the archive renderer.
     const archiveHeaderTitle = document.querySelector('#archiveSection h2');
     if (archiveHeaderTitle) {
         const archiveCount = document.getElementById('archiveCount');
@@ -72,7 +59,7 @@ export const updateUILanguage = (lang) => {
         archiveHeaderTitle.innerHTML = `${data.archiveTitle} ${countText}`;
     }
 
-    // 4. 동적 텍스트 (ON / OFF 상태) 업데이트 처리
+    // Update dynamic status text (e.g., "ON" / "OFF") based on the 'active' class of the icon.
     const slackIcon = document.getElementById('slackStatusLarge');
     const waIcon = document.getElementById('waStatusLarge');
     if (slackIcon) {

@@ -50,7 +50,7 @@ describe('insightsRenderer.js', () => {
         expect(items[0].textContent).toContain('태스크 마스터 II');
     });
 
-    it('should limit initial visible achievements to 4 and show toggle button', () => {
+    it('should limit initial visible achievements to 3 and show toggle button', () => {
         const all = [
             { id: '1', name: 'A1', target_value: 10 },
             { id: '2', name: 'A2', target_value: 10 },
@@ -64,7 +64,7 @@ describe('insightsRenderer.js', () => {
         const visibleItems = Array.from(list.querySelectorAll('.c-achievement'))
             .filter(item => item.style.display !== 'none');
         
-        expect(visibleItems.length).toBe(4);
+        expect(visibleItems.length).toBe(3);
         expect(document.getElementById('btnShowMoreAch')).not.toBeNull();
     });
 

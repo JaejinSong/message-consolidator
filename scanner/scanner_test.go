@@ -6,24 +6,42 @@ import (
 )
 
 func TestGetEffectiveAliases(t *testing.T) {
-	user := store.User{
-		Email: "jjsong@whatap.io",
-		Name:  "Jaejin Song",
+	tests := []struct {
+		name    string
+		user    store.User
+		aliases []string
+		want    []string
+	}{
+		{
+			name:    "should combine name and email prefix as aliases",
+			user:    store.User{Email: "jjsong@whatap.io", Name: "Jaejin Song"},
+			aliases: []string{"JJ", "송재진"},
+			want:    []string{"JJ", "송재진", "Jaejin Song", "jjsong"},
+		},
+		{
+			name:    "should de-duplicate aliases when there is partial overlap",
+			user:    store.User{Email: "jjsong@whatap.io", Name: "jjsong"},
+			aliases: []string{"JJ", "jjsong"},
+			want:    []string{"JJ", "jjsong"},
+		},
 	}
-	aliases := []string{"JJ", "송재진"}
 
-	effective := getEffectiveAliases(user, aliases)
-
-	// 예상되는 배열: ["JJ", "송재진", "Jaejin Song", "jjsong"]
-	if len(effective) != 4 {
-		t.Errorf("Expected 4 effective aliases, got %d", len(effective))
-	}
-
-	expectedMap := map[string]bool{"JJ": true, "송재진": true, "Jaejin Song": true, "jjsong": true}
-	for _, a := range effective {
-		if !expectedMap[a] {
-			t.Errorf("Unexpected alias found: %s", a)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getEffectiveAliases(tt.user, tt.aliases)
+			if len(got) != len(tt.want) {
+				t.Errorf("got %d aliases, want %d", len(got), len(tt.want))
+			}
+			gotMap := make(map[string]bool)
+			for _, a := range got {
+				gotMap[a] = true
+			}
+			for _, w := range tt.want {
+				if !gotMap[w] {
+					t.Errorf("missing expected alias: %s", w)
+				}
+			}
+		})
 	}
 }
 
@@ -35,13 +53,14 @@ func TestIsAliasMatched(t *testing.T) {
 		alias    string
 		expected bool
 	}{
-		{"Sender Exact Match", "Hello", "JJ", "JJ", true},
-		{"Sender Partial Match", "Hello", "Jaejin Song (JJ)", "JJ", true},
-		{"Text Exact Match (Long)", "이건 송재진 님이 처리해주세요.", "System", "송재진", true},
-		{"Text Partial Match (Short - Korean prefix)", "나는 이 일을 할게요.", "System", "나", true},
-		{"Text Exact Match (Short - Korean)", "나 이거 할게", "System", "나", true},
-		{"False Positive (Short in Middle)", "지나가다가 봤습니다.", "System", "나", false}, // "지나" 안에 "나"가 있지만 띄어쓰기 규칙으로 무시되어야 함
-		{"False Positive (Different Sender)", "Please review", "John", "JJ", false},
+		{"should return true when sender name exactly matches the alias", "Hello", "JJ", "JJ", true},
+		{"should return true when sender name contains the alias", "Hello", "Jaejin Song (JJ)", "JJ", true},
+		{"should return true when text contains the exact long alias", "이건 송재진 님이 처리해주세요.", "System", "송재진", true},
+		{"should return true when text contains a short Korean alias as a prefix", "나는 이 일을 할게요.", "System", "나", true},
+		{"should return true when text exactly matches the short Korean alias", "나 이거 할게", "System", "나", true},
+		// Why: '나' matches a syllable inside '지나가다가', but should be strictly ignored to prevent aggressive false positives.
+		{"should return false when a short alias is embedded inside a word", "지나가다가 봤습니다.", "System", "나", false},
+		{"should return false when neither sender nor text matches the alias", "Please review", "John", "JJ", false},
 	}
 
 	for _, tt := range tests {
@@ -54,13 +73,14 @@ func TestIsAliasMatched(t *testing.T) {
 	}
 }
 
-// mockSlackResolver는 resolveSlackMentions 테스트를 위한 가짜(Mock) 객체입니다.
+// mockSlackResolver provides a controlled environment for testing Slack mention resolutions
+// without requiring an actual connection to the external Slack API.
 type mockSlackResolver struct {
 	users map[string]string
 }
 
 func (m mockSlackResolver) GetUserName(userID string) string {
-	return m.users[userID] // 존재하지 않으면 "" 반환
+	return m.users[userID] // Why: Simulates the actual API behavior where an unknown ID yields an empty string.
 }
 
 func TestResolveSlackMentions(t *testing.T) {
@@ -77,17 +97,17 @@ func TestResolveSlackMentions(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "단일 멘션 치환",
+			name:     "should replace a single Slack user ID with their real name",
 			text:     "Hi <@U0208BU06JE>, for .net agent installation in linux, is it possible?",
 			expected: "Hi @Jaejin Song, for .net agent installation in linux, is it possible?",
 		},
 		{
-			name:     "다중 멘션 치환",
+			name:     "should replace multiple Slack user IDs in a single message",
 			text:     "<@U0208BU06JE> and <@U12345678> are assigned to this task.",
 			expected: "@Jaejin Song and @John Doe are assigned to this task.",
 		},
 		{
-			name:     "알 수 없는 사용자 멘션 (치환 없이 원본 유지)",
+			name:     "should leave the mention tag unchanged if the user ID is unknown",
 			text:     "Hello <@U99999999>, are you there?",
 			expected: "Hello <@U99999999>, are you there?",
 		},

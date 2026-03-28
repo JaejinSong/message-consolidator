@@ -4,8 +4,9 @@ import (
 	"database/sql"
 )
 
+// GetAllUsers retrieves all users directly from the database to ensure data consistency and discover any newly added users.
+// It also synchronizes the in-memory cache with the latest data.
 func GetAllUsers() ([]User, error) {
-	// Always load from DB to ensure consistency and discover new users
 	rows, err := db.Query(SQL.GetAllUsers)
 	if err != nil {
 		return nil, err
@@ -30,12 +31,12 @@ func GetAllUsers() ([]User, error) {
 		}
 		u.CreatedAt = createdAt.Time
 
-		// Ensure DailyGoal is at least 1 (safety for legacy data)
+		// Set a fallback for DailyGoal to prevent division by zero or logical errors in legacy data.
 		if u.DailyGoal <= 0 {
 			u.DailyGoal = 5
 		}
 
-		// Sync to cache
+		// Synchronize the retrieved user data with the in-memory cache.
 		userCache[u.Email] = &u
 		users = append(users, u)
 	}
@@ -46,10 +47,12 @@ func GetAllUsers() ([]User, error) {
 	return users, nil
 }
 
+// GetOrCreateUser fetches a user from the cache or database by email.
+// If the user doesn't exist, it creates a new record. It also updates the user's name and picture if new values are provided.
 func GetOrCreateUser(email, name, picture string) (*User, error) {
 	metadataMu.Lock()
 	if u, ok := userCache[email]; ok {
-		// If name/picture provided and different, update them
+		// If a new name or picture is provided and differs from the cached data, trigger a database update.
 		if (name != "" && u.Name != name) || (picture != "" && u.Picture != picture) {
 			metadataMu.Unlock()
 			return updateAndCacheUser(email, name, picture)
@@ -62,6 +65,7 @@ func GetOrCreateUser(email, name, picture string) (*User, error) {
 	return updateAndCacheUser(email, name, picture)
 }
 
+// updateAndCacheUser handles the database upsert logic for a user and securely updates the in-memory cache.
 func updateAndCacheUser(email, name, picture string) (*User, error) {
 	var u User
 	err := WithDBRetry("GetOrCreateUser", func() error {
@@ -81,7 +85,7 @@ func updateAndCacheUser(email, name, picture string) (*User, error) {
 		}
 		u.CreatedAt = createdAt.Time
 
-		// Update if name/picture is provided and different
+		// Flag for update if a valid, new name or picture is provided.
 		needsUpdate := false
 		if name != "" && u.Name != name {
 			u.Name = name
@@ -114,21 +118,25 @@ func updateAndCacheUser(email, name, picture string) (*User, error) {
 	return &u, nil
 }
 
+// CreateUser inserts a new user record into the database with just an email and name.
 func CreateUser(email, name string) error {
 	_, err := db.Exec(SQL.CreateUser, email, name)
 	return err
 }
 
+// UpdateUserNamePicture modifies the display name and profile picture of an existing user.
 func UpdateUserNamePicture(email, name, picture string) error {
 	_, err := db.Exec(SQL.UpdateUserNamePicture, name, picture, email)
 	return err
 }
 
+// UpdateUserWAJID updates the WhatsApp JID (identifier) associated with the user.
 func UpdateUserWAJID(email, wajid string) error {
 	_, err := db.Exec(SQL.UpdateUserWAJID, wajid, email)
 	return err
 }
 
+// UpdateUserSlackID updates the Slack ID associated with the user.
 func UpdateUserSlackID(email, slackID string) error {
 	_, err := db.Exec(SQL.UpdateUserSlackID, slackID, email)
 	return err

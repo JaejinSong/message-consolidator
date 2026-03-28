@@ -1,3 +1,39 @@
+# Release Notes (User) - v2.3.11 (2026-03-28 07:07 UTC)
+
+- **[FEAT] Visualize Your Productivity**: Check out the new "Anki-style" activity chart in your Insights tab! It’s a beautiful, heatmap-style view of when you’re most active throughout the day.
+- **[FIX] Smarter, Uninterrupted AI**: We fixed a bug where our AI sometimes stopped talking mid-sentence. Now, you get the full, detailed analysis every single time.
+- **[FEAT] 24/7 Heartbeat Monitoring**: We’ve integrated WhaTap observability. This is like a high-tech health monitor for our app, ensuring everything runs smoothly behind the scenes.
+- **[PERF] Turbo-Charged Loading**: By optimizing our server with HTTP/2 and Gzip, the app now loads faster than ever. More time for work, less time for waiting!
+- **[OPTIMIZE] Perfect Mobile View**: We’ve tweaked the margins and spacing for mobile users. Whether you're on a phone or a tablet, the dashboard looks sharper and feels more natural.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.3.11 (2026-03-28 07:07 UTC)
+
+- **[FEAT] 나의 업무 패턴을 한눈에**: 인사이트 탭에 새로운 'Anki 스타일' 활동 차트가 추가되었습니다! 내가 언제 가장 집중해서 일했는지 세련된 히트맵으로 확인해 보세요.
+- **[FIX] 끝까지 듣는 AI**: AI 분석 결과가 중간에 잘리던 현상을 해결했습니다. 이제 AI 어시스턴트가 전해주는 상세한 요약 내용을 끊김 없이 모두 읽어보실 수 있습니다.
+- **[FEAT] 24시간 빈틈없는 관리**: WhaTap 모니터링 시스템을 도입했습니다. 보이지 않는 곳에서도 서비스 상태를 실시간으로 체크하여 더욱 안정적인 서비스를 제공합니다.
+- **[PERF] 더 빨라진 로딩 속도**: 서버 전송 방식을 최적화하여 앱 접속 속도를 개선했습니다. 이제 기다림 없이 더 빠르게 업무를 시작하세요.
+- **[OPTIMIZE] 모바일 화면 최적화**: 모바일 환경의 여백과 디자인을 세심하게 조정했습니다. 이동 중에도 스마트폰으로 쾌적하게 업무 대시보드를 확인하실 수 있습니다.
+
+---
+
+# Release Notes (User) - v2.3.11 (2026-03-28 07:10 UTC)
+
+- **[FEAT] Completion-Priority Archive Logic**: We've smarterized the Archive! Completed tasks now always stay in the "Done" tab, even if they were archived via deletion.
+- **[UI] Active Terminology: "Canceled Tasks"**: Renamed "Deleted Tasks" to **"Canceled Tasks"** (취소한 업무) in the Archive to better reflect your active intent.
+- **[FIX] Precise Archive Filtering**: The "Canceled" tab now strictly shows tasks that were abandoned before completion, ensuring a cleaner distinction from your successes.
+
+---
+
+# 업데이트 소식 (사용자용) - v2.3.11 (2026-03-28 07:10 UTC)
+
+- **[FEAT] 보관함 분류 로직 고도화 (완료 우선순위)**: 업무가 '완료'된 경우 삭제 여부와 관계없이 '완료된 업무' 탭에 표시되도록 개선했습니다. 이제 여러분의 성취가 삭제 작업에 가려지지 않습니다.
+- **[UI] 더 직관적인 명칭 변경 ('취소한 업무')**: 기존의 '삭제된 업무'를 **'취소한 업무'**로 변경했습니다. 내가 직접 취소했다는 능동적인 표현을 통해 업무 관리의 주도성을 시각화했습니다.
+- **[FIX] 보관함 필터링 정밀도 향상**: '취소한 업무' 탭에서는 완료하지 못하고 중단된(완료=X, 삭제=O) 건만 정확히 분류하여 보여주도록 로직을 정교화했습니다.
+
+---
+
 # Release Notes (User) - v2.3.10 (2026-03-27 11:00 UTC)
 
 - **[FEAT] The Great Database Move**: We've upgraded our brain! By migrating to Turso, Message Consolidator is now faster and more reliable, no matter where you are in the world.

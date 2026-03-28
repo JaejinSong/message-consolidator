@@ -200,6 +200,20 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// Public assets exemption
+		path := strings.ToLower(r.URL.Path)
+		if strings.HasSuffix(path, ".css") || 
+		   strings.HasSuffix(path, ".js") || 
+		   strings.HasSuffix(path, ".svg") || 
+		   strings.HasSuffix(path, ".png") || 
+		   strings.HasSuffix(path, ".jpg") || 
+		   strings.HasSuffix(path, ".ico") ||
+		   strings.HasSuffix(path, ".json") ||
+		   strings.HasSuffix(path, ".webp") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		cookie, err := r.Cookie("session_token")
 		if err != nil {
 			logger.Warnf("[AUTH] Session cookie missing for path: %s", r.URL.Path)

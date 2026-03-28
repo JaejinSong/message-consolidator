@@ -24,6 +24,10 @@ func NewSlackClient(token string) *SlackClient {
 	}
 }
 
+func (s *SlackClient) GetAPI() *slack.Client {
+	return s.api
+}
+
 func (s *SlackClient) LookupChannels() ([]slack.Channel, string, error) {
 	// GetConversationsForUser를 사용하면 봇(Bot)이 초대된 채널과 DM 목록만 정확히 반환합니다.
 	return s.api.GetConversationsForUser(&slack.GetConversationsForUserParameters{

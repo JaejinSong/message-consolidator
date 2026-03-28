@@ -13,14 +13,19 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-func HandleExportExcel(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleExportExcel(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	q := r.URL.Query().Get("q")
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "all"
+	}
 
 	filter := store.ArchiveFilter{
-		Email: email,
-		Query: q,
-		Limit: 10000,
+		Email:  email,
+		Query:  q,
+		Status: status,
+		Limit:  10000,
 	}
 	msgs, _, err := store.GetArchivedMessagesFiltered(r.Context(), filter)
 	if err != nil {
@@ -42,6 +47,7 @@ func HandleExportExcel(w http.ResponseWriter, r *http.Request) {
 		f.SetCellValue(sheet, cell, h)
 	}
 
+	// Apply styling to the header row to improve readability of the exported Excel file
 	style, _ := f.NewStyle(&excelize.Style{
 		Font: &excelize.Font{Bold: true},
 		Fill: excelize.Fill{Type: "pattern", Color: []string{"#E0E0E0"}, Pattern: 1},
@@ -77,14 +83,19 @@ func HandleExportExcel(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func HandleExportArchive(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleExportArchive(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	q := r.URL.Query().Get("q")
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "all"
+	}
 
 	filter := store.ArchiveFilter{
-		Email: email,
-		Query: q,
-		Limit: 10000,
+		Email:  email,
+		Query:  q,
+		Status: status,
+		Limit:  10000,
 	}
 	msgs, _, err := store.GetArchivedMessagesFiltered(r.Context(), filter)
 	if err != nil {
@@ -124,14 +135,19 @@ func HandleExportArchive(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func HandleExportJSON(w http.ResponseWriter, r *http.Request) {
+func (a *API) HandleExportJSON(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	q := r.URL.Query().Get("q")
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "all"
+	}
 
 	filter := store.ArchiveFilter{
-		Email: email,
-		Query: q,
-		Limit: 10000,
+		Email:  email,
+		Query:  q,
+		Status: status,
+		Limit:  10000,
 	}
 	msgs, _, err := store.GetArchivedMessagesFiltered(r.Context(), filter)
 	if err != nil {

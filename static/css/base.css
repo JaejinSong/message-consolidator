@@ -13,7 +13,7 @@ body {
     justify-content: center;
     align-items: center;
     padding: 2rem;
-    background-image: radial-gradient(circle at 50% -20%, #1a1c2e, var(--bg-color));
+    background-image: radial-gradient(circle at 50% -20%, var(--card-bg), var(--bg-color));
     transition: background-color 0.4s ease, color 0.4s ease;
 }
 
@@ -23,7 +23,7 @@ body {
     }
 }
 
-@media (max-width: 480px) {
+@media (max-width: var(--bp-mobile)) {
     body {
         padding: 0.5rem;
     }

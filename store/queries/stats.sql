@@ -45,11 +45,16 @@ GROUP BY 1, 2 ORDER BY 1 ASC;
 -- name: GetEarlyBirdCompleted :one
 SELECT COUNT(*) FROM messages
 WHERE user_email = ? AND done = 1
-AND strftime('%H', completed_at) < '09';
+AND strftime('%H', completed_at, ?) < '09';
 
 -- name: GetMaxDailyCompleted :one
 SELECT COALESCE(MAX(c), 0) FROM (
-  SELECT COUNT(*) as c FROM messages
-  WHERE user_email = ? AND done = 1 AND completed_at IS NOT NULL
-  GROUP BY strftime('%Y-%m-%d', completed_at)
+  SELECT COUNT(*) as c FROM messages 
+  WHERE user_email = ? AND done = 1
+  GROUP BY strftime('%Y-%m-%d', completed_at, ?)
 );
+
+-- name: GetEmergencyCompleted :one
+SELECT COUNT(*) FROM messages
+WHERE user_email = ? AND done = 1
+AND category = 'emergency';

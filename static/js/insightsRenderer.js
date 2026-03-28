@@ -147,26 +147,10 @@ export const insightsRenderer = {
     },
 
     renderWaitingMetrics(stats) {
-        const container = document.getElementById('waitingMetrics');
-        if (!container) return;
-
-        const card = container.closest('.insights-card');
-        if (card) card.classList.add('highlight-card');
-
-        const lang = state.currentLang || 'ko';
-        const i18n = I18N_DATA[lang];
-
-        container.innerHTML = `
-            <div class="c-stat-item" style="border:none; background:transparent; padding:0;">
-                <span class="c-stat-item__label">${i18n.pendingMeTasks || 'My Pending Tasks'}</span>
-                <span class="c-stat-item__value">${stats.pending_me || 0}</span>
-            </div>
-            <div class="c-stat-item" style="border:none; background:transparent; padding:0;">
-                <span class="c-stat-item__label">${i18n.needsAttentionTasks || 'Needs Attention'}</span>
-                <span class="c-stat-item__value" style="color:var(--color-error);">${stats.abandoned_tasks || 0}</span>
-            </div>
-        `;
-        container.className = 'c-stat-grid';
+        const meContainer = document.getElementById('waitingMetricsMe');
+        const attentionContainer = document.getElementById('waitingMetricsAttention');
+        if (meContainer) meContainer.textContent = stats.pending_me || 0;
+        if (attentionContainer) attentionContainer.textContent = stats.abandoned_tasks || 0;
     },
 
     renderHourlyActivity(stats) {
@@ -325,7 +309,7 @@ export const insightsRenderer = {
             return a.target_value - b.target_value;
         });
 
-        const INITIAL_VISIBLE = 4;
+        const INITIAL_VISIBLE = 3;
         const totalCount = consolidated.length;
 
         let html = consolidated.map((ach, index) => {

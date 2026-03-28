@@ -74,7 +74,7 @@ header {
 }
 
 .logout-minimal:hover {
-    color: #ff4b2b;
+    color: var(--color-error);
     transform: translateX(var(--spacing-xxs));
 }
 
@@ -102,29 +102,50 @@ header {
     text-align: center;
 }
 
+/* --- Glass Card Component (.glass-card) --- */
+/* Provides modular visual separation while maintaining transparency */
+.glass-card {
+    background: var(--card-bg);
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-2xl);
+    padding: var(--spacing-xl) var(--spacing-2xl);
+    position: relative;
+    margin-top: var(--view-subnav-gap);
+    box-shadow: var(--shadow-card);
+    transition: background-color 0.4s ease;
+}
+
 @media (max-width: 768px) {
     .glass-container {
-        padding: 1.5rem;
-        border-radius: var(--spacing-xl);
+        padding: 1.25rem 0.75rem;
+        border-radius: var(--radius-lg);
     }
 
     .dashboard-header {
         gap: var(--spacing-md);
         margin-bottom: var(--view-subnav-gap);
     }
+
+    .glass-card {
+        margin-top: 0;
+        padding: var(--spacing-md) var(--spacing-sm);
+        border-radius: var(--radius-lg);
+    }
 }
 
-/* iPhone 13 mini와 같은 작은 모바일 화면에서 가로 여백을 줄여 가독성을 높입니다. */
-@media (max-width: var(--bp-mobile)) {
+/* Task List Layout */
+.task-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    min-height: 12.5rem;
+}
 
-    /* --bp-mobile (480px) 토큰 사용 */
-    .glass-container {
-        /* 
-         * 아이폰 13 mini와 같은 매우 좁은 화면에서 콘텐츠 영역을 최대한 확보하기 위해
-         * 좌우 여백을 최소화합니다.
-         */
-        padding: 1.25rem 0.75rem;
-        border-radius: var(--radius-lg);
+@media (min-width: 1000px) {
+    .task-list {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
     }
 }
 
@@ -165,6 +186,7 @@ header {
 
 .completed-list-divider::after {
     content: "Completed Tasks";
+    /* @layout-override */
     position: absolute;
     top: 50%;
     left: 50%;
@@ -179,7 +201,7 @@ header {
 }
 
 body.light-theme .completed-list-divider::after {
-    background: #f8f9fa;
+    background: var(--bg-color);
 }
 
 .empty-state__icon {

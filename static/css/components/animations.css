@@ -1,0 +1,59 @@
+/* --- Animations --- */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideInUp {
+    from {
+        transform: translateY(var(--spacing-xl));
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes xpFloat {
+    0% {
+        transform: translate(-50%, 0) scale(0.8);
+        opacity: 0;
+    }
+    20% {
+        opacity: 1;
+        transform: translate(-50%, calc(var(--spacing-xl) * -1)) scale(1.1);
+    }
+    80% {
+        opacity: 1;
+        transform: translate(-50%, -3.75rem) scale(1);
+    }
+    100% {
+        transform: translate(-50%, calc(var(--status-card-min) * -1)) scale(0.9);
+        opacity: 0;
+    }
+}

@@ -17,6 +17,7 @@ import (
 // 이 테스트를 실행하려면 터미널에서 테스트용 API 키를 설정하거나 .env 파일에 정의해야 합니다.
 // 예: export GEMINI_API_KEY_FOR_TEST="your_api_key" 또는 .env 에 GEMINI_API_KEY_FOR_TEST=... 추가
 func TestAnalyze_Regression(t *testing.T) {
+	t.Parallel()
 	// .env 파일 로드 시도 (프로젝트 루트 탐색)
 	_ = godotenv.Load("../../.env")
 
@@ -39,10 +40,12 @@ func TestAnalyze_Regression(t *testing.T) {
 	}
 
 	for _, testCasePath := range testCases {
+		testCasePath := testCasePath
 		baseName := strings.TrimSuffix(testCasePath, "_input.txt")
 		testName := filepath.Base(baseName)
 
 		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
 			// 1. 입력 대화 내용 읽기
 			inputBytes, err := os.ReadFile(testCasePath)
 			if err != nil {

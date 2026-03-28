@@ -41,14 +41,14 @@ export const insights = {
             statsTab.addEventListener('click', () => {
                 statsTab.classList.add('active');
                 reportsTab.classList.remove('active');
-                statsContent.classList.remove('hidden');
-                reportsContent.classList.add('hidden');
+                if (statsContent) statsContent.classList.remove('hidden');
+                if (reportsContent) reportsContent.classList.add('hidden');
             });
             reportsTab.addEventListener('click', () => {
                 reportsTab.classList.add('active');
                 statsTab.classList.remove('active');
-                reportsContent.classList.remove('hidden');
-                statsContent.classList.add('hidden');
+                if (reportsContent) reportsContent.classList.remove('hidden');
+                if (statsContent) statsContent.classList.add('hidden');
             });
         }
     },
@@ -72,7 +72,7 @@ export const insights = {
         if (loading) {
             const p = loading.querySelector('p');
             if (p) p.textContent = "Loading insights data...";
-            loading.classList.remove('hidden');
+            loading.classList.add('active');
         }
 
         try {
@@ -87,7 +87,7 @@ export const insights = {
             console.error("[Insights] Unexpected error during refreshData", e);
         } finally {
             if (loading) {
-                loading.classList.add('hidden');
+                loading.classList.remove('active');
                 const p = loading.querySelector('p');
                 if (p) p.textContent = i18n.loading || "Gemini is scanning for new tasks..."; // 기본 문구 복구
             }

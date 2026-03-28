@@ -1,0 +1,91 @@
+/* --- Tabs Component (.c-tabs) --- */
+.tabs-container {
+    margin-bottom: var(--spacing-xl);
+}
+
+.c-tabs {
+    display: flex;
+    gap: var(--spacing-sm);
+    background: rgba(255, 255, 255, 0.03);
+    padding: var(--spacing-xs);
+    border-radius: var(--radius-lg);
+    border: var(--border-thin) solid var(--glass-border);
+    width: fit-content;
+    margin-top: var(--view-subnav-gap);
+    margin-bottom: var(--spacing-lg);
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.c-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.c-tabs__btn {
+    padding: 0.6rem 1.2rem;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-weight: 700;
+    font-size: 0.85rem;
+    border-radius: var(--radius-md);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.c-tabs__btn:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.c-tabs__btn.active {
+    background: var(--accent-color);
+    color: var(--white);
+    box-shadow: 0 var(--spacing-xs) var(--spacing-md) var(--accent-glow);
+}
+
+.c-tabs__panel {
+    display: none;
+    animation: fadeIn var(--transition-base);
+}
+
+.c-tabs__panel--active {
+    display: block;
+}
+
+/* Mobile Responsive - 2x2 Grid */
+@media (max-width: 480px) {
+    .c-tabs {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        width: 100% !important;
+        gap: var(--spacing-xs) !important;
+        background: rgba(255, 255, 255, 0.05) !important;
+        padding: var(--spacing-xs) !important;
+    }
+
+    .c-tabs__btn {
+        width: 100% !important;
+        justify-content: center !important;
+        padding: 0.8rem 0.4rem !important;
+        flex-direction: column !important;
+        gap: var(--spacing-xs) !important;
+        font-size: 0.75rem !important;
+        text-align: center;
+        height: 100% !important;
+        border-radius: var(--radius-md) !important;
+    }
+
+    .c-tabs__btn span[data-i18n] {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        width: 100%;
+    }
+}

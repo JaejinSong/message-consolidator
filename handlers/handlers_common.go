@@ -3,41 +3,20 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"message-consolidator/ai"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
 )
 
-// 공통 헬퍼: HTTP 요청에서 JSON 파싱 및 Body 안전하게 닫기 (메모리 누수 방지)
+// decodeJSON is a common helper that parses JSON from an HTTP request and safely closes the Body to prevent memory leaks.
 func decodeJSON(r *http.Request, v interface{}) error {
 	defer r.Body.Close()
 	return json.NewDecoder(r.Body).Decode(v)
 }
 
-// respondJSON 공통 헬퍼: HTTP 응답에 JSON 포맷으로 쓰기
-func respondJSON(w http.ResponseWriter, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
-}
-
-// respondError 공통 헬퍼: 에러 응답 처리 및 로깅 중앙화
-func respondError(w http.ResponseWriter, code int, message string, err error) {
-	if errors.Is(err, context.Canceled) {
-		http.Error(w, "Client Closed Request", 499)
-		return
-	}
-	if err != nil {
-		logger.Errorf("[API-ERROR] %s: %v", message, err)
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
-}
-
 // TranslateMessagesByID is a helper to translate specific messages for a user
-func TranslateMessagesByID(ctx context.Context, email string, ids []int, lang string) (int, error) {
+func (a *API) TranslateMessagesByID(ctx context.Context, email string, ids []int, lang string) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
@@ -63,7 +42,7 @@ func TranslateMessagesByID(ctx context.Context, email string, ids []int, lang st
 	}
 
 	// 2. Call Gemini
-	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+	gc, err := ai.NewGeminiClient(ctx, a.Config.GeminiAPIKey, a.Config.GeminiAnalysisModel, a.Config.GeminiTranslationModel)
 	if err != nil {
 		logger.Errorf("[TRANSLATE] Failed to init Gemini client: %v", err)
 		return 0, err

@@ -3,8 +3,6 @@ package store
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 )
 
@@ -17,16 +15,16 @@ func GetArchivedMessages(email string) ([]ConsolidatedMessage, error) {
 	return []ConsolidatedMessage{}, nil
 }
 
-func getArchiveDays() int {
-	if envDays := os.Getenv("ARCHIVE_DAYS"); envDays != "" {
-		if parsed, err := strconv.Atoi(envDays); err == nil && parsed >= 0 {
-			return parsed
-		}
+var autoArchiveDays int = 7
+
+func SetAutoArchiveDays(days int) {
+	if days > 0 {
+		autoArchiveDays = days
 	}
-	if autoArchiveDays > 0 {
-		return autoArchiveDays
-	}
-	return 7 // 기본값 7일
+}
+
+func GetAutoArchiveDays() int {
+	return autoArchiveDays
 }
 
 func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]ConsolidatedMessage, int, error) {
@@ -46,16 +44,18 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 		args = append(args, pattern, pattern, pattern, pattern, pattern, pattern)
 	}
 
-	// 💡 추가: 탭 상태(status) 필터링 조건 추가
+	// Why: Prioritizes completion status over deletion status as per user preference.
+	// Done tab shows all completed items (regardless of deletion).
+	// Canceled tab shows uncompleted but deleted items (abandoned tasks).
 	switch filter.Status {
 	case "done":
-		searchQuery += " AND (done = 1 OR done = TRUE) AND (is_deleted = 0 OR is_deleted IS NULL)"
-	case "trash":
-		searchQuery += " AND (is_deleted = 1 OR is_deleted = TRUE)"
+		searchQuery += " AND (done = 1 OR done = TRUE)"
+	case "canceled":
+		searchQuery += " AND (done = 0 OR done = FALSE) AND (is_deleted = 1 OR is_deleted = TRUE)"
 	}
 
-	// 1. Get Count
-	safeArchiveDays := getArchiveDays()
+	// Why: We need the total count of filtered items separately to support pagination on the frontend.
+	safeArchiveDays := GetAutoArchiveDays()
 	daysParam := fmt.Sprintf("-%d days", safeArchiveDays)
 	countQuery := SQL.GetArchivedMessagesCountBase + searchQuery
 
@@ -65,7 +65,7 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 		return nil, 0, err
 	}
 
-	// 2. Get Data
+	// Why: Prevent unbounded queries that could crash the server or overload the database if the client doesn't specify a limit.
 	if filter.Limit <= 0 {
 		filter.Limit = 100
 	}
@@ -130,15 +130,15 @@ func GetArchivedMessagesCount(ctx context.Context, filter ArchiveFilter) (int, e
 		args = append(args, pattern, pattern, pattern, pattern, pattern, pattern)
 	}
 
-	// 💡 추가: 카운트 쿼리용 탭 상태(status) 필터링 조건 추가
+	// Why: Ensures the pagination count matches the new 'Completion Priority' logic.
 	switch filter.Status {
 	case "done":
-		searchQuery += " AND (done = 1 OR done = TRUE) AND (is_deleted = 0 OR is_deleted IS NULL)"
-	case "trash":
-		searchQuery += " AND (is_deleted = 1 OR is_deleted = TRUE)"
+		searchQuery += " AND (done = 1 OR done = TRUE)"
+	case "canceled":
+		searchQuery += " AND (done = 0 OR done = FALSE) AND (is_deleted = 1 OR is_deleted = TRUE)"
 	}
 
-	safeArchiveDays := getArchiveDays()
+	safeArchiveDays := GetAutoArchiveDays()
 	daysParam := fmt.Sprintf("-%d days", safeArchiveDays)
 	countQuery := SQL.GetArchivedMessagesCountBase + searchQuery
 

@@ -19,12 +19,12 @@ func InitDB(cfg *config.Config) error {
 	dbURL := cfg.TursoURL
 	authToken := cfg.TursoToken
 
-	// Remote-only Turso (libsql://)
+	// Handle Remote-only Turso connections (libsql:// prefix)
 	if strings.HasPrefix(dbURL, "libsql://") && authToken != "" {
 		dbURL = fmt.Sprintf("%s?authToken=%s", dbURL, authToken)
 	}
 
-	// Embedded Replicas (file: path with sync_url)
+	// Handle Embedded Replicas (file: prefix with a sync_url for local edge sync)
 	if strings.HasPrefix(dbURL, "file:") && cfg.TursoSyncURL != "" {
 		u, parseErr := url.Parse(dbURL)
 		if parseErr == nil {
@@ -67,11 +67,13 @@ func InitDB(cfg *config.Config) error {
 }
 
 func setupConnectionPool(connStr string) {
-	// Turso/libSQL은 Neon과 달리 서버리스 구조이므로 커넥션 풀을 유연하게 가져감.
-	// 커넥션이 끊어지는 'stream is closed' 오류 방지를 위해 더 보수적으로 설정함.
+	// Configure connection pool settings based on the environment.
+	// Since Turso/libSQL operates in a serverless environment, connection pooling must be flexible.
+	// We set conservative limits to prevent "stream is closed" and "bad connection" errors.
 	idleConns := 2
 	if strings.HasPrefix(connStr, "libsql://") {
-		// 원격 서버리스 환경에서는 유휴 커넥션 유지로 인한 bad connection 방지를 위해 0으로 설정
+		// For remote serverless environments, set MaxIdleConns to 0.
+		// This prevents the app from holding onto stale connections that the server may have already dropped.
 		logger.Infof("[DB] Turso detected. Setting MaxIdleConns to 0, MaxOpenConns to 20.")
 		idleConns = 0
 	} else {
@@ -111,6 +113,10 @@ func createCoreTables() error {
 		return err
 	}
 	_, err = db.Exec(SQL.CreateScanMetadataTable)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(SQL.CreateSlackThreadsTable)
 	if err != nil {
 		return err
 	}
@@ -178,13 +184,16 @@ func setupGamification() error {
 func seedAchievements() {
 	var count int
 	_ = db.QueryRow("SELECT COUNT(*) FROM achievements").Scan(&count)
-	// 기존 업적 개수가 적거나 없으면 다시 시딩 (수정된 정의 반영을 위해 상시 체크 권장되나 여기서는 count 기반)
+	// Check if achievements need seeding. If the count is below the expected baseline (e.g., 5),
+	// we assume it's a fresh install or missing data and re-seed the definitions.
 	if count < 5 {
-		// 기존 데이터 삭제 후 재진입 (ID 보존이 필요 없다면. 여기서는 안전하게 INSERT OR REPLACE 또는 개별 체크 권장)
+		// Clear existing achievements to apply any updated definitions before re-inserting.
+		// Note: In production environments with strict ID dependencies, 'INSERT OR REPLACE' is recommended.
 		_, _ = db.Exec("DELETE FROM achievements;")
 		_, _ = db.Exec(`INSERT INTO achievements (name, description, icon, criteria_type, criteria_value, target_value, xp_reward) VALUES 
 			('첫 걸음', '첫 번째 업무를 완료했습니다.', '🌱', 'total_tasks', 1, 1, 10),
 			('모닝 스타', '오전 9시 이전에 첫 번째 업무를 완료했습니다.', '🌅', 'early_bird', 1, 1, 50),
+			('불끄기 (Fire Extinguisher)', '긴급(Emergency) 태스크를 완료했습니다.', '🧯', 'emergency_tasks', 1, 1, 50),
 			('Task Master', '하루 10개 이상의 작업 완료', '🏆', 'daily_total', 10, 10, 50),
 			('스트릭 스타터', '3일 연속으로 업무를 완료했습니다.', '🔥', 'streak', 3, 3, 50),
 			('끈기 끝판왕', '7일 연속으로 업무를 완료했습니다.', '👑', 'streak', 7, 7, 50),
@@ -252,11 +261,11 @@ func RefreshAllCaches() error {
 }
 
 func RefreshCache(email string) error {
-	// 최대 10초 대기 후 강제 취소 (무한 Hang 원천 차단)
+	// Set a 10-second timeout to strictly prevent infinite hangs during the cache refresh process.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	safeArchiveDays := getArchiveDays()
+	safeArchiveDays := GetAutoArchiveDays()
 	threshold := fmt.Sprintf("-%d days", safeArchiveDays)
 
 	// 1. Fetch Active Messages
@@ -307,12 +316,12 @@ func RefreshCache(email string) error {
 func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedMessage, error) {
 	var m ConsolidatedMessage
 	var assignedAt, createdAt, completedAt DBTime
-	var room, requester, assignee, link, originalText, category, deadline, threadID sql.NullString
+	var room, requester, assignee, link, originalText, category, deadline, threadID, sourceTS, source sql.NullString
 
 	err := rows.Scan(
-		&m.ID, &m.UserEmail, &m.Source, &room, &m.Task,
+		&m.ID, &m.UserEmail, &source, &room, &m.Task,
 		&requester, &assignee, &assignedAt, &link,
-		&m.SourceTS, &originalText, &m.Done, &m.IsDeleted,
+		&sourceTS, &originalText, &m.Done, &m.IsDeleted,
 		&createdAt, &completedAt, &category, &deadline,
 		&threadID,
 	)
@@ -320,10 +329,12 @@ func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedM
 		return m, err
 	}
 
+	m.Source = source.String
 	m.Room = room.String
 	m.Requester = requester.String
 	m.Assignee = assignee.String
 	m.Link = link.String
+	m.SourceTS = sourceTS.String
 	m.OriginalText = originalText.String
 	m.Category = category.String
 	m.Deadline = deadline.String
@@ -361,11 +372,11 @@ func ArchiveOldTasks() error {
 		return nil
 	}
 
-	// 백그라운드 아카이브 작업은 최대 15초 대기
+	// Limit background archiving tasks to a maximum of 15 seconds to prevent database locks.
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	safeArchiveDays := getArchiveDays()
+	safeArchiveDays := GetAutoArchiveDays()
 	threshold := fmt.Sprintf("-%d days", safeArchiveDays)
 
 	logger.Infof("[DB] Auto-archiving tasks completed more than %d days ago...", safeArchiveDays)

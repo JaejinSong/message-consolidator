@@ -1,0 +1,120 @@
+/* --- Buttons (.c-btn) --- */
+.c-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    padding: 0.6rem 1.5rem;
+    border-radius: var(--radius-lg);
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: var(--border-thin) solid transparent;
+    text-decoration: none;
+    line-height: 1.2;
+}
+
+.c-btn--primary {
+    background: var(--accent-color);
+    color: var(--white);
+    box-shadow: 0 var(--spacing-xs) var(--spacing-md) var(--accent-glow);
+}
+
+.c-btn--primary:hover {
+    transform: translateY(calc(var(--spacing-xxs) * -1));
+    box-shadow: 0 var(--border-thick) var(--spacing-xl) var(--accent-glow);
+    filter: brightness(1.1);
+}
+
+.c-btn--danger {
+    background: rgba(255, 59, 48, 0.1);
+    color: var(--color-error);
+    border-color: var(--color-error);
+}
+
+.c-btn--danger:hover {
+    background: var(--color-error);
+    color: var(--white);
+}
+
+.c-btn--ghost {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-dim);
+    border-color: var(--glass-border);
+}
+
+.c-btn--ghost:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+}
+
+.c-btn--success {
+    background: rgba(var(--color-success-rgb), 0.1);
+    color: var(--color-success);
+    border-color: rgba(var(--color-success-rgb), 0.2);
+}
+
+.c-btn--success:hover {
+    background: var(--color-success);
+    color: var(--white);
+    box-shadow: 0 var(--spacing-xs) var(--spacing-md) rgba(var(--color-success-rgb), 0.3);
+}
+
+.c-btn--warning {
+    background: rgba(var(--color-warning-rgb), 0.1);
+    color: var(--color-warning);
+    border-color: rgba(var(--color-warning-rgb), 0.2);
+}
+
+.c-btn--warning:hover {
+    background: var(--color-warning);
+    color: var(--white);
+    box-shadow: 0 var(--spacing-xs) var(--spacing-md) rgba(var(--color-warning-rgb), 0.3);
+}
+
+.c-btn--outline:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+    background: rgba(var(--accent-color-rgb, 0, 242, 255), 0.05);
+}
+
+.c-btn--excel { background: var(--brand-excel) !important; color: var(--white) !important; border: none; }
+.c-btn--excel:hover { background: var(--brand-excel-hover) !important; }
+
+.c-btn--csv { background: var(--brand-whatsapp) !important; color: var(--white) !important; border: none; }
+.c-btn--csv:hover { background: var(--brand-whatsapp-hover) !important; }
+
+.c-btn--json { background: var(--brand-json) !important; color: var(--white) !important; border: none; }
+.c-btn--json:hover { background: var(--brand-json-hover) !important; }
+
+.c-btn--full { width: 100% !important; }
+
+/* Modifiers */
+.c-btn--icon {
+    padding: 0;
+    width: var(--btn-size-sm);
+    height: var(--btn-size-sm);
+    border-radius: var(--radius-md);
+}
+
+/* Utility Class for Nav Buttons (if needed as a component) */
+.c-utility__btn {
+    width: var(--btn-size-md);
+    height: var(--btn-size-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.c-utility__btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(calc(var(--border-thin) * -1));
+    border-color: var(--accent-color);
+}

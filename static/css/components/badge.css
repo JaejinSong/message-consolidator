@@ -1,0 +1,41 @@
+/* --- Badge Component (.c-badge) --- */
+.c-badge {
+    padding: 0.3rem 0.6rem;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    line-height: 1;
+}
+
+.c-badge--priority-high {
+    background: rgba(255, 59, 48, 0.1);
+    color: var(--color-error);
+    border: var(--border-thin) solid rgba(255, 59, 48, 0.2);
+}
+
+.c-badge--priority-medium {
+    background: rgba(255, 159, 10, 0.1);
+    color: var(--color-warning);
+    border: var(--border-thin) solid rgba(255, 159, 10, 0.2);
+}
+
+.c-badge--priority-low {
+    background: rgba(48, 209, 88, 0.1);
+    color: var(--color-success);
+    border: var(--border-thin) solid rgba(48, 209, 88, 0.2);
+}
+
+.c-badge--ghost {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-dim);
+    border: var(--border-thin) solid var(--glass-border);
+}
+
+.c-badge--status {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+}

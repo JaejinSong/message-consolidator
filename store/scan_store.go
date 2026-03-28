@@ -243,10 +243,11 @@ func FlushAllScanMetadata() {
 }
 
 type SlackThreadMeta struct {
-	UserEmail string
-	ChannelID string
-	ThreadTS  string
-	LastTS    string
+	UserEmail      string
+	ChannelID      string
+	ThreadTS       string
+	LastTS         string
+	LastActivityTS string
 }
 
 func RegisterActiveSlackThread(email, channelID, threadTS string) error {
@@ -295,5 +296,39 @@ func RemoveActiveSlackThread(email, channelID, threadTS string) error {
 	metadataMu.Unlock()
 
 	_, err := db.Exec(SQL.DeleteScanMetadataSlackThread, email, "slack_thread", targetID)
+	return err
+}
+
+// Targeted Thread Scan Worker support
+func RegisterTargetedSlackThread(channelID, threadTS, lastReplyTS, userEmail string) error {
+	_, err := db.Exec(SQL.UpsertSlackThread, channelID, threadTS, lastReplyTS, lastReplyTS, "active", userEmail)
+	return err
+}
+
+func GetTargetedActiveThreads() ([]SlackThreadMeta, error) {
+	rows, err := db.Query(SQL.GetActiveSlackThreadsNew)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var threads []SlackThreadMeta
+	for rows.Next() {
+		var t SlackThreadMeta
+		if err := rows.Scan(&t.ChannelID, &t.ThreadTS, &t.LastTS, &t.LastActivityTS, &t.UserEmail); err != nil {
+			return nil, err
+		}
+		threads = append(threads, t)
+	}
+	return threads, nil
+}
+
+func UpdateTargetedThread(channelID, threadTS, lastReplyTS, lastActivityTS, userEmail string) error {
+	_, err := db.Exec(SQL.UpsertSlackThread, channelID, threadTS, lastReplyTS, lastActivityTS, "active", userEmail)
+	return err
+}
+
+func CloseTargetedThread(channelID, threadTS, userEmail string) error {
+	_, err := db.Exec(SQL.CloseSlackThread, channelID, threadTS, userEmail)
 	return err
 }

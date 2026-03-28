@@ -24,7 +24,7 @@ type tokenUsageCacheData struct {
 var (
 	tokenMu           sync.Mutex
 	tokenDirtyData    = make(map[string]*tokenData)
-	tokenFlushingData = make(map[string]*tokenData) // DB 기록 중(Flush) 조회 시 누락 방지용
+	tokenFlushingData = make(map[string]*tokenData) // Prevents data loss during active DB flush
 	lastTokenFlush    time.Time
 
 	usageCache   = make(map[string]*tokenUsageCacheData)
@@ -48,7 +48,7 @@ func AddTokenUsage(email string, promptTokens, completionTokens int) error {
 	tokenDirtyData[email].Prompt += promptTokens
 	tokenDirtyData[email].Completion += completionTokens
 
-	// 캐시가 존재하고 날짜/월이 같다면 캐시에도 즉시 더해줍니다 (DB 조회 방어)
+	// Eagerly update cache if it matches the current date/month to prevent unnecessary DB reads
 	today := time.Now().Format("2006-01-02")
 	currentMonth := time.Now().Format("2006-01")
 
@@ -113,7 +113,7 @@ func FlushTokenUsage() error {
 			tokenDirtyData[email].Completion += data.Completion
 		}
 	}
-	tokenFlushingData = make(map[string]*tokenData) // 성공/실패 여부와 무관하게 비움
+	tokenFlushingData = make(map[string]*tokenData)
 	tokenMu.Unlock()
 
 	return err
@@ -188,7 +188,7 @@ func GetMonthlyTokenUsage(email string) (int, int, error) {
 	}
 	usageCacheMu.RUnlock()
 	firstDay := currentMonth + "-01"
-	// 현재 달의 1일을 기준으로 다음 달 1일을 계산하여 31일 등에서의 오버플로우 방지
+	// Calculate the 1st of the next month safely to prevent day 31 overflow issues
 	now := time.Now()
 	firstOfThisMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	nextMonthFirstDay := firstOfThisMonth.AddDate(0, 1, 0).Format("2006-01-02")
