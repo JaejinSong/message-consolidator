@@ -13,7 +13,7 @@ Dockerfile
 *.sh
 !entrypoint.sh
 *.md
-!RELEASE_NOTES_USER.md
+!RELEASE_NOTES_*.md
 planning/
 knowledge/
 *.db
