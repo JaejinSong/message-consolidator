@@ -42,7 +42,7 @@ func StartBackgroundScanner(ctx context.Context) {
 	var wg sync.WaitGroup
 
 	//Why: Triggers an immediate scan upon startup to ensure the dashboard is populated without waiting for the first ticker interval.
-	RunAllScans(&wg)
+	RunAllScans(ctx, &wg)
 
 	//Why: Starts the background archival process (Slow Sweeper) to periodically clean up outdated tasks and maintain database performance.
 	wg.Add(1)
@@ -52,17 +52,28 @@ func StartBackgroundScanner(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			logger.Infof("[SCANNER] Shutdown signal received. Waiting for in-flight tasks...")
-			wg.Wait()
-			logger.Infof("[SCANNER] All background tasks finished. Exit.")
+			
+			//Why: Uses a bounded timeout channel to prevent unresponsive network loops (e.g., WhatsApp disconnection or Slack API timeouts) from hanging the graceful shutdown process.
+			done := make(chan struct{})
+			go func() {
+				wg.Wait()
+				close(done)
+			}()
+			select {
+			case <-done:
+				logger.Infof("[SCANNER] All background tasks finished gracefully.")
+			case <-time.After(2 * time.Second):
+				logger.Warnf("[SCANNER] Timeout waiting for background tasks to finish. Forcing exit.")
+			}
 			return
 		case <-ticker.C:
-			RunAllScans(&wg)
+			RunAllScans(ctx, &wg)
 		}
 	}
 }
 
-func RunAllScans(wg *sync.WaitGroup) {
-	traceCtx, _ := trace.StartWithContext(context.Background(), "Background-RunAllScans")
+func RunAllScans(ctx context.Context, wg *sync.WaitGroup) {
+	traceCtx, _ := trace.StartWithContext(ctx, "Background-RunAllScans")
 	defer trace.End(traceCtx, nil)
 
 	users, err := store.GetAllUsers()
@@ -81,7 +92,7 @@ func RunAllScans(wg *sync.WaitGroup) {
 
 		u, al := user, aliases
 		eg.Go(func() error {
-			scanAllSources(u, al)
+			scanAllSources(traceCtx, u, al)
 			return nil
 		})
 	}
@@ -144,12 +155,12 @@ func getEffectiveAliases(user store.User, aliases []string) []string {
 	return result
 }
 
-func scanAllSources(user store.User, aliases []string) {
+func scanAllSources(parentCtx context.Context, user store.User, aliases []string) {
 	logger.Debugf("[SCAN] Scanning for user: %s", user.Email)
 
 	// Why: We use a standard context with timeout rather than errgroup.WithContext.
 	// If one channel (e.g., Gmail) fails, it should not cancel the scanning of others (e.g., WhatsApp).
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, 45*time.Second)
 	defer cancel()
 
 	var eg errgroup.Group

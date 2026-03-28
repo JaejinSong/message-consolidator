@@ -41,8 +41,8 @@ func TestReportsService_CalculateGraph(t *testing.T) {
 	}
 
 	// Verify edges
-	if len(graphData.Edges) < 1 {
-		t.Errorf("Edges should not be empty")
+	if len(graphData.Links) < 1 {
+		t.Errorf("Links should not be empty")
 	}
 }
 

@@ -114,13 +114,14 @@ func (s *ReportsService) prepareTaskSummaryForAI(messages []store.ConsolidatedMe
 
 type GraphData struct {
 	Nodes []Node `json:"nodes"`
-	Edges []Edge `json:"edges"`
+	Links []Edge `json:"links"` // ECharts 표준 규격인 links로 변경
 }
 
 type Node struct {
 	ID    string  `json:"id"`
 	Name  string  `json:"name"`
 	Value float64 `json:"value"`
+	IsMe  bool    `json:"is_me"` // 프론트엔드 하이라이팅용
 }
 
 type Edge struct {
@@ -149,16 +150,21 @@ func (s *ReportsService) generateVisualizationData(messages []store.Consolidated
 		pairWeights[pair]++
 	}
 
-	var nodes []Node
+	nodes := make([]Node, 0) // 빈 배열일 때 null이 되지 않도록 초기화
 	for id, val := range counts {
-		nodes = append(nodes, Node{ID: id, Name: id, Value: val})
+		nodes = append(nodes, Node{
+			ID:    id,
+			Name:  id,
+			Value: val,
+			IsMe:  strings.ToLower(id) == "me",
+		})
 	}
 
-	var edges []Edge
+	links := make([]Edge, 0) // 빈 배열일 때 null이 되지 않도록 초기화
 	for pair, weight := range pairWeights {
 		parts := strings.Split(pair, "|")
-		edges = append(edges, Edge{Source: parts[0], Target: parts[1], Weight: weight})
+		links = append(links, Edge{Source: parts[0], Target: parts[1], Weight: weight})
 	}
 
-	return GraphData{Nodes: nodes, Edges: edges}
+	return GraphData{Nodes: nodes, Links: links}
 }

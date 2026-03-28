@@ -49,12 +49,13 @@ export GEMINI_API_KEY_FOR_TEST=${GEMINI_API_KEY_FOR_TEST:-$GEMINI_API_KEY}
 
 run_step "Go unit tests" go test ./...
 run_step "NPM (Vitest) tests" npm test
-run_step "AI Regression tests" go test ./tests/regression
+run_step "AI Regression tests" go test -tags regression ./tests/regression
 run_step "Loading UI verification" node tests/verify-loading-ui.cjs
 
-# 1. Frontend Optimization (PurgeCSS)
+# 1. Frontend Optimization (Bundle -> Purge -> Minify)
 echo -e "${BLUE}==> Step 1: Optimizing frontend...${NC}"
-run_step "Optimizing CSS (PurgeCSS)" npm run build:css
+run_step "Optimizing CSS (Full Pipeline)" npm run optimize:css
+run_step "CSS Integrity Verification" node verify-css.cjs
 
 # 2. Build and Push
 echo -e "${BLUE}==> Step 2: Building and pushing image...${NC}"
@@ -73,7 +74,9 @@ run_step "Remote Restart on VPS" gcloud compute ssh ${VPS_NAME} --zone=${ZONE} -
   gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet &&
   gcloud storage cp gs://${BUCKET_NAME}/vps/.env . && 
   gcloud storage cp gs://${BUCKET_NAME}/vps/docker-compose.yml . && 
-  sudo docker-compose pull && sudo docker-compose up -d
+  # Why: Explicitly remove any existing container with same name to prevent project-name conflicts (e.g. from 'jinro' project)
+  sudo docker rm -f message-consolidator || true &&
+  sudo docker-compose -p message-consolidator pull && sudo docker-compose -p message-consolidator up -d --remove-orphans
 "
 
 # 5. Verification
@@ -107,6 +110,6 @@ fi
 # Multi-stage Health Check
 HEALTH_CHECK_URL="https://34.67.133.18.nip.io/health"
 
-run_step "External Health Check" curl -s -k "$HEALTH_CHECK_URL" | grep -q "OK"
+run_step "External Health Check" bash -c "curl -s -k '$HEALTH_CHECK_URL' | grep -q 'OK'"
 
 echo -e "\n${GREEN}🚀 Deployment Successful!${NC}"

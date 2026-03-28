@@ -32,7 +32,7 @@ npm test > "$LOG_NPM" 2>&1 &
 PID_NPM=$!
 
 echo -ne "[ RUN ] AI Regression Tests... \r"
-go test ./tests/regression > "$LOG_AI" 2>&1 &
+go test -tags regression ./tests/regression > "$LOG_AI" 2>&1 &
 PID_AI=$!
 
 echo -ne "[ RUN ] Loading UI Verification... \r"

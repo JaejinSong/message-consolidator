@@ -38,7 +38,7 @@ gcloud compute ssh chat-analyzer-vps --zone=us-central1-a --project=gemini-enter
   gcloud auth configure-docker us-central1-docker.pkg.dev --quiet &&
   gcloud storage cp gs://message-consolidator-deploy-gemini-enterprise-487906/vps/.env . && 
   gcloud storage cp gs://message-consolidator-deploy-gemini-enterprise-487906/vps/docker-compose.yml . && 
-  sudo docker-compose pull && sudo docker-compose up -d
+  sudo docker-compose pull && sudo docker-compose up -d --force-recreate --remove-orphans
 "
 ```
 

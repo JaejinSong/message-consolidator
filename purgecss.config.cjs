@@ -1,6 +1,6 @@
 module.exports = {
-  content: ['static/index.html', 'static/js/**/*.js'],
-  css: ['static/css/*.css'],
+  content: ['static/index.html', 'static/app.js', 'static/js/**/*.js'],
+  css: ['static/css/main.bundle.css'],
   safelist: {
     standard: [
       'active',
@@ -22,5 +22,5 @@ module.exports = {
     deep: [/^modal/, /^toast/],
     greedy: [/is-selected/]
   },
-  output: 'static/css/'
+  output: 'static/css/main.bundle.min.css'
 }

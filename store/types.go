@@ -115,7 +115,7 @@ type TranslateResponse struct {
 	Translations []TranslateRequest `json:"translations"`
 }
 
-//Why: Encapsulates query parameters to prevent long argument lists and improve maintainability.
+// Why: Encapsulates query parameters to prevent long argument lists and improve maintainability.
 type ArchiveFilter struct {
 	Email  string
 	Limit  int
@@ -123,7 +123,7 @@ type ArchiveFilter struct {
 	Query  string
 	Sort   string
 	Order  string
-	Status string //Why: Supports status filters such as "all", "done", or "trash".
+	Status string //Why: Supports status filters such as "all", "done", or "canceled".
 }
 
 // TimeSeriesPoint represents daily task completions grouped by source
@@ -152,7 +152,7 @@ type Report struct {
 	UserEmail     string    `json:"user_email"`
 	StartDate     string    `json:"start_date"`
 	EndDate       string    `json:"end_date"`
-	Summary       string    `json:"summary"`
-	Visualization string    `json:"visualization"` // JSON string of Node/Edge data
+	Summary       string    `json:"report_summary"`
+	Visualization string    `json:"visualization_data"` // JSON string of Node/Edge data
 	CreatedAt     time.Time `json:"created_at"`
 }

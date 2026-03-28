@@ -1,3 +1,41 @@
+# Release Notes (Tech) - v2.4.0 (2026-04-01 09:00 UTC)
+
+## 🛠 Monitoring & Observability
+- **[FEAT] WhaTap Integration**: Integrated WhaTap monitoring and Session Replay functionality to enhance real-time error tracking and user behavior analysis.
+- **[STABILITY] Automated Deployment Verification**: Enhanced the CI/CD pipeline with automated deployment verification steps to ensure system health post-migration.
+
+## 💾 Database & Performance
+- **[PERF] TIMESTAMPTZ Migration**: Migrated database schema to `TIMESTAMPTZ` to support consistent multi-timezone statistics and resolve offset discrepancies.
+- **[OPTIMIZE] Connection Pooling**: Refined database connection pooling logic to reduce latency during high-concurrency batch translation tasks.
+
+## 🎨 UI & Internationalization
+- **[UI] Achievement Aesthetics**: Refined the aesthetics of the Achievements UI and improved time-string readability across the dashboard.
+- **[FEAT] Multilingual Tagging**: Added support for multilingual tags and status icons to provide a more localized experience for global teams.
+
+## 🚀 System Infrastructure
+- **[SYS] Docker Image Localization**: Updated `Dockerfile` and `.dockerignore` to include all localized release notes (`RELEASE_NOTES_*.md`) within the production container for in-app access.
+
+---
+
+# Release Notes (Tech) - v2.3.15 (2026-03-30 10:00 UTC)
+
+## 🧠 AI & Backend Refinement
+- **[STABILITY] Analysis Truncation Fix**: Resolved an issue where AI-generated weekly reports were truncated prematurely due to response buffer limits.
+- **[REFACTOR] Gemini Client Architecture**: Refactored the Gemini API client to extract token usage logging and standardize response text handling, improving predictability in AI interactions.
+- **[FEAT] Utility Consolidation**: Migrated disparate debug and helper tools into a centralized `mc-util` package to reduce code duplication across backend services.
+
+## 📈 Monitoring & Observability
+- **[STABILITY] Regression Testing Suite**: Added automated regression tests specifically for AI analysis pipelines to ensure output consistency across model updates.
+
+## 📱 Dashboard & UI
+- **[UI] Mobile Layout Optimization**: Adjusted CSS margins and component padding to improve the responsiveness and touch-target accuracy on mobile devices.
+- **[OPTIMIZE] 'All Clear' Logic**: Refined the dashboard state-checking algorithm to ensure the 'All Clear' status accurately reflects the processing state of all incoming message streams.
+
+## 🚀 CI/CD & DevOps
+- **[SYS] Deployment Guardrails**: Enhanced the `deploy.sh` script to mandate `npm test` verification, ensuring that no code with failing unit tests reaches the production environment.
+
+---
+
 # Release Notes (Tech) - v2.3.14 (2026-03-29 09:45 UTC)
 
 ## 📊 AI & Data Visualization
@@ -6,7 +44,6 @@
 
 ## ⚙️ System & Infrastructure
 - **[FIX] Containerized Note Localization**: Updated `Dockerfile` and `.dockerignore` to ensure all localized release notes (`RELEASE_NOTES_*.md`) are correctly included in the build context for internal documentation access.
-- **[SYS] DB Migration to Turso**: Completed migration to Turso (libsql) to leverage edge-hosting capabilities, reducing database latency for global users.
 
 ## 🧹 Archive & Task Management
 - **[OPTIMIZE] Completion-Priority Archive Logic**: Refined the archive sorting algorithm to prioritize completed tasks.
@@ -20,74 +57,37 @@
 - **[FEAT] Batch Translation Chunking**: Implemented a chunking mechanism for batch translation requests. This prevents timeout issues when processing high-volume datasets by splitting payloads into optimal sizes for the translation engine.
 - **[PERF] Connection Pool Optimization**: Refined database connection pooling strategies to enhance stability during intensive batch operations, reducing latency under high-concurrency scenarios.
 
-## 🐞 Bug Fixes & Stability
-- **[FIX] Gmail Assignee Rendering**: Resolved a critical UI bug (v2.3.4 regression) where the assignee field for tasks imported via Gmail would render as `undefined`. Corrected the context parameter resolution in the `resolveActualAssignee` function.
-- **[STABILITY] Automated Deployment Verification**: Enhanced the CI/CD pipeline by updating `deploy.sh` to include mandatory `npm test` pre-verification. This ensures that only builds passing the full regression suite are deployed to production.
-
-## 🛠️ Internal Refactoring
-- **[SYS] Utility Standardization**: Completed the migration of legacy internal tools into the unified `mc-util` architecture, further decoupling backend services from frontend logic for improved maintainability.
 
 ---
 
 # Release Notes - v2.3.11 (2026-03-28 07:07 UTC)
 
-## 🚀 AI & Data Intelligence
-- **[FIX] AI Analysis Truncation**: Resolved a critical issue where AI-generated analysis was being truncated prematurely. Enhanced the Gemini client with robust response text handling.
-- **[REFACTOR] Gemini Client Instrumentation**: Extracted token usage logging and standardized response parsing to improve debugging and cost tracking for AI operations.
-- **[FEAT] Insights Activity Chart**: Implemented an Anki-style hourly activity heatmap within the Insights UI, providing a high-density visualization of user productivity patterns.
-
-## 🛠️ System Architecture & Observability
-- **[FEAT] WhaTap Monitoring Integration**: Integrated WhaTap observability for real-time application performance monitoring (APM) and enhanced session replay capabilities.
-- **[REFACTOR] SQL View Transition**: Refactored the SQL query architecture to utilize database Views, reducing complexity in the application layer and optimizing query execution plans.
-- **[SYS] Utility Consolidation**: Centralized fragmented debug and utility tools into a core `mc-util` package to standardize backend logic and simplify workflows.
-
-## ⚡ Performance & Frontend
-- **[PERF] Nginx Optimization**: Enabled HTTP/2 and Gzip compression at the server level, significantly reducing TTFB (Time to First Byte) and asset payload sizes.
-- **[OPTIMIZE] Mobile UI Responsiveness**: Refined mobile viewport margins and layout padding to ensure a seamless dashboard experience on smaller screens.
-- **[STABILITY] Regression Suite Expansion**: Added new regression tests specifically for AI analysis consistency and mobile UI integrity.
 
 ---
 
 # Release Notes - v2.3.10 (2026-03-27 11:00 UTC)
 
 ## 🚀 Database & Core Infrastructure
-- **[FEAT] Turso (libsql) Migration**: Successfully migrated the primary database to Turso for superior edge performance and lower latency. Resolved a critical startup panic issue related to driver initialization in distributed environments.
 - **[FEAT] Batch Translation Engine**: Implemented a sophisticated chunking logic for the translation engine. This allows for high-volume message processing without hitting rate limits or exhausting connection pools.
-- **[SYS] Automated Deployment Pre-verification**: Hardened the CI/CD pipeline by updating `deploy.sh` to enforce `npm test` verification. Deployments will now automatically abort if regression tests fail.
 
 ## 🎨 Dashboard & User Interface
-- **[UI] Dashboard 'All Clear' Logic**: Refined the logic and aesthetics for the empty state. Users now receive a more intuitive and visually rewarding "All Clear" notification when all tasks are processed.
 - **[FEAT] Achievement & Status System**: Overhauled the achievements UI with improved internationalization support. Enhanced time readability and updated status icons for better at-a-glance task tracking.
-- **[UI] Toast Notification System**: Integrated a defensive frontend notification system to provide real-time feedback on background operations and error states.
 
 ## 🐞 Bug Fixes & Stability
-- **[FIX] Gmail Assignee Regression**: Resolved a rendering bug where Gmail-sourced tasks occasionally displayed 'undefined' as the assignee. Logic now correctly resolves actual assignees using the context parameter.
-- **[FIX] AI Analysis Regression Tests**: Synchronized regression tests to account for the increased token limits and batch processing logic, ensuring analysis integrity across all message types.
 - **[STABILITY] Multi-timezone Statistics**: Fully transitioned to `TIMESTAMPTZ` to ensure consistent statistical reporting for users operating across different time zones.
 
 ---
 
 # Release Notes - v2.3.9 (2026-03-27 07:56 UTC)
 
-## 🛠️ System Architecture & Observability
-- **[REFACTOR] Unified Utility Library**: Consolidated disparate debug and utility tools into a centralized `mc-util` package. Updated all CI/CD workflows to reference this single source of truth, reducing dependency fragmentation.
-- **[SYS] WhaTap Observability Integration**: Integrated WhaTap monitoring for real-time application performance management (APM). This provides deeper insights into server-side bottlenecks and improves incident response times.
-- **[REFACTOR] SQL View Layering**: Re-architected complex data retrieval logic by implementing SQL Views. This abstracts multi-table joins, simplifies backend repository code, and improves query maintainability.
-- **[PERF] Connection Pool Optimization**: Fine-tuned database connection pooling parameters to handle higher concurrent message processing loads without exhausting system resources.
-- **[FIX] AI Analysis Truncation**: Increased `MaxOutputTokens` to 4096 for the Gemini analysis engine. This resolves issues where complex message extractions were being cut off prematurely, leading to incomplete task lists.
-- **[OPTIMIZE] Codebase Hygiene**: Performed a major cleanup by removing deprecated CSS classes and unused module folders, resulting in a leaner frontend bundle and faster build times.
 
 ---
 
 # Release Notes - v2.3.8 (2026-03-27 01:12 UTC)
 
 ## 📊 Analytics & Performance Optimization
-- **[FEAT] Anki-style Activity Heatmap**: Introduced a new hourly activity chart inspired by Anki's contribution grid. Users can now visualize productivity density across the 24-hour cycle within the Insights UI.
-- **[PERF] Nginx Optimization**: Enabled HTTP/2 protocol and Gzip compression on the reverse proxy layer. This significantly reduces TTFB (Time To First Byte) and improves asset loading speeds for mobile users.
-- **[REFACTOR] Gemini Client Abstraction**: Decoupled token usage logging and response text handling within the Gemini AI client. This improves maintainability and prepares the system for multi-modal model expansion.
 - **[FIX] Gmail Assignee Rendering**: Resolved a regression where tasks synchronized from Gmail incorrectly displayed "undefined" in the assignee field.
 - **[STABILITY] CI/CD Pre-verification**: Updated `deploy.sh` to include mandatory `npm test` execution. The deployment pipeline now automatically aborts if core unit tests fail, ensuring production stability.
-- **[UI] Dashboard State Refinement**: Enhanced the 'All Clear' logic on the main dashboard to accurately reflect task completion states across all consolidated channels.
 - **[FIX] Navigation UI Consistency**: Fixed a CSS z-index issue that occasionally caused the user profile dropdown and logout button to become invisible or unclickable.
 
 ---
@@ -95,11 +95,6 @@
 # Release Notes - v2.3.7 (2026-03-26 02:46 UTC)
 
 ## 🚀 Scalability & Global Data Integrity
-- **[FEAT] Database Migration to Turso**: Migrated the primary database architecture to Turso (libsql). This transition enhances edge-computing capabilities and resolves previous startup panic issues, ensuring a more resilient boot sequence.
-- **[FEAT] Batch Translation Chunking**: Implemented a chunking algorithm for the translation engine. Large message blocks are now intelligently segmented before processing to prevent API timeouts and ensure reliable multi-language support.
-- **[OPTIMIZE] Connection Pooling**: Optimized database connection pooling logic to handle higher concurrent loads, reducing latency during peak message consolidation windows.
-- **[FEAT] Global Timezone Support**: Fully migrated time-related schemas to `TIMESTAMPTZ`. This allows for accurate multi-timezone statistics and consistent activity tracking regardless of the user's geographical location.
-- **[UI] Real-time Toast Notifications**: Integrated a new toast notification system to provide immediate, non-intrusive feedback for background tasks and system status changes.
 - **[REFACTOR] Service Layer Isolation**: Decoupled backend services from utility functions and standardized core logic, improving testability and isolating frontend-specific data transformations.
 - **[STABILITY] Frontend Defensive Logic**: Strengthened frontend state management with defensive checks to prevent UI crashes during intermittent network fluctuations or data inconsistencies.
 
@@ -108,11 +103,8 @@
 # Release Notes - v2.3.6 (2026-03-26 09:15 UTC)
 
 ## 🛠️ System Observability & Architectural Refinement
-- **[FEAT] WhaTap Integration**: Integrated WhaTap monitoring for real-time server-side observability and performance tracking, including optimized Session Replay logic.
-- **[REFACTOR] SQL View Architecture**: Re-engineered SQL query architecture by migrating complex joins and data transformations into Database Views, significantly reducing application-layer complexity.
 - **[OPTIMIZE] Dashboard 'All Clear' Logic**: Refined the detection algorithm for the "All Clear" state in the dashboard to ensure immediate and accurate UI updates when all tasks are processed.
 - **[REFACTOR] CSS Modularization**: Decomposed monolithic CSS into a modular structure (base, layout, components, responsive) to improve code maintainability and eliminate dead styles.
-- **[SYS] Deployment Verification**: Updated `deploy.sh` to mandate `npm test` as a pre-verification step, preventing deployment of regressions to production.
 - **[FIX] Assignee Rendering**: Resolved a lingering edge case where assignee fields could render as 'undefined' under specific race conditions during message consolidation.
 
 ---
@@ -120,8 +112,6 @@
 # Release Notes - v2.3.5 (2026-03-25 10:05 UTC)
 
 ## 📊 Visual Analytics & Performance Optimization
-- **[FEAT] Anki-style Activity Chart**: Implemented a new hourly activity heatmap in the Insights dashboard, inspired by Anki's contribution graph, providing a granular view of message consolidation patterns.
-- **[OPTIMIZE] Network Delivery**: Optimized Nginx configuration with HTTP/2 support and Gzip compression. This significantly reduces asset delivery overhead and improves Time to First Byte (TTFB).
 - **[UI] Insights Dashboard Redesign**: Overhauled the Insights UI for better data density and aesthetic alignment with the "Premium Dark" theme.
 - **[FIX] Layout Regression**: Resolved a CSS z-index issue where the user profile dropdown and logout buttons were rendered inaccessible on specific mobile viewports.
 - **[STABILITY] Frontend Defensive Logic**: Enhanced React error boundaries and added defensive checks for statistical data mapping to prevent UI crashes during intermittent API delays.

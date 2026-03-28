@@ -60,7 +60,7 @@ func main() {
 	//Why: Creates the API handler structure with explicit dependency injection, simplifying unit testing and mock substitution.
 	api := handlers.NewAPI(cfg, scanner.Scan, func() {
 		var wg sync.WaitGroup
-		scanner.RunAllScans(&wg)
+		scanner.RunAllScans(context.Background(), &wg)
 		wg.Wait()
 	}, reportsSvc)
 
@@ -78,20 +78,30 @@ func main() {
 	logger.Infof("Shutting down server gracefully...")
 	shutdownStart := time.Now()
 
-	//Why: [Shutdown 1/4] Safely terminates active WhatsApp WebSocket sessions to prevent client-side hanging or orphaned connections on the message server.
-	logger.Infof("[Shutdown] 1/4 Disconnecting external clients (WhatsApp)...")
-	channels.DisconnectAllWhatsApp()
+	//Why: Executes cleanup tasks concurrently to prevent one slow dependency (e.g., a lagging WhatsApp WebSocket) from delaying the entire shutdown process.
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-	//Why: [Shutdown 2/4] Flushes all buffered, lazy-written state (token usage, scan metadata, gamification) to the database to guarantee overall data integrity before exit.
-	logger.Infof("[Shutdown] 2/4 Flushing in-memory data to Database...")
-	if err := store.FlushTokenUsage(); err != nil {
-		logger.Errorf("Failed to flush token usage during shutdown: %v", err)
-	}
-	store.FlushAllScanMetadata()
-	if err := services.FlushGamificationData(); err != nil {
-		logger.Errorf("Failed to flush gamification data during shutdown: %v", err)
-	}
-	logger.Infof("[Shutdown] In-memory data flushed successfully.")
+	go func() {
+		defer wg.Done()
+		logger.Infof("[Shutdown] 1/4 Disconnecting external clients (WhatsApp)...")
+		channels.DisconnectAllWhatsApp()
+	}()
+
+	go func() {
+		defer wg.Done()
+		logger.Infof("[Shutdown] 2/4 Flushing in-memory data to Database...")
+		if err := store.FlushTokenUsage(); err != nil {
+			logger.Errorf("Failed to flush token usage during shutdown: %v", err)
+		}
+		store.FlushAllScanMetadata()
+		if err := services.FlushGamificationData(); err != nil {
+			logger.Errorf("Failed to flush gamification data during shutdown: %v", err)
+		}
+		logger.Infof("[Shutdown] In-memory data flushed successfully.")
+	}()
+
+	wg.Wait()
 
 	//Why: [Shutdown 3/4] Drains in-flight HTTP requests with a bounded 5s timeout to allow active sessions to complete without hanging the process indefinitely.
 	logger.Infof("[Shutdown] 3/4 Waiting for active HTTP requests to finish (Max 5s)...")

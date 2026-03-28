@@ -422,11 +422,45 @@ func LogoutWhatsApp(email string) error {
 
 func DisconnectAllWhatsApp() {
 	DefaultWAManager.mu.Lock()
-	defer DefaultWAManager.mu.Unlock()
+	
+	type waClientInfo struct {
+		email   string
+		client  *whatsmeow.Client
+	}
+	var clientsToDisconnect []waClientInfo
+	
 	for email, client := range DefaultWAManager.clients {
 		if client.IsConnected() {
-			logger.Infof("[WA] Disconnecting client for %s...", email)
-			client.Disconnect()
+			clientsToDisconnect = append(clientsToDisconnect, waClientInfo{email: email, client: client})
 		}
+	}
+	DefaultWAManager.mu.Unlock()
+
+	if len(clientsToDisconnect) == 0 {
+		return
+	}
+
+	var wg sync.WaitGroup
+	for _, info := range clientsToDisconnect {
+		wg.Add(1)
+		go func(email string, c *whatsmeow.Client) {
+			defer wg.Done()
+			logger.Infof("[WA] Disconnecting client for %s...", email)
+			c.Disconnect()
+		}(info.email, info.client)
+	}
+
+	//Why: Disconnect external clients concurrently with a timeout to prevent network issues from hanging the entire application shutdown.
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		logger.Infof("[WA] All WhatsApp clients disconnected successfully.")
+	case <-time.After(2 * time.Second):
+		logger.Warnf("[WA] Timeout reached while disconnecting WhatsApp clients.")
 	}
 }

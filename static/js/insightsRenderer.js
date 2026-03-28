@@ -525,7 +525,14 @@ export const insightsRenderer = {
             myChart = echarts.init(container, state.currentTheme === 'dark' ? 'dark' : null);
         }
 
+        // AI가 생성한 JSON 키값 변동성에 유연하게 대응
+        const graphNodes = data.nodes || [];
+        const graphLinks = data.links || data.edges || data.relations || [];
+
+        console.log('[Insights] Network Graph Data:', { nodes: graphNodes, links: graphLinks });
+
         const option = {
+            backgroundColor: 'transparent',
             tooltip: {
                 trigger: 'item',
                 formatter: (params) => {
@@ -547,19 +554,35 @@ export const insightsRenderer = {
                 layout: 'force',
                 animation: true,
                 draggable: true,
-                data: (data.nodes || []).map(n => ({
-                    ...n,
-                    symbolSize: Math.max(15, Math.min(60, n.value * 2)),
-                    category: n.is_me ? 'User' : 'Contact',
-                    itemStyle: {
-                        color: n.is_me ? 'var(--accent-color)' : 'var(--text-dim)'
-                    }
-                })),
-                links: (data.links || []).map(l => ({
-                    ...l,
+                edgeSymbol: ['none', 'arrow'],
+                edgeSymbolSize: [4, 10],
+                data: graphNodes.map(n => {
+                    const cnt = n.value || 1;
+                    // 소통 빈도수에 따른 Hue 변화: 220(파랑) -> 0(빨강)
+                    const hue = Math.max(0, 220 - (cnt * 10));
+
+                    return {
+                        ...n,
+                        symbolSize: Math.max(25, Math.min(120, cnt * 5)),
+                        category: n.is_me ? 'User' : 'Contact',
+                        itemStyle: {
+                            color: n.is_me ? 'var(--accent-color)' : `hsl(${hue}, 85%, 65%)`
+                        },
+                        label: {
+                            show: true,
+                            fontSize: Math.max(12, Math.min(36, 10 + cnt))
+                        }
+                    };
+                }),
+                links: graphLinks.map(l => ({
+                    source: l.source || l.from, // 과거 AI 캐시 데이터 완벽 대응
+                    target: l.target || l.to,
+                    value: l.weight || l.value,
                     lineStyle: {
-                        width: Math.max(1, Math.min(8, l.value / 2)),
-                        opacity: 0.6
+                        color: 'source',
+                        width: Math.max(1, Math.min(15, l.weight || l.value || 1)),
+                        opacity: 0.6,
+                        curveness: 0.2
                     }
                 })),
                 categories: [{ name: 'User' }, { name: 'Contact' }],
@@ -571,25 +594,137 @@ export const insightsRenderer = {
                     fontSize: 10
                 },
                 force: {
-                    repulsion: 800,
+                    repulsion: 1000,
                     gravity: 0.1,
-                    edgeLength: [50, 150]
+                    edgeLength: [80, 200]
                 },
                 emphasis: {
                     focus: 'adjacency',
                     lineStyle: {
                         width: 10
                     }
+                },
+                blur: {
+                    itemStyle: {
+                        opacity: 0.1
+                    },
+                    lineStyle: {
+                        opacity: 0.1,
+                        width: 1
+                    }
                 }
             }]
         };
 
         myChart.setOption(option);
-        
+
+        // 기존 이벤트 리스너 제거 (중복 등록 방지)
+        myChart.off('click');
+        myChart.getZr().off('click');
+
+        // 노드 클릭 시 상세 정보 팝업 표시
+        const self = this;
+        myChart.on('click', function (params) {
+            if (params.dataType === 'node') {
+                self._showNodePopup(params, container, data);
+            } else {
+                // 노드가 아닌 선 등을 클릭했을 때 팝업 숨기기
+                self._hideNodePopup();
+            }
+        });
+
+        // 그래프의 빈 배경 공간을 클릭했을 때 팝업 닫기
+        myChart.getZr().on('click', function (event) {
+            if (!event.target) {
+                self._hideNodePopup();
+            }
+        });
+
         // Handle window resize
         if (!container.dataset.resizeBound) {
             window.addEventListener('resize', () => myChart.resize());
             container.dataset.resizeBound = "true";
         }
+    },
+
+    _hideNodePopup() {
+        const popup = document.getElementById('nodeInfoPopup');
+        if (popup) popup.style.display = 'none';
+    },
+
+    _showNodePopup(params, container, data) {
+        let popup = document.getElementById('nodeInfoPopup');
+        if (!popup) {
+            popup = document.createElement('div');
+            popup.id = 'nodeInfoPopup';
+            popup.className = 'glass-card';
+            popup.style.position = 'absolute';
+            popup.style.zIndex = '1000';
+            popup.style.padding = '1.25rem';
+            popup.style.minWidth = '220px';
+            popup.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.4)';
+            popup.style.border = '1px solid var(--glass-border)';
+            popup.style.borderRadius = '12px';
+            popup.style.backgroundColor = 'var(--bg-color)';
+
+            if (getComputedStyle(container).position === 'static') {
+                container.style.position = 'relative';
+            }
+            container.appendChild(popup);
+        }
+
+        const nodeName = params.data.name;
+        const messageCount = params.data.value || 0;
+
+        const graphLinks = data.links || data.edges || data.relations || [];
+
+        // 주요 소통 대상 상위 3명 추출
+        const topLinks = graphLinks
+            .filter(l => l.source === nodeName || l.target === nodeName)
+            .sort((a, b) => (b.weight || 0) - (a.weight || 0))
+            .slice(0, 3);
+
+        let connectionsHtml = '';
+        if (topLinks.length > 0) {
+            connectionsHtml = '<div style="margin-top: 1rem; font-size: 0.85rem;">' +
+                '<div style="color: var(--text-dim); margin-bottom: 0.5rem; font-weight: 600;">주요 소통 대상:</div>' +
+                topLinks.map(l => {
+                    const otherNode = l.source === nodeName ? l.target : l.source;
+                    return `<div style="display: flex; justify-content: space-between; margin-bottom: 0.3rem;">
+                                <span style="color: var(--text-main);">${escapeHTML(otherNode)}</span>
+                                <span style="color: var(--accent-color); font-weight: 600;">${l.weight || 0}건</span>
+                            </div>`;
+                }).join('') +
+                '</div>';
+        }
+
+        popup.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                <h4 style="margin: 0; color: var(--text-main); font-size: 1.1rem; word-break: break-all;">${escapeHTML(nodeName)}</h4>
+                <button id="closeNodePopup" style="background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 1.25rem; line-height: 1; padding: 0; margin-left: 1rem;">&times;</button>
+            </div>
+            <div style="font-size: 0.9rem; color: var(--text-dim);">
+                총 소통량: <span style="color: var(--accent-color); font-weight: 800; font-size: 1rem;">${messageCount}</span>건
+            </div>
+            ${connectionsHtml}
+        `;
+
+        popup.style.display = 'block';
+
+        document.getElementById('closeNodePopup').addEventListener('click', () => {
+            popup.style.display = 'none';
+        });
+
+        const rect = container.getBoundingClientRect();
+        let left = params.event.offsetX + 15;
+        let top = params.event.offsetY + 15;
+
+        const estWidth = 240;
+        const estHeight = 150;
+        if (left + estWidth > rect.width) left = params.event.offsetX - estWidth - 15;
+        if (top + estHeight > rect.height) top = params.event.offsetY - estHeight - 15;
+
+        popup.style.left = left + 'px';
+        popup.style.top = top + 'px';
     }
 };

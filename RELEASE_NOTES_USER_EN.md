@@ -1,3 +1,20 @@
+# Release Notes - v2.4.0 (2026-04-01 09:00 UTC)
+
+- **[FEAT] Your 24/7 Digital Bodyguard**: We've integrated WhaTap monitoring to watch over your messages. It helps us catch and fix bugs before you even notice them—consider it a premium security service for your productivity.
+- **[OPTIMIZE] Global Time, Local Accuracy**: No more confusing time calculations! With our new timezone-smart engine, your activity stats are perfectly accurate whether you're working from London, Tokyo, or anywhere in between.
+- **[UI] Productivity Never Looked So Good**: We've given our Achievement screens and status icons a sleek makeover. Tracking your progress is now as visually satisfying as it is rewarding.
+- **[SYS] Smoother Updates**: We’ve updated our internal delivery system (via Docker) to ensure that these very release notes reach you in your preferred language, faster and more reliably than ever.
+
+---
+
+# Release Notes - v2.3.15 (2026-03-30 10:00 UTC)
+
+- **[FIX] No More Cut-off Reports**: Our AI was getting a bit too concise! We've fixed a bug where longer weekly reports were being cut off, so you now get the full story every time.
+- **[FEAT] Mobile Makeover**: We’ve polished the mobile interface with smoother margins and better spacing. Managing your messages on the go has never felt this effortless.
+- **[STABILITY] The Ultimate "All Clear"**: We’ve tuned the dashboard logic to make sure that satisfying "All Clear" message appears exactly when your plate is empty—no ghost tasks left behind.
+
+---
+
 # Release Notes - v2.3.14 (2026-03-29 09:45 UTC)
 
 - **[FEAT] Meet Your Team’s "Social Map"**: Our new AI Reporting doesn't just summarize your week—it visualizes it! Explore the new Relationship Graph to see a beautiful, interactive map of how you and your team are connecting.
@@ -12,15 +29,11 @@
 - **[FEAT] Effortless Large-Scale Translation**: Managing tasks in multiple languages just got smoother! Our new "smart chunking" engine handles even the largest lists without breaking a sweat, ensuring your translations are always fast and reliable.
 - **[FIX] The "Undefined" Ghost is Gone**: We've fixed a bug where some colleagues imported from Gmail appeared as "undefined." Now, every team member is correctly identified, so you always know who's responsible for what.
 - **[PERF] Snappier Performance**: We've tuned the engine under the hood. Even when you're multitasking or running heavy reports, Message Consolidator stays responsive and ready for your next command.
-- **[STABILITY] Ironclad Updates**: We’ve upgraded our delivery system. Every new update now undergoes a rigorous automated health check before it reaches you, ensuring a seamless experience every time you log in.
 
 ---
 
 # Release Notes - v2.3.11 (2026-03-28 07:07 UTC)
 
-- **[FEAT] Visualize Your Productivity**: Check out the new "Anki-style" activity chart in your Insights tab! It’s a beautiful, heatmap-style view of when you’re most active throughout the day.
-- **[FIX] Smarter, Uninterrupted AI**: We fixed a bug where our AI sometimes stopped talking mid-sentence. Now, you get the full, detailed analysis every single time.
-- **[FEAT] 24/7 Heartbeat Monitoring**: We’ve integrated WhaTap observability. This is like a high-tech health monitor for our app, ensuring everything runs smoothly behind the scenes.
 - **[PERF] Turbo-Charged Loading**: By optimizing our server with HTTP/2 and Gzip, the app now loads faster than ever. More time for work, less time for waiting!
 - **[OPTIMIZE] Perfect Mobile View**: We’ve tweaked the margins and spacing for mobile users. Whether you're on a phone or a tablet, the dashboard looks sharper and feels more natural.
 
@@ -36,30 +49,21 @@
 
 # Release Notes - v2.3.10 (2026-03-27 11:00 UTC)
 
-- **[FEAT] The Great Database Move**: We've upgraded our brain! By migrating to Turso, Message Consolidator is now faster and more reliable, no matter where you are in the world.
 - **[UI] Celebrate the "All Clear"**: We've polished the dashboard so that clearing your task list feels even more satisfying. Enjoy the new "All Clear" look—you've earned it!
-- **[FIX] No More Mystery Assignees**: Fixed a pesky bug where some Gmail tasks forgot who was in charge. Everyone's name will now show up exactly where it should.
 - **[FEAT] Smarter Status Tracking**: We’ve updated our icons and time displays to be clearer and easier to read. Keeping track of your achievements is now a breeze.
-- **[STABILITY] Safety First Deployments**: We've added extra guardrails to our update process. This means every new update is tested more strictly before it reaches you, ensuring a smoother experience.
 
 ---
 
 # Release Notes - v2.3.9 (2026-03-27 07:56 UTC)
 
-- **[SYS] We’re Watching (In a Good Way)**: We've integrated WhaTap monitoring! It’s like giving our servers a 24/7 health check-up, ensuring everything stays smooth and responsive for you.
 - **[OPTIMIZE] Spring Cleaning**: We’ve scrubbed away old, unused code and "dead" CSS. The app is now lighter, leaner, and ready to move faster than ever.
 - **[REFACTOR] Smarter Data Handling**: By reorganizing how we talk to our database using "SQL Views," we’ve made the app’s brain much more efficient. Faster data loading means less waiting.
 - **[PERF] Heavy Lifting Made Easy**: We've tuned our database connections to handle huge spikes in messages. Even when you're at your busiest, Message Consolidator won't break a sweat.
-- [FIX] Smarter & More Thorough AI Analysis: Fixed an issue where the AI would sometimes stop mid-sentence when analyzing complex conversations. It now reads through even the longest threads to ensure no tasks are missed.
 
 ---
 
 # Release Notes - v2.3.8 (2026-03-27 01:12 UTC)
 
-- **[FEAT] Master Your Time with Heatmaps**: Love the "Anki" style grid? We've brought it to your Insights page. You can now see exactly which hours of the day you're most active in a beautiful, color-coded chart.
-- **[PERF] Speeding Up the Pipes**: We've tuned our servers to use HTTP/2 and Gzip compression. It’s like upgrading from a garden hose to a fire hose—the app now loads noticeably faster.
-- **[FIX] No More "Mr. Undefined"**: Gmail tasks were having a bit of an identity crisis and showing "undefined" as the owner. We’ve given them their names back.
-- **[SYS] Bulletproof Deploys**: We’ve told our deployment robots to double-check everything with a test run before they go live. If something isn't perfect, it doesn't ship.
 - **[UI] Found Your Profile**: Did your logout button go on vacation? We caught it and pinned it back to the top right. Your profile settings are back where they belong.
 
 ---
@@ -68,7 +72,6 @@
 
 - **[FEAT] Globally Minded Timekeeping**: Whether you're in Seoul or San Francisco, your message stats are now perfectly synced. We’ve upgraded our time engine to support every timezone on Earth with precision.
 - **[FEAT] Heavy-Duty Translation**: Translating massive amounts of text is now smoother than ever. Our new "chunking" technology breaks down huge tasks into bite-sized pieces, so the app never breaks a sweat.
-- **[OPTIMIZE] Turbo-Charged Database**: We’ve moved our engine to a faster, more modern "Turso" database. It’s like switching from a standard engine to a high-performance jet—faster response times and zero startup hiccups.
 - **[UI] Instant Feedback**: No more wondering "did that work?" Our new Toast Notifications will pop up to give you a quick "thumbs up" when tasks are completed or system updates occur.
 - **[STABILITY] Bulletproof Experience**: We've added extra layers of protection to the app’s "brain" to handle shaky internet connections or unexpected data errors gracefully.
 
@@ -76,10 +79,7 @@
 
 # Release Notes - v2.3.6 (2026-03-26 09:15 UTC)
 
-- **[FEAT] 24/7 Health Monitoring**: We’ve integrated WhaTap monitoring. Think of it as a "heart rate monitor" for our servers, ensuring your Message Consolidator stays healthy and responsive 24/7.
 - **[OPTIMIZE] Smarter "All Clear"**: That satisfying "Inbox Zero" moment is now more accurate. We’ve improved the logic that detects when you've finished all your tasks, so the dashboard updates instantly.
-- **[SYS] Reinforced Safety**: We’ve added extra "seatbelts" to our deployment process. New automatic tests now run before every update to ensure that only the most stable version reaches your screen.
-- **[REFACTOR] Lean & Clean Code**: We've completely reorganized our styling system and database structure. You won't see these changes directly, but the app is now leaner, cleaner, and ready for future features.
 
 ---
 
