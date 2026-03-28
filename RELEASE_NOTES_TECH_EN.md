@@ -1,3 +1,19 @@
+# Release Notes (Tech) - v2.3.14 (2026-03-29 09:45 UTC)
+
+## 📊 AI & Data Visualization
+- **[FEAT] AI Reporting & Relationship Graph**: Launched a new reporting engine that utilizes AI to synthesize weekly activity. Integrated a network-based relationship graph visualization to map team interactions and communication density.
+- **[REFACTOR] SQL Query Architecture (Views)**: Significantly refactored database access patterns by migrating complex joining logic into SQL Views. This improves query maintainability and reduces application-layer overhead.
+
+## ⚙️ System & Infrastructure
+- **[FIX] Containerized Note Localization**: Updated `Dockerfile` and `.dockerignore` to ensure all localized release notes (`RELEASE_NOTES_*.md`) are correctly included in the build context for internal documentation access.
+- **[SYS] DB Migration to Turso**: Completed migration to Turso (libsql) to leverage edge-hosting capabilities, reducing database latency for global users.
+
+## 🧹 Archive & Task Management
+- **[OPTIMIZE] Completion-Priority Archive Logic**: Refined the archive sorting algorithm to prioritize completed tasks.
+- **[UI] Terminology Standardization**: Renamed the archive category to '취소한 업무' (Canceled Tasks) to more accurately reflect task states.
+
+---
+
 # Release Notes (Tech) - v2.3.12 (2026-03-28 15:30 UTC)
 
 ## 🔄 Core Processing & Translation

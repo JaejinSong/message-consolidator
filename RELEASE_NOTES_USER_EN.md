@@ -1,3 +1,12 @@
+# Release Notes - v2.3.14 (2026-03-29 09:45 UTC)
+
+- **[FEAT] Meet Your Team’s "Social Map"**: Our new AI Reporting doesn't just summarize your week—it visualizes it! Explore the new Relationship Graph to see a beautiful, interactive map of how you and your team are connecting.
+- **[OPTIMIZE] Smarter Archiving**: We’ve reorganized the attic! Your archived tasks now prioritize completed items, and we've renamed the "Canceled" section to keep things crystal clear.
+- **[PERF] Edge-Speed Performance**: We’ve moved our database to the "edge." What does that mean for you? Faster loading times and a snappier experience, no matter where you are in the world.
+- **[SYS] Documentation Harmony**: We’ve polished our internal gears to ensure all our multi-language update notes are perfectly synced within the app.
+
+---
+
 # Release Notes - v2.3.12 (2026-03-28 15:30 UTC)
 
 - **[FEAT] Effortless Large-Scale Translation**: Managing tasks in multiple languages just got smoother! Our new "smart chunking" engine handles even the largest lists without breaking a sweat, ensuring your translations are always fast and reliable.

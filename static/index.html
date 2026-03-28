@@ -229,8 +229,7 @@
                     <button type="button" class="tab-btn c-tabs__btn active" data-tab="insightsStatsTab"
                         style="flex-shrink: 0; white-space: nowrap;"><span data-i18n="insightsStats">통계</span></button>
                     <button type="button" class="tab-btn c-tabs__btn" data-tab="insightsReportsTab"
-                        style="flex-shrink: 0; white-space: nowrap;"><span data-i18n="insightsReports">보고서
-                            (예정)</span></button>
+                        style="flex-shrink: 0; white-space: nowrap;"><span data-i18n="insightsReports">보고서</span></button>
                 </div>
 
                 <!-- 기존 통계 콘텐츠 영역 (Stats Tab) -->
@@ -241,7 +240,7 @@
 
                     <div class="insights-dashboard">
                         <h2 class="insights-section-title" data-i18n="waitingTasks">Pending Tasks</h2>
-                        
+
                         <div class="insights-card insights-card--square">
                             <h3 data-i18n="pendingMeTasks">My Tasks</h3>
                             <div id="waitingMetricsMe" class="c-stat-item__value">0</div>
@@ -249,7 +248,8 @@
 
                         <div class="insights-card insights-card--square">
                             <h3 data-i18n="needsAttentionTasks">Bottleneck</h3>
-                            <div id="waitingMetricsAttention" class="c-stat-item__value c-stat-item__value--error">0</div>
+                            <div id="waitingMetricsAttention" class="c-stat-item__value c-stat-item__value--error">0
+                            </div>
                         </div>
 
                         <!-- Empty slot for grid balance if needed, or just let it flow -->
@@ -305,7 +305,8 @@
                     <div class="insights-report-grid">
                         <!-- AI Work Summary -->
                         <div class="insights-card insights-card--full insights-card--report-summary">
-                            <h3 data-i18n="reportSummaryTitle" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <h3 data-i18n="reportSummaryTitle"
+                                style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
                                 <span>📝</span> 주간 업무 요약
                             </h3>
                             <div id="reportSummaryContent" class="markdown-content">
@@ -315,7 +316,8 @@
 
                         <!-- Network Graph -->
                         <div class="insights-card insights-card--full insights-card--report-viz">
-                            <h3 data-i18n="reportVizTitle" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <h3 data-i18n="reportVizTitle"
+                                style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
                                 <span>🕸️</span> 커뮤니케이션 관계망
                             </h3>
                             <div id="reportVizChart" style="width: 100%; height: 500px; min-height: 400px;">
@@ -517,10 +519,14 @@
                     <span id="exportSummaryText" data-i18n="exportSummaryText">tasks are ready to be exported.</span>
                 </p>
                 <div class="c-modal__footer c-modal__footer--stack">
-                    <button type="button" id="confirmExportExcel" class="c-btn c-btn--excel" data-i18n="exportExcelBtn">Download as Excel (.xlsx)</button>
-                    <button type="button" id="confirmExportCsv" class="c-btn c-btn--csv" data-i18n="exportCsvBtn">Download as CSV (.csv)</button>
-                    <button type="button" id="confirmExportJson" class="c-btn c-btn--json" data-i18n="exportJsonBtn">Download as JSON (.json)</button>
-                    <button type="button" id="cancelExportBtn" class="c-btn c-btn--ghost" data-action="close-modal" data-i18n="cancelBtn">Cancel</button>
+                    <button type="button" id="confirmExportExcel" class="c-btn c-btn--excel"
+                        data-i18n="exportExcelBtn">Download as Excel (.xlsx)</button>
+                    <button type="button" id="confirmExportCsv" class="c-btn c-btn--csv"
+                        data-i18n="exportCsvBtn">Download as CSV (.csv)</button>
+                    <button type="button" id="confirmExportJson" class="c-btn c-btn--json"
+                        data-i18n="exportJsonBtn">Download as JSON (.json)</button>
+                    <button type="button" id="cancelExportBtn" class="c-btn c-btn--ghost" data-action="close-modal"
+                        data-i18n="cancelBtn">Cancel</button>
                 </div>
                 <p class="c-modal__footnote" data-i18n="exportWarning">
                     * Only filtered results will be exported if a search query is active.
@@ -547,8 +553,10 @@
                     This action cannot be undone and will permanently remove the data.
                 </p>
                 <div class="c-modal__footer c-modal__footer--stack">
-                    <button type="button" id="confirmHardDeleteBtn" class="c-btn c-btn--danger" data-i18n="hardDeleteConfirmBtn">Yes, Delete Permanently</button>
-                    <button type="button" id="cancelDeleteConfirmBtn" class="c-btn c-btn--ghost" data-action="close-modal" data-i18n="cancelBtn">Cancel</button>
+                    <button type="button" id="confirmHardDeleteBtn" class="c-btn c-btn--danger"
+                        data-i18n="hardDeleteConfirmBtn">Yes, Delete Permanently</button>
+                    <button type="button" id="cancelDeleteConfirmBtn" class="c-btn c-btn--ghost"
+                        data-action="close-modal" data-i18n="cancelBtn">Cancel</button>
                 </div>
             </div>
         </div>
@@ -563,7 +571,8 @@
             </div>
             <div class="c-modal__body" style="text-align: center; padding: var(--spacing-lg);">
                 <div id="waQRSection">
-                    <p class="c-wa-qr__desc" data-i18n="waReqDesc">Please scan the QR code with your mobile WhatsApp app.</p>
+                    <p class="c-wa-qr__desc" data-i18n="waReqDesc">Please scan the QR code with your mobile WhatsApp
+                        app.</p>
                     <div id="qrContainer" class="c-wa-qr__container">
                         <img id="waQRImg" class="c-wa-qr__img hidden" />
                         <div id="qrPlaceholder" class="c-wa-qr__placeholder" data-i18n="generating">Generating...</div>
@@ -639,10 +648,23 @@
 
     <!-- Release Notes Modal -->
     <div id="releaseNotesModal" class="c-modal hidden">
-        <div class="c-modal__content">
+        <div class="c-modal__content c-modal__content--large">
             <div class="c-modal__header">
                 <h3 class="c-modal__title" data-i18n="releaseNotesTitle">업데이트 소식</h3>
+
+                <!-- 언어 선택 탭 (KO/EN) -->
+                <div class="c-tabs c-tabs--small" id="rnLangTabs" style="margin-left: auto; margin-right: 1rem;">
+                    <button class="c-tabs__btn active" data-lang="ko">KO</button>
+                    <button class="c-tabs__btn" data-lang="en">EN</button>
+                </div>
+
                 <button id="closeReleaseNotesBtn" class="c-modal__close">&times;</button>
+            </div>
+
+            <!-- 기술용/사용자용 선택 탭 -->
+            <div class="c-tabs" id="rnTypeTabs" style="margin: 0 1.5rem 1rem 1.5rem;">
+                <button class="c-tabs__btn active" data-type="user" data-i18n="rnTypeUser">사용자용 (User)</button>
+                <button class="c-tabs__btn" data-type="tech" data-i18n="rnTypeTech">기술용 (Tech)</button>
             </div>
             <div class="c-modal__body">
                 <div id="releaseNotesContent" class="release-notes-body c-release-notes">

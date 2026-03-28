@@ -156,19 +156,59 @@ export const modals = {
      * Sets up release notes modal and triggers.
      */
     setupReleaseNotesModal() {
-        const showReleaseNotes = async () => {
+        let currentRnType = 'user';
+        let currentRnLang = state.currentLang === 'ko' ? 'ko' : 'en';
+
+        const fetchAndRenderReleaseNotes = async () => {
+            const contentEl = document.getElementById('releaseNotesContent');
+            if (contentEl) contentEl.innerHTML = '<div style="text-align:center; padding: 2rem;" class="u-text-dim">Loading...</div>';
+
             try {
-                const data = await api.fetchReleaseNotes();
+                const data = await api.fetchReleaseNotes(currentRnType, currentRnLang);
                 if (data && data.content) {
                     renderer.renderReleaseNotes(data.content);
-                    document.getElementById('releaseNotesModal')?.classList.remove('hidden');
                 }
-            } catch (e) { console.error('Failed to fetch release notes:', e); }
+            } catch (e) {
+                console.error('Failed to fetch release notes:', e);
+                if (contentEl) contentEl.innerHTML = '<div style="color:var(--color-error); text-align:center; padding: 2rem;">Failed to load release notes.</div>';
+            }
+        };
+
+        const showReleaseNotes = () => {
+            // 앱 전역 언어 설정과 동기화 (한국어가 아니면 영문으로 Fallback)
+            currentRnLang = state.currentLang === 'ko' ? 'ko' : 'en';
+
+            // 탭 UI 활성화 상태 동기화
+            document.querySelectorAll('#rnLangTabs .c-tabs__btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.lang === currentRnLang);
+            });
+
+            document.getElementById('releaseNotesModal')?.classList.remove('hidden');
+            fetchAndRenderReleaseNotes();
         };
 
         document.getElementById('releaseNotesBtn')?.addEventListener('click', showReleaseNotes);
         document.getElementById('updatesBtn')?.addEventListener('click', showReleaseNotes);
 
+        // Type Tabs (User/Tech)
+        document.querySelectorAll('#rnTypeTabs .c-tabs__btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('#rnTypeTabs .c-tabs__btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                currentRnType = e.target.dataset.type;
+                fetchAndRenderReleaseNotes();
+            });
+        });
+
+        // Language Tabs (KO/EN)
+        document.querySelectorAll('#rnLangTabs .c-tabs__btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('#rnLangTabs .c-tabs__btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                currentRnLang = e.target.dataset.lang;
+                fetchAndRenderReleaseNotes();
+            });
+        });
     },
 
     /**

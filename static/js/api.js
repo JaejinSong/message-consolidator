@@ -246,8 +246,8 @@ export const api = {
         return handleResponse(resp, 'Remove contact mapping failed');
     },
 
-    async fetchReleaseNotes() {
-        const resp = await fetch('/api/release-notes');
+    async fetchReleaseNotes(type = 'user', lang = 'ko') {
+        const resp = await fetch(`/api/release-notes?type=${type}&lang=${lang}`);
         return handleResponse(resp, 'Fetch release notes failed');
     },
 
