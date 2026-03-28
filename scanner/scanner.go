@@ -41,10 +41,10 @@ func StartBackgroundScanner(ctx context.Context) {
 
 	var wg sync.WaitGroup
 
-	// 초기 실행
+	//Why: Triggers an immediate scan upon startup to ensure the dashboard is populated without waiting for the first ticker interval.
 	RunAllScans(&wg)
 
-	// Sweeper 시작 (context와 WaitGroup 전달)
+	//Why: Starts the background archival process (Slow Sweeper) to periodically clean up outdated tasks and maintain database performance.
 	wg.Add(1)
 	go startSlowSweeper(ctx, &wg)
 

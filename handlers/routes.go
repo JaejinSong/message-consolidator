@@ -10,7 +10,7 @@ import (
 
 // RegisterRoutes registers all the API and Auth routes.
 func (a *API) RegisterRoutes(r *mux.Router) {
-	// Auth Endpoints
+	//Why: Defines authentication-related routes including Google Login, Callback, and Logout.
 	r.HandleFunc("/auth/login", auth.HandleGoogleLogin).Methods("GET")
 	r.HandleFunc("/auth/callback", func(w http.ResponseWriter, r *http.Request) {
 		auth.HandleGoogleCallback(w, r, a.Config.SlackToken, func(email string) (string, string, error) {
@@ -24,7 +24,7 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 	}).Methods("GET")
 	r.HandleFunc("/auth/logout", auth.HandleLogout).Methods("GET")
 
-	// Protected Static Files
+	//Why: Configures protected access to static assets and the main single-page application entry point (index.html), ensuring only authenticated users can access the UI.
 	fs := http.FileServer(http.Dir("./static"))
 	r.PathPrefix("/static/").Handler(auth.AuthMiddleware(http.StripPrefix("/static/", fs)))
 	r.Handle("/", auth.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -35,7 +35,7 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 		fs.ServeHTTP(w, r)
 	})))
 
-	// Protected API Endpoints
+	//Why: Sets up protected API routes for task management, channel integration, and user profile data, all wrapped in authentication middleware.
 	r.Handle("/api/messages", auth.AuthMiddleware(http.HandlerFunc(a.HandleGetMessages))).Methods("GET")
 	r.Handle("/api/messages/done", auth.AuthMiddleware(http.HandlerFunc(a.HandleMarkDone))).Methods("POST")
 	r.Handle("/api/messages/delete", auth.AuthMiddleware(http.HandlerFunc(a.HandleDelete))).Methods("POST")
@@ -73,13 +73,14 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 	r.Handle("/api/admin/reclassify", auth.AuthMiddleware(http.HandlerFunc(a.HandleReclassifyOldData))).Methods("GET")
 	r.Handle("/api/admin/restore-gmail-cc", auth.AuthMiddleware(http.HandlerFunc(a.HandleRestoreGmailCC))).Methods("GET")
 	r.Handle("/api/release-notes", auth.AuthMiddleware(http.HandlerFunc(a.HandleGetReleaseNotes))).Methods("GET")
+	r.Handle("/api/insights/report", auth.AuthMiddleware(http.HandlerFunc(a.HandleGetInsightReport))).Methods("GET")
 
-	// Gmail OAuth Endpoints
+	//Why: Provides dedicated OAuth flow endpoints for connecting and disconnected Gmail as a message source.
 	r.Handle("/auth/gmail/connect", auth.AuthMiddleware(http.HandlerFunc(a.HandleGmailConnect))).Methods("GET")
 	r.HandleFunc("/auth/gmail/callback", a.HandleGmailCallback).Methods("GET")
 	r.Handle("/api/gmail/status", auth.AuthMiddleware(http.HandlerFunc(a.HandleGmailStatus))).Methods("GET")
 	r.Handle("/api/gmail/disconnect", auth.AuthMiddleware(http.HandlerFunc(a.HandleGmailDisconnect))).Methods("POST")
 
-	// Public Endpoints
+	//Why: Exposes unauthenticated endpoints such as health checks for automated monitoring and load balancer verification.
 	r.HandleFunc("/health", a.HandleHealth).Methods("GET")
 }

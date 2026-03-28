@@ -480,5 +480,116 @@ export const insightsRenderer = {
             });
             group.addEventListener('mouseleave', () => tooltip.classList.add('hidden'));
         });
+    },
+
+    /**
+     * Renders the weekly AI report including Markdown summary and Network Graph.
+     * @param {Object} report - Report data from the server.
+     */
+    renderReport(report) {
+        const summaryContainer = document.getElementById('reportSummaryContent');
+        const vizContainer = document.getElementById('reportVizChart');
+        if (!summaryContainer || !vizContainer) return;
+
+        // 1. Render Markdown Summary
+        if (report && report.report_summary) {
+            // Using marked.parse (global from CDN)
+            summaryContainer.innerHTML = marked.parse(report.report_summary);
+        } else {
+            summaryContainer.innerHTML = `<div class="u-text-dim" style="text-align: center; padding: 2rem;">요약된 보고서가 아직 없습니다.</div>`;
+        }
+
+        // 2. Render ECharts Network Graph
+        if (report && report.visualization_data) {
+            try {
+                const data = JSON.parse(report.visualization_data);
+                this.renderNetworkGraph(vizContainer, data);
+            } catch (e) {
+                console.error("[Insights] Viz data parse error:", e);
+                vizContainer.innerHTML = `<div class="u-text-dim" style="text-align: center; padding: 2rem;">시각화 데이터를 처리하지 못했습니다.</div>`;
+            }
+        } else {
+            vizContainer.innerHTML = `<div class="u-text-dim" style="text-align: center; padding: 2rem;">관계망 데이터가 없습니다.</div>`;
+        }
+    },
+
+    /**
+     * Renders a relationship network graph using ECharts.
+     * @param {HTMLElement} container - DOM element to render chart in.
+     * @param {Object} data - Graph data {nodes: [], links: []}.
+     */
+    renderNetworkGraph(container, data) {
+        // Initialize ECharts instance if not already done
+        let myChart = echarts.getInstanceByDom(container);
+        if (!myChart) {
+            myChart = echarts.init(container, state.currentTheme === 'dark' ? 'dark' : null);
+        }
+
+        const option = {
+            tooltip: {
+                trigger: 'item',
+                formatter: (params) => {
+                    if (params.dataType === 'edge') {
+                        return `${params.data.source} ↔ ${params.data.target}<br/><b>강도:</b> ${params.data.value}`;
+                    }
+                    return `<b>${params.data.name}</b><br/>메시지 수: ${params.data.value}`;
+                }
+            },
+            legend: [{
+                data: ['User', 'Contact'],
+                orient: 'vertical',
+                right: 10,
+                top: 20,
+                textStyle: { color: 'var(--text-dim)' }
+            }],
+            series: [{
+                type: 'graph',
+                layout: 'force',
+                animation: true,
+                draggable: true,
+                data: (data.nodes || []).map(n => ({
+                    ...n,
+                    symbolSize: Math.max(15, Math.min(60, n.value * 2)),
+                    category: n.is_me ? 'User' : 'Contact',
+                    itemStyle: {
+                        color: n.is_me ? 'var(--accent-color)' : 'var(--text-dim)'
+                    }
+                })),
+                links: (data.links || []).map(l => ({
+                    ...l,
+                    lineStyle: {
+                        width: Math.max(1, Math.min(8, l.value / 2)),
+                        opacity: 0.6
+                    }
+                })),
+                categories: [{ name: 'User' }, { name: 'Contact' }],
+                roam: true,
+                label: {
+                    show: true,
+                    position: 'right',
+                    color: 'var(--text-main)',
+                    fontSize: 10
+                },
+                force: {
+                    repulsion: 800,
+                    gravity: 0.1,
+                    edgeLength: [50, 150]
+                },
+                emphasis: {
+                    focus: 'adjacency',
+                    lineStyle: {
+                        width: 10
+                    }
+                }
+            }]
+        };
+
+        myChart.setOption(option);
+        
+        // Handle window resize
+        if (!container.dataset.resizeBound) {
+            window.addEventListener('resize', () => myChart.resize());
+            container.dataset.resizeBound = "true";
+        }
     }
 };

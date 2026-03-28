@@ -33,7 +33,7 @@ func runDBDiag(cfg *config.Config) {
 
 	fmt.Printf("--- Bin-Diag for user: %s ---\n", email)
 
-	// 1. Total counts
+	//Why: Computes various message counts (total, done, deleted) to diagnose the current state of the user's task database.
 	var total, done, deleted int
 	_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE user_email = ?", email).Scan(&total)
 	_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE user_email = ? AND done = 1 AND is_deleted = 0", email).Scan(&done)
@@ -44,7 +44,7 @@ func runDBDiag(cfg *config.Config) {
 
 	fmt.Printf("Total: %d | Done (Active): %d | Done (Total): %d | Deleted: %d\n", total, done, allDone, deleted)
 
-	// 2. Sample completed_at format
+	//Why: Retrieves a sample timestamp to verify the physical storage format and SQLite's ability to parse it using strftime.
 	if done > 0 {
 		var sample string
 		_ = db.QueryRow("SELECT completed_at FROM messages WHERE user_email = ? AND done = 1 AND completed_at IS NOT NULL LIMIT 1", email).Scan(&sample)
@@ -55,7 +55,7 @@ func runDBDiag(cfg *config.Config) {
 		fmt.Printf("strftime('%%H', sample): '%s'\n", hr)
 	}
 
-	// 3. Check for any messages at all (to see if email matches)
+	//Why: Lists unique emails present in the database if the target email returns no results, helping to identify configuration mismatches or typos.
 	if total == 0 {
 		fmt.Println("No messages found for this email. Listing unique emails in DB:")
 		rows, _ := db.Query("SELECT DISTINCT user_email FROM messages LIMIT 10")

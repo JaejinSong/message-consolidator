@@ -23,7 +23,7 @@ func TestGetArchivedMessagesFiltered_Status(t *testing.T) {
 	// --- Seed Data ---
 	now := time.Now().UTC()
 	tenDaysAgo := now.AddDate(0, 0, -10)
-	// 1. Done task (done=true, is_deleted=false) - 10일 전 완료된 것으로 설정하여 아카이브에 나타나게 함
+	//Why: Seeds a task completed 10 days ago to ensure it appears in the archive based on the default auto-archive threshold.
 	_, err = db.Exec(`INSERT INTO messages (user_email, task, source, source_ts, done, is_deleted, completed_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		email, "Done Task", "slack", "ts_done", true, false, tenDaysAgo, tenDaysAgo)
 	if err != nil {
@@ -134,12 +134,12 @@ func TestGetArchivedMessagesFiltered_Status(t *testing.T) {
 				t.Fatalf("GetArchivedMessagesFiltered failed: %v", err)
 			}
 
-			// total(전체 필터링 개수) 검증
+			//Why: Verifies that the total count of filtered messages matches the expected dataset size regardless of pagination.
 			if total != tc.expectedLen {
 				t.Errorf("Expected total count to be %d, but got %d (Filter: %s, Query: %s)", tc.expectedLen, total, tc.statusFilter, tc.query)
 			}
 
-			// len(msgs)(현재 페이지 개수) 검증
+			//Why: Verifies that the number of messages returned in the current page respects the requested limit and total available items.
 			expectedPage := tc.expectedPage
 			if expectedPage == 0 && tc.expectedLen > 0 {
 				expectedPage = tc.expectedLen

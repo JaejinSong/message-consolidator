@@ -13,7 +13,7 @@ func runDBInspect(cfg *config.Config) {
 	}
 
 	db := store.GetDB()
-	// id 7772와 같이 비어있는 최근 메시지의 source_ts를 확인합니다.
+	//Why: Inspects specific message IDs to debug missing source metadata or empty task descriptions that were reported in recent logs.
 	rows, err := db.Query("SELECT id, source, source_ts, task, original_text FROM messages WHERE id IN (7772, 7762, 7763, 7009, 7010)")
 	if err != nil {
 		log.Fatalf("Query failed: %v", err)

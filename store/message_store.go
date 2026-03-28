@@ -148,7 +148,7 @@ func MarkMessageDone(email string, id int, done bool) error {
 
 	_, err := db.Exec(SQL.MarkMessageDone, done, completedAt, id, email)
 	if err == nil {
-		// 즉시 로컬 캐시 업데이트 (UI 반응성 개선)
+		//Why: Immediately updates the local cache to improve UI responsiveness before the background refresh completes.
 		cacheMu.Lock()
 		for i := range messageCache[email] {
 			if messageCache[email][i].ID == id {
@@ -163,7 +163,7 @@ func MarkMessageDone(email string, id int, done bool) error {
 		}
 		cacheMu.Unlock()
 
-		// 백그라운드에서 전체 캐시 정합성 확보
+		//Why: Triggers a background cache refresh to ensure long-term data consistency across the application.
 		go func() {
 			if err := RefreshCache(email); err != nil {
 				logger.Errorf("Background RefreshCache error for %s: %v", email, err)
@@ -220,7 +220,7 @@ func DeleteMessages(email string, ids []int) error {
 	}
 	_, err := db.Exec(query, args...)
 	if err == nil {
-		// 즉시 로컬 캐시에서 제거
+		//Why: Immediately removes deleted messages from the local cache for instant UI feedback.
 		cacheMu.Lock()
 		idMap := make(map[int]bool)
 		for _, id := range ids {
@@ -293,8 +293,7 @@ func RestoreMessages(email string, ids []int) error {
 	}
 	_, err := db.Exec(query, args...)
 	if err == nil {
-		// Restore is complex since it might change categories back to active/archive.
-		// For simplicity, just trigger background refresh immediately.
+		//Why: Triggers an immediate background refresh because restoration logic can complexly affect multiple categories.
 		go func() { _ = RefreshCache(email) }()
 	}
 	return err
@@ -310,7 +309,7 @@ func GetMessagesByIDs(ctx context.Context, ids []int) ([]ConsolidatedMessage, er
 		return []ConsolidatedMessage{}, nil
 	}
 
-	// scanMessageRow 함수가 기대하는 18개의 컬럼을 명시적으로 지정하여 스키마 변경 시에도 안전하게 작동하도록 보장합니다.
+	//Why: Explicitly specifies the 18 columns expected by scanMessageRow to ensure type safety and stability across schema changes.
 	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
 	query := fmt.Sprintf("SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id FROM messages WHERE id IN (%s)", placeholders)
 	interfaceIds := make([]interface{}, len(ids))

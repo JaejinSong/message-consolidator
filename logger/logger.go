@@ -60,9 +60,9 @@ func Errorf(format string, v ...interface{}) {
 func InitLogging() {
 	lumberjackLogger := &lumberjack.Logger{
 		Filename:   "logs/app.log",
-		MaxSize:    100, // megabytes
+		MaxSize:    100, //Why: Caps individual log files at 100MB to prevent uncontrollable disk usage on the host system.
 		MaxBackups: 30,
-		MaxAge:     7, // days
+		MaxAge:     7, //Why: Retains log files for up to 7 days to balance diagnostic depth with storage efficiency.
 		Compress:   true,
 		LocalTime:  true,
 	}
@@ -70,7 +70,7 @@ func InitLogging() {
 	multiWriter := io.MultiWriter(os.Stdout, lumberjackLogger)
 	log.SetOutput(multiWriter)
 
-	// Daily rotation logic
+	//Why: Implements a background goroutine to trigger log rotation at midnight, ensuring each day's logs are physically separated and easier to manage.
 	go func() {
 		for {
 			now := time.Now()

@@ -11,10 +11,10 @@ import (
 )
 
 var (
-	// genericOtherAssignees contains keywords that the AI might return for unspecific or group tasks.
+	//Why: Defines keywords returned by the AI for unspecific or group tasks to support standardized unassignment logic.
 	genericOtherAssignees = map[string]bool{"기타 업무": true, "기타업무": true, "other tasks": true, "미지정": true}
 
-	// genericMeAssignees contains keywords that the AI might use to classify a task as belonging to the current user.
+	//Why: Defines keywords used by the AI to classify a task as belonging to the current user, enabling uniform "me" mapping.
 	genericMeAssignees = map[string]bool{"내 업무": true, "내업무": true, "my tasks": true, "mytasks": true, "나": true, "me": true}
 )
 
@@ -34,7 +34,7 @@ func FormatMessagesForClient(email string, msgs []store.ConsolidatedMessage) {
 		msgs[i].Requester = store.NormalizeName(email, msgs[i].Requester)
 		msgs[i].Assignee = store.NormalizeName(email, msgs[i].Assignee)
 
-		// Sanitize assignee names that might come from AI/JS as 'undefined' or 'unknown'.
+		//Why: Sanitizes assignee names that might be incorrectly returned as 'undefined' or 'unknown' by the AI or frontend logic, resetting them to empty.
 		assignee := strings.TrimSpace(msgs[i].Assignee)
 		if strings.EqualFold(assignee, "undefined") || strings.EqualFold(assignee, "unknown") {
 			msgs[i].Assignee = ""
@@ -46,15 +46,14 @@ func FormatMessagesForClient(email string, msgs []store.ConsolidatedMessage) {
 		}
 
 		userName := strings.TrimSpace(user.Name)
-		// A task is considered the user's if the assignee matches their name or is a generic "me" keyword.
+		//Why: Identifies tasks belonging to the current user by matching the assignee against their name or generic "me" keywords.
 		isMe := strings.EqualFold(assignee, userName) || strings.EqualFold(assignee, "me")
 
 		if isMe {
-			// Standardize the assignee to "me" for consistent frontend handling.
+			//Why: Standardizes the assignee string to "me" to simplify task filtering and rendering logic on the frontend.
 			msgs[i].Assignee = "me"
 		} else {
-			// [DEBUG] Track assignee mapping mismatches to help debug normalization rules.
-			// Logged at DEBUG level to avoid flooding INFO logs.
+			//Why: [DEBUG] Tracks assignee mapping mismatches at the DEBUG level to aid in refining normalization rules without flooding production logs.
 			logger.Debugf("[ASSIGNEE_MAP] User: %s, Mismatched Assignee: '%s' (User.Name: '%s')",
 				email, assignee, user.Name)
 		}
@@ -70,7 +69,7 @@ func ApplyTranslations(msgs []store.ConsolidatedMessage, lang string) {
 	for i, m := range msgs {
 		ids[i] = m.ID
 	}
-	// Retrieve all translations in a single batch query for efficiency.
+	//Why: Optimizes performance by retrieving all task translations in a single batch database query instead of multiple individual calls.
 	translations, err := store.GetTaskTranslationsBatch(ids, lang)
 	if err == nil {
 		for i := range msgs {
@@ -91,10 +90,10 @@ func PrepareMessagesForClient(email string, msgs []store.ConsolidatedMessage, la
 // HandleTaskCompletion orchestrates the process of marking a task as done,
 // updating gamification stats, and potentially recording statistics for analytics.
 func HandleTaskCompletion(email string, taskID int, done bool) (GamificationResult, error) {
-	// Prevent duplicate rewards by checking the task's current state.
+	//Why: Prevents duplicate gamification rewards by verifying the task's current completion state before processing.
 	msg, err := store.GetMessageByID(context.Background(), taskID)
 	if err == nil && msg.Done && done {
-		// If a task is already marked as done, skip the reward to prevent duplication.
+		//Why: Skips reward processing if the task was already completed to ensure points and XP are only granted once.
 		return GamificationResult{}, nil
 	}
 
@@ -102,7 +101,7 @@ func HandleTaskCompletion(email string, taskID int, done bool) (GamificationResu
 		return GamificationResult{}, err
 	}
 
-	// Gamification rewards are only processed when a task is marked as 'done' (true).
+	//Why: Restricts gamification reward processing to transitions where a task is explicitly being marked as completed.
 	if !done {
 		return GamificationResult{}, nil
 	}
@@ -121,7 +120,7 @@ func ReclassifyUserTasks(email string, user *store.User, aliases []string, msgs 
 	fixedCount := 0
 
 	for _, m := range msgs {
-		// If the assignee is a generic "other" keyword, clear it.
+		//Why: Clears generic "other" assignees to keep the task pool clean and allow for manual re-assignment.
 		if shouldClearAssignee(m.Assignee) {
 			_ = store.UpdateTaskAssignee(email, m.ID, "")
 			fixedCount++
@@ -133,8 +132,7 @@ func ReclassifyUserTasks(email string, user *store.User, aliases []string, msgs 
 		matchedByAlias := IsTaskMatchedByAlias(m, allMyIdentities, isDirectGmail)
 
 		if isMarkedAsMine {
-			// Special case for Gmail: if a task is generically assigned to "me" but the user
-			// was not a direct recipient (e.g., they were on CC), un-assign it.
+			//Why: Automatically un-assigns Gmail tasks that were generically assigned to "me" if the user was only a CC/BCC recipient, correcting AI over-assignment.
 			if m.Source == "gmail" && !isDirectGmail {
 				if isAssigneeGeneric(m.Assignee) {
 					_ = store.UpdateTaskAssignee(email, m.ID, "")
@@ -143,7 +141,7 @@ func ReclassifyUserTasks(email string, user *store.User, aliases []string, msgs 
 				}
 			}
 
-			// Resolve the assignee to the user's preferred name or clear it if it's a generic "me".
+			//Why: Resolves generic "me" assignees to the user's preferred display name for consistency in the UI and database.
 			newAssignee, changed := resolveNewAssignee(user, m.Assignee, matchedByAlias)
 			if changed {
 				_ = store.UpdateTaskAssignee(email, m.ID, newAssignee)
@@ -152,7 +150,7 @@ func ReclassifyUserTasks(email string, user *store.User, aliases []string, msgs 
 			continue
 		}
 
-		// If a task was unassigned but the content matches a user alias, assign it to the user.
+		//Why: Proactively assigns unassigned tasks to the user if the message content explicitly matches one of their registered aliases or mentions.
 		if matchedByAlias && strings.TrimSpace(m.Assignee) == "" {
 			_ = store.UpdateTaskAssignee(email, m.ID, getPreferredName(user))
 			fixedCount++
@@ -170,7 +168,7 @@ func RestoreGmailCCAssignment(ctx context.Context, email string, user *store.Use
 		}
 
 		toHeader := extractToHeader(m.OriginalText)
-		// If the user is in the "To" header and the task is unassigned, assign it to them.
+		//Why: Assigns unassigned Gmail tasks to the user if they were a direct recipient in the "To" header, providing high-confidence auto-assignment.
 		if isMeInToHeader(toHeader, user.Email) {
 			if strings.TrimSpace(m.Assignee) == "" {
 				_ = store.UpdateTaskAssignee(email, m.ID, getPreferredName(user))
@@ -179,8 +177,7 @@ func RestoreGmailCCAssignment(ctx context.Context, email string, user *store.Use
 			continue
 		}
 
-		// If the task is wrongly assigned to the user (e.g., they were on CC),
-		// try to find the actual assignee from the "To" header.
+		//Why: Corrects accidental assignments to the current user for CC'd emails by attempting to resolve the actual primary recipient from the "To" header.
 		if isWronglyAssignedToMe(m.Assignee, user, aliases) {
 			actualAssignee := resolveActualAssignee(ctx, m, toHeader, svc)
 			if actualAssignee != "" && strings.TrimSpace(m.Assignee) != actualAssignee {
@@ -206,15 +203,14 @@ func GetEffectiveAliases(user store.User, aliases []string) []string {
 
 // IsTaskMatchedByAlias checks if the task content or requester matches any of the user's identities.
 func IsTaskMatchedByAlias(m store.ConsolidatedMessage, aliases []string, isDirectGmail bool) bool {
-	// Include generic self-referential keywords.
+	//Why: Augmented alias list with generic self-referential keywords ("나", "me") to broaden task matching coverage.
 	checkAliases := append([]string{"나", "me"}, aliases...)
 	for _, a := range checkAliases {
 		if a == "" {
 			continue
 		}
 		textToCheck := m.OriginalText
-		// Optimization for Gmail: If the user is a direct recipient, the AI-summarized `Task` text
-		// is more likely to contain the relevant context for assignment than the full original email.
+		//Why: Optimizes Gmail matching by favoring the AI-summarized Task text over the full original email when the user is a direct recipient, reducing noise.
 		if m.Source == "gmail" && isDirectGmail {
 			textToCheck = m.Task
 		}
@@ -233,12 +229,11 @@ func IsAliasMatched(text, requester, alias string) bool {
 	textLower := strings.ToLower(text)
 	aliasLower := strings.ToLower(alias)
 
-	// Check for explicit mentions like "@jjsong".
+	//Why: Specifically checks for explicit @-mentions to provide high-confidence task identification.
 	if strings.Contains(textLower, "@"+aliasLower) {
 		return true
 	}
-	// If the requester is not the alias itself (to avoid self-assignment on statements like "I will do X"),
-	// check if the alias appears anywhere in the text.
+	//Why: Prevents accidental self-assignment by verifying that the user is not the requester before matching their alias within the message body.
 	if !strings.EqualFold(requester, alias) {
 		if strings.Contains(textLower, aliasLower) {
 			return true
@@ -287,7 +282,7 @@ func IsDirectlyAddressedToMe(m store.ConsolidatedMessage, userEmail string) bool
 		return false
 	}
 
-	// Find the end of the "To:" block by looking for the start of the next header.
+	//Why: Identifies the boundaries of the "To:" block by locating the next standard email header to avoid matching emails in CC or BCC fields.
 	limitIdx := findHeaderEnd(lowOrig, toIdx)
 	toBlock := ""
 	if limitIdx != -1 && limitIdx > toIdx {
@@ -364,14 +359,12 @@ func isWronglyAssignedToMe(assignee string, user *store.User, aliases []string) 
 	return false
 }
 
-// resolveActualAssignee finds the true recipient of an email. It first tries to parse the
-// "To" header from the raw text. If that fails, it makes a fallback API call to Gmail
-// to fetch the message metadata and extract the "To" header directly.
+//Why: Resolves the true primary recipient of an email by parsing the local "To" header or falling back to a Gmail API metadata request for precise correction of over-assigned tasks.
 func resolveActualAssignee(ctx context.Context, m store.ConsolidatedMessage, toHeader string, svc *gmail.Service) string {
 	if toHeader != "" {
 		return channels.ExtractNameFromEmail(toHeader)
 	}
-	// Fallback: If header isn't in the raw text, call the Gmail API.
+	//Why: Fallback mechanism: Retrieves the "To" header via a direct Gmail API metadata request if it is missing from the stored message context.
 	msgID := m.SourceTS
 	if strings.HasPrefix(msgID, "gmail-") {
 		parts := strings.Split(msgID, "-")

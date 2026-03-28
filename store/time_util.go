@@ -5,11 +5,7 @@ import (
 	"time"
 )
 
-/**
- * GetSQLiteOffset converts an IANA timezone string (e.g., 'Asia/Seoul')
- * into a SQLite-compatible offset modifier (e.g., '+09:00').
- * Default is '+00:00' (UTC) if the timezone is invalid or empty.
- */
+//Why: Converts an IANA timezone string into a SQLite-compatible offset modifier to ensure correct date-time calculations in database queries.
 func GetSQLiteOffset(userTz string) string {
 	if userTz == "" || userTz == "UTC" {
 		return "+00:00"
@@ -17,11 +13,11 @@ func GetSQLiteOffset(userTz string) string {
 
 	loc, err := time.LoadLocation(userTz)
 	if err != nil {
-		// Fallback to UTC if timezone is not recognized
+		//Why: Defaults to UTC if the provided timezone is invalid or unrecognized.
 		return "+00:00"
 	}
 
-	// Calculate and format offset for this location using built-in Format
+	//Why: Formats the current time's offset for the specified location to be used as a SQLite modifier.
 	return time.Now().In(loc).Format("-07:00")
 }
 

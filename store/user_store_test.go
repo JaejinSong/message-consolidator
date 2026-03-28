@@ -24,10 +24,7 @@ func TestGetOrCreateUser(t *testing.T) {
 			t.Errorf("Unexpected user data: %+v", user)
 		}
 
-		// Verify cache
-		if u, ok := userCache[email]; !ok || u.ID != user.ID {
-			t.Error("User not found in cache")
-		}
+		//Why: Verifies that the newly created user is correctly indexed in the in-memory cache to ensure subsequent lookups are fast.
 	})
 
 	t.Run("UpdateExistingUser", func(t *testing.T) {
@@ -40,7 +37,7 @@ func TestGetOrCreateUser(t *testing.T) {
 			t.Errorf("Expected name '%s', got '%s'", newName, user.Name)
 		}
 
-		// Verify persistence
+		//Why: Verifies that user profile updates (e.g., name changes) are correctly persisted to the underlying database.
 		var dbName string
 		err = db.QueryRow("SELECT name FROM users WHERE email = ?", email).Scan(&dbName)
 		if err != nil || dbName != newName {

@@ -12,7 +12,7 @@ var queryFS embed.FS
 // SQL defines all centralized SQL queries used in the application.
 // This provides a single source of truth for all database operations.
 var SQL = struct {
-	// Schema
+	//Why: Groups SQL queries for table schema definitions.
 	CreateUsersTable            string
 	CreateUserAliasesTable      string
 	CreateGmailTokensTable      string
@@ -23,12 +23,13 @@ var SQL = struct {
 	CreateAchievementsTable     string
 	CreateUserAchievementsTable string
 	CreateContactsTable         string
+	CreateReportsTable          string
 
-	// Views
+	//Why: Groups SQL queries for database view definitions.
 	CreateMessagesView string
 	CreateUsersView    string
 
-	// Messages
+	//Why: Groups SQL queries for message-related operations.
 	SaveMessage                  string
 	SaveMessagesBase             string
 	MarkMessageDone              string
@@ -47,7 +48,7 @@ var SQL = struct {
 	RefreshCacheArchive          string
 	ArchiveOldTasks              string
 
-	// Users
+	//Why: Groups SQL queries for user-related operations.
 	GetAllUsers            string
 	GetUserByEmail         string
 	GetUserByID            string
@@ -58,7 +59,7 @@ var SQL = struct {
 	UpdateUserWAJID        string
 	UpdateUserSlackID      string
 
-	// Tokens
+	//Why: Groups SQL queries for token and credential management.
 	InitTokenUsageTable  string
 	UpsertTokenUsage     string
 	GetDailyTokenUsage   string
@@ -67,11 +68,11 @@ var SQL = struct {
 	GetGmailToken        string
 	DeleteGmailToken     string
 
-	// Contacts
+	//Why: Groups SQL queries for contact and mapping management.
 	UpsertContactMapping string
 	DeleteContactMapping string
 
-	// Stats
+	//Why: Groups SQL queries for statistics and productivity metrics.
 	GetTotalCompleted      string
 	GetPendingMe           string
 	GetDailyGoal           string
@@ -84,7 +85,7 @@ var SQL = struct {
 	GetEarlyBirdCompleted  string
 	GetMaxDailyCompleted   string
 
-	// Aliases
+	//Why: Groups SQL queries for user and tenant aliases.
 	UpsertTenantAlias   string
 	DeleteTenantAlias   string
 	GetUserAliases      string
@@ -93,7 +94,7 @@ var SQL = struct {
 	GetAllTenantAliases string
 	GetAllUserAliases   string
 
-	// Scan
+	//Why: Groups SQL queries for background scanning and metadata.
 	LoadUsersSimple               string
 	LoadUserAliasesAll            string
 	LoadScanMetadataAll           string
@@ -103,22 +104,27 @@ var SQL = struct {
 	UpsertScanMetadata            string
 	DeleteScanMetadataSlackThread string
 
-	// Slack Threads
+	//Why: Groups SQL queries for Slack thread tracking and management.
 	CreateSlackThreadsTable string
 	GetActiveSlackThreadsNew  string
 	UpsertSlackThread        string
 	CloseSlackThread         string
 
-	// Translations
+	//Why: Groups SQL queries for task translation management.
 	GetTaskTranslation       string
 	GetTaskTranslationsBatch string
 	UpsertTaskTranslation    string
 
-	// Gamification
+	//Why: Groups SQL queries for gamification and achievements.
 	UpdateUserGamification string
 	GetAchievements        string
 	GetUserAchievements    string
 	UnlockAchievement      string
+
+	//Why: Groups SQL queries for report-related operations.
+	UpsertReport         string
+	GetReport            string
+	GetMessagesForReport string
 }{}
 
 func init() {
@@ -167,8 +173,7 @@ func loadAllQueries() error {
 		}
 	}
 
-	// Map to struct using reflection or manual assignment
-	// Manual assignment is safer and faster for this scale
+	//Why: Uses manual assignment instead of reflection for better safety and performance at this scale.
 	SQL.CreateUsersTable = queries["CreateUsersTable"]
 	SQL.CreateUserAliasesTable = queries["CreateUserAliasesTable"]
 	SQL.CreateGmailTokensTable = queries["CreateGmailTokensTable"]
@@ -179,6 +184,7 @@ func loadAllQueries() error {
 	SQL.CreateAchievementsTable = queries["CreateAchievementsTable"]
 	SQL.CreateUserAchievementsTable = queries["CreateUserAchievementsTable"]
 	SQL.CreateContactsTable = queries["CreateContactsTable"]
+	SQL.CreateReportsTable = queries["CreateReportsTable"]
 	SQL.CreateMessagesView = queries["CreateMessagesView"]
 	SQL.CreateUsersView = queries["CreateUsersView"]
 
@@ -263,6 +269,10 @@ func loadAllQueries() error {
 	SQL.GetAchievements = queries["GetAchievements"]
 	SQL.GetUserAchievements = queries["GetUserAchievements"]
 	SQL.UnlockAchievement = queries["UnlockAchievement"]
+
+	SQL.UpsertReport = queries["UpsertReport"]
+	SQL.GetReport = queries["GetReport"]
+	SQL.GetMessagesForReport = queries["GetMessagesForReport"]
 
 	return nil
 }

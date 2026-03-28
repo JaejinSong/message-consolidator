@@ -12,7 +12,7 @@ type RawChatMessage struct {
 	InteractedUser string
 	Text           string
 	Timestamp      time.Time
-	Time           time.Time // Compatibility with WhatsApp
+	Time           time.Time //Why: Maintains compatibility with WhatsApp's time field naming convention.
 	RawTS          string
 }
 
@@ -67,7 +67,7 @@ type Achievement struct {
 	Icon          string `json:"icon"`
 	CriteriaType  string `json:"criteria_type"`
 	CriteriaValue int    `json:"criteria_value"`
-	TargetValue   int    `json:"target_value"` // Frontend compatibility alias
+	TargetValue   int    `json:"target_value"` //Why: Provides a compatibility alias for the frontend's expected target_value field.
 	XPReward      int    `json:"xp_reward"`
 }
 
@@ -115,8 +115,7 @@ type TranslateResponse struct {
 	Translations []TranslateRequest `json:"translations"`
 }
 
-// ArchiveFilter encapsulates the parameters for querying archived messages
-// to prevent long argument lists and improve maintainability.
+//Why: Encapsulates query parameters to prevent long argument lists and improve maintainability.
 type ArchiveFilter struct {
 	Email  string
 	Limit  int
@@ -124,7 +123,7 @@ type ArchiveFilter struct {
 	Query  string
 	Sort   string
 	Order  string
-	Status string // "all", "done", "trash"
+	Status string //Why: Supports status filters such as "all", "done", or "trash".
 }
 
 // TimeSeriesPoint represents daily task completions grouped by source
@@ -142,7 +141,18 @@ type UserStats struct {
 	PeakTime                string            `json:"peak_time"`
 	AbandonedTasks          int               `json:"abandoned_tasks"`
 	PendingMe               int               `json:"pending_me"`
-	SourceDistribution      map[string]int    `json:"source_distribution"`       // Active (Dashboard)
-	SourceDistributionTotal map[string]int    `json:"source_distribution_total"` // Total (including archive)
+	SourceDistribution      map[string]int    `json:"source_distribution"`       //Why: Represents the distribution of active tasks for the dashboard.
+	SourceDistributionTotal map[string]int    `json:"source_distribution_total"` //Why: Represents the total distribution including archived tasks.
 	CompletionHistory       []TimeSeriesPoint `json:"completion_history"`
+}
+
+// Report represents a cached AI-generated summary and backend-calculated visualization
+type Report struct {
+	ID            int       `json:"id"`
+	UserEmail     string    `json:"user_email"`
+	StartDate     string    `json:"start_date"`
+	EndDate       string    `json:"end_date"`
+	Summary       string    `json:"summary"`
+	Visualization string    `json:"visualization"` // JSON string of Node/Edge data
+	CreatedAt     time.Time `json:"created_at"`
 }

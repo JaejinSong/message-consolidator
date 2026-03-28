@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// TestAchievementSeeding verifies that the initial achievement data is correctly seeded into the database.
+//Why: Verifies that the initial achievement data is correctly seeded into the database during initialization.
 func TestAchievementSeeding(t *testing.T) {
 	cleanup, err := SetupTestDB()
 	if err != nil {
@@ -24,6 +24,7 @@ func TestAchievementSeeding(t *testing.T) {
 		}
 	})
 
+	//Why: Confirms that the critical 'Morning Star' achievement exists with correct metadata for the early bird trigger logic.
 	t.Run("should contain a valid 'Morning Star' achievement", func(t *testing.T) {
 		var morningStarAchievement *Achievement
 		for i := range achievements {
@@ -48,8 +49,7 @@ func TestAchievementSeeding(t *testing.T) {
 	})
 }
 
-// TestGetUserAchievements serves as a basic smoke test for the achievement retrieval logic.
-// It ensures that the function can be called for a new user without causing panics or errors,
+//Why: Serves as a basic smoke test for the achievement retrieval logic, ensuring it handles clean user slates without errors.
 // which is a baseline requirement for the retroactive achievement calculation logic it contains.
 func TestGetUserAchievements(t *testing.T) {
 	cleanup, err := SetupTestDB()

@@ -16,7 +16,7 @@ func TestGetUserStats_IncludesArchived(t *testing.T) {
 	email := "stats@example.com"
 	_, _ = GetOrCreateUser(email, "Stats User", "")
 
-	// 1. Create a message that is DONE and ARCHIVED (is_deleted=1)
+	//Why: 1. Create a message that is DONE and ARCHIVED (is_deleted=1) to verify stats inclusion.
 	twoHoursAgo := time.Now().UTC().Add(-2 * time.Hour)
 	t1 := twoHoursAgo.Format(time.RFC3339)
 	_, err = db.Exec(`INSERT INTO messages 
@@ -27,7 +27,7 @@ func TestGetUserStats_IncludesArchived(t *testing.T) {
 		t.Fatalf("Failed to insert archived task: %v", err)
 	}
 
-	// 2. Create a message that is DONE and ACTIVE (is_deleted=0)
+	//Why: 2. Create a message that is DONE and ACTIVE (is_deleted=0) to verify multi-state aggregation.
 	oneHourAgo := time.Now().UTC().Add(-1 * time.Hour)
 	t2 := oneHourAgo.Format(time.RFC3339)
 	_, err = db.Exec(`INSERT INTO messages 
@@ -38,7 +38,7 @@ func TestGetUserStats_IncludesArchived(t *testing.T) {
 		t.Fatalf("Failed to insert active task: %v", err)
 	}
 
-	// 3. Create a message that is NOT DONE and ACTIVE (Pending)
+	//Why: 3. Create a message that is NOT DONE and ACTIVE (Pending) to verify backlog counting.
 	_, err = db.Exec(`INSERT INTO messages 
 		(user_email, task, source, source_ts, done, is_deleted, created_at, assignee) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -47,7 +47,7 @@ func TestGetUserStats_IncludesArchived(t *testing.T) {
 		t.Fatalf("Failed to insert pending task: %v", err)
 	}
 
-	// Call GetUserStats
+	//Why: Triggers GetUserStats across all states to validate the consolidated report.
 	stats, err := GetUserStats(email, "UTC")
 	if err != nil {
 		t.Fatalf("GetUserStats failed: %v", err)
@@ -83,7 +83,7 @@ func TestGetUserStats_IncludesArchived(t *testing.T) {
 		t.Errorf("Expected activity at hour %d", h2)
 	}
 
-	// 4. Source Distribution checks
+	//Why: 4. Source Distribution checks to ensure per-channel metrics are calculated correctly.
 	// Active: Active Task + Pending Task = 2
 	if stats.SourceDistribution["slack"] != 2 {
 		t.Errorf("Expected SourceDistribution[slack]=2, got %d", stats.SourceDistribution["slack"])

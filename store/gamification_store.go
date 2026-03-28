@@ -45,7 +45,7 @@ func GetAchievements() ([]Achievement, error) {
 	achCacheMu.Lock()
 	defer achCacheMu.Unlock()
 
-	// Double-check the cache after acquiring the write lock to prevent race conditions.
+	//Why: Performs a double-check of the cache after acquiring the write lock to prevent race conditions.
 	if len(achievementCache) > 0 {
 		return achievementCache, nil
 	}
@@ -73,7 +73,7 @@ func GetAchievements() ([]Achievement, error) {
 // GetUserAchievements retrieves the list of achievements unlocked by the user.
 // It also performs a retroactive check to unlock any achievements the user might have met the criteria for since their last check.
 func GetUserAchievements(userID int) ([]UserAchievement, error) {
-	// Fetch user info and trigger a retroactive achievement check before returning the list.
+	//Why: Retrieves user information and triggers a retroactive achievement check before returning the unlocked list.
 	var u User
 	var lastCompletedAt, createdAt DBTime
 	var slackID, waJID sql.NullString
@@ -131,7 +131,7 @@ func CheckAndUnlockAchievements(user User) ([]Achievement, error) {
 		return nil, err
 	}
 
-	// Call the internal function directly to prevent infinite loops or circular dependencies.
+	//Why: Invokes the internal retrieval function directly to prevent infinite loops or circular dependencies.
 	userAchievements, err := getUnlockedAchievementsFromDB(user.ID)
 	if err != nil {
 		return nil, err
@@ -150,7 +150,7 @@ func CheckAndUnlockAchievements(user User) ([]Achievement, error) {
 	var newlyUnlocked []Achievement
 	for _, ach := range achievements {
 		if unlockedMap[ach.ID] {
-			continue // Already unlocked
+			continue //Why: Skips achievements that have already been unlocked to avoid redundant processing.
 		}
 
 		unlocked := false

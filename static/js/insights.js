@@ -34,22 +34,44 @@ export const insights = {
         // 2단계 탭 바인딩 (통계 / 보고서)
         const statsTab = document.querySelector('[data-tab="insightsStatsTab"]');
         const reportsTab = document.querySelector('[data-tab="insightsReportsTab"]');
-        const statsContent = document.querySelector('.insights-container:not(#insightsReportsContent)');
-        const reportsContent = document.getElementById('insightsReportsContent');
+        
+        // Panels
+        const statsPanel = document.getElementById('insightsStatsTab');
+        const reportsPanel = document.getElementById('insightsReportsTab');
 
-        if (statsTab && reportsTab && statsContent && reportsContent) {
+        if (statsTab && reportsTab && statsPanel && reportsPanel) {
             statsTab.addEventListener('click', () => {
                 statsTab.classList.add('active');
                 reportsTab.classList.remove('active');
-                if (statsContent) statsContent.classList.remove('hidden');
-                if (reportsContent) reportsContent.classList.add('hidden');
+                statsPanel.classList.add('c-tabs__panel--active');
+                reportsPanel.classList.remove('c-tabs__panel--active');
             });
-            reportsTab.addEventListener('click', () => {
+
+            reportsTab.addEventListener('click', async () => {
                 reportsTab.classList.add('active');
                 statsTab.classList.remove('active');
-                if (reportsContent) reportsContent.classList.remove('hidden');
-                if (statsContent) statsContent.classList.add('hidden');
+                reportsPanel.classList.add('c-tabs__panel--active');
+                statsPanel.classList.remove('c-tabs__panel--active');
+                
+                // Fetch report data if not already loaded or on refresh
+                await this.refreshReport();
             });
+        }
+    },
+
+    /**
+     * Fetches and renders the weekly AI report.
+     */
+    async refreshReport() {
+        try {
+            const report = await api.getInsightReport();
+            insightsRenderer.renderReport(report);
+        } catch (e) {
+            console.error("[Insights] Report fetch failed:", e);
+            const summaryContainer = document.getElementById('reportSummaryContent');
+            if (summaryContainer) {
+                summaryContainer.innerHTML = `<div class="u-text-dim" style="text-align: center; padding: 2rem; color: var(--color-error);">Report generation failed: ${e.message}</div>`;
+            }
         }
     },
 

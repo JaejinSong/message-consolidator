@@ -12,8 +12,7 @@ import (
 var promptFS embed.FS
 
 func loadPrompt(filename string) string {
-	// 1. Dev Mode: Attempt to read the local file using an absolute path relative to this source file.
-	// This ensures that local modifications are immediately reflected, regardless of the execution directory (e.g., during regression tests).
+	//Why: [Dev Mode] Attempts to read local prompt files directly from the filesystem to ensure immediate reflection of changes during development and regression testing.
 	_, currentFile, _, ok := runtime.Caller(0)
 	if ok {
 		aiDir := filepath.Dir(currentFile)
@@ -23,7 +22,7 @@ func loadPrompt(filename string) string {
 		}
 	}
 
-	// 2. Prod Mode: If the local file is missing or the path cannot be resolved, fallback to the embedded version included during the build.
+	//Why: [Prod Mode] Falls back to the embedded prompt filesystem (embed.FS) if local files are inaccessible, ensuring the binary is self-contained for production.
 	b, err := promptFS.ReadFile("prompts/" + filename)
 	if err != nil {
 		logger.Errorf("[GEMINI] Failed to load prompt file %s from embed FS: %v", filename, err)

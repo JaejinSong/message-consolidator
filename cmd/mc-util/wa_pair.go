@@ -30,10 +30,10 @@ func runWAPair(cfg *config.Config) {
 		os.Exit(1)
 	}
 
-	email := "jjsong@whatap.io" // Default target email
+	email := "jjsong@whatap.io" //Why: Hardcodes the primary developer's email as the default registration target for manual CLI pairing sessions.
 	fmt.Printf("Initializing WhatsApp for %s...\n", email)
 
-	// Custom fetcher to handle pairing context
+	//Why: Overrides the user metadata fetcher to bypass existing JID checks during a fresh CLI pairing attempt.
 	channels.DefaultWAManager.FetchUserWAJID = func(email string) (string, error) {
 		return "", nil 
 	}
@@ -55,14 +55,14 @@ func runWAPair(cfg *config.Config) {
 		os.Exit(0)
 	}
 
-	// Decode base64 PNG
+	//Why: Converts the base64-encoded QR code string back into raw PNG bytes for physical storage and user viewing.
 	pngData, err := base64.StdEncoding.DecodeString(encodedPNG)
 	if err != nil {
 		fmt.Printf("Error decoding base64: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Save QR to file
+	//Why: Writes the QR code to a local PNG file to facilitate scanning from a standard image viewer during the CLI pairing flow.
 	qrFile := "whatsapp_qr.png"
 	err = os.WriteFile(qrFile, pngData, 0644)
 	if err != nil {
@@ -74,7 +74,7 @@ func runWAPair(cfg *config.Config) {
 
 	fmt.Println("\nWaiting for connection success... (Ctrl+C to stop)")
 	
-	// Keep running to handle events (like Connected)
+	//Why: Blocks the main thread to allow the WhatsApp background workers to process the pairing success event after the user scans the QR code.
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c

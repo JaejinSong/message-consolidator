@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"message-consolidator/config"
+
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
 )
@@ -36,9 +37,10 @@ func runReleaseNotes(cfg *config.Config) {
 	model := client.GenerativeModel("gemini-3-flash-preview")
 
 	targets := []TargetFile{
-		{"RELEASE_NOTES.md", "RELEASE_NOTES.md"},
-		{"RELEASE_NOTES_KR.md", "RELEASE_NOTES_KR.md"},
-		{"RELEASE_NOTES_USER.md", "RELEASE_NOTES_USER.md"},
+		{"RELEASE_NOTES_TECH_EN.md", "RELEASE_NOTES_TECH_EN.md"},
+		{"RELEASE_NOTES_TECH_KO.md", "RELEASE_NOTES_TECH_KO.md"},
+		{"RELEASE_NOTES_USER_EN.md", "RELEASE_NOTES_USER_EN.md"},
+		{"RELEASE_NOTES_USER_KO.md", "RELEASE_NOTES_USER_KO.md"},
 	}
 
 	lastVersion := "2.3.4"
@@ -110,7 +112,9 @@ func runReleaseNotes(cfg *config.Config) {
 
 func incrementPatch(v string) string {
 	parts := strings.Split(v, ".")
-	if len(parts) != 3 { return v }
+	if len(parts) != 3 {
+		return v
+	}
 	var major, minor, patch int
 	fmt.Sscanf(parts[0], "%d", &major)
 	fmt.Sscanf(parts[1], "%d", &minor)
@@ -120,15 +124,19 @@ func incrementPatch(v string) string {
 
 func mcSplitSections(resp string) map[string]string {
 	sections := make(map[string]string)
-	filenames := []string{"RELEASE_NOTES.md", "RELEASE_NOTES_KR.md", "RELEASE_NOTES_USER.md"}
+	filenames := []string{"RELEASE_NOTES_TECH_EN.md", "RELEASE_NOTES_TECH_KO.md", "RELEASE_NOTES_USER_EN.md", "RELEASE_NOTES_USER_KO.md"}
 	for _, fname := range filenames {
 		tag := "[" + fname + "]"
 		start := strings.Index(resp, tag)
-		if start == -1 { continue }
+		if start == -1 {
+			continue
+		}
 		start += len(tag)
 		end := len(resp)
 		for _, nextFname := range filenames {
-			if fname == nextFname { continue }
+			if fname == nextFname {
+				continue
+			}
 			nextTag := "[" + nextFname + "]"
 			nStart := strings.Index(resp[start:], nextTag)
 			if nStart != -1 && nStart+start < end {

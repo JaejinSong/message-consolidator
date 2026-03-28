@@ -10,17 +10,17 @@ var (
 	db               *sql.DB
 	messageCache     = make(map[string][]ConsolidatedMessage)
 	archiveCache     = make(map[string][]ConsolidatedMessage)
-	knownTS          = make(map[string]map[string]bool) // Map: user_email -> source_ts -> exists
+	knownTS          = make(map[string]map[string]bool) //Why: Tracks known message timestamps per user to prevent duplicate processing.
 	cacheInitialized = make(map[string]bool)
 	cacheMu          sync.RWMutex
 
-	// Memory Caches for Metadata (avoids DB hits during idle scans)
+	//Why: Maintains in-memory caches for frequently accessed metadata to minimize database load during passive operations.
 	userCache        = make(map[string]*User)
 	aliasCache       = make(map[int][]string)
 	scanCache        = make(map[string]string)
-	dirtyScanKeys    = make(map[string]bool) // Tracks modified scan timestamps not yet persisted to DB
+	dirtyScanKeys    = make(map[string]bool) //Why: Identifies scan timestamps that have changed locally and need to be synchronized with the database.
 	tokenCache       = make(map[string]string)
-	tenantAliasCache = make(map[string]map[string]string) // Map: tenant_email -> original_name -> primary_name
+	tenantAliasCache = make(map[string]map[string]string) //Why: Maps localized or variation names to standard primary names within a specific tenant context.
 	contactsCache    = make(map[string][]AliasMapping)
 	metadataMu       sync.RWMutex
 	lastArchiveTime  time.Time

@@ -19,12 +19,12 @@ func InitDB(cfg *config.Config) error {
 	dbURL := cfg.TursoURL
 	authToken := cfg.TursoToken
 
-	// Handle Remote-only Turso connections (libsql:// prefix)
+	//Why: Handles remote-only Turso connections using the libsql:// prefix to ensure proper authentication.
 	if strings.HasPrefix(dbURL, "libsql://") && authToken != "" {
 		dbURL = fmt.Sprintf("%s?authToken=%s", dbURL, authToken)
 	}
 
-	// Handle Embedded Replicas (file: prefix with a sync_url for local edge sync)
+	//Why: Configures embedded replicas to support local edge synchronization via the file: prefix and SyncURL settings.
 	if strings.HasPrefix(dbURL, "file:") && cfg.TursoSyncURL != "" {
 		u, parseErr := url.Parse(dbURL)
 		if parseErr == nil {
@@ -67,13 +67,10 @@ func InitDB(cfg *config.Config) error {
 }
 
 func setupConnectionPool(connStr string) {
-	// Configure connection pool settings based on the environment.
-	// Since Turso/libSQL operates in a serverless environment, connection pooling must be flexible.
-	// We set conservative limits to prevent "stream is closed" and "bad connection" errors.
+	//Why: Configures connection pool settings to prevent "stream is closed" or "bad connection" errors in serverless environments like Turso.
 	idleConns := 2
 	if strings.HasPrefix(connStr, "libsql://") {
-		// For remote serverless environments, set MaxIdleConns to 0.
-		// This prevents the app from holding onto stale connections that the server may have already dropped.
+		//Why: Disables idle connections for remote Turso environments to prevent holding onto stale connections dropped by the server.
 		logger.Infof("[DB] Turso detected. Setting MaxIdleConns to 0, MaxOpenConns to 20.")
 		idleConns = 0
 	} else {
@@ -120,6 +117,10 @@ func createCoreTables() error {
 	if err != nil {
 		return err
 	}
+	_, err = db.Exec(SQL.CreateReportsTable)
+	if err != nil {
+		return err
+	}
 	_, err = db.Exec(SQL.CreateMessagesView)
 	if err != nil {
 		return err
@@ -129,7 +130,7 @@ func createCoreTables() error {
 }
 
 func runMigrations() error {
-	// Column additions
+	//Why: Performs non-destructive column additions to the messages schema to support new features like categories and deadlines.
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN user_email TEXT;")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN is_deleted BOOLEAN DEFAULT 0;")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN room TEXT;")
@@ -140,7 +141,7 @@ func runMigrations() error {
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN deadline TEXT;")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN thread_id TEXT;")
 
-	// Users Gamification Columns
+	//Why: Extends the users table with gamification-related metadata including points, levels, and streaks.
 	_, _ = db.Exec("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0;")
 	_, _ = db.Exec("ALTER TABLE users ADD COLUMN streak INTEGER DEFAULT 0;")
 	_, _ = db.Exec("ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1;")
@@ -157,14 +158,13 @@ func runMigrations() error {
 }
 
 func migrateExistingData() {
-	// Ensure basic fields are not null
+	//Why: Normalizes existing data by ensuring critical fields are populated with valid default values.
 	_, _ = db.Exec("UPDATE messages SET is_deleted = 0 WHERE is_deleted IS NULL;")
 	_, _ = db.Exec("UPDATE messages SET room = '' WHERE room IS NULL;")
 	_, _ = db.Exec("UPDATE messages SET category = 'waiting' WHERE task LIKE '[회신 대기]%';")
 	_, _ = db.Exec("UPDATE messages SET category = 'promise' WHERE task LIKE '[나의 약속]%';")
 
-	// Constraint migration (SQLite doesn't support DROP CONSTRAINT as easily)
-	// We'll skip this if it was a clean migration to Turso.
+	//Why: Skips complex constraint migrations due to SQLite's limited support for standard ALTER TABLE operations.
 }
 
 func setupGamification() error {
@@ -184,11 +184,9 @@ func setupGamification() error {
 func seedAchievements() {
 	var count int
 	_ = db.QueryRow("SELECT COUNT(*) FROM achievements").Scan(&count)
-	// Check if achievements need seeding. If the count is below the expected baseline (e.g., 5),
-	// we assume it's a fresh install or missing data and re-seed the definitions.
+	//Why: Seeds initial achievement data if the current count is below established baseline thresholds.
 	if count < 5 {
-		// Clear existing achievements to apply any updated definitions before re-inserting.
-		// Note: In production environments with strict ID dependencies, 'INSERT OR REPLACE' is recommended.
+		//Why: Resets achievements to ensure the latest definitions are applied during the seeding process, while noting that 'INSERT OR REPLACE' is standard for production.
 		_, _ = db.Exec("DELETE FROM achievements;")
 		_, _ = db.Exec(`INSERT INTO achievements (name, description, icon, criteria_type, criteria_value, target_value, xp_reward) VALUES 
 			('첫 걸음', '첫 번째 업무를 완료했습니다.', '🌱', 'total_tasks', 1, 1, 10),
@@ -231,8 +229,7 @@ func GetDB() *sql.DB {
 }
 
 // RunInTx executes a database transaction and automatically rolls it back if an error occurs.
-// This wrapper enforces the "Transaction Management" concern and will be used
-// extensively when Gamification logic becomes more complex.
+//Why: Enforces consistent transaction management across the gamification domain to ensure data integrity.
 func RunInTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -261,14 +258,14 @@ func RefreshAllCaches() error {
 }
 
 func RefreshCache(email string) error {
-	// Set a 10-second timeout to strictly prevent infinite hangs during the cache refresh process.
+	//Why: Prevents cache refresh operations from hanging indefinitely by enforcing a 10-second timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	safeArchiveDays := GetAutoArchiveDays()
 	threshold := fmt.Sprintf("-%d days", safeArchiveDays)
 
-	// 1. Fetch Active Messages
+	//Why: Retrieves recently active messages to populate the primary cache.
 	rows, err := db.QueryContext(ctx, SQL.RefreshCacheActive, email, threshold)
 	if err != nil {
 		return err
@@ -286,7 +283,7 @@ func RefreshCache(email string) error {
 		newKnownTS[m.SourceTS] = true
 	}
 
-	// 2. Fetch Archived Messages (is_deleted = 1 OR long completed)
+	//Why: Retrieves recently archived messages to populate the secondary cache.
 	rowsArch, err := db.QueryContext(ctx, SQL.RefreshCacheArchive, email, threshold)
 	if err != nil {
 		return err
@@ -367,12 +364,12 @@ func ArchiveOldTasks() error {
 	archiveMu.Lock()
 	defer archiveMu.Unlock()
 
-	// Rate-limit: Run at most once every 6 hours
+	//Why: Throttles background archiving to once every six hours to optimize resource usage.
 	if time.Since(lastArchiveTime) < 6*time.Hour {
 		return nil
 	}
 
-	// Limit background archiving tasks to a maximum of 15 seconds to prevent database locks.
+	//Why: Limits archiving task duration to 15 seconds to prevent database performance degradation or locks.
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 

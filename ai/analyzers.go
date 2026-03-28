@@ -29,7 +29,7 @@ func (g *GmailAnalyzer) GetModelName(defaultModel string) string {
 }
 
 func (g *GmailAnalyzer) PreProcess(text string) string {
-	const maxChars = 15000 // Limit Gmail input to a reasonable size to save tokens
+	const maxChars = 15000 //Why: Limits Gmail input to 15,000 characters to stay within reasonable token limits while preserving sufficient thread context.
 	if len(text) > maxChars {
 		return text[:maxChars]
 	}
@@ -54,7 +54,7 @@ func (c *ChatAnalyzer) GetModelName(defaultModel string) string {
 }
 
 func (c *ChatAnalyzer) PreProcess(text string) string {
-	const maxChars = 30000 // Safely keep within reasonable token limits
+	const maxChars = 30000 //Why: Truncates chat history to the last 30,000 characters to ensure the most recent context is sent to Gemini without exceeding token limits.
 	if len(text) > maxChars {
 		logger.Warnf("[GEMINI] Chat text too long (%d chars), truncating to last %d", len(text), maxChars)
 		return text[len(text)-maxChars:]
@@ -78,7 +78,7 @@ func (n *NotionAnalyzer) GetModelName(defaultModel string) string {
 }
 
 func (n *NotionAnalyzer) PreProcess(text string) string {
-	// TODO: Add logic to remove markdown or filter specific blocks in the future
+	//Why: [TODO] Add logic to remove markdown or filter specific Notion blocks to refine task extraction context.
 	return text
 }
 
@@ -86,10 +86,10 @@ func getAnalyzer(source string) SourceAnalyzer {
 	switch source {
 	case "gmail":
 		return &GmailAnalyzer{}
-	case "slack", "whatsapp", "telegram": // Reuse the existing ChatAnalyzer for Telegram
+	case "slack", "whatsapp", "telegram": //Why: Reuses the standard ChatAnalyzer for Telegram as the message structure and extraction logic are functionally identical to Slack/WhatsApp.
 		return &ChatAnalyzer{Source: source}
 	case "notion":
-		return &NotionAnalyzer{} // Use the dedicated Notion analyzer
+		return &NotionAnalyzer{} //Why: Routes Notion-specific extraction requests to the dedicated analyzer to handle its unique document and comment structures.
 	default:
 		return nil
 	}

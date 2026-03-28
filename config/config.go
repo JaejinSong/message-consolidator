@@ -30,7 +30,7 @@ type Config struct {
 }
 
 func LoadConfig() *Config {
-	// .env 파일 로드 (파일이 없어도 환경 변수가 설정되어 있을 수 있으므로 에러 무시 가능)
+	//Why: Attempts to load environment variables from a local .env file, while allowing a silent fallback to system environment variables for production environments like Cloud Run.
 	err := godotenv.Load()
 	if err != nil {
 		logger.Infof("No .env file found, using system environment variables")

@@ -15,7 +15,7 @@ func NormalizeName(tenantEmail, name string) string {
 
 	nameLower := strings.ToLower(strings.TrimSpace(name))
 
-	// 1. Check Tenant-specific Aliases (HIGHEST PRIORITY)
+	//Why: Checks tenant-specific aliases first as they have the highest priority in name normalization.
 	if tenantMap, ok := tenantAliasCache[tenantEmail]; ok {
 		for original, primary := range tenantMap {
 			if strings.ToLower(original) == nameLower {
@@ -24,14 +24,14 @@ func NormalizeName(tenantEmail, name string) string {
 		}
 	}
 
-	// 2. Check Primary Names of app users
+	//Why: Checks against primary names of registered app users to find matching identities.
 	for _, u := range userCache {
 		if strings.ToLower(u.Name) == nameLower {
 			return u.Name
 		}
 	}
 
-	// 3. Check App User Aliases
+	//Why: Iterates through app user aliases to resolve various name variations to a single primary name.
 	for userID, aliases := range aliasCache {
 		if slices.ContainsFunc(aliases, func(alias string) bool {
 			return strings.ToLower(alias) == nameLower
@@ -44,7 +44,7 @@ func NormalizeName(tenantEmail, name string) string {
 		}
 	}
 
-	// 4. Check Contacts Mappings (LOWEST PRIORITY)
+	//Why: Falls back to contact mappings as a last resort for name normalization.
 	return NormalizeContactName(tenantEmail, name)
 }
 

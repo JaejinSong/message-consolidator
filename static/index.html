@@ -295,10 +295,33 @@
                     </div>
                 </div>
 
-                <!-- 예정된 보고서 영역 (Reports Tab - Hidden by default) -->
-                <div id="insightsReportsContent" class="insights-container hidden">
-                    <div class="insights-card insights-card--full c-reports-placeholder">
-                        <p data-i18n="reportsComingSoon">상세 보고서 기능이 곧 업데이트될 예정입니다. 🚀</p>
+                <!-- 주간 보고서 영역 (Weekly Report Tab) -->
+                <div id="insightsReportsTab" class="insights-container c-tabs__panel">
+                    <div class="insights-report-header">
+                        <h2 class="insights-section-title" data-i18n="weeklyReportTitle">AI 주간 업무 인사이트</h2>
+                        <p class="u-text-dim" data-i18n="weeklyReportDesc">최근 7일간의 커뮤니케이션 데이터 기반 업무 요약 및 관계망 분석</p>
+                    </div>
+
+                    <div class="insights-report-grid">
+                        <!-- AI Work Summary -->
+                        <div class="insights-card insights-card--full insights-card--report-summary">
+                            <h3 data-i18n="reportSummaryTitle" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <span>📝</span> 주간 업무 요약
+                            </h3>
+                            <div id="reportSummaryContent" class="markdown-content">
+                                <div class="u-text-dim" style="text-align: center; padding: 2rem;">데이터를 분석 중입니다...</div>
+                            </div>
+                        </div>
+
+                        <!-- Network Graph -->
+                        <div class="insights-card insights-card--full insights-card--report-viz">
+                            <h3 data-i18n="reportVizTitle" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <span>🕸️</span> 커뮤니케이션 관계망
+                            </h3>
+                            <div id="reportVizChart" style="width: 100%; height: 500px; min-height: 400px;">
+                                <div class="u-text-dim" style="text-align: center; padding: 2rem;">차트를 생성 중입니다...</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -656,6 +679,10 @@
             </a>
         </div>
     </div>
+
+    <!-- External Libraries (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <script type="module" src="static/app.js?v=2.3.7"></script>
 

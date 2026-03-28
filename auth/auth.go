@@ -29,7 +29,7 @@ const UserEmailKey contextKey = "userEmail"
 
 func GetUserEmail(r *http.Request) string {
 	if AuthDisabled {
-		return "jjsong@whatap.io" // Default user ONLY when auth is strictly disabled for dev
+		return "jjsong@whatap.io" //Why: Provides a static fallback user for local development environments where OAuth is unavailable or disabled.
 	}
 	email, ok := r.Context().Value(UserEmailKey).(string)
 	if !ok || email == "" {
@@ -63,7 +63,7 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 	oauthState, err := r.Cookie("oauthstate")
 
 	if err != nil {
-		logger.Errorf("Missing oauth state cookie (Domain/HTTPS mismatch?): %v", err)
+		logger.Errorf("Missing oauth state cookie (Why: Possible Domain/HTTPS mismatch?): %v", err)
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
@@ -97,12 +97,12 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 		return
 	}
 
-	// Create or Update user in DB
+	//Why: Synchronizes the Google user metadata with the local database to ensure user records stay current across logins.
 	user, err := store.GetOrCreateUser(userInfo.Email, userInfo.Name, userInfo.Picture)
 	if err != nil {
 		logger.Errorf("Failed to sync user to DB: %v", err)
 	} else {
-		// Use the callback for Slack lookup to avoid dependency on main
+		//Why: Employs a function callback pattern to perform cross-service Slack ID resolution without creating a circular package dependency.
 		slackID, realName, err := lookupUserByEmail(user.Email)
 		if err == nil && slackID != "" {
 			store.UpdateUserSlackID(user.Email, slackID)
@@ -118,7 +118,7 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 func HandleLogout(w http.ResponseWriter, r *http.Request) {
 	isSecure := strings.HasPrefix(appBaseURL, "https://")
 	
-	// Clear primary session token
+	//Why: Explicitly invalidates the server-side session token by clearing the corresponding cookie on the client.
 	cookie := http.Cookie{
 		Name:     "session_token",
 		Value:    "",
@@ -130,7 +130,7 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &cookie)
 
-	// Clear frontend hint cookie
+	//Why: Removes the non-HttpOnly hint cookie so the frontend can immediately react to the logged-out state.
 	hintCookie := http.Cookie{
 		Name:     "session_active",
 		Value:    "",
@@ -145,6 +145,7 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 
+//Why: Generates a cryptographically secure random string for use as the OAuth2 'state' parameter to prevent CSRF attacks.
 func generateStateCookie(w http.ResponseWriter) string {
 	var b [16]byte
 	rand.Read(b[:])
@@ -165,7 +166,7 @@ func generateStateCookie(w http.ResponseWriter) string {
 func SetSessionCookie(w http.ResponseWriter, email string) {
 	isSecure := strings.HasPrefix(appBaseURL, "https://")
 	
-	// 1. Primary Secure Session Token (HttpOnly)
+	//Why: Establishes a server-side session using an HttpOnly cookie to prevent XSS-based token theft.
 	cookie := http.Cookie{
 		Name:     "session_token",
 		Value:    base64.RawURLEncoding.EncodeToString([]byte(email)),
@@ -177,8 +178,7 @@ func SetSessionCookie(w http.ResponseWriter, email string) {
 	}
 	http.SetCookie(w, &cookie)
 
-	// 2. Non-HttpOnly Hint Cookie for Frontend
-	// This allows the frontend to know a session *should* exist without reading the sensitive token.
+	//Why: Provides a public "session active" hint that the frontend can read without exposing the actual sensitive session token.
 	hintCookie := http.Cookie{
 		Name:     "session_active",
 		Value:    "true",
@@ -200,7 +200,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Public assets exemption
+		//Why: Permits anonymous access to static assets like images and CSS to ensure the login page renders correctly before authentication.
 		path := strings.ToLower(r.URL.Path)
 		if strings.HasSuffix(path, ".css") || 
 		   strings.HasSuffix(path, ".js") || 
@@ -227,7 +227,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		decodedEmailBytes, err := base64.RawURLEncoding.DecodeString(cookie.Value)
 		if err != nil {
-			decodedEmailBytes, err = base64.URLEncoding.DecodeString(cookie.Value) // Fallback for old sessions
+			decodedEmailBytes, err = base64.URLEncoding.DecodeString(cookie.Value) //Why: Supports legacy session tokens that may have used standard URL encoding instead of RawURLEncoding to maintain user sessions across upgrades.
 		}
 		if err != nil {
 			logger.Errorf("[AUTH] Error decoding session cookie for %s: %v (Value: %s)", r.URL.Path, err, cookie.Value)

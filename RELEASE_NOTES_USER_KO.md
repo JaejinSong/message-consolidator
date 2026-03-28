@@ -1,14 +1,13 @@
-# Release Notes (User) - v2.3.11 (2026-03-28 07:07 UTC)
+# 업데이트 소식 - v2.3.12 (2026-03-28 15:30 UTC)
 
-- **[FEAT] Visualize Your Productivity**: Check out the new "Anki-style" activity chart in your Insights tab! It’s a beautiful, heatmap-style view of when you’re most active throughout the day.
-- **[FIX] Smarter, Uninterrupted AI**: We fixed a bug where our AI sometimes stopped talking mid-sentence. Now, you get the full, detailed analysis every single time.
-- **[FEAT] 24/7 Heartbeat Monitoring**: We’ve integrated WhaTap observability. This is like a high-tech health monitor for our app, ensuring everything runs smoothly behind the scenes.
-- **[PERF] Turbo-Charged Loading**: By optimizing our server with HTTP/2 and Gzip, the app now loads faster than ever. More time for work, less time for waiting!
-- **[OPTIMIZE] Perfect Mobile View**: We’ve tweaked the margins and spacing for mobile users. Whether you're on a phone or a tablet, the dashboard looks sharper and feels more natural.
+- **[FEAT] 대량 번역도 가뿐하게**: 다국어 업무 관리 기능이 한층 똑똑해졌습니다! 이제 아무리 긴 업무 리스트라도 "스마트 청킹" 기술이 알아서 나눠 처리해주므로, 끊김 없이 쾌적하게 번역 기능을 이용하실 수 있습니다.
+- **[FIX] "이름 없음" 현상 해결**: Gmail에서 불러온 일부 업무에서 담당자 이름이 'undefined'로 표시되던 현상을 잡았습니다. 이제 모든 팀원의 이름이 정확하게 표시되어 업무 혼선을 방지합니다.
+- **[PERF] 더 매끄러워진 반응 속도**: 앱의 엔진 성능을 최적화했습니다. 한꺼번에 많은 작업을 처리하거나 대시보드를 바쁘게 움직여도 버벅임 없는 부드러운 사용감을 선사합니다.
+- **[STABILITY] 더 믿음직한 업데이트**: 배포 시스템에 새로운 안전 장치를 추가했습니다. 이제 모든 업데이트는 자동화된 정밀 테스트를 통과해야만 여러분께 전달되므로, 더욱 안심하고 사용하실 수 있습니다.
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.3.11 (2026-03-28 07:07 UTC)
+# 업데이트 소식 - v2.3.11 (2026-03-28 07:07 UTC)
 
 - **[FEAT] 나의 업무 패턴을 한눈에**: 인사이트 탭에 새로운 'Anki 스타일' 활동 차트가 추가되었습니다! 내가 언제 가장 집중해서 일했는지 세련된 히트맵으로 확인해 보세요.
 - **[FIX] 끝까지 듣는 AI**: AI 분석 결과가 중간에 잘리던 현상을 해결했습니다. 이제 AI 어시스턴트가 전해주는 상세한 요약 내용을 끊김 없이 모두 읽어보실 수 있습니다.
@@ -18,15 +17,7 @@
 
 ---
 
-# Release Notes (User) - v2.3.11 (2026-03-28 07:10 UTC)
-
-- **[FEAT] Completion-Priority Archive Logic**: We've smarterized the Archive! Completed tasks now always stay in the "Done" tab, even if they were archived via deletion.
-- **[UI] Active Terminology: "Canceled Tasks"**: Renamed "Deleted Tasks" to **"Canceled Tasks"** (취소한 업무) in the Archive to better reflect your active intent.
-- **[FIX] Precise Archive Filtering**: The "Canceled" tab now strictly shows tasks that were abandoned before completion, ensuring a cleaner distinction from your successes.
-
----
-
-# 업데이트 소식 (사용자용) - v2.3.11 (2026-03-28 07:10 UTC)
+# 업데이트 소식 - v2.3.11 (2026-03-28 07:10 UTC)
 
 - **[FEAT] 보관함 분류 로직 고도화 (완료 우선순위)**: 업무가 '완료'된 경우 삭제 여부와 관계없이 '완료된 업무' 탭에 표시되도록 개선했습니다. 이제 여러분의 성취가 삭제 작업에 가려지지 않습니다.
 - **[UI] 더 직관적인 명칭 변경 ('취소한 업무')**: 기존의 '삭제된 업무'를 **'취소한 업무'**로 변경했습니다. 내가 직접 취소했다는 능동적인 표현을 통해 업무 관리의 주도성을 시각화했습니다.
@@ -34,17 +25,7 @@
 
 ---
 
-# Release Notes (User) - v2.3.10 (2026-03-27 11:00 UTC)
-
-- **[FEAT] The Great Database Move**: We've upgraded our brain! By migrating to Turso, Message Consolidator is now faster and more reliable, no matter where you are in the world.
-- **[UI] Celebrate the "All Clear"**: We've polished the dashboard so that clearing your task list feels even more satisfying. Enjoy the new "All Clear" look—you've earned it!
-- **[FIX] No More Mystery Assignees**: Fixed a pesky bug where some Gmail tasks forgot who was in charge. Everyone's name will now show up exactly where it should.
-- **[FEAT] Smarter Status Tracking**: We’ve updated our icons and time displays to be clearer and easier to read. Keeping track of your achievements is now a breeze.
-- **[STABILITY] Safety First Deployments**: We've added extra guardrails to our update process. This means every new update is tested more strictly before it reaches you, ensuring a smoother experience.
-
----
-
-# 업데이트 소식 (사용자용) - v2.3.10 (2026-03-27 11:00 UTC)
+# 업데이트 소식 - v2.3.10 (2026-03-27 11:00 UTC)
 
 - **[FEAT] 더 빠르고 강력해진 엔진**: 데이터베이스 시스템을 Turso로 업그레이드했습니다! 이제 세계 어디서나 더 빠르고 끊김 없는 서비스를 경험하실 수 있습니다.
 - **[UI] 기분 좋은 '업무 완료' 화면**: 대시보드의 빈 화면(Empty State)을 더 예쁘게 다듬었습니다. 모든 업무를 끝냈을 때의 성취감을 새로운 'All Clear' 화면과 함께 느껴보세요.
@@ -54,17 +35,7 @@
 
 ---
 
-# Release Notes (User) - v2.3.9 (2026-03-27 07:56 UTC)
-
-- **[SYS] We’re Watching (In a Good Way)**: We've integrated WhaTap monitoring! It’s like giving our servers a 24/7 health check-up, ensuring everything stays smooth and responsive for you.
-- **[OPTIMIZE] Spring Cleaning**: We’ve scrubbed away old, unused code and "dead" CSS. The app is now lighter, leaner, and ready to move faster than ever.
-- **[REFACTOR] Smarter Data Handling**: By reorganizing how we talk to our database using "SQL Views," we’ve made the app’s brain much more efficient. Faster data loading means less waiting.
-- **[PERF] Heavy Lifting Made Easy**: We've tuned our database connections to handle huge spikes in messages. Even when you're at your busiest, Message Consolidator won't break a sweat.
-- [FIX] Smarter & More Thorough AI Analysis: Fixed an issue where the AI would sometimes stop mid-sentence when analyzing complex conversations. It now reads through even the longest threads to ensure no tasks are missed.
-
----
-
-# 업데이트 소식 (사용자용) - v2.3.9 (2026-03-27 07:56 UTC)
+# 업데이트 소식 - v2.3.9 (2026-03-27 07:56 UTC)
 
 - **[SYS] 24시간 철통 보안 감시**: WhaTap 실시간 모니터링 시스템을 도입했습니다. 서버의 건강 상태를 초 단위로 체크하여, 여러분이 서비스를 이용할 때 끊김 없는 쾌적한 환경을 유지합니다.
 - **[OPTIMIZE] 코드 대청소**: 오랫동안 사용하지 않았던 낡은 코드와 디자인 파일들을 말끔히 정리했습니다. 앱이 한층 가벼워져서 이전보다 훨씬 민첩하게 반응합니다.
@@ -74,17 +45,7 @@
 
 ---
 
-# Release Notes (User) - v2.3.8 (2026-03-27 01:12 UTC)
-
-- **[FEAT] Master Your Time with Heatmaps**: Love the "Anki" style grid? We've brought it to your Insights page. You can now see exactly which hours of the day you're most active in a beautiful, color-coded chart.
-- **[PERF] Speeding Up the Pipes**: We've tuned our servers to use HTTP/2 and Gzip compression. It’s like upgrading from a garden hose to a fire hose—the app now loads noticeably faster.
-- **[FIX] No More "Mr. Undefined"**: Gmail tasks were having a bit of an identity crisis and showing "undefined" as the owner. We’ve given them their names back.
-- **[SYS] Bulletproof Deploys**: We’ve told our deployment robots to double-check everything with a test run before they go live. If something isn't perfect, it doesn't ship.
-- **[UI] Found Your Profile**: Did your logout button go on vacation? We caught it and pinned it back to the top right. Your profile settings are back where they belong.
-
----
-
-# 업데이트 소식 (사용자용) - v2.3.8 (2026-03-27 01:12 UTC)
+# 업데이트 소식 - v2.3.8 (2026-03-27 01:12 UTC)
 
 - **[FEAT] 나의 활동을 한눈에, 활동 히트맵**: Anki 스타일의 세련된 시간별 활동 차트를 추가했습니다. 하루 중 어느 시간에 가장 열정적으로 메시지를 처리했는지 멋진 그리드로 확인해 보세요.
 - **[PERF] 더 빨라진 로딩 속도**: 서버 통신 방식에 최신 압축 기술(HTTP/2 & Gzip)을 적용했습니다. 이제 앱을 열 때 기다리는 시간이 훨씬 줄어들어 쾌적한 사용이 가능합니다.
@@ -94,17 +55,7 @@
 
 ---
 
-# Release Notes (User) - v2.3.7 (2026-03-26 02:46 UTC)
-
-- **[FEAT] Globally Minded Timekeeping**: Whether you're in Seoul or San Francisco, your message stats are now perfectly synced. We’ve upgraded our time engine to support every timezone on Earth with precision.
-- **[FEAT] Heavy-Duty Translation**: Translating massive amounts of text is now smoother than ever. Our new "chunking" technology breaks down huge tasks into bite-sized pieces, so the app never breaks a sweat.
-- **[OPTIMIZE] Turbo-Charged Database**: We’ve moved our engine to a faster, more modern "Turso" database. It’s like switching from a standard engine to a high-performance jet—faster response times and zero startup hiccups.
-- **[UI] Instant Feedback**: No more wondering "did that work?" Our new Toast Notifications will pop up to give you a quick "thumbs up" when tasks are completed or system updates occur.
-- **[STABILITY] Bulletproof Experience**: We've added extra layers of protection to the app’s "brain" to handle shaky internet connections or unexpected data errors gracefully.
-
----
-
-# 업데이트 소식 (사용자용) - v2.3.7 (2026-03-26 02:46 UTC)
+# 업데이트 소식 - v2.3.7 (2026-03-26 02:46 UTC)
 
 - **[FEAT] 전 세계 어디서나 정확한 시간**: 서울에 있든 런던에 있든, 이제 여러분의 활동 통계가 현지 시간에 맞춰 완벽하게 표시됩니다. 글로벌 기준에 맞춘 정밀한 시간 관리 기능을 경험해 보세요.
 - **[FEAT] 막힘없는 대용량 번역**: 아무리 긴 메시지도 문제없습니다. 데이터를 잘게 나누어 처리하는 새로운 기술을 도입하여, 대량의 번역 작업도 끊김 없이 부드럽게 완료됩니다.
@@ -114,16 +65,7 @@
 
 ---
 
-# Release Notes (User) - v2.3.6 (2026-03-26 09:15 UTC)
-
-- **[FEAT] 24/7 Health Monitoring**: We’ve integrated WhaTap monitoring. Think of it as a "heart rate monitor" for our servers, ensuring your Message Consolidator stays healthy and responsive 24/7.
-- **[OPTIMIZE] Smarter "All Clear"**: That satisfying "Inbox Zero" moment is now more accurate. We’ve improved the logic that detects when you've finished all your tasks, so the dashboard updates instantly.
-- **[SYS] Reinforced Safety**: We’ve added extra "seatbelts" to our deployment process. New automatic tests now run before every update to ensure that only the most stable version reaches your screen.
-- **[REFACTOR] Lean & Clean Code**: We've completely reorganized our styling system and database structure. You won't see these changes directly, but the app is now leaner, cleaner, and ready for future features.
-
----
-
-# 업데이트 소식 (사용자용) - v2.3.6 (2026-03-26 09:15 UTC)
+# 업데이트 소식 - v2.3.6 (2026-03-26 09:15 UTC)
 
 - **[FEAT] 24시간 서버 안심 모니터링**: WhaTap 모니터링 시스템을 도입했습니다. 서버의 상태를 실시간으로 체크하여, 여러분이 서비스를 이용하는 동안 끊김 없는 쾌적한 환경을 제공합니다.
 - **[OPTIMIZE] 더 똑똑해진 '완료' 표시**: 업무를 모두 마쳤을 때의 'All Clear' 표시가 더 정확해졌습니다. 이제 모든 메시지를 처리하는 즉시 대시보드가 여러분의 생산성을 완벽하게 반영합니다.
@@ -132,16 +74,7 @@
 
 ---
 
-# Release Notes (User) - v2.3.5 (2026-03-25 10:05 UTC)
-
-- **[FEAT] Visualize Your Productivity**: Ever wondered when you're most active? We’ve added a beautiful, Anki-inspired activity heatmap. Now you can track your message consolidation trends at a glance.
-- **[PERF] Lightning Fast Loading**: We’ve upgraded our delivery engine with HTTP/2 and Gzip. The app now feels snappier and loads faster, even on slower connections.
-- **[UI] A Fresh Look for Insights**: Our Insights page just got a makeover. It’s cleaner, darker, and more informative than ever.
-- **[FIX] UI Polishing**: We fixed those pesky disappearing buttons. Your profile and logout options will now always be right where you expect them to be.
-
----
-
-# 업데이트 소식 (사용자용) - v2.3.5 (2026-03-25 10:05 UTC)
+# 업데이트 소식 - v2.3.5 (2026-03-25 10:05 UTC)
 
 - **[FEAT] 한눈에 보는 활동 기록**: 내가 언제 가장 업무에 집중했는지 궁금하셨나요? Anki 스타일의 세련된 활동 히트맵을 추가했습니다. 이제 나의 메시지 통합 패턴을 시각적으로 확인해 보세요.
 - **[PERF] 더 빨라진 체감 속도**: 서버 전송 방식(HTTP/2 및 Gzip)을 최적화했습니다. 이제 어떤 환경에서도 이전보다 훨씬 빠르고 쾌적하게 서비스를 이용하실 수 있습니다.
@@ -150,26 +83,13 @@
 
 ---
 
-# Release Notes (User) - v2.3.4 (2026-03-24 07:15 UTC)
-- **[FIX] Gmail Assignee Attribution**: Resolved the issue where some Gmail tasks displayed as "undefined" by refining the AI extraction prompt and adding robust backend sanitization.
-- **[STABILITY] Enhanced Data Layer Safety**: Updated database views and internal scanning logic to provide consistent fallbacks for missing assignee data, ensuring 100% reliable rendering in the dashboard.
-
----
-
-# 업데이트 소식 (사용자용) - v2.3.4 (2026-03-24 07:15 UTC)
+# 업데이트 소식 - v2.3.4 (2026-03-24 07:15 UTC)
 - **[FIX] Gmail 담당자 식별 오류 해결**: 일부 Gmail 업무에서 담당자가 "undefined"로 표시되던 현상을 해결했습니다. AI 추출 프롬프트를 정교화하고 백엔드 검증 로직을 강화하여 데이터 정확도를 높였습니다.
 - **[STABILITY] 데이터 레이어 안정성 강화**: 데이터베이스 뷰와 스캔 로직을 개선하여 누락된 데이터에 대한 자동 보정 기능을 추가했습니다. 이제 대시보드에서 모든 업무의 담당자 정보를 더욱 안정적으로 확인하실 수 있습니다.
 
 ---
 
-# Release Notes (User) - v2.3.3 (2026-03-24 03:30 UTC)
-- **[REFACTOR] SQL Query Architecture**: Standardized data projections by introducing SQL `VIEW`s (`v_messages`, `v_users`). Consolidated redundant query logic into centralized, parameterized SQL files for improved maintainability.
-- **[STABILITY] Automated View Management**: Implemented automatic database view creation/refresh during application startup to ensure schema consistency.
-- **[SYS] Enhanced Deployment Validation**: Integrated frontend testing (`npm test`) as a mandatory step in the deployment pipeline (`deploy.sh`) for pre-release verification.
-
----
-
-# 업데이트 소식 (사용자용) - v2.3.3 (2026-03-24 03:30 UTC)
+# 업데이트 소식 - v2.3.3 (2026-03-24 03:30 UTC)
 
 ## 🏗️ SQL 쿼리 아키텍처 리팩토링 및 뷰 도입
 
@@ -182,15 +102,7 @@
 
 ---
 
-# Release Notes (User) - v2.3.2 (2026-03-24 02:05 UTC)
-- **[REFACTOR] Utility Standardization**: Replaced custom date/time utilities with native `Intl` and `Date` APIs for better performance and maintainability.
-- **[REFACTOR] Logic Consolidation**: Unified message post-processing logic and error handling across the backend.
-- **[STABILITY] Enhanced Error Response**: Standardized error responses and added explicit handling for cancelled requests (HTTP 499).
-- **[PERF] Optimized Data Operations**: Improved database row scanning and slice operations using Go 1.21+ `slices` package.
-
----
-
-# 업데이트 소식 (사용자용) - v2.3.2 (2026-03-24 02:05 UTC)
+# 업데이트 소식 - v2.3.2 (2026-03-24 02:05 UTC)
 - **[REFACTOR] 유틸리티 표준화**: 커스텀 날짜/시간 유틸리티를 브라우저 내장 `Intl` 및 `Date` API로 교체하여 성능 및 유지보수성을 향상했습니다.
 - **[REFACTOR] 로직 통합**: 백엔드 메시지 후처리 및 에러 핸들링 로직을 중앙 서비스 레이어로 통합하여 일관성을 확보했습니다.
 - **[STABILITY] 에러 응답 표준화**: 응답 체계 표준화 및 중단된 요청(HTTP 499)에 대한 명시적 처리를 추가하여 안정성을 높였습니다.
@@ -198,23 +110,7 @@
 
 ---
 
-# Release Notes (User) - v2.3.1 (2026-03-24 07:55 UTC)
-- **[STABILITY] Enhanced DB Connection Reliability**: Optimized connection pooling for Turso/libsql to resolve intermittent "stream is closed" errors. This ensures more stable service performance.
-
----
-
-# Release Notes (User) - v2.3.0 (2026-03-23 12:45 UTC)
-
-## 🚀 Major Infrastructure Migration to Turso (libsql)
-
-- **[NEW] Database Engine Migration**: Successfully migrated the entire backend database from NeonDB (PostgreSQL) to **Turso (libsql/SQLite)**. This provides faster edge performance and improved cost efficiency for global scale.
-- **[FIX] Startup Stability Enhancement**: Fixed a critical "unknown dialect" panic that occurred during WhatsApp session initialization when switching to the libsql driver. 
-- **[DATA] Seamless Data Preservation**: Successfully migrated 100% of existing data, including users, chat history, and achievement records, ensuring no data loss during the engine swap.
-- **[ENV] Unified Configuration Standard**: Synchronized environment variable naming (`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`) across the project and deployment scripts to match the latest internal standards.
-
----
-
-# 업데이트 소식 (사용자용) - v2.3.0 (2026-03-23 12:45 UTC)
+# 업데이트 소식 - v2.3.0 (2026-03-23 12:45 UTC)
 
 ## 🚀 Turso(libsql) 인프라 대전환 및 안정성 강화
 
@@ -225,17 +121,7 @@
 
 ---
 
-# Release Notes (User) - v2.2.13 (2026-03-23 08:53 UTC)
-
-## ⚡ Data Consistency Fix & Backend Logic Optimization
-
-- **[FIX] Resolved SQL Consistency Issues in PgBouncer**: Fixed a technical error where database queries could fail or return incomplete data when processing multiple tasks concurrently in specific connection pooling environments (PgBouncer).
-- **[OPTIMIZE] Implemented Batch Message Loading**: Upgraded the message retrieval logic for dashboard and translation features from individual fetches to batch loading, significantly reducing network overhead and improving response times.
-- **[REFACTOR] Centralized Polling Management**: Unified the automatic data refresh intervals into a central configuration, optimizing the balance between real-time updates and system resource usage.
-
----
-
-# 업데이트 소식 (사용자용) - v2.2.13 (2026-03-23 08:53 UTC)
+# 업데이트 소식 - v2.2.13 (2026-03-23 08:53 UTC)
 
 ## ⚡ 데이터 정합성 오류 해결 및 백엔드 로직 정교화
 
@@ -245,16 +131,7 @@
 
 ---
 
-# Release Notes (User) - v2.2.12 (2026-03-23 07:40 UTC)
-
-## 🛡️ Enhanced Data Integrity & Session Security
-- **[FIX] Resolved "Twisted" Data State**: Fixed a critical issue where messages were incorrectly assigned to a default user. The system now ensures messages are correctly mapped to their original owners.
-- **[IMPROVED] Robust Error Handling**: Upgraded the internal data loading engine to properly handle and report database errors, ensuring the application always reflects the true state of your tasks.
-- **[SEC] Hardened Session Security**: Improved session cookie security with stricter browser policies (Secure & SameSite) to better protect your account.
-
----
-
-# 업데이트 소식 (사용자용) - v2.2.12 (2026-03-23 07:40 UTC)
+# 업데이트 소식 - v2.2.12 (2026-03-23 07:40 UTC)
 
 ## 🛡️ 데이터 무결성 및 세션 보안 강화
 - **[FIX] 데이터 쏠림 현상 해결**: 특정 상황에서 모든 메시지가 한 사용자에게 잘못 배정되던 '데이터 꼬임' 문제를 해결했습니다. 이제 모든 업무가 원래 주인을 정확히 찾아가도록 보정되었습니다.
@@ -263,15 +140,7 @@
 
 ---
 
-# Release Notes (User) - v2.2.11 (2026-03-23 07:08 UTC)
-
-## 🎯 Accurate Targeting & Precise Task Assignment
-- **[FIX] Refined Assignee Detection Logic**: Fine-tuned the internal algorithms that determine task assignees based on conversation context. The system now more intelligently identifies the right person for the job, resolving minor discrepancies in the assignment process.
-- **[SYS] System Operations Guide Optimization**: Re-evaluated the consistency between overall service manuals and internal logic against the latest version. Reinforced background documentation and system architecture to ensure a more stable service operation foundation.
-
----
-
-# 업데이트 소식 (사용자용) - v2.2.11 (2026-03-23 07:08 UTC)
+# 업데이트 소식 - v2.2.11 (2026-03-23 07:08 UTC)
 
 ## 🎯 정확한 타겟팅, 빈틈없는 업무 배정
 - **[FIX] 담당자 판별 로직 고도화**: 대화의 맥락(Context)을 기반으로 업무 담당자를 결정하는 내부 알고리즘을 정교하게 다듬었습니다. 이제 시스템이 '이 업무의 적임자'를 더 똑똑하게 식별하여, 배정 과정에서 발생할 수 있는 작은 오차까지 해결했습니다.
@@ -279,31 +148,14 @@
 
 ---
 
-# Release Notes (User) - v2.2.10 (2026-03-23 06:17 UTC)
-
-## 🛠️ System Stability Improvement
-- **[IMPROVED] Service Reliability**: Improved Gmail integration reliability by ensuring secure and stable communication with Google services, preventing intermittent connection issues.
-
----
-
-# 업데이트 소식 (사용자용) - v2.2.10 (2026-03-23 06:17 UTC)
+# 업데이트 소식 - v2.2.10 (2026-03-23 06:17 UTC)
 
 ## 🛠️ 시스템 안정성 강화
 - **[IMPROVED] 서비스 신뢰도 향상**: 지메일(Gmail) 연동 시 구글 서비스와의 통신 방식을 개선하여 연결 끊김 현상을 방지하고 더욱 안정적인 업무 수집이 가능하도록 보완했습니다.
 
 ---
 
-# Release Notes (User) - v2.2.9 (2026-03-23 06:15 UTC)
-
-## 🏗️ Core Performance & Logic Optimization
-- **[REFACTOR] Faster Task Processing**: Reorganized internal systems to handle complex business logic more efficiently, resulting in faster response times across the application.
-- **[IMPROVED] Enhanced Calculation Accuracy**: Refined the dashboard logic to ensure more accurate and real-time data visualization.
-- **[IMPROVED] Robust Email Scanning**: Optimized the Gmail collection engine to be more robust, ensuring no tasks are missed even during heavy email traffic.
-- **[FIX] General Smoothness**: Cleaned up internal code inconsistencies to prevent unexpected crashes and provide a smoother user experience.
-
----
-
-# 업데이트 소식 (사용자용) - v2.2.9 (2026-03-23 06:15 UTC)
+# 업데이트 소식 - v2.2.9 (2026-03-23 06:15 UTC)
 
 ## 🏗️ 핵심 엔진 최적화 및 로직 정교화
 - **[REFACTOR] 업무 처리 속도 향상**: 내부 시스템 로직을 효율적으로 재구성하여, 복잡한 비즈니스 규칙이 적용된 업무도 더 지연 없이 빠르게 처리할 수 있도록 개선했습니다.
@@ -313,17 +165,7 @@
 
 ---
 
-# Release Notes (User) - v2.2.8 (2026-03-23 04:56 UTC)
-
-## 🕒 Improved Time Readability & Premium Status Icons
-- **[IMPROVED] Dynamic Time Formatting**: Refined the time display logic to show relative time (e.g., "5m ago") for recent tasks, day of week for tasks within 7 days, and compact date/time for older tasks.
-- **[NEW] Premium Status Icons**: Redesigned the "Stale" and "Abandoned" icons with modern SVG paths and glassmorphism styling.
-- **[NEW] Status Glow & Animations**: Added a subtle glow to stale tasks and a smooth pulse animation to abandoned tasks to improve visual urgency and professional aesthetics.
-- **[I18N] Localized Day Names**: Added support for day names in KR, EN, ID, and TH languages.
-
----
-
-# 업데이트 소식 (사용자용) - v2.2.8 (2026-03-23 04:56 UTC)
+# 업데이트 소식 - v2.2.8 (2026-03-23 04:56 UTC)
 
 ## 🕒 시간 가독성 개선 및 프리미엄 상태 아이콘 도입
 - **[IMPROVED] 지능형 시간 포맷**: 최근 업무는 상대 시간(예: "5분 전"), 7일 이내는 요일 표시, 그 외는 간결한 날짜 포맷으로 자동 전환하여 가독성을 극대화했습니다.
@@ -333,16 +175,7 @@
 
 ---
 
-# Release Notes (User) - v2.2.7 (2026-03-23 04:50 UTC)
-
-## 🏆 Premium Achievements UI & Multi-language Support
-- **[NEW] Premium Achievement Design**: Redesigned the achievement cards with a sleek glassmorphism style, golden glow animations for unlocked milestones, and improved progress bars.
-- **[NEW] Global Achievements (i18n)**: Achievement titles and descriptions are now fully localized in **Korean, English, Indonesian, and Thai**.
-- **[FIX] Achievement Sync**: Corrected the mapping between database achievement keys and localized UI strings to ensure all trophies display their correct names.
-
----
-
-# 업데이트 소식 (사용자용) - v2.2.7 (2026-03-23 04:50 UTC)
+# 업데이트 소식 - v2.2.7 (2026-03-23 04:50 UTC)
 
 ## 🏆 프리미엄 업적 UI 도입 및 글로벌 다국어 지원 확장
 - **[NEW] 프리미엄 업적 디자인**: 업적 카드를 세련된 글래스모피즘 스타일로 전면 개편했습니다. 달성 시 황금빛 글로우 애니메이션과 개선된 게이지 바를 통해 성취감을 더했습니다.
@@ -351,17 +184,7 @@
 
 ---
 
-# Release Notes (User) - v2.2.6 (2026-03-22 16:20 UTC)
-
-## 📊 WhaTap Real-time Monitoring & Performance Optimization
-- **[NEW] Real-time User Monitoring (RUM)**: We've integrated WhaTap Browser Agent to better understand your experience. This includes **Session Replay at 100%**, allowing us to see exactly how the app behaves and fix issues faster.
-- **[NEW] Full-stack Observability**: Backend performance is now monitored by WhaTap Go Agent, providing deep insights into database queries and system health.
-- **[OPTIMIZE] Database Stability**: Optimized NeonDB connection patterns to prevent session-related errors while maintaining efficient scale-to-zero capabilities.
-- **[NOTE] Resource Usage**: Monitoring features have increased the baseline memory footprint by approximately **150MB**. This is expected overhead for comprehensive real-time analysis.
-
----
-
-# 업데이트 소식 (사용자용) - v2.2.6 (2026-03-22 16:20 UTC)
+# 업데이트 소식 - v2.2.6 (2026-03-22 16:20 UTC)
 
 ## 📊 WhaTap 실시간 모니터링 도입 및 성능 최적화
 - **[NEW] 실시간 사용자 경험 모니터링 (RUM)**: WhaTap 브라우저 에이전트를 도입하여 서비스 이용 중 발생하는 불편함을 더 정교하게 포착합니다. 특히 **세션 리플레이 100% 수집**을 통해 문제 발생 시의 상황을 생생하게 재현하고 개선할 수 있게 되었습니다.
@@ -371,16 +194,7 @@
 
 ---
 
-# Release Notes (User) - v2.2.5 (2026-03-22 14:05 UTC)
-
-## 💎 Better Deployment & Smarter Insights
-- **[NEW] Deployment Safety Check (`deploy.sh`)**: We've added a new safety step that automatically verifies the code (build tests and logic checks) before it's sent to the server. If anything is broken, the deployment stops immediately, ensuring the service stays stable for you.
-- **[IMPROVED] Clearer Business Insights**: We've updated the "Insights" tab with better visual highlights for pending tasks and more readable activity charts, helping you stay on top of your work more easily.
-- **[SYS] System Integrity**: General maintenance and background improvements to ensure the platform remains reliable and ready for upcoming features.
-
----
-
-# 업데이트 소식 (사용자용) - v2.2.4 (2026-03-22 13:20 UTC)
+# 업데이트 소식 - v2.2.4 (2026-03-22 13:20 UTC)
 
 ## 🌍 타임존 정합성 강화 및 글로벌 다국어 지원 확장
 - **[NEW] 전 세계 어디서나 정확한 통계 (Timezone Support)**: 이제 대시보드의 일일 업무 완료 통계와 시간대별 활동 열지도에 사용자의 현재 타임존이 반영됩니다. 해외 어디에서 접속하더라도 한국 시간이 아닌 본인의 현지 시간을 기준으로 리포트를 확인할 수 있습니다.
@@ -390,7 +204,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.2.3 (2026-03-22 12:45 UTC)
+# 업데이트 소식 - v2.2.3 (2026-03-22 12:45 UTC)
 
 ## 💎 세련된 알림 시스템 (Toast) 도입 및 프론트엔드 안전성 대폭 강화
 - **[NEW] 세련된 알림 시스템 (Toast) 도입**: 서비스 이용 중 발생하는 각종 작업 결과(성공, 오류 등)를 화면 우측 하단의 깔끔한 글래스모피즘 토스트 팝업으로 알려줍니다. 기존의 투박한 브라우저 경고창(Alert)을 대체하여 사용자 경험을 한층 높였습니다.
@@ -401,7 +215,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.2.2 (2026-03-22 10:15 UTC)
+# 업데이트 소식 - v2.2.2 (2026-03-22 10:15 UTC)
 
 ## ⚡ 인프라 전송 효율 최적화 및 대시보드 안정성 강화
 - **[SYS] 인프라 전송 효율 최적화 (HTTP/2 & Gzip)**: VPS 서버의 Nginx 설정을 업데이트하여 HTTP/2 프로토콜을 활성화하고, 모든 정적 리소스(JS, CSS, JSON)에 최적화된 Gzip 압축을 적용했습니다. 화면 초기 로딩이 더욱 빨라졌습니다.
@@ -410,7 +224,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.2.1 (2026-03-22 09:00 UTC)
+# 업데이트 소식 - v2.2.1 (2026-03-22 09:00 UTC)
 
 ## 🎨 빈 상태 디자인 고도화 및 데이터 정합성 강화
 - **[NEW] 재치 있는 응원 문구 대폭 보강**: 모든 업무를 완료했을 때 나타나는 문구를 더 자연스럽고 위트 있게 개선했습니다. "화력 발전소", "커피 한 잔의 여유" 등 기분 좋은 메시지를 만나보세요!
@@ -421,7 +235,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.2.0 (2026-03-22 08:00 UTC)
+# 업데이트 소식 - v2.2.0 (2026-03-22 08:00 UTC)
 
 ## 📊 Anki 스타일 인사이트 및 생산성 분석 강화
 - **[NEW] 시간대별 활동 열지도**: 24시간 중 업무 처리가 가장 활발한 시간대를 시각화하는 Anki 스타일의 'Hourly Breakdown' 기능을 추가했습니다. 나만의 집중 골든 타임을 찾아보세요!
@@ -432,7 +246,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.1.6 (2026-03-21 15:00 UTC)
+# 업데이트 소식 - v2.1.6 (2026-03-21 15:00 UTC)
 
 ## 🎨 CSS 구조 모듈화 및 반응형 완벽 보정
 - **[REFACTOR] CSS 아키텍처 현대화**: 단일 파일이었던 `style.css`를 `base`, `layout`, `components`, `animations`, `responsive` 모듈로 분리하여 유지보수성을 극대화했습니다.
@@ -441,7 +255,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.1.5 (2026-03-21 14:10 UTC)
+# 업데이트 소식 - v2.1.5 (2026-03-21 14:10 UTC)
 
 ## 🎨 CSS 구조 모듈화 및 대시보드 인사이트 강화
 - **[SYS] CSS 구조 모듈화 및 최적화**: 거대했던 단일 스타일시트를 기능별로 분리하여 유지보수성을 극대화했습니다. 이제 각 UI 요소들이 더 체계적이고 민첩하게 관리됩니다.
@@ -450,7 +264,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.1.4 (2026-03-21 12:10 UTC)
+# 업데이트 소식 - v2.1.4 (2026-03-21 12:10 UTC)
 
 ## 💎 실시간 데이터 동기화 및 인터페이스 정밀 튜닝
 - **[FEAT] 토큰 사용량 실시간 반영**: 이제 대시보드를 새로고침하지 않아도 AI 토큰 사용 현황이 실시간으로 업데이트됩니다. 나의 스마트한 파트너가 지금 이 순간 얼마나 열심히 일하고 있는지 즉각적으로 확인해 보세요.
@@ -458,7 +272,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.1.3 (2026-03-21 11:10 UTC)
+# 업데이트 소식 - v2.1.3 (2026-03-21 11:10 UTC)
 
 ## ⚡ 대량의 메시지 처리 능력 향상 및 서비스 안정화
 - **[OPTIMIZE] Slack 업무 수집 능력 강화**: 한꺼번에 많은 메시지가 쏟아져도 누락 없이 모든 할 일을 꼼꼼하게 찾아낼 수 있도록 수집 엔진을 업그레이드했습니다.
@@ -467,7 +281,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.1.2 (2026-03-21 09:55 UTC)
+# 업데이트 소식 - v2.1.2 (2026-03-21 09:55 UTC)
 
 ## 📱 모바일 화면 최적화 및 레이아웃 안정화
 - **[UI] 모바일 및 태블릿 화면 최적화**: 화면이 좁은 스마트폰이나 태블릿(가로 모드)에서 상단 메뉴가 잘려 보이던 현상을 해결했습니다. 이제 어떤 기기에서도 모든 메뉴가 한눈에 들어옵니다.
@@ -478,11 +292,11 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.1.1 (2026-03-21 08:48 UTC)
+# 업데이트 소식 - v2.1.1 (2026-03-21 08:48 UTC)
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.1.0 (2026-03-21 08:45 UTC)
+# 업데이트 소식 - v2.1.0 (2026-03-21 08:45 UTC)
 
 ## ⚡ 월별 사용량 확인 기능 및 서비스 안정화
 - **[FEAT] 한 달간의 토큰 사용량 확인**: 이제 이번 달에 얼마나 많은 AI 토큰을 사용했는지 확인하실 수 있습니다. 우측 상단의 토큰 배지에 마우스를 올리면 오늘 사용량과 이번 달 누적 사용량이 함께 표시됩니다.
@@ -490,7 +304,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.0.9 (2026-03-21 07:48 UTC)
+# 업데이트 소식 - v2.0.9 (2026-03-21 07:48 UTC)
 
 ## ⚡ 서비스 안정성 및 인프라 고도화
 - **[OPTIMIZE] Slack 업무 수집 안정화**: Slack의 일시적인 호출 제한이 발생하더라도 스스로 잠시 대기 후 다시 시도하는 기능을 추가했습니다. 이제 대량의 메시지 스캔 중에도 끊김 없이 업무를 가져올 수 있습니다.
@@ -498,7 +312,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.0.7 (2026-03-20 18:30 UTC)
+# 업데이트 소식 - v2.0.7 (2026-03-20 18:30 UTC)
 
 ## 🎮 더 즐거운 업무 관리와 시스템 최적화
 - **[FEAT] 게이미피케이션 로드맵 수립**: 더 즐겁게 업무를 관리할 수 있도록 포인트, 스트릭, 등급 시스템에 대한 상세 계획을 수립했습니다. (비즈니스 환경을 위한 심플 모드 포함)
@@ -506,7 +320,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.0.6 (2026-03-20 17:40 UTC)
+# 업데이트 소식 - v2.0.6 (2026-03-20 17:40 UTC)
 
 ## ⚡ 더 빠르고 부드러운 업무 관리
 - **[FEAT] 초고속 데이터 처리**: 여러 업무를 한 번에 처리하는 기술을 도입하여 삭제나 복원 작업이 훨씬 더 빨라졌습니다.
@@ -515,7 +329,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.0.5 (2026-03-20 17:25 UTC)
+# 업데이트 소식 - v2.0.5 (2026-03-20 17:25 UTC)
 
 ## ⚡ 더 빠르고 효율적인 데이터 관리
 - **[FEAT] 원문 보기 기능 최적화**: 이제 메시지 원문은 '눈 아이콘'을 클릭할 때만 서버에서 가져옵니다. 이로 인해 대시보드 로딩 속도가 빨라지고 배터리/데이터 소모가 줄어듭니다.
@@ -523,7 +337,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.0.4 (2026-03-20 17:15 UTC)
+# 업데이트 소식 - v2.0.4 (2026-03-20 17:15 UTC)
 
 ## ⚡ AI 처리 효율 및 비용 최적화
 - **[FEAT] 더 가벼워진 AI 엔진**: 내부 AI 모델 호출 시 사용하는 명령어를 더 효율적으로 개선하여 응답 속도를 높이고 운영 비용을 절감했습니다.
@@ -531,14 +345,14 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.0.3 (2026-03-20 17:15 UTC)
+# 업데이트 소식 - v2.0.3 (2026-03-20 17:15 UTC)
 
 ## 🛠️ 시스템 안정성 강화 (빌드 오류 수정)
 - **[FIX] 서비스 배포 안정화**: 최근 라이브러리 업데이트로 인해 발생했던 빌드 및 배포 오류를 수정했습니다. 이제 중단 없이 안정적인 서비스 기동이 가능합니다.
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.0.2 (2026-03-20 17:15 UTC)
+# 업데이트 소식 - v2.0.2 (2026-03-20 17:15 UTC)
 
 ## ⚡ 더 빨라진 반응 속도와 아카이브 복원 안정화
 - **[NEW] 한결 빨라진 화면 반응**: 업무를 완료하거나 담당자를 바꿀 때, 화면이 즉시 갱신되도록 내부 처리 방식을 최적화했습니다. 이제 기다림 없이 수정한 내용을 바로 확인할 수 있습니다.
@@ -547,7 +361,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.0.1 (2026-03-20 16:35 UTC)
+# 업데이트 소식 - v2.0.1 (2026-03-20 16:35 UTC)
 
 ## 🏗️ 더 깔끔해진 대시보드와 테마 가독성 개선
 - **[NEW] 보이지 않는 곳까지 깔끔하게**: 시스템 내부 코드를 기능별로 잘게 나누어 정리했습니다. 앞으로 더 빠르고 안정적인 기능 업데이트가 가능해집니다.
@@ -556,7 +370,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v2.0.0 (2026-03-20 15:50 UTC)
+# 업데이트 소식 - v2.0.0 (2026-03-20 15:50 UTC)
 
 ## ☁️ 한 단계 더 진화한 서버리스 환경 지원 (Cloud Run)
 - **[NEW] 더 똑똑한 자원 관리**: Google Cloud Run 서버리스 환경에서도 중복 없이 업무를 스캔하고 관리할 수 있는 최적화 모드를 도입했습니다.
@@ -565,7 +379,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v1.9.7 (2026-03-20 15:00 UTC)
+# 업데이트 소식 - v1.9.7 (2026-03-20 15:00 UTC)
 
 ## 🎊 지루할 틈 없는 대시보드와 재치 있는 응원 문구
 - **[NEW] 재치 있는 할 일 완료 문구**: 모든 업무를 마치거나 목록이 비었을 때, "커피 한 잔의 여유"와 같은 10가지 이상의 재치 있는 응원 문구가 랜덤하게 나타납니다. (한국어, 영어, 인도네시아어, 태국어 지원)
@@ -573,7 +387,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v1.9.5 (2026-03-20 14:40 UTC)
+# 업데이트 소식 - v1.9.5 (2026-03-20 14:40 UTC)
 
 ## 🌐 다국어 지원 강화 및 관리 도구 최적화
 - **[NEW] 정교해진 다국어 번역**: 한국어, 영어뿐만 아니라 인도네시아어, 태국어 번역을 개선하고 툴팁까지 현지화하여 외국인 동료들과의 협업이 더 쉬워졌습니다.
@@ -583,7 +397,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v1.9.4 (2026-03-20 13:47 UTC)
+# 업데이트 소식 - v1.9.4 (2026-03-20 13:47 UTC)
 
 ## 🎨 더 선명하고 고급스러운 화이트 테마 및 가독성 개선
 - **[NEW] 고대비 프리미엄 화이트 테마**: 눈이 편안하면서도 글자가 또렷하게 보이는 '프리미엄 슬레이트 & 인디고' 테마가 적용되었습니다.
@@ -593,7 +407,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v1.9.3 (2026-03-20 08:38 UTC)
+# 업데이트 소식 - v1.9.3 (2026-03-20 08:38 UTC)
 
 ## 🛠️ 업무 보관함 안정성 및 다운로드 편의성 개선
 - **[FIX] 데이터 내보내기 개선**: 엑셀, CSV, JSON 자료를 내려받을 때 브라우저에서 바로 열리지 않고 즉시 '다른 이름으로 저장'되도록 다운로드 방식을 개선했습니다.
@@ -602,7 +416,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v1.9.2 (2026-03-20 08:18 UTC)
+# 업데이트 소식 - v1.9.2 (2026-03-20 08:18 UTC)
 
 ## 🚀 더 빠르고 직관적인 헤더와 메뉴
 - **[NEW] 한눈에 들어오는 3단 구성**: 서비스 로고, 메뉴 탭, 유틸리티 버튼을 세 부분으로 나누어 화면이 훨씬 더 정돈되었습니다.
@@ -612,7 +426,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v1.9.1 (2026-03-20 07:15 UTC)
+# 업데이트 소식 - v1.9.1 (2026-03-20 07:15 UTC)
 
 ## 🎨 더 깔끔하고 편리해진 사용자 설정
 - **[NEW] 한눈에 들어오는 설정 메뉴**: 설정 창에 탭(일반, 이름 관리 규칙)이 생겼습니다. 복잡했던 설정들이 분리되어 필요한 정보를 훨씬 찾기 쉬워졌습니다.
@@ -622,7 +436,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v1.9.0 (2026-03-20 05:15 UTC)
+# 업데이트 소식 - v1.9.0 (2026-03-20 05:15 UTC)
 
 ## 🏗️ 시스템 구조 대개편 및 성능 향상
 - **[NEW] 더 빠르고 안정적인 시스템**: 내부 시스템 구조를 완전히 새롭게 개편하여 더 빠르고 안정적인 서비스 제공이 가능해졌습니다.
@@ -631,14 +445,14 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v1.8.5 (2026-03-20 04:23 UTC)
+# 업데이트 소식 - v1.8.5 (2026-03-20 04:23 UTC)
 
 ## 📧 더 똑똑해진 Gmail 분석
 - **[NEW] 중복 업무 방지**: 이제 이메일을 분석할 때 가장 위에 있는 최신 메시지만 확인합니다. 이전에 주고받았던 내용이나 전달받은 메일 하단에서 중복으로 할 일을 찾아내는 일이 없어졌습니다.
 
 ---
 
-# 업데이트 소식 (사용자용) - v1.8.4 (2026-03-20 04:15 UTC)
+# 업데이트 소식 - v1.8.4 (2026-03-20 04:15 UTC)
 
 ## 📱 더 똑똑해진 WhatsApp 이름 찾기
 - **[NEW] 이름으로 바뀌는 멘션**: 이제 WhatsApp 본문의 `@숫자` 형태의 호출이 실제 사람 이름으로 바뀌어 표시됩니다. 덕분에 누가 누구를 지목했는지 훨씬 더 정확하게 알 수 있습니다.
@@ -647,7 +461,7 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v1.8.3 (2026-03-20 04:05 UTC)
+# 업데이트 소식 - v1.8.3 (2026-03-20 04:05 UTC)
 
 ## 📢 더 편리해진 이름 관리와 업데이트 확인
 - **[NEW] 앱에서 바로 확인하는 업데이트**: 이제 대시보드의 📢 **Updates** 버튼만 누르면 방금 무엇이 좋아졌는지 바로 확인할 수 있습니다.
@@ -658,4 +472,4 @@
 
 ---
 
-# 업데이트 소식 (사용자용) - v1.8.2 (2026-03-20 03:41 UTC)
+# 업데이트 소식 - v1.8.2 (2026-03-20 03:41 UTC)

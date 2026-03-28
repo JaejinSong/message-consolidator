@@ -14,17 +14,17 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 
 	var wg sync.WaitGroup
 
-	// Centralized SQLite offset calculation
+	//Why: Calculates the SQLite offset based on the user's timezone to ensure consistent date aggregation.
 	sqliteOffset := GetSQLiteOffset(userTz)
 
-	// 1. Total Completed
+	//Why: Retrieves the total count of completed tasks for the high-level stats overview.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		_ = db.QueryRow(SQL.GetTotalCompleted, email).Scan(&stats.TotalCompleted)
 	}()
 
-	// 2. Pending Me
+	//Why: Fetches the count of tasks that are still pending action by the current user.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -33,7 +33,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		_ = db.QueryRow(SQL.GetPendingMe, email, userName).Scan(&stats.PendingMe)
 	}()
 
-	// 3. Daily Goal
+	//Why: Loads the user's daily task completion goal, defaulting to 5 if not set.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -43,7 +43,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		}
 	}()
 
-	// 4. Daily Completions (Last 30 days)
+	//Why: Aggregates task completions by day for the last 30 days to populate activity charts.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -60,7 +60,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		}
 	}()
 
-	// 5. Hourly Activity (All time) & Peak Time
+	//Why: Distributes task completions by hour of the day and identifies peak productivity windows.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -74,7 +74,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 				}
 			}
 		}
-		// Peak Time (Hour of day) logic
+		//Why: Identifies the hour with the highest completion count to label as the peak productivity time.
 		maxCount := -1
 		peakHour := -1
 		for h := 0; h < 24; h++ {
@@ -91,7 +91,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		}
 	}()
 
-	// 6. Abandoned Tasks (> 3 days) - Excluding tasks assigned to 'me' or the user's name
+	//Why: Counts tasks that have been inactive for more than three days, excluding personal tasks.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -101,7 +101,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		_ = db.QueryRow(SQL.GetAbandonedTasks, email, threshold, userName).Scan(&stats.AbandonedTasks)
 	}()
 
-	// 7. Source Distribution (Active & Total)
+	//Why: Calculates the distribution of tasks across different communication sources (Active & Total).
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -131,7 +131,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		}
 	}()
 
-	// 8. Completion History (Last 365 days for Anki-style chart)
+	//Why: Builds a detailed 365-day completion history to populate the contribution heatmap (Anki-style chart).
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -161,7 +161,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		}
 	}()
 
-	// Wait for all queries to finish
+	//Why: Synchronizes the completion of all parallel database queries before returning the aggregated stats.
 	wg.Wait()
 
 	return stats, nil

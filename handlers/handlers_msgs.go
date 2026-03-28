@@ -35,7 +35,7 @@ func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 		Done bool `json:"done"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -82,7 +82,7 @@ func (a *API) HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The result from the DB query is a newly allocated slice, so there is no risk of cache contamination, making a copy unnecessary.
+	//Why: Uses the direct database result instead of a copy because newly allocated query slices are already safe from cache contamination.
 	msgs := msgsRaw
 
 	services.PrepareMessagesForClient(email, msgs, lang)
@@ -122,11 +122,11 @@ func (a *API) HandleDelete(w http.ResponseWriter, r *http.Request) {
 		IDs []int `json:"ids"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Fallback to the single ID if no batch IDs are provided in the request to support older clients
+	//Why: Provides backward compatibility for older clients by falling back to a single ID if the batch IDs list is empty.
 	ids := req.IDs
 	if len(ids) == 0 && req.ID != 0 {
 		ids = []int{req.ID}
@@ -142,7 +142,7 @@ func (a *API) HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
 	idStr := vars["id"]
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		respondError(w, http.StatusBadRequest, "Invalid ID")
 		return
 	}
 
@@ -166,7 +166,7 @@ func (a *API) HandleHardDelete(w http.ResponseWriter, r *http.Request) {
 		IDs []int `json:"ids"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	store.HardDeleteMessages(email, req.IDs)
@@ -179,7 +179,7 @@ func (a *API) HandleRestore(w http.ResponseWriter, r *http.Request) {
 		IDs []int `json:"ids"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	store.RestoreMessages(email, req.IDs)
@@ -193,7 +193,7 @@ func (a *API) HandleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		Task string `json:"task"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := store.UpdateTaskText(email, req.ID, req.Task); err != nil {

@@ -33,7 +33,7 @@ type WAManager struct {
 	container     *sqlstore.Container
 	containerOnce sync.Once
 
-	// Callbacks for Decoupling
+	//Why: Uses callback functions to decouple the WhatsApp manager from specific store or notification logic, improving testability.
 	FetchUserWAJID func(email string) (string, error)
 	OnConnected    func(email, wajid string)
 	OnLoggedOut    func(email string)
@@ -64,6 +64,23 @@ func (m *WAManager) getLogLevel(cfg *config.Config) string {
 	return logLevel
 }
 
+// Why: Encapsulates the container initialization logic to keep the main setup flow clean and strictly separated.
+func (m *WAManager) initContainer(cfg *config.Config) {
+	m.containerOnce.Do(func() {
+		//Why: Replicates a standard Chrome/macOS browsing session in the device properties to minimize the risk of being blocked by WhatsApp's anti-automated-linking checks.
+		waStore.SetOSInfo("Mac OS", [3]uint32{10, 15, 7})
+		pType := waCompanionReg.DeviceProps_CHROME
+		waStore.DeviceProps.PlatformType = &pType
+
+		dbLog := waLog.Stdout("Database", m.getLogLevel(cfg), true)
+		m.container = sqlstore.NewWithDB(store.GetDB(), "sqlite3", dbLog)
+		//Why: Forces a database schema upgrade to ensure the WhatsApp message store remains compatible with the current version of the library.
+		if err := m.container.Upgrade(context.Background()); err != nil {
+			logger.Errorf("WA Store upgrade failed: %v", err)
+		}
+	})
+}
+
 func (m *WAManager) InitWhatsApp(email string, cfg *config.Config) {
 	m.mu.Lock()
 	if _, ok := m.clients[email]; ok {
@@ -73,27 +90,14 @@ func (m *WAManager) InitWhatsApp(email string, cfg *config.Config) {
 	m.mu.Unlock()
 
 	var err error
-	m.containerOnce.Do(func() {
-		// Set device properties to look like a standard Chrome/macOS session
-		// This helps bypass the "Can't link new devices" error from WhatsApp
-		waStore.SetOSInfo("Mac OS", [3]uint32{10, 15, 7})
-		pType := waCompanionReg.DeviceProps_CHROME
-		waStore.DeviceProps.PlatformType = &pType
-
-		dbLog := waLog.Stdout("Database", m.getLogLevel(cfg), true)
-		m.container = sqlstore.NewWithDB(store.GetDB(), "sqlite3", dbLog)
-		// Explicitly trigger upgrade for fallback scenarios where auto-migration fails
-		if err := m.container.Upgrade(context.Background()); err != nil {
-			logger.Errorf("WA Store upgrade failed: %v", err)
-		}
-	})
+	m.initContainer(cfg)
 
 	if m.container == nil {
 		logger.Errorf("WA Store permanently failed for %s", email)
 		return
 	}
 
-	// Load user to get WAJID via callback
+	//Why: Retrieves the previously associated WhatsApp JID for the user to attempt a session restoration without requiring a new QR scan.
 	wajid, err := m.FetchUserWAJID(email)
 	if err != nil {
 		logger.Infof("InitWA: Failed to fetch WAJID for %s: %v", email, err)
@@ -144,76 +148,7 @@ func (m *WAManager) InitWhatsApp(email string, cfg *config.Config) {
 func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt interface{}) {
 	switch v := evt.(type) {
 	case *events.Message:
-		var msgText string
-		var replyToID string
-
-		if v.Message.GetConversation() != "" {
-			msgText = v.Message.GetConversation()
-		} else if extMsg := v.Message.GetExtendedTextMessage(); extMsg != nil {
-			msgText = extMsg.GetText()
-			if extMsg.ContextInfo != nil && extMsg.ContextInfo.StanzaID != nil {
-				replyToID = *extMsg.ContextInfo.StanzaID
-			}
-		}
-
-		if msgText == "" {
-			return
-		}
-
-		sender := v.Info.Sender.String()
-		if v.Info.IsFromMe {
-			sender = "나" // 내가 보낸 메시지임을 AI가 인지하도록 명시
-		} else if v.Info.PushName != "" {
-			sender = v.Info.PushName
-			go store.SaveWhatsAppContact(email, v.Info.Sender.User, v.Info.PushName)
-		}
-
-		msgText = waMentionRegex.ReplaceAllStringFunc(msgText, func(match string) string {
-			number := match[1:]
-			name := store.GetNameByWhatsAppNumber(email, number)
-			if name != "" {
-				return "@" + name
-			}
-
-			jid := waTypes.NewJID(number, waTypes.DefaultUserServer)
-			if contact, err := client.Store.Contacts.GetContact(context.Background(), jid); err == nil {
-				resolvedName := contact.PushName
-				if contact.FullName != "" {
-					resolvedName = contact.FullName
-				} else if contact.BusinessName != "" {
-					resolvedName = contact.BusinessName
-				}
-
-				if resolvedName != "" {
-					go store.SaveWhatsAppContact(email, number, resolvedName)
-					return "@" + resolvedName
-				}
-			}
-			return match
-		})
-
-		m.mu.Lock()
-		if _, ok := m.messageBuffer[email]; !ok {
-			m.messageBuffer[email] = make(map[waTypes.JID][]types.RawMessage)
-		}
-
-		chatBuffer := m.messageBuffer[email][v.Info.Chat]
-		chatBuffer = append(chatBuffer, types.RawMessage{
-			ID:        v.Info.ID,
-			Sender:    sender,
-			Text:      msgText,
-			Timestamp: v.Info.Timestamp,
-			ReplyToID: replyToID,
-		})
-
-		if len(chatBuffer) > 200 {
-			chatBuffer = chatBuffer[len(chatBuffer)-200:]
-		}
-		m.messageBuffer[email][v.Info.Chat] = chatBuffer
-		m.mu.Unlock()
-
-		logger.Debugf("[WA-EVENT][%s] Message from %s (Chat: %s): %s", email, sender, v.Info.Chat, msgText)
-
+		m.handleMessageEvent(email, client, v)
 	case *events.Connected:
 		logger.Debugf("[WA-EVENT][%s] Connected to WhatsApp", email)
 		if client.Store.ID != nil {
@@ -233,6 +168,86 @@ func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt inte
 	}
 }
 
+// Why: Separates complex message handling logic from the main event router to improve readability and maintainability.
+func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, msg *events.Message) {
+	var msgText string
+	var replyToID string
+
+	if msg.Message.GetConversation() != "" {
+		msgText = msg.Message.GetConversation()
+	} else if extMsg := msg.Message.GetExtendedTextMessage(); extMsg != nil {
+		msgText = extMsg.GetText()
+		if extMsg.ContextInfo != nil && extMsg.ContextInfo.StanzaID != nil {
+			replyToID = *extMsg.ContextInfo.StanzaID
+		}
+	}
+
+	if msgText == "" {
+		return
+	}
+
+	sender := msg.Info.Sender.String()
+	if msg.Info.IsFromMe {
+		sender = "나" //Why: Explicitly marks self-sent messages as "나" (Me) so the AI analyst can correctly identify task status and ownership.
+	} else if msg.Info.PushName != "" {
+		sender = msg.Info.PushName
+		go store.SaveWhatsAppContact(email, msg.Info.Sender.User, msg.Info.PushName)
+	}
+
+	msgText = m.resolveIncomingMentions(email, client, msgText)
+
+	m.mu.Lock()
+	if _, ok := m.messageBuffer[email]; !ok {
+		m.messageBuffer[email] = make(map[waTypes.JID][]types.RawMessage)
+	}
+
+	//Why: Buffers incoming messages in memory to allow for batch processing and context-aware task extraction during the next scan cycle.
+	chatBuffer := m.messageBuffer[email][msg.Info.Chat]
+	chatBuffer = append(chatBuffer, types.RawMessage{
+		ID:        msg.Info.ID,
+		Sender:    sender,
+		Text:      msgText,
+		Timestamp: msg.Info.Timestamp,
+		ReplyToID: replyToID,
+	})
+
+	//Why: Caps the per-chat message buffer at 200 entries to prevent memory exhaustion in highly active group chats.
+	if len(chatBuffer) > 200 {
+		chatBuffer = chatBuffer[len(chatBuffer)-200:]
+	}
+	m.messageBuffer[email][msg.Info.Chat] = chatBuffer
+	m.mu.Unlock()
+
+	logger.Debugf("[WA-EVENT][%s] Message from %s (Chat: %s): %s", email, sender, msg.Info.Chat, msgText)
+}
+
+// Why: Resolves numeric WhatsApp mentions into human-readable contact names using local store data and WhatsApp's contact metadata for better AI analysis.
+func (m *WAManager) resolveIncomingMentions(email string, client *whatsmeow.Client, text string) string {
+	return waMentionRegex.ReplaceAllStringFunc(text, func(match string) string {
+		number := match[1:]
+		name := store.GetNameByWhatsAppNumber(email, number)
+		if name != "" {
+			return "@" + name
+		}
+
+		jid := waTypes.NewJID(number, waTypes.DefaultUserServer)
+		if contact, err := client.Store.Contacts.GetContact(context.Background(), jid); err == nil {
+			resolvedName := contact.PushName
+			if contact.FullName != "" {
+				resolvedName = contact.FullName
+			} else if contact.BusinessName != "" {
+				resolvedName = contact.BusinessName
+			}
+
+			if resolvedName != "" {
+				go store.SaveWhatsAppContact(email, number, resolvedName)
+				return "@" + resolvedName
+			}
+		}
+		return match
+	})
+}
+
 func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
 	m.mu.RLock()
 	client, ok1 := m.clients[email]
@@ -246,7 +261,7 @@ func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
 		return "CONNECTED", nil
 	}
 
-	// whatsmeow requires GetQRChannel to be called BEFORE Connect()
+	//Why: Ensures the QR code channel is initialized before establishing the connection, as required by the underlying WhatsApp library for proper pairing flow.
 	if client.IsConnected() {
 		logger.Infof("[WA-QR] Client already connected for %s, disconnecting to get QR channel...", email)
 		client.Disconnect()
@@ -357,7 +372,7 @@ func (m *WAManager) GetGroupName(email string, jidStr string) string {
 }
 
 func ResolveWAMentions(email, text string) string {
-	// WhatsApp mentions are "@12345678"
+	//Why: Recognizes standard WhatsApp numeric mentions ("@12345678") for resolution into contact names.
 	return waMentionRegex.ReplaceAllStringFunc(text, func(match string) string {
 		number := match[1:]
 		name := store.GetNameByWhatsAppNumber(email, number)
@@ -392,7 +407,7 @@ func (m *WAManager) PopMessages(email string) map[string][]types.RawMessage {
 	return bufferCopy
 }
 
-// Top-level wrapper functions for easier access
+// Why: Provides simplified global access points to the WhatsApp manager instance for common operations like status checks and logging out.
 func GetWhatsAppStatus(email string) string {
 	return DefaultWAManager.GetStatus(email)
 }

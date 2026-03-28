@@ -39,7 +39,7 @@ func ProcessTaskCompletion(u *store.User) (GamificationResult, error) {
 
 	queueUserUpdate(u)
 
-	// Evaluate achievement conditions asynchronously to ensure the main task completion API responds quickly without being blocked by database queries.
+	//Why: Evaluates achievement conditions asynchronously to ensure the main task completion API responds quickly without being blocked by database queries.
 	go func(user store.User) {
 		unlocked, err := store.CheckAndUnlockAchievements(user)
 		if err != nil {
@@ -48,7 +48,7 @@ func ProcessTaskCompletion(u *store.User) (GamificationResult, error) {
 		}
 		if len(unlocked) > 0 {
 			logger.Infof("[Gamification] User %s unlocked %d achievements in background", user.Email, len(unlocked))
-			// TODO: Trigger real-time push notifications (e.g., via WebSockets) here to immediately alert the user of newly unlocked achievements.
+			//Why: [TODO] Trigger real-time push notifications (e.g., via WebSockets) here to immediately alert the user of newly unlocked achievements.
 		}
 	}(*u)
 
@@ -58,17 +58,17 @@ func ProcessTaskCompletion(u *store.User) (GamificationResult, error) {
 // calculateRewards determines the XP and points awarded for completing a task.
 // It includes base rewards, combo bonuses, and a chance for a critical hit.
 func calculateRewards(u *store.User, now time.Time) GamificationResult {
-	// Start with base rewards for any task completion.
+	//Why: Grants base rewards for every successful task completion to provide consistent positive reinforcement.
 	res := GamificationResult{XPAdded: 10, PointsAdded: 5}
 
-	// Apply a combo bonus if the user completes another task within 5 minutes.
+	//Why: Incentivizes rapid task resolution by applying a combo bonus if the user completes another task within a 5-minute window.
 	if u.LastCompletedAt != nil && now.Sub(*u.LastCompletedAt) < 5*time.Minute {
 		res.ComboActive = true
 		res.XPAdded += 5
 		res.PointsAdded += 2
 	}
 
-	// Add a 5% chance for a "critical hit" that doubles the rewards.
+	//Why: Adds a gamified "critical hit" mechanic with a 5% probability to randomly double rewards, enhancing user engagement.
 	if rand.Float32() < 0.05 {
 		res.IsCritical = true
 		res.XPAdded *= 2
@@ -79,12 +79,12 @@ func calculateRewards(u *store.User, now time.Time) GamificationResult {
 
 // updateStreak calculates the new streak count and the number of freezes used.
 func updateStreak(currentStreak, currentFreezes int, lastCompletedAt *time.Time, now time.Time) (newStreak int, freezesUsed int) {
-	// If this is the user's first-ever completed task, start the streak at 1.
+	//Why: Initializes the user's streak to 1 upon their first-ever task completion.
 	if lastCompletedAt == nil {
 		return 1, 0
 	}
 
-	// To compare dates accurately, we normalize both times to the start of their respective days.
+	//Why: Normalizes both timestamps to the start of the day (midnight) to perform accurate date-based streak calculations.
 	last := *lastCompletedAt
 	lastDate := time.Date(last.Year(), last.Month(), last.Day(), 0, 0, 0, 0, last.Location())
 	nowDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
@@ -92,19 +92,19 @@ func updateStreak(currentStreak, currentFreezes int, lastCompletedAt *time.Time,
 
 	switch {
 	case daysDiff == 1:
-		// The user completed a task on the very next day, so the streak continues.
+		//Why: Streak continuation: The user completed a task on the following day, so the streak counter is incremented.
 		return currentStreak + 1, 0
 	case daysDiff > 1:
-		// The user missed one or more days.
+		//Why: Streak gap detection: The user missed one or more days, requiring a check for available streak freezes.
 		missedDays := daysDiff - 1
 		if currentFreezes >= missedDays {
-			// If the user has accumulated enough 'streak freezes' to cover the missed days, consume them to preserve the streak and increment it for today.
+			//Why: Consumes available 'streak freezes' to preserve and increment a streak even if the user missed one or more days.
 			return currentStreak + 1, missedDays
 		}
-		// Not enough freezes, so the streak resets to 1 for today's completion.
+		//Why: Streak reset: Insufficient freezes are available to bridge the gap, so the streak restarts at 1.
 		return 1, 0
 	default: // daysDiff is 0 or negative (e.g., multiple tasks on the same day)
-		// The streak does not increase, just maintained.
+		//Why: Intra-day maintenance: Multiple tasks completed on the same day maintain the current streak without incrementing it.
 		return currentStreak, 0
 	}
 }
@@ -114,7 +114,7 @@ func updateStreak(currentStreak, currentFreezes int, lastCompletedAt *time.Time,
 func queueUserUpdate(u *store.User) {
 	gamificationMu.Lock()
 	defer gamificationMu.Unlock()
-	// A snapshot of the user object is taken to prevent race conditions.
+	//Why: Takes a full object snapshot of the user state before queuing to prevent race conditions during asynchronous database flushes.
 	snapshot := *u
 	dirtyUsers[u.Email] = &snapshot
 	logger.Debugf("[Gamification] User %s queued for flush (XP: %d, Pts: %d)", u.Email, u.XP, u.Points)
@@ -129,7 +129,7 @@ func FlushGamificationData() error {
 		gamificationMu.Unlock()
 		return nil
 	}
-	// Swap the dirty users map with a fresh instance under the lock to allow concurrent updates while we process the current batch.
+	//Why: Swaps the atomic "dirty" map with a fresh instance under lock to allow concurrent updates while the current batch is being processed.
 	usersToUpdate := dirtyUsers
 	dirtyUsers = make(map[string]*store.User)
 	gamificationMu.Unlock()
@@ -142,7 +142,7 @@ func FlushGamificationData() error {
 			logger.Errorf("[Gamification] Failed to piggyback flush data for %s: %v", email, err)
 			errCount++
 
-			// Rollback mechanism: Re-queue any users whose updates failed, ensuring their gamification progress is preserved for the next flush attempt.
+			//Why: Implements a simple rollback by re-queuing failed updates, ensuring gamification progress is not lost due to transient database errors.
 			gamificationMu.Lock()
 			if _, exists := dirtyUsers[email]; !exists {
 				dirtyUsers[email] = u

@@ -44,9 +44,9 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 		args = append(args, pattern, pattern, pattern, pattern, pattern, pattern)
 	}
 
-	// Why: Prioritizes completion status over deletion status as per user preference.
-	// Done tab shows all completed items (regardless of deletion).
-	// Canceled tab shows uncompleted but deleted items (abandoned tasks).
+	//Why: Prioritizes completion status over deletion status as per user preference.
+	//Why: Displays all completed items in the Done tab regardless of their deletion status.
+	//Why: Shows uncompleted but deleted items in the Canceled tab to represent abandoned tasks.
 	switch filter.Status {
 	case "done":
 		searchQuery += " AND (done = 1 OR done = TRUE)"
@@ -54,7 +54,7 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 		searchQuery += " AND (done = 0 OR done = FALSE) AND (is_deleted = 1 OR is_deleted = TRUE)"
 	}
 
-	// Why: We need the total count of filtered items separately to support pagination on the frontend.
+	//Why: Calculates the total count of filtered items independently to support frontend pagination.
 	safeArchiveDays := GetAutoArchiveDays()
 	daysParam := fmt.Sprintf("-%d days", safeArchiveDays)
 	countQuery := SQL.GetArchivedMessagesCountBase + searchQuery
@@ -65,7 +65,7 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 		return nil, 0, err
 	}
 
-	// Why: Prevent unbounded queries that could crash the server or overload the database if the client doesn't specify a limit.
+	//Why: Prevents unbounded queries that could overload the database if the client omits a limit.
 	if filter.Limit <= 0 {
 		filter.Limit = 100
 	}
@@ -130,7 +130,7 @@ func GetArchivedMessagesCount(ctx context.Context, filter ArchiveFilter) (int, e
 		args = append(args, pattern, pattern, pattern, pattern, pattern, pattern)
 	}
 
-	// Why: Ensures the pagination count matches the new 'Completion Priority' logic.
+	//Why: Ensures the pagination count remains consistent with the 'Completion Priority' logic used in data retrieval.
 	switch filter.Status {
 	case "done":
 		searchQuery += " AND (done = 1 OR done = TRUE)"

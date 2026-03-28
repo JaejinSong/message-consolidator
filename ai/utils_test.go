@@ -6,7 +6,7 @@ import (
 )
 
 func TestDecodeBase64URL(t *testing.T) {
-	// 테스트용 원본 문자열 (URL 인코딩 시 특수문자 처리를 확인하기 위해 ? 및 ! 포함)
+	//Why: Uses a sample string with special characters (? and !) to verify robust URL-safe Base64 decoding.
 	originalText := "hello? world! & testing~"
 
 	tests := []struct {

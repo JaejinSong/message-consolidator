@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"message-consolidator/config"
 	"message-consolidator/logger"
+	"message-consolidator/services"
 	"net/http"
 )
 
@@ -12,16 +13,18 @@ type API struct {
 	Config       *config.Config
 	ScanFunc     func(email string, lang string)
 	FullScanFunc func()
-	// As the app grows, we can add more dependencies like the database store.
+	Reports      *services.ReportsService
+	//Why: Allows for future expansion of shared dependencies like database stores or logger instances.
 	// Store        store.Store
 }
 
 // NewAPI is a constructor for the API struct, making dependency injection explicit.
-func NewAPI(cfg *config.Config, scanFunc func(string, string), fullScanFunc func()) *API {
+func NewAPI(cfg *config.Config, scanFunc func(string, string), fullScanFunc func(), reports *services.ReportsService) *API {
 	return &API{
 		Config:       cfg,
 		ScanFunc:     scanFunc,
 		FullScanFunc: fullScanFunc,
+		Reports:      reports,
 	}
 }
 
@@ -33,7 +36,7 @@ func (a *API) HandleHealth(w http.ResponseWriter, r *http.Request) {
 
 // respondError is a helper function for sending consistent JSON error responses.
 func respondError(w http.ResponseWriter, code int, message string) {
-	// We can centrally log errors here in the future.
+	//Why: Provides a centralized location for future error logging and monitoring integration.
 	// logger.Errorf("API Error: %s", message)
 	respondJSON(w, code, map[string]string{"error": message})
 }

@@ -10,9 +10,9 @@ import (
 )
 
 func main() {
-	// Root .env Load
+	//Why: Loads local environment variables from the root .env file to support local development and manual diagnostic runs.
 	if err := godotenv.Load(); err != nil {
-		// Suppress error if .env is missing, as system env might be used
+		//Why: Ignores missing .env file errors because environment variables may already be set in the host system or via Docker/Cloud Run.
 	}
 
 	if len(os.Args) < 2 {

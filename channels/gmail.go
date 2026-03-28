@@ -23,13 +23,13 @@ import (
 )
 
 const (
-	CategorySent   = "발신 메일"
-	CategoryMine   = "내 업무"
-	CategoryOthers = "기타 업무"
+	CategorySent   = "발신 메일" //Why: Identifies emails sent by the user to determine if they constitute a commitment or a task update.
+	CategoryMine   = "내 업무"   //Why: Marks emails where the user is the primary recipient as personal tasks.
+	CategoryOthers = "기타 업무" //Why: Classifies CC'd or group emails as lower-priority informational items.
 )
 
 var genericMeAssignees = map[string]bool{
-	"me": true, "나": true, "담당자": true,
+	"me": true, "나": true, "담당자": true, //Why: Maps common self-referential terms across languages to the current user for consistent task assignment.
 }
 
 var GmailOauthConfig *oauth2.Config
@@ -67,7 +67,7 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 
 	tokenSource := GmailOauthConfig.TokenSource(ctx, &token)
 
-	// Refresh and persist updated token if needed
+	//Why: Automatically refreshes the OAuth2 token if it has expired and persists the new token to the database to ensure uninterrupted Gmail access.
 	newToken, err := tokenSource.Token()
 	if err != nil {
 		return nil, fmt.Errorf("failed to refresh gmail token for %s: %w", email, err)
@@ -94,28 +94,11 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 	}
 
 	since := getGmailScanTime(email)
-	// (in:inbox OR from:me) to get both received and sent emails for thread context
+	//Why: Searches both the inbox and sent items to capture the full conversation context, allowing the AI to correctly identify task status and assignees.
 	query := fmt.Sprintf("(in:inbox OR from:me) after:%d", since.Unix())
 	logger.Debugf("[SCAN-GMAIL] Query: %s", query)
 
-	var allMsgs []*gmail.Message
-	pageToken := ""
-	for {
-		res, err := svc.Users.Messages.List("me").Q(query).PageToken(pageToken).MaxResults(100).Do()
-		if err != nil {
-			logger.Errorf("[SCAN-GMAIL] List Error for %s: %v", email, err)
-			return
-		}
-		allMsgs = append(allMsgs, res.Messages...)
-		if res.NextPageToken == "" {
-			break
-		}
-		pageToken = res.NextPageToken
-		// Safety limit: max 10 pages (~1000 emails) to prevent infinite loops
-		if len(allMsgs) >= 1000 {
-			break
-		}
-	}
+	allMsgs := fetchRecentEmails(svc, email, query)
 
 	if len(allMsgs) == 0 {
 		return
@@ -124,13 +107,14 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 	logger.Infof("[SCAN-GMAIL] Found %d new messages for %s", len(allMsgs), email)
 	rawMsgs, classificationMap, toMap, maxTS := parseNewEmails(svc, email, allMsgs, cfg)
 	if len(rawMsgs) == 0 {
-		// Update maxTS for fresh scans even if no actionable messages were found
+		//Why: Updates the 'last scan' timestamp even if no tasks were found, ensuring subsequent scans don't re-process the same volume of irrelevant emails.
 		if maxTS > 0 {
 			store.UpdateLastScan(email, "gmail", "inbox", fmt.Sprintf("%d", maxTS))
 		}
 		return
 	}
 
+	//Why: Triggers the AI-powered analysis of extracted emails and saves valid tasks to the database.
 	analyzeAndSaveEmails(ctx, email, language, rawMsgs, classificationMap, toMap, cfg, onSent)
 
 	if maxTS > 0 {
@@ -147,6 +131,29 @@ func getGmailScanTime(email string) time.Time {
 	return time.Now().Add(-7 * 24 * time.Hour)
 }
 
+// Why: Isolates the pagination and fetching logic to keep the main scanning workflow concise.
+func fetchRecentEmails(svc *gmail.Service, email, query string) []*gmail.Message {
+	var allMsgs []*gmail.Message
+	pageToken := ""
+	for {
+		res, err := svc.Users.Messages.List("me").Q(query).PageToken(pageToken).MaxResults(100).Do()
+		if err != nil {
+			logger.Errorf("[SCAN-GMAIL] List Error for %s: %v", email, err)
+			return allMsgs
+		}
+		allMsgs = append(allMsgs, res.Messages...)
+		if res.NextPageToken == "" {
+			break
+		}
+		pageToken = res.NextPageToken
+		//Why: Implements a fetch limit of 1000 emails to prevent potential infinite loops or excessive memory consumption during initial or deep scans.
+		if len(allMsgs) >= 1000 {
+			break
+		}
+	}
+	return allMsgs
+}
+
 func parseNewEmails(svc *gmail.Service, email string, messages []*gmail.Message, cfg *config.Config) ([]types.RawMessage, map[string]string, map[string]string, int64) {
 	var rawMsgs []types.RawMessage
 	classificationMap := make(map[string]string)
@@ -156,47 +163,58 @@ func parseNewEmails(svc *gmail.Service, email string, messages []*gmail.Message,
 	skips := getGmailSkips(cfg)
 
 	for _, m := range messages {
-		fullMsg, err := svc.Users.Messages.Get("me", m.Id).Format("full").Do()
+		rawMsg, cls, to, ts, err := processSingleEmail(svc, email, m, skips)
 		if err != nil {
 			logger.Errorf("[SCAN-GMAIL] Get Error for %s: %v", m.Id, err)
 			continue
 		}
-
-		ts := fullMsg.InternalDate / 1000 // ms to s
 		if ts > maxTS {
 			maxTS = ts
 		}
-
-		subject, from, to, cc, bcc, deliveredTo := extractHeaders(fullMsg.Payload.Headers)
-		if isSkipSender(from, skips) {
-			continue
+		if rawMsg != nil {
+			rawMsgs = append(rawMsgs, *rawMsg)
+			classificationMap[m.Id] = cls
+			toMap[m.Id] = to
 		}
-
-		isFromMe, isDirect, isCc, isBcc, isDelTo := checkRecipientStatus(email, from, to, cc, bcc, deliveredTo)
-		if !isFromMe && !isDirect && !isCc && !isBcc && !isDelTo {
-			continue
-		}
-
-		classification := classifyGmail(isFromMe, isDirect)
-		classificationMap[m.Id] = classification
-		toMap[m.Id] = to
-
-		body := extractBody(fullMsg.Payload)
-		cleanBody := cleanEmailBody(body)
-		if cleanBody == "" {
-			continue
-		}
-
-		rawMsgs = append(rawMsgs, types.RawMessage{
-			ID:        m.Id,
-			Sender:    from,
-			Text:      fmt.Sprintf("T: %s\nC: %s\nS: %s\nB:\n%s", to, cc, subject, cleanBody),
-			Timestamp: time.Unix(fullMsg.InternalDate/1000, 0),
-			ThreadID:  fullMsg.ThreadId,
-		})
 	}
 
 	return rawMsgs, classificationMap, toMap, maxTS
+}
+
+// Why: Extracts the processing of a single email to reduce cognitive load and simplify the main parsing loop.
+func processSingleEmail(svc *gmail.Service, email string, m *gmail.Message, skips []string) (*types.RawMessage, string, string, int64, error) {
+	fullMsg, err := svc.Users.Messages.Get("me", m.Id).Format("full").Do()
+	if err != nil {
+		return nil, "", "", 0, err
+	}
+
+	ts := fullMsg.InternalDate / 1000 // ms to s
+
+	subject, from, to, cc, bcc, deliveredTo := extractHeaders(fullMsg.Payload.Headers)
+	if isSkipSender(from, skips) {
+		return nil, "", "", ts, nil
+	}
+
+	isFromMe, isDirect, isCc, isBcc, isDelTo := checkRecipientStatus(email, from, to, cc, bcc, deliveredTo)
+	if !isFromMe && !isDirect && !isCc && !isBcc && !isDelTo {
+		return nil, "", "", ts, nil
+	}
+
+	classification := classifyGmail(isFromMe, isDirect)
+	body := extractBody(fullMsg.Payload)
+	cleanBody := cleanEmailBody(body)
+	if cleanBody == "" {
+		return nil, "", "", ts, nil
+	}
+
+	rawMsg := &types.RawMessage{
+		ID:        m.Id,
+		Sender:    from,
+		Text:      fmt.Sprintf("T: %s\nC: %s\nS: %s\nB:\n%s", to, cc, subject, cleanBody),
+		Timestamp: time.Unix(ts, 0),
+		ThreadID:  fullMsg.ThreadId,
+	}
+	return rawMsg, classification, to, ts, nil
 }
 
 func getGmailSkips(cfg *config.Config) []string {
@@ -247,6 +265,7 @@ func isSkipSender(from string, skips []string) bool {
 	return false
 }
 
+// Why: Determines the relationship between the user and the email headers (To, Cc, Bcc, Delivered-To) to decide how the email should be classified and prioritized.
 func checkRecipientStatus(email, from, to, cc, bcc, deliveredTo string) (isFromMe, isDirect, isCc, isBcc, isDelTo bool) {
 	emailLower := strings.ToLower(email)
 	isFromMe = strings.Contains(strings.ToLower(from), emailLower)
@@ -285,7 +304,7 @@ func isAssigneeMe(assignee, email, userName, fallback string, aliases []string) 
 		return true
 	}
 
-	// Partial name match (e.g., "Jaejin Song" matches "Jaejin Song (JJ)")
+	//Why: Allows partial name matches to account for cases where Slack real names include supplementary information like parentheses or suffixes.
 	if len(lowerAsg) > 3 && (strings.Contains(lowerName, lowerAsg) || strings.Contains(lowerAsg, lowerName)) {
 		return true
 	}
@@ -312,7 +331,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 	user, _ := store.GetOrCreateUser(email, "", "")
 	aliases, _ := store.GetUserAliases(user.ID)
 
-	// Process emails in batches of 10 to avoid AI token limits
+	//Why: Groups emails into small batches of 10 for AI analysis to optimize prompt length and stay within model context and token generation limits.
 	batchSize := 10
 	for i := 0; i < len(rawMsgs); i += batchSize {
 		end := i + batchSize
@@ -321,36 +340,9 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 		}
 		batchMsgs := rawMsgs[i:end]
 
-		var sb strings.Builder
-		msgMap := make(map[string]types.RawMessage)
-		for _, m := range batchMsgs {
-			msgMap[m.ID] = m
-			sb.WriteString(fmt.Sprintf("[ID:%s] F: %s\n%s\n---\n", m.ID, m.Sender, m.Text))
+		payload, msgMap := buildGmailBatchPayload(email, batchMsgs, classificationMap, onSent)
 
-			// Check for completion if it's a sent mail
-			if classificationMap[m.ID] == CategorySent && onSent != nil {
-				onSent(store.ConsolidatedMessage{
-					UserEmail:    email,
-					Source:       "gmail",
-					ThreadID:     m.ThreadID,
-					OriginalText: m.Text,
-					SourceTS:     m.ID,
-				})
-			}
-		}
-
-		var items []store.TodoItem
-		var analyzeErr error
-		// Retry up to 2 times for transient AI JSON parsing errors
-		for attempt := 1; attempt <= 2; attempt++ {
-			items, analyzeErr = gc.Analyze(ctx, email, sb.String(), language, "gmail")
-			if analyzeErr == nil {
-				break
-			}
-			logger.Warnf("[SCAN-GMAIL] Gemini Analyze retry %d for %s: %v", attempt, email, analyzeErr)
-			time.Sleep(1 * time.Second)
-		}
-
+		items, analyzeErr := executeGmailAnalysisWithRetry(ctx, gc, email, payload, language)
 		if analyzeErr != nil {
 			logger.Errorf("[SCAN-GMAIL] Gemini Analyze Error for %s (batch %d-%d): %v", email, i, end, analyzeErr)
 			continue
@@ -361,6 +353,44 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 			store.SaveMessages(msgsToSave)
 		}
 	}
+}
+
+// Why: Separates the payload construction and side-effects (onSent callback) from the main AI analysis loop.
+func buildGmailBatchPayload(email string, batchMsgs []types.RawMessage, classificationMap map[string]string, onSent func(store.ConsolidatedMessage)) (string, map[string]types.RawMessage) {
+	var sb strings.Builder
+	msgMap := make(map[string]types.RawMessage)
+	for _, m := range batchMsgs {
+		msgMap[m.ID] = m
+		sb.WriteString(fmt.Sprintf("[ID:%s] F: %s\n%s\n---\n", m.ID, m.Sender, m.Text))
+
+		//Why: Analyzes sent emails to determine if a previously identified task can be marked as completed based on the user's reply.
+		if classificationMap[m.ID] == CategorySent && onSent != nil {
+			onSent(store.ConsolidatedMessage{
+				UserEmail:    email,
+				Source:       "gmail",
+				ThreadID:     m.ThreadID,
+				OriginalText: m.Text,
+				SourceTS:     m.ID,
+			})
+		}
+	}
+	return sb.String(), msgMap
+}
+
+// Why: Encapsulates the retry mechanism for Gemini API calls to keep the control flow clean.
+func executeGmailAnalysisWithRetry(ctx context.Context, gc *ai.GeminiClient, email, payload, language string) ([]store.TodoItem, error) {
+	var items []store.TodoItem
+	var analyzeErr error
+	//Why: Implements a simple retry mechanism for AI analysis calls to handle transient network issues or unexpected JSON formatting errors from the model.
+	for attempt := 1; attempt <= 2; attempt++ {
+		items, analyzeErr = gc.Analyze(ctx, email, payload, language, "gmail")
+		if analyzeErr == nil {
+			return items, nil
+		}
+		logger.Warnf("[SCAN-GMAIL] Gemini Analyze retry %d for %s: %v", attempt, email, analyzeErr)
+		time.Sleep(1 * time.Second)
+	}
+	return nil, analyzeErr
 }
 
 func processGeminiItems(email string, user *store.User, aliases []string, items []store.TodoItem, classificationMap, toMap map[string]string, msgMap map[string]types.RawMessage) []store.ConsolidatedMessage {
@@ -420,8 +450,7 @@ func resolveGmailCategoryAndAssignee(item store.TodoItem, isMe bool, cls, toHead
 	if isMe && cls == CategoryMine {
 		assignee = fallback
 	} else {
-		// CategoryOthers (CC or group mail) OR not identifying as me
-		// Force group/recipient name as assignee to avoid "me" categorization in UI
+		//Why: CategoryOthers (CC or group mail) OR not identifying as me. Force group/recipient name as assignee to avoid "me" categorization in UI.
 		assignee = ExtractNameFromEmail(toHeader)
 	}
 	return assignee, category
@@ -451,7 +480,7 @@ func ExtractNameFromEmail(header string) string {
 		name := strings.TrimSpace(firstRecip[:idx])
 		name = strings.Trim(name, "\"")
 		if name != "" {
-			// Decode RFC 2047 encoded email headers (e.g., =?UTF-8?B?...?=)
+			//Why: Decodes MIME-encoded headers to ensure non-ASCII characters (like Korean names) are correctly displayed in the UI.
 			dec := new(mime.WordDecoder)
 			if decoded, err := dec.DecodeHeader(name); err == nil {
 				name = decoded
@@ -475,7 +504,7 @@ func extractBody(payload *gmail.MessagePart) string {
 		return decodeBase64URL(payload.Body.Data)
 	}
 
-	// If no plain text, try HTML and convert to text
+	//Why: Falls back to stripping HTML tags from the body if a plain-text version of the email is unavailable.
 	if payload.MimeType == "text/html" && payload.Body != nil && payload.Body.Data != "" {
 		return stripHTML(decodeBase64URL(payload.Body.Data))
 	}
@@ -499,26 +528,26 @@ func extractBody(payload *gmail.MessagePart) string {
 }
 
 var (
-	reScript     = regexp.MustCompile(`(?i)<script.*?>.*?</script>`)
-	reStyle      = regexp.MustCompile(`(?i)<style.*?>.*?</style>`)
-	reComment    = regexp.MustCompile(`<!--.*?-->`)
-	reTags       = regexp.MustCompile(`<.*?>`)
-	reWhitespace = regexp.MustCompile(`\s+`)
+	reScript      = regexp.MustCompile(`(?i)<script.*?>.*?</script>`)
+	reStyle       = regexp.MustCompile(`(?i)<style.*?>.*?</style>`)
+	reComment     = regexp.MustCompile(`<!--.*?-->`)
+	reTags        = regexp.MustCompile(`<.*?>`)
+	reWhitespace  = regexp.MustCompile(`\s+`)
 	reQuoteStart  = regexp.MustCompile(`(?i)^(on\s+.*\swrote:\s*$|.*님이\s*작성:\s*$|-----\s*original message\s*-----|-----\s*원본 메시지\s*-----|_{10,}|>)`)
-	reSignature   = regexp.MustCompile(`(?m)^--\s*$`)
-	reEmailHeader = regexp.MustCompile(`(?i)^(from|to|cc|bcc|subject|date|sent):\s`)
+	reSignature   = regexp.MustCompile(`(?m)^--\s*$`) //Why: Identifies standard MIME signature delimiters to truncate noise at the end of emails.
+	reEmailHeader = regexp.MustCompile(`(?i)^(from|to|cc|bcc|subject|date|sent):\s`) //Why: Detects embedded headers in reply chains to accurately split original content from quoted history.
 )
 
 func stripHTML(html string) string {
-	// 1. Remove script/style/comments first
+	//Why: Strips non-content HTML elements like scripts and styles first to reduce token usage and prevent AI confusion during analysis.
 	s := reScript.ReplaceAllString(html, "")
 	s = reStyle.ReplaceAllString(s, "")
 	s = reComment.ReplaceAllString(s, "")
 
-	// 2. Remove all other tags
+	//Why: Removes all remaining HTML tags to clean up the content for better AI comprehension.
 	s = reTags.ReplaceAllString(s, " ")
 
-	// 3. Basic cleanup: replace multiple spaces/newlines and unescape entities
+	//Why: Unescapes HTML entities and normalizes whitespace to provide a clean, human-readable string to the AI.
 	s = strings.ReplaceAll(s, "&nbsp;", " ")
 	s = strings.ReplaceAll(s, "&lt;", "<")
 	s = strings.ReplaceAll(s, "&gt;", ">")
@@ -526,7 +555,7 @@ func stripHTML(html string) string {
 	s = strings.ReplaceAll(s, "&quot;", "\"")
 	s = strings.ReplaceAll(s, "&#39;", "'")
 
-	// 4. Collapse multiple spaces and newlines for cleaner AI input
+	//Why: Compresses excessive whitespace to minimize total token count and improve pattern matching performance.
 	s = reWhitespace.ReplaceAllString(s, " ")
 
 	return strings.TrimSpace(s)
@@ -540,7 +569,7 @@ func decodeBase64URL(data string) string {
 	return decoded
 }
 
-// cleanEmailBody strips signatures and keeps only the top portion of quoted replies for context.
+//Why: cleanEmailBody strips signatures and keeps only the top portion of quoted replies to maintain context while keeping prompt sizes manageable.
 func cleanEmailBody(body string) string {
 	lines := strings.Split(body, "\n")
 	var cleaned []string
@@ -550,23 +579,22 @@ func cleanEmailBody(body string) string {
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
-		// 1. Detect quote blocks using Regex
+		//Why: Identifies the start of reply threads to isolate the newest content while preserving minimal context for the AI.
 		if !isQuoted && reQuoteStart.MatchString(trimmed) {
 			isQuoted = true
-			// Include the trigger line (e.g. "On ... wrote:") but don't count it
-			// against the 5-line content limit.
+			//Why: Retains the quotation header while excluding it from the line limit to give the AI context about who the user is replying to.
 			cleaned = append(cleaned, line)
 			continue
 		}
 
 		if isQuoted {
-			// Skip email header lines (From:, To:, Cc:, Subject:) without counting against limit
+			//Why: Filters out repetitive header information within quote blocks to focus analysis on the actual message content.
 			if reEmailHeader.MatchString(trimmed) || trimmed == "" && quotedLines == 0 {
 				cleaned = append(cleaned, line)
 				continue
 			}
 			quotedLines++
-			// Keep up to 5 lines of quoted content for context
+			//Why: Limits depth of quoted replies to 5 lines to maintain focus on the current task while providing enough context for thread association.
 			if quotedLines > 5 {
 				break
 			}
@@ -577,17 +605,17 @@ func cleanEmailBody(body string) string {
 
 	result := strings.Join(cleaned, "\n")
 
-	// 2. Detect and remove signatures using Regex
+	//Why: Removes email signatures to prevent them from being mistaken for task requests or assignee names.
 	if loc := reSignature.FindStringIndex(result); loc != nil {
 		result = result[:loc[0]]
 	}
 
 	finalResult := strings.TrimSpace(result)
 
-	// Safety fallback: truncate extremely long emails to prevent AI output JSON truncation
+	//Why: Caps the total email length at 3000 characters to prevent the AI model from truncating its JSON response because the input was too large.
 	const maxLen = 3000
 	if len(finalResult) > maxLen {
-		// Use rune slice to safely truncate UTF-8 strings without breaking multi-byte characters
+		//Why: Truncates content using a rune slice to avoid creating invalid UTF-8 sequences at the truncation point, which could cause processing errors.
 		runes := []rune(finalResult)
 		if len(runes) > maxLen/2 {
 			limit := maxLen

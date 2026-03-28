@@ -22,9 +22,9 @@ func (a *API) HandleGmailCallback(w http.ResponseWriter, r *http.Request) {
 	state := r.URL.Query().Get("state")
 	code := r.URL.Query().Get("code")
 
-	// Ensure the callback originates from a Gmail auth flow to prevent CSRF or misrouted callbacks
+	//Why: Verifies that the callback originates from a Gmail auth flow to prevent CSRF or misrouted authentication requests.
 	if !strings.HasPrefix(state, "gmail:") {
-		http.Error(w, "Invalid state", http.StatusBadRequest)
+		respondError(w, http.StatusBadRequest, "Invalid state")
 		return
 	}
 	email := strings.TrimPrefix(state, "gmail:")
@@ -32,19 +32,19 @@ func (a *API) HandleGmailCallback(w http.ResponseWriter, r *http.Request) {
 	token, err := channels.ExchangeGmailCode(ctx, code)
 	if err != nil {
 		logger.Debugf("[GMAIL-CALLBACK] Token exchange failed for %s: %v", email, err)
-		http.Error(w, "Token exchange failed: "+err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, "Token exchange failed: "+err.Error())
 		return
 	}
 
 	tokenJSON, err := json.Marshal(token)
 	if err != nil {
-		http.Error(w, "Failed to marshal token", http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, "Failed to marshal token")
 		return
 	}
 
 	if err := store.SaveGmailToken(email, string(tokenJSON)); err != nil {
 		logger.Debugf("[GMAIL-CALLBACK] Failed to save token for %s: %v", email, err)
-		http.Error(w, "Failed to save token", http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, "Failed to save token")
 		return
 	}
 
@@ -63,7 +63,7 @@ func (a *API) HandleGmailStatus(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleGmailDisconnect(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	if err := store.DeleteGmailToken(email); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "disconnected"})

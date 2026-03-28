@@ -112,7 +112,7 @@ func TestScanThreadReplies(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := scanThreadReplies(tt.replies, tt.threadTS, tt.lastTS, tt.lastActivity, tt.botUserID)
+			got := scanThreadReplies(tt.replies, tt.lastTS, tt.lastActivity, tt.botUserID)
 			if got.isResolved != tt.wantResolved {
 				t.Errorf("isResolved = %v, want %v", got.isResolved, tt.wantResolved)
 			}
@@ -126,7 +126,7 @@ func TestScanThreadReplies(t *testing.T) {
 	}
 }
 
-// --- isThreadTimedOut 테스트 ---
+//Why: [isThreadTimedOut] Verifies that inactive threads are correctly identified as timed out based on the configured duration.
 
 func TestIsThreadTimedOut(t *testing.T) {
 	now := time.Now().Unix()
@@ -177,10 +177,10 @@ func TestIsThreadTimedOut(t *testing.T) {
 	}
 }
 
-// --- Throttling & Intake 테스트 ---
+//Why: [Throttling & Intake] Ensures that API rate limit protections and thread link construction logic are correctly implemented.
 
 func TestSlackThrottlingInterval(t *testing.T) {
-	// API Rate Limit 방어를 위한 표준 1.2s 검증
+	//Why: Verifies the 1.2s throttling interval to ensure compliance with Slack API rate limits during bulk message retrieval.
 	expected := 1200 * time.Millisecond
 	if SlackThrottlingInterval != expected {
 		t.Errorf("SlackThrottlingInterval should be %v, got %v", expected, SlackThrottlingInterval)
@@ -188,12 +188,11 @@ func TestSlackThrottlingInterval(t *testing.T) {
 }
 
 func TestThreadIntakeLogicLink(t *testing.T) {
-	// analyzeAndSaveSlack의 링크 생성 로직에서 thread_ts가 올바르게 붙는지 검증
+	//Why: Verifies that thread_ts is correctly appended to Slack message links to ensure the user is directed to the specific response in context.
 	channelID := "C123"
 	replyID := "11111.0000"
 
-	// 1. 일반 메시지 링크 (검증용 로컬 변수 미사용 제거)
-	// 2. 스레드 메시지 링크 (Ref: scanner_slack.go:400)
+	//Why: [Link Logic] Validates that thread_ts is correctly appended for threaded replies to ensure deep links work as expected (Ref: scanner_slack.go:400).
 	linkThread := fmt.Sprintf("https://slack.com/archives/%s/p%s", channelID, "123456789")
 	if replyID != "" {
 		linkThread += fmt.Sprintf("?thread_ts=%s", replyID)

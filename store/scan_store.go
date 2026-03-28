@@ -30,7 +30,7 @@ func LoadMetadata() error {
 
 	logger.Infof("[CACHE] Initializing metadata cache from DB...")
 
-	// 1. Load Users (TRIM name for consistent mapping)
+	//Why: Loads user definitions from the database, ensuring names are trimmed for consistent mapping.
 	rows, err := db.Query(SQL.LoadUsersSimple)
 	if err != nil {
 		return fmt.Errorf("failed to load users: %w", err)
@@ -53,7 +53,7 @@ func LoadMetadata() error {
 		return fmt.Errorf("rows error in users: %w", err)
 	}
 
-	// 2. Load User Aliases
+	//Why: Populates the alias cache to support user identification via varied display names.
 	aliasRows, err := db.Query(SQL.LoadUserAliasesAll)
 	if err != nil {
 		return fmt.Errorf("failed to load user aliases: %w", err)
@@ -69,14 +69,14 @@ func LoadMetadata() error {
 		aliasCache[userID] = append(aliasCache[userID], alias)
 	}
 
-	// 2.1 Ensure all users have an entry in aliasCache to prevent DB hits
+	//Why: Pre-initializes empty alias lists for all users in the cache to prevent redundant database lookups for missing records.
 	for _, u := range userCache {
 		if _, ok := aliasCache[u.ID]; !ok {
 			aliasCache[u.ID] = []string{}
 		}
 	}
 
-	// 3. Load Scan Metadata
+	//Why: Restores the last scan timestamps for each source to memory for efficient duplicate detection.
 	logger.Infof("[SCAN] Loading existing scan metadata into memory...")
 	scanRows, err := db.Query(SQL.LoadScanMetadataAll)
 	if err != nil {
@@ -94,7 +94,7 @@ func LoadMetadata() error {
 	}
 	logger.Infof("[SCAN] Loaded %d scan metadata entries.", len(scanCache))
 
-	// 4. Load Gmail Tokens
+	//Why: Loads OAuth refresh tokens into the cache to support background Gmail synchronization.
 	logger.Infof("[SCAN] Loading existing gmail tokens into memory...")
 	tokenRows, err := db.Query(SQL.LoadGmailTokensAll)
 	if err != nil {
@@ -110,7 +110,7 @@ func LoadMetadata() error {
 		tokenCache[email] = token
 	}
 
-	// 5. Load Tenant Aliases
+	//Why: Loads tenant identification strings to ensure cross-tenant message routing is accurate.
 	tenantRows, err := db.Query(SQL.LoadTenantAliasesAll)
 	if err != nil {
 		return fmt.Errorf("failed to load tenant aliases: %w", err)
@@ -128,7 +128,7 @@ func LoadMetadata() error {
 		tenantAliasCache[email][original] = primary
 	}
 
-	// 6. Load Contacts
+	//Why: Loads external contact mappings for improved requester identification.
 	contactRows, err := db.Query(SQL.LoadContactsAll)
 	if err == nil {
 		defer contactRows.Close()
@@ -186,7 +186,7 @@ func PersistAllScanMetadata(userEmail string) {
 	metadataMu.RUnlock()
 
 	if len(toPersist) == 0 {
-		return // 변경된 내역이 없으면 DB 연결 시도조차 하지 않음 (Sleep 유지)
+		return //Why: Avoids unnecessary database connections if no dirty metadata entries exist, preserving resources.
 	}
 
 	err := WithDBRetry("PersistAllScanMetadata", func() error {
@@ -194,7 +194,7 @@ func PersistAllScanMetadata(userEmail string) {
 		if err != nil {
 			return err
 		}
-		defer tx.Rollback() // 성공 시 Commit 되므로 지장 없음
+		defer tx.Rollback() //Why: Uses a deferred rollback to ensure transaction safety; it is overridden by an explicit commit on success.
 
 		stmt, err := tx.Prepare(SQL.UpsertScanMetadata)
 		if err != nil {
@@ -218,7 +218,7 @@ func PersistAllScanMetadata(userEmail string) {
 	metadataMu.Lock()
 	for _, item := range toPersist {
 		key := userEmail + ":" + item.source + ":" + item.target
-		// 동시성 방어: DB에 쓰는 동안 새 업데이트가 발생하지 않았을 때만 dirty 플래그 해제
+		//Why: Implements a concurrency guard to only clear the dirty flag if no new updates occurred during the persistence process.
 		if scanCache[key] == item.ts {
 			delete(dirtyScanKeys, key)
 		}
@@ -254,7 +254,7 @@ func RegisterActiveSlackThread(email, channelID, threadTS string) error {
 	targetID := channelID + "|" + threadTS
 	key := fmt.Sprintf("%s:slack_thread:%s", email, targetID)
 
-	// DB를 깨우지 않고 지연 쓰기(Lazy Write)를 위해 메모리와 Dirty 캐시에만 등록
+	//Why: Registers the thread timestamp in memory and dirty caches only to support lazy writes without waking the database.
 	metadataMu.Lock()
 	if _, exists := scanCache[key]; !exists {
 		scanCache[key] = threadTS
@@ -266,7 +266,7 @@ func RegisterActiveSlackThread(email, channelID, threadTS string) error {
 
 func GetActiveSlackThreads() ([]SlackThreadMeta, error) {
 	var threads []SlackThreadMeta
-	// DB를 조회하지 않고 서버 구동 시 로드된 메모리 캐시(scanCache)에서 즉시 필터링
+	//Why: Filters active threads directly from the memory cache to avoid expensive database queries.
 	metadataMu.RLock()
 	for key, lastTS := range scanCache {
 		parts := strings.Split(key, ":")
@@ -282,7 +282,7 @@ func GetActiveSlackThreads() ([]SlackThreadMeta, error) {
 }
 
 func UpdateSlackThreadLastTS(email, channelID, threadTS, lastTS string) error {
-	// 즉시 DB에 쓰지 않고 기존 메인 스캐너의 지연 쓰기 파이프라인에 묻어서(Piggybacking) 처리
+	//Why: Piggybacks on the existing lazy write pipeline instead of writing directly to the database.
 	return UpdateLastScan(email, "slack_thread", channelID+"|"+threadTS, lastTS)
 }
 
@@ -299,7 +299,7 @@ func RemoveActiveSlackThread(email, channelID, threadTS string) error {
 	return err
 }
 
-// Targeted Thread Scan Worker support
+//Why: Provides support functions for the targeted Slack thread scanner worker.
 func RegisterTargetedSlackThread(channelID, threadTS, lastReplyTS, userEmail string) error {
 	_, err := db.Exec(SQL.UpsertSlackThread, channelID, threadTS, lastReplyTS, lastReplyTS, "active", userEmail)
 	return err

@@ -11,7 +11,7 @@ import (
 func unmarshalAnalyze(cleanJSON, rawJSON string) ([]store.TodoItem, error) {
 	var items []store.TodoItem
 	if err := json.Unmarshal([]byte(cleanJSON), &items); err != nil {
-		// Fallback: Check if it's wrapped in an object {"tasks": [...]}, {"items": [...]}, or similar
+		//Why: [Fallback] Attempts to unmarshal the JSON as a generic map to handle cases where the AI wraps the response array in a named object (e.g., {"tasks": [...]}).
 		var obj map[string]json.RawMessage
 		if err2 := json.Unmarshal([]byte(cleanJSON), &obj); err2 == nil {
 			for _, val := range obj {
@@ -32,7 +32,7 @@ func unmarshalAnalyze(cleanJSON, rawJSON string) ([]store.TodoItem, error) {
 func unmarshalTranslate(cleanJSON, rawJSON, language string) ([]store.TranslateRequest, error) {
 	var translations []store.TranslateRequest
 	if err := json.Unmarshal([]byte(cleanJSON), &translations); err != nil {
-		// Fallback: Check if it's wrapped in an object {"translations": [...]}
+		//Why: [Fallback] Checks if the translation response is wrapped in a dedicated object structure before failing, ensuring robustness against varying AI output formats.
 		var tr store.TranslateResponse
 		if err2 := json.Unmarshal([]byte(cleanJSON), &tr); err2 == nil && len(tr.Translations) > 0 {
 			translations = tr.Translations
@@ -49,6 +49,7 @@ func unmarshalTranslate(cleanJSON, rawJSON, language string) ([]store.TranslateR
 }
 
 func DecodeBase64URL(data string) (string, error) {
+	//Why: [DecodeBase64URL] Robustly handles various Base64 encoding flavors (URL-safe, Standard, with/without padding) common in diverse message source headers.
 	// 1. URL-safe encoding (with padding)
 	decoded, err := base64.URLEncoding.DecodeString(data)
 	if err == nil {
@@ -80,6 +81,7 @@ func DecodeBase64URL(data string) (string, error) {
 func sanitizeJSON(s string) string {
 	s = strings.TrimSpace(s)
 
+	//Why: Strips markdown code blocks (e.g., ```json) and any surrounding descriptive text to isolate the raw JSON payload.
 	// 1. Completely strip any descriptive text surrounding markdown code blocks (e.g., ```json)
 	startIdx := strings.Index(s, "```json")
 	if startIdx == -1 {
@@ -98,13 +100,14 @@ func sanitizeJSON(s string) string {
 
 	s = strings.TrimSpace(s)
 
+	//Why: Performs a best-effort extraction of JSON structures by locating the outermost brackets if markdown stripping fails.
 	// 2. Best-effort extraction based on brackets
 	start := strings.IndexAny(s, "[{")
 	end := strings.LastIndexAny(s, "]}")
 	if start != -1 && end != -1 && start < end {
 		extracted := s[start : end+1]
 
-		// [Fallback] Repair truncated JSON arrays
+		//Why: [Repair] Attempts to fix truncated JSON arrays by appending a closing bracket if the last character is a closing object brace, ensuring partial responses remain parsable.
 		if extracted[0] == '[' && extracted[len(extracted)-1] == '}' {
 			extracted += "]"
 		}

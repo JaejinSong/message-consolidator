@@ -26,7 +26,7 @@ func GetContactsMappings(email string) ([]AliasMapping, error) {
 		return []AliasMapping{}, nil
 	}
 
-	// Data Race 방지를 위해 복사본 반환
+	//Why: Returns a copy of the mapping slice to prevent data races during concurrent access.
 	result := make([]AliasMapping, len(mappings))
 	copy(result, mappings)
 	return result, nil
@@ -37,7 +37,7 @@ func AddContactMapping(email, repName, aliases string) error {
 	if err == nil {
 		metadataMu.Lock()
 		defer metadataMu.Unlock()
-		// Update cache
+		//Why: Synchronizes the in-memory contacts cache with the updated database state.
 		found := false
 		if _, ok := contactsCache[email]; !ok {
 			contactsCache[email] = []AliasMapping{}
@@ -61,9 +61,7 @@ func SaveWhatsAppContact(email, number, name string) error {
 		return nil
 	}
 
-	// We append the number to aliases if the rep_name (name) already exists,
-	// or create a new entry.
-	// However, for WhatsApp, it's better to have name as rep_name and number as the primary alias.
+	//Why: Appends the number to aliases if the representative name exists, ensuring WhatsApp numbers map correctly to user-friendly names.
 
 	metadataMu.RLock()
 	mappings := contactsCache[email]
@@ -80,7 +78,7 @@ func SaveWhatsAppContact(email, number, name string) error {
 
 	newAliases := number
 	if exists {
-		// Check if number is already in aliases
+		//Why: Verifies if the WhatsApp number is already part of the alias list to prevent duplicate mapping.
 		parts := strings.Split(currentAliases, ",")
 		found := slices.ContainsFunc(parts, func(p string) bool {
 			return strings.TrimSpace(p) == number
@@ -127,7 +125,7 @@ func NormalizeContactName(email, rawName string) string {
 
 	normalizedRaw := strings.TrimSpace(strings.ToLower(rawName))
 
-	// If it's a number, try exact match first
+	//Why: Attempts an exact match against aliases if the input is a potential contact number.
 	for _, m := range mappings {
 		aliases := strings.Split(m.Aliases, ",")
 		if slices.ContainsFunc(aliases, func(alias string) bool {

@@ -21,7 +21,7 @@ func (a *API) TranslateMessagesByID(ctx context.Context, email string, ids []int
 		return 0, nil
 	}
 
-	// 1. Get detailed message data for these IDs in batch
+	//Why: Fetches full message details in a single batch to minimize database roundtrips.
 	messages, err := store.GetMessagesByIDs(ctx, ids)
 	if err != nil {
 		logger.Errorf("[TRANSLATE] Failed to get messages batch for %s: %v", email, err)
@@ -41,7 +41,7 @@ func (a *API) TranslateMessagesByID(ctx context.Context, email string, ids []int
 		return 0, nil
 	}
 
-	// 2. Call Gemini
+	//Why: Initializes the Gemini client to perform the actual AI-powered translation.
 	gc, err := ai.NewGeminiClient(ctx, a.Config.GeminiAPIKey, a.Config.GeminiAnalysisModel, a.Config.GeminiTranslationModel)
 	if err != nil {
 		logger.Errorf("[TRANSLATE] Failed to init Gemini client: %v", err)
@@ -54,7 +54,7 @@ func (a *API) TranslateMessagesByID(ctx context.Context, email string, ids []int
 		return 0, err
 	}
 
-	// 3. Save
+	//Why: Iterates through the returned translations and persists each one to the database.
 	count := 0
 	for _, t := range translations {
 		if err := store.SaveTaskTranslation(t.ID, lang, t.Text); err == nil {

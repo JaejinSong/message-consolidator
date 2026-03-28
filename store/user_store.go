@@ -31,12 +31,12 @@ func GetAllUsers() ([]User, error) {
 		}
 		u.CreatedAt = createdAt.Time
 
-		// Set a fallback for DailyGoal to prevent division by zero or logical errors in legacy data.
+		//Why: Sets a fallback for DailyGoal to prevent division by zero or logical errors in legacy data.
 		if u.DailyGoal <= 0 {
 			u.DailyGoal = 5
 		}
 
-		// Synchronize the retrieved user data with the in-memory cache.
+		//Why: Synchronizes the retrieved user data with the in-memory cache.
 		userCache[u.Email] = &u
 		users = append(users, u)
 	}
@@ -52,7 +52,7 @@ func GetAllUsers() ([]User, error) {
 func GetOrCreateUser(email, name, picture string) (*User, error) {
 	metadataMu.Lock()
 	if u, ok := userCache[email]; ok {
-		// If a new name or picture is provided and differs from the cached data, trigger a database update.
+		//Why: Trigger a database update if a new name or picture is provided and differs from the cached data.
 		if (name != "" && u.Name != name) || (picture != "" && u.Picture != picture) {
 			metadataMu.Unlock()
 			return updateAndCacheUser(email, name, picture)
@@ -85,7 +85,7 @@ func updateAndCacheUser(email, name, picture string) (*User, error) {
 		}
 		u.CreatedAt = createdAt.Time
 
-		// Flag for update if a valid, new name or picture is provided.
+		//Why: Flags for update if a valid, new name or picture is provided.
 		needsUpdate := false
 		if name != "" && u.Name != name {
 			u.Name = name

@@ -24,7 +24,7 @@ type tokenUsageCacheData struct {
 var (
 	tokenMu           sync.Mutex
 	tokenDirtyData    = make(map[string]*tokenData)
-	tokenFlushingData = make(map[string]*tokenData) // Prevents data loss during active DB flush
+	tokenFlushingData = make(map[string]*tokenData) //Why: Buffers data currently being flushed to the database to prevent data loss if a parallel write occurs.
 	lastTokenFlush    time.Time
 
 	usageCache   = make(map[string]*tokenUsageCacheData)
@@ -48,7 +48,7 @@ func AddTokenUsage(email string, promptTokens, completionTokens int) error {
 	tokenDirtyData[email].Prompt += promptTokens
 	tokenDirtyData[email].Completion += completionTokens
 
-	// Eagerly update cache if it matches the current date/month to prevent unnecessary DB reads
+	//Why: Proactively updates the in-memory usage cache to avoid redundant database reads for the current period.
 	today := time.Now().Format("2006-01-02")
 	currentMonth := time.Now().Format("2006-01")
 
@@ -188,7 +188,7 @@ func GetMonthlyTokenUsage(email string) (int, int, error) {
 	}
 	usageCacheMu.RUnlock()
 	firstDay := currentMonth + "-01"
-	// Calculate the 1st of the next month safely to prevent day 31 overflow issues
+	//Why: Safely calculates the boundary for the next month to avoid date overflow issues that occur on the 31st of certain months.
 	now := time.Now()
 	firstOfThisMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	nextMonthFirstDay := firstOfThisMonth.AddDate(0, 1, 0).Format("2006-01-02")

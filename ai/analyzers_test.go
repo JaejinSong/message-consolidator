@@ -16,6 +16,7 @@ func TestAnalyzersPreProcess(t *testing.T) {
 		input    string
 		expected string
 	}{
+		//Why: [Gmail] Verifies the Gmail-specific preprocessing and truncation logic.
 		// GmailAnalyzer Tests
 		{
 			name:     "GmailAnalyzer - Short Text (No Change)",
@@ -29,6 +30,7 @@ func TestAnalyzersPreProcess(t *testing.T) {
 			input:    longText16k,
 			expected: longText16k[:15000],
 		},
+		//Why: [Chat] Verifies the Chat-specific preprocessing and truncation logic for Slack/WhatsApp.
 		// ChatAnalyzer Tests
 		{
 			name:     "ChatAnalyzer - Short Text (No Change)",
@@ -40,8 +42,9 @@ func TestAnalyzersPreProcess(t *testing.T) {
 			name:     "ChatAnalyzer - Long Text (Truncate from end)",
 			analyzer: &ChatAnalyzer{Source: "whatsapp"},
 			input:    longText31k,
-			expected: longText31k[1000:], // 31000 - 30000 = 1000
+			expected: longText31k[1000:], //Why: Calculates the expected offset for end-truncation to ensure at most 30,000 characters are preserved.
 		},
+		//Why: [Notion] Verifies that the Notion-specific preprocessing logic currently preserves the input as-is.
 		// NotionAnalyzer Tests
 		{
 			name:     "NotionAnalyzer - Any Text (No Change)",

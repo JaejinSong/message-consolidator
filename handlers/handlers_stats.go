@@ -6,6 +6,7 @@ import (
 	"net/http"
 )
 
+//Why: Retrieves processed activity statistics for the user based on their specific timezone to ensure dashboard visualisations are chronologically accurate.
 func (a *API) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 
@@ -16,7 +17,7 @@ func (a *API) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 
 	stats, err := store.GetUserStats(email, tz)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	respondJSON(w, http.StatusOK, stats)

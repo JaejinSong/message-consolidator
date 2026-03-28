@@ -16,8 +16,8 @@ import (
 )
 
 func resolveWAMentions(email, text string) string {
-	// WhatsApp mentions are "@12345678"
-	return channels.ResolveWAMentions(email, text) // Might need this in channels
+	//Why: Recognizes standard WhatsApp numeric mentions ("@12345678") for resolution into contact names.
+	return channels.ResolveWAMentions(email, text) //Why: Routes mention resolution to the channels package to centralize cross-platform user mapping logic.
 }
 
 func scanWhatsApp(ctx context.Context, user store.User, aliases []string, language string) []int {
@@ -41,7 +41,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 			for _, m := range rrms {
 				msgMap[m.ID] = m
 
-				// NEW: Handle auto-completion for outgoing messages
+				//Why: Intercepts outgoing messages from the user to automatically resolve and close open tasks that were specifically replied to.
 				if m.Sender == "나" && completionSvc != nil && m.ReplyToID != "" {
 					completionSvc.ProcessPotentialCompletion(ctx, store.ConsolidatedMessage{
 						UserEmail:    email,
@@ -52,7 +52,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 					})
 				}
 
-				// Resolve mentions in the text for better Gemini extraction
+				//Why: Replaces numeric mentions with human-readable names before sending the payload to Gemini, significantly improving task extraction accuracy.
 				resolvedText := channels.ResolveWAMentions(email, m.Text)
 
 				replyCtx := ""
@@ -60,7 +60,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 					replyCtx = fmt.Sprintf("[ReplyTo:%s] ", m.ReplyToID)
 				}
 
-				// [TS:m.ID] remains for backward compatibility with prompt, but adding IDs for better context
+				//Why: Maintains the legacy timestamp format for existing prompt compatibility while adding unique message IDs to support robust deduplication and context mapping.
 				sb.WriteString(fmt.Sprintf("[ID:%s] %s[%s] %s: %s\n", m.ID, replyCtx, m.Timestamp.Format("15:04"), m.Sender, resolvedText))
 			}
 
@@ -90,7 +90,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 				origText = m.Text
 				origThreadID = m.ReplyToID
 
-				// Check if it's 1:1 or mentioned
+				//Why: Determines if the message is a direct communication or contains an explicit mention, which are high-signal indicators of a direct task assignment.
 				is1to1 := !strings.Contains(js, "@g.us")
 				isMentioned := false
 				for _, alias := range aliases {
@@ -144,7 +144,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 					OriginalText: origText,
 					Deadline:     item.Deadline,
 					Category:     category,
-					ThreadID:     origThreadID, // Store the reference if it's a reply
+					ThreadID:     origThreadID, //Why: Preserves the original message metadata in the consolidated task to support future "Go to source" link functionality in the UI.
 				})
 			}
 

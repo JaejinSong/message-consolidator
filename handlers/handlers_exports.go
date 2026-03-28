@@ -29,7 +29,7 @@ func (a *API) HandleExportExcel(w http.ResponseWriter, r *http.Request) {
 	}
 	msgs, _, err := store.GetArchivedMessagesFiltered(r.Context(), filter)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -47,7 +47,7 @@ func (a *API) HandleExportExcel(w http.ResponseWriter, r *http.Request) {
 		f.SetCellValue(sheet, cell, h)
 	}
 
-	// Apply styling to the header row to improve readability of the exported Excel file
+	//Why: Applies bold font and a background color to the header row to improve the readability and professionalism of the exported Excel file.
 	style, _ := f.NewStyle(&excelize.Style{
 		Font: &excelize.Font{Bold: true},
 		Fill: excelize.Fill{Type: "pattern", Color: []string{"#E0E0E0"}, Pattern: 1},
@@ -99,7 +99,7 @@ func (a *API) HandleExportArchive(w http.ResponseWriter, r *http.Request) {
 	}
 	msgs, _, err := store.GetArchivedMessagesFiltered(r.Context(), filter)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -151,7 +151,7 @@ func (a *API) HandleExportJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	msgs, _, err := store.GetArchivedMessagesFiltered(r.Context(), filter)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 

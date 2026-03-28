@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"log"
+	"message-consolidator/ai"
 	"message-consolidator/auth"
 	"message-consolidator/channels"
 	"message-consolidator/config"
@@ -30,52 +31,58 @@ func main() {
 	cfg = config.LoadConfig()
 	logger.SetLevel(cfg.LogLevel)
 
-	// Initialize store-level auto-archive days from the central configuration.
+	//Why: Synchronizes the store-level auto-archive policy with the central environment configuration to ensure consistent task auditing across the system.
 	store.SetAutoArchiveDays(cfg.AutoArchiveDays)
 
 	if err := store.InitDB(cfg); err != nil {
 		log.Fatalf("DB Init failed: %v", err)
 	}
 
-	// Pre-warm the in-memory cache with frequently accessed metadata (e.g., users, aliases)
-	// to minimize database I/O latency on hot paths.
+	//Why: Pre-warms the in-memory cache with frequently accessed metadata (e.g., users, aliases) to minimize database I/O latency on high-traffic paths.
 	if err := store.LoadMetadata(); err != nil {
 		logger.Warnf("Failed to load metadata cache: %v", err)
 	}
 
-	// Initialize the scanner subsystem early. This strict ordering is required
-	// because HTTP handlers inject scanner function pointers as dependencies.
+	//Why: Initializes the scanner subsystem early because HTTP handlers inject scanner function pointers as dependencies, requiring a strict boot order.
 	scanner.Init(cfg)
 
-	// Create the API struct with all its dependencies for explicit injection.
+	//Why: Initializes the AI-powered reporting service with a dedicated Gemini client for business intelligence generation.
+	var gClient *ai.GeminiClient
+	if cfg.GeminiAPIKey != "" {
+		var err error
+		gClient, err = ai.NewGeminiClient(context.Background(), cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+		if err != nil {
+			logger.Errorf("Failed to initialize GeminiClient for Reports: %v", err)
+		}
+	}
+	reportsSvc := services.NewReportsService(gClient)
+
+	//Why: Creates the API handler structure with explicit dependency injection, simplifying unit testing and mock substitution.
 	api := handlers.NewAPI(cfg, scanner.Scan, func() {
 		var wg sync.WaitGroup
 		scanner.RunAllScans(&wg)
 		wg.Wait()
-	})
+	}, reportsSvc)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	srv := setupApp(cfg, api, ctx)
 
-	// Trap termination signals (e.g., SIGINT, SIGTERM from Docker/Cloud Run)
-	// to orchestrate a graceful shutdown, ensuring no in-flight data is lost.
+	//Why: Traps termination signals (SIGINT/SIGTERM) to orchestrate a graceful shutdown, ensuring in-flight messages are processed and database states are consistent.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit // Block the main goroutine until a termination signal is received.
+	<-quit //Why: Blocks the main goroutine to keep the application alive until a termination signal is manually or systemically triggered.
 
-	cancel() // trigger graceful shutdown for background tasks
+	cancel() //Why: Triggers the cancellation of background worker contexts to stop message scanning and event listeners during shutdown.
 
 	logger.Infof("Shutting down server gracefully...")
 	shutdownStart := time.Now()
 
-	// Step 1: Safely terminate active WebSocket sessions (e.g., WhatsApp)
-	// to prevent client-side hanging or zombie connections.
+	//Why: [Shutdown 1/4] Safely terminates active WhatsApp WebSocket sessions to prevent client-side hanging or orphaned connections on the message server.
 	logger.Infof("[Shutdown] 1/4 Disconnecting external clients (WhatsApp)...")
 	channels.DisconnectAllWhatsApp()
 
-	// Step 2: Flush all buffered, lazy-written state (token usage, scan metadata, gamification)
-	// to the database to guarantee data integrity.
+	//Why: [Shutdown 2/4] Flushes all buffered, lazy-written state (token usage, scan metadata, gamification) to the database to guarantee overall data integrity before exit.
 	logger.Infof("[Shutdown] 2/4 Flushing in-memory data to Database...")
 	if err := store.FlushTokenUsage(); err != nil {
 		logger.Errorf("Failed to flush token usage during shutdown: %v", err)
@@ -86,8 +93,7 @@ func main() {
 	}
 	logger.Infof("[Shutdown] In-memory data flushed successfully.")
 
-	// Step 3: Drain in-flight HTTP requests. A bounded timeout is applied
-	// to prevent the shutdown process from hanging indefinitely.
+	//Why: [Shutdown 3/4] Drains in-flight HTTP requests with a bounded 5s timeout to allow active sessions to complete without hanging the process indefinitely.
 	logger.Infof("[Shutdown] 3/4 Waiting for active HTTP requests to finish (Max 5s)...")
 	ctxTimeout, cancelTimeout := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelTimeout()
@@ -95,7 +101,7 @@ func main() {
 		logger.Errorf("Server shutdown error: %v", err)
 	}
 
-	// Step 4: Release database connections back to the Turso server cleanly.
+	//Why: [Shutdown 4/4] Explicitly releases all database connections back to the Turso server cleanly to prevent connection leaks.
 	if db := store.GetDB(); db != nil {
 		logger.Infof("[Shutdown] 4/4 Closing database connections...")
 		db.Close()
@@ -104,11 +110,9 @@ func main() {
 	logger.Infof("Server exited successfully. Total shutdown time: %v", time.Since(shutdownStart))
 }
 
-// setupApp encapsulates the wiring of external services, background workers,
-// and HTTP routes, returning a fully configured server instance.
+//Why: Encapsulates the wiring of external services, background workers, and HTTP routes to provide a testable, fully configured server instance.
 func setupApp(cfg *config.Config, api *handlers.API, ctx context.Context) *http.Server {
-	// Inject callback hooks into the WhatsApp manager. This inversion of control
-	// breaks the cyclic dependency between the 'channels' and 'store' packages.
+	//Why: Injects WhatsApp manager callback hooks as an Inversion of Control (IoC) pattern to break circular dependency cycles between the 'channels' and 'store' packages.
 	channels.DefaultWAManager.FetchUserWAJID = func(email string) (string, error) {
 		u, err := store.GetOrCreateUser(email, "", "")
 		if err != nil {
@@ -123,26 +127,24 @@ func setupApp(cfg *config.Config, api *handlers.API, ctx context.Context) *http.
 		store.UpdateUserWAJID(email, "")
 	}
 
-	// Asynchronously boot up WhatsApp client sessions for all registered users
-	// so that the main server startup is not blocked.
+	//Why: Boots WhatsApp client sessions asynchronously for all registered users to ensure the main server startup remains non-blocking.
 	users, _ := store.GetAllUsers()
 	for _, u := range users {
 		go channels.DefaultWAManager.InitWhatsApp(u.Email, cfg)
 	}
 
-	// Configure OAuth providers for user authentication and Gmail scanning.
+	//Why: Initializes OAuth configurations for third-party integrations (Google/Gmail) and system-wide authentication.
 	auth.SetupOAuth(cfg)
 	channels.SetupGmailOAuth(cfg)
 
-	// In Cloud Run (serverless) mode, background polling is disabled to save compute costs.
-	// The system relies on external API triggers (e.g., Cloud Scheduler) instead.
+	//Why: Disables the background polling loop in Cloud Run environments to optimize compute costs, relying on external API triggers or Cloud Scheduler schedules.
 	if !cfg.CloudRunMode {
 		go scanner.StartBackgroundScanner(ctx)
 	} else {
 		logger.Infof("Cloud Run Mode: Background scanner disabled. Triggers via API expected.")
 	}
 
-	// Initialize the HTTP router and register all API endpoints.
+	//Why: Registers all application endpoints to the HTTP router, enabling public and private access points.
 	r := mux.NewRouter()
 	api.RegisterRoutes(r)
 

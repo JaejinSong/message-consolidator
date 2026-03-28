@@ -271,5 +271,10 @@ export const api = {
             whatsapp: whatsapp?.status === 'CONNECTED',
             gmail: gmail?.connected === true
         };
+    },
+
+    async getInsightReport() {
+        const resp = await fetch('/api/insights/report');
+        return handleResponse(resp, 'Fetch insight report failed');
     }
 };

@@ -29,7 +29,7 @@ func (s *SlackClient) GetAPI() *slack.Client {
 }
 
 func (s *SlackClient) LookupChannels() ([]slack.Channel, string, error) {
-	// GetConversationsForUser를 사용하면 봇(Bot)이 초대된 채널과 DM 목록만 정확히 반환합니다.
+	//Why: Uses GetConversationsForUser to accurately retrieve only the subset of channels and DM lists where the bot is explicitly invited.
 	return s.api.GetConversationsForUser(&slack.GetConversationsForUserParameters{
 		Types:           []string{"public_channel", "private_channel", "im", "mpim"},
 		ExcludeArchived: true,
@@ -76,7 +76,7 @@ func (s *SlackClient) GetChannelName(id string) string {
 	return id
 }
 
-// withSlackRetry는 API Rate Limit 발생 시 지정된 시간만큼 대기 후 재시도하는 래퍼 함수입니다.
+// Why: Implements a retry wrapper that respects Slack's 'Retry-After' header to handle API rate limiting gracefully during heavy scans.
 func withSlackRetry(maxRetries int, contextMsg string, attemptFunc func() error) error {
 	var err error
 	for i := 0; i <= maxRetries; i++ {
@@ -104,7 +104,7 @@ func parseSlackTimestamp(ts string) time.Time {
 func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS string) ([]types.RawMessage, error) {
 	var msgs []types.RawMessage
 	cursor := ""
-	maxRetries := 3 // 최대 3번까지 재시도 허용
+	maxRetries := 3 //Why: Limits API retries to 3 attempts to prevent infinite loops during persistent Slack outages.
 
 	for {
 		params := &slack.GetConversationHistoryParameters{
@@ -125,39 +125,8 @@ func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS stri
 			return nil, err
 		}
 
-		reachedOld := false
-		for _, m := range history.Messages {
-			ts := parseSlackTimestamp(m.Timestamp)
-
-			// Slack history is returned from newest to oldest.
-			// Stop if we hit messages older than the 'since' threshold.
-			if ts.Before(since) {
-				reachedOld = true
-				break
-			}
-
-			// Skip bot messages or messages without text
-			if m.BotID != "" || m.Text == "" {
-				continue
-			}
-
-			msgs = append(msgs, types.RawMessage{
-				ID:        m.Timestamp,
-				Sender:    s.GetUserName(m.User),
-				Text:      m.Text,
-				Timestamp: ts,
-			})
-
-			// 스레드(Thread)에 답글이 있는 경우 추가 수집
-			if m.ReplyCount > 0 && m.ThreadTimestamp == m.Timestamp {
-				replies, err := s.FetchNewThreadReplies(channelID, m.Timestamp, m.Timestamp)
-				if err == nil {
-					msgs = append(msgs, replies...)
-				} else {
-					logger.Warnf("[SLACK-API] Failed to fetch thread replies for %s: %v", m.Timestamp, err)
-				}
-			}
-		}
+		pageMsgs, reachedOld := s.processHistoryMessages(channelID, history.Messages, since)
+		msgs = append(msgs, pageMsgs...)
 
 		if reachedOld || !history.HasMore || history.ResponseMetaData.NextCursor == "" {
 			break
@@ -165,11 +134,50 @@ func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS stri
 		cursor = history.ResponseMetaData.NextCursor
 	}
 
-	// Reverse to get chronological order if needed, but scanner handles it
+	//Why: Optionally reverses message order, though the global scanner typically handles chronological sorting after aggregation.
 	return msgs, nil
 }
 
-// FetchNewThreadReplies handles pagination and rate-limiting to fetch all replies in a Slack thread.
+// Why: Separates the message filtering, mapping, and thread expansion logic from the main pagination loop.
+func (s *SlackClient) processHistoryMessages(channelID string, messages []slack.Message, since time.Time) ([]types.RawMessage, bool) {
+	var msgs []types.RawMessage
+	reachedOld := false
+
+	for _, m := range messages {
+		ts := parseSlackTimestamp(m.Timestamp)
+
+		//Why: Terminates the history fetch loop when encountering messages older than the 'since' threshold, as Slack returns results in descending chronological order.
+		if ts.Before(since) {
+			reachedOld = true
+			break
+		}
+
+		//Why: Filters out automated bot messages and empty notifications to focus analysis on actionable user-generated task descriptions.
+		if m.BotID != "" || m.Text == "" {
+			continue
+		}
+
+		msgs = append(msgs, types.RawMessage{
+			ID:        m.Timestamp,
+			Sender:    s.GetUserName(m.User),
+			Text:      m.Text,
+			Timestamp: ts,
+		})
+
+		//Why: Recursively fetches thread replies if a message is a thread parent to ensure full conversation context for task extraction.
+		if m.ReplyCount > 0 && m.ThreadTimestamp == m.Timestamp {
+			replies, err := s.FetchNewThreadReplies(channelID, m.Timestamp, m.Timestamp)
+			if err == nil {
+				msgs = append(msgs, replies...)
+			} else {
+				logger.Warnf("[SLACK-API] Failed to fetch thread replies for %s: %v", m.Timestamp, err)
+			}
+		}
+	}
+	return msgs, reachedOld
+}
+
+// Why: Handles pagination and rate-limiting to fetch all replies in a Slack thread.
 func (s *SlackClient) FetchNewThreadReplies(channelID, threadTS, sinceTS string) ([]types.RawMessage, error) {
 	var msgs []types.RawMessage
 	cursor := ""
@@ -197,25 +205,7 @@ func (s *SlackClient) FetchNewThreadReplies(channelID, threadTS, sinceTS string)
 			return nil, err
 		}
 
-		for _, m := range replies {
-			// 부모 메시지 원본은 이미 history에서 수집했으므로 중복 스킵
-			if m.Timestamp == threadTS {
-				continue
-			}
-			if m.BotID != "" || m.Text == "" {
-				continue
-			}
-
-			ts := parseSlackTimestamp(m.Timestamp)
-
-			msgs = append(msgs, types.RawMessage{
-				ID:        m.Timestamp,
-				Sender:    s.GetUserName(m.User),
-				Text:      m.Text,
-				Timestamp: ts,
-				ReplyToID: threadTS, // 스레드 소속 메타데이터 부여!
-			})
-		}
+		msgs = append(msgs, s.processThreadReplies(threadTS, replies)...)
 
 		if !hasMore || nextCursor == "" {
 			break
@@ -224,4 +214,27 @@ func (s *SlackClient) FetchNewThreadReplies(channelID, threadTS, sinceTS string)
 	}
 
 	return msgs, nil
+}
+
+// Why: Isolates the thread reply filtering and mapping logic from the pagination control flow.
+func (s *SlackClient) processThreadReplies(threadTS string, replies []slack.Message) []types.RawMessage {
+	var msgs []types.RawMessage
+	for _, m := range replies {
+		//Why: Skips the parent message within the thread reply list to avoid duplicate processing of the initial task request.
+		if m.Timestamp == threadTS {
+			continue
+		}
+		if m.BotID != "" || m.Text == "" {
+			continue
+		}
+
+		msgs = append(msgs, types.RawMessage{
+			ID:        m.Timestamp,
+			Sender:    s.GetUserName(m.User),
+			Text:      m.Text,
+			Timestamp: parseSlackTimestamp(m.Timestamp),
+			ReplyToID: threadTS, //Why: Attaches thread metadata to extracted replies to maintain relational integrity and correctly group related tasks in the UI.
+		})
+	}
+	return msgs
 }

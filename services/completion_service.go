@@ -45,7 +45,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		return
 	}
 
-	// Retrieve all incomplete tasks associated with this thread to determine if the new message resolves any of them.
+	//Why: Retrieves all incomplete tasks associated with this thread to determine if the new message resolves any of them.
 	tasks, err := s.store.GetIncompleteByThreadID(ctx, msg.UserEmail, msg.ThreadID)
 	if err != nil {
 
@@ -57,9 +57,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		return
 	}
 
-	// Defense mechanism: A message containing an '@' mention typically indicates delegation rather than task completion.
-	// We bypass the auto-completion logic here to prevent prematurely closing a task that is merely being handed off,
-	// leaving the mention handling to the dedicated scanner logic.
+	//Why: Prevents prematurely closing tasks that are being delegated by excluding messages containing '@' mentions from the auto-completion logic.
 	if strings.Contains(msg.OriginalText, "@") {
 		logger.Infof("[COMPLETION] Skip auto-completion for thread %s (reply %s): Message contains mention", msg.ThreadID, msg.SourceTS)
 		return
@@ -67,8 +65,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 
 	logger.Infof("[COMPLETION] Found %d incomplete tasks in thread %s.", len(tasks), msg.ThreadID)
 
-	// Optimization: For threads with numerous tasks (>= 3), process them in a single batch request to the AI model.
-	// This significantly reduces token consumption and API overhead compared to individual checks.
+	//Why: Reduces token consumption and API overhead by processing threads with 3 or more tasks in a single batch request to the AI model.
 	if len(tasks) >= 3 {
 		logger.Infof("[COMPLETION] Using batch analysis for %d tasks in thread %s", len(tasks), msg.ThreadID)
 		completedIDs, err := s.gemini.CheckTasksBatch(ctx, msg.UserEmail, msg.OriginalText, tasks)
@@ -86,9 +83,9 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		return
 	}
 
-	// Fallback: For threads with only 1 or 2 tasks, process them individually as the batching overhead is unnecessary.
+	//Why: Processes small threads individually to avoid the unnecessary overhead of batching logic when only 1 or 2 tasks are involved.
 	for _, task := range tasks {
-		// Prevent self-completion
+		//Why: Ensures a message does not accidentally mark itself as completed by skipping the comparison if the source timestamps match.
 		if task.SourceTS == msg.SourceTS {
 			continue
 		}

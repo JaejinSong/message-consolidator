@@ -7,25 +7,25 @@ import (
 )
 
 func TestExtractResponseText(t *testing.T) {
-	// 1. Nil response test
+	//Why: [Nil response test] Ensures that passing a nil response object results in a proper error during text extraction.
 	_, err := extractResponseText(nil)
 	if err == nil {
 		t.Error("Expected error for nil response, got nil")
 	}
 
-	// 2. Empty candidates test
+	//Why: [Empty candidates test] Verifies that an empty candidates array is handled gracefully as an error.
 	_, err = extractResponseText(&genai.GenerateContentResponse{Candidates: []*genai.Candidate{}})
 	if err == nil {
 		t.Error("Expected error for empty candidates, got nil")
 	}
 
-	// 3. Nil content test
+	//Why: [Nil content test] Ensures that even if a candidate is present but its content is nil, an error is returned.
 	_, err = extractResponseText(&genai.GenerateContentResponse{Candidates: []*genai.Candidate{{Content: nil}}})
 	if err == nil {
 		t.Error("Expected error for nil content, got nil")
 	}
 
-	// 4. Valid parts test
+	//Why: [Valid parts test] Confirms that multiple text parts in the Gemini response candidate are correctly concatenated.
 	resp := &genai.GenerateContentResponse{
 		Candidates: []*genai.Candidate{
 			{

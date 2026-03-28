@@ -14,23 +14,23 @@ func TestDeleteGmailToken(t *testing.T) {
 	email := "test@example.com"
 	token := "ya29.test-token"
 
-	// 1. 토큰 저장
+	//Why: Verifies that a Gmail token can be successfully persisted to both the database and the in-memory cache.
 	if err := SaveGmailToken(email, token); err != nil {
 		t.Fatalf("failed to save token: %v", err)
 	}
 
-	// 2. 저장 확인 (캐시 및 DB)
+	//Why: Confirms that the token is immediately available in the cache after saving to avoid unnecessary database lookups.
 	has := HasGmailToken(email)
 	if !has {
 		t.Errorf("token should exist after save in cache")
 	}
 
-	// 3. 토큰 삭제
+	//Why: Tests the explicit removal of a user's Gmail token from the system.
 	if err := DeleteGmailToken(email); err != nil {
 		t.Fatalf("failed to delete token: %v", err)
 	}
 
-	// 4. 삭제 확인
+	//Why: Validates that the token is properly purged from the cache and database to maintain security and consistency.
 	has = HasGmailToken(email)
 	if has {
 		t.Errorf("token should not exist after delete in cache")

@@ -18,45 +18,11 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	logger.Debugf("[USER] Found user: ID=%d, Streak=%d, XP=%d", user.ID, user.Streak, user.XP)
 
-	aliases, err := store.GetUserAliases(user.ID)
-	if err == nil {
-		user.Aliases = aliases
-	}
+	user.Aliases, _ = store.GetUserAliases(user.ID)
 	user.ArchiveDays = store.GetAutoArchiveDays()
 
-	// If the user has no aliases, automatically fetch and prepopulate them from Slack 
-	// to ensure task matching works correctly without manual configuration.
-	if len(user.Aliases) == 0 {
-		sc := channels.NewSlackClient(a.Config.SlackToken)
-		slackUser, err := sc.LookupUserByEmail(user.Email)
-		if err == nil && slackUser != nil {
-			store.UpdateUserSlackID(user.Email, slackUser.ID)
-			store.AddUserAlias(user.ID, slackUser.RealName)
-			if slackUser.Profile.DisplayName != "" {
-				store.AddUserAlias(user.ID, slackUser.Profile.DisplayName)
-			}
-			user.Aliases, _ = store.GetUserAliases(user.ID)
-		}
-	}
-
-	// Return token usage along with user info
-	todayPrompt, todayCompletion, _ := store.GetDailyTokenUsage(email)
-	monthPrompt, monthCompletion, _ := store.GetMonthlyTokenUsage(email)
-
-	calculateCost := func(p, c int) float64 {
-		return (float64(p)*0.075 + float64(c)*0.30) / 1000000
-	}
-
-	tokenUsage := map[string]interface{}{
-		"todayPrompt":     todayPrompt,
-		"todayCompletion": todayCompletion,
-		"todayTotal":      todayPrompt + todayCompletion,
-		"todayCost":       calculateCost(todayPrompt, todayCompletion),
-		"monthPrompt":     monthPrompt,
-		"monthCompletion": monthCompletion,
-		"monthTotal":      monthPrompt + monthCompletion,
-		"monthCost":       calculateCost(monthPrompt, monthCompletion),
-	}
+	a.autoPopulateSlackAliases(user)
+	tokenUsage := gatherTokenUsageStats(email)
 
 	respondJSON(w, http.StatusOK, struct {
 		*store.User
@@ -65,6 +31,29 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 		User:       user,
 		TokenUsage: tokenUsage,
 	})
+}
+
+// Why: Automatically prepopulates user aliases from Slack if none exist to ensure immediate task matching functionality without requiring manual user configuration.
+func (a *API) autoPopulateSlackAliases(user *store.User) {
+	if len(user.Aliases) > 0 || a.Config.SlackToken == "" {
+		return
+	}
+
+	sc := channels.NewSlackClient(a.Config.SlackToken)
+	slackUser, err := sc.LookupUserByEmail(user.Email)
+	if err != nil || slackUser == nil {
+		return
+	}
+
+	store.UpdateUserSlackID(user.Email, slackUser.ID)
+	if slackUser.RealName != "" {
+		store.AddUserAlias(user.ID, slackUser.RealName)
+	}
+	if slackUser.Profile.DisplayName != "" && slackUser.Profile.DisplayName != slackUser.RealName {
+		store.AddUserAlias(user.ID, slackUser.Profile.DisplayName)
+	}
+
+	user.Aliases, _ = store.GetUserAliases(user.ID)
 }
 
 func (a *API) HandleBuyStreakFreeze(w http.ResponseWriter, r *http.Request) {
@@ -106,12 +95,12 @@ func (a *API) HandleAddAlias(w http.ResponseWriter, r *http.Request) {
 		Alias string `json:"alias"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if err := store.AddUserAlias(user.ID, req.Alias); err != nil {
@@ -127,12 +116,12 @@ func (a *API) HandleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 		Alias string `json:"alias"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if err := store.DeleteUserAlias(user.ID, req.Alias); err != nil {
@@ -146,7 +135,7 @@ func (a *API) HandleGetTenantAliases(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	aliases, err := store.GetTenantAliases(email)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	respondJSON(w, http.StatusOK, aliases)
@@ -159,11 +148,11 @@ func (a *API) HandleAddTenantAlias(w http.ResponseWriter, r *http.Request) {
 		Primary  string `json:"primary"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := store.AddTenantAlias(email, req.Original, req.Primary); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -175,11 +164,11 @@ func (a *API) HandleDeleteTenantAlias(w http.ResponseWriter, r *http.Request) {
 		Original string `json:"original"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := store.DeleteTenantAlias(email, req.Original); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -187,41 +176,37 @@ func (a *API) HandleDeleteTenantAlias(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	prompt, completion, err := store.GetDailyTokenUsage(email)
-	if err != nil {
-		logger.Errorf("[HANDLER] Failed to get prompt/completion for %s: %v", email, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	tokenUsage := gatherTokenUsageStats(email)
+	respondJSON(w, http.StatusOK, tokenUsage)
+}
 
-	monthPrompt, monthCompletion, err := store.GetMonthlyTokenUsage(email)
-	if err != nil {
-		// Log error but continue with daily data if monthly fails
-		logger.Errorf("[HANDLER] Failed to get monthly token usage: %v", err)
-	}
+// Why: Includes daily and monthly AI token usage data in the user info response to provide transparency on service costs and resource consumption.
+func gatherTokenUsageStats(email string) map[string]interface{} {
+	todayPrompt, todayCompletion, _ := store.GetDailyTokenUsage(email)
+	monthPrompt, monthCompletion, _ := store.GetMonthlyTokenUsage(email)
 
-	// Gemini 1.5 Flash pricing: Input $0.075/1M, Output $0.30/1M
 	calculateCost := func(p, c int) float64 {
+		//Why: Calculates estimated costs based on Gemini 1.5 Flash public pricing ($0.075 per 1M input tokens, $0.30 per 1M output tokens).
 		return (float64(p)*0.075 + float64(c)*0.30) / 1000000
 	}
 
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"todayPrompt":     prompt,
-		"todayCompletion": completion,
-		"todayTotal":      prompt + completion,
-		"todayCost":       calculateCost(prompt, completion),
+	return map[string]interface{}{
+		"todayPrompt":     todayPrompt,
+		"todayCompletion": todayCompletion,
+		"todayTotal":      todayPrompt + todayCompletion,
+		"todayCost":       calculateCost(todayPrompt, todayCompletion),
 		"monthPrompt":     monthPrompt,
 		"monthCompletion": monthCompletion,
 		"monthTotal":      monthPrompt + monthCompletion,
 		"monthCost":       calculateCost(monthPrompt, monthCompletion),
-	})
+	}
 }
 
 func (a *API) HandleGetMappings(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	mappings, err := store.GetContactsMappings(email)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	respondJSON(w, http.StatusOK, mappings)
@@ -234,11 +219,11 @@ func (a *API) HandleAddMapping(w http.ResponseWriter, r *http.Request) {
 		Aliases string `json:"aliases"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := store.AddContactMapping(email, req.RepName, req.Aliases); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -250,11 +235,11 @@ func (a *API) HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
 		RepName string `json:"rep_name"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := store.DeleteContactMapping(email, req.RepName); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -263,7 +248,7 @@ func (a *API) HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleGetAchievements(w http.ResponseWriter, r *http.Request) {
 	achievements, err := store.GetAchievements()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	respondJSON(w, http.StatusOK, achievements)
@@ -273,13 +258,13 @@ func (a *API) HandleGetUserAchievements(w http.ResponseWriter, r *http.Request) 
 	email := auth.GetUserEmail(r)
 	user, err := store.GetOrCreateUser(email, "", "")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	ua, err := store.GetUserAchievements(user.ID)
 	if err != nil {
 		logger.Errorf("[HANDLER] Failed to get achievements for %s (ID:%d): %v", email, user.ID, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	respondJSON(w, http.StatusOK, ua)

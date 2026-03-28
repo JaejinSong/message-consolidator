@@ -57,7 +57,7 @@ func TestFormatMessagesForClient(t *testing.T) {
 
 	email := "test@example.com"
 	user, _ := store.GetOrCreateUser(email, "Test User", "")
-	_ = user // Ensure user is used to avoid build error
+	_ = user //Why: Ensures the user variable is consumed to satisfy the Go compiler's strict unused variable check in tests.
 
 	msgs := []store.ConsolidatedMessage{
 		{ID: 1, Assignee: "Test User", Requester: "Someone"},
@@ -87,8 +87,8 @@ func TestIsDirectlyAddressedToMe(t *testing.T) {
 	}{
 		{"To: me@example.com\nSubject: Hello", true},
 		{"To: other@example.com\nCc: me@example.com\nSubject: Hello", false},
-		{"To: dev@group.com\nSubject: Hello", false}, // Even if I am in delivered-to (which is NOT in text)
-		{"to: me@example.com\nSubject: Hello", true}, // lowercase check
+		{"To: dev@group.com\nSubject: Hello", false}, //Why: Validates that group emails where the user is just a recipient (not in 'To') are correctly excluded.
+		{"to: me@example.com\nSubject: Hello", true},  //Why: Ensures case-insensitive header matching for robustness across different email clients.
 	}
 
 	for _, tt := range tests {

@@ -1,3 +1,18 @@
+# Release Notes (Tech) - v2.3.12 (2026-03-28 15:30 UTC)
+
+## 🔄 Core Processing & Translation
+- **[FEAT] Batch Translation Chunking**: Implemented a chunking mechanism for batch translation requests. This prevents timeout issues when processing high-volume datasets by splitting payloads into optimal sizes for the translation engine.
+- **[PERF] Connection Pool Optimization**: Refined database connection pooling strategies to enhance stability during intensive batch operations, reducing latency under high-concurrency scenarios.
+
+## 🐞 Bug Fixes & Stability
+- **[FIX] Gmail Assignee Rendering**: Resolved a critical UI bug (v2.3.4 regression) where the assignee field for tasks imported via Gmail would render as `undefined`. Corrected the context parameter resolution in the `resolveActualAssignee` function.
+- **[STABILITY] Automated Deployment Verification**: Enhanced the CI/CD pipeline by updating `deploy.sh` to include mandatory `npm test` pre-verification. This ensures that only builds passing the full regression suite are deployed to production.
+
+## 🛠️ Internal Refactoring
+- **[SYS] Utility Standardization**: Completed the migration of legacy internal tools into the unified `mc-util` architecture, further decoupling backend services from frontend logic for improved maintainability.
+
+---
+
 # Release Notes - v2.3.11 (2026-03-28 07:07 UTC)
 
 ## 🚀 AI & Data Intelligence

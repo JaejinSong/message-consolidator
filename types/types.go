@@ -8,7 +8,7 @@ type RawMessage struct {
 	Sender    string
 	Text      string
 	Timestamp time.Time
-	ReplyToID string // ID of the message being replied to (if any)
-	ThreadID  string // Slack or Gmail thread ID
-	ChannelID string // Slack channel ID or room ID
+	ReplyToID string //Why: Tracks the original message ID to reconstruct conversation threads during AI-driven task context analysis.
+	ThreadID  string //Why: Groups messages by their respective platform threads to ensure the AI considers the full conversational context.
+	ChannelID string //Why: Identifies the specific communication channel within a workspace to help the user locate the original message if needed.
 }
