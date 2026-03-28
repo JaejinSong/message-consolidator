@@ -33,7 +33,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 RUN mkdir -p /stage/app && \
     mv message-consolidator /stage/app/ && \
     mv static-min /stage/app/static && \
-    cp RELEASE_NOTES_USER.md whatap.conf entrypoint.sh security.conf /stage/app/ && \
+    cp RELEASE_NOTES_*.md whatap.conf entrypoint.sh security.conf /stage/app/ && \
     chmod +x /stage/app/entrypoint.sh
 
 # Final stage
