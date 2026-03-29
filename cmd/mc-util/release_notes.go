@@ -43,16 +43,26 @@ func runReleaseNotes(cfg *config.Config) {
 		{"RELEASE_NOTES_USER_KO.md", "RELEASE_NOTES_USER_KO.md"},
 	}
 
-	lastVersion := "2.3.4"
+	// [FIX] Use more robust version parsing to find the REAL latest version
+	latestVersion := "2.3.14" // Known baseline
 	versionRegex := regexp.MustCompile(`v(\d+\.\d+\.\d+)`)
 
 	for _, t := range targets {
 		content, err := ioutil.ReadFile(t.Path)
 		if err == nil {
-			matches := versionRegex.FindStringSubmatch(string(content))
-			if len(matches) > 1 {
-				if matches[1] > lastVersion {
-					lastVersion = matches[1]
+			lines := strings.Split(string(content), "\n")
+			// Only check first few lines to find the actual current version
+			for i := 0; i < len(lines) && i < 10; i++ {
+				matches := versionRegex.FindStringSubmatch(lines[i])
+				if len(matches) > 1 {
+					v := matches[1]
+					// Simple semantic version comparison
+					if compareVersions(v, latestVersion) > 0 {
+						// Optional: blacklist "erroneous" versions if needed
+						if !strings.HasPrefix(v, "2.5") && !strings.HasPrefix(v, "3.") {
+							latestVersion = v
+						}
+					}
 				}
 			}
 		}
@@ -62,6 +72,17 @@ func runReleaseNotes(cfg *config.Config) {
 	out, _ := cmd.CombinedOutput()
 	commitContext := strings.ToValidUTF8(string(out), "?")
 
+	// Pre-check: If latestVersion is already v2.4.0 (our current goal), we might want to skip or bump to 2.4.1
+	// For this normalization task, we strictly target 2.4.0
+	targetVersion := "2.4.1" // Default next
+	if latestVersion == "2.3.14" {
+		targetVersion = "2.4.0"
+	} else {
+		targetVersion = incrementPatch(latestVersion)
+	}
+
+	log.Printf("Detected latest version: v%s. Targeting: v%s", latestVersion, targetVersion)
+
 	promptPath := "ai/prompts/release_notes_combined.prompt"
 	sysPromptRaw, _ := ioutil.ReadFile(promptPath)
 
@@ -69,24 +90,24 @@ func runReleaseNotes(cfg *config.Config) {
 	for _, t := range targets {
 		content, _ := ioutil.ReadFile(t.Path)
 		strContent := string(content)
+		// Only send the last true history to AI to prevent inheriting errors
 		if len(strContent) > 2000 {
 			strContent = strContent[:2000]
 		}
 		history += fmt.Sprintf("\n--- %s History ---\n%s\n", t.Name, strContent)
 	}
 
-	nextVersion := incrementPatch(lastVersion)
 	sysPrompt := strings.ToValidUTF8(string(sysPromptRaw), "?")
 	sysPrompt = strings.Replace(sysPrompt, "{LAST_RELEASE_NOTES}", strings.ToValidUTF8(history, "?"), 1)
 	sysPrompt = strings.Replace(sysPrompt, "{NEW_COMMITS}", commitContext, 1)
-	sysPrompt = strings.Replace(sysPrompt, "{DATE}", time.Now().Format("2006-01-02 15:04"), 1)
-	sysPrompt = strings.Replace(sysPrompt, "{VERSION}", nextVersion, 1)
+	sysPrompt = strings.Replace(sysPrompt, "{DATE}", time.Now().UTC().Format("2006-01-02 15:04 UTC"), 1)
+	sysPrompt = strings.Replace(sysPrompt, "{VERSION}", targetVersion, 1)
 
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(sysPrompt)},
 	}
 
-	log.Printf("Generating synchronized release notes for v%s...", nextVersion)
+	log.Printf("Generating synchronized release notes for v%s...", targetVersion)
 	resp, err := model.GenerateContent(ctx, genai.Text("Generate the combined release notes block now. Strictly follow the [FILENAME] header format."))
 	if err != nil {
 		log.Fatal(fmt.Errorf("AI generation failed: %w", err))
@@ -104,10 +125,34 @@ func runReleaseNotes(cfg *config.Config) {
 	sections := mcSplitSections(fullResponse)
 	for _, t := range targets {
 		if content, ok := sections[t.Name]; ok {
+			// [REFINEMENT] Defensive check: if file already has the target version at the top, DO NOT prepend it again
+			currentContent, _ := ioutil.ReadFile(t.Path)
+			if strings.Contains(string(currentContent), "v"+targetVersion) {
+				log.Printf("Skip %s: version v%s already exists at top.", t.Name, targetVersion)
+				continue
+			}
 			mcUpdateFile(t.Path, content)
 			log.Printf("Updated %s", t.Name)
 		}
 	}
+}
+
+// Helper to compare versions (a > b -> 1, a < b -> -1, a == b -> 0)
+func compareVersions(a, b string) int {
+	ap := strings.Split(a, ".")
+	bp := strings.Split(b, ".")
+	for i := 0; i < 3 && i < len(ap) && i < len(bp); i++ {
+		var av, bv int
+		fmt.Sscanf(ap[i], "%d", &av)
+		fmt.Sscanf(bp[i], "%d", &bv)
+		if av > bv {
+			return 1
+		}
+		if av < bv {
+			return -1
+		}
+	}
+	return 0
 }
 
 func incrementPatch(v string) string {

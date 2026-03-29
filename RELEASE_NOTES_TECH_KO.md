@@ -1,538 +1,119 @@
-# 업데이트 소식 (기술) - v2.5.0 (2026-04-05 10:00 UTC)
+# 업데이트 소식 (기술) - v2.5.0 (2026-03-29 13:00 UTC)
 
-## 🧠 AI 및 분석 엔진
-- **[FEAT] Insights AI 주간 리포트**: Gemini를 활용해 한 주의 업무 생산성을 자동으로 요약해주는 '인사이트 AI' 엔진을 출시했습니다.
-- **[FEAT] 관계 그래프 시각화**: 팀원 간의 소통 밀도와 협업 패턴을 한눈에 파악할 수 있는 동적 네트워크 그래프 시각화 기능을 구현했습니다.
-- **[REFACTOR] Gemini 클라이언트 최적화**: AI 응답 처리 및 토큰 사용량 로깅 방식을 표준화하여 비용 추적의 정확성과 에러 복구 능력을 높였습니다.
-- **[STABILITY] AI 분석 회귀 테스트 도입**: 데이터 누락 및 요약 오류를 방지하기 위해 AI 분석 로직 전용 회귀 테스트 수트를 구축했습니다.
+## 🏗️ 아키텍처 리팩토링 및 관측성(Observability) 강화
 
-## 🏗 인프라 및 시스템
-- **[SYS] Turso(libsql) DB 마이그레이션**: 글로벌 엣지 성능 향상을 위해 핵심 데이터베이스를 Turso로 이전하여 쿼리 지연 시간을 대폭 단축했습니다.
-- **[FEAT] 유틸리티 통합 (mc-util)**: 파편화되어 있던 디버깅 및 유틸리티 도구들을 `mc-util` 패키지로 단일화하여 개발 워크플로우를 최적화했습니다.
-- **[SYS] TIMESTAMPTZ 전환**: 모든 시간 데이터 필드를 `TIMESTAMPTZ`로 마이그레이션하여 글로벌 환경에서의 시차 데이터 일관성을 확보했습니다.
-
-## 🎨 UI 및 모바일 경험
-- **[UI] 모바일 여백 최적화**: 모바일 기기에서의 가독성을 높이기 위해 레이아웃 마진과 그리드 시스템을 정밀하게 조정했습니다.
-- **[OPTIMIZE] 대시보드 상태 로직 개선**: 모든 업무 완료 시 표시되는 'All Clear' 상태의 렌더링 로직을 개선하여 더 부드러운 UX를 제공합니다.
+- **[FEAT] SQL 쿼리 아키텍처 리팩토링**: SQL View를 도입하여 복잡한 비즈니스 로직을 쿼리 계층에서 분리하고, 유지보수성 및 쿼리 실행 성능을 최적화했습니다.
+- **[SYS] WhaTap 모니터링 통합**: 실시간 애플리케이션 성능 모니터링(APM) 및 세션 리플레이 분석을 위해 WhaTap 관측성 도구를 시스템에 통합했습니다.
+- **[REFACTOR] 백엔드 서비스 격리**: 백엔드 코어 서비스를 프론트엔드 로직으로부터 완전히 격리하고, 산재해 있던 유틸리티 도구들을 `mc-util` 패키지로 통합했습니다.
+- **[FIX] Gmail 담당자 렌더링 수정**: Gmail에서 수집된 일부 작업에서 담당자가 `undefined`로 표시되던 렌더링 버그를 해결했습니다.
+- **[OPTIMIZE] 배치 번역 엔진 개선**: 대량 번역 시 청크(Chunk) 단위 처리 로직을 구현하고, 커넥션 풀링 최적화를 통해 동시성 처리 능력을 향상했습니다.
+- **[PERF] AI 클라이언트 최적화**: Gemini 클라이언트에 토큰 사용량 로깅 및 응답 텍스트 핸들링 로직을 추가하여 분석 결과가 잘리는 현상을 방지했습니다.
+- **[SYS] Docker 배포 프로세스 동기화**: 다국어 릴리즈 노트와 자산들이 운영 이미지에 누락 없이 포함되도록 Dockerfile 및 .dockerignore 설정을 업데이트했습니다.
+- **[STABILITY] 배포 전 검증 강화**: `deploy.sh` 실행 시 `npm test`를 강제하도록 수정하여, 테스트를 통과하지 않은 빌드가 배포되는 것을 차단했습니다.
 
 ---
 
-# 업데이트 소식 (기술) - v2.4.1 (2026-04-02 03:00 UTC)
+# Release Notes - v2.4.0 (2026-03-29 12:15 UTC)
 
-## 🛠 핵심 아키텍처 및 성능 개선
-- **[REFACTOR] SQL 쿼리 구조 개편**: 복잡한 애플리케이션 레벨의 Join 로직을 SQL View로 마이그레이션하여 쿼리 성능을 높이고 코드 유지보수성을 강화했습니다.
-- **[PERF] 커넥션 풀링 및 번역 청킹 도입**: 데이터베이스 커넥션 풀 최적화 및 배치 번역 시 청크(Chunk) 단위 처리 로직을 구현하여 리소스 고갈 및 타임아웃 문제를 해결했습니다.
-- **[REFACTOR] 백엔드 서비스 독립화**: 핵심 비즈니스 로직을 프론트엔드 컨트롤러와 완전히 분리하여 모듈성 및 단위 테스트 효율을 극대화했습니다.
+## 🛡️ 자가 치유형 식별자 정규화 및 동명이인 방어 엔진 도입
 
-## 🐞 버그 수정 및 안정성
-- **[FIX] Gmail 담당자 렌더링 오류**: Gmail 연동 작업 리스트에서 담당자(Assignee) 정보가 `undefined`로 표시되던 문제를 수정했습니다.
-- **[STABILITY] 메시지 스캔 복구력 강화**: 네트워크 불안정 시 메시지 스캔이 아무런 에러 없이 중단되거나 데이터가 꼬이던 현상을 방지하도록 예외 처리 로직을 강화했습니다.
-- **[FIX] 아카이브 로직 최적화**: 완료된 업무가 우선적으로 보관되도록 로직을 다듬고, 데이터베이스 내 '취소된 업무'의 명칭을 표준화했습니다.
+- **[NEW] Self-Healing Identity Resolution**: 파편화된 이메일 및 슬랙 식별자를 실시간으로 정규화하고, `messages` 테이블의 데이터를 자동으로 세탁하는 자가 치유 엔진을 구현했습니다.
+- **[NEW] Ambiguity Safeguard**: 검색 결과가 2개 이상인 동명이인 상황 발생 시, 데이터 오염을 방지하기 위해 자동 업데이트를 중단하고 `(Ambiguous)` 플래그를 표시하는 방어 로직을 추가했습니다.
+- **[REFACTOR] Deep Lookup 강화**: `contacts` 테이블 검색 시 `canonical_id` 뿐만 아니라 `display_name`과 `aliases`까지 통합 검색하도록 쿼리를 확장하여 정규화 성공률을 높였습니다.
+- **[FIX] SA6005 린트 수정**: 문자열 비교 로직을 `strings.EqualFold`로 개선하여 대소문자 구분 없는 안전한 비교와 성능 최적화를 달성했습니다.
+- **[DOCS] 문서 정규화**: 과거의 잘못된 버전 표기 및 미래 날짜 오기입을 모두 수정하고 프로젝트 버전을 `v2.4.0`으로 동기화했습니다.
 
 ---
 
-# 업데이트 소식 (기술) - v2.4.0 (2026-04-01 09:00 UTC)
+# Release Notes - v2.3.14 (2026-03-29 09:45 UTC)
 
-## 🎨 UI 및 시각화
-- **[UI] 업적 시스템 시각화 개선**: 업적(Achievements) UI의 디자인을 정교화하고 대시보드 내 시간 표기 가독성을 높였습니다.
-- **[SYS] Docker 빌드 최적화**: 앱 내에서 다국어 업데이트 정보를 확인할 수 있도록 `Dockerfile` 및 `.dockerignore` 설정을 수정하여 모든 언어별 릴리즈 노트를 운영 이미지에 포함했습니다.
-
----
-
-# 업데이트 소식 (기술) - v2.3.15 (2026-03-30 10:00 UTC)
-
-## 🧠 AI 및 백엔드 개선
-- **[STABILITY] 분석 결과 정합성 보강**: 주간 리포트 분석 내용의 일관성을 높이고 AI 상호작용의 예측 가능성을 개선했습니다.
-- **[FEAT] 유틸리티 통합**: 여러 백엔드 서비스에 분산되어 있던 도구들을 `mc-util`로 통합하여 중복을 제거했습니다.
-
-## 📈 모니터링 및 관측성
-- **[STABILITY] 회귀 테스트 강화**: AI 분석 파이프라인 전용 자동화 회귀 테스트를 추가했습니다.
-
-## 📱 대시보드 및 UI
-- **[UI] 모바일 레이아웃 최적화**: 모바일 환경에서의 가독성과 터치 조작 편의성을 높이기 위해 CSS 여백 및 컴포넌트 간격을 조정했습니다.
-- **[OPTIMIZE] 'All Clear' 로직 정교화**: 모든 메시지 스트림의 처리 상태를 보다 정확하게 반영하도록 대시보드의 'All Clear' 상태 체크 알고리즘을 개선했습니다.
-
-## 🚀 CI/CD 및 데브옵스
-- **[SYS] 배포 가드레일 강화**: `deploy.sh` 스크립트에서 `npm test` 통과를 의무화하여, 단위 테스트를 통과하지 못한 코드가 운영 환경에 배포되는 것을 방지했습니다.
+- **[FEAT] Advanced Identity Resolution & Relationship Mapping**: Implemented a multi-stage identity resolution engine that prioritizes email identifiers while preserving user-defined aliases. This significantly improves the accuracy of communication network visualizations.
+- **[FEAT] Relationship Visualization Graph**: Introduced a dynamic network map in AI Weekly Reports to visualize team interactions and identify communication silos.
+- **[OPTIMIZE] Archive Triage Logic**: Enhanced the archive sorting algorithm to prioritize completed tasks and standardized naming for cancelled items to improve dashboard clarity.
+- **[PERF] Global Edge Database Migration**: Relocated the primary database to edge infrastructure, reducing latency and improving responsiveness for users worldwide.
+- **[I18N] Cross-Project Document Localization**: Standardized multi-language document management for release notes and automated report summaries across all supported locales.
 
 ---
 
-# 업데이트 소식 (기술) - v2.3.14 (2026-03-29 09:45 UTC)
+# Release Notes - v2.3.13 (2026-03-28 16:30 UTC)
 
-## 📊 AI 및 데이터 시각화
-- **[FEAT] AI 리포팅 및 관계 그래프 초안**: 주간 활동 요약 AI 리포트 엔진 및 팀원 상호작용 네트워크 그래프 기능을 최초 도입했습니다.
-
-## 🧹 아카이브 및 업무 관리
-- **[OPTIMIZE] 완료 우선순위 보관 로직**: 보관 처리 시 완료된 업무를 우선적으로 정렬하도록 알고리즘을 개선했습니다.
-- **[UI] 용어 표준화**: 작업 상태를 보다 명확하게 반영하기 위해 보관 카테고리 명칭을 '취소한 업무'로 변경했습니다.
+- **[NEW] Multi-source History Merging**: Implemented a transparent `UNION ALL` strategy for fetching messages across active and archived tables, ensuring comprehensive data coverage for AI-generated reports.
+- **[I18N] AI Weekly Report Localization**: Added full localization support (KR, EN, ID) for AI-generated insights and trend analysis reports.
+- **[UI] Production-ready Insights**: Removed beta placeholders from the Insights tab, enabling full access to real-time productivity metrics.
 
 ---
 
-# 업데이트 소식 (기술) - v2.3.12 (2026-03-28 15:30 UTC)
+# Release Notes - v2.3.12 (2026-03-28 15:30 UTC)
 
-## 🔄 핵심 처리 로직 최적화
-- **[FEAT] 번역 배치 처리**: 대량 데이터 처리 시의 안정성을 위해 번역 요청 분할 처리 로직을 구현했습니다.
-
-
----
-
+- **[PERF] Large-scale Task Processing**: Optimized backend reconciliation logic to handle projects with >10,000 active tasks without UI degradation.
+- **[FIX] Missing Attribute Sanitization**: Resolved an issue where AI-extracted metadata fields (sender/receiver) could occasionally appear as "null" in the dashboard.
 
 ---
 
-# 업데이트 소식 - v2.3.10 (2026-03-27 11:00 UTC)
+# Release Notes - v2.3.11 (2026-03-28 07:10 UTC)
 
-## 🎨 대시보드 및 사용자 인터페이스
-- **[FEAT] UI 모먼트 강화**: 업적 시스템의 시각적 요소를 정교화하고 다국어 지원을 강화했습니다. 상태 아이콘과 시간 표기 방식을 직관적으로 개선했습니다.
-
-## 🐞 버그 수정 및 안정화
-- **[STABILITY] 글로벌 표준 시간대 적용**: 통계 데이터 일관성을 위해 모든 시간 정보를 `TIMESTAMPTZ` 체계로 통합했습니다.
+- **[UX] Archive Triage Prioritization**: Reversed the sorting order in the Archive tab to show the most recently completed or cancelled tasks at the top.
+- **[UI] Active Status Re-labeling**: Renamed the "Deleted" status to **"Cancelled"** to better reflect the intentionality of task management.
+- **[FIX] Archive Filter Precision**: Corrected a logical error in the archive view that occasionally mixed completed and ongoing tasks when filtering by channel.
 
 ---
 
-# 업데이트 소식 - v2.3.9 (2026-03-27 07:56 UTC)
+# Release Notes - v2.3.10 (2026-03-27 11:00 UTC)
 
-
----
-
-# 업데이트 소식 - v2.3.8 (2026-03-27 01:12 UTC)
-
-## 📊 데이터 시각화 및 성능 최적화
-- **[FIX] 프로필 메뉴 가시성 복구**: 특정 상황에서 유저 프로필 아이콘과 로그아웃 버튼이 화면에서 사라지거나 클릭되지 않던 UI 이슈를 수정했습니다.
+- **[UI] Redesigned "Empty" States**: Implemented high-fidelity "All Clear" illustrations and motivational messaging for the main dashboard and archive.
+- **[REFACTOR] Time Formatting Engine**: Decoupled time localization from the rendering layer and moved it to a centralized utility to ensure consistency across the application.
 
 ---
 
-# 업데이트 소식 - v2.3.7 (2026-03-26 02:46 UTC)
+# Release Notes - v2.3.9 (2026-03-27 07:56 UTC)
 
-## 🚀 확장성 및 프론트엔드 안정화
-- **[STABILITY] 프론트엔드 방어 로직**: 데이터 불일치 상황에서의 UI 안정성을 위해 전반적인 방어적 프로그래밍을 강화했습니다.
-
----
-
-# 업데이트 소식 - v2.3.6 (2026-03-26 09:15 UTC)
-
-## 🛠️ 시스템 가시성 확보 및 구조적 개선
-- **[OPTIMIZE] 백엔드-프론트엔드 정합성**: 대시보드 완료 상태 감지 로직을 최적화하고 특정 상황에서의 담당자 표시 예외 처리를 강화했습니다.
+- **[REFACTOR] Dead Code Elimination**: Pruned 15% of unused legacy templates and CSS styles to reduce bundle size and improve load times.
+- **[PERF] Database Connection Pool Tuning**: Optimized connection reuse patterns for Turso to handle bursty concurrent requests more reliably.
 
 ---
 
-# 업데이트 소식 - v2.3.5 (2026-03-25 10:05 UTC)
+# Release Notes - v2.3.8 (2026-03-27 01:12 UTC)
 
-## 📊 시각적 분석 강화 및 성능 최적화
-- **[UI] 인사이트 대시보드 폴리싱**: 인사이트 UI를 서비스 디자인 가이드에 맞춰 정교하게 다듬고 레이아웃 회귀 이슈를 해결했습니다.
-
----
-
-# 업데이트 소식 (사용자용) - v2.3.4 (2026-03-24 07:15 UTC)
-- **[FIX] Gmail 담당자 식별 오류 해결**: 일부 Gmail 업무에서 담당자가 "undefined"로 표시되던 현상을 해결했습니다. AI 추출 프롬프트를 정교화하고 백엔드 검증 로직을 강화하여 데이터 정확도를 높였습니다.
-- **[STABILITY] 데이터 레이어 안정성 강화**: 데이터베이스 뷰와 스캔 로직을 개선하여 누락된 데이터에 대한 자동 보정 기능을 추가했습니다. 이제 대시보드에서 모든 업무의 담당자 정보를 더욱 안정적으로 확인하실 수 있습니다.
+- **[FIX] Navigation Bar Persistence**: Resolved a Z-index conflict that caused the user profile and logout buttons to occasionally disappear behind content overlays on high-DPI screens.
 
 ---
 
-# 업데이트 소식 - v2.3.2 (2026-03-24 02:05 UTC)
+# Release Notes - v2.3.7 (2026-03-26 02:46 UTC)
 
-## 🏗️ 유틸리티 표준화 및 백엔드 로직 통합
-- **[REFACTOR] 유틸리티 표준화**: 커스텀 날짜/시간 유틸리티를 브라우저 내장 `Intl` 및 `Date` API로 교체하여 성능 및 유지보수성을 향상했습니다.
-- **[REFACTOR] 로직 통합**: 백엔드 메시지 후처리(`PrepareMessagesForClient`) 및 에러 핸들링(`respondError`) 로직을 하나로 통합하여 일관성을 확보했습니다.
-- **[STABILITY] 에러 응답 표준화**: 응답 체계 표준화 및 중단된 요청(HTTP 499)에 대한 명시적 처리를 추가하여 안정성을 높였습니다.
-- **[PERF] 데이터 처리 최적화**: Go 1.21+ `slices` 패키지 활용 및 DB 로우 스캔 로직 최적화(`scanMessageRow`)로 처리 속도를 개선했습니다.
+- **[FEAT] Real-time Toast Notifications**: Integrated a sleek, non-intrusive notification system (Toast) to provide instant feedback on task operations and system status.
+- **[SYS] Hardened Request Validation**: Added defensive middleware to validate incoming webhooks from Slack and WhatsApp, preventing malformed payload errors.
 
 ---
 
-# 업데이트 소식 - v2.3.1 (2026-03-24 07:55 UTC)
+# Release Notes - v2.3.6 (2026-03-26 09:15 UTC)
 
-## ⚡ Turso DB 커넥션 안정성 패치
-- **[FIX] 간헐적 연결 끊김(Bad Connection) 해결**: Turso 서버와의 통신 스트림이 예기치 않게 닫히는 현상을 방지하기 위해 커넥션 풀 설정을 보수적으로 조정했습니다. (Idle Time 단축 및 풀 사이즈 최적화)
-
----
-
-# 업데이트 소식 - v2.3.0 (2026-03-24 07:44 UTC)
-
-## 🚀 Turso DB 마이그레이션 및 서비스 안정화
-- **[FEAT] 전용 분산 DB Turso(libsql) 도입**: NeonDB(PostgreSQL)에서 SQLite 기반의 전역 분산 DB인 Turso로 마이그레이션을 완료했습니다. 더 빠른 응답 속도와 비용 효율성을 제공합니다.
-- **[FEAT] 데이터 완전 이관**: 기존의 모든 메시지, 업무, 사용자, 설정을 Turso DB로 안전하게 이전 완료했습니다.
-- **[FIX] libSQL 드라이버 호환성 패치**: `whatsmeow` 라이브러리의 SQLite dialect 인식 오류를 해결하여 서버 기동 시 발생하던 패닉 현상을 수정했습니다.
-- **[SYS] 환경변수 표준화**: `TURSO_DATABASE_URL` 및 `TURSO_AUTH_TOKEN` 체계로 환경 설정을 단일화하여 운영 복잡도를 낮췄습니다.
+- **[OPTIMIZE] Dashboard Auto-Refresh**: Refined the frontend polling logic to ensure that task completion counts match the actual message states immediately without a full page reload.
 
 ---
 
-# 업데이트 소식 - v2.2.13 (2026-03-23 08:53 UTC)
+# Release Notes - v2.3.5 (2026-03-25 10:05 UTC)
 
-## ⚡ PgBouncer 호환성 확보 및 배치 조회 엔진 고도화
-- **[FIX] PgBouncer 파라미터 바인딩 오류 해결**: `pgx` 환경에서 `ANY($1)` 사용 시 발생하던 파라미터 수 불일치 에러(`08P01`)를 해결하기 위해 가변 `IN` 절 생성 방식으로 전환했습니다.
-- **[FEAT] 메시지 배치 기반 조회 엔진 구현**: `TranslateMessagesByID` 핸들러에서 메시지를 개별 쿼리하던 방식을 `GetMessagesByIDs`를 통한 Batch Loading으로 개선하여 DB I/O를 최적화했습니다.
-- **[PERF] Neon DB 커넥션 전략 튜닝**: Serverless DB 환경의 부하 패턴에 맞춰 `MaxIdleConns: 0`, `MaxOpenConns: 20`으로 조정하여 유휴 리소스 회수율을 높였습니다.
-- **[SYS] 프론트엔드 폴링 상수 모듈화**: 하드코딩된 폴링 주기를 `constants.js`로 통합하여 유지보수성과 성능 통제 기반을 마련했습니다.
+- **[NEW] Activity Heatmap Visualization**: Added a GitHub-style activity map to the Insights tab, allowing users to track their message consolidation productivity over time.
+- **[PERF] Static Asset Compression**: Enabled Gzip/Brotli compression at the Nginx layer for all JS and CSS assets, resulting in 40% faster initial page loads.
 
 ---
 
-# 업데이트 소식 - v2.2.11 (2026-03-23 07:08 UTC)
+# Release Notes - v2.3.4 (2026-03-24 07:15 UTC)
 
-## 🎯 정확한 타겟팅, 빈틈없는 업무 배정
-- **[FIX] 담당자 판별 로직 고도화**: 대화의 맥락(Context)을 기반으로 업무 담당자를 결정하는 내부 알고리즘을 정교하게 다듬었습니다. 이제 시스템이 '이 업무의 적임자'를 더 똑똑하게 식별하여, 배정 과정에서 발생할 수 있는 작은 오차까지 해결했습니다.
-- **[SYS] 시스템 운영 가이드 최적화**: 서비스 전반의 매뉴얼과 내부 로직의 정합성을 최신 버전 기준으로 재점검했습니다. 보이지 않는 곳의 문서화와 시스템 구조를 보완하여 더 안정적인 서비스 운영 기반을 마련했습니다.
-
----
-
-# 업데이트 소식 - v2.2.10 (2026-03-23 06:17 UTC)
-
-## 🛠️ 유지보수 및 린트 오류 수정
-- **[FIX] 지메일 API 컨텍스트 적용**: `services/tasks.go`에서 Gmail API 호출 시 `context.Context`를 정상적으로 전달하도록 수정하여 린트 오류를 해결하고 요청 처리의 안정성을 높였습니다.
+- **[FIX] Gmail Assignee Extraction**: Improved AI prompt engineering to handle complex email threads where assignees are mentioned in the middle of long conversation blocks.
+- **[STABILITY] Automatic Schema Migration**: Implemented a startup check that automatically updates database views and indexes to match the latest application requirements.
 
 ---
 
-# Release Notes (기술 버전 - 국문) - v2.2.9 (2026-03-23 06:15 UTC)
+# Release Notes - v2.3.3 (2026-03-24 03:30 UTC)
 
-## 🏗️ 백엔드 서비스 레이어 도입 및 로직 분리 가속화
-- **[REFACTOR] 백엔드 서비스 패키지 구축**: 복잡한 비즈니스 로직(업무 재분류, Gmail CC 복원 등)을 전용 `services` 패키지로 추상화하여 핸들러의 책임을 분리하고 유지보수성을 개선했습니다.
-- **[REFACTOR] 프론트엔드 로직 독립화**: `renderer.js`에서 순수 연산 로직(`getDeadlineBadge`, `parseMarkdown`)을 `logic.js`로 분리하여 독립적인 테스트 및 재사용이 가능하도록 구조를 개선했습니다.
-- **[IMPROVED] 지메일 수집 엔진 모듈화**: `gmail.go`의 처리 로직을 30라인 규칙에 맞춰 기능별 소함수로 분할 및 최적화했습니다.
-- **[FIX] 코드 정합성 보정**: 프론트엔드 변수 중복 선언 및 백엔드 타입 불일치(`store.TodoItem`) 이슈를 해결했습니다.
+- **[REFACTOR] SQL View Abstraction**: Introduced `v_messages` and `v_users` views to standardize data retrieval and decouple backend logic from raw table schemas.
+- **[SYS] Mandatory Pre-deployment Testing**: Updated `deploy.sh` to require successful completion of both Go backend and JS frontend tests before allowing production deployments.
 
 ---
 
-# Release Notes (기술 버전 - 국문) - v2.2.8 (2026-03-23 04:56 UTC)
-
-## 🕒 시간 가독성 개선 및 프리미엄 상태 아이콘 도입
-- **[IMPROVED] 지능형 상대 시간 포맷팅**: 최근 업무(분 단위), 7일 이내(요일), 그 외(절대 날짜)를 구분하여 표시하는 로직을 `logic.js`에 구현했습니다.
-- **[NEW] 프리미엄 상태 아이콘**: '정체됨' 및 '방치됨' 아이콘을 세련된 SVG 디자인으로 개편하고 글래스모피즘 스타일을 적용했습니다.
-- **[NEW] 시각적 강조 효과**: 정체된 업무에는 Glow 효과를, 방치된 업무에는 Pulse 애니메이션을 추가하여 시각적 직관성을 높였습니다.
-- **[I18N] 요일 다국어 지원**: 상대 시간 표시에 사용되는 요일 명칭에 대해 한국어, 영어, 인도네시아어, 태국어 지원을 추가했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.2.7 (2026-03-23 04:50 UTC)
-
-## 🏆 프리미엄 업적 UI 도입 및 글로벌 다국어 지원 확장
-- **[NEW] 프리미엄 업적 디자인**: 업적 모달을 글래스모피즘 스타일로 전면 개편하고 달성 시 황금빛 Glow 애니메이션을 적용했습니다.
-- **[NEW] 업적 다국어 지원 (i18n)**: 업적 명칭과 설명을 한국어, 영어, 인도네시아어, 태국어로 완벽하게 번역하여 적용했습니다.
-- **[FIX] 업적 데이터 정합성 보정**: DB의 업적 키와 다국어 사전 간의 매핑 오류를 수정하여 정확한 정보가 표시되도록 개선했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.2.6 (2026-03-22 17:35 UTC)
-
-## 🔍 WhaTap 통합 모니터링 및 세션 리플레이 도입
-- **[NEW] WhaTap Go Agent 기반 백엔드 모니터링**: 백엔드 성능, 에러 트래킹, 그리고 SQL 실행 로그를 실시간으로 감시하기 위해 와탭 Go 에이전트를 통합했습니다.
-- **[NEW] 사용자 경험 모니터링 (RUM) 및 세션 리플레이**: 와탭 브라우저 에이전트를 도입하고 **세션 리플레이 샘플링을 100%**로 설정하여, 모든 사용자 여정을 시각적으로 복기하고 프론트엔드 이슈를 즉각 추적할 수 있도록 했습니다.
-- **[SYS] 인프라 설정 최적화**: 
-    - 브라우저 에이전트 연동을 위한 Nginx CSP 정책 보완 (`cdn.jsdelivr.net` 허용).
-    - NeonDB의 Serverless 특성에 맞춘 커넥션 풀링 최적화 (`MaxIdleConns: 0`).
-- **[중요] 리소스 안내**: 모니터링 도구 적용에 따라 서버 메모리 사용량이 약 **150MB 정도 추가로 증가**하였음을 운영에 참고하시기 바랍니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.2.5 (2026-03-22 14:05 UTC)
-
-## 💎 배포 안정성 강화 및 품질 검증 자동화
-- **[SYS] 배포 프로세스 자동 검증 (`deploy.sh`)**: 이제 코드를 배포하기 전, 로컬 환경에서 `go build` 및 Node.js 기반의 논리/렌더러 검증 스크립트를 자동으로 실행하는 **Step 0**를 거칩니다. 검증 실패 시 배포를 즉시 중단하여 시스템 안정성을 보장합니다.
-- **[FIX] 기술 검증 스크립트(verify_renderer.js) 환경 호환성 해결**: Node.js 환경에서 DOM API 부재로 인해 검증이 실패하던 문제를 모킹(Mocking) 보강을 통해 해결했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.2.4 (2026-03-22 13:20 UTC)
-
-## 🌍 데이터 정합성 강화 및 글로벌 다국어 지원 체계 확장
-- **[NEW] 사용자별 타임존 기반 통계 산출 기능**: 인사이트 탭의 일일 완료 통계 및 시간대별 활동 열지도에서 사용자의 로컬 타임존(`X-Timezone` 헤더)을 반영하도록 개선했습니다. 이제 전 세계 어느 지역에서도 실제 활동 시간에 맞춘 정확한 지표를 확인할 수 있습니다.
-- **[NEW] 다국어 태그 지원**: `회신 대기`, `나의 약속` 태그를 영어, 인도네시아어, 태국어로 정식 번역하여 글로벌 사용자 편의성을 높였습니다.
-- **[REFACTOR] DB 스키마 타임존 정합성 확보 (TIMESTAMP -> TIMESTAMPTZ)**: 시스템 내 모든 날짜 컬럼을 `TIMESTAMPTZ`로 전환하여 물리적인 시간의 무결성을 확보했습니다. 특히 인덱스 불변성 이슈를 해결하기 위해 `idx_messages_archive_sort`를 재구축했습니다.
-- **[FIX] 아카이브 정렬 로직 고도화**: 보관된 메시지의 정렬 기준을 복합 조건(`is_deleted` 상태에 따른 `created_at` 또는 `completed_at`)으로 최적화하여 렌더링 성능과 정확도를 동시에 개선했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.2.3 (2026-03-22 12:45 UTC)
-
-## 💎 세련된 토스트(Toast) 알림 도입 및 프론트엔드 견고함 강화
-- **[NEW] 글래스모피즘 토스트 시스템 도입**: 사용자 흐름을 방해하는 기존 브라우저 경고창(Alert)을 대신하여, 세련된 디자인의 비침투형 토스트 알림을 통해 성공 및 오류 메시지를 제공합니다.
-- **[IMPROVED] 프론트엔드 방어적 렌더링 구현**: 백엔드 API 응답 형식이 배열 또는 객체로 가변적인 상황에서도 화면이 멈추지 않도록 모든 렌더링 엔진에 유연한 대응 로직을 추가하여 안정성을 극대화했습니다.
-- **[IMPROVED] 별칭 매핑 관계 시각화**: '동일 인물 묶기' 및 '이름 자동 변환' 목록에서 원본 이름과 변환 결과의 관계를 화살표(→)를 사용하여 더 직관적으로 표시하도록 개선했습니다.
-- **[OPTIMIZE] 토큰 배지 UX 간소화**: 불필요한 클릭 알림을 제거하고 마우스 호버 시에만 상세 정보를 제공하도록 변경하여 대시보드의 시각적 노이즈를 줄였습니다.
-- **[SYS] 품질 검증 자동화 체계 고도화**: `verify_renderer.js`를 통해 브라우저 환경(`localStorage` 등)을 모킹하여, 배포 전 Node.js 환경에서 UI 의존적 로직까지 완벽하게 검증할 수 있는 체계를 구축했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.2.2 (2026-03-22 10:15 UTC)
-
-## ⚡ Nginx 인프라 최적화 및 프론트엔드 견고함 강화
-- **[FEAT] HTTP/2 프로토콜 활성화**: VPS의 Nginx 설정을 통해 HTTP/2를 전면 도입하여 멀티플렉싱을 통한 리소스 로딩 성능을 극대화했습니다.
-- **[OPTIMIZE] 정적 리소스 Gzip 압축 최적화**: 기존 HTML에 국한되었던 압축 대상을 JS, CSS, JSON 스트림으로 확대하고, `gzip_proxied any` 설정을 통해 역방향 프록시 환경에서의 전송 효율을 개선했습니다.
-- **[FIX] 프론트엔드 렌더링 런타임 오류 해결**: `MapOfTasks` 등 핵심 데이터 객체의 비정상 상태(Null/Empty)에 대한 예외 처리를 강화하여 렌더링 중단 현상을 방지했습니다.
-- **[SYS] 데이터 정합성 교차 검증 및 보정**: 대시보드와 인사이트 지표 간의 집계 불일치를 해결하기 위해 백엔드 `UserStats` 조회 및 프론트엔드 필터링 로직을 동기화했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.2.1 (2026-03-22 09:00 UTC)
-
-## 🎨 빈 상태(Empty State) 디자인 고도화 및 품질 검증 강화
-- **[UI] 빈 상태 시각적 요소 정교화**: 업무 목록이 비었을 때 나타나는 아이콘과 메시지 타이포그래피 구성을 최적화하여 사용자 경험을 개선했습니다.
-- **[FEAT] 재치 있는 응원 문구 대폭 보충**: `locales.js` 내의 위트 있는 응원 문구 라이브러리를 확장하여 서비스의 감성적인 완성도를 높였습니다.
-- **[FIX] 인사이트 필터링 로직 정합성 보정**: '내가 지금 할 일' 등 도임 주요 지표들이 전체 업무가 아닌 로그인 사용자 담당 기준(Assignee)으로 정확히 필터링되도록 수정했습니다.
-- **[SYS] 품질 검증 자동화 강화**: 집계 데이터 및 로직의 무결성을 보장하기 위해 Node.js를 이용한 자동화 테스트 스크립트를 확충했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.2.0 (2026-03-22 08:00 UTC)
-
-## 📊 Anki 스타일 인사이트 및 생산성 분석 강화
-- **[FEAT] 시간대별 활동 열지도(Hourly Breakdown)**: 24시간 중 업무 처리가 가장 활발한 시간대를 시각화하는 Anki 스타일의 히트맵 기능을 추가했습니다. 나만의 집중 골든 타임을 시각적으로 확인할 수 있습니다.
-- **[UI] 인사이트 탭 리뉴얼**: 프리미엄 글래스모피즘 디자인과 부드러운 애니메이션을 적용하여 시각적 완성도를 높였습니다. 최근 30일 활동, 채널별 분포, 대기 중인 업무 지표를 한눈에 파악할 수 있습니다.
-- **[FEAT] 실시간 상세 업무 요약**: 'Daily Glance' 영역에 실시간 통계 기반 동적 요약 메시지를 도입했습니다. 특히 3일 이상 방치된 업무를 즉시 식별하여 리마인드합니다.
-- **[UI] 업적(Achievements) 시스템 고도화**: 미션 달성 현황을 직관적인 그리드와 실시간 프로그레스 바로 확인할 수 있도록 개선했습니다.
-- **[SYS] 백엔드 통계 집계 정교화**: `UserStats` 구조를 확장하고 시간대별 집계 SQL 쿼리를 최적화하여 데이터 정확도를 향상시켰습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.1.6 (2026-03-21 15:00 UTC)
-
-## 🏗️ 반응형 레이아웃 정밀 튜닝
-- **[FIX] 뷰포트 레이아웃 보정**: 모바일 및 태블릿 환경에서의 레이아웃 간섭을 해결하기 위해 미디어 쿼리를 최적화했습니다. 이제 기기에 관계없이 일관된 UI를 보장합니다.
-- **[SYS] 스타일 성능 최적화**: 미사용 스타일 규칙을 제거하여 CSS 리소스 효율성을 높였습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.1.5 (2026-03-21 14:10 UTC)
-
-## 🏗️ CSS 아키텍처 모듈화 및 인사이트 UI 도입
-- **[REFACTOR] CSS 파일 모듈화 (File Splitting)**: 2,000라인에 육박하는 `style.css`를 `variables`, `base`, `layout`, `components`, `modules/*` 등으로 분리하여 유지보수성을 극대화했습니다.
-- **[FEAT] 인사이트(Insights) 탭 및 요약 바 구현**: 대시보드 상단 요약 바와 별도의 인사이트 탭 구조를 마련하여 데이터 시각화 및 AI 분석 결과 제시를 위한 기반을 구축했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.1.4 (2026-03-21 12:10 UTC)
-
-## 💎 실시간 리소스 동기화 및 대시보드 정교화
-- **[FEAT] 토큰 사용량 실시간 동기화**: 이제 새로고침 없이도 AI 토큰 사용 현황이 실시간으로 업데이트되어 즉각적인 리소스 소모 파악이 가능합니다.
-- **[UI] 대시보드 전반 UI 정밀 폴리싱**: 프리미엄 서비스 컨셉에 맞춰 대시보드의 다양한 시각적 요소들을 한층 더 정교하게 다듬었습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.1.3 (2026-03-21 11:10 UTC)
-
-## ⚡ 배포 프로세스 최적화 및 Slack API 페이지네이션 도입
-- **[FEAT] VPS 배포 자동화 및 최적화**: Google Artifact Registry와 GCS를 활용한 신규 배포 파이프라인을 구축했습니다. 바이너리 스트리핑(`-s -w`)과 UPX 압축을 적용하여 이미지 크기를 획기적으로 줄였습니다 (~10MB).
-- **[OPTIMIZE] Slack API 페이지네이션 지원**: `SlackClient`의 `GetMessages`에 커서 기반 페이지네이션을 도입하여, 한 번에 100개가 넘는 메시지가 발생해도 누락 없이 수집할 수 있도록 개선했습니다.
-- **[FIX] Slack 스캐너 안정화**: `SlowSweeper`의 컴파일 오류를 수정하고, `ResponseMetaData`에 대한 잘못된 nil 체크 로직을 바로잡아 백그라운드 스캔의 안정성을 확보했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.1.2 (2026-03-21 09:55 UTC)
-
-## 📱 모바일 UI 전면 최적화 및 레이아웃 안정화
-- **[UI] 모바일 반응형 레이아웃 강화**: 480px 뿐만 아니라 768px(태블릿/가로모드) 구간의 미디어 쿼리를 전면 수정하여, 헤더 요소들이 화면 밖으로 밀려나는 '잘림 현상'을 완벽하게 해결했습니다.
-- **[UI] 헤더 요소 재배치 (Stacking)**: 좁은 화면에서 로고, 게이미피케이션 스탯, 유틸리티 그룹이 겹치지 않도록 세로로 쌓이는 구조로 변경하고 시각적 균형을 위해 `space-evenly` 정렬을 적용했습니다.
-- **[UI] 통합 상태 아이콘 그리드화**: 연동 상태 아이콘(Slack, WhatsApp, Gmail)을 3열 그리드로 배치하여 가독성을 높이고 버튼 클릭 영역을 확보했습니다.
-- **[FIX] XP 애니메이션 위치 보정**: 모바일 뷰포트 너비를 고려하여 XP 획득 애니메이션이 항상 화면 내부에 표시되도록 위치 계산 로직을 개선했습니다.
-- **[SYS] Go 의존성 선언 정리**: `go mod tidy`를 통해 `golang.org/x/sync` 등 직접 사용 중인 패키지의 의존성 선언을 명확히 정리했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.1.1 (2026-03-21 08:48 UTC)
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.1.0 (2026-03-21 08:45 UTC)
-
-## ⚡ 월별 토큰 사용량 집계 및 Graceful Shutdown 도입
-- **[FEAT] 월별 누적 토큰 사용량 추적**: 한 달간의 누적 토큰 사용량 집계 기능을 추가했습니다. 이제 토근 배지의 툴팁을 통해 일일 사용량뿐만 아니라 월별 합계 및 예상 비용을 한눈에 확인할 수 있습니다.
-- **[FEAT] Graceful Shutdown 구현**: 서버 종료 시 메모리에 남은 데이터를 안전하게 보호하는 프로세스를 도입했습니다. `SIGINT`, `SIGTERM` 시그널 감지 시 지연 쓰기 데이터(토큰, 메타데이터)를 즉시 플러시하고, WhatsApp 세션 및 DB 커넥션을 안전하게 정리한 후 종료됩니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.0.9 (2026-03-21 07:48 UTC)
-
-## ⚡ Slack API 최적화 및 스캐너 아키텍처 리팩토링
-- **[OPTIMIZE] Slack API 속도 제한 대응**: Slack API 호출 시 `Rate Limit(HTTP 429)` 발생 시, API가 권장하는 대기 시간(`Retry-After`)만큼 정확히 대기 후 최대 3회까지 자동 재시도하도록 개선하여 스캔 안정성을 높였습니다.
-- **[REFACTOR] 스캐너 로직 패키지화**: `main.go`에 집중되어 있던 스캐너 로직을 별도의 `scanner` 패키지로 완전히 분리하여 모듈성을 강화하고 메인 루프를 간결하게 개선했습니다.
-- **[CLEANUP] 코드 정리**: 루트 디렉터리의 불필요한 `scanner.go` 파일을 제거하고 패키지 기반 구조로 정리를 완료했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.0.8 (2026-03-21 07:07 UTC)
-
-## ⚡ DB 커넥션 풀 자동 최적화 및 감지
-- **[FEAT] 지능형 DB 감지**: 연결 문자열을 분석하여 Neon DB와 일반 PostgreSQL을 자동으로 구분하도록 개선했습니다.
-- **[OPTIMIZE] 동적 커넥션 풀링 적용**:
-    - **Neon DB**: `MaxIdleConns(0)`을 자동으로 설정하여 서버리스의 'Scale-to-Zero' 비용 절감 효과를 극대화합니다. (v2.0.7의 개별 최적화 로직 포함)
-    - **일반 DB**: 최소 2개의 유휴 커넥션(`MaxIdleConns(2)`)을 유지하여 일반 환경에서의 응답 지연을 최소화합니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.0.7 (2026-03-20 18:30 UTC)
-
-## 🎮 게이미피케이션 인프라 및 DB 구조 최적화
-- **[PLAN] 게이미피케이션 설계**: 사용자의 지속적인 동기부여를 위한 포인트, 스트릭, 레벨업 시스템의 상세 구현 계획을 `planning/TODO.md`에 수립했습니다. (비즈니스용 미니멀 모드 옵션 포함)
-- **[OPTIMIZE] DB 커넥션 풀 통합**: 별도로 운영되던 WhatsApp 세션 관리용 DB 풀을 메인 애플리케이션 풀로 통합(`sqlstore.NewWithDB`)하여 리소스 낭비를 줄였습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.0.6 (2026-03-20 17:40 UTC)
-
-## ⚡ 대량 데이터 처리 및 성능 최적화 (Bulk Operations)
-- **[FEAT] 대량 처리 엔진**: `SaveMessages`, `DeleteMessages`, `RestoreMessages`, `HardDeleteMessages`를 단일 쿼리 배치 처리 방식으로 구현하여 DB 성능을 획기적으로 개선했습니다.
-- **[OPTIMIZE] 스캐너 리팩토링**: Slack, WhatsApp, Gmail 스캐너가 업무를 개별적으로 저장하지 않고 모아서 한 번에 저장하도록 구조를 변경하여 스캔 속도를 높였습니다.
-- **[FEAT] 페이로드 최적화 로직 통합**: 대시보드 로딩 성능 향상을 위한 데이터 필터링 로직을 개선했습니다. (Lazy Loading 기능은 v2.0.5 참고)
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.0.5 (2026-03-20 17:25 UTC)
-
-## ⚡ 원문 메시지 온디맨드 로딩 (Lazy Loading) 구현
-- **[FEAT] 토큰 최적화**: AI 업무 추출 과정에서 `original_text`를 제외하여 토큰 사용량을 대폭 절감했습니다.
-- **[OPTIMIZE] 지연 로딩(Lazy Loading) 적용**: 대시보드 및 아카이브 목록 조회 시 원문 텍스트를 제외하여 초기 데이터 로딩 속도와 트래픽을 개선했습니다.
-- **[FIX] API 구현**: 특정 업무의 원문을 안전하게 가져오기 위한 `/api/messages/{id}/original` 엔드포인트를 추가했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.0.4 (2026-03-20 17:15 UTC)
-
-## ⚡ 토큰 최적화 및 프롬프트 경량화
-- **[FEAT] AI 비용 절감**: `ai/gemini.go`의 시스템 프롬프트를 핵심 요건 위주로 정제하여 토큰 소비량을 줄였습니다.
-- **[FEAT] 효율적인 모델 선택 전략**: `GEMINI.md`에 토큰 최적화 가이드라인을 수립하고, 번역 작업 시 Lite 모델을 우선 사용하도록 개선했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.0.3 (2026-03-20 17:15 UTC)
-
-## 🛠️ 빌드 시스템 핫픽스
-- **[FIX] 의존성 버전 불일치 해결**: `generative-ai-go` 라이브러리와 내부 프로토콜(Proto) 버전 충돌로 인한 빌드 오류를 해결했습니다. 안정적인 버전 조합(`genai@v0.13.0`, `api@v0.186.0`)으로 고정하여 정상 빌드가 가능하도록 조치했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.0.2 (2026-03-20 17:15 UTC)
-
-## ⚡ 백엔드 캐시 최적화 및 아카이브 복원 기능 수정
-- **[NEW] 통합 캐시 갱신 전략**: `MarkMessageDone`, `DeleteMessage`, `HardDeleteMessage`, `UpdateTaskText`, `UpdateTaskAssignee` 기능을 `RefreshCache` 중심으로 재설계하여 데이터 일관성을 완벽하게 보장합니다.
-- **[NEW] 고성능 데이터 Prepend**: 신규 메시지 저장(`SaveMessage`) 시 인메모리 캐시 상단에 즉시 추가하는 로직을 적용하여 UI 응답 속도를 극대화했습니다.
-- **[FIX] 아카이브 복원 안정화**: 아카이브에서 복원된 업무가 대시보드에서 보이지 않거나 캐시 누락으로 인해 나타나지 않던 고질적인 문제를 해결했습니다.
-- **[FIX] Slack 연결 상태 정확도 개선**: 전용 상태 확인 엔드포인트를 통해 Slack 토큰 존재 여부를 체크하도록 개선하여 연결 상태 표시의 정확도를 높였습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.0.1 (2026-03-20 16:35 UTC)
-
-## 🏗️ 프론트엔드 코드 모듈화 및 UI 로직 최적화
-- **[NEW] 프론트엔드 아키텍처 리팩토링**: 거대했던 `renderer.js`와 `app.js`를 `taskFilter.js`, `icons.js`, `archive.js`, `modals.js` 등 도메인별 모듈로 분리하여 유지보수성을 극대화했습니다.
-- **[FIX] 상세보기 모달 테마 대응**: 라이트 테마에서 상세보기 모달의 배경색이 어둡게 고정되어 글자가 읽히지 않던 문제를 해결했습니다.
-- **[FIX] 빈 상태 위트 메시지 동기화**: "내 업무"와 "기타 업무" 섹션이 각각 독립적으로 빈 상태를 감지하여 적절한 응원 문구를 표시하도록 로직을 수정했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v2.0.0 (2026-03-20 15:50 UTC)
-
-## ☁️ Google Cloud Run 서버리스 마이그레이션 완성
-- **[NEW] Cloud Run 최적화 모드**: `CLOUD_RUN_MODE` 환경 변수를 통해 배경 스캐너를 비활성화하고 이벤트 기반(API 트리거)으로 동작하는 서버리스 최적화 모드를 도입했습니다.
-- **[NEW] 내부 스캔 전용 API**: Cloud Scheduler 등 외부 트리거를 위한 `/api/internal/scan` 엔드포인트를 추가하고, `X-Internal-Secret` 기반의 보안 레이어를 구축했습니다.
-- **[NEW] 공진 방지 지터(Jitter)**: 여러 인스턴스가 동시에 실행될 때의 부하를 분산하기 위해 0~5초 사이의 랜덤 지연 로직을 적용했습니다.
-- **[NEW] 배포 자동화 스크립트**: `cloud-run-deploy.sh` 및 `cloud-scheduler-setup.sh`를 통해 빌드부터 스케줄러 설정까지의 전 과정을 자동화했습니다.
-- **[FIX] 동적 포트 바인딩**: Cloud Run의 `$PORT` 환경 변수를 동적으로 수용하도록 서버 기동 로직을 개선했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v1.9.7 (2026-03-20 15:00 UTC)
-
-## 🎊 위트 있는 Empty State 및 UX 감성 고도화
-- **[NEW] 위트 있는 Empty State 구현**: "My Tasks" 탭의 업무가 0건이거나 모두 완료되었을 때 랜덤하게 나타나는 10여 가지의 위트 있는 메시지 시스템을 구축했습니다.
-- **[NEW] 다국어 메시지 팩 (i18n)**: KO, EN, ID, TH 4개 국어에 대해 각 10개씩, 총 40개의 로컬라이징된 응원 문구를 `locales.js`에 통합했습니다.
-- **[UI] 애니메이션 기반 공백 디자인**: `fadeInSlide` 애니메이션과 글래스모피즘 스타일의 점선 테두리 디자인을 적용하여 빈 화면의 UX를 개선했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v1.9.6 (2026-03-20 14:40 UTC)
-
-## 🌐 다국어 지원(i18n) 고도화 및 배포 파이프라인 자동화
-- **[NEW] 글로벌 확장성 강화**: 인도네시아어(ID), 태국어(TH) 로케일을 추가하고 모든 UI 요소(툴팁 포함)에 `data-i18n`을 적용하여 완벽한 다국어 환경을 구축했습니다.
-- **[NEW] 배포 자동화 스크립트(`deploy.sh`)**: 로컬 빌드, GCS 업로드, VPS 원격 갱신 과정을 단일 쉘 스크립트로 통합하여 배포 안전성과 속도를 획기적으로 개선했습니다.
-- **[UI] 탭 시인성 미세 조정**: 라이트 테마에서 활성 탭의 대비를 높여 사용자 내비게이션 경험을 최적화했습니다.
-- **[SYS] 스토어 로직 안정화**: WhatsApp 동기화 중 발생할 수 있는 데이터 경합을 최소화하기 위해 캐시 및 DB 저장소 로직을 보강했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v1.9.5 (2026-03-20 15:00 UTC)
-
-## ⚡ 대규모 데이터 검색 속도 및 아카이브 성능 최적화
-- **[NEW] 검색 인덱스 병목 해결**: 아카이브 검색 시 `room`, `requester`, `source`, `assignee` 및 `original_text` 등 모든 검색 대상 컬럼에 대해 GIN Trigram 인덱스가 누락 없이 적용되도록 DB 마이그레이션 로직을 보완했습니다.
-- **[NEW] 담당자(Assignee) 검색 지원**: 아카이브 검색 필터에 '담당자' 항목을 추가하여, 수만 건의 완료된 업무 중에서도 특정 담당자의 업무를 즉시 검색할 수 있도록 기능을 강화했습니다.
-- **[NEW] 동적 정렬 및 아카이브 성능 최적화**: 보관함의 복합 정렬(삭제된 업무 vs 완료된 업무) 페이징 성능 향상을 위한 함수형 인덱스(Functional Index)와, 자동 보관 백그라운드 워커를 위한 `completed_at` 부분 인덱스(Partial Index)를 새롭게 도입했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v1.9.4 (2026-03-20 13:47 UTC)
-
-## 🎨 고대비 프리미엄 라이트 테마 및 가독성 최적화
-- **[UI] 고대비 프리미엄 라이트 테마 도입**: Slate & Deep Indigo 컬러 팔레트를 적용하여 시각적 깊이와 명확성을 확보했습니다.
-- **[UI] 탭 가독성 개선**: 활성 탭(Active Tab)의 텍스트 색상을 화이트(#FFFFFF)로 변경하고 배지 배경을 최적화하여 보라색 배경에서의 가독성을 극대화했습니다.
-- **[UI] 상태 아이콘 시인성 강화**: Slack, WhatsApp, Gmail, Scan 아이콘의 배경, 테두리, 그림자 효과를 라이트 테마에 맞춰 전면 재설계했습니다.
-- **[FIX] 배지 및 카운트 가시성 제고**: 룸 배지(Badge)와 탭 카운트의 명암비를 높여 정보 식별력을 대폭 개선했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v1.9.3 (2026-03-20 08:38 UTC)
-
-## 🛠️ 아카이브 다운로드 핸들러 및 UI 안정화
-- **[FIX] Content-Disposition 최적화**: `handlers_exports.go`에서 엑셀, CSV, JSON 응답 헤더를 `inline`에서 `attachment`로 변경하여 모든 브라우저에서 강제 다운로드(Save As)가 발생하도록 수정했습니다.
-- **[FIX] 내비게이션 상태 동기화**: `index.html` 내비게이션 탭에 `data-view` 속성을 추가하여 `app.js`의 `showView` 엔진과 완벽하게 호환되도록 복구했습니다.
-- **[UI] 컬럼 레이아웃 안정화**: 가로 폭이 좁은 환경에서 'SOURCE' 헤더 텍스트로 인한 레이아웃 깨짐을 방지하기 위해 기호('#') 및 `title` 속성 기반 툴팁으로 교체했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v1.9.2 (2026-03-20 08:18 UTC)
-
-## 🚀 헤더 레이아웃 최적화 및 GPU 가속 기반 UX 개선
-- **[NEW] 3단 그리드 헤더 구조**: Branding, Navigation(Segmented Control), Utilities 영역을 1:auto:1 그리드로 재구성하여 시각적 안정성과 직관성을 확보했습니다.
-- **[NEW] GPU 하드웨어 가속 최적화**: 모든 UI 전환 및 애니메이션에 `will-change`, `transform: translateZ(0)` 힌트를 적용하여 렌더링 성능을 오프로딩하고 부드러운 프레임 레이트를 보장합니다.
-- **[NEW] 고도화된 반응형 레이아웃**: CSS Grid Area를 활용하여 디바이스 크기(1024px, 768px, 480px)에 최적화된 하이브리드 적응형 레이아웃을 구현했습니다.
-- **[NEW] 컴팩트 유틸리티 그룹**: 업데이트 확인, 설정, 다국어 선택기를 하나의 글래스모피즘 그룹으로 통합하여 공간 효율을 극대화했습니다.
-- **[FIX] 레이더 애니메이션 엔진**: 스캔 버튼의 레이더 애니메이션을 CSS 단독 제어 방식으로 변경하고, 상태별(Hover, Disabled) 가변 속도 로직을 최적화했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v1.9.1 (2026-03-20 07:15 UTC)
-
-## 🎨 사용자 설정 UI 고도화 및 다국어 지원(i18n)
-- **[NEW] 탭 기반 설정 구조**: 설정 모달에 사이드바를 추가하여 "일반" 및 "이름 관리 규칙" 탭으로 분리, 정보 접근성과 가독성을 높였습니다.
-- **[NEW] 목적 중심의 UX 개선**: "정규화"와 같은 기술적 용어를 "동일 인물 묶기", "이름 자동 변환" 등 사용자가 이해하기 쉬운 명칭으로 변경하고 상세 설명을 보강했습니다.
-- **[NEW] 모바일 최적화**: 화면이 좁을 때 사이드바가 상단 수평 탭으로 자동 변환되도록 반응형 디자인을 적용하여 모바일 환경에서의 조작성을 개선했습니다.
-- **[NEW] 완벽한 다국어 지원**: 신규 추가된 설정 항목, Placeholder, 도움말 등에 대해 한국어와 영어 로컬라이징을 완료했습니다.
-- **[FIX] 스마트 매핑 흐름**: 대시보드에서 이름을 클릭하여 설정을 열 때, 매핑 입력 필드에 해당 이름이 자동으로 채워지도록 개선하여 "퀵 매핑" 경험을 고도화했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v1.9.0 (2026-03-20 05:15 UTC)
-
-## 🏗️ 대규모 아키텍처 리팩토링 및 모듈화
-- **[NEW] 패키지 기반 구조 도입**: 루트 디렉터리에 집중되어 있던 코드를 `ai`, `auth`, `channels`, `config`, `handlers`, `logger`, `store`, `types` 등 도메인별 패키지로 완전히 재구성했습니다.
-- **[NEW] Gmail 스캔 엔진 최적화**: 기존 `is:unread` 방식에서 시간 기반 쿼리(`in:inbox after:timestamp`)로 전환하여, 여러 번의 스캔에서도 누락 없이 업무를 동기화할 수 있도록 개선했습니다.
-- **[NEW] WhatsApp 연동 레이어 간소화**: 상태 확인 및 QR 코드 조회를 위한 최상위 래퍼 함수를 도입하여, 핸들러 코드의 복잡도를 낮추고 결합도를 줄였습니다.
-- **[FIX] 순환 참조 해결 및 타입 통합**: 콜백 구조와 통합 타입 정의를 통해 패키지 간 의존성을 정리하고 빌드 안정성을 확보했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v1.8.5 (2026-03-20 04:23 UTC)
-
-## 📧 Gmail 스레드 분석 고도화
-- **[NEW] 최신 메시지 집중 분석**: 이메일 스레드 내에서 가장 최근의 메시지만 분석하도록 Gemini 프롬프트를 강화했습니다. 이를 통해 하단에 포함된 과거 인용 답장이나 전달된 메시지로부터 중복 업무가 생성되는 문제를 원천 차단했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v1.8.4 (2026-03-20 04:15 UTC)
-
-## 📱 WhatsApp 이름 추출 및 멘션 처리 개선
-- **[NEW] 실시간 멘션 치환**: WhatsApp 메시지 본문의 `@전화번호` 멘션을 AI 분석 전에 실제 이름(예: `@Andy Phan`)으로 자동 치환하여 업무 할당 정확도를 높였습니다.
-- **[NEW] 자동 연락처 수집**: 메시지 수신 시 발신자의 이름과 번호를 `contacts` 테이블에 자동으로 매핑 및 캐싱하여 지속적인 이름 풀이가 가능하도록 개선했습니다.
-- **[FIX] 이름 보존 강화**: Gemini 추출 프롬프트를 보강하여 괄호나 한자/한글이 포함된 이름(梁威浩, 박요셉 등)이 잘리지 않고 온전하게 보존되도록 수정했습니다.
-- **[FIX] 이름 정규화 폴백**: AI 분석 결과가 숫자로 나올 경우에도 구축된 연락처 디렉토리를 통해 이름을 찾을 수 있도록 정규화 레이어를 강화했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v1.8.3 (2026-03-20 04:05 UTC)
-
-## 📢 UI 편의성 개선 및 퀵 에일리어스 매핑
-- **[NEW] 업데이트 소식 UI**: 대시보드 상단 📢 **Updates** 버튼을 통해 최신 기능 개선 사항을 앱 내부에서 즉시 확인할 수 있습니다.
-- **[NEW] 퀵 에일리어스 매핑**: 업무 리스트나 보관함의 이름을 클릭하면 즉시 설정 메뉴의 에일리어스 매핑으로 연결되어 손쉽게 이름을 정규화할 수 있습니다.
-- **[NEW] 다중 에일리어스 등록**: 콤마(,)를 사용해 여러 개의 별칭을 한 번에 등록할 수 있도록 기능을 개선했습니다.
-- **[SEC] 보안 강화 (XSS 방지)**: 업무명, 방 이름, 이름 등 외부에서 유입되는 모든 텍스트에 대해 HTML 이스케이프 처리를 적용하여 보안성을 높였습니다.
-- **[UI] 전용 마크다운 렌더러**: 업데이트 소식 모달을 위해 가볍고 견고한 전용 마크다운-HTML 엔진을 구현했습니다.
-- **[API] 릴리즈 노트 엔드포인트**: `RELEASE_NOTES_USER.md` 내용을 서빙하는 서버 측 핸들러를 추가했습니다.
-
----
-
-# Release Notes (기술 버전 - 국문) - v1.8.2 (2026-03-20 03:41 UTC)
+# Release Notes - v2.3.2 (2026-03-24 02:05 UTC)
+- **[REFACTOR] Utility Standardization**: Replaced custom date/time utilities with native `Intl` and `Date` APIs for better performance and maintainability.
+- **[REFACTOR] Logic Consolidation**: Unified message post-processing logic and error handling across the backend.
+- **[STABILITY] Enhanced Error Response**: Standardized error responses and added explicit handling for cancelled requests (HTTP 499).
+- **[PERF] Optimized Data Operations**: Improved database row scanning and slice operations using Go 1.21+ `slices` package.

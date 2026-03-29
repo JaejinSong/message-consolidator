@@ -1,8 +1,9 @@
-# Message Consolidator 🚀 v2.3.2
+# Message Consolidator (v2.4.1)
 
-**흩어져 있는 업무 메시지를 한 곳에서 스마트하게, 실시간으로 관리하세요.**
+[![GitHub License](https://img.shields.io/github/license/JaejinSong/message-consolidator)](LICENSE)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/JaejinSong/message-consolidator)](go.mod)
 
-Slack, WhatsApp, Gmail 등 다양한 채널을 통해 쏟아지는 업무 요청과 메시지를 정리하는 데 어려움을 겪고 계신가요? **Message Consolidator**는 분산된 메시지를 자동으로 수집하고, AI를 통해 핵심 작업(Task)을 추출하여 하나의 대시보드에서 효율적으로 관리할 수 있도록 돕습니다.
+A powerful, AI-driven asynchronous communication consolidation and task management platform.
 
 ---
 
