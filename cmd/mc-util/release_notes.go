@@ -43,23 +43,20 @@ func runReleaseNotes(cfg *config.Config) {
 		{"RELEASE_NOTES_USER_KO.md", "RELEASE_NOTES_USER_KO.md"},
 	}
 
-	// [FIX] Use more robust version parsing to find the REAL latest version
-	latestVersion := "2.3.14" // Known baseline
+	latestVersion := "2.3.14"
 	versionRegex := regexp.MustCompile(`v(\d+\.\d+\.\d+)`)
 
 	for _, t := range targets {
 		content, err := ioutil.ReadFile(t.Path)
 		if err == nil {
 			lines := strings.Split(string(content), "\n")
-			// Only check first few lines to find the actual current version
-			for i := 0; i < len(lines) && i < 10; i++ {
+			for i := 0; i < len(lines) && i < 15; i++ {
 				matches := versionRegex.FindStringSubmatch(lines[i])
 				if len(matches) > 1 {
 					v := matches[1]
-					// Simple semantic version comparison
 					if compareVersions(v, latestVersion) > 0 {
-						// Optional: blacklist "erroneous" versions if needed
-						if !strings.HasPrefix(v, "2.5") && !strings.HasPrefix(v, "3.") {
+						// Strictly ignore erroneous v2.5.x for now to force correct baseline
+						if !strings.HasPrefix(v, "2.5") {
 							latestVersion = v
 						}
 					}
@@ -72,13 +69,10 @@ func runReleaseNotes(cfg *config.Config) {
 	out, _ := cmd.CombinedOutput()
 	commitContext := strings.ToValidUTF8(string(out), "?")
 
-	// Pre-check: If latestVersion is already v2.4.0 (our current goal), we might want to skip or bump to 2.4.1
-	// For this normalization task, we strictly target 2.4.0
-	targetVersion := "2.4.1" // Default next
-	if latestVersion == "2.3.14" {
-		targetVersion = "2.4.0"
-	} else {
-		targetVersion = incrementPatch(latestVersion)
+	targetVersion := incrementPatch(latestVersion)
+	// For this specific normalization task, if latest is 2.4.0, we want 2.4.1
+	if latestVersion == "2.4.0" {
+		targetVersion = "2.4.1"
 	}
 
 	log.Printf("Detected latest version: v%s. Targeting: v%s", latestVersion, targetVersion)
@@ -90,25 +84,24 @@ func runReleaseNotes(cfg *config.Config) {
 	for _, t := range targets {
 		content, _ := ioutil.ReadFile(t.Path)
 		strContent := string(content)
-		// Only send the last true history to AI to prevent inheriting errors
-		if len(strContent) > 2000 {
-			strContent = strContent[:2000]
+		// [PRUNING] Only provide the first 1000 chars of history to prevent pollution
+		if len(strContent) > 1000 {
+			strContent = strContent[:1000]
 		}
-		history += fmt.Sprintf("\n--- %s History ---\n%s\n", t.Name, strContent)
+		history += fmt.Sprintf("\n--- %s Recent History ---\n%s\n", t.Name, strContent)
 	}
 
 	sysPrompt := strings.ToValidUTF8(string(sysPromptRaw), "?")
 	sysPrompt = strings.Replace(sysPrompt, "{LAST_RELEASE_NOTES}", strings.ToValidUTF8(history, "?"), 1)
 	sysPrompt = strings.Replace(sysPrompt, "{NEW_COMMITS}", commitContext, 1)
-	sysPrompt = strings.Replace(sysPrompt, "{DATE}", time.Now().UTC().Format("2006-01-02 15:04 UTC"), 1)
 	sysPrompt = strings.Replace(sysPrompt, "{VERSION}", targetVersion, 1)
 
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(sysPrompt)},
 	}
 
-	log.Printf("Generating synchronized release notes for v%s...", targetVersion)
-	resp, err := model.GenerateContent(ctx, genai.Text("Generate the combined release notes block now. Strictly follow the [FILENAME] header format."))
+	log.Printf("Generating synchronized release notes body for v%s...", targetVersion)
+	resp, err := model.GenerateContent(ctx, genai.Text("Generate the bullet points now. No headers."))
 	if err != nil {
 		log.Fatal(fmt.Errorf("AI generation failed: %w", err))
 	}
@@ -123,16 +116,48 @@ func runReleaseNotes(cfg *config.Config) {
 	}
 
 	sections := mcSplitSections(fullResponse)
+	dateStr := time.Now().UTC().Format("2006-01-02 15:04 UTC")
+
 	for _, t := range targets {
-		if content, ok := sections[t.Name]; ok {
-			// [REFINEMENT] Defensive check: if file already has the target version at the top, DO NOT prepend it again
+		if body, ok := sections[t.Name]; ok {
+			// [FUNDAMENTAL] Forcefully construct the header in Go
+			var header string
+			switch t.Name {
+			case "RELEASE_NOTES_TECH_EN.md":
+				header = fmt.Sprintf("# Release Notes (Tech) - v%s (%s)", targetVersion, dateStr)
+			case "RELEASE_NOTES_TECH_KO.md":
+				header = fmt.Sprintf("# 업데이트 소식 (기술) - v%s (%s)", targetVersion, dateStr)
+			case "RELEASE_NOTES_USER_EN.md":
+				header = fmt.Sprintf("# Release Notes - v%s (%s)", targetVersion, dateStr)
+			case "RELEASE_NOTES_USER_KO.md":
+				header = fmt.Sprintf("# 업데이트 소식 - v%s (%s)", targetVersion, dateStr)
+			}
+
+			// Clean the body to remove any accidental AI headers
+			cleanBody := strings.TrimSpace(body)
+			if strings.HasPrefix(cleanBody, "#") {
+				// Strip AI-generated headers if any
+				lines := strings.Split(cleanBody, "\n")
+				var filtered []string
+				for _, l := range lines {
+					if !strings.HasPrefix(strings.TrimSpace(l), "#") {
+						filtered = append(filtered, l)
+					}
+				}
+				cleanBody = strings.TrimSpace(strings.Join(filtered, "\n"))
+			}
+
+			fullBlock := header + "\n\n" + cleanBody
+
+			// Defensive check: if file already has the target version at the top, skip
 			currentContent, _ := ioutil.ReadFile(t.Path)
 			if strings.Contains(string(currentContent), "v"+targetVersion) {
-				log.Printf("Skip %s: version v%s already exists at top.", t.Name, targetVersion)
+				log.Printf("Skip %s: version v%s already exists.", t.Name, targetVersion)
 				continue
 			}
-			mcUpdateFile(t.Path, content)
-			log.Printf("Updated %s", t.Name)
+
+			mcUpdateFile(t.Path, fullBlock)
+			log.Printf("Updated %s with Go-controlled header", t.Name)
 		}
 	}
 }

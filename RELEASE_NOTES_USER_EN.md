@@ -1,13 +1,11 @@
-# Release Notes - v2.5.0 (2026-03-29 13:00 UTC)
+# Release Notes - v2.4.1 (2026-03-29 12:43 UTC)
 
-## 🚀 Engine Overhaul & Professional Monitoring
-
-- **[NEW] 24/7 System Health Watch**: We've integrated WhaTap observability! Like a digital heartbeat monitor, this ensures our team can spot and fix performance hiccups before you even notice them.
-- **[FIX] The "Ghost Assignee" Mystery**: Found a bug where some Gmail task owners would appear as "undefined". We’ve tracked them down and ensured every task now shows its rightful owner.
-- **[IMPROVED] High-Speed Translations**: Our AI translation engine is now much more efficient, handling large batches of messages in small, lightning-fast bites.
-- **[UI] "All Clear" Satisfaction**: Refined the dashboard logic for that satisfying "All Clear" state. When you're done, the system knows it instantly.
-- **[SYS] Rebuilt for the Future**: We've completely reorganized the internal "plumbing" of Message Consolidator. It's now faster, more stable, and ready for the exciting features coming next.
-- **[STABILITY] Safety First Deployment**: We updated our deployment rules so that no update goes live without passing 100% of our safety tests.
+- [NEW] Weekly AI Insights: Get a smart summary of your team's week! Our new AI generates weekly reports and a "Relationship Graph" to show how work flows between colleagues.
+- [NEW] Enhanced System Monitoring: We've integrated professional-grade monitoring to ensure the app stays lightning-fast and ultra-reliable 24/7.
+- [IMPROVED] Snappier Performance: By upgrading our database to cutting-edge technology, your messages and tasks now load faster than ever.
+- [IMPROVED] Mobile Comfort: We’ve polished the mobile interface, fixing tight margins so you can read and manage tasks comfortably on the go.
+- [FIX] Assignee Visibility: Fixed a bug where some task owners were hidden or shown as "undefined." Now everyone's contributions are clearly labeled.
+- [UI] Clearer Categories: Renamed certain archive folders to more intuitive names like "Canceled Tasks" to help you stay organized.
 
 ---
 

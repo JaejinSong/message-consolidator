@@ -1,15 +1,16 @@
-# Release Notes (Tech) - v2.5.0 (2026-03-29 13:00 UTC)
+# Release Notes (Tech) - v2.4.1 (2026-03-29 12:43 UTC)
 
-## 🏗️ Architectural Refactoring & Observability Integration
+- [FEAT] AI Insights Reporting: Launched Weekly AI synthesis engine with LLM-powered summarization and Relationship Graph visualization for team dynamics.
+- [SYS] DB Migration to Turso: Migrated primary database to Turso (libsql) to leverage edge-computing benefits and reduce global query latency.
+- [REFACTOR] SQL Architecture via Views: Refactored complex multi-table joins into managed database views to improve query maintainability and read performance.
+- [SYS] WhaTap Observability: Integrated WhaTap monitoring and Session Replay capabilities for real-time telemetry and advanced production debugging.
+- [PERF] Batch Engine Optimization: Implemented translation chunking and optimized DB connection pooling to handle high-volume message processing efficiently.
+- [FIX] Assignee Resolution: Resolved "undefined" assignee rendering bug in Gmail tasks by refining the `resolveActualAssignee` context parameters.
+- [UI] Mobile Layout Refinement: Optimized mobile UI margins and padding to ensure consistent readability across diverse small-screen devices.
+- [STABILITY] CI/CD Verification: Updated `deploy.sh` to mandate `npm test` pre-verification, preventing regressions during the deployment lifecycle.
+- [SYS] MC-Util Consolidation: Consolidated disparate debug and utility tools into a unified `mc-util` package for cleaner backend logic.
 
-- **[FEAT] SQL Query Architecture Refactoring**: Introduced SQL Views to decouple complex business logic from raw queries, improving maintainability and query performance.
-- **[SYS] WhaTap Observability Integration**: Integrated WhaTap monitoring agent for real-time application performance monitoring (APM) and session replay analysis.
-- **[REFACTOR] Backend Service Isolation**: Massive refactor isolating core backend services from frontend logic and consolidating utility tools into a unified `mc-util` package.
-- **[FIX] Gmail Assignee Rendering**: Resolved a critical regression where assignees were rendered as `undefined` for specific Gmail-sourced tasks.
-- **[OPTIMIZE] Batch Translation Engine**: Implemented chunking logic for batch translations and optimized database connection pooling to handle high-concurrency translation requests.
-- **[PERF] AI Client Optimization**: Enhanced the Gemini client with detailed token usage logging and robust response text handling to prevent analysis truncation.
-- **[SYS] Docker Distribution Sync**: Updated Dockerfile and .dockerignore to ensure all localized release notes and assets are correctly packaged in the production image.
-- **[STABILITY] Pre-verification Workflow**: Updated `deploy.sh` to mandate `npm test` execution, preventing deployments with failing regression tests.
+---
 
 ---
 
