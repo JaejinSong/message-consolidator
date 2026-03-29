@@ -134,6 +134,7 @@
     --z-index-dropdown: 1000;
     --z-index-modal: 2000;
     --z-index-spinner: 10000;
+    --table-header-bg: rgba(255, 255, 255, 0.05);
 }
 
 /* Light Theme Overrides - High Contrast Premium Slate */
@@ -171,4 +172,5 @@ body.light-theme {
     --brand-whatsapp-hover: #1da851;
     --brand-json: #f39c12;
     --brand-json-hover: #d3850e;
+    --table-header-bg: #f8fafc;
 }

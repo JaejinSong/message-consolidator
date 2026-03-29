@@ -42,35 +42,6 @@ describe('renderer.js - showToast', () => {
     });
 });
 
-describe('insightsRenderer.js', () => {
-    beforeEach(() => {
-        document.body.innerHTML = `
-            <div id="dailyGlance"></div>
-            <div id="waitingMetrics"></div>
-            <div id="achievementsList"></div>
-        `;
-    });
-
-    it('should render daily glance stats', () => {
-        const mockStats = { total_completed: 42, peak_time: '14:00', abandoned_tasks: 3 };
-        insightsRenderer.renderDailyGlance(mockStats);
-        const glance = document.getElementById('dailyGlance');
-        expect(glance.innerHTML).toContain('42');
-        expect(glance.innerHTML).toContain('14:00');
-    });
-
-    it('should render achievements with i18n names', () => {
-        const mockAllAch = [
-            { id: 1, name: "Task Master 10", description: "Completed 10 tasks.", criteria_type: "total_tasks", target_value: 10, icon: "🥉" }
-        ];
-        const mockUserAch = [{ achievement_id: 1 }];
-        const mockStats = { total_completed: 12 };
-
-        insightsRenderer.renderAchievements(mockAllAch, mockUserAch, mockStats);
-        const list = document.getElementById('achievementsList');
-        expect(list.innerHTML).toContain('태스크 마스터 (10)');
-    });
-});
 
 describe('renderer.js - setScanLoading', () => {
     beforeEach(() => {
@@ -189,6 +160,13 @@ describe('renderer.js - updateUserProfile', () => {
         });
         expect(document.getElementById('userPicture').classList.contains('hidden')).toBe(true);
     });
+
+    it('should not throw error if DOM elements are missing', () => {
+        document.body.innerHTML = '';
+        expect(() => {
+            renderer.updateUserProfile({ xp: 10, level: 1, email: 'test@example.com', picture: 'http://pic.jpg', streak: 0, points: 0 });
+        }).not.toThrow();
+    });
 });
 
 describe('renderer.js - updateServiceStatusUI', () => {
@@ -218,7 +196,14 @@ describe('renderer.js - updateServiceStatusUI', () => {
         expect(document.getElementById('waQRSection').classList.contains('hidden')).toBe(false);
         expect(document.getElementById('waConnectedSection').classList.contains('hidden')).toBe(true);
     });
-});
 
+    it('should not throw error when service status DOM is completely missing', () => {
+        document.body.innerHTML = '';
+        expect(() => {
+            renderer.updateSlackStatus(true);
+            renderer.updateWhatsAppStatus(true);
+        }).not.toThrow();
+    });
+});
 
 

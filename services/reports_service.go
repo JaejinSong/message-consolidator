@@ -12,116 +12,219 @@ import (
 	"time"
 )
 
-type ReportsService struct {
+// ReportSummarizer defines the strategy for generating report summaries from logs.
+type ReportSummarizer interface {
+	Generate(ctx context.Context, logs string) (string, error)
+}
+
+// ReportConfig encapsulates configuration parameters for the report service.
+type ReportConfig struct {
+	CutoffSize int
+}
+
+// Log is a type alias for ConsolidatedMessage to satisfy technical requirements while maintaining consistency.
+type Log = store.ConsolidatedMessage
+
+// FlashSingleSummarizer implements ReportSummarizer using a single Gemini Flash model call.
+type FlashSingleSummarizer struct {
 	gemini *ai.GeminiClient
 }
 
-func NewReportsService(gemini *ai.GeminiClient) *ReportsService {
-	return &ReportsService{gemini: gemini}
+func NewFlashSingleSummarizer(gemini *ai.GeminiClient) *FlashSingleSummarizer {
+	return &FlashSingleSummarizer{gemini: gemini}
 }
 
-// Why: Orchestrates the generation of an AI-powered work report by checking the database cache first, and then coordinating between the Go-based visualization engine and the Gemini summary API.
-func (s *ReportsService) GetWeeklyReport(ctx context.Context, email string) (*store.Report, error) {
-	now := time.Now()
-	startDate := now.AddDate(0, 0, -7).Format("2006-01-02")
-	endDate := now.Format("2006-01-02")
+// Generate implements the ReportSummarizer interface by calling the Gemini API for a single-pass summary.
+func (s *FlashSingleSummarizer) Generate(ctx context.Context, logs string) (string, error) {
+	// Note: email is not passed here as per the requested interface signature.
+	// GeminiClient's GenerateReportSummary currently uses email for token usage logging.
+	// We'll pass an empty string or consider refactoring GeminiClient if persistent user-tracking is needed here.
+	return s.gemini.GenerateReportSummary(ctx, "", logs)
+}
 
-	// 1. Check Cache
-	cached, err := store.GetReport(ctx, email, startDate, endDate)
-	if err == nil && cached != nil {
-		// Why: Validates the cached report based on a 6-hour TTL to ensure freshness while significantly reducing API costs for frequently accessed insights.
-		if time.Since(cached.CreatedAt) < 6*time.Hour {
-			logger.Infof("[REPORTS] Cache hit for %s (%s ~ %s)", email, startDate, endDate)
-			return cached, nil
-		}
+type ReportsService struct {
+	summarizer ReportSummarizer
+	config     ReportConfig
+}
+
+func NewReportsService(summarizer ReportSummarizer, config ReportConfig) *ReportsService {
+	return &ReportsService{
+		summarizer: summarizer,
+		config:     config,
+	}
+}
+
+// Why: Orchestrates the generation of an AI-powered work report by coordinating between the Go-based visualization engine and the injected summarizer strategy.
+func (s *ReportsService) GenerateReport(ctx context.Context, email, startDate, endDate string) (*store.Report, error) {
+	// 1. Parse dates
+	start, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid start date: %w", err)
 	}
 
 	// 2. Fetch Data
-	sinceDate := now.AddDate(0, 0, -7)
-	messages, err := store.GetMessagesForReport(ctx, email, sinceDate)
+	messages, err := store.GetMessagesForReport(ctx, email, start)
 	if err != nil {
 		return nil, err
 	}
-	if len(messages) == 0 {
-		return nil, fmt.Errorf("no messages found for the report period (last 7 days)")
+
+	var filtered []Log
+	for _, m := range messages {
+		dateStr := m.CreatedAt.Format("2006-01-02")
+		if dateStr >= startDate && dateStr <= endDate {
+			filtered = append(filtered, m)
+		}
 	}
+
+	if len(filtered) == 0 {
+		return nil, fmt.Errorf("no messages found for the period %s ~ %s", startDate, endDate)
+	}
+
+	// [Self-Healing] 파편화된 식별자(이름, 별칭 등)를 이메일로 상시 정규화하고 원본 데이터를 세탁함.
+	s.sanitizeMessages(ctx, email, filtered)
 
 	// 3. Generate Visualization (Go Backend)
-	vizData := s.generateVisualizationData(messages)
+	vizData := s.generateVisualizationData(email, filtered)
 	vizJSON, _ := json.Marshal(vizData)
 
-	// 4. Summarize for AI (Byte-based Truncation)
-	// Why: [Safe Margin] Uses 15KB as a safe limit for the task summary payload to ensure AI prompt fits comfortably within the 4096 output token constraint's context.
-	taskSummary := s.prepareTaskSummaryForAI(messages, 15000)
+	// 4. Transform Data for AI with Configuration-based Cutoff
+	taskSummary, isTruncated := s.PrepareLogsForAI(email, filtered)
+	if isTruncated {
+		logger.Warnf("[REPORTS] Cutoff detected for %s (%s ~ %s). Input exceeds %d bytes.", email, startDate, endDate, s.config.CutoffSize)
+	}
 
-	// 5. Call Gemini
-	summary, err := s.gemini.GenerateReportSummary(ctx, email, taskSummary)
+	// 5. Generate Summary using Strategy
+	summary, err := s.summarizer.Generate(ctx, taskSummary)
 	if err != nil {
 		return nil, err
 	}
 
-	// 6. Save and Return
+	// 6. Create Report Object
 	report := &store.Report{
 		UserEmail:     email,
 		StartDate:     startDate,
 		EndDate:       endDate,
 		Summary:       summary,
 		Visualization: string(vizJSON),
+		IsTruncated:   isTruncated,
 	}
 
+	// 7. Save to DB
 	err = store.SaveReport(ctx, report)
 	if err != nil {
-		logger.Warnf("[REPORTS] Failed to save report to cache: %v", err)
+		logger.Warnf("[REPORTS] Failed to save report: %v", err)
+	}
+
+	// Get the created ID
+	saved, err := store.GetReport(ctx, email, startDate, endDate)
+	if err == nil {
+		report.ID = saved.ID
+		report.CreatedAt = saved.CreatedAt
 	}
 
 	return report, nil
 }
 
-// Why: Implements a strict byte-length-based truncator that slices the task list until it fits within a safe limit for the AI API, preventing 400 Bad Request errors.
-func (s *ReportsService) prepareTaskSummaryForAI(messages []store.ConsolidatedMessage, maxBytes int) string {
+// sanitizeMessages performs real-time identity normalization on message logs and triggers asynchronous "Self-Healing" DB updates.
+func (s *ReportsService) sanitizeMessages(ctx context.Context, tenantEmail string, messages []Log) {
+	for i := range messages {
+		msg := &messages[i]
+		
+		// Why: Encapsulates resolution logic to handle both successful healing and ambiguity safeguards.
+		resolve := func(identifier string, field *string) bool {
+			if identifier == "" || strings.Contains(identifier, "@") {
+				return false
+			}
+			c, err := store.GetContactByIdentifier(tenantEmail, identifier)
+			if err != nil {
+				// 💡 Ambiguity Safeguard: Handle duplicate name/alias hits.
+				if ambigErr, ok := err.(*store.AmbiguousIdentityError); ok {
+					logger.Warnf("[AMBIGUOUS_CONFLICT] Name: %s, Emails: %v", identifier, ambigErr.Emails)
+					*field = identifier + " (Ambiguous)"
+					return false // Do NOT attempt DB update.
+				}
+				return false
+			}
+			if c != nil {
+				logger.Infof("[Self-Healed] ID:%d, %s -> %s", msg.ID, identifier, c.CanonicalID)
+				*field = c.CanonicalID
+				return true
+			}
+			return false
+		}
+
+		// Initial states to preserve original values for resolution check
+		origReq := msg.Requester
+		origAsg := msg.Assignee
+
+		reqHealed := resolve(origReq, &msg.Requester)
+		asgHealed := resolve(origAsg, &msg.Assignee)
+
+		// 3. Asynchronously heal the original data in the database (Only for healed records)
+		if reqHealed || asgHealed {
+			go func(id int, req, asg string) {
+				db := store.GetDB()
+				_, err := db.ExecContext(context.Background(), store.SQL.UpdateMessageIdentity, req, asg, id)
+				if err != nil {
+					logger.Errorf("[Self-Healing-Error] Failed to update record ID:%d: %v", id, err)
+				}
+			}(msg.ID, msg.Requester, msg.Assignee)
+		}
+	}
+}
+
+// PrepareLogsForAI implements the "Transform" stage by normalizing raw logs and formatting them for the AI summarizer.
+// It respects the 8,000 character cutoff defined for AI input stability.
+func (s *ReportsService) PrepareLogsForAI(email string, rawLogs []Log) (string, bool) {
 	var sb strings.Builder
 	currentBytes := 0
+	isTruncated := false
+	const AISizeCutoff = 8000
 
-	// Sort messages: Prioritize Incomplete (Done == false), then newest first (CreatedAt DESC)
-	// Why: Ensures critical pending items are always included in the summary even if the context window limit (15KB) is reached.
-	sort.Slice(messages, func(i, j int) bool {
-		if messages[i].Done != messages[j].Done {
-			// Done == false (0) comes before Done == true (1)
-			return !messages[i].Done
+	// Sort logs: Prioritize Incomplete (Done == false), then newest first (CreatedAt DESC)
+	sort.Slice(rawLogs, func(i, j int) bool {
+		if rawLogs[i].Done != rawLogs[j].Done {
+			return !rawLogs[i].Done
 		}
-		return messages[i].CreatedAt.After(messages[j].CreatedAt)
+		return rawLogs[i].CreatedAt.After(rawLogs[j].CreatedAt)
 	})
 
-	for _, m := range messages {
+	for _, m := range rawLogs {
 		status := " "
 		if m.Done {
 			status = "V"
 		}
-		// Why: Only includes critical fields (status, task, requester, assignee) to maximize information density within the byte limit.
-		line := fmt.Sprintf("- [%s] %s (From: %s, To: %s, Date: %s)\n",
-			status, m.Task, m.Requester, m.Assignee, m.CreatedAt.Format("01-02"))
+		// Why: Re-evaluate identity with SSOT (contacts cache) to handle potentially contaminated legacy database entries.
+		_, reqName, reqCat := store.NormalizeWithCategory(email, m.Requester)
+		_, asgName, asgCat := store.NormalizeWithCategory(email, m.Assignee)
+
+		// Why: Force "Name (Category)" format for both AI logs and visualization to ensure context clarity.
+		line := fmt.Sprintf("- [%s] %s (From: %s (%s), To: %s (%s))\n",
+			status, m.Task, reqName, reqCat, asgName, asgCat)
 
 		lineBytes := len([]byte(line))
-		if currentBytes+lineBytes > maxBytes {
+		if currentBytes+lineBytes > AISizeCutoff {
+			isTruncated = true
 			break
 		}
 		sb.WriteString(line)
 		currentBytes += lineBytes
 	}
 
-	return sb.String()
+	return sb.String(), isTruncated
 }
 
 type GraphData struct {
 	Nodes []Node `json:"nodes"`
-	Links []Edge `json:"links"` // ECharts 표준 규격인 links로 변경
+	Links []Edge `json:"links"`
 }
 
 type Node struct {
-	ID    string  `json:"id"`
-	Name  string  `json:"name"`
-	Value float64 `json:"value"`
-	IsMe  bool    `json:"is_me"` // 프론트엔드 하이라이팅용
+	ID       string  `json:"id"`
+	Name     string  `json:"name"`
+	Value    float64 `json:"value"`
+	IsMe     bool    `json:"is_me"`
+	Category string  `json:"category"`
 }
 
 type Edge struct {
@@ -130,40 +233,60 @@ type Edge struct {
 	Weight float64 `json:"weight"`
 }
 
-// Why: Aggregates requester-assignee relationships from the message logs to construct a weighted network graph, reducing LLM output overhead and ensuring data consistency.
-func (s *ReportsService) generateVisualizationData(messages []store.ConsolidatedMessage) GraphData {
+// Why: Aggregates requester-assignee relationships from the message logs to construct a weighted network graph.
+func (s *ReportsService) generateVisualizationData(email string, messages []Log) GraphData {
 	counts := make(map[string]float64)
-	pairWeights := make(map[string]float64) // "Source|Target" -> weight
+	pairWeights := make(map[string]float64)
+	idToName := make(map[string]string)
+	idToCategory := make(map[string]string)
 
 	for _, m := range messages {
-		req := strings.TrimSpace(m.Requester)
-		asg := strings.TrimSpace(m.Assignee)
-		// Why: Skips empty or self-referenced relationships to ensure the network graph focuses on meaningful collaborative communications.
-		if req == "" || asg == "" || req == asg {
+		// [중요] 집계 시작 직전에 두 사람 모두 정규화 수행
+		reqID, reqName, reqCat := store.NormalizeWithCategory(email, m.Requester)
+		asgID, asgName, asgCat := store.NormalizeWithCategory(email, m.Assignee)
+
+		// Why: Eliminate self-loops and empty IDs to prevent circular dependencies and invalid data.
+		if reqID == "" || asgID == "" || reqID == asgID {
 			continue
 		}
 
-		counts[req]++
-		counts[asg]++
+		// 모든 키는 소문자 이메일(ID)로 통일하여 집계
+		counts[reqID]++
+		counts[asgID]++
 
-		pair := req + "|" + asg
+		pair := reqID + "|" + asgID
 		pairWeights[pair]++
+
+		// Why: Cache the resolved name and category to avoid re-calculating them when creating nodes.
+		idToName[reqID] = reqName
+		idToCategory[reqID] = reqCat
+		idToName[asgID] = asgName
+		idToCategory[asgID] = asgCat
 	}
 
-	nodes := make([]Node, 0) // 빈 배열일 때 null이 되지 않도록 초기화
+	nodes := make([]Node, 0)
 	for id, val := range counts {
+		name := idToName[id]
+		category := idToCategory[id]
+		
 		nodes = append(nodes, Node{
 			ID:    id,
-			Name:  id,
+			Name:  fmt.Sprintf("%s (%s)", name, category), // [CRITICAL] 이름 옆에 카테고리 병기 강제
 			Value: val,
-			IsMe:  strings.ToLower(id) == "me",
+			IsMe:  strings.EqualFold(id, email),
+			Category: category,
 		})
 	}
 
-	links := make([]Edge, 0) // 빈 배열일 때 null이 되지 않도록 초기화
+	links := make([]Edge, 0)
 	for pair, weight := range pairWeights {
 		parts := strings.Split(pair, "|")
-		links = append(links, Edge{Source: parts[0], Target: parts[1], Weight: weight})
+		// Why: Contract enforcement ensures links.source/target match nodes.id exactly.
+		links = append(links, Edge{
+			Source: parts[0],
+			Target: parts[1],
+			Weight: weight,
+		})
 	}
 
 	return GraphData{Nodes: nodes, Links: links}

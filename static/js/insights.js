@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { state } from './state.js';
 import { I18N_DATA } from './locales.js';
 import { insightsRenderer } from './insightsRenderer.js';
+import { events, EVENTS } from './events.js';
 
 /**
  * @file insights.js
@@ -10,6 +11,7 @@ import { insightsRenderer } from './insightsRenderer.js';
 
 export const insights = {
     lastStats: null,
+    lastReport: null,
     currentChartDays: 30,
 
     /**
@@ -34,7 +36,7 @@ export const insights = {
         // 2단계 탭 바인딩 (통계 / 보고서)
         const statsTab = document.querySelector('[data-tab="insightsStatsTab"]');
         const reportsTab = document.querySelector('[data-tab="insightsReportsTab"]');
-        
+
         // Panels
         const statsPanel = document.getElementById('insightsStatsTab');
         const reportsPanel = document.getElementById('insightsReportsTab');
@@ -52,26 +54,150 @@ export const insights = {
                 statsTab.classList.remove('active');
                 reportsPanel.classList.add('c-tabs__panel--active');
                 statsPanel.classList.remove('c-tabs__panel--active');
-                
+
                 // Fetch report data if not already loaded or on refresh
                 await this.refreshReport();
+            });
+        }
+
+        this.bindReportEvents();
+        this.initDatePickers();
+
+        // 테마 변경 시 ECharts 및 SVG 차트 실시간 리렌더링 (서버 재호출 방지)
+        events.on(EVENTS.THEME_CHANGED, () => {
+            if (!document.getElementById('insightsSection')?.classList.contains('hidden')) {
+                if (this.lastStats) {
+                    insightsRenderer.renderAnkiChart(this.lastStats, this.currentChartDays);
+                }
+                if (this.lastReport) {
+                    insightsRenderer.renderReport(this.lastReport);
+                }
+            }
+        });
+    },
+
+    /**
+     * @description Sets default date range (last 7 days) to date pickers.
+     */
+    initDatePickers() {
+        const startInput = document.getElementById('reportStartDate');
+        const endInput = document.getElementById('reportEndDate');
+        if (!startInput || !endInput) return;
+
+        const end = new Date();
+        const start = new Date();
+        start.setDate(end.getDate() - 7);
+
+        const toISO = (d) => d.toISOString().split('T')[0];
+        startInput.value = toISO(start);
+        endInput.value = toISO(end);
+    },
+
+    /**
+     * @description Binds event listeners for report interactions.
+     */
+    bindReportEvents() {
+        const generateBtn = document.getElementById('btnGenerateReport');
+        if (generateBtn) {
+            generateBtn.addEventListener('click', () => this.generateNewReport());
+        }
+
+        const reportList = document.getElementById('reportList');
+        if (reportList) {
+            reportList.addEventListener('click', async (e) => {
+                const item = e.target.closest('.c-report-item');
+                const deleteBtn = e.target.closest('.c-report-item__delete');
+
+                if (deleteBtn) {
+                    const id = deleteBtn.dataset.id;
+                    await this.deleteReport(id);
+                    return;
+                }
+
+                if (item) {
+                    const id = item.dataset.id;
+                    await this.loadReportDetail(id);
+                }
             });
         }
     },
 
     /**
-     * Fetches and renders the weekly AI report.
+     * @description Generates a new report based on selected date range.
      */
-    async refreshReport() {
+    async generateNewReport() {
+        const start = document.getElementById('reportStartDate')?.value;
+        const end = document.getElementById('reportEndDate')?.value;
+        const btn = document.getElementById('btnGenerateReport');
+
+        if (!start || !end) return;
+
         try {
-            const report = await api.getInsightReport();
+            if (btn) btn.disabled = true;
+            const result = await api.generateReport(start, end);
+
+            // Refresh list and select the new one
+            await this.refreshReport(result.report_id);
+        } catch (e) {
+            console.error("[Insights] Generate report failed:", e);
+            alert(`Report generation failed: ${e.message}`);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    },
+
+    /**
+     * @description Deletes a specific report.
+     */
+    async deleteReport(id) {
+        const lang = state.currentLang || 'ko';
+        const i18n = I18N_DATA[lang];
+        if (!confirm(i18n.deleteReportConfirm || 'Delete this report?')) return;
+
+        try {
+            await api.deleteReport(id);
+            await this.refreshReport();
+        } catch (e) {
+            console.error("[Insights] Delete report failed:", e);
+            alert(`Delete failed: ${e.message}`);
+        }
+    },
+
+    /**
+     * @description Fetches and renders the report list.
+     */
+    async refreshReport(activeId = null) {
+        try {
+            const reports = await api.fetchReports();
+            insightsRenderer.renderReportList(reports, activeId);
+
+            if (activeId) {
+                await this.loadReportDetail(activeId);
+            } else if (reports.length > 0) {
+                await this.loadReportDetail(reports[0].id);
+            } else {
+                insightsRenderer.renderReport(null);
+            }
+        } catch (e) {
+            console.error("[Insights] Refresh reports failed:", e);
+        }
+    },
+
+    /**
+     * @description Fetches details for a specific report and renders it.
+     */
+    async loadReportDetail(id) {
+        try {
+            // Update active state in UI
+            document.querySelectorAll('.c-report-item').forEach(item => {
+                item.classList.toggle('c-report-item--active', String(item.dataset.id) === String(id));
+            });
+
+            const report = await api.fetchReportDetail(id);
+            this.lastReport = report;
             insightsRenderer.renderReport(report);
         } catch (e) {
-            console.error("[Insights] Report fetch failed:", e);
-            const summaryContainer = document.getElementById('reportSummaryContent');
-            if (summaryContainer) {
-                summaryContainer.innerHTML = `<div class="u-text-dim" style="text-align: center; padding: 2rem; color: var(--color-error);">Report generation failed: ${e.message}</div>`;
-            }
+            console.error("[Insights] Load report detail failed:", e);
         }
     },
 

@@ -14,6 +14,10 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+var (
+	db *sql.DB
+)
+
 func InitDB(cfg *config.Config) error {
 	var err error
 	dbURL := cfg.TursoURL
@@ -152,6 +156,7 @@ func runMigrations() error {
 
 	_, _ = db.Exec("ALTER TABLE achievements ADD COLUMN target_value INTEGER DEFAULT 0;")
 	_, _ = db.Exec("ALTER TABLE achievements ADD COLUMN xp_reward INTEGER DEFAULT 0;")
+	_, _ = db.Exec("ALTER TABLE reports ADD COLUMN is_truncated INTEGER DEFAULT 0;")
 
 	migrateExistingData()
 	return nil

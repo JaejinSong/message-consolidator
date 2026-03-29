@@ -1,10 +1,14 @@
 package channels
 
 import (
+	"message-consolidator/config"
 	"message-consolidator/store"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
 
 func TestClassifyGmail(t *testing.T) {
 	tests := []struct {
@@ -87,19 +91,28 @@ func TestResolveGmailCategoryAndAssignee(t *testing.T) {
 
 func TestStripHTML(t *testing.T) {
 	tests := []struct {
+		name     string
 		input    string
 		expected string
 	}{
-		{"<div>Hello World</div>", "Hello World"},
-		{"<p>Line 1</p><p>Line 2</p>", "Line 1 Line 2"},
-		{"Hello&nbsp;World &amp; Co.", "Hello World & Co."},
-		{"<style>.foo { color: red; }</style>Body", "Body"}, // Style tags are now correctly removed
+		{"Simple div", "<div>Hello World</div>", "Hello World"},
+		{"Paragraphs", "<p>Line 1</p><p>Line 2</p>", "Line 1 Line 2"},
+		{"Entities", "Hello&nbsp;World &amp; Co.", "Hello World & Co."},
+		{"Multi-line Style", "<style>\n.foo { color: red; }\nbody { background: #fff; }\n</style>Body Content", "Body Content"},
+		{"Script removal", "<script type=\"text/javascript\">\nalert('hello');\n</script>Visible Text", "Visible Text"},
+		{"Comments", "Visible <!-- hidden comment --> Text", "Visible Text"},
+		{"Nested elements", "<div>Outer <p>Inner</p></div>", "Outer Inner"},
+		{"Table structures", "<table><tr><td>Cell 1</td><td>Cell 2</td></tr></table>", "Cell 1 Cell 2"},
+		{"Complex Mix", "<html><head><style>body{}</style></head><body><h1>Title</h1><p>Para <a href='http://ext.com'>Link</a></p></body></html>", "Title Para Link"},
 	}
 
 	for _, tt := range tests {
-		if got := stripHTML(tt.input); got != tt.expected {
-			t.Errorf("stripHTML(%q) = %q; want %q", tt.input, got, tt.expected)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripHTML(tt.input)
+			if got != tt.expected {
+				t.Errorf("stripHTML() = %q; want %q", got, tt.expected)
+			}
+		})
 	}
 }
 
@@ -179,3 +192,34 @@ func TestExtractNameFromEmail(t *testing.T) {
 		})
 	}
 }
+
+func TestUpsertAddresses(t *testing.T) {
+	// Setup test DB for store dependency
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test.db")
+	dbURL := "file:" + dbPath + "?_busy_timeout=5000"
+	
+	// Use store's initialization but with our test URL
+	store.InitDB(&config.Config{TursoURL: dbURL})
+	defer os.Remove(dbPath)
+
+	tenant := "tenant@whatap.io"
+	
+	// Case 1: Multiple recipients
+	header := "Lim Sola <sola@whatap.io>, Kenny Holmes <kenny@whatap.io>"
+	first := upsertAddresses(tenant, header, "gmail")
+
+	
+	if first != "sola@whatap.io" {
+		t.Errorf("Expected sola@whatap.io, got %s", first)
+	}
+	
+	// Check if both were registered in store (via NormalizeName)
+	if name := store.NormalizeName(tenant, "sola@whatap.io"); name != "Lim Sola" {
+		t.Errorf("Lim Sola not registered correctly: %s", name)
+	}
+	if name := store.NormalizeName(tenant, "kenny@whatap.io"); name != "Kenny Holmes" {
+		t.Errorf("Kenny Holmes not registered correctly: %s", name)
+	}
+}
+

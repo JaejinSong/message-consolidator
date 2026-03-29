@@ -55,7 +55,12 @@ func main() {
 			logger.Errorf("Failed to initialize GeminiClient for Reports: %v", err)
 		}
 	}
-	reportsSvc := services.NewReportsService(gClient)
+	var reportsSvc *services.ReportsService
+	if gClient != nil {
+		summarizer := services.NewFlashSingleSummarizer(gClient)
+		config := services.ReportConfig{CutoffSize: 8000}
+		reportsSvc = services.NewReportsService(summarizer, config)
+	}
 
 	//Why: Creates the API handler structure with explicit dependency injection, simplifying unit testing and mock substitution.
 	api := handlers.NewAPI(cfg, scanner.Scan, func() {

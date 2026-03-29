@@ -196,7 +196,7 @@ export function processTimeSeriesData(history, days) {
  * @returns {string} HTML string for the badge.
  */
 export function getDeadlineBadge(timestamp, isDone, lang = 'ko') {
-    if (isDone) return '';
+    if (isDone || !timestamp) return '';
 
     const start = new Date(timestamp);
     const now = new Date();

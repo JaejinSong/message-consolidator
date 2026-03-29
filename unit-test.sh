@@ -24,7 +24,7 @@ START_TIME=$(date +%s)
 
 # Run tasks in background
 echo -ne "[ RUN ] Go Unit Tests... \r"
-go test ./... > "$LOG_GO" 2>&1 &
+go test -tags regression ./... > "$LOG_GO" 2>&1 &
 PID_GO=$!
 
 echo -ne "[ RUN ] NPM (Vitest) Tests... \r"

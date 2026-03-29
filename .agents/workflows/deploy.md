@@ -14,7 +14,7 @@ wait
 
 # 2. AI 건전성(Regression) 및 DB 진단 (Must Pass)
 # GEMINI_API_KEY_FOR_TEST 환경변수 필요
-go test ./tests/regression -v
+go test ./tests/regression -v -tags regression
 go run cmd/mc-util/*.go db-diag
 ```
 

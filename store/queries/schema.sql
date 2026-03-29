@@ -104,12 +104,16 @@ CREATE TABLE IF NOT EXISTS user_achievements (
 -- name: CreateContactsTable :exec
 CREATE TABLE IF NOT EXISTS contacts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_email VARCHAR(255) NOT NULL,
-    rep_name VARCHAR(255) NOT NULL,
-    aliases TEXT NOT NULL,
+    tenant_email VARCHAR(255) NOT NULL,
+    canonical_id VARCHAR(255) NOT NULL, -- Normalized lowercase email (SSOT)
+    display_name VARCHAR(255) NOT NULL,
+    aliases TEXT NOT NULL DEFAULT '', -- Comma-separated variation names
+    source VARCHAR(50) DEFAULT 'all',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_email, rep_name)
+    UNIQUE(tenant_email, canonical_id)
 );
+CREATE INDEX IF NOT EXISTS idx_contacts_canonical ON contacts(canonical_id);
+
 
 -- name: CreateMessagesView :exec
 DROP VIEW IF EXISTS v_messages;

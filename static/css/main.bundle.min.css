@@ -136,6 +136,7 @@
     --z-index-dropdown: 1000;
     --z-index-modal: 2000;
     --z-index-spinner: 10000;
+    --table-header-bg: rgba(255, 255, 255, 0.05);
 }
 
 /* Light Theme Overrides - High Contrast Premium Slate */
@@ -173,6 +174,7 @@ body.light-theme {
     --brand-whatsapp-hover: #1da851;
     --brand-json: #f39c12;
     --brand-json-hover: #d3850e;
+    --table-header-bg: #f8fafc;
 }
 /* --- End of static/css/variables.css --- */
 
@@ -196,7 +198,7 @@ body {
     transition: background-color 0.4s ease, color 0.4s ease;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 48rem) {
     body {
         padding: 1rem;
     }
@@ -335,7 +337,7 @@ header {
     transition: background-color 0.4s ease;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 48rem) {
     .glass-container {
         padding: 1.25rem 0.75rem;
         border-radius: var(--radius-lg);
@@ -361,7 +363,7 @@ header {
     min-height: 12.5rem;
 }
 
-@media (min-width: 1000px) {
+@media (min-width: 62.5rem) {
     .task-list {
         display: grid;
         grid-template-columns: 1fr;
@@ -603,7 +605,7 @@ body.light-theme .buy-freeze-btn:hover {
     flex-wrap: nowrap;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 48rem) {
     .c-nav {
         flex-direction: column;
         align-items: center;
@@ -675,7 +677,7 @@ body.light-theme .buy-freeze-btn:hover {
     box-shadow: 0 var(--spacing-xs) var(--spacing-xl) var(--accent-glow);
 }
 
-@media (max-width: 480px) {
+@media (max-width: 30rem) {
     .c-main-nav {
         width: 100%;
         gap: var(--spacing-xxs);
@@ -1895,7 +1897,23 @@ body.light-theme .c-utility__btn:hover {
     text-shadow: 0 0 1rem rgba(255, 255, 255, 0.1);
 }
 
-/* --- Insights Summary --- */
+/* --- Insights Summary & Cards --- */
+:root {
+    --color-slack: rgb(54, 197, 240);
+    --color-whatsapp: rgb(37, 211, 102);
+    --color-gmail: rgb(234, 67, 53);
+    --color-source-default: rgb(139, 92, 246);
+}
+
+.c-insights-card {
+    background: var(--card-bg);
+    border: var(--border-thin) solid var(--glass-border);
+    backdrop-filter: blur(var(--blur-md));
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+}
+
 .c-insights-summary {
     background: var(--card-bg);
     border: var(--border-thin) solid var(--glass-border);
@@ -1907,6 +1925,11 @@ body.light-theme .c-utility__btn:hover {
     font-size: 1.1rem;
     line-height: 1.6;
 }
+
+.c-stacked-bar__segment--slack { background-color: var(--color-slack) !important; }
+.c-stacked-bar__segment--whatsapp { background-color: var(--color-whatsapp) !important; }
+.c-stacked-bar__segment--gmail { background-color: var(--color-gmail) !important; }
+.c-stacked-bar__segment--default { background-color: var(--color-source-default) !important; }
 
 .c-stat-item__value--error {
     color: var(--color-error) !important;
@@ -2125,9 +2148,111 @@ body.light-theme .glass-btn:hover {
     background: rgba(0, 0, 0, 0.08);
 }
 
-/* --- Weekly Report Implementation --- */
-.insights-report-header {
-    margin-bottom: var(--spacing-xl);
+/* --- Weekly Report Layout --- */
+.insights-report-layout {
+    display: grid;
+    grid-template-columns: 17.5rem 1fr;
+    gap: 0; /* Remove gap for seamless sidebar */
+    min-height: calc(100vh - 15.625rem);
+    background: rgba(255, 255, 255, 0.02);
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.c-report-sidebar {
+    background: rgba(0, 0, 0, 0.2);
+    border-right: var(--border-thin) solid var(--glass-border);
+    display: flex;
+    flex-direction: column;
+}
+
+.c-report-sidebar__header {
+    padding: 1.5rem;
+    border-bottom: var(--border-thin) solid var(--glass-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.c-report-sidebar__header h3 {
+    font-size: 0.9rem;
+    font-weight: 800;
+    margin: 0;
+}
+
+.c-report-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+}
+
+.c-report-item {
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 0.5rem;
+    position: relative;
+    border: var(--border-thin) solid transparent;
+}
+
+.c-report-item__info {
+    flex: 1;
+    min-width: 0;
+}
+
+.c-report-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.c-report-item--active {
+    background: rgba(var(--color-primary-rgb), 0.15) !important;
+    border-color: rgba(var(--color-primary-rgb), 0.3);
+}
+
+.c-report-item__date {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 0.25rem;
+}
+
+.c-report-item__range {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+}
+
+.c-report-item__delete {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity 0.2s;
+    width: var(--spacing-2xl);
+    height: var(--spacing-2xl);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    color: var(--color-error);
+}
+
+.c-report-item:hover .c-report-item__delete {
+    opacity: 0.7;
+}
+
+.c-report-item__delete:hover {
+    opacity: 1 !important;
+    background: rgba(var(--color-error-rgb), 0.1);
+}
+
+.insights-report-main {
+    padding: var(--spacing-xl);
+    overflow-y: auto;
 }
 
 .insights-report-grid {
@@ -2136,62 +2261,91 @@ body.light-theme .glass-btn:hover {
     gap: var(--spacing-xl);
 }
 
-.insights-card--report-summary {
-    background: var(--card-bg);
+.insights-card--report-sankey {
+    margin-top: var(--spacing-lg);
+}
+
+#reportNetworkChart,
+#reportSankeyChart {
+    min-height: 25rem;
+}
+
+/* --- Report Components --- */
+.c-alert {
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius-md);
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+}
+
+.c-alert--warning {
+    background: rgba(var(--color-warning-rgb), 0.1);
+    border: var(--border-thin) solid rgba(var(--color-warning-rgb), 0.2);
+    color: var(--color-warning);
+}
+
+.c-alert__icon {
+    font-size: 1.1rem;
+}
+
+.c-alert__content p {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+@media (max-width: 64rem) {
+    .insights-report-layout {
+        grid-template-columns: 1fr;
+    }
+    .c-report-sidebar {
+        border-right: none;
+        border-bottom: var(--border-thin) solid var(--glass-border);
+        max-height: 12.5rem;
+    }
+}
+/* --- Report Summary Table Styling --- */
+.c-report-summary__content table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: var(--spacing-lg) 0;
+    font-size: 0.875rem;
     border: var(--border-thin) solid var(--glass-border);
-    backdrop-filter: blur(var(--blur-md));
-    border-radius: var(--radius-lg);
-    padding: var(--spacing-xl);
-    min-height: 18.75rem;
-}
-
-.markdown-content {
-    line-height: 1.8;
-    color: var(--text-main);
-    font-size: 1rem;
-}
-
-.markdown-content h1, .markdown-content h2, .markdown-content h3 {
-    margin-top: 1.8rem;
-    margin-bottom: 1.2rem;
-    color: var(--accent-color);
-    font-weight: 800;
-}
-
-.markdown-content p {
-    margin-bottom: 1rem;
-}
-
-.markdown-content strong {
-    color: var(--accent-color);
-}
-
-.insights-card--report-viz {
-    background: var(--card-bg);
-    border: var(--border-thin) solid var(--glass-border);
-    backdrop-filter: blur(var(--blur-md));
-    border-radius: var(--radius-lg);
-    padding: var(--spacing-xl);
+    border-radius: var(--radius-md);
     overflow: hidden;
 }
 
-#reportVizChart {
-    border-radius: var(--radius-md);
-    background: rgba(0, 0, 0, 0.15);
+.c-report-summary__content th,
+.c-report-summary__content td {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-bottom: var(--border-thin) solid var(--glass-border);
+    text-align: left;
+    color: var(--text-main);
 }
 
-body.light-theme #reportVizChart {
-    background: rgba(0, 0, 0, 0.03);
+.c-report-summary__content th {
+    background: var(--table-header-bg);
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
 }
 
-@media (min-width: 1024px) {
-    .insights-report-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: var(--spacing-xl);
-        align-items: start;
-    }
+.c-report-summary__content tr:last-child td {
+    border-bottom: none;
 }
+
+.c-report-summary__content tr:hover {
+    background: var(--table-row-hover);
+}
+
+body.light-theme .c-report-summary__content th {
+    background: var(--table-header-bg);
+}
+
 /* --- End of static/css/v2-insights.css --- */
 
 /* --- Start of static/css/v2-modals.css --- */

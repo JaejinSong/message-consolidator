@@ -1,0 +1,30 @@
+=== RUN   TestNormalizeWithCategory
+=== RUN   TestNormalizeWithCategory/Direct_Email_Internal
+=== RUN   TestNormalizeWithCategory/Name_Matching_Internal
+=== RUN   TestNormalizeWithCategory/Alias_Matching_Internal
+=== RUN   TestNormalizeWithCategory/Tenant_Alias_to_Name
+=== RUN   TestNormalizeWithCategory/Back-tracing_Primary_name_to_Email
+=== RUN   TestNormalizeWithCategory/TrimSpace_and_Domain_Priority
+=== RUN   TestNormalizeWithCategory/Contacts_RepName_Match
+=== RUN   TestNormalizeWithCategory/Contacts_Alias_Match
+=== RUN   TestNormalizeWithCategory/Contacts_Email_Match
+=== RUN   TestNormalizeWithCategory/Priority_Inversion_Check
+=== RUN   TestNormalizeWithCategory/External_Name
+=== RUN   TestNormalizeWithCategory/External_Email
+=== RUN   TestNormalizeWithCategory/Empty_Name
+--- PASS: TestNormalizeWithCategory (0.00s)
+    --- PASS: TestNormalizeWithCategory/Direct_Email_Internal (0.00s)
+    --- PASS: TestNormalizeWithCategory/Name_Matching_Internal (0.00s)
+    --- PASS: TestNormalizeWithCategory/Alias_Matching_Internal (0.00s)
+    --- PASS: TestNormalizeWithCategory/Tenant_Alias_to_Name (0.00s)
+    --- PASS: TestNormalizeWithCategory/Back-tracing_Primary_name_to_Email (0.00s)
+    --- PASS: TestNormalizeWithCategory/TrimSpace_and_Domain_Priority (0.00s)
+    --- PASS: TestNormalizeWithCategory/Contacts_RepName_Match (0.00s)
+    --- PASS: TestNormalizeWithCategory/Contacts_Alias_Match (0.00s)
+    --- PASS: TestNormalizeWithCategory/Contacts_Email_Match (0.00s)
+    --- PASS: TestNormalizeWithCategory/Priority_Inversion_Check (0.00s)
+    --- PASS: TestNormalizeWithCategory/External_Name (0.00s)
+    --- PASS: TestNormalizeWithCategory/External_Email (0.00s)
+    --- PASS: TestNormalizeWithCategory/Empty_Name (0.00s)
+PASS
+ok  	message-consolidator/store	0.014s

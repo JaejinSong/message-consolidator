@@ -124,7 +124,14 @@ var SQL = struct {
 	//Why: Groups SQL queries for report-related operations.
 	UpsertReport         string
 	GetReport            string
+	ListReports          string
+	GetReportByID        string
+	DeleteReport         string
 	GetMessagesForReport string
+
+	//Why: Self-Healing Identity Resolution queries.
+	GetContactByIdentifier string
+	UpdateMessageIdentity  string
 }{}
 
 func init() {
@@ -272,7 +279,13 @@ func loadAllQueries() error {
 
 	SQL.UpsertReport = queries["UpsertReport"]
 	SQL.GetReport = queries["GetReport"]
+	SQL.ListReports = queries["ListReports"]
+	SQL.GetReportByID = queries["GetReportByID"]
+	SQL.DeleteReport = queries["DeleteReport"]
 	SQL.GetMessagesForReport = queries["GetMessagesForReport"]
+
+	SQL.GetContactByIdentifier = queries["GetContactByIdentifier"]
+	SQL.UpdateMessageIdentity = queries["UpdateMessageIdentity"]
 
 	return nil
 }

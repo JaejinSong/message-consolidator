@@ -200,7 +200,9 @@ events.on(EVENTS.USER_PROFILE_UPDATED, (profile) => {
 const initTheme = () => {
     renderer.setTheme(state.currentTheme);
     renderer.bindThemeToggle((isLight) => {
-        updateTheme(isLight ? 'light' : 'dark');
+        const newTheme = isLight ? 'light' : 'dark';
+        updateTheme(newTheme);
+        events.emit(EVENTS.THEME_CHANGED, newTheme);
     }, state.currentTheme === 'light');
 };
 

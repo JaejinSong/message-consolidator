@@ -296,33 +296,77 @@
                 </div>
 
                 <!-- 주간 보고서 영역 (Weekly Report Tab) -->
-                <div id="insightsReportsTab" class="insights-container c-tabs__panel">
-                    <div class="insights-report-header">
-                        <h2 class="insights-section-title" data-i18n="weeklyReportTitle">AI 주간 업무 인사이트</h2>
-                        <p class="u-text-dim" data-i18n="weeklyReportDesc">최근 7일간의 커뮤니케이션 데이터 기반 업무 요약 및 관계망 분석</p>
-                    </div>
+                <div id="insightsReportsTab" class="insights-container c-tabs__panel insights-report-layout">
+                    <!-- Report Sidebar -->
+                    <aside class="c-report-sidebar">
+                        <div class="c-report-sidebar__header">
+                            <h3 data-i18n="reportListTitle">보고서 목록</h3>
+                        </div>
+                        <div id="reportList" class="c-report-list">
+                            <div class="u-text-dim u-text-sm" style="padding: 1rem; text-align: center;">Loading reports...</div>
+                        </div>
+                    </aside>
 
-                    <div class="insights-report-grid">
-                        <!-- AI Work Summary -->
-                        <div class="insights-card insights-card--full insights-card--report-summary">
-                            <h3 data-i18n="reportSummaryTitle"
-                                style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                                <span>📝</span> 주간 업무 요약
-                            </h3>
-                            <div id="reportSummaryContent" class="markdown-content">
-                                <div class="u-text-dim" style="text-align: center; padding: 2rem;">데이터를 분석 중입니다...</div>
+                    <!-- Main Report Content -->
+                    <div class="insights-report-main">
+                        <div class="insights-report-header">
+                            <div class="u-flex u-flex-between u-flex-align-center u-mb-6">
+                                <div>
+                                    <h2 class="insights-section-title" data-i18n="weeklyReportTitle">AI 업무 보고서</h2>
+                                    <p class="u-text-dim" data-i18n="weeklyReportDesc">지정한 기간의 커뮤니케이션 데이터 기반 업무 요약 및 관계망 분석</p>
+                                </div>
+                                <div class="c-report-controls">
+                                    <div class="u-flex u-flex-gap-sm">
+                                        <input type="date" id="reportStartDate" class="c-input u-w-auto">
+                                        <span class="u-text-dim u-align-self-center">~</span>
+                                        <input type="date" id="reportEndDate" class="c-input u-w-auto">
+                                        <button type="button" id="btnGenerateReport" class="c-btn c-btn--primary">
+                                            <span class="btn-text" data-i18n="generateBtn">생성 및 분석</span>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Network Graph -->
-                        <div class="insights-card insights-card--full insights-card--report-viz">
-                            <h3 data-i18n="reportVizTitle"
-                                style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                                <span>🕸️</span> 커뮤니케이션 관계망
-                            </h3>
-                            <div id="reportVizChart" style="width: 100%; height: 500px; min-height: 400px;">
-                                <div class="u-text-dim" style="text-align: center; padding: 2rem;">차트를 생성 중입니다...</div>
+                        <div id="reportDetailArea">
+                            <!-- Truncation Warning -->
+                            <div id="reportTruncationWarning" class="u-hidden u-mb-6">
+                                <!-- Rendered by JS -->
                             </div>
+
+                            <div class="insights-report-grid">
+                                <!-- AI Work Summary -->
+                                <div class="insights-card insights-card--full insights-card--report-summary">
+                                    <h3 data-i18n="reportSummaryTitle"
+                                        style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                        <span>📝</span> 업무 요약
+                                    </h3>
+                                    <div id="reportSummaryContent" class="markdown-content"></div>
+                                </div>
+
+                                <!-- Network Graph -->
+                                <div class="insights-card insights-card--full insights-card--report-viz">
+                                    <h3 data-i18n="reportVizTitle"
+                                        style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                        <span>🕸️</span> 커뮤니케이션 관계망
+                                    </h3>
+                                    <div id="reportVizChart" style="width: 100%; height: 500px; min-height: 400px;"></div>
+                                </div>
+
+                                <!-- Sankey Diagram -->
+                                <div class="insights-card insights-card--full insights-card--report-sankey">
+                                    <h3 data-i18n="reportSankeyTitle"
+                                        style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                        <span>📊</span> 커뮤니케이션 흐름 (Sankey)
+                                    </h3>
+                                    <div id="reportSankeyChart" style="width: 100%; height: 500px; min-height: 400px;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="reportEmptyState" class="c-reports-placeholder">
+                            <div style="font-size: 4rem; margin-bottom: 1rem;">📑</div>
+                            <p data-i18n="reportEmptyState">왼쪽 목록에서 보고서를 선택하거나, 상단 기간을 설정하여 새로운 보고서를 생성하세요.</p>
                         </div>
                     </div>
                 </div>

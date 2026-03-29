@@ -17,7 +17,7 @@ body {
     transition: background-color 0.4s ease, color 0.4s ease;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 48rem) {
     body {
         padding: 1rem;
     }

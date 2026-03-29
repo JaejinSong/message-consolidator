@@ -154,5 +154,6 @@ type Report struct {
 	EndDate       string    `json:"end_date"`
 	Summary       string    `json:"report_summary"`
 	Visualization string    `json:"visualization_data"` // JSON string of Node/Edge data
+	IsTruncated   bool      `json:"is_truncated"`       // Why: Flag to indicate if the report was limited due to token boundaries.
 	CreatedAt     time.Time `json:"created_at"`
 }

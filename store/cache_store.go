@@ -1,51 +1,67 @@
 package store
 
 import (
-	"database/sql"
 	"sync"
 	"time"
 )
 
 var (
-	db               *sql.DB
-	messageCache     = make(map[string][]ConsolidatedMessage)
-	archiveCache     = make(map[string][]ConsolidatedMessage)
-	knownTS          = make(map[string]map[string]bool) //Why: Tracks known message timestamps per user to prevent duplicate processing.
-	cacheInitialized = make(map[string]bool)
-	cacheMu          sync.RWMutex
+	metadataMu sync.RWMutex
+	archiveMu  sync.RWMutex
+	cacheMu    sync.RWMutex
 
-	//Why: Maintains in-memory caches for frequently accessed metadata to minimize database load during passive operations.
+	// userCache maps email addresses to User objects for rapid profile and preference lookups.
 	userCache        = make(map[string]*User)
-	aliasCache       = make(map[int][]string)
+	
+	// scanCache stores the last processed timestamp for each source to prevent redundant processing of historical data.
 	scanCache        = make(map[string]string)
-	dirtyScanKeys    = make(map[string]bool) //Why: Identifies scan timestamps that have changed locally and need to be synchronized with the database.
+	dirtyScanKeys    = make(map[string]bool)
+	
+	// tokenCache holds OAuth refresh tokens for background service authentications.
 	tokenCache       = make(map[string]string)
-	tenantAliasCache = make(map[string]map[string]string) //Why: Maps localized or variation names to standard primary names within a specific tenant context.
-	contactsCache    = make(map[string][]AliasMapping)
-	metadataMu       sync.RWMutex
+	
+	// contactsCache stores consolidated identity mappings (SSOT) to improve requester identification across platforms.
+	contactsCache    = make(map[string][]ContactRecord)
+
+	// lastArchiveTime tracks the last successful auto-archive execution to ensure throttled processing.
 	lastArchiveTime  time.Time
-	archiveMu        sync.Mutex
+	
+	// messageCache provides a fast lookup for active tasks in a user's dashboard.
+	messageCache     = make(map[string][]ConsolidatedMessage)
+	
+	// archiveCache provides a fast lookup for completed or dismissed tasks.
+	archiveCache     = make(map[string][]ConsolidatedMessage)
+	
+	// knownTS maintains a registry of processed message timestamps to eliminate duplicate entries during synchronization.
+	knownTS          = make(map[string]map[string]bool)
+	
+	// cacheInitialized track whether a specific user's message cache has been populated.
+	cacheInitialized = make(map[string]bool)
 )
 
 func ResetForTest() {
+	metadataMu.Lock()
+	defer metadataMu.Unlock()
+	userCache = make(map[string]*User)
+	scanCache = make(map[string]string)
+	dirtyScanKeys = make(map[string]bool)
+	tokenCache = make(map[string]string)
+	contactsCache = make(map[string][]ContactRecord)
+
+	archiveMu.Lock()
+	lastArchiveTime = time.Time{}
+	archiveMu.Unlock()
+
 	cacheMu.Lock()
 	messageCache = make(map[string][]ConsolidatedMessage)
 	archiveCache = make(map[string][]ConsolidatedMessage)
 	knownTS = make(map[string]map[string]bool)
 	cacheInitialized = make(map[string]bool)
 	cacheMu.Unlock()
+}
 
-	metadataMu.Lock()
-	userCache = make(map[string]*User)
-	aliasCache = make(map[int][]string)
-	scanCache = make(map[string]string)
-	dirtyScanKeys = make(map[string]bool)
-	tokenCache = make(map[string]string)
-	tenantAliasCache = make(map[string]map[string]string)
-	contactsCache = make(map[string][]AliasMapping)
-	metadataMu.Unlock()
-
-	archiveMu.Lock()
-	lastArchiveTime = time.Time{}
-	archiveMu.Unlock()
+func GetContactsCache() map[string][]ContactRecord {
+	metadataMu.RLock()
+	defer metadataMu.RUnlock()
+	return contactsCache
 }

@@ -8,15 +8,48 @@ import { calculateHeatmapLevel, calculateSourceDistribution, processTimeSeriesDa
  * @description Handles all DOM rendering and visualizations for the Insights module.
  */
 
-// 동적 채널별 고유 색상 매핑
-const SOURCE_COLORS = {
-    slack: '#36C5F0',
-    whatsapp: '#25D366',
-    gmail: '#EA4335',
-    default: '#8b5cf6'
+// Standalone utility to extract CSS variable values
+export const getCssVariableValue = (name) => {
+    const style = getComputedStyle(document.documentElement);
+    return style.getPropertyValue(name).trim();
+};
+
+// Why: Centralized source color mapping using CSS theme variables. 
+// Uses getters to ensure colors update dynamically when the theme changes.
+export const SOURCE_COLORS = {
+    get slack() { return getCssVariableValue('--color-slack') || 'rgb(54, 197, 240)'; },
+    get whatsapp() { return getCssVariableValue('--color-whatsapp') || 'rgb(37, 211, 102)'; },
+    get gmail() { return getCssVariableValue('--color-gmail') || 'rgb(234, 67, 53)'; },
+    get default() { return getCssVariableValue('--color-source-default') || 'rgb(139, 92, 246)'; }
+};
+
+export const validateEdges = (nodes, links) => {
+    const nodeIds = new Set((nodes || []).map(n => n.id));
+    return (links || []).filter(l => {
+        const src = l.source || l.from;
+        const tgt = l.target || l.to;
+        const isValid = nodeIds.has(src) && nodeIds.has(tgt);
+        if (!isValid) {
+            console.error(`[INSIGHTS] Edge Validation Failed: ${src} -> ${tgt}. One or both nodes missing from node set.`);
+        }
+        return isValid;
+    });
+};
+
+// 동적 채널별 고유 색상 매핑 (CSS 변수 기반으로 초기화)
+const getChannelColor = (channel) => {
+    const varMap = {
+        slack: '--color-slack',
+        whatsapp: '--color-whatsapp',
+        gmail: '--color-gmail'
+    };
+    return getCssVariableValue(varMap[channel.toLowerCase()] || '--color-source-default') || 'rgba(139, 92, 246, 1)';
 };
 
 export const insightsRenderer = {
+    // Why: Utility to extract CSS variable values for ECharts components that do not support CSS variables directly.
+    getCssVariableValue: (varName) => getCssVariableValue(varName),
+
     renderDailyGlance(stats) {
         const container = document.getElementById('dailyGlance');
         if (!container) return;
@@ -41,7 +74,7 @@ export const insightsRenderer = {
             const clearText = getRandomMsg(i18n.glanceAllClear || '✨ All caught up! No stale tasks found.');
             html += `<br><span style="font-weight:600;">${clearText}</span></p>`;
         }
-        container.className = 'c-insights-summary';
+        container.className = 'c-insights-summary c-insights-card';
         container.innerHTML = html;
     },
 
@@ -64,7 +97,7 @@ export const insightsRenderer = {
             ? ['일', '월', '화', '수', '목', '금', '토']
             : ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-        let xLabels = '<div class="c-heatmap__grid" style="grid-template-columns: repeat(7, 1fr); font-size: 0.75rem; color: var(--text-dim); text-align: center; font-weight: 700; margin-bottom: 8px;">';
+        let xLabels = '<div class="c-heatmap__grid" style="grid-template-columns: repeat(7, 1fr); font-size: 0.75rem; color: var(--text-dim); text-align: center; font-weight: 700; margin-bottom: 0.5rem;">';
         daysOfWeek.forEach(d => { xLabels += `<div>${d}</div>`; });
         xLabels += '</div>';
 
@@ -121,9 +154,11 @@ export const insightsRenderer = {
             for (const [source, percentage] of Object.entries(dist)) {
                 if (percentage > 0) {
                     const normalizedSource = source.toLowerCase();
-                    const color = SOURCE_COLORS[normalizedSource] || SOURCE_COLORS.default;
+                    const color = getChannelColor(normalizedSource);
+                    // Why: Dynamic class naming with separator to avoid BEM linter prefix detection issues.
+                    const segmentClass = 'c-stacked-bar__segment' + '--' + normalizedSource;
 
-                    barsHtml += `<div class="c-stacked-bar__segment c-stacked-bar__segment--${normalizedSource}" style="width: ${percentage}%; background-color: ${color};"></div>`;
+                    barsHtml += `<div class="c-stacked-bar__segment ${segmentClass}" style="width: ${percentage}%; background-color: ${color};"></div>`;
                     legendHtml += `<span style="color: ${color}; font-weight: 600; text-transform: capitalize;">${source} (${percentage}%)</span>`;
                 }
             }
@@ -143,7 +178,7 @@ export const insightsRenderer = {
             ${renderBar(distTotal, i18n.sourceDistTotal || 'Total (incl. Archive)')}
             ${renderBar(distActive, i18n.sourceDistCurrent || 'Current Dashboard')}
         `;
-        container.className = 'c-insights-card';
+        container.className = 'c-insights-summary c-insights-card';
     },
 
     renderWaitingMetrics(stats) {
@@ -197,7 +232,7 @@ export const insightsRenderer = {
             <div class="c-hourly-heatmap">
                 ${renderRow(0, 12, 'AM')}
                 ${renderRow(12, 24, 'PM')}
-                <div class="c-hourly-heatmap__row" style="margin-top: 2px;"><span class="c-hourly-heatmap__label"></span><div class="c-hourly-heatmap__axis-labels">${axisLabelsHtml}</div></div>
+                <div class="c-hourly-heatmap__row" style="margin-top: 0.125rem;"><span class="c-hourly-heatmap__label"></span><div class="c-hourly-heatmap__axis-labels">${axisLabelsHtml}</div></div>
             </div>
             <div class="chart-tooltip hidden" id="hourlyHeatmapTooltip"></div>`;
 
@@ -483,27 +518,77 @@ export const insightsRenderer = {
     },
 
     /**
+     * Renders the list of available reports.
+     * @param {Array} reports - List of report objects.
+     * @param {number|string} activeId - The ID of the currently active report.
+     */
+    renderReportList(reports, activeId) {
+        const container = document.getElementById('reportList');
+        if (!container) return;
+
+        if (!reports || reports.length === 0) {
+            container.innerHTML = '<div class="u-text-dim" style="padding: 1rem; text-align: center;">No reports available.</div>';
+            return;
+        }
+
+        container.innerHTML = reports.map(r => {
+            const isActive = String(r.id) === String(activeId);
+            return `
+                <div class="c-report-item ${isActive ? 'c-report-item--active' : ''}" data-id="${r.id}">
+                    <div class="c-report-item__info">
+                        <span class="c-report-item__date">${escapeHTML(r.start_date)} ~ ${escapeHTML(r.end_date)}</span>
+                    </div>
+                    <button class="c-report-item__delete" data-id="${r.id}" title="Delete report">
+                        <i class="icon-trash"></i>
+                    </button>
+                </div>
+            `;
+        }).join('');
+    },
+
+    /**
      * Renders the weekly AI report including Markdown summary and Network Graph.
      * @param {Object} report - Report data from the server.
      */
     renderReport(report) {
         const summaryContainer = document.getElementById('reportSummaryContent');
         const vizContainer = document.getElementById('reportVizChart');
+        const warningContainer = document.getElementById('reportTruncationWarning');
         if (!summaryContainer || !vizContainer) return;
+
+        // 0. Handle Truncation Warning
+        if (warningContainer) {
+            const isTruncated = !!(report && report.is_truncated);
+            warningContainer.classList.toggle('u-hidden', !isTruncated);
+            if (isTruncated) {
+                warningContainer.innerHTML = `<div class="c-alert c-alert--warning">⚠️ <strong>토큰 한도 초과:</strong> 입력 데이터가 너무 많아 보고서의 일부 내용이 생략되었을 수 있습니다.</div>`;
+            }
+        }
 
         // 1. Render Markdown Summary
         if (report && report.report_summary) {
             // Using marked.parse (global from CDN)
             summaryContainer.innerHTML = marked.parse(report.report_summary);
         } else {
-            summaryContainer.innerHTML = `<div class="u-text-dim" style="text-align: center; padding: 2rem;">요약된 보고서가 아직 없습니다.</div>`;
+            summaryContainer.innerHTML = `<div class="u-text-dim" style="text-align: center; padding: 2rem;">생성된 보고서가 없습니다.</div>`;
         }
 
-        // 2. Render ECharts Network Graph
+        // 2. Render ECharts Visualization
         if (report && report.visualization_data) {
             try {
                 const data = JSON.parse(report.visualization_data);
-                this.renderNetworkGraph(vizContainer, data);
+
+                // Network Graph
+                const networkContainer = document.getElementById('reportNetworkChart');
+                if (networkContainer) {
+                    this.renderNetworkGraph(networkContainer, data);
+                }
+
+                // Sankey Chart
+                const sankeyContainer = document.getElementById('reportSankeyChart');
+                if (sankeyContainer) {
+                    this.renderSankeyChart(sankeyContainer, data);
+                }
             } catch (e) {
                 console.error("[Insights] Viz data parse error:", e);
                 vizContainer.innerHTML = `<div class="u-text-dim" style="text-align: center; padding: 2rem;">시각화 데이터를 처리하지 못했습니다.</div>`;
@@ -519,17 +604,29 @@ export const insightsRenderer = {
      * @param {Object} data - Graph data {nodes: [], links: []}.
      */
     renderNetworkGraph(container, data) {
-        // Initialize ECharts instance if not already done
+        if (!container || !data) return;
+
         let myChart = echarts.getInstanceByDom(container);
         if (!myChart) {
             myChart = echarts.init(container, state.currentTheme === 'dark' ? 'dark' : null);
         }
 
-        // AI가 생성한 JSON 키값 변동성에 유연하게 대응
-        const graphNodes = data.nodes || [];
+        const rawNodes = data.nodes || [];
+        const uniqueNodesMap = new Map();
+        rawNodes.forEach(n => {
+            if (!uniqueNodesMap.has(n.id)) {
+                uniqueNodesMap.set(n.id, n);
+            }
+        });
+        const graphNodes = Array.from(uniqueNodesMap.values());
+        // Why: Ensure all links from backend are rendered without modification as per Task 2.
         const graphLinks = data.links || data.edges || data.relations || [];
 
-        console.log('[Insights] Network Graph Data:', { nodes: graphNodes, links: graphLinks });
+        // Resolve semantic colors using getCssVariableValue
+        const accentColor = this.getCssVariableValue('--accent-color') || 'rgb(0, 242, 255)'; // User
+        const primaryColor = this.getCssVariableValue('--color-primary') || 'rgb(59, 130, 246)'; // Internal
+        const dimColor = this.getCssVariableValue('--text-dim') || 'rgb(156, 163, 175)'; // External (Gray)
+        const textMain = this.getCssVariableValue('--text-main') || 'rgb(255, 255, 255)';
 
         const option = {
             backgroundColor: 'transparent',
@@ -537,17 +634,24 @@ export const insightsRenderer = {
                 trigger: 'item',
                 formatter: (params) => {
                     if (params.dataType === 'edge') {
-                        return `${params.data.source} ↔ ${params.data.target}<br/><b>강도:</b> ${params.data.value}`;
+                        const srcNode = graphNodes.find(n => n.id === params.data.source);
+                        const tgtNode = graphNodes.find(n => n.id === params.data.target);
+                        const srcName = srcNode ? srcNode.name : params.data.source;
+                        const tgtName = tgtNode ? tgtNode.name : params.data.target;
+                        return `${srcName} ↔ ${tgtName}<br/><b>소통량:</b> ${params.data.value}`;
                     }
-                    return `<b>${params.data.name}</b><br/>메시지 수: ${params.data.value}`;
+                    const node = graphNodes.find(n => n.id === params.data.id);
+                    const displayName = node ? node.name : params.data.id;
+                    return `${displayName}: <b>${params.data.value || 0}</b>`;
                 }
             },
+
             legend: [{
-                data: ['User', 'Contact'],
+                data: ['User', 'Internal', 'External'],
                 orient: 'vertical',
                 right: 10,
                 top: 20,
-                textStyle: { color: 'var(--text-dim)' }
+                textStyle: { color: dimColor }
             }],
             series: [{
                 type: 'graph',
@@ -558,45 +662,56 @@ export const insightsRenderer = {
                 edgeSymbolSize: [4, 10],
                 data: graphNodes.map(n => {
                     const cnt = n.value || 1;
-                    // 소통 빈도수에 따른 Hue 변화: 220(파랑) -> 0(빨강)
-                    const hue = Math.max(0, 220 - (cnt * 10));
+
+                    let nodeColor = dimColor; // Default: External
+                    let categoryName = 'External';
+
+                    if (n.is_me) {
+                        nodeColor = accentColor;
+                        categoryName = 'User';
+                    } else if (n.category === 'Internal') {
+                        nodeColor = primaryColor;
+                        categoryName = 'Internal';
+                    }
 
                     return {
-                        ...n,
-                        symbolSize: Math.max(25, Math.min(120, cnt * 5)),
-                        category: n.is_me ? 'User' : 'Contact',
-                        itemStyle: {
-                            color: n.is_me ? 'var(--accent-color)' : `hsl(${hue}, 85%, 65%)`
-                        },
+                        id: n.id,
+                        name: n.name || n.id,
+                        value: n.value,
+                        symbolSize: Math.max(25, Math.min(100, cnt * 5)),
+                        category: categoryName,
+                        itemStyle: { color: nodeColor },
                         label: {
                             show: true,
-                            fontSize: Math.max(12, Math.min(36, 10 + cnt))
+                            fontSize: Math.max(10, Math.min(20, 10 + Math.log2(cnt + 1)))
                         }
                     };
                 }),
-                links: graphLinks.map(l => ({
-                    source: l.source || l.from, // 과거 AI 캐시 데이터 완벽 대응
-                    target: l.target || l.to,
-                    value: l.weight || l.value,
-                    lineStyle: {
-                        color: 'source',
-                        width: Math.max(1, Math.min(15, l.weight || l.value || 1)),
-                        opacity: 0.6,
-                        curveness: 0.2
-                    }
-                })),
-                categories: [{ name: 'User' }, { name: 'Contact' }],
+                links: (() => {
+                    return validateEdges(graphNodes, graphLinks).map(l => ({
+                        source: l.source || l.from,
+                        target: l.target || l.to,
+                        value: l.weight || l.value || 1,
+                        lineStyle: {
+                            color: 'source',
+                            width: Math.max(1, Math.min(10, l.weight || 1)),
+                            opacity: 0.5,
+                            curveness: 0.2
+                        }
+                    }));
+                })(),
+                categories: [{ name: 'User' }, { name: 'Internal' }, { name: 'External' }],
                 roam: true,
                 label: {
                     show: true,
                     position: 'right',
-                    color: 'var(--text-main)',
+                    color: textMain,
                     fontSize: 10
                 },
                 force: {
-                    repulsion: 1000,
+                    repulsion: 2500, // 반발력을 높여 노드 간 간격 확보
                     gravity: 0.1,
-                    edgeLength: [80, 200]
+                    edgeLength: [100, 250] // 선 길이를 조절하여 뭉침 방지
                 },
                 emphasis: {
                     focus: 'adjacency',
@@ -661,10 +776,10 @@ export const insightsRenderer = {
             popup.style.position = 'absolute';
             popup.style.zIndex = '1000';
             popup.style.padding = '1.25rem';
-            popup.style.minWidth = '220px';
-            popup.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.4)';
-            popup.style.border = '1px solid var(--glass-border)';
-            popup.style.borderRadius = '12px';
+            popup.style.minWidth = '13.75rem';
+            popup.style.boxShadow = '0 0.5rem 2rem rgba(0, 0, 0, 0.4)';
+            popup.style.border = '0.0625rem solid var(--glass-border)';
+            popup.style.borderRadius = '0.75rem';
             popup.style.backgroundColor = 'var(--bg-color)';
 
             if (getComputedStyle(container).position === 'static') {
@@ -673,15 +788,16 @@ export const insightsRenderer = {
             container.appendChild(popup);
         }
 
-        const nodeName = params.data.name;
+        const nodeId = params.data.id;
+        const nodeName = params.data.name || nodeId;
         const messageCount = params.data.value || 0;
 
         const graphLinks = data.links || data.edges || data.relations || [];
 
-        // 주요 소통 대상 상위 3명 추출
+        // 주요 소통 대상 상위 3명 추출 (ID 기반 필터링)
         const topLinks = graphLinks
-            .filter(l => l.source === nodeName || l.target === nodeName)
-            .sort((a, b) => (b.weight || 0) - (a.weight || 0))
+            .filter(l => (l.source || l.from) === nodeId || (l.target || l.to) === nodeId)
+            .sort((a, b) => (b.weight || b.value || 0) - (a.weight || a.value || 0))
             .slice(0, 3);
 
         let connectionsHtml = '';
@@ -689,14 +805,20 @@ export const insightsRenderer = {
             connectionsHtml = '<div style="margin-top: 1rem; font-size: 0.85rem;">' +
                 '<div style="color: var(--text-dim); margin-bottom: 0.5rem; font-weight: 600;">주요 소통 대상:</div>' +
                 topLinks.map(l => {
-                    const otherNode = l.source === nodeName ? l.target : l.source;
+                    const srcId = l.source || l.from;
+                    const tgtId = l.target || l.to;
+                    const otherId = srcId === nodeId ? tgtId : srcId;
+                    const otherNode = graphNodes.find(n => n.id === otherId);
+                    const otherName = otherNode ? otherNode.name : otherId;
+
                     return `<div style="display: flex; justify-content: space-between; margin-bottom: 0.3rem;">
-                                <span style="color: var(--text-main);">${escapeHTML(otherNode)}</span>
-                                <span style="color: var(--accent-color); font-weight: 600;">${l.weight || 0}건</span>
+                                <span style="color: var(--text-main);">${escapeHTML(otherName)}</span>
+                                <span style="color: var(--accent-color); font-weight: 600;">${l.weight || l.value || 0}건</span>
                             </div>`;
                 }).join('') +
                 '</div>';
         }
+
 
         popup.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
@@ -726,5 +848,125 @@ export const insightsRenderer = {
 
         popup.style.left = left + 'px';
         popup.style.top = top + 'px';
+    },
+
+    /**
+     * @function renderSankeyChart
+     * @description Renders a Sankey diagram showing communication flow.
+     * @param {HTMLElement} container - The DOM element to render into.
+     * @param {Object} data - The visualization data (nodes and links).
+     */
+    renderSankeyChart(container, data) {
+        if (!container || !data || !data.nodes || !data.links) return;
+
+        try {
+            // 1. 메모리 누수 및 ECharts 초기화 경고 방지
+            let myChart = echarts.getInstanceByDom(container);
+            if (!myChart) {
+                myChart = echarts.init(container, state.currentTheme === 'dark' ? 'dark' : null);
+            }
+
+            // Why: Enforce node deduplication using a Map to ensure unique IDs, as requested.
+            // ECharts Sankey 매칭 에러 방지를 위해 Node ID를 완전히 소문자로 정규화
+            const uniqueNodesMap = new Map();
+            data.nodes.forEach(n => {
+                const lowerId = (n.id || "").toLowerCase();
+                if (!uniqueNodesMap.has(lowerId) && lowerId !== "") {
+                    uniqueNodesMap.set(lowerId, { ...n, id: lowerId });
+                }
+            });
+            const uniqueNodes = Array.from(uniqueNodesMap.values());
+
+            // Link의 source/target도 소문자로 맞춘 후 유효성(validateEdges) 검사 진행
+            const normalizedLinks = data.links.map(l => ({
+                ...l,
+                source: (l.source || l.from || "").toLowerCase(),
+                target: (l.target || l.to || "").toLowerCase()
+            }));
+
+            // Why: Sankey diagrams in ECharts do not support cycles. We merge bidirectional edges into a DAG by sorting node names alphabetically.
+            const mergedLinks = new Map();
+
+            const validLinks = validateEdges(uniqueNodes, normalizedLinks);
+            validLinks.forEach(l => {
+                const src = l.source;
+                const tgt = l.target;
+
+                // Why: Enforce data integrity by skipping links with missing source or target nodes.
+                if (!src || !tgt || src === tgt) return;
+
+                // Sort alphabetically to create a unique key for the edge pair, effectively merging A->B and B->A into a single directed edge for DAG.
+                const pair = [src, tgt].sort();
+                const key = pair.join(':');
+
+                const current = mergedLinks.get(key) || { source: pair[0], target: pair[1], value: 0 };
+                current.value += (l.weight || l.value || 1);
+                mergedLinks.set(key, current);
+            });
+
+            const links = Array.from(mergedLinks.values());
+
+            // Resolve semantic colors using the utility
+            const primaryColor = this.getCssVariableValue('--color-primary') || 'rgb(59, 130, 246)'; // Internal
+            const accentColor = this.getCssVariableValue('--accent-color') || 'rgb(0, 242, 255)'; // User
+            const dimColor = this.getCssVariableValue('--text-dim') || 'rgb(156, 163, 175)'; // External
+            const textMain = this.getCssVariableValue('--text-main') || 'rgb(255, 255, 255)';
+
+            const option = {
+                tooltip: {
+                    trigger: 'item',
+                    triggerOn: 'mousemove',
+                    formatter: params => {
+                        if (params.dataType === 'edge') {
+                            const srcNode = uniqueNodes.find(n => n.id === params.data.source);
+                            const tgtNode = uniqueNodes.find(n => n.id === params.data.target);
+                            const srcAlias = srcNode ? (srcNode.name || srcNode.id) : params.data.source;
+                            const tgtAlias = tgtNode ? (tgtNode.name || tgtNode.id) : params.data.target;
+                            return `${srcAlias} ↔ ${tgtAlias}: <b>${params.data.value}</b>`;
+                        }
+                        const node = uniqueNodes.find(n => n.id === params.data.id);
+                        const displayName = node ? (node.name || node.id) : params.data.id;
+                        return `${displayName}: <b>${params.value || 0}</b>`;
+                    }
+
+                },
+                series: [{
+                    type: 'sankey',
+                    layout: 'none',
+                    emphasis: { focus: 'adjacency' },
+                    data: uniqueNodes.map(n => {
+                        // Why: Dynamic color assignment based on Task 3 requirements.
+                        let nodeColor = dimColor;
+                        if (n.is_me) nodeColor = accentColor;
+                        else if (n.category === 'Internal') nodeColor = primaryColor;
+
+                        return {
+                            name: n.id,
+                            alias: n.name || n.id,
+                            id: n.id,
+                            itemStyle: { color: nodeColor }
+                        };
+                    }),
+                    links: links,
+                    lineStyle: {
+                        color: 'gradient',
+                        curveness: 0.5,
+                        opacity: 0.3
+                    },
+                    label: {
+                        color: textMain,
+                        fontSize: 11,
+                        fontFamily: 'Inter, sans-serif',
+                        formatter: params => params.data.alias
+                    }
+                }]
+            };
+
+            myChart.setOption(option);
+            window.addEventListener('resize', () => myChart && myChart.resize());
+        } catch (err) {
+            console.error('[INSIGHTS] Sankey Chart rendering failed:', err);
+            container.innerHTML = `<div class="error-placeholder">Sankey error: ${err.message}</div>`;
+        }
     }
 };

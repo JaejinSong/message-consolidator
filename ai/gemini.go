@@ -117,19 +117,11 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 
 	model := g.client.GenerativeModel(g.analysisModel)
 	model.SafetySettings = relaxedSafetySettings
-	// Why: Slightly higher temperature (0.2) allows for more natural linguistic variety in summaries while maintaining business accuracy.
-	model.SetTemperature(0.2)
+	// Why: Lowest temperature (0.1) is chosen for report generation to minimize creative hallucinations and ensure strict adherence to the provided task list and business logic rules.
+	model.SetTemperature(0.1)
 	model.SetMaxOutputTokens(4096)
 
-	sysInst := `You are a professional business analyst. 
-Summarize the provided task list into a concise 'Weekly Work Report' in Markdown format. 
-Focus on:
-1. Key achievements and completed tasks.
-2. Significant pending items and upcoming deadlines.
-3. Observations on communication patterns or bottlenecks.
-Language: Korean. 
-Tone: Professional, dry, and business-oriented.
-Output only the Markdown content.`
+	sysInst := loadPrompt("report_summary.prompt")
 
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(sysInst)},

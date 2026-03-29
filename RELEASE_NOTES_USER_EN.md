@@ -1,3 +1,23 @@
+# Release Notes - v2.5.0 (2026-04-05 10:00 UTC)
+
+- **[FEAT] Meet Your Personal AI Secretary**: Our new "Insights AI" now delivers a beautifully crafted weekly summary of your achievements. Stop scrolling and start reviewing your week in a glance!
+- **[FEAT] Visualize Your Team's Synergy**: Ever wondered who's the "hub" of your communications? The new Relationship Graph turns your team interactions into a stunning interactive map.
+- **[OPTIMIZE] Lightning Fast Data Engine**: We've upgraded our brain to Turso! This means your messages and tasks load with zero hesitation, no matter where you are in the world.
+- **[UI] Pixel-Perfect Mobile View**: We've polished the edges of our mobile app. Enjoy a cleaner, more spacious layout that feels just right on your phone.
+- **[STABILITY] Smarter AI, No Cut-offs**: We’ve taught our AI to be more thorough. Your weekly reports will now always be complete and perfectly formatted, with no missing pieces.
+- **[SYS] Global Time Accuracy**: Whether you're a digital nomad or working with a global team, our new timezone engine ensures every timestamp is 100% accurate to your local clock.
+
+---
+
+# Release Notes - v2.4.1 (2026-04-02 03:00 UTC)
+
+- **[FIX] Unmasking the Mystery Assignee**: We found a bug where Gmail tasks were forgetting who was in charge. We've reintroduced them to their owners—no more mysterious 'undefined' names in your task list!
+- **[PERF] Turbo-Charged Engine**: We’ve re-engineered our internal database system using "SQL Views." Think of it as upgrading from a crowded intersection to a smooth highway—your data now moves faster than ever.
+- **[STABILITY] No More Ghosting**: Our message scanners are now much more resilient. Even if your internet takes a quick nap, Message Consolidator will keep working in the background to ensure no message is left behind.
+- **[OPTIMIZE] Cleaner Archives**: We’ve reorganized the digital attic! Your archived tasks are now better sorted by completion, and we’ve renamed "Canceled Tasks" to keep things crystal clear.
+
+---
+
 # Release Notes - v2.4.0 (2026-04-01 09:00 UTC)
 
 - **[FEAT] Your 24/7 Digital Bodyguard**: We've integrated WhaTap monitoring to watch over your messages. It helps us catch and fix bugs before you even notice them—consider it a premium security service for your productivity.

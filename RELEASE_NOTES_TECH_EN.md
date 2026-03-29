@@ -1,15 +1,40 @@
+# Release Notes (Tech) - v2.5.0 (2026-04-05 10:00 UTC)
+
+## 🧠 AI & Analytical Engine
+- **[FEAT] Insights AI Weekly Reporting**: Launched a new automated reporting engine that generates comprehensive weekly productivity summaries using Gemini.
+- **[FEAT] Relationship Graph Visualization**: Implemented a dynamic social network graph to visualize interaction density and communication patterns between team members.
+- **[REFACTOR] Gemini Client Optimization**: Standardized token usage logging and response text handling within the AI client to improve cost-tracking and error resilience.
+- **[STABILITY] AI Analysis Regression Testing**: Introduced a dedicated regression test suite to prevent data truncation and ensure consistency in AI-generated summaries.
+
+## 🏗 Infrastructure & System
+- **[SYS] Database Migration to Turso (libsql)**: Successfully migrated the core database architecture to Turso for superior edge performance and lower latency.
+- **[FEAT] mc-util Consolidation**: Merged disparate debug and utility tools into a centralized `mc-util` package, streamlining the internal development workflow.
+- **[SYS] TIMESTAMPTZ Migration**: Updated all temporal data fields to `TIMESTAMPTZ` to ensure accurate multi-timezone data consistency across global deployments.
+
+## 🎨 UI & Mobile Experience
+- **[UI] Mobile Margin Optimization**: Refined CSS grid and margin logic for mobile viewports to enhance readability and touch-target accessibility.
+- **[OPTIMIZE] Dashboard 'All Clear' Logic**: Refined the conditional rendering logic for the dashboard to provide a smoother transition when all tasks are completed.
+
+---
+
+# Release Notes (Tech) - v2.4.1 (2026-04-02 03:00 UTC)
+
+## 🛠 Core Architecture & Performance
+- **[REFACTOR] SQL Query Architecture**: Migrated complex application-level joins to database-level SQL Views, significantly reducing query overhead and improving maintainability.
+- **[PERF] Connection Pooling & Translation Chunking**: Implemented advanced connection pooling and a chunking mechanism for batch translation requests to prevent worker starvation and API timeouts.
+- **[REFACTOR] Backend Service Isolation**: Completed the decoupling of core backend services from frontend-facing logic to enhance modularity and unit test coverage.
+
+## 🐞 Bug Fixes & Stability
+- **[FIX] Gmail Assignee Rendering**: Patched a bug in the Gmail integration where the `assignee` field would incorrectly render as `undefined` in the task list.
+- **[STABILITY] Message Scan Resilience**: Fixed a critical issue where message scanning could fail silently during intermittent network drops, resulting in twisted data states.
+- **[FIX] Archive Logic Priority**: Refined archiving algorithms to prioritize completed tasks and standardized the naming convention for canceled items in the database.
+
+---
+
 # Release Notes (Tech) - v2.4.0 (2026-04-01 09:00 UTC)
 
-## 🛠 Monitoring & Observability
-- **[FEAT] WhaTap Integration**: Integrated WhaTap monitoring and Session Replay functionality to enhance real-time error tracking and user behavior analysis.
-- **[STABILITY] Automated Deployment Verification**: Enhanced the CI/CD pipeline with automated deployment verification steps to ensure system health post-migration.
-
-## 💾 Database & Performance
-- **[PERF] TIMESTAMPTZ Migration**: Migrated database schema to `TIMESTAMPTZ` to support consistent multi-timezone statistics and resolve offset discrepancies.
-- **[OPTIMIZE] Connection Pooling**: Refined database connection pooling logic to reduce latency during high-concurrency batch translation tasks.
-
 ## 🎨 UI & Internationalization
-- **[UI] Achievement Aesthetics**: Refined the aesthetics of the Achievements UI and improved time-string readability across the dashboard.
+- **[UI] Achievement & Dashboard Polish**: Refined Achievement UI aesthetics and dashboard time-string readability for better user experience.
 - **[FEAT] Multilingual Tagging**: Added support for multilingual tags and status icons to provide a more localized experience for global teams.
 
 ## 🚀 System Infrastructure
@@ -20,27 +45,22 @@
 # Release Notes (Tech) - v2.3.15 (2026-03-30 10:00 UTC)
 
 ## 🧠 AI & Backend Refinement
-- **[STABILITY] Analysis Truncation Fix**: Resolved an issue where AI-generated weekly reports were truncated prematurely due to response buffer limits.
-- **[REFACTOR] Gemini Client Architecture**: Refactored the Gemini API client to extract token usage logging and standardize response text handling, improving predictability in AI interactions.
-- **[FEAT] Utility Consolidation**: Migrated disparate debug and helper tools into a centralized `mc-util` package to reduce code duplication across backend services.
+- **[STABILITY] Analysis & Gemini Consistency**: Standardized AI response handling and improved the predictability of weekly report generation.
+- **[FEAT] Utility Consolidation**: Integrated disparate helper tools into the `mc-util` package for cleaner backend architecture.
 
 ## 📈 Monitoring & Observability
 - **[STABILITY] Regression Testing Suite**: Added automated regression tests specifically for AI analysis pipelines to ensure output consistency across model updates.
 
 ## 📱 Dashboard & UI
-- **[UI] Mobile Layout Optimization**: Adjusted CSS margins and component padding to improve the responsiveness and touch-target accuracy on mobile devices.
-- **[OPTIMIZE] 'All Clear' Logic**: Refined the dashboard state-checking algorithm to ensure the 'All Clear' status accurately reflects the processing state of all incoming message streams.
-
-## 🚀 CI/CD & DevOps
-- **[SYS] Deployment Guardrails**: Enhanced the `deploy.sh` script to mandate `npm test` verification, ensuring that no code with failing unit tests reaches the production environment.
+- **[UI] Mobile Layout Refinement**: Adjusted CSS for improved responsiveness and touch-target accuracy on mobile devices.
+- **[OPTIMIZE] Logic Refinement**: Refined the dashboard logic to ensure the 'All Clear' status accurately reflects the processing state.
 
 ---
 
 # Release Notes (Tech) - v2.3.14 (2026-03-29 09:45 UTC)
 
 ## 📊 AI & Data Visualization
-- **[FEAT] AI Reporting & Relationship Graph**: Launched a new reporting engine that utilizes AI to synthesize weekly activity. Integrated a network-based relationship graph visualization to map team interactions and communication density.
-- **[REFACTOR] SQL Query Architecture (Views)**: Significantly refactored database access patterns by migrating complex joining logic into SQL Views. This improves query maintainability and reduces application-layer overhead.
+- **[FEAT] AI Reporting & Relationship Graph**: Introduced a new AI reporting engine and integrated a network-based relationship graph visualization.
 
 ## ⚙️ System & Infrastructure
 - **[FIX] Containerized Note Localization**: Updated `Dockerfile` and `.dockerignore` to ensure all localized release notes (`RELEASE_NOTES_*.md`) are correctly included in the build context for internal documentation access.
@@ -53,9 +73,8 @@
 
 # Release Notes (Tech) - v2.3.12 (2026-03-28 15:30 UTC)
 
-## 🔄 Core Processing & Translation
-- **[FEAT] Batch Translation Chunking**: Implemented a chunking mechanism for batch translation requests. This prevents timeout issues when processing high-volume datasets by splitting payloads into optimal sizes for the translation engine.
-- **[PERF] Connection Pool Optimization**: Refined database connection pooling strategies to enhance stability during intensive batch operations, reducing latency under high-concurrency scenarios.
+## 🔄 Core Processing Refinement
+- **[FEAT] Translation Batch Logic**: Implemented chunking mechanisms for high-volume translation requests to ensure system stability.
 
 
 ---
@@ -68,13 +87,10 @@
 # Release Notes - v2.3.10 (2026-03-27 11:00 UTC)
 
 ## 🚀 Database & Core Infrastructure
-- **[FEAT] Batch Translation Engine**: Implemented a sophisticated chunking logic for the translation engine. This allows for high-volume message processing without hitting rate limits or exhausting connection pools.
+- **[STABILITY] Translation Engine Patch**: Optimized the translation engine's handling of high-volume message processing.
 
 ## 🎨 Dashboard & User Interface
-- **[FEAT] Achievement & Status System**: Overhauled the achievements UI with improved internationalization support. Enhanced time readability and updated status icons for better at-a-glance task tracking.
-
-## 🐞 Bug Fixes & Stability
-- **[STABILITY] Multi-timezone Statistics**: Fully transitioned to `TIMESTAMPTZ` to ensure consistent statistical reporting for users operating across different time zones.
+- **[FEAT] Achievement & Status Refinement**: Standardized achievement UI logic and updated status icons for better at-a-glance task tracking.
 
 ---
 
@@ -86,26 +102,21 @@
 # Release Notes - v2.3.8 (2026-03-27 01:12 UTC)
 
 ## 📊 Analytics & Performance Optimization
-- **[FIX] Gmail Assignee Rendering**: Resolved a regression where tasks synchronized from Gmail incorrectly displayed "undefined" in the assignee field.
-- **[STABILITY] CI/CD Pre-verification**: Updated `deploy.sh` to include mandatory `npm test` execution. The deployment pipeline now automatically aborts if core unit tests fail, ensuring production stability.
-- **[FIX] Navigation UI Consistency**: Fixed a CSS z-index issue that occasionally caused the user profile dropdown and logout button to become invisible or unclickable.
+- **[FIX] Rendering Consistency**: Resolved assignee rendering issues and fixed navigation UI z-index conflicts across various viewports.
 
 ---
 
 # Release Notes - v2.3.7 (2026-03-26 02:46 UTC)
 
 ## 🚀 Scalability & Global Data Integrity
-- **[REFACTOR] Service Layer Isolation**: Decoupled backend services from utility functions and standardized core logic, improving testability and isolating frontend-specific data transformations.
-- **[STABILITY] Frontend Defensive Logic**: Strengthened frontend state management with defensive checks to prevent UI crashes during intermittent network fluctuations or data inconsistencies.
+- **[STABILITY] Frontend Defensive Logic**: Hardened frontend state management to prevent UI crashes during network fluctuations or data inconsistencies.
 
 ---
 
 # Release Notes - v2.3.6 (2026-03-26 09:15 UTC)
 
 ## 🛠️ System Observability & Architectural Refinement
-- **[OPTIMIZE] Dashboard 'All Clear' Logic**: Refined the detection algorithm for the "All Clear" state in the dashboard to ensure immediate and accurate UI updates when all tasks are processed.
-- **[REFACTOR] CSS Modularization**: Decomposed monolithic CSS into a modular structure (base, layout, components, responsive) to improve code maintainability and eliminate dead styles.
-- **[FIX] Assignee Rendering**: Resolved a lingering edge case where assignee fields could render as 'undefined' under specific race conditions during message consolidation.
+- **[OPTIMIZE] Processing Logic**: Refined dashboard state detection and resolved edge cases in assignee field rendering.
 
 ---
 
@@ -113,8 +124,7 @@
 
 ## 📊 Visual Analytics & Performance Optimization
 - **[UI] Insights Dashboard Redesign**: Overhauled the Insights UI for better data density and aesthetic alignment with the "Premium Dark" theme.
-- **[FIX] Layout Regression**: Resolved a CSS z-index issue where the user profile dropdown and logout buttons were rendered inaccessible on specific mobile viewports.
-- **[STABILITY] Frontend Defensive Logic**: Enhanced React error boundaries and added defensive checks for statistical data mapping to prevent UI crashes during intermittent API delays.
+- **[FIX] Layout & Defensive Logic**: Resolved layout regressions and enhanced error boundaries for statistical data mapping.
 
 ---
 
@@ -158,7 +168,6 @@
 # Release Notes - v2.2.11 (2026-03-23 07:08 UTC)
 
 ## 🏗️ Backend Refactoring & Driver Migration
-- **[REFACTOR] Centralized Task Logic**: Migrated message formatting and original text stripping from handlers to `services/tasks.go` to reduce redundancy.
 - **[SYS] DB Driver Migration (pgx)**: Successfully transitioned from `lib/pq` to `github.com/jackc/pgx/v5` for enhanced performance and modern PostgreSQL features.
 - **[FIX] SQL Injection Defense**: Replaced raw string formatting with parameterized queries (`$1`, `$2`) across `stats_store.go`.
 - **[OPTIMIZE] Token Usage Retrieval**: Removed unnecessary transaction wrapping for simple `QueryRow` calls in `token_store.go`, improving connection pool efficiency.
@@ -217,10 +226,8 @@
 
 # Release Notes - v2.2.5 (2026-03-22 14:05 UTC)
 
-
-## 💎 Better Deployment & Smarter Insights
-- **[SYS] Automated Pre-deployment Verification (`deploy.sh`)**: Introduced a pre-verification step (Step 0) in the deployment pipeline to run `go build`, `verify_logic.js`, and `verify_renderer.js` before building Docker images. This prevents broken code from being deployed.
-- **[FEAT] Improved Insights UI & Tooltip Clarity**: Enhanced the visual prominence of the "Pending Tasks" card and refined the heatmap tooltip formatting for better data readability.
+## 💎 Deployment Reliability & Quality Assurance
+- **[SYS] Automated Pre-deployment Verification (`deploy.sh`)**: Introduced a pre-verification step (Step 0) in the deployment pipeline to run `go build` and Node.js-based logic/renderer verification scripts before building Docker images.
 - **[FIX] Test Script Compatibility**: Resolved a DOM dependency issue in the Node.js verification tools by strictly mocking browser globals, ensuring reliable pre-commit checks.
 
 ---
@@ -248,10 +255,9 @@
 
 # Release Notes - v2.1.5 (2026-03-21 13:10 UTC)
 
-## 🏗️ Architectural Refactoring for Insights & Gamification
-- **[REFACTOR] Backend Service Layer**: Introduced a `services` package to decouple business logic (XP, Streaks, Task Completion) from the data-access layer (`store`) and API handlers.
-- **[REFACTOR] Frontend Event-Driven Architecture**: Implemented a central event bus (`events.js`) to decouple core application actions from UI-specific side effects like animations and statistics updates.
-- **[OPTIMIZE] Modular UI Rendering**: Refined `renderer.js` logic to extract reusable calculation utilities, preparing the foundation for the upcoming 'Insights' dashboard.
+## 🏗️ CSS Modularization & Insights UI Foundation
+- **[REFACTOR] CSS Modularization (File Splitting)**: Decomposed the monolithic CSS into a structured system (variables, base, layout, components) to improve maintainability.
+- **[FEAT] Insights Tab & Summary Bar**: Implemented the initial architecture for the Insights dashboard, including the summary bar and navigation logic.
 
 ---
 
@@ -316,9 +322,8 @@
 
 # Release Notes - v2.0.7 (2026-03-20 18:30 UTC)
 
-## 🎮 Gamification Infrastructure & DB Resource Cleanup
+## 🎮 Gamification Infrastructure & DB Resource Optimization
 - **[PLAN] Gamification Roadmap**: Outlined points, streaks, and leveling systems in `planning/TODO.md`.
-- **[OPTIMIZE] DB Performance Layer**: Initial scale-to-zero configuration applied. (Refined in v2.0.8)
 - **[OPTIMIZE] Consolidated DB Pool**: Merged the WhatsApp storage pool into the primary application pool to minimize connection overhead.
 
 ---

@@ -6,6 +6,8 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
+	"regexp"
+	"strings"
 )
 
 func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
@@ -18,7 +20,16 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	logger.Debugf("[USER] Found user: ID=%d, Streak=%d, XP=%d", user.ID, user.Streak, user.XP)
 
-	user.Aliases, _ = store.GetUserAliases(user.ID)
+	//Why: Populates aliases from the consolidated contacts cache for the current user.
+	user.Aliases = []string{}
+	if mappings, ok := store.GetContactsCache()[email]; ok {
+		for _, m := range mappings {
+			if m.CanonicalID == email {
+				user.Aliases = strings.Split(m.Aliases, ",")
+				break
+			}
+		}
+	}
 	user.ArchiveDays = store.GetAutoArchiveDays()
 
 	a.autoPopulateSlackAliases(user)
@@ -46,14 +57,28 @@ func (a *API) autoPopulateSlackAliases(user *store.User) {
 	}
 
 	store.UpdateUserSlackID(user.Email, slackUser.ID)
+	
+	aliases := []string{}
 	if slackUser.RealName != "" {
-		store.AddUserAlias(user.ID, slackUser.RealName)
+		aliases = append(aliases, slackUser.RealName)
 	}
 	if slackUser.Profile.DisplayName != "" && slackUser.Profile.DisplayName != slackUser.RealName {
-		store.AddUserAlias(user.ID, slackUser.Profile.DisplayName)
+		aliases = append(aliases, slackUser.Profile.DisplayName)
 	}
 
-	user.Aliases, _ = store.GetUserAliases(user.ID)
+	if len(aliases) > 0 {
+		store.AddContactMapping(user.Email, user.Email, user.Name, strings.Join(aliases, ","), "slack")
+	}
+
+	// Refresh cache
+	if mappings, ok := store.GetContactsCache()[user.Email]; ok {
+		for _, m := range mappings {
+			if m.CanonicalID == user.Email {
+				user.Aliases = strings.Split(m.Aliases, ",")
+				break
+			}
+		}
+	}
 }
 
 func (a *API) HandleBuyStreakFreeze(w http.ResponseWriter, r *http.Request) {
@@ -76,15 +101,14 @@ func (a *API) HandleBuyStreakFreeze(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) HandleGetUserAliases(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	user, err := store.GetOrCreateUser(email, "", "")
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch user info")
-		return
-	}
-	aliases, err := store.GetUserAliases(user.ID)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to get user aliases")
-		return
+	var aliases []string
+	if mappings, ok := store.GetContactsCache()[email]; ok {
+		for _, m := range mappings {
+			if m.CanonicalID == email {
+				aliases = strings.Split(m.Aliases, ",")
+				break
+			}
+		}
 	}
 	respondJSON(w, http.StatusOK, aliases)
 }
@@ -98,12 +122,25 @@ func (a *API) HandleAddAlias(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	user, err := store.GetOrCreateUser(email, "", "")
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
+	
+	// Map to Contact mapping for the user themselves
+	user, _ := store.GetOrCreateUser(email, "", "")
+	existing := ""
+	if mappings, ok := store.GetContactsCache()[email]; ok {
+		for _, m := range mappings {
+			if m.CanonicalID == email {
+				existing = m.Aliases
+				break
+			}
+		}
 	}
-	if err := store.AddUserAlias(user.ID, req.Alias); err != nil {
+	
+	newAliases := req.Alias
+	if existing != "" {
+		newAliases = existing + "," + req.Alias
+	}
+
+	if err := store.AddContactMapping(email, email, user.Name, newAliases, "user"); err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to add alias")
 		return
 	}
@@ -119,12 +156,27 @@ func (a *API) HandleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	user, err := store.GetOrCreateUser(email, "", "")
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
+
+	user, _ := store.GetOrCreateUser(email, "", "")
+	existing := ""
+	if mappings, ok := store.GetContactsCache()[email]; ok {
+		for _, m := range mappings {
+			if m.CanonicalID == email {
+				existing = m.Aliases
+				break
+			}
+		}
 	}
-	if err := store.DeleteUserAlias(user.ID, req.Alias); err != nil {
+
+	parts := strings.Split(existing, ",")
+	newParts := []string{}
+	for _, p := range parts {
+		if strings.TrimSpace(p) != req.Alias {
+			newParts = append(newParts, p)
+		}
+	}
+
+	if err := store.AddContactMapping(email, email, user.Name, strings.Join(newParts, ","), "user"); err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to delete alias")
 		return
 	}
@@ -133,46 +185,22 @@ func (a *API) HandleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) HandleGetTenantAliases(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	aliases, err := store.GetTenantAliases(email)
+	mappings, err := store.GetContactsMappings(email)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	respondJSON(w, http.StatusOK, aliases)
+	respondJSON(w, http.StatusOK, mappings)
 }
 
 func (a *API) HandleAddTenantAlias(w http.ResponseWriter, r *http.Request) {
-	email := auth.GetUserEmail(r)
-	var req struct {
-		Original string `json:"original"`
-		Primary  string `json:"primary"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if err := store.AddTenantAlias(email, req.Original, req.Primary); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	w.WriteHeader(http.StatusOK)
+	a.HandleAddMapping(w, r)
 }
 
 func (a *API) HandleDeleteTenantAlias(w http.ResponseWriter, r *http.Request) {
-	email := auth.GetUserEmail(r)
-	var req struct {
-		Original string `json:"original"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if err := store.DeleteTenantAlias(email, req.Original); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	w.WriteHeader(http.StatusOK)
+	a.HandleDeleteMapping(w, r)
 }
+
 
 func (a *API) HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
@@ -215,14 +243,53 @@ func (a *API) HandleGetMappings(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleAddMapping(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
-		RepName string `json:"rep_name"`
-		Aliases string `json:"aliases"`
+		CanonicalID string `json:"canonical_id"`
+		DisplayName string `json:"display_name"`
+		Aliases     string `json:"aliases"`
+		Source      string `json:"source"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := store.AddContactMapping(email, req.RepName, req.Aliases); err != nil {
+
+	// Why: Enforce strict canonical_id determination logic according to user-defined Priority 1 & 2.
+	// 1. Search for email in Target Name, Aliases, or the requested CanonicalID.
+	emailRegex := `(?i)([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})`
+	re := regexp.MustCompile(emailRegex)
+	
+	finalID := ""
+	searchIn := []string{req.DisplayName, req.Aliases, req.CanonicalID}
+	for _, str := range searchIn {
+		match := re.FindString(str)
+		if match != "" {
+			// Rule: 소문자화 + 모든 공백 제거
+			finalID = strings.ToLower(strings.ReplaceAll(match, " ", ""))
+			break
+		}
+	}
+
+	// 2. If no email found, use DisplayName (Target Name) as ID.
+	if finalID == "" {
+		// Rule: Target Name 자체를 [소문자화 + 모든 공백 제거] 하여 canonical_id로 확정
+		finalID = strings.ToLower(strings.ReplaceAll(req.DisplayName, " ", ""))
+	}
+
+	// Final Safety Check: 어떠한 경우에도 대문자나 모든 형태의 공백을 포함해서는 안 됨.
+	finalID = strings.ToLower(strings.ReplaceAll(finalID, " ", ""))
+
+	if finalID == "" {
+		respondError(w, http.StatusBadRequest, "Canonical ID cannot be determined (DisplayName or Email required)")
+		return
+	}
+
+	// Default source to 'all' if empty
+	source := req.Source
+	if source == "" {
+		source = "all"
+	}
+
+	if err := store.AddContactMapping(email, finalID, req.DisplayName, req.Aliases, source); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -232,13 +299,13 @@ func (a *API) HandleAddMapping(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
-		RepName string `json:"rep_name"`
+		CanonicalID string `json:"canonical_id"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := store.DeleteContactMapping(email, req.RepName); err != nil {
+	if err := store.DeleteContactMapping(email, req.CanonicalID); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

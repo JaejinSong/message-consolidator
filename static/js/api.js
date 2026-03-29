@@ -204,16 +204,16 @@ export const api = {
         const resp = await fetch('/api/tenant/alias/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ original, primary })
+            body: JSON.stringify({ aliases: original, display_name: primary })
         });
         return handleResponse(resp, 'Add tenant alias failed');
     },
 
-    async removeTenantAlias(original) {
+    async removeTenantAlias(id) {
         const resp = await fetch('/api/tenant/alias/delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ original })
+            body: JSON.stringify({ canonical_id: id })
         });
         return handleResponse(resp, 'Remove tenant alias failed');
     },
@@ -232,16 +232,16 @@ export const api = {
         const resp = await fetch('/api/contacts/mapping/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rep_name: repName, aliases })
+            body: JSON.stringify({ display_name: repName, aliases })
         });
         return handleResponse(resp, 'Add contact mapping failed');
     },
 
-    async removeContactMapping(repName) {
+    async removeContactMapping(id) {
         const resp = await fetch('/api/contacts/mapping/delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rep_name: repName })
+            body: JSON.stringify({ canonical_id: id })
         });
         return handleResponse(resp, 'Remove contact mapping failed');
     },
@@ -273,8 +273,53 @@ export const api = {
         };
     },
 
-    async getInsightReport() {
-        const resp = await fetch('/api/insights/report');
-        return handleResponse(resp, 'Fetch insight report failed');
+    /**
+     * @description Fetch all AI Weekly Reports
+     */
+    async fetchReports() {
+        const resp = await fetch('/api/reports');
+        return handleResponse(resp, 'Fetch reports failed');
+    },
+
+    /**
+     * @description Generate a new AI Weekly Report for a specific period
+     */
+    async generateReport(startDate, endDate) {
+        // Why: AI generation can take a long time. Implement a 60-second timeout using AbortController.
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60초 타임아웃
+
+        try {
+            const resp = await fetch(`/api/reports?start=${startDate}&end=${endDate}`, {
+                method: 'POST',
+                signal: controller.signal
+            });
+            return await handleResponse(resp, 'Generate report failed');
+        } catch (err) {
+            if (err.name === 'AbortError') {
+                throw new Error('AI 리포트 생성 시간이 초과되었습니다 (60초). 잠시 후 다시 시도해 주세요.');
+            }
+            throw err;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    },
+
+    /**
+     * @description Fetch a specific AI Weekly Report by ID
+     */
+    async fetchReportDetail(id) {
+        const resp = await fetch(`/api/reports/${id}`);
+        return handleResponse(resp, 'Fetch report detail failed');
+    },
+
+    /**
+     * @description Delete a specific AI Weekly Report by ID
+     */
+    async deleteReport(id) {
+        const resp = await fetch(`/api/reports/${id}`, {
+            method: 'DELETE'
+        });
+        return handleResponse(resp, 'Delete report failed');
     }
 };

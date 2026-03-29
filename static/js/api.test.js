@@ -3,7 +3,7 @@ import { api } from './api.js';
 
 describe('api.js', () => {
     beforeEach(() => {
-        vi.stubGlobal('fetch', vi.fn());
+        fetch.mockClear();
     });
 
     const mockResponse = (status, data, contentType = 'application/json') => {
@@ -53,5 +53,16 @@ describe('api.js', () => {
         expect(callUrl).toContain('lang=English');
         expect(callUrl).toContain('sort=time');
         expect(callUrl).toContain('order=ASC');
+    });
+
+    it('should handle network fetch rejection (TypeError)', async () => {
+        fetch.mockImplementation(() => Promise.reject(new TypeError('Failed to fetch')));
+        await expect(api.fetchMessages('ko')).rejects.toThrow('Failed to fetch');
+    });
+
+    it('should parse text/html as Session Expired Error', async () => {
+        // Mock a 200 OK but with text/html content type (login redirect)
+        fetch.mockImplementation(() => mockResponse(200, '<html>login</html>', 'text/html'));
+        await expect(api.fetchMessages('ko')).rejects.toThrow('Session Expired or Unauthorized');
     });
 });

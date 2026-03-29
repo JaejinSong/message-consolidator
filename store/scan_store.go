@@ -53,29 +53,6 @@ func LoadMetadata() error {
 		return fmt.Errorf("rows error in users: %w", err)
 	}
 
-	//Why: Populates the alias cache to support user identification via varied display names.
-	aliasRows, err := db.Query(SQL.LoadUserAliasesAll)
-	if err != nil {
-		return fmt.Errorf("failed to load user aliases: %w", err)
-	}
-	defer aliasRows.Close()
-
-	for aliasRows.Next() {
-		var userID int
-		var alias string
-		if err := aliasRows.Scan(&userID, &alias); err != nil {
-			return fmt.Errorf("scan alias failed: %w", err)
-		}
-		aliasCache[userID] = append(aliasCache[userID], alias)
-	}
-
-	//Why: Pre-initializes empty alias lists for all users in the cache to prevent redundant database lookups for missing records.
-	for _, u := range userCache {
-		if _, ok := aliasCache[u.ID]; !ok {
-			aliasCache[u.ID] = []string{}
-		}
-	}
-
 	//Why: Restores the last scan timestamps for each source to memory for efficient duplicate detection.
 	logger.Infof("[SCAN] Loading existing scan metadata into memory...")
 	scanRows, err := db.Query(SQL.LoadScanMetadataAll)
@@ -110,38 +87,27 @@ func LoadMetadata() error {
 		tokenCache[email] = token
 	}
 
-	//Why: Loads tenant identification strings to ensure cross-tenant message routing is accurate.
-	tenantRows, err := db.Query(SQL.LoadTenantAliasesAll)
-	if err != nil {
-		return fmt.Errorf("failed to load tenant aliases: %w", err)
-	}
-	defer tenantRows.Close()
-
-	for tenantRows.Next() {
-		var email, original, primary string
-		if err := tenantRows.Scan(&email, &original, &primary); err != nil {
-			continue
-		}
-		if _, ok := tenantAliasCache[email]; !ok {
-			tenantAliasCache[email] = make(map[string]string)
-		}
-		tenantAliasCache[email][original] = primary
-	}
-
-	//Why: Loads external contact mappings for improved requester identification.
+	//Why: Loads consolidated contact mappings for improved requester identification.
+	logger.Infof("[CACHE] Loading consolidated contacts into memory...")
 	contactRows, err := db.Query(SQL.LoadContactsAll)
 	if err == nil {
 		defer contactRows.Close()
 		for contactRows.Next() {
-			var email, repName, aliases string
-			if err := contactRows.Scan(&email, &repName, &aliases); err == nil {
-				contactsCache[email] = append(contactsCache[email], AliasMapping{RepName: repName, Aliases: aliases})
+			var tEmail, canonical, display, aliases, source string
+			if err := contactRows.Scan(&tEmail, &canonical, &display, &aliases, &source); err == nil {
+				contactsCache[tEmail] = append(contactsCache[tEmail], ContactRecord{
+					CanonicalID: canonical,
+					DisplayName: display,
+					Aliases:     aliases,
+					Source:      source,
+				})
 			}
 		}
 	}
 
-	logger.Infof("[CACHE] Loaded %d users, %d scan entries, %d tokens, %d tenant aliases, %d contact mappings.", len(userCache), len(scanCache), len(tokenCache), len(tenantAliasCache), len(contactsCache))
+	logger.Infof("[CACHE] Loaded %d users, %d scan entries, %d tokens, %d contact mappings.", len(userCache), len(scanCache), len(tokenCache), len(contactsCache))
 	return nil
+
 }
 
 func GetLastScan(userEmail, source, targetID string) string {

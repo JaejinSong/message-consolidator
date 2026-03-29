@@ -73,7 +73,10 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 	r.Handle("/api/admin/reclassify", auth.AuthMiddleware(http.HandlerFunc(a.HandleReclassifyOldData))).Methods("GET")
 	r.Handle("/api/admin/restore-gmail-cc", auth.AuthMiddleware(http.HandlerFunc(a.HandleRestoreGmailCC))).Methods("GET")
 	r.Handle("/api/release-notes", auth.AuthMiddleware(http.HandlerFunc(a.HandleGetReleaseNotes))).Methods("GET")
-	r.Handle("/api/insights/report", auth.AuthMiddleware(http.HandlerFunc(a.HandleGetInsightReport))).Methods("GET")
+	r.Handle("/api/reports", auth.AuthMiddleware(http.HandlerFunc(a.HandleListReports))).Methods("GET")
+	r.Handle("/api/reports", auth.AuthMiddleware(http.HandlerFunc(a.HandleGenerateReport))).Methods("POST")
+	r.Handle("/api/reports/{id:[0-9]+}", auth.AuthMiddleware(http.HandlerFunc(a.HandleGetReportByID))).Methods("GET")
+	r.Handle("/api/reports/{id:[0-9]+}", auth.AuthMiddleware(http.HandlerFunc(a.HandleDeleteReport))).Methods("DELETE")
 
 	//Why: Provides dedicated OAuth flow endpoints for connecting and disconnected Gmail as a message source.
 	r.Handle("/auth/gmail/connect", auth.AuthMiddleware(http.HandlerFunc(a.HandleGmailConnect))).Methods("GET")

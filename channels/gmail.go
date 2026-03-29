@@ -16,10 +16,12 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/html"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
+	"bytes"
 )
 
 const (
@@ -190,15 +192,20 @@ func processSingleEmail(svc *gmail.Service, email string, m *gmail.Message, skip
 
 	ts := fullMsg.InternalDate / 1000 // ms to s
 
-	subject, from, to, cc, bcc, deliveredTo := extractHeaders(fullMsg.Payload.Headers)
-	if isSkipSender(from, skips) {
+	subject, fromHeader, toHeader, ccHeader, bccHeader, deliveredTo := extractHeaders(fullMsg.Payload.Headers)
+	if isSkipSender(fromHeader, skips) {
 		return nil, "", "", ts, nil
 	}
 
-	isFromMe, isDirect, isCc, isBcc, isDelTo := checkRecipientStatus(email, from, to, cc, bcc, deliveredTo)
+	isFromMe, isDirect, isCc, isBcc, isDelTo := checkRecipientStatus(email, fromHeader, toHeader, ccHeader, bccHeader, deliveredTo)
 	if !isFromMe && !isDirect && !isCc && !isBcc && !isDelTo {
 		return nil, "", "", ts, nil
 	}
+
+	// Why: Automatically registers all participants (sender and recipients) in the contacts database to improve future identity resolution.
+	senderEmail := upsertAddresses(email, fromHeader, "gmail")
+	upsertAddresses(email, toHeader, "gmail")
+	upsertAddresses(email, ccHeader, "gmail")
 
 	classification := classifyGmail(isFromMe, isDirect)
 	body := extractBody(fullMsg.Payload)
@@ -209,13 +216,57 @@ func processSingleEmail(svc *gmail.Service, email string, m *gmail.Message, skip
 
 	rawMsg := &types.RawMessage{
 		ID:        m.Id,
-		Sender:    from,
-		Text:      fmt.Sprintf("T: %s\nC: %s\nS: %s\nB:\n%s", to, cc, subject, cleanBody),
+		Sender:    senderEmail, // Use canonical email as sender ID
+		Text:      fmt.Sprintf("T: %s\nC: %s\nS: %s\nB:\n%s", toHeader, ccHeader, subject, cleanBody),
 		Timestamp: time.Unix(ts, 0),
 		ThreadID:  fullMsg.ThreadId,
 	}
-	return rawMsg, classification, to, ts, nil
+	return rawMsg, classification, toHeader, ts, nil
 }
+
+// upsertAddresses parses a comma-separated list of email addresses and registers each one in the contacts store.
+// It returns the email address of the first parsed contact for use as a primary identifier.
+func upsertAddresses(tenantEmail, header, source string) string {
+	if header == "" {
+		return ""
+	}
+	
+	// Why: Attempts to parse the entire list using the standard library.
+	addrs, err := mail.ParseAddressList(header)
+	if err != nil {
+		// Defensive: If the entire list fails (e.g., due to one malformed entry),
+		// split by comma and try to parse what we can to salvage valid contacts.
+		parts := strings.Split(header, ",")
+		firstEmail := ""
+		for _, p := range parts {
+			addr, err := mail.ParseAddress(strings.TrimSpace(p))
+			if err == nil {
+				email := strings.ToLower(strings.TrimSpace(addr.Address))
+				if firstEmail == "" {
+					firstEmail = email
+				}
+				_ = store.AutoUpsertContact(tenantEmail, email, addr.Name, source)
+			}
+		}
+		if firstEmail != "" {
+			return firstEmail
+		}
+		// Final fallback: try to extract at least one identifier.
+		return ExtractNameFromEmail(header) 
+	}
+
+	firstEmail := ""
+	for i, addr := range addrs {
+		email := strings.ToLower(strings.TrimSpace(addr.Address))
+		if i == 0 {
+			firstEmail = email
+		}
+		_ = store.AutoUpsertContact(tenantEmail, email, addr.Name, source)
+	}
+	return firstEmail
+}
+
+
 
 func getGmailSkips(cfg *config.Config) []string {
 	var skips []string
@@ -404,6 +455,13 @@ func processGeminiItems(email string, user *store.User, aliases []string, items 
 
 		assignee, category := resolveGmailCategoryAndAssignee(item, isMe, cls, toHeader, fallbackAssignee)
 
+		// Why: Attempts to resolve the assignee name back to a canonical email ID if a matching contact exists.
+		// [Safeguard] Falls back to the original name if no contact match is found.
+		id, _, _ := store.NormalizeWithCategory(email, assignee)
+		if id != "" && strings.Contains(id, "@") {
+			assignee = id
+		}
+
 		assignedAt := time.Now()
 		origText := ""
 		m, ok := msgMap[item.SourceTS]
@@ -414,12 +472,15 @@ func processGeminiItems(email string, user *store.User, aliases []string, items 
 		assignedAt = m.Timestamp
 		origText = m.Text
 
+		// Requester is the sender's ID (already canonicalized as email in processSingleEmail)
+		requester := m.Sender
+
 		msgsToSave = append(msgsToSave, store.ConsolidatedMessage{
 			UserEmail:    email,
 			Source:       "gmail",
 			Room:         "Gmail",
 			Task:         item.Task,
-			Requester:    item.Requester,
+			Requester:    requester,
 			Assignee:     assignee,
 			AssignedAt:   assignedAt,
 			Link:         fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS),
@@ -432,6 +493,7 @@ func processGeminiItems(email string, user *store.User, aliases []string, items 
 	}
 	return msgsToSave
 }
+
 
 func resolveGmailCategoryAndAssignee(item store.TodoItem, isMe bool, cls, toHeader, fallback string) (string, string) {
 	assignee := item.Assignee
@@ -528,37 +590,54 @@ func extractBody(payload *gmail.MessagePart) string {
 }
 
 var (
-	reScript      = regexp.MustCompile(`(?i)<script.*?>.*?</script>`)
-	reStyle       = regexp.MustCompile(`(?i)<style.*?>.*?</style>`)
-	reComment     = regexp.MustCompile(`<!--.*?-->`)
-	reTags        = regexp.MustCompile(`<.*?>`)
 	reWhitespace  = regexp.MustCompile(`\s+`)
 	reQuoteStart  = regexp.MustCompile(`(?i)^(on\s+.*\swrote:\s*$|.*님이\s*작성:\s*$|-----\s*original message\s*-----|-----\s*원본 메시지\s*-----|_{10,}|>)`)
 	reSignature   = regexp.MustCompile(`(?m)^--\s*$`) //Why: Identifies standard MIME signature delimiters to truncate noise at the end of emails.
 	reEmailHeader = regexp.MustCompile(`(?i)^(from|to|cc|bcc|subject|date|sent):\s`) //Why: Detects embedded headers in reply chains to accurately split original content from quoted history.
 )
 
-func stripHTML(html string) string {
-	//Why: Strips non-content HTML elements like scripts and styles first to reduce token usage and prevent AI confusion during analysis.
-	s := reScript.ReplaceAllString(html, "")
-	s = reStyle.ReplaceAllString(s, "")
-	s = reComment.ReplaceAllString(s, "")
+func stripHTML(raw string) string {
+	doc, err := html.Parse(strings.NewReader(raw))
+	if err != nil {
+		// Why: Provides a graceful fallback to a simple whitespace-normalized version if the HTML parser fails, ensuring some level of sanitization.
+		return strings.TrimSpace(reWhitespace.ReplaceAllString(raw, " "))
+	}
 
-	//Why: Removes all remaining HTML tags to clean up the content for better AI comprehension.
-	s = reTags.ReplaceAllString(s, " ")
+	var buf bytes.Buffer
+	var f func(*html.Node)
+	f = func(n *html.Node) {
+		// Why: Explicitly excludes script and style nodes and their entire subtrees to prevent their configuration or logic content from leaking into the extracted text.
+		if n.Type == html.ElementNode && (n.Data == "script" || n.Data == "style") {
+			return
+		}
+		// Why: Skips comment nodes to further reduce noise in the extracted content.
+		if n.Type == html.CommentNode {
+			return
+		}
 
-	//Why: Unescapes HTML entities and normalizes whitespace to provide a clean, human-readable string to the AI.
+		if n.Type == html.TextNode {
+			buf.WriteString(n.Data)
+		}
+
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			f(c)
+		}
+
+		// Why: Injects a space after block-level elements to prevent words from being merged together when multiple paragraphs or table cells are flattened into a single text stream.
+		if n.Type == html.ElementNode {
+			switch n.Data {
+			case "p", "div", "br", "tr", "td", "li", "h1", "h2", "h3", "h4", "h5", "h6":
+				buf.WriteString(" ")
+			}
+		}
+	}
+	f(doc)
+
+	// Why: Normalizes the final output by collapsing multi-line breaks and excessive spaces into a single space, and unescapes common HTML entities to ensure the text is human-readable.
+	s := buf.String()
+	s = strings.ReplaceAll(s, "\u00a0", " ")
 	s = strings.ReplaceAll(s, "&nbsp;", " ")
-	s = strings.ReplaceAll(s, "&lt;", "<")
-	s = strings.ReplaceAll(s, "&gt;", ">")
-	s = strings.ReplaceAll(s, "&amp;", "&")
-	s = strings.ReplaceAll(s, "&quot;", "\"")
-	s = strings.ReplaceAll(s, "&#39;", "'")
-
-	//Why: Compresses excessive whitespace to minimize total token count and improve pattern matching performance.
-	s = reWhitespace.ReplaceAllString(s, " ")
-
-	return strings.TrimSpace(s)
+	return strings.TrimSpace(reWhitespace.ReplaceAllString(s, " "))
 }
 
 func decodeBase64URL(data string) string {

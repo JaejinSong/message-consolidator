@@ -60,3 +60,6 @@ UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND done = 1 AND complet
 
 -- name: GetIncompleteByThreadID :many
 SELECT * FROM v_messages WHERE user_email = ? AND thread_id = ? AND done = 0 AND is_deleted = 0;
+
+-- name: UpdateMessageIdentity :exec
+UPDATE messages SET requester = ?, assignee = ? WHERE id = ?;

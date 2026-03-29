@@ -49,7 +49,7 @@ export GEMINI_API_KEY_FOR_TEST=${GEMINI_API_KEY_FOR_TEST:-$GEMINI_API_KEY}
 
 run_step "Go unit tests" go test ./...
 run_step "NPM (Vitest) tests" npm test
-run_step "AI Regression tests" go test -tags regression ./tests/regression
+run_step "AI Regression tests" go test -tags regression ./ai/... ./tests/regression/...
 run_step "Loading UI verification" node tests/verify-loading-ui.cjs
 
 # 1. Frontend Optimization (Bundle -> Purge -> Minify)
