@@ -52,14 +52,28 @@ export function createCardElement(m) {
         ? `<span class="assignee-me">${meText}</span>`
         : `<span class="assignee-other">${isInvalid ? '' : escapeHTML(m.assignee)}</span>`;
 
+    const isTranslating = !!m.translating;
+    const translationError = m.translationError;
+
+    const loadingOverlay = isTranslating ? `
+        <div class="c-task-card__loading-overlay">
+            <div class="c-spinner c-spinner--sm"></div>
+        </div>
+    ` : '';
+
+    const errorIndicator = translationError ? `
+        <span class="c-task-card__error-hint" title="${escapeHTML(translationError)}">⚠️</span>
+    ` : '';
+
     return `
-        <div class="c-task-card ${m.source} ${m.done ? 'c-task-card--done' : ''}" id="task-${m.id}" data-id="${m.id}">
+        <div class="c-task-card ${m.source} ${m.done ? 'c-task-card--done' : ''} ${isTranslating ? 'c-task-card--loading' : ''}" id="task-${m.id}" data-id="${m.id}">
+            ${loadingOverlay}
             <div class="c-task-card__source" title="${m.source.toUpperCase()}">
                 ${sourceIcon}
             </div>
             <div class="c-task-card__room">${m.room ? `<span class="badge-room">${escapeHTML(m.room)}</span>` : '-'}</div>
             <div class="c-task-card__content">
-                <span class="c-task-card__title">${escapeHTML(m.task)}</span>
+                <span class="c-task-card__title">${errorIndicator}${escapeHTML(m.task)}</span>
                 <div class="c-task-card__tags">
                     ${m.category === 'waiting' && !m.done ? `<span class="tag-badge waiting-tag">⏳ ${i18n.waitingTag || 'Waiting...'}</span>` : ''}
                     ${m.category === 'promise' && !m.done ? `<span class="tag-badge promise-tag">🤝 ${i18n.promiseTag || 'Commitment'}</span>` : ''}

@@ -30,7 +30,9 @@ import { updateUserProfile } from './renderers/profile-renderer.js';
 import { 
     renderAliasList, 
     renderTenantAliasList, 
-    renderContactMappings 
+    renderContactMappings,
+    renderLinkedAccounts,
+    initAccountLinkingCompos
 } from './renderers/settings-renderer.js';
 
 import { 
@@ -72,6 +74,8 @@ export const renderer = {
     renderAliasList,
     renderTenantAliasList,
     renderContactMappings,
+    renderLinkedAccounts,
+    initAccountLinkingCompos,
 
     // UI Effects
     triggerXPAnimation,
@@ -134,6 +138,8 @@ export {
     renderAliasList,
     renderTenantAliasList,
     renderContactMappings,
+    renderLinkedAccounts,
+    initAccountLinkingCompos,
     triggerXPAnimation,
     triggerConfetti,
     showToast,

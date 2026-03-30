@@ -470,7 +470,7 @@ func TestReportsService_GenerateReport_MultiLanguage(t *testing.T) {
 		generateFunc: func(ctx context.Context, logs string) (string, error) {
 			return mockSummary, nil
 		},
-	}, nil, ReportConfig{CutoffSize: 8000})
+	}, nil, nil, ReportConfig{CutoffSize: 8000})
 
 	tenantEmail := "test@example.com"
 	startDate := "2026-03-29"

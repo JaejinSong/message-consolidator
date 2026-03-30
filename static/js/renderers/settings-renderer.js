@@ -99,3 +99,62 @@ export function renderContactMappings(mappings, onRemove) {
         btn.addEventListener('click', () => onRemove(btn.dataset.id));
     });
 }
+
+/**
+ * Renders the list of currently linked accounts.
+ */
+export function renderLinkedAccounts(links, onUnlink) {
+    const container = document.getElementById('linkedAccountsList');
+    if (!container) return;
+
+    if (!links || links.length === 0) {
+        container.innerHTML = '<p class="u-text-dim u-text-xs">No linked accounts found.</p>';
+        return;
+    }
+
+    container.innerHTML = links.map(link => `
+        <div class="c-settings__item">
+            <span class="u-text-accent">${escapeHTML(link.target_display_name || link.target_canonical_id)}</span>
+            <span class="u-mx-2 u-text-dim">→</span>
+            <span class="u-font-bold">${escapeHTML(link.master_display_name || link.master_canonical_id)}</span>
+            <button class="c-btn c-btn--ghost c-btn--icon u-ml-2 unlink-btn" data-id="${link.target_id}">&times;</button>
+        </div>
+    `).join('');
+
+    container.querySelectorAll('.unlink-btn').forEach(btn => {
+        btn.addEventListener('click', () => onUnlink(btn.dataset.id));
+    });
+}
+
+/**
+ * Initializes the account linking comboboxes.
+ */
+export function initAccountLinkingCompos(onSearch, onLink) {
+    const targetEl = document.getElementById('targetAccountCombobox');
+    const masterEl = document.getElementById('masterAccountCombobox');
+    const linkBtn = document.getElementById('linkAccountsBtn');
+
+    if (!targetEl || !masterEl || !linkBtn || !window.Combobox) return;
+
+    const targetCombo = new window.Combobox(targetEl, {
+        placeholder: 'Select target account...',
+        onSearch: onSearch
+    });
+
+    const masterCombo = new window.Combobox(masterEl, {
+        placeholder: 'Select master account...',
+        onSearch: onSearch
+    });
+
+    linkBtn.onclick = () => {
+        const target = targetCombo.getValue();
+        const master = masterCombo.getValue();
+        if (target && master) {
+            onLink(target, master);
+            targetCombo.clear();
+            masterCombo.clear();
+        }
+    };
+
+    return { targetCombo, masterCombo };
+}

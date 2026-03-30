@@ -326,9 +326,12 @@ func GetMessagesByIDs(ctx context.Context, ids []int) ([]ConsolidatedMessage, er
 		return []ConsolidatedMessage{}, nil
 	}
 
-	//Why: Explicitly specifies the 18 columns expected by scanMessageRow to ensure type safety and stability across schema changes.
+	//Why: Explicitly specifies all 20 columns from the v_messages view to ensure identity-resolved fields are correctly scanned into the struct.
 	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
-	query := fmt.Sprintf("SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id FROM messages WHERE id IN (%s)", placeholders)
+	query := fmt.Sprintf(`
+		SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, requester_canonical, assignee_canonical 
+		FROM v_messages 
+		WHERE id IN (%s)`, placeholders)
 	interfaceIds := make([]interface{}, len(ids))
 	for i, v := range ids {
 		interfaceIds[i] = v

@@ -336,3 +336,68 @@ func (a *API) HandleGetUserAchievements(w http.ResponseWriter, r *http.Request) 
 	}
 	respondJSON(w, http.StatusOK, ua)
 }
+func (a *API) HandleSearchContacts(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		respondJSON(w, http.StatusOK, []store.ContactRecord{})
+		return
+	}
+
+	results, err := store.SearchContacts(email, query)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, results)
+}
+
+func (a *API) HandleLinkAccounts(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	var req struct {
+		TargetID int64 `json:"target_id"`
+		MasterID int64 `json:"master_id"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if req.TargetID == req.MasterID {
+		respondError(w, http.StatusBadRequest, "Cannot link account to itself")
+		return
+	}
+
+	if err := store.LinkContact(email, req.MasterID, req.TargetID); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (a *API) HandleUnlinkAccount(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	var req struct {
+		ContactID int64 `json:"contact_id"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := store.UnlinkContact(email, req.ContactID); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (a *API) HandleGetLinks(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	links, err := store.GetLinkedContacts(email)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, links)
+}

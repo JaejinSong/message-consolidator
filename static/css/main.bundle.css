@@ -1191,6 +1191,35 @@ body.light-theme .c-utility__btn:hover {
     }
 }
 
+/* Translation States */
+.c-task-card--loading {
+    pointer-events: none;
+}
+
+.c-task-card__loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(0.125rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+    border-radius: inherit;
+}
+
+.c-task-card__error-hint {
+    color: var(--color-error);
+    margin-right: var(--spacing-xs);
+    cursor: help;
+    font-size: 1rem;
+    display: inline-flex;
+    vertical-align: middle;
+}
+
 /* --- End of static/css/components/task-card.css --- */
 
 /* --- Start of static/css/components/status-card.css --- */
@@ -2501,6 +2530,70 @@ body.light-theme .report-content th {
 .report-content .section-gap li strong {
     color: var(--accent-color);
     font-weight: 800;
+}
+
+/* --- Report Loading & Error States --- */
+.c-report-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10rem 2rem;
+    gap: 1.5rem;
+    color: var(--text-dim);
+    text-align: center;
+    min-height: 25rem;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.c-report-loading .spinner {
+    width: 3.5rem;
+    height: 3.5rem;
+    border: 0.25rem solid rgba(255, 255, 255, 0.05);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: report-spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    box-shadow: 0 0 1.25rem rgba(var(--accent-rgb), 0.15);
+}
+
+@keyframes report-spin {
+    to { transform: rotate(360deg); }
+}
+
+.c-report-loading p {
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--text-main);
+    margin: 0;
+}
+
+.c-report-error {
+    padding: 4rem 2rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 12.5rem;
+}
+
+.c-report-error .c-alert {
+    max-width: var(--bp-mobile);
+    width: 100%;
+    border: var(--border-thin) solid rgba(var(--color-error-rgb), 0.2);
+    box-shadow: var(--shadow-main);
+    animation: slideInUp 0.3s ease-out;
+}
+
+.c-alert--error {
+    background: rgba(var(--color-error-rgb), 0.1);
+    color: var(--color-error);
+    border-color: rgba(var(--color-error-rgb), 0.2);
+}
+
+.c-alert--info {
+    background: rgba(var(--color-info-rgb), 0.1);
+    color: var(--color-info);
+    border-color: rgba(var(--color-info-rgb), 0.2);
 }
 
 /* --- End of static/css/v2-insights.css --- */

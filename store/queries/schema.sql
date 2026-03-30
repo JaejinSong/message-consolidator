@@ -110,35 +110,56 @@ CREATE TABLE IF NOT EXISTS contacts (
     display_name VARCHAR(255) NOT NULL,
     aliases TEXT NOT NULL DEFAULT '', -- Comma-separated variation names
     source VARCHAR(50) DEFAULT 'all',
+    master_contact_id INTEGER REFERENCES contacts(id), -- Unified Account Reference
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(tenant_email, canonical_id)
 );
 CREATE INDEX IF NOT EXISTS idx_contacts_canonical ON contacts(canonical_id);
+CREATE INDEX IF NOT EXISTS idx_contacts_tenant_canonical ON contacts(tenant_email, canonical_id);
+
+-- name: CreateContactsResolvedView :exec
+DROP VIEW IF EXISTS v_contacts_resolved;
+CREATE VIEW v_contacts_resolved AS
+SELECT 
+    c.id,
+    c.tenant_email,
+    c.canonical_id AS original_canonical_id,
+    c.display_name AS original_display_name,
+    COALESCE(m.canonical_id, c.canonical_id) AS effective_canonical_id,
+    COALESCE(m.display_name, c.display_name) AS effective_display_name,
+    CASE WHEN c.master_contact_id IS NOT NULL THEN 1 ELSE 0 END AS is_merged,
+    c.source AS original_source
+FROM contacts c
+LEFT JOIN contacts m ON c.master_contact_id = m.id AND c.tenant_email = m.tenant_email;
 
 
 -- name: CreateMessagesView :exec
 DROP VIEW IF EXISTS v_messages;
 CREATE VIEW v_messages AS
 SELECT 
-    id, 
-    user_email, 
-    source, 
-    COALESCE(room, '') as room, 
-    task, 
-    requester, 
-    COALESCE(assignee, '') as assignee,
-    assigned_at,
-    link, 
-    source_ts, 
-    COALESCE(original_text, '') as original_text, 
-    done, 
-    is_deleted, 
-    created_at, 
-    completed_at, 
-    COALESCE(category, 'todo') as category, 
-    COALESCE(deadline, '') as deadline,
-    COALESCE(thread_id, '') as thread_id
-FROM messages;
+    m.id, 
+    m.user_email, 
+    m.source, 
+    COALESCE(m.room, '') as room, 
+    m.task, 
+    COALESCE(cr_req.effective_display_name, m.requester) as requester, 
+    COALESCE(cr_asg.effective_display_name, m.assignee, '') as assignee,
+    m.assigned_at,
+    m.link, 
+    m.source_ts, 
+    COALESCE(m.original_text, '') as original_text, 
+    m.done, 
+    m.is_deleted, 
+    m.created_at, 
+    m.completed_at, 
+    COALESCE(m.category, 'todo') as category, 
+    COALESCE(m.deadline, '') as deadline,
+    COALESCE(m.thread_id, '') as thread_id,
+    COALESCE(cr_req.effective_canonical_id, m.requester) as requester_canonical,
+    COALESCE(cr_asg.effective_canonical_id, m.assignee) as assignee_canonical
+FROM messages m
+LEFT JOIN v_contacts_resolved cr_req ON m.user_email = cr_req.tenant_email AND m.requester = cr_req.original_canonical_id
+LEFT JOIN v_contacts_resolved cr_asg ON m.user_email = cr_asg.tenant_email AND m.assignee = cr_asg.original_canonical_id;
 
 -- name: CreateUsersView :exec
 DROP VIEW IF EXISTS v_users;

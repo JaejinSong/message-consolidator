@@ -297,6 +297,46 @@ func (g *GeminiClient) TranslateReport(ctx context.Context, email string, report
 	return translatedText, nil
 }
 
+// TranslateTaskMessage translates short, conversational messages (Slack, WhatsApp, Email).
+// It use a specialized prompt to maintain tone and prevent unnecessary formatting (e.g., markdown bloat).
+func (g *GeminiClient) TranslateTaskMessage(ctx context.Context, email string, text string, targetLanguage string) (string, error) {
+	if g == nil || g.client == nil {
+		return "", fmt.Errorf("Gemini client is not initialized")
+	}
+
+	// 번역은 비용 절감을 위해 Flash-Lite 모델(translationModel)을 사용합니다.
+	model := g.client.GenerativeModel(g.translationModel)
+	model.SafetySettings = relaxedSafetySettings
+	model.SetTemperature(0.1) // 태스크 번역은 더 보수적인 변환을 지향합니다.
+
+	// 태스크 전용 시스템 프롬프트 로드 (targetLanguage를 2번 전달 - 프롬프트 템플릿 구조 대응)
+	sysInst := fmt.Sprintf(loadPrompt("task_translator.prompt"), targetLanguage, targetLanguage)
+	model.SystemInstruction = &genai.Content{
+		Parts: []genai.Part{genai.Text(sysInst)},
+	}
+
+	logger.Debugf("[GEMINI] Translating Task for %s to %s...", email, targetLanguage)
+
+	start := time.Now()
+	resp, err := generateWithRetry(ctx, model, genai.Text(text), 30*time.Second, 2)
+	elapsed := int(time.Since(start).Milliseconds())
+	trace.Step(ctx, "Gemini-TranslateTask", "", elapsed, 0)
+
+	if err != nil {
+		logger.Errorf("[GEMINI] Task translation failed (%s): %v", targetLanguage, err)
+		return "", err
+	}
+
+	logTokenUsage(ctx, email, "TranslateTask", resp)
+
+	translatedText, err := extractResponseText(resp)
+	if err != nil {
+		return "", err
+	}
+
+	return translatedText, nil
+}
+
 func (g *GeminiClient) DoesReplyCompleteTask(ctx context.Context, email, taskText, replyText string) (bool, error) {
 	if g == nil || g.client == nil {
 		return false, fmt.Errorf("Gemini client is not initialized")

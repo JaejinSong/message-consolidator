@@ -92,6 +92,15 @@ export const api = {
         return handleResponse(resp, 'Translation failed');
     },
 
+    async translateTasksBatch(taskIds, lang) {
+        const resp = await fetch('/api/tasks/translate-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_ids: taskIds, lang })
+        });
+        return handleResponse(resp, 'Batch translation failed');
+    },
+
     async fetchArchive(params = {}) {
         const query = new URLSearchParams();
         const langParam = params.lang || 'ko';
@@ -324,5 +333,45 @@ export const api = {
             method: 'POST'
         });
         return handleResponse(resp, 'Translation request failed');
+    },
+
+    /**
+     * @description Search contacts for autocomplete.
+     */
+    async searchContacts(q) {
+        const resp = await fetch(`/api/contacts/search?q=${encodeURIComponent(q)}`);
+        return handleResponse(resp, 'Search contacts failed');
+    },
+
+    /**
+     * @description Link two contacts (target -> master).
+     */
+    async linkAccounts(targetId, masterId) {
+        const resp = await fetch('/api/contacts/link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target_id: targetId, master_id: masterId })
+        });
+        return handleResponse(resp, 'Link accounts failed');
+    },
+
+    /**
+     * @description Unlink a contact from its master.
+     */
+    async unlinkAccount(contactId) {
+        const resp = await fetch('/api/contacts/unlink', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contact_id: contactId })
+        });
+        return handleResponse(resp, 'Unlink account failed');
+    },
+
+    /**
+     * @description Fetch all current account links for the user.
+     */
+    async fetchLinkedAccounts() {
+        const resp = await fetch('/api/contacts/links');
+        return handleResponse(resp, 'Fetch linked accounts failed');
     }
 };

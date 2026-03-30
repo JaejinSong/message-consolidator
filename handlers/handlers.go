@@ -14,17 +14,18 @@ type API struct {
 	ScanFunc     func(email string, lang string)
 	FullScanFunc func()
 	Reports      *services.ReportsService
+	Tasks        *services.TasksService
 	//Why: Allows for future expansion of shared dependencies like database stores or logger instances.
-	// Store        store.Store
 }
 
 // NewAPI is a constructor for the API struct, making dependency injection explicit.
-func NewAPI(cfg *config.Config, scanFunc func(string, string), fullScanFunc func(), reports *services.ReportsService) *API {
+func NewAPI(cfg *config.Config, scanFunc func(string, string), fullScanFunc func(), reports *services.ReportsService, tasks *services.TasksService) *API {
 	return &API{
 		Config:       cfg,
 		ScanFunc:     scanFunc,
 		FullScanFunc: fullScanFunc,
 		Reports:      reports,
+		Tasks:        tasks,
 	}
 }
 

@@ -1,3 +1,15 @@
+# Release Notes (Tech) - v2.4.4 (2026-03-30 07:01 UTC)
+
+- [FEAT] Just-in-Time (JIT) Translation: Implemented on-demand translation utilizing a `singleflight` mechanism to suppress redundant upstream requests and integrated a reactive loading UI.
+- [FEAT] AI Weekly Insight Report: Enabled automated weekly trend analysis within the Insights module, leveraging historical interaction data for high-level summarization.
+- [FEAT] Identity Resolution Engine: Introduced an "Ambiguity Safeguard Engine" to resolve entity conflicts and improve data mapping accuracy across disparate communication channels.
+- [FIX] AI Response Integrity: Resolved a critical issue causing truncation in AI-generated reports and implemented regression tests to ensure full-text delivery.
+- [UI] Responsive Layout Optimization: Refined mobile UI margins and improved the dashboard 'All Clear' logic for better state synchronization and user feedback.
+- [OPTIMIZE] Archive Prioritization: Enhanced the archiving logic based on task completion status and standardized the labeling for canceled work items.
+- [REFACTOR] Utility Consolidation: Migrated disparate debug and utility tools into a unified `mc-util` package to streamline the backend maintenance workflow.
+
+---
+
 # Release Notes (Tech) - v2.4.3 (2026-03-30 04:30 UTC)
 
 - [FEAT] AI Relationship Graph: Implemented a visualization system to map entity relationships and interaction patterns within the AI Reporting module.

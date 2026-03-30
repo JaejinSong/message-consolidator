@@ -2,13 +2,23 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"message-consolidator/channels"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"strings"
 
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/gmail/v1"
 )
+
+// BatchTranslateResult represents the status of a single task translation within a batch request.
+type BatchTranslateResult struct {
+	ID             int    `json:"id"`
+	Success        bool   `json:"success"`
+	TranslatedText string `json:"translated_text,omitempty"`
+	Error          string `json:"error,omitempty"`
+}
 
 var (
 	//Why: Defines keywords returned by the AI for unspecific or group tasks to support standardized unassignment logic.
@@ -18,8 +28,19 @@ var (
 	genericMeAssignees = map[string]bool{"내 업무": true, "내업무": true, "my tasks": true, "mytasks": true, "나": true, "me": true}
 )
 
+// TasksService handles task-related operations including formatting, completion, and batch translation.
+type TasksService struct {
+	translationSvc *TranslationService
+}
+
+func NewTasksService(trans *TranslationService) *TasksService {
+	return &TasksService{
+		translationSvc: trans,
+	}
+}
+
 // StripOriginalText removes the original text to reduce payload size.
-func StripOriginalText(msgs []store.ConsolidatedMessage) {
+func (s *TasksService) StripOriginalText(msgs []store.ConsolidatedMessage) {
 	for i := range msgs {
 		msgs[i].HasOriginal = msgs[i].OriginalText != ""
 		msgs[i].OriginalText = ""
@@ -27,14 +48,13 @@ func StripOriginalText(msgs []store.ConsolidatedMessage) {
 }
 
 // FormatMessagesForClient normalizes requesters and assignees, and flags user's tasks.
-func FormatMessagesForClient(email string, msgs []store.ConsolidatedMessage) {
+func (s *TasksService) FormatMessagesForClient(email string, msgs []store.ConsolidatedMessage) {
 	user, _ := store.GetOrCreateUser(email, "", "")
 
 	for i := range msgs {
 		msgs[i].Requester = store.NormalizeName(email, msgs[i].Requester)
 		msgs[i].Assignee = store.NormalizeName(email, msgs[i].Assignee)
 
-		//Why: Sanitizes assignee names that might be incorrectly returned as 'undefined' or 'unknown' by the AI or frontend logic, resetting them to empty.
 		assignee := strings.TrimSpace(msgs[i].Assignee)
 		if strings.EqualFold(assignee, "undefined") || strings.EqualFold(assignee, "unknown") {
 			msgs[i].Assignee = ""
@@ -46,22 +66,16 @@ func FormatMessagesForClient(email string, msgs []store.ConsolidatedMessage) {
 		}
 
 		userName := strings.TrimSpace(user.Name)
-		//Why: Identifies tasks belonging to the current user by matching the assignee against their name or generic "me" keywords.
 		isMe := strings.EqualFold(assignee, userName) || strings.EqualFold(assignee, "me")
 
 		if isMe {
-			//Why: Standardizes the assignee string to "me" to simplify task filtering and rendering logic on the frontend.
 			msgs[i].Assignee = "me"
-		} else {
-			//Why: [DEBUG] Tracks assignee mapping mismatches at the DEBUG level to aid in refining normalization rules without flooding production logs.
-			logger.Debugf("[ASSIGNEE_MAP] User: %s, Mismatched Assignee: '%s' (User.Name: '%s')",
-				email, assignee, user.Name)
 		}
 	}
 }
 
 // ApplyTranslations fetches and applies translations for a batch of messages.
-func ApplyTranslations(msgs []store.ConsolidatedMessage, lang string) {
+func (s *TasksService) ApplyTranslations(msgs []store.ConsolidatedMessage, lang string) {
 	if lang == "" || len(msgs) == 0 {
 		return
 	}
@@ -69,7 +83,6 @@ func ApplyTranslations(msgs []store.ConsolidatedMessage, lang string) {
 	for i, m := range msgs {
 		ids[i] = m.ID
 	}
-	//Why: Optimizes performance by retrieving all task translations in a single batch database query instead of multiple individual calls.
 	translations, err := store.GetTaskTranslationsBatch(ids, lang)
 	if err == nil {
 		for i := range msgs {
@@ -81,19 +94,16 @@ func ApplyTranslations(msgs []store.ConsolidatedMessage, lang string) {
 }
 
 // PrepareMessagesForClient unifies translations, stripping, and formatting.
-func PrepareMessagesForClient(email string, msgs []store.ConsolidatedMessage, lang string) {
-	ApplyTranslations(msgs, lang)
-	StripOriginalText(msgs)
-	FormatMessagesForClient(email, msgs)
+func (s *TasksService) PrepareMessagesForClient(email string, msgs []store.ConsolidatedMessage, lang string) {
+	s.ApplyTranslations(msgs, lang)
+	s.StripOriginalText(msgs)
+	s.FormatMessagesForClient(email, msgs)
 }
 
-// HandleTaskCompletion orchestrates the process of marking a task as done,
-// updating gamification stats, and potentially recording statistics for analytics.
-func HandleTaskCompletion(email string, taskID int, done bool) (GamificationResult, error) {
-	//Why: Prevents duplicate gamification rewards by verifying the task's current completion state before processing.
+// HandleTaskCompletion orchestrates the process of marking a task as done.
+func (s *TasksService) HandleTaskCompletion(email string, taskID int, done bool) (GamificationResult, error) {
 	msg, err := store.GetMessageByID(context.Background(), taskID)
 	if err == nil && msg.Done && done {
-		//Why: Skips reward processing if the task was already completed to ensure points and XP are only granted once.
 		return GamificationResult{}, nil
 	}
 
@@ -115,7 +125,7 @@ func HandleTaskCompletion(email string, taskID int, done bool) (GamificationResu
 }
 
 // ReclassifyUserTasks re-evaluates assignees for a user's tasks based on identities and content.
-func ReclassifyUserTasks(email string, user *store.User, aliases []string, msgs []store.ConsolidatedMessage) int {
+func (s *TasksService) ReclassifyUserTasks(email string, user *store.User, aliases []string, msgs []store.ConsolidatedMessage) int {
 	allMyIdentities := GetEffectiveAliases(*user, aliases)
 	fixedCount := 0
 
@@ -127,8 +137,8 @@ func ReclassifyUserTasks(email string, user *store.User, aliases []string, msgs 
 			continue
 		}
 
-		isDirectGmail := IsDirectlyAddressedToMe(m, user.Email)
-		isMarkedAsMine := IsAssigneeMarkedAsMine(m.Assignee, allMyIdentities)
+		isDirectGmail := s.IsDirectlyAddressedToMe(m, user.Email)
+		isMarkedAsMine := s.IsAssigneeMarkedAsMine(m.Assignee, allMyIdentities)
 		matchedByAlias := IsTaskMatchedByAlias(m, allMyIdentities, isDirectGmail)
 
 		if isMarkedAsMine {
@@ -160,7 +170,7 @@ func ReclassifyUserTasks(email string, user *store.User, aliases []string, msgs 
 }
 
 // RestoreGmailCCAssignment restores correct assignees for Gmail tasks where the user was only CC'd.
-func RestoreGmailCCAssignment(ctx context.Context, email string, user *store.User, aliases []string, allMsgs []store.ConsolidatedMessage, svc *gmail.Service) int {
+func (s *TasksService) RestoreGmailCCAssignment(ctx context.Context, email string, user *store.User, aliases []string, allMsgs []store.ConsolidatedMessage, svc *gmail.Service) int {
 	fixedCount := 0
 	for _, m := range allMsgs {
 		if m.Source != "gmail" {
@@ -255,7 +265,7 @@ func isAssigneeGeneric(assignee string) bool {
 }
 
 // IsAssigneeMarkedAsMine checks if the assignee matches any of the user's known identities or generic "me" keywords.
-func IsAssigneeMarkedAsMine(assignee string, identities []string) bool {
+func (s *TasksService) IsAssigneeMarkedAsMine(assignee string, identities []string) bool {
 	norm := strings.ToLower(strings.TrimSpace(assignee))
 	if genericMeAssignees[norm] {
 		return true
@@ -270,7 +280,7 @@ func IsAssigneeMarkedAsMine(assignee string, identities []string) bool {
 
 // IsDirectlyAddressedToMe parses the raw email text to determine if the user's email
 // is in the "To:" header field, as opposed to CC or BCC.
-func IsDirectlyAddressedToMe(m store.ConsolidatedMessage, userEmail string) bool {
+func (s *TasksService) IsDirectlyAddressedToMe(m store.ConsolidatedMessage, userEmail string) bool {
 	if m.Source != "gmail" {
 		return true
 	}
@@ -382,4 +392,58 @@ func resolveActualAssignee(ctx context.Context, m store.ConsolidatedMessage, toH
 		}
 	}
 	return ""
+}
+
+// ProcessBatchTranslation handles multiple task translation requests in parallel.
+// It uses errgroup for concurrency and a pre-allocated slice for results to avoid mutex bottlenecks.
+// It also ensures partial success handling: individual task failures don't fail the entire batch.
+func (s *TasksService) ProcessBatchTranslation(ctx context.Context, email string, taskIDs []int, langCode string) ([]BatchTranslateResult, error) {
+	if s.translationSvc == nil {
+		return nil, fmt.Errorf("translation service not initialized")
+	}
+
+	results := make([]BatchTranslateResult, len(taskIDs))
+	g, ctx := errgroup.WithContext(ctx)
+
+	for i, id := range taskIDs {
+		// Shadow variables specifically for the goroutine closure to prevent race conditions.
+		index := i
+		taskID := id
+		g.Go(func() error {
+			// 1. Check DB cache first to avoid redundant AI calls.
+			translated, err := store.GetTaskTranslation(taskID, langCode)
+			if err == nil && translated != "" {
+				results[index] = BatchTranslateResult{ID: taskID, Success: true, TranslatedText: translated}
+				return nil
+			}
+
+			// 2. Fetch original task text from the database.
+			msg, err := store.GetMessageByID(ctx, taskID)
+			if err != nil {
+				results[index] = BatchTranslateResult{ID: taskID, Success: false, Error: "task not found"}
+				return nil
+			}
+
+			// 3. Request translation via TranslationService (handles Singleflight internally).
+			key := fmt.Sprintf("task_%d_%s", taskID, langCode)
+			translated, err = s.translationSvc.Translate(ctx, email, key, msg.Task, langCode, false)
+			if err != nil {
+				results[index] = BatchTranslateResult{ID: taskID, Success: false, Error: err.Error()}
+				return nil
+			}
+
+			// 4. Persistence: Cache the successful translation back into the database.
+			if err := store.SaveTaskTranslation(taskID, langCode, translated); err != nil {
+				logger.Errorf("[TASKS] Failed to cache translation for task %d: %v", taskID, err)
+			}
+
+			results[index] = BatchTranslateResult{ID: taskID, Success: true, TranslatedText: translated}
+			return nil
+		})
+	}
+
+	// Wait for all goroutines to finish. We do not return the error from g.Wait() 
+	// because each goroutine handles its own failure and records it in the results slice.
+	_ = g.Wait()
+	return results, nil
 }

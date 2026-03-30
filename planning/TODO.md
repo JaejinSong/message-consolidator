@@ -83,3 +83,21 @@
   - [x] **완료 우선순위(Completion-Priority) 필터링**: 업무 완료 시 삭제 여부와 무관하게 '완료된 업무'로 분류 로직 동기화 (done=1 우선)
   - [x] **능동형 명칭 도입 ('취소한 업무')**: '삭제된 업무' -> **'취소한 업무'**로 UI 및 다국어 설정(KR/EN) 전방위 업데이트
   - [x] **API 파라미터 표준화**: 프론트-백엔드 간 `trash` -> `canceled` 상태 코드 동기화 및 유닛 테스트(Go/Vitest) 100% 통과
+
+---
+
+## 계정 연결 및 정체성 통합 (Identity Resolution V3)
+
+사용자 정체성 관리 체계를 통합하고, 중복 계정을 하나의 마스터 계정으로 병합하는 기능을 구현합니다.
+
+- [x] **백엔드 정체성 통합 엔진 (V3 Architecture)**
+  - [x] `contacts` 테이블 `master_contact_id` (Integer FK) 도입 및 정수기반 매핑 구조 설계
+  - [x] **1단계 플랫 트리(Flat Tree) 보장**: 순환 참조를 방지하고 모든 자식 계정이 항상 최상위 마스터를 바라보도록 평탄화 로직 구현
+  - [x] `v_contacts_resolved` SQL VIEW를 통한 전 시스템 레이아웃 통일
+- [x] **계정 연결 관리 UI (Account Linking UI)**
+  - [x] **Searchable Autocomplete 구현**: Combobox 기반의 실시간 연락처 검색 및 선택 기능 도입
+  - [x] **디바운스(Debounce) 최적화**: API 호출 폭주를 방지하기 위한 250ms 지연 처리 적용
+  - [x] **연결/해제 UX 개선**: 연결 상태 실시간 반영 및 직관적인 UI 분리 (계정 연결 vs 표기명 변경)
+- [x] **API 및 테스트 정합성 보완**
+  - [x] `/api/contacts/` 기반의 표준화된 엔드포인트 설계 및 프론트엔드 연동
+  - [x] Vitest `TypeError` 및 API 메서드 누락 문제 해결을 위한 테스트 헬퍼 및 모킹 보완

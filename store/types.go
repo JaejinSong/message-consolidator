@@ -36,7 +36,9 @@ type ConsolidatedMessage struct {
 	CompletedAt  *time.Time `json:"completed_at"`
 	Category     string     `json:"category"`
 	Deadline     string     `json:"deadline,omitempty"`
-	ThreadID     string     `json:"thread_id,omitempty"`
+	ThreadID           string     `json:"thread_id,omitempty"`
+	RequesterCanonical string     `json:"requester_canonical,omitempty"`
+	AssigneeCanonical  string     `json:"assignee_canonical,omitempty"`
 }
 
 // User represents an application user

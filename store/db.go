@@ -53,16 +53,24 @@ func InitDB(cfg *config.Config) error {
 
 	setupConnectionPool(dbURL)
 
+	// Why: Perform critical schema migrations (e.g., adding language_code) BEFORE creating tables or views
+	// that might refer to these columns, preventing "no such column" errors during initialization.
+	if err := runMigrations(); err != nil {
+		return fmt.Errorf("pre-migration failed: %w", err)
+	}
+
 	if err := createCoreTables(); err != nil {
-		return err
+		logger.Warnf("[DB-INIT] Core table creation partially completed: %v", err)
 	}
 
 	if err := setupGamification(); err != nil {
-		return err
+		return fmt.Errorf("gamification setup failed: %w", err)
 	}
 
+	// Why: Perform critical schema migrations (e.g., adding language_code) to sync existing data
+	// with new multi-language support (ISO 639-1). Errors are ignored to ensure idempotent startup.
 	if err := runMigrations(); err != nil {
-		return err
+		logger.Warnf("[DB-INIT] Non-destructive migrations warning: %v", err)
 	}
 
 	createIndexes()
@@ -133,6 +141,10 @@ func createCoreTables() error {
 	if err != nil {
 		return err
 	}
+	_, err = db.Exec(SQL.CreateContactsResolvedView)
+	if err != nil {
+		return err
+	}
 	_, err = db.Exec(SQL.CreateMessagesView)
 	if err != nil {
 		return err
@@ -165,6 +177,16 @@ func runMigrations() error {
 	_, _ = db.Exec("ALTER TABLE achievements ADD COLUMN target_value INTEGER DEFAULT 0;")
 	_, _ = db.Exec("ALTER TABLE achievements ADD COLUMN xp_reward INTEGER DEFAULT 0;")
 	_, _ = db.Exec("ALTER TABLE reports ADD COLUMN is_truncated INTEGER DEFAULT 0;")
+
+	// Why: Handle migration for multi-language support (ISO 639-1) across both tasks and reports.
+	// We use direct column rename if 'language' exists, or add 'language_code' if missing.
+	_, _ = db.Exec("ALTER TABLE task_translations RENAME COLUMN language TO language_code;")
+	_, _ = db.Exec("ALTER TABLE report_translations RENAME COLUMN language TO language_code;")
+	
+	// Why: If the table was newly created with 'language_code', above rename might fail or be unnecessary.
+	// We ensure 'language_code' exists as a non-destructive fallback if rename didn't catch it.
+	_, _ = db.Exec("ALTER TABLE task_translations ADD COLUMN language_code TEXT;")
+	_, _ = db.Exec("ALTER TABLE report_translations ADD COLUMN language_code TEXT;")
 
 	migrateExistingData()
 	return nil
@@ -326,14 +348,14 @@ func RefreshCache(email string) error {
 func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedMessage, error) {
 	var m ConsolidatedMessage
 	var assignedAt, createdAt, completedAt DBTime
-	var room, requester, assignee, link, originalText, category, deadline, threadID, sourceTS, source sql.NullString
+	var room, requester, assignee, link, originalText, category, deadline, threadID, sourceTS, source, requesterCanonical, assigneeCanonical sql.NullString
 
 	err := rows.Scan(
 		&m.ID, &m.UserEmail, &source, &room, &m.Task,
 		&requester, &assignee, &assignedAt, &link,
 		&sourceTS, &originalText, &m.Done, &m.IsDeleted,
 		&createdAt, &completedAt, &category, &deadline,
-		&threadID,
+		&threadID, &requesterCanonical, &assigneeCanonical,
 	)
 	if err != nil {
 		return m, err
@@ -349,6 +371,8 @@ func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedM
 	m.Category = category.String
 	m.Deadline = deadline.String
 	m.ThreadID = threadID.String
+	m.RequesterCanonical = requesterCanonical.String
+	m.AssigneeCanonical = assigneeCanonical.String
 
 	m.AssignedAt = assignedAt.Time
 	m.CreatedAt = createdAt.Time

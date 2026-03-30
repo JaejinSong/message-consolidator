@@ -1,7 +1,9 @@
 package store
 
 import (
+	"database/sql"
 	"errors"
+	"fmt"
 	"message-consolidator/logger"
 	"slices"
 	"strings"
@@ -19,12 +21,13 @@ func (e *AmbiguousIdentityError) Error() string {
 }
 
 type ContactRecord struct {
-	ID          int64  `json:"id"`
-	TenantEmail string `json:"tenant_email"`
-	CanonicalID string `json:"canonical_id"`
-	DisplayName string `json:"display_name"`
-	Aliases     string `json:"aliases"`
-	Source      string `json:"source"`
+	ID              int64         `json:"id"`
+	TenantEmail     string        `json:"tenant_email"`
+	CanonicalID     string        `json:"canonical_id"`
+	DisplayName     string        `json:"display_name"`
+	Aliases         string        `json:"aliases"`
+	Source          string        `json:"source"`
+	MasterContactID sql.NullInt64 `json:"master_contact_id,omitempty"`
 }
 
 func InitContactsTable() {
@@ -48,14 +51,20 @@ func GetContactsMappings(email string) ([]ContactRecord, error) {
 }
 
 func AddContactMapping(email, canonicalID, displayName, aliases, source string) error {
+	_, err := UpsertContact(email, canonicalID, displayName, aliases, source)
+	return err
+}
+
+func UpsertContact(tenantEmail, canonicalID, displayName, aliases, source string) (int64, error) {
 	if source == "" {
 		source = "all"
 	}
-	_, err := db.Exec(SQL.UpsertContactMapping, email, canonicalID, displayName, aliases, source)
+	var id int64
+	err := db.QueryRow(SQL.UpsertContactMapping, tenantEmail, canonicalID, displayName, aliases, source).Scan(&id)
 	if err == nil {
-		UpdateContactsCache(email, canonicalID, displayName, aliases, source)
+		UpdateContactsCache(tenantEmail, canonicalID, displayName, aliases, source)
 	}
-	return err
+	return id, err
 }
 
 // UpdateContactsCache localizes cache update logic for reuse across manual and automatic upserts.
@@ -74,7 +83,9 @@ func UpdateContactsCache(email, canonicalID, displayName, aliases, source string
 		contactsCache[email][idx].Aliases = aliases
 		contactsCache[email][idx].Source = source
 	} else {
+		// Note: ID will be 0 until a full reload from DB, which is acceptable for transient cache.
 		contactsCache[email] = append(contactsCache[email], ContactRecord{
+			TenantEmail: email,
 			CanonicalID: canonicalID,
 			DisplayName: displayName,
 			Aliases:     aliases,
@@ -299,7 +310,7 @@ func GetContactByIdentifier(tenantEmail, identifier string) (*ContactRecord, err
 	var matches []ContactRecord
 	for rows.Next() {
 		var c ContactRecord
-		if err := rows.Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Aliases, &c.Source); err != nil {
+		if err := rows.Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Aliases, &c.Source, &c.MasterContactID); err != nil {
 			return nil, err
 		}
 		matches = append(matches, c)
@@ -327,7 +338,16 @@ func GetContactByIdentifier(tenantEmail, identifier string) (*ContactRecord, err
 		return nil, nil
 	}
 
-	return &matches[0], nil
+	res := &matches[0]
+	// Why: Resolve master contact if linked to provide unified identity.
+	if res.MasterContactID.Valid {
+		master, err := GetContactByID(tenantEmail, res.MasterContactID.Int64)
+		if err == nil && master != nil {
+			return master, nil
+		}
+	}
+
+	return res, nil
 }
 
 func DeleteContactMapping(email, canonicalID string) error {
@@ -343,4 +363,105 @@ func DeleteContactMapping(email, canonicalID string) error {
 	}
 	return err
 }
+func GetContactByID(tenantEmail string, id int64) (*ContactRecord, error) {
+	var c ContactRecord
+	err := db.QueryRow("SELECT id, tenant_email, canonical_id, display_name, aliases, source, master_contact_id FROM contacts WHERE tenant_email = ? AND id = ?", tenantEmail, id).
+		Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Aliases, &c.Source, &c.MasterContactID)
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
 
+func SearchContacts(tenantEmail, query string) ([]ContactRecord, error) {
+	rows, err := db.Query(SQL.SearchContacts, tenantEmail, query, query, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []ContactRecord
+	for rows.Next() {
+		var c ContactRecord
+		if err := rows.Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Aliases, &c.Source, &c.MasterContactID); err != nil {
+			return nil, err
+		}
+		results = append(results, c)
+	}
+	return results, nil
+}
+
+func LinkContact(tenantEmail string, masterID, targetID int64) error {
+	if masterID == targetID {
+		return fmt.Errorf("cannot link a contact to itself")
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 1. Safety Check: If the intended Master is already a Child, use ITS master instead to maintain 1-level flat tree.
+	var masterParentID *int64
+	err = tx.QueryRow("SELECT master_contact_id FROM contacts WHERE id = ? AND tenant_email = ?", masterID, tenantEmail).Scan(&masterParentID)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	if masterParentID != nil {
+		masterID = *masterParentID
+		if masterID == targetID {
+			return fmt.Errorf("circular reference detected: target is already the master of this account")
+		}
+	}
+
+	// 2. Link the target to the master
+	if _, err := tx.Exec(SQL.UpdateContactLink, masterID, tenantEmail, targetID); err != nil {
+		return err
+	}
+
+	// 3. Flatten Tree: If the Target was already a Master for others, redirect them to the new Master.
+	// This ensures a flat hierarchy (max 1 level depth).
+	if _, err := tx.Exec(SQL.FlattenChildren, masterID, tenantEmail, targetID); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	// Simple cache invalidation
+	metadataMu.Lock()
+	delete(contactsCache, tenantEmail)
+	metadataMu.Unlock()
+
+	return nil
+}
+
+func UnlinkContact(tenantEmail string, targetID int64) error {
+	_, err := db.Exec(SQL.UnlinkContact, tenantEmail, targetID)
+	if err == nil {
+		metadataMu.Lock()
+		delete(contactsCache, tenantEmail)
+		metadataMu.Unlock()
+	}
+	return err
+}
+
+func GetLinkedContacts(tenantEmail string) ([]ContactRecord, error) {
+	rows, err := db.Query(SQL.GetLinkedContacts, tenantEmail)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []ContactRecord
+	for rows.Next() {
+		var c ContactRecord
+		if err := rows.Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Aliases, &c.Source, &c.MasterContactID); err != nil {
+			return nil, err
+		}
+		results = append(results, c)
+	}
+	return results, nil
+}

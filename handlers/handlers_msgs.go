@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"message-consolidator/auth"
-	"message-consolidator/services"
 	"message-consolidator/store"
 
 	"github.com/gorilla/mux"
@@ -23,7 +22,9 @@ func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	msgs := make([]store.ConsolidatedMessage, len(msgsRaw))
 	copy(msgs, msgsRaw)
 
-	services.PrepareMessagesForClient(email, msgs, lang)
+	if a.Tasks != nil {
+		a.Tasks.PrepareMessagesForClient(email, msgs, lang)
+	}
 
 	respondJSON(w, http.StatusOK, msgs)
 }
@@ -39,7 +40,12 @@ func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := services.HandleTaskCompletion(email, req.ID, req.Done); err != nil {
+	if a.Tasks == nil {
+		respondError(w, http.StatusServiceUnavailable, "Task service not available")
+		return
+	}
+
+	if _, err := a.Tasks.HandleTaskCompletion(email, req.ID, req.Done); err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to complete task")
 		return
 	}
@@ -85,7 +91,9 @@ func (a *API) HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 	//Why: Uses the direct database result instead of a copy because newly allocated query slices are already safe from cache contamination.
 	msgs := msgsRaw
 
-	services.PrepareMessagesForClient(email, msgs, lang)
+	if a.Tasks != nil {
+		a.Tasks.PrepareMessagesForClient(email, msgs, lang)
+	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"messages": msgs,
@@ -201,4 +209,34 @@ func (a *API) HandleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// HandleTranslateBatchTasks handles JIT translation requests for a batch of tasks.
+// It leverages the TasksService for concurrent AI processing and error handling.
+func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	var req struct {
+		TaskIDs []int  `json:"task_ids"`
+		Lang    string `json:"lang"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request format: "+err.Error())
+		return
+	}
+
+	if a.Tasks == nil {
+		respondError(w, http.StatusServiceUnavailable, "Task translation service is currently unavailable")
+		return
+	}
+
+	// [N+1 API Prevention] We process all visible tasks in a single concurrent batch.
+	results, err := a.Tasks.ProcessBatchTranslation(r.Context(), email, req.TaskIDs, req.Lang)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Failed to process task translations")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"results": results,
+	})
 }

@@ -7,12 +7,13 @@ import (
 )
 
 func TestStripOriginalText(t *testing.T) {
+	s := &TasksService{}
 	msgs := []store.ConsolidatedMessage{
 		{ID: 1, OriginalText: "Hello World"},
 		{ID: 2, OriginalText: ""},
 	}
 
-	StripOriginalText(msgs)
+	s.StripOriginalText(msgs)
 
 	if !msgs[0].HasOriginal {
 		t.Error("Expected HasOriginal to be true for msg 1")
@@ -27,6 +28,7 @@ func TestStripOriginalText(t *testing.T) {
 }
 
 func TestIsAssigneeMarkedAsMine(t *testing.T) {
+	s := &TasksService{}
 	identities := []string{"Jaejin Song", "jjsong"}
 
 	tests := []struct {
@@ -42,7 +44,7 @@ func TestIsAssigneeMarkedAsMine(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		if got := IsAssigneeMarkedAsMine(tt.assignee, identities); got != tt.expected {
+		if got := s.IsAssigneeMarkedAsMine(tt.assignee, identities); got != tt.expected {
 			t.Errorf("IsAssigneeMarkedAsMine(%q) = %v; want %v", tt.assignee, got, tt.expected)
 		}
 	}
@@ -55,6 +57,7 @@ func TestFormatMessagesForClient(t *testing.T) {
 	}
 	defer cleanup()
 
+	s := &TasksService{}
 	email := "test@example.com"
 	user, _ := store.GetOrCreateUser(email, "Test User", "")
 	_ = user //Why: Ensures the user variable is consumed to satisfy the Go compiler's strict unused variable check in tests.
@@ -65,7 +68,7 @@ func TestFormatMessagesForClient(t *testing.T) {
 		{ID: 3, Assignee: "Other", Requester: "me"},
 	}
 
-	FormatMessagesForClient(email, msgs)
+	s.FormatMessagesForClient(email, msgs)
 
 	if msgs[0].Assignee != "me" {
 		t.Errorf("Expected assignee 'me' for msg 0, got '%s'", msgs[0].Assignee)
@@ -79,6 +82,7 @@ func TestFormatMessagesForClient(t *testing.T) {
 }
 
 func TestIsDirectlyAddressedToMe(t *testing.T) {
+	s := &TasksService{}
 	email := "me@example.com"
 
 	tests := []struct {
@@ -93,7 +97,7 @@ func TestIsDirectlyAddressedToMe(t *testing.T) {
 
 	for _, tt := range tests {
 		m := store.ConsolidatedMessage{Source: "gmail", OriginalText: tt.text}
-		if got := IsDirectlyAddressedToMe(m, email); got != tt.expected {
+		if got := s.IsDirectlyAddressedToMe(m, email); got != tt.expected {
 			t.Errorf("IsDirectlyAddressedToMe(%q) = %v; want %v", tt.text, got, tt.expected)
 		}
 	}

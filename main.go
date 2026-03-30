@@ -55,11 +55,19 @@ func main() {
 			logger.Errorf("Failed to initialize GeminiClient for Reports: %v", err)
 		}
 	}
+	var transSvc *services.TranslationService
 	var reportsSvc *services.ReportsService
+	var tasksSvc *services.TasksService
+
 	if gClient != nil {
+		transSvc = services.NewTranslationService(gClient)
 		summarizer := services.NewFlashSingleSummarizer(gClient)
 		config := services.ReportConfig{CutoffSize: 8000}
-		reportsSvc = services.NewReportsService(summarizer, gClient, config)
+		reportsSvc = services.NewReportsService(summarizer, gClient, transSvc, config)
+		tasksSvc = services.NewTasksService(transSvc)
+	} else {
+		// Even without AI, we initialize TasksService to handle non-AI operations gracefully.
+		tasksSvc = services.NewTasksService(nil)
 	}
 
 	//Why: Creates the API handler structure with explicit dependency injection, simplifying unit testing and mock substitution.
@@ -67,7 +75,7 @@ func main() {
 		var wg sync.WaitGroup
 		scanner.RunAllScans(context.Background(), &wg)
 		wg.Wait()
-	}, reportsSvc)
+	}, reportsSvc, tasksSvc)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

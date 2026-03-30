@@ -1,3 +1,14 @@
+# Release Notes - v2.4.4 (2026-03-30 07:01 UTC)
+
+- [NEW] Your Personal Weekly Biographer: The AI Weekly Report is here! Now you can get a smart summary of your entire week's productivity and trends without lifting a finger.
+- [NEW] Instant Translation on Tap: No more pre-loading delays. Our new "Just-in-Time" translation engine works right when you need it, ensuring long messages load smoothly and efficiently.
+- [IMPROVED] The "Who's Who" Engine: We've upgraded our identity logic. Even if your colleagues use different nicknames across different apps, Message Consolidator now recognizes them with pinpoint accuracy.
+- [FIX] No More Half-Finished Thoughts: We fixed a bug where the AI would sometimes stop talking mid-sentence. Your reports will now be delivered in full, every single time.
+- [UI] Mobile Breathing Room: We've polished the mobile layout with better spacing and a more satisfying "All Clear" celebration for when you've finished your tasks.
+- [IMPROVED] Clarity in Chaos: Canceled items are now clearly labeled as "Cancelled Tasks" and sorted smarter, keeping your archive clean and easy to navigate.
+
+---
+
 # Release Notes - v2.4.3 (2026-03-30 04:30 UTC)
 
 - [NEW] Visual Network Map: Our new AI Relationship Graph lets you see how your tasks and teammates are connected at a glance. It's like having a GPS for your professional network!

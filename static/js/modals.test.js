@@ -8,7 +8,11 @@ vi.mock('./api.js', () => ({
         fetchTenantAliases: vi.fn().mockResolvedValue([]),
         fetchContactMappings: vi.fn().mockResolvedValue([]),
         fetchTokenUsage: vi.fn().mockResolvedValue({ total: 0 }),
-        fetchReleaseNotes: vi.fn().mockResolvedValue({ content: 'test' })
+        fetchReleaseNotes: vi.fn().mockResolvedValue({ content: 'test' }),
+        fetchLinkedAccounts: vi.fn().mockResolvedValue([]),
+        linkAccounts: vi.fn().mockResolvedValue({}),
+        unlinkAccount: vi.fn().mockResolvedValue({}),
+        searchContacts: vi.fn().mockResolvedValue([])
     }
 }));
 

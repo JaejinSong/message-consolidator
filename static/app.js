@@ -137,6 +137,69 @@ const fetchUserProfile = safeAsync(async () => {
 }, { triggerAuthOverlay: true });
 
 /**
+ * Triggers batch translation for visible tasks in the current tab.
+ */
+const triggerBatchTranslation = safeAsync(async () => {
+    const lang = state.currentLang;
+    if (!lang || lang === 'en') return;
+
+    // Identify tasks in the currently active tab
+    const activeTab = document.querySelector('.tab-btn.active')?.getAttribute('data-tab') || 'myTasksTab';
+    const gridId = activeTab.replace('Tab', 'List');
+    const container = document.getElementById(gridId);
+    if (!container) return;
+
+    const cards = container.querySelectorAll('.c-task-card:not(.c-task-card--done)');
+    if (cards.length === 0) return;
+
+    const taskIds = Array.from(cards).map(card => parseInt(card.dataset.id, 10));
+
+    // Update state to show loading spinners on relevant cards
+    let needsUpdate = false;
+    taskIds.forEach(id => {
+        const msg = (state.messages || []).find(m => m.id === id);
+        if (msg && !msg.translating) {
+            msg.translating = true;
+            msg.translationError = null;
+            needsUpdate = true;
+        }
+    });
+
+    if (needsUpdate) {
+        renderer.renderMessages(state.messages, handlers);
+    }
+
+    try {
+        const data = await api.translateTasksBatch(taskIds, lang);
+        const results = data.results || [];
+
+        results.forEach(res => {
+            const msg = state.messages.find(m => m.id === res.id);
+            if (msg) {
+                msg.translating = false;
+                if (res.success) {
+                    msg.task = res.translated_text;
+                    msg.translationError = null;
+                } else {
+                    msg.translationError = res.error;
+                }
+            }
+        });
+    } catch (e) {
+        console.error("Batch translation failed:", e);
+        taskIds.forEach(id => {
+            const msg = state.messages.find(m => m.id === id);
+            if (msg) {
+                msg.translating = false;
+                msg.translationError = "Service Unavailable";
+            }
+        });
+    } finally {
+        renderer.renderMessages(state.messages, handlers);
+    }
+});
+
+/**
  * Handles streak freeze purchase.
  * Removed from window.buyStreakFreeze.
  */
@@ -220,16 +283,14 @@ const initLanguageSelector = () => {
             updateLang(lang);
             events.emit(EVENTS.LANGUAGE_CHANGED, lang);
             updateUILanguage(lang);
-            const loading = document.getElementById('loading');
-            loading.classList.remove('hidden');
             try {
-                await api.translateTasks(lang);
                 await fetchMessages();
+                await triggerBatchTranslation();
                 if (archive.isVisible()) {
                     archive.fetch();
                 }
             } finally {
-                loading.classList.add('hidden');
+                // No global loading overlay used for JIT
             }
         });
     }
@@ -419,8 +480,9 @@ const initApp = () => {
     initTheme();
     initLanguageSelector();
 
-    setupTabs('#dashboardContent .tab-btn', '#dashboardContent .c-tabs__panel', 'data-tab', 'active', () => {
-        fetchMessages();
+    setupTabs('#dashboardContent .tab-btn', '#dashboardContent .c-tabs__panel', 'data-tab', 'active', async () => {
+        await fetchMessages();
+        await triggerBatchTranslation();
     });
     setupTabs('.c-settings__tab', '.c-settings__panel', 'data-settings-tab', 'c-settings__tab--active');
     setTimeout(() => document.querySelector('[data-tab="myTasksTab"]')?.click(), 500);

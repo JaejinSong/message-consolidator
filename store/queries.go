@@ -23,6 +23,7 @@ var SQL = struct {
 	CreateAchievementsTable     string
 	CreateUserAchievementsTable string
 	CreateContactsTable         string
+	CreateContactsResolvedView  string
 	CreateReportsTable          string
 	CreateReportTranslationsTable string
 	CreateReportTranslationsIndex string
@@ -138,6 +139,13 @@ var SQL = struct {
 	//Why: Self-Healing Identity Resolution queries.
 	GetContactByIdentifier string
 	UpdateMessageIdentity  string
+
+	//Why: Account Linking specific queries.
+	SearchContacts    string
+	UpdateContactLink string
+	UnlinkContact     string
+	FlattenChildren   string
+	GetLinkedContacts string
 }{}
 
 func init() {
@@ -197,6 +205,7 @@ func loadAllQueries() error {
 	SQL.CreateAchievementsTable = queries["CreateAchievementsTable"]
 	SQL.CreateUserAchievementsTable = queries["CreateUserAchievementsTable"]
 	SQL.CreateContactsTable = queries["CreateContactsTable"]
+	SQL.CreateContactsResolvedView = queries["CreateContactsResolvedView"]
 	SQL.CreateReportsTable = queries["CreateReportsTable"]
 	SQL.CreateReportTranslationsTable = queries["CreateReportTranslationsTable"]
 	SQL.CreateReportTranslationsIndex = queries["CreateReportTranslationsIndex"]
@@ -298,6 +307,12 @@ func loadAllQueries() error {
 
 	SQL.GetContactByIdentifier = queries["GetContactByIdentifier"]
 	SQL.UpdateMessageIdentity = queries["UpdateMessageIdentity"]
+
+	SQL.SearchContacts = queries["SearchContacts"]
+	SQL.UpdateContactLink = queries["UpdateContactLink"]
+	SQL.UnlinkContact = queries["UnlinkContact"]
+	SQL.FlattenChildren = queries["FlattenChildren"]
+	SQL.GetLinkedContacts = queries["GetLinkedContacts"]
 
 	return nil
 }

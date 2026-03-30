@@ -29,22 +29,27 @@ DELETE FROM messages WHERE user_email = ? AND id IN (%s);
 UPDATE messages SET is_deleted = 0, done = 0, completed_at = NULL WHERE user_email = ? AND id IN (%s);
 
 -- name: GetMessageByID :one
-SELECT * FROM v_messages WHERE id = ?;
+SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, requester_canonical, assignee_canonical
+FROM v_messages WHERE id = ?;
 
 -- name: GetMessagesByIDs :many
-SELECT * FROM v_messages WHERE id IN (%s);
+SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, requester_canonical, assignee_canonical
+FROM v_messages WHERE id IN (%s);
 
 -- name: GetMessagesByEmail :many
-SELECT * FROM v_messages WHERE user_email = ? AND is_deleted = 0 ORDER BY created_at DESC;
+SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, requester_canonical, assignee_canonical
+FROM v_messages WHERE user_email = ? AND is_deleted = 0 ORDER BY created_at DESC;
 
 -- name: RefreshCacheActive :many
-SELECT * FROM v_messages 
+SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, requester_canonical, assignee_canonical
+FROM v_messages 
 WHERE user_email = ? AND is_deleted = 0 AND (done = 0 OR (done = 1 AND (completed_at IS NULL OR completed_at > datetime('now', ?))))
 ORDER BY created_at DESC 
 LIMIT 200;
 
 -- name: RefreshCacheArchive :many
-SELECT * FROM v_messages 
+SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, requester_canonical, assignee_canonical
+FROM v_messages 
 WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)))
 ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
 LIMIT 100;
@@ -53,13 +58,15 @@ LIMIT 100;
 SELECT COUNT(*) FROM messages WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)))
 
 -- name: GetArchivedMessagesBase
-SELECT * FROM v_messages WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)))
+SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, requester_canonical, assignee_canonical
+FROM v_messages WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)))
 
 -- name: ArchiveOldTasks :exec
 UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND done = 1 AND completed_at < datetime('now', ?);
 
 -- name: GetIncompleteByThreadID :many
-SELECT * FROM v_messages WHERE user_email = ? AND thread_id = ? AND done = 0 AND is_deleted = 0;
+SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, requester_canonical, assignee_canonical
+FROM v_messages WHERE user_email = ? AND thread_id = ? AND done = 0 AND is_deleted = 0;
 
 -- name: UpdateMessageCategory :exec
 UPDATE messages SET category = ? WHERE id = ? AND user_email = ?;

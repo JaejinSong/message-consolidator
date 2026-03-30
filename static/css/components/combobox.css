@@ -1,0 +1,81 @@
+/* 
+ * Component: Combobox (Autocomplete)
+ * BEM: .c-combobox
+ */
+
+.c-combobox {
+    position: relative;
+    width: 100%;
+}
+
+.c-combobox__input {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--card-bg);
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-md);
+    color: var(--text-main);
+    font-size: 0.875rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.c-combobox__input:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 var(--spacing-xxs) var(--accent-glow);
+}
+
+.c-combobox__menu {
+    position: absolute;
+    top: calc(100% + 0.25rem);
+    left: 0;
+    width: 100%;
+    max-height: 12.5rem;
+    overflow-y: auto;
+    background: var(--bg-color);
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-main);
+    z-index: var(--z-index-dropdown);
+    display: none; /* Hidden by default */
+}
+
+.c-combobox__menu--visible {
+    display: block;
+}
+
+.c-combobox__item {
+    padding: var(--spacing-sm) var(--spacing-md);
+    cursor: pointer;
+    transition: background 0.1s;
+    border-bottom: var(--border-thin) solid var(--border-light);
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.c-combobox__item:last-child {
+    border-bottom: none;
+}
+
+.c-combobox__item:hover,
+.c-combobox__item--active {
+    background: var(--table-row-hover);
+}
+
+.c-combobox__item-title {
+    font-weight: 500;
+    color: var(--text-main);
+}
+
+.c-combobox__item-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+}
+
+.c-combobox__no-results {
+    padding: var(--spacing-md);
+    color: var(--text-dim);
+    font-size: 0.875rem;
+    text-align: center;
+}

@@ -1047,7 +1047,7 @@ export const insightsRenderer = {
         if (!container) return;
         container.innerHTML = `
             <div class="c-report-error">
-                <div class="c-alert c-alert--danger">
+                <div class="c-alert c-alert--error">
                     <strong>번역 실패:</strong> ${message || '알 수 없는 에러가 발생했습니다.'}<br>
                     <small>다시 한 번 언어를 선택해 주세요.</small>
                 </div>

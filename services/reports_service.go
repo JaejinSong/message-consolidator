@@ -10,8 +10,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"golang.org/x/sync/singleflight"
 )
 
 // ReportSummarizer defines the strategy for generating report summaries from logs.
@@ -45,17 +43,18 @@ func (s *FlashSingleSummarizer) Generate(ctx context.Context, logs string) (stri
 }
 
 type ReportsService struct {
-	summarizer   ReportSummarizer
-	geminiClient *ai.GeminiClient // Why: Directly accessible for on-demand translation and specific AI tasks.
-	config       ReportConfig
-	requestGroup singleflight.Group // Why: Prevents duplicate AI calls for the same report/language (thundering herd).
+	summarizer     ReportSummarizer
+	geminiClient   *ai.GeminiClient
+	translationSvc *TranslationService
+	config         ReportConfig
 }
 
-func NewReportsService(summarizer ReportSummarizer, geminiClient *ai.GeminiClient, config ReportConfig) *ReportsService {
+func NewReportsService(summarizer ReportSummarizer, geminiClient *ai.GeminiClient, trans *TranslationService, config ReportConfig) *ReportsService {
 	return &ReportsService{
-		summarizer:   summarizer,
-		geminiClient: geminiClient,
-		config:       config,
+		summarizer:     summarizer,
+		geminiClient:   geminiClient,
+		translationSvc: trans,
+		config:         config,
 	}
 }
 
@@ -327,7 +326,7 @@ func (s *ReportsService) generateVisualizationData(email string, messages []Log)
 }
 
 // ProcessOnDemandTranslation handles Just-In-Time (JIT) translation for a specific report and language.
-// It uses singleflight to ensure that concurrent requests for the same translation only trigger one AI call.
+// It delegates the heavy lifting to TranslationService while managing report-specific caching.
 func (s *ReportsService) ProcessOnDemandTranslation(ctx context.Context, email string, reportID int, langCode string) (string, error) {
 	// 1. Check DB cache first
 	translations, err := store.GetReportTranslations(ctx, reportID)
@@ -337,41 +336,25 @@ func (s *ReportsService) ProcessOnDemandTranslation(ctx context.Context, email s
 		}
 	}
 
-	// 2. Use singleflight to prevent redundant AI calls
-	key := fmt.Sprintf("trans_%d_%s", reportID, langCode)
-	val, err, _ := s.requestGroup.Do(key, func() (interface{}, error) {
-		// Re-check DB inside Do() to handle the "just finished" case
-		innerTranslations, _ := store.GetReportTranslations(ctx, reportID)
-		if summary, exists := innerTranslations[langCode]; exists {
-			return summary, nil
-		}
-
-		// Get the original report (usually English if it's the fallback)
-		report, err := store.GetReportByID(ctx, reportID, email)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch original report: %w", err)
-		}
-
-		// ID 코드로 번역 요청 시 Gemini가 원활히 이해할 수 있도록 언어명을 변환하여 전달합니다.
-		targetLangName := getLanguageName(langCode)
-		translated, err := s.geminiClient.TranslateReport(ctx, email, report.Summary, targetLangName)
-		if err != nil {
-			return nil, fmt.Errorf("AI translation failed: %w", err)
-		}
-
-		// Cache in DB (ISO 코드로 저장하여 프론트엔드와 일관성 유지)
-		if err := store.SaveReportTranslation(ctx, int64(reportID), langCode, translated); err != nil {
-			logger.Errorf("[REPORTS] Failed to cache translation: %v", err)
-		}
-
-		return translated, nil
-	})
-
+	// 2. Fetch the original report (usually English if it's the fallback)
+	report, err := store.GetReportByID(ctx, reportID, email)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to fetch original report: %w", err)
 	}
 
-	return val.(string), nil
+	// 3. Delegate to TranslationService (handles Singleflight internally)
+	key := fmt.Sprintf("report_%d_%s", reportID, langCode)
+	translated, err := s.translationSvc.Translate(ctx, email, key, report.Summary, langCode, true)
+	if err != nil {
+		return "", fmt.Errorf("AI translation failed: %w", err)
+	}
+
+	// 4. Cache in DB
+	if err := store.SaveReportTranslation(ctx, int64(reportID), langCode, translated); err != nil {
+		logger.Errorf("[REPORTS] Failed to cache translation: %v", err)
+	}
+
+	return translated, nil
 }
 
 func getLanguageName(code string) string {

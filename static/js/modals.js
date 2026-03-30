@@ -225,15 +225,58 @@ export const modals = {
     },
 
     /**
+     * Fetches and renders current account links.
+     */
+    fetchLinkedAccounts: safeAsync(async function () {
+        const links = await api.fetchLinkedAccounts();
+        renderer.renderLinkedAccounts(links, (id) => this.unlinkAccount(id));
+    }),
+
+    /**
+     * Links two accounts.
+     */
+    linkAccounts: safeAsync(async function (targetId, masterId) {
+        if (targetId === masterId) {
+            renderer.showToast('자기 지신을 연결할 수 없습니다.', 'error');
+            return;
+        }
+        await api.linkAccounts(targetId, masterId);
+        renderer.showToast('계정이 성공적으로 연결되었습니다.', 'success');
+        this.fetchLinkedAccounts();
+    }, { triggerAuthOverlay: true }),
+
+    /**
+     * Unlinks an account.
+     */
+    unlinkAccount: safeAsync(async function (targetId) {
+        if (!confirm('정말로 이 연결을 해제하시겠습니까?')) return;
+        await api.unlinkAccount(targetId);
+        renderer.showToast('연결이 해제되었습니다.', 'success');
+        this.fetchLinkedAccounts();
+    }, { triggerAuthOverlay: true }),
+
+    /**
      * Sets up settings modal and tab logic.
      */
     setupSettingsModal() {
+        let comboboxesInitialized = false;
+
         document.getElementById('settingsBtn')?.addEventListener('click', () => {
             document.getElementById('settingsModal')?.classList.remove('hidden');
             renderer.renderAliasList(state.userAliases, (alias) => this.removeAlias(alias));
             this.fetchTenantAliases();
             this.fetchContactMappings();
             this.fetchTokenUsage();
+            this.fetchLinkedAccounts();
+
+            // Initialize comboboxes only once
+            if (!comboboxesInitialized) {
+                renderer.initAccountLinkingCompos(
+                    (q) => api.searchContacts(q),
+                    (target, master) => this.linkAccounts(target, master)
+                );
+                comboboxesInitialized = true;
+            }
         });
 
         const bindEnter = (inputId, btnId, fn) => {
@@ -242,7 +285,6 @@ export const modals = {
         };
         bindEnter('newAliasInput', 'addAliasBtn', this.addAlias);
         bindEnter('normPrimaryInput', 'addNormBtn', this.addTenantAliasMapping);
-        bindEnter('contactAliasesInput', 'addContactBtn', this.addContactMapping);
     },
 
     /**

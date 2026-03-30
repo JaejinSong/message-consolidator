@@ -227,7 +227,12 @@ func (a *API) HandleReclassifyOldData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fixedCount := services.ReclassifyUserTasks(email, user, aliases, msgs)
+	if a.Tasks == nil {
+		respondError(w, http.StatusServiceUnavailable, "Task service not available")
+		return
+	}
+
+	fixedCount := a.Tasks.ReclassifyUserTasks(email, user, aliases, msgs)
 	respondJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "fixed_count": fixedCount})
 }
 
@@ -254,6 +259,11 @@ func (a *API) HandleRestoreGmailCC(w http.ResponseWriter, r *http.Request) {
 	allMsgs = append(allMsgs, activeMsgs...)
 	allMsgs = append(allMsgs, archivedMsgs...)
 
-	fixedCount := services.RestoreGmailCCAssignment(r.Context(), email, user, aliases, allMsgs, svc)
+	if a.Tasks == nil {
+		respondError(w, http.StatusServiceUnavailable, "Task service not available")
+		return
+	}
+
+	fixedCount := a.Tasks.RestoreGmailCCAssignment(r.Context(), email, user, aliases, allMsgs, svc)
 	respondJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "fixed_count": fixedCount})
 }

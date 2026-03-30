@@ -169,3 +169,32 @@
         padding: var(--spacing-lg) var(--spacing-xl);
     }
 }
+
+/* Translation States */
+.c-task-card--loading {
+    pointer-events: none;
+}
+
+.c-task-card__loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(0.125rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+    border-radius: inherit;
+}
+
+.c-task-card__error-hint {
+    color: var(--color-error);
+    margin-right: var(--spacing-xs);
+    cursor: help;
+    font-size: 1rem;
+    display: inline-flex;
+    vertical-align: middle;
+}
