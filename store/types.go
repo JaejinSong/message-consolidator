@@ -146,14 +146,22 @@ type UserStats struct {
 	CompletionHistory       []TimeSeriesPoint `json:"completion_history"`
 }
 
-// Report represents a cached AI-generated summary and backend-calculated visualization
+// ReportTranslation represents a specific language version of an AI-generated report summary.
+type ReportTranslation struct {
+	Language string `json:"language"`
+	Summary  string `json:"summary"`
+}
+
+// Report represents a cached AI-generated summary (metadata) and backend-calculated visualization.
+// Why: Standardizes the 1:N relationship where one metadata entry can have multiple language translations.
 type Report struct {
-	ID            int       `json:"id"`
-	UserEmail     string    `json:"user_email"`
-	StartDate     string    `json:"start_date"`
-	EndDate       string    `json:"end_date"`
-	Summary       string    `json:"report_summary"`
-	Visualization string    `json:"visualization_data"` // JSON string of Node/Edge data
-	IsTruncated   bool      `json:"is_truncated"`       // Why: Flag to indicate if the report was limited due to token boundaries.
-	CreatedAt     time.Time `json:"created_at"`
+	ID            int                 `json:"id"`
+	UserEmail     string              `json:"user_email"`
+	StartDate     string              `json:"start_date"`
+	EndDate       string              `json:"end_date"`
+	Summary       string              `json:"report_summary"` // Primary summary (typically English)
+	Translations  []ReportTranslation `json:"translations,omitempty"`
+	Visualization string              `json:"visualization_data"` // JSON string of Node/Edge data
+	IsTruncated   bool                `json:"is_truncated"`       // Why: Flag to indicate if the report was limited due to token boundaries.
+	CreatedAt     time.Time           `json:"created_at"`
 }

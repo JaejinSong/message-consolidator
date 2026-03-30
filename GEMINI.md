@@ -1,4 +1,4 @@
-# Gemini Configuration (v2.1.982)
+# Gemini Configuration (v2.1.983)
 
 ## Basic Specs
 - **Model**: `gemini-3-flash-preview` (Main), `gemini-3.1-flash-lite-preview` (Translation)
@@ -16,10 +16,11 @@
 5. **Bug-Fix-Test Mandate**: 모든 버그 수정 시 해당 버그의 재발 방지를 위한 **독립적 테스트 케이스**를 반드시 추가한다. (Rule 1.1 준수)
 6. **Dry Protocol**: 모든 답변과 아티팩트는 불필요한 서술 없이 기술적 팩트 위주로 압축하여 작성한다. (Rule 1.1 및 Rule 4 준수)
 7. **CSS Design System Enforcement**:
+    > [!IMPORTANT]
+    > **하드코딩된 px, hex 값 사용은 절대 금지**하며, 반드시 `variables.css`의 토큰 또는 `rem` 단위를 사용한다. (`16px = 1rem` 기준)
     - 모든 신규 UI는 BEM(`c-block__element--modifier`) 규칙을 필수적으로 준수한다.
-    - 하드코딩된 값(px, hex) 사용을 금지하며, `variables.css`의 토큰 사용을 강제한다.
-    - **모바일 최적화**: 가로 여백은 `0.5rem~1rem` 범위를 준수하고, `rem` 단위를 우선하여 해상도 대응력을 높인다.
-    - 배포 전 `node verify-css.cjs` 및 `npm test`를 실행하여 정합성을 최종 검증한다.
+    - **가독성 및 레이아웃**: `rem` 단위를 우선하여 해상도 대응력을 높이고, 가로 여백은 `0.5rem~1rem` 범위를 준수한다.
+    - **배포 전 검증**: 수정 후에는 반드시 `node verify-css.cjs`를 실행하여 정합성을 최종 확인하고, 실패 시 배포가 불가능함을 인지한다.
 
 ## Coding Guidelines
 - **Self-Documenting Code First, Then Intent-Driven Comments**: Strive to write code that is self-documenting. Before adding a comment, first ask: "Can I make the code itself clearer?" If the code alone cannot express the 'why', then add a comment explaining the intent, not the implementation. All comments must be in English.

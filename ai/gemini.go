@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"message-consolidator/logger"
 	"message-consolidator/store"
-	"math/rand"
 	"strings"
 	"time"
 
@@ -108,7 +108,7 @@ func extractResponseText(resp *genai.GenerateContentResponse) (string, error) {
 	return text, nil
 }
 
-// Why: Summarizes a list of tasks into a structured Markdown business report. 
+// Why: Summarizes a list of tasks into a structured Markdown business report.
 // It focuses purely on text generation, offloading visualization data processing to the backend for better efficiency.
 func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, tasks string) (string, error) {
 	if g == nil || g.client == nil {
@@ -253,6 +253,48 @@ func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []stor
 	}
 
 	return unmarshalTranslate(cleanJSON, rawJSON, language)
+}
+
+// Why: Translates a complete Markdown report into a target language while strictly preserving the structure.
+// Uses the lightweight Flash-Lite model for maximum cost efficiency.
+func (g *GeminiClient) TranslateReport(ctx context.Context, email string, reportInEnglish string, targetLanguage string) (string, error) {
+	if g == nil || g.client == nil {
+		return "", fmt.Errorf("Gemini client is not initialized")
+	}
+
+	// 번역은 비용 절감을 위해 Flash-Lite 모델(translationModel)을 사용합니다.
+	model := g.client.GenerativeModel(g.translationModel)
+	model.SafetySettings = relaxedSafetySettings
+	model.SetTemperature(0.2) // 번역의 자연스러움을 위해 약간의 유연성 부여
+
+	// 앞서 확정된 번역 전용 시스템 프롬프트 로드
+	sysInst := fmt.Sprintf(loadPrompt("report_translator.prompt"), targetLanguage)
+	model.SystemInstruction = &genai.Content{
+		Parts: []genai.Part{genai.Text(sysInst)},
+	}
+
+	logger.Debugf("[GEMINI] Translating Markdown report for %s to %s...", email, targetLanguage)
+
+	start := time.Now()
+	// 보고서는 일반 텍스트이므로 그대로 전달합니다.
+	resp, err := generateWithRetry(ctx, model, genai.Text(reportInEnglish), 45*time.Second, 2)
+	elapsed := int(time.Since(start).Milliseconds())
+	trace.Step(ctx, "Gemini-TranslateReport", "", elapsed, 0)
+
+	if err != nil {
+		logger.Errorf("[GEMINI] Report translation failed (%s): %v", targetLanguage, err)
+		return "", err
+	}
+
+	logTokenUsage(ctx, email, "TranslateReport", resp)
+
+	// 마크다운 원문을 그대로 받아냅니다.
+	translatedText, err := extractResponseText(resp)
+	if err != nil {
+		return "", err
+	}
+
+	return translatedText, nil
 }
 
 func (g *GeminiClient) DoesReplyCompleteTask(ctx context.Context, email, taskText, replyText string) (bool, error) {

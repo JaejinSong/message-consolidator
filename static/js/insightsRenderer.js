@@ -568,7 +568,37 @@ export const insightsRenderer = {
         // 1. Render Markdown Summary
         if (report && report.report_summary) {
             // Using marked.parse (global from CDN)
-            summaryContainer.innerHTML = marked.parse(report.report_summary);
+            const rawHtml = marked.parse(report.report_summary);
+            
+            // Why: Wrap sections in divs with specific classes to allow precise CSS targeting 
+            // and branding (e.g., highlighting labels in Executive Summary vs. tables).
+            const sections = [
+                { id: '1.', class: 'section-exec' },
+                { id: '2.', class: 'section-pending' },
+                { id: '3.', class: 'section-gap' },
+                { id: '4.', class: 'section-insights' }
+            ];
+
+            let processedHtml = rawHtml;
+            const headerParts = processedHtml.split(/<h2/);
+            if (headerParts.length > 1) {
+                processedHtml = headerParts[0]; // Content before first H2
+                headerParts.slice(1).forEach(part => {
+                    const fullMatch = '<h2' + part;
+                    let sectionClass = 'section-generic';
+                    
+                    for (const s of sections) {
+                        // Match both "1." and "1. " formats
+                        if (fullMatch.includes(`h2>${s.id}`) || fullMatch.includes(`h2> ${s.id}`)) {
+                            sectionClass = s.class;
+                            break;
+                        }
+                    }
+                    processedHtml += `<div class="${sectionClass}">${fullMatch}</div>`;
+                });
+            }
+
+            summaryContainer.innerHTML = processedHtml;
         } else {
             summaryContainer.innerHTML = `<div class="u-text-dim" style="text-align: center; padding: 2rem;">생성된 보고서가 없습니다.</div>`;
         }

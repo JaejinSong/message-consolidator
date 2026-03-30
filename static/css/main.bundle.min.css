@@ -13,6 +13,7 @@
     --glass-border: rgba(255, 255, 255, 0.08);
     --shadow-main: 0 1.25rem 2.5rem rgba(0, 0, 0, 0.4);
     /* 0 20px 40px */
+    --border-light: rgba(255, 255, 255, 0.05);
     --shadow-card: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.2);
     /* 0 4px 12px */
 
@@ -2150,7 +2151,7 @@ body.light-theme .glass-btn:hover {
 
 /* --- Weekly Report Layout --- */
 .insights-report-layout {
-    display: grid;
+    display: none; /* Default to hidden to respect panel state */
     grid-template-columns: 17.5rem 1fr;
     gap: 0; /* Remove gap for seamless sidebar */
     min-height: calc(100vh - 15.625rem);
@@ -2158,6 +2159,10 @@ body.light-theme .glass-btn:hover {
     border: var(--border-thin) solid var(--glass-border);
     border-radius: var(--radius-lg);
     overflow: hidden;
+}
+
+.insights-report-layout.c-tabs__panel--active {
+    display: grid;
 }
 
 .c-report-sidebar {
@@ -2342,9 +2347,84 @@ body.light-theme .glass-btn:hover {
     background: var(--table-row-hover);
 }
 
-body.light-theme .c-report-summary__content th {
+/* --- Report Controls --- */
+.c-report-controls .u-flex {
+    align-items: center;
+}
+
+#reportStartDate,
+#reportEndDate,
+#btnGenerateReport {
+    height: 2.5rem;
+}
+
+.c-report-summary__content th {
     background: var(--table-header-bg);
 }
+
+body.light-theme .report-content th {
+    background: var(--table-header-bg);
+}
+
+/* --- Report Content Typography & Spacing --- */
+.report-content {
+    line-height: 1.75;
+    color: var(--text-main);
+}
+
+.report-content h2 {
+    margin-top: 2.8rem;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--text-main);
+    border-bottom: var(--border-thin) solid var(--border-light);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.2rem;
+}
+
+/* --- Report Table Detail --- */
+.report-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: var(--spacing-lg) 0;
+    font-size: 0.875rem;
+    color: var(--text-main);
+}
+
+.report-content th,
+.report-content td {
+    padding: 0.875rem var(--spacing-md);
+    border-bottom: var(--border-thin) solid var(--border-light);
+    text-align: left;
+}
+
+.report-content th {
+    background: var(--table-header-bg);
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+}
+
+.report-content tr:hover {
+    background: var(--table-row-hover);
+}
+
+.report-content a {
+    color: var(--accent-color);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.report-content a:hover {
+    text-decoration: underline;
+    opacity: 0.8;
+}
+
+/* --- Aesthetic Highlighting --- */
+/* Executive Summary highlighting for Labels and Metrics */
+
+/* Management Gap highlighting for [Target] labels */
 
 /* --- End of static/css/v2-insights.css --- */
 

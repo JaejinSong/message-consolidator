@@ -5,6 +5,7 @@
 
 .c-tabs {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--spacing-sm);
     background: rgba(255, 255, 255, 0.03);
     padding: var(--spacing-xs);
@@ -16,6 +17,10 @@
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
+}
+
+.c-tabs .c-tabs__panel {
+    flex: 1 1 100%;
 }
 
 .c-tabs::-webkit-scrollbar {

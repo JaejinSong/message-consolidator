@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"strings"
@@ -273,11 +274,8 @@ func TestReportsService_GenerateVisualizationData_WithAliases(t *testing.T) {
 	if err := store.AddUserAlias(userJJ.ID, "JJ"); err != nil {
 		t.Fatalf("Failed to add user alias: %v", err)
 	}
-	if err := store.AddTenantAlias(tenantEmail, "Song", "Jaejin Song"); err != nil {
-		t.Fatalf("Failed to add tenant alias 'Song': %v", err)
-	}
-	if err := store.AddTenantAlias(tenantEmail, "SongV2, song.v2@whatap.io", "Jaejin Song"); err != nil {
-		t.Fatalf("Failed to add tenant alias 'SongV2': %v", err)
+	if err := store.AddTenantAlias(tenantEmail, "Song, SongV2, jjsong@whatap.io", "Jaejin Song"); err != nil {
+		t.Fatalf("Failed to add tenant alias: %v", err)
 	}
 
 	// 3. Manually refresh caches to load the new aliases from DB
@@ -456,4 +454,71 @@ func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) 
 	if !foundResolvedSong {
 		t.Fatalf("Expected 'Song' to be resolved to 'jjsong@whatap.io' for tenant B, but it was not. Nodes: %+v", graphDataB.Nodes)
 	}
+}
+func TestReportsService_GenerateReport_MultiLanguage(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB()
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	// Mock Summarizer
+	mockSummary := "Mocked English Report"
+	// summarizer := NewFlashSingleSummarizer(nil) // (ID: c7755db8) Removed unused variable
+
+	svc := NewReportsService(&mockSummarizer{
+		generateFunc: func(ctx context.Context, logs string) (string, error) {
+			return mockSummary, nil
+		},
+	}, ReportConfig{CutoffSize: 8000})
+
+	tenantEmail := "test@example.com"
+	startDate := "2026-03-29"
+	endDate := "2026-03-29"
+	fixedTime, _ := time.Parse("2006-01-02 15:04:05", "2026-03-29 10:00:00")
+
+	// Pre-seed some messages
+	_, err = store.GetDB().Exec("INSERT INTO messages (user_email, source, task, created_at, requester, assignee) VALUES (?, ?, ?, ?, ?, ?)",
+		tenantEmail, "slack", "Task 1", fixedTime, "Alice", "JJ")
+	if err != nil {
+		t.Fatalf("Failed to seed message: %v", err)
+	}
+
+	// Since we can't easily mock the internal GeminiClient.TranslateReport call without a real object,
+	report, err := svc.GenerateReport(context.Background(), tenantEmail, startDate, endDate)
+	if err != nil {
+		t.Fatalf("GenerateReport failed: %v", err)
+	}
+
+	if report.ID == 0 {
+		t.Error("Expected non-zero report ID")
+	}
+
+	// Verify English translation exists in DB
+	translations, err := store.GetReportTranslations(context.Background(), report.ID)
+	if err != nil {
+		t.Fatalf("GetReportTranslations failed: %v", err)
+	}
+
+	foundEN := false
+	for _, tr := range translations {
+		if tr.Language == "English" {
+			foundEN = true
+			if tr.Summary != mockSummary {
+				t.Errorf("Expected summary %s, got %s", mockSummary, tr.Summary)
+			}
+		}
+	}
+
+	if !foundEN {
+		t.Error("English translation not found in report_translations")
+	}
+}
+
+type mockSummarizer struct {
+	generateFunc func(ctx context.Context, logs string) (string, error)
+}
+
+func (m *mockSummarizer) Generate(ctx context.Context, logs string) (string, error) {
+	return m.generateFunc(ctx, logs)
 }

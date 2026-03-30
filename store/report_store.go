@@ -10,7 +10,7 @@ func GetReport(ctx context.Context, email, start, end string) (*Report, error) {
 	var createdAt time.Time
 	var isTruncated int
 	err := db.QueryRowContext(ctx, SQL.GetReport, email, start, end).Scan(
-		&r.ID, &r.UserEmail, &r.StartDate, &r.EndDate, &r.Summary, &r.Visualization, &isTruncated, &createdAt,
+		&r.ID, &r.UserEmail, &r.StartDate, &r.EndDate, &r.Visualization, &isTruncated, &createdAt, &r.Summary,
 	)
 	if err != nil {
 		return nil, err
@@ -26,7 +26,7 @@ func GetReportByID(ctx context.Context, id int, email string) (*Report, error) {
 	var createdAt time.Time
 	var isTruncated int
 	err := db.QueryRowContext(ctx, SQL.GetReportByID, id, email).Scan(
-		&r.ID, &r.UserEmail, &r.StartDate, &r.EndDate, &r.Summary, &r.Visualization, &isTruncated, &createdAt,
+		&r.ID, &r.UserEmail, &r.StartDate, &r.EndDate, &r.Visualization, &isTruncated, &createdAt, &r.Summary,
 	)
 	if err != nil {
 		return nil, err
@@ -36,13 +36,42 @@ func GetReportByID(ctx context.Context, id int, email string) (*Report, error) {
 	return &r, nil
 }
 
-func SaveReport(ctx context.Context, r *Report) error {
+// Why: Saves the metadata portion of a report and returns the generated primary key.
+func SaveReport(ctx context.Context, r *Report) (int64, error) {
 	isTruncated := 0
 	if r.IsTruncated {
 		isTruncated = 1
 	}
-	_, err := db.ExecContext(ctx, SQL.UpsertReport, r.UserEmail, r.StartDate, r.EndDate, r.Summary, r.Visualization, isTruncated)
+	res, err := db.ExecContext(ctx, SQL.InsertReport, r.UserEmail, r.StartDate, r.EndDate, r.Visualization, isTruncated)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// Why: Persists a specific language translation for a given report metadata entry.
+func SaveReportTranslation(ctx context.Context, reportID int64, language, summary string) error {
+	_, err := db.ExecContext(ctx, SQL.InsertReportTranslation, reportID, language, summary)
 	return err
+}
+
+// Why: Retrieves all available language translations for a specific report to support the multi-language UI.
+func GetReportTranslations(ctx context.Context, reportID int) ([]ReportTranslation, error) {
+	rows, err := db.QueryContext(ctx, SQL.GetReportTranslations, reportID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var translations []ReportTranslation
+	for rows.Next() {
+		var rt ReportTranslation
+		if err := rows.Scan(&rt.Language, &rt.Summary); err != nil {
+			return nil, err
+		}
+		translations = append(translations, rt)
+	}
+	return translations, nil
 }
 
 // Why: Provides a chronological list of a user's generated reports for the UI sidebar.

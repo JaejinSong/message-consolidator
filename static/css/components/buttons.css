@@ -13,6 +13,8 @@
     border: var(--border-thin) solid transparent;
     text-decoration: none;
     line-height: 1.2;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .c-btn--primary {

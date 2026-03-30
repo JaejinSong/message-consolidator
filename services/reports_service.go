@@ -55,6 +55,7 @@ func NewReportsService(summarizer ReportSummarizer, config ReportConfig) *Report
 }
 
 // Why: Orchestrates the generation of an AI-powered work report by coordinating between the Go-based visualization engine and the injected summarizer strategy.
+// Now supports a 1:N multi-language pipeline (EN, KR, ID, TH).
 func (s *ReportsService) GenerateReport(ctx context.Context, email, startDate, endDate string) (*store.Report, error) {
 	// 1. Parse dates
 	start, err := time.Parse("2006-01-02", startDate)
@@ -80,46 +81,70 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, startDate, e
 		return nil, fmt.Errorf("no messages found for the period %s ~ %s", startDate, endDate)
 	}
 
-	// [Self-Healing] 파편화된 식별자(이름, 별칭 등)를 이메일로 상시 정규화하고 원본 데이터를 세탁함.
+	// [Self-Healing] 파편화된 식별자 정규화
 	s.sanitizeMessages(ctx, email, filtered)
 
 	// 3. Generate Visualization (Go Backend)
 	vizData := s.generateVisualizationData(email, filtered)
 	vizJSON, _ := json.Marshal(vizData)
 
-	// 4. Transform Data for AI with Configuration-based Cutoff
+	// 4. Transform Data for AI
 	taskSummary, isTruncated := s.PrepareLogsForAI(email, filtered)
-	if isTruncated {
-		logger.Warnf("[REPORTS] Cutoff detected for %s (%s ~ %s). Input exceeds %d bytes.", email, startDate, endDate, s.config.CutoffSize)
-	}
 
-	// 5. Generate Summary using Strategy
-	summary, err := s.summarizer.Generate(ctx, taskSummary)
+	// 5. Generate Base Summary (English)
+	summaryEN, err := s.summarizer.Generate(ctx, taskSummary)
 	if err != nil {
 		return nil, err
 	}
 
-	// 6. Create Report Object
+	// 6. Create & Save Report Metadata
 	report := &store.Report{
 		UserEmail:     email,
 		StartDate:     startDate,
 		EndDate:       endDate,
-		Summary:       summary,
+		Summary:       summaryEN,
 		Visualization: string(vizJSON),
 		IsTruncated:   isTruncated,
 	}
 
-	// 7. Save to DB
-	err = store.SaveReport(ctx, report)
+	// [Step 1] Save Metadata & Base Translation
+	reportID, err := store.SaveReport(ctx, report)
 	if err != nil {
-		logger.Warnf("[REPORTS] Failed to save report: %v", err)
+		return nil, fmt.Errorf("failed to save report metadata: %w", err)
+	}
+	report.ID = int(reportID)
+
+	err = store.SaveReportTranslation(ctx, reportID, "English", summaryEN)
+	if err != nil {
+		logger.Warnf("[REPORTS] Failed to save English translation: %v", err)
 	}
 
-	// Get the created ID
-	saved, err := store.GetReport(ctx, email, startDate, endDate)
-	if err == nil {
-		report.ID = saved.ID
-		report.CreatedAt = saved.CreatedAt
+	// [Step 2] Sequentially Translate & Save for Target Languages
+	targetLanguages := []string{"Korean", "Indonesian", "Thai"}
+	
+	// Access gemini client directly from summarizer if possible
+	var gemini *ai.GeminiClient
+	if fs, ok := s.summarizer.(*FlashSingleSummarizer); ok {
+		gemini = fs.gemini
+	}
+
+	if gemini != nil {
+		for _, lang := range targetLanguages {
+			translated, err := gemini.TranslateReport(ctx, email, summaryEN, lang)
+			if err != nil {
+				logger.Errorf("[REPORTS] Translation to %s failed for report %d: %v", lang, reportID, err)
+				continue
+			}
+			
+			if err := store.SaveReportTranslation(ctx, reportID, lang, translated); err != nil {
+				logger.Errorf("[REPORTS] Saving translation (%s) failed for report %d: %v", lang, reportID, err)
+			} else {
+				report.Translations = append(report.Translations, store.ReportTranslation{
+					Language: lang,
+					Summary:  translated,
+				})
+			}
+		}
 	}
 
 	return report, nil

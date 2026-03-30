@@ -125,6 +125,14 @@ func createCoreTables() error {
 	if err != nil {
 		return err
 	}
+	_, err = db.Exec(SQL.CreateReportTranslationsTable)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(SQL.CreateReportTranslationsIndex)
+	if err != nil {
+		return err
+	}
 	_, err = db.Exec(SQL.CreateMessagesView)
 	if err != nil {
 		return err

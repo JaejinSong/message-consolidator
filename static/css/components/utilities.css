@@ -13,7 +13,12 @@
 .u-text-lg { font-size: 1.1rem; }
 .u-font-bold { font-weight: 800; }
 .u-flex { display: flex; }
+.u-flex-between { justify-content: space-between; }
+.u-flex-align-center { align-items: center; }
+.u-flex-gap-sm { gap: var(--spacing-sm); }
 .u-items-center { align-items: center; }
+.u-align-self-center { align-self: center; }
+.u-w-auto { width: auto !important; }
 .u-gap-2 { gap: 0.5rem; }
 .u-hidden, .hidden { display: none !important; }
 .u-invisible { visibility: hidden !important; }

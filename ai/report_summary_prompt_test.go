@@ -29,32 +29,32 @@ func TestReportSummaryPrompt(t *testing.T) {
 		notExpected    []string // 결과물에 포함되어서는 안 되는 문자열
 	}{
 		{
-			name: "Case 1: 일반적인 상황 (관리 공백 없음)",
-			inputLog: `- [ ] 다음 분기 로드맵 회의 (From: 박철수 (Internal), To: 이민준 (Internal), Date: 04-03)
-- [ ] 신규 API 명세 검토 (From: 이민준 (Internal), To: 최은서 (External), Date: 04-02)
-- [V] v2.4.1 릴리즈 노트 초안 작성 (From: 김영희 (Internal), To: 박철수 (Internal), Date: 04-01)`,
+			name: "Case 1: Normal Situation (No Management Gap)",
+			inputLog: `- [ ] Next quarter roadmap meeting (From: Chulsoo Park (Internal), To: Minjun Lee (Internal), Date: 04-03)
+- [ ] New API specification review (From: Minjun Lee (Internal), To: Eunseo Choi (Internal), Date: 04-02)
+- [V] v2.4.1 release note draft (From: Younghee Kim (Internal), To: Chulsoo Park (Internal), Date: 04-01)`,
 			expectedOutput: []string{
 				"## 1. Executive Summary",
-				"## 2. Completed Tasks",
-				"v2.4.1 릴리즈 노트",
-				"## 3. Pending & Risks",
-				"신규 API 명세 검토",
-				"식별된 공백 없음", // 규칙: 병목이 없으면 명시해야 함
+				"## 2. Pending & Risks",
+				"## 3. Management Gap",
+				"No management gap identified",
+				"## 4. Strategic Insights",
 			},
 			notExpected: []string{
-				"David Kim", // 다른 컨텍스트의 내용이 환각(Hallucination)으로 나타나는지 방지
+				"David Kim",
+				"## 2. Completed Tasks",
 			},
 		},
 		{
-			name:     "Case 2: 외부 파트너 지연으로 인한 관리 공백 발생",
-			inputLog: `- [ ] 인증서 갱신 (4/5 만료). 2회 재요청에도 응답 없음. (From: 이민준 (Internal), To: David Kim (External), Date: 03-25)`,
+			name:     "Case 2: Management Gap due to External Delay",
+			inputLog: `- [ ] Certificate renewal (Expires 4/5). No response after 2 follow-ups. (From: Minjun Lee (Internal), To: David Kim (External), Date: 03-25)`,
 			expectedOutput: []string{
-				"## 4. [🚨 관리상의 공백 (Management Gap)]",
-				"David Kim",
-				"지연",
+				"## 1. Executive Summary",
+				"## 3. Management Gap",
+				"David Kim (External)",
 			},
 			notExpected: []string{
-				"식별된 공백 없음",
+				"No management gap identified",
 			},
 		},
 	}

@@ -1,3 +1,15 @@
+# Release Notes (Tech) - v2.4.2 (2026-03-30 01:24 UTC)
+
+- [FEAT] Identity Resolution: Implemented "Ambiguity Safeguard Engine" to intelligently resolve user identities across disparate messaging platforms, reducing duplicate entity creation.
+- [FIX] AI Response Handling: Resolved analysis truncation issues in LLM outputs and improved Gemini client token usage logging for better cost observability.
+- [SYS] Toolchain Consolidation: Unified debug and utility scripts into a centralized `mc-util` package and updated GitHub workflows for improved developer ergonomics.
+- [REFACTOR] Gemini Client: Abstracted response text handling and token telemetry into dedicated handlers to enhance testability and modularity.
+- [STABILITY] Automated Quality Assurance: Integrated comprehensive regression tests for AI analysis modules to ensure consistency in weekly report generation.
+- [UI] Dashboard Logic: Refined "All Clear" state detection logic to provide a more accurate representation of completed task states.
+- [SYS] Docker Build Optimization: Updated `.dockerignore` and Dockerfile to support localized release note distribution within containerized environments.
+
+---
+
 # Release Notes (Tech) - v2.4.1 (2026-03-29 12:43 UTC)
 
 - [FEAT] AI Insights Reporting: Launched Weekly AI synthesis engine with LLM-powered summarization and Relationship Graph visualization for team dynamics.

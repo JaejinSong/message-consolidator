@@ -11,6 +11,7 @@
     --glass-border: rgba(255, 255, 255, 0.08);
     --shadow-main: 0 1.25rem 2.5rem rgba(0, 0, 0, 0.4);
     /* 0 20px 40px */
+    --border-light: rgba(255, 255, 255, 0.05);
     --shadow-card: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.2);
     /* 0 4px 12px */
 

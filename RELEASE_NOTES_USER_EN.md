@@ -1,3 +1,14 @@
+# Release Notes - v2.4.2 (2026-03-30 01:24 UTC)
+
+- [NEW] Smart Identity Matching: Our new "Ambiguity Safeguard" ensures that whether a colleague messages you on Slack, Gmail, or Discord, we know exactly who's who—no more ghost accounts or duplicate contacts!
+- [IMPROVED] Smarter AI Brain: We've fixed a pesky bug where the AI summary would sometimes cut off mid-sentence. Your weekly insights are now complete, polished, and more insightful than ever.
+- [IMPROVED] Dashboard Accuracy: The "All Clear" celebration on your dashboard is now more precise, giving you that satisfying "job well done" feeling only when every task is truly handled.
+- [STABILITY] Behind-the-Scenes Polish: We've cleaned up our internal engine and added new safety tests to keep the app running smoother and more reliably during your busiest hours.
+- [UI] Insights Visualization & Report Layout: Resolved layout interference between the Stats and Reports tabs and improved markdown table/link readability in dark mode.
+- [SYS] Multi-Language Support: Improved our internal build system to ensure all users receive the latest updates in their preferred language without delay.
+
+---
+
 # Release Notes - v2.4.1 (2026-03-29 12:43 UTC)
 
 - [NEW] Weekly AI Insights: Get a smart summary of your team's week! Our new AI generates weekly reports and a "Relationship Graph" to show how work flows between colleagues.

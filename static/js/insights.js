@@ -33,9 +33,10 @@ export const insights = {
             });
         });
 
-        // 2단계 탭 바인딩 (통계 / 보고서)
-        const statsTab = document.querySelector('[data-tab="insightsStatsTab"]');
-        const reportsTab = document.querySelector('[data-tab="insightsReportsTab"]');
+        // 2단계 탭 바인딩 (통계 / 보고서) - .tab-btn과의 충돌 방지를 위해 .insights-tab-btn만 제어
+        const statsTab = document.querySelector('.insights-tab-btn[data-tab="insightsStatsTab"]');
+        const reportsTab = document.querySelector('.insights-tab-btn[data-tab="insightsReportsTab"]');
+        const insightsTabBtns = [statsTab, reportsTab];
 
         // Panels
         const statsPanel = document.getElementById('insightsStatsTab');
@@ -43,15 +44,17 @@ export const insights = {
 
         if (statsTab && reportsTab && statsPanel && reportsPanel) {
             statsTab.addEventListener('click', () => {
+                insightsTabBtns.forEach(btn => btn.classList.remove('active'));
                 statsTab.classList.add('active');
-                reportsTab.classList.remove('active');
+                
                 statsPanel.classList.add('c-tabs__panel--active');
                 reportsPanel.classList.remove('c-tabs__panel--active');
             });
 
             reportsTab.addEventListener('click', async () => {
+                insightsTabBtns.forEach(btn => btn.classList.remove('active'));
                 reportsTab.classList.add('active');
-                statsTab.classList.remove('active');
+                
                 reportsPanel.classList.add('c-tabs__panel--active');
                 statsPanel.classList.remove('c-tabs__panel--active');
 
