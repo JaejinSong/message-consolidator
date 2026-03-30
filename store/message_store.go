@@ -190,6 +190,23 @@ func UpdateTaskText(email string, id int, task string) error {
 	return err
 }
 
+func UpdateMessageCategory(email string, id int, category string) error {
+	_, err := db.Exec(SQL.UpdateMessageCategory, category, id, email)
+	if err == nil {
+		cacheMu.Lock()
+		for i := range messageCache[email] {
+			if messageCache[email][i].ID == id {
+				messageCache[email][i].Category = category
+				break
+			}
+		}
+		cacheMu.Unlock()
+
+		go func() { _ = RefreshCache(email) }()
+	}
+	return err
+}
+
 func UpdateTaskAssignee(email string, id int, assignee string) error {
 	_, err := db.Exec(SQL.UpdateTaskAssignee, assignee, id, email)
 	if err == nil {

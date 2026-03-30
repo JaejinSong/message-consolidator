@@ -57,9 +57,10 @@ CREATE INDEX IF NOT EXISTS idx_thread_id ON messages(thread_id);
 -- name: CreateTaskTranslationsTable :exec
 CREATE TABLE IF NOT EXISTS task_translations (
     message_id INTEGER REFERENCES messages(id) ON DELETE CASCADE,
-    language TEXT NOT NULL,
+    language_code TEXT NOT NULL,
+    language_deprecated TEXT,
     translated_text TEXT NOT NULL,
-    PRIMARY KEY (message_id, language)
+    PRIMARY KEY (message_id, language_code)
 );
 
 -- name: CreateTenantAliasesTable :exec

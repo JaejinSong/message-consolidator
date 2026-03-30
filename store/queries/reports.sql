@@ -14,26 +14,28 @@ CREATE TABLE reports (
 CREATE TABLE IF NOT EXISTS report_translations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     report_id INTEGER NOT NULL,
-    language TEXT NOT NULL,
+    language_code TEXT NOT NULL,
+    language_deprecated TEXT,
     summary TEXT NOT NULL,
     FOREIGN KEY (report_id) REFERENCES reports(id) ON DELETE CASCADE
 );
 
 -- name: CreateReportTranslationsIndex
-CREATE INDEX IF NOT EXISTS idx_report_translations_id_lang ON report_translations (report_id, language);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_report_translations_id_lang_code ON report_translations (report_id, language_code);
 
 -- name: InsertReport
 INSERT INTO reports (user_email, start_date, end_date, visualization, is_truncated, created_at)
 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
 
 -- name: InsertReportTranslation
-INSERT INTO report_translations (report_id, language, summary)
-VALUES (?, ?, ?);
+INSERT INTO report_translations (report_id, language_code, summary)
+VALUES (?, ?, ?)
+ON CONFLICT(report_id, language_code) DO NOTHING;
 
 -- name: GetReport
 SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.is_truncated, r.created_at, rt.summary
 FROM reports r
-LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language = 'English'
+LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = 'en'
 WHERE r.user_email = ? AND r.start_date = ? AND r.end_date = ?;
 
 -- name: GetMessagesForReport
@@ -42,7 +44,7 @@ SELECT
     COALESCE(t.translated_text, m.task) AS task, 
     m.requester, m.assignee, m.assigned_at, m.link, m.source_ts, m.original_text, m.done, m.is_deleted, m.created_at, m.completed_at, m.category, m.deadline, m.thread_id
 FROM messages m
-LEFT JOIN task_translations t ON m.id = t.message_id AND t.language = 'English'
+LEFT JOIN task_translations t ON m.id = t.message_id AND t.language_code = 'en'
 WHERE m.user_email = ? 
   AND (m.created_at >= ? OR m.assigned_at >= ?)
 ORDER BY m.created_at DESC;
@@ -59,11 +61,11 @@ ORDER BY created_at DESC;
 -- name: GetReportByID
 SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.is_truncated, r.created_at, rt.summary
 FROM reports r
-LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language = 'English'
+LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = 'en'
 WHERE r.id = ? AND r.user_email = ?;
 
 -- name: GetReportTranslations
-SELECT language, summary
+SELECT language_code, summary
 FROM report_translations
 WHERE report_id = ?;
 

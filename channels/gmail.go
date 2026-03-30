@@ -86,7 +86,7 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 	return svc, nil
 }
 
-func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, onSent func(store.ConsolidatedMessage)) {
+func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage)) {
 	logger.Debugf("[SCAN-GMAIL] Starting Gmail scan for %s", email)
 
 	svc, err := GetGmailService(ctx, email)
@@ -117,7 +117,7 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 	}
 
 	//Why: Triggers the AI-powered analysis of extracted emails and saves valid tasks to the database.
-	analyzeAndSaveEmails(ctx, email, language, rawMsgs, classificationMap, toMap, cfg, onSent)
+	analyzeAndSaveEmails(ctx, email, language, rawMsgs, classificationMap, toMap, cfg, onThreadActivity)
 
 	if maxTS > 0 {
 		store.UpdateLastScan(email, "gmail", "inbox", fmt.Sprintf("%d", maxTS))
@@ -368,7 +368,7 @@ func isAssigneeMe(assignee, email, userName, fallback string, aliases []string) 
 	return false
 }
 
-func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config, onSent func(store.ConsolidatedMessage)) {
+func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage)) {
 	if len(rawMsgs) == 0 {
 		return
 	}
@@ -391,7 +391,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 		}
 		batchMsgs := rawMsgs[i:end]
 
-		payload, msgMap := buildGmailBatchPayload(email, batchMsgs, classificationMap, onSent)
+		payload, msgMap := buildGmailBatchPayload(email, batchMsgs, classificationMap, onThreadActivity)
 
 		items, analyzeErr := executeGmailAnalysisWithRetry(ctx, gc, email, payload, language)
 		if analyzeErr != nil {
@@ -406,17 +406,17 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 	}
 }
 
-// Why: Separates the payload construction and side-effects (onSent callback) from the main AI analysis loop.
-func buildGmailBatchPayload(email string, batchMsgs []types.RawMessage, classificationMap map[string]string, onSent func(store.ConsolidatedMessage)) (string, map[string]types.RawMessage) {
+// Why: Separates the payload construction and side-effects (onThreadActivity callback) from the main AI analysis loop.
+func buildGmailBatchPayload(email string, batchMsgs []types.RawMessage, classificationMap map[string]string, onThreadActivity func(store.ConsolidatedMessage)) (string, map[string]types.RawMessage) {
 	var sb strings.Builder
 	msgMap := make(map[string]types.RawMessage)
 	for _, m := range batchMsgs {
 		msgMap[m.ID] = m
 		sb.WriteString(fmt.Sprintf("[ID:%s] F: %s\n%s\n---\n", m.ID, m.Sender, m.Text))
 
-		//Why: Analyzes sent emails to determine if a previously identified task can be marked as completed based on the user's reply.
-		if classificationMap[m.ID] == CategorySent && onSent != nil {
-			onSent(store.ConsolidatedMessage{
+		//Why: Analyzes thread activity (both sent and received) to determine if a previously identified task can be marked as completed or transitioned.
+		if onThreadActivity != nil && (classificationMap[m.ID] == CategorySent || classificationMap[m.ID] == CategoryMine || classificationMap[m.ID] == CategoryOthers) {
+			onThreadActivity(store.ConsolidatedMessage{
 				UserEmail:    email,
 				Source:       "gmail",
 				ThreadID:     m.ThreadID,

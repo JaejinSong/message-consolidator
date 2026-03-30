@@ -169,12 +169,12 @@ func scanAllSources(parentCtx context.Context, user store.User, aliases []string
 	if store.HasGmailToken(user.Email) {
 		eg.Go(func() error {
 			logger.Debugf("[SCAN] Starting Gmail scan for %s", user.Email)
-			onSent := func(msg store.ConsolidatedMessage) {
+			onThreadActivity := func(msg store.ConsolidatedMessage) {
 				if completionSvc != nil {
 					completionSvc.ProcessPotentialCompletion(context.Background(), msg)
 				}
 			}
-			channels.ScanGmail(ctx, user.Email, "Korean", cfg, onSent)
+			channels.ScanGmail(ctx, user.Email, "Korean", cfg, onThreadActivity)
 			return nil
 		})
 	}
@@ -207,12 +207,12 @@ func Scan(email string, lang string) {
 	defer cancel()
 
 	if store.HasGmailToken(email) {
-		onSent := func(msg store.ConsolidatedMessage) {
+		onThreadActivity := func(msg store.ConsolidatedMessage) {
 			if completionSvc != nil {
 				completionSvc.ProcessPotentialCompletion(context.Background(), msg)
 			}
 		}
-		channels.ScanGmail(ctx, email, lang, cfg, onSent)
+		channels.ScanGmail(ctx, email, lang, cfg, onThreadActivity)
 	}
 
 	scanSlack(ctx, []store.User{*user})

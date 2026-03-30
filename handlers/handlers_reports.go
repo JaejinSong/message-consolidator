@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"message-consolidator/auth"
+	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -108,4 +111,41 @@ func (a *API) HandleDeleteReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+// HandleTranslateReport handles the on-demand translation request for a report.
+// Why: Implements a Just-in-Time (JIT) translation workflow using context timeouts to prevent goroutine leaks during AI processing.
+func (a *API) HandleTranslateReport(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	id64, _ := strconv.ParseInt(idStr, 10, 64)
+	id := int(id64)
+
+	lang := r.URL.Query().Get("lang")
+	if lang == "" {
+		respondError(w, http.StatusBadRequest, "Missing lang parameter")
+		return
+	}
+
+	if a.Reports == nil {
+		respondError(w, http.StatusServiceUnavailable, "Reports service not initialized")
+		return
+	}
+
+	// AI 번역은 시간이 걸릴 수 있으므로 30초 타임아웃을 설정합니다.
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	summary, err := a.Reports.ProcessOnDemandTranslation(ctx, email, id, lang)
+	if err != nil {
+		logger.Errorf("[API] Translation failed for report %d (%s): %v", id, lang, err)
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{
+		"language_code": lang,
+		"summary":       summary,
+	})
 }

@@ -42,6 +42,7 @@ var SQL = struct {
 	RestoreMessages              string
 	GetMessageByID               string
 	GetMessagesByIDs             string
+	UpdateMessageCategory        string
 	GetMessagesByEmail           string
 	GetIncompleteByThreadID      string
 	GetArchivedMessagesCountBase string
@@ -212,6 +213,7 @@ func loadAllQueries() error {
 	SQL.RestoreMessages = queries["RestoreMessages"]
 	SQL.GetMessageByID = queries["GetMessageByID"]
 	SQL.GetMessagesByIDs = queries["GetMessagesByIDs"]
+	SQL.UpdateMessageCategory = queries["UpdateMessageCategory"]
 	SQL.GetMessagesByEmail = queries["GetMessagesByEmail"]
 	SQL.GetIncompleteByThreadID = queries["GetIncompleteByThreadID"]
 	SQL.GetArchivedMessagesCountBase = queries["GetArchivedMessagesCountBase"]

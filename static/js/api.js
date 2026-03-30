@@ -31,9 +31,7 @@ async function handleResponse(resp, customMsg) {
 
 export const api = {
     async fetchMessages(lang) {
-        const langMap = { 'ko': 'Korean', 'en': 'English', 'id': 'Indonesian', 'th': 'Thai' };
-        const langParam = langMap[lang] || 'Korean';
-        const resp = await fetch(`/api/messages?lang=${langParam}`);
+        const resp = await fetch(`/api/messages?lang=${lang}`);
         return handleResponse(resp, 'Fetch messages failed');
     },
 
@@ -85,23 +83,18 @@ export const api = {
     },
 
     async triggerScan(lang) {
-        const langMap = { 'ko': 'Korean', 'en': 'English', 'id': 'Indonesian', 'th': 'Thai' };
-        const langParam = langMap[lang] || 'Korean';
-        const resp = await fetch(`/api/scan?lang=${langParam}`);
+        const resp = await fetch(`/api/scan?lang=${lang}`);
         return handleResponse(resp, 'Scan failed');
     },
 
     async translateTasks(lang) {
-        const langMap = { 'ko': 'Korean', 'en': 'English', 'id': 'Indonesian', 'th': 'Thai' };
-        const langParam = langMap[lang] || 'Korean';
-        const resp = await fetch(`/api/translate?lang=${langParam}`, { method: 'POST' });
+        const resp = await fetch(`/api/translate?lang=${lang}`, { method: 'POST' });
         return handleResponse(resp, 'Translation failed');
     },
 
     async fetchArchive(params = {}) {
         const query = new URLSearchParams();
-        const langMap = { 'ko': 'Korean', 'en': 'English', 'id': 'Indonesian', 'th': 'Thai' };
-        const langParam = langMap[params.lang] || 'Korean';
+        const langParam = params.lang || 'ko';
 
         if (params.q) query.set('q', params.q);
         if (params.status) query.set('status', params.status);
@@ -321,5 +314,15 @@ export const api = {
             method: 'DELETE'
         });
         return handleResponse(resp, 'Delete report failed');
+    },
+
+    /**
+     * @description Request JIT translation for a specific report
+     */
+    async translateReport(id, lang) {
+        const resp = await fetch(`/api/reports/${id}/translate?lang=${lang}`, {
+            method: 'POST'
+        });
+        return handleResponse(resp, 'Translation request failed');
     }
 };

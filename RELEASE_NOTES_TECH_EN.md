@@ -1,3 +1,15 @@
+# Release Notes (Tech) - v2.4.3 (2026-03-30 04:30 UTC)
+
+- [FEAT] AI Relationship Graph: Implemented a visualization system to map entity relationships and interaction patterns within the AI Reporting module.
+- [FEAT] High-Volume Translation Engine: Introduced batch chunking logic and optimized connection pooling to handle large-scale translation requests efficiently.
+- [SYS] Observability Integration: Integrated WhaTap monitoring for real-time telemetry, performance bottleneck detection, and system health observability.
+- [SYS] Database Migration: Transitioned core storage to Turso (libsql) to enhance edge performance and resolved critical startup panic issues during driver initialization.
+- [REFACTOR] SQL Architecture: Refactored complex data retrieval patterns using Database Views, reducing join complexity and improving query maintainability.
+- [UI] Dark Mode Optimization: Stabilized the Insights tab layout and refined markdown CSS for superior readability and icon consistency in dark mode.
+- [FIX] Gmail Identity Rendering: Resolved a state synchronization bug where assignees from Gmail-sourced tasks were intermittently rendered as 'undefined'.
+
+---
+
 # Release Notes (Tech) - v2.4.2 (2026-03-30 01:24 UTC)
 
 - [FEAT] Identity Resolution: Implemented "Ambiguity Safeguard Engine" to intelligently resolve user identities across disparate messaging platforms, reducing duplicate entity creation.

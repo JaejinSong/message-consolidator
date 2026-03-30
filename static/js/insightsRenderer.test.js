@@ -1,14 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { insightsRenderer, validateEdges } from './insightsRenderer.js';
+import { state } from './state.js';
 
 describe('insightsRenderer.js', () => {
     beforeEach(() => {
+        state.currentLang = 'ko'; // Default to ko as per project standard
         document.body.innerHTML = `
             <div id="dailyGlance"></div>
             <div id="achievementsList"></div>
             <div id="sourceDistribution"></div>
         `;
     });
+// ... (lines 11-137 stay same, I'll use multi_replace for surgical edits if needed)
 
     it('should render daily glance correctly', () => {
         vi.spyOn(Math, 'random').mockReturnValue(0);
@@ -137,21 +140,41 @@ describe('insightsRenderer.js - renderReport & Network Graph', () => {
     });
 
     it('should render markdown summary and initialize network graph when data is valid', () => {
+        state.currentLang = 'ko';
         const reportData = {
-            report_summary: '# Weekly Report',
+            report_summary: '# Weekly Report (English)',
+            translations: { ko: '테스트 번역본' },
             visualization_data: JSON.stringify({ nodes: [{ id: 'user-a@whatap.io', name: 'User A', value: 10 }], links: [] })
         };
 
         insightsRenderer.renderReport(reportData);
 
-        expect(marked.parse).toHaveBeenCalledWith('# Weekly Report');
-        expect(document.getElementById('reportSummaryContent').innerHTML).toBe('<p># Weekly Report</p>');
+        expect(marked.parse).toHaveBeenCalledWith('테스트 번역본');
+        expect(document.getElementById('reportSummaryContent').innerHTML).toContain('테스트 번역본');
         expect(echarts.init).toHaveBeenCalled();
         const instance = echarts.init();
         expect(instance.setOption).toHaveBeenCalled();
 
         const optionArg = instance.setOption.mock.calls[0][0];
         expect(optionArg.series[0].data[0].name).toBe('User A');
+    });
+
+    it('should render fallback warning when translation is missing', () => {
+        state.currentLang = 'id'; // Indonesian (missing translation)
+        const reportData = {
+            report_summary: '# Original English Summary',
+            translations: { ko: '한국어 번역' },
+            visualization_data: JSON.stringify({ nodes: [], links: [] })
+        };
+
+        insightsRenderer.renderReport(reportData);
+
+        const content = document.getElementById('reportSummaryContent').innerHTML;
+        // Verify fallback warning message (English version for non-ko fallback)
+        expect(content).toContain('Translation not available. Showing default summary.');
+        // Verify it falls back to the original English summary
+        expect(content).toContain('Original English Summary');
+        expect(marked.parse).toHaveBeenCalledWith('# Original English Summary');
     });
 
     it('should gracefully handle invalid JSON in visualization data', () => {
@@ -280,5 +303,20 @@ describe('insightsRenderer.js - Utilities & Sankey Logic', () => {
         const nodeTooltip = tooltipFormatter(nodeParams);
         expect(nodeTooltip).toContain('Alice:');
         expect(nodeTooltip).toContain('12');
+    });
+    it('should render loading state correctly', () => {
+        const container = document.getElementById('reportSummaryContent');
+        insightsRenderer.renderLoading(container);
+        expect(container.innerHTML).toContain('c-report-loading');
+        expect(container.innerHTML).toContain('spinner');
+        expect(container.innerHTML).toContain('AI 번역 생성 중');
+    });
+
+    it('should render error state correctly', () => {
+        const container = document.getElementById('reportSummaryContent');
+        insightsRenderer.renderError(container, 'Quota Exceeded');
+        expect(container.innerHTML).toContain('c-report-error');
+        expect(container.innerHTML).toContain('Quota Exceeded');
+        expect(container.innerHTML).toContain('다시 한 번 언어를 선택해 주세요');
     });
 });

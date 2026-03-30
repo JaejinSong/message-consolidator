@@ -470,7 +470,7 @@ func TestReportsService_GenerateReport_MultiLanguage(t *testing.T) {
 		generateFunc: func(ctx context.Context, logs string) (string, error) {
 			return mockSummary, nil
 		},
-	}, ReportConfig{CutoffSize: 8000})
+	}, nil, ReportConfig{CutoffSize: 8000})
 
 	tenantEmail := "test@example.com"
 	startDate := "2026-03-29"
@@ -500,18 +500,11 @@ func TestReportsService_GenerateReport_MultiLanguage(t *testing.T) {
 		t.Fatalf("GetReportTranslations failed: %v", err)
 	}
 
-	foundEN := false
-	for _, tr := range translations {
-		if tr.Language == "English" {
-			foundEN = true
-			if tr.Summary != mockSummary {
-				t.Errorf("Expected summary %s, got %s", mockSummary, tr.Summary)
-			}
-		}
-	}
-
+	summaryEN, foundEN := translations["en"]
 	if !foundEN {
-		t.Error("English translation not found in report_translations")
+		t.Error("English translation ('en') not found in report_translations map")
+	} else if summaryEN != mockSummary {
+		t.Errorf("Expected summary %s, got %s", mockSummary, summaryEN)
 	}
 }
 

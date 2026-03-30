@@ -9,7 +9,8 @@ vi.mock('./api.js', () => ({
         fetchReports: vi.fn(),
         fetchReportDetail: vi.fn(),
         generateReport: vi.fn(),
-        deleteReport: vi.fn()
+        deleteReport: vi.fn(),
+        translateReport: vi.fn()
     }
 }));
 
@@ -23,7 +24,9 @@ vi.mock('./insightsRenderer.js', () => ({
         renderWaitingMetrics: vi.fn(),
         renderHourlyActivity: vi.fn(),
         renderAchievements: vi.fn(),
-        renderAnkiChart: vi.fn()
+        renderAnkiChart: vi.fn(),
+        renderLoading: vi.fn(),
+        renderError: vi.fn()
     }
 }));
 
@@ -110,5 +113,38 @@ describe('insights.js - Controller', () => {
 
         expect(confirm).toHaveBeenCalled();
         expect(api.deleteReport).toHaveBeenCalledWith(1);
+    });
+
+    it('should handle JIT translation on language change', async () => {
+        // Setup state
+        document.body.innerHTML += `
+            <div id="insightsSection"></div>
+            <div id="reportSummaryContent"></div>
+            <div id="insightsStatsTab"></div>
+            <div id="insightsReportsTab"></div>
+            <button class="insights-tab-btn" data-tab="insightsStatsTab"></button>
+            <button class="insights-tab-btn" data-tab="insightsReportsTab"></button>
+        `;
+        insights.init(); // Register listeners
+        
+        const mockReport = { id: 1, report_summary: 'English', translations: {} };
+        insights.lastReport = mockReport;
+        
+        // Mock API
+        api.translateReport.mockResolvedValue({ summary: 'Translated Summary' });
+
+        // Trigger event
+        const { events, EVENTS } = await import('./events.js');
+        events.emit(EVENTS.LANGUAGE_CHANGED, 'ko');
+
+        // Verify loading was shown
+        expect(insightsRenderer.renderLoading).toHaveBeenCalled();
+        
+        // Wait for async call
+        await vi.waitFor(() => expect(api.translateReport).toHaveBeenCalledWith(1, 'ko'));
+        
+        // Verify report was re-rendered with new translation
+        expect(insightsRenderer.renderReport).toHaveBeenCalled();
+        expect(mockReport.translations.ko).toBe('Translated Summary');
     });
 });

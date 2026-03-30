@@ -21,10 +21,12 @@ func (m *MockAI) CheckTasksBatch(ctx context.Context, email, replyText string, t
 	return m.BatchIDs, m.Err
 }
 
-// MockStore captures calls to MarkMessageDone
+// MockStore captures calls to MarkMessageDone and UpdateMessageCategory
 type MockStore struct {
-	CapturedIDs []int
-	Tasks       []store.ConsolidatedMessage
+	CapturedIDs        []int
+	ReleasedIDs        []int
+	ReleasedCategories []string
+	Tasks              []store.ConsolidatedMessage
 }
 
 func (m *MockStore) GetIncompleteByThreadID(ctx context.Context, email, threadID string) ([]store.ConsolidatedMessage, error) {
@@ -33,6 +35,12 @@ func (m *MockStore) GetIncompleteByThreadID(ctx context.Context, email, threadID
 
 func (m *MockStore) MarkMessageDone(email string, id int, isDone bool) error {
 	m.CapturedIDs = append(m.CapturedIDs, id)
+	return nil
+}
+
+func (m *MockStore) UpdateMessageCategory(email string, id int, category string) error {
+	m.ReleasedIDs = append(m.ReleasedIDs, id)
+	m.ReleasedCategories = append(m.ReleasedCategories, category)
 	return nil
 }
 
@@ -60,50 +68,68 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		}
 	})
 
-	t.Run("Positive Path - Batch Completion", func(t *testing.T) {
-		mockAI := &MockAI{BatchIDs: []int{201, 203}}
+	t.Run("Gmail Header - Should NOT Skip Completion if @ is in Header", func(t *testing.T) {
+		mockAI := &MockAI{Complete: true}
 		mockStore := &MockStore{
-			Tasks: []store.ConsolidatedMessage{
-				{ID: 201, OriginalText: "T1"},
-				{ID: 202, OriginalText: "T2"},
-				{ID: 203, OriginalText: "T3"},
-			},
+			Tasks: []store.ConsolidatedMessage{{ID: 401, SourceTS: "t1", OriginalText: "Send doc"}},
 		}
 		svc := NewCompletionService(mockAI, mockStore)
 
 		msg := store.ConsolidatedMessage{
 			UserEmail:    "test@example.com",
-			ThreadID:     "thread_batch",
-			SourceTS:     "reply_ts",
-			OriginalText: "Done with 1 and 3",
+			Source:       "gmail",
+			ThreadID:     "thread_gmail",
+			OriginalText: "T: sender@test.com\nC:\nS: RE: doc\nB:\nDone",
 		}
 
 		svc.ProcessPotentialCompletion(ctx, msg)
 
-		if len(mockStore.CapturedIDs) != 2 {
-			t.Errorf("Expected 2 tasks to be marked done, got %d", len(mockStore.CapturedIDs))
+		if len(mockStore.CapturedIDs) != 1 || mockStore.CapturedIDs[0] != 401 {
+			t.Errorf("Expected Gmail reply to complete task despite @ in headers, got %v", mockStore.CapturedIDs)
 		}
 	})
 
-	t.Run("Mention Exclusion", func(t *testing.T) {
+	t.Run("Mention in Body - Should Still Skip Completion", func(t *testing.T) {
 		mockAI := &MockAI{Complete: true}
 		mockStore := &MockStore{
-			Tasks: []store.ConsolidatedMessage{{ID: 301, OriginalText: "T1"}},
+			Tasks: []store.ConsolidatedMessage{{ID: 501, OriginalText: "T1"}},
 		}
 		svc := NewCompletionService(mockAI, mockStore)
 
 		msg := store.ConsolidatedMessage{
 			UserEmail:    "test@example.com",
+			Source:       "gmail",
 			ThreadID:     "thread_mention",
-			OriginalText: "Check this <@U123>",
+			OriginalText: "T: s@t.com\nB:\nCheck this @someone",
 		}
 
 		svc.ProcessPotentialCompletion(ctx, msg)
 
 		if len(mockStore.CapturedIDs) > 0 {
-			t.Error("Expected no tasks to be completed when mention is present")
+			t.Error("Expected no completion when mention is in the body")
+		}
+	})
+
+	t.Run("Two-Phase - Auto-release Waiting Status", func(t *testing.T) {
+		mockAI := &MockAI{Complete: false} // Not done, but should release waiting
+		mockStore := &MockStore{
+			Tasks: []store.ConsolidatedMessage{{ID: 601, Category: "waiting", OriginalText: "Ping me"}},
+		}
+		svc := NewCompletionService(mockAI, mockStore)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:    "test@example.com",
+			ThreadID:     "thread_wait",
+			OriginalText: "I am checking it",
+		}
+
+		svc.ProcessPotentialCompletion(ctx, msg)
+
+		if len(mockStore.ReleasedIDs) != 1 || mockStore.ReleasedIDs[0] != 601 {
+			t.Errorf("Expected task 601 to be released, got %v", mockStore.ReleasedIDs)
+		}
+		if mockStore.ReleasedCategories[0] != "others" {
+			t.Errorf("Expected released category to be others, got %s", mockStore.ReleasedCategories[0])
 		}
 	})
 }
-
-

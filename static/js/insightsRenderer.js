@@ -565,40 +565,67 @@ export const insightsRenderer = {
             }
         }
 
-        // 1. Render Markdown Summary
-        if (report && report.report_summary) {
-            // Using marked.parse (global from CDN)
-            const rawHtml = marked.parse(report.report_summary);
-            
-            // Why: Wrap sections in divs with specific classes to allow precise CSS targeting 
-            // and branding (e.g., highlighting labels in Executive Summary vs. tables).
-            const sections = [
-                { id: '1.', class: 'section-exec' },
-                { id: '2.', class: 'section-pending' },
-                { id: '3.', class: 'section-gap' },
-                { id: '4.', class: 'section-insights' }
-            ];
+        // 1. Render Markdown Summary with Multi-Language Support
+        if (report) {
+            const lang = state.currentLang || 'ko';
+            let summary = null;
+            let isFallback = false;
 
-            let processedHtml = rawHtml;
-            const headerParts = processedHtml.split(/<h2/);
-            if (headerParts.length > 1) {
-                processedHtml = headerParts[0]; // Content before first H2
-                headerParts.slice(1).forEach(part => {
-                    const fullMatch = '<h2' + part;
-                    let sectionClass = 'section-generic';
-                    
-                    for (const s of sections) {
-                        // Match both "1." and "1. " formats
-                        if (fullMatch.includes(`h2>${s.id}`) || fullMatch.includes(`h2> ${s.id}`)) {
-                            sectionClass = s.class;
-                            break;
-                        }
-                    }
-                    processedHtml += `<div class="${sectionClass}">${fullMatch}</div>`;
-                });
+            // Why: Supports new map-based translation structure while maintaining backward compatibility with the 'report_summary' field as a default.
+            if (report.translations && report.translations[lang]) {
+                summary = report.translations[lang];
+            } else {
+                // If the language is not the default (en), we'll normally trigger JIT translation in the controller.
+                // This fallback remains as a safety measure.
+                summary = report.report_summary; 
+                if (lang !== 'en') isFallback = true;
             }
 
-            summaryContainer.innerHTML = processedHtml;
+            if (!summary) {
+                summaryContainer.innerHTML = `<div class="u-text-dim" style="text-align: center; padding: 2rem;">선택하신 언어로 된 보고서 내용이 없습니다.</div>`;
+            } else {
+                // Using marked.parse (global from CDN)
+                const rawHtml = marked.parse(summary);
+                
+                // Why: Wrap sections in divs with specific classes to allow precise CSS targeting 
+                // and branding (e.g., highlighting labels in Executive Summary vs. tables).
+                const sections = [
+                    { id: '1.', class: 'section-exec' },
+                    { id: '2.', class: 'section-pending' },
+                    { id: '3.', class: 'section-gap' },
+                    { id: '4.', class: 'section-insights' }
+                ];
+
+                let processedHtml = '';
+                
+                // Add Fallback Warning if needed
+                if (isFallback) {
+                    const i18n = I18N_DATA[lang] || I18N_DATA['en'];
+                    const warnMsg = lang === 'ko' ? '선택하신 언어의 번역본이 없어 영문 원본을 표시합니다.' : 'Translation not available. Showing default summary.';
+                    processedHtml += `<div class="c-alert c-alert--info" style="margin-bottom: 1rem; font-size: 0.85rem;">ℹ️ ${warnMsg}</div>`;
+                }
+
+                const headerParts = rawHtml.split(/<h2/);
+                if (headerParts.length > 1) {
+                    processedHtml += headerParts[0]; // Content before first H2
+                    headerParts.slice(1).forEach(part => {
+                        const fullMatch = '<h2' + part;
+                        let sectionClass = 'section-generic';
+                        
+                        for (const s of sections) {
+                            if (fullMatch.includes(`h2>${s.id}`) || fullMatch.includes(`h2> ${s.id}`)) {
+                                sectionClass = s.class;
+                                break;
+                            }
+                        }
+                        processedHtml += `<div class="${sectionClass}">${fullMatch}</div>`;
+                    });
+                } else {
+                    processedHtml += rawHtml;
+                }
+
+                summaryContainer.innerHTML = processedHtml;
+            }
         } else {
             summaryContainer.innerHTML = `<div class="u-text-dim" style="text-align: center; padding: 2rem;">생성된 보고서가 없습니다.</div>`;
         }
@@ -998,5 +1025,33 @@ export const insightsRenderer = {
             console.error('[INSIGHTS] Sankey Chart rendering failed:', err);
             container.innerHTML = `<div class="error-placeholder">Sankey error: ${err.message}</div>`;
         }
+    },
+
+    /**
+     * @description Renders a loading spinner for JIT translation or other async tasks
+     */
+    renderLoading(container) {
+        if (!container) return;
+        container.innerHTML = `
+            <div class="c-report-loading">
+                <div class="spinner"></div>
+                <p>AI 번역 생성 중...</p>
+            </div>
+        `;
+    },
+
+    /**
+     * @description Renders an error message for failed translation or report fetching
+     */
+    renderError(container, message) {
+        if (!container) return;
+        container.innerHTML = `
+            <div class="c-report-error">
+                <div class="c-alert c-alert--danger">
+                    <strong>번역 실패:</strong> ${message || '알 수 없는 에러가 발생했습니다.'}<br>
+                    <small>다시 한 번 언어를 선택해 주세요.</small>
+                </div>
+            </div>
+        `;
     }
 };

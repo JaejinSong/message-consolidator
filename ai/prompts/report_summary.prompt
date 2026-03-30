@@ -5,11 +5,11 @@
 1. **Formatting**: Strict Markdown only. Use exactly 4 headers: [1. Executive Summary, 2. Pending & Risks, 3. Management Gap, 4. Strategic Insights]. 
 2. **Aggregation**: Do NOT list completed tasks separately. Summary statistics and key achievements must be merged into "1. Executive Summary".
 3. **Filtering (Noise Removal)**: Ignore personal/social items (payroll, greetings, general praise). RETAIN operational admin (licensing, certificates, technical payments).
-4. **Management Gap**: Identify bottlenecks (Internal or External) that threaten project credibility or cause management voids.
+4. **Management Gap**: Identify actual bottlenecks that carry high risk or cause management voids. ONLY include items that are explicitly mentioned as delayed, blocked, no response, or requiring escalation. DO NOT include normal pending tasks as gaps.
 
 # Logic: Management Gap (Section 3)
-- Explicitly identify the [Target] (Internal/External) and specify the Cause + Action (e.g., "Escalation", "Warning").
-- If no gaps, output: "No management gap identified."
+- Explicitly identify the [Target] (Internal/External) and specify the Cause + Action.
+- If no gaps (all tasks are either completed or normally pending), output: "No management gap identified."
 
 ---
 

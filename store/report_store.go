@@ -17,6 +17,9 @@ func GetReport(ctx context.Context, email, start, end string) (*Report, error) {
 	}
 	r.IsTruncated = isTruncated != 0
 	r.CreatedAt = createdAt
+	
+	// Why: Ensures all available translations are loaded for the front-end to enable seamless language switching.
+	r.Translations, _ = GetReportTranslations(ctx, r.ID)
 	return &r, nil
 }
 
@@ -33,6 +36,9 @@ func GetReportByID(ctx context.Context, id int, email string) (*Report, error) {
 	}
 	r.IsTruncated = isTruncated != 0
 	r.CreatedAt = createdAt
+
+	// Why: Ensures all available translations are loaded for the front-end to enable seamless language switching.
+	r.Translations, _ = GetReportTranslations(ctx, r.ID)
 	return &r, nil
 }
 
@@ -50,26 +56,26 @@ func SaveReport(ctx context.Context, r *Report) (int64, error) {
 }
 
 // Why: Persists a specific language translation for a given report metadata entry.
-func SaveReportTranslation(ctx context.Context, reportID int64, language, summary string) error {
-	_, err := db.ExecContext(ctx, SQL.InsertReportTranslation, reportID, language, summary)
+func SaveReportTranslation(ctx context.Context, reportID int64, langCode, summary string) error {
+	_, err := db.ExecContext(ctx, SQL.InsertReportTranslation, reportID, langCode, summary)
 	return err
 }
 
 // Why: Retrieves all available language translations for a specific report to support the multi-language UI.
-func GetReportTranslations(ctx context.Context, reportID int) ([]ReportTranslation, error) {
+func GetReportTranslations(ctx context.Context, reportID int) (map[string]string, error) {
 	rows, err := db.QueryContext(ctx, SQL.GetReportTranslations, reportID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var translations []ReportTranslation
+	translations := make(map[string]string)
 	for rows.Next() {
-		var rt ReportTranslation
-		if err := rows.Scan(&rt.Language, &rt.Summary); err != nil {
+		var langCode, summary string
+		if err := rows.Scan(&langCode, &summary); err != nil {
 			return nil, err
 		}
-		translations = append(translations, rt)
+		translations[langCode] = summary
 	}
 	return translations, nil
 }

@@ -1,3 +1,13 @@
+# Release Notes - v2.4.3 (2026-03-30 04:30 UTC)
+
+- [NEW] Visual Network Map: Our new AI Relationship Graph lets you see how your tasks and teammates are connected at a glance. It's like having a GPS for your professional network!
+- [NEW] Supercharged Translations: We've upgraded our engine to handle massive documents. Whether it's a short memo or a long report, your translations will now be faster and smoother.
+- [IMPROVED] Midnight Insights: We've polished the Insights tab for the night owls. Dark mode now features crystal-clear icons and perfectly formatted text that's easy on the eyes.
+- [STABILITY] High-Performance Engine: We've swapped our database for Turso and added professional-grade monitoring. This means fewer hiccups and lightning-fast responses even during peak hours.
+- [FIX] No More Anonymous Tasks: We caught a bug that was hiding names on Gmail tasks. Now everyone gets the credit they deserve, with no more "undefined" colleagues in your list.
+
+---
+
 # Release Notes - v2.4.2 (2026-03-30 01:24 UTC)
 
 - [NEW] Smart Identity Matching: Our new "Ambiguity Safeguard" ensures that whether a colleague messages you on Slack, Gmail, or Discord, we know exactly who's who—no more ghost accounts or duplicate contacts!

@@ -12,9 +12,9 @@ var (
 	translationMu    sync.RWMutex
 )
 
-func GetTaskTranslation(messageID int, language string) (string, error) {
+func GetTaskTranslation(messageID int, langCode string) (string, error) {
 	translationMu.RLock()
-	if langCache, ok := translationCache[language]; ok {
+	if langCache, ok := translationCache[langCode]; ok {
 		if text, exists := langCache[messageID]; exists {
 			translationMu.RUnlock()
 			return text, nil
@@ -23,30 +23,30 @@ func GetTaskTranslation(messageID int, language string) (string, error) {
 	translationMu.RUnlock()
 
 	var translatedText string
-	err := db.QueryRow(SQL.GetTaskTranslation, messageID, language).Scan(&translatedText)
+	err := db.QueryRow(SQL.GetTaskTranslation, messageID, langCode).Scan(&translatedText)
 	if err == sql.ErrNoRows {
 		translationMu.Lock()
-		if translationCache[language] == nil {
-			translationCache[language] = make(map[int]string)
+		if translationCache[langCode] == nil {
+			translationCache[langCode] = make(map[int]string)
 		}
-		translationCache[language][messageID] = "" //Why: Caches the absence of a translation to prevent redundant database queries for non-existent records.
+		translationCache[langCode][messageID] = "" //Why: Caches the absence of a translation to prevent redundant database queries for non-existent records.
 		translationMu.Unlock()
 		return "", nil
 	}
 
 	if err == nil && translatedText != "" {
 		translationMu.Lock()
-		if translationCache[language] == nil {
-			translationCache[language] = make(map[int]string)
+		if translationCache[langCode] == nil {
+			translationCache[langCode] = make(map[int]string)
 		}
-		translationCache[language][messageID] = translatedText
+		translationCache[langCode][messageID] = translatedText
 		translationMu.Unlock()
 	}
 
 	return translatedText, err
 }
 
-func GetTaskTranslationsBatch(messageIDs []int, language string) (map[int]string, error) {
+func GetTaskTranslationsBatch(messageIDs []int, langCode string) (map[int]string, error) {
 	if len(messageIDs) == 0 {
 		return make(map[int]string), nil
 	}
@@ -55,7 +55,7 @@ func GetTaskTranslationsBatch(messageIDs []int, language string) (map[int]string
 	var missingIDs []int
 
 	translationMu.RLock()
-	langCache, ok := translationCache[language]
+	langCache, ok := translationCache[langCode]
 	if ok {
 		for _, id := range messageIDs {
 			if text, exists := langCache[id]; exists {
@@ -79,14 +79,14 @@ func GetTaskTranslationsBatch(messageIDs []int, language string) (map[int]string
 	//Why: Uses an IN clause as a fallback because some drivers may not fully support ANY($1) for slice parameters.
 	placeholders := make([]string, len(missingIDs))
 	args := make([]interface{}, len(missingIDs)+1)
-	args[0] = language
+	args[0] = langCode
 	for i, id := range missingIDs {
 		placeholders[i] = "?"
 		args[i+1] = id
 	}
 
 	//Why: Hardcodes the query to prevent potential template conversion errors related to dynamic placeholder generation in external SQL files.
-	query := fmt.Sprintf("SELECT message_id, translated_text FROM task_translations WHERE language = ? AND message_id IN (%s)", strings.Join(placeholders, ","))
+	query := fmt.Sprintf("SELECT message_id, translated_text FROM task_translations WHERE language_code = ? AND message_id IN (%s)", strings.Join(placeholders, ","))
 	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, err
@@ -105,14 +105,14 @@ func GetTaskTranslationsBatch(messageIDs []int, language string) (map[int]string
 	}
 
 	translationMu.Lock()
-	if translationCache[language] == nil {
-		translationCache[language] = make(map[int]string)
+	if translationCache[langCode] == nil {
+		translationCache[langCode] = make(map[int]string)
 	}
 	for _, id := range missingIDs {
 		if text, ok := dbResults[id]; ok {
-			translationCache[language][id] = text
+			translationCache[langCode][id] = text
 		} else {
-			translationCache[language][id] = "" //Why: Caches message IDs that are missing from the database with empty strings to optimize future lookups.
+			translationCache[langCode][id] = "" //Why: Caches message IDs that are missing from the database with empty strings to optimize future lookups.
 		}
 	}
 	translationMu.Unlock()
@@ -120,15 +120,15 @@ func GetTaskTranslationsBatch(messageIDs []int, language string) (map[int]string
 	return results, nil
 }
 
-func SaveTaskTranslation(messageID int, language, translatedText string) error {
-	_, err := db.Exec(SQL.UpsertTaskTranslation, messageID, language, translatedText)
+func SaveTaskTranslation(messageID int, langCode, translatedText string) error {
+	_, err := db.Exec(SQL.UpsertTaskTranslation, messageID, langCode, translatedText)
 
 	if err == nil {
 		translationMu.Lock()
-		if translationCache[language] == nil {
-			translationCache[language] = make(map[int]string)
+		if translationCache[langCode] == nil {
+			translationCache[langCode] = make(map[int]string)
 		}
-		translationCache[language][messageID] = translatedText
+		translationCache[langCode][messageID] = translatedText
 		translationMu.Unlock()
 	}
 

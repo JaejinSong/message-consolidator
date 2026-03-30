@@ -24,7 +24,10 @@ func TestAnalyze_Regression(t *testing.T) {
 
 	apiKey := os.Getenv("GEMINI_API_KEY_FOR_TEST")
 	if apiKey == "" {
-		t.Skip("Skipping regression test: GEMINI_API_KEY_FOR_TEST not set in environment or .env")
+		apiKey = os.Getenv("GEMINI_API_KEY")
+	}
+	if apiKey == "" {
+		t.Skip("Skipping regression test: GEMINI_API_KEY(FOR_TEST) not set in environment or .env")
 	}
 	client, err := ai.NewGeminiClient(context.Background(), apiKey, "", "")
 	if err != nil {

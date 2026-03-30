@@ -19,7 +19,7 @@ describe('api.js', () => {
     it('should fetch messages with correct language parameter', async () => {
         fetch.mockImplementation(() => mockResponse(200, [{ id: 1 }]));
         const data = await api.fetchMessages('ko');
-        expect(fetch).toHaveBeenCalledWith('/api/messages?lang=Korean');
+        expect(fetch).toHaveBeenCalledWith('/api/messages?lang=ko');
         expect(data[0].id).toBe(1);
     });
 
@@ -50,7 +50,7 @@ describe('api.js', () => {
         expect(callUrl).toContain('q=test');
         expect(callUrl).toContain('limit=10');
         expect(callUrl).toContain('offset=20');
-        expect(callUrl).toContain('lang=English');
+        expect(callUrl).toContain('lang=en');
         expect(callUrl).toContain('sort=time');
         expect(callUrl).toContain('order=ASC');
     });

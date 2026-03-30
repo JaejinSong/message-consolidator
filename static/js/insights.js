@@ -33,7 +33,8 @@ export const insights = {
             });
         });
 
-        // 2단계 탭 바인딩 (통계 / 보고서) - .tab-btn과의 충돌 방지를 위해 .insights-tab-btn만 제어
+        // Why: Bind secondary tabs (Stats/Reports) using a specific class to avoid conflicts
+        // with the global tab handler which controls primary navigation.
         const statsTab = document.querySelector('.insights-tab-btn[data-tab="insightsStatsTab"]');
         const reportsTab = document.querySelector('.insights-tab-btn[data-tab="insightsReportsTab"]');
         const insightsTabBtns = [statsTab, reportsTab];
@@ -46,7 +47,7 @@ export const insights = {
             statsTab.addEventListener('click', () => {
                 insightsTabBtns.forEach(btn => btn.classList.remove('active'));
                 statsTab.classList.add('active');
-                
+
                 statsPanel.classList.add('c-tabs__panel--active');
                 reportsPanel.classList.remove('c-tabs__panel--active');
             });
@@ -54,7 +55,7 @@ export const insights = {
             reportsTab.addEventListener('click', async () => {
                 insightsTabBtns.forEach(btn => btn.classList.remove('active'));
                 reportsTab.classList.add('active');
-                
+
                 reportsPanel.classList.add('c-tabs__panel--active');
                 statsPanel.classList.remove('c-tabs__panel--active');
 
@@ -66,7 +67,8 @@ export const insights = {
         this.bindReportEvents();
         this.initDatePickers();
 
-        // 테마 변경 시 ECharts 및 SVG 차트 실시간 리렌더링 (서버 재호출 방지)
+        // Why: Re-render charts and reports instantly on theme/language changes
+        // without re-fetching data from the server, providing a smoother UX.
         events.on(EVENTS.THEME_CHANGED, () => {
             if (!document.getElementById('insightsSection')?.classList.contains('hidden')) {
                 if (this.lastStats) {
@@ -74,6 +76,37 @@ export const insights = {
                 }
                 if (this.lastReport) {
                     insightsRenderer.renderReport(this.lastReport);
+                }
+            }
+        });
+
+        events.on(EVENTS.LANGUAGE_CHANGED, async (payload) => {
+            const langCode = (typeof payload === 'object') ? payload.langCode : payload;
+            console.log(`[Insights] Language changed to: ${langCode}`);
+
+            if (!document.getElementById('insightsSection')?.classList.contains('hidden')) {
+                if (this.lastReport) {
+                    // Why: If translation is missing for the selected language, trigger JIT translation via AI.
+                    if (langCode !== 'en' && (!this.lastReport.translations || !this.lastReport.translations[langCode])) {
+                        const content = document.getElementById('reportSummaryContent');
+                        insightsRenderer.renderLoading(content);
+
+                        try {
+                            const result = await api.translateReport(this.lastReport.id, langCode);
+                            if (result && result.summary) {
+                                // Update local cache to avoid re-fetching
+                                if (!this.lastReport.translations) this.lastReport.translations = {};
+                                this.lastReport.translations[langCode] = result.summary;
+                                insightsRenderer.renderReport(this.lastReport);
+                            }
+                        } catch (err) {
+                            console.error("[Insights] JIT Translation failed:", err);
+                            insightsRenderer.renderError(content, err.message);
+                        }
+                    } else {
+                        // Why: Triggers immediate UI update with the corresponding translation without page refresh.
+                        insightsRenderer.renderReport(this.lastReport);
+                    }
                 }
             }
         });
@@ -240,7 +273,8 @@ export const insights = {
             if (loading) {
                 loading.classList.remove('active');
                 const p = loading.querySelector('p');
-                if (p) p.textContent = i18n.loading || "Gemini is scanning for new tasks..."; // 기본 문구 복구
+                // Why: Restore the default loading message after insights-specific loading is complete.
+                if (p) p.textContent = i18n.loading || "Gemini is scanning for new tasks...";
             }
         }
     },

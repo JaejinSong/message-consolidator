@@ -15,6 +15,7 @@ type AICompleter interface {
 type TaskStore interface {
 	GetIncompleteByThreadID(ctx context.Context, email, threadID string) ([]store.ConsolidatedMessage, error)
 	MarkMessageDone(email string, id int, done bool) error
+	UpdateMessageCategory(email string, id int, category string) error
 }
 
 type DefaultTaskStore struct{}
@@ -25,6 +26,10 @@ func (d *DefaultTaskStore) GetIncompleteByThreadID(ctx context.Context, email, t
 
 func (d *DefaultTaskStore) MarkMessageDone(email string, id int, done bool) error {
 	return store.MarkMessageDone(email, id, done)
+}
+
+func (d *DefaultTaskStore) UpdateMessageCategory(email string, id int, category string) error {
+	return store.UpdateMessageCategory(email, id, category)
 }
 
 type CompletionService struct {
@@ -57,10 +62,32 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		return
 	}
 
-	//Why: Prevents prematurely closing tasks that are being delegated by excluding messages containing '@' mentions from the auto-completion logic.
-	if strings.Contains(msg.OriginalText, "@") {
-		logger.Infof("[COMPLETION] Skip auto-completion for thread %s (reply %s): Message contains mention", msg.ThreadID, msg.SourceTS)
+	//Why: Extracts the actual reply content, excluding email headers, to ensure the AI's analysis is focused on the message body and not metadata.
+	textToAnalyze := msg.OriginalText
+	mentionCheckText := msg.OriginalText
+
+	if msg.Source == "gmail" {
+		//Why: Gmail messages use a specific header format (T:, C:, S:, B:). We extract only the content after 'B:' to isolate the body from email addresses in headers.
+		if parts := strings.SplitN(msg.OriginalText, "\nB:\n", 2); len(parts) == 2 {
+			textToAnalyze = parts[1]
+			mentionCheckText = parts[1]
+		}
+	}
+
+	//Why: Prevents prematurely closing tasks that are being delegated by excluding messages containing '@' mentions in the actual message body.
+	if strings.Contains(mentionCheckText, "@") {
+		logger.Infof("[COMPLETION] Skip auto-completion for thread %s (reply %s): Message contains mention in body", msg.ThreadID, msg.SourceTS)
 		return
+	}
+
+	//Why: Implements a 'Two-Phase' status transition where any reply immediately releases a 'Waiting for Reply' state to 'Others', even before AI completion analysis.
+	for _, task := range tasks {
+		if task.Category == "waiting" {
+			logger.Infof("[COMPLETION] Auto-releasing 'waiting' status for task %d in thread %s", task.ID, msg.ThreadID)
+			if err := s.store.UpdateMessageCategory(msg.UserEmail, task.ID, "others"); err != nil {
+				logger.Errorf("[COMPLETION] Failed to release waiting status for task %d: %v", task.ID, err)
+			}
+		}
 	}
 
 	logger.Infof("[COMPLETION] Found %d incomplete tasks in thread %s.", len(tasks), msg.ThreadID)
@@ -68,7 +95,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 	//Why: Reduces token consumption and API overhead by processing threads with 3 or more tasks in a single batch request to the AI model.
 	if len(tasks) >= 3 {
 		logger.Infof("[COMPLETION] Using batch analysis for %d tasks in thread %s", len(tasks), msg.ThreadID)
-		completedIDs, err := s.gemini.CheckTasksBatch(ctx, msg.UserEmail, msg.OriginalText, tasks)
+		completedIDs, err := s.gemini.CheckTasksBatch(ctx, msg.UserEmail, textToAnalyze, tasks)
 		if err != nil {
 			logger.Errorf("[COMPLETION] Batch check failed: %v", err)
 			return
@@ -90,7 +117,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 			continue
 		}
 
-		isDone, err := s.gemini.DoesReplyCompleteTask(ctx, msg.UserEmail, task.OriginalText, msg.OriginalText)
+		isDone, err := s.gemini.DoesReplyCompleteTask(ctx, msg.UserEmail, task.OriginalText, textToAnalyze)
 		if err != nil {
 			logger.Errorf("[COMPLETION] Error checking completion for task %d: %v", task.ID, err)
 			continue

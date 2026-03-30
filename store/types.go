@@ -81,7 +81,7 @@ type UserAchievement struct {
 // TaskTranslation represents a cached translation for a task
 type TaskTranslation struct {
 	MessageID      int    `json:"message_id"`
-	Language       string `json:"language"`
+	LanguageCode   string `json:"language_code"`
 	TranslatedText string `json:"translated_text"`
 }
 
@@ -148,8 +148,8 @@ type UserStats struct {
 
 // ReportTranslation represents a specific language version of an AI-generated report summary.
 type ReportTranslation struct {
-	Language string `json:"language"`
-	Summary  string `json:"summary"`
+	LanguageCode string `json:"language_code"`
+	Summary      string `json:"summary"`
 }
 
 // Report represents a cached AI-generated summary (metadata) and backend-calculated visualization.
@@ -159,8 +159,8 @@ type Report struct {
 	UserEmail     string              `json:"user_email"`
 	StartDate     string              `json:"start_date"`
 	EndDate       string              `json:"end_date"`
-	Summary       string              `json:"report_summary"` // Primary summary (typically English)
-	Translations  []ReportTranslation `json:"translations,omitempty"`
+	Summary       string            `json:"report_summary"` // Primary summary (typically English)
+	Translations  map[string]string `json:"translations,omitempty"`
 	Visualization string              `json:"visualization_data"` // JSON string of Node/Edge data
 	IsTruncated   bool                `json:"is_truncated"`       // Why: Flag to indicate if the report was limited due to token boundaries.
 	CreatedAt     time.Time           `json:"created_at"`

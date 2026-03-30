@@ -2333,6 +2333,12 @@ body.light-theme .glass-btn:hover {
     color: var(--color-warning);
 }
 
+.c-alert--info {
+    background: rgba(var(--color-primary-rgb), 0.1);
+    border: var(--border-thin) solid rgba(var(--color-primary-rgb), 0.2);
+    color: var(--color-primary);
+}
+
 .c-alert__icon {
     font-size: 1.1rem;
 }

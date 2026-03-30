@@ -59,7 +59,7 @@ func main() {
 	if gClient != nil {
 		summarizer := services.NewFlashSingleSummarizer(gClient)
 		config := services.ReportConfig{CutoffSize: 8000}
-		reportsSvc = services.NewReportsService(summarizer, config)
+		reportsSvc = services.NewReportsService(summarizer, gClient, config)
 	}
 
 	//Why: Creates the API handler structure with explicit dependency injection, simplifying unit testing and mock substitution.

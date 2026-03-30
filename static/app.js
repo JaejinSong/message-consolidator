@@ -218,6 +218,7 @@ const initLanguageSelector = () => {
         langSelect.addEventListener('change', async (e) => {
             const lang = e.target.value;
             updateLang(lang);
+            events.emit(EVENTS.LANGUAGE_CHANGED, lang);
             updateUILanguage(lang);
             const loading = document.getElementById('loading');
             loading.classList.remove('hidden');
