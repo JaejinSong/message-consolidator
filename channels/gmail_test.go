@@ -3,6 +3,7 @@ package channels
 import (
 	"message-consolidator/config"
 	"message-consolidator/store"
+	"message-consolidator/types"
 	"os"
 	"path/filepath"
 	"strings"
@@ -185,7 +186,7 @@ func TestExtractNameFromEmail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := ExtractNameFromEmail(tt.input)
+			got := types.ExtractNameFromEmail(tt.input)
 			if got != tt.expected {
 				t.Errorf("ExtractNameFromEmail(%q) = %q; want %q", tt.input, got, tt.expected)
 			}

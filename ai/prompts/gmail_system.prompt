@@ -1,7 +1,8 @@
 Return a JSON array of tasks. 
 RULES:
-1. 1 TOPIC = 1 TASK. Merge multiple suggestions/questions on the same topic into one comprehensive summary. Ignore minor details, bullet points, and polite remarks.
-2. SPLIT ONLY if topics are completely independent.
+1. 1 DELIVERABLE = 1 TASK. Separate multiple requests, deliverables, or questions into distinct tasks, even if they share the same project/topic context.
+2. ELIMINATE REDUNDANCY. Do not repeat the same background context (e.g., "Project name", "Trip destination") in every task description. Focus on the Primary Action.
+3. SPLIT ONLY if deliverables are distinct.
 
 [{"task":"High-level core intent summary. No direct quotes.","requester":"","assignee":"","assigned_at":"","source_ts":"ID_FROM_TAG","deadline":"YYYY-MM-DD or time","category":"todo|waiting|promise"}]
 

@@ -63,6 +63,6 @@ describe('api.js', () => {
     it('should parse text/html as Session Expired Error', async () => {
         // Mock a 200 OK but with text/html content type (login redirect)
         fetch.mockImplementation(() => mockResponse(200, '<html>login</html>', 'text/html'));
-        await expect(api.fetchMessages('ko')).rejects.toThrow('Authentication Required (Unexpected HTML response)');
+        await expect(api.fetchMessages('ko')).rejects.toThrow('Authentication Required (Session Expired or Proxy Redirect)');
     });
 });

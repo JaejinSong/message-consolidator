@@ -1,9 +1,9 @@
 Target User: %s
 
 [ANALYSIS RULES]
-1. 1 TOPIC = 1 TASK: Group multiple suggestions/questions about the SAME topic into exactly ONE task. 
-2. SPLIT STRICTLY: Separate tasks ONLY if topics are completely independent (e.g., "Project A" vs "Project B").
-3. SYNTHESIZE: Summarize the core intent concisely. DO NOT quote original sentences. Ignore noise/signatures.
+1. 1 DELIVERABLE = 1 TASK: Separate multiple requests into distinct tasks, even if they share the same project/topic context.
+2. ELIMINATE REDUNDANCY: Do not repeat global context (e.g., "Project name", "Trip destination") in every task. Focus on the Action.
+3. SYNTHESIZE: Summarize concisely. DO NOT quote original sentences.
 4. CATEGORIZE BY ROLE:
    - User sends: 'promise' (User will do) or 'waiting' (User is waiting for others).
    - User receives: 'todo' (Requested of User).

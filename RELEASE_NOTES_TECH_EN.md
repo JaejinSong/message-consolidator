@@ -1,3 +1,14 @@
+# Release Notes (Tech) - v2.4.7 (2026-04-01 08:03 UTC)
+
+- [FEAT] Advanced Gmail Task Extraction Prompts: Implemented "1 Deliverable = 1 Task" and "ELIMINATE REDUNDANCY" guidelines to improve task separation accuracy and reduce message clutter.
+- [STABILITY] Robust AI Regression Normalization: Enhanced the validation pipeline to handle AI non-determinism (synonyms, aliases, date formats) for `SourceTS` and `Category` fields.
+- [REFACTOR] Modularized Gmail Channel Processing: Refactored batch processing logic in `channels/gmail.go` based on the Single Responsibility Principle and established 30-line function limits.
+- [REFACTOR] Unified Shared Utilities: Migrated email parsing routines to `types/utils.go` to prevent circular dependencies and improve code reusability.
+- [TEST] Gmail Performance Triage: Added specific regression cases for complex email threads to ensure sustained performance in task splitting and context cleaning.
+- [SYS] Gemini Client Extensibility: Added support for variadic `option.ClientOption` in `NewGeminiClient` to facilitate API mocking in automated test environments.
+
+---
+
 # Release Notes (Tech) - v2.4.6 (2026-04-01 06:04 UTC)
 
 - [FEAT] JIT On-Demand Translation: Implemented a Just-In-Time translation engine using the `singleflight` pattern to eliminate redundant upstream API calls during concurrent requests.

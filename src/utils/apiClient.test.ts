@@ -36,7 +36,7 @@ describe('apiFetch', () => {
       await apiFetch('/test');
       expect.fail('Should have thrown an error');
     } catch (err: any) {
-      expect(err.message).toBe('Authentication Required (Unexpected HTML response)');
+      expect(err.message).toBe('Authentication Required (Session Expired or Proxy Redirect)');
       expect(err.isAuthError).toBe(true);
     }
   });

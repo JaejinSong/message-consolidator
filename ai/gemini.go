@@ -28,7 +28,7 @@ type GeminiClient struct {
 	translationModel string
 }
 
-func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translationModel string) (*GeminiClient, error) {
+func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translationModel string, opts ...option.ClientOption) (*GeminiClient, error) {
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY is not set")
@@ -37,7 +37,8 @@ func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translat
 	logger.Infof("[GEMINI] Initializing client (Key length: %d, Prefix: %s..., Analysis: %s, Translation: %s)",
 		len(apiKey), apiKey[:4], analysisModel, translationModel)
 
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	allOpts := append([]option.ClientOption{option.WithAPIKey(apiKey)}, opts...)
+	client, err := genai.NewClient(ctx, allOpts...)
 	if err != nil {
 		return nil, err
 	}

@@ -9,7 +9,6 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
-	"mime"
 	"net/mail"
 	"regexp"
 	"strconv"
@@ -251,8 +250,7 @@ func upsertAddresses(tenantEmail, header, source string) string {
 		if firstEmail != "" {
 			return firstEmail
 		}
-		// Final fallback: try to extract at least one identifier.
-		return ExtractNameFromEmail(header) 
+		return types.ExtractNameFromEmail(header) 
 	}
 
 	firstEmail := ""
@@ -368,6 +366,8 @@ func isAssigneeMe(assignee, email, userName, fallback string, aliases []string) 
 	return false
 }
 
+
+
 func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage)) {
 	if len(rawMsgs) == 0 {
 		return
@@ -382,27 +382,28 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 	user, _ := store.GetOrCreateUser(email, "", "")
 	aliases, _ := store.GetUserAliases(user.ID)
 
-	//Why: Groups emails into small batches of 10 for AI analysis to optimize prompt length and stay within model context and token generation limits.
 	batchSize := 10
 	for i := 0; i < len(rawMsgs); i += batchSize {
 		end := i + batchSize
 		if end > len(rawMsgs) {
 			end = len(rawMsgs)
 		}
-		batchMsgs := rawMsgs[i:end]
+		processBatch(ctx, gc, email, language, rawMsgs[i:end], classificationMap, toMap, user, aliases, onThreadActivity)
+	}
+}
 
-		payload, msgMap := buildGmailBatchPayload(email, batchMsgs, classificationMap, onThreadActivity)
+// processBatch handles the analysis and persistence of a single batch of emails.
+func processBatch(ctx context.Context, gc *ai.GeminiClient, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage)) {
+	payload, msgMap := buildGmailBatchPayload(email, batchMsgs, classificationMap, onThreadActivity)
+	items, err := executeGmailAnalysisWithRetry(ctx, gc, email, payload, language)
+	if err != nil {
+		logger.Errorf("[SCAN-GMAIL] Batch Analyze Error: %v", err)
+		return
+	}
 
-		items, analyzeErr := executeGmailAnalysisWithRetry(ctx, gc, email, payload, language)
-		if analyzeErr != nil {
-			logger.Errorf("[SCAN-GMAIL] Gemini Analyze Error for %s (batch %d-%d): %v", email, i, end, analyzeErr)
-			continue
-		}
-
-		msgsToSave := processGeminiItems(email, user, aliases, items, classificationMap, toMap, msgMap)
-		if len(msgsToSave) > 0 {
-			store.SaveMessages(msgsToSave)
-		}
+	msgs := processGeminiItems(email, user, aliases, items, classificationMap, toMap, msgMap)
+	if len(msgs) > 0 {
+		store.SaveMessages(msgs)
 	}
 }
 
@@ -446,52 +447,48 @@ func executeGmailAnalysisWithRetry(ctx context.Context, gc *ai.GeminiClient, ema
 
 func processGeminiItems(email string, user *store.User, aliases []string, items []store.TodoItem, classificationMap, toMap map[string]string, msgMap map[string]types.RawMessage) []store.ConsolidatedMessage {
 	var msgsToSave []store.ConsolidatedMessage
-	fallbackAssignee := getPreferredName(user)
+	fallback := getPreferredName(user)
 
 	for i, item := range items {
-		isMe := isAssigneeMe(item.Assignee, email, user.Name, fallbackAssignee, aliases)
-		cls := classificationMap[item.SourceTS]
-		toHeader := toMap[item.SourceTS]
-
-		assignee, category := resolveGmailCategoryAndAssignee(item, isMe, cls, toHeader, fallbackAssignee)
-
-		// Why: Attempts to resolve the assignee name back to a canonical email ID if a matching contact exists.
-		// [Safeguard] Falls back to the original name if no contact match is found.
-		id, _, _ := store.NormalizeWithCategory(email, assignee)
-		if id != "" && strings.Contains(id, "@") {
-			assignee = id
+		msg, ok := mapTodoToMessage(email, user, aliases, item, i, fallback, classificationMap, toMap, msgMap)
+		if ok {
+			msgsToSave = append(msgsToSave, msg)
 		}
-
-		assignedAt := time.Now()
-		origText := ""
-		m, ok := msgMap[item.SourceTS]
-		if !ok {
-			logger.Warnf("[GMAIL-SCAN] Mismatch SourceTS: %s. Skipping this task item.", item.SourceTS)
-			continue
-		}
-		assignedAt = m.Timestamp
-		origText = m.Text
-
-		// Requester is the sender's ID (already canonicalized as email in processSingleEmail)
-		requester := m.Sender
-
-		msgsToSave = append(msgsToSave, store.ConsolidatedMessage{
-			UserEmail:    email,
-			Source:       "gmail",
-			Room:         "Gmail",
-			Task:         item.Task,
-			Requester:    requester,
-			Assignee:     assignee,
-			AssignedAt:   assignedAt,
-			Link:         fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS),
-			SourceTS:     fmt.Sprintf("gmail-%s-%d", item.SourceTS, i),
-			OriginalText: origText,
-			Deadline:     item.Deadline,
-			Category:     category,
-			ThreadID:     msgMap[item.SourceTS].ThreadID,
-		})
 	}
 	return msgsToSave
+}
+
+// mapTodoToMessage converts an AI-extracted TodoItem into a ConsolidatedMessage.
+func mapTodoToMessage(email string, user *store.User, aliases []string, item store.TodoItem, index int, fallback string, clsMap, toMap map[string]string, msgMap map[string]types.RawMessage) (store.ConsolidatedMessage, bool) {
+	m, ok := msgMap[item.SourceTS]
+	if !ok {
+		logger.Warnf("[GMAIL-SCAN] Mismatch SourceTS: %s", item.SourceTS)
+		return store.ConsolidatedMessage{}, false
+	}
+
+	isMe := isAssigneeMe(item.Assignee, email, user.Name, fallback, aliases)
+	assignee, category := resolveGmailCategoryAndAssignee(item, isMe, clsMap[item.SourceTS], toMap[item.SourceTS], fallback)
+
+	// Resolve canonical assignee if possible
+	if id, _, _ := store.NormalizeWithCategory(email, assignee); id != "" && strings.Contains(id, "@") {
+		assignee = id
+	}
+
+	return store.ConsolidatedMessage{
+		UserEmail:    email,
+		Source:       "gmail",
+		Room:         "Gmail",
+		Task:         item.Task,
+		Requester:    m.Sender,
+		Assignee:     assignee,
+		AssignedAt:   m.Timestamp,
+		Link:         fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS),
+		SourceTS:     fmt.Sprintf("gmail-%s-%d", item.SourceTS, index),
+		OriginalText: m.Text,
+		Deadline:     item.Deadline,
+		Category:     category,
+		ThreadID:     m.ThreadID,
+	}, true
 }
 
 
@@ -513,7 +510,7 @@ func resolveGmailCategoryAndAssignee(item store.TodoItem, isMe bool, cls, toHead
 		assignee = fallback
 	} else {
 		//Why: CategoryOthers (CC or group mail) OR not identifying as me. Force group/recipient name as assignee to avoid "me" categorization in UI.
-		assignee = ExtractNameFromEmail(toHeader)
+		assignee = types.ExtractNameFromEmail(toHeader)
 	}
 	return assignee, category
 }
@@ -525,37 +522,6 @@ func getPreferredName(user *store.User) string {
 	return user.Email
 }
 
-func ExtractNameFromEmail(header string) string {
-	if header == "" {
-		return ""
-	}
-	addrs, err := mail.ParseAddressList(header)
-	if err == nil && len(addrs) > 0 {
-		if addrs[0].Name != "" {
-			return addrs[0].Name
-		}
-		return addrs[0].Address
-	}
-
-	firstRecip := strings.Split(header, ",")[0]
-	if idx := strings.Index(firstRecip, "<"); idx != -1 {
-		name := strings.TrimSpace(firstRecip[:idx])
-		name = strings.Trim(name, "\"")
-		if name != "" {
-			//Why: Decodes MIME-encoded headers to ensure non-ASCII characters (like Korean names) are correctly displayed in the UI.
-			dec := new(mime.WordDecoder)
-			if decoded, err := dec.DecodeHeader(name); err == nil {
-				name = decoded
-			}
-			return name
-		}
-		endIdx := strings.Index(firstRecip, ">")
-		if endIdx > idx {
-			return strings.TrimSpace(firstRecip[idx+1 : endIdx])
-		}
-	}
-	return strings.TrimSpace(firstRecip)
-}
 
 func extractBody(payload *gmail.MessagePart) string {
 	if payload == nil {

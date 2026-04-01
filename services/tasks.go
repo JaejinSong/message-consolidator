@@ -3,9 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
-	"message-consolidator/channels"
 	"message-consolidator/logger"
 	"message-consolidator/store"
+	"message-consolidator/types"
 	"strings"
 
 	"golang.org/x/sync/errgroup"
@@ -372,7 +372,7 @@ func isWronglyAssignedToMe(assignee string, user *store.User, aliases []string) 
 //Why: Resolves the true primary recipient of an email by parsing the local "To" header or falling back to a Gmail API metadata request for precise correction of over-assigned tasks.
 func resolveActualAssignee(ctx context.Context, m store.ConsolidatedMessage, toHeader string, svc *gmail.Service) string {
 	if toHeader != "" {
-		return channels.ExtractNameFromEmail(toHeader)
+		return types.ExtractNameFromEmail(toHeader)
 	}
 	//Why: Fallback mechanism: Retrieves the "To" header via a direct Gmail API metadata request if it is missing from the stored message context.
 	msgID := m.SourceTS
@@ -387,7 +387,7 @@ func resolveActualAssignee(ctx context.Context, m store.ConsolidatedMessage, toH
 	if err == nil && msg.Payload != nil {
 		for _, h := range msg.Payload.Headers {
 			if h.Name == "To" {
-				return channels.ExtractNameFromEmail(h.Value)
+				return types.ExtractNameFromEmail(h.Value)
 			}
 		}
 	}

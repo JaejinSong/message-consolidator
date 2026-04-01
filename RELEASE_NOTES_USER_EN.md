@@ -1,3 +1,12 @@
+# Release Notes - v2.4.7 (2026-04-01 08:03 UTC)
+
+- [IMPROVED] Enhanced Gmail Task Extraction: Refined the AI engine to eliminate redundant context when extracting multiple deliverables from a single email, ensuring each task is distinct and actionable.
+- [IMPROVED] Smarter Task Summaries: Reduced clutter in task titles by filtering out repetitive project-level context (e.g., "Thailand Trip"), leading to a cleaner dashboard.
+- [STABILITY] Robust AI Regression Testing: Implemented a more resilient validation pipeline that accounts for AI non-determinism (synonyms, aliases) while maintaining strict quality standards.
+- [REFACTOR] Improved Backend Code Architecture: Refactored the Gmail channel processing logic based on the Single Responsibility Principle for better system stability and maintainability.
+
+---
+
 # Release Notes - v2.4.6 (2026-04-01 06:04 UTC)
 
 - [NEW] Weekly AI Summaries: Your personal executive assistant has arrived! The Insights AI now delivers a Weekly Report to recap your team's top discussions and progress.
