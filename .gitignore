@@ -29,3 +29,6 @@ dist/
 tasks_migration.csv
 *.db
 *.log
+.deploy.sh.swp
+branch.txt
+verify-fix.js
