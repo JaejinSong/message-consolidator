@@ -1,4 +1,11 @@
-Return JSON array of tasks:
-[{"task":"Concise %s summary","requester":"","assignee":"","assigned_at":"","source_ts":"EXTRACT_EXACT_ID_FROM_PROMPT","deadline":"date/time","category":"todo|waiting|promise"}]
-- source_ts: Must be the alphanumeric ID found in the [ID:...] tag (e.g., if "[ID:18e7e1...]", use "18e7e1...").
-Use "" for missing. NEVER "undefined". Output ONLY JSON.
+Return a JSON array of tasks. 
+RULES:
+1. 1 TOPIC = 1 TASK. Merge multiple suggestions/questions on the same topic into one comprehensive summary. Ignore minor details, bullet points, and polite remarks.
+2. SPLIT ONLY if topics are completely independent.
+
+[{"task":"High-level core intent summary. No direct quotes.","requester":"","assignee":"","assigned_at":"","source_ts":"ID_FROM_TAG","deadline":"YYYY-MM-DD or time","category":"todo|waiting|promise"}]
+
+- source_ts: Alphanumeric ID from [ID:...].
+- category: todo, waiting, or promise.
+- Use "" for missing. NEVER "undefined". 
+- Output ONLY JSON.

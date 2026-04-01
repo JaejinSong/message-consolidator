@@ -1,3 +1,16 @@
+# Release Notes (Tech) - v2.4.5 (2026-04-01 05:29 UTC)
+
+- [FEAT] Identity Resolution V3: Advanced cross-channel account linking logic with comprehensive UI error handling for edge-case resolution.
+- [FEAT] Relationship Graph Visualization: Integrated a graph-based mapping component within the AI Reporting system to visualize entity interactions.
+- [FIX] Gmail Task Attribution: Resolved a rendering bug where assignees were intermittently displayed as 'undefined' for Gmail-sourced tasks.
+- [UI] Dark Mode & Insights Stabilization: Enhanced report readability with optimized color contrast and fixed icon alignment within the Insights module.
+- [OPTIMIZE] Batch Translation Engine: Implemented request chunking and connection pooling to increase throughput for large-scale message processing.
+- [SYS] Observability Integration: Integrated WhaTap monitoring to provide real-time performance metrics and improved error tracking.
+- [REFACTOR] Database Architecture: Re-engineered SQL query logic using Views to simplify backend data access layers and improve maintainability.
+- [REFACTOR] Gemini Client Optimization: Standardized token usage logging and response text handling to improve AI diagnostic precision.
+
+---
+
 # Release Notes (Tech) - v2.4.4 (2026-03-30 07:01 UTC)
 
 - [FEAT] Just-in-Time (JIT) Translation: Implemented on-demand translation utilizing a `singleflight` mechanism to suppress redundant upstream requests and integrated a reactive loading UI.

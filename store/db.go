@@ -164,6 +164,8 @@ func runMigrations() error {
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN category TEXT DEFAULT 'todo';")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN deadline TEXT;")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN thread_id TEXT;")
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN assignee_reason TEXT;")
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN replied_to_id TEXT;")
 
 	//Why: Extends the users table with gamification-related metadata including points, levels, and streaks.
 	_, _ = db.Exec("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0;")
@@ -348,14 +350,14 @@ func RefreshCache(email string) error {
 func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedMessage, error) {
 	var m ConsolidatedMessage
 	var assignedAt, createdAt, completedAt DBTime
-	var room, requester, assignee, link, originalText, category, deadline, threadID, sourceTS, source, requesterCanonical, assigneeCanonical sql.NullString
+	var room, requester, assignee, link, originalText, category, deadline, threadID, assigneeReason, repliedToID, sourceTS, source, requesterCanonical, assigneeCanonical sql.NullString
 
 	err := rows.Scan(
 		&m.ID, &m.UserEmail, &source, &room, &m.Task,
 		&requester, &assignee, &assignedAt, &link,
 		&sourceTS, &originalText, &m.Done, &m.IsDeleted,
 		&createdAt, &completedAt, &category, &deadline,
-		&threadID, &requesterCanonical, &assigneeCanonical,
+		&threadID, &assigneeReason, &repliedToID, &requesterCanonical, &assigneeCanonical,
 	)
 	if err != nil {
 		return m, err
@@ -371,6 +373,8 @@ func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedM
 	m.Category = category.String
 	m.Deadline = deadline.String
 	m.ThreadID = threadID.String
+	m.AssigneeReason = assigneeReason.String
+	m.RepliedToID = repliedToID.String
 	m.RequesterCanonical = requesterCanonical.String
 	m.AssigneeCanonical = assigneeCanonical.String
 

@@ -1,14 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 
+const SRC_DIR = path.join(__dirname, 'src');
 const STATIC_CSS_DIR = path.join(__dirname, 'static/css');
-const STATIC_JS_DIR = path.join(__dirname, 'static/js');
 const COMPONENTS_DIR = path.join(STATIC_CSS_DIR, 'components');
-const RENDERER_JS_PATH = path.join(STATIC_JS_DIR, 'renderer.js');
-const INSIGHTS_RENDERER_JS_PATH = path.join(STATIC_JS_DIR, 'insightsRenderer.js');
 
 const HARDCODED_VALUES_REGEX = /(?<!var\(--)[0-9]+px|#[0-9a-fA-F]{3,6}/g;
-const BEM_CLASS_REGEX = /c-[a-zA-Z0-9\-_]*/g; // General BEM match
+const BEM_CLASS_REGEX = /c-[a-zA-Z0-9\-_]*/g; 
 
 function getStyleFiles() {
     let files = [];
@@ -29,7 +27,6 @@ function getStyleFiles() {
 function verifyHardcodedValues() {
     console.log('--- Verifying Hardcoded Values (px, hex) ---');
     const cssFiles = getStyleFiles();
-    const jsFiles = [RENDERER_JS_PATH, INSIGHTS_RENDERER_JS_PATH].filter(f => fs.existsSync(f));
     
     let allPassed = true;
     
@@ -58,8 +55,26 @@ function verifyHardcodedValues() {
         }
     });
 
-    // Verify JS Files (with exceptions for dynamic CSS variable extraction)
-    jsFiles.forEach(file => {
+    // Verify JS/TS Files (with exceptions for dynamic CSS variable extraction)
+    const getTsFiles = (dir) => {
+        let results = [];
+        const list = fs.readdirSync(dir);
+        list.forEach(file => {
+            let fullPath = path.resolve(dir, file);
+            const stat = fs.statSync(fullPath);
+            if (stat && stat.isDirectory()) {
+                results = results.concat(getTsFiles(fullPath));
+            } else if (fullPath.endsWith('.ts') || fullPath.endsWith('.js')) {
+                results.push(fullPath);
+            }
+        });
+        return results;
+    };
+    
+    const srcFiles = getTsFiles(SRC_DIR);
+    
+    srcFiles.forEach(file => {
+        if (file.includes('.test.') || file.includes('/tests/')) return;
         const content = fs.readFileSync(file, 'utf8');
         const lines = content.split('\n');
         
@@ -67,15 +82,12 @@ function verifyHardcodedValues() {
         let violations = [];
 
         lines.forEach((line, index) => {
-            // Exemption: Comments, strings in specific functions, or usage of getCssVariableValue
             if (line.trim().startsWith('//') || line.trim().startsWith('*')) return;
             if (line.includes('getCssVariableValue')) return;
             if (line.includes('getComputedStyle')) return;
 
             const hardcoded = line.match(HARDCODED_VALUES_REGEX);
             if (hardcoded) {
-                // Ignore if it looks like a hex color inside a valid context (e.g. default value for utility)
-                // But generally flag them to encourage using variables.
                 violations.push(`${index + 1}: ${hardcoded.join(', ')}`);
                 filePassed = false;
                 allPassed = false;
@@ -93,8 +105,24 @@ function verifyHardcodedValues() {
 }
 
 function verifyBEMClasses() {
-    console.log('--- Verifying BEM Classes across JS/CSS ---');
-    const jsFiles = [RENDERER_JS_PATH, INSIGHTS_RENDERER_JS_PATH].filter(f => fs.existsSync(f));
+    console.log('--- Verifying BEM Classes across TS/CSS ---');
+    // Get all TS files in src directory
+    const getTsFiles = (dir) => {
+        let results = [];
+        const list = fs.readdirSync(dir);
+        list.forEach(file => {
+            file = path.resolve(dir, file);
+            const stat = fs.statSync(file);
+            if (stat && stat.isDirectory()) {
+                results = results.concat(getTsFiles(file));
+            } else if (file.endsWith('.ts') || file.endsWith('.js')) {
+                results.push(file);
+            }
+        });
+        return results;
+    };
+    
+    const tsFiles = getTsFiles(SRC_DIR);
     const cssFiles = getStyleFiles();
     
     let combinedCssContent = '';
@@ -105,12 +133,19 @@ function verifyBEMClasses() {
     
     let allPassed = true;
     
-    jsFiles.forEach(file => {
-        const jsContent = fs.readFileSync(file, 'utf8');
-        const jsClasses = new Set(jsContent.match(BEM_CLASS_REGEX) || []);
+    tsFiles.forEach(file => {
+        if (file.includes('.test.') || file.includes('/tests/')) return;
+        
+        const content = fs.readFileSync(file, 'utf8');
+        const jsClasses = new Set(content.match(BEM_CLASS_REGEX) || []);
         
         for (const cls of jsClasses) {
+            // Filter out common false positives
+            if (cls === 'c-') continue;
+            if (/^c-[0-9]+$/.test(cls)) continue; // Ignore c-123 types which are likely not BEM
+            
             if (cls.startsWith('c-') && !cssClasses.has(cls)) {
+                // Ignore specific exclusions if needed
                 console.error(`❌ Class "${cls}" found in ${path.relative(__dirname, file)} but MISSING in CSS files.`);
                 allPassed = false;
             }

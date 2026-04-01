@@ -1,3 +1,14 @@
+# Release Notes - v2.4.5 (2026-04-01 05:29 UTC)
+
+- [NEW] See Your Network: Introducing the Relationship Graph! You can now see a visual map of how you and your team are connected through your conversations.
+- [NEW] Smarter "Who's Who": Our identity engine just got an upgrade to V3. Linking your different accounts is now smoother, smarter, and error-free.
+- [IMPROVED] Night Mode Perfection: We've polished the Dark Mode for your Insights tab. Your reports are now easier on the eyes and look sharper than ever.
+- [FIX] No More Mystery Assignees: Fixed a bug where Gmail tasks would sometimes show "undefined" instead of a name. Your teammates are back where they belong!
+- [PERFORMANCE] High-Speed Translation: Dealing with thousands of messages? Our improved translation engine now handles bulk content with much better speed and stability.
+- [STABILITY] Behind-the-Scenes Monitoring: We've added professional-grade monitoring to ensure Message Consolidator stays fast and reliable 24/7.
+
+---
+
 # Release Notes - v2.4.4 (2026-03-30 07:01 UTC)
 
 - [NEW] Your Personal Weekly Biographer: The AI Weekly Report is here! Now you can get a smart summary of your entire week's productivity and trends without lifting a finger.

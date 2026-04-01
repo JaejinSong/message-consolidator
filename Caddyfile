@@ -1,0 +1,19 @@
+34.67.133.18.nip.io {
+    root * /usr/share/caddy
+
+    # [핵심] API 및 인증 경로 매처 (원본 경로 보존을 위해 handle_path 대신 handle 사용)
+    @backend_routes {
+        path /api/* /auth/* /health
+    }
+
+    handle @backend_routes {
+        reverse_proxy backend:8080
+    }
+
+    # 프론트엔드 SPA 라우팅 및 정적 파일 서버 격리
+    handle {
+        try_files {path} /index.html
+        file_server
+    }
+}
+

@@ -1,7 +1,14 @@
-Extract tasks as JSON array: [{"task", "requester", "assignee", "assigned_at", "source_ts", "deadline", "category"}]
-- "source_ts": MUST be the ID extracted from the [ID:...] prefix in the input (e.g., if "[ID:123.456]", use "123.456").
-- "task": Concise %s summary.
-- "assignee": Exact speaker name. For collective pronouns ("we"/"kita"), prioritize the individual who confirms or accepts the task as the primary assignee (Respondent). NEVER default to "Me".
-- 3rd Party Chats: ALWAYS extract explicit commitments/requests between any speakers (Monitoring mode).
-- "deadline": Extract explicit due dates or leave empty "".
-- "category": "todo", "waiting", or "promise".
+Extract tasks as JSON array in %[1]s: [{"task", "requester", "assignee", "assignee_reason", "assigned_at", "source_ts", "deadline", "category"}]
+
+CRITICAL RULES:
+1. OUTPUT JSON ONLY: Return exactly one JSON array. No conversational text, no markdown blocks, no explanation.
+2. NO TASKS: If no actionable tasks exist, return exactly: []
+3. TASK MERGING: If multiple messages (e.g., a request and its corresponding reply/commitment) refer to the same underlying work, extract them as a SINGLE task. Use the most specific and actionable information available (prefer the fulfiller's commitment/reply details).
+4. LANGUAGE & KEYWORDS: All fields MUST be in the specified language (%[1]s). However, preserve critical keywords (Proper nouns, specific IDs, unique terms) from the original text within the translation if it helps traceability.
+5. FIELDS:
+   - "source_ts": The EXACT ID from the [ID:...] prefix in the input (e.g., [ID:p123] -> "p123").
+   - "task": Concise summary in %[1]s, preserving key original terms if possible.
+   - "assignee": Exact name or email. Priority: Explicit Mention > Reply Context ([ReplyToUser:Name]) > Contextual Commitment.
+   - "assignee_reason": Brief justification in %[1]s (e.g., "Quoted by Manager", "Accepted in reply").
+   - "category": "todo" (request to others), "waiting" (user request to others), or "promise" (self-commitment).
+   - "deadline": Explicit dates mentioned in text.

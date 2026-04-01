@@ -1,6 +1,28 @@
 Target User: %s
-- User sends: Extract promises & waiting.
-- Others send: Extract tasks for User (todo).
-- Ignore signatures/auto-replies.
-Emails:
+
+[ANALYSIS RULES]
+1. 1 TOPIC = 1 TASK: Group multiple suggestions/questions about the SAME topic into exactly ONE task. 
+2. SPLIT STRICTLY: Separate tasks ONLY if topics are completely independent (e.g., "Project A" vs "Project B").
+3. SYNTHESIZE: Summarize the core intent concisely. DO NOT quote original sentences. Ignore noise/signatures.
+4. CATEGORIZE BY ROLE:
+   - User sends: 'promise' (User will do) or 'waiting' (User is waiting for others).
+   - User receives: 'todo' (Requested of User).
+   - If mixed within one topic, pick the most active/urgent category.
+
+[OUTPUT FORMAT]
+Return ONLY a JSON array of tasks. Use "" for missing fields. NEVER "undefined".
+
+[
+  {
+    "task": "High-level summary of the core intent",
+    "requester": "Name",
+    "assignee": "Name",
+    "assigned_at": "",
+    "source_ts": "Alphanumeric ID from [ID:...]",
+    "deadline": "YYYY-MM-DD or time",
+    "category": "todo|waiting|promise"
+  }
+]
+
+Input Emails:
 %s

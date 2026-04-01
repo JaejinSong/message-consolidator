@@ -8,7 +8,7 @@ const path = require('path');
  */
 
 const COMPONENTS_DIR = path.join(__dirname, '../static/css/components');
-const HTML_PATH = path.join(__dirname, '../static/index.html');
+const HTML_PATH = path.join(__dirname, '../index.html');
 
 function verify() {
     console.log('--- Loading UI Verification (Modular) ---');

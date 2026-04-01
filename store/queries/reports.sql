@@ -43,7 +43,7 @@ SELECT
     m.id, m.user_email, m.source, m.room, 
     COALESCE(t.translated_text, m.task) AS task, 
     m.requester, m.assignee, m.assigned_at, m.link, m.source_ts, m.original_text, m.done, m.is_deleted, m.created_at, m.completed_at, m.category, m.deadline, m.thread_id,
-    m.requester_canonical, m.assignee_canonical
+    m.assignee_reason, m.replied_to_id, m.requester_canonical, m.assignee_canonical
 FROM v_messages m
 LEFT JOIN task_translations t ON m.id = t.message_id AND t.language_code = 'en'
 WHERE m.user_email = ? 

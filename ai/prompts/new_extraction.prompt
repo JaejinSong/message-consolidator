@@ -1,0 +1,26 @@
+# Role: Task Content Extractor
+
+Extract actionable task items from the provided message text. 
+
+# Message Text:
+{{message_text}}
+
+# Goal:
+Only extract clear actions or requests that require follow-up. 
+Omit greetings, context that doesn't define a task, and conversational filler.
+
+# Response Format:
+Respond ONLY with a valid JSON object matching this schema:
+{
+  "tasks": [
+    {
+      "content": "string"
+    }
+  ]
+}
+
+# Strict Constraints:
+- DO NOT infer or include 'priority' or 'assignee'.
+- Only focus on the 'content' of the task.
+- If no actionable task is found, respond with an empty tasks array: {"tasks": []}.
+- Respond with valid JSON only. No markdown formatting.

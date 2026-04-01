@@ -39,6 +39,8 @@ type ConsolidatedMessage struct {
 	ThreadID           string     `json:"thread_id,omitempty"`
 	RequesterCanonical string     `json:"requester_canonical,omitempty"`
 	AssigneeCanonical  string     `json:"assignee_canonical,omitempty"`
+	AssigneeReason     string     `json:"assignee_reason,omitempty"`
+	RepliedToID        string     `json:"replied_to_id,omitempty"`
 }
 
 // User represents an application user
@@ -101,8 +103,9 @@ type TodoItem struct {
 	Assignee   string `json:"assignee"`
 	AssignedAt string `json:"assigned_at"`
 	SourceTS   string `json:"source_ts"`
-	Category   string `json:"category"`
-	Deadline   string `json:"deadline"`
+	Category       string `json:"category"`
+	Deadline       string `json:"deadline"`
+	AssigneeReason string `json:"assignee_reason,omitempty"`
 }
 
 // TranslateRequest represents a request to translate a specific task

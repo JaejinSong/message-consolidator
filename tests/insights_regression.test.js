@@ -10,7 +10,7 @@ import path from 'path';
 
 describe('Insights Dashboard - Layout & Logic Regression', () => {
     let document;
-    let htmlPath = path.resolve(process.cwd(), 'static/index.html');
+    let htmlPath = path.resolve(process.cwd(), 'index.html');
 
     beforeAll(() => {
         const html = fs.readFileSync(htmlPath, 'utf8');

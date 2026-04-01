@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const INDEX_PATH = path.join(__dirname, 'static/index.html');
+const INDEX_PATH = path.join(__dirname, 'index.html');
 const CSS_PATH = path.join(__dirname, 'static/css/layout.css');
 
 let hasErrors = false;

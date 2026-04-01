@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const INDEX_HTML_PATH = path.join(__dirname, 'static/index.html');
+const INDEX_HTML_PATH = path.join(__dirname, 'index.html');
 
 function verifyMainIDs() {
     console.log('--- Verifying main HTML IDs ---');

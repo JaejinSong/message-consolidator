@@ -21,7 +21,7 @@ func SaveMessage(msg ConsolidatedMessage) (bool, int, error) {
 	msg.Assignee = NormalizeName(msg.UserEmail, msg.Assignee)
 
 	var lastID int
-	err := db.QueryRow(SQL.SaveMessage, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline, msg.ThreadID).Scan(&lastID)
+	err := db.QueryRow(SQL.SaveMessage, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline, msg.ThreadID, msg.AssigneeReason, msg.RepliedToID).Scan(&lastID)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -70,17 +70,14 @@ func SaveMessages(msgs []ConsolidatedMessage) ([]int, error) {
 	}
 
 	valueStrings := make([]string, 0, len(toInsert))
-	valueArgs := make([]interface{}, 0, len(toInsert)*13)
+	valueArgs := make([]interface{}, 0, len(toInsert)*15)
 
 	for _, msg := range toInsert {
-		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-		valueArgs = append(valueArgs, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline, msg.ThreadID)
+		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		valueArgs = append(valueArgs, msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline, msg.ThreadID, msg.AssigneeReason, msg.RepliedToID)
 	}
 
-	query := fmt.Sprintf(`INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id) 
-			  VALUES %s
-			  ON CONFLICT(user_email, source_ts) DO NOTHING
-			  RETURNING id, source_ts, user_email;`, strings.Join(valueStrings, ","))
+	query := fmt.Sprintf(SQL.SaveMessagesBase, strings.Join(valueStrings, ","))
 
 	rows, err := db.Query(query, valueArgs...)
 	if err != nil {
@@ -328,10 +325,7 @@ func GetMessagesByIDs(ctx context.Context, ids []int) ([]ConsolidatedMessage, er
 
 	//Why: Explicitly specifies all 20 columns from the v_messages view to ensure identity-resolved fields are correctly scanned into the struct.
 	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
-	query := fmt.Sprintf(`
-		SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, requester_canonical, assignee_canonical 
-		FROM v_messages 
-		WHERE id IN (%s)`, placeholders)
+	query := fmt.Sprintf(SQL.GetMessagesByIDs, placeholders)
 	interfaceIds := make([]interface{}, len(ids))
 	for i, v := range ids {
 		interfaceIds[i] = v

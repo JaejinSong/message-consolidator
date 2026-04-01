@@ -50,7 +50,9 @@ CREATE TABLE IF NOT EXISTS messages (
     completed_at DATETIME,
     category TEXT DEFAULT 'todo',
     deadline TEXT,
-    thread_id TEXT
+    thread_id TEXT,
+    assignee_reason TEXT,
+    replied_to_id TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_thread_id ON messages(thread_id);
 
@@ -155,6 +157,8 @@ SELECT
     COALESCE(m.category, 'todo') as category, 
     COALESCE(m.deadline, '') as deadline,
     COALESCE(m.thread_id, '') as thread_id,
+    COALESCE(m.assignee_reason, '') as assignee_reason,
+    COALESCE(m.replied_to_id, '') as replied_to_id,
     COALESCE(cr_req.effective_canonical_id, m.requester) as requester_canonical,
     COALESCE(cr_asg.effective_canonical_id, m.assignee) as assignee_canonical
 FROM messages m
