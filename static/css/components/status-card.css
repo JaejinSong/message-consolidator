@@ -57,6 +57,12 @@
     color: var(--color-gmail);
 }
 
+.c-status-card--inactive {
+    opacity: 0.4;
+    filter: grayscale(1);
+    border-style: dashed;
+}
+
 /* Mobile Responsive */
 @media (max-width: 480px) {
     .c-status-group {

@@ -1,3 +1,16 @@
+# Release Notes (Tech) - v2.4.6 (2026-04-01 06:04 UTC)
+
+- [FEAT] JIT On-Demand Translation: Implemented a Just-In-Time translation engine using the `singleflight` pattern to eliminate redundant upstream API calls during concurrent requests.
+- [FEAT] AI Weekly Report: Enabled the "Weekly Report" feature within the Insights AI module, providing comprehensive periodic analysis of communication patterns.
+- [FEAT] Ambiguity Safeguard Engine: Integrated a specialized safeguard layer into the Identity Resolution system to better handle high-entropy entity matching and reduce false positives.
+- [OPTIMIZE] WhatsApp Ingestion: Optimized task extraction and message processing for WhatsApp; established the architectural foundation for a full React migration.
+- [FIX] AI Analysis Truncation: Resolved a bug where long-form AI analysis results were intermittently truncated; added regression test suites for text completion integrity.
+- [UI] Mobile Layout & Archive Logic: Refined mobile UI margins and padding for improved responsiveness; updated task archive logic to prioritize completion status and renamed to 'Canceled Tasks'.
+- [SYS] Turso Migration: Migrated the primary database to Turso (libsql) to achieve lower edge latency and resolve intermittent startup panics.
+- [REFACTOR] Unified Utility Suite: Consolidated disparate debug and utility scripts into the `mc-util` internal package to standardize developer workflows.
+
+---
+
 # Release Notes (Tech) - v2.4.5 (2026-04-01 05:29 UTC)
 
 - [FEAT] Identity Resolution V3: Advanced cross-channel account linking logic with comprehensive UI error handling for edge-case resolution.

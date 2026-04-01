@@ -5,75 +5,44 @@
     --accent-color: #00f2ff;
     --accent-rgb: 0, 242, 255;
     --accent-glow: rgba(var(--accent-rgb), 0.3);
-    /* 0 242 255 */
     --text-main: #f0f0f0;
     --text-dim: #9ca3af;
     --glass-border: rgba(255, 255, 255, 0.08);
     --shadow-main: 0 1.25rem 2.5rem rgba(0, 0, 0, 0.4);
-    /* 0 20px 40px */
     --border-light: rgba(255, 255, 255, 0.05);
     --shadow-card: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.2);
-    /* 0 4px 12px */
 
     /* Spacing & Radius Tokens */
-    /* 1rem = 16px 기준 */
     --spacing-xxs: 0.125rem;
-    /* 2px */
     --spacing-xs: 0.25rem;
-    /* 4px */
     --spacing-sm: 0.5rem;
-    /* 8px */
     --spacing-md: 0.75rem;
-    /* 12px */
     --spacing-lg: 1rem;
-    /* 16px */
     --spacing-xl: 1.25rem;
-    /* 20px */
     --spacing-2xl: 1.5rem;
-    /* 24px */
     --spacing-3xl: 2rem;
-    /* 32px */
 
     --radius-sm: 0.25rem;
-    /* 4px */
     --radius-md: 0.5rem;
-    /* 8px */
     --radius-lg: 0.75rem;
-    /* 12px */
     --radius-xl: 1rem;
-    /* 16px */
     --radius-2xl: 1.25rem;
-    /* 20px */
     --radius-full: 9999px;
 
     /* Layout & Effect Tokens */
     --border-thin: 1px;
     --blur-md: 0.75rem;
-    /* 12px */
 
     /* Column Widths (rem) */
     --col-room: 7.5rem;
-    /* 120px */
     --col-requester: 8.75rem;
-    /* 140px */
     --col-assignee: 6.25rem;
-    /* 100px */
     --col-time: 9.375rem;
-    /* 150px */
     --col-actions: 8.75rem;
-    /* 140px */
 
     --color-primary: #00f2ff;
     --color-primary-rgb: 0, 226, 255;
-    /* #00e2ff */
 
-    /* Elevation & Spacing Tokens */
-    /*
-     * Note: While most px values are converted to rem for scalability,
-     * 1px borders and specific shadow offsets are kept in px for visual crispness
-     * and to avoid potential rendering inconsistencies across browsers/zoom levels.
-     * This aligns with common practices for pixel-perfect UI elements.
-     */
     --view-subnav-gap: 0.75rem;
     /* Semantic Colors (Dark) */
     --color-success: #10b981;
@@ -94,36 +63,22 @@
 
     /* Breakpoint Tokens */
     --bp-mobile: 30rem;
-    /* 480px */
     --bp-tablet: 48rem;
-    /* 768px */
     --bp-laptop: 64rem;
-    /* 1024px */
     --bp-desktop: 62.5rem;
-    /* 1000px */
     --bp-wide: 112.5rem;
-    /* 1800px */
 
     /* Component Specific Tokens */
     --status-card-size: 6.25rem;
-    /* 100px */
     --status-card-min: 5rem;
-    /* 80px */
     --status-card-icon: 2.375rem;
-    /* 38px */
     --status-card-icon-sm: 1.875rem;
-    /* 30px */
     --task-card-min-width: 25rem;
-    /* 400px */
     --btn-size: 2.5rem;
-    /* 40px */
     --btn-size-sm: 2rem;
-    /* 32px */
     --border-thick: 6px;
     --archive-task-min-width: 18.75rem;
-    /* 300px */
     --insights-card-min-width: 21.875rem;
-    /* 350px */
 
     /* Table Specific Tokens */
     --table-cell-padding: 1.2rem 1rem;
@@ -136,6 +91,19 @@
     --z-index-modal: 2000;
     --z-index-spinner: 10000;
     --table-header-bg: rgba(255, 255, 255, 0.05);
+
+    --color-slack-ruby: #E01E5A;
+    --color-slack-blue: #36C5F0;
+    --color-slack-green: #2EB67D;
+    --color-slack-gold: #ECB22E;
+
+    /* Confetti Colors */
+    --color-confetti-gold: #FDB813;
+    --color-confetti-snow-1: #e0f7fa;
+    --color-confetti-snow-2: #b2ebf2;
+    --color-confetti-sky: #00d4ff;
+    --color-confetti-pink: #ff007f;
+    --color-confetti-lime: #32ff7e;
 }
 
 /* Light Theme Overrides - High Contrast Premium Slate */
@@ -150,9 +118,7 @@ body.light-theme {
     --text-dim: #475569;
     --glass-border: #cbd5e1;
     --shadow-main: 0 0.625rem 1.875rem rgba(15, 23, 42, 0.1);
-    /* 0 10px 30px */
     --shadow-card: 0 0.25rem 0.75rem rgba(15, 23, 42, 0.08);
-    /* 0 4px 12px */
 
     /* Semantic Colors (Light) */
     --color-success: #059669;

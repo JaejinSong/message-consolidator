@@ -1,28 +1,27 @@
-# .dockerignore
-.git
-.agents
-.vscode
-message-consolidator
-server.log
-logs/
-.deploy/
+# Why: Exclude heavy directories and intermediate build artifacts to speed up Docker build context transfer.
 node_modules/
 dist/
-Dockerfile
-.dockerignore
-*.sh
-!entrypoint.sh
-*.md
+.git/
+.gitignore
+
+# Why: Exclude Go-specific build data.
+go-build/
+message-consolidator
+mc-util
+
+# Why: Exclude sensitive environment variables and keys. All .env.* files are excluded.
+# Vite env vars must be injected via build ARGs (--build-arg VITE_API_BASE_URL=...) instead.
+.env
+.env.*
+
+# Why: Allow release notes inside container (served by backend).
 !RELEASE_NOTES_*.md
+README.md
+TODO.md
 planning/
-knowledge/
+
+# Why: Miscellaneous junk.
+*.log
 *.db
-*.png
-package-lock.json
-vitest.config.ts
-verify-css.cjs
-vps-*.sh
-!whatap.conf
-!security.conf
-
-
+db_data/
+tmp/

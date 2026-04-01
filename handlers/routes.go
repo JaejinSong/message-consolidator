@@ -4,6 +4,7 @@ import (
 	"message-consolidator/auth"
 	"message-consolidator/channels"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/mux"
 )
@@ -25,15 +26,18 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/auth/logout", auth.HandleLogout).Methods("GET")
 
 	//Why: Configures protected access to static assets and the main single-page application entry point (index.html), ensuring only authenticated users can access the UI.
-	fs := http.FileServer(http.Dir("./static"))
-	r.PathPrefix("/static/").Handler(auth.AuthMiddleware(http.StripPrefix("/static/", fs)))
-	r.Handle("/", auth.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			http.ServeFile(w, r, "./static/index.html")
-			return
-		}
-		fs.ServeHTTP(w, r)
-	})))
+	//This logic is bypassed if DISABLE_STATIC_SERVING=true, as external web servers (e.g. Caddy/Nginx) will handle static assets.
+	if os.Getenv("DISABLE_STATIC_SERVING") != "true" {
+		fs := http.FileServer(http.Dir("./static"))
+		r.PathPrefix("/static/").Handler(auth.AuthMiddleware(http.StripPrefix("/static/", fs)))
+		r.Handle("/", auth.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/" {
+				http.ServeFile(w, r, "./index.html")
+				return
+			}
+			fs.ServeHTTP(w, r)
+		})))
+	}
 
 	//Why: Sets up protected API routes for task management, channel integration, and user profile data, all wrapped in authentication middleware.
 	r.Handle("/api/messages", auth.AuthMiddleware(http.HandlerFunc(a.HandleGetMessages))).Methods("GET")

@@ -105,10 +105,18 @@ func sanitizeJSON(s string) string {
 	start := strings.IndexAny(s, "[{")
 	end := strings.LastIndexAny(s, "]}")
 	if start != -1 && end != -1 && start < end {
+		//Why: If the model repeats the JSON (e.g., [][]), we only want the first valid array or object to avoid "invalid character after top-level value" errors.
 		extracted := s[start : end+1]
+		if extracted[0] == '[' {
+			if firstEnd := strings.Index(extracted, "]["); firstEnd != -1 {
+				extracted = extracted[:firstEnd+1]
+			} else if firstEnd := strings.Index(extracted, "]\n["); firstEnd != -1 {
+				extracted = extracted[:firstEnd+1]
+			}
+		}
 
 		//Why: [Repair] Attempts to fix truncated JSON arrays by appending a closing bracket if the last character is a closing object brace, ensuring partial responses remain parsable.
-		if extracted[0] == '[' && extracted[len(extracted)-1] == '}' {
+		if len(extracted) > 0 && extracted[0] == '[' && extracted[len(extracted)-1] == '}' {
 			extracted += "]"
 		}
 

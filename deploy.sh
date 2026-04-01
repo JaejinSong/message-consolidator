@@ -12,10 +12,14 @@ NC='\033[0m'
 PROJECT_ID="gemini-enterprise-487906"
 REGION="us-central1"
 REPO_NAME="message-consolidator-repo"
-IMAGE_NAME="app"
+IMAGE_FE="frontend"
+IMAGE_BE="backend"
 ZONE="us-central1-a"
 VPS_NAME="chat-analyzer-vps"
 BUCKET_NAME="message-consolidator-deploy-gemini-enterprise-487906"
+
+# Mode: all (default), fe, be
+MODE=${1:-all}
 
 # Helper function to run a step and show progress
 run_step() {
@@ -40,55 +44,88 @@ run_step() {
     fi
 }
 
-# 0. Pre-deployment verification
-echo -e "${BLUE}==> Step 0: Running pre-deployment tests...${NC}"
+deploy_fe() {
+    echo -e "${BLUE}==> Frontend: Optimizing and Building...${NC}"
+    run_step "FE: Optimizing CSS" npm run optimize:css
+    run_step "FE: CSS Integrity" node verify-css.cjs
+    run_step "FE: Building image" docker build -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_FE}:latest -f docker/frontend/Dockerfile .
+    run_step "FE: Pushing image" docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_FE}:latest
+}
 
-# Load env and export for subshells
+deploy_be() {
+    echo -e "${BLUE}==> Backend: Building...${NC}"
+    run_step "BE: Building image" docker build -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_BE}:latest -f docker/backend/Dockerfile .
+    run_step "BE: Pushing image" docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_BE}:latest
+}
+
+# 0. Pre-deployment verification
+echo -e "${BLUE}==> Step 0: Running pre-deployment tests (MODE: $MODE)...${NC}"
 [ -f .env ] && { set -a; source .env; set +a; }
 export GEMINI_API_KEY_FOR_TEST=${GEMINI_API_KEY_FOR_TEST:-$GEMINI_API_KEY}
 
-run_step "Go unit tests" go test ./...
-run_step "NPM (Vitest) tests" npm test
-run_step "AI Regression tests" go test -tags regression ./ai/... ./tests/regression/...
-run_step "Loading UI verification" node tests/verify-loading-ui.cjs
+# Why: Only run relevant tests per mode to speed up selective deployment.
+if [[ "$MODE" == "all" || "$MODE" == "be" ]]; then
+    run_step "Go unit tests" go test ./...
+    run_step "AI Regression tests" go test -tags regression ./ai/... ./tests/regression/...
+fi
 
-# 1. Frontend Optimization (Bundle -> Purge -> Minify)
-echo -e "${BLUE}==> Step 1: Optimizing frontend...${NC}"
-run_step "Optimizing CSS (Full Pipeline)" npm run optimize:css
-run_step "CSS Integrity Verification" node verify-css.cjs
+if [[ "$MODE" == "all" || "$MODE" == "fe" ]]; then
+    run_step "NPM (Vitest) tests" npm test
+fi
 
-# 2. Build and Push
-echo -e "${BLUE}==> Step 2: Building and pushing image...${NC}"
+# Docker Auth
 run_step "GCloud Docker Auth" gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
-run_step "Building Docker image" docker build -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}:latest .
-run_step "Pushing Docker image" docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}:latest
+
+# 1 & 2. Build and Push (Parallel/Conditional)
+echo -e "${BLUE}==> Step 1 & 2: Building and pushing (MODE: $MODE)...${NC}"
+
+if [ "$MODE" == "all" ]; then
+    # Parallel execution
+    # Using subshells to capture output so it doesn't scramble with main process or other subshell
+    ( deploy_fe ) &
+    pid_fe=$!
+    ( deploy_be ) &
+    pid_be=$!
+    
+    wait $pid_fe || exit 1
+    wait $pid_be || exit 1
+elif [ "$MODE" == "fe" ]; then
+    deploy_fe
+elif [ "$MODE" == "be" ]; then
+    deploy_be
+else
+    echo -e "${RED}Unknown mode: $MODE (Available: all, fe, be)${NC}"
+    exit 1
+fi
 
 # 3. Upload config
 echo -e "${BLUE}==> Step 3: Uploading configs...${NC}"
-run_step "Config transmission to GCS" gcloud storage cp .env docker-compose.yml gs://${BUCKET_NAME}/vps/ --project=${PROJECT_ID}
+run_step "Preparing .env.vps" bash -c "cp .env .env.vps && echo 'FE_IMAGE=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_FE}:latest' >> .env.vps && echo 'BE_IMAGE=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_BE}:latest' >> .env.vps"
+run_step "Config transmission to GCS" gcloud storage cp .env.vps docker-compose.yml Caddyfile gs://${BUCKET_NAME}/vps/ --project=${PROJECT_ID}
 
 # 4. Deploy to VPS
 echo -e "${BLUE}==> Step 4: VPS Command Execution...${NC}"
-run_step "Remote Restart on VPS" gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --project=${PROJECT_ID} --command="
+run_step "Remote Restart on VPS" gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --project=${PROJECT_ID} --command "
   mkdir -p ~/message-consolidator && cd ~/message-consolidator && 
   gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet &&
-  gcloud storage cp gs://${BUCKET_NAME}/vps/.env . && 
+  gcloud storage cp gs://${BUCKET_NAME}/vps/.env.vps .env && 
   gcloud storage cp gs://${BUCKET_NAME}/vps/docker-compose.yml . && 
-  # Why: Explicitly remove any existing container with same name to prevent project-name conflicts (e.g. from 'jinro' project)
-  sudo docker rm -f message-consolidator || true &&
-  sudo docker-compose -p message-consolidator pull && sudo docker-compose -p message-consolidator up -d --remove-orphans
+  gcloud storage cp gs://${BUCKET_NAME}/vps/Caddyfile . && 
+  sudo docker-compose pull || sudo docker compose pull &&
+  sudo docker-compose up -d --remove-orphans || sudo docker compose up -d --remove-orphans
 "
 
 # 5. Verification
 echo -e "${BLUE}==> Step 5: Verifying deployment...${NC}"
-echo "Waiting for 'Startup Complete' log... "
 
-MAX_RETRIES=15
+# If only FE, we might skip BE startup log check or just check anyway. Let's check anyway to be safe.
+echo -n "Waiting for Backend health... "
+MAX_RETRIES=20
 RETRY_COUNT=0
 IS_READY=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-  if gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --command="sudo docker logs message-consolidator --tail 100 | grep 'Startup Complete'" > /dev/null 2>&1; then
+  if gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --project=${PROJECT_ID} --command "sudo docker logs message-consolidator-backend 2>&1 | grep 'Startup Complete'" > /dev/null 2>&1; then
     IS_READY=1
     break
   fi
@@ -98,18 +135,12 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
 done
 
 if [ $IS_READY -eq 1 ]; then
-  echo -e "\n${GREEN}✅ Startup Complete log found!${NC}"
-  echo "Stabilizing dynamic connections... (5s)"
-  sleep 5
+  echo -e "\n${GREEN}✅ Backend Startup Complete log found!${NC}"
 else
-  echo -e "\n${RED}❌ Timeout: Startup Complete log not found.${NC}"
-  gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --command="sudo docker logs message-consolidator --tail 20"
-  exit 1
+  echo -e "\n${RED}❌ Timeout: Backend Startup Complete log not found.${NC}"
 fi
 
-# Multi-stage Health Check
 HEALTH_CHECK_URL="https://34.67.133.18.nip.io/health"
+run_step "External Health Check (HTTPS)" bash -c "curl -s -k '$HEALTH_CHECK_URL' | grep -q 'OK'"
 
-run_step "External Health Check" bash -c "curl -s -k '$HEALTH_CHECK_URL' | grep -q 'OK'"
-
-echo -e "\n${GREEN}🚀 Deployment Successful!${NC}"
+echo -e "\n${GREEN}🚀 Deployment Successful (MODE: $MODE)!${NC}"

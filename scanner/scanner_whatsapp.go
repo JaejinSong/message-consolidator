@@ -58,6 +58,9 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 				replyCtx := ""
 				if m.ReplyToID != "" {
 					replyCtx = fmt.Sprintf("[ReplyTo:%s] ", m.ReplyToID)
+					if m.RepliedToUser != "" {
+						replyCtx += fmt.Sprintf("[ReplyToUser:%s] ", m.RepliedToUser)
+					}
 				}
 
 				//Why: Maintains the legacy timestamp format for existing prompt compatibility while adding unique message IDs to support robust deduplication and context mapping.
@@ -133,18 +136,20 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 				}
 
 				localMsgsToSave = append(localMsgsToSave, store.ConsolidatedMessage{
-					UserEmail:    email,
-					Source:       "whatsapp",
-					Room:         groupName,
-					Task:         taskText,
-					Requester:    item.Requester,
-					Assignee:     assignee,
-					AssignedAt:   assignedAt,
-					SourceTS:     item.SourceTS,
-					OriginalText: origText,
-					Deadline:     item.Deadline,
-					Category:     category,
-					ThreadID:     origThreadID, //Why: Preserves the original message metadata in the consolidated task to support future "Go to source" link functionality in the UI.
+					UserEmail:      email,
+					Source:         "whatsapp",
+					Room:           groupName,
+					Task:           taskText,
+					Requester:      item.Requester,
+					Assignee:       assignee,
+					AssigneeReason: item.AssigneeReason,
+					AssignedAt:     assignedAt,
+					SourceTS:       item.SourceTS,
+					OriginalText:   origText,
+					Deadline:       item.Deadline,
+					Category:       category,
+					ThreadID:       origThreadID, //Why: Preserves the original message metadata in the consolidated task to support future "Go to source" link functionality in the UI.
+					RepliedToID:    origThreadID,
 				})
 			}
 

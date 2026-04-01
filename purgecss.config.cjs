@@ -1,5 +1,5 @@
 module.exports = {
-  content: ['static/index.html', 'static/app.js', 'static/js/**/*.js'],
+  content: ['index.html', 'static/app.js', 'static/js/**/*.js'],
   css: ['static/css/main.bundle.css'],
   safelist: {
     standard: [

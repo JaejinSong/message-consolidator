@@ -8,21 +8,51 @@ import { state } from './state.js';
  * Path prefixes (/api) are managed by the VITE_API_BASE_URL environment variable.
  */
 
+/**
+ * Validates and converts an ID to a proper integer.
+ * @param {any} id - The ID to validate and convert.
+ * @returns {number} - The validated integer.
+ * @throws {Error} - If the ID is invalid (not a positive integer).
+ */
+const ensureInt = (id) => {
+    const num = Number(id);
+    if (!Number.isInteger(num) || num <= 0) {
+        throw new Error(`Invalid ID detected: ${id} (Parsed as: ${num}). Expected a positive integer.`);
+    }
+    return num;
+};
+
+/**
+ * Validates and converts an array of IDs to proper integers.
+ * @param {any[]} ids - The array of IDs to validate and convert.
+ * @returns {number[]} - The validated integer array.
+ * @throws {Error} - If any ID in the array is invalid.
+ */
+const ensureIntArray = (ids) => {
+    if (!Array.isArray(ids)) {
+        throw new Error(`Expected an array of IDs, but received: ${typeof ids}`);
+    }
+    return ids.map(ensureInt);
+};
+
 export const api = {
     async fetchMessages(lang) {
         return apiFetch('/messages', { params: { lang }, errorMessage: 'Fetch messages failed' });
     },
 
     async toggleDone(id, done) {
+        const validatedId = ensureInt(id);
         return apiFetch('/messages/done', {
             method: 'POST',
-            body: JSON.stringify({ id, done }),
+            body: JSON.stringify({ id: validatedId, done }),
             errorMessage: 'Toggle done failed'
         });
     },
 
     async deleteTask(idOrIds) {
-        const body = Array.isArray(idOrIds) ? { ids: idOrIds } : { id: idOrIds };
+        const body = Array.isArray(idOrIds) 
+            ? { ids: ensureIntArray(idOrIds) } 
+            : { id: ensureInt(idOrIds) };
         return apiFetch('/messages/delete', {
             method: 'POST',
             body: JSON.stringify(body),
@@ -31,17 +61,19 @@ export const api = {
     },
 
     async hardDeleteTasks(ids) {
+        const validatedIds = ensureIntArray(ids);
         return apiFetch('/messages/hard-delete', {
             method: 'POST',
-            body: JSON.stringify({ ids }),
+            body: JSON.stringify({ ids: validatedIds }),
             errorMessage: 'Hard delete failed'
         });
     },
 
     async restoreTasks(ids) {
+        const validatedIds = ensureIntArray(ids);
         return apiFetch('/messages/restore', {
             method: 'POST',
-            body: JSON.stringify({ ids }),
+            body: JSON.stringify({ ids: validatedIds }),
             errorMessage: 'Restore failed'
         });
     },
@@ -67,9 +99,10 @@ export const api = {
     },
 
     async translateTasksBatch(taskIds, lang) {
+        const validatedIds = ensureIntArray(taskIds);
         return apiFetch('/tasks/translate-batch', {
             method: 'POST',
-            body: JSON.stringify({ task_ids: taskIds, lang }),
+            body: JSON.stringify({ task_ids: validatedIds, lang }),
             errorMessage: 'Batch translation failed'
         });
     },
@@ -217,7 +250,8 @@ export const api = {
     },
 
     async fetchOriginalMessage(id) {
-        return apiFetch(`/messages/${id}/original`, { 
+        const validatedId = ensureInt(id);
+        return apiFetch(`/messages/${validatedId}/original`, { 
             errorMessage: 'Fetch original message failed' 
         });
     },
@@ -275,14 +309,16 @@ export const api = {
      * @description Fetch a specific AI Weekly Report by ID
      */
     async fetchReportDetail(id) {
-        return apiFetch(`/reports/${id}`, { errorMessage: 'Fetch report detail failed' });
+        const validatedId = ensureInt(id);
+        return apiFetch(`/reports/${validatedId}`, { errorMessage: 'Fetch report detail failed' });
     },
 
     /**
      * @description Delete a specific AI Weekly Report by ID
      */
     async deleteReport(id) {
-        return apiFetch(`/reports/${id}`, {
+        const validatedId = ensureInt(id);
+        return apiFetch(`/reports/${validatedId}`, {
             method: 'DELETE',
             errorMessage: 'Delete report failed'
         });
@@ -292,7 +328,8 @@ export const api = {
      * @description Request JIT translation for a specific report
      */
     async translateReport(id, lang) {
-        return apiFetch(`/reports/${id}/translate`, {
+        const validatedId = ensureInt(id);
+        return apiFetch(`/reports/${validatedId}/translate`, {
             method: 'POST',
             params: { lang },
             errorMessage: 'Translation request failed'
@@ -313,9 +350,11 @@ export const api = {
      * @description Link two contacts (target -> master).
      */
     async linkAccounts(targetId, masterId) {
+        const vTarget = ensureInt(targetId);
+        const vMaster = ensureInt(masterId);
         return apiFetch('/contacts/link', {
             method: 'POST',
-            body: JSON.stringify({ target_id: targetId, master_id: masterId }),
+            body: JSON.stringify({ target_id: vTarget, master_id: vMaster }),
             errorMessage: 'Link accounts failed'
         });
     },
@@ -324,9 +363,10 @@ export const api = {
      * @description Unlink a contact from its master.
      */
     async unlinkAccount(contactId) {
+        const validatedId = ensureInt(contactId);
         return apiFetch('/contacts/unlink', {
             method: 'POST',
-            body: JSON.stringify({ contact_id: contactId }),
+            body: JSON.stringify({ contact_id: validatedId }),
             errorMessage: 'Unlink account failed'
         });
     },

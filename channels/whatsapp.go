@@ -172,13 +172,32 @@ func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt inte
 func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, msg *events.Message) {
 	var msgText string
 	var replyToID string
+	var repliedToUser string
 
 	if msg.Message.GetConversation() != "" {
 		msgText = msg.Message.GetConversation()
 	} else if extMsg := msg.Message.GetExtendedTextMessage(); extMsg != nil {
 		msgText = extMsg.GetText()
-		if extMsg.ContextInfo != nil && extMsg.ContextInfo.StanzaID != nil {
-			replyToID = *extMsg.ContextInfo.StanzaID
+		if extMsg.ContextInfo != nil {
+			if extMsg.ContextInfo.StanzaID != nil {
+				replyToID = *extMsg.ContextInfo.StanzaID
+			}
+			//Why: Extracts the original sender (Participant) of the quoted message to enable accurate 'Reply-to' context in AI task assignment.
+			if extMsg.ContextInfo.Participant != nil {
+				repliedJID, _ := waTypes.ParseJID(*extMsg.ContextInfo.Participant)
+				repliedToUser = repliedJID.User // Fallback to number
+
+				// Try to resolve name
+				if name := store.GetNameByWhatsAppNumber(email, repliedJID.User); name != "" {
+					repliedToUser = name
+				} else if contact, err := client.Store.Contacts.GetContact(context.Background(), repliedJID); err == nil && (contact.PushName != "" || contact.FullName != "") {
+					if contact.FullName != "" {
+						repliedToUser = contact.FullName
+					} else {
+						repliedToUser = contact.PushName
+					}
+				}
+			}
 		}
 	}
 
@@ -204,11 +223,12 @@ func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, m
 	//Why: Buffers incoming messages in memory to allow for batch processing and context-aware task extraction during the next scan cycle.
 	chatBuffer := m.messageBuffer[email][msg.Info.Chat]
 	chatBuffer = append(chatBuffer, types.RawMessage{
-		ID:        msg.Info.ID,
-		Sender:    sender,
-		Text:      msgText,
-		Timestamp: msg.Info.Timestamp,
-		ReplyToID: replyToID,
+		ID:            msg.Info.ID,
+		Sender:        sender,
+		Text:          msgText,
+		Timestamp:     msg.Info.Timestamp,
+		ReplyToID:     replyToID,
+		RepliedToUser: repliedToUser,
 	})
 
 	//Why: Caps the per-chat message buffer at 200 entries to prevent memory exhaustion in highly active group chats.

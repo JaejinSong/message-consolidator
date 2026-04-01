@@ -50,6 +50,12 @@
     gap: 0.5rem;
 }
 
+.c-archive-table__meta {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
 /* Row states */
 .archive-row-deleted {
     color: var(--text-dim) !important;

@@ -42,7 +42,7 @@ func SetupOAuth(cfg *config.Config) {
 	AuthDisabled = cfg.AuthDisabled
 	appBaseURL = cfg.AppBaseURL
 	GoogleOauthConfig = &oauth2.Config{
-		RedirectURL:  fmt.Sprintf("%s/auth/callback", cfg.AppBaseURL),
+		RedirectURL:  fmt.Sprintf("%s/api/auth/callback", cfg.AppBaseURL),
 		ClientID:     cfg.GoogleClientID,
 		ClientSecret: cfg.GoogleClientSecret,
 		Scopes: []string{
@@ -128,6 +128,9 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
 	}
+	if isSecure {
+		cookie.SameSite = http.SameSiteNoneMode
+	}
 	http.SetCookie(w, &cookie)
 
 	//Why: Removes the non-HttpOnly hint cookie so the frontend can immediately react to the logged-out state.
@@ -140,6 +143,9 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
 	}
+	if isSecure {
+		hintCookie.SameSite = http.SameSiteNoneMode
+	}
 	http.SetCookie(w, &hintCookie)
 
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
@@ -150,14 +156,20 @@ func generateStateCookie(w http.ResponseWriter) string {
 	var b [16]byte
 	rand.Read(b[:])
 	state := base64.RawURLEncoding.EncodeToString(b[:])
+	isSecure := strings.HasPrefix(appBaseURL, "https://")
+	sameSite := http.SameSiteLaxMode
+	if isSecure {
+		sameSite = http.SameSiteNoneMode
+	}
+
 	cookie := http.Cookie{
 		Name:     "oauthstate",
 		Value:    state,
 		Expires:  time.Now().Add(20 * time.Minute),
 		HttpOnly: true,
-		Secure:   strings.HasPrefix(appBaseURL, "https://"),
+		Secure:   isSecure,
 		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
 	}
 	http.SetCookie(w, &cookie)
 	return state
@@ -165,6 +177,10 @@ func generateStateCookie(w http.ResponseWriter) string {
 
 func SetSessionCookie(w http.ResponseWriter, email string) {
 	isSecure := strings.HasPrefix(appBaseURL, "https://")
+	sameSite := http.SameSiteLaxMode
+	if isSecure {
+		sameSite = http.SameSiteNoneMode
+	}
 	
 	//Why: Establishes a server-side session using an HttpOnly cookie to prevent XSS-based token theft.
 	cookie := http.Cookie{
@@ -174,7 +190,7 @@ func SetSessionCookie(w http.ResponseWriter, email string) {
 		HttpOnly: true,
 		Secure:   isSecure,
 		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
 	}
 	http.SetCookie(w, &cookie)
 
@@ -186,7 +202,7 @@ func SetSessionCookie(w http.ResponseWriter, email string) {
 		HttpOnly: false, // Accessible by JS
 		Secure:   isSecure,
 		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
 	}
 	http.SetCookie(w, &hintCookie)
 }
@@ -200,42 +216,26 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		//Why: Permits anonymous access to static assets like images and CSS to ensure the login page renders correctly before authentication.
-		path := strings.ToLower(r.URL.Path)
-		if strings.HasSuffix(path, ".css") || 
-		   strings.HasSuffix(path, ".js") || 
-		   strings.HasSuffix(path, ".svg") || 
-		   strings.HasSuffix(path, ".png") || 
-		   strings.HasSuffix(path, ".jpg") || 
-		   strings.HasSuffix(path, ".ico") ||
-		   strings.HasSuffix(path, ".json") ||
-		   strings.HasSuffix(path, ".webp") {
-			next.ServeHTTP(w, r)
-			return
-		}
+
 
 		cookie, err := r.Cookie("session_token")
 		if err != nil {
 			logger.Warnf("[AUTH] Session cookie missing for path: %s", r.URL.Path)
-			if strings.HasPrefix(r.URL.Path, "/api/") {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-				return
-			}
-			http.Redirect(w, r, "/auth/login", http.StatusTemporaryRedirect)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": "unauthorized", "code": 401})
 			return
 		}
 
 		decodedEmailBytes, err := base64.RawURLEncoding.DecodeString(cookie.Value)
 		if err != nil {
-			decodedEmailBytes, err = base64.URLEncoding.DecodeString(cookie.Value) //Why: Supports legacy session tokens that may have used standard URL encoding instead of RawURLEncoding to maintain user sessions across upgrades.
+			decodedEmailBytes, err = base64.URLEncoding.DecodeString(cookie.Value)
 		}
 		if err != nil {
-			logger.Errorf("[AUTH] Error decoding session cookie for %s: %v (Value: %s)", r.URL.Path, err, cookie.Value)
-			if strings.HasPrefix(r.URL.Path, "/api/") {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-				return
-			}
-			http.Redirect(w, r, "/auth/login", http.StatusTemporaryRedirect)
+			logger.Errorf("[AUTH] Error decoding session cookie for %s: %v", r.URL.Path, err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": "unauthorized", "code": 401})
 			return
 		}
 		email := string(decodedEmailBytes)

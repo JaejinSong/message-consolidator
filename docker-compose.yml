@@ -1,11 +1,28 @@
 services:
-  app:
-    container_name: message-consolidator
-    image: us-central1-docker.pkg.dev/gemini-enterprise-487906/message-consolidator-repo/app:latest
+  # Why: Frontend service using Caddy for static serving and reverse proxying to backend.
+  frontend:
+    image: ${FE_IMAGE}
+    container_name: message-consolidator-frontend
     ports:
-      - "8080:8080"
+      - "80:80"
+      - "443:443"
+    # Why: External volumes to persist certificates and Caddy configuration across runs.
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    restart: always
+
+  # Why: Backend service providing the REST API, accessible only through the internal network.
+  backend:
+    image: ${BE_IMAGE}
+    container_name: message-consolidator-backend
     env_file:
       - .env
+    environment:
+      # Why: Disable the Go server's internal static asset serving to optimize for Nginx/Caddy proxying.
+      - DISABLE_STATIC_SERVING=true
     volumes:
       - ./db_data:/data
     restart: always
@@ -15,3 +32,12 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  default:
+    name: mc-network
+    driver: bridge

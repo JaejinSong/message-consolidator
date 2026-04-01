@@ -1,3 +1,15 @@
+# Release Notes - v2.4.6 (2026-04-01 06:04 UTC)
+
+- [NEW] Weekly AI Summaries: Your personal executive assistant has arrived! The Insights AI now delivers a Weekly Report to recap your team's top discussions and progress.
+- [NEW] Lightning-Fast Translation: Messages now translate instantly the moment you look at them. Our new on-demand engine is smarter, faster, and won't keep you waiting.
+- [IMPROVED] WhatsApp Power-Up: We've tuned the engine for WhatsApp messages, making task tracking from your chats smoother than ever.
+- [IMPROVED] Mobile Polish: Enjoy a cleaner, more spacious view on your phone. We've adjusted margins and layouts to make the mobile experience feel premium.
+- [FIX] Full AI Insights: No more cut-off sentences. AI-generated reports now show the full picture, ensuring you never miss a critical detail in your summaries.
+- [UI] Clearer Task Status: To simplify your workflow, we've renamed archived items to "Canceled Tasks" so you can easily distinguish between finished work and set-aside items.
+- [STABILITY] Core Engine Upgrade: We've moved our brain to a faster database (Turso) for snap-of-a-finger response times and rock-solid reliability.
+
+---
+
 # Release Notes - v2.4.5 (2026-04-01 05:29 UTC)
 
 - [NEW] See Your Network: Introducing the Relationship Graph! You can now see a visual map of how you and your team are connected through your conversations.
