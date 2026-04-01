@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { state, updateLang, updateTheme, updateStats } from './state.js';
+import { state, updateLang, updateTheme, updateStats } from './state.ts';
 
 describe('state.js', () => {
     beforeEach(() => {

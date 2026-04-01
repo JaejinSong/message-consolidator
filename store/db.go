@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"message-consolidator/config"
 	"message-consolidator/logger"
@@ -166,6 +167,8 @@ func runMigrations() error {
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN thread_id TEXT;")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN assignee_reason TEXT;")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN replied_to_id TEXT;")
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN is_context_query INTEGER DEFAULT 0;")
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN constraints TEXT DEFAULT '[]';")
 
 	//Why: Extends the users table with gamification-related metadata including points, levels, and streaks.
 	_, _ = db.Exec("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0;")
@@ -347,47 +350,65 @@ func RefreshCache(email string) error {
 	return nil
 }
 
+// scanMessageRow maps a database row to the ConsolidatedMessage struct.
+// Why: Enforces the 30-line limit and resolves a variable declaration bug by delegating field assignment to populateFields.
 func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedMessage, error) {
 	var m ConsolidatedMessage
 	var assignedAt, createdAt, completedAt DBTime
-	var room, requester, assignee, link, originalText, category, deadline, threadID, assigneeReason, repliedToID, sourceTS, source, requesterCanonical, assigneeCanonical sql.NullString
+	var constraints, room, requester, assignee, link, originalText, category, deadline, threadID, assigneeReason, repliedToID, sourceTS, source, reqCanonical, asgCanonical sql.NullString
 
 	err := rows.Scan(
 		&m.ID, &m.UserEmail, &source, &room, &m.Task,
 		&requester, &assignee, &assignedAt, &link,
 		&sourceTS, &originalText, &m.Done, &m.IsDeleted,
 		&createdAt, &completedAt, &category, &deadline,
-		&threadID, &assigneeReason, &repliedToID, &requesterCanonical, &assigneeCanonical,
+		&threadID, &assigneeReason, &repliedToID,
+		&m.IsContextQuery, &constraints, // Why: Explicitly scans INTEGER into bool (IsContextQuery) and TEXT into NullString (constraints).
+		&reqCanonical, &asgCanonical,
 	)
 	if err != nil {
 		return m, err
 	}
 
+	populateFields(&m, source, room, requester, assignee, link, sourceTS, originalText, category, deadline, threadID, assigneeReason, repliedToID, reqCanonical, asgCanonical)
+	parseMetadata(&m, constraints, assignedAt, createdAt, completedAt)
+	return m, nil
+}
+
+func populateFields(m *ConsolidatedMessage, source, room, req, asg, link, ts, text, cat, dl, tid, reason, reply, reqC, asgC sql.NullString) {
 	m.Source = source.String
 	m.Room = room.String
-	m.Requester = requester.String
-	m.Assignee = assignee.String
+	m.Requester = req.String
+	m.Assignee = asg.String
 	m.Link = link.String
-	m.SourceTS = sourceTS.String
-	m.OriginalText = originalText.String
-	m.Category = category.String
-	m.Deadline = deadline.String
-	m.ThreadID = threadID.String
-	m.AssigneeReason = assigneeReason.String
-	m.RepliedToID = repliedToID.String
-	m.RequesterCanonical = requesterCanonical.String
-	m.AssigneeCanonical = assigneeCanonical.String
+	m.SourceTS = ts.String
+	m.OriginalText = text.String
+	m.Category = cat.String
+	m.Deadline = dl.String
+	m.ThreadID = tid.String
+	m.AssigneeReason = reason.String
+	m.RepliedToID = reply.String
+	m.RequesterCanonical = reqC.String
+	m.AssigneeCanonical = asgC.String
+}
+
+func parseMetadata(m *ConsolidatedMessage, constraints sql.NullString, assignedAt, createdAt, completedAt DBTime) {
+	// Why: Unmarshals JSON strings into segments while providing safe defaults for nil constraints.
+	if constraints.Valid && constraints.String != "" {
+		_ = json.Unmarshal([]byte(constraints.String), &m.Constraints)
+	}
+	if m.Constraints == nil {
+		m.Constraints = []string{}
+	}
 
 	m.AssignedAt = assignedAt.Time
 	m.CreatedAt = createdAt.Time
 	if completedAt.Valid && !completedAt.Time.IsZero() {
 		m.CompletedAt = &completedAt.Time
 	}
-
 	if m.AssignedAt.IsZero() && !m.CreatedAt.IsZero() {
 		m.AssignedAt = m.CreatedAt
 	}
-	return m, nil
 }
 
 func EnsureCacheInitialized(email string) error {

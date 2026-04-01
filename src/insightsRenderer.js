@@ -1,7 +1,7 @@
-import { state } from './state.js';
-import { escapeHTML, TimeService } from './utils.js';
+import { state } from './state.ts';
+import { escapeHTML, TimeService } from './utils.ts';
 import { I18N_DATA } from './locales.js';
-import { calculateHeatmapLevel, calculateSourceDistribution, processTimeSeriesData } from './logic.js';
+import { calculateHeatmapLevel, calculateSourceDistribution, processTimeSeriesData } from './logic.ts';
 import * as echarts from 'echarts';
 import { marked } from 'marked';
 
@@ -574,19 +574,21 @@ export const insightsRenderer = {
             let isFallback = false;
 
             // Why: Supports new map-based translation structure while maintaining backward compatibility with the 'report_summary' field as a default.
+            // Why: Fallback properties added in case Go JSON serialization uses PascalCase
+            const fallbackSummary = report.report_summary || report.ReportSummary || report.summary || '';
+            
             if (report.translations && report.translations[lang]) {
                 summary = report.translations[lang];
             } else {
-                // If the language is not the default (en), we'll normally trigger JIT translation in the controller.
-                // This fallback remains as a safety measure.
-                summary = report.report_summary; 
+                summary = fallbackSummary; 
                 if (lang !== 'en') isFallback = true;
             }
 
-            if (!summary) {
+            // Guard Clause: 데이터가 비어있을 경우 marked.parse 에러 방지
+            if (!summary || typeof summary !== 'string') {
                 summaryContainer.innerHTML = `<div class="u-text-dim" style="text-align: center; padding: 2rem;">선택하신 언어로 된 보고서 내용이 없습니다.</div>`;
             } else {
-                // Using marked.parse (global from CDN)
+                // Now safely parsing guaranteed string
                 const rawHtml = marked.parse(summary);
                 
                 // Why: Wrap sections in divs with specific classes to allow precise CSS targeting 

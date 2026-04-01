@@ -1,3 +1,15 @@
+# Release Notes - v2.4.8 (2026-04-01 23:48 UTC)
+
+- [NEW] Smart Identity Merging: Tired of being treated like a stranger on different apps? Our V3 engine now accurately recognizes you across WhatsApp, Gmail, and Slack, merging your identity seamlessly.
+- [NEW] Visual Task Maps: See the big picture with our new Relationship Graph! Visualize how your tasks, projects, and teammates are connected in one beautiful, interactive view.
+- [IMPROVED] Instant Translations: Experience lag-free reading with our new Just-In-Time translation engine—messages are translated exactly when you need them, faster than ever.
+- [IMPROVED] WhatsApp Savvy: We've taught our AI the nuances of WhatsApp chats, making it much better at turning casual messages into clear, actionable tasks.
+- [UI] Polished Dark Mode: Your eyes will thank you. We’ve refined the Insights tab and icons for a premium, consistent look even in the dark.
+- [FIX] No More Ghost Assignees: Fixed a bug where some tasks appeared with "undefined" owners. Now everyone gets the credit (and the work) they deserve!
+- [STABILITY] Professional-Grade Monitoring: We've integrated WhaTap to keep a 24/7 watch on system health, ensuring a snappier and more reliable experience for you.
+
+---
+
 # Release Notes - v2.4.7 (2026-04-01 08:03 UTC)
 
 - [IMPROVED] Enhanced Gmail Task Extraction: Refined the AI engine to eliminate redundant context when extracting multiple deliverables from a single email, ensuring each task is distinct and actionable.

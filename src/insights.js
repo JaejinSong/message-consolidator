@@ -1,8 +1,9 @@
 import { api } from './api.js';
-import { state } from './state.js';
+import { state } from './state.ts';
 import { I18N_DATA } from './locales.js';
 import { insightsRenderer } from './insightsRenderer.js';
 import { events, EVENTS } from './events.js';
+import { TokenUsageCard } from './components/token-usage';
 
 /**
  * @file insights.js
@@ -13,12 +14,14 @@ export const insights = {
     lastStats: null,
     lastReport: null,
     currentChartDays: 30,
+    tokenCard: null,
 
     /**
      * Initializes the insights module.
      */
     init() {
         console.log("[Insights] Module Initialized");
+        this.tokenCard = new TokenUsageCard('tokenUsageContainer');
 
         // Bind chart filters
         document.querySelectorAll('.chart-filters .filter-btn').forEach(btn => {
@@ -144,15 +147,16 @@ export const insights = {
                 const item = e.target.closest('.c-report-item');
                 const deleteBtn = e.target.closest('.c-report-item__delete');
 
+                // Explicit Integer Conversion
                 if (deleteBtn) {
-                    const id = deleteBtn.dataset.id;
-                    await this.deleteReport(id);
+                    const id = parseInt(deleteBtn.dataset.id, 10);
+                    if (!isNaN(id)) await this.deleteReport(id);
                     return;
                 }
 
                 if (item) {
-                    const id = item.dataset.id;
-                    await this.loadReportDetail(id);
+                    const id = parseInt(item.dataset.id, 10);
+                    if (!isNaN(id)) await this.loadReportDetail(id);
                 }
             });
         }
@@ -260,13 +264,14 @@ export const insights = {
         }
 
         try {
-            const [stats, allAch, userAch] = await Promise.all([
+            const [stats, allAch, userAch, tokenUsage] = await Promise.all([
                 api.fetchUserStats().catch(e => { console.error("[Insights] Stats failed:", e); return null; }),
                 api.fetchAchievements().catch(e => { console.error("[Insights] All achievements failed:", e); return []; }),
-                api.fetchUserAchievements().catch(e => { console.error("[Insights] User achievements failed:", e); return []; })
+                api.fetchUserAchievements().catch(e => { console.error("[Insights] User achievements failed:", e); return []; }),
+                api.fetchTokenUsage().catch(e => { console.error("[Insights] Token usage failed:", e); return null; })
             ]);
 
-            this.renderAll(stats, allAch, userAch);
+            this.renderAll(stats, allAch, userAch, tokenUsage);
         } catch (e) {
             console.error("[Insights] Unexpected error during refreshData", e);
         } finally {
@@ -284,10 +289,15 @@ export const insights = {
      * @param {Object} stats - User statistics data.
      * @param {Array} allAch - All possible achievements.
      * @param {Array} userAch - Achievements earned by the user.
+     * @param {Object} tokenUsage - AI token usage data.
      */
-    renderAll(stats, allAch, userAch) {
+    renderAll(stats, allAch, userAch, tokenUsage) {
         if (!stats) return;
         this.lastStats = stats;
+
+        if (tokenUsage && this.tokenCard) {
+            this.tokenCard.render(tokenUsage);
+        }
 
         insightsRenderer.renderDailyGlance(stats);
         insightsRenderer.renderActivityHeatmap(stats);

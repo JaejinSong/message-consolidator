@@ -114,7 +114,9 @@ export async function apiFetch<T = any>(
     if (import.meta.env.DEV) {
       console.error(`[API Error] Status: ${resp.status}`, text);
     }
-    throw new Error(errorMessage || text || `Error ${resp.status}`);
+    const err: any = new Error(errorMessage || text || `Error ${resp.status}`);
+    err.status = resp.status;
+    throw err;
   }
 
   if (contentType && contentType.includes("application/json")) {

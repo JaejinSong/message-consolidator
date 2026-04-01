@@ -52,7 +52,10 @@ CREATE TABLE IF NOT EXISTS messages (
     deadline TEXT,
     thread_id TEXT,
     assignee_reason TEXT,
-    replied_to_id TEXT
+    replied_to_id TEXT,
+    is_context_query INTEGER DEFAULT 0,
+    constraints TEXT DEFAULT '[]',
+    metadata TEXT DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS idx_thread_id ON messages(thread_id);
 
@@ -159,6 +162,8 @@ SELECT
     COALESCE(m.thread_id, '') as thread_id,
     COALESCE(m.assignee_reason, '') as assignee_reason,
     COALESCE(m.replied_to_id, '') as replied_to_id,
+    m.is_context_query,
+    m.metadata,
     COALESCE(cr_req.effective_canonical_id, m.requester) as requester_canonical,
     COALESCE(cr_asg.effective_canonical_id, m.assignee) as assignee_canonical
 FROM messages m

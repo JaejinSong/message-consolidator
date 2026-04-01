@@ -1,4 +1,21 @@
-export const ICONS = {
+/**
+ * @file icons.ts
+ * @description Centralized SVG icon database with TypeScript support.
+ */
+
+export interface IconSet {
+    viewOriginal: string;
+    link: string;
+    done: string;
+    delete: string;
+    slack: string;
+    whatsapp: string;
+    gmail: string;
+    stale: string;
+    abandoned: string;
+}
+
+export const ICONS: IconSet = {
     viewOriginal: `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: var(--spacing-lg); height: var(--spacing-lg);">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>

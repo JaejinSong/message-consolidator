@@ -14,11 +14,11 @@ func TestLinkContact(t *testing.T) {
 	tenantEmail := "test@example.com"
 	
 	// Setup initial contacts
-	masterID, err := UpsertContact(tenantEmail, "master@gmail.com", "Master User", "", "gmail")
+	masterID, err := AddContact(tenantEmail, "master@gmail.com", "Master User", "", "gmail")
 	if err != nil {
 		t.Fatalf("Failed to create master: %v", err)
 	}
-	childID, err := UpsertContact(tenantEmail, "child@whatsapp", "Child User", "", "whatsapp")
+	childID, err := AddContact(tenantEmail, "child@whatsapp", "Child User", "", "whatsapp")
 	if err != nil {
 		t.Fatalf("Failed to create child: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestLinkContact(t *testing.T) {
 	t.Run("Tree Flattening (1-Level Hierarchy)", func(t *testing.T) {
 		// Scenario: masterID <- childID 이미 연결됨.
 		// 새로운 rootID를 만들고 masterID를 rootID에 연결.
-		rootID, _ := UpsertContact(tenantEmail, "root@boss.com", "Root Boss", "", "gmail")
+		rootID, _ := AddContact(tenantEmail, "root@boss.com", "Root Boss", "", "gmail")
 		
 		err := LinkContact(tenantEmail, rootID, masterID)
 		if err != nil {

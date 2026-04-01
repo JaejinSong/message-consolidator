@@ -1,5 +1,5 @@
 import { apiFetch } from './utils/apiClient';
-import { state } from './state.js';
+import { state } from './state.ts';
 
 /**
  * @file api.js

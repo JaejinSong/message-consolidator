@@ -1,10 +1,17 @@
-import { parseMarkdown } from '../logic.js';
+import { parseMarkdown } from '../logic.ts';
 import confetti from 'canvas-confetti';
+
+/**
+ * @file ui-effects.ts
+ * @description Visual effects and UI feedback logic with TypeScript.
+ */
+
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 /**
  * Shows a non-blocking toast notification.
  */
-export function showToast(message, type = 'error') {
+export function showToast(message: string, type: ToastType = 'error'): void {
     const toast = document.createElement('div');
     toast.className = `toast-popup toast-${type}`;
 
@@ -13,7 +20,7 @@ export function showToast(message, type = 'error') {
     toast.style.bottom = `calc(${bottomOffset} / 16 * 1rem)`;
 
     const icon = document.createElement('span');
-    icon.textContent = type === 'error' ? '⚠️' : '✅';
+    icon.textContent = type === 'error' ? '⚠️' : type === 'success' ? '✅' : 'ℹ️';
     toast.appendChild(icon);
 
     const textNode = document.createElement('span');
@@ -35,12 +42,12 @@ export function showToast(message, type = 'error') {
 /**
  * Triggers XP animation in the UI.
  */
-export function triggerXPAnimation() {
-    const overlay = document.getElementById('xpOverlay');
+export function triggerXPAnimation(): void {
+    const overlay = document.getElementById('xpOverlay') as HTMLElement | null;
     if (!overlay) return;
     overlay.classList.remove('hidden');
     overlay.style.animation = 'none';
-    overlay.offsetHeight; 
+    void overlay.offsetHeight; // force reflow
     overlay.style.animation = 'xpFloat 1.2s ease-out forwards';
     setTimeout(() => overlay.classList.add('hidden'), 1200);
 }
@@ -48,7 +55,7 @@ export function triggerXPAnimation() {
 /**
  * Triggers confetti animation.
  */
-export function triggerConfetti(type = 'classic') {
+export function triggerConfetti(type: 'classic' | 'star' | 'snow' = 'classic'): void {
     if (typeof confetti !== 'function') return;
 
     if (type === 'star') {
@@ -82,17 +89,17 @@ export function triggerConfetti(type = 'classic') {
 /**
  * Renders release notes in the modal.
  */
-export function renderReleaseNotes(content) {
+export function renderReleaseNotes(content: string): void {
     const container = document.getElementById('releaseNotesContent');
     if (!container) return;
     container.innerHTML = `<div class="release-notes-markdown">${parseMarkdown(content)}</div>`;
 }
 
 /**
- * 스캔 버튼 및 화면의 로딩 상태를 제어합니다.
+ * Controls loading state for scan button and global indicator.
  */
-export function setScanLoading(isLoading) {
-    const btn = document.getElementById('scanBtn');
+export function setScanLoading(isLoading: boolean): void {
+    const btn = document.getElementById('scanBtn') as HTMLButtonElement | null;
     const scanBtnIcon = document.getElementById('scanBtnIcon');
     const loading = document.getElementById('loading');
 
@@ -102,9 +109,9 @@ export function setScanLoading(isLoading) {
 }
 
 /**
- * 초기 테마 상태를 UI(아이콘 및 Body 클래스)에 적용합니다.
+ * Applies theme state to UI elements.
  */
-export function setTheme(theme) {
+export function setTheme(theme: string): void {
     const isLight = theme === 'light';
     document.body.classList.toggle('light-theme', isLight);
     const themeToggleBtn = document.getElementById('themeToggleBtn');
@@ -116,11 +123,17 @@ export function setTheme(theme) {
 }
 
 /**
- * 테마 토글 버튼 클릭 이벤트를 바인딩합니다.
+ * Binds theme toggle button interaction.
  */
-export function bindThemeToggle(onToggle) {
+export function bindThemeToggle(onToggle: (isLight: boolean) => void, forceState?: boolean): void {
     const themeToggleBtn = document.getElementById('themeToggleBtn');
     if (!themeToggleBtn) return;
+    
+    // Explicit initial toggle if requested
+    if (forceState !== undefined) {
+        setTheme(forceState ? 'light' : 'dark');
+    }
+
     themeToggleBtn.addEventListener('click', () => {
         const isLight = document.body.classList.toggle('light-theme');
         setTheme(isLight ? 'light' : 'dark');

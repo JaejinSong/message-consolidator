@@ -1,44 +1,105 @@
-import { z } from 'zod';
-
 /**
- * Task Represents a work item from the 'messages' table.
- * Fields according to the DB schema and specific user requirements.
- * Note: priority and assignee are intentionally excluded in this version.
+ * @file types.ts
+ * @description Centralized type definitions for Project GEM.
  */
-export interface Task {
+
+export interface Message {
     id: number;
-    room: string;
-    task: string; // The content of the task
-    category: string; // Maps to 'status' (e.g., 'todo', 'waiting')
-    requester?: string;
+    requester: string;
+    task: string;
+    source: string;
+    timestamp?: string;
+    created_at?: string;
+    done: boolean;
+    completed_at?: string;
     assignee?: string;
-    originalText?: string;
-    createdAt?: string;
+    waiting_on?: string;
+    category?: string;
+    metadata?: string | Record<string, any> | null;
+    translating?: boolean;
+    translationError?: string | null;
+    has_original?: boolean;
+    room?: string;
+    user_email?: string;
+    link?: string;
+    source_ts?: string;
+    is_deleted?: boolean | number;
 }
 
-/**
- * IncomingMessage represents a message received from WhatsApp.
- */
-export interface IncomingMessage {
-    roomId: string;
-    sender: string;
-    text: string;
-    timestamp: string;
+export interface UserProfile {
+    email: string;
+    picture: string;
+    name: string;
+    points: number;
+    streak: number;
+    streak_freezes: number;
+    archive_days?: number;
+    xp?: number;
+    level?: number;
 }
 
-/**
- * Zod schema to validate LLM response for the new Master Prompt.
- */
-export const MasterActionSchema = z.object({
-    action: z.enum(['new', 'update', 'resolve']),
-    target_task_id: z.number().nullable(),
-    task: z.string(),
-    requester: z.string(),
-    assignee: z.string(),
-    status: z.enum(['todo', 'waiting', 'completed'])
-});
+export interface AppState {
+    userProfile: UserProfile;
+    userAliases: string[];
+    currentLang: string;
+    currentTheme: string;
+    waConnected: boolean;
+    gmailConnected: boolean;
+    archivePage: number;
+    archiveLimit: number;
+    archiveSearch: string;
+    archiveSort: string;
+    archiveOrder: 'ASC' | 'DESC';
+    archiveTotalCount: number;
+    archiveThresholdDays: number;
+    messages: Message[];
+}
 
-export const MasterResponseSchema = z.array(MasterActionSchema);
+export interface AchievementEntry {
+    name: string;
+    description?: string;
+}
 
-export type MasterAction = z.infer<typeof MasterActionSchema>;
-export type MasterResponse = z.infer<typeof MasterResponseSchema>;
+export interface I18nEntry {
+    subTitle?: string;
+    realTimeTasks?: string;
+    scanNow?: string;
+    scanning?: string;
+    noTasks?: string;
+    viewOriginal?: string;
+    markDone?: string;
+    delete?: string;
+    assigneeMe?: string;
+    originalNotAvailable?: string;
+    logoutConfirm?: string;
+    disconnectConfirm?: string;
+    policyLabel?: string;
+    queryLabel?: string;
+    promise?: string;
+    waiting?: string;
+    emptyStateMessages?: string[];
+    waConnected?: string;
+    qrError?: string;
+    error?: string;
+    generating?: string;
+    achievements?: Record<string, AchievementEntry>;
+}
+
+export interface I18nDictionary {
+    [lang: string]: I18nEntry;
+}
+
+export interface MessageHandlers {
+    onToggleDone: (id: string, done: boolean) => Promise<void>;
+    onDeleteTask: (id: string) => Promise<void>;
+    onShowOriginal: (id: string) => Promise<void>;
+    onMapAlias?: (name: string, source: string) => void;
+}
+
+export interface ServiceHandlers extends MessageHandlers {
+    onWhatsAppLogout: () => Promise<void>;
+    onWhatsAppRelink: () => Promise<void>;
+    onGmailDisconnect: () => Promise<void>;
+    onGmailConnect: () => void;
+    onBuyFreeze?: () => void;
+}

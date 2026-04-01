@@ -78,25 +78,41 @@ body.light-theme .badge-room {
     border: var(--border-thin) solid transparent;
 }
 
-.promise-tag {
+.promise-tag,
+.c-message-card__badge--promise {
     background: rgba(52, 199, 89, 0.1);
     color: var(--color-success);
     border-color: rgba(52, 199, 89, 0.2);
+    display: inline-flex;
+    align-items: center;
+    padding: var(--spacing-xxs) var(--spacing-md);
+    border-radius: var(--radius-sm);
+    font-size: 0.7rem;
+    font-weight: 700;
 }
 
-.waiting-tag {
+.waiting-tag,
+.c-message-card__badge--waiting {
     background: rgba(0, 242, 255, 0.1);
     color: var(--accent-color);
     border-color: rgba(0, 242, 255, 0.2);
+    display: inline-flex;
+    align-items: center;
+    padding: var(--spacing-xxs) var(--spacing-md);
+    border-radius: var(--radius-sm);
+    font-size: 0.7rem;
+    font-weight: 700;
 }
 
-body.light-theme .promise-tag {
+body.light-theme .promise-tag,
+body.light-theme .c-message-card__badge--promise {
     background: rgba(var(--color-success-rgb), 0.05);
     color: var(--color-success);
     border-color: rgba(var(--color-success-rgb), 0.2);
 }
 
-body.light-theme .waiting-tag {
+body.light-theme .waiting-tag,
+body.light-theme .c-message-card__badge--waiting {
     background: rgba(var(--color-info-rgb), 0.05);
     color: var(--color-info);
     border-color: rgba(var(--color-info-rgb), 0.2);

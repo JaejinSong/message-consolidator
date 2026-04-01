@@ -73,6 +73,7 @@ var SQL = struct {
 	DeleteGmailToken     string
 
 	//Why: Groups SQL queries for contact and mapping management.
+	AddContactMapping string
 	UpsertContactMapping string
 	DeleteContactMapping string
 
@@ -249,6 +250,7 @@ func loadAllQueries() error {
 	SQL.GetGmailToken = queries["GetGmailToken"]
 	SQL.DeleteGmailToken = queries["DeleteGmailToken"]
 
+	SQL.AddContactMapping = queries["AddContactMapping"]
 	SQL.UpsertContactMapping = queries["UpsertContactMapping"]
 	SQL.DeleteContactMapping = queries["DeleteContactMapping"]
 

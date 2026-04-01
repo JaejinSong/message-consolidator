@@ -51,8 +51,20 @@ func GetContactsMappings(email string) ([]ContactRecord, error) {
 }
 
 func AddContactMapping(email, canonicalID, displayName, aliases, source string) error {
-	_, err := UpsertContact(email, canonicalID, displayName, aliases, source)
+	_, err := AddContact(email, canonicalID, displayName, aliases, source)
 	return err
+}
+
+func AddContact(tenantEmail, canonicalID, displayName, aliases, source string) (int64, error) {
+	if source == "" {
+		source = "all"
+	}
+	var id int64
+	err := db.QueryRow(SQL.AddContactMapping, tenantEmail, canonicalID, displayName, aliases, source).Scan(&id)
+	if err == nil {
+		UpdateContactsCache(tenantEmail, canonicalID, displayName, aliases, source)
+	}
+	return id, err
 }
 
 func UpsertContact(tenantEmail, canonicalID, displayName, aliases, source string) (int64, error) {
@@ -150,10 +162,12 @@ func AutoUpsertContact(tenantEmail, email, name, source string) error {
 			}
 		}
 
-		return AddContactMapping(tenantEmail, canonicalID, finalDisplayName, finalAliases, source)
+		_, err := UpsertContact(tenantEmail, canonicalID, finalDisplayName, finalAliases, source)
+		return err
 	}
 
-	return AddContactMapping(tenantEmail, canonicalID, displayName, aliases, source)
+	_, err := UpsertContact(tenantEmail, canonicalID, displayName, aliases, source)
+	return err
 }
 
 
@@ -191,7 +205,8 @@ func SaveWhatsAppContact(email, number, name string) error {
 		canonical = currentCanonical
 	}
 
-	return AddContactMapping(email, canonical, name, newAliases, "whatsapp")
+	_, err := UpsertContact(email, canonical, name, newAliases, "whatsapp")
+	return err
 }
 
 func GetNameByWhatsAppNumber(email, number string) string {

@@ -3,6 +3,7 @@ package ai
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"strings"
@@ -10,23 +11,24 @@ import (
 
 func unmarshalAnalyze(cleanJSON, rawJSON string) ([]store.TodoItem, error) {
 	var items []store.TodoItem
-	if err := json.Unmarshal([]byte(cleanJSON), &items); err != nil {
-		//Why: [Fallback] Attempts to unmarshal the JSON as a generic map to handle cases where the AI wraps the response array in a named object (e.g., {"tasks": [...]}).
-		var obj map[string]json.RawMessage
-		if err2 := json.Unmarshal([]byte(cleanJSON), &obj); err2 == nil {
-			for _, val := range obj {
-				if err3 := json.Unmarshal(val, &items); err3 == nil && len(items) > 0 {
-					break
-				}
-			}
-		}
-		if len(items) == 0 {
-			logger.Errorf("[GEMINI] JSON unmarshal failed: %v, RAW: %s", err, rawJSON)
-			return nil, err
+	// Why: Attempts first-pass unmarshaling as a flat array (standard format).
+	if err := json.Unmarshal([]byte(cleanJSON), &items); err == nil {
+		return items, nil
+	}
+
+	// Why: [Fallback] Handles AI wrapping tasks in objects like {"tasks": [...]}.
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(cleanJSON), &obj); err != nil {
+		logger.Errorf("[GEMINI] JSON unmarshal failed: %v, RAW: %s", err, rawJSON)
+		return nil, err
+	}
+
+	for _, val := range obj {
+		if err := json.Unmarshal(val, &items); err == nil && len(items) > 0 {
+			return items, nil
 		}
 	}
-	logger.Infof("[GEMINI] Successfully extracted %d tasks", len(items))
-	return items, nil
+	return nil, fmt.Errorf("no items found in JSON")
 }
 
 func unmarshalTranslate(cleanJSON, rawJSON, language string) ([]store.TranslateRequest, error) {
@@ -78,50 +80,67 @@ func DecodeBase64URL(data string) (string, error) {
 }
 
 // sanitizeJSON cleans AI response from markdown code blocks and whitespace.
+// Why: Orchestrates the multi-stage JSON extraction process while adhering to strict 30-line function limits.
 func sanitizeJSON(s string) string {
 	s = strings.TrimSpace(s)
+	s = extractMarkdownBlock(s)
+	return extractBracketPayload(s)
+}
 
-	//Why: Strips markdown code blocks (e.g., ```json) and any surrounding descriptive text to isolate the raw JSON payload.
-	// 1. Completely strip any descriptive text surrounding markdown code blocks (e.g., ```json)
+// extractMarkdownBlock isolates content within markdown code blocks (e.g., ```json).
+// Why: Specifically targets and extracts the core payload from AI responses formatted in markdown to improve parsing accuracy.
+func extractMarkdownBlock(s string) string {
 	startIdx := strings.Index(s, "```json")
 	if startIdx == -1 {
 		startIdx = strings.Index(s, "```")
 	}
-	if startIdx != -1 {
-		newlineIdx := strings.IndexByte(s[startIdx:], '\n')
-		if newlineIdx != -1 {
-			contentStart := startIdx + newlineIdx + 1
-			endIdx := strings.Index(s[contentStart:], "```")
-			if endIdx != -1 {
-				s = s[contentStart : contentStart+endIdx]
-			}
-		}
+	if startIdx == -1 {
+		return s
 	}
 
-	s = strings.TrimSpace(s)
+	newlineIdx := strings.IndexByte(s[startIdx:], '\n')
+	if newlineIdx == -1 {
+		return s
+	}
 
-	//Why: Performs a best-effort extraction of JSON structures by locating the outermost brackets if markdown stripping fails.
-	// 2. Best-effort extraction based on brackets
+	contentStart := startIdx + newlineIdx + 1
+	endIdx := strings.Index(s[contentStart:], "```")
+	if endIdx == -1 {
+		return s
+	}
+
+	return strings.TrimSpace(s[contentStart : contentStart+endIdx])
+}
+
+// extractBracketPayload identifies and validates the outermost bracket JSON structure.
+// Why: Performs the final extraction and self-healing (e.g., closing truncated arrays) to ensure valid JSON output.
+func extractBracketPayload(s string) string {
 	start := strings.IndexAny(s, "[{")
 	end := strings.LastIndexAny(s, "]}")
-	if start != -1 && end != -1 && start < end {
-		//Why: If the model repeats the JSON (e.g., [][]), we only want the first valid array or object to avoid "invalid character after top-level value" errors.
-		extracted := s[start : end+1]
-		if extracted[0] == '[' {
-			if firstEnd := strings.Index(extracted, "]["); firstEnd != -1 {
-				extracted = extracted[:firstEnd+1]
-			} else if firstEnd := strings.Index(extracted, "]\n["); firstEnd != -1 {
-				extracted = extracted[:firstEnd+1]
-			}
-		}
-
-		//Why: [Repair] Attempts to fix truncated JSON arrays by appending a closing bracket if the last character is a closing object brace, ensuring partial responses remain parsable.
-		if len(extracted) > 0 && extracted[0] == '[' && extracted[len(extracted)-1] == '}' {
-			extracted += "]"
-		}
-
-		return extracted
+	if start == -1 || end == -1 || start >= end {
+		return ""
 	}
 
-	return ""
+	payload := s[start : end+1]
+	if payload[0] == '[' {
+		payload = handleMultipleArrays(payload)
+	}
+
+	// Why: [Repair] Specifically handles truncated AI outputs where an array is opened but not closed, though the last object is complete.
+	if len(payload) > 0 && payload[0] == '[' && payload[len(payload)-1] == '}' {
+		payload += "]"
+	}
+
+	return payload
+}
+
+// handleMultipleArrays prevents "invalid character after top-level value" by taking only the first block.
+func handleMultipleArrays(p string) string {
+	if firstEnd := strings.Index(p, "]["); firstEnd != -1 {
+		return p[:firstEnd+1]
+	}
+	if firstEnd := strings.Index(p, "]\n["); firstEnd != -1 {
+		return p[:firstEnd+1]
+	}
+	return p
 }

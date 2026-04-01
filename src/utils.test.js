@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { escapeHTML, formatDisplayTime, safeAsync, setupTabs } from './utils.js';
+import { escapeHTML, formatDisplayTime, safeAsync, setupTabs } from './utils.ts';
 
 describe('utils.js - escapeHTML', () => {
   it('should escape HTML special characters', () => {

@@ -1,38 +1,22 @@
 import { I18N_DATA } from './locales.js';
-import { ICONS } from './icons.js';
-import { TimeService } from './utils.js';
-import { state } from './state.js';
+import { ICONS } from './icons.ts';
+import { TimeService, escapeHTML } from './utils.ts';
+import { state } from './state.ts';
 
 /**
- * @file logic.js
+ * @file logic.ts
  * @description Pure functions for data processing, sorting, and classification.
- * This module is decoupled from the DOM and can be tested in a Node.js environment.
  */
 
-/**
- * @typedef {Object} Message
- * @property {number} id
- * @property {string} requester
- * @property {string} task
- * @property {string} source
- * @property {string} timestamp
- * @property {boolean} done
- * @property {string} [completed_at]
- * @property {string} [assignee]
- * @property {string} [waiting_on]
- */
+import { Message, I18nDictionary } from './types.ts';
 
 /** 완료된 업무가 대시보드에 노출되는 기준일 (보관함 이관 기준) */
-export const getArchiveThresholdDays = () => state.archiveThresholdDays || 7;
+export const getArchiveThresholdDays = (): number => state.archiveThresholdDays || 7;
 
 /**
  * Sorts and filters messages based on the current view and search query.
- * @param {Message[]} messages - Array of message objects.
- * @param {string} currentTab - Current active tab ID.
- * @param {string} searchQuery - Search query string.
- * @returns {Message[]} Filtered and sorted messages.
  */
-export function sortAndFilterMessages(messages, currentTab, searchQuery) {
+export function sortAndFilterMessages(messages: Message[], currentTab: string, searchQuery: string): Message[] {
     if (!messages) return [];
 
     const now = new Date();
@@ -67,18 +51,50 @@ export function sortAndFilterMessages(messages, currentTab, searchQuery) {
             return a.done ? 1 : -1;
         }
         // 2순위 정렬: 생성일 기준 최신순
-        const tsA = a.timestamp || a.created_at || 0;
-        const tsB = b.timestamp || b.created_at || 0;
-        return new Date(tsB) - new Date(tsA);
+        const tsA = a.timestamp || a.created_at || "0";
+        const tsB = b.timestamp || b.created_at || "0";
+        return new Date(tsB).getTime() - new Date(tsA).getTime();
     });
+}
+
+export function calculateStats(messages: Message[]) {
+    const total = messages.length;
+    const completed = messages.filter(m => m.done).length;
+    const categories: Record<string, number> = {};
+    
+    messages.forEach(m => {
+        const cat = m.category || 'TASK';
+        categories[cat] = (categories[cat] || 0) + 1;
+    });
+
+    const counts = messages.reduce((acc: Record<string, number>, m) => {
+        const source = m.source || 'unknown';
+        acc[source] = (acc[source] || 0) + 1;
+        return acc;
+    }, {});
+
+    return { total, completed, categories, counts };
+}
+
+/**
+ * Why: Logic to find recent trends for dashboard visualization.
+ */
+export function getRecentTrends(messages: Message[]): Record<string, number> {
+    const trends: Record<string, number> = {};
+    
+    messages.forEach(m => {
+        const d = new Date(m.timestamp || m.created_at || "");
+        const dayStr = d.toISOString().split('T')[0];
+        trends[dayStr] = (trends[dayStr] || 0) + 1;
+    });
+
+    return trends;
 }
 
 /**
  * Classifies messages into categories for dashboard summary.
- * @param {Message[]} messages - Array of message objects.
- * @returns {Object} Count per category.
  */
-export function classifyMessages(messages) {
+export function classifyMessages(messages: Message[]): { my: number; others: number; waiting: number; all: number } {
     const counts = {
         my: 0,
         others: 0,
@@ -104,11 +120,9 @@ export function classifyMessages(messages) {
 }
 
 /**
- * Calculates activity level for heatmap based on task count.
- * @param {number} count - Number of completed tasks for a day.
- * @returns {number} Level from 0 to 4.
+ * Calculates activity level for heatmap.
  */
-export function calculateHeatmapLevel(count) {
+export function calculateHeatmapLevel(count: number): number {
     if (count <= 0) return 0;
     if (count < 3) return 1;
     if (count < 5) return 2;
@@ -118,20 +132,19 @@ export function calculateHeatmapLevel(count) {
 
 /**
  * Calculates distribution percentages for different sources.
- * @param {Object} distributionMap - Object with source keys and activity counts.
- * @returns {Object} Standardized percentages (total 100).
  */
-export function calculateSourceDistribution(distributionMap = {}) {
-    const total = Object.values(distributionMap).reduce((a, b) => a + b, 0);
+export function calculateSourceDistribution(distributionMap: Record<string, number> = {}): Record<string, number> {
+    const values = Object.values(distributionMap) as number[];
+    const total = values.reduce((a: number, b: number) => a + b, 0);
     if (total === 0) return {};
 
-    const result = {};
+    const result: Record<string, number> = {};
     let currentSum = 0;
-    const entries = Object.entries(distributionMap).sort((a, b) => b[1] - a[1]); // 오차 보정을 위해 큰 값부터 정렬
+    const entries = Object.entries(distributionMap).sort((a, b) => b[1] - a[1]);
 
     entries.forEach(([key, val], index) => {
         if (index === entries.length - 1) {
-            result[key] = 100 - currentSum; // 마지막 채널이 남은 %를 모두 가져가 정확히 100% 보장
+            result[key] = 100 - currentSum;
         } else {
             const p = Math.round((val / total) * 100);
             result[key] = p;
@@ -141,19 +154,15 @@ export function calculateSourceDistribution(distributionMap = {}) {
     return result;
 }
 
-
 /**
- * Processes raw completion history into a continuous timeline for charts.
- * @param {Array} history - Array of { date: 'YYYY-MM-DD', counts: { slack: n, ... } }
- * @param {number} days - Number of past days to generate
- * @returns {Array} Continuous array with zero-filled gaps and cumulative totals
+ * Processes raw completion history into a continuous timeline.
  */
-export function processTimeSeriesData(history, days) {
-    const result = [];
+export function processTimeSeriesData(history: { date: string; counts: Record<string, number> }[], days: number): any[] {
+    const result: any[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const historyMap = {};
+    const historyMap: Record<string, Record<string, number>> = {};
     let cumulative = 0;
 
     if (history && Array.isArray(history)) {
@@ -163,9 +172,9 @@ export function processTimeSeriesData(history, days) {
 
         history.forEach(item => {
             historyMap[item.date] = item.counts || {};
-            // 이전 데이터들의 누적치를 초기 cumulative에 더함
             if (item.date < cutoffStr) {
-                cumulative += Object.values(item.counts || {}).reduce((a, b) => a + b, 0);
+                const values = Object.values(item.counts || {}) as number[];
+                cumulative += values.reduce((a: number, b: number) => a + b, 0);
             }
         });
     }
@@ -176,7 +185,8 @@ export function processTimeSeriesData(history, days) {
         const dateStr = TimeService.getLocalDateString(d);
 
         const counts = historyMap[dateStr] || {};
-        const total = Object.values(counts).reduce((a, b) => a + b, 0);
+        const values = Object.values(counts) as number[];
+        const total = values.reduce((a: number, b: number) => a + b, 0);
 
         cumulative += total;
 
@@ -189,20 +199,16 @@ export function processTimeSeriesData(history, days) {
 }
 
 /**
- * Gets the deadline badge HTML based on the task timestamp.
- * @param {string} timestamp - ISO timestamp string.
- * @param {boolean} isDone - Whether the task is completed.
- * @param {string} lang - Current language ('ko' or 'en').
- * @returns {string} HTML string for the badge.
+ * Gets the deadline badge HTML.
  */
-export function getDeadlineBadge(timestamp, isDone, lang = 'ko') {
+export function getDeadlineBadge(timestamp: string | undefined, isDone: boolean, lang: string = 'ko'): string {
     if (isDone || !timestamp) return '';
 
     const start = new Date(timestamp);
     const now = new Date();
     if (start >= now) return '';
 
-    let diffMs = now - start;
+    let diffMs = now.getTime() - start.getTime();
     let current = new Date(start);
     let weekendDays = 0;
 
@@ -216,22 +222,21 @@ export function getDeadlineBadge(timestamp, isDone, lang = 'ko') {
     }
 
     const diffHours = (diffMs - (weekendDays * 24 * 60 * 60 * 1000)) / (1000 * 60 * 60);
+    const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
 
     if (diffHours >= 72) {
-        return `<span class="badge badge-abandoned">${ICONS.abandoned}${I18N_DATA[lang].abandoned}</span>`;
+        return `<span class="badge badge-abandoned">${ICONS.abandoned}${i18n.abandoned}</span>`;
     }
     if (diffHours >= 24) {
-        return `<span class="badge badge-stale">${ICONS.stale}${I18N_DATA[lang].stale}</span>`;
+        return `<span class="badge badge-stale">${ICONS.stale}${i18n.stale}</span>`;
     }
     return '';
 }
 
 /**
  * Custom markdown to HTML parser for release notes and descriptions.
- * @param {string} text - Raw markdown text.
- * @returns {string} Sanitized HTML.
  */
-export function parseMarkdown(text) {
+export function parseMarkdown(text: string): string {
     if (!text) return '';
     return text
         .replace(/^### (.*$)/gim, `<h3 style="margin-top: var(--spacing-2xl); margin-bottom: var(--spacing-sm); color: var(--text-main);">$1</h3>`)
@@ -242,5 +247,5 @@ export function parseMarkdown(text) {
         .replace(/`(.*?)`/gim, '<code style="background: var(--glass-border); padding: var(--spacing-xxs) var(--spacing-xs); border-radius: var(--radius-sm); font-size: 0.9em; font-family: monospace;">$1</code>')
         .replace(/^\- (.*$)/gim, `<div style="padding-left: var(--spacing-lg); text-indent: -0.8rem; margin-bottom: var(--spacing-sm); color: var(--text-dim); line-height: 1.6;"><span style="color: var(--accent-color);">•</span> $1</div>`)
         .replace(/\n/gim, '<br>')
-        .replace(/(<\/h[1-3]>|<hr.*?>|<\/div>)<br>/gim, '$1'); // 블록 요소 뒤 불필요한 줄바꿈 정리
+        .replace(/(<\/h[1-3]>|<hr.*?>|<\/div>)<br>/gim, '$1'); 
 }

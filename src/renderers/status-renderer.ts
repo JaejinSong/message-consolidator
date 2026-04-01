@@ -1,15 +1,23 @@
 import { I18N_DATA } from '../locales.js';
-import { DOM_IDS, STATUS_STATES, UI_TEXT } from '../constants.js';
-import { showToast } from './ui-effects.js';
+import { DOM_IDS, STATUS_STATES, UI_TEXT } from '../constants.ts';
+import { showToast } from './ui-effects.ts';
+
+/**
+ * @file status-renderer.ts
+ * @description UI renderer for service connection statuses and QR code management.
+ */
+
+export type ServiceStatus = boolean | string;
 
 /**
  * Common utility to update service status in the UI dashboard and settings.
  */
-export function updateServiceStatusUI(service, status) {
+export function updateServiceStatusUI(service: string, status: ServiceStatus): void {
     let isConnected = status === true;
     if (typeof status === 'string') {
         const normalized = status.toLowerCase();
-        isConnected = normalized === STATUS_STATES.CONNECTED.toLowerCase() || normalized === STATUS_STATES.AUTHENTICATED.toLowerCase();
+        isConnected = normalized === STATUS_STATES.CONNECTED.toLowerCase() || 
+                      normalized === STATUS_STATES.AUTHENTICATED.toLowerCase();
     }
 
     const largeIcon = document.getElementById(DOM_IDS.STATUS_LARGE(service));
@@ -18,19 +26,16 @@ export function updateServiceStatusUI(service, status) {
     if (largeIcon) {
         const activeClass = 'c-status-card--active';
         const inactiveClass = 'c-status-card--inactive';
-        if (isConnected && !largeIcon.classList.contains(activeClass)) {
+        if (isConnected) {
             largeIcon.classList.add(activeClass);
             largeIcon.classList.remove(inactiveClass);
-        } else if (!isConnected && !largeIcon.classList.contains(inactiveClass)) {
+        } else {
             largeIcon.classList.add(inactiveClass);
             largeIcon.classList.remove(activeClass);
         }
     }
     if (largeLabel) {
-        const nextText = isConnected ? UI_TEXT.ON : UI_TEXT.OFF;
-        if (largeLabel.textContent !== nextText) {
-            largeLabel.textContent = nextText;
-        }
+        largeLabel.textContent = isConnected ? UI_TEXT.ON : UI_TEXT.OFF;
     }
 
     if (service === 'wa') {
@@ -53,15 +58,15 @@ export function updateServiceStatusUI(service, status) {
     }
 }
 
-export function updateSlackStatus(status) {
+export function updateSlackStatus(status: ServiceStatus): void {
     updateServiceStatusUI('slack', status);
 }
 
-export function updateWhatsAppStatus(statusStr) {
+export function updateWhatsAppStatus(statusStr: ServiceStatus): void {
     updateServiceStatusUI('wa', statusStr);
 }
 
-export function updateGmailStatus(connected, email) {
+export function updateGmailStatus(connected: boolean, email: string | undefined): void {
     updateServiceStatusUI('gmail', connected);
     const emailEl = document.getElementById('gmailEmail');
     if (emailEl) {
@@ -70,7 +75,7 @@ export function updateGmailStatus(connected, email) {
     }
 }
 
-export function showWaModal() {
+export function showWaModal(): void {
     const modal = document.getElementById('waModal');
     if (modal) {
         modal.classList.remove('hidden');
@@ -78,7 +83,7 @@ export function showWaModal() {
     }
 }
 
-export function showGmailModal() {
+export function showGmailModal(): void {
     const modal = document.getElementById('gmailModal');
     if (modal) {
         modal.classList.remove('hidden');
@@ -86,15 +91,15 @@ export function showGmailModal() {
     }
 }
 
-export function bindGetQRBtn(onClick) {
+export function bindGetQRBtn(onClick: (ev: MouseEvent) => void): void {
     document.getElementById('getQRBtn')?.addEventListener('click', onClick);
 }
 
-export function updateWhatsAppQR(status, data, lang) {
-    const btn = document.getElementById('getQRBtn');
-    const img = document.getElementById('waQRImg');
+export function updateWhatsAppQR(status: 'generating' | 'show' | 'success' | 'error', data: string | null, lang?: string): void {
+    const btn = document.getElementById('getQRBtn') as HTMLButtonElement | null;
+    const img = document.getElementById('waQRImg') as HTMLImageElement | null;
     const placeholder = document.getElementById('qrPlaceholder');
-    const i18n = I18N_DATA[lang || 'ko'];
+    const i18n = (I18N_DATA as any)[lang || 'ko'];
 
     if (!btn || !img || !placeholder) return;
 
@@ -124,14 +129,14 @@ export function updateWhatsAppQR(status, data, lang) {
     } else if (status === 'error') {
         document.getElementById('qrTimerContainer')?.classList.add('hidden');
         placeholder.textContent = i18n.error || 'Error';
-        showToast((i18n.qrError || 'Error: ') + data, 'error');
+        showToast((i18n.qrError || 'Error: ') + (data || ''), 'error');
         btn.disabled = false;
     }
 }
 
-export function updateQRTimer(remaining, total) {
+export function updateQRTimer(remaining: number, total: number): void {
     const container = document.getElementById('qrTimerContainer');
-    const bar = document.getElementById('qrProgressBar');
+    const bar = document.getElementById('qrProgressBar') as HTMLElement | null;
     const text = document.getElementById('qrTimerText');
     if (!container || !bar || !text) return;
 
@@ -141,10 +146,10 @@ export function updateQRTimer(remaining, total) {
     text.textContent = `Next refresh in ${remaining}s`;
 }
 
-export function bindGmailStatus(onClick) {
+export function bindGmailStatus(onClick: (ev: MouseEvent) => void): void {
     document.getElementById('gmailStatusLarge')?.addEventListener('click', onClick);
 }
 
-export function bindWhatsAppStatus(onClick) {
+export function bindWhatsAppStatus(onClick: (ev: MouseEvent) => void): void {
     document.getElementById('waStatusLarge')?.addEventListener('click', onClick);
 }

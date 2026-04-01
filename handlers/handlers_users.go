@@ -241,7 +241,6 @@ func (a *API) HandleGetMappings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) HandleAddMapping(w http.ResponseWriter, r *http.Request) {
-	email := auth.GetUserEmail(r)
 	var req struct {
 		CanonicalID string `json:"canonical_id"`
 		DisplayName string `json:"display_name"`
@@ -253,47 +252,39 @@ func (a *API) HandleAddMapping(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Why: Enforce strict canonical_id determination logic according to user-defined Priority 1 & 2.
-	// 1. Search for email in Target Name, Aliases, or the requested CanonicalID.
-	emailRegex := `(?i)([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})`
-	re := regexp.MustCompile(emailRegex)
-	
-	finalID := ""
-	searchIn := []string{req.DisplayName, req.Aliases, req.CanonicalID}
-	for _, str := range searchIn {
-		match := re.FindString(str)
-		if match != "" {
-			// Rule: 소문자화 + 모든 공백 제거
-			finalID = strings.ToLower(strings.ReplaceAll(match, " ", ""))
-			break
-		}
-	}
-
-	// 2. If no email found, use DisplayName (Target Name) as ID.
+	email := auth.GetUserEmail(r)
+	finalID := determineCanonicalID(req.DisplayName, req.Aliases, req.CanonicalID)
 	if finalID == "" {
-		// Rule: Target Name 자체를 [소문자화 + 모든 공백 제거] 하여 canonical_id로 확정
-		finalID = strings.ToLower(strings.ReplaceAll(req.DisplayName, " ", ""))
-	}
-
-	// Final Safety Check: 어떠한 경우에도 대문자나 모든 형태의 공백을 포함해서는 안 됨.
-	finalID = strings.ToLower(strings.ReplaceAll(finalID, " ", ""))
-
-	if finalID == "" {
-		respondError(w, http.StatusBadRequest, "Canonical ID cannot be determined (DisplayName or Email required)")
+		respondError(w, http.StatusBadRequest, "Canonical ID cannot be determined")
 		return
 	}
 
-	// Default source to 'all' if empty
-	source := req.Source
-	if source == "" {
-		source = "all"
-	}
-
-	if err := store.AddContactMapping(email, finalID, req.DisplayName, req.Aliases, source); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+	if err := store.AddContactMapping(email, finalID, req.DisplayName, req.Aliases, req.Source); err != nil {
+		handleMappingError(w, err, email, finalID)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+func determineCanonicalID(displayName, aliases, canonicalID string) string {
+	emailRegex := `(?i)([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})`
+	re := regexp.MustCompile(emailRegex)
+	for _, str := range []string{displayName, aliases, canonicalID} {
+		if match := re.FindString(str); match != "" {
+			return strings.ToLower(strings.ReplaceAll(match, " ", ""))
+		}
+	}
+	return strings.ToLower(strings.ReplaceAll(displayName, " ", ""))
+}
+
+func handleMappingError(w http.ResponseWriter, err error, email, finalID string) {
+	if strings.Contains(err.Error(), "UNIQUE") {
+		logger.Warnf("[AMBIGUOUS_CONFLICT] Conflict detected for user: %s, ID: %s", email, finalID)
+		respondError(w, http.StatusConflict, "Mapping already exists for this identity")
+		return
+	}
+	logger.Errorf("[SYSTEM_ERROR] Failed to add mapping: %v", err)
+	respondError(w, http.StatusInternalServerError, "Internal Server Error")
 }
 
 func (a *API) HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {

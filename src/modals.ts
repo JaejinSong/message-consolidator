@@ -1,7 +1,16 @@
-import { state } from './state.js';
+import { state } from './state.ts';
 import { api } from './api.js';
-import { renderer } from './renderer.js';
-import { safeAsync } from './utils.js';
+import { 
+    showToast, 
+    renderAliasList, 
+    renderTenantAliasList, 
+    renderContactMappings, 
+    renderReleaseNotes, 
+    renderLinkedAccounts, 
+    initAccountLinkingCompos 
+} from './renderer.ts';
+import { safeAsync } from './utils.ts';
+import { SettingsCompos } from './renderers/settings-renderer';
 
 /**
  * @file modals.ts
@@ -9,6 +18,7 @@ import { safeAsync } from './utils.js';
  */
 
 let onTasksChanged: (() => void) | null = null;
+let settingsCompos: SettingsCompos | null = null;
 
 export interface ModalInterface {
     init(fetchMessagesCallback: () => void): void;
@@ -19,7 +29,6 @@ export interface ModalInterface {
     fetchTenantAliases(): Promise<void>;
     addTenantAliasMapping(): Promise<void>;
     removeTenantAliasMapping(original: string): Promise<void>;
-    fetchTokenUsage(): Promise<void>;
     fetchContactMappings(): Promise<void>;
     addContactMapping(): Promise<void>;
     removeContactMapping(repName: string): Promise<void>;
@@ -29,6 +38,7 @@ export interface ModalInterface {
     linkAccounts(targetId: string, masterId: string): Promise<void>;
     unlinkAccount(targetId: string): Promise<void>;
     setupSettingsModal(): void;
+    cleanupModal(modalId: string): void;
     openAliasMapping(name: string): void;
     setupEventListeners(): void;
 }
@@ -57,6 +67,7 @@ export const modals: ModalInterface = {
             if (target.closest('.c-modal__close') || target.closest('[data-action="close-modal"]')) {
                 const modal = target.closest('.c-modal');
                 if (modal) {
+                    this.cleanupModal(modal.id);
                     modal.classList.add('hidden');
                     (modal as HTMLElement).style.display = 'none';
                     console.debug('[MODAL] Closed via button:', modal.id);
@@ -64,6 +75,7 @@ export const modals: ModalInterface = {
             }
             // 2. Click outside modal content (backdrop area)
             else if (target.classList.contains('c-modal')) {
+                this.cleanupModal(target.id);
                 target.classList.add('hidden');
                 (target as HTMLElement).style.display = 'none';
                 console.debug('[MODAL] Closed via backdrop:', target.id);
@@ -72,12 +84,24 @@ export const modals: ModalInterface = {
     },
 
     /**
+     * Internal cleanup logic for specific modals.
+     */
+    cleanupModal(modalId: string) {
+        if (modalId === 'settingsModal' && settingsCompos) {
+            console.debug('[MODAL] Cleaning up settings comboboxes');
+            settingsCompos.targetCombo.destroy();
+            settingsCompos.masterCombo.destroy();
+            settingsCompos = null;
+        }
+    },
+
+    /**
      * Fetches and renders user aliases.
      */
     fetchAliases: safeAsync(async function (this: ModalInterface) {
         const aliases = await api.fetchAliases();
         (state as any).userAliases = aliases;
-        renderer.renderAliasList((state as any).userAliases, this.removeAlias.bind(this));
+        renderAliasList((state as any).userAliases, this.removeAlias.bind(this));
         if (onTasksChanged) onTasksChanged();
     }),
 
@@ -110,7 +134,7 @@ export const modals: ModalInterface = {
      */
     fetchTenantAliases: safeAsync(async function (this: ModalInterface) {
         const aliases = await api.fetchTenantAliases();
-        renderer.renderTenantAliasList(aliases, this.removeTenantAliasMapping.bind(this));
+        renderTenantAliasList(aliases, this.removeTenantAliasMapping.bind(this));
     }),
 
     /**
@@ -140,21 +164,14 @@ export const modals: ModalInterface = {
         this.fetchTenantAliases();
     }, { triggerAuthOverlay: true }),
 
-    /**
-     * Fetches and updates token usage count.
-     */
-    fetchTokenUsage: safeAsync(async function () {
-        const usage = await api.fetchTokenUsage();
-        renderer.updateTokenBadge(usage);
-    }),
 
     /**
      * Fetches and renders contact mappings.
      */
     fetchContactMappings: safeAsync(async function (this: ModalInterface) {
         const mappings = await api.fetchContactMappings();
-        renderer.renderContactMappings(mappings, (repName: string) => this.removeContactMapping(repName));
-    }),
+        renderContactMappings(mappings, (repName: string) => this.removeContactMapping(repName));
+    }, { triggerAuthOverlay: true }),
 
     /**
      * Adds a new contact mapping.
@@ -168,10 +185,19 @@ export const modals: ModalInterface = {
         const aliases = aliasInput.value.trim();
         if (!repName || !aliases) return;
 
-        await api.addContactMapping(repName, aliases);
-        repInput.value = '';
-        aliasInput.value = '';
-        this.fetchContactMappings();
+        try {
+            await api.addContactMapping(repName, aliases);
+            repInput.value = '';
+            aliasInput.value = '';
+            this.fetchContactMappings();
+            showToast('Contact mapping added successfully', 'success');
+        } catch (e: any) {
+            if (e.status === 409) {
+            showToast('Mapping already exists for this identity', 'error');
+                return;
+            }
+            throw e;
+        }
     }, { triggerAuthOverlay: true }),
 
     /**
@@ -197,7 +223,7 @@ export const modals: ModalInterface = {
             try {
                 const data = await api.fetchReleaseNotes(currentRnType, currentRnLang);
                 if (data && data.content) {
-                    renderer.renderReleaseNotes(data.content);
+                    renderReleaseNotes(data.content);
                 }
             } catch (e) {
                 console.error('Failed to fetch release notes:', e);
@@ -274,7 +300,7 @@ export const modals: ModalInterface = {
      */
     fetchLinkedAccounts: safeAsync(async function (this: ModalInterface) {
         const links = await api.fetchLinkedAccounts();
-        renderer.renderLinkedAccounts(links, (id: string) => this.unlinkAccount(id));
+        renderLinkedAccounts(links, (id: string) => this.unlinkAccount(id));
     }),
 
     /**
@@ -282,11 +308,11 @@ export const modals: ModalInterface = {
      */
     linkAccounts: safeAsync(async function (this: ModalInterface, targetId: string, masterId: string) {
         if (targetId === masterId) {
-            renderer.showToast('자기 자신을 연결할 수 없습니다.', 'error');
+            showToast('자기 자신을 연결할 수 없습니다.', 'error');
             return;
         }
         await api.linkAccounts(targetId, masterId);
-        renderer.showToast('계정이 성공적으로 연결되었습니다.', 'success');
+        showToast('계정이 성공적으로 연결되었습니다.', 'success');
         this.fetchLinkedAccounts();
     }, { triggerAuthOverlay: true }),
 
@@ -304,8 +330,6 @@ export const modals: ModalInterface = {
      * Sets up settings modal and tab logic.
      */
     setupSettingsModal() {
-        let comboboxesInitialized = false;
-
         const settingsBtn = document.getElementById('settingsBtn');
         console.debug('[MODAL] setupSettingsModal - settingsBtn found:', !!settingsBtn);
 
@@ -315,18 +339,24 @@ export const modals: ModalInterface = {
             if (modal) {
                 modal.classList.remove('hidden');
                 (modal as HTMLElement).style.display = 'flex';
-                renderer.renderAliasList((state as any).userAliases || [], (alias: string) => this.removeAlias(alias));
+                renderAliasList((state as any).userAliases || [], (alias: string) => this.removeAlias(alias));
                 this.fetchTenantAliases();
                 this.fetchContactMappings();
-                this.fetchTokenUsage();
                 this.fetchLinkedAccounts();
 
-                if (!comboboxesInitialized) {
-                    renderer.initAccountLinkingCompos(
-                        (q: string) => api.searchContacts(q),
-                        (target: string, master: string) => this.linkAccounts(target, master)
-                    );
-                    comboboxesInitialized = true;
+                // Why: Always re-initialize to ensure fresh DOM state, cleanup handled by global close listener.
+                if (settingsCompos) {
+                    settingsCompos.targetCombo.destroy();
+                    settingsCompos.masterCombo.destroy();
+                }
+                
+                const compos = initAccountLinkingCompos(
+                    (q: string) => api.searchContacts(q),
+                    (target: number, master: number) => this.linkAccounts(String(target), String(master))
+                );
+
+                if (compos) {
+                    settingsCompos = compos;
                 }
             }
         });

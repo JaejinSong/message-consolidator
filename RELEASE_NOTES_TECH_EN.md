@@ -1,3 +1,16 @@
+# Release Notes (Tech) - v2.4.8 (2026-04-01 23:48 UTC)
+
+- [FEAT] Identity Resolution V3 & Ambiguity Safeguard Engine: Implemented advanced cross-channel identity merging logic with a safeguard layer to prevent incorrect account associations and resolve naming conflicts.
+- [FEAT] JIT (Just-In-Time) On-Demand Translation: Added a real-time translation engine using the `singleflight` pattern to eliminate redundant upstream API calls and improve response latency.
+- [FEAT] AI Relationship Graph & Reporting System: Integrated a visualization engine for mapping task-actor dependencies and generated comprehensive relationship insights within the Insights tab.
+- [FEAT] WhatsApp Task Optimization: Specialized extraction parameters for WhatsApp messaging patterns to handle informal conversational structures more effectively.
+- [PERF] SQL View-Based Architecture: Refactored complex relational queries into optimized SQL Views to reduce DB load and stabilize dashboard rendering performance.
+- [SYS] WhaTap Observability Integration: Integrated WhaTap monitoring to track real-time performance metrics and improve proactive error detection.
+- [UI] Insights Tab Stabilization: Refined dark mode CSS, fixed icon rendering issues, and optimized layout margins for mobile and desktop views.
+- [FIX] Resolved "undefined" assignee rendering bugs and fixed AI analysis text truncation issues in the reporting module.
+
+---
+
 # Release Notes (Tech) - v2.4.7 (2026-04-01 08:03 UTC)
 
 - [FEAT] Advanced Gmail Task Extraction Prompts: Implemented "1 Deliverable = 1 Task" and "ELIMINATE REDUNDANCY" guidelines to improve task separation accuracy and reduce message clutter.

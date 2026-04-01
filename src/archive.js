@@ -1,8 +1,8 @@
-import { state } from './state.js';
+import { state } from './state.ts';
 import { I18N_DATA } from './locales.js';
 import { api } from './api.js';
-import { renderer } from './renderer.js';
-import { safeAsync } from './utils.js';
+import { renderArchive, showToast } from './renderer.ts';
+import { safeAsync } from './utils.ts';
 
 let onTasksChangedCallback = null;
 
@@ -45,7 +45,7 @@ export const archive = {
                 if (archiveCountEl) archiveCountEl.textContent = data.total;
             }
 
-            renderer.renderArchive(data.messages);
+            renderArchive(data.messages);
             this.updatePaginationUI();
         } finally {
             if (loader) loader.classList.remove('active');
@@ -133,7 +133,7 @@ export const archive = {
             this.fetch();
             if (onTasksChangedCallback) onTasksChangedCallback();
         }, (e) => {
-            renderer.showToast((I18N_DATA[state.currentLang]?.errorRestore || 'Error: ') + e.message, 'error');
+            showToast((I18N_DATA[state.currentLang]?.errorRestore || 'Error: ') + e.message, 'error');
         }, { triggerAuthOverlay: true }));
 
         // Sorting
@@ -190,7 +190,7 @@ export const archive = {
             document.getElementById('exportCount').textContent = countData.count;
             exportModal.classList.remove('hidden');
         }, (e) => {
-            renderer.showToast((I18N_DATA[state.currentLang]?.errorArchiveCount || 'Error: ') + e.message, 'error');
+            showToast((I18N_DATA[state.currentLang]?.errorArchiveCount || 'Error: ') + e.message, 'error');
         }, { triggerAuthOverlay: true }));
 
         const downloadFile = (url, defaultFilename) => {

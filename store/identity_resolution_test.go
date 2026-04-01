@@ -14,8 +14,8 @@ func TestIdentityResolutionViews(t *testing.T) {
 	tenantEmail := "test@example.com"
 
 	// 1. Create Contacts (Master & Child)
-	masterID, _ := UpsertContact(tenantEmail, "boss@company.com", "The Big Boss", "", "gmail")
-	childID, _ := UpsertContact(tenantEmail, "minion@whatsapp", "Poor Minion", "", "whatsapp")
+	masterID, _ := AddContact(tenantEmail, "boss@company.com", "The Big Boss", "", "gmail")
+	childID, _ := AddContact(tenantEmail, "minion@whatsapp", "Poor Minion", "", "whatsapp")
 	
 	_ = LinkContact(tenantEmail, masterID, childID)
 

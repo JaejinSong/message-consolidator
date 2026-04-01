@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { archive } from './archive.js';
-import { state } from './state.js';
+import { state } from './state.ts';
 import { api } from './api.js';
 
 vi.mock('./api.js', () => ({

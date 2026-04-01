@@ -1,5 +1,19 @@
 # Message Consolidator - TODO & TECH DEBT
 
+## 완료 사항 (Completed) - v2.4.8 (2026-04-01)
+
+### [Feature] Metadata JSON 아키텍처 및 Policy 필드 도입
+- **내용**: 업무 태스크의 유연한 확장을 위해 JSONB 메타데이터 필드를 도입하고, 비즈니스 규칙 제어를 위한 Policy 필드를 데이터베이스 레벨에서 구현.
+- **성과**: 스키마 변경 최소화하면서도 다양한 태스크 속성을 안정적으로 저장/필터링 가능.
+
+### [Refactor] 프론트엔드 TypeScript 전면 전환 및 Clean Architecture 적용
+- **내용**: `renderer.js` 등 레거시 JS 코드를 TypeScript(`src/components/`, `src/renderers/`)로 마이그레이션하고 모듈성 강화.
+- **성과**: 정적 타입 검사를 통한 런타임 오류 방지 및 UI 컴포넌트 재사용성 대폭 향상.
+
+### [Feature] 계정 통합(Account Linking) UI 고도화
+- **내용**: 타입 세이프한 `Combobox` 컴포넌트 구현 및 실시간 검색 연동을 통한 사용자 경험 개선.
+- **성과**: 계정 관리의 정확도와 조작 편의성 강화.
+
 ## 완료 사항 (Completed) - v2.4.7 (2026-04-01)
 
 ### [Feature] Gmail 태스크 추출 정밀도 고도화

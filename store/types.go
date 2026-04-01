@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -41,6 +42,9 @@ type ConsolidatedMessage struct {
 	AssigneeCanonical  string     `json:"assignee_canonical,omitempty"`
 	AssigneeReason     string     `json:"assignee_reason,omitempty"`
 	RepliedToID        string     `json:"replied_to_id,omitempty"`
+	IsContextQuery     bool            `json:"is_context_query"` //Why: Indicates if the message is a follow-up inquiry about existing policies or tasks.
+	Constraints        []string        `json:"constraints"`      //Why: Stores behavioral rules extracted from POLICY-type messages.
+	Metadata           json.RawMessage `json:"metadata"`         //Why: Flexible JSON storage for future-proofing message attributes.
 }
 
 // User represents an application user
@@ -98,14 +102,17 @@ type UserAlias struct {
 
 // TodoItem is the task structure returned by Gemini Analyze
 type TodoItem struct {
-	Task       string `json:"task"`
-	Requester  string `json:"requester"`
-	Assignee   string `json:"assignee"`
-	AssignedAt string `json:"assigned_at"`
-	SourceTS   string `json:"source_ts"`
-	Category       string `json:"category"`
-	Deadline       string `json:"deadline"`
-	AssigneeReason string `json:"assignee_reason,omitempty"`
+	Task       string   `json:"task"`
+	Requester  string   `json:"requester"`
+	Assignee   string   `json:"assignee"`
+	AssignedAt string   `json:"assigned_at"`
+	SourceTS   string   `json:"source_ts"`
+	Category       string   `json:"category"`
+	Deadline       string   `json:"deadline"`
+	AssigneeReason string   `json:"assignee_reason,omitempty"`
+	IsContextQuery bool            `json:"is_context_query"`
+	Constraints    []string        `json:"constraints"`
+	Metadata       json.RawMessage `json:"metadata"`
 }
 
 // TranslateRequest represents a request to translate a specific task

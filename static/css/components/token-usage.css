@@ -1,0 +1,97 @@
+/* 
+   token-usage.css
+   BEM: c-token-usage
+*/
+
+.c-token-usage {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-2xl);
+    animation: fadeIn 0.5s ease-out;
+}
+
+.c-token-usage__card {
+    background: var(--card-bg);
+    border: var(--border-thin) solid var(--glass-border);
+    backdrop-filter: blur(var(--blur-md));
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.c-token-usage__card:hover {
+    transform: translateY(-0.25rem);
+    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.3);
+    border-color: rgba(var(--accent-rgb), 0.4);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.c-token-usage__card::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 4rem;
+    height: 4rem;
+    background: radial-gradient(circle at bottom right, rgba(var(--accent-rgb), 0.05), transparent 70%);
+    pointer-events: none;
+}
+
+.c-token-usage__label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+.c-token-usage__value {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--text-main);
+    line-height: 1.2;
+    text-shadow: 0 0 1rem rgba(255, 255, 255, 0.05);
+}
+
+.c-token-usage__footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: var(--spacing-xs);
+}
+
+.c-token-usage__subvalue {
+    font-size: 0.85rem;
+    color: var(--accent-color);
+    font-weight: 700;
+}
+
+.c-token-usage__model-badge {
+    padding: 0.25rem 0.6rem;
+    background: rgba(var(--accent-rgb), 0.1);
+    color: var(--accent-color);
+    border-radius: var(--radius-sm);
+    font-size: 0.65rem;
+    font-weight: 800;
+    border: var(--border-thin) solid rgba(var(--accent-rgb), 0.2);
+    text-transform: uppercase;
+}
+
+/* Responsive adjustment */
+@media (max-width: 48rem) {
+    .c-token-usage {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 30rem) {
+    .c-token-usage {
+        grid-template-columns: 1fr;
+    }
+}

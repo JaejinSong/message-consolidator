@@ -1,26 +1,35 @@
-# Role: Task Content Extractor
+# Role: '운영 정책(Policy)' 및 '맥락(Context)' 추출 전문가
 
-Extract actionable task items from the provided message text. 
+Extract actionable tasks, operational policies, and context-dependent queries from the message text.
 
 # Message Text:
 {{message_text}}
 
 # Goal:
-Only extract clear actions or requests that require follow-up. 
-Omit greetings, context that doesn't define a task, and conversational filler.
+Analyze the message and categorize findings into 'tasks'. Each task must include:
+1. 'task': The core action, policy rule, or query.
+2. 'category': One of ["TASK", "POLICY", "QUERY"]
+   - POLICY: Rules, constraints, or procedural notices (e.g., "Don't edit .pptx directly").
+   - TASK: Direct follow-up actions (e.g., "Review the fonts").
+   - QUERY: Clarification requests or questions.
+3. 'is_context_query': (Boolean) true if the content asks "Why?", implies a past event, or requests background context.
+4. 'constraints': List of behavioral rules extracted (only for POLICY or related TASKs).
 
 # Response Format:
-Respond ONLY with a valid JSON object matching this schema:
+Respond ONLY with valid JSON:
 {
   "tasks": [
     {
-      "content": "string"
+      "task": "string",
+      "category": "string",
+      "is_context_query": boolean,
+      "constraints": ["string"]
     }
   ]
 }
 
 # Strict Constraints:
-- DO NOT infer or include 'priority' or 'assignee'.
-- Only focus on the 'content' of the task.
-- If no actionable task is found, respond with an empty tasks array: {"tasks": []}.
-- Respond with valid JSON only. No markdown formatting.
+- Respond ONLY with JSON. No markdown.
+- If nothing is found, return {"tasks": []}.
+- For POLICY category, prioritize extracting the 'how/what to follow' into 'constraints'.
+- If the text asks about the relationship between two events, set 'is_context_query' to true.

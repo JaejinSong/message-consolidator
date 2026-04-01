@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderer } from './renderer.js';
+import * as renderer from './renderer.ts';
 import { I18N_DATA } from './locales.js';
 import { insightsRenderer } from './insightsRenderer.js';
 
@@ -12,25 +12,7 @@ describe('renderer.js - Empty State Messages', () => {
     });
 });
 
-describe('renderer.js - updateTokenBadge', () => {
-    beforeEach(() => {
-        document.body.innerHTML = '<div id="tokenUsageBadge"></div>';
-    });
 
-    it('should show Day: 0 / Month: 0 / Est: $0.00 when usage is null', () => {
-        renderer.updateTokenBadge(null);
-        const badge = document.getElementById('tokenUsageBadge');
-        expect(badge.classList.contains('hidden')).toBe(false);
-        expect(badge.textContent).toBe('Day: 0 / Month: 0 / Est: $0.00');
-    });
-
-    it('should format numbers with commas', () => {
-        renderer.updateTokenBadge({ todayTotal: 1500, todayPrompt: 1000, todayCompletion: 500, monthTotal: 50000 });
-        const badge = document.getElementById('tokenUsageBadge');
-        expect(badge.textContent).toBe('Day: 1,500 / Month: 50,000 / Est: $0.00');
-        expect(badge.getAttribute('title')).toContain('50,000');
-    });
-});
 
 describe('renderer.js - showToast', () => {
     it('should create and append a toast element', () => {
@@ -67,21 +49,21 @@ describe('renderer.js - createCardElement', () => {
     it('should include promise tag when category is promise', () => {
         const msg = { id: 1, source: 'slack', task: 'Task', requester: 'Req', timestamp: new Date().toISOString(), done: false, category: 'promise', room: 'R' };
         const html = renderer.createCardElement(msg);
-        expect(html).toContain('promise-tag');
+        expect(html).toContain('c-message-card__badge--promise');
         expect(html).toContain('🤝');
     });
 
     it('should include waiting tag when category is waiting', () => {
         const msg = { id: 2, source: 'whatsapp', task: 'Task', requester: 'Req', timestamp: new Date().toISOString(), done: false, category: 'waiting', room: 'R' };
         const html = renderer.createCardElement(msg);
-        expect(html).toContain('waiting-tag');
+        expect(html).toContain('c-message-card__badge--waiting');
         expect(html).toContain('⏳');
     });
 
     it('should use assignee-me class for current user', () => {
         const msg = { id: 3, source: 'gmail', task: 'Task', requester: 'Req', timestamp: new Date().toISOString(), done: false, assignee: 'me', room: 'R' };
         const html = renderer.createCardElement(msg);
-        expect(html).toContain('assignee-me');
+        expect(html).toContain('c-message-card__assignee--me');
     });
 
     it('should handle literal "undefined" or "unknown" assignee by not rendering it', () => {
@@ -205,5 +187,3 @@ describe('renderer.js - updateServiceStatusUI', () => {
         }).not.toThrow();
     });
 });
-
-

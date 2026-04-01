@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { insightsRenderer, validateEdges } from './insightsRenderer.js';
-import { state } from './state.js';
+import { state } from './state.ts';
 
 describe('insightsRenderer.js', () => {
     beforeEach(() => {

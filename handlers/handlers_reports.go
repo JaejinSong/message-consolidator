@@ -64,20 +64,22 @@ func (a *API) HandleGenerateReport(w http.ResponseWriter, r *http.Request) {
 // HandleGetReportByID retrieves a specific report by its unique ID.
 func (a *API) HandleGetReportByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	idStr := vars["id"]
-	id64, _ := strconv.ParseInt(idStr, 10, 64)
+	id64, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil { // Guard Clause 1: Explicit Integer Conversion 방어
+		respondError(w, http.StatusBadRequest, "Invalid report ID format")
+		return
+	}
 	id := int(id64)
-
 	email := auth.GetUserEmail(r)
+
 	report, err := store.GetReportByID(r.Context(), id, email)
-	if err != nil {
+	if err != nil { // Guard Clause 2: Not Found 방어
 		respondError(w, http.StatusNotFound, "Report not found")
 		return
 	}
 
-	// Safety check already done in GetReportByID via email filtering
-	if report.UserEmail != email {
-		respondError(w, http.StatusForbidden, "Forbidden")
+	if report.UserEmail != email { // Guard Clause 3: 권한 방어
+		respondError(w, http.StatusForbidden, "Forbidden access")
 		return
 	}
 
@@ -87,25 +89,21 @@ func (a *API) HandleGetReportByID(w http.ResponseWriter, r *http.Request) {
 // HandleDeleteReport removes a report from the database.
 func (a *API) HandleDeleteReport(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	idStr := vars["id"]
-	id64, _ := strconv.ParseInt(idStr, 10, 64)
+	id64, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid report ID format")
+		return
+	}
 	id := int(id64)
-
 	email := auth.GetUserEmail(r)
-	// Verify ownership before delete
+
 	report, err := store.GetReportByID(r.Context(), id, email)
-	if err != nil {
-		respondError(w, http.StatusNotFound, "Report not found")
-		return
-	}
-	email = auth.GetUserEmail(r)
-	if report.UserEmail != email {
-		respondError(w, http.StatusForbidden, "Forbidden")
+	if err != nil || report.UserEmail != email {
+		respondError(w, http.StatusForbidden, "Report not found or Forbidden")
 		return
 	}
 
-	err = store.DeleteReport(r.Context(), id, email)
-	if err != nil {
+	if err := store.DeleteReport(r.Context(), id, email); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -119,7 +117,11 @@ func (a *API) HandleTranslateReport(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	vars := mux.Vars(r)
 	idStr := vars["id"]
-	id64, _ := strconv.ParseInt(idStr, 10, 64)
+	id64, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid report ID format")
+		return
+	}
 	id := int(id64)
 
 	lang := r.URL.Query().Get("lang")

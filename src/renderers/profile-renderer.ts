@@ -1,7 +1,14 @@
+import { UserProfile } from '../state.ts';
+
+/**
+ * @file profile-renderer.ts
+ * @description UI renderer for user profile, stats, and gamification elements.
+ */
+
 /**
  * Updates user profile UI with latest data.
  */
-export function updateUserProfile(profile) {
+export function updateUserProfile(profile: UserProfile | null): void {
     if (!profile) return;
 
     const userProfile = document.getElementById('userProfile');
@@ -10,7 +17,7 @@ export function updateUserProfile(profile) {
     if (gamificationStats) gamificationStats.classList.remove('hidden');
 
     const userEmail = document.getElementById('userEmail');
-    const userPic = document.getElementById('userPicture');
+    const userPic = document.getElementById('userPicture') as HTMLImageElement | null;
 
     if (userEmail) {
         userEmail.textContent = profile.email || '';
@@ -28,18 +35,19 @@ export function updateUserProfile(profile) {
 
     const streakText = document.getElementById('userStreak');
     const xpText = document.getElementById('xpText');
-    const xpBar = document.getElementById('xpBar');
+    const xpBar = document.getElementById('xpBar') as HTMLElement | null;
     const pointsText = document.getElementById('userPoints');
     const levelText = document.getElementById('userLevel');
 
     if (streakText) streakText.textContent = `${profile.streak || 0}🔥`;
-    if (xpText) xpText.textContent = `${(profile.xp || 0) % 100} / 100 XP`;
+    
+    const currentXp = (profile.xp || 0) % 100;
+    if (xpText) xpText.textContent = `${currentXp} / 100 XP`;
     if (xpBar) {
-        const progress = (profile.xp || 0) % 100;
-        xpBar.style.width = `${progress}%`;
+        xpBar.style.width = `${currentXp}%`;
     }
-    if (pointsText) pointsText.textContent = profile.points || 0;
-    if (levelText) levelText.textContent = profile.level || 1;
+    if (pointsText) pointsText.textContent = String(profile.points || 0);
+    if (levelText) levelText.textContent = String(profile.level || 1);
 
     const freezeContainer = document.getElementById('streakFreezeContainer');
     if (freezeContainer) {

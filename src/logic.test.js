@@ -11,7 +11,7 @@ import {
     // Format Logic
     getDeadlineBadge,
     parseMarkdown
-} from './logic.js';
+} from './logic.ts';
 
 // ----------------------------------------------------------------------
 // 1. Data Processing Logic

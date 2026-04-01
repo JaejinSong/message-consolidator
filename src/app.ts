@@ -1,17 +1,41 @@
 import '../static/style.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import 'pretendard/dist/web/static/pretendard.css';
-import { state, updateLang, updateTheme, updateStats, updateMessages } from './state.js';
+import { state, updateLang, updateTheme, updateStats, updateMessages } from './state.ts';
 import { updateUILanguage } from './i18n.js';
 import { I18N_DATA } from './locales.js';
 import { api } from './api.js';
-import { renderer } from './renderer.js';
+import { 
+    renderMessages, 
+    renderEmptyGrid, 
+    updateUserProfile, 
+    updateWhatsAppStatus, 
+    updateGmailStatus, 
+    initMessageGridEvents,
+    setScanLoading,
+    showToast,
+    updateWhatsAppQR,
+    showWaModal,
+    showGmailModal,
+    updateQRTimer,
+    updateSlackStatus,
+    setTheme,
+    triggerXPAnimation,
+    triggerConfetti,
+    bindGetQRBtn,
+    bindScanBtn,
+    bindWhatsAppStatus,
+    bindGmailStatus,
+    bindGlobalClicks,
+    bindThemeToggle
+} from './renderer.ts';
+import { Message, MessageHandlers, ServiceHandlers, I18nDictionary, UserProfile } from './types.ts';
 import { archive } from './archive.js';
 import { modals } from './modals.ts';
 import { insights } from './insights.js';
 import { events, EVENTS } from './events.js';
-import { safeAsync, hasSessionHint, setupTabs } from './utils.js';
-import { STATUS_STATES, POLLING_INTERVALS } from './constants.js';
+import { safeAsync, hasSessionHint, setupTabs } from './utils.ts';
+import { STATUS_STATES, POLLING_INTERVALS } from './constants.ts';
 import { authService } from './services/authService.ts';
 
 /**
@@ -22,17 +46,7 @@ import { authService } from './services/authService.ts';
 /**
  * Handlers for renderer actions.
  */
-interface Handlers {
-    onToggleDone: (id: string, done: boolean) => Promise<void>;
-    onDeleteTask: (id: string) => Promise<void>;
-    onShowOriginal: (id: string) => Promise<void>;
-    onWhatsAppLogout: () => Promise<void>;
-    onWhatsAppRelink: () => Promise<void>;
-    onGmailDisconnect: () => Promise<void>;
-    onGmailConnect: () => void;
-}
-
-const handlers: Handlers = {
+const handlers: ServiceHandlers = {
     onToggleDone: safeAsync(async (id: string, done: boolean) => {
         const result = await api.toggleDone(id, done);
         if (result.user) {
@@ -51,20 +65,27 @@ const handlers: Handlers = {
     }, { triggerAuthOverlay: true }),
     onShowOriginal: safeAsync(async (id: string) => {
         const data = await api.fetchOriginalMessage(id);
-        const lang = (state as any).currentLang || 'ko';
-        const msg = (data && data.original_text) ? data.original_text : (I18N_DATA as any)[lang].originalNotAvailable;
-        modals.showOriginalModal(msg);
+        const lang = state.currentLang || 'ko';
+        const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
+        const msg = (data && data.original_text) ? data.original_text : i18n.originalNotAvailable;
+        modals.showOriginalModal(msg!);
     }, { triggerAuthOverlay: true }),
+    onMapAlias: (name: string) => {
+        window.dispatchEvent(new CustomEvent('openAliasMapping', {
+            detail: { name }
+        }));
+    },
     onWhatsAppLogout: safeAsync(async () => {
-        const lang = (state as any).currentLang || 'ko';
-        if (!confirm((I18N_DATA as any)[lang].logoutConfirm)) return;
+        const lang = state.currentLang || 'ko';
+        const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
+        if (!confirm(i18n.logoutConfirm!)) return;
         await api.logoutWhatsApp();
-        renderer.showToast(lang === 'ko' ? '로그아웃 되었습니다.' : 'Logged out successfully.', 'success');
+        showToast(lang === 'ko' ? '로그아웃 되었습니다.' : 'Logged out successfully.', 'success');
         checkWhatsAppStatus();
     }, { triggerAuthOverlay: true }),
     onWhatsAppRelink: safeAsync(async () => {
-        renderer.updateWhatsAppQR('generating', null, state.currentLang);
-        renderer.showWaModal();
+        updateWhatsAppQR('generating', null, state.currentLang);
+        showWaModal();
         // waQRSection과 waConnectedSection은 renderer.updateServiceStatusUI에서 처리되지만,
         // 여기서는 강제로 QR 섹션을 보여줘야 함
         document.getElementById('waQRSection')?.classList.remove('hidden');
@@ -73,15 +94,16 @@ const handlers: Handlers = {
         await refreshWhatsAppQR();
     }, { triggerAuthOverlay: true }),
     onGmailDisconnect: safeAsync(async () => {
-        const lang = (state as any).currentLang || 'ko';
-        if (!confirm((I18N_DATA as any)[lang].disconnectConfirm)) return;
+        const lang = state.currentLang || 'ko';
+        const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
+        if (!confirm(i18n.disconnectConfirm!)) return;
         const success = await authService.disconnectGmail();
         if (success) {
-            renderer.showToast(lang === 'ko' ? '연동이 해제되었습니다.' : 'Disconnected successfully.', 'success');
+            showToast(lang === 'ko' ? '연동이 해제되었습니다.' : 'Disconnected successfully.', 'success');
             checkGmailStatus();
             document.getElementById('gmailModal')?.classList.add('hidden');
         } else {
-            renderer.showToast(lang === 'ko' ? '연동 해제 실패' : 'Failed to disconnect.', 'error');
+            showToast(lang === 'ko' ? '연동 해제 실패' : 'Failed to disconnect.', 'error');
         }
     }, { triggerAuthOverlay: true }),
     onGmailConnect: () => {
@@ -93,13 +115,13 @@ const handlers: Handlers = {
  * Fetches and renders messages.
  */
 const fetchMessages = safeAsync(async () => {
-    const data = await api.fetchMessages((state as any).currentLang);
-    const messages = data.messages || data;
+    const data = await api.fetchMessages(state.currentLang);
+    const messages: Message[] = data.messages || data;
     if (data.user) {
         updateStats(data.user);
     }
     updateMessages(messages);
-    renderer.renderMessages(messages, handlers);
+    renderMessages(messages, handlers);
 });
 
 /**
@@ -107,7 +129,7 @@ const fetchMessages = safeAsync(async () => {
  */
 const checkSlackStatus = safeAsync(async () => {
     const data = await api.fetchSlackStatus();
-    renderer.updateSlackStatus(data.status === STATUS_STATES.CONNECTED);
+    updateSlackStatus(data.status === STATUS_STATES.CONNECTED);
 });
 
 /**
@@ -117,7 +139,7 @@ const checkWhatsAppStatus = safeAsync(async () => {
     const data = await api.fetchWhatsAppStatus();
     if (data) {
         state.waConnected = (data.status === STATUS_STATES.CONNECTED);
-        renderer.updateWhatsAppStatus(data.status);
+        updateWhatsAppStatus(data.status);
     }
 });
 
@@ -127,24 +149,24 @@ const checkWhatsAppStatus = safeAsync(async () => {
 const checkGmailStatus = safeAsync(async () => {
     const data = await authService.checkGmailStatus();
     state.gmailConnected = data.connected;
-    renderer.updateGmailStatus(data.connected, data.email);
+    updateGmailStatus(data.connected, data.email);
 });
 
 /**
  * Triggers a message scan.
  */
 const triggerScan = async () => {
-    renderer.setScanLoading(true);
+    setScanLoading(true);
 
     try {
         await api.triggerScan(state.currentLang);
         setTimeout(() => {
             fetchMessages();
-            renderer.setScanLoading(false);
+            setScanLoading(false);
         }, 5000);
     } catch (e) {
         console.error(e);
-        renderer.setScanLoading(false);
+        setScanLoading(false);
     }
 };
 
@@ -154,7 +176,7 @@ const triggerScan = async () => {
 const fetchUserProfile = safeAsync(async () => {
     const data = await api.fetchUserProfile();
     state.userProfile = data;
-    state.userAliases = data.aliases || [];
+    state.userAliases = (data.aliases || []) as string[];
     events.emit(EVENTS.USER_PROFILE_UPDATED, state.userProfile);
     fetchMessages();
 }, { triggerAuthOverlay: true });
@@ -166,21 +188,19 @@ const triggerBatchTranslation = safeAsync(async () => {
     const lang = state.currentLang;
     if (!lang || lang === 'en') return;
 
-    // Identify tasks in the currently active tab
     const activeTab = document.querySelector('.tab-btn.active')?.getAttribute('data-tab') || 'myTasksTab';
     const gridId = activeTab.replace('Tab', 'List');
     const container = document.getElementById(gridId);
     if (!container) return;
 
-    const cards = container.querySelectorAll('.c-task-card:not(.c-task-card--done)');
+    const cards = container.querySelectorAll('.c-message-card:not(.c-message-card--done)');
     if (cards.length === 0) return;
 
     const taskIds = Array.from(cards).map(card => parseInt((card as HTMLElement).dataset.id || '0', 10));
 
-    // Update state to show loading spinners on relevant cards
     let needsUpdate = false;
     taskIds.forEach(id => {
-        const msg: any = (state.messages as any[] || []).find(m => m.id === id);
+        const msg = (state.messages as Message[] || []).find(m => m.id === id);
         if (msg && !msg.translating) {
             msg.translating = true;
             msg.translationError = null;
@@ -189,7 +209,7 @@ const triggerBatchTranslation = safeAsync(async () => {
     });
 
     if (needsUpdate) {
-        renderer.renderMessages(state.messages, handlers);
+        renderMessages(state.messages, handlers);
     }
 
     try {
@@ -197,7 +217,7 @@ const triggerBatchTranslation = safeAsync(async () => {
         const results = data.results || [];
 
         results.forEach((res: any) => {
-            const msg: any = (state.messages as any[] || []).find(m => m.id === res.id);
+            const msg = (state.messages as Message[] || []).find(m => m.id === res.id);
             if (msg) {
                 msg.translating = false;
                 if (res.success) {
@@ -211,88 +231,85 @@ const triggerBatchTranslation = safeAsync(async () => {
     } catch (e) {
         console.error("Batch translation failed:", e);
         taskIds.forEach(id => {
-            const msg: any = (state.messages as any[] || []).find(m => m.id === id);
+            const msg = (state.messages as Message[] || []).find(m => m.id === id);
             if (msg) {
                 msg.translating = false;
                 msg.translationError = "Service Unavailable";
             }
         });
     } finally {
-        renderer.renderMessages(state.messages || [], handlers);
+        renderMessages(state.messages || [], handlers);
     }
 });
 
 /**
  * Handles streak freeze purchase.
- * Removed from window.buyStreakFreeze.
  */
 const handleBuyStreakFreeze = safeAsync(async () => {
     if (!confirm('50 포인트를 사용하여 스트릭 보호권(❄️)을 구매하시겠습니까?')) return;
     try {
         await api.buyStreakFreeze();
-        renderer.showToast('보호권이 구매되었습니다! 접속하지 못한 날 자동으로 사용되어 스트릭을 보호합니다.', 'success');
+        showToast('보호권이 구매되었습니다! 접속하지 못한 날 자동으로 사용되어 스트릭을 보호합니다.', 'success');
         fetchUserProfile();
     } catch (e: any) {
-        renderer.showToast(e.message || 'Error purchasing streak freeze', 'error');
+        showToast(e.message || 'Error purchasing streak freeze', 'error');
     }
 }, { triggerAuthOverlay: true });
 
 // --- Event Subscriptions ---
 
-events.on(EVENTS.TASK_COMPLETED, (data: any) => {
+events.on(EVENTS.TASK_COMPLETED, (data: { result: { gamification: any } }) => {
     const gData = data?.result?.gamification;
 
     if (gData) {
         if (gData.XPAdded > 0) {
-            renderer.triggerXPAnimation();
+            triggerXPAnimation();
         }
         if (gData.IsCritical || gData.ComboActive) {
-            renderer.triggerConfetti('star');
+            triggerConfetti('star');
         }
 
         if (gData.UnlockedAchievements && gData.UnlockedAchievements.length > 0) {
             const lang = state.currentLang || 'ko';
-            const i18n = (I18N_DATA as any)[lang];
+            const i18n = (I18N_DATA as I18nDictionary)[lang];
 
-            gData.UnlockedAchievements.forEach((ach: any) => {
-                renderer.triggerConfetti('star');
+            gData.UnlockedAchievements.forEach((ach: { name: string }) => {
+                triggerConfetti('star');
 
-                const localizedName = (i18n as any).achievements?.[ach.name]?.name || ach.name;
+                const localizedName = i18n.achievements?.[ach.name]?.name || ach.name;
                 const msg = lang === 'ko' ? `🏆 [${localizedName}] 배지를 획득했습니다!` : `🏆 Badge Unlocked: [${localizedName}]`;
-                setTimeout(() => renderer.showToast(msg, 'success'), 300); // 폭죽과 겹치지 않게 살짝 딜레이
+                setTimeout(() => showToast(msg, 'success'), 300);
             });
         }
     } else {
         const rand = Math.random();
-        if (rand < 0.05) { // 5% 확률로 기본 폭죽
-            renderer.triggerConfetti('classic');
-        } else if (rand < 0.08) { // 3% 확률로 별 모양
-            renderer.triggerConfetti('star');
-        } else if (rand < 0.10) { // 2% 확률로 눈송이
-            renderer.triggerConfetti('snow');
+        if (rand < 0.05) {
+            triggerConfetti('classic');
+        } else if (rand < 0.08) {
+            triggerConfetti('star');
+        } else if (rand < 0.10) {
+            triggerConfetti('snow');
         }
-        renderer.triggerXPAnimation();
+        triggerXPAnimation();
     }
     fetchUserProfile();
 });
 
-events.on(EVENTS.USER_PROFILE_UPDATED, (profile: any) => {
-    renderer.updateUserProfile(profile);
+events.on(EVENTS.USER_PROFILE_UPDATED, (profile: UserProfile) => {
+    updateUserProfile(profile);
 });
 
 /**
  * Initializes theme and theme toggle.
  */
 const initTheme = () => {
-    renderer.setTheme(state.currentTheme);
-    (renderer as any).bindThemeToggle((isLight: boolean) => {
-        const newTheme = isLight ? 'light' : 'dark';
+    setTheme(state.currentTheme || 'dark');
+    bindThemeToggle((newTheme: string) => {
         updateTheme(newTheme);
+        setTheme(newTheme);
         events.emit(EVENTS.THEME_CHANGED, newTheme);
-    }, (state as any).currentTheme === 'light');
+    });
 };
-
-
 
 /**
  * Initializes language selector.
@@ -300,7 +317,7 @@ const initTheme = () => {
 const initLanguageSelector = () => {
     const langSelect = document.getElementById('languageSelect') as HTMLSelectElement;
     if (langSelect) {
-        langSelect.value = (state as any).currentLang;
+        langSelect.value = state.currentLang;
         langSelect.addEventListener('change', async (e: Event) => {
             const target = e.target as HTMLSelectElement;
             const lang = target.value;
@@ -314,7 +331,6 @@ const initLanguageSelector = () => {
                     archive.fetch();
                 }
             } finally {
-                // No global loading overlay used for JIT
             }
         });
     }
@@ -326,14 +342,13 @@ const initLanguageSelector = () => {
 const initNavigation = () => {
     const showView = (view: string) => {
         console.log(`[Navigation] Switching to: ${view}`);
-        window.scrollTo(0, 0); // Reset scroll on view switch
+        window.scrollTo(0, 0);
         const dashboardContent = document.getElementById('dashboardContent');
         const dashboardHeader = document.querySelector('.dashboard-header');
         const archiveSection = document.getElementById('archiveSection');
         const insightsSection = document.getElementById('insightsSection');
         const navTabs = document.querySelectorAll('.c-main-nav__item');
 
-        // Hide all major functional blocks
         [dashboardContent, dashboardHeader, archiveSection, insightsSection].forEach(el => {
             el?.classList.add('hidden');
         });
@@ -359,7 +374,7 @@ const initNavigation = () => {
     document.querySelectorAll('.c-main-nav__item').forEach(tab => {
         tab.addEventListener('click', () => {
             const view = tab.getAttribute('data-view');
-            if (!view) return; // Scan 버튼(수동 액션)일 경우 뷰 전환 무시
+            if (!view) return;
             showView(view);
         });
     });
@@ -377,15 +392,15 @@ const QR_EXPIRY_SECONDS = 20;
  * Starts automatic QR refresh and countdown timer.
  */
 const startQRAutoRefresh = () => {
-    stopQRAutoRefresh(); // Clear existing
+    stopQRAutoRefresh();
 
     let remaining = QR_EXPIRY_SECONDS;
-    renderer.updateQRTimer(remaining, QR_EXPIRY_SECONDS);
+    updateQRTimer(remaining, QR_EXPIRY_SECONDS);
 
     qrTimerInterval = setInterval(() => {
         remaining--;
         if (remaining < 0) remaining = 0;
-        renderer.updateQRTimer(remaining, QR_EXPIRY_SECONDS);
+        updateQRTimer(remaining, QR_EXPIRY_SECONDS);
     }, 1000);
 
     qrRefreshInterval = setInterval(async () => {
@@ -406,11 +421,11 @@ const refreshWhatsAppQR = async () => {
     try {
         const data = await api.getWhatsAppQR();
         if (data.qr) {
-            renderer.updateWhatsAppQR('show', data.qr, state.currentLang);
-            startQRAutoRefresh(); // Reset timer on successful fetch
+            updateWhatsAppQR('show', data.qr, state.currentLang);
+            startQRAutoRefresh();
         }
     } catch (e: any) {
-        renderer.updateWhatsAppQR('error', (e as any).message || 'Failed to fetch QR', (state as any).currentLang);
+        updateWhatsAppQR('error', e.message || 'Failed to fetch QR', state.currentLang);
         stopQRAutoRefresh();
     }
 };
@@ -419,8 +434,8 @@ const refreshWhatsAppQR = async () => {
  * Initializes static action buttons and global event delegation.
  */
 const initActionButtons = () => {
-    renderer.bindGetQRBtn(async () => {
-        renderer.updateWhatsAppQR('generating', null, state.currentLang);
+    bindGetQRBtn(async () => {
+        updateWhatsAppQR('generating', null, state.currentLang);
         await refreshWhatsAppQR();
 
         const pollStatus = setInterval(async () => {
@@ -428,19 +443,18 @@ const initActionButtons = () => {
             if (state.waConnected) {
                 clearInterval(pollStatus);
                 stopQRAutoRefresh();
-                renderer.updateWhatsAppQR('success', null, state.currentLang);
+                updateWhatsAppQR('success', null, state.currentLang);
             }
         }, 3001);
     });
 
-    renderer.bindScanBtn(triggerScan);
 
-    renderer.bindWhatsAppStatus(() => {
-        renderer.showWaModal();
+    bindWhatsAppStatus(() => {
+        showWaModal();
     });
 
-    renderer.bindGmailStatus(() => {
-        renderer.showGmailModal();
+    bindGmailStatus(() => {
+        showGmailModal();
     });
 
     // New Bindings for logout/disconnect/relink
@@ -464,68 +478,12 @@ const initActionButtons = () => {
         stopQRAutoRefresh();
     });
 
-    renderer.bindGlobalClicks({
+    bindGlobalClicks({
         onBuyFreeze: handleBuyStreakFreeze
     });
 };
 
 /**
- * Optimized Event Delegation for Task Cards and Actions.
- * Attached to the specific parent container #dashboardContent.
- */
-const initTaskDelegation = () => {
-    const dashboardContent = document.getElementById('dashboardContent');
-    if (!dashboardContent) return;
-
-    dashboardContent.addEventListener('click', (e: MouseEvent) => {
-        const target = e.target as HTMLElement;
-        
-        // Mandatory Debug Log for "Clicked element"
-        console.log('[DEBUG] Clicked element:', target);
-
-        // Resolve target button using .closest() to handle nested icons/SVGs
-        const viewOriginalBtn = target.closest('.view-original-btn');
-        const deleteBtn = target.closest('.delete-btn');
-        const toggleDoneBtn = target.closest('.toggle-done-btn');
-        const mapAliasBtn = target.closest('.map-alias-btn');
-        const settingsBtn = target.closest('#settingsBtn');
-
-        // Mandatory Debug Log for "Resolved button"
-        const resolvedBtn = viewOriginalBtn || deleteBtn || toggleDoneBtn || mapAliasBtn || settingsBtn;
-        if (resolvedBtn) {
-            console.log('[DEBUG] Resolved button:', resolvedBtn);
-        }
-
-        // Action Handling logic using strict if...else if
-        if (viewOriginalBtn) {
-            const card = viewOriginalBtn.closest('.c-task-card') as HTMLElement;
-            if (card && card.dataset.id) {
-                handlers.onShowOriginal(card.dataset.id);
-            }
-        } else if (deleteBtn) {
-            const card = deleteBtn.closest('.c-task-card') as HTMLElement;
-            if (card && card.dataset.id) {
-                handlers.onDeleteTask(card.dataset.id);
-            }
-        } else if (toggleDoneBtn) {
-            const card = toggleDoneBtn.closest('.c-task-card') as HTMLElement;
-            if (card && card.dataset.id) {
-                const isDone = card.classList.contains('c-task-card--done');
-                handlers.onToggleDone(card.dataset.id, !isDone);
-            }
-        } else if (mapAliasBtn) {
-            const btn = mapAliasBtn as HTMLElement;
-            window.dispatchEvent(new CustomEvent('openAliasMapping', {
-                detail: { name: btn.dataset.name }
-            }));
-        } else if (settingsBtn) {
-            // Note: Settings modal trigger is also handled by ID listener in modals.ts
-            // We include it here for logging oversight and to ensure it's isolated.
-            console.log('[DEBUG] Settings button identified in dashboard delegation');
-        }
-    });
-};
-
 /**
  * Initializes background polling.
  */
@@ -534,7 +492,6 @@ const initPolling = () => {
     setInterval(checkWhatsAppStatus, POLLING_INTERVALS.WHATSAPP);
     setInterval(checkSlackStatus, POLLING_INTERVALS.SLACK);
     setInterval(checkGmailStatus, POLLING_INTERVALS.GMAIL);
-    setInterval(() => modals.fetchTokenUsage(), POLLING_INTERVALS.TOKEN_USAGE);
 };
 
 /**
@@ -574,7 +531,11 @@ const initApp = () => {
 
     initNavigation();
     initActionButtons();
-    initTaskDelegation(); // Added centralized delegation
+    
+    // Initialize Event Delegation for all grids
+    ['myTasksList', 'otherTasksList', 'waitingTasksList', 'allTasksList'].forEach(id => {
+        initMessageGridEvents(id, handlers);
+    });
 
     archive.init(fetchMessages);
     modals.init(fetchMessages);
@@ -584,7 +545,6 @@ const initApp = () => {
     checkWhatsAppStatus();
     checkSlackStatus();
     checkGmailStatus();
-    modals.fetchTokenUsage();
 
     initPolling();
 };

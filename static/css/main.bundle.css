@@ -1189,6 +1189,231 @@ body.light-theme .c-utility__btn:hover {
 
 /* --- End of static/css/components/task-card.css --- */
 
+/* --- Start of static/css/components/message-card.css --- */
+/* Why: Provides a premium, BEM-compliant styling for the Message Consolidation and Policy system. */
+.c-message-card {
+    position: relative;
+    background: var(--card-bg);
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    min-width: var(--task-card-min-width);
+    overflow: hidden;
+}
+
+.c-message-card:hover {
+    transform: translateY(-0.125rem);
+    box-shadow: var(--shadow-main);
+    border-color: var(--accent-glow);
+}
+
+/* --- State Modifiers --- */
+.c-message-card--done {
+    opacity: 0.6;
+    filter: grayscale(0.4);
+}
+
+.c-message-card--policy {
+    border-left: var(--border-thick) solid var(--color-warning);
+    background: linear-gradient(135deg, rgba(var(--color-warning-rgb), 0.05), transparent);
+}
+
+.c-message-card--query {
+    border-left: var(--border-thick) solid var(--color-info);
+}
+
+.c-message-card--context {
+    box-shadow: 0 0 0.9375rem rgba(var(--color-primary-rgb), 0.15);
+    border-color: rgba(var(--color-primary-rgb), 0.4);
+}
+
+.c-message-card--loading {
+    pointer-events: none;
+    user-select: none;
+}
+
+/* --- Elements --- */
+.c-message-card__header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
+}
+
+.c-message-card__source {
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.c-message-card__room {
+    flex: 1;
+}
+
+.c-message-card__badge-room {
+    background: rgba(var(--accent-rgb), 0.1);
+    color: var(--accent-color);
+    padding: var(--spacing-xxs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.c-message-card__category-badge {
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: var(--spacing-xxs) var(--spacing-xs);
+    border-radius: var(--radius-sm);
+    background: var(--glass-border);
+    color: var(--text-dim);
+}
+
+.c-message-card--policy .c-message-card__category-badge {
+    background: var(--color-warning);
+    color: var(--bg-color);
+}
+
+.c-message-card--query .c-message-card__category-badge {
+    background: var(--color-info);
+    color: var(--white);
+}
+
+.c-message-card__body {
+    flex: 1;
+}
+
+.c-message-card__title {
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--text-main);
+    word-break: break-word;
+}
+
+.c-message-card__constraints {
+    margin: var(--spacing-sm) 0 0 0;
+    padding-left: var(--spacing-lg);
+    font-size: 0.875rem;
+    color: var(--text-dim);
+    list-style-type: "→ ";
+}
+
+.c-message-card__constraint-item {
+    margin-bottom: var(--spacing-xxs);
+}
+
+.c-message-card__footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: var(--border-thin) solid var(--border-light);
+}
+
+.c-message-card__metadata {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.c-message-card__requester {
+    font-size: 0.875rem;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.c-message-card__assignee--me {
+    color: var(--color-success);
+    font-weight: 600;
+    font-size: 0.8125rem;
+}
+
+.c-message-card__assignee--other {
+    color: var(--text-dim);
+    font-size: 0.8125rem;
+}
+
+.c-message-card__time-row {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--spacing-xs);
+}
+
+.c-message-card__timestamp {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+}
+
+.c-message-card__actions {
+    display: flex;
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-sm);
+    justify-content: flex-end;
+}
+
+.c-message-card__action-btn {
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radius-md);
+    border: none;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease;
+}
+
+.c-message-card__action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.c-message-card__action-btn--primary {
+    background: rgba(var(--color-success-rgb), 0.1);
+    color: var(--color-success);
+}
+
+.c-message-card__action-btn--primary:hover {
+    background: rgba(var(--color-success-rgb), 0.2);
+}
+
+.c-message-card__loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(var(--bg-color), 0.6);
+    backdrop-filter: blur(0.125rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+}
+
+.c-message-card__error-hint {
+    color: var(--color-error);
+    margin-right: var(--spacing-xs);
+    cursor: help;
+}
+
+.c-message-card__assignee {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+/* --- End of static/css/components/message-card.css --- */
+
 /* --- Start of static/css/components/status-card.css --- */
 /* --- Status Component (.c-status-card) --- */
 .c-status-group {
