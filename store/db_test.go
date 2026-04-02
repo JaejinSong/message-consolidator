@@ -1,6 +1,7 @@
 package store
 
 import (
+	"message-consolidator/internal/testutil"
 	"context"
 	"database/sql"
 	"fmt"
@@ -8,7 +9,7 @@ import (
 )
 
 func TestInitDBLocal(t *testing.T) {
-	cleanup, err := SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
@@ -30,7 +31,7 @@ func TestInitDBLocal(t *testing.T) {
 }
 
 func TestRunInTx(t *testing.T) {
-	cleanup, err := SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
@@ -72,7 +73,7 @@ func TestRunInTx(t *testing.T) {
 }
 
 func TestBatchOperations(t *testing.T) {
-	cleanup, err := SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}

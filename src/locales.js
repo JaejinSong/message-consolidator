@@ -126,6 +126,8 @@ export const I18N_DATA = {
         yesterday: "어제",
         dashboardTitle: "대시보드",
         insightsTitle: "인사이트",
+        tokenUsageTitle: "AI 사용량 통계",
+        tabTokenUsage: "토큰 사용량",
         summaryDaily: "오늘의 한 줄 요약",
         glanceTotalCompleted: [
             "지금까지 총 {count}개의 업무를 완료했습니다. ",
@@ -361,6 +363,8 @@ export const I18N_DATA = {
         yesterday: "Yesterday",
         dashboardTitle: "Dashboard",
         insightsTitle: "Insights",
+        tokenUsageTitle: "AI Usage Statistics",
+        tabTokenUsage: "Token Usage",
         summaryDaily: "Daily Glance",
         glanceTotalCompleted: [
             "You've completed {count} tasks so far. ",

@@ -1,7 +1,7 @@
 package services
 
 import (
-	"context"
+	"fmt"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"testing"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestSelfHealingEngine(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestSelfHealingEngine(t *testing.T) {
 		Requester:  "JJ",
 		Assignee:   "someone@else.com",
 		AssignedAt: time.Now(),
-		SourceTS:   "12345.678",
+		SourceTS:   fmt.Sprintf("12345.678.%d", time.Now().UnixNano()),
 		Category:   "todo",
 	}
 	_, msgID, err := store.SaveMessage(msg)
@@ -50,7 +50,7 @@ func TestSelfHealingEngine(t *testing.T) {
 	messages := []Log{
 		{ID: msgID, Requester: "JJ", Assignee: "someone@else.com"},
 	}
-	svc.sanitizeMessages(context.Background(), tenant, messages)
+	svc.sanitizeMessages(tenant, messages)
 
 	// 5. Verify In-Memory Update (즉시 반영 확인)
 	if messages[0].Requester != email {

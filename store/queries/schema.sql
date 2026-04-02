@@ -163,6 +163,7 @@ SELECT
     COALESCE(m.assignee_reason, '') as assignee_reason,
     COALESCE(m.replied_to_id, '') as replied_to_id,
     m.is_context_query,
+    m.constraints,
     m.metadata,
     COALESCE(cr_req.effective_canonical_id, m.requester) as requester_canonical,
     COALESCE(cr_asg.effective_canonical_id, m.assignee) as assignee_canonical

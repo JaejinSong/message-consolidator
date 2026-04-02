@@ -86,7 +86,7 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, startDate, e
 	}
 
 	// [Self-Healing] 파편화된 식별자 정규화
-	s.sanitizeMessages(ctx, email, filtered)
+	s.sanitizeMessages(email, filtered)
 
 	// 3. Generate Visualization (Go Backend)
 	vizData := s.generateVisualizationData(email, filtered)
@@ -159,7 +159,7 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, startDate, e
 }
 
 // sanitizeMessages performs real-time identity normalization on message logs and triggers asynchronous "Self-Healing" DB updates.
-func (s *ReportsService) sanitizeMessages(ctx context.Context, tenantEmail string, messages []Log) {
+func (s *ReportsService) sanitizeMessages(tenantEmail string, messages []Log) {
 	for i := range messages {
 		msg := &messages[i]
 		

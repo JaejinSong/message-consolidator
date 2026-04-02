@@ -1,11 +1,12 @@
 package store
 
 import (
+	"message-consolidator/internal/testutil"
 	"testing"
 )
 
 func TestDeleteGmailToken(t *testing.T) {
-	cleanup, err := SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
 	if err != nil {
 		t.Fatalf("failed to setup test db: %v", err)
 	}

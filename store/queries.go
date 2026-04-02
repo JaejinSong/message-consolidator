@@ -127,7 +127,6 @@ var SQL = struct {
 	UnlockAchievement      string
 
 	//Why: Groups SQL queries for report-related operations.
-	UpsertReport         string
 	InsertReport         string
 	InsertReportTranslation string
 	GetReport            string
@@ -147,6 +146,60 @@ var SQL = struct {
 	UnlinkContact     string
 	FlattenChildren   string
 	GetLinkedContacts string
+
+	//Why: SQL Migration scripts extracted from migrations.go.
+	MigrateMessagesAddUserEmail        string
+	MigrateMessagesAddIsDeleted        string
+	MigrateMessagesAddRoom             string
+	MigrateMessagesAddDone             string
+	MigrateMessagesAddCompletedAt      string
+	MigrateMessagesAddOriginalText     string
+	MigrateMessagesAddCategory         string
+	MigrateMessagesAddDeadline         string
+	MigrateMessagesAddThreadID         string
+	MigrateMessagesAddAssigneeReason   string
+	MigrateMessagesAddRepliedToID      string
+	MigrateMessagesAddIsContextQuery   string
+	MigrateMessagesAddConstraints      string
+	MigrateMessagesAddMetadata         string
+	CreateIdxUserTS                    string
+	MigrateUsersAddPoints              string
+	MigrateUsersAddStreak              string
+	MigrateUsersAddLevel               string
+	MigrateUsersAddXP                  string
+	MigrateUsersAddDailyGoal           string
+	MigrateUsersAddLastCompletedAt     string
+	MigrateUsersAddStreakFreezes       string
+	MigrateAchievementsAddTargetValue  string
+	MigrateAchievementsAddXPReward     string
+	MigrateReportsAddIsTruncated       string
+	MigrateTaskTranslationsRenameLanguage string
+	MigrateReportTranslationsRenameLanguage string
+	MigrateTaskTranslationsAddLanguageCode string
+	MigrateReportTranslationsAddLanguageCode string
+	MigrateDataNormalizeIsDeleted      string
+	MigrateDataNormalizeRoom           string
+	MigrateDataNormalizeCategoryWaiting string
+	MigrateDataNormalizeCategoryPromise string
+	CreateIdxMessagesTask              string
+	CreateIdxMessagesRoom              string
+	CreateIdxMessagesRequester         string
+	CreateIdxMessagesAssignee          string
+	CreateIdxMessagesOriginalText      string
+	CreateIdxMessagesSource            string
+	CreateIdxMessagesCreatedAtDesc     string
+	CreateIdxMessagesUserEmail         string
+	CreateIdxMessagesIsDeleted         string
+	CreateIdxMessagesCompletedAt       string
+	CreateIdxMessagesUserSourceTS      string
+	CreateIdxTaskTranslationsIDLangCode string
+	CreateIdxMessagesUserDeletedCreated string
+	CreateIdxMessagesUserDoneCompleted string
+
+	//Why: Achievement seeding and validation.
+	GetAchievementCount    string
+	DeleteAllAchievements  string
+	SeedAchievements      string
 }{}
 
 func init() {
@@ -297,7 +350,6 @@ func loadAllQueries() error {
 	SQL.GetUserAchievements = queries["GetUserAchievements"]
 	SQL.UnlockAchievement = queries["UnlockAchievement"]
 
-	SQL.UpsertReport = queries["UpsertReport"]
 	SQL.InsertReport = queries["InsertReport"]
 	SQL.InsertReportTranslation = queries["InsertReportTranslation"]
 	SQL.GetReport = queries["GetReport"]
@@ -316,5 +368,79 @@ func loadAllQueries() error {
 	SQL.FlattenChildren = queries["FlattenChildren"]
 	SQL.GetLinkedContacts = queries["GetLinkedContacts"]
 
+	SQL.MigrateMessagesAddUserEmail = queries["MigrateMessagesAddUserEmail"]
+	SQL.MigrateMessagesAddIsDeleted = queries["MigrateMessagesAddIsDeleted"]
+	SQL.MigrateMessagesAddRoom = queries["MigrateMessagesAddRoom"]
+	SQL.MigrateMessagesAddDone = queries["MigrateMessagesAddDone"]
+	SQL.MigrateMessagesAddCompletedAt = queries["MigrateMessagesAddCompletedAt"]
+	SQL.MigrateMessagesAddOriginalText = queries["MigrateMessagesAddOriginalText"]
+	SQL.MigrateMessagesAddCategory = queries["MigrateMessagesAddCategory"]
+	SQL.MigrateMessagesAddDeadline = queries["MigrateMessagesAddDeadline"]
+	SQL.MigrateMessagesAddThreadID = queries["MigrateMessagesAddThreadID"]
+	SQL.MigrateMessagesAddAssigneeReason = queries["MigrateMessagesAddAssigneeReason"]
+	SQL.MigrateMessagesAddRepliedToID = queries["MigrateMessagesAddRepliedToID"]
+	SQL.MigrateMessagesAddIsContextQuery = queries["MigrateMessagesAddIsContextQuery"]
+	SQL.MigrateMessagesAddConstraints = queries["MigrateMessagesAddConstraints"]
+	SQL.MigrateMessagesAddMetadata = queries["MigrateMessagesAddMetadata"]
+	SQL.CreateIdxUserTS = queries["CreateIdxUserTS"]
+	SQL.MigrateUsersAddPoints = queries["MigrateUsersAddPoints"]
+	SQL.MigrateUsersAddStreak = queries["MigrateUsersAddStreak"]
+	SQL.MigrateUsersAddLevel = queries["MigrateUsersAddLevel"]
+	SQL.MigrateUsersAddXP = queries["MigrateUsersAddXP"]
+	SQL.MigrateUsersAddDailyGoal = queries["MigrateUsersAddDailyGoal"]
+	SQL.MigrateUsersAddLastCompletedAt = queries["MigrateUsersAddLastCompletedAt"]
+	SQL.MigrateUsersAddStreakFreezes = queries["MigrateUsersAddStreakFreezes"]
+	SQL.MigrateAchievementsAddTargetValue = queries["MigrateAchievementsAddTargetValue"]
+	SQL.MigrateAchievementsAddXPReward = queries["MigrateAchievementsAddXPReward"]
+	SQL.MigrateReportsAddIsTruncated = queries["MigrateReportsAddIsTruncated"]
+	SQL.MigrateTaskTranslationsRenameLanguage = queries["MigrateTaskTranslationsRenameLanguage"]
+	SQL.MigrateReportTranslationsRenameLanguage = queries["MigrateReportTranslationsRenameLanguage"]
+	SQL.MigrateTaskTranslationsAddLanguageCode = queries["MigrateTaskTranslationsAddLanguageCode"]
+	SQL.MigrateReportTranslationsAddLanguageCode = queries["MigrateReportTranslationsAddLanguageCode"]
+	SQL.MigrateDataNormalizeIsDeleted = queries["MigrateDataNormalizeIsDeleted"]
+	SQL.MigrateDataNormalizeRoom = queries["MigrateDataNormalizeRoom"]
+	SQL.MigrateDataNormalizeCategoryWaiting = queries["MigrateDataNormalizeCategoryWaiting"]
+	SQL.MigrateDataNormalizeCategoryPromise = queries["MigrateDataNormalizeCategoryPromise"]
+	SQL.CreateIdxMessagesTask = queries["CreateIdxMessagesTask"]
+	SQL.CreateIdxMessagesRoom = queries["CreateIdxMessagesRoom"]
+	SQL.CreateIdxMessagesRequester = queries["CreateIdxMessagesRequester"]
+	SQL.CreateIdxMessagesAssignee = queries["CreateIdxMessagesAssignee"]
+	SQL.CreateIdxMessagesOriginalText = queries["CreateIdxMessagesOriginalText"]
+	SQL.CreateIdxMessagesSource = queries["CreateIdxMessagesSource"]
+	SQL.CreateIdxMessagesCreatedAtDesc = queries["CreateIdxMessagesCreatedAtDesc"]
+	SQL.CreateIdxMessagesUserEmail = queries["CreateIdxMessagesUserEmail"]
+	SQL.CreateIdxMessagesIsDeleted = queries["CreateIdxMessagesIsDeleted"]
+	SQL.CreateIdxMessagesCompletedAt = queries["CreateIdxMessagesCompletedAt"]
+	SQL.CreateIdxMessagesUserSourceTS = queries["CreateIdxMessagesUserSourceTS"]
+	SQL.CreateIdxTaskTranslationsIDLangCode = queries["CreateIdxTaskTranslationsIDLangCode"]
+	SQL.CreateIdxMessagesUserDeletedCreated = queries["CreateIdxMessagesUserDeletedCreated"]
+	SQL.CreateIdxMessagesUserDoneCompleted = queries["CreateIdxMessagesUserDoneCompleted"]
+
+	SQL.GetAchievementCount = queries["GetAchievementCount"]
+	SQL.DeleteAllAchievements = queries["DeleteAllAchievements"]
+	SQL.SeedAchievements = queries["SeedAchievements"]
+
+	// Why: Validate critical startup queries to prevent silent runtime failures that are difficult to debug.
+	if err := validateCriticalQueries(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateCriticalQueries() error {
+	critical := map[string]string{
+		"SaveMessage":         SQL.SaveMessage,
+		"CreateMessagesTable": SQL.CreateMessagesTable,
+		"CreateMessagesView":  SQL.CreateMessagesView,
+		"GetMessagesByIDs":    SQL.GetMessagesByIDs,
+		"GetUserByEmail":      SQL.GetUserByEmail,
+	}
+
+	for name, query := range critical {
+		if query == "" {
+			return fmt.Errorf("critical SQL query %q is missing (check -- name: tag in .sql files)", name)
+		}
+	}
 	return nil
 }

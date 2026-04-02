@@ -4,17 +4,18 @@ import { I18N_DATA } from './locales.js';
 import { insightsRenderer } from './insightsRenderer.js';
 import { events, EVENTS } from './events.js';
 import { TokenUsageCard } from './components/token-usage';
+import { UserStats, TokenUsage } from './types';
 
 /**
- * @file insights.js
+ * @file insights.ts
  * @description Controller for Insights & Analytics module. Delegates rendering to insightsRenderer.js.
  */
 
 export const insights = {
-    lastStats: null,
-    lastReport: null,
+    lastStats: null as UserStats | null,
+    lastReport: null as any,
     currentChartDays: 30,
-    tokenCard: null,
+    tokenCard: null as TokenUsageCard | null,
 
     /**
      * Initializes the insights module.
@@ -26,9 +27,10 @@ export const insights = {
         // Bind chart filters
         document.querySelectorAll('.chart-filters .filter-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
+                const target = e.target as HTMLElement;
                 document.querySelectorAll('.chart-filters .filter-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                this.currentChartDays = parseInt(e.target.dataset.days);
+                target.classList.add('active');
+                this.currentChartDays = parseInt(target.dataset.days || '30');
 
                 if (this.lastStats) {
                     insightsRenderer.renderAnkiChart(this.lastStats, this.currentChartDays);
@@ -48,7 +50,7 @@ export const insights = {
 
         if (statsTab && reportsTab && statsPanel && reportsPanel) {
             statsTab.addEventListener('click', () => {
-                insightsTabBtns.forEach(btn => btn.classList.remove('active'));
+                insightsTabBtns.forEach(btn => btn?.classList.remove('active'));
                 statsTab.classList.add('active');
 
                 statsPanel.classList.add('c-tabs__panel--active');
@@ -56,7 +58,7 @@ export const insights = {
             });
 
             reportsTab.addEventListener('click', async () => {
-                insightsTabBtns.forEach(btn => btn.classList.remove('active'));
+                insightsTabBtns.forEach(btn => btn?.classList.remove('active'));
                 reportsTab.classList.add('active');
 
                 reportsPanel.classList.add('c-tabs__panel--active');
@@ -83,7 +85,7 @@ export const insights = {
             }
         });
 
-        events.on(EVENTS.LANGUAGE_CHANGED, async (payload) => {
+        events.on(EVENTS.LANGUAGE_CHANGED, async (payload: any) => {
             const langCode = (typeof payload === 'object') ? payload.langCode : payload;
             console.log(`[Insights] Language changed to: ${langCode}`);
 
@@ -92,7 +94,7 @@ export const insights = {
                     // Why: If translation is missing for the selected language, trigger JIT translation via AI.
                     if (langCode !== 'en' && (!this.lastReport.translations || !this.lastReport.translations[langCode])) {
                         const content = document.getElementById('reportSummaryContent');
-                        insightsRenderer.renderLoading(content);
+                        if (content) insightsRenderer.renderLoading(content);
 
                         try {
                             const result = await api.translateReport(this.lastReport.id, langCode);
@@ -102,9 +104,9 @@ export const insights = {
                                 this.lastReport.translations[langCode] = result.summary;
                                 insightsRenderer.renderReport(this.lastReport);
                             }
-                        } catch (err) {
+                        } catch (err: any) {
                             console.error("[Insights] JIT Translation failed:", err);
-                            insightsRenderer.renderError(content, err.message);
+                            if (content) insightsRenderer.renderError(content, err.message);
                         }
                     } else {
                         // Why: Triggers immediate UI update with the corresponding translation without page refresh.
@@ -119,15 +121,15 @@ export const insights = {
      * @description Sets default date range (last 7 days) to date pickers.
      */
     initDatePickers() {
-        const startInput = document.getElementById('reportStartDate');
-        const endInput = document.getElementById('reportEndDate');
+        const startInput = document.getElementById('reportStartDate') as HTMLInputElement;
+        const endInput = document.getElementById('reportEndDate') as HTMLInputElement;
         if (!startInput || !endInput) return;
 
         const end = new Date();
         const start = new Date();
         start.setDate(end.getDate() - 7);
 
-        const toISO = (d) => d.toISOString().split('T')[0];
+        const toISO = (d: Date) => d.toISOString().split('T')[0];
         startInput.value = toISO(start);
         endInput.value = toISO(end);
     },
@@ -144,18 +146,19 @@ export const insights = {
         const reportList = document.getElementById('reportList');
         if (reportList) {
             reportList.addEventListener('click', async (e) => {
-                const item = e.target.closest('.c-report-item');
-                const deleteBtn = e.target.closest('.c-report-item__delete');
+                const target = e.target as HTMLElement;
+                const item = target.closest('.c-report-item') as HTMLElement;
+                const deleteBtn = target.closest('.c-report-item__delete') as HTMLElement;
 
                 // Explicit Integer Conversion
                 if (deleteBtn) {
-                    const id = parseInt(deleteBtn.dataset.id, 10);
+                    const id = parseInt(deleteBtn.dataset.id || '', 10);
                     if (!isNaN(id)) await this.deleteReport(id);
                     return;
                 }
 
                 if (item) {
-                    const id = parseInt(item.dataset.id, 10);
+                    const id = parseInt(item.dataset.id || '', 10);
                     if (!isNaN(id)) await this.loadReportDetail(id);
                 }
             });
@@ -166,9 +169,9 @@ export const insights = {
      * @description Generates a new report based on selected date range.
      */
     async generateNewReport() {
-        const start = document.getElementById('reportStartDate')?.value;
-        const end = document.getElementById('reportEndDate')?.value;
-        const btn = document.getElementById('btnGenerateReport');
+        const start = (document.getElementById('reportStartDate') as HTMLInputElement)?.value;
+        const end = (document.getElementById('reportEndDate') as HTMLInputElement)?.value;
+        const btn = document.getElementById('btnGenerateReport') as HTMLButtonElement;
 
         if (!start || !end) return;
 
@@ -178,7 +181,7 @@ export const insights = {
 
             // Refresh list and select the new one
             await this.refreshReport(result.report_id);
-        } catch (e) {
+        } catch (e: any) {
             console.error("[Insights] Generate report failed:", e);
             alert(`Report generation failed: ${e.message}`);
         } finally {
@@ -189,15 +192,15 @@ export const insights = {
     /**
      * @description Deletes a specific report.
      */
-    async deleteReport(id) {
+    async deleteReport(id: number) {
         const lang = state.currentLang || 'ko';
-        const i18n = I18N_DATA[lang];
+        const i18n = (I18N_DATA as any)[lang];
         if (!confirm(i18n.deleteReportConfirm || 'Delete this report?')) return;
 
         try {
             await api.deleteReport(id);
             await this.refreshReport();
-        } catch (e) {
+        } catch (e: any) {
             console.error("[Insights] Delete report failed:", e);
             alert(`Delete failed: ${e.message}`);
         }
@@ -206,17 +209,17 @@ export const insights = {
     /**
      * @description Fetches and renders the report list.
      */
-    async refreshReport(activeId = null) {
+    async refreshReport(activeId: number | null = null) {
         try {
             const reports = await api.fetchReports();
-            insightsRenderer.renderReportList(reports, activeId);
+            insightsRenderer.renderReportList(reports, activeId as any);
 
             if (activeId) {
                 await this.loadReportDetail(activeId);
-            } else if (reports.length > 0) {
+            } else if (reports && reports.length > 0) {
                 await this.loadReportDetail(reports[0].id);
             } else {
-                insightsRenderer.renderReport(null);
+                insightsRenderer.renderReport(null as any);
             }
         } catch (e) {
             console.error("[Insights] Refresh reports failed:", e);
@@ -226,11 +229,12 @@ export const insights = {
     /**
      * @description Fetches details for a specific report and renders it.
      */
-    async loadReportDetail(id) {
+    async loadReportDetail(id: number) {
         try {
             // Update active state in UI
             document.querySelectorAll('.c-report-item').forEach(item => {
-                item.classList.toggle('c-report-item--active', String(item.dataset.id) === String(id));
+                const el = item as HTMLElement;
+                el.classList.toggle('c-report-item--active', String(el.dataset.id) === String(id));
             });
 
             const report = await api.fetchReportDetail(id);
@@ -255,7 +259,7 @@ export const insights = {
     async refreshData() {
         const loading = document.getElementById('loading');
         const lang = state.currentLang || 'ko';
-        const i18n = I18N_DATA[lang];
+        const i18n = (I18N_DATA as any)[lang];
 
         if (loading) {
             const p = loading.querySelector('p');
@@ -265,10 +269,10 @@ export const insights = {
 
         try {
             const [stats, allAch, userAch, tokenUsage] = await Promise.all([
-                api.fetchUserStats().catch(e => { console.error("[Insights] Stats failed:", e); return null; }),
-                api.fetchAchievements().catch(e => { console.error("[Insights] All achievements failed:", e); return []; }),
-                api.fetchUserAchievements().catch(e => { console.error("[Insights] User achievements failed:", e); return []; }),
-                api.fetchTokenUsage().catch(e => { console.error("[Insights] Token usage failed:", e); return null; })
+                api.fetchUserStats().catch((e: any) => { console.error("[Insights] Stats failed:", e); return null; }),
+                api.fetchAchievements().catch((e: any) => { console.error("[Insights] All achievements failed:", e); return []; }),
+                api.fetchUserAchievements().catch((e: any) => { console.error("[Insights] User achievements failed:", e); return []; }),
+                api.fetchTokenUsage().catch((e: any) => { console.error("[Insights] Token usage failed:", e); return null; })
             ]);
 
             this.renderAll(stats, allAch, userAch, tokenUsage);
@@ -286,25 +290,31 @@ export const insights = {
 
     /**
      * Orchestrates the rendering of all insight components.
-     * @param {Object} stats - User statistics data.
-     * @param {Array} allAch - All possible achievements.
-     * @param {Array} userAch - Achievements earned by the user.
-     * @param {Object} tokenUsage - AI token usage data.
+     * @param stats - User statistics data.
+     * @param allAch - All possible achievements.
+     * @param userAch - Achievements earned by the user.
+     * @param tokenUsage - AI token usage data.
      */
-    renderAll(stats, allAch, userAch, tokenUsage) {
-        if (!stats) return;
-        this.lastStats = stats;
-
+    renderAll(stats: UserStats | null, allAch: any[], userAch: any[], tokenUsage: TokenUsage | null) {
+        // Why: Decouple card rendering from general stats.
+        // Even if stats fail, the Token Usage card should still render if it has data.
         if (tokenUsage && this.tokenCard) {
             this.tokenCard.render(tokenUsage);
         }
 
-        insightsRenderer.renderDailyGlance(stats);
-        insightsRenderer.renderActivityHeatmap(stats);
-        insightsRenderer.renderSourceDistribution(stats);
-        insightsRenderer.renderWaitingMetrics(stats);
-        insightsRenderer.renderHourlyActivity(stats);
-        insightsRenderer.renderAchievements(allAch, userAch, stats);
-        insightsRenderer.renderAnkiChart(stats, this.currentChartDays);
+        if (stats) {
+            this.lastStats = stats;
+            insightsRenderer.renderDailyGlance(stats);
+            insightsRenderer.renderActivityHeatmap(stats);
+            insightsRenderer.renderSourceDistribution(stats);
+            insightsRenderer.renderWaitingMetrics(stats);
+            insightsRenderer.renderHourlyActivity(stats);
+            insightsRenderer.renderAnkiChart(stats, this.currentChartDays);
+
+            // Achievements depend on stats for progress calculation
+            if (allAch && userAch) {
+                insightsRenderer.renderAchievements(allAch, userAch, stats);
+            }
+        }
     }
 };

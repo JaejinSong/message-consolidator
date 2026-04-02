@@ -1,5 +1,13 @@
 # Message Consolidator - TODO & TECH DEBT
 
+## 완료 사항 (Completed) - v2.4.9 (2026-04-02 02:45 UTC)
+
+- [CLEANUP] 중복 서비스 제거: 백엔드와 중복되던 프론트엔드 메시지 파싱 로직을 정리했습니다. 이제 더 가볍고 안정적인 코드로 서비스를 이용하실 수 있습니다.
+
+### [Cleanup] 중복 ChatParserService 및 테스트 코드 제거
+- **내용**: 백엔드(`scanner/scanner_whatsapp.go`)와 중복되는 프론트엔드 비즈니스 로직을 삭제하여 기술 부채를 청산하고 테스트 무결성을 회복.
+- **성과**: 미사용 코드 제거를 통해 번들 사이즈를 최적화하고, 존재하지 않는 API 호출로 인한 런타임 오류 가능성을 원천 차단.
+
 ## 완료 사항 (Completed) - v2.4.8 (2026-04-01)
 
 ### [Feature] Metadata JSON 아키텍처 및 Policy 필드 도입

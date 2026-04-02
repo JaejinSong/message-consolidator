@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"testing"
@@ -9,7 +8,7 @@ import (
 )
 
 func TestAmbiguitySafeguard(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
@@ -49,7 +48,7 @@ func TestAmbiguitySafeguard(t *testing.T) {
 	messages := []Log{
 		{ID: msgID, Requester: "Lee", Assignee: "someone@else.com"},
 	}
-	svc.sanitizeMessages(context.Background(), tenant, messages)
+	svc.sanitizeMessages(tenant, messages)
 
 	// 4. 리포트용 메모리 데이터 검증: (Ambiguous) 접미사 추가 확인
 	if messages[0].Requester != "Lee (Ambiguous)" {

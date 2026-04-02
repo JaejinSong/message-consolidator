@@ -12,7 +12,7 @@ import (
 )
 
 func TestHandleGetMessages(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestHandleGetMessages(t *testing.T) {
 }
 
 func TestHandleDelete(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}

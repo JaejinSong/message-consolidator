@@ -51,11 +51,13 @@ func insertMessage(msg ConsolidatedMessage) (int, error) {
 		msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link,
 		msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline,
 		msg.ThreadID, msg.AssigneeReason, msg.RepliedToID,
-		msg.IsContextQuery, string(constraintsJSON),
+		msg.IsContextQuery, string(constraintsJSON), string(msg.Metadata),
 	).Scan(&lastID)
-
-	if err != nil && err != sql.ErrNoRows {
-		logger.Errorf("SaveMessage DB Error: %v", err)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, nil // Row was not inserted due to conflict (duplicate TS)
+		}
+		logger.Errorf("SaveMessage DB Scan Error: %v (msgID: %d)", err, lastID)
 		return 0, err
 	}
 	return lastID, nil
@@ -118,16 +120,16 @@ func normalizeMsgs(msgs []ConsolidatedMessage) {
 func executeBulkInsert(msgs []ConsolidatedMessage) (map[string]map[string]int, error) {
 	// Why: [WhaTap-Memory] Bulk insert builds a large argument slice; 17 fields per message.
 	valueStrings := make([]string, 0, len(msgs))
-	valueArgs := make([]interface{}, 0, len(msgs)*17)
+	valueArgs := make([]interface{}, 0, len(msgs)*18)
 
 	for _, msg := range msgs {
-		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 		constraintsJSON, _ := json.Marshal(msg.Constraints)
 		valueArgs = append(valueArgs, 
 			msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, 
 			msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, 
 			msg.Deadline, msg.ThreadID, msg.AssigneeReason, msg.RepliedToID, 
-			msg.IsContextQuery, string(constraintsJSON),
+			msg.IsContextQuery, string(constraintsJSON), string(msg.Metadata),
 		)
 	}
 

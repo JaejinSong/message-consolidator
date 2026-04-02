@@ -24,18 +24,18 @@ export class TokenUsageCard {
 
     /**
      * Renders the token usage cards into the container.
-     * @param data TokenUsage data from the API
+     * @param data TokenUsage data from the backend (already calculated)
      */
     public render(data: TokenUsage): void {
         if (!this.container) return;
 
-        // Numeric safety and guard clauses
-        const todayTotal = Number(data.todayTotal) || 0;
-        const todayPrompt = Number(data.todayPrompt) || 0;
-        const todayCompletion = Number(data.todayCompletion) || 0;
-        const monthlyTotal = Number(data.monthlyTotal) || 0;
-        const monthlyCost = Number(data.monthlyCost) || 0;
-        const modelName = data.model || 'Gemini 1.5 Flash';
+        // Extract pre-calculated values from backend
+        const todayTotal = data.todayTotal;
+        const todayPrompt = data.todayPrompt;
+        const todayCompletion = data.todayCompletion;
+        const monthlyTotal = data.monthlyTotal;
+        const monthlyCost = data.monthlyCost;
+        const modelName = data.model;
 
         // Get labels from global i18n if available, else fallback
         const i18n = (window as any).i18n;

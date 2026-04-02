@@ -1,3 +1,15 @@
+# Release Notes - v2.4.9 (2026-04-02 02:45 UTC)
+
+- [NEW] Your Weekly AI Briefing: Get a high-level summary of your productivity every week! Our AI now prepares a specialized report to help you spot trends and stay on track without lifting a finger.
+- [IMPROVED] Sharper Gmail Tasks: No more cluttered task lists. We've refined how we read your emails so that each main deliverable gets exactly one clear, actionable task.
+- [IMPROVED] Silky Smooth Speed: Under-the-hood upgrades to our translation and database systems mean the app stays fast and responsive, even during peak workloads.
+- [UI] Mobile Comfort: We've tweaked the margins and spacing on mobile to make your thumb-scrolling experience feel natural and effortless.
+- [UI] Clearer Archives: We've renamed the archive section to "Canceled Tasks" to make it crystal clear where those set-aside items went.
+- [FIX] No More Half-Finished Thoughts: Fixed a bug where the AI sometimes stopped talking mid-sentence. Now you get the full, detailed analysis every time.
+- [SYS] 24/7 Health Monitoring: We've added enterprise-grade monitoring (WhaTap) to ensure the service stays up and running smoothly around the clock.
+
+---
+
 # Release Notes - v2.4.8 (2026-04-01 23:48 UTC)
 
 - [NEW] Smart Identity Merging: Tired of being treated like a stranger on different apps? Our V3 engine now accurately recognizes you across WhatsApp, Gmail, and Slack, merging your identity seamlessly.

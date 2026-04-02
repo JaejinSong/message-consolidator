@@ -8,8 +8,8 @@ import { AppState, UserProfile, Message } from './types.ts';
 export const state: AppState = {
     userProfile: { email: "", picture: "", name: "", points: 0, streak: 0, streak_freezes: 0 },
     userAliases: [],
-    currentLang: localStorage.getItem('mc_lang') || 'ko',
-    currentTheme: localStorage.getItem('mc_theme') || 'dark',
+    currentLang: (typeof localStorage !== 'undefined') ? (localStorage.getItem('mc_lang') || 'ko') : 'ko',
+    currentTheme: (typeof localStorage !== 'undefined') ? (localStorage.getItem('mc_theme') || 'dark') : 'dark',
     waConnected: false,
     gmailConnected: false,
     archivePage: 1,
@@ -27,7 +27,9 @@ export const state: AppState = {
  */
 export const updateLang = (lang: string): void => {
     state.currentLang = lang;
-    localStorage.setItem('mc_lang', lang);
+    if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('mc_lang', lang);
+    }
 };
 
 /**
@@ -35,7 +37,9 @@ export const updateLang = (lang: string): void => {
  */
 export const updateTheme = (theme: string): void => {
     state.currentTheme = theme;
-    localStorage.setItem('mc_theme', theme);
+    if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('mc_theme', theme);
+    }
 };
 
 /**

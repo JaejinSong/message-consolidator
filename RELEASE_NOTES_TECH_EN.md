@@ -1,3 +1,16 @@
+# Release Notes (Tech) - v2.4.9 (2026-04-02 02:45 UTC)
+
+- [REFACTOR] Implemented Metadata JSON architecture and migrated frontend codebase to TypeScript to enhance type safety and developer velocity.
+- [FEAT] Integrated AI Weekly Reports within the Insights module to provide automated longitudinal performance analysis and trend detection.
+- [OPTIMIZE] Refactored Gmail task extraction to a "1-Deliverable-1-Task" model, stabilizing AI regression and preventing task over-segmentation.
+- [PERF] Implemented batch translation chunking and optimized database connection pooling for higher system throughput.
+- [SYS] Integrated WhaTap observability for real-time monitoring and refined dashboard "All Clear" status logic.
+- [FIX] Resolved AI analysis truncation issues and stabilized Gemini client response text handling.
+- [UI] Optimized mobile layout margins and updated archive nomenclature to improve navigational clarity.
+- [STABILITY] Consolidated internal utilities into `mc-util` and established standardized backend logic across v2.4.x branches.
+
+---
+
 # Release Notes (Tech) - v2.4.8 (2026-04-01 23:48 UTC)
 
 - [FEAT] Identity Resolution V3 & Ambiguity Safeguard Engine: Implemented advanced cross-channel identity merging logic with a safeguard layer to prevent incorrect account associations and resolve naming conflicts.

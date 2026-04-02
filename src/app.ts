@@ -32,7 +32,7 @@ import {
 import { Message, MessageHandlers, ServiceHandlers, I18nDictionary, UserProfile } from './types.ts';
 import { archive } from './archive.js';
 import { modals } from './modals.ts';
-import { insights } from './insights.js';
+import { insights } from './insights.ts';
 import { events, EVENTS } from './events.js';
 import { safeAsync, hasSessionHint, setupTabs } from './utils.ts';
 import { STATUS_STATES, POLLING_INTERVALS } from './constants.ts';
@@ -304,7 +304,8 @@ events.on(EVENTS.USER_PROFILE_UPDATED, (profile: UserProfile) => {
  */
 const initTheme = () => {
     setTheme(state.currentTheme || 'dark');
-    bindThemeToggle((newTheme: string) => {
+    bindThemeToggle((isLight: boolean) => {
+        const newTheme = isLight ? 'light' : 'dark';
         updateTheme(newTheme);
         setTheme(newTheme);
         events.emit(EVENTS.THEME_CHANGED, newTheme);
@@ -526,7 +527,11 @@ const initApp = () => {
         await fetchMessages();
         await triggerBatchTranslation();
     });
-    setupTabs('.c-settings__tab', '.c-settings__panel', 'data-settings-tab', 'c-settings__tab--active');
+    setupTabs('.c-settings__tab', '.c-settings__panel', 'data-settings-tab', 'c-settings__tab--active', (tabId: string) => {
+        if (tabId === 'tokenUsageTab') {
+            modals.fetchTokenUsage();
+        }
+    });
     setTimeout(() => (document.querySelector('[data-tab="myTasksTab"]') as HTMLElement)?.click(), 500);
 
     initNavigation();

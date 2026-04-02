@@ -6,6 +6,7 @@
 /* --- Navigation Header --- */
 .c-nav {
     display: flex;
+    flex-direction: row;
     align-items: center;
     justify-content: space-between;
     padding: var(--spacing-md) var(--spacing-xl);
@@ -50,6 +51,7 @@
 
 .c-main-nav {
     display: flex;
+    flex-direction: row;
     gap: var(--spacing-sm);
     background: rgba(255, 255, 255, 0.03);
     padding: var(--spacing-xs);

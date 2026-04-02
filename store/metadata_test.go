@@ -1,6 +1,7 @@
 package store
 
 import (
+	"message-consolidator/internal/testutil"
 	"context"
 	"testing"
 )
@@ -8,7 +9,7 @@ import (
 // TestMetadataIntegrity verifies the mapping of SQLite-specific types to Go struct fields.
 // Why: Ensures that 'is_context_query' (Integer 0/1) and 'constraints' (JSON String) are correctly handled during scanning.
 func TestMetadataIntegrity(t *testing.T) {
-	cleanup, err := SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}

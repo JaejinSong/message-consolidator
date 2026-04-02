@@ -1,13 +1,14 @@
 package store
 
 import (
+	"message-consolidator/internal/testutil"
 	"context"
 	"testing"
 	"time"
 )
 
 func TestGetArchivedMessagesFiltered_Status(t *testing.T) {
-	cleanup, err := SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}

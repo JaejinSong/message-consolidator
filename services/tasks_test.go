@@ -51,7 +51,7 @@ func TestIsAssigneeMarkedAsMine(t *testing.T) {
 }
 
 func TestFormatMessagesForClient(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}

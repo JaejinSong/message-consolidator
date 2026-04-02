@@ -488,25 +488,41 @@ body.light-theme .badge-room {
     border: var(--border-thin) solid transparent;
 }
 
-.promise-tag {
+.promise-tag,
+.c-message-card__badge--promise {
     background: rgba(52, 199, 89, 0.1);
     color: var(--color-success);
     border-color: rgba(52, 199, 89, 0.2);
+    display: inline-flex;
+    align-items: center;
+    padding: var(--spacing-xxs) var(--spacing-md);
+    border-radius: var(--radius-sm);
+    font-size: 0.7rem;
+    font-weight: 700;
 }
 
-.waiting-tag {
+.waiting-tag,
+.c-message-card__badge--waiting {
     background: rgba(0, 242, 255, 0.1);
     color: var(--accent-color);
     border-color: rgba(0, 242, 255, 0.2);
+    display: inline-flex;
+    align-items: center;
+    padding: var(--spacing-xxs) var(--spacing-md);
+    border-radius: var(--radius-sm);
+    font-size: 0.7rem;
+    font-weight: 700;
 }
 
-body.light-theme .promise-tag {
+body.light-theme .promise-tag,
+body.light-theme .c-message-card__badge--promise {
     background: rgba(var(--color-success-rgb), 0.05);
     color: var(--color-success);
     border-color: rgba(var(--color-success-rgb), 0.2);
 }
 
-body.light-theme .waiting-tag {
+body.light-theme .waiting-tag,
+body.light-theme .c-message-card__badge--waiting {
     background: rgba(var(--color-info-rgb), 0.05);
     color: var(--color-info);
     border-color: rgba(var(--color-info-rgb), 0.2);
@@ -565,6 +581,7 @@ body.light-theme .buy-freeze-btn:hover {
 /* --- Navigation Header --- */
 .c-nav {
     display: flex;
+    flex-direction: row;
     align-items: center;
     justify-content: space-between;
     padding: var(--spacing-md) var(--spacing-xl);
@@ -609,6 +626,7 @@ body.light-theme .buy-freeze-btn:hover {
 
 .c-main-nav {
     display: flex;
+    flex-direction: row;
     gap: var(--spacing-sm);
     background: rgba(255, 255, 255, 0.03);
     padding: var(--spacing-xs);
@@ -985,210 +1003,6 @@ body.light-theme .c-utility__btn:hover {
 
 /* --- End of static/css/components/inputs.css --- */
 
-/* --- Start of static/css/components/task-card.css --- */
-/* --- Task Card Component (.c-task-card) --- */
-.c-task-card {
-    background: var(--card-bg);
-    border: var(--border-thin) solid var(--glass-border);
-    backdrop-filter: blur(var(--blur-md));
-    border-radius: var(--radius-lg);
-    padding: 1.25rem 1.5rem;
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    overflow: hidden;
-    margin-bottom: var(--spacing-sm);
-}
-
-.c-task-card:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.2);
-    transform: translateY(calc(var(--border-thin) * -1));
-    box-shadow: 0 var(--spacing-xs) var(--spacing-xl) rgba(0, 0, 0, 0.2);
-}
-
-/* Modifiers */
-.c-task-card--done {
-    opacity: 0.5;
-    filter: grayscale(0.5);
-}
-
-.c-task-card--done:hover {
-    opacity: 0.8;
-    filter: grayscale(0);
-}
-
-/* Elements */
-.c-task-card__source {
-    width: var(--spacing-2xl);
-    display: flex;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.c-task-card__room {
-    width: var(--col-room);
-    flex-shrink: 0;
-}
-
-.c-task-card__content {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-xs);
-}
-
-.c-task-card__title {
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: var(--text-main);
-    line-height: 1.4;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.c-task-card__tags {
-    display: flex;
-    gap: var(--spacing-xs);
-    flex-wrap: wrap;
-}
-
-.c-task-card__requester {
-    width: var(--col-requester);
-    font-size: 0.9rem;
-    color: var(--text-main);
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-}
-
-.c-task-card__assignee {
-    width: var(--col-assignee);
-    display: flex;
-    align-items: center;
-    font-size: 0.8rem;
-}
-
-.c-task-card__time {
-    width: var(--col-time);
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: var(--spacing-xs);
-    font-size: 0.8rem;
-}
-
-.c-task-card__actions {
-    width: var(--col-actions);
-    display: flex;
-    gap: var(--spacing-xs);
-    justify-content: flex-end;
-}
-
-/* Mobile Responsive */
-@media (max-width: 1000px) {
-    .c-task-card {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        grid-template-areas:
-            "source time"
-            "task task"
-            "room room"
-            "req assign"
-            "actions actions";
-        gap: var(--spacing-sm);
-        padding: var(--spacing-lg) var(--spacing-md);
-        border-radius: var(--radius-xl);
-    }
-
-    .c-task-card__title {
-        white-space: normal;
-        font-size: 1rem;
-        line-height: 1.5;
-        margin-bottom: var(--spacing-xs);
-    }
-
-    .c-task-card__source {
-        grid-area: source;
-        width: auto;
-        justify-content: flex-start;
-    }
-
-    .c-task-card__room {
-        grid-area: room;
-        width: 100%;
-        margin: 0;
-    }
-
-    .c-task-card__requester {
-        grid-area: req;
-        width: 100%;
-        margin: 0;
-    }
-
-    .c-task-card__assignee {
-        grid-area: assign;
-        justify-content: flex-end;
-        width: 100%;
-        max-width: 45vw;
-        margin: 0;
-    }
-
-    .c-task-card__time {
-        grid-area: time;
-        align-items: flex-end;
-        width: 100%;
-    }
-
-    .c-task-card__actions {
-        grid-area: actions;
-        margin-top: var(--spacing-md);
-        width: 100%;
-        justify-content: space-between;
-    }
-}
-
-@media (min-width: 1800px) {
-    .c-task-card {
-        padding: var(--spacing-lg) var(--spacing-xl);
-    }
-}
-
-/* Translation States */
-.c-task-card--loading {
-    pointer-events: none;
-}
-
-.c-task-card__loading-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(0.125rem);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 5;
-    border-radius: inherit;
-}
-
-.c-task-card__error-hint {
-    color: var(--color-error);
-    margin-right: var(--spacing-xs);
-    cursor: help;
-    font-size: 1rem;
-    display: inline-flex;
-    vertical-align: middle;
-}
-
-/* --- End of static/css/components/task-card.css --- */
-
 /* --- Start of static/css/components/message-card.css --- */
 /* Why: Provides a premium, BEM-compliant styling for the Message Consolidation and Policy system. */
 .c-message-card {
@@ -1241,7 +1055,8 @@ body.light-theme .c-utility__btn:hover {
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-xs);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: var(--border-thin) solid var(--border-light);
 }
 
 .c-message-card__source {
@@ -1265,7 +1080,7 @@ body.light-theme .c-utility__btn:hover {
     font-weight: 600;
 }
 
-.c-message-card__category-badge {
+.c-message-card__badge {
     font-size: 0.625rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -1275,18 +1090,19 @@ body.light-theme .c-utility__btn:hover {
     color: var(--text-dim);
 }
 
-.c-message-card--policy .c-message-card__category-badge {
+.c-message-card__badge--policy {
     background: var(--color-warning);
     color: var(--bg-color);
 }
 
-.c-message-card--query .c-message-card__category-badge {
+.c-message-card__badge--query {
     background: var(--color-info);
     color: var(--white);
 }
 
 .c-message-card__body {
     flex: 1;
+    padding: var(--spacing-xs) 0;
 }
 
 .c-message-card__title {
@@ -1297,69 +1113,99 @@ body.light-theme .c-utility__btn:hover {
 }
 
 .c-message-card__constraints {
-    margin: var(--spacing-sm) 0 0 0;
-    padding-left: var(--spacing-lg);
-    font-size: 0.875rem;
+    margin: var(--spacing-xs) 0 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.8125rem;
     color: var(--text-dim);
-    list-style-type: "→ ";
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xxs);
 }
 
 .c-message-card__constraint-item {
-    margin-bottom: var(--spacing-xxs);
+    padding-left: var(--spacing-md);
+    position: relative;
+    line-height: 1.4;
 }
 
+.c-message-card__constraint-item::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: var(--color-warning);
+    font-weight: bold;
+}
+
+/* Footer Section - Information Centric */
 .c-message-card__footer {
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
-    margin-top: var(--spacing-md);
-    padding-top: var(--spacing-md);
+    align-items: center;
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
     border-top: var(--border-thin) solid var(--border-light);
 }
 
-.c-message-card__metadata {
+.c-message-card__info-group {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-xs);
+    gap: var(--spacing-xxs);
 }
 
-.c-message-card__requester {
-    font-size: 0.875rem;
-    color: var(--text-main);
+.c-message-card__requester,
+.c-message-card__assignee {
     display: flex;
     align-items: center;
-    gap: var(--spacing-xs);
+    gap: var(--spacing-sm);
+    font-size: 0.8125rem;
+}
+
+.c-message-card__label {
+    opacity: 0.7;
+    font-size: 0.875rem;
+}
+
+.c-message-card__name {
+    color: var(--text-main);
+    font-weight: 600;
 }
 
 .c-message-card__assignee--me {
     color: var(--color-success);
     font-weight: 600;
-    font-size: 0.8125rem;
 }
 
 .c-message-card__assignee--other {
     color: var(--text-dim);
-    font-size: 0.8125rem;
 }
 
-.c-message-card__time-row {
+.c-message-card__time-group {
     text-align: right;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: var(--spacing-xs);
+    gap: var(--spacing-xxs);
 }
 
 .c-message-card__timestamp {
     font-size: 0.75rem;
     color: var(--text-dim);
+    font-weight: 500;
 }
 
+.c-message-card__deadline {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--accent-color);
+    margin-top: 0.125rem;
+}
+
+/* Actions Section */
 .c-message-card__actions {
     display: flex;
     gap: var(--spacing-xs);
-    margin-top: var(--spacing-sm);
-    justify-content: flex-end;
+    margin-left: auto;
 }
 
 .c-message-card__action-btn {
@@ -1367,37 +1213,56 @@ body.light-theme .c-utility__btn:hover {
     height: 2rem;
     border-radius: var(--radius-md);
     border: none;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(var(--white-rgb, 255, 255, 255), 0.05); /* Safe fallback */
     color: var(--text-main);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.2s ease;
+    transition: background 0.2s ease, transform 0.1s ease;
 }
 
 .c-message-card__action-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(var(--white-rgb, 255, 255, 255), 0.12);
+    transform: scale(1.05);
+}
+
+.c-message-card__action-btn:active {
+    transform: scale(0.95);
+}
+
+.c-message-card__inline-action {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-size: 0.75rem;
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+}
+
+.c-message-card__inline-action:hover {
+    opacity: 1;
 }
 
 .c-message-card__action-btn--primary {
-    background: rgba(var(--color-success-rgb), 0.1);
+    background: rgba(var(--color-success-rgb), 0.15);
     color: var(--color-success);
 }
 
 .c-message-card__action-btn--primary:hover {
-    background: rgba(var(--color-success-rgb), 0.2);
+    background: rgba(var(--color-success-rgb), 0.25);
 }
 
 .c-message-card__loading-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(var(--bg-color), 0.6);
+    background: rgba(var(--bg-color), 0.7);
     backdrop-filter: blur(0.125rem);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1;
+    z-index: 10;
 }
 
 .c-message-card__error-hint {
@@ -1406,11 +1271,6 @@ body.light-theme .c-utility__btn:hover {
     cursor: help;
 }
 
-.c-message-card__assignee {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-}
 
 /* --- End of static/css/components/message-card.css --- */
 
@@ -3114,6 +2974,7 @@ body.light-theme .c-modal__close:hover {
 
 .c-settings {
     display: flex;
+    flex-direction: row;
     height: 37.5rem;
     max-height: 70vh;
     background: transparent;
@@ -3339,6 +3200,7 @@ body.light-theme .status-pill {
 }
 
 /* --- End of static/css/v2-settings.css --- */
+
 /* --- Start of static/css/components/combobox.css --- */
 /* 
  * Component: Combobox (Autocomplete)
@@ -3423,6 +3285,107 @@ body.light-theme .status-pill {
 }
 
 /* --- End of static/css/components/combobox.css --- */
+
+/* --- Start of static/css/components/token-usage.css --- */
+/* 
+   token-usage.css
+   BEM: c-token-usage
+*/
+
+.c-token-usage {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-2xl);
+    animation: fadeIn 0.5s ease-out;
+}
+
+.c-token-usage__card {
+    background: var(--card-bg);
+    border: var(--border-thin) solid var(--glass-border);
+    backdrop-filter: blur(var(--blur-md));
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.c-token-usage__card:hover {
+    transform: translateY(-0.25rem);
+    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.3);
+    border-color: rgba(var(--accent-rgb), 0.4);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.c-token-usage__card::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 4rem;
+    height: 4rem;
+    background: radial-gradient(circle at bottom right, rgba(var(--accent-rgb), 0.05), transparent 70%);
+    pointer-events: none;
+}
+
+.c-token-usage__label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+.c-token-usage__value {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--text-main);
+    line-height: 1.2;
+    text-shadow: 0 0 1rem rgba(255, 255, 255, 0.05);
+}
+
+.c-token-usage__footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: var(--spacing-xs);
+}
+
+.c-token-usage__subvalue {
+    font-size: 0.85rem;
+    color: var(--accent-color);
+    font-weight: 700;
+}
+
+.c-token-usage__model-badge {
+    padding: 0.25rem 0.6rem;
+    background: rgba(var(--accent-rgb), 0.1);
+    color: var(--accent-color);
+    border-radius: var(--radius-sm);
+    font-size: 0.65rem;
+    font-weight: 800;
+    border: var(--border-thin) solid rgba(var(--accent-rgb), 0.2);
+    text-transform: uppercase;
+}
+
+/* Responsive adjustment */
+@media (max-width: 48rem) {
+    .c-token-usage {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 30rem) {
+    .c-token-usage {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* --- End of static/css/components/token-usage.css --- */
 
 
 /* --- End of static/style.css --- */

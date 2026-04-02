@@ -250,8 +250,8 @@ func TestReportsService_SankeyContract(t *testing.T) {
 
 func TestReportsService_GenerateVisualizationData_WithAliases(t *testing.T) {
 	// This test requires a database setup to test the integration with the store's aliasing.
-	// We assume a test utility `testutil.SetupTestDB()` exists, similar to other service tests.
-	cleanup, err := testutil.SetupTestDB()
+	// We assume a test utility `testutil.SetupTestDB(store.InitDB, store.ResetForTest)` exists, similar to other service tests.
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
@@ -302,9 +302,10 @@ func TestReportsService_GenerateVisualizationData_WithAliases(t *testing.T) {
 
 	var nodeJJ, nodeAlice Node
 	for _, n := range graphData.Nodes {
-		if n.ID == "jjsong@whatap.io" {
+		switch n.ID {
+		case "jjsong@whatap.io":
 			nodeJJ = n
-		} else if n.ID == "alice@whatap.io" {
+		case "alice@whatap.io":
 			nodeAlice = n
 		}
 	}
@@ -335,7 +336,7 @@ func TestReportsService_GenerateVisualizationData_WithAliases(t *testing.T) {
 }
 
 func TestReportsService_GenerateVisualizationData_AliasCollision(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
@@ -380,9 +381,10 @@ func TestReportsService_GenerateVisualizationData_AliasCollision(t *testing.T) {
 	var nodeAliceA, nodeAliceB Node
 	foundA, foundB := false, false
 	for _, n := range graphData.Nodes {
-		if n.ID == "alice.a@whatap.io" {
+		switch n.ID {
+		case "alice.a@whatap.io":
 			nodeAliceA, foundA = n, true
-		} else if n.ID == "alice.b@whatap.io" {
+		case "alice.b@whatap.io":
 			nodeAliceB, foundB = n, true
 		}
 	}
@@ -400,7 +402,7 @@ func TestReportsService_GenerateVisualizationData_AliasCollision(t *testing.T) {
 }
 
 func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
@@ -456,7 +458,7 @@ func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) 
 	}
 }
 func TestReportsService_GenerateReport_MultiLanguage(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}

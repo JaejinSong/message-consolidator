@@ -38,6 +38,32 @@ export interface UserProfile {
     level?: number;
 }
 
+export interface TokenUsage {
+    todayTotal: number;
+    todayPrompt: number;
+    todayCompletion: number;
+    todayCost: number;
+    monthlyTotal: number;
+    monthlyPrompt: number;
+    monthlyCompletion: number;
+    monthlyCost: number;
+    model: string;
+}
+
+export interface UserStats {
+    total_completed: number;
+    peak_time: string;
+    abandoned_tasks: number;
+    daily_completions: Record<string, number>;
+    source_distribution: Record<string, number>;
+    source_distribution_total: Record<string, number>;
+    pending_me: number;
+    hourly_activity: Record<string, number>;
+    completion_history: any[];
+    max_daily_completed?: number;
+    early_bird_count?: number;
+}
+
 export interface AppState {
     userProfile: UserProfile;
     userAliases: string[];

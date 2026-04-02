@@ -1,12 +1,13 @@
 package store
 
 import (
+	"message-consolidator/internal/testutil"
 	"testing"
 )
 
 //Why: Verifies that the initial achievement data is correctly seeded into the database during initialization.
 func TestAchievementSeeding(t *testing.T) {
-	cleanup, err := SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
@@ -52,7 +53,7 @@ func TestAchievementSeeding(t *testing.T) {
 //Why: Serves as a basic smoke test for the achievement retrieval logic, ensuring it handles clean user slates without errors.
 // which is a baseline requirement for the retroactive achievement calculation logic it contains.
 func TestGetUserAchievements(t *testing.T) {
-	cleanup, err := SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}

@@ -11,6 +11,7 @@ import {
 } from './renderer.ts';
 import { safeAsync } from './utils.ts';
 import { SettingsCompos } from './renderers/settings-renderer';
+import { TokenUsageCard } from './components/token-usage';
 
 /**
  * @file modals.ts
@@ -40,10 +41,13 @@ export interface ModalInterface {
     setupSettingsModal(): void;
     cleanupModal(modalId: string): void;
     openAliasMapping(name: string): void;
+    fetchTokenUsage(): Promise<void>;
     setupEventListeners(): void;
 }
 
-export const modals: ModalInterface = {
+export const modals: any = {
+    tokenCard: null as TokenUsageCard | null,
+
     /**
      * Initializes the modals module.
      * @param fetchMessagesCallback - Callback to refresh messages.
@@ -53,6 +57,7 @@ export const modals: ModalInterface = {
         this.attachGlobalCloseListeners();
         this.setupReleaseNotesModal();
         this.setupSettingsModal();
+        this.tokenCard = new TokenUsageCard('settingsTokenUsageContainer');
         this.setupEventListeners();
     },
 
@@ -322,7 +327,7 @@ export const modals: ModalInterface = {
     unlinkAccount: safeAsync(async function (this: ModalInterface, targetId: string) {
         if (!confirm('정말로 이 연결을 해제하시겠습니까?')) return;
         await api.unlinkAccount(targetId);
-        renderer.showToast('연결이 해제되었습니다.', 'success');
+        showToast('연결이 해제되었습니다.', 'success');
         this.fetchLinkedAccounts();
     }, { triggerAuthOverlay: true }),
 
@@ -400,5 +405,15 @@ export const modals: ModalInterface = {
                 this.openAliasMapping(e.detail.name);
             }
         });
-    }
+    },
+
+    /**
+     * Fetches and renders token usage.
+     */
+    fetchTokenUsage: safeAsync(async function (this: any) {
+        const usage = await api.fetchTokenUsage();
+        if (usage && this.tokenCard) {
+            this.tokenCard.render(usage);
+        }
+    })
 };

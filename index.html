@@ -188,15 +188,6 @@
                         <span class="badge count" id="allCount">0</span></button>
                 </div>
 
-                <div class="task-list-header c-table-header">
-                    <div class="c-table-header__source" id="hSource" title="Source" data-i18n-title="hSource">#</div>
-                    <div class="c-table-header__room" id="hRoom">Room</div>
-                    <div class="c-table-header__content" id="hTask">Task</div>
-                    <div class="c-table-header__requester" id="hRequester">Requester</div>
-                    <div class="c-table-header__assignee" id="hAssignee">Assignee</div>
-                    <div class="c-table-header__time" id="hTime">Time</div>
-                    <div class="c-table-header__actions" id="hActions">Actions</div>
-                </div>
 
                 <div id="myTasksTab" class="c-tabs__panel c-tabs__panel--active">
                     <div id="myTasksList" class="task-list">
@@ -451,10 +442,12 @@
             </div>
             <div class="c-settings">
                 <aside class="c-settings__sidebar">
-                    <button type="button" class="c-settings__tab c-settings__tab--active" data-settings-tab="generalTab"
+                    <button class="c-settings__tab c-settings__tab--active" data-settings-tab="generalTab"
                         data-i18n="tabGeneral">General</button>
-                    <button type="button" class="c-settings__tab" data-settings-tab="mappingsTab"
-                        data-i18n="tabMappings">Mappings</button>
+                    <button class="c-settings__tab" data-settings-tab="mappingsTab"
+                        data-i18n="tabMappings">Name Mappings</button>
+                    <button class="c-settings__tab" data-settings-tab="tokenUsageTab"
+                        data-i18n="tabTokenUsage">Token Usage</button>
                 </aside>
                 <div class="c-settings__main">
                     <!-- General Tab -->
@@ -537,6 +530,15 @@
                             <div id="normList" class="c-settings__list" style="max-height: 250px; overflow-y: auto;">
                                 <!-- Tenant mappings will be listed here -->
                             </div>
+                        </section>
+                    </div>
+
+                    <!-- Token Usage Tab -->
+                    <div id="tokenUsageTab" class="c-settings__panel">
+                        <section class="c-settings__section">
+                            <h4 class="c-settings__section-title" data-i18n="tokenMenuTitle">Token Usage Monitoring</h4>
+                            <p class="c-settings__section-desc" data-i18n="tokenMenuDesc">Monitor your Gemini AI API token usage.</p>
+                            <div id="settingsTokenUsageContainer"></div>
                         </section>
                     </div>
                 </div>

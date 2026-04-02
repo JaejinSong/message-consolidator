@@ -10,6 +10,15 @@ import (
 	"strings"
 )
 
+const (
+	// RatePromptGemini3Flash is the cost per 1M input tokens for Gemini 3 Flash.
+	RatePromptGemini3Flash = 0.50
+	// RateCompletionGemini3Flash is the cost per 1M output tokens for Gemini 3 Flash.
+	RateCompletionGemini3Flash = 3.00
+	// TokenUnitDenominator is the divisor to convert to million tokens.
+	TokenUnitDenominator = 1000000.0
+)
+
 func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	logger.Infof("[USER] Fetching info for email: %s", email)
@@ -209,24 +218,25 @@ func (a *API) HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 }
 
 // Why: Includes daily and monthly AI token usage data in the user info response to provide transparency on service costs and resource consumption.
+// This refactoring centralizes all arithmetic logic in the backend, using Gemini 3 Flash pricing.
 func gatherTokenUsageStats(email string) map[string]interface{} {
 	todayPrompt, todayCompletion, _ := store.GetDailyTokenUsage(email)
 	monthPrompt, monthCompletion, _ := store.GetMonthlyTokenUsage(email)
 
 	calculateCost := func(p, c int) float64 {
-		//Why: Calculates estimated costs based on Gemini 1.5 Flash public pricing ($0.075 per 1M input tokens, $0.30 per 1M output tokens).
-		return (float64(p)*0.075 + float64(c)*0.30) / 1000000
+		return (float64(p)*RatePromptGemini3Flash + float64(c)*RateCompletionGemini3Flash) / TokenUnitDenominator
 	}
 
 	return map[string]interface{}{
-		"todayPrompt":     todayPrompt,
-		"todayCompletion": todayCompletion,
-		"todayTotal":      todayPrompt + todayCompletion,
-		"todayCost":       calculateCost(todayPrompt, todayCompletion),
-		"monthPrompt":     monthPrompt,
-		"monthCompletion": monthCompletion,
-		"monthTotal":      monthPrompt + monthCompletion,
-		"monthCost":       calculateCost(monthPrompt, monthCompletion),
+		"todayPrompt":        todayPrompt,
+		"todayCompletion":    todayCompletion,
+		"todayTotal":         todayPrompt + todayCompletion,
+		"todayCost":          calculateCost(todayPrompt, todayCompletion),
+		"monthlyPrompt":      monthPrompt,
+		"monthlyCompletion":  monthCompletion,
+		"monthlyTotal":       monthPrompt + monthCompletion,
+		"monthlyCost":        calculateCost(monthPrompt, monthCompletion),
+		"model":              "Gemini 3 Flash",
 	}
 }
 

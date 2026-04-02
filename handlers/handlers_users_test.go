@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"message-consolidator/auth"
+	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +14,7 @@ import (
 )
 
 func TestHandleAddMappingConflict(t *testing.T) {
-	cleanup, err := store.SetupTestDB()
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}

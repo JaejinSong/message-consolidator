@@ -28,10 +28,11 @@ function parseMetadata(metadata: any): Record<string, any> | null {
 export function MessageCard(props: MessageCardProps): string {
     const { id, source, room, task, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translating, translationError, has_original } = props;
     
-    const assigned_at = String(timestamp || created_at || "");
+    // Why: Ensure time is extracted from either timestamp or created_at.
+    const rawTime = String(timestamp || created_at || "");
     const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
-    const displayTime = TimeService.formatDisplayTime(assigned_at, lang);
-    const deadlineBadge = getDeadlineBadge(assigned_at, done, lang);
+    const displayTime = TimeService.formatDisplayTime(rawTime, lang);
+    const deadlineBadge = getDeadlineBadge(rawTime, done, lang);
     const sourceIcon = ICONS[source as keyof typeof ICONS] || ICONS.gmail;
 
     const metadata = parseMetadata(rawMetadata);
@@ -68,7 +69,7 @@ export function MessageCard(props: MessageCardProps): string {
     const isInvalid = !assignee || assignee === 'undefined' || assignee === 'unknown';
     const assigneeHtml = isMe
         ? `<span class="c-message-card__assignee--me">${assigneeMe}</span>`
-        : `<span class="c-message-card__assignee--other">${isInvalid ? '' : escapeHTML(assignee)}</span>`;
+        : `<span class="c-message-card__assignee--other">${isInvalid ? '-' : escapeHTML(assignee)}</span>`;
 
     return `
         <div class="c-message-card ${modifierClass}" id="task-${id}" data-id="${id}">
@@ -77,6 +78,13 @@ export function MessageCard(props: MessageCardProps): string {
                 <div class="c-message-card__source" title="${source.toUpperCase()}">${sourceIcon}</div>
                 <div class="c-message-card__room">${room ? `<span class="c-message-card__badge-room">${escapeHTML(room)}</span>` : '-'}</div>
                 ${categoryBadgeHtml}
+                <div class="c-message-card__actions">
+                    ${has_original ? `<button class="c-message-card__action-btn view-original-btn" data-action="show-original" title="${i18n.viewOriginal || 'View Original'}">${ICONS.viewOriginal}</button>` : ''}
+                    <button class="c-message-card__action-btn delete-btn" data-action="delete" title="${i18n?.delete || 'Delete'}">${ICONS.delete}</button>
+                    <button class="c-message-card__action-btn c-message-card__action-btn--primary toggle-done-btn" data-action="toggle-done">
+                        ${done ? '↩️' : '✅'}
+                    </button>
+                </div>
             </div>
 
             <div class="c-message-card__body">
@@ -88,30 +96,26 @@ export function MessageCard(props: MessageCardProps): string {
             </div>
 
             <div class="c-message-card__footer">
-                <div class="c-message-card__metadata">
-                    <div class="c-message-card__requester">
-                        <strong>${escapeHTML(requester)}</strong>
-                        <button class="c-message-card__action-btn map-alias-btn" 
+                <div class="c-message-card__info-group">
+                    <div class="c-message-card__requester" title="Requester">
+                        <span class="c-message-card__label">👤</span>
+                        <strong class="c-message-card__name">${escapeHTML(requester)}</strong>
+                        <button class="c-message-card__inline-action map-alias-btn" 
                                 data-action="map-alias" 
                                 data-name="${escapeHTML(requester)}" 
                                 data-source="${source}" 
                                 title="Map User">🔗</button>
                     </div>
-                    <div class="c-message-card__assignee">${assigneeHtml}</div>
+                    <div class="c-message-card__assignee" title="Assignee">
+                        <span class="c-message-card__label">🛠️</span>
+                        ${assigneeHtml}
+                    </div>
                 </div>
                 
-                <div class="c-message-card__time-row">
-                    <span class="c-message-card__timestamp">${displayTime}</span>
-                    ${deadlineBadge}
+                <div class="c-message-card__time-group">
+                    <div class="c-message-card__timestamp">${displayTime}</div>
+                    ${deadlineBadge ? `<div class="c-message-card__deadline">${deadlineBadge}</div>` : ''}
                 </div>
-            </div>
-
-            <div class="c-message-card__actions">
-                ${has_original ? `<button class="c-message-card__action-btn view-original-btn" data-action="show-original" title="${i18n.viewOriginal || 'View Original'}">${ICONS.viewOriginal}</button>` : ''}
-                <button class="c-message-card__action-btn delete-btn" data-action="delete" title="${i18n?.delete || 'Delete'}">${ICONS.delete}</button>
-                <button class="c-message-card__action-btn c-message-card__action-btn--primary toggle-done-btn" data-action="toggle-done">
-                    ${done ? '↩️' : '✅'}
-                </button>
             </div>
         </div>
     `;
