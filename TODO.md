@@ -1,5 +1,11 @@
 # Message Consolidator - TODO & TECH DEBT
 
+## 완료 사항 (Completed) - v2.4.12 (2026-04-02 12:02 UTC)
+
+### [Feature] Task Affinity Consolidation & AI Pipeline Convergence
+- **내용**: 동일 메시지 내 연관 업무(Affinity Score >= 80)를 하나로 묶는 통합 엔진 도입 및 AI 추출 파이프라인 고도화.
+- **성과**: '쌍둥이 태스크' 발생을 근본적으로 차단하고, 중복된 문맥을 가진 업무를 하나의 완성된 Deliverable 단위로 통합하여 사용자 가독성 극대화.
+
 ## 완료 사항 (Completed) - v2.4.9 (2026-04-02 02:45 UTC)
 
 - [CLEANUP] 중복 서비스 제거: 백엔드와 중복되던 프론트엔드 메시지 파싱 로직을 정리했습니다. 이제 더 가볍고 안정적인 코드로 서비스를 이용하실 수 있습니다.

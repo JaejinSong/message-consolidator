@@ -1,3 +1,27 @@
+# Release Notes - v2.4.12 (2026-04-02 12:02 UTC)
+
+- [NEW] Who’s Who? (Identity V3): Our new "Ambiguity Safeguard" is like a digital detective—it perfectly links the same person across different apps, even if their usernames vary.
+- [NEW] Visualizing Your Network: Check out the new Relationship Graph! It’s a stunning visual map of how your tasks and teammates are connected across the workspace.
+- [NEW] Instant Translation: No more waiting! With our new Just-In-Time technology, messages are translated the moment you need them, faster and smoother than ever.
+- [IMPROVED] Dark Mode Delight: We’ve polished the Insights tab and reports, making them easier on the eyes during those late-night deep-work sessions.
+- [IMPROVED] Clearer Workflow Status: We’ve renamed the Archive section and improved how finished tasks are prioritized to make your dashboard feel more natural.
+- [FIX] Found the Missing Person: Fixed a pesky bug where your teammates were showing up as "undefined" on certain Gmail tasks.
+- [SPEED] Under-the-Hood Tuning: We’ve rebuilt our database queries and added professional-grade monitoring to ensure Message Consolidator stays snappy and reliable 24/7.
+
+---
+
+# Release Notes - v2.4.11 (2026-04-02 09:08 UTC)
+
+- [NEW] Smarter Task Bundling: Our new "Affinity Score" engine now recognizes related tasks across different platforms and groups them together, keeping your dashboard clutter-free.
+- [NEW] AI Weekly Summaries: Get a bird’s-eye view of your productivity! Your new AI Weekly Report summarizes your progress and highlights trends you might have missed.
+- [IMPROVED] WhatsApp Power-up: We’ve supercharged how tasks are captured from WhatsApp and upgraded our underlying tech to make the interface feel smoother than ever.
+- [IMPROVED] Precise Gmail Tracking: No more lost emails! We’ve refined how Gmail tasks are identified to ensure every single deliverable is perfectly tracked and organized.
+- [SPEED] Turbo-charged Translations: Large conversations now translate in a flash thanks to our new "chunking" technology and optimized data flow.
+- [SECURITY] Hardened Protection: We’ve tightened our security protocols during the build process to keep your environment settings and data safer than ever.
+- [STABILITY] 24/7 Heartbeat: With our new WhaTap integration, our team can monitor the app's pulse in real-time, catching hiccups before they even reach you.
+
+---
+
 # Release Notes - v2.4.10 (2026-04-02 08:48 UTC)
 
 - [NEW] Identity Resolution V3: Our new "Ambiguity Safeguard Engine" is now live, ensuring the app perfectly matches your identity across all connected platforms without confusion.

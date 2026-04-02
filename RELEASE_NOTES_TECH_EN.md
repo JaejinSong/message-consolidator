@@ -1,3 +1,30 @@
+# Release Notes (Tech) - v2.4.12 (2026-04-02 12:02 UTC)
+
+- [FEAT] Identity Resolution V3: Deployed the "Ambiguity Safeguard Engine" to accurately merge user identities across various messaging platforms with higher precision.
+- [FEAT] JIT (Just-In-Time) Translation: Implemented on-demand translation using a singleflight pattern to eliminate redundant API calls and optimize resource utilization.
+- [FEAT] Relationship Graph: Introduced a graph visualization component within the AI Reporting System to map task dependencies and inter-platform collaborator relationships.
+- [UI] Enhanced Insights Tab: Refined the dashboard layout, updated icon sets, and optimized dark mode readability for high-fidelity report rendering.
+- [FIX] Assignee Rendering: Resolved a regression where Gmail-sourced tasks occasionally rendered assignee names as 'undefined'.
+- [STABILITY] AI Analysis Safeguard: Corrected an issue causing AI summary truncation and synchronized regression tests to maintain consistency in long-message analysis.
+- [OPTIMIZE] Archive Management: Re-engineered archive logic based on completion priority and updated localized status labels for improved UX clarity.
+- [REFACTOR] SQL Query Architecture: Migrated core business logic into database Views to streamline query performance and backend maintainability.
+- [SYS] Observability & CI/CD: Integrated WhaTap monitoring and updated deployment workflows to enforce strict pre-verification testing via npm.
+
+---
+
+# Release Notes (Tech) - v2.4.11 (2026-04-02 09:08 UTC)
+
+- [FEAT] Task Consolidation: Implemented an Affinity Score-based engine to intelligently group and merge related tasks across disparate communication channels.
+- [FEAT] WhatsApp Integration: Optimized task extraction logic for WhatsApp and initiated the migration of the frontend base to React for improved state management.
+- [FEAT] AI Weekly Insights: Launched the AI Weekly Report system, utilizing aggregated data to provide summaries of productivity trends and deliverable statuses.
+- [REFACTOR] Metadata Architecture: Transitioned to a centralized JSON-based metadata architecture and completed the TypeScript migration for core frontend modules.
+- [PERF] Translation Scalability: Introduced batch translation chunking and optimized database connection pooling to handle high-concurrency translation requests.
+- [STABILITY] Gmail Pipeline: Refined the Gmail processing logic to a "1-Deliverable-1-Task" model, stabilizing AI analysis and reducing regression in task identification.
+- [SYS] Observability: Integrated WhaTap monitoring to enable real-time service health tracking and performance bottleneck diagnostics.
+- [FIX] Deployment Security: Hardened the build pipeline by removing sensitive environment file whitelists from Docker configurations.
+
+---
+
 # Release Notes (Tech) - v2.4.10 (2026-04-02 08:48 UTC)
 
 - [FEAT] Identity Resolution V3: Implemented the "Ambiguity Safeguard Engine" to enhance cross-platform entity matching and resolved account linking UI discrepancies.

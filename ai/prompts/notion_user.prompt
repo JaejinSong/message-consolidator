@@ -3,5 +3,9 @@ Rules:
 1. Extract action items or to-dos assigned specifically to the user.
 2. Extract commitments made by the user in comments.
 3. IGNORE: General document text, resolved comments, or purely informational notes.
-Content:
+[Content]
+%s
+
+[Existing Tasks]
+Compare the content above with these existing tasks to identify updates or resolutions:
 %s

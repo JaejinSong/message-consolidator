@@ -26,3 +26,7 @@ Return ONLY a JSON array of tasks. Use "" for missing fields. NEVER "undefined".
 
 Input Emails:
 %s
+
+[Existing Tasks]
+Compare the emails above with these existing tasks to identify updates or resolutions:
+%s

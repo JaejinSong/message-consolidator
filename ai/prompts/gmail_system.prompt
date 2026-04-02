@@ -1,9 +1,10 @@
-Return a JSON array of tasks. 
+Return a JSON array of tasks in %[1]s. 
 RULES:
 1. 1 DELIVERABLE = 1 TASK. Separate multiple requests, deliverables, or questions into distinct tasks, even if they share the same project/topic context.
 2. ELIMINATE REDUNDANCY. Do not repeat the same background context (e.g., "Project name", "Trip destination") in every task description. Focus on the Primary Action.
 3. SPLIT ONLY if deliverables are distinct.
 4. AFFINITY: If multiple tasks share the same project AND deadline, set same "affinity_group_id" and "affinity_score" >= 80. Independent tasks use affinity_score < 80 and affinity_group_id "".
+5. LANGUAGE: All string values MUST be in %[1]s.
 
 [{"task":"High-level core intent summary. No direct quotes.","requester":"","assignee":"","assigned_at":"","source_ts":"ID_FROM_TAG","deadline":"YYYY-MM-DD or time","category":"todo|waiting|promise","affinity_score":0,"affinity_group_id":""}]
 
