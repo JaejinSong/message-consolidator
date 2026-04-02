@@ -148,13 +148,14 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 	return text, nil
 }
 
-func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText string, language string, source string) ([]store.TodoItem, error) {
+func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText string, language string, source, room string) ([]store.TodoItem, error) {
 	if g == nil || g.client == nil {
 		return nil, fmt.Errorf("Gemini client is not initialized")
 	}
 
-	if language == "" {
-		language = "Korean"
+	lang := language
+	if lang == "" {
+		lang = "Korean"
 	}
 
 	analyzer := getAnalyzer(source)
@@ -163,16 +164,18 @@ func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText stri
 		modelName = analyzer.GetModelName(g.analysisModel)
 	}
 
+	// Fetch context tasks to prevent duplicates and enable updates.
+	existingTasksJSON := g.fetchContextTasks(ctx, email, source, room)
+
 	model := g.client.GenerativeModel(modelName)
 	model.SafetySettings = relaxedSafetySettings
 	model.ResponseMIMEType = "application/json"
-	//Why: Sets a 0.0 temperature for strict determinism (to prevent pronoun hallucinations) and a 4096 output limit to ensure large task extractions are not truncated.
 	model.SetTemperature(0.0)
 	model.SetMaxOutputTokens(4096)
 
-	sysInst := `Extract tasks as JSON array (Return [] if no actionable task): [{"task", "requester", "assignee", "assigned_at", "source_ts", "deadline", "category"}]`
+	sysInst := `Extract tasks as JSON array (Return [] if no actionable task): [{"id", "state", "task", "requester", "assignee", "assigned_at", "source_ts", "deadline", "category"}]`
 	if analyzer != nil {
-		sysInst = analyzer.GetSystemInstruction(language)
+		sysInst = analyzer.GetSystemInstruction(lang)
 	}
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(sysInst)},
@@ -181,13 +184,12 @@ func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText stri
 	userPrompt := conversationText
 	if analyzer != nil {
 		processedText := analyzer.PreProcess(conversationText)
-		userPrompt = analyzer.GetUserPrompt(email, processedText)
+		userPrompt = analyzer.GetUserPrompt(email, processedText, existingTasksJSON)
 	}
 
-	logger.Infof("[GEMINI] Analyzing conversation (%s) in %s using model %s...", source, language, modelName)
+	logger.Infof("[GEMINI] Analyzing conversation (%s:%s) in %s...", source, room, lang)
 
 	start := time.Now()
-	//Why: [Analyze] Uses a 45-second timeout and up to 2 retries as this handles the longest prompts and is most prone to atmospheric latency or JSON structure complexity.
 	resp, err := generateWithRetry(ctx, model, genai.Text(userPrompt), 45*time.Second, 2)
 	elapsed := int(time.Since(start).Milliseconds())
 	trace.Step(ctx, "Gemini-Analyze", "", elapsed, 0)
@@ -209,7 +211,34 @@ func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText stri
 		return nil, nil
 	}
 
-	return unmarshalAnalyze(cleanJSON, rawJSON)
+	items, err := unmarshalAnalyze(cleanJSON, rawJSON)
+	if err != nil {
+		return nil, err
+	}
+	return store.ConsolidateTasks(items), nil
+}
+
+func (g *GeminiClient) fetchContextTasks(ctx context.Context, email, source, room string) string {
+	tasks, err := store.GetActiveContextTasks(ctx, email, source, room)
+	if err != nil {
+		logger.Warnf("[GEMINI] Failed to fetch context tasks: %v", err)
+		return "[]"
+	}
+	if len(tasks) == 0 {
+		return "[]"
+	}
+	// Simplified JSON for AI context to save tokens.
+	type contextTask struct {
+		ID       int    `json:"id"`
+		Task     string `json:"task"`
+		Original string `json:"original_text"`
+	}
+	var ctxTasks []contextTask
+	for _, t := range tasks {
+		ctxTasks = append(ctxTasks, contextTask{ID: t.ID, Task: t.Task, Original: t.OriginalText})
+	}
+	b, _ := json.Marshal(ctxTasks)
+	return string(b)
 }
 
 func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []store.TranslateRequest, language string) ([]store.TranslateRequest, error) {

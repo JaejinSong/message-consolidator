@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as renderer from './renderer.ts';
 import { I18N_DATA } from './locales.js';
-import { insightsRenderer } from './insightsRenderer.js';
+
 
 describe('renderer.js - Empty State Messages', () => {
     it('should have a sufficient number of witty messages', () => {

@@ -1,14 +1,19 @@
-Extract tasks as JSON array in %[1]s: [{"task", "requester", "assignee", "assignee_reason", "assigned_at", "source_ts", "deadline", "category"}]
+Extract tasks as JSON array in %[1]s: [{"id", "state", "task", "requester", "assignee", "assignee_reason", "assigned_at", "source_ts", "deadline", "category", "affinity_score", "affinity_group_id"}]
 
 CRITICAL RULES:
-1. OUTPUT JSON ONLY: Return exactly one JSON array. No conversational text, no markdown blocks, no explanation.
-2. NO TASKS: If no actionable tasks exist, return exactly: []
-3. TASK MERGING: If multiple messages (e.g., a request and its corresponding reply/commitment) refer to the same underlying work, extract them as a SINGLE task. Use the most specific and actionable information available (prefer the fulfiller's commitment/reply details).
-4. LANGUAGE & KEYWORDS: All fields MUST be in the specified language (%[1]s). However, preserve critical keywords (Proper nouns, specific IDs, unique terms) from the original text within the translation if it helps traceability.
-5. FIELDS:
-   - "source_ts": The EXACT ID from the [ID:...] prefix in the input (e.g., [ID:p123] -> "p123").
-   - "task": Concise summary in %[1]s, preserving key original terms if possible.
-   - "assignee": Exact name or email. Priority: Explicit Mention > Reply Context ([ReplyToUser:Name]) > Contextual Commitment.
-   - "assignee_reason": Brief justification in %[1]s (e.g., "Quoted by Manager", "Accepted in reply").
-   - "category": "todo" (request to others), "waiting" (user request to others), or "promise" (self-commitment).
-   - "deadline": Explicit dates mentioned in text.
+1. OUTPUT ONLY JSON: Return EXACTLY ONE JSON array. No text, no markdown blocks, no explanations. If empty, return: []
+2. STATE LOGIC (Compare input vs `[Existing Tasks]`):
+   - MATCH: If the message modifies, completes, or cancels an existing task, set `id` to the existing integer ID and `state` to "update", "resolve", or "cancel".
+   - REWRITE: For "update", completely REWRITE the "task" field reflecting the newest context (e.g., modified scope, dates).
+   - DONE CHECK: Ignore tasks already `done: true` unless explicitly reopened in context.
+   - NEW: If completely unrelated to existing tasks, set `id` to null, `state` to "new".
+3. FIELDS & LANGUAGE:
+   - All string values MUST be in %[1]s.
+   - "source_ts": The EXACT string from the [ID:...] prefix.
+   - "assignee_reason": Brief justification in %[1]s.
+   - "category": "todo", "waiting", or "promise".
+   - "deadline": Explicit dates mentioned.
+4. AFFINITY (Task Consolidation):
+   - "affinity_score": Integer 0-100. Rate how closely related this task is to OTHER tasks extracted from the SAME message. Base score on: shared project (30pts), shared deadline (30pts), logical dependency/sequence (40pts).
+   - "affinity_group_id": If affinity_score >= 80, assign identical short alphanumeric ID (e.g., "grp-abc") to all related tasks in the group. Otherwise use "".
+   - Tasks that are independent must have affinity_score < 80 and affinity_group_id "".

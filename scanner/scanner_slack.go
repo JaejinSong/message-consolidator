@@ -409,28 +409,26 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 		return
 	}
 
+	channelID := candidates[0].ChannelID
+	channelName := sc.GetChannelName(channelID)
+
 	payload, msgMap := buildSlackAnalysisPayload(candidates, sc)
 
-	items, err := gc.Analyze(ctx, user.Email, payload, "Korean", "slack")
+	items, err := gc.Analyze(ctx, user.Email, payload, "Korean", "slack", channelName)
 	if err != nil {
 		logger.Errorf("[SCAN-SLACK] Gemini Analyze Error for %s: %v", user.Email, err)
 		return
 	}
 
-	var msgsToSave []store.ConsolidatedMessage
 	aliases, _ := store.GetUserAliases(user.ID)
-
 	for _, item := range items {
 		m, ok := msgMap[item.SourceTS]
 		if !ok {
 			continue
 		}
 
-		msgsToSave = append(msgsToSave, mapSlackItemToMessage(item, m, user, aliases, sc))
-	}
-
-	if len(msgsToSave) > 0 {
-		store.SaveMessages(msgsToSave)
+		msg := mapSlackItemToMessage(item, m, user, aliases, sc)
+		_, _ = store.HandleTaskState(user.Email, item, msg)
 	}
 }
 

@@ -102,17 +102,21 @@ type UserAlias struct {
 
 // TodoItem is the task structure returned by Gemini Analyze
 type TodoItem struct {
-	Task       string   `json:"task"`
-	Requester  string   `json:"requester"`
-	Assignee   string   `json:"assignee"`
-	AssignedAt string   `json:"assigned_at"`
-	SourceTS   string   `json:"source_ts"`
-	Category       string   `json:"category"`
-	Deadline       string   `json:"deadline"`
-	AssigneeReason string   `json:"assignee_reason,omitempty"`
-	IsContextQuery bool            `json:"is_context_query"`
-	Constraints    []string        `json:"constraints"`
-	Metadata       json.RawMessage `json:"metadata"`
+	ID              *int            `json:"id,omitempty"` // ID of the existing task to update or resolve
+	State           string          `json:"state"`        // "new", "update", "resolve", or "cancel"
+	Task            string          `json:"task"`
+	Requester       string          `json:"requester"`
+	Assignee        string          `json:"assignee"`
+	AssignedAt      string          `json:"assigned_at"`
+	SourceTS        string          `json:"source_ts"`
+	Category        string          `json:"category"`
+	Deadline        string          `json:"deadline"`
+	AssigneeReason  string          `json:"assignee_reason,omitempty"`
+	IsContextQuery  bool            `json:"is_context_query"`
+	Constraints     []string        `json:"constraints"`
+	Metadata        json.RawMessage `json:"metadata"`
+	AffinityScore   int             `json:"affinity_score,omitempty"`   // Contextual similarity score (0-100) for consolidation.
+	AffinityGroupID string          `json:"affinity_group_id,omitempty"` // Shared ID for tasks that should be consolidated.
 }
 
 // TranslateRequest represents a request to translate a specific task

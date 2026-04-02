@@ -8,7 +8,7 @@ import (
 // SourceAnalyzer defines how to extract tasks from different message sources.
 type SourceAnalyzer interface {
 	GetSystemInstruction(language string) string
-	GetUserPrompt(userEmail, conversationText string) string
+	GetUserPrompt(userEmail, conversationText, existingTasksJSON string) string
 	GetModelName(defaultModel string) string
 	PreProcess(text string) string
 }
@@ -20,8 +20,8 @@ func (g *GmailAnalyzer) GetSystemInstruction(language string) string {
 	return fmt.Sprintf(loadPrompt("gmail_system.prompt"), language)
 }
 
-func (g *GmailAnalyzer) GetUserPrompt(userEmail, conversationText string) string {
-	return fmt.Sprintf(loadPrompt("gmail_user.prompt"), userEmail, conversationText)
+func (g *GmailAnalyzer) GetUserPrompt(userEmail, conversationText, existingTasksJSON string) string {
+	return fmt.Sprintf(loadPrompt("gmail_user.prompt"), userEmail, conversationText, existingTasksJSON)
 }
 
 func (g *GmailAnalyzer) GetModelName(defaultModel string) string {
@@ -45,8 +45,8 @@ func (c *ChatAnalyzer) GetSystemInstruction(language string) string {
 	return fmt.Sprintf(loadPrompt("chat_system.prompt"), language)
 }
 
-func (c *ChatAnalyzer) GetUserPrompt(userEmail, conversationText string) string {
-	return fmt.Sprintf(loadPrompt("chat_user.prompt"), c.Source, userEmail, conversationText)
+func (c *ChatAnalyzer) GetUserPrompt(userEmail, conversationText, existingTasksJSON string) string {
+	return fmt.Sprintf(loadPrompt("chat_user.prompt"), userEmail, conversationText, existingTasksJSON)
 }
 
 func (c *ChatAnalyzer) GetModelName(defaultModel string) string {
@@ -69,8 +69,8 @@ func (n *NotionAnalyzer) GetSystemInstruction(language string) string {
 	return fmt.Sprintf(loadPrompt("notion_system.prompt"), language)
 }
 
-func (n *NotionAnalyzer) GetUserPrompt(userEmail, documentText string) string {
-	return fmt.Sprintf(loadPrompt("notion_user.prompt"), userEmail, documentText)
+func (n *NotionAnalyzer) GetUserPrompt(userEmail, documentText, existingTasksJSON string) string {
+	return fmt.Sprintf(loadPrompt("notion_user.prompt"), userEmail, documentText, existingTasksJSON)
 }
 
 func (n *NotionAnalyzer) GetModelName(defaultModel string) string {

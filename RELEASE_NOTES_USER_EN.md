@@ -1,3 +1,15 @@
+# Release Notes - v2.4.10 (2026-04-02 08:48 UTC)
+
+- [NEW] Identity Resolution V3: Our new "Ambiguity Safeguard Engine" is now live, ensuring the app perfectly matches your identity across all connected platforms without confusion.
+- [NEW] On-Demand Translation: Experience seamless JIT (Just-In-Time) translations with a smooth new loading interface—no more waiting for pre-translated text.
+- [NEW] Visualize Your Network: Explore the new Relationship Graph within your AI reports to see exactly how your tasks and contacts connect.
+- [IMPROVED] Dark Mode Insights: We’ve polished the Insights tab to be easier on the eyes, with improved readability and layout stability specifically for dark mode users.
+- [FIX] Clearer Assignees: We fixed the "undefined" bug! You can now see exactly who is responsible for every task, including those imported from Gmail.
+- [STABILITY] Hardened Security: Behind the scenes, we’ve tightened our deployment security and added extra automated tests to ensure your experience remains uninterrupted.
+- [OPTIMIZE] Smarter Archiving: Your "Canceled Tasks" and archive logic now prioritize completion status, making it easier to keep your workspace tidy.
+
+---
+
 # Release Notes - v2.4.9 (2026-04-02 02:45 UTC)
 
 - [NEW] Your Weekly AI Briefing: Get a high-level summary of your productivity every week! Our AI now prepares a specialized report to help you spot trends and stay on track without lifting a finger.

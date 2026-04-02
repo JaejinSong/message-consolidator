@@ -16,6 +16,19 @@ UPDATE messages SET done = ?, completed_at = ? WHERE id = ? AND user_email = ?;
 -- name: UpdateTaskText :exec
 UPDATE messages SET task = ? WHERE id = ? AND user_email = ?;
 
+-- name: UpdateTaskDescriptionAppend :exec
+-- Why: Used when consolidating tasks from the same source message; appends to task text only to avoid duplicating original_text.
+UPDATE messages
+SET task = task || char(10) || char(10) || '--- [Update: ' || ? || '] ---' || char(10) || ?
+WHERE id = ?;
+
+-- name: UpdateTaskFullAppend :exec
+-- Why: Used when consolidating tasks from different source messages; appends both task text and original_text.
+UPDATE messages
+SET task = task || char(10) || char(10) || '--- [Update: ' || ? || '] ---' || char(10) || ?,
+    original_text = original_text || char(10) || char(10) || ?
+WHERE id = ?;
+
 -- name: UpdateTaskAssignee :exec
 UPDATE messages SET assignee = ? WHERE id = ? AND user_email = ?;
 
@@ -73,3 +86,11 @@ UPDATE messages SET category = ? WHERE id = ? AND user_email = ?;
 
 -- name: UpdateMessageIdentity :exec
 UPDATE messages SET requester = ?, assignee = ? WHERE id = ?;
+
+-- name: GetActiveTasksForContext :many
+SELECT id, task, original_text, requester, assignee, source, room, assigned_at, done, completed_at
+FROM v_messages
+WHERE user_email = ? AND source = ? AND room = ? AND is_deleted = 0
+AND (done = 0 OR (done = 1 AND completed_at > datetime('now', '-30 days')))
+ORDER BY assigned_at DESC
+LIMIT 50;

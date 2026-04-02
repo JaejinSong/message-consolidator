@@ -242,6 +242,20 @@ func UpdateTaskText(email string, id int, task string) error {
 	return err
 }
 
+// UpdateTaskDescriptionAppend appends new content to the task text only.
+// Why: Called when consolidating tasks from the same source message to prevent original_text duplication.
+func UpdateTaskDescriptionAppend(id int, date, newTask string) error {
+	_, err := db.Exec(SQL.UpdateTaskDescriptionAppend, date, newTask, id)
+	return err
+}
+
+// UpdateTaskFullAppend appends new content to both task and original_text.
+// Why: Called when consolidating tasks from different source messages where full context must be preserved.
+func UpdateTaskFullAppend(id int, date, newTask, newOriginalText string) error {
+	_, err := db.Exec(SQL.UpdateTaskFullAppend, date, newTask, newOriginalText, id)
+	return err
+}
+
 func UpdateMessageCategory(email string, id int, category string) error {
 	_, err := db.Exec(SQL.UpdateMessageCategory, category, id, email)
 	if err == nil {
@@ -431,4 +445,30 @@ func GetIncompleteByThreadID(ctx context.Context, email, threadID string) ([]Con
 		msgs = append(msgs, m)
 	}
 	return msgs, rows.Err()
+}
+
+// GetActiveContextTasks retrieves a subset of incomplete tasks to provide context for AI analysis.
+// Why: Limits results to 50 items and 30 days to optimize AI token usage and memory overhead.
+func GetActiveContextTasks(ctx context.Context, email, source, room string) ([]ConsolidatedMessage, error) {
+	rows, err := db.QueryContext(ctx, SQL.GetActiveTasksForContext, email, source, room)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var msgs []ConsolidatedMessage
+	for rows.Next() {
+		m, err := scanContextTaskRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs, rows.Err()
+}
+
+func scanContextTaskRow(rows *sql.Rows) (ConsolidatedMessage, error) {
+	var m ConsolidatedMessage
+	err := rows.Scan(&m.ID, &m.Task, &m.OriginalText, &m.Requester, &m.Assignee, &m.Source, &m.Room, &m.AssignedAt, &m.Done, &m.CompletedAt)
+	return m, err
 }

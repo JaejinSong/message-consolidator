@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { insights } from './insights.js';
 import { api } from './api.js';
-import { insightsRenderer } from './insightsRenderer.js';
+import { insightsRenderer } from './insightsRenderer.ts';
 
 // Mock Modules
 vi.mock('./api.js', () => ({
@@ -14,7 +14,7 @@ vi.mock('./api.js', () => ({
     }
 }));
 
-vi.mock('./insightsRenderer.js', () => ({
+vi.mock('./insightsRenderer.ts', () => ({
     insightsRenderer: {
         renderReportList: vi.fn(),
         renderReport: vi.fn(),
@@ -120,8 +120,8 @@ describe('insights.js - Controller', () => {
         document.body.innerHTML += `
             <div id="insightsSection"></div>
             <div id="reportSummaryContent"></div>
-            <div id="insightsStatsTab"></div>
-            <div id="insightsReportsTab"></div>
+            <div id="insightsStatsTab" class="c-tabs__panel"></div>
+            <div id="insightsReportsTab" class="c-tabs__panel c-tabs__panel--active"></div>
             <button class="insights-tab-btn" data-tab="insightsStatsTab"></button>
             <button class="insights-tab-btn" data-tab="insightsReportsTab"></button>
         `;

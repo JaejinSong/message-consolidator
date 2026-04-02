@@ -1,3 +1,5 @@
+//go:build regression
+
 package regression
 
 import (
@@ -9,6 +11,7 @@ import (
 	"testing"
 
 	"message-consolidator/ai"
+	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 
 	"google.golang.org/api/option"
@@ -29,13 +32,19 @@ func TestGmailExtraction_Mock(t *testing.T) {
 	}))
 	defer server.Close()
 
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
 	ctx := context.Background()
 	client, err := ai.NewGeminiClient(ctx, "mock-api-key", "gemini-3-flash-preview", "", option.WithEndpoint(server.URL))
 	if err != nil {
 		t.Fatalf("Failed to initialize Gemini client: %v", err)
 	}
 
-	tasks, err := client.Analyze(ctx, "test@example.com", "Subject: Thailand Trip\n- Create AI deck\n- Finalize scope", "Korean", "gmail")
+	tasks, err := client.Analyze(ctx, "test@example.com", "Subject: Thailand Trip\n- Create AI deck\n- Finalize scope", "Korean", "gmail", "Inbox")
 	verifyExtractionResults(t, tasks, err)
 }
 

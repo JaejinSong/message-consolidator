@@ -20,13 +20,13 @@ describe('Insights Dashboard - Layout & Logic Regression', () => {
     });
 
     it('should have a standardized grid container for Insights', () => {
-        const dashboard = document.querySelector('.insights-dashboard');
+        const dashboard = document.querySelector('.c-insights-dashboard');
         expect(dashboard, 'Insights grid container should exist').not.toBeNull();
     });
 
     it('should contain all required section titles via i18n attributes', () => {
-        const expectedI18nKeys = ['waitingTasks', 'heatmapTitle', 'achievementsTitle'];
-        const headers = Array.from(document.querySelectorAll('.insights-section-title'))
+        const expectedI18nKeys = ['waitingTasks', 'reviewStatsTitle'];
+        const headers = Array.from(document.querySelectorAll('.c-insights-section-title'))
             .map(h => h.getAttribute('data-i18n'));
         
         expectedI18nKeys.forEach(key => {
@@ -34,47 +34,29 @@ describe('Insights Dashboard - Layout & Logic Regression', () => {
         });
     });
 
-    it('should apply .insights-card--square to designated metric tiles', () => {
-        const squareTileContentIds = [
-            'waitingMetricsMe', 
-            'waitingMetricsAttention', 
-            'activityHeatmap', 
-            'sourceDistribution', 
-            'hourlyActivity'
+    it('should apply .c-insights-card to all grid tiles', () => {
+        const gridTileIds = [
+            'stat-completed', 'stat-peak', 'stat-stale',
+            'ai-consumption-today', 'ai-consumption-monthly', 'ai-consumption-cost',
+            'achievement-slot-1', 'achievement-slot-2', 'achievement-slot-3'
         ];
         
-        squareTileContentIds.forEach(id => {
-            const contentEl = document.getElementById(id);
-            expect(contentEl, `Element #${id} should exist`).not.toBeNull();
-            
-            // The card is the parent or ancestor with .insights-card
-            const card = contentEl.closest('.insights-card');
-            expect(card, `Parent card for #${id} should exist`).not.toBeNull();
-            expect(card.classList.contains('insights-card--square'), `Card for #${id} must be square`).toBe(true);
+        gridTileIds.forEach(id => {
+            const card = document.getElementById(id);
+            expect(card, `Card #${id} should exist`).not.toBeNull();
+            expect(card.classList.contains('c-insights-card'), `Element #${id} must be a card`).toBe(true);
         });
     });
 
-    it('should have .insights-card class on all interactive grid items', () => {
-        const cards = document.querySelectorAll('.insights-card');
-        expect(cards.length, 'Should have multiple insight cards in the grid').toBeGreaterThan(5);
+    it('should have .c-insights-card--full for the trends chart', () => {
+        const trendCard = document.querySelector('.c-insights-card--full');
+        expect(trendCard, 'Trend chart card should be full width').not.toBeNull();
     });
 
-    it('Charts and Achievements should be full-width (not square)', () => {
-        const fullWidthIds = ['ankiChartContainer', 'achievementsList'];
-        fullWidthIds.forEach(id => {
-            const contentEl = document.getElementById(id);
-            if (contentEl) {
-                const card = contentEl.closest('.insights-card');
-                expect(card.classList.contains('insights-card--square'), `${id} card should NOT be square`).toBe(false);
-            }
-        });
-    });
-
-    it('should have critical CSS rules for square tiles in insights.css', () => {
-        const cssPath = path.resolve(process.cwd(), 'static/css/components/insights.css');
+    it('should have critical CSS rules in v2-insights.css', () => {
+        const cssPath = path.resolve(process.cwd(), 'static/css/v2-insights.css');
         const content = fs.readFileSync(cssPath, 'utf8');
-        expect(content).toContain('aspect-ratio: 1 / 1');
-        expect(content).toContain('min-width: 0 !important');
+        expect(content).toContain('aspect-ratio: 1');
         expect(content).toContain('grid-template-columns: repeat(3, 1fr)');
     });
 });

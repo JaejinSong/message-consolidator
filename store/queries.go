@@ -37,6 +37,8 @@ var SQL = struct {
 	SaveMessagesBase             string
 	MarkMessageDone              string
 	UpdateTaskText               string
+	UpdateTaskDescriptionAppend  string
+	UpdateTaskFullAppend         string
 	UpdateTaskAssignee           string
 	DeleteMessages               string
 	HardDeleteMessages           string
@@ -51,6 +53,7 @@ var SQL = struct {
 	RefreshCacheActive           string
 	RefreshCacheArchive          string
 	ArchiveOldTasks              string
+	GetActiveTasksForContext     string
 
 	//Why: Groups SQL queries for user-related operations.
 	GetAllUsers            string
@@ -270,6 +273,8 @@ func loadAllQueries() error {
 	SQL.SaveMessagesBase = queries["SaveMessagesBase"]
 	SQL.MarkMessageDone = queries["MarkMessageDone"]
 	SQL.UpdateTaskText = queries["UpdateTaskText"]
+	SQL.UpdateTaskDescriptionAppend = queries["UpdateTaskDescriptionAppend"]
+	SQL.UpdateTaskFullAppend = queries["UpdateTaskFullAppend"]
 	SQL.UpdateTaskAssignee = queries["UpdateTaskAssignee"]
 	SQL.DeleteMessages = queries["DeleteMessages"]
 	SQL.HardDeleteMessages = queries["HardDeleteMessages"]
@@ -284,6 +289,7 @@ func loadAllQueries() error {
 	SQL.RefreshCacheActive = queries["RefreshCacheActive"]
 	SQL.RefreshCacheArchive = queries["RefreshCacheArchive"]
 	SQL.ArchiveOldTasks = queries["ArchiveOldTasks"]
+	SQL.GetActiveTasksForContext = queries["GetActiveTasksForContext"]
 
 	SQL.GetAllUsers = queries["GetAllUsers"]
 	SQL.GetUserByEmail = queries["GetUserByEmail"]

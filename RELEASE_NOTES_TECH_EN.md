@@ -1,3 +1,16 @@
+# Release Notes (Tech) - v2.4.10 (2026-04-02 08:48 UTC)
+
+- [FEAT] Identity Resolution V3: Implemented the "Ambiguity Safeguard Engine" to enhance cross-platform entity matching and resolved account linking UI discrepancies.
+- [FEAT] JIT Translation: Introduced Just-In-Time on-demand translation utilizing `singleflight` to suppress redundant requests, paired with a new loading state UI.
+- [FEAT] Visual Analytics: Added a Relationship Graph visualization to the AI Reporting System for mapping entity and task dependencies.
+- [REFACTOR] SQL Query Architecture: Transitioned to a View-based SQL architecture to optimize complex data retrieval and improve maintenance.
+- [FIX] Assignee Rendering: Resolved a regression where Gmail tasks would display "undefined" in the assignee field.
+- [UI] Insights Stabilization: Refined layout constraints for the Insights tab and optimized color contrast/readability for reports in dark mode.
+- [OPTIMIZE] Archive Logic: Updated archival prioritization to a "completion-priority" model for more intuitive task history management.
+- [SYS] Deployment Hardening: Improved security by refining `.dockerignore` patterns and integrated `npm test` into the `deploy.sh` pre-verification pipeline.
+
+---
+
 # Release Notes (Tech) - v2.4.9 (2026-04-02 02:45 UTC)
 
 - [REFACTOR] Implemented Metadata JSON architecture and migrated frontend codebase to TypeScript to enhance type safety and developer velocity.

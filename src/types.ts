@@ -129,3 +129,32 @@ export interface ServiceHandlers extends MessageHandlers {
     onGmailConnect: () => void;
     onBuyFreeze?: () => void;
 }
+
+/**
+ * Insights Reporting Interfaces
+ */
+export interface IReportNode {
+    id: string;
+    name: string;
+    value: number;
+    category?: string;
+    is_me?: boolean;
+}
+
+export interface IReportLink {
+    source: string;
+    target: string;
+    value: number;
+}
+
+export interface IReportData {
+    id: number;
+    start_date: string;
+    end_date: string;
+    title?: string;
+    report_summary?: string;
+    summary?: string;
+    translations?: Record<string, string>;
+    visualization_data: string | { nodes: IReportNode[]; links: IReportLink[] };
+    is_truncated?: boolean;
+}

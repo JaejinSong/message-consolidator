@@ -80,6 +80,7 @@ export async function apiFetch<T = any>(
   const resp = await fetch(finalUrl, {
     ...fetchOptions,
     headers: defaultHeaders,
+    credentials: 'include',
   });
 
   // Handle common status codes

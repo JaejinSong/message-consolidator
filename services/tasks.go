@@ -29,6 +29,7 @@ var (
 )
 
 // TasksService handles task-related operations including formatting, completion, and batch translation.
+
 type TasksService struct {
 	translationSvc *TranslationService
 }

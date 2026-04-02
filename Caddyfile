@@ -7,7 +7,12 @@
     }
 
     handle @backend_routes {
-        reverse_proxy backend:8080
+        reverse_proxy backend:8080 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 
     # 프론트엔드 SPA 라우팅 및 정적 파일 서버 격리

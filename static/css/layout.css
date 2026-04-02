@@ -215,3 +215,37 @@ body.light-theme .completed-list-divider::after {
     color: var(--text-dim);
     font-weight: 500;
 }
+
+/* --- Utilities --- */
+.u-flex { display: flex !important; }
+.u-flex-column { display: flex !important; flex-direction: column !important; }
+.u-flex-between { display: flex !important; justify-content: space-between !important; }
+.u-flex-align-center { display: flex !important; align-items: center !important; }
+.u-flex-justify-center { display: flex !important; justify-content: center !important; }
+.u-flex-gap-sm { gap: var(--spacing-sm) !important; }
+.u-flex-gap-md { gap: var(--spacing-md) !important; }
+.u-flex-gap-lg { gap: var(--spacing-lg) !important; }
+
+.u-nowrap { white-space: nowrap !important; }
+.u-no-shrink { flex-shrink: 0 !important; }
+.u-w-full { width: 100% !important; }
+.u-h-full { height: 100% !important; }
+.u-w-auto { width: auto !important; }
+
+.u-mb-2 { margin-bottom: var(--spacing-xs) !important; }
+.u-mb-4 { margin-bottom: var(--spacing-lg) !important; }
+.u-mb-6 { margin-bottom: var(--spacing-xl) !important; }
+.u-mt-4 { margin-top: var(--spacing-lg) !important; }
+
+.u-text-center { text-align: center !important; }
+.u-text-dim { color: var(--text-dim) !important; }
+.u-text-main { color: var(--text-main) !important; }
+.u-text-accent { color: var(--accent-color) !important; }
+.u-text-error { color: var(--color-error) !important; }
+.u-text-sm { font-size: 0.8rem !important; }
+.u-text-lg { font-size: 1.25rem !important; }
+.u-font-bold { font-weight: 700 !important; }
+
+.u-cursor-pointer { cursor: pointer !important; }
+.u-invisible { visibility: hidden !important; }
+.u-hidden { display: none !important; }

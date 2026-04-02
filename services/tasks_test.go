@@ -3,6 +3,7 @@ package services
 import (
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
+	"strings"
 	"testing"
 )
 
@@ -100,5 +101,81 @@ func TestIsDirectlyAddressedToMe(t *testing.T) {
 		if got := s.IsDirectlyAddressedToMe(m, email); got != tt.expected {
 			t.Errorf("IsDirectlyAddressedToMe(%q) = %v; want %v", tt.text, got, tt.expected)
 		}
+	}
+}
+
+func TestConsolidateTasks_SameSource_NoOriginalTextDuplication(t *testing.T) {
+	tasks := []store.TodoItem{
+		{
+			Task:            "Task A",
+			State:           "new",
+			SourceTS:        "ts-001",
+			AffinityGroupID: "group-1",
+			AffinityScore:   90,
+		},
+		{
+			Task:            "Task B",
+			State:           "new",
+			SourceTS:        "ts-001", // Same source: original_text must NOT be duplicated.
+			AffinityGroupID: "group-1",
+			AffinityScore:   90,
+		},
+	}
+
+	result := store.ConsolidateTasks(tasks)
+
+	if len(result) != 1 {
+		t.Fatalf("expected 1 consolidated task, got %d", len(result))
+	}
+	if !strings.Contains(result[0].Task, "Task A") || !strings.Contains(result[0].Task, "Task B") {
+		t.Errorf("merged task should contain both texts, got: %q", result[0].Task)
+	}
+	// SourceTS identity preserved (same source — original_text dedup enforced at DB layer).
+	if result[0].SourceTS != "ts-001" {
+		t.Errorf("primary SourceTS should be ts-001, got %q", result[0].SourceTS)
+	}
+}
+
+func TestConsolidateTasks_DifferentSource_FullAppend(t *testing.T) {
+	tasks := []store.TodoItem{
+		{
+			Task:            "Follow-up on report",
+			State:           "new",
+			SourceTS:        "ts-001",
+			AffinityGroupID: "group-2",
+			AffinityScore:   85,
+		},
+		{
+			Task:            "Submit final version",
+			State:           "new",
+			SourceTS:        "ts-002", // Different source: original_text append allowed.
+			AffinityGroupID: "group-2",
+			AffinityScore:   85,
+		},
+	}
+
+	result := store.ConsolidateTasks(tasks)
+
+	if len(result) != 1 {
+		t.Fatalf("expected 1 consolidated task, got %d", len(result))
+	}
+	if !strings.Contains(result[0].Task, "Follow-up on report") {
+		t.Errorf("merged task missing primary text, got: %q", result[0].Task)
+	}
+	if !strings.Contains(result[0].Task, "Submit final version") {
+		t.Errorf("merged task missing secondary text, got: %q", result[0].Task)
+	}
+}
+
+func TestConsolidateTasks_BelowThreshold_NotMerged(t *testing.T) {
+	tasks := []store.TodoItem{
+		{Task: "Task X", State: "new", SourceTS: "ts-001", AffinityGroupID: "group-3", AffinityScore: 70},
+		{Task: "Task Y", State: "new", SourceTS: "ts-001", AffinityGroupID: "group-3", AffinityScore: 70},
+	}
+
+	result := store.ConsolidateTasks(tasks)
+
+	if len(result) != 2 {
+		t.Errorf("tasks below threshold should NOT be merged, got %d tasks", len(result))
 	}
 }

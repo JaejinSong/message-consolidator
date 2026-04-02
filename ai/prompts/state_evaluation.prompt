@@ -20,7 +20,9 @@ You MUST respond ONLY with a valid JSON object matching this schema:
 {
   "action": "resolve" | "update" | "new" | "ignore",
   "target_task_id": number | null,
-  "new_content": "string"
+  "new_content": "string",
+  "affinity_score": 0,
+  "affinity_group_id": ""
 }
 
 # Strict Constraints:
@@ -29,4 +31,6 @@ You MUST respond ONLY with a valid JSON object matching this schema:
 - If 'action' is 'new', 'target_task_id' must be null.
 - If 'action' is 'ignore', 'target_task_id' must be null and 'new_content' should be empty.
 - If 'action' is 'resolve', 'new_content' should be a summary of resolution.
+- "affinity_score": 0-100 rating of how closely this result relates to other tasks from the same message.
+- "affinity_group_id": Non-empty short ID only if affinity_score >= 80. Otherwise "".
 - Respond with JSON only. No markdown formatting.

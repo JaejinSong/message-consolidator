@@ -395,15 +395,18 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 // processBatch handles the analysis and persistence of a single batch of emails.
 func processBatch(ctx context.Context, gc *ai.GeminiClient, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage)) {
 	payload, msgMap := buildGmailBatchPayload(email, batchMsgs, classificationMap, onThreadActivity)
-	items, err := executeGmailAnalysisWithRetry(ctx, gc, email, payload, language)
+	items, err := executeGmailAnalysisWithRetry(ctx, gc, email, payload, language, "Inbox")
 	if err != nil {
-		logger.Errorf("[SCAN-GMAIL] Batch Analyze Error: %v", err)
+		logger.Errorf("[SCAN-GMAIL] Batch Analyze Error for %s: %v", email, err)
 		return
 	}
 
 	msgs := processGeminiItems(email, user, aliases, items, classificationMap, toMap, msgMap)
-	if len(msgs) > 0 {
-		store.SaveMessages(msgs)
+	for i, item := range items {
+		if i >= len(msgs) {
+			break
+		}
+		_, _ = store.HandleTaskState(email, item, msgs[i])
 	}
 }
 
@@ -430,12 +433,11 @@ func buildGmailBatchPayload(email string, batchMsgs []types.RawMessage, classifi
 }
 
 // Why: Encapsulates the retry mechanism for Gemini API calls to keep the control flow clean.
-func executeGmailAnalysisWithRetry(ctx context.Context, gc *ai.GeminiClient, email, payload, language string) ([]store.TodoItem, error) {
+func executeGmailAnalysisWithRetry(ctx context.Context, gc *ai.GeminiClient, email, payload, language, room string) ([]store.TodoItem, error) {
 	var items []store.TodoItem
 	var analyzeErr error
-	//Why: Implements a simple retry mechanism for AI analysis calls to handle transient network issues or unexpected JSON formatting errors from the model.
 	for attempt := 1; attempt <= 2; attempt++ {
-		items, analyzeErr = gc.Analyze(ctx, email, payload, language, "gmail")
+		items, analyzeErr = gc.Analyze(ctx, email, payload, language, "gmail", room)
 		if analyzeErr == nil {
 			return items, nil
 		}

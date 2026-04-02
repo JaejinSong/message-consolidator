@@ -10,7 +10,6 @@ import (
 	"message-consolidator/types"
 	"strings"
 	"sync"
-	"time"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -72,32 +71,25 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 				logger.Errorf("[SCAN-WA] Failed to init Gemini client for %s: %v", email, err)
 				return err
 			}
-			items, err := gc.Analyze(ctx, email, sb.String(), language, "whatsapp")
+			items, err := gc.Analyze(ctx, email, sb.String(), language, "whatsapp", groupName)
 			if err != nil {
 				logger.Errorf("[SCAN-WA] Gemini Analyze Error for %s: %v", email, err)
 				return err
 			}
 
-			var localMsgsToSave []store.ConsolidatedMessage
 			var localNewIDs []int
 			for _, item := range items {
-				assignedAt := time.Now()
-				origText := ""
-				origThreadID := ""
 				m, ok := msgMap[item.SourceTS]
 				if !ok {
 					logger.Warnf("[WA-SCAN] Mismatch SourceTS: %s. Skipping task item: %s", item.SourceTS, item.Task)
 					continue
 				}
-				assignedAt = m.Timestamp
-				origText = m.Text
-				origThreadID = m.ReplyToID
 
 				//Why: Determines if the message is a direct communication or contains an explicit mention, which are high-signal indicators of a direct task assignment.
 				is1to1 := !strings.Contains(js, "@g.us")
 				isMentioned := false
 				for _, alias := range aliases {
-					if alias != "" && IsAliasMatched(origText, item.Requester, alias) {
+					if alias != "" && IsAliasMatched(m.Text, item.Requester, alias) {
 						isMentioned = true
 						break
 					}
@@ -135,7 +127,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 					}
 				}
 
-				localMsgsToSave = append(localMsgsToSave, store.ConsolidatedMessage{
+				msg := store.ConsolidatedMessage{
 					UserEmail:      email,
 					Source:         "whatsapp",
 					Room:           groupName,
@@ -143,19 +135,20 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 					Requester:      item.Requester,
 					Assignee:       assignee,
 					AssigneeReason: item.AssigneeReason,
-					AssignedAt:     assignedAt,
+					AssignedAt:     m.Timestamp,
 					SourceTS:       item.SourceTS,
-					OriginalText:   origText,
+					OriginalText:   m.Text,
 					Deadline:       item.Deadline,
 					Category:       category,
-					ThreadID:       origThreadID, //Why: Preserves the original message metadata in the consolidated task to support future "Go to source" link functionality in the UI.
-					RepliedToID:    origThreadID,
-				})
-			}
+					ThreadID:       m.ReplyToID,
+					RepliedToID:    m.ReplyToID,
+					Metadata:       item.Metadata,
+				}
 
-			if len(localMsgsToSave) > 0 {
-				savedIDs, _ := store.SaveMessages(localMsgsToSave)
-				localNewIDs = append(localNewIDs, savedIDs...)
+				id, err := store.HandleTaskState(email, item, msg)
+				if err == nil && id > 0 {
+					localNewIDs = append(localNewIDs, id)
+				}
 			}
 
 			mu.Lock()

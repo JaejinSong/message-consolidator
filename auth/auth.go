@@ -10,6 +10,7 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -42,7 +43,9 @@ func SetupOAuth(cfg *config.Config) {
 	AuthDisabled = cfg.AuthDisabled
 	appBaseURL = cfg.AppBaseURL
 	GoogleOauthConfig = &oauth2.Config{
-		RedirectURL:  fmt.Sprintf("%s/api/auth/callback", cfg.AppBaseURL),
+		// Why: Matches the redirect route with handlers/routes.go and Caddyfile to avoid 404 mismatch.
+		// IMPORTANT: Ensure 'https://34.67.133.18.nip.io/auth/callback' is authorized in GCP Console.
+		RedirectURL:  fmt.Sprintf("%s/auth/callback", cfg.AppBaseURL),
 		ClientID:     cfg.GoogleClientID,
 		ClientSecret: cfg.GoogleClientSecret,
 		Scopes: []string{
@@ -116,37 +119,27 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 }
 
 func HandleLogout(w http.ResponseWriter, r *http.Request) {
-	isSecure := strings.HasPrefix(appBaseURL, "https://")
+	isProd := os.Getenv("ENV") == "production" || strings.HasPrefix(appBaseURL, "https://")
 	
-	//Why: Explicitly invalidates the server-side session token by clearing the corresponding cookie on the client.
-	cookie := http.Cookie{
+	http.SetCookie(w, &http.Cookie{
 		Name:     "session_token",
 		Value:    "",
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
-		Secure:   isSecure,
+		Secure:   isProd,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
-	}
-	if isSecure {
-		cookie.SameSite = http.SameSiteNoneMode
-	}
-	http.SetCookie(w, &cookie)
+	})
 
-	//Why: Removes the non-HttpOnly hint cookie so the frontend can immediately react to the logged-out state.
-	hintCookie := http.Cookie{
+	http.SetCookie(w, &http.Cookie{
 		Name:     "session_active",
 		Value:    "",
 		Expires:  time.Unix(0, 0),
 		HttpOnly: false,
-		Secure:   isSecure,
+		Secure:   isProd,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
-	}
-	if isSecure {
-		hintCookie.SameSite = http.SameSiteNoneMode
-	}
-	http.SetCookie(w, &hintCookie)
+	})
 
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
@@ -156,55 +149,44 @@ func generateStateCookie(w http.ResponseWriter) string {
 	var b [16]byte
 	rand.Read(b[:])
 	state := base64.RawURLEncoding.EncodeToString(b[:])
-	isSecure := strings.HasPrefix(appBaseURL, "https://")
-	sameSite := http.SameSiteLaxMode
-	if isSecure {
-		sameSite = http.SameSiteNoneMode
-	}
-
-	cookie := http.Cookie{
+	isProd := os.Getenv("ENV") == "production" || strings.HasPrefix(appBaseURL, "https://")
+	http.SetCookie(w, &http.Cookie{
 		Name:     "oauthstate",
 		Value:    state,
 		Expires:  time.Now().Add(20 * time.Minute),
 		HttpOnly: true,
-		Secure:   isSecure,
+		Secure:   isProd,
 		Path:     "/",
-		SameSite: sameSite,
-	}
-	http.SetCookie(w, &cookie)
+		SameSite: http.SameSiteLaxMode,
+	})
 	return state
 }
 
 func SetSessionCookie(w http.ResponseWriter, email string) {
-	isSecure := strings.HasPrefix(appBaseURL, "https://")
-	sameSite := http.SameSiteLaxMode
-	if isSecure {
-		sameSite = http.SameSiteNoneMode
-	}
-	
-	//Why: Establishes a server-side session using an HttpOnly cookie to prevent XSS-based token theft.
-	cookie := http.Cookie{
+	isProd := os.Getenv("ENV") == "production" || strings.HasPrefix(appBaseURL, "https://")
+	maxAge := 24 * time.Hour
+
+	//Why: Establishes a server-side session using an HttpOnly cookie. Lax mode is used for better balance between security and cross-site functionality in proxied environments.
+	http.SetCookie(w, &http.Cookie{
 		Name:     "session_token",
 		Value:    base64.RawURLEncoding.EncodeToString([]byte(email)),
-		Expires:  time.Now().Add(24 * time.Hour),
+		Expires:  time.Now().Add(maxAge),
 		HttpOnly: true,
-		Secure:   isSecure,
+		Secure:   isProd,
 		Path:     "/",
-		SameSite: sameSite,
-	}
-	http.SetCookie(w, &cookie)
+		SameSite: http.SameSiteLaxMode,
+	})
 
-	//Why: Provides a public "session active" hint that the frontend can read without exposing the actual sensitive session token.
-	hintCookie := http.Cookie{
+	//Why: Provides a public "session active" hint for frontend logic without exposing the actual token.
+	http.SetCookie(w, &http.Cookie{
 		Name:     "session_active",
 		Value:    "true",
-		Expires:  time.Now().Add(24 * time.Hour),
-		HttpOnly: false, // Accessible by JS
-		Secure:   isSecure,
+		Expires:  time.Now().Add(maxAge),
+		HttpOnly: false,
+		Secure:   isProd,
 		Path:     "/",
-		SameSite: sameSite,
-	}
-	http.SetCookie(w, &hintCookie)
+		SameSite: http.SameSiteLaxMode,
+	})
 }
 
 func AuthMiddleware(next http.Handler) http.Handler {

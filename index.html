@@ -138,9 +138,8 @@
                         </svg>
                         <span id="waStatusText" class="c-status-card__label">OFF</span>
                     </div>
-                    <div id="gmailStatusLarge" class="c-status-card c-status-card--gmail c-status-card--inactive"
-                        title="Gmail: Click to connect" data-i18n-title="gmailStatusClickToConnect"
-                        style="cursor: pointer;">
+                    <div id="gmailStatusLarge" class="c-status-card c-status-card--gmail c-status-card--inactive u-cursor-pointer"
+                        title="Gmail: Click to connect" data-i18n-title="gmailStatusClickToConnect">
                         <svg viewBox="0 0 512 512">
                             <path fill="#EA4335"
                                 d="M48 64C21.5 64 0 85.5 0 112v288c0 26.5 21.5 48 48 48h416c26.5 0 48-21.5 48-48V112c0-26.5-21.5-48-48-48H48zM48 96h416c8.8 0 16 7.2 16 16v21.3L256 295.1 32 133.3V112c0-8.8 7.2-16 16-16zm-16 70.6l208 147.3L448 166.6V400c0 8.8-7.2 16-16 16H80c-8.8 0-16-7.2-16-16V166.6z" />
@@ -215,97 +214,103 @@
             <section id="insightsSection" class="hidden">
                 <!-- Insights 2단계 탭 메뉴 -->
                 <div class="tabs c-tabs">
-                    <button type="button" class="insights-tab-btn c-tabs__btn active" data-tab="insightsStatsTab"
-                        style="flex-shrink: 0; white-space: nowrap;"><span data-i18n="insightsStats">통계</span></button>
-                    <button type="button" class="insights-tab-btn c-tabs__btn" data-tab="insightsReportsTab"
-                        style="flex-shrink: 0; white-space: nowrap;"><span data-i18n="insightsReports">보고서</span></button>
+                    <button type="button" class="insights-tab-btn c-tabs__btn u-no-shrink u-nowrap active" data-tab="insightsStatsTab"><span data-i18n="insightsStats">통계</span></button>
+                    <button type="button" class="insights-tab-btn c-tabs__btn u-no-shrink u-nowrap" data-tab="insightsReportsTab"><span data-i18n="insightsReports">보고서</span></button>
                 </div>
 
                 <!-- 기존 통계 콘텐츠 영역 (Stats Tab) -->
-                <div id="insightsStatsTab" class="insights-container c-tabs__panel c-tabs__panel--active">
-                    <div class="insights-summary-card" id="dailyGlance">
-                        <!-- Daily summary text will be rendered here -->
-                    </div>
-
-                    <div class="insights-dashboard">
-                        <h2 class="insights-section-title" data-i18n="waitingTasks">Pending Tasks</h2>
-
-                        <div class="insights-card insights-card--square">
-                            <h3 data-i18n="pendingMeTasks">My Tasks</h3>
-                            <div id="waitingMetricsMe" class="c-stat-item__value">0</div>
+                <div id="insightsStatsTab" class="c-insights-container c-tabs__panel c-tabs__panel--active">
+                    <div class="c-insights-dashboard">
+                        <div class="c-insights-grid">
+                        <!-- Row 0: Summary Header -->
+                        <div class="c-insights-section-header">
+                            <h2 class="c-insights-section-title" data-i18n="dailyGlanceTitle">Daily Performance</h2>
                         </div>
 
-                        <div class="insights-card insights-card--square">
-                            <h3 data-i18n="needsAttentionTasks">Bottleneck</h3>
-                            <div id="waitingMetricsAttention" class="c-stat-item__value c-stat-item__value--error">0
-                            </div>
+                        <!-- Row 1: Key Metrics (3 Squares) -->
+                        <div class="c-insights-card c-insights-card--square" id="stat-completed">
+                            <h3 class="c-insights-card__title" data-i18n="dailyGlanceTitle">Completed</h3>
+                            <div id="dailyGlanceValue" class="c-insights-card__main-value">-</div>
+                            <div id="dailyGlanceDetail" class="c-insights-card__detail">Syncing...</div>
+                        </div>
+                        <div class="c-insights-card c-insights-card--square" id="stat-peak">
+                            <h3 class="c-insights-card__title" data-i18n="hourlyActivity">Peak Hours</h3>
+                            <div id="hourlyActivityValue" class="c-insights-card__main-value">-</div>
+                        </div>
+                        <div class="c-insights-card c-insights-card--square" id="stat-stale">
+                            <h3 class="c-insights-card__title" data-i18n="waitingTasks">Stale Tasks</h3>
+                            <div id="staleTasksValue" class="c-insights-card__main-value">0</div>
                         </div>
 
-                        <!-- Empty slot for grid balance if needed, or just let it flow -->
-                        <div class="insights-card insights-card--square u-invisible"></div>
+                        <!-- Row 2: AI Consumption & Performance (3 Squares) -->
+                        <div class="c-insights-section-header">
+                            <h2 class="c-insights-section-title" data-i18n="waitingTasks">Work Distribution</h2>
+                        </div>
+                        <div class="c-insights-card c-insights-card--square" id="ai-consumption-today">
+                            <h3 class="c-insights-card__title" data-i18n="aiConsumptionTitle">AI Today</h3>
+                            <div id="aiConsumptionValue" class="c-insights-card__main-value">-</div>
+                        </div>
+                        <div class="c-insights-card c-insights-card--square" id="ai-consumption-monthly">
+                            <h3 class="c-insights-card__title" data-i18n="aiConsumptionMonthly">AI Monthly</h3>
+                            <div class="c-insights-card__main-value">-</div>
+                        </div>
+                        <div class="c-insights-card c-insights-card--square" id="ai-consumption-cost">
+                            <h3 class="c-insights-card__title" data-i18n="aiConsumptionCost">Estimated Cost</h3>
+                            <div class="c-insights-card__main-value">$0.00</div>
+                        </div>
 
-                        <h2 class="insights-section-title" data-i18n="reviewStatsTitle">Completion Trends</h2>
-                        <div class="insights-card insights-card--full">
-                            <div class="chart-header">
-                                <h3 data-i18n="reviewStatsTitle">Review Statistics</h3>
-                                <div class="chart-filters">
-                                    <button type="button" class="filter-btn active" data-days="30"
-                                        data-i18n="filter1M">1
-                                        Month</button>
-                                    <button type="button" class="filter-btn" data-days="90" data-i18n="filter3M">3
-                                        Months</button>
-                                    <button type="button" class="filter-btn" data-days="365" data-i18n="filter1Y">1
-                                        Year</button>
+                        <!-- Row 3: Achievements (3 Squares) -->
+                        <div class="c-insights-section-header">
+                            <h2 class="c-insights-section-title" data-i18n="reviewStatsTitle">Achievements & Activity</h2>
+                        </div>
+                        <div class="c-insights-card c-insights-card--square" id="achievement-slot-1">
+                             <h3 class="c-insights-card__title" data-i18n="achievementsTitle">Recent</h3>
+                             <div id="achievementsList" class="c-insights-achievements-list"></div>
+                        </div>
+                        <div class="c-insights-card c-insights-card--square" id="achievement-slot-2">
+                            <h3 class="c-insights-card__title" data-i18n="distributionTitle">Channels</h3>
+                            <div id="sourceDistribution" class="c-insights-distribution-slot"></div>
+                        </div>
+                        <div class="c-insights-card c-insights-card--square" id="achievement-slot-3">
+                            <h3 class="c-insights-card__title" data-i18n="heatmapTitle">Heatmap</h3>
+                            <div id="activityHeatmap" class="c-heatmap-container"></div>
+                        </div>
+
+                        <!-- Full Width Chart -->
+                        <div class="c-insights-card c-insights-card--full" id="cardCompletionTrends">
+                            <div class="c-chart__header">
+                                <h3 data-i18n="completionTrendsTitle">Completion Trends</h3>
+                                <div class="c-chart__filters chart-filters">
+                                    <button type="button" class="filter-btn active" data-days="30" data-i18n="filter1M">1 Month</button>
+                                    <button type="button" class="filter-btn" data-days="90" data-i18n="filter3M">3 Months</button>
+                                    <button type="button" class="filter-btn" data-days="365" data-i18n="filter1Y">1 Year</button>
                                 </div>
                             </div>
-                            <div id="ankiChartContainer" class="svg-chart-container"></div>
+                            <div id="ankiChartContainer" class="c-report-chart"></div>
                         </div>
-
-                        <h2 class="insights-section-title" data-i18n="tokenUsageTitle">AI Usage Metrics</h2>
-                        <div id="tokenUsageContainer"></div>
-
-                        <h2 class="insights-section-title" data-i18n="heatmapTitle">Activity Analysis</h2>
-                        <div class="insights-card insights-card--square">
-                            <h3 data-i18n="heatmapTitle">Activity (Last 30 Days)</h3>
-                            <div id="activityHeatmap" class="heatmap-container"></div>
-                        </div>
-
-                        <div class="insights-card insights-card--square">
-                            <h3 data-i18n="sourceDistTitle">Channel Distribution</h3>
-                            <div id="sourceDistribution" class="chart-container"></div>
-                        </div>
-
-                        <div class="insights-card insights-card--square">
-                            <h3 data-i18n="hourlyActivity">Hourly Activity</h3>
-                            <div id="hourlyActivity" class="heatmap-container"></div>
-                        </div>
-
-                        <h2 class="insights-section-title" data-i18n="achievementsTitle">Achievements</h2>
-                        <div class="insights-card insights-card--full">
-                            <div id="achievementsList" class="achievements-mini-list"></div>
-                        </div>
-                    </div>
-                </div>
+                    </div> <!-- End of c-insights-grid -->
+                    </div> <!-- End of c-insights-dashboard -->
+                </div> <!-- End of insightsStatsTab -->
 
                 <!-- 주간 보고서 영역 (Weekly Report Tab) -->
-                <div id="insightsReportsTab" class="insights-container c-tabs__panel insights-report-layout">
+                <div id="insightsReportsTab" class="c-insights-container c-tabs__panel c-insights-report-layout u-p-0">
                     <!-- Report Sidebar -->
-                    <aside class="c-report-sidebar">
-                        <div class="c-report-sidebar__header">
-                            <h3 data-i18n="reportListTitle">보고서 목록</h3>
+                    <aside class="c-insights-report-sidebar">
+                        <div class="c-insights-report-sidebar__header u-p-4">
+                             <h3 data-i18n="reportListTitle" class="u-text-sm u-font-bold u-text-dim u-text-upper">보고서 목록</h3>
                         </div>
-                        <div id="reportList" class="c-report-list">
-                            <div class="u-text-dim u-text-sm" style="padding: 1rem; text-align: center;">Loading reports...</div>
+                        <div id="reportList" class="c-insights-report-list">
+                            <div class="u-text-dim u-text-sm u-text-center u-p-4">Loading reports...</div>
                         </div>
                     </aside>
 
-                    <!-- Main Report Content -->
-                    <div class="insights-report-main">
-                        <div class="insights-report-header">
-                            <div class="u-flex u-flex-between u-flex-align-center u-mb-6">
+                    <!-- Main Report Content Area -->
+                    <div class="c-insights-report-main">
+                        <div class="insights-report-header u-p-8 u-border-bottom">
+                            <div class="u-flex u-flex-between u-flex-align-center">
                                 <div>
-                                    <h2 class="insights-section-title" data-i18n="weeklyReportTitle">AI 업무 보고서</h2>
-                                    <p class="u-text-dim" data-i18n="weeklyReportDesc">지정한 기간의 커뮤니케이션 데이터 기반 업무 요약 및 관계망 분석</p>
+                                    <h2 class="c-insights-section-title" data-i18n="weeklyReportTitle">AI 업무 보고서</h2>
+                                    <p class="u-text-dim" data-i18n="weeklyReportDesc">지정한 기간의 업무 요약 및 관계망 분석</p>
                                 </div>
                                 <div class="c-report-controls">
                                     <div class="u-flex u-flex-gap-sm">
@@ -313,52 +318,32 @@
                                         <span class="u-text-dim u-align-self-center">~</span>
                                         <input type="date" id="reportEndDate" class="c-input u-w-auto">
                                         <button type="button" id="btnGenerateReport" class="c-btn c-btn--primary">
-                                            <span class="btn-text" data-i18n="generateBtn">생성 및 분석</span>
+                                            <span data-i18n="generateBtn">생성 및 분석</span>
                                         </button>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div id="reportDetailArea">
-                            <!-- Truncation Warning -->
-                            <div id="reportTruncationWarning" class="u-hidden u-mb-6">
-                                <!-- Rendered by JS -->
+                        <div id="reportDetailArea" class="u-p-8">
+                            <div id="reportTruncationWarning" class="c-report-warning u-hidden u-mb-6">
+                                <p data-i18n="reportTruncated">내용이 너무 길어 일부 축약되었습니다.</p>
                             </div>
 
-                            <div class="insights-report-grid">
-                                <!-- AI Work Summary -->
-                                <div class="insights-card insights-card--full insights-card--report-summary">
-                                    <h3 data-i18n="reportSummaryTitle"
-                                        style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                                        <span>📝</span> 업무 요약
-                                    </h3>
-                                    <div id="reportSummaryContent" class="report-content"></div>
+                            <section class="c-insights-report-summary u-mb-8">
+                                <h3 class="u-mb-4" data-i18n="reportSummary">Analysis Summary</h3>
+                                <div id="reportSummaryContent" class="c-report-content">
+                                    <div class="u-text-dim u-p-4">보고서를 선택해 주세요.</div>
                                 </div>
+                            </section>
 
-                                <!-- Network Graph -->
-                                <div class="insights-card insights-card--full insights-card--report-viz">
-                                    <h3 data-i18n="reportVizTitle"
-                                        style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                                        <span>🕸️</span> 커뮤니케이션 관계망
-                                    </h3>
-                                    <div id="reportVizChart" style="width: 100%; height: 500px; min-height: 400px;"></div>
+                            <section class="c-insights-report-viz">
+                                <h3 class="u-mb-4" data-i18n="reportViz">Visual Analytics</h3>
+                                <div id="reportVizChart" class="c-report-viz-container">
+                                    <div id="reportNetworkChart" style="height: 400px; width: 100%;"></div>
+                                    <div id="reportSankeyChart" style="height: 400px; width: 100%; margin-top: 2rem;"></div>
                                 </div>
-
-                                <!-- Sankey Diagram -->
-                                <div class="insights-card insights-card--full insights-card--report-sankey">
-                                    <h3 data-i18n="reportSankeyTitle"
-                                        style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                                        <span>📊</span> 커뮤니케이션 흐름 (Sankey)
-                                    </h3>
-                                    <div id="reportSankeyChart" style="width: 100%; height: 500px; min-height: 400px;"></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="reportEmptyState" class="c-reports-placeholder">
-                            <div style="font-size: 4rem; margin-bottom: 1rem;">📑</div>
-                            <p data-i18n="reportEmptyState">왼쪽 목록에서 보고서를 선택하거나, 상단 기간을 설정하여 새로운 보고서를 생성하세요.</p>
+                            </section>
                         </div>
                     </div>
                 </div>
