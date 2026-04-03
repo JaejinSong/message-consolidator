@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS messages (
     metadata TEXT DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS idx_thread_id ON messages(thread_id);
+CREATE INDEX IF NOT EXISTS idx_messages_dashboard_filter ON messages(user_email, is_deleted, done, category, assignee);
 
 -- name: CreateTaskTranslationsTable :exec
 CREATE TABLE IF NOT EXISTS task_translations (

@@ -24,8 +24,8 @@ describe('Insights Dashboard - Layout & Logic Regression', () => {
         expect(dashboard, 'Insights grid container should exist').not.toBeNull();
     });
 
-    it('should contain all required section titles via i18n attributes', () => {
-        const expectedI18nKeys = ['waitingTasks', 'reviewStatsTitle'];
+    it('should contain required section titles via i18n attributes', () => {
+        const expectedI18nKeys = ['reviewStatsTitle'];
         const headers = Array.from(document.querySelectorAll('.c-insights-section-title'))
             .map(h => h.getAttribute('data-i18n'));
         
@@ -37,7 +37,7 @@ describe('Insights Dashboard - Layout & Logic Regression', () => {
     it('should apply .c-insights-card to all grid tiles', () => {
         const gridTileIds = [
             'stat-completed', 'stat-peak', 'stat-stale',
-            'ai-consumption-today', 'ai-consumption-monthly', 'ai-consumption-cost',
+            'ai-usage-consolidated', 
             'achievement-slot-1', 'achievement-slot-2', 'achievement-slot-3'
         ];
         

@@ -14,9 +14,9 @@ import { Message, I18nDictionary } from './types.ts';
 export const getArchiveThresholdDays = (): number => state.archiveThresholdDays || 7;
 
 /**
- * Sorts and filters messages based on the current view and search query.
+ * Sorts and filters messages based on the current search query.
  */
-export function sortAndFilterMessages(messages: Message[], currentTab: string, searchQuery: string): Message[] {
+export function sortAndSearchMessages(messages: Message[], searchQuery: string): Message[] {
     if (!messages) return [];
 
     const now = new Date();
@@ -32,12 +32,7 @@ export function sortAndFilterMessages(messages: Message[], currentTab: string, s
             }
         }
 
-        // 2. Filter by Tab
-        if (currentTab === 'myTasksTab' && (m.waiting_on || m.assignee !== 'me')) return false;
-        if (currentTab === 'otherTasksTab' && (m.waiting_on || m.assignee === 'me')) return false;
-        if (currentTab === 'waitingTasksTab' && !m.waiting_on) return false;
-
-        // 3. Filter by Search Query
+        // 2. Filter by Search Query
         if (q) {
             const taskStr = (m.task || "").toLowerCase();
             const reqStr = (m.requester || "").toLowerCase();
@@ -56,6 +51,11 @@ export function sortAndFilterMessages(messages: Message[], currentTab: string, s
         return new Date(tsB).getTime() - new Date(tsA).getTime();
     });
 }
+
+/**
+ * @deprecated Categorization is now backend-driven. Logic for 'All' tab should be handled in the renderer.
+ */
+// Removed sortAndFilterMessages as it's redundant with backend-driven categorization
 
 export function calculateStats(messages: Message[]) {
     const total = messages.length;
@@ -92,32 +92,31 @@ export function getRecentTrends(messages: Message[]): Record<string, number> {
 }
 
 /**
- * Classifies messages into categories for dashboard summary.
+ * Generates continuous heatmap data for the last X days.
  */
-export function classifyMessages(messages: Message[]): { my: number; others: number; waiting: number; all: number } {
-    const counts = {
-        my: 0,
-        others: 0,
-        waiting: 0,
-        all: 0
-    };
+export function generateHeatmapData(history: any[], days: number = 30) {
+    const historyMap: Record<string, { total: number; counts: any }> = {};
+    if (history && Array.isArray(history)) {
+        history.forEach(p => {
+            if (!p.date || !p.counts) return;
+            const sum = Object.values(p.counts as Record<string, number>).reduce((a, b) => a + (Number(b) || 0), 0);
+            historyMap[p.date] = { total: sum, counts: p.counts };
+        });
+    }
 
-    if (!messages) return counts;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    messages.forEach(m => {
-        if (m.done) return;
-        counts.all++;
-        if (m.waiting_on) {
-            counts.waiting++;
-        } else if (m.assignee === 'me') {
-            counts.my++;
-        } else {
-            counts.others++;
-        }
+    return Array.from({ length: days }, (_, i) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() - (days - 1 - i));
+        const ds = TimeService.getLocalDateString(d);
+        const data = historyMap[ds] || { total: 0, counts: {} };
+        return { date: ds, count: data.total, counts: data.counts, level: calculateHeatmapLevel(data.total) };
     });
-
-    return counts;
 }
+
+// Removed classifyMessages as it's redundant with backend-driven categorization
 
 /**
  * Calculates activity level for heatmap.
@@ -225,10 +224,10 @@ export function getDeadlineBadge(timestamp: string | undefined, isDone: boolean,
     const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
 
     if (diffHours >= 72) {
-        return `<span class="badge badge-abandoned">${ICONS.abandoned}${i18n.abandoned}</span>`;
+        return `<span class="c-badge c-badge--priority-high">${ICONS.abandoned}${i18n.abandoned}</span>`;
     }
     if (diffHours >= 24) {
-        return `<span class="badge badge-stale">${ICONS.stale}${i18n.stale}</span>`;
+        return `<span class="c-badge c-badge--priority-medium">${ICONS.stale}${i18n.stale}</span>`;
     }
     return '';
 }

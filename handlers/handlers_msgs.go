@@ -12,21 +12,40 @@ import (
 
 func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	lang := r.URL.Query().Get("lang")
-
 	msgsRaw, err := store.GetMessages(email)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to fetch messages")
 		return
 	}
+
 	msgs := make([]store.ConsolidatedMessage, len(msgsRaw))
 	copy(msgs, msgsRaw)
-
 	if a.Tasks != nil {
-		a.Tasks.PrepareMessagesForClient(email, msgs, lang)
+		a.Tasks.PrepareMessagesForClient(email, msgs, r.URL.Query().Get("lang"))
 	}
 
-	respondJSON(w, http.StatusOK, msgs)
+	name, _ := store.GetUserName(email)
+	aliases, _ := store.GetUserAliasesByEmail(email)
+	res := struct {
+		Inbox   []store.ConsolidatedMessage `json:"inbox"`
+		Pending []store.ConsolidatedMessage `json:"pending"`
+		Waiting []store.ConsolidatedMessage `json:"waiting"`
+	}{
+		Inbox:   make([]store.ConsolidatedMessage, 0),
+		Pending: make([]store.ConsolidatedMessage, 0),
+		Waiting: make([]store.ConsolidatedMessage, 0),
+	}
+
+	for _, m := range msgs {
+		if m.Category == "waiting" {
+			res.Waiting = append(res.Waiting, m)
+		} else if store.IsAssignedToUser(m.Assignee, name, aliases) {
+			res.Inbox = append(res.Inbox, m)
+		} else {
+			res.Pending = append(res.Pending, m)
+		}
+	}
+	respondJSON(w, http.StatusOK, res)
 }
 
 func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {

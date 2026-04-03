@@ -126,7 +126,10 @@ export const I18N_DATA = {
         yesterday: "어제",
         dashboardTitle: "대시보드",
         insightsTitle: "인사이트",
-        tokenUsageTitle: "AI 사용량 통계",
+        tokenUsageTitle: "토큰 사용량",
+        todayAIUsage: "오늘 AI 사용",
+        monthlyAIUsage: "이번 달 AI 사용",
+        estimatedCost: "추정 비용",
         tabTokenUsage: "토큰 사용량",
         summaryDaily: "오늘의 한 줄 요약",
         glanceTotalCompleted: [
@@ -364,6 +367,9 @@ export const I18N_DATA = {
         dashboardTitle: "Dashboard",
         insightsTitle: "Insights",
         tokenUsageTitle: "AI Usage Statistics",
+        todayAIUsage: "Today AI Usage",
+        monthlyAIUsage: "Monthly AI Usage",
+        estimatedCost: "Estimated Cost",
         tabTokenUsage: "Token Usage",
         summaryDaily: "Daily Glance",
         glanceTotalCompleted: [

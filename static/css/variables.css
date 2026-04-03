@@ -104,6 +104,13 @@
     --color-confetti-sky: #00d4ff;
     --color-confetti-pink: #ff007f;
     --color-confetti-lime: #32ff7e;
+
+    /* Heatmap Colors (Dark) */
+    --color-heatmap-0: rgba(255, 255, 255, 0.05);
+    --color-heatmap-1: rgba(var(--accent-rgb), 0.2);
+    --color-heatmap-2: rgba(var(--accent-rgb), 0.4);
+    --color-heatmap-3: rgba(var(--accent-rgb), 0.7);
+    --color-heatmap-4: var(--accent-color);
 }
 
 /* Light Theme Overrides - High Contrast Premium Slate */
@@ -140,4 +147,11 @@ body.light-theme {
     --brand-json: #f39c12;
     --brand-json-hover: #d3850e;
     --table-header-bg: #f8fafc;
+
+    /* Heatmap Colors (Light) */
+    --color-heatmap-0: rgba(0, 0, 0, 0.05);
+    --color-heatmap-1: rgba(var(--accent-rgb), 0.15);
+    --color-heatmap-2: rgba(var(--accent-rgb), 0.35);
+    --color-heatmap-3: rgba(var(--accent-rgb), 0.65);
+    --color-heatmap-4: var(--accent-color);
 }

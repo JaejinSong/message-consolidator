@@ -1,3 +1,14 @@
+# Release Notes - v2.4.13 (2026-04-03 02:26 UTC)
+
+- [NEW] Smart Task Grouping: Our new "Affinity Scoring" system acts like a personal organizer, automatically grouping related tasks together so your dashboard stays clutter-free.
+- [NEW] Gmail Precision: We’ve upgraded our Gmail integration. Every single deliverable now gets its own clear, trackable task—ensuring nothing slips through the cracks.
+- [NEW] WhatsApp Mastery: Good news for WhatsApp users! We’ve optimized how messages are converted into tasks, making your chat-to-work flow smoother than ever.
+- [IMPROVED] Snappier Interface: We’ve rebuilt the foundation of our interface with TypeScript. It’s faster, more reliable, and ready for future upgrades.
+- [STABILITY] Reliable AI Insights: Your AI-powered summaries are now more consistent than ever, maintaining perfect accuracy even when your workload gets heavy.
+- [SECURITY] Hardened Vault: We’ve tightened our deployment security protocols to ensure your sensitive configuration data remains strictly private.
+
+---
+
 # Release Notes - v2.4.12 (2026-04-02 12:02 UTC)
 
 - [NEW] Who’s Who? (Identity V3): Our new "Ambiguity Safeguard" is like a digital detective—it perfectly links the same person across different apps, even if their usernames vary.

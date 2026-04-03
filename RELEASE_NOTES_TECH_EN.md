@@ -1,3 +1,15 @@
+# Release Notes (Tech) - v2.4.13 (2026-04-03 02:26 UTC)
+
+- [FEAT] Task Affinity Consolidation: Implemented a sophisticated scoring algorithm to intelligently group related tasks based on semantic and contextual affinity.
+- [FEAT] Gmail Task Refactoring: Applied a "1-Deliverable-1-Task" architectural model to Gmail integration to ensure task granularity and tracking precision.
+- [FEAT] WhatsApp Optimization: Integrated specialized task extraction and optimization logic for WhatsApp message streams to improve data capture.
+- [REFACTOR] Metadata Architecture: Transitioned to a centralized JSON-based metadata schema and initiated the frontend migration to TypeScript for enhanced type safety.
+- [STABILITY] AI Regression Safeguard: Hardened the AI analysis pipeline to prevent summary regressions during high-volume task processing.
+- [FIX] Redundant Service Cleanup: Deprecated and removed the legacy `ChatParserService` and associated tests to streamline the internal service container.
+- [SYS] Docker Build Security: Hardened the CI/CD pipeline by removing sensitive production environment files from the Docker ignore whitelist to prevent accidental exposure.
+
+---
+
 # Release Notes (Tech) - v2.4.12 (2026-04-02 12:02 UTC)
 
 - [FEAT] Identity Resolution V3: Deployed the "Ambiguity Safeguard Engine" to accurately merge user identities across various messaging platforms with higher precision.

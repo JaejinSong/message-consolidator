@@ -13,38 +13,41 @@ func GetAllUsers() ([]User, error) {
 	}
 	defer rows.Close()
 
-	var users []User
 	metadataMu.Lock()
 	defer metadataMu.Unlock()
+	return scanAndCacheUsers(rows)
+}
 
+func scanAndCacheUsers(rows *sql.Rows) ([]User, error) {
+	var users []User
 	for rows.Next() {
-		var u User
-		var slackID, waJID sql.NullString
-		var lastCompletedAt, createdAt DBTime
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes); err != nil {
+		u, err := scanUserRow(rows)
+		if err != nil {
 			return nil, err
 		}
-		u.SlackID = slackID.String
-		u.WAJID = waJID.String
-		if lastCompletedAt.Valid && !lastCompletedAt.Time.IsZero() {
-			u.LastCompletedAt = &lastCompletedAt.Time
-		}
-		u.CreatedAt = createdAt.Time
-
-		//Why: Sets a fallback for DailyGoal to prevent division by zero or logical errors in legacy data.
-		if u.DailyGoal <= 0 {
-			u.DailyGoal = 5
-		}
-
-		//Why: Synchronizes the retrieved user data with the in-memory cache.
 		userCache[u.Email] = &u
 		users = append(users, u)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
+	return users, rows.Err()
+}
 
-	return users, nil
+func scanUserRow(rows *sql.Rows) (User, error) {
+	var u User
+	var slackID, waJID sql.NullString
+	var lastComp, created DBTime
+	err := rows.Scan(&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastComp, &created, &u.StreakFreezes)
+	if err != nil {
+		return u, err
+	}
+	u.SlackID, u.WAJID = slackID.String, waJID.String
+	if lastComp.Valid && !lastComp.Time.IsZero() {
+		u.LastCompletedAt = &lastComp.Time
+	}
+	u.CreatedAt = created.Time
+	if u.DailyGoal <= 0 {
+		u.DailyGoal = 5
+	}
+	return u, nil
 }
 
 // GetOrCreateUser fetches a user from the cache or database by email.
@@ -140,4 +143,26 @@ func UpdateUserWAJID(email, wajid string) error {
 func UpdateUserSlackID(email, slackID string) error {
 	_, err := db.Exec(SQL.UpdateUserSlackID, slackID, email)
 	return err
+}
+
+func GetUserAliasesByEmail(email string) ([]string, error) {
+	rows, err := db.Query(SQL.GetUserAliases, email)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var aliases []string
+	for rows.Next() {
+		var a string
+		if err := rows.Scan(&a); err == nil {
+			aliases = append(aliases, a)
+		}
+	}
+	return aliases, rows.Err()
+}
+
+func GetUserName(email string) (string, error) {
+	var name string
+	err := db.QueryRow(SQL.GetUserByEmailSimple, email).Scan(&name)
+	return name, err
 }

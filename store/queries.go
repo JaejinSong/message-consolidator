@@ -92,6 +92,8 @@ var SQL = struct {
 	GetCompletionHistory         string
 	GetEarlyBirdCompleted  string
 	GetMaxDailyCompleted   string
+	GetWaitingTasks        string
+	GetPendingOthers       string
 
 	//Why: Groups SQL queries for user and tenant aliases.
 	UpsertTenantAlias   string
@@ -324,6 +326,8 @@ func loadAllQueries() error {
 	SQL.GetCompletionHistory = queries["GetCompletionHistory"]
 	SQL.GetEarlyBirdCompleted = queries["GetEarlyBirdCompleted"]
 	SQL.GetMaxDailyCompleted = queries["GetMaxDailyCompleted"]
+	SQL.GetWaitingTasks = queries["GetWaitingTasks"]
+	SQL.GetPendingOthers = queries["GetPendingOthers"]
 
 	SQL.UpsertTenantAlias = queries["UpsertTenantAlias"]
 	SQL.DeleteTenantAlias = queries["DeleteTenantAlias"]

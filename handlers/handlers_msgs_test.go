@@ -25,7 +25,7 @@ func TestHandleGetMessages(t *testing.T) {
 	_, err = store.GetDB().Exec(`INSERT INTO messages 
 		(user_email, task, source, source_ts, done, requester, assignee, link, room, original_text, category, deadline, assigned_at, created_at) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		email, "Test Task", "slack", "ts123", 0, "Requester", "Assignee", "http://link", "Room", "Original", "todo", "", time.Now(), time.Now())
+		email, "Test Task", "slack", "ts123", 0, "Requester", "me", "http://link", "Room", "Original", "todo", "", time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("Failed to insert mock message: %v", err)
 	}
@@ -43,18 +43,18 @@ func TestHandleGetMessages(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 
-	var msgs []store.ConsolidatedMessage
+	var msgs store.CategorizedMessages
 	if err := json.Unmarshal(rr.Body.Bytes(), &msgs); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
 	t.Logf("Queried DB directly: %s", rr.Body.String())
 
-	if len(msgs) != 1 {
-		t.Fatalf("Expected 1 message, got %d", len(msgs))
+	if len(msgs.Inbox) != 1 {
+		t.Fatalf("Expected 1 message in Inbox, got %d", len(msgs.Inbox))
 	}
-	if msgs[0].Task != "Test Task" {
-		t.Errorf("Expected task 'Test Task', got '%s'", msgs[0].Task)
+	if msgs.Inbox[0].Task != "Test Task" {
+		t.Errorf("Expected task 'Test Task', got '%s'", msgs.Inbox[0].Task)
 	}
 }
 

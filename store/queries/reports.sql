@@ -27,10 +27,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_report_translations_id_lang_code ON report
 INSERT INTO reports (user_email, start_date, end_date, visualization, is_truncated, created_at)
 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
 
--- name: InsertReportTranslation
+-- name: InsertReportTranslation :exec
 INSERT INTO report_translations (report_id, language_code, summary)
 VALUES (?, ?, ?)
-ON CONFLICT(report_id, language_code) DO NOTHING;
+ON CONFLICT(report_id, language_code) DO UPDATE SET summary = EXCLUDED.summary;
 
 -- name: GetReport
 SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.is_truncated, r.created_at, rt.summary

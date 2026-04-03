@@ -9,7 +9,6 @@ import (
 	"message-consolidator/store"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 )
 
@@ -45,8 +44,8 @@ func TestHandleAddMappingConflict(t *testing.T) {
 		}
 	})
 
-	// 2. Second attempt (Conflict)
-	t.Run("Duplicate Add (Conflict)", func(t *testing.T) {
+	// 2. Second attempt (Idempotent Add)
+	t.Run("Idempotent Add", func(t *testing.T) {
 		w2 := httptest.NewRecorder()
 		r2, _ := http.NewRequest("POST", "/api/contacts/mapping/add", bytes.NewBuffer(body))
 		ctx := context.WithValue(r2.Context(), auth.UserEmailKey, tenantEmail)
@@ -54,17 +53,8 @@ func TestHandleAddMappingConflict(t *testing.T) {
 
 		api.HandleAddMapping(w2, r2)
 
-		if w2.Code != http.StatusConflict {
-			t.Errorf("Expected 409 Conflict, got %d", w2.Code)
-		}
-
-		var resp map[string]string
-		if err := json.Unmarshal(w2.Body.Bytes(), &resp); err != nil {
-			t.Fatalf("Failed to unmarshal response: %v", err)
-		}
-
-		if !strings.Contains(resp["error"], "already exists") {
-			t.Errorf("Expected error message to contain 'already exists', got: %s", resp["error"])
+		if w2.Code != http.StatusOK {
+			t.Errorf("Expected 200 OK for idempotent add, got %d", w2.Code)
 		}
 	})
 }

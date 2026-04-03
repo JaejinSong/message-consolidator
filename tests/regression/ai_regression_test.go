@@ -31,7 +31,7 @@ var koreanSynonyms = map[string][]string{
 }
 
 func TestAnalyze_Regression(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() removed to prevent race conditions on global store.db
 	// Initialize test DB to prevent nil pointer dereference in Analyze's context fetching.
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
@@ -69,7 +69,7 @@ func TestAnalyze_Regression(t *testing.T) {
 		testName := filepath.Base(baseName)
 
 		t.Run(testName, func(t *testing.T) {
-			t.Parallel()
+			// t.Parallel() removed to prevent race conditions on global store.db
 			// 1. 입력 대화 내용 읽기
 			inputBytes, err := os.ReadFile(testCasePath)
 			if err != nil {

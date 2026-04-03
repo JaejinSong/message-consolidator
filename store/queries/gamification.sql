@@ -13,6 +13,7 @@ FROM user_achievements
 WHERE user_id = ?;
 
 -- name: UnlockAchievement :exec
-INSERT INTO user_achievements (user_id, achievement_id) 
-VALUES (?, ?) 
-ON CONFLICT DO NOTHING;
+INSERT INTO user_achievements (user_id, achievement_id, unlocked_at) 
+VALUES (?, ?, CURRENT_TIMESTAMP) 
+ON CONFLICT (user_id, achievement_id) 
+DO UPDATE SET unlocked_at = EXCLUDED.unlocked_at;

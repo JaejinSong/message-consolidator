@@ -101,6 +101,22 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		_ = db.QueryRow(SQL.GetAbandonedTasks, email, threshold, userName).Scan(&stats.AbandonedTasks)
 	}()
 
+	//Why: Counts incomplete tasks assigned to others (SSOT for frontend tabs).
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		var userName string
+		_ = db.QueryRow(SQL.GetUserByEmailSimple, email).Scan(&userName)
+		_ = db.QueryRow(SQL.GetPendingOthers, email, userName).Scan(&stats.PendingOthers)
+	}()
+
+	//Why: Counts tasks in 'waiting' category for the dashboard widget.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = db.QueryRow(SQL.GetWaitingTasks, email).Scan(&stats.WaitingTasks)
+	}()
+
 	//Why: Calculates the distribution of tasks across different communication sources (Active & Total).
 	wg.Add(1)
 	go func() {

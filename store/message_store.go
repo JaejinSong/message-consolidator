@@ -21,17 +21,12 @@ func SaveMessage(msg ConsolidatedMessage) (bool, int, error) {
 	msg.Assignee = NormalizeName(msg.UserEmail, msg.Assignee)
 
 	lastID, err := insertMessage(msg)
-	if err != nil {
-		return false, 0, err
-	}
-	if lastID == 0 {
-		return false, 0, nil
+	if err != nil || lastID == 0 {
+		return false, lastID, err
 	}
 
-	msg.ID = lastID
-	msg.CreatedAt = time.Now()
-	updateCache(msg)
-
+	// Why: Notifies the caching layer to reload this user's data on the next read.
+	InvalidateCache(msg.UserEmail)
 	return true, lastID, nil
 }
 
@@ -40,37 +35,6 @@ func isDuplicate(email, ts string) bool {
 	defer cacheMu.RUnlock()
 	userKnown, ok := knownTS[email]
 	return ok && userKnown[ts]
-}
-
-func insertMessage(msg ConsolidatedMessage) (int, error) {
-	var lastID int
-	// Why: [WhaTap-Memory] Constraints array is serialized to JSON string before DB entry to keep memory footprint predictable during persistence.
-	constraintsJSON, _ := json.Marshal(msg.Constraints)
-	err := db.QueryRow(SQL.SaveMessage,
-		msg.UserEmail, msg.Source, msg.Room, msg.Task,
-		msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link,
-		msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline,
-		msg.ThreadID, msg.AssigneeReason, msg.RepliedToID,
-		msg.IsContextQuery, string(constraintsJSON), string(msg.Metadata),
-	).Scan(&lastID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return 0, nil // Row was not inserted due to conflict (duplicate TS)
-		}
-		logger.Errorf("SaveMessage DB Scan Error: %v (msgID: %d)", err, lastID)
-		return 0, err
-	}
-	return lastID, nil
-}
-
-func updateCache(msg ConsolidatedMessage) {
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-	if _, ok := knownTS[msg.UserEmail]; !ok {
-		knownTS[msg.UserEmail] = make(map[string]bool)
-	}
-	knownTS[msg.UserEmail][msg.SourceTS] = true
-	messageCache[msg.UserEmail] = append([]ConsolidatedMessage{msg}, messageCache[msg.UserEmail]...)
 }
 
 // SaveMessages performs a bulk insert of multiple messages.
@@ -87,15 +51,22 @@ func SaveMessages(msgs []ConsolidatedMessage) ([]int, error) {
 		return nil, err
 	}
 
-	updateBulkCache(toInsert, newIDsMap)
+	// Why: Batch invalidation for all users affected by the bulk operation.
+	for email := range newIDsMap {
+		InvalidateCache(email)
+	}
 	
-	ids := make([]int, 0, len(newIDsMap))
+	return flattenIDs(newIDsMap), nil
+}
+
+func flattenIDs(newIDsMap map[string]map[string]int) []int {
+	var ids []int
 	for _, userMap := range newIDsMap {
 		for _, id := range userMap {
 			ids = append(ids, id)
 		}
 	}
-	return ids, nil
+	return ids
 }
 
 func filterNewOnly(msgs []ConsolidatedMessage) []ConsolidatedMessage {
@@ -157,187 +128,107 @@ func scanBulkIDs(rows *sql.Rows) (map[string]map[string]int, error) {
 	return res, rows.Err()
 }
 
-func updateBulkCache(msgs []ConsolidatedMessage, idMap map[string]map[string]int) {
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-	now := time.Now()
-	for _, msg := range msgs {
-		if id, ok := idMap[msg.UserEmail][msg.SourceTS]; ok {
-			msg.ID = id
-			msg.CreatedAt = now
-			if _, exists := knownTS[msg.UserEmail]; !exists {
-				knownTS[msg.UserEmail] = make(map[string]bool)
-			}
-			knownTS[msg.UserEmail][msg.SourceTS] = true
-			messageCache[msg.UserEmail] = append([]ConsolidatedMessage{msg}, messageCache[msg.UserEmail]...)
-		}
+func insertMessage(msg ConsolidatedMessage) (int, error) {
+	var lastID int
+	constraintsJSON, _ := json.Marshal(msg.Constraints)
+	err := db.QueryRow(SQL.SaveMessage,
+		msg.UserEmail, msg.Source, msg.Room, msg.Task,
+		msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link,
+		msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline,
+		msg.ThreadID, msg.AssigneeReason, msg.RepliedToID,
+		msg.IsContextQuery, string(constraintsJSON), string(msg.Metadata),
+	).Scan(&lastID)
+	if err != nil && err != sql.ErrNoRows {
+		logger.Errorf("SaveMessage DB Scan Error: %v", err)
+		return 0, err
 	}
+	return lastID, nil
 }
 
 func GetMessages(email string) ([]ConsolidatedMessage, error) {
 	if err := EnsureCacheInitialized(email); err != nil {
-		logger.Errorf("Failed to ensure cache initialized for %s in GetMessages: %v", email, err)
+		return nil, err
 	}
 
 	cacheMu.RLock()
-	msgs := messageCache[email]
-	cacheMu.RUnlock()
-
-	if msgs == nil {
-		return []ConsolidatedMessage{}, nil
+	defer cacheMu.RUnlock()
+	if msgs, ok := messageCache[email]; ok {
+		return msgs, nil
 	}
-	return msgs, nil
+	return []ConsolidatedMessage{}, nil
 }
 
 func MarkMessageDone(email string, id int, done bool) error {
-	var completedAt interface{}
-	now := time.Now()
-	if done {
-		completedAt = now
-	} else {
-		completedAt = nil
-	}
+	var comp interface{} = nil
+	if done { comp = time.Now() }
 
-	_, err := db.Exec(SQL.MarkMessageDone, done, completedAt, id, email)
-	if err == nil {
-		//Why: Immediately updates the local cache to improve UI responsiveness before the background refresh completes.
-		cacheMu.Lock()
-		for i := range messageCache[email] {
-			if messageCache[email][i].ID == id {
-				messageCache[email][i].Done = done
-				if done {
-					messageCache[email][i].CompletedAt = &now
-				} else {
-					messageCache[email][i].CompletedAt = nil
-				}
-				break
-			}
-		}
-		cacheMu.Unlock()
-
-		//Why: Triggers a background cache refresh to ensure long-term data consistency across the application.
-		go func() {
-			if err := RefreshCache(email); err != nil {
-				logger.Errorf("Background RefreshCache error for %s: %v", email, err)
-			}
-		}()
+	if _, err := db.Exec(SQL.MarkMessageDone, done, comp, int(id), email); err != nil {
+		return err
 	}
-	return err
+	// Why: Immediate invalidation ensures periodic UI polling fetches the strictly consistent state.
+	InvalidateCache(email)
+	return nil
 }
 
 func UpdateTaskText(email string, id int, task string) error {
-	_, err := db.Exec(SQL.UpdateTaskText, task, id, email)
-	if err == nil {
-		cacheMu.Lock()
-		for i := range messageCache[email] {
-			if messageCache[email][i].ID == id {
-				messageCache[email][i].Task = task
-				break
-			}
-		}
-		cacheMu.Unlock()
-
-		go func() { _ = RefreshCache(email) }()
+	if _, err := db.Exec(SQL.UpdateTaskText, task, int(id), email); err != nil {
+		return err
 	}
-	return err
+	InvalidateCache(email)
+	return nil
 }
 
 // UpdateTaskDescriptionAppend appends new content to the task text only.
 // Why: Called when consolidating tasks from the same source message to prevent original_text duplication.
 func UpdateTaskDescriptionAppend(id int, date, newTask string) error {
-	_, err := db.Exec(SQL.UpdateTaskDescriptionAppend, date, newTask, id)
+	_, err := db.Exec(SQL.UpdateTaskDescriptionAppend, date, newTask, int(id))
 	return err
 }
 
 // UpdateTaskFullAppend appends new content to both task and original_text.
 // Why: Called when consolidating tasks from different source messages where full context must be preserved.
 func UpdateTaskFullAppend(id int, date, newTask, newOriginalText string) error {
-	_, err := db.Exec(SQL.UpdateTaskFullAppend, date, newTask, newOriginalText, id)
+	_, err := db.Exec(SQL.UpdateTaskFullAppend, date, newTask, newOriginalText, int(id))
 	return err
 }
 
 func UpdateMessageCategory(email string, id int, category string) error {
-	_, err := db.Exec(SQL.UpdateMessageCategory, category, id, email)
-	if err == nil {
-		cacheMu.Lock()
-		for i := range messageCache[email] {
-			if messageCache[email][i].ID == id {
-				messageCache[email][i].Category = category
-				break
-			}
-		}
-		cacheMu.Unlock()
-
-		go func() { _ = RefreshCache(email) }()
+	if _, err := db.Exec(SQL.UpdateMessageCategory, category, int(id), email); err != nil {
+		return err
 	}
-	return err
+	InvalidateCache(email)
+	return nil
 }
 
 func UpdateTaskAssignee(email string, id int, assignee string) error {
-	_, err := db.Exec(SQL.UpdateTaskAssignee, assignee, id, email)
-	if err == nil {
-		cacheMu.Lock()
-		for i := range messageCache[email] {
-			if messageCache[email][i].ID == id {
-				messageCache[email][i].Assignee = assignee
-				break
-			}
-		}
-		cacheMu.Unlock()
-
-		go func() { _ = RefreshCache(email) }()
+	if _, err := db.Exec(SQL.UpdateTaskAssignee, assignee, int(id), email); err != nil {
+		return err
 	}
-	return err
+	InvalidateCache(email)
+	return nil
 }
 
 func DeleteMessages(email string, ids []int) error {
-	if len(ids) == 0 {
-		return nil
-	}
+	if len(ids) == 0 { return nil }
 	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
 	query := fmt.Sprintf("UPDATE messages SET is_deleted = 1 WHERE user_email = ? AND id IN (%s)", placeholders)
-	args := make([]interface{}, len(ids)+1)
-	args[0] = email
-	for i, id := range ids {
-		args[i+1] = id
-	}
-	_, err := db.Exec(query, args...)
-	if err == nil {
-		//Why: Immediately removes deleted messages from the local cache for instant UI feedback.
-		cacheMu.Lock()
-		idMap := make(map[int]bool)
-		for _, id := range ids {
-			idMap[id] = true
-		}
-		var newActive []ConsolidatedMessage
-		for _, m := range messageCache[email] {
-			if !idMap[m.ID] {
-				newActive = append(newActive, m)
-			}
-		}
-		messageCache[email] = newActive
-		cacheMu.Unlock()
-
-		go func() { _ = RefreshCache(email) }()
-	}
-	return err
-}
-
-// HardDeleteMessages removes messages permanently from both active and archive caches.
-// Why: Delegates cache filtering to a reusable helper to comply with the 30-line limit.
-func HardDeleteMessages(email string, ids []int) error {
-	if len(ids) == 0 {
-		return nil
-	}
-	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
-	query := fmt.Sprintf("DELETE FROM messages WHERE user_email = ? AND id IN (%s)", placeholders)
-	
 	args := prepareIDArgs(email, ids)
 	if _, err := db.Exec(query, args...); err != nil {
 		return err
 	}
+	InvalidateCache(email)
+	return nil
+}
 
-	updateHardDeleteCache(email, ids)
+func HardDeleteMessages(email string, ids []int) error {
+	if len(ids) == 0 { return nil }
+	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
+	query := fmt.Sprintf("DELETE FROM messages WHERE user_email = ? AND id IN (%s)", placeholders)
+	args := prepareIDArgs(email, ids)
+	if _, err := db.Exec(query, args...); err != nil {
+		return err
+	}
+	InvalidateCache(email)
 	return nil
 }
 
@@ -345,55 +236,25 @@ func prepareIDArgs(email string, ids []int) []interface{} {
 	args := make([]interface{}, len(ids)+1)
 	args[0] = email
 	for i, id := range ids {
-		args[i+1] = id
+		args[i+1] = int(id)
 	}
 	return args
 }
 
-func updateHardDeleteCache(email string, ids []int) {
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-	idMap := make(map[int]bool)
-	for _, id := range ids {
-		idMap[id] = true
-	}
-	messageCache[email] = filterCache(messageCache[email], idMap)
-	archiveCache[email] = filterCache(archiveCache[email], idMap)
-	
-	go func() { _ = RefreshCache(email) }()
-}
-
-func filterCache(cache []ConsolidatedMessage, idMap map[int]bool) []ConsolidatedMessage {
-	var filtered []ConsolidatedMessage
-	for _, m := range cache {
-		if !idMap[m.ID] {
-			filtered = append(filtered, m)
-		}
-	}
-	return filtered
-}
-
 func RestoreMessages(email string, ids []int) error {
-	if len(ids) == 0 {
-		return nil
-	}
+	if len(ids) == 0 { return nil }
 	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
-	query := fmt.Sprintf("UPDATE messages SET is_deleted = 0 WHERE user_email = ? AND id IN (%s)", placeholders)
-	args := make([]interface{}, len(ids)+1)
-	args[0] = email
-	for i, id := range ids {
-		args[i+1] = id
+	query := fmt.Sprintf("UPDATE messages SET is_deleted = 0, done = 0, completed_at = NULL WHERE user_email = ? AND id IN (%s)", placeholders)
+	args := prepareIDArgs(email, ids)
+	if _, err := db.Exec(query, args...); err != nil {
+		return err
 	}
-	_, err := db.Exec(query, args...)
-	if err == nil {
-		//Why: Triggers an immediate background refresh because restoration logic can complexly affect multiple categories.
-		go func() { _ = RefreshCache(email) }()
-	}
-	return err
+	InvalidateCache(email)
+	return nil
 }
 
 func GetMessageByID(ctx context.Context, id int) (ConsolidatedMessage, error) {
-	row := db.QueryRowContext(ctx, SQL.GetMessageByID, id)
+	row := db.QueryRowContext(ctx, SQL.GetMessageByID, int(id))
 	return scanMessageRow(row)
 }
 
@@ -407,7 +268,7 @@ func GetMessagesByIDs(ctx context.Context, ids []int) ([]ConsolidatedMessage, er
 	query := fmt.Sprintf(SQL.GetMessagesByIDs, placeholders)
 	interfaceIds := make([]interface{}, len(ids))
 	for i, v := range ids {
-		interfaceIds[i] = v
+		interfaceIds[i] = int(v)
 	}
 	rows, err := db.QueryContext(ctx, query, interfaceIds...)
 	if err != nil {
@@ -471,4 +332,37 @@ func scanContextTaskRow(rows *sql.Rows) (ConsolidatedMessage, error) {
 	var m ConsolidatedMessage
 	err := rows.Scan(&m.ID, &m.Task, &m.OriginalText, &m.Requester, &m.Assignee, &m.Source, &m.Room, &m.AssignedAt, &m.Done, &m.CompletedAt)
 	return m, err
+}
+
+// CategorizeByUser groups a slice of messages into dashboard categories.
+// Why: [SSOT] Unifies backend and frontend filtering logic into a single Go implementation.
+func CategorizeByUser(msgs []ConsolidatedMessage, userName string, aliases []string) CategorizedMessages {
+	res := CategorizedMessages{
+		Inbox:   make([]ConsolidatedMessage, 0),
+		Pending: make([]ConsolidatedMessage, 0),
+		Waiting: make([]ConsolidatedMessage, 0),
+		All:     msgs,
+	}
+	for _, m := range msgs {
+		if m.Category == "waiting" {
+			res.Waiting = append(res.Waiting, m)
+		} else if IsAssignedToUser(m.Assignee, userName, aliases) {
+			res.Inbox = append(res.Inbox, m)
+		} else {
+			res.Pending = append(res.Pending, m)
+		}
+	}
+	return res
+}
+
+func IsAssignedToUser(assignee, name string, aliases []string) bool {
+	if assignee == "me" || strings.EqualFold(assignee, name) {
+		return true
+	}
+	for _, a := range aliases {
+		if strings.EqualFold(assignee, a) {
+			return true
+		}
+	}
+	return false
 }

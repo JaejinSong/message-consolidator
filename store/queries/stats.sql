@@ -2,7 +2,10 @@
 SELECT COUNT(*) FROM v_messages WHERE user_email = ? AND done = 1;
 
 -- name: GetPendingMe :one
-SELECT COUNT(*) FROM v_messages WHERE user_email = ? AND done = 0 AND is_deleted = 0 AND (assignee = ? OR assignee = 'me');
+SELECT COUNT(*) FROM v_messages 
+WHERE user_email = ? AND done = 0 AND is_deleted = 0 
+AND (assignee = ? OR assignee = 'me') 
+AND category != 'waiting' AND IFNULL(task, '') != '';
 
 -- name: GetDailyGoal :one
 SELECT daily_goal FROM v_users WHERE email = ?;
@@ -23,11 +26,12 @@ GROUP BY 1 ORDER BY 1;
 -- name: GetAbandonedTasks :one
 SELECT COUNT(*) FROM v_messages 
 WHERE user_email = ? AND done = 0 AND is_deleted = 0 
-AND created_at < ? AND (assignee != ? AND assignee != 'me');
+AND created_at < ? AND (assignee != ? AND assignee != 'me')
+AND IFNULL(task, '') != '';
 
 -- name: GetSourceDistributionActive :many
 SELECT source, COUNT(*) FROM v_messages 
-WHERE user_email = ? AND is_deleted = 0
+WHERE user_email = ? AND is_deleted = 0 AND IFNULL(task, '') != ''
 GROUP BY source;
 
 -- name: GetSourceDistributionTotal :many
@@ -58,3 +62,14 @@ SELECT COALESCE(MAX(c), 0) FROM (
 SELECT COUNT(*) FROM messages
 WHERE user_email = ? AND done = 1
 AND category = 'emergency';
+
+-- name: GetWaitingTasks :one
+SELECT COUNT(*) FROM v_messages 
+WHERE user_email = ? AND done = 0 AND is_deleted = 0 
+AND category = 'waiting' AND IFNULL(task, '') != '';
+
+-- name: GetPendingOthers :one
+SELECT COUNT(*) FROM v_messages 
+WHERE user_email = ? AND done = 0 AND is_deleted = 0 
+AND (assignee != ? AND assignee != 'me') 
+AND category != 'waiting' AND IFNULL(task, '') != '';

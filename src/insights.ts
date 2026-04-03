@@ -17,6 +17,17 @@ export const insights = {
     currentChartDays: 30,
 
     /**
+     * Pure function to extract Daily Performance metrics with Guard Clauses.
+     */
+    getDailyGlanceMetrics(stats: UserStats | null) {
+        if (!stats) return { completed: 0, pending: 0 };
+        return {
+            completed: stats.total_completed || 0,
+            pending: stats.pending_me || 0
+        };
+    },
+
+    /**
      * Initializes the insights module and sets up tab isolation.
      */
     init() {
@@ -250,6 +261,7 @@ export const insights = {
                 api.fetchTokenUsage().catch(() => null)
             ]);
 
+            state.userStats = stats;
             this.renderAll(stats, allAch, userAch, tokenUsage);
         } finally {
             if (loading) loading.classList.remove('active');
@@ -258,12 +270,16 @@ export const insights = {
 
     renderAll(stats: UserStats | null, allAch: any[], userAch: any[], tokenUsage: TokenUsage | null) {
         if (tokenUsage) insightsRenderer.renderTokenUsage(tokenUsage);
+        this.lastStats = stats;
+
+        // Restore Daily Performance Widget with BEM Rendering (Handles null internally)
+        insightsRenderer.renderDailyGlance(stats);
+
         if (stats) {
-            this.lastStats = stats;
-            insightsRenderer.renderDailyGlance(stats);
-            insightsRenderer.renderActivityHeatmap(stats);
+            insightsRenderer.renderActivityHeatmap(stats); // Bottom heatmap
             insightsRenderer.renderChannelDistribution(stats);
-            insightsRenderer.renderHourlyActivity(stats);
+            insightsRenderer.renderHourlyActivity(stats); // Center heatmap (peak integration)
+            insightsRenderer.renderStaleTasks(stats);
             insightsRenderer.renderAnkiChart(stats, this.currentChartDays);
             if (allAch && userAch) {
                 insightsRenderer.renderAchievements(allAch, userAch, stats);

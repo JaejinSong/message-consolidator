@@ -50,18 +50,32 @@ export interface TokenUsage {
     model: string;
 }
 
+export interface TimeSeriesPoint {
+    date: string;
+    counts: Record<string, number>;
+}
+
 export interface UserStats {
+    daily_goal: number;
+    pending_me: number;
+    waiting_tasks: number;
+    pending_others: number;
     total_completed: number;
     peak_time: string;
     abandoned_tasks: number;
     daily_completions: Record<string, number>;
     source_distribution: Record<string, number>;
     source_distribution_total: Record<string, number>;
-    pending_me: number;
     hourly_activity: Record<string, number>;
-    completion_history: any[];
+    completion_history: TimeSeriesPoint[];
     max_daily_completed?: number;
     early_bird_count?: number;
+}
+
+export interface CategorizedMessages {
+    inbox: Message[];
+    pending: Message[];
+    waiting: Message[];
 }
 
 export interface AppState {
@@ -78,7 +92,8 @@ export interface AppState {
     archiveOrder: 'ASC' | 'DESC';
     archiveTotalCount: number;
     archiveThresholdDays: number;
-    messages: Message[];
+    messages: CategorizedMessages;
+    userStats: UserStats | null;
 }
 
 export interface AchievementEntry {
@@ -108,6 +123,11 @@ export interface I18nEntry {
     qrError?: string;
     error?: string;
     generating?: string;
+    totalCompleted?: string;
+    abandoned?: string;
+    stale?: string;
+    waitingTasks?: string;
+    reviewStatsTitle?: string;
     achievements?: Record<string, AchievementEntry>;
 }
 

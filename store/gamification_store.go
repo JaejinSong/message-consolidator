@@ -77,7 +77,7 @@ func GetUserAchievements(userID int) ([]UserAchievement, error) {
 	var u User
 	var lastCompletedAt, createdAt DBTime
 	var slackID, waJID sql.NullString
-	err := db.QueryRow(SQL.GetUserByID, userID).Scan(
+	err := db.QueryRow(SQL.GetUserByID, int(userID)).Scan(
 		&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture,
 		&u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal,
 		&lastCompletedAt, &createdAt, &u.StreakFreezes,
@@ -94,12 +94,12 @@ func GetUserAchievements(userID int) ([]UserAchievement, error) {
 		logger.Warnf("[GAMIFICATION] Failed to get user for retroactive check (ID: %d): %v", userID, err)
 	}
 
-	return getUnlockedAchievementsFromDB(userID)
+	return getUnlockedAchievementsFromDB(int(userID))
 }
 
 // getUnlockedAchievementsFromDB retrieves the list of unlocked achievements purely from the database (internal use only).
 func getUnlockedAchievementsFromDB(userID int) ([]UserAchievement, error) {
-	rows, err := db.Query(SQL.GetUserAchievements, userID)
+	rows, err := db.Query(SQL.GetUserAchievements, int(userID))
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func getUnlockedAchievementsFromDB(userID int) ([]UserAchievement, error) {
 
 // UnlockAchievement persists a newly unlocked achievement for a user in the database.
 func UnlockAchievement(userID, achievementID int) error {
-	_, err := db.Exec(SQL.UnlockAchievement, userID, achievementID)
+	_, err := db.Exec(SQL.UnlockAchievement, int(userID), int(achievementID))
 	return err
 }
 
@@ -167,7 +167,7 @@ func CheckAndUnlockAchievements(user User) ([]Achievement, error) {
 			unlocked = user.Streak >= ach.CriteriaValue
 		}
 
-		if unlocked && UnlockAchievement(user.ID, ach.ID) == nil {
+		if unlocked && UnlockAchievement(int(user.ID), int(ach.ID)) == nil {
 			newlyUnlocked = append(newlyUnlocked, ach)
 		}
 	}

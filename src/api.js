@@ -211,9 +211,10 @@ export const api = {
     },
 
     async removeTenantAlias(id) {
+        const validatedId = ensureInt(id);
         return apiFetch('/tenant/alias/delete', {
             method: 'POST',
-            body: JSON.stringify({ canonical_id: id }),
+            body: JSON.stringify({ canonical_id: validatedId }),
             errorMessage: 'Remove tenant alias failed'
         });
     },
@@ -235,9 +236,10 @@ export const api = {
     },
 
     async removeContactMapping(id) {
+        const validatedId = ensureInt(id);
         return apiFetch('/contacts/mapping/delete', {
             method: 'POST',
-            body: JSON.stringify({ canonical_id: id }),
+            body: JSON.stringify({ canonical_id: validatedId }),
             errorMessage: 'Remove contact mapping failed'
         });
     },

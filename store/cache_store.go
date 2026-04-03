@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"message-consolidator/logger"
+	"golang.org/x/sync/singleflight"
 	"sync"
 	"time"
 )
@@ -40,6 +41,9 @@ var (
 	
 	// cacheInitialized track whether a specific user's message cache has been populated.
 	cacheInitialized = make(map[string]bool)
+
+	// sfGroup handles single-flight requests to prevent cache stampede.
+	sfGroup singleflight.Group
 )
 
 func ResetForTest() {
@@ -140,10 +144,23 @@ func EnsureCacheInitialized(email string) error {
 	initialized := cacheInitialized[email]
 	cacheMu.RUnlock()
 
-	if !initialized {
-		return RefreshCache(email)
+	if initialized {
+		return nil
 	}
-	return nil
+	// Why: Use singleflight to prevent multiple concurrent DB hits for the same user.
+	_, err, _ := sfGroup.Do(email, func() (interface{}, error) {
+		return nil, RefreshCache(email)
+	})
+	return err
+}
+
+func InvalidateCache(email string) {
+	cacheMu.Lock()
+	defer cacheMu.Unlock()
+	delete(messageCache, email)
+	delete(archiveCache, email)
+	delete(knownTS, email)
+	delete(cacheInitialized, email)
 }
 
 func ArchiveOldTasks() error {

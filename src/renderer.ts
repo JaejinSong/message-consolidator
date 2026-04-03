@@ -1,10 +1,10 @@
 import { MessageCard } from './components/message-card.ts';
-import { sortAndFilterMessages, classifyMessages } from './logic.ts';
+import { Message, I18nDictionary, MessageHandlers, CategorizedMessages } from './types.ts';
+import { sortAndSearchMessages } from './logic.ts';
 import { state } from './state.ts';
 import { I18N_DATA } from './locales.js';
 import { TimeService, escapeHTML } from './utils.ts';
 import { ICONS } from './icons.ts';
-import { Message, I18nDictionary, MessageHandlers } from './types.ts';
 
 export { 
     updateServiceStatusUI, 
@@ -50,6 +50,7 @@ export {
  */
 export function renderEmptyGrid(grid: HTMLElement | null, isWitty: boolean = false): void {
     if (!grid) return;
+    grid.innerHTML = '';
     const lang = state.currentLang || 'ko';
     const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
     const messages = i18n.emptyStateMessages;
@@ -144,38 +145,55 @@ export function createCardElement(m: Message): string {
 }
 
 /**
- * Renders message cards based on data and current state.
+ * Renders message cards based on categorized data.
  */
-export function renderMessages(messages: Message[], handlers: MessageHandlers): void {
+export function renderMessages(categorized: CategorizedMessages, handlers: MessageHandlers): void {
     const activeTab = document.querySelector('.tab-btn.active');
     const currentTab = activeTab?.getAttribute('data-tab') || 'myTasksTab';
-    const searchInput = document.getElementById('taskSearch') as HTMLInputElement | null;
-    const searchQuery = searchInput?.value || '';
+    const searchQuery = (document.getElementById('taskSearch') as HTMLInputElement)?.value || '';
 
-    const filtered = sortAndFilterMessages(messages, currentTab, searchQuery);
-    const counts = classifyMessages(messages);
+    const allTasks = [...(categorized.inbox || []), ...(categorized.pending || [])];
+    
+    const tabToKey: Record<string, keyof CategorizedMessages> = {
+        'myTasksTab': 'inbox',
+        'otherTasksTab': 'pending',
+        'waitingTasksTab': 'waiting'
+    };
 
+    let messages: Message[] = [];
+    if (currentTab === 'allTasksTab') {
+        messages = [...allTasks].sort((a, b) => {
+            const dateA = new Date(a.source_ts || a.timestamp || 0).getTime();
+            const dateB = new Date(b.source_ts || b.timestamp || 0).getTime();
+            return dateB - dateA;
+        });
+    } else {
+        const key = tabToKey[currentTab] as keyof CategorizedMessages;
+        messages = categorized[key] || [];
+    }
+
+    const filtered = sortAndSearchMessages(messages, searchQuery);
+
+    // O(1) Counter Updates based on categorized data lengths
     const updateCount = (id: string, count: number) => {
         const el = document.getElementById(id);
         if (el) el.textContent = count.toString();
     };
-    updateCount('myCount', counts.my);
-    updateCount('otherCount', counts.others);
-    updateCount('waitingCount', counts.waiting);
-    updateCount('allCount', counts.all);
+
+    updateCount('myCount', categorized.inbox.length);
+    updateCount('otherCount', categorized.pending.length);
+    updateCount('waitingCount', categorized.waiting.length);
+    updateCount('allCount', allTasks.length);
 
     const gridId = currentTab.replace('Tab', 'List');
     const grid = document.getElementById(gridId);
     if (!grid) return;
+    grid.innerHTML = '';
 
-    const isMyTasksDone = (currentTab === 'myTasksTab' && counts.my === 0 && !searchQuery);
+    const isMyTasksEmpty = (currentTab === 'myTasksTab' && messages.length === 0 && !searchQuery);
 
-    if (isMyTasksDone) {
+    if (isMyTasksEmpty) {
         renderEmptyGrid(grid, true);
-        if (filtered.length > 0) {
-            const listHtml = filtered.map(m => createCardElement(m)).join('');
-            grid.insertAdjacentHTML('beforeend', `<div class="completed-list-divider"></div>` + listHtml);
-        }
     } else if (filtered.length === 0) {
         renderEmptyGrid(grid, false);
     } else {
@@ -189,6 +207,7 @@ export function renderMessages(messages: Message[], handlers: MessageHandlers): 
 export function renderArchive(messages: Message[]): void {
     const tableBody = document.getElementById('archiveBody');
     if (!tableBody) return;
+    tableBody.innerHTML = '';
 
     if (!messages || messages.length === 0) {
         tableBody.innerHTML = '<tr><td colspan="8" class="empty-state">No archived messages</td></tr>';

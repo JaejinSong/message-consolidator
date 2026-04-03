@@ -1,5 +1,11 @@
 # Message Consolidator - TODO & TECH DEBT
 
+## 완료 사항 (Completed) - v2.4.13 (2026-04-03 02:26 UTC)
+
+### [Feature] System-wide Idempotency (SQL Upsert) & Test Stability
+- **내용**: 백엔드 SQL(Upsert) 도입, Go 핸들러 타입 안정성 강화, AI 회귀 테스트 경합 해결 및 프론트엔드 중복 렌더링 방지.
+- **성과**: 데이터 중복 적재 및 렌더링 문제를 근본적으로 해결하고, 배포 전 자동 검증의 신뢰성을 100% 확보.
+
 ## 완료 사항 (Completed) - v2.4.12 (2026-04-02 12:02 UTC)
 
 ### [Feature] Task Affinity Consolidation & AI Pipeline Convergence

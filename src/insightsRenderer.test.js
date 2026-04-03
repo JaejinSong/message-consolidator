@@ -12,10 +12,8 @@ describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
                 <div id="dailyGlanceValue" class="c-insights-card__main-value">-</div>
                 <div id="dailyGlanceDetail" class="c-insights-card__detail">Syncing...</div>
             </div>
-            <div class="c-insights-card" id="cardAiConsumption">
-                <h3 class="c-insights-card__title">AI Usage</h3>
-                <div id="aiConsumptionValue" class="c-insights-card__main-value">-</div>
-                <div id="aiConsumptionDetail" class="c-insights-card__detail">Syncing...</div>
+            <div class="c-insights-card c-insights-card--square" id="ai-usage-consolidated">
+                <div class="u-text-dim u-text-sm">AI Usage Data Syncing...</div>
             </div>
             <div class="c-insights-card" id="cardAchievements">
                 <h3 class="c-insights-card__title">Achievements</h3>
@@ -28,20 +26,20 @@ describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
     });
 
     it('should update daily glance slots without destroying card title', () => {
-        const data = { total_completed: 42, peak_time: '14:00', abandoned_tasks: 0 };
+        const data = { total_completed: 42, peak_time: '14:00', waiting_tasks: 0 };
         insightsRenderer.renderDailyGlance(data);
 
         const card = document.getElementById('cardDailyGlance');
         const value = document.getElementById('dailyGlanceValue');
         const title = card.querySelector('.c-insights-card__title');
 
-        expect(value.textContent).toBe('42');
+        expect(value.textContent).toContain('42');
         expect(title.textContent).toBe('Daily Stats');
         expect(card.classList.contains('c-insights-card')).toBe(true);
     });
 
-    it('should show warning in daily glance detail when abandoned tasks exist', () => {
-        const data = { total_completed: 10, peak_time: '10:00', abandoned_tasks: 5 };
+    it('should show warning in daily glance detail when waiting tasks exist', () => {
+        const data = { total_completed: 10, peak_time: '10:00', waiting_tasks: 5 };
         insightsRenderer.renderDailyGlance(data);
         
         const detail = document.getElementById('dailyGlanceDetail');
@@ -49,12 +47,24 @@ describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
         expect(detail.textContent).toContain('5');
     });
 
-    it('should update AI consumption slots', () => {
-        const usage = { todayTotal: 150, model: 'gpt-4o' };
+    it('should update consolidated AI usage widget with formatted numbers and breakdown (Daily/Monthly)', () => {
+        const usage = { 
+            todayTotal: 1234, todayPrompt: 600, todayCompletion: 634,
+            monthlyTotal: 56789, monthlyPrompt: 30000, monthlyCompletion: 26789,
+            monthlyCost: 1.25, model: 'Gemini 3 Flash' 
+        };
         insightsRenderer.renderTokenUsage(usage);
-
-        expect(document.getElementById('aiConsumptionValue').textContent).toBe('150');
-        expect(document.getElementById('aiConsumptionDetail').textContent).toBe('gpt-4o');
+        
+        const slot = document.getElementById('ai-usage-consolidated');
+        expect(slot.innerHTML).toContain('토큰 사용량');
+        expect(slot.innerHTML).toContain('1,234');
+        expect(slot.innerHTML).toContain('입 600');
+        expect(slot.innerHTML).toContain('출 634');
+        expect(slot.innerHTML).toContain('56,789');
+        expect(slot.innerHTML).toContain('입 30,000');
+        expect(slot.innerHTML).toContain('출 26,789');
+        expect(slot.innerHTML).toContain('$1.25');
+        expect(slot.innerHTML).toContain('Gemini 3 Flash');
     });
 
     it('should render achievements into the list slot', () => {

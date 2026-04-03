@@ -1,4 +1,4 @@
-# Message Consolidator (v2.4.12)
+# Message Consolidator (v2.4.13)
 
 [![GitHub License](https://img.shields.io/github/license/JaejinSong/message-consolidator)](LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/JaejinSong/message-consolidator)](go.mod)
@@ -43,6 +43,7 @@ A powerful, AI-driven asynchronous communication consolidation and task manageme
 - **계정 연결 및 정체성 통합 (Identity Resolution V3)**: 서로 다른 채널(Gmail, WhatsApp, Slack)의 정체성을 마스터 이메일 계정으로 통합 관리합니다. 1단계 플랫 트리(Flat Tree) 구조와 순환 참조 방지 로직을 통해 복잡한 매핑 상황에서도 데이터 일관성을 유지하며, SQL VIEW(`v_contacts_resolved`)를 통해 시스템 전반에서 통합된 이름을 즉시 반영합니다.
 - **재치 있는 응원 문구 (Empty State)**: 모든 업무 완료 시 나타나는 위트 있는 메시지와 세련된 애니메이션으로 사용자 경험을 강화했습니다. 섹션별 독립적인 상태 감지를 통해 정교한 피드백을 제공합니다.
 - **프론트엔드 모듈 최적화 및 백엔드 캐시 고도화**: 대규모 자바스크립트 로직을 기능별로 모듈화하고, 백엔드 캐시 로직을 최적화하여 100% 데이터 일관성과 즉각적인 화면 반응 속도를 달성했습니다.
+- **시스템 전반 멱등성(Idempotency) 및 SQL Upsert**: 모든 데이터 삽입 로직에 SQL Upsert(ON CONFLICT DO UPDATE)를 도입하여 네트워크 재시도나 중복 요청에도 데이터 무결성을 유지하며, 중복 렌더링을 원천 차단했습니다.
 
 ### 4. AI 보고서 및 협업 시각화 (Insights)
 - **주간 업무 요약**: 한 주간의 모든 커뮤니케이션을 분석하여 핵심 아젠다와 미결 업무를 AI가 자동으로 요약 보고서로 작성합니다.

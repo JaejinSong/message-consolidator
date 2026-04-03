@@ -1,6 +1,10 @@
 -- name: AddContactMapping :exec
 INSERT INTO contacts (tenant_email, canonical_id, display_name, aliases, source)
 VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(tenant_email, canonical_id) DO UPDATE SET
+    display_name = EXCLUDED.display_name,
+    aliases = EXCLUDED.aliases,
+    source = EXCLUDED.source
 RETURNING id;
 
 -- name: UpsertContactMapping :exec

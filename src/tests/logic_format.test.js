@@ -22,7 +22,7 @@ describe('logic.js - getDeadlineBadge', () => {
         // Created Tuesday morning (non-weekend transition)
         const staleDate = new Date(now.getTime() - 26 * 60 * 60 * 1000).toISOString();
         const badge = getDeadlineBadge(staleDate, false, 'ko');
-        expect(badge).toContain('badge-stale');
+        expect(badge).toContain('c-badge--priority-medium');
         expect(badge).toContain('정체됨');
     });
 
@@ -32,7 +32,7 @@ describe('logic.js - getDeadlineBadge', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-03-18T10:00:00Z')); // 6 days later (including Sat/Sun)
         const badge = getDeadlineBadge(past, false, 'ko');
-        expect(badge).toContain('badge-abandoned');
+        expect(badge).toContain('c-badge--priority-high');
         expect(badge).toContain('방치됨');
     });
 
@@ -43,8 +43,8 @@ describe('logic.js - getDeadlineBadge', () => {
         vi.setSystemTime(new Date('2026-03-23T13:00:00Z')); // ~73 hours elapsed
         const badge = getDeadlineBadge(fri, false, 'ko');
         // 73 hours - 48 hours (weekend) = 25 hours -> Stale
-        expect(badge).toContain('badge-stale');
-        expect(badge).not.toContain('badge-abandoned');
+        expect(badge).toContain('c-badge--priority-medium');
+        expect(badge).not.toContain('c-badge--priority-high');
     });
 });
 

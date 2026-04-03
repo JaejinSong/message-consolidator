@@ -95,7 +95,7 @@ func FlushTokenUsage() error {
 
 		for email, data := range tokenFlushingData {
 			totalTokens := data.Prompt + data.Completion
-			if _, err := stmt.Exec(email, data.Prompt, data.Completion, totalTokens, today); err != nil {
+			if _, err := stmt.Exec(email, int(data.Prompt), int(data.Completion), int(totalTokens), today); err != nil {
 				return err
 			}
 		}
@@ -232,7 +232,7 @@ func SaveGmailToken(email, tokenJSON string) error {
 	metadataMu.Unlock()
 
 	_, err := db.Exec(SQL.UpsertGmailToken,
-		email, tokenJSON, tokenJSON)
+		email, tokenJSON)
 	return err
 }
 

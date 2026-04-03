@@ -46,8 +46,30 @@
     border: var(--border-thin) solid rgba(var(--color-primary-rgb), 0.2);
 }
 
+
 .c-badge--dim {
     background: rgba(255, 255, 255, 0.05);
     color: var(--text-dim);
     border: var(--border-thin) solid var(--glass-border);
+}
+
+/* Dashboard Counter Modifier */
+.c-badge--count {
+    margin-left: var(--spacing-xs);
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+    border: var(--border-thin) solid var(--glass-border);
+    min-width: 1.5rem;
+    height: 1.2rem;
+    padding: 0 0.4rem;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    font-size: 0.7rem;
+    font-weight: 800;
+}
+
+body.light-theme .c-badge--count {
+    background: rgba(15, 23, 42, 0.05);
+    color: var(--text-main);
+    border-color: var(--glass-border);
 }

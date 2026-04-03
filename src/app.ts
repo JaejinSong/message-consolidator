@@ -29,7 +29,7 @@ import {
     bindGlobalClicks,
     bindThemeToggle
 } from './renderer.ts';
-import { Message, MessageHandlers, ServiceHandlers, I18nDictionary, UserProfile } from './types.ts';
+import { Message, MessageHandlers, ServiceHandlers, I18nDictionary, UserProfile, CategorizedMessages } from './types.ts';
 import { archive } from './archive.js';
 import { modals } from './modals.ts';
 import { insights } from './insights.ts';
@@ -116,12 +116,12 @@ const handlers: ServiceHandlers = {
  */
 const fetchMessages = safeAsync(async () => {
     const data = await api.fetchMessages(state.currentLang);
-    const messages: Message[] = data.messages || data;
+    const categorized: CategorizedMessages = data.messages || data;
     if (data.user) {
         updateStats(data.user);
     }
-    updateMessages(messages);
-    renderMessages(messages, handlers);
+    updateMessages(categorized);
+    renderMessages(categorized, handlers);
 });
 
 /**
@@ -200,7 +200,7 @@ const triggerBatchTranslation = safeAsync(async () => {
 
     let needsUpdate = false;
     taskIds.forEach(id => {
-        const msg = (state.messages as Message[] || []).find(m => m.id === id);
+        const msg = state.messages.all.find(m => m.id === id);
         if (msg && !msg.translating) {
             msg.translating = true;
             msg.translationError = null;
@@ -217,7 +217,7 @@ const triggerBatchTranslation = safeAsync(async () => {
         const results = data.results || [];
 
         results.forEach((res: any) => {
-            const msg = (state.messages as Message[] || []).find(m => m.id === res.id);
+            const msg = state.messages.all.find(m => m.id === res.id);
             if (msg) {
                 msg.translating = false;
                 if (res.success) {
@@ -231,14 +231,14 @@ const triggerBatchTranslation = safeAsync(async () => {
     } catch (e) {
         console.error("Batch translation failed:", e);
         taskIds.forEach(id => {
-            const msg = (state.messages as Message[] || []).find(m => m.id === id);
+            const msg = state.messages.all.find(m => m.id === id);
             if (msg) {
                 msg.translating = false;
                 msg.translationError = "Service Unavailable";
             }
         });
     } finally {
-        renderMessages(state.messages || [], handlers);
+        renderMessages(state.messages, handlers);
     }
 });
 

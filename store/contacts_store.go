@@ -356,7 +356,7 @@ func GetContactByIdentifier(tenantEmail, identifier string) (*ContactRecord, err
 	res := &matches[0]
 	// Why: Resolve master contact if linked to provide unified identity.
 	if res.MasterContactID.Valid {
-		master, err := GetContactByID(tenantEmail, res.MasterContactID.Int64)
+		master, err := GetContactByID(tenantEmail, int64(res.MasterContactID.Int64))
 		if err == nil && master != nil {
 			return master, nil
 		}
@@ -380,7 +380,7 @@ func DeleteContactMapping(email, canonicalID string) error {
 }
 func GetContactByID(tenantEmail string, id int64) (*ContactRecord, error) {
 	var c ContactRecord
-	err := db.QueryRow("SELECT id, tenant_email, canonical_id, display_name, aliases, source, master_contact_id FROM contacts WHERE tenant_email = ? AND id = ?", tenantEmail, id).
+	err := db.QueryRow("SELECT id, tenant_email, canonical_id, display_name, aliases, source, master_contact_id FROM contacts WHERE tenant_email = ? AND id = ?", tenantEmail, int64(id)).
 		Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Aliases, &c.Source, &c.MasterContactID)
 	if err != nil {
 		return nil, err
@@ -419,7 +419,7 @@ func LinkContact(tenantEmail string, masterID, targetID int64) error {
 
 	// 1. Safety Check: If the intended Master is already a Child, use ITS master instead to maintain 1-level flat tree.
 	var masterParentID *int64
-	err = tx.QueryRow("SELECT master_contact_id FROM contacts WHERE id = ? AND tenant_email = ?", masterID, tenantEmail).Scan(&masterParentID)
+	err = tx.QueryRow("SELECT master_contact_id FROM contacts WHERE id = ? AND tenant_email = ?", int64(masterID), tenantEmail).Scan(&masterParentID)
 	if err != nil && err != sql.ErrNoRows {
 		return err
 	}
@@ -431,13 +431,13 @@ func LinkContact(tenantEmail string, masterID, targetID int64) error {
 	}
 
 	// 2. Link the target to the master
-	if _, err := tx.Exec(SQL.UpdateContactLink, masterID, tenantEmail, targetID); err != nil {
+	if _, err := tx.Exec(SQL.UpdateContactLink, int64(masterID), tenantEmail, int64(targetID)); err != nil {
 		return err
 	}
 
 	// 3. Flatten Tree: If the Target was already a Master for others, redirect them to the new Master.
 	// This ensures a flat hierarchy (max 1 level depth).
-	if _, err := tx.Exec(SQL.FlattenChildren, masterID, tenantEmail, targetID); err != nil {
+	if _, err := tx.Exec(SQL.FlattenChildren, int64(masterID), tenantEmail, int64(targetID)); err != nil {
 		return err
 	}
 
@@ -454,7 +454,7 @@ func LinkContact(tenantEmail string, masterID, targetID int64) error {
 }
 
 func UnlinkContact(tenantEmail string, targetID int64) error {
-	_, err := db.Exec(SQL.UnlinkContact, tenantEmail, targetID)
+	_, err := db.Exec(SQL.UnlinkContact, tenantEmail, int64(targetID))
 	if err == nil {
 		metadataMu.Lock()
 		delete(contactsCache, tenantEmail)

@@ -4,109 +4,84 @@
 */
 
 /* --- Heatmap Component --- */
-.c-heatmap {
-    padding: 0;
-}
-
-.c-insights-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1.5rem;
-    padding: 1.5rem;
+.heatmap-widget {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) 0;
     width: 100%;
 }
 
-.c-insights-section-header {
-    grid-column: 1 / -1;
-    margin-top: 2rem;
-    margin-bottom: 0.5rem;
-    border-bottom: var(--border-thin) solid var(--glass-border);
-    padding-bottom: 0.5rem;
-}
-
-.c-insights-section-title {
-    grid-column: span 3;
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: var(--text-main);
-    margin-top: var(--spacing-xl);
-    margin-bottom: var(--spacing-xs);
+.heatmap-widget--empty {
+    min-height: 10rem;
     display: flex;
     align-items: center;
-    gap: var(--spacing-sm);
+    justify-content: center;
+    color: var(--text-dim);
 }
 
-.c-insights-section-title::before {
-    content: '';
-    width: 0.25rem;
-    height: 1.1rem;
-    background: var(--accent-gradient);
-    border-radius: var(--radius-full);
-}
-
-.c-heatmap__grid {
+.heatmap-grid {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: var(--spacing-sm);
-    align-content: start;
+    grid-template-rows: repeat(7, 1fr);
+    grid-auto-flow: column;
+    gap: 0.4rem;
+    width: max-content;
+    margin: 0 auto;
 }
 
-.c-heatmap__day {
-    aspect-ratio: 1;
-    border-radius: var(--radius-sm);
-    background: var(--glass-border);
-    transition: all 0.2s ease;
+.heatmap-grid__cell {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 0.2rem;
+    background: var(--color-heatmap-0);
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
     cursor: help;
 }
 
-.c-heatmap__day--empty {
-    background: transparent !important;
-    box-shadow: none !important;
-    cursor: default !important;
-}
-
-.c-heatmap__day[data-level="1"] {
-    background: rgba(var(--color-primary-rgb), 0.15);
-}
-
-.c-heatmap__day[data-level="2"] {
-    background: rgba(var(--color-primary-rgb), 0.4);
-}
-
-.c-heatmap__day[data-level="3"] {
-    background: rgba(var(--color-primary-rgb), 0.7);
-}
-
-.c-heatmap__day[data-level="4"] {
-    background: var(--accent-color);
-    box-shadow: 0 0 var(--spacing-sm) var(--accent-glow);
-}
-
-.c-heatmap__day:hover {
-    transform: scale(1.15);
+.heatmap-grid__cell:hover {
+    transform: scale(1.2);
     z-index: var(--z-index-sticky);
+    box-shadow: var(--shadow-card);
 }
 
-/* Tooltip & Highlights */
-.c-heatmap__tooltip {
-    background: var(--card-bg);
-    border: var(--border-thin) solid var(--glass-border);
-    backdrop-filter: blur(var(--blur-md));
-    padding: var(--spacing-sm) var(--spacing-md);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-main);
-    font-size: 0.8rem;
-    color: var(--text-main);
+/* Level Tiers from variables.css */
+.heatmap-grid__cell--tier-1 { background-color: var(--color-heatmap-1); }
+.heatmap-grid__cell--tier-2 { background-color: var(--color-heatmap-2); }
+.heatmap-grid__cell--tier-3 { background-color: var(--color-heatmap-3); }
+.heatmap-grid__cell--tier-4 { 
+    background-color: var(--color-heatmap-4);
+    box-shadow: 0 0 0.5rem var(--accent-glow);
+}
+
+.heatmap-grid__cell--empty {
+    opacity: 0.1;
     pointer-events: none;
+}
+
+/* --- Premium Tooltip --- */
+.c-insights-tooltip {
+    position: absolute;
+    z-index: var(--z-index-modal);
+    background: var(--bg-floater);
+    border: 0.0625rem solid var(--border-color);
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.4rem;
+    font-size: 0.75rem;
+    color: var(--text-main);
+    box-shadow: var(--shadow-modal);
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+    backdrop-filter: blur(var(--blur-md));
+    -webkit-backdrop-filter: blur(var(--blur-md));
     white-space: nowrap;
-    z-index: var(--z-index-dropdown);
 }
 
-.c-heatmap__day--today {
-    border: 0.125rem solid var(--accent-color);
-    box-shadow: inset 0 0 0 0.0625rem var(--card-bg);
+.c-insights-tooltip--active {
+    opacity: 1;
+    visibility: visible;
 }
-
 /* --- Hourly Heatmap --- */
 .c-hourly-heatmap {
     display: flex;
@@ -197,7 +172,7 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    justify-content: flex-start;
+    justify-content: center;
     align-items: center;
     position: relative;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -216,21 +191,35 @@
     border-color: var(--accent-color);
 }
 
-.c-insights-card__title {
+/* Stat Card Label & Internal Alignment */
+.stat-card__label {
+    position: absolute;
+    top: 1.5rem;
+    left: 1.5rem;
     font-size: 0.75rem;
     color: var(--text-dim);
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05rem;
-    margin-bottom: 1rem;
-    font-weight: 600;
+    letter-spacing: 0.05em;
 }
 
+.c-insights-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+
+
 .c-insights-card__main-value {
-    font-size: 2.25rem;
+    font-size: 2.5rem;
     font-weight: 800;
     color: var(--text-main);
-    line-height: 1;
-    margin: auto 0; /* Vertically center in square */
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    margin: 0;
     word-break: break-all;
 }
 
@@ -239,6 +228,78 @@
     color: var(--text-dim);
     margin-top: var(--spacing-sm);
 }
+
+/* Multi-value layout for Widget 1 */
+.stat-card__multi-value {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin: auto 0;
+}
+
+.stat-card__secondary-value {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--text-main);
+    line-height: 1.1;
+    margin: 0;
+}
+
+/* Peak Time Chart for Widget 2 */
+.c-peak-chart {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    margin: auto 0;
+}
+
+.c-peak-chart__bars {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--spacing-xxs);
+    height: 6.25rem;
+    width: 100%;
+    margin-bottom: var(--spacing-xs);
+}
+
+.c-peak-chart__bar {
+    flex: 1;
+    background: var(--color-heatmap-0);
+    border-radius: var(--spacing-xxs) var(--spacing-xxs) 0 0;
+    transition: height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s ease;
+    min-height: 0.125rem;
+    cursor: help;
+}
+
+.c-peak-chart__bar:hover {
+    filter: brightness(1.2);
+}
+
+.c-peak-chart__bar--tier-1 { background-color: var(--color-heatmap-1); }
+.c-peak-chart__bar--tier-2 { background-color: var(--color-heatmap-2); }
+.c-peak-chart__bar--tier-3 { background-color: var(--color-heatmap-3); }
+.c-peak-chart__bar--tier-4 { 
+    background-color: var(--color-heatmap-4);
+    box-shadow: 0 0 0.5rem var(--accent-glow);
+}
+
+.c-peak-chart__labels {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 var(--spacing-xxs);
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    font-weight: 500;
+}
+
+.c-peak-chart__label {
+    flex: 1;
+    text-align: center;
+    opacity: 0.7;
+}
+
 
 /* Modifier: 2-column wide, but same height as a square */
 .c-insights-card--double {
@@ -267,20 +328,41 @@
     justify-content: center;
 }
 
-/* Tablet: 2-col (48rem / 768px) */
-@media (max-width: 48rem) {
-    .c-insights-dashboard {
+.c-insights-dashboard {
+    width: 100%;
+}
+
+.c-insights-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: auto;
+    gap: var(--spacing-xl);
+    width: 100%;
+    min-width: 0;
+}
+
+/* Tablet: 2 columns (< 64rem) */
+@media (max-width: 64rem) {
+    .c-insights-grid {
         grid-template-columns: repeat(2, 1fr);
-        gap: var(--spacing-xl);
     }
 }
 
-/* Mobile: 1-col (30rem / 480px) */
-@media (max-width: 30rem) {
-    .c-insights-dashboard {
+/* Mobile: 1 column (< 42rem) */
+@media (max-width: 42rem) {
+    .c-insights-grid {
         grid-template-columns: 1fr;
         gap: var(--spacing-lg);
     }
+}
+
+/* Modifier: Card Spanning */
+.c-insights-card--double {
+    grid-column: span 2;
+}
+
+.c-insights-card--full {
+    grid-column: span 3;
 }
 
 .c-insights-summary {
@@ -1024,4 +1106,60 @@ body.light-theme .report-content th {
         aspect-ratio: auto;
         min-height: 15rem;
     }
+}
+
+/* --- Daily Performance Component (BEM) --- */
+.daily-perf {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    width: 100%;
+}
+
+.daily-perf__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.daily-perf__value {
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: var(--text-main);
+    line-height: 1;
+}
+
+
+
+.daily-perf__item--completed .daily-perf__value {
+    color: var(--color-success);
+}
+
+.daily-perf__item--pending .daily-perf__value {
+    color: var(--color-warning);
+}
+
+.daily-perf__status {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    text-align: center;
+    padding: 0.5rem;
+}
+
+.daily-perf__status-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.daily-perf__status-text {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    line-height: 1.4;
+    font-weight: 500;
 }

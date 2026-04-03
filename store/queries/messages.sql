@@ -1,13 +1,41 @@
 -- name: SaveMessage :one
 INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata) 
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(user_email, source_ts) DO NOTHING
+ON CONFLICT(user_email, source_ts) DO UPDATE SET
+    task = EXCLUDED.task,
+    requester = EXCLUDED.requester,
+    assignee = EXCLUDED.assignee,
+    assigned_at = EXCLUDED.assigned_at,
+    link = EXCLUDED.link,
+    original_text = EXCLUDED.original_text,
+    category = EXCLUDED.category,
+    deadline = EXCLUDED.deadline,
+    thread_id = EXCLUDED.thread_id,
+    assignee_reason = EXCLUDED.assignee_reason,
+    replied_to_id = EXCLUDED.replied_to_id,
+    is_context_query = EXCLUDED.is_context_query,
+    constraints = EXCLUDED.constraints,
+    metadata = EXCLUDED.metadata
 RETURNING id;
 
 -- name: SaveMessagesBase :many
 INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata) 
 VALUES %s
-ON CONFLICT(user_email, source_ts) DO NOTHING
+ON CONFLICT(user_email, source_ts) DO UPDATE SET
+    task = EXCLUDED.task,
+    requester = EXCLUDED.requester,
+    assignee = EXCLUDED.assignee,
+    assigned_at = EXCLUDED.assigned_at,
+    link = EXCLUDED.link,
+    original_text = EXCLUDED.original_text,
+    category = EXCLUDED.category,
+    deadline = EXCLUDED.deadline,
+    thread_id = EXCLUDED.thread_id,
+    assignee_reason = EXCLUDED.assignee_reason,
+    replied_to_id = EXCLUDED.replied_to_id,
+    is_context_query = EXCLUDED.is_context_query,
+    constraints = EXCLUDED.constraints,
+    metadata = EXCLUDED.metadata
 RETURNING id, source_ts, user_email;
 
 -- name: MarkMessageDone :exec
@@ -51,12 +79,13 @@ FROM v_messages WHERE id IN (%s);
 
 -- name: GetMessagesByEmail :many
 SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, requester_canonical, assignee_canonical
-FROM v_messages WHERE user_email = ? AND is_deleted = 0 ORDER BY created_at DESC;
+FROM v_messages WHERE user_email = ? AND is_deleted = 0 AND IFNULL(task, '') != '' ORDER BY created_at DESC;
 
 -- name: RefreshCacheActive :many
 SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, requester_canonical, assignee_canonical
 FROM v_messages 
 WHERE user_email = ? AND is_deleted = 0 AND (done = 0 OR (done = 1 AND (completed_at IS NULL OR completed_at > datetime('now', ?))))
+AND IFNULL(task, '') != ''
 ORDER BY created_at DESC 
 LIMIT 200;
 
@@ -64,22 +93,25 @@ LIMIT 200;
 SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, requester_canonical, assignee_canonical
 FROM v_messages 
 WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)))
+AND IFNULL(task, '') != ''
 ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
 LIMIT 100;
 
 -- name: GetArchivedMessagesCountBase
 SELECT COUNT(*) FROM messages WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)))
+AND IFNULL(task, '') != ''
 
 -- name: GetArchivedMessagesBase
 SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, requester_canonical, assignee_canonical
 FROM v_messages WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)))
+AND IFNULL(task, '') != ''
 
 -- name: ArchiveOldTasks :exec
 UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND done = 1 AND completed_at < datetime('now', ?);
 
 -- name: GetIncompleteByThreadID :many
 SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, requester_canonical, assignee_canonical
-FROM v_messages WHERE user_email = ? AND thread_id = ? AND done = 0 AND is_deleted = 0;
+FROM v_messages WHERE user_email = ? AND thread_id = ? AND done = 0 AND is_deleted = 0 AND IFNULL(task, '') != '';
 
 -- name: UpdateMessageCategory :exec
 UPDATE messages SET category = ? WHERE id = ? AND user_email = ?;
@@ -91,6 +123,7 @@ UPDATE messages SET requester = ?, assignee = ? WHERE id = ?;
 SELECT id, task, original_text, requester, assignee, source, room, assigned_at, done, completed_at
 FROM v_messages
 WHERE user_email = ? AND source = ? AND room = ? AND is_deleted = 0
+AND IFNULL(task, '') != ''
 AND (done = 0 OR (done = 1 AND completed_at > datetime('now', '-30 days')))
 ORDER BY assigned_at DESC
 LIMIT 50;
