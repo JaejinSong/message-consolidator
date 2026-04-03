@@ -1,4 +1,4 @@
-# Message Consolidator (v2.4.13)
+# Message Consolidator (v2.4.14)
 
 [![GitHub License](https://img.shields.io/github/license/JaejinSong/message-consolidator)](LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/JaejinSong/message-consolidator)](go.mod)

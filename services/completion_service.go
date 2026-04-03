@@ -4,18 +4,17 @@ import (
 	"context"
 	"message-consolidator/logger"
 	"message-consolidator/store"
-	"strings"
 )
 
 type AICompleter interface {
-	DoesReplyCompleteTask(ctx context.Context, email, taskText, replyText string) (bool, error)
-	CheckTasksBatch(ctx context.Context, email, replyText string, tasks []store.ConsolidatedMessage) ([]int, error)
+	AnalyzeWithContext(ctx context.Context, email, conversationText, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error)
 }
 
 type TaskStore interface {
 	GetIncompleteByThreadID(ctx context.Context, email, threadID string) ([]store.ConsolidatedMessage, error)
 	MarkMessageDone(email string, id int, done bool) error
 	UpdateMessageCategory(email string, id int, category string) error
+	HandleTaskState(email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error)
 }
 
 type DefaultTaskStore struct{}
@@ -32,6 +31,10 @@ func (d *DefaultTaskStore) UpdateMessageCategory(email string, id int, category 
 	return store.UpdateMessageCategory(email, id, category)
 }
 
+func (d *DefaultTaskStore) HandleTaskState(email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
+	return store.HandleTaskState(email, item, msg)
+}
+
 type CompletionService struct {
 	gemini AICompleter
 	store  TaskStore
@@ -41,93 +44,44 @@ func NewCompletionService(gemini AICompleter, taskStore TaskStore) *CompletionSe
 	return &CompletionService{gemini: gemini, store: taskStore}
 }
 
-
-
-
-// ProcessPotentialCompletion checks if a new message (reply) completes any existing tasks in the same thread.
+// ProcessPotentialCompletion checks if a message (reply) completes/updates tasks in the same thread.
 func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg store.ConsolidatedMessage) {
 	if msg.ThreadID == "" {
 		return
 	}
 
-	//Why: Retrieves all incomplete tasks associated with this thread to determine if the new message resolves any of them.
 	tasks, err := s.store.GetIncompleteByThreadID(ctx, msg.UserEmail, msg.ThreadID)
+	if err != nil || len(tasks) == 0 {
+		return
+	}
+
+	s.releaseWaitingStatus(msg.UserEmail, tasks)
+
+	// Why: Leverages the unified AI analysis pipeline to determine if the reply resolves or delegates tasks.
+	// Mentions and intentionality are parsed by the AI prompt, not string matching.
+	results, err := s.gemini.AnalyzeWithContext(ctx, msg.UserEmail, msg.OriginalText, "Korean", msg.Source, msg.Room, tasks)
 	if err != nil {
-
-		logger.Errorf("[COMPLETION] Failed to fetch incomplete tasks for thread %s: %v", msg.ThreadID, err)
+		logger.Errorf("[COMPLETION] AI analysis failed for thread %s: %v", msg.ThreadID, err)
 		return
 	}
 
-	if len(tasks) == 0 {
-		return
-	}
-
-	//Why: Extracts the actual reply content, excluding email headers, to ensure the AI's analysis is focused on the message body and not metadata.
-	textToAnalyze := msg.OriginalText
-	mentionCheckText := msg.OriginalText
-
-	if msg.Source == "gmail" {
-		//Why: Gmail messages use a specific header format (T:, C:, S:, B:). We extract only the content after 'B:' to isolate the body from email addresses in headers.
-		if parts := strings.SplitN(msg.OriginalText, "\nB:\n", 2); len(parts) == 2 {
-			textToAnalyze = parts[1]
-			mentionCheckText = parts[1]
+	for _, res := range results {
+		if res.ID == nil || *res.ID == 0 {
+			continue
+		}
+		// Why: routes the AI-determined state (resolve, update, cancel) to the database layer.
+		// HandleTaskState ensures consistent state transitions and assignee updates.
+		if _, err := s.store.HandleTaskState(msg.UserEmail, res, msg); err != nil {
+			logger.Errorf("[COMPLETION] Failed to handle state for task %d: %v", *res.ID, err)
 		}
 	}
+}
 
-	//Why: Prevents prematurely closing tasks that are being delegated by excluding messages containing '@' mentions in the actual message body.
-	if strings.Contains(mentionCheckText, "@") {
-		logger.Infof("[COMPLETION] Skip auto-completion for thread %s (reply %s): Message contains mention in body", msg.ThreadID, msg.SourceTS)
-		return
-	}
-
-	//Why: Implements a 'Two-Phase' status transition where any reply immediately releases a 'Waiting for Reply' state to 'Others', even before AI completion analysis.
+func (s *CompletionService) releaseWaitingStatus(email string, tasks []store.ConsolidatedMessage) {
 	for _, task := range tasks {
 		if task.Category == "waiting" {
-			logger.Infof("[COMPLETION] Auto-releasing 'waiting' status for task %d in thread %s", task.ID, msg.ThreadID)
-			if err := s.store.UpdateMessageCategory(msg.UserEmail, task.ID, "others"); err != nil {
-				logger.Errorf("[COMPLETION] Failed to release waiting status for task %d: %v", task.ID, err)
-			}
-		}
-	}
-
-	logger.Infof("[COMPLETION] Found %d incomplete tasks in thread %s.", len(tasks), msg.ThreadID)
-
-	//Why: Reduces token consumption and API overhead by processing threads with 3 or more tasks in a single batch request to the AI model.
-	if len(tasks) >= 3 {
-		logger.Infof("[COMPLETION] Using batch analysis for %d tasks in thread %s", len(tasks), msg.ThreadID)
-		completedIDs, err := s.gemini.CheckTasksBatch(ctx, msg.UserEmail, textToAnalyze, tasks)
-		if err != nil {
-			logger.Errorf("[COMPLETION] Batch check failed: %v", err)
-			return
-		}
-
-		for _, id := range completedIDs {
-			logger.Infof("[COMPLETION] Task %d marked as DONE by batch reply %s", id, msg.SourceTS)
-			if err := s.store.MarkMessageDone(msg.UserEmail, id, true); err != nil {
-				logger.Errorf("[COMPLETION] Failed to mark task %d as done: %v", id, err)
-			}
-		}
-		return
-	}
-
-	//Why: Processes small threads individually to avoid the unnecessary overhead of batching logic when only 1 or 2 tasks are involved.
-	for _, task := range tasks {
-		//Why: Ensures a message does not accidentally mark itself as completed by skipping the comparison if the source timestamps match.
-		if task.SourceTS == msg.SourceTS {
-			continue
-		}
-
-		isDone, err := s.gemini.DoesReplyCompleteTask(ctx, msg.UserEmail, task.OriginalText, textToAnalyze)
-		if err != nil {
-			logger.Errorf("[COMPLETION] Error checking completion for task %d: %v", task.ID, err)
-			continue
-		}
-
-		if isDone {
-			logger.Infof("[COMPLETION] Task %d marked as DONE by reply %s", task.ID, msg.SourceTS)
-			if err := s.store.MarkMessageDone(msg.UserEmail, task.ID, true); err != nil {
-				logger.Errorf("[COMPLETION] Failed to mark task %d as done: %v", task.ID, err)
-			}
+			logger.Infof("[COMPLETION] Auto-releasing 'waiting' status for task %d", task.ID)
+			s.store.UpdateMessageCategory(email, task.ID, "others")
 		}
 	}
 }

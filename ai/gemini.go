@@ -116,118 +116,61 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
 
-	model := g.client.GenerativeModel(g.analysisModel)
-	model.SafetySettings = relaxedSafetySettings
-	// Why: Lowest temperature (0.1) is chosen for report generation to minimize creative hallucinations and ensure strict adherence to the provided task list and business logic rules.
-	model.SetTemperature(0.1)
-	model.SetMaxOutputTokens(4096)
-
-	sysInst := loadPrompt("report_summary.prompt")
-
-	model.SystemInstruction = &genai.Content{
-		Parts: []genai.Part{genai.Text(sysInst)},
-	}
+	parsed := loadPrompt("report_summary.prompt")
+	model := g.initModel(g.getEffectiveModel(parsed, g.analysisModel), 0.1, 4096, "", parsed.Body)
 
 	start := time.Now()
-	// Why: Uses a slightly longer timeout (60s) for report generation as the input payload (compressed tasks) can be substantially larger than single conversation logs.
 	resp, err := generateWithRetry(ctx, model, genai.Text(tasks), 60*time.Second, 2)
 	if err != nil {
 		return "", err
 	}
 
 	logTokenUsage(ctx, email, "ReportSummary", resp)
-
 	text, err := extractResponseText(resp)
 	if err != nil {
 		return "", err
 	}
 
-	elapsed := int(time.Since(start).Milliseconds())
-	trace.Step(ctx, "Gemini-ReportSummary", "", elapsed, 0)
-
+	trace.Step(ctx, "Gemini-ReportSummary", "", int(time.Since(start).Milliseconds()), 0)
 	return text, nil
 }
 
 func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText string, language string, source, room string) ([]store.TodoItem, error) {
+	tasks, _ := store.GetActiveContextTasks(ctx, email, source, room)
+	return g.AnalyzeWithContext(ctx, email, conversationText, language, source, room, tasks)
+}
+
+func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email, conversationText string, language string, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error) {
 	if g == nil || g.client == nil {
 		return nil, fmt.Errorf("Gemini client is not initialized")
 	}
 
-	lang := language
-	if lang == "" {
-		lang = "Korean"
-	}
-
+	lang := g.getValidLang(language)
 	analyzer := getAnalyzer(source)
-	modelName := g.analysisModel
-	if analyzer != nil {
-		modelName = analyzer.GetModelName(g.analysisModel)
-	}
+	modelName := g.getAnalyzeModelName(analyzer)
+	existingTasksJSON := g.marshalTasksForAI(tasks)
 
-	// Fetch context tasks to prevent duplicates and enable updates.
-	existingTasksJSON := g.fetchContextTasks(ctx, email, source, room)
+	model := g.initModel(modelName, 0.0, 4096, "application/json", g.getAnalyzeSysInst(analyzer, lang))
+	prompt := g.getAnalyzeUserPrompt(analyzer, email, conversationText, existingTasksJSON)
 
-	model := g.client.GenerativeModel(modelName)
-	model.SafetySettings = relaxedSafetySettings
-	model.ResponseMIMEType = "application/json"
-	model.SetTemperature(0.0)
-	model.SetMaxOutputTokens(4096)
-
-	sysInst := `Extract tasks as JSON array (Return [] if no actionable task): [{"id", "state", "task", "requester", "assignee", "assigned_at", "source_ts", "deadline", "category"}]`
-	if analyzer != nil {
-		sysInst = analyzer.GetSystemInstruction(lang)
-	}
-	model.SystemInstruction = &genai.Content{
-		Parts: []genai.Part{genai.Text(sysInst)},
-	}
-
-	userPrompt := conversationText
-	if analyzer != nil {
-		processedText := analyzer.PreProcess(conversationText)
-		userPrompt = analyzer.GetUserPrompt(email, processedText, existingTasksJSON)
-	}
-
-	logger.Infof("[GEMINI] Analyzing conversation (%s:%s) in %s...", source, room, lang)
-
+	logger.Infof("[GEMINI] Analyzing with %d context tasks (%s:%s)...", len(tasks), source, room)
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, model, genai.Text(userPrompt), 45*time.Second, 2)
-	elapsed := int(time.Since(start).Milliseconds())
-	trace.Step(ctx, "Gemini-Analyze", "", elapsed, 0)
-
+	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 45*time.Second, 2)
 	if err != nil {
 		logger.Errorf("[GEMINI] Analysis failed: %v", err)
 		return nil, err
 	}
 
+	trace.Step(ctx, "Gemini-Analyze", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "Analyze", resp)
-
-	rawJSON, err := extractResponseText(resp)
-	if err != nil {
-		return nil, err
-	}
-
-	cleanJSON := sanitizeJSON(rawJSON)
-	if cleanJSON == "" || cleanJSON == "[]" {
-		return nil, nil
-	}
-
-	items, err := unmarshalAnalyze(cleanJSON, rawJSON)
-	if err != nil {
-		return nil, err
-	}
-	return store.ConsolidateTasks(items), nil
+	return g.parseAnalyzeResults(resp)
 }
 
-func (g *GeminiClient) fetchContextTasks(ctx context.Context, email, source, room string) string {
-	tasks, err := store.GetActiveContextTasks(ctx, email, source, room)
-	if err != nil {
-		logger.Warnf("[GEMINI] Failed to fetch context tasks: %v", err)
-		return "[]"
-	}
+func (g *GeminiClient) marshalTasksForAI(tasks []store.ConsolidatedMessage) string {
 	if len(tasks) == 0 {
 		return "[]"
 	}
-	// Simplified JSON for AI context to save tokens.
+	// Why: Simplified JSON for AI context to save tokens and improve extraction accuracy.
 	type contextTask struct {
 		ID       int    `json:"id"`
 		Task     string `json:"task"`
@@ -241,48 +184,32 @@ func (g *GeminiClient) fetchContextTasks(ctx context.Context, email, source, roo
 	return string(b)
 }
 
+
 func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []store.TranslateRequest, language string) ([]store.TranslateRequest, error) {
-	if g == nil || g.client == nil {
-		return nil, fmt.Errorf("Gemini client is not initialized")
-	}
-	if len(tasks) == 0 {
-		return nil, nil
+	if g == nil || g.client == nil || len(tasks) == 0 {
+		return nil, fmt.Errorf("invalid translate request")
 	}
 
-	model := g.client.GenerativeModel(g.translationModel)
-	model.SafetySettings = relaxedSafetySettings
-	model.ResponseMIMEType = "application/json"
-	model.SystemInstruction = &genai.Content{
-		Parts: []genai.Part{genai.Text(fmt.Sprintf(loadPrompt("translation_system.prompt"), language, language))},
-	}
+	parsed := loadPrompt("translation_system.prompt")
+	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.0, 4096, "application/json", fmt.Sprintf(parsed.Body, language, language))
 
 	logger.Debugf("[GEMINI] Translating %d tasks to %s...", len(tasks), language)
-
 	start := time.Now()
 	tasksJSON, _ := json.Marshal(tasks)
-	//Why: [Translate] Uses a 30-second timeout and up to 2 retries for optimal balance between accuracy and responsiveness during multi-language task conversion.
 	resp, err := generateWithRetry(ctx, model, genai.Text(string(tasksJSON)), 30*time.Second, 2)
-	elapsed := int(time.Since(start).Milliseconds())
-	trace.Step(ctx, "Gemini-Translate", "", elapsed, 0)
-
 	if err != nil {
 		logger.Errorf("[GEMINI] Translation failed: %v", err)
 		return nil, err
 	}
 
+	trace.Step(ctx, "Gemini-Translate", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "Translate", resp)
 
 	rawJSON, err := extractResponseText(resp)
 	if err != nil {
 		return nil, err
 	}
-
-	cleanJSON := sanitizeJSON(rawJSON)
-	if cleanJSON == "" {
-		return nil, fmt.Errorf("empty translation response")
-	}
-
-	return unmarshalTranslate(cleanJSON, rawJSON, language)
+	return unmarshalTranslate(sanitizeJSON(rawJSON), rawJSON, language)
 }
 
 // Why: Translates a complete Markdown report into a target language while strictly preserving the structure.
@@ -292,39 +219,20 @@ func (g *GeminiClient) TranslateReport(ctx context.Context, email string, report
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
 
-	// 번역은 비용 절감을 위해 Flash-Lite 모델(translationModel)을 사용합니다.
-	model := g.client.GenerativeModel(g.translationModel)
-	model.SafetySettings = relaxedSafetySettings
-	model.SetTemperature(0.2) // 번역의 자연스러움을 위해 약간의 유연성 부여
-
-	// 앞서 확정된 번역 전용 시스템 프롬프트 로드
-	sysInst := fmt.Sprintf(loadPrompt("report_translator.prompt"), targetLanguage)
-	model.SystemInstruction = &genai.Content{
-		Parts: []genai.Part{genai.Text(sysInst)},
-	}
+	parsed := loadPrompt("report_translator.prompt")
+	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.2, 4096, "", fmt.Sprintf(parsed.Body, targetLanguage))
 
 	logger.Debugf("[GEMINI] Translating Markdown report for %s to %s...", email, targetLanguage)
-
 	start := time.Now()
-	// 보고서는 일반 텍스트이므로 그대로 전달합니다.
 	resp, err := generateWithRetry(ctx, model, genai.Text(reportInEnglish), 45*time.Second, 2)
-	elapsed := int(time.Since(start).Milliseconds())
-	trace.Step(ctx, "Gemini-TranslateReport", "", elapsed, 0)
-
 	if err != nil {
 		logger.Errorf("[GEMINI] Report translation failed (%s): %v", targetLanguage, err)
 		return "", err
 	}
 
+	trace.Step(ctx, "Gemini-TranslateReport", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "TranslateReport", resp)
-
-	// 마크다운 원문을 그대로 받아냅니다.
-	translatedText, err := extractResponseText(resp)
-	if err != nil {
-		return "", err
-	}
-
-	return translatedText, nil
+	return extractResponseText(resp)
 }
 
 // TranslateTaskMessage translates short, conversational messages (Slack, WhatsApp, Email).
@@ -334,128 +242,109 @@ func (g *GeminiClient) TranslateTaskMessage(ctx context.Context, email string, t
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
 
-	// 번역은 비용 절감을 위해 Flash-Lite 모델(translationModel)을 사용합니다.
-	model := g.client.GenerativeModel(g.translationModel)
-	model.SafetySettings = relaxedSafetySettings
-	model.SetTemperature(0.1) // 태스크 번역은 더 보수적인 변환을 지향합니다.
-
-	// 태스크 전용 시스템 프롬프트 로드 (targetLanguage를 2번 전달 - 프롬프트 템플릿 구조 대응)
-	sysInst := fmt.Sprintf(loadPrompt("task_translator.prompt"), targetLanguage, targetLanguage)
-	model.SystemInstruction = &genai.Content{
-		Parts: []genai.Part{genai.Text(sysInst)},
-	}
+	parsed := loadPrompt("task_translator.prompt")
+	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.1, 0, "", fmt.Sprintf(parsed.Body, targetLanguage, targetLanguage))
 
 	logger.Debugf("[GEMINI] Translating Task for %s to %s...", email, targetLanguage)
-
 	start := time.Now()
 	resp, err := generateWithRetry(ctx, model, genai.Text(text), 30*time.Second, 2)
-	elapsed := int(time.Since(start).Milliseconds())
-	trace.Step(ctx, "Gemini-TranslateTask", "", elapsed, 0)
-
 	if err != nil {
 		logger.Errorf("[GEMINI] Task translation failed (%s): %v", targetLanguage, err)
 		return "", err
 	}
 
+	trace.Step(ctx, "Gemini-TranslateTask", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "TranslateTask", resp)
+	return extractResponseText(resp)
+}
 
-	translatedText, err := extractResponseText(resp)
+
+
+// --- Internal Helpers ---
+
+func (g *GeminiClient) initModel(modelName string, temp float64, tokens int32, mime string, sys string) *genai.GenerativeModel {
+	model := g.client.GenerativeModel(modelName)
+	model.SafetySettings = relaxedSafetySettings
+	model.SetTemperature(float32(temp))
+	model.SetMaxOutputTokens(tokens)
+	if mime != "" {
+		model.ResponseMIMEType = mime
+	}
+	if sys != "" {
+		model.SystemInstruction = &genai.Content{Parts: []genai.Part{genai.Text(sys)}}
+	}
+	return model
+}
+
+func (g *GeminiClient) getEffectiveModel(p *ParsedPrompt, def string) string {
+	if p != nil && p.Meta.Model != "" {
+		return p.Meta.Model
+	}
+	return def
+}
+
+func (g *GeminiClient) getValidLang(lang string) string {
+	if lang == "" {
+		return "Korean"
+	}
+	return lang
+}
+
+func (g *GeminiClient) getAnalyzeModelName(analyzer SourceAnalyzer) string {
+	if analyzer != nil {
+		return analyzer.GetModelName(g.analysisModel)
+	}
+	return g.analysisModel
+}
+
+func (g *GeminiClient) getAnalyzeSysInst(analyzer SourceAnalyzer, lang string) string {
+	if analyzer != nil {
+		return analyzer.GetSystemInstruction(lang)
+	}
+	return `Extract tasks as JSON array: [{"id", "state", "task", "requester", "assignee", "assigned_at", "source_ts", "deadline", "category"}]`
+}
+
+func (g *GeminiClient) getAnalyzeUserPrompt(analyzer SourceAnalyzer, email, text, ctxTasks string) string {
+	if analyzer != nil {
+		return analyzer.GetUserPrompt(email, analyzer.PreProcess(text), ctxTasks)
+	}
+	return text
+}
+
+func (g *GeminiClient) parseAnalyzeResults(resp *genai.GenerateContentResponse) ([]store.TodoItem, error) {
+	raw, err := extractResponseText(resp)
+	if err != nil {
+		return nil, err
+	}
+	clean := sanitizeJSON(raw)
+	if clean == "" || clean == "[]" {
+		return nil, nil
+	}
+	items, err := unmarshalAnalyze(clean, raw)
+	if err != nil {
+		return nil, err
+	}
+	return store.ConsolidateTasks(items), nil
+}
+
+func (g *GeminiClient) callGenericAPI(ctx context.Context, modelName, prompt string) (string, error) {
+	if g == nil || g.client == nil {
+		return "", fmt.Errorf("Gemini client is not initialized")
+	}
+
+	model := g.client.GenerativeModel(modelName)
+	model.SafetySettings = relaxedSafetySettings
+	model.SetTemperature(0.1)
+
+	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 30*time.Second, 2)
 	if err != nil {
 		return "", err
 	}
 
-	return translatedText, nil
+	return extractResponseText(resp)
 }
 
-func (g *GeminiClient) DoesReplyCompleteTask(ctx context.Context, email, taskText, replyText string) (bool, error) {
-	if g == nil || g.client == nil {
-		return false, fmt.Errorf("Gemini client is not initialized")
-	}
-
-	//Why: Specifically maps to the Flash-Lite model for simple Yes/No classification tasks to minimize API costs and latency.
-	model := g.client.GenerativeModel(g.translationModel)
-	model.SafetySettings = relaxedSafetySettings
-	model.SetTemperature(0.0) // Deterministic
-	model.SetMaxOutputTokens(10)
-
-	prompt := fmt.Sprintf(loadPrompt("completion_check.prompt"), taskText, replyText)
-
-	logger.Debugf("[GEMINI] Checking completion for task: %s", taskText)
-
-	start := time.Now()
-	//Why: [CheckCompletion] Uses a short 15-second timeout and 2 retries as the expected output is a simple binary decision.
-	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 15*time.Second, 2)
-	elapsed := int(time.Since(start).Milliseconds())
-	trace.Step(ctx, "Gemini-CheckCompletion", "", elapsed, 0)
-
-	if err != nil {
-		return false, err
-	}
-
-	logTokenUsage(ctx, email, "CheckCompletion", resp)
-
-	answer, err := extractResponseText(resp)
-	if err != nil {
-		return false, err
-	}
-
-	answer = strings.ToUpper(strings.TrimSpace(answer))
-	logger.Debugf("[GEMINI] Completion check result: %s", answer)
-
-	return strings.HasPrefix(answer, "YES"), nil
-}
-
-func (g *GeminiClient) CheckTasksBatch(ctx context.Context, email, replyText string, tasks []store.ConsolidatedMessage) ([]int, error) {
-	if g == nil || g.client == nil {
-		return nil, fmt.Errorf("Gemini client is not initialized")
-	}
-	if len(tasks) == 0 {
-		return nil, nil
-	}
-
-	//Why: Leverages the lightweight Flash-Lite model for batch ID verification to maximize throughput and reduce the overhead of processing multiple task-reply pairs.
-	model := g.client.GenerativeModel(g.translationModel)
-	model.SafetySettings = relaxedSafetySettings
-	model.SetTemperature(0.0)
-	model.SetMaxOutputTokens(200)
-	model.ResponseMIMEType = "application/json"
-
-	var taskList strings.Builder
-	for _, t := range tasks {
-		taskList.WriteString(fmt.Sprintf("- ID: %d, Task: %s\n", t.ID, t.Task))
-	}
-
-	prompt := fmt.Sprintf(loadPrompt("batch_completion_check.prompt"), taskList.String(), replyText)
-
-	logger.Debugf("[GEMINI] Batch checking %d tasks for reply: %s", len(tasks), replyText)
-
-	start := time.Now()
-	//Why: [BatchCheck] Employs a 30-second timeout to handle the increased complexity of validating multiple task-ID pairs in a single request.
-	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 30*time.Second, 2)
-	elapsed := int(time.Since(start).Milliseconds())
-	trace.Step(ctx, "Gemini-BatchCheckCompletion", "", elapsed, 0)
-
-	if err != nil {
-		return nil, err
-	}
-
-	logTokenUsage(ctx, email, "BatchCheck", resp)
-
-	rawJSON, err := extractResponseText(resp)
-	if err != nil {
-		return nil, err
-	}
-
-	cleanJSON := sanitizeJSON(rawJSON)
-	if cleanJSON == "" || cleanJSON == "[]" {
-		return nil, nil
-	}
-
-	var completedIDs []int
-	if err := json.Unmarshal([]byte(cleanJSON), &completedIDs); err != nil {
-		logger.Errorf("[GEMINI] Batch JSON unmarshal failed: %v, RAW: %s", err, rawJSON)
-		return nil, err
-	}
-
-	return completedIDs, nil
+// CallGenericAPI is a public wrapper for callGenericAPI.
+func (g *GeminiClient) CallGenericAPI(ctx context.Context, modelName, prompt string) (string, error) {
+	return g.callGenericAPI(ctx, modelName, prompt)
 }

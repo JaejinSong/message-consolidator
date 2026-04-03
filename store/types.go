@@ -116,6 +116,7 @@ type TodoItem struct {
 	Task            string          `json:"task"`
 	Requester       string          `json:"requester"`
 	Assignee        string          `json:"assignee"`
+	AssignedTo      string          `json:"assigned_to,omitempty"`
 	AssignedAt      string          `json:"assigned_at"`
 	SourceTS        string          `json:"source_ts"`
 	Category        string          `json:"category"`

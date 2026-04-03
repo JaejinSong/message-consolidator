@@ -129,9 +129,20 @@ func scanSlack(ctx context.Context, users []store.User) {
 						continue
 					}
 
+					isFromMe := strings.EqualFold(m.Sender, u.Name) || strings.EqualFold(m.Sender, u.Email)
+					if isFromMe && completionSvc != nil && m.ReplyToID != "" {
+						completionSvc.ProcessPotentialCompletion(ctx, store.ConsolidatedMessage{
+							UserEmail:    u.Email,
+							Source:       "slack",
+							ThreadID:     m.ReplyToID,
+							OriginalText: m.Text,
+							SourceTS:     m.ID,
+						})
+					}
+
 					classification := classifyMessage(c, &u, userAliases[u.Email], m)
 					if classification == "내 업무" || classification == "회신 대기" {
-						m.ChannelID = c.ID //Why: Injects the source channel ID into the raw message metadata to allow the AI-consolidated task to link back to the exact Slack location.
+						m.ChannelID = c.ID
 						globalCandidates[u.Email] = append(globalCandidates[u.Email], m)
 					}
 
@@ -295,6 +306,17 @@ func processSingleSlackThread(ctx context.Context, sc *channels.SlackClient, t s
 		//Why: Sync candidates with the pure-logic scan result to strictly ignore messages arriving after the thread was resolved.
 		if result.isResolved && m.Timestamp > result.newLastTS {
 			continue
+		}
+
+		isFromMe := strings.EqualFold(m.User, user.SlackID) || sc.GetUserName(m.User) == user.Name
+		if isFromMe && completionSvc != nil && m.ThreadTimestamp != "" {
+			completionSvc.ProcessPotentialCompletion(ctx, store.ConsolidatedMessage{
+				UserEmail:    user.Email,
+				Source:       "slack",
+				ThreadID:     t.ThreadTS,
+				OriginalText: m.Text,
+				SourceTS:     m.Timestamp,
+			})
 		}
 
 		isBot := m.User == botID || m.BotID != ""

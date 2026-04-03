@@ -24,6 +24,7 @@ export interface Message {
     link?: string;
     source_ts?: string;
     is_deleted?: boolean | number;
+    assigned_to?: string;
 }
 
 export interface UserProfile {

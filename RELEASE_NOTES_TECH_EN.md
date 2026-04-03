@@ -1,3 +1,10 @@
+# Release Notes (Tech) - v2.4.14 (2026-04-03 06:51 UTC)
+
+- [REFACTOR] Optimize Gemini API consumption and mitigate version hijacking vulnerabilities
+- [FEAT] Introduce system-wide idempotency architecture and resolve regression test failures
+
+---
+
 # Release Notes (Tech) - v2.4.13 (2026-04-03 02:26 UTC)
 
 - [FEAT] Task Affinity Consolidation: Implemented a sophisticated scoring algorithm to intelligently group related tasks based on semantic and contextual affinity.

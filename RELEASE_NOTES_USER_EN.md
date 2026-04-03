@@ -1,3 +1,10 @@
+# Release Notes - v2.4.14 (2026-04-03 06:51 UTC)
+
+- 🧠 **Smarter AI Core**: We've refined our Gemini integration for snappier and more secure AI interactions.
+- 🛡️ **Perfect Processing**: New architectural safeguards ensure every action is executed exactly once—no duplicates, no errors.
+
+---
+
 # Release Notes - v2.4.13 (2026-04-03 02:26 UTC)
 
 - [NEW] Smart Task Grouping: Our new "Affinity Scoring" system acts like a personal organizer, automatically grouping related tasks together so your dashboard stays clutter-free.

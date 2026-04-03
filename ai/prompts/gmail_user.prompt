@@ -1,32 +1,21 @@
-Target User: %s
+---
+name: gmail_user
+version: 1.0.0
+model: gemini-3-flash-preview
+---
+[System Instruction]
+Analyze the provided Gmail message content and extract tasks based on the system instructions.
 
-[ANALYSIS RULES]
-1. 1 DELIVERABLE = 1 TASK: Separate multiple requests into distinct tasks, even if they share the same project/topic context.
-2. ELIMINATE REDUNDANCY: Do not repeat global context (e.g., "Project name", "Trip destination") in every task. Focus on the Action.
-3. SYNTHESIZE: Summarize concisely. DO NOT quote original sentences.
-4. CATEGORIZE BY ROLE:
-   - User sends: 'promise' (User will do) or 'waiting' (User is waiting for others).
-   - User receives: 'todo' (Requested of User).
-   - If mixed within one topic, pick the most active/urgent category.
+[Examples]
+{{range .FewShots}}
+Input: {{.Input}}
+Output: {{.Expected}}
+---
+{{end}}
 
-[OUTPUT FORMAT]
-Return ONLY a JSON array of tasks. Use "" for missing fields. NEVER "undefined".
+[Context]
+Current Time: {{.CurrentTime}}
+User Locale: {{.Locale}}
 
-[
-  {
-    "task": "High-level summary of the core intent",
-    "requester": "Name",
-    "assignee": "Name",
-    "assigned_at": "",
-    "source_ts": "Alphanumeric ID from [ID:...]",
-    "deadline": "YYYY-MM-DD or time",
-    "category": "todo|waiting|promise"
-  }
-]
-
-Input Emails:
-%s
-
-[Existing Tasks]
-Compare the emails above with these existing tasks to identify updates or resolutions:
-%s
+[Current Input]
+{{.MessagePayload}}

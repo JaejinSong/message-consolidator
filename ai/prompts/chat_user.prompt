@@ -1,8 +1,21 @@
-Analyze chat for Target User: %s
+---
+name: chat_user
+version: 1.0.0
+model: gemini-3-flash-preview
+---
+[System Instruction]
+사용자의 요청 사항을 명확히 파악하여 답변에 반영하십시오.
 
-[Messages]
-%s
+[Examples]
+{{range .FewShots}}
+Input: {{.Input}}
+Output: {{.Expected}}
+---
+{{end}}
 
-[Existing Tasks]
-Compare the messages above with these existing tasks to identify updates or resolutions:
-%s
+[Context]
+Current Time: {{.CurrentTime}}
+User Locale: {{.Locale}}
+
+[Current Input]
+{{.MessagePayload}}

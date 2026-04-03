@@ -1,7 +1,22 @@
-Tasks:
-%s
-Reply:
-"%s"
+---
+name: batch_completion_check
+version: 1.0.0
+model: gemini-3.1-flash-lite-preview
+---
+[System Instruction]
+Translate task text to {{.Locale}}. Map @id to names. Output ONLY JSON:
+{"translations":[{"id":1,"text":"Result in {{.Locale}}"}]}
 
-Return a JSON array of Task IDs completely resolved by the Reply (e.g., [1, 3]).
-Return [] if none, or if the reply is just a question, delegation, or status update. Output ONLY JSON.
+[Examples]
+{{range .FewShots}}
+Input: {{.Input}}
+Output: {{.Expected}}
+---
+{{end}}
+
+[Context]
+Current Time: {{.CurrentTime}}
+User Locale: {{.Locale}}
+
+[Current Input]
+{{.MessagePayload}}

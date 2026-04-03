@@ -17,14 +17,17 @@ type SourceAnalyzer interface {
 type GmailAnalyzer struct{}
 
 func (g *GmailAnalyzer) GetSystemInstruction(language string) string {
-	return fmt.Sprintf(loadPrompt("gmail_system.prompt"), language)
+	return fmt.Sprintf(loadPrompt("gmail_system.prompt").Body, language)
 }
 
 func (g *GmailAnalyzer) GetUserPrompt(userEmail, conversationText, existingTasksJSON string) string {
-	return fmt.Sprintf(loadPrompt("gmail_user.prompt"), userEmail, conversationText, existingTasksJSON)
+	return fmt.Sprintf(loadPrompt("gmail_user.prompt").Body, userEmail, conversationText, existingTasksJSON)
 }
 
 func (g *GmailAnalyzer) GetModelName(defaultModel string) string {
+	if p := loadPrompt("gmail_system.prompt"); p.Meta.Model != "" {
+		return p.Meta.Model
+	}
 	return defaultModel
 }
 
@@ -42,14 +45,17 @@ type ChatAnalyzer struct {
 }
 
 func (c *ChatAnalyzer) GetSystemInstruction(language string) string {
-	return fmt.Sprintf(loadPrompt("chat_system.prompt"), language)
+	return fmt.Sprintf(loadPrompt("chat_system.prompt").Body, language)
 }
 
 func (c *ChatAnalyzer) GetUserPrompt(userEmail, conversationText, existingTasksJSON string) string {
-	return fmt.Sprintf(loadPrompt("chat_user.prompt"), userEmail, conversationText, existingTasksJSON)
+	return fmt.Sprintf(loadPrompt("chat_user.prompt").Body, userEmail, conversationText, existingTasksJSON)
 }
 
 func (c *ChatAnalyzer) GetModelName(defaultModel string) string {
+	if p := loadPrompt("chat_system.prompt"); p.Meta.Model != "" {
+		return p.Meta.Model
+	}
 	return defaultModel
 }
 
@@ -66,14 +72,17 @@ func (c *ChatAnalyzer) PreProcess(text string) string {
 type NotionAnalyzer struct{}
 
 func (n *NotionAnalyzer) GetSystemInstruction(language string) string {
-	return fmt.Sprintf(loadPrompt("notion_system.prompt"), language)
+	return fmt.Sprintf(loadPrompt("notion_system.prompt").Body, language)
 }
 
 func (n *NotionAnalyzer) GetUserPrompt(userEmail, documentText, existingTasksJSON string) string {
-	return fmt.Sprintf(loadPrompt("notion_user.prompt"), userEmail, documentText, existingTasksJSON)
+	return fmt.Sprintf(loadPrompt("notion_user.prompt").Body, userEmail, documentText, existingTasksJSON)
 }
 
 func (n *NotionAnalyzer) GetModelName(defaultModel string) string {
+	if p := loadPrompt("notion_system.prompt"); p.Meta.Model != "" {
+		return p.Meta.Model
+	}
 	return defaultModel
 }
 

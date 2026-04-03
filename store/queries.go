@@ -27,6 +27,7 @@ var SQL = struct {
 	CreateReportsTable          string
 	CreateReportTranslationsTable string
 	CreateReportTranslationsIndex string
+	CreatePromptLogsTable         string
 
 	//Why: Groups SQL queries for database view definitions.
 	CreateMessagesView string
@@ -130,6 +131,7 @@ var SQL = struct {
 	GetAchievements        string
 	GetUserAchievements    string
 	UnlockAchievement      string
+	InsertPromptLog        string
 
 	//Why: Groups SQL queries for report-related operations.
 	InsertReport         string
@@ -268,6 +270,7 @@ func loadAllQueries() error {
 	SQL.CreateReportsTable = queries["CreateReportsTable"]
 	SQL.CreateReportTranslationsTable = queries["CreateReportTranslationsTable"]
 	SQL.CreateReportTranslationsIndex = queries["CreateReportTranslationsIndex"]
+	SQL.CreatePromptLogsTable = queries["CreatePromptLogsTable"]
 	SQL.CreateMessagesView = queries["CreateMessagesView"]
 	SQL.CreateUsersView = queries["CreateUsersView"]
 
@@ -359,6 +362,7 @@ func loadAllQueries() error {
 	SQL.GetAchievements = queries["GetAchievements"]
 	SQL.GetUserAchievements = queries["GetUserAchievements"]
 	SQL.UnlockAchievement = queries["UnlockAchievement"]
+	SQL.InsertPromptLog = queries["InsertPromptLog"]
 
 	SQL.InsertReport = queries["InsertReport"]
 	SQL.InsertReportTranslation = queries["InsertReportTranslation"]

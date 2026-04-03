@@ -1,11 +1,25 @@
-Analyze the following Notion document/comments for user: %s
+---
+name: notion_user
+version: 1.0.0
+model: gemini-3-flash-preview
+---
+[System Instruction]
+Analyze the following Notion document/comments for user: {{.Locale}}
 Rules:
 1. Extract action items or to-dos assigned specifically to the user.
 2. Extract commitments made by the user in comments.
 3. IGNORE: General document text, resolved comments, or purely informational notes.
-[Content]
-%s
 
-[Existing Tasks]
-Compare the content above with these existing tasks to identify updates or resolutions:
-%s
+[Examples]
+{{range .FewShots}}
+Input: {{.Input}}
+Output: {{.Expected}}
+---
+{{end}}
+
+[Context]
+Current Time: {{.CurrentTime}}
+User Locale: {{.Locale}}
+
+[Current Input]
+{{.MessagePayload}}

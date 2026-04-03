@@ -48,8 +48,11 @@ func TestExtractResponseText(t *testing.T) {
 }
 
 func TestLoadPrompt(t *testing.T) {
-	content := loadPrompt("gmail_system.prompt")
-	if content == "" {
-		t.Error("Expected 'gmail_system.prompt' to load successfully, got empty string")
+	parsed := loadPrompt("gmail_system.prompt")
+	if parsed == nil || parsed.Body == "" {
+		t.Error("Expected 'gmail_system.prompt' to load successfully, got empty result")
+	}
+	if parsed.Meta.Name == "" {
+		t.Error("Expected 'gmail_system.prompt' to have metadata name")
 	}
 }

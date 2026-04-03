@@ -26,7 +26,7 @@ function parseMetadata(metadata: any): Record<string, any> | null {
  * Decouples rendering logic from the main application state to allow for independent testing.
  */
 export function MessageCard(props: MessageCardProps): string {
-    const { id, source, room, task, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translating, translationError, has_original } = props;
+    const { id, source, room, task, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translating, translationError, has_original, assigned_to } = props;
     
     // Why: Ensure time is extracted from either timestamp or created_at.
     const rawTime = String(timestamp || created_at || "");
@@ -51,6 +51,8 @@ export function MessageCard(props: MessageCardProps): string {
                              category === 'QUERY' ? `<div class="c-message-card__badge c-message-card__badge--query">${i18n.queryLabel || 'Question'}</div>` :
                              category === 'promise' ? `<div class="c-message-card__badge c-message-card__badge--promise">🤝 ${i18n.promise || '약속'}</div>` :
                              category === 'waiting' ? `<div class="c-message-card__badge c-message-card__badge--waiting">⏳ ${i18n.waiting || '대기'}</div>` : '';
+
+    const delegatedHtml = assigned_to ? `<div class="c-message-card__badge c-message-card__badge--delegated" title="Delegated Task">🔄 ${lang === 'ko' ? `@${escapeHTML(assigned_to)}에게 위임됨` : `Delegated to @${escapeHTML(assigned_to)}`}</div>` : '';
 
     const loadingOverlay = translating ? `
         <div class="c-message-card__loading-overlay">
@@ -77,6 +79,7 @@ export function MessageCard(props: MessageCardProps): string {
             <div class="c-message-card__header">
                 <div class="c-message-card__source" title="${source.toUpperCase()}">${sourceIcon}</div>
                 <div class="c-message-card__room">${room ? `<span class="c-message-card__badge-room">${escapeHTML(room)}</span>` : '-'}</div>
+                ${delegatedHtml}
                 ${categoryBadgeHtml}
                 <div class="c-message-card__actions">
                     ${has_original ? `<button class="c-message-card__action-btn view-original-btn" data-action="show-original" title="${i18n.viewOriginal || 'View Original'}">${ICONS.viewOriginal}</button>` : ''}

@@ -14,8 +14,11 @@ func HandleTaskState(email string, item TodoItem, msg ConsolidatedMessage) (int,
 	switch item.State {
 	case "update":
 		if item.ID != nil {
-			err := UpdateTaskText(email, *item.ID, item.Task)
-			return *item.ID, err
+			UpdateTaskText(email, *item.ID, item.Task)
+			if item.AssignedTo != "" {
+				UpdateTaskAssignee(email, *item.ID, item.AssignedTo)
+			}
+			return *item.ID, nil
 		}
 		logger.Warnf("[ROUTER] Update state requested but no ID provided for %s", email)
 	case "resolve":

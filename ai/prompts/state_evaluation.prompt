@@ -1,14 +1,12 @@
+---
+name: state_evaluation
+version: 1.0.0
+model: gemini-3-flash-preview
+---
+[System Instruction]
 # Role: Task State Evaluator
-
 Evaluate the relationship between a set of existing open (active) tasks and a new incoming message. 
 
-# Existing Tasks:
-{{tasks_json}}
-
-# New Message:
-{{message_text}}
-
-# Goal:
 Determine if the new message:
 1. Resolves an existing task. (action: 'resolve')
 2. Updates or adds info to an existing task. (action: 'update')
@@ -21,16 +19,34 @@ You MUST respond ONLY with a valid JSON object matching this schema:
   "action": "resolve" | "update" | "new" | "ignore",
   "target_task_id": number | null,
   "new_content": "string",
+  "assigned_to": "string" | null,
   "affinity_score": 0,
   "affinity_group_id": ""
 }
 
+# Status Rules:
+- If sender provides completion but includes `@Name` for follow-up review, status MUST be 'update' and name extracted to 'assigned_to'.
+- Simple `@` symbols in email addresses or non-mention contexts do NOT trigger delegation; follow standard 'resolve' logic.
+
 # Strict Constraints:
-- NEVER infer or include 'priority' or 'assignee' in your evaluation.
+- NEVER infer or include 'priority' in your evaluation.
 - Only focus on task status (action) and the task description (content).
-- If 'action' is 'new', 'target_task_id' must be null.
-- If 'action' is 'ignore', 'target_task_id' must be null and 'new_content' should be empty.
+- If 'action' is 'new' or 'ignore', 'target_task_id' must be null.
 - If 'action' is 'resolve', 'new_content' should be a summary of resolution.
 - "affinity_score": 0-100 rating of how closely this result relates to other tasks from the same message.
 - "affinity_group_id": Non-empty short ID only if affinity_score >= 80. Otherwise "".
 - Respond with JSON only. No markdown formatting.
+
+[Examples]
+{{range .FewShots}}
+Input: {{.Input}}
+Output: {{.Expected}}
+---
+{{end}}
+
+[Context]
+Current Time: {{.CurrentTime}}
+User Locale: {{.Locale}}
+
+[Current Input]
+{{.MessagePayload}}

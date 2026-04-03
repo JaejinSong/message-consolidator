@@ -1,6 +1,6 @@
 import { MessageCard } from './components/message-card.ts';
 import { Message, I18nDictionary, MessageHandlers, CategorizedMessages } from './types.ts';
-import { sortAndSearchMessages } from './logic.ts';
+import { sortAndSearchMessages, getActiveCount } from './logic.ts';
 import { state } from './state.ts';
 import { I18N_DATA } from './locales.js';
 import { TimeService, escapeHTML } from './utils.ts';
@@ -138,7 +138,8 @@ export function createCardElement(m: Message): string {
         lang: state.currentLang || 'ko',
         translating: !!m.translating,
         translationError: (m.translationError || undefined) as string | undefined, 
-        has_original: !!m.has_original
+        has_original: !!m.has_original,
+        assigned_to: m.assigned_to
     };
 
     return MessageCard(props);
@@ -152,7 +153,7 @@ export function renderMessages(categorized: CategorizedMessages, handlers: Messa
     const currentTab = activeTab?.getAttribute('data-tab') || 'myTasksTab';
     const searchQuery = (document.getElementById('taskSearch') as HTMLInputElement)?.value || '';
 
-    const allTasks = [...(categorized.inbox || []), ...(categorized.pending || [])];
+    const allTasks = [...(categorized.inbox || []), ...(categorized.pending || []), ...(categorized.waiting || [])];
     
     const tabToKey: Record<string, keyof CategorizedMessages> = {
         'myTasksTab': 'inbox',
@@ -180,10 +181,10 @@ export function renderMessages(categorized: CategorizedMessages, handlers: Messa
         if (el) el.textContent = count.toString();
     };
 
-    updateCount('myCount', categorized.inbox.length);
-    updateCount('otherCount', categorized.pending.length);
-    updateCount('waitingCount', categorized.waiting.length);
-    updateCount('allCount', allTasks.length);
+    updateCount('myCount', getActiveCount(categorized.inbox));
+    updateCount('otherCount', getActiveCount(categorized.pending));
+    updateCount('waitingCount', getActiveCount(categorized.waiting));
+    updateCount('allCount', getActiveCount(allTasks));
 
     const gridId = currentTab.replace('Tab', 'List');
     const grid = document.getElementById(gridId);

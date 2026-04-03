@@ -53,6 +53,16 @@ export function sortAndSearchMessages(messages: Message[], searchQuery: string):
 }
 
 /**
+ * Returns the count of active messages (not done, not deleted).
+ * Why: Derived state for UI counters to show only actionable tasks.
+ */
+export function getActiveCount(messages: Message[] | undefined): number {
+    if (!messages) return 0;
+    return messages.filter(m => !m.done && !m.is_deleted).length;
+}
+
+
+/**
  * @deprecated Categorization is now backend-driven. Logic for 'All' tab should be handled in the renderer.
  */
 // Removed sortAndFilterMessages as it's redundant with backend-driven categorization

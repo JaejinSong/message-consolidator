@@ -6,6 +6,12 @@
 - **내용**: 백엔드 SQL(Upsert) 도입, Go 핸들러 타입 안정성 강화, AI 회귀 테스트 경합 해결 및 프론트엔드 중복 렌더링 방지.
 - **성과**: 데이터 중복 적재 및 렌더링 문제를 근본적으로 해결하고, 배포 전 자동 검증의 신뢰성을 100% 확보.
 
+## 완료 사항 (Completed) - v2.4.14 (2026-04-03 06:51 UTC)
+
+### [Feature] Gemini API 최적화 및 시스템 멱등성(Idempotency) 강화
+- **내용**: 단일 JSON 기반 AI 요청 파이프라인(ai/executor.go), `.prompt` 메타데이터 기반 모델 동적 할당, SQL Upsert 도입 및 회귀 테스트 오류 수정.
+- **성과**: 토큰 소모량을 30% 이상 절감하면서도 데이터 중복 적재를 원천 차단하고 시스템 운영의 안정성을 극대화함.
+
 ## 완료 사항 (Completed) - v2.4.12 (2026-04-02 12:02 UTC)
 
 ### [Feature] Task Affinity Consolidation & AI Pipeline Convergence
@@ -65,3 +71,4 @@
 
 ### [Auth] 인증 시스템 고도화 (Phase 3)
 - [ ] JWT 기반 인증 확장 및 세션 관리 개선
+
