@@ -20,6 +20,7 @@ import (
 // Why: [Regression Test] Verifies that the Gmail extraction logic correctly separates multiple deliverables
 // without repeating global context, using a mocked Gemini API to ensure deterministic business logic validation.
 func TestGmailExtraction_Mock(t *testing.T) {
+	// Why: Top-level parallelization is disabled to prevent clobbering the global store.db.
 	mockResponse := createMockGeminiResponse()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		//Why: Gemini SDK appends the model name and method to the endpoint.

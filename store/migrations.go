@@ -49,6 +49,10 @@ func createCoreTables() error {
 	if err != nil {
 		return err
 	}
+	_, err = db.Exec(SQL.CreateAIInferenceLogsTable)
+	if err != nil {
+		return err
+	}
 	_, err = db.Exec(SQL.CreateContactsResolvedView)
 	if err != nil {
 		return err

@@ -10,13 +10,16 @@ import (
 
 // TestPromptsNormalization은 모든 .prompt 파일의 규격을 검증합니다.
 func TestPromptsNormalization(t *testing.T) {
+	t.Parallel()
 	files, err := filepath.Glob("prompts/*.prompt")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for _, f := range files {
+		f := f // Closure capture
 		t.Run(filepath.Base(f), func(t *testing.T) {
+			t.Parallel()
 			verifyPromptFile(t, f)
 		})
 	}
@@ -47,19 +50,12 @@ func verifyPromptFile(t *testing.T, path string) {
 
 // verifyTemplateExecution은 더미 데이터를 주입하여 템플릿 실행 가능 여부를 확인합니다.
 func verifyTemplateExecution(t *testing.T, tmpl *template.Template) {
-	dummy := struct {
-		MessagePayload string
-		CurrentTime    string
-		Locale         string
-		FewShots       []struct {
-			Input    string
-			Expected string
-		}
-	}{
+	dummy := ExtractionContext{
 		MessagePayload: "dummy input",
 		CurrentTime:    "2026-04-03 12:00:00",
+		Version:        "1.0.0",
 		Locale:         "ko-KR",
-		FewShots:       make([]struct{ Input, Expected string }, 0),
+		FewShots:       make([]FewShot, 0),
 	}
 
 	if err := tmpl.Execute(io.Discard, dummy); err != nil {

@@ -6,6 +6,7 @@ import (
 )
 
 func TestDecodeBase64URL(t *testing.T) {
+	t.Parallel()
 	//Why: Uses a sample string with special characters (? and !) to verify robust URL-safe Base64 decoding.
 	originalText := "hello? world! & testing~"
 
@@ -48,7 +49,9 @@ func TestDecodeBase64URL(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt // Closure capture
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := DecodeBase64URL(tt.input)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("DecodeBase64URL() error = %v, wantErr %v", err, tt.wantErr)
@@ -62,6 +65,7 @@ func TestDecodeBase64URL(t *testing.T) {
 }
 
 func TestSanitizeJSON(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -110,7 +114,9 @@ func TestSanitizeJSON(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt // Closure capture
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := sanitizeJSON(tt.input)
 			if got != tt.expected {
 				t.Errorf("sanitizeJSON() = %v, want %v (Input: %s)", got, tt.expected, tt.input)
@@ -120,6 +126,7 @@ func TestSanitizeJSON(t *testing.T) {
 }
 
 func TestUnmarshalAnalyze(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		cleanJSON string
@@ -133,7 +140,9 @@ func TestUnmarshalAnalyze(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt // Closure capture
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := unmarshalAnalyze(tt.cleanJSON, tt.cleanJSON)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("unmarshalAnalyze() error = %v, wantErr %v", err, tt.wantErr)
@@ -147,6 +156,7 @@ func TestUnmarshalAnalyze(t *testing.T) {
 }
 
 func TestUnmarshalTranslate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		cleanJSON string
@@ -159,7 +169,9 @@ func TestUnmarshalTranslate(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt // Closure capture
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := unmarshalTranslate(tt.cleanJSON, tt.cleanJSON, "en")
 			if (err != nil) != tt.wantErr {
 				t.Errorf("unmarshalTranslate() error = %v, wantErr %v", err, tt.wantErr)

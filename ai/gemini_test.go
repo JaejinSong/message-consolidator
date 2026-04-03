@@ -7,6 +7,7 @@ import (
 )
 
 func TestExtractResponseText(t *testing.T) {
+	t.Parallel()
 	//Why: [Nil response test] Ensures that passing a nil response object results in a proper error during text extraction.
 	_, err := extractResponseText(nil)
 	if err == nil {
@@ -48,6 +49,7 @@ func TestExtractResponseText(t *testing.T) {
 }
 
 func TestLoadPrompt(t *testing.T) {
+	t.Parallel()
 	parsed := loadPrompt("gmail_system.prompt")
 	if parsed == nil || parsed.Body == "" {
 		t.Error("Expected 'gmail_system.prompt' to load successfully, got empty result")

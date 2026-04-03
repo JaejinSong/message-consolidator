@@ -1,8 +1,10 @@
 package ai
 
 import (
+	"bytes"
 	"errors"
 	"strings"
+	"text/template"
 )
 
 // ErrInvalidFrontmatter는 프롬프트 메타데이터 형식이 잘못되었을 때 반환됩니다.
@@ -19,6 +21,26 @@ type PromptMeta struct {
 type ParsedPrompt struct {
 	Meta PromptMeta
 	Body string // 토큰 소모 대상 (Gemini API로 전송될 순수 텍스트)
+}
+
+// FewShot은 프롬프트 예시 데이터를 구조화합니다.
+type FewShot struct {
+	Input    string `json:"input"`
+	Expected string `json:"expected"`
+}
+
+// Render는 주어진 컨텍스트를 사용하여 프롬프트 본문을 렌더링합니다.
+func (p *ParsedPrompt) Render(data any) (string, error) {
+	tmpl, err := template.New("prompt").Parse(p.Body)
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
 
 // ParsePrompt는 30라인 이내, 2 depth 제약을 준수하여 구현되었습니다.

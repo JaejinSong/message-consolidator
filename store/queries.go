@@ -28,8 +28,8 @@ var SQL = struct {
 	CreateReportTranslationsTable string
 	CreateReportTranslationsIndex string
 	CreatePromptLogsTable         string
-
-	//Why: Groups SQL queries for database view definitions.
+	CreateAIInferenceLogsTable     string
+	InsertAIInferenceLog          string
 	CreateMessagesView string
 	CreateUsersView    string
 
@@ -271,6 +271,8 @@ func loadAllQueries() error {
 	SQL.CreateReportTranslationsTable = queries["CreateReportTranslationsTable"]
 	SQL.CreateReportTranslationsIndex = queries["CreateReportTranslationsIndex"]
 	SQL.CreatePromptLogsTable = queries["CreatePromptLogsTable"]
+	SQL.CreateAIInferenceLogsTable = queries["CreateAIInferenceLogsTable"]
+	SQL.InsertAIInferenceLog = queries["InsertAIInferenceLog"]
 	SQL.CreateMessagesView = queries["CreateMessagesView"]
 	SQL.CreateUsersView = queries["CreateUsersView"]
 

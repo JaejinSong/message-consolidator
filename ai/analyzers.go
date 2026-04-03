@@ -1,14 +1,13 @@
 package ai
 
 import (
-	"fmt"
 	"message-consolidator/logger"
 )
 
 // SourceAnalyzer defines how to extract tasks from different message sources.
 type SourceAnalyzer interface {
-	GetSystemInstruction(language string) string
-	GetUserPrompt(userEmail, conversationText, existingTasksJSON string) string
+	GetSystemInstruction(data ExtractionContext) string
+	GetUserPrompt(data ExtractionContext) string
 	GetModelName(defaultModel string) string
 	PreProcess(text string) string
 }
@@ -16,12 +15,14 @@ type SourceAnalyzer interface {
 // GmailAnalyzer handles task extraction from email threads.
 type GmailAnalyzer struct{}
 
-func (g *GmailAnalyzer) GetSystemInstruction(language string) string {
-	return fmt.Sprintf(loadPrompt("gmail_system.prompt").Body, language)
+func (g *GmailAnalyzer) GetSystemInstruction(data ExtractionContext) string {
+	res, _ := loadPrompt("gmail_system.prompt").Render(data)
+	return res
 }
 
-func (g *GmailAnalyzer) GetUserPrompt(userEmail, conversationText, existingTasksJSON string) string {
-	return fmt.Sprintf(loadPrompt("gmail_user.prompt").Body, userEmail, conversationText, existingTasksJSON)
+func (g *GmailAnalyzer) GetUserPrompt(data ExtractionContext) string {
+	res, _ := loadPrompt("gmail_user.prompt").Render(data)
+	return res
 }
 
 func (g *GmailAnalyzer) GetModelName(defaultModel string) string {
@@ -44,12 +45,14 @@ type ChatAnalyzer struct {
 	Source string
 }
 
-func (c *ChatAnalyzer) GetSystemInstruction(language string) string {
-	return fmt.Sprintf(loadPrompt("chat_system.prompt").Body, language)
+func (c *ChatAnalyzer) GetSystemInstruction(data ExtractionContext) string {
+	res, _ := loadPrompt("chat_system.prompt").Render(data)
+	return res
 }
 
-func (c *ChatAnalyzer) GetUserPrompt(userEmail, conversationText, existingTasksJSON string) string {
-	return fmt.Sprintf(loadPrompt("chat_user.prompt").Body, userEmail, conversationText, existingTasksJSON)
+func (c *ChatAnalyzer) GetUserPrompt(data ExtractionContext) string {
+	res, _ := loadPrompt("chat_user.prompt").Render(data)
+	return res
 }
 
 func (c *ChatAnalyzer) GetModelName(defaultModel string) string {
@@ -71,12 +74,14 @@ func (c *ChatAnalyzer) PreProcess(text string) string {
 // NotionAnalyzer handles task extraction from Notion pages and comments.
 type NotionAnalyzer struct{}
 
-func (n *NotionAnalyzer) GetSystemInstruction(language string) string {
-	return fmt.Sprintf(loadPrompt("notion_system.prompt").Body, language)
+func (n *NotionAnalyzer) GetSystemInstruction(data ExtractionContext) string {
+	res, _ := loadPrompt("notion_system.prompt").Render(data)
+	return res
 }
 
-func (n *NotionAnalyzer) GetUserPrompt(userEmail, documentText, existingTasksJSON string) string {
-	return fmt.Sprintf(loadPrompt("notion_user.prompt").Body, userEmail, documentText, existingTasksJSON)
+func (n *NotionAnalyzer) GetUserPrompt(data ExtractionContext) string {
+	res, _ := loadPrompt("notion_user.prompt").Render(data)
+	return res
 }
 
 func (n *NotionAnalyzer) GetModelName(defaultModel string) string {

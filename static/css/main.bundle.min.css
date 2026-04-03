@@ -968,6 +968,18 @@ body.light-theme .c-utility__btn:hover {
     color: var(--white);
 }
 
+.c-message-card__badge--delegated {
+    background: var(--color-warning);
+    color: var(--bg-color);
+    border-radius: var(--radius-full);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xxs);
+    text-transform: none;
+    font-size: 0.7rem;
+    padding: var(--spacing-xxs) var(--spacing-sm);
+}
+
 .c-message-card__body {
     flex: 1;
     padding: var(--spacing-xs) 0;

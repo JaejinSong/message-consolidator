@@ -117,10 +117,21 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 	}
 
 	parsed := loadPrompt("report_summary.prompt")
-	model := g.initModel(g.getEffectiveModel(parsed, g.analysisModel), 0.1, 4096, "", parsed.Body)
+	// Why: [Unified Rendering] Validates and renders the report summary prompt using the standard template engine.
+	data := ExtractionContext{
+		MessagePayload: tasks,
+		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
+		Locale:         "English",
+	}
+	rendered, err := parsed.Render(data)
+	if err != nil {
+		return "", fmt.Errorf("failed to render report summary prompt: %w", err)
+	}
+
+	model := g.initModel(g.getEffectiveModel(parsed, g.analysisModel), 0.1, 4096, "", rendered)
 
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, model, genai.Text(tasks), 60*time.Second, 2)
+	resp, err := generateWithRetry(ctx, model, genai.Text(""), 60*time.Second, 2)
 	if err != nil {
 		return "", err
 	}
@@ -150,8 +161,19 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email, conversati
 	modelName := g.getAnalyzeModelName(analyzer)
 	existingTasksJSON := g.marshalTasksForAI(tasks)
 
-	model := g.initModel(modelName, 0.0, 4096, "application/json", g.getAnalyzeSysInst(analyzer, lang))
-	prompt := g.getAnalyzeUserPrompt(analyzer, email, conversationText, existingTasksJSON)
+	// Why: [Contextual Extraction] Consolidates prompt data into a unified ExtractionContext for template rendering.
+	data := ExtractionContext{
+		MessagePayload:    conversationText,
+		CurrentTime:       time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
+		Locale:            lang,
+		ExistingTasksJSON: existingTasksJSON,
+	}
+	if analyzer != nil {
+		data.MessagePayload = analyzer.PreProcess(data.MessagePayload)
+	}
+
+	model := g.initModel(modelName, 0.0, 4096, "application/json", g.getAnalyzeSysInst(analyzer, data))
+	prompt := g.getAnalyzeUserPrompt(analyzer, data)
 
 	logger.Infof("[GEMINI] Analyzing with %d context tasks (%s:%s)...", len(tasks), source, room)
 	start := time.Now()
@@ -160,6 +182,13 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email, conversati
 		logger.Errorf("[GEMINI] Analysis failed: %v", err)
 		return nil, err
 	}
+
+	raw, _ := extractResponseText(resp)
+	// Why: Asynchronously logs AI inference data to both DB and file system to support Data Flywheel without blocking the main workflow.
+	go func(src, input, output string) {
+		logger.LogAIInferenceToFile(src, input, output)
+		_ = store.LogAIInference(0, src, input, output)
+	}(source, conversationText, raw)
 
 	trace.Step(ctx, "Gemini-Analyze", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "Analyze", resp)
@@ -191,7 +220,12 @@ func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []stor
 	}
 
 	parsed := loadPrompt("translation_system.prompt")
-	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.0, 4096, "application/json", fmt.Sprintf(parsed.Body, language, language))
+	data := ExtractionContext{
+		Locale:      g.getValidLang(language),
+		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
+	}
+	sysInst, _ := parsed.Render(data)
+	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.0, 4096, "application/json", sysInst)
 
 	logger.Debugf("[GEMINI] Translating %d tasks to %s...", len(tasks), language)
 	start := time.Now()
@@ -220,7 +254,12 @@ func (g *GeminiClient) TranslateReport(ctx context.Context, email string, report
 	}
 
 	parsed := loadPrompt("report_translator.prompt")
-	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.2, 4096, "", fmt.Sprintf(parsed.Body, targetLanguage))
+	data := ExtractionContext{
+		Locale:      g.getValidLang(targetLanguage),
+		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
+	}
+	sysInst, _ := parsed.Render(data)
+	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.2, 4096, "", sysInst)
 
 	logger.Debugf("[GEMINI] Translating Markdown report for %s to %s...", email, targetLanguage)
 	start := time.Now()
@@ -243,7 +282,12 @@ func (g *GeminiClient) TranslateTaskMessage(ctx context.Context, email string, t
 	}
 
 	parsed := loadPrompt("task_translator.prompt")
-	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.1, 0, "", fmt.Sprintf(parsed.Body, targetLanguage, targetLanguage))
+	data := ExtractionContext{
+		Locale:      g.getValidLang(targetLanguage),
+		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
+	}
+	sysInst, _ := parsed.Render(data)
+	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.1, 0, "", sysInst)
 
 	logger.Debugf("[GEMINI] Translating Task for %s to %s...", email, targetLanguage)
 	start := time.Now()
@@ -297,18 +341,18 @@ func (g *GeminiClient) getAnalyzeModelName(analyzer SourceAnalyzer) string {
 	return g.analysisModel
 }
 
-func (g *GeminiClient) getAnalyzeSysInst(analyzer SourceAnalyzer, lang string) string {
+func (g *GeminiClient) getAnalyzeSysInst(analyzer SourceAnalyzer, data ExtractionContext) string {
 	if analyzer != nil {
-		return analyzer.GetSystemInstruction(lang)
+		return analyzer.GetSystemInstruction(data)
 	}
 	return `Extract tasks as JSON array: [{"id", "state", "task", "requester", "assignee", "assigned_at", "source_ts", "deadline", "category"}]`
 }
 
-func (g *GeminiClient) getAnalyzeUserPrompt(analyzer SourceAnalyzer, email, text, ctxTasks string) string {
+func (g *GeminiClient) getAnalyzeUserPrompt(analyzer SourceAnalyzer, data ExtractionContext) string {
 	if analyzer != nil {
-		return analyzer.GetUserPrompt(email, analyzer.PreProcess(text), ctxTasks)
+		return analyzer.GetUserPrompt(data)
 	}
-	return text
+	return data.MessagePayload
 }
 
 func (g *GeminiClient) parseAnalyzeResults(resp *genai.GenerateContentResponse) ([]store.TodoItem, error) {

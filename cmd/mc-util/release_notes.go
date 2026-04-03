@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"message-consolidator/ai"
 	"message-consolidator/config"
 	"message-consolidator/logger"
 
@@ -115,10 +116,22 @@ func fetchReleaseNotes(cfg *config.Config, commits, version string) ReleaseNotes
 
 func loadPrompt(commits, version string) string {
 	raw, _ := ioutil.ReadFile("ai/prompts/release_notes_combined.prompt")
-	p := string(raw)
-	p = strings.Replace(p, "{{.Version}}", version, 1)
-	p = strings.Replace(p, "{{.MessagePayload}}", commits, 1)
-	return p
+	parsed, err := ai.ParsePrompt(string(raw))
+	if err != nil {
+		logger.Errorf("[RELEASE] Failed to parse prompt: %v", err)
+		return string(raw)
+	}
+
+	data := ai.ExtractionContext{
+		Version:        version,
+		MessagePayload: commits,
+	}
+	rendered, err := parsed.Render(data)
+	if err != nil {
+		logger.Errorf("[RELEASE] Failed to render prompt: %v", err)
+		return string(raw)
+	}
+	return rendered
 }
 
 func parseAIResponse(resp *genai.GenerateContentResponse) ReleaseNotesJSON {

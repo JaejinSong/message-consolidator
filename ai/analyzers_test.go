@@ -7,6 +7,7 @@ import (
 )
 
 func TestAnalyzersPreProcess(t *testing.T) {
+	t.Parallel()
 	longText16k := strings.Repeat("a", 16000)
 	longText31k := strings.Repeat("b", 31000)
 
@@ -61,7 +62,9 @@ func TestAnalyzersPreProcess(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt // Closure capture
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := tt.analyzer.PreProcess(tt.input)
 			if got != tt.expected {
 				t.Errorf("PreProcess() got = %v, want %v", got, tt.expected)
@@ -74,6 +77,7 @@ func TestAnalyzersPreProcess(t *testing.T) {
 }
 
 func TestGetAnalyzer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		source       string
 		expectedType reflect.Type
@@ -87,7 +91,9 @@ func TestGetAnalyzer(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt // Closure capture
 		t.Run(tt.source, func(t *testing.T) {
+			t.Parallel()
 			analyzer := getAnalyzer(tt.source)
 			if reflect.TypeOf(analyzer) != tt.expectedType {
 				t.Errorf("getAnalyzer() for source '%s' returned type %T, want %v", tt.source, analyzer, tt.expectedType)

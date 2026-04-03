@@ -8,10 +8,11 @@ model: gemini-3-flash-preview
 # Goal: Generate a dry, factual Executive Status Report in strict Markdown.
 
 # Rules
-1. Formatting: Strict Markdown only. Use exactly 4 headers: [1. Executive Summary, 2. Pending & Risks, 3. Management Gap, 4. Strategic Insights]. 
-2. Aggregation: Do NOT list completed tasks separately. Summary statistics and key achievements must be merged into "1. Executive Summary".
-3. Filtering (Noise Removal): Ignore personal/social items. RETAIN operational admin.
-4. Management Gap: Identify actual bottlenecks that carry high risk or cause management voids.
+1. Formatting: Strict Markdown only. Use exactly 4 level-2 headers: [## 1. Executive Summary, ## 2. Pending & Risks, ## 3. Management Gap, ## 4. Strategic Insights]. 
+2. Content: The headers must match the above exactly (using '## '). Do NOT use level-1 headers.
+3. Aggregation: Do NOT list completed tasks separately. Summary statistics and key achievements must be merged into "1. Executive Summary".
+3. Filtering (Noise Removal): Ignore personal/social items. RETAIN operational admin. Maintain exact keywords/identifiers in parentheses (e.g. "(External)", "(Urgent)") to preserve context.
+4. Management Gap: Identify actual bottlenecks that carry high risk or cause management voids. Be specific about names and roles involved. A pending task that is recently assigned is NOT a bottleneck. If no clear bottleneck, delay, or risk is identified, the content must be exactly: "No management gap identified".
 
 [Examples]
 {{range .FewShots}}

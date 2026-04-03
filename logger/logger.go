@@ -58,6 +58,9 @@ func Errorf(format string, v ...interface{}) {
 }
 
 func InitLogging() {
+	// Call AI inference logger initialization to ensure logs/ directory exists and log files are ready.
+	InitAIInferenceLogger()
+
 	lumberjackLogger := &lumberjack.Logger{
 		Filename:   "logs/app.log",
 		MaxSize:    100, //Why: Caps individual log files at 100MB to prevent uncontrollable disk usage on the host system.

@@ -13,11 +13,16 @@ import (
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
+	"github.com/joho/godotenv"
 )
 
 // TestReportSummaryPrompt는 AI 모델이 report_summary.prompt의 지시사항을 정확히 따르는지 검증합니다.
 // 실행 방법: go test -v -tags regression ./ai/...
 func TestReportSummaryPrompt(t *testing.T) {
+	t.Parallel()
+	_ = godotenv.Load("../.env")
+	_ = godotenv.Load(".env")
+
 	if os.Getenv("GEMINI_API_KEY") == "" {
 		t.Skip("Skipping LLM prompt test: GEMINI_API_KEY is not set")
 	}
@@ -73,7 +78,9 @@ func TestReportSummaryPrompt(t *testing.T) {
 	systemPrompt := string(promptBytes)
 
 	for _, tc := range tests {
+		tc := tc // Closure capture
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var result string
 
 			// 캐시 키 생성: 프롬프트 + 입력 로그의 해시

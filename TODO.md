@@ -1,5 +1,11 @@
 # Message Consolidator - TODO & TECH DEBT
 
+## 완료 사항 (Completed) - v2.4.15 (2026-04-03 09:18 UTC)
+
+### [Feature] AI 인퍼런스 비동기 로깅 시스템 (DB + File)
+- **내용**: Gemini API의 원본 응답(Raw JSON)과 메시지 컨텍스트를 SQLite(`ai_inference_logs`) 및 전용 파일(`ai_inference.log`)에 비동기로 저장하는 듀얼 채널 로깅 레이어 구축.
+- **성과**: 메인 서비스의 성능 저하 없이 AI 추론 데이터를 확보하여, 데이터 기반의 프롬프트 튜닝(Data Flywheel) 및 정밀한 오류 분석이 가능한 관측성(Observability) 체계 완성.
+
 ## 완료 사항 (Completed) - v2.4.13 (2026-04-03 02:26 UTC)
 
 ### [Feature] System-wide Idempotency (SQL Upsert) & Test Stability
@@ -72,3 +78,31 @@
 ### [Auth] 인증 시스템 고도화 (Phase 3)
 - [ ] JWT 기반 인증 확장 및 세션 관리 개선
 
+
+# AI Extraction Improvement Pipeline (Data-Driven)
+
+## 1. Phase 1: Data Accumulation & Observability (현재 단계)
+- **Goal:** 실데이터(Slack, WhatsApp) 패턴과 AI의 추론 결과 수집.
+- **Action:** - DB `messages.original_text`에 원본 메시지 보존.
+  - 비동기 로깅을 통해 Gemini API의 Raw JSON Response(`ai_inference.log`) 적재.
+  - WhaTap을 통한 채널 리스너의 메모리 누수 및 지연 시간 모니터링.
+
+## 2. Phase 2: Failure Case Analysis (분석 단계)
+- **Goal:** 주기적(예: 주 1회)으로 로그를 분석하여 엣지 케이스 및 오탐지(False Positive/Negative) 식별.
+- **Action:**
+  - AI가 `new`/`update`/`resolve` 상태를 잘못 판별한 케이스 분류.
+  - 담당자(Assignee) 매핑 실패나 데드라인 파싱 오류 케이스 수집.
+  - 수집된 실패 사례를 `tests/regression/testdata/` 에 새로운 테스트 케이스로 추가.
+
+## 3. Phase 3: Prompt & Logic Refinement (개선 단계)
+- **Goal:** 식별된 문제를 해결하기 위한 시스템 업데이트.
+- **Action:**
+  - `ai/prompts/` 디렉토리 내의 프롬프트 컨텍스트 및 Few-shot 예제 업데이트.
+  - `ai/analyzers.go` 또는 `ai/gemini.go` 의 파싱 로직 보완.
+  - 필요시 화자 인식을 돕기 위한 `original_text` 전처리(Pre-processing) 로직 추가.
+
+## 4. Phase 4: Regression Testing & Deployment (검증 단계)
+- **Goal:** 기존에 잘 되던 추출 로직이 망가지지 않았는지(Regression) 확인 후 배포.
+- **Action:**
+  - `tests/regression/ai_regression_test.go` 를 실행하여 누적된 모든 테스트 케이스(성공/실패 사례 모두) 통과 여부 검증.
+  - 검증 완료 시 Docker 컨테이너 재빌드 및 Cloud Run / VPS 환경에 배포.

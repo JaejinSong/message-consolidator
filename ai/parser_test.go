@@ -6,6 +6,7 @@ import (
 )
 
 func TestParsePrompt(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		content  string
@@ -67,7 +68,9 @@ Body`,
 	}
 
 	for _, tt := range tests {
+		tt := tt // Closure capture
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := ParsePrompt(tt.content)
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
