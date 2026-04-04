@@ -57,7 +57,7 @@ func unmarshalAnalyze(cleanJSON, rawJSON string) ([]store.TodoItem, error) {
 					}
 				}
 			}
-			if item.Task != "" {
+			if item.Task != "" || strings.ToLower(item.State) == "none" {
 				items = append(items, item)
 			}
 		}
@@ -98,7 +98,7 @@ func unmarshalAnalyze(cleanJSON, rawJSON string) ([]store.TodoItem, error) {
 				Task:      ai.Analysis.ActionItem,
 				Category:  strings.ToLower(ai.Analysis.Category),
 				Requester: ai.User,
-				Assignee:  "me", // Analysis-style often implies the session user.
+				Assignee:  "__CURRENT_USER__", // Analysis-style often implies the session user.
 				State:     "new",
 			})
 		}

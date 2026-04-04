@@ -20,6 +20,8 @@
 .u-align-self-center { align-self: center; }
 .u-w-auto { width: auto !important; }
 .u-gap-2 { gap: 0.5rem; }
+.u-w-full { width: 100% !important; }
+.u-h-full { height: 100% !important; }
 .u-hidden, .hidden { display: none !important; }
 .u-invisible { visibility: hidden !important; }
 

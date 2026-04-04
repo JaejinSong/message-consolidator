@@ -29,6 +29,10 @@ func (m *MockStore) GetIncompleteByThreadID(ctx context.Context, email, threadID
 	return m.Tasks, nil
 }
 
+func (m *MockStore) GetActiveContextTasks(ctx context.Context, email, source, room string) ([]store.ConsolidatedMessage, error) {
+	return m.Tasks, nil
+}
+
 func (m *MockStore) MarkMessageDone(email string, id int, isDone bool) error {
 	m.CapturedIDs = append(m.CapturedIDs, id)
 	return nil

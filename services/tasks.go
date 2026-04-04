@@ -24,8 +24,8 @@ var (
 	//Why: Defines keywords returned by the AI for unspecific or group tasks to support standardized unassignment logic.
 	genericOtherAssignees = map[string]bool{"기타 업무": true, "기타업무": true, "other tasks": true, "미지정": true}
 
-	//Why: Defines keywords used by the AI to classify a task as belonging to the current user, enabling uniform "me" mapping.
-	genericMeAssignees = map[string]bool{"내 업무": true, "내업무": true, "my tasks": true, "mytasks": true, "나": true, "me": true}
+	//Why: Defines keywords used by the AI to classify a task as belonging to the current user, enabling uniform "__CURRENT_USER__" mapping.
+	genericMeAssignees = map[string]bool{"내 업무": true, "내업무": true, "my tasks": true, "mytasks": true, "나": true, "me": true, "__current_user__": true}
 )
 
 // TasksService handles task-related operations including formatting, completion, and batch translation.
@@ -67,7 +67,7 @@ func (s *TasksService) FormatMessagesForClient(email string, msgs []store.Consol
 		}
 
 		userName := strings.TrimSpace(user.Name)
-		isMe := strings.EqualFold(assignee, userName) || strings.EqualFold(assignee, "me")
+		isMe := strings.EqualFold(assignee, userName) || strings.EqualFold(assignee, "me") || strings.EqualFold(assignee, "__current_user__")
 
 		if isMe {
 			msgs[i].Assignee = "me"

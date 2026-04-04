@@ -342,7 +342,10 @@ const initNavigation = () => {
             archive.onShow();
         } else if (view === 'insights') {
             insightsSection?.classList.remove('hidden');
-            insights.onShow();
+            // Allow browser to perform layout before initializing charts
+            requestAnimationFrame(() => {
+                insights.onShow();
+            });
         } else {
             dashboardContent?.classList.remove('hidden');
             dashboardHeader?.classList.remove('hidden');

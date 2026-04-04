@@ -76,6 +76,11 @@ export const insights = {
         this.bindReportEvents();
         this.initDatePickers();
 
+        // Global Resize Handling
+        window.addEventListener('resize', () => {
+            insightsRenderer.resizeAll();
+        });
+
         // Theme Change Handling
         events.on(EVENTS.THEME_CHANGED, () => {
             if (this.isTabActive('insightsStatsTab') && this.lastStats) {

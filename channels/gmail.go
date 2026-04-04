@@ -30,7 +30,7 @@ const (
 )
 
 var genericMeAssignees = map[string]bool{
-	"me": true, "나": true, "담당자": true, //Why: Maps common self-referential terms across languages to the current user for consistent task assignment.
+	"me": true, "나": true, "담당자": true, "__current_user__": true, //Why: Maps common self-referential terms across languages to the current user for consistent task assignment.
 }
 
 var GmailOauthConfig *oauth2.Config

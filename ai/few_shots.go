@@ -1,0 +1,20 @@
+package ai
+
+// GetDefaultFewShots는 모든 분석기에서 공통으로 사용할 수 있는 기본 예시 풀을 반환합니다.
+// Why: [Token Economy] 프롬프트에 하드코딩된 예시를 제거하고, 필요할 때만 동적으로 선택하여 주입함으로써 토큰 절감 및 응답 속도를 개선합니다.
+func GetDefaultFewShots() []FewShot {
+	return []FewShot{
+		{
+			Input:    "[2026-03-26 10:00:00] Alice: @Bob please update the API documentation by this Friday.\n[2026-03-26 10:05:00] Bob: I'll do that. I will have it ready.",
+			Expected: `[{"id": 1, "state": "new", "task": "Update the API documentation", "requester": "Alice", "assignee": "Bob", "assignee_reason": "Bob explicitly agreed to the request", "deadline": "this Friday", "category": "PROMISE", "source_ts": "2026-03-26 10:05:00"}]`,
+		},
+		{
+			Input:    "[ID:p1] Manager: Can you finish the blog post within this week?\n[ID:p2] Jaejin: Yes, I will finish it by Friday.",
+			Expected: `[{"id": 1, "state": "new", "task": "Finish the blog post", "requester": "Manager", "assignee": "Jaejin", "assignee_reason": "Jaejin confirmed the task", "deadline": "Friday", "category": "PROMISE", "source_ts": "p2"}]`,
+		},
+		{
+			Input:    "[ID:Slack_1] User: Please deploy the app.\n[ID:Slack_2] Dev: I'm on it.",
+			Expected: `[{"id": 1, "state": "new", "task": "Deploy the app", "requester": "User", "assignee": "Dev", "assignee_reason": "Dev accepted the deployment task", "category": "PROMISE", "source_ts": "Slack_2"}]`,
+		},
+	}
+}

@@ -16,6 +16,17 @@ func NormalizeName(tenantEmail, name string) string {
 
 	nameLower := strings.ToLower(strings.TrimSpace(name))
 
+	// Phase 0: Resolve "__CURRENT_USER__" to the user's name/email from cache
+	if nameLower == "me" || nameLower == "__current_user__" {
+		if u, ok := userCache[strings.ToLower(tenantEmail)]; ok {
+			if strings.TrimSpace(u.Name) != "" {
+				return u.Name
+			}
+			return u.Email
+		}
+		return tenantEmail
+	}
+
 	// Phase 1: SSOT Contact mapping
 	if mappings, ok := contactsCache[tenantEmail]; ok {
 		var matches []ContactRecord

@@ -36,7 +36,7 @@ GROUP BY source;
 
 -- name: GetSourceDistributionTotal :many
 SELECT source, COUNT(*) FROM v_messages 
-WHERE user_email = ?
+WHERE user_email = ? AND IFNULL(task, '') != ''
 GROUP BY source;
 
 -- name: GetCompletionHistory :many

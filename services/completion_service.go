@@ -13,6 +13,7 @@ type AICompleter interface {
 
 type TaskStore interface {
 	GetIncompleteByThreadID(ctx context.Context, email, threadID string) ([]store.ConsolidatedMessage, error)
+	GetActiveContextTasks(ctx context.Context, email, source, room string) ([]store.ConsolidatedMessage, error)
 	MarkMessageDone(email string, id int, done bool) error
 	UpdateMessageCategory(email string, id int, category string) error
 	HandleTaskState(email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error)
@@ -22,6 +23,10 @@ type DefaultTaskStore struct{}
 
 func (d *DefaultTaskStore) GetIncompleteByThreadID(ctx context.Context, email, threadID string) ([]store.ConsolidatedMessage, error) {
 	return store.GetIncompleteByThreadID(ctx, email, threadID)
+}
+
+func (d *DefaultTaskStore) GetActiveContextTasks(ctx context.Context, email, source, room string) ([]store.ConsolidatedMessage, error) {
+	return store.GetActiveContextTasks(ctx, email, source, room)
 }
 
 func (d *DefaultTaskStore) MarkMessageDone(email string, id int, done bool) error {
@@ -51,10 +56,26 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		return
 	}
 
-	tasks, err := s.store.GetIncompleteByThreadID(ctx, msg.UserEmail, msg.ThreadID)
-	if err != nil || len(tasks) == 0 {
-		return
+	// Why: Fetches both thread-specific and room-wide pending tasks to provide full context for AI state determination.
+	threadTasks, _ := s.store.GetIncompleteByThreadID(ctx, msg.UserEmail, msg.ThreadID)
+	roomTasks, _ := s.store.GetActiveContextTasks(ctx, msg.UserEmail, msg.Source, msg.Room)
+
+	// Merge tasks, avoiding duplicates (prioritizing thread relevance)
+	taskMap := make(map[int]store.ConsolidatedMessage)
+	for _, t := range roomTasks {
+		taskMap[t.ID] = t
 	}
+	for _, t := range threadTasks {
+		taskMap[t.ID] = t
+	}
+
+	var tasks []store.ConsolidatedMessage
+	for _, t := range taskMap {
+		tasks = append(tasks, t)
+	}
+
+	// Why: If no active tasks exist, we still proceed to AI analysis to allow for NEW task extraction
+	// from conversational context. 'allTasks' will just be empty.
 
 	s.releaseWaitingStatus(msg.UserEmail, tasks)
 
@@ -75,6 +96,14 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 	}
 
 	for _, res := range results {
+		// Why: Handle 'new' tasks which don't have an ID yet.
+		if res.State == "new" {
+			if _, err := s.store.HandleTaskState(msg.UserEmail, res, msg); err != nil {
+				logger.Errorf("[COMPLETION] Failed to handle new task: %v", err)
+			}
+			continue
+		}
+
 		if res.ID == nil || *res.ID == 0 {
 			continue
 		}

@@ -8,10 +8,10 @@ model: gemini-3-flash-preview
 - **Force JSON Output**: You must respond ONLY in the JSON array format specified below. Do not include any other text.
 - **Schema Definition**: `[{"id": integer, "state": "new|update|resolve|cancel", "task": "string", "requester": "string", "assignee": "string", "assigned_at": "string", "source_ts": "string", "deadline": "string", "category": "TASK|POLICY|QUERY|PROMISE|WAITING", "affinity_score": integer, "affinity_group_id": "string", "assignee_reason": "string"}]`
 - **Field Details**:
-   - `assignee`: Use specific names if mentioned. If a person says "I", "Saya", "Yes", "OK", or linguistic markers (like Korean "ㅇㅇ", "네", "제가") in response to a request, use "me" as assignee. Default to "me" for the AI user. 
+   - `assignee`: MUST be inferred from context using these priorities: 1. Explicit mention (e.g., "@Bob" -> "Bob"). 2. If category is 'PROMISE', use the Sender's name. 3. If it's a general request or implies the system owner, output EXACTLY "__CURRENT_USER__". Do NOT output null.
    - `deadline`: Translate standalone day names to English (e.g., "Monday", "Tuesday"). Preserve verbatim other relative dates (e.g., "this Friday", "this week"). Do NOT convert to ISO.
    - `task`: Summarize the core action in **English ONLY**, regardless of input language. Focus on ACTION commitments. If a reply follows a request, the REPLY's content is the task.
-   - `source_ts`: Extract the value from `[ID:...]`. If it's a Slack timestamp starting with 'p' (e.g., [ID:p123.456]), use "123.456". For simple placeholders like [ID:p1], KEEP the 'p' (e.g., "p1").
+   - `source_ts`: Handle IDs as "Opaque Strings". Extract the exact literal value (e.g. [ID:p123] -> p123) without any truncation or formatting.
    - `affinity_score`: 0-100 rating of how closely this task relates to others in the same message.
    - `affinity_group_id`: A short descriptive slug (e.g., "thailand-trip") ONLY if affinity_score >= 80.
    - **Consolidation**: If multiple tasks from the same message have affinity_score >= 90 and share the group_id, consolidate them into ONE entry using " | " as a separator.

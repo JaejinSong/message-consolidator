@@ -2,16 +2,16 @@
   {
     "task": "Check server status",
     "requester": "SlackUser",
-    "assignee": "me",
+    "assignee": "__CURRENT_USER__",
     "assigned_at": "",
-    "source_ts": "1711444444.000123",
+    "source_ts": "p1711444444.000123",
     "deadline": "",
     "category": "TASK"
   },
   {
     "task": "Verify invoice issuance request",
     "requester": "GmailUser",
-    "assignee": "me",
+    "assignee": "__CURRENT_USER__",
     "assigned_at": "",
     "source_ts": "18e7e1f2a3b4c5d6",
     "deadline": "",
@@ -20,7 +20,7 @@
   {
     "task": "Update the new hire onboarding guide",
     "requester": "WhatsAppUser",
-    "assignee": "me",
+    "assignee": "__CURRENT_USER__",
     "assigned_at": "",
     "source_ts": "WA_20240327_0001",
     "deadline": "",

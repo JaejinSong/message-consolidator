@@ -24,24 +24,47 @@ You MUST respond ONLY with a valid JSON object matching this schema:
   "affinity_group_id": ""
 }
 
-# Status Rules:
-- **Tier 1 (Intra-channel)**: Incoming messages usually originate from the same Chat Room or Thread as existing tasks. Treat the `original_text` of 'Pending' tasks as the primary context for understanding the current mission. If the content is a follow-up, set action to 'update'.
-- **Tier 2 (Cross-channel)**: If the incoming message has a different `SourceChannel` but the SAME `SenderID` and the 'Action Item' is semantically identical, set action to 'update' to merge with the existing task.
-- If 'affinity_score' >= 80 even across channels, prioritize 'update' over 'new'.
-- If the message is a "Check status" or "Gentle reminder" for an existing task, set action to 'update' to record the nudge.
-- If sender provides completion but includes `@Name` for follow-up review, status MUST be 'update' and name extracted to 'assigned_to'.
-- Simple `@` symbols in email addresses or non-mention contexts do NOT trigger delegation; follow standard 'resolve' logic.
+# Decision Logic (Deterministic):
+1. **DETERMINE action & target_task_id**:
+   IF message_content IS ("done", "resolved", "addressed", "finished") OR includes completion signals:
+      SET action = "resolve"
+      SET target_task_id = matched_task_id
+   ELSE IF message_content IS ("check status", "gentle reminder", "any progress?") OR includes nudge signals:
+      SET action = "update"
+      SET target_task_id = matched_task_id
+   ELSE IF message_content SEMANTICALLY_MATCHES existing_task WITH affinity_score >= 80:
+      IF message_channel == task_channel OR message_sender == task_sender:
+         SET action = "update"
+         SET target_task_id = matched_task_id
+      ELSE:
+         SET action = "new"  // Cross-channel but different sender
+   ELSE IF message_content CONTAINS "cancel", "ignore", "not needed":
+      SET action = "cancel"
+      SET target_task_id = matched_task_id
+   ELSE:
+      SET action = "new"
+      SET target_task_id = null
 
-# Strict Constraints:
-- NEVER infer or include 'priority' in your evaluation.
-- Only focus on task status (action) and the task description (content). 
-- **Summarize 'new_content' in English ONLY**, even if the input message is in another language.
-- If 'action' is 'update', 'new_content' should focus on the **added information or change** compared to the original task.
-- If 'action' is 'new' or 'ignore', 'target_task_id' must be null.
-- If 'action' is 'resolve', 'new_content' should be a summary of resolution in English.
-- "affinity_score": 0-100 rating of how closely this result relates to other tasks from the same message.
-- "affinity_group_id": Non-empty short ID only if affinity_score >= 80. Otherwise "".
-- Respond with JSON only. No markdown formatting.
+2. **DETERMINE assigned_to**:
+   IF message_content CONTAINS "@Name":
+      SET assigned_to = "Name" (Extracted)
+   ELSE IF action == "new" AND message_category == "PROMISE":
+      SET assigned_to = message_sender
+   ELSE:
+      SET assigned_to = "__CURRENT_USER__"
+
+3. **REFINE new_content (English Only)**:
+   IF action == "update":
+      SET new_content = summary_of_added_info(message_content)
+   ELSE IF action == "resolve":
+      SET new_content = summary_of_resolution(message_content)
+   ELSE:
+      SET new_content = summary_of_task(message_content)
+
+4. **FINAL CONSTRAINTS**:
+   - NEVER include 'priority'.
+   - affinity_group_id = (affinity_score >= 80 ? "short_unique_id" : "")
+   - OUTPUT ONLY JSON. No Markdown.
 
 [Examples]
 {{range .FewShots}}

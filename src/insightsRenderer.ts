@@ -12,6 +12,9 @@ import { marked } from 'marked';
 import { generateHeatmapData } from './logic.ts';
 
 const chartInstances = new Map<string, echarts.ECharts>();
+const getCssVariableValue = (varName: string): string => {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+};
 
 export const insightsRenderer = {
     getI18n() {
@@ -21,6 +24,58 @@ export const insightsRenderer = {
 
     resizeAll() {
         chartInstances.forEach(chart => chart.resize());
+    },
+
+    /**
+     * Safely initializes or updates an ECharts instance.
+     * Prevents "Can't get DOM width or height" by checking clientWidth/Height.
+     */
+    initChartSafely(container: HTMLElement, key: string, option: echarts.EChartsOption): void {
+        const checkSize = () => {
+            const rect = container.getBoundingClientRect();
+            return rect.width > 10 && rect.height > 10; // Allow a small buffer
+        };
+        
+        const doInit = () => {
+            if (chartInstances.has(key)) {
+                chartInstances.get(key)?.dispose();
+            }
+            try {
+                const chart = echarts.init(container);
+                chart.setOption(option);
+                chartInstances.set(key, chart);
+                console.log(`[Insights] Chart '${key}' initialized successfully (${container.clientWidth}x${container.clientHeight})`);
+            } catch (err) {
+                console.error(`[Insights] Failed to initialize chart '${key}':`, err);
+            }
+        };
+
+        if (checkSize()) {
+            doInit();
+        } else {
+            console.warn(`[Insights] Chart container '${key}' has 0 size. Waiting for visibility/layout...`);
+            
+            // Wait for next frame(s) to ensure layout is calculated
+            const observer = new ResizeObserver(() => {
+                if (checkSize()) {
+                    requestAnimationFrame(() => {
+                        if (checkSize() && !chartInstances.has(key)) {
+                            doInit();
+                            observer.disconnect();
+                        }
+                    });
+                }
+            });
+            observer.observe(container);
+            
+            // Final fallback: check again after a short delay
+            setTimeout(() => {
+                if (!chartInstances.has(key) && checkSize()) {
+                    doInit();
+                    observer.disconnect();
+                }
+            }, 1000);
+        }
     },
 
     /**
@@ -126,24 +181,82 @@ export const insightsRenderer = {
     },
 
     /**
-     * Updates channel distribution slot.
+     * Updates channel distribution slot with a Pie Chart.
      * Target: #sourceDistribution
      */
     renderChannelDistribution(stats: any): void {
         const container = document.getElementById('sourceDistribution');
         if (!container) return;
-        container.innerHTML = '';
-        const dist = stats.source_distribution || {};
-        const total = Object.values(dist).reduce((a: any, b: any) => (a as number) + (b as number), 0) as number;
         
-        let html = '<div class="u-w-full"><div class="c-stacked-bar u-mt-4">';
-        Object.entries(dist).forEach(([k, v]: [string, any]) => {
-            const pct = Math.round(total > 0 ? (v / total) * 100 : 0);
-            html += `<div class="c-stacked-bar__segment" style="width:${pct}%; background: var(--accent-light);" title="${k}: ${pct}%"></div>`;
+        // Use total distribution (including archive) if available, fallback to active only
+        const dist = stats.source_distribution_total || stats.source_distribution || {};
+        console.log('[Insights] Total Channel Distribution Data:', dist);
+
+        const chartData = Object.entries(dist).map(([name, value]) => ({ 
+            name: name.charAt(0).toUpperCase() + name.slice(1), 
+            value: Number(value)
+        }));
+
+        if (chartData.length === 0) {
+            container.innerHTML = '<div class="u-text-dim u-p-4">No data available</div>';
+            return;
+        }
+
+        // Prepare container for ECharts
+        container.innerHTML = `
+            <div id="sourceDistributionChart" class="u-w-full" style="height: 11.25rem; margin-top: var(--spacing-lg); min-width: 6.25rem;"></div>
+            <span class="stat-card__label">소스별 비중</span>
+        `;
+
+        const chartNode = document.getElementById('sourceDistributionChart');
+        if (!chartNode) return;
+
+        // Ensure DOM has settled before initializing
+        requestAnimationFrame(() => {
+            this.initChartSafely(chartNode, 'sourceDistribution', {
+            backgroundColor: 'transparent',
+            tooltip: {
+                trigger: 'item',
+                formatter: '{b}: {c} ({d}%)'
+            },
+            series: [
+                {
+                    name: 'Source',
+                    type: 'pie',
+                    radius: ['45%', '75%'], // Donut style
+                    avoidLabelOverlap: false,
+                    itemStyle: {
+                        borderRadius: 6,
+                        borderColor: 'transparent',
+                        borderWidth: 2
+                    },
+                    label: {
+                        show: false,
+                        position: 'center'
+                    },
+                    emphasis: {
+                        label: {
+                            show: true,
+                            fontSize: '14',
+                            fontWeight: 'bold',
+                            formatter: '{b}'
+                        }
+                    },
+                    labelLine: {
+                        show: false
+                    },
+                    data: chartData,
+                    color: [
+                        getCssVariableValue('--color-blue-info'),
+                        getCssVariableValue('--color-whatsapp'),
+                        getCssVariableValue('--color-gmail'),
+                        getCssVariableValue('--color-warning'),
+                        getCssVariableValue('--color-purple')
+                    ]
+                }
+            ]
         });
-        html += '</div></div>';
-        html += '<span class="stat-card__label u-mt-4">소스별 비중</span>';
-        container.innerHTML = html;
+        });
     },
 
     /**
@@ -242,8 +355,9 @@ export const insightsRenderer = {
         const detail = Object.entries(counts).map(([k, v]) => `${k}:${v}`).join(', ');
         
         t.innerHTML = `<strong>${cell.dataset.date}</strong><br/>Total: ${cell.dataset.count}<br/><small>${detail}</small>`;
-        t.style.left = `${e.pageX + 15}px`;
-        t.style.top = `${e.pageY + 15}px`;
+        const offsetVal = 15;
+        t.style.left = (e.pageX + offsetVal) + 'px';
+        t.style.top = (e.pageY + offsetVal) + 'px';
         t.classList.add('c-insights-tooltip--active');
     },
 
@@ -252,12 +366,8 @@ export const insightsRenderer = {
         if (!container || !stats.completion_history) return;
         container.innerHTML = '';
         
-        if (chartInstances.has('anki')) chartInstances.get('anki')?.dispose();
-        const chart = echarts.init(container);
-        chartInstances.set('anki', chart);
-
         const data = (stats.completion_history || []).slice(-days);
-        chart.setOption({
+        this.initChartSafely(container, 'anki', {
             backgroundColor: 'transparent',
             xAxis: { type: 'category', data: data.map((d: any) => d.date) },
             yAxis: { type: 'value' },
@@ -308,11 +418,8 @@ export const insightsRenderer = {
     },
 
     renderNetworkGraph(container: HTMLElement, data: any): void {
-        if (chartInstances.has('network')) chartInstances.get('network')?.dispose();
-        const chart = echarts.init(container);
-        chartInstances.set('network', chart);
         const nodes = (data.nodes || []).map((n: IReportNode) => ({ ...n, name: n.name || n.id }));
-        chart.setOption({
+        this.initChartSafely(container, 'network', {
             backgroundColor: 'transparent',
             series: [{ 
                 type: 'graph', layout: 'force', data: nodes, 
@@ -324,17 +431,14 @@ export const insightsRenderer = {
     },
 
     renderSankeyChart(container: HTMLElement, data: any): void {
-        if (chartInstances.has('sankey')) chartInstances.get('sankey')?.dispose();
-        const chart = echarts.init(container);
-        chartInstances.set('sankey', chart);
         const nodes = (data.nodes || []).map((n: IReportNode) => ({
             id: n.id, name: n.id, alias: n.name,
             itemStyle: { color: n.is_me ? 'var(--color-error)' : 'var(--accent-color)' }
         }));
-        chart.setOption({
+        this.initChartSafely(container, 'sankey', {
             backgroundColor: 'transparent',
             series: [{ 
-                type: 'sankey', layout: 'none', data: nodes, 
+                type: 'sankey', data: nodes, 
                 links: this.mergeSankeyLinks(data.links || []),
                 lineStyle: { color: 'gradient', curveness: 0.5 }
             }]

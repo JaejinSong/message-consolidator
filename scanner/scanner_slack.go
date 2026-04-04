@@ -511,7 +511,7 @@ func mapSlackItemToMessage(item store.TodoItem, m types.RawMessage, user *store.
 //Why: Isolates the specific heuristic logic for deciding when an assignee should be defaulted to the current user.
 func normalizeSlackAssignee(assignee string, user *store.User) string {
 	lowerAsg := strings.ToLower(assignee)
-	if lowerAsg == "" || lowerAsg == "me" || lowerAsg == "나" || strings.EqualFold(assignee, user.Name) {
+	if lowerAsg == "" || lowerAsg == "me" || lowerAsg == "__current_user__" || lowerAsg == "나" || strings.EqualFold(assignee, user.Name) {
 		if user.Name != "" {
 			return user.Name
 		}

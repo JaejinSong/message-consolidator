@@ -161,6 +161,10 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email string, msg
 	analyzer := getAnalyzer(source)
 	modelName := g.getAnalyzeModelName(analyzer)
 	existingTasksJSON := g.marshalTasksForAI(tasks)
+	userName, _ := store.GetUserName(email)
+	if userName == "" {
+		userName = email
+	}
 
 	// Why: [Contextual Extraction] Consolidates prompt data into a unified ExtractionContext for template rendering.
 	data := ExtractionContext{
@@ -169,6 +173,7 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email string, msg
 		Locale:              lang,
 		ExistingTasksJSON:   existingTasksJSON,
 		EnrichedMessageJSON: g.marshalEnrichedMessage(msg),
+		CurrentUser:        userName,
 	}
 	if analyzer != nil {
 		data.MessagePayload = analyzer.PreProcess(data.MessagePayload)
@@ -398,6 +403,7 @@ func (g *GeminiClient) parseAnalyzeResults(resp *genai.GenerateContentResponse) 
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("[DEBUG-GEMINI] RAW: %s\n", raw)
 	clean := sanitizeJSON(raw)
 	if clean == "" || clean == "[]" {
 		return nil, nil
@@ -406,7 +412,21 @@ func (g *GeminiClient) parseAnalyzeResults(resp *genai.GenerateContentResponse) 
 	if err != nil {
 		return nil, err
 	}
-	return store.ConsolidateTasks(items), nil
+
+	// Why: Filters out 'none' state results which are informational/placeholder items from the AI context-ware extraction.
+	// This ensures that only actionable tasks are returned, maintaining compatibility with pure extraction tests.
+	var filtered []store.TodoItem
+	for _, item := range items {
+		if strings.ToLower(item.State) != "none" {
+			filtered = append(filtered, item)
+		}
+	}
+
+	if len(filtered) == 0 {
+		return nil, nil
+	}
+
+	return store.ConsolidateTasks(filtered), nil
 }
 
 func (g *GeminiClient) callGenericAPI(ctx context.Context, modelName, prompt string) (string, error) {

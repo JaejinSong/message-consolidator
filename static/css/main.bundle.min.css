@@ -62,6 +62,8 @@
     --color-whatsapp-rgb: 37, 211, 102;
     --color-gmail: #EA4335;
     --color-gmail-rgb: 234, 67, 53;
+    --color-purple: #A29BFE;
+    --color-blue-info: #4A90E2;
 
     /* Breakpoint Tokens */
     --bp-mobile: 30rem;
@@ -1881,12 +1883,13 @@ body.light-theme .c-badge--count {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    align-items: center;
+    align-items: stretch;
     position: relative;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     min-width: 0;
     min-height: 0;
     text-align: center;
+    gap: 0.25rem;
 }
 
 .c-insights-card--square {
@@ -1900,14 +1903,6 @@ body.light-theme .c-badge--count {
 }
 
 /* Stat Card Label & Internal Alignment */
-
-.c-insights-card {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 0.25rem;
-}
 
 
 

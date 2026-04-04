@@ -75,13 +75,14 @@ describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
         expect(list.innerHTML).toContain('Achievement 1');
     });
 
-    it('should render source distribution bar correctly', () => {
+    it('should render source distribution chart container and labels correctly', () => {
         const stats = { source_distribution: { slack: 70, whatsapp: 30 } };
         insightsRenderer.renderChannelDistribution(stats);
 
         const container = document.getElementById('sourceDistribution');
-        const bars = container.querySelectorAll('.c-stacked-bar__segment');
-        expect(bars.length).toBe(2);
-        expect(container.innerHTML).toContain('width:70%');
+        const chartNode = document.getElementById('sourceDistributionChart');
+        
+        expect(chartNode).not.toBeNull();
+        expect(container.innerHTML).toContain('소스별 비중');
     });
 });

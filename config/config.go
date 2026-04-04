@@ -31,9 +31,15 @@ type Config struct {
 
 func LoadConfig() *Config {
 	//Why: Attempts to load environment variables from a local .env file, while allowing a silent fallback to system environment variables for production environments like Cloud Run.
-	err := godotenv.Load()
-	if err != nil {
-		logger.Infof("No .env file found, using system environment variables")
+	_ = godotenv.Load(".env")
+
+	//Why: Loads local overrides from .env.local if present, ensuring local development settings take precedence over shared .env settings.
+	if _, err := os.Stat(".env.local"); err == nil {
+		if err := godotenv.Overload(".env.local"); err != nil {
+			logger.Warnf("Failed to load .env.local: %v", err)
+		} else {
+			logger.Infof("Loaded local overrides from .env.local")
+		}
 	}
 
 	logLevel := os.Getenv("LOG_LEVEL")

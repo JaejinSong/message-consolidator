@@ -12,6 +12,7 @@ import (
 
 	"message-consolidator/ai"
 	"message-consolidator/internal/testutil"
+	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
 
@@ -43,6 +44,7 @@ func TestAnalyze_Regression(t *testing.T) {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
 	defer cleanup()
+	logger.InitAIInferenceLogger()
 
 	godotenv.Load("../../.env", ".env", "../.env")
 	client, err := setupGeminiClient()
@@ -143,7 +145,7 @@ func verifyItem(t *testing.T, index int, exp, act store.TodoItem) {
 func normalizeAssignee(exp, act *store.TodoItem) {
 	isMe := func(s string) bool {
 		s = strings.ToLower(s)
-		return s == "me" || s == "test.user@example.com" ||
+		return s == "me" || s == "__current_user__" || s == "test.user@example.com" ||
 			strings.Contains(s, "bob") || strings.Contains(s, "alice") ||
 			strings.Contains(s, "hady") || strings.Contains(s, "jaejin")
 	}
