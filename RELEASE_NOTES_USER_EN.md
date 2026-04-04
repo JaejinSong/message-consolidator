@@ -1,3 +1,11 @@
+# Release Notes - v2.4.16 (2026-04-04 12:36 UTC)
+
+- 🧩 **Smart Merging**: Scattered tasks are now intelligently consolidated with clear source tracking!
+- 🏷️ **At-a-Glance Status**: New sleek UI badges show exactly where your tasks come from and if they're translated.
+- 🧠 **Invisible AI Logging**: High-performance background logging for AI insights without slowing you down.
+
+---
+
 # Release Notes - v2.4.15 (2026-04-03 09:18 UTC)
 
 - 🧠 **Smarter AI Integration**: Optimized Gemini API usage for a snappier, more efficient response experience.

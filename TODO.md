@@ -1,5 +1,11 @@
 # Message Consolidator - TODO & TECH DEBT
 
+## 완료 사항 (Completed) - v2.4.16 (2026-04-04 12:36 UTC)
+
+### [Feature] 보관함 '병합한 업무(Merged Tasks)' 탭 및 필터링 시스템
+- **내용**: 태스크 병합 기능의 완성도를 높이기 위해 보관함 내 전용 탭을 추가하고, `status=merged` 파라미터를 통한 백엔드 SQL 필터링 로직 구현.
+- **성과**: 병합된 태스크들을 별도로 관리하고 추적할 수 있는 직관적인 UI/UX를 제공하며, 프론트엔드 아카이브 로직을 TypeScript로 전면 전환하여 시스템 안정성 확보.
+
 ## 완료 사항 (Completed) - v2.4.15 (2026-04-03 09:18 UTC)
 
 ### [Feature] AI 인퍼런스 비동기 로깅 시스템 (DB + File)
