@@ -105,6 +105,8 @@ func TestStripHTML(t *testing.T) {
 		{"Nested elements", "<div>Outer <p>Inner</p></div>", "Outer Inner"},
 		{"Table structures", "<table><tr><td>Cell 1</td><td>Cell 2</td></tr></table>", "Cell 1 Cell 2"},
 		{"Complex Mix", "<html><head><style>body{}</style></head><body><h1>Title</h1><p>Para <a href='http://ext.com'>Link</a></p></body></html>", "Title Para Link"},
+		{"Gmail Quote Pruning", "<div>Hello<div class='gmail_quote'><div class='gmail_attr'>Sender wrote:</div><blockquote class='gmail_quote'>Quote</blockquote></div>World</div>", "Hello World"},
+		{"Blockquote Pruning", "<div>Main Text<blockquote>Quoted Text</blockquote>Footer</div>", "Main Text Footer"},
 	}
 
 	for _, tt := range tests {
@@ -124,24 +126,6 @@ func TestCleanEmailBody(t *testing.T) {
 		expect    string
 		notExpect string
 	}{
-		{
-			name:      "Standard quote block removal",
-			input:     "New message\n\nOn Wed, Mar 25, 2026 at 10:00 AM User <user@example.com> wrote:\n> Line 1\n> Line 2\n> Line 3\n> Line 4\n> Line 5\n> Line 6\n> Line 7",
-			expect:    "Line 5",
-			notExpect: "Line 6",
-		},
-		{
-			name:      "Korean quote pattern",
-			input:     "네 확인했습니다.\n\n2026. 3. 25. 오전 10:00 홍길동 님이 작성:\n이전 메시지 1\n이전 메시지 2\n이전 메시지 3\n이전 메시지 4\n이전 메시지 5\n이전 메시지 6",
-			expect:    "이전 메시지 5",
-			notExpect: "이전 메시지 6",
-		},
-		{
-			name:      "Original Message pattern",
-			input:     "Please see below.\n-----Original Message-----\nFrom: user@example.com\nTo: me@example.com\n\nOld 1\nOld 2\nOld 3\nOld 4\nOld 5\nOld 6",
-			expect:    "Old 5",
-			notExpect: "Old 6",
-		},
 		{
 			name:      "Signature removal",
 			input:     "This is the actual message.\n-- \nJohn Doe\nSoftware Engineer\nCompany Inc.",

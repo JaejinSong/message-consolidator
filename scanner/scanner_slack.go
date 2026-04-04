@@ -324,12 +324,16 @@ func processSingleSlackThread(ctx context.Context, sc *channels.SlackClient, t s
 			classification := classifyMessage(slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: t.ChannelID}}}, user, effectiveAliases, types.RawMessage{Sender: m.User, Text: m.Text})
 			if classification == "내 업무" || classification == "회신 대기" {
 				candidates = append(candidates, types.RawMessage{
-					ID:        m.Timestamp,
-					Sender:    sc.GetUserName(m.User),
-					Text:      m.Text,
-					Timestamp: parseSlackTimestamp(m.Timestamp),
-					ReplyToID: t.ThreadTS,
-					ChannelID: t.ChannelID,
+					ID:              m.Timestamp,
+					Sender:          sc.GetUserName(m.User),
+					Text:            m.Text,
+					Timestamp:       parseSlackTimestamp(m.Timestamp),
+					ReplyToID:       t.ThreadTS,
+					ChannelID:       t.ChannelID,
+					HasAttachment:   len(m.Files) > 0,
+					AttachmentNames: sc.ExtractFileNames(m.Files),
+					Reactions:       sc.ExtractReactions(m.Reactions),
+					IsPinned:        len(m.PinnedTo) > 0,
 				})
 			}
 		}
@@ -468,9 +472,35 @@ func buildSlackAnalysisPayload(candidates []types.RawMessage, sc *channels.Slack
 	for _, m := range candidates {
 		msgMap[m.ID] = m
 		resolvedText := resolveSlackMentions(m.Text, sc)
-		sb.WriteString(fmt.Sprintf("[ID:%s] %s: %s\n", m.ID, m.Sender, resolvedText))
+		metaStr := buildSlackMetadataString(m)
+		sb.WriteString(fmt.Sprintf("[ID:%s]%s %s: %s\n", m.ID, metaStr, m.Sender, resolvedText))
 	}
 	return sb.String(), msgMap
+}
+
+func buildSlackMetadataString(m types.RawMessage) string {
+	var tags []string
+	if m.IsPinned {
+		tags = append(tags, "Pinned")
+	}
+	if m.IsImportant {
+		tags = append(tags, "Important")
+	}
+	if m.IsForwarded {
+		tags = append(tags, "Forwarded")
+	}
+
+	var sb strings.Builder
+	if len(tags) > 0 {
+		sb.WriteString(fmt.Sprintf(" [Tags: %s]", strings.Join(tags, ", ")))
+	}
+	if len(m.Reactions) > 0 {
+		sb.WriteString(fmt.Sprintf(" [Reactions: %s]", strings.Join(m.Reactions, ", ")))
+	}
+	if len(m.AttachmentNames) > 0 {
+		sb.WriteString(fmt.Sprintf(" [Files: %s]", strings.Join(m.AttachmentNames, ", ")))
+	}
+	return sb.String()
 }
 
 //Why: Encapsulating the complex mapping and side-effects (thread registration) improves readability.

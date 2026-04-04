@@ -200,13 +200,25 @@ func processSingleEmail(svc *gmail.Service, email string, m *gmail.Message, skip
 	if cleanBody == "" {
 		return nil, "", "", ts, nil
 	}
+	isImportant := false
+	for _, lbl := range fullMsg.LabelIds {
+		if lbl == "IMPORTANT" || lbl == "STARRED" {
+			isImportant = true
+			break
+		}
+	}
+
+	attachmentNames := extractGmailAttachmentNames(fullMsg.Payload)
 
 	rawMsg := &types.RawMessage{
-		ID:        m.Id,
-		Sender:    senderEmail, // Use canonical email as sender ID
-		Text:      fmt.Sprintf("T: %s\nC: %s\nS: %s\nB:\n%s", toHeader, ccHeader, subject, cleanBody),
-		Timestamp: time.Unix(ts, 0),
-		ThreadID:  fullMsg.ThreadId,
+		ID:              m.Id,
+		Sender:          senderEmail, // Use canonical email as sender ID
+		Text:            fmt.Sprintf("T: %s\nC: %s\nS: %s\nB:\n%s", toHeader, ccHeader, subject, cleanBody),
+		Timestamp:       time.Unix(ts, 0),
+		ThreadID:        fullMsg.ThreadId,
+		IsImportant:     isImportant,
+		HasAttachment:   len(attachmentNames) > 0,
+		AttachmentNames: attachmentNames,
 	}
 	return rawMsg, classification, toHeader, ts, nil
 }
@@ -407,7 +419,8 @@ func buildGmailBatchPayload(email string, batchMsgs []types.RawMessage, classifi
 	msgMap := make(map[string]types.RawMessage)
 	for _, m := range batchMsgs {
 		msgMap[m.ID] = m
-		sb.WriteString(fmt.Sprintf("[ID:%s] F: %s\n%s\n---\n", m.ID, m.Sender, m.Text))
+		metaStr := buildGmailMetadataString(m)
+		sb.WriteString(fmt.Sprintf("[ID:%s]%s F: %s\n%s\n---\n", m.ID, metaStr, m.Sender, m.Text))
 
 		//Why: Analyzes thread activity (both sent and received) to determine if a previously identified task can be marked as completed or transitioned.
 		if onThreadActivity != nil && (classificationMap[m.ID] == CategorySent || classificationMap[m.ID] == CategoryMine || classificationMap[m.ID] == CategoryOthers) {
@@ -421,6 +434,37 @@ func buildGmailBatchPayload(email string, batchMsgs []types.RawMessage, classifi
 		}
 	}
 	return sb.String(), msgMap
+}
+
+func buildGmailMetadataString(m types.RawMessage) string {
+	var tags []string
+	if m.IsImportant {
+		tags = append(tags, "Important")
+	}
+	if m.HasAttachment {
+		tags = append(tags, "Has-Attachments")
+	}
+
+	var sb strings.Builder
+	if len(tags) > 0 {
+		sb.WriteString(fmt.Sprintf(" [Tags: %s]", strings.Join(tags, ", ")))
+	}
+	if len(m.AttachmentNames) > 0 {
+		sb.WriteString(fmt.Sprintf(" [Files: %s]", strings.Join(m.AttachmentNames, ", ")))
+	}
+	return sb.String()
+}
+
+func extractGmailAttachmentNames(payload *gmail.MessagePart) []string {
+	var names []string
+	if payload == nil { return names }
+	if payload.Filename != "" {
+		names = append(names, payload.Filename)
+	}
+	for _, part := range payload.Parts {
+		names = append(names, extractGmailAttachmentNames(part)...)
+	}
+	return names
 }
 
 // Why: Encapsulates the retry mechanism for Gemini API calls to keep the control flow clean.
@@ -560,9 +604,7 @@ func extractBody(payload *gmail.MessagePart) string {
 
 var (
 	reWhitespace  = regexp.MustCompile(`\s+`)
-	reQuoteStart  = regexp.MustCompile(`(?i)^(on\s+.*\swrote:\s*$|.*님이\s*작성:\s*$|-----\s*original message\s*-----|-----\s*원본 메시지\s*-----|_{10,}|>)`)
 	reSignature   = regexp.MustCompile(`(?m)^--\s*$`) //Why: Identifies standard MIME signature delimiters to truncate noise at the end of emails.
-	reEmailHeader = regexp.MustCompile(`(?i)^(from|to|cc|bcc|subject|date|sent):\s`) //Why: Detects embedded headers in reply chains to accurately split original content from quoted history.
 )
 
 func stripHTML(raw string) string {
@@ -576,8 +618,21 @@ func stripHTML(raw string) string {
 	var f func(*html.Node)
 	f = func(n *html.Node) {
 		// Why: Explicitly excludes script and style nodes and their entire subtrees to prevent their configuration or logic content from leaking into the extracted text.
-		if n.Type == html.ElementNode && (n.Data == "script" || n.Data == "style") {
-			return
+		if n.Type == html.ElementNode {
+			if n.Data == "script" || n.Data == "style" {
+				return
+			}
+			// Why: Prunes Gmail reply quotes and blockquotes at the DOM level. This is 100% accurate unlike regex which often fails with nested history.
+			if n.Data == "blockquote" {
+				buf.WriteString(" ")
+				return
+			}
+			for _, attr := range n.Attr {
+				if attr.Key == "class" && (strings.Contains(attr.Val, "gmail_quote") || strings.Contains(attr.Val, "gmail_attr")) {
+					buf.WriteString(" ")
+					return
+				}
+			}
 		}
 		// Why: Skips comment nodes to further reduce noise in the extracted content.
 		if n.Type == html.CommentNode {
@@ -592,7 +647,7 @@ func stripHTML(raw string) string {
 			f(c)
 		}
 
-		// Why: Injects a space after block-level elements to prevent words from being merged together when multiple paragraphs or table cells are flattened into a single text stream.
+		// Why: Injects a space after block-level elements to prevent words from being merged together.
 		if n.Type == html.ElementNode {
 			switch n.Data {
 			case "p", "div", "br", "tr", "td", "li", "h1", "h2", "h3", "h4", "h5", "h6":
@@ -617,41 +672,9 @@ func decodeBase64URL(data string) string {
 	return decoded
 }
 
-//Why: cleanEmailBody strips signatures and keeps only the top portion of quoted replies to maintain context while keeping prompt sizes manageable.
+//Why: cleanEmailBody strips signatures and ensures the body remains within AI token limits. Quote removal is now handled by stripHTML.
 func cleanEmailBody(body string) string {
-	lines := strings.Split(body, "\n")
-	var cleaned []string
-	isQuoted := false
-	quotedLines := 0
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		//Why: Identifies the start of reply threads to isolate the newest content while preserving minimal context for the AI.
-		if !isQuoted && reQuoteStart.MatchString(trimmed) {
-			isQuoted = true
-			//Why: Retains the quotation header while excluding it from the line limit to give the AI context about who the user is replying to.
-			cleaned = append(cleaned, line)
-			continue
-		}
-
-		if isQuoted {
-			//Why: Filters out repetitive header information within quote blocks to focus analysis on the actual message content.
-			if reEmailHeader.MatchString(trimmed) || trimmed == "" && quotedLines == 0 {
-				cleaned = append(cleaned, line)
-				continue
-			}
-			quotedLines++
-			//Why: Limits depth of quoted replies to 5 lines to maintain focus on the current task while providing enough context for thread association.
-			if quotedLines > 5 {
-				break
-			}
-		}
-
-		cleaned = append(cleaned, line)
-	}
-
-	result := strings.Join(cleaned, "\n")
+	result := body
 
 	//Why: Removes email signatures to prevent them from being mistaken for task requests or assignee names.
 	if loc := reSignature.FindStringIndex(result); loc != nil {
@@ -660,16 +683,12 @@ func cleanEmailBody(body string) string {
 
 	finalResult := strings.TrimSpace(result)
 
-	//Why: Caps the total email length at 3000 characters to prevent the AI model from truncating its JSON response because the input was too large.
+	//Why: Caps the total email length at 3000 characters to prevent the AI model from truncating its JSON response.
 	const maxLen = 3000
 	if len(finalResult) > maxLen {
-		//Why: Truncates content using a rune slice to avoid creating invalid UTF-8 sequences at the truncation point, which could cause processing errors.
 		runes := []rune(finalResult)
-		if len(runes) > maxLen/2 {
-			limit := maxLen
-			if len(runes) < limit {
-				limit = len(runes)
-			}
+		limit := maxLen
+		if len(runes) > limit {
 			finalResult = string(runes[:limit]) + "\n...[TRUNCATED]"
 		}
 	}

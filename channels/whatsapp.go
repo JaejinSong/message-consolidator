@@ -8,7 +8,6 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -21,9 +20,10 @@ import (
 	waTypes "go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
+	waProto "go.mau.fi/whatsmeow/proto/waE2E"
 )
 
-var waMentionRegex = regexp.MustCompile(`@([0-9]+)`)
+
 
 type WAManager struct {
 	clients       map[string]*whatsmeow.Client
@@ -174,11 +174,18 @@ func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, m
 	var replyToID string
 	var repliedToUser string
 
+	var isForwarded bool
+	var mentionedIDs []string
+	var hasAttachment bool
+	var attachmentNames []string
+
 	if msg.Message.GetConversation() != "" {
 		msgText = msg.Message.GetConversation()
 	} else if extMsg := msg.Message.GetExtendedTextMessage(); extMsg != nil {
 		msgText = extMsg.GetText()
 		if extMsg.ContextInfo != nil {
+			isForwarded = extMsg.ContextInfo.GetIsForwarded()
+			mentionedIDs = extMsg.ContextInfo.MentionedJID
 			if extMsg.ContextInfo.StanzaID != nil {
 				replyToID = *extMsg.ContextInfo.StanzaID
 			}
@@ -199,6 +206,8 @@ func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, m
 				}
 			}
 		}
+	} else {
+		msgText, hasAttachment, attachmentNames = m.extractMediaInfo(msg.Message)
 	}
 
 	if msgText == "" {
@@ -213,7 +222,7 @@ func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, m
 		go store.SaveWhatsAppContact(email, msg.Info.Sender.User, msg.Info.PushName)
 	}
 
-	msgText = m.resolveIncomingMentions(email, client, msgText)
+	msgText = m.resolveIncomingMentions(email, client, msgText, mentionedIDs)
 
 	m.mu.Lock()
 	if _, ok := m.messageBuffer[email]; !ok {
@@ -223,12 +232,16 @@ func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, m
 	//Why: Buffers incoming messages in memory to allow for batch processing and context-aware task extraction during the next scan cycle.
 	chatBuffer := m.messageBuffer[email][msg.Info.Chat]
 	chatBuffer = append(chatBuffer, types.RawMessage{
-		ID:            msg.Info.ID,
-		Sender:        sender,
-		Text:          msgText,
-		Timestamp:     msg.Info.Timestamp,
-		ReplyToID:     replyToID,
-		RepliedToUser: repliedToUser,
+		ID:              msg.Info.ID,
+		Sender:          sender,
+		Text:            msgText,
+		Timestamp:       msg.Info.Timestamp,
+		ReplyToID:       replyToID,
+		RepliedToUser:   repliedToUser,
+		IsForwarded:     isForwarded,
+		MentionedIDs:    mentionedIDs,
+		HasAttachment:   hasAttachment,
+		AttachmentNames: attachmentNames,
 	})
 
 	//Why: Caps the per-chat message buffer at 200 entries to prevent memory exhaustion in highly active group chats.
@@ -241,31 +254,42 @@ func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, m
 	logger.Debugf("[WA-EVENT][%s] Message from %s (Chat: %s): %s", email, sender, msg.Info.Chat, msgText)
 }
 
-// Why: Resolves numeric WhatsApp mentions into human-readable contact names using local store data and WhatsApp's contact metadata for better AI analysis.
-func (m *WAManager) resolveIncomingMentions(email string, client *whatsmeow.Client, text string) string {
-	return waMentionRegex.ReplaceAllStringFunc(text, func(match string) string {
-		number := match[1:]
-		name := store.GetNameByWhatsAppNumber(email, number)
-		if name != "" {
-			return "@" + name
+// Why: Resolves numeric WhatsApp mentions into human-readable contact names using explicit MentionedJID metadata instead of fragile regex parsing.
+func (m *WAManager) resolveIncomingMentions(email string, client *whatsmeow.Client, text string, jids []string) string {
+	if len(jids) == 0 {
+		return text
+	}
+
+	result := text
+	for _, jidStr := range jids {
+		jid, _ := waTypes.ParseJID(jidStr)
+		number := jid.User
+		placeholder := "@" + number
+		
+		// Attempt to resolve name from local store or contact list
+		resolvedName := store.GetNameByWhatsAppNumber(email, number)
+		if resolvedName == "" {
+			if contact, err := client.Store.Contacts.GetContact(context.Background(), jid); err == nil {
+				if contact.FullName != "" {
+					resolvedName = contact.FullName
+				} else if contact.PushName != "" {
+					resolvedName = contact.PushName
+				} else if contact.BusinessName != "" {
+					resolvedName = contact.BusinessName
+				}
+				
+				if resolvedName != "" {
+					go store.SaveWhatsAppContact(email, number, resolvedName)
+				}
+			}
 		}
 
-		jid := waTypes.NewJID(number, waTypes.DefaultUserServer)
-		if contact, err := client.Store.Contacts.GetContact(context.Background(), jid); err == nil {
-			resolvedName := contact.PushName
-			if contact.FullName != "" {
-				resolvedName = contact.FullName
-			} else if contact.BusinessName != "" {
-				resolvedName = contact.BusinessName
-			}
-
-			if resolvedName != "" {
-				go store.SaveWhatsAppContact(email, number, resolvedName)
-				return "@" + resolvedName
-			}
+		if resolvedName != "" {
+			//Why: Only replaces the specific numeric occurrence if we have high-confidence metadata from the API.
+			result = strings.ReplaceAll(result, placeholder, "@"+resolvedName)
 		}
-		return match
-	})
+	}
+	return result
 }
 
 func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
@@ -391,16 +415,20 @@ func (m *WAManager) GetGroupName(email string, jidStr string) string {
 	return jid.User
 }
 
-func ResolveWAMentions(email, text string) string {
-	//Why: Recognizes standard WhatsApp numeric mentions ("@12345678") for resolution into contact names.
-	return waMentionRegex.ReplaceAllStringFunc(text, func(match string) string {
-		number := match[1:]
-		name := store.GetNameByWhatsAppNumber(email, number)
+// Why: Provides a static way to resolve mentions in text if the explicit JID list is lost, though metadata-based resolution is preferred.
+func ResolveWAMentions(email, text string, jids []string) string {
+	if len(jids) == 0 {
+		return text
+	}
+	result := text
+	for _, jidStr := range jids {
+		jid, _ := waTypes.ParseJID(jidStr)
+		name := store.GetNameByWhatsAppNumber(email, jid.User)
 		if name != "" {
-			return "@" + name
+			result = strings.ReplaceAll(result, "@"+jid.User, "@"+name)
 		}
-		return match
-	})
+	}
+	return result
 }
 
 func (m *WAManager) GetClient(email string) *whatsmeow.Client {
@@ -483,4 +511,23 @@ func DisconnectAllWhatsApp() {
 	case <-time.After(2 * time.Second):
 		logger.Warnf("[WA] Timeout reached while disconnecting WhatsApp clients.")
 	}
+}
+
+func (m *WAManager) extractMediaInfo(msg *waProto.Message) (string, bool, []string) {
+	if msg == nil { return "", false, nil }
+	if msg.ImageMessage != nil {
+		return "[Image]", true, []string{"image.jpg"}
+	}
+	if msg.DocumentMessage != nil {
+		name := msg.DocumentMessage.GetFileName()
+		if name == "" { name = "document" }
+		return fmt.Sprintf("[Document: %s]", name), true, []string{name}
+	}
+	if msg.VideoMessage != nil {
+		return "[Video]", true, []string{"video.mp4"}
+	}
+	if msg.AudioMessage != nil {
+		return "[Audio]", true, []string{"audio.ogg"}
+	}
+	return "", false, nil
 }

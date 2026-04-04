@@ -12,12 +12,10 @@ import (
 	"sync"
 
 	"golang.org/x/sync/errgroup"
+	waTypes "go.mau.fi/whatsmeow/types"
 )
 
-func resolveWAMentions(email, text string) string {
-	//Why: Recognizes standard WhatsApp numeric mentions ("@12345678") for resolution into contact names.
-	return channels.ResolveWAMentions(email, text) //Why: Routes mention resolution to the channels package to centralize cross-platform user mapping logic.
-}
+
 
 func (s *WhatsAppScanner) processWhatsAppGroup(ctx context.Context, user store.User, aliases []string, jid string, msgs []types.RawMessage, language string) []int {
 	groupName := channels.DefaultWAManager.GetGroupName(user.Email, jid)
@@ -58,10 +56,44 @@ func buildWAPayload(user store.User, aliases []string, msgs []types.RawMessage) 
 	msgMap := make(map[string]types.RawMessage)
 	for _, m := range msgs {
 		msgMap[m.ID] = m
-		resolvedText := channels.ResolveWAMentions(user.Email, m.Text)
-		sb.WriteString(fmt.Sprintf("[ID:%s] %s: %s\n", m.ID, m.Sender, resolvedText))
+		resolvedText := channels.ResolveWAMentions(user.Email, m.Text, m.MentionedIDs)
+		metaStr := buildWAMetadataString(user.Email, m)
+		sb.WriteString(fmt.Sprintf("[ID:%s]%s %s: %s\n", m.ID, metaStr, m.Sender, resolvedText))
 	}
 	return sb.String(), msgMap
+}
+
+func buildWAMetadataString(email string, m types.RawMessage) string {
+	var tags []string
+	if m.IsForwarded {
+		tags = append(tags, "Forwarded")
+	}
+	
+	//Why: Lists explicitly mentioned names in metadata to provide the AI with a 100% accurate source for 'Assignee' identification.
+	if len(m.MentionedIDs) > 0 {
+		var mentionNames []string
+		for _, jid := range m.MentionedIDs {
+			if id, _ := waTypes.ParseJID(jid); id.User != "" {
+				if name := store.GetNameByWhatsAppNumber(email, id.User); name != "" {
+					mentionNames = append(mentionNames, name)
+				}
+			}
+		}
+		if len(mentionNames) > 0 {
+			tags = append(tags, fmt.Sprintf("Explicit-Mentions: %s", strings.Join(mentionNames, ", ")))
+		} else {
+			tags = append(tags, fmt.Sprintf("Mentions: %d", len(m.MentionedIDs)))
+		}
+	}
+
+	var sb strings.Builder
+	if len(tags) > 0 {
+		sb.WriteString(fmt.Sprintf(" [Tags: %s]", strings.Join(tags, ", ")))
+	}
+	if len(m.AttachmentNames) > 0 {
+		sb.WriteString(fmt.Sprintf(" [Files: %s]", strings.Join(m.AttachmentNames, ", ")))
+	}
+	return sb.String()
 }
 
 func saveWAItem(user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool) int {

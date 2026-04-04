@@ -158,10 +158,14 @@ func (s *SlackClient) processHistoryMessages(channelID string, messages []slack.
 		}
 
 		msgs = append(msgs, types.RawMessage{
-			ID:        m.Timestamp,
-			Sender:    s.GetUserName(m.User),
-			Text:      m.Text,
-			Timestamp: ts,
+			ID:              m.Timestamp,
+			Sender:          s.GetUserName(m.User),
+			Text:            m.Text,
+			Timestamp:       ts,
+			HasAttachment:   len(m.Files) > 0,
+			AttachmentNames: s.ExtractFileNames(m.Files),
+			Reactions:       s.ExtractReactions(m.Reactions),
+			IsPinned:        len(m.PinnedTo) > 0,
 		})
 
 		//Why: Recursively fetches thread replies if a message is a thread parent to ensure full conversation context for task extraction.
@@ -229,12 +233,35 @@ func (s *SlackClient) processThreadReplies(threadTS string, replies []slack.Mess
 		}
 
 		msgs = append(msgs, types.RawMessage{
-			ID:        m.Timestamp,
-			Sender:    s.GetUserName(m.User),
-			Text:      m.Text,
-			Timestamp: parseSlackTimestamp(m.Timestamp),
-			ReplyToID: threadTS, //Why: Attaches thread metadata to extracted replies to maintain relational integrity and correctly group related tasks in the UI.
+			ID:              m.Timestamp,
+			Sender:          s.GetUserName(m.User),
+			Text:            m.Text,
+			Timestamp:       parseSlackTimestamp(m.Timestamp),
+			ReplyToID:       threadTS, //Why: Attaches thread metadata to extracted replies to maintain relational integrity and correctly group related tasks in the UI.
+			HasAttachment:   len(m.Files) > 0,
+			AttachmentNames: s.ExtractFileNames(m.Files),
+			Reactions:       s.ExtractReactions(m.Reactions),
+			IsPinned:        len(m.PinnedTo) > 0,
 		})
 	}
 	return msgs
+}
+func (s *SlackClient) ExtractFileNames(files []slack.File) []string {
+	names := make([]string, 0, len(files))
+	for _, f := range files {
+		if f.Name != "" {
+			names = append(names, f.Name)
+		}
+	}
+	return names
+}
+
+func (s *SlackClient) ExtractReactions(reactions []slack.ItemReaction) []string {
+	names := make([]string, 0, len(reactions))
+	for _, r := range reactions {
+		if r.Name != "" {
+			names = append(names, r.Name)
+		}
+	}
+	return names
 }

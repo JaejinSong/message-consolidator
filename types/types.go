@@ -26,6 +26,15 @@ type RawMessage struct {
 	Category      MessageCategory `json:"category"`
 	Metadata      json.RawMessage `json:"metadata"`
 	RelatedMessageID int          `json:"related_message_id,omitempty"`
+
+	// Extended Metadata for AI Context Enrichment
+	HasAttachment   bool     `json:"has_attachment"`
+	AttachmentNames []string `json:"attachment_names"`
+	IsForwarded     bool     `json:"is_forwarded"`
+	IsPinned        bool     `json:"is_pinned"`
+	IsImportant     bool     `json:"is_important"`
+	Reactions       []string `json:"reactions"`
+	MentionedIDs    []string `json:"mentioned_ids"`
 }
 
 // EnrichedMessage represents a unified message model for task analysis.
