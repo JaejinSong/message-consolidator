@@ -1,3 +1,10 @@
+# Release Notes - v2.4.18 (2026-04-04 17:10 UTC)
+
+- ✨ **Next-Level Interaction**: Your Slack and WhatsApp messages now shine with support for attachments, reactions, and pins!
+- 🧠 **Smarter Workflows**: A new context-aware task engine ensures your background processes are more intelligent and efficient than ever.
+
+---
+
 # Release Notes - v2.4.17 (2026-04-04 16:36 UTC)
 
 - 🧠 **Smarter Assignments**: We've sharpened our AI's brain to ensure tasks find their rightful owners with pinpoint accuracy.
