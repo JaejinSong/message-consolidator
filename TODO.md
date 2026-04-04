@@ -1,5 +1,11 @@
 # Message Consolidator - TODO & TECH DEBT
 
+## 완료 사항 (Completed) - v2.4.17 (2026-04-04 16:36 UTC)
+
+### [Feature] Context-Aware Unified AI Task Lifecycle
+- **내용**: AI가 대화의 맥락(Context)을 파악하여 신규 생성(`new`), 업데이트(`update`), 완료(`resolve`)를 스스로 결정하는 통합 핸들러 구현.
+- **성과**: 인삿말 등 불필요한 노이즈를 획기적으로 줄이고, 대화 흐름에 따른 업무 상태 전이의 정확도를 극대화함. (7단계 대화 회귀 테스트 통과)
+
 ## 완료 사항 (Completed) - v2.4.16 (2026-04-04 12:36 UTC)
 
 ### [Feature] 보관함 '병합한 업무(Merged Tasks)' 탭 및 필터링 시스템

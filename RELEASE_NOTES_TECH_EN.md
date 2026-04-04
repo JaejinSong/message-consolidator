@@ -1,3 +1,10 @@
+# Release Notes (Tech) - v2.4.17 (2026-04-04 16:36 UTC)
+
+- [REFACTOR] Standardize __CURRENT_USER__ resolution and refine AI extraction prompts and task filtering logic
+- [FEAT] Implement Merged Tasks tab in Archive and migrate archive core logic to TypeScript
+
+---
+
 # Release Notes (Tech) - v2.4.16 (2026-04-04 12:36 UTC)
 
 - [FEAT] Implement task consolidation logic and source channel provenance tracking

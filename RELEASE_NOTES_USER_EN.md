@@ -1,3 +1,10 @@
+# Release Notes - v2.4.17 (2026-04-04 16:36 UTC)
+
+- 🧠 **Smarter Assignments**: We've sharpened our AI's brain to ensure tasks find their rightful owners with pinpoint accuracy.
+- 🗂️ **Archive Evolution**: Meet the new 'Merged Tasks' tab—your history, now perfectly organized and powered by a more robust engine.
+
+---
+
 # Release Notes - v2.4.16 (2026-04-04 12:36 UTC)
 
 - 🧩 **Smart Merging**: Scattered tasks are now intelligently consolidated with clear source tracking!

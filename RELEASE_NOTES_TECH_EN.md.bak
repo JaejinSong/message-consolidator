@@ -1,3 +1,11 @@
+# Release Notes (Tech) - v2.4.16 (2026-04-04 12:36 UTC)
+
+- [FEAT] Implement task consolidation logic and source channel provenance tracking
+- [UI] Add status badges for multi-source origins and translation progress
+- [FEAT] Integrate asynchronous AI inference logging system (DB and File storage)
+
+---
+
 # Release Notes (Tech) - v2.4.15 (2026-04-03 09:18 UTC)
 
 - [OPTIMIZE] Refine Gemini API consumption logic for enhanced resource efficiency
