@@ -10,7 +10,7 @@ import (
 func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedMessage, error) {
 	var m ConsolidatedMessage
 	var assignedAt, createdAt, completedAt DBTime
-	var constraints, room, requester, assignee, link, originalText, category, deadline, threadID, assigneeReason, repliedToID, sourceTS, source, reqCanonical, asgCanonical, metadata sql.NullString
+	var constraints, room, requester, assignee, link, originalText, category, deadline, threadID, assigneeReason, repliedToID, sourceTS, source, reqCanonical, asgCanonical, metadata, sourceChannels sql.NullString
 
 	err := rows.Scan(
 		&m.ID, &m.UserEmail, &source, &room, &m.Task,
@@ -18,7 +18,7 @@ func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedM
 		&sourceTS, &originalText, &m.Done, &m.IsDeleted,
 		&createdAt, &completedAt, &category, &deadline,
 		&threadID, &assigneeReason, &repliedToID,
-		&m.IsContextQuery, &constraints, &metadata, // Order: Query, Constraints, Metadata
+		&m.IsContextQuery, &constraints, &metadata, &sourceChannels, // Metadata and SourceChannels
 		&reqCanonical, &asgCanonical,
 	)
 	if err != nil {
@@ -26,7 +26,7 @@ func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedM
 	}
 
 	populateFields(&m, source, room, requester, assignee, link, sourceTS, originalText, category, deadline, threadID, assigneeReason, repliedToID, reqCanonical, asgCanonical)
-	parseMetadata(&m, constraints, metadata, assignedAt, createdAt, completedAt)
+	parseMetadata(&m, constraints, metadata, sourceChannels, assignedAt, createdAt, completedAt)
 	return m, nil
 }
 
@@ -50,13 +50,19 @@ func populateFields(
 	m.AssigneeCanonical = asgC.String
 }
 
-func parseMetadata(m *ConsolidatedMessage, constraints, metadata sql.NullString, assignedAt, createdAt, completedAt DBTime) {
+func parseMetadata(m *ConsolidatedMessage, constraints, metadata, sourceChannels sql.NullString, assignedAt, createdAt, completedAt DBTime) {
 	// Why: Unmarshals JSON strings into segments while providing safe defaults for nil constraints.
 	if constraints.Valid && constraints.String != "" {
 		_ = json.Unmarshal([]byte(constraints.String), &m.Constraints)
 	}
 	if metadata.Valid && metadata.String != "" {
 		_ = json.Unmarshal([]byte(metadata.String), &m.Metadata)
+	}
+	if sourceChannels.Valid && sourceChannels.String != "" {
+		_ = json.Unmarshal([]byte(sourceChannels.String), &m.SourceChannels)
+	}
+	if m.SourceChannels == nil {
+		m.SourceChannels = []string{m.Source}
 	}
 	if m.Constraints == nil {
 		m.Constraints = []string{}

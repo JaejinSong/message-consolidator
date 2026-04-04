@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"message-consolidator/logger"
 	"message-consolidator/store"
+	"message-consolidator/types"
 	"strings"
 	"time"
 
@@ -146,12 +147,12 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 	return text, nil
 }
 
-func (g *GeminiClient) Analyze(ctx context.Context, email, conversationText string, language string, source, room string) ([]store.TodoItem, error) {
+func (g *GeminiClient) Analyze(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string) ([]store.TodoItem, error) {
 	tasks, _ := store.GetActiveContextTasks(ctx, email, source, room)
-	return g.AnalyzeWithContext(ctx, email, conversationText, language, source, room, tasks)
+	return g.AnalyzeWithContext(ctx, email, msg, language, source, room, tasks)
 }
 
-func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email, conversationText string, language string, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error) {
+func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error) {
 	if g == nil || g.client == nil {
 		return nil, fmt.Errorf("Gemini client is not initialized")
 	}
@@ -163,10 +164,11 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email, conversati
 
 	// Why: [Contextual Extraction] Consolidates prompt data into a unified ExtractionContext for template rendering.
 	data := ExtractionContext{
-		MessagePayload:    conversationText,
-		CurrentTime:       time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
-		Locale:            lang,
-		ExistingTasksJSON: existingTasksJSON,
+		MessagePayload:      msg.RawContent,
+		CurrentTime:         time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
+		Locale:              lang,
+		ExistingTasksJSON:   existingTasksJSON,
+		EnrichedMessageJSON: g.marshalEnrichedMessage(msg),
 	}
 	if analyzer != nil {
 		data.MessagePayload = analyzer.PreProcess(data.MessagePayload)
@@ -188,11 +190,16 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email, conversati
 	go func(src, input, output string) {
 		logger.LogAIInferenceToFile(src, input, output)
 		_ = store.LogAIInference(0, src, input, output)
-	}(source, conversationText, raw)
+	}(source, msg.RawContent, raw)
 
 	trace.Step(ctx, "Gemini-Analyze", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "Analyze", resp)
 	return g.parseAnalyzeResults(resp)
+}
+
+func (g *GeminiClient) marshalEnrichedMessage(msg types.EnrichedMessage) string {
+	b, _ := json.Marshal(msg)
+	return string(b)
 }
 
 func (g *GeminiClient) marshalTasksForAI(tasks []store.ConsolidatedMessage) string {
@@ -204,10 +211,16 @@ func (g *GeminiClient) marshalTasksForAI(tasks []store.ConsolidatedMessage) stri
 		ID       int    `json:"id"`
 		Task     string `json:"task"`
 		Original string `json:"original_text"`
+		Source   string `json:"source"`
+		Room     string `json:"room"`
+		ThreadID string `json:"thread_id"`
 	}
 	var ctxTasks []contextTask
 	for _, t := range tasks {
-		ctxTasks = append(ctxTasks, contextTask{ID: t.ID, Task: t.Task, Original: t.OriginalText})
+		ctxTasks = append(ctxTasks, contextTask{
+			ID: t.ID, Task: t.Task, Original: t.OriginalText,
+			Source: t.Source, Room: t.Room, ThreadID: t.ThreadID,
+		})
 	}
 	b, _ := json.Marshal(ctxTasks)
 	return string(b)
@@ -300,6 +313,31 @@ func (g *GeminiClient) TranslateTaskMessage(ctx context.Context, email string, t
 	trace.Step(ctx, "Gemini-TranslateTask", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "TranslateTask", resp)
 	return extractResponseText(resp)
+}
+
+// TranslateBatchTasks translates multiple tasks at once following the Page-unit Pure JIT pattern.
+// Why: Minimizes AI calls and costs by batching N tasks into a single structured prompt.
+func (g *GeminiClient) TranslateBatchTasks(ctx context.Context, email string, tasks []store.TranslateRequest, lang string) ([]store.TranslateRequest, error) {
+	if len(tasks) == 0 { return nil, nil }
+	parsed := loadPrompt("batch_translator.prompt")
+	data := ExtractionContext{
+		Locale:      g.getValidLang(lang),
+		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
+	}
+	sysInst, _ := parsed.Render(data)
+	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.1, 4096, "application/json", sysInst)
+	
+	tasksJSON, _ := json.Marshal(tasks)
+	resp, err := generateWithRetry(ctx, model, genai.Text(string(tasksJSON)), 45*time.Second, 2)
+	if err != nil { return nil, err }
+	
+	logTokenUsage(ctx, email, "BatchTranslate", resp)
+	raw, _ := extractResponseText(resp)
+	var results []store.TranslateRequest
+	if err := json.Unmarshal([]byte(sanitizeJSON(raw)), &results); err != nil {
+		return nil, fmt.Errorf("failed to parse partial AI response: %w", err)
+	}
+	return results, nil
 }
 
 

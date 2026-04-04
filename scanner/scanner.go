@@ -20,6 +20,7 @@ import (
 var (
 	cfg           *config.Config
 	completionSvc *services.CompletionService
+	tasksSvc      *services.TasksService
 )
 
 func Init(c *config.Config) {
@@ -27,10 +28,12 @@ func Init(c *config.Config) {
 	if cfg.GeminiAPIKey != "" {
 		gClient, err := ai.NewGeminiClient(context.Background(), cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 		if err != nil {
-			logger.Errorf("[SCANNER] Failed to init GeminiClient for completion service: %v", err)
-		} else {
-			completionSvc = services.NewCompletionService(gClient, &services.DefaultTaskStore{})
+			logger.Errorf("[SCANNER] Failed to init GeminiClient: %v", err)
+			return
 		}
+		completionSvc = services.NewCompletionService(gClient, &services.DefaultTaskStore{})
+		transSvc := services.NewTranslationService(gClient)
+		tasksSvc = services.NewTasksService(transSvc)
 	}
 }
 
@@ -168,24 +171,23 @@ func scanAllSources(parentCtx context.Context, user store.User, aliases []string
 
 	if store.HasGmailToken(user.Email) {
 		eg.Go(func() error {
-			logger.Debugf("[SCAN] Starting Gmail scan for %s", user.Email)
 			onThreadActivity := func(msg store.ConsolidatedMessage) {
 				if completionSvc != nil {
 					completionSvc.ProcessPotentialCompletion(context.Background(), msg)
 				}
 			}
-			channels.ScanGmail(ctx, user.Email, "Korean", cfg, onThreadActivity)
+			ids := channels.ScanGmail(ctx, user.Email, "Korean", cfg, onThreadActivity)
+			triggerAsyncTranslation(user.Email, ids)
 			return nil
 		})
 	}
 
 	eg.Go(func() error {
-		logger.Debugf("[SCAN] Starting WhatsApp scan for %s", user.Email)
 		scanWhatsApp(ctx, user, effectiveAliases, "Korean")
 		return nil
 	})
 
-	eg.Wait()
+	_ = eg.Wait()
 
 	store.PersistAllScanMetadata(user.Email)
 }
@@ -258,6 +260,17 @@ func IsAliasMatched(text, sender, alias string) bool {
 			}
 		}
 	}
-
 	return false
+}
+
+func triggerAsyncTranslation(email string, ids []int) {
+	if tasksSvc == nil || len(ids) == 0 {
+		return
+	}
+	// Why: Asynchronously triggers pre-calculated translation for the user's default language.
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		_, _ = tasksSvc.ProcessBatchTranslation(ctx, email, ids, "ko")
+	}()
 }

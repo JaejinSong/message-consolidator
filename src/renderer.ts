@@ -5,6 +5,7 @@ import { state } from './state.ts';
 import { I18N_DATA } from './locales.js';
 import { TimeService, escapeHTML } from './utils.ts';
 import { ICONS } from './icons.ts';
+import { api } from './api.js';
 
 export { 
     updateServiceStatusUI, 
@@ -85,7 +86,7 @@ export function initMessageGridEvents(gridId: string, handlers: MessageHandlers)
 
     grid.addEventListener('click', async (e) => {
         const target = e.target as HTMLElement;
-        const btn = target.closest('button[data-action]');
+        const btn = target.closest('[data-action]');
         if (!btn) return;
 
         const action = btn.getAttribute('data-action');
@@ -110,6 +111,21 @@ export function initMessageGridEvents(gridId: string, handlers: MessageHandlers)
                 const source = btn.getAttribute('data-source');
                 if (name && source && handlers.onMapAlias) {
                     handlers.onMapAlias(name, source);
+                }
+                break;
+            case 'select-task':
+                // Checkboxes toggle their native .checked state BEFORE the click event fires.
+                // We MUST NOT call e.preventDefault() here, otherwise the native toggle is reverted.
+                e.stopPropagation(); // Only prevent bubbling so the card doesn't expand
+                
+                const checkbox = btn as HTMLInputElement;
+                const taskId = parseInt(id, 10);
+                const isSelectedNow = checkbox.checked; 
+                
+                console.log(`[DEBUG] Task ${taskId} Clicked. isSelectedNow=${isSelectedNow}`);
+                
+                if (handlers.onSelectTask) {
+                    handlers.onSelectTask(taskId, isSelectedNow);
                 }
                 break;
         }
@@ -139,7 +155,8 @@ export function createCardElement(m: Message): string {
         translating: !!m.translating,
         translationError: (m.translationError || undefined) as string | undefined, 
         has_original: !!m.has_original,
-        assigned_to: m.assigned_to
+        assigned_to: m.assigned_to,
+        isSelected: state.selectedTaskIds.has(m.id)
     };
 
     return MessageCard(props);
@@ -199,6 +216,27 @@ export function renderMessages(categorized: CategorizedMessages, handlers: Messa
         renderEmptyGrid(grid, false);
     } else {
         grid.innerHTML = filtered.map(m => createCardElement(m)).join('');
+        
+        // [Page-unit Pure JIT] Trigger translation for visible tasks.
+        // TranslationBatcher (50ms debounce) will group these into a single Bulk API call.
+        const lang = state.currentLang || 'ko';
+        if (lang !== 'en') {
+            filtered.forEach(m => {
+                if (!m.task_ko && !m.translating) {
+                    m.translating = true;
+                    api.requestTranslation(m.id, lang).then((text: string) => {
+                        m.task_ko = text;
+                        m.translating = false;
+                        // Re-render specifically this card or small portion if needed, 
+                        // but usually a full render is fine for simple JIT.
+                        const card = document.getElementById(`task-${m.id}`);
+                        if (card) card.outerHTML = createCardElement(m);
+                    }).catch(() => {
+                        m.translating = false;
+                    });
+                }
+            });
+        }
     }
 }
 

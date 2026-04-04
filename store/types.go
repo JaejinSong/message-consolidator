@@ -45,6 +45,7 @@ type ConsolidatedMessage struct {
 	IsContextQuery     bool            `json:"is_context_query"` //Why: Indicates if the message is a follow-up inquiry about existing policies or tasks.
 	Constraints        []string        `json:"constraints"`      //Why: Stores behavioral rules extracted from POLICY-type messages.
 	Metadata           json.RawMessage `json:"metadata"`         //Why: Flexible JSON storage for future-proofing message attributes.
+	SourceChannels     []string        `json:"source_channels"`  //Why: Tracks all channels that contributed to this consolidated task.
 }
 
 // CategorizedMessages represents groups of messages for the dashboard tabs.
@@ -127,6 +128,7 @@ type TodoItem struct {
 	Metadata        json.RawMessage `json:"metadata"`
 	AffinityScore   int             `json:"affinity_score,omitempty"`   // Contextual similarity score (0-100) for consolidation.
 	AffinityGroupID string          `json:"affinity_group_id,omitempty"` // Shared ID for tasks that should be consolidated.
+	SourceChannels  []string        `json:"source_channels,omitempty"`  // All origins for merged tasks.
 }
 
 // TranslateRequest represents a request to translate a specific task
@@ -193,3 +195,7 @@ type Report struct {
 	IsTruncated   bool                `json:"is_truncated"`       // Why: Flag to indicate if the report was limited due to token boundaries.
 	CreatedAt     time.Time           `json:"created_at"`
 }
+
+// AliasStore provides an interface for metadata enrichment and identity resolution.
+// Why: Standardizes the enrichment pipeline by providing a dedicated handle for store-layer lookups.
+type AliasStore struct{}

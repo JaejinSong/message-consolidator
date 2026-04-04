@@ -13,6 +13,7 @@ import (
 	"message-consolidator/ai"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
+	"message-consolidator/types"
 
 	"google.golang.org/api/option"
 )
@@ -45,7 +46,11 @@ func TestGmailExtraction_Mock(t *testing.T) {
 		t.Fatalf("Failed to initialize Gemini client: %v", err)
 	}
 
-	tasks, err := client.Analyze(ctx, "test@example.com", "Subject: Thailand Trip\n- Create AI deck\n- Finalize scope", "Korean", "gmail", "Inbox")
+	msg := types.EnrichedMessage{
+		RawContent:    "Subject: Thailand Trip\n- Create AI deck\n- Finalize scope",
+		SourceChannel: "gmail",
+	}
+	tasks, err := client.Analyze(ctx, "test@example.com", msg, "Korean", "gmail", "Inbox")
 	verifyExtractionResults(t, tasks, err)
 }
 

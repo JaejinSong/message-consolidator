@@ -19,8 +19,10 @@ export const state: AppState = {
     archiveOrder: 'DESC',
     archiveTotalCount: 0,
     archiveThresholdDays: 7, 
+    archiveStatus: 'all',
     messages: { inbox: [], pending: [], waiting: [] },
-    userStats: null
+    userStats: null,
+    selectedTaskIds: new Set<number>()
 };
 
 /**
@@ -76,3 +78,31 @@ export function upsertItem<T extends { id: string | number }>(collection: T[], i
     next[index] = { ...next[index], ...item };
     return next;
 }
+
+/**
+ * Explicitly sets or toggles a task selection.
+ */
+export const setTaskSelection = (id: number, isSelected: boolean): void => {
+    if (isSelected) {
+        state.selectedTaskIds.add(id);
+        console.log(`[DEBUG] state.ts - Task ${id} ADDED. Total: ${state.selectedTaskIds.size}`);
+    } else {
+        state.selectedTaskIds.delete(id);
+        console.log(`[DEBUG] state.ts - Task ${id} REMOVED. Total: ${state.selectedTaskIds.size}`);
+    }
+};
+
+/**
+ * Toggles a task ID in the selection set.
+ */
+export const toggleTaskSelection = (id: number): void => {
+    const isSelected = state.selectedTaskIds.has(id);
+    setTaskSelection(id, !isSelected);
+};
+
+/**
+ * Clears all current task selections.
+ */
+export const clearTaskSelection = (): void => {
+    state.selectedTaskIds.clear();
+};

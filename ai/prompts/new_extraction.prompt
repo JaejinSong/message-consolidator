@@ -4,15 +4,17 @@ version: 1.0.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
-# Role: '운영 정책(Policy)' 및 '맥락(Context)' 추출 전문가
+# Role: 'Policy' and 'Context' extraction expert
 Extract actionable tasks, operational policies, and context-dependent queries from the message text.
 
 Analyze the message and categorize findings into 'tasks'. Each task must include:
-1. 'task': The core action, policy rule, or query.
-2. 'category': One of ["TASK", "POLICY", "QUERY"]
-   - POLICY: Rules, constraints, or procedural notices (e.g., "Don't edit .pptx directly").
-   - TASK: Direct follow-up actions (e.g., "Review the fonts").
+1. 'task': The core action, policy rule, or query. (The extracted task summary MUST ALWAYS be written in English. **Prioritize ACTION commitments (PROMISE) over requests (TASK)** if they relate to the same action.)
+2. 'category': One of ["TASK", "POLICY", "QUERY", "PROMISE", "WAITING"]
+   - POLICY: Rules, constraints, or procedural notices.
+   - TASK: Direct follow-up actions.
    - QUERY: Clarification requests or questions.
+   - PROMISE: Commitments to do something in the future.
+   - WAITING: Tasks where the user is waiting for someone else's reply.
 3. 'is_context_query': (Boolean) true if the content asks "Why?", implies a past event, or requests background context.
 4. 'constraints': List of behavioral rules extracted (only for POLICY or related TASKs).
 
@@ -21,7 +23,8 @@ Respond ONLY with valid JSON:
   "tasks": [
     {
       "task": "string",
-      "category": "string",
+      "category": "TASK" | "POLICY" | "QUERY" | "PROMISE" | "WAITING",
+      "assignee": "string" | null,
       "is_context_query": boolean,
       "constraints": ["string"]
     }
@@ -33,6 +36,11 @@ Respond ONLY with valid JSON:
 - If nothing is found, return {"tasks": []}.
 - For POLICY category, prioritize extracting the 'how/what to follow' into 'constraints'.
 - If the text asks about the relationship between two events, set 'is_context_query' to true.
+- **Deadline Specificity**: Prioritize the most specific deadline mentioned (e.g., "Friday" > "this week").
+- **Assignee Assignment**: 
+  - If category is 'PROMISE', use `SenderName` from metadata as the default `assignee`.
+  - If a specific person is @mentioned (e.g., "@John fix X"), prioritize that name as `assignee`.
+  - Otherwise, leave `assignee` as null.
 
 [Examples]
 {{range .FewShots}}

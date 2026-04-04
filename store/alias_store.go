@@ -283,3 +283,21 @@ func DeleteTenantAlias(tenantEmail, original string) error {
 	}
 	return DeleteContactMapping(tenantEmail, strings.ToLower(bestID))
 }
+
+// GetUserByWAJID searches for a user in the cache by their WhatsApp JID.
+// Why: Enables fast lookup of user identity from WhatsApp's raw JID during the enrichment phase of the task pipeline.
+func GetUserByWAJID(jid string) (*User, error) {
+	metadataMu.RLock()
+	defer metadataMu.RUnlock()
+
+	if jid == "" {
+		return nil, fmt.Errorf("empty JID provided")
+	}
+
+	for _, u := range userCache {
+		if u.WAJID == jid {
+			return u, nil
+		}
+	}
+	return nil, fmt.Errorf("user with WAJID %s not found in cache", jid)
+}

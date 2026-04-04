@@ -1,6 +1,6 @@
 -- name: SaveMessage :one
-INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata) 
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels) 
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(user_email, source_ts) DO UPDATE SET
     task = EXCLUDED.task,
     requester = EXCLUDED.requester,
@@ -15,11 +15,12 @@ ON CONFLICT(user_email, source_ts) DO UPDATE SET
     replied_to_id = EXCLUDED.replied_to_id,
     is_context_query = EXCLUDED.is_context_query,
     constraints = EXCLUDED.constraints,
-    metadata = EXCLUDED.metadata
+    metadata = EXCLUDED.metadata,
+    source_channels = EXCLUDED.source_channels
 RETURNING id;
 
 -- name: SaveMessagesBase :many
-INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata) 
+INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels) 
 VALUES %s
 ON CONFLICT(user_email, source_ts) DO UPDATE SET
     task = EXCLUDED.task,
@@ -35,7 +36,8 @@ ON CONFLICT(user_email, source_ts) DO UPDATE SET
     replied_to_id = EXCLUDED.replied_to_id,
     is_context_query = EXCLUDED.is_context_query,
     constraints = EXCLUDED.constraints,
-    metadata = EXCLUDED.metadata
+    metadata = EXCLUDED.metadata,
+    source_channels = EXCLUDED.source_channels
 RETURNING id, source_ts, user_email;
 
 -- name: MarkMessageDone :exec
@@ -60,6 +62,9 @@ WHERE id = ?;
 -- name: UpdateTaskAssignee :exec
 UPDATE messages SET assignee = ? WHERE id = ? AND user_email = ?;
 
+-- name: UpdateTaskSourceChannels :exec
+UPDATE messages SET source_channels = ? WHERE id = ? AND user_email = ?;
+
 -- name: DeleteMessages :exec
 UPDATE messages SET is_deleted = 1 WHERE user_email = ? AND id IN (%s);
 
@@ -70,27 +75,28 @@ DELETE FROM messages WHERE user_email = ? AND id IN (%s);
 UPDATE messages SET is_deleted = 0, done = 0, completed_at = NULL WHERE user_email = ? AND id IN (%s);
 
 -- name: GetMessageByID :one
-SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, requester_canonical, assignee_canonical
+SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, requester_canonical, assignee_canonical
 FROM v_messages WHERE id = ?;
 
 -- name: GetMessagesByIDs :many
-SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, requester_canonical, assignee_canonical
+SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, requester_canonical, assignee_canonical
 FROM v_messages WHERE id IN (%s);
 
 -- name: GetMessagesByEmail :many
-SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, requester_canonical, assignee_canonical
+SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, requester_canonical, assignee_canonical
 FROM v_messages WHERE user_email = ? AND is_deleted = 0 AND IFNULL(task, '') != '' ORDER BY created_at DESC;
 
 -- name: RefreshCacheActive :many
-SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, requester_canonical, assignee_canonical
+SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, requester_canonical, assignee_canonical
 FROM v_messages 
 WHERE user_email = ? AND is_deleted = 0 AND (done = 0 OR (done = 1 AND (completed_at IS NULL OR completed_at > datetime('now', ?))))
 AND IFNULL(task, '') != ''
+AND IFNULL(category, '') != 'merged'
 ORDER BY created_at DESC 
 LIMIT 200;
 
 -- name: RefreshCacheArchive :many
-SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, requester_canonical, assignee_canonical
+SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, requester_canonical, assignee_canonical
 FROM v_messages 
 WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)))
 AND IFNULL(task, '') != ''
@@ -98,23 +104,31 @@ ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
 LIMIT 100;
 
 -- name: GetArchivedMessagesCountBase
-SELECT COUNT(*) FROM messages WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)))
+SELECT COUNT(*) FROM messages WHERE user_email = ? AND (is_deleted = 1 OR category = 'merged' OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)))
 AND IFNULL(task, '') != ''
 
 -- name: GetArchivedMessagesBase
-SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, requester_canonical, assignee_canonical
-FROM v_messages WHERE user_email = ? AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)))
+SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, requester_canonical, assignee_canonical
+FROM v_messages WHERE user_email = ? AND (is_deleted = 1 OR category = 'merged' OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?)))
 AND IFNULL(task, '') != ''
 
 -- name: ArchiveOldTasks :exec
 UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND done = 1 AND completed_at < datetime('now', ?);
 
 -- name: GetIncompleteByThreadID :many
-SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, requester_canonical, assignee_canonical
+SELECT id, user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, done, is_deleted, created_at, completed_at, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, requester_canonical, assignee_canonical
 FROM v_messages WHERE user_email = ? AND thread_id = ? AND done = 0 AND is_deleted = 0 AND IFNULL(task, '') != '';
 
 -- name: UpdateMessageCategory :exec
 UPDATE messages SET category = ? WHERE id = ? AND user_email = ?;
+
+-- name: UpdateCategoryMerged :exec
+-- Why: Hides tasks that have been merged into another task to prevent inbox clutter.
+UPDATE messages SET category = 'merged' WHERE id IN (%s) AND user_email = ?;
+
+-- name: GetMessagesForMerge :many
+-- Why: Validates and retrieves task content before performing a merge operation.
+SELECT id, task, original_text FROM messages WHERE id IN (%s) AND user_email = ?;
 
 -- name: UpdateMessageIdentity :exec
 UPDATE messages SET requester = ?, assignee = ? WHERE id = ?;

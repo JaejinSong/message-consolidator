@@ -53,6 +53,7 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 	r.Handle("/api/messages/update", auth.AuthMiddleware(http.HandlerFunc(a.HandleUpdateTask))).Methods("POST")
 	r.Handle("/api/messages/{id:[0-9]+}/original", auth.AuthMiddleware(http.HandlerFunc(a.HandleGetOriginal))).Methods("GET")
 	r.Handle("/api/tasks/translate-batch", auth.AuthMiddleware(http.HandlerFunc(a.HandleTranslateBatchTasks))).Methods("POST")
+	r.Handle("/api/tasks/merge", auth.AuthMiddleware(http.HandlerFunc(a.HandleMergeTasks))).Methods("PUT")
 	r.Handle("/api/user/info", auth.AuthMiddleware(http.HandlerFunc(a.HandleUserInfo))).Methods("GET")
 	r.Handle("/api/whatsapp/qr", auth.AuthMiddleware(http.HandlerFunc(a.HandleWhatsAppQR))).Methods("GET")
 	r.Handle("/api/whatsapp/status", auth.AuthMiddleware(http.HandlerFunc(a.HandleWhatsAppStatus))).Methods("GET")

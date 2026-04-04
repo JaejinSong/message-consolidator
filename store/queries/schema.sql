@@ -55,7 +55,8 @@ CREATE TABLE IF NOT EXISTS messages (
     replied_to_id TEXT,
     is_context_query INTEGER DEFAULT 0,
     constraints TEXT DEFAULT '[]',
-    metadata TEXT DEFAULT '{}'
+    metadata TEXT DEFAULT '{}',
+    source_channels TEXT DEFAULT '[]'
 );
 CREATE INDEX IF NOT EXISTS idx_thread_id ON messages(thread_id);
 CREATE INDEX IF NOT EXISTS idx_messages_dashboard_filter ON messages(user_email, is_deleted, done, category, assignee);
@@ -166,6 +167,7 @@ SELECT
     m.is_context_query,
     m.constraints,
     m.metadata,
+    COALESCE(m.source_channels, '[]') as source_channels,
     COALESCE(cr_req.effective_canonical_id, m.requester) as requester_canonical,
     COALESCE(cr_asg.effective_canonical_id, m.assignee) as assignee_canonical
 FROM messages m

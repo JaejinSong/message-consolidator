@@ -55,3 +55,70 @@
     margin-left: var(--spacing-xs);
     opacity: 0.85;
 }
+
+/* --- Checkbox Styles --- */
+.c-message-card__checkbox-wrapper {
+    margin-right: var(--spacing-sm);
+    display: flex;
+    align-items: center;
+}
+
+.c-message-card__checkbox {
+    width: 1.125rem;
+    height: 1.125rem;
+    cursor: pointer;
+    accent-color: var(--color-primary);
+}
+
+/* --- Merge Selection Bar --- */
+/* Why: Replaces FAB with a more integrated, premium top-bar between Nav and Content. */
+.c-merge-bar {
+    width: 100%;
+    padding: var(--spacing-sm) 0;
+    background: rgba(var(--color-primary-rgb), 0.08);
+    backdrop-filter: blur(var(--blur-md));
+    border-bottom: 1px solid var(--glass-border);
+    margin-bottom: var(--spacing-md);
+    animation: fadeInDown 0.25s ease-out;
+}
+
+.c-merge-bar.hidden {
+    display: none !important;
+}
+
+.c-merge-bar__content {
+    max-width: var(--bp-desktop);
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xl);
+    padding: 0 var(--spacing-lg);
+}
+
+.c-merge-bar__info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--color-primary);
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.c-merge-bar__info .count {
+    background: var(--color-primary);
+    color: var(--bg-color);
+    padding: 0 var(--spacing-sm);
+    border-radius: var(--radius-full);
+    font-size: 0.8125rem;
+    font-weight: 800;
+}
+
+.c-merge-bar__info .icon {
+    font-size: 1rem;
+}
+
+@keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-0.625rem); }
+    to { opacity: 1; transform: translateY(0); }
+}

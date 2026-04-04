@@ -1,11 +1,11 @@
 [
     {
-        "task": "화요일 13:30 미팅",
+        "task": "Meeting on Tuesday at 13:30",
         "requester": "Ryanda",
         "assignee": "Hady",
         "assigned_at": "",
         "source_ts": "",
         "deadline": "Tuesday",
-        "category": "promise"
+        "category": "TASK"
     }
 ]

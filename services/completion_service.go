@@ -4,10 +4,11 @@ import (
 	"context"
 	"message-consolidator/logger"
 	"message-consolidator/store"
+	"message-consolidator/types"
 )
 
 type AICompleter interface {
-	AnalyzeWithContext(ctx context.Context, email, conversationText, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error)
+	AnalyzeWithContext(ctx context.Context, email string, msg types.EnrichedMessage, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error)
 }
 
 type TaskStore interface {
@@ -59,7 +60,15 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 
 	// Why: Leverages the unified AI analysis pipeline to determine if the reply resolves or delegates tasks.
 	// Mentions and intentionality are parsed by the AI prompt, not string matching.
-	results, err := s.gemini.AnalyzeWithContext(ctx, msg.UserEmail, msg.OriginalText, "Korean", msg.Source, msg.Room, tasks)
+	enriched := types.EnrichedMessage{
+		RawContent:      msg.OriginalText,
+		SourceChannel:   msg.Source,
+		SenderID:        0, // ID is not directly available in ConsolidatedMessage, using 0 as fallback.
+		SenderName:      msg.Requester,
+		VirtualThreadID: msg.ThreadID,
+		Timestamp:       msg.CreatedAt,
+	}
+	results, err := s.gemini.AnalyzeWithContext(ctx, msg.UserEmail, enriched, "Korean", msg.Source, msg.Room, tasks)
 	if err != nil {
 		logger.Errorf("[COMPLETION] AI analysis failed for thread %s: %v", msg.ThreadID, err)
 		return

@@ -1,11 +1,13 @@
 import { escapeHTML, TimeService } from '../utils.ts';
 import { ICONS } from '../icons.ts';
-import { getDeadlineBadge } from '../logic.ts';
+import { getDeadlineBadge, getDisplayTask } from '../logic.ts';
 import { I18N_DATA } from '../locales.js';
 import { Message, I18nDictionary } from '../types.ts';
+import { renderSourceList } from '../renderers/task-renderer.ts';
 
 export type MessageCardProps = Message & {
     lang: string;
+    isSelected?: boolean;
 };
 
 /**
@@ -26,14 +28,17 @@ function parseMetadata(metadata: any): Record<string, any> | null {
  * Decouples rendering logic from the main application state to allow for independent testing.
  */
 export function MessageCard(props: MessageCardProps): string {
-    const { id, source, room, task, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translating, translationError, has_original, assigned_to } = props;
+    const { id, source, source_channels, room, task, task_en, task_ko, is_translating, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translating: oldTranslating, translationError, has_original, assigned_to, isSelected } = props;
+    
+    // Unified translating state (support legacy and new fields)
+    const translating = oldTranslating || is_translating;
+    const displayTask = getDisplayTask(props, lang);
     
     // Why: Ensure time is extracted from either timestamp or created_at.
     const rawTime = String(timestamp || created_at || "");
     const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
     const displayTime = TimeService.formatDisplayTime(rawTime, lang);
     const deadlineBadge = getDeadlineBadge(rawTime, done, lang);
-    const sourceIcon = ICONS[source as keyof typeof ICONS] || ICONS.gmail;
 
     const metadata = parseMetadata(rawMetadata);
     const isContextQuery = !!metadata?.is_context_query;
@@ -51,6 +56,8 @@ export function MessageCard(props: MessageCardProps): string {
                              category === 'QUERY' ? `<div class="c-message-card__badge c-message-card__badge--query">${i18n.queryLabel || 'Question'}</div>` :
                              category === 'promise' ? `<div class="c-message-card__badge c-message-card__badge--promise">🤝 ${i18n.promise || '약속'}</div>` :
                              category === 'waiting' ? `<div class="c-message-card__badge c-message-card__badge--waiting">⏳ ${i18n.waiting || '대기'}</div>` : '';
+
+    const translatingBadgeHtml = translating ? `<span class="c-message-card__translating-badge" title="Translating...">⏳</span>` : '';
 
     const delegatedHtml = assigned_to ? `<div class="c-message-card__badge c-message-card__badge--delegated" title="Delegated Task">🔄 ${lang === 'ko' ? `@${escapeHTML(assigned_to)}에게 위임됨` : `Delegated to @${escapeHTML(assigned_to)}`}</div>` : '';
 
@@ -77,7 +84,10 @@ export function MessageCard(props: MessageCardProps): string {
         <div class="c-message-card ${modifierClass}" id="task-${id}" data-id="${id}">
             ${loadingOverlay}
             <div class="c-message-card__header">
-                <div class="c-message-card__source" title="${source.toUpperCase()}">${sourceIcon}</div>
+                <div class="c-message-card__checkbox-wrapper">
+                    <input type="checkbox" class="c-message-card__checkbox" data-action="select-task" data-id="${id}" ${isSelected ? 'checked' : ''}>
+                </div>
+                ${renderSourceList(source_channels, source)}
                 <div class="c-message-card__room">${room ? `<span class="c-message-card__badge-room">${escapeHTML(room)}</span>` : '-'}</div>
                 ${delegatedHtml}
                 ${categoryBadgeHtml}
@@ -93,7 +103,8 @@ export function MessageCard(props: MessageCardProps): string {
             <div class="c-message-card__body">
                 <div class="c-message-card__title">
                     ${translationError ? `<span class="c-message-card__error-hint" title="${escapeHTML(translationError)}">⚠️</span>` : ''}
-                    ${escapeHTML(task)}
+                    ${translatingBadgeHtml}
+                    ${escapeHTML(displayTask)}
                 </div>
                 ${constraintsHtml}
             </div>

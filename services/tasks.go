@@ -7,8 +7,8 @@ import (
 	"message-consolidator/store"
 	"message-consolidator/types"
 	"strings"
+	"time"
 
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/gmail/v1"
 )
 
@@ -75,28 +75,43 @@ func (s *TasksService) FormatMessagesForClient(email string, msgs []store.Consol
 	}
 }
 
-// ApplyTranslations fetches and applies translations for a batch of messages.
-func (s *TasksService) ApplyTranslations(msgs []store.ConsolidatedMessage, lang string) {
-	if lang == "" || len(msgs) == 0 {
+// ApplyTranslations fetches cached translations and triggers JIT for missing ones.
+// Why: Returns English immediately for missing translations to prevent UI blocking.
+func (s *TasksService) ApplyTranslations(email, lang string, msgs []store.ConsolidatedMessage) {
+	if lang == "" || strings.EqualFold(lang, "en") || len(msgs) == 0 {
 		return
 	}
 	ids := make([]int, len(msgs))
 	for i, m := range msgs {
 		ids[i] = m.ID
 	}
-	translations, err := store.GetTaskTranslationsBatch(ids, lang)
-	if err == nil {
-		for i := range msgs {
-			if t, ok := translations[msgs[i].ID]; ok {
-				msgs[i].Task = t
-			}
+	translations, _ := store.GetTaskTranslationsBatch(ids, lang)
+	var missingIDs []int
+	for i := range msgs {
+		if t, ok := translations[msgs[i].ID]; ok {
+			msgs[i].Task = t
+		} else {
+			missingIDs = append(missingIDs, msgs[i].ID)
 		}
 	}
+	s.triggerJITTranslation(email, lang, missingIDs)
+}
+
+func (s *TasksService) triggerJITTranslation(email, lang string, ids []int) {
+	if len(ids) == 0 {
+		return
+	}
+	// Why: Asynchronously triggers JIT translation to avoid blocking the main data request.
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		_, _ = s.ProcessBatchTranslation(ctx, email, ids, lang)
+	}()
 }
 
 // PrepareMessagesForClient unifies translations, stripping, and formatting.
 func (s *TasksService) PrepareMessagesForClient(email string, msgs []store.ConsolidatedMessage, lang string) {
-	s.ApplyTranslations(msgs, lang)
+	s.ApplyTranslations(email, lang, msgs)
 	s.StripOriginalText(msgs)
 	s.FormatMessagesForClient(email, msgs)
 }
@@ -395,56 +410,67 @@ func resolveActualAssignee(ctx context.Context, m store.ConsolidatedMessage, toH
 	return ""
 }
 
-// ProcessBatchTranslation handles multiple task translation requests in parallel.
-// It uses errgroup for concurrency and a pre-allocated slice for results to avoid mutex bottlenecks.
-// It also ensures partial success handling: individual task failures don't fail the entire batch.
-func (s *TasksService) ProcessBatchTranslation(ctx context.Context, email string, taskIDs []int, langCode string) ([]BatchTranslateResult, error) {
-	if s.translationSvc == nil {
-		return nil, fmt.Errorf("translation service not initialized")
+// ProcessBatchTranslation handles multiple task translation requests in an optimized single batch.
+// Why: Implements Page-unit Pure JIT pattern to eliminate N+1 AI calls.
+func (s *TasksService) ProcessBatchTranslation(ctx context.Context, email string, taskIDs []int, lang string) ([]BatchTranslateResult, error) {
+	if s.translationSvc == nil { return nil, fmt.Errorf("service not ready") }
+	
+	cached, _ := store.GetTaskTranslationsBatch(taskIDs, lang)
+	missingIDs := s.getMissingIDs(taskIDs, cached)
+	
+	newTrans := make(map[int]string)
+	if len(missingIDs) > 0 {
+		var err error
+		newTrans, err = s.executeBatchTranslation(ctx, email, missingIDs, lang)
+		if err != nil { logger.Errorf("[TASKS] Batch failed: %v", err) }
 	}
 
-	results := make([]BatchTranslateResult, len(taskIDs))
-	g, ctx := errgroup.WithContext(ctx)
+	return s.mergeBatchResults(taskIDs, cached, newTrans), nil
+}
 
-	for i, id := range taskIDs {
-		// Shadow variables specifically for the goroutine closure to prevent race conditions.
-		index := i
-		taskID := id
-		g.Go(func() error {
-			// 1. Check DB cache first to avoid redundant AI calls.
-			translated, err := store.GetTaskTranslation(taskID, langCode)
-			if err == nil && translated != "" {
-				results[index] = BatchTranslateResult{ID: taskID, Success: true, TranslatedText: translated}
-				return nil
-			}
-
-			// 2. Fetch original task text from the database.
-			msg, err := store.GetMessageByID(ctx, taskID)
-			if err != nil {
-				results[index] = BatchTranslateResult{ID: taskID, Success: false, Error: "task not found"}
-				return nil
-			}
-
-			// 3. Request translation via TranslationService (handles Singleflight internally).
-			key := fmt.Sprintf("task_%d_%s", taskID, langCode)
-			translated, err = s.translationSvc.Translate(ctx, email, key, msg.Task, langCode, false)
-			if err != nil {
-				results[index] = BatchTranslateResult{ID: taskID, Success: false, Error: err.Error()}
-				return nil
-			}
-
-			// 4. Persistence: Cache the successful translation back into the database.
-			if err := store.SaveTaskTranslation(taskID, langCode, translated); err != nil {
-				logger.Errorf("[TASKS] Failed to cache translation for task %d: %v", taskID, err)
-			}
-
-			results[index] = BatchTranslateResult{ID: taskID, Success: true, TranslatedText: translated}
-			return nil
-		})
+func (s *TasksService) getMissingIDs(all []int, cached map[int]string) []int {
+	var missing []int
+	for _, id := range all {
+		if _, ok := cached[id]; !ok { missing = append(missing, id) }
 	}
+	return missing
+}
 
-	// Wait for all goroutines to finish. We do not return the error from g.Wait() 
-	// because each goroutine handles its own failure and records it in the results slice.
-	_ = g.Wait()
-	return results, nil
+func (s *TasksService) executeBatchTranslation(ctx context.Context, email string, ids []int, lang string) (map[int]string, error) {
+	reqs := s.prepareTranslateRequests(ctx, ids)
+	if len(reqs) == 0 { return nil, nil }
+
+	results, err := s.translationSvc.TranslateBatchTasks(ctx, email, reqs, lang)
+	if err != nil { return nil, err }
+
+	batchMap := make(map[int]string)
+	for _, r := range results {
+		batchMap[r.ID] = r.Text
+	}
+	
+	_ = store.SaveTaskTranslationsBulk(lang, batchMap)
+	return batchMap, nil
+}
+
+func (s *TasksService) prepareTranslateRequests(ctx context.Context, ids []int) []store.TranslateRequest {
+	var reqs []store.TranslateRequest
+	for _, id := range ids {
+		msg, err := store.GetMessageByID(ctx, id)
+		if err != nil { continue }
+		reqs = append(reqs, store.TranslateRequest{ID: id, Text: msg.Task})
+	}
+	return reqs
+}
+
+func (s *TasksService) mergeBatchResults(ids []int, cached, newTrans map[int]string) []BatchTranslateResult {
+	final := make([]BatchTranslateResult, len(ids))
+	for i, id := range ids {
+		text, ok := cached[id]
+		if !ok { text = newTrans[id] }
+		
+		success := text != ""
+		final[i] = BatchTranslateResult{ID: id, Success: success, TranslatedText: text}
+		if !success { final[i].Error = "translation missing" }
+	}
+	return final
 }

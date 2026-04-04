@@ -165,6 +165,21 @@
                     <span class="nav-text" data-i18n="insightsTitle">Insights</span>
                 </button>
             </nav>
+            
+            <!-- Merge Selection Bar (Appears between Nav and Content when multiple tasks selected) -->
+            <div id="mergeSelectionBar" class="c-merge-bar hidden">
+                <div class="c-merge-bar__content">
+                    <span class="c-merge-bar__info">
+                        <span class="icon">🔗</span>
+                        <span id="mergeBarCount" class="count">0</span>
+                        <span data-i18n="tasksSelected">tasks selected</span>
+                    </span>
+                    <button type="button" id="mergeTasksBtn" class="c-btn c-btn--primary c-btn--sm">
+                        <span data-i18n="mergeSelectedTasks">Merge Selected</span>
+                    </button>
+                    <button type="button" id="clearSelectionBtn" class="c-btn c-btn--ghost c-btn--sm" title="Clear selection">✕</button>
+                </div>
+            </div>
 
             <div id="loading" class="loading-overlay">
                 <div class="spinner"></div>
@@ -336,6 +351,9 @@
                     <button type="button" class="tab-btn c-tabs__btn" data-tab="archiveDoneTab">
                         <span data-i18n="archiveDone">완료된 업무</span>
                     </button>
+                    <button type="button" class="tab-btn c-tabs__btn" data-tab="archiveMergedTab">
+                        <span data-i18n="archiveMerged">병합한 업무</span>
+                    </button>
                     <button type="button" class="tab-btn c-tabs__btn" data-tab="archiveCanceledTab">
                         <span data-i18n="archiveCanceled">취소한 업무</span>
                     </button>
@@ -386,6 +404,8 @@
                         &rarr;</button>
                 </div>
             </section>
+            
+            </div>
         </main>
 
         <footer>
@@ -643,6 +663,26 @@
             <div class="c-modal__body">
                 <div id="originalTextContent" class="c-input c-original-message__text">
                     <!-- Original text will be injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Merge Confirmation Modal -->
+    <div id="mergeConfirmModal" class="c-modal hidden">
+        <div class="c-modal__content c-modal__content--small">
+            <div class="c-modal__header">
+                <h3 class="c-modal__title" data-i18n="mergeConfirmTitle">Merge Tasks</h3>
+                <button id="closeMergeConfirmBtn" class="c-modal__close" data-action="close-modal">&times;</button>
+            </div>
+            <div class="c-modal__body c-modal__content--center">
+                <div class="c-modal__icon">🔗</div>
+                <div id="mergeConfirmDesc" class="u-text-main u-mb-6">
+                    <!-- Dynamic message injected here -->
+                </div>
+                <div class="c-modal__footer">
+                    <button type="button" id="confirmMergeBtn" class="c-btn c-btn--primary">Confirm Merge</button>
+                    <button type="button" class="c-btn c-btn--ghost" data-action="close-modal">Cancel</button>
                 </div>
             </div>
         </div>

@@ -1,12 +1,12 @@
 [
   {
-    "task": "AI 기능 기술 덱 작성 | 공식 서비스 범위 확정",
+    "task": "Prepare the AI feature technical deck | Finalize the official service scope",
     "requester": "Hady",
     "assignee": "Jaejin Song",
     "assigned_at": "",
     "source_ts": "",
     "deadline": "Friday",
-    "category": "todo",
+    "category": "TASK",
     "affinity_score": 90,
     "affinity_group_id": "thailand-trip"
   }

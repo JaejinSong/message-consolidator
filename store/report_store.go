@@ -17,7 +17,7 @@ func GetReport(ctx context.Context, email, start, end string) (*Report, error) {
 	}
 	r.IsTruncated = isTruncated != 0
 	r.CreatedAt = createdAt
-	
+
 	// Why: Ensures all available translations are loaded for the front-end to enable seamless language switching.
 	r.Translations, _ = GetReportTranslations(ctx, r.ID)
 	return &r, nil
@@ -112,7 +112,10 @@ func DeleteReport(ctx context.Context, id int, email string) error {
 // Why: Fetches all active messages for a user within a specified date range to provide raw material for AI summarization and network graph generation.
 func GetMessagesForReport(ctx context.Context, email string, since time.Time) ([]ConsolidatedMessage, error) {
 	sinceStr := since.Format("2006-01-02 15:04:05")
-	rows, err := db.QueryContext(ctx, SQL.GetMessagesForReport, email, sinceStr, sinceStr)
+
+	// Why: Overriding the external query to select from v_messages, ensuring all 26 identity-resolved columns are returned to match scanMessageRow.
+	query := "SELECT * FROM v_messages WHERE user_email = ? AND (created_at >= ? OR completed_at >= ?) AND (is_deleted = 0 OR is_deleted IS NULL) ORDER BY created_at ASC"
+	rows, err := db.QueryContext(ctx, query, email, sinceStr, sinceStr)
 	if err != nil {
 		return nil, err
 	}

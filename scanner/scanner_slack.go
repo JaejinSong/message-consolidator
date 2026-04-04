@@ -424,34 +424,41 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 	if len(candidates) == 0 {
 		return
 	}
-
 	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 	if err != nil {
 		logger.Errorf("[SCAN-SLACK] Failed to init Gemini client: %v", err)
 		return
 	}
 
-	channelID := candidates[0].ChannelID
-	channelName := sc.GetChannelName(channelID)
-
+	channelName := sc.GetChannelName(candidates[0].ChannelID)
 	payload, msgMap := buildSlackAnalysisPayload(candidates, sc)
 
-	items, err := gc.Analyze(ctx, user.Email, payload, "Korean", "slack", channelName)
+	// Why: [Context Enrichment] Packages the cumulative payload with metadata from the latest candidate for AI analysis.
+	lastMsg := candidates[len(candidates)-1]
+	enriched, _ := EnrichSlackMessage(lastMsg.Sender, sc.GetUserName(lastMsg.Sender), lastMsg.ChannelID, lastMsg.ReplyToID, payload, lastMsg.Timestamp)
+
+	items, err := gc.Analyze(ctx, user.Email, *enriched, "Korean", "slack", channelName)
 	if err != nil {
 		logger.Errorf("[SCAN-SLACK] Gemini Analyze Error for %s: %v", user.Email, err)
 		return
 	}
+	processSlackItems(user, items, msgMap, sc)
+}
 
+func processSlackItems(user *store.User, items []store.TodoItem, msgMap map[string]types.RawMessage, sc *channels.SlackClient) {
 	aliases, _ := store.GetUserAliases(user.ID)
+	var newIDs []int
 	for _, item := range items {
 		m, ok := msgMap[item.SourceTS]
-		if !ok {
-			continue
-		}
+		if !ok { continue }
 
 		msg := mapSlackItemToMessage(item, m, user, aliases, sc)
-		_, _ = store.HandleTaskState(user.Email, item, msg)
+		id, err := store.HandleTaskState(user.Email, item, msg)
+		if err == nil && id > 0 {
+			newIDs = append(newIDs, id)
+		}
 	}
+	triggerAsyncTranslation(user.Email, newIDs)
 }
 
 //Why: Separating payload construction keeps the main workflow function clean and focused.
@@ -497,6 +504,7 @@ func mapSlackItemToMessage(item store.TodoItem, m types.RawMessage, user *store.
 		OriginalText: m.Text,
 		Category:     category,
 		ThreadID:     threadID,
+		SourceChannels: []string{"slack"}, // Initial source for the new task
 	}
 }
 

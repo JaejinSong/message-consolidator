@@ -85,42 +85,30 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 	return svc, nil
 }
 
-func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage)) {
-	logger.Debugf("[SCAN-GMAIL] Starting Gmail scan for %s", email)
-
+func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage)) []int {
 	svc, err := GetGmailService(ctx, email)
 	if err != nil {
-		logger.Debugf("[SCAN-GMAIL] Skipping %s (no token or service error): %v", email, err)
-		return
+		logger.Debugf("[SCAN-GMAIL] Skipping %s: %v", email, err)
+		return nil
 	}
 
 	since := getGmailScanTime(email)
-	//Why: Searches both the inbox and sent items to capture the full conversation context, allowing the AI to correctly identify task status and assignees.
 	query := fmt.Sprintf("(in:inbox OR from:me) after:%d", since.Unix())
-	logger.Debugf("[SCAN-GMAIL] Query: %s", query)
-
 	allMsgs := fetchRecentEmails(svc, email, query)
-
 	if len(allMsgs) == 0 {
-		return
+		return nil
 	}
 
-	logger.Infof("[SCAN-GMAIL] Found %d new messages for %s", len(allMsgs), email)
-	rawMsgs, classificationMap, toMap, maxTS := parseNewEmails(svc, email, allMsgs, cfg)
-	if len(rawMsgs) == 0 {
-		//Why: Updates the 'last scan' timestamp even if no tasks were found, ensuring subsequent scans don't re-process the same volume of irrelevant emails.
-		if maxTS > 0 {
-			store.UpdateLastScan(email, "gmail", "inbox", fmt.Sprintf("%d", maxTS))
-		}
-		return
+	rawMsgs, clsMap, toMap, maxTS := parseNewEmails(svc, email, allMsgs, cfg)
+	var newIDs []int
+	if len(rawMsgs) > 0 {
+		newIDs = analyzeAndSaveEmails(ctx, email, language, rawMsgs, clsMap, toMap, cfg, onThreadActivity)
 	}
-
-	//Why: Triggers the AI-powered analysis of extracted emails and saves valid tasks to the database.
-	analyzeAndSaveEmails(ctx, email, language, rawMsgs, classificationMap, toMap, cfg, onThreadActivity)
 
 	if maxTS > 0 {
 		store.UpdateLastScan(email, "gmail", "inbox", fmt.Sprintf("%d", maxTS))
 	}
+	return newIDs
 }
 
 func getGmailScanTime(email string) time.Time {
@@ -368,46 +356,49 @@ func isAssigneeMe(assignee, email, userName, fallback string, aliases []string) 
 
 
 
-func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage)) {
-	if len(rawMsgs) == 0 {
-		return
-	}
-
+func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage)) []int {
 	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 	if err != nil {
 		logger.Errorf("[SCAN-GMAIL] Failed to init Gemini client: %v", err)
-		return
+		return nil
 	}
 
 	user, _ := store.GetOrCreateUser(email, "", "")
 	aliases, _ := store.GetUserAliases(user.ID)
 
+	var totalNewIDs []int
 	batchSize := 10
 	for i := 0; i < len(rawMsgs); i += batchSize {
 		end := i + batchSize
 		if end > len(rawMsgs) {
 			end = len(rawMsgs)
 		}
-		processBatch(ctx, gc, email, language, rawMsgs[i:end], classificationMap, toMap, user, aliases, onThreadActivity)
+		ids := processBatch(ctx, gc, email, language, rawMsgs[i:end], classificationMap, toMap, user, aliases, onThreadActivity)
+		totalNewIDs = append(totalNewIDs, ids...)
 	}
+	return totalNewIDs
 }
 
 // processBatch handles the analysis and persistence of a single batch of emails.
-func processBatch(ctx context.Context, gc *ai.GeminiClient, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage)) {
+func processBatch(ctx context.Context, gc *ai.GeminiClient, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage)) []int {
 	payload, msgMap := buildGmailBatchPayload(email, batchMsgs, classificationMap, onThreadActivity)
 	items, err := executeGmailAnalysisWithRetry(ctx, gc, email, payload, language, "Inbox")
 	if err != nil {
 		logger.Errorf("[SCAN-GMAIL] Batch Analyze Error for %s: %v", email, err)
-		return
+		return nil
 	}
 
 	msgs := processGeminiItems(email, user, aliases, items, classificationMap, toMap, msgMap)
+	var newIDs []int
 	for i, item := range items {
-		if i >= len(msgs) {
-			break
+		if i < len(msgs) {
+			id, _ := store.HandleTaskState(email, item, msgs[i])
+			if id > 0 {
+				newIDs = append(newIDs, id)
+			}
 		}
-		_, _ = store.HandleTaskState(email, item, msgs[i])
 	}
+	return newIDs
 }
 
 // Why: Separates the payload construction and side-effects (onThreadActivity callback) from the main AI analysis loop.
@@ -436,8 +427,17 @@ func buildGmailBatchPayload(email string, batchMsgs []types.RawMessage, classifi
 func executeGmailAnalysisWithRetry(ctx context.Context, gc *ai.GeminiClient, email, payload, language, room string) ([]store.TodoItem, error) {
 	var items []store.TodoItem
 	var analyzeErr error
+	// Why: [Metadata Enrichment] Creates a unified input for Gmail batches, using the payload as content.
+	enriched := types.EnrichedMessage{
+		RawContent:    payload,
+		SourceChannel: "gmail",
+		SenderID:      0,
+		SenderName:    "Gmail System", // Generic for batch processing
+		Timestamp:     time.Now(),
+	}
+
 	for attempt := 1; attempt <= 2; attempt++ {
-		items, analyzeErr = gc.Analyze(ctx, email, payload, language, "gmail", room)
+		items, analyzeErr = gc.Analyze(ctx, email, enriched, language, "gmail", room)
 		if analyzeErr == nil {
 			return items, nil
 		}
@@ -490,6 +490,7 @@ func mapTodoToMessage(email string, user *store.User, aliases []string, item sto
 		Deadline:     item.Deadline,
 		Category:     category,
 		ThreadID:     m.ThreadID,
+		SourceChannels: []string{"gmail"}, // Initial source for the new task
 	}, true
 }
 

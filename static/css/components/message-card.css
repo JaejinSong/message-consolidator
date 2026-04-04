@@ -277,3 +277,20 @@
     cursor: help;
 }
 
+.c-message-card__translating-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    margin-right: var(--spacing-xs);
+    color: var(--accent-color);
+    animation: c-pulse 1.5s ease-in-out infinite;
+    vertical-align: middle;
+}
+
+@keyframes c-pulse {
+    0% { opacity: 0.4; transform: scale(0.95); }
+    50% { opacity: 1; transform: scale(1.05); }
+    100% { opacity: 0.4; transform: scale(0.95); }
+}
+

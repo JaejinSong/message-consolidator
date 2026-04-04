@@ -134,3 +134,35 @@ func SaveTaskTranslation(messageID int, langCode, translatedText string) error {
 
 	return err
 }
+
+// SaveTaskTranslationsBulk saves multiple translations in a single transaction.
+// Why: Minimizes database lock contention and ensures atomicity for batch AI results.
+func SaveTaskTranslationsBulk(langCode string, results map[int]string) error {
+	tx, err := db.Begin()
+	if err != nil { return err }
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare("INSERT INTO task_translations (message_id, language_code, translated_text) VALUES (?, ?, ?) ON CONFLICT(message_id, language_code) DO UPDATE SET translated_text=excluded.translated_text")
+	if err != nil { return err }
+	defer stmt.Close()
+
+	for id, text := range results {
+		if _, err := stmt.Exec(int(id), langCode, text); err != nil { return err }
+	}
+
+	if err := tx.Commit(); err == nil {
+		syncCacheBatch(langCode, results)
+	}
+	return nil
+}
+
+func syncCacheBatch(langCode string, results map[int]string) {
+	translationMu.Lock()
+	defer translationMu.Unlock()
+	if translationCache[langCode] == nil {
+		translationCache[langCode] = make(map[int]string)
+	}
+	for id, text := range results {
+		translationCache[langCode][id] = text
+	}
+}

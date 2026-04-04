@@ -35,7 +35,73 @@ const ensureIntArray = (ids) => {
     return ids.map(ensureInt);
 };
 
+/**
+ * Why: Page-unit Pure JIT Batcher.
+ * Aggregates translation requests within a 50ms window to prevent N+1 API calls.
+ */
+class TranslationBatcher {
+    constructor() {
+        this.queue = new Map(); // lang -> Set<id>
+        this.promises = new Map(); // `${id}_${lang}` -> { resolve, reject }
+        this.timer = null;
+    }
+
+    request(id, lang) {
+        const validatedId = ensureInt(id);
+        const key = `${validatedId}_${lang}`;
+        if (this.promises.has(key)) return this.promises.get(key).promise;
+
+        if (!this.queue.has(lang)) this.queue.set(lang, new Set());
+        this.queue.get(lang).add(validatedId);
+
+        let resolve, reject;
+        const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+        this.promises.set(key, { promise, resolve, reject });
+
+        if (!this.timer) this.timer = setTimeout(() => this.flush(), 50);
+        return promise;
+    }
+
+    async flush() {
+        this.timer = null;
+        const currentQueue = new Map(this.queue);
+        this.queue.clear();
+
+        for (const [lang, ids] of currentQueue) {
+            this.processBatch(Array.from(ids), lang);
+        }
+    }
+
+    async processBatch(ids, lang) {
+        try {
+            const { results } = await api.translateTasksBatch(ids, lang);
+            ids.forEach(id => {
+                const res = results.find(r => r.id === id);
+                const key = `${id}_${lang}`;
+                this.promises.get(key)?.resolve(res?.translated_text || "");
+                this.promises.delete(key);
+            });
+        } catch (err) {
+            ids.forEach(id => {
+                const key = `${id}_${lang}`;
+                this.promises.get(key)?.reject(err);
+                this.promises.delete(key);
+            });
+        }
+    }
+}
+
+const batcher = new TranslationBatcher();
+
 export const api = {
+    /**
+     * Why: Entry point for JIT translation. 
+     * Uses the batcher to group requests within the same event loop/50ms.
+     */
+    async requestTranslation(id, lang) {
+        return batcher.request(id, lang);
+    },
+
     async fetchMessages(lang) {
         return apiFetch('/messages', { params: { lang }, errorMessage: 'Fetch messages failed' });
     },
@@ -378,5 +444,18 @@ export const api = {
      */
     async fetchLinkedAccounts() {
         return apiFetch('/contacts/links', { errorMessage: 'Fetch linked accounts failed' });
+    },
+
+    /**
+     * @description Merges multiple tasks into a single destination task.
+     */
+    async mergeTasks(targetIds, destinationId) {
+        const validatedTargets = ensureIntArray(targetIds);
+        const validatedDest = ensureInt(destinationId);
+        return apiFetch('/tasks/merge', {
+            method: 'PUT',
+            body: JSON.stringify({ target_ids: validatedTargets, destination_id: validatedDest }),
+            errorMessage: 'Merge tasks failed'
+        });
     }
 };

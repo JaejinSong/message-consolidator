@@ -52,6 +52,8 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 		searchQuery += " AND (done = 1 OR done = TRUE)"
 	case "canceled":
 		searchQuery += " AND (done = 0 OR done = FALSE) AND (is_deleted = 1 OR is_deleted = TRUE)"
+	case "merged":
+		searchQuery += " AND category = 'merged'"
 	}
 
 	//Why: Calculates the total count of filtered items independently to support frontend pagination.
@@ -136,6 +138,8 @@ func GetArchivedMessagesCount(ctx context.Context, filter ArchiveFilter) (int, e
 		searchQuery += " AND (done = 1 OR done = TRUE)"
 	case "canceled":
 		searchQuery += " AND (done = 0 OR done = FALSE) AND (is_deleted = 1 OR is_deleted = TRUE)"
+	case "merged":
+		searchQuery += " AND category = 'merged'"
 	}
 
 	safeArchiveDays := GetAutoArchiveDays()

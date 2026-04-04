@@ -41,6 +41,7 @@ var SQL = struct {
 	UpdateTaskDescriptionAppend  string
 	UpdateTaskFullAppend         string
 	UpdateTaskAssignee           string
+	UpdateTaskSourceChannels     string
 	DeleteMessages               string
 	HardDeleteMessages           string
 	RestoreMessages              string
@@ -55,6 +56,8 @@ var SQL = struct {
 	RefreshCacheArchive          string
 	ArchiveOldTasks              string
 	GetActiveTasksForContext     string
+	UpdateCategoryMerged         string
+	GetMessagesForMerge          string
 
 	//Why: Groups SQL queries for user-related operations.
 	GetAllUsers            string
@@ -169,6 +172,7 @@ var SQL = struct {
 	MigrateMessagesAddIsContextQuery   string
 	MigrateMessagesAddConstraints      string
 	MigrateMessagesAddMetadata         string
+	MigrateMessagesAddSourceChannels   string
 	CreateIdxUserTS                    string
 	MigrateUsersAddPoints              string
 	MigrateUsersAddStreak              string
@@ -283,6 +287,7 @@ func loadAllQueries() error {
 	SQL.UpdateTaskDescriptionAppend = queries["UpdateTaskDescriptionAppend"]
 	SQL.UpdateTaskFullAppend = queries["UpdateTaskFullAppend"]
 	SQL.UpdateTaskAssignee = queries["UpdateTaskAssignee"]
+	SQL.UpdateTaskSourceChannels = queries["UpdateTaskSourceChannels"]
 	SQL.DeleteMessages = queries["DeleteMessages"]
 	SQL.HardDeleteMessages = queries["HardDeleteMessages"]
 	SQL.RestoreMessages = queries["RestoreMessages"]
@@ -297,6 +302,8 @@ func loadAllQueries() error {
 	SQL.RefreshCacheArchive = queries["RefreshCacheArchive"]
 	SQL.ArchiveOldTasks = queries["ArchiveOldTasks"]
 	SQL.GetActiveTasksForContext = queries["GetActiveTasksForContext"]
+	SQL.UpdateCategoryMerged = queries["UpdateCategoryMerged"]
+	SQL.GetMessagesForMerge = queries["GetMessagesForMerge"]
 
 	SQL.GetAllUsers = queries["GetAllUsers"]
 	SQL.GetUserByEmail = queries["GetUserByEmail"]
@@ -398,6 +405,7 @@ func loadAllQueries() error {
 	SQL.MigrateMessagesAddIsContextQuery = queries["MigrateMessagesAddIsContextQuery"]
 	SQL.MigrateMessagesAddConstraints = queries["MigrateMessagesAddConstraints"]
 	SQL.MigrateMessagesAddMetadata = queries["MigrateMessagesAddMetadata"]
+	SQL.MigrateMessagesAddSourceChannels = queries["MigrateMessagesAddSourceChannels"]
 	SQL.CreateIdxUserTS = queries["CreateIdxUserTS"]
 	SQL.MigrateUsersAddPoints = queries["MigrateUsersAddPoints"]
 	SQL.MigrateUsersAddStreak = queries["MigrateUsersAddStreak"]

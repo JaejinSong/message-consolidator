@@ -73,4 +73,64 @@ func TestMetadataIntegrity(t *testing.T) {
 			t.Errorf("Expected 0 constraints, got %d", len(msg.Constraints))
 		}
 	})
+
+	t.Run("ScanSourceChannels", func(t *testing.T) {
+		// Why: Verifies that 'source_channels' (JSON String) is correctly scanned into []string.
+		_, err = db.Exec(`INSERT INTO messages 
+			(id, user_email, source, task, source_channels, source_ts) 
+			VALUES (?, ?, ?, ?, ?, ?)`,
+			103, userEmail, "whatsapp", "Task from multiple sources", `["whatsapp", "slack"]`, "ts_103")
+		if err != nil {
+			t.Fatalf("Failed to seed source_channels: %v", err)
+		}
+
+		msg, err := GetMessageByID(ctx, 103)
+		if err != nil {
+			t.Fatalf("GetMessageByID failed: %v", err)
+		}
+
+		if len(msg.SourceChannels) != 2 {
+			t.Fatalf("Expected 2 source channels, got %d", len(msg.SourceChannels))
+		}
+		if msg.SourceChannels[0] != "whatsapp" || msg.SourceChannels[1] != "slack" {
+			t.Errorf("Expected ['whatsapp', 'slack'], got %v", msg.SourceChannels)
+		}
+	})
+
+	t.Run("CrossChannelDeduplication", func(t *testing.T) {
+		// Why: Verifies that HandleTaskState correctly merges source_channels during semantic update.
+		// Context: Existing task is from "slack". Incoming message is from "whatsapp".
+		existing := ConsolidatedMessage{
+			ID:             103,
+			UserEmail:      userEmail,
+			Source:         "whatsapp",
+			SourceChannels: []string{"whatsapp", "slack"},
+		}
+		
+		// Simulated AI finding: Duplicate across channels.
+		// We use UpdateTaskSourceChannels directly to verify the persistence.
+		newSource := "email"
+		combined := uniqueStrings(append(existing.SourceChannels, newSource))
+		
+		err := UpdateTaskSourceChannels(userEmail, existing.ID, combined)
+		if err != nil {
+			t.Fatalf("UpdateTaskSourceChannels failed: %v", err)
+		}
+
+		updated, _ := GetMessageByID(ctx, 103)
+		if len(updated.SourceChannels) != 3 {
+			t.Errorf("Expected 3 channels after merge, got %d: %v", len(updated.SourceChannels), updated.SourceChannels)
+		}
+		
+		// Check uniqueness
+		err = UpdateTaskSourceChannels(userEmail, existing.ID, uniqueStrings(append(updated.SourceChannels, "slack")))
+		if err != nil {
+			t.Fatalf("Second UpdateTaskSourceChannels failed: %v", err)
+		}
+		
+		final, _ := GetMessageByID(ctx, 103)
+		if len(final.SourceChannels) != 3 {
+			t.Errorf("Expected still 3 channels after duplicate merge, got %d: %v", len(final.SourceChannels), final.SourceChannels)
+		}
+	})
 }

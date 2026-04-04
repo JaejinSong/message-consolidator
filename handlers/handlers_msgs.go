@@ -230,6 +230,33 @@ func (a *API) HandleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// HandleMergeTasks consolidates multiple tasks into a single destination task.
+// Why: Provides a manual mechanism to correct AI deduplication failures by merging related context.
+func (a *API) HandleMergeTasks(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	var req struct {
+		TargetIDs     []int `json:"target_ids"`
+		DestinationID int   `json:"destination_id"`
+	}
+
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body: "+err.Error())
+		return
+	}
+
+	if len(req.TargetIDs) == 0 || req.DestinationID == 0 {
+		respondError(w, http.StatusBadRequest, "Missing target_ids or destination_id")
+		return
+	}
+
+	if err := store.MergeTasks(email, req.TargetIDs, req.DestinationID); err != nil {
+		respondError(w, http.StatusInternalServerError, "Failed to merge tasks: "+err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"status": "success"})
+}
+
 // HandleTranslateBatchTasks handles JIT translation requests for a batch of tasks.
 // It leverages the TasksService for concurrent AI processing and error handling.
 func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) {

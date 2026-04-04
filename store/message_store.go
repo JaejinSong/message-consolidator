@@ -94,13 +94,14 @@ func executeBulkInsert(msgs []ConsolidatedMessage) (map[string]map[string]int, e
 	valueArgs := make([]interface{}, 0, len(msgs)*18)
 
 	for _, msg := range msgs {
-		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 		constraintsJSON, _ := json.Marshal(msg.Constraints)
+		channelsJSON, _ := json.Marshal(msg.SourceChannels)
 		valueArgs = append(valueArgs, 
 			msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, 
 			msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, 
 			msg.Deadline, msg.ThreadID, msg.AssigneeReason, msg.RepliedToID, 
-			msg.IsContextQuery, string(constraintsJSON), string(msg.Metadata),
+		msg.IsContextQuery, string(constraintsJSON), string(msg.Metadata), string(channelsJSON),
 		)
 	}
 
@@ -131,12 +132,14 @@ func scanBulkIDs(rows *sql.Rows) (map[string]map[string]int, error) {
 func insertMessage(msg ConsolidatedMessage) (int, error) {
 	var lastID int
 	constraintsJSON, _ := json.Marshal(msg.Constraints)
+	channelsJSON, _ := json.Marshal(msg.SourceChannels)
 	err := db.QueryRow(SQL.SaveMessage,
 		msg.UserEmail, msg.Source, msg.Room, msg.Task,
 		msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link,
 		msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline,
 		msg.ThreadID, msg.AssigneeReason, msg.RepliedToID,
 		msg.IsContextQuery, string(constraintsJSON), string(msg.Metadata),
+		string(channelsJSON),
 	).Scan(&lastID)
 	if err != nil && err != sql.ErrNoRows {
 		logger.Errorf("SaveMessage DB Scan Error: %v", err)
@@ -192,6 +195,83 @@ func UpdateTaskFullAppend(id int, date, newTask, newOriginalText string) error {
 	return err
 }
 
+// MergeTasks consolidates multiple tasks into one.
+// Why: Uses a single transaction and strings.Builder to maintain data integrity and memory efficiency during large text concatenation.
+func MergeTasks(email string, targetIDs []int, destID int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := executeMerge(ctx, tx, email, targetIDs, destID); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	InvalidateCache(email)
+	return nil
+}
+
+func executeMerge(ctx context.Context, tx *sql.Tx, email string, targets []int, destID int) error {
+	allIDs := append(targets, destID)
+	msgs, err := GetMessagesByIDs(ctx, allIDs)
+	if err != nil {
+		return err
+	}
+
+	var dest *ConsolidatedMessage
+	var sources []ConsolidatedMessage
+	for i := range msgs {
+		if msgs[i].ID == destID {
+			dest = &msgs[i]
+		} else {
+			sources = append(sources, msgs[i])
+		}
+	}
+
+	if dest == nil || len(sources) == 0 {
+		return fmt.Errorf("invalid merge: destination or sources not found")
+	}
+
+	return applyMergeUpdates(tx, email, dest, sources, targets)
+}
+
+func applyMergeUpdates(tx *sql.Tx, email string, dest *ConsolidatedMessage, sources []ConsolidatedMessage, targets []int) error {
+	var taskBuilder, textBuilder strings.Builder
+
+	for i, s := range sources {
+		if i > 0 {
+			taskBuilder.WriteString("\n\n")
+			textBuilder.WriteString("\n\n")
+		}
+		divider := fmt.Sprintf("=== [Merged Task: %d] ===\n", s.ID)
+		taskBuilder.WriteString(divider + s.Task)
+		textBuilder.WriteString(divider + s.OriginalText)
+	}
+
+	_, err := tx.Exec(SQL.UpdateTaskFullAppend, "Manual Merge", taskBuilder.String(), textBuilder.String(), dest.ID)
+	if err != nil {
+		return err
+	}
+
+	placeholders := strings.Repeat("?,", len(targets)-1) + "?"
+	query := fmt.Sprintf(SQL.UpdateCategoryMerged, placeholders)
+	args := make([]interface{}, len(targets)+1)
+	for i, id := range targets {
+		args[i] = int(id)
+	}
+	args[len(targets)] = email
+
+	_, err = tx.Exec(query, args...)
+	return err
+}
+
 func UpdateMessageCategory(email string, id int, category string) error {
 	if _, err := db.Exec(SQL.UpdateMessageCategory, category, int(id), email); err != nil {
 		return err
@@ -202,6 +282,15 @@ func UpdateMessageCategory(email string, id int, category string) error {
 
 func UpdateTaskAssignee(email string, id int, assignee string) error {
 	if _, err := db.Exec(SQL.UpdateTaskAssignee, assignee, int(id), email); err != nil {
+		return err
+	}
+	InvalidateCache(email)
+	return nil
+}
+
+func UpdateTaskSourceChannels(email string, id int, channels []string) error {
+	channelsJSON, _ := json.Marshal(channels)
+	if _, err := db.Exec(SQL.UpdateTaskSourceChannels, string(channelsJSON), int(id), email); err != nil {
 		return err
 	}
 	InvalidateCache(email)

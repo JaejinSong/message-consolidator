@@ -160,3 +160,41 @@ body.light-theme .buy-freeze-btn {
 body.light-theme .buy-freeze-btn:hover {
     background: var(--card-bg);
 }
+
+/* --- Multi-Source Visualization (Task Card) --- */
+/* Why: Enables horizontal stacking of multiple channel icons with consistent spacing and a11y focus. */
+.task-card__source-list {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.task-card__source-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    cursor: help;
+    transition: transform 0.2s ease-in-out;
+}
+
+.task-card__source-icon:hover {
+    transform: translateY(-0.125rem) scale(1.1);
+}
+
+/* Channel specific icon size normalization */
+.task-card__source-icon--slack svg {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.task-card__source-icon--whatsapp svg {
+    width: 1.125rem;
+    height: 1.125rem;
+}
+
+.task-card__source-icon--gmail svg {
+    width: 1.125rem;
+    height: 1.125rem;
+}

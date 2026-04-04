@@ -27,3 +27,14 @@ type RawMessage struct {
 	Metadata      json.RawMessage `json:"metadata"`
 	RelatedMessageID int          `json:"related_message_id,omitempty"`
 }
+
+// EnrichedMessage represents a unified message model for task analysis.
+// Why: Standardizes cross-channel metadata (WhatsApp, Slack, Email) to provide a consistent schema for AI-driven task extraction.
+type EnrichedMessage struct {
+	RawContent      string    `json:"raw_content"`
+	SourceChannel   string    `json:"source_channel"` // "whatsapp", "slack", "email"
+	SenderID        int       `json:"sender_id"`       // Why: Explicit integer conversion for DB identity security.
+	SenderName      string    `json:"sender_name"`
+	VirtualThreadID string    `json:"virtual_thread_id"`
+	Timestamp       time.Time `json:"timestamp"`
+}

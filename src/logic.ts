@@ -258,3 +258,19 @@ export function parseMarkdown(text: string): string {
         .replace(/\n/gim, '<br>')
         .replace(/(<\/h[1-3]>|<hr.*?>|<\/div>)<br>/gim, '$1'); 
 }
+
+/**
+ * Why: Returns the appropriate task description based on language availability.
+ * Follows English-First with Korean fallback strategy.
+ */
+export function getDisplayTask(m: Message, lang?: string): string {
+    const targetLang = lang || 'ko';
+    
+    // 1. If Korean requested and exists, use it
+    if (targetLang === 'ko' && m.task_ko) {
+        return m.task_ko;
+    }
+    
+    // 2. Fallback to English 원문 (task_en or task)
+    return m.task_en || m.task || "";
+}

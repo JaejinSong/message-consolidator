@@ -15,7 +15,8 @@ type ExtractionContext struct {
 	Version           string
 	Locale            string
 	FewShots          []FewShot
-	ExistingTasksJSON string
+	ExistingTasksJSON   string
+	EnrichedMessageJSON string
 }
 
 // LimitFewShots는 최대 주입 가능한 예시 개수를 통제합니다.

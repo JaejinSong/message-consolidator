@@ -1,7 +1,7 @@
 import '../static/style.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import 'pretendard/dist/web/static/pretendard.css';
-import { state, updateLang, updateTheme, updateStats, updateMessages } from './state.ts';
+import { state, updateLang, updateTheme, updateStats, updateMessages, setTaskSelection, clearTaskSelection } from './state.ts';
 import { updateUILanguage } from './i18n.js';
 import { I18N_DATA } from './locales.js';
 import { api } from './api.js';
@@ -30,13 +30,15 @@ import {
     bindThemeToggle
 } from './renderer.ts';
 import { Message, MessageHandlers, ServiceHandlers, I18nDictionary, UserProfile, CategorizedMessages } from './types.ts';
-import { archive } from './archive.js';
+import { archive } from './archive.ts';
 import { modals } from './modals.ts';
 import { insights } from './insights.ts';
 import { events, EVENTS } from './events.js';
 import { safeAsync, hasSessionHint, setupTabs } from './utils.ts';
 import { STATUS_STATES, POLLING_INTERVALS } from './constants.ts';
 import { authService } from './services/authService.ts';
+
+let syncTimer: any = null;
 
 /**
  * @file app.ts
@@ -108,6 +110,27 @@ const handlers: ServiceHandlers = {
     }, { triggerAuthOverlay: true }),
     onGmailConnect: () => {
         authService.connectGmail();
+    },
+    onSelectTask: (id: number, selected: boolean) => {
+        console.log(`[DEBUG] app.ts - onSelectTask called with id: ${id}, selected: ${selected}`);
+        setTaskSelection(id, selected);
+        updateMergeBar();
+    }
+};
+
+/**
+ * Updates the visibility and count of the Merge Selection Bar.
+ */
+const updateMergeBar = () => {
+    const bar = document.getElementById('mergeSelectionBar');
+    const countEl = document.getElementById('mergeBarCount');
+    const count = state.selectedTaskIds.size;
+    
+    if (count >= 2) {
+        bar?.classList.remove('hidden');
+        if (countEl) countEl.textContent = count.toString();
+    } else {
+        bar?.classList.add('hidden');
     }
 };
 
@@ -122,7 +145,27 @@ const fetchMessages = safeAsync(async () => {
     }
     updateMessages(categorized);
     renderMessages(categorized, handlers);
+    planTranslationSync();
 });
+
+/**
+ * Why: High-frequency polling specifically for pending translations.
+ * Activated only when 'is_translating' items exist.
+ */
+function planTranslationSync(): void {
+    if (syncTimer) return;
+    
+    const { inbox, pending, waiting } = state.messages;
+    const all = [...inbox, ...pending, ...waiting];
+    const needsSync = all.some(m => m.is_translating || m.translating);
+
+    if (needsSync) {
+        syncTimer = setTimeout(async () => {
+            syncTimer = null;
+            await fetchMessages();
+        }, 3000);
+    }
+}
 
 /**
  * Checks Slack connection status.
@@ -181,66 +224,7 @@ const fetchUserProfile = safeAsync(async () => {
     fetchMessages();
 }, { triggerAuthOverlay: true });
 
-/**
- * Triggers batch translation for visible tasks in the current tab.
- */
-const triggerBatchTranslation = safeAsync(async () => {
-    const lang = state.currentLang;
-    if (!lang || lang === 'en') return;
-
-    const activeTab = document.querySelector('.tab-btn.active')?.getAttribute('data-tab') || 'myTasksTab';
-    const gridId = activeTab.replace('Tab', 'List');
-    const container = document.getElementById(gridId);
-    if (!container) return;
-
-    const cards = container.querySelectorAll('.c-message-card:not(.c-message-card--done)');
-    if (cards.length === 0) return;
-
-    const taskIds = Array.from(cards).map(card => parseInt((card as HTMLElement).dataset.id || '0', 10));
-
-    let needsUpdate = false;
-    taskIds.forEach(id => {
-        const msg = state.messages.all.find(m => m.id === id);
-        if (msg && !msg.translating) {
-            msg.translating = true;
-            msg.translationError = null;
-            needsUpdate = true;
-        }
-    });
-
-    if (needsUpdate) {
-        renderMessages(state.messages, handlers);
-    }
-
-    try {
-        const data = await api.translateTasksBatch(taskIds, lang);
-        const results = data.results || [];
-
-        results.forEach((res: any) => {
-            const msg = state.messages.all.find(m => m.id === res.id);
-            if (msg) {
-                msg.translating = false;
-                if (res.success) {
-                    msg.task = res.translated_text;
-                    msg.translationError = null;
-                } else {
-                    msg.translationError = res.error;
-                }
-            }
-        });
-    } catch (e) {
-        console.error("Batch translation failed:", e);
-        taskIds.forEach(id => {
-            const msg = state.messages.all.find(m => m.id === id);
-            if (msg) {
-                msg.translating = false;
-                msg.translationError = "Service Unavailable";
-            }
-        });
-    } finally {
-        renderMessages(state.messages, handlers);
-    }
-});
+// Removed manual triggerBatchTranslation as it is now handled by JIT rendering.
 
 /**
  * Handles streak freeze purchase.
@@ -327,7 +311,6 @@ const initLanguageSelector = () => {
             updateUILanguage(lang);
             try {
                 await fetchMessages();
-                await triggerBatchTranslation();
                 if (archive.isVisible()) {
                     archive.fetch();
                 }
@@ -482,6 +465,60 @@ const initActionButtons = () => {
     bindGlobalClicks({
         onBuyFreeze: handleBuyStreakFreeze
     });
+
+    // --- Merge Logic ---
+    document.getElementById('mergeTasksBtn')?.addEventListener('click', () => {
+        const ids = Array.from(state.selectedTaskIds).sort((a, b) => a - b);
+        if (ids.length < 2) return;
+        
+        const lang = state.currentLang || 'ko';
+        const modal = document.getElementById('mergeConfirmModal');
+        const desc = document.getElementById('mergeConfirmDesc');
+        if (!modal || !desc) return;
+
+        // Find titles from current messages state
+        const allMsgs = [...state.messages.inbox, ...state.messages.pending, ...state.messages.waiting];
+        const getTitle = (id: number) => {
+            const m = allMsgs.find(msg => msg.id === id);
+            return m ? (m.task.length > 50 ? m.task.substring(0, 47) + '...' : m.task) : `#${id}`;
+        };
+
+        const destId = ids[0];
+        const sourceIds = ids.slice(1);
+        const destTitle = getTitle(destId);
+        const sourceTitles = sourceIds.map(id => `<strong>"${getTitle(id)}"</strong>`).join(', ');
+
+        const msgHtml = lang === 'ko'
+            ? `${sourceTitles} 를 <br><span class="u-text-accent"><strong>"${destTitle}"</strong></span> (으)로 병합하시겠습니까?`
+            : `${sourceTitles} will be merged into <br><span class="u-text-accent"><strong>"${destTitle}"</strong></span>. Proceed?`;
+
+        desc.innerHTML = msgHtml;
+        modal.classList.remove('hidden');
+
+        const confirmBtn = document.getElementById('confirmMergeBtn');
+        const handleConfirm = async () => {
+            modal.classList.add('hidden');
+            confirmBtn?.removeEventListener('click', handleConfirm);
+            
+            try {
+                await api.mergeTasks(sourceIds, destId);
+                showToast(lang === 'ko' ? '병합 완료' : 'Merged successfully', 'success');
+                clearTaskSelection();
+                updateMergeBar();
+                fetchMessages();
+            } catch (e: any) {
+                showToast(e.message || 'Merge failed', 'error');
+            }
+        };
+        confirmBtn?.addEventListener('click', handleConfirm, { once: true });
+    });
+
+    document.getElementById('clearSelectionBtn')?.addEventListener('click', () => {
+        clearTaskSelection();
+        updateMergeBar();
+        // Force re-render to uncheck boxes
+        fetchMessages();
+    });
 };
 
 /**
@@ -525,7 +562,6 @@ const initApp = () => {
 
     setupTabs('#dashboardContent .tab-btn', '#dashboardContent .c-tabs__panel', 'data-tab', 'active', async () => {
         await fetchMessages();
-        await triggerBatchTranslation();
     });
     setupTabs('.c-settings__tab', '.c-settings__panel', 'data-settings-tab', 'c-settings__tab--active', (tabId: string) => {
         if (tabId === 'tokenUsageTab') {

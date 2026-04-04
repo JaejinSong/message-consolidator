@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"message-consolidator/store"
+	"message-consolidator/types"
 	"testing"
 )
 
@@ -12,7 +13,7 @@ type MockAI struct {
 	Err     error
 }
 
-func (m *MockAI) AnalyzeWithContext(ctx context.Context, email, conversationText, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error) {
+func (m *MockAI) AnalyzeWithContext(ctx context.Context, email string, msg types.EnrichedMessage, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error) {
 	return m.Results, m.Err
 }
 

@@ -7,6 +7,8 @@ export interface Message {
     id: number;
     requester: string;
     task: string;
+    task_en?: string;
+    task_ko?: string;
     source: string;
     timestamp?: string;
     created_at?: string;
@@ -17,6 +19,7 @@ export interface Message {
     category?: string;
     metadata?: string | Record<string, any> | null;
     translating?: boolean;
+    is_translating?: boolean;
     translationError?: string | null;
     has_original?: boolean;
     room?: string;
@@ -25,6 +28,7 @@ export interface Message {
     source_ts?: string;
     is_deleted?: boolean | number;
     assigned_to?: string;
+    source_channels?: string[];
 }
 
 export interface UserProfile {
@@ -93,8 +97,10 @@ export interface AppState {
     archiveOrder: 'ASC' | 'DESC';
     archiveTotalCount: number;
     archiveThresholdDays: number;
+    archiveStatus: string;
     messages: CategorizedMessages;
     userStats: UserStats | null;
+    selectedTaskIds: Set<number>;
 }
 
 export interface AchievementEntry {
@@ -141,6 +147,7 @@ export interface MessageHandlers {
     onDeleteTask: (id: string) => Promise<void>;
     onShowOriginal: (id: string) => Promise<void>;
     onMapAlias?: (name: string, source: string) => void;
+    onSelectTask?: (id: number, selected: boolean) => void;
 }
 
 export interface ServiceHandlers extends MessageHandlers {

@@ -81,6 +81,7 @@ func runMigrations() error {
 	_, _ = db.Exec(SQL.MigrateMessagesAddIsContextQuery)
 	_, _ = db.Exec(SQL.MigrateMessagesAddConstraints)
 	_, _ = db.Exec(SQL.MigrateMessagesAddMetadata)
+	_, _ = db.Exec(SQL.MigrateMessagesAddSourceChannels)
 	_, _ = db.Exec(SQL.CreateIdxUserTS)
 
 	//Why: Extends the users table with gamification-related metadata including points, levels, and streaks.

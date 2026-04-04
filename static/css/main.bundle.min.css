@@ -438,6 +438,11 @@ body.light-theme .c-message-card__badge--waiting {
     color: var(--color-info);
     border-color: rgba(var(--color-info-rgb), 0.2);
 }
+
+/* --- Multi-Source Visualization (Task Card) --- */
+/* Why: Enables horizontal stacking of multiple channel icons with consistent spacing and a11y focus. */
+
+/* Channel specific icon size normalization */
 /* --- End of static/css/badges.css --- */
 
 /* --- Start of static/css/v2-nav.css --- */
@@ -1149,6 +1154,23 @@ body.light-theme .c-utility__btn:hover {
     color: var(--color-error);
     margin-right: var(--spacing-xs);
     cursor: help;
+}
+
+.c-message-card__translating-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    margin-right: var(--spacing-xs);
+    color: var(--accent-color);
+    animation: c-pulse 1.5s ease-in-out infinite;
+    vertical-align: middle;
+}
+
+@keyframes c-pulse {
+    0% { opacity: 0.4; transform: scale(0.95); }
+    50% { opacity: 1; transform: scale(1.05); }
+    100% { opacity: 0.4; transform: scale(0.95); }
 }
 
 

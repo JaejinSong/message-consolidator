@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"message-consolidator/logger"
 )
 
@@ -17,6 +18,11 @@ func HandleTaskState(email string, item TodoItem, msg ConsolidatedMessage) (int,
 			UpdateTaskText(email, *item.ID, item.Task)
 			if item.AssignedTo != "" {
 				UpdateTaskAssignee(email, *item.ID, item.AssignedTo)
+			}
+			// Why: Appends the source of the triggering message to the existing task's source_channels to track cross-platform contributions.
+			if existing, err := GetMessageByID(context.Background(), *item.ID); err == nil {
+				merged := append(existing.SourceChannels, msg.Source)
+				UpdateTaskSourceChannels(email, *item.ID, uniqueStrings(merged))
 			}
 			return *item.ID, nil
 		}
@@ -43,4 +49,16 @@ func HandleTaskState(email string, item TodoItem, msg ConsolidatedMessage) (int,
 	// Fallback to SaveMessage if ID was missing for update/resolve/cancel
 	_, id, err := SaveMessage(msg)
 	return id, err
+}
+
+func uniqueStrings(input []string) []string {
+	keys := make(map[string]bool)
+	list := []string{}
+	for _, entry := range input {
+		if entry != "" && !keys[entry] {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
+	return list
 }

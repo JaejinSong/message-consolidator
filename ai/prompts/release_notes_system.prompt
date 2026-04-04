@@ -12,7 +12,7 @@ Rules:
 2. Categorize: [FEAT], [FIX], [OPTIMIZE], [UI], [SYS].
 3. Tone: Use a "Premium/Witty" tone.
 4. Format: 
-   - Start with `# 업데이트 소식 - v{{.Locale}}` (Placeholder for version).
+   - Start with `# Update News - v{{.Locale}}` (Placeholder for version).
    - Use `## {TITLE}` for the main theme.
    - Use bullet points with bolded tags.
 

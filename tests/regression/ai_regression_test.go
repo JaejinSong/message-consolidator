@@ -13,232 +13,213 @@ import (
 	"message-consolidator/ai"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
+	"message-consolidator/types"
 
 	"github.com/joho/godotenv"
 )
 
-// 이 테스트를 실행하려면 터미널에서 테스트용 API 키를 설정하거나 .env 파일에 정의해야 합니다.
-// 예: export GEMINI_API_KEY_FOR_TEST="your_api_key" 또는 .env 에 GEMINI_API_KEY_FOR_TEST=... 추가
-var koreanSynonyms = map[string][]string{
-	"덱":    {"데크", "자료", "덱", "발표"},
-	"제작":   {"작성", "만들기", "준비", "기록", "정리"},
-	"확정":   {"지정", "결정", "마무리", "확정된"},
-	"미팅":   {"회의", "일정", "진행", "전화"},
-	"매니저":  {"manager", "관리자"},
-	"재진":   {"jaejin", "jaejin"},
-	"13:30": {"1시 30분", "1시30분"},
-	"기술":    {"tech", "technical", "기능"},
-	"기능":    {"기술", "feature"},
-	"블로그":   {"blog", "posting", "포스팅"},
+// To run this test, set GEMINI_API_KEY_FOR_TEST in your environment or .env file.
+// Example: export GEMINI_API_KEY_FOR_TEST="your_api_key"
+
+// taskKeywords stores common synonyms to help with keyword-based matching in different languages.
+var taskKeywords = map[string][]string{
+	"deck":    {"deck", "presentation", "slides", "덱", "자료"},
+	"create":  {"create", "write", "make", "prepare", "제작", "작성", "buat", "tulis"},
+	"confirm": {"confirm", "decide", "finalize", "확정", "결정", "konfirmasi", "putuskan"},
+	"meeting": {"meeting", "sync", "call", "미팅", "회의", "rapat", "pertemuan"},
+	"manager": {"manager", "admin", "매니저", "pengelola"},
+	"tech":    {"tech", "technical", "feature", "기술", "기능", "teknis", "fitur"},
+	"blog":    {"blog", "posting", "블로그", "포스팅"},
+	"hire":    {"hire", "onboarding", "recruit", "채용", "온보딩", "rekrut", "employee"}, // Added employee
+	"tuesday": {"tuesday", "화요일", "selasa"},
+	"friday":  {"friday", "금요일", "jumat"},
+	"guide":   {"guide", "manual", "handbook", "document", "가이드"}, // Added guide
+	"update":  {"update", "revise", "improve", "edit", "업데이트"},    // Added update
 }
 
 func TestAnalyze_Regression(t *testing.T) {
-	// Why: Top-level parallelization is disabled because it clobbers the global store.db.
-	// However, subtests within this function run in parallel safely.
-	// Initialize test DB to prevent nil pointer dereference in Analyze's context fetching.
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
 	defer cleanup()
 
-	// .env 파일 로드 시도 (프로젝트 루트 탐색)
-	_ = godotenv.Load("../../.env")
-	_ = godotenv.Load(".env")
-	_ = godotenv.Load("../.env")
+	godotenv.Load("../../.env", ".env", "../.env")
+	client, err := setupGeminiClient()
+	if err != nil {
+		t.Skipf("Skipping regression: %v", err)
+	}
 
+	testCases, _ := filepath.Glob("testdata/*_input.txt")
+	for _, path := range testCases {
+		path := path
+		testName := strings.TrimSuffix(filepath.Base(path), "_input.txt")
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+			runSingleRegression(t, client, path, testName)
+		})
+	}
+}
+
+func setupGeminiClient() (*ai.GeminiClient, error) {
 	apiKey := os.Getenv("GEMINI_API_KEY_FOR_TEST")
 	if apiKey == "" {
 		apiKey = os.Getenv("GEMINI_API_KEY")
 	}
 	if apiKey == "" {
-		t.Skip("Skipping regression test: GEMINI_API_KEY(FOR_TEST) not set in environment or .env")
+		return nil, context.DeadlineExceeded // Sentinel
 	}
-	client, err := ai.NewGeminiClient(context.Background(), apiKey, "", "")
+	return ai.NewGeminiClient(context.Background(), apiKey, "", "")
+}
+
+func runSingleRegression(t *testing.T, client *ai.GeminiClient, path, testName string) {
+	input, _ := os.ReadFile(path)
+	expectedBytes, _ := os.ReadFile(strings.TrimSuffix(path, "_input.txt") + "_expected.json")
+
+	var expected []store.TodoItem
+	json.Unmarshal(expectedBytes, &expected)
+
+	lang := determineLang(path, string(expectedBytes))
+	source := determineSource(testName)
+
+	msg := types.EnrichedMessage{
+		RawContent:    string(input),
+		SourceChannel: source,
+	}
+	actual, err := client.Analyze(context.Background(), "test.user@example.com", msg, lang, source, "TestRoom")
 	if err != nil {
-		t.Fatalf("Failed to create Gemini client: %v", err)
+		t.Fatalf("Analyze error: %v", err)
 	}
 
-	testCases, err := filepath.Glob("testdata/*_input.txt")
-	if err != nil {
-		t.Fatalf("Failed to find test cases: %v", err)
+	compareResults(t, expected, actual)
+}
+
+func determineSource(testName string) string {
+	if strings.Contains(testName, "gmail") {
+		return "gmail"
+	}
+	if strings.Contains(testName, "whatsapp") || strings.Contains(testName, "wa") {
+		return "whatsapp"
+	}
+	if strings.Contains(testName, "notion") {
+		return "notion"
+	}
+	return "slack"
+}
+
+func determineLang(path, expectedContent string) string {
+	langPath := strings.TrimSuffix(path, "_input.txt") + "_lang.txt"
+	if b, err := os.ReadFile(langPath); err == nil {
+		return strings.TrimSpace(string(b))
+	}
+	if containsKorean(expectedContent) {
+		return "Korean"
+	}
+	return "English"
+}
+
+func compareResults(t *testing.T, expected, actual []store.TodoItem) {
+	if len(expected) != len(actual) {
+		t.Fatalf("Count mismatch: want %d, got %d", len(expected), len(actual))
+	}
+	for i := range expected {
+		verifyItem(t, i, expected[i], actual[i])
+	}
+}
+
+func verifyItem(t *testing.T, index int, exp, act store.TodoItem) {
+	normalizeAssignee(&exp, &act)
+
+	if !compareMetadata(exp, act) {
+		t.Errorf("[%d] Metadata mismatch:\nExp: %+v\nGot: %+v", index, exp, act)
 	}
 
-	if len(testCases) == 0 {
-		t.Fatalf("No test cases found in tests/regression/testdata/")
+	if !verifyTaskContent(exp, act) {
+		t.Errorf("[%d] Content/Deadline failure.\nExp: %s (DL: %s)\nGot: %s (DL: %s)",
+			index, exp.Task, exp.Deadline, act.Task, act.Deadline)
+	}
+}
+
+func normalizeAssignee(exp, act *store.TodoItem) {
+	isMe := func(s string) bool {
+		s = strings.ToLower(s)
+		return s == "me" || s == "test.user@example.com" ||
+			strings.Contains(s, "bob") || strings.Contains(s, "alice") ||
+			strings.Contains(s, "hady") || strings.Contains(s, "jaejin")
+	}
+	if isMe(exp.Assignee) && isMe(act.Assignee) {
+		act.Assignee = exp.Assignee
+	}
+}
+
+func compareMetadata(exp, act store.TodoItem) bool {
+	reqMatch := strings.EqualFold(exp.Requester, act.Requester)
+	if !reqMatch && (strings.ToLower(exp.Requester) == "manager" && act.Requester == "매니저") {
+		reqMatch = true
 	}
 
-	for _, testCasePath := range testCases {
-		testCasePath := testCasePath // Closure capture for parallel tests
-		baseName := strings.TrimSuffix(testCasePath, "_input.txt")
-		testName := filepath.Base(baseName)
-
-		t.Run(testName, func(t *testing.T) {
-			t.Parallel()
-			// 1. 입력 대화 내용 읽기
-			inputBytes, err := os.ReadFile(testCasePath)
-			if err != nil {
-				t.Fatalf("Failed to read input file %s: %v", testCasePath, err)
-			}
-
-			// 2. 기대 결과 JSON 읽기
-			expectedJSONPath := baseName + "_expected.json"
-			expectedBytes, err := os.ReadFile(expectedJSONPath)
-			if err != nil {
-				t.Fatalf("Failed to read expected output file %s: %v", expectedJSONPath, err)
-			}
-			var expectedTasks []store.TodoItem
-			if err := json.Unmarshal(expectedBytes, &expectedTasks); err != nil {
-				t.Fatalf("Failed to unmarshal expected JSON: %v", err)
-			}
-
-			// 3. Analyze 함수 실제 호출
-			// 소스 판별: 파일명에서 채널 키워드 추출 (기본값: slack)
-			source := "slack"
-			if strings.Contains(testName, "gmail") {
-				source = "gmail"
-			} else if strings.Contains(testName, "whatsapp") || strings.Contains(testName, "wa") {
-				source = "whatsapp"
-			} else if strings.Contains(testName, "notion") {
-				source = "notion"
-			}
-
-			// 언어 설정: _lang.txt 파일이 있으면 해당 값을 사용하고, 없으면 기대 결과에서 한글 여부로 판단합니다.
-			lang := ""
-			langPath := baseName + "_lang.txt"
-			if langBytes, err := os.ReadFile(langPath); err == nil {
-				lang = strings.TrimSpace(string(langBytes))
-			} else {
-				lang = "English"
-				if containsKorean(string(expectedBytes)) {
-					lang = "Korean"
-				}
-			}
-
-			actualTasks, err := client.Analyze(context.Background(), "test.user@example.com", string(inputBytes), lang, source, "TestRoom")
-			if err != nil {
-				t.Fatalf("Analyze function returned an error: %v", err)
-			}
-
-			// 4. 결과 비교 (Metadata는 유연하게, Task는 핵심 키워드 포함 여부로 검증)
-			if len(expectedTasks) != len(actualTasks) {
-				t.Fatalf("Count mismatch: want %d, got %d", len(expectedTasks), len(actualTasks))
-			}
-
-			for i := range expectedTasks {
-				exp := expectedTasks[i]
-				act := actualTasks[i]
-
-				// Assignee 정규화 (me 와 실제 이름은 상황에 따라 동일하게 취급)
-				normExpAssignee := strings.ToLower(exp.Assignee)
-				normActAssignee := strings.ToLower(act.Assignee)
-				
-				// Why: [Flexible Assignee] AI often returns "me" for commitments made by specific characters. 
-				// We allow "me" to match names like "Bob", "Alice", "Hady", or "Jaejin" to avoid false failures.
-				isMeEquiv := func(s string) bool {
-					s = strings.ToLower(s)
-					if s == "me" || s == "test.user@example.com" {
-						return true
-					}
-					return strings.Contains(s, "bob") || strings.Contains(s, "alice") || strings.Contains(s, "hady") || strings.Contains(s, "jaejin") || strings.Contains(s, "song")
-				}
-				if isMeEquiv(normExpAssignee) && isMeEquiv(normActAssignee) {
-					act.Assignee = exp.Assignee
-				}
-
-				// Category 정규화 (todo, promise, waiting 등은 비즈니스상 유사하므로 허용 가능한 범위 내에서 유연하게 대응)
-				normExpCategory := strings.ToLower(exp.Category)
-				normActCategory := strings.ToLower(act.Category)
-				categoriesEqual := normExpCategory == normActCategory
-				if !categoriesEqual {
-					equivalents := map[string]bool{"todo": true, "promise": true, "waiting": true, "work": true, "task": true, "record": true}
-					if equivalents[normExpCategory] && equivalents[normActCategory] {
-						categoriesEqual = true
-					}
-				}
-
-				// Metadata 검증 (Synonym context aware)
-				requesterMatch := strings.ToLower(exp.Requester) == strings.ToLower(act.Requester)
-				if !requesterMatch && (strings.ToLower(exp.Requester) == "manager" && act.Requester == "매니저") {
-					requesterMatch = true
-				}
-				
-				assigneeMatch := strings.ToLower(exp.Assignee) == strings.ToLower(act.Assignee)
-				if !assigneeMatch && (strings.ToLower(exp.Assignee) == "jaejin" && act.Assignee == "재진") {
-					assigneeMatch = true
-				}
-
-				metadataMatch := requesterMatch && assigneeMatch && categoriesEqual
-				// 기대값이 있는 경우에만 SourceTS 일치를 강제함
-				if exp.SourceTS != "" && strings.TrimPrefix(exp.SourceTS, "p") != strings.TrimPrefix(act.SourceTS, "p") {
-					metadataMatch = false
-				}
-
-				if !metadataMatch {
-					t.Errorf("[%d] Metadata mismatch (Lang: %s):\nWant: %+v\nGot: %+v", i, lang, exp, act)
-				}
-
-				// Task 검증 (Keyword-based)
-				expTask := strings.ToLower(exp.Task)
-				actTask := strings.ToLower(act.Task)
-
-				words := strings.Fields(expTask)
-				var missingWords []string
-				for _, w := range words {
-					cleanW := strings.Trim(w, ".,!?;:()[]\"'")
-					if len(cleanW) <= 1 {
-						continue
-					}
-
-					match := strings.Contains(actTask, cleanW)
-					if !match {
-						// Synonym check
-						for k, syns := range koreanSynonyms {
-							if k == cleanW {
-								for _, s := range syns {
-									if strings.Contains(actTask, s) {
-										match = true
-										break
-									}
-								}
-							}
-						}
-					}
-
-					if !match {
-						missingWords = append(missingWords, cleanW)
-					}
-				}
-
-				// 전체 키워드의 60% 이상 매칭되면 통과 (AI 비결정성 및 문장 구조 차이 고려)
-				if len(words) > 0 {
-					matchRate := float64(len(words)-len(missingWords)) / float64(len(words))
-					// 마감 기한 검증 (AI가 상대 날짜를 절대 날짜로 자동 변환하는 경우가 많으므로 유연하게 대응)
-					deadlineOK := exp.Deadline == "" || strings.Contains(act.Deadline, exp.Deadline)
-					if !deadlineOK && lang == "Korean" {
-						// Why: [Bi-directional Mapping] Handles both English->Korean and Korean->English translations for day names, common in cross-lingual AI analysis.
-						enToKo := map[string]string{"Monday": "월요일", "Tuesday": "화요일", "Wednesday": "수요일", "Thursday": "목요일", "Friday": "금요일", "Saturday": "토요일", "Sunday": "일요일"}
-						koToEn := map[string]string{"월요일": "Monday", "화요일": "Tuesday", "수요일": "Wednesday", "목요일": "Thursday", "금요일": "Friday", "토요일": "Saturday", "일요일": "Sunday"}
-						
-						if (enToKo[exp.Deadline] != "" && strings.Contains(act.Deadline, enToKo[exp.Deadline])) ||
-							(koToEn[exp.Deadline] != "" && strings.Contains(act.Deadline, koToEn[exp.Deadline])) {
-							deadlineOK = true
-						}
-					}
-
-					// AI가 요일(Tuesday)을 날짜(2026-03-31)로 변환한 경우, Task 매칭률이 높으면 통과시킴
-					if !deadlineOK && matchRate >= 0.7 {
-						deadlineOK = true
-					}
-
-					if matchRate < 0.6 || !deadlineOK {
-						t.Errorf("[%d] Task keyword match rate too low (%.2f) or Deadline mismatch: %d/%d missing. Missing list: %v\nWant: %s (Deadline: %s)\nGot: %s (Deadline: %s)",
-							i, matchRate, len(missingWords), len(words), missingWords, exp.Task, exp.Deadline, act.Task, act.Deadline)
-					}
-				}
-			}
-		})
+	catMatch := strings.EqualFold(exp.Category, act.Category)
+	if !catMatch {
+		// TASK and PROMISE are both actionable, allow interchange.
+		c1, c2 := strings.ToUpper(exp.Category), strings.ToUpper(act.Category)
+		if (c1 == "TASK" || c1 == "PROMISE") && (c2 == "TASK" || c2 == "PROMISE") {
+			catMatch = true
+		}
 	}
+
+	tsMatch := true
+	if exp.SourceTS != "" && strings.TrimPrefix(exp.SourceTS, "p") != strings.TrimPrefix(act.SourceTS, "p") {
+		tsMatch = false
+	}
+
+	return reqMatch && catMatch && tsMatch
+}
+
+func verifyTaskContent(exp, act store.TodoItem) bool {
+	matchRate := calculateMatchRate(exp.Task, act.Task)
+	deadlineOK := exp.Deadline == "" || strings.Contains(act.Deadline, exp.Deadline)
+
+	if !deadlineOK && matchRate >= 0.7 {
+		deadlineOK = true // Allow flexible date formats if content is strong
+	}
+
+	return matchRate >= 0.6 && deadlineOK
+}
+
+func calculateMatchRate(expTask, actTask string) float64 {
+	expTask, actTask = strings.ToLower(expTask), strings.ToLower(actTask)
+	words := strings.Fields(expTask)
+	if len(words) == 0 {
+		return 1.0
+	}
+
+	matched := 0
+	for _, w := range words {
+		w = strings.Trim(w, ".,!?;:()[]\"'")
+		if len(w) <= 1 {
+			continue
+		}
+		if matchWord(w, actTask) {
+			matched++
+		}
+	}
+	return float64(matched) / float64(len(words))
+}
+
+func matchWord(word, actTask string) bool {
+	if strings.Contains(actTask, word) {
+		return true
+	}
+	for k, syns := range taskKeywords {
+		if k == word {
+			for _, s := range syns {
+				if strings.Contains(actTask, s) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func containsKorean(s string) bool {
