@@ -7,7 +7,7 @@
 ## 2. 기술 부채 (Tech Debt) & 개선 필요 사항
 - [ ] **[Optimization]** Font Awesome 패키지 전환 (`@fortawesome/fontawesome-svg-core` 기반 트리쉐이킹 적용)
 - [ ] **[Refactor]** 백엔드 에러 핸들링 통일 (커스텀 에러 타입 도입)
-- [ ] **[Test]** 프론트엔드 컴포넌트 단위 테스트 (Vitest 도입 검토)
+- [ ] **[WhatsApp]** 시스템 메시지 필터링 정교화 (현재 `StubType`, `ProtocolMessage` 광범위 차단 중. 향후 "그룹 이름 변경"이나 "참여자 초대/강퇴" 알림 활용 필요 시 필터링 완화 검토)
 
 ## 3. 완료 사항 (Completed)
 - [x] **[Infra]** Docker Compose & Caddy 기반 VPS 배포 자동화 (v2.4.19)
@@ -32,19 +32,3 @@
 - [x] **[Refactor]** 프론트엔드 TypeScript 전면 전환 및 Clean Architecture 적용 (v2.4.8)
 - [x] **[Feature]** Metadata JSON 아키텍처 및 Policy 필드 도입 (v2.4.8)
 - [x] **[Feature]** Gmail/Slack/WhatsApp 다중 채널 업무 추출 정밀도 고도화 (v2.4.7)
-
----
-
-# AI Extraction Improvement Pipeline (Data-Driven)
-
-## Phase 1: Data Accumulation & Observability
-- **Action:** DB 원본 메시지 보존, AI 인퍼런스 로그(`ai_inference.log`) 적재, WhaTap 모니터링.
-
-## Phase 2: Failure Case Analysis
-- **Action:** 주기적 로그 분석을 통한 오탐지 케이스 식별 및 회귀 테스트 데이터셋 확충.
-
-## Phase 3: Prompt & Logic Refinement
-- **Action:** `ai/prompts/` 업데이트, 파싱 로직 보완, 화자 인식 전처리 로직 강화.
-
-## Phase 4: Regression Testing & Deployment
-- **Action:** `tests/regression/ai_regression_test.go` 검증 후 Cloud Run / VPS 배포.

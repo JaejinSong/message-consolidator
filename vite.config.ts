@@ -13,12 +13,14 @@ export default defineConfig({
         target: 'https://34.67.133.18.nip.io',
         changeOrigin: true,
         secure: false, // SSL 검증 무시
+        cookieDomainRewrite: ""
       },
       // 2. 인증 요청 처리
       '/auth': {
         target: 'https://34.67.133.18.nip.io',
         changeOrigin: true,
         secure: false,
+        cookieDomainRewrite: ""
       }
     }
   },

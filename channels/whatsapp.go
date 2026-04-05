@@ -168,90 +168,121 @@ func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt inte
 	}
 }
 
+// isSystemMessage는 해당 메시지가 사용자 발화가 아닌 프로토콜/시스템 알림인지 판별합니다.
+func isSystemMessage(msg *events.Message) bool {
+	if msg == nil || msg.Message == nil {
+		return true
+	}
+	// Why: [Protocol Filter] ProtocolMessage는 본문 없는 제어용 메시지(삭제, 동기화 등)이므로 제외합니다.
+	if msg.Message.ProtocolMessage != nil || msg.Message.SenderKeyDistributionMessage != nil {
+		return true
+	}
+	// Why: [Category Filter] Category가 'peer'인 메시지는 디바이스 간 통신용이므로 제외합니다.
+	if msg.Info.Category == "peer" {
+		return true
+	}
+	return false
+}
+
 // Why: Separates complex message handling logic from the main event router to improve readability and maintainability.
 func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, msg *events.Message) {
-	var msgText string
-	var replyToID string
-	var repliedToUser string
-
-	var isForwarded bool
-	var mentionedIDs []string
-	var hasAttachment bool
-	var attachmentNames []string
-
-	if msg.Message.GetConversation() != "" {
-		msgText = msg.Message.GetConversation()
-	} else if extMsg := msg.Message.GetExtendedTextMessage(); extMsg != nil {
-		msgText = extMsg.GetText()
-		if extMsg.ContextInfo != nil {
-			isForwarded = extMsg.ContextInfo.GetIsForwarded()
-			mentionedIDs = extMsg.ContextInfo.MentionedJID
-			if extMsg.ContextInfo.StanzaID != nil {
-				replyToID = *extMsg.ContextInfo.StanzaID
-			}
-			//Why: Extracts the original sender (Participant) of the quoted message to enable accurate 'Reply-to' context in AI task assignment.
-			if extMsg.ContextInfo.Participant != nil {
-				repliedJID, _ := waTypes.ParseJID(*extMsg.ContextInfo.Participant)
-				repliedToUser = repliedJID.User // Fallback to number
-
-				// Try to resolve name
-				if name := store.GetNameByWhatsAppNumber(email, repliedJID.User); name != "" {
-					repliedToUser = name
-				} else if contact, err := client.Store.Contacts.GetContact(context.Background(), repliedJID); err == nil && (contact.PushName != "" || contact.FullName != "") {
-					if contact.FullName != "" {
-						repliedToUser = contact.FullName
-					} else {
-						repliedToUser = contact.PushName
-					}
-				}
-			}
-		}
-	} else {
-		msgText, hasAttachment, attachmentNames = m.extractMediaInfo(msg.Message)
-	}
-
-	if msgText == "" {
+	if isSystemMessage(msg) {
 		return
 	}
 
-	sender := msg.Info.Sender.String()
-	if msg.Info.IsFromMe {
-		sender = "나" //Why: Explicitly marks self-sent messages as "나" (Me) so the AI analyst can correctly identify task status and ownership.
-	} else if msg.Info.PushName != "" {
-		sender = msg.Info.PushName
-		go store.SaveWhatsAppContact(email, msg.Info.Sender.User, msg.Info.PushName)
+	msgText, meta, ok := m.parseMessageContent(email, client, msg)
+	if !ok || msgText == "" {
+		return
 	}
 
-	msgText = m.resolveIncomingMentions(email, client, msgText, mentionedIDs)
+	sender := m.resolveSenderName(email, client, msg.Info)
+	msgText = m.resolveIncomingMentions(email, client, msgText, meta.MentionedIDs)
 
+	m.bufferMessage(email, msg.Info.Chat, types.RawMessage{
+		ID: msg.Info.ID, Sender: sender, Text: msgText,
+		Timestamp: msg.Info.Timestamp, ReplyToID: meta.ReplyToID,
+		RepliedToUser: meta.RepliedToUser, IsForwarded: meta.IsForwarded,
+		MentionedIDs: meta.MentionedIDs, HasAttachment: meta.HasAttachment,
+		AttachmentNames: meta.AttachmentNames,
+	})
+
+	logger.Debugf("[WA-EVENT][%s] Message from %s (Chat: %s): %s", email, sender, msg.Info.Chat, msgText)
+}
+
+type messageMetadata struct {
+	ReplyToID       string
+	RepliedToUser   string
+	IsForwarded     bool
+	MentionedIDs    []string
+	HasAttachment   bool
+	AttachmentNames []string
+}
+
+func (m *WAManager) parseMessageContent(email string, client *whatsmeow.Client, msg *events.Message) (string, messageMetadata, bool) {
+	var meta messageMetadata
+	var text string
+
+	if conv := msg.Message.GetConversation(); conv != "" {
+		return conv, meta, true
+	}
+
+	if ext := msg.Message.GetExtendedTextMessage(); ext != nil {
+		text = ext.GetText()
+		meta.IsForwarded = ext.ContextInfo.GetIsForwarded()
+		meta.MentionedIDs = ext.ContextInfo.MentionedJID
+		if ext.ContextInfo != nil {
+			meta.ReplyToID = ext.ContextInfo.GetStanzaID()
+			meta.RepliedToUser = m.resolveRepliedUser(email, client, ext.ContextInfo)
+		}
+		return text, meta, true
+	}
+
+	text, meta.HasAttachment, meta.AttachmentNames = m.extractMediaInfo(msg.Message)
+	return text, meta, text != ""
+}
+
+func (m *WAManager) resolveSenderName(email string, client *whatsmeow.Client, info waTypes.MessageInfo) string {
+	if info.IsFromMe {
+		return "나"
+	}
+	if info.PushName != "" {
+		go store.SaveWhatsAppContact(email, info.Sender.User, info.PushName)
+		return info.PushName
+	}
+	return info.Sender.String()
+}
+
+func (m *WAManager) resolveRepliedUser(email string, client *whatsmeow.Client, ctx *waProto.ContextInfo) string {
+	if ctx == nil || ctx.Participant == nil {
+		return ""
+	}
+	repliedJID, _ := waTypes.ParseJID(*ctx.Participant)
+	if name := store.GetNameByWhatsAppNumber(email, repliedJID.User); name != "" {
+		return name
+	}
+	if contact, err := client.Store.Contacts.GetContact(context.Background(), repliedJID); err == nil {
+		if contact.FullName != "" {
+			return contact.FullName
+		}
+		return contact.PushName
+	}
+	return repliedJID.User
+}
+
+func (m *WAManager) bufferMessage(email string, chat waTypes.JID, raw types.RawMessage) {
 	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if _, ok := m.messageBuffer[email]; !ok {
 		m.messageBuffer[email] = make(map[waTypes.JID][]types.RawMessage)
 	}
 
-	//Why: Buffers incoming messages in memory to allow for batch processing and context-aware task extraction during the next scan cycle.
-	chatBuffer := m.messageBuffer[email][msg.Info.Chat]
-	chatBuffer = append(chatBuffer, types.RawMessage{
-		ID:              msg.Info.ID,
-		Sender:          sender,
-		Text:            msgText,
-		Timestamp:       msg.Info.Timestamp,
-		ReplyToID:       replyToID,
-		RepliedToUser:   repliedToUser,
-		IsForwarded:     isForwarded,
-		MentionedIDs:    mentionedIDs,
-		HasAttachment:   hasAttachment,
-		AttachmentNames: attachmentNames,
-	})
-
-	//Why: Caps the per-chat message buffer at 200 entries to prevent memory exhaustion in highly active group chats.
-	if len(chatBuffer) > 200 {
-		chatBuffer = chatBuffer[len(chatBuffer)-200:]
+	buffer := m.messageBuffer[email][chat]
+	buffer = append(buffer, raw)
+	if len(buffer) > 200 {
+		buffer = buffer[len(buffer)-200:]
 	}
-	m.messageBuffer[email][msg.Info.Chat] = chatBuffer
-	m.mu.Unlock()
-
-	logger.Debugf("[WA-EVENT][%s] Message from %s (Chat: %s): %s", email, sender, msg.Info.Chat, msgText)
+	m.messageBuffer[email][chat] = buffer
 }
 
 // Why: Resolves numeric WhatsApp mentions into human-readable contact names using explicit MentionedJID metadata instead of fragile regex parsing.
