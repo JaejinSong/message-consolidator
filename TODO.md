@@ -10,6 +10,10 @@
 - [ ] **[WhatsApp]** 시스템 메시지 필터링 정교화 (현재 `StubType`, `ProtocolMessage` 광범위 차단 중. 향후 "그룹 이름 변경"이나 "참여자 초대/강퇴" 알림 활용 필요 시 필터링 완화 검토)
 
 ## 3. 완료 사항 (Completed)
+- [x] **[UI/UX]** Optimistic UI 도입 및 테스크 처리 지연(0ms) 해결 (v2.4.20)
+  - 삭제 애니메이션 적용 및 개별 DOM 조작(`renderer.ts`) 리팩토링
+  - API 실패 시 상태/UI 롤백 로직 도입
+- [x] **[Infra]** Docker 빌드 파일 누락 (`index.html`, `whatap.conf` 등) 수정 (v2.4.20)
 - [x] **[Infra]** Docker Compose & Caddy 기반 VPS 배포 자동화 (v2.4.19)
   - `scripts/` 내 중복 `main` 패키지 충돌 해결 (cmd/verify 하위로 리팩토링)
   - Artifact Registry 및 GCS 연동 배포 워크플로우 구축
