@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"message-consolidator/internal/testutil"
 	"testing"
 )
@@ -15,10 +16,10 @@ func TestIdentityResolutionViews(t *testing.T) {
 	tenantEmail := "test@example.com"
 
 	// 1. Create Contacts (Master & Child)
-	masterID, _ := AddContact(tenantEmail, "boss@company.com", "The Big Boss", "", "gmail")
-	childID, _ := AddContact(tenantEmail, "minion@whatsapp", "Poor Minion", "", "whatsapp")
+	masterID, _ := AddContact(context.Background(), tenantEmail, "boss@company.com", "The Big Boss", "", "gmail")
+	childID, _ := AddContact(context.Background(), tenantEmail, "minion@whatsapp", "Poor Minion", "", "whatsapp")
 	
-	_ = LinkContact(tenantEmail, masterID, childID)
+	_ = LinkContact(context.Background(), tenantEmail, masterID, childID)
 
 	t.Run("v_contacts_resolved", func(t *testing.T) {
 		// Child 계정 조회 시 Master의 정보가 나오는지 확인

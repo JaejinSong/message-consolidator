@@ -271,10 +271,10 @@ func TestReportsService_GenerateVisualizationData_WithAliases(t *testing.T) {
 	}
 
 	// 2. Add aliases to DB
-	if err := store.AddUserAlias(userJJ.ID, "JJ"); err != nil {
+	if err := store.AddUserAlias(context.Background(), userJJ.ID, "JJ"); err != nil {
 		t.Fatalf("Failed to add user alias: %v", err)
 	}
-	if err := store.AddTenantAlias(tenantEmail, "Song, SongV2, jjsong@whatap.io", "Jaejin Song"); err != nil {
+	if err := store.AddTenantAlias(context.Background(), tenantEmail, "Song, SongV2, jjsong@whatap.io", "Jaejin Song"); err != nil {
 		t.Fatalf("Failed to add tenant alias: %v", err)
 	}
 
@@ -417,7 +417,7 @@ func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) 
 	if err != nil {
 		t.Fatalf("Failed to create user jj: %v", err)
 	}
-	if err := store.AddTenantAlias(tenantB, "Song", "Jaejin Song"); err != nil {
+	if err := store.AddTenantAlias(context.Background(), tenantB, "Song", "Jaejin Song"); err != nil {
 		t.Fatalf("Failed to add tenant alias for tenant B: %v", err)
 	}
 

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -50,29 +51,29 @@ func GetContactsMappings(email string) ([]ContactRecord, error) {
 	return result, nil
 }
 
-func AddContactMapping(email, canonicalID, displayName, aliases, source string) error {
-	_, err := AddContact(email, canonicalID, displayName, aliases, source)
+func AddContactMapping(ctx context.Context, email, canonicalID, displayName, aliases, source string) error {
+	_, err := AddContact(ctx, email, canonicalID, displayName, aliases, source)
 	return err
 }
 
-func AddContact(tenantEmail, canonicalID, displayName, aliases, source string) (int64, error) {
+func AddContact(ctx context.Context, tenantEmail, canonicalID, displayName, aliases, source string) (int64, error) {
 	if source == "" {
 		source = "all"
 	}
 	var id int64
-	err := db.QueryRow(SQL.AddContactMapping, tenantEmail, canonicalID, displayName, aliases, source).Scan(&id)
+	err := db.QueryRowContext(ctx, SQL.AddContactMapping, tenantEmail, canonicalID, displayName, aliases, source).Scan(&id)
 	if err == nil {
 		UpdateContactsCache(tenantEmail, canonicalID, displayName, aliases, source)
 	}
 	return id, err
 }
 
-func UpsertContact(tenantEmail, canonicalID, displayName, aliases, source string) (int64, error) {
+func UpsertContact(ctx context.Context, tenantEmail, canonicalID, displayName, aliases, source string) (int64, error) {
 	if source == "" {
 		source = "all"
 	}
 	var id int64
-	err := db.QueryRow(SQL.UpsertContactMapping, tenantEmail, canonicalID, displayName, aliases, source).Scan(&id)
+	err := db.QueryRowContext(ctx, SQL.UpsertContactMapping, tenantEmail, canonicalID, displayName, aliases, source).Scan(&id)
 	if err == nil {
 		UpdateContactsCache(tenantEmail, canonicalID, displayName, aliases, source)
 	}
@@ -162,11 +163,11 @@ func AutoUpsertContact(tenantEmail, email, name, source string) error {
 			}
 		}
 
-		_, err := UpsertContact(tenantEmail, canonicalID, finalDisplayName, finalAliases, source)
+		_, err := UpsertContact(context.Background(), tenantEmail, canonicalID, finalDisplayName, finalAliases, source)
 		return err
 	}
 
-	_, err := UpsertContact(tenantEmail, canonicalID, displayName, aliases, source)
+	_, err := UpsertContact(context.Background(), tenantEmail, canonicalID, displayName, aliases, source)
 	return err
 }
 
@@ -205,7 +206,7 @@ func SaveWhatsAppContact(email, number, name string) error {
 		canonical = currentCanonical
 	}
 
-	_, err := UpsertContact(email, canonical, name, newAliases, "whatsapp")
+	_, err := UpsertContact(context.Background(), email, canonical, name, newAliases, "whatsapp")
 	return err
 }
 
@@ -258,115 +259,122 @@ func NormalizeContactName(email, rawName string) string {
 }
 
 
-func GetContactByIdentifier(tenantEmail, identifier string) (*ContactRecord, error) {
-	if identifier == "" {
-		return nil, nil
+// GetContactsByIdentifiers fetches multiple contacts in a single pass to eliminate N+1 overhead in report generation.
+func GetContactsByIdentifiers(ctx context.Context, tenantEmail string, identifiers []string) (map[string]*ContactRecord, map[string]bool, error) {
+	if len(identifiers) == 0 {
+		return make(map[string]*ContactRecord), make(map[string]bool), nil
 	}
 
-	identifier = strings.TrimSpace(identifier)
+	res := make(map[string]*ContactRecord)
+	ambiguous := make(map[string]bool)
+	var remaining []string
 
-	// 1. Try Cache First (Fast Path)
+	// Phase 1: Try Cache
 	metadataMu.RLock()
-	mappings, ok := contactsCache[tenantEmail]
+	if mappings, ok := contactsCache[tenantEmail]; ok {
+		for _, id := range identifiers {
+			matches := findAllInMappings(mappings, id)
+			if len(matches) > 1 {
+				ambiguous[id] = true
+				res[id] = matches[0]
+			} else if len(matches) == 1 {
+				res[id] = matches[0]
+			} else {
+				remaining = append(remaining, id)
+			}
+		}
+	} else {
+		remaining = identifiers
+	}
 	metadataMu.RUnlock()
 
-	if ok {
-		normalizedID := strings.ToLower(identifier)
-		var matches []ContactRecord
-		for _, m := range mappings {
-			matchFound := false
-			if strings.ToLower(m.CanonicalID) == normalizedID || strings.ToLower(m.DisplayName) == normalizedID {
-				matchFound = true
-			} else {
-				aliases := strings.Split(m.Aliases, ",")
-				for _, a := range aliases {
-					if strings.EqualFold(strings.TrimSpace(a), identifier) {
-						matchFound = true
-						break
-					}
-				}
-			}
-			if matchFound {
-				matches = append(matches, m)
-			}
-		}
-
-		if len(matches) > 1 {
-			// Check if they point to different canonical IDs
-			firstID := matches[0].CanonicalID
-			isAmbiguous := false
-			emails := []string{firstID}
-			for i := 1; i < len(matches); i++ {
-				emails = append(emails, matches[i].CanonicalID)
-				if matches[i].CanonicalID != firstID {
-					isAmbiguous = true
-				}
-			}
-
-			if isAmbiguous {
-				// We have a collision! Multiple different emails share this name/alias.
-				return nil, &AmbiguousIdentityError{Identifier: identifier, Emails: emails}
-			}
-			// All matches point to the same email, so it's safe.
-			return &matches[0], nil
-		}
-		if len(matches) == 1 {
-			return &matches[0], nil
-		}
+	if len(remaining) == 0 {
+		return res, ambiguous, nil
 	}
 
-	// 2. Fallback to DB (Deep Lookup)
-	rows, err := db.Query(SQL.GetContactByIdentifier, tenantEmail, identifier, identifier, identifier)
+	// Phase 2: Batch DB Lookup for missing ones
+	return fetchContactsBatch(ctx, tenantEmail, remaining, res, ambiguous)
+}
+
+func findAllInMappings(mappings []ContactRecord, identifier string) []*ContactRecord {
+	var res []*ContactRecord
+	seen := make(map[string]bool)
+	normalized := strings.ToLower(strings.TrimSpace(identifier))
+	for i := range mappings {
+		m := &mappings[i]
+		if matchContact(m, normalized) {
+			if !seen[m.CanonicalID] {
+				res = append(res, m)
+				seen[m.CanonicalID] = true
+			}
+		}
+	}
+	return res
+}
+
+func findInMappings(mappings []ContactRecord, identifier string) *ContactRecord {
+	matches := findAllInMappings(mappings, identifier)
+	if len(matches) > 0 {
+		return matches[0]
+	}
+	return nil
+}
+
+func fetchContactsBatch(ctx context.Context, tenantEmail string, remaining []string, res map[string]*ContactRecord, ambiguous map[string]bool) (map[string]*ContactRecord, map[string]bool, error) {
+	hits := make(map[string][]string)
+	rows, err := db.QueryContext(ctx, "SELECT id, tenant_email, canonical_id, display_name, aliases, source, master_contact_id FROM contacts WHERE tenant_email = ?", tenantEmail)
 	if err != nil {
-		return nil, err
+		return res, ambiguous, nil
 	}
 	defer rows.Close()
 
-	var matches []ContactRecord
 	for rows.Next() {
-		var c ContactRecord
-		if err := rows.Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Aliases, &c.Source, &c.MasterContactID); err != nil {
-			return nil, err
-		}
-		matches = append(matches, c)
-	}
-
-	if len(matches) > 1 {
-		// Even in DB, check for different canonical IDs
-		firstID := matches[0].CanonicalID
-		isAmbiguous := false
-		emails := []string{firstID}
-		for i := 1; i < len(matches); i++ {
-			emails = append(emails, matches[i].CanonicalID)
-			if matches[i].CanonicalID != firstID {
-				isAmbiguous = true
+		c := new(ContactRecord)
+		if err := rows.Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Aliases, &c.Source, &c.MasterContactID); err == nil {
+			for _, id := range remaining {
+				if matchContact(c, id) {
+					if !slices.Contains(hits[id], c.CanonicalID) {
+						hits[id] = append(hits[id], c.CanonicalID)
+						if len(hits[id]) > 1 {
+							ambiguous[id] = true
+						}
+					}
+					res[id] = c
+				}
 			}
 		}
-
-		if isAmbiguous {
-			return nil, &AmbiguousIdentityError{Identifier: identifier, Emails: emails}
-		}
-		return &matches[0], nil
 	}
-
-	if len(matches) == 0 {
-		return nil, nil
-	}
-
-	res := &matches[0]
-	// Why: Resolve master contact if linked to provide unified identity.
-	if res.MasterContactID.Valid {
-		master, err := GetContactByID(tenantEmail, int64(res.MasterContactID.Int64))
-		if err == nil && master != nil {
-			return master, nil
-		}
-	}
-
-	return res, nil
+	return res, ambiguous, nil
 }
 
-func DeleteContactMapping(email, canonicalID string) error {
-	_, err := db.Exec(SQL.DeleteContactMapping, email, canonicalID)
+func matchContact(c *ContactRecord, identifier string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(identifier))
+	if strings.ToLower(c.CanonicalID) == normalized || strings.ToLower(c.DisplayName) == normalized {
+		return true
+	}
+	aliases := strings.Split(c.Aliases, ",")
+	for _, a := range aliases {
+		if strings.EqualFold(strings.TrimSpace(a), identifier) {
+			return true
+		}
+	}
+	return false
+}
+
+// GetContactByIdentifier provides a backward-compatible wrapper for single identity resolution.
+func GetContactByIdentifier(ctx context.Context, tenantEmail, identifier string) (*ContactRecord, error) {
+	res, ambig, err := GetContactsByIdentifiers(ctx, tenantEmail, []string{identifier})
+	if err != nil {
+		return nil, err
+	}
+	if ambig[identifier] {
+		return nil, &AmbiguousIdentityError{Identifier: identifier}
+	}
+	return res[identifier], nil
+}
+
+func DeleteContactMapping(ctx context.Context, email, canonicalID string) error {
+	_, err := db.ExecContext(ctx, SQL.DeleteContactMapping, email, canonicalID)
 	if err == nil {
 		metadataMu.Lock()
 		defer metadataMu.Unlock()
@@ -378,9 +386,10 @@ func DeleteContactMapping(email, canonicalID string) error {
 	}
 	return err
 }
-func GetContactByID(tenantEmail string, id int64) (*ContactRecord, error) {
+
+func GetContactByID(ctx context.Context, tenantEmail string, id int64) (*ContactRecord, error) {
 	var c ContactRecord
-	err := db.QueryRow("SELECT id, tenant_email, canonical_id, display_name, aliases, source, master_contact_id FROM contacts WHERE tenant_email = ? AND id = ?", tenantEmail, int64(id)).
+	err := db.QueryRowContext(ctx, "SELECT id, tenant_email, canonical_id, display_name, aliases, source, master_contact_id FROM contacts WHERE tenant_email = ? AND id = ?", tenantEmail, int64(id)).
 		Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Aliases, &c.Source, &c.MasterContactID)
 	if err != nil {
 		return nil, err
@@ -388,8 +397,8 @@ func GetContactByID(tenantEmail string, id int64) (*ContactRecord, error) {
 	return &c, nil
 }
 
-func SearchContacts(tenantEmail, query string) ([]ContactRecord, error) {
-	rows, err := db.Query(SQL.SearchContacts, tenantEmail, query, query, query)
+func SearchContacts(ctx context.Context, tenantEmail, query string) ([]ContactRecord, error) {
+	rows, err := db.QueryContext(ctx, SQL.SearchContacts, tenantEmail, query, query, query)
 	if err != nil {
 		return nil, err
 	}
@@ -406,12 +415,12 @@ func SearchContacts(tenantEmail, query string) ([]ContactRecord, error) {
 	return results, nil
 }
 
-func LinkContact(tenantEmail string, masterID, targetID int64) error {
+func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int64) error {
 	if masterID == targetID {
 		return fmt.Errorf("cannot link a contact to itself")
 	}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -419,7 +428,7 @@ func LinkContact(tenantEmail string, masterID, targetID int64) error {
 
 	// 1. Safety Check: If the intended Master is already a Child, use ITS master instead to maintain 1-level flat tree.
 	var masterParentID *int64
-	err = tx.QueryRow("SELECT master_contact_id FROM contacts WHERE id = ? AND tenant_email = ?", int64(masterID), tenantEmail).Scan(&masterParentID)
+	err = tx.QueryRowContext(ctx, "SELECT master_contact_id FROM contacts WHERE id = ? AND tenant_email = ?", int64(masterID), tenantEmail).Scan(&masterParentID)
 	if err != nil && err != sql.ErrNoRows {
 		return err
 	}
@@ -431,13 +440,13 @@ func LinkContact(tenantEmail string, masterID, targetID int64) error {
 	}
 
 	// 2. Link the target to the master
-	if _, err := tx.Exec(SQL.UpdateContactLink, int64(masterID), tenantEmail, int64(targetID)); err != nil {
+	if _, err := tx.ExecContext(ctx, SQL.UpdateContactLink, int64(masterID), tenantEmail, int64(targetID)); err != nil {
 		return err
 	}
 
 	// 3. Flatten Tree: If the Target was already a Master for others, redirect them to the new Master.
 	// This ensures a flat hierarchy (max 1 level depth).
-	if _, err := tx.Exec(SQL.FlattenChildren, int64(masterID), tenantEmail, int64(targetID)); err != nil {
+	if _, err := tx.ExecContext(ctx, SQL.FlattenChildren, int64(masterID), tenantEmail, int64(targetID)); err != nil {
 		return err
 	}
 
@@ -453,8 +462,8 @@ func LinkContact(tenantEmail string, masterID, targetID int64) error {
 	return nil
 }
 
-func UnlinkContact(tenantEmail string, targetID int64) error {
-	_, err := db.Exec(SQL.UnlinkContact, tenantEmail, int64(targetID))
+func UnlinkContact(ctx context.Context, tenantEmail string, targetID int64) error {
+	_, err := db.ExecContext(ctx, SQL.UnlinkContact, tenantEmail, int64(targetID))
 	if err == nil {
 		metadataMu.Lock()
 		delete(contactsCache, tenantEmail)
@@ -463,8 +472,8 @@ func UnlinkContact(tenantEmail string, targetID int64) error {
 	return err
 }
 
-func GetLinkedContacts(tenantEmail string) ([]ContactRecord, error) {
-	rows, err := db.Query(SQL.GetLinkedContacts, tenantEmail)
+func GetLinkedContacts(ctx context.Context, tenantEmail string) ([]ContactRecord, error) {
+	rows, err := db.QueryContext(ctx, SQL.GetLinkedContacts, tenantEmail)
 	if err != nil {
 		return nil, err
 	}

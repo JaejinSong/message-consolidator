@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -238,14 +239,14 @@ func GetUserByID(id int) (*User, error) {
 }
 
 // AddUserAlias creates a new alias for a user in the user_aliases table and updates the cache.
-func AddUserAlias(userID int, alias string) error {
+func AddUserAlias(ctx context.Context, userID int, alias string) error {
 	trimmed := strings.TrimSpace(alias)
 	if trimmed == "" {
 		return nil
 	}
 
 	// 1. Update Database (Slow Path table)
-	_, err := db.Exec(SQL.CreateUserAlias, userID, trimmed)
+	_, err := db.ExecContext(ctx, SQL.CreateUserAlias, userID, trimmed)
 	if err != nil {
 		return err
 	}
@@ -271,14 +272,14 @@ func AddUserAlias(userID int, alias string) error {
 
 	// 3. Keep Contacts mapping for global resolution consistency
 	if email != "" {
-		_ = AddContactMapping("all", strings.ToLower(uEmail), uName, trimmed, "user")
+		_ = AddContactMapping(ctx, "all", strings.ToLower(uEmail), uName, trimmed, "user")
 	}
 
 	return nil
 }
 
 // AddTenantAlias is a legacy compatibility helper for tenant-specific aliases.
-func AddTenantAlias(tenantEmail, original, primary string) error {
+func AddTenantAlias(ctx context.Context, tenantEmail, original, primary string) error {
 	parts := strings.Split(original, ",")
 	bestID := strings.TrimSpace(parts[0])
 	for _, p := range parts {
@@ -288,15 +289,15 @@ func AddTenantAlias(tenantEmail, original, primary string) error {
 			break
 		}
 	}
-	return AddContactMapping(tenantEmail, strings.ToLower(bestID), primary, original, "legacy")
+	return AddContactMapping(ctx, tenantEmail, strings.ToLower(bestID), primary, original, "legacy")
 }
 
 // DeleteUserAlias removes an alias for a user from the user_aliases table and updates the cache.
-func DeleteUserAlias(userID int, alias string) error {
+func DeleteUserAlias(ctx context.Context, userID int, alias string) error {
 	trimmed := strings.TrimSpace(alias)
 	
 	// 1. Update Database
-	_, err := db.Exec(SQL.DeleteUserAlias, userID, trimmed)
+	_, err := db.ExecContext(ctx, SQL.DeleteUserAlias, userID, trimmed)
 	if err != nil {
 		return err
 	}
@@ -318,7 +319,7 @@ func DeleteUserAlias(userID int, alias string) error {
 }
 
 // DeleteTenantAlias is a legacy compatibility helper.
-func DeleteTenantAlias(tenantEmail, original string) error {
+func DeleteTenantAlias(ctx context.Context, tenantEmail, original string) error {
 	parts := strings.Split(original, ",")
 	bestID := strings.TrimSpace(parts[0])
 	for _, p := range parts {
@@ -328,7 +329,7 @@ func DeleteTenantAlias(tenantEmail, original string) error {
 			break
 		}
 	}
-	return DeleteContactMapping(tenantEmail, strings.ToLower(bestID))
+	return DeleteContactMapping(ctx, tenantEmail, strings.ToLower(bestID))
 }
 
 // GetUserByWAJID searches for a user in the cache by their WhatsApp JID.

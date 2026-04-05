@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"testing"
@@ -17,11 +18,11 @@ func TestAmbiguitySafeguard(t *testing.T) {
 	tenant := "admin@whatap.io"
 	
 	// 1. 동일한 성(Lee)을 가진 서로 다른 두 명의 연락처 생성
-	err = store.AddContactMapping(tenant, "lee1@whatap.io", "Lee Jung-jae", "Lee", "test")
+	err = store.AddContactMapping(context.Background(), tenant, "lee1@whatap.io", "Lee Jung-jae", "Lee", "test")
 	if err != nil {
 		t.Fatalf("Failed to add contact 1: %v", err)
 	}
-	err = store.AddContactMapping(tenant, "lee2@whatap.io", "Lee Byung-hun", "Lee", "test")
+	err = store.AddContactMapping(context.Background(), tenant, "lee2@whatap.io", "Lee Byung-hun", "Lee", "test")
 	if err != nil {
 		t.Fatalf("Failed to add contact 2: %v", err)
 	}
@@ -48,7 +49,7 @@ func TestAmbiguitySafeguard(t *testing.T) {
 	messages := []Log{
 		{ID: msgID, Requester: "Lee", Assignee: "someone@else.com"},
 	}
-	svc.sanitizeMessages(tenant, messages)
+	svc.sanitizeMessages(context.Background(), tenant, messages)
 
 	// 4. 리포트용 메모리 데이터 검증: (Ambiguous) 접미사 추가 확인
 	if messages[0].Requester != "Lee (Ambiguous)" {

@@ -288,6 +288,16 @@ func UpdateTaskAssignee(email string, id int, assignee string) error {
 	return nil
 }
 
+func UpdateMessageRequester(id int, requester string) error {
+	_, err := db.Exec("UPDATE messages SET requester = ? WHERE id = ?", requester, id)
+	return err
+}
+
+func UpdateMessageAssignee(id int, assignee string) error {
+	_, err := db.Exec("UPDATE messages SET assignee = ? WHERE id = ?", assignee, id)
+	return err
+}
+
 func UpdateTaskSourceChannels(email string, id int, channels []string) error {
 	channelsJSON, _ := json.Marshal(channels)
 	if _, err := db.Exec(SQL.UpdateTaskSourceChannels, string(channelsJSON), int(id), email); err != nil {

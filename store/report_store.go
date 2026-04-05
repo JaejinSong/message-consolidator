@@ -2,6 +2,9 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -61,6 +64,41 @@ func SaveReportTranslation(ctx context.Context, reportID int64, langCode, summar
 	return err
 }
 
+// GetReportTranslationsBatch retrieves translations for multiple reports in a single query to eliminate N+1 overhead.
+func GetReportTranslationsBatch(ctx context.Context, reportIDs []int) (map[int]map[string]string, error) {
+	if len(reportIDs) == 0 {
+		return make(map[int]map[string]string), nil
+	}
+
+	placeholders := make([]string, len(reportIDs))
+	args := make([]interface{}, len(reportIDs))
+	for i, id := range reportIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf("SELECT report_id, language_code, summary FROM report_translations WHERE report_id IN (%s)", strings.Join(placeholders, ","))
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	res := make(map[int]map[string]string)
+	for rows.Next() {
+		var rid int
+		var lang, summary string
+		if err := rows.Scan(&rid, &lang, &summary); err != nil {
+			return nil, err
+		}
+		if res[rid] == nil {
+			res[rid] = make(map[string]string)
+		}
+		res[rid][lang] = summary
+	}
+	return res, nil
+}
+
 // Why: Retrieves all available language translations for a specific report to support the multi-language UI.
 func GetReportTranslations(ctx context.Context, reportID int) (map[string]string, error) {
 	rows, err := db.QueryContext(ctx, SQL.GetReportTranslations, reportID)
@@ -93,11 +131,13 @@ func ListReports(ctx context.Context, email string) ([]Report, error) {
 		var r Report
 		var createdAt time.Time
 		var isTruncated int
-		if err := rows.Scan(&r.ID, &r.StartDate, &r.EndDate, &createdAt, &isTruncated); err != nil {
+		var summary sql.NullString
+		if err := rows.Scan(&r.ID, &r.StartDate, &r.EndDate, &createdAt, &isTruncated, &summary); err != nil {
 			return nil, err
 		}
 		r.CreatedAt = createdAt
 		r.IsTruncated = isTruncated != 0
+		r.Summary = summary.String
 		reports = append(reports, r)
 	}
 	return reports, nil
@@ -109,18 +149,22 @@ func DeleteReport(ctx context.Context, id int, email string) error {
 	return err
 }
 
-// Why: Fetches all active messages for a user within a specified date range to provide raw material for AI summarization and network graph generation.
+// GetMessagesForReport fetches all active messages for a user within a specified date range.
 func GetMessagesForReport(ctx context.Context, email string, since time.Time) ([]ConsolidatedMessage, error) {
 	sinceStr := since.Format("2006-01-02 15:04:05")
 
-	// Why: Overriding the external query to select from v_messages, ensuring all 26 identity-resolved columns are returned to match scanMessageRow.
-	query := "SELECT * FROM v_messages WHERE user_email = ? AND (created_at >= ? OR completed_at >= ?) AND (is_deleted = 0 OR is_deleted IS NULL) ORDER BY created_at ASC"
+	// Why: Overriding the external query to select from v_messages, ensuring all identity-resolved columns match scanMessageRow.
+	query := "SELECT * FROM v_messages WHERE user_email = ? AND (created_at >= ? OR assigned_at >= ?) AND (is_deleted = 0 OR is_deleted IS NULL) ORDER BY created_at ASC"
 	rows, err := db.QueryContext(ctx, query, email, sinceStr, sinceStr)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
+	return scanMessages(rows)
+}
+
+func scanMessages(rows *sql.Rows) ([]ConsolidatedMessage, error) {
 	var msgs []ConsolidatedMessage
 	for rows.Next() {
 		m, err := scanMessageRow(rows)

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"message-consolidator/auth"
 	"message-consolidator/channels"
 	"message-consolidator/logger"
@@ -76,7 +77,7 @@ func (a *API) autoPopulateSlackAliases(user *store.User) {
 	}
 
 	if len(aliases) > 0 {
-		store.AddContactMapping(user.Email, user.Email, user.Name, strings.Join(aliases, ","), "slack")
+		store.AddContactMapping(context.Background(), user.Email, user.Email, user.Name, strings.Join(aliases, ","), "slack")
 	}
 
 	// Refresh cache
@@ -149,7 +150,7 @@ func (a *API) HandleAddAlias(w http.ResponseWriter, r *http.Request) {
 		newAliases = existing + "," + req.Alias
 	}
 
-	if err := store.AddContactMapping(email, email, user.Name, newAliases, "user"); err != nil {
+	if err := store.AddContactMapping(r.Context(), email, email, user.Name, newAliases, "user"); err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to add alias")
 		return
 	}
@@ -185,7 +186,7 @@ func (a *API) HandleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := store.AddContactMapping(email, email, user.Name, strings.Join(newParts, ","), "user"); err != nil {
+	if err := store.AddContactMapping(r.Context(), email, email, user.Name, strings.Join(newParts, ","), "user"); err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to delete alias")
 		return
 	}
@@ -269,7 +270,7 @@ func (a *API) HandleAddMapping(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := store.AddContactMapping(email, finalID, req.DisplayName, req.Aliases, req.Source); err != nil {
+	if err := store.AddContactMapping(r.Context(), email, finalID, req.DisplayName, req.Aliases, req.Source); err != nil {
 		handleMappingError(w, err, email, finalID)
 		return
 	}
@@ -306,7 +307,7 @@ func (a *API) HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := store.DeleteContactMapping(email, req.CanonicalID); err != nil {
+	if err := store.DeleteContactMapping(r.Context(), email, req.CanonicalID); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -345,7 +346,7 @@ func (a *API) HandleSearchContacts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	results, err := store.SearchContacts(email, query)
+	results, err := store.SearchContacts(r.Context(), email, query)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -369,7 +370,7 @@ func (a *API) HandleLinkAccounts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := store.LinkContact(email, req.MasterID, req.TargetID); err != nil {
+	if err := store.LinkContact(r.Context(), email, req.MasterID, req.TargetID); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -386,7 +387,7 @@ func (a *API) HandleUnlinkAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := store.UnlinkContact(email, req.ContactID); err != nil {
+	if err := store.UnlinkContact(r.Context(), email, req.ContactID); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -395,7 +396,7 @@ func (a *API) HandleUnlinkAccount(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) HandleGetLinks(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	links, err := store.GetLinkedContacts(email)
+	links, err := store.GetLinkedContacts(r.Context(), email)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

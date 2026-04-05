@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
@@ -21,7 +22,7 @@ func TestSelfHealingEngine(t *testing.T) {
 	alias := "JJ"
 
 	// 1. Setup Contact (Deep Lookup 대상)
-	err = store.AddContactMapping(tenant, email, name, alias, "test")
+	err = store.AddContactMapping(context.Background(), tenant, email, name, alias, "test")
 	if err != nil {
 		t.Fatalf("Failed to add contact: %v", err)
 	}
@@ -50,7 +51,7 @@ func TestSelfHealingEngine(t *testing.T) {
 	messages := []Log{
 		{ID: msgID, Requester: "JJ", Assignee: "someone@else.com"},
 	}
-	svc.sanitizeMessages(tenant, messages)
+	svc.sanitizeMessages(context.Background(), tenant, messages)
 
 	// 5. Verify In-Memory Update (즉시 반영 확인)
 	if messages[0].Requester != email {

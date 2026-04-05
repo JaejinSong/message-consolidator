@@ -54,10 +54,11 @@ ORDER BY m.created_at DESC;
 DELETE FROM reports WHERE created_at < datetime('now', '-30 days');
 
 -- name: ListReports
-SELECT id, start_date, end_date, created_at, is_truncated
-FROM reports
-WHERE user_email = ?
-ORDER BY created_at DESC;
+SELECT r.id, r.start_date, r.end_date, r.created_at, r.is_truncated, rt.summary
+FROM reports r
+LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = 'en'
+WHERE r.user_email = ?
+ORDER BY r.created_at DESC;
 
 -- name: GetReportByID
 SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.is_truncated, r.created_at, rt.summary

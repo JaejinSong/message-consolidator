@@ -61,190 +61,171 @@ func NewReportsService(summarizer ReportSummarizer, geminiClient *ai.GeminiClien
 // Why: Orchestrates the generation of an AI-powered work report by coordinating between the Go-based visualization engine and the injected summarizer strategy.
 // Now supports a 1:N multi-language pipeline (EN, KR, ID, TH).
 func (s *ReportsService) GenerateReport(ctx context.Context, email, startDate, endDate string) (*store.Report, error) {
-	// 1. Parse dates
-	start, err := time.Parse("2006-01-02", startDate)
-	if err != nil {
-		return nil, fmt.Errorf("invalid start date: %w", err)
-	}
-
-	// 2. Fetch Data
-	messages, err := store.GetMessagesForReport(ctx, email, start)
+	// 2. Fetch & Filter Data
+	filtered, err := s.fetchAndFilterMessages(ctx, email, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
 
+	// [Self-Healing] 파편화된 식별자 정규화 (Batch)
+	if _, err := s.sanitizeMessages(ctx, email, filtered); err != nil {
+		logger.Warnf("[REPORTS] Sanitization failed: %v", err)
+	}
+
+	// 3. Generate Visualization & AI Summary
+	report, err := s.generateBaseReport(ctx, email, startDate, endDate, filtered)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. Multi-language Translation
+	return s.translateReportBatch(ctx, email, report)
+}
+
+func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, startDate, endDate string) ([]Log, error) {
+	start, _ := time.Parse("2006-01-02", startDate)
+	messages, err := store.GetMessagesForReport(ctx, email, start)
+	if err != nil {
+		return nil, err
+	}
 	var filtered []Log
 	for _, m := range messages {
-		dateStr := m.CreatedAt.Format("2006-01-02")
-		if dateStr >= startDate && dateStr <= endDate {
+		ds := m.CreatedAt.Format("2006-01-02")
+		if ds >= startDate && ds <= endDate {
 			filtered = append(filtered, m)
 		}
 	}
-
 	if len(filtered) == 0 {
-		return nil, fmt.Errorf("no messages found for the period %s ~ %s", startDate, endDate)
+		return nil, fmt.Errorf("no messages found for %s ~ %s", startDate, endDate)
 	}
+	return filtered, nil
+}
 
-	// [Self-Healing] 파편화된 식별자 정규화
-	s.sanitizeMessages(email, filtered)
-
-	// 3. Generate Visualization (Go Backend)
+func (s *ReportsService) generateBaseReport(ctx context.Context, email, startDate, endDate string, filtered []Log) (*store.Report, error) {
 	vizData := s.generateVisualizationData(email, filtered)
 	vizJSON, _ := json.Marshal(vizData)
-
-	// 4. Transform Data for AI
 	taskSummary, isTruncated := s.PrepareLogsForAI(email, filtered)
 
-	// 5. Generate Base Summary (English)
 	summaryEN, err := s.summarizer.Generate(ctx, taskSummary)
 	if err != nil {
 		return nil, err
 	}
 
-	// 6. Create & Save Report Metadata
 	report := &store.Report{
-		UserEmail:     email,
-		StartDate:     startDate,
-		EndDate:       endDate,
-		Summary:       summaryEN,
-		Visualization: string(vizJSON),
-		IsTruncated:   isTruncated,
+		UserEmail: email, StartDate: startDate, EndDate: endDate,
+		Summary: summaryEN, Visualization: string(vizJSON), IsTruncated: isTruncated,
 	}
 
-	// [Step 1] Save Metadata & Base Translation
-	reportID, err := store.SaveReport(ctx, report)
+	id, err := store.SaveReport(ctx, report)
 	if err != nil {
-		return nil, fmt.Errorf("failed to save report metadata: %w", err)
+		return nil, err
 	}
-	report.ID = int(reportID)
-
-	err = store.SaveReportTranslation(ctx, reportID, "en", summaryEN)
-	if err != nil {
-		logger.Warnf("[REPORTS] Failed to save English translation: %v", err)
-	}
-	report.Translations = make(map[string]string)
-	report.Translations["en"] = summaryEN
-
-	// [Step 2] Sequentially Translate & Save for Target Languages
-	// Why: Defines standardized ISO 639-1 language codes for multi-language report generation.
-	targetLanguages := map[string]string{
-		"ko": "Korean",
-		"id": "Indonesian",
-		"th": "Thai",
-	}
-	
-	// Access gemini client directly from summarizer if possible
-	var gemini *ai.GeminiClient
-	if fs, ok := s.summarizer.(*FlashSingleSummarizer); ok {
-		gemini = fs.gemini
-	}
-
-	if gemini != nil {
-		for code, langName := range targetLanguages {
-			translated, err := gemini.TranslateReport(ctx, email, summaryEN, langName)
-			if err != nil {
-				logger.Errorf("[REPORTS] Translation to %s failed for report %d: %v", langName, reportID, err)
-				continue
-			}
-			
-			if err := store.SaveReportTranslation(ctx, reportID, code, translated); err != nil {
-				logger.Errorf("[REPORTS] Saving translation (%s) failed for report %d: %v", code, reportID, err)
-			} else {
-				report.Translations[code] = translated
-			}
-		}
-	}
-
+	report.ID = int(id)
+	_ = store.SaveReportTranslation(ctx, id, "en", summaryEN)
+	report.Translations = map[string]string{"en": summaryEN}
 	return report, nil
 }
 
-// sanitizeMessages performs real-time identity normalization on message logs and triggers asynchronous "Self-Healing" DB updates.
-func (s *ReportsService) sanitizeMessages(tenantEmail string, messages []Log) {
-	for i := range messages {
-		msg := &messages[i]
-		
-		// Why: Encapsulates resolution logic to handle both successful healing and ambiguity safeguards.
-		resolve := func(identifier string, field *string) bool {
-			if identifier == "" || strings.Contains(identifier, "@") {
-				return false
-			}
-			c, err := store.GetContactByIdentifier(tenantEmail, identifier)
-			if err != nil {
-				// 💡 Ambiguity Safeguard: Handle duplicate name/alias hits.
-				if ambigErr, ok := err.(*store.AmbiguousIdentityError); ok {
-					logger.Warnf("[AMBIGUOUS_CONFLICT] Name: %s, Emails: %v", identifier, ambigErr.Emails)
-					*field = identifier + " (Ambiguous)"
-					return false // Do NOT attempt DB update.
-				}
-				return false
-			}
-			if c != nil {
-				logger.Infof("[Self-Healed] ID:%d, %s -> %s", msg.ID, identifier, c.CanonicalID)
-				*field = c.CanonicalID
-				return true
-			}
-			return false
+func (s *ReportsService) translateReportBatch(ctx context.Context, email string, report *store.Report) (*store.Report, error) {
+	targets := map[string]string{"ko": "Korean", "id": "Indonesian", "th": "Thai"}
+	gemini := s.getGeminiClient()
+	if gemini == nil {
+		return report, nil
+	}
+
+	for code, lang := range targets {
+		if trans, err := gemini.TranslateReport(ctx, email, report.Summary, lang); err == nil {
+			_ = store.SaveReportTranslation(ctx, int64(report.ID), code, trans)
+			report.Translations[code] = trans
 		}
+	}
+	return report, nil
+}
 
-		// Initial states to preserve original values for resolution check
-		origReq := msg.Requester
-		origAsg := msg.Assignee
+func (s *ReportsService) getGeminiClient() *ai.GeminiClient {
+	if fs, ok := s.summarizer.(*FlashSingleSummarizer); ok {
+		return fs.gemini
+	}
+	return nil
+}
 
-		reqHealed := resolve(origReq, &msg.Requester)
-		asgHealed := resolve(origAsg, &msg.Assignee)
+// sanitizeMessages performs batch identity resolution to eliminate N+1 overhead.
+func (s *ReportsService) sanitizeMessages(ctx context.Context, email string, msgs []Log) ([]Log, error) {
+	if len(msgs) == 0 {
+		return msgs, nil
+	}
 
-		// 3. Asynchronously heal the original data in the database (Only for healed records)
-		if reqHealed || asgHealed {
-			go func(id int, req, asg string) {
-				db := store.GetDB()
-				_, err := db.ExecContext(context.Background(), store.SQL.UpdateMessageIdentity, req, asg, id)
-				if err != nil {
-					logger.Errorf("[Self-Healing-Error] Failed to update record ID:%d: %v", id, err)
-				}
-			}(msg.ID, msg.Requester, msg.Assignee)
+	idsMap := make(map[string]bool)
+	for _, m := range msgs {
+		idsMap[m.Requester] = true
+		idsMap[m.Assignee] = true
+	}
+	ids := make([]string, 0, len(idsMap))
+	for id := range idsMap {
+		ids = append(ids, id)
+	}
+
+	contacts, ambiguous, _ := store.GetContactsByIdentifiers(ctx, email, ids)
+
+	for i := range msgs {
+		m := &msgs[i]
+		s.applyResolution(m, &m.Requester, contacts, ambiguous, store.UpdateMessageRequester)
+		s.applyResolution(m, &m.Assignee, contacts, ambiguous, store.UpdateMessageAssignee)
+	}
+	return msgs, nil
+}
+
+func (s *ReportsService) applyResolution(m *Log, field *string, contacts map[string]*store.ContactRecord, ambiguous map[string]bool, updateFn func(int, string) error) {
+	identifier := *field
+	if ambiguous[identifier] {
+		*field = identifier + " (Ambiguous)"
+		return
+	}
+
+	if c, ok := contacts[identifier]; ok {
+		// 💡 Self-Healing: Update DB if non-canonical ID was used.
+		if identifier != c.CanonicalID && identifier != c.DisplayName {
+			go updateFn(m.ID, c.CanonicalID)
 		}
+		*field = c.CanonicalID
 	}
 }
 
-// PrepareLogsForAI implements the "Transform" stage by normalizing raw logs and formatting them for the AI summarizer.
-// It respects the 8,000 character cutoff defined for AI input stability.
+// PrepareLogsForAI formats logs for AI input, respecting the 8,000 character cutoff.
 func (s *ReportsService) PrepareLogsForAI(email string, rawLogs []Log) (string, bool) {
+	s.sortLogs(rawLogs)
 	var sb strings.Builder
-	currentBytes := 0
-	isTruncated := false
-	const AISizeCutoff = 8000
-
-	// Sort logs: Prioritize Incomplete (Done == false), then newest first (CreatedAt DESC)
-	sort.Slice(rawLogs, func(i, j int) bool {
-		if rawLogs[i].Done != rawLogs[j].Done {
-			return !rawLogs[i].Done
-		}
-		return rawLogs[i].CreatedAt.After(rawLogs[j].CreatedAt)
-	})
-
+	curr, truncated := 0, false
 	for _, m := range rawLogs {
-		status := " "
-		if m.Done {
-			status = "V"
-		}
-		// Why: Re-evaluate identity with SSOT (contacts cache) to handle potentially contaminated legacy database entries.
-		_, reqName, reqCat := store.NormalizeWithCategory(email, m.Requester)
-		_, asgName, asgCat := store.NormalizeWithCategory(email, m.Assignee)
-
-		// Why: Force "Name (Category)" format for both AI logs and visualization to ensure context clarity.
-		line := fmt.Sprintf("- [%s] %s (From: %s (%s), To: %s (%s))\n",
-			status, m.Task, reqName, reqCat, asgName, asgCat)
-
-		lineBytes := len([]byte(line))
-		if currentBytes+lineBytes > AISizeCutoff {
-			isTruncated = true
+		line := s.formatLogLine(email, m)
+		if curr+len(line) > 8000 {
+			truncated = true
 			break
 		}
 		sb.WriteString(line)
-		currentBytes += lineBytes
+		curr += len(line)
 	}
+	return sb.String(), truncated
+}
 
-	return sb.String(), isTruncated
+func (s *ReportsService) sortLogs(logs []Log) {
+	sort.Slice(logs, func(i, j int) bool {
+		if logs[i].Done != logs[j].Done {
+			return !logs[i].Done
+		}
+		return logs[i].CreatedAt.After(logs[j].CreatedAt)
+	})
+}
+
+func (s *ReportsService) formatLogLine(email string, m Log) string {
+	status := " "
+	if m.Done {
+		status = "V"
+	}
+	_, reqName, reqCat := store.NormalizeWithCategory(email, m.Requester)
+	_, asgName, asgCat := store.NormalizeWithCategory(email, m.Assignee)
+	return fmt.Sprintf("- [%s] %s (From: %s (%s), To: %s (%s))\n",
+		status, m.Task, reqName, reqCat, asgName, asgCat)
 }
 
 type GraphData struct {
@@ -266,63 +247,46 @@ type Edge struct {
 	Weight float64 `json:"weight"`
 }
 
-// Why: Aggregates requester-assignee relationships from the message logs to construct a weighted network graph.
+// generateVisualizationData constructs a weighted network graph from logs.
 func (s *ReportsService) generateVisualizationData(email string, messages []Log) GraphData {
-	counts := make(map[string]float64)
-	pairWeights := make(map[string]float64)
-	idToName := make(map[string]string)
-	idToCategory := make(map[string]string)
-
-	for _, m := range messages {
-		// [중요] 집계 시작 직전에 두 사람 모두 정규화 수행
-		reqID, reqName, reqCat := store.NormalizeWithCategory(email, m.Requester)
-		asgID, asgName, asgCat := store.NormalizeWithCategory(email, m.Assignee)
-
-		// Why: Eliminate self-loops and empty IDs to prevent circular dependencies and invalid data.
-		if reqID == "" || asgID == "" || reqID == asgID {
-			continue
-		}
-
-		// 모든 키는 소문자 이메일(ID)로 통일하여 집계
-		counts[reqID]++
-		counts[asgID]++
-
-		pair := reqID + "|" + asgID
-		pairWeights[pair]++
-
-		// Why: Cache the resolved name and category to avoid re-calculating them when creating nodes.
-		idToName[reqID] = reqName
-		idToCategory[reqID] = reqCat
-		idToName[asgID] = asgName
-		idToCategory[asgID] = asgCat
-	}
-
+	counts, pairWeights, meta := s.aggregateRelationsAlt(email, messages)
 	nodes := make([]Node, 0)
 	for id, val := range counts {
-		name := idToName[id]
-		category := idToCategory[id]
-		
 		nodes = append(nodes, Node{
-			ID:    id,
-			Name:  fmt.Sprintf("%s (%s)", name, category), // [CRITICAL] 이름 옆에 카테고리 병기 강제
-			Value: val,
-			IsMe:  strings.EqualFold(id, email),
-			Category: category,
+			ID: id, Name: fmt.Sprintf("%s (%s)", meta[id].Name, meta[id].Cat),
+			Value: val, IsMe: strings.EqualFold(id, email), Category: meta[id].Cat,
 		})
 	}
-
 	links := make([]Edge, 0)
 	for pair, weight := range pairWeights {
 		parts := strings.Split(pair, "|")
-		// Why: Contract enforcement ensures links.source/target match nodes.id exactly.
-		links = append(links, Edge{
-			Source: parts[0],
-			Target: parts[1],
-			Weight: weight,
-		})
+		links = append(links, Edge{Source: parts[0], Target: parts[1], Weight: weight})
 	}
-
 	return GraphData{Nodes: nodes, Links: links}
+}
+
+type nodeMeta struct {
+	Name string
+	Cat  string
+}
+
+func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (map[string]float64, map[string]float64, map[string]nodeMeta) {
+	counts := make(map[string]float64)
+	pairWeights := make(map[string]float64)
+	meta := make(map[string]nodeMeta)
+	for _, m := range messages {
+		rID, rName, rCat := store.NormalizeWithCategory(email, m.Requester)
+		aID, aName, aCat := store.NormalizeWithCategory(email, m.Assignee)
+		if rID == "" || aID == "" || rID == aID {
+			continue
+		}
+		counts[rID]++
+		counts[aID]++
+		pairWeights[rID+"|"+aID]++
+		meta[rID] = nodeMeta{rName, rCat}
+		meta[aID] = nodeMeta{aName, aCat}
+	}
+	return counts, pairWeights, meta
 }
 
 // ProcessOnDemandTranslation handles Just-In-Time (JIT) translation for a specific report and language.
