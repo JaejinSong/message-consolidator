@@ -1,7 +1,7 @@
 import '../static/style.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import 'pretendard/dist/web/static/pretendard.css';
-import { state, updateLang, updateTheme, updateStats, updateMessages, setTaskSelection, clearTaskSelection } from './state.ts';
+import { state, updateLang, updateTheme, updateStats, updateMessages, setTaskSelection, clearTaskSelection, deleteTaskFromState, updateTaskStatusInState, getTaskById, upsertItem } from './state.ts';
 import { updateUILanguage } from './i18n.js';
 import { I18N_DATA } from './locales.js';
 import { api } from './api.js';
@@ -24,7 +24,9 @@ import {
     bindWhatsAppStatus,
     bindGmailStatus,
     bindGlobalClicks,
-    bindThemeToggle
+    bindThemeToggle,
+    removeTaskNode,
+    updateTaskNodeStatus
 } from './renderer.ts';
 import { I18nDictionary, ServiceHandlers, UserProfile, CategorizedMessages } from './types.ts';
 import { archive } from './archive.ts';
@@ -46,21 +48,50 @@ let syncTimer: any = null;
  * Handlers for renderer actions.
  */
 const handlers: ServiceHandlers = {
-    onToggleDone: safeAsync(async (id: string, done: boolean) => {
-        const result = await api.toggleDone(id, done);
-        if (result.user) {
-            updateStats(result.user);
-        }
-        if (done) {
-            events.emit(EVENTS.TASK_COMPLETED, { id, result });
-        } else {
-            fetchMessages();
+    onToggleDone: safeAsync(async (idStr: string, done: boolean) => {
+        const id = Number(idStr);
+        const oldTask = getTaskById(id);
+        if (!oldTask) return;
+
+        // 1. Optimistic Update
+        updateTaskStatusInState(id, done);
+        updateTaskNodeStatus(id, done);
+
+        try {
+            const result = await api.toggleDone(idStr, done);
+            if (result.user) updateStats(result.user);
+            if (done) {
+                events.emit(EVENTS.TASK_COMPLETED, { id: idStr, result });
+            }
+        } catch (e: any) {
+            // 2. Rollback on Failure
+            showToast(state.currentLang === 'ko' ? '상태 업데이트 실패' : 'Failed to update status', 'error');
+            updateTaskStatusInState(id, !done);
+            updateTaskNodeStatus(id, !done);
         }
     }, { triggerAuthOverlay: true }),
-    onDeleteTask: safeAsync(async (id: string) => {
-        await api.deleteTask(id);
-        fetchMessages();
-        if (archive.isVisible()) archive.fetch();
+
+    onDeleteTask: safeAsync(async (idStr: string) => {
+        const id = Number(idStr);
+        const oldTask = getTaskById(id);
+        if (!oldTask) return;
+
+        // 1. Optimistic Removal
+        deleteTaskFromState(id);
+        removeTaskNode(id);
+
+        try {
+            await api.deleteTask(idStr);
+            if (archive.isVisible()) archive.fetch();
+        } catch (e: any) {
+            // 2. Rollback on Failure
+            showToast(state.currentLang === 'ko' ? '삭제 실패' : 'Delete failed', 'error');
+            // Restore in state
+            state.messages.inbox = upsertItem(state.messages.inbox, oldTask);
+            // Since it was removed from DOM, we need to trigger a re-render or re-insert
+            // Full re-render is safest for rollback
+            renderMessages(state.messages);
+        }
     }, { triggerAuthOverlay: true }),
     onShowOriginal: safeAsync(async (id: string) => {
         const data = await api.fetchOriginalMessage(id);
@@ -498,8 +529,8 @@ const initActionButtons = () => {
     document.getElementById('clearSelectionBtn')?.addEventListener('click', () => {
         clearTaskSelection();
         updateMergeBar();
-        // Force re-render to uncheck boxes
-        fetchMessages();
+        // Use local render for speed instead of full fetch
+        renderMessages(state.messages);
     });
 };
 

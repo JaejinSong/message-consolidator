@@ -25,11 +25,17 @@ COPY channels/ ./channels/
 COPY cmd/ ./cmd/
 COPY config/ ./config/
 COPY handlers/ ./handlers/
+COPY internal/ ./internal/
 COPY logger/ ./logger/
 COPY scanner/ ./scanner/
 COPY services/ ./services/
 COPY store/ ./store/
+COPY types/ ./types/
 COPY main.go ./
+
+# Copy required config/meta files for the final stage
+COPY RELEASE_NOTES_*.md whatap.conf entrypoint.sh security.conf ./
+
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \

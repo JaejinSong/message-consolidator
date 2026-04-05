@@ -933,6 +933,22 @@ body.light-theme .c-utility__btn:hover {
     }
 }
 
+@keyframes fadeOutScale {
+    from {
+        transform: scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+}
+
+.c-message-card--removing {
+    animation: fadeOutScale 0.3s ease-in forwards;
+    pointer-events: none;
+}
+
 /* --- End of static/css/components/animations.css --- */
 
 /* --- Start of static/css/components/buttons.css --- */

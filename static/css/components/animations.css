@@ -57,3 +57,19 @@
         opacity: 0;
     }
 }
+
+@keyframes fadeOutScale {
+    from {
+        transform: scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+}
+
+.c-message-card--removing {
+    animation: fadeOutScale 0.3s ease-in forwards;
+    pointer-events: none;
+}

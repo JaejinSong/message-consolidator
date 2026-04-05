@@ -3,7 +3,7 @@
  * @description Centralized application state management with TypeScript.
  */
 
-import { AppState, UserProfile, CategorizedMessages, IReportData } from './types.ts';
+import { AppState, UserProfile, CategorizedMessages, IReportData, Message } from './types.ts';
 
 export const state: AppState = {
     userProfile: { email: "", picture: "", name: "", points: 0, streak: 0, streak_freezes: 0 },
@@ -123,4 +123,32 @@ export const upsertReport = (report: IReportData): void => {
  */
 export const updateReportHistory = (history: IReportData[]): void => {
     state.reportHistory = history || [];
+};
+
+/**
+ * Why: Deletes a task from all internal state collections.
+ * Use for Optimistic UI updates to avoid full state replacement.
+ */
+export const deleteTaskFromState = (id: number): void => {
+    state.messages.inbox = state.messages.inbox.filter(m => m.id !== id);
+    state.messages.pending = state.messages.pending.filter(m => m.id !== id);
+    state.messages.waiting = state.messages.waiting.filter(m => m.id !== id);
+};
+
+/**
+ * Why: Updates task completion status in all relevant state collections.
+ */
+export const updateTaskStatusInState = (id: number, done: boolean): void => {
+    const update = (m: Message) => m.id === id ? { ...m, done, completed_at: done ? new Date().toISOString() : undefined } : m;
+    state.messages.inbox = state.messages.inbox.map(update);
+    state.messages.pending = state.messages.pending.map(update);
+    state.messages.waiting = state.messages.waiting.map(update);
+};
+
+/**
+ * Why: O(N) retrieval of a single task from currently loaded categories for rollback.
+ */
+export const getTaskById = (id: number): Message | undefined => {
+    const all = [...state.messages.inbox, ...state.messages.pending, ...state.messages.waiting];
+    return all.find(m => m.id === id);
 };

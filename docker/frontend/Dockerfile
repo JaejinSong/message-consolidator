@@ -9,6 +9,7 @@ RUN npm ci
 COPY src/ ./src/
 COPY types/ ./types/
 COPY static/ ./static/
+COPY index.html ./
 COPY *.json *.ts *.cjs ./
 # Why: Pass VITE_API_BASE_URL to Vite build process for correct API endpoint resolution.
 ARG VITE_API_BASE_URL=/api

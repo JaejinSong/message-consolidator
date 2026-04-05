@@ -241,6 +241,66 @@ export function renderMessages(categorized: CategorizedMessages): void {
 }
 
 /**
+ * Why: Optimistically removes a task card from the DOM with animation.
+ * If the list becomes empty, it renders the empty state.
+ */
+export function removeTaskNode(id: number): void {
+    const card = document.getElementById(`task-${id}`);
+    if (!card) return;
+
+    const grid = card.parentElement;
+    card.classList.add('c-message-card--removing');
+
+    // Wait for animation to finish before removal
+    setTimeout(() => {
+        card.remove();
+        
+        // If grid is now empty, show empty state
+        if (grid && grid.children.length === 0) {
+            renderEmptyGrid(grid, true);
+        }
+        
+        // Update global counts in UI
+        const allTasks = [...state.messages.inbox, ...state.messages.pending, ...state.messages.waiting];
+        const updateCount = (id: string, count: number) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = count.toString();
+        };
+        updateCount('myCount', getActiveCount(state.messages.inbox));
+        updateCount('otherCount', getActiveCount(state.messages.pending));
+        updateCount('waitingCount', getActiveCount(state.messages.waiting));
+        updateCount('allCount', getActiveCount(allTasks));
+    }, 300);
+}
+
+/**
+ * Why: Optimistically updates a task card's completion status without full re-render.
+ */
+export function updateTaskNodeStatus(id: number, done: boolean): void {
+    const card = document.getElementById(`task-${id}`);
+    if (!card) return;
+
+    card.classList.toggle('c-message-card--done', done);
+    
+    // Update the toggle button icon
+    const btn = card.querySelector('.toggle-done-btn');
+    if (btn) {
+        btn.innerHTML = done ? '↩️' : '✅';
+    }
+    
+    // Update global counts
+    const allTasks = [...state.messages.inbox, ...state.messages.pending, ...state.messages.waiting];
+    const updateCount = (id: string, count: number) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = count.toString();
+    };
+    updateCount('myCount', getActiveCount(state.messages.inbox));
+    updateCount('otherCount', getActiveCount(state.messages.pending));
+    updateCount('waitingCount', getActiveCount(state.messages.waiting));
+    updateCount('allCount', getActiveCount(allTasks));
+}
+
+/**
  * Renders archived messages in the archive table.
  */
 export function renderArchive(messages: Message[]): void {
