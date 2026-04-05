@@ -23,7 +23,7 @@ const (
 func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	logger.Infof("[USER] Fetching info for email: %s", email)
-	user, err := store.GetOrCreateUser(email, "", "")
+	user, err := store.GetOrCreateUser(r.Context(), email, "", "")
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to fetch user info")
 		return
@@ -42,8 +42,8 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	user.ArchiveDays = store.GetAutoArchiveDays()
 
-	a.autoPopulateSlackAliases(user)
-	tokenUsage := gatherTokenUsageStats(email)
+	a.autoPopulateSlackAliases(r.Context(), user)
+	tokenUsage := a.gatherTokenUsageStats(r.Context(), email)
 
 	respondJSON(w, http.StatusOK, struct {
 		*store.User
@@ -55,7 +55,7 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 // Why: Automatically prepopulates user aliases from Slack if none exist to ensure immediate task matching functionality without requiring manual user configuration.
-func (a *API) autoPopulateSlackAliases(user *store.User) {
+func (a *API) autoPopulateSlackAliases(ctx context.Context, user *store.User) {
 	if len(user.Aliases) > 0 || a.Config.SlackToken == "" {
 		return
 	}
@@ -66,7 +66,7 @@ func (a *API) autoPopulateSlackAliases(user *store.User) {
 		return
 	}
 
-	store.UpdateUserSlackID(user.Email, slackUser.ID)
+	store.UpdateUserSlackID(ctx, user.Email, slackUser.ID)
 	
 	aliases := []string{}
 	if slackUser.RealName != "" {
@@ -93,7 +93,7 @@ func (a *API) autoPopulateSlackAliases(user *store.User) {
 
 func (a *API) HandleBuyStreakFreeze(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	user, err := store.GetOrCreateUser(email, "", "")
+	user, err := store.GetOrCreateUser(r.Context(), email, "", "")
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to fetch user info")
 		return
@@ -104,7 +104,7 @@ func (a *API) HandleBuyStreakFreeze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = store.UpdateUserGamification(email, user.Points-50, user.Streak, user.Level, user.XP, user.DailyGoal, user.LastCompletedAt, user.StreakFreezes+1)
+	_ = store.UpdateUserGamification(r.Context(), email, user.Points-50, user.Streak, user.Level, user.XP, user.DailyGoal, user.LastCompletedAt, user.StreakFreezes+1)
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{"success": true, "points": user.Points - 50, "streak_freezes": user.StreakFreezes + 1})
 }
@@ -134,7 +134,7 @@ func (a *API) HandleAddAlias(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	// Map to Contact mapping for the user themselves
-	user, _ := store.GetOrCreateUser(email, "", "")
+	user, _ := store.GetOrCreateUser(r.Context(), email, "", "")
 	existing := ""
 	if mappings, ok := store.GetContactsCache()[email]; ok {
 		for _, m := range mappings {
@@ -167,7 +167,7 @@ func (a *API) HandleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, _ := store.GetOrCreateUser(email, "", "")
+	user, _ := store.GetOrCreateUser(r.Context(), email, "", "")
 	existing := ""
 	if mappings, ok := store.GetContactsCache()[email]; ok {
 		for _, m := range mappings {
@@ -214,15 +214,15 @@ func (a *API) HandleDeleteTenantAlias(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	tokenUsage := gatherTokenUsageStats(email)
+	tokenUsage := a.gatherTokenUsageStats(r.Context(), email)
 	respondJSON(w, http.StatusOK, tokenUsage)
 }
 
 // Why: Includes daily and monthly AI token usage data in the user info response to provide transparency on service costs and resource consumption.
 // This refactoring centralizes all arithmetic logic in the backend, using Gemini 3 Flash pricing.
-func gatherTokenUsageStats(email string) map[string]interface{} {
-	todayPrompt, todayCompletion, _ := store.GetDailyTokenUsage(email)
-	monthPrompt, monthCompletion, _ := store.GetMonthlyTokenUsage(email)
+func (a *API) gatherTokenUsageStats(ctx context.Context, email string) map[string]interface{} {
+	todayPrompt, todayCompletion, _ := store.GetDailyTokenUsage(ctx, email)
+	monthPrompt, monthCompletion, _ := store.GetMonthlyTokenUsage(ctx, email)
 
 	calculateCost := func(p, c int) float64 {
 		return (float64(p)*RatePromptGemini3Flash + float64(c)*RateCompletionGemini3Flash) / TokenUnitDenominator
@@ -315,7 +315,7 @@ func (a *API) HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) HandleGetAchievements(w http.ResponseWriter, r *http.Request) {
-	achievements, err := store.GetAchievements()
+	achievements, err := store.GetAchievements(r.Context())
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -325,12 +325,12 @@ func (a *API) HandleGetAchievements(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) HandleGetUserAchievements(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	user, err := store.GetOrCreateUser(email, "", "")
+	user, err := store.GetOrCreateUser(r.Context(), email, "", "")
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	ua, err := store.GetUserAchievements(user.ID)
+	ua, err := store.GetUserAchievements(r.Context(), user.ID)
 	if err != nil {
 		logger.Errorf("[HANDLER] Failed to get achievements for %s (ID:%d): %v", email, user.ID, err)
 		respondError(w, http.StatusInternalServerError, err.Error())

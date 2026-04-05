@@ -70,7 +70,7 @@ func InitDB(cfg *config.Config) error {
 
 	createIndexes()
 
-	return RefreshAllCaches()
+	return RefreshAllCaches(context.Background())
 }
 
 func setupConnectionPool(connStr string) {

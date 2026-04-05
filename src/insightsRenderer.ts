@@ -4,17 +4,24 @@
  * Preserves the layout and BEM structure defined in index.html.
  */
 
-import { state } from './state.ts';
+import { state, updateReportHistory, upsertReport } from './state.ts';
 import { I18N_DATA } from './locales.js';
 import { UserStats, TokenUsage, IReportData, IReportNode, IReportLink } from './types.ts';
-import * as echarts from 'echarts';
-import { marked } from 'marked';
-import { generateHeatmapData } from './logic.ts';
+import { generateHeatmapData, normalizeReportData } from './logic.ts';
+import { reportsRenderer } from './renderers/reports-renderer.ts';
+import { api } from './api.js';
 
-const chartInstances = new Map<string, echarts.ECharts>();
 const getCssVariableValue = (varName: string): string => {
     return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
 };
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function createSVG(tag: string, attrs: Record<string, string | number>): SVGElement {
+    const el = document.createElementNS(SVG_NS, tag);
+    Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, String(v)));
+    return el;
+}
+
 
 export const insightsRenderer = {
     getI18n() {
@@ -23,60 +30,9 @@ export const insightsRenderer = {
     },
 
     resizeAll() {
-        chartInstances.forEach(chart => chart.resize());
+        // Vanilla SVG charts using viewBox resize automatically with container.
     },
 
-    /**
-     * Safely initializes or updates an ECharts instance.
-     * Prevents "Can't get DOM width or height" by checking clientWidth/Height.
-     */
-    initChartSafely(container: HTMLElement, key: string, option: echarts.EChartsOption): void {
-        const checkSize = () => {
-            const rect = container.getBoundingClientRect();
-            return rect.width > 10 && rect.height > 10; // Allow a small buffer
-        };
-        
-        const doInit = () => {
-            if (chartInstances.has(key)) {
-                chartInstances.get(key)?.dispose();
-            }
-            try {
-                const chart = echarts.init(container);
-                chart.setOption(option);
-                chartInstances.set(key, chart);
-                console.log(`[Insights] Chart '${key}' initialized successfully (${container.clientWidth}x${container.clientHeight})`);
-            } catch (err) {
-                console.error(`[Insights] Failed to initialize chart '${key}':`, err);
-            }
-        };
-
-        if (checkSize()) {
-            doInit();
-        } else {
-            console.warn(`[Insights] Chart container '${key}' has 0 size. Waiting for visibility/layout...`);
-            
-            // Wait for next frame(s) to ensure layout is calculated
-            const observer = new ResizeObserver(() => {
-                if (checkSize()) {
-                    requestAnimationFrame(() => {
-                        if (checkSize() && !chartInstances.has(key)) {
-                            doInit();
-                            observer.disconnect();
-                        }
-                    });
-                }
-            });
-            observer.observe(container);
-            
-            // Final fallback: check again after a short delay
-            setTimeout(() => {
-                if (!chartInstances.has(key) && checkSize()) {
-                    doInit();
-                    observer.disconnect();
-                }
-            }, 1000);
-        }
-    },
 
     /**
      * Updates AI consumption slots. 
@@ -187,77 +143,44 @@ export const insightsRenderer = {
     renderChannelDistribution(stats: any): void {
         const container = document.getElementById('sourceDistribution');
         if (!container) return;
-        
-        // Use total distribution (including archive) if available, fallback to active only
         const dist = stats.source_distribution_total || stats.source_distribution || {};
-        console.log('[Insights] Total Channel Distribution Data:', dist);
-
-        const chartData = Object.entries(dist).map(([name, value]) => ({ 
+        const entries = Object.entries(dist).map(([name, value]) => ({ 
             name: name.charAt(0).toUpperCase() + name.slice(1), 
             value: Number(value)
-        }));
+        })).filter(e => e.value > 0);
 
-        if (chartData.length === 0) {
-            container.innerHTML = '<div class="u-text-dim u-p-4">No data available</div>';
+        if (entries.length === 0) {
+            container.innerHTML = '<div class="u-text-dim u-p-4">No data</div>';
             return;
         }
 
-        // Prepare container for ECharts
         container.innerHTML = `
-            <div id="sourceDistributionChart" class="u-w-full" style="height: 11.25rem; margin-top: var(--spacing-lg); min-width: 6.25rem;"></div>
+            <div id="sourceDistributionChart" class="u-w-full u-flex u-flex-center" style="height: 11.25rem;"></div>
             <span class="stat-card__label">소스별 비중</span>
         `;
-
         const chartNode = document.getElementById('sourceDistributionChart');
         if (!chartNode) return;
 
-        // Ensure DOM has settled before initializing
-        requestAnimationFrame(() => {
-            this.initChartSafely(chartNode, 'sourceDistribution', {
-            backgroundColor: 'transparent',
-            tooltip: {
-                trigger: 'item',
-                formatter: '{b}: {c} ({d}%)'
-            },
-            series: [
-                {
-                    name: 'Source',
-                    type: 'pie',
-                    radius: ['45%', '75%'], // Donut style
-                    avoidLabelOverlap: false,
-                    itemStyle: {
-                        borderRadius: 6,
-                        borderColor: 'transparent',
-                        borderWidth: 2
-                    },
-                    label: {
-                        show: false,
-                        position: 'center'
-                    },
-                    emphasis: {
-                        label: {
-                            show: true,
-                            fontSize: '14',
-                            fontWeight: 'bold',
-                            formatter: '{b}'
-                        }
-                    },
-                    labelLine: {
-                        show: false
-                    },
-                    data: chartData,
-                    color: [
-                        getCssVariableValue('--color-blue-info'),
-                        getCssVariableValue('--color-whatsapp'),
-                        getCssVariableValue('--color-gmail'),
-                        getCssVariableValue('--color-warning'),
-                        getCssVariableValue('--color-purple')
-                    ]
-                }
-            ]
+        const svg = createSVG('svg', { viewBox: '0 0 100 100', width: '100%', height: '100%' });
+        let currentAngle = 0;
+        const colors = [getCssVariableValue('--color-slack'), getCssVariableValue('--color-whatsapp'), getCssVariableValue('--color-gmail'), getCssVariableValue('--color-warning'), getCssVariableValue('--color-purple')];
+        const total = entries.reduce((sum, e) => sum + e.value, 0);
+
+        entries.forEach((e, i) => {
+            const p = e.value / total;
+            const x1 = 50 + 40 * Math.cos(currentAngle);
+            const y1 = 50 + 40 * Math.sin(currentAngle);
+            currentAngle += p * 2 * Math.PI;
+            const x2 = 50 + 40 * Math.cos(currentAngle);
+            const y2 = 50 + 40 * Math.sin(currentAngle);
+            const largeArc = p > 0.5 ? 1 : 0;
+            const d = `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`;
+            svg.appendChild(createSVG('path', { d, fill: colors[i % colors.length], stroke: 'var(--card-bg)', 'stroke-width': 1 }));
         });
-        });
+        svg.appendChild(createSVG('circle', { cx: 50, cy: 50, r: 25, fill: 'var(--bg-color)' })); // Donut center
+        chartNode.appendChild(svg);
     },
+
 
     /**
      * Updates the 'Waiting' (대기 중) widget using backend-provided stats.
@@ -315,7 +238,7 @@ export const insightsRenderer = {
         }
 
         const heatmapData = generateHeatmapData(history, 91); // Polish: 13 weeks
-        const cells = heatmapData.map(d => {
+        const cells = heatmapData.map((d: any) => {
             const tier = d.level > 0 ? `heatmap-grid__cell--tier-${d.level}` : '';
             const cStr = JSON.stringify(d.counts).replace(/"/g, '&quot;');
             return `<div class="heatmap-grid__cell ${tier}" data-date="${d.date}" data-count="${d.count}" data-counts="${cStr}"></div>`;
@@ -366,110 +289,72 @@ export const insightsRenderer = {
         if (!container || !stats.completion_history) return;
         container.innerHTML = '';
         
-        const data = (stats.completion_history || []).slice(-days);
-        this.initChartSafely(container, 'anki', {
-            backgroundColor: 'transparent',
-            xAxis: { type: 'category', data: data.map((d: any) => d.date) },
-            yAxis: { type: 'value' },
-            series: [{ type: 'line', data: data.map((d: any) => d.count), smooth: true, itemStyle: { color: 'var(--accent-color)' } }]
+        const history = (stats.completion_history || []).slice(-days);
+        if (history.length === 0) return;
+
+        const width = 800;
+        const height = 200;
+        const svg = createSVG('svg', { viewBox: `0 0 ${width} ${height}`, width: '100%', height: '100%' });
+        
+        const maxVal = Math.max(...history.map((d: any) => d.total || 0), 1);
+        const padding = 20;
+        const xStep = (width - padding * 2) / (history.length - 1 || 1);
+        
+        const points = history.map((d: any, i: number) => {
+            const x = padding + i * xStep;
+            const y = height - padding - ((d.total || 0) / maxVal) * (height - padding * 2);
+            return { x, y };
         });
-    },
 
-    // Report rendering remains largely the same but ensures container mapping
-    renderReport(report: IReportData | null): void {
-        const content = document.getElementById('reportSummaryContent');
-        const viz = document.getElementById('reportVizChart');
-        if (!content || !viz) return;
-        content.innerHTML = '';
-        viz.innerHTML = '';
-
-        if (!report) {
-            content.innerHTML = '<div class="u-text-dim">No historical reports found.</div>';
-            viz.innerHTML = '';
-            return;
-        }
-
-        const lang = state.currentLang || 'ko';
-        const summary = report.translations?.[lang] || report.report_summary || report.summary || '';
-        content.innerHTML = summary ? marked.parse(summary) as string : '<p>Summary pending...</p>';
-
-        let vizData: IReportData['visualization_data'] | undefined;
-        if (typeof report.visualization_data === 'string') {
-            try { vizData = JSON.parse(report.visualization_data); } catch (e) { vizData = undefined; }
-        } else {
-            vizData = report.visualization_data;
-        }
-
-        if (vizData && (vizData as any).nodes && (vizData as any).links) {
-            this.renderReportVisuals(vizData, viz);
-        } else {
-            viz.innerHTML = '<div class="u-text-dim">No visualization data available.</div>';
-        }
-    },
-
-    renderReportVisuals(data: any, _container: HTMLElement): void {
-        const netChart = document.getElementById('reportNetworkChart');
-        const sankeyChart = document.getElementById('reportSankeyChart');
-        if (!netChart || !sankeyChart) return;
-
-        this.renderNetworkGraph(netChart, data);
-        this.renderSankeyChart(sankeyChart, data);
-        setTimeout(() => this.resizeAll(), 100);
-    },
-
-    renderNetworkGraph(container: HTMLElement, data: any): void {
-        const nodes = (data.nodes || []).map((n: IReportNode) => ({ ...n, name: n.name || n.id }));
-        this.initChartSafely(container, 'network', {
-            backgroundColor: 'transparent',
-            series: [{ 
-                type: 'graph', layout: 'force', data: nodes, 
-                links: (data.links || []).filter((l: IReportLink) => nodes.some((n: IReportNode) => n.id === l.source) && nodes.some((n: IReportNode) => n.id === l.target)),
-                label: { show: true, color: 'var(--text-main)' },
-                force: { repulsion: 300 }
-            }]
+        const d = `M ${points.map((p: any) => `${p.x},${p.y}`).join(' L ')}`;
+        svg.appendChild(createSVG('path', { d, fill: 'none', stroke: 'var(--accent-color)', 'stroke-width': 2 }));
+        
+        points.forEach((p: any) => {
+            svg.appendChild(createSVG('circle', { cx: p.x, cy: p.y, r: 3, fill: 'var(--accent-color)' }));
         });
+
+        container.appendChild(svg);
     },
 
-    renderSankeyChart(container: HTMLElement, data: any): void {
-        const nodes = (data.nodes || []).map((n: IReportNode) => ({
-            id: n.id, name: n.id, alias: n.name,
-            itemStyle: { color: n.is_me ? 'var(--color-error)' : 'var(--accent-color)' }
-        }));
-        this.initChartSafely(container, 'sankey', {
-            backgroundColor: 'transparent',
-            series: [{ 
-                type: 'sankey', data: nodes, 
-                links: this.mergeSankeyLinks(data.links || []),
-                lineStyle: { color: 'gradient', curveness: 0.5 }
-            }]
-        });
-    },
 
-    mergeSankeyLinks(links: any[]): any[] {
-        const merged: any[] = [];
-        (links || []).forEach(l => {
-            if (l.source === l.target) return;
-            const existing = merged.find(m => (m.source === l.source && m.target === l.target) || (m.source === l.target && m.target === l.source));
-            if (existing) existing.value += l.value;
-            else merged.push({ ...l });
-        });
-        return merged;
-    },
-
-    renderReportList(reports: IReportData[], activeId: number | null): void {
+    /**
+     * Initializes the report list by fetching from API.
+     */
+    async initReportList(): Promise<void> {
         const container = document.getElementById('reportList');
         if (!container) return;
-        container.innerHTML = '';
-        container.innerHTML = (reports || []).map(r => `
-            <div class="c-insights-report-item ${r.id === activeId ? 'c-insights-report-item--active' : ''}" data-id="${r.id}">
-                <div class="u-flex u-flex-between u-flex-align-center u-w-full">
-                    <div class="u-flex-column">
-                         <span class="c-insights-report-item__date">${r.start_date || ''}</span>
-                         <span class="c-insights-report-item__title">${r.title || 'Weekly Analysis'}</span>
-                    </div>
-                </div>
-            </div>
-        `).join('');
+
+        try {
+            const history = await api.fetchReportHistory();
+            updateReportHistory(history);
+            
+            reportsRenderer.renderHistory(container, state.reportHistory, async (selected) => {
+                const key = `${selected.start_date}_${selected.end_date}`;
+                let report = state.reports[key];
+                
+                if (!report || !report.report_summary) {
+                    this.renderLoading(document.querySelector('.c-insights-report-main') as HTMLElement);
+                    const fullReport = await api.fetchReportDetail(selected.id!);
+                    report = normalizeReportData(fullReport);
+                    upsertReport(report);
+                }
+                
+                this.renderReportDetail(report);
+            });
+        } catch (err) {
+            console.error('Failed to load report history:', err);
+            container.innerHTML = '<div class="u-text-dim u-p-4">Failed to load reports.</div>';
+        }
+    },
+
+    /**
+     * Renders the detail of a single report.
+     */
+    renderReportDetail(report: IReportData): void {
+        const detailContainer = document.querySelector('.c-insights-report-main') as HTMLElement;
+        if (detailContainer) {
+            reportsRenderer.render(detailContainer, report);
+        }
     },
 
     renderLoading(container: HTMLElement): void {

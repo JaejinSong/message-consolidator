@@ -14,44 +14,8 @@ vi.mock('marked', () => ({
     marked: markedMock // Some imports might use named 'marked'
 }));
 
-// 2. Mock ECharts
-const mockSetOption = vi.fn();
-const mockOn = vi.fn();
-const mockOff = vi.fn();
-const mockGetZr = vi.fn(() => ({ 
-    off: vi.fn(), 
-    on: vi.fn(),
-    handler: { dispatch: vi.fn() }
-}));
-const mockResize = vi.fn();
-const mockDispose = vi.fn();
+// 2. Mock ECharts (Removed - Transitioned to Vanilla SVG)
 
-const echartsMock = {
-    getInstanceByDom: vi.fn(() => null),
-    init: vi.fn(() => ({
-        setOption: mockSetOption,
-        on: mockOn,
-        off: mockOff,
-        getZr: mockGetZr,
-        resize: mockResize,
-        dispose: mockDispose,
-        showLoading: vi.fn(),
-        hideLoading: vi.fn(),
-        setGroup: vi.fn()
-    })),
-    registerTheme: vi.fn(),
-    registerMap: vi.fn(),
-    graphic: {
-        extendShape: vi.fn(),
-        registerShape: vi.fn()
-    }
-};
-
-vi.stubGlobal('echarts', echartsMock);
-vi.mock('echarts', () => ({
-    ...echartsMock,
-    default: echartsMock
-}));
 
 // 3. Mock DOM getComputedStyle for CSS variable resolution testing
 vi.stubGlobal('getComputedStyle', vi.fn(() => ({

@@ -261,11 +261,11 @@ func TestReportsService_GenerateVisualizationData_WithAliases(t *testing.T) {
 	tenantEmail := "admin@whatap.io"
 
 	// 1. Create users
-	userJJ, err := store.GetOrCreateUser("jjsong@whatap.io", "Jaejin Song", "")
+	userJJ, err := store.GetOrCreateUser(context.Background(), "jjsong@whatap.io", "Jaejin Song", "")
 	if err != nil {
 		t.Fatalf("Failed to create user jj: %v", err)
 	}
-	_, err = store.GetOrCreateUser("alice@whatap.io", "Alice", "")
+	_, err = store.GetOrCreateUser(context.Background(), "alice@whatap.io", "Alice", "")
 	if err != nil {
 		t.Fatalf("Failed to create user alice: %v", err)
 	}
@@ -346,15 +346,15 @@ func TestReportsService_GenerateVisualizationData_AliasCollision(t *testing.T) {
 	tenantEmail := "admin@whatap.io"
 
 	// 1. Create two different users with the same name.
-	_, err = store.GetOrCreateUser("alice.a@whatap.io", "Alice", "")
+	_, err = store.GetOrCreateUser(context.Background(), "alice.a@whatap.io", "Alice", "")
 	if err != nil {
 		t.Fatalf("Failed to create user alice.a: %v", err)
 	}
-	_, err = store.GetOrCreateUser("alice.b@whatap.io", "Alice", "")
+	_, err = store.GetOrCreateUser(context.Background(), "alice.b@whatap.io", "Alice", "")
 	if err != nil {
 		t.Fatalf("Failed to create user alice.b: %v", err)
 	}
-	_, err = store.GetOrCreateUser("charlie@whatap.io", "Charlie", "")
+	_, err = store.GetOrCreateUser(context.Background(), "charlie@whatap.io", "Charlie", "")
 	if err != nil {
 		t.Fatalf("Failed to create user charlie: %v", err)
 	}
@@ -413,7 +413,7 @@ func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) 
 	tenantB := "tenant-b@company.com"
 
 	// 1. Create a user and an alias for Tenant B.
-	_, err = store.GetOrCreateUser("jjsong@whatap.io", "Jaejin Song", "")
+	_, err = store.GetOrCreateUser(context.Background(), "jjsong@whatap.io", "Jaejin Song", "")
 	if err != nil {
 		t.Fatalf("Failed to create user jj: %v", err)
 	}
@@ -516,4 +516,47 @@ type mockSummarizer struct {
 
 func (m *mockSummarizer) Generate(ctx context.Context, logs string) (string, error) {
 	return m.generateFunc(ctx, logs)
+}
+
+func TestReportsService_CacheHit(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	callCount := 0
+	svc := NewReportsService(&mockSummarizer{
+		generateFunc: func(ctx context.Context, logs string) (string, error) {
+			callCount++
+			return "AI Generated Report", nil
+		},
+	}, nil, nil, ReportConfig{CutoffSize: 8000})
+
+	email := "user@example.com"
+	start, end := "2024-01-01", "2024-01-07"
+
+	// Pre-seed a message to avoid "no content" error if any
+	fixedTime, _ := time.Parse("2006-01-02", start)
+	_, _ = store.GetDB().Exec("INSERT INTO messages (user_email, source, task, created_at, requester, assignee) VALUES (?, ?, ?, ?, ?, ?)",
+		email, "slack", "Task 1", fixedTime, "Alice", "JJ")
+
+	// 1. First Call: Should hit AI
+	ctx := context.Background()
+	_, err = svc.GenerateReport(ctx, email, start, end)
+	if err != nil {
+		t.Fatalf("First call failed: %v", err)
+	}
+	if callCount != 1 {
+		t.Errorf("Expected callCount 1, got %d", callCount)
+	}
+
+	// 2. Second Call: Should hit Cache (DB)
+	_, err = svc.GenerateReport(ctx, email, start, end)
+	if err != nil {
+		t.Fatalf("Second call failed: %v", err)
+	}
+	if callCount != 1 {
+		t.Errorf("Expected callCount 1 (cache hit), got %d", callCount)
+	}
 }

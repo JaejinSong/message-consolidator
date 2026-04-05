@@ -220,18 +220,11 @@ export const insights = {
         }
     },
 
-    async refreshReport(activeId: number | null = null) {
+    async refreshReport(_activeId: number | null = null) {
+        // Why: Delegates to insightsRenderer for fetching history and rendering.
+        // It now uses the state-first, API-last model.
         try {
-            const reports = await api.fetchReports();
-            insightsRenderer.renderReportList(reports, activeId);
-
-            if (activeId) {
-                await this.loadReportDetail(activeId);
-            } else if (reports && reports.length > 0) {
-                await this.loadReportDetail(reports[0].id);
-            } else {
-                insightsRenderer.renderReport(null);
-            }
+            await insightsRenderer.initReportList();
         } catch (e) {
             console.error("[Insights] Refresh reports failed:", e);
         }

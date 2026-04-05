@@ -14,7 +14,7 @@ import (
 
 func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	msgsRaw, err := store.GetMessages(email)
+	msgsRaw, err := store.GetMessages(r.Context(), email)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to fetch messages")
 		return
@@ -23,11 +23,11 @@ func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	msgs := make([]store.ConsolidatedMessage, len(msgsRaw))
 	copy(msgs, msgsRaw)
 	if a.Tasks != nil {
-		a.Tasks.PrepareMessagesForClient(email, msgs, r.URL.Query().Get("lang"))
+		a.Tasks.PrepareMessagesForClient(r.Context(), email, msgs, r.URL.Query().Get("lang"))
 	}
 
-	name, _ := store.GetUserName(email)
-	aliases, _ := store.GetUserAliasesByEmail(email)
+	name, _ := store.GetUserName(r.Context(), email)
+	aliases, _ := store.GetUserAliasesByEmail(r.Context(), email)
 	res := struct {
 		Inbox   []store.ConsolidatedMessage `json:"inbox"`
 		Pending []store.ConsolidatedMessage `json:"pending"`
@@ -66,7 +66,7 @@ func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := a.Tasks.HandleTaskCompletion(email, req.ID, req.Done); err != nil {
+	if _, err := a.Tasks.HandleTaskCompletion(r.Context(), email, req.ID, req.Done); err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to complete task")
 		return
 	}
@@ -113,7 +113,7 @@ func (a *API) HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 	msgs := msgsRaw
 
 	if a.Tasks != nil {
-		a.Tasks.PrepareMessagesForClient(email, msgs, lang)
+		a.Tasks.PrepareMessagesForClient(r.Context(), email, msgs, lang)
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
@@ -161,7 +161,7 @@ func (a *API) HandleDelete(w http.ResponseWriter, r *http.Request) {
 		ids = []int{req.ID}
 	}
 
-	store.DeleteMessages(email, ids)
+	_ = store.DeleteMessages(r.Context(), email, ids)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -198,7 +198,7 @@ func (a *API) HandleHardDelete(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	store.HardDeleteMessages(email, req.IDs)
+	_ = store.HardDeleteMessages(r.Context(), email, req.IDs)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -211,7 +211,7 @@ func (a *API) HandleRestore(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	store.RestoreMessages(email, req.IDs)
+	_ = store.RestoreMessages(r.Context(), email, req.IDs)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -225,7 +225,7 @@ func (a *API) HandleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := store.UpdateTaskText(email, req.ID, req.Task); err != nil {
+	if err := store.UpdateTaskText(r.Context(), email, req.ID, req.Task); err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to update task")
 		return
 	}
@@ -251,7 +251,7 @@ func (a *API) HandleMergeTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := store.MergeTasks(email, req.TargetIDs, req.DestinationID); err != nil {
+	if err := store.MergeTasks(r.Context(), email, req.TargetIDs, req.DestinationID); err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to merge tasks: "+err.Error())
 		return
 	}
@@ -273,7 +273,7 @@ func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// 1. [Pre-filter] Get existing translations from DB/Cache
-	cached, _ := store.GetTaskTranslationsBatch(req.TaskIDs, req.Lang)
+	cached, _ := store.GetTaskTranslationsBatch(r.Context(), req.TaskIDs, req.Lang)
 	missingIDs := a.getMissingIDs(req.TaskIDs, cached)
 
 	// [Guard Clause] If all tasks are already translated, return immediately.
@@ -302,7 +302,7 @@ func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if len(successMap) > 0 {
-		_ = store.SaveTaskTranslationsBulk(req.Lang, successMap)
+		_ = store.SaveTaskTranslationsBulk(r.Context(), req.Lang, successMap)
 	}
 
 	a.respondWithResults(w, req.TaskIDs, cached, successMap, errorMap)

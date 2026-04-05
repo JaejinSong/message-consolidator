@@ -119,8 +119,27 @@ func GetReportTranslations(ctx context.Context, reportID int) (map[string]string
 }
 
 // Why: Provides a chronological list of a user's generated reports for the UI sidebar.
+// Refactored: Uses 1+1 pattern (metadata batch + translations batch) to eliminate N+1 overhead.
 func ListReports(ctx context.Context, email string) ([]Report, error) {
-	rows, err := db.QueryContext(ctx, SQL.ListReports, email)
+	reports, err := fetchReportMetadata(ctx, email)
+	if err != nil || len(reports) == 0 {
+		return reports, err
+	}
+
+	ids := collectReportIDs(reports)
+	transMap, err := GetReportTranslationsBatch(ctx, ids)
+	if err != nil {
+		// Why: Partial success - return reports without translations rather than failing entirely.
+		return reports, nil
+	}
+
+	mapTranslationsToReports(reports, transMap)
+	return reports, nil
+}
+
+// GetReportList returns a lightweight list of reports (metadata only) for history navigation.
+func GetReportList(ctx context.Context, email string) ([]Report, error) {
+	rows, err := db.QueryContext(ctx, SQL.GetReportList, email)
 	if err != nil {
 		return nil, err
 	}
@@ -129,18 +148,56 @@ func ListReports(ctx context.Context, email string) ([]Report, error) {
 	var reports []Report
 	for rows.Next() {
 		var r Report
-		var createdAt time.Time
-		var isTruncated int
-		var summary sql.NullString
-		if err := rows.Scan(&r.ID, &r.StartDate, &r.EndDate, &createdAt, &isTruncated, &summary); err != nil {
+		if err := rows.Scan(&r.ID, &r.StartDate, &r.EndDate, &r.CreatedAt); err != nil {
 			return nil, err
 		}
-		r.CreatedAt = createdAt
-		r.IsTruncated = isTruncated != 0
-		r.Summary = summary.String
 		reports = append(reports, r)
 	}
 	return reports, nil
+}
+
+func collectReportIDs(reports []Report) []int {
+	ids := make([]int, len(reports))
+	for i, r := range reports {
+		ids[i] = r.ID
+	}
+	return ids
+}
+
+func mapTranslationsToReports(reports []Report, transMap map[int]map[string]string) {
+	for i := range reports {
+		reports[i].Translations = transMap[reports[i].ID]
+	}
+}
+
+func fetchReportMetadata(ctx context.Context, email string) ([]Report, error) {
+	rows, err := db.QueryContext(ctx, SQL.ListReports, email)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var reports []Report
+	for rows.Next() {
+		r, err := scanReportRowShort(rows)
+		if err != nil {
+			return nil, err
+		}
+		reports = append(reports, r)
+	}
+	return reports, nil
+}
+
+func scanReportRowShort(rows *sql.Rows) (Report, error) {
+	var r Report
+	var createdAt time.Time
+	var isTruncated int
+	var summary sql.NullString
+	err := rows.Scan(&r.ID, &r.StartDate, &r.EndDate, &createdAt, &isTruncated, &summary)
+	r.CreatedAt = createdAt
+	r.IsTruncated = isTruncated != 0
+	r.Summary = summary.String
+	return r, err
 }
 
 // Why: Allows users to manage their stored reports and remove unneeded entries.

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
@@ -19,7 +20,7 @@ func TestHandleGetMessages(t *testing.T) {
 	defer cleanup()
 
 	email := "test@example.com"
-	_, _ = store.GetOrCreateUser(email, "Test User", "")
+	_, _ = store.GetOrCreateUser(context.Background(), email, "Test User", "")
 
 	// Create a mock message with non-null values for scanned columns
 	_, err = store.GetDB().Exec(`INSERT INTO messages 
@@ -31,7 +32,7 @@ func TestHandleGetMessages(t *testing.T) {
 	}
 
 	// Refresh cache to ensure message is available
-	_ = store.RefreshCache(email)
+	_ = store.RefreshCache(context.Background(), email)
 
 	req := NewMockRequest("GET", "/api/messages", email)
 	rr := httptest.NewRecorder()
@@ -66,11 +67,11 @@ func TestHandleDelete(t *testing.T) {
 	defer cleanup()
 
 	email := "test@example.com"
-	_, _ = store.GetOrCreateUser(email, "Test User", "")
+	_, _ = store.GetOrCreateUser(context.Background(), email, "Test User", "")
 
 	_, _ = store.GetDB().Exec("INSERT INTO messages (id, user_email, task, source, source_ts, is_deleted) VALUES (?, ?, ?, ?, ?, ?)",
 		1, email, "Task to delete", "slack", "ts123", 0)
-	_ = store.RefreshCache(email)
+	_ = store.RefreshCache(context.Background(), email)
 
 	// Test soft delete
 	body, _ := json.Marshal(map[string]interface{}{"ids": []int{1}})

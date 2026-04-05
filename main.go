@@ -104,11 +104,11 @@ func main() {
 	go func() {
 		defer wg.Done()
 		logger.Infof("[Shutdown] 2/4 Flushing in-memory data to Database...")
-		if err := store.FlushTokenUsage(); err != nil {
+		if err := store.FlushTokenUsage(context.Background()); err != nil {
 			logger.Errorf("Failed to flush token usage during shutdown: %v", err)
 		}
 		store.FlushAllScanMetadata()
-		if err := services.FlushGamificationData(); err != nil {
+		if err := services.FlushGamificationData(context.Background()); err != nil {
 			logger.Errorf("Failed to flush gamification data during shutdown: %v", err)
 		}
 		logger.Infof("[Shutdown] In-memory data flushed successfully.")
@@ -137,21 +137,21 @@ func main() {
 func setupApp(cfg *config.Config, api *handlers.API, ctx context.Context) *http.Server {
 	//Why: Injects WhatsApp manager callback hooks as an Inversion of Control (IoC) pattern to break circular dependency cycles between the 'channels' and 'store' packages.
 	channels.DefaultWAManager.FetchUserWAJID = func(email string) (string, error) {
-		u, err := store.GetOrCreateUser(email, "", "")
+		u, err := store.GetOrCreateUser(ctx, email, "", "")
 		if err != nil {
 			return "", err
 		}
 		return u.WAJID, nil
 	}
 	channels.DefaultWAManager.OnConnected = func(email, wajid string) {
-		store.UpdateUserWAJID(email, wajid)
+		store.UpdateUserWAJID(context.Background(), email, wajid)
 	}
 	channels.DefaultWAManager.OnLoggedOut = func(email string) {
-		store.UpdateUserWAJID(email, "")
+		store.UpdateUserWAJID(context.Background(), email, "")
 	}
 
 	//Why: Boots WhatsApp client sessions asynchronously for all registered users to ensure the main server startup remains non-blocking.
-	users, _ := store.GetAllUsers()
+	users, _ := store.GetAllUsers(ctx)
 	for _, u := range users {
 		go channels.DefaultWAManager.InitWhatsApp(u.Email, cfg)
 	}

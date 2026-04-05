@@ -1960,6 +1960,239 @@ body.light-theme .c-badge--count {
 
 /* --- End of static/css/components/insights.css --- */
 
+/* --- Start of static/css/components/reports.css --- */
+/* 
+   reports.css
+   Premium Business Reporting Styles for Message Consolidator
+   Strict BEM, No hardcoded px/hex, Responsive Design
+*/
+
+.c-report {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xl);
+    width: 100%;
+    color: var(--text-main);
+}
+
+.c-report-card {
+    background: var(--card-bg);
+    border: var(--border-thin) solid var(--glass-border);
+    backdrop-filter: blur(var(--blur-md));
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-xl);
+    box-shadow: var(--shadow-card);
+}
+
+.c-report-card__header {
+    margin-bottom: var(--spacing-lg);
+    border-bottom: var(--border-thin) solid var(--glass-border);
+    padding-bottom: var(--spacing-sm);
+}
+
+.c-report-card__title {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--accent-color);
+    letter-spacing: -0.02em;
+    margin: 0;
+}
+
+.c-report-card__meta {
+    font-size: 0.8125rem;
+    color: var(--text-dim);
+    margin-top: var(--spacing-xs);
+}
+
+/* Typography Hierarchy for Markdown Content */
+.c-report-content {
+    line-height: 1.6;
+    font-size: 1rem;
+    color: var(--text-main);
+}
+
+.c-report-content h1, .c-report-content h2, .c-report-content h3 {
+    color: var(--accent-color);
+    margin-top: var(--spacing-xl);
+    margin-bottom: var(--spacing-md);
+    font-weight: 700;
+}
+
+.c-report-content p {
+    margin-bottom: var(--spacing-md);
+}
+
+.c-report-content ul, .c-report-content ol {
+    margin-left: var(--spacing-xl);
+    margin-bottom: var(--spacing-md);
+}
+
+.c-report-content li {
+    margin-bottom: var(--spacing-xs);
+}
+
+/* Visual Analytics Sections */
+.c-report-viz {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2xl);
+    margin-top: var(--spacing-xl);
+}
+
+.c-report-viz__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.c-report-viz__title {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.c-report-viz__container {
+    width: 100%;
+    height: 25rem;
+    background: rgba(var(--accent-rgb), 0.02);
+    border-radius: var(--radius-md);
+    border: var(--border-thin) solid var(--border-light);
+    overflow: hidden;
+    position: relative;
+}
+
+/* SVG Chart Elements */
+.c-report-viz__svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.c-report-viz__node {
+    fill: var(--accent-color);
+    stroke: var(--card-bg);
+    stroke-width: 1.5;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.c-report-viz__node:hover {
+    filter: brightness(1.2) drop-shadow(0 0 0.5rem var(--accent-glow));
+    transform: scale(1.1);
+}
+
+.c-report-viz__node--me {
+    fill: var(--color-warning);
+    stroke: var(--accent-color);
+    stroke-width: 2;
+}
+
+.c-report-viz__link {
+    stroke: var(--accent-color);
+    stroke-opacity: 0.15;
+    stroke-linecap: round;
+    transition: all 0.3s ease;
+}
+
+.c-report-viz__link:hover {
+    stroke-opacity: 0.6;
+    stroke-width: 3;
+}
+
+.c-report-viz__label {
+    font-size: 0.75rem;
+    pointer-events: none;
+    fill: var(--text-dim);
+    font-weight: 500;
+    transition: fill 0.2s ease;
+}
+
+
+/* Interaction: Tooltips/Panels */
+.c-report-tooltip {
+    position: absolute;
+    background: var(--bg-floater);
+    border: var(--border-thin) solid var(--glass-border);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-main);
+    backdrop-filter: blur(var(--blur-md));
+    z-index: var(--z-index-dropdown);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    max-width: 15rem;
+}
+
+.c-report-tooltip--active {
+    opacity: 1;
+}
+
+/* Responsive Overrides */
+@media (max-width: 48rem) {
+    .c-report-viz__container {
+        height: 20rem;
+    }
+    
+    .c-report-card {
+        padding: var(--spacing-lg);
+    }
+    
+    .c-report-card__title {
+        font-size: 1.125rem;
+    }
+}
+
+/* Report History List */
+.c-report-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.c-report-list__item {
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    border: var(--border-thin) solid transparent;
+}
+
+.c-report-list__item:hover {
+    background: rgba(var(--accent-rgb), 0.05);
+    border-color: var(--glass-border);
+}
+
+.c-report-list__item--active {
+    background: rgba(var(--accent-rgb), 0.1);
+    border-color: var(--accent-color);
+}
+
+.c-report-list__item-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.c-report-list__item-meta {
+    margin-top: 0.125rem;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+}
+
+.c-report-list__empty {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.8125rem;
+}
+
+/* --- End of static/css/components/reports.css --- */
+
 /* --- Start of static/css/components/utilities.css --- */
 /* --- Utilities --- */
 .u-text-center { text-align: center; }

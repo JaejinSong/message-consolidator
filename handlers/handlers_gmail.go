@@ -42,7 +42,7 @@ func (a *API) HandleGmailCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := store.SaveGmailToken(email, string(tokenJSON)); err != nil {
+	if err := store.SaveGmailToken(r.Context(), email, string(tokenJSON)); err != nil {
 		logger.Debugf("[GMAIL-CALLBACK] Failed to save token for %s: %v", email, err)
 		respondError(w, http.StatusInternalServerError, "Failed to save token")
 		return
@@ -62,7 +62,7 @@ func (a *API) HandleGmailStatus(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) HandleGmailDisconnect(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	if err := store.DeleteGmailToken(email); err != nil {
+	if err := store.DeleteGmailToken(r.Context(), email); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

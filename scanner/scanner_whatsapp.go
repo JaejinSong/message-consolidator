@@ -42,7 +42,7 @@ func (s *WhatsAppScanner) processWhatsAppGroup(ctx context.Context, user store.U
 	is1to1 := !strings.Contains(jid, "@g.us")
 	for _, item := range items {
 		if m, ok := msgMap[item.SourceTS]; ok {
-			id := saveWAItem(user, aliases, item, m, groupName, is1to1)
+			id := saveWAItem(ctx, user, aliases, item, m, groupName, is1to1)
 			if id > 0 {
 				newIDs = append(newIDs, id)
 			}
@@ -96,7 +96,7 @@ func buildWAMetadataString(email string, m types.RawMessage) string {
 	return sb.String()
 }
 
-func saveWAItem(user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool) int {
+func saveWAItem(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool) int {
 	assignee := item.Assignee
 	category := item.Category
 	isMentioned := false
@@ -115,7 +115,7 @@ func saveWAItem(user store.User, aliases []string, item store.TodoItem, m types.
 		SourceTS: item.SourceTS, OriginalText: m.Text, Category: category,
 		SourceChannels: []string{"whatsapp"}, // Initial source for the new task
 	}
-	id, _ := store.HandleTaskState(user.Email, item, msg)
+	id, _ := store.HandleTaskState(ctx, user.Email, item, msg)
 	return id
 }
 

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"message-consolidator/logger"
 	"sync"
@@ -68,7 +69,7 @@ func AddTokenUsage(email string, promptTokens, completionTokens int) error {
 	return nil
 }
 
-func FlushTokenUsage() error {
+func FlushTokenUsage(ctx context.Context) error {
 	tokenMu.Lock()
 	if len(tokenDirtyData) == 0 {
 		tokenMu.Unlock()
@@ -79,7 +80,7 @@ func FlushTokenUsage() error {
 	tokenMu.Unlock()
 
 	err := WithDBRetry("FlushTokenUsage", func() error {
-		tx, err := db.Begin()
+		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
@@ -95,7 +96,7 @@ func FlushTokenUsage() error {
 
 		for email, data := range tokenFlushingData {
 			totalTokens := data.Prompt + data.Completion
-			if _, err := stmt.Exec(email, int(data.Prompt), int(data.Completion), int(totalTokens), today); err != nil {
+			if _, err := stmt.ExecContext(ctx, email, int(data.Prompt), int(data.Completion), int(totalTokens), today); err != nil {
 				return err
 			}
 		}
@@ -119,13 +120,13 @@ func FlushTokenUsage() error {
 	return err
 }
 
-func FlushTokenUsageIfNeeded() {
+func FlushTokenUsageIfNeeded(ctx context.Context) {
 	tokenMu.Lock()
 	shouldFlush := time.Since(lastTokenFlush) > 1*time.Hour && len(tokenDirtyData) > 0
 	tokenMu.Unlock()
 
 	if shouldFlush {
-		if err := FlushTokenUsage(); err == nil {
+		if err := FlushTokenUsage(ctx); err == nil {
 			tokenMu.Lock()
 			lastTokenFlush = time.Now()
 			tokenMu.Unlock()
@@ -133,7 +134,7 @@ func FlushTokenUsageIfNeeded() {
 	}
 }
 
-func GetDailyTokenUsage(email string) (int, int, error) {
+func GetDailyTokenUsage(ctx context.Context, email string) (int, int, error) {
 	today := time.Now().Format("2006-01-02")
 
 	usageCacheMu.RLock()
@@ -145,7 +146,7 @@ func GetDailyTokenUsage(email string) (int, int, error) {
 	usageCacheMu.RUnlock()
 
 	var promptNull, completionNull sql.NullInt64
-	err := db.QueryRow(SQL.GetDailyTokenUsage, email, today).Scan(&promptNull, &completionNull)
+	err := db.QueryRowContext(ctx, SQL.GetDailyTokenUsage, email, today).Scan(&promptNull, &completionNull)
 
 	if err != nil && err != sql.ErrNoRows {
 		return 0, 0, err
@@ -177,7 +178,7 @@ func GetDailyTokenUsage(email string) (int, int, error) {
 	return prompt, completion, nil
 }
 
-func GetMonthlyTokenUsage(email string) (int, int, error) {
+func GetMonthlyTokenUsage(ctx context.Context, email string) (int, int, error) {
 	currentMonth := time.Now().Format("2006-01")
 
 	usageCacheMu.RLock()
@@ -194,7 +195,7 @@ func GetMonthlyTokenUsage(email string) (int, int, error) {
 	nextMonthFirstDay := firstOfThisMonth.AddDate(0, 1, 0).Format("2006-01-02")
 
 	var promptNull, completionNull sql.NullInt64
-	err := db.QueryRow(SQL.GetMonthlyTokenUsage, email, firstDay, nextMonthFirstDay).Scan(&promptNull, &completionNull)
+	err := db.QueryRowContext(ctx, SQL.GetMonthlyTokenUsage, email, firstDay, nextMonthFirstDay).Scan(&promptNull, &completionNull)
 
 	if err != nil && err != sql.ErrNoRows {
 		return 0, 0, err
@@ -226,17 +227,17 @@ func GetMonthlyTokenUsage(email string) (int, int, error) {
 	return prompt, completion, nil
 }
 
-func SaveGmailToken(email, tokenJSON string) error {
+func SaveGmailToken(ctx context.Context, email, tokenJSON string) error {
 	metadataMu.Lock()
 	tokenCache[email] = tokenJSON
 	metadataMu.Unlock()
 
-	_, err := db.Exec(SQL.UpsertGmailToken,
+	_, err := db.ExecContext(ctx, SQL.UpsertGmailToken,
 		email, tokenJSON)
 	return err
 }
 
-func GetGmailToken(email string) (string, error) {
+func GetGmailToken(ctx context.Context, email string) (string, error) {
 	metadataMu.RLock()
 	token, ok := tokenCache[email]
 	metadataMu.RUnlock()
@@ -245,7 +246,7 @@ func GetGmailToken(email string) (string, error) {
 	}
 
 	var tokenJSON string
-	err := db.QueryRow(SQL.GetGmailToken, email).Scan(&tokenJSON)
+	err := db.QueryRowContext(ctx, SQL.GetGmailToken, email).Scan(&tokenJSON)
 	if err != nil {
 		return "", err
 	}
@@ -264,11 +265,11 @@ func HasGmailToken(email string) bool {
 	return ok
 }
 
-func DeleteGmailToken(email string) error {
+func DeleteGmailToken(ctx context.Context, email string) error {
 	metadataMu.Lock()
 	delete(tokenCache, email)
 	metadataMu.Unlock()
 
-	_, err := db.Exec(SQL.DeleteGmailToken, email)
+	_, err := db.ExecContext(ctx, SQL.DeleteGmailToken, email)
 	return err
 }

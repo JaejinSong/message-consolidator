@@ -1,9 +1,11 @@
 package store
 
 import (
+	"context"
 	"message-consolidator/internal/testutil"
 	"testing"
 )
+
 
 func TestDeleteGmailToken(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
@@ -16,7 +18,7 @@ func TestDeleteGmailToken(t *testing.T) {
 	token := "ya29.test-token"
 
 	//Why: Verifies that a Gmail token can be successfully persisted to both the database and the in-memory cache.
-	if err := SaveGmailToken(email, token); err != nil {
+	if err := SaveGmailToken(context.TODO(), email, token); err != nil {
 		t.Fatalf("failed to save token: %v", err)
 	}
 
@@ -27,9 +29,10 @@ func TestDeleteGmailToken(t *testing.T) {
 	}
 
 	//Why: Tests the explicit removal of a user's Gmail token from the system.
-	if err := DeleteGmailToken(email); err != nil {
+	if err := DeleteGmailToken(context.TODO(), email); err != nil {
 		t.Fatalf("failed to delete token: %v", err)
 	}
+
 
 	//Why: Validates that the token is properly purged from the cache and database to maintain security and consistency.
 	has = HasGmailToken(email)

@@ -21,7 +21,7 @@ func TestArchiveFilteringAndPriority(t *testing.T) {
 	defer cleanup()
 
 	email := "test@example.com"
-	_, _ = store.GetOrCreateUser(email, "Test User", "")
+	_, _ = store.GetOrCreateUser(context.Background(), email, "Test User", "")
 
 	now := time.Now()
 	oldDate := now.AddDate(0, 0, -10)
@@ -48,7 +48,7 @@ func TestArchiveFilteringAndPriority(t *testing.T) {
 	store.GetDB().QueryRow("SELECT COUNT(*) FROM messages").Scan(&count)
 	t.Logf("Total messages in DB: %d", count)
 
-	_ = store.RefreshCache(email)
+	_ = store.RefreshCache(context.Background(), email)
 	cfg := &config.Config{AuthDisabled: true}
 	api := &API{Config: cfg}
 

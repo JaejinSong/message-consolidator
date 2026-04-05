@@ -12,7 +12,7 @@ import (
 
 // SaveMessage persists a single message and updates the local cache.
 // Why: Enforces 30-line limit by delegating duplication checks, DB insertion, and cache synchronization to specific helpers.
-func SaveMessage(msg ConsolidatedMessage) (bool, int, error) {
+func SaveMessage(ctx context.Context, msg ConsolidatedMessage) (bool, int, error) {
 	if isDuplicate(msg.UserEmail, msg.SourceTS) {
 		return false, 0, nil
 	}
@@ -20,7 +20,7 @@ func SaveMessage(msg ConsolidatedMessage) (bool, int, error) {
 	msg.Requester = NormalizeName(msg.UserEmail, msg.Requester)
 	msg.Assignee = NormalizeName(msg.UserEmail, msg.Assignee)
 
-	lastID, err := insertMessage(msg)
+	lastID, err := insertMessage(ctx, msg)
 	if err != nil || lastID == 0 {
 		return false, lastID, err
 	}
@@ -39,14 +39,14 @@ func isDuplicate(email, ts string) bool {
 
 // SaveMessages performs a bulk insert of multiple messages.
 // Why: Refactored to satisfy 30-line limit by delegating bulk preparation, DB execution, and multi-user cache updates.
-func SaveMessages(msgs []ConsolidatedMessage) ([]int, error) {
+func SaveMessages(ctx context.Context, msgs []ConsolidatedMessage) ([]int, error) {
 	toInsert := filterNewOnly(msgs)
 	if len(toInsert) == 0 {
 		return nil, nil
 	}
 
 	normalizeMsgs(toInsert)
-	newIDsMap, err := executeBulkInsert(toInsert)
+	newIDsMap, err := executeBulkInsert(ctx, toInsert)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func normalizeMsgs(msgs []ConsolidatedMessage) {
 	}
 }
 
-func executeBulkInsert(msgs []ConsolidatedMessage) (map[string]map[string]int, error) {
+func executeBulkInsert(ctx context.Context, msgs []ConsolidatedMessage) (map[string]map[string]int, error) {
 	// Why: [WhaTap-Memory] Bulk insert builds a large argument slice; 17 fields per message.
 	valueStrings := make([]string, 0, len(msgs))
 	valueArgs := make([]interface{}, 0, len(msgs)*18)
@@ -106,7 +106,7 @@ func executeBulkInsert(msgs []ConsolidatedMessage) (map[string]map[string]int, e
 	}
 
 	query := fmt.Sprintf(SQL.SaveMessagesBase, strings.Join(valueStrings, ","))
-	rows, err := db.Query(query, valueArgs...)
+	rows, err := db.QueryContext(ctx, query, valueArgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -129,11 +129,11 @@ func scanBulkIDs(rows *sql.Rows) (map[string]map[string]int, error) {
 	return res, rows.Err()
 }
 
-func insertMessage(msg ConsolidatedMessage) (int, error) {
+func insertMessage(ctx context.Context, msg ConsolidatedMessage) (int, error) {
 	var lastID int
 	constraintsJSON, _ := json.Marshal(msg.Constraints)
 	channelsJSON, _ := json.Marshal(msg.SourceChannels)
-	err := db.QueryRow(SQL.SaveMessage,
+	err := db.QueryRowContext(ctx, SQL.SaveMessage,
 		msg.UserEmail, msg.Source, msg.Room, msg.Task,
 		msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link,
 		msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline,
@@ -148,8 +148,8 @@ func insertMessage(msg ConsolidatedMessage) (int, error) {
 	return lastID, nil
 }
 
-func GetMessages(email string) ([]ConsolidatedMessage, error) {
-	if err := EnsureCacheInitialized(email); err != nil {
+func GetMessages(ctx context.Context, email string) ([]ConsolidatedMessage, error) {
+	if err := EnsureCacheInitialized(ctx, email); err != nil {
 		return nil, err
 	}
 
@@ -161,11 +161,11 @@ func GetMessages(email string) ([]ConsolidatedMessage, error) {
 	return []ConsolidatedMessage{}, nil
 }
 
-func MarkMessageDone(email string, id int, done bool) error {
+func MarkMessageDone(ctx context.Context, email string, id int, done bool) error {
 	var comp interface{} = nil
 	if done { comp = time.Now() }
 
-	if _, err := db.Exec(SQL.MarkMessageDone, done, comp, int(id), email); err != nil {
+	if _, err := db.ExecContext(ctx, SQL.MarkMessageDone, done, comp, int(id), email); err != nil {
 		return err
 	}
 	// Why: Immediate invalidation ensures periodic UI polling fetches the strictly consistent state.
@@ -173,8 +173,8 @@ func MarkMessageDone(email string, id int, done bool) error {
 	return nil
 }
 
-func UpdateTaskText(email string, id int, task string) error {
-	if _, err := db.Exec(SQL.UpdateTaskText, task, int(id), email); err != nil {
+func UpdateTaskText(ctx context.Context, email string, id int, task string) error {
+	if _, err := db.ExecContext(ctx, SQL.UpdateTaskText, task, int(id), email); err != nil {
 		return err
 	}
 	InvalidateCache(email)
@@ -183,23 +183,21 @@ func UpdateTaskText(email string, id int, task string) error {
 
 // UpdateTaskDescriptionAppend appends new content to the task text only.
 // Why: Called when consolidating tasks from the same source message to prevent original_text duplication.
-func UpdateTaskDescriptionAppend(id int, date, newTask string) error {
-	_, err := db.Exec(SQL.UpdateTaskDescriptionAppend, date, newTask, int(id))
+func UpdateTaskDescriptionAppend(ctx context.Context, id int, date, newTask string) error {
+	_, err := db.ExecContext(ctx, SQL.UpdateTaskDescriptionAppend, date, newTask, int(id))
 	return err
 }
 
 // UpdateTaskFullAppend appends new content to both task and original_text.
 // Why: Called when consolidating tasks from different source messages where full context must be preserved.
-func UpdateTaskFullAppend(id int, date, newTask, newOriginalText string) error {
-	_, err := db.Exec(SQL.UpdateTaskFullAppend, date, newTask, newOriginalText, int(id))
+func UpdateTaskFullAppend(ctx context.Context, id int, date, newTask, newOriginalText string) error {
+	_, err := db.ExecContext(ctx, SQL.UpdateTaskFullAppend, date, newTask, newOriginalText, int(id))
 	return err
 }
 
 // MergeTasks consolidates multiple tasks into one.
 // Why: Uses a single transaction and strings.Builder to maintain data integrity and memory efficiency during large text concatenation.
-func MergeTasks(email string, targetIDs []int, destID int) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+func MergeTasks(ctx context.Context, email string, targetIDs []int, destID int) error {
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -239,10 +237,10 @@ func executeMerge(ctx context.Context, tx *sql.Tx, email string, targets []int, 
 		return fmt.Errorf("invalid merge: destination or sources not found")
 	}
 
-	return applyMergeUpdates(tx, email, dest, sources, targets)
+	return applyMergeUpdates(ctx, tx, email, dest, sources, targets)
 }
 
-func applyMergeUpdates(tx *sql.Tx, email string, dest *ConsolidatedMessage, sources []ConsolidatedMessage, targets []int) error {
+func applyMergeUpdates(ctx context.Context, tx *sql.Tx, email string, dest *ConsolidatedMessage, sources []ConsolidatedMessage, targets []int) error {
 	var taskBuilder, textBuilder strings.Builder
 
 	for i, s := range sources {
@@ -255,7 +253,7 @@ func applyMergeUpdates(tx *sql.Tx, email string, dest *ConsolidatedMessage, sour
 		textBuilder.WriteString(divider + s.OriginalText)
 	}
 
-	_, err := tx.Exec(SQL.UpdateTaskFullAppend, "Manual Merge", taskBuilder.String(), textBuilder.String(), dest.ID)
+	_, err := tx.ExecContext(ctx, SQL.UpdateTaskFullAppend, "Manual Merge", taskBuilder.String(), textBuilder.String(), dest.ID)
 	if err != nil {
 		return err
 	}
@@ -268,63 +266,63 @@ func applyMergeUpdates(tx *sql.Tx, email string, dest *ConsolidatedMessage, sour
 	}
 	args[len(targets)] = email
 
-	_, err = tx.Exec(query, args...)
+	_, err = tx.ExecContext(ctx, query, args...)
 	return err
 }
 
-func UpdateMessageCategory(email string, id int, category string) error {
-	if _, err := db.Exec(SQL.UpdateMessageCategory, category, int(id), email); err != nil {
+func UpdateMessageCategory(ctx context.Context, email string, id int, category string) error {
+	if _, err := db.ExecContext(ctx, SQL.UpdateMessageCategory, category, int(id), email); err != nil {
 		return err
 	}
 	InvalidateCache(email)
 	return nil
 }
 
-func UpdateTaskAssignee(email string, id int, assignee string) error {
-	if _, err := db.Exec(SQL.UpdateTaskAssignee, assignee, int(id), email); err != nil {
+func UpdateTaskAssignee(ctx context.Context, email string, id int, assignee string) error {
+	if _, err := db.ExecContext(ctx, SQL.UpdateTaskAssignee, assignee, int(id), email); err != nil {
 		return err
 	}
 	InvalidateCache(email)
 	return nil
 }
 
-func UpdateMessageRequester(id int, requester string) error {
-	_, err := db.Exec("UPDATE messages SET requester = ? WHERE id = ?", requester, id)
+func UpdateMessageRequester(ctx context.Context, id int, requester string) error {
+	_, err := db.ExecContext(ctx, "UPDATE messages SET requester = ? WHERE id = ?", requester, id)
 	return err
 }
 
-func UpdateMessageAssignee(id int, assignee string) error {
-	_, err := db.Exec("UPDATE messages SET assignee = ? WHERE id = ?", assignee, id)
+func UpdateMessageAssignee(ctx context.Context, id int, assignee string) error {
+	_, err := db.ExecContext(ctx, "UPDATE messages SET assignee = ? WHERE id = ?", assignee, id)
 	return err
 }
 
-func UpdateTaskSourceChannels(email string, id int, channels []string) error {
+func UpdateTaskSourceChannels(ctx context.Context, email string, id int, channels []string) error {
 	channelsJSON, _ := json.Marshal(channels)
-	if _, err := db.Exec(SQL.UpdateTaskSourceChannels, string(channelsJSON), int(id), email); err != nil {
+	if _, err := db.ExecContext(ctx, SQL.UpdateTaskSourceChannels, string(channelsJSON), int(id), email); err != nil {
 		return err
 	}
 	InvalidateCache(email)
 	return nil
 }
 
-func DeleteMessages(email string, ids []int) error {
+func DeleteMessages(ctx context.Context, email string, ids []int) error {
 	if len(ids) == 0 { return nil }
 	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
 	query := fmt.Sprintf("UPDATE messages SET is_deleted = 1 WHERE user_email = ? AND id IN (%s)", placeholders)
 	args := prepareIDArgs(email, ids)
-	if _, err := db.Exec(query, args...); err != nil {
+	if _, err := db.ExecContext(ctx, query, args...); err != nil {
 		return err
 	}
 	InvalidateCache(email)
 	return nil
 }
 
-func HardDeleteMessages(email string, ids []int) error {
+func HardDeleteMessages(ctx context.Context, email string, ids []int) error {
 	if len(ids) == 0 { return nil }
 	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
 	query := fmt.Sprintf("DELETE FROM messages WHERE user_email = ? AND id IN (%s)", placeholders)
 	args := prepareIDArgs(email, ids)
-	if _, err := db.Exec(query, args...); err != nil {
+	if _, err := db.ExecContext(ctx, query, args...); err != nil {
 		return err
 	}
 	InvalidateCache(email)
@@ -340,12 +338,12 @@ func prepareIDArgs(email string, ids []int) []interface{} {
 	return args
 }
 
-func RestoreMessages(email string, ids []int) error {
+func RestoreMessages(ctx context.Context, email string, ids []int) error {
 	if len(ids) == 0 { return nil }
 	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
 	query := fmt.Sprintf("UPDATE messages SET is_deleted = 0, done = 0, completed_at = NULL WHERE user_email = ? AND id IN (%s)", placeholders)
 	args := prepareIDArgs(email, ids)
-	if _, err := db.Exec(query, args...); err != nil {
+	if _, err := db.ExecContext(ctx, query, args...); err != nil {
 		return err
 	}
 	InvalidateCache(email)

@@ -79,61 +79,56 @@ func RunAllScans(ctx context.Context, wg *sync.WaitGroup) {
 	traceCtx, _ := trace.StartWithContext(ctx, "Background-RunAllScans")
 	defer trace.End(traceCtx, nil)
 
-	users, err := store.GetAllUsers()
+	users, err := store.GetAllUsers(traceCtx)
 	if err != nil {
 		logger.Errorf("Scanner Error: Failed to get users: %v", err)
 		return
 	}
 
+	scanUsersSourcesParallel(traceCtx, users)
+	performSlackScan(traceCtx, users, wg)
+	finalizeScanCycle(traceCtx, users)
+}
+
+func scanUsersSourcesParallel(ctx context.Context, users []store.User) {
 	var eg errgroup.Group
-	// Why: Limit concurrent user scans to prevent connection pool exhaustion and strict API rate limits.
-	const maxConcurrentScans = 5
-	eg.SetLimit(maxConcurrentScans)
+	eg.SetLimit(5) // MaxConcurrentScans
 
 	for _, user := range users {
-		aliases, _ := store.GetUserAliases(user.ID)
-
-		u, al := user, aliases
+		u := user
 		eg.Go(func() error {
-			scanAllSources(traceCtx, u, al)
+			aliases, _ := store.GetUserAliases(int(u.ID))
+			scanAllSources(ctx, u, aliases)
 			return nil
 		})
 	}
-	if err := eg.Wait(); err != nil {
-		logger.Errorf("Scanner Error: One or more user scans failed: %v", err)
+	_ = eg.Wait()
+}
+
+func performSlackScan(ctx context.Context, users []store.User, wg *sync.WaitGroup) {
+	if cfg == nil || cfg.SlackToken == "" {
+		return
+	}
+	sCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer cancel()
+		scanSlack(sCtx, users)
+	}()
+}
+
+func finalizeScanCycle(ctx context.Context, users []store.User) {
+	for _, u := range users {
+		store.PersistAllScanMetadata(u.Email)
 	}
 
-	// Why: Slack rate limits (HTTP 429) are extremely strict. Instead of scanning per user,
-	// we iterate through all channels the bot has joined exactly once and map tasks to users in memory.
-	if cfg != nil && cfg.SlackToken != "" {
-		ctx, cancel := context.WithTimeout(traceCtx, 60*time.Second)
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			scanSlack(ctx, users)
-			cancel()
-		}()
-
-		for _, u := range users {
-			store.PersistAllScanMetadata(u.Email)
-		}
-	}
-
-	if err := store.ArchiveOldTasks(); err != nil {
-		logger.Errorf("Scanner Error: Failed to archive old tasks: %v", err)
-	}
-
-	// Why: Piggyback on the background scanner loop to flush gamification data, reducing the need for a separate ticker.
-	if err := services.FlushGamificationData(); err != nil {
-		logger.Errorf("Scanner Error: Failed to flush gamification data: %v", err)
-	}
-
-	// Why: Flush buffered token usage periodically so the database can enter scale-to-zero (sleep) mode without losing billing data.
-	store.FlushTokenUsageIfNeeded()
-
-	// Why: Log connection pool stats to verify all connections are returned, which is critical for Turso's scale-to-zero capability.
+	_ = store.ArchiveOldTasks(ctx)
+	_ = services.FlushGamificationData(ctx)
+	store.FlushTokenUsageIfNeeded(ctx)
 	store.LogDBStats()
 }
+
 
 // Why: Automatically include the user's name and email prefix as default aliases to prevent missed mentions,
 // requiring less manual configuration from the user.
@@ -160,72 +155,73 @@ func getEffectiveAliases(user store.User, aliases []string) []string {
 
 func scanAllSources(parentCtx context.Context, user store.User, aliases []string) {
 	logger.Debugf("[SCAN] Scanning for user: %s", user.Email)
-
-	// Why: We use a standard context with timeout rather than errgroup.WithContext.
-	// If one channel (e.g., Gmail) fails, it should not cancel the scanning of others (e.g., WhatsApp).
 	ctx, cancel := context.WithTimeout(parentCtx, 45*time.Second)
 	defer cancel()
 
-	var eg errgroup.Group
-	effectiveAliases := getEffectiveAliases(user, aliases)
+	effAl := getEffectiveAliases(user, aliases)
+	_ = scanUserChannels(ctx, user.Email, effAl)
+	store.PersistAllScanMetadata(user.Email)
+}
 
-	if store.HasGmailToken(user.Email) {
+func scanUserChannels(ctx context.Context, email string, effAl []string) error {
+	var eg errgroup.Group
+	if store.HasGmailToken(email) {
 		eg.Go(func() error {
-			onThreadActivity := func(msg store.ConsolidatedMessage) {
-				if completionSvc != nil {
-					completionSvc.ProcessPotentialCompletion(context.Background(), msg)
-				}
-			}
-			ids := channels.ScanGmail(ctx, user.Email, "Korean", cfg, onThreadActivity)
-			triggerAsyncTranslation(user.Email, ids)
-			return nil
+			return performGmailScan(ctx, email)
 		})
 	}
 
 	eg.Go(func() error {
-		scanWhatsApp(ctx, user, effectiveAliases, "Korean")
+		user, _ := store.GetOrCreateUser(ctx, email, "", "")
+		scanWhatsApp(ctx, *user, effAl, "Korean")
 		return nil
 	})
-
-	_ = eg.Wait()
-
-	store.PersistAllScanMetadata(user.Email)
+	return eg.Wait()
 }
+
+func performGmailScan(ctx context.Context, email string) error {
+	onThreadActivity := func(msg store.ConsolidatedMessage) {
+		if completionSvc != nil {
+			completionSvc.ProcessPotentialCompletion(context.Background(), msg)
+		}
+	}
+	ids := channels.ScanGmail(ctx, email, "Korean", cfg, onThreadActivity)
+	triggerAsyncTranslation(email, ids)
+	return nil
+}
+
 
 func Scan(email string, lang string) {
 	traceCtx, _ := trace.StartWithContext(context.Background(), "ManualScan")
 	defer trace.End(traceCtx, nil)
 
-	user, err := store.GetOrCreateUser(email, "", "")
+	user, err := store.GetOrCreateUser(traceCtx, email, "", "")
 	if err != nil {
 		logger.Errorf("[SCAN] Failed to get user %s: %v", email, err)
 		return
 	}
-	aliases, _ := store.GetUserAliases(user.ID)
-	effectiveAliases := getEffectiveAliases(*user, aliases)
-
-	// Why: Bounded timeout prevents manual scans from hanging the HTTP handler indefinitely.
+	
 	ctx, cancel := context.WithTimeout(traceCtx, 60*time.Second)
 	defer cancel()
 
-	if store.HasGmailToken(email) {
-		onThreadActivity := func(msg store.ConsolidatedMessage) {
-			if completionSvc != nil {
-				completionSvc.ProcessPotentialCompletion(context.Background(), msg)
-			}
-		}
-		channels.ScanGmail(ctx, email, lang, cfg, onThreadActivity)
-	}
-
-	scanSlack(ctx, []store.User{*user})
-
-	scanWhatsApp(ctx, *user, effectiveAliases, lang)
-
+	effAl := getEffectiveAliases(*user, func() []string {
+		a, _ := store.GetUserAliases(int(user.ID))
+		return a
+	}())
+	runManualScans(ctx, user, effAl, lang)
+	
 	store.PersistAllScanMetadata(user.Email)
-
-	// Why: Piggyback gamification flush on manual scans for immediate visual feedback in the UI.
-	_ = services.FlushGamificationData()
+	_ = services.FlushGamificationData(ctx)
 }
+
+func runManualScans(ctx context.Context, user *store.User, effAl []string, lang string) {
+	if store.HasGmailToken(user.Email) {
+		performGmailScan(ctx, user.Email)
+	}
+	scanSlack(ctx, []store.User{*user})
+	scanWhatsApp(ctx, *user, effAl, lang)
+}
+
 
 // Why: Provides strict matching for short aliases (like '나', 'me') to prevent false positives in common sentences,
 // while allowing flexible substring matching for longer, unique names.

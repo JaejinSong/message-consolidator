@@ -60,6 +60,12 @@ LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = '
 WHERE r.user_email = ?
 ORDER BY r.created_at DESC;
 
+-- name: GetReportList
+SELECT id, start_date, end_date, created_at
+FROM reports
+WHERE user_email = ?
+ORDER BY created_at DESC;
+
 -- name: GetReportByID
 SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.is_truncated, r.created_at, rt.summary
 FROM reports r

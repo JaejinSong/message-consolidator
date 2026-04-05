@@ -26,7 +26,8 @@ vi.mock('./insightsRenderer.ts', () => ({
         renderAchievements: vi.fn(),
         renderAnkiChart: vi.fn(),
         renderLoading: vi.fn(),
-        renderError: vi.fn()
+        renderError: vi.fn(),
+        initReportList: vi.fn()
     }
 }));
 
@@ -63,9 +64,7 @@ describe('insights.js - Controller', () => {
         api.fetchReportDetail.mockResolvedValue(mockReports[0]);
 
         await insights.refreshReport();
-
-        expect(api.fetchReports).toHaveBeenCalled();
-        expect(insightsRenderer.renderReportList).toHaveBeenCalledWith(mockReports, null);
+        expect(insightsRenderer.initReportList).toHaveBeenCalled();
     });
 
     it('should load report details when selected', async () => {

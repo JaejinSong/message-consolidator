@@ -61,6 +61,12 @@ func NewReportsService(summarizer ReportSummarizer, geminiClient *ai.GeminiClien
 // Why: Orchestrates the generation of an AI-powered work report by coordinating between the Go-based visualization engine and the injected summarizer strategy.
 // Now supports a 1:N multi-language pipeline (EN, KR, ID, TH).
 func (s *ReportsService) GenerateReport(ctx context.Context, email, startDate, endDate string) (*store.Report, error) {
+	// 1. Check DB Cache First
+	if cached, err := store.GetReport(ctx, email, startDate, endDate); err == nil && cached != nil {
+		logger.Infof("[REPORTS] Cache Hit: Returning existing report for %s ~ %s", startDate, endDate)
+		return cached, nil
+	}
+
 	// 2. Fetch & Filter Data
 	filtered, err := s.fetchAndFilterMessages(ctx, email, startDate, endDate)
 	if err != nil {
@@ -102,27 +108,45 @@ func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, star
 }
 
 func (s *ReportsService) generateBaseReport(ctx context.Context, email, startDate, endDate string, filtered []Log) (*store.Report, error) {
-	vizData := s.generateVisualizationData(email, filtered)
-	vizJSON, _ := json.Marshal(vizData)
 	taskSummary, isTruncated := s.PrepareLogsForAI(email, filtered)
-
-	summaryEN, err := s.summarizer.Generate(ctx, taskSummary)
+	summaryFull, err := s.summarizer.Generate(ctx, taskSummary)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("AI generation failed: %w", err)
 	}
+
+	jsonStr, strippedText, _ := ExtractJSONBlock(summaryFull)
+	vizJSON := s.getVisualizationJSON(email, filtered, jsonStr)
 
 	report := &store.Report{
 		UserEmail: email, StartDate: startDate, EndDate: endDate,
-		Summary: summaryEN, Visualization: string(vizJSON), IsTruncated: isTruncated,
+		Summary: strippedText, Visualization: vizJSON, IsTruncated: isTruncated,
 	}
 
+	return s.saveAndTranslateInitial(ctx, report, strippedText)
+}
+
+func (s *ReportsService) getVisualizationJSON(email string, logs []Log, aiJSON string) string {
+	if aiJSON != "" {
+		var gData GraphData
+		if err := json.Unmarshal([]byte(aiJSON), &gData); err == nil && len(gData.Nodes) > 0 {
+			b, _ := json.Marshal(gData)
+			return string(b)
+		}
+	}
+	// Fallback to manual aggregation
+	vizData := s.generateVisualizationData(email, logs)
+	b, _ := json.Marshal(vizData)
+	return string(b)
+}
+
+func (s *ReportsService) saveAndTranslateInitial(ctx context.Context, report *store.Report, summary string) (*store.Report, error) {
 	id, err := store.SaveReport(ctx, report)
 	if err != nil {
 		return nil, err
 	}
 	report.ID = int(id)
-	_ = store.SaveReportTranslation(ctx, id, "en", summaryEN)
-	report.Translations = map[string]string{"en": summaryEN}
+	_ = store.SaveReportTranslation(ctx, id, "en", summary)
+	report.Translations = map[string]string{"en": summary}
 	return report, nil
 }
 
@@ -169,13 +193,13 @@ func (s *ReportsService) sanitizeMessages(ctx context.Context, email string, msg
 
 	for i := range msgs {
 		m := &msgs[i]
-		s.applyResolution(m, &m.Requester, contacts, ambiguous, store.UpdateMessageRequester)
-		s.applyResolution(m, &m.Assignee, contacts, ambiguous, store.UpdateMessageAssignee)
+		s.applyResolution(ctx, m, &m.Requester, contacts, ambiguous, store.UpdateMessageRequester)
+		s.applyResolution(ctx, m, &m.Assignee, contacts, ambiguous, store.UpdateMessageAssignee)
 	}
 	return msgs, nil
 }
 
-func (s *ReportsService) applyResolution(m *Log, field *string, contacts map[string]*store.ContactRecord, ambiguous map[string]bool, updateFn func(int, string) error) {
+func (s *ReportsService) applyResolution(ctx context.Context, m *Log, field *string, contacts map[string]*store.ContactRecord, ambiguous map[string]bool, updateFn func(context.Context, int, string) error) {
 	identifier := *field
 	if ambiguous[identifier] {
 		*field = identifier + " (Ambiguous)"
@@ -185,7 +209,7 @@ func (s *ReportsService) applyResolution(m *Log, field *string, contacts map[str
 	if c, ok := contacts[identifier]; ok {
 		// 💡 Self-Healing: Update DB if non-canonical ID was used.
 		if identifier != c.CanonicalID && identifier != c.DisplayName {
-			go updateFn(m.ID, c.CanonicalID)
+			go updateFn(context.Background(), m.ID, c.CanonicalID)
 		}
 		*field = c.CanonicalID
 	}

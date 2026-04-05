@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -12,7 +13,7 @@ var (
 	translationMu    sync.RWMutex
 )
 
-func GetTaskTranslation(messageID int, langCode string) (string, error) {
+func GetTaskTranslation(ctx context.Context, messageID int, langCode string) (string, error) {
 	translationMu.RLock()
 	if langCache, ok := translationCache[langCode]; ok {
 		if text, exists := langCache[messageID]; exists {
@@ -23,7 +24,7 @@ func GetTaskTranslation(messageID int, langCode string) (string, error) {
 	translationMu.RUnlock()
 
 	var translatedText string
-	err := db.QueryRow(SQL.GetTaskTranslation, messageID, langCode).Scan(&translatedText)
+	err := db.QueryRowContext(ctx, SQL.GetTaskTranslation, messageID, langCode).Scan(&translatedText)
 	if err == sql.ErrNoRows {
 		translationMu.Lock()
 		if translationCache[langCode] == nil {
@@ -46,7 +47,7 @@ func GetTaskTranslation(messageID int, langCode string) (string, error) {
 	return translatedText, err
 }
 
-func GetTaskTranslationsBatch(messageIDs []int, langCode string) (map[int]string, error) {
+func GetTaskTranslationsBatch(ctx context.Context, messageIDs []int, langCode string) (map[int]string, error) {
 	if len(messageIDs) == 0 {
 		return make(map[int]string), nil
 	}
@@ -87,7 +88,7 @@ func GetTaskTranslationsBatch(messageIDs []int, langCode string) (map[int]string
 
 	//Why: Hardcodes the query to prevent potential template conversion errors related to dynamic placeholder generation in external SQL files.
 	query := fmt.Sprintf("SELECT message_id, translated_text FROM task_translations WHERE language_code = ? AND message_id IN (%s)", strings.Join(placeholders, ","))
-	rows, err := db.Query(query, args...)
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -120,8 +121,8 @@ func GetTaskTranslationsBatch(messageIDs []int, langCode string) (map[int]string
 	return results, nil
 }
 
-func SaveTaskTranslation(messageID int, langCode, translatedText string) error {
-	_, err := db.Exec(SQL.UpsertTaskTranslation, messageID, langCode, translatedText)
+func SaveTaskTranslation(ctx context.Context, messageID int, langCode, translatedText string) error {
+	_, err := db.ExecContext(ctx, SQL.UpsertTaskTranslation, messageID, langCode, translatedText)
 
 	if err == nil {
 		translationMu.Lock()
@@ -139,7 +140,7 @@ func SaveTaskTranslation(messageID int, langCode, translatedText string) error {
 // Why: Minimizes database lock contention and ensures atomicity for batch AI results.
 // SaveTaskTranslationsBulk saves multiple translations in a single optimized SQL execution.
 // Why: Minimizes database lock contention and ensures atomicity for batch AI results.
-func SaveTaskTranslationsBulk(langCode string, results map[int]string) error {
+func SaveTaskTranslationsBulk(ctx context.Context, langCode string, results map[int]string) error {
 	if len(results) == 0 { return nil }
 
 	placeholders := make([]string, 0, len(results))
@@ -150,7 +151,7 @@ func SaveTaskTranslationsBulk(langCode string, results map[int]string) error {
 	}
 
 	query := fmt.Sprintf("INSERT INTO task_translations (message_id, language_code, translated_text) VALUES %s ON CONFLICT(message_id, language_code) DO UPDATE SET translated_text=excluded.translated_text", strings.Join(placeholders, ","))
-	_, err := db.Exec(query, args...)
+	_, err := db.ExecContext(ctx, query, args...)
 	if err == nil {
 		syncCacheBatch(langCode, results)
 	}

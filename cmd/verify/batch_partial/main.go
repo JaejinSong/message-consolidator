@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"message-consolidator/ai"
@@ -41,13 +42,13 @@ func main() {
 	}
 
 	if len(successMap) > 0 {
-		err = store.SaveTaskTranslationsBulk(lang, successMap)
+		err = store.SaveTaskTranslationsBulk(context.Background(), lang, successMap)
 		if err != nil { fmt.Printf("Error during bulk save: %v\n", err) }
 	}
 	fmt.Printf("Bulk saved %d items.\n", len(successMap))
 
 	fmt.Println("\n--- [3] Verification (DB Check) ---")
-	cached, _ := store.GetTaskTranslationsBatch([]int{1, 2, 3}, lang)
+	cached, _ := store.GetTaskTranslationsBatch(context.Background(), []int{1, 2, 3}, lang)
 	fmt.Printf("Cached items in DB: %v\n", cached)
 
 	if _, ok := cached[2]; ok {

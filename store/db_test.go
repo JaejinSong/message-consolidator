@@ -108,7 +108,7 @@ func TestBatchOperations(t *testing.T) {
 
 	t.Run("DeleteAndRestoreMessages", func(t *testing.T) {
 		//Why: [Step 1/3] Tests soft deletion to ensure records are flagged as deleted without being immediately purged from the database.
-		if err := DeleteMessages(email, []int{1, 2}); err != nil {
+		if err := DeleteMessages(context.Background(), email, []int{1, 2}); err != nil {
 			t.Fatalf("Soft delete failed: %v", err)
 		}
 
@@ -119,7 +119,7 @@ func TestBatchOperations(t *testing.T) {
 		}
 
 		//Why: [Step 2/3] Tests the restoration of a previously soft-deleted message to ensure users can recover items from the trash.
-		if err := RestoreMessages(email, []int{1}); err != nil {
+		if err := RestoreMessages(context.Background(), email, []int{1}); err != nil {
 			t.Fatalf("Restore failed: %v", err)
 		}
 		_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE is_deleted = 1").Scan(&count)
@@ -128,7 +128,7 @@ func TestBatchOperations(t *testing.T) {
 		}
 
 		//Why: [Step 3/3] Tests hard deletion to verify that records are permanently removed from the database as expected.
-		if err := HardDeleteMessages(email, []int{1, 2, 3}); err != nil {
+		if err := HardDeleteMessages(context.Background(), email, []int{1, 2, 3}); err != nil {
 			t.Fatalf("Hard delete failed: %v", err)
 		}
 		_ = db.QueryRow("SELECT COUNT(*) FROM messages").Scan(&count)

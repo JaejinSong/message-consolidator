@@ -8,7 +8,7 @@ import { state } from './state.ts';
  * @description Pure functions for data processing, sorting, and classification.
  */
 
-import { Message, I18nDictionary } from './types.ts';
+import { Message, I18nDictionary, IReportData, ParsedVisualization } from './types.ts';
 
 /** 완료된 업무가 대시보드에 노출되는 기준일 (보관함 이관 기준) */
 export const getArchiveThresholdDays = (): number => state.archiveThresholdDays || 7;
@@ -259,6 +259,7 @@ export function parseMarkdown(text: string): string {
         .replace(/(<\/h[1-3]>|<hr.*?>|<\/div>)<br>/gim, '$1'); 
 }
 
+
 /**
  * Why: Returns the appropriate task description based on language availability.
  * Follows English-First with Korean fallback strategy.
@@ -273,4 +274,43 @@ export function getDisplayTask(m: Message, lang?: string): string {
     
     // 2. Fallback to English 원문 (task_en or task)
     return m.task_en || m.task || "";
+}
+
+/**
+ * Why: Normalizes raw report data with safe JSON parsing for visualization.
+ */
+export function normalizeReportData(data: any): IReportData {
+    if (!data) return {} as IReportData;
+
+    let viz: ParsedVisualization = { nodes: [], links: [] };
+    const rawViz = data.visualization_data;
+
+    if (typeof rawViz === 'string' && rawViz.trim()) {
+        try { viz = JSON.parse(rawViz); } catch (e) { /* Fallback used */ }
+    } else if (rawViz && typeof rawViz === 'object') {
+        viz = rawViz;
+    }
+
+    return {
+        id: Number(data.id),
+        user_email: data.user_email || "",
+        start_date: data.start_date || "",
+        end_date: data.end_date || "",
+        report_summary: data.report_summary || "",
+        translations: data.translations || {},
+        visualization_data: viz,
+        is_truncated: Boolean(data.is_truncated),
+        created_at: data.created_at || ""
+    };
+}
+
+/**
+ * Why: Language-aware summary extractor with fallback.
+ */
+export function getReportSummary(report: IReportData, lang: string): string {
+    if (!report) return "";
+    if (report.translations && report.translations[lang]) {
+        return report.translations[lang];
+    }
+    return report.report_summary || "";
 }

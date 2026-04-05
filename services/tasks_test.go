@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"strings"
@@ -60,7 +61,7 @@ func TestFormatMessagesForClient(t *testing.T) {
 
 	s := &TasksService{}
 	email := "test@example.com"
-	user, _ := store.GetOrCreateUser(email, "Test User", "")
+	user, _ := store.GetOrCreateUser(context.Background(), email, "Test User", "")
 	_ = user //Why: Ensures the user variable is consumed to satisfy the Go compiler's strict unused variable check in tests.
 
 	msgs := []store.ConsolidatedMessage{
@@ -69,7 +70,7 @@ func TestFormatMessagesForClient(t *testing.T) {
 		{ID: 3, Assignee: "Other", Requester: "me"},
 	}
 
-	s.FormatMessagesForClient(email, msgs)
+	s.FormatMessagesForClient(context.Background(), email, msgs)
 
 	if msgs[0].Assignee != "me" {
 		t.Errorf("Expected assignee 'me' for msg 0, got '%s'", msgs[0].Assignee)

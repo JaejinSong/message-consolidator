@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"message-consolidator/auth"
-	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
 	"strconv"
@@ -16,6 +15,17 @@ import (
 func (a *API) HandleListReports(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	reports, err := store.ListReports(r.Context(), email)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, reports)
+}
+
+// HandleGetReportHistory returns a lightweight list of reports for the history sidebar.
+func (a *API) HandleGetReportHistory(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	reports, err := store.GetReportList(r.Context(), email)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -63,23 +73,16 @@ func (a *API) HandleGenerateReport(w http.ResponseWriter, r *http.Request) {
 
 // HandleGetReportByID retrieves a specific report by its unique ID.
 func (a *API) HandleGetReportByID(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id64, err := strconv.ParseInt(vars["id"], 10, 64)
-	if err != nil { // Guard Clause 1: Explicit Integer Conversion 방어
+	id, err := a.parseReportID(r)
+	if err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid report ID format")
 		return
 	}
-	id := int(id64)
+
 	email := auth.GetUserEmail(r)
-
 	report, err := store.GetReportByID(r.Context(), id, email)
-	if err != nil { // Guard Clause 2: Not Found 방어
-		respondError(w, http.StatusNotFound, "Report not found")
-		return
-	}
-
-	if report.UserEmail != email { // Guard Clause 3: 권한 방어
-		respondError(w, http.StatusForbidden, "Forbidden access")
+	if err != nil || report.UserEmail != email {
+		respondError(w, http.StatusNotFound, "Report not found or Forbidden")
 		return
 	}
 
@@ -88,18 +91,15 @@ func (a *API) HandleGetReportByID(w http.ResponseWriter, r *http.Request) {
 
 // HandleDeleteReport removes a report from the database.
 func (a *API) HandleDeleteReport(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id64, err := strconv.ParseInt(vars["id"], 10, 64)
+	id, err := a.parseReportID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid report ID format")
 		return
 	}
-	id := int(id64)
-	email := auth.GetUserEmail(r)
 
-	report, err := store.GetReportByID(r.Context(), id, email)
-	if err != nil || report.UserEmail != email {
-		respondError(w, http.StatusForbidden, "Report not found or Forbidden")
+	email := auth.GetUserEmail(r)
+	if _, err := store.GetReportByID(r.Context(), id, email); err != nil {
+		respondError(w, http.StatusNotFound, "Report not found")
 		return
 	}
 
@@ -112,42 +112,34 @@ func (a *API) HandleDeleteReport(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleTranslateReport handles the on-demand translation request for a report.
-// Why: Implements a Just-in-Time (JIT) translation workflow using context timeouts to prevent goroutine leaks during AI processing.
 func (a *API) HandleTranslateReport(w http.ResponseWriter, r *http.Request) {
-	email := auth.GetUserEmail(r)
-	vars := mux.Vars(r)
-	idStr := vars["id"]
-	id64, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := a.parseReportID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid report ID format")
 		return
 	}
-	id := int(id64)
 
 	lang := r.URL.Query().Get("lang")
-	if lang == "" {
-		respondError(w, http.StatusBadRequest, "Missing lang parameter")
+	if lang == "" || a.Reports == nil {
+		respondError(w, http.StatusBadRequest, "Missing lang parameter or Service unavailable")
 		return
 	}
 
-	if a.Reports == nil {
-		respondError(w, http.StatusServiceUnavailable, "Reports service not initialized")
-		return
-	}
-
-	// AI 번역은 시간이 걸릴 수 있으므로 30초 타임아웃을 설정합니다.
+	email := auth.GetUserEmail(r)
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	summary, err := a.Reports.ProcessOnDemandTranslation(ctx, email, id, lang)
 	if err != nil {
-		logger.Errorf("[API] Translation failed for report %d (%s): %v", id, lang, err)
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{
-		"language_code": lang,
-		"summary":       summary,
-	})
+	respondJSON(w, http.StatusOK, map[string]string{"language_code": lang, "summary": summary})
+}
+
+func (a *API) parseReportID(r *http.Request) (int, error) {
+	vars := mux.Vars(r)
+	id64, err := strconv.ParseInt(vars["id"], 10, 64)
+	return int(id64), err
 }

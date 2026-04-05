@@ -34,7 +34,7 @@ func (a *API) HandleManualScan(w http.ResponseWriter, r *http.Request) {
 			ScanFunc(email, lang)
 			store.PersistAllScanMetadata(email)
 			//Why: Synchronizes accumulated gamification data from the memory queue to the database immediately after a manual scan.
-			_ = services.FlushGamificationData()
+			_ = services.FlushGamificationData(context.Background())
 		}()
 	}
 
@@ -75,7 +75,7 @@ func (a *API) HandleInternalScan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//Why: Leverages the active database connection during a full scan to efficiently flush accumulated gamification data from memory.
-	if err := services.FlushGamificationData(); err != nil {
+	if err := services.FlushGamificationData(r.Context()); err != nil {
 		logger.Errorf("[INTERNAL-SCAN] Gamification flush error: %v", err)
 	}
 
@@ -122,7 +122,7 @@ func (a *API) HandleTranslate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	toTranslateIDs, err := a.filterUntranslatedIDs(msgs, lang)
+	toTranslateIDs, err := a.filterUntranslatedIDs(r.Context(), msgs, lang)
 	if err != nil {
 		logger.Errorf("[TRANSLATE] DB query failed for existing translations: %v", err)
 		//Why: Fails the request if the existing translation check fails to prevent expensive and unnecessary re-translation of all tasks.
@@ -144,7 +144,7 @@ func (a *API) HandleTranslate(w http.ResponseWriter, r *http.Request) {
 
 // Why: Consolidates active and archived message retrieval to ensure comprehensive translation coverage across the user's entire task history.
 func (a *API) gatherMessagesForTranslation(ctx context.Context, email string) ([]store.ConsolidatedMessage, error) {
-	msgsRaw, err := store.GetMessages(email)
+	msgsRaw, err := store.GetMessages(ctx, email)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func (a *API) gatherMessagesForTranslation(ctx context.Context, email string) ([
 }
 
 // Why: Optimizes AI API usage by stripping duplicate task IDs and filtering out tasks that have already been translated.
-func (a *API) filterUntranslatedIDs(msgs []store.ConsolidatedMessage, lang string) ([]int, error) {
+func (a *API) filterUntranslatedIDs(ctx context.Context, msgs []store.ConsolidatedMessage, lang string) ([]int, error) {
 	//Why: Deduplicates message IDs before processing to avoid redundant translation requests and minimize AI API expenses.
 	uniqueIDs := make(map[int]bool)
 	var idList []int
@@ -176,7 +176,7 @@ func (a *API) filterUntranslatedIDs(msgs []store.ConsolidatedMessage, lang strin
 		}
 	}
 
-	existingTranslations, err := store.GetTaskTranslationsBatch(idList, lang)
+	existingTranslations, err := store.GetTaskTranslationsBatch(ctx, idList, lang)
 	if err != nil {
 		return nil, err
 	}
@@ -214,14 +214,14 @@ func (a *API) processTranslationBatches(ctx context.Context, email string, toTra
 
 func (a *API) HandleReclassifyOldData(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	user, err := store.GetOrCreateUser(email, "", "")
+	user, err := store.GetOrCreateUser(r.Context(), email, "", "")
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	aliases, _ := store.GetUserAliases(user.ID)
 
-	msgs, err := store.GetMessages(email)
+	msgs, err := store.GetMessages(r.Context(), email)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -232,7 +232,7 @@ func (a *API) HandleReclassifyOldData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fixedCount := a.Tasks.ReclassifyUserTasks(email, user, aliases, msgs)
+	fixedCount := a.Tasks.ReclassifyUserTasks(r.Context(), email, user, aliases, msgs)
 	respondJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "fixed_count": fixedCount})
 }
 
@@ -245,10 +245,10 @@ func (a *API) HandleRestoreGmailCC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, _ := store.GetOrCreateUser(email, "", "")
+	user, _ := store.GetOrCreateUser(r.Context(), email, "", "")
 	aliases, _ := store.GetUserAliases(user.ID)
 
-	activeMsgs, _ := store.GetMessages(email)
+	activeMsgs, _ := store.GetMessages(r.Context(), email)
 	filter := store.ArchiveFilter{
 		Email: email,
 		Limit: 10000,

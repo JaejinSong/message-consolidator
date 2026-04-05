@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"message-consolidator/internal/testutil"
 	"testing"
 )
@@ -13,7 +14,7 @@ func TestAchievementSeeding(t *testing.T) {
 	}
 	defer cleanup()
 
-	achievements, err := GetAchievements()
+	achievements, err := GetAchievements(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to get all achievements during test setup: %v", err)
 	}
@@ -62,12 +63,12 @@ func TestGetUserAchievements(t *testing.T) {
 	t.Run("should execute without error for a newly created user", func(t *testing.T) {
 		// Why: This test ensures that the complex logic inside GetUserAchievements,
 		// which might perform calculations or backfills, doesn't fail on a clean user slate.
-		user, err := GetOrCreateUser("test_ach@example.com", "Test Ach User", "")
+		user, err := GetOrCreateUser(context.Background(), "test_ach@example.com", "Test Ach User", "")
 		if err != nil {
 			t.Fatalf("Failed to create a test user: %v", err)
 		}
 
-		_, err = GetUserAchievements(user.ID)
+		_, err = GetUserAchievements(context.Background(), user.ID)
 		if err != nil {
 			t.Errorf("GetUserAchievements failed for a new user: %v", err)
 		}

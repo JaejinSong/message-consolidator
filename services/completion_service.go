@@ -14,9 +14,9 @@ type AICompleter interface {
 type TaskStore interface {
 	GetIncompleteByThreadID(ctx context.Context, email, threadID string) ([]store.ConsolidatedMessage, error)
 	GetActiveContextTasks(ctx context.Context, email, source, room string) ([]store.ConsolidatedMessage, error)
-	MarkMessageDone(email string, id int, done bool) error
-	UpdateMessageCategory(email string, id int, category string) error
-	HandleTaskState(email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error)
+	MarkMessageDone(ctx context.Context, email string, id int, done bool) error
+	UpdateMessageCategory(ctx context.Context, email string, id int, category string) error
+	HandleTaskState(ctx context.Context, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error)
 }
 
 type DefaultTaskStore struct{}
@@ -29,16 +29,16 @@ func (d *DefaultTaskStore) GetActiveContextTasks(ctx context.Context, email, sou
 	return store.GetActiveContextTasks(ctx, email, source, room)
 }
 
-func (d *DefaultTaskStore) MarkMessageDone(email string, id int, done bool) error {
-	return store.MarkMessageDone(email, id, done)
+func (d *DefaultTaskStore) MarkMessageDone(ctx context.Context, email string, id int, done bool) error {
+	return store.MarkMessageDone(ctx, email, id, done)
 }
 
-func (d *DefaultTaskStore) UpdateMessageCategory(email string, id int, category string) error {
-	return store.UpdateMessageCategory(email, id, category)
+func (d *DefaultTaskStore) UpdateMessageCategory(ctx context.Context, email string, id int, category string) error {
+	return store.UpdateMessageCategory(ctx, email, id, category)
 }
 
-func (d *DefaultTaskStore) HandleTaskState(email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
-	return store.HandleTaskState(email, item, msg)
+func (d *DefaultTaskStore) HandleTaskState(ctx context.Context, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
+	return store.HandleTaskState(ctx, email, item, msg)
 }
 
 type CompletionService struct {
@@ -77,7 +77,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 	// Why: If no active tasks exist, we still proceed to AI analysis to allow for NEW task extraction
 	// from conversational context. 'allTasks' will just be empty.
 
-	s.releaseWaitingStatus(msg.UserEmail, tasks)
+	s.releaseWaitingStatus(ctx, msg.UserEmail, tasks)
 
 	// Why: Leverages the unified AI analysis pipeline to determine if the reply resolves or delegates tasks.
 	// Mentions and intentionality are parsed by the AI prompt, not string matching.
@@ -98,7 +98,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 	for _, res := range results {
 		// Why: Handle 'new' tasks which don't have an ID yet.
 		if res.State == "new" {
-			if _, err := s.store.HandleTaskState(msg.UserEmail, res, msg); err != nil {
+			if _, err := s.store.HandleTaskState(ctx, msg.UserEmail, res, msg); err != nil {
 				logger.Errorf("[COMPLETION] Failed to handle new task: %v", err)
 			}
 			continue
@@ -109,17 +109,17 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		}
 		// Why: routes the AI-determined state (resolve, update, cancel) to the database layer.
 		// HandleTaskState ensures consistent state transitions and assignee updates.
-		if _, err := s.store.HandleTaskState(msg.UserEmail, res, msg); err != nil {
+		if _, err := s.store.HandleTaskState(ctx, msg.UserEmail, res, msg); err != nil {
 			logger.Errorf("[COMPLETION] Failed to handle state for task %d: %v", *res.ID, err)
 		}
 	}
 }
 
-func (s *CompletionService) releaseWaitingStatus(email string, tasks []store.ConsolidatedMessage) {
+func (s *CompletionService) releaseWaitingStatus(ctx context.Context, email string, tasks []store.ConsolidatedMessage) {
 	for _, task := range tasks {
 		if task.Category == "waiting" {
 			logger.Infof("[COMPLETION] Auto-releasing 'waiting' status for task %d", task.ID)
-			s.store.UpdateMessageCategory(email, task.ID, "others")
+			s.store.UpdateMessageCategory(ctx, email, task.ID, "others")
 		}
 	}
 }

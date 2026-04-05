@@ -39,10 +39,11 @@ func TestAmbiguitySafeguard(t *testing.T) {
 		SourceTS:   "999.999",
 		Category:   "todo",
 	}
-	_, msgID, err := store.SaveMessage(msg)
+	_, msgID, err := store.SaveMessage(context.TODO(), msg)
 	if err != nil {
 		t.Fatalf("Failed to save message: %v", err)
 	}
+
 
 	// 3. 서비스 초기화 및 정규화 실행
 	svc := &ReportsService{}

@@ -73,22 +73,22 @@ func GetContactsCache() map[string][]ContactRecord {
 	return contactsCache
 }
 
-func RefreshAllCaches() error {
-	users, err := GetAllUsers()
+func RefreshAllCaches(ctx context.Context) error {
+	users, err := GetAllUsers(ctx)
 	if err != nil {
 		return err
 	}
 	for _, u := range users {
-		if err := RefreshCache(u.Email); err != nil {
+		if err := RefreshCache(ctx, u.Email); err != nil {
 			logger.Errorf("Failed to refresh cache for %s: %v", u.Email, err)
 		}
 	}
 	return nil
 }
 
-func RefreshCache(email string) error {
+func RefreshCache(ctx context.Context, email string) error {
 	//Why: Prevents cache refresh operations from hanging indefinitely by enforcing a 10-second timeout.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	safeArchiveDays := GetAutoArchiveDays()
@@ -139,7 +139,7 @@ func RefreshCache(email string) error {
 	return nil
 }
 
-func EnsureCacheInitialized(email string) error {
+func EnsureCacheInitialized(ctx context.Context, email string) error {
 	cacheMu.RLock()
 	initialized := cacheInitialized[email]
 	cacheMu.RUnlock()
@@ -149,7 +149,7 @@ func EnsureCacheInitialized(email string) error {
 	}
 	// Why: Use singleflight to prevent multiple concurrent DB hits for the same user.
 	_, err, _ := sfGroup.Do(email, func() (interface{}, error) {
-		return nil, RefreshCache(email)
+		return nil, RefreshCache(ctx, email)
 	})
 	return err
 }
@@ -163,7 +163,7 @@ func InvalidateCache(email string) {
 	delete(cacheInitialized, email)
 }
 
-func ArchiveOldTasks() error {
+func ArchiveOldTasks(ctx context.Context) error {
 	archiveMu.Lock()
 	defer archiveMu.Unlock()
 
@@ -190,7 +190,7 @@ func ArchiveOldTasks() error {
 	lastArchiveTime = time.Now()
 
 	if rows > 0 {
-		_ = RefreshAllCaches()
+		_ = RefreshAllCaches(ctx)
 	}
 	return nil
 }

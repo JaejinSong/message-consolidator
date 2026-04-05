@@ -30,7 +30,7 @@ func TestTaskContextAndRouting(t *testing.T) {
 		SourceTS:   "ts1",
 		AssignedAt: time.Now(),
 	}
-	id1, err := store.HandleTaskState(email, store.TodoItem{State: "new"}, msg1)
+	id1, err := store.HandleTaskState(context.Background(), email, store.TodoItem{State: "new"}, msg1)
 	if err != nil || id1 == 0 {
 		t.Fatalf("Failed to create task: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestTaskContextAndRouting(t *testing.T) {
 
 	// 3. Update the task (Update/Rewrite)
 	updatedTask := "Buy milk and bread"
-	id2, err := store.HandleTaskState(email, store.TodoItem{
+	id2, err := store.HandleTaskState(context.Background(), email, store.TodoItem{
 		ID:    &id1,
 		State: "update",
 		Task:  updatedTask,
@@ -56,7 +56,7 @@ func TestTaskContextAndRouting(t *testing.T) {
 	}
 
 	// 4. Resolve the task (Resolve)
-	_, err = store.HandleTaskState(email, store.TodoItem{
+	_, err = store.HandleTaskState(context.Background(), email, store.TodoItem{
 		ID:    &id1,
 		State: "resolve",
 	}, msg1)

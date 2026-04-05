@@ -16,7 +16,7 @@ func TestGetArchivedMessagesFiltered_Status(t *testing.T) {
 	defer ResetForTest()
 
 	email := "archive_test@example.com"
-	_, err = GetOrCreateUser(email, "Archive User", "")
+	_, err = GetOrCreateUser(context.Background(), email, "Archive User", "")
 	if err != nil {
 		t.Fatalf("Failed to create user: %v", err)
 	}

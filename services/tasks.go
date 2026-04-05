@@ -53,8 +53,8 @@ func (s *TasksService) StripOriginalText(msgs []store.ConsolidatedMessage) {
 }
 
 // FormatMessagesForClient normalizes requesters and assignees, and flags user's tasks.
-func (s *TasksService) FormatMessagesForClient(email string, msgs []store.ConsolidatedMessage) {
-	user, _ := store.GetOrCreateUser(email, "", "")
+func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string, msgs []store.ConsolidatedMessage) {
+	user, _ := store.GetOrCreateUser(ctx, email, "", "")
 
 	for i := range msgs {
 		msgs[i].Requester = store.NormalizeName(email, msgs[i].Requester)
@@ -81,7 +81,7 @@ func (s *TasksService) FormatMessagesForClient(email string, msgs []store.Consol
 
 // ApplyTranslations fetches cached translations and triggers JIT for missing ones.
 // Why: Returns English immediately for missing translations to prevent UI blocking.
-func (s *TasksService) ApplyTranslations(email, lang string, msgs []store.ConsolidatedMessage) {
+func (s *TasksService) ApplyTranslations(ctx context.Context, email, lang string, msgs []store.ConsolidatedMessage) {
 	if lang == "" || strings.EqualFold(lang, "en") || len(msgs) == 0 {
 		return
 	}
@@ -89,7 +89,7 @@ func (s *TasksService) ApplyTranslations(email, lang string, msgs []store.Consol
 	for i, m := range msgs {
 		ids[i] = m.ID
 	}
-	translations, _ := store.GetTaskTranslationsBatch(ids, lang)
+	translations, _ := store.GetTaskTranslationsBatch(ctx, ids, lang)
 	var missingIDs []int
 	for i := range msgs {
 		if t, ok := translations[msgs[i].ID]; ok {
@@ -114,20 +114,20 @@ func (s *TasksService) triggerJITTranslation(email, lang string, ids []int) {
 }
 
 // PrepareMessagesForClient unifies translations, stripping, and formatting.
-func (s *TasksService) PrepareMessagesForClient(email string, msgs []store.ConsolidatedMessage, lang string) {
-	s.ApplyTranslations(email, lang, msgs)
+func (s *TasksService) PrepareMessagesForClient(ctx context.Context, email string, msgs []store.ConsolidatedMessage, lang string) {
+	s.ApplyTranslations(ctx, email, lang, msgs)
 	s.StripOriginalText(msgs)
-	s.FormatMessagesForClient(email, msgs)
+	s.FormatMessagesForClient(ctx, email, msgs)
 }
 
 // HandleTaskCompletion orchestrates the process of marking a task as done.
-func (s *TasksService) HandleTaskCompletion(email string, taskID int, done bool) (GamificationResult, error) {
-	msg, err := store.GetMessageByID(context.Background(), email, taskID)
+func (s *TasksService) HandleTaskCompletion(ctx context.Context, email string, taskID int, done bool) (GamificationResult, error) {
+	msg, err := store.GetMessageByID(ctx, email, taskID)
 	if err == nil && msg.Done && done {
 		return GamificationResult{}, nil
 	}
 
-	if err := store.MarkMessageDone(email, taskID, done); err != nil {
+	if err := store.MarkMessageDone(ctx, email, taskID, done); err != nil {
 		return GamificationResult{}, err
 	}
 
@@ -136,23 +136,23 @@ func (s *TasksService) HandleTaskCompletion(email string, taskID int, done bool)
 		return GamificationResult{}, nil
 	}
 
-	user, err := store.GetOrCreateUser(email, "", "")
+	user, err := store.GetOrCreateUser(ctx, email, "", "")
 	if err != nil {
 		return GamificationResult{}, err
 	}
 
-	return ProcessTaskCompletion(user)
+	return ProcessTaskCompletion(ctx, user)
 }
 
 // ReclassifyUserTasks re-evaluates assignees for a user's tasks based on identities and content.
-func (s *TasksService) ReclassifyUserTasks(email string, user *store.User, aliases []string, msgs []store.ConsolidatedMessage) int {
+func (s *TasksService) ReclassifyUserTasks(ctx context.Context, email string, user *store.User, aliases []string, msgs []store.ConsolidatedMessage) int {
 	allMyIdentities := GetEffectiveAliases(*user, aliases)
 	fixedCount := 0
 
 	for _, m := range msgs {
 		//Why: Clears generic "other" assignees to keep the task pool clean and allow for manual re-assignment.
 		if shouldClearAssignee(m.Assignee) {
-			_ = store.UpdateTaskAssignee(email, m.ID, "")
+			_ = store.UpdateTaskAssignee(ctx, email, m.ID, "")
 			fixedCount++
 			continue
 		}
@@ -165,7 +165,7 @@ func (s *TasksService) ReclassifyUserTasks(email string, user *store.User, alias
 			//Why: Automatically un-assigns Gmail tasks that were generically assigned to "me" if the user was only a CC/BCC recipient, correcting AI over-assignment.
 			if m.Source == "gmail" && !isDirectGmail {
 				if isAssigneeGeneric(m.Assignee) {
-					_ = store.UpdateTaskAssignee(email, m.ID, "")
+					_ = store.UpdateTaskAssignee(ctx, email, m.ID, "")
 					fixedCount++
 					continue
 				}
@@ -174,7 +174,7 @@ func (s *TasksService) ReclassifyUserTasks(email string, user *store.User, alias
 			//Why: Resolves generic "me" assignees to the user's preferred display name for consistency in the UI and database.
 			newAssignee, changed := resolveNewAssignee(user, m.Assignee, matchedByAlias)
 			if changed {
-				_ = store.UpdateTaskAssignee(email, m.ID, newAssignee)
+				_ = store.UpdateTaskAssignee(ctx, email, m.ID, newAssignee)
 				fixedCount++
 			}
 			continue
@@ -182,7 +182,7 @@ func (s *TasksService) ReclassifyUserTasks(email string, user *store.User, alias
 
 		//Why: Proactively assigns unassigned tasks to the user if the message content explicitly matches one of their registered aliases or mentions.
 		if matchedByAlias && strings.TrimSpace(m.Assignee) == "" {
-			_ = store.UpdateTaskAssignee(email, m.ID, getPreferredName(user))
+			_ = store.UpdateTaskAssignee(ctx, email, m.ID, getPreferredName(user))
 			fixedCount++
 		}
 	}
@@ -201,7 +201,7 @@ func (s *TasksService) RestoreGmailCCAssignment(ctx context.Context, email strin
 		//Why: Assigns unassigned Gmail tasks to the user if they were a direct recipient in the "To" header, providing high-confidence auto-assignment.
 		if isMeInToHeader(toHeader, user.Email) {
 			if strings.TrimSpace(m.Assignee) == "" {
-				_ = store.UpdateTaskAssignee(email, m.ID, getPreferredName(user))
+				_ = store.UpdateTaskAssignee(ctx, email, m.ID, getPreferredName(user))
 				fixedCount++
 			}
 			continue
@@ -211,7 +211,7 @@ func (s *TasksService) RestoreGmailCCAssignment(ctx context.Context, email strin
 		if isWronglyAssignedToMe(m.Assignee, user, aliases) {
 			actualAssignee := resolveActualAssignee(ctx, m, toHeader, svc)
 			if actualAssignee != "" && strings.TrimSpace(m.Assignee) != actualAssignee {
-				_ = store.UpdateTaskAssignee(email, m.ID, actualAssignee)
+				_ = store.UpdateTaskAssignee(ctx, email, m.ID, actualAssignee)
 				fixedCount++
 			}
 		}
@@ -419,7 +419,7 @@ func resolveActualAssignee(ctx context.Context, m store.ConsolidatedMessage, toH
 func (s *TasksService) ProcessBatchTranslation(ctx context.Context, email string, taskIDs []int, lang string) ([]BatchTranslateResult, error) {
 	if s.translationSvc == nil { return nil, fmt.Errorf("service not ready") }
 	
-	cached, _ := store.GetTaskTranslationsBatch(taskIDs, lang)
+	cached, _ := store.GetTaskTranslationsBatch(ctx, taskIDs, lang)
 	missingIDs := s.getMissingIDs(taskIDs, cached)
 	
 	newTrans := make(map[int]string)
@@ -454,7 +454,7 @@ func (s *TasksService) executeBatchTranslation(ctx context.Context, email string
 		}
 	}
 	
-	_ = store.SaveTaskTranslationsBulk(lang, batchMap)
+	_ = store.SaveTaskTranslationsBulk(ctx, lang, batchMap)
 	return batchMap, nil
 }
 

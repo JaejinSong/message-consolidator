@@ -22,8 +22,8 @@ func main() {
 	
 	// 2. Test User Idempotency
 	log.Println("[CHECK] User Idempotency...")
-	u1, _ := store.GetOrCreateUser(email, "Name 1", "Pic 1")
-	u2, _ := store.GetOrCreateUser(email, "Name 2", "Pic 2")
+	u1, _ := store.GetOrCreateUser(context.Background(), email, "Name 1", "Pic 1")
+	u2, _ := store.GetOrCreateUser(context.Background(), email, "Name 2", "Pic 2")
 	
 	if u1.ID != u2.ID {
 		log.Fatalf("FAIL: User ID mismatch after upsert: %d != %d", u1.ID, u2.ID)
@@ -44,7 +44,7 @@ func main() {
 		OriginalText: "Original",
 	}
 	
-	ids, err := store.SaveMessages([]store.ConsolidatedMessage{msg})
+	ids, err := store.SaveMessages(context.Background(), []store.ConsolidatedMessage{msg})
 	if err != nil || len(ids) == 0 {
 		log.Fatalf("FAIL: Initial save failed: %v", err)
 	}
@@ -52,7 +52,7 @@ func main() {
 	
 	// Duplicate SourceTS with different task should trigger Upsert
 	msg.Task = "Updated Task"
-	ids2, err := store.SaveMessages([]store.ConsolidatedMessage{msg})
+	ids2, err := store.SaveMessages(context.Background(), []store.ConsolidatedMessage{msg})
 	if err != nil || len(ids2) == 0 {
 		log.Fatalf("FAIL: Upsert save failed: %v", err)
 	}
@@ -69,10 +69,10 @@ func main() {
 
 	// 4. Test Achievement Idempotency
 	log.Println("[CHECK] Achievement Idempotency...")
-	_ = store.UnlockAchievement(int(u1.ID), 1)
-	_ = store.UnlockAchievement(int(u1.ID), 1) // Second unlock
+	_ = store.UnlockAchievement(context.Background(), int(u1.ID), 1)
+	_ = store.UnlockAchievement(context.Background(), int(u1.ID), 1) // Second unlock
 	
-	achs, _ := store.GetUserAchievements(int(u1.ID))
+	achs, _ := store.GetUserAchievements(context.Background(), int(u1.ID))
 	if len(achs) != 1 {
 		log.Fatalf("FAIL: Achievement duplicated: found %d", len(achs))
 	}

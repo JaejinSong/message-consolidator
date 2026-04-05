@@ -56,7 +56,7 @@ func ExchangeGmailCode(ctx context.Context, code string) (*oauth2.Token, error) 
 }
 
 func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) {
-	tokenJSON, err := store.GetGmailToken(email)
+	tokenJSON, err := store.GetGmailToken(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("no gmail token for %s: %w", email, err)
 	}
@@ -75,7 +75,7 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 	}
 	if newToken.AccessToken != token.AccessToken {
 		newTokenJSON, _ := json.Marshal(newToken)
-		_ = store.SaveGmailToken(email, string(newTokenJSON))
+		_ = store.SaveGmailToken(ctx, email, string(newTokenJSON))
 	}
 
 	svc, err := gmail.NewService(ctx, option.WithTokenSource(tokenSource))
@@ -375,7 +375,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 		return nil
 	}
 
-	user, _ := store.GetOrCreateUser(email, "", "")
+	user, _ := store.GetOrCreateUser(ctx, email, "", "")
 	aliases, _ := store.GetUserAliases(user.ID)
 
 	var totalNewIDs []int
@@ -404,7 +404,7 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, email, language stri
 	var newIDs []int
 	for i, item := range items {
 		if i < len(msgs) {
-			id, _ := store.HandleTaskState(email, item, msgs[i])
+			id, _ := store.HandleTaskState(ctx, email, item, msgs[i])
 			if id > 0 {
 				newIDs = append(newIDs, id)
 			}

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"message-consolidator/logger"
@@ -24,7 +25,7 @@ var (
 )
 
 // ProcessTaskCompletion handles XP, Points, Combo, and Streak logic when a task is finished.
-func ProcessTaskCompletion(u *store.User) (GamificationResult, error) {
+func ProcessTaskCompletion(ctx context.Context, u *store.User) (GamificationResult, error) {
 	now := time.Now()
 	res := calculateRewards(u, now)
 
@@ -41,7 +42,7 @@ func ProcessTaskCompletion(u *store.User) (GamificationResult, error) {
 
 	//Why: Evaluates achievement conditions asynchronously to ensure the main task completion API responds quickly without being blocked by database queries.
 	go func(user store.User) {
-		unlocked, err := store.CheckAndUnlockAchievements(user)
+		unlocked, err := store.CheckAndUnlockAchievements(context.Background(), user)
 		if err != nil {
 			logger.Errorf("[Gamification] Background achievement check failed for %s: %v", user.Email, err)
 			return
@@ -122,7 +123,7 @@ func queueUserUpdate(u *store.User) {
 
 // FlushGamificationData executes a batch update of all queued gamification state changes.
 // It is designed to be piggybacked onto existing database activity (like message scanning) to minimize dedicated connection overhead.
-func FlushGamificationData() error {
+func FlushGamificationData(ctx context.Context) error {
 	gamificationMu.Lock()
 	count := len(dirtyUsers)
 	if count == 0 {
@@ -137,7 +138,7 @@ func FlushGamificationData() error {
 	logger.Infof("[Gamification] Starting piggyback flush for %d users...", count)
 	var errCount int
 	for email, u := range usersToUpdate {
-		err := store.UpdateUserGamification(email, u.Points, u.Streak, u.Level, u.XP, u.DailyGoal, u.LastCompletedAt, u.StreakFreezes)
+		err := store.UpdateUserGamification(ctx, email, u.Points, u.Streak, u.Level, u.XP, u.DailyGoal, u.LastCompletedAt, u.StreakFreezes)
 		if err != nil {
 			logger.Errorf("[Gamification] Failed to piggyback flush data for %s: %v", email, err)
 			errCount++

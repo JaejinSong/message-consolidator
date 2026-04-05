@@ -112,7 +112,7 @@ func TestMetadataIntegrity(t *testing.T) {
 		newSource := "email"
 		combined := uniqueStrings(append(existing.SourceChannels, newSource))
 		
-		err := UpdateTaskSourceChannels(userEmail, existing.ID, combined)
+		err := UpdateTaskSourceChannels(ctx, userEmail, existing.ID, combined)
 		if err != nil {
 			t.Fatalf("UpdateTaskSourceChannels failed: %v", err)
 		}
@@ -123,7 +123,7 @@ func TestMetadataIntegrity(t *testing.T) {
 		}
 		
 		// Check uniqueness
-		err = UpdateTaskSourceChannels(userEmail, existing.ID, uniqueStrings(append(updated.SourceChannels, "slack")))
+		err = UpdateTaskSourceChannels(ctx, userEmail, existing.ID, uniqueStrings(append(updated.SourceChannels, "slack")))
 		if err != nil {
 			t.Fatalf("Second UpdateTaskSourceChannels failed: %v", err)
 		}

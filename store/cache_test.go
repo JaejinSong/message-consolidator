@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"message-consolidator/internal/testutil"
 	"testing"
 )
@@ -22,7 +23,7 @@ func TestCacheInvalidationAndReadThrough(t *testing.T) {
 	}
 
 	// 1. Save should invalidate (initialize empty cache if first time, then invalidate)
-	_, id, err := SaveMessage(msg)
+	_, id, err := SaveMessage(context.Background(), msg)
 	if err != nil {
 		t.Fatalf("SaveMessage failed: %v", err)
 	}
@@ -36,7 +37,7 @@ func TestCacheInvalidationAndReadThrough(t *testing.T) {
 	}
 
 	// 2. GetMessages should trigger Read-Through
-	msgs, err := GetMessages(email)
+	msgs, err := GetMessages(context.Background(), email)
 	if err != nil {
 		t.Fatalf("GetMessages failed: %v", err)
 	}
@@ -52,7 +53,7 @@ func TestCacheInvalidationAndReadThrough(t *testing.T) {
 	}
 
 	// 3. Update should invalidate
-	err = MarkMessageDone(email, id, true)
+	err = MarkMessageDone(context.Background(), email, id, true)
 	if err != nil {
 		t.Fatalf("MarkMessageDone failed: %v", err)
 	}
@@ -65,7 +66,7 @@ func TestCacheInvalidationAndReadThrough(t *testing.T) {
 	}
 
 	// 4. Next GetMessages should load updated state (Read-Through)
-	msgsFinal, err := GetMessages(email)
+	msgsFinal, err := GetMessages(context.Background(), email)
 	if err != nil {
 		t.Fatalf("Second GetMessages failed: %v", err)
 	}

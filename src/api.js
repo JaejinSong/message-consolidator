@@ -1,5 +1,6 @@
 import { apiFetch } from './utils/apiClient';
-import { state } from './state.ts';
+import { state, upsertReport } from './state.ts';
+import { normalizeReportData } from './logic.ts';
 
 /**
  * @file api.js
@@ -349,6 +350,13 @@ export const api = {
     },
 
     /**
+     * @description Fetch lightweight report metadata history.
+     */
+    async fetchReportHistory() {
+        return apiFetch('/reports/history', { errorMessage: 'Fetch report history failed' });
+    },
+
+    /**
      * @description Generate a new AI Weekly Report for a specific period
      */
     async generateReport(startDate, endDate) {
@@ -371,6 +379,21 @@ export const api = {
         } finally {
             clearTimeout(timeoutId);
         }
+    },
+
+    /**
+     * @description Fetch or Generate report with state-level caching.
+     */
+    async getReport(startDate, endDate) {
+        const key = `${startDate}_${endDate}`;
+        if (state.reports && state.reports[key]) {
+            return state.reports[key];
+        }
+        
+        const rawReport = await this.generateReport(startDate, endDate);
+        const normalized = normalizeReportData(rawReport);
+        upsertReport(normalized);
+        return state.reports[key];
     },
 
     /**

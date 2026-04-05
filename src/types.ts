@@ -101,6 +101,8 @@ export interface AppState {
     messages: CategorizedMessages;
     userStats: UserStats | null;
     selectedTaskIds: Set<number>;
+    reports: Record<string, IReportData>;
+    reportHistory: IReportData[];
 }
 
 export interface AchievementEntry {
@@ -175,14 +177,20 @@ export interface IReportLink {
     value: number;
 }
 
+export interface ParsedVisualization {
+    nodes: IReportNode[];
+    links: IReportLink[];
+}
+
 export interface IReportData {
     id: number;
+    title?: string;
+    user_email: string;
     start_date: string;
     end_date: string;
-    title?: string;
-    report_summary?: string;
-    summary?: string;
+    report_summary: string;
     translations?: Record<string, string>;
-    visualization_data: string | { nodes: IReportNode[]; links: IReportLink[] };
+    visualization_data: string | ParsedVisualization;
     is_truncated?: boolean;
+    created_at?: string;
 }

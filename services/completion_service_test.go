@@ -33,18 +33,18 @@ func (m *MockStore) GetActiveContextTasks(ctx context.Context, email, source, ro
 	return m.Tasks, nil
 }
 
-func (m *MockStore) MarkMessageDone(email string, id int, isDone bool) error {
+func (m *MockStore) MarkMessageDone(ctx context.Context, email string, id int, isDone bool) error {
 	m.CapturedIDs = append(m.CapturedIDs, id)
 	return nil
 }
 
-func (m *MockStore) UpdateMessageCategory(email string, id int, category string) error {
+func (m *MockStore) UpdateMessageCategory(ctx context.Context, email string, id int, category string) error {
 	m.ReleasedIDs = append(m.ReleasedIDs, id)
 	m.ReleasedCategories = append(m.ReleasedCategories, category)
 	return nil
 }
 
-func (m *MockStore) HandleTaskState(email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
+func (m *MockStore) HandleTaskState(ctx context.Context, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
 	if item.State == "resolve" {
 		m.CapturedIDs = append(m.CapturedIDs, *item.ID)
 	}

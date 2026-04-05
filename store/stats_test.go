@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"message-consolidator/internal/testutil"
 	"testing"
 	"time"
@@ -15,7 +16,7 @@ func TestGetUserStats_IncludesArchived(t *testing.T) {
 	defer ResetForTest()
 
 	email := "stats@example.com"
-	_, _ = GetOrCreateUser(email, "Stats User", "")
+	_, _ = GetOrCreateUser(context.Background(), email, "Stats User", "")
 
 	//Why: 1. Create a message that is DONE and ARCHIVED (is_deleted=1) to verify stats inclusion.
 	twoHoursAgo := time.Now().UTC().Add(-2 * time.Hour)

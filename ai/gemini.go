@@ -16,6 +16,13 @@ import (
 	"google.golang.org/api/option"
 )
 
+const (
+	// DefaultMaxTokens is the standard output limit for short-form analysis tasks.
+	DefaultMaxTokens = 8192
+	// ReportMaxTokens is the expanded limit for long-form report generation tasks.
+	ReportMaxTokens = 16384
+)
+
 var relaxedSafetySettings = []*genai.SafetySetting{
 	{Category: genai.HarmCategoryHarassment, Threshold: genai.HarmBlockNone},
 	{Category: genai.HarmCategoryHateSpeech, Threshold: genai.HarmBlockNone},
@@ -142,7 +149,7 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 		return "", fmt.Errorf("failed to render report summary prompt: %w", err)
 	}
 
-	model := g.initModel(g.getEffectiveModel(parsed, g.analysisModel), 0.1, 4096, "", rendered)
+	model := g.initModel(g.getEffectiveModel(parsed, g.analysisModel), 0.1, ReportMaxTokens, "", rendered)
 
 	start := time.Now()
 	resp, err := generateWithRetry(ctx, model, genai.Text(""), 60*time.Second, 2)
@@ -170,49 +177,50 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email string, msg
 		return nil, fmt.Errorf("Gemini client is not initialized")
 	}
 
-	lang := g.getValidLang(language)
+	data := g.prepareAnalysisData(ctx, email, msg, language, source, room, tasks)
 	analyzer := getAnalyzer(source)
 	modelName := g.getAnalyzeModelName(analyzer)
-	existingTasksJSON := g.marshalTasksForAI(tasks)
-	userName, _ := store.GetUserName(email)
-	if userName == "" {
-		userName = email
-	}
-
-	// Why: [Contextual Extraction] Consolidates prompt data into a unified ExtractionContext for template rendering.
-	data := ExtractionContext{
-		MessagePayload:      msg.RawContent,
-		CurrentTime:         time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
-		Locale:              lang,
-		ExistingTasksJSON:   existingTasksJSON,
-		EnrichedMessageJSON: g.marshalEnrichedMessage(msg),
-		CurrentUser:        userName,
-	}
-	if analyzer != nil {
-		data.MessagePayload = analyzer.PreProcess(data.MessagePayload)
-	}
-
-	model := g.initModel(modelName, 0.0, 4096, "application/json", g.getAnalyzeSysInst(analyzer, data))
+	model := g.initModel(modelName, 0.0, DefaultMaxTokens, "application/json", g.getAnalyzeSysInst(analyzer, data))
 	prompt := g.getAnalyzeUserPrompt(analyzer, data)
 
-	logger.Infof("[GEMINI] Analyzing with %d context tasks (%s:%s)...", len(tasks), source, room)
 	start := time.Now()
 	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 45*time.Second, 2)
 	if err != nil {
-		logger.Errorf("[GEMINI] Analysis failed: %v", err)
 		return nil, err
 	}
 
 	raw, _ := extractResponseText(resp)
-	// Why: Asynchronously logs AI inference data to both DB and file system to support Data Flywheel without blocking the main workflow.
-	go func(src, input, output string) {
-		logger.LogAIInferenceToFile(src, input, output)
-		_ = store.LogAIInference(0, src, input, output)
-	}(source, msg.RawContent, raw)
+	g.logInferenceAsync(source, msg.RawContent, raw)
 
 	trace.Step(ctx, "Gemini-Analyze", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "Analyze", resp)
 	return g.parseAnalyzeResults(resp)
+}
+
+func (g *GeminiClient) prepareAnalysisData(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string, tasks []store.ConsolidatedMessage) ExtractionContext {
+	userName, _ := store.GetUserName(ctx, email)
+	if userName == "" {
+		userName = email
+	}
+	data := ExtractionContext{
+		MessagePayload:      msg.RawContent,
+		CurrentTime:         time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
+		Locale:              g.getValidLang(language),
+		ExistingTasksJSON:   g.marshalTasksForAI(tasks),
+		EnrichedMessageJSON: g.marshalEnrichedMessage(msg),
+		CurrentUser:         userName,
+	}
+	if analyzer := getAnalyzer(source); analyzer != nil {
+		data.MessagePayload = analyzer.PreProcess(data.MessagePayload)
+	}
+	return data
+}
+
+func (g *GeminiClient) logInferenceAsync(source, input, output string) {
+	go func() {
+		logger.LogAIInferenceToFile(source, input, output)
+		_ = store.LogAIInference(0, source, input, output)
+	}()
 }
 
 func (g *GeminiClient) marshalEnrichedMessage(msg types.EnrichedMessage) string {
@@ -244,37 +252,40 @@ func (g *GeminiClient) marshalTasksForAI(tasks []store.ConsolidatedMessage) stri
 	return string(b)
 }
 
-
 func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []store.TranslateRequest, language string) ([]store.TranslateRequest, error) {
 	if g == nil || g.client == nil || len(tasks) == 0 {
 		return nil, fmt.Errorf("invalid translate request")
 	}
 
-	parsed := loadPrompt("translation_system.prompt")
-	data := ExtractionContext{
-		Locale:      g.getValidLang(language),
-		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
-	}
-	sysInst, _ := parsed.Render(data)
-	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.0, 4096, "application/json", sysInst)
-
-	logger.Debugf("[GEMINI] Translating %d tasks to %s...", len(tasks), language)
+	model, prompt := g.prepareTranslateResources(language, tasks)
 	start := time.Now()
-	tasksJSON, _ := json.Marshal(tasks)
-	resp, err := generateWithRetry(ctx, model, genai.Text(string(tasksJSON)), 30*time.Second, 2)
+	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 30*time.Second, 2)
 	if err != nil {
-		logger.Errorf("[GEMINI] Translation failed: %v", err)
 		return nil, err
 	}
 
 	trace.Step(ctx, "Gemini-Translate", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "Translate", resp)
+	return g.parseTranslateResults(resp)
+}
 
-	rawJSON, err := extractResponseText(resp)
+func (g *GeminiClient) prepareTranslateResources(lang string, requests []store.TranslateRequest) (*genai.GenerativeModel, string) {
+	parsed := loadPrompt("translation_system.prompt")
+	sysInst, _ := parsed.Render(ExtractionContext{
+		Locale:      g.getValidLang(lang),
+		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
+	})
+	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.0, 4096, "application/json", sysInst)
+	tasksJSON, _ := json.Marshal(requests)
+	return model, string(tasksJSON)
+}
+
+func (g *GeminiClient) parseTranslateResults(resp *genai.GenerateContentResponse) ([]store.TranslateRequest, error) {
+	raw, err := extractResponseText(resp)
 	if err != nil {
 		return nil, err
 	}
-	return unmarshalTranslate(sanitizeJSON(rawJSON), rawJSON, language)
+	return unmarshalTranslate(sanitizeJSON(raw), raw, "")
 }
 
 // Why: Translates a complete Markdown report into a target language while strictly preserving the structure.
@@ -290,7 +301,7 @@ func (g *GeminiClient) TranslateReport(ctx context.Context, email string, report
 		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 	}
 	sysInst, _ := parsed.Render(data)
-	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.2, 4096, "", sysInst)
+	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.2, ReportMaxTokens, "", sysInst)
 
 	logger.Debugf("[GEMINI] Translating Markdown report for %s to %s...", email, targetLanguage)
 	start := time.Now()
@@ -336,7 +347,9 @@ func (g *GeminiClient) TranslateTaskMessage(ctx context.Context, email string, t
 // TranslateTasksBatch translates multiple tasks at once following the Page-unit Pure JIT pattern.
 // Why: Minimizes AI calls and costs by batching N tasks into a single structured prompt with a 25-item threshold.
 func (g *GeminiClient) TranslateTasksBatch(ctx context.Context, email string, tasks []store.TranslateRequest, lang string) ([]TranslationResult, error) {
-	if len(tasks) == 0 { return nil, nil }
+	if len(tasks) == 0 {
+		return nil, nil
+	}
 
 	if len(tasks) > 25 {
 		return g.translateInChunks(ctx, email, tasks, lang, 25)
@@ -348,11 +361,13 @@ func (g *GeminiClient) TranslateTasksBatch(ctx context.Context, email string, ta
 		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 	}
 	sysInst, _ := parsed.Render(data)
-	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.1, 4096, "application/json", sysInst)
+	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.1, DefaultMaxTokens, "application/json", sysInst)
 
 	tasksJSON, _ := json.Marshal(tasks)
 	resp, err := generateWithRetry(ctx, model, genai.Text(string(tasksJSON)), 45*time.Second, 3)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 
 	logTokenUsage(ctx, email, "BatchTranslate", resp)
 	raw, _ := extractResponseText(resp)
@@ -368,16 +383,18 @@ func (g *GeminiClient) translateInChunks(ctx context.Context, email string, task
 	var allResults []TranslationResult
 	for i := 0; i < len(tasks); i += chunkSize {
 		end := i + chunkSize
-		if end > len(tasks) { end = len(tasks) }
-		
+		if end > len(tasks) {
+			end = len(tasks)
+		}
+
 		chunk, err := g.TranslateTasksBatch(ctx, email, tasks[i:end], lang)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		allResults = append(allResults, chunk...)
 	}
 	return allResults, nil
 }
-
-
 
 // --- Internal Helpers ---
 

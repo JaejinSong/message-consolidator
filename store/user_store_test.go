@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"message-consolidator/internal/testutil"
 	"testing"
 )
@@ -17,7 +18,7 @@ func TestGetOrCreateUser(t *testing.T) {
 	picture := "http://example.com/pic.jpg"
 
 	t.Run("CreateNewUser", func(t *testing.T) {
-		user, err := GetOrCreateUser(email, name, picture)
+		user, err := GetOrCreateUser(context.Background(), email, name, picture)
 		if err != nil {
 			t.Fatalf("Failed to create user: %v", err)
 		}
@@ -30,7 +31,7 @@ func TestGetOrCreateUser(t *testing.T) {
 
 	t.Run("UpdateExistingUser", func(t *testing.T) {
 		newName := "Updated User"
-		user, err := GetOrCreateUser(email, newName, "")
+		user, err := GetOrCreateUser(context.Background(), email, newName, "")
 		if err != nil {
 			t.Fatalf("Failed to update user: %v", err)
 		}
@@ -47,7 +48,7 @@ func TestGetOrCreateUser(t *testing.T) {
 	})
 
 	t.Run("GetExistingUserNoUpdate", func(t *testing.T) {
-		user, err := GetOrCreateUser(email, "", "")
+		user, err := GetOrCreateUser(context.Background(), email, "", "")
 		if err != nil {
 			t.Fatalf("Failed to get user: %v", err)
 		}
@@ -65,10 +66,10 @@ func TestUpdateUserSlackID(t *testing.T) {
 	defer cleanup()
 
 	email := "slack@example.com"
-	_, _ = GetOrCreateUser(email, "Slack User", "")
+	_, _ = GetOrCreateUser(context.Background(), email, "Slack User", "")
 
 	slackID := "U12345"
-	if err := UpdateUserSlackID(email, slackID); err != nil {
+	if err := UpdateUserSlackID(context.Background(), email, slackID); err != nil {
 		t.Fatalf("Failed to update slack ID: %v", err)
 	}
 

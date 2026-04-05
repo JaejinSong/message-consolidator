@@ -57,7 +57,7 @@ func (a *API) TranslateMessagesByID(ctx context.Context, email string, ids []int
 	//Why: Iterates through the returned translations and persists each one to the database.
 	count := 0
 	for _, t := range translations {
-		if err := store.SaveTaskTranslation(t.ID, lang, t.Text); err == nil {
+		if err := store.SaveTaskTranslation(ctx, t.ID, lang, t.Text); err == nil {
 			count++
 		} else {
 			logger.Errorf("[TRANSLATE] Failed to save translation for ID %d (%s): %v", t.ID, lang, err)

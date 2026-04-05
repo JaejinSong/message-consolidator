@@ -3,7 +3,7 @@
  * @description Centralized application state management with TypeScript.
  */
 
-import { AppState, UserProfile, Message, CategorizedMessages } from './types.ts';
+import { AppState, UserProfile, Message, CategorizedMessages, IReportData } from './types.ts';
 
 export const state: AppState = {
     userProfile: { email: "", picture: "", name: "", points: 0, streak: 0, streak_freezes: 0 },
@@ -22,7 +22,9 @@ export const state: AppState = {
     archiveStatus: 'all',
     messages: { inbox: [], pending: [], waiting: [] },
     userStats: null,
-    selectedTaskIds: new Set<number>()
+    selectedTaskIds: new Set<number>(),
+    reports: {},
+    reportHistory: []
 };
 
 /**
@@ -105,4 +107,20 @@ export const toggleTaskSelection = (id: number): void => {
  */
 export const clearTaskSelection = (): void => {
     state.selectedTaskIds.clear();
+};
+
+/**
+ * Why: Upserts a report into the indexed state for O(1) retrieval by date range.
+ */
+export const upsertReport = (report: IReportData): void => {
+    if (!report.start_date || !report.end_date) return;
+    const key = `${report.start_date}_${report.end_date}`;
+    state.reports[key] = { ...state.reports[key], ...report };
+};
+
+/**
+ * Updates the report history metadata list.
+ */
+export const updateReportHistory = (history: IReportData[]): void => {
+    state.reportHistory = history || [];
 };

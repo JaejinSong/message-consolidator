@@ -1,12 +1,13 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 )
 
 // GetAllUsers retrieves all users and their aliases from the database to ensure data consistency.
-func GetAllUsers() ([]User, error) {
-	rows, err := db.Query(SQL.GetAllUsers)
+func GetAllUsers(ctx context.Context) ([]User, error) {
+	rows, err := db.QueryContext(ctx, SQL.GetAllUsers)
 	if err != nil {
 		return nil, err
 	}
@@ -21,7 +22,7 @@ func GetAllUsers() ([]User, error) {
 	}
 
 	// Why: Fetch and populate all aliases in one batch to prevent N+1 queries.
-	aliasRows, err := db.Query(SQL.GetAllUserAliases)
+	aliasRows, err := db.QueryContext(ctx, SQL.GetAllUserAliases)
 	if err != nil {
 		return users, nil // Return users even if alias fetch fails
 	}
@@ -78,31 +79,31 @@ func scanUserRow(rows *sql.Rows) (User, error) {
 
 // GetOrCreateUser fetches a user from the cache or database by email.
 // If the user doesn't exist, it creates a new record. It also updates the user's name and picture if new values are provided.
-func GetOrCreateUser(email, name, picture string) (*User, error) {
+func GetOrCreateUser(ctx context.Context, email, name, picture string) (*User, error) {
 	metadataMu.Lock()
 	if u, ok := userCache[email]; ok {
 		//Why: Trigger a database update if a new name or picture is provided and differs from the cached data.
 		if (name != "" && u.Name != name) || (picture != "" && u.Picture != picture) {
 			metadataMu.Unlock()
-			return updateAndCacheUser(email, name, picture)
+			return updateAndCacheUser(ctx, email, name, picture)
 		}
 		metadataMu.Unlock()
 		return u, nil
 	}
 	metadataMu.Unlock()
 
-	return updateAndCacheUser(email, name, picture)
+	return updateAndCacheUser(ctx, email, name, picture)
 }
 
 // updateAndCacheUser handles the database upsert logic for a user and securely updates the in-memory cache.
-func updateAndCacheUser(email, name, picture string) (*User, error) {
+func updateAndCacheUser(ctx context.Context, email, name, picture string) (*User, error) {
 	var u User
 	err := WithDBRetry("GetOrCreateUser", func() error {
 		var slackID, waJID sql.NullString
 		var lastCompletedAt, createdAt DBTime
-		errQuery := db.QueryRow(SQL.GetUserByEmail, email).Scan(&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes)
+		errQuery := db.QueryRowContext(ctx, SQL.GetUserByEmail, email).Scan(&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes)
 		if errQuery == sql.ErrNoRows {
-			errQuery = db.QueryRow(SQL.CreateUserReturningAll, email, name, picture, 5).Scan(&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes)
+			errQuery = db.QueryRowContext(ctx, SQL.CreateUserReturningAll, email, name, picture, 5).Scan(&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes)
 		}
 		if errQuery != nil {
 			return errQuery
@@ -130,7 +131,7 @@ func updateAndCacheUser(email, name, picture string) (*User, error) {
 		}
 
 		if needsUpdate {
-			_, errUpdate := db.Exec(SQL.UpdateUserNamePicture, u.Name, u.Picture, email)
+			_, errUpdate := db.ExecContext(ctx, SQL.UpdateUserNamePicture, u.Name, u.Picture, email)
 			return errUpdate
 		}
 		return nil
@@ -148,30 +149,30 @@ func updateAndCacheUser(email, name, picture string) (*User, error) {
 }
 
 // CreateUser inserts a new user record into the database with just an email and name.
-func CreateUser(email, name string) error {
-	_, err := db.Exec(SQL.CreateUser, email, name)
+func CreateUser(ctx context.Context, email, name string) error {
+	_, err := db.ExecContext(ctx, SQL.CreateUser, email, name)
 	return err
 }
 
 // UpdateUserNamePicture modifies the display name and profile picture of an existing user.
-func UpdateUserNamePicture(email, name, picture string) error {
-	_, err := db.Exec(SQL.UpdateUserNamePicture, name, picture, email)
+func UpdateUserNamePicture(ctx context.Context, email, name, picture string) error {
+	_, err := db.ExecContext(ctx, SQL.UpdateUserNamePicture, name, picture, email)
 	return err
 }
 
 // UpdateUserWAJID updates the WhatsApp JID (identifier) associated with the user.
-func UpdateUserWAJID(email, wajid string) error {
-	_, err := db.Exec(SQL.UpdateUserWAJID, wajid, email)
+func UpdateUserWAJID(ctx context.Context, email, wajid string) error {
+	_, err := db.ExecContext(ctx, SQL.UpdateUserWAJID, wajid, email)
 	return err
 }
 
 // UpdateUserSlackID updates the Slack ID associated with the user.
-func UpdateUserSlackID(email, slackID string) error {
-	_, err := db.Exec(SQL.UpdateUserSlackID, slackID, email)
+func UpdateUserSlackID(ctx context.Context, email, slackID string) error {
+	_, err := db.ExecContext(ctx, SQL.UpdateUserSlackID, slackID, email)
 	return err
 }
 
-func GetUserAliasesByEmail(email string) ([]string, error) {
+func GetUserAliasesByEmail(ctx context.Context, email string) ([]string, error) {
 	metadataMu.RLock()
 	if u, ok := userCache[email]; ok && len(u.Aliases) > 0 {
 		metadataMu.RUnlock()
@@ -179,7 +180,7 @@ func GetUserAliasesByEmail(email string) ([]string, error) {
 	}
 	metadataMu.RUnlock()
 
-	rows, err := db.Query(SQL.GetUserAliases, email)
+	rows, err := db.QueryContext(ctx, SQL.GetUserAliases, email)
 	if err != nil {
 		return nil, err
 	}
@@ -202,8 +203,8 @@ func GetUserAliasesByEmail(email string) ([]string, error) {
 	return aliases, rows.Err()
 }
 
-func GetUserName(email string) (string, error) {
+func GetUserName(ctx context.Context, email string) (string, error) {
 	var name string
-	err := db.QueryRow(SQL.GetUserByEmailSimple, email).Scan(&name)
+	err := db.QueryRowContext(ctx, SQL.GetUserByEmailSimple, email).Scan(&name)
 	return name, err
 }

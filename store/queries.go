@@ -143,6 +143,7 @@ var SQL = struct {
 	ListReports          string
 	GetReportByID        string
 	GetReportTranslations string
+	GetReportList        string
 	DeleteReport         string
 	GetMessagesForReport string
 
@@ -379,6 +380,7 @@ func loadAllQueries() error {
 	SQL.ListReports = queries["ListReports"]
 	SQL.GetReportByID = queries["GetReportByID"]
 	SQL.GetReportTranslations = queries["GetReportTranslations"]
+	SQL.GetReportList = queries["GetReportList"]
 	SQL.DeleteReport = queries["DeleteReport"]
 	SQL.GetMessagesForReport = queries["GetMessagesForReport"]
 

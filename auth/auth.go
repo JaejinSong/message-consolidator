@@ -102,15 +102,15 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 	}
 
 	//Why: Synchronizes the Google user metadata with the local database to ensure user records stay current across logins.
-	user, err := store.GetOrCreateUser(userInfo.Email, userInfo.Name, userInfo.Picture)
+	user, err := store.GetOrCreateUser(r.Context(), userInfo.Email, userInfo.Name, userInfo.Picture)
 	if err != nil {
 		logger.Errorf("Failed to sync user to DB: %v", err)
 	} else {
 		//Why: Employs a function callback pattern to perform cross-service Slack ID resolution without creating a circular package dependency.
 		slackID, realName, err := lookupUserByEmail(user.Email)
 		if err == nil && slackID != "" {
-			store.UpdateUserSlackID(user.Email, slackID)
-			store.AddUserAlias(user.ID, realName)
+			store.UpdateUserSlackID(r.Context(), user.Email, slackID)
+			store.AddUserAlias(r.Context(), user.ID, realName)
 			logger.Infof("Auto-discovered Slack ID %s and aliases for %s", slackID, user.Email)
 		}
 	}

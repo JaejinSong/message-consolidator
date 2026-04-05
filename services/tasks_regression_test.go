@@ -75,7 +75,7 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 		turnNum := i + 1
 		t.Run(turn.Name, func(t *testing.T) {
 			// 1. Save Message
-			_, msgID, _ := store.SaveMessage(store.ConsolidatedMessage{
+			_, msgID, _ := store.SaveMessage(ctx, store.ConsolidatedMessage{
 				UserEmail:    email,
 				Source:       source,
 				Room:         room,
@@ -84,6 +84,7 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 				SourceTS:     fmt.Sprintf("ts_%d", turnNum),
 				ThreadID:     "thread_realistic",
 			})
+
 			msg, _ := store.GetMessageByID(ctx, email, msgID)
 
 			// 2. Mock state preparation (Inject IDs for resolution turns)
