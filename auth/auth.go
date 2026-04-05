@@ -30,7 +30,8 @@ const UserEmailKey contextKey = "userEmail"
 
 func GetUserEmail(r *http.Request) string {
 	if AuthDisabled {
-		return "jjsong@whatap.io" //Why: Provides a static fallback user for local development environments where OAuth is unavailable or disabled.
+		//Why: Provides a static fallback user for local development environments where OAuth is unavailable or disabled.
+		return os.Getenv("DEFAULT_USER_EMAIL")
 	}
 	email, ok := r.Context().Value(UserEmailKey).(string)
 	if !ok || email == "" {
@@ -192,8 +193,18 @@ func SetSessionCookie(w http.ResponseWriter, email string) {
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if AuthDisabled {
-			logger.Debugf("[AUTH] AuthDisabled is true. Bypassing authentication for %s", r.URL.Path)
-			ctx := context.WithValue(r.Context(), UserEmailKey, "jjsong@whatap.io")
+			email := os.Getenv("DEFAULT_USER_EMAIL")
+			logger.Debugf("[AUTH] AuthDisabled is true. Bypassing authentication for %s. Using default user: %s", r.URL.Path, email)
+			
+			// Why: If the parameter 'email' is already present (e.g. injected by Vite Proxy or Front-end), 
+			// we skip manual injection to prevent 'Double Injection' that breaks logic integrity.
+			if r.URL.Query().Get("email") == "" {
+				q := r.URL.Query()
+				q.Set("email", email)
+				r.URL.RawQuery = q.Encode()
+			}
+
+			ctx := context.WithValue(r.Context(), UserEmailKey, email)
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}

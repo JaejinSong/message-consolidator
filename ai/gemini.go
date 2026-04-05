@@ -56,6 +56,19 @@ func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translat
 	}, nil
 }
 
+// TranslationResult defines the standardized AI response schema for batch translation tasks.
+// Why: Enables partial failure handling by tracking errors per-message instead of failing the entire batch.
+type TranslationResult struct {
+	MessageID int    `json:"message_id"`
+	Text      string `json:"translated_text"`
+	Error     string `json:"error,omitempty"`
+}
+
+// isRateLimit checks if the error is a 429 Too Many Requests response from Gemini API.
+func isRateLimit(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "429")
+}
+
 // Why: Safely retries AI API calls with exponential backoff to handle transient errors and rate limits gracefully, ensuring reliability under high load.
 func generateWithRetry(ctx context.Context, model *genai.GenerativeModel, prompt genai.Part, timeout time.Duration, maxRetries int) (*genai.GenerateContentResponse, error) {
 	var resp *genai.GenerateContentResponse
@@ -320,10 +333,15 @@ func (g *GeminiClient) TranslateTaskMessage(ctx context.Context, email string, t
 	return extractResponseText(resp)
 }
 
-// TranslateBatchTasks translates multiple tasks at once following the Page-unit Pure JIT pattern.
-// Why: Minimizes AI calls and costs by batching N tasks into a single structured prompt.
-func (g *GeminiClient) TranslateBatchTasks(ctx context.Context, email string, tasks []store.TranslateRequest, lang string) ([]store.TranslateRequest, error) {
+// TranslateTasksBatch translates multiple tasks at once following the Page-unit Pure JIT pattern.
+// Why: Minimizes AI calls and costs by batching N tasks into a single structured prompt with a 25-item threshold.
+func (g *GeminiClient) TranslateTasksBatch(ctx context.Context, email string, tasks []store.TranslateRequest, lang string) ([]TranslationResult, error) {
 	if len(tasks) == 0 { return nil, nil }
+
+	if len(tasks) > 25 {
+		return g.translateInChunks(ctx, email, tasks, lang, 25)
+	}
+
 	parsed := loadPrompt("batch_translator.prompt")
 	data := ExtractionContext{
 		Locale:      g.getValidLang(lang),
@@ -331,18 +349,32 @@ func (g *GeminiClient) TranslateBatchTasks(ctx context.Context, email string, ta
 	}
 	sysInst, _ := parsed.Render(data)
 	model := g.initModel(g.getEffectiveModel(parsed, g.translationModel), 0.1, 4096, "application/json", sysInst)
-	
+
 	tasksJSON, _ := json.Marshal(tasks)
-	resp, err := generateWithRetry(ctx, model, genai.Text(string(tasksJSON)), 45*time.Second, 2)
+	resp, err := generateWithRetry(ctx, model, genai.Text(string(tasksJSON)), 45*time.Second, 3)
 	if err != nil { return nil, err }
-	
+
 	logTokenUsage(ctx, email, "BatchTranslate", resp)
 	raw, _ := extractResponseText(resp)
-	var results []store.TranslateRequest
+	var results []TranslationResult
 	if err := json.Unmarshal([]byte(sanitizeJSON(raw)), &results); err != nil {
-		return nil, fmt.Errorf("failed to parse partial AI response: %w", err)
+		return nil, fmt.Errorf("failed to parse AI response: %w", err)
 	}
+
 	return results, nil
+}
+
+func (g *GeminiClient) translateInChunks(ctx context.Context, email string, tasks []store.TranslateRequest, lang string, chunkSize int) ([]TranslationResult, error) {
+	var allResults []TranslationResult
+	for i := 0; i < len(tasks); i += chunkSize {
+		end := i + chunkSize
+		if end > len(tasks) { end = len(tasks) }
+		
+		chunk, err := g.TranslateTasksBatch(ctx, email, tasks[i:end], lang)
+		if err != nil { return nil, err }
+		allResults = append(allResults, chunk...)
+	}
+	return allResults, nil
 }
 
 

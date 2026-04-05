@@ -84,7 +84,7 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 				SourceTS:     fmt.Sprintf("ts_%d", turnNum),
 				ThreadID:     "thread_realistic",
 			})
-			msg, _ := store.GetMessageByID(ctx, msgID)
+			msg, _ := store.GetMessageByID(ctx, email, msgID)
 
 			// 2. Mock state preparation (Inject IDs for resolution turns)
 			if turnNum == 5 { // JJ resolves Task A
@@ -103,7 +103,7 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 
 			// 4. Verification & ID Recording
 			if turn.Expected == "new" {
-				updated, _ := store.GetMessageByID(ctx, msgID)
+				updated, _ := store.GetMessageByID(ctx, email, msgID)
 				if updated.Task == "" {
 					t.Errorf("%s: Task should have been created", turn.Name)
 				}
@@ -112,7 +112,7 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 			}
 
 			if turn.Expected == "none" {
-				updated, _ := store.GetMessageByID(ctx, msgID)
+				updated, _ := store.GetMessageByID(ctx, email, msgID)
 				if updated.Task != "" {
 					t.Errorf("%s: Greet/Ack should not create tasks", turn.Name)
 				}
@@ -123,7 +123,7 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 				if turnNum == 5 { targetID = taskAID }
 				if turnNum == 7 { targetID = taskBID }
 				
-				m, _ := store.GetMessageByID(ctx, targetID)
+				m, _ := store.GetMessageByID(ctx, email, targetID)
 				if !m.Done {
 					t.Errorf("%s: Task %d should be resolved", turn.Name, targetID)
 				}

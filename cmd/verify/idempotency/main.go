@@ -61,7 +61,7 @@ func main() {
 		log.Fatalf("FAIL: Upsert returned different ID: %d != %d", ids2[0], msgID)
 	}
 	
-	m, _ := store.GetMessageByID(context.Background(), msgID)
+	m, _ := store.GetMessageByID(context.Background(), email, msgID)
 	if m.Task != "Updated Task" {
 		log.Fatalf("FAIL: Message not updated (Upsert failed): got '%s', want 'Updated Task'", m.Task)
 	}

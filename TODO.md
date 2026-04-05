@@ -1,8 +1,6 @@
 # Message Consolidator - TODO & TECH DEBT
 
 ## 1. 진행 예정 사항 (Planned)
-- [ ] **[Infra]** 프론트엔드 컨테이너화 및 리버스 프록시 (Nginx/Caddy 도입)
-- [ ] **[Infra]** Docker Compose 기반 멀티 컨테이너 오케스트레이션
 - [ ] **[Auth]** JWT 기반 인증 확장 및 세션 관리 개선
 - [ ] **[UI/UX]** 태스크 필터링 UI 고도화 (날짜 범위, 채널별 필터)
 
@@ -12,6 +10,10 @@
 - [ ] **[Test]** 프론트엔드 컴포넌트 단위 테스트 (Vitest 도입 검토)
 
 ## 3. 완료 사항 (Completed)
+- [x] **[Infra]** Docker Compose & Caddy 기반 VPS 배포 자동화 (v2.4.19)
+  - `scripts/` 내 중복 `main` 패키지 충돌 해결 (cmd/verify 하위로 리팩토링)
+  - Artifact Registry 및 GCS 연동 배포 워크플로우 구축
+  - Caddy 리버스 프록시 및 SSL 설정 완료
 - [x] **[Refactor]** Regex to Metadata Migration & Gmail DOM Pruning (v2.4.18)
   - WhatsApp: `waMentionRegex` 제거 및 `MentionedIDs` 기반 고정밀 멘션 인식
   - Gmail: `reQuoteStart` 정규식 제거 및 `html.Node` 트레이싱을 통한 쿼트 프루닝 적용

@@ -1,3 +1,10 @@
+# Release Notes (Tech) - v2.4.19 (2026-04-05 00:02 UTC)
+
+- [REFACTOR] Transition from Regex-based extraction to Metadata migration and implement Gmail DOM pruning
+- [FEAT] Expand message metadata to support attachments, reactions, and pins with optimized mention resolution for Slack and WhatsApp
+
+---
+
 # Release Notes (Tech) - v2.4.18 (2026-04-04 17:10 UTC)
 
 - [FEAT] Expand message metadata schema to include attachments, reactions, pins, and optimized mention resolution for Slack and WhatsApp

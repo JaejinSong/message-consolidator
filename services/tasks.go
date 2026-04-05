@@ -40,6 +40,10 @@ func NewTasksService(trans *TranslationService) *TasksService {
 	}
 }
 
+func (s *TasksService) GetTranslationService() *TranslationService {
+	return s.translationSvc
+}
+
 // StripOriginalText removes the original text to reduce payload size.
 func (s *TasksService) StripOriginalText(msgs []store.ConsolidatedMessage) {
 	for i := range msgs {
@@ -118,7 +122,7 @@ func (s *TasksService) PrepareMessagesForClient(email string, msgs []store.Conso
 
 // HandleTaskCompletion orchestrates the process of marking a task as done.
 func (s *TasksService) HandleTaskCompletion(email string, taskID int, done bool) (GamificationResult, error) {
-	msg, err := store.GetMessageByID(context.Background(), taskID)
+	msg, err := store.GetMessageByID(context.Background(), email, taskID)
 	if err == nil && msg.Done && done {
 		return GamificationResult{}, nil
 	}
@@ -437,25 +441,27 @@ func (s *TasksService) getMissingIDs(all []int, cached map[int]string) []int {
 }
 
 func (s *TasksService) executeBatchTranslation(ctx context.Context, email string, ids []int, lang string) (map[int]string, error) {
-	reqs := s.prepareTranslateRequests(ctx, ids)
+	reqs := s.prepareTranslateRequests(ctx, email, ids)
 	if len(reqs) == 0 { return nil, nil }
 
-	results, err := s.translationSvc.TranslateBatchTasks(ctx, email, reqs, lang)
+	results, err := s.translationSvc.TranslateBatch(ctx, email, reqs, lang)
 	if err != nil { return nil, err }
 
 	batchMap := make(map[int]string)
 	for _, r := range results {
-		batchMap[r.ID] = r.Text
+		if r.Error == "" {
+			batchMap[r.MessageID] = r.Text
+		}
 	}
 	
 	_ = store.SaveTaskTranslationsBulk(lang, batchMap)
 	return batchMap, nil
 }
 
-func (s *TasksService) prepareTranslateRequests(ctx context.Context, ids []int) []store.TranslateRequest {
+func (s *TasksService) prepareTranslateRequests(ctx context.Context, email string, ids []int) []store.TranslateRequest {
 	var reqs []store.TranslateRequest
 	for _, id := range ids {
-		msg, err := store.GetMessageByID(ctx, id)
+		msg, err := store.GetMessageByID(ctx, email, id)
 		if err != nil { continue }
 		reqs = append(reqs, store.TranslateRequest{ID: id, Text: msg.Task})
 	}

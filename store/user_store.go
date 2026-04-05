@@ -4,8 +4,7 @@ import (
 	"database/sql"
 )
 
-// GetAllUsers retrieves all users directly from the database to ensure data consistency and discover any newly added users.
-// It also synchronizes the in-memory cache with the latest data.
+// GetAllUsers retrieves all users and their aliases from the database to ensure data consistency.
 func GetAllUsers() ([]User, error) {
 	rows, err := db.Query(SQL.GetAllUsers)
 	if err != nil {
@@ -15,7 +14,34 @@ func GetAllUsers() ([]User, error) {
 
 	metadataMu.Lock()
 	defer metadataMu.Unlock()
-	return scanAndCacheUsers(rows)
+	
+	users, err := scanAndCacheUsers(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	// Why: Fetch and populate all aliases in one batch to prevent N+1 queries.
+	aliasRows, err := db.Query(SQL.GetAllUserAliases)
+	if err != nil {
+		return users, nil // Return users even if alias fetch fails
+	}
+	defer aliasRows.Close()
+
+	for aliasRows.Next() {
+		var userID int
+		var aliasName string
+		if err := aliasRows.Scan(&userID, &aliasName); err == nil {
+			for i := range users {
+				if users[i].ID == userID {
+					users[i].Aliases = append(users[i].Aliases, aliasName)
+					userCache[users[i].Email].Aliases = users[i].Aliases
+					break
+				}
+			}
+		}
+	}
+
+	return users, nil
 }
 
 func scanAndCacheUsers(rows *sql.Rows) ([]User, error) {
@@ -146,6 +172,13 @@ func UpdateUserSlackID(email, slackID string) error {
 }
 
 func GetUserAliasesByEmail(email string) ([]string, error) {
+	metadataMu.RLock()
+	if u, ok := userCache[email]; ok && len(u.Aliases) > 0 {
+		metadataMu.RUnlock()
+		return u.Aliases, nil
+	}
+	metadataMu.RUnlock()
+
 	rows, err := db.Query(SQL.GetUserAliases, email)
 	if err != nil {
 		return nil, err
@@ -158,6 +191,14 @@ func GetUserAliasesByEmail(email string) ([]string, error) {
 			aliases = append(aliases, a)
 		}
 	}
+	
+	// Why: Update cache with loaded aliases for subsequent requests.
+	metadataMu.Lock()
+	if u, ok := userCache[email]; ok {
+		u.Aliases = aliases
+	}
+	metadataMu.Unlock()
+	
 	return aliases, rows.Err()
 }
 

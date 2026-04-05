@@ -1,3 +1,10 @@
+# Release Notes (Tech) - v2.4.18 (2026-04-04 17:10 UTC)
+
+- [FEAT] Expand message metadata schema to include attachments, reactions, pins, and optimized mention resolution for Slack and WhatsApp
+- [FEAT] Implement unified context-aware task lifecycle management and result filtering logic
+
+---
+
 # Release Notes (Tech) - v2.4.17 (2026-04-04 16:36 UTC)
 
 - [REFACTOR] Standardize __CURRENT_USER__ resolution and refine AI extraction prompts and task filtering logic

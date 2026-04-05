@@ -220,7 +220,7 @@ func MergeTasks(email string, targetIDs []int, destID int) error {
 
 func executeMerge(ctx context.Context, tx *sql.Tx, email string, targets []int, destID int) error {
 	allIDs := append(targets, destID)
-	msgs, err := GetMessagesByIDs(ctx, allIDs)
+	msgs, err := GetMessagesByIDs(ctx, email, allIDs)
 	if err != nil {
 		return err
 	}
@@ -342,35 +342,85 @@ func RestoreMessages(email string, ids []int) error {
 	return nil
 }
 
-func GetMessageByID(ctx context.Context, id int) (ConsolidatedMessage, error) {
-	row := db.QueryRowContext(ctx, SQL.GetMessageByID, int(id))
+func GetMessageByID(ctx context.Context, email string, id int) (ConsolidatedMessage, error) {
+	if msg, found := findMessageInCache(email, id); found {
+		return msg, nil
+	}
+	// Why: Fallback to database only if not found in active or recently archived caches.
+	row := db.QueryRowContext(ctx, SQL.GetMessageByID, int(id), email)
 	return scanMessageRow(row)
 }
 
-func GetMessagesByIDs(ctx context.Context, ids []int) ([]ConsolidatedMessage, error) {
-	if len(ids) == 0 {
-		return []ConsolidatedMessage{}, nil
+func findMessageInCache(email string, id int) (ConsolidatedMessage, bool) {
+	cacheMu.RLock()
+	defer cacheMu.RUnlock()
+	for _, m := range messageCache[email] {
+		if m.ID == id { return m, true }
+	}
+	for _, m := range archiveCache[email] {
+		if m.ID == id { return m, true }
+	}
+	return ConsolidatedMessage{}, false
+}
+
+func GetMessagesByIDs(ctx context.Context, email string, ids []int) ([]ConsolidatedMessage, error) {
+	if len(ids) == 0 { return []ConsolidatedMessage{}, nil }
+
+	found, missing := extractFromCache(email, ids)
+	if len(missing) == 0 {
+		return found, nil
 	}
 
-	//Why: Explicitly specifies all 20 columns from the v_messages view to ensure identity-resolved fields are correctly scanned into the struct.
-	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
-	query := fmt.Sprintf(SQL.GetMessagesByIDs, placeholders)
-	interfaceIds := make([]interface{}, len(ids))
-	for i, v := range ids {
-		interfaceIds[i] = int(v)
-	}
-	rows, err := db.QueryContext(ctx, query, interfaceIds...)
+	fromDB, err := fetchMissingFromDB(ctx, email, missing)
 	if err != nil {
 		return nil, err
 	}
+	return append(found, fromDB...), nil
+}
+
+func extractFromCache(email string, ids []int) ([]ConsolidatedMessage, []int) {
+	cacheMu.RLock()
+	defer cacheMu.RUnlock()
+	var found []ConsolidatedMessage
+	var missing []int
+	for _, id := range ids {
+		if m, ok := searchCache(email, id); ok {
+			found = append(found, m)
+		} else {
+			missing = append(missing, id)
+		}
+	}
+	return found, missing
+}
+
+func searchCache(email string, id int) (ConsolidatedMessage, bool) {
+	for _, m := range messageCache[email] {
+		if m.ID == id { return m, true }
+	}
+	for _, m := range archiveCache[email] {
+		if m.ID == id { return m, true }
+	}
+	return ConsolidatedMessage{}, false
+}
+
+func fetchMissingFromDB(ctx context.Context, email string, missing []int) ([]ConsolidatedMessage, error) {
+	placeholders := strings.Repeat("?,", len(missing)-1) + "?"
+	query := fmt.Sprintf("SELECT * FROM v_messages WHERE user_email = ? AND id IN (%s)", placeholders)
+	
+	args := make([]interface{}, len(missing)+1)
+	args[0] = email
+	for i, id := range missing {
+		args[i+1] = int(id)
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil { return nil, err }
 	defer rows.Close()
 
 	var msgs []ConsolidatedMessage
 	for rows.Next() {
 		m, err := scanMessageRow(rows)
-		if err != nil {
-			return nil, err
-		}
+		if err != nil { return nil, err }
 		msgs = append(msgs, m)
 	}
 	return msgs, rows.Err()

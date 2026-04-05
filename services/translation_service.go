@@ -48,14 +48,23 @@ func (s *TranslationService) Translate(ctx context.Context, email string, dedupl
 	return val.(string), nil
 }
 
-// TranslateBatchTasks handles multiple tasks in a single AI call with semaphore protection.
-func (s *TranslationService) TranslateBatchTasks(ctx context.Context, email string, tasks []store.TranslateRequest, lang string) ([]store.TranslateRequest, error) {
-	if s.gemini == nil { return nil, fmt.Errorf("AI service not initialized") }
+// TranslateBatch handles multiple tasks in a single AI call with semaphore protection.
+// Why: Minimizes AI calls and costs by batching N tasks into a single structured prompt.
+func (s *TranslationService) TranslateBatch(ctx context.Context, email string, tasks []store.TranslateRequest, lang string) ([]ai.TranslationResult, error) {
+	if s.gemini == nil || len(tasks) == 0 { return nil, nil }
 	
-	s.semaphore <- struct{}{}
-	defer func() { <-s.semaphore }()
+	ids := make([]int, len(tasks))
+	for i, t := range tasks { ids[i] = t.ID }
+	key := fmt.Sprintf("batch-%s-%v", lang, ids)
 
-	return s.gemini.TranslateBatchTasks(ctx, email, tasks, GetLanguageName(lang))
+	val, err, _ := s.requestGroup.Do(key, func() (interface{}, error) {
+		s.semaphore <- struct{}{}
+		defer func() { <-s.semaphore }()
+		return s.gemini.TranslateTasksBatch(ctx, email, tasks, GetLanguageName(lang))
+	})
+	
+	if err != nil { return nil, err }
+	return val.([]ai.TranslationResult), nil
 }
 
 // GetLanguageName maps ISO 639-1 language codes to descriptive names for the AI prompt.

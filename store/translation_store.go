@@ -137,23 +137,24 @@ func SaveTaskTranslation(messageID int, langCode, translatedText string) error {
 
 // SaveTaskTranslationsBulk saves multiple translations in a single transaction.
 // Why: Minimizes database lock contention and ensures atomicity for batch AI results.
+// SaveTaskTranslationsBulk saves multiple translations in a single optimized SQL execution.
+// Why: Minimizes database lock contention and ensures atomicity for batch AI results.
 func SaveTaskTranslationsBulk(langCode string, results map[int]string) error {
-	tx, err := db.Begin()
-	if err != nil { return err }
-	defer tx.Rollback()
+	if len(results) == 0 { return nil }
 
-	stmt, err := tx.Prepare("INSERT INTO task_translations (message_id, language_code, translated_text) VALUES (?, ?, ?) ON CONFLICT(message_id, language_code) DO UPDATE SET translated_text=excluded.translated_text")
-	if err != nil { return err }
-	defer stmt.Close()
-
+	placeholders := make([]string, 0, len(results))
+	args := make([]interface{}, 0, len(results)*3)
 	for id, text := range results {
-		if _, err := stmt.Exec(int(id), langCode, text); err != nil { return err }
+		placeholders = append(placeholders, "(?, ?, ?)")
+		args = append(args, id, langCode, text)
 	}
 
-	if err := tx.Commit(); err == nil {
+	query := fmt.Sprintf("INSERT INTO task_translations (message_id, language_code, translated_text) VALUES %s ON CONFLICT(message_id, language_code) DO UPDATE SET translated_text=excluded.translated_text", strings.Join(placeholders, ","))
+	_, err := db.Exec(query, args...)
+	if err == nil {
 		syncCacheBatch(langCode, results)
 	}
-	return nil
+	return err
 }
 
 func syncCacheBatch(langCode string, results map[int]string) {

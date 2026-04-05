@@ -22,7 +22,7 @@ func (a *API) TranslateMessagesByID(ctx context.Context, email string, ids []int
 	}
 
 	//Why: Fetches full message details in a single batch to minimize database roundtrips.
-	messages, err := store.GetMessagesByIDs(ctx, ids)
+	messages, err := store.GetMessagesByIDs(ctx, email, ids)
 	if err != nil {
 		logger.Errorf("[TRANSLATE] Failed to get messages batch for %s: %v", email, err)
 		return 0, err

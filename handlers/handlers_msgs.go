@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
 	"message-consolidator/auth"
+	"message-consolidator/services"
 	"message-consolidator/store"
 
 	"github.com/gorilla/mux"
@@ -173,7 +175,7 @@ func (a *API) HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := store.GetMessageByID(r.Context(), id)
+	msg, err := store.GetMessageByID(r.Context(), email, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to fetch original text")
 		return
@@ -258,7 +260,7 @@ func (a *API) HandleMergeTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleTranslateBatchTasks handles JIT translation requests for a batch of tasks.
-// It leverages the TasksService for concurrent AI processing and error handling.
+// Why: Implements a cost-efficient cache-first pattern to minimize redundant AI calls.
 func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
@@ -266,23 +268,77 @@ func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) 
 		Lang    string `json:"lang"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "Invalid request format: "+err.Error())
+		respondError(w, http.StatusBadRequest, "Invalid request format")
 		return
 	}
 
-	if a.Tasks == nil {
-		respondError(w, http.StatusServiceUnavailable, "Task translation service is currently unavailable")
+	// 1. [Pre-filter] Get existing translations from DB/Cache
+	cached, _ := store.GetTaskTranslationsBatch(req.TaskIDs, req.Lang)
+	missingIDs := a.getMissingIDs(req.TaskIDs, cached)
+
+	// [Guard Clause] If all tasks are already translated, return immediately.
+	if len(missingIDs) == 0 {
+		a.respondWithResults(w, req.TaskIDs, cached, nil, nil)
 		return
 	}
 
-	// [N+1 API Prevention] We process all visible tasks in a single concurrent batch.
-	results, err := a.Tasks.ProcessBatchTranslation(r.Context(), email, req.TaskIDs, req.Lang)
+	// 2. [Batch AI] Translate only missing tasks
+	missingReqs := a.prepareMissingRequests(r.Context(), email, missingIDs)
+	newTrans, err := a.Tasks.GetTranslationService().TranslateBatch(r.Context(), email, missingReqs, req.Lang)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to process task translations")
+		respondError(w, http.StatusInternalServerError, "Translation service failed")
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"results": results,
-	})
+	// 3. [Partial Success] Save only entries without errors.
+	successMap := make(map[int]string)
+	errorMap := make(map[int]string)
+	for _, rt := range newTrans {
+		if rt.Error == "" {
+			successMap[rt.MessageID] = rt.Text
+		} else {
+			errorMap[rt.MessageID] = rt.Error
+		}
+	}
+
+	if len(successMap) > 0 {
+		_ = store.SaveTaskTranslationsBulk(req.Lang, successMap)
+	}
+
+	a.respondWithResults(w, req.TaskIDs, cached, successMap, errorMap)
+}
+
+func (a *API) getMissingIDs(all []int, cached map[int]string) []int {
+	var missing []int
+	for _, id := range all {
+		if _, ok := cached[id]; !ok { missing = append(missing, id) }
+	}
+	return missing
+}
+
+func (a *API) prepareMissingRequests(ctx context.Context, email string, ids []int) []store.TranslateRequest {
+	var reqs []store.TranslateRequest
+	for _, id := range ids {
+		msg, err := store.GetMessageByID(ctx, email, id)
+		if err == nil {
+			reqs = append(reqs, store.TranslateRequest{ID: id, Text: msg.Task})
+		}
+	}
+	return reqs
+}
+
+func (a *API) respondWithResults(w http.ResponseWriter, ids []int, cached, newlyTrans, errors map[int]string) {
+	results := make([]services.BatchTranslateResult, len(ids))
+	for i, id := range ids {
+		text, ok := cached[id]
+		if !ok { text = newlyTrans[id] }
+		
+		results[i] = services.BatchTranslateResult{
+			ID:             id,
+			Success:        text != "",
+			TranslatedText: text,
+			Error:          errors[id],
+		}
+	}
+	respondJSON(w, http.StatusOK, map[string]interface{}{"results": results})
 }

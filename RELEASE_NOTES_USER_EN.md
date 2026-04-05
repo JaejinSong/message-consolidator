@@ -1,3 +1,10 @@
+# Release Notes - v2.4.19 (2026-04-05 00:02 UTC)
+
+- ✨ **Rich Context**: Now viewing reactions, pins, and attachments for Slack and WhatsApp is more seamless than ever!
+- 🧹 **Under the Hood**: We've refined our Gmail engine to be leaner and faster by pruning unnecessary data.
+
+---
+
 # Release Notes - v2.4.18 (2026-04-04 17:10 UTC)
 
 - ✨ **Next-Level Interaction**: Your Slack and WhatsApp messages now shine with support for attachments, reactions, and pins!

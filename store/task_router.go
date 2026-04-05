@@ -62,7 +62,7 @@ func handleUpdate(email string, item TodoItem, msg ConsolidatedMessage) (int, er
 	}
 
 	// Why: Appends the source of the triggering message to the existing task's source_channels.
-	if existing, err := GetMessageByID(context.Background(), id); err == nil {
+	if existing, err := GetMessageByID(context.Background(), email, id); err == nil {
 		merged := append(existing.SourceChannels, msg.Source)
 		UpdateTaskSourceChannels(email, id, uniqueStrings(merged))
 	}

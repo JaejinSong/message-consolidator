@@ -19,10 +19,11 @@ CREATE TABLE IF NOT EXISTS users (
 -- name: CreateUserAliasesTable :exec
 CREATE TABLE IF NOT EXISTS user_aliases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER REFERENCES users(id),
-    alias_name TEXT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    alias_name TEXT NOT NULL,
     UNIQUE(user_id, alias_name)
 );
+CREATE INDEX IF NOT EXISTS idx_user_aliases_user_id ON user_aliases(user_id);
 
 -- name: CreateGmailTokensTable :exec
 CREATE TABLE IF NOT EXISTS gmail_tokens (

@@ -141,3 +141,6 @@ CREATE INDEX IF NOT EXISTS idx_messages_user_deleted_created ON messages (user_e
 
 -- name: CreateIdxMessagesUserDoneCompleted :exec
 CREATE INDEX IF NOT EXISTS idx_messages_user_done_completed ON messages (user_email, done, completed_at DESC);
+
+-- name: CreateIdxUserAliasesUserID :exec
+CREATE INDEX IF NOT EXISTS idx_user_aliases_user_id ON user_aliases(user_id);

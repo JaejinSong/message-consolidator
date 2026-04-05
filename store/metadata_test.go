@@ -28,7 +28,7 @@ func TestMetadataIntegrity(t *testing.T) {
 	}
 
 	t.Run("ScanIsContextQuery", func(t *testing.T) {
-		msg, err := GetMessageByID(ctx, 101)
+		msg, err := GetMessageByID(ctx, userEmail, 101)
 		if err != nil {
 			t.Fatalf("GetMessageByID failed: %v", err)
 		}
@@ -40,7 +40,7 @@ func TestMetadataIntegrity(t *testing.T) {
 	})
 
 	t.Run("ScanConstraintsJSON", func(t *testing.T) {
-		msg, err := GetMessageByID(ctx, 101)
+		msg, err := GetMessageByID(ctx, userEmail, 101)
 		if err != nil {
 			t.Fatalf("GetMessageByID failed: %v", err)
 		}
@@ -60,7 +60,7 @@ func TestMetadataIntegrity(t *testing.T) {
 		_, _ = db.Exec("INSERT INTO messages (id, user_email, source, task, source_ts) VALUES (?, ?, ?, ?, ?)", 
 			102, userEmail, "slack", "No metadata", "ts_102")
 		
-		msg, err := GetMessageByID(ctx, 102)
+		msg, err := GetMessageByID(ctx, userEmail, 102)
 		if err != nil {
 			t.Fatalf("GetMessageByID failed: %v", err)
 		}
@@ -84,7 +84,7 @@ func TestMetadataIntegrity(t *testing.T) {
 			t.Fatalf("Failed to seed source_channels: %v", err)
 		}
 
-		msg, err := GetMessageByID(ctx, 103)
+		msg, err := GetMessageByID(ctx, userEmail, 103)
 		if err != nil {
 			t.Fatalf("GetMessageByID failed: %v", err)
 		}
@@ -117,7 +117,7 @@ func TestMetadataIntegrity(t *testing.T) {
 			t.Fatalf("UpdateTaskSourceChannels failed: %v", err)
 		}
 
-		updated, _ := GetMessageByID(ctx, 103)
+		updated, _ := GetMessageByID(ctx, userEmail, 103)
 		if len(updated.SourceChannels) != 3 {
 			t.Errorf("Expected 3 channels after merge, got %d: %v", len(updated.SourceChannels), updated.SourceChannels)
 		}
@@ -128,7 +128,7 @@ func TestMetadataIntegrity(t *testing.T) {
 			t.Fatalf("Second UpdateTaskSourceChannels failed: %v", err)
 		}
 		
-		final, _ := GetMessageByID(ctx, 103)
+		final, _ := GetMessageByID(ctx, userEmail, 103)
 		if len(final.SourceChannels) != 3 {
 			t.Errorf("Expected still 3 channels after duplicate merge, got %d: %v", len(final.SourceChannels), final.SourceChannels)
 		}

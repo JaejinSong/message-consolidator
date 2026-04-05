@@ -92,7 +92,7 @@ func TestBatchOperations(t *testing.T) {
 	}
 
 	t.Run("GetMessagesByIDs", func(t *testing.T) {
-		msgs, err := GetMessagesByIDs(ctx, []int{1, 2})
+		msgs, err := GetMessagesByIDs(ctx, email, []int{1, 2})
 		if err != nil {
 			t.Fatalf("Failed to get messages: %v", err)
 		}

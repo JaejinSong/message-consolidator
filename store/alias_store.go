@@ -1,8 +1,8 @@
 package store
 
 import (
-	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -237,25 +237,41 @@ func GetUserByID(id int) (*User, error) {
 	return nil, fmt.Errorf("user with ID %d not found in cache", id)
 }
 
-// AddUserAlias is a legacy compatibility helper.
+// AddUserAlias creates a new alias for a user in the user_aliases table and updates the cache.
 func AddUserAlias(userID int, alias string) error {
-	u, err := GetUserByID(userID)
-	if err != nil {
-		// Try DB directly if cache is not yet ready (common in tests)
-		var dbUser User
-		var slackID, waJID sql.NullString
-		var lastCompAt, createdAt DBTime
-		err := db.QueryRow(SQL.GetUserByID, userID).Scan(
-			&dbUser.ID, &dbUser.Email, &dbUser.Name, &slackID, &waJID, &dbUser.Picture,
-			&dbUser.Points, &dbUser.Streak, &dbUser.Level, &dbUser.XP, &dbUser.DailyGoal,
-			&lastCompAt, &createdAt, &dbUser.StreakFreezes,
-		)
-		if err != nil {
-			return AddContactMapping("all", strings.ToLower(alias), alias, alias, "legacy-user")
-		}
-		u = &dbUser
+	trimmed := strings.TrimSpace(alias)
+	if trimmed == "" {
+		return nil
 	}
-	return AddContactMapping("all", strings.ToLower(u.Email), u.Name, alias, "legacy-user")
+
+	// 1. Update Database (Slow Path table)
+	_, err := db.Exec(SQL.CreateUserAlias, userID, trimmed)
+	if err != nil {
+		return err
+	}
+
+	// 2. Update Cache (Write-through)
+	metadataMu.Lock()
+	defer metadataMu.Unlock()
+
+	var email string
+	for e, u := range userCache {
+		if u.ID == userID {
+			email = e
+			if !slices.Contains(u.Aliases, trimmed) {
+				u.Aliases = append(u.Aliases, trimmed)
+			}
+			break
+		}
+	}
+
+	// 3. Keep Contacts mapping for global resolution consistency
+	if email != "" {
+		u := userCache[email]
+		_ = AddContactMapping("all", strings.ToLower(u.Email), u.Name, trimmed, "user")
+	}
+
+	return nil
 }
 
 // AddTenantAlias is a legacy compatibility helper for tenant-specific aliases.
@@ -272,13 +288,30 @@ func AddTenantAlias(tenantEmail, original, primary string) error {
 	return AddContactMapping(tenantEmail, strings.ToLower(bestID), primary, original, "legacy")
 }
 
-// DeleteUserAlias is a legacy compatibility helper.
+// DeleteUserAlias removes an alias for a user from the user_aliases table and updates the cache.
 func DeleteUserAlias(userID int, alias string) error {
-	u, err := GetUserByID(userID)
+	trimmed := strings.TrimSpace(alias)
+	
+	// 1. Update Database
+	_, err := db.Exec(SQL.DeleteUserAlias, userID, trimmed)
 	if err != nil {
-		return nil
+		return err
 	}
-	return DeleteContactMapping("all", strings.ToLower(u.Email))
+
+	// 2. Update Cache
+	metadataMu.Lock()
+	defer metadataMu.Unlock()
+
+	for _, u := range userCache {
+		if u.ID == userID {
+			u.Aliases = slices.DeleteFunc(u.Aliases, func(a string) bool {
+				return a == trimmed
+			})
+			break
+		}
+	}
+
+	return nil
 }
 
 // DeleteTenantAlias is a legacy compatibility helper.
