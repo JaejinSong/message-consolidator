@@ -95,7 +95,7 @@ export const insights = {
         events.on(EVENTS.LANGUAGE_CHANGED, async (lang: string) => {
             if (this.isTabActive('insightsReportsTab') && this.lastReport) {
                 const reportContent = document.getElementById('reportSummaryContent');
-                if (reportContent) insightsRenderer.renderLoading(reportContent);
+                if (reportContent) insightsRenderer.renderLoading(reportContent, 'translation');
                 
                 // If translation doesn't exist, fetch it
                 if (!this.lastReport.translations?.[lang]) {
@@ -198,7 +198,7 @@ export const insights = {
         try {
             if (btn) btn.disabled = true;
             const result = await api.generateReport(start, end);
-            await this.refreshReport(result.report_id);
+            await this.refreshReport(result.id);
         } catch (e: any) {
             console.error("[Insights] Generate report failed:", e);
             alert(`Generation failed: ${e.message}`);
@@ -224,7 +224,7 @@ export const insights = {
         // Why: Delegates to insightsRenderer for fetching history and rendering.
         // It now uses the state-first, API-last model.
         try {
-            await insightsRenderer.initReportList();
+            await insightsRenderer.initReportList(_activeId);
         } catch (e) {
             console.error("[Insights] Refresh reports failed:", e);
         }
@@ -238,6 +238,9 @@ export const insights = {
                 const itemId = el.getAttribute('data-id');
                 el.classList.toggle('c-insights-report-item--active', String(itemId) === String(id));
             });
+
+            const reportContent = document.getElementById('reportSummaryContent');
+            if (reportContent) insightsRenderer.renderLoading(reportContent, 'report');
 
             const report = await api.fetchReportDetail(id);
             this.lastReport = report;

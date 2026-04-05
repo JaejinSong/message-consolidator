@@ -234,6 +234,8 @@ export const I18N_DATA = {
         startDate: "시작일",
         endDate: "종료일",
         reportSankeyTitle: "커뮤니케이션 흐름 (Sankey)",
+        generatingReport: "AI 리포트 생성 및 분석 중...",
+        generatingTranslation: "AI 번역 생성 중...",
     },
     en: {
         subTitle: "Automated Slack & WhatsApp Task Dashboard",
@@ -470,6 +472,8 @@ export const I18N_DATA = {
         startDate: "Start Date",
         endDate: "End Date",
         reportSankeyTitle: "Communication Flow (Sankey)",
+        generatingReport: "Generating & Analyzing AI Report...",
+        generatingTranslation: "Generating AI Translation...",
     },
     id: {
         subTitle: "Dasbor Tugas Slack & WhatsApp Otomatis",

@@ -319,8 +319,9 @@ export const insightsRenderer = {
 
     /**
      * Initializes the report list by fetching from API.
+     * @param activeId - Optional ID to auto-load after refresh.
      */
-    async initReportList(): Promise<void> {
+    async initReportList(activeId: number | null = null): Promise<void> {
         const container = document.getElementById('reportList');
         if (!container) return;
 
@@ -333,14 +334,35 @@ export const insightsRenderer = {
                 let report = state.reports[key];
                 
                 if (!report || !report.report_summary) {
-                    this.renderLoading(document.querySelector('.c-insights-report-main') as HTMLElement);
-                    const fullReport = await api.fetchReportDetail(selected.id!);
-                    report = normalizeReportData(fullReport);
-                    upsertReport(report);
+                    const mainContainer = document.querySelector('.c-insights-report-main');
+                    if (mainContainer) {
+                        this.renderLoading(mainContainer as HTMLElement, 'report');
+                        const fullReport = await api.fetchReportDetail(selected.id!);
+                        report = normalizeReportData(fullReport);
+                        upsertReport(report);
+                    }
                 }
                 
                 this.renderReportDetail(report);
             });
+
+            // Auto-load latest or specified report
+            if (state.reportHistory.length > 0) {
+                const target = activeId 
+                    ? state.reportHistory.find(r => r.id === activeId) 
+                    : state.reportHistory[0];
+                
+                if (target) {
+                    // Trigger the click handler of the first item to load it
+                    const items = container.querySelectorAll('.c-report-list__item');
+                    const index = activeId ? state.reportHistory.indexOf(target) : 0;
+                    if (items[index]) (items[index] as HTMLElement).click();
+                }
+            } else {
+                // Clear loading state if no reports
+                const main = document.querySelector('.c-insights-report-main');
+                if (main) main.innerHTML = `<div class="c-reports-placeholder u-p-8 u-text-dim" data-i18n="noReports">No reports found.</div>`;
+            }
         } catch (err) {
             console.error('Failed to load report history:', err);
             container.innerHTML = '<div class="u-text-dim u-p-4">Failed to load reports.</div>';
@@ -357,9 +379,11 @@ export const insightsRenderer = {
         }
     },
 
-    renderLoading(container: HTMLElement): void {
+    renderLoading(container: HTMLElement, type: 'report' | 'translation' = 'report'): void {
         const i18n = this.getI18n() as any;
-        const msg = i18n.generatingTranslation || "AI 번역 생성 중";
+        const msg = type === 'report' 
+            ? (i18n.generatingReport || "AI 리포트 분석 중...") 
+            : (i18n.generatingTranslation || "AI 번역 생성 중...");
         container.innerHTML = `<div class="c-report-loading u-p-8"><div class="spinner"></div><p class="u-mt-4">${msg}</p></div>`;
     },
 

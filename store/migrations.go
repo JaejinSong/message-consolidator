@@ -1,5 +1,9 @@
 package store
 
+import (
+	"fmt"
+)
+
 func createCoreTables() error {
 	_, err := db.Exec(SQL.CreateUsersTable)
 	if err != nil {
@@ -50,18 +54,6 @@ func createCoreTables() error {
 		return err
 	}
 	_, err = db.Exec(SQL.CreateAIInferenceLogsTable)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(SQL.CreateContactsResolvedView)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(SQL.CreateMessagesView)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(SQL.CreateUsersView)
 	return err
 }
 
@@ -106,6 +98,18 @@ func runMigrations() error {
 	_, _ = db.Exec(SQL.MigrateReportTranslationsAddLanguageCode)
 
 	migrateExistingData()
+	// Why: Views are essential for report generation and message resolution.
+	// Moving them here ensures they are always recreated/updated on every startup.
+	if _, err := db.Exec(SQL.CreateContactsResolvedView); err != nil {
+		return fmt.Errorf("failed to create contacts_resolved view: %w", err)
+	}
+	if _, err := db.Exec(SQL.CreateMessagesView); err != nil {
+		return fmt.Errorf("failed to create messages view: %w", err)
+	}
+	if _, err := db.Exec(SQL.CreateUsersView); err != nil {
+		return fmt.Errorf("failed to create users view: %w", err)
+	}
+
 	return nil
 }
 
