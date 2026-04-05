@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     sortAndSearchMessages,
     getArchiveThresholdDays
-} from '../logic.js';
+} from '../logic';
 
 const mockMessages = [
     { id: 1, requester: 'Alice', task: 'Hello', source: 'slack', timestamp: '2023-01-01T12:00:00Z', done: false, assignee: 'me' },

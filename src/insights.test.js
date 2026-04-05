@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { insights } from './insights.js';
-import { api } from './api.js';
+import { insights } from './insights';
+import { api } from './api';
 import { insightsRenderer } from './insightsRenderer.ts';
 
 // Mock Modules
-vi.mock('./api.js', () => ({
+vi.mock('./api', () => ({
     api: {
         fetchReports: vi.fn(),
         fetchReportDetail: vi.fn(),
@@ -133,7 +133,7 @@ describe('insights.js - Controller', () => {
         api.translateReport.mockResolvedValue({ summary: 'Translated Summary' });
 
         // Trigger event
-        const { events, EVENTS } = await import('./events.js');
+        const { events, EVENTS } = await import('./events');
         events.emit(EVENTS.LANGUAGE_CHANGED, 'ko');
 
         // Verify loading was shown

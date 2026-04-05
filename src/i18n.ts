@@ -1,5 +1,5 @@
-import { state } from './state.ts';
-import { I18N_DATA } from './locales.js';
+import { state } from './state';
+import { I18N_DATA } from './locales';
 
 export const updateUILanguage = (lang) => {
     const data = I18N_DATA[lang];

@@ -1,6 +1,6 @@
-import { I18N_DATA } from '../locales.js';
-import { DOM_IDS, STATUS_STATES, UI_TEXT } from '../constants.ts';
-import { showToast } from './ui-effects.ts';
+import { I18N_DATA } from '../locales';
+import { DOM_IDS, STATUS_STATES, UI_TEXT } from '../constants';
+import { showToast } from './ui-effects';
 
 /**
  * @file status-renderer.ts

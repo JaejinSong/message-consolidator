@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { archive } from './archive.js';
+import { archive } from './archive';
 import { state } from './state.ts';
-import { api } from './api.js';
+import { api } from './api';
 
-vi.mock('./api.js', () => ({
+vi.mock('./api', () => ({
     api: {
         fetchArchive: vi.fn(),
         fetchArchiveCount: vi.fn(),
@@ -12,7 +12,7 @@ vi.mock('./api.js', () => ({
     }
 }));
 
-describe('archive.js', () => {
+describe('archive', () => {
     beforeEach(() => {
         document.body.innerHTML = `
             <div id="archiveSection" class="hidden">

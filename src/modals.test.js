@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { modals } from './modals.js';
-import { api } from './api.js';
+import { modals } from './modals';
+import { api } from './api';
 
-vi.mock('./api.js', () => ({
+vi.mock('./api', () => ({
     api: {
         fetchAliases: vi.fn().mockResolvedValue([]),
         fetchTenantAliases: vi.fn().mockResolvedValue([]),
@@ -16,7 +16,7 @@ vi.mock('./api.js', () => ({
     }
 }));
 
-describe('modals.js', () => {
+describe('modals', () => {
     beforeEach(() => {
         document.body.innerHTML = `
             <button id="settingsBtn"></button>

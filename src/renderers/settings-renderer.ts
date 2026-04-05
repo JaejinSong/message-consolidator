@@ -1,4 +1,4 @@
-import { escapeHTML } from '../utils.ts';
+import { escapeHTML } from '../utils';
 import { Combobox } from '../components/combobox';
 import { AccountItem, ComboboxInterface } from '../types';
 

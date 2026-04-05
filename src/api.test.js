@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { api } from './api.js';
+import { api } from './api';
 
-describe('api.js', () => {
+describe('api', () => {
     beforeEach(() => {
         fetch.mockClear();
     });

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { state, updateLang, updateTheme, updateStats } from './state.ts';
 
-describe('state.js', () => {
+describe('state', () => {
     beforeEach(() => {
         vi.stubGlobal('localStorage', {
             getItem: vi.fn(),

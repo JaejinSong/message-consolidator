@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { updateUILanguage } from './i18n.js';
-import { I18N_DATA } from './locales.js';
+import { updateUILanguage } from './i18n';
+import { I18N_DATA } from './locales';
 
 describe('i18n.js - updateUILanguage', () => {
     beforeEach(() => {

@@ -41,6 +41,7 @@ export interface UserProfile {
     archive_days?: number;
     xp?: number;
     level?: number;
+    aliases?: string[];
 }
 
 export interface TokenUsage {

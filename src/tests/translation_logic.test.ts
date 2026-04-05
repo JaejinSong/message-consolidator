@@ -4,8 +4,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getDisplayTask } from '../logic.ts';
-import { Message } from '../types.ts';
+import { getDisplayTask } from '../logic';
+import { Message } from '../types';
 
 const mockMessages: Partial<Message>[] = [
     { id: 1, task: "Original Task", task_en: "English Task", task_ko: "한국어 태스크" },

@@ -38,6 +38,12 @@ FROM reports r
 LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = 'en'
 WHERE r.user_email = ? AND r.start_date = ? AND r.end_date = ?;
 
+-- name: GetReportByDate
+SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.is_truncated, r.created_at, rt.summary
+FROM reports r
+LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = 'en'
+WHERE r.user_email = ? AND r.start_date = ?;
+
 -- name: GetMessagesForReport
 SELECT 
     m.id, m.user_email, m.source, m.room, 

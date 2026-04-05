@@ -26,6 +26,23 @@ func GetReport(ctx context.Context, email, start, end string) (*Report, error) {
 	return &r, nil
 }
 
+// GetReportByDate retrieves a report for a specific date (YYYY-MM-DD).
+// Why: Enables exact date-based caching to avoid redundant AI generation for the same day.
+func GetReportByDate(ctx context.Context, email, date string) (*Report, error) {
+	var r Report
+	var createdAt time.Time
+	var isTruncated int
+	err := db.QueryRowContext(ctx, SQL.GetReportByDate, email, date).Scan(
+		&r.ID, &r.UserEmail, &r.StartDate, &r.EndDate, &r.Visualization, &isTruncated, &createdAt, &r.Summary,
+	)
+	if err != nil {
+		return nil, err
+	}
+	r.IsTruncated, r.CreatedAt = isTruncated != 0, createdAt
+	r.Translations, _ = GetReportTranslations(ctx, r.ID)
+	return &r, nil
+}
+
 // Why: Retrieves a specific report by its unique ID, ensuring it belongs to the requesting user.
 func GetReportByID(ctx context.Context, id int, email string) (*Report, error) {
 	var r Report

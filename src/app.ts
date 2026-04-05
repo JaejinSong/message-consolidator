@@ -1,10 +1,10 @@
 import '../static/style.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import 'pretendard/dist/web/static/pretendard.css';
-import { state, updateLang, updateTheme, updateStats, updateMessages, setTaskSelection, clearTaskSelection, deleteTaskFromState, updateTaskStatusInState, getTaskById, upsertItem } from './state.ts';
-import { updateUILanguage } from './i18n.js';
-import { I18N_DATA } from './locales.js';
-import { api } from './api.js';
+import { state, updateLang, updateTheme, updateStats, updateMessages, setTaskSelection, clearTaskSelection, deleteTaskFromState, updateTaskStatusInState, getTaskById, upsertItem } from './state';
+import { updateUILanguage } from './i18n';
+import { I18N_DATA } from './locales';
+import { api } from './api';
 import { 
     renderMessages, 
     updateUserProfile, 
@@ -27,15 +27,15 @@ import {
     bindThemeToggle,
     removeTaskNode,
     updateTaskNodeStatus
-} from './renderer.ts';
-import { I18nDictionary, ServiceHandlers, UserProfile, CategorizedMessages } from './types.ts';
-import { archive } from './archive.ts';
-import { modals } from './modals.ts';
-import { insights } from './insights.ts';
-import { events, EVENTS } from './events.ts';
-import { safeAsync, hasSessionHint, setupTabs } from './utils.ts';
-import { STATUS_STATES, POLLING_INTERVALS } from './constants.ts';
-import { authService } from './services/authService.ts';
+} from './renderer';
+import { I18nDictionary, ServiceHandlers, UserProfile, CategorizedMessages } from './types';
+import { archive } from './archive';
+import { modals } from './modals';
+import { insights } from './insights';
+import { events, EVENTS } from './events';
+import { safeAsync, hasSessionHint, setupTabs } from './utils';
+import { STATUS_STATES, POLLING_INTERVALS } from './constants';
+import { authService } from './services/authService';
 
 let syncTimer: any = null;
 

@@ -1,4 +1,4 @@
-import { UserProfile } from '../types.ts';
+import { UserProfile } from '../types';
 
 /**
  * @file profile-renderer.ts

@@ -1,4 +1,4 @@
-import { I18N_DATA } from './locales.js';
+import { I18N_DATA } from './locales';
 
 /**
  * @file utils.ts

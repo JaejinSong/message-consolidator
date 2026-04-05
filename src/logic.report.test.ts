@@ -1,6 +1,6 @@
 import { expect, test, describe } from 'vitest';
-import { normalizeReportData, getReportSummary } from './logic.ts';
-import { upsertReport, state } from './state.ts';
+import { normalizeReportData, getReportSummary } from './logic';
+import { upsertReport, state } from './state';
 
 describe('Report Logic & Caching', () => {
     test('normalizeReportData should handle string and object visualization_data', () => {

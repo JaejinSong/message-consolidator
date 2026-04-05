@@ -1,8 +1,8 @@
-import { state } from './state.ts';
-import { I18N_DATA } from './locales.js';
-import { api } from './api.js';
-import { renderArchive, showToast } from './renderer.ts';
-import { safeAsync } from './utils.ts';
+import { state } from './state';
+import { I18N_DATA } from './locales';
+import { api } from './api';
+import { renderArchive, showToast } from './renderer';
+import { safeAsync } from './utils';
 
 let onTasksChangedCallback: (() => void) | null = null;
 

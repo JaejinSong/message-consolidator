@@ -1,5 +1,5 @@
-import { state } from './state.ts';
-import { api } from './api.js';
+import { state } from './state';
+import { api } from './api';
 import { 
     showToast, 
     renderAliasList, 
@@ -8,8 +8,8 @@ import {
     renderReleaseNotes, 
     renderLinkedAccounts, 
     initAccountLinkingCompos 
-} from './renderer.ts';
-import { safeAsync } from './utils.ts';
+} from './renderer';
+import { safeAsync } from './utils';
 import { SettingsCompos } from './renderers/settings-renderer';
 import { TokenUsageCard } from './components/token-usage';
 

@@ -1,4 +1,4 @@
-import { parseMarkdown } from '../logic.ts';
+import { parseMarkdown } from '../logic';
 // @ts-ignore
 import confetti from 'canvas-confetti';
 

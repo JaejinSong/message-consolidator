@@ -1,9 +1,9 @@
-import { escapeHTML, TimeService } from '../utils.ts';
-import { ICONS } from '../icons.ts';
-import { getDeadlineBadge, getDisplayTask } from '../logic.ts';
-import { I18N_DATA } from '../locales.js';
-import { Message, I18nDictionary } from '../types.ts';
-import { renderSourceList } from '../renderers/task-renderer.ts';
+import { escapeHTML, TimeService } from '../utils';
+import { ICONS } from '../icons';
+import { getDeadlineBadge, getDisplayTask } from '../logic';
+import { I18N_DATA } from '../locales';
+import { Message, I18nDictionary } from '../types';
+import { renderSourceList } from '../renderers/task-renderer';
 
 export type MessageCardProps = Message & {
     lang: string;

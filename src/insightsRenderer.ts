@@ -4,12 +4,12 @@
  * Preserves the layout and BEM structure defined in index.html.
  */
 
-import { state, updateReportHistory, upsertReport } from './state.ts';
-import { I18N_DATA } from './locales.js';
-import { UserStats, TokenUsage, IReportData } from './types.ts';
-import { generateHeatmapData, normalizeReportData } from './logic.ts';
-import { reportsRenderer } from './renderers/reports-renderer.ts';
-import { api } from './api.js';
+import { state, updateReportHistory, upsertReport } from './state';
+import { I18N_DATA } from './locales';
+import { UserStats, TokenUsage, IReportData } from './types';
+import { generateHeatmapData, normalizeReportData } from './logic';
+import { reportsRenderer } from './renderers/reports-renderer';
+import { api } from './api';
 
 const getCssVariableValue = (varName: string): string => {
     return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();

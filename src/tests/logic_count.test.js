@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getActiveCount } from '../logic.js';
+import { getActiveCount } from '../logic';
 
 describe('logic.js - getActiveCount', () => {
     it('should correctly count only active messages (not done, not deleted)', () => {

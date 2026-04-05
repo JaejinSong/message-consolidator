@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { events, EVENTS } from './events.js';
+import { events, EVENTS } from './events';
 
 describe('events.js - EventEmitter', () => {
     it('should subscribe and emit events', () => {

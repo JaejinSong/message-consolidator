@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as renderer from './renderer.ts';
-import { I18N_DATA } from './locales.js';
+import { I18N_DATA } from './locales';
 
 
 describe('renderer.js - Empty State Messages', () => {

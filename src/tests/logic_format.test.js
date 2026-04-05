@@ -1,7 +1,7 @@
 import {
     getDeadlineBadge,
     parseMarkdown
-} from '../logic.js';
+} from '../logic';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 describe('logic.js - getDeadlineBadge', () => {

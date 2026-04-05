@@ -1,11 +1,11 @@
-import { MessageCard } from './components/message-card.ts';
-import { Message, I18nDictionary, MessageHandlers, CategorizedMessages } from './types.ts';
-import { sortAndSearchMessages, getActiveCount } from './logic.ts';
-import { state } from './state.ts';
-import { I18N_DATA } from './locales.js';
-import { TimeService, escapeHTML } from './utils.ts';
-import { ICONS } from './icons.ts';
-import { api } from './api.js';
+import { MessageCard } from './components/message-card';
+import { Message, I18nDictionary, MessageHandlers, CategorizedMessages } from './types';
+import { sortAndSearchMessages, getActiveCount } from './logic';
+import { state } from './state';
+import { I18N_DATA } from './locales';
+import { TimeService, escapeHTML } from './utils';
+import { ICONS } from './icons';
+import { api } from './api';
 
 export { 
     updateServiceStatusUI, 
@@ -19,9 +19,9 @@ export {
     updateQRTimer,
     bindGmailStatus,
     bindWhatsAppStatus
-} from './renderers/status-renderer.ts';
+} from './renderers/status-renderer';
 
-export { updateUserProfile } from './renderers/profile-renderer.ts';
+export { updateUserProfile } from './renderers/profile-renderer';
 
 export { 
     renderAliasList, 
@@ -29,7 +29,7 @@ export {
     renderContactMappings,
     renderLinkedAccounts,
     initAccountLinkingCompos
-} from './renderers/settings-renderer.ts';
+} from './renderers/settings-renderer';
 
 export { 
     triggerXPAnimation, 
@@ -39,7 +39,7 @@ export {
     setScanLoading, 
     setTheme, 
     bindThemeToggle 
-} from './renderers/ui-effects.ts';
+} from './renderers/ui-effects';
 
 /**
  * @file renderer.ts

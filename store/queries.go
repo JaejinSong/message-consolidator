@@ -140,6 +140,7 @@ var SQL = struct {
 	InsertReport         string
 	InsertReportTranslation string
 	GetReport            string
+	GetReportByDate      string
 	ListReports          string
 	GetReportByID        string
 	GetReportTranslations string
@@ -377,6 +378,7 @@ func loadAllQueries() error {
 	SQL.InsertReport = queries["InsertReport"]
 	SQL.InsertReportTranslation = queries["InsertReportTranslation"]
 	SQL.GetReport = queries["GetReport"]
+	SQL.GetReportByDate = queries["GetReportByDate"]
 	SQL.ListReports = queries["ListReports"]
 	SQL.GetReportByID = queries["GetReportByID"]
 	SQL.GetReportTranslations = queries["GetReportTranslations"]

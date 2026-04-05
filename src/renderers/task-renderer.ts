@@ -1,4 +1,4 @@
-import { ICONS } from '../icons.ts';
+import { ICONS } from '../icons';
 
 /**
  * @file task-renderer.ts

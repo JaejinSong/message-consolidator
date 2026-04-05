@@ -1,14 +1,14 @@
-import { I18N_DATA } from './locales.js';
-import { ICONS } from './icons.ts';
-import { TimeService } from './utils.ts';
-import { state } from './state.ts';
+import { I18N_DATA } from './locales';
+import { ICONS } from './icons';
+import { TimeService } from './utils';
+import { state } from './state';
 
 /**
  * @file logic.ts
  * @description Pure functions for data processing, sorting, and classification.
  */
 
-import { Message, I18nDictionary, IReportData, ParsedVisualization } from './types.ts';
+import { Message, I18nDictionary, IReportData, ParsedVisualization } from './types';
 
 /** 완료된 업무가 대시보드에 노출되는 기준일 (보관함 이관 기준) */
 export const getArchiveThresholdDays = (): number => state.archiveThresholdDays || 7;

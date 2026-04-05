@@ -1,21 +1,15 @@
 import { apiFetch } from './utils/apiClient';
-import { state, upsertReport } from './state.ts';
-import { normalizeReportData } from './logic.ts';
+import { state, upsertReport } from './state';
+import { normalizeReportData } from './logic';
+import { Message, UserProfile, UserStats, TokenUsage, AchievementEntry, IReportData, AccountItem, CategorizedMessages } from './types';
 
 /**
- * @file api.js
- * @description Centralized API service collection.
- * All methods now use the centralized apiFetch client from src/utils/apiClient.ts.
- * Path prefixes (/api) are managed by the VITE_API_BASE_URL environment variable.
+ * @file api.ts
+ * @description Centralized API service collection in TypeScript.
+ * All methods use the centralized apiFetch client from src/utils/apiClient.ts.
  */
 
-/**
- * Validates and converts an ID to a proper integer.
- * @param {any} id - The ID to validate and convert.
- * @returns {number} - The validated integer.
- * @throws {Error} - If the ID is invalid (not a positive integer).
- */
-const ensureInt = (id) => {
+const ensureInt = (id: string | number): number => {
     const num = Number(id);
     if (!Number.isInteger(num) || num <= 0) {
         throw new Error(`Invalid ID detected: ${id} (Parsed as: ${num}). Expected a positive integer.`);
@@ -23,47 +17,36 @@ const ensureInt = (id) => {
     return num;
 };
 
-/**
- * Validates and converts an array of IDs to proper integers.
- * @param {any[]} ids - The array of IDs to validate and convert.
- * @returns {number[]} - The validated integer array.
- * @throws {Error} - If any ID in the array is invalid.
- */
-const ensureIntArray = (ids) => {
+const ensureIntArray = (ids: (string | number)[]): number[] => {
     if (!Array.isArray(ids)) {
         throw new Error(`Expected an array of IDs, but received: ${typeof ids}`);
     }
     return ids.map(ensureInt);
 };
 
-/**
- * Why: Page-unit Pure JIT Batcher.
- * Aggregates translation requests within a 50ms window to prevent N+1 API calls.
- */
 class TranslationBatcher {
-    constructor() {
-        this.queue = new Map(); // lang -> Set<id>
-        this.promises = new Map(); // `${id}_${lang}` -> { resolve, reject }
-        this.timer = null;
-    }
+    private queue: Map<string, Set<number>> = new Map();
+    private promises: Map<string, { promise: Promise<string>; resolve: (value: string) => void; reject: (reason?: any) => void }> = new Map();
+    private timer: ReturnType<typeof setTimeout> | null = null;
 
-    request(id, lang) {
+    request(id: string | number, lang: string): Promise<string> {
         const validatedId = ensureInt(id);
         const key = `${validatedId}_${lang}`;
-        if (this.promises.has(key)) return this.promises.get(key).promise;
+        if (this.promises.has(key)) return this.promises.get(key)!.promise;
 
         if (!this.queue.has(lang)) this.queue.set(lang, new Set());
-        this.queue.get(lang).add(validatedId);
+        this.queue.get(lang)!.add(validatedId);
 
-        let resolve, reject;
-        const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+        let resolve!: (value: string) => void;
+        let reject!: (reason?: any) => void;
+        const promise = new Promise<string>((res, rej) => { resolve = res; reject = rej; });
         this.promises.set(key, { promise, resolve, reject });
 
         if (!this.timer) this.timer = setTimeout(() => this.flush(), 50);
         return promise;
     }
 
-    async flush() {
+    private async flush() {
         this.timer = null;
         const currentQueue = new Map(this.queue);
         this.queue.clear();
@@ -73,20 +56,26 @@ class TranslationBatcher {
         }
     }
 
-    async processBatch(ids, lang) {
+    private async processBatch(ids: number[], lang: string) {
         try {
             const { results } = await api.translateTasksBatch(ids, lang);
             ids.forEach(id => {
-                const res = results.find(r => r.id === id);
+                const res = (results as any[]).find(r => r.id === id);
                 const key = `${id}_${lang}`;
-                this.promises.get(key)?.resolve(res?.translated_text || "");
-                this.promises.delete(key);
+                const entry = this.promises.get(key);
+                if (entry) {
+                    entry.resolve(res?.translated_text || "");
+                    this.promises.delete(key);
+                }
             });
         } catch (err) {
             ids.forEach(id => {
                 const key = `${id}_${lang}`;
-                this.promises.get(key)?.reject(err);
-                this.promises.delete(key);
+                const entry = this.promises.get(key);
+                if (entry) {
+                    entry.reject(err);
+                    this.promises.delete(key);
+                }
             });
         }
     }
@@ -95,19 +84,15 @@ class TranslationBatcher {
 const batcher = new TranslationBatcher();
 
 export const api = {
-    /**
-     * Why: Entry point for JIT translation. 
-     * Uses the batcher to group requests within the same event loop/50ms.
-     */
-    async requestTranslation(id, lang) {
+    async requestTranslation(id: string | number, lang: string): Promise<string> {
         return batcher.request(id, lang);
     },
 
-    async fetchMessages(lang) {
+    async fetchMessages(lang: string): Promise<CategorizedMessages & { messages?: CategorizedMessages, user?: UserProfile }> {
         return apiFetch('/messages', { params: { lang }, errorMessage: 'Fetch messages failed' });
     },
 
-    async toggleDone(id, done) {
+    async toggleDone(id: string | number, done: boolean): Promise<any> {
         const validatedId = ensureInt(id);
         return apiFetch('/messages/done', {
             method: 'POST',
@@ -116,7 +101,7 @@ export const api = {
         });
     },
 
-    async deleteTask(idOrIds) {
+    async deleteTask(idOrIds: string | number | (string | number)[]): Promise<any> {
         const body = Array.isArray(idOrIds) 
             ? { ids: ensureIntArray(idOrIds) } 
             : { id: ensureInt(idOrIds) };
@@ -127,7 +112,7 @@ export const api = {
         });
     },
 
-    async hardDeleteTasks(ids) {
+    async hardDeleteTasks(ids: (string | number)[]): Promise<any> {
         const validatedIds = ensureIntArray(ids);
         return apiFetch('/messages/hard-delete', {
             method: 'POST',
@@ -136,7 +121,7 @@ export const api = {
         });
     },
 
-    async restoreTasks(ids) {
+    async restoreTasks(ids: (string | number)[]): Promise<any> {
         const validatedIds = ensureIntArray(ids);
         return apiFetch('/messages/restore', {
             method: 'POST',
@@ -145,19 +130,19 @@ export const api = {
         });
     },
 
-    async fetchWhatsAppStatus() {
+    async fetchWhatsAppStatus(): Promise<{ status: string }> {
         return apiFetch('/whatsapp/status', { errorMessage: 'WA status check failed' });
     },
 
-    async fetchSlackStatus() {
+    async fetchSlackStatus(): Promise<{ status: string }> {
         return apiFetch('/slack/status', { errorMessage: 'Slack status check failed' });
     },
 
-    async triggerScan(lang) {
+    async triggerScan(lang: string): Promise<any> {
         return apiFetch('/scan', { params: { lang }, errorMessage: 'Scan failed' });
     },
 
-    async translateTasks(lang) {
+    async translateTasks(lang: string): Promise<any> {
         return apiFetch('/translate', { 
             method: 'POST', 
             params: { lang }, 
@@ -165,16 +150,15 @@ export const api = {
         });
     },
 
-    async translateTasksBatch(taskIds, lang) {
-        const validatedIds = ensureIntArray(taskIds);
+    async translateTasksBatch(taskIds: number[], lang: string): Promise<{ results: any[] }> {
         return apiFetch('/tasks/translate-batch', {
             method: 'POST',
-            body: JSON.stringify({ task_ids: validatedIds, lang }),
+            body: JSON.stringify({ task_ids: taskIds, lang }),
             errorMessage: 'Batch translation failed'
         });
     },
 
-    async fetchArchive(params = {}) {
+    async fetchArchive(params: any = {}): Promise<Message[]> {
         const queryParams = { ...params };
         if (!queryParams.lang) queryParams.lang = 'ko';
         if (!queryParams.status) queryParams.status = 'all';
@@ -185,8 +169,8 @@ export const api = {
         });
     },
 
-    async fetchArchiveCount(q = '', status = 'all') {
-        const params = {};
+    async fetchArchiveCount(q = '', status = 'all'): Promise<{ count: number }> {
+        const params: any = {};
         if (q) params.q = q;
         if (status) params.status = status;
         
@@ -196,15 +180,15 @@ export const api = {
         });
     },
 
-    async fetchUserProfile() {
+    async fetchUserProfile(): Promise<UserProfile> {
         return apiFetch('/user/info', { errorMessage: 'User info fetch failed' });
     },
 
-    async fetchAliases() {
+    async fetchAliases(): Promise<string[]> {
         return apiFetch('/user/aliases', { errorMessage: 'Fetch aliases failed' });
     },
 
-    async fetchUserStats() {
+    async fetchUserStats(): Promise<UserStats> {
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
         return apiFetch('/user/stats', {
             headers: { 'X-Timezone': tz },
@@ -212,15 +196,15 @@ export const api = {
         });
     },
 
-    async fetchAchievements() {
+    async fetchAchievements(): Promise<AchievementEntry[]> {
         return apiFetch('/achievements', { errorMessage: 'Fetch achievements failed' });
     },
 
-    async fetchUserAchievements() {
+    async fetchUserAchievements(): Promise<any[]> {
         return apiFetch('/user/achievements', { errorMessage: 'Fetch user achievements failed' });
     },
 
-    async addAlias(alias) {
+    async addAlias(alias: string): Promise<any> {
         return apiFetch('/user/alias/add', {
             method: 'POST',
             body: JSON.stringify({ alias }),
@@ -228,7 +212,7 @@ export const api = {
         });
     },
 
-    async removeAlias(alias) {
+    async removeAlias(alias: string): Promise<any> {
         return apiFetch('/user/alias/delete', {
             method: 'POST',
             body: JSON.stringify({ alias }),
@@ -236,40 +220,40 @@ export const api = {
         });
     },
 
-    async getWhatsAppQR() {
+    async getWhatsAppQR(): Promise<{ qr: string }> {
         return apiFetch('/whatsapp/qr', { errorMessage: 'QR fetch failed' });
     },
 
-    async logoutWhatsApp() {
+    async logoutWhatsApp(): Promise<any> {
         return apiFetch('/whatsapp/logout', { 
             method: 'POST', 
             errorMessage: 'WhatsApp logout failed' 
         });
     },
 
-    async fetchGmailStatus() {
+    async fetchGmailStatus(): Promise<{ connected: boolean }> {
         return apiFetch('/gmail/status', { errorMessage: 'Gmail status check failed' });
     },
 
-    async disconnectGmail() {
+    async disconnectGmail(): Promise<any> {
         return apiFetch('/gmail/disconnect', { 
             method: 'POST', 
             errorMessage: 'Gmail disconnect failed' 
         });
     },
 
-    async buyStreakFreeze() {
+    async buyStreakFreeze(): Promise<any> {
         return apiFetch('/user/buy-freeze', { 
             method: 'POST', 
             errorMessage: 'Purchase failed' 
         });
     },
 
-    async fetchTenantAliases() {
+    async fetchTenantAliases(): Promise<AccountItem[]> {
         return apiFetch('/tenant/aliases', { errorMessage: 'Fetch tenant aliases failed' });
     },
 
-    async addTenantAlias(original, primary) {
+    async addTenantAlias(original: string[], primary: string): Promise<any> {
         return apiFetch('/tenant/alias/add', {
             method: 'POST',
             body: JSON.stringify({ aliases: original, display_name: primary }),
@@ -277,7 +261,7 @@ export const api = {
         });
     },
 
-    async removeTenantAlias(id) {
+    async removeTenantAlias(id: string | number): Promise<any> {
         const validatedId = ensureInt(id);
         return apiFetch('/tenant/alias/delete', {
             method: 'POST',
@@ -286,15 +270,15 @@ export const api = {
         });
     },
 
-    async fetchTokenUsage() {
+    async fetchTokenUsage(): Promise<TokenUsage> {
         return apiFetch('/user/token-usage', { errorMessage: 'Fetch token usage failed' });
     },
 
-    async fetchContactMappings() {
+    async fetchContactMappings(): Promise<AccountItem[]> {
         return apiFetch('/contacts/mappings', { errorMessage: 'Fetch contact mappings failed' });
     },
 
-    async addContactMapping(repName, aliases) {
+    async addContactMapping(repName: string, aliases: string[]): Promise<any> {
         return apiFetch('/contacts/mapping/add', {
             method: 'POST',
             body: JSON.stringify({ display_name: repName, aliases }),
@@ -302,7 +286,7 @@ export const api = {
         });
     },
 
-    async removeContactMapping(id) {
+    async removeContactMapping(id: string | number): Promise<any> {
         const validatedId = ensureInt(id);
         return apiFetch('/contacts/mapping/delete', {
             method: 'POST',
@@ -311,24 +295,21 @@ export const api = {
         });
     },
 
-    async fetchReleaseNotes(type = 'user', lang = 'ko') {
+    async fetchReleaseNotes(type = 'user', lang = 'ko'): Promise<any> {
         return apiFetch('/release-notes', { 
             params: { type, lang }, 
             errorMessage: 'Fetch release notes failed' 
         });
     },
 
-    async fetchOriginalMessage(id) {
+    async fetchOriginalMessage(id: string | number): Promise<{ original_text: string }> {
         const validatedId = ensureInt(id);
         return apiFetch(`/messages/${validatedId}/original`, { 
             errorMessage: 'Fetch original message failed' 
         });
     },
 
-    /**
-     * Aggregates status from all channels and normalizes them.
-     */
-    async getChannelStatus() {
+    async getChannelStatus(): Promise<{ slack: boolean, whatsapp: boolean, gmail: boolean }> {
         const [slack, whatsapp, gmail] = await Promise.all([
             this.fetchSlackStatus().catch(() => ({ status: 'DISCONNECTED' })),
             this.fetchWhatsAppStatus().catch(() => ({ status: 'DISCONNECTED' })),
@@ -342,25 +323,15 @@ export const api = {
         };
     },
 
-    /**
-     * @description Fetch all AI Weekly Reports
-     */
-    async fetchReports() {
+    async fetchReports(): Promise<IReportData[]> {
         return apiFetch('/reports', { errorMessage: 'Fetch reports failed' });
     },
 
-    /**
-     * @description Fetch lightweight report metadata history.
-     */
-    async fetchReportHistory() {
+    async fetchReportHistory(): Promise<any[]> {
         return apiFetch('/reports/history', { errorMessage: 'Fetch report history failed' });
     },
 
-    /**
-     * @description Generate a new AI Weekly Report for a specific period
-     */
-    async generateReport(startDate, endDate) {
-        // Why: AI generation can take a long time. Implement a 60-second timeout using AbortController.
+    async generateReport(startDate: string, endDate: string): Promise<IReportData> {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000);
 
@@ -371,7 +342,7 @@ export const api = {
                 signal: controller.signal,
                 errorMessage: 'Generate report failed'
             });
-        } catch (err) {
+        } catch (err: any) {
             if (err.name === 'AbortError') {
                 throw new Error('AI 리포트 생성 시간이 초과되었습니다 (60초). 잠시 후 다시 시도해 주세요.');
             }
@@ -382,32 +353,26 @@ export const api = {
     },
 
     /**
-     * @description Fetch or Generate report with state-level caching.
+     * Why: Frontend double-caching logic (State -> API).
+     * Enforces YYYY-MM-DD date matching.
      */
-    async getReport(startDate, endDate) {
-        const key = `${startDate}_${endDate}`;
-        if (state.reports && state.reports[key]) {
-            return state.reports[key];
+    async getReport(date: string): Promise<IReportData> {
+        if (state.reports && state.reports[date]) {
+            return state.reports[date];
         }
         
-        const rawReport = await this.generateReport(startDate, endDate);
+        const rawReport = await this.generateReport(date, date);
         const normalized = normalizeReportData(rawReport);
         upsertReport(normalized);
-        return state.reports[key];
+        return state.reports[date];
     },
 
-    /**
-     * @description Fetch a specific AI Weekly Report by ID
-     */
-    async fetchReportDetail(id) {
+    async fetchReportDetail(id: string | number): Promise<IReportData> {
         const validatedId = ensureInt(id);
         return apiFetch(`/reports/${validatedId}`, { errorMessage: 'Fetch report detail failed' });
     },
 
-    /**
-     * @description Delete a specific AI Weekly Report by ID
-     */
-    async deleteReport(id) {
+    async deleteReport(id: string | number): Promise<any> {
         const validatedId = ensureInt(id);
         return apiFetch(`/reports/${validatedId}`, {
             method: 'DELETE',
@@ -415,10 +380,7 @@ export const api = {
         });
     },
 
-    /**
-     * @description Request JIT translation for a specific report
-     */
-    async translateReport(id, lang) {
+    async translateReport(id: string | number, lang: string): Promise<any> {
         const validatedId = ensureInt(id);
         return apiFetch(`/reports/${validatedId}/translate`, {
             method: 'POST',
@@ -427,20 +389,14 @@ export const api = {
         });
     },
 
-    /**
-     * @description Search contacts for autocomplete.
-     */
-    async searchContacts(q) {
+    async searchContacts(q: string): Promise<AccountItem[]> {
         return apiFetch('/contacts/search', { 
             params: { q }, 
             errorMessage: 'Search contacts failed' 
         });
     },
 
-    /**
-     * @description Link two contacts (target -> master).
-     */
-    async linkAccounts(targetId, masterId) {
+    async linkAccounts(targetId: string | number, masterId: string | number): Promise<any> {
         const vTarget = ensureInt(targetId);
         const vMaster = ensureInt(masterId);
         return apiFetch('/contacts/link', {
@@ -450,10 +406,7 @@ export const api = {
         });
     },
 
-    /**
-     * @description Unlink a contact from its master.
-     */
-    async unlinkAccount(contactId) {
+    async unlinkAccount(contactId: string | number): Promise<any> {
         const validatedId = ensureInt(contactId);
         return apiFetch('/contacts/unlink', {
             method: 'POST',
@@ -462,17 +415,11 @@ export const api = {
         });
     },
 
-    /**
-     * @description Fetch all current account links for the user.
-     */
-    async fetchLinkedAccounts() {
+    async fetchLinkedAccounts(): Promise<any[]> {
         return apiFetch('/contacts/links', { errorMessage: 'Fetch linked accounts failed' });
     },
 
-    /**
-     * @description Merges multiple tasks into a single destination task.
-     */
-    async mergeTasks(targetIds, destinationId) {
+    async mergeTasks(targetIds: (string | number)[], destinationId: string | number): Promise<any> {
         const validatedTargets = ensureIntArray(targetIds);
         const validatedDest = ensureInt(destinationId);
         return apiFetch('/tasks/merge', {

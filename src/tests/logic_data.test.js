@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     calculateHeatmapLevel,
     processTimeSeriesData
-} from '../logic.js';
+} from '../logic';
 
 describe('logic.js - calculateHeatmapLevel', () => {
     it('should return correct level based on task count', () => {

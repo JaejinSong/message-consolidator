@@ -1,5 +1,5 @@
-import { IReportData, ParsedVisualization } from '../types.ts';
-import { parseMarkdown } from '../logic.ts';
+import { IReportData, ParsedVisualization } from '../types';
+import { parseMarkdown } from '../logic';
 
 /**
  * Reports Vanilla SVG Renderer

@@ -4,12 +4,12 @@
  * Implements strict Tab Isolation & On-Demand Fetching.
  */
 
-import { api } from './api.js';
-import { state } from './state.ts';
-import { I18N_DATA } from './locales.js';
-import { insightsRenderer } from './insightsRenderer.ts';
-import { events, EVENTS } from './events.js';
-import { UserStats, TokenUsage, IReportData } from './types.ts';
+import { api } from './api';
+import { state } from './state';
+import { I18N_DATA } from './locales';
+import { insightsRenderer } from './insightsRenderer';
+import { events, EVENTS } from './events';
+import { UserStats, TokenUsage, IReportData } from './types';
 
 export const insights = {
     lastStats: null as UserStats | null,

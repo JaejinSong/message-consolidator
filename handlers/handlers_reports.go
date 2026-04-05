@@ -34,25 +34,17 @@ func (a *API) HandleGetReportHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleGenerateReport triggers the generation of a new report for a specific period.
-// Why: Prevents double-billing and data redundancy by checking for existing reports within the same period before invoking the expensive AI generation process.
+// Why: Prevents double-billing and data redundancy by checking for existing reports.
+// Idempotency: Returns 200 OK if the report already exists for the given date.
 func (a *API) HandleGenerateReport(w http.ResponseWriter, r *http.Request) {
-	email := auth.GetUserEmail(r)
-	start := r.URL.Query().Get("start")
-	end := r.URL.Query().Get("end")
-
+	email, start, end := auth.GetUserEmail(r), r.URL.Query().Get("start"), r.URL.Query().Get("end")
 	if start == "" || end == "" {
 		respondError(w, http.StatusBadRequest, "Missing start or end date")
 		return
 	}
 
-	// 1. Check for duplicate (same period)
-	existing, err := store.GetReport(r.Context(), email, start, end)
-	if err == nil && existing != nil {
-		// Return existing report ID to client
-		respondJSON(w, http.StatusConflict, map[string]interface{}{
-			"error":     "Report for this period already exists",
-			"report_id": existing.ID,
-		})
+	if existing, err := store.GetReportByDate(r.Context(), email, start); err == nil && existing != nil {
+		respondJSON(w, http.StatusOK, existing)
 		return
 	}
 
@@ -61,13 +53,11 @@ func (a *API) HandleGenerateReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Generate New
 	report, err := a.Reports.GenerateReport(r.Context(), email, start, end)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
 	respondJSON(w, http.StatusCreated, report)
 }
 
