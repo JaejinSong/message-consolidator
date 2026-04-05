@@ -251,24 +251,27 @@ func AddUserAlias(userID int, alias string) error {
 	}
 
 	// 2. Update Cache (Write-through)
-	metadataMu.Lock()
-	defer metadataMu.Unlock()
-
 	var email string
+	var uName string
+	var uEmail string
+
+	metadataMu.Lock()
 	for e, u := range userCache {
 		if u.ID == userID {
 			email = e
+			uName = u.Name
+			uEmail = u.Email
 			if !slices.Contains(u.Aliases, trimmed) {
 				u.Aliases = append(u.Aliases, trimmed)
 			}
 			break
 		}
 	}
+	metadataMu.Unlock()
 
 	// 3. Keep Contacts mapping for global resolution consistency
 	if email != "" {
-		u := userCache[email]
-		_ = AddContactMapping("all", strings.ToLower(u.Email), u.Name, trimmed, "user")
+		_ = AddContactMapping("all", strings.ToLower(uEmail), uName, trimmed, "user")
 	}
 
 	return nil
