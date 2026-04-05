@@ -71,11 +71,6 @@ type TranslationResult struct {
 	Error     string `json:"error,omitempty"`
 }
 
-// isRateLimit checks if the error is a 429 Too Many Requests response from Gemini API.
-func isRateLimit(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "429")
-}
-
 // Why: Safely retries AI API calls with exponential backoff to handle transient errors and rate limits gracefully, ensuring reliability under high load.
 func generateWithRetry(ctx context.Context, model *genai.GenerativeModel, prompt genai.Part, timeout time.Duration, maxRetries int) (*genai.GenerateContentResponse, error) {
 	var resp *genai.GenerateContentResponse

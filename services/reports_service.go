@@ -344,18 +344,3 @@ func (s *ReportsService) ProcessOnDemandTranslation(ctx context.Context, email s
 
 	return translated, nil
 }
-
-func getLanguageName(code string) string {
-	switch strings.ToLower(code) {
-	case "ko":
-		return "Korean"
-	case "en":
-		return "English"
-	case "id":
-		return "Indonesian"
-	case "th":
-		return "Thai"
-	default:
-		return code
-	}
-}

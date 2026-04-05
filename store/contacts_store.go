@@ -312,14 +312,6 @@ func findAllInMappings(mappings []ContactRecord, identifier string) []*ContactRe
 	return res
 }
 
-func findInMappings(mappings []ContactRecord, identifier string) *ContactRecord {
-	matches := findAllInMappings(mappings, identifier)
-	if len(matches) > 0 {
-		return matches[0]
-	}
-	return nil
-}
-
 func fetchContactsBatch(ctx context.Context, tenantEmail string, remaining []string, res map[string]*ContactRecord, ambiguous map[string]bool) (map[string]*ContactRecord, map[string]bool, error) {
 	hits := make(map[string][]string)
 	rows, err := db.QueryContext(ctx, "SELECT id, tenant_email, canonical_id, display_name, aliases, source, master_contact_id FROM contacts WHERE tenant_email = ?", tenantEmail)

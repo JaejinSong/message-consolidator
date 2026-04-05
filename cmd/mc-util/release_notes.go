@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -53,7 +53,7 @@ func getLatestVersion() string {
 }
 
 func getLatestFromFile(path string) string {
-	content, _ := ioutil.ReadFile(path)
+	content, _ := os.ReadFile(path)
 	re := regexp.MustCompile(`v(\d+\.\d+\.\d+)`)
 	matches := re.FindAllStringSubmatch(string(content), -1)
 	max := "2.4.0"
@@ -66,7 +66,7 @@ func getLatestFromFile(path string) string {
 }
 
 func getLatestTimeFromFile(path string) string {
-	content, _ := ioutil.ReadFile(path)
+	content, _ := os.ReadFile(path)
 	re := regexp.MustCompile(`\((\d{4}-\d{2}-\d{2} \d{2}:\d{2}) UTC\)`)
 	match := re.FindStringSubmatch(string(content))
 	if len(match) > 1 {
@@ -115,7 +115,7 @@ func fetchReleaseNotes(cfg *config.Config, commits, version string) ReleaseNotes
 }
 
 func loadPrompt(commits, version string) string {
-	raw, _ := ioutil.ReadFile("ai/prompts/release_notes_combined.prompt")
+	raw, _ := os.ReadFile("ai/prompts/release_notes_combined.prompt")
 	parsed, err := ai.ParsePrompt(string(raw))
 	if err != nil {
 		logger.Errorf("[RELEASE] Failed to parse prompt: %v", err)
@@ -166,15 +166,15 @@ func dispatchReleaseNotes(notes ReleaseNotesJSON, version string) {
 }
 
 func writeWithBackup(path, content, version string) {
-	current, _ := ioutil.ReadFile(path)
+	current, _ := os.ReadFile(path)
 	if strings.Contains(string(current), "v"+version) {
 		logger.Infof("[SKIP] %s already updated", path)
 		return
 	}
 
-	_ = ioutil.WriteFile(path+".bak", current, 0644)
+	_ = os.WriteFile(path+".bak", current, 0644)
 	newContent := content + "\n\n---\n\n" + string(current)
-	_ = ioutil.WriteFile(path, []byte(newContent), 0644)
+	_ = os.WriteFile(path, []byte(newContent), 0644)
 	logger.Infof("[DONE] Updated %s", path)
 }
 

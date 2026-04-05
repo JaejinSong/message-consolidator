@@ -173,7 +173,7 @@ func ArchiveOldTasks(ctx context.Context) error {
 	}
 
 	//Why: Limits archiving task duration to 15 seconds to prevent database performance degradation or locks.
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	safeArchiveDays := GetAutoArchiveDays()
