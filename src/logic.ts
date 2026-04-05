@@ -1,6 +1,6 @@
 import { I18N_DATA } from './locales.js';
 import { ICONS } from './icons.ts';
-import { TimeService, escapeHTML } from './utils.ts';
+import { TimeService } from './utils.ts';
 import { state } from './state.ts';
 
 /**
@@ -62,10 +62,6 @@ export function getActiveCount(messages: Message[] | undefined): number {
 }
 
 
-/**
- * @deprecated Categorization is now backend-driven. Logic for 'All' tab should be handled in the renderer.
- */
-// Removed sortAndFilterMessages as it's redundant with backend-driven categorization
 
 export function calculateStats(messages: Message[]) {
     const total = messages.length;
@@ -126,7 +122,6 @@ export function generateHeatmapData(history: any[], days: number = 30) {
     });
 }
 
-// Removed classifyMessages as it's redundant with backend-driven categorization
 
 /**
  * Calculates activity level for heatmap.

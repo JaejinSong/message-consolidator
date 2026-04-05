@@ -165,7 +165,7 @@ export function createCardElement(m: Message): string {
 /**
  * Renders message cards based on categorized data.
  */
-export function renderMessages(categorized: CategorizedMessages, handlers: MessageHandlers): void {
+export function renderMessages(categorized: CategorizedMessages): void {
     const activeTab = document.querySelector('.tab-btn.active');
     const currentTab = activeTab?.getAttribute('data-tab') || 'myTasksTab';
     const searchQuery = (document.getElementById('taskSearch') as HTMLInputElement)?.value || '';

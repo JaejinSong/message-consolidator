@@ -28,7 +28,7 @@ function parseMetadata(metadata: any): Record<string, any> | null {
  * Decouples rendering logic from the main application state to allow for independent testing.
  */
 export function MessageCard(props: MessageCardProps): string {
-    const { id, source, source_channels, room, task, task_en, task_ko, is_translating, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translating: oldTranslating, translationError, has_original, assigned_to, isSelected } = props;
+    const { id, source, source_channels, room, is_translating, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translating: oldTranslating, translationError, has_original, assigned_to, isSelected } = props;
     
     // Unified translating state (support legacy and new fields)
     const translating = oldTranslating || is_translating;

@@ -378,6 +378,7 @@ func loadAllQueries() error {
 	SQL.InsertReportTranslation = queries["InsertReportTranslation"]
 	SQL.GetReport = queries["GetReport"]
 	SQL.ListReports = queries["ListReports"]
+	SQL.GetReportByID = queries["GetReportByID"]
 	SQL.GetReportTranslations = queries["GetReportTranslations"]
 	SQL.GetReportList = queries["GetReportList"]
 	SQL.DeleteReport = queries["DeleteReport"]

@@ -194,3 +194,24 @@ export interface IReportData {
     is_truncated?: boolean;
     created_at?: string;
 }
+
+export interface AccountItem {
+    id: string | number;
+    canonical_id: string;
+    display_name?: string;
+}
+
+export interface ComboboxOptions {
+    placeholder?: string;
+    searchFn: (q: string) => Promise<AccountItem[]>;
+    onSelect?: (item: AccountItem) => void;
+    debounceMs?: number;
+    renderItem?: (item: AccountItem) => string;
+    id?: string;
+}
+
+export interface ComboboxInterface {
+    getValue(): AccountItem | null;
+    clear(): void;
+    destroy(): void;
+}

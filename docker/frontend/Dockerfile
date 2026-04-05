@@ -5,7 +5,11 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-COPY . .
+# 2. Build: Explicitly copy frontend sources
+COPY src/ ./src/
+COPY types/ ./types/
+COPY static/ ./static/
+COPY *.json *.ts *.cjs ./
 # Why: Pass VITE_API_BASE_URL to Vite build process for correct API endpoint resolution.
 ARG VITE_API_BASE_URL=/api
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL

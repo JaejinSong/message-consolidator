@@ -5,26 +5,17 @@ INSTALL_DIR=/home/jinro/.gemini/message-consolidator
 .PHONY: build run install-service uninstall-service status logs test-ui
 
 build:
-	@echo "Minifying static files..."
-	@# (Optional) go install github.com/tdewolff/minify/v2/cmd/minify@latest
-	@if command -v minify > /dev/null; then \
-		minify -r -o static-min/ static/; \
-	else \
-		echo "Warning: minify not found, skipping minification."; \
-		cp -r static static-min; \
-	fi
 	CGO_ENABLED=0 whatap-go-inst go build -ldflags="-s -w" -o $(BINARY_NAME) .
 	upx -1 $(BINARY_NAME)
 	CGO_ENABLED=0 go build -ldflags="-s -w" -o mc-util ./cmd/mc-util
 	upx -1 mc-util
-	@rm -rf static-min
 
 run: build
 	./$(BINARY_NAME)
 
 install-service: build
-	@echo "Installing systemd service..."
-	sudo cp $(INSTALL_DIR)/$(SERVICE_NAME) /etc/systemd/system/
+	@echo "Installing systemd service (from scripts/vps/)..."
+	sudo cp $(INSTALL_DIR)/scripts/vps/$(SERVICE_NAME) /etc/systemd/system/
 	sudo systemctl daemon-reload
 	sudo systemctl enable $(SERVICE_NAME)
 	sudo systemctl restart $(SERVICE_NAME)

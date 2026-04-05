@@ -17,7 +17,7 @@ vi.mock('./api.js', () => ({
 vi.mock('./insightsRenderer.ts', () => ({
     insightsRenderer: {
         renderReportList: vi.fn(),
-        renderReport: vi.fn(),
+        renderReportDetail: vi.fn(),
         renderDailyGlance: vi.fn(),
         renderActivityHeatmap: vi.fn(),
         renderSourceDistribution: vi.fn(),
@@ -74,7 +74,7 @@ describe('insights.js - Controller', () => {
         await insights.loadReportDetail(1);
 
         expect(api.fetchReportDetail).toHaveBeenCalledWith(1);
-        expect(insightsRenderer.renderReport).toHaveBeenCalledWith(mockReport);
+        expect(insightsRenderer.renderReportDetail).toHaveBeenCalledWith(mockReport);
     });
 
     it('should handle report creation with validation', async () => {
@@ -143,7 +143,7 @@ describe('insights.js - Controller', () => {
         await vi.waitFor(() => expect(api.translateReport).toHaveBeenCalledWith(1, 'ko'));
         
         // Verify report was re-rendered with new translation
-        expect(insightsRenderer.renderReport).toHaveBeenCalled();
+        expect(insightsRenderer.renderReportDetail).toHaveBeenCalled();
         expect(mockReport.translations.ko).toBe('Translated Summary');
     });
 });

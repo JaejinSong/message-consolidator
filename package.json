@@ -1,0 +1,37 @@
+{
+  "name": "message-consolidator",
+  "version": "1.0.0",
+  "description": "**흩어져 있는 업무 메시지를 한 곳에서 스마트하게, 실시간으로 관리하세요.**",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "build:bundle": "node bundle-css.cjs",
+    "build:css": "purgecss --config purgecss.config.cjs",
+    "optimize:css": "npm run build:bundle && npm run build:css"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@fortawesome/fontawesome-free": "^7.2.0",
+    "canvas-confetti": "^1.9.4",
+    "glob": "^10.5.0",
+    "happy-dom": "^20.8.4",
+    "marked": "^17.0.5",
+    "postcss": "^8.5.8",
+    "postcss-safe-parser": "^7.0.1",
+    "pretendard": "^1.3.9",
+    "purgecss": "^8.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3",
+    "vite": "^6.2.0",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^4.1.0"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
+}

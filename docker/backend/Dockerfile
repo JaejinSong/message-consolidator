@@ -18,8 +18,19 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
-# 2. Build and compress (Only source code)
-COPY . .
+# 2. Build and compress (Explicitly copy backend source)
+COPY ai/ ./ai/
+COPY auth/ ./auth/
+COPY channels/ ./channels/
+COPY cmd/ ./cmd/
+COPY config/ ./config/
+COPY handlers/ ./handlers/
+COPY logger/ ./logger/
+COPY scanner/ ./scanner/
+COPY services/ ./services/
+COPY store/ ./store/
+COPY main.go ./
+
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux whatap-go-inst go build -ldflags="-s -w" -o message-consolidator . && \
@@ -28,6 +39,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # 3. Final staging preparation
 RUN mkdir -p /stage/app && \
     mv message-consolidator /stage/app/ && \
+    # Explicitly copy only required config/meta files to the final stage
     cp RELEASE_NOTES_*.md whatap.conf entrypoint.sh security.conf /stage/app/ && \
     chmod +x /stage/app/entrypoint.sh
 

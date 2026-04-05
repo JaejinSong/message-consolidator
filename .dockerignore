@@ -20,8 +20,14 @@ README.md
 TODO.md
 planning/
 
-# Why: Miscellaneous junk.
+# Why: Miscellaneous junk and local tools.
 *.log
 *.db
 db_data/
 tmp/
+scripts/vps/
+message-consolidator.service
+test_timing.txt
+go_test*.log
+loading_ui_test.log
+db_diag.log

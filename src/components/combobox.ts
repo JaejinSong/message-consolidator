@@ -1,4 +1,4 @@
-import { AccountItem, ComboboxOptions, ComboboxInterface } from '../types';
+import { AccountItem, ComboboxOptions, ComboboxInterface } from '../types.ts';
 
 /**
  * Combobox (Autocomplete) Component

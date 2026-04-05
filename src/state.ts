@@ -3,7 +3,7 @@
  * @description Centralized application state management with TypeScript.
  */
 
-import { AppState, UserProfile, Message, CategorizedMessages, IReportData } from './types.ts';
+import { AppState, UserProfile, CategorizedMessages, IReportData } from './types.ts';
 
 export const state: AppState = {
     userProfile: { email: "", picture: "", name: "", points: 0, streak: 0, streak_freezes: 0 },

@@ -10,6 +10,8 @@
     "allowJs": true,
     "checkJs": false,
     "noEmit": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "baseUrl": ".",

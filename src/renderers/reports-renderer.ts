@@ -127,7 +127,7 @@ export const reportsRenderer = {
 
     },
 
-    render(container: HTMLElement, report: IReportData): void {
+    render(report: IReportData): void {
         const summaryArea = document.getElementById('reportSummaryContent');
         const netChartArea = document.getElementById('reportNetworkChart');
         const sankeyChartArea = document.getElementById('reportSankeyChart');

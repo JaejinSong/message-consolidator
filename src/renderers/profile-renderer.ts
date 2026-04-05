@@ -1,4 +1,4 @@
-import { UserProfile } from '../state.ts';
+import { UserProfile } from '../types.ts';
 
 /**
  * @file profile-renderer.ts

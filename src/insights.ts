@@ -38,7 +38,7 @@ export const insights = {
         const reportsTab = document.querySelector('.insights-tab-btn[data-tab="insightsReportsTab"]') as HTMLElement | null;
         const statsPanel = document.getElementById('insightsStatsTab') as HTMLElement | null;
         const reportsPanel = document.getElementById('insightsReportsTab') as HTMLElement | null;
-        const insightsTabBtns = [statsTab, reportsTab];
+        // insightTabBtns removed: was unused.
 
         if (statsTab && reportsTab && statsPanel && reportsPanel) {
             // Stats Tab Click
@@ -87,7 +87,7 @@ export const insights = {
                 insightsRenderer.renderAnkiChart(this.lastStats, this.currentChartDays);
             }
             if (this.isTabActive('insightsReportsTab') && this.lastReport) {
-                insightsRenderer.renderReport(this.lastReport); // Re-render charts
+                insightsRenderer.renderReportDetail(this.lastReport); // Re-render charts
             }
         });
 
@@ -107,7 +107,7 @@ export const insights = {
                         console.error("[Insights] Translation failed:", e);
                     }
                 }
-                insightsRenderer.renderReport(this.lastReport);
+                insightsRenderer.renderReportDetail(this.lastReport);
             }
         });
     },
@@ -241,7 +241,7 @@ export const insights = {
 
             const report = await api.fetchReportDetail(id);
             this.lastReport = report;
-            insightsRenderer.renderReport(report);
+            insightsRenderer.renderReportDetail(report);
         } catch (e) {
             console.error("[Insights] Load report detail failed:", e);
         }

@@ -7,12 +7,10 @@ import { I18N_DATA } from './locales.js';
 import { api } from './api.js';
 import { 
     renderMessages, 
-    renderEmptyGrid, 
     updateUserProfile, 
     updateWhatsAppStatus, 
     updateGmailStatus, 
     initMessageGridEvents,
-    setScanLoading,
     showToast,
     updateWhatsAppQR,
     showWaModal,
@@ -23,17 +21,16 @@ import {
     triggerXPAnimation,
     triggerConfetti,
     bindGetQRBtn,
-    bindScanBtn,
     bindWhatsAppStatus,
     bindGmailStatus,
     bindGlobalClicks,
     bindThemeToggle
 } from './renderer.ts';
-import { Message, MessageHandlers, ServiceHandlers, I18nDictionary, UserProfile, CategorizedMessages } from './types.ts';
+import { I18nDictionary, ServiceHandlers, UserProfile, CategorizedMessages } from './types.ts';
 import { archive } from './archive.ts';
 import { modals } from './modals.ts';
 import { insights } from './insights.ts';
-import { events, EVENTS } from './events.js';
+import { events, EVENTS } from './events.ts';
 import { safeAsync, hasSessionHint, setupTabs } from './utils.ts';
 import { STATUS_STATES, POLLING_INTERVALS } from './constants.ts';
 import { authService } from './services/authService.ts';
@@ -144,7 +141,7 @@ const fetchMessages = safeAsync(async () => {
         updateStats(data.user);
     }
     updateMessages(categorized);
-    renderMessages(categorized, handlers);
+    renderMessages(categorized);
     planTranslationSync();
 });
 
@@ -195,23 +192,6 @@ const checkGmailStatus = safeAsync(async () => {
     updateGmailStatus(data.connected, data.email);
 });
 
-/**
- * Triggers a message scan.
- */
-const triggerScan = async () => {
-    setScanLoading(true);
-
-    try {
-        await api.triggerScan(state.currentLang);
-        setTimeout(() => {
-            fetchMessages();
-            setScanLoading(false);
-        }, 5000);
-    } catch (e) {
-        console.error(e);
-        setScanLoading(false);
-    }
-};
 
 /**
  * Fetches user profile and updates state.
@@ -434,7 +414,6 @@ const initActionButtons = () => {
             }
         }, 3001);
     });
-
 
     bindWhatsAppStatus(() => {
         showWaModal();

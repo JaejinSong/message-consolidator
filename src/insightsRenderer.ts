@@ -6,7 +6,7 @@
 
 import { state, updateReportHistory, upsertReport } from './state.ts';
 import { I18N_DATA } from './locales.js';
-import { UserStats, TokenUsage, IReportData, IReportNode, IReportLink } from './types.ts';
+import { UserStats, TokenUsage, IReportData } from './types.ts';
 import { generateHeatmapData, normalizeReportData } from './logic.ts';
 import { reportsRenderer } from './renderers/reports-renderer.ts';
 import { api } from './api.js';
@@ -353,7 +353,7 @@ export const insightsRenderer = {
     renderReportDetail(report: IReportData): void {
         const detailContainer = document.querySelector('.c-insights-report-main') as HTMLElement;
         if (detailContainer) {
-            reportsRenderer.render(detailContainer, report);
+            reportsRenderer.render(report);
         }
     },
 

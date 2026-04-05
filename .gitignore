@@ -20,9 +20,6 @@ tmp_build
 # JavaScript / Node
 node_modules/
 .vite/
-package-lock.json
-package.json
-vitest.config.ts
 dist/
 
 # Temporary/Other
@@ -32,3 +29,7 @@ tasks_migration.csv
 .deploy.sh.swp
 branch.txt
 verify-fix.js
+test_timing.txt
+go_test*.log
+loading_ui_test.log
+db_diag.log
