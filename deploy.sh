@@ -22,7 +22,18 @@ VPS_NAME="chat-analyzer-vps"
 BUCKET_NAME="message-consolidator-deploy-gemini-enterprise-487906"
 
 # Mode: all (default), fe, be
-MODE=${1:-all}
+MODE="all"
+FORCE_BUILDER="false"
+
+for arg in "$@"; do
+    case $arg in
+        fe|be|all) MODE=$arg ;;
+        --builder) FORCE_BUILDER="true" ;;
+    esac
+done
+
+IMAGE_BE_BUILDER="backend-builder"
+BUILDER_TAG="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_BE_BUILDER}:latest"
 
 # Validation: Explicit Integer Conversion Check
 validate_int() {
@@ -69,8 +80,28 @@ deploy_fe() {
 
 deploy_be() {
     echo -e "${BLUE}==> Backend: Building...${NC}"
-    run_step "BE: Building image" env DOCKER_BUILDKIT=1 docker build -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_BE}:latest -f docker/backend/Dockerfile .
+    check_builder
+    run_step "BE: Building image" env DOCKER_BUILDKIT=1 docker build \
+        --build-arg BUILDER_IMAGE="$BUILDER_TAG" \
+        -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_BE}:latest -f docker/backend/Dockerfile .
     run_step "BE: Pushing image" docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_BE}:latest
+}
+
+check_builder() {
+    if docker image inspect "$BUILDER_TAG" >/dev/null 2>&1 && [[ "$FORCE_BUILDER" != "true" ]]; then
+        echo -e "[${GREEN} SKIP ${NC}] Builder image exists locally."
+        return 0
+    fi
+
+    # Try pull from registry first
+    if [[ "$FORCE_BUILDER" != "true" ]] && docker pull "$BUILDER_TAG" >/dev/null 2>&1; then
+        echo -e "[${GREEN} PASS ${NC}] Builder image pulled from registry."
+        return 0
+    fi
+
+    echo -e "${BLUE}==> Building and Pushing new Builder image...${NC}"
+    run_step "BE: Building Builder" docker build -t "$BUILDER_TAG" -f docker/backend/Dockerfile.builder .
+    run_step "BE: Pushing Builder" docker push "$BUILDER_TAG"
 }
 
 upload_configs() {

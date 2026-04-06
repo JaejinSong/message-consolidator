@@ -1,18 +1,6 @@
 # Build stage
-FROM golang:alpine AS builder
-ENV GOTOOLCHAIN=auto
-
-# 1. Pre-install tools and WhaTap agent (Pinned versions and consolidated)
-RUN apk add --no-cache git wget tar upx && \
-    wget -q https://s3.ap-northeast-2.amazonaws.com/repo.whatap.io/alpine/x86_64/whatap-agent.tar.gz && \
-    tar -xzf whatap-agent.tar.gz -C / && \
-    ls -R /usr/whatap/agent/
-
-# Pin whatap-go-inst to a specific version to avoid network checks and ensure stability
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go install github.com/whatap/go-api-inst/cmd/whatap-go-inst@v0.5.4
-
+ARG BUILDER_IMAGE=golang:alpine
+FROM ${BUILDER_IMAGE} AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
