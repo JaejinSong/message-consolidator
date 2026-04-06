@@ -5,11 +5,19 @@
 - [ ] **[UI/UX]** 태스크 필터링 UI 고도화 (날짜 범위, 채널별 필터)
 
 ## 2. 기술 부채 (Tech Debt) & 개선 필요 사항
-- [ ] **[Optimization]** Font Awesome 패키지 전환 (`@fortawesome/fontawesome-svg-core` 기반 트리쉐이킹 적용)
 - [ ] **[Refactor]** 백엔드 에러 핸들링 통일 (커스텀 에러 타입 도입)
 - [ ] **[WhatsApp]** 시스템 메시지 필터링 정교화 (현재 `StubType`, `ProtocolMessage` 광범위 차단 중. 향후 "그룹 이름 변경"이나 "참여자 초대/강퇴" 알림 활용 필요 시 필터링 완화 검토)
 
 ## 3. 완료 사항 (Completed)
+- [x] **[Feature]** 태스크 수동 병합(Manual Merge) 및 시맨틱 통합 로직 (v2.4.21)
+  - 백엔드 병합 API 구현 및 타임스탬프 기반 이력 관리
+  - 프론트엔드 병합 UI 및 드래그 앤 드롭 인터랙션 고도화
+- [x] **[Insights]** 리포트 자동 로드 및 데이터 동기화 최적화 (v2.4.21)
+  - 대규모 데이터셋(10k+) 대응 로딩 가속화 및 startup view migration
+- [x] **[Infra]** Docker 빌드 레이어 최적화 및 폰트 서브셋(WOFF2) 적용 (v2.4.21)
+  - 폰트 어썸 의존성 제거로 이미지 크기 75% 절감 (1.2GB -> 280MB)
+- [x] **[I18N]** 기본 언어 영어(EN) 전환 및 지능형 캐시 무효화 (v2.4.21)
+  - 모든 탭(KO/ID/EN) 간 실시간 정합성 보장 로직 도입
 - [x] **[UI/UX]** Optimistic UI 도입 및 테스크 처리 지연(0ms) 해결 (v2.4.20)
   - 삭제 애니메이션 적용 및 개별 DOM 조작(`renderer.ts`) 리팩토링
   - API 실패 시 상태/UI 롤백 로직 도입

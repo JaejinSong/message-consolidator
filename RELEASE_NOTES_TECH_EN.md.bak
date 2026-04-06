@@ -1,3 +1,14 @@
+# Release Notes (Tech) - v2.4.20 (2026-04-05 16:41 UTC)
+
+- [FEAT] Implement optimistic UI updates for task deletion and status toggling with rollback support
+- [FEAT] Automate VPS deployment and build optimization using Docker Compose and Caddy
+- [OPTIMIZE] Improve Alias Store cache performance by metadata caching before lock release
+- [REFACTOR] Standardize Context propagation across store and database layers for lifecycle management
+- [REFACTOR] Modularize WhatsApp message handling and enhance system message filtering
+- [REFACTOR] Modernize codebase by migrating ioutil to os package and cleaning unused services
+
+---
+
 # Release Notes (Tech) - v2.4.19 (2026-04-05 00:02 UTC)
 
 - [REFACTOR] Transition from Regex-based extraction to Metadata migration and implement Gmail DOM pruning

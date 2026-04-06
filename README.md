@@ -1,4 +1,4 @@
-# Message Consolidator (v2.4.19)
+# Message Consolidator (v2.4.21)
 
 [![GitHub License](https://img.shields.io/github/license/JaejinSong/message-consolidator)](LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/JaejinSong/message-consolidator)](go.mod)
@@ -27,7 +27,7 @@ A powerful, AI-driven asynchronous communication consolidation and task manageme
 - **스마트 담당자 감지 & 자동 정규화**: 멘션(@)이나 이메일 수신자, 문맥을 분석하여 실제 담당자(Assignee)를 정확하게 표시합니다. Gmail의 경우 CC나 BCC로 수신된 내용은 제외하고 직접 수신 업무만 '내 업무'로 자동 분류하며, "내 업무"와 같은 모호한 표현을 사용자 프로필 상의 본인 이름으로 자동 정규화합니다.
 - **Metadata JSON 아키텍처**: 업무 태스크의 유연한 확장을 위해 JSONB 메타데이터 필드를 도입하여, 다양한 업무 속성을 스키마 변경 없이 안정적으로 저장하고 필터링합니다.
 - **다층형 별칭 매칭 & 동명이인 방어 (Ambiguity Safeguard)**: 사용자가 명시적으로 등록한 별칭 외에도 본인의 이름과 이메일 아이디를 자동으로 감지하며, 서로 다른 이메일이 동일한 별칭을 공유할 경우 자동으로 감지하여 데이터 오염을 방지하는 Ambiguity Safeguard 엔진이 탑재되어 있습니다.
-- **Task Affinity Consolidation**: 동일한 메시지나 이메일에서 발생하는 유사한 업무들을 AI가 자동으로 감지하고 하나로 통합합니다. 'Affinity Score' 기반의 지능형 업무 묶음을 통해 중복된 '쌍둥이 태스크' 발생을 원천 차단하고 가독성을 극대화합니다.
+- **Task Affinity Consolidation & Semantic Merging**: 동일한 메시지나 이메일에서 발생하는 유사한 업무들을 AI가 자동으로 감지하고 하나로 통합합니다. 'Affinity Score' 및 시맨틱 분석 기반의 지능형 업무 묶음을 통해 중복된 '쌍둥이 태스크' 발생을 원천 차단하고 가독성을 극대화하며, 수동 병합(Manual Merge) 기능을 통해 파편화된 업무 흐름을 사용자 의도에 맞게 정렬할 수 있습니다.
 
 ### 3. 직관적인 업무 관리 대시보드
 - **프론트엔드 TypeScript 전면 전환**: 모든 클라이언트 로직을 TypeScript로 마이그레이션하여 높은 안정성과 유지보수성을 확보했습니다.
@@ -45,13 +45,14 @@ A powerful, AI-driven asynchronous communication consolidation and task manageme
 - **프론트엔드 모듈 최적화 및 백엔드 캐시 고도화**: 대규모 자바스크립트 로직을 기능별로 모듈화하고, 백엔드 캐시 로직을 최적화하여 100% 데이터 일관성과 즉각적인 화면 반응 속도를 달성했습니다.
 - **시스템 전반 멱등성(Idempotency) 및 SQL Upsert**: 모든 데이터 삽입 로직에 SQL Upsert(ON CONFLICT DO UPDATE)를 도입하여 네트워크 재시도나 중복 요청에도 데이터 무결성을 유지하며, 중복 렌더링을 원천 차단했습니다.
 - **비동기 AI 인퍼런스 로깅 (Dual-Channel)**: AI의 추출 분석 결과(Raw JSON)를 SQLite DB와 전용 로그 파일(`ai_inference.log`)에 동시에 비동기로 기록하여, 향후 프롬프트 최적화를 위한 정밀한 데이터 플라이휠(Data Flywheel) 기반을 구축했습니다.
-- **Docker Compose & Caddy 기반 VPS 배포 자동화**: Google Artifact Registry와 GCS를 연동하여 가볍고 안정적인 컨테이너 기반 배포 환경을 구축했습니다. 바이너리 스트리핑 및 UPX 압축을 통해 이미지 크기를 70% 이상 절감하였으며, Caddy를 통한 자동 SSL 및 리버스 프록시 설정을 완료했습니다.
+- **Docker Compose & Caddy 기반 VPS 배포 자동화**: Google Artifact Registry와 GCS를 연동하여 가볍고 안정적인 컨테이너 기반 배포 환경을 구축했습니다. 바이너리 스트리핑 및 UPX 압축, 그리고 외부 폰트 의존성을 제거한 커스텀 Subset CSS 적용을 통해 이미지 크기를 75% 이상 절감하였으며, Caddy를 통한 자동 SSL 및 리버스 프록시 설정을 완료했습니다.
 
 ### 4. AI 보고서 및 협업 시각화 (Insights)
 - **주간 업무 요약**: 한 주간의 모든 커뮤니케이션을 분석하여 핵심 아젠다와 미결 업무를 AI가 자동으로 요약 보고서로 작성합니다.
 - **협업 네트워크 그래프**: 요청자와 담당자 간의 상호작용 빈도를 기반으로 한 동적인 관계망 그래프(Force-directed Graph)를 제공하여 팀 내 협업 구조를 시각화합니다.
 - **데이터 정합성 보존**: 15KB 데이터 제한 내에서도 '미완료 업무'가 누락되지 않도록 하는 우선순위 알고리즘을 탑재하여 분석의 정확도를 높였습니다.
-- **캐시 기반 성능 최적화**: 생성된 보고서를 6시간 동안 캐싱하여 AI 호출 비용을 절감하고 즉각적인 대시보드 반응성을 보장합니다.
+- **캐시 기반 성능 최적화 및 자동 로딩**: 생성된 보고서를 6시간 동안 캐싱하여 AI 호출 비용을 절감하고 즉각적인 대시보드 반응성을 보장합니다. 또한, 리포트 진입 시 최신 상태를 자동으로 로드하고 강화된 데이터 동기화 엔진을 통해 대규모 데이터셋에서도 끊김 없는 분석을 제공합니다.
+- **글로벌 스탠다드 및 지능형 번역 캐시**: 시스템 기본 언어를 영어(EN)로 전환하여 글로벌 호환성을 확보하였으며, 태스크 병합이나 수정 시 관련 번역 캐시를 지능적으로 무효화하여 모든 언어 탭에서 100% 최신 데이터 정합성을 유지합니다.
 
 ### 5. 데이터 활용 및 정산
 - **다양한 형식의 내보내기**: 관리 중인 업무 리스트를 Excel, CSV 뿐만 아니라 **JSON** 형식으로도 내려받아 다른 시스템과 연동하거나 데이터 분석에 활용할 수 있습니다.

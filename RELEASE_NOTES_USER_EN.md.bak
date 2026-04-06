@@ -1,3 +1,12 @@
+# Release Notes - v2.4.20 (2026-04-05 16:41 UTC)
+
+- ✨ **Instant Feedback**: Tasks now update instantly on your screen, with smart rollback features ensuring data integrity.
+- 🚀 **Seamless Infrastructure**: We've automated our deployment pipeline for faster updates and rock-solid service reliability.
+- ⚡ **Snappier Response**: Optimized internal caching and modular message handling make for a much smoother user experience.
+- 🛡️ **Under-the-Hood Polish**: Significant structural improvements and code modernizations for a more stable and future-proof app.
+
+---
+
 # Release Notes - v2.4.19 (2026-04-05 00:02 UTC)
 
 - ✨ **Rich Context**: Now viewing reactions, pins, and attachments for Slack and WhatsApp is more seamless than ever!

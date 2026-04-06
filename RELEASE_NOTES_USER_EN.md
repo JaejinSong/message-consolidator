@@ -1,3 +1,14 @@
+# Release Notes - v2.4.21 (2026-04-06 04:13 UTC)
+
+- ✨ **Seamless Experience**: Enjoy instant updates with our new Optimistic UI for tasks—fast, responsive, and reliable.
+- 📊 **Smart Reporting**: Reports now load automatically with enhanced stability and smarter data synchronization.
+- 🔀 **Efficient Workflows**: New task merging logic keeps your dashboard organized and clutter-free.
+- ⚡ **Performance Boost**: We've optimized our engine and font loading to get you into the app faster than ever.
+- 🌍 **Global Standards**: English is now our default language, paired with a more intelligent translation system.
+- 🏗️ **Under the Hood**: Migrated core systems to TypeScript to ensure a crash-free, premium user experience.
+
+---
+
 # Release Notes - v2.4.20 (2026-04-05 16:41 UTC)
 
 - ✨ **Instant Feedback**: Tasks now update instantly on your screen, with smart rollback features ensuring data integrity.
