@@ -52,12 +52,6 @@ export const insights = {
             // Reports Tab Click
             reportsTab.addEventListener('click', async () => {
                 this.setActiveTab(reportsTab, reportsPanel, [statsTab], [statsPanel]);
-                
-                // Show loading state for reports
-                const reportContent = document.getElementById('reportSummaryContent');
-                const i18n = I18N_DATA[state.currentLang || 'en'];
-                if (reportContent) insightsRenderer.renderLoading(reportContent, i18n);
-                
                 await this.refreshReport(); // Fetch reports on-demand
             });
         }
@@ -271,12 +265,28 @@ export const insights = {
 
     async refreshReport(_activeId: number | null = null) {
         const i18n = I18N_DATA[state.currentLang || 'en'];
+        const reportContent = document.getElementById('reportSummaryContent');
         try {
             const history = await api.fetchReportHistory();
             updateReportHistory(history);
             insightsRenderer.renderReportList(state.reportHistory, i18n, _activeId);
+
+            if (state.reportHistory.length === 0) {
+                // No reports: show empty state immediately (no spinner needed)
+                insightsRenderer.renderEmptyState(i18n);
+                return;
+            }
+
+            // Auto-load the most recent report only when no specific report is active
+            if (_activeId === null && !this.lastReport) {
+                await this.loadExistingReport(state.reportHistory[0]);
+            } else if (_activeId !== null) {
+                const target = state.reportHistory.find(r => r.id === _activeId);
+                if (target) await this.loadExistingReport(target);
+            }
         } catch (e) {
             console.error("[Insights] Refresh reports failed:", e);
+            if (reportContent) insightsRenderer.renderError(reportContent, (e as any).message, i18n);
         }
     },
 
@@ -298,7 +308,7 @@ export const insights = {
                 return;
             }
 
-            // Level 2: API Fetch with "Loading data..." spinner
+            // Level 2: API Fetch with spinner
             if (reportContent) insightsRenderer.renderLoading(reportContent, i18n, 'load');
             
             const rawReport = await api.fetchReportDetail(reportMetadata.id);
@@ -309,6 +319,7 @@ export const insights = {
             insightsRenderer.renderReport(report, lang, i18n);
         } catch (e: any) {
             console.error("[Insights] Load existing report failed:", e);
+            // Guarantee spinner is cleared even on silent failure
             if (reportContent) insightsRenderer.renderError(reportContent, e.message, i18n);
         }
     },

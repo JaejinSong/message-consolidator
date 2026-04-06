@@ -1,3 +1,10 @@
+# Release Notes (Tech) - v2.4.23 (2026-04-06 13:25 UTC)
+
+- [SYS] Integrate WhaTap builder images for CI/CD pipelines
+- [OPTIMIZE] Enhance build performance and reduce image generation time
+
+---
+
 # Release Notes (Tech) - v2.4.22 (2026-04-06 11:45 UTC)
 
 - [SYS] Implement multi-stage Docker build pattern and automated deployment script integration

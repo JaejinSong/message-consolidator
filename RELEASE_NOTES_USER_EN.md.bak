@@ -1,3 +1,10 @@
+# Release Notes - v2.4.23 (2026-04-06 13:25 UTC)
+
+- 🏗️ **Engine Upgrade**: Integrated WhaTap builder for a more robust and reliable infrastructure.
+- ⚡ **Speedy Delivery**: Optimized our build process to bring you updates faster than ever!
+
+---
+
 # Release Notes - v2.4.22 (2026-04-06 11:45 UTC)
 
 - 🌍 **Global Insights**: Speak your language! AI reports now support multiple languages with a fresh, sleek design.
