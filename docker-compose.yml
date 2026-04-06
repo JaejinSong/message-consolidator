@@ -1,41 +1,46 @@
 services:
-  # Why: Frontend service using Caddy for static serving and reverse proxying to backend.
-  frontend:
-    image: ${FE_IMAGE}
-    container_name: message-consolidator-frontend
+  # Why: Caddy as a standalone reverse proxy and web server for better orchestration.
+  caddy:
+    image: caddy:2-alpine
+    container_name: message-consolidator-caddy
     ports:
       - "80:80"
       - "443:443"
-    # Why: External volumes to persist certificates and Caddy configuration across runs.
     volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
+      - caddy_assets:/usr/share/caddy:ro
     depends_on:
+      - frontend
       - backend
     restart: always
 
-  # Why: Backend service providing the REST API, accessible only through the internal network.
+  # Why: Lightweight frontend asset provider. It syncs dist to the shared volume on startup.
+  frontend:
+    image: ${FE_IMAGE}
+    container_name: message-consolidator-frontend
+    volumes:
+      - caddy_assets:/public
+    restart: always
+
+  # Why: Backend service providing the REST API.
   backend:
     image: ${BE_IMAGE}
     container_name: message-consolidator-backend
     env_file:
       - .env
     environment:
-      # Why: Disable the Go server's internal static asset serving to optimize for Nginx/Caddy proxying.
       - DISABLE_STATIC_SERVING=true
     volumes:
       - ./db_data:/data
     restart: always
     stop_grace_period: 1m
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
 volumes:
   caddy_data:
   caddy_config:
+  caddy_assets:
 
 networks:
   default:
