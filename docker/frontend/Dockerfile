@@ -1,19 +1,24 @@
-# Build stage
+# Phase 1: Build static assets
 FROM node:22-alpine AS builder
 
 WORKDIR /app
+
+# Optimization: Copy only package files first for better layer caching
 COPY package*.json ./
 RUN npm ci
 
-# 2. Build: Explicitly copy frontend sources
+# Optimization: Copy source files and set Production environment
 COPY src/ ./src/
 COPY types/ ./types/
 COPY static/ ./static/
 COPY index.html ./
 COPY *.json *.ts *.cjs ./
+
 # Why: Pass VITE_API_BASE_URL to Vite build process for correct API endpoint resolution.
 ARG VITE_API_BASE_URL=/api
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV NODE_ENV=production
+
 RUN npm run build
 
 # Final stage: Caddy

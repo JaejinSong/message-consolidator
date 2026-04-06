@@ -1,6 +1,5 @@
 import '../static/style.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
-import 'pretendard/dist/web/static/pretendard.css';
 import { state, updateLang, updateTheme, updateStats, updateMessages, setTaskSelection, clearTaskSelection, deleteTaskFromState, updateTaskStatusInState, getTaskById, upsertItem } from './state';
 import { updateUILanguage } from './i18n';
 import { I18N_DATA } from './locales';

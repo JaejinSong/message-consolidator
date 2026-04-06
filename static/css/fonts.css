@@ -1,0 +1,45 @@
+/* 
+ * Optimized Font Loading: Pretendard Subset 
+ * Using only WOFF2 format and essential weights (400, 500, 600, 700, 800) 
+ * to minimize bundle size.
+ */
+
+@font-face {
+    font-family: 'Pretendard';
+    font-weight: 400;
+    font-display: swap;
+    src: local('Pretendard Regular'), 
+         url('pretendard/dist/web/static/woff2-subset/Pretendard-Regular.subset.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Pretendard';
+    font-weight: 500;
+    font-display: swap;
+    src: local('Pretendard Medium'), 
+         url('pretendard/dist/web/static/woff2-subset/Pretendard-Medium.subset.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Pretendard';
+    font-weight: 600;
+    font-display: swap;
+    src: local('Pretendard SemiBold'), 
+         url('pretendard/dist/web/static/woff2-subset/Pretendard-SemiBold.subset.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Pretendard';
+    font-weight: 700;
+    font-display: swap;
+    src: local('Pretendard Bold'), 
+         url('pretendard/dist/web/static/woff2-subset/Pretendard-Bold.subset.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Pretendard';
+    font-weight: 800;
+    font-display: swap;
+    src: local('Pretendard ExtraBold'), 
+         url('pretendard/dist/web/static/woff2-subset/Pretendard-ExtraBold.subset.woff2') format('woff2');
+}
