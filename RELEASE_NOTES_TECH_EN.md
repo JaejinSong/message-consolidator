@@ -1,3 +1,13 @@
+# Release Notes (Tech) - v2.4.22 (2026-04-06 11:45 UTC)
+
+- [SYS] Implement multi-stage Docker build pattern and automated deployment script integration
+- [FEAT] Enable multi-language support for AI report generation and enhance summary UI styles
+- [STABILITY] Strengthen JSON parsing robustness and implement strict report date validation
+- [SYS] Decouple frontend assets via sidecar container orchestration for improved scalability
+- [PERF] Optimize AI report pipeline through intelligent task merging logic
+
+---
+
 # Release Notes (Tech) - v2.4.21 (2026-04-06 04:13 UTC)
 
 - [REFACTOR] Optimize Docker layer caching and migrate external font dependencies to custom subset CSS

@@ -1,3 +1,15 @@
+# Release Notes (Tech) - v2.4.21 (2026-04-06 04:13 UTC)
+
+- [REFACTOR] Optimize Docker layer caching and migrate external font dependencies to custom subset CSS
+- [REFACTOR] Standardize module imports and complete TypeScript migration for legacy JavaScript components
+- [FEAT] Implement task merging logic with automated translation cache invalidation
+- [FEAT] Introduce report auto-loading and migrate database view initialization to application startup
+- [FEAT] Implement idempotent report generation and add regression test suites
+- [UI] Implement optimistic UI updates for task actions (deletion, status toggling) with rollback support
+- [FIX] Resolve Docker build failures and update default localization to English
+
+---
+
 # Release Notes (Tech) - v2.4.20 (2026-04-05 16:41 UTC)
 
 - [FEAT] Implement optimistic UI updates for task deletion and status toggling with rollback support

@@ -9,6 +9,9 @@
 - [ ] **[WhatsApp]** 시스템 메시지 필터링 정교화 (현재 `StubType`, `ProtocolMessage` 광범위 차단 중. 향후 "그룹 이름 변경"이나 "참여자 초대/강퇴" 알림 활용 필요 시 필터링 완화 검토)
 
 ## 3. 완료 사항 (Completed)
+- [x] **[Infra]** WhaTap 전용 빌더 이미지 도입 및 BE 빌드 속도 최적화 (v2.4.22)
+  - Dockerfile.builder 생성 및 Artifact Registry 연동 관리
+  - 배포 스크립트(`deploy.sh`) 내 빌더 이미지 캐시 체크 로직 구현 (15s -> 2s 단축)
 - [x] **[Feature]** 태스크 수동 병합(Manual Merge) 및 시맨틱 통합 로직 (v2.4.21)
   - 백엔드 병합 API 구현 및 타임스탬프 기반 이력 관리
   - 프론트엔드 병합 UI 및 드래그 앤 드롭 인터랙션 고도화
