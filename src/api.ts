@@ -333,7 +333,7 @@ export const api = {
 
     async generateReport(startDate: string, endDate: string): Promise<IReportData> {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000);
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
 
         try {
             return await apiFetch('/reports', {
@@ -344,7 +344,7 @@ export const api = {
             });
         } catch (err: any) {
             if (err.name === 'AbortError') {
-                throw new Error('AI 리포트 생성 시간이 초과되었습니다 (60초). 잠시 후 다시 시도해 주세요.');
+                throw new Error('AI 리포트 생성 시간이 초과되었습니다 (120초). 잠시 후 다시 시도해 주세요.');
             }
             throw err;
         } finally {

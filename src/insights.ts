@@ -5,9 +5,10 @@
  */
 
 import { api } from './api';
-import { state } from './state';
+import { state, upsertReport, removeReportFromState, updateReportHistory } from './state';
 import { I18N_DATA } from './locales';
 import { insightsRenderer } from './insightsRenderer';
+import { normalizeReportData } from './logic';
 import { events, EVENTS } from './events';
 import { UserStats, TokenUsage, IReportData } from './types';
 
@@ -32,6 +33,7 @@ export const insights = {
      */
     init() {
         console.log("[Insights] Module Initialized with Tab Isolation");
+        (window as any).insights = this; // Expose for renderer callbacks
 
         // UI Element References
         const statsTab = document.querySelector('.insights-tab-btn[data-tab="insightsStatsTab"]') as HTMLElement | null;
@@ -53,7 +55,8 @@ export const insights = {
                 
                 // Show loading state for reports
                 const reportContent = document.getElementById('reportSummaryContent');
-                if (reportContent) insightsRenderer.renderLoading(reportContent);
+                const i18n = I18N_DATA[state.currentLang || 'ko'];
+                if (reportContent) insightsRenderer.renderLoading(reportContent, i18n);
                 
                 await this.refreshReport(); // Fetch reports on-demand
             });
@@ -88,31 +91,41 @@ export const insights = {
 
         // Theme Change Handling
         events.on(EVENTS.THEME_CHANGED, () => {
+            const lang = state.currentLang || 'ko';
+            const i18n = I18N_DATA[lang];
             if (this.isTabActive('insightsStatsTab') && this.lastStats) {
                 insightsRenderer.renderAnkiChart(this.lastStats, this.currentChartDays);
             }
             if (this.isTabActive('insightsReportsTab') && this.lastReport) {
-                insightsRenderer.renderReportDetail(this.lastReport); // Re-render charts
+                insightsRenderer.renderReport(this.lastReport, lang, i18n); // Re-render charts
             }
         });
 
         // Language Change Handling (JIT Translation)
         events.on(EVENTS.LANGUAGE_CHANGED, async (lang: string) => {
+            const i18n = I18N_DATA[lang || 'ko'];
             if (this.isTabActive('insightsReportsTab') && this.lastReport) {
                 const reportContent = document.getElementById('reportSummaryContent');
-                if (reportContent) insightsRenderer.renderLoading(reportContent, 'translation');
+                if (reportContent) insightsRenderer.renderLoading(reportContent, i18n, 'translation');
                 
                 // If translation doesn't exist, fetch it
                 if (!this.lastReport.translations?.[lang]) {
                     try {
                         const result = await api.translateReport(this.lastReport.id, lang);
                         if (!this.lastReport.translations) this.lastReport.translations = {};
-                        this.lastReport.translations[lang] = result.summary;
+                        
+                        // Defensively extract translated text from various possible response fields
+                        const translatedText = result.summary || result.report_summary || result.translation || result.translated_text || (typeof result === 'string' ? result : '');
+                        
+                        this.lastReport.translations[lang] = translatedText;
+                        
+                        // Persist to global state (AppState.reports) for O(1) tab-switching retrieval
+                        upsertReport(this.lastReport);
                     } catch (e) {
                         console.error("[Insights] Translation failed:", e);
                     }
                 }
-                insightsRenderer.renderReportDetail(this.lastReport);
+                insightsRenderer.renderReport(this.lastReport, lang, i18n);
             }
         });
     },
@@ -174,21 +187,14 @@ export const insights = {
         if (reportList) {
             reportList.addEventListener('click', async (e) => {
                 const target = e.target as HTMLElement;
-                const item = target.closest('.c-insights-report-item') as HTMLElement | null;
                 const deleteBtn = target.closest('.c-insights-report-item__delete') as HTMLElement | null;
 
                 if (deleteBtn) {
                     const idAttr = deleteBtn.getAttribute('data-id');
                     const id = parseInt(idAttr || '', 10);
                     if (!isNaN(id)) await this.deleteReport(id);
-                    return;
                 }
-
-                if (item) {
-                    const idAttr = item.getAttribute('data-id');
-                    const id = parseInt(idAttr || '', 10);
-                    if (!isNaN(id)) await this.loadReportDetail(id);
-                }
+                // Item click is now handled via callback in initReportList
             });
         }
     },
@@ -197,7 +203,7 @@ export const insights = {
         const today = new Date().toISOString().split('T')[0];
         try {
             const result = await api.generateReport(today, today);
-            await this.refreshReport(result.id);
+            await this.refreshReport(result.id || (result as any).report_id);
         } catch (e: any) {
             console.error("[Insights] Automatic generation failed:", e);
             alert(`Generation failed: ${e.message}`);
@@ -208,15 +214,20 @@ export const insights = {
         const start = (document.getElementById('reportStartDate') as HTMLInputElement)?.value;
         const end = (document.getElementById('reportEndDate') as HTMLInputElement)?.value;
         const btn = document.getElementById('btnGenerateReport') as HTMLButtonElement;
+        const reportContent = document.getElementById('reportSummaryContent');
+        const i18n = I18N_DATA[state.currentLang || 'ko'];
 
         if (!start || !end) return;
 
         try {
             if (btn) btn.disabled = true;
+            if (reportContent) insightsRenderer.renderLoading(reportContent, i18n, 'report');
+            
             const result = await api.generateReport(start, end);
-            await this.refreshReport(result.id);
+            await this.refreshReport(result.id || (result as any).report_id);
         } catch (e: any) {
             console.error("[Insights] Generate report failed:", e);
+            if (reportContent) insightsRenderer.renderError(reportContent, e.message, i18n);
             alert(`Generation failed: ${e.message}`);
         } finally {
             if (btn) btn.disabled = false;
@@ -229,40 +240,76 @@ export const insights = {
         if (!confirm(i18n.deleteReportConfirm || 'Delete this report?')) return;
 
         try {
+            // Find report in history to get dates for cache invalidation
+            const reportMeta = state.reportHistory.find(r => r.id === id);
+            if (reportMeta) removeReportFromState(reportMeta.start_date, reportMeta.end_date);
+
             await api.deleteReport(id);
             await this.refreshReport();
+
+            // UX Fallback: If deleted report was active, load newest one
+            if (this.lastReport?.id === id) {
+                this.handleDeletionFallback();
+            }
         } catch (e: any) {
             console.error("[Insights] Delete failed:", e);
         }
     },
 
+    /**
+     * Handles UI fallback after deleting the active report.
+     */
+    handleDeletionFallback() {
+        this.lastReport = null;
+        const i18n = I18N_DATA[state.currentLang || 'ko'];
+        if (state.reportHistory.length > 0) {
+            this.loadExistingReport(state.reportHistory[0]);
+            return;
+        }
+        insightsRenderer.renderEmptyState(i18n);
+    },
+
     async refreshReport(_activeId: number | null = null) {
-        // Why: Delegates to insightsRenderer for fetching history and rendering.
-        // It now uses the state-first, API-last model.
+        const i18n = I18N_DATA[state.currentLang || 'ko'];
         try {
-            await insightsRenderer.initReportList(_activeId);
+            const history = await api.fetchReportHistory();
+            updateReportHistory(history);
+            insightsRenderer.renderReportList(state.reportHistory, i18n, _activeId);
         } catch (e) {
             console.error("[Insights] Refresh reports failed:", e);
         }
     },
 
-    async loadReportDetail(id: number) {
+    /**
+     * Dual-Layer Cache Loading strategy.
+     * Checks local state before fetching from API.
+     */
+    async loadExistingReport(reportMetadata: IReportData) {
+        const lang = state.currentLang || 'ko';
+        const i18n = I18N_DATA[lang];
+        const reportContent = document.getElementById('reportSummaryContent');
+        const key = `${reportMetadata.start_date}_${reportMetadata.end_date}`;
+        
         try {
-            // UI Visual Feedback for Sidebar
-            document.querySelectorAll('.c-insights-report-item').forEach(item => {
-                const el = item as HTMLElement;
-                const itemId = el.getAttribute('data-id');
-                el.classList.toggle('c-insights-report-item--active', String(itemId) === String(id));
-            });
+            // Level 1: Memory Cache hit?
+            if (state.reports[key] && state.reports[key].report_summary) {
+                this.lastReport = state.reports[key];
+                insightsRenderer.renderReport(this.lastReport, lang, i18n);
+                return;
+            }
 
-            const reportContent = document.getElementById('reportSummaryContent');
-            if (reportContent) insightsRenderer.renderLoading(reportContent, 'report');
-
-            const report = await api.fetchReportDetail(id);
+            // Level 2: API Fetch with "Loading data..." spinner
+            if (reportContent) insightsRenderer.renderLoading(reportContent, i18n, 'load');
+            
+            const rawReport = await api.fetchReportDetail(reportMetadata.id);
+            const report = normalizeReportData(rawReport);
+            
             this.lastReport = report;
-            insightsRenderer.renderReportDetail(report);
-        } catch (e) {
-            console.error("[Insights] Load report detail failed:", e);
+            upsertReport(report);
+            insightsRenderer.renderReport(report, lang, i18n);
+        } catch (e: any) {
+            console.error("[Insights] Load existing report failed:", e);
+            if (reportContent) insightsRenderer.renderError(reportContent, e.message, i18n);
         }
     },
 
@@ -286,20 +333,23 @@ export const insights = {
     },
 
     renderAll(stats: UserStats | null, allAch: any[], userAch: any[], tokenUsage: TokenUsage | null) {
-        if (tokenUsage) insightsRenderer.renderTokenUsage(tokenUsage);
+        const lang = state.currentLang || 'ko';
+        const i18n = I18N_DATA[lang];
+
+        if (tokenUsage) insightsRenderer.renderTokenUsage(tokenUsage, i18n);
         this.lastStats = stats;
 
         // Restore Daily Performance Widget with BEM Rendering (Handles null internally)
-        insightsRenderer.renderDailyGlance(stats);
+        insightsRenderer.renderDailyGlance(stats, i18n);
 
         if (stats) {
-            insightsRenderer.renderActivityHeatmap(stats); // Bottom heatmap
-            insightsRenderer.renderChannelDistribution(stats);
-            insightsRenderer.renderHourlyActivity(stats); // Center heatmap (peak integration)
-            insightsRenderer.renderStaleTasks(stats);
+            insightsRenderer.renderActivityHeatmap(stats, i18n); // Bottom heatmap
+            insightsRenderer.renderChannelDistribution(stats, i18n);
+            insightsRenderer.renderHourlyActivity(stats, i18n); // Center heatmap (peak integration)
+            insightsRenderer.renderStaleTasks(stats, i18n);
             insightsRenderer.renderAnkiChart(stats, this.currentChartDays);
             if (allAch && userAch) {
-                insightsRenderer.renderAchievements(allAch, userAch, stats);
+                insightsRenderer.renderAchievements(allAch, userAch, i18n);
             }
         }
     }

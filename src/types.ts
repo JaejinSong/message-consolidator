@@ -190,8 +190,10 @@ export interface IReportData {
     start_date: string;
     end_date: string;
     report_summary: string;
+    summary?: string; // New field
     translations?: Record<string, string>;
     visualization_data: string | ParsedVisualization;
+    visualization?: string | ParsedVisualization; // New field
     is_truncated?: boolean;
     created_at?: string;
 }

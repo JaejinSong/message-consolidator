@@ -126,6 +126,16 @@ export const updateReportHistory = (history: IReportData[]): void => {
 };
 
 /**
+ * Why: Removes a report from the indexed state cache to ensure data consistency after deletion.
+ */
+export const removeReportFromState = (startDate: string, endDate: string): void => {
+    const key = `${startDate}_${endDate}`;
+    if (state.reports[key]) {
+        delete state.reports[key];
+    }
+};
+
+/**
  * Why: Deletes a task from all internal state collections.
  * Use for Optimistic UI updates to avoid full state replacement.
  */

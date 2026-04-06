@@ -32,6 +32,8 @@ services:
       - .env
     environment:
       - DISABLE_STATIC_SERVING=true
+      - WHATAP_LICENSE=${WHATAP_LICENSE}
+      - WHATAP_SERVER_HOST=${WHATAP_SERVER_HOST}
     volumes:
       - ./db_data:/data
     restart: always

@@ -38,8 +38,12 @@ func (a *API) HandleGetReportHistory(w http.ResponseWriter, r *http.Request) {
 // Idempotency: Returns 200 OK if the report already exists for the given date.
 func (a *API) HandleGenerateReport(w http.ResponseWriter, r *http.Request) {
 	email, start, end := auth.GetUserEmail(r), r.URL.Query().Get("start"), r.URL.Query().Get("end")
-	if start == "" || end == "" {
-		respondError(w, http.StatusBadRequest, "Missing start or end date")
+	if _, err := time.Parse("2006-01-02", start); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid start date format (YYYY-MM-DD required)")
+		return
+	}
+	if _, err := time.Parse("2006-01-02", end); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid end date format (YYYY-MM-DD required)")
 		return
 	}
 

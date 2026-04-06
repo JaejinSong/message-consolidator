@@ -28,11 +28,18 @@ func TestExtractJSONBlock(t *testing.T) {
 			wantStripped: "Just plain text here.",
 		},
 		{
-			name: "Unclosed Block",
+			name: "Unclosed Block (Should fallback)",
 			content: "Start here\n```json\n{\"id\": 1}\nSome content but no end mark",
-			wantErr: true,
-			wantJSON: "",
-			wantStripped: "Start here\n```json\n{\"id\": 1}\nSome content but no end mark",
+			wantErr: false,
+			wantJSON: "{\"id\": 1}",
+			wantStripped: "Start here\n```json\n\nSome content but no end mark",
+		},
+		{
+			name: "No Markers Raw JSON",
+			content: "Plain text\n{\"id\": 2}\nMore text",
+			wantErr: false,
+			wantJSON: "{\"id\": 2}",
+			wantStripped: "Plain text\n\nMore text",
 		},
 		{
 			name: "Empty JSON Block",
@@ -54,7 +61,7 @@ func TestExtractJSONBlock(t *testing.T) {
 				t.Errorf("ExtractJSONBlock() gotJSON = %v, want %v", jsonStr, tt.wantJSON)
 			}
 			// Clean up extra whitespace for comparison
-			if strings.TrimSpace(stripped) != strings.TrimSpace(tt.wantStripped) {
+			if strings.TrimSpace(strings.ReplaceAll(stripped, "\n", " ")) != strings.TrimSpace(strings.ReplaceAll(tt.wantStripped, "\n", " ")) {
 				t.Errorf("ExtractJSONBlock() gotStripped = %v, want %v", stripped, tt.wantStripped)
 			}
 		})

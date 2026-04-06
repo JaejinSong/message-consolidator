@@ -2226,7 +2226,7 @@ body.light-theme .c-badge--count {
     gap: var(--spacing-xs);
 }
 
-.c-report-list__item {
+.c-insights-report-item {
     padding: var(--spacing-md);
     border-radius: var(--radius-md);
     cursor: pointer;
@@ -2234,23 +2234,23 @@ body.light-theme .c-badge--count {
     border: var(--border-thin) solid transparent;
 }
 
-.c-report-list__item:hover {
+.c-insights-report-item:hover {
     background: rgba(var(--accent-rgb), 0.05);
     border-color: var(--glass-border);
 }
 
-.c-report-list__item--active {
+.c-insights-report-item--active {
     background: rgba(var(--accent-rgb), 0.1);
     border-color: var(--accent-color);
 }
 
-.c-report-list__item-title {
+.c-insights-report-item__title {
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--text-main);
 }
 
-.c-report-list__item-meta {
+.c-insights-report-item__meta {
     margin-top: 0.125rem;
     font-size: 0.75rem;
     color: var(--text-dim);

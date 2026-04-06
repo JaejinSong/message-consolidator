@@ -12,12 +12,14 @@ func GetReport(ctx context.Context, email, start, end string) (*Report, error) {
 	var r Report
 	var createdAt time.Time
 	var isTruncated int
+	var summary sql.NullString
 	err := db.QueryRowContext(ctx, SQL.GetReport, email, start, end).Scan(
-		&r.ID, &r.UserEmail, &r.StartDate, &r.EndDate, &r.Visualization, &isTruncated, &createdAt, &r.Summary,
+		&r.ID, &r.UserEmail, &r.StartDate, &r.EndDate, &r.Visualization, &isTruncated, &createdAt, &summary,
 	)
 	if err != nil {
 		return nil, err
 	}
+	r.Summary = summary.String
 	r.IsTruncated = isTruncated != 0
 	r.CreatedAt = createdAt
 
@@ -32,12 +34,14 @@ func GetReportByDate(ctx context.Context, email, date string) (*Report, error) {
 	var r Report
 	var createdAt time.Time
 	var isTruncated int
-	err := db.QueryRowContext(ctx, SQL.GetReportByDate, email, date).Scan(
-		&r.ID, &r.UserEmail, &r.StartDate, &r.EndDate, &r.Visualization, &isTruncated, &createdAt, &r.Summary,
+	var summary sql.NullString
+	err := db.QueryRowContext(ctx, SQL.GetReportByDate, email, date, date).Scan(
+		&r.ID, &r.UserEmail, &r.StartDate, &r.EndDate, &r.Visualization, &isTruncated, &createdAt, &summary,
 	)
 	if err != nil {
 		return nil, err
 	}
+	r.Summary = summary.String
 	r.IsTruncated, r.CreatedAt = isTruncated != 0, createdAt
 	r.Translations, _ = GetReportTranslations(ctx, r.ID)
 	return &r, nil
@@ -48,12 +52,14 @@ func GetReportByID(ctx context.Context, id int, email string) (*Report, error) {
 	var r Report
 	var createdAt time.Time
 	var isTruncated int
+	var summary sql.NullString
 	err := db.QueryRowContext(ctx, SQL.GetReportByID, id, email).Scan(
-		&r.ID, &r.UserEmail, &r.StartDate, &r.EndDate, &r.Visualization, &isTruncated, &createdAt, &r.Summary,
+		&r.ID, &r.UserEmail, &r.StartDate, &r.EndDate, &r.Visualization, &isTruncated, &createdAt, &summary,
 	)
 	if err != nil {
 		return nil, err
 	}
+	r.Summary = summary.String
 	r.IsTruncated = isTruncated != 0
 	r.CreatedAt = createdAt
 

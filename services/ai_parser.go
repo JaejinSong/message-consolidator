@@ -2,33 +2,39 @@ package services
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
-// ExtractJSONBlock finds the first ```json block, returns its content and the text with the block removed.
-// Why: Enables clean separation of structured data and descriptive text for reports.
+// ExtractJSONBlock finds the first JSON-like block or markdown code block, returns its content and the text with the block removed.
+// Why: Enables clean separation of structured data and descriptive text for reports, handling AI backtick noise.
 func ExtractJSONBlock(content string) (string, string, error) {
-	startMark := "```json"
-	endMark := "```"
+	// 1. Try to find ```json ... ``` or ``` ... ``` using regex
+	re := regexp.MustCompile("(?s)```(?:json)?\\s*(.*?)\\s*```")
+	match := re.FindStringSubmatch(content)
 
-	startIdx := strings.Index(content, startMark)
-	if startIdx == -1 {
-		return "", content, fmt.Errorf("json block start not found")
+	var jsonStr string
+	var stripped string
+
+	if len(match) > 1 {
+		jsonStr = strings.TrimSpace(match[1])
+		// Remove the entire block including markers from the summary text
+		stripped = re.ReplaceAllString(content, "")
+	} else {
+		// 2. Fallback: Find the first '{' and last '}' to extract raw JSON object
+		startIdx := strings.Index(content, "{")
+		endIdx := strings.LastIndex(content, "}")
+		if startIdx != -1 && endIdx != -1 && endIdx > startIdx {
+			jsonStr = strings.TrimSpace(content[startIdx : endIdx+1])
+			stripped = content[:startIdx] + content[endIdx+1:]
+		} else {
+			return "", content, fmt.Errorf("json block not found")
+		}
 	}
 
-	// Calculate indices for content after the start marker
-	afterStart := content[startIdx+len(startMark):]
-	endIdx := strings.Index(afterStart, endMark)
-	if endIdx == -1 {
-		return "", content, fmt.Errorf("json block end not found")
-	}
-
-	jsonStr := strings.TrimSpace(afterStart[:endIdx])
-	// Combine text before the block and text after the block
-	rawStripped := content[:startIdx] + afterStart[endIdx+len(endMark):]
-	// Replace triple newlines with double newlines for cleaner text
-	stripped := strings.ReplaceAll(rawStripped, "\n\n\n", "\n\n")
-	return jsonStr, strings.TrimSpace(stripped), nil
+	// Post-process stripped text: remove triple newlines and trim
+	processedStripped := strings.ReplaceAll(stripped, "\n\n\n", "\n\n")
+	return jsonStr, strings.TrimSpace(processedStripped), nil
 }
 
 // ExtractSection extracts text from a specific section header (e.g., "## [Executive Summary]") until the next header.

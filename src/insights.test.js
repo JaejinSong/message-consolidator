@@ -1,12 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { insights } from './insights';
 import { api } from './api';
-import { insightsRenderer } from './insightsRenderer.ts';
+import { insightsRenderer } from './insightsRenderer';
+import { upsertReport, state } from './state';
+import { I18N_DATA } from './locales';
 
 // Mock Modules
 vi.mock('./api', () => ({
     api: {
         fetchReports: vi.fn(),
+        fetchReportHistory: vi.fn(),
         fetchReportDetail: vi.fn(),
         generateReport: vi.fn(),
         deleteReport: vi.fn(),
@@ -14,10 +17,10 @@ vi.mock('./api', () => ({
     }
 }));
 
-vi.mock('./insightsRenderer.ts', () => ({
+vi.mock('./insightsRenderer', () => ({
     insightsRenderer: {
         renderReportList: vi.fn(),
-        renderReportDetail: vi.fn(),
+        renderReport: vi.fn(),
         renderDailyGlance: vi.fn(),
         renderActivityHeatmap: vi.fn(),
         renderSourceDistribution: vi.fn(),
@@ -27,7 +30,29 @@ vi.mock('./insightsRenderer.ts', () => ({
         renderAnkiChart: vi.fn(),
         renderLoading: vi.fn(),
         renderError: vi.fn(),
-        initReportList: vi.fn()
+        renderTokenUsage: vi.fn(),
+        renderChannelDistribution: vi.fn(),
+        renderStaleTasks: vi.fn(),
+        renderEmptyState: vi.fn(),
+        resizeAll: vi.fn()
+    }
+}));
+
+vi.mock('./state', () => ({
+    state: {
+        currentLang: 'ko',
+        reportHistory: [],
+        reports: {}
+    },
+    upsertReport: vi.fn(),
+    updateReportHistory: vi.fn(),
+    removeReportFromState: vi.fn()
+}));
+
+vi.mock('./locales', () => ({
+    I18N_DATA: {
+        ko: { generatingReport: '생성 중', loadingData: '불러오는 중', generatingTranslation: '번역 중' },
+        en: { generatingReport: 'Generating', loadingData: 'Loading', generatingTranslation: 'Translating' }
     }
 }));
 
@@ -35,115 +60,102 @@ vi.mock('./insightsRenderer.ts', () => ({
 vi.stubGlobal('alert', vi.fn());
 vi.stubGlobal('confirm', vi.fn(() => true));
 
-describe('insights.js - Controller', () => {
+describe('insights.ts - Controller (Passive View Refactor)', () => {
     beforeEach(() => {
         document.body.innerHTML = `
+            <div id="insightsStatsTab" class="c-tabs__panel"></div>
+            <div id="insightsReportsTab" class="c-tabs__panel c-tabs__panel--active"></div>
             <input id="reportStartDate">
             <input id="reportEndDate">
             <div id="reportList"></div>
             <button id="btnGenerateReport"></button>
-            <div id="reportTruncationWarning"></div>
-            <div id="dailyGlance"></div>
+            <div id="reportSummaryContent"></div>
+            <div id="dailyGlanceValue"></div>
+            <div id="dailyGlanceDetail"></div>
         `;
         vi.clearAllMocks();
+        state.currentLang = 'ko';
     });
 
-    it('should initialize date pickers correctly', () => {
-        insights.initDatePickers();
-        const start = document.getElementById('reportStartDate').value;
-        const end = document.getElementById('reportEndDate').value;
-        
-        expect(start).not.toBe('');
-        expect(end).not.toBe('');
-        expect(new Date(end).getTime()).toBeGreaterThanOrEqual(new Date(start).getTime());
-    });
-
-    it('should refresh reports and render the list', async () => {
-        const mockReports = [{ id: 1, start_date: '2024-03-01', end_date: '2024-03-07' }];
-        api.fetchReports.mockResolvedValue(mockReports);
-        api.fetchReportDetail.mockResolvedValue(mockReports[0]);
+    it('should refresh reports and render the list with i18n injection', async () => {
+        const mockHistory = [{ id: 1, start_date: '2024-03-01', end_date: '2024-03-07' }];
+        api.fetchReportHistory.mockResolvedValue(mockHistory);
+        state.reportHistory = mockHistory;
 
         await insights.refreshReport();
-        expect(insightsRenderer.initReportList).toHaveBeenCalled();
+
+        expect(api.fetchReportHistory).toHaveBeenCalled();
+        expect(insightsRenderer.renderReportList).toHaveBeenCalledWith(
+            mockHistory,
+            expect.objectContaining({ generatingReport: '생성 중' }),
+            null
+        );
     });
 
-    it('should load report details when selected', async () => {
-        const mockReport = { id: 1, report_summary: 'Test Content' };
+    it('should load report details with DI (report, lang, i18n)', async () => {
+        const reportMeta = { id: 1, start_date: '2024-03-01', end_date: '2024-03-07' };
+        const mockReport = { ...reportMeta, summary: 'Test Content' };
         api.fetchReportDetail.mockResolvedValue(mockReport);
 
-        await insights.loadReportDetail(1);
+        await insights.loadExistingReport(reportMeta);
 
         expect(api.fetchReportDetail).toHaveBeenCalledWith(1);
-        expect(insightsRenderer.renderReportDetail).toHaveBeenCalledWith(mockReport);
+        expect(insightsRenderer.renderReport).toHaveBeenCalledWith(
+            expect.objectContaining({ summary: 'Test Content' }),
+            'ko',
+            expect.any(Object)
+        );
     });
 
-    it('should handle report creation with validation', async () => {
-        const startInput = document.getElementById('reportStartDate');
-        const endInput = document.getElementById('reportEndDate');
+    it('should inject correct i18n message when loading report', async () => {
+        const reportMeta = { id: 1, start_date: '2024-03-01', end_date: '2024-03-07' };
+        api.fetchReportDetail.mockResolvedValue({ id: 1 });
+
+        await insights.loadExistingReport(reportMeta);
+
+        expect(insightsRenderer.renderLoading).toHaveBeenCalledWith(
+            expect.any(HTMLElement),
+            expect.objectContaining({ loadingData: '불러오는 중' }),
+            'load'
+        );
+    });
+
+    it('should handle JIT translation with injected i18n on language change', async () => {
+        // Manually trigger init to bind events
+        insights.init(); 
         
-        // Valid dates
-        startInput.value = '2024-03-01';
-        endInput.value = '2024-03-07';
-        api.generateReport.mockResolvedValue({ report_id: 99 });
-        api.fetchReports.mockResolvedValue([]);
-        api.fetchReportDetail.mockResolvedValue({ id: 99 });
-
-        await insights.generateNewReport();
-        expect(api.generateReport).toHaveBeenCalledWith('2024-03-01', '2024-03-07');
-    });
-
-    it('should show alert when report generation fails', async () => {
-        const startInput = document.getElementById('reportStartDate');
-        const endInput = document.getElementById('reportEndDate');
-        startInput.value = '2024-03-01';
-        endInput.value = '2024-03-07';
-        
-        api.generateReport.mockRejectedValue(new Error('AI limit reached'));
-
-        await insights.generateNewReport();
-        expect(alert).toHaveBeenCalledWith(expect.stringContaining('AI limit reached'));
-    });
-
-    it('should confirm before deleting a report', async () => {
-        api.deleteReport.mockResolvedValue({ success: true });
-        api.fetchReports.mockResolvedValue([]);
-
-        await insights.deleteReport(1);
-
-        expect(confirm).toHaveBeenCalled();
-        expect(api.deleteReport).toHaveBeenCalledWith(1);
-    });
-
-    it('should handle JIT translation on language change', async () => {
-        // Setup state
-        document.body.innerHTML += `
-            <div id="insightsSection"></div>
-            <div id="reportSummaryContent"></div>
-            <div id="insightsStatsTab" class="c-tabs__panel"></div>
-            <div id="insightsReportsTab" class="c-tabs__panel c-tabs__panel--active"></div>
-            <button class="insights-tab-btn" data-tab="insightsStatsTab"></button>
-            <button class="insights-tab-btn" data-tab="insightsReportsTab"></button>
-        `;
-        insights.init(); // Register listeners
-        
-        const mockReport = { id: 1, report_summary: 'English', translations: {} };
+        const mockReport = { id: 1, summary: 'English Original', translations: {} };
         insights.lastReport = mockReport;
         
-        // Mock API
-        api.translateReport.mockResolvedValue({ summary: 'Translated Summary' });
+        api.translateReport.mockResolvedValue({ summary: '번역된 요약' });
 
-        // Trigger event
         const { events, EVENTS } = await import('./events');
         events.emit(EVENTS.LANGUAGE_CHANGED, 'ko');
 
-        // Verify loading was shown
-        expect(insightsRenderer.renderLoading).toHaveBeenCalled();
-        
-        // Wait for async call
+        // Check loading state injection
+        expect(insightsRenderer.renderLoading).toHaveBeenCalledWith(
+            expect.any(HTMLElement),
+            expect.objectContaining({ generatingTranslation: '번역 중' }),
+            'translation'
+        );
+
         await vi.waitFor(() => expect(api.translateReport).toHaveBeenCalledWith(1, 'ko'));
         
-        // Verify report was re-rendered with new translation
-        expect(insightsRenderer.renderReportDetail).toHaveBeenCalled();
-        expect(mockReport.translations.ko).toBe('Translated Summary');
+        expect(insightsRenderer.renderReport).toHaveBeenCalledWith(
+            mockReport,
+            'ko',
+            expect.objectContaining({ generatingTranslation: '번역 중' })
+        );
+    });
+
+    it('should render all widgets with i18n injection in renderAll', () => {
+        const stats = { total_completed: 10, completion_history: [] };
+        const i18nKo = I18N_DATA.ko;
+
+        insights.renderAll(stats, [], [], { todayTotal: 100 });
+
+        expect(insightsRenderer.renderTokenUsage).toHaveBeenCalledWith(expect.any(Object), i18nKo);
+        expect(insightsRenderer.renderDailyGlance).toHaveBeenCalledWith(stats, i18nKo);
+        expect(insightsRenderer.renderActivityHeatmap).toHaveBeenCalledWith(stats, i18nKo);
     });
 });

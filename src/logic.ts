@@ -279,12 +279,12 @@ export function normalizeReportData(data: any): IReportData {
     if (!data) return {} as IReportData;
 
     let viz: ParsedVisualization = { nodes: [], links: [] };
-    const rawViz = data.visualization_data;
+    const rawViz = data.visualization || data.visualization_data;
 
     if (typeof rawViz === 'string' && rawViz.trim()) {
         try { viz = JSON.parse(rawViz); } catch (e) { /* Fallback used */ }
     } else if (rawViz && typeof rawViz === 'object') {
-        viz = rawViz;
+        viz = rawViz as ParsedVisualization;
     }
 
     return {
@@ -292,9 +292,11 @@ export function normalizeReportData(data: any): IReportData {
         user_email: data.user_email || "",
         start_date: data.start_date || "",
         end_date: data.end_date || "",
-        report_summary: data.report_summary || "",
+        report_summary: data.summary || data.report_summary || "",
+        summary: data.summary || data.report_summary || "",
         translations: data.translations || {},
         visualization_data: viz,
+        visualization: viz,
         is_truncated: Boolean(data.is_truncated),
         created_at: data.created_at || ""
     };

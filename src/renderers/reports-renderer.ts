@@ -103,23 +103,24 @@ function calculateColumnLayout(nodes: any[], x: number, height: number) {
 }
 
 export const reportsRenderer = {
-    renderHistory(container: HTMLElement, items: IReportData[], onSelect: (item: IReportData) => void): void {
+    renderHistory(container: HTMLElement, items: IReportData[], onSelect: (item: IReportData) => void, i18n: any): void {
         container.innerHTML = '';
         if (!items || items.length === 0) {
-            container.innerHTML = '<div class="u-text-dim u-p-4">No reports found.</div>';
+            container.innerHTML = `<div class="u-text-dim u-p-4">${i18n.noReports || 'No reports found.'}</div>`;
             return;
         }
 
         items.forEach(item => {
             const btn = document.createElement('div');
-            btn.className = 'c-report-list__item';
+            btn.className = 'c-insights-report-item';
+            btn.setAttribute('data-id', String(item.id));
             btn.innerHTML = `
-                <div class="c-report-list__item-title u-text-xs u-text-dim">${item.title || 'Weekly Report'}</div>
-                <div class="c-report-list__item-meta">${item.start_date} ~ ${item.end_date}</div>
+                <div class="c-insights-report-item__title u-text-xs u-text-dim">${item.title || (i18n.weeklyReportTitle || 'Weekly Report')}</div>
+                <div class="c-insights-report-item__meta">${item.start_date} ~ ${item.end_date}</div>
             `;
             btn.onclick = () => {
-                container.querySelectorAll('.c-report-list__item').forEach(el => el.classList.remove('c-report-list__item--active'));
-                btn.classList.add('c-report-list__item--active');
+                container.querySelectorAll('.c-insights-report-item').forEach(el => el.classList.remove('c-insights-report-item--active'));
+                btn.classList.add('c-insights-report-item--active');
                 onSelect(item);
             };
             container.appendChild(btn);
@@ -127,16 +128,40 @@ export const reportsRenderer = {
 
     },
 
-    render(report: IReportData): void {
+    render(report: IReportData, lang: string, i18n: any): void {
         const summaryArea = document.getElementById('reportSummaryContent');
         const netChartArea = document.getElementById('reportNetworkChart');
         const sankeyChartArea = document.getElementById('reportSankeyChart');
 
-        if (summaryArea) summaryArea.innerHTML = parseMarkdown(report.report_summary);
+        // Field mapping: support translations first, then 'summary', then legacy 'report_summary'
+        const summaryText = report.translations?.[lang] || report.summary || report.report_summary || "";
         
-        const viz = (typeof report.visualization_data === 'string') 
-            ? JSON.parse(report.visualization_data || '{"nodes":[],"links":[]}') 
-            : report.visualization_data as ParsedVisualization;
+        if (summaryArea) summaryArea.innerHTML = parseMarkdown(summaryText);
+        
+        // Headers/Labels
+        const summaryTitle = document.querySelector('.c-report-summary-title');
+        if (summaryTitle) summaryTitle.textContent = i18n.reportSummaryTitle || '주간 업무 요약';
+        const vizTitle = document.querySelector('.c-report-viz-title');
+        if (vizTitle) vizTitle.textContent = i18n.reportVizTitle || '커뮤니케이션 관계망';
+        const flowTitle = document.querySelector('.c-report-flow-title');
+        if (flowTitle) flowTitle.textContent = i18n.reportSankeyTitle || '커뮤니케이션 흐름 (Sankey)';
+
+        // Field mapping: support both 'visualization' and legacy 'visualization_data'
+        const vizRaw = report.visualization || report.visualization_data;
+        let viz: ParsedVisualization;
+        
+        try {
+            if (typeof vizRaw === 'string' && vizRaw.trim()) {
+                viz = JSON.parse(vizRaw);
+            } else if (vizRaw && typeof vizRaw === 'object') {
+                viz = vizRaw as ParsedVisualization;
+            } else {
+                viz = { nodes: [], links: [] };
+            }
+        } catch (e) {
+            console.error("[ReportsRenderer] Visualization data parsing failed:", e);
+            viz = { nodes: [], links: [] };
+        }
 
         if (netChartArea) {
             netChartArea.innerHTML = '';

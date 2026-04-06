@@ -10,11 +10,11 @@ mkdir -p /app/logs
 echo "[INFO] Container initialization started."
 
 # 1. Start the WhaTap Data Relay Agent if present and executable
-if [ -x "$WHATAP_AGENT" ]; then
-    echo "[INFO] Starting WhaTap Data Relay Agent..."
-    "$WHATAP_AGENT" start
+if [ -f "$WHATAP_AGENT" ]; then
+    echo "[INFO] Starting WhaTap Data Relay Agent with sh..."
+    sh "$WHATAP_AGENT" start
 else
-    echo "[WARN] WhaTap agent not found or not executable at $WHATAP_AGENT. Skipping APM initialization."
+    echo "[WARN] WhaTap agent not found at $WHATAP_AGENT. Skipping Relay Agent initialization."
 fi
 
 # 2. Execute the main application

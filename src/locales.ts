@@ -1,5 +1,5 @@
 // v.2.1.982
-export const I18N_DATA = {
+export const I18N_DATA: Record<string, any> = {
     ko: {
         subTitle: "자동화된 Slack & WhatsApp 업무 대시보드",
         realTimeTasks: "실행 중인 업무",
@@ -236,6 +236,19 @@ export const I18N_DATA = {
         reportSankeyTitle: "커뮤니케이션 흐름 (Sankey)",
         generatingReport: "AI 리포트 생성 및 분석 중...",
         generatingTranslation: "AI 번역 생성 중...",
+        completedTasks: "완료 업무",
+        peakTime: "피크 타임",
+        totalCommunication: "총 소통량",
+        averageDaily: "일 평균",
+        recentAchievements: "최근 업적",
+        sourceDistribution: "소스별 비중",
+        waiting: "대기 중",
+        recentActivity91: "최근 활동 (91일)",
+        noReportsYet: "생성된 리포트가 없습니다",
+        generateReportDesc: "AI를 통해 오늘 업무 리포트를 생성해 보세요.",
+        generateReportBtn: "AI 리포트 생성하기",
+        loadingData: "데이터를 불러오는 중...",
+        retryLanguageSelection: "다시 한 번 언어를 선택해 주세요",
     },
     en: {
         subTitle: "Automated Slack & WhatsApp Task Dashboard",
@@ -474,6 +487,19 @@ export const I18N_DATA = {
         reportSankeyTitle: "Communication Flow (Sankey)",
         generatingReport: "Generating & Analyzing AI Report...",
         generatingTranslation: "Generating AI Translation...",
+        completedTasks: "Completed Tasks",
+        peakTime: "Peak Time",
+        totalCommunication: "Total Communication",
+        averageDaily: "Daily Average",
+        recentAchievements: "Recent Achievements",
+        sourceDistribution: "Source Distribution",
+        waiting: "Waiting",
+        recentActivity91: "Recent Activity (91 Days)",
+        noReportsYet: "No reports yet",
+        generateReportDesc: "Generate your daily work report with AI.",
+        generateReportBtn: "Generate AI Report",
+        loadingData: "Loading data...",
+        retryLanguageSelection: "Please try selecting the language again",
     },
     id: {
         subTitle: "Dasbor Tugas Slack & WhatsApp Otomatis",

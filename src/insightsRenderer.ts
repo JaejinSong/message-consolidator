@@ -1,15 +1,13 @@
 /**
  * src/insightsRenderer.ts
- * Refactored to use slot-based partial updates instead of innerHTML overwrites. 
- * Preserves the layout and BEM structure defined in index.html.
+ * Refactored to a Passive View architecture.
+ * Removes all direct dependencies on global state and i18n data.
+ * All data and localization must be injected by the controller.
  */
 
-import { state, updateReportHistory, upsertReport } from './state';
-import { I18N_DATA } from './locales';
-import { UserStats, TokenUsage, IReportData } from './types';
-import { generateHeatmapData, normalizeReportData } from './logic';
+import { IReportData, UserStats, TokenUsage } from './types';
+import { generateHeatmapData } from './logic';
 import { reportsRenderer } from './renderers/reports-renderer';
-import { api } from './api';
 
 const getCssVariableValue = (varName: string): string => {
     return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
@@ -22,23 +20,15 @@ function createSVG(tag: string, attrs: Record<string, string | number>): SVGElem
     return el;
 }
 
-
 export const insightsRenderer = {
-    getI18n() {
-        const lang = state.currentLang || 'ko';
-        return I18N_DATA[lang as keyof typeof I18N_DATA] || I18N_DATA.ko;
-    },
-
     resizeAll() {
         // Vanilla SVG charts using viewBox resize automatically with container.
     },
 
-
     /**
      * Updates AI consumption slots. 
-     * Target: #aiConsumptionValue, #aiConsumptionDetail
      */
-    renderTokenUsage(usage: TokenUsage | null): void {
+    renderTokenUsage(usage: TokenUsage | null, i18n: any): void {
         const slot = document.getElementById('ai-usage-consolidated');
         if (!slot) return;
         slot.innerHTML = '';
@@ -49,7 +39,6 @@ export const insightsRenderer = {
             monthlyCost = 0, model = 'Gemini 3 Flash' 
         } = usage || {};
         
-        const i18n = this.getI18n() as any;
         const costStr = typeof monthlyCost === 'number' ? `$${monthlyCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00';
 
         slot.innerHTML = `
@@ -75,10 +64,9 @@ export const insightsRenderer = {
     },
 
     /**
-     * Updates daily performance slots using BEM structure.
-     * Target: #dailyGlanceValue, #dailyGlanceDetail
+     * Updates daily performance slots.
      */
-    renderDailyGlance(stats: UserStats | null): void {
+    renderDailyGlance(stats: UserStats | null, i18n: any): void {
         const valSlot = document.getElementById('dailyGlanceValue');
         const detSlot = document.getElementById('dailyGlanceDetail');
         if (!valSlot || !stats) return;
@@ -90,26 +78,25 @@ export const insightsRenderer = {
         const avg = historyLen > 0 ? (completed / historyLen).toFixed(1) : '0';
         
         valSlot.innerHTML = `
-            <span class="stat-card__label">완료 업무</span>
+            <span class="stat-card__label">${i18n.completedTasks || '완료 업무'}</span>
             <div class="stat-card__multi-value">
-                <span class="c-insights-card__main-value">누적 ${completed}</span>
-                <span class="stat-card__secondary-value">일 평균 ${avg}</span>
+                <span class="c-insights-card__main-value">${i18n.totalCompleted || '누적'} ${completed}</span>
+                <span class="stat-card__secondary-value">${i18n.averageDaily || '일 평균'} ${avg}</span>
             </div>
         `;
         
         if (detSlot) {
             const waiting = stats.waiting_tasks ?? 0;
             detSlot.innerHTML = waiting > 0 
-                ? `<span class="u-text-warning">⚠️ ${waiting} tasks waiting</span>` 
+                ? `<span class="u-text-warning">⚠️ ${waiting} ${i18n.waitingTasks || 'tasks waiting'}</span>` 
                 : '';
         }
     },
 
     /**
      * Updates achievement slot.
-     * Target: #achievementsList
      */
-    renderAchievements(all: any[], user: any[], _stats: any): void {
+    renderAchievements(all: any[], user: any[], i18n: any): void {
         const container = document.getElementById('achievementsList');
         if (!container) return;
         container.innerHTML = '';
@@ -125,22 +112,20 @@ export const insightsRenderer = {
         }
         itemsToDisplay.push(...nonSeriesItems);
 
-        // 컨텐츠와 라벨 표시
         container.innerHTML = `
             <div class="u-w-full">
                 ${itemsToDisplay.slice(0, 2).map(ach => `
                     <div class="c-achievement u-mb-1">${ach.icon || '🏆'} ${ach.name}</div>
                 `).join('')}
             </div>
-            <span class="stat-card__label">최근 업적</span>
+            <span class="stat-card__label">${i18n.recentAchievements || '최근 업적'}</span>
         `;
     },
 
     /**
      * Updates channel distribution slot with a Pie Chart.
-     * Target: #sourceDistribution
      */
-    renderChannelDistribution(stats: any): void {
+    renderChannelDistribution(stats: any, i18n: any): void {
         const container = document.getElementById('sourceDistribution');
         if (!container) return;
         const dist = stats.source_distribution_total || stats.source_distribution || {};
@@ -150,13 +135,13 @@ export const insightsRenderer = {
         })).filter(e => e.value > 0);
 
         if (entries.length === 0) {
-            container.innerHTML = '<div class="u-text-dim u-p-4">No data</div>';
+            container.innerHTML = `<div class="u-text-dim u-p-4">${i18n.noResults || 'No data'}</div>`;
             return;
         }
 
         container.innerHTML = `
             <div id="sourceDistributionChart" class="u-w-full u-flex u-flex-center" style="height: 11.25rem;"></div>
-            <span class="stat-card__label">소스별 비중</span>
+            <span class="stat-card__label">${i18n.sourceDistribution || '소스별 비중'}</span>
         `;
         const chartNode = document.getElementById('sourceDistributionChart');
         if (!chartNode) return;
@@ -177,16 +162,14 @@ export const insightsRenderer = {
             const d = `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`;
             svg.appendChild(createSVG('path', { d, fill: colors[i % colors.length], stroke: 'var(--card-bg)', 'stroke-width': 1 }));
         });
-        svg.appendChild(createSVG('circle', { cx: 50, cy: 50, r: 25, fill: 'var(--bg-color)' })); // Donut center
+        svg.appendChild(createSVG('circle', { cx: 50, cy: 50, r: 25, fill: 'var(--bg-color)' }));
         chartNode.appendChild(svg);
     },
 
-
     /**
-     * Updates the 'Waiting' (대기 중) widget using backend-provided stats.
-     * Target: #stat-stale
+     * Updates the 'Waiting' (대기 중) widget.
      */
-    renderStaleTasks(stats: UserStats): void {
+    renderStaleTasks(stats: UserStats, i18n: any): void {
         const slot = document.getElementById('stat-stale');
         if (!slot) return;
         slot.innerHTML = '';
@@ -194,11 +177,11 @@ export const insightsRenderer = {
         const val = stats.waiting_tasks || 0;
         slot.innerHTML = `
             <span class="c-insights-card__main-value">${val}</span>
-            <span class="stat-card__label">대기 중</span>
+            <span class="stat-card__label">${i18n.waiting || '대기 중'}</span>
         `;
     },
 
-    renderHourlyActivity(stats: UserStats | null): void {
+    renderHourlyActivity(stats: UserStats | null, i18n: any): void {
         const container = document.getElementById('stat-peak');
         if (!container || !stats?.hourly_activity) return;
         container.innerHTML = '';
@@ -223,28 +206,28 @@ export const insightsRenderer = {
                 <div class="c-peak-chart__bars">${bars.join('')}</div>
                 <div class="c-peak-chart__labels">${labels}</div>
             </div>
-            <span class="stat-card__label">피크 타임</span>
+            <span class="stat-card__label">${i18n.peakTime || '피크 타임'}</span>
         `;
     },
 
-    renderActivityHeatmap(stats: any, targetId: string = 'activityHeatmap'): void {
+    renderActivityHeatmap(stats: any, i18n: any, targetId: string = 'activityHeatmap'): void {
         const container = document.getElementById(targetId);
         if (!container) return;
         container.innerHTML = '';
         const history = stats?.completion_history;
         if (!history || history.length === 0) {
-            container.innerHTML = `<div class="heatmap-widget--empty">No activity</div>`;
+            container.innerHTML = `<div class="heatmap-widget--empty">${i18n.noResults || 'No activity'}</div>`;
             return;
         }
 
-        const heatmapData = generateHeatmapData(history, 91); // Polish: 13 weeks
+        const heatmapData = generateHeatmapData(history, 91);
         const cells = heatmapData.map((d: any) => {
             const tier = d.level > 0 ? `heatmap-grid__cell--tier-${d.level}` : '';
             const cStr = JSON.stringify(d.counts).replace(/"/g, '&quot;');
             return `<div class="heatmap-grid__cell ${tier}" data-date="${d.date}" data-count="${d.count}" data-counts="${cStr}"></div>`;
         });
 
-        const label = targetId === 'stat-peak' ? '피크 타임' : '최근 활동 (91일)';
+        const label = targetId === 'stat-peak' ? (i18n.peakTime || '피크 타임') : (i18n.recentActivity91 || '최근 활동 (91일)');
 
         container.innerHTML = `
             <div class="heatmap-widget">
@@ -316,99 +299,78 @@ export const insightsRenderer = {
         container.appendChild(svg);
     },
 
-
     /**
-     * Initializes the report list by fetching from API.
-     * @param activeId - Optional ID to auto-load after refresh.
+     * Initializes the report list UI.
+     * Logic for fetching and auto-loading moved to Controller.
      */
-    async initReportList(activeId: number | null = null): Promise<void> {
+    renderReportList(history: IReportData[], i18n: any, activeId: number | null = null): void {
         const container = document.getElementById('reportList');
         if (!container) return;
 
-        try {
-            const history = await api.fetchReportHistory();
-            updateReportHistory(history);
-            
-            reportsRenderer.renderHistory(container, state.reportHistory, async (selected) => {
-                const key = `${selected.start_date}_${selected.end_date}`;
-                let report = state.reports[key];
-                
-                if (!report || !report.report_summary) {
-                    const mainContainer = document.querySelector('.c-insights-report-main');
-                    if (mainContainer) {
-                        this.renderLoading(mainContainer as HTMLElement, 'report');
-                        const fullReport = await api.fetchReportDetail(selected.id!);
-                        report = normalizeReportData(fullReport);
-                        upsertReport(report);
-                    }
-                }
-                
-                this.renderReportDetail(report);
-            });
+        reportsRenderer.renderHistory(container, history, (selected) => {
+            (window as any).insights.loadExistingReport(selected);
+        }, i18n);
 
-            // Auto-load latest or specified report
-            if (state.reportHistory.length > 0) {
-                const target = activeId 
-                    ? state.reportHistory.find(r => r.id === activeId) 
-                    : state.reportHistory[0];
-                
-                if (target) {
-                    // Trigger the click handler of the first item to load it
-                    const items = container.querySelectorAll('.c-report-list__item');
-                    const index = activeId ? state.reportHistory.indexOf(target) : 0;
-                    if (items[index]) (items[index] as HTMLElement).click();
-                }
-            } else {
-                // Clear loading state if no reports and show a call to action
-                const main = document.querySelector('.c-insights-report-main');
-                if (main) {
-                    main.innerHTML = `
-                        <div class="c-reports-empty-state u-p-12 u-text-center">
-                            <div class="u-text-6xl u-mb-4">📊</div>
-                            <h3 class="u-text-xl u-font-bold u-mb-2">No reports yet</h3>
-                            <p class="u-text-dim u-mb-8">AI를 통해 오늘 업무 리포트를 생성해 보세요.</p>
-                            <button id="emptyStateGenerateBtn" class="c-btn c-btn--primary c-btn--lg">
-                                <span class="u-mr-2">✨</span> AI 리포트 생성하기
-                            </button>
-                        </div>
-                    `;
-                    
-                    // Bind click event after rendering
-                    const btn = document.getElementById('emptyStateGenerateBtn');
-                    if (btn) {
-                        btn.onclick = () => {
-                            const event = new CustomEvent('generate-report-clicked');
-                            window.dispatchEvent(event);
-                        };
-                    }
-                }
+        // UI auto-selection logic is simplified.
+        if (history.length > 0) {
+            const target = activeId 
+                ? history.find(r => r.id === activeId) 
+                : history[0];
+            
+            if (target) {
+                const index = activeId ? history.indexOf(target) : 0;
+                const items = container.querySelectorAll('.c-insights-report-item');
+                if (items[index]) (items[index] as HTMLElement).classList.add('c-insights-report-item--active');
             }
-        } catch (err) {
-            console.error('Failed to load report history:', err);
-            container.innerHTML = '<div class="u-text-dim u-p-4">Failed to load reports.</div>';
+        } else {
+            this.renderEmptyState(i18n);
         }
     },
 
     /**
      * Renders the detail of a single report.
      */
-    renderReportDetail(report: IReportData): void {
+    renderReport(report: IReportData, lang: string, i18n: any): void {
         const detailContainer = document.querySelector('.c-insights-report-main') as HTMLElement;
         if (detailContainer) {
-            reportsRenderer.render(report);
+            reportsRenderer.render(report, lang, i18n);
         }
     },
 
-    renderLoading(container: HTMLElement, type: 'report' | 'translation' = 'report'): void {
-        const i18n = this.getI18n() as any;
-        const msg = type === 'report' 
-            ? (i18n.generatingReport || "AI 리포트 분석 중...") 
-            : (i18n.generatingTranslation || "AI 번역 생성 중...");
+    renderLoading(container: HTMLElement, i18n: any, type: 'report' | 'translation' | 'load' = 'report'): void {
+        let msg = i18n.generatingReport || "AI 리포트 분석 중...";
+        
+        if (type === 'translation') msg = i18n.generatingTranslation || "AI 번역 생성 중...";
+        if (type === 'load') msg = i18n.loadingData || "데이터를 불러오는 중...";
+
         container.innerHTML = `<div class="c-report-loading u-p-8"><div class="spinner"></div><p class="u-mt-4">${msg}</p></div>`;
     },
 
-    renderError(container: HTMLElement, message: string): void {
-        const i18n = this.getI18n() as any;
+    /**
+     * Renders empty state when no report is selected or exists.
+     */
+    renderEmptyState(i18n: any): void {
+        const main = document.querySelector('.c-insights-report-main');
+        if (!main) return;
+        
+        main.innerHTML = `
+            <div class="c-reports-empty-state u-p-12 u-text-center">
+                <div class="u-text-6xl u-mb-4">📊</div>
+                <h3 class="u-text-xl u-font-bold u-mb-2">${i18n.noReportsYet || '생성된 리포트가 없습니다'}</h3>
+                <p class="u-text-dim u-mb-8">${i18n.generateReportDesc || 'AI를 통해 오늘 업무 리포트를 생성해 보세요.'}</p>
+                <button id="emptyStateGenerateBtn" class="c-btn c-btn--primary c-btn--lg">
+                    <span class="u-mr-2">✨</span> ${i18n.generateReportBtn || 'AI 리포트 생성하기'}
+                </button>
+            </div>
+        `;
+        
+        const btn = document.getElementById('emptyStateGenerateBtn');
+        if (btn) {
+            btn.onclick = () => window.dispatchEvent(new CustomEvent('generate-report-clicked'));
+        }
+    },
+
+    renderError(container: HTMLElement, message: string, i18n: any): void {
         const retryMsg = i18n.retryLanguageSelection || "다시 한 번 언어를 선택해 주세요";
         container.innerHTML = `
             <div class="c-report-error u-p-8 u-text-error">
