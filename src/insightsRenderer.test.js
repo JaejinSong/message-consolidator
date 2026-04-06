@@ -3,6 +3,15 @@ import { insightsRenderer } from './insightsRenderer.ts';
 import { state } from './state.ts';
 
 describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
+    const mockI18n = {
+        completedTasks: '완료 업무',
+        totalCommunication: '총 소통량',
+        waiting: '대기',
+        tokenUsageTitle: '토큰 사용량',
+        sourceDistribution: '소스별 비중',
+        weeklyReportTitle: '주간 리포트'
+    };
+
     beforeEach(() => {
         state.currentLang = 'ko';
         // HTML slots must match index.html exactly for valid DOM interaction
@@ -27,7 +36,7 @@ describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
 
     it('should update daily glance slots without destroying card title', () => {
         const data = { total_completed: 42, peak_time: '14:00', waiting_tasks: 0 };
-        insightsRenderer.renderDailyGlance(data);
+        insightsRenderer.renderDailyGlance(data, mockI18n);
 
         const card = document.getElementById('cardDailyGlance');
         const value = document.getElementById('dailyGlanceValue');
@@ -40,7 +49,7 @@ describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
 
     it('should show warning in daily glance detail when waiting tasks exist', () => {
         const data = { total_completed: 10, peak_time: '10:00', waiting_tasks: 5 };
-        insightsRenderer.renderDailyGlance(data);
+        insightsRenderer.renderDailyGlance(data, mockI18n);
         
         const detail = document.getElementById('dailyGlanceDetail');
         expect(detail.textContent).toContain('⚠️');
@@ -53,7 +62,7 @@ describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
             monthlyTotal: 56789, monthlyPrompt: 30000, monthlyCompletion: 26789,
             monthlyCost: 1.25, model: 'Gemini 3 Flash' 
         };
-        insightsRenderer.renderTokenUsage(usage);
+        insightsRenderer.renderTokenUsage(usage, mockI18n);
         
         const slot = document.getElementById('ai-usage-consolidated');
         expect(slot.innerHTML).toContain('토큰 사용량');
@@ -77,7 +86,7 @@ describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
 
     it('should render source distribution chart container and labels correctly', () => {
         const stats = { source_distribution: { slack: 70, whatsapp: 30 } };
-        insightsRenderer.renderChannelDistribution(stats);
+        insightsRenderer.renderChannelDistribution(stats, mockI18n);
 
         const container = document.getElementById('sourceDistribution');
         const chartNode = document.getElementById('sourceDistributionChart');

@@ -2,6 +2,7 @@ import { I18N_DATA } from './locales';
 import { ICONS } from './icons';
 import { TimeService } from './utils';
 import { state } from './state';
+import { marked } from 'marked';
 
 /**
  * @file logic.ts
@@ -239,19 +240,18 @@ export function getDeadlineBadge(timestamp: string | undefined, isDone: boolean,
 
 /**
  * Custom markdown to HTML parser for release notes and descriptions.
+ * Uses marked.js with line breaks enabled for better consistency with AI output.
  */
 export function parseMarkdown(text: string): string {
     if (!text) return '';
-    return text
-        .replace(/^### (.*$)/gim, `<h3 style="margin-top: var(--spacing-2xl); margin-bottom: var(--spacing-sm); color: var(--text-main);">$1</h3>`)
-        .replace(/^## (.*$)/gim, `<h2 style="margin-top: 1.8rem; margin-bottom: var(--spacing-md); color: var(--text-main); border-bottom: var(--border-thin) solid var(--glass-border); padding-bottom: var(--spacing-xs);">$1</h2>`)
-        .replace(/^# (.*$)/gim, `<h1 style="margin-top: var(--spacing-3xl); margin-bottom: var(--spacing-lg); color: var(--accent-color); font-size: 1.4rem;">$1</h1>`)
-        .replace(/^\-\-\-/gim, '<hr class="settings-divider" style="margin: var(--spacing-3xl) 0;">')
-        .replace(/\*\*(.*?)\*\*/gim, '<strong style="color: var(--text-main); font-weight: 800;">$1</strong>')
-        .replace(/`(.*?)`/gim, '<code style="background: var(--glass-border); padding: var(--spacing-xxs) var(--spacing-xs); border-radius: var(--radius-sm); font-size: 0.9em; font-family: monospace;">$1</code>')
-        .replace(/^\- (.*$)/gim, `<div style="padding-left: var(--spacing-lg); text-indent: -0.8rem; margin-bottom: var(--spacing-sm); color: var(--text-dim); line-height: 1.6;"><span style="color: var(--accent-color);">•</span> $1</div>`)
-        .replace(/\n/gim, '<br>')
-        .replace(/(<\/h[1-3]>|<hr.*?>|<\/div>)<br>/gim, '$1'); 
+    
+    // Set options for consistent newline handling
+    marked.use({
+        breaks: true,
+        gfm: true
+    });
+
+    return marked.parse(text) as string;
 }
 
 

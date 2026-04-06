@@ -3,6 +3,7 @@ import {
     parseMarkdown
 } from '../logic';
 import { describe, it, expect, vi, afterEach } from 'vitest';
+vi.unmock('marked');
 
 describe('logic.js - getDeadlineBadge', () => {
     afterEach(() => {
@@ -63,7 +64,9 @@ describe('logic.js - parseMarkdown', () => {
     });
 
     it('should parse lists', () => {
-        expect(parseMarkdown('- item')).toContain('•');
-        expect(parseMarkdown('- item')).toContain('item</div>');
+        const html = parseMarkdown('- item');
+        expect(html).toContain('<ul');
+        expect(html).toContain('<li');
+        expect(html).toContain('item');
     });
 });

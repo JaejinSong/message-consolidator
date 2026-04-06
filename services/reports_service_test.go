@@ -487,7 +487,7 @@ func TestReportsService_GenerateReport_MultiLanguage(t *testing.T) {
 	}
 
 	// Since we can't easily mock the internal GeminiClient.TranslateReport call without a real object,
-	report, err := svc.GenerateReport(context.Background(), tenantEmail, startDate, endDate)
+	report, err := svc.GenerateReport(context.Background(), tenantEmail, startDate, endDate, "en")
 	if err != nil {
 		t.Fatalf("GenerateReport failed: %v", err)
 	}
@@ -543,7 +543,7 @@ func TestReportsService_CacheHit(t *testing.T) {
 
 	// 1. First Call: Should hit AI
 	ctx := context.Background()
-	_, err = svc.GenerateReport(ctx, email, start, end)
+	_, err = svc.GenerateReport(ctx, email, start, end, "ko")
 	if err != nil {
 		t.Fatalf("First call failed: %v", err)
 	}
@@ -552,11 +552,53 @@ func TestReportsService_CacheHit(t *testing.T) {
 	}
 
 	// 2. Second Call: Should hit Cache (DB)
-	_, err = svc.GenerateReport(ctx, email, start, end)
+	_, err = svc.GenerateReport(ctx, email, start, end, "ko")
 	if err != nil {
 		t.Fatalf("Second call failed: %v", err)
 	}
 	if callCount != 1 {
 		t.Errorf("Expected callCount 1 (cache hit), got %d", callCount)
+	}
+}
+
+func TestReportsService_GenerateReport_OnlyRequestedLanguage(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	svc := NewReportsService(&mockSummarizer{
+		generateFunc: func(ctx context.Context, logs string) (string, error) {
+			return "AI Generated Summary", nil
+		},
+	}, nil, nil, ReportConfig{CutoffSize: 8000})
+
+	email := "user@example.com"
+	start := "2026-04-01"
+	// Pre-seed message
+	fixedTime, _ := time.Parse("2006-01-02", start)
+	_, _ = store.GetDB().Exec("INSERT INTO messages (user_email, source, task, created_at, requester, assignee) VALUES (?, ?, ?, ?, ?, ?)",
+		email, "slack", "Task 1", fixedTime, "Alice", "JJ")
+
+	ctx := context.Background()
+	report, err := svc.GenerateReport(ctx, email, start, start, "ko")
+	if err != nil {
+		t.Fatalf("GenerateReport failed: %v", err)
+	}
+
+	// Verify only 'ko' is in translations map (or at least only one lang if not 'en')
+	// Since ProcessOnDemandTranslation is called for 'ko', and I didn't mock TranslationService, 
+	// I should at least check that only 'ko' is present in the returned object's Translations map.
+	if len(report.Translations) != 1 {
+		t.Errorf("Expected exactly 1 translation, got %d: %+v", len(report.Translations), report.Translations)
+	}
+	if _, ok := report.Translations["ko"]; !ok {
+		t.Errorf("Expected 'ko' translation to be present")
+	}
+	
+	// Ensure other languages like 'id' or 'th' are NOT present
+	if _, ok := report.Translations["id"]; ok {
+		t.Error("Unexpected 'id' translation found")
 	}
 }

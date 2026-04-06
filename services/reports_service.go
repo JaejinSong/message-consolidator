@@ -58,9 +58,9 @@ func NewReportsService(summarizer ReportSummarizer, geminiClient *ai.GeminiClien
 	}
 }
 
-// Why: Orchestrates the generation of an AI-powered work report by coordinating between the Go-based visualization engine and the injected summarizer strategy.
-// Now supports a 1:N multi-language pipeline (EN, KR, ID, TH).
-func (s *ReportsService) GenerateReport(ctx context.Context, email, startDate, endDate string) (*store.Report, error) {
+// Why: Orchestrates the generation of an AI-powered work report.
+// Now follows a JIT (Just-In-Time) translation model.
+func (s *ReportsService) GenerateReport(ctx context.Context, email, startDate, endDate, lang string) (*store.Report, error) {
 	// 1. Check DB Cache First
 	if cached, err := store.GetReport(ctx, email, startDate, endDate); err == nil && cached != nil {
 		logger.Infof("[REPORTS] Cache Hit: Returning existing report for %s ~ %s", startDate, endDate)
@@ -78,14 +78,8 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, startDate, e
 		logger.Warnf("[REPORTS] Sanitization failed: %v", err)
 	}
 
-	// 3. Generate Visualization & AI Summary
-	report, err := s.generateBaseReport(ctx, email, startDate, endDate, filtered)
-	if err != nil {
-		return nil, err
-	}
-
-	// 4. Multi-language Translation
-	return s.translateReportBatch(ctx, email, report)
+	// 3. Generate Visualization & AI Summary (Original English)
+	return s.generateAndSaveReport(ctx, email, startDate, endDate, filtered, lang)
 }
 
 func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, startDate, endDate string) ([]Log, error) {
@@ -107,7 +101,7 @@ func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, star
 	return filtered, nil
 }
 
-func (s *ReportsService) generateBaseReport(ctx context.Context, email, startDate, endDate string, filtered []Log) (*store.Report, error) {
+func (s *ReportsService) generateAndSaveReport(ctx context.Context, email, startDate, endDate string, filtered []Log, lang string) (*store.Report, error) {
 	taskSummary, isTruncated := s.PrepareLogsForAI(email, filtered)
 	summaryFull, err := s.summarizer.Generate(ctx, taskSummary)
 	if err != nil {
@@ -120,9 +114,30 @@ func (s *ReportsService) generateBaseReport(ctx context.Context, email, startDat
 	report := &store.Report{
 		UserEmail: email, StartDate: startDate, EndDate: endDate,
 		Summary: strippedText, Visualization: vizJSON, IsTruncated: isTruncated,
+		Translations: make(map[string]string),
 	}
 
-	return s.saveAndTranslateInitial(ctx, report, strippedText)
+	id, err := store.SaveReport(ctx, report)
+	if err != nil {
+		return nil, err
+	}
+	report.ID = int(id)
+
+	// JIT Translation for the requested language
+	finalSummary := strippedText
+	if lang != "en" {
+		if trans, err := s.ProcessOnDemandTranslation(ctx, email, report.ID, lang); err == nil {
+			finalSummary = trans
+		} else {
+			logger.Errorf("[REPORTS] JIT Translation failed for %s: %v", lang, err)
+		}
+	} else {
+		// Save English translation for consistency if requested
+		_ = store.SaveReportTranslation(ctx, int64(report.ID), "en", strippedText)
+	}
+
+	report.Translations[lang] = finalSummary
+	return report, nil
 }
 
 func (s *ReportsService) getVisualizationJSON(email string, logs []Log, aiJSON string) string {
@@ -137,33 +152,6 @@ func (s *ReportsService) getVisualizationJSON(email string, logs []Log, aiJSON s
 	vizData := s.generateVisualizationData(email, logs)
 	b, _ := json.Marshal(vizData)
 	return string(b)
-}
-
-func (s *ReportsService) saveAndTranslateInitial(ctx context.Context, report *store.Report, summary string) (*store.Report, error) {
-	id, err := store.SaveReport(ctx, report)
-	if err != nil {
-		return nil, err
-	}
-	report.ID = int(id)
-	_ = store.SaveReportTranslation(ctx, id, "en", summary)
-	report.Translations = map[string]string{"en": summary}
-	return report, nil
-}
-
-func (s *ReportsService) translateReportBatch(ctx context.Context, email string, report *store.Report) (*store.Report, error) {
-	targets := map[string]string{"ko": "Korean", "id": "Indonesian", "th": "Thai"}
-	gemini := s.getGeminiClient()
-	if gemini == nil {
-		return report, nil
-	}
-
-	for code, lang := range targets {
-		if trans, err := gemini.TranslateReport(ctx, email, report.Summary, lang); err == nil {
-			_ = store.SaveReportTranslation(ctx, int64(report.ID), code, trans)
-			report.Translations[code] = trans
-		}
-	}
-	return report, nil
 }
 
 func (s *ReportsService) getGeminiClient() *ai.GeminiClient {
@@ -331,6 +319,9 @@ func (s *ReportsService) ProcessOnDemandTranslation(ctx context.Context, email s
 	}
 
 	// 3. Delegate to TranslationService (handles Singleflight internally)
+	if s.translationSvc == nil {
+		return report.Summary, nil // Return original English as fallback
+	}
 	key := fmt.Sprintf("report_%d_%s", reportID, langCode)
 	translated, err := s.translationSvc.Translate(ctx, email, key, report.Summary, langCode, true)
 	if err != nil {

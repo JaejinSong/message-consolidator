@@ -3,8 +3,12 @@ import { vi } from 'vitest';
 // 1. Mock Markdown Parser (Marked)
 const markedMock = {
     parse: vi.fn((text) => `<p>${text}</p>`),
+    use: vi.fn().mockReturnThis(),
+    setOptions: vi.fn().mockReturnThis(),
     default: {
-        parse: vi.fn((text) => `<p>${text}</p>`)
+        parse: vi.fn((text) => `<p>${text}</p>`),
+        use: vi.fn().mockReturnThis(),
+        setOptions: vi.fn().mockReturnThis()
     }
 };
 

@@ -22,6 +22,13 @@ model: gemini-pro-latest
      }
    - Extract relationships based on message flows, task handovers, and project mentions.
 5. Tone: Dry, professional, and data-driven. English only.
+6. Readability: Follow the strict formatting rules below.
+
+[STRICT OUTPUT FORMATTING RULES - CRITICAL]
+1. ONE BULLET POINT = EXACTLY ONE SENTENCE.
+2. If a thought requires multiple sentences, YOU MUST break it down and create a NEW bullet point (`- `) for EACH sentence.
+3. NEVER group multiple sentences on the same line. 
+4. NO PARAGRAPHS. NO PROSE. Apply this rule strictly regardless of the output language (Korean, English, Thai, etc.).
 
 [Examples]
 {{range .FewShots}}

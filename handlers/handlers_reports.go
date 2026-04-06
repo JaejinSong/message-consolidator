@@ -47,8 +47,9 @@ func (a *API) HandleGenerateReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if existing, err := store.GetReportByDate(r.Context(), email, start); err == nil && existing != nil {
-		respondJSON(w, http.StatusOK, existing)
+	lang := r.URL.Query().Get("lang")
+	if lang == "" {
+		respondError(w, http.StatusBadRequest, "lang parameter is required")
 		return
 	}
 
@@ -57,7 +58,12 @@ func (a *API) HandleGenerateReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	report, err := a.Reports.GenerateReport(r.Context(), email, start, end)
+	if existing, err := store.GetReportByDate(r.Context(), email, start); err == nil && existing != nil {
+		respondJSON(w, http.StatusOK, existing)
+		return
+	}
+
+	report, err := a.Reports.GenerateReport(r.Context(), email, start, end, lang)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

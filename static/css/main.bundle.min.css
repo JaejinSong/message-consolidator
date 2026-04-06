@@ -2862,7 +2862,46 @@ body.light-theme .c-achievement__progress-base {
     background: var(--table-header-bg);
 }
 
-/* --- Report Content Typography & Spacing --- */
+/* --- AI Reports General Titles --- */
+.c-report-summary-title,
+.c-report-viz-title,
+.c-report-flow-title {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--spacing-sm);
+}
+
+/* --- AI Report Content Typography & Spacing (UI/UX Patch) --- */
+#reportSummaryContent {
+    line-height: 1.7;
+    font-size: 0.95rem;
+    color: var(--text-dim);
+    white-space: pre-wrap;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
+
+#reportSummaryContent h2 {
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--text-main);
+    border-bottom: var(--border-thin) solid var(--glass-border);
+    padding-bottom: 0.5rem;
+}
+
+#reportSummaryContent p {
+    margin-bottom: 1.5rem;
+}
+
+#reportSummaryContent p,
+#reportSummaryContent div {
+    font-size: 0.95rem;
+}
 
 /* --- Report Table Detail --- */
 .c-source-dist__row {

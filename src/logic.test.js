@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+vi.unmock('marked');
 import {
     // Data Logic
     calculateHeatmapLevel,
@@ -141,8 +142,10 @@ describe('logic.js - Formatting', () => {
         });
 
         it('should parse unordered lists', () => {
-            expect(parseMarkdown('- item')).toContain('•');
-            expect(parseMarkdown('- item')).toContain('item</div>');
+            const html = parseMarkdown('- item');
+            expect(html).toContain('<ul');
+            expect(html).toContain('<li');
+            expect(html).toContain('item');
         });
         
         it('should gracefully handle empty or null input', () => {

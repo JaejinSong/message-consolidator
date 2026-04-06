@@ -3319,29 +3319,58 @@ body.light-theme .report-content th {
     background: var(--table-header-bg);
 }
 
-/* --- Report Content Typography & Spacing --- */
-.report-content {
-    line-height: 1.75;
-    color: var(--text-main);
+/* --- AI Reports General Titles --- */
+.c-report-summary-title,
+.c-report-viz-title,
+.c-report-flow-title {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--spacing-sm);
 }
 
-.report-content h2 {
-    margin-top: 2.8rem;
+/* --- AI Report Content Typography & Spacing (UI/UX Patch) --- */
+#reportSummaryContent {
+    line-height: 1.7;
+    font-size: 0.95rem;
+    color: var(--text-dim);
+    white-space: pre-wrap;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
+
+#reportSummaryContent h2 {
+    margin-top: 2rem;
+    margin-bottom: 1rem;
     font-size: 1.25rem;
     font-weight: 800;
     color: var(--text-main);
-    border-bottom: var(--border-thin) solid var(--border-light);
+    border-bottom: var(--border-thin) solid var(--glass-border);
     padding-bottom: 0.5rem;
-    margin-bottom: 1.2rem;
 }
 
-.report-content ul, 
-.report-content ol {
+#reportSummaryContent p,
+#reportSummaryContent ul,
+#reportSummaryContent ol {
     margin-bottom: 1.5rem;
 }
 
-.report-content li {
-    margin-bottom: 0.8rem;
+#reportSummaryContent ul,
+#reportSummaryContent ol {
+    padding-left: 1.5rem;
+}
+
+#reportSummaryContent li {
+    margin-bottom: 0.75rem;
+    line-height: 1.7;
+}
+
+#reportSummaryContent p,
+#reportSummaryContent li,
+#reportSummaryContent div {
+    font-size: 0.95rem;
 }
 
 /* --- Report Table Detail --- */
