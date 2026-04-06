@@ -278,7 +278,18 @@ func applyMergeTransaction(ctx context.Context, tx *sql.Tx, email string, target
 	args[len(targetIDs)] = email
 
 	_, err := tx.ExecContext(ctx, query, args...)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Why: Ensures all merged tasks (sources and destination) clear their translation cache to prevent stale text.
+	allIDs := append(targetIDs, int64(destID))
+	for _, id := range allIDs {
+		if _, err := tx.ExecContext(ctx, SQL.DeleteTaskTranslations, int(id)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func executeMerge(ctx context.Context, tx *sql.Tx, email string, targets []int, destID int) error {

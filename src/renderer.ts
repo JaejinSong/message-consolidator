@@ -217,26 +217,20 @@ export function renderMessages(categorized: CategorizedMessages): void {
     } else {
         grid.innerHTML = filtered.map(m => createCardElement(m)).join('');
         
-        // [Page-unit Pure JIT] Trigger translation for visible tasks.
-        // TranslationBatcher (50ms debounce) will group these into a single Bulk API call.
-        const lang = state.currentLang || 'ko';
-        if (lang !== 'en') {
-            filtered.forEach(m => {
-                if (!m.task_ko && !m.translating) {
-                    m.translating = true;
-                    api.requestTranslation(m.id, lang).then((text: string) => {
-                        m.task_ko = text;
-                        m.translating = false;
-                        // Re-render specifically this card or small portion if needed, 
-                        // but usually a full render is fine for simple JIT.
-                        const card = document.getElementById(`task-${m.id}`);
-                        if (card) card.outerHTML = createCardElement(m);
-                    }).catch(() => {
-                        m.translating = false;
-                    });
-                }
-            });
-        }
+        const targetLang = state.currentLang || 'en';
+        filtered.forEach(m => {
+            if (targetLang !== 'en' && !m.task_ko && !m.translating) {
+                m.translating = true;
+                api.requestTranslation(m.id, targetLang).then((text: string) => {
+                    m.task_ko = text;
+                    m.translating = false;
+                    const card = document.getElementById(`task-${m.id}`);
+                    if (card) card.outerHTML = createCardElement(m);
+                }).catch(() => {
+                    m.translating = false;
+                });
+            }
+        });
     }
 }
 

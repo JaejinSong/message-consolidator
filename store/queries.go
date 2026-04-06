@@ -129,6 +129,7 @@ var SQL = struct {
 	GetTaskTranslation       string
 	GetTaskTranslationsBatch string
 	UpsertTaskTranslation    string
+	DeleteTaskTranslations   string
 
 	//Why: Groups SQL queries for gamification and achievements.
 	UpdateUserGamification string
@@ -370,6 +371,7 @@ func loadAllQueries() error {
 	SQL.GetTaskTranslation = queries["GetTaskTranslation"]
 	SQL.GetTaskTranslationsBatch = queries["GetTaskTranslationsBatch"]
 	SQL.UpsertTaskTranslation = queries["UpsertTaskTranslation"]
+	SQL.DeleteTaskTranslations = queries["DeleteTaskTranslations"]
 
 	SQL.UpdateUserGamification = queries["UpdateUserGamification"]
 	SQL.GetAchievements = queries["GetAchievements"]

@@ -8,7 +8,7 @@ import { AppState, UserProfile, CategorizedMessages, IReportData, Message } from
 export const state: AppState = {
     userProfile: { email: "", picture: "", name: "", points: 0, streak: 0, streak_freezes: 0 },
     userAliases: [],
-    currentLang: (typeof localStorage !== 'undefined') ? (localStorage.getItem('mc_lang') || 'ko') : 'ko',
+    currentLang: (typeof localStorage !== 'undefined') ? (localStorage.getItem('mc_lang') || 'en') : 'en',
     currentTheme: (typeof localStorage !== 'undefined') ? (localStorage.getItem('mc_theme') || 'dark') : 'dark',
     waConnected: false,
     gmailConnected: false,

@@ -30,8 +30,8 @@ describe('Translation Logic (English-First Fallback)', () => {
         expect(result).toBe("Legacy Task");
     });
 
-    it('should use the default language (ko) when no language is specified', () => {
+    it('should use the default language (en) when no language is specified', () => {
         const result = getDisplayTask(mockMessages[3] as Message);
-        expect(result).toBe("번역됨");
+        expect(result).toBe("Source Task");
     });
 });

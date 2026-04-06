@@ -10,3 +10,6 @@ INSERT INTO task_translations (message_id, language_code, translated_text)
 VALUES (?, ?, ?)
 ON CONFLICT (message_id, language_code) 
 DO UPDATE SET translated_text = EXCLUDED.translated_text;
+
+-- name: DeleteTaskTranslations :exec
+DELETE FROM task_translations WHERE message_id = ?;

@@ -260,14 +260,15 @@ export function parseMarkdown(text: string): string {
  * Follows English-First with Korean fallback strategy.
  */
 export function getDisplayTask(m: Message, lang?: string): string {
-    const targetLang = lang || 'ko';
+    const targetLang = lang || 'en';
     
-    // 1. If Korean requested and exists, use it
-    if (targetLang === 'ko' && m.task_ko) {
+    // 1. If translation exists (and not in EN tab), use it.
+    // Why: m.task_ko is the JIT translation slot for current UI language.
+    if (targetLang !== 'en' && m.task_ko) {
         return m.task_ko;
     }
     
-    // 2. Fallback to English 원문 (task_en or task)
+    // 2. Default to Canonical English (task_en or task)
     return m.task_en || m.task || "";
 }
 
