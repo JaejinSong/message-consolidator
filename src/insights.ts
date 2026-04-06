@@ -55,7 +55,7 @@ export const insights = {
                 
                 // Show loading state for reports
                 const reportContent = document.getElementById('reportSummaryContent');
-                const i18n = I18N_DATA[state.currentLang || 'ko'];
+                const i18n = I18N_DATA[state.currentLang || 'en'];
                 if (reportContent) insightsRenderer.renderLoading(reportContent, i18n);
                 
                 await this.refreshReport(); // Fetch reports on-demand
@@ -91,7 +91,7 @@ export const insights = {
 
         // Theme Change Handling
         events.on(EVENTS.THEME_CHANGED, () => {
-            const lang = state.currentLang || 'ko';
+            const lang = state.currentLang || 'en';
             const i18n = I18N_DATA[lang];
             if (this.isTabActive('insightsStatsTab') && this.lastStats) {
                 insightsRenderer.renderAnkiChart(this.lastStats, this.currentChartDays);
@@ -103,7 +103,7 @@ export const insights = {
 
         // Language Change Handling (JIT Translation)
         events.on(EVENTS.LANGUAGE_CHANGED, async (lang: string) => {
-            const i18n = I18N_DATA[lang || 'ko'];
+            const i18n = I18N_DATA[lang || 'en'];
             if (this.isTabActive('insightsReportsTab') && this.lastReport) {
                 const reportContent = document.getElementById('reportSummaryContent');
                 if (reportContent) insightsRenderer.renderLoading(reportContent, i18n, 'translation');
@@ -215,7 +215,7 @@ export const insights = {
         const end = (document.getElementById('reportEndDate') as HTMLInputElement)?.value;
         const btn = document.getElementById('btnGenerateReport') as HTMLButtonElement;
         const reportContent = document.getElementById('reportSummaryContent');
-        const i18n = I18N_DATA[state.currentLang || 'ko'];
+        const i18n = I18N_DATA[state.currentLang || 'en'];
 
         if (!start || !end) return;
 
@@ -235,7 +235,7 @@ export const insights = {
     },
 
     async deleteReport(id: number) {
-        const lang = state.currentLang || 'ko';
+        const lang = state.currentLang || 'en';
         const i18n = (I18N_DATA as any)[lang];
         if (!confirm(i18n.deleteReportConfirm || 'Delete this report?')) return;
 
@@ -261,7 +261,7 @@ export const insights = {
      */
     handleDeletionFallback() {
         this.lastReport = null;
-        const i18n = I18N_DATA[state.currentLang || 'ko'];
+        const i18n = I18N_DATA[state.currentLang || 'en'];
         if (state.reportHistory.length > 0) {
             this.loadExistingReport(state.reportHistory[0]);
             return;
@@ -270,7 +270,7 @@ export const insights = {
     },
 
     async refreshReport(_activeId: number | null = null) {
-        const i18n = I18N_DATA[state.currentLang || 'ko'];
+        const i18n = I18N_DATA[state.currentLang || 'en'];
         try {
             const history = await api.fetchReportHistory();
             updateReportHistory(history);
@@ -285,7 +285,7 @@ export const insights = {
      * Checks local state before fetching from API.
      */
     async loadExistingReport(reportMetadata: IReportData) {
-        const lang = state.currentLang || 'ko';
+        const lang = state.currentLang || 'en';
         const i18n = I18N_DATA[lang];
         const reportContent = document.getElementById('reportSummaryContent');
         const key = `${reportMetadata.start_date}_${reportMetadata.end_date}`;
@@ -333,7 +333,7 @@ export const insights = {
     },
 
     renderAll(stats: UserStats | null, allAch: any[], userAch: any[], tokenUsage: TokenUsage | null) {
-        const lang = state.currentLang || 'ko';
+        const lang = state.currentLang || 'en';
         const i18n = I18N_DATA[lang];
 
         if (tokenUsage) insightsRenderer.renderTokenUsage(tokenUsage, i18n);

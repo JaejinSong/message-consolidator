@@ -1,7 +1,7 @@
 import '../static/style.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import { state, updateLang, updateTheme, updateStats, updateMessages, setTaskSelection, clearTaskSelection, deleteTaskFromState, updateTaskStatusInState, getTaskById, upsertItem } from './state';
-import { updateUILanguage } from './i18n';
+import { renderUILanguage } from './renderers/i18n-renderer';
 import { I18N_DATA } from './locales';
 import { api } from './api';
 import { 
@@ -94,8 +94,8 @@ const handlers: ServiceHandlers = {
     }, { triggerAuthOverlay: true }),
     onShowOriginal: safeAsync(async (id: string) => {
         const data = await api.fetchOriginalMessage(id);
-        const lang = state.currentLang || 'ko';
-        const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
+        const lang = state.currentLang || 'en';
+        const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['en'];
         const msg = (data && data.original_text) ? data.original_text : i18n.originalNotAvailable;
         modals.showOriginalModal(msg!);
     }, { triggerAuthOverlay: true }),
@@ -105,8 +105,8 @@ const handlers: ServiceHandlers = {
         }));
     },
     onWhatsAppLogout: safeAsync(async () => {
-        const lang = state.currentLang || 'ko';
-        const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
+        const lang = state.currentLang || 'en';
+        const i18n = (I18N_DATA as I18nDictionary)[lang] ?? (I18N_DATA as I18nDictionary)['en'];
         if (!confirm(i18n.logoutConfirm!)) return;
         await api.logoutWhatsApp();
         showToast(lang === 'ko' ? '로그아웃 되었습니다.' : 'Logged out successfully.', 'success');
@@ -123,8 +123,8 @@ const handlers: ServiceHandlers = {
         await refreshWhatsAppQR();
     }, { triggerAuthOverlay: true }),
     onGmailDisconnect: safeAsync(async () => {
-        const lang = state.currentLang || 'ko';
-        const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
+        const lang = state.currentLang || 'en';
+        const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['en'];
         if (!confirm(i18n.disconnectConfirm!)) return;
         const success = await authService.disconnectGmail();
         if (success) {
@@ -264,7 +264,7 @@ events.on(EVENTS.TASK_COMPLETED, (data: { result: { gamification: any } }) => {
         }
 
         if (gData.UnlockedAchievements && gData.UnlockedAchievements.length > 0) {
-            const lang = state.currentLang || 'ko';
+            const lang = state.currentLang || 'en';
             const i18n = (I18N_DATA as I18nDictionary)[lang];
 
             gData.UnlockedAchievements.forEach((ach: { name: string }) => {
@@ -318,7 +318,7 @@ const initLanguageSelector = () => {
             const lang = target.value;
             updateLang(lang);
             events.emit(EVENTS.LANGUAGE_CHANGED, lang);
-            updateUILanguage(lang);
+            renderUILanguage(lang);
             try {
                 await fetchMessages();
                 if (archive.isVisible()) {
@@ -483,7 +483,7 @@ const initActionButtons = () => {
         const ids = Array.from(state.selectedTaskIds).sort((a, b) => a - b);
         if (ids.length < 2) return;
         
-        const lang = state.currentLang || 'ko';
+        const lang = state.currentLang || 'en';
         const modal = document.getElementById('mergeConfirmModal');
         const desc = document.getElementById('mergeConfirmDesc');
         if (!modal || !desc) return;
@@ -568,7 +568,7 @@ const initApp = () => {
         overlay.style.display = 'none';
     }
 
-    updateUILanguage(state.currentLang);
+    renderUILanguage(state.currentLang);
     initTheme();
     initLanguageSelector();
 

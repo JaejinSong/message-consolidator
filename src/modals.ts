@@ -269,7 +269,7 @@ export const modals: any = {
                 const target = e.target as HTMLElement;
                 document.querySelectorAll('#rnLangTabs .c-tabs__btn').forEach(b => b.classList.remove('active'));
                 target.classList.add('active');
-                currentRnLang = target.dataset.lang || 'ko';
+                currentRnLang = target.dataset.lang || 'en';
                 fetchAndRenderReleaseNotes();
             });
         });

@@ -99,7 +99,7 @@ export function updateWhatsAppQR(status: 'generating' | 'show' | 'success' | 'er
     const btn = document.getElementById('getQRBtn') as HTMLButtonElement | null;
     const img = document.getElementById('waQRImg') as HTMLImageElement | null;
     const placeholder = document.getElementById('qrPlaceholder');
-    const i18n = (I18N_DATA as any)[lang || 'ko'];
+    const i18n = (I18N_DATA as any)[lang || 'en'];
 
     if (!btn || !img || !placeholder) return;
 

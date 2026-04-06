@@ -52,7 +52,7 @@ export {
 export function renderEmptyGrid(grid: HTMLElement | null, isWitty: boolean = false): void {
     if (!grid) return;
     grid.innerHTML = '';
-    const lang = state.currentLang || 'ko';
+    const lang = state.currentLang || 'en';
     const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
     const messages = i18n.emptyStateMessages;
     let displayMsg = i18n.noTasks || 'No tasks found';
@@ -151,7 +151,7 @@ export function createCardElement(m: Message): string {
         done: !!m.done,
         category: m.category || 'TASK',
         metadata: typeof m.metadata === 'string' ? m.metadata : JSON.stringify(m.metadata || {}),
-        lang: state.currentLang || 'ko',
+        lang: state.currentLang || 'en',
         translating: !!m.translating,
         translationError: (m.translationError || undefined) as string | undefined, 
         has_original: !!m.has_original,

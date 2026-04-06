@@ -1,3 +1,12 @@
+# Release Notes - v2.4.22 (2026-04-06 11:45 UTC)
+
+- 🌍 **Global Insights**: Speak your language! AI reports now support multiple languages with a fresh, sleek design.
+- ⚡ **Turbocharged Reports**: Enjoy faster analysis with our optimized AI pipeline and intelligent task merging.
+- 🏗️ **Under-the-Hood Excellence**: We've overhauled our deployment engine for a more stable and scalable experience.
+- 💎 **Data Precision**: Enhanced validation logic ensures your insights are more accurate and reliable than ever.
+
+---
+
 # Release Notes - v2.4.21 (2026-04-06 04:13 UTC)
 
 - ✨ **Seamless Experience**: Enjoy instant updates with our new Optimistic UI for tasks—fast, responsive, and reliable.

@@ -14,6 +14,7 @@ var (
 )
 
 func GetTaskTranslation(ctx context.Context, messageID int, langCode string) (string, error) {
+	if langCode == "" { langCode = "en" }
 	translationMu.RLock()
 	if langCache, ok := translationCache[langCode]; ok {
 		if text, exists := langCache[messageID]; exists {
@@ -48,6 +49,7 @@ func GetTaskTranslation(ctx context.Context, messageID int, langCode string) (st
 }
 
 func GetTaskTranslationsBatch(ctx context.Context, messageIDs []int, langCode string) (map[int]string, error) {
+	if langCode == "" { langCode = "en" }
 	if len(messageIDs) == 0 {
 		return make(map[int]string), nil
 	}
@@ -122,6 +124,7 @@ func GetTaskTranslationsBatch(ctx context.Context, messageIDs []int, langCode st
 }
 
 func SaveTaskTranslation(ctx context.Context, messageID int, langCode, translatedText string) error {
+	if langCode == "" { langCode = "en" }
 	_, err := db.ExecContext(ctx, SQL.UpsertTaskTranslation, messageID, langCode, translatedText)
 
 	if err == nil {
@@ -141,6 +144,7 @@ func SaveTaskTranslation(ctx context.Context, messageID int, langCode, translate
 // SaveTaskTranslationsBulk saves multiple translations in a single optimized SQL execution.
 // Why: Minimizes database lock contention and ensures atomicity for batch AI results.
 func SaveTaskTranslationsBulk(ctx context.Context, langCode string, results map[int]string) error {
+	if langCode == "" { langCode = "en" }
 	if len(results) == 0 { return nil }
 
 	placeholders := make([]string, 0, len(results))
