@@ -251,7 +251,9 @@ func (a *API) HandleMergeTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := store.MergeTasks(r.Context(), email, req.TargetIDs, req.DestinationID); err != nil {
+	// Why: [Logic Delegation] Delegates task logic to services to ensure AI summary and transaction integrity.
+	targetIDs64 := a.toInt64Slice(req.TargetIDs)
+	if err := a.Tasks.MergeTasks(r.Context(), email, targetIDs64, int64(req.DestinationID)); err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to merge tasks: "+err.Error())
 		return
 	}
@@ -341,4 +343,10 @@ func (a *API) respondWithResults(w http.ResponseWriter, ids []int, cached, newly
 		}
 	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{"results": results})
+}
+
+func (a *API) toInt64Slice(ids []int) []int64 {
+	res := make([]int64, len(ids))
+	for i, id := range ids { res[i] = int64(id) }
+	return res
 }

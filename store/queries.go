@@ -40,6 +40,7 @@ var SQL = struct {
 	UpdateTaskText               string
 	UpdateTaskDescriptionAppend  string
 	UpdateTaskFullAppend         string
+	UpdateTaskMergeComplete      string
 	UpdateTaskAssignee           string
 	UpdateTaskSourceChannels     string
 	DeleteMessages               string
@@ -288,6 +289,7 @@ func loadAllQueries() error {
 	SQL.UpdateTaskText = queries["UpdateTaskText"]
 	SQL.UpdateTaskDescriptionAppend = queries["UpdateTaskDescriptionAppend"]
 	SQL.UpdateTaskFullAppend = queries["UpdateTaskFullAppend"]
+	SQL.UpdateTaskMergeComplete = queries["UpdateTaskMergeComplete"]
 	SQL.UpdateTaskAssignee = queries["UpdateTaskAssignee"]
 	SQL.UpdateTaskSourceChannels = queries["UpdateTaskSourceChannels"]
 	SQL.DeleteMessages = queries["DeleteMessages"]

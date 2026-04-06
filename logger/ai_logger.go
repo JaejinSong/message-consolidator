@@ -20,7 +20,7 @@ func InitAIInferenceLogger() {
 
 	// Why: Initialize standard AI logger pointing to a dedicated file for ease of analysis and isolation from general application logs.
 	lumberjackLogger := &lumberjack.Logger{
-		Filename:   "logs/ai_inference.log",
+		Filename:   "tmp/logs/ai_inference.log",
 		MaxSize:    100, // 100MB
 		MaxBackups: 30,
 		MaxAge:     30, // 30 days
@@ -35,7 +35,7 @@ func InitAIInferenceLogger() {
 	aiInferenceLogger.Println("AI Inference Logger initialized")
 }
 
-// LogAIInferenceToFile records AI input/output to logs/ai_inference.log for prompt quality auditing.
+// LogAIInferenceToFile records AI input/output to tmp/logs/ai_inference.log for prompt quality auditing.
 // Why: Enables rapid debugging of extraction issues across diverse message sources (Slack, WhatsApp, etc.).
 func LogAIInferenceToFile(source, originalText, rawResponse string) {
 	if aiInferenceLogger == nil {

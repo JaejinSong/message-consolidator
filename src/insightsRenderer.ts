@@ -359,9 +359,29 @@ export const insightsRenderer = {
                     if (items[index]) (items[index] as HTMLElement).click();
                 }
             } else {
-                // Clear loading state if no reports
+                // Clear loading state if no reports and show a call to action
                 const main = document.querySelector('.c-insights-report-main');
-                if (main) main.innerHTML = `<div class="c-reports-placeholder u-p-8 u-text-dim" data-i18n="noReports">No reports found.</div>`;
+                if (main) {
+                    main.innerHTML = `
+                        <div class="c-reports-empty-state u-p-12 u-text-center">
+                            <div class="u-text-6xl u-mb-4">📊</div>
+                            <h3 class="u-text-xl u-font-bold u-mb-2">No reports yet</h3>
+                            <p class="u-text-dim u-mb-8">AI를 통해 오늘 업무 리포트를 생성해 보세요.</p>
+                            <button id="emptyStateGenerateBtn" class="c-btn c-btn--primary c-btn--lg">
+                                <span class="u-mr-2">✨</span> AI 리포트 생성하기
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Bind click event after rendering
+                    const btn = document.getElementById('emptyStateGenerateBtn');
+                    if (btn) {
+                        btn.onclick = () => {
+                            const event = new CustomEvent('generate-report-clicked');
+                            window.dispatchEvent(event);
+                        };
+                    }
+                }
             }
         } catch (err) {
             console.error('Failed to load report history:', err);

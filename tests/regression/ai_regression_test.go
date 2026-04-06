@@ -3,8 +3,13 @@
 package regression
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httputil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,12 +22,12 @@ import (
 	"message-consolidator/types"
 
 	"github.com/joho/godotenv"
+	"google.golang.org/api/option"
 )
 
 // To run this test, set GEMINI_API_KEY_FOR_TEST in your environment or .env file.
-// Example: export GEMINI_API_KEY_FOR_TEST="your_api_key"
+// Run with "UPDATE_GOLDEN=1 make test-all" to record new API responses to VCR dumps.
 
-// taskKeywords stores common synonyms to help with keyword-based matching in different languages.
 var taskKeywords = map[string][]string{
 	"deck":    {"deck", "presentation", "slides", "덱", "자료"},
 	"create":  {"create", "write", "make", "prepare", "제작", "작성", "buat", "tulis"},
@@ -31,11 +36,44 @@ var taskKeywords = map[string][]string{
 	"manager": {"manager", "admin", "매니저", "pengelola"},
 	"tech":    {"tech", "technical", "feature", "기술", "기능", "teknis", "fitur"},
 	"blog":    {"blog", "posting", "블로그", "포스팅"},
-	"hire":    {"hire", "onboarding", "recruit", "채용", "온보딩", "rekrut", "employee"}, // Added employee
+	"hire":    {"hire", "onboarding", "recruit", "채용", "온보딩", "rekrut", "employee"},
 	"tuesday": {"tuesday", "화요일", "selasa"},
 	"friday":  {"friday", "금요일", "jumat"},
-	"guide":   {"guide", "manual", "handbook", "document", "가이드"}, // Added guide
-	"update":  {"update", "revise", "improve", "edit", "업데이트"},    // Added update
+	"guide":   {"guide", "manual", "handbook", "document", "가이드"},
+	"update":  {"update", "revise", "improve", "edit", "업데이트"},
+}
+
+// vcrTransport acts as an HTTP interceptor to record or replay API calls.
+type vcrTransport struct {
+	Transport http.RoundTripper
+	Mode      string
+	MockFile  string
+	APIKey    string
+}
+
+func (t *vcrTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if t.Mode == "replay" {
+		dump, err := os.ReadFile(t.MockFile)
+		if err != nil {
+			return nil, fmt.Errorf("VCR replay missing for %s. Run tests with UPDATE_GOLDEN=1 to record", t.MockFile)
+		}
+		return http.ReadResponse(bufio.NewReader(bytes.NewReader(dump)), req)
+	}
+
+	// record mode
+	if t.APIKey != "" {
+		req.Header.Set("x-goog-api-key", t.APIKey)
+	}
+	resp, err := t.Transport.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	// httputil.DumpResponse includes status code, headers, and body.
+	dump, err := httputil.DumpResponse(resp, true)
+	if err == nil {
+		os.WriteFile(t.MockFile, dump, 0644)
+	}
+	return resp, nil
 }
 
 func TestAnalyze_Regression(t *testing.T) {
@@ -47,10 +85,6 @@ func TestAnalyze_Regression(t *testing.T) {
 	logger.InitAIInferenceLogger()
 
 	godotenv.Load("../../.env", ".env", "../.env")
-	client, err := setupGeminiClient()
-	if err != nil {
-		t.Skipf("Skipping regression: %v", err)
-	}
 
 	testCases, _ := filepath.Glob("testdata/*_input.txt")
 	for _, path := range testCases {
@@ -58,23 +92,68 @@ func TestAnalyze_Regression(t *testing.T) {
 		testName := strings.TrimSuffix(filepath.Base(path), "_input.txt")
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
-			runSingleRegression(t, client, path, testName)
+			runSingleRegression(t, path, testName)
 		})
 	}
 }
 
-func setupGeminiClient() (*ai.GeminiClient, error) {
+func shouldRecord(mockPath string) bool {
+	if os.Getenv("UPDATE_GOLDEN") == "1" {
+		return true
+	}
+
+	mockInfo, err := os.Stat(mockPath)
+	if err != nil {
+		return true // File does not exist
+	}
+
+	prompts, _ := filepath.Glob("../../ai/*.prompt")
+	for _, p := range prompts {
+		pInfo, err := os.Stat(p)
+		if err == nil && pInfo.ModTime().After(mockInfo.ModTime()) {
+			return true // Prompt has been modified
+		}
+	}
+	return false
+}
+
+func setupGeminiClientForTest(testName string) (*ai.GeminiClient, error) {
+	mockPath := filepath.Join("testdata", testName+"_vcr.dump")
+	mode := "replay"
+	if shouldRecord(mockPath) {
+		mode = "record"
+		fmt.Printf("[VCR] Recording mode enabled for %s (File missing or Prompt updated)\n", testName)
+	}
+
 	apiKey := os.Getenv("GEMINI_API_KEY_FOR_TEST")
 	if apiKey == "" {
 		apiKey = os.Getenv("GEMINI_API_KEY")
 	}
-	if apiKey == "" {
-		return nil, context.DeadlineExceeded // Sentinel
+
+	// In replay mode, we don't need a real API key.
+	if mode == "replay" && apiKey == "" {
+		apiKey = "dummy-vcr-key"
+	} else if mode == "record" && apiKey == "" {
+		return nil, fmt.Errorf("GEMINI_API_KEY is required for record mode (UPDATE_GOLDEN=1)")
 	}
-	return ai.NewGeminiClient(context.Background(), apiKey, "", "")
+
+	transport := &vcrTransport{
+		Transport: http.DefaultTransport,
+		Mode:      mode,
+		MockFile:  mockPath,
+		APIKey:    apiKey,
+	}
+	httpClient := &http.Client{Transport: transport}
+
+	return ai.NewGeminiClient(context.Background(), apiKey, "", "", option.WithHTTPClient(httpClient))
 }
 
-func runSingleRegression(t *testing.T, client *ai.GeminiClient, path, testName string) {
+func runSingleRegression(t *testing.T, path, testName string) {
+	client, err := setupGeminiClientForTest(testName)
+	if err != nil {
+		t.Skipf("Skipping regression: %v", err)
+	}
+
 	input, _ := os.ReadFile(path)
 	expectedBytes, _ := os.ReadFile(strings.TrimSuffix(path, "_input.txt") + "_expected.json")
 
@@ -232,3 +311,4 @@ func containsKorean(s string) bool {
 	}
 	return false
 }
+

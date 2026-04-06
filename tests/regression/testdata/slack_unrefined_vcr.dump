@@ -1,0 +1,45 @@
+HTTP/2.0 200 OK
+Alt-Svc: h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+Content-Type: application/json; charset=UTF-8
+Date: Sun, 05 Apr 2026 18:52:31 GMT
+Server: scaffolding on HTTPServer2
+Server-Timing: gfet4t7; dur=4690
+Vary: Origin
+Vary: X-Origin
+Vary: Referer
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-Gemini-Service-Tier: standard
+X-Xss-Protection: 0
+
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "[\n  {\n    \"id\": 0,\n    \"state\": \"new\",\n    \"task\": \"Verify if partners can access dev.whatap.io for Indonesia translation verification\",\n    \"requester\": \"Hady\",\n    \"assignee\": \"Jaejin Song\",\n    \"assignee_reason\": \"Hady explicitly addressed Jaejin Song with the inquiry\",\n    \"assigned_at\": \"2026-04-05 18:52:26 UTC\",\n    \"source_ts\": \"p1711444444.000123\",\n    \"deadline\": null,\n    \"category\": \"QUERY\",\n    \"affinity_score\": 3,\n    \"affinity_group_id\": null\n  }\n]",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": 1,
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1091,
+    "candidatesTokenCount": 180,
+    "totalTokenCount": 1931,
+    "promptTokensDetails": [
+      {
+        "modality": 1,
+        "tokenCount": 1091
+      }
+    ],
+    "thoughtsTokenCount": 660
+  },
+  "modelVersion": "gemini-3-flash-preview",
+  "responseId": "bq_SaYfmN-Gn2roPrOOukAE"
+}

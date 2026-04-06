@@ -155,10 +155,22 @@ func DecodeBase64URL(data string) (string, error) {
 	return string(decoded), nil
 }
 
+// CleanMarkdownText removes markdown code block markers and trims surrounding whitespace.
+// Why: Provides a defensive layer against LLMs adding unsolicited markdown blocks, ensuring data integrity.
+func CleanMarkdownText(input string) string {
+	replacer := strings.NewReplacer(
+		"```markdown", "",
+		"```json", "",
+		"```text", "",
+		"```", "",
+	)
+	return strings.TrimSpace(replacer.Replace(input))
+}
+
 // sanitizeJSON cleans AI response from markdown code blocks and whitespace.
 // Why: Orchestrates the multi-stage JSON extraction process while adhering to strict 30-line function limits.
 func sanitizeJSON(s string) string {
-	s = strings.TrimSpace(s)
+	s = CleanMarkdownText(s)
 	s = extractMarkdownBlock(s)
 	return extractBracketPayload(s)
 }

@@ -1,0 +1,45 @@
+HTTP/2.0 200 OK
+Alt-Svc: h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+Content-Type: application/json; charset=UTF-8
+Date: Sun, 05 Apr 2026 18:52:33 GMT
+Server: scaffolding on HTTPServer2
+Server-Timing: gfet4t7; dur=7506
+Vary: Origin
+Vary: X-Origin
+Vary: Referer
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-Gemini-Service-Tier: standard
+X-Xss-Protection: 0
+
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "[\n  {\n    \"id\": 0,\n    \"state\": \"new\",\n    \"task\": \"Check server status\",\n    \"requester\": \"SlackUser\",\n    \"assignee\": \"__CURRENT_USER__\",\n    \"assignee_reason\": \"General request for server status check\",\n    \"assigned_at\": \"2026-04-05 18:52:26\",\n    \"source_ts\": \"p1711444444.000123\",\n    \"deadline\": null,\n    \"category\": \"TASK\",\n    \"affinity_score\": 0,\n    \"affinity_group_id\": null\n  },\n  {\n    \"id\": 1,\n    \"state\": \"new\",\n    \"task\": \"Check invoice issuance request\",\n    \"requester\": \"GmailUser\",\n    \"assignee\": \"__CURRENT_USER__\",\n    \"assignee_reason\": \"General request to review invoice issuance\",\n    \"assigned_at\": \"2026-04-05 18:52:26\",\n    \"source_ts\": \"18e7e1f2a3b4c5d6\",\n    \"deadline\": null,\n    \"category\": \"TASK\",\n    \"affinity_score\": 0,\n    \"affinity_group_id\": null\n  },\n  {\n    \"id\": 2,\n    \"state\": \"new\",\n    \"task\": \"Update new employee guide\",\n    \"requester\": \"WhatsAppUser\",\n    \"assignee\": \"__CURRENT_USER__\",\n    \"assignee_reason\": \"General request to update the onboarding guide\",\n    \"assigned_at\": \"2026-04-05 18:52:26\",\n    \"source_ts\": \"WA_20240327_0001\",\n    \"deadline\": null,\n    \"category\": \"TASK\",\n    \"affinity_score\": 0,\n    \"affinity_group_id\": null\n  }\n]",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": 1,
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1159,
+    "candidatesTokenCount": 481,
+    "totalTokenCount": 2834,
+    "promptTokensDetails": [
+      {
+        "modality": 1,
+        "tokenCount": 1159
+      }
+    ],
+    "thoughtsTokenCount": 1194
+  },
+  "modelVersion": "gemini-3-flash-preview",
+  "responseId": "ca_SaZ6qMKOm2roP7-LheQ"
+}

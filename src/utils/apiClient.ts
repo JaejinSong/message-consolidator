@@ -4,7 +4,7 @@
  * Inherits Base URL from VITE_API_BASE_URL environment variable.
  */
 
-export const BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+export const BASE_URL = ((import.meta as any).env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 export interface ApiRequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;

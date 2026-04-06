@@ -45,7 +45,8 @@ func (s *TranslationService) Translate(ctx context.Context, email string, dedupl
 	if err != nil {
 		return "", err
 	}
-	return val.(string), nil
+	// Why: Final defensive layer to ensure the translated text is clean of markdown artifacts for UI presentation.
+	return ai.CleanMarkdownText(val.(string)), nil
 }
 
 // TranslateBatch handles multiple tasks in a single AI call with semaphore protection.

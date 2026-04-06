@@ -64,10 +64,10 @@ func main() {
 		summarizer := services.NewFlashSingleSummarizer(gClient)
 		config := services.ReportConfig{CutoffSize: 8000}
 		reportsSvc = services.NewReportsService(summarizer, gClient, transSvc, config)
-		tasksSvc = services.NewTasksService(transSvc)
+		tasksSvc = services.NewTasksService(transSvc, gClient)
 	} else {
 		// Even without AI, we initialize TasksService to handle non-AI operations gracefully.
-		tasksSvc = services.NewTasksService(nil)
+		tasksSvc = services.NewTasksService(nil, nil)
 	}
 
 	//Why: Creates the API handler structure with explicit dependency injection, simplifying unit testing and mock substitution.

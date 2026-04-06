@@ -21,8 +21,8 @@ TODO.md
 planning/
 
 # Why: Miscellaneous junk and local tools.
-*.log
-*.db
+**/*.log
+**/*.db
 db_data/
 tmp/
 scripts/vps/

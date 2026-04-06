@@ -81,6 +81,11 @@ export const insights = {
             insightsRenderer.resizeAll();
         });
 
+        // Handle empty state generate button through custom event
+        window.addEventListener('generate-report-clicked', () => {
+            this.handleGenerateClick();
+        });
+
         // Theme Change Handling
         events.on(EVENTS.THEME_CHANGED, () => {
             if (this.isTabActive('insightsStatsTab') && this.lastStats) {
@@ -185,6 +190,17 @@ export const insights = {
                     if (!isNaN(id)) await this.loadReportDetail(id);
                 }
             });
+        }
+    },
+    
+    async handleGenerateClick() {
+        const today = new Date().toISOString().split('T')[0];
+        try {
+            const result = await api.generateReport(today, today);
+            await this.refreshReport(result.id);
+        } catch (e: any) {
+            console.error("[Insights] Automatic generation failed:", e);
+            alert(`Generation failed: ${e.message}`);
         }
     },
 

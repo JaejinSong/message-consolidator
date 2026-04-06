@@ -92,6 +92,12 @@
 
 .c-btn--full { width: 100% !important; }
 
+.c-btn--lg {
+    padding: 1rem 2.5rem;
+    font-size: 1.125rem;
+    border-radius: var(--radius-xl);
+}
+
 /* Modifiers */
 .c-btn--icon {
     padding: 0;

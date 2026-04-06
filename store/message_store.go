@@ -209,11 +209,76 @@ func MergeTasks(ctx context.Context, email string, targetIDs []int, destID int) 
 		return err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return err
-	}
 	InvalidateCache(email)
 	return nil
+}
+
+// MergeTasksWithTitle consolidates multiple tasks into one with a specific title (AI generated).
+// Why: [Unified Consolidation] Combines source tasks into a destination task while setting a new optimized title.
+func MergeTasksWithTitle(ctx context.Context, email string, targetIDs []int64, destID int64, newTitle string) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil { return err }
+	defer tx.Rollback()
+
+	allIDs := append(toIntList(targetIDs), int(destID))
+	msgs, err := GetMessagesByIDs(ctx, email, allIDs)
+	if err != nil { return err }
+
+	dest, sources, err := splitMergeTasks(msgs, destID)
+	if err != nil { return err }
+
+	history := buildMergeHistory(dest.Task, sources)
+	if err := applyMergeTransaction(ctx, tx, email, targetIDs, dest.ID, newTitle, history); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil { return err }
+	InvalidateCache(email)
+	return nil
+}
+
+func toIntList(ids []int64) []int {
+	res := make([]int, len(ids))
+	for i, id := range ids { res[i] = int(id) }
+	return res
+}
+
+func splitMergeTasks(msgs []ConsolidatedMessage, destID int64) (*ConsolidatedMessage, []ConsolidatedMessage, error) {
+	var dest *ConsolidatedMessage
+	var sources []ConsolidatedMessage
+	for i := range msgs {
+		if int64(msgs[i].ID) == destID {
+			dest = &msgs[i]
+		} else {
+			sources = append(sources, msgs[i])
+		}
+	}
+	if dest == nil { return nil, nil, fmt.Errorf("destination task %d not found", destID) }
+	return dest, sources, nil
+}
+
+func buildMergeHistory(oldTitle string, sources []ConsolidatedMessage) string {
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("\n\n--- [Merge History] ---\nPrev Title: %s\n", oldTitle))
+	for _, s := range sources {
+		builder.WriteString(fmt.Sprintf("\n--- [Source: %d] ---\nTitle: %s\nText: %s\n", s.ID, s.Task, s.OriginalText))
+	}
+	return builder.String()
+}
+
+func applyMergeTransaction(ctx context.Context, tx *sql.Tx, email string, targetIDs []int64, destID int, title, history string) error {
+	if _, err := tx.ExecContext(ctx, SQL.UpdateTaskMergeComplete, title, history, destID); err != nil {
+		return err
+	}
+
+	placeholders := strings.Repeat("?,", len(targetIDs)-1) + "?"
+	query := fmt.Sprintf(SQL.UpdateCategoryMerged, placeholders)
+	args := make([]interface{}, len(targetIDs)+1)
+	for i, id := range targetIDs { args[i] = int(id) }
+	args[len(targetIDs)] = email
+
+	_, err := tx.ExecContext(ctx, query, args...)
+	return err
 }
 
 func executeMerge(ctx context.Context, tx *sql.Tx, email string, targets []int, destID int) error {

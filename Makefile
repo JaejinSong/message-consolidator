@@ -2,13 +2,24 @@ BINARY_NAME=message-consolidator
 SERVICE_NAME=message-consolidator.service
 INSTALL_DIR=/home/jinro/.gemini/message-consolidator
 
-.PHONY: build run install-service uninstall-service status logs test-ui
+.PHONY: build run install-service uninstall-service status logs test-ui test-go test-ai test-all build-frontend build-backend build-all
 
-build:
+build: build-all
+
+build-frontend:
+	@echo "Building Frontend (Vite)..."
+	npm run build
+
+build-backend:
+	@echo "Building Backend (Go)..."
 	CGO_ENABLED=0 whatap-go-inst go build -ldflags="-s -w" -o $(BINARY_NAME) .
 	upx -1 $(BINARY_NAME)
 	CGO_ENABLED=0 go build -ldflags="-s -w" -o mc-util ./cmd/mc-util
 	upx -1 mc-util
+
+build-all:
+	@echo "Building FE and BE in parallel..."
+	$(MAKE) -j2 build-frontend build-backend
 
 run: build
 	./$(BINARY_NAME)
@@ -37,3 +48,13 @@ logs:
 
 test-ui:
 	npm test
+
+test-go:
+	go test ./...
+
+test-ai:
+	go test -tags regression ./ai/... ./tests/regression/...
+
+test-all:
+	@echo "Running all tests in parallel..."
+	$(MAKE) -j3 test-go test-ai test-ui

@@ -162,6 +162,37 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 	return text, nil
 }
 
+// GenerateMergedTaskTitle summarizes multiple task titles and messages into a single English title.
+// Why: [Unified Consistency] Strictly enforces 30-character English limit via AI for unified task presentation.
+func (g *GeminiClient) GenerateMergedTaskTitle(ctx context.Context, email string, tasksJSON string) (string, error) {
+	if g == nil || g.client == nil { return "", fmt.Errorf("Gemini client not initialized") }
+
+	parsed := loadPrompt("task_merge_summary.prompt")
+	data := ExtractionContext{
+		MessagePayload: tasksJSON,
+		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
+		Locale:         "English",
+	}
+
+	rendered, err := parsed.Render(data)
+	if err != nil { return "", fmt.Errorf("failed to render merge summary prompt: %w", err) }
+
+	// Why: [Performance] gemini-3-flash-preview is used for high-speed, high-quality short-form summary.
+	modelName := g.getEffectiveModel(parsed, "gemini-3-flash-preview")
+	model := g.initModel(modelName, 0.1, 100, "", rendered)
+
+	start := time.Now()
+	resp, err := generateWithRetry(ctx, model, genai.Text(""), 10*time.Second, 1)
+	if err != nil { return "", err }
+
+	logTokenUsage(ctx, email, "MergeSummary", resp)
+	text, err := extractResponseText(resp)
+	if err != nil { return "", err }
+
+	trace.Step(ctx, "Gemini-MergeSummary", "", int(time.Since(start).Milliseconds()), 0)
+	return CleanMarkdownText(text), nil
+}
+
 func (g *GeminiClient) Analyze(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string) ([]store.TodoItem, error) {
 	tasks, _ := store.GetActiveContextTasks(ctx, email, source, room)
 	return g.AnalyzeWithContext(ctx, email, msg, language, source, room, tasks)

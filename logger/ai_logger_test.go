@@ -13,8 +13,8 @@ func TestLogAIInferenceToFile(t *testing.T) {
 	InitAIInferenceLogger()
 
 	// Temporary Log File Path
-	logFile := "logs/ai_inference.log"
-	os.MkdirAll("logs", 0755)
+	logFile := "tmp/logs/ai_inference.log"
+	os.MkdirAll("tmp/logs", 0755)
 	
 	// Check if file exists and contains content, using a unique identifier to verify recent writes
 	uniqueID := fmt.Sprintf("TEST-RUN-%d", time.Now().UnixNano())

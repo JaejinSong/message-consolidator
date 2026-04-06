@@ -1,18 +1,18 @@
 # Build stage
 FROM golang:alpine AS builder
 ENV GOTOOLCHAIN=auto
-RUN apk add --no-cache git upx wget tar
 
-# 1. Pre-download WhaTap and tools
-RUN wget -qO- https://s3.ap-northeast-2.amazonaws.com/repo.whatap.io/alpine/x86_64/whatap-agent.tar.gz | tar -xz -C /tmp && \
+# 1. Pre-install tools and WhaTap agent (Pinned versions and consolidated)
+RUN apk add --no-cache git wget tar upx && \
+    wget -qO- https://s3.ap-northeast-2.amazonaws.com/repo.whatap.io/alpine/x86_64/whatap-agent.tar.gz | tar -xz -C /tmp && \
     mkdir -p /stage/usr/whatap/agent && \
-    mv /tmp/usr/whatap/agent/whatap_agent_static /stage/usr/whatap/agent/ && \
-    mv /tmp/usr/whatap/agent/whatap-agent /stage/usr/whatap/agent/ && \
-    upx -1 /stage/usr/whatap/agent/whatap_agent_static
+    mv /tmp/usr/whatap/agent/whatap-agent /stage/usr/whatap/agent/
 
+# Pin whatap-go-inst to a specific version to avoid network checks and ensure stability
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go install github.com/whatap/go-api-inst/cmd/whatap-go-inst@latest
+    go install github.com/whatap/go-api-inst/cmd/whatap-go-inst@v0.5.4
+
 
 WORKDIR /app
 COPY go.mod go.sum ./

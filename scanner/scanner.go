@@ -33,7 +33,7 @@ func Init(c *config.Config) {
 		}
 		completionSvc = services.NewCompletionService(gClient, &services.DefaultTaskStore{})
 		transSvc := services.NewTranslationService(gClient)
-		tasksSvc = services.NewTasksService(transSvc)
+		tasksSvc = services.NewTasksService(transSvc, gClient)
 	}
 }
 

@@ -59,6 +59,13 @@ SET task = task || char(10) || char(10) || '--- [Update: ' || ? || '] ---' || ch
     original_text = original_text || char(10) || char(10) || ?
 WHERE id = ?;
 
+-- name: UpdateTaskMergeComplete :exec
+-- Why: [Merge Pipeline] Sets the new AI-generated title and preserves all previous task metadata in original_text.
+UPDATE messages
+SET task = ?,
+    original_text = original_text || char(10) || char(10) || ?
+WHERE id = ?;
+
 -- name: UpdateTaskAssignee :exec
 UPDATE messages SET assignee = ? WHERE id = ? AND user_email = ?;
 

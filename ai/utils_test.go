@@ -64,6 +64,62 @@ func TestDecodeBase64URL(t *testing.T) {
 	}
 }
 
+func TestCleanMarkdownText(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Markdown JSON block",
+			input:    "```json\n{\"id\": 1}\n```",
+			expected: "{\"id\": 1}",
+		},
+		{
+			name:     "Markdown text block",
+			input:    "```text\nSome text\n```",
+			expected: "Some text",
+		},
+		{
+			name:     "Generic markdown block",
+			input:    "```\nRaw content\n```",
+			expected: "Raw content",
+		},
+		{
+			name:     "Markdown markdown block",
+			input:    "```markdown\n# Hello\n```",
+			expected: "# Hello",
+		},
+		{
+			name:     "No markdown blocks",
+			input:    "Pure text",
+			expected: "Pure text",
+		},
+		{
+			name:     "Trailing and leading spaces",
+			input:    "  ```json\n{\"id\": 1}\n```  ",
+			expected: "{\"id\": 1}",
+		},
+		{
+			name:     "Multiple lines",
+			input:    "```json\n{\n  \"id\": 1\n}\n```",
+			expected: "{\n  \"id\": 1\n}",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := CleanMarkdownText(tt.input)
+			if got != tt.expected {
+				t.Errorf("CleanMarkdownText() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestSanitizeJSON(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

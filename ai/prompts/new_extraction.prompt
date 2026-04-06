@@ -8,12 +8,12 @@ model: gemini-3-flash-preview
 Extract actionable tasks, operational policies, and context-dependent queries from the message text.
 
 # Core Rules:
+0. **Canonical Language**: All 'task' summaries MUST be written in **English (EN)** only, regardless of the input message language.
 1. **Force JSON Output**: You must respond ONLY in a JSON array: `[{"id": integer, "state": "new|update|resolve|cancel|none", "task": "string", "category": "TASK|POLICY|QUERY|PROMISE|WAITING", "assignee": "string", "source_ts": "string"}]`.
 2. **Conservative Extraction**: IF the intent of the message is ambiguous between a task and a simple greeting, DO NOT ignore it. Set `state: "new"` to ensure no potential task is missed.
 3. **None State**: IF a message is CLEARLY and EXCLUSIVELY a greeting, well-being inquiry, or casual talk (e.g., "Hi", "Hello", "How are you?"), set `state: "none"`.
 4. **Host Response (Resolve)**: IF the sender is `{{.CurrentUser}}` AND the message indicates completion ("Done", "Finished", "I did it") of a task listed in the `Existing Tasks JSON`, set `state: "resolve"` and provide the matching task `id`.
 5. **Update State**: IF a message adds more detail to an existing task in `Existing Tasks JSON`, set `state: "update"` with the matching `id`.
-6. **Language**: The `task` summary MUST be in **English ONLY**.
 
 # Extraction Logic (Deterministic):
 1. **IDENTIFY state AND category**:

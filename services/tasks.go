@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"message-consolidator/logger"
 	"message-consolidator/store"
@@ -30,13 +31,19 @@ var (
 
 // TasksService handles task-related operations including formatting, completion, and batch translation.
 
-type TasksService struct {
-	translationSvc *TranslationService
+type TaskAI interface {
+	GenerateMergedTaskTitle(ctx context.Context, email string, tasksJSON string) (string, error)
 }
 
-func NewTasksService(trans *TranslationService) *TasksService {
+type TasksService struct {
+	translationSvc *TranslationService
+	geminiClient   TaskAI
+}
+
+func NewTasksService(trans *TranslationService, gemini TaskAI) *TasksService {
 	return &TasksService{
 		translationSvc: trans,
+		geminiClient:   gemini,
 	}
 }
 
@@ -479,4 +486,48 @@ func (s *TasksService) mergeBatchResults(ids []int, cached, newTrans map[int]str
 		if !success { final[i].Error = "translation missing" }
 	}
 	return final
+}
+
+// MergeTasks consolidates multiple tasks into one using AI summarization for the title.
+// Why: [Contextual Merge] Generates a representative English title from all merged messages.
+func (s *TasksService) MergeTasks(ctx context.Context, email string, targetIDs []int64, destID int64) error {
+	allIDs := append(targetIDs, destID)
+	msgs, err := store.GetMessagesByIDs(ctx, email, s.toIntSlice(allIDs))
+	if err != nil { return err }
+
+	var dest *store.ConsolidatedMessage
+	var sources []store.ConsolidatedMessage
+	for i := range msgs {
+		if int64(msgs[i].ID) == destID { dest = &msgs[i] } else { sources = append(sources, msgs[i]) }
+	}
+	if dest == nil { return fmt.Errorf("destination task not found") }
+
+	// Why: [Reliability] AI summary is progressive; failures fallback to existing title.
+	newTitle := s.generateSummaryTitle(ctx, email, dest, sources)
+	return store.MergeTasksWithTitle(ctx, email, targetIDs, destID, newTitle)
+}
+
+func (s *TasksService) toIntSlice(ids []int64) []int {
+	res := make([]int, len(ids))
+	for i, id := range ids { res[i] = int(id) }
+	return res
+}
+
+func (s *TasksService) generateSummaryTitle(ctx context.Context, email string, dest *store.ConsolidatedMessage, sources []store.ConsolidatedMessage) string {
+	type summaryInput struct { Title string `json:"title"`; Text string `json:"original_txt"` }
+	inputs := make([]summaryInput, 0, len(sources)+1)
+	inputs = append(inputs, summaryInput{Title: dest.Task, Text: dest.OriginalText})
+	for _, src := range sources {
+		inputs = append(inputs, summaryInput{Title: src.Task, Text: src.OriginalText})
+	}
+
+	data, err := json.Marshal(inputs)
+	if err != nil { return dest.Task } // Fallback
+
+	title, err := s.geminiClient.GenerateMergedTaskTitle(ctx, email, string(data))
+	if err != nil || title == "" {
+		logger.Errorf("AI Merge Summary Failed: %v (fallback to: %s)", err, dest.Task)
+		return dest.Task
+	}
+	return title
 }

@@ -227,3 +227,15 @@
     color: var(--text-dim);
     font-size: 0.8125rem;
 }
+
+.c-reports-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 25rem;
+    background: rgba(var(--accent-rgb), 0.02);
+    border: var(--border-thin) dashed var(--glass-border);
+    border-radius: var(--radius-lg);
+    animation: fadeIn var(--anim-duration-md) ease-out;
+}
