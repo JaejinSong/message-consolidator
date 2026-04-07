@@ -7,10 +7,10 @@ import { TimeService, escapeHTML } from './utils';
 import { ICONS } from './icons';
 
 
-export { 
-    updateServiceStatusUI, 
-    updateSlackStatus, 
-    updateWhatsAppStatus, 
+export {
+    updateServiceStatusUI,
+    updateSlackStatus,
+    updateWhatsAppStatus,
     updateGmailStatus,
     showWaModal,
     showGmailModal,
@@ -23,22 +23,22 @@ export {
 
 export { updateUserProfile } from './renderers/profile-renderer';
 
-export { 
-    renderAliasList, 
-    renderTenantAliasList, 
+export {
+    renderAliasList,
+    renderTenantAliasList,
     renderContactMappings,
     renderLinkedAccounts,
     initAccountLinkingCompos
 } from './renderers/settings-renderer';
 
-export { 
-    triggerXPAnimation, 
-    triggerConfetti, 
-    showToast, 
-    renderReleaseNotes, 
-    setScanLoading, 
-    setTheme, 
-    bindThemeToggle 
+export {
+    triggerXPAnimation,
+    triggerConfetti,
+    showToast,
+    renderReleaseNotes,
+    setScanLoading,
+    setTheme,
+    bindThemeToggle
 } from './renderers/ui-effects';
 
 /**
@@ -117,13 +117,13 @@ export function initMessageGridEvents(gridId: string, handlers: MessageHandlers)
                 // Checkboxes toggle their native .checked state BEFORE the click event fires.
                 // We MUST NOT call e.preventDefault() here, otherwise the native toggle is reverted.
                 e.stopPropagation(); // Only prevent bubbling so the card doesn't expand
-                
+
                 const checkbox = btn as HTMLInputElement;
                 const taskId = parseInt(id, 10);
-                const isSelectedNow = checkbox.checked; 
-                
+                const isSelectedNow = checkbox.checked;
+
                 console.log(`[DEBUG] Task ${taskId} Clicked. isSelectedNow=${isSelectedNow}`);
-                
+
                 if (handlers.onSelectTask) {
                     handlers.onSelectTask(taskId, isSelectedNow);
                 }
@@ -153,7 +153,7 @@ export function createCardElement(m: Message): string {
         metadata: typeof m.metadata === 'string' ? m.metadata : JSON.stringify(m.metadata || {}),
         lang: state.currentLang || 'en',
         translating: !!m.translating,
-        translationError: (m.translationError || undefined) as string | undefined, 
+        translationError: (m.translationError || undefined) as string | undefined,
         has_original: !!m.has_original,
         assigned_to: m.assigned_to,
         isSelected: state.selectedTaskIds.has(m.id)
@@ -166,31 +166,9 @@ export function createCardElement(m: Message): string {
  * Renders message cards based on categorized data.
  */
 export function renderMessages(categorized: CategorizedMessages): void {
-    const activeTab = document.querySelector('.tab-btn.active');
-    const currentTab = activeTab?.getAttribute('data-tab') || 'myTasksTab';
     const searchQuery = (document.getElementById('taskSearch') as HTMLInputElement)?.value || '';
 
     const allTasks = [...(categorized.inbox || []), ...(categorized.pending || []), ...(categorized.waiting || [])];
-    
-    const tabToKey: Record<string, keyof CategorizedMessages> = {
-        'myTasksTab': 'inbox',
-        'otherTasksTab': 'pending',
-        'waitingTasksTab': 'waiting'
-    };
-
-    let messages: Message[] = [];
-    if (currentTab === 'allTasksTab') {
-        messages = [...allTasks].sort((a, b) => {
-            const dateA = new Date(a.source_ts || a.timestamp || 0).getTime();
-            const dateB = new Date(b.source_ts || b.timestamp || 0).getTime();
-            return dateB - dateA;
-        });
-    } else {
-        const key = tabToKey[currentTab] as keyof CategorizedMessages;
-        messages = categorized[key] || [];
-    }
-
-    const filtered = sortAndSearchMessages(messages, searchQuery);
 
     // O(1) Counter Updates based on categorized data lengths
     const updateCount = (id: string, count: number) => {
@@ -203,18 +181,37 @@ export function renderMessages(categorized: CategorizedMessages): void {
     updateCount('waitingCount', getActiveCount(categorized.waiting));
     updateCount('allCount', getActiveCount(allTasks));
 
-    const gridId = currentTab.replace('Tab', 'List');
-    const grid = document.getElementById(gridId);
-    if (!grid) return;
-    grid.innerHTML = '';
+    const gridsConfig = [
+        { tab: 'myTasksTab', gridId: 'myTasksList', messages: categorized.inbox || [] },
+        { tab: 'otherTasksTab', gridId: 'otherTasksList', messages: categorized.pending || [] },
+        { tab: 'waitingTasksTab', gridId: 'waitingTasksList', messages: categorized.waiting || [] },
+        {
+            tab: 'allTasksTab',
+            gridId: 'allTasksList',
+            messages: [...allTasks].sort((a, b) => {
+                const dateA = new Date(a.timestamp || a.created_at || 0).getTime();
+                const dateB = new Date(b.timestamp || b.created_at || 0).getTime();
+                return dateB - dateA;
+            })
+        }
+    ];
 
-    const isMyTasksEmpty = (currentTab === 'myTasksTab' && messages.length === 0 && !searchQuery);
+    gridsConfig.forEach(config => {
+        const grid = document.getElementById(config.gridId);
+        if (!grid) return;
 
-    if (isMyTasksEmpty) {
-        renderEmptyGrid(grid, true);
-    } else if (filtered.length === 0) {
-        renderEmptyGrid(grid, false);
-    }
+        const filtered = sortAndSearchMessages(config.messages, searchQuery);
+        const isMyTasksEmpty = (config.tab === 'myTasksTab' && config.messages.length === 0 && !searchQuery);
+
+        grid.innerHTML = '';
+        if (isMyTasksEmpty) {
+            renderEmptyGrid(grid, true);
+        } else if (filtered.length === 0) {
+            renderEmptyGrid(grid, false);
+        } else {
+            grid.innerHTML = filtered.map(m => createCardElement(m)).join('');
+        }
+    });
 }
 
 /**
@@ -222,9 +219,9 @@ export function renderMessages(categorized: CategorizedMessages): void {
  */
 export const getVisibleUntranslatedIds = (): number[] => {
     // Check which tab content is currently active
-    const activeTab = document.querySelector('.c-tab-content.active');
+    const activeTab = document.querySelector('.c-tabs__panel.active') || document.querySelector('.c-tabs__panel.c-tabs__panel--active');
     if (!activeTab) return [];
-    
+
     const targetLang = state.currentLang || 'en';
     if (targetLang === 'en') return [];
 
@@ -240,7 +237,7 @@ export const getVisibleUntranslatedIds = (): number[] => {
         // Use global state to check if it needs translation
         const all = [...state.messages.inbox, ...state.messages.pending, ...state.messages.waiting];
         const m = all.find(item => item.id === id);
-        
+
         if (m && !m.task_ko && !m.translating) {
             ids.push(id);
         }
@@ -254,25 +251,29 @@ export const getVisibleUntranslatedIds = (): number[] => {
  * If the list becomes empty, it renders the empty state.
  */
 export function removeTaskNode(id: number): void {
-    const card = document.getElementById(`task-${id}`);
-    if (!card) return;
+    const cards = document.querySelectorAll(`.c-message-card[data-id="${id}"]`);
+    if (cards.length === 0) return;
 
-    const grid = card.parentElement;
-    card.classList.add('c-message-card--removing');
+    cards.forEach(card => {
+        const grid = card.parentElement;
+        card.classList.add('c-message-card--removing');
 
-    // Wait for animation to finish before removal
+        // Wait for animation to finish before removal
+        setTimeout(() => {
+            card.remove();
+
+            // If grid is now empty, show empty state
+            if (grid && grid.children.length === 0) {
+                renderEmptyGrid(grid as HTMLElement, grid.id === 'myTasksList');
+            }
+        }, 300);
+    });
+
     setTimeout(() => {
-        card.remove();
-        
-        // If grid is now empty, show empty state
-        if (grid && grid.children.length === 0) {
-            renderEmptyGrid(grid, true);
-        }
-        
         // Update global counts in UI
         const allTasks = [...state.messages.inbox, ...state.messages.pending, ...state.messages.waiting];
-        const updateCount = (id: string, count: number) => {
-            const el = document.getElementById(id);
+        const updateCount = (countId: string, count: number) => {
+            const el = document.getElementById(countId);
             if (el) el.textContent = count.toString();
         };
         updateCount('myCount', getActiveCount(state.messages.inbox));
@@ -286,17 +287,19 @@ export function removeTaskNode(id: number): void {
  * Why: Optimistically updates a task card's completion status without full re-render.
  */
 export function updateTaskNodeStatus(id: number, done: boolean): void {
-    const card = document.getElementById(`task-${id}`);
-    if (!card) return;
+    const cards = document.querySelectorAll(`.c-message-card[data-id="${id}"]`);
+    if (cards.length === 0) return;
 
-    card.classList.toggle('c-message-card--done', done);
-    
-    // Update the toggle button icon
-    const btn = card.querySelector('.toggle-done-btn');
-    if (btn) {
-        btn.innerHTML = done ? '↩️' : '✅';
-    }
-    
+    cards.forEach(card => {
+        card.classList.toggle('c-message-card--done', done);
+
+        // Update the toggle button icon
+        const btn = card.querySelector('.toggle-done-btn');
+        if (btn) {
+            btn.innerHTML = done ? '↩️' : '✅';
+        }
+    });
+
     // Update global counts
     const allTasks = [...state.messages.inbox, ...state.messages.pending, ...state.messages.waiting];
     const updateCount = (id: string, count: number) => {
