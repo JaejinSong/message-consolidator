@@ -25,7 +25,8 @@ export const state: AppState = {
     selectedTaskIds: new Set<number>(),
     reports: {},
     reportHistory: [],
-    isFetching: false
+    isFetchingMessages: false,
+    isFetchingStatus: false,
 };
 
 /**
