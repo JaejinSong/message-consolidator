@@ -318,22 +318,23 @@ func GetContactsByIdentifiers(ctx context.Context, tenantEmail string, identifie
 	ambiguous := make(map[string]bool)
 	var remaining []string
 
-	// Phase 1: Try Cache
 	metadataMu.RLock()
-	if mappings, ok := contactsCache[tenantEmail]; ok {
-		for _, id := range identifiers {
-			matches := findAllInMappings(mappings, id)
-			if len(matches) > 1 {
-				ambiguous[id] = true
-				res[id] = matches[0]
-			} else if len(matches) == 1 {
-				res[id] = matches[0]
-			} else {
-				remaining = append(remaining, id)
-			}
+	mappings := contactsCache[tenantEmail]
+	for _, id := range identifiers {
+		normalized := NormalizeIdentifier(id)
+		if normalized == strings.ToLower(tenantEmail) {
+			res[id] = &ContactRecord{ID: 0, TenantEmail: tenantEmail, CanonicalID: tenantEmail, DisplayName: "Me", ContactType: "internal"}
+			continue
 		}
-	} else {
-		remaining = identifiers
+		matches := findAllInMappings(mappings, normalized)
+		if len(matches) > 1 {
+			ambiguous[id] = true
+			res[id] = matches[0]
+		} else if len(matches) == 1 {
+			res[id] = matches[0]
+		} else {
+			remaining = append(remaining, id)
+		}
 	}
 	metadataMu.RUnlock()
 
@@ -341,17 +342,18 @@ func GetContactsByIdentifiers(ctx context.Context, tenantEmail string, identifie
 		return res, ambiguous, nil
 	}
 
-	// Phase 2: Batch DB Lookup for missing ones
 	return fetchContactsBatch(ctx, tenantEmail, remaining, res, ambiguous)
 }
 
-func findAllInMappings(mappings []ContactRecord, identifier string) []*ContactRecord {
+func findAllInMappings(mappings []ContactRecord, normalized string) []*ContactRecord {
 	var res []*ContactRecord
 	seen := make(map[string]bool)
-	normalized := strings.ToLower(strings.TrimSpace(identifier))
 	for i := range mappings {
 		m := &mappings[i]
 		if matchContact(m, normalized) {
+			if m.ID == -1 {
+				return nil
+			}
 			if !seen[m.CanonicalID] {
 				res = append(res, m)
 				seen[m.CanonicalID] = true
@@ -361,96 +363,78 @@ func findAllInMappings(mappings []ContactRecord, identifier string) []*ContactRe
 	return res
 }
 
-func GetAliasesForContact(ctx context.Context, contactID int64) ([]string, error) {
-	rows, err := db.QueryContext(ctx, SQL.GetContactAliases, contactID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var aliases []string
-	for rows.Next() {
-		var a struct {
-			ID             int64
-			ContactID      int64
-			Type           string
-			Value          string
-			Source         string
-			Trust          int
-			CreatedAt      time.Time
-		}
-		if err := rows.Scan(&a.ID, &a.ContactID, &a.Type, &a.Value, &a.Source, &a.Trust, &a.CreatedAt); err == nil {
-			aliases = append(aliases, a.Value)
-		}
-	}
-	return aliases, nil
-}
 
 func fetchContactsBatch(ctx context.Context, tenantEmail string, remaining []string, res map[string]*ContactRecord, ambiguous map[string]bool) (map[string]*ContactRecord, map[string]bool, error) {
-	// 1. Fetch from DB first to ensure we have current data if cache was invalidated
-	var all []ContactRecord
-	rows, err := db.QueryContext(ctx, "SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type FROM contacts WHERE tenant_email = ?", tenantEmail)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var c ContactRecord
-			if err := rows.Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Source, &c.MasterContactID, &c.ContactType); err == nil {
-				all = append(all, c)
-			}
-		}
-	}
-
+	all, _ := fetchAllTenantContacts(ctx, tenantEmail)
 	for _, id := range remaining {
-		// 2. Try Direct Match from the DB results we just fetched
-		var matches []*ContactRecord
-		for i := range all {
-			if matchContact(&all[i], id) {
-				matches = append(matches, &all[i])
-			}
-		}
-
-		if len(matches) > 1 {
-			ambiguous[id] = true
+		normalized := NormalizeIdentifier(id)
+		if matches := findMatchesInBatch(all, normalized); len(matches) > 0 {
 			res[id] = matches[0]
-			continue
-		} else if len(matches) == 1 {
-			res[id] = matches[0]
+			if len(matches) > 1 { ambiguous[id] = true }
 			continue
 		}
-
-		// 3. Try Identity-X Resolution fallback (Alias table + DSU)
-		// Try resolving as both name and email for robustness.
-		idTypes := []string{"name", "email", "whatsapp", "slack"}
-		for _, idType := range idTypes {
-			resolvedIDs, err := ResolveAliases(ctx, idType, id)
-			if err == nil {
-				if len(resolvedIDs) > 1 {
-					ambiguous[id] = true
-					// Pick the first one as a fallback display candidate
-					for i := range all {
-						if all[i].ID == resolvedIDs[0] {
-							res[id] = &all[i]
-							break
-						}
-					}
-					goto NextID
-				} else if len(resolvedIDs) == 1 {
-					for i := range all {
-						if all[i].ID == resolvedIDs[0] {
-							res[id] = &all[i]
-							goto NextID
-						}
-					}
-				}
-			}
+		if foundID, ok := resolveWithIdentityX(ctx, normalized); ok {
+			res[id] = findByID(all, foundID)
+			continue
 		}
-	NextID:
+		recordMissing(tenantEmail, normalized)
 	}
 	return res, ambiguous, nil
 }
 
-func matchContact(c *ContactRecord, identifier string) bool {
-	normalized := strings.ToLower(strings.TrimSpace(identifier))
+func fetchAllTenantContacts(ctx context.Context, tenantEmail string) ([]ContactRecord, error) {
+	var all []ContactRecord
+	rows, err := db.QueryContext(ctx, "SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type FROM contacts WHERE tenant_email = ?", tenantEmail)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	for rows.Next() {
+		var c ContactRecord
+		if err := rows.Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Source, &c.MasterContactID, &c.ContactType); err == nil {
+			all = append(all, c)
+		}
+	}
+	return all, nil
+}
+
+func findMatchesInBatch(all []ContactRecord, normalized string) []*ContactRecord {
+	var res []*ContactRecord
+	for i := range all {
+		if matchContact(&all[i], normalized) {
+			res = append(res, &all[i])
+		}
+	}
+	return res
+}
+
+func resolveWithIdentityX(ctx context.Context, normalized string) (int64, bool) {
+	idTypes := []string{"name", "email", "whatsapp", "slack"}
+	for _, t := range idTypes {
+		if ids, err := ResolveAliases(ctx, t, normalized); err == nil && len(ids) > 0 {
+			return ids[0], true
+		}
+	}
+	return 0, false
+}
+
+func findByID(all []ContactRecord, id int64) *ContactRecord {
+	for i := range all {
+		if all[i].ID == id { return &all[i] }
+	}
+	return nil
+}
+
+func recordMissing(tenantEmail, normalized string) {
+	metadataMu.Lock()
+	defer metadataMu.Unlock()
+	contactsCache[tenantEmail] = append(contactsCache[tenantEmail], ContactRecord{
+		ID: -1, 
+		TenantEmail: tenantEmail, 
+		CanonicalID: normalized, 
+		DisplayName: normalized,
+	})
+}
+
+func matchContact(c *ContactRecord, normalized string) bool {
 	return strings.ToLower(c.CanonicalID) == normalized || strings.ToLower(c.DisplayName) == normalized
 }
 

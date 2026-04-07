@@ -219,7 +219,7 @@ func (a *API) HandleReclassifyOldData(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	aliases, _ := store.GetUserAliases(user.ID)
+	aliases, _ := store.GetUserAliases(r.Context(), user.ID)
 
 	msgs, err := store.GetMessages(r.Context(), email)
 	if err != nil {
@@ -246,7 +246,7 @@ func (a *API) HandleRestoreGmailCC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, _ := store.GetOrCreateUser(r.Context(), email, "", "")
-	aliases, _ := store.GetUserAliases(user.ID)
+	aliases, _ := store.GetUserAliases(r.Context(), user.ID)
 
 	activeMsgs, _ := store.GetMessages(r.Context(), email)
 	filter := store.ArchiveFilter{

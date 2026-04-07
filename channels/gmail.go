@@ -1,6 +1,7 @@
 package channels
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -20,7 +21,6 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
-	"bytes"
 )
 
 const (
@@ -376,7 +376,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 	}
 
 	user, _ := store.GetOrCreateUser(ctx, email, "", "")
-	aliases, _ := store.GetUserAliases(user.ID)
+	aliases, _ := store.GetUserAliases(ctx, user.ID)
 
 	var totalNewIDs []int
 	batchSize := 10

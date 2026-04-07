@@ -3,39 +3,45 @@ package store
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
 )
 
+func NormalizeIdentifier(id string) string {
+	if id == "" {
+		return ""
+	}
+	id = strings.ToLower(strings.TrimSpace(id))
+	re := regexp.MustCompile(`\s*\(.*?\)\s*`)
+	return strings.TrimSpace(re.ReplaceAllString(id, ""))
+}
+
 func NormalizeName(tenantEmail, name string) string {
 	if name == "" {
 		return ""
 	}
-
+	normalized := NormalizeIdentifier(name)
 	metadataMu.RLock()
 	defer metadataMu.RUnlock()
 
-	nameLower := strings.ToLower(strings.TrimSpace(name))
-
-	// Phase 0: Resolve "__CURRENT_USER__"
-	if res, ok := resolveCurrentUserAlias(tenantEmail, nameLower); ok {
+	if res, ok := resolveCurrentUserAlias(tenantEmail, normalized); ok {
 		return res
 	}
-
-	// Phase 1: Identity-X Resolution
-	if res, ok := resolveIdentityXCanonicalName(tenantEmail, nameLower); ok {
+	if res, ok := resolveIdentityXCanonicalName(tenantEmail, normalized); ok {
 		return res
 	}
+	return fallbackSystemUser(normalized, name)
+}
 
-	// Phase 2: App user names (System fallback)
+func fallbackSystemUser(normalized, original string) string {
 	for _, u := range userCache {
-		if strings.ToLower(u.Name) == nameLower || strings.ToLower(u.Email) == nameLower {
+		if strings.ToLower(u.Name) == normalized || strings.ToLower(u.Email) == normalized {
 			return u.Name
 		}
 	}
-
-	return name
+	return original
 }
 
 func resolveCurrentUserAlias(tenantEmail, nameLower string) (string, bool) {
@@ -191,44 +197,29 @@ func GetTenantAliases(email string) (map[string]string, error) {
 	return res, nil
 }
 
-// GetUserAliases is a legacy compatibility helper.
-func GetUserAliases(userID int) ([]string, error) {
-	metadataMu.RLock()
-	defer metadataMu.RUnlock()
-
-	idMatch := int64(userID)
-	var email string
-	for e, u := range userCache {
-		if int64(u.ID) == idMatch {
-			email = e
-			break
-		}
-	}
-
-
-	if email == "" {
+// GetUserAliases retrieves all identifiers associated with a user's primary contact (Cache-Aside).
+func GetUserAliases(ctx context.Context, userID int) ([]string, error) {
+	u, err := GetUserByID(userID)
+	if err != nil {
 		return []string{}, nil
 	}
 
-	if mappings, ok := contactsCache[email]; ok {
-		for _, m := range mappings {
-			if m.CanonicalID == email {
-				var aliases []string
-				rows, err := db.Query("SELECT identifier_value FROM contact_aliases WHERE contact_id = ?", int64(m.ID))
-				if err == nil {
-					defer rows.Close()
-					for rows.Next() {
-						var a string
-						if err := rows.Scan(&a); err == nil {
-							aliases = append(aliases, a)
-						}
-					}
-				}
-				return aliases, nil
-			}
+	metadataMu.RLock()
+	mappings := contactsCache[u.Email]
+	var contactID int64
+	for _, m := range mappings {
+		if m.CanonicalID == u.Email {
+			contactID = m.ID
+			break
 		}
 	}
-	return []string{}, nil
+	metadataMu.RUnlock()
+
+	if contactID == 0 {
+		return []string{}, nil
+	}
+
+	return GetAliasesForContact(ctx, contactID)
 }
 
 // GetUserByID is a helper to find a user by their integer ID from the cache.

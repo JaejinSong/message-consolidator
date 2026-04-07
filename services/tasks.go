@@ -59,30 +59,46 @@ func (s *TasksService) StripOriginalText(msgs []store.ConsolidatedMessage) {
 	}
 }
 
-// FormatMessagesForClient normalizes requesters and assignees, and flags user's tasks.
 func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string, msgs []store.ConsolidatedMessage) {
 	user, _ := store.GetOrCreateUser(ctx, email, "", "")
+	names := collectUniqueNames(msgs)
+	aliasMap := store.BulkResolveAliases(ctx, email, names)
 
 	for i := range msgs {
-		msgs[i].Requester = store.NormalizeName(email, msgs[i].Requester)
-		msgs[i].Assignee = store.NormalizeName(email, msgs[i].Assignee)
+		msgs[i].Requester = aliasMap[msgs[i].Requester]
+		msgs[i].Assignee = aliasMap[msgs[i].Assignee]
+		s.applyAssigneeRules(user, &msgs[i])
+	}
+}
 
-		assignee := strings.TrimSpace(msgs[i].Assignee)
-		if strings.EqualFold(assignee, "undefined") || strings.EqualFold(assignee, "unknown") {
-			msgs[i].Assignee = ""
-			assignee = ""
+func collectUniqueNames(msgs []store.ConsolidatedMessage) []string {
+	seen := make(map[string]bool)
+	var names []string
+	for _, m := range msgs {
+		if !seen[m.Requester] && m.Requester != "" {
+			names = append(names, m.Requester)
+			seen[m.Requester] = true
 		}
-
-		if assignee == "" {
-			continue
+		if !seen[m.Assignee] && m.Assignee != "" {
+			names = append(names, m.Assignee)
+			seen[m.Assignee] = true
 		}
+	}
+	return names
+}
 
-		userName := strings.TrimSpace(user.Name)
-		isMe := strings.EqualFold(assignee, userName) || strings.EqualFold(assignee, "me") || strings.EqualFold(assignee, "__current_user__")
+func (s *TasksService) applyAssigneeRules(user *store.User, msg *store.ConsolidatedMessage) {
+	assignee := strings.TrimSpace(msg.Assignee)
+	isUnknown := strings.EqualFold(assignee, "undefined") || strings.EqualFold(assignee, "unknown")
+	if isUnknown || assignee == "" {
+		msg.Assignee = ""
+		return
+	}
 
-		if isMe {
-			msgs[i].Assignee = "me"
-		}
+	userName := strings.TrimSpace(user.Name)
+	isMe := strings.EqualFold(assignee, userName) || strings.EqualFold(assignee, "me") || strings.EqualFold(assignee, "__current_user__")
+	if isMe {
+		msg.Assignee = "me"
 	}
 }
 

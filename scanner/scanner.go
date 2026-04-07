@@ -97,7 +97,7 @@ func scanUsersSourcesParallel(ctx context.Context, users []store.User) {
 	for _, user := range users {
 		u := user
 		eg.Go(func() error {
-			aliases, _ := store.GetUserAliases(int(u.ID))
+			aliases, _ := store.GetUserAliases(ctx, u.ID)
 			scanAllSources(ctx, u, aliases)
 			return nil
 		})
@@ -205,7 +205,7 @@ func Scan(email string, lang string) {
 	defer cancel()
 
 	effAl := getEffectiveAliases(*user, func() []string {
-		a, _ := store.GetUserAliases(int(user.ID))
+		a, _ := store.GetUserAliases(traceCtx, user.ID)
 		return a
 	}())
 	runManualScans(ctx, user, effAl, lang)

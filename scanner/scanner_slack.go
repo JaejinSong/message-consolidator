@@ -63,16 +63,16 @@ func scanSlack(ctx context.Context, users []store.User) {
 		return
 	}
 
-	userAl := prepareSlackUserAliases(users)
+	userAl := prepareSlackUserAliases(ctx, users)
 	candidates, newTS := collectSlackHistory(ctx, users, chans, sc, userAl)
 	processSlackCandidates(ctx, users, sc, candidates)
 	updateSlackCursors(newTS)
 }
 
-func prepareSlackUserAliases(users []store.User) map[string][]string {
+func prepareSlackUserAliases(ctx context.Context, users []store.User) map[string][]string {
 	ua := make(map[string][]string)
 	for _, u := range users {
-		aliases, _ := store.GetUserAliases(int(u.ID))
+		aliases, _ := store.GetUserAliases(ctx, u.ID)
 		ua[u.Email] = getEffectiveAliases(u, aliases)
 	}
 	return ua
@@ -296,7 +296,7 @@ func fetchThreadReplies(sc *channels.SlackClient, t store.SlackThreadMeta) []sla
 
 func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user *store.User, t store.SlackThreadMeta, replies []slack.Message, res threadScanResult, botID string) []types.RawMessage {
 	var candidates []types.RawMessage
-	aliases, _ := store.GetUserAliases(int(user.ID))
+	aliases, _ := store.GetUserAliases(ctx, user.ID)
 	effAl := getEffectiveAliases(*user, aliases)
 
 	for _, m := range replies {
@@ -451,7 +451,7 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 }
 
 func processSlackItems(ctx context.Context, user *store.User, items []store.TodoItem, msgMap map[string]types.RawMessage, sc *channels.SlackClient) {
-	aliases, _ := store.GetUserAliases(user.ID)
+	aliases, _ := store.GetUserAliases(ctx, user.ID)
 	var newIDs []int
 	for _, item := range items {
 		m, ok := msgMap[item.SourceTS]
