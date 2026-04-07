@@ -1,0 +1,484 @@
+[
+  {
+    "id": "TC001",
+    "title": "Complete triage flow from filtered task to archive",
+    "description": "Verifies an agent can filter tasks, view a task’s original message, mark it done, and then find it in the archive.",
+    "category": "Dashboard Task Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to the dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Select a Source filter value"
+      },
+      {
+        "type": "action",
+        "description": "Select a Category filter value"
+      },
+      {
+        "type": "action",
+        "description": "Select an Assignee filter value"
+      },
+      {
+        "type": "action",
+        "description": "Open a task from the filtered task list to view its details"
+      },
+      {
+        "type": "action",
+        "description": "Mark the task as done"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to the archive"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the completed task appears in the archived messages list"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC002",
+    "title": "Mark a task done updates the active task list",
+    "description": "Verifies marking a task as done immediately updates the active task list to reflect the completion.",
+    "category": "Dashboard Task Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to the dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Open a task from the task list to view its details"
+      },
+      {
+        "type": "action",
+        "description": "Mark the task as done"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task is no longer shown in the active task list"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC003",
+    "title": "Link two contacts into a unified identity from dashboard",
+    "description": "Verifies a power user can search contacts, link exactly two, and see the unified identity reflected in the contact context.",
+    "category": "Identity-X Contact Linking",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to the dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Open the contact search modal"
+      },
+      {
+        "type": "action",
+        "description": "Fill a valid search query into the contact search field"
+      },
+      {
+        "type": "action",
+        "description": "Select the first contact result"
+      },
+      {
+        "type": "action",
+        "description": "Select a second contact result"
+      },
+      {
+        "type": "action",
+        "description": "Confirm linking the selected contacts"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the UI indicates the contacts are now linked under a unified identity"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC004",
+    "title": "View task details and original message content",
+    "description": "Verifies an agent can open a task and see its details along with the original message content.",
+    "category": "Dashboard Task Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to the dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Open a task from the task list to view its details"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task detail view displays the original message content"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC005",
+    "title": "Generate insights report with default date range",
+    "description": "Verifies a manager can generate a report using the default date range and see both the Sankey visualization and top entities populated.",
+    "category": "AI Reporting & Visualization",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to insights"
+      },
+      {
+        "type": "action",
+        "description": "Generate the report"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a Sankey chart is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a top entities list is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC006",
+    "title": "Archive shows completed task details with preserved content",
+    "description": "Verifies archived items can be opened and their original message content and metadata are still available after completion.",
+    "category": "Dashboard Task Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to the dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Open a task from the task list to view its details"
+      },
+      {
+        "type": "action",
+        "description": "Mark the task as done"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to the archive"
+      },
+      {
+        "type": "action",
+        "description": "Open the most recently archived task to view its details"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the archived task detail view displays the original message content and metadata"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC007",
+    "title": "Filters can be cleared to restore the full task list",
+    "description": "Verifies an agent can apply filters and then clear them to return to the unfiltered task list.",
+    "category": "Dashboard Task Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to the dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Select a Source filter value"
+      },
+      {
+        "type": "action",
+        "description": "Select a Category filter value"
+      },
+      {
+        "type": "action",
+        "description": "Clear the Source filter selection"
+      },
+      {
+        "type": "action",
+        "description": "Clear the Category filter selection"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task list is displayed without filter constraints"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC008",
+    "title": "Regenerate insights report after changing date range",
+    "description": "Verifies a manager can change the date range, regenerate the report, and see the visualization content update for the new range.",
+    "category": "AI Reporting & Visualization",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to insights"
+      },
+      {
+        "type": "action",
+        "description": "Generate the report"
+      },
+      {
+        "type": "action",
+        "description": "Select a different valid date range for the report"
+      },
+      {
+        "type": "action",
+        "description": "Generate the report"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the Sankey chart and top entities reflect the newly generated report state"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC009",
+    "title": "Unlinked selection can be changed before linking",
+    "description": "Verifies a user can revise which two contacts are selected before performing the link action.",
+    "category": "Identity-X Contact Linking",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to the dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Open the contact search modal"
+      },
+      {
+        "type": "action",
+        "description": "Fill a valid search query into the contact search field"
+      },
+      {
+        "type": "action",
+        "description": "Select the first contact result"
+      },
+      {
+        "type": "action",
+        "description": "Select a second contact result"
+      },
+      {
+        "type": "action",
+        "description": "Deselect one of the selected contacts"
+      },
+      {
+        "type": "action",
+        "description": "Select a different contact result"
+      },
+      {
+        "type": "action",
+        "description": "Confirm linking the selected contacts"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the UI indicates the newly selected pair is linked under a unified identity"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC010",
+    "title": "Prevent linking when only one contact is selected",
+    "description": "Verifies the UI blocks linking with a single selected contact and shows a validation message instructing the user to select two contacts.",
+    "category": "Identity-X Contact Linking",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to the dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Open the contact search modal"
+      },
+      {
+        "type": "action",
+        "description": "Fill a valid search query into the contact search field"
+      },
+      {
+        "type": "action",
+        "description": "Select the first contact result"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to link the selected contacts"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a validation error is visible indicating two contacts must be selected to proceed"
+      }
+    ],
+    "priority": "Low"
+  }
+]

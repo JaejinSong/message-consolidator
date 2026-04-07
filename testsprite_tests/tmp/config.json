@@ -1,0 +1,17 @@
+{
+  "status": "init",
+  "scope": "codebase",
+  "type": "frontend",
+  "localEndpoint": "http://localhost:5173/",
+  "serverPort": 35085,
+  "executionArgs": {
+    "projectName": "message-consolidator",
+    "projectPath": "/home/jinro/.gemini/message-consolidator/",
+    "testIds": [],
+    "additionalInstruction": "Focus on testing the dashboard statistics and the 'contact_type' (internal, partner, customer) categorization logic, ensuring the Sankey charts reflect the correct relationships.",
+    "serverMode": "development",
+    "envs": {
+      "API_KEY": "sk-user-c0eVBWthp-87Bl3GX9dBGpTFx7FDFyIzLJLWGDffmwoc3bDS1o753_tk1SpA4-lhdjzc-MgI2Lw7YpJBUIFoEEk5e860Vw_47uIBHuXZY0q3NgnNEYfbFXGph7fWHtRUypo"
+    }
+  }
+}

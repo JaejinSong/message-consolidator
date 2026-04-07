@@ -93,12 +93,13 @@ func LoadMetadata() error {
 	if err == nil {
 		defer contactRows.Close()
 		for contactRows.Next() {
-			var tEmail, canonical, display, source string
-			if err := contactRows.Scan(&tEmail, &canonical, &display, &source); err == nil {
+			var tEmail, canonical, display, source, contactType string
+			if err := contactRows.Scan(&tEmail, &canonical, &display, &source, &contactType); err == nil {
 				contactsCache[tEmail] = append(contactsCache[tEmail], ContactRecord{
 					CanonicalID: canonical,
 					DisplayName: display,
 					Source:      source,
+					ContactType: contactType,
 				})
 			}
 		}

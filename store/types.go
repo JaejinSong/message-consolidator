@@ -48,6 +48,8 @@ type ConsolidatedMessage struct {
 	SourceChannels     []string        `json:"source_channels"`  //Why: Tracks all channels that contributed to this consolidated task.
 	RequesterType      string          `json:"requester_type,omitempty"`
 	AssigneeType       string          `json:"assignee_type,omitempty"`
+	RequesterDisplayName string          `json:"requester_display_name,omitempty"`
+	AssigneeDisplayName  string          `json:"assignee_display_name,omitempty"`
 }
 
 // CategorizedMessages represents groups of messages for the dashboard tabs.

@@ -37,8 +37,8 @@ func TestReportsService_CalculateGraph(t *testing.T) {
 		}
 		if n.ID == "jj" {
 			foundJJ = true
-			if n.Category != "External" {
-				t.Errorf("JJ category expected External, got %s", n.Category)
+			if n.Category != "Internal" {
+				t.Errorf("JJ category expected Internal, got %s", n.Category)
 			}
 			if n.Value != 4 { // Assignee 3 + Requester 1
 				t.Errorf("JJ value expected 4, got %f", n.Value)
@@ -419,8 +419,13 @@ func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) 
 	if err != nil {
 		t.Fatalf("Failed to create user jj: %v", err)
 	}
-	if err := store.AddTenantAlias(context.Background(), tenantB, "Song", "Jaejin Song"); err != nil {
-		t.Fatalf("Failed to add tenant alias for tenant B: %v", err)
+	// Why: Correct setup for localized identity resolution. AddContact handles primary name/email, aliases as CSV.
+	cID, err := store.AddContact(context.Background(), tenantB, "jjsong@whatap.io", "Jaejin Song", "Song", "test")
+	if err != nil {
+		t.Fatalf("Failed to add contact for tenant B: %v", err)
+	}
+	if err := store.UpdateContactType(context.Background(), cID, "internal"); err != nil {
+		t.Fatalf("Failed to set contact type for tenant B: %v", err)
 	}
 
 	// 2. Manually refresh caches.
@@ -447,7 +452,13 @@ func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) 
 	}
 
 	// 5. Generate graph data for Tenant B and assert that Tenant B's alias WAS applied.
-	graphDataB := svc.generateVisualizationData(tenantB, messages)
+	// Act: Run the visualization pipeline.
+	// Why: The reporting pipeline requires sanitization to unify identities and detect tenant-specific categorization.
+	// We call sanitizeMessages here because generateVisualizationData is internal (called via the report generator API).
+	sanitizedB, _ := svc.sanitizeMessages(context.Background(), tenantB, messages)
+	graphDataB := svc.generateVisualizationData(tenantB, sanitizedB)
+	
+	// Assert: Check structure
 	foundResolvedSong := false
 	for _, n := range graphDataB.Nodes {
 		if n.ID == "jjsong@whatap.io" && n.Name == "Jaejin Song (Internal)" {

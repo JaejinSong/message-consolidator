@@ -113,10 +113,7 @@ var SQL = struct {
 	GetMaxDailyCompleted   string
 	GetWaitingTasks        string
 	GetPendingOthers       string
-	GetInternalTaskCount   string
-	GetPartnerTaskCount    string
-	GetCustomerTaskCount   string
-	GetExternalTaskCount   string
+	GetTaskCountByContactType string
 
 	//Why: Groups SQL queries for user and tenant aliases.
 	UpsertTenantAlias   string
@@ -376,10 +373,7 @@ func loadAllQueries() error {
 	SQL.GetMaxDailyCompleted = queries["GetMaxDailyCompleted"]
 	SQL.GetWaitingTasks = queries["GetWaitingTasks"]
 	SQL.GetPendingOthers = queries["GetPendingOthers"]
-	SQL.GetInternalTaskCount = queries["GetInternalTaskCount"]
-	SQL.GetPartnerTaskCount = queries["GetPartnerTaskCount"]
-	SQL.GetCustomerTaskCount = queries["GetCustomerTaskCount"]
-	SQL.GetExternalTaskCount = queries["GetExternalTaskCount"]
+	SQL.GetTaskCountByContactType = queries["GetTaskCountByContactType"]
 
 	SQL.UpsertTenantAlias = queries["UpsertTenantAlias"]
 	SQL.DeleteTenantAlias = queries["DeleteTenantAlias"]

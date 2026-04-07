@@ -181,16 +181,16 @@ func (s *ReportsService) sanitizeMessages(ctx context.Context, email string, msg
 
 	for i := range msgs {
 		m := &msgs[i]
-		s.applyResolution(ctx, m, &m.Requester, contacts, ambiguous, store.UpdateMessageRequester)
-		s.applyResolution(ctx, m, &m.Assignee, contacts, ambiguous, store.UpdateMessageAssignee)
+		s.applyResolution(ctx, m, &m.Requester, &m.RequesterCanonical, &m.RequesterDisplayName, &m.RequesterType, contacts, ambiguous, store.UpdateMessageRequester)
+		s.applyResolution(ctx, m, &m.Assignee, &m.AssigneeCanonical, &m.AssigneeDisplayName, &m.AssigneeType, contacts, ambiguous, store.UpdateMessageAssignee)
 	}
 	return msgs, nil
 }
 
-func (s *ReportsService) applyResolution(ctx context.Context, m *Log, field *string, contacts map[string]*store.ContactRecord, ambiguous map[string]bool, updateFn func(context.Context, int, string) error) {
-	identifier := *field
+func (s *ReportsService) applyResolution(ctx context.Context, m *Log, identifierField *string, canonicalField *string, displayNameField *string, typeField *string, contacts map[string]*store.ContactRecord, ambiguous map[string]bool, updateFn func(context.Context, int, string) error) {
+	identifier := *identifierField
 	if ambiguous[identifier] {
-		*field = identifier + " (Ambiguous)"
+		*identifierField = identifier + " (Ambiguous)"
 		return
 	}
 
@@ -199,7 +199,14 @@ func (s *ReportsService) applyResolution(ctx context.Context, m *Log, field *str
 		if identifier != c.CanonicalID && identifier != c.DisplayName {
 			go updateFn(context.Background(), m.ID, c.CanonicalID)
 		}
-		*field = c.CanonicalID
+		*identifierField = c.CanonicalID // Normalized to Email for DB consistency and tests
+		*canonicalField = c.CanonicalID
+		*displayNameField = c.DisplayName // Preserved for UI/Visualization
+		
+		// 💡 Promotion: Use contact_type from mapping if present
+		if c.ContactType != "" && c.ContactType != "none" {
+			*typeField = c.ContactType
+		}
 	}
 }
 
@@ -298,11 +305,26 @@ func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (ma
 	pairWeights := make(map[string]float64)
 	meta := make(map[string]nodeMeta)
 	for _, m := range messages {
-		rID := strings.ToLower(m.RequesterCanonical)
+		// Why: Prioritize canonical IDs for node unification; fallback to raw requester/assignee strings if not resolved.
+		rID := m.RequesterCanonical
+		if rID == "" {
+			rID = strings.ToLower(m.Requester)
+		}
 		rCat := s.resolveCategory(email, rID, m.RequesterType)
+		rName := m.RequesterDisplayName
+		if rName == "" {
+			rName = m.Requester
+		}
 		
-		aID := strings.ToLower(m.AssigneeCanonical)
+		aID := m.AssigneeCanonical
+		if aID == "" {
+			aID = strings.ToLower(m.Assignee)
+		}
 		aCat := s.resolveCategory(email, aID, m.AssigneeType)
+		aName := m.AssigneeDisplayName
+		if aName == "" {
+			aName = m.Assignee
+		}
 
 		if rID == "" || aID == "" || rID == aID {
 			continue
@@ -310,8 +332,8 @@ func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (ma
 		counts[rID]++
 		counts[aID]++
 		pairWeights[rID+"|"+aID]++
-		meta[rID] = nodeMeta{m.Requester, rCat}
-		meta[aID] = nodeMeta{m.Assignee, aCat}
+		meta[rID] = nodeMeta{rName, rCat}
+		meta[aID] = nodeMeta{aName, aCat}
 	}
 	return counts, pairWeights, meta
 }

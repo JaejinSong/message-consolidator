@@ -1,0 +1,72 @@
+version: "2"
+type: frontend
+tech_stack:
+  - TypeScript
+  - Vite
+  - Vanilla CSS (BEM)
+  - Google Fonts (Outfit, Inter)
+  - PostCSS/PurgeCSS
+routes:
+  - path: /
+    file: src/app.ts
+    auth_required: true
+    description: Main dashboard and task list
+  - path: /archive
+    file: src/archive.ts
+    auth_required: true
+    description: Archived messages view
+  - path: /insights
+    file: src/insights.ts
+    auth_required: true
+    description: Reporting and Sankey chart visualization
+features:
+  - name: Dashboard Task Management
+    description: View, filter, and mark tasks as done.
+    files:
+      - src/app.ts
+      - src/renderer.ts
+      - src/logic.ts
+    entry_route: /
+    user_interactions:
+      - Toggle filters (Source, Category, Assignee)
+      - Click "Done" button on a task
+      - View task details and original message
+    api_calls:
+      - method: GET
+        endpoint: /api/messages
+      - method: POST
+        endpoint: /api/messages/done
+    auth_required: true
+  - name: Identity-X Contact Linking
+    description: Search and link contacts from different sources.
+    files:
+      - src/modals.ts
+      - src/api.ts
+    entry_route: /
+    user_interactions:
+      - Open "Contact Search" modal
+      - Select two contacts to link
+      - Click "Link" button
+    api_calls:
+      - method: GET
+        endpoint: /api/contacts/search
+      - method: POST
+        endpoint: /api/contacts/link
+    auth_required: true
+  - name: AI Reporting & Visualization
+    description: Generate and view business intelligence reports with charts.
+    files:
+      - src/insights.ts
+      - src/insightsRenderer.ts
+    entry_route: /insights
+    user_interactions:
+      - Select date range for report
+      - Click "Generate Report" button
+      - View Sankey chart and top entities
+    api_calls:
+      - method: GET
+        endpoint: /api/reports
+      - method: POST
+        endpoint: /api/reports
+    auth_required: true
+known_limitations: []
