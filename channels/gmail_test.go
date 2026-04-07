@@ -166,6 +166,7 @@ func TestExtractNameFromEmail(t *testing.T) {
 		{"=?utf-8?B?7Iah7J6s7KeE?= <jaejin@whatap.io>", "송재진"},          // Case insensitive charset
 		{"=?UTF-8?Q?Jaejin_Song?= <jaejin@example.com>", "Jaejin Song"}, // Quoted-printable encoded
 		{"indonesia@whatap.io", "indonesia@whatap.io"},                  // Plain email without brackets
+		{"송현빈 <wisebean@goggle.com>", "송현빈"},                        // Korean name (Plain UTF-8)
 	}
 
 	for _, tt := range tests {

@@ -9,13 +9,23 @@ import (
 // ExtractContacts robustly parses a comma-separated list of email addresses,
 // decoding MIME headers and handling unquoted non-ASCII names.
 func ExtractContacts(header string) []mail.Address {
-	var contacts []mail.Address
 	if header == "" {
-		return contacts
+		return nil
 	}
 
 	parser := mail.AddressParser{WordDecoder: &mime.WordDecoder{}}
 
+	// 1. Try standard list parsing first (handles commas in quotes correctly)
+	if addresses, err := parser.ParseList(header); err == nil {
+		contacts := make([]mail.Address, len(addresses))
+		for i, addr := range addresses {
+			contacts[i] = *addr
+		}
+		return contacts
+	}
+
+	// 2. Fallback for mixed or slightly malformed headers (splitting cautiously)
+	var contacts []mail.Address
 	parts := strings.Split(header, ",")
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
@@ -29,7 +39,7 @@ func ExtractContacts(header string) []mail.Address {
 			continue
 		}
 
-		// Fallback for malformed addresses like "홍길동 <hong@example.com>"
+		// Robust fallback for "Name <email>" even if slightly malformed
 		if idx := strings.Index(p, "<"); idx != -1 {
 			name := strings.TrimSpace(p[:idx])
 			name = strings.Trim(name, "\"")
