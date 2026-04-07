@@ -10,7 +10,6 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
-	"net/mail"
 	"regexp"
 	"strconv"
 	"strings"
@@ -25,7 +24,7 @@ import (
 
 const (
 	CategorySent   = "발신 메일" //Why: Identifies emails sent by the user to determine if they constitute a commitment or a task update.
-	CategoryMine   = "내 업무"   //Why: Marks emails where the user is the primary recipient as personal tasks.
+	CategoryMine   = "내 업무"  //Why: Marks emails where the user is the primary recipient as personal tasks.
 	CategoryOthers = "기타 업무" //Why: Classifies CC'd or group emails as lower-priority informational items.
 )
 
@@ -229,42 +228,25 @@ func upsertAddresses(tenantEmail, header, source string) string {
 	if header == "" {
 		return ""
 	}
-	
-	// Why: Attempts to parse the entire list using the standard library.
-	addrs, err := mail.ParseAddressList(header)
-	if err != nil {
-		// Defensive: If the entire list fails (e.g., due to one malformed entry),
-		// split by comma and try to parse what we can to salvage valid contacts.
-		parts := strings.Split(header, ",")
-		firstEmail := ""
-		for _, p := range parts {
-			addr, err := mail.ParseAddress(strings.TrimSpace(p))
-			if err == nil {
-				email := strings.ToLower(strings.TrimSpace(addr.Address))
-				if firstEmail == "" {
-					firstEmail = email
-				}
-				_ = store.AutoUpsertContact(tenantEmail, email, addr.Name, source)
-			}
-		}
-		if firstEmail != "" {
-			return firstEmail
-		}
-		return types.ExtractNameFromEmail(header) 
-	}
 
+	contacts := types.ExtractContacts(header)
 	firstEmail := ""
-	for i, addr := range addrs {
-		email := strings.ToLower(strings.TrimSpace(addr.Address))
-		if i == 0 {
-			firstEmail = email
+
+	for _, contact := range contacts {
+		email := strings.ToLower(strings.TrimSpace(contact.Address))
+		if email != "" {
+			if firstEmail == "" {
+				firstEmail = email
+			}
+			_ = store.AutoUpsertContact(tenantEmail, email, contact.Name, source)
 		}
-		_ = store.AutoUpsertContact(tenantEmail, email, addr.Name, source)
 	}
-	return firstEmail
+
+	if firstEmail != "" {
+		return firstEmail
+	}
+	return types.ExtractNameFromEmail(header)
 }
-
-
 
 func getGmailSkips(cfg *config.Config) []string {
 	var skips []string
@@ -366,8 +348,6 @@ func isAssigneeMe(assignee, email, userName, fallback string, aliases []string) 
 	return false
 }
 
-
-
 func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage)) []int {
 	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 	if err != nil {
@@ -457,7 +437,9 @@ func buildGmailMetadataString(m types.RawMessage) string {
 
 func extractGmailAttachmentNames(payload *gmail.MessagePart) []string {
 	var names []string
-	if payload == nil { return names }
+	if payload == nil {
+		return names
+	}
 	if payload.Filename != "" {
 		names = append(names, payload.Filename)
 	}
@@ -521,23 +503,22 @@ func mapTodoToMessage(email string, user *store.User, aliases []string, item sto
 	}
 
 	return store.ConsolidatedMessage{
-		UserEmail:    email,
-		Source:       "gmail",
-		Room:         "Gmail",
-		Task:         item.Task,
-		Requester:    m.Sender,
-		Assignee:     assignee,
-		AssignedAt:   m.Timestamp,
-		Link:         fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS),
-		SourceTS:     fmt.Sprintf("gmail-%s-%d", item.SourceTS, index),
-		OriginalText: m.Text,
-		Deadline:     item.Deadline,
-		Category:     category,
-		ThreadID:     m.ThreadID,
+		UserEmail:      email,
+		Source:         "gmail",
+		Room:           "Gmail",
+		Task:           item.Task,
+		Requester:      m.Sender,
+		Assignee:       assignee,
+		AssignedAt:     m.Timestamp,
+		Link:           fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS),
+		SourceTS:       fmt.Sprintf("gmail-%s-%d", item.SourceTS, index),
+		OriginalText:   m.Text,
+		Deadline:       item.Deadline,
+		Category:       category,
+		ThreadID:       m.ThreadID,
 		SourceChannels: []string{"gmail"}, // Initial source for the new task
 	}, true
 }
-
 
 func resolveGmailCategoryAndAssignee(item store.TodoItem, isMe bool, cls, toHeader, fallback string) (string, string) {
 	assignee := item.Assignee
@@ -568,7 +549,6 @@ func getPreferredName(user *store.User) string {
 	}
 	return user.Email
 }
-
 
 func extractBody(payload *gmail.MessagePart) string {
 	if payload == nil {
@@ -603,8 +583,8 @@ func extractBody(payload *gmail.MessagePart) string {
 }
 
 var (
-	reWhitespace  = regexp.MustCompile(`\s+`)
-	reSignature   = regexp.MustCompile(`(?m)^--\s*$`) //Why: Identifies standard MIME signature delimiters to truncate noise at the end of emails.
+	reWhitespace = regexp.MustCompile(`\s+`)
+	reSignature  = regexp.MustCompile(`(?m)^--\s*$`) //Why: Identifies standard MIME signature delimiters to truncate noise at the end of emails.
 )
 
 func stripHTML(raw string) string {
@@ -672,7 +652,7 @@ func decodeBase64URL(data string) string {
 	return decoded
 }
 
-//Why: cleanEmailBody strips signatures and ensures the body remains within AI token limits. Quote removal is now handled by stripHTML.
+// Why: cleanEmailBody strips signatures and ensures the body remains within AI token limits. Quote removal is now handled by stripHTML.
 func cleanEmailBody(body string) string {
 	result := body
 
