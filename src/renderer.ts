@@ -5,7 +5,7 @@ import { state } from './state';
 import { I18N_DATA } from './locales';
 import { TimeService, escapeHTML } from './utils';
 import { ICONS } from './icons';
-import { api } from './api';
+
 
 export { 
     updateServiceStatusUI, 
@@ -214,24 +214,39 @@ export function renderMessages(categorized: CategorizedMessages): void {
         renderEmptyGrid(grid, true);
     } else if (filtered.length === 0) {
         renderEmptyGrid(grid, false);
-    } else {
-        grid.innerHTML = filtered.map(m => createCardElement(m)).join('');
-        
-        const targetLang = state.currentLang || 'en';
-        filtered.forEach(m => {
-            if (targetLang !== 'en' && !m.task_ko && !m.translating) {
-                m.translating = true;
-                api.requestTranslation(m.id, targetLang).then((text: string) => {
-                    m.task_ko = text;
-                    m.translating = false;
-                    const card = document.getElementById(`task-${m.id}`);
-                    if (card) card.outerHTML = createCardElement(m);
-                }).catch(() => {
-                    m.translating = false;
-                });
-            }
-        });
     }
+}
+
+/**
+ * Why: Returns IDs of untranslated messages currently visible in the dashboard.
+ */
+export const getVisibleUntranslatedIds = (): number[] => {
+    // Check which tab content is currently active
+    const activeTab = document.querySelector('.c-tab-content.active');
+    if (!activeTab) return [];
+    
+    const targetLang = state.currentLang || 'en';
+    if (targetLang === 'en') return [];
+
+    // Find all message cards in the active tab that need translation
+    const cards = Array.from(activeTab.querySelectorAll('.c-message-card'));
+    const ids: number[] = [];
+
+    cards.forEach(card => {
+        const idStr = card.id.replace('task-', '');
+        const id = parseInt(idStr);
+        if (isNaN(id)) return;
+
+        // Use global state to check if it needs translation
+        const all = [...state.messages.inbox, ...state.messages.pending, ...state.messages.waiting];
+        const m = all.find(item => item.id === id);
+        
+        if (m && !m.task_ko && !m.translating) {
+            ids.push(id);
+        }
+    });
+
+    return ids;
 }
 
 /**

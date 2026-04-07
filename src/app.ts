@@ -25,7 +25,8 @@ import {
     bindGlobalClicks,
     bindThemeToggle,
     removeTaskNode,
-    updateTaskNodeStatus
+    updateTaskNodeStatus,
+    getVisibleUntranslatedIds
 } from './renderer';
 import { I18nDictionary, ServiceHandlers, UserProfile, CategorizedMessages } from './types';
 import { archive } from './archive';
@@ -36,9 +37,8 @@ import { safeAsync, hasSessionHint, setupTabs } from './utils';
 import { STATUS_STATES, POLLING_INTERVALS } from './constants';
 import { authService } from './services/authService';
 
-let syncTimer: any = null;
-
-const activeTimers: ReturnType<typeof setTimeout>[] = [];
+let lastMessageDataHash = '';
+const activeTimers: any[] = [];
 
 /**
  * @file app.ts
@@ -112,13 +112,11 @@ const handlers: ServiceHandlers = {
         if (!confirm(i18n.logoutConfirm!)) return;
         await api.logoutWhatsApp();
         showToast(lang === 'ko' ? '로그아웃 되었습니다.' : 'Logged out successfully.', 'success');
-        checkWhatsAppStatus(true);
+        checkAllStatus(true);
     }, { triggerAuthOverlay: true }),
     onWhatsAppRelink: safeAsync(async () => {
         updateWhatsAppQR('generating', null, state.currentLang);
         showWaModal();
-        // waQRSection과 waConnectedSection은 renderer.updateServiceStatusUI에서 처리되지만,
-        // 여기서는 강제로 QR 섹션을 보여줘야 함
         document.getElementById('waQRSection')?.classList.remove('hidden');
         document.getElementById('waConnectedSection')?.classList.add('hidden');
 
@@ -131,7 +129,7 @@ const handlers: ServiceHandlers = {
         const success = await authService.disconnectGmail();
         if (success) {
             showToast(lang === 'ko' ? '연동이 해제되었습니다.' : 'Disconnected successfully.', 'success');
-            checkGmailStatus(true);
+            checkAllStatus(true);
             document.getElementById('gmailModal')?.classList.add('hidden');
         } else {
             showToast(lang === 'ko' ? '연동 해제 실패' : 'Failed to disconnect.', 'error');
@@ -164,87 +162,85 @@ const updateMergeBar = () => {
 };
 
 /**
- * Fetches and renders messages.
+ * Fetches and renders messages with robust locking.
  */
 const fetchMessages = safeAsync(async (bypassVisibility: boolean = false) => {
-    if (!bypassVisibility && (document.hidden || state.isFetchingMessages)) return;
+    // Robust Lock: Prevent concurrent fetches even if visibility is bypassed
+    if (state.isFetchingMessages || (!bypassVisibility && document.hidden)) return;
+    
     state.isFetchingMessages = true;
     try {
         const data = await api.fetchMessages(state.currentLang);
         const categorized: CategorizedMessages = data.messages || data;
+        
+        // Simple change detection to avoid redundant triggers
+        const currentHash = JSON.stringify(categorized);
+        const hasChanged = currentHash !== lastMessageDataHash;
+        lastMessageDataHash = currentHash;
+
         if (data.user) updateStats(data.user);
         updateMessages(categorized);
         renderMessages(categorized);
-        planTranslationSync();
+        
+        // Auto-translate if visibility bypassed (tab switch, manual sync) OR if new content found
+        if (bypassVisibility || hasChanged) {
+            triggerBatchTranslation();
+        }
     } finally {
         state.isFetchingMessages = false;
     }
 });
 
 /**
- * Why: High-frequency polling specifically for pending translations.
- * Activated only when 'is_translating' items exist.
+ * Why: Triggers translation for visible untranslated items in a single batch.
+ * Consistent with User Requirement: Execute during lang change and transitions.
  */
-function planTranslationSync(): void {
-    if (syncTimer) return;
-    
-    const { inbox, pending, waiting } = state.messages;
-    const all = [...inbox, ...pending, ...waiting];
-    const needsSync = all.some(m => m.is_translating || m.translating);
+async function triggerBatchTranslation(): Promise<void> {
+    const ids = getVisibleUntranslatedIds();
+    if (ids.length === 0) return;
 
-    if (needsSync) {
-        syncTimer = setTimeout(async () => {
-            syncTimer = null;
-            await fetchMessages();
-        }, 3000);
+    const targetLang = state.currentLang || 'en';
+    if (targetLang === 'en') return;
+
+    // Mark as translating in state immediately to prevent duplicate triggers
+    const all = [...state.messages.inbox, ...state.messages.pending, ...state.messages.waiting];
+    ids.forEach(id => {
+        const m = all.find(item => item.id === id);
+        if (m) m.translating = true;
+    });
+
+    try {
+        await Promise.all(ids.map(id => api.requestTranslation(id, targetLang)));
+    } catch (e) {
+        console.error('[I18N] Batch translation failed', e);
     }
 }
 
 /**
- * Checks Slack connection status.
+ * Checks all status channels with robust locking.
  */
-const checkSlackStatus = safeAsync(async (bypassVisibility: boolean = false) => {
-    if (!bypassVisibility && (document.hidden || state.isFetchingStatus)) return;
+const checkAllStatus = safeAsync(async (bypassVisibility: boolean = false) => {
+    if (state.isFetchingStatus || (!bypassVisibility && document.hidden)) return;
+    
     state.isFetchingStatus = true;
     try {
-        const data = await api.fetchSlackStatus();
-        updateSlackStatus(data.status === STATUS_STATES.CONNECTED);
+        await Promise.allSettled([
+            api.fetchSlackStatus().then(d => updateSlackStatus(d.status === STATUS_STATES.CONNECTED)),
+            api.fetchWhatsAppStatus().then(d => {
+                if (d) {
+                    state.waConnected = (d.status === STATUS_STATES.CONNECTED);
+                    updateWhatsAppStatus(d.status);
+                }
+            }),
+            authService.checkGmailStatus().then(d => {
+                state.gmailConnected = d.connected;
+                updateGmailStatus(d.connected, d.email);
+            })
+        ]);
     } finally {
         state.isFetchingStatus = false;
     }
 });
-
-/**
- * Checks WhatsApp connection status.
- */
-const checkWhatsAppStatus = safeAsync(async (bypassVisibility: boolean = false) => {
-    if (!bypassVisibility && (document.hidden || state.isFetchingStatus)) return;
-    state.isFetchingStatus = true;
-    try {
-        const data = await api.fetchWhatsAppStatus();
-        if (!data) return;
-        state.waConnected = (data.status === STATUS_STATES.CONNECTED);
-        updateWhatsAppStatus(data.status);
-    } finally {
-        state.isFetchingStatus = false;
-    }
-});
-
-/**
- * Checks Gmail connection status.
- */
-const checkGmailStatus = safeAsync(async (bypassVisibility: boolean = false) => {
-    if (!bypassVisibility && (document.hidden || state.isFetchingStatus)) return;
-    state.isFetchingStatus = true;
-    try {
-        const data = await authService.checkGmailStatus();
-        state.gmailConnected = data.connected;
-        updateGmailStatus(data.connected, data.email);
-    } finally {
-        state.isFetchingStatus = false;
-    }
-});
-
 
 /**
  * Fetches user profile and updates state.
@@ -265,21 +261,6 @@ const fetchUserProfile = safeAsync(async () => {
 }, { triggerAuthOverlay: true });
 
 /**
- * Triggers batch translation for all messages in the current language.
- * Protected by the global isFetching lock.
- */
-const triggerBatchTranslation = safeAsync(async () => {
-    if (document.hidden || state.isFetchingMessages) return;
-    state.isFetchingMessages = true;
-    try {
-        await api.translateTasks(state.currentLang);
-    } finally {
-        state.isFetchingMessages = false;
-    }
-    // Call fetchMessages AFTER releasing the lock
-    await fetchMessages(true);
-});
-
 /**
  * Handles streak freeze purchase.
  */
@@ -368,7 +349,8 @@ const initLanguageSelector = () => {
                 if (archive.isVisible()) {
                     archive.fetch();
                 }
-            } finally {
+            } catch (e) {
+                console.error('[I18n] Language switch refresh failed', e);
             }
         });
     }
@@ -480,7 +462,7 @@ const initActionButtons = () => {
         await refreshWhatsAppQR();
 
         const pollStatus = setInterval(async () => {
-            await checkWhatsAppStatus(true);
+            await checkAllStatus(true);
             if (state.waConnected) {
                 clearInterval(pollStatus);
                 stopQRAutoRefresh();
@@ -580,12 +562,11 @@ const initActionButtons = () => {
 /**
  * Recursive Polling Helper to prevent overlapping requests.
  */
-const schedulePoll = (task: () => Promise<void>, interval: number) => {
+const schedulePoll = (task: (bypass: boolean) => Promise<void>, interval: number) => {
     const timer = setTimeout(async () => {
         try {
-            await task();
+            await task(false);
         } finally {
-            // Remove finished timer and schedule next
             const idx = activeTimers.indexOf(timer);
             if (idx !== -1) activeTimers.splice(idx, 1);
             schedulePoll(task, interval);
@@ -600,11 +581,10 @@ const schedulePoll = (task: () => Promise<void>, interval: number) => {
 const initVisibilityListener = () => {
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) {
-            console.log('[DEBUG] Tab active! Triggering one-time status sync');
+            console.log('[I18n] Tab active! Refreshing data and status');
+            // Explicitly sync when coming back to the tab
             fetchMessages(true);
-            checkWhatsAppStatus(true);
-            checkSlackStatus(true);
-            checkGmailStatus(true);
+            checkAllStatus(true);
         }
     });
 };
@@ -616,10 +596,9 @@ const initPolling = () => {
     activeTimers.forEach(clearTimeout);
     activeTimers.length = 0;
 
+    // Consolidated polling for messages and statuses
     schedulePoll(fetchMessages, POLLING_INTERVALS.MESSAGES);
-    schedulePoll(checkWhatsAppStatus, POLLING_INTERVALS.WHATSAPP);
-    schedulePoll(checkSlackStatus, POLLING_INTERVALS.SLACK);
-    schedulePoll(checkGmailStatus, POLLING_INTERVALS.GMAIL);
+    schedulePoll(checkAllStatus, POLLING_INTERVALS.WHATSAPP); 
 };
 
 /**
@@ -673,9 +652,7 @@ const initApp = () => {
     insights.init?.();
 
     fetchUserProfile();
-    checkWhatsAppStatus(true);
-    checkSlackStatus(true);
-    checkGmailStatus(true);
+    checkAllStatus(true);
 
     initPolling();
     initVisibilityListener();
