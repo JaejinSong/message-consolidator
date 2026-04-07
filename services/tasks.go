@@ -61,8 +61,11 @@ func (s *TasksService) StripOriginalText(msgs []store.ConsolidatedMessage) {
 
 func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string, msgs []store.ConsolidatedMessage) {
 	user, _ := store.GetOrCreateUser(ctx, email, "", "")
-	names := collectUniqueNames(msgs)
-	aliasMap := store.BulkResolveAliases(ctx, email, names)
+	
+	// Pre-aggregation Phase: Extract all unique identifiers from message batch.
+	// Why: Eliminates N+1 DB queries by resolving identities in a single bulk operation.
+	identifiers := extractUniqueIdentifiers(msgs)
+	aliasMap := store.BulkResolveAliases(ctx, email, identifiers)
 
 	for i := range msgs {
 		msgs[i].Requester = aliasMap[msgs[i].Requester]
@@ -71,20 +74,20 @@ func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string
 	}
 }
 
-func collectUniqueNames(msgs []store.ConsolidatedMessage) []string {
+func extractUniqueIdentifiers(msgs []store.ConsolidatedMessage) []string {
 	seen := make(map[string]bool)
-	var names []string
+	var ids []string
 	for _, m := range msgs {
 		if !seen[m.Requester] && m.Requester != "" {
-			names = append(names, m.Requester)
+			ids = append(ids, m.Requester)
 			seen[m.Requester] = true
 		}
 		if !seen[m.Assignee] && m.Assignee != "" {
-			names = append(names, m.Assignee)
+			ids = append(ids, m.Assignee)
 			seen[m.Assignee] = true
 		}
 	}
-	return names
+	return ids
 }
 
 func (s *TasksService) applyAssigneeRules(user *store.User, msg *store.ConsolidatedMessage) {

@@ -6,6 +6,9 @@ if [ -f .env ]; then
     export $(grep -v '^#' .env | xargs)
 fi
 
+echo "--- Step 0: Removing local overrides to ensure production sync ---"
+rm -f .env.local
+
 echo "--- Step 1: Syncing Turso to local db/test.db ---"
 go run cmd/mc-util/*.go db-sync
 
@@ -19,6 +22,8 @@ echo "--- Step 3: Cleaning up old database files ---"
 OLD_DBS=(
     "data.db"
     "messages.db"
+    "message_consolidator.db"
+    "idempotency_test.db"
     "test_report.db"
     "db/consolidator.db"
     "db/message_consolidator.db"

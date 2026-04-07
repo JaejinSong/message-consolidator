@@ -108,6 +108,27 @@ type TaskTranslation struct {
 }
 
 // UserAlias represents a name alias for a user
+const (
+	// Identifier types (how we resolve them)
+	ContactTypeEmail    = "email"
+	ContactTypeName     = "name"
+	ContactTypeWhatsApp = "whatsapp"
+	ContactTypeSlack    = "slack"
+
+	// Contact categories (who they are / categorization)
+	CategoryInternal = "internal"
+	CategoryPartner  = "partner"
+	CategoryCustomer = "customer"
+	CategoryNone     = "none"
+
+	// Source identifiers (where the data came from)
+	SourceSlack    = "slack"
+	SourceWhatsApp = "whatsapp"
+	SourceGmail    = "gmail"
+	SourceManual   = "manual"
+	SourceAll      = "all"
+)
+
 type UserAlias struct {
 	ID        int    `json:"id"`
 	UserID    int    `json:"user_id"`

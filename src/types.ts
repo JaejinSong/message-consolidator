@@ -104,6 +104,7 @@ export interface AppState {
     selectedTaskIds: Set<number>;
     reports: Record<string, IReportData>;
     reportHistory: IReportData[];
+    isFetching: boolean;
 }
 
 export interface AchievementEntry {

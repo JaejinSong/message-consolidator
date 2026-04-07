@@ -23,6 +23,13 @@ func InitDB(cfg *config.Config) error {
 	dbURL := cfg.TursoURL
 	authToken := cfg.TursoToken
 
+	//Why: Enforces a consistent local development database path (db/test.db) if no remote Turso URL is provided,
+	//preventing the creation of "mystery" database files in random directories.
+	if dbURL == "" && !cfg.CloudRunMode {
+		dbURL = "file:db/test.db"
+		logger.Warnf("[DB] TURSO_DATABASE_URL is empty. Defaulting to local unified DB: %s", dbURL)
+	}
+
 	//Why: Handles remote-only Turso connections using the libsql:// prefix to ensure proper authentication.
 	if strings.HasPrefix(dbURL, "libsql://") && authToken != "" {
 		dbURL = fmt.Sprintf("%s?authToken=%s", dbURL, authToken)

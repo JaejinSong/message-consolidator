@@ -87,7 +87,7 @@ func AddContactMapping(ctx context.Context, email, canonicalID, displayName, ali
 
 func AddContact(ctx context.Context, tenantEmail, canonicalID, displayName, aliases, source string) (int64, error) {
 	if source == "" {
-		source = "all"
+		source = SourceAll
 	}
 	var id int64
 	err := db.QueryRowContext(ctx, SQL.AddContactMapping, tenantEmail, canonicalID, displayName, source).Scan(&id)
@@ -104,14 +104,13 @@ func AddContact(ctx context.Context, tenantEmail, canonicalID, displayName, alia
 
 	// Why: Register Display Name as an alias to ensure ResolveAlias works with names too.
 	if strings.TrimSpace(displayName) != "" && !strings.EqualFold(strings.TrimSpace(displayName), canonicalID) {
-		_ = RegisterAlias(ctx, id, "name", displayName, source, 1)
+		_ = RegisterAlias(ctx, id, ContactTypeName, displayName, source, 1)
 	}
 
 	// Why: Register secondary aliases provided in the legacy format for backwards compatibility and discovery.
 	for _, a := range strings.Split(aliases, ",") {
-		trimmed := strings.TrimSpace(a)
-		if trimmed != "" {
-			_ = RegisterAlias(ctx, id, "name", trimmed, source, 1)
+		if trimmed := NormalizeIdentifier(a); trimmed != "" {
+			_ = RegisterAlias(ctx, id, ContactTypeName, trimmed, source, 1)
 		}
 	}
 
@@ -121,28 +120,27 @@ func AddContact(ctx context.Context, tenantEmail, canonicalID, displayName, alia
 
 func UpsertContact(ctx context.Context, tenantEmail, canonicalID, displayName, aliases, source string) (int64, error) {
 	if source == "" {
-		source = "all"
+		source = SourceAll
 	}
 	var id int64
 	err := db.QueryRowContext(ctx, SQL.UpsertContactMapping, tenantEmail, canonicalID, displayName, source).Scan(&id)
 	if err == nil {
 		// Why: Identity-X requires every primary identifier to be registered as an alias for resolution.
-		aliasType := "email"
+		aliasType := ContactTypeEmail
 		if !strings.Contains(canonicalID, "@") {
-			aliasType = "name"
+			aliasType = ContactTypeName
 		}
 		_ = RegisterAlias(ctx, id, aliasType, canonicalID, source, 5)
 
 		// Why: Register Display Name as an alias to ensure ResolveAlias works with names too.
 		if strings.TrimSpace(displayName) != "" && !strings.EqualFold(strings.TrimSpace(displayName), canonicalID) {
-			_ = RegisterAlias(ctx, id, "name", displayName, source, 1)
+			_ = RegisterAlias(ctx, id, ContactTypeName, displayName, source, 1)
 		}
 
 		// Why: Register secondary aliases provided in the legacy format for backwards compatibility and discovery.
 		for _, a := range strings.Split(aliases, ",") {
-			trimmed := strings.TrimSpace(a)
-			if trimmed != "" {
-				_ = RegisterAlias(ctx, id, "name", trimmed, source, 1)
+			if trimmed := NormalizeIdentifier(a); trimmed != "" {
+				_ = RegisterAlias(ctx, id, ContactTypeName, trimmed, source, 1)
 			}
 		}
 
@@ -172,7 +170,7 @@ func UpdateContactsCache(email, canonicalID, displayName, source string) {
 			CanonicalID: canonicalID,
 			DisplayName: displayName,
 			Source:      source,
-			ContactType: "none", // Default for manual cache update
+			ContactType: CategoryNone, // Default for manual cache update
 		})
 	}
 }
@@ -245,12 +243,12 @@ func SaveWhatsAppContact(email, number, name string) error {
 		canonical = currentCanonical
 	}
 
-	_, err := UpsertContact(context.Background(), email, canonical, name, number, "whatsapp")
+	_, err := UpsertContact(context.Background(), email, canonical, name, number, ContactTypeWhatsApp)
 	return err
 }
 
 func GetNameByWhatsAppNumber(email, number string) string {
-	id, err := ResolveAlias(context.Background(), "whatsapp", number)
+	id, err := ResolveAlias(context.Background(), ContactTypeWhatsApp, number)
 	if err != nil {
 		return ""
 	}
@@ -276,7 +274,7 @@ func NormalizeContactName(email, rawName string) string {
 	}
 
 	// Try Identity-X resolution first
-	id, err := ResolveAlias(context.Background(), "name", rawName)
+	id, err := ResolveAlias(context.Background(), ContactTypeName, rawName)
 	if err == nil {
 		metadataMu.RLock()
 		mappings, ok := contactsCache[email]
@@ -322,8 +320,8 @@ func GetContactsByIdentifiers(ctx context.Context, tenantEmail string, identifie
 	mappings := contactsCache[tenantEmail]
 	for _, id := range identifiers {
 		normalized := NormalizeIdentifier(id)
-		if normalized == strings.ToLower(tenantEmail) {
-			res[id] = &ContactRecord{ID: 0, TenantEmail: tenantEmail, CanonicalID: tenantEmail, DisplayName: "Me", ContactType: "internal"}
+		if id == tenantEmail {
+			res[id] = &ContactRecord{ID: 0, TenantEmail: tenantEmail, CanonicalID: tenantEmail, DisplayName: "Me", ContactType: CategoryInternal}
 			continue
 		}
 		matches := findAllInMappings(mappings, normalized)
@@ -366,21 +364,102 @@ func findAllInMappings(mappings []ContactRecord, normalized string) []*ContactRe
 
 func fetchContactsBatch(ctx context.Context, tenantEmail string, remaining []string, res map[string]*ContactRecord, ambiguous map[string]bool) (map[string]*ContactRecord, map[string]bool, error) {
 	all, _ := fetchAllTenantContacts(ctx, tenantEmail)
+	
+	// Phase 1: Bulk resolve unknown identifiers using Identity-X
+	resolvedIDs, ambigMap := BulkResolveIdentityX(ctx, remaining)
+	
+	// Phase 2: Map resolved IDs back to ContactRecords and handle missing/ambiguous
 	for _, id := range remaining {
 		normalized := NormalizeIdentifier(id)
-		if matches := findMatchesInBatch(all, normalized); len(matches) > 0 {
-			res[id] = matches[0]
-			if len(matches) > 1 { ambiguous[id] = true }
+		
+		// Case A: Identity-X identified this as ambiguous
+		if ambigMap[normalized] {
+			ambiguous[id] = true
+			res[id] = &ContactRecord{ID: -1} // Sentinel for ambiguous
 			continue
 		}
-		if foundID, ok := resolveWithIdentityX(ctx, normalized); ok {
-			res[id] = findByID(all, foundID)
-			continue
+		
+		// Case B: Identity-X found a single mapping
+		if foundID, ok := resolvedIDs[normalized]; ok {
+			if contact := findByID(all, foundID); contact != nil {
+				res[id] = contact
+				continue
+			}
 		}
-		recordMissing(tenantEmail, normalized)
+		
+		// Case C: Truly missing - negative cache it
+		recordMissing(tenantEmail, id)
 	}
+	
 	return res, ambiguous, nil
 }
+
+// BulkResolveIdentityX performs a batch lookup of identifiers in contact_aliases with SQLite-safe chunking.
+// Why: Eliminates N+1 performance bottleneck by consolidating multiple identity lookups into a single IN query.
+func BulkResolveIdentityX(ctx context.Context, identifiers []string) (map[string]int64, map[string]bool) {
+	uniqueNormalized := make(map[string]bool)
+	var normalizedList []string
+	for _, id := range identifiers {
+		if norm := NormalizeIdentifier(id); norm != "" && !uniqueNormalized[norm] {
+			uniqueNormalized[norm] = true
+			normalizedList = append(normalizedList, norm)
+		}
+	}
+
+	res := make(map[string]int64)
+	ambiguous := make(map[string]bool)
+	if len(normalizedList) == 0 {
+		return res, ambiguous
+	}
+
+	// SQLite has a parameter limit (usually 999). We use 500 for safety.
+	const chunkSize = 500
+	for i := 0; i < len(normalizedList); i += chunkSize {
+		end := i + chunkSize
+		if end > len(normalizedList) {
+			end = len(normalizedList)
+		}
+		processResolutionChunk(ctx, normalizedList[i:end], res, ambiguous)
+	}
+	return res, ambiguous
+}
+
+func processResolutionChunk(ctx context.Context, chunk []string, res map[string]int64, ambiguous map[string]bool) {
+	placeholders := make([]string, len(chunk))
+	args := make([]interface{}, len(chunk))
+	for i, val := range chunk {
+		placeholders[i] = "?"
+		args[i] = val
+	}
+
+	query := fmt.Sprintf("SELECT identifier_value, contact_id FROM contact_aliases WHERE identifier_value IN (%s)", strings.Join(placeholders, ","))
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	idToCanonical := make(map[string][]int64)
+	for rows.Next() {
+		var val string
+		var cid int64
+		if err := rows.Scan(&val, &cid); err == nil {
+			canonID := GlobalContactDSU.Find(cid)
+			if !slices.Contains(idToCanonical[val], canonID) {
+				idToCanonical[val] = append(idToCanonical[val], canonID)
+			}
+		}
+	}
+
+	for val, cids := range idToCanonical {
+		if len(cids) > 1 {
+			ambiguous[val] = true
+		} else if len(cids) == 1 {
+			res[val] = cids[0]
+		}
+	}
+}
+
 
 func fetchAllTenantContacts(ctx context.Context, tenantEmail string) ([]ContactRecord, error) {
 	var all []ContactRecord
@@ -406,15 +485,7 @@ func findMatchesInBatch(all []ContactRecord, normalized string) []*ContactRecord
 	return res
 }
 
-func resolveWithIdentityX(ctx context.Context, normalized string) (int64, bool) {
-	idTypes := []string{"name", "email", "whatsapp", "slack"}
-	for _, t := range idTypes {
-		if ids, err := ResolveAliases(ctx, t, normalized); err == nil && len(ids) > 0 {
-			return ids[0], true
-		}
-	}
-	return 0, false
-}
+
 
 func findByID(all []ContactRecord, id int64) *ContactRecord {
 	for i := range all {
@@ -598,8 +669,8 @@ func RegisterAlias(ctx context.Context, contactID int64, idType, value, source s
 	}
 
 	// Promotion: If email alias belongs to internal domain, promote master contact to 'internal'.
-	if idType == "email" && strings.HasSuffix(trimmed, "@whatap.io") {
-		return UpdateContactType(ctx, contactID, "internal")
+	if idType == ContactTypeEmail && strings.HasSuffix(trimmed, "@whatap.io") {
+		return UpdateContactType(ctx, contactID, CategoryInternal)
 	}
 
 	return nil
@@ -670,7 +741,12 @@ func ConflictResolveDisplayName(manual, verified, recent string) string {
 // PromoteContactType returns the higher ranking category between two types.
 // Rank: internal(4) > partner(3) > customer(2) > none(1)
 func PromoteContactType(current, newcomer string) string {
-	ranks := map[string]int{"internal": 4, "partner": 3, "customer": 2, "none": 1}
+	ranks := map[string]int{
+		CategoryInternal: 4,
+		CategoryPartner:  3,
+		CategoryCustomer: 2,
+		CategoryNone:     1,
+	}
 	if ranks[newcomer] > ranks[current] {
 		return newcomer
 	}
@@ -680,7 +756,7 @@ func PromoteContactType(current, newcomer string) string {
 // UpdateContactType updates the categorization for a contact and synchronizes cache.
 // Why: Standardizes the promotion logic and ensures strict type validation.
 func UpdateContactType(ctx context.Context, contactID int64, cType string) error {
-	validTypes := []string{"internal", "partner", "customer", "none"}
+	validTypes := []string{CategoryInternal, CategoryPartner, CategoryCustomer, CategoryNone}
 	if !slices.Contains(validTypes, cType) {
 		return fmt.Errorf("invalid contact type: %s", cType)
 	}

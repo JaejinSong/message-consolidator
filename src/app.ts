@@ -38,6 +38,8 @@ import { authService } from './services/authService';
 
 let syncTimer: any = null;
 
+const activeIntervals: ReturnType<typeof setInterval>[] = [];
+
 /**
  * @file app.ts
  * @description Main application entry point and coordinator.
@@ -165,14 +167,18 @@ const updateMergeBar = () => {
  * Fetches and renders messages.
  */
 const fetchMessages = safeAsync(async () => {
-    const data = await api.fetchMessages(state.currentLang);
-    const categorized: CategorizedMessages = data.messages || data;
-    if (data.user) {
-        updateStats(data.user);
+    if (document.hidden || state.isFetching) return;
+    state.isFetching = true;
+    try {
+        const data = await api.fetchMessages(state.currentLang);
+        const categorized: CategorizedMessages = data.messages || data;
+        if (data.user) updateStats(data.user);
+        updateMessages(categorized);
+        renderMessages(categorized);
+        planTranslationSync();
+    } finally {
+        state.isFetching = false;
     }
-    updateMessages(categorized);
-    renderMessages(categorized);
-    planTranslationSync();
 });
 
 /**
@@ -198,6 +204,7 @@ function planTranslationSync(): void {
  * Checks Slack connection status.
  */
 const checkSlackStatus = safeAsync(async () => {
+    if (document.hidden) return;
     const data = await api.fetchSlackStatus();
     updateSlackStatus(data.status === STATUS_STATES.CONNECTED);
 });
@@ -206,6 +213,7 @@ const checkSlackStatus = safeAsync(async () => {
  * Checks WhatsApp connection status.
  */
 const checkWhatsAppStatus = safeAsync(async () => {
+    if (document.hidden) return;
     const data = await api.fetchWhatsAppStatus();
     if (data) {
         state.waConnected = (data.status === STATUS_STATES.CONNECTED);
@@ -217,6 +225,7 @@ const checkWhatsAppStatus = safeAsync(async () => {
  * Checks Gmail connection status.
  */
 const checkGmailStatus = safeAsync(async () => {
+    if (document.hidden) return;
     const data = await authService.checkGmailStatus();
     state.gmailConnected = data.connected;
     updateGmailStatus(data.connected, data.email);
@@ -234,7 +243,20 @@ const fetchUserProfile = safeAsync(async () => {
     fetchMessages();
 }, { triggerAuthOverlay: true });
 
-// Removed manual triggerBatchTranslation as it is now handled by JIT rendering.
+/**
+ * Triggers batch translation for all messages in the current language.
+ * Protected by the global isFetching lock.
+ */
+const triggerBatchTranslation = safeAsync(async () => {
+    if (state.isFetching) return;
+    state.isFetching = true;
+    try {
+        await api.translateTasks(state.currentLang);
+        await fetchMessages();
+    } finally {
+        state.isFetching = false;
+    }
+});
 
 /**
  * Handles streak freeze purchase.
@@ -538,11 +560,17 @@ const initActionButtons = () => {
  * Initializes background polling.
  */
 const initPolling = () => {
-    setInterval(fetchMessages, POLLING_INTERVALS.MESSAGES);
-    setInterval(checkWhatsAppStatus, POLLING_INTERVALS.WHATSAPP);
-    setInterval(checkSlackStatus, POLLING_INTERVALS.SLACK);
-    setInterval(checkGmailStatus, POLLING_INTERVALS.GMAIL);
-};
+    // Prevent double intervals during HMR or re-init
+    activeIntervals.forEach(clearInterval);
+    activeIntervals.length = 0;
+
+    activeIntervals.push(
+        setInterval(fetchMessages, POLLING_INTERVALS.MESSAGES),
+        setInterval(checkWhatsAppStatus, POLLING_INTERVALS.WHATSAPP),
+        setInterval(checkSlackStatus, POLLING_INTERVALS.SLACK),
+        setInterval(checkGmailStatus, POLLING_INTERVALS.GMAIL)
+    );
+};;
 
 /**
  * Main application initialization.
