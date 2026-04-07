@@ -26,7 +26,6 @@ func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 		a.Tasks.PrepareMessagesForClient(r.Context(), email, msgs, r.URL.Query().Get("lang"))
 	}
 
-	name, _ := store.GetUserName(r.Context(), email)
 	aliases, _ := store.GetUserAliasesByEmail(r.Context(), email)
 	res := struct {
 		Inbox   []store.ConsolidatedMessage `json:"inbox"`
@@ -41,7 +40,7 @@ func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	for _, m := range msgs {
 		if m.Category == "waiting" {
 			res.Waiting = append(res.Waiting, m)
-		} else if store.IsAssignedToUser(m.Assignee, name, aliases) {
+		} else if store.IsAssignedToUser(m, email, aliases) {
 			res.Inbox = append(res.Inbox, m)
 		} else {
 			res.Pending = append(res.Pending, m)
