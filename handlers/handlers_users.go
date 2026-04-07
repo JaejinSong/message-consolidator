@@ -54,42 +54,58 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Why: Automatically prepopulates user aliases from Slack if none exist to ensure immediate task matching functionality without requiring manual user configuration.
+// Why: Automatically prepopulates user aliases from Slack if none exist.
+// Idempotency: Skip DB updates if SlackID or Aliases are already identical.
 func (a *API) autoPopulateSlackAliases(ctx context.Context, user *store.User) {
-	if len(user.Aliases) > 0 || a.Config.SlackToken == "" {
-		return
-	}
+	if a.Config.SlackToken == "" { return }
 
 	sc := channels.NewSlackClient(a.Config.SlackToken)
 	slackUser, err := sc.LookupUserByEmail(user.Email)
-	if err != nil || slackUser == nil {
-		return
+	if err != nil || slackUser == nil { return }
+
+	if user.SlackID != slackUser.ID {
+		_ = store.UpdateUserSlackID(ctx, user.Email, slackUser.ID)
 	}
 
-	store.UpdateUserSlackID(ctx, user.Email, slackUser.ID)
-	
-	aliases := []string{}
+	newAliases := []string{}
 	if slackUser.RealName != "" {
-		aliases = append(aliases, slackUser.RealName)
+		newAliases = append(newAliases, strings.TrimSpace(slackUser.RealName))
 	}
 	if slackUser.Profile.DisplayName != "" && slackUser.Profile.DisplayName != slackUser.RealName {
-		aliases = append(aliases, slackUser.Profile.DisplayName)
+		newAliases = append(newAliases, strings.TrimSpace(slackUser.Profile.DisplayName))
 	}
 
-	if len(aliases) > 0 {
-		store.AddContactMapping(context.Background(), user.Email, user.Email, user.Name, strings.Join(aliases, ","), "slack")
+	if len(newAliases) > 0 && !isSameSlice(user.Aliases, newAliases) {
+		_ = store.AddContactMapping(ctx, user.Email, user.Email, user.Name, strings.Join(newAliases, ","), "slack")
+		a.refreshUserAliases(ctx, user)
 	}
+}
 
-	// Refresh cache
+func (a *API) refreshUserAliases(ctx context.Context, user *store.User) {
 	if mappings, ok := store.GetContactsCache()[user.Email]; ok {
 		for _, m := range mappings {
 			if m.CanonicalID == user.Email {
 				user.Aliases, _ = store.GetAliasesForContact(ctx, m.ID)
-				break
+				return
 			}
 		}
 	}
 }
+
+func isSameSlice(a, b []string) bool {
+	if len(a) != len(b) { return false }
+	counts := make(map[string]int)
+	for _, s := range a {
+		counts[strings.TrimSpace(s)]++
+	}
+	for _, s := range b {
+		ts := strings.TrimSpace(s)
+		if counts[ts] == 0 { return false }
+		counts[ts]--
+	}
+	return true
+}
+
 
 func (a *API) HandleBuyStreakFreeze(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
