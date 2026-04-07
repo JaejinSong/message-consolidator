@@ -13,7 +13,12 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
  */
 function createSVGElement(tag: string, attrs: Record<string, string | number>): SVGElement {
     const el = document.createElementNS(SVG_NS, tag);
-    Object.entries(attrs).forEach(([key, val]) => el.setAttribute(key, String(val)));
+    Object.entries(attrs).forEach(([key, val]) => {
+        // Only set as attribute if value is not undefined
+        if (val !== undefined && val !== null) {
+            el.setAttribute(key, String(val));
+        }
+    });
     return el;
 }
 
@@ -28,13 +33,13 @@ function showTooltip(e: MouseEvent, content: string) {
         tooltip.className = 'c-insights-tooltip';
         tooltip.style.position = 'absolute';
         tooltip.style.pointerEvents = 'none';
-        tooltip.style.zIndex = '9999';
-        tooltip.style.background = 'var(--bg-color, #333)';
-        tooltip.style.color = 'var(--text-color, #fff)';
-        tooltip.style.padding = '8px 12px';
-        tooltip.style.borderRadius = '4px';
-        tooltip.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
-        tooltip.style.fontSize = '12px';
+        tooltip.style.zIndex = 'var(--z-index-modal)';
+        tooltip.style.background = 'var(--bg-floater)';
+        tooltip.style.color = 'var(--text-main)';
+        tooltip.style.padding = 'var(--spacing-sm) var(--spacing-md)';
+        tooltip.style.borderRadius = 'var(--radius-sm)';
+        tooltip.style.boxShadow = 'var(--shadow-card)';
+        tooltip.style.fontSize = '0.75rem';
         tooltip.style.whiteSpace = 'nowrap';
         document.body.appendChild(tooltip);
     }
@@ -101,22 +106,22 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
                 x1: s.x, y1: s.y, x2: t.x, y2: t.y,
                 class: 'c-report-viz__link',
                 'stroke-width': Math.max(1, (l.value || 1) * 2),
-                stroke: 'var(--color-primary, #888)',
+                stroke: 'var(--color-primary)',
                 opacity: '0.4'
             });
             line.addEventListener('mousemove', (e: Event) => showTooltip(e as MouseEvent, `<b>${sourceName} ↔ ${targetName}</b><br/>연결 강도: ${l.value || 1}`));
             line.addEventListener('mouseenter', () => {
                 line.setAttribute('opacity', '1');
-                line.setAttribute('stroke', 'var(--color-warning, #ffc107)');
+                line.setAttribute('stroke', 'var(--color-warning)');
                 const sNode = nodeShapes.get(l.source);
                 const tNode = nodeShapes.get(l.target);
-                if (sNode) { sNode.setAttribute('stroke', 'var(--color-warning, #ffc107)'); sNode.setAttribute('stroke-width', '3'); }
-                if (tNode) { tNode.setAttribute('stroke', 'var(--color-warning, #ffc107)'); tNode.setAttribute('stroke-width', '3'); }
+                if (sNode) { sNode.setAttribute('stroke', 'var(--color-warning)'); sNode.setAttribute('stroke-width', '3'); }
+                if (tNode) { tNode.setAttribute('stroke', 'var(--color-warning)'); tNode.setAttribute('stroke-width', '3'); }
             });
             line.addEventListener('mouseout', () => {
                 hideTooltip();
                 line.setAttribute('opacity', '0.4');
-                line.setAttribute('stroke', 'var(--color-primary, #888)');
+                line.setAttribute('stroke', 'var(--color-primary)');
                 const sNode = nodeShapes.get(l.source);
                 const tNode = nodeShapes.get(l.target);
                 if (sNode) { sNode.removeAttribute('stroke'); sNode.removeAttribute('stroke-width'); }
@@ -135,14 +140,14 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
             const circle = createSVGElement('circle', {
                 cx: p.x, cy: p.y, r: radius,
                 class: `c-report-viz__node ${n.is_me ? 'c-report-viz__node--me' : ''}`,
-                fill: n.is_me ? 'var(--color-primary, #007bff)' : 'var(--color-secondary, #6c757d)'
+                fill: n.is_me ? 'var(--color-primary)' : 'var(--color-info)'
             });
 
             nodeShapes.set(n.id, circle);
 
             g.addEventListener('mousemove', (e: Event) => showTooltip(e as MouseEvent, `<b>${n.name || n.id}</b><br/>총 업무 관여: ${n.value}`));
             g.addEventListener('mouseenter', () => {
-                circle.setAttribute('stroke', 'var(--color-warning, #ffc107)');
+                circle.setAttribute('stroke', 'var(--color-warning)');
                 circle.setAttribute('stroke-width', '3');
             });
             g.addEventListener('mouseout', () => {
@@ -155,9 +160,8 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
             const text = createSVGElement('text', {
                 x: p.x, y: p.y + radius + 14,
                 'text-anchor': 'middle',
-                fill: 'var(--text-color, currentColor)',
-                'font-size': '12px',
-                'font-weight': n.is_me ? 'bold' : 'normal'
+                fill: 'var(--text-main)',
+                style: `font-size: 0.75rem; font-weight: ${n.is_me ? 'bold' : 'normal'}`
             });
             text.textContent = n.name || n.id;
             g.appendChild(text);
@@ -204,22 +208,22 @@ function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): vo
             class: 'c-report-viz__link',
             fill: 'none',
             'stroke-width': strokeWidth,
-            stroke: 'var(--color-primary, #888)',
+            stroke: 'var(--color-primary)',
             opacity: '0.4'
         });
         path.addEventListener('mousemove', (e: Event) => showTooltip(e as MouseEvent, `<b>${sourceName} → ${targetName}</b><br/>흐름 강도: ${l.value || 1}`));
         path.addEventListener('mouseenter', () => {
             path.setAttribute('opacity', '1');
-            path.setAttribute('stroke', 'var(--color-warning, #ffc107)');
+            path.setAttribute('stroke', 'var(--color-warning)');
             const sNode = nodeShapes.get(l.source);
             const tNode = nodeShapes.get(l.target);
-            if (sNode) { sNode.setAttribute('stroke', 'var(--color-warning, #ffc107)'); sNode.setAttribute('stroke-width', '3'); }
-            if (tNode) { tNode.setAttribute('stroke', 'var(--color-warning, #ffc107)'); tNode.setAttribute('stroke-width', '3'); }
+            if (sNode) { sNode.setAttribute('stroke', 'var(--color-warning)'); sNode.setAttribute('stroke-width', '3'); }
+            if (tNode) { tNode.setAttribute('stroke', 'var(--color-warning)'); tNode.setAttribute('stroke-width', '3'); }
         });
         path.addEventListener('mouseout', () => {
             hideTooltip();
             path.setAttribute('opacity', '0.4');
-            path.setAttribute('stroke', 'var(--color-primary, #888)');
+            path.setAttribute('stroke', 'var(--color-primary)');
             const sNode = nodeShapes.get(l.source);
             const tNode = nodeShapes.get(l.target);
             if (sNode) { sNode.removeAttribute('stroke'); sNode.removeAttribute('stroke-width'); }
@@ -236,14 +240,14 @@ function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): vo
         const rect = createSVGElement('rect', {
             x: p.x - 4, y: p.y - h / 2, width: 8, height: h,
             class: 'c-report-viz__node', rx: 2,
-            fill: n.is_me ? 'var(--color-primary, #007bff)' : 'var(--color-secondary, #6c757d)'
+            fill: n.is_me ? 'var(--color-primary)' : 'var(--color-info)'
         });
 
         nodeShapes.set(n.id, rect);
 
         g.addEventListener('mousemove', (e: Event) => showTooltip(e as MouseEvent, `<b>${n.name || n.id}</b><br/>총 업무 관여: ${n.value}`));
         g.addEventListener('mouseenter', () => {
-            rect.setAttribute('stroke', 'var(--color-warning, #ffc107)');
+            rect.setAttribute('stroke', 'var(--color-warning)');
             rect.setAttribute('stroke-width', '3');
         });
         g.addEventListener('mouseout', () => {
@@ -256,9 +260,8 @@ function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): vo
         const text = createSVGElement('text', {
             x: p.x - 12, y: p.y + 4,
             'text-anchor': 'end',
-            fill: 'var(--text-color, currentColor)',
-            'font-size': '12px',
-            'font-weight': n.is_me ? 'bold' : 'normal'
+            fill: 'var(--text-main)',
+            style: `font-size: 0.75rem; font-weight: ${n.is_me ? 'bold' : 'normal'}`
         });
         text.textContent = n.name || n.id;
         g.appendChild(text);
@@ -273,14 +276,14 @@ function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): vo
         const rect = createSVGElement('rect', {
             x: p.x - 4, y: p.y - h / 2, width: 8, height: h,
             class: 'c-report-viz__node', rx: 2,
-            fill: n.is_me ? 'var(--color-primary, #007bff)' : 'var(--color-secondary, #6c757d)'
+            fill: n.is_me ? 'var(--color-primary)' : 'var(--color-info)'
         });
 
         nodeShapes.set(n.id, rect);
 
         g.addEventListener('mousemove', (e: Event) => showTooltip(e as MouseEvent, `<b>${n.name || n.id}</b><br/>총 업무 관여: ${n.value}`));
         g.addEventListener('mouseenter', () => {
-            rect.setAttribute('stroke', 'var(--color-warning, #ffc107)');
+            rect.setAttribute('stroke', 'var(--color-warning)');
             rect.setAttribute('stroke-width', '3');
         });
         g.addEventListener('mouseout', () => {
@@ -293,9 +296,8 @@ function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): vo
         const text = createSVGElement('text', {
             x: p.x + 12, y: p.y + 4,
             'text-anchor': 'start',
-            fill: 'var(--text-color, currentColor)',
-            'font-size': '12px',
-            'font-weight': n.is_me ? 'bold' : 'normal'
+            fill: 'var(--text-main)',
+            style: `font-size: 0.75rem; font-weight: ${n.is_me ? 'bold' : 'normal'}`
         });
         text.textContent = n.name || n.id;
         g.appendChild(text);
@@ -371,6 +373,12 @@ export const reportsRenderer = {
         } catch (e) {
             console.error("[ReportsRenderer] Visualization data parsing failed:", e);
             viz = { nodes: [], links: [] };
+        }
+
+        if (viz.nodes.length === 0) {
+            if (netChartArea) netChartArea.innerHTML = `<div class="u-text-dim u-p-4">${i18n.noVizData || 'No visualization data available for this report.'}</div>`;
+            if (sankeyChartArea) sankeyChartArea.innerHTML = '';
+            return;
         }
 
         if (netChartArea) {

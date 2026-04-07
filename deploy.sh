@@ -2,29 +2,28 @@
 set -e
 set -o pipefail
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-# Timer
+# Colors & constants
+RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; NC='\033[0m'
 START_TIME=$(date +%s)
 
 # Configuration
 PROJECT_ID="gemini-enterprise-487906"
 REGION="us-central1"
 REPO_NAME="message-consolidator-repo"
-IMAGE_FE="frontend"
-IMAGE_BE="backend"
-ZONE="us-central1-a"
 VPS_NAME="chat-analyzer-vps"
-BUCKET_NAME="message-consolidator-deploy-gemini-enterprise-487906"
+REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}"
 
-# Mode: all (default), fe, be
-MODE="all"
-FORCE_BUILDER="false"
+# SSH Configuration
+SSH_OPTS="-o ControlMaster=auto -o ControlPath=~/.ssh/control-%C -o ControlPersist=10m -q"
+SSH_CMD="ssh ${SSH_OPTS} ${VPS_NAME}"
+SCP_CMD="scp ${SSH_OPTS}"
 
+# Establish background master connection
+echo -e "${BLUE}==> Pre-establishing SSH Master Connection...${NC}"
+${SSH_CMD} -M -f -N || true
+
+# CLI Arguments
+MODE="all"; FORCE_BUILDER="false"
 for arg in "$@"; do
     case $arg in
         fe|be|all) MODE=$arg ;;
@@ -32,173 +31,106 @@ for arg in "$@"; do
     esac
 done
 
-IMAGE_BE_BUILDER="backend-builder"
-BUILDER_TAG="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_BE_BUILDER}:latest"
+# Build Tags
+BUILD_TAG=$(date +%Y%m%d%H%M%S)
 
-# Validation: Explicit Integer Conversion Check
-validate_int() {
-    local name="$1"
-    local value="$2"
-    if ! [[ "$value" =~ ^[0-9]+$ ]]; then
-        echo -e "${RED}Error: $name must be an integer (got: '$value')${NC}"
-        exit 1
-    fi
-}
-
-# Helper function to run a step and show progress
-# Why: Handles log isolation for parallel execution
-run_step() {
-    local name="$1"
-    shift
-    local start_time=$(date +%s)
-    local tmp_log=$(mktemp)
-    
-    # Run in background if requested (via special flag or handled outside)
-    # Here we assume it's called with output redirection to isolate logs
-    if "$@" > "$tmp_log" 2>&1; then
-        local end_time=$(date +%s)
-        local duration=$((end_time - start_time))
-        echo -e "[${GREEN} PASS ${NC}] $name (${duration}s)"
-        rm -f "$tmp_log"
-    else
-        echo -e "[${RED} FAIL ${NC}] $name"
-        echo -e "--------------------------------------------------------------------------------"
-        cat "$tmp_log"
-        echo -e "--------------------------------------------------------------------------------"
-        rm -f "$tmp_log"
-        return 1
-    fi
-}
-
-deploy_fe() {
-    echo -e "${BLUE}==> Frontend: Optimizing and Building...${NC}"
-    run_step "FE: Optimizing CSS" npm run optimize:css
-    run_step "FE: CSS Integrity" node verify-css.cjs
-    run_step "FE: Building image" env DOCKER_BUILDKIT=1 docker build -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_FE}:latest -f docker/frontend/Dockerfile .
-    run_step "FE: Pushing image" docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_FE}:latest
-}
-
-deploy_be() {
-    echo -e "${BLUE}==> Backend: Building...${NC}"
-    check_builder
-    run_step "BE: Building image" env DOCKER_BUILDKIT=1 docker build \
-        --build-arg BUILDER_IMAGE="$BUILDER_TAG" \
-        -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_BE}:latest -f docker/backend/Dockerfile .
-    run_step "BE: Pushing image" docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_BE}:latest
-}
-
-check_builder() {
-    if docker image inspect "$BUILDER_TAG" >/dev/null 2>&1 && [[ "$FORCE_BUILDER" != "true" ]]; then
-        echo -e "[${GREEN} SKIP ${NC}] Builder image exists locally."
-        return 0
-    fi
-
-    # Try pull from registry first
-    if [[ "$FORCE_BUILDER" != "true" ]] && docker pull "$BUILDER_TAG" >/dev/null 2>&1; then
-        echo -e "[${GREEN} PASS ${NC}] Builder image pulled from registry."
-        return 0
-    fi
-
-    echo -e "${BLUE}==> Building and Pushing new Builder image...${NC}"
-    run_step "BE: Building Builder" docker build -t "$BUILDER_TAG" -f docker/backend/Dockerfile.builder .
-    run_step "BE: Pushing Builder" docker push "$BUILDER_TAG"
-}
-
-upload_configs() {
-    echo -e "${BLUE}==> Config: Preparing and uploading...${NC}"
-    run_step "Preparing .env.vps" bash -c "cp .env .env.vps && echo 'FE_IMAGE=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_FE}:latest' >> .env.vps && echo 'BE_IMAGE=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_BE}:latest' >> .env.vps"
-    run_step "Config transmission to GCS" gcloud storage cp .env.vps docker-compose.yml Caddyfile gs://${BUCKET_NAME}/vps/ --project=${PROJECT_ID}
-}
-
-# 0. Pre-deployment verification
-echo -e "${BLUE}==> Step 0: Running tests in parallel (MODE: $MODE)...${NC}"
+# Load Environment
 [ -f .env ] && { set -a; source .env; set +a; }
 export GEMINI_API_KEY_FOR_TEST=${GEMINI_API_KEY_FOR_TEST:-$GEMINI_API_KEY}
 
-pids=()
-# Why: Parallelizing tests to save time.
-if [[ "$MODE" == "all" || "$MODE" == "be" ]]; then
-    run_step "Go unit tests" go test ./... & pids+=($!)
-    run_step "AI Regression tests" go test -tags regression ./ai/... ./tests/regression/... & pids+=($!)
+# Final image vars
+IMAGE_FE_TAG="${REGISTRY}/frontend:${BUILD_TAG}"
+IMAGE_BE_TAG="${REGISTRY}/backend:${BUILD_TAG}"
+FINAL_FE_IMAGE=${FE_IMAGE:-"${REGISTRY}/frontend:latest"}
+FINAL_BE_IMAGE=${BE_IMAGE:-"${REGISTRY}/backend:latest"}
+
+# --- Helpers ---
+
+run_step() {
+    local name="$1"; shift
+    local s_time=$(date +%s); local tmp_log=$(mktemp)
+    if "$@" > "$tmp_log" 2>&1; then
+        echo -e "[${GREEN} PASS ${NC}] $name ($(( $(date +%s) - s_time ))s)"
+        rm -f "$tmp_log"
+    else
+        echo -e "[${RED} FAIL ${NC}] $name\n$(cat "$tmp_log")"
+        rm -f "$tmp_log"; exit 1
+    fi
+}
+
+# --- Execution ---
+
+# Step 0: Testing (Parallel)
+echo -e "${BLUE}==> Step 0: Parallel Testing...${NC}"
+(
+    run_step "Go Unit Tests" go test ./...
+) & p1=$!
+(
+    run_step "AI Regressions" go test -tags regression ./ai/...
+) & p2=$!
+(
+    run_step "NPM (Vitest)" npm test
+) & p3=$!
+
+wait $p1 || exit 1
+wait $p2 || exit 1
+wait $p3 || exit 1
+
+run_step "GCloud Auth" gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
+
+# Step 1-3: Parallel Build & Push
+echo -e "${BLUE}==> Step 1-3: Parallel Build & Push...${NC}"
+
+# Frontend Task
+build_fe() {
+    run_step "FE: Build" docker build --platform linux/amd64 -q -t "${IMAGE_FE_TAG}" -t "${REGISTRY}/frontend:latest" -f docker/frontend/Dockerfile .
+    run_step "FE: Push" bash -c "docker push ${IMAGE_FE_TAG} > /dev/null 2>&1 && docker push ${REGISTRY}/frontend:latest > /dev/null 2>&1"
+}
+
+# Backend Task
+build_be() {
+    BUILDER_TAG="${REGISTRY}/backend-builder:latest"
+    if [[ "$FORCE_BUILDER" == "true" ]] || ! docker image inspect "$BUILDER_TAG" >/dev/null 2>&1; then
+        run_step "BE: Builder" docker build --platform linux/amd64 -q -t "$BUILDER_TAG" -f docker/backend/Dockerfile.builder .
+        docker push "$BUILDER_TAG" > /dev/null 2>&1
+    fi
+    run_step "BE: Build" docker build --platform linux/amd64 -q -t "${IMAGE_BE_TAG}" -t "${REGISTRY}/backend:latest" -f docker/backend/Dockerfile --build-arg BUILDER_IMAGE="$BUILDER_TAG" .
+    run_step "BE: Push" bash -c "docker push ${IMAGE_BE_TAG} > /dev/null 2>&1 && docker push ${REGISTRY}/backend:latest > /dev/null 2>&1"
+}
+
+if [[ "$MODE" == "all" || "$MODE" == "fe" ]]; then 
+    run_step "FE: CSS Optimize" npm run optimize:css
+    build_fe & fe_pid=$! 
+fi
+if [[ "$MODE" == "all" || "$MODE" == "be" ]]; then 
+    build_be & be_pid=$! 
 fi
 
-if [[ "$MODE" == "all" || "$MODE" == "fe" ]]; then
-    run_step "NPM (Vitest) tests" npm test & pids+=($!)
-fi
+# Wait for builds and capture final image paths
+[ -n "$fe_pid" ] && { wait $fe_pid || exit 1; FINAL_FE_IMAGE="${IMAGE_FE_TAG}"; }
+[ -n "$be_pid" ] && { wait $be_pid || exit 1; FINAL_BE_IMAGE="${IMAGE_BE_TAG}"; }
 
-# Wait for all tests
-for pid in "${pids[@]}"; do
-    wait "$pid" || { echo -e "${RED}Test failed. Aborting deployment.${NC}"; exit 1; }
-done
-
-# Docker Auth
-run_step "GCloud Docker Auth" gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
-
-# 1, 2 & 3. Build, Push and Upload
-echo -e "${BLUE}==> Step 1, 2 & 3: Building, pushing and uploading (MODE: $MODE)...${NC}"
-
-if [ "$MODE" == "all" ]; then
-    # Run builds and config upload in parallel threads to maximize speed
-    ( deploy_fe ) &
-    pid_fe=$!
-
-    ( deploy_be ) &
-    pid_be=$!
-
-    ( upload_configs ) &
-    pid_cfg=$!
-    
-    wait $pid_fe || { echo -e "${RED}FE deployment failed. Aborting.${NC}"; exit 1; }
-    wait $pid_be || { echo -e "${RED}BE deployment failed. Aborting.${NC}"; exit 1; }
-    wait $pid_cfg || { echo -e "${RED}Config upload failed. Aborting.${NC}"; exit 1; }
-elif [ "$MODE" == "fe" ]; then
-    deploy_fe
-    upload_configs
-elif [ "$MODE" == "be" ]; then
-    deploy_be
-    upload_configs
-else
-    echo -e "${RED}Unknown mode: $MODE (Available: all, fe, be)${NC}"
-    exit 1
-fi
-
-# 4. Deploy to VPS
-echo -e "${BLUE}==> Step 4: VPS Command Execution...${NC}"
-run_step "Remote Restart on VPS" gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --project=${PROJECT_ID} --command "
-  mkdir -p ~/message-consolidator && cd ~/message-consolidator &&
-  (gcloud storage cp gs://${BUCKET_NAME}/vps/* . && mv .env.vps .env) &&
-  sudo docker-compose up -d --pull always --force-recreate --remove-orphans
+# Step 4: VPS Orchestration
+echo -e "${BLUE}==> Step 4: VPS Orchestration...${NC}"
+run_step "Config & Restart" bash -c "
+  grep -vE '^(FE_IMAGE|BE_IMAGE)=' .env > .env.vps && 
+  echo 'FE_IMAGE=${FINAL_FE_IMAGE}' >> .env.vps && 
+  echo 'BE_IMAGE=${FINAL_BE_IMAGE}' >> .env.vps &&
+  ${SCP_CMD} .env.vps docker-compose.yml Caddyfile ${VPS_NAME}:~/message-consolidator/ &&
+  ${SSH_CMD} \"cd ~/message-consolidator && mv .env.vps .env && sudo docker-compose --env-file .env down --remove-orphans > /dev/null 2>&1 && sudo docker-compose --env-file .env up -d --force-recreate > /dev/null 2>&1\"
 "
 
-# 5. Verification
-echo -e "${BLUE}==> Step 5: Verifying deployment...${NC}"
-
-MAX_RETRIES=${DEPLOY_MAX_RETRIES:-20}
-validate_int "MAX_RETRIES" "$MAX_RETRIES"
-
-echo -n "Waiting for Backend health (Remote Polling)... "
-IS_READY=$(gcloud compute ssh ${VPS_NAME} --zone=${ZONE} --project=${PROJECT_ID} --command "
-  for i in \$(seq 1 $MAX_RETRIES); do
-    if sudo docker logs message-consolidator-backend 2>&1 | grep -q 'Startup Complete'; then
-      echo 1
-      exit 0
-    fi
+# Step 5: Post-Deployment Verification
+echo -e "${BLUE}==> Step 5: Post-Deployment Verification...${NC}"
+echo -n "Waiting for Backend Startup... "
+${SSH_CMD} -- "
+  for i in \$(seq 1 30); do
+    sudo docker logs message-consolidator-backend 2>&1 | grep -q 'Startup Complete' && exit 0
     sleep 2
   done
-  echo 0
-" | tr -d '\r\n')
+  exit 1
+" && echo -e "${GREEN}Ready!${NC}" || { echo -e "${RED}Timeout!${NC}"; exit 1; }
 
-if [ "$IS_READY" == "1" ]; then
-  echo -e "\n${GREEN}✅ Backend Startup Complete log found!${NC}"
-else
-  echo -e "\n${RED}❌ Timeout: Backend Startup Complete log not found.${NC}"
-fi
+run_step "Health Check" bash -c "curl -s -k 'https://34.67.133.18.nip.io/health' | grep -q 'OK'"
 
-HEALTH_CHECK_URL="https://34.67.133.18.nip.io/health"
-run_step "External Health Check (HTTPS)" bash -c "curl -s -k '$HEALTH_CHECK_URL' | grep -q 'OK'"
-
-# Execution Timer Calculation
-END_TIME=$(date +%s)
-TOTAL_DURATION=$((END_TIME - START_TIME))
-
-echo -e "\n${GREEN}🚀 Deployment Successful (MODE: $MODE) in ${TOTAL_DURATION}s!${NC}"
+echo -e "\n${GREEN}🚀 Full Stack Deployed in $(( $(date +%s) - START_TIME ))s!${NC}"

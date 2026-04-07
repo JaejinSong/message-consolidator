@@ -18,34 +18,14 @@ func NormalizeName(tenantEmail, name string) string {
 
 	nameLower := strings.ToLower(strings.TrimSpace(name))
 
-	// Phase 0: Resolve "__CURRENT_USER__" to the user's name/email from cache
-	if nameLower == "me" || nameLower == "__current_user__" {
-		if u, ok := userCache[strings.ToLower(tenantEmail)]; ok {
-			if strings.TrimSpace(u.Name) != "" {
-				return u.Name
-			}
-			return u.Email
-		}
-		return tenantEmail
+	// Phase 0: Resolve "__CURRENT_USER__"
+	if res, ok := resolveCurrentUserAlias(tenantEmail, nameLower); ok {
+		return res
 	}
 
-	// Phase 1: Identity-X Resolution (DSU-based)
-	// Why: Performs transitive lookup (A=B, B=C => A=C) via the Disjoint-Set Union.
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-
-	// Try as email first, then name
-	idType := "email"
-	if !strings.Contains(nameLower, "@") {
-		idType = "name"
-	}
-
-	if canonicalID, err := ResolveAlias(ctx, idType, nameLower); err == nil && canonicalID > 0 {
-		// Fetch the display name of the canonical master
-		var displayName string
-		if err := db.QueryRow("SELECT display_name FROM contacts WHERE id = ? AND (tenant_email = ? OR tenant_email = 'all')", int64(canonicalID), tenantEmail).Scan(&displayName); err == nil {
-			return displayName
-		}
+	// Phase 1: Identity-X Resolution
+	if res, ok := resolveIdentityXCanonicalName(tenantEmail, nameLower); ok {
+		return res
 	}
 
 	// Phase 2: App user names (System fallback)
@@ -57,6 +37,42 @@ func NormalizeName(tenantEmail, name string) string {
 
 	return name
 }
+
+func resolveCurrentUserAlias(tenantEmail, nameLower string) (string, bool) {
+	if nameLower != "me" && nameLower != "__current_user__" {
+		return "", false
+	}
+	if u, ok := userCache[strings.ToLower(tenantEmail)]; ok {
+		if strings.TrimSpace(u.Name) != "" {
+			return u.Name, true
+		}
+		return u.Email, true
+	}
+	return tenantEmail, true
+}
+
+func resolveIdentityXCanonicalName(tenantEmail, nameLower string) (string, bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	idType := "email"
+	if !strings.Contains(nameLower, "@") {
+		idType = "name"
+	}
+
+	id, err := ResolveAlias(ctx, idType, nameLower)
+	if err != nil || id <= 0 {
+		return "", false
+	}
+
+	var displayName string
+	query := "SELECT display_name FROM contacts WHERE id = ? AND (tenant_email = ? OR tenant_email = 'all')"
+	if err := db.QueryRow(query, int64(id), tenantEmail).Scan(&displayName); err == nil {
+		return displayName, true
+	}
+	return "", false
+}
+
 
 func NormalizeWithCategory(tenantEmail, rawName string) (string, string, string) {
 	if rawName == "" {
@@ -99,7 +115,7 @@ func cleanRawName(rawName string) string {
 }
 
 func resolveContactIdentity(tenantEmail, name string) (ContactRecord, bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	nameLower := strings.ToLower(name)
@@ -180,13 +196,15 @@ func GetUserAliases(userID int) ([]string, error) {
 	metadataMu.RLock()
 	defer metadataMu.RUnlock()
 
+	idMatch := int64(userID)
 	var email string
 	for e, u := range userCache {
-		if u.ID == userID {
+		if int64(u.ID) == idMatch {
 			email = e
 			break
 		}
 	}
+
 
 	if email == "" {
 		return []string{}, nil
@@ -196,7 +214,7 @@ func GetUserAliases(userID int) ([]string, error) {
 		for _, m := range mappings {
 			if m.CanonicalID == email {
 				var aliases []string
-				rows, err := db.Query("SELECT value FROM contact_aliases WHERE contact_id = ?", m.ID)
+				rows, err := db.Query("SELECT identifier_value FROM contact_aliases WHERE contact_id = ?", int64(m.ID))
 				if err == nil {
 					defer rows.Close()
 					for rows.Next() {
@@ -232,38 +250,50 @@ func AddUserAlias(ctx context.Context, userID int, alias string) error {
 		return nil
 	}
 
-	// 1. Update Database (Slow Path table)
-	_, err := db.ExecContext(ctx, SQL.CreateUserAlias, userID, trimmed)
-	if err != nil {
+	uID := int64(userID)
+	if _, err := db.ExecContext(ctx, SQL.CreateUserAlias, uID, trimmed); err != nil {
 		return err
 	}
 
-	// 2. Update Cache (Write-through)
-	var email string
-	var uName string
-	var uEmail string
+	updateUserCacheAlias(uID, trimmed, true)
+	return nil
+}
 
+func updateUserCacheAlias(userID int64, alias string, isAdd bool) {
+	var uEmail, uName string
 	metadataMu.Lock()
-	for e, u := range userCache {
-		if u.ID == userID {
-			email = e
-			uName = u.Name
-			uEmail = u.Email
-			if !slices.Contains(u.Aliases, trimmed) {
-				u.Aliases = append(u.Aliases, trimmed)
+	u := findUserInCacheByID(userID)
+	if u != nil {
+		uEmail = u.Email
+		uName = u.Name
+		if isAdd {
+			if !slices.Contains(u.Aliases, alias) {
+				u.Aliases = append(u.Aliases, alias)
 			}
-			break
+		} else {
+			u.Aliases = slices.DeleteFunc(u.Aliases, func(a string) bool {
+				return a == alias
+			})
 		}
 	}
 	metadataMu.Unlock()
 
-	// 3. Keep Contacts mapping for global resolution consistency
-	if email != "" {
-		_ = AddContactMapping(ctx, "all", strings.ToLower(uEmail), uName, trimmed, "user")
+	// Keep contacts mapping consistent (only for Add as per original logic)
+	if isAdd && uEmail != "" {
+		_ = AddContactMapping(context.Background(), "all", strings.ToLower(uEmail), uName, alias, "user")
 	}
+}
 
+
+func findUserInCacheByID(id int64) *User {
+	for _, u := range userCache {
+		if int64(u.ID) == id {
+			return u
+		}
+	}
 	return nil
 }
+
 
 // AddTenantAlias is a legacy compatibility helper for tenant-specific aliases.
 func AddTenantAlias(ctx context.Context, tenantEmail, original, primary string) error {
@@ -276,27 +306,15 @@ func AddTenantAlias(ctx context.Context, tenantEmail, original, primary string) 
 func DeleteUserAlias(ctx context.Context, userID int, alias string) error {
 	trimmed := strings.TrimSpace(alias)
 
-	// 1. Update Database
-	_, err := db.ExecContext(ctx, SQL.DeleteUserAlias, userID, trimmed)
-	if err != nil {
+	uID := int64(userID)
+	if _, err := db.ExecContext(ctx, SQL.DeleteUserAlias, uID, trimmed); err != nil {
 		return err
 	}
 
-	// 2. Update Cache
-	metadataMu.Lock()
-	defer metadataMu.Unlock()
-
-	for _, u := range userCache {
-		if u.ID == userID {
-			u.Aliases = slices.DeleteFunc(u.Aliases, func(a string) bool {
-				return a == trimmed
-			})
-			break
-		}
-	}
-
+	updateUserCacheAlias(uID, trimmed, false)
 	return nil
 }
+
 
 // DeleteTenantAlias is a legacy compatibility helper.
 func DeleteTenantAlias(ctx context.Context, tenantEmail, original string) error {

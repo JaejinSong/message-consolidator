@@ -96,7 +96,7 @@ func runMigrations() error {
 	// Why: Fallback if rename failed or table was fresh.
 	_, _ = db.Exec(SQL.MigrateTaskTranslationsAddLanguageCode)
 	_, _ = db.Exec(SQL.MigrateReportTranslationsAddLanguageCode)
-
+	_, _ = db.Exec(SQL.MigrateContactsAddContactType)
 	_, _ = db.Exec(SQL.MigrateContactsDropLegacyAliases)
 
 	migrateExistingData()

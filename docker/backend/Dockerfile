@@ -37,15 +37,13 @@ RUN mkdir -p /stage/app && \
 
 # Final stage
 FROM alpine:latest
-RUN apk --no-cache add ca-certificates tzdata libc6-compat && \
-    mkdir -p /usr/whatap/agent
+RUN apk --no-cache add ca-certificates tzdata libc6-compat
 
-# Layer separation for better caching: WhaTap (stable) vs App (frequent)
-COPY --from=builder /usr/whatap/ /usr/whatap/
+# Explicitly copy application files and WhaTap agent to the final stage
 COPY --from=builder /stage/app/ /app/
+COPY --from=builder /usr/whatap/agent/ /usr/whatap/agent/
 
 WORKDIR /app
-RUN ln -sf /app/whatap.conf /usr/whatap/agent/whatap.conf
 
 VOLUME ["/data"]
 EXPOSE 8080

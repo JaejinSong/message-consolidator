@@ -211,7 +211,8 @@ var SQL = struct {
 	MigrateDataNormalizeRoom           string
 	MigrateDataNormalizeCategoryWaiting string
 	MigrateDataNormalizeCategoryPromise string
-	CreateIdxMessagesTask              string
+	MigrateContactsAddContactType       string
+	CreateIdxMessagesTask               string
 	CreateIdxMessagesRoom              string
 	CreateIdxMessagesRequester         string
 	CreateIdxMessagesAssignee          string
@@ -462,6 +463,7 @@ func loadAllQueries() error {
 	SQL.MigrateDataNormalizeRoom = queries["MigrateDataNormalizeRoom"]
 	SQL.MigrateDataNormalizeCategoryWaiting = queries["MigrateDataNormalizeCategoryWaiting"]
 	SQL.MigrateDataNormalizeCategoryPromise = queries["MigrateDataNormalizeCategoryPromise"]
+	SQL.MigrateContactsAddContactType = queries["MigrateContactsAddContactType"]
 	SQL.CreateIdxMessagesTask = queries["CreateIdxMessagesTask"]
 	SQL.CreateIdxMessagesRoom = queries["CreateIdxMessagesRoom"]
 	SQL.CreateIdxMessagesRequester = queries["CreateIdxMessagesRequester"]

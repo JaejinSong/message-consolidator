@@ -138,6 +138,9 @@ CREATE TABLE IF NOT EXISTS contact_aliases (
 );
 CREATE INDEX IF NOT EXISTS idx_contact_aliases_lookup ON contact_aliases(identifier_value, identifier_type);
 
+-- name: MigrateContactsAddContactType :exec
+ALTER TABLE contacts ADD COLUMN contact_type TEXT DEFAULT 'none';
+
 -- Identity-X: Merge History (Audit Trail)
 CREATE TABLE IF NOT EXISTS identity_merge_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

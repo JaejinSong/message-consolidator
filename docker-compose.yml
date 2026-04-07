@@ -20,6 +20,7 @@ services:
   frontend:
     image: ${FE_IMAGE}
     container_name: message-consolidator-frontend
+    pull_policy: always
     volumes:
       - caddy_assets:/public
     restart: always
@@ -28,12 +29,11 @@ services:
   backend:
     image: ${BE_IMAGE}
     container_name: message-consolidator-backend
+    pull_policy: always
     env_file:
       - .env
     environment:
       - DISABLE_STATIC_SERVING=true
-      - WHATAP_LICENSE=${WHATAP_LICENSE}
-      - WHATAP_SERVER_HOST=${WHATAP_SERVER_HOST}
     volumes:
       - ./db_data:/data
     restart: always

@@ -46,6 +46,12 @@ func InitDB(cfg *config.Config) error {
 		}
 	}
 
+	maskedURL := dbURL
+	if idx := strings.Index(maskedURL, "authToken="); idx != -1 {
+		maskedURL = maskedURL[:idx+10] + "****"
+	}
+	logger.Infof("[DB-DEBUG] Opening database with DSN: %s", maskedURL)
+
 	db, err = sql.Open("libsql", dbURL)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)

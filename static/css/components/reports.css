@@ -146,6 +146,14 @@
     transition: fill 0.2s ease;
 }
 
+.c-report-viz__node-group {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.c-report-viz__node-group:hover {
+    transform: scale(1.05);
+}
+
 
 /* Interaction: Tooltips/Panels */
 .c-report-tooltip {

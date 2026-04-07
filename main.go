@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -30,6 +31,22 @@ func main() {
 	logger.InitLogging()
 	cfg = config.LoadConfig()
 	logger.SetLevel(cfg.LogLevel)
+
+	//Why: Diagnoses the "ghost" _timeout parameter by inspecting the environment as seen by the binary.
+	logger.Infof("[ENV-DEBUG] Checking environment for DSN modifiers...")
+	for _, env := range os.Environ() {
+		if strings.HasPrefix(env, "TURSO_") || strings.HasPrefix(env, "WHATAP_") {
+			parts := strings.SplitN(env, "=", 2)
+			key, value := parts[0], ""
+			if len(parts) > 1 {
+				value = parts[1]
+			}
+			if key == "TURSO_AUTH_TOKEN" || key == "WHATAP_LICENSE" {
+				value = "****"
+			}
+			logger.Infof("[ENV-DEBUG] %s=%s", key, value)
+		}
+	}
 
 	//Why: Synchronizes the store-level auto-archive policy with the central environment configuration to ensure consistent task auditing across the system.
 	store.SetAutoArchiveDays(cfg.AutoArchiveDays)

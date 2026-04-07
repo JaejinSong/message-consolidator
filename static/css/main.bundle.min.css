@@ -62,6 +62,7 @@
     --shadow-main: 0 1.25rem 2.5rem rgba(0, 0, 0, 0.4);
     --border-light: rgba(255, 255, 255, 0.05);
     --shadow-card: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.2);
+    --bg-floater: rgba(15, 16, 20, 0.95);
 
     /* Spacing & Radius Tokens */
     --spacing-xxs: 0.125rem;
@@ -191,6 +192,7 @@ body.light-theme {
     --color-info-rgb: 37, 99, 235;
     --table-row-hover: rgba(0, 0, 0, 0.03);
     --text-muted: rgba(15, 23, 42, 0.6);
+    --bg-floater: rgba(255, 255, 255, 0.98);
     background-image: radial-gradient(circle at 50% -20%, #e2e8f0, var(--bg-color));
     /* Brand Colors (Formalized) */
     --brand-excel: #1d6f42;
@@ -1869,6 +1871,14 @@ body.light-theme .c-badge--count {
     fill: var(--text-dim);
     font-weight: 500;
     transition: fill 0.2s ease;
+}
+
+.c-report-viz__node-group {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.c-report-viz__node-group:hover {
+    transform: scale(1.05);
 }
 
 
