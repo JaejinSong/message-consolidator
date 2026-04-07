@@ -1,18 +1,16 @@
 -- name: AddContactMapping :exec
-INSERT INTO contacts (tenant_email, canonical_id, display_name, aliases, source)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO contacts (tenant_email, canonical_id, display_name, source)
+VALUES (?, ?, ?, ?)
 ON CONFLICT(tenant_email, canonical_id) DO UPDATE SET
     display_name = EXCLUDED.display_name,
-    aliases = EXCLUDED.aliases,
     source = EXCLUDED.source
 RETURNING id;
 
 -- name: UpsertContactMapping :exec
-INSERT INTO contacts (tenant_email, canonical_id, display_name, aliases, source)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO contacts (tenant_email, canonical_id, display_name, source)
+VALUES (?, ?, ?, ?)
 ON CONFLICT(tenant_email, canonical_id) DO UPDATE SET
     display_name = EXCLUDED.display_name,
-    aliases = EXCLUDED.aliases,
     source = EXCLUDED.source
 RETURNING id;
 
@@ -21,21 +19,20 @@ DELETE FROM contacts
 WHERE tenant_email = ? AND canonical_id = ?;
 
 -- name: LoadContactsAll :many
-SELECT tenant_email, canonical_id, display_name, aliases, source FROM contacts;
+SELECT tenant_email, canonical_id, display_name, source, contact_type FROM contacts;
 
 -- name: GetContactByIdentifier :many
-SELECT id, tenant_email, canonical_id, display_name, aliases, source, master_contact_id
+SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type
 FROM contacts 
 WHERE tenant_email = ? 
-AND (canonical_id = ? OR display_name = ? OR aliases LIKE '%' || ? || '%');
+AND (canonical_id = ? OR display_name = ?);
 
 -- name: SearchContacts :many
-SELECT id, tenant_email, canonical_id, display_name, aliases, source, master_contact_id
+SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type
 FROM contacts
 WHERE tenant_email = ?
 AND (display_name LIKE '%' || ? || '%' 
-     OR canonical_id LIKE '%' || ? || '%' 
-     OR aliases LIKE '%' || ? || '%')
+     OR canonical_id LIKE '%' || ? || '%')
 LIMIT 20;
 
 -- name: UpdateContactLink :exec
@@ -54,6 +51,17 @@ SET master_contact_id = ?
 WHERE tenant_email = ? AND master_contact_id = ?;
 
 -- name: GetLinkedContacts :many
-SELECT id, tenant_email, canonical_id, display_name, aliases, source, master_contact_id
+SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type
 FROM contacts
 WHERE tenant_email = ? AND master_contact_id IS NOT NULL;
+
+-- name: UpdateContactType :exec
+UPDATE contacts
+SET contact_type = ?
+WHERE id = ?;
+
+-- name: GetContactTypeDistribution :many
+SELECT contact_type, COUNT(*) as count
+FROM contacts
+WHERE tenant_email = ?
+GROUP BY contact_type;

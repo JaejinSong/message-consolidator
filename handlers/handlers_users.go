@@ -35,7 +35,7 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	if mappings, ok := store.GetContactsCache()[email]; ok {
 		for _, m := range mappings {
 			if m.CanonicalID == email {
-				user.Aliases = strings.Split(m.Aliases, ",")
+				user.Aliases, _ = store.GetAliasesForContact(r.Context(), m.ID)
 				break
 			}
 		}
@@ -84,7 +84,7 @@ func (a *API) autoPopulateSlackAliases(ctx context.Context, user *store.User) {
 	if mappings, ok := store.GetContactsCache()[user.Email]; ok {
 		for _, m := range mappings {
 			if m.CanonicalID == user.Email {
-				user.Aliases = strings.Split(m.Aliases, ",")
+				user.Aliases, _ = store.GetAliasesForContact(ctx, m.ID)
 				break
 			}
 		}
@@ -115,7 +115,7 @@ func (a *API) HandleGetUserAliases(w http.ResponseWriter, r *http.Request) {
 	if mappings, ok := store.GetContactsCache()[email]; ok {
 		for _, m := range mappings {
 			if m.CanonicalID == email {
-				aliases = strings.Split(m.Aliases, ",")
+				aliases, _ = store.GetAliasesForContact(r.Context(), m.ID)
 				break
 			}
 		}
@@ -139,7 +139,8 @@ func (a *API) HandleAddAlias(w http.ResponseWriter, r *http.Request) {
 	if mappings, ok := store.GetContactsCache()[email]; ok {
 		for _, m := range mappings {
 			if m.CanonicalID == email {
-				existing = m.Aliases
+				al, _ := store.GetAliasesForContact(r.Context(), m.ID)
+				existing = strings.Join(al, ",")
 				break
 			}
 		}
@@ -172,7 +173,8 @@ func (a *API) HandleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 	if mappings, ok := store.GetContactsCache()[email]; ok {
 		for _, m := range mappings {
 			if m.CanonicalID == email {
-				existing = m.Aliases
+				al, _ := store.GetAliasesForContact(r.Context(), m.ID)
+				existing = strings.Join(al, ",")
 				break
 			}
 		}

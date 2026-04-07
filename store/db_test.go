@@ -137,3 +137,68 @@ func TestBatchOperations(t *testing.T) {
 		}
 	})
 }
+func TestLegacyColumnRemoval(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	// Why: Verifies that both old column names are now GONE from the schema entirely.
+	var count int
+	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('contacts') WHERE name='aliases' OR name='legacy_aliases_deprecated'").Scan(&count)
+	if count != 0 {
+		t.Errorf("Expected 0 columns with legacy names, found %d", count)
+	} else {
+		t.Logf("Verified hard deprecation: legacy columns dropped successfully.")
+	}
+}
+
+func TestIdentityXTransitiveLink(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	tenant := "test@whatap.io"
+
+	// 1. Create a Master Contact
+	masterID, err := AddContact(ctx, tenant, "master@whatap.io", "Master User", "", "test")
+	if err != nil {
+		t.Fatalf("Failed to create master: %v", err)
+	}
+
+	// 2. Register an Alias
+	err = RegisterAlias(ctx, masterID, "whatsapp", "821012345678", "whatsapp", 5)
+	if err != nil {
+		t.Fatalf("Failed to register alias: %v", err)
+	}
+
+	// 3. Resolve Alias
+	resolvedID, err := ResolveAlias(ctx, "whatsapp", "821012345678")
+	if err != nil {
+		t.Fatalf("Failed to resolve alias: %v", err)
+	}
+	if resolvedID != masterID {
+		t.Errorf("Expected resolved ID %d, got %d", masterID, resolvedID)
+	}
+
+	// 4. Create a Target and Link
+	targetID, err := AddContact(ctx, tenant, "target@gmail.com", "Target User", "", "test")
+	if err != nil {
+		t.Fatalf("Failed to create target: %v", err)
+	}
+	err = LinkContact(ctx, tenant, masterID, targetID)
+	if err != nil {
+		t.Fatalf("Failed to link: %v", err)
+	}
+
+	// 5. Verify Transitive Resolution
+	// Resolving the target ID should now return the master ID due to DSU merge.
+	resolvedTargetID := GlobalContactDSU.Find(targetID)
+	if resolvedTargetID != masterID {
+		t.Errorf("Transitive resolution (DSU) failed: expected %d, got %d", masterID, resolvedTargetID)
+	}
+}

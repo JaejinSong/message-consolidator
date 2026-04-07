@@ -73,3 +73,9 @@ SELECT COUNT(*) FROM v_messages
 WHERE user_email = ? AND done = 0 AND is_deleted = 0 
 AND (assignee != ? AND assignee != 'me') 
 AND category != 'waiting' AND IFNULL(task, '') != '';
+
+-- name: GetTaskCountByContactType :many
+SELECT requester_type AS contact_type, COUNT(*) AS count
+FROM v_messages 
+WHERE user_email = ? AND is_deleted = 0 
+GROUP BY requester_type;

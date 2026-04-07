@@ -144,3 +144,6 @@ CREATE INDEX IF NOT EXISTS idx_messages_user_done_completed ON messages (user_em
 
 -- name: CreateIdxUserAliasesUserID :exec
 CREATE INDEX IF NOT EXISTS idx_user_aliases_user_id ON user_aliases(user_id);
+
+-- name: MigrateContactsSoftDeprecateAliases :exec
+ALTER TABLE contacts RENAME COLUMN aliases TO legacy_aliases_deprecated;

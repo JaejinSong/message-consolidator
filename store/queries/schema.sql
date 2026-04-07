@@ -116,14 +116,48 @@ CREATE TABLE IF NOT EXISTS contacts (
     tenant_email VARCHAR(255) NOT NULL,
     canonical_id VARCHAR(255) NOT NULL, -- Normalized lowercase email (SSOT)
     display_name VARCHAR(255) NOT NULL,
-    aliases TEXT NOT NULL DEFAULT '', -- Comma-separated variation names
     source VARCHAR(50) DEFAULT 'all',
     master_contact_id INTEGER REFERENCES contacts(id), -- Unified Account Reference
+    contact_type TEXT DEFAULT 'none',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(tenant_email, canonical_id)
 );
 CREATE INDEX IF NOT EXISTS idx_contacts_canonical ON contacts(canonical_id);
 CREATE INDEX IF NOT EXISTS idx_contacts_tenant_canonical ON contacts(tenant_email, canonical_id);
+
+-- Identity-X: Alias Mapping Table
+CREATE TABLE IF NOT EXISTS contact_aliases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+    identifier_type TEXT NOT NULL, -- 'email', 'slack_id', 'wa_jid', 'name'
+    identifier_value TEXT NOT NULL,
+    source TEXT NOT NULL,         -- 'slack', 'whatsapp', 'gmail', 'manual'
+    trust_level INTEGER DEFAULT 1, -- 1: Low (Fuzzy), 5: High (Verified)
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(contact_id, identifier_type, identifier_value)
+);
+CREATE INDEX IF NOT EXISTS idx_contact_aliases_lookup ON contact_aliases(identifier_value, identifier_type);
+
+-- Identity-X: Merge History (Audit Trail)
+CREATE TABLE IF NOT EXISTS identity_merge_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    master_id INTEGER NOT NULL REFERENCES contacts(id),
+    merged_id INTEGER NOT NULL REFERENCES contacts(id),
+    reason TEXT,
+    merged_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Identity-X: Merge Candidates (AI Proposals)
+CREATE TABLE IF NOT EXISTS identity_merge_candidates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id INTEGER NOT NULL REFERENCES contacts(id),
+    target_id INTEGER NOT NULL REFERENCES contacts(id),
+    confidence REAL,
+    rationale TEXT,
+    status TEXT DEFAULT 'pending', -- 'pending', 'accepted', 'rejected'
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(source_id, target_id)
+);
 
 -- name: CreateContactsResolvedView :exec
 DROP VIEW IF EXISTS v_contacts_resolved;
@@ -135,6 +169,7 @@ SELECT
     c.display_name AS original_display_name,
     COALESCE(m.canonical_id, c.canonical_id) AS effective_canonical_id,
     COALESCE(m.display_name, c.display_name) AS effective_display_name,
+    COALESCE(m.contact_type, c.contact_type, 'none') AS contact_type,
     CASE WHEN c.master_contact_id IS NOT NULL THEN 1 ELSE 0 END AS is_merged,
     c.source AS original_source
 FROM contacts c
@@ -170,7 +205,9 @@ SELECT
     m.metadata,
     COALESCE(m.source_channels, '[]') as source_channels,
     COALESCE(cr_req.effective_canonical_id, m.requester) as requester_canonical,
-    COALESCE(cr_asg.effective_canonical_id, m.assignee) as assignee_canonical
+    COALESCE(cr_asg.effective_canonical_id, m.assignee) as assignee_canonical,
+    COALESCE(cr_req.contact_type, 'none') as requester_type,
+    COALESCE(cr_asg.contact_type, 'none') as assignee_type
 FROM messages m
 LEFT JOIN v_contacts_resolved cr_req ON m.user_email = cr_req.tenant_email AND m.requester = cr_req.original_canonical_id
 LEFT JOIN v_contacts_resolved cr_asg ON m.user_email = cr_asg.tenant_email AND m.assignee = cr_asg.original_canonical_id;

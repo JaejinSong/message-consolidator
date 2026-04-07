@@ -10,7 +10,7 @@ import (
 func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedMessage, error) {
 	var m ConsolidatedMessage
 	var assignedAt, createdAt, completedAt DBTime
-	var constraints, room, requester, assignee, link, originalText, category, deadline, threadID, assigneeReason, repliedToID, sourceTS, source, reqCanonical, asgCanonical, metadata, sourceChannels sql.NullString
+	var constraints, room, requester, assignee, link, originalText, category, deadline, threadID, assigneeReason, repliedToID, sourceTS, source, reqCanonical, asgCanonical, metadata, sourceChannels, reqType, asgType sql.NullString
 
 	err := rows.Scan(
 		&m.ID, &m.UserEmail, &source, &room, &m.Task,
@@ -18,21 +18,22 @@ func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedM
 		&sourceTS, &originalText, &m.Done, &m.IsDeleted,
 		&createdAt, &completedAt, &category, &deadline,
 		&threadID, &assigneeReason, &repliedToID,
-		&m.IsContextQuery, &constraints, &metadata, &sourceChannels, // Metadata and SourceChannels
+		&m.IsContextQuery, &constraints, &metadata, &sourceChannels,
 		&reqCanonical, &asgCanonical,
+		&reqType, &asgType,
 	)
 	if err != nil {
 		return m, err
 	}
 
-	populateFields(&m, source, room, requester, assignee, link, sourceTS, originalText, category, deadline, threadID, assigneeReason, repliedToID, reqCanonical, asgCanonical)
+	populateFields(&m, source, room, requester, assignee, link, sourceTS, originalText, category, deadline, threadID, assigneeReason, repliedToID, reqCanonical, asgCanonical, reqType, asgType)
 	parseMetadata(&m, constraints, metadata, sourceChannels, assignedAt, createdAt, completedAt)
 	return m, nil
 }
 
 func populateFields(
 	m *ConsolidatedMessage,
-	source, room, req, asg, link, ts, text, cat, dl, tid, reason, reply, reqC, asgC sql.NullString,
+	source, room, req, asg, link, ts, text, cat, dl, tid, reason, reply, reqC, asgC, reqT, asgT sql.NullString,
 ) {
 	m.Source = source.String
 	m.Room = room.String
@@ -48,6 +49,8 @@ func populateFields(
 	m.RepliedToID = reply.String
 	m.RequesterCanonical = reqC.String
 	m.AssigneeCanonical = asgC.String
+	m.RequesterType = reqT.String
+	m.AssigneeType = asgT.String
 }
 
 func parseMetadata(m *ConsolidatedMessage, constraints, metadata, sourceChannels sql.NullString, assignedAt, createdAt, completedAt DBTime) {

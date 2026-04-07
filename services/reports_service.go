@@ -234,10 +234,21 @@ func (s *ReportsService) formatLogLine(email string, m Log) string {
 	if m.Done {
 		status = "V"
 	}
-	_, reqName, reqCat := store.NormalizeWithCategory(email, m.Requester)
-	_, asgName, asgCat := store.NormalizeWithCategory(email, m.Assignee)
+
+	reqName := m.Requester
+	reqCat := s.resolveCategory(email, m.RequesterCanonical, m.RequesterType)
+	asgName := m.Assignee
+	asgCat := s.resolveCategory(email, m.AssigneeCanonical, m.AssigneeType)
+
 	return fmt.Sprintf("- [%s] %s (From: %s (%s), To: %s (%s))\n",
 		status, m.Task, reqName, reqCat, asgName, asgCat)
+}
+
+func (s *ReportsService) resolveCategory(tenantEmail, canonicalID, contactType string) string {
+	if contactType == "internal" || strings.EqualFold(canonicalID, tenantEmail) {
+		return "Internal"
+	}
+	return "External"
 }
 
 type GraphData struct {
@@ -287,16 +298,20 @@ func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (ma
 	pairWeights := make(map[string]float64)
 	meta := make(map[string]nodeMeta)
 	for _, m := range messages {
-		rID, rName, rCat := store.NormalizeWithCategory(email, m.Requester)
-		aID, aName, aCat := store.NormalizeWithCategory(email, m.Assignee)
+		rID := strings.ToLower(m.RequesterCanonical)
+		rCat := s.resolveCategory(email, rID, m.RequesterType)
+		
+		aID := strings.ToLower(m.AssigneeCanonical)
+		aCat := s.resolveCategory(email, aID, m.AssigneeType)
+
 		if rID == "" || aID == "" || rID == aID {
 			continue
 		}
 		counts[rID]++
 		counts[aID]++
 		pairWeights[rID+"|"+aID]++
-		meta[rID] = nodeMeta{rName, rCat}
-		meta[aID] = nodeMeta{aName, aCat}
+		meta[rID] = nodeMeta{m.Requester, rCat}
+		meta[aID] = nodeMeta{m.Assignee, aCat}
 	}
 	return counts, pairWeights, meta
 }

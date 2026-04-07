@@ -13,10 +13,10 @@ func TestReportsService_CalculateGraph(t *testing.T) {
 	store.ResetForTest()
 	svc := &ReportsService{config: ReportConfig{CutoffSize: 8000}}
 	messages := []store.ConsolidatedMessage{
-		{Requester: "Alice", Assignee: "JJ", Source: "slack"},
-		{Requester: "Alice", Assignee: "JJ", Source: "slack"},
-		{Requester: "Bob", Assignee: "JJ", Source: "whatsapp"},
-		{Requester: "JJ", Assignee: "Alice", Source: "slack"},
+		{Requester: "Alice", Assignee: "JJ", Source: "slack", RequesterCanonical: "alice", AssigneeCanonical: "jj", RequesterType: "customer", AssigneeType: "internal"},
+		{Requester: "Alice", Assignee: "JJ", Source: "slack", RequesterCanonical: "alice", AssigneeCanonical: "jj", RequesterType: "customer", AssigneeType: "internal"},
+		{Requester: "Bob", Assignee: "JJ", Source: "whatsapp", RequesterCanonical: "bob", AssigneeCanonical: "jj", RequesterType: "customer", AssigneeType: "internal"},
+		{Requester: "JJ", Assignee: "Alice", Source: "slack", RequesterCanonical: "jj", AssigneeCanonical: "alice", RequesterType: "internal", AssigneeType: "customer"},
 	}
 
 	graphData := svc.generateVisualizationData("me@example.com", messages)
@@ -120,8 +120,8 @@ func TestReportsService_Normalization(t *testing.T) {
 	store.ResetForTest()
 	svc := &ReportsService{config: ReportConfig{CutoffSize: 8000}}
 	messages := []store.ConsolidatedMessage{
-		{Requester: "jj@whatap.io", Assignee: "JJ", Source: "slack"},
-		{Requester: "JJ", Assignee: "jj@whatap.io", Source: "slack"},
+		{Requester: "jj@whatap.io", Assignee: "JJ", Source: "slack", RequesterCanonical: "jj@whatap.io", AssigneeCanonical: "jj", RequesterType: "internal", AssigneeType: "none"},
+		{Requester: "JJ", Assignee: "jj@whatap.io", Source: "slack", RequesterCanonical: "jj", AssigneeCanonical: "jj@whatap.io", RequesterType: "none", AssigneeType: "internal"},
 	}
 
 	// Case 1: Without aliases, they should be separate with domain-based labels
@@ -151,7 +151,7 @@ func TestReportsService_Labeling(t *testing.T) {
 	store.ResetForTest()
 	svc := &ReportsService{config: ReportConfig{CutoffSize: 8000}}
 	messages := []store.ConsolidatedMessage{
-		{Requester: "JJ", Assignee: "Alice", Source: "slack"},
+		{Requester: "JJ", Assignee: "Alice", Source: "slack", RequesterCanonical: "jj", AssigneeCanonical: "alice", RequesterType: "none", AssigneeType: "none"},
 	}
 
 	// jj@whatap.io -> should be (Internal) by domain
@@ -176,17 +176,17 @@ func TestReportsService_SankeyContract(t *testing.T) {
 
 	messages := []store.ConsolidatedMessage{
 		// 1. Normal link.
-		{Requester: "alice@whatap.io", Assignee: "bob@whatap.io", Task: "task1"},
+		{Requester: "alice@whatap.io", Assignee: "bob@whatap.io", Task: "task1", RequesterCanonical: "alice@whatap.io", AssigneeCanonical: "bob@whatap.io", RequesterType: "internal", AssigneeType: "internal"},
 		// 2. Self-loop with mixed case (should be ignored).
-		{Requester: "alice@whatap.io", Assignee: "Alice@whatap.io", Task: "self-loop-1"},
+		{Requester: "alice@whatap.io", Assignee: "Alice@whatap.io", Task: "self-loop-1", RequesterCanonical: "alice@whatap.io", AssigneeCanonical: "alice@whatap.io", RequesterType: "internal", AssigneeType: "internal"},
 		// 3. Another mixed-case self-loop variant (should be ignored).
-		{Requester: "bob@whatap.io", Assignee: "Bob@Whatap.io", Task: "self-loop-2"},
+		{Requester: "bob@whatap.io", Assignee: "Bob@Whatap.io", Task: "self-loop-2", RequesterCanonical: "bob@whatap.io", AssigneeCanonical: "bob@whatap.io", RequesterType: "internal", AssigneeType: "internal"},
 		// 4. Duplicate link with case difference (should be merged into one link).
-		{Requester: "ALICE@whatap.io", Assignee: "bob@whatap.io", Task: "task2"},
+		{Requester: "ALICE@whatap.io", Assignee: "bob@whatap.io", Task: "task2", RequesterCanonical: "alice@whatap.io", AssigneeCanonical: "bob@whatap.io", RequesterType: "internal", AssigneeType: "internal"},
 		// 5. External user with no alias.
-		{Requester: "external-user@gmail.com", Assignee: "alice@whatap.io", Task: "external-task"},
+		{Requester: "external-user@gmail.com", Assignee: "alice@whatap.io", Task: "external-task", RequesterCanonical: "external-user@gmail.com", AssigneeCanonical: "alice@whatap.io", RequesterType: "none", AssigneeType: "internal"},
 		// 6. External user with dots in name (for name extraction policy test).
-		{Requester: "hady.partner@gmail.com", Assignee: "alice@whatap.io", Task: "external-task-2"},
+		{Requester: "hady.partner@gmail.com", Assignee: "alice@whatap.io", Task: "external-task-2", RequesterCanonical: "hady.partner@gmail.com", AssigneeCanonical: "alice@whatap.io", RequesterType: "none", AssigneeType: "internal"},
 	}
 
 	graphData := svc.generateVisualizationData("alice@whatap.io", messages)
@@ -284,12 +284,14 @@ func TestReportsService_GenerateVisualizationData_WithAliases(t *testing.T) {
 	}
 
 	// 4. Define messages using various aliases
+	// Note: In real system, v_messages resolves requester/assignee to display_name (e.g. "Jaejin Song")
+	// so the 'Requester' field in the test should match what v_messages would return.
 	messages := []store.ConsolidatedMessage{
-		{Requester: "JJ", Assignee: "Alice"},               // User Alias
-		{Requester: "Song", Assignee: "alice@whatap.io"},   // Tenant Alias (name only)
-		{Requester: "Jaejin Song", Assignee: "Alice"},      // Real Name
-		{Requester: "jjsong@whatap.io", Assignee: "Alice"}, // Email
-		{Requester: "SongV2", Assignee: "alice@whatap.io"}, // Tenant Alias (with email hint)
+		{Requester: "Jaejin Song", Assignee: "Alice", RequesterCanonical: "jjsong@whatap.io", AssigneeCanonical: "alice@whatap.io", RequesterType: "internal", AssigneeType: "internal"},
+		{Requester: "Jaejin Song", Assignee: "Alice", RequesterCanonical: "jjsong@whatap.io", AssigneeCanonical: "alice@whatap.io", RequesterType: "internal", AssigneeType: "internal"},
+		{Requester: "Jaejin Song", Assignee: "Alice", RequesterCanonical: "jjsong@whatap.io", AssigneeCanonical: "alice@whatap.io", RequesterType: "internal", AssigneeType: "internal"},
+		{Requester: "Jaejin Song", Assignee: "Alice", RequesterCanonical: "jjsong@whatap.io", AssigneeCanonical: "alice@whatap.io", RequesterType: "internal", AssigneeType: "internal"},
+		{Requester: "Jaejin Song", Assignee: "Alice", RequesterCanonical: "jjsong@whatap.io", AssigneeCanonical: "alice@whatap.io", RequesterType: "internal", AssigneeType: "internal"},
 	}
 
 	// 5. Generate graph data
@@ -364,10 +366,10 @@ func TestReportsService_GenerateVisualizationData_AliasCollision(t *testing.T) {
 		t.Fatalf("Failed to load metadata into cache: %v", err)
 	}
 
-	// 3. Define messages using specific email IDs.
+	// 3. Define messages using resolved display names.
 	messages := []store.ConsolidatedMessage{
-		{Requester: "alice.a@whatap.io", Assignee: "charlie@whatap.io"},
-		{Requester: "alice.b@whatap.io", Assignee: "charlie@whatap.io"},
+		{Requester: "Alice", Assignee: "Charlie", RequesterCanonical: "alice.a@whatap.io", AssigneeCanonical: "charlie@whatap.io", RequesterType: "internal", AssigneeType: "internal"},
+		{Requester: "Alice", Assignee: "Charlie", RequesterCanonical: "alice.b@whatap.io", AssigneeCanonical: "charlie@whatap.io", RequesterType: "internal", AssigneeType: "internal"},
 	}
 
 	// 4. Generate graph data.
@@ -428,7 +430,7 @@ func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) 
 
 	// 3. Define a message using the alias.
 	messages := []store.ConsolidatedMessage{
-		{Requester: "Song", Assignee: "someone-else@whatap.io"},
+		{Requester: "Song", Assignee: "someone-else@whatap.io", RequesterCanonical: "song", AssigneeCanonical: "someone-else@whatap.io", RequesterType: "none", AssigneeType: "internal"},
 	}
 
 	// 4. Generate graph data for Tenant A and assert that Tenant B's alias was NOT applied.
@@ -479,9 +481,14 @@ func TestReportsService_GenerateReport_MultiLanguage(t *testing.T) {
 	endDate := "2026-03-29"
 	fixedTime, _ := time.Parse("2006-01-02 15:04:05", "2026-03-29 10:00:00")
 
-	// Pre-seed some messages
+	// Pre-seed some messages and contacts
+	_, _ = store.GetDB().Exec("INSERT INTO contacts (tenant_email, canonical_id, display_name, contact_type) VALUES (?, ?, ?, ?)",
+		tenantEmail, "alice", "Alice", "customer")
+	_, _ = store.GetDB().Exec("INSERT INTO contacts (tenant_email, canonical_id, display_name, contact_type) VALUES (?, ?, ?, ?)",
+		tenantEmail, "jj", "JJ", "internal")
+
 	_, err = store.GetDB().Exec("INSERT INTO messages (user_email, source, task, created_at, requester, assignee) VALUES (?, ?, ?, ?, ?, ?)",
-		tenantEmail, "slack", "Task 1", fixedTime, "Alice", "JJ")
+		tenantEmail, "slack", "Task 1", fixedTime, "alice", "jj")
 	if err != nil {
 		t.Fatalf("Failed to seed message: %v", err)
 	}
@@ -538,8 +545,13 @@ func TestReportsService_CacheHit(t *testing.T) {
 
 	// Pre-seed a message to avoid "no content" error if any
 	fixedTime, _ := time.Parse("2006-01-02", start)
+	_, _ = store.GetDB().Exec("INSERT INTO contacts (tenant_email, canonical_id, display_name, contact_type) VALUES (?, ?, ?, ?)",
+		email, "alice", "Alice", "customer")
+	_, _ = store.GetDB().Exec("INSERT INTO contacts (tenant_email, canonical_id, display_name, contact_type) VALUES (?, ?, ?, ?)",
+		email, "jj", "JJ", "internal")
+
 	_, _ = store.GetDB().Exec("INSERT INTO messages (user_email, source, task, created_at, requester, assignee) VALUES (?, ?, ?, ?, ?, ?)",
-		email, "slack", "Task 1", fixedTime, "Alice", "JJ")
+		email, "slack", "Task 1", fixedTime, "alice", "jj")
 
 	// 1. First Call: Should hit AI
 	ctx := context.Background()
@@ -578,8 +590,13 @@ func TestReportsService_GenerateReport_OnlyRequestedLanguage(t *testing.T) {
 	start := "2026-04-01"
 	// Pre-seed message
 	fixedTime, _ := time.Parse("2006-01-02", start)
+	_, _ = store.GetDB().Exec("INSERT INTO contacts (tenant_email, canonical_id, display_name, contact_type) VALUES (?, ?, ?, ?)",
+		email, "alice", "Alice", "customer")
+	_, _ = store.GetDB().Exec("INSERT INTO contacts (tenant_email, canonical_id, display_name, contact_type) VALUES (?, ?, ?, ?)",
+		email, "jj", "JJ", "internal")
+
 	_, _ = store.GetDB().Exec("INSERT INTO messages (user_email, source, task, created_at, requester, assignee) VALUES (?, ?, ?, ?, ?, ?)",
-		email, "slack", "Task 1", fixedTime, "Alice", "JJ")
+		email, "slack", "Task 1", fixedTime, "alice", "jj")
 
 	ctx := context.Background()
 	report, err := svc.GenerateReport(ctx, email, start, start, "ko")

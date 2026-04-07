@@ -97,6 +97,8 @@ func runMigrations() error {
 	_, _ = db.Exec(SQL.MigrateTaskTranslationsAddLanguageCode)
 	_, _ = db.Exec(SQL.MigrateReportTranslationsAddLanguageCode)
 
+	_, _ = db.Exec(SQL.MigrateContactsDropLegacyAliases)
+
 	migrateExistingData()
 	// Why: Views are essential for report generation and message resolution.
 	// Moving them here ensures they are always recreated/updated on every startup.

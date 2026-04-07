@@ -83,6 +83,9 @@ func TestLinkContact(t *testing.T) {
 		// rootID <- masterID 상태 (위의 flattening 테스트 결과)
 		// masterID를 master로 하고 rootID를 자식으로 연결 시도 (역방향)
 		rootID, _ := GetContactByIdentifier(context.Background(), tenantEmail, "root@boss.com")
+		if rootID == nil {
+			t.Fatalf("Failed to resolve root@boss.com")
+		}
 		
 		err := LinkContact(context.Background(), tenantEmail, masterID, rootID.ID)
 		if err == nil {

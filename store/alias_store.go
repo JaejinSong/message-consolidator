@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 )
 
 func NormalizeName(tenantEmail, name string) string {
@@ -28,40 +29,22 @@ func NormalizeName(tenantEmail, name string) string {
 		return tenantEmail
 	}
 
-	// Phase 1: SSOT Contact mapping
-	if mappings, ok := contactsCache[tenantEmail]; ok {
-		var matches []ContactRecord
-		for _, m := range mappings {
-			matchFound := false
-			if strings.ToLower(m.DisplayName) == nameLower || strings.ToLower(m.CanonicalID) == nameLower {
-				matchFound = true
-			} else {
-				parts := strings.Split(m.Aliases, ",")
-				for _, p := range parts {
-					if strings.ToLower(strings.TrimSpace(p)) == nameLower {
-						matchFound = true
-						break
-					}
-				}
-			}
-			if matchFound {
-				matches = append(matches, m)
-			}
-		}
+	// Phase 1: Identity-X Resolution (DSU-based)
+	// Why: Performs transitive lookup (A=B, B=C => A=C) via the Disjoint-Set Union.
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
 
-		if len(matches) > 1 {
-			// Check for different canonical IDs
-			firstID := matches[0].CanonicalID
-			for i := 1; i < len(matches); i++ {
-				if matches[i].CanonicalID != firstID {
-					// 💡 Ambiguity Safeguard: Multiple owners found. Return original to avoid mis-identification.
-					return name
-				}
-			}
-			return matches[0].DisplayName
-		}
-		if len(matches) == 1 {
-			return matches[0].DisplayName
+	// Try as email first, then name
+	idType := "email"
+	if !strings.Contains(nameLower, "@") {
+		idType = "name"
+	}
+
+	if canonicalID, err := ResolveAlias(ctx, idType, nameLower); err == nil && canonicalID > 0 {
+		// Fetch the display name of the canonical master
+		var displayName string
+		if err := db.QueryRow("SELECT display_name FROM contacts WHERE id = ? AND (tenant_email = ? OR tenant_email = 'all')", int64(canonicalID), tenantEmail).Scan(&displayName); err == nil {
+			return displayName
 		}
 	}
 
@@ -83,107 +66,100 @@ func NormalizeWithCategory(tenantEmail, rawName string) (string, string, string)
 	metadataMu.RLock()
 	defer metadataMu.RUnlock()
 
-	// Pre-processing: Remove existing (Internal) or (External) suffixes to prevent "Name (External) (External)"
-	cleanName := strings.TrimSpace(rawName)
-	cleanName = strings.TrimSuffix(cleanName, " (Internal)")
-	cleanName = strings.TrimSuffix(cleanName, " (External)")
+	cleanName := cleanRawName(rawName)
+	contact, found := resolveContactIdentity(tenantEmail, cleanName)
 
-	nameLower := strings.ToLower(cleanName)
 	resolvedName := cleanName
 	foundEmail := ""
+	contactType := "none"
 
-	// 1. Check SSOT Contacts (Highest Priority)
-	lookupTenants := []string{tenantEmail, "all"}
-	var matches []ContactRecord
-	for _, t := range lookupTenants {
-		if mappings, ok := contactsCache[t]; ok {
-			for _, m := range mappings {
-				isMatch := (nameLower == strings.ToLower(m.DisplayName) || nameLower == strings.ToLower(m.CanonicalID))
-				aliasParts := strings.Split(m.Aliases, ",")
-				if !isMatch {
-					for _, p := range aliasParts {
-						if nameLower == strings.ToLower(strings.TrimSpace(p)) {
-							isMatch = true
-							break
-						}
-					}
-				}
-
-				if isMatch {
-					matches = append(matches, m)
-				}
-			}
-		}
+	if found {
+		resolvedName = contact.DisplayName
+		foundEmail = contact.CanonicalID
+		contactType = contact.ContactType
 	}
 
-	if len(matches) > 0 {
-		// Check for identity conflict
-		firstID := matches[0].CanonicalID
-		isAmbiguous := false
-		for i := 1; i < len(matches); i++ {
-			if matches[i].CanonicalID != firstID {
-				isAmbiguous = true
-				break
-			}
-		}
-
-		if isAmbiguous {
-			// Ambiguous match: Treat as unknown external to prevent data contamination.
-			return nameLower, cleanName, "External"
-		}
-
-		// Single identity (possibly multiple records correctly pointing to the same person)
-		m := matches[0]
-		resolvedName = m.DisplayName
-		foundEmail = m.CanonicalID
-
-		// Refinement: Preference for @whatap.io alias if available
-		aliasParts := strings.Split(m.Aliases, ",")
-		for _, p := range aliasParts {
-			part := strings.TrimSpace(p)
-			if strings.HasSuffix(strings.ToLower(part), "@whatap.io") {
-				foundEmail = part
-				break
-			}
-		}
-		goto MatchFound
-	}
-
-MatchFound:
 	// 2. Check System Users (userCache) - Fallback or Refinement
-	// Even if matched in contacts, we check if the resolvedName points to a known user to get a real email.
-	if u, ok := userCache[strings.ToLower(resolvedName)]; ok {
-		resolvedName = u.Name
-		foundEmail = u.Email
-	} else {
-		for _, u := range userCache {
-			if strings.EqualFold(u.Name, resolvedName) || strings.EqualFold(u.Email, resolvedName) {
-				resolvedName = u.Name
-				foundEmail = u.Email
-				break
-			}
+	uName, uEmail, uFound := resolveSystemUser(resolvedName)
+	if uFound {
+		resolvedName = uName
+		foundEmail = uEmail
+		if contactType == "none" {
+			contactType = "internal"
 		}
 	}
 
-	// 3. Final Identity and Category Determination
-	finalID := nameLower
+	return finalizeCategory(tenantEmail, cleanName, resolvedName, foundEmail, contactType)
+}
+
+func cleanRawName(rawName string) string {
+	cleanName := strings.TrimSpace(rawName)
+	cleanName = strings.TrimSuffix(cleanName, " (Internal)")
+	return strings.TrimSuffix(cleanName, " (External)")
+}
+
+func resolveContactIdentity(tenantEmail, name string) (ContactRecord, bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	nameLower := strings.ToLower(name)
+	idType := "name"
+	if strings.Contains(nameLower, "@") {
+		idType = "email"
+	}
+
+	if id, err := ResolveAlias(ctx, idType, nameLower); err == nil && id > 0 {
+		var m ContactRecord
+		query := "SELECT id, canonical_id, display_name, contact_type FROM contacts WHERE id = ? AND (tenant_email = ? OR tenant_email = 'all')"
+		if err := db.QueryRow(query, int64(id), tenantEmail).Scan(&m.ID, &m.CanonicalID, &m.DisplayName, &m.ContactType); err == nil {
+			return m, true
+		}
+	}
+	return ContactRecord{}, false
+}
+
+func resolveSystemUser(name string) (string, string, bool) {
+	nameLower := strings.ToLower(name)
+	if u, ok := userCache[nameLower]; ok {
+		return u.Name, u.Email, true
+	}
+	for _, u := range userCache {
+		if strings.EqualFold(u.Name, name) || strings.EqualFold(u.Email, name) {
+			return u.Name, u.Email, true
+		}
+	}
+	return "", "", false
+}
+
+func finalizeCategory(tenantEmail, cleanName, resolvedName, foundEmail, contactType string) (string, string, string) {
+	finalID := strings.ToLower(cleanName)
 	if foundEmail != "" {
 		finalID = strings.ToLower(foundEmail)
-	} else if strings.Contains(nameLower, "@") {
-		finalID = nameLower
 	}
 
-	category := "External"
-	if strings.HasSuffix(finalID, "@whatap.io") || finalID == strings.ToLower(tenantEmail) {
-		category = "Internal"
-	}
+	category := mapContactType(contactType, finalID, tenantEmail)
 
 	displayResult := resolvedName
-	if category == "External" {
+	if category != "Internal" {
 		displayResult = NormalizeContactName(tenantEmail, resolvedName)
 	}
 
 	return finalID, displayResult, category
+}
+
+func mapContactType(contactType, finalID, tenantEmail string) string {
+	switch contactType {
+	case "internal":
+		return "Internal"
+	case "partner":
+		return "Partner"
+	case "customer":
+		return "Customer"
+	}
+	if finalID == strings.ToLower(tenantEmail) {
+		return "Internal"
+	}
+	return "External"
 }
 
 func GetTenantAliases(email string) (map[string]string, error) {
@@ -219,7 +195,18 @@ func GetUserAliases(userID int) ([]string, error) {
 	if mappings, ok := contactsCache[email]; ok {
 		for _, m := range mappings {
 			if m.CanonicalID == email {
-				return strings.Split(m.Aliases, ","), nil
+				var aliases []string
+				rows, err := db.Query("SELECT value FROM contact_aliases WHERE contact_id = ?", m.ID)
+				if err == nil {
+					defer rows.Close()
+					for rows.Next() {
+						var a string
+						if err := rows.Scan(&a); err == nil {
+							aliases = append(aliases, a)
+						}
+					}
+				}
+				return aliases, nil
 			}
 		}
 	}
@@ -282,20 +269,13 @@ func AddUserAlias(ctx context.Context, userID int, alias string) error {
 func AddTenantAlias(ctx context.Context, tenantEmail, original, primary string) error {
 	parts := strings.Split(original, ",")
 	bestID := strings.TrimSpace(parts[0])
-	for _, p := range parts {
-		trimmed := strings.TrimSpace(p)
-		if strings.HasSuffix(strings.ToLower(trimmed), "@whatap.io") {
-			bestID = trimmed
-			break
-		}
-	}
 	return AddContactMapping(ctx, tenantEmail, strings.ToLower(bestID), primary, original, "legacy")
 }
 
 // DeleteUserAlias removes an alias for a user from the user_aliases table and updates the cache.
 func DeleteUserAlias(ctx context.Context, userID int, alias string) error {
 	trimmed := strings.TrimSpace(alias)
-	
+
 	// 1. Update Database
 	_, err := db.ExecContext(ctx, SQL.DeleteUserAlias, userID, trimmed)
 	if err != nil {
@@ -322,13 +302,6 @@ func DeleteUserAlias(ctx context.Context, userID int, alias string) error {
 func DeleteTenantAlias(ctx context.Context, tenantEmail, original string) error {
 	parts := strings.Split(original, ",")
 	bestID := strings.TrimSpace(parts[0])
-	for _, p := range parts {
-		trimmed := strings.TrimSpace(p)
-		if strings.HasSuffix(strings.ToLower(trimmed), "@whatap.io") {
-			bestID = trimmed
-			break
-		}
-	}
 	return DeleteContactMapping(ctx, tenantEmail, strings.ToLower(bestID))
 }
 

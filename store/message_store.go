@@ -559,7 +559,7 @@ func scanContextTaskRow(rows *sql.Rows) (ConsolidatedMessage, error) {
 
 // CategorizeByUser groups a slice of messages into dashboard categories.
 // Why: [SSOT] Unifies backend and frontend filtering logic into a single Go implementation.
-func CategorizeByUser(msgs []ConsolidatedMessage, userName string, aliases []string) CategorizedMessages {
+func CategorizeByUser(msgs []ConsolidatedMessage, userEmail string, aliases []string) CategorizedMessages {
 	res := CategorizedMessages{
 		Inbox:   make([]ConsolidatedMessage, 0),
 		Pending: make([]ConsolidatedMessage, 0),
@@ -569,7 +569,7 @@ func CategorizeByUser(msgs []ConsolidatedMessage, userName string, aliases []str
 	for _, m := range msgs {
 		if m.Category == "waiting" {
 			res.Waiting = append(res.Waiting, m)
-		} else if IsAssignedToUser(m.Assignee, userName, aliases) {
+		} else if IsAssignedToUser(m, userEmail, aliases) {
 			res.Inbox = append(res.Inbox, m)
 		} else {
 			res.Pending = append(res.Pending, m)
@@ -578,8 +578,15 @@ func CategorizeByUser(msgs []ConsolidatedMessage, userName string, aliases []str
 	return res
 }
 
-func IsAssignedToUser(assignee, name string, aliases []string) bool {
-	if assignee == "me" || strings.EqualFold(assignee, name) {
+func IsAssignedToUser(m ConsolidatedMessage, userEmail string, aliases []string) bool {
+	// 1. Check Canonical ID (IDP SSOT)
+	if strings.EqualFold(m.AssigneeCanonical, userEmail) {
+		return true
+	}
+
+	// 2. Check Raw Assignee (Legacy/Fallback)
+	assignee := m.Assignee
+	if assignee == "me" || strings.EqualFold(assignee, userEmail) {
 		return true
 	}
 	for _, a := range aliases {

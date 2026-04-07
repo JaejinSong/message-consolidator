@@ -18,6 +18,45 @@ function createSVGElement(tag: string, attrs: Record<string, string | number>): 
 }
 
 /**
+ * Tooltip Helpers
+ */
+function showTooltip(e: MouseEvent, content: string) {
+    let tooltip = document.getElementById('report-tooltip');
+    if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.id = 'report-tooltip';
+        tooltip.className = 'c-insights-tooltip';
+        tooltip.style.position = 'absolute';
+        tooltip.style.pointerEvents = 'none';
+        tooltip.style.zIndex = '9999';
+        tooltip.style.background = 'var(--bg-color, #333)';
+        tooltip.style.color = 'var(--text-color, #fff)';
+        tooltip.style.padding = '8px 12px';
+        tooltip.style.borderRadius = '4px';
+        tooltip.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+        tooltip.style.fontSize = '12px';
+        tooltip.style.whiteSpace = 'nowrap';
+        document.body.appendChild(tooltip);
+    }
+    tooltip.innerHTML = content;
+    tooltip.style.left = `${e.pageX + 15}px`;
+    tooltip.style.top = `${e.pageY + 15}px`;
+    tooltip.style.display = 'block';
+}
+
+function hideTooltip() {
+    const tooltip = document.getElementById('report-tooltip');
+    if (tooltip) {
+        tooltip.style.display = 'none';
+    }
+}
+
+function getNodeName(nodes: any[], id: string) {
+    const n = nodes.find(n => n.id === id);
+    return n ? (n.name || n.id) : id;
+}
+
+/**
  * Calculates coordinates for a circular layout.
  */
 function calculateCircularLayout(nodes: any[], centerX: number, centerY: number, radius: number) {
@@ -41,27 +80,89 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 400;
     const svg = createSVGElement('svg', { width: '100%', height: '100%', viewBox: `0 0 ${width} ${height}` });
-    const coords = calculateCircularLayout(nodes, width / 2, height / 2, Math.min(width, height) / 2 - 40);
+    const coords = calculateCircularLayout(nodes, width / 2, height / 2, Math.min(width, height) / 2 - 60);
+
+    // 노드(사용자)의 value 값이 없을 경우 선(연결)의 합산 가중치로 계산
+    nodes.forEach(n => {
+        if (n.value === undefined) {
+            n.value = links.reduce((sum, l) => sum + (l.source === n.id || l.target === n.id ? (l.value || 1) : 0), 0);
+        }
+    });
+
+    const nodeShapes = new Map<string, SVGElement>();
 
     links.forEach(l => {
         const s = coords.get(l.source);
         const t = coords.get(l.target);
         if (s && t) {
-            svg.appendChild(createSVGElement('line', {
+            const sourceName = getNodeName(nodes, l.source);
+            const targetName = getNodeName(nodes, l.target);
+            const line = createSVGElement('line', {
                 x1: s.x, y1: s.y, x2: t.x, y2: t.y,
                 class: 'c-report-viz__link',
-                'stroke-width': Math.sqrt(l.value || 1)
-            }));
+                'stroke-width': Math.max(1, (l.value || 1) * 2),
+                stroke: 'var(--color-primary, #888)',
+                opacity: '0.4'
+            });
+            line.addEventListener('mousemove', (e: Event) => showTooltip(e as MouseEvent, `<b>${sourceName} ↔ ${targetName}</b><br/>연결 강도: ${l.value || 1}`));
+            line.addEventListener('mouseenter', () => {
+                line.setAttribute('opacity', '1');
+                line.setAttribute('stroke', 'var(--color-warning, #ffc107)');
+                const sNode = nodeShapes.get(l.source);
+                const tNode = nodeShapes.get(l.target);
+                if (sNode) { sNode.setAttribute('stroke', 'var(--color-warning, #ffc107)'); sNode.setAttribute('stroke-width', '3'); }
+                if (tNode) { tNode.setAttribute('stroke', 'var(--color-warning, #ffc107)'); tNode.setAttribute('stroke-width', '3'); }
+            });
+            line.addEventListener('mouseout', () => {
+                hideTooltip();
+                line.setAttribute('opacity', '0.4');
+                line.setAttribute('stroke', 'var(--color-primary, #888)');
+                const sNode = nodeShapes.get(l.source);
+                const tNode = nodeShapes.get(l.target);
+                if (sNode) { sNode.removeAttribute('stroke'); sNode.removeAttribute('stroke-width'); }
+                if (tNode) { tNode.removeAttribute('stroke'); tNode.removeAttribute('stroke-width'); }
+            });
+            svg.appendChild(line);
         }
     });
 
     nodes.forEach(n => {
         const p = coords.get(n.id);
         if (p) {
-            svg.appendChild(createSVGElement('circle', {
-                cx: p.x, cy: p.y, r: 6,
-                class: `c-report-viz__node ${n.is_me ? 'c-report-viz__node--me' : ''}`
-            }));
+            const radius = Math.max(6, 4 + Math.sqrt(n.value || 1) * 3);
+            const g = createSVGElement('g', { class: 'c-report-viz__node-group' });
+
+            const circle = createSVGElement('circle', {
+                cx: p.x, cy: p.y, r: radius,
+                class: `c-report-viz__node ${n.is_me ? 'c-report-viz__node--me' : ''}`,
+                fill: n.is_me ? 'var(--color-primary, #007bff)' : 'var(--color-secondary, #6c757d)'
+            });
+
+            nodeShapes.set(n.id, circle);
+
+            g.addEventListener('mousemove', (e: Event) => showTooltip(e as MouseEvent, `<b>${n.name || n.id}</b><br/>총 업무 관여: ${n.value}`));
+            g.addEventListener('mouseenter', () => {
+                circle.setAttribute('stroke', 'var(--color-warning, #ffc107)');
+                circle.setAttribute('stroke-width', '3');
+            });
+            g.addEventListener('mouseout', () => {
+                hideTooltip();
+                circle.removeAttribute('stroke');
+                circle.removeAttribute('stroke-width');
+            });
+            g.appendChild(circle);
+
+            const text = createSVGElement('text', {
+                x: p.x, y: p.y + radius + 14,
+                'text-anchor': 'middle',
+                fill: 'var(--text-color, currentColor)',
+                'font-size': '12px',
+                'font-weight': n.is_me ? 'bold' : 'normal'
+            });
+            text.textContent = n.name || n.id;
+            g.appendChild(text);
+
+            svg.appendChild(g);
         }
     });
     container.appendChild(svg);
@@ -74,24 +175,133 @@ function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): vo
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 400;
     const svg = createSVGElement('svg', { width: '100%', height: '100%', viewBox: `0 0 ${width} ${height}` });
-    
+
+    // 노드(사용자)의 value 값이 없을 경우 선(연결)의 합산 가중치로 계산
+    nodes.forEach(n => {
+        if (n.value === undefined) {
+            n.value = links.reduce((sum, l) => sum + (l.source === n.id || l.target === n.id ? (l.value || 1) : 0), 0);
+        }
+    });
+
     const sources = nodes.filter(n => links.some(l => l.source === n.id));
     const targets = nodes.filter(n => links.some(l => l.target === n.id && !sources.includes(n)));
 
-    const sCoords = calculateColumnLayout(sources, 80, height);
-    const tCoords = calculateColumnLayout(targets, width - 80, height);
+    const sCoords = calculateColumnLayout(sources, 120, height);
+    const tCoords = calculateColumnLayout(targets, width - 120, height);
+
+    const nodeShapes = new Map<string, SVGElement>();
 
     links.forEach(l => {
         const s = sCoords.get(l.source);
         const t = tCoords.get(l.target);
         if (!s || !t) return;
+        const strokeWidth = Math.max(2, (l.value || 1) * 2);
         const d = `M ${s.x} ${s.y} C ${(s.x + t.x) / 2} ${s.y}, ${(s.x + t.x) / 2} ${t.y}, ${t.x} ${t.y}`;
-        svg.appendChild(createSVGElement('path', { d, class: 'c-report-viz__link', fill: 'none', 'stroke-width': Math.max(2, l.value / 2) }));
+        const sourceName = getNodeName(nodes, l.source);
+        const targetName = getNodeName(nodes, l.target);
+        const path = createSVGElement('path', {
+            d,
+            class: 'c-report-viz__link',
+            fill: 'none',
+            'stroke-width': strokeWidth,
+            stroke: 'var(--color-primary, #888)',
+            opacity: '0.4'
+        });
+        path.addEventListener('mousemove', (e: Event) => showTooltip(e as MouseEvent, `<b>${sourceName} → ${targetName}</b><br/>흐름 강도: ${l.value || 1}`));
+        path.addEventListener('mouseenter', () => {
+            path.setAttribute('opacity', '1');
+            path.setAttribute('stroke', 'var(--color-warning, #ffc107)');
+            const sNode = nodeShapes.get(l.source);
+            const tNode = nodeShapes.get(l.target);
+            if (sNode) { sNode.setAttribute('stroke', 'var(--color-warning, #ffc107)'); sNode.setAttribute('stroke-width', '3'); }
+            if (tNode) { tNode.setAttribute('stroke', 'var(--color-warning, #ffc107)'); tNode.setAttribute('stroke-width', '3'); }
+        });
+        path.addEventListener('mouseout', () => {
+            hideTooltip();
+            path.setAttribute('opacity', '0.4');
+            path.setAttribute('stroke', 'var(--color-primary, #888)');
+            const sNode = nodeShapes.get(l.source);
+            const tNode = nodeShapes.get(l.target);
+            if (sNode) { sNode.removeAttribute('stroke'); sNode.removeAttribute('stroke-width'); }
+            if (tNode) { tNode.removeAttribute('stroke'); tNode.removeAttribute('stroke-width'); }
+        });
+        svg.appendChild(path);
     });
 
-    [...sCoords.values(), ...tCoords.values()].forEach(p => {
-        svg.appendChild(createSVGElement('rect', { x: p.x - 4, y: p.y - 15, width: 8, height: 30, class: 'c-report-viz__node', rx: 2 }));
+    [...sCoords.values()].forEach((p, i) => {
+        const n = sources[i];
+        const h = Math.max(16, 10 + Math.sqrt(n.value || 1) * 4);
+        const g = createSVGElement('g', { class: 'c-report-viz__node-group' });
+
+        const rect = createSVGElement('rect', {
+            x: p.x - 4, y: p.y - h / 2, width: 8, height: h,
+            class: 'c-report-viz__node', rx: 2,
+            fill: n.is_me ? 'var(--color-primary, #007bff)' : 'var(--color-secondary, #6c757d)'
+        });
+
+        nodeShapes.set(n.id, rect);
+
+        g.addEventListener('mousemove', (e: Event) => showTooltip(e as MouseEvent, `<b>${n.name || n.id}</b><br/>총 업무 관여: ${n.value}`));
+        g.addEventListener('mouseenter', () => {
+            rect.setAttribute('stroke', 'var(--color-warning, #ffc107)');
+            rect.setAttribute('stroke-width', '3');
+        });
+        g.addEventListener('mouseout', () => {
+            hideTooltip();
+            rect.removeAttribute('stroke');
+            rect.removeAttribute('stroke-width');
+        });
+        g.appendChild(rect);
+
+        const text = createSVGElement('text', {
+            x: p.x - 12, y: p.y + 4,
+            'text-anchor': 'end',
+            fill: 'var(--text-color, currentColor)',
+            'font-size': '12px',
+            'font-weight': n.is_me ? 'bold' : 'normal'
+        });
+        text.textContent = n.name || n.id;
+        g.appendChild(text);
+        svg.appendChild(g);
     });
+
+    [...tCoords.values()].forEach((p, i) => {
+        const n = targets[i];
+        const h = Math.max(16, 10 + Math.sqrt(n.value || 1) * 4);
+        const g = createSVGElement('g', { class: 'c-report-viz__node-group' });
+
+        const rect = createSVGElement('rect', {
+            x: p.x - 4, y: p.y - h / 2, width: 8, height: h,
+            class: 'c-report-viz__node', rx: 2,
+            fill: n.is_me ? 'var(--color-primary, #007bff)' : 'var(--color-secondary, #6c757d)'
+        });
+
+        nodeShapes.set(n.id, rect);
+
+        g.addEventListener('mousemove', (e: Event) => showTooltip(e as MouseEvent, `<b>${n.name || n.id}</b><br/>총 업무 관여: ${n.value}`));
+        g.addEventListener('mouseenter', () => {
+            rect.setAttribute('stroke', 'var(--color-warning, #ffc107)');
+            rect.setAttribute('stroke-width', '3');
+        });
+        g.addEventListener('mouseout', () => {
+            hideTooltip();
+            rect.removeAttribute('stroke');
+            rect.removeAttribute('stroke-width');
+        });
+        g.appendChild(rect);
+
+        const text = createSVGElement('text', {
+            x: p.x + 12, y: p.y + 4,
+            'text-anchor': 'start',
+            fill: 'var(--text-color, currentColor)',
+            'font-size': '12px',
+            'font-weight': n.is_me ? 'bold' : 'normal'
+        });
+        text.textContent = n.name || n.id;
+        g.appendChild(text);
+        svg.appendChild(g);
+    });
+
     container.appendChild(svg);
 }
 
@@ -135,9 +345,9 @@ export const reportsRenderer = {
 
         // Field mapping: support translations first, then 'summary', then legacy 'report_summary'
         const summaryText = report.translations?.[lang] || report.summary || report.report_summary || "";
-        
+
         if (summaryArea) summaryArea.innerHTML = parseMarkdown(summaryText);
-        
+
         // Headers/Labels
         const summaryTitle = document.querySelector('.c-report-summary-title');
         if (summaryTitle) summaryTitle.textContent = i18n.reportSummaryTitle || '주간 업무 요약';
@@ -149,7 +359,7 @@ export const reportsRenderer = {
         // Field mapping: support both 'visualization' and legacy 'visualization_data'
         const vizRaw = report.visualization || report.visualization_data;
         let viz: ParsedVisualization;
-        
+
         try {
             if (typeof vizRaw === 'string' && vizRaw.trim()) {
                 viz = JSON.parse(vizRaw);

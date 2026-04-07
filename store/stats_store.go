@@ -117,6 +117,31 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		_ = db.QueryRow(SQL.GetWaitingTasks, email).Scan(&stats.WaitingTasks)
 	}()
 
+	// Contact Type specific counts (Internal/Partner/Customer/None)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = db.QueryRow(SQL.GetInternalTaskCount, email).Scan(&stats.InternalTaskCount)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = db.QueryRow(SQL.GetPartnerTaskCount, email).Scan(&stats.PartnerTaskCount)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = db.QueryRow(SQL.GetCustomerTaskCount, email).Scan(&stats.CustomerTaskCount)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = db.QueryRow(SQL.GetExternalTaskCount, email).Scan(&stats.ExternalTaskCount)
+	}()
+
 	//Why: Calculates the distribution of tasks across different communication sources (Active & Total).
 	wg.Add(1)
 	go func() {

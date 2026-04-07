@@ -1,0 +1,11 @@
+QUERY PLAN
+|--MATERIALIZE v_contacts_resolved
+|  |--SCAN c
+|  `--SEARCH m USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+|--MATERIALIZE v_contacts_resolved
+|  |--SCAN c
+|  `--SEARCH m USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+|--SEARCH m USING INDEX idx_user_ts (user_email=?)
+|--SEARCH cr_req USING AUTOMATIC COVERING INDEX (original_canonical_id=? AND tenant_email=?) LEFT-JOIN
+|--SEARCH cr_asg USING AUTOMATIC COVERING INDEX (original_canonical_id=? AND tenant_email=?) LEFT-JOIN
+`--USE TEMP B-TREE FOR ORDER BY

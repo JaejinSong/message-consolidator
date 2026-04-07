@@ -2,7 +2,6 @@ package store
 
 import (
 	"message-consolidator/internal/testutil"
-	"strings"
 	"testing"
 )
 
@@ -59,18 +58,13 @@ func TestAutoUpsertContact(t *testing.T) {
 		t.Errorf("Update failed: Expected User 1, got %s", name)
 	}
 
-	// Check aliases merged
-	metadataMu.RLock()
-	var aliases string
-	for _, m := range contactsCache[tenant] {
-		if m.CanonicalID == email {
-			aliases = m.Aliases
-			break
-		}
+	// Check aliases merged in DB
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM contact_aliases WHERE contact_id = (SELECT id FROM contacts WHERE canonical_id = ?)", email).Scan(&count)
+	if err != nil {
+		t.Fatalf("Failed to query aliases: %v", err)
 	}
-	metadataMu.RUnlock()
-
-	if !strings.Contains(aliases, "User One") || !strings.Contains(aliases, "User 1") {
-		t.Errorf("Aliases merge failed: got %s", aliases)
+	if count == 0 {
+		t.Errorf("Aliases merge failed: no aliases found in contact_aliases table")
 	}
 }

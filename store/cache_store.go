@@ -54,6 +54,7 @@ func ResetForTest() {
 	dirtyScanKeys = make(map[string]bool)
 	tokenCache = make(map[string]string)
 	contactsCache = make(map[string][]ContactRecord)
+	GlobalContactDSU.Reset()
 
 	archiveMu.Lock()
 	lastArchiveTime = time.Time{}

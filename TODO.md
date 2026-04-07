@@ -3,10 +3,21 @@
 ## 1. 진행 예정 사항 (Planned)
 - [ ] **[Auth]** JWT 기반 인증 확장 및 세션 관리 개선
 - [ ] **[UI/UX]** 태스크 필터링 UI 고도화 (날짜 범위, 채널별 필터)
-
-## 2. 기술 부채 (Tech Debt) & 개선 필요 사항
-- [ ] **[Refactor]** 백엔드 에러 핸들링 통일 (커스텀 에러 타입 도입)
-- [ ] **[WhatsApp]** 시스템 메시지 필터링 정교화 (현재 `StubType`, `ProtocolMessage` 광범위 차단 중. 향후 "그룹 이름 변경"이나 "참여자 초대/강퇴" 알림 활용 필요 시 필터링 완화 검토)
+- [ ] **[Contact]** **Contact Type & Domain Classification UI**
+  - [ ] Backend (Go): 이메일 도메인(예: `@whatap.io` -> `internal`)을 카테고리에 자동 매핑하는 도메인 룰(Rule) CRUD API (`/api/settings/domain-rules`) 구현
+  - [ ] Backend (Go): 개별 연락처의 `contact_type`을 수동으로 덮어쓰는(Override) API (`PUT /api/contacts/{id}/type`) 구현
+  - [ ] Frontend (Vanilla TS): Settings 탭 내부에 'Domain Classification Rules' 관리 패널 컴포넌트 추가
+  - [ ] Frontend (Vanilla TS): 대시보드 및 연락처 리스트에 `contact_type`을 변경할 수 있는 Select UI 및 시각적 뱃지(Badge) 렌더링
+  - [ ] CSS: BEM 기반의 `.c-badge--internal`, `.c-badge--partner`, `.c-badge--customer` 상태 수식어(Modifier) 클래스 정의 (하드코딩 배제, `rem` 및 `var(--color-...)` 토큰 사용)
+- [ ] **[Identity-X]** **Identity Merge History & Rollback UI 구현**
+  - [ ] Backend (Go): `identity_merge_history` 테이블 기반의 병합 이력 조회 API (`GET /api/identities/history`) 작성
+  - [ ] Backend (Go): DSU(Union-Find) 상태를 이전으로 되돌리고 히스토리를 업데이트하는 롤백 API (`POST /api/identities/rollback`) 작성 (단일 함수 30라인 이하, 명시적 정수형 변환 규칙 적용)
+  - [ ] Frontend (Vanilla TS): Merge UI 컴포넌트에 'History' 탭 추가 및 과거 이력 Diff 카드 렌더링
+  - [ ] Frontend (Vanilla TS): 롤백(Undo) 이벤트 위임 처리 및 낙관적 UI 업데이트 적용
+  - [ ] CSS: BEM 기반의 `.merge-history-list` 등 신규 스타일 정의 (하드코딩 px/hex 금지, rem 단위 및 변수 사용)
+- [ ] **[Insights]** **Sankey/Classification Visualization 분리 노출**
+  - [ ] 'partner'와 'customer' 노드를 'External'로 묶지 않고 각각 전용 색상 및 카테고리로 차트에서 개별 렌더링하도록 프론트엔드 logic.ts 수정
+  - [ ] 대시보드 통계 카드에서도 Internal / Partner / Customer 비중을 분리해서 표시
 
 ## 3. 완료 사항 (Completed)
 - [x] **[Infra]** WhaTap 전용 빌더 이미지 도입 및 BE 빌드 속도 최적화 (v2.4.22)

@@ -33,6 +33,19 @@ var SQL = struct {
 	CreateMessagesView string
 	CreateUsersView    string
 
+	//Why: Identity-X resolution queries.
+	CreateContactAliasesTable         string
+	CreateIdentityMergeHistoryTable   string
+	CreateIdentityMergeCandidatesTable string
+	MigrateLegacyAliases              string
+	AddContactAlias                   string
+	GetContactAliases                 string
+	FindContactByAlias                string
+	GetMergeCandidates                string
+	UpdateMergeCandidateStatus         string
+	InsertMergeHistory                string
+	MigrateContactsDropLegacyAliases  string
+
 	//Why: Groups SQL queries for message-related operations.
 	SaveMessage                  string
 	SaveMessagesBase             string
@@ -81,9 +94,10 @@ var SQL = struct {
 	DeleteGmailToken     string
 
 	//Why: Groups SQL queries for contact and mapping management.
-	AddContactMapping string
+	AddContactMapping    string
 	UpsertContactMapping string
 	DeleteContactMapping string
+	UpdateContactType string
 
 	//Why: Groups SQL queries for statistics and productivity metrics.
 	GetTotalCompleted      string
@@ -99,6 +113,10 @@ var SQL = struct {
 	GetMaxDailyCompleted   string
 	GetWaitingTasks        string
 	GetPendingOthers       string
+	GetInternalTaskCount   string
+	GetPartnerTaskCount    string
+	GetCustomerTaskCount   string
+	GetExternalTaskCount   string
 
 	//Why: Groups SQL queries for user and tenant aliases.
 	UpsertTenantAlias   string
@@ -284,6 +302,18 @@ func loadAllQueries() error {
 	SQL.CreateMessagesView = queries["CreateMessagesView"]
 	SQL.CreateUsersView = queries["CreateUsersView"]
 
+	SQL.CreateContactAliasesTable = queries["CreateContactAliasesTable"]
+	SQL.CreateIdentityMergeHistoryTable = queries["CreateIdentityMergeHistoryTable"]
+	SQL.CreateIdentityMergeCandidatesTable = queries["CreateIdentityMergeCandidatesTable"]
+	SQL.MigrateLegacyAliases = queries["MigrateLegacyAliases"]
+	SQL.AddContactAlias = queries["AddContactAlias"]
+	SQL.GetContactAliases = queries["GetContactAliases"]
+	SQL.FindContactByAlias = queries["FindContactByAlias"]
+	SQL.GetMergeCandidates = queries["GetMergeCandidates"]
+	SQL.UpdateMergeCandidateStatus = queries["UpdateMergeCandidateStatus"]
+	SQL.InsertMergeHistory = queries["InsertMergeHistory"]
+	SQL.MigrateContactsDropLegacyAliases = queries["MigrateContactsDropLegacyAliases"]
+
 	SQL.SaveMessage = queries["SaveMessage"]
 	SQL.SaveMessagesBase = queries["SaveMessagesBase"]
 	SQL.MarkMessageDone = queries["MarkMessageDone"]
@@ -331,6 +361,7 @@ func loadAllQueries() error {
 	SQL.AddContactMapping = queries["AddContactMapping"]
 	SQL.UpsertContactMapping = queries["UpsertContactMapping"]
 	SQL.DeleteContactMapping = queries["DeleteContactMapping"]
+	SQL.UpdateContactType = queries["UpdateContactType"]
 
 	SQL.GetTotalCompleted = queries["GetTotalCompleted"]
 	SQL.GetPendingMe = queries["GetPendingMe"]
@@ -345,6 +376,10 @@ func loadAllQueries() error {
 	SQL.GetMaxDailyCompleted = queries["GetMaxDailyCompleted"]
 	SQL.GetWaitingTasks = queries["GetWaitingTasks"]
 	SQL.GetPendingOthers = queries["GetPendingOthers"]
+	SQL.GetInternalTaskCount = queries["GetInternalTaskCount"]
+	SQL.GetPartnerTaskCount = queries["GetPartnerTaskCount"]
+	SQL.GetCustomerTaskCount = queries["GetCustomerTaskCount"]
+	SQL.GetExternalTaskCount = queries["GetExternalTaskCount"]
 
 	SQL.UpsertTenantAlias = queries["UpsertTenantAlias"]
 	SQL.DeleteTenantAlias = queries["DeleteTenantAlias"]

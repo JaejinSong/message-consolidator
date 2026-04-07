@@ -46,6 +46,8 @@ type ConsolidatedMessage struct {
 	Constraints        []string        `json:"constraints"`      //Why: Stores behavioral rules extracted from POLICY-type messages.
 	Metadata           json.RawMessage `json:"metadata"`         //Why: Flexible JSON storage for future-proofing message attributes.
 	SourceChannels     []string        `json:"source_channels"`  //Why: Tracks all channels that contributed to this consolidated task.
+	RequesterType      string          `json:"requester_type,omitempty"`
+	AssigneeType       string          `json:"assignee_type,omitempty"`
 }
 
 // CategorizedMessages represents groups of messages for the dashboard tabs.
@@ -174,6 +176,10 @@ type UserStats struct {
 	SourceDistribution      map[string]int    `json:"source_distribution"`       //Why: Represents the distribution of active tasks for the dashboard.
 	SourceDistributionTotal map[string]int    `json:"source_distribution_total"` //Why: Represents the total distribution including archived tasks.
 	CompletionHistory       []TimeSeriesPoint `json:"completion_history"`
+	InternalTaskCount       int               `json:"internal_task_count"`
+	PartnerTaskCount        int               `json:"partner_task_count"`
+	CustomerTaskCount       int               `json:"customer_task_count"`
+	ExternalTaskCount       int               `json:"external_task_count"`
 }
 
 // ReportTranslation represents a specific language version of an AI-generated report summary.

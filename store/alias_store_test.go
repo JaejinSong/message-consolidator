@@ -1,42 +1,37 @@
 package store
 
 import (
+	"message-consolidator/internal/testutil"
+	"context"
 	"testing"
 )
 
 func TestNormalizeWithCategory(t *testing.T) {
-	ResetForTest()
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
 
+	ctx := context.Background()
 	tenantEmail := "admin@whatap.io"
 
 	metadataMu.Lock()
 	userCache["jjsong@whatap.io"] = &User{ID: 1, Email: "jjsong@whatap.io", Name: "Jaejin Song"}
-	
-	// Mock contacts mapping (Priority 1)
-	contactsCache[tenantEmail] = []ContactRecord{
-		{
-			TenantEmail: tenantEmail,
-			CanonicalID: "hady@whatap.io",
-			DisplayName: "Hady",
-			Aliases:     "Hady Tandibali",
-			Source:      "all",
-		},
-		{
-			TenantEmail: tenantEmail,
-			CanonicalID: "ryan@gmail.com",
-			DisplayName: "Ryan",
-			Aliases:     "Ryan S",
-			Source:      "all",
-		},
-		{
-			TenantEmail: tenantEmail,
-			CanonicalID: "jjsong@whatap.io",
-			DisplayName: "Jaejin Song",
-			Aliases:     "JJ, Jaejin, Song, SongV2",
-			Source:      "all",
-		},
-	}
 	metadataMu.Unlock()
+
+	// 1. Create Contacts properly via AddContact to populate DB + Cache + DSU
+	c1, _ := AddContact(ctx, tenantEmail, "hady@whatap.io", "Hady", "Hady Tandibali", "all")
+	_, _ = AddContact(ctx, tenantEmail, "ryan@gmail.com", "Ryan", "", "all")
+	c3, _ := AddContact(ctx, tenantEmail, "jjsong@whatap.io", "Jaejin Song", "JJ", "all")
+	
+	// Seed extra aliases for complex resolution tests
+	_ = RegisterAlias(ctx, c3, "name", "SongV2", "manual", 5)
+
+	// Why: Validate IDs to satisfy linter and ensure setup is correct.
+	if c1 == 0 || c3 == 0 {
+		t.Fatalf("Failed to seed contacts")
+	}
 
 	tests := []struct {
 		testName     string
