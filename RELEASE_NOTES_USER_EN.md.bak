@@ -1,3 +1,9 @@
+# Release Notes - v2.4.24 (2026-04-06 13:31 UTC)
+
+- 🌐 **Universal Clarity**: We've unified our internal logic to an English-first standard, ensuring more consistent AI responses and a seamless global experience.
+
+---
+
 # Release Notes - v2.4.23 (2026-04-06 13:25 UTC)
 
 - 🏗️ **Engine Upgrade**: Integrated WhaTap builder for a more robust and reliable infrastructure.

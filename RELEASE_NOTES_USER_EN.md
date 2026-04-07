@@ -1,3 +1,13 @@
+# Release Notes - v2.4.25 (2026-04-07 18:07 UTC)
+
+- 🌟 **Meet Identity-X**: Say hello to our new, smarter identity resolution system. No more messy aliases—just clean, organized contact data!
+- 🔄 **Perfectly Synced**: We've re-engineered our message grids and polling logic. Experience a fluid, lag-free interface that stays in sync effortlessly.
+- ⚡ **Speed Boost**: Task counts now load instantly thanks to optimized database magic.
+- ✉️ **Global Contact Support**: We've upgraded our contact engine to handle complex email formats and international names with ease.
+- 🛠️ **Bug Squashed**: That pesky infinite spinner on the Insights tab is gone for good. Smooth reporting awaits!
+
+---
+
 # Release Notes - v2.4.24 (2026-04-06 13:31 UTC)
 
 - 🌐 **Universal Clarity**: We've unified our internal logic to an English-first standard, ensuring more consistent AI responses and a seamless global experience.

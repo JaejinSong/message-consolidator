@@ -20,6 +20,10 @@
   - [ ] 대시보드 통계 카드에서도 Internal / Partner / Customer 비중을 분리해서 표시
 
 ## 3. 완료 사항 (Completed)
+- [x] **[Refactor]** Identity-X: Bulk alias resolution (N+1 bottleneck fix) & Negative Caching (v2.4.25)
+- [x] **[API/Stability]** System-wide Mutex & Loading Lock for infinite request loop prevention (v2.4.25)
+- [x] **[Frontend]** ActiveIntervals Manager & Page Visibility API for polling leak fix (v2.4.25)
+- [x] **[Auth]** Slack Alias Synchronization Idempotency for redundant write prevention (v2.4.25)
 - [x] **[Infra]** WhaTap 전용 빌더 이미지 도입 및 BE 빌드 속도 최적화 (v2.4.22)
   - Dockerfile.builder 생성 및 Artifact Registry 연동 관리
   - 배포 스크립트(`deploy.sh`) 내 빌더 이미지 캐시 체크 로직 구현 (15s -> 2s 단축)

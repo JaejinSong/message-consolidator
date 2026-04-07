@@ -1,3 +1,15 @@
+# Release Notes (Tech) - v2.4.25 (2026-04-07 18:07 UTC)
+
+- [FEAT] Implement Identity-X resolution system with normalized relational schema and DSU-based tracking
+- [FEAT] Add bulk alias resolution and cache-aside support for contact aliases
+- [REFACTOR] Overhaul message rendering for multi-grid synchronization and enhanced task node management
+- [REFACTOR] Replace interval polling with recursive setTimeout for improved state synchronization and fetch lock management
+- [OPTIMIZE] Consolidate task count retrieval into a single database query to reduce latency
+- [FIX] Enhance ExtractContacts with MIME-aware parsing and UTF-8 name support
+- [FIX] Resolve infinite spinner bug on initial load of the Insights reports tab
+
+---
+
 # Release Notes (Tech) - v2.4.24 (2026-04-06 13:31 UTC)
 
 - [REFACTOR] Standardize EN-first integrity across backend, frontend, and AI prompt architectures

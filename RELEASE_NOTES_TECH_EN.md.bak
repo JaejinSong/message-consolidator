@@ -1,3 +1,9 @@
+# Release Notes (Tech) - v2.4.24 (2026-04-06 13:31 UTC)
+
+- [REFACTOR] Standardize EN-first integrity across backend, frontend, and AI prompt architectures
+
+---
+
 # Release Notes (Tech) - v2.4.23 (2026-04-06 13:25 UTC)
 
 - [SYS] Integrate WhaTap builder images for CI/CD pipelines
