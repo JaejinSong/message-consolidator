@@ -1,4 +1,4 @@
-# Message Consolidator (v2.4.25)
+# Message Consolidator (v2.4.26)
 
 [![GitHub License](https://img.shields.io/github/license/JaejinSong/message-consolidator)](LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/JaejinSong/message-consolidator)](go.mod)
@@ -27,6 +27,7 @@ A powerful, AI-driven asynchronous communication consolidation and task manageme
 - **스마트 담당자 감지 & 자동 정규화**: 멘션(@)이나 이메일 수신자, 문맥을 분석하여 실제 담당자(Assignee)를 정확하게 표시합니다. Gmail의 경우 CC나 BCC로 수신된 내용은 제외하고 직접 수신 업무만 '내 업무'로 자동 분류하며, "내 업무"와 같은 모호한 표현을 사용자 프로필 상의 본인 이름으로 자동 정규화합니다.
 - **Metadata JSON 아키텍처**: 업무 태스크의 유연한 확장을 위해 JSONB 메타데이터 필드를 도입하여, 다양한 업무 속성을 스키마 변경 없이 안정적으로 저장하고 필터링합니다.
 - **다층형 별칭 매칭 & 동명이인 방어 (Ambiguity Safeguard)**: 사용자가 명시적으로 등록한 별칭 외에도 본인의 이름과 이메일 아이디를 자동으로 감지하며, 서로 다른 이메일이 동일한 별칭을 공유할 경우 자동으로 감지하여 데이터 오염을 방지하는 Ambiguity Safeguard 엔진이 탑재되어 있습니다.
+- **Shared Assignment Logic (Group Mention Prevention)**: `@everyone`, `team` 등 그룹을 지칭하는 모호한 태스크가 자동으로 본인에게 배정되는 것을 방지합니다. 특정 담당자를 식별할 수 없는 경우 '공유(Shared)' 상태로 분류되어 Inbox(My Tasks) 오염을 차단하며, 전용 뱃지 UI를 통해 시각적으로 구분합니다.
 - **Task Affinity Consolidation & Semantic Merging**: 동일한 메시지나 이메일에서 발생하는 유사한 업무들을 AI가 자동으로 감지하고 하나로 통합합니다. 'Affinity Score' 및 시맨틱 분석 기반의 지능형 업무 묶음을 통해 중복된 '쌍둥이 태스크' 발생을 원천 차단하고 가독성을 극대화하며, 수동 병합(Manual Merge) 기능을 통해 파편화된 업무 흐름을 사용자 의도에 맞게 정렬할 수 있습니다.
 
 ### 3. 직관적인 업무 관리 대시보드

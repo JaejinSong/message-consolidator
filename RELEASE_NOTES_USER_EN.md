@@ -1,3 +1,10 @@
+# Release Notes - v2.4.26 (2026-04-08 01:02 UTC)
+
+- 🤝 **Intelligent Delegation**: Group messages and ambiguous requests now move to a 'Shared Task' pool, putting an end to accidental auto-assignments.
+- ✨ **System Maintenance**: We've polished our internal docs and project status to keep everything running like clockwork.
+
+---
+
 # Release Notes - v2.4.25 (2026-04-07 18:07 UTC)
 
 - 🌟 **Meet Identity-X**: Say hello to our new, smarter identity resolution system. No more messy aliases—just clean, organized contact data!

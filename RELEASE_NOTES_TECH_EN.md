@@ -1,3 +1,10 @@
+# Release Notes (Tech) - v2.4.26 (2026-04-08 01:02 UTC)
+
+- [FEAT] Implement 'Shared Task' classification to prevent erroneous auto-assignment of group or ambiguous messages
+- [SYS] Update internal release documentation and project status metadata
+
+---
+
 # Release Notes (Tech) - v2.4.25 (2026-04-07 18:07 UTC)
 
 - [FEAT] Implement Identity-X resolution system with normalized relational schema and DSU-based tracking

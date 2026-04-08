@@ -20,6 +20,11 @@
   - [ ] 대시보드 통계 카드에서도 Internal / Partner / Customer 비중을 분리해서 표시
 
 ## 3. 완료 사항 (Completed)
+- [x] **[Feature]** **Shared Assignment Logic** for group/ambiguous tasks (v2.4.26)
+  - AI extraction prompt update (fallback removal)
+  - Backend group keyword filtering (@everyone, team, etc.)
+  - Frontend 'Shared' badge UI & BEM styling
+  - Multi-language localization (KO, EN, ID, TH)
 - [x] **[Refactor]** Identity-X: Bulk alias resolution (N+1 bottleneck fix) & Negative Caching (v2.4.25)
 - [x] **[API/Stability]** System-wide Mutex & Loading Lock for infinite request loop prevention (v2.4.25)
 - [x] **[Frontend]** ActiveIntervals Manager & Page Visibility API for polling leak fix (v2.4.25)
