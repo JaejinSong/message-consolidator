@@ -20,6 +20,14 @@
   - [ ] 대시보드 통계 카드에서도 Internal / Partner / Customer 비중을 분리해서 표시
 
 ## 3. 완료 사항 (Completed)
+- [x] **[Fix] Gmail Unit Test Regression & Store Caching Robustness** (v2.4.30)
+  - Fixed Gmail categorization test to align with AI-primary routing policy.
+  - Resolved contact storage cache inconsistencies (ID propagation fix) and implemented robust lazy-loading.
+  - Verified MIME decoding for international sender names.
+- [x] **[Refactor] Data Integrity & Email Intelligence** (v2.4.29)
+  - Implemented atomic user profile upserts for data consistency.
+  - Integrated MIME decoding for accurate Gmail sender/subject resolution.
+  - Refined task assignment logic to prioritize AI categorization over recipient status.
 - [x] **[Refactor]** **Backend-Driven Task Categorization & Hardening** (v2.4.27)
   - Refactored `taskFilter.ts` to rely 100% on server-side `category` field.
   - Removed legacy alias-based `isExplicitMine` logic and unit tests.

@@ -1,4 +1,4 @@
-# Message Consolidator (v2.4.26)
+# Message Consolidator (v2.4.30)
 
 [![GitHub License](https://img.shields.io/github/license/JaejinSong/message-consolidator)](LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/JaejinSong/message-consolidator)](go.mod)
@@ -20,7 +20,7 @@ A powerful, AI-driven asynchronous communication consolidation and task manageme
 ### 1. 전 채널 통합 수집 및 스캔
 - **Slack**: 내가 속한 채널 및 DM의 대화를 실시간에 가깝게 스캔합니다.
 - **WhatsApp**: 개인 메시지 및 그룹 채팅에서 발생하는 업무 사항을 가져옵니다.
-- **Gmail**: 받은 편지함의 이메일을 분석하여 중요한 업무 요청을 추출합니다.
+- **Gmail**: 받은 편지함의 이메일을 분석하여 중요한 업무 요청을 추출합니다. (RFC 2045 MIME decoding 기반의 고정밀 발신자/제목 파싱 적용)
 
 ### 2. AI 기반 지능형 업무 분석
 - **자동 업무 추출**: 단순한 메시지 전달이 아닌, 구체적으로 '해야 할 일'을 문장 형태로 정리합니다.

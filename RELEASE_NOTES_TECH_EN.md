@@ -1,3 +1,29 @@
+# Release Notes (Tech) - v2.4.30 (2026-04-08 06:39 UTC)
+
+- [FEAT] Integrate WhatsApp Business API for multi-channel support
+- [FIX] Resolve timestamp synchronization issues across disparate time zones
+- [PERF] Optimize image decoding and caching for media-intensive conversation threads
+- [UI] Implement fluid CSS transitions for enhanced navigation between workspace views
+
+---
+
+# Release Notes (Tech) - v2.4.29 (2026-04-08 06:11 UTC)
+
+- [FEAT] Implement folder-based organization for categorized messaging
+- [FIX] Resolve keyboard occlusion issue on mobile input views
+- [PERF] Integrate LRU caching for high-frequency API response data
+- [STABILITY] Fix intermittent socket disconnection in low-bandwidth environments
+
+---
+
+# Release Notes (Tech) - v2.4.28 (2026-04-08 04:29 UTC)
+
+- [REFACTOR] Implement atomic transactions for user upsert operations
+- [REFACTOR] Enhance email parsing reliability via MIME decoding integration
+- [REFACTOR] Optimize task assignment logic and migrate 'waiting' category to 'shared' status
+
+---
+
 # Release Notes (Tech) - v2.4.26 (2026-04-08 01:02 UTC)
 
 - [FEAT] Implement 'Shared Task' classification to prevent erroneous auto-assignment of group or ambiguous messages

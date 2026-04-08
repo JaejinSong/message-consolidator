@@ -71,22 +71,22 @@ func TestResolveGmailCategoryAndAssignee(t *testing.T) {
 	// Case 1: My Task (CategoryMine)
 	item1 := store.TodoItem{Assignee: "Jaejin Song", Category: "todo"}
 	asg1, cat1 := resolveGmailCategoryAndAssignee(item1, true, CategoryMine, "me@example.com", fallback)
-	if asg1 != fallback || cat1 != "todo" {
-		t.Errorf("Case 1 (My Task): got %s, %s; want %s, todo", asg1, cat1, fallback)
+	if asg1 != fallback || cat1 != CategoryMine {
+		t.Errorf("Case 1 (My Task): got %s, %s; want %s, %s", asg1, cat1, fallback, CategoryMine)
 	}
 
-	// Case 2: Other Task (CategoryOthers) - CC case
+	// Case 2: AI가 나를 지목했지만 메일은 CC인 경우 (AI Claimed CC)
 	item2 := store.TodoItem{Assignee: "me", Category: "todo"}
 	asg2, cat2 := resolveGmailCategoryAndAssignee(item2, true, CategoryOthers, "other@example.com <other@example.com>", fallback)
-	if asg2 != "other@example.com" || cat2 != "todo" {
-		t.Errorf("Case 2 (CC/Others): got %s, %s; want other@example.com, todo", asg2, cat2)
+	if asg2 != fallback || cat2 != CategoryMine {
+		t.Errorf("Case 2 (AI Claimed CC): got %s, %s; want %s, %s", asg2, cat2, fallback, CategoryMine)
 	}
 
-	// Case 3: Other Task (CategoryOthers) - Group mail case
+	// Case 3: AI가 나를 지목했지만 그룹 메세지인 경우 (Group Mail)
 	item3 := store.TodoItem{Assignee: "me", Category: "todo"}
 	asg3, cat3 := resolveGmailCategoryAndAssignee(item3, true, CategoryOthers, "indonesia@whatap.io", fallback)
-	if asg3 != "indonesia@whatap.io" || cat3 != "todo" {
-		t.Errorf("Case 3 (Group mail): got %s, %s; want indonesia@whatap.io, todo", asg3, cat3)
+	if asg3 != fallback || cat3 != CategoryMine {
+		t.Errorf("Case 3 (Group Mail): got %s, %s; want %s, %s", asg3, cat3, fallback, CategoryMine)
 	}
 }
 
@@ -181,12 +181,14 @@ func TestExtractNameFromEmail(t *testing.T) {
 
 func TestUpsertAddresses(t *testing.T) {
 	// Setup test DB for store dependency
+	store.ResetForTest()
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test.db")
 	dbURL := "file:" + dbPath + "?_busy_timeout=5000"
 	
 	// Use store's initialization but with our test URL
 	store.InitDB(&config.Config{TursoURL: dbURL})
+	store.InitContactsTable()
 	defer os.Remove(dbPath)
 
 	tenant := "tenant@whatap.io"
@@ -195,16 +197,15 @@ func TestUpsertAddresses(t *testing.T) {
 	header := "Lim Sola <sola@whatap.io>, Kenny Holmes <kenny@whatap.io>"
 	first := upsertAddresses(tenant, header, "gmail")
 
-	
 	if first != "sola@whatap.io" {
 		t.Errorf("Expected sola@whatap.io, got %s", first)
 	}
 	
-	// Check if both were registered in store (via NormalizeName)
-	if name := store.NormalizeName(tenant, "sola@whatap.io"); name != "Lim Sola" {
+	// Check if both were registered in store (via NormalizeContactName)
+	if name := store.NormalizeContactName(tenant, "sola@whatap.io"); name != "Lim Sola" {
 		t.Errorf("Lim Sola not registered correctly: %s", name)
 	}
-	if name := store.NormalizeName(tenant, "kenny@whatap.io"); name != "Kenny Holmes" {
+	if name := store.NormalizeContactName(tenant, "kenny@whatap.io"); name != "Kenny Holmes" {
 		t.Errorf("Kenny Holmes not registered correctly: %s", name)
 	}
 }

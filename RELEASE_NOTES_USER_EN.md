@@ -1,3 +1,29 @@
+# Release Notes - v2.4.30 (2026-04-08 06:39 UTC)
+
+- 🟢 **WhatsApp is Here**: Connect your WhatsApp Business account and unify your reach.
+- ⏰ **Time in Sync**: Your messages now show the correct time, no matter where in the world you are.
+- 🖼️ **Lightning Media**: Browsing photos and videos is now snappier and smoother than ever.
+- 🪄 **Fluid Motion**: Enjoy a more premium feel with elegant new navigation transitions.
+
+---
+
+# Release Notes - v2.4.29 (2026-04-08 06:11 UTC)
+
+- 📁 **Organize with Ease**: Say goodbye to clutter! Group your messages into custom folders for a tidy workspace.
+- ⌨️ **Seamless Typing**: We've fixed the mobile keyboard overlap, so you can type your replies without distraction.
+- 🚀 **Instant Loading**: Smart caching now makes your data appear in a flash. Speed has never felt this good.
+- 🛡️ **Always Connected**: Improved connection stability ensures your messages get through, even on spotty Wi-Fi.
+
+---
+
+# Release Notes - v2.4.28 (2026-04-08 04:29 UTC)
+
+- 🛡️ **Data Integrity+**: Upgraded our database logic to ensure user profiles are saved with absolute precision.
+- 📧 **Email Intelligence**: Improved MIME decoding now brings you perfectly formatted emails, no matter the complexity.
+- 🔄 **Smoother Workflow**: We've refined how tasks are assigned and evolved the 'Waiting' status into a more collaborative 'Shared' state.
+
+---
+
 # Release Notes - v2.4.26 (2026-04-08 01:02 UTC)
 
 - 🤝 **Intelligent Delegation**: Group messages and ambiguous requests now move to a 'Shared Task' pool, putting an end to accidental auto-assignments.

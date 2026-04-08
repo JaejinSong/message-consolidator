@@ -114,7 +114,7 @@ func AddContact(ctx context.Context, tenantEmail, canonicalID, displayName, alia
 		}
 	}
 
-	UpdateContactsCache(tenantEmail, canonicalID, displayName, source)
+	UpdateContactsCache(int64(id), tenantEmail, canonicalID, displayName, source)
 	return int64(id), nil
 }
 
@@ -144,13 +144,13 @@ func UpsertContact(ctx context.Context, tenantEmail, canonicalID, displayName, a
 			}
 		}
 
-		UpdateContactsCache(tenantEmail, canonicalID, displayName, source)
+		UpdateContactsCache(id, tenantEmail, canonicalID, displayName, source)
 	}
 	return id, err
 }
 
 // UpdateContactsCache localizes cache update logic for reuse across manual and automatic upserts.
-func UpdateContactsCache(email, canonicalID, displayName, source string) {
+func UpdateContactsCache(id int64, email, canonicalID, displayName, source string) {
 	metadataMu.Lock()
 	defer metadataMu.Unlock()
 	
@@ -161,11 +161,12 @@ func UpdateContactsCache(email, canonicalID, displayName, source string) {
 		return m.CanonicalID == canonicalID
 	})
 	if idx >= 0 {
+		contactsCache[email][idx].ID = id
 		contactsCache[email][idx].DisplayName = displayName
 		contactsCache[email][idx].Source = source
 	} else {
-		// Note: ID will be 0 until a full reload from DB, which is acceptable for transient cache.
 		contactsCache[email] = append(contactsCache[email], ContactRecord{
+			ID:          id,
 			TenantEmail: email,
 			CanonicalID: canonicalID,
 			DisplayName: displayName,
@@ -273,32 +274,55 @@ func NormalizeContactName(email, rawName string) string {
 		return ""
 	}
 
-	// Try Identity-X resolution first
-	id, err := ResolveAlias(context.Background(), ContactTypeName, rawName)
-	if err == nil {
-		metadataMu.RLock()
-		mappings, ok := contactsCache[email]
-		metadataMu.RUnlock()
-		if ok {
-			for _, m := range mappings {
+	metadataMu.RLock()
+	mappings, ok := contactsCache[email]
+	metadataMu.RUnlock()
+
+	// Why: Lazily populate the cache if it was invalidated or not yet loaded for this tenant.
+	if !ok {
+		all, err := fetchAllTenantContacts(context.Background(), email)
+		if err == nil {
+			metadataMu.Lock()
+			contactsCache[email] = all
+			mappings = all
+			metadataMu.Unlock()
+		}
+	}
+
+	// Helper for matching
+	match := func(records []ContactRecord, raw string) string {
+		// 1. Precise Identity-X resolution
+		id, err := ResolveAlias(context.Background(), ContactTypeName, raw)
+		if err == nil {
+			for _, m := range records {
 				if m.ID == id {
 					return m.DisplayName
 				}
 			}
 		}
+		// 2. Fuzzy/Identifier matching
+		normalized := strings.TrimSpace(strings.ToLower(raw))
+		for _, m := range records {
+			if strings.ToLower(m.DisplayName) == normalized || strings.ToLower(m.CanonicalID) == normalized {
+				return m.DisplayName
+			}
+		}
+		return ""
 	}
 
-	metadataMu.RLock()
-	mappings, ok := contactsCache[email]
-	metadataMu.RUnlock()
-	if !ok {
-		return rawName
+	if name := match(mappings, rawName); name != "" {
+		return name
 	}
 
-	normalizedRaw := strings.TrimSpace(strings.ToLower(rawName))
-	for _, m := range mappings {
-		if strings.ToLower(m.DisplayName) == normalizedRaw || strings.ToLower(m.CanonicalID) == normalizedRaw {
-			return m.DisplayName
+	// Why: If not found in cache, it might be due to a recent partial cache invalidation (e.g. during promotion loop).
+	// We force a reload from DB once more before giving up.
+	all, err := fetchAllTenantContacts(context.Background(), email)
+	if err == nil {
+		metadataMu.Lock()
+		contactsCache[email] = all
+		metadataMu.Unlock()
+		if name := match(all, rawName); name != "" {
+			return name
 		}
 	}
 
