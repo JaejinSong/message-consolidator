@@ -9,8 +9,11 @@ import {
     getArchiveThresholdDays,
     // Format Logic
     getDeadlineBadge,
-    parseMarkdown
+    parseMarkdown,
+    isExplicitMine
 } from './logic.ts';
+
+import { ASSIGNEE_SHARED } from './constants';
 
 // ----------------------------------------------------------------------
 // 1. Data Processing Logic
@@ -82,6 +85,29 @@ describe('logic.js - Filtering & Classification', () => {
         });
     });
 
+    describe('isExplicitMine', () => {
+        const userAliases = ['Song', 'Jaejin'];
+        
+        it('should return true for "me"', () => {
+            expect(isExplicitMine({ assignee: 'me' }, userAliases)).toBe(true);
+            expect(isExplicitMine({ assignee: 'ME' }, userAliases)).toBe(true);
+        });
+
+        it('should return true for matching alias', () => {
+            expect(isExplicitMine({ assignee: 'Song' }, userAliases)).toBe(true);
+            expect(isExplicitMine({ assignee: 'jaejin' }, userAliases)).toBe(true);
+        });
+
+        it('should return false for shared assignee', () => {
+            expect(isExplicitMine({ assignee: ASSIGNEE_SHARED }, userAliases)).toBe(false);
+        });
+
+        it('should return false for other assignee', () => {
+            expect(isExplicitMine({ assignee: 'Alice' }, userAliases)).toBe(false);
+            expect(isExplicitMine({ assignee: '' }, userAliases)).toBe(false);
+            expect(isExplicitMine({ assignee: null }, userAliases)).toBe(false);
+        });
+    });
 });
 
 // ----------------------------------------------------------------------

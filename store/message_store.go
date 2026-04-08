@@ -579,6 +579,10 @@ func CategorizeByUser(msgs []ConsolidatedMessage, userEmail string, aliases []st
 }
 
 func IsAssignedToUser(m ConsolidatedMessage, userEmail string, aliases []string) bool {
+	// Explicitly ignore 'shared' tasks from individual inbox
+	if strings.EqualFold(m.Assignee, "shared") {
+		return false
+	}
 	// 1. Check Canonical ID (IDP SSOT)
 	if strings.EqualFold(m.AssigneeCanonical, userEmail) {
 		return true

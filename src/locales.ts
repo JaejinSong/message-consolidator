@@ -181,6 +181,7 @@ export const I18N_DATA: Record<string, any> = {
         waitingTag: "회신 대기",
         promiseTag: "확약",
         assigneeMe: "나",
+        assigneeShared: "공용",
         delete: "삭제",
         emptyStateMessages: [
             "훌륭합니다! 지금 당장 커피 한 잔의 여유를 즐기세요. ☕",
@@ -430,6 +431,7 @@ export const I18N_DATA: Record<string, any> = {
         waitingTag: "Waiting...",
         promiseTag: "Commitment",
         assigneeMe: "Me",
+        assigneeShared: "Shared",
         delete: "Delete",
         emptyStateMessages: [
             "Excellent! Enjoy a well-deserved coffee break right now. ☕",
@@ -641,6 +643,7 @@ export const I18N_DATA: Record<string, any> = {
         waitingTag: "Menunggu...",
         promiseTag: "Komitmen",
         assigneeMe: "Saya",
+        assigneeShared: "Bersama",
         delete: "Hapus",
         emptyStateMessages: [
             "Luar biasa! Nikmati waktu istirahat kopi Anda sekarang. ☕",
@@ -810,6 +813,7 @@ export const I18N_DATA: Record<string, any> = {
         waitingTag: "กำลังรอ...",
         promiseTag: "คำยืนยัน",
         assigneeMe: "ฉัน",
+        assigneeShared: "งานส่วนกลาง",
         delete: "ลบ",
         emptyStateMessages: [
             "ยอดเยี่ยมมาก! ได้เวลาพักจิบกาแฟสบายๆ แล้วครับ ☕",

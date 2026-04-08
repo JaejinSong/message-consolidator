@@ -34,7 +34,7 @@ Extract actionable tasks, operational policies, and context-dependent queries fr
 2. **DETERMINE assignee**:
    IF message_content CONTAINS "@Name": SET assignee = "Name"
    ELSE IF category == "PROMISE": SET assignee = sender
-   ELSE: SET assignee = "{{.CurrentUser}}"
+   ELSE: SET assignee = "shared" // Ensure ambiguous or group-directed tasks are not auto-assigned to the user.
 
 3. **FINAL CONSTRAINTS**:
    - task SUMMARY must be in **English ONLY**.

@@ -1207,6 +1207,11 @@ body.light-theme .c-utility__btn:hover {
     border-color: rgba(var(--color-primary-rgb), 0.4);
 }
 
+.c-message-card--shared {
+    border-left: var(--border-thick) solid var(--color-purple);
+    background: linear-gradient(135deg, rgba(162, 155, 254, 0.05), transparent);
+}
+
 .c-message-card--loading {
     pointer-events: none;
     user-select: none;
@@ -1347,6 +1352,11 @@ body.light-theme .c-utility__btn:hover {
 
 .c-message-card__assignee--me {
     color: var(--color-success);
+    font-weight: 600;
+}
+
+.c-message-card__assignee--shared {
+    color: var(--color-purple);
     font-weight: 600;
 }
 

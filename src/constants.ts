@@ -11,6 +11,8 @@ export const SERVICE_IDS = {
 
 export type ServiceId = typeof SERVICE_IDS[keyof typeof SERVICE_IDS];
 
+export const ASSIGNEE_SHARED = 'shared';
+
 export const DOM_IDS = {
     STATUS_LARGE: (service: string) => `${service}StatusLarge`,
     STATUS_TEXT: (service: string) => `${service}StatusText`,

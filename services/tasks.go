@@ -13,6 +13,11 @@ import (
 	"google.golang.org/api/gmail/v1"
 )
 
+const (
+	CategoryWaiting = "waiting"
+	AssigneeShared  = "shared"
+)
+
 // BatchTranslateResult represents the status of a single task translation within a batch request.
 type BatchTranslateResult struct {
 	ID             int    `json:"id"`
@@ -198,7 +203,7 @@ func (s *TasksService) ReclassifyUserTasks(ctx context.Context, email string, us
 			}
 
 			//Why: Resolves generic "me" assignees to the user's preferred display name for consistency in the UI and database.
-			newAssignee, changed := resolveNewAssignee(user, m.Assignee, matchedByAlias)
+			newAssignee, changed := s.resolveNewAssignee(user, m.Assignee, matchedByAlias)
 			if changed {
 				_ = store.UpdateTaskAssignee(ctx, email, m.ID, newAssignee)
 				fixedCount++
@@ -259,6 +264,15 @@ func GetEffectiveAliases(user store.User, aliases []string) []string {
 
 // IsTaskMatchedByAlias checks if the task content or requester matches any of the user's identities.
 func IsTaskMatchedByAlias(m store.ConsolidatedMessage, aliases []string, isDirectGmail bool) bool {
+	content := strings.ToLower(m.Task)
+	// Explicit group mentions should not be auto-assigned to individuals
+	groupWords := []string{"@everyone", "team", "all members", "everyone"}
+	for _, word := range groupWords {
+		if strings.Contains(content, word) {
+			return false
+		}
+	}
+
 	//Why: Augmented alias list with generic self-referential keywords ("나", "me") to broaden task matching coverage.
 	checkAliases := append([]string{"나", "me"}, aliases...)
 	for _, a := range checkAliases {
@@ -366,14 +380,15 @@ func findHeaderEnd(text string, start int) int {
 }
 
 // resolveNewAssignee determines the correct assignee name or clears it.
-func resolveNewAssignee(user *store.User, current string, matchedByAlias bool) (string, bool) {
+func (s *TasksService) resolveNewAssignee(user *store.User, current string, matchedByAlias bool) (string, bool) {
 	if matchedByAlias {
 		name := getPreferredName(user)
 		return name, current != name
 	}
 	lowCurr := strings.ToLower(current)
 	if genericMeAssignees[lowCurr] {
-		return "", true
+		// Instead of clearing or using me, mark as shared if it was a generic "me" but didn't match an alias
+		return AssigneeShared, current != AssigneeShared
 	}
 	return current, false
 }

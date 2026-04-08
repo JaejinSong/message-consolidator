@@ -2,8 +2,9 @@ import { escapeHTML, TimeService } from '../utils';
 import { ICONS } from '../icons';
 import { getDeadlineBadge, getDisplayTask } from '../logic';
 import { I18N_DATA } from '../locales';
-import { Message, I18nDictionary } from '../types';
+import { I18nDictionary, Message } from '../types';
 import { renderSourceList } from '../renderers/task-renderer';
+import { ASSIGNEE_SHARED } from '../constants';
 
 export type MessageCardProps = Message & {
     lang: string;
@@ -49,7 +50,8 @@ export function MessageCard(props: MessageCardProps): string {
         translating ? 'c-message-card--loading' : '',
         category === 'POLICY' ? 'c-message-card--policy' : '',
         category === 'QUERY' ? 'c-message-card--query' : '',
-        isContextQuery ? 'c-message-card--context' : ''
+        isContextQuery ? 'c-message-card--context' : '',
+        assignee === ASSIGNEE_SHARED ? 'c-message-card--shared' : ''
     ].filter(Boolean).join(' ');
 
     const categoryBadgeHtml = category === 'POLICY' ? `<div class="c-message-card__badge c-message-card__badge--policy">${i18n.policyLabel || 'Policy'}</div>` : 
@@ -75,10 +77,17 @@ export function MessageCard(props: MessageCardProps): string {
 
     const assigneeMe = i18n?.assigneeMe || 'Me';
     const isMe = assignee === 'me';
+    const isShared = assignee === ASSIGNEE_SHARED;
     const isInvalid = !assignee || assignee === 'undefined' || assignee === 'unknown';
-    const assigneeHtml = isMe
-        ? `<span class="c-message-card__assignee--me">${assigneeMe}</span>`
-        : `<span class="c-message-card__assignee--other">${isInvalid ? '-' : escapeHTML(assignee)}</span>`;
+    
+    let assigneeHtml = '';
+    if (isMe) {
+        assigneeHtml = `<span class="c-message-card__assignee--me">${assigneeMe}</span>`;
+    } else if (isShared) {
+        assigneeHtml = `<span class="c-message-card__assignee--shared">${i18n.assigneeShared || 'Shared'}</span>`;
+    } else {
+        assigneeHtml = `<span class="c-message-card__assignee--other">${isInvalid ? '-' : escapeHTML(assignee)}</span>`;
+    }
 
     return `
         <div class="c-message-card ${modifierClass}" id="task-${id}" data-id="${id}">

@@ -123,6 +123,8 @@ export interface I18nEntry {
     markDone?: string;
     delete?: string;
     assigneeMe?: string;
+    assigneeShared?: string;
+    promiseTag?: string;
     originalNotAvailable?: string;
     logoutConfirm?: string;
     disconnectConfirm?: string;

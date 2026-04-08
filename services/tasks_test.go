@@ -41,6 +41,7 @@ func TestIsAssigneeMarkedAsMine(t *testing.T) {
 		{"Me", true},
 		{"Jaejin Song", true},
 		{"jjsong", true},
+		{"shared", false},
 		{"Other", false},
 		{"", false},
 	}
@@ -178,5 +179,26 @@ func TestConsolidateTasks_BelowThreshold_NotMerged(t *testing.T) {
 
 	if len(result) != 2 {
 		t.Errorf("tasks below threshold should NOT be merged, got %d tasks", len(result))
+	}
+}
+
+func TestIsTaskMatchedByAlias_GroupMentions(t *testing.T) {
+	aliases := []string{"Song"}
+
+	tests := []struct {
+		task     string
+		expected bool
+	}{
+		{"Project update for @everyone", false},
+		{"Hello team, please check this", false},
+		{"Task for Song", true},
+		{"Everyone should do this", false},
+	}
+
+	for _, tt := range tests {
+		m := store.ConsolidatedMessage{Task: tt.task, OriginalText: tt.task}
+		if got := IsTaskMatchedByAlias(m, aliases, false); got != tt.expected {
+			t.Errorf("IsTaskMatchedByAlias(%q) = %v; want %v", tt.task, got, tt.expected)
+		}
 	}
 }
