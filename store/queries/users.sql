@@ -19,9 +19,9 @@ RETURNING id, email, COALESCE(name, '') as name, COALESCE(slack_id, '') as slack
 INSERT INTO users (email, name, picture, daily_goal) 
 VALUES (?, ?, ?, ?) 
 ON CONFLICT(email) DO UPDATE SET 
-    name = EXCLUDED.name, 
-    picture = EXCLUDED.picture,
-    daily_goal = EXCLUDED.daily_goal
+    name = COALESCE(NULLIF(EXCLUDED.name, ''), users.name),
+    picture = COALESCE(NULLIF(EXCLUDED.picture, ''), users.picture),
+    daily_goal = CASE WHEN EXCLUDED.daily_goal > 0 THEN EXCLUDED.daily_goal ELSE users.daily_goal END
 RETURNING id, email, COALESCE(name, '') as name, COALESCE(slack_id, '') as slack_id, COALESCE(wa_jid, '') as wa_jid, COALESCE(picture, '') as picture, points, streak, level, xp, daily_goal, last_completed_at, created_at, streak_freezes;
 
 -- name: GetUserByEmailSimple :one

@@ -10,6 +10,8 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
+	"mime"
+	"net/mail"
 	"regexp"
 	"strconv"
 	"strings"
@@ -229,17 +231,30 @@ func upsertAddresses(tenantEmail, header, source string) string {
 		return ""
 	}
 
-	contacts := types.ExtractContacts(header)
+	//Why: Parses standard RFC 5322 format for multiple addresses and ensures display names are correctly decoded from MIME encoding.
+	contacts, err := mail.ParseAddressList(header)
+	if err != nil {
+		logger.Debugf("[GMAIL] Failed to parse address list: %v", err)
+		return types.ExtractNameFromEmail(header)
+	}
+
+	dec := new(mime.WordDecoder)
 	firstEmail := ""
 
-	for _, contact := range contacts {
-		email := strings.ToLower(strings.TrimSpace(contact.Address))
-		if email != "" {
-			if firstEmail == "" {
-				firstEmail = email
-			}
-			_ = store.AutoUpsertContact(tenantEmail, email, contact.Name, source)
+	for _, addr := range contacts {
+		email := strings.ToLower(strings.TrimSpace(addr.Address))
+		if email == "" {
+			continue
 		}
+		if firstEmail == "" {
+			firstEmail = email
+		}
+
+		name := addr.Name
+		if decoded, err := dec.DecodeHeader(name); err == nil {
+			name = decoded
+		}
+		_ = store.AutoUpsertContact(tenantEmail, email, name, source)
 	}
 
 	if firstEmail != "" {
@@ -507,7 +522,7 @@ func mapTodoToMessage(email string, user *store.User, aliases []string, item sto
 		Source:         "gmail",
 		Room:           "Gmail",
 		Task:           item.Task,
-		Requester:      m.Sender,
+		Requester:      store.NormalizeContactName(email, m.Sender), //Why: Uses contact name instead of raw email for UI display.
 		Assignee:       assignee,
 		AssignedAt:     m.Timestamp,
 		Link:           fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS),
@@ -534,8 +549,10 @@ func resolveGmailCategoryAndAssignee(item store.TodoItem, isMe bool, cls, toHead
 		return assignee, "others"
 	}
 
-	if isMe && cls == CategoryMine {
+	//Why: Prioritize the AI's determination of assignment ('isMe') over original mail categories (CC/Others) to ensure tasks are correctly routed to the user's Inbox.
+	if isMe {
 		assignee = fallback
+		category = CategoryMine
 	} else {
 		//Why: CategoryOthers (CC or group mail) OR not identifying as me. Force group/recipient name as assignee to avoid "me" categorization in UI.
 		assignee = types.ExtractNameFromEmail(toHeader)

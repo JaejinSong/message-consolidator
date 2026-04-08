@@ -56,6 +56,33 @@ func TestGetOrCreateUser(t *testing.T) {
 			t.Errorf("Expected email '%s', got '%s'", email, user.Email)
 		}
 	})
+
+	t.Run("ConcurrentUpsert", func(t *testing.T) {
+		const numRoutines = 10
+		email := "concurrent@example.com"
+		done := make(chan bool)
+		errs := make(chan error, numRoutines)
+
+		//Why: Simulate rapid concurrent registration requests to verify that the atomic DB Upsert prevents UNIQUE constraint violations and Race Conditions.
+		for i := 0; i < numRoutines; i++ {
+			go func() {
+				_, err := GetOrCreateUser(context.Background(), email, "Concurrent User", "")
+				if err != nil {
+					errs <- err
+				}
+				done <- true
+			}()
+		}
+
+		for i := 0; i < numRoutines; i++ {
+			<-done
+		}
+		close(errs)
+
+		for err := range errs {
+			t.Errorf("Concurrent Upsert failed: %v", err)
+		}
+	})
 }
 
 func TestUpdateUserSlackID(t *testing.T) {

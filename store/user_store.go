@@ -101,39 +101,21 @@ func updateAndCacheUser(ctx context.Context, email, name, picture string) (*User
 	err := WithDBRetry("GetOrCreateUser", func() error {
 		var slackID, waJID sql.NullString
 		var lastCompletedAt, createdAt DBTime
-		errQuery := db.QueryRowContext(ctx, SQL.GetUserByEmail, email).Scan(&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes)
-		if errQuery == sql.ErrNoRows {
-			errQuery = db.QueryRowContext(ctx, SQL.CreateUserReturningAll, email, name, picture, 5).Scan(&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes)
-		}
+		//Why: Use Atomic Upsert to handle concurrent registrations and partial data updates (name/picture) in a single call.
+		errQuery := db.QueryRowContext(ctx, SQL.CreateUserReturningAll, email, name, picture, 5).Scan(
+			&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &u.Points, &u.Streak,
+			&u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes,
+		)
 		if errQuery != nil {
 			return errQuery
 		}
+
 		u.SlackID = slackID.String
 		u.WAJID = waJID.String
 		if lastCompletedAt.Valid && !lastCompletedAt.Time.IsZero() {
 			u.LastCompletedAt = &lastCompletedAt.Time
 		}
 		u.CreatedAt = createdAt.Time
-
-		//Why: Flags for update if a valid, new name or picture is provided.
-		needsUpdate := false
-		if name != "" && u.Name != name {
-			u.Name = name
-			needsUpdate = true
-		}
-		if picture != "" && u.Picture != picture {
-			u.Picture = picture
-			needsUpdate = true
-		}
-
-		if u.DailyGoal <= 0 {
-			u.DailyGoal = 5
-		}
-
-		if needsUpdate {
-			_, errUpdate := db.ExecContext(ctx, SQL.UpdateUserNamePicture, u.Name, u.Picture, email)
-			return errUpdate
-		}
 		return nil
 	})
 
