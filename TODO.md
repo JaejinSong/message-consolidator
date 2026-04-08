@@ -20,6 +20,11 @@
   - [ ] 대시보드 통계 카드에서도 Internal / Partner / Customer 비중을 분리해서 표시
 
 ## 3. 완료 사항 (Completed)
+- [x] **[Refactor]** **Backend-Driven Task Categorization & Hardening** (v2.4.27)
+  - Refactored `taskFilter.ts` to rely 100% on server-side `category` field.
+  - Removed legacy alias-based `isExplicitMine` logic and unit tests.
+  - Finalized 'Shared' task UI with premium Purple Glassmorphism (`--color-shared-accent`).
+  - Added deterministic AI instructions for group mentions (@everyone, @channel).
 - [x] **[Feature]** **Shared Assignment Logic** for group/ambiguous tasks (v2.4.26)
   - AI extraction prompt update (fallback removal)
   - Backend group keyword filtering (@everyone, team, etc.)

@@ -203,7 +203,7 @@ async function triggerBatchTranslation(): Promise<void> {
     if (targetLang === 'en') return;
 
     // Mark as translating in state immediately to prevent duplicate triggers
-    const all = [...state.messages.inbox, ...state.messages.pending, ...state.messages.waiting];
+    const all = [...state.messages.inbox, ...state.messages.pending];
     ids.forEach(id => {
         const m = all.find(item => item.id === id);
         if (m) m.translating = true;
@@ -515,7 +515,7 @@ const initActionButtons = () => {
         if (!modal || !desc) return;
 
         // Find titles from current messages state
-        const allMsgs = [...state.messages.inbox, ...state.messages.pending, ...state.messages.waiting];
+        const allMsgs = [...state.messages.inbox, ...state.messages.pending];
         const getTitle = (id: number) => {
             const m = allMsgs.find(msg => msg.id === id);
             return m ? (m.task.length > 50 ? m.task.substring(0, 47) + '...' : m.task) : `#${id}`;
@@ -643,7 +643,7 @@ const initApp = () => {
     initActionButtons();
     
     // Initialize Event Delegation for all grids
-    ['myTasksList', 'otherTasksList', 'waitingTasksList', 'allTasksList'].forEach(id => {
+    ['myTasksList', 'otherTasksList', 'allTasksList'].forEach(id => {
         initMessageGridEvents(id, handlers);
     });
 

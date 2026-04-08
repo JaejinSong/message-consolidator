@@ -86,10 +86,7 @@ export const insightsRenderer = {
         `;
         
         if (detSlot) {
-            const waiting = stats.waiting_tasks ?? 0;
-            detSlot.innerHTML = waiting > 0 
-                ? `<span class="u-text-warning">⚠️ ${waiting} ${i18n.waitingTasks || 'tasks waiting'}</span>` 
-                : '';
+            detSlot.innerHTML = '';
         }
     },
 
@@ -164,21 +161,6 @@ export const insightsRenderer = {
         });
         svg.appendChild(createSVG('circle', { cx: 50, cy: 50, r: 25, fill: 'var(--bg-color)' }));
         chartNode.appendChild(svg);
-    },
-
-    /**
-     * Updates the 'Waiting' (대기 중) widget.
-     */
-    renderStaleTasks(stats: UserStats, i18n: any): void {
-        const slot = document.getElementById('stat-stale');
-        if (!slot) return;
-        slot.innerHTML = '';
-
-        const val = stats.waiting_tasks || 0;
-        slot.innerHTML = `
-            <span class="c-insights-card__main-value">${val}</span>
-            <span class="stat-card__label">${i18n.waiting || '대기 중'}</span>
-        `;
     },
 
     renderHourlyActivity(stats: UserStats | null, i18n: any): void {

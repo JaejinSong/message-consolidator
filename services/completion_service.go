@@ -74,10 +74,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		tasks = append(tasks, t)
 	}
 
-	// Why: If no active tasks exist, we still proceed to AI analysis to allow for NEW task extraction
 	// from conversational context. 'allTasks' will just be empty.
-
-	s.releaseWaitingStatus(ctx, msg.UserEmail, tasks)
 
 	// Why: Leverages the unified AI analysis pipeline to determine if the reply resolves or delegates tasks.
 	// Mentions and intentionality are parsed by the AI prompt, not string matching.
@@ -115,11 +112,3 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 	}
 }
 
-func (s *CompletionService) releaseWaitingStatus(ctx context.Context, email string, tasks []store.ConsolidatedMessage) {
-	for _, task := range tasks {
-		if task.Category == "waiting" {
-			logger.Infof("[COMPLETION] Auto-releasing 'waiting' status for task %d", task.ID)
-			s.store.UpdateMessageCategory(ctx, email, task.ID, "others")
-		}
-	}
-}

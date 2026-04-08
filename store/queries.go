@@ -111,7 +111,6 @@ var SQL = struct {
 	GetCompletionHistory         string
 	GetEarlyBirdCompleted  string
 	GetMaxDailyCompleted   string
-	GetWaitingTasks        string
 	GetPendingOthers       string
 	GetTaskCountByContactType string
 
@@ -372,7 +371,6 @@ func loadAllQueries() error {
 	SQL.GetCompletionHistory = queries["GetCompletionHistory"]
 	SQL.GetEarlyBirdCompleted = queries["GetEarlyBirdCompleted"]
 	SQL.GetMaxDailyCompleted = queries["GetMaxDailyCompleted"]
-	SQL.GetWaitingTasks = queries["GetWaitingTasks"]
 	SQL.GetPendingOthers = queries["GetPendingOthers"]
 	SQL.GetTaskCountByContactType = queries["GetTaskCountByContactType"]
 

@@ -5,7 +5,7 @@ SELECT COUNT(*) FROM v_messages WHERE user_email = ? AND done = 1;
 SELECT COUNT(*) FROM v_messages 
 WHERE user_email = ? AND done = 0 AND is_deleted = 0 
 AND (assignee = ? OR assignee = 'me') 
-AND category != 'waiting' AND IFNULL(task, '') != '';
+AND IFNULL(task, '') != '';
 
 -- name: GetDailyGoal :one
 SELECT daily_goal FROM v_users WHERE email = ?;
@@ -63,16 +63,11 @@ SELECT COUNT(*) FROM messages
 WHERE user_email = ? AND done = 1
 AND category = 'emergency';
 
--- name: GetWaitingTasks :one
-SELECT COUNT(*) FROM v_messages 
-WHERE user_email = ? AND done = 0 AND is_deleted = 0 
-AND category = 'waiting' AND IFNULL(task, '') != '';
-
 -- name: GetPendingOthers :one
 SELECT COUNT(*) FROM v_messages 
 WHERE user_email = ? AND done = 0 AND is_deleted = 0 
 AND (assignee != ? AND assignee != 'me') 
-AND category != 'waiting' AND IFNULL(task, '') != '';
+AND IFNULL(task, '') != '';
 
 -- name: GetTaskCountByContactType :many
 SELECT requester_type AS contact_type, COUNT(*) AS count

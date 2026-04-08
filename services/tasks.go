@@ -14,8 +14,11 @@ import (
 )
 
 const (
-	CategoryWaiting = "waiting"
-	AssigneeShared  = "shared"
+	AssigneeShared    = "shared"
+	CategoryPersonal  = "personal"
+	CategoryShared    = "shared"
+	CategoryRequested = "requested"
+	CategoryOthers    = "others"
 )
 
 // BatchTranslateResult represents the status of a single task translation within a batch request.
@@ -76,7 +79,45 @@ func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string
 		msgs[i].Requester = aliasMap[msgs[i].Requester]
 		msgs[i].Assignee = aliasMap[msgs[i].Assignee]
 		s.applyAssigneeRules(user, &msgs[i])
+		s.assignCategory(email, user, &msgs[i])
 	}
+}
+
+// assignCategory implements the server-side categorization priority logic.
+// Priority: 1. personal, 2. shared, 3. requested, 4. others.
+func (s *TasksService) assignCategory(email string, user *store.User, msg *store.ConsolidatedMessage) {
+	// 1. personal: Assigned to 'me' or matches the user's preferred name
+	if msg.Assignee == "me" {
+		msg.Category = CategoryPersonal
+		return
+	}
+
+	// 2. shared: Explicitly "shared" or contains group tags (@everyone, @channel, @here, etc.)
+	if msg.Assignee == AssigneeShared || hasGroupMention(msg.Task) {
+		msg.Category = CategoryShared
+		return
+	}
+
+	// 3. requested: The current user is the requester but not the assignee
+	if msg.Requester == email || (user.Name != "" && msg.Requester == user.Name) {
+		msg.Category = CategoryRequested
+		return
+	}
+
+	// 4. others: Supporting message or non-actionable reference
+	msg.Category = CategoryOthers
+}
+
+// hasGroupMention detects common team/group tags to identify non-individual tasks.
+func hasGroupMention(text string) bool {
+	content := strings.ToLower(text)
+	groupWords := []string{"@everyone", "@channel", "@here", "team", "everyone"}
+	for _, word := range groupWords {
+		if strings.Contains(content, word) {
+			return true
+		}
+	}
+	return false
 }
 
 func extractUniqueIdentifiers(msgs []store.ConsolidatedMessage) []string {
@@ -211,11 +252,6 @@ func (s *TasksService) ReclassifyUserTasks(ctx context.Context, email string, us
 			continue
 		}
 
-		//Why: Proactively assigns unassigned tasks to the user if the message content explicitly matches one of their registered aliases or mentions.
-		if matchedByAlias && strings.TrimSpace(m.Assignee) == "" {
-			_ = store.UpdateTaskAssignee(ctx, email, m.ID, getPreferredName(user))
-			fixedCount++
-		}
 	}
 	return fixedCount
 }
@@ -229,12 +265,8 @@ func (s *TasksService) RestoreGmailCCAssignment(ctx context.Context, email strin
 		}
 
 		toHeader := extractToHeader(m.OriginalText)
-		//Why: Assigns unassigned Gmail tasks to the user if they were a direct recipient in the "To" header, providing high-confidence auto-assignment.
+		//Why: Assigns unassigned Gmail tasks to the user if they were a direct recipient in the "To" header.
 		if isMeInToHeader(toHeader, user.Email) {
-			if strings.TrimSpace(m.Assignee) == "" {
-				_ = store.UpdateTaskAssignee(ctx, email, m.ID, getPreferredName(user))
-				fixedCount++
-			}
 			continue
 		}
 
@@ -264,13 +296,9 @@ func GetEffectiveAliases(user store.User, aliases []string) []string {
 
 // IsTaskMatchedByAlias checks if the task content or requester matches any of the user's identities.
 func IsTaskMatchedByAlias(m store.ConsolidatedMessage, aliases []string, isDirectGmail bool) bool {
-	content := strings.ToLower(m.Task)
 	// Explicit group mentions should not be auto-assigned to individuals
-	groupWords := []string{"@everyone", "team", "all members", "everyone"}
-	for _, word := range groupWords {
-		if strings.Contains(content, word) {
-			return false
-		}
+	if hasGroupMention(m.Task) {
+		return false
 	}
 
 	//Why: Augmented alias list with generic self-referential keywords ("나", "me") to broaden task matching coverage.

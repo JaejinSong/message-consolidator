@@ -553,7 +553,7 @@ func GetActiveContextTasks(ctx context.Context, email, source, room string) ([]C
 
 func scanContextTaskRow(rows *sql.Rows) (ConsolidatedMessage, error) {
 	var m ConsolidatedMessage
-	err := rows.Scan(&m.ID, &m.Task, &m.OriginalText, &m.Requester, &m.Assignee, &m.Source, &m.Room, &m.AssignedAt, &m.Done, &m.CompletedAt)
+	err := rows.Scan(&m.ID, &m.Task, &m.OriginalText, &m.Requester, &m.Assignee, &m.Source, &m.Room, &m.AssignedAt, &m.Done, &m.CompletedAt, &m.Category)
 	return m, err
 }
 
@@ -563,13 +563,10 @@ func CategorizeByUser(msgs []ConsolidatedMessage, userEmail string, aliases []st
 	res := CategorizedMessages{
 		Inbox:   make([]ConsolidatedMessage, 0),
 		Pending: make([]ConsolidatedMessage, 0),
-		Waiting: make([]ConsolidatedMessage, 0),
 		All:     msgs,
 	}
 	for _, m := range msgs {
-		if m.Category == "waiting" {
-			res.Waiting = append(res.Waiting, m)
-		} else if IsAssignedToUser(m, userEmail, aliases) {
+		if IsAssignedToUser(m, userEmail, aliases) {
 			res.Inbox = append(res.Inbox, m)
 		} else {
 			res.Pending = append(res.Pending, m)

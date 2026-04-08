@@ -97,24 +97,4 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		// Since we're using a mock store in the service but HandleTaskState calls store package global,
 		// we should ideally mock store.HandleTaskState, but for now we verify it doesn't crash and service proceeds.
 	})
-
-	t.Run("Two-Phase - Auto-release Waiting Status", func(t *testing.T) {
-		mockAI := &MockAI{Results: []store.TodoItem{}}
-		mockStore := &MockStore{
-			Tasks: []store.ConsolidatedMessage{{ID: 601, Category: "waiting", OriginalText: "Ping me"}},
-		}
-		svc := NewCompletionService(mockAI, mockStore)
-
-		msg := store.ConsolidatedMessage{
-			UserEmail:    "test@example.com",
-			ThreadID:     "thread_wait",
-			OriginalText: "I am checking it",
-		}
-
-		svc.ProcessPotentialCompletion(ctx, msg)
-
-		if len(mockStore.ReleasedIDs) != 1 || mockStore.ReleasedIDs[0] != 601 {
-			t.Errorf("Expected task 601 to be released, got %v", mockStore.ReleasedIDs)
-		}
-	})
 }

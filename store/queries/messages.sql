@@ -141,7 +141,7 @@ SELECT id, task, original_text FROM messages WHERE id IN (%s) AND user_email = ?
 UPDATE messages SET requester = ?, assignee = ? WHERE id = ?;
 
 -- name: GetActiveTasksForContext :many
-SELECT id, task, original_text, requester, assignee, source, room, assigned_at, done, completed_at
+SELECT id, task, original_text, requester, assignee, source, room, assigned_at, done, completed_at, category
 FROM v_messages
 WHERE user_email = ? AND source = ? AND room = ? AND is_deleted = 0
 AND IFNULL(task, '') != ''

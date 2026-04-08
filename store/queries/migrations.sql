@@ -95,7 +95,7 @@ UPDATE messages SET is_deleted = 0 WHERE is_deleted IS NULL;
 UPDATE messages SET room = '' WHERE room IS NULL;
 
 -- name: MigrateDataNormalizeCategoryWaiting :exec
-UPDATE messages SET category = 'waiting' WHERE task LIKE '[회신 대기]%';
+UPDATE messages SET category = 'others' WHERE task LIKE '[회신 대기]%';
 
 -- name: MigrateDataNormalizeCategoryPromise :exec
 UPDATE messages SET category = 'promise' WHERE task LIKE '[나의 약속]%';

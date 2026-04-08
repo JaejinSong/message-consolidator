@@ -42,7 +42,7 @@
     --col-actions: 8.75rem;
 
     --color-primary: #00f2ff;
-    --color-primary-rgb: 0, 226, 255;
+    --color-primary-rgb: 0, 242, 255;
 
     --view-subnav-gap: 0.75rem;
     /* Semantic Colors (Dark) */
@@ -62,6 +62,9 @@
     --color-gmail: #EA4335;
     --color-gmail-rgb: 234, 67, 53;
     --color-purple: #A29BFE;
+    --color-purple-rgb: 162, 155, 254;
+    --color-shared-accent: var(--color-purple);
+    --color-shared-accent-rgb: var(--color-purple-rgb);
     --color-blue-info: #4A90E2;
 
     /* Breakpoint Tokens */

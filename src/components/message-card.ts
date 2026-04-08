@@ -54,10 +54,13 @@ export function MessageCard(props: MessageCardProps): string {
         assignee === ASSIGNEE_SHARED ? 'c-message-card--shared' : ''
     ].filter(Boolean).join(' ');
 
+    const isMe = assignee?.toLowerCase() === 'me';
+    const isShared = assignee === ASSIGNEE_SHARED || category === 'shared';
+
     const categoryBadgeHtml = category === 'POLICY' ? `<div class="c-message-card__badge c-message-card__badge--policy">${i18n.policyLabel || 'Policy'}</div>` : 
                              category === 'QUERY' ? `<div class="c-message-card__badge c-message-card__badge--query">${i18n.queryLabel || 'Question'}</div>` :
                              category === 'promise' ? `<div class="c-message-card__badge c-message-card__badge--promise">🤝 ${i18n.promise || '약속'}</div>` :
-                             category === 'waiting' ? `<div class="c-message-card__badge c-message-card__badge--waiting">⏳ ${i18n.waiting || '대기'}</div>` : '';
+                             isShared ? `<div class="c-message-card__badge c-message-card__badge--shared">👥 ${i18n.sharedTag || 'Shared'}</div>` : '';
 
     const translatingBadgeHtml = translating ? `<span class="c-message-card__translating-badge" title="Translating...">⏳</span>` : '';
 
@@ -76,15 +79,13 @@ export function MessageCard(props: MessageCardProps): string {
     ` : '';
 
     const assigneeMe = i18n?.assigneeMe || 'Me';
-    const isMe = assignee === 'me';
-    const isShared = assignee === ASSIGNEE_SHARED;
     const isInvalid = !assignee || assignee === 'undefined' || assignee === 'unknown';
     
     let assigneeHtml = '';
     if (isMe) {
         assigneeHtml = `<span class="c-message-card__assignee--me">${assigneeMe}</span>`;
     } else if (isShared) {
-        assigneeHtml = `<span class="c-message-card__assignee--shared">${i18n.assigneeShared || 'Shared'}</span>`;
+        assigneeHtml = `<span class="c-message-card__assignee--shared">${i18n.sharedTag || 'Shared'}</span>`;
     } else {
         assigneeHtml = `<span class="c-message-card__assignee--other">${isInvalid ? '-' : escapeHTML(assignee)}</span>`;
     }

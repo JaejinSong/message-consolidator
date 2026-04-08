@@ -35,7 +35,7 @@ describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
     });
 
     it('should update daily glance slots without destroying card title', () => {
-        const data = { total_completed: 42, peak_time: '14:00', waiting_tasks: 0 };
+        const data = { total_completed: 42, peak_time: '14:00' };
         insightsRenderer.renderDailyGlance(data, mockI18n);
 
         const card = document.getElementById('cardDailyGlance');
@@ -45,15 +45,6 @@ describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
         expect(value.textContent).toContain('42');
         expect(title.textContent).toBe('Daily Stats');
         expect(card.classList.contains('c-insights-card')).toBe(true);
-    });
-
-    it('should show warning in daily glance detail when waiting tasks exist', () => {
-        const data = { total_completed: 10, peak_time: '10:00', waiting_tasks: 5 };
-        insightsRenderer.renderDailyGlance(data, mockI18n);
-        
-        const detail = document.getElementById('dailyGlanceDetail');
-        expect(detail.textContent).toContain('⚠️');
-        expect(detail.textContent).toContain('5');
     });
 
     it('should update consolidated AI usage widget with formatted numbers and breakdown (Daily/Monthly)', () => {

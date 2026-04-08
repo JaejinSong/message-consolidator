@@ -1,3 +1,12 @@
+# 업데이트 소식 (기술) - v2.4.27 (2026-04-08 04:02 UTC)
+
+- [REFACTOR] `taskFilter.ts`를 서버 사이드 `category` 필드 기반으로 완전히 전환하고 30라인 이내로 압축
+- [REFACTOR] 별칭 기반의 `isExplicitMine` 로직 및 관련 단위 테스트 제거로 데이터 정합성 확보
+- [DESIGN] `variables.css`에 `--color-shared-accent` 도입 및 `task-card.css` 내 하드코딩된 Hex 값 제거
+- [AI] `new_extraction.prompt` 고도화를 통해 그룹 지칭 메시지의 `assignee: "shared"` 추출 성능 향상
+
+---
+
 # 업데이트 소식 (기술) - v2.4.26 (2026-04-08 01:02 UTC)
 
 - [FEAT] 모호하거나 그룹 지향적인 메시지의 자동 할당 오류 방지를 위한 '공유 작업' 분류 체계 도입

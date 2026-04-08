@@ -162,13 +162,15 @@ export function createCardElement(m: Message): string {
     return MessageCard(props);
 }
 
+import { filterByTab, TaskTab } from './taskFilter';
+
 /**
  * Renders message cards based on categorized data.
  */
 export function renderMessages(categorized: CategorizedMessages): void {
     const searchQuery = (document.getElementById('taskSearch') as HTMLInputElement)?.value || '';
 
-    const allTasks = [...(categorized.inbox || []), ...(categorized.pending || []), ...(categorized.waiting || [])];
+    const allTasks = [...(categorized.inbox || []), ...(categorized.pending || [])];
 
     // O(1) Counter Updates based on categorized data lengths
     const updateCount = (id: string, count: number) => {
@@ -178,17 +180,23 @@ export function renderMessages(categorized: CategorizedMessages): void {
 
     updateCount('myCount', getActiveCount(categorized.inbox));
     updateCount('otherCount', getActiveCount(categorized.pending));
-    updateCount('waitingCount', getActiveCount(categorized.waiting));
     updateCount('allCount', getActiveCount(allTasks));
 
-    const gridsConfig = [
-        { tab: 'myTasksTab', gridId: 'myTasksList', messages: categorized.inbox || [] },
-        { tab: 'otherTasksTab', gridId: 'otherTasksList', messages: categorized.pending || [] },
-        { tab: 'waitingTasksTab', gridId: 'waitingTasksList', messages: categorized.waiting || [] },
+    const gridsConfig: { tab: TaskTab, gridId: string, messages: Message[] }[] = [
+        { 
+            tab: 'my', 
+            gridId: 'myTasksList', 
+            messages: filterByTab(categorized.inbox || [], 'my') 
+        },
+        { 
+            tab: 'other', 
+            gridId: 'otherTasksList', 
+            messages: filterByTab(categorized.pending || [], 'other') 
+        },
         {
-            tab: 'allTasksTab',
+            tab: 'all',
             gridId: 'allTasksList',
-            messages: [...allTasks].sort((a, b) => {
+            messages: filterByTab([...allTasks], 'all').sort((a, b) => {
                 const dateA = new Date(a.timestamp || a.created_at || 0).getTime();
                 const dateB = new Date(b.timestamp || b.created_at || 0).getTime();
                 return dateB - dateA;
@@ -201,7 +209,7 @@ export function renderMessages(categorized: CategorizedMessages): void {
         if (!grid) return;
 
         const filtered = sortAndSearchMessages(config.messages, searchQuery);
-        const isMyTasksEmpty = (config.tab === 'myTasksTab' && config.messages.length === 0 && !searchQuery);
+        const isMyTasksEmpty = (config.tab === 'my' && config.messages.length === 0 && !searchQuery);
 
         grid.innerHTML = '';
         if (isMyTasksEmpty) {
@@ -235,7 +243,7 @@ export const getVisibleUntranslatedIds = (): number[] => {
         if (isNaN(id)) return;
 
         // Use global state to check if it needs translation
-        const all = [...state.messages.inbox, ...state.messages.pending, ...state.messages.waiting];
+        const all = [...state.messages.inbox, ...state.messages.pending];
         const m = all.find(item => item.id === id);
 
         if (m && !m.task_ko && !m.translating) {
@@ -271,14 +279,13 @@ export function removeTaskNode(id: number): void {
 
     setTimeout(() => {
         // Update global counts in UI
-        const allTasks = [...state.messages.inbox, ...state.messages.pending, ...state.messages.waiting];
+        const allTasks = [...state.messages.inbox, ...state.messages.pending];
         const updateCount = (countId: string, count: number) => {
             const el = document.getElementById(countId);
             if (el) el.textContent = count.toString();
         };
         updateCount('myCount', getActiveCount(state.messages.inbox));
         updateCount('otherCount', getActiveCount(state.messages.pending));
-        updateCount('waitingCount', getActiveCount(state.messages.waiting));
         updateCount('allCount', getActiveCount(allTasks));
     }, 300);
 }
@@ -301,14 +308,13 @@ export function updateTaskNodeStatus(id: number, done: boolean): void {
     });
 
     // Update global counts
-    const allTasks = [...state.messages.inbox, ...state.messages.pending, ...state.messages.waiting];
+    const allTasks = [...state.messages.inbox, ...state.messages.pending];
     const updateCount = (id: string, count: number) => {
         const el = document.getElementById(id);
         if (el) el.textContent = count.toString();
     };
     updateCount('myCount', getActiveCount(state.messages.inbox));
     updateCount('otherCount', getActiveCount(state.messages.pending));
-    updateCount('waitingCount', getActiveCount(state.messages.waiting));
     updateCount('allCount', getActiveCount(allTasks));
 }
 

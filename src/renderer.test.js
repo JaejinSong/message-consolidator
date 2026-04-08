@@ -53,11 +53,11 @@ describe('renderer.js - createCardElement', () => {
         expect(html).toContain('🤝');
     });
 
-    it('should include waiting tag when category is waiting', () => {
-        const msg = { id: 2, source: 'whatsapp', task: 'Task', requester: 'Req', timestamp: new Date().toISOString(), done: false, category: 'waiting', room: 'R' };
+    it('should include shared tag when category is shared', () => {
+        const msg = { id: 2, source: 'whatsapp', task: 'Task', requester: 'Req', timestamp: new Date().toISOString(), done: false, category: 'shared', room: 'R' };
         const html = renderer.createCardElement(msg);
-        expect(html).toContain('c-message-card__badge--waiting');
-        expect(html).toContain('⏳');
+        expect(html).toContain('c-message-card__badge--shared');
+        expect(html).toContain('👥');
     });
 
     it('should use assignee-me class for current user', () => {

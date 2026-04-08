@@ -10,20 +10,6 @@ import { marked } from 'marked';
  */
 
 import { Message, I18nDictionary, IReportData, ParsedVisualization } from './types';
-import { ASSIGNEE_SHARED } from './constants';
-
-/**
- * Why: Determines if a task is explicitly assigned to the current user.
- * Explicitly returns false for 'shared' tasks.
- */
-export function isExplicitMine(m: Message, userAliases: string[]): boolean {
-    if (!m.assignee || m.assignee === ASSIGNEE_SHARED) return false;
-    
-    const assignee = m.assignee.toLowerCase();
-    if (assignee === 'me') return true;
-    
-    return userAliases.some(alias => alias.toLowerCase() === assignee);
-}
 
 /** 완료된 업무가 대시보드에 노출되는 기준일 (보관함 이관 기준) */
 export const getArchiveThresholdDays = (): number => state.archiveThresholdDays || 7;

@@ -10,10 +10,8 @@ import {
     // Format Logic
     getDeadlineBadge,
     parseMarkdown,
-    isExplicitMine
+    getReportSummary
 } from './logic.ts';
-
-import { ASSIGNEE_SHARED } from './constants';
 
 // ----------------------------------------------------------------------
 // 1. Data Processing Logic
@@ -82,30 +80,6 @@ describe('logic.js - Filtering & Classification', () => {
                 { id: 2, task: 'Normal task', requester: 'Bob', source: 'slack', done: false, timestamp: new Date().toISOString() }
             ];
             expect(sortAndSearchMessages(messages, '$').length).toBe(1);
-        });
-    });
-
-    describe('isExplicitMine', () => {
-        const userAliases = ['Song', 'Jaejin'];
-        
-        it('should return true for "me"', () => {
-            expect(isExplicitMine({ assignee: 'me' }, userAliases)).toBe(true);
-            expect(isExplicitMine({ assignee: 'ME' }, userAliases)).toBe(true);
-        });
-
-        it('should return true for matching alias', () => {
-            expect(isExplicitMine({ assignee: 'Song' }, userAliases)).toBe(true);
-            expect(isExplicitMine({ assignee: 'jaejin' }, userAliases)).toBe(true);
-        });
-
-        it('should return false for shared assignee', () => {
-            expect(isExplicitMine({ assignee: ASSIGNEE_SHARED }, userAliases)).toBe(false);
-        });
-
-        it('should return false for other assignee', () => {
-            expect(isExplicitMine({ assignee: 'Alice' }, userAliases)).toBe(false);
-            expect(isExplicitMine({ assignee: '' }, userAliases)).toBe(false);
-            expect(isExplicitMine({ assignee: null }, userAliases)).toBe(false);
         });
     });
 });

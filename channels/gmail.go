@@ -531,7 +531,7 @@ func resolveGmailCategoryAndAssignee(item store.TodoItem, isMe bool, cls, toHead
 		if isMe {
 			return fallback, "promise"
 		}
-		return assignee, "waiting"
+		return assignee, "others"
 	}
 
 	if isMe && cls == CategoryMine {

@@ -30,17 +30,13 @@ func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	res := struct {
 		Inbox   []store.ConsolidatedMessage `json:"inbox"`
 		Pending []store.ConsolidatedMessage `json:"pending"`
-		Waiting []store.ConsolidatedMessage `json:"waiting"`
 	}{
 		Inbox:   make([]store.ConsolidatedMessage, 0),
 		Pending: make([]store.ConsolidatedMessage, 0),
-		Waiting: make([]store.ConsolidatedMessage, 0),
 	}
 
 	for _, m := range msgs {
-		if m.Category == "waiting" {
-			res.Waiting = append(res.Waiting, m)
-		} else if store.IsAssignedToUser(m, email, aliases) {
+		if store.IsAssignedToUser(m, email, aliases) {
 			res.Inbox = append(res.Inbox, m)
 		} else {
 			res.Pending = append(res.Pending, m)

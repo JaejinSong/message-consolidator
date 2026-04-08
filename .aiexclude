@@ -4,6 +4,7 @@
 node_modules/
 .npm/
 .yarn/
+vendor/
 
 # 2. 빌드 결과 및 바이너리
 bin/
@@ -14,6 +15,8 @@ target/
 *.dll
 *.so
 *.dylib
+local_test_bin
+test_bin
 
 # 3. 데이터베이스 및 로그
 *.log
@@ -21,6 +24,12 @@ target/
 *.db
 tmp/
 temp/
+db_diag.log
+go_test*.log
+npm_test*.log
+store_test.log
+test_results.log
+testsprite_err.log
 
 # 4. 버전 관리 및 에디터 설정
 .git/
@@ -28,9 +37,31 @@ temp/
 .vscode/
 .DS_Store
 Thumbs.db
+.serena/
+.agents/
 
 # 5. 캐시 및 테스트 결과
 .cache/
 .nyc_output/
 coverage/
-vendor/
+testsprite_tests/
+planning/
+knowledge/
+ui-test-results/
+
+# 6. 임시 파일 및 덤프
+*.bak
+*.tmp
+*.temp
+build_errors.txt
+test_build_errors.txt
+test_out.txt
+test_report.txt
+test_timing.txt
+plan.txt
+branch.txt
+loading_ui_test.log
+table_messages.txt
+explain.sql
+explain_optimized.sql
+Step

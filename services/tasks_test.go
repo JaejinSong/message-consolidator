@@ -193,6 +193,7 @@ func TestIsTaskMatchedByAlias_GroupMentions(t *testing.T) {
 		{"Hello team, please check this", false},
 		{"Task for Song", true},
 		{"Everyone should do this", false},
+		{"@channel check this", false},
 	}
 
 	for _, tt := range tests {
@@ -202,3 +203,40 @@ func TestIsTaskMatchedByAlias_GroupMentions(t *testing.T) {
 		}
 	}
 }
+
+func TestAssignCategory(t *testing.T) {
+	s := &TasksService{}
+	email := "me@example.com"
+	user := &store.User{Name: "Jaejin Song", Email: email}
+
+	tests := []struct {
+		name      string
+		assignee  string
+		requester string
+		task      string
+		expected  string
+	}{
+		{"personal: me", "me", "someone", "task", CategoryPersonal},
+		{"shared: shared", "shared", "someone", "task", CategoryShared},
+		{"shared: group mention @everyone", "", "someone", "@everyone check this", CategoryShared},
+		{"shared: group mention @channel", "", "someone", "@channel update", CategoryShared},
+		{"requested: me to someone", "someone", email, "do this", CategoryRequested},
+		{"requested: my name to someone", "someone", "Jaejin Song", "do this", CategoryRequested},
+		{"others: default", "someone", "someone", "just fyi", CategoryOthers},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := &store.ConsolidatedMessage{
+				Assignee:  tt.assignee,
+				Requester: tt.requester,
+				Task:      tt.task,
+			}
+			s.assignCategory(email, user, msg)
+			if msg.Category != tt.expected {
+				t.Errorf("assignCategory() category = %v, want %v", msg.Category, tt.expected)
+			}
+		})
+	}
+}
+

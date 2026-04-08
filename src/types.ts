@@ -64,7 +64,6 @@ export interface TimeSeriesPoint {
 export interface UserStats {
     daily_goal: number;
     pending_me: number;
-    waiting_tasks: number;
     pending_others: number;
     total_completed: number;
     peak_time: string;
@@ -81,7 +80,6 @@ export interface UserStats {
 export interface CategorizedMessages {
     inbox: Message[];
     pending: Message[];
-    waiting: Message[];
 }
 
 export interface AppState {
@@ -140,8 +138,9 @@ export interface I18nEntry {
     totalCompleted?: string;
     abandoned?: string;
     stale?: string;
-    waitingTasks?: string;
     reviewStatsTitle?: string;
+    sharedTag?: string;
+    sharedTasks?: string;
     achievements?: Record<string, AchievementEntry>;
 }
 

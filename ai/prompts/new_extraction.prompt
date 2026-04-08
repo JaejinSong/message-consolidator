@@ -32,9 +32,16 @@ Extract actionable tasks, operational policies, and context-dependent queries fr
       ELSE: SET category = "TASK"
 
 2. **DETERMINE assignee**:
-   IF message_content CONTAINS "@Name": SET assignee = "Name"
+   IF message_content CONTAINS specific mention (e.g., "Song", "JJ"): SET assignee = "Name"
+   ELSE IF message_content CONTAINS group_mention ("@everyone", "@channel", "@here", "@team"): SET assignee = "shared"
    ELSE IF category == "PROMISE": SET assignee = sender
-   ELSE: SET assignee = "shared" // Ensure ambiguous or group-directed tasks are not auto-assigned to the user.
+   ELSE: SET assignee = "shared" // Default to shared if recipient is unclear or group-directed.
+
+# JSON Examples for Edge Cases:
+- Input: "@everyone please sync before EOD."
+- Output JSON: `[{"state": "new", "task": "Sync before End of Day", "category": "TASK", "assignee": "shared", "language_code": "en"}]`
+- Input: "Check the new security policy." (No specific mention)
+- Output JSON: `[{"state": "new", "task": "Check new security policy", "category": "POLICY", "assignee": "shared", "language_code": "en"}]`
 
 3. **FINAL CONSTRAINTS**:
    - task SUMMARY must be in **English ONLY**.

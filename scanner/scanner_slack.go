@@ -6,6 +6,7 @@ import (
 	"message-consolidator/ai"
 	"message-consolidator/channels"
 	"message-consolidator/logger"
+	"message-consolidator/services"
 	"message-consolidator/store"
 	"message-consolidator/types"
 	"regexp"
@@ -540,9 +541,15 @@ func mapSlackItemToMessage(item store.TodoItem, m types.RawMessage, user *store.
 }
 
 //Why: Isolates the specific heuristic logic for deciding when an assignee should be defaulted to the current user.
+// Why: [No-Fallback Enforcement] Removes the arbitrary assignment of empty fields to the current user, 
+// ensuring that unassigned tasks remain as such (to be categorized as 'others' or 'shared') until explicitly resolved.
 func normalizeSlackAssignee(assignee string, user *store.User) string {
-	lowerAsg := strings.ToLower(assignee)
-	if lowerAsg == "" || lowerAsg == "me" || lowerAsg == "__current_user__" || lowerAsg == "나" || strings.EqualFold(assignee, user.Name) {
+	lowerAsg := strings.ToLower(strings.TrimSpace(assignee))
+	if lowerAsg == "" {
+		return services.AssigneeShared
+	}
+	// Why: Standardizes various self-referential keywords used by the AI into a single 'me' or 'userName' handle for internal mapping.
+	if lowerAsg == "me" || lowerAsg == "__current_user__" || lowerAsg == "나" || strings.EqualFold(assignee, user.Name) {
 		if user.Name != "" {
 			return user.Name
 		}

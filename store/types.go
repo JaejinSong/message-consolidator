@@ -55,10 +55,9 @@ type ConsolidatedMessage struct {
 // CategorizedMessages represents groups of messages for the dashboard tabs.
 // Why: Enables Zero-Logic UI by delegating all filtering and categorization to the backend.
 type CategorizedMessages struct {
-	Inbox   []ConsolidatedMessage `json:"inbox"`   // Active tasks assigned to the user ('me' or userName)
-	Pending []ConsolidatedMessage `json:"pending"` // Active tasks assigned to others
-	Waiting []ConsolidatedMessage `json:"waiting"` // Active tasks in 'waiting' category
-	All     []ConsolidatedMessage `json:"all"`     // All active tasks regardless of assignee or category
+	Inbox   []ConsolidatedMessage `json:"inbox" Gennode:"true"`   // Active tasks assigned to the user ('me' or userName)
+	Pending []ConsolidatedMessage `json:"pending" Gennode:"true"` // Active tasks assigned to others
+	All     []ConsolidatedMessage `json:"all" Gennode:"true"`     // All active tasks regardless of assignee or category
 }
 
 // User represents an application user
@@ -194,7 +193,6 @@ type UserStats struct {
 	PeakTime                string            `json:"peak_time"`
 	AbandonedTasks          int               `json:"abandoned_tasks"`
 	PendingMe               int               `json:"pending_me"`
-	WaitingTasks            int               `json:"waiting_tasks"`             //Why: Number of incomplete tasks with 'waiting' category for the dashboard widget.
 	PendingOthers           int               `json:"pending_others"`            //Why: Number of incomplete tasks assigned to others to support tab counts in the main UI.
 	SourceDistribution      map[string]int    `json:"source_distribution"`       //Why: Represents the distribution of active tasks for the dashboard.
 	SourceDistributionTotal map[string]int    `json:"source_distribution_total"` //Why: Represents the total distribution including archived tasks.

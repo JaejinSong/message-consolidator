@@ -20,7 +20,7 @@ export const state: AppState = {
     archiveTotalCount: 0,
     archiveThresholdDays: 7, 
     archiveStatus: 'all',
-    messages: { inbox: [], pending: [], waiting: [] },
+    messages: { inbox: [], pending: [] },
     userStats: null,
     selectedTaskIds: new Set<number>(),
     reports: {},
@@ -66,7 +66,7 @@ export const updateStats = (user: Partial<UserProfile> | null): void => {
  * as it's the single source of truth from the backend. 
  */
 export const updateMessages = (messages: CategorizedMessages): void => {
-    state.messages = messages || { inbox: [], pending: [], waiting: [] };
+    state.messages = messages || { inbox: [], pending: [] };
 };
 
 /**
@@ -144,7 +144,6 @@ export const removeReportFromState = (startDate: string, endDate: string): void 
 export const deleteTaskFromState = (id: number): void => {
     state.messages.inbox = state.messages.inbox.filter(m => m.id !== id);
     state.messages.pending = state.messages.pending.filter(m => m.id !== id);
-    state.messages.waiting = state.messages.waiting.filter(m => m.id !== id);
 };
 
 /**
@@ -154,13 +153,12 @@ export const updateTaskStatusInState = (id: number, done: boolean): void => {
     const update = (m: Message) => m.id === id ? { ...m, done, completed_at: done ? new Date().toISOString() : undefined } : m;
     state.messages.inbox = state.messages.inbox.map(update);
     state.messages.pending = state.messages.pending.map(update);
-    state.messages.waiting = state.messages.waiting.map(update);
 };
 
 /**
  * Why: O(N) retrieval of a single task from currently loaded categories for rollback.
  */
 export const getTaskById = (id: number): Message | undefined => {
-    const all = [...state.messages.inbox, ...state.messages.pending, ...state.messages.waiting];
+    const all = [...state.messages.inbox, ...state.messages.pending];
     return all.find(m => m.id === id);
 };

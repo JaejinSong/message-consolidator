@@ -99,16 +99,6 @@ func buildWAMetadataString(email string, m types.RawMessage) string {
 func saveWAItem(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool) int {
 	assignee := item.Assignee
 	category := item.Category
-	isMentioned := false
-	for _, a := range aliases {
-		if a != "" && IsAliasMatched(m.Text, item.Requester, a) {
-			isMentioned = true
-			break
-		}
-	}
-	if is1to1 || isMentioned {
-		assignee = user.Name
-	}
 	msg := store.ConsolidatedMessage{
 		UserEmail: user.Email, Source: "whatsapp", Room: group, Task: item.Task,
 		Requester: item.Requester, Assignee: assignee, AssignedAt: m.Timestamp,
