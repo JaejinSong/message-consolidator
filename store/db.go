@@ -101,22 +101,23 @@ func InitDB(cfg *config.Config) error {
 	if strings.HasPrefix(dbURL, "libsql://") {
 		driverName = "libsql"
 	}
+	dsn = dbURL
+	dbURL = GetDSN()
+
 	db, err = sql.Open(driverName, dbURL)
 	if err != nil {
 		return fmt.Errorf("failed to open database (%s): %w", driverName, err)
 	}
 
 	setupConnectionPool(dbURL)
-	// Extra safety: Explicitly set busy_timeout even if it's in DSN.
-	_, _ = db.Exec("PRAGMA busy_timeout = 30000;")
 
-	// Why: If it's local SQLite, wrap initialization in a write transaction to prevent concurrent processes from clashing on schema changes.
+	// Why: If it's local SQLite, wrap initialization in a write transaction.
+	// We rely on the DSN parameter _txlock=immediate injected via GetDSN() above.
 	var tx *sql.Tx
 	if strings.HasPrefix(dbURL, "file:") {
-		// Attempt to start a write lock immediately.
-		tx, err = db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelDefault})
-		if err == nil {
-			_, _ = tx.Exec("BEGIN IMMEDIATE;")
+		tx, err = db.BeginTx(context.Background(), nil)
+		if err != nil {
+			logger.Warnf("[DB-INIT] Failed to start initialization transaction: %v", err)
 		}
 	}
 
@@ -157,37 +158,20 @@ func InitDB(cfg *config.Config) error {
 }
 
 func setupConnectionPool(connStr string) {
-	//Why: Configures connection pool settings to prevent "stream is closed" or "bad connection" errors in serverless environments like Turso.
+	//Why: For local SQLite, MaxOpenConns=1 is the only robust way to prevent `database is locked (5)` 
+	//errors caused by connection pool starvation or PRAGMA mismatches across multiple connections.
 	maxOpen := 20
 	idleConns := 2
+
 	if strings.HasPrefix(connStr, "libsql://") {
-		//Why: Disables idle connections for remote Turso environments to prevent holding onto stale connections dropped by the server.
 		logger.Infof("[DB] Turso detected. Setting MaxIdleConns to 0, MaxOpenConns to 20.")
 		idleConns = 0
 	} else {
-		//Why: For local SQLite tests running sequentially, MaxOpenConns=1 is the only robust way to prevent `database is locked (5)` 
-		//errors caused by connection pool starvation or PRAGMA mismatches across multiple connections.
-		logger.Infof("[DB] SQLite (Local) detected. Setting MaxIdleConns to 1, MaxOpenConns to 1 (WAL mode).")
-		maxOpen = 1
+		logger.Infof("[DB] SQLite (Local) detected. Setting MaxIdleConns to 1, MaxOpenConns to 2.")
+		maxOpen = 2
 		idleConns = 1
-
-		//Why: Check current state to avoid unnecessary lock requests if WAL is already active.
-		var currentMode string
-		_ = db.QueryRow("PRAGMA journal_mode;").Scan(&currentMode)
-		if strings.ToLower(currentMode) != "wal" {
-			if _, err := db.Exec("PRAGMA journal_mode=WAL;"); err != nil {
-				logger.Warnf("[DB] Failed to enable WAL mode: %v", err)
-			}
-		}
-
-		var currentSync int
-		_ = db.QueryRow("PRAGMA synchronous;").Scan(&currentSync)
-		if currentSync != 1 { // 1 = NORMAL
-			if _, err := db.Exec("PRAGMA synchronous=NORMAL;"); err != nil {
-				logger.Warnf("[DB] Failed to set PRAGMA synchronous=NORMAL: %v", err)
-			}
-		}
 	}
+
 	db.SetMaxIdleConns(idleConns)
 	db.SetMaxOpenConns(maxOpen)
 	db.SetConnMaxLifetime(1 * time.Minute)
@@ -209,10 +193,15 @@ func GetDSN() string {
 		return dsn
 	}
 	q := u.Query()
-	if q.Get("_txlock") == "" {
-		q.Set("_txlock", "immediate")
-		u.RawQuery = q.Encode()
-	}
+	// Why: Remove cache=shared as it is incompatible with WAL mode and can cause deadlocks when MaxOpenConns=1.
+	q.Del("cache")
+	
+	// Why: Ensure robust local concurrency by enforcing WAL mode, immediate write locks, and a long busy timeout for the connection pool.
+	if q.Get("_txlock") == "" { q.Set("_txlock", "immediate") }
+	if q.Get("_journal_mode") == "" { q.Set("_journal_mode", "WAL") }
+	if q.Get("_busy_timeout") == "" { q.Set("_busy_timeout", "30000") }
+	
+	u.RawQuery = q.Encode()
 	return u.String()
 }
 
