@@ -15,14 +15,14 @@ func TestListReportsPerformance(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	email := "perf@test.com"
+	email := testutil.RandomEmail("perf")
 
 	// 1. 다수의 보고서 시딩 (예: 5개)
 	for i := 1; i <= 5; i++ {
 		r := &Report{
 			UserEmail: email,
-			StartDate: fmt.Sprintf("2024-01-0%d", i),
-			EndDate:   fmt.Sprintf("2024-01-0%d", i),
+			StartDate: fmt.Sprintf("2024-02-0%d", i),
+			EndDate:   fmt.Sprintf("2024-02-0%d", i),
 		}
 		id, err := SaveReport(ctx, r)
 		if err != nil {

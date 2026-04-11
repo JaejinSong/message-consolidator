@@ -58,70 +58,110 @@ run_step() {
     fi
 }
 
-# --- Execution ---
+# --- Functions ---
 
-# Step 0: Testing (Parallel)
-echo -e "${BLUE}==> Step 0: Parallel Testing...${NC}"
-(
-    run_step "Go Unit Tests" go test ./...
-) & p1=$!
-(
-    run_step "AI Regressions" go test -tags regression ./ai/...
-) & p2=$!
-(
-    run_step "NPM (Vitest)" npm test
-) & p3=$!
-
-wait $p1 || exit 1
-wait $p2 || exit 1
-wait $p3 || exit 1
-
-run_step "GCloud Auth" gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
-
-# Step 1-3: Parallel Build & Push
-echo -e "${BLUE}==> Step 1-3: Parallel Build & Push...${NC}"
-
-# Frontend Task
+# Frontend Build
 build_fe() {
+    run_step "FE: CSS Optimize" npm run optimize:css
     run_step "FE: Build" docker build --platform linux/amd64 -q -t "${IMAGE_FE_TAG}" -t "${REGISTRY}/frontend:latest" -f docker/frontend/Dockerfile .
-    run_step "FE: Push" bash -c "docker push ${IMAGE_FE_TAG} > /dev/null 2>&1 && docker push ${REGISTRY}/frontend:latest > /dev/null 2>&1"
 }
 
-# Backend Task
+# Backend Build
 build_be() {
     BUILDER_TAG="${REGISTRY}/backend-builder:latest"
     if [[ "$FORCE_BUILDER" == "true" ]] || ! docker image inspect "$BUILDER_TAG" >/dev/null 2>&1; then
         run_step "BE: Builder" docker build --platform linux/amd64 -q -t "$BUILDER_TAG" -f docker/backend/Dockerfile.builder .
-        docker push "$BUILDER_TAG" > /dev/null 2>&1
+        # Builder push is rare, can happen in background
+        docker push "$BUILDER_TAG" > /dev/null 2>&1 &
     fi
     run_step "BE: Build" docker build --platform linux/amd64 -q -t "${IMAGE_BE_TAG}" -t "${REGISTRY}/backend:latest" -f docker/backend/Dockerfile --build-arg BUILDER_IMAGE="$BUILDER_TAG" .
-    run_step "BE: Push" bash -c "docker push ${IMAGE_BE_TAG} > /dev/null 2>&1 && docker push ${REGISTRY}/backend:latest > /dev/null 2>&1"
 }
 
-if [[ "$MODE" == "all" || "$MODE" == "fe" ]]; then 
-    run_step "FE: CSS Optimize" npm run optimize:css
-    build_fe & fe_pid=$! 
-fi
-if [[ "$MODE" == "all" || "$MODE" == "be" ]]; then 
-    build_be & be_pid=$! 
-fi
+# --- Execution ---
 
-# Wait for builds and capture final image paths
-[ -n "$fe_pid" ] && { wait $fe_pid || exit 1; FINAL_FE_IMAGE="${IMAGE_FE_TAG}"; }
-[ -n "$be_pid" ] && { wait $be_pid || exit 1; FINAL_BE_IMAGE="${IMAGE_BE_TAG}"; }
+# --- Deployment Chains ---
 
-# Step 4: VPS Orchestration
-echo -e "${BLUE}==> Step 4: VPS Orchestration...${NC}"
-run_step "Config & Restart" bash -c "
-  grep -vE '^(FE_IMAGE|BE_IMAGE)=' .env > .env.vps && 
-  echo 'FE_IMAGE=${FINAL_FE_IMAGE}' >> .env.vps && 
-  echo 'BE_IMAGE=${FINAL_BE_IMAGE}' >> .env.vps &&
-  ${SCP_CMD} .env.vps docker-compose.yml Caddyfile ${VPS_NAME}:~/message-consolidator/ &&
-  ${SSH_CMD} \"cd ~/message-consolidator && mv .env.vps .env && sudo docker-compose --env-file .env down --remove-orphans > /dev/null 2>&1 && sudo docker-compose --env-file .env up -d --force-recreate > /dev/null 2>&1\"
-"
+chain_be() {
+    build_be
+    echo -e "${BLUE}==> Pushing Backend...${NC}"
+    run_step "BE: Push" bash -c "docker push ${IMAGE_BE_TAG} > /dev/null 2>&1 && docker push ${REGISTRY}/backend:latest > /dev/null 2>&1"
+    FINAL_BE_IMAGE="${IMAGE_BE_TAG}"
+    echo -e "${BLUE}==> Deploying Backend Container...${NC}"
+    run_step "BE: Deploy" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose up -d --force-recreate backend"
+}
 
-# Step 5: Post-Deployment Verification
-echo -e "${BLUE}==> Step 5: Post-Deployment Verification...${NC}"
+chain_fe() {
+    build_fe
+    echo -e "${BLUE}==> Pushing Frontend...${NC}"
+    run_step "FE: Push" bash -c "docker push ${IMAGE_FE_TAG} > /dev/null 2>&1 && docker push ${REGISTRY}/frontend:latest > /dev/null 2>&1"
+    FINAL_FE_IMAGE="${IMAGE_FE_TAG}"
+    echo -e "${BLUE}==> Deploying Frontend Container...${NC}"
+    run_step "FE: Deploy" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose up -d --force-recreate frontend"
+}
+
+chain_caddy() {
+    echo -e "${BLUE}==> Deploying Caddy Configuration...${NC}"
+    # Why: Reloading Caddy in-place for zero-downtime config updates.
+    run_step "Caddy: Reload" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile" || \
+    run_step "Caddy: Restart" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose restart caddy"
+}
+
+task_db_sync() {
+    echo -e "${BLUE}==> Running DB Sync (db-unify)...${NC}"
+    run_step "DB: Sync" bash scripts/db-unify.sh
+}
+
+# --- Execution Flow ---
+
+# [STAGE 1] Parallel Testing Gate
+echo -e "\n${BLUE}==================================================${NC}"
+echo -e "${BLUE}==> STAGE 1: Parallel Testing Gate${NC}"
+echo -e "${BLUE}==================================================${NC}"
+
+( run_step "Go Unit Tests" go test -p 1 ./... ) & p_test_go=$!
+( run_step "AI Regressions" go test -tags regression ./ai/... ) & p_test_ai=$!
+( run_step "NPM (Vitest)" npm test ) & p_test_node=$!
+( run_step "GCloud Auth" gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet ) & p_auth=$!
+
+wait $p_test_go || { echo -e "${RED}FATAL: Go Tests Failed${NC}"; exit 1; }
+wait $p_test_ai || { echo -e "${RED}FATAL: AI Regressions Failed${NC}"; exit 1; }
+wait $p_test_node || { echo -e "${RED}FATAL: Node Tests Failed${NC}"; exit 1; }
+wait $p_auth || { echo -e "${RED}FATAL: GCloud Auth Failed${NC}"; exit 1; }
+
+echo -e "${GREEN}Stage 1 passed! All tests validated.${NC}"
+
+# [STAGE 2] Parallel Deployment Chains & Sync
+echo -e "\n${BLUE}==================================================${NC}"
+echo -e "${BLUE}==> STAGE 2: Parallel Deployment Chains & Sync${NC}"
+echo -e "${BLUE}==================================================${NC}"
+
+# 2.0 Prep: Sync Config Files to VPS
+echo -e "${BLUE}==> Syncing Orchestration Files...${NC}"
+grep -vE '^(FE_IMAGE|BE_IMAGE)=' .env > .env.vps
+echo "FE_IMAGE=${IMAGE_FE_TAG}" >> .env.vps
+echo "BE_IMAGE=${IMAGE_BE_TAG}" >> .env.vps
+run_step "Upload Configs" ${SCP_CMD} .env.vps docker-compose.yml Caddyfile ${VPS_NAME}:~/message-consolidator/
+${SSH_CMD} "cd ~/message-consolidator && mv .env.vps .env"
+
+# 2.1 Start Chains
+p_be=""; p_fe=""; p_caddy=""; p_sync=""
+
+if [[ "$MODE" == "all" || "$MODE" == "be" ]]; then chain_be & p_be=$!; fi
+if [[ "$MODE" == "all" || "$MODE" == "fe" ]]; then chain_fe & p_fe=$!; fi
+chain_caddy & p_caddy=$!
+task_db_sync & p_sync=$!
+
+# 2.2 Wait for Convergence
+[ -n "$p_be" ] && { wait $p_be || exit 1; }
+[ -n "$p_fe" ] && { wait $p_fe || exit 1; }
+wait $p_caddy || exit 1
+wait $p_sync || exit 1
+
+echo -e "\n${GREEN}Stage 2 complete! Infrastructure updated.${NC}"
+
+# --- Post-Deployment ---
+
+echo -e "\n${BLUE}==> Final Post-Deployment Verification...${NC}"
 echo -n "Waiting for Backend Startup... "
 ${SSH_CMD} -- "
   for i in \$(seq 1 30); do

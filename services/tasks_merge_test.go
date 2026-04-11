@@ -22,15 +22,15 @@ func TestMergeTasks_AIFlow(t *testing.T) {
 	cleanup, _ := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	defer cleanup()
 
-	email := "test@example.com"
+	email := testutil.RandomEmail("test")
 	ctx := context.Background()
 
 	// 1. Create dummy tasks
-	_, destID, _ := store.SaveMessage(ctx, store.ConsolidatedMessage{
-		UserEmail: email, Task: "Old Destination Title", OriginalText: "Old Text", Category: "inbox", SourceTS: "ts-dest-1",
+	_, destID, _ := store.SaveMessage(ctx, store.GetDB(), store.ConsolidatedMessage{
+		UserEmail: email, Task: "Old Destination Title", OriginalText: "Old Text", Category: "inbox", SourceTS: testutil.RandomTS("ts-dest"),
 	})
-	_, srcID, _ := store.SaveMessage(ctx, store.ConsolidatedMessage{
-		UserEmail: email, Task: "Source Title", OriginalText: "Source Text", Category: "inbox", SourceTS: "ts-src-1",
+	_, srcID, _ := store.SaveMessage(ctx, store.GetDB(), store.ConsolidatedMessage{
+		UserEmail: email, Task: "Source Title", OriginalText: "Source Text", Category: "inbox", SourceTS: testutil.RandomTS("ts-src"),
 	})
 
 	t.Run("Success Case - AI returns new title", func(t *testing.T) {
@@ -41,13 +41,13 @@ func TestMergeTasks_AIFlow(t *testing.T) {
 		if err != nil { t.Fatalf("MergeTasks failed: %v", err) }
 
 		// Verify title updated
-		msg, _ := store.GetMessageByID(ctx, email, destID)
+		msg, _ := store.GetMessageByID(ctx, store.GetDB(), email, destID)
 		if msg.Task != "AI Generated Action Title" {
 			t.Errorf("Expected title 'AI Generated Action Title', got %q", msg.Task)
 		}
 
 		// Verify source marked as merged
-		src, _ := store.GetMessageByID(ctx, email, srcID)
+		src, _ := store.GetMessageByID(ctx, store.GetDB(), email, srcID)
 		if src.Category != "merged" {
 			t.Errorf("Expected source category 'merged', got %q", src.Category)
 		}
@@ -58,14 +58,14 @@ func TestMergeTasks_AIFlow(t *testing.T) {
 		svc := NewTasksService(nil, mockAI)
 
 		// Create new dest for fallback test
-		_, destID2, _ := store.SaveMessage(ctx, store.ConsolidatedMessage{
-			UserEmail: email, Task: "Keep Original", OriginalText: "...", Category: "inbox", SourceTS: "ts-dest-2",
+		_, destID2, _ := store.SaveMessage(ctx, store.GetDB(), store.ConsolidatedMessage{
+			UserEmail: email, Task: "Keep Original", OriginalText: "...", Category: "inbox", SourceTS: testutil.RandomTS("ts-dest"),
 		})
 
 		err := svc.MergeTasks(ctx, email, []int64{int64(srcID)}, int64(destID2))
 		if err != nil { t.Fatalf("MergeTasks failed: %v", err) }
 
-		msg, _ := store.GetMessageByID(ctx, email, destID2)
+		msg, _ := store.GetMessageByID(ctx, store.GetDB(), email, destID2)
 		if msg.Task != "Keep Original" {
 			t.Errorf("Expected fallback to original title 'Keep Original', got %q", msg.Task)
 		}

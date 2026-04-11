@@ -11,4 +11,4 @@ echo ">>> VPS(chat-analyzer-vps)의 애플리케이션 로그를 확인합니다
 gcloud compute ssh chat-analyzer-vps \
   --zone=us-central1-a \
   --project=gemini-enterprise-487906 \
-  --command="docker logs $ARGS message-consolidator_app_1"
+  --command="docker logs $ARGS message-consolidator-backend"

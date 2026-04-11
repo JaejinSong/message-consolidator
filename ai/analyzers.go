@@ -2,6 +2,8 @@ package ai
 
 import (
 	"message-consolidator/logger"
+	"message-consolidator/types"
+	"time"
 )
 
 // SourceAnalyzer defines how to extract tasks from different message sources.
@@ -43,6 +45,7 @@ func (g *GmailAnalyzer) PreProcess(text string) string {
 // ChatAnalyzer handles task extraction from Slack/WhatsApp chats.
 type ChatAnalyzer struct {
 	Source string
+	Window time.Duration
 }
 
 func (c *ChatAnalyzer) GetSystemInstruction(data ExtractionContext) string {
@@ -111,4 +114,24 @@ func getAnalyzer(source string) SourceAnalyzer {
 	default:
 		return nil
 	}
+}
+
+// GroupMessagesByTime slices a list of messages into batches based on sender and time proximity.
+// Why: [Time-Topic Hybrid] Bundles rapid-fire messages from the same sender to provide better context to AI.
+func GroupMessagesByTime(msgs []types.RawMessage, interval time.Duration) [][]types.RawMessage {
+	if len(msgs) == 0 {
+		return nil
+	}
+	var groups [][]types.RawMessage
+	var current []types.RawMessage
+
+	for i, msg := range msgs {
+		if i == 0 || (msg.Sender == msgs[i-1].Sender && msg.Timestamp.Sub(msgs[i-1].Timestamp) <= interval) {
+			current = append(current, msg)
+			continue
+		}
+		groups = append(groups, current)
+		current = []types.RawMessage{msg}
+	}
+	return append(groups, current)
 }

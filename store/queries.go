@@ -72,6 +72,7 @@ var SQL = struct {
 	GetActiveTasksForContext     string
 	UpdateCategoryMerged         string
 	GetMessagesForMerge          string
+	IsMessageProcessed           string
 
 	//Why: Groups SQL queries for user-related operations.
 	GetAllUsers            string
@@ -191,6 +192,7 @@ var SQL = struct {
 	MigrateMessagesAddConstraints      string
 	MigrateMessagesAddMetadata         string
 	MigrateMessagesAddSourceChannels   string
+	MigrateMessagesAddConsolidatedContext string
 	CreateIdxUserTS                    string
 	MigrateUsersAddPoints              string
 	MigrateUsersAddStreak              string
@@ -336,6 +338,7 @@ func loadAllQueries() error {
 	SQL.GetActiveTasksForContext = queries["GetActiveTasksForContext"]
 	SQL.UpdateCategoryMerged = queries["UpdateCategoryMerged"]
 	SQL.GetMessagesForMerge = queries["GetMessagesForMerge"]
+	SQL.IsMessageProcessed = queries["IsMessageProcessed"]
 
 	SQL.GetAllUsers = queries["GetAllUsers"]
 	SQL.GetUserByEmail = queries["GetUserByEmail"]
@@ -442,6 +445,7 @@ func loadAllQueries() error {
 	SQL.MigrateMessagesAddConstraints = queries["MigrateMessagesAddConstraints"]
 	SQL.MigrateMessagesAddMetadata = queries["MigrateMessagesAddMetadata"]
 	SQL.MigrateMessagesAddSourceChannels = queries["MigrateMessagesAddSourceChannels"]
+	SQL.MigrateMessagesAddConsolidatedContext = queries["MigrateMessagesAddConsolidatedContext"]
 	SQL.CreateIdxUserTS = queries["CreateIdxUserTS"]
 	SQL.MigrateUsersAddPoints = queries["MigrateUsersAddPoints"]
 	SQL.MigrateUsersAddStreak = queries["MigrateUsersAddStreak"]

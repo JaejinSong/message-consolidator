@@ -19,36 +19,47 @@ import (
 
 func (s *WhatsAppScanner) processWhatsAppGroup(ctx context.Context, user store.User, aliases []string, jid string, msgs []types.RawMessage, language string) []int {
 	groupName := channels.DefaultWAManager.GetGroupName(user.Email, jid)
-	payload, msgMap := buildWAPayload(user, aliases, msgs)
-
-	// Why: [Metadata Enrichment] Normalizes the latest message into an EnrichedMessage for AI context.
-	lastMsg := msgs[len(msgs)-1]
-	enriched, err := EnrichWhatsAppMessage(jid, payload, lastMsg.Timestamp, &store.AliasStore{})
-	if err != nil {
-		logger.Errorf("[WA-SCAN] Failed to enrich message: %v", err)
-		return nil
-	}
-
+	
+	// Why: [Time-Topic Hybrid] Groups messages by sender and time proximity to provide better context.
+	msgGroups := ai.GroupMessagesByTime(msgs, cfg.MessageBatchWindow)
+	
+	var allNewIDs []int
 	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 	if err != nil {
-		return nil
-	}
-	items, err := gc.Analyze(ctx, user.Email, *enriched, language, "whatsapp", groupName)
-	if err != nil {
+		logger.Errorf("[WA-SCAN] Failed to create Gemini client: %v", err)
 		return nil
 	}
 
-	var newIDs []int
-	is1to1 := !strings.Contains(jid, "@g.us")
-	for _, item := range items {
-		if m, ok := msgMap[item.SourceTS]; ok {
-			id := saveWAItem(ctx, user, aliases, item, m, groupName, is1to1)
-			if id > 0 {
-				newIDs = append(newIDs, id)
+	for _, group := range msgGroups {
+		if len(group) == 0 {
+			continue
+		}
+		
+		payload, msgMap := buildWAPayload(user, aliases, group)
+		lastMsg := group[len(group)-1]
+		enriched, err := EnrichWhatsAppMessage(jid, payload, lastMsg.Timestamp, &store.AliasStore{})
+		if err != nil {
+			logger.Errorf("[WA-SCAN] Failed to enrich message group: %v", err)
+			continue
+		}
+
+		items, err := gc.Analyze(ctx, user.Email, *enriched, language, "whatsapp", groupName)
+		if err != nil {
+			logger.Errorf("[WA-SCAN] AI analysis failed for group: %v", err)
+			continue
+		}
+
+		is1to1 := !strings.Contains(jid, "@g.us")
+		for _, item := range items {
+			if m, ok := msgMap[item.SourceTS]; ok {
+				id := saveWAItem(ctx, user, aliases, item, m, groupName, is1to1)
+				if id > 0 {
+					allNewIDs = append(allNewIDs, id)
+				}
 			}
 		}
 	}
-	return newIDs
+	return allNewIDs
 }
 
 func buildWAPayload(user store.User, aliases []string, msgs []types.RawMessage) (string, map[string]types.RawMessage) {
@@ -105,7 +116,7 @@ func saveWAItem(ctx context.Context, user store.User, aliases []string, item sto
 		SourceTS: item.SourceTS, OriginalText: m.Text, Category: category,
 		SourceChannels: []string{"whatsapp"}, // Initial source for the new task
 	}
-	id, _ := store.HandleTaskState(ctx, user.Email, item, msg)
+	id, _ := store.HandleTaskState(ctx, nil, user.Email, item, msg)
 	return id
 }
 

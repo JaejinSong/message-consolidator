@@ -4,6 +4,7 @@ import (
 	"message-consolidator/logger"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -27,6 +28,7 @@ type Config struct {
 	AutoArchiveDays        int
 	CloudRunMode           bool
 	InternalScanSecret     string
+	MessageBatchWindow     time.Duration
 }
 
 func LoadConfig() *Config {
@@ -69,6 +71,13 @@ func LoadConfig() *Config {
 		}
 	}
 
+	batchWindow := 5 * time.Minute
+	if wStr := os.Getenv("MESSAGE_BATCH_WINDOW"); wStr != "" {
+		if d, err := time.ParseDuration(wStr); err == nil {
+			batchWindow = d
+		}
+	}
+
 	return &Config{
 		SlackToken:             os.Getenv("SLACK_TOKEN"),
 		GeminiAPIKey:           os.Getenv("GEMINI_API_KEY"),
@@ -88,5 +97,6 @@ func LoadConfig() *Config {
 		AutoArchiveDays:        autoArchiveDays,
 		CloudRunMode:           os.Getenv("CLOUD_RUN_MODE") == "true",
 		InternalScanSecret:     os.Getenv("INTERNAL_SCAN_SECRET"),
+		MessageBatchWindow:     batchWindow,
 	}
 }

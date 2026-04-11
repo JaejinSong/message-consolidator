@@ -388,7 +388,27 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 
 // processBatch handles the analysis and persistence of a single batch of emails.
 func processBatch(ctx context.Context, gc *ai.GeminiClient, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage)) []int {
-	payload, msgMap := buildGmailBatchPayload(email, batchMsgs, classificationMap, onThreadActivity)
+	var filteredMsgs []types.RawMessage
+	skippedCount := 0
+
+	for _, m := range batchMsgs {
+		processed, err := store.IsProcessed(ctx, store.GetDB(), email, m.ID)
+		if err == nil && processed {
+			skippedCount++
+			continue
+		}
+		filteredMsgs = append(filteredMsgs, m)
+	}
+
+	if skippedCount > 0 {
+		logger.Infof("[WhaTap-Efficiency] Skipped %d already processed Gmail messages for %s", skippedCount, email)
+	}
+
+	if len(filteredMsgs) == 0 {
+		return nil
+	}
+
+	payload, msgMap := buildGmailBatchPayload(email, filteredMsgs, classificationMap, onThreadActivity)
 	items, err := executeGmailAnalysisWithRetry(ctx, gc, email, payload, language, "Inbox")
 	if err != nil {
 		logger.Errorf("[SCAN-GMAIL] Batch Analyze Error for %s: %v", email, err)
@@ -399,7 +419,7 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, email, language stri
 	var newIDs []int
 	for i, item := range items {
 		if i < len(msgs) {
-			id, _ := store.HandleTaskState(ctx, email, item, msgs[i])
+			id, _ := store.HandleTaskState(ctx, store.GetDB(), email, item, msgs[i])
 			if id > 0 {
 				newIDs = append(newIDs, id)
 			}
@@ -532,6 +552,7 @@ func mapTodoToMessage(email string, user *store.User, aliases []string, item sto
 		Category:       category,
 		ThreadID:       m.ThreadID,
 		SourceChannels: []string{"gmail"}, // Initial source for the new task
+		ConsolidatedContext: item.ContextSnippets,
 	}, true
 }
 

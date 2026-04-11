@@ -9,11 +9,22 @@ Extract actionable tasks, operational policies, and context-dependent queries fr
 
 # Core Rules:
 0. **Canonical Language**: All 'task' summaries MUST be written in **English (EN)** only, regardless of the input message language. Always generate task summaries in English regardless of the input language.
-1. **Force JSON Output**: You must respond ONLY in a JSON array: `[{"id": integer, "state": "new|update|resolve|cancel|none", "task": "string", "category": "TASK|POLICY|QUERY|PROMISE|WAITING", "assignee": "string", "source_ts": "string", "language_code": "en"}]`.
-2. **Conservative Extraction**: IF the intent of the message is ambiguous between a task and a simple greeting, DO NOT ignore it. Set `state: "new"` to ensure no potential task is missed.
-3. **None State**: IF a message is CLEARLY and EXCLUSIVELY a greeting, well-being inquiry, or casual talk (e.g., "Hi", "Hello", "How are you?"), set `state: "none"`, and still include `"language_code": "en"`.
-4. **Host Response (Resolve)**: IF the sender is `{{.CurrentUser}}` AND the message indicates completion ("Done", "Finished", "I did it") of a task listed in the `Existing Tasks JSON`, set `state: "resolve"` and provide the matching task `id`.
-5. **Update State**: IF a message adds more detail to an existing task in `Existing Tasks JSON`, set `state: "update"` with the matching `id`.
+1. **Force JSON Output**: You must respond ONLY in a JSON array: `[{"id": integer, "state": "new|update|resolve|cancel|none", "reasoning": "string", "task": "string", "category": "TASK|POLICY|QUERY|PROMISE", "assignee": "string", "source_ts": "string", "language_code": "en", "context_snippets": ["string"]}]`.
+2. **Time-Topic Hybrid Extraction (CRITICAL)**:
+   - **Context Grouping**: If the input messages discuss the SAME actionable goal, CONSOLIDATE them into a single task (state: "new" or "update").
+   - **Logical Separation**: If messages discuss logically DISTINCT goals (e.g., "Server fix" vs "Coffee plans"), extract them as SEPARATE tasks even if they are in the same timestamp block.
+   - **Reasoning**: Use the `reasoning` field to explain your choice (e.g., "Merged related follow-ups", "Separated distinct topic change").
+3. **Task Consolidation & Core Context**: 
+   - Extract a MAXIMUM of 5 core actionable tasks per email. 
+   - **Contextual Justification**: For each task, extract 1-2 sentence snippets from the ORIGINAL message that serve as the direct justification or context for that task. These snippets MUST remain in their **Original Language** (do not translate them).
+4. **Conservative Extraction**: IF the intent of the message is ambiguous between a task and a simple greeting, DO NOT ignore it. Set `state: "new"` to ensure no potential task is missed.
+5. **None State**: IF a message is CLEARLY and EXCLUSIVELY a greeting, well-being inquiry, or casual talk (e.g., "Hi", "Hello", "How are you?"), set `state: "none"`, and still include `"language_code": "en"`.
+6. **Host Response (Resolve)**: IF the sender is `{{.CurrentUser}}` AND the message indicates completion ("Done", "Finished", "I did it") of a task listed in the `Existing Tasks JSON`, set `state: "resolve"` and provide the matching task `id`.
+7. **Update State**: IF a message adds more detail to an existing task in `Existing Tasks JSON`, set `state: "update"` with the matching `id`.
+8. **Security (Strict ID Isolation)**:
+   - ONLY use IDs provided in `Existing Tasks JSON`. 
+   - NEVER hallucinate or guess IDs. 
+   - Ensure the 'room' context matches (only interact with tasks present in the provided context).
 
 # Extraction Logic (Deterministic):
 1. **IDENTIFY state AND category**:
@@ -28,7 +39,6 @@ Extract actionable tasks, operational policies, and context-dependent queries fr
       IF message_content IS (rule, notice, procedure): SET category = "POLICY"
       ELSE IF message_content IS (question, clarification): SET category = "QUERY"
       ELSE IF sender_says ("I will", "I'll"): SET category = "PROMISE"
-      ELSE IF message_content CONTAINS ("waiting for"): SET category = "WAITING"
       ELSE: SET category = "TASK"
 
 2. **DETERMINE assignee**:

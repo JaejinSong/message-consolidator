@@ -79,20 +79,24 @@ func TestBatchOperations(t *testing.T) {
 	}
 	defer cleanup()
 
-	email := "test@example.com"
+	email := testutil.RandomEmail("batch")
 	ctx := context.Background()
 
-	//Why: Seeds initial test data to provide a baseline for operation verification.
+	// Use IDs returned by the DB instead of hardcoded ones to prevent collisions.
+	var ids []int
 	for i := 1; i <= 3; i++ {
-		_, err := db.Exec("INSERT INTO messages (id, user_email, task, source, done, is_deleted, source_ts) VALUES (?, ?, ?, ?, ?, ?, ?)",
-			i, email, fmt.Sprintf("Task %d", i), "slack", 0, 0, fmt.Sprintf("ts_%d", i))
+		ts := testutil.RandomTS(fmt.Sprintf("batch_%d", i))
+		res, err := db.Exec("INSERT INTO messages (user_email, task, source, done, is_deleted, source_ts) VALUES (?, ?, ?, ?, ?, ?)",
+			email, fmt.Sprintf("Task %d", i), "slack", 0, 0, ts)
 		if err != nil {
 			t.Fatalf("Failed to seed message %d: %v", i, err)
 		}
+		newID, _ := res.LastInsertId()
+		ids = append(ids, int(newID))
 	}
 
 	t.Run("GetMessagesByIDs", func(t *testing.T) {
-		msgs, err := GetMessagesByIDs(ctx, email, []int{1, 2})
+		msgs, err := GetMessagesByIDs(ctx, db, email, ids[:2])
 		if err != nil {
 			t.Fatalf("Failed to get messages: %v", err)
 		}
@@ -108,32 +112,32 @@ func TestBatchOperations(t *testing.T) {
 
 	t.Run("DeleteAndRestoreMessages", func(t *testing.T) {
 		//Why: [Step 1/3] Tests soft deletion to ensure records are flagged as deleted without being immediately purged from the database.
-		if err := DeleteMessages(context.Background(), email, []int{1, 2}); err != nil {
+		if err := DeleteMessages(context.Background(), db, email, ids[:2]); err != nil {
 			t.Fatalf("Soft delete failed: %v", err)
 		}
 
 		var count int
-		_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE is_deleted = 1").Scan(&count)
+		_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE is_deleted = 1 AND user_email = ?", email).Scan(&count)
 		if count != 2 {
-			t.Errorf("Expected 2 soft-deleted messages, got %d", count)
+			t.Errorf("Expected 2 soft-deleted messages for this user, got %d", count)
 		}
 
 		//Why: [Step 2/3] Tests the restoration of a previously soft-deleted message to ensure users can recover items from the trash.
-		if err := RestoreMessages(context.Background(), email, []int{1}); err != nil {
+		if err := RestoreMessages(context.Background(), db, email, []int{ids[0]}); err != nil {
 			t.Fatalf("Restore failed: %v", err)
 		}
-		_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE is_deleted = 1").Scan(&count)
+		_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE is_deleted = 1 AND user_email = ?", email).Scan(&count)
 		if count != 1 {
 			t.Errorf("Expected 1 soft-deleted message after restoration, got %d", count)
 		}
 
 		//Why: [Step 3/3] Tests hard deletion to verify that records are permanently removed from the database as expected.
-		if err := HardDeleteMessages(context.Background(), email, []int{1, 2, 3}); err != nil {
+		if err := HardDeleteMessages(context.Background(), db, email, ids); err != nil {
 			t.Fatalf("Hard delete failed: %v", err)
 		}
-		_ = db.QueryRow("SELECT COUNT(*) FROM messages").Scan(&count)
+		_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE user_email = ?", email).Scan(&count)
 		if count != 0 {
-			t.Errorf("Expected 0 messages after hard delete, got %d", count)
+			t.Errorf("Expected 0 messages after hard delete for this user, got %d", count)
 		}
 	})
 }
@@ -162,22 +166,23 @@ func TestIdentityXTransitiveLink(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	tenant := "test@whatap.io"
+	tenant := testutil.RandomEmail("idx")
 
 	// 1. Create a Master Contact
-	masterID, err := AddContact(ctx, tenant, "master@whatap.io", "Master User", "", "test")
+	masterID, err := AddContact(ctx, tenant, "master-idx@whatap.io", "Master User", "", "test")
 	if err != nil {
 		t.Fatalf("Failed to create master: %v", err)
 	}
 
 	// 2. Register an Alias
-	err = RegisterAlias(ctx, masterID, "whatsapp", "821012345678", "whatsapp", 5)
+	waID := testutil.RandomID("wa")
+	err = RegisterAlias(ctx, masterID, "whatsapp", waID, "whatsapp", 5)
 	if err != nil {
 		t.Fatalf("Failed to register alias: %v", err)
 	}
 
 	// 3. Resolve Alias
-	resolvedID, err := ResolveAlias(ctx, "whatsapp", "821012345678")
+	resolvedID, err := ResolveAlias(ctx, "whatsapp", waID)
 	if err != nil {
 		t.Fatalf("Failed to resolve alias: %v", err)
 	}

@@ -15,6 +15,7 @@ func unmarshalAnalyze(cleanJSON, rawJSON string) ([]store.TodoItem, error) {
 	type flexItem struct {
 		ID              interface{}     `json:"id"`
 		State           string          `json:"state"`
+		Reasoning       string          `json:"reasoning,omitempty"` // AI justification for state/merge choice
 		Task            string          `json:"task"`
 		Requester       string          `json:"requester"`
 		Assignee        string          `json:"assignee"`
@@ -39,11 +40,12 @@ func unmarshalAnalyze(cleanJSON, rawJSON string) ([]store.TodoItem, error) {
 		for _, f := range flexItems {
 			// Why: Manually maps the flexible fields to the formal store.TodoItem structure, ensuring ID type consistency.
 			item := store.TodoItem{
-				State: f.State, Task: f.Task, Requester: f.Requester, Assignee: f.Assignee,
-				AssignedTo: f.AssignedTo, AssignedAt: f.AssignedAt, SourceTS: f.SourceTS,
-				Category: f.Category, Deadline: f.Deadline, AssigneeReason: f.AssigneeReason,
-				IsContextQuery: f.IsContextQuery, Constraints: f.Constraints, Metadata: f.Metadata,
-				AffinityScore: f.AffinityScore, AffinityGroupID: f.AffinityGroupID,
+				State: f.State, Reasoning: f.Reasoning, Task: f.Task, Requester: f.Requester,
+				Assignee: f.Assignee, AssignedTo: f.AssignedTo, AssignedAt: f.AssignedAt,
+				SourceTS: f.SourceTS, Category: f.Category, Deadline: f.Deadline,
+				AssigneeReason: f.AssigneeReason, IsContextQuery: f.IsContextQuery,
+				Constraints: f.Constraints, Metadata: f.Metadata, AffinityScore: f.AffinityScore,
+				AffinityGroupID: f.AffinityGroupID,
 			}
 			if f.ID != nil {
 				switch v := f.ID.(type) {

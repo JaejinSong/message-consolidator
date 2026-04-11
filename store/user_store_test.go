@@ -59,7 +59,7 @@ func TestGetOrCreateUser(t *testing.T) {
 
 	t.Run("ConcurrentUpsert", func(t *testing.T) {
 		const numRoutines = 10
-		email := "concurrent@example.com"
+		email := testutil.RandomEmail("concurrent")
 		done := make(chan bool)
 		errs := make(chan error, numRoutines)
 
@@ -92,7 +92,7 @@ func TestUpdateUserSlackID(t *testing.T) {
 	}
 	defer cleanup()
 
-	email := "slack@example.com"
+	email := testutil.RandomEmail("slack")
 	_, _ = GetOrCreateUser(context.Background(), email, "Slack User", "")
 
 	slackID := "U12345"

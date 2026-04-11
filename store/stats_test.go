@@ -15,16 +15,17 @@ func TestGetUserStats_IncludesArchived(t *testing.T) {
 	defer cleanup()
 	defer ResetForTest()
 
-	email := "stats@example.com"
+	email := testutil.RandomEmail("stats")
 	_, _ = GetOrCreateUser(context.Background(), email, "Stats User", "")
 
 	//Why: 1. Create a message that is DONE and ARCHIVED (is_deleted=1) to verify stats inclusion.
 	twoHoursAgo := time.Now().UTC().Add(-2 * time.Hour)
 	t1 := twoHoursAgo.Format(time.RFC3339)
+	tsArchived := testutil.RandomTS("archived")
 	_, err = db.Exec(`INSERT INTO messages 
 		(user_email, task, source, source_ts, done, is_deleted, completed_at, created_at) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		email, "Archived Task", "slack", "ts_archived", 1, 1, t1, t1)
+		email, "Archived Task", "slack", tsArchived, 1, 1, t1, t1)
 	if err != nil {
 		t.Fatalf("Failed to insert archived task: %v", err)
 	}
@@ -32,19 +33,21 @@ func TestGetUserStats_IncludesArchived(t *testing.T) {
 	//Why: 2. Create a message that is DONE and ACTIVE (is_deleted=0) to verify multi-state aggregation.
 	oneHourAgo := time.Now().UTC().Add(-1 * time.Hour)
 	t2 := oneHourAgo.Format(time.RFC3339)
+	tsActive := testutil.RandomTS("active")
 	_, err = db.Exec(`INSERT INTO messages 
 		(user_email, task, source, source_ts, done, is_deleted, completed_at, created_at) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		email, "Active Task", "slack", "ts_active", 1, 0, t2, t2)
+		email, "Active Task", "slack", tsActive, 1, 0, t2, t2)
 	if err != nil {
 		t.Fatalf("Failed to insert active task: %v", err)
 	}
 
 	//Why: 3. Create a message that is NOT DONE and ACTIVE (Pending) to verify backlog counting.
+	tsPending := testutil.RandomTS("pending")
 	_, err = db.Exec(`INSERT INTO messages 
 		(user_email, task, source, source_ts, done, is_deleted, created_at, assignee) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		email, "Pending Task", "slack", "ts_pending", 0, 0, time.Now(), "me")
+		email, "Pending Task", "slack", tsPending, 0, 0, time.Now(), "me")
 	if err != nil {
 		t.Fatalf("Failed to insert pending task: %v", err)
 	}

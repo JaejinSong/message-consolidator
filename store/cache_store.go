@@ -50,6 +50,19 @@ var (
 )
 
 func ResetForTest() {
+	if db != nil {
+		tables := []string{
+			"users", "user_aliases", "gmail_tokens", "messages", "task_translations",
+			"tenant_aliases", "scan_metadata", "user_achievements",
+			"contacts", "reports", "report_translations", "prompt_logs",
+			"ai_inference_logs", "contact_aliases", "identity_merge_history",
+			"identity_merge_candidates", "slack_threads",
+		}
+		for _, table := range tables {
+			_, _ = db.Exec("DELETE FROM " + table)
+		}
+	}
+
 	metadataMu.Lock()
 	defer metadataMu.Unlock()
 	userCache = make(map[string]*User)
@@ -91,47 +104,61 @@ func RefreshAllCaches(ctx context.Context) error {
 	return nil
 }
 
+func fetchCacheActive(ctx context.Context, email, threshold string, knownTS map[string]bool) ([]ConsolidatedMessage, error) {
+	rows, err := db.QueryContext(ctx, SQL.RefreshCacheActive, email, threshold)
+	if err != nil {
+		return nil, fmt.Errorf("active query failed: %w", err)
+	}
+	defer rows.Close()
+
+	var msgs []ConsolidatedMessage
+	for rows.Next() {
+		m, err := scanMessageRow(rows)
+		if err != nil {
+			return nil, fmt.Errorf("active scan failed: %w", err)
+		}
+		msgs = append(msgs, m)
+		knownTS[m.SourceTS] = true
+	}
+	return msgs, nil
+}
+
+func fetchCacheArchive(ctx context.Context, email, threshold string, knownTS map[string]bool) ([]ConsolidatedMessage, error) {
+	rows, err := db.QueryContext(ctx, SQL.RefreshCacheArchive, email, threshold)
+	if err != nil {
+		return nil, fmt.Errorf("archive query failed: %w", err)
+	}
+	defer rows.Close()
+
+	var msgs []ConsolidatedMessage
+	for rows.Next() {
+		m, err := scanMessageRow(rows)
+		if err != nil {
+			return nil, fmt.Errorf("archive scan failed: %w", err)
+		}
+		msgs = append(msgs, m)
+		knownTS[m.SourceTS] = true
+	}
+	return msgs, nil
+}
+
 func RefreshCache(ctx context.Context, email string) error {
 	//Why: Prevents cache refresh operations from hanging indefinitely by enforcing a 10-second timeout.
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	safeArchiveDays := GetAutoArchiveDays()
-	threshold := fmt.Sprintf("-%d days", safeArchiveDays)
-
-	//Why: Retrieves recently active messages to populate the primary cache.
-	rows, err := db.QueryContext(ctx, SQL.RefreshCacheActive, email, threshold)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	var newActive = []ConsolidatedMessage{}
+	threshold := fmt.Sprintf("-%d days", GetAutoArchiveDays())
 	newKnownTS := make(map[string]bool)
-	for rows.Next() {
-		m, err := scanMessageRow(rows)
-		if err != nil {
-			return err
-		}
-		newActive = append(newActive, m)
-		newKnownTS[m.SourceTS] = true
-	}
 
-	//Why: Retrieves recently archived messages to populate the secondary cache.
-	rowsArch, err := db.QueryContext(ctx, SQL.RefreshCacheArchive, email, threshold)
+	// [Modular logic] Split active and archive fetching to keep functional complexity low (under 40 lines).
+	newActive, err := fetchCacheActive(ctx, email, threshold, newKnownTS)
 	if err != nil {
 		return err
 	}
-	defer rowsArch.Close()
 
-	var newArchive = []ConsolidatedMessage{}
-	for rowsArch.Next() {
-		m, err := scanMessageRow(rowsArch)
-		if err != nil {
-			return err
-		}
-		newArchive = append(newArchive, m)
-		newKnownTS[m.SourceTS] = true
+	newArchive, err := fetchCacheArchive(ctx, email, threshold, newKnownTS)
+	if err != nil {
+		return err
 	}
 
 	cacheMu.Lock()

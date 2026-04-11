@@ -39,15 +39,19 @@ type ContactRecord struct {
 	ContactType     string        `json:"contact_type"`
 }
 
-func InitContactsTable() {
-	db.Exec(SQL.CreateContactsTable)
-	db.Exec(SQL.CreateContactAliasesTable)
-	db.Exec(SQL.CreateIdentityMergeHistoryTable)
-	db.Exec(SQL.CreateIdentityMergeCandidatesTable)
+func InitContactsTable(q Querier) {
+	if q == nil {
+		q = db
+	}
+	_, _ = q.Exec(SQL.CreateContactsTable)
+	_, _ = q.Exec(SQL.CreateContactAliasesTable)
+	_, _ = q.Exec(SQL.CreateIdentityMergeHistoryTable)
+	_, _ = q.Exec(SQL.CreateIdentityMergeCandidatesTable)
 	
 	// Why: Perform one-time migration of legacy aliases if the new table is empty.
-	db.Exec(SQL.MigrateLegacyAliases)
+	_, _ = q.Exec(SQL.MigrateLegacyAliases)
 
+	// Why: DSU is handled in-memory but persisted merge relations must be loaded.
 	loadDSUFromDB()
 }
 

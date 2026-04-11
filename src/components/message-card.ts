@@ -5,6 +5,7 @@ import { I18N_DATA } from '../locales';
 import { I18nDictionary, Message } from '../types';
 import { renderSourceList } from '../renderers/task-renderer';
 import { ASSIGNEE_SHARED } from '../constants';
+import { parseTaskContext } from '../logic/task-context';
 
 export type MessageCardProps = Message & {
     lang: string;
@@ -40,6 +41,7 @@ export function MessageCard(props: MessageCardProps): string {
     const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
     const displayTime = TimeService.formatDisplayTime(rawTime, lang);
     const deadlineBadge = getDeadlineBadge(rawTime, done, lang);
+    const contextSnippets = parseTaskContext(props.consolidated_context);
 
     const metadata = parseMetadata(rawMetadata);
     const isContextQuery = !!metadata?.is_context_query;
@@ -65,6 +67,16 @@ export function MessageCard(props: MessageCardProps): string {
     const translatingBadgeHtml = translating ? `<span class="c-message-card__translating-badge" title="Translating...">⏳</span>` : '';
 
     const delegatedHtml = assigned_to ? `<div class="c-message-card__badge c-message-card__badge--delegated" title="Delegated Task">🔄 ${lang === 'ko' ? `@${escapeHTML(assigned_to)}에게 위임됨` : `Delegated to @${escapeHTML(assigned_to)}`}</div>` : '';
+
+    const contextHtml = contextSnippets.length > 0 ? `
+        <div class="task-context">
+            ${ICONS.info}
+            <div class="task-context__tooltip">
+                <span class="task-context__title">Context Snippet</span>
+                ${contextSnippets.map(s => `<div class="task-context__snippet">${escapeHTML(s)}</div>`).join('')}
+            </div>
+        </div>
+    ` : '';
 
     const loadingOverlay = translating ? `
         <div class="c-message-card__loading-overlay">
@@ -115,6 +127,7 @@ export function MessageCard(props: MessageCardProps): string {
                     ${translationError ? `<span class="c-message-card__error-hint" title="${escapeHTML(translationError)}">⚠️</span>` : ''}
                     ${translatingBadgeHtml}
                     ${escapeHTML(displayTask)}
+                    ${contextHtml}
                 </div>
                 ${constraintsHtml}
             </div>

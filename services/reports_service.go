@@ -187,7 +187,7 @@ func (s *ReportsService) sanitizeMessages(ctx context.Context, email string, msg
 	return msgs, nil
 }
 
-func (s *ReportsService) applyResolution(ctx context.Context, m *Log, identifierField *string, canonicalField *string, displayNameField *string, typeField *string, contacts map[string]*store.ContactRecord, ambiguous map[string]bool, updateFn func(context.Context, int, string) error) {
+func (s *ReportsService) applyResolution(ctx context.Context, m *Log, identifierField *string, canonicalField *string, displayNameField *string, typeField *string, contacts map[string]*store.ContactRecord, ambiguous map[string]bool, updateFn func(context.Context, store.Querier, string, string, int, string) error) {
 	identifier := *identifierField
 	if ambiguous[identifier] {
 		*identifierField = identifier + " (Ambiguous)"
@@ -197,7 +197,11 @@ func (s *ReportsService) applyResolution(ctx context.Context, m *Log, identifier
 	if c, ok := contacts[identifier]; ok {
 		// 💡 Self-Healing: Update DB if non-canonical ID was used.
 		if identifier != c.CanonicalID && identifier != c.DisplayName {
-			go updateFn(context.Background(), m.ID, c.CanonicalID)
+			go func() {
+				if err := updateFn(context.Background(), store.GetDB(), m.UserEmail, m.Room, m.ID, c.CanonicalID); err != nil {
+					logger.Errorf("[REPORTS] Identity self-healing failed for task %d: %v", m.ID, err)
+				}
+			}()
 		}
 		*identifierField = c.CanonicalID // Normalized to Email for DB consistency and tests
 		*canonicalField = c.CanonicalID

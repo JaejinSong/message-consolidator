@@ -12,9 +12,8 @@ func TestAutoUpsertContact(t *testing.T) {
 	}
 	defer cleanup()
 
-	tenant := "tenant@whatap.io"
-
-	email := "user1@whatap.io"
+	tenant := testutil.RandomEmail("contact-tenant")
+	email := testutil.RandomEmail("contact-user")
 	
 	// 1. Initial Insert
 	err = AutoUpsertContact(tenant, email, "User One", "test")

@@ -15,14 +15,14 @@ func TestAmbiguitySafeguard(t *testing.T) {
 	}
 	defer cleanup()
 
-	tenant := "admin@whatap.io"
+	tenant := testutil.RandomEmail("admin")
 	
 	// 1. 동일한 성(Lee)을 가진 서로 다른 두 명의 연락처 생성
-	err = store.AddContactMapping(context.Background(), tenant, "lee1@whatap.io", "Lee Jung-jae", "Lee", "test")
+	err = store.AddContactMapping(context.Background(), tenant, testutil.RandomEmail("lee"), "Lee Jung-jae", "Lee", "test")
 	if err != nil {
 		t.Fatalf("Failed to add contact 1: %v", err)
 	}
-	err = store.AddContactMapping(context.Background(), tenant, "lee2@whatap.io", "Lee Byung-hun", "Lee", "test")
+	err = store.AddContactMapping(context.Background(), tenant, testutil.RandomEmail("lee"), "Lee Byung-hun", "Lee", "test")
 	if err != nil {
 		t.Fatalf("Failed to add contact 2: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestAmbiguitySafeguard(t *testing.T) {
 		SourceTS:   "999.999",
 		Category:   "todo",
 	}
-	_, msgID, err := store.SaveMessage(context.TODO(), msg)
+	_, msgID, err := store.SaveMessage(context.TODO(), store.GetDB(), msg)
 	if err != nil {
 		t.Fatalf("Failed to save message: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestAmbiguitySafeguard(t *testing.T) {
 	// 3. 서비스 초기화 및 정규화 실행
 	svc := &ReportsService{}
 	messages := []Log{
-		{ID: msgID, Requester: "Lee", Assignee: "someone@else.com"},
+		{ID: msgID, UserEmail: tenant, Room: "room1", Requester: "Lee", Assignee: "someone@else.com"},
 	}
 	svc.sanitizeMessages(context.Background(), tenant, messages)
 

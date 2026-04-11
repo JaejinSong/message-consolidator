@@ -26,24 +26,24 @@ You MUST respond ONLY with a valid JSON object matching this schema:
 
 # Decision Logic (Deterministic):
 1. **DETERMINE action & target_task_id**:
-   IF message_content IS ("done", "resolved", "addressed", "finished") OR includes completion signals:
-      SET action = "resolve"
-      SET target_task_id = matched_task_id
-   ELSE IF message_content IS ("check status", "gentle reminder", "any progress?") OR includes nudge signals:
-      SET action = "update"
-      SET target_task_id = matched_task_id
-   ELSE IF message_content SEMANTICALLY_MATCHES existing_task WITH affinity_score >= 80:
-      IF message_channel == task_channel OR message_sender == task_sender:
-         SET action = "update"
-         SET target_task_id = matched_task_id
-      ELSE:
-         SET action = "new"  // Cross-channel but different sender
-   ELSE IF message_content CONTAINS "cancel", "ignore", "not needed":
-      SET action = "cancel"
-      SET target_task_id = matched_task_id
-   ELSE:
-      SET action = "new"
-      SET target_task_id = null
+    IF message_content IS ("done", "resolved", "addressed", "finished") OR includes completion signals:
+       SET action = "resolve"
+       SET target_task_id = matched_task_id
+    ELSE IF message_content IS ("check status", "gentle reminder", "any progress?", "please confirm", "pinging") OR includes nudge/reminder signals:
+       SET action = "update"
+       SET target_task_id = matched_task_id
+    ELSE IF message_content SEMANTICALLY_MATCHES existing_task WITH affinity_score >= 80:
+       IF message_channel == task_channel OR message_sender == task_sender:
+          SET action = "update"
+          SET target_task_id = matched_task_id
+       ELSE:
+          SET action = "new"  // Cross-channel but different sender
+    ELSE IF message_content CONTAINS "cancel", "ignore", "not needed":
+       SET action = "cancel"
+       SET target_task_id = matched_task_id
+    ELSE:
+       SET action = "new"
+       SET target_task_id = null
 
 2. **DETERMINE assigned_to**:
    IF message_content CONTAINS "@Name":

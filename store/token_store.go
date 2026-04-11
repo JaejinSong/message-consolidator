@@ -32,8 +32,11 @@ var (
 	usageCacheMu sync.RWMutex
 )
 
-func InitTokenUsageTable() {
-	_, err := db.Exec(SQL.InitTokenUsageTable)
+func InitTokenUsageTable(q Querier) {
+	if q == nil {
+		q = db
+	}
+	_, err := q.Exec(SQL.InitTokenUsageTable)
 	if err != nil {
 		logger.Errorf("Failed to initialize token_usage table: %v", err)
 	}

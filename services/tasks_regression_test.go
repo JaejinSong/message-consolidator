@@ -34,9 +34,10 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	email := "jj@example.com"
-	room := "work_chat"
+	email := testutil.RandomEmail("jj")
+	room := "work_chat_" + testutil.RandomID("")
 	source := "whatsapp"
+	threadID := "thread_" + testutil.RandomID("")
 
 	// Define a realistic 7-turn scenario
 	// Task A (Report): Turn 2 (Create) -> Turn 5 (Resolve)
@@ -75,17 +76,17 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 		turnNum := i + 1
 		t.Run(turn.Name, func(t *testing.T) {
 			// 1. Save Message
-			_, msgID, _ := store.SaveMessage(ctx, store.ConsolidatedMessage{
+			_, msgID, _ := store.SaveMessage(ctx, store.GetDB(), store.ConsolidatedMessage{
 				UserEmail:    email,
 				Source:       source,
 				Room:         room,
 				Requester:    turn.Sender,
 				OriginalText: turn.Text,
-				SourceTS:     fmt.Sprintf("ts_%d", turnNum),
-				ThreadID:     "thread_realistic",
+				SourceTS:     testutil.RandomTS(fmt.Sprintf("ts_%d", turnNum)),
+				ThreadID:     threadID,
 			})
 
-			msg, _ := store.GetMessageByID(ctx, email, msgID)
+			msg, _ := store.GetMessageByID(ctx, store.GetDB(), email, msgID)
 
 			// 2. Mock state preparation (Inject IDs for resolution turns)
 			if turnNum == 5 { // JJ resolves Task A
@@ -104,7 +105,7 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 
 			// 4. Verification & ID Recording
 			if turn.Expected == "new" {
-				updated, _ := store.GetMessageByID(ctx, email, msgID)
+				updated, _ := store.GetMessageByID(ctx, store.GetDB(), email, msgID)
 				if updated.Task == "" {
 					t.Errorf("%s: Task should have been created", turn.Name)
 				}
@@ -113,7 +114,7 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 			}
 
 			if turn.Expected == "none" {
-				updated, _ := store.GetMessageByID(ctx, email, msgID)
+				updated, _ := store.GetMessageByID(ctx, store.GetDB(), email, msgID)
 				if updated.Task != "" {
 					t.Errorf("%s: Greet/Ack should not create tasks", turn.Name)
 				}
@@ -124,7 +125,7 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 				if turnNum == 5 { targetID = taskAID }
 				if turnNum == 7 { targetID = taskBID }
 				
-				m, _ := store.GetMessageByID(ctx, email, targetID)
+				m, _ := store.GetMessageByID(ctx, store.GetDB(), email, targetID)
 				if !m.Done {
 					t.Errorf("%s: Task %d should be resolved", turn.Name, targetID)
 				}

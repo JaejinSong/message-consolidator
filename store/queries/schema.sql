@@ -57,7 +57,8 @@ CREATE TABLE IF NOT EXISTS messages (
     is_context_query INTEGER DEFAULT 0,
     constraints TEXT DEFAULT '[]',
     metadata TEXT DEFAULT '{}',
-    source_channels TEXT DEFAULT '[]'
+    source_channels TEXT DEFAULT '[]',
+    consolidated_context TEXT DEFAULT '[]'
 );
 CREATE INDEX IF NOT EXISTS idx_thread_id ON messages(thread_id);
 CREATE INDEX IF NOT EXISTS idx_messages_dashboard_filter ON messages(user_email, is_deleted, done, category, assignee);
@@ -163,8 +164,7 @@ CREATE TABLE IF NOT EXISTS identity_merge_candidates (
 );
 
 -- name: CreateContactsResolvedView :exec
-DROP VIEW IF EXISTS v_contacts_resolved;
-CREATE VIEW v_contacts_resolved AS
+CREATE VIEW IF NOT EXISTS v_contacts_resolved AS
 SELECT 
     c.id,
     c.tenant_email,
@@ -180,8 +180,7 @@ LEFT JOIN contacts m ON c.master_contact_id = m.id AND c.tenant_email = m.tenant
 
 
 -- name: CreateMessagesView :exec
-DROP VIEW IF EXISTS v_messages;
-CREATE VIEW v_messages AS
+CREATE VIEW IF NOT EXISTS v_messages AS
 SELECT 
     m.id, 
     m.user_email, 
@@ -207,6 +206,7 @@ SELECT
     m.constraints,
     m.metadata,
     COALESCE(m.source_channels, '[]') as source_channels,
+    COALESCE(m.consolidated_context, '[]') as consolidated_context,
     COALESCE(cr_req.effective_canonical_id, m.requester) as requester_canonical,
     COALESCE(cr_asg.effective_canonical_id, m.assignee) as assignee_canonical,
     COALESCE(cr_req.contact_type, 'none') as requester_type,
@@ -216,8 +216,7 @@ LEFT JOIN v_contacts_resolved cr_req ON m.user_email = cr_req.tenant_email AND m
 LEFT JOIN v_contacts_resolved cr_asg ON m.user_email = cr_asg.tenant_email AND m.assignee = cr_asg.original_canonical_id;
 
 -- name: CreateUsersView :exec
-DROP VIEW IF EXISTS v_users;
-CREATE VIEW v_users AS
+CREATE VIEW IF NOT EXISTS v_users AS
 SELECT 
     id, 
     email, 

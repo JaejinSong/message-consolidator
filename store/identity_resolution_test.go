@@ -13,11 +13,13 @@ func TestIdentityResolutionViews(t *testing.T) {
 	}
 	defer cleanup()
 
-	tenantEmail := "test@example.com"
+	tenantEmail := testutil.RandomEmail("idres")
 
 	// 1. Create Contacts (Master & Child)
-	masterID, _ := AddContact(context.Background(), tenantEmail, "boss@company.com", "The Big Boss", "", "gmail")
-	childID, _ := AddContact(context.Background(), tenantEmail, "minion@whatsapp", "Poor Minion", "", "whatsapp")
+	masterEmail := testutil.RandomEmail("master")
+	childEmail := testutil.RandomEmail("minion")
+	masterID, _ := AddContact(context.Background(), tenantEmail, masterEmail, "The Big Boss", "", "gmail")
+	childID, _ := AddContact(context.Background(), tenantEmail, childEmail, "Poor Minion", "", "whatsapp")
 	
 	_ = LinkContact(context.Background(), tenantEmail, masterID, childID)
 
@@ -34,22 +36,22 @@ func TestIdentityResolutionViews(t *testing.T) {
 		if effectiveName != "The Big Boss" {
 			t.Errorf("Expected master name 'The Big Boss', got '%s'", effectiveName)
 		}
-		if effectiveCanonical != "boss@company.com" {
-			t.Errorf("Expected master canonical 'boss@company.com', got '%s'", effectiveCanonical)
+		if effectiveCanonical != masterEmail {
+			t.Errorf("Expected master canonical '%s', got '%s'", masterEmail, effectiveCanonical)
 		}
 	})
 
 	t.Run("v_messages integration", func(t *testing.T) {
-		// Case: Child 계정(whatsapp)으로 메시지 도착
+		sourceTS := testutil.RandomTS("ts_id_res")
 		_, err := db.Exec("INSERT INTO messages (user_email, task, source, requester, assignee, source_ts) VALUES (?, ?, ?, ?, ?, ?)",
-			tenantEmail, "Urgent Task", "whatsapp", "minion@whatsapp", "boss@company.com", "ts_123")
+			tenantEmail, "Urgent Task", "whatsapp", childEmail, masterEmail, sourceTS)
 		if err != nil {
 			t.Fatalf("Failed to insert test message: %v", err)
 		}
 
 		// v_messages 조회 시 requester 이름이 'The Big Boss'로 해소되었는지 확인
 		var requesterName string
-		err = db.QueryRow("SELECT requester FROM v_messages WHERE user_email = ? AND source_ts = 'ts_123'", tenantEmail).
+		err = db.QueryRow("SELECT requester FROM v_messages WHERE user_email = ? AND source_ts = ?", tenantEmail, sourceTS).
 			Scan(&requesterName)
 		
 		if err != nil {

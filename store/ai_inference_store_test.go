@@ -1,23 +1,20 @@
 package store
 
 import (
-	"message-consolidator/config"
-	"os"
+	"message-consolidator/internal/testutil"
 	"testing"
 )
 
 func TestLogAIInference(t *testing.T) {
-	// Setup: Temporary Test DB
-	dbPath := "test_ai_inference.db"
-	defer os.Remove(dbPath)
-
-	cfg := &config.Config{TursoURL: "file:" + dbPath}
-	if err := InitDB(cfg); err != nil {
-		t.Fatalf("Failed to init DB: %v", err)
+	// Setup: Test DB (Unified)
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
 	}
+	defer cleanup()
 
 	// Test case: Successful Logging
-	err := LogAIInference(1, "test_source", "test input", "{\"result\": \"success\"}")
+	err = LogAIInference(1, "test_source", "test input", "{\"result\": \"success\"}")
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}

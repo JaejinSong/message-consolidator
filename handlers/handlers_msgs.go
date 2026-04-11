@@ -2,10 +2,13 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 
 	"message-consolidator/auth"
+	"message-consolidator/logger"
 	"message-consolidator/services"
 	"message-consolidator/store"
 
@@ -16,7 +19,8 @@ func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	msgsRaw, err := store.GetMessages(r.Context(), email)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch messages")
+		logger.Errorf("[MESSAGES] Cache fetch error for %s: %v", email, err)
+		respondError(w, http.StatusInternalServerError, "Failed to fetch messages (Internal logic error)")
 		return
 	}
 
@@ -156,32 +160,50 @@ func (a *API) HandleDelete(w http.ResponseWriter, r *http.Request) {
 		ids = []int{req.ID}
 	}
 
-	_ = store.DeleteMessages(r.Context(), email, ids)
+	_ = store.DeleteMessages(r.Context(), store.GetDB(), email, ids)
 	w.WriteHeader(http.StatusOK)
 }
 
+// HandleGetOriginal retrieves the original, un-summarized text for a specific message.
+// Why: [Explicit Integer Conversion] and [Guard Clauses] ensure type safety and early failure for malformed or unauthorized requests.
 func (a *API) HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	vars := mux.Vars(r)
-	idStr := vars["id"]
-	id, err := strconv.Atoi(idStr)
+
+	// [Explicit Integer Conversion] Parse and validate ID from path parameter.
+	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "Invalid ID")
+		logger.Warnf("[GET_ORIGINAL] Invalid ID provided by %s: %s", email, vars["id"])
+		respondError(w, http.StatusBadRequest, "Invalid message ID format")
 		return
 	}
 
-	msg, err := store.GetMessageByID(r.Context(), email, id)
+	msg, err := store.GetMessageByID(r.Context(), store.GetDB(), email, id)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch original text")
+		handleGetOriginalError(w, email, id, err)
 		return
 	}
 
+	// [Security] Strict isolation check to prevent cross-user ID enumeration.
 	if msg.UserEmail != email {
+		logger.Errorf("[GET_ORIGINAL] Unauthorized access attempt by %s for message %d (belongs to %s)", email, id, msg.UserEmail)
 		respondError(w, http.StatusUnauthorized, "Unauthorized access")
 		return
 	}
 
 	respondJSON(w, http.StatusOK, map[string]string{"original_text": msg.OriginalText})
+}
+
+// handleGetOriginalError separates error categorization from main handler logic to maintain 2-depth nesting and <30 line limits.
+func handleGetOriginalError(w http.ResponseWriter, email string, id int, err error) {
+	if errors.Is(err, sql.ErrNoRows) {
+		logger.Warnf("[GET_ORIGINAL] Message %d not found for %s", id, email)
+		respondError(w, http.StatusNotFound, "Message not found")
+		return
+	}
+
+	logger.Errorf("[GET_ORIGINAL] Database error fetching message %d for %s: %v", id, email, err)
+	respondError(w, http.StatusInternalServerError, "Failed to fetch original text")
 }
 
 func (a *API) HandleHardDelete(w http.ResponseWriter, r *http.Request) {
@@ -193,7 +215,7 @@ func (a *API) HandleHardDelete(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	_ = store.HardDeleteMessages(r.Context(), email, req.IDs)
+	_ = store.HardDeleteMessages(r.Context(), store.GetDB(), email, req.IDs)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -206,7 +228,7 @@ func (a *API) HandleRestore(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	_ = store.RestoreMessages(r.Context(), email, req.IDs)
+	_ = store.RestoreMessages(r.Context(), store.GetDB(), email, req.IDs)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -220,7 +242,7 @@ func (a *API) HandleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := store.UpdateTaskText(r.Context(), email, req.ID, req.Task); err != nil {
+	if err := store.UpdateTaskText(r.Context(), store.GetDB(), email, req.ID, req.Task); err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to update task")
 		return
 	}
@@ -316,7 +338,7 @@ func (a *API) getMissingIDs(all []int, cached map[int]string) []int {
 func (a *API) prepareMissingRequests(ctx context.Context, email string, ids []int) []store.TranslateRequest {
 	var reqs []store.TranslateRequest
 	for _, id := range ids {
-		msg, err := store.GetMessageByID(ctx, email, id)
+		msg, err := store.GetMessageByID(ctx, store.GetDB(), email, id)
 		if err == nil {
 			reqs = append(reqs, store.TranslateRequest{ID: id, Text: msg.Task})
 		}

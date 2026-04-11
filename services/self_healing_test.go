@@ -16,10 +16,10 @@ func TestSelfHealingEngine(t *testing.T) {
 	}
 	defer cleanup()
 
-	tenant := "admin@whatap.io"
-	email := "jjsong@whatap.io"
+	tenant := testutil.RandomEmail("admin")
+	email := testutil.RandomEmail("jjsong")
 	name := "Jaejin Song"
-	alias := "JJ"
+	alias := "JJ" + testutil.RandomID("")
 
 	// 1. Setup Contact (Deep Lookup 대상)
 	err = store.AddContactMapping(context.Background(), tenant, email, name, alias, "test")
@@ -33,13 +33,13 @@ func TestSelfHealingEngine(t *testing.T) {
 		Source:     "slack",
 		Room:       "room1",
 		Task:       "Test Task",
-		Requester:  "JJ",
+		Requester:  alias,
 		Assignee:   "someone@else.com",
 		AssignedAt: time.Now(),
 		SourceTS:   fmt.Sprintf("12345.678.%d", time.Now().UnixNano()),
 		Category:   "todo",
 	}
-	_, msgID, err := store.SaveMessage(context.TODO(), msg)
+	_, msgID, err := store.SaveMessage(context.TODO(), store.GetDB(), msg)
 	if err != nil {
 		t.Fatalf("Failed to save message: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestSelfHealingEngine(t *testing.T) {
 
 	// 4. Run Sanitization
 	messages := []Log{
-		{ID: msgID, Requester: "JJ", Assignee: "someone@else.com"},
+		{ID: msgID, UserEmail: tenant, Room: "room1", Requester: alias, Assignee: "someone@else.com"},
 	}
 	svc.sanitizeMessages(context.Background(), tenant, messages)
 

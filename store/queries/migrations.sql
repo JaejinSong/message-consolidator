@@ -43,6 +43,9 @@ ALTER TABLE messages ADD COLUMN metadata TEXT DEFAULT '{}';
 -- name: MigrateMessagesAddSourceChannels :exec
 ALTER TABLE messages ADD COLUMN source_channels TEXT DEFAULT '[]';
 
+-- name: MigrateMessagesAddConsolidatedContext :exec
+ALTER TABLE messages ADD COLUMN consolidated_context TEXT DEFAULT '[]';
+
 -- name: CreateIdxUserTS :exec
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_ts ON messages(user_email, source_ts);
 

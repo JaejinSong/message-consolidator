@@ -44,6 +44,7 @@ type ConsolidatedMessage struct {
 	RepliedToID        string     `json:"replied_to_id,omitempty"`
 	IsContextQuery     bool            `json:"is_context_query"` //Why: Indicates if the message is a follow-up inquiry about existing policies or tasks.
 	Constraints        []string        `json:"constraints"`      //Why: Stores behavioral rules extracted from POLICY-type messages.
+	ConsolidatedContext []string       `json:"consolidated_context"` //Why: Stores 1-2 sentence snippets from the original message that justify the task.
 	Metadata           json.RawMessage `json:"metadata"`         //Why: Flexible JSON storage for future-proofing message attributes.
 	SourceChannels     []string        `json:"source_channels"`  //Why: Tracks all channels that contributed to this consolidated task.
 	RequesterType      string          `json:"requester_type,omitempty"`
@@ -138,6 +139,7 @@ type UserAlias struct {
 type TodoItem struct {
 	ID              *int            `json:"id,omitempty"` // ID of the existing task to update or resolve
 	State           string          `json:"state"`        // "new", "update", "resolve", or "cancel"
+	Reasoning       string          `json:"reasoning,omitempty"` // AI justification for state/merge choice
 	Task            string          `json:"task"`
 	Requester       string          `json:"requester"`
 	Assignee        string          `json:"assignee"`
@@ -153,6 +155,7 @@ type TodoItem struct {
 	AffinityScore   int             `json:"affinity_score,omitempty"`   // Contextual similarity score (0-100) for consolidation.
 	AffinityGroupID string          `json:"affinity_group_id,omitempty"` // Shared ID for tasks that should be consolidated.
 	SourceChannels  []string        `json:"source_channels,omitempty"`  // All origins for merged tasks.
+	ContextSnippets []string        `json:"context_snippets,omitempty"` // Justification snippets for the task.
 }
 
 // TranslateRequest represents a request to translate a specific task

@@ -6,17 +6,15 @@ import (
 	"log"
 	"message-consolidator/config"
 	"message-consolidator/store"
-	"os"
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
 func main() {
-	// 1. Setup Test DB
+	// 1. Setup Verify DB (Unified to ./test.db)
 	cfg := &config.Config{
-		TursoURL: "file:idempotency_test.db",
+		TursoURL: "file:./test.db?_busy_timeout=5000",
 	}
 	store.InitDB(cfg)
-	defer os.Remove("idempotency_test.db")
 
 	email := "test@example.com"
 	
@@ -61,7 +59,7 @@ func main() {
 		log.Fatalf("FAIL: Upsert returned different ID: %d != %d", ids2[0], msgID)
 	}
 	
-	m, _ := store.GetMessageByID(context.Background(), email, msgID)
+	m, _ := store.GetMessageByID(context.Background(), store.GetDB(), email, msgID)
 	if m.Task != "Updated Task" {
 		log.Fatalf("FAIL: Message not updated (Upsert failed): got '%s', want 'Updated Task'", m.Task)
 	}

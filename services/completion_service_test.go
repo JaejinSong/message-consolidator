@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"message-consolidator/store"
 	"message-consolidator/types"
 	"testing"
@@ -25,26 +26,26 @@ type MockStore struct {
 	Tasks              []store.ConsolidatedMessage
 }
 
-func (m *MockStore) GetIncompleteByThreadID(ctx context.Context, email, threadID string) ([]store.ConsolidatedMessage, error) {
+func (m *MockStore) GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error) {
 	return m.Tasks, nil
 }
 
-func (m *MockStore) GetActiveContextTasks(ctx context.Context, email, source, room string) ([]store.ConsolidatedMessage, error) {
+func (m *MockStore) GetActiveContextTasks(ctx context.Context, q store.Querier, email, source, room string) ([]store.ConsolidatedMessage, error) {
 	return m.Tasks, nil
 }
 
-func (m *MockStore) MarkMessageDone(ctx context.Context, email string, id int, isDone bool) error {
+func (m *MockStore) MarkMessageDone(ctx context.Context, tx *sql.Tx, email string, id int, isDone bool) error {
 	m.CapturedIDs = append(m.CapturedIDs, id)
 	return nil
 }
 
-func (m *MockStore) UpdateMessageCategory(ctx context.Context, email string, id int, category string) error {
+func (m *MockStore) UpdateMessageCategory(ctx context.Context, tx *sql.Tx, email string, id int, category string) error {
 	m.ReleasedIDs = append(m.ReleasedIDs, id)
 	m.ReleasedCategories = append(m.ReleasedCategories, category)
 	return nil
 }
 
-func (m *MockStore) HandleTaskState(ctx context.Context, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
+func (m *MockStore) HandleTaskState(ctx context.Context, tx *sql.Tx, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
 	if item.State == "resolve" {
 		m.CapturedIDs = append(m.CapturedIDs, *item.ID)
 	}

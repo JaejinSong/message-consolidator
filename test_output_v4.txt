@@ -1,0 +1,689 @@
+?   	message-consolidator	[no test files]
+=== RUN   TestAnalyzersPreProcess
+=== PAUSE TestAnalyzersPreProcess
+=== RUN   TestGetAnalyzer
+=== PAUSE TestGetAnalyzer
+=== RUN   TestExecutePromptRendering
+=== PAUSE TestExecutePromptRendering
+=== RUN   TestExtractionContextTypeSafety
+=== PAUSE TestExtractionContextTypeSafety
+=== RUN   TestLimitFewShots
+=== PAUSE TestLimitFewShots
+=== RUN   TestExtractResponseText
+=== PAUSE TestExtractResponseText
+=== RUN   TestLoadPrompt
+=== PAUSE TestLoadPrompt
+=== RUN   TestParsePrompt
+=== PAUSE TestParsePrompt
+=== RUN   TestPromptsNormalization
+=== PAUSE TestPromptsNormalization
+=== RUN   TestSelectFewShots
+=== RUN   TestSelectFewShots/Empty_payload
+=== RUN   TestSelectFewShots/Slack_matching
+=== RUN   TestSelectFewShots/No_limit
+=== RUN   TestSelectFewShots/Zero_or_negative_limit
+--- PASS: TestSelectFewShots (0.00s)
+    --- PASS: TestSelectFewShots/Empty_payload (0.00s)
+    --- PASS: TestSelectFewShots/Slack_matching (0.00s)
+    --- PASS: TestSelectFewShots/No_limit (0.00s)
+    --- PASS: TestSelectFewShots/Zero_or_negative_limit (0.00s)
+=== RUN   TestDecodeBase64URL
+=== PAUSE TestDecodeBase64URL
+=== RUN   TestCleanMarkdownText
+=== PAUSE TestCleanMarkdownText
+=== RUN   TestSanitizeJSON
+=== PAUSE TestSanitizeJSON
+=== RUN   TestUnmarshalAnalyze
+=== PAUSE TestUnmarshalAnalyze
+=== RUN   TestUnmarshalTranslate
+=== PAUSE TestUnmarshalTranslate
+=== CONT  TestAnalyzersPreProcess
+=== CONT  TestParsePrompt
+=== RUN   TestAnalyzersPreProcess/GmailAnalyzer_-_Short_Text_(No_Change)
+=== PAUSE TestAnalyzersPreProcess/GmailAnalyzer_-_Short_Text_(No_Change)
+=== RUN   TestAnalyzersPreProcess/GmailAnalyzer_-_Long_Text_(Truncate_from_start)
+=== PAUSE TestAnalyzersPreProcess/GmailAnalyzer_-_Long_Text_(Truncate_from_start)
+=== RUN   TestAnalyzersPreProcess/ChatAnalyzer_-_Short_Text_(No_Change)
+=== PAUSE TestAnalyzersPreProcess/ChatAnalyzer_-_Short_Text_(No_Change)
+=== CONT  TestExtractionContextTypeSafety
+--- PASS: TestExtractionContextTypeSafety (0.00s)
+=== CONT  TestGetAnalyzer
+=== RUN   TestGetAnalyzer/gmail
+=== CONT  TestExtractResponseText
+=== CONT  TestLoadPrompt
+=== CONT  TestPromptsNormalization
+--- PASS: TestExtractResponseText (0.00s)
+=== RUN   TestParsePrompt/Standard_Frontmatter
+--- PASS: TestLoadPrompt (0.00s)
+=== RUN   TestPromptsNormalization/batch_completion_check.prompt
+=== PAUSE TestGetAnalyzer/gmail
+=== CONT  TestExecutePromptRendering
+=== CONT  TestLimitFewShots
+=== RUN   TestAnalyzersPreProcess/ChatAnalyzer_-_Long_Text_(Truncate_from_end)
+=== CONT  TestUnmarshalTranslate
+=== PAUSE TestParsePrompt/Standard_Frontmatter
+=== RUN   TestParsePrompt/Strict_Prefix_Violation_(Leading_Garbage)
+=== PAUSE TestParsePrompt/Strict_Prefix_Violation_(Leading_Garbage)
+=== RUN   TestParsePrompt/Missing_Closing_Separator
+=== PAUSE TestParsePrompt/Missing_Closing_Separator
+=== RUN   TestParsePrompt/Case_Insensitive_Keys_and_Extra_Spaces
+=== PAUSE TestParsePrompt/Case_Insensitive_Keys_and_Extra_Spaces
+=== RUN   TestParsePrompt/Empty_content
+=== PAUSE TestParsePrompt/Empty_content
+=== PAUSE TestPromptsNormalization/batch_completion_check.prompt
+=== RUN   TestPromptsNormalization/batch_translator.prompt
+=== PAUSE TestPromptsNormalization/batch_translator.prompt
+=== RUN   TestPromptsNormalization/chat_system.prompt
+=== PAUSE TestPromptsNormalization/chat_system.prompt
+=== RUN   TestPromptsNormalization/chat_user.prompt
+=== PAUSE TestPromptsNormalization/chat_user.prompt
+=== RUN   TestPromptsNormalization/completion_check.prompt
+=== PAUSE TestPromptsNormalization/completion_check.prompt
+=== RUN   TestPromptsNormalization/gmail_system.prompt
+=== PAUSE TestPromptsNormalization/gmail_system.prompt
+=== RUN   TestPromptsNormalization/gmail_user.prompt
+=== PAUSE TestPromptsNormalization/gmail_user.prompt
+=== RUN   TestPromptsNormalization/new_extraction.prompt
+=== PAUSE TestPromptsNormalization/new_extraction.prompt
+=== RUN   TestPromptsNormalization/notion_system.prompt
+=== PAUSE TestPromptsNormalization/notion_system.prompt
+=== RUN   TestPromptsNormalization/notion_user.prompt
+=== PAUSE TestPromptsNormalization/notion_user.prompt
+=== RUN   TestPromptsNormalization/release_notes_combined.prompt
+=== PAUSE TestPromptsNormalization/release_notes_combined.prompt
+=== RUN   TestPromptsNormalization/release_notes_system.prompt
+=== PAUSE TestPromptsNormalization/release_notes_system.prompt
+=== RUN   TestPromptsNormalization/report_summary.prompt
+=== PAUSE TestPromptsNormalization/report_summary.prompt
+=== RUN   TestPromptsNormalization/report_translator.prompt
+=== PAUSE TestPromptsNormalization/report_translator.prompt
+=== RUN   TestPromptsNormalization/state_evaluation.prompt
+=== PAUSE TestPromptsNormalization/state_evaluation.prompt
+=== RUN   TestPromptsNormalization/task_merge_summary.prompt
+=== PAUSE TestPromptsNormalization/task_merge_summary.prompt
+=== RUN   TestPromptsNormalization/task_translator.prompt
+=== PAUSE TestPromptsNormalization/task_translator.prompt
+=== RUN   TestPromptsNormalization/translation_system.prompt
+=== PAUSE TestPromptsNormalization/translation_system.prompt
+=== RUN   TestGetAnalyzer/slack
+=== PAUSE TestGetAnalyzer/slack
+=== RUN   TestGetAnalyzer/whatsapp
+=== PAUSE TestGetAnalyzer/whatsapp
+=== RUN   TestGetAnalyzer/telegram
+=== PAUSE TestGetAnalyzer/telegram
+=== RUN   TestGetAnalyzer/notion
+=== PAUSE TestGetAnalyzer/notion
+=== RUN   TestGetAnalyzer/unknown_source
+=== PAUSE TestGetAnalyzer/unknown_source
+--- PASS: TestExecutePromptRendering (0.00s)
+=== CONT  TestParsePrompt/Standard_Frontmatter
+--- PASS: TestLimitFewShots (0.00s)
+=== CONT  TestGetAnalyzer/gmail
+=== PAUSE TestAnalyzersPreProcess/ChatAnalyzer_-_Long_Text_(Truncate_from_end)
+=== RUN   TestAnalyzersPreProcess/NotionAnalyzer_-_Any_Text_(No_Change)
+=== PAUSE TestAnalyzersPreProcess/NotionAnalyzer_-_Any_Text_(No_Change)
+=== RUN   TestAnalyzersPreProcess/NotionAnalyzer_-_Long_Text_(No_Truncate)
+=== PAUSE TestAnalyzersPreProcess/NotionAnalyzer_-_Long_Text_(No_Truncate)
+=== CONT  TestAnalyzersPreProcess/GmailAnalyzer_-_Short_Text_(No_Change)
+=== RUN   TestUnmarshalTranslate/Array_format
+=== PAUSE TestUnmarshalTranslate/Array_format
+=== RUN   TestUnmarshalTranslate/Object_format_(translations)
+=== PAUSE TestUnmarshalTranslate/Object_format_(translations)
+=== RUN   TestUnmarshalTranslate/Invalid_format
+=== PAUSE TestUnmarshalTranslate/Invalid_format
+=== CONT  TestUnmarshalTranslate/Array_format
+=== CONT  TestCleanMarkdownText
+=== RUN   TestCleanMarkdownText/Markdown_JSON_block
+=== PAUSE TestCleanMarkdownText/Markdown_JSON_block
+=== RUN   TestCleanMarkdownText/Markdown_text_block
+=== PAUSE TestCleanMarkdownText/Markdown_text_block
+=== RUN   TestCleanMarkdownText/Generic_markdown_block
+=== PAUSE TestCleanMarkdownText/Generic_markdown_block
+=== RUN   TestCleanMarkdownText/Markdown_markdown_block
+=== PAUSE TestCleanMarkdownText/Markdown_markdown_block
+=== RUN   TestCleanMarkdownText/No_markdown_blocks
+=== PAUSE TestCleanMarkdownText/No_markdown_blocks
+=== RUN   TestCleanMarkdownText/Trailing_and_leading_spaces
+=== PAUSE TestCleanMarkdownText/Trailing_and_leading_spaces
+=== RUN   TestCleanMarkdownText/Multiple_lines
+=== PAUSE TestCleanMarkdownText/Multiple_lines
+=== CONT  TestCleanMarkdownText/Markdown_JSON_block
+=== CONT  TestUnmarshalAnalyze
+=== RUN   TestUnmarshalAnalyze/Array_format
+=== PAUSE TestUnmarshalAnalyze/Array_format
+=== RUN   TestUnmarshalAnalyze/Object_format_(tasks)
+=== PAUSE TestUnmarshalAnalyze/Object_format_(tasks)
+=== RUN   TestUnmarshalAnalyze/Object_format_(items)
+=== PAUSE TestUnmarshalAnalyze/Object_format_(items)
+=== RUN   TestUnmarshalAnalyze/Empty_array
+=== PAUSE TestUnmarshalAnalyze/Empty_array
+=== CONT  TestUnmarshalAnalyze/Array_format
+=== CONT  TestPromptsNormalization/chat_system.prompt
+=== CONT  TestPromptsNormalization/batch_translator.prompt
+=== CONT  TestDecodeBase64URL
+=== RUN   TestDecodeBase64URL/1._URL-safe_encoding_with_padding
+=== PAUSE TestDecodeBase64URL/1._URL-safe_encoding_with_padding
+=== RUN   TestDecodeBase64URL/2._URL-safe_encoding_without_padding_(Fallback)
+=== PAUSE TestDecodeBase64URL/2._URL-safe_encoding_without_padding_(Fallback)
+=== RUN   TestDecodeBase64URL/3._Standard_encoding_with_padding_(Fallback)
+=== PAUSE TestDecodeBase64URL/3._Standard_encoding_with_padding_(Fallback)
+=== RUN   TestDecodeBase64URL/4._Standard_encoding_without_padding_(Fallback)
+=== PAUSE TestDecodeBase64URL/4._Standard_encoding_without_padding_(Fallback)
+=== RUN   TestDecodeBase64URL/5._Invalid_base64_data
+=== CONT  TestParsePrompt/Empty_content
+=== CONT  TestGetAnalyzer/whatsapp
+=== CONT  TestGetAnalyzer/slack
+=== CONT  TestPromptsNormalization/batch_completion_check.prompt
+=== PAUSE TestDecodeBase64URL/5._Invalid_base64_data
+=== CONT  TestGetAnalyzer/unknown_source
+=== CONT  TestAnalyzersPreProcess/GmailAnalyzer_-_Long_Text_(Truncate_from_start)
+=== CONT  TestAnalyzersPreProcess/ChatAnalyzer_-_Short_Text_(No_Change)
+=== CONT  TestGetAnalyzer/notion
+=== CONT  TestUnmarshalTranslate/Object_format_(translations)
+=== CONT  TestCleanMarkdownText/Multiple_lines
+=== CONT  TestGetAnalyzer/telegram
+=== CONT  TestAnalyzersPreProcess/NotionAnalyzer_-_Long_Text_(No_Truncate)
+=== CONT  TestCleanMarkdownText/No_markdown_blocks
+=== CONT  TestCleanMarkdownText/Generic_markdown_block
+=== CONT  TestCleanMarkdownText/Markdown_markdown_block
+=== CONT  TestCleanMarkdownText/Trailing_and_leading_spaces
+=== CONT  TestUnmarshalAnalyze/Object_format_(items)
+=== CONT  TestUnmarshalAnalyze/Empty_array
+=== CONT  TestAnalyzersPreProcess/ChatAnalyzer_-_Long_Text_(Truncate_from_end)
+=== CONT  TestUnmarshalAnalyze/Object_format_(tasks)
+=== CONT  TestSanitizeJSON
+=== RUN   TestSanitizeJSON/Clean_JSON_array
+=== PAUSE TestSanitizeJSON/Clean_JSON_array
+=== RUN   TestSanitizeJSON/Markdown_JSON_block
+2026/04/09 14:01:40 [WARN] [GEMINI] Chat text too long (31000 chars), truncating to last 30000
+=== PAUSE TestSanitizeJSON/Markdown_JSON_block
+=== CONT  TestPromptsNormalization/report_summary.prompt
+=== RUN   TestSanitizeJSON/Text_before_and_after_JSON
+=== CONT  TestUnmarshalTranslate/Invalid_format
+=== PAUSE TestSanitizeJSON/Text_before_and_after_JSON
+=== CONT  TestParsePrompt/Case_Insensitive_Keys_and_Extra_Spaces
+=== CONT  TestParsePrompt/Missing_Closing_Separator
+2026/04/09 14:01:40 [ERROR] [GEMINI] Translation JSON unmarshal failed: json: cannot unmarshal object into Go value of type []store.TranslateRequest, RAW: {"wrong": 123}
+=== RUN   TestSanitizeJSON/Truncated_JSON_array_(Self-Healing)
+=== CONT  TestPromptsNormalization/translation_system.prompt
+=== CONT  TestPromptsNormalization/task_translator.prompt
+=== CONT  TestPromptsNormalization/task_merge_summary.prompt
+=== CONT  TestParsePrompt/Strict_Prefix_Violation_(Leading_Garbage)
+=== CONT  TestPromptsNormalization/state_evaluation.prompt
+=== CONT  TestAnalyzersPreProcess/NotionAnalyzer_-_Any_Text_(No_Change)
+=== CONT  TestPromptsNormalization/report_translator.prompt
+=== CONT  TestPromptsNormalization/new_extraction.prompt
+=== CONT  TestPromptsNormalization/release_notes_system.prompt
+--- PASS: TestGetAnalyzer (0.00s)
+    --- PASS: TestGetAnalyzer/gmail (0.00s)
+    --- PASS: TestGetAnalyzer/whatsapp (0.00s)
+    --- PASS: TestGetAnalyzer/slack (0.00s)
+    --- PASS: TestGetAnalyzer/unknown_source (0.00s)
+    --- PASS: TestGetAnalyzer/notion (0.00s)
+    --- PASS: TestGetAnalyzer/telegram (0.00s)
+=== CONT  TestPromptsNormalization/notion_user.prompt
+=== CONT  TestCleanMarkdownText/Markdown_text_block
+=== PAUSE TestSanitizeJSON/Truncated_JSON_array_(Self-Healing)
+=== CONT  TestPromptsNormalization/release_notes_combined.prompt
+=== RUN   TestSanitizeJSON/Markdown_with_truncated_array
+=== PAUSE TestSanitizeJSON/Markdown_with_truncated_array
+=== RUN   TestSanitizeJSON/Single_JSON_object_(No_repair_needed)
+=== CONT  TestPromptsNormalization/chat_user.prompt
+=== CONT  TestDecodeBase64URL/1._URL-safe_encoding_with_padding
+=== CONT  TestDecodeBase64URL/3._Standard_encoding_with_padding_(Fallback)
+=== CONT  TestDecodeBase64URL/5._Invalid_base64_data
+=== CONT  TestDecodeBase64URL/4._Standard_encoding_without_padding_(Fallback)
+=== CONT  TestDecodeBase64URL/2._URL-safe_encoding_without_padding_(Fallback)
+=== CONT  TestPromptsNormalization/gmail_system.prompt
+=== CONT  TestPromptsNormalization/gmail_user.prompt
+=== CONT  TestPromptsNormalization/completion_check.prompt
+=== PAUSE TestSanitizeJSON/Single_JSON_object_(No_repair_needed)
+=== RUN   TestSanitizeJSON/Empty_or_broken_input
+=== PAUSE TestSanitizeJSON/Empty_or_broken_input
+=== CONT  TestPromptsNormalization/notion_system.prompt
+--- PASS: TestUnmarshalTranslate (0.00s)
+    --- PASS: TestUnmarshalTranslate/Array_format (0.00s)
+    --- PASS: TestUnmarshalTranslate/Object_format_(translations) (0.00s)
+    --- PASS: TestUnmarshalTranslate/Invalid_format (0.00s)
+--- PASS: TestParsePrompt (0.00s)
+    --- PASS: TestParsePrompt/Standard_Frontmatter (0.00s)
+    --- PASS: TestParsePrompt/Empty_content (0.00s)
+    --- PASS: TestParsePrompt/Missing_Closing_Separator (0.00s)
+    --- PASS: TestParsePrompt/Case_Insensitive_Keys_and_Extra_Spaces (0.00s)
+    --- PASS: TestParsePrompt/Strict_Prefix_Violation_(Leading_Garbage) (0.00s)
+--- PASS: TestAnalyzersPreProcess (0.00s)
+    --- PASS: TestAnalyzersPreProcess/GmailAnalyzer_-_Short_Text_(No_Change) (0.00s)
+    --- PASS: TestAnalyzersPreProcess/GmailAnalyzer_-_Long_Text_(Truncate_from_start) (0.00s)
+    --- PASS: TestAnalyzersPreProcess/ChatAnalyzer_-_Short_Text_(No_Change) (0.00s)
+    --- PASS: TestAnalyzersPreProcess/NotionAnalyzer_-_Long_Text_(No_Truncate) (0.00s)
+    --- PASS: TestAnalyzersPreProcess/ChatAnalyzer_-_Long_Text_(Truncate_from_end) (0.00s)
+    --- PASS: TestAnalyzersPreProcess/NotionAnalyzer_-_Any_Text_(No_Change) (0.00s)
+--- PASS: TestUnmarshalAnalyze (0.00s)
+    --- PASS: TestUnmarshalAnalyze/Array_format (0.00s)
+    --- PASS: TestUnmarshalAnalyze/Empty_array (0.00s)
+    --- PASS: TestUnmarshalAnalyze/Object_format_(items) (0.00s)
+    --- PASS: TestUnmarshalAnalyze/Object_format_(tasks) (0.00s)
+--- PASS: TestCleanMarkdownText (0.00s)
+    --- PASS: TestCleanMarkdownText/Markdown_JSON_block (0.00s)
+    --- PASS: TestCleanMarkdownText/Multiple_lines (0.00s)
+    --- PASS: TestCleanMarkdownText/No_markdown_blocks (0.00s)
+    --- PASS: TestCleanMarkdownText/Generic_markdown_block (0.00s)
+    --- PASS: TestCleanMarkdownText/Markdown_markdown_block (0.00s)
+    --- PASS: TestCleanMarkdownText/Trailing_and_leading_spaces (0.00s)
+    --- PASS: TestCleanMarkdownText/Markdown_text_block (0.00s)
+=== RUN   TestSanitizeJSON/Nested_structures
+=== PAUSE TestSanitizeJSON/Nested_structures
+--- PASS: TestDecodeBase64URL (0.00s)
+    --- PASS: TestDecodeBase64URL/1._URL-safe_encoding_with_padding (0.00s)
+    --- PASS: TestDecodeBase64URL/3._Standard_encoding_with_padding_(Fallback) (0.00s)
+    --- PASS: TestDecodeBase64URL/5._Invalid_base64_data (0.00s)
+    --- PASS: TestDecodeBase64URL/4._Standard_encoding_without_padding_(Fallback) (0.00s)
+    --- PASS: TestDecodeBase64URL/2._URL-safe_encoding_without_padding_(Fallback) (0.00s)
+=== CONT  TestSanitizeJSON/Clean_JSON_array
+=== CONT  TestSanitizeJSON/Markdown_with_truncated_array
+=== CONT  TestSanitizeJSON/Truncated_JSON_array_(Self-Healing)
+--- PASS: TestPromptsNormalization (0.00s)
+    --- PASS: TestPromptsNormalization/batch_translator.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/chat_system.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/batch_completion_check.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/report_summary.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/state_evaluation.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/translation_system.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/task_translator.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/release_notes_system.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/report_translator.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/new_extraction.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/release_notes_combined.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/chat_user.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/gmail_user.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/task_merge_summary.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/notion_user.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/completion_check.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/gmail_system.prompt (0.00s)
+    --- PASS: TestPromptsNormalization/notion_system.prompt (0.00s)
+=== CONT  TestSanitizeJSON/Nested_structures
+=== CONT  TestSanitizeJSON/Single_JSON_object_(No_repair_needed)
+=== CONT  TestSanitizeJSON/Text_before_and_after_JSON
+=== CONT  TestSanitizeJSON/Markdown_JSON_block
+=== CONT  TestSanitizeJSON/Empty_or_broken_input
+--- PASS: TestSanitizeJSON (0.00s)
+    --- PASS: TestSanitizeJSON/Clean_JSON_array (0.00s)
+    --- PASS: TestSanitizeJSON/Markdown_with_truncated_array (0.00s)
+    --- PASS: TestSanitizeJSON/Truncated_JSON_array_(Self-Healing) (0.00s)
+    --- PASS: TestSanitizeJSON/Nested_structures (0.00s)
+    --- PASS: TestSanitizeJSON/Single_JSON_object_(No_repair_needed) (0.00s)
+    --- PASS: TestSanitizeJSON/Text_before_and_after_JSON (0.00s)
+    --- PASS: TestSanitizeJSON/Markdown_JSON_block (0.00s)
+    --- PASS: TestSanitizeJSON/Empty_or_broken_input (0.00s)
+PASS
+ok  	message-consolidator/ai	0.056s
+=== RUN   TestAuthMiddleware_Unauthorized
+2026/04/09 14:01:40 [WARN] [AUTH] Session cookie missing for path: /api/messages
+--- PASS: TestAuthMiddleware_Unauthorized (0.00s)
+=== RUN   TestSetupOAuth_RedirectURL
+--- PASS: TestSetupOAuth_RedirectURL (0.00s)
+=== RUN   TestSetSessionCookie_Attributes
+=== RUN   TestSetSessionCookie_Attributes/Production_with_HTTPS
+=== RUN   TestSetSessionCookie_Attributes/Development_with_HTTP
+--- PASS: TestSetSessionCookie_Attributes (0.00s)
+    --- PASS: TestSetSessionCookie_Attributes/Production_with_HTTPS (0.00s)
+    --- PASS: TestSetSessionCookie_Attributes/Development_with_HTTP (0.00s)
+PASS
+ok  	message-consolidator/auth	0.047s
+# message-consolidator/channels [message-consolidator/channels.test]
+channels/gmail_idempotency_test.go:40:44: not enough arguments in call to store.SaveMessage
+	have (context.Context, "message-consolidator/store".ConsolidatedMessage)
+	want (context.Context, *sql.Tx, "message-consolidator/store".ConsolidatedMessage)
+channels/gmail_idempotency_test.go:56:45: not enough arguments in call to store.SaveMessage
+	have (context.Context, "message-consolidator/store".ConsolidatedMessage)
+	want (context.Context, *sql.Tx, "message-consolidator/store".ConsolidatedMessage)
+FAIL	message-consolidator/channels [build failed]
+?   	message-consolidator/cmd/mc-util	[no test files]
+?   	message-consolidator/cmd/verify/batch_partial	[no test files]
+?   	message-consolidator/cmd/verify/double_injection	[no test files]
+?   	message-consolidator/cmd/verify/idempotency	[no test files]
+?   	message-consolidator/cmd/verify/translation_batch_cost	[no test files]
+?   	message-consolidator/config	[no test files]
+# message-consolidator/services [message-consolidator/services.test]
+services/ambiguity_safeguard_test.go:42:53: not enough arguments in call to store.SaveMessage
+	have (context.Context, store.ConsolidatedMessage)
+	want (context.Context, *sql.Tx, store.ConsolidatedMessage)
+services/self_healing_test.go:42:53: not enough arguments in call to store.SaveMessage
+	have (context.Context, store.ConsolidatedMessage)
+	want (context.Context, *sql.Tx, store.ConsolidatedMessage)
+services/tasks_merge_test.go:29:41: not enough arguments in call to store.SaveMessage
+	have (context.Context, store.ConsolidatedMessage)
+	want (context.Context, *sql.Tx, store.ConsolidatedMessage)
+services/tasks_merge_test.go:32:40: not enough arguments in call to store.SaveMessage
+	have (context.Context, store.ConsolidatedMessage)
+	want (context.Context, *sql.Tx, store.ConsolidatedMessage)
+services/tasks_merge_test.go:61:43: not enough arguments in call to store.SaveMessage
+	have (context.Context, store.ConsolidatedMessage)
+	want (context.Context, *sql.Tx, store.ConsolidatedMessage)
+services/tasks_regression_test.go:78:42: not enough arguments in call to store.SaveMessage
+	have (context.Context, store.ConsolidatedMessage)
+	want (context.Context, *sql.Tx, store.ConsolidatedMessage)
+=== RUN   TestArchiveFilteringAndPriority
+2026/04/09 14:01:45 [INFO] [DB] Initializing database connection: file:/home/jinro/.gemini/message-consolidator/test.db?cache=shared&_busy_timeout=30000
+2026/04/09 14:01:45 [INFO] [DB-TEST] Test database detected: ./test.db unified mapping active.
+2026/04/09 14:01:45 [INFO] [DB] SQLite (Local) detected. Setting MaxIdleConns to 1, MaxOpenConns to 2 (WAL mode).
+2026/04/09 14:01:45 [INFO] [Identity-X] DSU initialized with persistent merge relations.
+    archive_filter_test.go:49: Total messages in DB: 3
+=== RUN   TestArchiveFilteringAndPriority/StatusAll
+=== RUN   TestArchiveFilteringAndPriority/StatusDone
+=== RUN   TestArchiveFilteringAndPriority/StatusCanceled
+=== RUN   TestArchiveFilteringAndPriority/ExportExcelStatusDone
+--- PASS: TestArchiveFilteringAndPriority (0.03s)
+    --- PASS: TestArchiveFilteringAndPriority/StatusAll (0.00s)
+    --- PASS: TestArchiveFilteringAndPriority/StatusDone (0.00s)
+    --- PASS: TestArchiveFilteringAndPriority/StatusCanceled (0.00s)
+    --- PASS: TestArchiveFilteringAndPriority/ExportExcelStatusDone (0.01s)
+=== RUN   TestHandleGetMessages
+    handlers_msgs_test.go:52: Queried DB directly: {"inbox":[{"id":520,"user_email":"test@example.com","source":"slack","room":"Room","task":"Test Task","requester":"Requester","assignee":"me","assigned_at":"2026-04-09T14:01:45.949197577Z","link":"http://link","source_ts":"ts123","original_text":"Original","done":false,"is_deleted":false,"created_at":"2026-04-09T14:01:45.949197736Z","completed_at":null,"category":"todo","requester_canonical":"Requester","assignee_canonical":"me","is_context_query":false,"constraints":[],"consolidated_context":[],"metadata":{},"source_channels":[],"requester_type":"none","assignee_type":"none"}],"pending":[]}
+--- PASS: TestHandleGetMessages (0.01s)
+=== RUN   TestHandleDelete
+--- PASS: TestHandleDelete (0.01s)
+=== RUN   TestHandleGenerateReport_LangValidation
+=== RUN   TestHandleGenerateReport_LangValidation/Missing_lang_parameter_->_400_Bad_Request
+=== RUN   TestHandleGenerateReport_LangValidation/Empty_lang_parameter_->_400_Bad_Request
+=== RUN   TestHandleGenerateReport_LangValidation/Invalid_start_date_->_400_Bad_Request
+=== RUN   TestHandleGenerateReport_LangValidation/Valid_parameters_but_missing_Reports_service_->_503_Service_Unavailable
+--- PASS: TestHandleGenerateReport_LangValidation (0.00s)
+    --- PASS: TestHandleGenerateReport_LangValidation/Missing_lang_parameter_->_400_Bad_Request (0.00s)
+    --- PASS: TestHandleGenerateReport_LangValidation/Empty_lang_parameter_->_400_Bad_Request (0.00s)
+    --- PASS: TestHandleGenerateReport_LangValidation/Invalid_start_date_->_400_Bad_Request (0.00s)
+    --- PASS: TestHandleGenerateReport_LangValidation/Valid_parameters_but_missing_Reports_service_->_503_Service_Unavailable (0.00s)
+=== RUN   TestHandleAddMappingConflict
+=== RUN   TestHandleAddMappingConflict/Initial_Add
+=== RUN   TestHandleAddMappingConflict/Idempotent_Add
+--- PASS: TestHandleAddMappingConflict (0.01s)
+    --- PASS: TestHandleAddMappingConflict/Initial_Add (0.00s)
+    --- PASS: TestHandleAddMappingConflict/Idempotent_Add (0.00s)
+PASS
+ok  	message-consolidator/handlers	0.127s
+?   	message-consolidator/internal/testutil	[no test files]
+=== RUN   TestLogAIInferenceToFile
+[AI-LOG] 2026/04/09 14:01:45 ai_logger.go:35: AI Inference Logger initialized
+[AI-LOG] 2026/04/09 14:01:45 ai_logger.go:51: 
+--- INFERENCE [2026-04-09T14:01:45Z] ---
+SOURCE: test_source
+INPUT: TEST-RUN-1775743305856046103
+RAW_RESPONSE: {"output": "test response"}
+-----------------------
+--- PASS: TestLogAIInferenceToFile (0.20s)
+PASS
+ok  	message-consolidator/logger	0.209s
+=== RUN   TestCalculateWindowStart
+--- PASS: TestCalculateWindowStart (0.00s)
+=== RUN   TestEnrichWhatsAppMessage_Fallback
+--- PASS: TestEnrichWhatsAppMessage_Fallback (0.00s)
+=== RUN   TestScanThreadReplies
+=== RUN   TestScanThreadReplies/should_remain_unresolved_and_keep_original_timestamps_when_there_are_no_replies
+=== RUN   TestScanThreadReplies/should_update_lastTS_but_not_activity_timestamp_when_the_reply_is_from_a_bot
+=== RUN   TestScanThreadReplies/should_identify_via_BotID_field_and_not_update_activity_timestamp
+=== RUN   TestScanThreadReplies/should_update_both_activity_and_lastTS_when_a_human_user_replies
+=== RUN   TestScanThreadReplies/should_mark_as_resolved_when_a_white_check_mark_reaction_is_present
+=== RUN   TestScanThreadReplies/should_ignore_replies_that_are_equal_to_or_older_than_the_last_processed_timestamp
+--- PASS: TestScanThreadReplies (0.00s)
+    --- PASS: TestScanThreadReplies/should_remain_unresolved_and_keep_original_timestamps_when_there_are_no_replies (0.00s)
+    --- PASS: TestScanThreadReplies/should_update_lastTS_but_not_activity_timestamp_when_the_reply_is_from_a_bot (0.00s)
+    --- PASS: TestScanThreadReplies/should_identify_via_BotID_field_and_not_update_activity_timestamp (0.00s)
+    --- PASS: TestScanThreadReplies/should_update_both_activity_and_lastTS_when_a_human_user_replies (0.00s)
+    --- PASS: TestScanThreadReplies/should_mark_as_resolved_when_a_white_check_mark_reaction_is_present (0.00s)
+    --- PASS: TestScanThreadReplies/should_ignore_replies_that_are_equal_to_or_older_than_the_last_processed_timestamp (0.00s)
+=== RUN   TestIsThreadTimedOut
+=== RUN   TestIsThreadTimedOut/should_not_timeout_when_the_activity_was_1_hour_ago
+=== RUN   TestIsThreadTimedOut/should_timeout_when_the_activity_was_8_days_ago
+=== RUN   TestIsThreadTimedOut/should_not_timeout_when_the_timestamp_format_is_invalid
+=== RUN   TestIsThreadTimedOut/should_not_timeout_when_the_activity_is_just_under_the_7-day_boundary
+=== RUN   TestIsThreadTimedOut/should_timeout_when_the_activity_is_just_over_the_7-day_boundary
+--- PASS: TestIsThreadTimedOut (0.00s)
+    --- PASS: TestIsThreadTimedOut/should_not_timeout_when_the_activity_was_1_hour_ago (0.00s)
+    --- PASS: TestIsThreadTimedOut/should_timeout_when_the_activity_was_8_days_ago (0.00s)
+    --- PASS: TestIsThreadTimedOut/should_not_timeout_when_the_timestamp_format_is_invalid (0.00s)
+    --- PASS: TestIsThreadTimedOut/should_not_timeout_when_the_activity_is_just_under_the_7-day_boundary (0.00s)
+    --- PASS: TestIsThreadTimedOut/should_timeout_when_the_activity_is_just_over_the_7-day_boundary (0.00s)
+=== RUN   TestSlackThrottlingInterval
+--- PASS: TestSlackThrottlingInterval (0.00s)
+=== RUN   TestThreadIntakeLogicLink
+--- PASS: TestThreadIntakeLogicLink (0.00s)
+=== RUN   TestGetEffectiveAliases
+=== RUN   TestGetEffectiveAliases/should_combine_name_and_email_prefix_as_aliases
+=== RUN   TestGetEffectiveAliases/should_de-duplicate_aliases_when_there_is_partial_overlap
+--- PASS: TestGetEffectiveAliases (0.00s)
+    --- PASS: TestGetEffectiveAliases/should_combine_name_and_email_prefix_as_aliases (0.00s)
+    --- PASS: TestGetEffectiveAliases/should_de-duplicate_aliases_when_there_is_partial_overlap (0.00s)
+=== RUN   TestIsAliasMatched
+=== RUN   TestIsAliasMatched/should_return_true_when_sender_name_exactly_matches_the_alias
+=== RUN   TestIsAliasMatched/should_return_true_when_sender_name_contains_the_alias
+=== RUN   TestIsAliasMatched/should_return_true_when_text_contains_the_exact_long_alias
+=== RUN   TestIsAliasMatched/should_return_true_when_text_contains_a_short_Korean_alias_as_a_prefix
+=== RUN   TestIsAliasMatched/should_return_true_when_text_exactly_matches_the_short_Korean_alias
+=== RUN   TestIsAliasMatched/should_return_false_when_a_short_alias_is_embedded_inside_a_word
+=== RUN   TestIsAliasMatched/should_return_false_when_neither_sender_nor_text_matches_the_alias
+--- PASS: TestIsAliasMatched (0.00s)
+    --- PASS: TestIsAliasMatched/should_return_true_when_sender_name_exactly_matches_the_alias (0.00s)
+    --- PASS: TestIsAliasMatched/should_return_true_when_sender_name_contains_the_alias (0.00s)
+    --- PASS: TestIsAliasMatched/should_return_true_when_text_contains_the_exact_long_alias (0.00s)
+    --- PASS: TestIsAliasMatched/should_return_true_when_text_contains_a_short_Korean_alias_as_a_prefix (0.00s)
+    --- PASS: TestIsAliasMatched/should_return_true_when_text_exactly_matches_the_short_Korean_alias (0.00s)
+    --- PASS: TestIsAliasMatched/should_return_false_when_a_short_alias_is_embedded_inside_a_word (0.00s)
+    --- PASS: TestIsAliasMatched/should_return_false_when_neither_sender_nor_text_matches_the_alias (0.00s)
+=== RUN   TestResolveSlackMentions
+=== RUN   TestResolveSlackMentions/should_replace_a_single_Slack_user_ID_with_their_real_name
+=== RUN   TestResolveSlackMentions/should_replace_multiple_Slack_user_IDs_in_a_single_message
+=== RUN   TestResolveSlackMentions/should_leave_the_mention_tag_unchanged_if_the_user_ID_is_unknown
+--- PASS: TestResolveSlackMentions (0.00s)
+    --- PASS: TestResolveSlackMentions/should_replace_a_single_Slack_user_ID_with_their_real_name (0.00s)
+    --- PASS: TestResolveSlackMentions/should_replace_multiple_Slack_user_IDs_in_a_single_message (0.00s)
+    --- PASS: TestResolveSlackMentions/should_leave_the_mention_tag_unchanged_if_the_user_ID_is_unknown (0.00s)
+PASS
+ok  	message-consolidator/scanner	0.079s
+?   	message-consolidator/scripts	[no test files]
+FAIL	message-consolidator/services [build failed]
+=== RUN   TestLogAIInference
+2026/04/09 14:01:48 [INFO] [DB] Initializing database connection: file:/home/jinro/.gemini/message-consolidator/test.db?cache=shared&_busy_timeout=30000
+2026/04/09 14:01:48 [INFO] [DB-TEST] Test database detected: ./test.db unified mapping active.
+2026/04/09 14:01:48 [INFO] [DB] SQLite (Local) detected. Setting MaxIdleConns to 1, MaxOpenConns to 2 (WAL mode).
+2026/04/09 14:01:48 [INFO] [Identity-X] DSU initialized with persistent merge relations.
+--- PASS: TestLogAIInference (0.02s)
+=== RUN   TestBulkAliasResolution
+=== RUN   TestBulkAliasResolution/TenantBypass
+=== RUN   TestBulkAliasResolution/NegativeCaching
+=== RUN   TestBulkAliasResolution/BulkMapping
+--- PASS: TestBulkAliasResolution (0.01s)
+    --- PASS: TestBulkAliasResolution/TenantBypass (0.00s)
+    --- PASS: TestBulkAliasResolution/NegativeCaching (0.00s)
+    --- PASS: TestBulkAliasResolution/BulkMapping (0.00s)
+=== RUN   TestNormalizeIdentifier
+--- PASS: TestNormalizeIdentifier (0.00s)
+=== RUN   TestNormalizeWithCategory
+=== RUN   TestNormalizeWithCategory/Direct_Email_Internal
+=== RUN   TestNormalizeWithCategory/Name_Matching_Internal
+=== RUN   TestNormalizeWithCategory/Alias_Matching_Internal
+=== RUN   TestNormalizeWithCategory/TrimSpace_and_Domain_Priority
+=== RUN   TestNormalizeWithCategory/Contacts_DisplayName_Match
+=== RUN   TestNormalizeWithCategory/Contacts_Alias_Match
+=== RUN   TestNormalizeWithCategory/Contacts_Email_Match
+=== RUN   TestNormalizeWithCategory/External_Name_Match
+=== RUN   TestNormalizeWithCategory/External_Email
+=== RUN   TestNormalizeWithCategory/External_Unknown
+=== RUN   TestNormalizeWithCategory/Already_Categorized_Internal
+=== RUN   TestNormalizeWithCategory/Already_Categorized_External
+=== RUN   TestNormalizeWithCategory/Empty_Name
+--- PASS: TestNormalizeWithCategory (0.03s)
+    --- PASS: TestNormalizeWithCategory/Direct_Email_Internal (0.00s)
+    --- PASS: TestNormalizeWithCategory/Name_Matching_Internal (0.00s)
+    --- PASS: TestNormalizeWithCategory/Alias_Matching_Internal (0.00s)
+    --- PASS: TestNormalizeWithCategory/TrimSpace_and_Domain_Priority (0.00s)
+    --- PASS: TestNormalizeWithCategory/Contacts_DisplayName_Match (0.00s)
+    --- PASS: TestNormalizeWithCategory/Contacts_Alias_Match (0.00s)
+    --- PASS: TestNormalizeWithCategory/Contacts_Email_Match (0.00s)
+    --- PASS: TestNormalizeWithCategory/External_Name_Match (0.00s)
+    --- PASS: TestNormalizeWithCategory/External_Email (0.00s)
+    --- PASS: TestNormalizeWithCategory/External_Unknown (0.00s)
+    --- PASS: TestNormalizeWithCategory/Already_Categorized_Internal (0.00s)
+    --- PASS: TestNormalizeWithCategory/Already_Categorized_External (0.00s)
+    --- PASS: TestNormalizeWithCategory/Empty_Name (0.00s)
+=== RUN   TestGetArchivedMessagesFiltered_Status
+=== RUN   TestGetArchivedMessagesFiltered_Status/Status_All
+=== RUN   TestGetArchivedMessagesFiltered_Status/Status_Default_(empty)
+=== RUN   TestGetArchivedMessagesFiltered_Status/Status_Done
+=== RUN   TestGetArchivedMessagesFiltered_Status/Status_Canceled
+=== RUN   TestGetArchivedMessagesFiltered_Status/Status_Canceled_with_Query_(Matched)
+=== RUN   TestGetArchivedMessagesFiltered_Status/Status_Canceled_with_Query_(Unmatched)
+=== RUN   TestGetArchivedMessagesFiltered_Status/Status_All_with_Pagination
+=== RUN   TestGetArchivedMessagesFiltered_Status/Invalid_Status_(Fallback_to_All)
+--- PASS: TestGetArchivedMessagesFiltered_Status (0.04s)
+    --- PASS: TestGetArchivedMessagesFiltered_Status/Status_All (0.00s)
+    --- PASS: TestGetArchivedMessagesFiltered_Status/Status_Default_(empty) (0.00s)
+    --- PASS: TestGetArchivedMessagesFiltered_Status/Status_Done (0.00s)
+    --- PASS: TestGetArchivedMessagesFiltered_Status/Status_Canceled (0.00s)
+    --- PASS: TestGetArchivedMessagesFiltered_Status/Status_Canceled_with_Query_(Matched) (0.00s)
+    --- PASS: TestGetArchivedMessagesFiltered_Status/Status_Canceled_with_Query_(Unmatched) (0.00s)
+    --- PASS: TestGetArchivedMessagesFiltered_Status/Status_All_with_Pagination (0.00s)
+    --- PASS: TestGetArchivedMessagesFiltered_Status/Invalid_Status_(Fallback_to_All) (0.00s)
+=== RUN   TestCacheInvalidationAndReadThrough
+--- PASS: TestCacheInvalidationAndReadThrough (0.02s)
+=== RUN   TestDeleteGmailToken
+--- PASS: TestDeleteGmailToken (0.01s)
+=== RUN   TestContactTypePromotion
+=== RUN   TestContactTypePromotion/Promotion_via_Email_Alias
+=== RUN   TestContactTypePromotion/Promotion_via_Merge_Hierarchy
+=== RUN   TestContactTypePromotion/Invalid_Type_Validation
+=== RUN   TestContactTypePromotion/PromoteContactType_Utility
+--- PASS: TestContactTypePromotion (0.02s)
+    --- PASS: TestContactTypePromotion/Promotion_via_Email_Alias (0.00s)
+    --- PASS: TestContactTypePromotion/Promotion_via_Merge_Hierarchy (0.01s)
+    --- PASS: TestContactTypePromotion/Invalid_Type_Validation (0.00s)
+    --- PASS: TestContactTypePromotion/PromoteContactType_Utility (0.00s)
+=== RUN   TestLinkContact
+=== RUN   TestLinkContact/Basic_Linking
+=== RUN   TestLinkContact/Tree_Flattening_(1-Level_Hierarchy)
+=== RUN   TestLinkContact/Unlinking
+=== RUN   TestLinkContact/Circular_Reference_Prevention_-_Self
+=== RUN   TestLinkContact/Circular_Reference_Prevention_-_Child_to_Master
+--- PASS: TestLinkContact (0.02s)
+    --- PASS: TestLinkContact/Basic_Linking (0.00s)
+    --- PASS: TestLinkContact/Tree_Flattening_(1-Level_Hierarchy) (0.00s)
+    --- PASS: TestLinkContact/Unlinking (0.00s)
+    --- PASS: TestLinkContact/Circular_Reference_Prevention_-_Self (0.00s)
+    --- PASS: TestLinkContact/Circular_Reference_Prevention_-_Child_to_Master (0.00s)
+=== RUN   TestAutoUpsertContact
+--- PASS: TestAutoUpsertContact (0.01s)
+=== RUN   TestInitDBLocal
+--- PASS: TestInitDBLocal (0.02s)
+=== RUN   TestRunInTx
+=== RUN   TestRunInTx/Commit
+=== RUN   TestRunInTx/Rollback
+--- PASS: TestRunInTx (0.01s)
+    --- PASS: TestRunInTx/Commit (0.00s)
+    --- PASS: TestRunInTx/Rollback (0.00s)
+=== RUN   TestBatchOperations
+=== RUN   TestBatchOperations/GetMessagesByIDs
+=== RUN   TestBatchOperations/DeleteAndRestoreMessages
+--- PASS: TestBatchOperations (0.01s)
+    --- PASS: TestBatchOperations/GetMessagesByIDs (0.00s)
+    --- PASS: TestBatchOperations/DeleteAndRestoreMessages (0.00s)
+=== RUN   TestLegacyColumnRemoval
+    db_test.go:157: Verified hard deprecation: legacy columns dropped successfully.
+--- PASS: TestLegacyColumnRemoval (0.01s)
+=== RUN   TestIdentityXTransitiveLink
+--- PASS: TestIdentityXTransitiveLink (0.01s)
+=== RUN   TestAchievementSeeding
+2026/04/09 14:01:48 [INFO] [Store] Cached 10 achievements
+=== RUN   TestAchievementSeeding/should_seed_a_minimum_number_of_achievements
+=== RUN   TestAchievementSeeding/should_contain_a_valid_'Morning_Star'_achievement
+--- PASS: TestAchievementSeeding (0.01s)
+    --- PASS: TestAchievementSeeding/should_seed_a_minimum_number_of_achievements (0.00s)
+    --- PASS: TestAchievementSeeding/should_contain_a_valid_'Morning_Star'_achievement (0.00s)
+=== RUN   TestGetUserAchievements
+=== RUN   TestGetUserAchievements/should_execute_without_error_for_a_newly_created_user
+--- PASS: TestGetUserAchievements (0.01s)
+    --- PASS: TestGetUserAchievements/should_execute_without_error_for_a_newly_created_user (0.00s)
+=== RUN   TestIdentityResolutionViews
+=== RUN   TestIdentityResolutionViews/v_contacts_resolved
+=== RUN   TestIdentityResolutionViews/v_messages_integration
+--- PASS: TestIdentityResolutionViews (0.01s)
+    --- PASS: TestIdentityResolutionViews/v_contacts_resolved (0.00s)
+    --- PASS: TestIdentityResolutionViews/v_messages_integration (0.00s)
+=== RUN   TestIdentityResolution
+    identity_test.go:32: IDs: A=631, B=632, C=633
+--- PASS: TestIdentityResolution (0.02s)
+=== RUN   TestMergeTaskInvalidation
+--- PASS: TestMergeTaskInvalidation (0.01s)
+=== RUN   TestMetadataIntegrity
+=== RUN   TestMetadataIntegrity/ScanIsContextQuery
+=== RUN   TestMetadataIntegrity/ScanConstraintsJSON
+=== RUN   TestMetadataIntegrity/ScanDefaultEmptyConstraints
+=== RUN   TestMetadataIntegrity/ScanSourceChannels
+=== RUN   TestMetadataIntegrity/CrossChannelDeduplication
+--- PASS: TestMetadataIntegrity (0.02s)
+    --- PASS: TestMetadataIntegrity/ScanIsContextQuery (0.00s)
+    --- PASS: TestMetadataIntegrity/ScanConstraintsJSON (0.00s)
+    --- PASS: TestMetadataIntegrity/ScanDefaultEmptyConstraints (0.00s)
+    --- PASS: TestMetadataIntegrity/ScanSourceChannels (0.00s)
+    --- PASS: TestMetadataIntegrity/CrossChannelDeduplication (0.00s)
+=== RUN   TestSQLQueriesLoaded
+--- PASS: TestSQLQueriesLoaded (0.00s)
+=== RUN   TestListReportsPerformance
+    report_performance_test.go:57: Successfully verified 1+1 batch loading for 5 reports
+--- PASS: TestListReportsPerformance (0.02s)
+=== RUN   TestGetContactByIdentifier
+=== RUN   TestGetContactByIdentifier/LookupByEmail
+=== RUN   TestGetContactByIdentifier/LookupByDisplayName
+=== RUN   TestGetContactByIdentifier/LookupByAlias
+=== RUN   TestGetContactByIdentifier/CaseInsensitiveAlias
+--- PASS: TestGetContactByIdentifier (0.01s)
+    --- PASS: TestGetContactByIdentifier/LookupByEmail (0.00s)
+    --- PASS: TestGetContactByIdentifier/LookupByDisplayName (0.00s)
+    --- PASS: TestGetContactByIdentifier/LookupByAlias (0.00s)
+    --- PASS: TestGetContactByIdentifier/CaseInsensitiveAlias (0.00s)
+=== RUN   TestGetUserStats_IncludesArchived
+--- PASS: TestGetUserStats_IncludesArchived (0.03s)
+=== RUN   TestGetSQLiteOffset
+--- PASS: TestGetSQLiteOffset (0.00s)
+=== RUN   TestGetWorkingDaysAgo
+--- PASS: TestGetWorkingDaysAgo (0.00s)
+=== RUN   TestGetLocalThreshold
+--- PASS: TestGetLocalThreshold (0.00s)
+=== RUN   TestDBTime_Scan
+=== RUN   TestDBTime_Scan/Scan_time.Time_directly
+=== RUN   TestDBTime_Scan/Scan_standard_DB_string
+=== RUN   TestDBTime_Scan/Scan_RFC3339_string
+=== RUN   TestDBTime_Scan/Scan_[]byte
+=== RUN   TestDBTime_Scan/Scan_nil
+--- PASS: TestDBTime_Scan (0.00s)
+    --- PASS: TestDBTime_Scan/Scan_time.Time_directly (0.00s)
+    --- PASS: TestDBTime_Scan/Scan_standard_DB_string (0.00s)
+    --- PASS: TestDBTime_Scan/Scan_RFC3339_string (0.00s)
+    --- PASS: TestDBTime_Scan/Scan_[]byte (0.00s)
+    --- PASS: TestDBTime_Scan/Scan_nil (0.00s)
+=== RUN   TestGetOrCreateUser
+=== RUN   TestGetOrCreateUser/CreateNewUser
+=== RUN   TestGetOrCreateUser/UpdateExistingUser
+=== RUN   TestGetOrCreateUser/GetExistingUserNoUpdate
+=== RUN   TestGetOrCreateUser/ConcurrentUpsert
+--- PASS: TestGetOrCreateUser (0.02s)
+    --- PASS: TestGetOrCreateUser/CreateNewUser (0.00s)
+    --- PASS: TestGetOrCreateUser/UpdateExistingUser (0.00s)
+    --- PASS: TestGetOrCreateUser/GetExistingUserNoUpdate (0.00s)
+    --- PASS: TestGetOrCreateUser/ConcurrentUpsert (0.01s)
+=== RUN   TestUpdateUserSlackID
+--- PASS: TestUpdateUserSlackID (0.02s)
+PASS
+ok  	message-consolidator/store	0.488s
+=== RUN   TestTaskContextAndRouting
+2026/04/09 14:01:48 [INFO] [DB] Initializing database connection: file:/home/jinro/.gemini/message-consolidator/test.db?cache=shared&_busy_timeout=30000
+2026/04/09 14:01:48 [INFO] [DB-TEST] Test database detected: ./test.db unified mapping active.
+2026/04/09 14:01:48 [INFO] [DB] SQLite (Local) detected. Setting MaxIdleConns to 1, MaxOpenConns to 2 (WAL mode).
+2026/04/09 14:01:48 [WARN] [DB] Failed to enable WAL mode: database is locked (261)
+2026/04/09 14:01:48 [WARN] [DB] Failed to set PRAGMA synchronous=NORMAL: database is locked (261)
+2026/04/09 14:01:48 [WARN] [DB-INIT] Migration warning: failed to create contacts_resolved view: database is locked (261)
+    logic_verification_test.go:16: Failed to setup test DB: failed to init test database: core table creation failed: database is locked (261)
+--- FAIL: TestTaskContextAndRouting (0.01s)
+FAIL
+FAIL	message-consolidator/tests	0.051s
+?   	message-consolidator/tools	[no test files]
+?   	message-consolidator/types	[no test files]
+FAIL

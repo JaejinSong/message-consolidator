@@ -194,12 +194,15 @@ func (s *TasksService) PrepareMessagesForClient(ctx context.Context, email strin
 
 // HandleTaskCompletion orchestrates the process of marking a task as done.
 func (s *TasksService) HandleTaskCompletion(ctx context.Context, email string, taskID int, done bool) (GamificationResult, error) {
-	msg, err := store.GetMessageByID(ctx, email, taskID)
+	if taskID <= 0 {
+		return GamificationResult{}, fmt.Errorf("invalid task id: %d", taskID)
+	}
+	msg, err := store.GetMessageByID(ctx, store.GetDB(), email, taskID)
 	if err == nil && msg.Done && done {
 		return GamificationResult{}, nil
 	}
 
-	if err := store.MarkMessageDone(ctx, email, taskID, done); err != nil {
+	if err := store.MarkMessageDone(ctx, nil, email, taskID, done); err != nil {
 		return GamificationResult{}, err
 	}
 
@@ -222,64 +225,75 @@ func (s *TasksService) ReclassifyUserTasks(ctx context.Context, email string, us
 	fixedCount := 0
 
 	for _, m := range msgs {
-		//Why: Clears generic "other" assignees to keep the task pool clean and allow for manual re-assignment.
-		if shouldClearAssignee(m.Assignee) {
-			_ = store.UpdateTaskAssignee(ctx, email, m.ID, "")
+		if s.reclassifySingleTask(ctx, email, user, allMyIdentities, m) {
 			fixedCount++
-			continue
 		}
-
-		isDirectGmail := s.IsDirectlyAddressedToMe(m, user.Email)
-		isMarkedAsMine := s.IsAssigneeMarkedAsMine(m.Assignee, allMyIdentities)
-		matchedByAlias := IsTaskMatchedByAlias(m, allMyIdentities, isDirectGmail)
-
-		if isMarkedAsMine {
-			//Why: Automatically un-assigns Gmail tasks that were generically assigned to "me" if the user was only a CC/BCC recipient, correcting AI over-assignment.
-			if m.Source == "gmail" && !isDirectGmail {
-				if isAssigneeGeneric(m.Assignee) {
-					_ = store.UpdateTaskAssignee(ctx, email, m.ID, "")
-					fixedCount++
-					continue
-				}
-			}
-
-			//Why: Resolves generic "me" assignees to the user's preferred display name for consistency in the UI and database.
-			newAssignee, changed := s.resolveNewAssignee(user, m.Assignee, matchedByAlias)
-			if changed {
-				_ = store.UpdateTaskAssignee(ctx, email, m.ID, newAssignee)
-				fixedCount++
-			}
-			continue
-		}
-
 	}
 	return fixedCount
+}
+
+func (s *TasksService) reclassifySingleTask(ctx context.Context, email string, user *store.User, allMyIdentities []string, m store.ConsolidatedMessage) bool {
+	// Guard: Clear generic "other" assignees for manual re-assignment.
+	if shouldClearAssignee(m.Assignee) {
+		_ = store.UpdateTaskAssignee(ctx, nil, email, m.ID, "")
+		return true
+	}
+
+	isMarkedAsMine := s.IsAssigneeMarkedAsMine(m.Assignee, allMyIdentities)
+	if !isMarkedAsMine {
+		return false
+	}
+
+	isDirectGmail := s.IsDirectlyAddressedToMe(m, user.Email)
+	
+	// Guard: Automatically un-assign Gmail tasks wrongly assigned to "me" if only CC/BCC.
+	if m.Source == "gmail" && !isDirectGmail && isAssigneeGeneric(m.Assignee) {
+		_ = store.UpdateTaskAssignee(ctx, nil, email, m.ID, "")
+		return true
+	}
+
+	matchedByAlias := IsTaskMatchedByAlias(m, allMyIdentities, isDirectGmail)
+	newAssignee, changed := s.resolveNewAssignee(user, m.Assignee, matchedByAlias)
+	if changed {
+		_ = store.UpdateTaskAssignee(ctx, nil, email, m.ID, newAssignee)
+		return true
+	}
+
+	return false
 }
 
 // RestoreGmailCCAssignment restores correct assignees for Gmail tasks where the user was only CC'd.
 func (s *TasksService) RestoreGmailCCAssignment(ctx context.Context, email string, user *store.User, aliases []string, allMsgs []store.ConsolidatedMessage, svc *gmail.Service) int {
 	fixedCount := 0
 	for _, m := range allMsgs {
-		if m.Source != "gmail" {
-			continue
-		}
-
-		toHeader := extractToHeader(m.OriginalText)
-		//Why: Assigns unassigned Gmail tasks to the user if they were a direct recipient in the "To" header.
-		if isMeInToHeader(toHeader, user.Email) {
-			continue
-		}
-
-		//Why: Corrects accidental assignments to the current user for CC'd emails by attempting to resolve the actual primary recipient from the "To" header.
-		if isWronglyAssignedToMe(m.Assignee, user, aliases) {
-			actualAssignee := resolveActualAssignee(ctx, m, toHeader, svc)
-			if actualAssignee != "" && strings.TrimSpace(m.Assignee) != actualAssignee {
-				_ = store.UpdateTaskAssignee(ctx, email, m.ID, actualAssignee)
-				fixedCount++
-			}
+		if s.restoreSingleGmailCC(ctx, email, user, aliases, m, svc) {
+			fixedCount++
 		}
 	}
 	return fixedCount
+}
+
+func (s *TasksService) restoreSingleGmailCC(ctx context.Context, email string, user *store.User, aliases []string, m store.ConsolidatedMessage, svc *gmail.Service) bool {
+	if m.Source != "gmail" {
+		return false
+	}
+
+	toHeader := extractToHeader(m.OriginalText)
+	if isMeInToHeader(toHeader, user.Email) {
+		return false
+	}
+
+	if !isWronglyAssignedToMe(m.Assignee, user, aliases) {
+		return false
+	}
+
+	actualAssignee := resolveActualAssignee(ctx, m, toHeader, svc)
+	if actualAssignee == "" || strings.TrimSpace(m.Assignee) == actualAssignee {
+		return false
+	}
+
+	_ = store.UpdateTaskAssignee(ctx, nil, email, m.ID, actualAssignee)
+	return true
 }
 
 // Logic Helpers
@@ -530,7 +544,7 @@ func (s *TasksService) executeBatchTranslation(ctx context.Context, email string
 func (s *TasksService) prepareTranslateRequests(ctx context.Context, email string, ids []int) []store.TranslateRequest {
 	var reqs []store.TranslateRequest
 	for _, id := range ids {
-		msg, err := store.GetMessageByID(ctx, email, id)
+		msg, err := store.GetMessageByID(ctx, store.GetDB(), email, id)
 		if err != nil { continue }
 		reqs = append(reqs, store.TranslateRequest{ID: id, Text: msg.Task})
 	}
@@ -553,8 +567,11 @@ func (s *TasksService) mergeBatchResults(ids []int, cached, newTrans map[int]str
 // MergeTasks consolidates multiple tasks into one using AI summarization for the title.
 // Why: [Contextual Merge] Generates a representative English title from all merged messages.
 func (s *TasksService) MergeTasks(ctx context.Context, email string, targetIDs []int64, destID int64) error {
+	if destID <= 0 || len(targetIDs) == 0 {
+		return fmt.Errorf("invalid merge parameters: targetCount=%d, destID=%d", len(targetIDs), destID)
+	}
 	allIDs := append(targetIDs, destID)
-	msgs, err := store.GetMessagesByIDs(ctx, email, s.toIntSlice(allIDs))
+	msgs, err := store.GetMessagesByIDs(ctx, store.GetDB(), email, s.toIntSlice(allIDs))
 	if err != nil { return err }
 
 	var dest *store.ConsolidatedMessage

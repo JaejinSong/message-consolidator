@@ -2,8 +2,8 @@ package tests
 
 import (
 	"context"
-	"message-consolidator/store"
 	"message-consolidator/internal/testutil"
+	"message-consolidator/store"
 	"testing"
 	"time"
 )
@@ -17,8 +17,8 @@ func TestTaskContextAndRouting(t *testing.T) {
 	}
 	defer cleanup()
 
-	email := "test@example.com"
-	room := "test-room"
+	email := testutil.RandomEmail("e2e-logic")
+	room := testutil.RandomID("room")
 	source := "whatsapp"
 
 	// 1. Create a task (New)
@@ -27,16 +27,16 @@ func TestTaskContextAndRouting(t *testing.T) {
 		Source:     source,
 		Room:       room,
 		Task:       "Buy milk",
-		SourceTS:   "ts1",
 		AssignedAt: time.Now(),
+		SourceTS:   testutil.RandomID("ts"),
 	}
-	id1, err := store.HandleTaskState(context.Background(), email, store.TodoItem{State: "new"}, msg1)
+	id1, err := store.HandleTaskState(context.Background(), nil, email, store.TodoItem{State: "new"}, msg1)
 	if err != nil || id1 == 0 {
 		t.Fatalf("Failed to create task: %v", err)
 	}
 
 	// 2. Verify it shows up in context
-	ctxTasks, err := store.GetActiveContextTasks(context.Background(), email, source, room)
+	ctxTasks, err := store.GetActiveContextTasks(context.Background(), store.GetDB(), email, source, room)
 	if err != nil {
 		t.Fatalf("Failed to get context tasks: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestTaskContextAndRouting(t *testing.T) {
 
 	// 3. Update the task (Update/Rewrite)
 	updatedTask := "Buy milk and bread"
-	id2, err := store.HandleTaskState(context.Background(), email, store.TodoItem{
+	id2, err := store.HandleTaskState(context.Background(), nil, email, store.TodoItem{
 		ID:    &id1,
 		State: "update",
 		Task:  updatedTask,
@@ -56,7 +56,7 @@ func TestTaskContextAndRouting(t *testing.T) {
 	}
 
 	// 4. Resolve the task (Resolve)
-	_, err = store.HandleTaskState(context.Background(), email, store.TodoItem{
+	_, err = store.HandleTaskState(context.Background(), nil, email, store.TodoItem{
 		ID:    &id1,
 		State: "resolve",
 	}, msg1)
@@ -65,7 +65,7 @@ func TestTaskContextAndRouting(t *testing.T) {
 	}
 
 	// 5. Verify it is STILL in context after resolve (as a recently completed task)
-	ctxTasksAfter, err := store.GetActiveContextTasks(context.Background(), email, source, room)
+	ctxTasksAfter, err := store.GetActiveContextTasks(context.Background(), store.GetDB(), email, source, room)
 	if err != nil {
 		t.Fatalf("Failed to get context tasks after resolve: %v", err)
 	}

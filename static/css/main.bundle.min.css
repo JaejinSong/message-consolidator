@@ -3718,5 +3718,15 @@ body.light-theme .status-pill {
 
 /* --- End of static/css/components/token-usage.css --- */
 
+/* --- Start of static/css/components/task-context.css --- */
+/**
+ * @file task-context.css
+ * @description Glassmorphism tooltip styles for AI-extracted task justifications.
+ */
+
+/* Light theme adjustments */
+
+/* --- End of static/css/components/task-context.css --- */
+
 
 /* --- End of static/style.css --- */

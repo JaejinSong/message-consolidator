@@ -16,31 +16,34 @@ func TestMergeTaskInvalidation(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	email := "test@example.com"
+	email := testutil.RandomEmail("merge-inv")
 
 	// 1. Setup: Create destination task and a source task
-	_, err = db.Exec("INSERT INTO messages (id, user_email, task, source, done, is_deleted, source_ts) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		101, email, "Source Task", "slack", 0, 0, "ts101")
+	res1, err := db.Exec("INSERT INTO messages (user_email, task, source, done, is_deleted, source_ts) VALUES (?, ?, ?, ?, ?, ?)",
+		email, "Source Task", "slack", 0, 0, "ts-merge-1")
 	if err != nil { t.Fatalf("seed error: %v", err) }
-	_, err = db.Exec("INSERT INTO messages (id, user_email, task, source, done, is_deleted, source_ts) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		102, email, "Dest Task", "slack", 0, 0, "ts102")
+	id1, _ := res1.LastInsertId()
+
+	res2, err := db.Exec("INSERT INTO messages (user_email, task, source, done, is_deleted, source_ts) VALUES (?, ?, ?, ?, ?, ?)",
+		email, "Dest Task", "slack", 0, 0, "ts-merge-2")
 	if err != nil { t.Fatalf("seed error: %v", err) }
+	id2, _ := res2.LastInsertId()
 
 	// 2. Setup: Add translations for both
-	_, err = db.Exec("INSERT INTO task_translations (message_id, language_code, translated_text) VALUES (?, ?, ?)", 101, "ko", "번역101")
+	_, err = db.Exec("INSERT INTO task_translations (message_id, language_code, translated_text) VALUES (?, ?, ?)", id1, "ko", "번역1")
 	if err != nil { t.Fatalf("translation seed error: %v", err) }
-	_, err = db.Exec("INSERT INTO task_translations (message_id, language_code, translated_text) VALUES (?, ?, ?)", 102, "ko", "번역102")
+	_, err = db.Exec("INSERT INTO task_translations (message_id, language_code, translated_text) VALUES (?, ?, ?)", id2, "ko", "번역2")
 	if err != nil { t.Fatalf("translation seed error: %v", err) }
 
 	// 3. Action: Merge
-	err = MergeTasksWithTitle(ctx, email, []int64{101}, 102, "New Merged Title")
+	err = MergeTasksWithTitle(ctx, email, []int64{id1}, id2, "New Merged Title")
 	if err != nil {
 		t.Fatalf("Merge failed: %v", err)
 	}
 
-	// 4. Verify: Translations should be deleted for both 101 and 102
+	// 4. Verify: Translations should be deleted for both id1 and id2
 	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM task_translations WHERE message_id IN (101, 102)").Scan(&count)
+	err = db.QueryRow("SELECT COUNT(*) FROM task_translations WHERE message_id IN (?, ?)", id1, id2).Scan(&count)
 	if err != nil { t.Fatalf("verify query error: %v", err) }
 
 	if count != 0 {

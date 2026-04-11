@@ -4,8 +4,6 @@ import (
 	"message-consolidator/config"
 	"message-consolidator/store"
 	"message-consolidator/types"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -182,14 +180,11 @@ func TestExtractNameFromEmail(t *testing.T) {
 func TestUpsertAddresses(t *testing.T) {
 	// Setup test DB for store dependency
 	store.ResetForTest()
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "test.db")
-	dbURL := "file:" + dbPath + "?_busy_timeout=5000"
+	dbURL := "file:./test.db?_busy_timeout=5000"
 	
 	// Use store's initialization but with our test URL
 	store.InitDB(&config.Config{TursoURL: dbURL})
-	store.InitContactsTable()
-	defer os.Remove(dbPath)
+	store.InitContactsTable(nil)
 
 	tenant := "tenant@whatap.io"
 	

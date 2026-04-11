@@ -1,6 +1,5 @@
 -- name: CreateReportsTable
-DROP TABLE IF EXISTS reports;
-CREATE TABLE reports (
+CREATE TABLE IF NOT EXISTS reports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_email TEXT NOT NULL,
     start_date TEXT NOT NULL,

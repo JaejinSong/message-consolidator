@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"message-consolidator/internal/testutil"
+	"strings"
 	"testing"
 )
 
@@ -13,10 +14,10 @@ func TestGetContactByIdentifier(t *testing.T) {
 	}
 	defer cleanup()
 
-	tenant := "tenant@whatap.io"
-	email := "user1@whatap.io"
+	tenant := testutil.RandomEmail("healing-tenant")
+	email := testutil.RandomEmail("healing-user")
 	name := "User One"
-	alias := "AliasOne"
+	alias := testutil.RandomID("alias")
 
 	// 1. 초기 데이터 삽입
 	err = AddContactMapping(context.Background(), tenant, email, name, alias, "test")
@@ -48,7 +49,7 @@ func TestGetContactByIdentifier(t *testing.T) {
 	})
 
 	t.Run("CaseInsensitiveAlias", func(t *testing.T) {
-		c, err := GetContactByIdentifier(context.Background(), tenant, "aliasone") // 소문자 검색
+		c, err := GetContactByIdentifier(context.Background(), tenant, strings.ToLower(alias)) // 소문자 검색
 		if err != nil || c == nil || c.CanonicalID != email {
 			t.Errorf("Case-insensitive lookup by alias failed: %v", err)
 		}

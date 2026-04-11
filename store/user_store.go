@@ -17,6 +17,7 @@ func GetAllUsers(ctx context.Context) ([]User, error) {
 	defer metadataMu.Unlock()
 	
 	users, err := scanAndCacheUsers(rows)
+	rows.Close() // Explicitly close to release connection before next query
 	if err != nil {
 		return nil, err
 	}

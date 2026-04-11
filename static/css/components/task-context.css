@@ -1,0 +1,85 @@
+/**
+ * @file task-context.css
+ * @description Glassmorphism tooltip styles for AI-extracted task justifications.
+ */
+
+.task-context {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: help;
+    margin-left: var(--spacing-sm);
+    color: var(--text-dim);
+    transition: color 0.2s ease;
+    vertical-align: middle;
+}
+
+.task-context:hover {
+    color: var(--accent-color);
+}
+
+.task-context__icon {
+    width: 1rem;
+    height: 1rem;
+    fill: currentColor;
+    opacity: 0.7;
+}
+
+.task-context__tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-0.5rem);
+    width: 18rem;
+    padding: var(--spacing-md);
+    background: var(--bg-floater);
+    backdrop-filter: blur(var(--blur-md));
+    -webkit-backdrop-filter: blur(var(--blur-md));
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-main);
+    z-index: var(--z-index-dropdown);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    text-align: left;
+}
+
+.task-context:hover .task-context__tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(-0.75rem);
+}
+
+.task-context__title {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05rem;
+    color: var(--accent-color);
+    margin-bottom: var(--spacing-xs);
+    opacity: 0.9;
+}
+
+.task-context__snippet {
+    display: block;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-main);
+    font-style: italic;
+    border-left: 0.125rem solid var(--accent-glow);
+    padding-left: var(--spacing-sm);
+    word-break: break-word;
+}
+
+.task-context__snippet + .task-context__snippet {
+    margin-top: var(--spacing-sm);
+}
+
+/* Light theme adjustments */
+body.light-theme .task-context__tooltip {
+    background: rgba(255, 255, 255, 0.98);
+    border-color: var(--glass-border);
+}

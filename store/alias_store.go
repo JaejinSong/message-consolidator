@@ -85,9 +85,6 @@ func NormalizeWithCategory(tenantEmail, rawName string) (string, string, string)
 		return "", "", "External"
 	}
 
-	metadataMu.RLock()
-	defer metadataMu.RUnlock()
-
 	cleanName := cleanRawName(rawName)
 	contact, found := resolveContactIdentity(tenantEmail, cleanName)
 
@@ -142,6 +139,10 @@ func resolveContactIdentity(tenantEmail, name string) (ContactRecord, bool) {
 
 func resolveSystemUser(name string) (string, string, bool) {
 	nameLower := strings.ToLower(name)
+	
+	metadataMu.RLock()
+	defer metadataMu.RUnlock()
+
 	if u, ok := userCache[nameLower]; ok {
 		return u.Name, u.Email, true
 	}
@@ -253,23 +254,32 @@ func AddUserAlias(ctx context.Context, userID int, alias string) error {
 func updateUserCacheAlias(userID int64, alias string, isAdd bool) {
 	var uEmail, uName string
 	metadataMu.Lock()
-	u := findUserInCacheByID(userID)
-	if u != nil {
-		uEmail = u.Email
-		uName = u.Name
+	
+	// Why: Find user directly within the lock to avoid recursive deadlock with findUserInCacheByID.
+	var targetUser *User
+	for _, u := range userCache {
+		if int64(u.ID) == userID {
+			targetUser = u
+			break
+		}
+	}
+
+	if targetUser != nil {
+		uEmail = targetUser.Email
+		uName = targetUser.Name
 		if isAdd {
-			if !slices.Contains(u.Aliases, alias) {
-				u.Aliases = append(u.Aliases, alias)
+			if !slices.Contains(targetUser.Aliases, alias) {
+				targetUser.Aliases = append(targetUser.Aliases, alias)
 			}
 		} else {
-			u.Aliases = slices.DeleteFunc(u.Aliases, func(a string) bool {
+			targetUser.Aliases = slices.DeleteFunc(targetUser.Aliases, func(a string) bool {
 				return a == alias
 			})
 		}
 	}
 	metadataMu.Unlock()
 
-	// Keep contacts mapping consistent (only for Add as per original logic)
+	// Why: Move DB operation outside the metadata lock to prevent holding the mutex during I/O and avoid recursive lock in AddContactMapping.
 	if isAdd && uEmail != "" {
 		_ = AddContactMapping(context.Background(), "all", strings.ToLower(uEmail), uName, alias, "user")
 	}
@@ -277,6 +287,9 @@ func updateUserCacheAlias(userID int64, alias string, isAdd bool) {
 
 
 func findUserInCacheByID(id int64) *User {
+	metadataMu.RLock()
+	defer metadataMu.RUnlock()
+
 	for _, u := range userCache {
 		if int64(u.ID) == id {
 			return u

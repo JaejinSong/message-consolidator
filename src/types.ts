@@ -29,6 +29,7 @@ export interface Message {
     is_deleted?: boolean | number;
     assigned_to?: string;
     source_channels?: string[];
+    consolidated_context?: string[];
 }
 
 export interface UserProfile {

@@ -194,7 +194,7 @@ func (g *GeminiClient) GenerateMergedTaskTitle(ctx context.Context, email string
 }
 
 func (g *GeminiClient) Analyze(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string) ([]store.TodoItem, error) {
-	tasks, _ := store.GetActiveContextTasks(ctx, email, source, room)
+	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), email, source, room)
 	return g.AnalyzeWithContext(ctx, email, msg, language, source, room, tasks)
 }
 

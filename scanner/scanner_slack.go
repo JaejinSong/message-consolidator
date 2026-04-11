@@ -459,7 +459,7 @@ func processSlackItems(ctx context.Context, user *store.User, items []store.Todo
 		if !ok { continue }
 
 		msg := mapSlackItemToMessage(item, m, user, aliases, sc)
-		id, err := store.HandleTaskState(ctx, user.Email, item, msg)
+		id, err := store.HandleTaskState(ctx, nil, user.Email, item, msg)
 		if err == nil && id > 0 {
 			newIDs = append(newIDs, id)
 		}

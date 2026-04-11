@@ -2,128 +2,142 @@ package store
 
 import (
 	"fmt"
+	"strings"
 )
 
-func createCoreTables() error {
-	_, err := db.Exec(SQL.CreateUsersTable)
-	if err != nil {
-		return err
+func createCoreTables(q Querier) error {
+	tables := []string{
+		SQL.CreateUsersTable,
+		SQL.CreateUserAliasesTable,
+		SQL.CreateGmailTokensTable,
+		SQL.CreateMessagesTable,
+		SQL.CreateTaskTranslationsTable,
+		SQL.CreateTenantAliasesTable,
+		SQL.CreateScanMetadataTable,
+		SQL.CreateSlackThreadsTable,
+		SQL.CreateReportsTable,
+		SQL.CreateReportTranslationsTable,
+		SQL.CreateReportTranslationsIndex,
+		SQL.CreatePromptLogsTable,
+		SQL.CreateAIInferenceLogsTable,
+		SQL.CreateAchievementsTable,
+		SQL.CreateUserAchievementsTable,
+		SQL.CreateContactsTable,
+		SQL.CreateContactAliasesTable,
+		SQL.CreateIdentityMergeHistoryTable,
+		SQL.CreateIdentityMergeCandidatesTable,
 	}
-	_, err = db.Exec(SQL.CreateUserAliasesTable)
-	if err != nil {
-		return err
+	for _, t := range tables {
+		if t != "" {
+			if _, err := q.Exec(t); err != nil {
+				return fmt.Errorf("failed to create core table: %w", err)
+			}
+		}
 	}
-	_, err = db.Exec(SQL.CreateGmailTokensTable)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(SQL.CreateMessagesTable)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(SQL.CreateTaskTranslationsTable)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(SQL.CreateTenantAliasesTable)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(SQL.CreateScanMetadataTable)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(SQL.CreateSlackThreadsTable)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(SQL.CreateReportsTable)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(SQL.CreateReportTranslationsTable)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(SQL.CreateReportTranslationsIndex)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(SQL.CreatePromptLogsTable)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(SQL.CreateAIInferenceLogsTable)
-	return err
+	return nil
 }
 
-func runMigrations() error {
+func runMigrations(q Querier) error {
 	//Why: Performs non-destructive column additions to the messages schema to support new features like categories and deadlines.
-	_, _ = db.Exec(SQL.MigrateMessagesAddUserEmail)
-	_, _ = db.Exec(SQL.MigrateMessagesAddIsDeleted)
-	_, _ = db.Exec(SQL.MigrateMessagesAddRoom)
-	_, _ = db.Exec(SQL.MigrateMessagesAddDone)
-	_, _ = db.Exec(SQL.MigrateMessagesAddCompletedAt)
-	_, _ = db.Exec(SQL.MigrateMessagesAddOriginalText)
-	_, _ = db.Exec(SQL.MigrateMessagesAddCategory)
-	_, _ = db.Exec(SQL.MigrateMessagesAddDeadline)
-	_, _ = db.Exec(SQL.MigrateMessagesAddThreadID)
-	_, _ = db.Exec(SQL.MigrateMessagesAddAssigneeReason)
-	_, _ = db.Exec(SQL.MigrateMessagesAddRepliedToID)
-	_, _ = db.Exec(SQL.MigrateMessagesAddIsContextQuery)
-	_, _ = db.Exec(SQL.MigrateMessagesAddConstraints)
-	_, _ = db.Exec(SQL.MigrateMessagesAddMetadata)
-	_, _ = db.Exec(SQL.MigrateMessagesAddSourceChannels)
-	_, _ = db.Exec(SQL.CreateIdxUserTS)
+	migrations := []string{
+		SQL.MigrateMessagesAddUserEmail,
+		SQL.MigrateMessagesAddIsDeleted,
+		SQL.MigrateMessagesAddRoom,
+		SQL.MigrateMessagesAddDone,
+		SQL.MigrateMessagesAddCompletedAt,
+		SQL.MigrateMessagesAddOriginalText,
+		SQL.MigrateMessagesAddCategory,
+		SQL.MigrateMessagesAddDeadline,
+		SQL.MigrateMessagesAddThreadID,
+		SQL.MigrateMessagesAddAssigneeReason,
+		SQL.MigrateMessagesAddRepliedToID,
+		SQL.MigrateMessagesAddIsContextQuery,
+		SQL.MigrateMessagesAddConstraints,
+		SQL.MigrateMessagesAddMetadata,
+		SQL.MigrateMessagesAddSourceChannels,
+		SQL.MigrateMessagesAddConsolidatedContext,
+		SQL.CreateIdxUserTS,
+		SQL.MigrateUsersAddPoints,
+		SQL.MigrateUsersAddStreak,
+		SQL.MigrateUsersAddLevel,
+		SQL.MigrateUsersAddXP,
+		SQL.MigrateUsersAddDailyGoal,
+		SQL.MigrateUsersAddLastCompletedAt,
+		SQL.MigrateUsersAddStreakFreezes,
+		SQL.MigrateAchievementsAddTargetValue,
+		SQL.MigrateAchievementsAddXPReward,
+		SQL.MigrateReportsAddIsTruncated,
+		SQL.MigrateTaskTranslationsRenameLanguage,
+		SQL.MigrateReportTranslationsRenameLanguage,
+		SQL.MigrateTaskTranslationsAddLanguageCode,
+		SQL.MigrateReportTranslationsAddLanguageCode,
+		SQL.MigrateContactsAddContactType,
+		SQL.MigrateContactsDropLegacyAliases,
+	}
 
-	//Why: Extends the users table with gamification-related metadata including points, levels, and streaks.
-	_, _ = db.Exec(SQL.MigrateUsersAddPoints)
-	_, _ = db.Exec(SQL.MigrateUsersAddStreak)
-	_, _ = db.Exec(SQL.MigrateUsersAddLevel)
-	_, _ = db.Exec(SQL.MigrateUsersAddXP)
-	_, _ = db.Exec(SQL.MigrateUsersAddDailyGoal)
-	_, _ = db.Exec(SQL.MigrateUsersAddLastCompletedAt)
-	_, _ = db.Exec(SQL.MigrateUsersAddStreakFreezes)
+	for _, m := range migrations {
+		if err := execMigration(q, m); err != nil {
+			return fmt.Errorf("migration failed: %w", err)
+		}
+	}
 
-	_, _ = db.Exec(SQL.MigrateAchievementsAddTargetValue)
-	_, _ = db.Exec(SQL.MigrateAchievementsAddXPReward)
-	_, _ = db.Exec(SQL.MigrateReportsAddIsTruncated)
+	migrateExistingData(q)
 
-	// Why: Handle migration for multi-language support (ISO 639-1) across both tasks and reports.
-	_, _ = db.Exec(SQL.MigrateTaskTranslationsRenameLanguage)
-	_, _ = db.Exec(SQL.MigrateReportTranslationsRenameLanguage)
-	
-	// Why: Fallback if rename failed or table was fresh.
-	_, _ = db.Exec(SQL.MigrateTaskTranslationsAddLanguageCode)
-	_, _ = db.Exec(SQL.MigrateReportTranslationsAddLanguageCode)
-	_, _ = db.Exec(SQL.MigrateContactsAddContactType)
-	_, _ = db.Exec(SQL.MigrateContactsDropLegacyAliases)
-
-	migrateExistingData()
 	// Why: Views are essential for report generation and message resolution.
 	// Moving them here ensures they are always recreated/updated on every startup.
-	if _, err := db.Exec(SQL.CreateContactsResolvedView); err != nil {
-		return fmt.Errorf("failed to create contacts_resolved view: %w", err)
+	// Fixed: Rebuilding views with correct 'v_' prefix naming convention to match schema.sql.
+	_, _ = q.Exec("DROP VIEW IF EXISTS v_contacts_resolved")
+	if _, err := q.Exec(SQL.CreateContactsResolvedView); err != nil {
+		if !strings.Contains(err.Error(), "locked") {
+			return fmt.Errorf("failed to create v_contacts_resolved view: %w", err)
+		}
 	}
-	if _, err := db.Exec(SQL.CreateMessagesView); err != nil {
-		return fmt.Errorf("failed to create messages view: %w", err)
+
+	_, _ = q.Exec("DROP VIEW IF EXISTS v_messages")
+	if _, err := q.Exec(SQL.CreateMessagesView); err != nil {
+		if !strings.Contains(err.Error(), "locked") {
+			return fmt.Errorf("failed to create v_messages view: %w", err)
+		}
 	}
-	if _, err := db.Exec(SQL.CreateUsersView); err != nil {
-		return fmt.Errorf("failed to create users view: %w", err)
+
+	_, _ = q.Exec("DROP VIEW IF EXISTS v_users")
+	if _, err := q.Exec(SQL.CreateUsersView); err != nil {
+		if !strings.Contains(err.Error(), "locked") {
+			return fmt.Errorf("failed to create v_users view: %w", err)
+		}
 	}
 
 	return nil
 }
 
-func migrateExistingData() {
-	//Why: Normalizes existing data by ensuring critical fields are populated with valid default values.
-	_, _ = db.Exec(SQL.MigrateDataNormalizeIsDeleted)
-	_, _ = db.Exec(SQL.MigrateDataNormalizeRoom)
-	_, _ = db.Exec(SQL.MigrateDataNormalizeCategoryWaiting)
-	_, _ = db.Exec(SQL.MigrateDataNormalizeCategoryPromise)
+func execMigration(q Querier, query string) error {
+	if query == "" {
+		return nil
+	}
+	_, err := q.Exec(query)
+	if err != nil {
+		msg := strings.ToLower(err.Error())
+		//Why: We ignore errors related to existing schema entities to allow idempotent migration runs.
+		if strings.Contains(msg, "duplicate column") || 
+		   strings.Contains(msg, "already exists") || 
+		   strings.Contains(msg, "duplicate index") ||
+		   strings.Contains(msg, "no such column") {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
-func createIndexes() {
+func migrateExistingData(q Querier) {
+	//Why: Normalizes existing data by ensuring critical fields are populated with valid default values.
+	_, _ = q.Exec(SQL.MigrateDataNormalizeIsDeleted)
+	_, _ = q.Exec(SQL.MigrateDataNormalizeRoom)
+	_, _ = q.Exec(SQL.MigrateDataNormalizeCategoryWaiting)
+	_, _ = q.Exec(SQL.MigrateDataNormalizeCategoryPromise)
+}
+
+func createIndexes(q Querier) {
 	indexes := []string{
 		SQL.CreateIdxMessagesTask,
 		SQL.CreateIdxMessagesRoom,
@@ -137,12 +151,12 @@ func createIndexes() {
 		SQL.CreateIdxMessagesCompletedAt,
 		SQL.CreateIdxMessagesUserSourceTS,
 		SQL.CreateIdxTaskTranslationsIDLangCode,
-		SQL.CreateIdxMessagesUserDeletedCreated,
 		SQL.CreateIdxMessagesUserDoneCompleted,
 	}
 	for _, idx := range indexes {
-		if idx != "" {
-			_, _ = db.Exec(idx)
+		if err := execMigration(q, idx); err != nil {
+			// Log but don't fail for index creation in this late stage.
+			fmt.Printf("Warning: Failed to create index: %v\n", err)
 		}
 	}
 }
