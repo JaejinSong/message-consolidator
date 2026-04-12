@@ -8,8 +8,10 @@ import (
 	"message-consolidator/store"
 	"message-consolidator/types"
 	"strings"
+	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/gmail/v1"
 )
 
@@ -262,38 +264,60 @@ func (s *TasksService) reclassifySingleTask(ctx context.Context, email string, u
 	return false
 }
 
-// RestoreGmailCCAssignment restores correct assignees for Gmail tasks where the user was only CC'd.
-func (s *TasksService) RestoreGmailCCAssignment(ctx context.Context, email string, user *store.User, aliases []string, allMsgs []store.ConsolidatedMessage, svc *gmail.Service) int {
-	fixedCount := 0
-	for _, m := range allMsgs {
-		if s.restoreSingleGmailCC(ctx, email, user, aliases, m, svc) {
-			fixedCount++
-		}
+// RestoreGmailCCAssignment identifies Gmail tasks that were incorrectly assigned due to the user being CC'd.
+// Why: [Performance] Uses errgroup with a worker limit of 20 to parallelize Gmail API resolution and returns a map for batch DB updates.
+func (s *TasksService) RestoreGmailCCAssignment(ctx context.Context, email string, user *store.User, aliases []string, msgs []store.ConsolidatedMessage, svc *gmail.Service) (map[int]string, int) {
+	updates := make(map[int]string)
+	var mu sync.Mutex
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(20)
+
+	for _, m := range msgs {
+		m := m
+		g.Go(func() error {
+			id, actual, changed := s.checkRestoreGmailCC(ctx, email, user, aliases, m, svc)
+			if changed {
+				mu.Lock()
+				updates[id] = actual
+				mu.Unlock()
+			}
+			return nil
+		})
 	}
-	return fixedCount
+
+	_ = g.Wait()
+	return updates, len(updates)
 }
 
-func (s *TasksService) restoreSingleGmailCC(ctx context.Context, email string, user *store.User, aliases []string, m store.ConsolidatedMessage, svc *gmail.Service) bool {
+func (s *TasksService) checkRestoreGmailCC(ctx context.Context, email string, user *store.User, aliases []string, m store.ConsolidatedMessage, svc *gmail.Service) (int, string, bool) {
 	if m.Source != "gmail" {
-		return false
+		return 0, "", false
 	}
 
 	toHeader := extractToHeader(m.OriginalText)
 	if isMeInToHeader(toHeader, user.Email) {
-		return false
+		return 0, "", false
 	}
 
 	if !isWronglyAssignedToMe(m.Assignee, user, aliases) {
-		return false
+		return 0, "", false
 	}
 
 	actualAssignee := resolveActualAssignee(ctx, m, toHeader, svc)
 	if actualAssignee == "" || strings.TrimSpace(m.Assignee) == actualAssignee {
-		return false
+		return 0, "", false
 	}
 
-	_ = store.UpdateTaskAssignee(ctx, nil, email, m.ID, actualAssignee)
-	return true
+	return m.ID, actualAssignee, true
+}
+
+func (s *TasksService) restoreSingleGmailCC(ctx context.Context, email string, user *store.User, aliases []string, m store.ConsolidatedMessage, svc *gmail.Service) bool {
+	id, actual, changed := s.checkRestoreGmailCC(ctx, email, user, aliases, m, svc)
+	if changed {
+		_ = store.UpdateTaskAssignee(ctx, nil, email, id, actual)
+		return true
+	}
+	return false
 }
 
 // Logic Helpers

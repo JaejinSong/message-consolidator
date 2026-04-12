@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"google.golang.org/api/gmail/v1"
 )
 
 var ScanFunc func(string, string)
@@ -238,7 +240,6 @@ func (a *API) HandleReclassifyOldData(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) HandleRestoreGmailCC(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-
 	svc, err := channels.GetGmailService(r.Context(), email)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Gmail service error: "+err.Error())
@@ -247,23 +248,52 @@ func (a *API) HandleRestoreGmailCC(w http.ResponseWriter, r *http.Request) {
 
 	user, _ := store.GetOrCreateUser(r.Context(), email, "", "")
 	aliases, _ := store.GetUserAliases(r.Context(), user.ID)
-
-	activeMsgs, _ := store.GetMessages(r.Context(), email)
-	filter := store.ArchiveFilter{
-		Email: email,
-		Limit: 10000,
-	}
-	archivedMsgs, _, _ := store.GetArchivedMessagesFiltered(r.Context(), filter)
-
-	var allMsgs []store.ConsolidatedMessage
-	allMsgs = append(allMsgs, activeMsgs...)
-	allMsgs = append(allMsgs, archivedMsgs...)
-
 	if a.Tasks == nil {
 		respondError(w, http.StatusServiceUnavailable, "Task service not available")
 		return
 	}
 
-	fixedCount := a.Tasks.RestoreGmailCCAssignment(r.Context(), email, user, aliases, allMsgs, svc)
-	respondJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "fixed_count": fixedCount})
+	totalFixed := a.processActiveRestore(r.Context(), email, user, aliases, svc)
+	archiveFixed := a.processArchiveRestore(r.Context(), email, user, aliases, svc)
+	
+	respondJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "fixed_count": totalFixed + archiveFixed})
+}
+
+func (a *API) processActiveRestore(ctx context.Context, email string, user *store.User, aliases []string, svc *gmail.Service) int {
+	activeMsgs, _ := store.GetMessages(ctx, email)
+	if len(activeMsgs) == 0 {
+		return 0
+	}
+
+	updates, count := a.Tasks.RestoreGmailCCAssignment(ctx, email, user, aliases, activeMsgs, svc)
+	if count > 0 {
+		_ = store.UpdateTaskAssigneesBatch(ctx, email, updates)
+	}
+	return count
+}
+
+func (a *API) processArchiveRestore(ctx context.Context, email string, user *store.User, aliases []string, svc *gmail.Service) int {
+	filter := store.ArchiveFilter{Email: email}
+	total, _ := store.GetArchivedMessagesCount(ctx, filter)
+	if total == 0 {
+		return 0
+	}
+
+	totalFixed := 0
+	const chunkSize = 50
+	for offset := 0; offset < total; offset += chunkSize {
+		filter.Limit = chunkSize
+		filter.Offset = offset
+		msgs, _, _ := store.GetArchivedMessagesFiltered(ctx, filter)
+		if len(msgs) == 0 {
+			break
+		}
+
+		updates, count := a.Tasks.RestoreGmailCCAssignment(ctx, email, user, aliases, msgs, svc)
+		if count > 0 {
+			_ = store.UpdateTaskAssigneesBatch(ctx, email, updates)
+			totalFixed += count
+		}
+	}
+	return totalFixed
 }

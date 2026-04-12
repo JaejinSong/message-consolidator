@@ -415,16 +415,52 @@ func UpdateMessageCategory(ctx context.Context, q Querier, email string, id int,
 }
 
 func UpdateTaskAssignee(ctx context.Context, q Querier, email string, id int, assignee string) error {
+	if q == nil {
+		return RunInTx(ctx, func(tx *sql.Tx) error {
+			return updateTaskAssigneeInternal(ctx, tx, email, id, assignee)
+		})
+	}
+	return updateTaskAssigneeInternal(ctx, q, email, id, assignee)
+}
+
+func updateTaskAssigneeInternal(ctx context.Context, q Querier, email string, id int, assignee string) error {
 	err := db.New(q).UpdateTaskAssignee(ctx, db.UpdateTaskAssigneeParams{
 		Assignee:  sql.NullString{String: assignee, Valid: true},
 		ID:        int64(id),
 		UserEmail: sql.NullString{String: email, Valid: true},
 	})
-	if err != nil {
-		return err
+	if err == nil {
+		InvalidateCache(email)
 	}
-	InvalidateCache(email)
-	return nil
+	return err
+}
+
+// UpdateTaskAssigneesBatch updates multiple tasks' assignees in a single transaction.
+// Why: [Performance] Eliminates N+1 DB operations by batching updates and invalidating cache once.
+func UpdateTaskAssigneesBatch(ctx context.Context, email string, updates map[int]string) error {
+	if len(updates) == 0 {
+		return nil
+	}
+
+	err := RunInTx(ctx, func(tx *sql.Tx) error {
+		queries := db.New(tx)
+		for id, assignee := range updates {
+			err := queries.UpdateTaskAssignee(ctx, db.UpdateTaskAssigneeParams{
+				Assignee:  sql.NullString{String: assignee, Valid: true},
+				ID:        int64(id),
+				UserEmail: sql.NullString{String: email, Valid: true},
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if err == nil {
+		InvalidateCache(email)
+	}
+	return err
 }
 
 // UpdateMessageIdentity updates both requester and assignee for a task.
