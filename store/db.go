@@ -31,14 +31,6 @@ var (
 )
 
 func InitDB(cfg *config.Config) error {
-	//Why: Ensures InitDB is idempotent across the lifetime of the application process.
-	if conn != nil {
-		if err := conn.Ping(); err == nil {
-			return nil
-		}
-		logger.Warnf("[DB] Existing connection check failed. Re-initializing...")
-	}
-
 	var err error
 	dbURL := cfg.TursoURL
 	authToken := cfg.TursoToken
@@ -47,27 +39,41 @@ func InitDB(cfg *config.Config) error {
 		dbURL = "file:test.db"
 	}
 
+	//Why: Ensures InitDB is idempotent. If we already have a connection to the SAME database,
+	// we assume schema is initialized and return immediately. This saves massive overhead in tests.
+	if conn != nil {
+		if err := conn.Ping(); err == nil && dsn != "" && strings.Contains(dsn, "mode=memory") {
+			return nil
+		}
+	}
+
+	// If DSN has changed, close the old connection.
+	if conn != nil && dsn != "" && dsn != dbURL {
+		conn.Close()
+		conn = nil
+	}
+
 	if strings.HasPrefix(dbURL, "libsql://") && authToken != "" {
 		dbURL = fmt.Sprintf("%s?authToken=%s", dbURL, authToken)
 	}
 
 	dsn = dbURL
-	dbURL = GetDSN()
+	finalURL := GetDSN()
 
 	driverName := "sqlite"
-	if strings.HasPrefix(dbURL, "libsql://") {
+	if strings.HasPrefix(finalURL, "libsql://") {
 		driverName = "libsql"
 	}
 
-	conn, err = sql.Open(driverName, dbURL)
+	conn, err = sql.Open(driverName, finalURL)
 	if err != nil {
 		return fmt.Errorf("failed to open database (%s): %w", driverName, err)
 	}
 
-	setupConnectionPool(dbURL)
+	setupConnectionPool(finalURL)
 
 	// Why: If it's local SQLite, enforce PRAGMAs for performance and concurrency.
-	if strings.HasPrefix(dbURL, "file:") {
+	if strings.HasPrefix(finalURL, "file:") {
 		// Enforce WAL mode and Synchronous=NORMAL for robust concurrent test execution.
 		// These are executed outside a transaction to avoid connection pool deadlock when MaxOpenConns=1.
 		if _, err := conn.Exec("PRAGMA journal_mode = WAL;"); err != nil {
@@ -78,33 +84,65 @@ func InitDB(cfg *config.Config) error {
 		}
 	}
 
+	return EnsureSchemaAndSeeds(conn)
+}
+
+// EnsureSchemaAndSeeds ensures that all core tables, migrations, and seed data are present.
+// It is idempotent and safe to call multiple times.
+func EnsureSchemaAndSeeds(dbConn *sql.DB) error {
+	// Why: Use a transaction for all schema setup to drastically improve SQLite performance.
+	// Individual Exec calls on SQLite (even in-memory) are significantly slower than a single transaction.
+	tx, err := dbConn.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to start setup transaction: %w", err)
+	}
+	defer tx.Rollback()
+
 	// Why: Ensure core tables exist BEFORE running migrations. 
-	if err := createCoreTables(conn); err != nil {
+	if err := createCoreTables(tx); err != nil {
 		return fmt.Errorf("core table creation failed: %w", err)
 	}
 
 	// Why: Perform schema migrations to add new columns to existing tables.
-	if err := runMigrations(conn); err != nil {
+	if err := runMigrations(tx); err != nil {
 		return fmt.Errorf("database migration failed: %w", err)
 	}
 
-	if err := setupGamification(conn); err != nil {
+	if err := setupGamification(tx); err != nil {
 		return fmt.Errorf("gamification setup failed: %w", err)
 	}
 
-	createIndexes(conn)
+	createIndexes(tx)
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit setup transaction: %w", err)
+	}
+
+	// Why: Skip expensive cache refresh during in-memory tests to maximize speed.
+	// Tests will lazily initialize cache if needed via EnsureCacheInitialized.
+	if strings.Contains(dsn, "mode=memory") {
+		return nil
+	}
 
 	return RefreshAllCaches(context.Background())
 }
+
 
 func setupConnectionPool(dbURL string) {
 	var maxOpen, idleConns int
 	//Why: Enforces strict connection limits to maintain SQLite stability and prevent resource exhaustion.
 	// For local SQLite, we use a single connection to eliminate lock contention during concurrent test execution.
 	if strings.HasPrefix(dbURL, "file:") {
-		logger.Infof("[DB] SQLite (Local) detected. Enforcing MaxOpenConns=1 for 100%% lock safety.")
-		maxOpen = 1
-		idleConns = 1
+		isMemory := strings.Contains(dbURL, "mode=memory") || strings.Contains(dbURL, ":memory:")
+		if isMemory {
+			logger.Infof("[DB] SQLite (Memory) detected. Increasing pool for parallel tests.")
+			maxOpen = 100
+			idleConns = 2
+		} else {
+			logger.Infof("[DB] SQLite (Local File) detected. Enforcing MaxOpenConns=1 for lock safety.")
+			maxOpen = 1
+			idleConns = 1
+		}
 	} else {
 		logger.Infof("[DB] Turso (Remote) detected. Optimizing pool for high throughput.")
 		maxOpen = 25
@@ -130,12 +168,19 @@ func GetDSN() string {
 		return dsn
 	}
 	q := u.Query()
-	// Why: Remove cache=shared as it is incompatible with WAL mode and can cause deadlocks when MaxOpenConns=1.
-	q.Del("cache")
-	
-	// Why: Ensure robust local concurrency by enforcing WAL mode, immediate write locks, and a long busy timeout for the connection pool.
-	q.Set("_txlock", "immediate")
-	q.Set("_journal_mode", "WAL")
+	// Why: In-memory databases MUST use cache=shared to be visible across connection pool.
+	// For file-based DBs, we remove it to avoid WAL mode conflicts.
+	isMemory := q.Get("mode") == "memory" || strings.Contains(dsn, ":memory:")
+
+	if isMemory {
+		q.Set("cache", "shared")
+	} else {
+		q.Del("cache")
+		// Why: Ensure robust local concurrency by enforcing WAL mode and immediate write locks for file DBs.
+		q.Set("_txlock", "immediate")
+		q.Set("_journal_mode", "WAL")
+	}
+
 	q.Set("_busy_timeout", "10000")
 	
 	u.RawQuery = q.Encode()

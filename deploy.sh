@@ -107,9 +107,10 @@ chain_caddy() {
 }
 
 task_db_sync() {
-    echo -e "${BLUE}==> Running DB Sync (db-unify)...${NC}"
-    run_step "DB: Sync" bash scripts/db-unify.sh
+    # Deprecated: No local test.db synchronization needed for In-Memory/Remote DB strategy.
+    return 0
 }
+
 
 # --- Execution Flow ---
 
@@ -118,7 +119,8 @@ echo -e "\n${BLUE}==================================================${NC}"
 echo -e "${BLUE}==> STAGE 1: Parallel Testing Gate${NC}"
 echo -e "${BLUE}==================================================${NC}"
 
-( run_step "Go Unit Tests" go test -p 1 ./... ) & p_test_go=$!
+# Note: Go tests now use a shared in-memory SQLite (memdb_shared), ensuring high-speed execution.
+( run_step "Go Unit Tests" go test ./... ) & p_test_go=$!
 ( run_step "AI Regressions" go test -tags regression ./ai/... ) & p_test_ai=$!
 ( run_step "NPM (Vitest)" npm test ) & p_test_node=$!
 ( run_step "GCloud Auth" gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet ) & p_auth=$!

@@ -6,26 +6,28 @@ import (
 	"strings"
 )
 
-func createCoreTables(q Querier) error {
-	// Why: Load the unified schema file first to ensure baseline tables and views exist.
-	// This satisfies the "Unified Database" goal and ensures v_users is created.
-	// We first try the relative path for app runtime, then the relative path for test execution.
-	schemaPath := "store/queries/schema.sql"
-	if _, err := os.Stat(schemaPath); os.IsNotExist(err) {
-		schemaPath = "queries/schema.sql" // Try legacy/local root path
-	}
-	if _, err := os.Stat(schemaPath); os.IsNotExist(err) {
-		schemaPath = "../store/queries/schema.sql" // Try relative path from test execution
-	}
+var cachedSchema string
 
-	schema, err := os.ReadFile(schemaPath)
-	if err != nil {
-		// If we can't find the schema file, it's a fatal initialization error because views will be missing.
-		return fmt.Errorf("failed to read schema.sql from %s: %w", schemaPath, err)
+func createCoreTables(q Querier) error {
+	// Why: Load the unified schema file once to avoid repeated file I/O.
+	if cachedSchema == "" {
+		schemaPath := "store/queries/schema.sql"
+		if _, err := os.Stat(schemaPath); os.IsNotExist(err) {
+			schemaPath = "queries/schema.sql"
+		}
+		if _, err := os.Stat(schemaPath); os.IsNotExist(err) {
+			schemaPath = "../store/queries/schema.sql"
+		}
+
+		schema, err := os.ReadFile(schemaPath)
+		if err != nil {
+			return fmt.Errorf("failed to read schema.sql: %w", err)
+		}
+		cachedSchema = string(schema)
 	}
 
 	// Basic split and execute for the schema file
-	queries := strings.Split(string(schema), ";")
+	queries := strings.Split(cachedSchema, ";")
 	for _, query := range queries {
 		trimmed := strings.TrimSpace(query)
 		if trimmed != "" {
@@ -81,6 +83,7 @@ func runMigrations(q Querier) error {
 		SQL.MigrateMessagesAddAssigneeReason,
 		SQL.MigrateMessagesAddRepliedToID,
 		SQL.MigrateMessagesAddIsContextQuery,
+		SQL.MigrateMessagesAddPinned,
 		SQL.MigrateMessagesAddConstraints,
 		SQL.MigrateMessagesAddMetadata,
 		SQL.MigrateMessagesAddSourceChannels,

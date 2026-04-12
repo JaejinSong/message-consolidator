@@ -134,5 +134,107 @@ AND (done = 0 OR (done = 1 AND completed_at > datetime('now', '-30 days')))
 ORDER BY assigned_at DESC
 LIMIT 50;
 
+-- name: MigrateMessagesAddUserEmail :exec
+ALTER TABLE messages ADD COLUMN user_email TEXT;
+
+-- name: MigrateMessagesAddIsDeleted :exec
+ALTER TABLE messages ADD COLUMN is_deleted BOOLEAN DEFAULT 0;
+
+-- name: MigrateMessagesAddRoom :exec
+ALTER TABLE messages ADD COLUMN room TEXT;
+
+-- name: MigrateMessagesAddDone :exec
+ALTER TABLE messages ADD COLUMN done BOOLEAN DEFAULT 0;
+
+-- name: MigrateMessagesAddCompletedAt :exec
+ALTER TABLE messages ADD COLUMN completed_at DATETIME;
+
+-- name: MigrateMessagesAddOriginalText :exec
+ALTER TABLE messages ADD COLUMN original_text TEXT;
+
+-- name: MigrateMessagesAddCategory :exec
+ALTER TABLE messages ADD COLUMN category TEXT DEFAULT 'todo';
+
+-- name: MigrateMessagesAddDeadline :exec
+ALTER TABLE messages ADD COLUMN deadline TEXT;
+
+-- name: MigrateMessagesAddThreadID :exec
+ALTER TABLE messages ADD COLUMN thread_id TEXT;
+
+-- name: MigrateMessagesAddAssigneeReason :exec
+ALTER TABLE messages ADD COLUMN assignee_reason TEXT;
+
+-- name: MigrateMessagesAddRepliedToID :exec
+ALTER TABLE messages ADD COLUMN replied_to_id TEXT;
+
+-- name: MigrateMessagesAddIsContextQuery :exec
+ALTER TABLE messages ADD COLUMN is_context_query INTEGER DEFAULT 0;
+
+-- name: MigrateMessagesAddConstraints :exec
+ALTER TABLE messages ADD COLUMN constraints TEXT DEFAULT '[]';
+
+-- name: MigrateMessagesAddMetadata :exec
+ALTER TABLE messages ADD COLUMN metadata TEXT DEFAULT '{}';
+
+-- name: MigrateMessagesAddSourceChannels :exec
+ALTER TABLE messages ADD COLUMN source_channels TEXT DEFAULT '[]';
+
+-- name: MigrateMessagesAddConsolidatedContext :exec
+ALTER TABLE messages ADD COLUMN consolidated_context TEXT DEFAULT '[]';
+
+-- name: MigrateMessagesAddPinned :exec
+ALTER TABLE messages ADD COLUMN pinned BOOLEAN DEFAULT FALSE;
+
+-- name: CreateIdxUserTS :exec
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_source_ts ON messages(user_email, source_ts);
+
+-- name: CreateIdxMessagesTask :exec
+CREATE INDEX IF NOT EXISTS idx_messages_task ON messages(task);
+
+-- name: CreateIdxMessagesRoom :exec
+CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room);
+
+-- name: CreateIdxMessagesRequester :exec
+CREATE INDEX IF NOT EXISTS idx_messages_requester ON messages(requester);
+
+-- name: CreateIdxMessagesAssignee :exec
+CREATE INDEX IF NOT EXISTS idx_messages_assignee ON messages(assignee);
+
+-- name: CreateIdxMessagesOriginalText :exec
+CREATE INDEX IF NOT EXISTS idx_messages_original_text ON messages(original_text);
+
+-- name: CreateIdxMessagesSource :exec
+CREATE INDEX IF NOT EXISTS idx_messages_source ON messages(source);
+
+-- name: CreateIdxMessagesCreatedAtDesc :exec
+CREATE INDEX IF NOT EXISTS idx_messages_created_at_desc ON messages(created_at DESC);
+
+-- name: CreateIdxMessagesUserEmail :exec
+CREATE INDEX IF NOT EXISTS idx_messages_user_email ON messages(user_email);
+
+-- name: CreateIdxMessagesIsDeleted :exec
+CREATE INDEX IF NOT EXISTS idx_messages_is_deleted ON messages(is_deleted);
+
+-- name: CreateIdxMessagesCompletedAt :exec
+CREATE INDEX IF NOT EXISTS idx_messages_completed_at ON messages(completed_at);
+
+-- name: CreateIdxMessagesUserSourceTS :exec
+CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_user_source_ts ON messages(user_email, source_ts);
+
+-- name: CreateIdxMessagesUserDoneCompleted :exec
+CREATE INDEX IF NOT EXISTS idx_messages_user_done_completed ON messages(user_email, done, completed_at);
+
+-- name: MigrateDataNormalizeIsDeleted :exec
+UPDATE messages SET is_deleted = 0 WHERE is_deleted IS NULL;
+
+-- name: MigrateDataNormalizeRoom :exec
+UPDATE messages SET room = 'General' WHERE room IS NULL OR room = '';
+
+-- name: MigrateDataNormalizeCategoryWaiting :exec
+UPDATE messages SET category = 'todo' WHERE category = 'waiting';
+
+-- name: MigrateDataNormalizeCategoryPromise :exec
+UPDATE messages SET category = 'todo' WHERE category = 'promise';
+
 -- name: IsMessageProcessed :one
 SELECT EXISTS(SELECT 1 FROM messages WHERE user_email = ?1 AND source_ts = ?2);

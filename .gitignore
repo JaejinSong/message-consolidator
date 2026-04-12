@@ -42,3 +42,7 @@ test.db-shm
 test.db-wal
 channels/test.db-shm
 channels/test.db-wal
+test_times.txt
+test.db-shm
+channels/test.db-shm
+channels/test.db-wal

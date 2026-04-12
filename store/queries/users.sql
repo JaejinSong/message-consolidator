@@ -36,6 +36,27 @@ UPDATE users SET wa_jid = ?1 WHERE email = ?2;
 -- name: UpdateUserSlackID :exec
 UPDATE users SET slack_id = ?1 WHERE email = ?2;
 
+-- name: MigrateUsersAddPoints :exec
+ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0;
+
+-- name: MigrateUsersAddStreak :exec
+ALTER TABLE users ADD COLUMN streak INTEGER DEFAULT 0;
+
+-- name: MigrateUsersAddLevel :exec
+ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1;
+
+-- name: MigrateUsersAddXP :exec
+ALTER TABLE users ADD COLUMN xp INTEGER DEFAULT 10;
+
+-- name: MigrateUsersAddDailyGoal :exec
+ALTER TABLE users ADD COLUMN daily_goal INTEGER DEFAULT 5;
+
+-- name: MigrateUsersAddLastCompletedAt :exec
+ALTER TABLE users ADD COLUMN last_completed_at DATETIME;
+
+-- name: MigrateUsersAddStreakFreezes :exec
+ALTER TABLE users ADD COLUMN streak_freezes INTEGER DEFAULT 0;
+
 -- name: GetUserAliasesByEmail :many
 SELECT alias_name FROM user_aliases a
 JOIN users u ON a.user_id = u.id

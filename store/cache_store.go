@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"message-consolidator/db"
 	"message-consolidator/logger"
+	"strings"
 	"golang.org/x/sync/singleflight"
 	"sync"
 	"time"
@@ -51,16 +52,24 @@ var (
 )
 
 func ResetForTest() {
-	if conn := GetDB(); conn != nil {
-		tables := []string{
-			"users", "user_aliases", "gmail_tokens", "messages", "task_translations",
-			"tenant_aliases", "scan_metadata", "user_achievements",
-			"contacts", "reports", "report_translations", "prompt_logs",
-			"ai_inference_logs", "contact_aliases", "identity_merge_history",
-			"identity_merge_candidates", "slack_threads",
-		}
-		for _, table := range tables {
-			_, _ = conn.Exec("DELETE FROM " + table)
+	// Why: Extremely fast DB reset using a single transaction.
+	// This allows us to share one in-memory DB across all tests without sql.Open/Schema setup overhead.
+	if conn := GetDB(); conn != nil && strings.Contains(dsn, "mode=memory") {
+		tx, err := conn.Begin()
+		if err == nil {
+			// Note: achievements table is NOT deleted here because it contains static seed data 
+			// required by all tests. Only user-generated data tables are cleared.
+			tables := []string{
+				"users", "user_aliases", "gmail_tokens", "messages", "task_translations",
+				"tenant_aliases", "scan_metadata", "user_achievements",
+				"contacts", "reports", "report_translations", "prompt_logs",
+				"ai_inference_logs", "contact_aliases", "identity_merge_history",
+				"identity_merge_candidates", "slack_threads",
+			}
+			for _, table := range tables {
+				_, _ = tx.Exec("DELETE FROM " + table)
+			}
+			_ = tx.Commit()
 		}
 	}
 
@@ -84,6 +93,10 @@ func ResetForTest() {
 	knownTS = make(map[string]map[string]bool)
 	cacheInitialized = make(map[string]bool)
 	cacheMu.Unlock()
+
+	achCacheMu.Lock()
+	achievementCache = nil
+	achCacheMu.Unlock()
 }
 
 func GetContactsCache() map[string][]ContactRecord {

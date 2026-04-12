@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-//go:embed queries/*.sql
+//go:embed queries/*.sql migrations/*.sql
 var queryFS embed.FS
 
 // SQL defines all centralized SQL queries used in the application.
@@ -229,6 +229,9 @@ var SQL = struct {
 	CreateIdxMessagesUserDeletedCreated string
 	CreateIdxMessagesUserDoneCompleted string
 
+	//Why: Manual Migrations
+	MigrateMessagesAddPinned string
+
 	//Why: Achievement seeding and validation.
 	GetAchievementCount    string
 	DeleteAllAchievements  string
@@ -243,41 +246,47 @@ func init() {
 
 func loadAllQueries() error {
 	queries := make(map[string]string)
-	entries, err := queryFS.ReadDir("queries")
-	if err != nil {
-		return err
-	}
-
-	for _, entry := range entries {
-		if !strings.HasSuffix(entry.Name(), ".sql") {
+	
+	// Why: Load both queries/ and migrations/ directories.
+	dirs := []string{"queries", "migrations"}
+	for _, dir := range dirs {
+		entries, err := queryFS.ReadDir(dir)
+		if err != nil {
+			// Some dirs might not exist in all environments (though embed should handle it)
 			continue
 		}
-		content, err := queryFS.ReadFile("queries/" + entry.Name())
-		if err != nil {
-			return err
-		}
 
-		lines := strings.Split(string(content), "\n")
-		var currentName string
-		var currentQuery strings.Builder
-
-		for _, line := range lines {
-			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "-- name: ") {
-				if currentName != "" {
-					queries[currentName] = strings.TrimSpace(currentQuery.String())
-					currentQuery.Reset()
-				}
-				parts := strings.Split(strings.TrimPrefix(trimmed, "-- name: "), " ")
-				currentName = parts[0]
-			} else if strings.HasPrefix(trimmed, "--") {
+		for _, entry := range entries {
+			if !strings.HasSuffix(entry.Name(), ".sql") {
 				continue
-			} else if currentName != "" {
-				currentQuery.WriteString(line + "\n")
 			}
-		}
-		if currentName != "" {
-			queries[currentName] = strings.TrimSpace(currentQuery.String())
+			content, err := queryFS.ReadFile(dir + "/" + entry.Name())
+			if err != nil {
+				return err
+			}
+
+			lines := strings.Split(string(content), "\n")
+			var currentName string
+			var currentQuery strings.Builder
+
+			for _, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				if strings.HasPrefix(trimmed, "-- name: ") {
+					if currentName != "" {
+						queries[currentName] = strings.TrimSpace(currentQuery.String())
+						currentQuery.Reset()
+					}
+					parts := strings.Split(strings.TrimPrefix(trimmed, "-- name: "), " ")
+					currentName = parts[0]
+				} else if strings.HasPrefix(trimmed, "--") {
+					continue
+				} else if currentName != "" {
+					currentQuery.WriteString(line + "\n")
+				}
+			}
+			if currentName != "" {
+				queries[currentName] = strings.TrimSpace(currentQuery.String())
+			}
 		}
 	}
 
@@ -483,7 +492,12 @@ func loadAllQueries() error {
 	SQL.CreateIdxMessagesUserDeletedCreated = queries["CreateIdxMessagesUserDeletedCreated"]
 	SQL.CreateIdxMessagesUserDoneCompleted = queries["CreateIdxMessagesUserDoneCompleted"]
 
+	SQL.MigrateMessagesAddPinned = queries["MigrateMessagesAddPinned"]
+
 	SQL.GetAchievementCount = queries["GetAchievementCount"]
+	if SQL.GetAchievementCount == "" {
+		SQL.GetAchievementCount = queries["GetAchievementsCount"]
+	}
 	SQL.DeleteAllAchievements = queries["DeleteAllAchievements"]
 	SQL.SeedAchievements = queries["SeedAchievements"]
 

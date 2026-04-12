@@ -58,5 +58,17 @@ SELECT language_code, summary
 FROM report_translations
 WHERE report_id = ?;
 
+-- name: MigrateReportsAddIsTruncated :exec
+ALTER TABLE reports ADD COLUMN is_truncated INTEGER DEFAULT 0;
+
+-- name: MigrateReportTranslationsRenameLanguage :exec
+ALTER TABLE report_translations RENAME COLUMN language TO language_deprecated;
+
+-- name: MigrateReportTranslationsAddLanguageCode :exec
+ALTER TABLE report_translations ADD COLUMN language_code TEXT;
+
+-- name: CreateReportTranslationsIndex :exec
+CREATE UNIQUE INDEX IF NOT EXISTS idx_report_translations_report_id_lang ON report_translations(report_id, language_code);
+
 -- name: DeleteReport :exec
 DELETE FROM reports WHERE id = ? AND user_email = ?;

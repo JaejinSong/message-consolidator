@@ -3,8 +3,6 @@ package testutil
 import (
 	"fmt"
 	"message-consolidator/config"
-	"os/exec"
-	"strings"
 	"time"
 
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
@@ -17,16 +15,9 @@ func SetupTestDB(initFunc func(*config.Config) error, resetFunc func()) (func(),
 		resetFunc()
 	}
 
-	// Why: Point to exactly one test.db at the project root to satisfy the "unification" goal.
-	// We resolve the absolute path to the project root to prevent multi-file creation in subpackages.
-	root, _ := exec.Command("git", "rev-parse", "--show-toplevel").Output()
-	rootPath := strings.TrimSpace(string(root))
-	if rootPath == "" {
-		rootPath = "."
-	}
-	// Why: Remove cache=shared as it is incompatible with WAL mode and can cause deadlocks when MaxOpenConns=1.
-	// busy_timeout is set to 10000 to handle parallel test lock contention robustly.
-	dbURL := fmt.Sprintf("file:%s/test.db?_busy_timeout=10000", rootPath)
+	// Why: Use a single shared in-memory DB for the entire test suite.
+	// We handle isolation by running extremely fast TRUNCATE/DELETE in a transaction between tests.
+	dbURL := "file:memdb_shared?mode=memory&cache=shared&_busy_timeout=10000"
 
 	cfg := &config.Config{
 		TursoURL: dbURL,
@@ -37,8 +28,6 @@ func SetupTestDB(initFunc func(*config.Config) error, resetFunc func()) (func(),
 	}
 
 	cleanup := func() {
-		// Why: Standard cleanup only resets in-memory caches.
-		// Physical file removal is excluded to allow developer inspection.
 		if resetFunc != nil {
 			resetFunc()
 		}

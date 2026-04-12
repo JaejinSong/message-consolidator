@@ -18,7 +18,7 @@ COPY scanner/ ./scanner/
 COPY services/ ./services/
 COPY store/ ./store/
 COPY types/ ./types/
-COPY db/*.go ./db/
+COPY db/ ./db/
 COPY store/queries/ ./store/queries/
 COPY main.go ./
 
@@ -35,6 +35,8 @@ RUN mkdir -p /stage/app && \
     mv message-consolidator /stage/app/ && \
     # Explicitly copy only required config/meta files to the final stage
     cp RELEASE_NOTES_*.md whatap.conf entrypoint.sh security.conf /stage/app/ && \
+    mkdir -p /stage/app/store/queries && \
+    cp store/queries/*.sql /stage/app/store/queries/ && \
     chmod +x /stage/app/entrypoint.sh
 
 # Final stage
