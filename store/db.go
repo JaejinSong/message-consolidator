@@ -99,12 +99,13 @@ func EnsureSchemaAndSeeds(dbConn *sql.DB) error {
 	defer tx.Rollback()
 
 	// Why: Ensure core tables exist BEFORE running migrations. 
-	if err := createCoreTables(tx); err != nil {
+	ctx := context.Background()
+	if err := createCoreTables(ctx, tx); err != nil {
 		return fmt.Errorf("core table creation failed: %w", err)
 	}
 
 	// Why: Perform schema migrations to add new columns to existing tables.
-	if err := runMigrations(tx); err != nil {
+	if err := runMigrations(ctx, tx); err != nil {
 		return fmt.Errorf("database migration failed: %w", err)
 	}
 
@@ -112,7 +113,7 @@ func EnsureSchemaAndSeeds(dbConn *sql.DB) error {
 		return fmt.Errorf("gamification setup failed: %w", err)
 	}
 
-	createIndexes(tx)
+	createIndexes(ctx, tx)
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit setup transaction: %w", err)

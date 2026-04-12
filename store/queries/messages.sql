@@ -134,12 +134,6 @@ AND (done = 0 OR (done = 1 AND completed_at > datetime('now', '-30 days')))
 ORDER BY assigned_at DESC
 LIMIT 50;
 
--- name: MigrateMessagesAddUserEmail :exec
-ALTER TABLE messages ADD COLUMN user_email TEXT;
-
--- name: MigrateMessagesAddIsDeleted :exec
-ALTER TABLE messages ADD COLUMN is_deleted BOOLEAN DEFAULT 0;
-
 -- name: MigrateMessagesAddRoom :exec
 ALTER TABLE messages ADD COLUMN room TEXT;
 
@@ -185,8 +179,20 @@ ALTER TABLE messages ADD COLUMN consolidated_context TEXT DEFAULT '[]';
 -- name: MigrateMessagesAddPinned :exec
 ALTER TABLE messages ADD COLUMN pinned BOOLEAN DEFAULT FALSE;
 
+-- name: MigrateMessagesAddUserEmail :exec
+ALTER TABLE messages ADD COLUMN user_email TEXT;
+
+-- name: MigrateMessagesAddIsDeleted :exec
+ALTER TABLE messages ADD COLUMN is_deleted BOOLEAN DEFAULT 0;
+
 -- name: CreateIdxUserTS :exec
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_source_ts ON messages(user_email, source_ts);
+
+-- name: MigrateAchievementsAddTargetValue :exec
+ALTER TABLE achievements ADD COLUMN target_value INTEGER DEFAULT 1;
+
+-- name: MigrateAchievementsAddXPReward :exec
+ALTER TABLE achievements ADD COLUMN xp_reward INTEGER DEFAULT 10;
 
 -- name: CreateIdxMessagesTask :exec
 CREATE INDEX IF NOT EXISTS idx_messages_task ON messages(task);

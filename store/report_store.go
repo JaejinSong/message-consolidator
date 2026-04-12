@@ -167,20 +167,19 @@ func ListReports(ctx context.Context, email string) ([]Report, error) {
 
 // GetReportList returns a lightweight list of reports (metadata only) for history navigation.
 func GetReportList(ctx context.Context, email string) ([]Report, error) {
-	conn := GetDB()
-	rows, err := conn.QueryContext(ctx, SQL.GetReportList, email)
+	rows, err := db.New(GetDB()).GetReportList(ctx, email)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var reports []Report
-	for rows.Next() {
-		var r Report
-		if err := rows.Scan(&r.ID, &r.StartDate, &r.EndDate, &r.CreatedAt); err != nil {
-			return nil, err
-		}
-		reports = append(reports, r)
+	for _, row := range rows {
+		reports = append(reports, Report{
+			ID:        int(row.ID),
+			StartDate: row.StartDate,
+			EndDate:   row.EndDate,
+			CreatedAt: row.CreatedAt.Time,
+		})
 	}
 	return reports, nil
 }
@@ -233,8 +232,6 @@ func DeleteReport(ctx context.Context, id int, email string) error {
 // GetMessagesForReport fetches all active messages for a user within a specified date range.
 func GetMessagesForReport(ctx context.Context, email string, since time.Time) ([]ConsolidatedMessage, error) {
 	sinceStr := since.Format("2006-01-02 15:04:05")
-
-	// Why: Overriding the external query to select from v_messages, ensuring all identity-resolved columns match scanMessageRow.
 	query := "SELECT * FROM v_messages WHERE user_email = ? AND (created_at >= ? OR assigned_at >= ?) AND (is_deleted = 0 OR is_deleted IS NULL) ORDER BY created_at ASC"
 	conn := GetDB()
 	rows, err := conn.QueryContext(ctx, query, email, sinceStr, sinceStr)

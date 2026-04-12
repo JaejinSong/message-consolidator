@@ -280,39 +280,53 @@ func RemoveActiveSlackThread(email, channelID, threadTS string) error {
 }
 
 //Why: Provides support functions for the targeted Slack thread scanner worker.
-func RegisterTargetedSlackThread(channelID, threadTS, lastReplyTS, userEmail string) error {
-	conn := GetDB()
-	_, err := conn.Exec(SQL.UpsertSlackThread, channelID, threadTS, lastReplyTS, lastReplyTS, "active", userEmail)
-	return err
+func RegisterTargetedSlackThread(ctx context.Context, channelID, threadTS, lastReplyTS, userEmail string) error {
+	queries := db.New(GetDB())
+	return queries.UpsertSlackThread(ctx, db.UpsertSlackThreadParams{
+		ChannelID:      sql.NullString{String: channelID, Valid: true},
+		ThreadTs:       sql.NullString{String: threadTS, Valid: true},
+		LastReplyTs:    sql.NullString{String: lastReplyTS, Valid: true},
+		LastActivityTs: sql.NullString{String: lastReplyTS, Valid: true},
+		UserEmail:      sql.NullString{String: userEmail, Valid: true},
+	})
 }
 
-func GetTargetedActiveThreads() ([]SlackThreadMeta, error) {
-	conn := GetDB()
-	rows, err := conn.Query(SQL.GetActiveSlackThreadsNew)
+func GetTargetedActiveThreads(ctx context.Context) ([]SlackThreadMeta, error) {
+	queries := db.New(GetDB())
+	rows, err := queries.GetActiveSlackThreadsNew(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var threads []SlackThreadMeta
-	for rows.Next() {
-		var t SlackThreadMeta
-		if err := rows.Scan(&t.ChannelID, &t.ThreadTS, &t.LastTS, &t.LastActivityTS, &t.UserEmail); err != nil {
-			return nil, err
-		}
-		threads = append(threads, t)
+	for _, r := range rows {
+		threads = append(threads, SlackThreadMeta{
+			ChannelID:      r.ChannelID.String,
+			ThreadTS:       r.ThreadTs.String,
+			LastTS:         r.LastReplyTs.String,
+			LastActivityTS: r.LastActivityTs.String,
+			UserEmail:      r.UserEmail.String,
+		})
 	}
 	return threads, nil
 }
 
-func UpdateTargetedThread(channelID, threadTS, lastReplyTS, lastActivityTS, userEmail string) error {
-	conn := GetDB()
-	_, err := conn.Exec(SQL.UpsertSlackThread, channelID, threadTS, lastReplyTS, lastActivityTS, "active", userEmail)
-	return err
+func UpdateTargetedThread(ctx context.Context, channelID, threadTS, lastReplyTS, lastActivityTS, userEmail string) error {
+	queries := db.New(GetDB())
+	return queries.UpsertSlackThread(ctx, db.UpsertSlackThreadParams{
+		ChannelID:      sql.NullString{String: channelID, Valid: true},
+		ThreadTs:       sql.NullString{String: threadTS, Valid: true},
+		LastReplyTs:    sql.NullString{String: lastReplyTS, Valid: true},
+		LastActivityTs: sql.NullString{String: lastActivityTS, Valid: true},
+		UserEmail:      sql.NullString{String: userEmail, Valid: true},
+	})
 }
 
-func CloseTargetedThread(channelID, threadTS, userEmail string) error {
-	conn := GetDB()
-	_, err := conn.Exec(SQL.CloseSlackThread, channelID, threadTS, userEmail)
-	return err
+func CloseTargetedThread(ctx context.Context, channelID, threadTS, userEmail string) error {
+	queries := db.New(GetDB())
+	return queries.CloseSlackThread(ctx, db.CloseSlackThreadParams{
+		ChannelID: sql.NullString{String: channelID, Valid: true},
+		ThreadTs:  sql.NullString{String: threadTS, Valid: true},
+		UserEmail: sql.NullString{String: userEmail, Valid: true},
+	})
 }

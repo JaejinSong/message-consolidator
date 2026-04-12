@@ -1,6 +1,7 @@
 package channels
 
 import (
+	"context"
 	"message-consolidator/config"
 	"message-consolidator/store"
 	"message-consolidator/types"
@@ -184,7 +185,7 @@ func TestUpsertAddresses(t *testing.T) {
 	
 	// Use store's initialization but with our test URL
 	store.InitDB(&config.Config{TursoURL: dbURL})
-	store.InitContactsTable(nil)
+	store.InitContactsTable(context.Background(), store.GetDB())
 
 	tenant := "tenant@whatap.io"
 	

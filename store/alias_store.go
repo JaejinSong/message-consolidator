@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"message-consolidator/db"
 	"regexp"
 	"slices"
 	"strings"
@@ -71,11 +72,13 @@ func resolveIdentityXCanonicalName(tenantEmail, nameLower string) (string, bool)
 		return "", false
 	}
 
-	var displayName string
-	query := "SELECT display_name FROM contacts WHERE id = ? AND (tenant_email = ? OR tenant_email = 'all')"
-	conn := GetDB()
-	if err := conn.QueryRow(query, int64(id), tenantEmail).Scan(&displayName); err == nil {
-		return displayName, true
+	queries := db.New(GetDB())
+	contact, err := queries.GetContactByID(ctx, db.GetContactByIDParams{
+		TenantEmail: tenantEmail,
+		ID:          int64(id),
+	})
+	if err == nil {
+		return contact.DisplayName, true
 	}
 	return "", false
 }
@@ -129,11 +132,19 @@ func resolveContactIdentity(tenantEmail, name string) (ContactRecord, bool) {
 	}
 
 	if id, err := ResolveAlias(ctx, idType, nameLower); err == nil && id > 0 {
-		var m ContactRecord
-		query := "SELECT id, canonical_id, display_name, contact_type FROM contacts WHERE id = ? AND (tenant_email = ? OR tenant_email = 'all')"
-		conn := GetDB()
-		if err := conn.QueryRow(query, int64(id), tenantEmail).Scan(&m.ID, &m.CanonicalID, &m.DisplayName, &m.ContactType); err == nil {
-			return m, true
+		queries := db.New(GetDB())
+		row, err := queries.GetContactByID(ctx, db.GetContactByIDParams{
+			TenantEmail: tenantEmail,
+			ID:          int64(id),
+		})
+		if err == nil {
+			return ContactRecord{
+				ID:          row.ID,
+				TenantEmail: row.TenantEmail,
+				CanonicalID: row.CanonicalID,
+				DisplayName: row.DisplayName,
+				ContactType: row.ContactType.String,
+			}, true
 		}
 	}
 	return ContactRecord{}, false
@@ -254,8 +265,11 @@ func AddUserAlias(ctx context.Context, userID int, alias string) error {
 	}
 
 	uID := int64(userID)
-	conn := GetDB()
-	if _, err := conn.ExecContext(ctx, SQL.CreateUserAlias, uID, trimmed); err != nil {
+	queries := db.New(GetDB())
+	if err := queries.CreateUserAlias(ctx, db.CreateUserAliasParams{
+		UserID:    uID,
+		AliasName: trimmed,
+	}); err != nil {
 		return err
 	}
 
@@ -327,8 +341,11 @@ func DeleteUserAlias(ctx context.Context, userID int, alias string) error {
 	trimmed := strings.TrimSpace(alias)
 
 	uID := int64(userID)
-	conn := GetDB()
-	if _, err := conn.ExecContext(ctx, SQL.DeleteUserAlias, uID, trimmed); err != nil {
+	queries := db.New(GetDB())
+	if err := queries.DeleteUserAlias(ctx, db.DeleteUserAliasParams{
+		UserID:    uID,
+		AliasName: trimmed,
+	}); err != nil {
 		return err
 	}
 

@@ -40,34 +40,30 @@ type ContactRecord struct {
 	ContactType     string        `json:"contact_type"`
 }
 
-func InitContactsTable(q Querier) {
-	if q == nil {
-		q = GetDB()
-	}
-	_, _ = q.Exec(SQL.CreateContactsTable)
-	_, _ = q.Exec(SQL.CreateContactAliasesTable)
-	_, _ = q.Exec(SQL.CreateIdentityMergeHistoryTable)
-	_, _ = q.Exec(SQL.CreateIdentityMergeCandidatesTable)
+func InitContactsTable(ctx context.Context, q db.DBTX) {
+	queries := db.New(q)
+	_ = queries.CreateContactsTable(ctx)
+	_ = queries.CreateContactAliasesTable(ctx)
+	_ = queries.CreateIdentityMergeHistoryTable(ctx)
+	_ = queries.CreateIdentityMergeCandidatesTable(ctx)
 	
 	// Why: Perform one-time migration of legacy aliases if the new table is empty.
-	_, _ = q.Exec(SQL.MigrateLegacyAliases)
+	_ = queries.MigrateLegacyAliases(ctx)
 
 	// Why: DSU is handled in-memory but persisted merge relations must be loaded.
-	loadDSUFromDB()
+	loadDSUFromDB(ctx)
 }
 
-func loadDSUFromDB() {
-	conn := GetDB()
-	rows, err := conn.Query("SELECT id, master_contact_id FROM contacts WHERE master_contact_id IS NOT NULL")
+func loadDSUFromDB(ctx context.Context) {
+	queries := db.New(GetDB())
+	rows, err := queries.GetContactsWithMaster(ctx)
 	if err != nil {
 		return
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var id, masterID int64
-		if err := rows.Scan(&id, &masterID); err == nil {
-			GlobalContactDSU.Union(masterID, id)
+	for _, row := range rows {
+		if row.MasterContactID.Valid {
+			GlobalContactDSU.Union(row.MasterContactID.Int64, row.ID)
 		}
 	}
 	logger.Infof("[Identity-X] DSU initialized with persistent merge relations.")
@@ -465,30 +461,17 @@ func BulkResolveIdentityX(ctx context.Context, identifiers []string) (map[string
 }
 
 func processResolutionChunk(ctx context.Context, chunk []string, res map[string]int64, ambiguous map[string]bool) {
-	placeholders := make([]string, len(chunk))
-	args := make([]interface{}, len(chunk))
-	for i, val := range chunk {
-		placeholders[i] = "?"
-		args[i] = val
-	}
-
-	query := fmt.Sprintf("SELECT identifier_value, contact_id FROM contact_aliases WHERE identifier_value IN (%s)", strings.Join(placeholders, ","))
-	conn := GetDB()
-	rows, err := conn.QueryContext(ctx, query, args...)
+	queries := db.New(GetDB())
+	rows, err := queries.GetAliasesByValues(ctx, chunk)
 	if err != nil {
 		return
 	}
-	defer rows.Close()
 
 	idToCanonical := make(map[string][]int64)
-	for rows.Next() {
-		var val string
-		var cid int64
-		if err := rows.Scan(&val, &cid); err == nil {
-			canonID := GlobalContactDSU.Find(cid)
-			if !slices.Contains(idToCanonical[val], canonID) {
-				idToCanonical[val] = append(idToCanonical[val], canonID)
-			}
+	for _, row := range rows {
+		canonID := GlobalContactDSU.Find(row.ContactID)
+		if !slices.Contains(idToCanonical[row.IdentifierValue], canonID) {
+			idToCanonical[row.IdentifierValue] = append(idToCanonical[row.IdentifierValue], canonID)
 		}
 	}
 
@@ -503,15 +486,22 @@ func processResolutionChunk(ctx context.Context, chunk []string, res map[string]
 
 
 func fetchAllTenantContacts(ctx context.Context, tenantEmail string) ([]ContactRecord, error) {
-	var all []ContactRecord
-	conn := GetDB()
-	rows, err := conn.QueryContext(ctx, "SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type FROM contacts WHERE tenant_email = ?", tenantEmail)
-	if err != nil { return nil, err }
-	defer rows.Close()
-	for rows.Next() {
-		var c ContactRecord
-		if err := rows.Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Source, &c.MasterContactID, &c.ContactType); err == nil {
-			all = append(all, c)
+	queries := db.New(GetDB())
+	rows, err := queries.GetContactsByTenant(ctx, tenantEmail)
+	if err != nil {
+		return nil, err
+	}
+
+	all := make([]ContactRecord, len(rows))
+	for i, r := range rows {
+		all[i] = ContactRecord{
+			ID:              r.ID,
+			TenantEmail:     r.TenantEmail,
+			CanonicalID:     r.CanonicalID,
+			DisplayName:     r.DisplayName,
+			Source:          r.Source.String,
+			MasterContactID: r.MasterContactID,
+			ContactType:     r.ContactType.String,
 		}
 	}
 	return all, nil
@@ -581,14 +571,22 @@ func DeleteContactMapping(ctx context.Context, email, canonicalID string) error 
 }
 
 func GetContactByID(ctx context.Context, tenantEmail string, id int64) (*ContactRecord, error) {
-	var c ContactRecord
-	conn := GetDB()
-	err := conn.QueryRowContext(ctx, "SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type FROM contacts WHERE tenant_email = ? AND id = ?", tenantEmail, int64(id)).
-		Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Source, &c.MasterContactID, &c.ContactType)
+	row, err := db.New(GetDB()).GetContactByID(ctx, db.GetContactByIDParams{
+		TenantEmail: tenantEmail,
+		ID:          id,
+	})
 	if err != nil {
 		return nil, err
 	}
-	return &c, nil
+	return &ContactRecord{
+		ID:              row.ID,
+		TenantEmail:     row.TenantEmail,
+		CanonicalID:     row.CanonicalID,
+		DisplayName:     row.DisplayName,
+		Source:          row.Source.String,
+		MasterContactID: row.MasterContactID,
+		ContactType:     row.ContactType.String,
+	}, nil
 }
 
 func SearchContacts(ctx context.Context, tenantEmail, query string) ([]ContactRecord, error) {
@@ -644,7 +642,8 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 
 	// 2. Fetch Target Type
 	var targetType string
-	if err := tx.QueryRowContext(ctx, "SELECT contact_type FROM contacts WHERE id = ? AND tenant_email = ?", int64(targetID), tenantEmail).Scan(&targetType); err != nil {
+	err = tx.QueryRowContext(ctx, "SELECT contact_type FROM contacts WHERE id = ? AND tenant_email = ?", int64(targetID), tenantEmail).Scan(&targetType)
+	if err != nil {
 		return err
 	}
 

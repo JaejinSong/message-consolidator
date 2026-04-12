@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const deleteContactMapping = `-- name: DeleteContactMapping :exec
@@ -40,6 +41,82 @@ type FlattenChildrenParams struct {
 func (q *Queries) FlattenChildren(ctx context.Context, arg FlattenChildrenParams) error {
 	_, err := q.db.ExecContext(ctx, flattenChildren, arg.MasterContactID, arg.TenantEmail, arg.MasterContactID_2)
 	return err
+}
+
+const getAliasesByValues = `-- name: GetAliasesByValues :many
+SELECT identifier_value, contact_id FROM contact_aliases WHERE identifier_value IN (/*SLICE:values*/?)
+`
+
+type GetAliasesByValuesRow struct {
+	IdentifierValue string `json:"identifier_value"`
+	ContactID       int64  `json:"contact_id"`
+}
+
+func (q *Queries) GetAliasesByValues(ctx context.Context, values []string) ([]GetAliasesByValuesRow, error) {
+	query := getAliasesByValues
+	var queryParams []interface{}
+	if len(values) > 0 {
+		for _, v := range values {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:values*/?", strings.Repeat(",?", len(values))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:values*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAliasesByValuesRow
+	for rows.Next() {
+		var i GetAliasesByValuesRow
+		if err := rows.Scan(&i.IdentifierValue, &i.ContactID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getContactByID = `-- name: GetContactByID :one
+SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type FROM contacts WHERE tenant_email = ? AND id = ?
+`
+
+type GetContactByIDParams struct {
+	TenantEmail string `json:"tenant_email"`
+	ID          int64  `json:"id"`
+}
+
+type GetContactByIDRow struct {
+	ID              int64          `json:"id"`
+	TenantEmail     string         `json:"tenant_email"`
+	CanonicalID     string         `json:"canonical_id"`
+	DisplayName     string         `json:"display_name"`
+	Source          sql.NullString `json:"source"`
+	MasterContactID sql.NullInt64  `json:"master_contact_id"`
+	ContactType     sql.NullString `json:"contact_type"`
+}
+
+func (q *Queries) GetContactByID(ctx context.Context, arg GetContactByIDParams) (GetContactByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getContactByID, arg.TenantEmail, arg.ID)
+	var i GetContactByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.TenantEmail,
+		&i.CanonicalID,
+		&i.DisplayName,
+		&i.Source,
+		&i.MasterContactID,
+		&i.ContactType,
+	)
+	return i, err
 }
 
 const getContactByIdentifier = `-- name: GetContactByIdentifier :many
@@ -96,28 +173,70 @@ func (q *Queries) GetContactByIdentifier(ctx context.Context, arg GetContactById
 	return items, nil
 }
 
-const getContactTypeDistribution = `-- name: GetContactTypeDistribution :many
-SELECT contact_type, COUNT(*) as count
-FROM contacts
-WHERE tenant_email = ?
-GROUP BY contact_type
+const getContactsByTenant = `-- name: GetContactsByTenant :many
+SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type FROM contacts WHERE tenant_email = ?
 `
 
-type GetContactTypeDistributionRow struct {
-	ContactType sql.NullString `json:"contact_type"`
-	Count       int64          `json:"count"`
+type GetContactsByTenantRow struct {
+	ID              int64          `json:"id"`
+	TenantEmail     string         `json:"tenant_email"`
+	CanonicalID     string         `json:"canonical_id"`
+	DisplayName     string         `json:"display_name"`
+	Source          sql.NullString `json:"source"`
+	MasterContactID sql.NullInt64  `json:"master_contact_id"`
+	ContactType     sql.NullString `json:"contact_type"`
 }
 
-func (q *Queries) GetContactTypeDistribution(ctx context.Context, tenantEmail string) ([]GetContactTypeDistributionRow, error) {
-	rows, err := q.db.QueryContext(ctx, getContactTypeDistribution, tenantEmail)
+func (q *Queries) GetContactsByTenant(ctx context.Context, tenantEmail string) ([]GetContactsByTenantRow, error) {
+	rows, err := q.db.QueryContext(ctx, getContactsByTenant, tenantEmail)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetContactTypeDistributionRow
+	var items []GetContactsByTenantRow
 	for rows.Next() {
-		var i GetContactTypeDistributionRow
-		if err := rows.Scan(&i.ContactType, &i.Count); err != nil {
+		var i GetContactsByTenantRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantEmail,
+			&i.CanonicalID,
+			&i.DisplayName,
+			&i.Source,
+			&i.MasterContactID,
+			&i.ContactType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getContactsWithMaster = `-- name: GetContactsWithMaster :many
+SELECT id, master_contact_id FROM contacts WHERE master_contact_id IS NOT NULL
+`
+
+type GetContactsWithMasterRow struct {
+	ID              int64         `json:"id"`
+	MasterContactID sql.NullInt64 `json:"master_contact_id"`
+}
+
+func (q *Queries) GetContactsWithMaster(ctx context.Context) ([]GetContactsWithMasterRow, error) {
+	rows, err := q.db.QueryContext(ctx, getContactsWithMaster)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetContactsWithMasterRow
+	for rows.Next() {
+		var i GetContactsWithMasterRow
+		if err := rows.Scan(&i.ID, &i.MasterContactID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -178,6 +297,22 @@ func (q *Queries) GetLinkedContacts(ctx context.Context, tenantEmail string) ([]
 	return items, nil
 }
 
+const insertMergeHistory = `-- name: InsertMergeHistory :exec
+INSERT INTO identity_merge_history (source_contact_id, target_contact_id, reason)
+VALUES (?, ?, ?)
+`
+
+type InsertMergeHistoryParams struct {
+	SourceContactID int64  `json:"source_contact_id"`
+	TargetContactID int64  `json:"target_contact_id"`
+	Reason          string `json:"reason"`
+}
+
+func (q *Queries) InsertMergeHistory(ctx context.Context, arg InsertMergeHistoryParams) error {
+	_, err := q.db.ExecContext(ctx, insertMergeHistory, arg.SourceContactID, arg.TargetContactID, arg.Reason)
+	return err
+}
+
 const loadContactsAll = `-- name: LoadContactsAll :many
 SELECT tenant_email, canonical_id, display_name, source, contact_type FROM contacts
 `
@@ -217,6 +352,25 @@ func (q *Queries) LoadContactsAll(ctx context.Context) ([]LoadContactsAllRow, er
 		return nil, err
 	}
 	return items, nil
+}
+
+const migrateContactsAddContactType = `-- name: MigrateContactsAddContactType :exec
+ALTER TABLE contacts ADD COLUMN contact_type TEXT DEFAULT 'none'
+`
+
+func (q *Queries) MigrateContactsAddContactType(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateContactsAddContactType)
+	return err
+}
+
+const migrateLegacyAliases = `-- name: MigrateLegacyAliases :exec
+INSERT OR IGNORE INTO contact_aliases (contact_id, identifier_type, identifier_value, source, trust_level)
+SELECT id, 'legacy', canonical_id, source, 100 FROM contacts
+`
+
+func (q *Queries) MigrateLegacyAliases(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateLegacyAliases)
+	return err
 }
 
 const searchContacts = `-- name: SearchContacts :many

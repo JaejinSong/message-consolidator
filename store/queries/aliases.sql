@@ -24,3 +24,10 @@ SELECT user_email, original_name, primary_name FROM tenant_aliases;
 
 -- name: GetAllUserAliases :many
 SELECT user_id, alias_name FROM user_aliases;
+
+-- name: GetContactAliases :many
+SELECT contact_id, identifier_type, identifier_value, source, trust_level FROM contact_aliases WHERE contact_id = ?;
+
+-- name: AddContactAlias :exec
+INSERT INTO contact_aliases (contact_id, identifier_type, identifier_value, source, trust_level)
+VALUES (?, ?, ?, ?, ?);

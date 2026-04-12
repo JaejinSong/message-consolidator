@@ -310,6 +310,69 @@ func (q *Queries) GetUserByID(ctx context.Context, dollar_1 int64) (GetUserByIDR
 	return i, err
 }
 
+const migrateUsersAddDailyGoal = `-- name: MigrateUsersAddDailyGoal :exec
+ALTER TABLE users ADD COLUMN daily_goal INTEGER DEFAULT 5
+`
+
+func (q *Queries) MigrateUsersAddDailyGoal(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateUsersAddDailyGoal)
+	return err
+}
+
+const migrateUsersAddLastCompletedAt = `-- name: MigrateUsersAddLastCompletedAt :exec
+ALTER TABLE users ADD COLUMN last_completed_at DATETIME
+`
+
+func (q *Queries) MigrateUsersAddLastCompletedAt(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateUsersAddLastCompletedAt)
+	return err
+}
+
+const migrateUsersAddLevel = `-- name: MigrateUsersAddLevel :exec
+ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1
+`
+
+func (q *Queries) MigrateUsersAddLevel(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateUsersAddLevel)
+	return err
+}
+
+const migrateUsersAddPoints = `-- name: MigrateUsersAddPoints :exec
+ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0
+`
+
+func (q *Queries) MigrateUsersAddPoints(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateUsersAddPoints)
+	return err
+}
+
+const migrateUsersAddStreak = `-- name: MigrateUsersAddStreak :exec
+ALTER TABLE users ADD COLUMN streak INTEGER DEFAULT 0
+`
+
+func (q *Queries) MigrateUsersAddStreak(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateUsersAddStreak)
+	return err
+}
+
+const migrateUsersAddStreakFreezes = `-- name: MigrateUsersAddStreakFreezes :exec
+ALTER TABLE users ADD COLUMN streak_freezes INTEGER DEFAULT 0
+`
+
+func (q *Queries) MigrateUsersAddStreakFreezes(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateUsersAddStreakFreezes)
+	return err
+}
+
+const migrateUsersAddXP = `-- name: MigrateUsersAddXP :exec
+ALTER TABLE users ADD COLUMN xp INTEGER DEFAULT 10
+`
+
+func (q *Queries) MigrateUsersAddXP(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateUsersAddXP)
+	return err
+}
+
 const updateUserNamePicture = `-- name: UpdateUserNamePicture :exec
 UPDATE users SET name = ?1, picture = ?2 WHERE email = ?3
 `

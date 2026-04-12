@@ -69,21 +69,15 @@ FROM user_achievements
 WHERE user_id = CAST(?1 AS INTEGER)
 `
 
-type GetUserAchievementsRow struct {
-	UserID        int64        `json:"user_id"`
-	AchievementID int64        `json:"achievement_id"`
-	UnlockedAt    sql.NullTime `json:"unlocked_at"`
-}
-
-func (q *Queries) GetUserAchievements(ctx context.Context, dollar_1 int64) ([]GetUserAchievementsRow, error) {
+func (q *Queries) GetUserAchievements(ctx context.Context, dollar_1 int64) ([]UserAchievement, error) {
 	rows, err := q.db.QueryContext(ctx, getUserAchievements, dollar_1)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetUserAchievementsRow
+	var items []UserAchievement
 	for rows.Next() {
-		var i GetUserAchievementsRow
+		var i UserAchievement
 		if err := rows.Scan(&i.UserID, &i.AchievementID, &i.UnlockedAt); err != nil {
 			return nil, err
 		}

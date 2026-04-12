@@ -13,12 +13,34 @@ type Querier interface {
 	AddContactAlias(ctx context.Context, arg AddContactAliasParams) error
 	ArchiveOldTasks(ctx context.Context, datetime interface{}) error
 	CloseSlackThread(ctx context.Context, arg CloseSlackThreadParams) error
+	CreateAIInferenceLogsTable(ctx context.Context) error
+	CreateAchievementsTable(ctx context.Context) error
+	CreateContactAliasesTable(ctx context.Context) error
+	// Views
+	CreateContactsResolvedView(ctx context.Context) error
+	CreateContactsTable(ctx context.Context) error
+	CreateGmailTokensTable(ctx context.Context) error
 	CreateIdentityMergeCandidatesTable(ctx context.Context) error
 	CreateIdentityMergeHistoryTable(ctx context.Context) error
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (int64, error)
+	CreateMessagesTable(ctx context.Context) error
+	CreateMessagesView(ctx context.Context) error
+	CreatePromptLogsTable(ctx context.Context) error
+	CreateReportTranslationsTable(ctx context.Context) error
+	CreateReportsTable(ctx context.Context) error
+	CreateScanMetadataTable(ctx context.Context) error
+	CreateSlackThreadsTable(ctx context.Context) error
+	CreateTaskTranslationsTable(ctx context.Context) error
+	CreateTenantAliasesTable(ctx context.Context) error
+	CreateTokenUsageTable(ctx context.Context) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
+	CreateUserAchievementsTable(ctx context.Context) error
 	CreateUserAlias(ctx context.Context, arg CreateUserAliasParams) error
+	CreateUserAliasesTable(ctx context.Context) error
 	CreateUserReturningAll(ctx context.Context, arg CreateUserReturningAllParams) (CreateUserReturningAllRow, error)
+	// Consolidated Schema for sqlc (SQLite)
+	CreateUsersTable(ctx context.Context) error
+	CreateUsersView(ctx context.Context) error
 	DeleteAllAchievements(ctx context.Context) error
 	DeleteContactMapping(ctx context.Context, arg DeleteContactMappingParams) error
 	DeleteGmailToken(ctx context.Context, userEmail string) error
@@ -29,20 +51,22 @@ type Querier interface {
 	DeleteTaskTranslations(ctx context.Context, messageID sql.NullInt64) error
 	DeleteTenantAlias(ctx context.Context, arg DeleteTenantAliasParams) error
 	DeleteUserAlias(ctx context.Context, arg DeleteUserAliasParams) error
-	FindContactByAlias(ctx context.Context, arg FindContactByAliasParams) (int64, error)
 	FlattenChildren(ctx context.Context, arg FlattenChildrenParams) error
 	GetAbandonedTasks(ctx context.Context, arg GetAbandonedTasksParams) (int64, error)
 	GetAchievements(ctx context.Context) ([]GetAchievementsRow, error)
 	GetAchievementsCount(ctx context.Context) (int64, error)
 	GetActiveSlackThreadsNew(ctx context.Context) ([]GetActiveSlackThreadsNewRow, error)
 	GetActiveTasksForContext(ctx context.Context, arg GetActiveTasksForContextParams) ([]GetActiveTasksForContextRow, error)
+	GetAliasesByValues(ctx context.Context, values []string) ([]GetAliasesByValuesRow, error)
 	GetAllTenantAliases(ctx context.Context) ([]GetAllTenantAliasesRow, error)
 	GetAllUserAliases(ctx context.Context) ([]GetAllUserAliasesRow, error)
 	GetAllUsers(ctx context.Context) ([]GetAllUsersRow, error)
 	GetCompletionHistory(ctx context.Context, arg GetCompletionHistoryParams) ([]GetCompletionHistoryRow, error)
-	GetContactAliases(ctx context.Context, contactID int64) ([]ContactAlias, error)
+	GetContactAliases(ctx context.Context, contactID int64) ([]GetContactAliasesRow, error)
+	GetContactByID(ctx context.Context, arg GetContactByIDParams) (GetContactByIDRow, error)
 	GetContactByIdentifier(ctx context.Context, arg GetContactByIdentifierParams) ([]GetContactByIdentifierRow, error)
-	GetContactTypeDistribution(ctx context.Context, tenantEmail string) ([]GetContactTypeDistributionRow, error)
+	GetContactsByTenant(ctx context.Context, tenantEmail string) ([]GetContactsByTenantRow, error)
+	GetContactsWithMaster(ctx context.Context) ([]GetContactsWithMasterRow, error)
 	GetDailyCompletions(ctx context.Context, arg GetDailyCompletionsParams) ([]GetDailyCompletionsRow, error)
 	GetDailyGoal(ctx context.Context, email sql.NullString) (int64, error)
 	GetDailyTokenUsage(ctx context.Context, arg GetDailyTokenUsageParams) (GetDailyTokenUsageRow, error)
@@ -53,7 +77,6 @@ type Querier interface {
 	GetIncompleteByThreadID(ctx context.Context, arg GetIncompleteByThreadIDParams) ([]GetIncompleteByThreadIDRow, error)
 	GetLinkedContacts(ctx context.Context, tenantEmail string) ([]GetLinkedContactsRow, error)
 	GetMaxDailyCompleted(ctx context.Context, dollar_1 string) (interface{}, error)
-	GetMergeCandidates(ctx context.Context) ([]IdentityMergeCandidate, error)
 	GetMessageByID(ctx context.Context, id int64) (GetMessageByIDRow, error)
 	GetMessagesByEmail(ctx context.Context, userEmail string) ([]GetMessagesByEmailRow, error)
 	GetMessagesByIDs(ctx context.Context, ids []int64) ([]GetMessagesByIDsRow, error)
@@ -73,7 +96,7 @@ type Querier interface {
 	GetTaskTranslation(ctx context.Context, arg GetTaskTranslationParams) (string, error)
 	GetTaskTranslationsBatch(ctx context.Context, arg GetTaskTranslationsBatchParams) ([]GetTaskTranslationsBatchRow, error)
 	GetTotalCompleted(ctx context.Context, dollar_1 string) (int64, error)
-	GetUserAchievements(ctx context.Context, dollar_1 int64) ([]GetUserAchievementsRow, error)
+	GetUserAchievements(ctx context.Context, dollar_1 int64) ([]UserAchievement, error)
 	GetUserAliases(ctx context.Context, userID int64) ([]string, error)
 	GetUserAliasesByEmail(ctx context.Context, email sql.NullString) ([]string, error)
 	GetUserByEmail(ctx context.Context, email sql.NullString) (GetUserByEmailRow, error)
@@ -95,9 +118,43 @@ type Querier interface {
 	LoadUserAliasesAll(ctx context.Context) ([]LoadUserAliasesAllRow, error)
 	LoadUsersAll(ctx context.Context) ([]LoadUsersAllRow, error)
 	MarkMessageDone(ctx context.Context, arg MarkMessageDoneParams) error
-	MigrateContactsDropLegacyAliases(ctx context.Context) error
-	MigrateContactsRenameLegacyAliases(ctx context.Context) error
+	MigrateAchievementsAddTargetValue(ctx context.Context) error
+	MigrateAchievementsAddXPReward(ctx context.Context) error
+	MigrateContactsAddContactType(ctx context.Context) error
+	MigrateDataNormalizeCategoryPromise(ctx context.Context) error
+	MigrateDataNormalizeCategoryWaiting(ctx context.Context) error
+	MigrateDataNormalizeIsDeleted(ctx context.Context) error
+	MigrateDataNormalizeRoom(ctx context.Context) error
 	MigrateLegacyAliases(ctx context.Context) error
+	MigrateMessagesAddAssigneeReason(ctx context.Context) error
+	MigrateMessagesAddCategory(ctx context.Context) error
+	MigrateMessagesAddCompletedAt(ctx context.Context) error
+	MigrateMessagesAddConsolidatedContext(ctx context.Context) error
+	MigrateMessagesAddConstraints(ctx context.Context) error
+	MigrateMessagesAddDeadline(ctx context.Context) error
+	MigrateMessagesAddDone(ctx context.Context) error
+	MigrateMessagesAddIsContextQuery(ctx context.Context) error
+	MigrateMessagesAddIsDeleted(ctx context.Context) error
+	MigrateMessagesAddMetadata(ctx context.Context) error
+	MigrateMessagesAddOriginalText(ctx context.Context) error
+	MigrateMessagesAddPinned(ctx context.Context) error
+	MigrateMessagesAddRepliedToID(ctx context.Context) error
+	MigrateMessagesAddRoom(ctx context.Context) error
+	MigrateMessagesAddSourceChannels(ctx context.Context) error
+	MigrateMessagesAddThreadID(ctx context.Context) error
+	MigrateMessagesAddUserEmail(ctx context.Context) error
+	MigrateReportTranslationsAddLanguageCode(ctx context.Context) error
+	MigrateReportTranslationsRenameLanguage(ctx context.Context) error
+	MigrateReportsAddIsTruncated(ctx context.Context) error
+	MigrateTaskTranslationsAddLanguageCode(ctx context.Context) error
+	MigrateTaskTranslationsRenameLanguage(ctx context.Context) error
+	MigrateUsersAddDailyGoal(ctx context.Context) error
+	MigrateUsersAddLastCompletedAt(ctx context.Context) error
+	MigrateUsersAddLevel(ctx context.Context) error
+	MigrateUsersAddPoints(ctx context.Context) error
+	MigrateUsersAddStreak(ctx context.Context) error
+	MigrateUsersAddStreakFreezes(ctx context.Context) error
+	MigrateUsersAddXP(ctx context.Context) error
 	RefreshCacheActive(ctx context.Context, arg RefreshCacheActiveParams) ([]RefreshCacheActiveRow, error)
 	RefreshCacheArchive(ctx context.Context, arg RefreshCacheArchiveParams) ([]RefreshCacheArchiveRow, error)
 	RestoreMessages(ctx context.Context, arg RestoreMessagesParams) error
@@ -113,7 +170,6 @@ type Querier interface {
 	UpdateCategoryMerged(ctx context.Context, arg UpdateCategoryMergedParams) error
 	UpdateContactLink(ctx context.Context, arg UpdateContactLinkParams) error
 	UpdateContactType(ctx context.Context, arg UpdateContactTypeParams) error
-	UpdateMergeCandidateStatus(ctx context.Context, arg UpdateMergeCandidateStatusParams) error
 	UpdateMessageCategory(ctx context.Context, arg UpdateMessageCategoryParams) error
 	UpdateMessageIdentity(ctx context.Context, arg UpdateMessageIdentityParams) error
 	UpdateTaskAssignee(ctx context.Context, arg UpdateTaskAssigneeParams) error

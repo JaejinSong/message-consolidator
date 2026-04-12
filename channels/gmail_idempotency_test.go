@@ -18,7 +18,7 @@ func TestGmailIdempotency(t *testing.T) {
 
 	dbURL := "file:./test.db?_busy_timeout=5000"
 	store.InitDB(&config.Config{TursoURL: dbURL})
-	store.InitContactsTable(nil)
+	store.InitContactsTable(context.Background(), store.GetDB())
 
 	ctx := context.Background()
 	email := "test@example.com"

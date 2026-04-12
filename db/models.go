@@ -188,9 +188,9 @@ type User struct {
 }
 
 type UserAchievement struct {
-	UserID        sql.NullInt64 `json:"user_id"`
-	AchievementID sql.NullInt64 `json:"achievement_id"`
-	UnlockedAt    sql.NullTime  `json:"unlocked_at"`
+	UserID        int64        `json:"user_id"`
+	AchievementID int64        `json:"achievement_id"`
+	UnlockedAt    sql.NullTime `json:"unlocked_at"`
 }
 
 type UserAlias struct {

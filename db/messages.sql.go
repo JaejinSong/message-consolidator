@@ -638,6 +638,213 @@ func (q *Queries) MarkMessageDone(ctx context.Context, arg MarkMessageDoneParams
 	return err
 }
 
+const migrateAchievementsAddTargetValue = `-- name: MigrateAchievementsAddTargetValue :exec
+ALTER TABLE achievements ADD COLUMN target_value INTEGER DEFAULT 1
+`
+
+func (q *Queries) MigrateAchievementsAddTargetValue(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateAchievementsAddTargetValue)
+	return err
+}
+
+const migrateAchievementsAddXPReward = `-- name: MigrateAchievementsAddXPReward :exec
+ALTER TABLE achievements ADD COLUMN xp_reward INTEGER DEFAULT 10
+`
+
+func (q *Queries) MigrateAchievementsAddXPReward(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateAchievementsAddXPReward)
+	return err
+}
+
+const migrateDataNormalizeCategoryPromise = `-- name: MigrateDataNormalizeCategoryPromise :exec
+UPDATE messages SET category = 'todo' WHERE category = 'promise'
+`
+
+func (q *Queries) MigrateDataNormalizeCategoryPromise(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateDataNormalizeCategoryPromise)
+	return err
+}
+
+const migrateDataNormalizeCategoryWaiting = `-- name: MigrateDataNormalizeCategoryWaiting :exec
+UPDATE messages SET category = 'todo' WHERE category = 'waiting'
+`
+
+func (q *Queries) MigrateDataNormalizeCategoryWaiting(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateDataNormalizeCategoryWaiting)
+	return err
+}
+
+const migrateDataNormalizeIsDeleted = `-- name: MigrateDataNormalizeIsDeleted :exec
+UPDATE messages SET is_deleted = 0 WHERE is_deleted IS NULL
+`
+
+func (q *Queries) MigrateDataNormalizeIsDeleted(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateDataNormalizeIsDeleted)
+	return err
+}
+
+const migrateDataNormalizeRoom = `-- name: MigrateDataNormalizeRoom :exec
+UPDATE messages SET room = 'General' WHERE room IS NULL OR room = ''
+`
+
+func (q *Queries) MigrateDataNormalizeRoom(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateDataNormalizeRoom)
+	return err
+}
+
+const migrateMessagesAddAssigneeReason = `-- name: MigrateMessagesAddAssigneeReason :exec
+ALTER TABLE messages ADD COLUMN assignee_reason TEXT
+`
+
+func (q *Queries) MigrateMessagesAddAssigneeReason(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddAssigneeReason)
+	return err
+}
+
+const migrateMessagesAddCategory = `-- name: MigrateMessagesAddCategory :exec
+ALTER TABLE messages ADD COLUMN category TEXT DEFAULT 'todo'
+`
+
+func (q *Queries) MigrateMessagesAddCategory(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddCategory)
+	return err
+}
+
+const migrateMessagesAddCompletedAt = `-- name: MigrateMessagesAddCompletedAt :exec
+ALTER TABLE messages ADD COLUMN completed_at DATETIME
+`
+
+func (q *Queries) MigrateMessagesAddCompletedAt(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddCompletedAt)
+	return err
+}
+
+const migrateMessagesAddConsolidatedContext = `-- name: MigrateMessagesAddConsolidatedContext :exec
+ALTER TABLE messages ADD COLUMN consolidated_context TEXT DEFAULT '[]'
+`
+
+func (q *Queries) MigrateMessagesAddConsolidatedContext(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddConsolidatedContext)
+	return err
+}
+
+const migrateMessagesAddConstraints = `-- name: MigrateMessagesAddConstraints :exec
+ALTER TABLE messages ADD COLUMN constraints TEXT DEFAULT '[]'
+`
+
+func (q *Queries) MigrateMessagesAddConstraints(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddConstraints)
+	return err
+}
+
+const migrateMessagesAddDeadline = `-- name: MigrateMessagesAddDeadline :exec
+ALTER TABLE messages ADD COLUMN deadline TEXT
+`
+
+func (q *Queries) MigrateMessagesAddDeadline(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddDeadline)
+	return err
+}
+
+const migrateMessagesAddDone = `-- name: MigrateMessagesAddDone :exec
+ALTER TABLE messages ADD COLUMN done BOOLEAN DEFAULT 0
+`
+
+func (q *Queries) MigrateMessagesAddDone(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddDone)
+	return err
+}
+
+const migrateMessagesAddIsContextQuery = `-- name: MigrateMessagesAddIsContextQuery :exec
+ALTER TABLE messages ADD COLUMN is_context_query INTEGER DEFAULT 0
+`
+
+func (q *Queries) MigrateMessagesAddIsContextQuery(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddIsContextQuery)
+	return err
+}
+
+const migrateMessagesAddIsDeleted = `-- name: MigrateMessagesAddIsDeleted :exec
+ALTER TABLE messages ADD COLUMN is_deleted BOOLEAN DEFAULT 0
+`
+
+func (q *Queries) MigrateMessagesAddIsDeleted(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddIsDeleted)
+	return err
+}
+
+const migrateMessagesAddMetadata = `-- name: MigrateMessagesAddMetadata :exec
+ALTER TABLE messages ADD COLUMN metadata TEXT DEFAULT '{}'
+`
+
+func (q *Queries) MigrateMessagesAddMetadata(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddMetadata)
+	return err
+}
+
+const migrateMessagesAddOriginalText = `-- name: MigrateMessagesAddOriginalText :exec
+ALTER TABLE messages ADD COLUMN original_text TEXT
+`
+
+func (q *Queries) MigrateMessagesAddOriginalText(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddOriginalText)
+	return err
+}
+
+const migrateMessagesAddPinned = `-- name: MigrateMessagesAddPinned :exec
+ALTER TABLE messages ADD COLUMN pinned BOOLEAN DEFAULT FALSE
+`
+
+func (q *Queries) MigrateMessagesAddPinned(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddPinned)
+	return err
+}
+
+const migrateMessagesAddRepliedToID = `-- name: MigrateMessagesAddRepliedToID :exec
+ALTER TABLE messages ADD COLUMN replied_to_id TEXT
+`
+
+func (q *Queries) MigrateMessagesAddRepliedToID(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddRepliedToID)
+	return err
+}
+
+const migrateMessagesAddRoom = `-- name: MigrateMessagesAddRoom :exec
+ALTER TABLE messages ADD COLUMN room TEXT
+`
+
+func (q *Queries) MigrateMessagesAddRoom(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddRoom)
+	return err
+}
+
+const migrateMessagesAddSourceChannels = `-- name: MigrateMessagesAddSourceChannels :exec
+ALTER TABLE messages ADD COLUMN source_channels TEXT DEFAULT '[]'
+`
+
+func (q *Queries) MigrateMessagesAddSourceChannels(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddSourceChannels)
+	return err
+}
+
+const migrateMessagesAddThreadID = `-- name: MigrateMessagesAddThreadID :exec
+ALTER TABLE messages ADD COLUMN thread_id TEXT
+`
+
+func (q *Queries) MigrateMessagesAddThreadID(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddThreadID)
+	return err
+}
+
+const migrateMessagesAddUserEmail = `-- name: MigrateMessagesAddUserEmail :exec
+ALTER TABLE messages ADD COLUMN user_email TEXT
+`
+
+func (q *Queries) MigrateMessagesAddUserEmail(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddUserEmail)
+	return err
+}
+
 const refreshCacheActive = `-- name: RefreshCacheActive :many
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
 FROM v_messages 

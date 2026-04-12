@@ -50,14 +50,16 @@ func IsProcessed(ctx context.Context, q Querier, email, sourceTS string) (bool, 
 		return true, nil
 	}
 
-	processed, err := db.New(q).IsMessageProcessed(ctx, db.IsMessageProcessedParams{
+	queries := db.New(q)
+	count, err := queries.IsMessageProcessed(ctx, db.IsMessageProcessedParams{
 		UserEmail: sql.NullString{String: email, Valid: true},
 		SourceTs:  sql.NullString{String: sourceTS, Valid: true},
 	})
 	if err != nil {
 		return false, fmt.Errorf("failed to check if message is processed: %w", err)
 	}
-	return processed > 0, nil
+	// count is the result of IsMessageProcessed (int64)
+	return count > 0, nil
 }
 
 // SaveMessages performs a bulk insert of multiple messages.
@@ -112,48 +114,34 @@ func normalizeMsgs(msgs []ConsolidatedMessage) {
 }
 
 func executeBulkInsert(ctx context.Context, msgs []ConsolidatedMessage) (map[string]map[string]int, error) {
-	// Why: [WhaTap-Memory] Bulk insert builds a large argument slice; 20 fields per message.
-	valueStrings := make([]string, 0, len(msgs))
-	valueArgs := make([]interface{}, 0, len(msgs)*20)
-
-	for _, msg := range msgs {
-		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-		constraintsJSON, _ := json.Marshal(msg.Constraints)
-		channelsJSON, _ := json.Marshal(msg.SourceChannels)
-		contextJSON, _ := json.Marshal(msg.ConsolidatedContext)
-		valueArgs = append(valueArgs, 
-			msg.UserEmail, msg.Source, msg.Room, msg.Task, msg.Requester, msg.Assignee, 
-			msg.AssignedAt, msg.Link, msg.SourceTS, msg.OriginalText, msg.Category, 
-			msg.Deadline, msg.ThreadID, msg.AssigneeReason, msg.RepliedToID, 
-		msg.IsContextQuery, string(constraintsJSON), string(msg.Metadata), string(channelsJSON),
-		string(contextJSON),
-		)
-	}
-
-	query := fmt.Sprintf(SQL.SaveMessagesBase, strings.Join(valueStrings, ","))
 	conn := GetDB()
-	rows, err := conn.QueryContext(ctx, query, valueArgs...)
+	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	return scanBulkIDs(rows)
+	defer tx.Rollback()
+
+	queries := db.New(tx)
+	res := make(map[string]map[string]int)
+
+	for _, msg := range msgs {
+		id, err := queries.CreateMessage(ctx, toCreateMessageParams(msg))
+		if err != nil {
+			return nil, err
+		}
+		if res[msg.UserEmail] == nil {
+			res[msg.UserEmail] = make(map[string]int)
+		}
+		res[msg.UserEmail][msg.SourceTS] = int(id)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
-func scanBulkIDs(rows *sql.Rows) (map[string]map[string]int, error) {
-	res := make(map[string]map[string]int)
-	for rows.Next() {
-		var id int
-		var ts, email string
-		if err := rows.Scan(&id, &ts, &email); err == nil {
-			if res[email] == nil {
-				res[email] = make(map[string]int)
-			}
-			res[email][ts] = id
-		}
-	}
-	return res, rows.Err()
-}
+// scanBulkIDs is deprecated after refactoring to transaction-based CreateMessage loop.
 
 func insertMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (int, error) {
 	id, err := db.New(q).CreateMessage(ctx, toCreateMessageParams(msg))
@@ -602,27 +590,19 @@ func searchCache(email string, id int) (ConsolidatedMessage, bool) {
 	return ConsolidatedMessage{}, false
 }
 
-func fetchMissingFromDB(ctx context.Context, q Querier, email string, missing []int) ([]ConsolidatedMessage, error) {
-	placeholders := strings.Repeat("?,", len(missing)-1) + "?"
-	query := fmt.Sprintf("SELECT * FROM v_messages WHERE user_email = ? AND id IN (%s)", placeholders)
-	
-	args := make([]interface{}, len(missing)+1)
-	args[0] = email
-	for i, id := range missing {
-		args[i+1] = int(id)
+func fetchMissingFromDB(ctx context.Context, q db.DBTX, email string, missing []int) ([]ConsolidatedMessage, error) {
+	queries := db.New(q)
+	// Why: sqlc now supports sqlc.slice('ids') for IN queries.
+	rows, err := queries.GetMessagesByIDs(ctx, toInt64List(missing))
+	if err != nil {
+		return nil, err
 	}
 
-	rows, err := q.QueryContext(ctx, query, args...)
-	if err != nil { return nil, err }
-	defer rows.Close()
-
-	var msgs []ConsolidatedMessage
-	for rows.Next() {
-		m, err := scanMessageRow(rows)
-		if err != nil { return nil, err }
-		msgs = append(msgs, m)
+	msgs := make([]ConsolidatedMessage, len(rows))
+	for i, row := range rows {
+		msgs[i] = toConsolidatedFromByIDs(row)
 	}
-	return msgs, rows.Err()
+	return msgs, nil
 }
 
 func GetIncompleteByThreadID(ctx context.Context, q Querier, email, threadID string) ([]ConsolidatedMessage, error) {
