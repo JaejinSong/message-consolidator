@@ -1,4 +1,3 @@
--- name: InitTokenUsageTable :exec
 CREATE TABLE IF NOT EXISTS token_usage (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_email VARCHAR(255) NOT NULL,

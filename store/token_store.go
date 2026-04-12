@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"message-consolidator/db"
 	"message-consolidator/logger"
 	"sync"
 	"time"
@@ -34,9 +35,18 @@ var (
 
 func InitTokenUsageTable(q Querier) {
 	if q == nil {
-		q = db
+		q = GetDB()
 	}
-	_, err := q.Exec(SQL.InitTokenUsageTable)
+	// Why: Fallback to manual DDL for self-healing, as sqlc doesn't manage DDL execution directly.
+	query := `CREATE TABLE IF NOT EXISTS token_usage (
+		email TEXT NOT NULL,
+		prompt_tokens INTEGER NOT NULL DEFAULT 0,
+		completion_tokens INTEGER NOT NULL DEFAULT 0,
+		total_tokens INTEGER NOT NULL DEFAULT 0,
+		usage_date TEXT NOT NULL,
+		PRIMARY KEY (email, usage_date)
+	);`
+	_, err := q.Exec(query)
 	if err != nil {
 		logger.Errorf("Failed to initialize token_usage table: %v", err)
 	}
@@ -83,27 +93,25 @@ func FlushTokenUsage(ctx context.Context) error {
 	tokenMu.Unlock()
 
 	err := WithDBRetry("FlushTokenUsage", func() error {
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		defer tx.Rollback()
-
-		stmt, err := tx.Prepare(SQL.UpsertTokenUsage)
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
-
+		conn := GetDB()
+		queries := db.New(conn)
 		today := time.Now().Format("2006-01-02")
 
 		for email, data := range tokenFlushingData {
 			totalTokens := data.Prompt + data.Completion
-			if _, err := stmt.ExecContext(ctx, email, int(data.Prompt), int(data.Completion), int(totalTokens), today); err != nil {
+			parsedDate, _ := time.Parse("2006-01-02", today)
+			err := queries.UpsertTokenUsage(ctx, db.UpsertTokenUsageParams{
+				UserEmail:        email,
+				PromptTokens:     sql.NullInt64{Int64: int64(data.Prompt), Valid: true},
+				CompletionTokens: sql.NullInt64{Int64: int64(data.Completion), Valid: true},
+				TotalTokens:      sql.NullInt64{Int64: int64(totalTokens), Valid: true},
+				Date:             parsedDate,
+			})
+			if err != nil {
 				return err
 			}
 		}
-		return tx.Commit()
+		return nil
 	})
 
 	tokenMu.Lock()
@@ -148,15 +156,32 @@ func GetDailyTokenUsage(ctx context.Context, email string) (int, int, error) {
 	}
 	usageCacheMu.RUnlock()
 
-	var promptNull, completionNull sql.NullInt64
-	err := db.QueryRowContext(ctx, SQL.GetDailyTokenUsage, email, today).Scan(&promptNull, &completionNull)
+	conn := GetDB()
+	queries := db.New(conn)
+	parsedDate, _ := time.Parse("2006-01-02", today)
+	row, err := queries.GetDailyTokenUsage(ctx, db.GetDailyTokenUsageParams{
+		UserEmail: email,
+		Date:      parsedDate,
+	})
 
 	if err != nil && err != sql.ErrNoRows {
 		return 0, 0, err
 	}
 
-	prompt := int(promptNull.Int64)
-	completion := int(completionNull.Int64)
+	// sqlc COALESCE(SUM(...)) returns interface{} which is float64 or int64 depending on driver
+	prompt := 0
+	if val, ok := row.Coalesce.(int64); ok {
+		prompt = int(val)
+	} else if val, ok := row.Coalesce.(float64); ok {
+		prompt = int(val)
+	}
+
+	completion := 0
+	if val, ok := row.Coalesce_2.(int64); ok {
+		completion = int(val)
+	} else if val, ok := row.Coalesce_2.(float64); ok {
+		completion = int(val)
+	}
 
 	tokenMu.Lock()
 	if data, ok := tokenDirtyData[email]; ok {
@@ -197,15 +222,33 @@ func GetMonthlyTokenUsage(ctx context.Context, email string) (int, int, error) {
 	firstOfThisMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	nextMonthFirstDay := firstOfThisMonth.AddDate(0, 1, 0).Format("2006-01-02")
 
-	var promptNull, completionNull sql.NullInt64
-	err := db.QueryRowContext(ctx, SQL.GetMonthlyTokenUsage, email, firstDay, nextMonthFirstDay).Scan(&promptNull, &completionNull)
+	conn := GetDB()
+	queries := db.New(conn)
+	pFirstDay, _ := time.Parse("2006-01-02", firstDay)
+	pNextMonth, _ := time.Parse("2006-01-02", nextMonthFirstDay)
+	row, err := queries.GetMonthlyTokenUsage(ctx, db.GetMonthlyTokenUsageParams{
+		UserEmail: email,
+		Date:      pFirstDay,
+		Date_2:    pNextMonth,
+	})
 
 	if err != nil && err != sql.ErrNoRows {
 		return 0, 0, err
 	}
 
-	prompt := int(promptNull.Int64)
-	completion := int(completionNull.Int64)
+	prompt := 0
+	if val, ok := row.Coalesce.(int64); ok {
+		prompt = int(val)
+	} else if val, ok := row.Coalesce.(float64); ok {
+		prompt = int(val)
+	}
+
+	completion := 0
+	if val, ok := row.Coalesce_2.(int64); ok {
+		completion = int(val)
+	} else if val, ok := row.Coalesce_2.(float64); ok {
+		completion = int(val)
+	}
 
 	tokenMu.Lock()
 	if data, ok := tokenDirtyData[email]; ok {
@@ -235,8 +278,12 @@ func SaveGmailToken(ctx context.Context, email, tokenJSON string) error {
 	tokenCache[email] = tokenJSON
 	metadataMu.Unlock()
 
-	_, err := db.ExecContext(ctx, SQL.UpsertGmailToken,
-		email, tokenJSON)
+	conn := GetDB()
+	queries := db.New(conn)
+	err := queries.UpsertGmailToken(ctx, db.UpsertGmailTokenParams{
+		UserEmail: email,
+		TokenJson: tokenJSON,
+	})
 	return err
 }
 
@@ -248,8 +295,9 @@ func GetGmailToken(ctx context.Context, email string) (string, error) {
 		return token, nil
 	}
 
-	var tokenJSON string
-	err := db.QueryRowContext(ctx, SQL.GetGmailToken, email).Scan(&tokenJSON)
+	conn := GetDB()
+	queries := db.New(conn)
+	tokenJSON, err := queries.GetGmailToken(ctx, email)
 	if err != nil {
 		return "", err
 	}
@@ -273,6 +321,8 @@ func DeleteGmailToken(ctx context.Context, email string) error {
 	delete(tokenCache, email)
 	metadataMu.Unlock()
 
-	_, err := db.ExecContext(ctx, SQL.DeleteGmailToken, email)
+	conn := GetDB()
+	queries := db.New(conn)
+	err := queries.DeleteGmailToken(ctx, email)
 	return err
 }

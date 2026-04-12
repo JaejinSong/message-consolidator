@@ -1,4 +1,4 @@
--- name: AddContactMapping :exec
+-- name: UpsertContactMappingSimple :one
 INSERT INTO contacts (tenant_email, canonical_id, display_name, source)
 VALUES (?, ?, ?, ?)
 ON CONFLICT(tenant_email, canonical_id) DO UPDATE SET
@@ -6,7 +6,7 @@ ON CONFLICT(tenant_email, canonical_id) DO UPDATE SET
     source = EXCLUDED.source
 RETURNING id;
 
--- name: UpsertContactMapping :exec
+-- name: UpsertContactMapping :one
 INSERT INTO contacts (tenant_email, canonical_id, display_name, source)
 VALUES (?, ?, ?, ?)
 ON CONFLICT(tenant_email, canonical_id) DO UPDATE SET

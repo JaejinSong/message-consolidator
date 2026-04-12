@@ -1,3 +1,5 @@
+-- Consolidated Schema for sqlc (SQLite)
+
 -- name: CreateUsersTable :exec
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,6 +46,7 @@ CREATE TABLE IF NOT EXISTS messages (
     assigned_at DATETIME,
     link TEXT,
     source_ts TEXT,
+    pinned BOOLEAN DEFAULT FALSE,
     original_text TEXT,
     done BOOLEAN DEFAULT 0,
     is_deleted BOOLEAN DEFAULT 0,
@@ -58,7 +61,8 @@ CREATE TABLE IF NOT EXISTS messages (
     constraints TEXT DEFAULT '[]',
     metadata TEXT DEFAULT '{}',
     source_channels TEXT DEFAULT '[]',
-    consolidated_context TEXT DEFAULT '[]'
+    consolidated_context TEXT DEFAULT '[]',
+    UNIQUE(user_email, source_ts)
 );
 CREATE INDEX IF NOT EXISTS idx_thread_id ON messages(thread_id);
 CREATE INDEX IF NOT EXISTS idx_messages_dashboard_filter ON messages(user_email, is_deleted, done, category, assignee);
@@ -94,19 +98,19 @@ CREATE TABLE IF NOT EXISTS scan_metadata (
 -- name: CreateAchievementsTable :exec
 CREATE TABLE IF NOT EXISTS achievements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    name TEXT NOT NULL UNIQUE,
     description TEXT,
     icon TEXT,
     criteria_type TEXT,
-    criteria_value INTEGER,
-    target_value INTEGER DEFAULT 0,
-    xp_reward INTEGER DEFAULT 0
+    criteria_value INTEGER DEFAULT 1,
+    target_value INTEGER DEFAULT 1,
+    xp_reward INTEGER DEFAULT 10
 );
 
 -- name: CreateUserAchievementsTable :exec
 CREATE TABLE IF NOT EXISTS user_achievements (
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    achievement_id INTEGER REFERENCES achievements(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    achievement_id INTEGER NOT NULL REFERENCES achievements(id) ON DELETE CASCADE,
     unlocked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, achievement_id)
 );
@@ -115,10 +119,10 @@ CREATE TABLE IF NOT EXISTS user_achievements (
 CREATE TABLE IF NOT EXISTS contacts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tenant_email VARCHAR(255) NOT NULL,
-    canonical_id VARCHAR(255) NOT NULL, -- Normalized lowercase email (SSOT)
+    canonical_id VARCHAR(255) NOT NULL,
     display_name VARCHAR(255) NOT NULL,
     source VARCHAR(50) DEFAULT 'all',
-    master_contact_id INTEGER REFERENCES contacts(id), -- Unified Account Reference
+    master_contact_id INTEGER REFERENCES contacts(id),
     contact_type TEXT DEFAULT 'none',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(tenant_email, canonical_id)
@@ -126,43 +130,108 @@ CREATE TABLE IF NOT EXISTS contacts (
 CREATE INDEX IF NOT EXISTS idx_contacts_canonical ON contacts(canonical_id);
 CREATE INDEX IF NOT EXISTS idx_contacts_tenant_canonical ON contacts(tenant_email, canonical_id);
 
--- Identity-X: Alias Mapping Table
+-- name: CreateContactAliasesTable :exec
 CREATE TABLE IF NOT EXISTS contact_aliases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
-    identifier_type TEXT NOT NULL, -- 'email', 'slack_id', 'wa_jid', 'name'
+    identifier_type TEXT NOT NULL,
     identifier_value TEXT NOT NULL,
-    source TEXT NOT NULL,         -- 'slack', 'whatsapp', 'gmail', 'manual'
-    trust_level INTEGER DEFAULT 1, -- 1: Low (Fuzzy), 5: High (Verified)
+    source TEXT NOT NULL,
+    trust_level INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(contact_id, identifier_type, identifier_value)
 );
 CREATE INDEX IF NOT EXISTS idx_contact_aliases_lookup ON contact_aliases(identifier_value, identifier_type);
 
--- name: MigrateContactsAddContactType :exec
-ALTER TABLE contacts ADD COLUMN contact_type TEXT DEFAULT 'none';
-
--- Identity-X: Merge History (Audit Trail)
+-- name: CreateIdentityMergeHistoryTable :exec
 CREATE TABLE IF NOT EXISTS identity_merge_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    master_id INTEGER NOT NULL REFERENCES contacts(id),
-    merged_id INTEGER NOT NULL REFERENCES contacts(id),
-    reason TEXT,
+    source_contact_id INTEGER NOT NULL REFERENCES contacts(id),
+    target_contact_id INTEGER NOT NULL REFERENCES contacts(id),
+    reason TEXT NOT NULL,
     merged_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Identity-X: Merge Candidates (AI Proposals)
+-- name: CreateIdentityMergeCandidatesTable :exec
 CREATE TABLE IF NOT EXISTS identity_merge_candidates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    source_id INTEGER NOT NULL REFERENCES contacts(id),
-    target_id INTEGER NOT NULL REFERENCES contacts(id),
-    confidence REAL,
-    rationale TEXT,
-    status TEXT DEFAULT 'pending', -- 'pending', 'accepted', 'rejected'
+    contact_id_a INTEGER NOT NULL REFERENCES contacts(id),
+    contact_id_b INTEGER NOT NULL REFERENCES contacts(id),
+    confidence REAL NOT NULL,
+    reason TEXT,
+    status TEXT DEFAULT 'pending',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(source_id, target_id)
+    UNIQUE(contact_id_a, contact_id_b)
 );
 
+-- name: CreateAIInferenceLogsTable :exec
+CREATE TABLE IF NOT EXISTS ai_inference_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id INTEGER REFERENCES messages(id),
+    source TEXT,
+    original_text TEXT,
+    raw_response TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- name: CreatePromptLogsTable :exec
+CREATE TABLE IF NOT EXISTS prompt_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    version TEXT NOT NULL,
+    model TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- name: CreateReportsTable :exec
+CREATE TABLE IF NOT EXISTS reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email TEXT NOT NULL,
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+    visualization TEXT NOT NULL,
+    is_truncated INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- name: CreateReportTranslationsTable :exec
+CREATE TABLE IF NOT EXISTS report_translations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    report_id INTEGER NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+    language_code TEXT NOT NULL,
+    language_deprecated TEXT,
+    summary TEXT NOT NULL,
+    UNIQUE(report_id, language_code)
+);
+
+-- name: CreateReportTranslationsIndex :exec
+CREATE INDEX IF NOT EXISTS idx_report_translations_report_id ON report_translations(report_id);
+
+-- name: CreateSlackThreadsTable :exec
+CREATE TABLE IF NOT EXISTS slack_threads (
+    channel_id TEXT,
+    thread_ts TEXT,
+    last_reply_ts TEXT,
+    last_activity_ts TEXT,
+    status TEXT DEFAULT 'active',
+    user_email TEXT,
+    PRIMARY KEY (channel_id, thread_ts, user_email)
+);
+
+-- name: CreateTokenUsageTable :exec
+CREATE TABLE IF NOT EXISTS token_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email VARCHAR(255) NOT NULL,
+    date DATE NOT NULL DEFAULT (date('now')),
+    prompt_tokens INT DEFAULT 0,
+    completion_tokens INT DEFAULT 0,
+    total_tokens INT DEFAULT 0,
+    UNIQUE(user_email, date)
+);
+
+
+-- Views
 -- name: CreateContactsResolvedView :exec
 CREATE VIEW IF NOT EXISTS v_contacts_resolved AS
 SELECT 
@@ -174,27 +243,27 @@ SELECT
     COALESCE(m.display_name, c.display_name) AS effective_display_name,
     COALESCE(m.contact_type, c.contact_type, 'none') AS contact_type,
     CASE WHEN c.master_contact_id IS NOT NULL THEN 1 ELSE 0 END AS is_merged,
-    c.source AS original_source
+    COALESCE(c.source, 'all') AS original_source
 FROM contacts c
 LEFT JOIN contacts m ON c.master_contact_id = m.id AND c.tenant_email = m.tenant_email;
-
 
 -- name: CreateMessagesView :exec
 CREATE VIEW IF NOT EXISTS v_messages AS
 SELECT 
     m.id, 
-    m.user_email, 
-    m.source, 
+    COALESCE(m.user_email, '') as user_email, 
+    COALESCE(m.source, '') as source, 
     COALESCE(m.room, '') as room, 
-    m.task, 
-    COALESCE(cr_req.effective_display_name, m.requester) as requester, 
+    COALESCE(m.task, '') as task, 
+    COALESCE(cr_req.effective_display_name, m.requester, '') as requester, 
     COALESCE(cr_asg.effective_display_name, m.assignee, '') as assignee,
     m.assigned_at,
-    m.link, 
-    m.source_ts, 
+    COALESCE(m.link, '') as link, 
+    COALESCE(m.source_ts, '') as source_ts, 
+    COALESCE(m.pinned, 0) as pinned,
     COALESCE(m.original_text, '') as original_text, 
-    m.done, 
-    m.is_deleted, 
+    COALESCE(m.done, 0) as done, 
+    COALESCE(m.is_deleted, 0) as is_deleted, 
     m.created_at, 
     m.completed_at, 
     COALESCE(m.category, 'todo') as category, 
@@ -202,13 +271,13 @@ SELECT
     COALESCE(m.thread_id, '') as thread_id,
     COALESCE(m.assignee_reason, '') as assignee_reason,
     COALESCE(m.replied_to_id, '') as replied_to_id,
-    m.is_context_query,
-    m.constraints,
-    m.metadata,
+    COALESCE(m.is_context_query, 0) as is_context_query,
+    COALESCE(m.constraints, '[]') as constraints,
+    COALESCE(m.metadata, '{}') as metadata,
     COALESCE(m.source_channels, '[]') as source_channels,
     COALESCE(m.consolidated_context, '[]') as consolidated_context,
-    COALESCE(cr_req.effective_canonical_id, m.requester) as requester_canonical,
-    COALESCE(cr_asg.effective_canonical_id, m.assignee) as assignee_canonical,
+    COALESCE(cr_req.effective_canonical_id, m.requester, '') as requester_canonical,
+    COALESCE(cr_asg.effective_canonical_id, m.assignee, '') as assignee_canonical,
     COALESCE(cr_req.contact_type, 'none') as requester_type,
     COALESCE(cr_asg.contact_type, 'none') as assignee_type
 FROM messages m
@@ -224,12 +293,12 @@ SELECT
     COALESCE(slack_id, '') as slack_id, 
     COALESCE(wa_jid, '') as wa_jid, 
     COALESCE(picture, '') as picture, 
-    points, 
-    streak, 
-    level, 
-    xp, 
-    daily_goal, 
+    COALESCE(points, 0) as points, 
+    COALESCE(streak, 0) as streak, 
+    COALESCE(level, 1) as level, 
+    COALESCE(xp, 0) as xp, 
+    COALESCE(daily_goal, 5) as daily_goal, 
     last_completed_at, 
     created_at, 
-    streak_freezes 
+    COALESCE(streak_freezes, 0) as streak_freezes 
 FROM users;

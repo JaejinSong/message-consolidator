@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"message-consolidator/db"
 	"strings"
 	"sync"
 )
@@ -24,8 +25,12 @@ func GetTaskTranslation(ctx context.Context, messageID int, langCode string) (st
 	}
 	translationMu.RUnlock()
 
-	var translatedText string
-	err := db.QueryRowContext(ctx, SQL.GetTaskTranslation, messageID, langCode).Scan(&translatedText)
+	conn := GetDB()
+	queries := db.New(conn)
+	translatedText, err := queries.GetTaskTranslation(ctx, db.GetTaskTranslationParams{
+		MessageID:    sql.NullInt64{Int64: int64(messageID), Valid: true},
+		LanguageCode: langCode,
+	})
 	if err == sql.ErrNoRows {
 		translationMu.Lock()
 		if translationCache[langCode] == nil {
@@ -79,32 +84,25 @@ func GetTaskTranslationsBatch(ctx context.Context, messageIDs []int, langCode st
 		return results, nil
 	}
 
-	//Why: Uses an IN clause as a fallback because some drivers may not fully support ANY($1) for slice parameters.
-	placeholders := make([]string, len(missingIDs))
-	args := make([]interface{}, len(missingIDs)+1)
-	args[0] = langCode
+	conn := GetDB()
+	queries := db.New(conn)
+	nullIDs := make([]sql.NullInt64, len(missingIDs))
 	for i, id := range missingIDs {
-		placeholders[i] = "?"
-		args[i+1] = id
+		nullIDs[i] = sql.NullInt64{Int64: int64(id), Valid: true}
 	}
-
-	//Why: Hardcodes the query to prevent potential template conversion errors related to dynamic placeholder generation in external SQL files.
-	query := fmt.Sprintf("SELECT message_id, translated_text FROM task_translations WHERE language_code = ? AND message_id IN (%s)", strings.Join(placeholders, ","))
-	rows, err := db.QueryContext(ctx, query, args...)
+	rows, err := queries.GetTaskTranslationsBatch(ctx, db.GetTaskTranslationsBatchParams{
+		LanguageCode: langCode,
+		MessageIds:   nullIDs,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	dbResults := make(map[int]string)
-	for rows.Next() {
-		var id int
-		var text string
-		if err := rows.Scan(&id, &text); err != nil {
-			continue
-		}
-		dbResults[id] = text
-		results[id] = text
+	for _, row := range rows {
+		mid := int(row.MessageID.Int64)
+		dbResults[mid] = row.TranslatedText
+		results[mid] = row.TranslatedText
 	}
 
 	translationMu.Lock()
@@ -125,7 +123,13 @@ func GetTaskTranslationsBatch(ctx context.Context, messageIDs []int, langCode st
 
 func SaveTaskTranslation(ctx context.Context, messageID int, langCode, translatedText string) error {
 	if langCode == "" { langCode = "en" }
-	_, err := db.ExecContext(ctx, SQL.UpsertTaskTranslation, messageID, langCode, translatedText)
+	conn := GetDB()
+	queries := db.New(conn)
+	err := queries.UpsertTaskTranslation(ctx, db.UpsertTaskTranslationParams{
+		MessageID:      sql.NullInt64{Int64: int64(messageID), Valid: true},
+		LanguageCode:   langCode,
+		TranslatedText: translatedText,
+	})
 
 	if err == nil {
 		translationMu.Lock()
@@ -155,7 +159,8 @@ func SaveTaskTranslationsBulk(ctx context.Context, langCode string, results map[
 	}
 
 	query := fmt.Sprintf("INSERT INTO task_translations (message_id, language_code, translated_text) VALUES %s ON CONFLICT(message_id, language_code) DO UPDATE SET translated_text=excluded.translated_text", strings.Join(placeholders, ","))
-	_, err := db.ExecContext(ctx, query, args...)
+	conn := GetDB()
+	_, err := conn.ExecContext(ctx, query, args...)
 	if err == nil {
 		syncCacheBatch(langCode, results)
 	}

@@ -1,8 +1,10 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"message-consolidator/db"
 	"message-consolidator/logger"
 	"strings"
 	"time"
@@ -12,14 +14,31 @@ import (
 // designed to gracefully handle serverless DB (NeonDB) cold starts.
 func WithDBRetry(operationName string, fn func() error) error {
 	var err error
-	maxRetries := 3
+	maxRetries := 5
+	baseDelay := 100 * time.Millisecond
+
 	for i := 1; i <= maxRetries; i++ {
 		err = fn()
 		if err == nil {
 			return nil
 		}
-		logger.Warnf("[DB-RETRY] %s failed (attempt %d/%d). DB waking up? Err: %v", operationName, i, maxRetries, err)
-		time.Sleep(time.Duration(i*2) * time.Second) // Wait 2s, 4s, 6s
+
+		// Why: Only retry on transient database errors (like SQLITE_BUSY or connection reset).
+		errStr := err.Error()
+		isTransient := strings.Contains(errStr, "database is locked") || 
+					  strings.Contains(errStr, "SQLITE_BUSY") || 
+					  strings.Contains(errStr, "connection refused") ||
+					  strings.Contains(errStr, "handshake failed")
+
+		if !isTransient {
+			return err
+		}
+
+		// Why: Use exponential backoff to handle concurrent lock contention or serverless cold starts.
+		// Progression: 100ms, 200ms, 400ms, 800ms, 1600ms
+		delay := baseDelay * (1 << (i - 1))
+		logger.Warnf("[DB-RETRY] %s failed (attempt %d/%d). Retrying in %v... Err: %v", operationName, i, maxRetries, delay, err)
+		time.Sleep(delay)
 	}
 	return err
 }
@@ -31,83 +50,66 @@ func LoadMetadata() error {
 	logger.Infof("[CACHE] Initializing metadata cache from DB...")
 
 	//Why: Loads user definitions from the database, ensuring names are trimmed for consistent mapping.
-	rows, err := db.Query(SQL.LoadUsersSimple)
+	conn := GetDB()
+	queries := db.New(conn)
+	userRows, err := queries.LoadUsersAll(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to load users: %w", err)
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var u User
-		var slackID, waJID sql.NullString
-		var createdAt DBTime
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &createdAt); err != nil {
-			return fmt.Errorf("scan user failed: %w", err)
+	for _, row := range userRows {
+		u := User{
+			ID:        int(row.ID),
+			Email:     row.Email.String,
+			Name:      row.Name,
+			SlackID:   row.SlackID,
+			WAJID:     row.WaJid,
+			Picture:   row.Picture,
+			CreatedAt: row.CreatedAt.Time,
 		}
-		u.SlackID = slackID.String
-		u.WAJID = waJID.String
-		u.CreatedAt = createdAt.Time
 		userCache[u.Email] = &u
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("rows error in users: %w", err)
 	}
 
 	//Why: Restores the last scan timestamps for each source to memory for efficient duplicate detection.
 	logger.Infof("[SCAN] Loading existing scan metadata into memory...")
-	scanRows, err := db.Query(SQL.LoadScanMetadataAll)
+	scanRows, err := queries.LoadScanMetadataAll(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to load scan metadata: %w", err)
 	}
-	defer scanRows.Close()
 
-	for scanRows.Next() {
-		var email, source, targetID, lastTS string
-		if err := scanRows.Scan(&email, &source, &targetID, &lastTS); err != nil {
-			continue
-		}
-		key := fmt.Sprintf("%s:%s:%s", email, source, targetID)
-		scanCache[key] = lastTS
+	for _, row := range scanRows {
+		key := fmt.Sprintf("%s:%s:%s", row.UserEmail, row.Source, row.TargetID)
+		scanCache[key] = row.LastTs.String
 	}
 	logger.Infof("[SCAN] Loaded %d scan metadata entries.", len(scanCache))
 
 	//Why: Loads OAuth refresh tokens into the cache to support background Gmail synchronization.
 	logger.Infof("[SCAN] Loading existing gmail tokens into memory...")
-	tokenRows, err := db.Query(SQL.LoadGmailTokensAll)
+	tokenRows, err := queries.LoadGmailTokensAll(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to load gmail tokens: %w", err)
 	}
-	defer tokenRows.Close()
 
-	for tokenRows.Next() {
-		var email, token string
-		if err := tokenRows.Scan(&email, &token); err != nil {
-			return fmt.Errorf("scan gmail token failed: %w", err)
-		}
-		tokenCache[email] = token
+	for _, row := range tokenRows {
+		tokenCache[row.UserEmail] = row.TokenJson
 	}
 
 	//Why: Loads consolidated contact mappings for improved requester identification.
 	logger.Infof("[CACHE] Loading consolidated contacts into memory...")
-	contactRows, err := db.Query(SQL.LoadContactsAll)
+	contactRows, err := queries.LoadContactsAll(context.Background())
 	if err == nil {
-		defer contactRows.Close()
-		for contactRows.Next() {
-			var tEmail, canonical, display, source, contactType string
-			if err := contactRows.Scan(&tEmail, &canonical, &display, &source, &contactType); err == nil {
-				contactsCache[tEmail] = append(contactsCache[tEmail], ContactRecord{
-					CanonicalID: canonical,
-					DisplayName: display,
-					Source:      source,
-					ContactType: contactType,
-				})
-			}
+		for _, row := range contactRows {
+			contactsCache[row.TenantEmail] = append(contactsCache[row.TenantEmail], ContactRecord{
+				CanonicalID: row.CanonicalID,
+				DisplayName: row.DisplayName,
+				Source:      row.Source.String,
+				ContactType: row.ContactType.String,
+			})
 		}
 	}
 
 	logger.Infof("[CACHE] Loaded %d users, %d scan entries, %d tokens, %d contact mappings.", len(userCache), len(scanCache), len(tokenCache), len(contactsCache))
 	return nil
-
 }
 
 func GetLastScan(userEmail, source, targetID string) string {
@@ -132,8 +134,14 @@ func UpdateLastScan(userEmail, source, targetID, ts string) error {
 }
 
 func PersistScanMetadata(userEmail, source, targetID, ts string) error {
-	_, err := db.Exec(SQL.UpsertScanMetadata, userEmail, source, targetID, ts)
-	return err
+	conn := GetDB()
+	queries := db.New(conn)
+	return queries.UpsertScanMetadata(context.Background(), db.UpsertScanMetadataParams{
+		UserEmail: userEmail,
+		Source:    source,
+		TargetID:  targetID,
+		LastTs:    sql.NullString{String: ts, Valid: true},
+	})
 }
 
 func PersistAllScanMetadata(userEmail string) {
@@ -156,20 +164,22 @@ func PersistAllScanMetadata(userEmail string) {
 	}
 
 	err := WithDBRetry("PersistAllScanMetadata", func() error {
-		tx, err := db.Begin()
+		conn := GetDB()
+		tx, err := conn.Begin()
 		if err != nil {
 			return err
 		}
 		defer tx.Rollback() //Why: Uses a deferred rollback to ensure transaction safety; it is overridden by an explicit commit on success.
 
-		stmt, err := tx.Prepare(SQL.UpsertScanMetadata)
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
+		queries := db.New(tx)
 
 		for _, item := range toPersist {
-			if _, err := stmt.Exec(userEmail, item.source, item.target, item.ts); err != nil {
+			if err := queries.UpsertScanMetadata(context.Background(), db.UpsertScanMetadataParams{
+				UserEmail: userEmail,
+				Source:    item.source,
+				TargetID:  item.target,
+				LastTs:    sql.NullString{String: item.ts, Valid: true},
+			}); err != nil {
 				return err
 			}
 		}
@@ -261,18 +271,24 @@ func RemoveActiveSlackThread(email, channelID, threadTS string) error {
 	delete(dirtyScanKeys, key)
 	metadataMu.Unlock()
 
-	_, err := db.Exec(SQL.DeleteScanMetadataSlackThread, email, "slack_thread", targetID)
-	return err
+	conn := GetDB()
+	queries := db.New(conn)
+	return queries.DeleteScanMetadataSlackThread(context.Background(), db.DeleteScanMetadataSlackThreadParams{
+		UserEmail: email,
+		TargetID:  targetID,
+	})
 }
 
 //Why: Provides support functions for the targeted Slack thread scanner worker.
 func RegisterTargetedSlackThread(channelID, threadTS, lastReplyTS, userEmail string) error {
-	_, err := db.Exec(SQL.UpsertSlackThread, channelID, threadTS, lastReplyTS, lastReplyTS, "active", userEmail)
+	conn := GetDB()
+	_, err := conn.Exec(SQL.UpsertSlackThread, channelID, threadTS, lastReplyTS, lastReplyTS, "active", userEmail)
 	return err
 }
 
 func GetTargetedActiveThreads() ([]SlackThreadMeta, error) {
-	rows, err := db.Query(SQL.GetActiveSlackThreadsNew)
+	conn := GetDB()
+	rows, err := conn.Query(SQL.GetActiveSlackThreadsNew)
 	if err != nil {
 		return nil, err
 	}
@@ -290,11 +306,13 @@ func GetTargetedActiveThreads() ([]SlackThreadMeta, error) {
 }
 
 func UpdateTargetedThread(channelID, threadTS, lastReplyTS, lastActivityTS, userEmail string) error {
-	_, err := db.Exec(SQL.UpsertSlackThread, channelID, threadTS, lastReplyTS, lastActivityTS, "active", userEmail)
+	conn := GetDB()
+	_, err := conn.Exec(SQL.UpsertSlackThread, channelID, threadTS, lastReplyTS, lastActivityTS, "active", userEmail)
 	return err
 }
 
 func CloseTargetedThread(channelID, threadTS, userEmail string) error {
-	_, err := db.Exec(SQL.CloseSlackThread, channelID, threadTS, userEmail)
+	conn := GetDB()
+	_, err := conn.Exec(SQL.CloseSlackThread, channelID, threadTS, userEmail)
 	return err
 }

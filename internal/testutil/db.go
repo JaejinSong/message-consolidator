@@ -24,7 +24,9 @@ func SetupTestDB(initFunc func(*config.Config) error, resetFunc func()) (func(),
 	if rootPath == "" {
 		rootPath = "."
 	}
-	dbURL := fmt.Sprintf("file:%s/test.db?cache=shared&_busy_timeout=30000", rootPath)
+	// Why: Remove cache=shared as it is incompatible with WAL mode and can cause deadlocks when MaxOpenConns=1.
+	// busy_timeout is set to 10000 to handle parallel test lock contention robustly.
+	dbURL := fmt.Sprintf("file:%s/test.db?_busy_timeout=10000", rootPath)
 
 	cfg := &config.Config{
 		TursoURL: dbURL,

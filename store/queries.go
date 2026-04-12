@@ -47,7 +47,7 @@ var SQL = struct {
 	MigrateContactsDropLegacyAliases  string
 
 	//Why: Groups SQL queries for message-related operations.
-	SaveMessage                  string
+	CreateMessage                string
 	SaveMessagesBase             string
 	MarkMessageDone              string
 	UpdateTaskText               string
@@ -213,6 +213,7 @@ var SQL = struct {
 	MigrateDataNormalizeCategoryWaiting string
 	MigrateDataNormalizeCategoryPromise string
 	MigrateContactsAddContactType       string
+	MigrateContactsRenameLegacyAliases  string
 	CreateIdxMessagesTask               string
 	CreateIdxMessagesRoom              string
 	CreateIdxMessagesRequester         string
@@ -313,7 +314,7 @@ func loadAllQueries() error {
 	SQL.InsertMergeHistory = queries["InsertMergeHistory"]
 	SQL.MigrateContactsDropLegacyAliases = queries["MigrateContactsDropLegacyAliases"]
 
-	SQL.SaveMessage = queries["SaveMessage"]
+	SQL.CreateMessage = queries["CreateMessage"]
 	SQL.SaveMessagesBase = queries["SaveMessagesBase"]
 	SQL.MarkMessageDone = queries["MarkMessageDone"]
 	SQL.UpdateTaskText = queries["UpdateTaskText"]
@@ -466,6 +467,7 @@ func loadAllQueries() error {
 	SQL.MigrateDataNormalizeCategoryWaiting = queries["MigrateDataNormalizeCategoryWaiting"]
 	SQL.MigrateDataNormalizeCategoryPromise = queries["MigrateDataNormalizeCategoryPromise"]
 	SQL.MigrateContactsAddContactType = queries["MigrateContactsAddContactType"]
+	SQL.MigrateContactsRenameLegacyAliases = queries["MigrateContactsRenameLegacyAliases"]
 	SQL.CreateIdxMessagesTask = queries["CreateIdxMessagesTask"]
 	SQL.CreateIdxMessagesRoom = queries["CreateIdxMessagesRoom"]
 	SQL.CreateIdxMessagesRequester = queries["CreateIdxMessagesRequester"]
@@ -495,7 +497,7 @@ func loadAllQueries() error {
 
 func validateCriticalQueries() error {
 	critical := map[string]string{
-		"SaveMessage":         SQL.SaveMessage,
+		"CreateMessage":         SQL.CreateMessage,
 		"CreateMessagesTable": SQL.CreateMessagesTable,
 		"CreateMessagesView":  SQL.CreateMessagesView,
 		"GetMessagesByIDs":    SQL.GetMessagesByIDs,

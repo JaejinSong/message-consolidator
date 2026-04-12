@@ -9,7 +9,6 @@ RUN npm ci
 
 # Optimization: Copy source files and set Production environment
 COPY src/ ./src/
-COPY types/ ./types/
 COPY static/ ./static/
 COPY index.html ./
 COPY *.json *.ts *.cjs ./

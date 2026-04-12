@@ -4,87 +4,78 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"message-consolidator/db"
 	"strings"
 	"time"
 )
 
 func GetReport(ctx context.Context, email, start, end string) (*Report, error) {
-	var r Report
-	var createdAt time.Time
-	var isTruncated int
-	var summary sql.NullString
-	err := db.QueryRowContext(ctx, SQL.GetReport, email, start, end).Scan(
-		&r.ID, &r.UserEmail, &r.StartDate, &r.EndDate, &r.Visualization, &isTruncated, &createdAt, &summary,
-	)
+	row, err := db.New(GetDB()).GetReport(ctx, db.GetReportParams{
+		UserEmail: email, StartDate: start, EndDate: end,
+	})
 	if err != nil {
 		return nil, err
 	}
-	r.Summary = summary.String
-	r.IsTruncated = isTruncated != 0
-	r.CreatedAt = createdAt
-
-	// Why: Ensures all available translations are loaded for the front-end to enable seamless language switching.
+	r := reportFromRow(int(row.ID), row.UserEmail, row.StartDate, row.EndDate,
+		row.Visualization, row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
 	r.Translations, _ = GetReportTranslations(ctx, r.ID)
-	return &r, nil
+	return r, nil
 }
 
 // GetReportByDate retrieves a report for a specific date (YYYY-MM-DD).
 // Why: Enables exact date-based caching to avoid redundant AI generation for the same day.
 func GetReportByDate(ctx context.Context, email, date string) (*Report, error) {
-	var r Report
-	var createdAt time.Time
-	var isTruncated int
-	var summary sql.NullString
-	err := db.QueryRowContext(ctx, SQL.GetReportByDate, email, date, date).Scan(
-		&r.ID, &r.UserEmail, &r.StartDate, &r.EndDate, &r.Visualization, &isTruncated, &createdAt, &summary,
-	)
+	row, err := db.New(GetDB()).GetReportByDate(ctx, db.GetReportByDateParams{
+		UserEmail: email, StartDate: date, EndDate: date,
+	})
 	if err != nil {
 		return nil, err
 	}
-	r.Summary = summary.String
-	r.IsTruncated, r.CreatedAt = isTruncated != 0, createdAt
+	r := reportFromRow(int(row.ID), row.UserEmail, row.StartDate, row.EndDate,
+		row.Visualization, row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
 	r.Translations, _ = GetReportTranslations(ctx, r.ID)
-	return &r, nil
+	return r, nil
 }
 
 // Why: Retrieves a specific report by its unique ID, ensuring it belongs to the requesting user.
 func GetReportByID(ctx context.Context, id int, email string) (*Report, error) {
-	var r Report
-	var createdAt time.Time
-	var isTruncated int
-	var summary sql.NullString
-	err := db.QueryRowContext(ctx, SQL.GetReportByID, id, email).Scan(
-		&r.ID, &r.UserEmail, &r.StartDate, &r.EndDate, &r.Visualization, &isTruncated, &createdAt, &summary,
-	)
+	row, err := db.New(GetDB()).GetReportByID(ctx, db.GetReportByIDParams{ID: int64(id), UserEmail: email})
 	if err != nil {
 		return nil, err
 	}
-	r.Summary = summary.String
-	r.IsTruncated = isTruncated != 0
-	r.CreatedAt = createdAt
-
-	// Why: Ensures all available translations are loaded for the front-end to enable seamless language switching.
+	r := reportFromRow(int(row.ID), row.UserEmail, row.StartDate, row.EndDate,
+		row.Visualization, row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
 	r.Translations, _ = GetReportTranslations(ctx, r.ID)
-	return &r, nil
+	return r, nil
 }
 
 // Why: Saves the metadata portion of a report and returns the generated primary key.
+// Uses sqlc-generated InsertReport to avoid SQL.InsertReport being an empty bridge string.
 func SaveReport(ctx context.Context, r *Report) (int64, error) {
 	isTruncated := 0
 	if r.IsTruncated {
 		isTruncated = 1
 	}
-	res, err := db.ExecContext(ctx, SQL.InsertReport, r.UserEmail, r.StartDate, r.EndDate, r.Visualization, isTruncated)
+	newID, err := db.New(GetDB()).InsertReport(ctx, db.InsertReportParams{
+		UserEmail:     r.UserEmail,
+		StartDate:     r.StartDate,
+		EndDate:       r.EndDate,
+		Visualization: r.Visualization,
+		IsTruncated:   sql.NullInt64{Int64: int64(isTruncated), Valid: true},
+	})
 	if err != nil {
 		return 0, err
 	}
-	return res.LastInsertId()
+	return int64(newID), nil
 }
 
 // Why: Persists a specific language translation for a given report metadata entry.
 func SaveReportTranslation(ctx context.Context, reportID int64, langCode, summary string) error {
-	_, err := db.ExecContext(ctx, SQL.InsertReportTranslation, reportID, langCode, summary)
-	return err
+	return db.New(GetDB()).InsertReportTranslation(ctx, db.InsertReportTranslationParams{
+		ReportID:     reportID,
+		LanguageCode: langCode,
+		Summary:      summary,
+	})
 }
 
 // GetReportTranslationsBatch retrieves translations for multiple reports in a single query to eliminate N+1 overhead.
@@ -101,7 +92,8 @@ func GetReportTranslationsBatch(ctx context.Context, reportIDs []int) (map[int]m
 	}
 
 	query := fmt.Sprintf("SELECT report_id, language_code, summary FROM report_translations WHERE report_id IN (%s)", strings.Join(placeholders, ","))
-	rows, err := db.QueryContext(ctx, query, args...)
+	conn := GetDB()
+	rows, err := conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -124,29 +116,42 @@ func GetReportTranslationsBatch(ctx context.Context, reportIDs []int) (map[int]m
 
 // Why: Retrieves all available language translations for a specific report to support the multi-language UI.
 func GetReportTranslations(ctx context.Context, reportID int) (map[string]string, error) {
-	rows, err := db.QueryContext(ctx, SQL.GetReportTranslations, reportID)
+	rows, err := db.New(GetDB()).GetReportTranslations(ctx, int64(reportID))
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
 	translations := make(map[string]string)
-	for rows.Next() {
-		var langCode, summary string
-		if err := rows.Scan(&langCode, &summary); err != nil {
-			return nil, err
-		}
-		translations[langCode] = summary
+	for _, row := range rows {
+		translations[row.LanguageCode] = row.Summary
 	}
 	return translations, nil
+}
+
+// reportFromRow maps sqlc row fields to a Report domain object.
+func reportFromRow(id int, email, start, end, viz string, isTruncated int64, createdAt time.Time, summary string) *Report {
+	return &Report{
+		ID: id, UserEmail: email, StartDate: start, EndDate: end,
+		Visualization: viz, IsTruncated: isTruncated != 0,
+		CreatedAt: createdAt, Summary: summary,
+		Translations: make(map[string]string),
+	}
 }
 
 // Why: Provides a chronological list of a user's generated reports for the UI sidebar.
 // Refactored: Uses 1+1 pattern (metadata batch + translations batch) to eliminate N+1 overhead.
 func ListReports(ctx context.Context, email string) ([]Report, error) {
-	reports, err := fetchReportMetadata(ctx, email)
-	if err != nil || len(reports) == 0 {
-		return reports, err
+	rows, err := db.New(GetDB()).ListReports(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	var reports []Report
+	for _, row := range rows {
+		r := reportFromRow(int(row.ID), email, row.StartDate, row.EndDate,
+			"", row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
+		reports = append(reports, *r)
+	}
+	if len(reports) == 0 {
+		return reports, nil
 	}
 
 	ids := collectReportIDs(reports)
@@ -162,7 +167,8 @@ func ListReports(ctx context.Context, email string) ([]Report, error) {
 
 // GetReportList returns a lightweight list of reports (metadata only) for history navigation.
 func GetReportList(ctx context.Context, email string) ([]Report, error) {
-	rows, err := db.QueryContext(ctx, SQL.GetReportList, email)
+	conn := GetDB()
+	rows, err := conn.QueryContext(ctx, SQL.GetReportList, email)
 	if err != nil {
 		return nil, err
 	}
@@ -193,40 +199,35 @@ func mapTranslationsToReports(reports []Report, transMap map[int]map[string]stri
 	}
 }
 
-func fetchReportMetadata(ctx context.Context, email string) ([]Report, error) {
-	rows, err := db.QueryContext(ctx, SQL.ListReports, email)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var reports []Report
-	for rows.Next() {
-		r, err := scanReportRowShort(rows)
-		if err != nil {
-			return nil, err
-		}
-		reports = append(reports, r)
-	}
-	return reports, nil
+func mapReportRowToReport(row db.GetReportByIDRow) *Report {
+	var r Report
+	r.ID = int(row.ID)
+	r.StartDate = row.StartDate
+	r.EndDate = row.EndDate
+	r.CreatedAt = row.CreatedAt.Time
+	r.IsTruncated = row.IsTruncated.Int64 != 0
+	r.Summary = row.Summary
+	r.Visualization = row.Visualization
+	return &r
 }
 
-func scanReportRowShort(rows *sql.Rows) (Report, error) {
+func mapReportByDateRowToReport(row db.GetReportByDateRow) *Report {
 	var r Report
-	var createdAt time.Time
-	var isTruncated int
-	var summary sql.NullString
-	err := rows.Scan(&r.ID, &r.StartDate, &r.EndDate, &createdAt, &isTruncated, &summary)
-	r.CreatedAt = createdAt
-	r.IsTruncated = isTruncated != 0
-	r.Summary = summary.String
-	return r, err
+	r.ID = int(row.ID)
+	r.StartDate = row.StartDate
+	r.EndDate = row.EndDate
+	r.CreatedAt = row.CreatedAt.Time
+	r.IsTruncated = row.IsTruncated.Int64 != 0
+	r.Summary = row.Summary
+	r.Visualization = row.Visualization
+	return &r
 }
 
 // Why: Allows users to manage their stored reports and remove unneeded entries.
 func DeleteReport(ctx context.Context, id int, email string) error {
-	_, err := db.ExecContext(ctx, SQL.DeleteReport, id, email)
-	return err
+	return db.New(GetDB()).DeleteReport(ctx, db.DeleteReportParams{
+		ID: int64(id), UserEmail: email,
+	})
 }
 
 // GetMessagesForReport fetches all active messages for a user within a specified date range.
@@ -235,7 +236,8 @@ func GetMessagesForReport(ctx context.Context, email string, since time.Time) ([
 
 	// Why: Overriding the external query to select from v_messages, ensuring all identity-resolved columns match scanMessageRow.
 	query := "SELECT * FROM v_messages WHERE user_email = ? AND (created_at >= ? OR assigned_at >= ?) AND (is_deleted = 0 OR is_deleted IS NULL) ORDER BY created_at ASC"
-	rows, err := db.QueryContext(ctx, query, email, sinceStr, sinceStr)
+	conn := GetDB()
+	rows, err := conn.QueryContext(ctx, query, email, sinceStr, sinceStr)
 	if err != nil {
 		return nil, err
 	}

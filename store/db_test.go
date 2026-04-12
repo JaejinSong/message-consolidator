@@ -15,13 +15,14 @@ func TestInitDBLocal(t *testing.T) {
 	}
 	defer cleanup()
 
-	if db == nil {
+	conn := GetDB()
+	if conn == nil {
 		t.Fatal("Expected db to be initialized, got nil")
 	}
 
 	//Why: Verifies that all expected core tables are created correctly during the database initialization.
 	var name string
-	err = db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").Scan(&name)
+	err = GetDB().QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").Scan(&name)
 	if err != nil {
 		t.Errorf("Failed to find users table: %v", err)
 	}
@@ -49,7 +50,7 @@ func TestRunInTx(t *testing.T) {
 		}
 
 		var count int
-		db.QueryRow("SELECT COUNT(*) FROM users WHERE email = ?", "test@example.com").Scan(&count)
+		GetDB().QueryRow("SELECT COUNT(*) FROM users WHERE email = ?", "test@example.com").Scan(&count)
 		if count != 1 {
 			t.Errorf("Expected 1 user, got %d", count)
 		}
@@ -65,7 +66,7 @@ func TestRunInTx(t *testing.T) {
 		}
 
 		var count int
-		db.QueryRow("SELECT COUNT(*) FROM users WHERE email = ?", "rollback@example.com").Scan(&count)
+		GetDB().QueryRow("SELECT COUNT(*) FROM users WHERE email = ?", "rollback@example.com").Scan(&count)
 		if count != 0 {
 			t.Errorf("Expected 0 users after rollback, got %d", count)
 		}
@@ -84,9 +85,10 @@ func TestBatchOperations(t *testing.T) {
 
 	// Use IDs returned by the DB instead of hardcoded ones to prevent collisions.
 	var ids []int
+	conn := GetDB()
 	for i := 1; i <= 3; i++ {
 		ts := testutil.RandomTS(fmt.Sprintf("batch_%d", i))
-		res, err := db.Exec("INSERT INTO messages (user_email, task, source, done, is_deleted, source_ts) VALUES (?, ?, ?, ?, ?, ?)",
+		res, err := conn.Exec("INSERT INTO messages (user_email, task, source, done, is_deleted, source_ts) VALUES (?, ?, ?, ?, ?, ?)",
 			email, fmt.Sprintf("Task %d", i), "slack", 0, 0, ts)
 		if err != nil {
 			t.Fatalf("Failed to seed message %d: %v", i, err)
@@ -96,7 +98,7 @@ func TestBatchOperations(t *testing.T) {
 	}
 
 	t.Run("GetMessagesByIDs", func(t *testing.T) {
-		msgs, err := GetMessagesByIDs(ctx, db, email, ids[:2])
+		msgs, err := GetMessagesByIDs(ctx, GetDB(), email, ids[:2])
 		if err != nil {
 			t.Fatalf("Failed to get messages: %v", err)
 		}
@@ -107,35 +109,36 @@ func TestBatchOperations(t *testing.T) {
 
 	//Why: Forces a single database connection for the duration of this specific test to prevent "database is locked" errors in SQLite caused by concurrent background cache refresh operations.
 	oldMaxOpen := 20
-	db.SetMaxOpenConns(1)
-	defer db.SetMaxOpenConns(oldMaxOpen)
+	conn2 := GetDB()
+	conn2.SetMaxOpenConns(1)
+	defer conn2.SetMaxOpenConns(oldMaxOpen)
 
 	t.Run("DeleteAndRestoreMessages", func(t *testing.T) {
 		//Why: [Step 1/3] Tests soft deletion to ensure records are flagged as deleted without being immediately purged from the database.
-		if err := DeleteMessages(context.Background(), db, email, ids[:2]); err != nil {
+		if err := DeleteMessages(context.Background(), GetDB(), email, ids[:2]); err != nil {
 			t.Fatalf("Soft delete failed: %v", err)
 		}
 
 		var count int
-		_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE is_deleted = 1 AND user_email = ?", email).Scan(&count)
+		_ = GetDB().QueryRow("SELECT COUNT(*) FROM messages WHERE is_deleted = 1 AND user_email = ?", email).Scan(&count)
 		if count != 2 {
 			t.Errorf("Expected 2 soft-deleted messages for this user, got %d", count)
 		}
 
 		//Why: [Step 2/3] Tests the restoration of a previously soft-deleted message to ensure users can recover items from the trash.
-		if err := RestoreMessages(context.Background(), db, email, []int{ids[0]}); err != nil {
+		if err := RestoreMessages(context.Background(), GetDB(), email, []int{ids[0]}); err != nil {
 			t.Fatalf("Restore failed: %v", err)
 		}
-		_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE is_deleted = 1 AND user_email = ?", email).Scan(&count)
+		_ = GetDB().QueryRow("SELECT COUNT(*) FROM messages WHERE is_deleted = 1 AND user_email = ?", email).Scan(&count)
 		if count != 1 {
 			t.Errorf("Expected 1 soft-deleted message after restoration, got %d", count)
 		}
 
 		//Why: [Step 3/3] Tests hard deletion to verify that records are permanently removed from the database as expected.
-		if err := HardDeleteMessages(context.Background(), db, email, ids); err != nil {
+		if err := HardDeleteMessages(context.Background(), GetDB(), email, ids); err != nil {
 			t.Fatalf("Hard delete failed: %v", err)
 		}
-		_ = db.QueryRow("SELECT COUNT(*) FROM messages WHERE user_email = ?", email).Scan(&count)
+		_ = GetDB().QueryRow("SELECT COUNT(*) FROM messages WHERE user_email = ?", email).Scan(&count)
 		if count != 0 {
 			t.Errorf("Expected 0 messages after hard delete for this user, got %d", count)
 		}
@@ -150,7 +153,7 @@ func TestLegacyColumnRemoval(t *testing.T) {
 
 	// Why: Verifies that both old column names are now GONE from the schema entirely.
 	var count int
-	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('contacts') WHERE name='aliases' OR name='legacy_aliases_deprecated'").Scan(&count)
+	_ = GetDB().QueryRow("SELECT COUNT(*) FROM pragma_table_info('contacts') WHERE name='aliases' OR name='legacy_aliases_deprecated'").Scan(&count)
 	if count != 0 {
 		t.Errorf("Expected 0 columns with legacy names, found %d", count)
 	} else {

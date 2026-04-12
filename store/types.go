@@ -29,6 +29,7 @@ type ConsolidatedMessage struct {
 	AssignedAt   time.Time  `json:"assigned_at"`
 	Link         string     `json:"link"`
 	SourceTS     string     `json:"source_ts"`
+	Pinned       bool       `json:"pinned"`
 	OriginalText string     `json:"original_text,omitempty"`
 	HasOriginal  bool       `json:"has_original,omitempty"`
 	Done         bool       `json:"done"`

@@ -2,10 +2,39 @@ package store
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
 func createCoreTables(q Querier) error {
+	// Why: Load the unified schema file first to ensure baseline tables and views exist.
+	// This satisfies the "Unified Database" goal and ensures v_users is created.
+	// We first try the relative path for app runtime, then the relative path for test execution.
+	schemaPath := "store/queries/schema.sql"
+	if _, err := os.Stat(schemaPath); os.IsNotExist(err) {
+		schemaPath = "queries/schema.sql" // Try legacy/local root path
+	}
+	if _, err := os.Stat(schemaPath); os.IsNotExist(err) {
+		schemaPath = "../store/queries/schema.sql" // Try relative path from test execution
+	}
+
+	schema, err := os.ReadFile(schemaPath)
+	if err != nil {
+		// If we can't find the schema file, it's a fatal initialization error because views will be missing.
+		return fmt.Errorf("failed to read schema.sql from %s: %w", schemaPath, err)
+	}
+
+	// Basic split and execute for the schema file
+	queries := strings.Split(string(schema), ";")
+	for _, query := range queries {
+		trimmed := strings.TrimSpace(query)
+		if trimmed != "" {
+			if _, err := q.Exec(trimmed); err != nil {
+				// Continue on error (e.g., table already exists) 
+			}
+		}
+	}
+
 	tables := []string{
 		SQL.CreateUsersTable,
 		SQL.CreateUserAliasesTable,
@@ -72,6 +101,8 @@ func runMigrations(q Querier) error {
 		SQL.MigrateTaskTranslationsAddLanguageCode,
 		SQL.MigrateReportTranslationsAddLanguageCode,
 		SQL.MigrateContactsAddContactType,
+		SQL.MigrateContactsRenameLegacyAliases,
+		SQL.MigrateLegacyAliases,
 		SQL.MigrateContactsDropLegacyAliases,
 	}
 

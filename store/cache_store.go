@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"message-consolidator/db"
 	"message-consolidator/logger"
 	"golang.org/x/sync/singleflight"
 	"sync"
@@ -50,7 +51,7 @@ var (
 )
 
 func ResetForTest() {
-	if db != nil {
+	if conn := GetDB(); conn != nil {
 		tables := []string{
 			"users", "user_aliases", "gmail_tokens", "messages", "task_translations",
 			"tenant_aliases", "scan_metadata", "user_achievements",
@@ -59,7 +60,7 @@ func ResetForTest() {
 			"identity_merge_candidates", "slack_threads",
 		}
 		for _, table := range tables {
-			_, _ = db.Exec("DELETE FROM " + table)
+			_, _ = conn.Exec("DELETE FROM " + table)
 		}
 	}
 
@@ -105,37 +106,107 @@ func RefreshAllCaches(ctx context.Context) error {
 }
 
 func fetchCacheActive(ctx context.Context, email, threshold string, knownTS map[string]bool) ([]ConsolidatedMessage, error) {
-	rows, err := db.QueryContext(ctx, SQL.RefreshCacheActive, email, threshold)
+	queries := db.New(GetDB())
+	rows, err := queries.RefreshCacheActive(ctx, db.RefreshCacheActiveParams{
+		UserEmail:  email,
+		Datetime: threshold,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("active query failed: %w", err)
 	}
-	defer rows.Close()
 
 	var msgs []ConsolidatedMessage
-	for rows.Next() {
-		m, err := scanMessageRow(rows)
-		if err != nil {
-			return nil, fmt.Errorf("active scan failed: %w", err)
-		}
+	for _, r := range rows {
+		m := mapRefreshRowToMessage(r)
 		msgs = append(msgs, m)
 		knownTS[m.SourceTS] = true
 	}
 	return msgs, nil
 }
 
+func mapRefreshRowToMessage(r db.RefreshCacheActiveRow) ConsolidatedMessage {
+	m := ConsolidatedMessage{
+		ID:                  int(r.ID),
+		UserEmail:           r.UserEmail,
+		Source:              r.Source,
+		Room:                r.Room,
+		Task:                r.Task,
+		Requester:           r.Requester,
+		Assignee:            r.Assignee,
+		Link:                r.Link,
+		SourceTS:            r.SourceTs,
+		OriginalText:        r.OriginalText,
+		Done:                r.Done,
+		IsDeleted:           r.IsDeleted,
+		Category:            r.Category,
+		Deadline:            r.Deadline,
+		ThreadID:            r.ThreadID,
+		AssigneeReason:      r.AssigneeReason,
+		RepliedToID:         r.RepliedToID,
+		IsContextQuery:      r.IsContextQuery == 1,
+		RequesterCanonical:  r.RequesterCanonical,
+		AssigneeCanonical:   r.AssigneeCanonical,
+		RequesterType:       r.RequesterType,
+		AssigneeType:        r.AssigneeType,
+	}
+	m.CreatedAt = r.CreatedAt.Time
+	if r.CompletedAt.Valid {
+		m.CompletedAt = &r.CompletedAt.Time
+	}
+	if r.AssignedAt.Valid {
+		m.AssignedAt = r.AssignedAt.Time
+	}
+	return m
+}
+
+func mapArchiveRowToMessage(r db.RefreshCacheArchiveRow) ConsolidatedMessage {
+	m := ConsolidatedMessage{
+		ID:                  int(r.ID),
+		UserEmail:           r.UserEmail,
+		Source:              r.Source,
+		Room:                r.Room,
+		Task:                r.Task,
+		Requester:           r.Requester,
+		Assignee:            r.Assignee,
+		Link:                r.Link,
+		SourceTS:            r.SourceTs,
+		OriginalText:        r.OriginalText,
+		Done:                r.Done,
+		IsDeleted:           r.IsDeleted,
+		Category:            r.Category,
+		Deadline:            r.Deadline,
+		ThreadID:            r.ThreadID,
+		AssigneeReason:      r.AssigneeReason,
+		RepliedToID:         r.RepliedToID,
+		IsContextQuery:      r.IsContextQuery == 1,
+		RequesterCanonical:  r.RequesterCanonical,
+		AssigneeCanonical:   r.AssigneeCanonical,
+		RequesterType:       r.RequesterType,
+		AssigneeType:        r.AssigneeType,
+	}
+	m.CreatedAt = r.CreatedAt.Time
+	if r.CompletedAt.Valid {
+		m.CompletedAt = &r.CompletedAt.Time
+	}
+	if r.AssignedAt.Valid {
+		m.AssignedAt = r.AssignedAt.Time
+	}
+	return m
+}
+
 func fetchCacheArchive(ctx context.Context, email, threshold string, knownTS map[string]bool) ([]ConsolidatedMessage, error) {
-	rows, err := db.QueryContext(ctx, SQL.RefreshCacheArchive, email, threshold)
+	queries := db.New(GetDB())
+	rows, err := queries.RefreshCacheArchive(ctx, db.RefreshCacheArchiveParams{
+		UserEmail:  email,
+		Datetime: threshold,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("archive query failed: %w", err)
 	}
-	defer rows.Close()
 
 	var msgs []ConsolidatedMessage
-	for rows.Next() {
-		m, err := scanMessageRow(rows)
-		if err != nil {
-			return nil, fmt.Errorf("archive scan failed: %w", err)
-		}
+	for _, r := range rows {
+		m := mapArchiveRowToMessage(r)
 		msgs = append(msgs, m)
 		knownTS[m.SourceTS] = true
 	}
@@ -212,12 +283,14 @@ func ArchiveOldTasks(ctx context.Context) error {
 	threshold := fmt.Sprintf("-%d days", safeArchiveDays)
 
 	logger.Infof("[DB] Auto-archiving tasks completed more than %d days ago...", safeArchiveDays)
-	res, err := db.ExecContext(ctx, SQL.ArchiveOldTasks, threshold)
+	queries := db.New(GetDB())
+	err := queries.ArchiveOldTasks(ctx, threshold)
 	if err != nil {
 		return err
 	}
-	rows, _ := res.RowsAffected()
-	logger.Infof("[DB] Auto-archived %d tasks.", rows)
+	logger.Infof("[DB] Auto-archiving tasks completed more than %d days ago triggered.", safeArchiveDays)
+	// Note: RowsAffected is not easily available for :exec without modification, but success means execution.
+	rows := int64(0)
 
 	lastArchiveTime = time.Now()
 
@@ -257,26 +330,15 @@ func getCachedAliases(id int64) []string {
 }
 
 func fetchAndCacheAliases(ctx context.Context, id int64) ([]string, error) {
-	rows, err := db.QueryContext(ctx, SQL.GetContactAliases, id)
+	queries := db.New(GetDB())
+	rows, err := queries.GetContactAliases(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var aliases []string
-	for rows.Next() {
-		var a struct {
-			ID             int64
-			ContactID      int64
-			Type           string
-			Value          string
-			Source         string
-			Trust          int
-			CreatedAt      time.Time
-		}
-		if err := rows.Scan(&a.ID, &a.ContactID, &a.Type, &a.Value, &a.Source, &a.Trust, &a.CreatedAt); err == nil {
-			aliases = append(aliases, a.Value)
-		}
+	for _, r := range rows {
+		aliases = append(aliases, r.IdentifierValue)
 	}
 
 	metadataMu.Lock()

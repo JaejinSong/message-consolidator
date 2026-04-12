@@ -44,7 +44,8 @@ func fetchAliasesBatch(ctx context.Context, missing []int64, result map[int64][]
 	}
 
 	query := fmt.Sprintf("SELECT contact_id, identifier_value FROM contact_aliases WHERE contact_id IN (%s)", strings.Join(placeholders, ","))
-	rows, err := db.QueryContext(ctx, query, args...)
+	conn := GetDB()
+	rows, err := conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

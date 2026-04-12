@@ -9,17 +9,18 @@ fi
 echo "--- Step 0: Removing local overrides to ensure production sync ---"
 rm -f .env.local
 
-echo "--- Step 1: Syncing Turso to local db/test.db ---"
+echo "--- Step 1: Syncing Turso to local test.db ---"
 go run cmd/mc-util/*.go db-sync
 
 echo "--- Step 2: Creating .env.local for local overrides ---"
 cat <<EOF > .env.local
 # Local override: Use unified test DB
-TURSO_DATABASE_URL=file:db/test.db
+TURSO_DATABASE_URL=file:test.db
 EOF
 
 echo "--- Step 3: Cleaning up old database files ---"
 OLD_DBS=(
+    "db/test.db"
     "data.db"
     "messages.db"
     "message_consolidator.db"
@@ -39,5 +40,5 @@ for db in "${OLD_DBS[@]}"; do
     fi
 done
 
-echo "--- Success: Unified test DB initialized at db/test.db ---"
+echo "--- Success: Unified test DB initialized at test.db ---"
 echo "You can now run 'npm run dev' or 'go run main.go' using local data."

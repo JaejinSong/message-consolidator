@@ -1,6 +1,6 @@
--- name: LoadUsersSimple :many
-SELECT id, email, COALESCE(TRIM(name), ''), COALESCE(slack_id, ''), COALESCE(wa_jid, ''), COALESCE(picture, ''), created_at 
-FROM users;
+-- name: LoadUsersAll :many
+SELECT id, email, name, slack_id, wa_jid, picture, created_at 
+FROM v_users;
 
 -- name: LoadUserAliasesAll :many
 SELECT user_id, alias_name FROM user_aliases;
@@ -14,8 +14,8 @@ SELECT user_email, token_json FROM gmail_tokens;
 -- name: LoadTenantAliasesAll :many
 SELECT user_email, original_name, primary_name FROM tenant_aliases;
 
--- name: LoadContactsAll :many
-SELECT user_email, rep_name, aliases FROM contacts;
+-- name: LoadContactsAllScan :many
+SELECT tenant_email, canonical_id, display_name FROM contacts;
 
 -- name: UpsertScanMetadata :exec
 INSERT INTO scan_metadata (user_email, source, target_id, last_ts)

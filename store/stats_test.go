@@ -22,10 +22,10 @@ func TestGetUserStats_IncludesArchived(t *testing.T) {
 	twoHoursAgo := time.Now().UTC().Add(-2 * time.Hour)
 	t1 := twoHoursAgo.Format(time.RFC3339)
 	tsArchived := testutil.RandomTS("archived")
-	_, err = db.Exec(`INSERT INTO messages 
-		(user_email, task, source, source_ts, done, is_deleted, completed_at, created_at) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		email, "Archived Task", "slack", tsArchived, 1, 1, t1, t1)
+	_, err = GetDB().Exec(`INSERT INTO messages 
+		(user_email, task, source, source_ts, pinned, done, is_deleted, completed_at, created_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		email, "Archived Task", "slack", tsArchived, false, 1, 1, t1, t1)
 	if err != nil {
 		t.Fatalf("Failed to insert archived task: %v", err)
 	}
@@ -34,20 +34,20 @@ func TestGetUserStats_IncludesArchived(t *testing.T) {
 	oneHourAgo := time.Now().UTC().Add(-1 * time.Hour)
 	t2 := oneHourAgo.Format(time.RFC3339)
 	tsActive := testutil.RandomTS("active")
-	_, err = db.Exec(`INSERT INTO messages 
-		(user_email, task, source, source_ts, done, is_deleted, completed_at, created_at) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		email, "Active Task", "slack", tsActive, 1, 0, t2, t2)
+	_, err = GetDB().Exec(`INSERT INTO messages 
+		(user_email, task, source, source_ts, pinned, done, is_deleted, completed_at, created_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		email, "Active Task", "slack", tsActive, false, 1, 0, t2, t2)
 	if err != nil {
 		t.Fatalf("Failed to insert active task: %v", err)
 	}
 
 	//Why: 3. Create a message that is NOT DONE and ACTIVE (Pending) to verify backlog counting.
 	tsPending := testutil.RandomTS("pending")
-	_, err = db.Exec(`INSERT INTO messages 
-		(user_email, task, source, source_ts, done, is_deleted, created_at, assignee) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		email, "Pending Task", "slack", tsPending, 0, 0, time.Now(), "me")
+	_, err = GetDB().Exec(`INSERT INTO messages 
+		(user_email, task, source, source_ts, pinned, done, is_deleted, created_at, assignee) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		email, "Pending Task", "slack", tsPending, false, 0, 0, time.Now(), "me")
 	if err != nil {
 		t.Fatalf("Failed to insert pending task: %v", err)
 	}

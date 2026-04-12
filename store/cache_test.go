@@ -23,7 +23,7 @@ func TestCacheInvalidationAndReadThrough(t *testing.T) {
 	}
 
 	// 1. Save should invalidate (initialize empty cache if first time, then invalidate)
-	_, id, err := SaveMessage(context.Background(), db, msg)
+	_, id, err := SaveMessage(context.Background(), GetDB(), msg)
 	if err != nil {
 		t.Fatalf("SaveMessage failed: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestCacheInvalidationAndReadThrough(t *testing.T) {
 	}
 
 	// 3. Update should invalidate
-	err = MarkMessageDone(context.Background(), db, email, id, true)
+	err = MarkMessageDone(context.Background(), GetDB(), email, id, true)
 	if err != nil {
 		t.Fatalf("MarkMessageDone failed: %v", err)
 	}

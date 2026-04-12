@@ -133,7 +133,12 @@ func (s *ReportsService) generateAndSaveReport(ctx context.Context, email, start
 		}
 	} else {
 		// Save English translation for consistency if requested
-		_ = store.SaveReportTranslation(ctx, int64(report.ID), "en", strippedText)
+		if err := store.SaveReportTranslation(ctx, int64(report.ID), "en", strippedText); err != nil {
+			logger.Errorf("[REPORTS] Failed to save initial English translation: %v", err)
+			// Why: If saving the initial translation fails, we might return a report that fails verification in tests.
+			// However, rather than failing the whole report, we log it. 
+			// In production, the JIT loader will attempt to recover it.
+		}
 	}
 
 	report.Translations[lang] = finalSummary

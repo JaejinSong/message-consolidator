@@ -9,11 +9,9 @@ import (
 
 // HandleTaskState routes task operations based on the AI-determined state.
 // Why: Centralizes task state transitions to ensure consistency. Refactored into helpers to maintain 30-line limit.
-// HandleTaskState routes task operations based on the AI-determined state.
-// Why: Centralizes task state transitions to ensure consistency. Refactored into helpers to maintain 30-line limit.
 func HandleTaskState(ctx context.Context, q Querier, email string, item TodoItem, msg ConsolidatedMessage) (int, error) {
 	if q == nil {
-		q = db
+		q = GetDB()
 	}
 
 	switch item.State {

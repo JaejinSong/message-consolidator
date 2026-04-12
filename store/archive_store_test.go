@@ -25,29 +25,29 @@ func TestGetArchivedMessagesFiltered_Status(t *testing.T) {
 	now := time.Now().UTC()
 	tenDaysAgo := now.AddDate(0, 0, -10)
 	//Why: Seeds a task completed 10 days ago to ensure it appears in the archive based on the default auto-archive threshold.
-	_, err = db.Exec(`INSERT INTO messages (user_email, task, source, source_ts, done, is_deleted, completed_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		email, "Done Task", "slack", "ts_done", true, false, tenDaysAgo, tenDaysAgo)
+	_, err = GetDB().Exec(`INSERT INTO messages (user_email, task, source, source_ts, pinned, done, is_deleted, completed_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		email, "Done Task", "slack", "ts_done", false, true, false, tenDaysAgo, tenDaysAgo)
 	if err != nil {
 		t.Fatalf("Failed to insert done task: %v", err)
 	}
 
 	// 2. Trashed task (done=false, is_deleted=true)
-	_, err = db.Exec(`INSERT INTO messages (user_email, task, source, source_ts, done, is_deleted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		email, "Trashed Task 1", "slack", "ts_trash1", false, true, now)
+	_, err = GetDB().Exec(`INSERT INTO messages (user_email, task, source, source_ts, pinned, done, is_deleted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		email, "Trashed Task 1", "slack", "ts_trash1", false, false, true, now)
 	if err != nil {
 		t.Fatalf("Failed to insert trashed task 1: %v", err)
 	}
 
 	// 3. Done and Trashed task (done=true, is_deleted=true)
-	_, err = db.Exec(`INSERT INTO messages (user_email, task, source, source_ts, done, is_deleted, completed_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		email, "Trashed Task 2", "slack", "ts_trash2", true, true, now, now)
+	_, err = GetDB().Exec(`INSERT INTO messages (user_email, task, source, source_ts, pinned, done, is_deleted, completed_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		email, "Trashed Task 2", "slack", "ts_trash2", false, true, true, now, now)
 	if err != nil {
 		t.Fatalf("Failed to insert trashed task 2: %v", err)
 	}
 
 	// 4. Active task (should not appear in archive)
-	_, err = db.Exec(`INSERT INTO messages (user_email, task, source, source_ts, done, is_deleted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		email, "Active Task", "slack", "ts_active", false, false, now)
+	_, err = GetDB().Exec(`INSERT INTO messages (user_email, task, source, source_ts, pinned, done, is_deleted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		email, "Active Task", "slack", "ts_active", false, false, false, now)
 	if err != nil {
 		t.Fatalf("Failed to insert active task: %v", err)
 	}

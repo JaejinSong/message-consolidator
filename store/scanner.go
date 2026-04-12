@@ -11,11 +11,12 @@ func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedM
 	var m ConsolidatedMessage
 	var assignedAt, createdAt, completedAt DBTime
 	var constraints, room, requester, assignee, link, originalText, category, deadline, threadID, assigneeReason, repliedToID, sourceTS, source, reqCanonical, asgCanonical, metadata, sourceChannels, consolidatedContext, reqType, asgType sql.NullString
+	var pinned sql.NullBool
 
 	err := rows.Scan(
 		&m.ID, &m.UserEmail, &source, &room, &m.Task,
 		&requester, &assignee, &assignedAt, &link,
-		&sourceTS, &originalText, &m.Done, &m.IsDeleted,
+		&sourceTS, &pinned, &originalText, &m.Done, &m.IsDeleted,
 		&createdAt, &completedAt, &category, &deadline,
 		&threadID, &assigneeReason, &repliedToID,
 		&m.IsContextQuery, &constraints, &metadata, &sourceChannels,
@@ -27,7 +28,7 @@ func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedM
 		return m, err
 	}
 
-	populateFields(&m, source, room, requester, assignee, link, sourceTS, originalText, category, deadline, threadID, assigneeReason, repliedToID, reqCanonical, asgCanonical, reqType, asgType)
+	populateFields(&m, source, room, requester, assignee, link, sourceTS, originalText, category, deadline, threadID, assigneeReason, repliedToID, reqCanonical, asgCanonical, reqType, asgType, pinned)
 	parseMetadata(&m, constraints, metadata, sourceChannels, consolidatedContext, assignedAt, createdAt, completedAt)
 	return m, nil
 }
@@ -35,6 +36,7 @@ func scanMessageRow(rows interface{ Scan(...interface{}) error }) (ConsolidatedM
 func populateFields(
 	m *ConsolidatedMessage,
 	source, room, req, asg, link, ts, text, cat, dl, tid, reason, reply, reqC, asgC, reqT, asgT sql.NullString,
+	pinned sql.NullBool,
 ) {
 	m.Source = source.String
 	m.Room = room.String
@@ -42,6 +44,7 @@ func populateFields(
 	m.Assignee = asg.String
 	m.Link = link.String
 	m.SourceTS = ts.String
+	m.Pinned = pinned.Bool
 	m.OriginalText = text.String
 	m.Category = cat.String
 	m.Deadline = dl.String

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"message-consolidator/db"
 	"message-consolidator/logger"
 	"slices"
 	"strings"
@@ -41,7 +42,7 @@ type ContactRecord struct {
 
 func InitContactsTable(q Querier) {
 	if q == nil {
-		q = db
+		q = GetDB()
 	}
 	_, _ = q.Exec(SQL.CreateContactsTable)
 	_, _ = q.Exec(SQL.CreateContactAliasesTable)
@@ -56,7 +57,8 @@ func InitContactsTable(q Querier) {
 }
 
 func loadDSUFromDB() {
-	rows, err := db.Query("SELECT id, master_contact_id FROM contacts WHERE master_contact_id IS NOT NULL")
+	conn := GetDB()
+	rows, err := conn.Query("SELECT id, master_contact_id FROM contacts WHERE master_contact_id IS NOT NULL")
 	if err != nil {
 		return
 	}
@@ -93,11 +95,16 @@ func AddContact(ctx context.Context, tenantEmail, canonicalID, displayName, alia
 	if source == "" {
 		source = SourceAll
 	}
-	var id int64
-	err := db.QueryRowContext(ctx, SQL.AddContactMapping, tenantEmail, canonicalID, displayName, source).Scan(&id)
+	newID, err := db.New(GetDB()).UpsertContactMappingSimple(ctx, db.UpsertContactMappingSimpleParams{
+		TenantEmail:  tenantEmail,
+		CanonicalID:  canonicalID,
+		DisplayName:  displayName,
+		Source:       sql.NullString{String: source, Valid: true},
+	})
 	if err != nil {
 		return 0, err
 	}
+	id := int64(newID)
 
 	// Why: Identity-X requires every primary identifier to be registered as an alias for resolution.
 	aliasType := "email"
@@ -126,8 +133,13 @@ func UpsertContact(ctx context.Context, tenantEmail, canonicalID, displayName, a
 	if source == "" {
 		source = SourceAll
 	}
-	var id int64
-	err := db.QueryRowContext(ctx, SQL.UpsertContactMapping, tenantEmail, canonicalID, displayName, source).Scan(&id)
+	newID, err := db.New(GetDB()).UpsertContactMapping(ctx, db.UpsertContactMappingParams{
+		TenantEmail:  tenantEmail,
+		CanonicalID:  canonicalID,
+		DisplayName:  displayName,
+		Source:       sql.NullString{String: source, Valid: true},
+	})
+	id := int64(newID)
 	if err == nil {
 		// Why: Identity-X requires every primary identifier to be registered as an alias for resolution.
 		aliasType := ContactTypeEmail
@@ -461,7 +473,8 @@ func processResolutionChunk(ctx context.Context, chunk []string, res map[string]
 	}
 
 	query := fmt.Sprintf("SELECT identifier_value, contact_id FROM contact_aliases WHERE identifier_value IN (%s)", strings.Join(placeholders, ","))
-	rows, err := db.QueryContext(ctx, query, args...)
+	conn := GetDB()
+	rows, err := conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		return
 	}
@@ -491,7 +504,8 @@ func processResolutionChunk(ctx context.Context, chunk []string, res map[string]
 
 func fetchAllTenantContacts(ctx context.Context, tenantEmail string) ([]ContactRecord, error) {
 	var all []ContactRecord
-	rows, err := db.QueryContext(ctx, "SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type FROM contacts WHERE tenant_email = ?", tenantEmail)
+	conn := GetDB()
+	rows, err := conn.QueryContext(ctx, "SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type FROM contacts WHERE tenant_email = ?", tenantEmail)
 	if err != nil { return nil, err }
 	defer rows.Close()
 	for rows.Next() {
@@ -550,7 +564,10 @@ func GetContactByIdentifier(ctx context.Context, tenantEmail, identifier string)
 }
 
 func DeleteContactMapping(ctx context.Context, email, canonicalID string) error {
-	_, err := db.ExecContext(ctx, SQL.DeleteContactMapping, email, canonicalID)
+	err := db.New(GetDB()).DeleteContactMapping(ctx, db.DeleteContactMappingParams{
+		TenantEmail: email,
+		CanonicalID: canonicalID,
+	})
 	if err == nil {
 		metadataMu.Lock()
 		defer metadataMu.Unlock()
@@ -565,7 +582,8 @@ func DeleteContactMapping(ctx context.Context, email, canonicalID string) error 
 
 func GetContactByID(ctx context.Context, tenantEmail string, id int64) (*ContactRecord, error) {
 	var c ContactRecord
-	err := db.QueryRowContext(ctx, "SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type FROM contacts WHERE tenant_email = ? AND id = ?", tenantEmail, int64(id)).
+	conn := GetDB()
+	err := conn.QueryRowContext(ctx, "SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type FROM contacts WHERE tenant_email = ? AND id = ?", tenantEmail, int64(id)).
 		Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Source, &c.MasterContactID, &c.ContactType)
 	if err != nil {
 		return nil, err
@@ -574,19 +592,25 @@ func GetContactByID(ctx context.Context, tenantEmail string, id int64) (*Contact
 }
 
 func SearchContacts(ctx context.Context, tenantEmail, query string) ([]ContactRecord, error) {
-	rows, err := db.QueryContext(ctx, SQL.SearchContacts, tenantEmail, query, query)
+	rows, err := db.New(GetDB()).SearchContacts(ctx, db.SearchContactsParams{
+		TenantEmail: tenantEmail,
+		Column2:     sql.NullString{String: query, Valid: true},
+		Column3:     sql.NullString{String: query, Valid: true},
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
 	var results []ContactRecord
-	for rows.Next() {
-		var c ContactRecord
-		if err := rows.Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Source, &c.MasterContactID, &c.ContactType); err != nil {
-			return nil, err
-		}
-		results = append(results, c)
+	for _, r := range rows {
+		results = append(results, ContactRecord{
+			ID:              int64(r.ID),
+			TenantEmail:     r.TenantEmail,
+			CanonicalID:     r.CanonicalID,
+			DisplayName:     r.DisplayName,
+			Source:          r.Source.String,
+			MasterContactID: r.MasterContactID,
+			ContactType:     r.ContactType.String,
+		})
 	}
 	return results, nil
 }
@@ -596,7 +620,8 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 		return fmt.Errorf("cannot link a contact to itself")
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
+	conn := GetDB()
+	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -624,13 +649,21 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 	}
 
 	// 3. Link and Promote Category
-	if _, err := tx.ExecContext(ctx, SQL.UpdateContactLink, int64(masterID), tenantEmail, int64(targetID)); err != nil {
+	q := db.New(tx)
+	if err := q.UpdateContactLink(ctx, db.UpdateContactLinkParams{
+		MasterContactID: sql.NullInt64{Int64: int64(masterID), Valid: true},
+		TenantEmail:     tenantEmail,
+		ID:              int64(targetID),
+	}); err != nil {
 		return err
 	}
 	
 	finalType := PromoteContactType(masterType, targetType)
 	if finalType != masterType {
-		if _, err := tx.ExecContext(ctx, SQL.UpdateContactType, finalType, int64(masterID)); err != nil {
+		if err := q.UpdateContactType(ctx, db.UpdateContactTypeParams{
+			ContactType: sql.NullString{String: finalType, Valid: true},
+			ID:          int64(masterID),
+		}); err != nil {
 			return err
 		}
 		trace.Step(ctx, "ContactTypePromotion", fmt.Sprintf("ID:%d promoted to %s via merge", masterID, finalType), 0, int(masterID))
@@ -638,9 +671,17 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 	}
 
 	// 4. Record Merge History, DSU, and Flatten
-	_, _ = tx.ExecContext(ctx, SQL.InsertMergeHistory, int64(targetID), int64(masterID), "Manual Link")
+	_ = q.InsertMergeHistory(ctx, db.InsertMergeHistoryParams{
+		SourceContactID: int64(targetID),
+		TargetContactID: int64(masterID),
+		Reason:          "Manual Link",
+	})
 	GlobalContactDSU.Union(int64(masterID), int64(targetID))
-	if _, err := tx.ExecContext(ctx, SQL.FlattenChildren, int64(masterID), tenantEmail, int64(targetID)); err != nil {
+	if err := q.FlattenChildren(ctx, db.FlattenChildrenParams{
+		MasterContactID:   sql.NullInt64{Int64: int64(masterID), Valid: true},
+		TenantEmail:       tenantEmail,
+		MasterContactID_2: sql.NullInt64{Int64: int64(targetID), Valid: true},
+	}); err != nil {
 		return err
 	}
 
@@ -657,7 +698,10 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 }
 
 func UnlinkContact(ctx context.Context, tenantEmail string, targetID int64) error {
-	_, err := db.ExecContext(ctx, SQL.UnlinkContact, tenantEmail, int64(targetID))
+	err := db.New(GetDB()).UnlinkContact(ctx, db.UnlinkContactParams{
+		TenantEmail: tenantEmail,
+		ID:          int64(targetID),
+	})
 	if err == nil {
 		metadataMu.Lock()
 		delete(contactsCache, tenantEmail)
@@ -667,19 +711,21 @@ func UnlinkContact(ctx context.Context, tenantEmail string, targetID int64) erro
 }
 
 func GetLinkedContacts(ctx context.Context, tenantEmail string) ([]ContactRecord, error) {
-	rows, err := db.QueryContext(ctx, SQL.GetLinkedContacts, tenantEmail)
+	rows, err := db.New(GetDB()).GetLinkedContacts(ctx, tenantEmail)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
 	var results []ContactRecord
-	for rows.Next() {
-		var c ContactRecord
-		if err := rows.Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Source, &c.MasterContactID, &c.ContactType); err != nil {
-			return nil, err
-		}
-		results = append(results, c)
+	for _, r := range rows {
+		results = append(results, ContactRecord{
+			ID:              int64(r.ID),
+			TenantEmail:     r.TenantEmail,
+			CanonicalID:     r.CanonicalID,
+			DisplayName:     r.DisplayName,
+			Source:          r.Source.String,
+			MasterContactID: r.MasterContactID,
+			ContactType:     r.ContactType.String,
+		})
 	}
 	return results, nil
 }
@@ -692,7 +738,13 @@ func RegisterAlias(ctx context.Context, contactID int64, idType, value, source s
 		return nil
 	}
 
-	if _, err := db.ExecContext(ctx, SQL.AddContactAlias, int64(contactID), idType, trimmed, source, int(trust)); err != nil {
+	if err := db.New(GetDB()).AddContactAlias(ctx, db.AddContactAliasParams{
+		ContactID:       int64(contactID),
+		IdentifierType:  idType,
+		IdentifierValue: trimmed,
+		Source:          source,
+		TrustLevel:      sql.NullInt64{Int64: int64(trust), Valid: true},
+	}); err != nil {
 		return err
 	}
 
@@ -708,7 +760,9 @@ func ResolveAliases(ctx context.Context, idType, value string) ([]int64, error) 
 	trimmed := strings.ToLower(strings.TrimSpace(value))
 	
 	start := time.Now()
-	rows, err := db.QueryContext(ctx, SQL.FindContactByAlias, trimmed, idType)
+	conn := GetDB()
+	query := "SELECT contact_id FROM contact_aliases WHERE identifier_value = ? AND identifier_type = ?"
+	rows, err := conn.QueryContext(ctx, query, trimmed, idType)
 	if err != nil {
 		return nil, err
 	}
@@ -790,7 +844,10 @@ func UpdateContactType(ctx context.Context, contactID int64, cType string) error
 	}
 
 	id := int64(contactID)
-	if _, err := db.ExecContext(ctx, SQL.UpdateContactType, cType, id); err != nil {
+	if err := db.New(GetDB()).UpdateContactType(ctx, db.UpdateContactTypeParams{
+		ContactType: sql.NullString{String: cType, Valid: cType != ""},
+		ID:          id,
+	}); err != nil {
 		return err
 	}
 

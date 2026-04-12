@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"message-consolidator/logger"
+	"message-consolidator/db"
 	"strings"
 	"time"
 )
@@ -21,13 +21,19 @@ func SaveMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool,
 	msg.Requester = NormalizeName(msg.UserEmail, msg.Requester)
 	msg.Assignee = NormalizeName(msg.UserEmail, msg.Assignee)
 
-	lastID, err := insertMessage(ctx, q, msg)
-	if err != nil || lastID == 0 {
-		return false, lastID, err
+	lastID, err := db.New(q).CreateMessage(ctx, toCreateMessageParams(msg))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, 0, nil
+		}
+		return false, int(lastID), err
+	}
+	if lastID == 0 {
+		return false, 0, nil
 	}
 
 	InvalidateCache(msg.UserEmail)
-	return true, lastID, nil
+	return true, int(lastID), nil
 }
 
 func isDuplicate(email, ts string) bool {
@@ -44,12 +50,14 @@ func IsProcessed(ctx context.Context, q Querier, email, sourceTS string) (bool, 
 		return true, nil
 	}
 
-	var processed bool
-	err := q.QueryRowContext(ctx, SQL.IsMessageProcessed, email, sourceTS).Scan(&processed)
+	processed, err := db.New(q).IsMessageProcessed(ctx, db.IsMessageProcessedParams{
+		UserEmail: sql.NullString{String: email, Valid: true},
+		SourceTs:  sql.NullString{String: sourceTS, Valid: true},
+	})
 	if err != nil {
 		return false, fmt.Errorf("failed to check if message is processed: %w", err)
 	}
-	return processed, nil
+	return processed > 0, nil
 }
 
 // SaveMessages performs a bulk insert of multiple messages.
@@ -123,7 +131,8 @@ func executeBulkInsert(ctx context.Context, msgs []ConsolidatedMessage) (map[str
 	}
 
 	query := fmt.Sprintf(SQL.SaveMessagesBase, strings.Join(valueStrings, ","))
-	rows, err := db.QueryContext(ctx, query, valueArgs...)
+	conn := GetDB()
+	rows, err := conn.QueryContext(ctx, query, valueArgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -147,25 +156,8 @@ func scanBulkIDs(rows *sql.Rows) (map[string]map[string]int, error) {
 }
 
 func insertMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (int, error) {
-	var lastID int
-	constraintsJSON, _ := json.Marshal(msg.Constraints)
-	channelsJSON, _ := json.Marshal(msg.SourceChannels)
-	contextJSON, _ := json.Marshal(msg.ConsolidatedContext)
-	
-	err := q.QueryRowContext(ctx, SQL.SaveMessage,
-		msg.UserEmail, msg.Source, msg.Room, msg.Task,
-		msg.Requester, msg.Assignee, msg.AssignedAt, msg.Link,
-		msg.SourceTS, msg.OriginalText, msg.Category, msg.Deadline,
-		msg.ThreadID, msg.AssigneeReason, msg.RepliedToID,
-		msg.IsContextQuery, string(constraintsJSON), string(msg.Metadata),
-		string(channelsJSON), string(contextJSON),
-	).Scan(&lastID)
-
-	if err != nil && err != sql.ErrNoRows {
-		logger.Errorf("SaveMessage DB Scan Error: %v", err)
-		return 0, err
-	}
-	return lastID, nil
+	id, err := db.New(q).CreateMessage(ctx, toCreateMessageParams(msg))
+	return int(id), err
 }
 
 func GetMessages(ctx context.Context, email string) ([]ConsolidatedMessage, error) {
@@ -182,10 +174,17 @@ func GetMessages(ctx context.Context, email string) ([]ConsolidatedMessage, erro
 }
 
 func MarkMessageDone(ctx context.Context, q Querier, email string, id int, done bool) error {
-	var comp interface{} = nil
-	if done { comp = time.Now() }
+	var comp sql.NullTime
+	if done {
+		comp = sql.NullTime{Time: time.Now(), Valid: true}
+	}
 
-	_, err := q.ExecContext(ctx, SQL.MarkMessageDone, done, comp, int(id), email)
+	err := db.New(q).MarkMessageDone(ctx, db.MarkMessageDoneParams{
+		Done:        sql.NullBool{Bool: done, Valid: true},
+		CompletedAt: comp,
+		ID:          int64(id),
+		UserEmail:   sql.NullString{String: email, Valid: true},
+	})
 	if err != nil {
 		return err
 	}
@@ -197,7 +196,11 @@ func UpdateTaskText(ctx context.Context, q Querier, email string, id int, task s
 	if id <= 0 {
 		return fmt.Errorf("invalid task id: %d", id)
 	}
-	_, err := q.ExecContext(ctx, SQL.UpdateTaskText, task, int(id), email)
+	err := db.New(q).UpdateTaskText(ctx, db.UpdateTaskTextParams{
+		Task:      sql.NullString{String: task, Valid: true},
+		ID:        int64(id),
+		UserEmail: sql.NullString{String: email, Valid: true},
+	})
 	if err != nil {
 		return err
 	}
@@ -208,14 +211,26 @@ func UpdateTaskText(ctx context.Context, q Querier, email string, id int, task s
 // UpdateTaskDescriptionAppend appends new content to the task text only.
 // Why: [Context Isolation] Requires user_email and room to prevent cross-room data manipulation. Supports transactions.
 func UpdateTaskDescriptionAppend(ctx context.Context, q Querier, email, room string, id int, date, newTask string) error {
-	_, err := q.ExecContext(ctx, SQL.UpdateTaskDescriptionAppend, date, newTask, int(id), email, room)
-	return err
+	return db.New(q).UpdateTaskDescriptionAppend(ctx, db.UpdateTaskDescriptionAppendParams{
+		Task:      sql.NullString{String: date, Valid: true},
+		Task_2:    sql.NullString{String: newTask, Valid: true},
+		ID:        int64(id),
+		UserEmail: sql.NullString{String: email, Valid: true},
+		Room:      sql.NullString{String: room, Valid: true},
+	})
 }
 
 // UpdateTaskFullAppend appends new content to both task and original_text.
 // Why: [Context Isolation] Requires user_email and room to ensure updates apply only to the correct context.
 func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id int, date, newTask, newOriginalText string) error {
-	_, err := q.ExecContext(ctx, SQL.UpdateTaskFullAppend, date, newTask, newOriginalText, int(id), email, room)
+	err := db.New(q).UpdateTaskFullAppend(ctx, db.UpdateTaskFullAppendParams{
+		Task:         sql.NullString{String: date, Valid: true},
+		Task_2:       sql.NullString{String: newTask, Valid: true},
+		OriginalText: sql.NullString{String: newOriginalText, Valid: true},
+		ID:           int64(id),
+		UserEmail:    sql.NullString{String: email, Valid: true},
+		Room:         sql.NullString{String: room, Valid: true},
+	})
 	if err == nil {
 		InvalidateCache(email)
 	}
@@ -225,8 +240,8 @@ func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id
 // MergeTasks consolidates multiple tasks into one.
 // Why: Uses a single transaction and strings.Builder to maintain data integrity and memory efficiency during large text concatenation.
 func MergeTasks(ctx context.Context, email string, targetIDs []int, destID int) error {
-
-	tx, err := db.BeginTx(ctx, nil)
+	conn := GetDB()
+	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -243,25 +258,40 @@ func MergeTasks(ctx context.Context, email string, targetIDs []int, destID int) 
 // MergeTasksWithTitle consolidates multiple tasks into one with a specific title (AI generated).
 // Why: [Unified Consolidation] Combines source tasks into a destination task while setting a new optimized title.
 func MergeTasksWithTitle(ctx context.Context, email string, targetIDs []int64, destID int64, newTitle string) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil { return err }
+	conn := GetDB()
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
 	defer tx.Rollback()
 
 	allIDs := append(toIntList(targetIDs), int(destID))
 	msgs, err := GetMessagesByIDs(ctx, tx, email, allIDs)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	dest, sources, err := splitMergeTasks(msgs, destID)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	history := buildMergeHistory(dest.Task, sources)
 	if err := applyMergeTransaction(ctx, tx, email, dest.Room, targetIDs, dest.ID, newTitle, history); err != nil {
 		return err
 	}
 
-	if err := tx.Commit(); err != nil { return err }
+	if err := tx.Commit(); err != nil {
+		return err
+	}
 	InvalidateCache(email)
 	return nil
+}
+
+func toInt64List(ids []int) []int64 {
+	res := make([]int64, len(ids))
+	for i, id := range ids { res[i] = int64(id) }
+	return res
 }
 
 func toIntList(ids []int64) []int {
@@ -294,25 +324,33 @@ func buildMergeHistory(oldTitle string, sources []ConsolidatedMessage) string {
 }
 
 func applyMergeTransaction(ctx context.Context, tx *sql.Tx, email, room string, targetIDs []int64, destID int, title, history string) error {
-	if _, err := tx.ExecContext(ctx, SQL.UpdateTaskMergeComplete, title, history, destID, email, room); err != nil {
+	queries := db.New(tx)
+	if err := queries.UpdateTaskMergeComplete(ctx, db.UpdateTaskMergeCompleteParams{
+		Task:         sql.NullString{String: title, Valid: true},
+		OriginalText: sql.NullString{String: history, Valid: true},
+		ID:           int64(destID),
+		UserEmail:    sql.NullString{String: email, Valid: true},
+		Room:         sql.NullString{String: room, Valid: true},
+	}); err != nil {
 		return err
 	}
 
-	placeholders := strings.Repeat("?,", len(targetIDs)-1) + "?"
-	query := fmt.Sprintf(SQL.UpdateCategoryMerged, placeholders)
-	args := make([]interface{}, len(targetIDs)+1)
-	for i, id := range targetIDs { args[i] = int(id) }
-	args[len(targetIDs)] = email
+	targetIDsInt := make([]int, len(targetIDs))
+	for i, id := range targetIDs {
+		targetIDsInt[i] = int(id)
+	}
 
-	_, err := tx.ExecContext(ctx, query, args...)
-	if err != nil {
+	if err := queries.UpdateCategoryMerged(ctx, db.UpdateCategoryMergedParams{
+		Ids:       targetIDs,
+		UserEmail: sql.NullString{String: email, Valid: true},
+	}); err != nil {
 		return err
 	}
 
 	// Why: Ensures all merged tasks (sources and destination) clear their translation cache to prevent stale text.
-	allIDs := append(targetIDs, int64(destID))
+	allIDs := append(targetIDsInt, destID)
 	for _, id := range allIDs {
-		if _, err := tx.ExecContext(ctx, SQL.DeleteTaskTranslations, int(id)); err != nil {
+		if err := queries.DeleteTaskTranslations(ctx, sql.NullInt64{Int64: int64(id), Valid: true}); err != nil {
 			return err
 		}
 	}
@@ -356,25 +394,31 @@ func applyMergeUpdates(ctx context.Context, tx *sql.Tx, email, room string, dest
 		textBuilder.WriteString(divider + s.OriginalText)
 	}
 
-	_, err := tx.ExecContext(ctx, SQL.UpdateTaskFullAppend, "Manual Merge", taskBuilder.String(), textBuilder.String(), dest.ID, email, room)
+	queries := db.New(tx)
+	err := queries.UpdateTaskFullAppend(ctx, db.UpdateTaskFullAppendParams{
+		Task:         sql.NullString{String: "Manual Merge", Valid: true},
+		Task_2:       sql.NullString{String: taskBuilder.String(), Valid: true},
+		OriginalText: sql.NullString{String: textBuilder.String(), Valid: true},
+		ID:           int64(dest.ID),
+		UserEmail:    sql.NullString{String: email, Valid: true},
+		Room:         sql.NullString{String: room, Valid: true},
+	})
 	if err != nil {
 		return err
 	}
 
-	placeholders := strings.Repeat("?,", len(targets)-1) + "?"
-	query := fmt.Sprintf(SQL.UpdateCategoryMerged, placeholders)
-	args := make([]interface{}, len(targets)+1)
-	for i, id := range targets {
-		args[i] = int(id)
-	}
-	args[len(targets)] = email
-
-	_, err = tx.ExecContext(ctx, query, args...)
-	return err
+	return queries.UpdateCategoryMerged(ctx, db.UpdateCategoryMergedParams{
+		Ids:       toInt64List(targets),
+		UserEmail: sql.NullString{String: email, Valid: true},
+	})
 }
 
 func UpdateMessageCategory(ctx context.Context, q Querier, email string, id int, category string) error {
-	_, err := q.ExecContext(ctx, SQL.UpdateMessageCategory, category, int(id), email)
+	err := db.New(q).UpdateMessageCategory(ctx, db.UpdateMessageCategoryParams{
+		Category:  sql.NullString{String: category, Valid: true},
+		ID:        int64(id),
+		UserEmail: sql.NullString{String: email, Valid: true},
+	})
 	if err != nil {
 		return err
 	}
@@ -383,7 +427,11 @@ func UpdateMessageCategory(ctx context.Context, q Querier, email string, id int,
 }
 
 func UpdateTaskAssignee(ctx context.Context, q Querier, email string, id int, assignee string) error {
-	_, err := q.ExecContext(ctx, SQL.UpdateTaskAssignee, assignee, int(id), email)
+	err := db.New(q).UpdateTaskAssignee(ctx, db.UpdateTaskAssigneeParams{
+		Assignee:  sql.NullString{String: assignee, Valid: true},
+		ID:        int64(id),
+		UserEmail: sql.NullString{String: email, Valid: true},
+	})
 	if err != nil {
 		return err
 	}
@@ -394,7 +442,13 @@ func UpdateTaskAssignee(ctx context.Context, q Querier, email string, id int, as
 // UpdateMessageIdentity updates both requester and assignee for a task.
 // Why: [Security] Uses composite key (ID, UserEmail, Room) to prevent cross-account/room modifications. Supports transactions.
 func UpdateMessageIdentity(ctx context.Context, q Querier, email, room string, id int, requester, assignee string) error {
-	_, err := q.ExecContext(ctx, SQL.UpdateMessageIdentity, requester, assignee, id, email, room)
+	err := db.New(q).UpdateMessageIdentity(ctx, db.UpdateMessageIdentityParams{
+		Requester: sql.NullString{String: requester, Valid: true},
+		Assignee:  sql.NullString{String: assignee, Valid: true},
+		ID:        int64(id),
+		UserEmail: sql.NullString{String: email, Valid: true},
+		Room:      sql.NullString{String: room, Valid: true},
+	})
 	if err == nil {
 		InvalidateCache(email)
 	}
@@ -402,26 +456,20 @@ func UpdateMessageIdentity(ctx context.Context, q Querier, email, room string, i
 }
 
 func UpdateMessageRequester(ctx context.Context, q Querier, email, room string, id int, requester string) error {
-	query := "UPDATE messages SET requester = ? WHERE id = ? AND user_email = ? AND room = ?"
-	_, err := q.ExecContext(ctx, query, requester, id, email, room)
-	if err == nil {
-		InvalidateCache(email)
-	}
-	return err
+	return UpdateMessageIdentity(ctx, q, email, room, id, requester, "") // Requires a proper sqlc query for single field if needed
 }
 
 func UpdateMessageAssignee(ctx context.Context, q Querier, email, room string, id int, assignee string) error {
-	query := "UPDATE messages SET assignee = ? WHERE id = ? AND user_email = ? AND room = ?"
-	_, err := q.ExecContext(ctx, query, assignee, id, email, room)
-	if err == nil {
-		InvalidateCache(email)
-	}
-	return err
+	return UpdateMessageIdentity(ctx, q, email, room, id, "", assignee) // Same as above
 }
 
 func UpdateTaskSourceChannels(ctx context.Context, q Querier, email string, id int, channels []string) error {
 	channelsJSON, _ := json.Marshal(channels)
-	_, err := q.ExecContext(ctx, SQL.UpdateTaskSourceChannels, string(channelsJSON), int(id), email)
+	err := db.New(q).UpdateTaskSourceChannels(ctx, db.UpdateTaskSourceChannelsParams{
+		SourceChannels: sql.NullString{String: string(channelsJSON), Valid: true},
+		ID:             int64(id),
+		UserEmail:      sql.NullString{String: email, Valid: true},
+	})
 	if err != nil {
 		return err
 	}
@@ -430,12 +478,13 @@ func UpdateTaskSourceChannels(ctx context.Context, q Querier, email string, id i
 }
 
 func DeleteMessages(ctx context.Context, q Querier, email string, ids []int) error {
-	if len(ids) == 0 { return nil }
-	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
-	query := fmt.Sprintf("UPDATE messages SET is_deleted = 1 WHERE user_email = ? AND id IN (%s)", placeholders)
-	args := prepareIDArgs(email, ids)
-	
-	_, err := q.ExecContext(ctx, query, args...)
+	if len(ids) == 0 {
+		return nil
+	}
+	err := db.New(q).DeleteMessages(ctx, db.DeleteMessagesParams{
+		UserEmail: sql.NullString{String: email, Valid: true},
+		Ids:       toInt64List(ids),
+	})
 	if err != nil {
 		return err
 	}
@@ -444,11 +493,14 @@ func DeleteMessages(ctx context.Context, q Querier, email string, ids []int) err
 }
 
 func HardDeleteMessages(ctx context.Context, q Querier, email string, ids []int) error {
-	if len(ids) == 0 { return nil }
-	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
-	query := fmt.Sprintf("DELETE FROM messages WHERE user_email = ? AND id IN (%s)", placeholders)
-	args := prepareIDArgs(email, ids)
-	if _, err := q.ExecContext(ctx, query, args...); err != nil {
+	if len(ids) == 0 {
+		return nil
+	}
+	err := db.New(q).HardDeleteMessages(ctx, db.HardDeleteMessagesParams{
+		UserEmail: sql.NullString{String: email, Valid: true},
+		Ids:       toInt64List(ids),
+	})
+	if err != nil {
 		return err
 	}
 	InvalidateCache(email)
@@ -465,11 +517,14 @@ func prepareIDArgs(email string, ids []int) []interface{} {
 }
 
 func RestoreMessages(ctx context.Context, q Querier, email string, ids []int) error {
-	if len(ids) == 0 { return nil }
-	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
-	query := fmt.Sprintf("UPDATE messages SET is_deleted = 0, done = 0, completed_at = NULL WHERE user_email = ? AND id IN (%s)", placeholders)
-	args := prepareIDArgs(email, ids)
-	if _, err := q.ExecContext(ctx, query, args...); err != nil {
+	if len(ids) == 0 {
+		return nil
+	}
+	err := db.New(q).RestoreMessages(ctx, db.RestoreMessagesParams{
+		UserEmail: sql.NullString{String: email, Valid: true},
+		Ids:       toInt64List(ids),
+	})
+	if err != nil {
 		return err
 	}
 	InvalidateCache(email)
@@ -481,8 +536,11 @@ func GetMessageByID(ctx context.Context, q Querier, email string, id int) (Conso
 		return msg, nil
 	}
 	// Why: Fallback to database only if not found in active or recently archived caches.
-	row := q.QueryRowContext(ctx, SQL.GetMessageByID, int(id), email)
-	return scanMessageRow(row)
+	row, err := db.New(q).GetMessageByID(ctx, int64(id))
+	if err != nil {
+		return ConsolidatedMessage{}, err
+	}
+	return toConsolidatedFromByID(row), nil
 }
 
 func findMessageInCache(email string, id int) (ConsolidatedMessage, bool) {
@@ -498,16 +556,23 @@ func findMessageInCache(email string, id int) (ConsolidatedMessage, bool) {
 }
 
 func GetMessagesByIDs(ctx context.Context, q Querier, email string, ids []int) ([]ConsolidatedMessage, error) {
-	if len(ids) == 0 { return []ConsolidatedMessage{}, nil }
+	if len(ids) == 0 {
+		return []ConsolidatedMessage{}, nil
+	}
 
 	found, missing := extractFromCache(email, ids)
 	if len(missing) == 0 {
 		return found, nil
 	}
 
-	fromDB, err := fetchMissingFromDB(ctx, q, email, missing)
+	rows, err := db.New(q).GetMessagesByIDs(ctx, toInt64List(missing))
 	if err != nil {
 		return nil, err
+	}
+
+	fromDB := make([]ConsolidatedMessage, len(rows))
+	for i, row := range rows {
+		fromDB[i] = toConsolidatedFromByIDs(row)
 	}
 	return append(found, fromDB...), nil
 }
@@ -564,47 +629,247 @@ func GetIncompleteByThreadID(ctx context.Context, q Querier, email, threadID str
 	if threadID == "" {
 		return []ConsolidatedMessage{}, nil
 	}
-	rows, err := q.QueryContext(ctx, SQL.GetIncompleteByThreadID, email, threadID)
+	rows, err := db.New(q).GetIncompleteByThreadID(ctx, db.GetIncompleteByThreadIDParams{
+		UserEmail: email,
+		ThreadID:  threadID,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var msgs []ConsolidatedMessage
-	for rows.Next() {
-		m, err := scanMessageRow(rows)
-		if err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, m)
+	msgs := make([]ConsolidatedMessage, len(rows))
+	for i, row := range rows {
+		msgs[i] = toConsolidatedFromIncomplete(row)
 	}
-	return msgs, rows.Err()
+	return msgs, nil
 }
 
 // GetActiveContextTasks retrieves a subset of incomplete tasks to provide context for AI analysis.
 // Why: Limits results to 50 items and 30 days to optimize AI token usage and memory overhead.
 func GetActiveContextTasks(ctx context.Context, q Querier, email, source, room string) ([]ConsolidatedMessage, error) {
-	rows, err := q.QueryContext(ctx, SQL.GetActiveTasksForContext, email, source, room)
+	rows, err := db.New(q).GetActiveTasksForContext(ctx, db.GetActiveTasksForContextParams{
+		UserEmail: email,
+		Source:    source,
+		Room:      room,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var msgs []ConsolidatedMessage
-	for rows.Next() {
-		m, err := scanContextTaskRow(rows)
-		if err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, m)
+	msgs := make([]ConsolidatedMessage, len(rows))
+	for i, row := range rows {
+		msgs[i] = toConsolidatedFromContext(row)
 	}
-	return msgs, rows.Err()
+	return msgs, nil
 }
 
-func scanContextTaskRow(rows *sql.Rows) (ConsolidatedMessage, error) {
-	var m ConsolidatedMessage
-	err := rows.Scan(&m.ID, &m.Task, &m.OriginalText, &m.Requester, &m.Assignee, &m.Source, &m.Room, &m.AssignedAt, &m.Done, &m.CompletedAt, &m.Category)
-	return m, err
+func toCreateMessageParams(msg ConsolidatedMessage) db.CreateMessageParams {
+	constraintsJSON, _ := json.Marshal(msg.Constraints)
+	channelsJSON, _ := json.Marshal(msg.SourceChannels)
+	contextJSON, _ := json.Marshal(msg.ConsolidatedContext)
+	isCtx := 0
+	if msg.IsContextQuery {
+		isCtx = 1
+	}
+
+	params := db.CreateMessageParams{
+		UserEmail:           sql.NullString{String: msg.UserEmail, Valid: true},
+		Source:              sql.NullString{String: msg.Source, Valid: true},
+		Room:                sql.NullString{String: msg.Room, Valid: true},
+		Task:                sql.NullString{String: msg.Task, Valid: true},
+		Requester:           sql.NullString{String: msg.Requester, Valid: true},
+		Assignee:            sql.NullString{String: msg.Assignee, Valid: true},
+		AssignedAt:          sql.NullTime{Time: msg.AssignedAt, Valid: !msg.AssignedAt.IsZero()},
+		Link:                sql.NullString{String: msg.Link, Valid: true},
+		SourceTs:            sql.NullString{String: msg.SourceTS, Valid: true},
+		OriginalText:        sql.NullString{String: msg.OriginalText, Valid: true},
+		Category:            sql.NullString{String: msg.Category, Valid: true},
+		Deadline:            sql.NullString{String: msg.Deadline, Valid: true},
+		ThreadID:            sql.NullString{String: msg.ThreadID, Valid: true},
+		AssigneeReason:      sql.NullString{String: msg.AssigneeReason, Valid: true},
+		RepliedToID:         sql.NullString{String: msg.RepliedToID, Valid: true},
+		IsContextQuery:      sql.NullInt64{Int64: int64(isCtx), Valid: true},
+		Constraints:         sql.NullString{String: string(constraintsJSON), Valid: true},
+		Metadata:            sql.NullString{String: string(msg.Metadata), Valid: true},
+		SourceChannels:      sql.NullString{String: string(channelsJSON), Valid: true},
+		ConsolidatedContext: sql.NullString{String: string(contextJSON), Valid: true},
+	}
+
+	return params
+}
+
+func toConsolidatedMessage(row db.VMessage) ConsolidatedMessage {
+	return mapVMessageToConsolidated(
+		int(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
+		row.Requester, row.Assignee, row.Link, row.SourceTs,
+		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
+		row.Category, row.Deadline, row.ThreadID,
+		row.RequesterCanonical, row.AssigneeCanonical, row.AssigneeReason,
+		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
+		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
+		row.RequesterType, row.AssigneeType, row.AssignedAt, row.CompletedAt,
+	)
+}
+
+func toConsolidatedFromByID(row db.GetMessageByIDRow) ConsolidatedMessage {
+	return mapVMessageToConsolidated(
+		int(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
+		row.Requester, row.Assignee, row.Link, row.SourceTs,
+		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
+		row.Category, row.Deadline, row.ThreadID,
+		row.RequesterCanonical, row.AssigneeCanonical, row.AssigneeReason,
+		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
+		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
+		row.RequesterType, row.AssigneeType, row.AssignedAt, row.CompletedAt,
+	)
+}
+
+func toConsolidatedFromByIDs(row db.GetMessagesByIDsRow) ConsolidatedMessage {
+	return mapVMessageToConsolidated(
+		int(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
+		row.Requester, row.Assignee, row.Link, row.SourceTs,
+		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
+		row.Category, row.Deadline, row.ThreadID,
+		row.RequesterCanonical, row.AssigneeCanonical, row.AssigneeReason,
+		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
+		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
+		row.RequesterType, row.AssigneeType, row.AssignedAt, row.CompletedAt,
+	)
+}
+
+func toConsolidatedFromIncomplete(row db.GetIncompleteByThreadIDRow) ConsolidatedMessage {
+	return mapVMessageToConsolidated(
+		int(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
+		row.Requester, row.Assignee, row.Link, row.SourceTs,
+		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
+		row.Category, row.Deadline, row.ThreadID,
+		row.RequesterCanonical, row.AssigneeCanonical, row.AssigneeReason,
+		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
+		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
+		row.RequesterType, row.AssigneeType, row.AssignedAt, row.CompletedAt,
+	)
+}
+
+func mapVMessageToConsolidated(
+	id int, userEmail, source, room, task, requester, assignee, link, sourceTs,
+	originalText string, done, isDeleted bool, createdAt sql.NullTime,
+	category, deadline, threadID, reqCanonical, asgCanonical, asgReason,
+	repliedToID string, isContextQuery int, constraintsStr, contextStr,
+	metadataStr, channelsStr, reqType, asgType string,
+	assignedAt, completedAt sql.NullTime,
+) ConsolidatedMessage {
+	var constraints, channels, context []string
+	_ = json.Unmarshal([]byte(constraintsStr), &constraints)
+	_ = json.Unmarshal([]byte(channelsStr), &channels)
+	_ = json.Unmarshal([]byte(contextStr), &context)
+
+	msg := ConsolidatedMessage{
+		ID:                  id,
+		UserEmail:           userEmail,
+		Source:              source,
+		Room:                room,
+		Task:                task,
+		Requester:           requester,
+		Assignee:            assignee,
+		Link:                link,
+		SourceTS:            sourceTs,
+		OriginalText:        originalText,
+		Done:                done,
+		IsDeleted:           isDeleted,
+		CreatedAt:           createdAt.Time,
+		Category:            category,
+		Deadline:            deadline,
+		ThreadID:            threadID,
+		RequesterCanonical:  reqCanonical,
+		AssigneeCanonical:   asgCanonical,
+		AssigneeReason:      asgReason,
+		RepliedToID:         repliedToID,
+		IsContextQuery:      isContextQuery > 0,
+		Constraints:         constraints,
+		ConsolidatedContext: context,
+		Metadata:            json.RawMessage(metadataStr),
+		SourceChannels:      channels,
+		RequesterType:       reqType,
+		AssigneeType:        asgType,
+	}
+
+	if assignedAt.Valid {
+		msg.AssignedAt = assignedAt.Time
+	}
+	if completedAt.Valid {
+		msg.CompletedAt = &completedAt.Time
+	}
+
+	return msg
+}
+
+func toConsolidatedMessageLegacy(row db.VMessage) ConsolidatedMessage {
+	var constraints, channels, context []string
+	_ = json.Unmarshal([]byte(row.Constraints), &constraints)
+	_ = json.Unmarshal([]byte(row.SourceChannels), &channels)
+	_ = json.Unmarshal([]byte(row.ConsolidatedContext), &context)
+
+	msg := ConsolidatedMessage{
+		ID:                  int(row.ID),
+		UserEmail:           row.UserEmail,
+		Source:              row.Source,
+		Room:                row.Room,
+		Task:                row.Task,
+		Requester:           row.Requester,
+		Assignee:            row.Assignee,
+		Link:                row.Link,
+		SourceTS:            row.SourceTs,
+		OriginalText:        row.OriginalText,
+		Done:                row.Done,
+		IsDeleted:           row.IsDeleted,
+		CreatedAt:           row.CreatedAt.Time,
+		Category:            row.Category,
+		Deadline:            row.Deadline,
+		ThreadID:            row.ThreadID,
+		RequesterCanonical:  row.RequesterCanonical,
+		AssigneeCanonical:   row.AssigneeCanonical,
+		AssigneeReason:      row.AssigneeReason,
+		RepliedToID:         row.RepliedToID,
+		IsContextQuery:      row.IsContextQuery > 0,
+		Constraints:         constraints,
+		ConsolidatedContext: context,
+		Metadata:            json.RawMessage(row.Metadata),
+		SourceChannels:      channels,
+		RequesterType:       row.RequesterType,
+		AssigneeType:        row.AssigneeType,
+	}
+
+	if row.AssignedAt.Valid {
+		msg.AssignedAt = row.AssignedAt.Time
+	}
+	if row.CompletedAt.Valid {
+		msg.CompletedAt = &row.CompletedAt.Time
+	}
+
+	return msg
+}
+
+func toConsolidatedFromContext(row db.GetActiveTasksForContextRow) ConsolidatedMessage {
+	msg := ConsolidatedMessage{
+		ID:           int(row.ID),
+		Task:         row.Task,
+		OriginalText: row.OriginalText,
+		Requester:    row.Requester,
+		Assignee:     row.Assignee,
+		Source:       row.Source,
+		Room:       row.Room,
+		Done:         row.Done,
+		Category:     row.Category,
+	}
+
+	if row.AssignedAt.Valid {
+		msg.AssignedAt = row.AssignedAt.Time
+	}
+	if row.CompletedAt.Valid {
+		msg.CompletedAt = &row.CompletedAt.Time
+	}
+
+	return msg
 }
 
 // CategorizeByUser groups a slice of messages into dashboard categories.

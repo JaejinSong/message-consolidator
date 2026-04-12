@@ -1,9 +1,14 @@
 package store
 
 import (
+	"context"
 	"fmt"
+	"message-consolidator/db"
 	"sync"
+	"time"
 )
+
+import "database/sql"
 
 func GetUserStats(email string, userTz string) (UserStats, error) {
 	var stats UserStats
@@ -14,67 +19,85 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 
 	var wg sync.WaitGroup
 
-	//Why: Calculates the SQLite offset based on the user's timezone to ensure consistent date aggregation.
 	sqliteOffset := GetSQLiteOffset(userTz)
 
-	//Why: Retrieves the total count of completed tasks for the high-level stats overview.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_ = db.QueryRow(SQL.GetTotalCompleted, email).Scan(&stats.TotalCompleted)
+		conn := GetDB()
+		queries := db.New(conn)
+		totalCount, _ := queries.GetTotalCompleted(context.Background(), email)
+		stats.TotalCompleted = int(totalCount)
 	}()
 
-	//Why: Fetches the count of tasks that are still pending action by the current user.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		var userName string
-		_ = db.QueryRow(SQL.GetUserByEmailSimple, email).Scan(&userName)
-		_ = db.QueryRow(SQL.GetPendingMe, email, userName).Scan(&stats.PendingMe)
+		conn := GetDB()
+		queries := db.New(conn)
+		userName, _ := queries.GetUserByEmailSimple(context.Background(), sql.NullString{String: email, Valid: true})
+		pendingCount, _ := queries.GetPendingMe(context.Background(), db.GetPendingMeParams{
+			Column1: email,
+			Column2: userName,
+		})
+		stats.PendingMe = int(pendingCount)
 	}()
 
-	//Why: Loads the user's daily task completion goal, defaulting to 5 if not set.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_ = db.QueryRow(SQL.GetDailyGoal, email).Scan(&stats.DailyGoal)
+		conn := GetDB()
+		queries := db.New(conn)
+		goalCount, _ := queries.GetDailyGoal(context.Background(), sql.NullString{String: email, Valid: true})
+		stats.DailyGoal = int(goalCount)
 		if stats.DailyGoal <= 0 {
 			stats.DailyGoal = 5 // Default
 		}
 	}()
 
-	//Why: Aggregates task completions by day for the last 30 days to populate activity charts.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rows, err := db.Query(SQL.GetDailyCompletions, sqliteOffset, email, sqliteOffset)
+		conn := GetDB()
+		queries := db.New(conn)
+		rows, err := queries.GetDailyCompletions(context.Background(), db.GetDailyCompletionsParams{
+			Strftime:  sqliteOffset,
+			UserEmail: sql.NullString{String: email, Valid: true},
+			Datetime:  sqliteOffset,
+		})
 		if err == nil {
-			defer rows.Close()
-			for rows.Next() {
-				var d string
-				var c int
-				if err := rows.Scan(&d, &c); err == nil {
-					stats.DailyCompletions[d] = c
+			for _, row := range rows {
+				if d, ok := row.D.(string); ok {
+					stats.DailyCompletions[d] = int(row.C)
 				}
 			}
 		}
 	}()
 
-	//Why: Distributes task completions by hour of the day and identifies peak productivity windows.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rows, err := db.Query(SQL.GetHourlyActivity, sqliteOffset, email)
+		conn := GetDB()
+		queries := db.New(conn)
+		rows, err := queries.GetHourlyActivity(context.Background(), db.GetHourlyActivityParams{
+			Strftime:  sqliteOffset,
+			UserEmail: sql.NullString{String: email, Valid: true},
+		})
 		if err == nil {
-			defer rows.Close()
-			for rows.Next() {
-				var hr, count int
-				if err := rows.Scan(&hr, &count); err == nil {
-					stats.HourlyActivity[hr] = count
+			for _, row := range rows {
+				hrStr := ""
+				if s, ok := row.Hr.(string); ok {
+					hrStr = s
+				} else if b, ok := row.Hr.([]byte); ok {
+					hrStr = string(b)
+				}
+				if hrStr != "" {
+					var hr int
+					fmt.Sscanf(hrStr, "%d", &hr)
+					stats.HourlyActivity[hr] = int(row.C)
 				}
 			}
 		}
-		//Why: Identifies the hour with the highest completion count to label as the peak productivity time.
 		maxCount := -1
 		peakHour := -1
 		for h := 0; h < 24; h++ {
@@ -91,104 +114,102 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		}
 	}()
 
-	//Why: Counts tasks that have been inactive for more than three days, excluding personal tasks.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		var userName string
-		_ = db.QueryRow(SQL.GetUserByEmailSimple, email).Scan(&userName)
-		threshold := GetLocalThreshold(userTz, 3)
-		_ = db.QueryRow(SQL.GetAbandonedTasks, email, threshold, userName).Scan(&stats.AbandonedTasks)
+		conn := GetDB()
+		queries := db.New(conn)
+		userName, _ := queries.GetUserByEmailSimple(context.Background(), sql.NullString{String: email, Valid: true})
+		thresholdStr := GetLocalThreshold(userTz, 3)
+		threshold, _ := time.Parse(time.RFC3339, thresholdStr)
+		abandonedCount, _ := queries.GetAbandonedTasks(context.Background(), db.GetAbandonedTasksParams{
+			UserEmail: email,
+			CreatedAt: sql.NullTime{Time: threshold, Valid: !threshold.IsZero()},
+			Assignee:  userName,
+		})
+		stats.AbandonedTasks = int(abandonedCount)
 	}()
 
-	//Why: Counts incomplete tasks assigned to others (SSOT for frontend tabs).
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		var userName string
-		_ = db.QueryRow(SQL.GetUserByEmailSimple, email).Scan(&userName)
-		_ = db.QueryRow(SQL.GetPendingOthers, email, userName).Scan(&stats.PendingOthers)
+		conn := GetDB()
+		queries := db.New(conn)
+		userName, _ := queries.GetUserByEmailSimple(context.Background(), sql.NullString{String: email, Valid: true})
+		pendingOthersCount, _ := queries.GetPendingOthers(context.Background(), db.GetPendingOthersParams{
+			UserEmail: email,
+			Assignee:  userName,
+		})
+		stats.PendingOthers = int(pendingOthersCount)
 	}()
 
-	// Contact Type specific counts (Internal/Partner/Customer/None)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rows, err := db.Query(SQL.GetTaskCountByContactType, email)
+		conn := GetDB()
+		queries := db.New(conn)
+		rows, err := queries.GetTaskCountByContactType(context.Background(), email)
 		if err == nil {
-			defer rows.Close()
-			for rows.Next() {
-				var cType string
-				var count int
-				if err := rows.Scan(&cType, &count); err == nil {
-					switch cType {
-					case "internal":
-						stats.InternalTaskCount = count
-					case "partner":
-						stats.PartnerTaskCount = count
-					case "customer":
-						stats.CustomerTaskCount = count
-					default:
-						stats.ExternalTaskCount += count
-					}
+			for _, row := range rows {
+				switch row.ContactType {
+				case "internal":
+					stats.InternalTaskCount = int(row.Count)
+				case "partner":
+					stats.PartnerTaskCount = int(row.Count)
+				case "customer":
+					stats.CustomerTaskCount = int(row.Count)
+				default:
+					stats.ExternalTaskCount += int(row.Count)
 				}
 			}
 		}
 	}()
 
-	//Why: Calculates the distribution of tasks across different communication sources (Active & Total).
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		// Active
-		rows, err := db.Query(SQL.GetSourceDistributionActive, email)
+		conn := GetDB()
+		queries := db.New(conn)
+		rows, err := queries.GetSourceDistributionActive(context.Background(), email)
 		if err == nil {
-			defer rows.Close()
-			for rows.Next() {
-				var s string
-				var c int
-				if err := rows.Scan(&s, &c); err == nil {
-					stats.SourceDistribution[s] = c
-				}
+			for _, row := range rows {
+				stats.SourceDistribution[row.Source] = int(row.Count)
 			}
 		}
-		// Total (including archive)
-		rowsTotal, err := db.Query(SQL.GetSourceDistributionTotal, email)
+		rowsTotal, err := queries.GetSourceDistributionTotal(context.Background(), email)
 		if err == nil {
-			defer rowsTotal.Close()
-			for rowsTotal.Next() {
-				var s string
-				var c int
-				if err := rowsTotal.Scan(&s, &c); err == nil {
-					stats.SourceDistributionTotal[s] = c
-				}
+			for _, row := range rowsTotal {
+				stats.SourceDistributionTotal[row.Source] = int(row.Count)
 			}
 		}
 	}()
 
-	//Why: Builds a detailed 365-day completion history to populate the contribution heatmap (Anki-style chart).
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rows, err := db.Query(SQL.GetCompletionHistory, sqliteOffset, email, sqliteOffset)
+		conn := GetDB()
+		queries := db.New(conn)
+		rows, err := queries.GetCompletionHistory(context.Background(), db.GetCompletionHistoryParams{
+			Strftime:  sqliteOffset,
+			UserEmail: sql.NullString{String: email, Valid: true},
+			Datetime:  sqliteOffset,
+		})
 		if err == nil {
-			defer rows.Close()
 			var currentData string
 			currentCounts := make(map[string]int)
-
-			for rows.Next() {
-				var d, s string
-				var c int
-				if err := rows.Scan(&d, &s, &c); err == nil {
-					if d != currentData {
-						if currentData != "" {
-							stats.CompletionHistory = append(stats.CompletionHistory, TimeSeriesPoint{Date: currentData, Counts: currentCounts})
-						}
-						currentData = d
-						currentCounts = make(map[string]int)
-					}
-					currentCounts[s] = c
+			for _, row := range rows {
+				d := ""
+				if s, ok := row.CDate.(string); ok {
+					d = s
 				}
+				if d != currentData {
+					if currentData != "" {
+						stats.CompletionHistory = append(stats.CompletionHistory, TimeSeriesPoint{Date: currentData, Counts: currentCounts})
+					}
+					currentData = d
+					currentCounts = make(map[string]int)
+				}
+				currentCounts[row.Source.String] = int(row.Count)
 			}
 			if currentData != "" {
 				stats.CompletionHistory = append(stats.CompletionHistory, TimeSeriesPoint{Date: currentData, Counts: currentCounts})
@@ -196,8 +217,6 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		}
 	}()
 
-	//Why: Synchronizes the completion of all parallel database queries before returning the aggregated stats.
 	wg.Wait()
-
 	return stats, nil
 }

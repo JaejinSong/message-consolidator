@@ -1,28 +1,36 @@
-# [Project Specific: Project GEM Addon]
+# [PROJECT: MESSAGE CONSOLIDATOR SETTINGS]
 
-## 0. Mandatory Operation Protocol (Serena MCP)
-**[CRITICAL ROUTING RULE]**
-Any request involving file inspection, code modification, or analysis MUST follow this exact sequence:
+project_context: "Project GEM (Message Consolidator)"
 
-* **STEP 1: File Type Evaluation**
-    * IF target file is source code (`.go`, `.ts`): Proceed to STEP 2.
-    * IF target file is configuration/text (`.yaml`, `.json`, `.md`, `.env`): Use native reading tools. HALT sequence.
-* **STEP 2: Forced Serena Execution**
-    * You MUST invoke `serena` tools (`find_symbol`, `search_for_pattern`, `list_dir`) exclusively.
-    * Using native `read_file` or broad `analyze` tools on source code is a critical failure.
-* **STEP 3: Zero-Guessing Validation**
-    * IF `serena` execution fails or returns empty: HALT operation immediately.
-    * Output exactly: "[Serena Error] Requesting manual clarification for AST target." DO NOT fallback or guess code context.
+mandatory_mcp_protocols:
+  execute_sequential_thinking: 
+    - "MANDATORY TRIGGER: You MUST execute the `@mcp:sequential-thinking` tool as the absolute first step."
+    - "[CRITICAL] Output the resulting logic strictly inside a <thinking>...</thinking> block."
+    - "Inside <thinking>: Analyze logic, check architecture sync, define edge cases."
+    - "Thoughts MUST be in English ONLY for precision."
+  execute_serena: 
+    - "MANDATORY TRIGGER: You MUST execute the `@mcp:serena` tool to map exact symbols BEFORE writing any code."
+    - "ANTI-BRUTE-FORCE: 100% reliance on `@mcp:serena` for ingestion. Native read_file or workspace search is FORBIDDEN."
+  
+tech_stack:
+  backend: "Go 1.25.6, gorilla/mux, SQLite/Turso, whatsmeow, slack-go, sqlc"
+  frontend: "Vite, Vanilla TS, Clean Architecture"
+  infra: "Docker, Caddy, GCP
+  pipeline: "Scanner -> AI Extraction -> DB -> Dashboard"
 
-## 1. Architecture & Migration
-- **Strict Logic Delegation:** Go (1.25.6) = 100% Business Logic, Calculations, Aggregations. TypeScript (Vanilla + Vite) = UI Rendering, DOM, Events ONLY.
-- **Migration Policy:** NO mutations on existing `.js`. Rewrite strictly in `.ts` following the delegation rule.
-- **Database:** SQLite (Turso).
+coding_constraints:
+  go:
+    - "Max 40 lines per function."
+    - "Max 2-depth nesting (Strict Early Return / Guard Clauses)."
+    - "Split files > 800 lines by Domain."
+    - "Explicit Integer Conversion for all ID parameters."
+  css_ui:
+    - "CRITICAL: NO hardcoded px or hex values."
+    - "ONLY use 'rem' (16px=1rem) or variables.css tokens."
+    - "BEM methodology (c-block__element--modifier) is MANDATORY."
+    - "Must pass 'node verify-css.cjs' before deployment."
 
-## 2. Design System (CSS)
-- **Constraint:** BEM is mandatory. `px` and `hex` are explicitly banned. Use `rem` and `variables.css` tokens.
-- **Validation Check:** You MUST run `node verify-css.cjs` and confirm success before marking a task as complete.
-
-## 3. Infrastructure & Monitoring
-- **Observability:** Account for 150MB memory overhead strictly reserved for WhaTap agents.
-- **Type Safety:** Explicit integer conversion for ALL ID parameters is MANDATORY across all layers.
+development_process:
+  validation: 
+    - "Script-First: Verify logic via Node.js/Go scripts BEFORE UI testing."
+    - "Bug-Fix-Test: All bug fixes require an independent test case."

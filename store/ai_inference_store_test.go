@@ -22,7 +22,7 @@ func TestLogAIInference(t *testing.T) {
 	// Verify
 	var original, raw string
 	var mID int
-	err = db.QueryRow("SELECT message_id, original_text, raw_response FROM ai_inference_logs").Scan(&mID, &original, &raw)
+	err = GetDB().QueryRow("SELECT message_id, original_text, raw_response FROM ai_inference_logs").Scan(&mID, &original, &raw)
 	if err != nil {
 		t.Fatalf("Failed to query inserted data: %v", err)
 	}

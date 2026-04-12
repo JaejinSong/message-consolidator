@@ -3,7 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
-	"strings"
+	"message-consolidator/db"
 )
 
 func GetArchivedMessages(email string) ([]ConsolidatedMessage, error) {
@@ -56,6 +56,75 @@ func getFromArchiveCache(f ArchiveFilter) ([]ConsolidatedMessage, int, bool) {
 	return filtered[:limit], len(filtered), true
 }
 
+func fetchArchivedFromDB(ctx context.Context, filter ArchiveFilter) ([]ConsolidatedMessage, int, error) {
+	queries := db.New(GetDB())
+	threshold := fmt.Sprintf("-%d days", GetAutoArchiveDays())
+
+	total, err := queries.SearchArchivedMessagesCount(ctx, db.SearchArchivedMessagesCountParams{
+		Column1:  filter.Email,
+		Column2:  threshold,
+		Column3:  filter.Query,
+		Column4:  filter.Status,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("archive count failed: %w", err)
+	}
+
+	rows, err := queries.SearchArchivedMessages(ctx, db.SearchArchivedMessagesParams{
+		Column1: filter.Email,
+		Column2: threshold,
+		Column3: filter.Query,
+		Column4: filter.Status,
+		Limit:   int64(filter.Limit),
+		Offset:  int64(filter.Offset),
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("archive search failed: %w", err)
+	}
+
+	return mapRowSliceToMessage(rows), int(total), nil
+}
+
+func mapRowSliceToMessage(rows []db.SearchArchivedMessagesRow) []ConsolidatedMessage {
+	var msgs []ConsolidatedMessage
+	for _, r := range rows {
+		msgs = append(msgs, mapSearchRowToMessage(r))
+	}
+	return msgs
+}
+
+func mapSearchRowToMessage(r db.SearchArchivedMessagesRow) ConsolidatedMessage {
+	m := ConsolidatedMessage{
+		ID:                  int(r.ID),
+		UserEmail:           r.UserEmail,
+		Source:              r.Source,
+		Room:                r.Room,
+		Task:                r.Task,
+		Requester:           r.Requester,
+		Assignee:            r.Assignee,
+		Link:                r.Link,
+		SourceTS:            r.SourceTs,
+		OriginalText:        r.OriginalText,
+		Done:                r.Done,
+		IsDeleted:           r.IsDeleted,
+		Category:            r.Category,
+		Deadline:            r.Deadline,
+		ThreadID:            r.ThreadID,
+		AssigneeReason:      r.AssigneeReason,
+		RepliedToID:         r.RepliedToID,
+		IsContextQuery:      r.IsContextQuery == 1,
+		RequesterCanonical:  r.RequesterCanonical,
+		AssigneeCanonical:   r.AssigneeCanonical,
+		RequesterType:       r.RequesterType,
+		AssigneeType:        r.AssigneeType,
+	}
+	m.CreatedAt = r.CreatedAt.Time
+	if r.CompletedAt.Valid {
+		m.CompletedAt = &r.CompletedAt.Time
+	}
+	return m
+}
+
 func filterByStatus(msgs []ConsolidatedMessage, status string) []ConsolidatedMessage {
 	var filtered []ConsolidatedMessage
 	for _, m := range msgs {
@@ -79,86 +148,14 @@ func statusMatch(m ConsolidatedMessage, status string) bool {
 	}
 }
 
-func fetchArchivedFromDB(ctx context.Context, filter ArchiveFilter) ([]ConsolidatedMessage, int, error) {
-	searchQuery, args := buildArchiveQuery(filter)
-	
-	safeArchiveDays := GetAutoArchiveDays()
-	daysParam := fmt.Sprintf("-%d days", safeArchiveDays)
-	
-	var total int
-	countQuery := SQL.GetArchivedMessagesCountBase + searchQuery
-	err := db.QueryRowContext(ctx, countQuery, append([]interface{}{filter.Email, daysParam}, args[1:]...)...).Scan(&total)
-	if err != nil { return nil, 0, err }
-
-	if filter.Limit <= 0 { filter.Limit = 100 }
-	
-	orderBy := "CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC"
-	dataQuery := fmt.Sprintf("%s %s ORDER BY %s LIMIT ? OFFSET ?", SQL.GetArchivedMessagesBase, searchQuery, orderBy)
-	finalArgs := append([]interface{}{filter.Email, daysParam}, args[1:]...)
-	finalArgs = append(finalArgs, filter.Limit, filter.Offset)
-
-	rows, err := db.QueryContext(ctx, dataQuery, finalArgs...)
-	if err != nil { return nil, 0, err }
-	defer rows.Close()
-
-	var msgs []ConsolidatedMessage
-	for rows.Next() {
-		m, err := scanMessageRow(rows)
-		if err != nil { return nil, 0, err }
-		msgs = append(msgs, m)
-	}
-	return msgs, total, rows.Err()
-}
-
-func buildArchiveQuery(f ArchiveFilter) (string, []interface{}) {
-	query := ""
-	args := []interface{}{f.Email}
-	if f.Query != "" {
-		pattern := "%" + strings.ToLower(f.Query) + "%"
-		query = ` AND (LOWER(task) LIKE ? OR LOWER(room) LIKE ? OR LOWER(requester) LIKE ? OR LOWER(original_text) LIKE ? OR LOWER(source) LIKE ? OR LOWER(assignee) LIKE ?)`
-		for i := 0; i < 6; i++ { args = append(args, pattern) }
-	}
-	switch f.Status {
-	case "done": query += " AND (done = 1 OR done = TRUE)"
-	case "canceled": query += " AND (done = 0 OR done = FALSE) AND (is_deleted = 1 OR is_deleted = TRUE)"
-	case "merged": query += " AND category = 'merged'"
-	}
-	return query, args
-}
-
-// GetArchivedMessagesCount fetches strictly the total count of archived items, skipping the data query.
 func GetArchivedMessagesCount(ctx context.Context, filter ArchiveFilter) (int, error) {
-	searchQuery := ""
-	args := []interface{}{filter.Email}
-
-	if filter.Query != "" {
-		pattern := "%" + strings.ToLower(filter.Query) + "%"
-		searchQuery = ` AND (
-			LOWER(task) LIKE ? OR 
-			LOWER(room) LIKE ? OR 
-			LOWER(requester) LIKE ? OR 
-			LOWER(original_text) LIKE ? OR
-			LOWER(source) LIKE ? OR
-			LOWER(assignee) LIKE ?
-		)`
-		args = append(args, pattern, pattern, pattern, pattern, pattern, pattern)
-	}
-
-	//Why: Ensures the pagination count remains consistent with the 'Completion Priority' logic used in data retrieval.
-	switch filter.Status {
-	case "done":
-		searchQuery += " AND (done = 1 OR done = TRUE)"
-	case "canceled":
-		searchQuery += " AND (done = 0 OR done = FALSE) AND (is_deleted = 1 OR is_deleted = TRUE)"
-	case "merged":
-		searchQuery += " AND category = 'merged'"
-	}
-
-	safeArchiveDays := GetAutoArchiveDays()
-	daysParam := fmt.Sprintf("-%d days", safeArchiveDays)
-	countQuery := SQL.GetArchivedMessagesCountBase + searchQuery
-
-	var total int
-	err := db.QueryRowContext(ctx, countQuery, append([]interface{}{filter.Email, daysParam}, args[1:]...)...).Scan(&total)
-	return total, err
+	queries := db.New(GetDB())
+	threshold := fmt.Sprintf("-%d days", GetAutoArchiveDays())
+	
+	total, err := queries.SearchArchivedMessagesCount(ctx, db.SearchArchivedMessagesCountParams{
+		Column1: filter.Email,
+		Column2: threshold,
+		Column3: filter.Query,
+	})
+	return int(total), err
 }

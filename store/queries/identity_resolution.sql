@@ -1,4 +1,3 @@
--- name: CreateContactAliasesTable :exec
 CREATE TABLE IF NOT EXISTS contact_aliases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
@@ -33,7 +32,7 @@ CREATE TABLE IF NOT EXISTS identity_merge_candidates (
 );
 
 -- name: AddContactAlias :exec
-INSERT INTO contact_aliases (contact_id, identifier_type, identifier_value, source, trust_level)
+INSERT OR IGNORE INTO contact_aliases (contact_id, identifier_type, identifier_value, source, trust_level)
 VALUES (?, ?, ?, ?, ?);
 
 -- name: GetContactAliases :many
@@ -60,9 +59,12 @@ WHERE id = ?;
 INSERT INTO identity_merge_history (source_contact_id, target_contact_id, reason)
 VALUES (?, ?, ?);
 
+-- name: MigrateContactsRenameLegacyAliases :exec
+ALTER TABLE contacts RENAME COLUMN aliases TO legacy_aliases_deprecated;
+
 -- name: MigrateLegacyAliases :exec
-INSERT INTO contact_aliases (contact_id, identifier_type, identifier_value, source, trust_level)
-SELECT id, 'name', trim(value), source, 1
+INSERT OR IGNORE INTO contact_aliases (contact_id, identifier_type, identifier_value, source, trust_level)
+SELECT contacts.id, 'name', trim(value), source, 1
 FROM contacts, json_each('["' || replace(legacy_aliases_deprecated, ',', '","') || '"]')
 WHERE legacy_aliases_deprecated != '' AND legacy_aliases_deprecated IS NOT NULL;
 

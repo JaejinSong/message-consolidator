@@ -30,7 +30,7 @@ func TestAchievementSeeding(t *testing.T) {
 	t.Run("should contain a valid 'Morning Star' achievement", func(t *testing.T) {
 		var morningStarAchievement *Achievement
 		for i := range achievements {
-			if achievements[i].Name == "모닝 스타" {
+			if achievements[i].Name == "Morning Star" {
 				morningStarAchievement = &achievements[i]
 				break
 			}

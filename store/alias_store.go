@@ -73,7 +73,8 @@ func resolveIdentityXCanonicalName(tenantEmail, nameLower string) (string, bool)
 
 	var displayName string
 	query := "SELECT display_name FROM contacts WHERE id = ? AND (tenant_email = ? OR tenant_email = 'all')"
-	if err := db.QueryRow(query, int64(id), tenantEmail).Scan(&displayName); err == nil {
+	conn := GetDB()
+	if err := conn.QueryRow(query, int64(id), tenantEmail).Scan(&displayName); err == nil {
 		return displayName, true
 	}
 	return "", false
@@ -130,7 +131,8 @@ func resolveContactIdentity(tenantEmail, name string) (ContactRecord, bool) {
 	if id, err := ResolveAlias(ctx, idType, nameLower); err == nil && id > 0 {
 		var m ContactRecord
 		query := "SELECT id, canonical_id, display_name, contact_type FROM contacts WHERE id = ? AND (tenant_email = ? OR tenant_email = 'all')"
-		if err := db.QueryRow(query, int64(id), tenantEmail).Scan(&m.ID, &m.CanonicalID, &m.DisplayName, &m.ContactType); err == nil {
+		conn := GetDB()
+		if err := conn.QueryRow(query, int64(id), tenantEmail).Scan(&m.ID, &m.CanonicalID, &m.DisplayName, &m.ContactType); err == nil {
 			return m, true
 		}
 	}
@@ -179,9 +181,18 @@ func mapContactType(contactType, finalID, tenantEmail string) string {
 	case "customer":
 		return "Customer"
 	}
-	if finalID == strings.ToLower(tenantEmail) {
+	
+	// Why: Prioritize company domain as Internal even for non-resolved contacts.
+	lowerID := strings.ToLower(finalID)
+	if strings.HasSuffix(lowerID, "@whatap.io") || strings.EqualFold(finalID, tenantEmail) {
 		return "Internal"
 	}
+	
+	// Why: Handle name <email@whatap.io> format.
+	if strings.Contains(lowerID, "@whatap.io") && strings.Contains(lowerID, "<") {
+		return "Internal"
+	}
+
 	return "External"
 }
 
@@ -243,7 +254,8 @@ func AddUserAlias(ctx context.Context, userID int, alias string) error {
 	}
 
 	uID := int64(userID)
-	if _, err := db.ExecContext(ctx, SQL.CreateUserAlias, uID, trimmed); err != nil {
+	conn := GetDB()
+	if _, err := conn.ExecContext(ctx, SQL.CreateUserAlias, uID, trimmed); err != nil {
 		return err
 	}
 
@@ -254,35 +266,39 @@ func AddUserAlias(ctx context.Context, userID int, alias string) error {
 func updateUserCacheAlias(userID int64, alias string, isAdd bool) {
 	var uEmail, uName string
 	metadataMu.Lock()
-	
-	// Why: Find user directly within the lock to avoid recursive deadlock with findUserInCacheByID.
-	var targetUser *User
-	for _, u := range userCache {
-		if int64(u.ID) == userID {
-			targetUser = u
-			break
-		}
+
+	targetUser := findUserInCacheByIDLocked(userID)
+	if targetUser == nil {
+		metadataMu.Unlock()
+		return
 	}
 
-	if targetUser != nil {
-		uEmail = targetUser.Email
-		uName = targetUser.Name
-		if isAdd {
-			if !slices.Contains(targetUser.Aliases, alias) {
-				targetUser.Aliases = append(targetUser.Aliases, alias)
-			}
-		} else {
-			targetUser.Aliases = slices.DeleteFunc(targetUser.Aliases, func(a string) bool {
-				return a == alias
-			})
+	uEmail = targetUser.Email
+	uName = targetUser.Name
+	if isAdd {
+		if !slices.Contains(targetUser.Aliases, alias) {
+			targetUser.Aliases = append(targetUser.Aliases, alias)
 		}
+	} else {
+		targetUser.Aliases = slices.DeleteFunc(targetUser.Aliases, func(a string) bool {
+			return a == alias
+		})
 	}
 	metadataMu.Unlock()
 
-	// Why: Move DB operation outside the metadata lock to prevent holding the mutex during I/O and avoid recursive lock in AddContactMapping.
+	// Why: Move DB operation outside the metadata lock to prevent holding the mutex during I/O.
 	if isAdd && uEmail != "" {
 		_ = AddContactMapping(context.Background(), "all", strings.ToLower(uEmail), uName, alias, "user")
 	}
+}
+
+func findUserInCacheByIDLocked(id int64) *User {
+	for _, u := range userCache {
+		if int64(u.ID) == id {
+			return u
+		}
+	}
+	return nil
 }
 
 
@@ -311,7 +327,8 @@ func DeleteUserAlias(ctx context.Context, userID int, alias string) error {
 	trimmed := strings.TrimSpace(alias)
 
 	uID := int64(userID)
-	if _, err := db.ExecContext(ctx, SQL.DeleteUserAlias, uID, trimmed); err != nil {
+	conn := GetDB()
+	if _, err := conn.ExecContext(ctx, SQL.DeleteUserAlias, uID, trimmed); err != nil {
 		return err
 	}
 

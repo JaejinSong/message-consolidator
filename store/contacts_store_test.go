@@ -59,7 +59,7 @@ func TestAutoUpsertContact(t *testing.T) {
 
 	// Check aliases merged in DB
 	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM contact_aliases WHERE contact_id = (SELECT id FROM contacts WHERE canonical_id = ?)", email).Scan(&count)
+	err = GetDB().QueryRow("SELECT COUNT(*) FROM contact_aliases WHERE contact_id = (SELECT id FROM contacts WHERE canonical_id = ?)", email).Scan(&count)
 	if err != nil {
 		t.Fatalf("Failed to query aliases: %v", err)
 	}

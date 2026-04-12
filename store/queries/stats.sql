@@ -1,14 +1,14 @@
 -- name: GetTotalCompleted :one
-SELECT COUNT(*) FROM v_messages WHERE user_email = ? AND done = 1;
+SELECT COUNT(*) FROM v_messages WHERE user_email = CAST(?1 AS TEXT) AND done = 1;
 
 -- name: GetPendingMe :one
 SELECT COUNT(*) FROM v_messages 
-WHERE user_email = ? AND done = 0 AND is_deleted = 0 
-AND (assignee = ? OR assignee = 'me') 
+WHERE user_email = CAST(?1 AS TEXT) AND done = 0 AND is_deleted = 0 
+AND (assignee = CAST(?2 AS TEXT) OR assignee = 'me') 
 AND IFNULL(task, '') != '';
 
 -- name: GetDailyGoal :one
-SELECT daily_goal FROM v_users WHERE email = ?;
+SELECT daily_goal FROM v_users WHERE email = ?1;
 
 -- name: GetDailyCompletions :many
 SELECT strftime('%Y-%m-%d', completed_at, ?) as d, COUNT(*) as c
@@ -48,13 +48,13 @@ GROUP BY 1, 2 ORDER BY 1 ASC;
 
 -- name: GetEarlyBirdCompleted :one
 SELECT COUNT(*) FROM messages
-WHERE user_email = ? AND done = 1
+WHERE user_email = CAST(?1 AS TEXT) AND done = 1
 AND strftime('%H', completed_at, 'localtime') < '09';
 
 -- name: GetMaxDailyCompleted :one
 SELECT COALESCE(MAX(c), 0) FROM (
   SELECT COUNT(*) as c FROM messages 
-  WHERE user_email = ? AND done = 1
+  WHERE user_email = CAST(?1 AS TEXT) AND done = 1
   GROUP BY strftime('%Y-%m-%d', completed_at, 'localtime')
 );
 

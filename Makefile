@@ -58,3 +58,8 @@ test-ai:
 test-all:
 	@echo "Running all tests in parallel..."
 	$(MAKE) -j3 test-go test-ai test-ui
+
+sqlc-gen:
+	@echo "Generating Go code from SQL queries..."
+	go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate
+

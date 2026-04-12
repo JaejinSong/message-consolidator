@@ -41,7 +41,7 @@ func TestGetOrCreateUser(t *testing.T) {
 
 		//Why: Verifies that user profile updates (e.g., name changes) are correctly persisted to the underlying database.
 		var dbName string
-		err = db.QueryRow("SELECT name FROM users WHERE email = ?", email).Scan(&dbName)
+		err = GetDB().QueryRow("SELECT name FROM users WHERE email = ?", email).Scan(&dbName)
 		if err != nil || dbName != newName {
 			t.Errorf("Name not updated in DB: %v (name: %s)", err, dbName)
 		}
@@ -101,7 +101,7 @@ func TestUpdateUserSlackID(t *testing.T) {
 	}
 
 	var dbSlackID string
-	err = db.QueryRow("SELECT slack_id FROM users WHERE email = ?", email).Scan(&dbSlackID)
+	err = GetDB().QueryRow("SELECT slack_id FROM users WHERE email = ?", email).Scan(&dbSlackID)
 	if err != nil || dbSlackID != slackID {
 		t.Errorf("Slack ID not updated in DB: %v (slack_id: %s)", err, dbSlackID)
 	}

@@ -33,3 +33,12 @@ test_timing.txt
 go_test*.log
 loading_ui_test.log
 db_diag.log
+test.db-shm
+test.db-wal
+channels/test.db-shm
+channels/test.db-wal
+test_file.txt
+test.db-shm
+test.db-wal
+channels/test.db-shm
+channels/test.db-wal

@@ -3,7 +3,7 @@ SELECT translated_text FROM task_translations WHERE message_id = ? AND language_
 
 -- name: GetTaskTranslationsBatch :many
 SELECT message_id, translated_text FROM task_translations 
-WHERE language_code = ? AND message_id IN (%s);
+WHERE language_code = ? AND message_id IN (sqlc.slice('message_ids'));
 
 -- name: UpsertTaskTranslation :exec
 INSERT INTO task_translations (message_id, language_code, translated_text)

@@ -18,6 +18,8 @@ COPY scanner/ ./scanner/
 COPY services/ ./services/
 COPY store/ ./store/
 COPY types/ ./types/
+COPY db/*.go ./db/
+COPY store/queries/ ./store/queries/
 COPY main.go ./
 
 # Copy required config/meta files for the final stage

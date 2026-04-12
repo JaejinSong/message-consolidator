@@ -3,79 +3,50 @@ package store
 import (
 	"context"
 	"database/sql"
+	"message-consolidator/db"
 )
 
 // GetAllUsers retrieves all users and their aliases from the database to ensure data consistency.
 func GetAllUsers(ctx context.Context) ([]User, error) {
-	rows, err := db.QueryContext(ctx, SQL.GetAllUsers)
+	conn := GetDB()
+	queries := db.New(conn)
+	rows, err := queries.GetAllUsers(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	metadataMu.Lock()
 	defer metadataMu.Unlock()
 	
-	users, err := scanAndCacheUsers(rows)
-	rows.Close() // Explicitly close to release connection before next query
-	if err != nil {
-		return nil, err
+	users := make([]User, 0, len(rows))
+	for _, row := range rows {
+		u := fromGetAllUsersRow(row)
+		users = append(users, u)
+		userCache[u.Email] = &u
 	}
 
 	// Why: Fetch and populate all aliases in one batch to prevent N+1 queries.
-	aliasRows, err := db.QueryContext(ctx, SQL.GetAllUserAliases)
+	aliasRows, err := queries.GetAllUserAliases(ctx)
 	if err != nil {
 		return users, nil // Return users even if alias fetch fails
 	}
-	defer aliasRows.Close()
 
-	for aliasRows.Next() {
-		var userID int
-		var aliasName string
-		if err := aliasRows.Scan(&userID, &aliasName); err == nil {
-			for i := range users {
-				if users[i].ID == userID {
-					users[i].Aliases = append(users[i].Aliases, aliasName)
-					userCache[users[i].Email].Aliases = users[i].Aliases
-					break
-				}
-			}
-		}
-	}
-
+	mapAliasesToUsers(users, aliasRows)
 	return users, nil
 }
 
-func scanAndCacheUsers(rows *sql.Rows) ([]User, error) {
-	var users []User
-	for rows.Next() {
-		u, err := scanUserRow(rows)
-		if err != nil {
-			return nil, err
+func mapAliasesToUsers(users []User, aliasRows []db.GetAllUserAliasesRow) {
+	for _, row := range aliasRows {
+		for i := range users {
+			if int64(users[i].ID) == row.UserID {
+				users[i].Aliases = append(users[i].Aliases, row.AliasName)
+				if cached, ok := userCache[users[i].Email]; ok {
+					cached.Aliases = users[i].Aliases
+				}
+				break
+			}
 		}
-		userCache[u.Email] = &u
-		users = append(users, u)
 	}
-	return users, rows.Err()
-}
-
-func scanUserRow(rows *sql.Rows) (User, error) {
-	var u User
-	var slackID, waJID sql.NullString
-	var lastComp, created DBTime
-	err := rows.Scan(&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &u.Points, &u.Streak, &u.Level, &u.XP, &u.DailyGoal, &lastComp, &created, &u.StreakFreezes)
-	if err != nil {
-		return u, err
-	}
-	u.SlackID, u.WAJID = slackID.String, waJID.String
-	if lastComp.Valid && !lastComp.Time.IsZero() {
-		u.LastCompletedAt = &lastComp.Time
-	}
-	u.CreatedAt = created.Time
-	if u.DailyGoal <= 0 {
-		u.DailyGoal = 5
-	}
-	return u, nil
 }
 
 // GetOrCreateUser fetches a user from the cache or database by email.
@@ -100,23 +71,19 @@ func GetOrCreateUser(ctx context.Context, email, name, picture string) (*User, e
 func updateAndCacheUser(ctx context.Context, email, name, picture string) (*User, error) {
 	var u User
 	err := WithDBRetry("GetOrCreateUser", func() error {
-		var slackID, waJID sql.NullString
-		var lastCompletedAt, createdAt DBTime
 		//Why: Use Atomic Upsert to handle concurrent registrations and partial data updates (name/picture) in a single call.
-		errQuery := db.QueryRowContext(ctx, SQL.CreateUserReturningAll, email, name, picture, 5).Scan(
-			&u.ID, &u.Email, &u.Name, &slackID, &waJID, &u.Picture, &u.Points, &u.Streak,
-			&u.Level, &u.XP, &u.DailyGoal, &lastCompletedAt, &createdAt, &u.StreakFreezes,
-		)
+		conn := GetDB()
+		row, errQuery := db.New(conn).CreateUserReturningAll(ctx, db.CreateUserReturningAllParams{
+			Email:     sql.NullString{String: email, Valid: email != ""},
+			Name:      sql.NullString{String: name, Valid: name != ""},
+			Picture:   sql.NullString{String: picture, Valid: picture != ""},
+			Column4:   5,
+		})
 		if errQuery != nil {
 			return errQuery
 		}
 
-		u.SlackID = slackID.String
-		u.WAJID = waJID.String
-		if lastCompletedAt.Valid && !lastCompletedAt.Time.IsZero() {
-			u.LastCompletedAt = &lastCompletedAt.Time
-		}
-		u.CreatedAt = createdAt.Time
+		u = fromCreateUserReturningAllRow(row)
 		return nil
 	})
 
@@ -133,26 +100,39 @@ func updateAndCacheUser(ctx context.Context, email, name, picture string) (*User
 
 // CreateUser inserts a new user record into the database with just an email and name.
 func CreateUser(ctx context.Context, email, name string) error {
-	_, err := db.ExecContext(ctx, SQL.CreateUser, email, name)
+	conn := GetDB()
+	queries := db.New(conn)
+	_, err := queries.CreateUser(ctx, db.CreateUserParams{
+		Email:   sql.NullString{String: email, Valid: email != ""},
+		Name:    sql.NullString{String: name, Valid: name != ""},
+		Picture: sql.NullString{String: "", Valid: true},
+	})
 	return err
 }
 
 // UpdateUserNamePicture modifies the display name and profile picture of an existing user.
 func UpdateUserNamePicture(ctx context.Context, email, name, picture string) error {
-	_, err := db.ExecContext(ctx, SQL.UpdateUserNamePicture, name, picture, email)
-	return err
+	return db.New(GetDB()).UpdateUserNamePicture(ctx, db.UpdateUserNamePictureParams{
+		Email:   sql.NullString{String: email, Valid: true},
+		Name:    sql.NullString{String: name, Valid: true},
+		Picture: sql.NullString{String: picture, Valid: true},
+	})
 }
 
 // UpdateUserWAJID updates the WhatsApp JID (identifier) associated with the user.
 func UpdateUserWAJID(ctx context.Context, email, wajid string) error {
-	_, err := db.ExecContext(ctx, SQL.UpdateUserWAJID, wajid, email)
-	return err
+	return db.New(GetDB()).UpdateUserWAJID(ctx, db.UpdateUserWAJIDParams{
+		Email: sql.NullString{String: email, Valid: true},
+		WaJid: sql.NullString{String: wajid, Valid: true},
+	})
 }
 
 // UpdateUserSlackID updates the Slack ID associated with the user.
 func UpdateUserSlackID(ctx context.Context, email, slackID string) error {
-	_, err := db.ExecContext(ctx, SQL.UpdateUserSlackID, slackID, email)
-	return err
+	return db.New(GetDB()).UpdateUserSlackID(ctx, db.UpdateUserSlackIDParams{
+		Email:   sql.NullString{String: email, Valid: true},
+		SlackID: sql.NullString{String: slackID, Valid: true},
+	})
 }
 
 func GetUserAliasesByEmail(ctx context.Context, email string) ([]string, error) {
@@ -163,31 +143,97 @@ func GetUserAliasesByEmail(ctx context.Context, email string) ([]string, error) 
 	}
 	metadataMu.RUnlock()
 
-	rows, err := db.QueryContext(ctx, SQL.GetUserAliases, email)
+	aliases, err := db.New(GetDB()).GetUserAliasesByEmail(ctx, sql.NullString{String: email, Valid: true})
 	if err != nil {
 		return nil, err
-	}
-	defer rows.Close()
-	var aliases []string
-	for rows.Next() {
-		var a string
-		if err := rows.Scan(&a); err == nil {
-			aliases = append(aliases, a)
-		}
 	}
 	
 	// Why: Update cache with loaded aliases for subsequent requests.
 	metadataMu.Lock()
+	updateUserCacheAliases(email, aliases)
+	metadataMu.Unlock()
+	
+	return aliases, err
+}
+
+func updateUserCacheAliases(email string, aliases []string) {
 	if u, ok := userCache[email]; ok {
 		u.Aliases = aliases
 	}
-	metadataMu.Unlock()
-	
-	return aliases, rows.Err()
 }
 
 func GetUserName(ctx context.Context, email string) (string, error) {
-	var name string
-	err := db.QueryRowContext(ctx, SQL.GetUserByEmailSimple, email).Scan(&name)
-	return name, err
+	return db.New(GetDB()).GetUserByEmailSimple(ctx, sql.NullString{String: email, Valid: true})
+}
+
+func fromVUserRow(row db.VUser) User {
+	u := User{
+		ID:            int(row.ID),
+		Email:         row.Email.String,
+		Name:          row.Name,
+		SlackID:       row.SlackID,
+		WAJID:         row.WaJid,
+		Picture:       row.Picture,
+		Points:        int(row.Points),
+		Streak:        int(row.Streak),
+		Level:         int(row.Level),
+		XP:            int(row.Xp),
+		DailyGoal:     int(row.DailyGoal),
+		StreakFreezes: int(row.StreakFreezes),
+		CreatedAt:     row.CreatedAt.Time,
+	}
+	if row.LastCompletedAt.Valid {
+		u.LastCompletedAt = &row.LastCompletedAt.Time
+	}
+	if u.DailyGoal <= 0 {
+		u.DailyGoal = 5
+	}
+	return u
+}
+
+func fromGetAllUsersRow(row db.GetAllUsersRow) User {
+	u := User{
+		ID:            int(row.ID),
+		Email:         row.Email,
+		Name:          row.Name,
+		SlackID:       row.SlackID,
+		WAJID:         row.WaJid,
+		Picture:       row.Picture,
+		Points:        int(row.Points),
+		Streak:        int(row.Streak),
+		Level:         int(row.Level),
+		XP:            int(row.Xp),
+		DailyGoal:     int(row.DailyGoal),
+		StreakFreezes: int(row.StreakFreezes),
+		CreatedAt:     row.CreatedAt.Time,
+	}
+	if row.LastCompletedAt.Valid {
+		u.LastCompletedAt = &row.LastCompletedAt.Time
+	}
+	if u.DailyGoal <= 0 {
+		u.DailyGoal = 5
+	}
+	return u
+}
+
+func fromCreateUserReturningAllRow(row db.CreateUserReturningAllRow) User {
+	u := User{
+		ID:            int(row.ID),
+		Email:         row.Email,
+		Name:          row.Name,
+		SlackID:       row.SlackID,
+		WAJID:         row.WaJid,
+		Picture:       row.Picture,
+		Points:        int(row.Points),
+		Streak:        int(row.Streak),
+		Level:         int(row.Level),
+		XP:            int(row.Xp),
+		DailyGoal:     int(row.DailyGoal),
+		StreakFreezes: int(row.StreakFreezes),
+		CreatedAt:     row.CreatedAt.Time,
+	}
+	if row.LastCompletedAt.Valid {
+		u.LastCompletedAt = &row.LastCompletedAt.Time
+	}
+	return u
 }

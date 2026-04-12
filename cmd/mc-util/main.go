@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"message-consolidator/config"
+	"message-consolidator/logger"
 	"github.com/joho/godotenv"
 )
 
@@ -14,6 +15,8 @@ func main() {
 	if err := godotenv.Load(); err != nil {
 		//Why: Ignores missing .env file errors because environment variables may already be set in the host system or via Docker/Cloud Run.
 	}
+
+	logger.InitLogging()
 
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: mc-util <command> [args]")
