@@ -20,6 +20,11 @@
   - [ ] 대시보드 통계 카드에서도 Internal / Partner / Customer 비중을 분리해서 표시
 
 ## 3. 완료 사항 (Completed)
+- [x] **[Refactor] Gmail CC Restoration Optimization & Batching** (v2.4.31)
+  - Implemented chunked pagination (50-item) for archived message processing to prevent OOM.
+  - Integrated `errgroup` with a 20-worker limit for parallel Gmail API recipient resolution.
+  - Built `UpdateTaskAssigneesBatch` for atomic, single-transaction database updates per chunk.
+  - Verified 40-line function limits and 2-depth nesting across new handler/service logic.
 - [x] **[Fix] Gmail Unit Test Regression & Store Caching Robustness** (v2.4.30)
   - Fixed Gmail categorization test to align with AI-primary routing policy.
   - Resolved contact storage cache inconsistencies (ID propagation fix) and implemented robust lazy-loading.

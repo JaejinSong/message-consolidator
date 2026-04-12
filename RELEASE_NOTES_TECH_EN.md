@@ -1,3 +1,14 @@
+# Release Notes (Tech) - v2.4.31 (2026-04-12 23:14 UTC)
+
+- [OPTIMIZE] Enhance Gmail CC restoration with parallel processing (errgroup) and batch updates to eliminate N+1 queries
+- [REFACTOR] Migrate database layer to sqlc for type-safe queries and generated DAO methods
+- [FEAT] Implement database migration system and optimize test environment performance
+- [REFACTOR] Standardize SQLite configuration via DSN parameters and optimized pool limits
+- [FEAT] Implement time-based message grouping for enhanced AI context
+- [FIX] Resolve Gmail unit test regressions and enhance store caching robustness
+
+---
+
 # Release Notes (Tech) - v2.4.30 (2026-04-08 06:39 UTC)
 
 - [FEAT] Integrate WhatsApp Business API for multi-channel support

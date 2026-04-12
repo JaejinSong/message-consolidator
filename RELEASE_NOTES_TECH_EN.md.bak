@@ -1,3 +1,12 @@
+# Release Notes (Tech) - v2.4.30 (2026-04-08 06:39 UTC)
+
+- [FEAT] Integrate WhatsApp Business API for multi-channel support
+- [FIX] Resolve timestamp synchronization issues across disparate time zones
+- [PERF] Optimize image decoding and caching for media-intensive conversation threads
+- [UI] Implement fluid CSS transitions for enhanced navigation between workspace views
+
+---
+
 # Release Notes (Tech) - v2.4.29 (2026-04-08 06:11 UTC)
 
 - [FEAT] Implement folder-based organization for categorized messaging

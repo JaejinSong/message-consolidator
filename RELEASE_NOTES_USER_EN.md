@@ -1,3 +1,12 @@
+# Release Notes - v2.4.31 (2026-04-12 23:14 UTC)
+
+- 🚀 **Performance Leap**: Gmail recovery is now lightning-fast thanks to parallel processing and optimized database logic.
+- 🧠 **Smarter AI Context**: Your messages are now organized by time, providing the AI with better context for smarter summaries.
+- 🏗️ **Robust Architecture**: We've overhauled our database system to ensure top-tier reliability and future-proof performance.
+- 🛠️ **Refined Stability**: Fine-tuned system settings and fixed hidden bugs for a seamless, lag-free experience.
+
+---
+
 # Release Notes - v2.4.30 (2026-04-08 06:39 UTC)
 
 - 🟢 **WhatsApp is Here**: Connect your WhatsApp Business account and unify your reach.
