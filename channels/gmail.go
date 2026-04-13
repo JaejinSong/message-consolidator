@@ -22,6 +22,8 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
+
+	"github.com/recapco/emailreplyparser"
 )
 
 const (
@@ -622,7 +624,6 @@ func extractBody(payload *gmail.MessagePart) string {
 
 var (
 	reWhitespace = regexp.MustCompile(`\s+`)
-	reSignature  = regexp.MustCompile(`(?m)^--\s*$`) //Why: Identifies standard MIME signature delimiters to truncate noise at the end of emails.
 )
 
 func stripHTML(raw string) string {
@@ -690,26 +691,44 @@ func decodeBase64URL(data string) string {
 	return decoded
 }
 
-// Why: cleanEmailBody strips signatures and ensures the body remains within AI token limits. Quote removal is now handled by stripHTML.
+// Why: cleanEmailBody strips signatures and quotes using emailreplyparser and ensures the body remains within AI token limits.
 func cleanEmailBody(body string) string {
-	result := body
-
-	//Why: Removes email signatures to prevent them from being mistaken for task requests or assignee names.
-	if loc := reSignature.FindStringIndex(result); loc != nil {
-		result = result[:loc[0]]
+	if body == "" {
+		return ""
 	}
 
-	finalResult := strings.TrimSpace(result)
+	// Use verified library to strip quoted text (latest reply only)
+	email, err := emailreplyparser.Read(body)
+	if err != nil {
+		return truncateText(strings.TrimSpace(body), 3000)
+	}
 
-	//Why: Caps the total email length at 3000 characters to prevent the AI model from truncating its JSON response.
-	const maxLen = 3000
-	if len(finalResult) > maxLen {
-		runes := []rune(finalResult)
-		limit := maxLen
-		if len(runes) > limit {
-			finalResult = string(runes[:limit]) + "\n...[TRUNCATED]"
+	var visibleFragments []string
+	for _, f := range email.Fragments {
+		// Library considers signatures "visible" but we want them hidden/removed
+		if !f.Hidden && !f.Signature {
+			visibleFragments = append(visibleFragments, f.String())
 		}
 	}
 
-	return finalResult
+	result := strings.Join(visibleFragments, "\n")
+
+	// Fallback: if library returns empty but original was not empty, use truncated original
+	if strings.TrimSpace(result) == "" && strings.TrimSpace(body) != "" {
+		result = body
+	}
+
+	return truncateText(strings.TrimSpace(result), 3000)
+}
+
+// truncateText caps the string to maxLen characters/runes safely.
+func truncateText(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	runes := []rune(s)
+	if len(runes) > maxLen {
+		return string(runes[:maxLen]) + "\n...[TRUNCATED]"
+	}
+	return s
 }

@@ -127,15 +127,33 @@ func TestCleanEmailBody(t *testing.T) {
 	}{
 		{
 			name:      "Signature removal",
-			input:     "This is the actual message.\n-- \nJohn Doe\nSoftware Engineer\nCompany Inc.",
+			input:     "This is the actual message.\n\n-- \nJohn Doe\nSoftware Engineer\nCompany Inc.",
 			expect:    "This is the actual message.",
 			notExpect: "John Doe",
 		},
 		{
 			name:      "Signature with missing trailing space",
-			input:     "Hey there,\nThanks!\n--\nJane Doe\nMarketing",
+			input:     "Hey there,\nThanks!\n\n--\nJane Doe\nMarketing",
 			expect:    "Thanks!",
 			notExpect: "Jane Doe",
+		},
+		{
+			name:      "On ... wrote: quote removal",
+			input:     "New reply content\n\nOn Mon, Apr 13, 2026 at 10:00 AM User <user@example.com> wrote:\n> Quoted text",
+			expect:    "New reply content",
+			notExpect: "Quoted text",
+		},
+		{
+			name:      "iPhone signature removal",
+			input:     "Checking in from the road.\n\nSent from my iPhone",
+			expect:    "Checking in from the road.",
+			notExpect: "iPhone",
+		},
+		{
+			name:      "Nested quotes",
+			input:     "Bottom reply\n\n> Quote level 1\n>> Quote level 2",
+			expect:    "Bottom reply",
+			notExpect: "Quote level 1",
 		},
 	}
 

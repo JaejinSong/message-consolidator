@@ -1,4 +1,4 @@
-# Binaries
+# === Binaries ===
 app
 app_*
 message-consolidator
@@ -6,43 +6,43 @@ message-consolidator-vps
 mc-util
 mc_test
 tmp_build
+test_bin
+local_test_bin
+test_build
 
-# Databases
+# === Databases ===
 *.db
+*.db-shm
+*.db-wal
+# Specific test databases in subdirectories
+channels/test.db*
+/store/test.db*
 
-# Logs
+# === Logs ===
 *.log
+go_test*.log
+loading_ui_test.log
+db_diag.log
+channels/logs/
+/tmp/logs/
 
-# Environment
+# === Environment & Secrets ===
 .env
 .env.*
+.gemini/
 
-# JavaScript / Node
+# === JavaScript / Node ===
 node_modules/
 .vite/
 dist/
 
-# Temporary/Other
+# === Temporary & Test Artifacts ===
 tasks_migration.csv
-*.db
-*.log
 .deploy.sh.swp
 branch.txt
 verify-fix.js
 test_timing.txt
-go_test*.log
-loading_ui_test.log
-db_diag.log
-test.db-shm
-test.db-wal
-channels/test.db-shm
-channels/test.db-wal
-test_file.txt
-test.db-shm
-test.db-wal
-channels/test.db-shm
-channels/test.db-wal
 test_times.txt
-test.db-shm
-channels/test.db-shm
-channels/test.db-wal
+test_file.txt
+/scratch/
+/channels/tmp/
