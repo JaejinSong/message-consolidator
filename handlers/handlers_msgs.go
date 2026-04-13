@@ -152,26 +152,18 @@ func (a *API) HandleGetArchivedCount(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	var req struct {
-		ID  int   `json:"id"`
-		IDs []int `json:"ids"`
-	}
+	var req BatchIDsRequest
 	if err := decodeJSON(r, &req); err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	ids := req.IDs
-	if len(ids) == 0 && req.ID != 0 {
-		ids = []int{req.ID}
-	}
-
-	if len(ids) == 0 {
-		respondError(w, http.StatusBadRequest, "No IDs provided for deletion")
+	if err := req.Validate(); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	_ = store.DeleteMessages(r.Context(), store.GetDB(), email, ids)
+	_ = store.DeleteMessages(r.Context(), store.GetDB(), email, req.GetIDs())
 	a.respondWithUpdatedUser(w, r, email)
 }
 
@@ -234,27 +226,35 @@ func handleGetOriginalError(w http.ResponseWriter, email string, id int, err err
 
 func (a *API) HandleHardDelete(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	var req struct {
-		IDs []int `json:"ids"`
-	}
+	var req BatchIDsRequest
 	if err := decodeJSON(r, &req); err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	_ = store.HardDeleteMessages(r.Context(), store.GetDB(), email, req.IDs)
+
+	if err := req.Validate(); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	_ = store.HardDeleteMessages(r.Context(), store.GetDB(), email, req.GetIDs())
 	w.WriteHeader(http.StatusOK)
 }
 
 func (a *API) HandleRestore(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	var req struct {
-		IDs []int `json:"ids"`
-	}
+	var req BatchIDsRequest
 	if err := decodeJSON(r, &req); err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	_ = store.RestoreMessages(r.Context(), store.GetDB(), email, req.IDs)
+
+	if err := req.Validate(); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	_ = store.RestoreMessages(r.Context(), store.GetDB(), email, req.GetIDs())
 	w.WriteHeader(http.StatusOK)
 }
 

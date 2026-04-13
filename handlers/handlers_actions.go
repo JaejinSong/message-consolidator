@@ -194,7 +194,7 @@ func (a *API) filterUntranslatedIDs(ctx context.Context, msgs []store.Consolidat
 
 // Why: Chunks large translation requests into manageable batches to stay within token limits and handle partial failures gracefully.
 func (a *API) processTranslationBatches(ctx context.Context, email string, toTranslateIDs []int, lang string) {
-	const batchSize = 30 //Why: Limits translation batches to 30 items to maintain optimal token usage and prevent response truncation from the AI model.
+	const batchSize = 30
 	var totalTranslated int
 
 	for i := 0; i < len(toTranslateIDs); i += batchSize {
@@ -204,12 +204,16 @@ func (a *API) processTranslationBatches(ctx context.Context, email string, toTra
 		}
 		chunk := toTranslateIDs[i:end]
 
-		count, err := a.TranslateMessagesByID(ctx, email, chunk, lang)
+		results, err := a.Tasks.ProcessBatchTranslation(ctx, email, chunk, lang)
 		if err != nil {
-			logger.Errorf("[TRANSLATE] Partial translation failed at chunk %d: %v", i, err)
-			break //Why: Terminates the translation loop on error while ensuring previously successful results are already persisted.
+			logger.Errorf("[TRANSLATE] Batch translation failed at chunk %d: %v", i, err)
+			break
 		}
-		totalTranslated += count
+		for _, r := range results {
+			if r.Success {
+				totalTranslated++
+			}
+		}
 	}
 	logger.Infof("[TRANSLATE] Successfully translated %d/%d messages to %s", totalTranslated, len(toTranslateIDs), lang)
 }

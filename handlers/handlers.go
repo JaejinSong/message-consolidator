@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"message-consolidator/config"
 	"message-consolidator/logger"
 	"message-consolidator/services"
@@ -53,4 +55,41 @@ func respondJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	w.Write(response)
+}
+
+// BatchIDsRequest is a common DTO for operations targeting multiple message IDs.
+// Why: [DRY] Consolidates request parsing and validation for deletion, restoration, and batch updates.
+type BatchIDsRequest struct {
+	IDs []int `json:"ids"`
+	ID  int   `json:"id"` // Fallback for single ID operations
+}
+
+// GetIDs normalizes single and multiple ID inputs into a uniform slice.
+func (r *BatchIDsRequest) GetIDs() []int {
+	if len(r.IDs) == 0 && r.ID != 0 {
+		return []int{r.ID}
+	}
+	return r.IDs
+}
+
+// Validate ensures all provided IDs are strictly positive integers.
+// Why: [Explicit Integer Conversion] and [Guard Clauses] prevent malformed or invalid database queries.
+func (r *BatchIDsRequest) Validate() error {
+	ids := r.GetIDs()
+	if len(ids) == 0 {
+		return errors.New("no valid IDs provided")
+	}
+	for _, id := range ids {
+		if id <= 0 {
+			return fmt.Errorf("invalid ID: %d (must be > 0)", id)
+		}
+	}
+	return nil
+}
+
+// decodeJSON is a common helper that parses JSON from an HTTP request and safely closes the Body to prevent memory leaks.
+// Why: [DRY] Centralizes JSON decoding logic used across multiple handler files.
+func decodeJSON(r *http.Request, v interface{}) error {
+	defer r.Body.Close()
+	return json.NewDecoder(r.Body).Decode(v)
 }
