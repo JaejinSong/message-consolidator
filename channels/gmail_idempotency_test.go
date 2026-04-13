@@ -4,19 +4,16 @@ import (
 	"context"
 	"message-consolidator/config"
 	"message-consolidator/store"
-	"os"
 	"testing"
 )
 
 func TestGmailIdempotency(t *testing.T) {
 	// 1. Setup - Fully reset memory and file state
 	store.ResetForTest()
-	dbPath := "./test.db"
-	_ = os.Remove(dbPath)
-	_ = os.Remove(dbPath + "-journal")
-	_ = os.Remove(dbPath + "-wal")
 
-	dbURL := "file:./test.db?_busy_timeout=5000"
+	// Why: Use in-memory SQLite with shared cache to ensure multiple connections/tx see the same data,
+	// while completely eliminating disk side-effects like .db-shm files.
+	dbURL := "file:memdb_gmail_idempotency?mode=memory&cache=shared"
 	store.InitDB(&config.Config{TursoURL: dbURL})
 	store.InitContactsTable(context.Background(), store.GetDB())
 

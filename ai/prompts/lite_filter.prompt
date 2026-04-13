@@ -8,12 +8,16 @@ model: gemini-3.1-flash-lite-preview
 Decide whether a message should be processed for task extraction or ignored as noise.
 
 # Filter Criteria:
-- **PASS (TRUE)**: If the message contains ANY work-related request, question, update, policy notice, promise, or actionable item.
-- **IGNORE (FALSE)**: If the message is EXCLUSIVELY noise. Noise includes:
-  - Simple greetings (e.g., "Hi", "Hello", "Good morning")
-  - Social small talk (e.g., "How are you?", "Have a nice day")
-  - System-only notifications with no actionable context (e.g., "Contact added", "Call missed")
-  - Casual acknowledgments with no context (e.g., "Ok", "Got it", "Thanks") - unless they appear to be resolving a task.
+- **PASS (TRUE)**: Work-related requests, professional updates, policy notices, promises, or any actionable items.
+- **IGNORE (FALSE)**: Exclusively noise. This includes:
+
+  1. **Communication Noise**: Greetings ("Hi"), social small talk, and automated Out-of-Office (OOO) replies.
+  2. **Security & System**: OTP/verification codes, login alerts, and non-actionable system pings (e.g., "Contact added", "Call missed").
+  3. **Transactional & Logistics**: Automated receipts, billing statements, delivery updates, and ride/travel summaries.
+  4. **Marketing & Social**: Newsletters, promotional offers, and informational social media pings (e.g., "Liked your post", "New follower").
+  5. **Casual Acknowledgments**: "Ok", "Thanks", "Got it" - UNLESS they clearly indicate task resolution.
+
+Note: Marketing/Newsletters are ALWAYS noise, even if they contain calls-to-action (CTAs) like "Buy" or "Enroll".
 
 # Output:
 - Respond ONLY with `TRUE` or `FALSE`.

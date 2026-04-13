@@ -183,6 +183,11 @@ func processSingleEmail(svc *gmail.Service, email string, m *gmail.Message, skip
 	ts := fullMsg.InternalDate / 1000 // ms to s
 
 	subject, fromHeader, toHeader, ccHeader, bccHeader, deliveredTo := extractHeaders(fullMsg.Payload.Headers)
+	if isMarketingHeader(fullMsg.Payload.Headers) {
+		logger.Debugf("[SCAN-GMAIL] Ignoring marketing email from: %s", fromHeader)
+		store.IncrementFilteredCount(email)
+		return nil, "", "", ts, nil
+	}
 	if isSkipSender(fromHeader, skips) {
 		return nil, "", "", ts, nil
 	}
@@ -299,6 +304,22 @@ func extractHeaders(headers []*gmail.MessagePartHeader) (subject, from, to, cc, 
 	return
 }
 
+// isMarketingHeader identifies promotional emails using standard headers like List-Unsubscribe and Precedence.
+func isMarketingHeader(headers []*gmail.MessagePartHeader) bool {
+	for _, h := range headers {
+		if h.Name == "List-Unsubscribe" {
+			return true
+		}
+		if h.Name == "Precedence" {
+			val := strings.ToLower(h.Value)
+			if val == "bulk" || val == "list" || val == "junk" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func isSkipSender(from string, skips []string) bool {
 	fromLower := strings.ToLower(from)
 	if strings.Contains(fromLower, "no-reply") || strings.Contains(fromLower, "noreply") || strings.Contains(fromLower, "do-not-reply") || strings.Contains(fromLower, "mailer-daemon") {
@@ -374,6 +395,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 
 	user, _ := store.GetOrCreateUser(ctx, email, "", "")
 	aliases, _ := store.GetUserAliases(ctx, user.ID)
+	filterSvc := ai.NewGeminiLiteFilter(gc)
 
 	var totalNewIDs []int
 	batchSize := 10
@@ -382,30 +404,15 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 		if end > len(rawMsgs) {
 			end = len(rawMsgs)
 		}
-		ids := processBatch(ctx, gc, email, language, rawMsgs[i:end], classificationMap, toMap, user, aliases, onThreadActivity)
+		ids := processBatch(ctx, gc, filterSvc, email, language, rawMsgs[i:end], classificationMap, toMap, user, aliases, onThreadActivity)
 		totalNewIDs = append(totalNewIDs, ids...)
 	}
 	return totalNewIDs
 }
 
 // processBatch handles the analysis and persistence of a single batch of emails.
-func processBatch(ctx context.Context, gc *ai.GeminiClient, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage)) []int {
-	var filteredMsgs []types.RawMessage
-	skippedCount := 0
-
-	for _, m := range batchMsgs {
-		processed, err := store.IsProcessed(ctx, store.GetDB(), email, m.ID)
-		if err == nil && processed {
-			skippedCount++
-			continue
-		}
-		filteredMsgs = append(filteredMsgs, m)
-	}
-
-	if skippedCount > 0 {
-		logger.Infof("[WhaTap-Efficiency] Skipped %d already processed Gmail messages for %s", skippedCount, email)
-	}
-
+func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage)) []int {
+	filteredMsgs := filterGmailBatch(ctx, email, batchMsgs, filterSvc)
 	if len(filteredMsgs) == 0 {
 		return nil
 	}
@@ -428,6 +435,23 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, email, language stri
 		}
 	}
 	return newIDs
+}
+
+// filterGmailBatch checks each message for processed status or AI-detected noise.
+func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessage, filterSvc *ai.GeminiLiteFilter) []types.RawMessage {
+	var result []types.RawMessage
+	for _, m := range batch {
+		if processed, err := store.IsProcessed(ctx, store.GetDB(), email, m.ID); err == nil && processed {
+			continue
+		}
+		// Why: [Noise Filtering] Uses Flash-Lite model to skip informational/promotional noise before extraction.
+		if isNoise, err := filterSvc.IsNoise(ctx, email, m.Text); err == nil && isNoise {
+			logger.Debugf("[SCAN-GMAIL] Skipping noise/marketing message: %s", m.ID)
+			continue
+		}
+		result = append(result, m)
+	}
+	return result
 }
 
 // Why: Separates the payload construction and side-effects (onThreadActivity callback) from the main AI analysis loop.

@@ -7,6 +7,7 @@ import (
 	"message-consolidator/types"
 	"strings"
 	"testing"
+	"google.golang.org/api/gmail/v1"
 )
 
 
@@ -221,6 +222,53 @@ func TestUpsertAddresses(t *testing.T) {
 	}
 	if name := store.NormalizeContactName(tenant, "kenny@whatap.io"); name != "Kenny Holmes" {
 		t.Errorf("Kenny Holmes not registered correctly: %s", name)
+	}
+}
+
+func TestIsMarketingHeader(t *testing.T) {
+	tests := []struct {
+		name     string
+		headers  []*gmail.MessagePartHeader
+		expected bool
+	}{
+		{
+			name: "List-Unsubscribe exists",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "List-Unsubscribe", Value: "<mailto:unsubscribe@example.com>"},
+				{Name: "Subject", Value: "Promo"},
+			},
+			expected: true,
+		},
+		{
+			name: "Precedence bulk",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "Precedence", Value: "bulk"},
+			},
+			expected: true,
+		},
+		{
+			name: "Precedence list",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "Precedence", Value: "LIST"},
+			},
+			expected: true,
+		},
+		{
+			name: "Normal Email",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "From", Value: "boss@example.com"},
+				{Name: "Subject", Value: "Report"},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isMarketingHeader(tt.headers); got != tt.expected {
+				t.Errorf("isMarketingHeader() = %v; want %v", got, tt.expected)
+			}
+		})
 	}
 }
 

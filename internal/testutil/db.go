@@ -3,6 +3,7 @@ package testutil
 import (
 	"fmt"
 	"message-consolidator/config"
+	"os"
 	"time"
 
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
@@ -34,6 +35,15 @@ func SetupTestDB(initFunc func(*config.Config) error, resetFunc func()) (func(),
 	}
 
 	return cleanup, nil
+}
+
+// RemoveTestDBFiles thoroughly removes the SQLite database file and its WAL/SHM artifacts.
+// Why: SQLite in WAL mode creates -shm and -wal files that linger if not explicitly closed and deleted.
+func RemoveTestDBFiles(path string) {
+	_ = os.Remove(path)
+	_ = os.Remove(path + "-shm")
+	_ = os.Remove(path + "-wal")
+	_ = os.Remove(path + "-journal")
 }
 
 // RandomEmail generates a unique email address for test data isolation.
