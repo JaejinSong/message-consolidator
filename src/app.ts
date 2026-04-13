@@ -60,7 +60,7 @@ const handlers: ServiceHandlers = {
 
         try {
             const result = await api.toggleDone(idStr, done);
-            if (result.user) updateStats(result.user);
+            if (result && result.user) updateStats(result.user);
             if (done) {
                 events.emit(EVENTS.TASK_COMPLETED, { id: idStr, result });
             }
@@ -82,7 +82,8 @@ const handlers: ServiceHandlers = {
         removeTaskNode(id);
 
         try {
-            await api.deleteTask(idStr);
+            const result = await api.deleteTask(idStr);
+            if (result && result.user) updateStats(result.user);
             if (archive.isVisible()) archive.fetch();
         } catch (e: any) {
             // 2. Rollback on Failure

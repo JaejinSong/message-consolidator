@@ -92,7 +92,7 @@ export const api = {
         return apiFetch('/messages', { params: { lang }, errorMessage: 'Fetch messages failed' });
     },
 
-    async toggleDone(id: string | number, done: boolean): Promise<any> {
+    async toggleDone(id: string | number, done: boolean): Promise<{ user?: UserProfile }> {
         const validatedId = ensureInt(id);
         return apiFetch('/messages/done', {
             method: 'POST',
@@ -101,7 +101,7 @@ export const api = {
         });
     },
 
-    async deleteTask(idOrIds: string | number | (string | number)[]): Promise<any> {
+    async deleteTask(idOrIds: string | number | (string | number)[]): Promise<{ user?: UserProfile }> {
         const body = Array.isArray(idOrIds) 
             ? { ids: ensureIntArray(idOrIds) } 
             : { id: ensureInt(idOrIds) };

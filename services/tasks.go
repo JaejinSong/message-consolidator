@@ -204,7 +204,7 @@ func (s *TasksService) HandleTaskCompletion(ctx context.Context, email string, t
 		return GamificationResult{}, nil
 	}
 
-	if err := store.MarkMessageDone(ctx, nil, email, taskID, done); err != nil {
+	if err := store.MarkMessageDone(ctx, store.GetDB(), email, taskID, done); err != nil {
 		return GamificationResult{}, err
 	}
 

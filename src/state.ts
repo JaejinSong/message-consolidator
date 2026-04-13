@@ -66,7 +66,11 @@ export const updateStats = (user: Partial<UserProfile> | null): void => {
  * as it's the single source of truth from the backend. 
  */
 export const updateMessages = (messages: CategorizedMessages): void => {
-    state.messages = messages || { inbox: [], pending: [] };
+    const raw = messages || { inbox: [], pending: [] };
+    state.messages = {
+        inbox: Array.isArray(raw.inbox) ? raw.inbox : [],
+        pending: Array.isArray(raw.pending) ? raw.pending : []
+    };
 };
 
 /**

@@ -65,12 +65,19 @@ func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := a.Tasks.HandleTaskCompletion(r.Context(), email, req.ID, req.Done); err != nil {
+	// [Explicit Integer Conversion]
+	if req.ID <= 0 {
+		respondError(w, http.StatusBadRequest, "Invalid Task ID")
+		return
+	}
+
+	_, err := a.Tasks.HandleTaskCompletion(r.Context(), email, req.ID, req.Done)
+	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to complete task")
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	a.respondWithUpdatedUser(w, r, email)
 }
 
 func (a *API) HandleGetArchived(w http.ResponseWriter, r *http.Request) {
@@ -154,14 +161,33 @@ func (a *API) HandleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//Why: Provides backward compatibility for older clients by falling back to a single ID if the batch IDs list is empty.
 	ids := req.IDs
 	if len(ids) == 0 && req.ID != 0 {
 		ids = []int{req.ID}
 	}
 
+	if len(ids) == 0 {
+		respondError(w, http.StatusBadRequest, "No IDs provided for deletion")
+		return
+	}
+
 	_ = store.DeleteMessages(r.Context(), store.GetDB(), email, ids)
-	w.WriteHeader(http.StatusOK)
+	a.respondWithUpdatedUser(w, r, email)
+}
+
+// respondWithUpdatedUser fetches the latest user profile and returns it as a JSON response.
+// Why: Enables frontend state sync (XP, streak, completed count) after mutations.
+func (a *API) respondWithUpdatedUser(w http.ResponseWriter, r *http.Request, email string) {
+	user, err := store.GetOrCreateUser(r.Context(), email, "", "")
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Failed to refresh user info")
+		return
+	}
+	respondJSON(w, http.StatusOK, struct {
+		User *store.User `json:"user"`
+	}{
+		User: user,
+	})
 }
 
 // HandleGetOriginal retrieves the original, un-summarized text for a specific message.

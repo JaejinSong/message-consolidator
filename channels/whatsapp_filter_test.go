@@ -2,6 +2,7 @@ package channels
 
 import (
 	"testing"
+	waTypes "go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.mau.fi/whatsmeow/types"
 	waProto "go.mau.fi/whatsmeow/proto/waE2E"
@@ -19,7 +20,9 @@ func TestIsSystemMessage(t *testing.T) {
 				Message: &waProto.Message{
 					Conversation: ptr("Hello"),
 				},
-				Info: types.MessageInfo{},
+				Info: types.MessageInfo{
+					PushName: "User",
+				},
 			},
 			expected: false,
 		},
@@ -31,7 +34,9 @@ func TestIsSystemMessage(t *testing.T) {
 						Type: waProto.ProtocolMessage_REVOKE.Enum(),
 					},
 				},
-				Info: types.MessageInfo{},
+				Info: types.MessageInfo{
+					PushName: "User",
+				},
 			},
 			expected: true,
 		},
@@ -41,7 +46,9 @@ func TestIsSystemMessage(t *testing.T) {
 				Message: &waProto.Message{
 					SenderKeyDistributionMessage: &waProto.SenderKeyDistributionMessage{},
 				},
-				Info: types.MessageInfo{},
+				Info: types.MessageInfo{
+					PushName: "User",
+				},
 			},
 			expected: true,
 		},
@@ -53,6 +60,36 @@ func TestIsSystemMessage(t *testing.T) {
 				},
 				Info: types.MessageInfo{
 					Category: "peer",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "Status broadcast message",
+			msg: &events.Message{
+				Message: &waProto.Message{
+					Conversation: ptr("My status update"),
+				},
+				Info: types.MessageInfo{
+					MessageSource: types.MessageSource{
+						Sender: waTypes.JID{User: "status", Server: "broadcast"},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "System notification (No PushName)",
+			msg: &events.Message{
+				Message: &waProto.Message{
+					Conversation: ptr("This is a system message"),
+				},
+				Info: types.MessageInfo{
+					PushName: "",
+					MessageSource: types.MessageSource{
+						IsFromMe: false,
+						IsGroup:  false,
+					},
 				},
 			},
 			expected: true,

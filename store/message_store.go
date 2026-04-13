@@ -162,6 +162,15 @@ func GetMessages(ctx context.Context, email string) ([]ConsolidatedMessage, erro
 }
 
 func MarkMessageDone(ctx context.Context, q Querier, email string, id int, done bool) error {
+	if q == nil {
+		return RunInTx(ctx, func(tx *sql.Tx) error {
+			return markMessageDoneInternal(ctx, tx, email, id, done)
+		})
+	}
+	return markMessageDoneInternal(ctx, q, email, id, done)
+}
+
+func markMessageDoneInternal(ctx context.Context, q Querier, email string, id int, done bool) error {
 	var comp sql.NullTime
 	if done {
 		comp = sql.NullTime{Time: time.Now(), Valid: true}
@@ -181,6 +190,15 @@ func MarkMessageDone(ctx context.Context, q Querier, email string, id int, done 
 }
 
 func UpdateTaskText(ctx context.Context, q Querier, email string, id int, task string) error {
+	if q == nil {
+		return RunInTx(ctx, func(tx *sql.Tx) error {
+			return updateTaskTextInternal(ctx, tx, email, id, task)
+		})
+	}
+	return updateTaskTextInternal(ctx, q, email, id, task)
+}
+
+func updateTaskTextInternal(ctx context.Context, q Querier, email string, id int, task string) error {
 	if id <= 0 {
 		return fmt.Errorf("invalid task id: %d", id)
 	}
@@ -402,6 +420,15 @@ func applyMergeUpdates(ctx context.Context, tx *sql.Tx, email, room string, dest
 }
 
 func UpdateMessageCategory(ctx context.Context, q Querier, email string, id int, category string) error {
+	if q == nil {
+		return RunInTx(ctx, func(tx *sql.Tx) error {
+			return updateMessageCategoryInternal(ctx, tx, email, id, category)
+		})
+	}
+	return updateMessageCategoryInternal(ctx, q, email, id, category)
+}
+
+func updateMessageCategoryInternal(ctx context.Context, q Querier, email string, id int, category string) error {
 	err := db.New(q).UpdateMessageCategory(ctx, db.UpdateMessageCategoryParams{
 		Category:  sql.NullString{String: category, Valid: true},
 		ID:        int64(id),
@@ -558,6 +585,9 @@ func RestoreMessages(ctx context.Context, q Querier, email string, ids []int) er
 func GetMessageByID(ctx context.Context, q Querier, email string, id int) (ConsolidatedMessage, error) {
 	if msg, found := findMessageInCache(email, id); found {
 		return msg, nil
+	}
+	if q == nil {
+		q = GetDB()
 	}
 	// Why: Fallback to database only if not found in active or recently archived caches.
 	row, err := db.New(q).GetMessageByID(ctx, int64(id))

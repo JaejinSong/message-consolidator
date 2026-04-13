@@ -180,6 +180,10 @@ func isSystemMessage(msg *events.Message) bool {
 	if msg.Message.ProtocolMessage != nil || msg.Message.SenderKeyDistributionMessage != nil {
 		return true
 	}
+	// Why: [Status/System Filter] 'status@broadcast' 발신자 또는 PushName이 없는 시스템 알림을 차단합니다.
+	if msg.Info.Sender.User == "status" || (msg.Info.PushName == "" && !msg.Info.IsFromMe && !msg.Info.IsGroup) {
+		return true
+	}
 	// Why: [Category Filter] Category가 'peer'인 메시지는 디바이스 간 통신용이므로 제외합니다.
 	if msg.Info.Category == "peer" {
 		return true
