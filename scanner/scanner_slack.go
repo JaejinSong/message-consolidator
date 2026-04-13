@@ -144,11 +144,10 @@ func classifyAndCollect(ctx context.Context, c slack.Channel, m types.RawMessage
 			})
 		}
 		cls := classifyMessage(c, &u, userAl[u.Email], m)
-		if cls == types.MsgTypeMyTask || cls == types.MsgTypeWaiting || (cls == types.MsgTypeOther && m.Text != "") {
+		// Soft Filtering: Always include MsgTypeOther if it reached this stage (channels layer pre-filters noise).
+		if cls == types.MsgTypeMyTask || cls == types.MsgTypeWaiting || cls == types.MsgTypeOther {
 			m.ChannelID = c.ID
 			candidates[u.Email] = append(candidates[u.Email], m)
-		} else {
-			logger.Debugf("[SLACK-DROP] User: %s, Sender: %s, Text: %.20v", u.Email, m.Sender, m.Text)
 		}
 		if newTS[u.Email] == nil {
 			newTS[u.Email] = make(map[string]string)
@@ -165,6 +164,8 @@ func processSlackCandidates(ctx context.Context, users []store.User, sc *channel
 		if err != nil || user == nil {
 			continue
 		}
+		// Why: Provides visibility into the collection pipeline by logging the number of candidates queued for AI analysis.
+		logger.Debugf("[SLACK-COLLECT] User: %s, Total candidates for AI processing: %d", email, len(msgs))
 		analyzeAndSaveSlack(ctx, user, sc, msgs)
 	}
 }
@@ -179,13 +180,13 @@ func updateSlackCursors(newTS map[string]map[string]string) {
 
 func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m types.RawMessage) types.SlackMsgType {
 	isFromMe := strings.EqualFold(m.Sender, user.Name) || strings.EqualFold(m.Sender, user.Email) || (user.SlackID != "" && m.Sender == user.SlackID)
-	// If the message is from me, check if it's a direct task/request to someone else in a non-DM channel.
+	// Why: Identifies self-sent requests to others in non-direct channels to track "waiting for reply" states.
 	if isFromMe && !channel.IsIM && !channel.IsMpIM {
 		if strings.Contains(m.Text, "<@U") && (user.SlackID == "" || !strings.Contains(m.Text, "<@"+user.SlackID+">")) {
 			return types.MsgTypeWaiting
 		}
 	}
-	// Direct messages, group mentions, or mentions to me/aliases are my tasks.
+	// Why: Broadens capture by prioritizing direct messages, group mentions, and specific personal mentions.
 	if channel.IsIM || channel.IsMpIM || isGroupMention(m.Text) {
 		return types.MsgTypeMyTask
 	}
@@ -306,17 +307,15 @@ func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user
 				UserEmail: user.Email, Source: "slack", ThreadID: t.ThreadTS, OriginalText: m.Text, SourceTS: m.Timestamp,
 			})
 		}
-		isBot := m.User == botID || m.BotID != ""
-		if !isBot && m.Text != "" {
-			c := slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: t.ChannelID}}}
-			cls := classifyMessage(c, user, effAl, types.RawMessage{Sender: m.User, Text: m.Text})
-			if cls == types.MsgTypeMyTask || cls == types.MsgTypeWaiting || (cls == types.MsgTypeOther && m.Text != "") {
-				candidates = append(candidates, types.RawMessage{
-					ID: m.Timestamp, Sender: sc.GetUserName(m.User), Text: m.Text, Timestamp: parseSlackTimestamp(m.Timestamp),
-					ReplyToID: t.ThreadTS, ChannelID: t.ChannelID, HasAttachment: len(m.Files) > 0,
-					AttachmentNames: sc.ExtractFileNames(m.Files), Reactions: sc.ExtractReactions(m.Reactions), IsPinned: len(m.PinnedTo) > 0,
-				})
-			}
+		// Why: Architecture Separation—Redundant isBot/Empty text checks are removed here as the channels layer already pre-filters these.
+		c := slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: t.ChannelID}}}
+		cls := classifyMessage(c, user, effAl, types.RawMessage{Sender: m.User, Text: m.Text})
+		if cls == types.MsgTypeMyTask || cls == types.MsgTypeWaiting || cls == types.MsgTypeOther {
+			candidates = append(candidates, types.RawMessage{
+				ID: m.Timestamp, Sender: sc.GetUserName(m.User), Text: m.Text, Timestamp: parseSlackTimestamp(m.Timestamp),
+				ReplyToID: t.ThreadTS, ChannelID: t.ChannelID, HasAttachment: len(m.Files) > 0,
+				AttachmentNames: sc.ExtractFileNames(m.Files), Reactions: sc.ExtractReactions(m.Reactions), IsPinned: len(m.PinnedTo) > 0,
+			})
 		}
 	}
 	return candidates
