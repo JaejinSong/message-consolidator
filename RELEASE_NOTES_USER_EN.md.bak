@@ -1,13 +1,3 @@
-# Release Notes - v2.4.32 (2026-04-13 14:09 UTC)
-
-- 🧠 **AI Intelligence**: Your Gmail is now cleaner than ever with AI-powered noise and marketing filtering!
-- 📊 **Usage Insights**: Track exactly how much clutter was filtered in your new token usage dashboard.
-- ⚡ **Lightweight Sync**: WhatsApp processing is now even faster by skipping unnecessary profile updates.
-- 💎 **Rock-Solid Storage**: Upgraded internal synchronization ensures your messages are safer than ever.
-- 🚀 **Lightning Restore**: Restoring CC details in Gmail is now significantly faster with new batch processing.
-
----
-
 # Release Notes - v2.4.31 (2026-04-12 23:14 UTC)
 
 - 🚀 **Performance Leap**: Gmail recovery is now lightning-fast thanks to parallel processing and optimized database logic.

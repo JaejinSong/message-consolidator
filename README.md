@@ -1,4 +1,4 @@
-# Message Consolidator (v2.4.30)
+# Message Consolidator (v2.4.32)
 
 [![GitHub License](https://img.shields.io/github/license/JaejinSong/message-consolidator)](LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/JaejinSong/message-consolidator)](go.mod)
@@ -8,6 +8,7 @@ A powerful, AI-driven asynchronous communication consolidation and task manageme
 ---
 
 ## 🤔 왜 Message Consolidator인가요?
+
 
 *   **메시지 파편화 해결**: 여러 앱을 번갈아 확인할 필요 없이, 모든 채널의 업무를 한 곳에서 볼 수 있습니다.
 *   **업무 자동 정리**: AI(Gemini)가 긴 대화 속에서 실제 해야 할 일을 찾아내고 담당자와 기한을 정리해 줍니다.
@@ -46,6 +47,7 @@ A powerful, AI-driven asynchronous communication consolidation and task manageme
 - **프론트엔드 모듈 최적화 및 백엔드 캐시 고도화**: 대규모 자바스크립트 로직을 기능별로 모듈화하고, 백엔드 캐시 로직을 최적화하여 100% 데이터 일관성과 즉각적인 화면 반응 속도를 달성했습니다.
 - **시스템 전반 멱등성(Idempotency) 및 SQL Upsert**: 모든 데이터 삽입 로직에 SQL Upsert(ON CONFLICT DO UPDATE)를 도입하여 네트워크 재시도나 중복 요청에도 데이터 무결성을 유지하며, 중복 렌더링을 원천 차단했습니다.
 - **비동기 AI 인퍼런스 로깅 (Dual-Channel)**: AI의 추출 분석 결과(Raw JSON)를 SQLite DB와 전용 로그 파일(`ai_inference.log`)에 동시에 비동기로 기록하여, 향후 프롬프트 최적화를 위한 정밀한 데이터 플라이휠(Data Flywheel) 기반을 구축했습니다.
+- **고정밀 AI 노이즈 필터링 & 파일리스 테스트 환경**: `lite_filter.prompt` 전담 레이어를 통해 인삿말, 인증코드(OTP), 광고성 스팸을 99% 이상 사전에 차단하며, 모든 테스트 및 검증 환경을 100% 메모리 DB(In-Memory SQLite)로 전환하여 로컬 디스크 오염을 방지하고 실행 속도를 극대화했습니다.
 - **Docker Compose & Caddy 기반 VPS 배포 자동화**: Google Artifact Registry와 GCS를 연동하여 가볍고 안정적인 컨테이너 기반 배포 환경을 구축했습니다. 바이너리 스트리핑 및 UPX 압축, 그리고 외부 폰트 의존성을 제거한 커스텀 Subset CSS 적용을 통해 이미지 크기를 75% 이상 절감하였으며, Caddy를 통한 자동 SSL 및 리버스 프록시 설정을 완료했습니다.
 - **WhaTap 빌드 속드 최적화 (Dedicated Builder Image)**: WhaTap 도구 설치 오버헤드를 제거하기 위해 전용 빌더 이미지를 도입했습니다. 매 배포 시 도구 다운로드 및 설치 과정을 생략하여, 백엔드 빌드 시간을 약 10배 이상 단축(15s -> 1~2s)했습니다.
 

@@ -20,6 +20,11 @@
   - [ ] 대시보드 통계 카드에서도 Internal / Partner / Customer 비중을 분리해서 표시
 
 ## 3. 완료 사항 (Completed)
+- [x] **[Refactor] AI Noise Filtering & In-Memory Test Infrastructure** (v2.4.32)
+  - Consolidated non-actionable noise logic into high-precision `lite_filter.prompt`.
+  - Simplified `chat_system.prompt` and `new_extraction.prompt` by offloading greeting/noise handling.
+  - Transitioned all test and utility databases to SQLite In-Memory mode to eliminate physical artifacts.
+  - Implemented robust cleanup patterns in verification tools to ensure zero disk side-effects.
 - [x] **[Refactor] Gmail CC Restoration Optimization & Batching** (v2.4.31)
   - Implemented chunked pagination (50-item) for archived message processing to prevent OOM.
   - Integrated `errgroup` with a 20-worker limit for parallel Gmail API recipient resolution.
