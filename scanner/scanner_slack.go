@@ -6,7 +6,6 @@ import (
 	"message-consolidator/ai"
 	"message-consolidator/channels"
 	"message-consolidator/logger"
-	"message-consolidator/services"
 	"message-consolidator/store"
 	"message-consolidator/types"
 	"regexp"
@@ -451,25 +450,19 @@ func buildSlackMetadataString(m types.RawMessage) string {
 
 func mapSlackItemToMessage(ctx context.Context, item store.TodoItem, m types.RawMessage, user *store.User, aliases []string, sc *channels.SlackClient) store.ConsolidatedMessage {
 	threadID := m.ReplyToID
-	if threadID == "" { threadID = m.ID }
-	link := buildSlackLinkAndRegisterThread(ctx, m, user.Email)
-	return store.ConsolidatedMessage{
-		UserEmail: user.Email, Source: "slack", Room: sc.GetChannelName(m.ChannelID),
-		Task: item.Task, Requester: item.Requester, Assignee: normalizeSlackAssignee(item.Assignee, user),
-		AssignedAt: m.Timestamp, Link: link, SourceTS: m.ID, OriginalText: m.Text, Category: item.Category,
-		ThreadID: threadID, SourceChannels: []string{"slack"},
+	if threadID == "" {
+		threadID = m.ID
 	}
+	link := buildSlackLinkAndRegisterThread(ctx, m, user.Email)
+
+	params := BuildTaskParams{
+		User: *user, Item: item, Raw: m, Source: "slack",
+		Room: sc.GetChannelName(m.ChannelID), Link: link, ThreadID: threadID,
+		SourceChannels: []string{"slack"},
+	}
+	return BuildConsolidatedMessage(params, aliases)
 }
 
-func normalizeSlackAssignee(assignee string, user *store.User) string {
-	lowerAsg := strings.ToLower(strings.TrimSpace(assignee))
-	if lowerAsg == "" { return services.AssigneeShared }
-	if lowerAsg == "me" || lowerAsg == "__current_user__" || lowerAsg == "나" || strings.EqualFold(assignee, user.Name) {
-		if user.Name != "" { return user.Name }
-		return user.Email
-	}
-	return assignee
-}
 
 func buildSlackLinkAndRegisterThread(ctx context.Context, m types.RawMessage, email string) string {
 	link := fmt.Sprintf("https://slack.com/archives/%s/p%s", m.ChannelID, strings.ReplaceAll(m.ID, ".", ""))

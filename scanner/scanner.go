@@ -12,6 +12,7 @@ import (
 
 	"message-consolidator/ai"
 
+	"message-consolidator/types"
 	"github.com/whatap/go-api/trace"
 	"golang.org/x/sync/errgroup"
 	"sync"
@@ -271,4 +272,63 @@ func triggerAsyncTranslation(email string, ids []int) {
 		defer cancel()
 		_, _ = tasksSvc.ProcessBatchTranslation(ctx, email, ids, "ko")
 	}()
+}
+
+// BuildTaskParams holds cross-platform metadata required for message consolidation.
+type BuildTaskParams struct {
+	User           store.User
+	Item           store.TodoItem
+	Raw            types.RawMessage
+	Source         string
+	Room           string
+	Link           string
+	ThreadID       string
+	SourceChannels []string
+}
+
+// BuildConsolidatedMessage creates a unified message entity from AI results and platform metadata.
+func BuildConsolidatedMessage(p BuildTaskParams, aliases []string) store.ConsolidatedMessage {
+	category := p.Item.Category
+	if category == "" {
+		category = string(types.CategoryTask)
+	}
+
+	return store.ConsolidatedMessage{
+		UserEmail: p.User.Email, Source: p.Source, Room: p.Room,
+		Task: p.Item.Task, Requester: p.Item.Requester,
+		Assignee:   NormalizeAssignee(p.Item.Assignee, p.User, aliases),
+		AssignedAt: p.Raw.Timestamp, Link: p.Link, SourceTS: p.Raw.ID,
+		OriginalText: p.Raw.Text, Category: category, ThreadID: p.ThreadID,
+		SourceChannels: p.SourceChannels,
+	}
+}
+
+// NormalizeAssignee centralizes self-identification across languages ("나", "me") and user aliases.
+func NormalizeAssignee(assignee string, user store.User, aliases []string) string {
+	lowerAsg := strings.ToLower(strings.TrimSpace(assignee))
+	if lowerAsg == "" {
+		return services.AssigneeShared
+	}
+
+	// Why: Ensures "Me" or "나" results in the user's primary name for consistent dashboard auditing.
+	selfIDs := []string{"나", "me", "__current_user__", "담당자", strings.ToLower(user.Name), strings.ToLower(user.Email)}
+	for _, id := range selfIDs {
+		if id != "" && lowerAsg == id {
+			return getPreferredName(user)
+		}
+	}
+
+	for _, alias := range aliases {
+		if alias != "" && lowerAsg == strings.ToLower(alias) {
+			return getPreferredName(user)
+		}
+	}
+	return assignee
+}
+
+func getPreferredName(user store.User) string {
+	if user.Name != "" {
+		return user.Name
+	}
+	return user.Email
 }

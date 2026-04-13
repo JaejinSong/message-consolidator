@@ -10,7 +10,6 @@ import (
 	"message-consolidator/types"
 	"strings"
 	"sync"
-
 	"golang.org/x/sync/errgroup"
 	waTypes "go.mau.fi/whatsmeow/types"
 )
@@ -131,18 +130,16 @@ func buildWAMetadataString(email string, m types.RawMessage) string {
 }
 
 func saveWAItem(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool) int {
-	category := string(item.Category)
 	if isFromMe(m.Sender, user) && !is1to1 {
 		// Why: Identifies self-sent requests in groups as "waiting" tasks, mirroring Slack's logic for consistency.
-		category = string(types.CategoryTask)
+		item.Category = string(types.CategoryTask)
 	}
 
-	msg := store.ConsolidatedMessage{
-		UserEmail: user.Email, Source: "whatsapp", Room: group, Task: item.Task,
-		Requester: item.Requester, Assignee: normalizeWhatsAppAssignee(item.Assignee, user, aliases),
-		AssignedAt: m.Timestamp, SourceTS: item.SourceTS, OriginalText: m.Text, Category: category,
-		SourceChannels: []string{"whatsapp"},
+	params := BuildTaskParams{
+		User: user, Item: item, Raw: m, Source: "whatsapp",
+		Room: group, SourceChannels: []string{"whatsapp"},
 	}
+	msg := BuildConsolidatedMessage(params, aliases)
 	id, _ := store.HandleTaskState(ctx, nil, user.Email, item, msg)
 	return id
 }
@@ -152,25 +149,6 @@ func isFromMe(sender string, user store.User) bool {
 	return lowerSender == strings.ToLower(user.Name) || lowerSender == strings.ToLower(user.Email)
 }
 
-func normalizeWhatsAppAssignee(assignee string, user store.User, aliases []string) string {
-	lowerAsg := strings.ToLower(strings.TrimSpace(assignee))
-	if lowerAsg == "" {
-		return "shared"
-	}
-	// Why: Centralizes self-identification across languages and aliases to prevent duplicate entries in the dashboard.
-	selfIdentifiers := []string{"나", "me", "__current_user__", "담당자", strings.ToLower(user.Name), strings.ToLower(user.Email)}
-	for _, id := range selfIdentifiers {
-		if id != "" && lowerAsg == id {
-			return user.Name
-		}
-	}
-	for _, alias := range aliases {
-		if alias != "" && lowerAsg == strings.ToLower(alias) {
-			return user.Name
-		}
-	}
-	return assignee
-}
 
 func scanWhatsApp(ctx context.Context, user store.User, aliases []string, language string) []int {
 	buffer := channels.DefaultWAManager.PopMessages(user.Email)

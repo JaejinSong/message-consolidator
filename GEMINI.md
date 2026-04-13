@@ -18,6 +18,13 @@ tech_stack:
   infra: "Docker, Caddy, GCP
   pipeline: "Scanner -> AI Extraction -> DB -> Dashboard"
 
+architecture_guidelines:
+  dry_and_consistency:
+    - "CRITICAL: Single Source of Truth. NEVER hardcode magic strings (e.g., '내 업무', 'waiting')."
+    - "All status branching MUST use global domain types (e.g., types.MessageCategory)."
+    - "Centralize repeated business logic (Assignee normalization, DB mapping) into shared files (e.g., scanner.go)."
+    - "Strict Delegation: Channel modules must NOT duplicate logic; they must call shared utility functions."
+
 coding_constraints:
   go:
     - "Max 40 lines per function."
