@@ -149,6 +149,9 @@ func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt inte
 	switch v := evt.(type) {
 	case *events.Message:
 		m.handleMessageEvent(email, client, v)
+	case *events.Picture:
+		// [Optimization] 프로필 사진 업데이트 이벤트 무시
+		return
 	case *events.Connected:
 		logger.Debugf("[WA-EVENT][%s] Connected to WhatsApp", email)
 		if client.Store.ID != nil {
