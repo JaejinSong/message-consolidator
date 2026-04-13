@@ -395,6 +395,11 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 	}
 
 	channelName := sc.GetChannelName(candidates[0].ChannelID)
+	lockKey := roomLockSvc.GetRoomKey(user.Email, "slack", channelName)
+	lock := roomLockSvc.AcquireLock(lockKey)
+	lock.Lock()
+	defer lock.Unlock()
+
 	payload, msgMap := buildSlackAnalysisPayload(candidates, sc)
 	lastMsg := candidates[len(candidates)-1]
 	enriched, _ := EnrichSlackMessage(lastMsg.Sender, sc.GetUserName(lastMsg.Sender), lastMsg.ChannelID, lastMsg.ReplyToID, payload, lastMsg.Timestamp)

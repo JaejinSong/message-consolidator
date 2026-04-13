@@ -16,14 +16,19 @@ import (
 
 
 
-func (s *WhatsAppScanner) processWhatsAppGroup(ctx context.Context, user store.User, aliases []string, jid string, msgs []types.RawMessage, language string) []int {
+func (s *WhatsAppScanner) processWhatsAppRoom(ctx context.Context, user store.User, aliases []string, jid string, msgs []types.RawMessage, language string) []int {
+	lockKey := roomLockSvc.GetRoomKey(user.Email, "whatsapp", jid)
+	lock := roomLockSvc.AcquireLock(lockKey)
+	lock.Lock()
+	defer lock.Unlock()
+
 	groupName := channels.DefaultWAManager.GetGroupName(user.Email, jid)
 	msgGroups := ai.GroupMessagesByTime(msgs, cfg.MessageBatchWindow)
 	
 	var allIDs []int
 	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 	if err != nil {
-		logger.Errorf("[WA-SCAN] Failed to create Gemini client: %v", err)
+		logger.Errorf("[WA-LOCK] AI Client Error: %v", err)
 		return nil
 	}
 
@@ -51,9 +56,13 @@ func (s *WhatsAppScanner) processSingleGroup(ctx context.Context, user store.Use
 		return nil
 	}
 
-	items, err := gc.Analyze(ctx, user.Email, *enriched, language, "whatsapp", groupName)
+	// Why: [Context Merge] Rebuilds extraction context by combining DB history and new message payload.
+	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, "whatsapp", groupName)
+	logger.Infof("[WA-CONTEXT] Found %d active tasks for room %s", len(tasks), groupName)
+
+	items, err := gc.AnalyzeWithContext(ctx, user.Email, *enriched, language, "whatsapp", groupName, tasks)
 	if err != nil {
-		logger.Errorf("[WA-SCAN] AI analysis failed: %v", err)
+		logger.Errorf("[WA-SCAN] AI Analysis Error: %v", err)
 		return nil
 	}
 
@@ -164,7 +173,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 	for jid, msgs := range buffer {
 		j, m := jid, msgs
 		eg.Go(func() error {
-			ids := s.processWhatsAppGroup(ctx, user, aliases, j, m, language)
+			ids := s.processWhatsAppRoom(ctx, user, aliases, j, m, language)
 			mu.Lock()
 			newIDs = append(newIDs, ids...)
 			mu.Unlock()

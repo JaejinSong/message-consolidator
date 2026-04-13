@@ -23,10 +23,12 @@ var (
 	completionSvc *services.CompletionService
 	tasksSvc      *services.TasksService
 	filterSvc     *ai.GeminiLiteFilter
+	roomLockSvc   *services.RoomLockService
 )
 
 func Init(c *config.Config) {
 	cfg = c
+	roomLockSvc = services.NewRoomLockService()
 	if cfg.GeminiAPIKey != "" {
 		gClient, err := ai.NewGeminiClient(context.Background(), cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 		if err != nil {

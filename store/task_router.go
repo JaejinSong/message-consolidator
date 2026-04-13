@@ -14,6 +14,23 @@ func HandleTaskState(ctx context.Context, q Querier, email string, item TodoItem
 		q = GetDB()
 	}
 
+	resID, err := routeTaskState(ctx, q, email, item, msg)
+
+	// Why: [Diagnosis] Standardize decision logging to detect silent mapping failures.
+	logger.LogDecision(logger.DecisionLog{
+		UserEmail: email,
+		Source:    msg.Source,
+		Room:      msg.Room,
+		State:     item.State,
+		TaskID:    item.ID,
+		Task:      item.Task,
+		Reasoning: item.Reasoning,
+	})
+
+	return resID, err
+}
+
+func routeTaskState(ctx context.Context, q Querier, email string, item TodoItem, msg ConsolidatedMessage) (int, error) {
 	switch item.State {
 	case "none":
 		return handleNone()
