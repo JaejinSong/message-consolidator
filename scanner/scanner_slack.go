@@ -164,13 +164,18 @@ func updateSlackCursors(newTS map[string]map[string]string) {
 }
 
 func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m types.RawMessage) string {
-	isFromMe := strings.EqualFold(m.Sender, user.Name) || strings.EqualFold(m.Sender, user.Email)
-	if isFromMe && strings.Contains(m.Text, "<@U") && (user.SlackID == "" || !strings.Contains(m.Text, "<@"+user.SlackID+">")) {
-		return "회신 대기"
+	isFromMe := strings.EqualFold(m.Sender, user.Name) || strings.EqualFold(m.Sender, user.Email) || (user.SlackID != "" && m.Sender == user.SlackID)
+	// If the message is from me, check if it's a direct task/request to someone else in a non-DM channel.
+	if isFromMe && !channel.IsIM && !channel.IsMpIM {
+		if strings.Contains(m.Text, "<@U") && (user.SlackID == "" || !strings.Contains(m.Text, "<@"+user.SlackID+">")) {
+			return "회신 대기"
+		}
 	}
+	// Direct messages or multi-person DMs are always my tasks.
 	if channel.IsIM || channel.IsMpIM {
 		return "내 업무"
 	}
+	// Messages mentioning me or my aliases are my tasks.
 	if user.SlackID != "" && strings.Contains(m.Text, "<@"+user.SlackID+">") {
 		return "내 업무"
 	}
