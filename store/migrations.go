@@ -69,6 +69,7 @@ func runMigrations(ctx context.Context, q db.DBTX) error {
 	_ = queries.MigrateReportTranslationsAddLanguageCode(ctx)
 	_ = queries.MigrateContactsAddContactType(ctx)
 	_ = queries.MigrateLegacyAliases(ctx)
+	_ = queries.MigrateTokenUsageAddFilteredCount(ctx)
 
 	migrateExistingData(ctx, q)
 	_ = rebuildViews(ctx, q)

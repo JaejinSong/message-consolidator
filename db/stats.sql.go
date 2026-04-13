@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const getAbandonedTasks = `-- name: GetAbandonedTasks :one
@@ -115,6 +116,22 @@ func (q *Queries) GetDailyCompletions(ctx context.Context, arg GetDailyCompletio
 	return items, nil
 }
 
+const getDailyFilteredCount = `-- name: GetDailyFilteredCount :one
+SELECT COALESCE(SUM(filtered_count), 0) FROM token_usage WHERE user_email = ? AND date = ?
+`
+
+type GetDailyFilteredCountParams struct {
+	UserEmail string    `json:"user_email"`
+	Date      time.Time `json:"date"`
+}
+
+func (q *Queries) GetDailyFilteredCount(ctx context.Context, arg GetDailyFilteredCountParams) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getDailyFilteredCount, arg.UserEmail, arg.Date)
+	var coalesce interface{}
+	err := row.Scan(&coalesce)
+	return coalesce, err
+}
+
 const getDailyGoal = `-- name: GetDailyGoal :one
 SELECT daily_goal FROM v_users WHERE email = ?1
 `
@@ -202,6 +219,23 @@ SELECT COALESCE(MAX(c), 0) FROM (
 
 func (q *Queries) GetMaxDailyCompleted(ctx context.Context, dollar_1 string) (interface{}, error) {
 	row := q.db.QueryRowContext(ctx, getMaxDailyCompleted, dollar_1)
+	var coalesce interface{}
+	err := row.Scan(&coalesce)
+	return coalesce, err
+}
+
+const getMonthlyFilteredCount = `-- name: GetMonthlyFilteredCount :one
+SELECT COALESCE(SUM(filtered_count), 0) FROM token_usage WHERE user_email = ? AND date >= ? AND date < ?
+`
+
+type GetMonthlyFilteredCountParams struct {
+	UserEmail string    `json:"user_email"`
+	Date      time.Time `json:"date"`
+	Date_2    time.Time `json:"date_2"`
+}
+
+func (q *Queries) GetMonthlyFilteredCount(ctx context.Context, arg GetMonthlyFilteredCountParams) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getMonthlyFilteredCount, arg.UserEmail, arg.Date, arg.Date_2)
 	var coalesce interface{}
 	err := row.Scan(&coalesce)
 	return coalesce, err

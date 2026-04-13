@@ -68,6 +68,7 @@ type Querier interface {
 	GetContactsByTenant(ctx context.Context, tenantEmail string) ([]GetContactsByTenantRow, error)
 	GetContactsWithMaster(ctx context.Context) ([]GetContactsWithMasterRow, error)
 	GetDailyCompletions(ctx context.Context, arg GetDailyCompletionsParams) ([]GetDailyCompletionsRow, error)
+	GetDailyFilteredCount(ctx context.Context, arg GetDailyFilteredCountParams) (interface{}, error)
 	GetDailyGoal(ctx context.Context, email sql.NullString) (int64, error)
 	GetDailyTokenUsage(ctx context.Context, arg GetDailyTokenUsageParams) (GetDailyTokenUsageRow, error)
 	GetEarlyBirdCompleted(ctx context.Context, dollar_1 string) (int64, error)
@@ -82,6 +83,7 @@ type Querier interface {
 	GetMessagesByIDs(ctx context.Context, ids []int64) ([]GetMessagesByIDsRow, error)
 	GetMessagesForMerge(ctx context.Context, arg GetMessagesForMergeParams) ([]GetMessagesForMergeRow, error)
 	GetMessagesForReport(ctx context.Context, arg GetMessagesForReportParams) ([]GetMessagesForReportRow, error)
+	GetMonthlyFilteredCount(ctx context.Context, arg GetMonthlyFilteredCountParams) (interface{}, error)
 	GetMonthlyTokenUsage(ctx context.Context, arg GetMonthlyTokenUsageParams) (GetMonthlyTokenUsageRow, error)
 	GetPendingMe(ctx context.Context, arg GetPendingMeParams) (int64, error)
 	GetPendingOthers(ctx context.Context, arg GetPendingOthersParams) (int64, error)
@@ -148,6 +150,7 @@ type Querier interface {
 	MigrateReportsAddIsTruncated(ctx context.Context) error
 	MigrateTaskTranslationsAddLanguageCode(ctx context.Context) error
 	MigrateTaskTranslationsRenameLanguage(ctx context.Context) error
+	MigrateTokenUsageAddFilteredCount(ctx context.Context) error
 	MigrateUsersAddDailyGoal(ctx context.Context) error
 	MigrateUsersAddLastCompletedAt(ctx context.Context) error
 	MigrateUsersAddLevel(ctx context.Context) error

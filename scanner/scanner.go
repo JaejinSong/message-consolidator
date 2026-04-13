@@ -21,6 +21,7 @@ var (
 	cfg           *config.Config
 	completionSvc *services.CompletionService
 	tasksSvc      *services.TasksService
+	filterSvc     *ai.GeminiLiteFilter
 )
 
 func Init(c *config.Config) {
@@ -34,6 +35,7 @@ func Init(c *config.Config) {
 		completionSvc = services.NewCompletionService(gClient, &services.DefaultTaskStore{})
 		transSvc := services.NewTranslationService(gClient)
 		tasksSvc = services.NewTasksService(transSvc, gClient)
+		filterSvc = ai.NewGeminiLiteFilter(gClient)
 	}
 }
 

@@ -64,6 +64,31 @@ export const insightsRenderer = {
     },
 
     /**
+     * Updates Noise Rejection slots.
+     */
+    renderFilteredNoise(usage: TokenUsage | null, i18n: any): void {
+        const slot = document.getElementById('ai-noise-filtered');
+        if (!slot) return;
+        slot.innerHTML = '';
+
+        const { todayFiltered = 0, monthlyFiltered = 0 } = usage || {};
+
+        slot.innerHTML = `
+            <span class="stat-card__label">${i18n.noiseFiltered || '노이즈 필터링'}</span>
+            <div class="c-ai-usage">
+                <div class="c-ai-usage__item">
+                    <span class="c-ai-usage__value">${todayFiltered.toLocaleString()}</span>
+                    <span class="c-ai-usage__info">${i18n.filteredToday || '오늘 차단'}</span>
+                </div>
+                <div class="c-ai-usage__item">
+                    <span class="c-ai-usage__value">${monthlyFiltered.toLocaleString()}</span>
+                    <span class="c-ai-usage__info">${i18n.filteredMonthly || '이번 달 차단'}</span>
+                </div>
+            </div>
+        `;
+    },
+
+    /**
      * Updates daily performance slots.
      */
     renderDailyGlance(stats: UserStats | null, i18n: any): void {
@@ -88,6 +113,22 @@ export const insightsRenderer = {
         if (detSlot) {
             detSlot.innerHTML = '';
         }
+    },
+
+    /**
+     * Updates stale tasks count.
+     */
+    renderStaleTasks(stats: UserStats | null, i18n: any): void {
+        const slot = document.getElementById('staleTasksValue');
+        if (!slot) return;
+        slot.innerHTML = '';
+        
+        const staleCount = stats?.stale_count ?? 0;
+        
+        slot.innerHTML = `
+            <span class="stat-card__label">${i18n.staleTasks || '방치된 업무'}</span>
+            <div class="c-insights-card__main-value">${staleCount}</div>
+        `;
     },
 
     /**

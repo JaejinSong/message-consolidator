@@ -21,7 +21,7 @@ func (q *Queries) DeleteGmailToken(ctx context.Context, userEmail string) error 
 }
 
 const getDailyTokenUsage = `-- name: GetDailyTokenUsage :one
-SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) 
+SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(filtered_count), 0)
 FROM token_usage 
 WHERE user_email = ? AND date = ?
 `
@@ -34,12 +34,13 @@ type GetDailyTokenUsageParams struct {
 type GetDailyTokenUsageRow struct {
 	Coalesce   interface{} `json:"coalesce"`
 	Coalesce_2 interface{} `json:"coalesce_2"`
+	Coalesce_3 interface{} `json:"coalesce_3"`
 }
 
 func (q *Queries) GetDailyTokenUsage(ctx context.Context, arg GetDailyTokenUsageParams) (GetDailyTokenUsageRow, error) {
 	row := q.db.QueryRowContext(ctx, getDailyTokenUsage, arg.UserEmail, arg.Date)
 	var i GetDailyTokenUsageRow
-	err := row.Scan(&i.Coalesce, &i.Coalesce_2)
+	err := row.Scan(&i.Coalesce, &i.Coalesce_2, &i.Coalesce_3)
 	return i, err
 }
 
@@ -55,7 +56,7 @@ func (q *Queries) GetGmailToken(ctx context.Context, userEmail string) (string, 
 }
 
 const getMonthlyTokenUsage = `-- name: GetMonthlyTokenUsage :one
-SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) 
+SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(filtered_count), 0)
 FROM token_usage 
 WHERE user_email = ? AND date >= ? AND date < ?
 `
@@ -69,12 +70,13 @@ type GetMonthlyTokenUsageParams struct {
 type GetMonthlyTokenUsageRow struct {
 	Coalesce   interface{} `json:"coalesce"`
 	Coalesce_2 interface{} `json:"coalesce_2"`
+	Coalesce_3 interface{} `json:"coalesce_3"`
 }
 
 func (q *Queries) GetMonthlyTokenUsage(ctx context.Context, arg GetMonthlyTokenUsageParams) (GetMonthlyTokenUsageRow, error) {
 	row := q.db.QueryRowContext(ctx, getMonthlyTokenUsage, arg.UserEmail, arg.Date, arg.Date_2)
 	var i GetMonthlyTokenUsageRow
-	err := row.Scan(&i.Coalesce, &i.Coalesce_2)
+	err := row.Scan(&i.Coalesce, &i.Coalesce_2, &i.Coalesce_3)
 	return i, err
 }
 
@@ -96,13 +98,14 @@ func (q *Queries) UpsertGmailToken(ctx context.Context, arg UpsertGmailTokenPara
 }
 
 const upsertTokenUsage = `-- name: UpsertTokenUsage :exec
-INSERT INTO token_usage (user_email, prompt_tokens, completion_tokens, total_tokens, date)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO token_usage (user_email, prompt_tokens, completion_tokens, total_tokens, filtered_count, date)
+VALUES (?, ?, ?, ?, ?, ?)
 ON CONFLICT (user_email, date)
 DO UPDATE SET 
     prompt_tokens = token_usage.prompt_tokens + EXCLUDED.prompt_tokens,
     completion_tokens = token_usage.completion_tokens + EXCLUDED.completion_tokens,
-    total_tokens = token_usage.total_tokens + EXCLUDED.total_tokens
+    total_tokens = token_usage.total_tokens + EXCLUDED.total_tokens,
+    filtered_count = token_usage.filtered_count + EXCLUDED.filtered_count
 `
 
 type UpsertTokenUsageParams struct {
@@ -110,6 +113,7 @@ type UpsertTokenUsageParams struct {
 	PromptTokens     sql.NullInt64 `json:"prompt_tokens"`
 	CompletionTokens sql.NullInt64 `json:"completion_tokens"`
 	TotalTokens      sql.NullInt64 `json:"total_tokens"`
+	FilteredCount    sql.NullInt64 `json:"filtered_count"`
 	Date             time.Time     `json:"date"`
 }
 
@@ -119,6 +123,7 @@ func (q *Queries) UpsertTokenUsage(ctx context.Context, arg UpsertTokenUsagePara
 		arg.PromptTokens,
 		arg.CompletionTokens,
 		arg.TotalTokens,
+		arg.FilteredCount,
 		arg.Date,
 	)
 	return err

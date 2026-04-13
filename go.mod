@@ -6,6 +6,7 @@ require (
 	github.com/google/generative-ai-go v0.13.0
 	github.com/gorilla/mux v1.8.1
 	github.com/joho/godotenv v1.5.1
+	github.com/recapco/emailreplyparser v0.0.0-20150819183747-c8d8e0a5749b
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/slack-go/slack v0.19.0
 	github.com/stretchr/testify v1.11.1
@@ -55,7 +56,6 @@ require (
 	github.com/petermattis/goid v0.0.0-20260226131333-17d1149c6ac6 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/recapco/emailreplyparser v0.0.0-20150819183747-c8d8e0a5749b // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/richardlehane/mscfb v1.0.6 // indirect
 	github.com/richardlehane/msoleps v1.0.6 // indirect

@@ -36,6 +36,19 @@ func (s *WhatsAppScanner) processWhatsAppGroup(ctx context.Context, user store.U
 		}
 		
 		payload, msgMap := buildWAPayload(user, aliases, group)
+		
+		// Why: [Noise Filtering] Decouples noise/greeting filtering from the main extraction logic.
+		// Uses Lite Model (Flash-Lite) for efficiency and separates responsibilities.
+		if filterSvc != nil {
+			isNoise, err := filterSvc.IsNoise(ctx, user.Email, payload)
+			if err != nil {
+				logger.Warnf("[WA-SCAN] Filter service failed, falling back to full extraction: %v", err)
+			} else if isNoise {
+				logger.Debugf("[WA-SCAN] Skipping noise message group for %s", user.Email)
+				continue
+			}
+		}
+
 		lastMsg := group[len(group)-1]
 		enriched, err := EnrichWhatsAppMessage(jid, payload, lastMsg.Timestamp, &store.AliasStore{})
 		if err != nil {

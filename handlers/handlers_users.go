@@ -239,8 +239,8 @@ func (a *API) HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 // Why: Includes daily and monthly AI token usage data in the user info response to provide transparency on service costs and resource consumption.
 // This refactoring centralizes all arithmetic logic in the backend, using Gemini 3 Flash pricing.
 func (a *API) gatherTokenUsageStats(ctx context.Context, email string) map[string]interface{} {
-	todayPrompt, todayCompletion, _ := store.GetDailyTokenUsage(ctx, email)
-	monthPrompt, monthCompletion, _ := store.GetMonthlyTokenUsage(ctx, email)
+	todayPrompt, todayCompletion, todayFiltered, _ := store.GetDailyTokenUsage(ctx, email)
+	monthPrompt, monthCompletion, monthFiltered, _ := store.GetMonthlyTokenUsage(ctx, email)
 
 	calculateCost := func(p, c int) float64 {
 		return (float64(p)*RatePromptGemini3Flash + float64(c)*RateCompletionGemini3Flash) / TokenUnitDenominator
@@ -249,10 +249,12 @@ func (a *API) gatherTokenUsageStats(ctx context.Context, email string) map[strin
 	return map[string]interface{}{
 		"todayPrompt":        todayPrompt,
 		"todayCompletion":    todayCompletion,
+		"todayFiltered":      todayFiltered,
 		"todayTotal":         todayPrompt + todayCompletion,
 		"todayCost":          calculateCost(todayPrompt, todayCompletion),
 		"monthlyPrompt":      monthPrompt,
 		"monthlyCompletion":  monthCompletion,
+		"monthlyFiltered":    monthFiltered,
 		"monthlyTotal":       monthPrompt + monthCompletion,
 		"monthlyCost":        calculateCost(monthPrompt, monthCompletion),
 		"model":              "Gemini 3 Flash",

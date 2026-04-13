@@ -31,6 +31,7 @@ vi.mock('./insightsRenderer', () => ({
         renderLoading: vi.fn(),
         renderError: vi.fn(),
         renderTokenUsage: vi.fn(),
+        renderFilteredNoise: vi.fn(),
         renderChannelDistribution: vi.fn(),
         renderStaleTasks: vi.fn(),
         renderEmptyState: vi.fn(),

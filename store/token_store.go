@@ -12,6 +12,7 @@ import (
 type tokenData struct {
 	Prompt     int
 	Completion int
+	Filtered   int
 }
 
 type tokenUsageCacheData struct {
@@ -19,8 +20,10 @@ type tokenUsageCacheData struct {
 	Month             string
 	DailyPrompt       int
 	DailyCompletion   int
+	DailyFiltered     int
 	MonthlyPrompt     int
 	MonthlyCompletion int
+	MonthlyFiltered   int
 }
 
 var (
@@ -82,6 +85,32 @@ func AddTokenUsage(email string, promptTokens, completionTokens int) error {
 	return nil
 }
 
+// IncrementFilteredCount increments the filtered message count for the user.
+// Why: [Performance] Caches the filtered count in-memory to minimize DB writes for high-frequency noise rejection.
+func IncrementFilteredCount(email string) {
+	tokenMu.Lock()
+	defer tokenMu.Unlock()
+
+	if _, ok := tokenDirtyData[email]; !ok {
+		tokenDirtyData[email] = &tokenData{}
+	}
+	tokenDirtyData[email].Filtered++
+
+	today := time.Now().Format("2006-01-02")
+	currentMonth := time.Now().Format("2006-01")
+
+	usageCacheMu.Lock()
+	if cache, ok := usageCache[email]; ok {
+		if cache.Date == today {
+			cache.DailyFiltered++
+		}
+		if cache.Month == currentMonth {
+			cache.MonthlyFiltered++
+		}
+	}
+	usageCacheMu.Unlock()
+}
+
 func FlushTokenUsage(ctx context.Context) error {
 	tokenMu.Lock()
 	if len(tokenDirtyData) == 0 {
@@ -105,6 +134,7 @@ func FlushTokenUsage(ctx context.Context) error {
 				PromptTokens:     sql.NullInt64{Int64: int64(data.Prompt), Valid: true},
 				CompletionTokens: sql.NullInt64{Int64: int64(data.Completion), Valid: true},
 				TotalTokens:      sql.NullInt64{Int64: int64(totalTokens), Valid: true},
+				FilteredCount:    sql.NullInt64{Int64: int64(data.Filtered), Valid: true},
 				Date:             parsedDate,
 			})
 			if err != nil {
@@ -123,6 +153,7 @@ func FlushTokenUsage(ctx context.Context) error {
 			}
 			tokenDirtyData[email].Prompt += data.Prompt
 			tokenDirtyData[email].Completion += data.Completion
+			tokenDirtyData[email].Filtered += data.Filtered
 		}
 	}
 	tokenFlushingData = make(map[string]*tokenData)
@@ -145,14 +176,34 @@ func FlushTokenUsageIfNeeded(ctx context.Context) {
 	}
 }
 
-func GetDailyTokenUsage(ctx context.Context, email string) (int, int, error) {
+// getInMemoryUsage gathers pending token usage from dirty and flushing buffers.
+// Why: [Performance] Shared logic for daily/monthly stats that ensures thread safety.
+func getInMemoryUsage(email string) (int, int, int) {
+	tokenMu.Lock()
+	defer tokenMu.Unlock()
+
+	p, c, f := 0, 0, 0
+	if data, ok := tokenDirtyData[email]; ok {
+		p += data.Prompt
+		c += data.Completion
+		f += data.Filtered
+	}
+	if data, ok := tokenFlushingData[email]; ok {
+		p += data.Prompt
+		c += data.Completion
+		f += data.Filtered
+	}
+	return p, c, f
+}
+
+func GetDailyTokenUsage(ctx context.Context, email string) (int, int, int, error) {
 	today := time.Now().Format("2006-01-02")
 
 	usageCacheMu.RLock()
 	if cache, exists := usageCache[email]; exists && cache.Date == today {
-		dp, dc := cache.DailyPrompt, cache.DailyCompletion
+		dp, dc, df := cache.DailyPrompt, cache.DailyCompletion, cache.DailyFiltered
 		usageCacheMu.RUnlock()
-		return dp, dc, nil
+		return dp, dc, df, nil
 	}
 	usageCacheMu.RUnlock()
 
@@ -165,7 +216,7 @@ func GetDailyTokenUsage(ctx context.Context, email string) (int, int, error) {
 	})
 
 	if err != nil && err != sql.ErrNoRows {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 
 	// sqlc COALESCE(SUM(...)) returns interface{} which is float64 or int64 depending on driver
@@ -183,16 +234,17 @@ func GetDailyTokenUsage(ctx context.Context, email string) (int, int, error) {
 		completion = int(val)
 	}
 
-	tokenMu.Lock()
-	if data, ok := tokenDirtyData[email]; ok {
-		prompt += data.Prompt
-		completion += data.Completion
+	filteredCount := 0
+	if val, ok := row.Coalesce_3.(int64); ok {
+		filteredCount = int(val)
+	} else if val, ok := row.Coalesce_3.(float64); ok {
+		filteredCount = int(val)
 	}
-	if data, ok := tokenFlushingData[email]; ok {
-		prompt += data.Prompt
-		completion += data.Completion
-	}
-	tokenMu.Unlock()
+
+	ip, ic, ifl := getInMemoryUsage(email)
+	prompt += ip
+	completion += ic
+	filteredCount += ifl
 
 	usageCacheMu.Lock()
 	if usageCache[email] == nil {
@@ -201,19 +253,20 @@ func GetDailyTokenUsage(ctx context.Context, email string) (int, int, error) {
 	usageCache[email].Date = today
 	usageCache[email].DailyPrompt = prompt
 	usageCache[email].DailyCompletion = completion
+	usageCache[email].DailyFiltered = filteredCount
 	usageCacheMu.Unlock()
 
-	return prompt, completion, nil
+	return prompt, completion, filteredCount, nil
 }
 
-func GetMonthlyTokenUsage(ctx context.Context, email string) (int, int, error) {
+func GetMonthlyTokenUsage(ctx context.Context, email string) (int, int, int, error) {
 	currentMonth := time.Now().Format("2006-01")
 
 	usageCacheMu.RLock()
 	if cache, exists := usageCache[email]; exists && cache.Month == currentMonth {
-		mp, mc := cache.MonthlyPrompt, cache.MonthlyCompletion
+		mp, mc, mf := cache.MonthlyPrompt, cache.MonthlyCompletion, cache.MonthlyFiltered
 		usageCacheMu.RUnlock()
-		return mp, mc, nil
+		return mp, mc, mf, nil
 	}
 	usageCacheMu.RUnlock()
 	firstDay := currentMonth + "-01"
@@ -233,7 +286,7 @@ func GetMonthlyTokenUsage(ctx context.Context, email string) (int, int, error) {
 	})
 
 	if err != nil && err != sql.ErrNoRows {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 
 	prompt := 0
@@ -250,16 +303,17 @@ func GetMonthlyTokenUsage(ctx context.Context, email string) (int, int, error) {
 		completion = int(val)
 	}
 
-	tokenMu.Lock()
-	if data, ok := tokenDirtyData[email]; ok {
-		prompt += data.Prompt
-		completion += data.Completion
+	filteredCount := 0
+	if val, ok := row.Coalesce_3.(int64); ok {
+		filteredCount = int(val)
+	} else if val, ok := row.Coalesce_3.(float64); ok {
+		filteredCount = int(val)
 	}
-	if data, ok := tokenFlushingData[email]; ok {
-		prompt += data.Prompt
-		completion += data.Completion
-	}
-	tokenMu.Unlock()
+
+	ip, ic, ifl := getInMemoryUsage(email)
+	prompt += ip
+	completion += ic
+	filteredCount += ifl
 
 	usageCacheMu.Lock()
 	if usageCache[email] == nil {
@@ -268,9 +322,10 @@ func GetMonthlyTokenUsage(ctx context.Context, email string) (int, int, error) {
 	usageCache[email].Month = currentMonth
 	usageCache[email].MonthlyPrompt = prompt
 	usageCache[email].MonthlyCompletion = completion
+	usageCache[email].MonthlyFiltered = filteredCount
 	usageCacheMu.Unlock()
 
-	return prompt, completion, nil
+	return prompt, completion, filteredCount, nil
 }
 
 func SaveGmailToken(ctx context.Context, email, tokenJSON string) error {

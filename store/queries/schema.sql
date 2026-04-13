@@ -227,6 +227,7 @@ CREATE TABLE IF NOT EXISTS token_usage (
     prompt_tokens INT DEFAULT 0,
     completion_tokens INT DEFAULT 0,
     total_tokens INT DEFAULT 0,
+    filtered_count INT DEFAULT 0,
     UNIQUE(user_email, date)
 );
 

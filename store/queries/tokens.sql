@@ -5,25 +5,27 @@ CREATE TABLE IF NOT EXISTS token_usage (
     prompt_tokens INT DEFAULT 0,
     completion_tokens INT DEFAULT 0,
     total_tokens INT DEFAULT 0,
+    filtered_count INT DEFAULT 0,
     UNIQUE(user_email, date)
 );
 
 -- name: UpsertTokenUsage :exec
-INSERT INTO token_usage (user_email, prompt_tokens, completion_tokens, total_tokens, date)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO token_usage (user_email, prompt_tokens, completion_tokens, total_tokens, filtered_count, date)
+VALUES (?, ?, ?, ?, ?, ?)
 ON CONFLICT (user_email, date)
 DO UPDATE SET 
     prompt_tokens = token_usage.prompt_tokens + EXCLUDED.prompt_tokens,
     completion_tokens = token_usage.completion_tokens + EXCLUDED.completion_tokens,
-    total_tokens = token_usage.total_tokens + EXCLUDED.total_tokens;
+    total_tokens = token_usage.total_tokens + EXCLUDED.total_tokens,
+    filtered_count = token_usage.filtered_count + EXCLUDED.filtered_count;
 
 -- name: GetDailyTokenUsage :one
-SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) 
+SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(filtered_count), 0)
 FROM token_usage 
 WHERE user_email = ? AND date = ?;
 
 -- name: GetMonthlyTokenUsage :one
-SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0) 
+SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(filtered_count), 0)
 FROM token_usage 
 WHERE user_email = ? AND date >= ? AND date < ?;
 

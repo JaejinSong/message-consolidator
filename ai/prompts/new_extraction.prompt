@@ -17,8 +17,6 @@ Extract actionable tasks, operational policies, and context-dependent queries fr
 3. **Task Consolidation & Core Context**: 
    - Extract a MAXIMUM of 5 core actionable tasks per email. 
    - **Contextual Justification**: For each task, extract 1-2 sentence snippets from the ORIGINAL message that serve as the direct justification or context for that task. These snippets MUST remain in their **Original Language** (do not translate them).
-4. **Conservative Extraction**: IF the intent of the message is ambiguous between a task and a simple greeting, DO NOT ignore it. Set `state: "new"` to ensure no potential task is missed.
-5. **None State**: IF a message is CLEARLY and EXCLUSIVELY a greeting, well-being inquiry, or casual talk (e.g., "Hi", "Hello", "How are you?"), set `state: "none"`, and still include `"language_code": "en"`.
 6. **Host Response (Resolve)**: IF the sender is `{{.CurrentUser}}` AND the message indicates completion ("Done", "Finished", "I did it") of a task listed in the `Existing Tasks JSON`, set `state: "resolve"` and provide the matching task `id`.
 7. **Update State**: IF a message adds more detail to an existing task in `Existing Tasks JSON`, set `state: "update"` with the matching `id`.
 8. **Security (Strict ID Isolation)**:
@@ -28,13 +26,11 @@ Extract actionable tasks, operational policies, and context-dependent queries fr
 
 # Extraction Logic (Deterministic):
 1. **IDENTIFY state AND category**:
-   IF clearly_greeting_only:
-      SET state = "none", category = "TASK"
-   ELSE IF sender == "{{.CurrentUser}}" AND indicates_completion_of_existing_task:
+   IF sender == "{{.CurrentUser}}" AND indicates_completion_of_existing_task:
       SET state = "resolve", id = existing_task_id
    ELSE IF adds_detail_to_existing_task:
       SET state = "update", id = existing_task_id
-   ELSE (ambiguous OR new_request):
+   ELSE:
       SET state = "new"
       IF message_content IS (rule, notice, procedure): SET category = "POLICY"
       ELSE IF message_content IS (question, clarification): SET category = "QUERY"

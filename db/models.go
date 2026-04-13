@@ -168,6 +168,7 @@ type TokenUsage struct {
 	PromptTokens     sql.NullInt64 `json:"prompt_tokens"`
 	CompletionTokens sql.NullInt64 `json:"completion_tokens"`
 	TotalTokens      sql.NullInt64 `json:"total_tokens"`
+	FilteredCount    sql.NullInt64 `json:"filtered_count"`
 }
 
 type User struct {

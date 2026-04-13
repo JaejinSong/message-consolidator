@@ -74,3 +74,9 @@ SELECT requester_type AS contact_type, COUNT(*) AS count
 FROM v_messages 
 WHERE user_email = ? AND is_deleted = 0 
 GROUP BY requester_type;
+
+-- name: GetDailyFilteredCount :one
+SELECT COALESCE(SUM(filtered_count), 0) FROM token_usage WHERE user_email = ? AND date = ?;
+
+-- name: GetMonthlyFilteredCount :one
+SELECT COALESCE(SUM(filtered_count), 0) FROM token_usage WHERE user_email = ? AND date >= ? AND date < ?;

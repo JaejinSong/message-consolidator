@@ -55,6 +55,8 @@ export interface TokenUsage {
     monthlyCompletion: number;
     monthlyCost: number;
     model: string;
+    todayFiltered?: number;
+    monthlyFiltered?: number;
 }
 
 export interface TimeSeriesPoint {
@@ -76,6 +78,7 @@ export interface UserStats {
     completion_history: TimeSeriesPoint[];
     max_daily_completed?: number;
     early_bird_count?: number;
+    stale_count?: number;
 }
 
 export interface CategorizedMessages {

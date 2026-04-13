@@ -347,7 +347,10 @@ export const insights = {
         const lang = state.currentLang || 'en';
         const i18n = I18N_DATA[lang];
 
-        if (tokenUsage) insightsRenderer.renderTokenUsage(tokenUsage, i18n);
+        if (tokenUsage) {
+            insightsRenderer.renderTokenUsage(tokenUsage, i18n);
+            insightsRenderer.renderFilteredNoise(tokenUsage, i18n);
+        }
         this.lastStats = stats;
 
         // Restore Daily Performance Widget with BEM Rendering (Handles null internally)
