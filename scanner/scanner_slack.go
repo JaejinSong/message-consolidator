@@ -59,6 +59,11 @@ func scanSlack(ctx context.Context, users []store.User) {
 	candidates, newTS := collectSlackHistory(ctx, users, chans, sc, userAl)
 	processSlackCandidates(ctx, users, sc, candidates)
 	updateSlackCursors(newTS)
+
+	//Why: Forces immediate persistence of scan cursors after each cycle to prevent data loss or scan gaps in case of process termination.
+	for _, u := range users {
+		store.PersistAllScanMetadata(u.Email)
+	}
 }
 
 func prepareSlackUserAliases(ctx context.Context, users []store.User) map[string][]string {
@@ -89,12 +94,19 @@ func collectSlackHistory(ctx context.Context, users []store.User, chans []slack.
 
 func scanSingleSlackChannel(ctx context.Context, users []store.User, c slack.Channel, sc *channels.SlackClient, userAl map[string][]string, mu *sync.Mutex, candidates map[string][]types.RawMessage, newTS map[string]map[string]string) error {
 	minTS := getMinLastTS(users, c.ID)
-	if err := slackLimiter.Wait(ctx); err != nil {
+	logger.Debugf("[SLACK-DEBUG] Channel %s: minTS=%s", c.ID, minTS)
+	//Why: Uses a dual-strategy scan window. It scans up to 24 hours back by default, 
+	// but respects minTS as a lower bound only if it provides a safer (older) starting point, 
+	// preventing "islands" of unproccessed messages between scan intervals.
+	since := time.Now().Add(-24 * time.Hour)
+	msgs, err := sc.GetMessages(c.ID, since, minTS)
+	if err != nil {
+		logger.Errorf("[SLACK-ERROR] GetMessages failed for %s: %v", c.ID, err)
 		return err
 	}
-	msgs, err := sc.GetMessages(c.ID, time.Now().Add(-24*time.Hour), minTS)
-	if err != nil || len(msgs) == 0 {
-		return err
+	if len(msgs) == 0 {
+		logger.Debugf("[SLACK-DEBUG] No new messages for channel %s (minTS: %s)", c.ID, minTS)
+		return nil
 	}
 
 	mu.Lock()
@@ -132,9 +144,11 @@ func classifyAndCollect(ctx context.Context, c slack.Channel, m types.RawMessage
 			})
 		}
 		cls := classifyMessage(c, &u, userAl[u.Email], m)
-		if cls == "내 업무" || cls == "회신 대기" {
+		if cls == types.MsgTypeMyTask || cls == types.MsgTypeWaiting || (cls == types.MsgTypeOther && m.Text != "") {
 			m.ChannelID = c.ID
 			candidates[u.Email] = append(candidates[u.Email], m)
+		} else {
+			logger.Debugf("[SLACK-DROP] User: %s, Sender: %s, Text: %.20v", u.Email, m.Sender, m.Text)
 		}
 		if newTS[u.Email] == nil {
 			newTS[u.Email] = make(map[string]string)
@@ -163,28 +177,35 @@ func updateSlackCursors(newTS map[string]map[string]string) {
 	}
 }
 
-func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m types.RawMessage) string {
+func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m types.RawMessage) types.SlackMsgType {
 	isFromMe := strings.EqualFold(m.Sender, user.Name) || strings.EqualFold(m.Sender, user.Email) || (user.SlackID != "" && m.Sender == user.SlackID)
 	// If the message is from me, check if it's a direct task/request to someone else in a non-DM channel.
 	if isFromMe && !channel.IsIM && !channel.IsMpIM {
 		if strings.Contains(m.Text, "<@U") && (user.SlackID == "" || !strings.Contains(m.Text, "<@"+user.SlackID+">")) {
-			return "회신 대기"
+			return types.MsgTypeWaiting
 		}
 	}
-	// Direct messages or multi-person DMs are always my tasks.
-	if channel.IsIM || channel.IsMpIM {
-		return "내 업무"
+	// Direct messages, group mentions, or mentions to me/aliases are my tasks.
+	if channel.IsIM || channel.IsMpIM || isGroupMention(m.Text) {
+		return types.MsgTypeMyTask
 	}
-	// Messages mentioning me or my aliases are my tasks.
-	if user.SlackID != "" && strings.Contains(m.Text, "<@"+user.SlackID+">") {
-		return "내 업무"
+	if (user.SlackID != "" && strings.Contains(m.Text, "<@"+user.SlackID+">")) || hasAliasMatch(m, aliases) {
+		return types.MsgTypeMyTask
 	}
+	return types.MsgTypeOther
+}
+
+func isGroupMention(text string) bool {
+	return strings.Contains(text, "<!here>") || strings.Contains(text, "<!channel>") || strings.Contains(text, "<!everyone>")
+}
+
+func hasAliasMatch(m types.RawMessage, aliases []string) bool {
 	for _, alias := range aliases {
 		if alias != "" && IsAliasMatched(m.Text, m.Sender, alias) {
-			return "내 업무"
+			return true
 		}
 	}
-	return "기타 업무"
+	return false
 }
 
 func startSlowSweeper(ctx context.Context, wg *sync.WaitGroup) {
@@ -289,7 +310,7 @@ func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user
 		if !isBot && m.Text != "" {
 			c := slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: t.ChannelID}}}
 			cls := classifyMessage(c, user, effAl, types.RawMessage{Sender: m.User, Text: m.Text})
-			if cls == "내 업무" || cls == "회신 대기" {
+			if cls == types.MsgTypeMyTask || cls == types.MsgTypeWaiting || (cls == types.MsgTypeOther && m.Text != "") {
 				candidates = append(candidates, types.RawMessage{
 					ID: m.Timestamp, Sender: sc.GetUserName(m.User), Text: m.Text, Timestamp: parseSlackTimestamp(m.Timestamp),
 					ReplyToID: t.ThreadTS, ChannelID: t.ChannelID, HasAttachment: len(m.Files) > 0,
@@ -436,7 +457,7 @@ func mapSlackItemToMessage(ctx context.Context, item store.TodoItem, m types.Raw
 	if threadID == "" { threadID = m.ID }
 	link := buildSlackLinkAndRegisterThread(ctx, m, user.Email)
 	category := item.Category
-	if classification == "회신 대기" { category = "waiting" }
+	if classification == types.MsgTypeWaiting { category = "waiting" }
 	return store.ConsolidatedMessage{
 		UserEmail: user.Email, Source: "slack", Room: sc.GetChannelName(m.ChannelID),
 		Task: item.Task, Requester: item.Requester, Assignee: normalizeSlackAssignee(item.Assignee, user),

@@ -154,6 +154,7 @@ func (s *SlackClient) processHistoryMessages(channelID string, messages []slack.
 
 		//Why: Filters out automated bot messages and empty notifications to focus analysis on actionable user-generated task descriptions.
 		if m.BotID != "" || m.Text == "" {
+			logger.Debugf("[SLACK-DEBUG] Dropping msg: ID=%s, BotID=%s, TextLen=%d", m.Timestamp, m.BotID, len(m.Text))
 			continue
 		}
 
