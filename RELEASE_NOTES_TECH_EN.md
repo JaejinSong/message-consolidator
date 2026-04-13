@@ -1,3 +1,12 @@
+# Release Notes (Tech) - v2.4.33 (2026-04-13 15:45 UTC)
+
+- [REFACTOR] Centralize task consolidation and assignee normalization into shared scanner utilities
+- [REFACTOR] Standardize Slack/WhatsApp message classification categories and persistence logic
+- [FEAT] Refine Slack classification logic and implement edge case unit tests
+- [OPTIMIZE] Enhance AI noise filtering and transition to in-memory testing infrastructure
+
+---
+
 # Release Notes (Tech) - v2.4.32 (2026-04-13 14:09 UTC)
 
 - [FEAT] Implement AI-driven noise filtering and marketing detection for Gmail processing

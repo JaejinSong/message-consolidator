@@ -1,3 +1,12 @@
+# Release Notes - v2.4.33 (2026-04-13 15:45 UTC)
+
+- 🧩 **Unified Intelligence**: Task handling and assignee sorting are now smarter and more consistent across WhatsApp and Slack.
+- 🔍 **Precision Scanning**: Refined Slack filtering ensures you capture every detail with improved message classification.
+- ✨ **Pure Signal, No Noise**: Upgraded AI noise filtering keeps your workspace clean and focused.
+- 🛡️ **Reliability First**: Enhanced persistence and rigorous testing under the hood for a rock-solid experience.
+
+---
+
 # Release Notes - v2.4.32 (2026-04-13 14:09 UTC)
 
 - 🧠 **AI Intelligence**: Your Gmail is now cleaner than ever with AI-powered noise and marketing filtering!

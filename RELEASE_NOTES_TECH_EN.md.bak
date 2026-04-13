@@ -1,3 +1,14 @@
+# Release Notes (Tech) - v2.4.32 (2026-04-13 14:09 UTC)
+
+- [FEAT] Implement AI-driven noise filtering and marketing detection for Gmail processing
+- [FEAT] Add noise filtering metrics to token usage statistics visualization
+- [OPTIMIZE] Reduce processing overhead by ignoring WhatsApp profile update events
+- [REFACTOR] Implement internal transactions and state synchronization for message store
+- [REFACTOR] Enhance Gmail parsing accuracy via external library integration
+- [OPTIMIZE] Improve Gmail CC restoration performance using pagination and batching
+
+---
+
 # Release Notes (Tech) - v2.4.31 (2026-04-12 23:14 UTC)
 
 - [OPTIMIZE] Enhance Gmail CC restoration with parallel processing (errgroup) and batch updates to eliminate N+1 queries
