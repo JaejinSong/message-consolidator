@@ -13,13 +13,6 @@ const (
 	CategoryQuery  MessageCategory = "QUERY"
 )
 
-type SlackMsgType string
-
-const (
-	MsgTypeMyTask  SlackMsgType = "MY_TASK"
-	MsgTypeWaiting SlackMsgType = "WAITING"
-	MsgTypeOther   SlackMsgType = "OTHER"
-)
 
 // RawMessage represents a generic text message extracted from any source (Slack, WhatsApp, etc.)
 type RawMessage struct {

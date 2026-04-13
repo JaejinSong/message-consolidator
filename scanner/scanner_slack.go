@@ -144,8 +144,8 @@ func classifyAndCollect(ctx context.Context, c slack.Channel, m types.RawMessage
 			})
 		}
 		cls := classifyMessage(c, &u, userAl[u.Email], m)
-		// Soft Filtering: Always include MsgTypeOther if it reached this stage (channels layer pre-filters noise).
-		if cls == types.MsgTypeMyTask || cls == types.MsgTypeWaiting || cls == types.MsgTypeOther {
+		// Soft Filtering: Always include Task and Query categories if they reached this stage.
+		if cls == types.CategoryTask || cls == types.CategoryQuery {
 			m.ChannelID = c.ID
 			candidates[u.Email] = append(candidates[u.Email], m)
 		}
@@ -178,22 +178,22 @@ func updateSlackCursors(newTS map[string]map[string]string) {
 	}
 }
 
-func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m types.RawMessage) types.SlackMsgType {
+func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m types.RawMessage) types.MessageCategory {
 	isFromMe := strings.EqualFold(m.Sender, user.Name) || strings.EqualFold(m.Sender, user.Email) || (user.SlackID != "" && m.Sender == user.SlackID)
 	// Why: Identifies self-sent requests to others in non-direct channels to track "waiting for reply" states.
 	if isFromMe && !channel.IsIM && !channel.IsMpIM {
 		if strings.Contains(m.Text, "<@U") && (user.SlackID == "" || !strings.Contains(m.Text, "<@"+user.SlackID+">")) {
-			return types.MsgTypeWaiting
+			return types.CategoryTask
 		}
 	}
 	// Why: Broadens capture by prioritizing direct messages, group mentions, and specific personal mentions.
 	if channel.IsIM || channel.IsMpIM || isGroupMention(m.Text) {
-		return types.MsgTypeMyTask
+		return types.CategoryTask
 	}
 	if (user.SlackID != "" && strings.Contains(m.Text, "<@"+user.SlackID+">")) || hasAliasMatch(m, aliases) {
-		return types.MsgTypeMyTask
+		return types.CategoryTask
 	}
-	return types.MsgTypeOther
+	return types.CategoryQuery
 }
 
 func isGroupMention(text string) bool {
@@ -310,7 +310,7 @@ func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user
 		// Why: Architecture Separation—Redundant isBot/Empty text checks are removed here as the channels layer already pre-filters these.
 		c := slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: t.ChannelID}}}
 		cls := classifyMessage(c, user, effAl, types.RawMessage{Sender: m.User, Text: m.Text})
-		if cls == types.MsgTypeMyTask || cls == types.MsgTypeWaiting || cls == types.MsgTypeOther {
+		if cls == types.CategoryTask || cls == types.CategoryQuery {
 			candidates = append(candidates, types.RawMessage{
 				ID: m.Timestamp, Sender: sc.GetUserName(m.User), Text: m.Text, Timestamp: parseSlackTimestamp(m.Timestamp),
 				ReplyToID: t.ThreadTS, ChannelID: t.ChannelID, HasAttachment: len(m.Files) > 0,
@@ -450,17 +450,13 @@ func buildSlackMetadataString(m types.RawMessage) string {
 }
 
 func mapSlackItemToMessage(ctx context.Context, item store.TodoItem, m types.RawMessage, user *store.User, aliases []string, sc *channels.SlackClient) store.ConsolidatedMessage {
-	mChannel := slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: m.ChannelID}}}
-	classification := classifyMessage(mChannel, user, aliases, m)
 	threadID := m.ReplyToID
 	if threadID == "" { threadID = m.ID }
 	link := buildSlackLinkAndRegisterThread(ctx, m, user.Email)
-	category := item.Category
-	if classification == types.MsgTypeWaiting { category = "waiting" }
 	return store.ConsolidatedMessage{
 		UserEmail: user.Email, Source: "slack", Room: sc.GetChannelName(m.ChannelID),
 		Task: item.Task, Requester: item.Requester, Assignee: normalizeSlackAssignee(item.Assignee, user),
-		AssignedAt: m.Timestamp, Link: link, SourceTS: m.ID, OriginalText: m.Text, Category: category,
+		AssignedAt: m.Timestamp, Link: link, SourceTS: m.ID, OriginalText: m.Text, Category: item.Category,
 		ThreadID: threadID, SourceChannels: []string{"slack"},
 	}
 }

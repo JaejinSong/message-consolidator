@@ -19,11 +19,9 @@ import (
 
 func (s *WhatsAppScanner) processWhatsAppGroup(ctx context.Context, user store.User, aliases []string, jid string, msgs []types.RawMessage, language string) []int {
 	groupName := channels.DefaultWAManager.GetGroupName(user.Email, jid)
-	
-	// Why: [Time-Topic Hybrid] Groups messages by sender and time proximity to provide better context.
 	msgGroups := ai.GroupMessagesByTime(msgs, cfg.MessageBatchWindow)
 	
-	var allNewIDs []int
+	var allIDs []int
 	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 	if err != nil {
 		logger.Errorf("[WA-SCAN] Failed to create Gemini client: %v", err)
@@ -31,48 +29,60 @@ func (s *WhatsAppScanner) processWhatsAppGroup(ctx context.Context, user store.U
 	}
 
 	for _, group := range msgGroups {
-		if len(group) == 0 {
-			continue
+		if ids := s.processSingleGroup(ctx, user, aliases, jid, groupName, group, gc, language); len(ids) > 0 {
+			allIDs = append(allIDs, ids...)
 		}
-		
-		payload, msgMap := buildWAPayload(user, aliases, group)
-		
-		// Why: [Noise Filtering] Decouples noise/greeting filtering from the main extraction logic.
-		// Uses Lite Model (Flash-Lite) for efficiency and separates responsibilities.
-		if filterSvc != nil {
-			isNoise, err := filterSvc.IsNoise(ctx, user.Email, payload)
-			if err != nil {
-				logger.Warnf("[WA-SCAN] Filter service failed, falling back to full extraction: %v", err)
-			} else if isNoise {
-				logger.Debugf("[WA-SCAN] Skipping noise message group for %s", user.Email)
-				continue
-			}
-		}
+	}
+	return allIDs
+}
 
-		lastMsg := group[len(group)-1]
-		enriched, err := EnrichWhatsAppMessage(jid, payload, lastMsg.Timestamp, &store.AliasStore{})
-		if err != nil {
-			logger.Errorf("[WA-SCAN] Failed to enrich message group: %v", err)
-			continue
-		}
+func (s *WhatsAppScanner) processSingleGroup(ctx context.Context, user store.User, aliases []string, jid string, groupName string, group []types.RawMessage, gc *ai.GeminiClient, language string) []int {
+	if len(group) == 0 {
+		return nil
+	}
+	payload, msgMap := buildWAPayload(user, aliases, group)
+	if s.isIgnorableNoise(ctx, user.Email, payload) {
+		return nil
+	}
 
-		items, err := gc.Analyze(ctx, user.Email, *enriched, language, "whatsapp", groupName)
-		if err != nil {
-			logger.Errorf("[WA-SCAN] AI analysis failed for group: %v", err)
-			continue
-		}
+	lastMsg := group[len(group)-1]
+	enriched, err := EnrichWhatsAppMessage(jid, payload, lastMsg.Timestamp, &store.AliasStore{})
+	if err != nil {
+		logger.Errorf("[WA-SCAN] Failed to enrich message: %v", err)
+		return nil
+	}
 
-		is1to1 := !strings.Contains(jid, "@g.us")
-		for _, item := range items {
-			if m, ok := msgMap[item.SourceTS]; ok {
-				id := saveWAItem(ctx, user, aliases, item, m, groupName, is1to1)
-				if id > 0 {
-					allNewIDs = append(allNewIDs, id)
-				}
+	items, err := gc.Analyze(ctx, user.Email, *enriched, language, "whatsapp", groupName)
+	if err != nil {
+		logger.Errorf("[WA-SCAN] AI analysis failed: %v", err)
+		return nil
+	}
+
+	return s.processWAItems(ctx, user, aliases, items, msgMap, groupName, !strings.Contains(jid, "@g.us"))
+}
+
+func (s *WhatsAppScanner) isIgnorableNoise(ctx context.Context, email string, payload string) bool {
+	if filterSvc == nil {
+		return false
+	}
+	isNoise, err := filterSvc.IsNoise(ctx, email, payload)
+	if err != nil {
+		logger.Warnf("[WA-SCAN] Filter failed for %s: %v", email, err)
+		return false
+	}
+	return isNoise
+}
+
+func (s *WhatsAppScanner) processWAItems(ctx context.Context, user store.User, aliases []string, items []store.TodoItem, msgMap map[string]types.RawMessage, group string, is1to1 bool) []int {
+	var newIDs []int
+	for _, item := range items {
+		if m, ok := msgMap[item.SourceTS]; ok {
+			if id := saveWAItem(ctx, user, aliases, item, m, group, is1to1); id > 0 {
+				newIDs = append(newIDs, id)
 			}
 		}
 	}
-	return allNewIDs
+	return newIDs
 }
 
 func buildWAPayload(user store.User, aliases []string, msgs []types.RawMessage) (string, map[string]types.RawMessage) {
@@ -121,16 +131,45 @@ func buildWAMetadataString(email string, m types.RawMessage) string {
 }
 
 func saveWAItem(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool) int {
-	assignee := item.Assignee
-	category := item.Category
+	category := string(item.Category)
+	if isFromMe(m.Sender, user) && !is1to1 {
+		// Why: Identifies self-sent requests in groups as "waiting" tasks, mirroring Slack's logic for consistency.
+		category = string(types.CategoryTask)
+	}
+
 	msg := store.ConsolidatedMessage{
 		UserEmail: user.Email, Source: "whatsapp", Room: group, Task: item.Task,
-		Requester: item.Requester, Assignee: assignee, AssignedAt: m.Timestamp,
-		SourceTS: item.SourceTS, OriginalText: m.Text, Category: category,
-		SourceChannels: []string{"whatsapp"}, // Initial source for the new task
+		Requester: item.Requester, Assignee: normalizeWhatsAppAssignee(item.Assignee, user, aliases),
+		AssignedAt: m.Timestamp, SourceTS: item.SourceTS, OriginalText: m.Text, Category: category,
+		SourceChannels: []string{"whatsapp"},
 	}
 	id, _ := store.HandleTaskState(ctx, nil, user.Email, item, msg)
 	return id
+}
+
+func isFromMe(sender string, user store.User) bool {
+	lowerSender := strings.ToLower(sender)
+	return lowerSender == strings.ToLower(user.Name) || lowerSender == strings.ToLower(user.Email)
+}
+
+func normalizeWhatsAppAssignee(assignee string, user store.User, aliases []string) string {
+	lowerAsg := strings.ToLower(strings.TrimSpace(assignee))
+	if lowerAsg == "" {
+		return "shared"
+	}
+	// Why: Centralizes self-identification across languages and aliases to prevent duplicate entries in the dashboard.
+	selfIdentifiers := []string{"나", "me", "__current_user__", "담당자", strings.ToLower(user.Name), strings.ToLower(user.Email)}
+	for _, id := range selfIdentifiers {
+		if id != "" && lowerAsg == id {
+			return user.Name
+		}
+	}
+	for _, alias := range aliases {
+		if alias != "" && lowerAsg == strings.ToLower(alias) {
+			return user.Name
+		}
+	}
+	return assignee
 }
 
 func scanWhatsApp(ctx context.Context, user store.User, aliases []string, language string) []int {
