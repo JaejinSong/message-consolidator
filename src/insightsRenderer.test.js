@@ -24,12 +24,8 @@ describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
             <div class="c-insights-card c-insights-card--square" id="ai-usage-consolidated">
                 <div class="u-text-dim u-text-sm">AI Usage Data Syncing...</div>
             </div>
-            <div class="c-insights-card" id="cardAchievements">
-                <h3 class="c-insights-card__title">Achievements</h3>
-                <div id="achievementsList" class="c-insights-achievements-list"></div>
-            </div>
-            <div id="sourceDistribution"></div>
-            <div id="hourlyActivityValue"></div>
+            <div id="source-distribution-slot"></div>
+            <div id="activity-heatmap-slot"></div>
             <div id="ankiChartContainer" style="width:100px; height:100px;"></div>
         `;
     });
@@ -67,19 +63,12 @@ describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
         expect(slot.innerHTML).toContain('Gemini 3 Flash');
     });
 
-    it('should render achievements into the list slot', () => {
-        const all = [{ id: '1', name: 'Achievement 1', icon: '🏆' }];
-        insightsRenderer.renderAchievements(all, [], {});
-
-        const list = document.getElementById('achievementsList');
-        expect(list.innerHTML).toContain('Achievement 1');
-    });
 
     it('should render source distribution chart container and labels correctly', () => {
         const stats = { source_distribution: { slack: 70, whatsapp: 30 } };
         insightsRenderer.renderChannelDistribution(stats, mockI18n);
 
-        const container = document.getElementById('sourceDistribution');
+        const container = document.getElementById('source-distribution-slot');
         const chartNode = document.getElementById('sourceDistributionChart');
         
         expect(chartNode).not.toBeNull();

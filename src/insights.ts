@@ -337,13 +337,13 @@ export const insights = {
             ]);
 
             state.userStats = stats;
-            this.renderAll(stats, allAch, userAch, tokenUsage);
+            this.renderAll(stats, tokenUsage);
         } finally {
             if (loading) loading.classList.remove('active');
         }
     },
 
-    renderAll(stats: UserStats | null, allAch: any[], userAch: any[], tokenUsage: TokenUsage | null) {
+    renderAll(stats: UserStats | null, tokenUsage: TokenUsage | null) {
         const lang = state.currentLang || 'en';
         const i18n = I18N_DATA[lang];
 
@@ -362,9 +362,6 @@ export const insights = {
             insightsRenderer.renderHourlyActivity(stats, i18n); // Center heatmap (peak integration)
             insightsRenderer.renderStaleTasks(stats, i18n);
             insightsRenderer.renderAnkiChart(stats, this.currentChartDays);
-            if (allAch && userAch) {
-                insightsRenderer.renderAchievements(allAch, userAch, i18n);
-            }
         }
     }
 };

@@ -123,7 +123,7 @@ export const insightsRenderer = {
         if (!slot) return;
         slot.innerHTML = '';
         
-        const staleCount = stats?.stale_count ?? 0;
+        const staleCount = stats?.abandoned_tasks ?? 0;
         
         slot.innerHTML = `
             <span class="stat-card__label">${i18n.staleTasks || '방치된 업무'}</span>
@@ -131,40 +131,12 @@ export const insightsRenderer = {
         `;
     },
 
-    /**
-     * Updates achievement slot.
-     */
-    renderAchievements(all: any[], user: any[], i18n: any): void {
-        const container = document.getElementById('achievementsList');
-        if (!container) return;
-        container.innerHTML = '';
-
-        const unlockedIds = (user || []).map((u: any) => u.achievement_id || u.id);
-        const seriesItems = (all || []).filter(a => a.name.includes('태스크 마스터') || a.name.includes('첫 걸음'));
-        const nonSeriesItems = (all || []).filter(a => !a.name.includes('태스크 마스터') && !a.name.includes('첫 걸음'));
-
-        const itemsToDisplay: any[] = [];
-        if (seriesItems.length > 0) {
-            const firstLocked = seriesItems.find(s => !unlockedIds.includes(s.id));
-            itemsToDisplay.push(firstLocked || seriesItems[seriesItems.length - 1]);
-        }
-        itemsToDisplay.push(...nonSeriesItems);
-
-        container.innerHTML = `
-            <div class="u-w-full">
-                ${itemsToDisplay.slice(0, 2).map(ach => `
-                    <div class="c-achievement u-mb-1">${ach.icon || '🏆'} ${ach.name}</div>
-                `).join('')}
-            </div>
-            <span class="stat-card__label">${i18n.recentAchievements || '최근 업적'}</span>
-        `;
-    },
 
     /**
      * Updates channel distribution slot with a Pie Chart.
      */
     renderChannelDistribution(stats: any, i18n: any): void {
-        const container = document.getElementById('sourceDistribution');
+        const container = document.getElementById('source-distribution-slot');
         if (!container) return;
         const dist = stats.source_distribution_total || stats.source_distribution || {};
         const entries = Object.entries(dist).map(([name, value]) => ({ 
@@ -233,7 +205,7 @@ export const insightsRenderer = {
         `;
     },
 
-    renderActivityHeatmap(stats: any, i18n: any, targetId: string = 'activityHeatmap'): void {
+    renderActivityHeatmap(stats: any, i18n: any, targetId: string = 'activity-heatmap-slot'): void {
         const container = document.getElementById(targetId);
         if (!container) return;
         container.innerHTML = '';

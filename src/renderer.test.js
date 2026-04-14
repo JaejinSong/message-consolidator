@@ -98,47 +98,29 @@ describe('renderer.js - createCardElement', () => {
 describe('renderer.js - updateUserProfile', () => {
     beforeEach(() => {
         document.body.innerHTML = `
-            <div id="userXP"></div>
-            <div id="xpText"></div>
-            <div id="xpBar"></div>
-            <div id="userPoints"></div>
-            <div id="userLevel"></div>
-            <div id="userStreak"></div>
-        `;
-    });
-
-    it('should display relative XP progress (modulo 100)', () => {
-        renderer.updateUserProfile({ xp: 165, level: 2, streak: 5, points: 50 });
-        expect(document.getElementById('xpText').textContent).toBe('65 / 100 XP');
-        expect(document.getElementById('xpBar').style.width).toBe('65%');
-    });
-
-    it('should handle zero or null XP', () => {
-        renderer.updateUserProfile({ xp: null, level: 1, streak: 0, points: 0 });
-        expect(document.getElementById('xpText').textContent).toBe('0 / 100 XP');
-        expect(document.getElementById('xpBar').style.width).toBe('0%');
-    });
-
-    it('should unhide userEmail and handle profile picture visibility', () => {
-        document.body.innerHTML += `
+            <div id="userProfile" class="hidden"></div>
             <div id="userEmail" class="hidden"></div>
             <img id="userPicture" src="" class="hidden">
         `;
-        
-        // 1. With email and picture
+    });
+
+    it('should unhide userEmail and handle profile picture visibility', () => {
+        // With email and picture
         renderer.updateUserProfile({ 
-            xp: 10, level: 1, email: 'test@example.com', 
-            picture: 'http://pic.jpg', streak: 0, points: 0
+            email: 'test@example.com', 
+            picture: 'http://pic.jpg',
+            name: 'Test User'
         });
         const emailEl = document.getElementById('userEmail');
         expect(emailEl.classList.contains('hidden')).toBe(false);
         expect(emailEl.textContent).toBe('test@example.com');
         expect(document.getElementById('userPicture').classList.contains('hidden')).toBe(false);
 
-        // 2. Without picture
+        // Without picture
         renderer.updateUserProfile({ 
-            xp: 10, level: 1, email: 'test@example.com', 
-            picture: '', streak: 0, points: 0
+            email: 'test@example.com', 
+            picture: '',
+            name: 'Test User'
         });
         expect(document.getElementById('userPicture').classList.contains('hidden')).toBe(true);
     });
@@ -146,7 +128,7 @@ describe('renderer.js - updateUserProfile', () => {
     it('should not throw error if DOM elements are missing', () => {
         document.body.innerHTML = '';
         expect(() => {
-            renderer.updateUserProfile({ xp: 10, level: 1, email: 'test@example.com', picture: 'http://pic.jpg', streak: 0, points: 0 });
+            renderer.updateUserProfile({ email: 'test@example.com', picture: 'http://pic.jpg', name: 'Test User' });
         }).not.toThrow();
     });
 });
