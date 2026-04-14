@@ -35,9 +35,9 @@ func Init(c *config.Config) {
 			logger.Errorf("[SCANNER] Failed to init GeminiClient: %v", err)
 			return
 		}
-		completionSvc = services.NewCompletionService(gClient, &services.DefaultTaskStore{})
 		transSvc := services.NewTranslationService(gClient)
 		tasksSvc = services.NewTasksService(transSvc, gClient)
+		completionSvc = services.NewCompletionService(gClient, &services.DefaultTaskStore{}, tasksSvc)
 		filterSvc = ai.NewGeminiLiteFilter(gClient)
 	}
 }

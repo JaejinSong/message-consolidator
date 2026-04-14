@@ -32,6 +32,18 @@ func (s *WhatsAppScanner) processWhatsAppRoom(ctx context.Context, user store.Us
 		return nil
 	}
 
+	// Why: [Async Transition] WhatsApp replies/quotes also trigger the transition pipeline.
+	for _, m := range msgs {
+		if isFromMe(m.Sender, user) && m.ReplyToID != "" && completionSvc != nil {
+			go func(bgCtx context.Context, u store.User, raw types.RawMessage, g string) {
+				completionSvc.ProcessPotentialCompletion(bgCtx, store.ConsolidatedMessage{
+					UserEmail: u.Email, Source: "whatsapp", Room: g, ThreadID: raw.ReplyToID,
+					OriginalText: raw.Text, SourceTS: raw.ID, CreatedAt: raw.Timestamp,
+				})
+			}(context.Background(), user, m, groupName)
+		}
+	}
+
 	for _, group := range msgGroups {
 		if ids := s.processSingleGroup(ctx, user, aliases, jid, groupName, group, gc, language, wg); len(ids) > 0 {
 			allIDs = append(allIDs, ids...)

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"database/sql"
+	"message-consolidator/ai"
 	"message-consolidator/store"
 	"message-consolidator/types"
 	"testing"
@@ -15,6 +16,17 @@ type MockAI struct {
 }
 
 func (m *MockAI) AnalyzeWithContext(ctx context.Context, email string, msg types.EnrichedMessage, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error) {
+	return m.Results, m.Err
+}
+
+func (m *MockAI) EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string) (ai.TaskTransition, error) {
+	if len(m.Results) > 0 {
+		return ai.TaskTransition{Status: m.Results[0].State, UpdatedText: m.Results[0].Task}, m.Err
+	}
+	return ai.TaskTransition{Status: "NONE"}, m.Err
+}
+
+func (m *MockAI) Analyze(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string) ([]store.TodoItem, error) {
 	return m.Results, m.Err
 }
 
@@ -52,6 +64,15 @@ func (m *MockStore) HandleTaskState(ctx context.Context, tx *sql.Tx, email strin
 	return 0, nil
 }
 
+func (m *MockStore) UpdateTaskText(ctx context.Context, q store.Querier, email string, id int, task string) error {
+	m.ReleasedIDs = append(m.ReleasedIDs, id)
+	return nil
+}
+
+func (m *MockStore) GetMessageByID(ctx context.Context, q store.Querier, email string, id int) (store.ConsolidatedMessage, error) {
+	return store.ConsolidatedMessage{}, nil
+}
+
 func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 	ctx := context.Background()
  
@@ -61,7 +82,8 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		mockStore := &MockStore{
 			Tasks: []store.ConsolidatedMessage{{ID: 101, SourceTS: "original_ts", Task: "Send report", OriginalText: "Send report"}},
 		}
-		svc := NewCompletionService(mockAI, mockStore)
+		tsrv := &TasksService{}
+		svc := NewCompletionService(mockAI, mockStore, tsrv)
  
 		msg := store.ConsolidatedMessage{
 			UserEmail:    "test@example.com",
@@ -83,7 +105,8 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		mockStore := &MockStore{
 			Tasks: []store.ConsolidatedMessage{{ID: 501, Task: "T1", OriginalText: "T1"}},
 		}
-		svc := NewCompletionService(mockAI, mockStore)
+		tsrv := &TasksService{}
+		svc := NewCompletionService(mockAI, mockStore, tsrv)
  
 		msg := store.ConsolidatedMessage{
 			UserEmail:    "test@example.com",

@@ -18,6 +18,7 @@ type ExtractionContext struct {
 	ExistingTasksJSON   string
 	EnrichedMessageJSON string
 	CurrentUser        string //Why: Explicitly identifies the host user to help AI distinguish between requester and assignee.
+	ParentTask         string //Why: Context for completion/update evaluation threads.
 }
 
 // LimitFewShots는 최대 주입 가능한 예시 개수를 통제합니다.

@@ -138,9 +138,15 @@ func classifyAndCollect(ctx context.Context, c slack.Channel, m types.RawMessage
 		}
 		isFromMe := strings.EqualFold(m.Sender, u.Name) || strings.EqualFold(m.Sender, u.Email)
 		if isFromMe && completionSvc != nil && m.ReplyToID != "" {
-			completionSvc.ProcessPotentialCompletion(ctx, store.ConsolidatedMessage{
-				UserEmail: u.Email, Source: "slack", ThreadID: m.ReplyToID, OriginalText: m.Text, SourceTS: m.ID,
-			})
+			// Why: [Async Transition] Triggers task state evaluation (RESOLVE/UPDATE) in a background goroutine 
+			// to prevent Gemini API latency from blocking the ingestion loop. 
+			// Uses context.Background() to decouple from parent scan timeout.
+			go func(bgCtx context.Context, email string, raw types.RawMessage) {
+				completionSvc.ProcessPotentialCompletion(bgCtx, store.ConsolidatedMessage{
+					UserEmail: email, Source: "slack", ThreadID: raw.ReplyToID, 
+					OriginalText: raw.Text, SourceTS: raw.ID, CreatedAt: raw.Timestamp,
+				})
+			}(context.Background(), u.Email, m)
 		}
 		cls := classifyMessage(c, &u, userAl[u.Email], m)
 		// Soft Filtering: Always include Task and Query categories if they reached this stage.

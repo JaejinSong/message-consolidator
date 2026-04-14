@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"database/sql"
+	"message-consolidator/ai"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
@@ -10,6 +11,8 @@ import (
 
 type AICompleter interface {
 	AnalyzeWithContext(ctx context.Context, email string, msg types.EnrichedMessage, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error)
+	EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string) (ai.TaskTransition, error)
+	Analyze(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string) ([]store.TodoItem, error)
 }
 
 type TaskStore interface {
@@ -18,6 +21,8 @@ type TaskStore interface {
 	MarkMessageDone(ctx context.Context, tx *sql.Tx, email string, id int, done bool) error
 	UpdateMessageCategory(ctx context.Context, tx *sql.Tx, email string, id int, category string) error
 	HandleTaskState(ctx context.Context, tx *sql.Tx, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error)
+	UpdateTaskText(ctx context.Context, q store.Querier, email string, id int, task string) error
+	GetMessageByID(ctx context.Context, q store.Querier, email string, id int) (store.ConsolidatedMessage, error)
 }
 
 type DefaultTaskStore struct{}
@@ -42,81 +47,80 @@ func (d *DefaultTaskStore) HandleTaskState(ctx context.Context, tx *sql.Tx, emai
 	return store.HandleTaskState(ctx, tx, email, item, msg)
 }
 
-type CompletionService struct {
-	gemini AICompleter
-	store  TaskStore
+func (d *DefaultTaskStore) UpdateTaskText(ctx context.Context, q store.Querier, email string, id int, task string) error {
+	return store.UpdateTaskText(ctx, q, email, id, task)
 }
 
-func NewCompletionService(gemini AICompleter, taskStore TaskStore) *CompletionService {
-	return &CompletionService{gemini: gemini, store: taskStore}
+func (d *DefaultTaskStore) GetMessageByID(ctx context.Context, q store.Querier, email string, id int) (store.ConsolidatedMessage, error) {
+	return store.GetMessageByID(ctx, q, email, id)
+}
+
+type CompletionService struct {
+	gemini   AICompleter
+	store    TaskStore
+	tasksSvc *TasksService
+}
+
+func NewCompletionService(gemini AICompleter, taskStore TaskStore, tasksSvc *TasksService) *CompletionService {
+	return &CompletionService{gemini: gemini, store: taskStore, tasksSvc: tasksSvc}
 }
 
 // ProcessPotentialCompletion checks if a message (reply) completes/updates tasks in the same thread.
 func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg store.ConsolidatedMessage) {
-	if msg.ThreadID == "" {
+	if msg.ThreadID == "" && msg.RepliedToID == "" {
+		return
+	}
+	targetID := msg.ThreadID
+	if targetID == "" { targetID = msg.RepliedToID }
+
+	// Why: Fetches thread-specific pending tasks to provide parent context for AI evaluation.
+	tasks, _ := s.store.GetIncompleteByThreadID(ctx, store.GetDB(), msg.UserEmail, targetID)
+	// Safety Check: If no incomplete tasks found, fallback instead of panicking on index 0.
+	if len(tasks) == 0 {
+		s.fallbackToNewExtraction(ctx, msg)
 		return
 	}
 
-	// Why: Fetches both thread-specific and room-wide pending tasks to provide full context for AI state determination.
-	threadTasks, _ := s.store.GetIncompleteByThreadID(ctx, store.GetDB(), msg.UserEmail, msg.ThreadID)
-	roomTasks, _ := s.store.GetActiveContextTasks(ctx, store.GetDB(), msg.UserEmail, msg.Source, msg.Room)
-
-	// Merge tasks, avoiding duplicates (prioritizing thread relevance)
-	taskMap := make(map[int]store.ConsolidatedMessage)
-	for _, t := range roomTasks {
-		taskMap[t.ID] = t
-	}
-	for _, t := range threadTasks {
-		taskMap[t.ID] = t
-	}
-
-	var tasks []store.ConsolidatedMessage
-	for _, t := range taskMap {
-		tasks = append(tasks, t)
-	}
-
-	// from conversational context. 'allTasks' will just be empty.
-
-	// Why: Leverages the unified AI analysis pipeline to determine if the reply resolves or delegates tasks.
-	// Mentions and intentionality are parsed by the AI prompt, not string matching.
-	enriched := types.EnrichedMessage{
-		RawContent:      msg.OriginalText,
-		SourceChannel:   msg.Source,
-		SenderID:        0, // ID is not directly available in ConsolidatedMessage, using 0 as fallback.
-		SenderName:      msg.Requester,
-		VirtualThreadID: msg.ThreadID,
-		Timestamp:       msg.CreatedAt,
-	}
-	candidates, err := s.gemini.AnalyzeWithContext(ctx, msg.UserEmail, enriched, "Korean", msg.Source, msg.Room, tasks)
+	// Why: [Thread-Aware Intelligence] Evaluates transition against the most relevant parent task.
+	parent := tasks[0]
+	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, parent.Task, msg.OriginalText)
 	if err != nil {
-		logger.Errorf("[COMPLETION] AI analysis failed for thread %s: %v", msg.ThreadID, err)
+		logger.Errorf("[COMPLETION] AI transition analysis failed: %v", err)
 		return
 	}
 
-	// Why: [Service-Oriented Merge] Result candidates from AI are treated as proposals. 
-	// The service resolves them against existing tasks using deterministic similarity.
-	tasksSvc := &TasksService{}
-	results := tasksSvc.ResolveProposals(ctx, msg.UserEmail, msg.Room, candidates, tasks)
+	s.handleCompletionResult(ctx, res.Status, res.UpdatedText, msg, parent)
+}
 
-	// Why: [Transaction] Use RunInTx to ensure atomicity for multi-item results from AI.
+func (s *CompletionService) handleCompletionResult(ctx context.Context, status, updatedText string, msg, parent store.ConsolidatedMessage) {
+	switch status {
+	case "RESOLVE":
+		_ = s.store.MarkMessageDone(ctx, nil, msg.UserEmail, parent.ID, true)
+		logger.Infof("[COMPLETION] Task %d RESOLVED by reply %s", parent.ID, msg.SourceTS)
+	case "UPDATE":
+		if updatedText != "" {
+			_ = s.store.UpdateTaskText(ctx, store.GetDB(), msg.UserEmail, parent.ID, updatedText)
+			logger.Infof("[COMPLETION] Task %d UPDATED by reply %s", parent.ID, msg.SourceTS)
+		}
+	case "NEW":
+		s.fallbackToNewExtraction(ctx, msg)
+	default:
+		logger.Debugf("[COMPLETION] No state transition for reply %s", msg.SourceTS)
+	}
+}
+
+func (s *CompletionService) fallbackToNewExtraction(ctx context.Context, msg store.ConsolidatedMessage) {
+	enriched := types.EnrichedMessage{
+		RawContent: msg.OriginalText, SourceChannel: msg.Source,
+		SenderName: msg.Requester, VirtualThreadID: msg.ThreadID, Timestamp: msg.CreatedAt,
+	}
+	// Why: If AI identifies a 'NEW' task in a reply thread, we route it back to the standard extraction pipeline.
+	items, err := s.gemini.Analyze(ctx, msg.UserEmail, enriched, "Korean", msg.Source, msg.Room)
+	if err != nil || len(items) == 0 { return }
+
 	_ = store.RunInTx(ctx, func(tx *sql.Tx) error {
-		for _, res := range results {
-			// Why: Mandatory Room Isolation Check. 
-			// If AI hallucinated an ID from another room, we drop only that item (Partial Success).
-			if res.ID != nil && *res.ID != 0 {
-				existing, _ := store.GetMessageByID(ctx, tx, msg.UserEmail, int(*res.ID))
-				if existing.Room != msg.Room {
-					logger.Errorf("[SECURITY] ID Cross-room update attempted by AI: ID %d (Room: %s) vs Message Room: %s. Dropping item.", *res.ID, existing.Room, msg.Room)
-					continue
-				}
-			}
-
-			if _, err := s.store.HandleTaskState(ctx, tx, msg.UserEmail, res, msg); err != nil {
-				logger.Errorf("[COMPLETION] State update failed: %v", err)
-				// Note: Returning error here would rollback the WHOLE transaction.
-				// Since AI responses can sometimes contain one bad item, we log it and continue if possible, 
-				// or return nil to commit the successful ones.
-			}
+		for _, item := range items {
+			_, _ = s.store.HandleTaskState(ctx, tx, msg.UserEmail, item, msg)
 		}
 		return nil
 	})

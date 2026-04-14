@@ -3,9 +3,11 @@ package services
 import (
 	"context"
 	"fmt"
+	"message-consolidator/ai"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"message-consolidator/types"
+	"strings"
 	"testing"
 )
 
@@ -21,8 +23,24 @@ func (m *RegressionMockAI) AnalyzeWithContext(ctx context.Context, email string,
 	if !ok {
 		return []store.TodoItem{{State: "none"}}, nil
 	}
-	// Important: In a real scenario, AI would look at 'tasks' to find IDs.
-	// We simulate this by returning the pre-defined results for each turn.
+	return res, nil
+}
+
+func (m *RegressionMockAI) EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string) (ai.TaskTransition, error) {
+	m.TurnCount++
+	res, ok := m.Results[m.TurnCount]
+	if !ok || len(res) == 0 {
+		return ai.TaskTransition{Status: "NONE"}, nil
+	}
+	return ai.TaskTransition{Status: strings.ToUpper(res[0].State), UpdatedText: res[0].Task}, nil
+}
+
+func (m *RegressionMockAI) Analyze(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string) ([]store.TodoItem, error) {
+	m.TurnCount++
+	res, ok := m.Results[m.TurnCount]
+	if !ok {
+		return []store.TodoItem{{State: "none"}}, nil
+	}
 	return res, nil
 }
 
@@ -53,7 +71,8 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 			7: {{State: "resolve", Task: "다음 주 미팅 일정 수립"}},               // Bob: "Sounds good!"
 		},
 	}
-	svc := NewCompletionService(mockAI, &DefaultTaskStore{})
+	tsrv := &TasksService{}
+	svc := NewCompletionService(mockAI, &DefaultTaskStore{}, tsrv)
 
 	scenario := []struct {
 		Name     string

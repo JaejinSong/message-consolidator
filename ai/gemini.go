@@ -16,6 +16,12 @@ import (
 	"google.golang.org/api/option"
 )
 
+// TaskTransition represents the AI's decision on how a reply impacts a parent task.
+type TaskTransition struct {
+	Status      string `json:"status"`       // NEW, UPDATE, RESOLVE, NONE
+	UpdatedText string `json:"updated_text"` // New English summary for UPDATE status
+}
+
 const (
 	// DefaultMaxTokens is the standard output limit for short-form analysis tasks.
 	DefaultMaxTokens = 8192
@@ -158,6 +164,47 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 
 	trace.Step(ctx, "Gemini-ReportSummary", "", int(time.Since(start).Milliseconds()), 0)
 	return text, nil
+}
+
+// EvaluateTaskTransition determines if a reply completes or updates a specific parent task.
+// Why: [Thread-Aware Intelligence] Uses a specialized prompt to analyze the conversational relationship 
+// between a parent message and its reply, enabling deterministic state transitions (RESOLVE/UPDATE).
+func (g *GeminiClient) EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string) (TaskTransition, error) {
+	if g == nil || g.client == nil {
+		return TaskTransition{}, fmt.Errorf("Gemini client not initialized")
+	}
+
+	parsed := loadPrompt("completion_check.prompt")
+	data := ExtractionContext{
+		ParentTask:     parentTask,
+		MessagePayload: replyText,
+		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
+		Locale:         "Korean",
+	}
+
+	rendered, err := parsed.Render(data)
+	if err != nil {
+		return TaskTransition{}, fmt.Errorf("failed to render completion prompt: %w", err)
+	}
+
+	model := g.initModel(g.getEffectiveModel(parsed, g.analysisModel), 0.1, 1024, "application/json", rendered)
+	resp, err := generateWithRetry(ctx, model, genai.Text(""), 30*time.Second, 2)
+	if err != nil {
+		return TaskTransition{}, err
+	}
+
+	logTokenUsage(ctx, email, "EvaluateTransition", resp)
+	raw, err := extractResponseText(resp)
+	if err != nil {
+		return TaskTransition{}, err
+	}
+
+	var result TaskTransition
+	if err := json.Unmarshal([]byte(sanitizeJSON(raw)), &result); err != nil {
+		return TaskTransition{}, fmt.Errorf("failed to parse AI transition response: %w (raw: %s)", err, raw)
+	}
+
+	return result, nil
 }
 
 // GenerateVisualizationData extracts graph structural data using strict ResponseSchema enforcement.

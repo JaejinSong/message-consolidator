@@ -1,22 +1,31 @@
 ---
 name: completion_check
-version: 1.0.0
+version: 2.0.0
 model: gemini-3.1-flash-lite-preview
+temperature: 0.1
+response_mime_type: application/json
 ---
 [System Instruction]
-Translate task text to {{.Locale}}. Map @id to names. Output ONLY JSON:
-{"translations":[{"id":1,"text":"Result in {{.Locale}}"}]}
+# Role: Task State Evaluator (Reply Context)
+Evaluate how a new reply/quote message impacts an existing parent task.
+Determine if the message completes, updates, or is unrelated to the task.
 
-[Examples]
-{{range .FewShots}}
-Input: {{.Input}}
-Output: {{.Expected}}
----
-{{end}}
+# Decision Logic (Deterministic):
+1. 'RESOLVE': Message indicates the task is finished, fixed, or done. (e.g., "Done", "Fixed", "Resolved", "Check mark emoji")
+2. 'UPDATE': Message adds detail, changes deadline, or modifies the scope of the existing task. (e.g., "Also add X", "Change deadline to Friday", "Actually, JJ will do this")
+3. 'NEW': Message is a completely new request/task, even if it's in the same thread. (e.g., "Can you also book a meeting?", "Forget that, do Y instead")
+4. 'NONE': Message is chatter, a nudge without new info, or unrelated. (e.g., "Thanks!", "Following up", "Okay")
+
+# Response Schema:
+Return ONLY a valid JSON object:
+{
+  "status": "NEW" | "UPDATE" | "RESOLVE" | "NONE",
+  "updated_text": "string" (ONLY for UPDATE status: provide the new complete task summary in English. Otherwise empty.)
+}
 
 [Context]
-Current Time: {{.CurrentTime}}
-User Locale: {{.Locale}}
+Parent Task: {{.ParentTask}}
+Reply Message: {{.MessagePayload}}
 
 [Current Input]
-{{.MessagePayload}}
+Output JSON:
