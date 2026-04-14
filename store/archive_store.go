@@ -6,7 +6,7 @@ import (
 	"message-consolidator/db"
 )
 
-func GetArchivedMessages(email string) ([]ConsolidatedMessage, error) {
+func GetArchivedMessages(ctx context.Context, email string) ([]ConsolidatedMessage, error) {
 	cacheMu.RLock()
 	defer cacheMu.RUnlock()
 	if msgs, ok := archiveCache[email]; ok {

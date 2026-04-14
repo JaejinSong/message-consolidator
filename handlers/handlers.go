@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,6 +43,18 @@ func respondError(w http.ResponseWriter, code int, message string) {
 	//Why: Provides a centralized location for future error logging and monitoring integration.
 	// logger.Errorf("API Error: %s", message)
 	respondJSON(w, code, map[string]string{"error": message})
+}
+
+// handleAPIError handles common API errors including context cancellation.
+// Why: [DRY] Gracefully handles Turso DB's 'context canceled' to prevent 500 error logs and returns 499 for client cancellations.
+func handleAPIError(w http.ResponseWriter, r *http.Request, err error, logPrefix, errMsg string) {
+	if errors.Is(err, context.Canceled) {
+		// HTTP 499 Client Closed Request
+		w.WriteHeader(499)
+		return
+	}
+	logger.Errorf("%s: %v", logPrefix, err)
+	respondError(w, http.StatusInternalServerError, errMsg)
 }
 
 // respondJSON is a helper function to marshal data and send a JSON response.

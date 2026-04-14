@@ -19,8 +19,7 @@ func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	msgsRaw, err := store.GetMessages(r.Context(), email)
 	if err != nil {
-		logger.Errorf("[MESSAGES] Cache fetch error for %s: %v", email, err)
-		respondError(w, http.StatusInternalServerError, "Failed to fetch messages (Internal logic error)")
+		handleAPIError(w, r, err, "[MESSAGES] Cache fetch error for "+email, "Failed to fetch messages (Internal logic error)")
 		return
 	}
 
@@ -111,7 +110,7 @@ func (a *API) HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 	}
 	msgsRaw, total, err := store.GetArchivedMessagesFiltered(r.Context(), filter)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch archived messages")
+		handleAPIError(w, r, err, "[ARCHIVE] Fetch error for "+email, "Failed to fetch archived messages")
 		return
 	}
 
@@ -143,7 +142,7 @@ func (a *API) HandleGetArchivedCount(w http.ResponseWriter, r *http.Request) {
 	}
 	total, err := store.GetArchivedMessagesCount(r.Context(), filter)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch archive count")
+		handleAPIError(w, r, err, "[ARCHIVE_COUNT] Fetch error for "+email, "Failed to fetch archive count")
 		return
 	}
 
@@ -198,7 +197,11 @@ func (a *API) HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := store.GetMessageByID(r.Context(), store.GetDB(), email, id)
 	if err != nil {
-		handleGetOriginalError(w, email, id, err)
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, context.Canceled) {
+			handleAPIError(w, r, err, "[GET_ORIGINAL] Error for "+email, "Message not found")
+			return
+		}
+		handleAPIError(w, r, err, "[GET_ORIGINAL] DB error for "+email, "Failed to fetch original text")
 		return
 	}
 
@@ -210,18 +213,6 @@ func (a *API) HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, map[string]string{"original_text": msg.OriginalText})
-}
-
-// handleGetOriginalError separates error categorization from main handler logic to maintain 2-depth nesting and <30 line limits.
-func handleGetOriginalError(w http.ResponseWriter, email string, id int, err error) {
-	if errors.Is(err, sql.ErrNoRows) {
-		logger.Warnf("[GET_ORIGINAL] Message %d not found for %s", id, email)
-		respondError(w, http.StatusNotFound, "Message not found")
-		return
-	}
-
-	logger.Errorf("[GET_ORIGINAL] Database error fetching message %d for %s: %v", id, email, err)
-	respondError(w, http.StatusInternalServerError, "Failed to fetch original text")
 }
 
 func (a *API) HandleHardDelete(w http.ResponseWriter, r *http.Request) {
@@ -269,7 +260,7 @@ func (a *API) HandleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := store.UpdateTaskText(r.Context(), store.GetDB(), email, req.ID, req.Task); err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to update task")
+		handleAPIError(w, r, err, "[UPDATE_TASK] Error for "+email, "Failed to update task")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
