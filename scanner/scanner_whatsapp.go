@@ -60,11 +60,14 @@ func (s *WhatsAppScanner) processSingleGroup(ctx context.Context, user store.Use
 	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, "whatsapp", groupName)
 	logger.Infof("[WA-CONTEXT] Found %d active tasks for room %s", len(tasks), groupName)
 
-	items, err := gc.AnalyzeWithContext(ctx, user.Email, *enriched, language, "whatsapp", groupName, tasks)
+	candidates, err := gc.AnalyzeWithContext(ctx, user.Email, *enriched, language, "whatsapp", groupName, tasks)
 	if err != nil {
 		logger.Errorf("[WA-SCAN] AI Analysis Error: %v", err)
 		return nil
 	}
+
+	// Why: [Service-Oriented Resolve] AI candidates (id:0) are resolved with deterministic similarity logic in the backend.
+	items := tasksSvc.ResolveProposals(ctx, user.Email, groupName, candidates, tasks)
 
 	return s.processWAItems(ctx, user, aliases, items, msgMap, groupName, !strings.Contains(jid, "@g.us"), wg)
 }

@@ -620,3 +620,52 @@ func (s *TasksService) generateSummaryTitle(ctx context.Context, email string, d
 	}
 	return title
 }
+
+// ResolveProposals resolves extraction results against current active tasks.
+// AI proposes (rawItems), Backend decides (returns refined items with correct IDs/States).
+func (s *TasksService) ResolveProposals(ctx context.Context, email, room string, rawItems []store.TodoItem, active []store.ConsolidatedMessage) []store.TodoItem {
+	var results []store.TodoItem
+	for _, item := range rawItems {
+		match := s.findMatch(room, item, active)
+		if match != nil {
+			item.ID = &match.ID
+			// Upgrade 'new' to 'update' if we found an existing task.
+			// Keep 'resolve', 'cancel', 'update' as AI intended.
+			if item.State == "new" {
+				item.State = "update"
+			}
+		} else {
+			// Logic: If no match found, states requiring an ID must be downgraded.
+			if item.State == "update" || item.State == "resolve" || item.State == "cancel" {
+				if item.Task != "" && item.State == "update" {
+					item.State = "new" // Only 'update' can safely downgrade to 'new'
+				} else {
+					item.State = "none" // resolve/cancel with no match is dropped
+				}
+			}
+		}
+		results = append(results, item)
+	}
+	return results
+}
+
+func (s *TasksService) findMatch(room string, item store.TodoItem, active []store.ConsolidatedMessage) *store.ConsolidatedMessage {
+	for i := range active {
+		m := &active[i]
+		if m.Room != room || m.Category != item.Category { continue }
+		
+		sim := CalculateSimilarity(item.Task, m.Task)
+		if sim >= 0.80 { return m }
+		
+		// Affinity Group Bonus: If AI group matches, we are more lenient (threshold 0.5)
+		if item.AffinityGroupID != "" && len(m.Metadata) > 0 {
+			var meta map[string]interface{}
+			if err := json.Unmarshal(m.Metadata, &meta); err == nil {
+				if gid, ok := meta["affinity_group_id"].(string); ok && gid == item.AffinityGroupID {
+					if sim >= 0.50 { return m }
+				}
+			}
+		}
+	}
+	return nil
+}

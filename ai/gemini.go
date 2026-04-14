@@ -220,7 +220,13 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email string, msg
 
 	trace.Step(ctx, "Gemini-Analyze", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "Analyze", resp)
-	return g.parseAnalyzeResults(resp)
+
+	candidates, err := g.parseAnalyzeResults(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return candidates, nil
 }
 
 func (g *GeminiClient) prepareAnalysisData(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string, tasks []store.ConsolidatedMessage) ExtractionContext {
@@ -501,7 +507,7 @@ func (g *GeminiClient) parseAnalyzeResults(resp *genai.GenerateContentResponse) 
 		return nil, nil
 	}
 
-	return store.ConsolidateTasks(filtered), nil
+	return filtered, nil
 }
 
 func (g *GeminiClient) callGenericAPI(ctx context.Context, modelName, prompt string) (string, error) {

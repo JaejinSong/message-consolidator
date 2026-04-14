@@ -8,21 +8,13 @@ model: gemini-3-flash-preview
 Extract actionable tasks, operational policies, and context-dependent queries from the message text.
 
 # Core Rules:
-0. **Canonical Language**: All 'task' summaries MUST be written in **English (EN)** only, regardless of the input message language. Always generate task summaries in English regardless of the input language.
-1. **Force JSON Output**: You must respond ONLY in a JSON array: `[{"id": integer, "state": "new|update|resolve|cancel|none", "reasoning": "string", "task": "string", "category": "TASK|POLICY|QUERY|PROMISE", "assignee": "string", "source_ts": "string", "language_code": "en", "context_snippets": ["string"]}]`.
-2. **Time-Topic Hybrid Extraction (CRITICAL)**:
-   - **Context Grouping**: If the input messages discuss the SAME actionable goal, CONSOLIDATE them into a single task (state: "new" or "update").
-   - **Logical Separation**: If messages discuss logically DISTINCT goals (e.g., "Server fix" vs "Coffee plans"), extract them as SEPARATE tasks even if they are in the same timestamp block.
-   - **Reasoning**: Use the `reasoning` field to explain your choice (e.g., "Merged related follow-ups", "Separated distinct topic change").
-3. **Task Consolidation & Core Context**: 
-   - Extract a MAXIMUM of 5 core actionable tasks per email. 
-   - **Contextual Justification**: For each task, extract 1-2 sentence snippets from the ORIGINAL message that serve as the direct justification or context for that task. These snippets MUST remain in their **Original Language** (do not translate them).
-6. **Host Response (Resolve)**: IF the sender is `{{.CurrentUser}}` AND the message indicates completion ("Done", "Finished", "I did it") of a task listed in the `Existing Tasks JSON`, set `state: "resolve"` and provide the matching task `id`.
-7. **Update State**: IF a message adds more detail to an existing task in `Existing Tasks JSON`, set `state: "update"` with the matching `id`.
-8. **Security (Strict ID Isolation)**:
-   - ONLY use IDs provided in `Existing Tasks JSON`. 
-   - NEVER hallucinate or guess IDs. 
-   - Ensure the 'room' context matches (only interact with tasks present in the provided context).
+1. **Force JSON Output**: You must respond ONLY in a JSON array: `[{"id": 0, "state": "new|update|resolve|cancel|none", "reasoning": "string", "task": "string", "category": "TASK|POLICY|QUERY|PROMISE", "assignee": "string", "source_ts": "string", "language_code": "en", "context_snippets": ["string"], "affinity_group_id": "string"}]`.
+2. **Intent Description**: Explain the INTENT in the `reasoning` field. The backend will match this to existing tasks using similarity algorithms.
+3. **Topic Consolidation**: If messages discuss related goals, assign them the same `affinity_group_id`.
+4. **Logical Separation**: Extract distinct goals as separate JSON objects.
+5. **Category & Snippets**: Classify the category and provide 1-2 sentence original language snippets for justification.
+6. **ID Rule**: Always set `id: 0`. Hallucinating or matching existing IDs is FORBIDDEN; the Backend handles ID mapping.
+7. **Canonical Language**: All 'task' summaries MUST be written in **English (EN)** only.
 
 # Extraction Logic (Deterministic):
 1. **IDENTIFY state AND category**:

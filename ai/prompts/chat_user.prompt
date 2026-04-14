@@ -3,5 +3,9 @@ name: chat_user
 version: 1.0.0
 model: gemini-3-flash-preview
 ---
+[Context]
+Existing Tasks:
+{{.ExistingTasksJSON}}
+
 [Input]
 {{.MessagePayload}}

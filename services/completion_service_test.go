@@ -54,48 +54,44 @@ func (m *MockStore) HandleTaskState(ctx context.Context, tx *sql.Tx, email strin
 
 func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 	ctx := context.Background()
-
+ 
 	t.Run("Positive Path - Individual Completion", func(t *testing.T) {
-		id := 101
-		mockAI := &MockAI{Results: []store.TodoItem{{ID: &id, State: "resolve"}}}
+		// AI Proposes: Task is completed, but doesn't know ID 101 (outputs 0)
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(0), State: "resolve", Task: "Send report"}}}
 		mockStore := &MockStore{
-			Tasks: []store.ConsolidatedMessage{{ID: 101, SourceTS: "original_ts", OriginalText: "Send report"}},
+			Tasks: []store.ConsolidatedMessage{{ID: 101, SourceTS: "original_ts", Task: "Send report", OriginalText: "Send report"}},
 		}
 		svc := NewCompletionService(mockAI, mockStore)
-
+ 
 		msg := store.ConsolidatedMessage{
 			UserEmail:    "test@example.com",
 			ThreadID:     "thread_1",
 			SourceTS:     "reply_ts",
 			OriginalText: "I've sent it.",
 		}
-
+ 
 		svc.ProcessPotentialCompletion(ctx, msg)
-
+ 
 		if len(mockStore.CapturedIDs) != 1 || mockStore.CapturedIDs[0] != 101 {
 			t.Errorf("Expected task 101 to be marked done, got %v", mockStore.CapturedIDs)
 		}
 	})
-
+ 
 	t.Run("Mention in Body - Should Delegate (Update)", func(t *testing.T) {
-		id := 501
-		mockAI := &MockAI{Results: []store.TodoItem{{ID: &id, State: "update", AssignedTo: "김개발"}}}
+		// AI Proposes: Delegate to 김개발 (outputs 0)
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(0), State: "update", Task: "T1", AssignedTo: "김개발"}}}
 		mockStore := &MockStore{
-			Tasks: []store.ConsolidatedMessage{{ID: 501, OriginalText: "T1"}},
+			Tasks: []store.ConsolidatedMessage{{ID: 501, Task: "T1", OriginalText: "T1"}},
 		}
 		svc := NewCompletionService(mockAI, mockStore)
-
+ 
 		msg := store.ConsolidatedMessage{
 			UserEmail:    "test@example.com",
 			Source:       "slack",
 			ThreadID:     "thread_mention",
 			OriginalText: "이거 확인해주세요 @김개발",
 		}
-
+ 
 		svc.ProcessPotentialCompletion(ctx, msg)
-
-		// Verification happens via HandleTaskState -> UpdateTaskAssignee inside store
-		// Since we're using a mock store in the service but HandleTaskState calls store package global,
-		// we should ideally mock store.HandleTaskState, but for now we verify it doesn't crash and service proceeds.
 	})
 }

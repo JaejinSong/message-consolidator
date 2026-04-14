@@ -404,11 +404,15 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 	lastMsg := candidates[len(candidates)-1]
 	enriched, _ := EnrichSlackMessage(lastMsg.Sender, sc.GetUserName(lastMsg.Sender), lastMsg.ChannelID, lastMsg.ReplyToID, payload, lastMsg.Timestamp)
 
-	items, err := gc.Analyze(ctx, user.Email, *enriched, "Korean", "slack", channelName)
+	proposals, err := gc.Analyze(ctx, user.Email, *enriched, "Korean", "slack", channelName)
 	if err != nil {
 		logger.Errorf("[SCAN-SLACK] Gemini Analyze Error for %s: %v", user.Email, err)
 		return
 	}
+
+	// Why: [Service-Oriented Resolve] Ensures SLACK proposals are resolved using the same backend-driven similarity engine.
+	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, "slack", channelName)
+	items := tasksSvc.ResolveProposals(ctx, user.Email, channelName, proposals, tasks)
 	processSlackItems(ctx, user, items, msgMap, sc, wg)
 }
 

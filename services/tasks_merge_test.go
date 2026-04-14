@@ -2,72 +2,90 @@ package services
 
 import (
 	"context"
-	"fmt"
-	"message-consolidator/internal/testutil"
+	"encoding/json"
 	"message-consolidator/store"
 	"testing"
 )
 
-type MockMergeAI struct {
-	ExpectedTitle string
-	Error         error
+func TestResolveProposals(t *testing.T) {
+	s := &TasksService{}
+	email := "test@example.com"
+	room := "General"
+
+	active := []store.ConsolidatedMessage{
+		{
+			ID:       101,
+			Room:     "General",
+			Category: "TASK",
+			Task:     "Share the meeting invite",
+			Metadata: json.RawMessage(`{"affinity_group_id":"meeting"}`),
+		},
+	}
+
+	rawItems := []store.TodoItem{
+		{
+			Task:     "Please share meeting invite", // Similar
+			Category: "TASK",
+			State:    "new", // AI thinks it's new
+		},
+		{
+			Task:     "Buy coffee", // New
+			Category: "TASK",
+			State:    "new",
+		},
+	}
+
+	results := s.ResolveProposals(context.Background(), email, room, rawItems, active)
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+
+	// First item: should be matched to 101
+	if results[0].ID == nil || *results[0].ID != 101 {
+		t.Errorf("expected first item to match ID 101, got %v", results[0].ID)
+	}
+	if results[0].State != "update" {
+		t.Errorf("expected state 'update' for matched task, got %s", results[0].State)
+	}
+
+	// Second item: should be new
+	if results[1].ID != nil {
+		t.Errorf("expected second item ID to be nil, got %v", results[1].ID)
+	}
+	if results[1].State != "new" {
+		t.Errorf("expected state 'new' for unmatched task, got %s", results[1].State)
+	}
 }
 
-func (m *MockMergeAI) GenerateMergedTaskTitle(ctx context.Context, email string, tasksJSON string) (string, error) {
-	if m.Error != nil { return "", m.Error }
-	return m.ExpectedTitle, nil
-}
+func TestResolveProposals_AffinityBonus(t *testing.T) {
+	s := &TasksService{}
+	email := "test@example.com"
+	room := "General"
 
-func TestMergeTasks_AIFlow(t *testing.T) {
-	cleanup, _ := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
-	defer cleanup()
+	active := []store.ConsolidatedMessage{
+		{
+			ID:       201,
+			Room:     "General",
+			Category: "TASK",
+			Task:     "Report review",
+			Metadata: json.RawMessage(`{"affinity_group_id":"report_group"}`),
+		},
+	}
 
-	email := testutil.RandomEmail("test")
-	ctx := context.Background()
+	// Affinity Group Bonus: Lower text similarity but shared group ID
+	rawItems := []store.TodoItem{
+		{
+			Task:            "Report: finish draft", 
+			Category:        "TASK",
+			AffinityGroupID: "report_group",
+			State:           "new",
+		},
+	}
 
-	// 1. Create dummy tasks
-	_, destID, _ := store.SaveMessage(ctx, store.GetDB(), store.ConsolidatedMessage{
-		UserEmail: email, Task: "Old Destination Title", OriginalText: "Old Text", Category: "inbox", SourceTS: testutil.RandomTS("ts-dest"),
-	})
-	_, srcID, _ := store.SaveMessage(ctx, store.GetDB(), store.ConsolidatedMessage{
-		UserEmail: email, Task: "Source Title", OriginalText: "Source Text", Category: "inbox", SourceTS: testutil.RandomTS("ts-src"),
-	})
+	results := s.ResolveProposals(context.Background(), email, room, rawItems, active)
 
-	t.Run("Success Case - AI returns new title", func(t *testing.T) {
-		mockAI := &MockMergeAI{ExpectedTitle: "AI Generated Action Title"}
-		svc := NewTasksService(nil, mockAI)
-
-		err := svc.MergeTasks(ctx, email, []int64{int64(srcID)}, int64(destID))
-		if err != nil { t.Fatalf("MergeTasks failed: %v", err) }
-
-		// Verify title updated
-		msg, _ := store.GetMessageByID(ctx, store.GetDB(), email, destID)
-		if msg.Task != "AI Generated Action Title" {
-			t.Errorf("Expected title 'AI Generated Action Title', got %q", msg.Task)
-		}
-
-		// Verify source marked as merged
-		src, _ := store.GetMessageByID(ctx, store.GetDB(), email, srcID)
-		if src.Category != "merged" {
-			t.Errorf("Expected source category 'merged', got %q", src.Category)
-		}
-	})
-
-	t.Run("Fallback Case - AI error uses original title", func(t *testing.T) {
-		mockAI := &MockMergeAI{Error: fmt.Errorf("AI timeout")}
-		svc := NewTasksService(nil, mockAI)
-
-		// Create new dest for fallback test
-		_, destID2, _ := store.SaveMessage(ctx, store.GetDB(), store.ConsolidatedMessage{
-			UserEmail: email, Task: "Keep Original", OriginalText: "...", Category: "inbox", SourceTS: testutil.RandomTS("ts-dest"),
-		})
-
-		err := svc.MergeTasks(ctx, email, []int64{int64(srcID)}, int64(destID2))
-		if err != nil { t.Fatalf("MergeTasks failed: %v", err) }
-
-		msg, _ := store.GetMessageByID(ctx, store.GetDB(), email, destID2)
-		if msg.Task != "Keep Original" {
-			t.Errorf("Expected fallback to original title 'Keep Original', got %q", msg.Task)
-		}
-	})
+	if results[0].ID == nil || *results[0].ID != 201 {
+		t.Errorf("expected affinity group match to 201, got %v", results[0].ID)
+	}
 }

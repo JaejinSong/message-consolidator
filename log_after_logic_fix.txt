@@ -1,0 +1,146 @@
+=== RUN   TestExtractJSONBlock
+=== RUN   TestExtractJSONBlock/Perfect_Block
+=== RUN   TestExtractJSONBlock/No_JSON_Block
+=== RUN   TestExtractJSONBlock/Unclosed_Block_(Should_fallback)
+=== RUN   TestExtractJSONBlock/No_Markers_Raw_JSON
+=== RUN   TestExtractJSONBlock/Empty_JSON_Block
+--- PASS: TestExtractJSONBlock (0.00s)
+    --- PASS: TestExtractJSONBlock/Perfect_Block (0.00s)
+    --- PASS: TestExtractJSONBlock/No_JSON_Block (0.00s)
+    --- PASS: TestExtractJSONBlock/Unclosed_Block_(Should_fallback) (0.00s)
+    --- PASS: TestExtractJSONBlock/No_Markers_Raw_JSON (0.00s)
+    --- PASS: TestExtractJSONBlock/Empty_JSON_Block (0.00s)
+=== RUN   TestExtractSection
+=== RUN   TestExtractSection/Section_A
+=== RUN   TestExtractSection/Section_B
+=== RUN   TestExtractSection/Non-existent_Section
+--- PASS: TestExtractSection (0.00s)
+    --- PASS: TestExtractSection/Section_A (0.00s)
+    --- PASS: TestExtractSection/Section_B (0.00s)
+    --- PASS: TestExtractSection/Non-existent_Section (0.00s)
+=== RUN   TestAmbiguitySafeguard
+2026/04/14 04:38:06 [INFO] [DB] SQLite (Memory) detected. Increasing pool for parallel tests.
+--- PASS: TestAmbiguitySafeguard (0.31s)
+=== RUN   TestCompletionService_ProcessPotentialCompletion
+=== RUN   TestCompletionService_ProcessPotentialCompletion/Positive_Path_-_Individual_Completion
+=== RUN   TestCompletionService_ProcessPotentialCompletion/Mention_in_Body_-_Should_Delegate_(Update)
+--- PASS: TestCompletionService_ProcessPotentialCompletion (0.00s)
+    --- PASS: TestCompletionService_ProcessPotentialCompletion/Positive_Path_-_Individual_Completion (0.00s)
+    --- PASS: TestCompletionService_ProcessPotentialCompletion/Mention_in_Body_-_Should_Delegate_(Update) (0.00s)
+=== RUN   TestRoomLockService_AcquireLock
+--- PASS: TestRoomLockService_AcquireLock (0.00s)
+=== RUN   TestRoomLockService_GetRoomKey
+--- PASS: TestRoomLockService_GetRoomKey (0.00s)
+=== RUN   TestReportsService_CalculateGraph
+--- PASS: TestReportsService_CalculateGraph (0.00s)
+=== RUN   TestReportsService_TruncatePayload
+--- PASS: TestReportsService_TruncatePayload (0.00s)
+=== RUN   TestReportsService_TruncatePriority
+--- PASS: TestReportsService_TruncatePriority (0.00s)
+=== RUN   TestReportsService_Normalization
+--- PASS: TestReportsService_Normalization (0.00s)
+=== RUN   TestReportsService_Labeling
+--- PASS: TestReportsService_Labeling (0.00s)
+=== RUN   TestReportsService_SankeyContract
+--- PASS: TestReportsService_SankeyContract (0.00s)
+=== RUN   TestReportsService_GenerateVisualizationData_WithAliases
+2026/04/14 04:38:07 [INFO] [CACHE] Initializing metadata cache from DB...
+2026/04/14 04:38:07 [INFO] [SCAN] Loading existing scan metadata into memory...
+2026/04/14 04:38:07 [INFO] [SCAN] Loaded 0 scan metadata entries.
+2026/04/14 04:38:07 [INFO] [SCAN] Loading existing gmail tokens into memory...
+2026/04/14 04:38:07 [INFO] [CACHE] Loading consolidated contacts into memory...
+2026/04/14 04:38:07 [INFO] [CACHE] Loaded 2 users, 0 scan entries, 0 tokens, 2 contact mappings.
+--- PASS: TestReportsService_GenerateVisualizationData_WithAliases (0.01s)
+=== RUN   TestReportsService_GenerateVisualizationData_AliasCollision
+2026/04/14 04:38:07 [INFO] [CACHE] Initializing metadata cache from DB...
+2026/04/14 04:38:07 [INFO] [SCAN] Loading existing scan metadata into memory...
+2026/04/14 04:38:07 [INFO] [SCAN] Loaded 0 scan metadata entries.
+2026/04/14 04:38:07 [INFO] [SCAN] Loading existing gmail tokens into memory...
+2026/04/14 04:38:07 [INFO] [CACHE] Loading consolidated contacts into memory...
+2026/04/14 04:38:07 [INFO] [CACHE] Loaded 3 users, 0 scan entries, 0 tokens, 0 contact mappings.
+--- PASS: TestReportsService_GenerateVisualizationData_AliasCollision (0.01s)
+=== RUN   TestReportsService_GenerateVisualizationData_TenantIsolation
+2026/04/14 04:38:07 [INFO] [CACHE] Initializing metadata cache from DB...
+2026/04/14 04:38:07 [INFO] [SCAN] Loading existing scan metadata into memory...
+2026/04/14 04:38:07 [INFO] [SCAN] Loaded 0 scan metadata entries.
+2026/04/14 04:38:07 [INFO] [SCAN] Loading existing gmail tokens into memory...
+2026/04/14 04:38:07 [INFO] [CACHE] Loading consolidated contacts into memory...
+2026/04/14 04:38:07 [INFO] [CACHE] Loaded 1 users, 0 scan entries, 0 tokens, 1 contact mappings.
+--- PASS: TestReportsService_GenerateVisualizationData_TenantIsolation (0.00s)
+=== RUN   TestReportsService_GenerateReport_MultiLanguage
+--- PASS: TestReportsService_GenerateReport_MultiLanguage (0.01s)
+=== RUN   TestReportsService_CacheHit
+2026/04/14 04:38:07 [INFO] [REPORTS] Cache Hit: Returning existing report for 2024-01-01 ~ 2024-01-07
+--- PASS: TestReportsService_CacheHit (0.01s)
+=== RUN   TestReportsService_GenerateReport_OnlyRequestedLanguage
+--- PASS: TestReportsService_GenerateReport_OnlyRequestedLanguage (0.00s)
+=== RUN   TestSelfHealingEngine
+--- PASS: TestSelfHealingEngine (0.20s)
+=== RUN   TestCalculateSimilarity
+--- PASS: TestCalculateSimilarity (0.00s)
+=== RUN   TestResolveProposals
+    tasks_merge_test.go:47: expected state 'update' for matched task, got 
+    tasks_merge_test.go:55: expected state 'new' for unmatched task, got 
+--- FAIL: TestResolveProposals (0.00s)
+=== RUN   TestResolveProposals_AffinityBonus
+--- PASS: TestResolveProposals_AffinityBonus (0.00s)
+=== RUN   TestFormatMessagesPerformance
+--- PASS: TestFormatMessagesPerformance (0.06s)
+=== RUN   TestConversationalTaskLifecycle_Regression
+=== RUN   TestConversationalTaskLifecycle_Regression/Turn1_Bob_Greet
+2026/04/14 04:38:07 [INFO] [DECISION] {"timestamp":"2026-04-14T04:38:07.558714539Z","user_email":"jj-1776141487554523401@test.com","source":"whatsapp","room":"work_chat_1776141487554529568","state":"none","task_id":0,"task":""}
+=== RUN   TestConversationalTaskLifecycle_Regression/Turn2_Bob_Req1
+2026/04/14 04:38:07 [INFO] [DECISION] {"timestamp":"2026-04-14T04:38:07.563073878Z","user_email":"jj-1776141487554523401@test.com","source":"whatsapp","room":"work_chat_1776141487554529568","state":"new","task_id":0,"task":"보고서 공유"}
+=== RUN   TestConversationalTaskLifecycle_Regression/Turn3_JJ_Ack
+2026/04/14 04:38:07 [INFO] [DECISION] {"timestamp":"2026-04-14T04:38:07.567542619Z","user_email":"jj-1776141487554523401@test.com","source":"whatsapp","room":"work_chat_1776141487554529568","state":"none","task_id":0,"task":""}
+=== RUN   TestConversationalTaskLifecycle_Regression/Turn4_Bob_Req2
+2026/04/14 04:38:07 [INFO] [DECISION] {"timestamp":"2026-04-14T04:38:07.570846995Z","user_email":"jj-1776141487554523401@test.com","source":"whatsapp","room":"work_chat_1776141487554529568","state":"new","task_id":0,"task":"다음 주 미팅 일정 수립"}
+=== RUN   TestConversationalTaskLifecycle_Regression/Turn5_JJ_Res1
+2026/04/14 04:38:07 [INFO] [DECISION] {"timestamp":"2026-04-14T04:38:07.57520781Z","user_email":"jj-1776141487554523401@test.com","source":"whatsapp","room":"work_chat_1776141487554529568","state":"resolve","task_id":7,"task":"보고서 공유"}
+=== RUN   TestConversationalTaskLifecycle_Regression/Turn6_JJ_Prop
+2026/04/14 04:38:07 [INFO] [DECISION] {"timestamp":"2026-04-14T04:38:07.578179411Z","user_email":"jj-1776141487554523401@test.com","source":"whatsapp","room":"work_chat_1776141487554529568","state":"none","task_id":0,"task":""}
+=== RUN   TestConversationalTaskLifecycle_Regression/Turn7_Bob_Res2
+2026/04/14 04:38:07 [INFO] [DECISION] {"timestamp":"2026-04-14T04:38:07.58173528Z","user_email":"jj-1776141487554523401@test.com","source":"whatsapp","room":"work_chat_1776141487554529568","state":"resolve","task_id":9,"task":"다음 주 미팅 일정 수립"}
+--- PASS: TestConversationalTaskLifecycle_Regression (0.03s)
+    --- PASS: TestConversationalTaskLifecycle_Regression/Turn1_Bob_Greet (0.01s)
+    --- PASS: TestConversationalTaskLifecycle_Regression/Turn2_Bob_Req1 (0.00s)
+    --- PASS: TestConversationalTaskLifecycle_Regression/Turn3_JJ_Ack (0.00s)
+    --- PASS: TestConversationalTaskLifecycle_Regression/Turn4_Bob_Req2 (0.00s)
+    --- PASS: TestConversationalTaskLifecycle_Regression/Turn5_JJ_Res1 (0.00s)
+    --- PASS: TestConversationalTaskLifecycle_Regression/Turn6_JJ_Prop (0.00s)
+    --- PASS: TestConversationalTaskLifecycle_Regression/Turn7_Bob_Res2 (0.00s)
+=== RUN   TestStripOriginalText
+--- PASS: TestStripOriginalText (0.00s)
+=== RUN   TestIsAssigneeMarkedAsMine
+--- PASS: TestIsAssigneeMarkedAsMine (0.00s)
+=== RUN   TestFormatMessagesForClient
+--- PASS: TestFormatMessagesForClient (0.00s)
+=== RUN   TestIsDirectlyAddressedToMe
+--- PASS: TestIsDirectlyAddressedToMe (0.00s)
+=== RUN   TestConsolidateTasks_SameSource_NoOriginalTextDuplication
+--- PASS: TestConsolidateTasks_SameSource_NoOriginalTextDuplication (0.00s)
+=== RUN   TestConsolidateTasks_DifferentSource_FullAppend
+--- PASS: TestConsolidateTasks_DifferentSource_FullAppend (0.00s)
+=== RUN   TestConsolidateTasks_BelowThreshold_NotMerged
+--- PASS: TestConsolidateTasks_BelowThreshold_NotMerged (0.00s)
+=== RUN   TestIsTaskMatchedByAlias_GroupMentions
+--- PASS: TestIsTaskMatchedByAlias_GroupMentions (0.00s)
+=== RUN   TestAssignCategory
+=== RUN   TestAssignCategory/personal:_me
+=== RUN   TestAssignCategory/shared:_shared
+=== RUN   TestAssignCategory/shared:_group_mention_@everyone
+=== RUN   TestAssignCategory/shared:_group_mention_@channel
+=== RUN   TestAssignCategory/requested:_me_to_someone
+=== RUN   TestAssignCategory/requested:_my_name_to_someone
+=== RUN   TestAssignCategory/others:_default
+--- PASS: TestAssignCategory (0.00s)
+    --- PASS: TestAssignCategory/personal:_me (0.00s)
+    --- PASS: TestAssignCategory/shared:_shared (0.00s)
+    --- PASS: TestAssignCategory/shared:_group_mention_@everyone (0.00s)
+    --- PASS: TestAssignCategory/shared:_group_mention_@channel (0.00s)
+    --- PASS: TestAssignCategory/requested:_me_to_someone (0.00s)
+    --- PASS: TestAssignCategory/requested:_my_name_to_someone (0.00s)
+    --- PASS: TestAssignCategory/others:_default (0.00s)
+FAIL
+FAIL	message-consolidator/services	0.698s
+FAIL

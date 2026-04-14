@@ -87,11 +87,16 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		VirtualThreadID: msg.ThreadID,
 		Timestamp:       msg.CreatedAt,
 	}
-	results, err := s.gemini.AnalyzeWithContext(ctx, msg.UserEmail, enriched, "Korean", msg.Source, msg.Room, tasks)
+	candidates, err := s.gemini.AnalyzeWithContext(ctx, msg.UserEmail, enriched, "Korean", msg.Source, msg.Room, tasks)
 	if err != nil {
 		logger.Errorf("[COMPLETION] AI analysis failed for thread %s: %v", msg.ThreadID, err)
 		return
 	}
+
+	// Why: [Service-Oriented Merge] Result candidates from AI are treated as proposals. 
+	// The service resolves them against existing tasks using deterministic similarity.
+	tasksSvc := &TasksService{}
+	results := tasksSvc.ResolveProposals(ctx, msg.UserEmail, msg.Room, candidates, tasks)
 
 	// Why: [Transaction] Use RunInTx to ensure atomicity for multi-item results from AI.
 	_ = store.RunInTx(ctx, func(tx *sql.Tx) error {

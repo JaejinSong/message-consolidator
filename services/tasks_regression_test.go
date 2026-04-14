@@ -48,9 +48,9 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 			2: {{State: "new", Task: "보고서 공유"}},                        // Bob: "Report please"
 			3: {{State: "none"}},                                       // JJ: "Checking..."
 			4: {{State: "new", Task: "다음 주 미팅 일정 수립"}},                  // Bob: "Also schedule meeting"
-			5: {{State: "resolve"}},                                  // JJ: "Here's report" (ID set later)
+			5: {{State: "resolve", Task: "보고서 공유"}},                     // JJ: "Here's report"
 			6: {{State: "none"}},                                       // JJ: "How about Tue 2PM?"
-			7: {{State: "resolve"}},                                  // Bob: "Sounds good!" (ID set later)
+			7: {{State: "resolve", Task: "다음 주 미팅 일정 수립"}},               // Bob: "Sounds good!"
 		},
 	}
 	svc := NewCompletionService(mockAI, &DefaultTaskStore{})
@@ -88,16 +88,13 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 
 			msg, _ := store.GetMessageByID(ctx, store.GetDB(), email, msgID)
 
-			// 2. Mock state preparation (Inject IDs for resolution turns)
-			if turnNum == 5 { // JJ resolves Task A
-				res := mockAI.Results[5][0]
-				res.ID = &taskAID
-				mockAI.Results[5][0] = res
-			}
-			if turnNum == 7 { // Bob resolves Task B
-				res := mockAI.Results[7][0]
-				res.ID = &taskBID
-				mockAI.Results[7][0] = res
+			// 2. Mock state preparation: AI always returns id:0 as a proposal.
+			// Backend Resolves it via HandleTaskState.
+			if matches, ok := mockAI.Results[turnNum]; ok {
+				for j := range matches {
+					matches[j].ID = ptr(0)
+				}
+				mockAI.Results[turnNum] = matches
 			}
 
 			// 3. Process
@@ -132,4 +129,8 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 			}
 		})
 	}
+}
+
+func ptr(i int) *int {
+	return &i
 }
