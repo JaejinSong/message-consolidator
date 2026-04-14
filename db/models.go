@@ -9,17 +9,6 @@ import (
 	"time"
 )
 
-type Achievement struct {
-	ID            int64          `json:"id"`
-	Name          string         `json:"name"`
-	Description   sql.NullString `json:"description"`
-	Icon          sql.NullString `json:"icon"`
-	CriteriaType  sql.NullString `json:"criteria_type"`
-	CriteriaValue sql.NullInt64  `json:"criteria_value"`
-	TargetValue   sql.NullInt64  `json:"target_value"`
-	XpReward      sql.NullInt64  `json:"xp_reward"`
-}
-
 type AiInferenceLog struct {
 	ID           int64          `json:"id"`
 	MessageID    sql.NullInt64  `json:"message_id"`
@@ -172,26 +161,13 @@ type TokenUsage struct {
 }
 
 type User struct {
-	ID              int64          `json:"id"`
-	Email           sql.NullString `json:"email"`
-	Name            sql.NullString `json:"name"`
-	SlackID         sql.NullString `json:"slack_id"`
-	WaJid           sql.NullString `json:"wa_jid"`
-	Picture         sql.NullString `json:"picture"`
-	CreatedAt       sql.NullTime   `json:"created_at"`
-	Points          sql.NullInt64  `json:"points"`
-	Streak          sql.NullInt64  `json:"streak"`
-	Level           sql.NullInt64  `json:"level"`
-	Xp              sql.NullInt64  `json:"xp"`
-	DailyGoal       sql.NullInt64  `json:"daily_goal"`
-	LastCompletedAt sql.NullTime   `json:"last_completed_at"`
-	StreakFreezes   sql.NullInt64  `json:"streak_freezes"`
-}
-
-type UserAchievement struct {
-	UserID        int64        `json:"user_id"`
-	AchievementID int64        `json:"achievement_id"`
-	UnlockedAt    sql.NullTime `json:"unlocked_at"`
+	ID        int64          `json:"id"`
+	Email     sql.NullString `json:"email"`
+	Name      sql.NullString `json:"name"`
+	SlackID   sql.NullString `json:"slack_id"`
+	WaJid     sql.NullString `json:"wa_jid"`
+	Picture   sql.NullString `json:"picture"`
+	CreatedAt sql.NullTime   `json:"created_at"`
 }
 
 type UserAlias struct {
@@ -243,21 +219,4 @@ type VMessage struct {
 	AssigneeCanonical   string       `json:"assignee_canonical"`
 	RequesterType       string       `json:"requester_type"`
 	AssigneeType        string       `json:"assignee_type"`
-}
-
-type VUser struct {
-	ID              int64          `json:"id"`
-	Email           sql.NullString `json:"email"`
-	Name            string         `json:"name"`
-	SlackID         string         `json:"slack_id"`
-	WaJid           string         `json:"wa_jid"`
-	Picture         string         `json:"picture"`
-	Points          int64          `json:"points"`
-	Streak          int64          `json:"streak"`
-	Level           int64          `json:"level"`
-	Xp              int64          `json:"xp"`
-	DailyGoal       int64          `json:"daily_goal"`
-	LastCompletedAt sql.NullTime   `json:"last_completed_at"`
-	CreatedAt       sql.NullTime   `json:"created_at"`
-	StreakFreezes   int64          `json:"streak_freezes"`
 }

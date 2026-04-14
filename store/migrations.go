@@ -20,8 +20,7 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 	_ = queries.CreateReportTranslationsTable(ctx)
 	_ = queries.CreatePromptLogsTable(ctx)
 	_ = queries.CreateAIInferenceLogsTable(ctx)
-	_ = queries.CreateAchievementsTable(ctx)
-	_ = queries.CreateUserAchievementsTable(ctx)
+
 	_ = queries.CreateContactsTable(ctx)
 	_ = queries.CreateContactAliasesTable(ctx)
 	_ = queries.CreateIdentityMergeHistoryTable(ctx)
@@ -52,15 +51,7 @@ func runMigrations(ctx context.Context, q db.DBTX) error {
 	_ = queries.MigrateMessagesAddConsolidatedContext(ctx)
 	_, _ = q.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_ts ON messages(user_email, source_ts)")
 	
-	_ = queries.MigrateUsersAddPoints(ctx)
-	_ = queries.MigrateUsersAddStreak(ctx)
-	_ = queries.MigrateUsersAddLevel(ctx)
-	_ = queries.MigrateUsersAddXP(ctx)
-	_ = queries.MigrateUsersAddDailyGoal(ctx)
-	_ = queries.MigrateUsersAddLastCompletedAt(ctx)
-	_ = queries.MigrateUsersAddStreakFreezes(ctx)
-	_ = queries.MigrateAchievementsAddTargetValue(ctx)
-	_ = queries.MigrateAchievementsAddXPReward(ctx)
+
 	_ = queries.MigrateReportsAddIsTruncated(ctx)
 	
 	_ = queries.MigrateTaskTranslationsRenameLanguage(ctx)
@@ -82,8 +73,7 @@ func rebuildViews(ctx context.Context, q db.DBTX) error {
 	_ = queries.CreateContactsResolvedView(ctx)
 	_, _ = q.ExecContext(ctx, "DROP VIEW IF EXISTS v_messages")
 	_ = queries.CreateMessagesView(ctx)
-	_, _ = q.ExecContext(ctx, "DROP VIEW IF EXISTS v_users")
-	_ = queries.CreateUsersView(ctx)
+
 	return nil
 }
 

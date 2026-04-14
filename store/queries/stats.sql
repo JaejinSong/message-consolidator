@@ -7,8 +7,7 @@ WHERE user_email = CAST(?1 AS TEXT) AND done = 0 AND is_deleted = 0
 AND (assignee = CAST(?2 AS TEXT) OR assignee = 'me') 
 AND IFNULL(task, '') != '';
 
--- name: GetDailyGoal :one
-SELECT daily_goal FROM v_users WHERE email = ?1;
+
 
 -- name: GetDailyCompletions :many
 SELECT strftime('%Y-%m-%d', completed_at, ?) as d, COUNT(*) as c

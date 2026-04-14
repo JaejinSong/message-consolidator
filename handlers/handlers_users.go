@@ -28,7 +28,7 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "Failed to fetch user info")
 		return
 	}
-	logger.Debugf("[USER] Found user: ID=%d, Streak=%d, XP=%d", user.ID, user.Streak, user.XP)
+	logger.Debugf("[USER] Found user: ID=%d, Email=%s", user.ID, user.Email)
 
 	//Why: Populates aliases from the consolidated contacts cache for the current user.
 	user.Aliases = []string{}
@@ -107,23 +107,7 @@ func isSameSlice(a, b []string) bool {
 }
 
 
-func (a *API) HandleBuyStreakFreeze(w http.ResponseWriter, r *http.Request) {
-	email := auth.GetUserEmail(r)
-	user, err := store.GetOrCreateUser(r.Context(), email, "", "")
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch user info")
-		return
-	}
 
-	if user.Points < 50 {
-		respondError(w, http.StatusBadRequest, "Not enough points (requires 50)")
-		return
-	}
-
-	_ = store.UpdateUserGamification(r.Context(), email, user.Points-50, user.Streak, user.Level, user.XP, user.DailyGoal, user.LastCompletedAt, user.StreakFreezes+1)
-
-	respondJSON(w, http.StatusOK, map[string]interface{}{"success": true, "points": user.Points - 50, "streak_freezes": user.StreakFreezes + 1})
-}
 
 func (a *API) HandleGetUserAliases(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
@@ -334,30 +318,7 @@ func (a *API) HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (a *API) HandleGetAchievements(w http.ResponseWriter, r *http.Request) {
-	achievements, err := store.GetAchievements(r.Context())
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	respondJSON(w, http.StatusOK, achievements)
-}
 
-func (a *API) HandleGetUserAchievements(w http.ResponseWriter, r *http.Request) {
-	email := auth.GetUserEmail(r)
-	user, err := store.GetOrCreateUser(r.Context(), email, "", "")
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	ua, err := store.GetUserAchievements(r.Context(), user.ID)
-	if err != nil {
-		logger.Errorf("[HANDLER] Failed to get achievements for %s (ID:%d): %v", email, user.ID, err)
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	respondJSON(w, http.StatusOK, ua)
-}
 func (a *API) HandleSearchContacts(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	query := r.URL.Query().Get("q")

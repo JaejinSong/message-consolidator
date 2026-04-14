@@ -61,7 +61,7 @@ func ResetForTest() {
 			// required by all tests. Only user-generated data tables are cleared.
 			tables := []string{
 				"users", "user_aliases", "gmail_tokens", "messages", "task_translations",
-				"tenant_aliases", "scan_metadata", "user_achievements",
+				"tenant_aliases", "scan_metadata",
 				"contacts", "reports", "report_translations", "prompt_logs",
 				"ai_inference_logs", "contact_aliases", "identity_merge_history",
 				"identity_merge_candidates", "slack_threads",
@@ -94,9 +94,7 @@ func ResetForTest() {
 	cacheInitialized = make(map[string]bool)
 	cacheMu.Unlock()
 
-	achCacheMu.Lock()
-	achievementCache = nil
-	achCacheMu.Unlock()
+
 }
 
 func GetContactsCache() map[string][]ContactRecord {

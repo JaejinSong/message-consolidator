@@ -1,6 +1,6 @@
 -- name: LoadUsersAll :many
 SELECT id, email, name, slack_id, wa_jid, picture, created_at 
-FROM v_users;
+FROM users;
 
 -- name: LoadUserAliasesAll :many
 SELECT user_id, alias_name FROM user_aliases;

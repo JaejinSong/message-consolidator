@@ -109,9 +109,7 @@ func EnsureSchemaAndSeeds(dbConn *sql.DB) error {
 		return fmt.Errorf("database migration failed: %w", err)
 	}
 
-	if err := setupGamification(tx); err != nil {
-		return fmt.Errorf("gamification setup failed: %w", err)
-	}
+
 
 	createIndexes(ctx, tx)
 

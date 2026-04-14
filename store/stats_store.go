@@ -43,17 +43,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		stats.PendingMe = int(pendingCount)
 	}()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		conn := GetDB()
-		queries := db.New(conn)
-		goalCount, _ := queries.GetDailyGoal(context.Background(), sql.NullString{String: email, Valid: true})
-		stats.DailyGoal = int(goalCount)
-		if stats.DailyGoal <= 0 {
-			stats.DailyGoal = 5 // Default
-		}
-	}()
+
 
 	wg.Add(1)
 	go func() {

@@ -132,17 +132,6 @@ func (q *Queries) GetDailyFilteredCount(ctx context.Context, arg GetDailyFiltere
 	return coalesce, err
 }
 
-const getDailyGoal = `-- name: GetDailyGoal :one
-SELECT daily_goal FROM v_users WHERE email = ?1
-`
-
-func (q *Queries) GetDailyGoal(ctx context.Context, email sql.NullString) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getDailyGoal, email)
-	var daily_goal int64
-	err := row.Scan(&daily_goal)
-	return daily_goal, err
-}
-
 const getEarlyBirdCompleted = `-- name: GetEarlyBirdCompleted :one
 SELECT COUNT(*) FROM messages
 WHERE user_email = CAST(?1 AS TEXT) AND done = 1

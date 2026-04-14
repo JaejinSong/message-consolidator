@@ -44,26 +44,7 @@
             </div>
 
             <div class="header-right">
-                <div id="gamificationStats" class="gamification-stats hidden">
-                    <div class="stat-item" title="Current Level" data-i18n-title="levelTitle">
-                        <span class="stat-label" data-i18n="levelLabel">LVL</span>
-                        <span id="userLevel" class="stat-value">1</span>
-                    </div>
-                    <div class="stat-item" style="width: 100px;">
-                        <div class="xp-container">
-                            <div id="xpBar" class="xp-bar" style="width: 0%;"></div>
-                        </div>
-                        <span id="xpText" class="stat-label">0 / 0 XP</span>
-                    </div>
-                    <div class="stat-item" title="Daily Streak" data-i18n-title="streakTitle">
-                        <span class="stat-label" data-i18n="streakLabel">STREAK</span>
-                        <span id="userStreak" class="stat-value">0🔥</span>
-                    </div>
-                    <div class="stat-item" title="Total accumulated points" data-i18n-title="pointsTitle">
-                        <span class="stat-label" data-i18n="pointsLabel">PTS</span>
-                        <span id="userPoints" class="stat-value">0</span>
-                    </div>
-                </div>
+                <!-- Gamification feature removed -->
                 <div class="c-utility">
                     <button type="button" id="scanBtn" class="c-utility__btn" title="Scan Now" aria-label="Scan Now"
                         data-i18n-title="scanNow">
@@ -249,15 +230,11 @@
                                 <div class="u-text-dim u-text-sm">Filter Stats Syncing...</div>
                             </div>
 
-                        <!-- Row 3: Achievements (3 Squares) -->
-                        <!-- Row 3: Achievements & Heatmap (3 Squares) -->
-                        <div class="c-insights-card c-insights-card--square" id="achievement-slot-1">
-                             <div id="achievementsList" class="c-insights-achievements-list"></div>
-                        </div>
-                        <div class="c-insights-card c-insights-card--square" id="achievement-slot-2">
+                        <!-- Row 3: Visualization & Distribution -->
+                        <div class="c-insights-card c-insights-card--square" id="achievement-slot-2" style="grid-column: span 1.5;">
                             <div id="sourceDistribution" class="c-insights-distribution-slot"></div>
                         </div>
-                        <div class="c-insights-card c-insights-card--square" id="achievement-slot-3">
+                        <div class="c-insights-card c-insights-card--square" id="achievement-slot-3" style="grid-column: span 1.5;">
                             <div id="activityHeatmap" class="c-heatmap-container"></div>
                         </div>
 

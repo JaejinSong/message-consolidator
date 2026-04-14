@@ -16,7 +16,14 @@ VALUES (?1, ?2, ?3)
 ON CONFLICT(email) DO UPDATE SET 
     name = EXCLUDED.name, 
     picture = EXCLUDED.picture
-RETURNING id, COALESCE(email, '') as email, COALESCE(name, '') as name, COALESCE(slack_id, '') as slack_id, COALESCE(wa_jid, '') as wa_jid, COALESCE(picture, '') as picture, COALESCE(points, 0) as points, COALESCE(streak, 0) as streak, COALESCE(level, 0) as level, COALESCE(xp, 0) as xp, COALESCE(daily_goal, 0) as daily_goal, last_completed_at, created_at, COALESCE(streak_freezes, 0) as streak_freezes
+RETURNING 
+    id, 
+    COALESCE(email, '') as email, 
+    COALESCE(name, '') as name, 
+    COALESCE(slack_id, '') as slack_id, 
+    COALESCE(wa_jid, '') as wa_jid, 
+    COALESCE(picture, '') as picture, 
+    created_at
 `
 
 type CreateUserParams struct {
@@ -26,20 +33,13 @@ type CreateUserParams struct {
 }
 
 type CreateUserRow struct {
-	ID              int64        `json:"id"`
-	Email           string       `json:"email"`
-	Name            string       `json:"name"`
-	SlackID         string       `json:"slack_id"`
-	WaJid           string       `json:"wa_jid"`
-	Picture         string       `json:"picture"`
-	Points          int64        `json:"points"`
-	Streak          int64        `json:"streak"`
-	Level           int64        `json:"level"`
-	Xp              int64        `json:"xp"`
-	DailyGoal       int64        `json:"daily_goal"`
-	LastCompletedAt sql.NullTime `json:"last_completed_at"`
-	CreatedAt       sql.NullTime `json:"created_at"`
-	StreakFreezes   int64        `json:"streak_freezes"`
+	ID        int64        `json:"id"`
+	Email     string       `json:"email"`
+	Name      string       `json:"name"`
+	SlackID   string       `json:"slack_id"`
+	WaJid     string       `json:"wa_jid"`
+	Picture   string       `json:"picture"`
+	CreatedAt sql.NullTime `json:"created_at"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
@@ -52,59 +52,45 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 		&i.SlackID,
 		&i.WaJid,
 		&i.Picture,
-		&i.Points,
-		&i.Streak,
-		&i.Level,
-		&i.Xp,
-		&i.DailyGoal,
-		&i.LastCompletedAt,
 		&i.CreatedAt,
-		&i.StreakFreezes,
 	)
 	return i, err
 }
 
 const createUserReturningAll = `-- name: CreateUserReturningAll :one
-INSERT INTO users (email, name, picture, daily_goal) 
-VALUES (?1, ?2, ?3, CAST(?4 AS INTEGER)) 
+INSERT INTO users (email, name, picture) 
+VALUES (?1, ?2, ?3) 
 ON CONFLICT(email) DO UPDATE SET 
     name = COALESCE(NULLIF(EXCLUDED.name, ''), users.name),
-    picture = COALESCE(NULLIF(EXCLUDED.picture, ''), users.picture),
-    daily_goal = CASE WHEN EXCLUDED.daily_goal > 0 THEN EXCLUDED.daily_goal ELSE users.daily_goal END
-RETURNING id, COALESCE(email, '') as email, COALESCE(name, '') as name, COALESCE(slack_id, '') as slack_id, COALESCE(wa_jid, '') as wa_jid, COALESCE(picture, '') as picture, COALESCE(points, 0) as points, COALESCE(streak, 0) as streak, COALESCE(level, 0) as level, COALESCE(xp, 0) as xp, COALESCE(daily_goal, 0) as daily_goal, last_completed_at, created_at, COALESCE(streak_freezes, 0) as streak_freezes
+    picture = COALESCE(NULLIF(EXCLUDED.picture, ''), users.picture)
+RETURNING 
+    id, 
+    COALESCE(email, '') as email, 
+    COALESCE(name, '') as name, 
+    COALESCE(slack_id, '') as slack_id, 
+    COALESCE(wa_jid, '') as wa_jid, 
+    COALESCE(picture, '') as picture, 
+    created_at
 `
 
 type CreateUserReturningAllParams struct {
 	Email   sql.NullString `json:"email"`
 	Name    sql.NullString `json:"name"`
 	Picture sql.NullString `json:"picture"`
-	Column4 int64          `json:"column_4"`
 }
 
 type CreateUserReturningAllRow struct {
-	ID              int64        `json:"id"`
-	Email           string       `json:"email"`
-	Name            string       `json:"name"`
-	SlackID         string       `json:"slack_id"`
-	WaJid           string       `json:"wa_jid"`
-	Picture         string       `json:"picture"`
-	Points          int64        `json:"points"`
-	Streak          int64        `json:"streak"`
-	Level           int64        `json:"level"`
-	Xp              int64        `json:"xp"`
-	DailyGoal       int64        `json:"daily_goal"`
-	LastCompletedAt sql.NullTime `json:"last_completed_at"`
-	CreatedAt       sql.NullTime `json:"created_at"`
-	StreakFreezes   int64        `json:"streak_freezes"`
+	ID        int64        `json:"id"`
+	Email     string       `json:"email"`
+	Name      string       `json:"name"`
+	SlackID   string       `json:"slack_id"`
+	WaJid     string       `json:"wa_jid"`
+	Picture   string       `json:"picture"`
+	CreatedAt sql.NullTime `json:"created_at"`
 }
 
 func (q *Queries) CreateUserReturningAll(ctx context.Context, arg CreateUserReturningAllParams) (CreateUserReturningAllRow, error) {
-	row := q.db.QueryRowContext(ctx, createUserReturningAll,
-		arg.Email,
-		arg.Name,
-		arg.Picture,
-		arg.Column4,
-	)
+	row := q.db.QueryRowContext(ctx, createUserReturningAll, arg.Email, arg.Name, arg.Picture)
 	var i CreateUserReturningAllRow
 	err := row.Scan(
 		&i.ID,
@@ -113,37 +99,31 @@ func (q *Queries) CreateUserReturningAll(ctx context.Context, arg CreateUserRetu
 		&i.SlackID,
 		&i.WaJid,
 		&i.Picture,
-		&i.Points,
-		&i.Streak,
-		&i.Level,
-		&i.Xp,
-		&i.DailyGoal,
-		&i.LastCompletedAt,
 		&i.CreatedAt,
-		&i.StreakFreezes,
 	)
 	return i, err
 }
 
 const getAllUsers = `-- name: GetAllUsers :many
-SELECT id, COALESCE(email, '') as email, name, slack_id, wa_jid, picture, COALESCE(points, 0) as points, COALESCE(streak, 0) as streak, COALESCE(level, 0) as level, COALESCE(xp, 0) as xp, COALESCE(daily_goal, 0) as daily_goal, last_completed_at, created_at, COALESCE(streak_freezes, 0) as streak_freezes FROM v_users
+SELECT 
+    id, 
+    COALESCE(email, '') as email, 
+    COALESCE(name, '') as name, 
+    COALESCE(slack_id, '') as slack_id, 
+    COALESCE(wa_jid, '') as wa_jid, 
+    COALESCE(picture, '') as picture, 
+    created_at 
+FROM users
 `
 
 type GetAllUsersRow struct {
-	ID              int64        `json:"id"`
-	Email           string       `json:"email"`
-	Name            string       `json:"name"`
-	SlackID         string       `json:"slack_id"`
-	WaJid           string       `json:"wa_jid"`
-	Picture         string       `json:"picture"`
-	Points          int64        `json:"points"`
-	Streak          int64        `json:"streak"`
-	Level           int64        `json:"level"`
-	Xp              int64        `json:"xp"`
-	DailyGoal       int64        `json:"daily_goal"`
-	LastCompletedAt sql.NullTime `json:"last_completed_at"`
-	CreatedAt       sql.NullTime `json:"created_at"`
-	StreakFreezes   int64        `json:"streak_freezes"`
+	ID        int64        `json:"id"`
+	Email     string       `json:"email"`
+	Name      string       `json:"name"`
+	SlackID   string       `json:"slack_id"`
+	WaJid     string       `json:"wa_jid"`
+	Picture   string       `json:"picture"`
+	CreatedAt sql.NullTime `json:"created_at"`
 }
 
 func (q *Queries) GetAllUsers(ctx context.Context) ([]GetAllUsersRow, error) {
@@ -162,14 +142,7 @@ func (q *Queries) GetAllUsers(ctx context.Context) ([]GetAllUsersRow, error) {
 			&i.SlackID,
 			&i.WaJid,
 			&i.Picture,
-			&i.Points,
-			&i.Streak,
-			&i.Level,
-			&i.Xp,
-			&i.DailyGoal,
-			&i.LastCompletedAt,
 			&i.CreatedAt,
-			&i.StreakFreezes,
 		); err != nil {
 			return nil, err
 		}
@@ -214,24 +187,26 @@ func (q *Queries) GetUserAliasesByEmail(ctx context.Context, email sql.NullStrin
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, COALESCE(email, '') as email, name, slack_id, wa_jid, picture, COALESCE(points, 0) as points, COALESCE(streak, 0) as streak, COALESCE(level, 0) as level, COALESCE(xp, 0) as xp, COALESCE(daily_goal, 0) as daily_goal, last_completed_at, created_at, COALESCE(streak_freezes, 0) as streak_freezes FROM v_users WHERE email = ?1
+SELECT 
+    id, 
+    COALESCE(email, '') as email, 
+    COALESCE(name, '') as name, 
+    COALESCE(slack_id, '') as slack_id, 
+    COALESCE(wa_jid, '') as wa_jid, 
+    COALESCE(picture, '') as picture, 
+    created_at 
+FROM users 
+WHERE email = ?1
 `
 
 type GetUserByEmailRow struct {
-	ID              int64        `json:"id"`
-	Email           string       `json:"email"`
-	Name            string       `json:"name"`
-	SlackID         string       `json:"slack_id"`
-	WaJid           string       `json:"wa_jid"`
-	Picture         string       `json:"picture"`
-	Points          int64        `json:"points"`
-	Streak          int64        `json:"streak"`
-	Level           int64        `json:"level"`
-	Xp              int64        `json:"xp"`
-	DailyGoal       int64        `json:"daily_goal"`
-	LastCompletedAt sql.NullTime `json:"last_completed_at"`
-	CreatedAt       sql.NullTime `json:"created_at"`
-	StreakFreezes   int64        `json:"streak_freezes"`
+	ID        int64        `json:"id"`
+	Email     string       `json:"email"`
+	Name      string       `json:"name"`
+	SlackID   string       `json:"slack_id"`
+	WaJid     string       `json:"wa_jid"`
+	Picture   string       `json:"picture"`
+	CreatedAt sql.NullTime `json:"created_at"`
 }
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email sql.NullString) (GetUserByEmailRow, error) {
@@ -244,14 +219,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email sql.NullString) (Get
 		&i.SlackID,
 		&i.WaJid,
 		&i.Picture,
-		&i.Points,
-		&i.Streak,
-		&i.Level,
-		&i.Xp,
-		&i.DailyGoal,
-		&i.LastCompletedAt,
 		&i.CreatedAt,
-		&i.StreakFreezes,
 	)
 	return i, err
 }
@@ -268,24 +236,26 @@ func (q *Queries) GetUserByEmailSimple(ctx context.Context, email sql.NullString
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, COALESCE(email, '') as email, name, slack_id, wa_jid, picture, COALESCE(points, 0) as points, COALESCE(streak, 0) as streak, COALESCE(level, 0) as level, COALESCE(xp, 0) as xp, COALESCE(daily_goal, 0) as daily_goal, last_completed_at, created_at, COALESCE(streak_freezes, 0) as streak_freezes FROM v_users WHERE id = CAST(?1 AS INTEGER)
+SELECT 
+    id, 
+    COALESCE(email, '') as email, 
+    COALESCE(name, '') as name, 
+    COALESCE(slack_id, '') as slack_id, 
+    COALESCE(wa_jid, '') as wa_jid, 
+    COALESCE(picture, '') as picture, 
+    created_at 
+FROM users 
+WHERE id = CAST(?1 AS INTEGER)
 `
 
 type GetUserByIDRow struct {
-	ID              int64        `json:"id"`
-	Email           string       `json:"email"`
-	Name            string       `json:"name"`
-	SlackID         string       `json:"slack_id"`
-	WaJid           string       `json:"wa_jid"`
-	Picture         string       `json:"picture"`
-	Points          int64        `json:"points"`
-	Streak          int64        `json:"streak"`
-	Level           int64        `json:"level"`
-	Xp              int64        `json:"xp"`
-	DailyGoal       int64        `json:"daily_goal"`
-	LastCompletedAt sql.NullTime `json:"last_completed_at"`
-	CreatedAt       sql.NullTime `json:"created_at"`
-	StreakFreezes   int64        `json:"streak_freezes"`
+	ID        int64        `json:"id"`
+	Email     string       `json:"email"`
+	Name      string       `json:"name"`
+	SlackID   string       `json:"slack_id"`
+	WaJid     string       `json:"wa_jid"`
+	Picture   string       `json:"picture"`
+	CreatedAt sql.NullTime `json:"created_at"`
 }
 
 func (q *Queries) GetUserByID(ctx context.Context, dollar_1 int64) (GetUserByIDRow, error) {
@@ -298,79 +268,9 @@ func (q *Queries) GetUserByID(ctx context.Context, dollar_1 int64) (GetUserByIDR
 		&i.SlackID,
 		&i.WaJid,
 		&i.Picture,
-		&i.Points,
-		&i.Streak,
-		&i.Level,
-		&i.Xp,
-		&i.DailyGoal,
-		&i.LastCompletedAt,
 		&i.CreatedAt,
-		&i.StreakFreezes,
 	)
 	return i, err
-}
-
-const migrateUsersAddDailyGoal = `-- name: MigrateUsersAddDailyGoal :exec
-ALTER TABLE users ADD COLUMN daily_goal INTEGER DEFAULT 5
-`
-
-func (q *Queries) MigrateUsersAddDailyGoal(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateUsersAddDailyGoal)
-	return err
-}
-
-const migrateUsersAddLastCompletedAt = `-- name: MigrateUsersAddLastCompletedAt :exec
-ALTER TABLE users ADD COLUMN last_completed_at DATETIME
-`
-
-func (q *Queries) MigrateUsersAddLastCompletedAt(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateUsersAddLastCompletedAt)
-	return err
-}
-
-const migrateUsersAddLevel = `-- name: MigrateUsersAddLevel :exec
-ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1
-`
-
-func (q *Queries) MigrateUsersAddLevel(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateUsersAddLevel)
-	return err
-}
-
-const migrateUsersAddPoints = `-- name: MigrateUsersAddPoints :exec
-ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0
-`
-
-func (q *Queries) MigrateUsersAddPoints(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateUsersAddPoints)
-	return err
-}
-
-const migrateUsersAddStreak = `-- name: MigrateUsersAddStreak :exec
-ALTER TABLE users ADD COLUMN streak INTEGER DEFAULT 0
-`
-
-func (q *Queries) MigrateUsersAddStreak(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateUsersAddStreak)
-	return err
-}
-
-const migrateUsersAddStreakFreezes = `-- name: MigrateUsersAddStreakFreezes :exec
-ALTER TABLE users ADD COLUMN streak_freezes INTEGER DEFAULT 0
-`
-
-func (q *Queries) MigrateUsersAddStreakFreezes(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateUsersAddStreakFreezes)
-	return err
-}
-
-const migrateUsersAddXP = `-- name: MigrateUsersAddXP :exec
-ALTER TABLE users ADD COLUMN xp INTEGER DEFAULT 10
-`
-
-func (q *Queries) MigrateUsersAddXP(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateUsersAddXP)
-	return err
 }
 
 const updateUserNamePicture = `-- name: UpdateUserNamePicture :exec

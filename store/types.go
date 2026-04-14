@@ -71,35 +71,11 @@ type User struct {
 	WAJID           string     `json:"wa_jid"`
 	Picture         string     `json:"picture"`
 	Aliases         []string   `json:"aliases"`
-	Points          int        `json:"points"`
-	Streak          int        `json:"streak"`
-	Level           int        `json:"level"`
-	XP              int        `json:"xp"`
-	DailyGoal       int        `json:"daily_goal"`
-	LastCompletedAt *time.Time `json:"last_completed_at"`
-	StreakFreezes   int        `json:"streak_freezes"`
 	ArchiveDays     int        `json:"archive_days"`
 	CreatedAt       time.Time  `json:"created_at"`
 }
 
-// Achievement represents a gamification milestone
-type Achievement struct {
-	ID            int    `json:"id"`
-	Name          string `json:"name"`
-	Description   string `json:"description"`
-	Icon          string `json:"icon"`
-	CriteriaType  string `json:"criteria_type"`
-	CriteriaValue int    `json:"criteria_value"`
-	TargetValue   int    `json:"target_value"` //Why: Provides a compatibility alias for the frontend's expected target_value field.
-	XPReward      int    `json:"xp_reward"`
-}
 
-// UserAchievement joins users and achievements
-type UserAchievement struct {
-	UserID        int       `json:"user_id"`
-	AchievementID int       `json:"achievement_id"`
-	UnlockedAt    time.Time `json:"unlocked_at"`
-}
 
 // TaskTranslation represents a cached translation for a task
 type TaskTranslation struct {
@@ -191,7 +167,6 @@ type TimeSeriesPoint struct {
 // UserStats represents various productivity metrics for a user
 type UserStats struct {
 	TotalCompleted          int               `json:"total_completed"`
-	DailyGoal               int               `json:"daily_goal"`
 	DailyCompletions        map[string]int    `json:"daily_completions"`
 	HourlyActivity          map[int]int       `json:"hourly_activity"`
 	PeakTime                string            `json:"peak_time"`

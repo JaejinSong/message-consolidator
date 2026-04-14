@@ -196,28 +196,18 @@ func (q *Queries) LoadUserAliasesAll(ctx context.Context) ([]LoadUserAliasesAllR
 
 const loadUsersAll = `-- name: LoadUsersAll :many
 SELECT id, email, name, slack_id, wa_jid, picture, created_at 
-FROM v_users
+FROM users
 `
 
-type LoadUsersAllRow struct {
-	ID        int64          `json:"id"`
-	Email     sql.NullString `json:"email"`
-	Name      string         `json:"name"`
-	SlackID   string         `json:"slack_id"`
-	WaJid     string         `json:"wa_jid"`
-	Picture   string         `json:"picture"`
-	CreatedAt sql.NullTime   `json:"created_at"`
-}
-
-func (q *Queries) LoadUsersAll(ctx context.Context) ([]LoadUsersAllRow, error) {
+func (q *Queries) LoadUsersAll(ctx context.Context) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, loadUsersAll)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []LoadUsersAllRow
+	var items []User
 	for rows.Next() {
-		var i LoadUsersAllRow
+		var i User
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,

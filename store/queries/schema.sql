@@ -8,14 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
     slack_id TEXT,
     wa_jid TEXT,
     picture TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    points INTEGER DEFAULT 0,
-    streak INTEGER DEFAULT 0,
-    level INTEGER DEFAULT 1,
-    xp INTEGER DEFAULT 0,
-    daily_goal INTEGER DEFAULT 5,
-    last_completed_at DATETIME,
-    streak_freezes INTEGER DEFAULT 0
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- name: CreateUserAliasesTable :exec
@@ -95,25 +88,7 @@ CREATE TABLE IF NOT EXISTS scan_metadata (
     UNIQUE(user_email, source, target_id)
 );
 
--- name: CreateAchievementsTable :exec
-CREATE TABLE IF NOT EXISTS achievements (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    description TEXT,
-    icon TEXT,
-    criteria_type TEXT,
-    criteria_value INTEGER DEFAULT 1,
-    target_value INTEGER DEFAULT 1,
-    xp_reward INTEGER DEFAULT 10
-);
 
--- name: CreateUserAchievementsTable :exec
-CREATE TABLE IF NOT EXISTS user_achievements (
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    achievement_id INTEGER NOT NULL REFERENCES achievements(id) ON DELETE CASCADE,
-    unlocked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (user_id, achievement_id)
-);
 
 -- name: CreateContactsTable :exec
 CREATE TABLE IF NOT EXISTS contacts (
@@ -284,22 +259,3 @@ SELECT
 FROM messages m
 LEFT JOIN v_contacts_resolved cr_req ON m.user_email = cr_req.tenant_email AND m.requester = cr_req.original_canonical_id
 LEFT JOIN v_contacts_resolved cr_asg ON m.user_email = cr_asg.tenant_email AND m.assignee = cr_asg.original_canonical_id;
-
--- name: CreateUsersView :exec
-CREATE VIEW IF NOT EXISTS v_users AS
-SELECT 
-    id, 
-    email, 
-    COALESCE(name, '') as name, 
-    COALESCE(slack_id, '') as slack_id, 
-    COALESCE(wa_jid, '') as wa_jid, 
-    COALESCE(picture, '') as picture, 
-    COALESCE(points, 0) as points, 
-    COALESCE(streak, 0) as streak, 
-    COALESCE(level, 1) as level, 
-    COALESCE(xp, 0) as xp, 
-    COALESCE(daily_goal, 5) as daily_goal, 
-    last_completed_at, 
-    created_at, 
-    COALESCE(streak_freezes, 0) as streak_freezes 
-FROM users;

@@ -129,7 +129,6 @@ func finalizeScanCycle(ctx context.Context, users []store.User) {
 	}
 
 	_ = store.ArchiveOldTasks(ctx)
-	_ = services.FlushGamificationData(ctx)
 	store.FlushTokenUsageIfNeeded(ctx)
 	store.LogDBStats()
 }
@@ -215,7 +214,6 @@ func Scan(email string, lang string, wg *sync.WaitGroup) {
 	runManualScans(ctx, user, effAl, lang, wg)
 	
 	store.PersistAllScanMetadata(user.Email)
-	_ = services.FlushGamificationData(ctx)
 }
 
 func runManualScans(ctx context.Context, user *store.User, effAl []string, lang string, wg *sync.WaitGroup) {

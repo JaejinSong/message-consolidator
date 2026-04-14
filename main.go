@@ -129,9 +129,6 @@ func main() {
 			logger.Errorf("Failed to flush token usage during shutdown: %v", err)
 		}
 		store.FlushAllScanMetadata()
-		if err := services.FlushGamificationData(context.Background()); err != nil {
-			logger.Errorf("Failed to flush gamification data during shutdown: %v", err)
-		}
 		logger.Infof("[Shutdown] In-memory data flushed successfully.")
 	}()
 

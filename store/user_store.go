@@ -77,7 +77,6 @@ func updateAndCacheUser(ctx context.Context, email, name, picture string) (*User
 			Email:     sql.NullString{String: email, Valid: email != ""},
 			Name:      sql.NullString{String: name, Valid: name != ""},
 			Picture:   sql.NullString{String: picture, Valid: picture != ""},
-			Column4:   5,
 		})
 		if errQuery != nil {
 			return errQuery
@@ -163,77 +162,31 @@ func updateUserCacheAliases(email string, aliases []string) {
 }
 
 func GetUserName(ctx context.Context, email string) (string, error) {
-	return db.New(GetDB()).GetUserByEmailSimple(ctx, sql.NullString{String: email, Valid: true})
+	return db.New(GetDB()).GetUserByEmailSimple(ctx, sql.NullString{String: email, Valid: email != ""})
 }
 
-func fromVUserRow(row db.VUser) User {
-	u := User{
-		ID:            int(row.ID),
-		Email:         row.Email.String,
-		Name:          row.Name,
-		SlackID:       row.SlackID,
-		WAJID:         row.WaJid,
-		Picture:       row.Picture,
-		Points:        int(row.Points),
-		Streak:        int(row.Streak),
-		Level:         int(row.Level),
-		XP:            int(row.Xp),
-		DailyGoal:     int(row.DailyGoal),
-		StreakFreezes: int(row.StreakFreezes),
-		CreatedAt:     row.CreatedAt.Time,
-	}
-	if row.LastCompletedAt.Valid {
-		u.LastCompletedAt = &row.LastCompletedAt.Time
-	}
-	if u.DailyGoal <= 0 {
-		u.DailyGoal = 5
-	}
-	return u
-}
+
 
 func fromGetAllUsersRow(row db.GetAllUsersRow) User {
-	u := User{
+	return User{
 		ID:            int(row.ID),
 		Email:         row.Email,
 		Name:          row.Name,
 		SlackID:       row.SlackID,
 		WAJID:         row.WaJid,
 		Picture:       row.Picture,
-		Points:        int(row.Points),
-		Streak:        int(row.Streak),
-		Level:         int(row.Level),
-		XP:            int(row.Xp),
-		DailyGoal:     int(row.DailyGoal),
-		StreakFreezes: int(row.StreakFreezes),
 		CreatedAt:     row.CreatedAt.Time,
 	}
-	if row.LastCompletedAt.Valid {
-		u.LastCompletedAt = &row.LastCompletedAt.Time
-	}
-	if u.DailyGoal <= 0 {
-		u.DailyGoal = 5
-	}
-	return u
 }
 
 func fromCreateUserReturningAllRow(row db.CreateUserReturningAllRow) User {
-	u := User{
+	return User{
 		ID:            int(row.ID),
 		Email:         row.Email,
 		Name:          row.Name,
 		SlackID:       row.SlackID,
 		WAJID:         row.WaJid,
 		Picture:       row.Picture,
-		Points:        int(row.Points),
-		Streak:        int(row.Streak),
-		Level:         int(row.Level),
-		XP:            int(row.Xp),
-		DailyGoal:     int(row.DailyGoal),
-		StreakFreezes: int(row.StreakFreezes),
 		CreatedAt:     row.CreatedAt.Time,
 	}
-	if row.LastCompletedAt.Valid {
-		u.LastCompletedAt = &row.LastCompletedAt.Time
-	}
-	return u
 }

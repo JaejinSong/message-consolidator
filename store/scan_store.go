@@ -61,10 +61,10 @@ func LoadMetadata() error {
 		u := User{
 			ID:        int(row.ID),
 			Email:     row.Email.String,
-			Name:      row.Name,
-			SlackID:   row.SlackID,
-			WAJID:     row.WaJid,
-			Picture:   row.Picture,
+			Name:      row.Name.String,
+			SlackID:   row.SlackID.String,
+			WAJID:     row.WaJid.String,
+			Picture:   row.Picture.String,
 			CreatedAt: row.CreatedAt.Time,
 		}
 		userCache[u.Email] = &u

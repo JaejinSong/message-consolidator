@@ -78,17 +78,6 @@ func run() error {
 	}
 	log.Println("SUCCESS: Message Idempotency (Upsert) verified.")
 
-	// 4. Test Achievement Idempotency
-	log.Println("[CHECK] Achievement Idempotency...")
-	_ = store.UnlockAchievement(context.Background(), int(u1.ID), 1)
-	_ = store.UnlockAchievement(context.Background(), int(u1.ID), 1) // Second unlock
-	
-	achs, _ := store.GetUserAchievements(context.Background(), int(u1.ID))
-	if len(achs) != 1 {
-		return fmt.Errorf("achievement duplicated: found %d", len(achs))
-	}
-	log.Println("SUCCESS: Achievement Idempotency verified.")
-
 	fmt.Println("\n[FINAL RESULT] ALL IDEMPOTENCY CHECKS PASSED.")
 	return nil
 }

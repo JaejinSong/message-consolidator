@@ -25,24 +25,6 @@ func (q *Queries) CreateAIInferenceLogsTable(ctx context.Context) error {
 	return err
 }
 
-const createAchievementsTable = `-- name: CreateAchievementsTable :exec
-CREATE TABLE IF NOT EXISTS achievements (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    description TEXT,
-    icon TEXT,
-    criteria_type TEXT,
-    criteria_value INTEGER DEFAULT 1,
-    target_value INTEGER DEFAULT 1,
-    xp_reward INTEGER DEFAULT 10
-)
-`
-
-func (q *Queries) CreateAchievementsTable(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, createAchievementsTable)
-	return err
-}
-
 const createContactAliasesTable = `-- name: CreateContactAliasesTable :exec
 CREATE TABLE IF NOT EXISTS contact_aliases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -358,20 +340,6 @@ func (q *Queries) CreateTokenUsageTable(ctx context.Context) error {
 	return err
 }
 
-const createUserAchievementsTable = `-- name: CreateUserAchievementsTable :exec
-CREATE TABLE IF NOT EXISTS user_achievements (
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    achievement_id INTEGER NOT NULL REFERENCES achievements(id) ON DELETE CASCADE,
-    unlocked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (user_id, achievement_id)
-)
-`
-
-func (q *Queries) CreateUserAchievementsTable(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, createUserAchievementsTable)
-	return err
-}
-
 const createUserAliasesTable = `-- name: CreateUserAliasesTable :exec
 CREATE TABLE IF NOT EXISTS user_aliases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -395,44 +363,12 @@ CREATE TABLE IF NOT EXISTS users (
     slack_id TEXT,
     wa_jid TEXT,
     picture TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    points INTEGER DEFAULT 0,
-    streak INTEGER DEFAULT 0,
-    level INTEGER DEFAULT 1,
-    xp INTEGER DEFAULT 0,
-    daily_goal INTEGER DEFAULT 5,
-    last_completed_at DATETIME,
-    streak_freezes INTEGER DEFAULT 0
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )
 `
 
 // Consolidated Schema for sqlc (SQLite)
 func (q *Queries) CreateUsersTable(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, createUsersTable)
-	return err
-}
-
-const createUsersView = `-- name: CreateUsersView :exec
-CREATE VIEW IF NOT EXISTS v_users AS
-SELECT 
-    id, 
-    email, 
-    COALESCE(name, '') as name, 
-    COALESCE(slack_id, '') as slack_id, 
-    COALESCE(wa_jid, '') as wa_jid, 
-    COALESCE(picture, '') as picture, 
-    COALESCE(points, 0) as points, 
-    COALESCE(streak, 0) as streak, 
-    COALESCE(level, 1) as level, 
-    COALESCE(xp, 0) as xp, 
-    COALESCE(daily_goal, 5) as daily_goal, 
-    last_completed_at, 
-    created_at, 
-    COALESCE(streak_freezes, 0) as streak_freezes 
-FROM users
-`
-
-func (q *Queries) CreateUsersView(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, createUsersView)
 	return err
 }

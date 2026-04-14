@@ -7,7 +7,6 @@ import (
 	"message-consolidator/auth"
 	"message-consolidator/channels"
 	"message-consolidator/logger"
-	"message-consolidator/services"
 	"message-consolidator/store"
 	"net/http"
 	"sync"
@@ -35,8 +34,6 @@ func (a *API) HandleManualScan(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			ScanFunc(email, lang)
 			store.PersistAllScanMetadata(email)
-			//Why: Synchronizes accumulated gamification data from the memory queue to the database immediately after a manual scan.
-			_ = services.FlushGamificationData(context.Background())
 		}()
 	}
 
@@ -76,10 +73,8 @@ func (a *API) HandleInternalScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//Why: Leverages the active database connection during a full scan to efficiently flush accumulated gamification data from memory.
-	if err := services.FlushGamificationData(r.Context()); err != nil {
-		logger.Errorf("[INTERNAL-SCAN] Gamification flush error: %v", err)
-	}
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "Scan completed successfully")
 
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "Scan completed successfully")

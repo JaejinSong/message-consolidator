@@ -99,6 +99,11 @@
     color: var(--white);
 }
 
+.c-message-card__badge--promise {
+    background: var(--color-success);
+    color: var(--white);
+}
+
 .c-message-card__badge--delegated {
     background: var(--color-warning);
     color: var(--bg-color);

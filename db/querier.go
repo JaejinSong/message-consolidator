@@ -14,7 +14,6 @@ type Querier interface {
 	ArchiveOldTasks(ctx context.Context, datetime interface{}) error
 	CloseSlackThread(ctx context.Context, arg CloseSlackThreadParams) error
 	CreateAIInferenceLogsTable(ctx context.Context) error
-	CreateAchievementsTable(ctx context.Context) error
 	CreateContactAliasesTable(ctx context.Context) error
 	// Views
 	CreateContactsResolvedView(ctx context.Context) error
@@ -34,14 +33,11 @@ type Querier interface {
 	CreateTenantAliasesTable(ctx context.Context) error
 	CreateTokenUsageTable(ctx context.Context) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
-	CreateUserAchievementsTable(ctx context.Context) error
 	CreateUserAlias(ctx context.Context, arg CreateUserAliasParams) error
 	CreateUserAliasesTable(ctx context.Context) error
 	CreateUserReturningAll(ctx context.Context, arg CreateUserReturningAllParams) (CreateUserReturningAllRow, error)
 	// Consolidated Schema for sqlc (SQLite)
 	CreateUsersTable(ctx context.Context) error
-	CreateUsersView(ctx context.Context) error
-	DeleteAllAchievements(ctx context.Context) error
 	DeleteContactMapping(ctx context.Context, arg DeleteContactMappingParams) error
 	DeleteGmailToken(ctx context.Context, userEmail string) error
 	DeleteMessages(ctx context.Context, arg DeleteMessagesParams) error
@@ -53,8 +49,6 @@ type Querier interface {
 	DeleteUserAlias(ctx context.Context, arg DeleteUserAliasParams) error
 	FlattenChildren(ctx context.Context, arg FlattenChildrenParams) error
 	GetAbandonedTasks(ctx context.Context, arg GetAbandonedTasksParams) (int64, error)
-	GetAchievements(ctx context.Context) ([]GetAchievementsRow, error)
-	GetAchievementsCount(ctx context.Context) (int64, error)
 	GetActiveSlackThreadsNew(ctx context.Context) ([]GetActiveSlackThreadsNewRow, error)
 	GetActiveTasksForContext(ctx context.Context, arg GetActiveTasksForContextParams) ([]GetActiveTasksForContextRow, error)
 	GetAliasesByValues(ctx context.Context, values []string) ([]GetAliasesByValuesRow, error)
@@ -69,7 +63,6 @@ type Querier interface {
 	GetContactsWithMaster(ctx context.Context) ([]GetContactsWithMasterRow, error)
 	GetDailyCompletions(ctx context.Context, arg GetDailyCompletionsParams) ([]GetDailyCompletionsRow, error)
 	GetDailyFilteredCount(ctx context.Context, arg GetDailyFilteredCountParams) (interface{}, error)
-	GetDailyGoal(ctx context.Context, email sql.NullString) (int64, error)
 	GetDailyTokenUsage(ctx context.Context, arg GetDailyTokenUsageParams) (GetDailyTokenUsageRow, error)
 	GetEarlyBirdCompleted(ctx context.Context, dollar_1 string) (int64, error)
 	GetEmergencyCompleted(ctx context.Context, userEmail sql.NullString) (int64, error)
@@ -98,7 +91,6 @@ type Querier interface {
 	GetTaskTranslation(ctx context.Context, arg GetTaskTranslationParams) (string, error)
 	GetTaskTranslationsBatch(ctx context.Context, arg GetTaskTranslationsBatchParams) ([]GetTaskTranslationsBatchRow, error)
 	GetTotalCompleted(ctx context.Context, dollar_1 string) (int64, error)
-	GetUserAchievements(ctx context.Context, dollar_1 int64) ([]UserAchievement, error)
 	GetUserAliases(ctx context.Context, userID int64) ([]string, error)
 	GetUserAliasesByEmail(ctx context.Context, email sql.NullString) ([]string, error)
 	GetUserByEmail(ctx context.Context, email sql.NullString) (GetUserByEmailRow, error)
@@ -118,7 +110,7 @@ type Querier interface {
 	LoadScanMetadataAll(ctx context.Context) ([]LoadScanMetadataAllRow, error)
 	LoadTenantAliasesAll(ctx context.Context) ([]LoadTenantAliasesAllRow, error)
 	LoadUserAliasesAll(ctx context.Context) ([]LoadUserAliasesAllRow, error)
-	LoadUsersAll(ctx context.Context) ([]LoadUsersAllRow, error)
+	LoadUsersAll(ctx context.Context) ([]User, error)
 	MarkMessageDone(ctx context.Context, arg MarkMessageDoneParams) error
 	MigrateAchievementsAddTargetValue(ctx context.Context) error
 	MigrateAchievementsAddXPReward(ctx context.Context) error
@@ -151,13 +143,6 @@ type Querier interface {
 	MigrateTaskTranslationsAddLanguageCode(ctx context.Context) error
 	MigrateTaskTranslationsRenameLanguage(ctx context.Context) error
 	MigrateTokenUsageAddFilteredCount(ctx context.Context) error
-	MigrateUsersAddDailyGoal(ctx context.Context) error
-	MigrateUsersAddLastCompletedAt(ctx context.Context) error
-	MigrateUsersAddLevel(ctx context.Context) error
-	MigrateUsersAddPoints(ctx context.Context) error
-	MigrateUsersAddStreak(ctx context.Context) error
-	MigrateUsersAddStreakFreezes(ctx context.Context) error
-	MigrateUsersAddXP(ctx context.Context) error
 	RefreshCacheActive(ctx context.Context, arg RefreshCacheActiveParams) ([]RefreshCacheActiveRow, error)
 	RefreshCacheArchive(ctx context.Context, arg RefreshCacheArchiveParams) ([]RefreshCacheArchiveRow, error)
 	RestoreMessages(ctx context.Context, arg RestoreMessagesParams) error
@@ -167,9 +152,7 @@ type Querier interface {
 	SearchArchivedMessages(ctx context.Context, arg SearchArchivedMessagesParams) ([]SearchArchivedMessagesRow, error)
 	SearchArchivedMessagesCount(ctx context.Context, arg SearchArchivedMessagesCountParams) (int64, error)
 	SearchContacts(ctx context.Context, arg SearchContactsParams) ([]SearchContactsRow, error)
-	SeedAchievements(ctx context.Context) error
 	UnlinkContact(ctx context.Context, arg UnlinkContactParams) error
-	UnlockAchievement(ctx context.Context, arg UnlockAchievementParams) error
 	UpdateCategoryMerged(ctx context.Context, arg UpdateCategoryMergedParams) error
 	UpdateContactLink(ctx context.Context, arg UpdateContactLinkParams) error
 	UpdateContactType(ctx context.Context, arg UpdateContactTypeParams) error
@@ -181,7 +164,6 @@ type Querier interface {
 	UpdateTaskMergeComplete(ctx context.Context, arg UpdateTaskMergeCompleteParams) error
 	UpdateTaskSourceChannels(ctx context.Context, arg UpdateTaskSourceChannelsParams) error
 	UpdateTaskText(ctx context.Context, arg UpdateTaskTextParams) error
-	UpdateUserGamification(ctx context.Context, arg UpdateUserGamificationParams) error
 	UpdateUserNamePicture(ctx context.Context, arg UpdateUserNamePictureParams) error
 	UpdateUserSlackID(ctx context.Context, arg UpdateUserSlackIDParams) error
 	UpdateUserWAJID(ctx context.Context, arg UpdateUserWAJIDParams) error

@@ -17,8 +17,6 @@ import {
     updateQRTimer,
     updateSlackStatus,
     setTheme,
-    triggerXPAnimation,
-    triggerConfetti,
     bindGetQRBtn,
     bindWhatsAppStatus,
     bindGmailStatus,
@@ -261,57 +259,11 @@ const fetchUserProfile = safeAsync(async () => {
     await fetchMessages(true);
 }, { triggerAuthOverlay: true });
 
-/**
-/**
- * Handles streak freeze purchase.
- */
-const handleBuyStreakFreeze = safeAsync(async () => {
-    if (!confirm('50 포인트를 사용하여 스트릭 보호권(❄️)을 구매하시겠습니까?')) return;
-    try {
-        await api.buyStreakFreeze();
-        showToast('보호권이 구매되었습니다! 접속하지 못한 날 자동으로 사용되어 스트릭을 보호합니다.', 'success');
-        fetchUserProfile();
-    } catch (e: any) {
-        showToast(e.message || 'Error purchasing streak freeze', 'error');
-    }
-}, { triggerAuthOverlay: true });
+
 
 // --- Event Subscriptions ---
 
-events.on(EVENTS.TASK_COMPLETED, (data: { result: { gamification: any } }) => {
-    const gData = data?.result?.gamification;
-
-    if (gData) {
-        if (gData.XPAdded > 0) {
-            triggerXPAnimation();
-        }
-        if (gData.IsCritical || gData.ComboActive) {
-            triggerConfetti('star');
-        }
-
-        if (gData.UnlockedAchievements && gData.UnlockedAchievements.length > 0) {
-            const lang = state.currentLang || 'en';
-            const i18n = (I18N_DATA as I18nDictionary)[lang];
-
-            gData.UnlockedAchievements.forEach((ach: { name: string }) => {
-                triggerConfetti('star');
-
-                const localizedName = i18n.achievements?.[ach.name]?.name || ach.name;
-                const msg = lang === 'ko' ? `🏆 [${localizedName}] 배지를 획득했습니다!` : `🏆 Badge Unlocked: [${localizedName}]`;
-                setTimeout(() => showToast(msg, 'success'), 300);
-            });
-        }
-    } else {
-        const rand = Math.random();
-        if (rand < 0.05) {
-            triggerConfetti('classic');
-        } else if (rand < 0.08) {
-            triggerConfetti('star');
-        } else if (rand < 0.10) {
-            triggerConfetti('snow');
-        }
-        triggerXPAnimation();
-    }
+events.on(EVENTS.TASK_COMPLETED, () => {
     fetchUserProfile();
 });
 
@@ -501,9 +453,7 @@ const initActionButtons = () => {
         stopQRAutoRefresh();
     });
 
-    bindGlobalClicks({
-        onBuyFreeze: handleBuyStreakFreeze
-    });
+    bindGlobalClicks({});
 
     // --- Merge Logic ---
     document.getElementById('mergeTasksBtn')?.addEventListener('click', () => {

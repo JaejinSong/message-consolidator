@@ -36,12 +36,7 @@ export interface UserProfile {
     email: string;
     picture: string;
     name: string;
-    points: number;
-    streak: number;
-    streak_freezes: number;
     archive_days?: number;
-    xp?: number;
-    level?: number;
     aliases?: string[];
 }
 
@@ -65,7 +60,6 @@ export interface TimeSeriesPoint {
 }
 
 export interface UserStats {
-    daily_goal: number;
     pending_me: number;
     pending_others: number;
     total_completed: number;
@@ -76,9 +70,6 @@ export interface UserStats {
     source_distribution_total: Record<string, number>;
     hourly_activity: Record<string, number>;
     completion_history: TimeSeriesPoint[];
-    max_daily_completed?: number;
-    early_bird_count?: number;
-    stale_count?: number;
 }
 
 export interface CategorizedMessages {
@@ -110,10 +101,7 @@ export interface AppState {
     isFetchingStatus: boolean;
 }
 
-export interface AchievementEntry {
-    name: string;
-    description?: string;
-}
+
 
 export interface I18nEntry {
     subTitle?: string;
@@ -145,7 +133,7 @@ export interface I18nEntry {
     reviewStatsTitle?: string;
     sharedTag?: string;
     sharedTasks?: string;
-    achievements?: Record<string, AchievementEntry>;
+
 }
 
 export interface I18nDictionary {
@@ -165,7 +153,7 @@ export interface ServiceHandlers extends MessageHandlers {
     onWhatsAppRelink: () => Promise<void>;
     onGmailDisconnect: () => Promise<void>;
     onGmailConnect: () => void;
-    onBuyFreeze?: () => void;
+
 }
 
 /**

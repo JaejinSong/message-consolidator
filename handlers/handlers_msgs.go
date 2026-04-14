@@ -70,7 +70,7 @@ func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := a.Tasks.HandleTaskCompletion(r.Context(), email, req.ID, req.Done)
+	err := a.Tasks.HandleTaskCompletion(r.Context(), email, req.ID, req.Done)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to complete task")
 		return

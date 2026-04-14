@@ -32,8 +32,6 @@ export {
 } from './renderers/settings-renderer';
 
 export {
-    triggerXPAnimation,
-    triggerConfetti,
     showToast,
     renderReleaseNotes,
     setScanLoading,
@@ -365,20 +363,10 @@ export function renderArchive(messages: Message[]): void {
 }
 
 /**
- * Binds the scan button click event.
- */
-export function bindScanBtn(onClick: (ev: MouseEvent) => void): void {
-    document.getElementById('scanBtn')?.addEventListener('click', onClick);
-}
-
-/**
  * Binds global click events.
  */
-export function bindGlobalClicks(handlers: { onBuyFreeze?: () => void }): void {
-    document.body.addEventListener('click', (e) => {
-        const target = e.target as HTMLElement | null;
-        if (target?.closest('#buyFreezeBtn')) {
-            if (handlers.onBuyFreeze) handlers.onBuyFreeze();
-        }
+export function bindGlobalClicks(handlers: {}): void {
+    document.body.addEventListener('click', () => {
+        // Placeholder for future global click handlers
     });
 }

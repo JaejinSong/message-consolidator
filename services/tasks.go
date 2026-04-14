@@ -195,30 +195,16 @@ func (s *TasksService) PrepareMessagesForClient(ctx context.Context, email strin
 }
 
 // HandleTaskCompletion orchestrates the process of marking a task as done.
-func (s *TasksService) HandleTaskCompletion(ctx context.Context, email string, taskID int, done bool) (GamificationResult, error) {
+func (s *TasksService) HandleTaskCompletion(ctx context.Context, email string, taskID int, done bool) error {
 	if taskID <= 0 {
-		return GamificationResult{}, fmt.Errorf("invalid task id: %d", taskID)
+		return fmt.Errorf("invalid task id: %d", taskID)
 	}
 	msg, err := store.GetMessageByID(ctx, store.GetDB(), email, taskID)
 	if err == nil && msg.Done && done {
-		return GamificationResult{}, nil
+		return nil
 	}
 
-	if err := store.MarkMessageDone(ctx, store.GetDB(), email, taskID, done); err != nil {
-		return GamificationResult{}, err
-	}
-
-	//Why: Restricts gamification reward processing to transitions where a task is explicitly being marked as completed.
-	if !done {
-		return GamificationResult{}, nil
-	}
-
-	user, err := store.GetOrCreateUser(ctx, email, "", "")
-	if err != nil {
-		return GamificationResult{}, err
-	}
-
-	return ProcessTaskCompletion(ctx, user)
+	return store.MarkMessageDone(ctx, store.GetDB(), email, taskID, done)
 }
 
 // ReclassifyUserTasks re-evaluates assignees for a user's tasks based on identities and content.
