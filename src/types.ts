@@ -189,6 +189,7 @@ export interface IReportData {
     translations?: Record<string, string>;
     visualization_data: string | ParsedVisualization;
     visualization?: string | ParsedVisualization; // New field
+    status?: 'processing' | 'completed' | 'failed';
     is_truncated?: boolean;
     created_at?: string;
 }

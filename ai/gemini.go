@@ -126,14 +126,12 @@ func extractResponseText(resp *genai.GenerateContentResponse) (string, error) {
 }
 
 // Why: Summarizes a list of tasks into a structured Markdown business report.
-// It focuses purely on text generation, offloading visualization data processing to the backend for better efficiency.
 func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, tasks string) (string, error) {
 	if g == nil || g.client == nil {
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
 
 	parsed := loadPrompt("report_summary.prompt")
-	// Why: [Unified Rendering] Validates and renders the report summary prompt using the standard template engine.
 	data := ExtractionContext{
 		MessagePayload: tasks,
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -160,6 +158,58 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 
 	trace.Step(ctx, "Gemini-ReportSummary", "", int(time.Since(start).Milliseconds()), 0)
 	return text, nil
+}
+
+// GenerateVisualizationData extracts graph structural data using strict ResponseSchema enforcement.
+// Why: [Hallucination Defense] Eliminates invalid JSON by forcing the model to adhere to a predefined schema.
+func (g *GeminiClient) GenerateVisualizationData(ctx context.Context, email string, tasks string) (string, error) {
+	if g == nil || g.client == nil {
+		return "", fmt.Errorf("Gemini client not initialized")
+	}
+
+	schema := &genai.Schema{
+		Type: genai.TypeObject,
+		Properties: map[string]*genai.Schema{
+			"nodes": {
+				Type: genai.TypeArray,
+				Items: &genai.Schema{
+					Type: genai.TypeObject,
+					Properties: map[string]*genai.Schema{
+						"id":       {Type: genai.TypeString},
+						"name":     {Type: genai.TypeString},
+						"value":    {Type: genai.TypeNumber},
+						"category": {Type: genai.TypeString},
+					},
+					Required: []string{"id", "name", "value", "category"},
+				},
+			},
+			"links": {
+				Type: genai.TypeArray,
+				Items: &genai.Schema{
+					Type: genai.TypeObject,
+					Properties: map[string]*genai.Schema{
+						"source": {Type: genai.TypeString},
+						"target": {Type: genai.TypeString},
+						"weight": {Type: genai.TypeNumber},
+					},
+					Required: []string{"source", "target", "weight"},
+				},
+			},
+		},
+		Required: []string{"nodes", "links"},
+	}
+
+	model := g.initModel(g.analysisModel, 0.0, 4096, "application/json", "Generate a JSON graph of task relations.")
+	model.ResponseSchema = schema
+
+	prompt := fmt.Sprintf("Extract task network graph (Nodes=People, Links=Handover/Mention) from these logs:\n%s", tasks)
+	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 60*time.Second, 2)
+	if err != nil {
+		return "", err
+	}
+
+	logTokenUsage(ctx, email, "ReportVizData", resp)
+	return extractResponseText(resp)
 }
 
 // GenerateMergedTaskTitle summarizes multiple task titles and messages into a single English title.

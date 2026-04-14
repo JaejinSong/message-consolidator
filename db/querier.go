@@ -140,6 +140,7 @@ type Querier interface {
 	MigrateReportTranslationsAddLanguageCode(ctx context.Context) error
 	MigrateReportTranslationsRenameLanguage(ctx context.Context) error
 	MigrateReportsAddIsTruncated(ctx context.Context) error
+	MigrateReportsAddStatus(ctx context.Context) error
 	MigrateTaskTranslationsAddLanguageCode(ctx context.Context) error
 	MigrateTaskTranslationsRenameLanguage(ctx context.Context) error
 	MigrateTokenUsageAddFilteredCount(ctx context.Context) error
@@ -158,6 +159,7 @@ type Querier interface {
 	UpdateContactType(ctx context.Context, arg UpdateContactTypeParams) error
 	UpdateMessageCategory(ctx context.Context, arg UpdateMessageCategoryParams) error
 	UpdateMessageIdentity(ctx context.Context, arg UpdateMessageIdentityParams) error
+	UpdateReportStatus(ctx context.Context, arg UpdateReportStatusParams) error
 	UpdateTaskAssignee(ctx context.Context, arg UpdateTaskAssigneeParams) error
 	UpdateTaskDescriptionAppend(ctx context.Context, arg UpdateTaskDescriptionAppendParams) error
 	UpdateTaskFullAppend(ctx context.Context, arg UpdateTaskFullAppendParams) error

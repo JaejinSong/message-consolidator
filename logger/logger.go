@@ -62,7 +62,7 @@ func InitLogging() {
 	InitAIInferenceLogger()
 
 	lumberjackLogger := &lumberjack.Logger{
-		Filename:   "tmp/logs/app.log",
+		Filename:   "/app/logs/app.log",
 		MaxSize:    100, //Why: Caps individual log files at 100MB to prevent uncontrollable disk usage on the host system.
 		MaxBackups: 30,
 		MaxAge:     7, //Why: Retains log files for up to 7 days to balance diagnostic depth with storage efficiency.

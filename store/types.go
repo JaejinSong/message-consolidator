@@ -198,6 +198,7 @@ type Report struct {
 	Summary       string            `json:"report_summary"` // Primary summary (typically English)
 	Translations  map[string]string `json:"translations,omitempty"`
 	Visualization string              `json:"visualization_data"` // JSON string of Node/Edge data
+	Status        string              `json:"status"`             // "processing", "completed", "failed"
 	IsTruncated   bool                `json:"is_truncated"`       // Why: Flag to indicate if the report was limited due to token boundaries.
 	CreatedAt     time.Time           `json:"created_at"`
 }

@@ -1,6 +1,6 @@
 -- name: InsertReport :one
-INSERT INTO reports (user_email, start_date, end_date, visualization, is_truncated, created_at)
-VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+INSERT INTO reports (user_email, start_date, end_date, visualization, status, is_truncated, created_at)
+VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 RETURNING id;
 
 -- name: InsertReportTranslation :exec
@@ -9,13 +9,13 @@ VALUES (?, ?, ?)
 ON CONFLICT(report_id, language_code) DO UPDATE SET summary = EXCLUDED.summary;
 
 -- name: GetReport :one
-SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.is_truncated, r.created_at, COALESCE(rt.summary, '') as summary
+SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.status, r.is_truncated, r.created_at, COALESCE(rt.summary, '') as summary
 FROM reports r
 LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = 'en'
 WHERE r.user_email = ? AND r.start_date = ? AND r.end_date = ?;
 
 -- name: GetReportByDate :one
-SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.is_truncated, r.created_at, COALESCE(rt.summary, '') as summary
+SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.status, r.is_truncated, r.created_at, COALESCE(rt.summary, '') as summary
 FROM reports r
 LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = 'en'
 WHERE r.user_email = ? AND r.start_date = ? AND r.end_date = ?;
@@ -35,20 +35,20 @@ ORDER BY m.created_at DESC;
 DELETE FROM reports WHERE created_at < datetime('now', '-30 days');
 
 -- name: ListReports :many
-SELECT r.id, r.start_date, r.end_date, r.created_at, r.is_truncated, COALESCE(rt.summary, '') as summary
+SELECT r.id, r.start_date, r.end_date, r.created_at, r.status, r.is_truncated, COALESCE(rt.summary, '') as summary
 FROM reports r
 LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = 'en'
-WHERE r.user_email = ?
+WHERE r.user_email = ? AND r.status = 'completed'
 ORDER BY r.created_at DESC;
 
 -- name: GetReportList :many
-SELECT id, start_date, end_date, created_at
+SELECT id, start_date, end_date, created_at, status
 FROM reports
-WHERE user_email = ?
+WHERE user_email = ? AND status != 'failed'
 ORDER BY created_at DESC;
 
 -- name: GetReportByID :one
-SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.is_truncated, r.created_at, COALESCE(rt.summary, '') as summary
+SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.status, r.is_truncated, r.created_at, COALESCE(rt.summary, '') as summary
 FROM reports r
 LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = 'en'
 WHERE r.id = ? AND r.user_email = ?;
@@ -69,6 +69,12 @@ ALTER TABLE report_translations ADD COLUMN language_code TEXT;
 
 -- name: CreateReportTranslationsIndex :exec
 CREATE UNIQUE INDEX IF NOT EXISTS idx_report_translations_report_id_lang ON report_translations(report_id, language_code);
+
+-- name: UpdateReportStatus :exec
+UPDATE reports SET status = ?, visualization = ?, is_truncated = ? WHERE id = ? AND user_email = ?;
+
+-- name: MigrateReportsAddStatus :exec
+ALTER TABLE reports ADD COLUMN status TEXT DEFAULT 'completed';
 
 -- name: DeleteReport :exec
 DELETE FROM reports WHERE id = ? AND user_email = ?;

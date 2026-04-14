@@ -252,6 +252,8 @@ export const I18N_DATA: Record<string, any> = {
         generateReportBtn: "AI 리포트 생성하기",
         loadingData: "데이터를 불러오는 중...",
         retryLanguageSelection: "다시 한 번 언어를 선택해 주세요",
+        reportTimeout: "생성 시간이 오래 걸리고 있습니다. 잠시 후 리스트를 새로고침 해주세요.",
+        reportFailed: "리포트 생성 중 오류가 발생했습니다.",
     },
     en: {
         subTitle: "Automated Slack & WhatsApp Task Dashboard",
@@ -506,6 +508,8 @@ export const I18N_DATA: Record<string, any> = {
         generateReportBtn: "Generate AI Report",
         loadingData: "Loading data...",
         retryLanguageSelection: "Please try selecting the language again",
+        reportTimeout: "Generation is taking longer than expected. Please check back later.",
+        reportFailed: "Report generation failed.",
     },
     id: {
         subTitle: "Dasbor Tugas Slack & WhatsApp Otomatis",

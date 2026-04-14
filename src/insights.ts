@@ -218,7 +218,13 @@ export const insights = {
             if (reportContent) insightsRenderer.renderLoading(reportContent, i18n, 'report');
             
             const result = await api.generateReport(start, end);
-            await this.refreshReport(result.id || (result as any).report_id);
+            const report = normalizeReportData(result);
+            
+            if (report.status === 'processing') {
+                this.pollReportStatus(report.id);
+            } else {
+                await this.refreshReport(report.id);
+            }
         } catch (e: any) {
             console.error("[Insights] Generate report failed:", e);
             if (reportContent) insightsRenderer.renderError(reportContent, e.message, i18n);
@@ -226,6 +232,45 @@ export const insights = {
         } finally {
             if (btn) btn.disabled = false;
         }
+    },
+
+    /**
+     * Polls for report completion when in 'processing' state.
+     */
+    async pollReportStatus(id: number, attempts = 0) {
+        if (attempts > 30) { // 30 attempts * 5s = 150s (Just over GCP timeout)
+            this.handlePollTimeout();
+            return;
+        }
+
+        try {
+            const raw = await api.fetchReportDetail(id);
+            const report = normalizeReportData(raw);
+
+            if (report.status === 'completed') {
+                await this.refreshReport(id);
+            } else if (report.status === 'failed') {
+                this.handlePollFailure();
+            } else {
+                // Still processing
+                setTimeout(() => this.pollReportStatus(id, attempts + 1), 5000);
+            }
+        } catch (e) {
+            console.error("[Insights] Polling failed:", e);
+            setTimeout(() => this.pollReportStatus(id, attempts + 1), 5000);
+        }
+    },
+
+    handlePollTimeout() {
+        const i18n = I18N_DATA[state.currentLang || 'en'];
+        const reportContent = document.getElementById('reportSummaryContent');
+        if (reportContent) insightsRenderer.renderError(reportContent, i18n.reportTimeout || "Generation taking too long. Please refresh later.", i18n);
+    },
+
+    handlePollFailure() {
+        const i18n = I18N_DATA[state.currentLang || 'en'];
+        const reportContent = document.getElementById('reportSummaryContent');
+        if (reportContent) insightsRenderer.renderError(reportContent, i18n.reportFailed || "Generation failed.", i18n);
     },
 
     async deleteReport(id: number) {
@@ -316,7 +361,14 @@ export const insights = {
             
             this.lastReport = report;
             upsertReport(report);
-            insightsRenderer.renderReport(report, lang, i18n);
+
+            if (report.status === 'processing') {
+                this.pollReportStatus(report.id);
+            } else if (report.status === 'failed') {
+                if (reportContent) insightsRenderer.renderError(reportContent, i18n.reportFailed || "Generation failed.", i18n);
+            } else {
+                insightsRenderer.renderReport(report, lang, i18n);
+            }
         } catch (e: any) {
             console.error("[Insights] Load existing report failed:", e);
             // Guarantee spinner is cleared even on silent failure
@@ -329,7 +381,7 @@ export const insights = {
         if (loading) loading.classList.add('active');
 
         try {
-            const [stats, allAch, userAch, tokenUsage] = await Promise.all([
+            const [stats, _, __, tokenUsage] = await Promise.all([
                 api.fetchUserStats().catch(() => null),
                 api.fetchAchievements().catch(() => []),
                 api.fetchUserAchievements().catch(() => []),

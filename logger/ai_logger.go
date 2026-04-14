@@ -16,11 +16,11 @@ var aiInferenceLogger *log.Logger
 // Why: 명시적으로 호출될 때만 로그 파일을 생성하도록 하여, 유닛 테스트 시 여러 디렉토리에 파편화되어 생성되는 문제를 방지합니다.
 func InitAIInferenceLogger() {
 	// Why: Ensures the logs directory exists before initializing the logger to avoid "no such file or directory" errors in monitoring tools.
-	_ = os.MkdirAll("logs", 0755)
+	_ = os.MkdirAll("/app/logs", 0755)
 
 	// Why: Initialize standard AI logger pointing to a dedicated file for ease of analysis and isolation from general application logs.
 	lumberjackLogger := &lumberjack.Logger{
-		Filename:   "tmp/logs/ai_inference.log",
+		Filename:   "/app/logs/ai_inference.log",
 		MaxSize:    100, // 100MB
 		MaxBackups: 30,
 		MaxAge:     30, // 30 days

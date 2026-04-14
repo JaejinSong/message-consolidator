@@ -326,18 +326,36 @@ export const reportsRenderer = {
             const btn = document.createElement('div');
             btn.className = 'c-insights-report-item';
             btn.setAttribute('data-id', String(item.id));
+            
+            let statusTag = '';
+            if (item.status === 'processing') {
+                statusTag = `<span class="c-insights-report-item__status c-insights-report-item__status--processing">⌛ ${i18n.generating || '생성 중...'}</span>`;
+            } else if (item.status === 'failed') {
+                statusTag = `<span class="c-insights-report-item__status c-insights-report-item__status--failed">⚠️ ${i18n.error || '실패'}</span>`;
+            }
+
             btn.innerHTML = `
-                <div class="c-insights-report-item__title u-text-xs u-text-dim">${item.title || (i18n.weeklyReportTitle || 'Weekly Report')}</div>
-                <div class="c-insights-report-item__meta">${item.start_date} ~ ${item.end_date}</div>
+                <div class="c-insights-report-item__content">
+                    <div class="c-insights-report-item__info">
+                        <span class="c-insights-report-item__date">${item.start_date} ~ ${item.end_date}</span>
+                        <div class="c-insights-report-item__title">
+                            ${statusTag}
+                            ${item.title || (i18n.weeklyReportTitle || 'Weekly Report')}
+                        </div>
+                    </div>
+                </div>
+                <button class="c-insights-report-item__delete" data-id="${item.id}" title="${i18n.delete || 'Delete'}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                </button>
             `;
-            btn.onclick = () => {
+            btn.onclick = (e) => {
+                if ((e.target as HTMLElement).closest('.c-insights-report-item__delete')) return;
                 container.querySelectorAll('.c-insights-report-item').forEach(el => el.classList.remove('c-insights-report-item--active'));
                 btn.classList.add('c-insights-report-item--active');
                 onSelect(item);
             };
             container.appendChild(btn);
         });
-
     },
 
     render(report: IReportData, lang: string, i18n: any): void {

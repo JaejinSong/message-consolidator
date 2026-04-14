@@ -249,6 +249,7 @@ CREATE TABLE IF NOT EXISTS reports (
     start_date TEXT NOT NULL,
     end_date TEXT NOT NULL,
     visualization TEXT NOT NULL,
+    status TEXT DEFAULT 'completed',
     is_truncated INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )

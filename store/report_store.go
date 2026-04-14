@@ -17,7 +17,7 @@ func GetReport(ctx context.Context, email, start, end string) (*Report, error) {
 		return nil, err
 	}
 	r := reportFromRow(int(row.ID), row.UserEmail, row.StartDate, row.EndDate,
-		row.Visualization, row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
+		row.Visualization, row.Status.String, row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
 	r.Translations, _ = GetReportTranslations(ctx, r.ID)
 	return r, nil
 }
@@ -32,7 +32,7 @@ func GetReportByDate(ctx context.Context, email, date string) (*Report, error) {
 		return nil, err
 	}
 	r := reportFromRow(int(row.ID), row.UserEmail, row.StartDate, row.EndDate,
-		row.Visualization, row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
+		row.Visualization, row.Status.String, row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
 	r.Translations, _ = GetReportTranslations(ctx, r.ID)
 	return r, nil
 }
@@ -44,7 +44,7 @@ func GetReportByID(ctx context.Context, id int, email string) (*Report, error) {
 		return nil, err
 	}
 	r := reportFromRow(int(row.ID), row.UserEmail, row.StartDate, row.EndDate,
-		row.Visualization, row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
+		row.Visualization, row.Status.String, row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
 	r.Translations, _ = GetReportTranslations(ctx, r.ID)
 	return r, nil
 }
@@ -56,17 +56,36 @@ func SaveReport(ctx context.Context, r *Report) (int64, error) {
 	if r.IsTruncated {
 		isTruncated = 1
 	}
+	if r.Status == "" {
+		r.Status = "completed"
+	}
 	newID, err := db.New(GetDB()).InsertReport(ctx, db.InsertReportParams{
 		UserEmail:     r.UserEmail,
 		StartDate:     r.StartDate,
 		EndDate:       r.EndDate,
 		Visualization: r.Visualization,
+		Status:        sql.NullString{String: r.Status, Valid: true},
 		IsTruncated:   sql.NullInt64{Int64: int64(isTruncated), Valid: true},
 	})
 	if err != nil {
 		return 0, err
 	}
 	return int64(newID), nil
+}
+
+// UpdateReportStatus updates the generation status and visualization data for a report.
+func UpdateReportStatus(ctx context.Context, status, viz string, isTruncated bool, id int, email string) error {
+	truncVal := int64(0)
+	if isTruncated {
+		truncVal = 1
+	}
+	return db.New(GetDB()).UpdateReportStatus(ctx, db.UpdateReportStatusParams{
+		Status:        sql.NullString{String: status, Valid: true},
+		Visualization: viz,
+		IsTruncated:   sql.NullInt64{Int64: truncVal, Valid: true},
+		ID:            int64(id),
+		UserEmail:     email,
+	})
 }
 
 // Why: Persists a specific language translation for a given report metadata entry.
@@ -128,10 +147,13 @@ func GetReportTranslations(ctx context.Context, reportID int) (map[string]string
 }
 
 // reportFromRow maps sqlc row fields to a Report domain object.
-func reportFromRow(id int, email, start, end, viz string, isTruncated int64, createdAt time.Time, summary string) *Report {
+func reportFromRow(id int, email, start, end, viz, status string, isTruncated int64, createdAt time.Time, summary string) *Report {
+	if status == "" {
+		status = "completed"
+	}
 	return &Report{
 		ID: id, UserEmail: email, StartDate: start, EndDate: end,
-		Visualization: viz, IsTruncated: isTruncated != 0,
+		Visualization: viz, Status: status, IsTruncated: isTruncated != 0,
 		CreatedAt: createdAt, Summary: summary,
 		Translations: make(map[string]string),
 	}
@@ -147,7 +169,7 @@ func ListReports(ctx context.Context, email string) ([]Report, error) {
 	var reports []Report
 	for _, row := range rows {
 		r := reportFromRow(int(row.ID), email, row.StartDate, row.EndDate,
-			"", row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
+			"", row.Status.String, row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
 		reports = append(reports, *r)
 	}
 	if len(reports) == 0 {
@@ -179,6 +201,7 @@ func GetReportList(ctx context.Context, email string) ([]Report, error) {
 			StartDate: row.StartDate,
 			EndDate:   row.EndDate,
 			CreatedAt: row.CreatedAt.Time,
+			Status:    row.Status.String,
 		})
 	}
 	return reports, nil

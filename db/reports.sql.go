@@ -129,7 +129,7 @@ func (q *Queries) GetMessagesForReport(ctx context.Context, arg GetMessagesForRe
 }
 
 const getReport = `-- name: GetReport :one
-SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.is_truncated, r.created_at, COALESCE(rt.summary, '') as summary
+SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.status, r.is_truncated, r.created_at, COALESCE(rt.summary, '') as summary
 FROM reports r
 LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = 'en'
 WHERE r.user_email = ? AND r.start_date = ? AND r.end_date = ?
@@ -142,14 +142,15 @@ type GetReportParams struct {
 }
 
 type GetReportRow struct {
-	ID            int64         `json:"id"`
-	UserEmail     string        `json:"user_email"`
-	StartDate     string        `json:"start_date"`
-	EndDate       string        `json:"end_date"`
-	Visualization string        `json:"visualization"`
-	IsTruncated   sql.NullInt64 `json:"is_truncated"`
-	CreatedAt     sql.NullTime  `json:"created_at"`
-	Summary       string        `json:"summary"`
+	ID            int64          `json:"id"`
+	UserEmail     string         `json:"user_email"`
+	StartDate     string         `json:"start_date"`
+	EndDate       string         `json:"end_date"`
+	Visualization string         `json:"visualization"`
+	Status        sql.NullString `json:"status"`
+	IsTruncated   sql.NullInt64  `json:"is_truncated"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
+	Summary       string         `json:"summary"`
 }
 
 func (q *Queries) GetReport(ctx context.Context, arg GetReportParams) (GetReportRow, error) {
@@ -161,6 +162,7 @@ func (q *Queries) GetReport(ctx context.Context, arg GetReportParams) (GetReport
 		&i.StartDate,
 		&i.EndDate,
 		&i.Visualization,
+		&i.Status,
 		&i.IsTruncated,
 		&i.CreatedAt,
 		&i.Summary,
@@ -169,7 +171,7 @@ func (q *Queries) GetReport(ctx context.Context, arg GetReportParams) (GetReport
 }
 
 const getReportByDate = `-- name: GetReportByDate :one
-SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.is_truncated, r.created_at, COALESCE(rt.summary, '') as summary
+SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.status, r.is_truncated, r.created_at, COALESCE(rt.summary, '') as summary
 FROM reports r
 LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = 'en'
 WHERE r.user_email = ? AND r.start_date = ? AND r.end_date = ?
@@ -182,14 +184,15 @@ type GetReportByDateParams struct {
 }
 
 type GetReportByDateRow struct {
-	ID            int64         `json:"id"`
-	UserEmail     string        `json:"user_email"`
-	StartDate     string        `json:"start_date"`
-	EndDate       string        `json:"end_date"`
-	Visualization string        `json:"visualization"`
-	IsTruncated   sql.NullInt64 `json:"is_truncated"`
-	CreatedAt     sql.NullTime  `json:"created_at"`
-	Summary       string        `json:"summary"`
+	ID            int64          `json:"id"`
+	UserEmail     string         `json:"user_email"`
+	StartDate     string         `json:"start_date"`
+	EndDate       string         `json:"end_date"`
+	Visualization string         `json:"visualization"`
+	Status        sql.NullString `json:"status"`
+	IsTruncated   sql.NullInt64  `json:"is_truncated"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
+	Summary       string         `json:"summary"`
 }
 
 func (q *Queries) GetReportByDate(ctx context.Context, arg GetReportByDateParams) (GetReportByDateRow, error) {
@@ -201,6 +204,7 @@ func (q *Queries) GetReportByDate(ctx context.Context, arg GetReportByDateParams
 		&i.StartDate,
 		&i.EndDate,
 		&i.Visualization,
+		&i.Status,
 		&i.IsTruncated,
 		&i.CreatedAt,
 		&i.Summary,
@@ -209,7 +213,7 @@ func (q *Queries) GetReportByDate(ctx context.Context, arg GetReportByDateParams
 }
 
 const getReportByID = `-- name: GetReportByID :one
-SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.is_truncated, r.created_at, COALESCE(rt.summary, '') as summary
+SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.status, r.is_truncated, r.created_at, COALESCE(rt.summary, '') as summary
 FROM reports r
 LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = 'en'
 WHERE r.id = ? AND r.user_email = ?
@@ -221,14 +225,15 @@ type GetReportByIDParams struct {
 }
 
 type GetReportByIDRow struct {
-	ID            int64         `json:"id"`
-	UserEmail     string        `json:"user_email"`
-	StartDate     string        `json:"start_date"`
-	EndDate       string        `json:"end_date"`
-	Visualization string        `json:"visualization"`
-	IsTruncated   sql.NullInt64 `json:"is_truncated"`
-	CreatedAt     sql.NullTime  `json:"created_at"`
-	Summary       string        `json:"summary"`
+	ID            int64          `json:"id"`
+	UserEmail     string         `json:"user_email"`
+	StartDate     string         `json:"start_date"`
+	EndDate       string         `json:"end_date"`
+	Visualization string         `json:"visualization"`
+	Status        sql.NullString `json:"status"`
+	IsTruncated   sql.NullInt64  `json:"is_truncated"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
+	Summary       string         `json:"summary"`
 }
 
 func (q *Queries) GetReportByID(ctx context.Context, arg GetReportByIDParams) (GetReportByIDRow, error) {
@@ -240,6 +245,7 @@ func (q *Queries) GetReportByID(ctx context.Context, arg GetReportByIDParams) (G
 		&i.StartDate,
 		&i.EndDate,
 		&i.Visualization,
+		&i.Status,
 		&i.IsTruncated,
 		&i.CreatedAt,
 		&i.Summary,
@@ -248,17 +254,18 @@ func (q *Queries) GetReportByID(ctx context.Context, arg GetReportByIDParams) (G
 }
 
 const getReportList = `-- name: GetReportList :many
-SELECT id, start_date, end_date, created_at
+SELECT id, start_date, end_date, created_at, status
 FROM reports
-WHERE user_email = ?
+WHERE user_email = ? AND status != 'failed'
 ORDER BY created_at DESC
 `
 
 type GetReportListRow struct {
-	ID        int64        `json:"id"`
-	StartDate string       `json:"start_date"`
-	EndDate   string       `json:"end_date"`
-	CreatedAt sql.NullTime `json:"created_at"`
+	ID        int64          `json:"id"`
+	StartDate string         `json:"start_date"`
+	EndDate   string         `json:"end_date"`
+	CreatedAt sql.NullTime   `json:"created_at"`
+	Status    sql.NullString `json:"status"`
 }
 
 func (q *Queries) GetReportList(ctx context.Context, userEmail string) ([]GetReportListRow, error) {
@@ -275,6 +282,7 @@ func (q *Queries) GetReportList(ctx context.Context, userEmail string) ([]GetRep
 			&i.StartDate,
 			&i.EndDate,
 			&i.CreatedAt,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -324,17 +332,18 @@ func (q *Queries) GetReportTranslations(ctx context.Context, reportID int64) ([]
 }
 
 const insertReport = `-- name: InsertReport :one
-INSERT INTO reports (user_email, start_date, end_date, visualization, is_truncated, created_at)
-VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+INSERT INTO reports (user_email, start_date, end_date, visualization, status, is_truncated, created_at)
+VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 RETURNING id
 `
 
 type InsertReportParams struct {
-	UserEmail     string        `json:"user_email"`
-	StartDate     string        `json:"start_date"`
-	EndDate       string        `json:"end_date"`
-	Visualization string        `json:"visualization"`
-	IsTruncated   sql.NullInt64 `json:"is_truncated"`
+	UserEmail     string         `json:"user_email"`
+	StartDate     string         `json:"start_date"`
+	EndDate       string         `json:"end_date"`
+	Visualization string         `json:"visualization"`
+	Status        sql.NullString `json:"status"`
+	IsTruncated   sql.NullInt64  `json:"is_truncated"`
 }
 
 func (q *Queries) InsertReport(ctx context.Context, arg InsertReportParams) (int64, error) {
@@ -343,6 +352,7 @@ func (q *Queries) InsertReport(ctx context.Context, arg InsertReportParams) (int
 		arg.StartDate,
 		arg.EndDate,
 		arg.Visualization,
+		arg.Status,
 		arg.IsTruncated,
 	)
 	var id int64
@@ -368,20 +378,21 @@ func (q *Queries) InsertReportTranslation(ctx context.Context, arg InsertReportT
 }
 
 const listReports = `-- name: ListReports :many
-SELECT r.id, r.start_date, r.end_date, r.created_at, r.is_truncated, COALESCE(rt.summary, '') as summary
+SELECT r.id, r.start_date, r.end_date, r.created_at, r.status, r.is_truncated, COALESCE(rt.summary, '') as summary
 FROM reports r
 LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = 'en'
-WHERE r.user_email = ?
+WHERE r.user_email = ? AND r.status = 'completed'
 ORDER BY r.created_at DESC
 `
 
 type ListReportsRow struct {
-	ID          int64         `json:"id"`
-	StartDate   string        `json:"start_date"`
-	EndDate     string        `json:"end_date"`
-	CreatedAt   sql.NullTime  `json:"created_at"`
-	IsTruncated sql.NullInt64 `json:"is_truncated"`
-	Summary     string        `json:"summary"`
+	ID          int64          `json:"id"`
+	StartDate   string         `json:"start_date"`
+	EndDate     string         `json:"end_date"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
+	Status      sql.NullString `json:"status"`
+	IsTruncated sql.NullInt64  `json:"is_truncated"`
+	Summary     string         `json:"summary"`
 }
 
 func (q *Queries) ListReports(ctx context.Context, userEmail string) ([]ListReportsRow, error) {
@@ -398,6 +409,7 @@ func (q *Queries) ListReports(ctx context.Context, userEmail string) ([]ListRepo
 			&i.StartDate,
 			&i.EndDate,
 			&i.CreatedAt,
+			&i.Status,
 			&i.IsTruncated,
 			&i.Summary,
 		); err != nil {
@@ -438,5 +450,37 @@ ALTER TABLE reports ADD COLUMN is_truncated INTEGER DEFAULT 0
 
 func (q *Queries) MigrateReportsAddIsTruncated(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, migrateReportsAddIsTruncated)
+	return err
+}
+
+const migrateReportsAddStatus = `-- name: MigrateReportsAddStatus :exec
+ALTER TABLE reports ADD COLUMN status TEXT DEFAULT 'completed'
+`
+
+func (q *Queries) MigrateReportsAddStatus(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateReportsAddStatus)
+	return err
+}
+
+const updateReportStatus = `-- name: UpdateReportStatus :exec
+UPDATE reports SET status = ?, visualization = ?, is_truncated = ? WHERE id = ? AND user_email = ?
+`
+
+type UpdateReportStatusParams struct {
+	Status        sql.NullString `json:"status"`
+	Visualization string         `json:"visualization"`
+	IsTruncated   sql.NullInt64  `json:"is_truncated"`
+	ID            int64          `json:"id"`
+	UserEmail     string         `json:"user_email"`
+}
+
+func (q *Queries) UpdateReportStatus(ctx context.Context, arg UpdateReportStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updateReportStatus,
+		arg.Status,
+		arg.Visualization,
+		arg.IsTruncated,
+		arg.ID,
+		arg.UserEmail,
+	)
 	return err
 }

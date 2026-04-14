@@ -47,6 +47,7 @@ type ReportsService struct {
 	geminiClient   *ai.GeminiClient
 	translationSvc *TranslationService
 	config         ReportConfig
+	isTest         bool
 }
 
 func NewReportsService(summarizer ReportSummarizer, geminiClient *ai.GeminiClient, trans *TranslationService, config ReportConfig) *ReportsService {
@@ -59,27 +60,49 @@ func NewReportsService(summarizer ReportSummarizer, geminiClient *ai.GeminiClien
 }
 
 // Why: Orchestrates the generation of an AI-powered work report.
-// Now follows a JIT (Just-In-Time) translation model.
-func (s *ReportsService) GenerateReport(ctx context.Context, email, startDate, endDate, lang string) (*store.Report, error) {
-	// 1. Check DB Cache First
-	if cached, err := store.GetReport(ctx, email, startDate, endDate); err == nil && cached != nil {
-		logger.Infof("[REPORTS] Cache Hit: Returning existing report for %s ~ %s", startDate, endDate)
-		return cached, nil
+func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, lang string) (*store.Report, error) {
+	// 1. Check for processing or existing
+	if existing, _ := store.GetReportByDate(ctx, email, start); existing != nil {
+		if existing.Status == "processing" || existing.Status == "completed" {
+			// Populate translations for completed reports to satisfy cache checks
+			if existing.Status == "completed" {
+				existing.Translations, _ = store.GetReportTranslations(ctx, existing.ID)
+			}
+			return existing, nil
+		}
 	}
 
-	// 2. Fetch & Filter Data
-	filtered, err := s.fetchAndFilterMessages(ctx, email, startDate, endDate)
+	// 2. Fetch and sanitize
+	filtered, err := s.fetchAndFilterMessages(ctx, email, start, end)
 	if err != nil {
 		return nil, err
 	}
+	s.sanitizeMessages(ctx, email, filtered) // Ignore error, self-healing
 
-	// [Self-Healing] 파편화된 식별자 정규화 (Batch)
-	if _, err := s.sanitizeMessages(ctx, email, filtered); err != nil {
-		logger.Warnf("[REPORTS] Sanitization failed: %v", err)
+	// 3. Create Placeholder
+	report := &store.Report{
+		UserEmail: email, StartDate: start, EndDate: end,
+		Status: "processing", Visualization: "{}", Translations: make(map[string]string),
+	}
+	id, err := store.SaveReport(ctx, report)
+	if err != nil {
+		return nil, err
+	}
+	report.ID = int(id)
+
+	// 4. Background Job
+	if s.isTest {
+		s.processAsyncReport(email, start, end, lang, report.ID, filtered)
+		// 💡 Sync update for test: Re-fetch report to ensure all fields (Status, Summary, Translations) are refreshed
+		refreshed, err := store.GetReportByID(ctx, report.ID, email)
+		if err == nil {
+			*report = *refreshed
+		}
+	} else {
+		go s.processAsyncReport(email, start, end, lang, report.ID, filtered)
 	}
 
-	// 3. Generate Visualization & AI Summary (Original English)
-	return s.generateAndSaveReport(ctx, email, startDate, endDate, filtered, lang)
+	return report, nil
 }
 
 func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, startDate, endDate string) ([]Log, error) {
@@ -101,48 +124,45 @@ func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, star
 	return filtered, nil
 }
 
-func (s *ReportsService) generateAndSaveReport(ctx context.Context, email, startDate, endDate string, filtered []Log, lang string) (*store.Report, error) {
-	taskSummary, isTruncated := s.PrepareLogsForAI(email, filtered)
-	summaryFull, err := s.summarizer.Generate(ctx, taskSummary)
+func (s *ReportsService) processAsyncReport(email, start, end, lang string, id int, logs []Log) {
+	ctx := context.Background()
+	taskLogs, isTruncated := s.PrepareLogsForAI(email, logs)
+
+	// A. Generate Summary & Visualization in parallel-ish or series
+	summary, err := s.summarizer.Generate(ctx, taskLogs)
 	if err != nil {
-		return nil, fmt.Errorf("AI generation failed: %w", err)
+		s.markFailed(ctx, email, id)
+		return
 	}
 
-	jsonStr, strippedText, _ := ExtractJSONBlock(summaryFull)
-	vizJSON := s.getVisualizationJSON(email, filtered, jsonStr)
-
-	report := &store.Report{
-		UserEmail: email, StartDate: startDate, EndDate: endDate,
-		Summary: strippedText, Visualization: vizJSON, IsTruncated: isTruncated,
-		Translations: make(map[string]string),
+	vizJSON, _ := s.getGeminiClient().GenerateVisualizationData(ctx, email, taskLogs)
+	if vizJSON == "" {
+		vizJSON = "{}"
 	}
 
-	id, err := store.SaveReport(ctx, report)
+	// B. Extract and Save results (Internal Save)
+	_, text, _ := ExtractJSONBlock(summary)
+	if text == "" {
+		text = summary
+	}
+
+	// C. Translations (Primary English entry must exist before status update for some tests/UI)
+	store.SaveReportTranslation(ctx, int64(id), "en", text)
+
+	err = store.UpdateReportStatus(ctx, "completed", vizJSON, isTruncated, id, email)
 	if err != nil {
-		return nil, err
-	}
-	report.ID = int(id)
-
-	// JIT Translation for the requested language
-	finalSummary := strippedText
-	if lang != "en" {
-		if trans, err := s.ProcessOnDemandTranslation(ctx, email, report.ID, lang); err == nil {
-			finalSummary = trans
-		} else {
-			logger.Errorf("[REPORTS] JIT Translation failed for %s: %v", lang, err)
-		}
-	} else {
-		// Save English translation for consistency if requested
-		if err := store.SaveReportTranslation(ctx, int64(report.ID), "en", strippedText); err != nil {
-			logger.Errorf("[REPORTS] Failed to save initial English translation: %v", err)
-			// Why: If saving the initial translation fails, we might return a report that fails verification in tests.
-			// However, rather than failing the whole report, we log it. 
-			// In production, the JIT loader will attempt to recover it.
-		}
+		logger.Errorf("[REPORTS] Failed to update status: %v", err)
+		return
 	}
 
-	report.Translations[lang] = finalSummary
-	return report, nil
+	// D. On-demand translation for non-English requested language
+	if lang != "" && lang != "en" {
+		s.ProcessOnDemandTranslation(ctx, email, id, lang)
+	}
+}
+
+func (s *ReportsService) markFailed(ctx context.Context, email string, id int) {
+	store.UpdateReportStatus(ctx, "failed", "{}", false, id, email)
 }
 
 func (s *ReportsService) getVisualizationJSON(email string, logs []Log, aiJSON string) string {
@@ -350,18 +370,15 @@ func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (ma
 // ProcessOnDemandTranslation handles Just-In-Time (JIT) translation for a specific report and language.
 // It delegates the heavy lifting to TranslationService while managing report-specific caching.
 func (s *ReportsService) ProcessOnDemandTranslation(ctx context.Context, email string, reportID int, langCode string) (string, error) {
-	// 1. Check DB cache first
-	translations, err := store.GetReportTranslations(ctx, reportID)
-	if err == nil {
-		if summary, exists := translations[langCode]; exists {
-			return summary, nil
-		}
-	}
-
 	// 2. Fetch the original report (usually English if it's the fallback)
 	report, err := store.GetReportByID(ctx, reportID, email)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch original report: %w", err)
+	}
+
+	// Double-check the map in the fetched report
+	if summary, exists := report.Translations[langCode]; exists {
+		return summary, nil
 	}
 
 	// 3. Delegate to TranslationService (handles Singleflight internally)

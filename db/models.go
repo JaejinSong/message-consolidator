@@ -102,13 +102,14 @@ type PromptLog struct {
 }
 
 type Report struct {
-	ID            int64         `json:"id"`
-	UserEmail     string        `json:"user_email"`
-	StartDate     string        `json:"start_date"`
-	EndDate       string        `json:"end_date"`
-	Visualization string        `json:"visualization"`
-	IsTruncated   sql.NullInt64 `json:"is_truncated"`
-	CreatedAt     sql.NullTime  `json:"created_at"`
+	ID            int64          `json:"id"`
+	UserEmail     string         `json:"user_email"`
+	StartDate     string         `json:"start_date"`
+	EndDate       string         `json:"end_date"`
+	Visualization string         `json:"visualization"`
+	Status        sql.NullString `json:"status"`
+	IsTruncated   sql.NullInt64  `json:"is_truncated"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
 }
 
 type ReportTranslation struct {

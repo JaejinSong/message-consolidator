@@ -34,32 +34,16 @@ func (a *API) HandleGetReportHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleGenerateReport triggers the generation of a new report for a specific period.
-// Why: Prevents double-billing and data redundancy by checking for existing reports.
-// Idempotency: Returns 200 OK if the report already exists for the given date.
 func (a *API) HandleGenerateReport(w http.ResponseWriter, r *http.Request) {
-	email, start, end := auth.GetUserEmail(r), r.URL.Query().Get("start"), r.URL.Query().Get("end")
+	email, start := auth.GetUserEmail(r), r.URL.Query().Get("start")
+	end, lang := r.URL.Query().Get("end"), r.URL.Query().Get("lang")
+
 	if _, err := time.Parse("2006-01-02", start); err != nil {
-		respondError(w, http.StatusBadRequest, "Invalid start date format (YYYY-MM-DD required)")
+		respondError(w, http.StatusBadRequest, "Invalid start date")
 		return
 	}
-	if _, err := time.Parse("2006-01-02", end); err != nil {
-		respondError(w, http.StatusBadRequest, "Invalid end date format (YYYY-MM-DD required)")
-		return
-	}
-
-	lang := r.URL.Query().Get("lang")
-	if lang == "" {
-		respondError(w, http.StatusBadRequest, "lang parameter is required")
-		return
-	}
-
-	if a.Reports == nil {
-		respondError(w, http.StatusServiceUnavailable, "Reports service not initialized")
-		return
-	}
-
-	if existing, err := store.GetReportByDate(r.Context(), email, start); err == nil && existing != nil {
-		respondJSON(w, http.StatusOK, existing)
+	if lang == "" || a.Reports == nil {
+		respondError(w, http.StatusBadRequest, "Missing lang/Reports service")
 		return
 	}
 
@@ -68,7 +52,12 @@ func (a *API) HandleGenerateReport(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	respondJSON(w, http.StatusCreated, report)
+
+	status := http.StatusAccepted
+	if report.Status == "completed" {
+		status = http.StatusOK
+	}
+	respondJSON(w, status, report)
 }
 
 // HandleGetReportByID retrieves a specific report by its unique ID.
