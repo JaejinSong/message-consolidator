@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node verify-css.cjs && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "build:bundle": "node bundle-css.cjs",

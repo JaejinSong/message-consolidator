@@ -61,7 +61,7 @@ func StartBackgroundScanner(ctx context.Context) {
 		case <-ctx.Done():
 			logger.Infof("[SCANNER] Shutdown signal received. Waiting for in-flight tasks...")
 			
-			//Why: Uses a bounded timeout channel to prevent unresponsive network loops (e.g., WhatsApp disconnection or Slack API timeouts) from hanging the graceful shutdown process.
+			//Why: Uses a generous timeout to allow AI-intensive scans and translations (which can take 15-20s) to complete before termination.
 			done := make(chan struct{})
 			go func() {
 				wg.Wait()
@@ -70,7 +70,7 @@ func StartBackgroundScanner(ctx context.Context) {
 			select {
 			case <-done:
 				logger.Infof("[SCANNER] All background tasks finished gracefully.")
-			case <-time.After(2 * time.Second):
+			case <-time.After(30 * time.Second):
 				logger.Warnf("[SCANNER] Timeout waiting for background tasks to finish. Forcing exit.")
 			}
 			return
@@ -90,12 +90,12 @@ func RunAllScans(ctx context.Context, wg *sync.WaitGroup) {
 		return
 	}
 
-	scanUsersSourcesParallel(traceCtx, users)
+	scanUsersSourcesParallel(traceCtx, users, wg)
 	performSlackScan(traceCtx, users, wg)
 	finalizeScanCycle(traceCtx, users)
 }
 
-func scanUsersSourcesParallel(ctx context.Context, users []store.User) {
+func scanUsersSourcesParallel(ctx context.Context, users []store.User, wg *sync.WaitGroup) {
 	var eg errgroup.Group
 	eg.SetLimit(5) // MaxConcurrentScans
 
@@ -103,7 +103,7 @@ func scanUsersSourcesParallel(ctx context.Context, users []store.User) {
 		u := user
 		eg.Go(func() error {
 			aliases, _ := store.GetUserAliases(ctx, u.ID)
-			scanAllSources(ctx, u, aliases)
+			scanAllSources(ctx, u, aliases, wg)
 			return nil
 		})
 	}
@@ -119,7 +119,7 @@ func performSlackScan(ctx context.Context, users []store.User, wg *sync.WaitGrou
 	go func() {
 		defer wg.Done()
 		defer cancel()
-		scanSlack(sCtx, users)
+		scanSlack(sCtx, users, wg)
 	}()
 }
 
@@ -158,45 +158,44 @@ func getEffectiveAliases(user store.User, aliases []string) []string {
 	return result
 }
 
-func scanAllSources(parentCtx context.Context, user store.User, aliases []string) {
+func scanAllSources(parentCtx context.Context, user store.User, aliases []string, wg *sync.WaitGroup) {
 	logger.Debugf("[SCAN] Scanning for user: %s", user.Email)
 	ctx, cancel := context.WithTimeout(parentCtx, 45*time.Second)
 	defer cancel()
 
 	effAl := getEffectiveAliases(user, aliases)
-	_ = scanUserChannels(ctx, user.Email, effAl)
+	_ = scanUserChannels(ctx, user.Email, effAl, wg)
 	store.PersistAllScanMetadata(user.Email)
 }
-
-func scanUserChannels(ctx context.Context, email string, effAl []string) error {
+func scanUserChannels(ctx context.Context, email string, effAl []string, wg *sync.WaitGroup) error {
 	var eg errgroup.Group
 	if store.HasGmailToken(email) {
 		eg.Go(func() error {
-			return performGmailScan(ctx, email)
+			return performGmailScan(ctx, email, wg)
 		})
 	}
 
 	eg.Go(func() error {
 		user, _ := store.GetOrCreateUser(ctx, email, "", "")
-		scanWhatsApp(ctx, *user, effAl, "Korean")
+		scanWhatsApp(ctx, *user, effAl, "Korean", wg)
 		return nil
 	})
 	return eg.Wait()
 }
 
-func performGmailScan(ctx context.Context, email string) error {
+func performGmailScan(ctx context.Context, email string, wg *sync.WaitGroup) error {
 	onThreadActivity := func(msg store.ConsolidatedMessage) {
 		if completionSvc != nil {
 			completionSvc.ProcessPotentialCompletion(context.Background(), msg)
 		}
 	}
 	ids := channels.ScanGmail(ctx, email, "Korean", cfg, onThreadActivity)
-	triggerAsyncTranslation(email, ids)
+	triggerAsyncTranslation(ctx, email, ids, wg)
 	return nil
 }
 
 
-func Scan(email string, lang string) {
+func Scan(email string, lang string, wg *sync.WaitGroup) {
 	traceCtx, _ := trace.StartWithContext(context.Background(), "ManualScan")
 	defer trace.End(traceCtx, nil)
 
@@ -213,18 +212,18 @@ func Scan(email string, lang string) {
 		a, _ := store.GetUserAliases(traceCtx, user.ID)
 		return a
 	}())
-	runManualScans(ctx, user, effAl, lang)
+	runManualScans(ctx, user, effAl, lang, wg)
 	
 	store.PersistAllScanMetadata(user.Email)
 	_ = services.FlushGamificationData(ctx)
 }
 
-func runManualScans(ctx context.Context, user *store.User, effAl []string, lang string) {
+func runManualScans(ctx context.Context, user *store.User, effAl []string, lang string, wg *sync.WaitGroup) {
 	if store.HasGmailToken(user.Email) {
-		performGmailScan(ctx, user.Email)
+		performGmailScan(ctx, user.Email, wg)
 	}
-	scanSlack(ctx, []store.User{*user})
-	scanWhatsApp(ctx, *user, effAl, lang)
+	scanSlack(ctx, []store.User{*user}, wg)
+	scanWhatsApp(ctx, *user, effAl, lang, wg)
 }
 
 
@@ -264,15 +263,17 @@ func IsAliasMatched(text, sender, alias string) bool {
 	return false
 }
 
-func triggerAsyncTranslation(email string, ids []int) {
+func triggerAsyncTranslation(ctx context.Context, email string, ids []int, wg *sync.WaitGroup) {
 	if tasksSvc == nil || len(ids) == 0 {
 		return
 	}
-	// Why: Asynchronously triggers pre-calculated translation for the user's default language.
+	// Why: Asynchronously triggers pre-calculated translation, tracked via WaitGroup to ensure completion during graceful shutdown.
+	wg.Add(1)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer wg.Done()
+		tCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		defer cancel()
-		_, _ = tasksSvc.ProcessBatchTranslation(ctx, email, ids, "ko")
+		_, _ = tasksSvc.ProcessBatchTranslation(tCtx, email, ids, "ko")
 	}()
 }
 

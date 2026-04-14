@@ -46,3 +46,8 @@ test_times.txt
 test_file.txt
 /scratch/
 /channels/tmp/
+
+# Test & AI Cache Artifacts
+/ai/testdata/prompt_cache/*.txt
+test_out.txt
+test_timing.txt

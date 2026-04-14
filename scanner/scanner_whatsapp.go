@@ -16,7 +16,7 @@ import (
 
 
 
-func (s *WhatsAppScanner) processWhatsAppRoom(ctx context.Context, user store.User, aliases []string, jid string, msgs []types.RawMessage, language string) []int {
+func (s *WhatsAppScanner) processWhatsAppRoom(ctx context.Context, user store.User, aliases []string, jid string, msgs []types.RawMessage, language string, wg *sync.WaitGroup) []int {
 	lockKey := roomLockSvc.GetRoomKey(user.Email, "whatsapp", jid)
 	lock := roomLockSvc.AcquireLock(lockKey)
 	lock.Lock()
@@ -33,14 +33,14 @@ func (s *WhatsAppScanner) processWhatsAppRoom(ctx context.Context, user store.Us
 	}
 
 	for _, group := range msgGroups {
-		if ids := s.processSingleGroup(ctx, user, aliases, jid, groupName, group, gc, language); len(ids) > 0 {
+		if ids := s.processSingleGroup(ctx, user, aliases, jid, groupName, group, gc, language, wg); len(ids) > 0 {
 			allIDs = append(allIDs, ids...)
 		}
 	}
 	return allIDs
 }
 
-func (s *WhatsAppScanner) processSingleGroup(ctx context.Context, user store.User, aliases []string, jid string, groupName string, group []types.RawMessage, gc *ai.GeminiClient, language string) []int {
+func (s *WhatsAppScanner) processSingleGroup(ctx context.Context, user store.User, aliases []string, jid string, groupName string, group []types.RawMessage, gc *ai.GeminiClient, language string, wg *sync.WaitGroup) []int {
 	if len(group) == 0 {
 		return nil
 	}
@@ -66,7 +66,7 @@ func (s *WhatsAppScanner) processSingleGroup(ctx context.Context, user store.Use
 		return nil
 	}
 
-	return s.processWAItems(ctx, user, aliases, items, msgMap, groupName, !strings.Contains(jid, "@g.us"))
+	return s.processWAItems(ctx, user, aliases, items, msgMap, groupName, !strings.Contains(jid, "@g.us"), wg)
 }
 
 func (s *WhatsAppScanner) isIgnorableNoise(ctx context.Context, email string, payload string) bool {
@@ -81,7 +81,7 @@ func (s *WhatsAppScanner) isIgnorableNoise(ctx context.Context, email string, pa
 	return isNoise
 }
 
-func (s *WhatsAppScanner) processWAItems(ctx context.Context, user store.User, aliases []string, items []store.TodoItem, msgMap map[string]types.RawMessage, group string, is1to1 bool) []int {
+func (s *WhatsAppScanner) processWAItems(ctx context.Context, user store.User, aliases []string, items []store.TodoItem, msgMap map[string]types.RawMessage, group string, is1to1 bool, wg *sync.WaitGroup) []int {
 	var newIDs []int
 	for _, item := range items {
 		if m, ok := msgMap[item.SourceTS]; ok {
@@ -90,6 +90,7 @@ func (s *WhatsAppScanner) processWAItems(ctx context.Context, user store.User, a
 			}
 		}
 	}
+	triggerAsyncTranslation(ctx, user.Email, newIDs, wg)
 	return newIDs
 }
 
@@ -159,7 +160,7 @@ func isFromMe(sender string, user store.User) bool {
 }
 
 
-func scanWhatsApp(ctx context.Context, user store.User, aliases []string, language string) []int {
+func scanWhatsApp(ctx context.Context, user store.User, aliases []string, language string, wg *sync.WaitGroup) []int {
 	buffer := channels.DefaultWAManager.PopMessages(user.Email)
 	if len(buffer) == 0 {
 		return nil
@@ -173,7 +174,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 	for jid, msgs := range buffer {
 		j, m := jid, msgs
 		eg.Go(func() error {
-			ids := s.processWhatsAppRoom(ctx, user, aliases, j, m, language)
+			ids := s.processWhatsAppRoom(ctx, user, aliases, j, m, language, wg)
 			mu.Lock()
 			newIDs = append(newIDs, ids...)
 			mu.Unlock()
@@ -181,7 +182,7 @@ func scanWhatsApp(ctx context.Context, user store.User, aliases []string, langua
 		})
 	}
 	_ = eg.Wait()
-	triggerAsyncTranslation(user.Email, newIDs)
+	triggerAsyncTranslation(ctx, user.Email, newIDs, wg)
 	return newIDs
 }
 

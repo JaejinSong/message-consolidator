@@ -89,7 +89,14 @@ if [ $STATUS_GO -ne 0 ] || [ $STATUS_NPM -ne 0 ] || [ $STATUS_AI -ne 0 ] || [ $S
     echo -e "----------------------------------------------------"
 fi
 
-# Cleanup
-rm -f "$LOG_GO" "$LOG_NPM" "$LOG_AI" "$LOG_UI"
+# Cleanup logic
+cleanup() {
+    echo -e "\n${BLUE}==> Cleaning up test artifacts...${NC}"
+    rm -f "$LOG_GO" "$LOG_NPM" "$LOG_AI" "$LOG_UI"
+    rm -f test_out.txt test_timing.txt
+}
+
+# Trap signals for forced cleanup
+trap cleanup EXIT
 
 exit $GLOBAL_EXIT

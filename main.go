@@ -88,7 +88,11 @@ func main() {
 	}
 
 	//Why: Creates the API handler structure with explicit dependency injection, simplifying unit testing and mock substitution.
-	api := handlers.NewAPI(cfg, scanner.Scan, func() {
+	api := handlers.NewAPI(cfg, func(email, lang string) {
+		var wg sync.WaitGroup
+		scanner.Scan(email, lang, &wg)
+		wg.Wait()
+	}, func() {
 		var wg sync.WaitGroup
 		scanner.RunAllScans(context.Background(), &wg)
 		wg.Wait()
@@ -135,7 +139,7 @@ func main() {
 
 	//Why: [Shutdown 3/4] Drains in-flight HTTP requests with a bounded 5s timeout to allow active sessions to complete without hanging the process indefinitely.
 	logger.Infof("[Shutdown] 3/4 Waiting for active HTTP requests to finish (Max 5s)...")
-	ctxTimeout, cancelTimeout := context.WithTimeout(context.Background(), 5*time.Second)
+	ctxTimeout, cancelTimeout := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelTimeout()
 	if err := srv.Shutdown(ctxTimeout); err != nil {
 		logger.Errorf("Server shutdown error: %v", err)

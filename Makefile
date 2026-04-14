@@ -63,3 +63,11 @@ sqlc-gen:
 	@echo "Generating Go code from SQL queries..."
 	go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate
 
+clean:
+	@echo "Cleaning up test artifacts..."
+	rm -f test_*.txt
+	rm -rf ai/testdata/prompt_cache/*.txt
+	@echo "Cleanup complete."
+
+.PHONY: build run install-service uninstall-service status logs test-ui test-go test-ai test-all build-frontend build-backend build-all sqlc-gen clean
+

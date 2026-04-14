@@ -129,6 +129,9 @@ func TestReportSummaryPrompt(t *testing.T) {
 					// 결과를 캐시에 저장하여 다음 테스트 시 비용 절감
 					os.MkdirAll(cacheDir, 0755)
 					os.WriteFile(cachePath, []byte(result), 0644)
+					t.Cleanup(func() {
+						os.Remove(cachePath)
+					})
 				} else {
 					t.Fatalf("예상치 못한 AI 응답 형식입니다: %v", resp.Candidates[0].Content.Parts[0])
 				}

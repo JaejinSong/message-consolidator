@@ -31,3 +31,8 @@ test_timing.txt
 go_test*.log
 loading_ui_test.log
 db_diag.log
+
+# Test & AI Cache Artifacts
+/ai/testdata/prompt_cache/*.txt
+test_out.txt
+test_timing.txt

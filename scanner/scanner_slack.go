@@ -41,7 +41,7 @@ func resolveSlackMentions(text string, sc slackUserResolver) string {
 	})
 }
 
-func scanSlack(ctx context.Context, users []store.User) {
+func scanSlack(ctx context.Context, users []store.User, wg *sync.WaitGroup) {
 	if cfg == nil || cfg.SlackToken == "" || len(users) == 0 {
 		return
 	}
@@ -56,7 +56,7 @@ func scanSlack(ctx context.Context, users []store.User) {
 
 	userAl := prepareSlackUserAliases(ctx, users)
 	candidates, newTS := collectSlackHistory(ctx, users, chans, sc, userAl)
-	processSlackCandidates(ctx, users, sc, candidates)
+	processSlackCandidates(ctx, users, sc, candidates, wg)
 	updateSlackCursors(newTS)
 
 	//Why: Forces immediate persistence of scan cursors after each cycle to prevent data loss or scan gaps in case of process termination.
@@ -157,7 +157,7 @@ func classifyAndCollect(ctx context.Context, c slack.Channel, m types.RawMessage
 	}
 }
 
-func processSlackCandidates(ctx context.Context, users []store.User, sc *channels.SlackClient, candidates map[string][]types.RawMessage) {
+func processSlackCandidates(ctx context.Context, users []store.User, sc *channels.SlackClient, candidates map[string][]types.RawMessage, wg *sync.WaitGroup) {
 	for email, msgs := range candidates {
 		user, err := store.GetOrCreateUser(ctx, email, "", "")
 		if err != nil || user == nil {
@@ -165,7 +165,7 @@ func processSlackCandidates(ctx context.Context, users []store.User, sc *channel
 		}
 		// Why: Provides visibility into the collection pipeline by logging the number of candidates queued for AI analysis.
 		logger.Debugf("[SLACK-COLLECT] User: %s, Total candidates for AI processing: %d", email, len(msgs))
-		analyzeAndSaveSlack(ctx, user, sc, msgs)
+		analyzeAndSaveSlack(ctx, user, sc, msgs, wg)
 	}
 }
 
@@ -219,12 +219,12 @@ func startSlowSweeper(ctx context.Context, wg *sync.WaitGroup) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			sweepSlackThreads(ctx)
+			sweepSlackThreads(ctx, wg)
 		}
 	}
 }
 
-func sweepSlackThreads(ctx context.Context) {
+func sweepSlackThreads(ctx context.Context, wg *sync.WaitGroup) {
 	traceCtx, _ := trace.StartWithContext(ctx, "Background-SweepSlackThreads")
 	defer trace.End(traceCtx, nil)
 
@@ -250,11 +250,11 @@ func sweepSlackThreads(ctx context.Context) {
 		if err := slackLimiter.Wait(traceCtx); err != nil {
 			return
 		}
-		processSingleSlackThread(traceCtx, sc, t, botID)
+		processSingleSlackThread(traceCtx, sc, t, botID, wg)
 	}
 }
 
-func processSingleSlackThread(ctx context.Context, sc *channels.SlackClient, t store.SlackThreadMeta, botID string) {
+func processSingleSlackThread(ctx context.Context, sc *channels.SlackClient, t store.SlackThreadMeta, botID string, wg *sync.WaitGroup) {
 	if isThreadTimedOut(t.LastActivityTS, 7*24*time.Hour) {
 		handleThreadTimeout(ctx, sc, t)
 		return
@@ -277,7 +277,7 @@ func processSingleSlackThread(ctx context.Context, sc *channels.SlackClient, t s
 	candidates := collectThreadCandidates(ctx, sc, user, t, replies, res, botID)
 
 	if len(candidates) > 0 {
-		analyzeAndSaveSlack(ctx, user, sc, candidates)
+		analyzeAndSaveSlack(ctx, user, sc, candidates, wg)
 	}
 	updateThreadStatus(ctx, sc, t, res)
 }
@@ -384,7 +384,7 @@ func parseSlackTimestamp(ts string) time.Time {
 	return time.Unix(sec, 0)
 }
 
-func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.SlackClient, candidates []types.RawMessage) {
+func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.SlackClient, candidates []types.RawMessage, wg *sync.WaitGroup) {
 	if len(candidates) == 0 {
 		return
 	}
@@ -409,10 +409,10 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 		logger.Errorf("[SCAN-SLACK] Gemini Analyze Error for %s: %v", user.Email, err)
 		return
 	}
-	processSlackItems(ctx, user, items, msgMap, sc)
+	processSlackItems(ctx, user, items, msgMap, sc, wg)
 }
 
-func processSlackItems(ctx context.Context, user *store.User, items []store.TodoItem, msgMap map[string]types.RawMessage, sc *channels.SlackClient) {
+func processSlackItems(ctx context.Context, user *store.User, items []store.TodoItem, msgMap map[string]types.RawMessage, sc *channels.SlackClient, wg *sync.WaitGroup) {
 	aliases, _ := store.GetUserAliases(ctx, user.ID)
 	var newIDs []int
 	for _, item := range items {
@@ -426,7 +426,7 @@ func processSlackItems(ctx context.Context, user *store.User, items []store.Todo
 			newIDs = append(newIDs, id)
 		}
 	}
-	triggerAsyncTranslation(user.Email, newIDs)
+	triggerAsyncTranslation(ctx, user.Email, newIDs, wg)
 }
 
 func buildSlackAnalysisPayload(candidates []types.RawMessage, sc *channels.SlackClient) (string, map[string]types.RawMessage) {

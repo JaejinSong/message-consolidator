@@ -33,6 +33,8 @@ services:
   backend:
     image: ${BE_IMAGE}
     container_name: message-consolidator-backend
+    deploy:
+      replicas: 1
     pull_policy: always
     env_file:
       - .env

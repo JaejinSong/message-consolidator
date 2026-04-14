@@ -176,3 +176,6 @@ ${SSH_CMD} -- "
 run_step "Health Check" bash -c "curl -s -k 'https://34.67.133.18.nip.io/health' | grep -q 'OK'"
 
 echo -e "\n${GREEN}🚀 Full Stack Deployed in $(( $(date +%s) - START_TIME ))s!${NC}"
+
+# Why: Cleans up dangling images to prevent VPS disk space exhaustion.
+run_step "Cleanup: Prune Images" ${SSH_CMD} "sudo docker image prune -f"
