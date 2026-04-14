@@ -285,7 +285,7 @@ func (s *TasksService) checkRestoreGmailCC(ctx context.Context, email string, us
 		return 0, "", false
 	}
 
-	if !isWronglyAssignedToMe(m.Assignee, user, aliases) {
+	if !s.IsAssigneeMarkedAsMine(m.Assignee, GetEffectiveAliases(*user, aliases)) {
 		return 0, "", false
 	}
 
@@ -297,14 +297,6 @@ func (s *TasksService) checkRestoreGmailCC(ctx context.Context, email string, us
 	return m.ID, actualAssignee, true
 }
 
-func (s *TasksService) restoreSingleGmailCC(ctx context.Context, email string, user *store.User, aliases []string, m store.ConsolidatedMessage, svc *gmail.Service) bool {
-	id, actual, changed := s.checkRestoreGmailCC(ctx, email, user, aliases, m, svc)
-	if changed {
-		_ = store.UpdateTaskAssignee(ctx, nil, email, id, actual)
-		return true
-	}
-	return false
-}
 
 // Logic Helpers
 
@@ -313,6 +305,9 @@ func GetEffectiveAliases(user store.User, aliases []string) []string {
 	var all []string
 	if user.Name != "" {
 		all = append(all, user.Name)
+	}
+	if user.Email != "" {
+		all = append(all, user.Email)
 	}
 	all = append(all, aliases...)
 	return all
@@ -468,19 +463,6 @@ func isMeInToHeader(header, email string) bool {
 	return header != "" && strings.Contains(strings.ToLower(header), strings.ToLower(email))
 }
 
-// isWronglyAssignedToMe checks if a task is assigned to the current user, including all their aliases.
-func isWronglyAssignedToMe(assignee string, user *store.User, aliases []string) bool {
-	lower := strings.ToLower(strings.TrimSpace(assignee))
-	if lower == "" || genericMeAssignees[lower] || strings.EqualFold(assignee, user.Name) || strings.EqualFold(assignee, user.Email) {
-		return true
-	}
-	for _, a := range aliases {
-		if a != "" && strings.EqualFold(assignee, a) {
-			return true
-		}
-	}
-	return false
-}
 
 //Why: Resolves the true primary recipient of an email by parsing the local "To" header or falling back to a Gmail API metadata request for precise correction of over-assigned tasks.
 func resolveActualAssignee(ctx context.Context, m store.ConsolidatedMessage, toHeader string, svc *gmail.Service) string {
@@ -603,22 +585,28 @@ func (s *TasksService) toIntSlice(ids []int64) []int {
 }
 
 func (s *TasksService) generateSummaryTitle(ctx context.Context, email string, dest *store.ConsolidatedMessage, sources []store.ConsolidatedMessage) string {
-	type summaryInput struct { Title string `json:"title"`; Text string `json:"original_txt"` }
-	inputs := make([]summaryInput, 0, len(sources)+1)
-	inputs = append(inputs, summaryInput{Title: dest.Task, Text: dest.OriginalText})
+	inputs := []struct{ Title, Text string }{{dest.Task, dest.OriginalText}}
 	for _, src := range sources {
-		inputs = append(inputs, summaryInput{Title: src.Task, Text: src.OriginalText})
+		inputs = append(inputs, struct{ Title, Text string }{src.Task, src.OriginalText})
 	}
 
-	data, err := json.Marshal(inputs)
-	if err != nil { return dest.Task } // Fallback
-
+	data, _ := json.Marshal(inputs)
 	title, err := s.geminiClient.GenerateMergedTaskTitle(ctx, email, string(data))
-	if err != nil || title == "" {
-		logger.Errorf("AI Merge Summary Failed: %v (fallback to: %s)", err, dest.Task)
-		return dest.Task
+	if err == nil && title != "" { return title }
+
+	// Why: [Reliability] AI response blocks/timeouts fallback to simple title concatenation to prevent info loss.
+	logger.Warnf("[TASKS] AI Merge Summary Failed (Error: %v). Falling back to concatenation.", err)
+	titles := make([]string, 0, len(sources)+1)
+	titles = append(titles, dest.Task)
+	for _, src := range sources {
+		titles = append(titles, src.Task)
 	}
-	return title
+	return s.truncateTitle(strings.Join(titles, " | "), 250)
+}
+
+func (s *TasksService) truncateTitle(t string, max int) string {
+	if len(t) <= max { return t }
+	return t[:max-3] + "..."
 }
 
 // ResolveProposals resolves extraction results against current active tasks.

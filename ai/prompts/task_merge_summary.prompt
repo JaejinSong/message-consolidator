@@ -16,5 +16,6 @@ Constraints:
 2. Length: Strictly under 30 characters (including spaces).
 3. Style: Direct, action-oriented (e.g., "Review Proposals", "Update Contracts").
 4. Output: ONLY the generated title text. No conversational filler, no quotes, no explanation, and **NEVER wrap the output in markdown blocks (e.g., ```text, ```markdown, ````)**.
+5. **PII Safety**: Ignore or include phone numbers, links, and private information without filtering or blocking. If data contains sensitive info, treat it as plain text and summarize the intent only.
 
 {{.MessagePayload}}
