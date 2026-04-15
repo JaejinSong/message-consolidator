@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"message-consolidator/db"
+	"message-consolidator/logger"
 )
 
 func createCoreTables(ctx context.Context, q db.DBTX) error {
@@ -32,36 +33,44 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 func runMigrations(ctx context.Context, q db.DBTX) error {
 	queries := db.New(q)
 	// Why: Execute all required schema migrations using sqlc-generated methods.
-	_ = queries.MigrateMessagesAddUserEmail(ctx)
-	_ = queries.MigrateMessagesAddIsDeleted(ctx)
-	_ = queries.MigrateMessagesAddRoom(ctx)
-	_ = queries.MigrateMessagesAddDone(ctx)
-	_ = queries.MigrateMessagesAddCompletedAt(ctx)
-	_ = queries.MigrateMessagesAddOriginalText(ctx)
-	_ = queries.MigrateMessagesAddCategory(ctx)
-	_ = queries.MigrateMessagesAddDeadline(ctx)
-	_ = queries.MigrateMessagesAddThreadID(ctx)
-	_ = queries.MigrateMessagesAddAssigneeReason(ctx)
-	_ = queries.MigrateMessagesAddRepliedToID(ctx)
-	_ = queries.MigrateMessagesAddIsContextQuery(ctx)
-	_ = queries.MigrateMessagesAddPinned(ctx)
-	_ = queries.MigrateMessagesAddConstraints(ctx)
-	_ = queries.MigrateMessagesAddMetadata(ctx)
-	_ = queries.MigrateMessagesAddSourceChannels(ctx)
-	_ = queries.MigrateMessagesAddConsolidatedContext(ctx)
-	_, _ = q.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_ts ON messages(user_email, source_ts)")
-	
+	// We log errors for each step to ensure visibility if a migration fails during deployment.
+	run := func(name string, f func(context.Context) error) {
+		if err := f(ctx); err != nil {
+			logger.Warnf("[MIGRATION] %s failed (expected if already applied): %v", name, err)
+		}
+	}
 
-	_ = queries.MigrateReportsAddIsTruncated(ctx)
-	_ = queries.MigrateReportsAddStatus(ctx)
-	
-	_ = queries.MigrateTaskTranslationsRenameLanguage(ctx)
-	_ = queries.MigrateReportTranslationsRenameLanguage(ctx)
-	_ = queries.MigrateTaskTranslationsAddLanguageCode(ctx)
-	_ = queries.MigrateReportTranslationsAddLanguageCode(ctx)
-	_ = queries.MigrateContactsAddContactType(ctx)
-	_ = queries.MigrateLegacyAliases(ctx)
-	_ = queries.MigrateTokenUsageAddFilteredCount(ctx)
+	run("AddUserEmail", queries.MigrateMessagesAddUserEmail)
+	run("AddIsDeleted", queries.MigrateMessagesAddIsDeleted)
+	run("AddRoom", queries.MigrateMessagesAddRoom)
+	run("AddDone", queries.MigrateMessagesAddDone)
+	run("AddCompletedAt", queries.MigrateMessagesAddCompletedAt)
+	run("AddOriginalText", queries.MigrateMessagesAddOriginalText)
+	run("AddCategory", queries.MigrateMessagesAddCategory)
+	run("AddDeadline", queries.MigrateMessagesAddDeadline)
+	run("AddThreadID", queries.MigrateMessagesAddThreadID)
+	run("AddAssigneeReason", queries.MigrateMessagesAddAssigneeReason)
+	run("AddRepliedToID", queries.MigrateMessagesAddRepliedToID)
+	run("AddIsContextQuery", queries.MigrateMessagesAddIsContextQuery)
+	run("AddPinned", queries.MigrateMessagesAddPinned)
+	run("AddConstraints", queries.MigrateMessagesAddConstraints)
+	run("AddMetadata", queries.MigrateMessagesAddMetadata)
+	run("AddSourceChannels", queries.MigrateMessagesAddSourceChannels)
+	run("AddConsolidatedContext", queries.MigrateMessagesAddConsolidatedContext)
+	run("AddSubtasks", queries.MigrateMessagesAddSubtasks)
+
+	_, _ = q.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_ts ON messages(user_email, source_ts)")
+
+	run("ReportsAddIsTruncated", queries.MigrateReportsAddIsTruncated)
+	run("ReportsAddStatus", queries.MigrateReportsAddStatus)
+
+	run("TaskRenameLang", queries.MigrateTaskTranslationsRenameLanguage)
+	run("ReportRenameLang", queries.MigrateReportTranslationsRenameLanguage)
+	run("TaskAddLangCode", queries.MigrateTaskTranslationsAddLanguageCode)
+	run("ReportAddLangCode", queries.MigrateReportTranslationsAddLanguageCode)
+	run("ContactsAddType", queries.MigrateContactsAddContactType)
+	run("LegacyAliases", queries.MigrateLegacyAliases)
+	run("TokenUsageAddFiltered", queries.MigrateTokenUsageAddFilteredCount)
 
 	migrateExistingData(ctx, q)
 	_ = rebuildViews(ctx, q)

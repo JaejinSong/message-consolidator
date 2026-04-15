@@ -150,8 +150,18 @@ func setupConnectionPool(dbURL string) {
 
 	conn.SetMaxOpenConns(maxOpen)
 	conn.SetMaxIdleConns(idleConns)
-	conn.SetConnMaxLifetime(3 * time.Minute)
-	conn.SetConnMaxIdleTime(1 * time.Minute)
+	// Why: Reduce lifetime for remote connections to prevent "stream is closed" errors from stale connections.
+	conn.SetConnMaxLifetime(1 * time.Minute)
+	conn.SetConnMaxIdleTime(30 * time.Second)
+}
+
+// LogSQLError provides unified logging for database errors with query context.
+func LogSQLError(query string, err error, args ...interface{}) error {
+	if err == nil {
+		return nil
+	}
+	logger.Errorf("[DB-ERROR] Query: %s | Args: %v | Error: %v", query, args, err)
+	return err
 }
 
 func GetDB() *sql.DB {

@@ -599,7 +599,7 @@ func GetMessagesByIDs(ctx context.Context, q Querier, email string, ids []int) (
 
 	rows, err := db.New(q).GetMessagesByIDs(ctx, toInt64List(missing))
 	if err != nil {
-		return nil, err
+		return nil, LogSQLError("GetMessagesByIDs", err, missing)
 	}
 
 	fromDB := make([]ConsolidatedMessage, len(rows))
@@ -662,7 +662,7 @@ func GetActiveContextTasks(ctx context.Context, q Querier, email, source, room s
 		Room:      room,
 	})
 	if err != nil {
-		return nil, err
+		return nil, LogSQLError("GetActiveTasksForContext", err, email, source, room)
 	}
 
 	msgs := make([]ConsolidatedMessage, len(rows))
@@ -754,7 +754,7 @@ func toConsolidatedFromIncomplete(row db.GetIncompleteByThreadIDRow) Consolidate
 		row.RequesterCanonical, row.AssigneeCanonical, row.AssigneeReason,
 		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
-		row.RequesterType, row.AssigneeType, "", "", "[]",
+		row.RequesterType, row.AssigneeType, "", "", row.Subtasks,
 		row.AssignedAt, row.CompletedAt,
 	)
 }
