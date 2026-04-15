@@ -1151,6 +1151,54 @@ body.light-theme .c-utility__btn:hover {
     100% { opacity: 0.4; transform: scale(0.95); }
 }
 
+/* --- Subtasks (Hierarchical) --- */
+.c-message-card__subtasks {
+    margin: var(--spacing-sm) 0 0 0;
+    padding: var(--spacing-sm) 0 0 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    border-top: var(--border-thin) dashed var(--glass-border);
+}
+
+.c-message-card__subtask-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    font-size: 0.875rem;
+    color: var(--text-dim);
+    transition: color 0.2s ease;
+}
+
+.c-message-card__subtask-item--done {
+    text-decoration: line-through;
+    opacity: 0.5;
+}
+
+.c-message-card__subtask-check {
+    color: var(--color-success);
+    font-size: 0.8rem;
+    margin-top: 0.125rem;
+    flex-shrink: 0;
+}
+
+.c-message-card__subtask-task {
+    flex: 1;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.c-message-card__subtask-assignee {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--accent-color);
+    background: rgba(var(--accent-rgb), 0.1);
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+}
+
 
 /* --- End of static/css/components/message-card.css --- */
 
@@ -1876,6 +1924,29 @@ body.light-theme .c-badge--count {
     border: var(--border-thin) dashed var(--glass-border);
     border-radius: var(--radius-lg);
     animation: fadeIn var(--anim-duration-md) ease-out;
+}
+
+.c-insights-report-item__status {
+    margin-top: var(--spacing-xs);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.c-insights-report-item__status--processing {
+    color: var(--status-pending-color);
+}
+
+.c-insights-report-item__status--completed {
+    color: var(--status-active-color);
+}
+
+.c-insights-report-item__status--failed {
+    color: var(--color-danger);
 }
 
 /* --- End of static/css/components/reports.css --- */

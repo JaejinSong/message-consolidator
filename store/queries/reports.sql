@@ -24,8 +24,8 @@ WHERE r.user_email = ? AND r.start_date = ? AND r.end_date = ?;
 SELECT 
     m.id, m.user_email, m.source, m.room, 
     m.task, 
-    m.requester, m.assignee, m.assigned_at, m.link, m.source_ts, m.original_text, m.done, m.is_deleted, m.created_at, m.completed_at, m.category, m.deadline, m.thread_id,
-    m.assignee_reason, m.replied_to_id, m.is_context_query, m.constraints, m.metadata, m.requester_canonical, m.assignee_canonical
+    m.requester, m.assignee, m.assigned_at, m.link, m.source_ts, m.pinned, m.original_text, m.done, m.is_deleted, m.created_at, m.completed_at, m.category, m.deadline, m.thread_id,
+    m.assignee_reason, m.replied_to_id, m.is_context_query, m.constraints, m.metadata, m.source_channels, m.consolidated_context, m.subtasks, m.requester_canonical, m.assignee_canonical, m.requester_type, m.assignee_type
 FROM v_messages m
 WHERE m.user_email = ? 
   AND (m.created_at >= ? OR m.assigned_at >= ?)

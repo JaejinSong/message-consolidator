@@ -33,6 +33,13 @@ func SetLevel(levelStr string) {
 	}
 }
 
+func getLogDir() string {
+	if dir := os.Getenv("LOG_DIR"); dir != "" {
+		return dir
+	}
+	return "/app/logs"
+}
+
 func Debugf(format string, v ...interface{}) {
 	if currentLevel <= LevelDebug {
 		log.Output(2, fmt.Sprintf("[DEBUG] "+format, v...))
@@ -58,11 +65,11 @@ func Errorf(format string, v ...interface{}) {
 }
 
 func InitLogging() {
-	// Call AI inference logger initialization to ensure tmp/logs/ directory exists and log files are ready.
+	// Call AI inference logger initialization to ensure logs directory exists and log files are ready.
 	InitAIInferenceLogger()
 
 	lumberjackLogger := &lumberjack.Logger{
-		Filename:   "/app/logs/app.log",
+		Filename:   fmt.Sprintf("%s/app.log", getLogDir()),
 		MaxSize:    100, //Why: Caps individual log files at 100MB to prevent uncontrollable disk usage on the host system.
 		MaxBackups: 30,
 		MaxAge:     7, //Why: Retains log files for up to 7 days to balance diagnostic depth with storage efficiency.

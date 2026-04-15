@@ -2,6 +2,13 @@
  * @file types.ts
  * @description Centralized type definitions for Project GEM.
  */
+ 
+export interface Subtask {
+    task: string;
+    assignee_id?: number;
+    assignee?: string;
+    done: boolean;
+}
 
 export interface Message {
     id: number;
@@ -30,6 +37,7 @@ export interface Message {
     assigned_to?: string;
     source_channels?: string[];
     consolidated_context?: string[];
+    subtasks?: Subtask[];
 }
 
 export interface UserProfile {
@@ -185,10 +193,8 @@ export interface IReportData {
     start_date: string;
     end_date: string;
     report_summary: string;
-    summary?: string; // New field
     translations?: Record<string, string>;
     visualization_data: string | ParsedVisualization;
-    visualization?: string | ParsedVisualization; // New field
     status?: 'processing' | 'completed' | 'failed';
     is_truncated?: boolean;
     created_at?: string;

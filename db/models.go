@@ -90,6 +90,7 @@ type Message struct {
 	Metadata            sql.NullString `json:"metadata"`
 	SourceChannels      sql.NullString `json:"source_channels"`
 	ConsolidatedContext sql.NullString `json:"consolidated_context"`
+	Subtasks            sql.NullString `json:"subtasks"`
 }
 
 type PromptLog struct {
@@ -216,6 +217,7 @@ type VMessage struct {
 	Metadata            string       `json:"metadata"`
 	SourceChannels      string       `json:"source_channels"`
 	ConsolidatedContext string       `json:"consolidated_context"`
+	Subtasks            string       `json:"subtasks"`
 	RequesterCanonical  string       `json:"requester_canonical"`
 	AssigneeCanonical   string       `json:"assignee_canonical"`
 	RequesterType       string       `json:"requester_type"`

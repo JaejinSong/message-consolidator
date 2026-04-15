@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS messages (
     metadata TEXT DEFAULT '{}',
     source_channels TEXT DEFAULT '[]',
     consolidated_context TEXT DEFAULT '[]',
+    subtasks TEXT DEFAULT '[]',
     UNIQUE(user_email, source_ts)
 );
 CREATE INDEX IF NOT EXISTS idx_thread_id ON messages(thread_id);
@@ -253,6 +254,7 @@ SELECT
     COALESCE(m.metadata, '{}') as metadata,
     COALESCE(m.source_channels, '[]') as source_channels,
     COALESCE(m.consolidated_context, '[]') as consolidated_context,
+    COALESCE(m.subtasks, '[]') as subtasks,
     COALESCE(cr_req.effective_canonical_id, m.requester, '') as requester_canonical,
     COALESCE(cr_asg.effective_canonical_id, m.assignee, '') as assignee_canonical,
     COALESCE(cr_req.contact_type, 'none') as requester_type,

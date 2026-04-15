@@ -42,8 +42,12 @@ func (a *API) HandleGenerateReport(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "Invalid start date")
 		return
 	}
-	if lang == "" || a.Reports == nil {
-		respondError(w, http.StatusBadRequest, "Missing lang/Reports service")
+	if lang == "" {
+		respondError(w, http.StatusBadRequest, "Missing lang parameter")
+		return
+	}
+	if a.Reports == nil {
+		respondError(w, http.StatusServiceUnavailable, "Reports service unavailable")
 		return
 	}
 
@@ -109,8 +113,12 @@ func (a *API) HandleTranslateReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	lang := r.URL.Query().Get("lang")
-	if lang == "" || a.Reports == nil {
-		respondError(w, http.StatusBadRequest, "Missing lang parameter or Service unavailable")
+	if lang == "" {
+		respondError(w, http.StatusBadRequest, "Missing lang parameter")
+		return
+	}
+	if a.Reports == nil {
+		respondError(w, http.StatusServiceUnavailable, "Reports service unavailable")
 		return
 	}
 

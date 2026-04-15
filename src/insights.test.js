@@ -95,14 +95,14 @@ describe('insights.ts - Controller (Passive View Refactor)', () => {
 
     it('should load report details with DI (report, lang, i18n)', async () => {
         const reportMeta = { id: 1, start_date: '2024-03-01', end_date: '2024-03-07' };
-        const mockReport = { ...reportMeta, summary: 'Test Content' };
+        const mockReport = { ...reportMeta, report_summary: 'Test Content' };
         api.fetchReportDetail.mockResolvedValue(mockReport);
 
         await insights.loadExistingReport(reportMeta);
 
         expect(api.fetchReportDetail).toHaveBeenCalledWith(1);
         expect(insightsRenderer.renderReport).toHaveBeenCalledWith(
-            expect.objectContaining({ summary: 'Test Content' }),
+            expect.objectContaining({ report_summary: 'Test Content' }),
             'ko',
             expect.any(Object)
         );
@@ -125,10 +125,10 @@ describe('insights.ts - Controller (Passive View Refactor)', () => {
         // Manually trigger init to bind events
         insights.init(); 
         
-        const mockReport = { id: 1, summary: 'English Original', translations: {} };
+        const mockReport = { id: 1, report_summary: 'English Original', translations: {} };
         insights.lastReport = mockReport;
         
-        api.translateReport.mockResolvedValue({ summary: '번역된 요약' });
+        api.translateReport.mockResolvedValue({ report_summary: '번역된 요약' });
 
         const { events, EVENTS } = await import('./events');
         events.emit(EVENTS.LANGUAGE_CHANGED, 'ko');

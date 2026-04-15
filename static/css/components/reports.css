@@ -247,3 +247,26 @@
     border-radius: var(--radius-lg);
     animation: fadeIn var(--anim-duration-md) ease-out;
 }
+
+.c-insights-report-item__status {
+    margin-top: var(--spacing-xs);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.c-insights-report-item__status--processing {
+    color: var(--status-pending-color);
+}
+
+.c-insights-report-item__status--completed {
+    color: var(--status-active-color);
+}
+
+.c-insights-report-item__status--failed {
+    color: var(--color-danger);
+}

@@ -605,7 +605,9 @@ func (s *TasksService) generateSummaryTitle(ctx context.Context, email string, d
 }
 
 func (s *TasksService) truncateTitle(t string, max int) string {
-	if len(t) <= max { return t }
+	if len(t) <= max {
+		return t
+	}
 	return t[:max-3] + "..."
 }
 
@@ -635,6 +637,19 @@ func (s *TasksService) ResolveProposals(ctx context.Context, email, room string,
 		results = append(results, item)
 	}
 	return results
+}
+
+func (s *TasksService) MapSubtasks(todoSubtasks []store.TodoSubtask) []store.Subtask {
+	subtasks := make([]store.Subtask, len(todoSubtasks))
+	for i, ts := range todoSubtasks {
+		subtasks[i] = store.Subtask{
+			Task:       ts.Task,
+			AssigneeID: ts.AssigneeID,
+			Assignee:   ts.AssigneeName,
+			Done:       false,
+		}
+	}
+	return subtasks
 }
 
 func (s *TasksService) findMatch(room string, item store.TodoItem, active []store.ConsolidatedMessage) *store.ConsolidatedMessage {

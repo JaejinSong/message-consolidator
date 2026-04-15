@@ -127,35 +127,24 @@ func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, star
 func (s *ReportsService) processAsyncReport(email, start, end, lang string, id int, logs []Log) {
 	ctx := context.Background()
 	taskLogs, isTruncated := s.PrepareLogsForAI(email, logs)
-
-	// A. Generate Summary & Visualization in parallel-ish or series
 	summary, err := s.summarizer.Generate(ctx, taskLogs)
 	if err != nil {
 		s.markFailed(ctx, email, id)
 		return
 	}
-
-	vizJSON, _ := s.getGeminiClient().GenerateVisualizationData(ctx, email, taskLogs)
-	if vizJSON == "" {
-		vizJSON = "{}"
-	}
-
-	// B. Extract and Save results (Internal Save)
-	_, text, _ := ExtractJSONBlock(summary)
+	// Extract content and visualization JSON
+	vizJSON, text, _ := ExtractJSONBlock(summary)
 	if text == "" {
 		text = summary
 	}
-
-	// C. Translations (Primary English entry must exist before status update for some tests/UI)
-	store.SaveReportTranslation(ctx, int64(id), "en", text)
-
-	err = store.UpdateReportStatus(ctx, "completed", vizJSON, isTruncated, id, email)
-	if err != nil {
-		logger.Errorf("[REPORTS] Failed to update status: %v", err)
-		return
+	if vizJSON == "" {
+		vData := s.generateVisualizationData(email, logs)
+		b, _ := json.Marshal(vData)
+		vizJSON = string(b)
 	}
-
-	// D. On-demand translation for non-English requested language
+	// Save results and handle translations
+	store.SaveReportTranslation(ctx, int64(id), "en", text)
+	store.UpdateReportStatus(ctx, "completed", vizJSON, isTruncated, id, email)
 	if lang != "" && lang != "en" {
 		s.ProcessOnDemandTranslation(ctx, email, id, lang)
 	}
@@ -206,13 +195,13 @@ func (s *ReportsService) sanitizeMessages(ctx context.Context, email string, msg
 
 	for i := range msgs {
 		m := &msgs[i]
-		s.applyResolution(ctx, m, &m.Requester, &m.RequesterCanonical, &m.RequesterDisplayName, &m.RequesterType, contacts, ambiguous, store.UpdateMessageRequester)
-		s.applyResolution(ctx, m, &m.Assignee, &m.AssigneeCanonical, &m.AssigneeDisplayName, &m.AssigneeType, contacts, ambiguous, store.UpdateMessageAssignee)
+		s.applyResolution(ctx, m, &m.Requester, &m.RequesterCanonical, &m.RequesterDisplayName, &m.RequesterType, contacts, ambiguous, true)
+		s.applyResolution(ctx, m, &m.Assignee, &m.AssigneeCanonical, &m.AssigneeDisplayName, &m.AssigneeType, contacts, ambiguous, false)
 	}
 	return msgs, nil
 }
 
-func (s *ReportsService) applyResolution(ctx context.Context, m *Log, identifierField *string, canonicalField *string, displayNameField *string, typeField *string, contacts map[string]*store.ContactRecord, ambiguous map[string]bool, updateFn func(context.Context, store.Querier, string, string, int, string) error) {
+func (s *ReportsService) applyResolution(ctx context.Context, m *Log, identifierField *string, canonicalField *string, displayNameField *string, typeField *string, contacts map[string]*store.ContactRecord, ambiguous map[string]bool, isRequester bool) {
 	identifier := *identifierField
 	if ambiguous[identifier] {
 		*identifierField = identifier + " (Ambiguous)"
@@ -223,7 +212,13 @@ func (s *ReportsService) applyResolution(ctx context.Context, m *Log, identifier
 		// 💡 Self-Healing: Update DB if non-canonical ID was used.
 		if identifier != c.CanonicalID && identifier != c.DisplayName {
 			go func() {
-				if err := updateFn(context.Background(), store.GetDB(), m.UserEmail, m.Room, m.ID, c.CanonicalID); err != nil {
+				req, asg := "", ""
+				if isRequester {
+					req = c.CanonicalID
+				} else {
+					asg = c.CanonicalID
+				}
+				if err := store.UpdateMessageIdentity(context.Background(), store.GetDB(), m.UserEmail, m.Room, m.ID, req, asg); err != nil {
 					logger.Errorf("[REPORTS] Identity self-healing failed for task %d: %v", m.ID, err)
 				}
 			}()
@@ -383,10 +378,10 @@ func (s *ReportsService) ProcessOnDemandTranslation(ctx context.Context, email s
 
 	// 3. Delegate to TranslationService (handles Singleflight internally)
 	if s.translationSvc == nil {
-		return report.Summary, nil // Return original English as fallback
+		return report.ReportSummary, nil // Return original English as fallback
 	}
 	key := fmt.Sprintf("report_%d_%s", reportID, langCode)
-	translated, err := s.translationSvc.Translate(ctx, email, key, report.Summary, langCode, true)
+	translated, err := s.translationSvc.Translate(ctx, email, key, report.ReportSummary, langCode, true)
 	if err != nil {
 		return "", fmt.Errorf("AI translation failed: %w", err)
 	}

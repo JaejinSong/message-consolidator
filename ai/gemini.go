@@ -327,7 +327,8 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email string, msg
 }
 
 func (g *GeminiClient) prepareAnalysisData(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string, tasks []store.ConsolidatedMessage) ExtractionContext {
-	userName, _ := store.GetUserName(ctx, email)
+	user, _ := store.GetOrCreateUser(ctx, email, "", "")
+	userName := user.Name
 	if userName == "" {
 		userName = email
 	}
@@ -338,6 +339,8 @@ func (g *GeminiClient) prepareAnalysisData(ctx context.Context, email string, ms
 		ExistingTasksJSON:   g.marshalTasksForAI(tasks),
 		EnrichedMessageJSON: g.marshalEnrichedMessage(msg),
 		CurrentUser:         userName,
+		CurrentUserEmail:    user.Email,
+		CurrentUserID:       user.ID,
 	}
 	if analyzer := getAnalyzer(source); analyzer != nil {
 		data.MessagePayload = analyzer.PreProcess(data.MessagePayload)

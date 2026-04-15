@@ -13,13 +13,12 @@ import (
 
 // RegressionMockAI simulates specialized AI responses for a realistic conversational scenario.
 type RegressionMockAI struct {
-	TurnCount int
-	Results   map[int][]store.TodoItem
+	CurrentTurn int
+	Results     map[int][]store.TodoItem
 }
 
 func (m *RegressionMockAI) AnalyzeWithContext(ctx context.Context, email string, msg types.EnrichedMessage, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error) {
-	m.TurnCount++
-	res, ok := m.Results[m.TurnCount]
+	res, ok := m.Results[m.CurrentTurn]
 	if !ok {
 		return []store.TodoItem{{State: "none"}}, nil
 	}
@@ -27,17 +26,17 @@ func (m *RegressionMockAI) AnalyzeWithContext(ctx context.Context, email string,
 }
 
 func (m *RegressionMockAI) EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string) (ai.TaskTransition, error) {
-	m.TurnCount++
-	res, ok := m.Results[m.TurnCount]
+	res, ok := m.Results[m.CurrentTurn]
 	if !ok || len(res) == 0 {
 		return ai.TaskTransition{Status: "NONE"}, nil
 	}
-	return ai.TaskTransition{Status: strings.ToUpper(res[0].State), UpdatedText: res[0].Task}, nil
+	// Why: Copy values explicitly to avoid referencing slice elements that might be mutated.
+	status := strings.ToUpper(res[0].State)
+	return ai.TaskTransition{Status: status, UpdatedText: res[0].Task}, nil
 }
 
 func (m *RegressionMockAI) Analyze(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string) ([]store.TodoItem, error) {
-	m.TurnCount++
-	res, ok := m.Results[m.TurnCount]
+	res, ok := m.Results[m.CurrentTurn]
 	if !ok {
 		return []store.TodoItem{{State: "none"}}, nil
 	}
@@ -72,7 +71,7 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 		},
 	}
 	tsrv := &TasksService{}
-	svc := NewCompletionService(mockAI, &DefaultTaskStore{}, tsrv)
+	svc := NewCompletionService(mockAI, &DefaultTaskStore{}, tsrv, store.GetDB())
 
 	scenario := []struct {
 		Name     string
@@ -109,6 +108,7 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 
 			// 2. Mock state preparation: AI always returns id:0 as a proposal.
 			// Backend Resolves it via HandleTaskState.
+			mockAI.CurrentTurn = turnNum
 			if matches, ok := mockAI.Results[turnNum]; ok {
 				for j := range matches {
 					matches[j].ID = ptr(0)

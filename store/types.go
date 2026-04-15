@@ -52,6 +52,15 @@ type ConsolidatedMessage struct {
 	AssigneeType       string          `json:"assignee_type,omitempty"`
 	RequesterDisplayName string          `json:"requester_display_name,omitempty"`
 	AssigneeDisplayName  string          `json:"assignee_display_name,omitempty"`
+	Subtasks             []Subtask      `json:"subtasks,omitempty"` //Why: Hierarchical task structure for consolidated emails.
+}
+
+// Subtask represents a smaller action item within a consolidated task.
+type Subtask struct {
+	Task       string `json:"task"`
+	AssigneeID *int   `json:"assignee_id"`
+	Assignee   string `json:"assignee"`
+	Done       bool   `json:"done"`
 }
 
 // CategorizedMessages represents groups of messages for the dashboard tabs.
@@ -133,6 +142,14 @@ type TodoItem struct {
 	AffinityGroupID string          `json:"affinity_group_id,omitempty"` // Shared ID for tasks that should be consolidated.
 	SourceChannels  []string        `json:"source_channels,omitempty"`  // All origins for merged tasks.
 	ContextSnippets []string        `json:"context_snippets,omitempty"` // Justification snippets for the task.
+	Subtasks        []TodoSubtask   `json:"subtasks,omitempty"`        // Why: Support for hierarchical task-subtask structure from AI.
+}
+
+// TodoSubtask represents a sub-action extracted by AI.
+type TodoSubtask struct {
+	Task         string `json:"task"`
+	AssigneeID   *int   `json:"assignee_id"`
+	AssigneeName string `json:"assignee_name"`
 }
 
 // TranslateRequest represents a request to translate a specific task
@@ -195,8 +212,8 @@ type Report struct {
 	UserEmail     string              `json:"user_email"`
 	StartDate     string              `json:"start_date"`
 	EndDate       string              `json:"end_date"`
-	Summary       string            `json:"report_summary"` // Primary summary (typically English)
-	Translations  map[string]string `json:"translations,omitempty"`
+	ReportSummary string              `json:"report_summary"` // Primary summary (typically English)
+	Translations  map[string]string   `json:"translations,omitempty"`
 	Visualization string              `json:"visualization_data"` // JSON string of Node/Edge data
 	Status        string              `json:"status"`             // "processing", "completed", "failed"
 	IsTruncated   bool                `json:"is_truncated"`       // Why: Flag to indicate if the report was limited due to token boundaries.

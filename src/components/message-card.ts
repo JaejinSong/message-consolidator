@@ -30,7 +30,7 @@ function parseMetadata(metadata: any): Record<string, any> | null {
  * Decouples rendering logic from the main application state to allow for independent testing.
  */
 export function MessageCard(props: MessageCardProps): string {
-    const { id, source, source_channels, room, is_translating, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translating: oldTranslating, translationError, has_original, assigned_to, isSelected } = props;
+    const { id, source, source_channels, room, is_translating, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translating: oldTranslating, translationError, has_original, assigned_to, subtasks, isSelected } = props;
     
     // Unified translating state (support legacy and new fields)
     const translating = oldTranslating || is_translating;
@@ -90,6 +90,18 @@ export function MessageCard(props: MessageCardProps): string {
         </ul>
     ` : '';
 
+    const subtasksHtml = (subtasks && subtasks.length > 0) ? `
+        <ul class="c-message-card__subtasks">
+            ${subtasks.map(s => `
+                <li class="c-message-card__subtask-item ${s.done ? 'c-message-card__subtask-item--done' : ''}">
+                    <span class="c-message-card__subtask-check">${s.done ? '✅' : '•'}</span>
+                    <span class="c-message-card__subtask-task">${escapeHTML(s.task)}</span>
+                    ${s.assignee ? `<span class="c-message-card__subtask-assignee">${escapeHTML(s.assignee)}</span>` : ''}
+                </li>
+            `).join('')}
+        </ul>
+    ` : '';
+
     const assigneeMe = i18n?.assigneeMe || 'Me';
     const isInvalid = !assignee || assignee === 'undefined' || assignee === 'unknown';
     
@@ -130,6 +142,7 @@ export function MessageCard(props: MessageCardProps): string {
                     ${contextHtml}
                 </div>
                 ${constraintsHtml}
+                ${subtasksHtml}
             </div>
 
             <div class="c-message-card__footer">

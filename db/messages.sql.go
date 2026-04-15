@@ -21,8 +21,8 @@ func (q *Queries) ArchiveOldTasks(ctx context.Context, datetime interface{}) err
 }
 
 const createMessage = `-- name: CreateMessage :one
-INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, consolidated_context) 
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, consolidated_context, subtasks) 
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(user_email, source_ts) DO NOTHING
 RETURNING id
 `
@@ -48,6 +48,7 @@ type CreateMessageParams struct {
 	Metadata            sql.NullString `json:"metadata"`
 	SourceChannels      sql.NullString `json:"source_channels"`
 	ConsolidatedContext sql.NullString `json:"consolidated_context"`
+	Subtasks            sql.NullString `json:"subtasks"`
 }
 
 func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (int64, error) {
@@ -72,6 +73,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (i
 		arg.Metadata,
 		arg.SourceChannels,
 		arg.ConsolidatedContext,
+		arg.Subtasks,
 	)
 	var id int64
 	err := row.Scan(&id)
@@ -169,7 +171,7 @@ func (q *Queries) GetActiveTasksForContext(ctx context.Context, arg GetActiveTas
 }
 
 const getIncompleteByThreadID = `-- name: GetIncompleteByThreadID :many
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
 FROM v_messages WHERE user_email = ? AND thread_id = ? AND done = 0 AND is_deleted = 0 AND IFNULL(task, '') != ''
 `
 
@@ -204,6 +206,7 @@ type GetIncompleteByThreadIDRow struct {
 	Metadata            string       `json:"metadata"`
 	SourceChannels      string       `json:"source_channels"`
 	ConsolidatedContext string       `json:"consolidated_context"`
+	Subtasks            string       `json:"subtasks"`
 	RequesterCanonical  string       `json:"requester_canonical"`
 	AssigneeCanonical   string       `json:"assignee_canonical"`
 	RequesterType       string       `json:"requester_type"`
@@ -245,6 +248,7 @@ func (q *Queries) GetIncompleteByThreadID(ctx context.Context, arg GetIncomplete
 			&i.Metadata,
 			&i.SourceChannels,
 			&i.ConsolidatedContext,
+			&i.Subtasks,
 			&i.RequesterCanonical,
 			&i.AssigneeCanonical,
 			&i.RequesterType,
@@ -264,7 +268,7 @@ func (q *Queries) GetIncompleteByThreadID(ctx context.Context, arg GetIncomplete
 }
 
 const getMessageByID = `-- name: GetMessageByID :one
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
 FROM v_messages WHERE id = ?
 `
 
@@ -294,6 +298,7 @@ type GetMessageByIDRow struct {
 	Metadata            string       `json:"metadata"`
 	SourceChannels      string       `json:"source_channels"`
 	ConsolidatedContext string       `json:"consolidated_context"`
+	Subtasks            string       `json:"subtasks"`
 	RequesterCanonical  string       `json:"requester_canonical"`
 	AssigneeCanonical   string       `json:"assignee_canonical"`
 	RequesterType       string       `json:"requester_type"`
@@ -329,6 +334,7 @@ func (q *Queries) GetMessageByID(ctx context.Context, id int64) (GetMessageByIDR
 		&i.Metadata,
 		&i.SourceChannels,
 		&i.ConsolidatedContext,
+		&i.Subtasks,
 		&i.RequesterCanonical,
 		&i.AssigneeCanonical,
 		&i.RequesterType,
@@ -338,7 +344,7 @@ func (q *Queries) GetMessageByID(ctx context.Context, id int64) (GetMessageByIDR
 }
 
 const getMessagesByEmail = `-- name: GetMessagesByEmail :many
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
 FROM v_messages WHERE user_email = ?1 AND is_deleted = 0 AND IFNULL(task, '') != '' ORDER BY created_at DESC
 `
 
@@ -368,6 +374,7 @@ type GetMessagesByEmailRow struct {
 	Metadata            string       `json:"metadata"`
 	SourceChannels      string       `json:"source_channels"`
 	ConsolidatedContext string       `json:"consolidated_context"`
+	Subtasks            string       `json:"subtasks"`
 	RequesterCanonical  string       `json:"requester_canonical"`
 	AssigneeCanonical   string       `json:"assignee_canonical"`
 	RequesterType       string       `json:"requester_type"`
@@ -409,6 +416,7 @@ func (q *Queries) GetMessagesByEmail(ctx context.Context, userEmail string) ([]G
 			&i.Metadata,
 			&i.SourceChannels,
 			&i.ConsolidatedContext,
+			&i.Subtasks,
 			&i.RequesterCanonical,
 			&i.AssigneeCanonical,
 			&i.RequesterType,
@@ -428,7 +436,7 @@ func (q *Queries) GetMessagesByEmail(ctx context.Context, userEmail string) ([]G
 }
 
 const getMessagesByIDs = `-- name: GetMessagesByIDs :many
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
 FROM v_messages WHERE id IN (/*SLICE:ids*/?)
 `
 
@@ -458,6 +466,7 @@ type GetMessagesByIDsRow struct {
 	Metadata            string       `json:"metadata"`
 	SourceChannels      string       `json:"source_channels"`
 	ConsolidatedContext string       `json:"consolidated_context"`
+	Subtasks            string       `json:"subtasks"`
 	RequesterCanonical  string       `json:"requester_canonical"`
 	AssigneeCanonical   string       `json:"assignee_canonical"`
 	RequesterType       string       `json:"requester_type"`
@@ -509,6 +518,7 @@ func (q *Queries) GetMessagesByIDs(ctx context.Context, ids []int64) ([]GetMessa
 			&i.Metadata,
 			&i.SourceChannels,
 			&i.ConsolidatedContext,
+			&i.Subtasks,
 			&i.RequesterCanonical,
 			&i.AssigneeCanonical,
 			&i.RequesterType,
@@ -827,6 +837,15 @@ func (q *Queries) MigrateMessagesAddSourceChannels(ctx context.Context) error {
 	return err
 }
 
+const migrateMessagesAddSubtasks = `-- name: MigrateMessagesAddSubtasks :exec
+ALTER TABLE messages ADD COLUMN subtasks TEXT DEFAULT '[]'
+`
+
+func (q *Queries) MigrateMessagesAddSubtasks(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, migrateMessagesAddSubtasks)
+	return err
+}
+
 const migrateMessagesAddThreadID = `-- name: MigrateMessagesAddThreadID :exec
 ALTER TABLE messages ADD COLUMN thread_id TEXT
 `
@@ -846,7 +865,7 @@ func (q *Queries) MigrateMessagesAddUserEmail(ctx context.Context) error {
 }
 
 const refreshCacheActive = `-- name: RefreshCacheActive :many
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
 FROM v_messages 
 WHERE user_email = ?1 AND is_deleted = 0 AND (done = 0 OR (done = 1 AND (completed_at IS NULL OR completed_at > datetime('now', ?2))))
 AND IFNULL(task, '') != ''
@@ -886,6 +905,7 @@ type RefreshCacheActiveRow struct {
 	Metadata            string       `json:"metadata"`
 	SourceChannels      string       `json:"source_channels"`
 	ConsolidatedContext string       `json:"consolidated_context"`
+	Subtasks            string       `json:"subtasks"`
 	RequesterCanonical  string       `json:"requester_canonical"`
 	AssigneeCanonical   string       `json:"assignee_canonical"`
 	RequesterType       string       `json:"requester_type"`
@@ -927,6 +947,7 @@ func (q *Queries) RefreshCacheActive(ctx context.Context, arg RefreshCacheActive
 			&i.Metadata,
 			&i.SourceChannels,
 			&i.ConsolidatedContext,
+			&i.Subtasks,
 			&i.RequesterCanonical,
 			&i.AssigneeCanonical,
 			&i.RequesterType,
@@ -946,7 +967,7 @@ func (q *Queries) RefreshCacheActive(ctx context.Context, arg RefreshCacheActive
 }
 
 const refreshCacheArchive = `-- name: RefreshCacheArchive :many
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
 FROM v_messages 
 WHERE user_email = ?1 AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?2)))
 AND IFNULL(task, '') != ''
@@ -985,6 +1006,7 @@ type RefreshCacheArchiveRow struct {
 	Metadata            string       `json:"metadata"`
 	SourceChannels      string       `json:"source_channels"`
 	ConsolidatedContext string       `json:"consolidated_context"`
+	Subtasks            string       `json:"subtasks"`
 	RequesterCanonical  string       `json:"requester_canonical"`
 	AssigneeCanonical   string       `json:"assignee_canonical"`
 	RequesterType       string       `json:"requester_type"`
@@ -1026,6 +1048,7 @@ func (q *Queries) RefreshCacheArchive(ctx context.Context, arg RefreshCacheArchi
 			&i.Metadata,
 			&i.SourceChannels,
 			&i.ConsolidatedContext,
+			&i.Subtasks,
 			&i.RequesterCanonical,
 			&i.AssigneeCanonical,
 			&i.RequesterType,
@@ -1070,8 +1093,8 @@ func (q *Queries) RestoreMessages(ctx context.Context, arg RestoreMessagesParams
 }
 
 const saveMessagesBase = `-- name: SaveMessagesBase :many
-INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, consolidated_context) 
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, consolidated_context, subtasks) 
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(user_email, source_ts) DO NOTHING
 RETURNING id, source_ts, user_email
 `
@@ -1097,6 +1120,7 @@ type SaveMessagesBaseParams struct {
 	Metadata            sql.NullString `json:"metadata"`
 	SourceChannels      sql.NullString `json:"source_channels"`
 	ConsolidatedContext sql.NullString `json:"consolidated_context"`
+	Subtasks            sql.NullString `json:"subtasks"`
 }
 
 type SaveMessagesBaseRow struct {
@@ -1129,6 +1153,7 @@ func (q *Queries) SaveMessagesBase(ctx context.Context, arg SaveMessagesBasePara
 		arg.Metadata,
 		arg.SourceChannels,
 		arg.ConsolidatedContext,
+		arg.Subtasks,
 	)
 	if err != nil {
 		return nil, err
@@ -1152,7 +1177,7 @@ func (q *Queries) SaveMessagesBase(ctx context.Context, arg SaveMessagesBasePara
 }
 
 const searchArchivedMessages = `-- name: SearchArchivedMessages :many
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
 FROM v_messages 
 WHERE COALESCE(user_email, '') = CAST(?1 AS TEXT) AND (is_deleted = 1 OR category = 'merged' OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', COALESCE(CAST(?2 AS TEXT), '-0 days'))))
 AND (task LIKE '%' || COALESCE(CAST(?3 AS TEXT), '') || '%' OR original_text LIKE '%' || COALESCE(CAST(?3 AS TEXT), '') || '%' OR requester LIKE '%' || COALESCE(CAST(?3 AS TEXT), '') || '%' OR assignee LIKE '%' || COALESCE(CAST(?3 AS TEXT), '') || '%')
@@ -1202,6 +1227,7 @@ type SearchArchivedMessagesRow struct {
 	Metadata            string       `json:"metadata"`
 	SourceChannels      string       `json:"source_channels"`
 	ConsolidatedContext string       `json:"consolidated_context"`
+	Subtasks            string       `json:"subtasks"`
 	RequesterCanonical  string       `json:"requester_canonical"`
 	AssigneeCanonical   string       `json:"assignee_canonical"`
 	RequesterType       string       `json:"requester_type"`
@@ -1250,6 +1276,7 @@ func (q *Queries) SearchArchivedMessages(ctx context.Context, arg SearchArchived
 			&i.Metadata,
 			&i.SourceChannels,
 			&i.ConsolidatedContext,
+			&i.Subtasks,
 			&i.RequesterCanonical,
 			&i.AssigneeCanonical,
 			&i.RequesterType,

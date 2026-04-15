@@ -18,6 +18,8 @@ type ExtractionContext struct {
 	ExistingTasksJSON   string
 	EnrichedMessageJSON string
 	CurrentUser        string //Why: Explicitly identifies the host user to help AI distinguish between requester and assignee.
+	CurrentUserEmail   string //Why: Provides the primary email of the user for strict identity mapping.
+	CurrentUserID      int    //Why: Securely identifies the user for internal DB assignee mapping logic.
 	ParentTask         string //Why: Context for completion/update evaluation threads.
 }
 

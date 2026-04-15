@@ -9,7 +9,9 @@ import (
 )
 
 func TestLogAIInferenceToFile(t *testing.T) {
-	// Setup: Explicitly initialize the logger since init() was removed for fragmentation prevention.
+	// Setup: Override LOG_DIR and explicitly initialize
+	os.Setenv("LOG_DIR", "tmp/logs")
+	defer os.Unsetenv("LOG_DIR")
 	InitAIInferenceLogger()
 
 	// Temporary Log File Path

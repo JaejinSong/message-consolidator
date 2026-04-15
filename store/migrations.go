@@ -53,6 +53,7 @@ func runMigrations(ctx context.Context, q db.DBTX) error {
 	
 
 	_ = queries.MigrateReportsAddIsTruncated(ctx)
+	_ = queries.MigrateReportsAddStatus(ctx)
 	
 	_ = queries.MigrateTaskTranslationsRenameLanguage(ctx)
 	_ = queries.MigrateReportTranslationsRenameLanguage(ctx)

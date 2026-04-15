@@ -37,7 +37,7 @@ func Init(c *config.Config) {
 		}
 		transSvc := services.NewTranslationService(gClient)
 		tasksSvc = services.NewTasksService(transSvc, gClient)
-		completionSvc = services.NewCompletionService(gClient, &services.DefaultTaskStore{}, tasksSvc)
+		completionSvc = services.NewCompletionService(gClient, &services.DefaultTaskStore{}, tasksSvc, store.GetDB())
 		filterSvc = ai.NewGeminiLiteFilter(gClient)
 	}
 }

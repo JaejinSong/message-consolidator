@@ -150,8 +150,8 @@ func setupConnectionPool(dbURL string) {
 
 	conn.SetMaxOpenConns(maxOpen)
 	conn.SetMaxIdleConns(idleConns)
-	conn.SetConnMaxLifetime(10 * time.Minute)
-	conn.SetConnMaxIdleTime(5 * time.Minute)
+	conn.SetConnMaxLifetime(3 * time.Minute)
+	conn.SetConnMaxIdleTime(1 * time.Minute)
 }
 
 func GetDB() *sql.DB {

@@ -75,7 +75,7 @@ type Querier interface {
 	GetMessagesByEmail(ctx context.Context, userEmail string) ([]GetMessagesByEmailRow, error)
 	GetMessagesByIDs(ctx context.Context, ids []int64) ([]GetMessagesByIDsRow, error)
 	GetMessagesForMerge(ctx context.Context, arg GetMessagesForMergeParams) ([]GetMessagesForMergeRow, error)
-	GetMessagesForReport(ctx context.Context, arg GetMessagesForReportParams) ([]GetMessagesForReportRow, error)
+	GetMessagesForReport(ctx context.Context, arg GetMessagesForReportParams) ([]VMessage, error)
 	GetMonthlyFilteredCount(ctx context.Context, arg GetMonthlyFilteredCountParams) (interface{}, error)
 	GetMonthlyTokenUsage(ctx context.Context, arg GetMonthlyTokenUsageParams) (GetMonthlyTokenUsageRow, error)
 	GetPendingMe(ctx context.Context, arg GetPendingMeParams) (int64, error)
@@ -135,6 +135,7 @@ type Querier interface {
 	MigrateMessagesAddRepliedToID(ctx context.Context) error
 	MigrateMessagesAddRoom(ctx context.Context) error
 	MigrateMessagesAddSourceChannels(ctx context.Context) error
+	MigrateMessagesAddSubtasks(ctx context.Context) error
 	MigrateMessagesAddThreadID(ctx context.Context) error
 	MigrateMessagesAddUserEmail(ctx context.Context) error
 	MigrateReportTranslationsAddLanguageCode(ctx context.Context) error

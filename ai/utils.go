@@ -9,104 +9,115 @@ import (
 	"strings"
 )
 
+type flexSubtask struct {
+	Task         string `json:"task"`
+	AssigneeID   *int   `json:"assignee_id"`
+	AssigneeName string `json:"assignee_name"`
+}
+
+type flexItem struct {
+	ID              interface{}     `json:"id"`
+	State           string          `json:"state"`
+	Reasoning       string          `json:"reasoning,omitempty"`
+	Task            string          `json:"task"`
+	Requester       string          `json:"requester"`
+	Assignee        string          `json:"assignee"`
+	AssignedTo      string          `json:"assigned_to,omitempty"`
+	AssignedAt      string          `json:"assigned_at"`
+	SourceTS        string          `json:"source_ts"`
+	Category        string          `json:"category"`
+	Deadline        string          `json:"deadline"`
+	AssigneeReason  string          `json:"assignee_reason,omitempty"`
+	IsContextQuery  bool            `json:"is_context_query"`
+	Constraints     []string        `json:"constraints"`
+	Metadata        json.RawMessage `json:"metadata"`
+	AffinityScore   int             `json:"affinity_score,omitempty"`
+	AffinityGroupID string          `json:"affinity_group_id,omitempty"`
+	Subtasks        []flexSubtask   `json:"subtasks,omitempty"`
+}
+
 func unmarshalAnalyze(cleanJSON, rawJSON string) ([]store.TodoItem, error) {
-	var items []store.TodoItem
-	// Why: [FlexItem] Defines a flat struct to capture all Gemini fields, specifically using interface{} for ID to gracefully handle both string ("1") and number (1) formats common in AI responses.
-	type flexItem struct {
-		ID              interface{}     `json:"id"`
-		State           string          `json:"state"`
-		Reasoning       string          `json:"reasoning,omitempty"` // AI justification for state/merge choice
-		Task            string          `json:"task"`
-		Requester       string          `json:"requester"`
-		Assignee        string          `json:"assignee"`
-		AssignedTo      string          `json:"assigned_to,omitempty"`
-		AssignedAt      string          `json:"assigned_at"`
-		SourceTS        string          `json:"source_ts"`
-		Category        string          `json:"category"`
-		Deadline        string          `json:"deadline"`
-		AssigneeReason  string          `json:"assignee_reason,omitempty"`
-		IsContextQuery  bool            `json:"is_context_query"`
-		Constraints     []string        `json:"constraints"`
-		Metadata        json.RawMessage `json:"metadata"`
-		AffinityScore   int             `json:"affinity_score,omitempty"`
-		AffinityGroupID string          `json:"affinity_group_id,omitempty"`
+	cleanJSON = strings.TrimSpace(cleanJSON)
+	if len(cleanJSON) < 2 {
+		return nil, fmt.Errorf("empty JSON")
 	}
 
+	// 1. Try single object (New Consolidated Format)
+	if strings.HasPrefix(cleanJSON, "{") {
+		var f flexItem
+		if err := json.Unmarshal([]byte(cleanJSON), &f); err == nil && f.Task != "" {
+			return []store.TodoItem{mapFlexToTodo(f)}, nil
+		}
+	}
+
+	// 2. Try array (Legacy/Fallback Format)
 	var flexItems []flexItem
-	if err := json.Unmarshal([]byte(cleanJSON), &flexItems); err == nil {
-		if len(flexItems) == 0 {
-			return nil, nil
+	if err := json.Unmarshal([]byte(cleanJSON), &flexItems); err != nil {
+		// 3. Try wrapped object {"tasks": [...]} or {"items": [...]}
+		var wrapped struct {
+			Tasks []flexItem `json:"tasks"`
+			Items []flexItem `json:"items"`
 		}
+		if err2 := json.Unmarshal([]byte(cleanJSON), &wrapped); err2 == nil {
+			if len(wrapped.Tasks) > 0 {
+				flexItems = wrapped.Tasks
+			} else if len(wrapped.Items) > 0 {
+				flexItems = wrapped.Items
+			}
+		}
+	}
+
+	if len(flexItems) > 0 {
+		var items []store.TodoItem
 		for _, f := range flexItems {
-			// Why: Manually maps the flexible fields to the formal store.TodoItem structure, ensuring ID type consistency.
-			item := store.TodoItem{
-				State: f.State, Reasoning: f.Reasoning, Task: f.Task, Requester: f.Requester,
-				Assignee: f.Assignee, AssignedTo: f.AssignedTo, AssignedAt: f.AssignedAt,
-				SourceTS: f.SourceTS, Category: f.Category, Deadline: f.Deadline,
-				AssigneeReason: f.AssigneeReason, IsContextQuery: f.IsContextQuery,
-				Constraints: f.Constraints, Metadata: f.Metadata, AffinityScore: f.AffinityScore,
-				AffinityGroupID: f.AffinityGroupID,
+			if f.Task != "" || strings.ToLower(f.State) == "none" {
+				items = append(items, mapFlexToTodo(f))
 			}
-			if f.ID != nil {
-				switch v := f.ID.(type) {
-				case float64:
-					id := int(v)
-					item.ID = &id
-				case string:
-					var id int
-					if _, err := fmt.Sscanf(v, "%d", &id); err == nil {
-						item.ID = &id
-					}
-				}
-			}
-			if item.Task != "" || strings.ToLower(item.State) == "none" {
-				items = append(items, item)
-			}
-		}
-		if len(items) > 0 {
-			return items, nil
-		}
-	}
-
-	// Why: [Fallback] Only attempts map unmarshaling if the input is definitely a JSON object, avoiding "array into map" errors.
-	if strings.HasPrefix(strings.TrimSpace(cleanJSON), "{") {
-		var obj map[string]json.RawMessage
-		if err := json.Unmarshal([]byte(cleanJSON), &obj); err == nil {
-			for _, val := range obj {
-				if err := json.Unmarshal(val, &items); err == nil && len(items) > 0 {
-					return items, nil
-				}
-			}
-		}
-	}
-
-	// Why: [Fallback] Handles legacy AI formats where tasks are encapsulated in an 'analysis' nesting structure.
-	var analysisItems []struct {
-		ID             string `json:"id"`
-		Platform       string `json:"platform"`
-		User           string `json:"user"`
-		RequestContent string `json:"request_content"`
-		Analysis       struct {
-			Category   string `json:"category"`
-			Priority   string `json:"priority"`
-			ActionItem string `json:"action_item"`
-			Response   string `json:"response"`
-		} `json:"analysis"`
-	}
-	if err := json.Unmarshal([]byte(cleanJSON), &analysisItems); err == nil && len(analysisItems) > 0 && analysisItems[0].Analysis.ActionItem != "" {
-		for _, ai := range analysisItems {
-			items = append(items, store.TodoItem{
-				SourceTS:  ai.ID,
-				Task:      ai.Analysis.ActionItem,
-				Category:  strings.ToLower(ai.Analysis.Category),
-				Requester: ai.User,
-				Assignee:  "__CURRENT_USER__", // Analysis-style often implies the session user.
-				State:     "new",
-			})
 		}
 		return items, nil
 	}
-	return nil, fmt.Errorf("no items found in JSON or invalid format")
+
+	// Double check if it was explicitly an empty array []
+	if strings.HasPrefix(cleanJSON, "[") && strings.HasSuffix(cleanJSON, "]") {
+		return []store.TodoItem{}, nil
+	}
+
+	return nil, fmt.Errorf("no valid items found in JSON")
+}
+
+func mapFlexToTodo(f flexItem) store.TodoItem {
+	item := store.TodoItem{
+		State: f.State, Reasoning: f.Reasoning, Task: f.Task, Requester: f.Requester,
+		Assignee: f.Assignee, AssignedTo: f.AssignedTo, AssignedAt: f.AssignedAt,
+		SourceTS: f.SourceTS, Category: f.Category, Deadline: f.Deadline,
+		AssigneeReason: f.AssigneeReason, IsContextQuery: f.IsContextQuery,
+		Constraints: f.Constraints, Metadata: f.Metadata, AffinityScore: f.AffinityScore,
+		AffinityGroupID: f.AffinityGroupID,
+	}
+
+	// Subtasks mapping
+	for _, s := range f.Subtasks {
+		item.Subtasks = append(item.Subtasks, store.TodoSubtask{
+			Task: s.Task, AssigneeID: s.AssigneeID, AssigneeName: s.AssigneeName,
+		})
+	}
+
+	if f.ID == nil {
+		return item
+	}
+
+	// ID type normalization
+	switch v := f.ID.(type) {
+	case float64:
+		id := int(v)
+		item.ID = &id
+	case string:
+		var id int
+		if _, err := fmt.Sscanf(v, "%d", &id); err == nil {
+			item.ID = &id
+		}
+	}
+	return item
 }
 
 func unmarshalTranslate(cleanJSON, rawJSON, language string) ([]store.TranslateRequest, error) {

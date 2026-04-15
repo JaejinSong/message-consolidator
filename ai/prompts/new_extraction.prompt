@@ -8,43 +8,29 @@ model: gemini-3-flash-preview
 Extract actionable tasks, operational policies, and context-dependent queries from the message text.
 
 # Core Rules:
-1. **Force JSON Output**: You must respond ONLY in a JSON array: `[{"id": 0, "state": "new|update|resolve|cancel|none", "reasoning": "string", "task": "string", "category": "TASK|POLICY|QUERY|PROMISE", "assignee": "string", "source_ts": "string", "language_code": "en", "context_snippets": ["string"], "affinity_group_id": "string"}]`.
-2. **Intent Description**: Explain the INTENT in the `reasoning` field. The backend will match this to existing tasks using similarity algorithms.
-3. **Topic Consolidation**: If messages discuss related goals, assign them the same `affinity_group_id`.
-4. **Logical Separation**: Extract distinct goals as separate JSON objects.
-5. **Category & Snippets**: Classify the category and provide 1-2 sentence original language snippets for justification.
-6. **ID Rule**: Always set `id: 0`. Hallucinating or matching existing IDs is FORBIDDEN; the Backend handles ID mapping.
-7. **Canonical Language**: All 'task' summaries MUST be written in **English (EN)** only.
+1. **Force JSON Output**: You must respond ONLY in a single JSON object (consolidated): `{"reasoning": "string", "task": "Main Title (EN)", "category": "TASK|POLICY|QUERY|PROMISE", "subtasks": [{"task": "Subtask 1 (EN)", "assignee_id": int|null, "assignee_name": "string"}], "affinity_group_id": "string"}`.
+2. **Identity Mapping**: 
+   - IF a task/subtask is specifically for the recipient ({{.CurrentUserEmail}}), SET `assignee_id` = {{.CurrentUserID}} and `assignee_name` = "me".
+   - ELSE IF it's for someone else, SET `assignee_id` = null and `assignee_name` = "Actual Name". 
+   - ELSE IF it's shared, SET `assignee_id` = null and `assignee_name` = "shared".
+3. **Hierarchy**: Consolidate multiple related requests in the same email into a single parent `task` with multiple `subtasks`. Use the `reasoning` field to explain the consolidation.
+4. **Canonical Language**: All 'task' and 'subtask' summaries MUST be written in **English (EN)** only.
 
 # Extraction Logic (Deterministic):
-1. **IDENTIFY state AND category**:
-   IF sender == "{{.CurrentUser}}" AND indicates_completion_of_existing_task:
-      SET state = "resolve", id = existing_task_id
-   ELSE IF adds_detail_to_existing_task:
-      SET state = "update", id = existing_task_id
-   ELSE:
-      SET state = "new"
-      IF message_content IS (rule, notice, procedure): SET category = "POLICY"
-      ELSE IF message_content IS (question, clarification): SET category = "QUERY"
-      ELSE IF sender_says ("I will", "I'll"): SET category = "PROMISE"
-      ELSE: SET category = "TASK"
+1. **IDENTIFY Category**:
+   - IF (rule, notice, procedure): SET category = "POLICY"
+   - ELSE IF (question, clarification): SET category = "QUERY"
+   - ELSE IF sender_says ("I will", "I'll"): SET category = "PROMISE"
+   - ELSE: SET category = "TASK"
 
-2. **DETERMINE assignee**:
-   IF message_content CONTAINS specific mention (e.g., "Song", "JJ"): SET assignee = "Name"
-   ELSE IF message_content CONTAINS group_mention ("@everyone", "@channel", "@here", "@team"): SET assignee = "shared"
-   ELSE IF category == "PROMISE": SET assignee = sender
-   ELSE: SET assignee = "shared" // Default to shared if recipient is unclear or group-directed.
+2. **DETERMINE Assignee**:
+   - IF recipient ({{.CurrentUserEmail}}) is targeted (direct mention or context): SET `assignee_id` = {{.CurrentUserID}}, `assignee_name` = "me".
+   - ELSE IF group mention ("@everyone", "@team"): SET `assignee_id` = null, `assignee_name` = "shared".
+   - ELSE: SET `assignee_id` = null, `assignee_name` = name_from_text.
 
-# JSON Examples for Edge Cases:
-- Input: "@everyone please sync before EOD."
-- Output JSON: `[{"state": "new", "task": "Sync before End of Day", "category": "TASK", "assignee": "shared", "language_code": "en"}]`
-- Input: "Check the new security policy." (No specific mention)
-- Output JSON: `[{"state": "new", "task": "Check new security policy", "category": "POLICY", "assignee": "shared", "language_code": "en"}]`
-
-3. **FINAL CONSTRAINTS**:
-   - task SUMMARY must be in **English ONLY**.
-   - Prioritize PROMISE over TASK if they overlap.
-   - OUTPUT ONLY JSON. No Markdown.
+# JSON Examples:
+- Input: "@everyone please sync before EOD. @JJ please review the PR."
+- Output JSON: `{"task": "EOD Coordination and PR Review", "category": "TASK", "subtasks": [{"task": "Sync before End of Day", "assignee_id": null, "assignee_name": "shared"}, {"task": "Review the PR", "assignee_id": {{.CurrentUserID}}, "assignee_name": "me"}], "affinity_group_id": "dev-coord"}`
 
 [Examples]
 {{range .FewShots}}
@@ -56,8 +42,9 @@ Output: {{.Expected}}
 [Context]
 Current Time: {{.CurrentTime}}
 User Locale: {{.Locale}}
+CurrentUserEmail: {{.CurrentUserEmail}}
+CurrentUserID: {{.CurrentUserID}}
 Existing Tasks JSON: {{.ExistingTasksJSON}}
-Current User Identity: {{.CurrentUser}}
 
 [Current Input]
 {{.MessagePayload}}

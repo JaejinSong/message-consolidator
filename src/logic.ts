@@ -282,22 +282,23 @@ export function normalizeReportData(data: any): IReportData {
     const rawViz = data.visualization || data.visualization_data;
 
     if (typeof rawViz === 'string' && rawViz.trim()) {
-        try { viz = JSON.parse(rawViz); } catch (e) { /* Fallback used */ }
+        try { viz = JSON.parse(rawViz); } catch (e) { /* Fallback */ }
     } else if (rawViz && typeof rawViz === 'object') {
         viz = rawViz as ParsedVisualization;
     }
+
+    const reportSummary = data.report_summary || data.summary || "";
 
     return {
         id: Number(data.id),
         user_email: data.user_email || "",
         start_date: data.start_date || "",
         end_date: data.end_date || "",
-        report_summary: data.summary || data.report_summary || "",
-        summary: data.summary || data.report_summary || "",
+        report_summary: reportSummary,
         translations: data.translations || {},
         visualization_data: viz,
-        visualization: viz,
         is_truncated: Boolean(data.is_truncated),
+        status: data.status || "completed",
         created_at: data.created_at || ""
     };
 }

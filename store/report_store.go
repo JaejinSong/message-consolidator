@@ -154,7 +154,7 @@ func reportFromRow(id int, email, start, end, viz, status string, isTruncated in
 	return &Report{
 		ID: id, UserEmail: email, StartDate: start, EndDate: end,
 		Visualization: viz, Status: status, IsTruncated: isTruncated != 0,
-		CreatedAt: createdAt, Summary: summary,
+		CreatedAt: createdAt, ReportSummary: summary,
 		Translations: make(map[string]string),
 	}
 }
@@ -228,7 +228,7 @@ func mapReportRowToReport(row db.GetReportByIDRow) *Report {
 	r.EndDate = row.EndDate
 	r.CreatedAt = row.CreatedAt.Time
 	r.IsTruncated = row.IsTruncated.Int64 != 0
-	r.Summary = row.Summary
+	r.ReportSummary = row.Summary
 	r.Visualization = row.Visualization
 	return &r
 }
@@ -240,7 +240,7 @@ func mapReportByDateRowToReport(row db.GetReportByDateRow) *Report {
 	r.EndDate = row.EndDate
 	r.CreatedAt = row.CreatedAt.Time
 	r.IsTruncated = row.IsTruncated.Int64 != 0
-	r.Summary = row.Summary
+	r.ReportSummary = row.Summary
 	r.Visualization = row.Visualization
 	return &r
 }

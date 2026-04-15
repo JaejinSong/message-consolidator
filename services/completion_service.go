@@ -18,9 +18,9 @@ type AICompleter interface {
 type TaskStore interface {
 	GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error)
 	GetActiveContextTasks(ctx context.Context, q store.Querier, email, source, room string) ([]store.ConsolidatedMessage, error)
-	MarkMessageDone(ctx context.Context, tx *sql.Tx, email string, id int, done bool) error
-	UpdateMessageCategory(ctx context.Context, tx *sql.Tx, email string, id int, category string) error
-	HandleTaskState(ctx context.Context, tx *sql.Tx, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error)
+	MarkMessageDone(ctx context.Context, q store.Querier, email string, id int, done bool) error
+	UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id int, category string) error
+	HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error)
 	UpdateTaskText(ctx context.Context, q store.Querier, email string, id int, task string) error
 	GetMessageByID(ctx context.Context, q store.Querier, email string, id int) (store.ConsolidatedMessage, error)
 }
@@ -35,16 +35,16 @@ func (d *DefaultTaskStore) GetActiveContextTasks(ctx context.Context, q store.Qu
 	return store.GetActiveContextTasks(ctx, q, email, source, room)
 }
 
-func (d *DefaultTaskStore) MarkMessageDone(ctx context.Context, tx *sql.Tx, email string, id int, done bool) error {
-	return store.MarkMessageDone(ctx, tx, email, id, done)
+func (d *DefaultTaskStore) MarkMessageDone(ctx context.Context, q store.Querier, email string, id int, done bool) error {
+	return store.MarkMessageDone(ctx, q, email, id, done)
 }
 
-func (d *DefaultTaskStore) UpdateMessageCategory(ctx context.Context, tx *sql.Tx, email string, id int, category string) error {
-	return store.UpdateMessageCategory(ctx, tx, email, id, category)
+func (d *DefaultTaskStore) UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id int, category string) error {
+	return store.UpdateMessageCategory(ctx, q, email, id, category)
 }
 
-func (d *DefaultTaskStore) HandleTaskState(ctx context.Context, tx *sql.Tx, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
-	return store.HandleTaskState(ctx, tx, email, item, msg)
+func (d *DefaultTaskStore) HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
+	return store.HandleTaskState(ctx, q, email, item, msg)
 }
 
 func (d *DefaultTaskStore) UpdateTaskText(ctx context.Context, q store.Querier, email string, id int, task string) error {
@@ -59,10 +59,11 @@ type CompletionService struct {
 	gemini   AICompleter
 	store    TaskStore
 	tasksSvc *TasksService
+	db       *sql.DB
 }
 
-func NewCompletionService(gemini AICompleter, taskStore TaskStore, tasksSvc *TasksService) *CompletionService {
-	return &CompletionService{gemini: gemini, store: taskStore, tasksSvc: tasksSvc}
+func NewCompletionService(gemini AICompleter, taskStore TaskStore, tasksSvc *TasksService, db *sql.DB) *CompletionService {
+	return &CompletionService{gemini: gemini, store: taskStore, tasksSvc: tasksSvc, db: db}
 }
 
 // ProcessPotentialCompletion checks if a message (reply) completes/updates tasks in the same thread.
@@ -74,7 +75,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 	if targetID == "" { targetID = msg.RepliedToID }
 
 	// Why: Fetches thread-specific pending tasks to provide parent context for AI evaluation.
-	tasks, _ := s.store.GetIncompleteByThreadID(ctx, store.GetDB(), msg.UserEmail, targetID)
+	tasks, _ := s.store.GetIncompleteByThreadID(ctx, s.db, msg.UserEmail, targetID)
 	// Safety Check: If no incomplete tasks found, fallback instead of panicking on index 0.
 	if len(tasks) == 0 {
 		s.fallbackToNewExtraction(ctx, msg)
@@ -95,11 +96,13 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 func (s *CompletionService) handleCompletionResult(ctx context.Context, status, updatedText string, msg, parent store.ConsolidatedMessage) {
 	switch status {
 	case "RESOLVE":
-		_ = s.store.MarkMessageDone(ctx, nil, msg.UserEmail, parent.ID, true)
+		// Why: Pass s.db (*sql.DB) as a store.Querier. The store will handle internal transaction or direct execution.
+		_ = s.store.MarkMessageDone(ctx, s.db, msg.UserEmail, parent.ID, true)
 		logger.Infof("[COMPLETION] Task %d RESOLVED by reply %s", parent.ID, msg.SourceTS)
 	case "UPDATE":
 		if updatedText != "" {
-			_ = s.store.UpdateTaskText(ctx, store.GetDB(), msg.UserEmail, parent.ID, updatedText)
+			// Why: Consistently uses s.db for all store interactions to prevent global variable panics.
+			_ = s.store.UpdateTaskText(ctx, s.db, msg.UserEmail, parent.ID, updatedText)
 			logger.Infof("[COMPLETION] Task %d UPDATED by reply %s", parent.ID, msg.SourceTS)
 		}
 	case "NEW":
@@ -118,11 +121,21 @@ func (s *CompletionService) fallbackToNewExtraction(ctx context.Context, msg sto
 	items, err := s.gemini.Analyze(ctx, msg.UserEmail, enriched, "Korean", msg.Source, msg.Room)
 	if err != nil || len(items) == 0 { return }
 
-	_ = store.RunInTx(ctx, func(tx *sql.Tx) error {
+	_ = s.runInTx(ctx, func(tx *sql.Tx) error {
 		for _, item := range items {
 			_, _ = s.store.HandleTaskState(ctx, tx, msg.UserEmail, item, msg)
 		}
 		return nil
 	})
+}
+
+func (s *CompletionService) runInTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil { return err }
+	if err := fn(tx); err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit()
 }
 

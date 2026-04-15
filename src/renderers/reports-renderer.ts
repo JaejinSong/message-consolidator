@@ -332,6 +332,8 @@ export const reportsRenderer = {
                 statusTag = `<span class="c-insights-report-item__status c-insights-report-item__status--processing">⌛ ${i18n.generating || '생성 중...'}</span>`;
             } else if (item.status === 'failed') {
                 statusTag = `<span class="c-insights-report-item__status c-insights-report-item__status--failed">⚠️ ${i18n.error || '실패'}</span>`;
+            } else if (item.status === 'completed') {
+                statusTag = `<span class="c-insights-report-item__status c-insights-report-item__status--completed">✅</span>`;
             }
 
             btn.innerHTML = `
@@ -340,16 +342,17 @@ export const reportsRenderer = {
                         <span class="c-insights-report-item__date">${item.start_date} ~ ${item.end_date}</span>
                         <div class="c-insights-report-item__title">
                             ${statusTag}
-                            ${item.title || (i18n.weeklyReportTitle || 'Weekly Report')}
+                            ${item.title || (i18n.weeklyReportTitle || '업무 요약 리포트')}
                         </div>
                     </div>
                 </div>
-                <button class="c-insights-report-item__delete" data-id="${item.id}" title="${i18n.delete || 'Delete'}">
+                <button class="c-insights-report-item__delete" data-id="${item.id}" title="${i18n.delete || '삭제'}">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                 </button>
             `;
             btn.onclick = (e) => {
-                if ((e.target as HTMLElement).closest('.c-insights-report-item__delete')) return;
+                const target = e.target as HTMLElement;
+                if (target.closest('.c-insights-report-item__delete')) return;
                 container.querySelectorAll('.c-insights-report-item').forEach(el => el.classList.remove('c-insights-report-item--active'));
                 btn.classList.add('c-insights-report-item--active');
                 onSelect(item);
@@ -363,7 +366,7 @@ export const reportsRenderer = {
         const netChartArea = document.getElementById('reportNetworkChart');
         const sankeyChartArea = document.getElementById('reportSankeyChart');
 
-        // Field mapping: support translations first, then 'summary', then legacy 'report_summary'
+        // Robust Field mapping: translations > summary > report_summary
         const summaryText = report.translations?.[lang] || report.summary || report.report_summary || "";
 
         if (summaryArea) summaryArea.innerHTML = parseMarkdown(summaryText);

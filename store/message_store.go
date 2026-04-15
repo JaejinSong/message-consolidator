@@ -143,11 +143,6 @@ func executeBulkInsert(ctx context.Context, msgs []ConsolidatedMessage) (map[str
 
 // scanBulkIDs is deprecated after refactoring to transaction-based CreateMessage loop.
 
-func insertMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (int, error) {
-	id, err := db.New(q).CreateMessage(ctx, toCreateMessageParams(msg))
-	return int(id), err
-}
-
 func GetMessages(ctx context.Context, email string) ([]ConsolidatedMessage, error) {
 	if err := EnsureCacheInitialized(ctx, email); err != nil {
 		return nil, err
@@ -506,14 +501,6 @@ func UpdateMessageIdentity(ctx context.Context, q Querier, email, room string, i
 	return err
 }
 
-func UpdateMessageRequester(ctx context.Context, q Querier, email, room string, id int, requester string) error {
-	return UpdateMessageIdentity(ctx, q, email, room, id, requester, "") // Requires a proper sqlc query for single field if needed
-}
-
-func UpdateMessageAssignee(ctx context.Context, q Querier, email, room string, id int, assignee string) error {
-	return UpdateMessageIdentity(ctx, q, email, room, id, "", assignee) // Same as above
-}
-
 func UpdateTaskSourceChannels(ctx context.Context, q Querier, email string, id int, channels []string) error {
 	channelsJSON, _ := json.Marshal(channels)
 	err := db.New(q).UpdateTaskSourceChannels(ctx, db.UpdateTaskSourceChannelsParams{
@@ -556,15 +543,6 @@ func HardDeleteMessages(ctx context.Context, q Querier, email string, ids []int)
 	}
 	InvalidateCache(email)
 	return nil
-}
-
-func prepareIDArgs(email string, ids []int) []interface{} {
-	args := make([]interface{}, len(ids)+1)
-	args[0] = email
-	for i, id := range ids {
-		args[i+1] = int(id)
-	}
-	return args
 }
 
 func RestoreMessages(ctx context.Context, q Querier, email string, ids []int) error {
@@ -656,21 +634,6 @@ func searchCache(email string, id int) (ConsolidatedMessage, bool) {
 	return ConsolidatedMessage{}, false
 }
 
-func fetchMissingFromDB(ctx context.Context, q db.DBTX, email string, missing []int) ([]ConsolidatedMessage, error) {
-	queries := db.New(q)
-	// Why: sqlc now supports sqlc.slice('ids') for IN queries.
-	rows, err := queries.GetMessagesByIDs(ctx, toInt64List(missing))
-	if err != nil {
-		return nil, err
-	}
-
-	msgs := make([]ConsolidatedMessage, len(rows))
-	for i, row := range rows {
-		msgs[i] = toConsolidatedFromByIDs(row)
-	}
-	return msgs, nil
-}
-
 func GetIncompleteByThreadID(ctx context.Context, q Querier, email, threadID string) ([]ConsolidatedMessage, error) {
 	if threadID == "" {
 		return []ConsolidatedMessage{}, nil
@@ -739,23 +702,20 @@ func toCreateMessageParams(msg ConsolidatedMessage) db.CreateMessageParams {
 		Metadata:            sql.NullString{String: string(msg.Metadata), Valid: true},
 		SourceChannels:      sql.NullString{String: string(channelsJSON), Valid: true},
 		ConsolidatedContext: sql.NullString{String: string(contextJSON), Valid: true},
+		Subtasks:            sql.NullString{String: encodeSubtasks(msg.Subtasks), Valid: true},
 	}
 
 	return params
 }
 
-func toConsolidatedMessage(row db.VMessage) ConsolidatedMessage {
-	return mapVMessageToConsolidated(
-		int(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
-		row.Requester, row.Assignee, row.Link, row.SourceTs,
-		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
-		row.Category, row.Deadline, row.ThreadID,
-		row.RequesterCanonical, row.AssigneeCanonical, row.AssigneeReason,
-		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
-		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
-		row.RequesterType, row.AssigneeType, row.AssignedAt, row.CompletedAt,
-	)
+func encodeSubtasks(subtasks []Subtask) string {
+	if len(subtasks) == 0 {
+		return "[]"
+	}
+	data, _ := json.Marshal(subtasks)
+	return string(data)
 }
+
 
 func toConsolidatedFromByID(row db.GetMessageByIDRow) ConsolidatedMessage {
 	return mapVMessageToConsolidated(
@@ -766,7 +726,8 @@ func toConsolidatedFromByID(row db.GetMessageByIDRow) ConsolidatedMessage {
 		row.RequesterCanonical, row.AssigneeCanonical, row.AssigneeReason,
 		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
-		row.RequesterType, row.AssigneeType, row.AssignedAt, row.CompletedAt,
+		row.RequesterType, row.AssigneeType, "", "", row.Subtasks,
+		row.AssignedAt, row.CompletedAt,
 	)
 }
 
@@ -779,7 +740,8 @@ func toConsolidatedFromByIDs(row db.GetMessagesByIDsRow) ConsolidatedMessage {
 		row.RequesterCanonical, row.AssigneeCanonical, row.AssigneeReason,
 		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
-		row.RequesterType, row.AssigneeType, row.AssignedAt, row.CompletedAt,
+		row.RequesterType, row.AssigneeType, "", "", row.Subtasks,
+		row.AssignedAt, row.CompletedAt,
 	)
 }
 
@@ -792,8 +754,19 @@ func toConsolidatedFromIncomplete(row db.GetIncompleteByThreadIDRow) Consolidate
 		row.RequesterCanonical, row.AssigneeCanonical, row.AssigneeReason,
 		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
-		row.RequesterType, row.AssigneeType, row.AssignedAt, row.CompletedAt,
+		row.RequesterType, row.AssigneeType, "", "", "[]",
+		row.AssignedAt, row.CompletedAt,
 	)
+}
+
+func unmarshalMessageComponents(constraintsStr, channelsStr, contextStr, subtasksStr string) ([]string, []string, []string, []Subtask) {
+	var constraints, channels, context []string
+	var subtasks []Subtask
+	_ = json.Unmarshal([]byte(constraintsStr), &constraints)
+	_ = json.Unmarshal([]byte(channelsStr), &channels)
+	_ = json.Unmarshal([]byte(contextStr), &context)
+	_ = json.Unmarshal([]byte(subtasksStr), &subtasks)
+	return constraints, channels, context, subtasks
 }
 
 func mapVMessageToConsolidated(
@@ -801,42 +774,20 @@ func mapVMessageToConsolidated(
 	originalText string, done, isDeleted bool, createdAt sql.NullTime,
 	category, deadline, threadID, reqCanonical, asgCanonical, asgReason,
 	repliedToID string, isContextQuery int, constraintsStr, contextStr,
-	metadataStr, channelsStr, reqType, asgType string,
+	metadataStr, channelsStr, reqType, asgType, reqDisp, asgDisp, subtasksStr string,
 	assignedAt, completedAt sql.NullTime,
 ) ConsolidatedMessage {
-	var constraints, channels, context []string
-	_ = json.Unmarshal([]byte(constraintsStr), &constraints)
-	_ = json.Unmarshal([]byte(channelsStr), &channels)
-	_ = json.Unmarshal([]byte(contextStr), &context)
+	constraints, channels, context, subtasks := unmarshalMessageComponents(constraintsStr, channelsStr, contextStr, subtasksStr)
 
 	msg := ConsolidatedMessage{
-		ID:                  id,
-		UserEmail:           userEmail,
-		Source:              source,
-		Room:                room,
-		Task:                task,
-		Requester:           requester,
-		Assignee:            assignee,
-		Link:                link,
-		SourceTS:            sourceTs,
-		OriginalText:        originalText,
-		Done:                done,
-		IsDeleted:           isDeleted,
-		CreatedAt:           createdAt.Time,
-		Category:            category,
-		Deadline:            deadline,
-		ThreadID:            threadID,
-		RequesterCanonical:  reqCanonical,
-		AssigneeCanonical:   asgCanonical,
-		AssigneeReason:      asgReason,
-		RepliedToID:         repliedToID,
-		IsContextQuery:      isContextQuery > 0,
-		Constraints:         constraints,
-		ConsolidatedContext: context,
-		Metadata:            json.RawMessage(metadataStr),
-		SourceChannels:      channels,
-		RequesterType:       reqType,
-		AssigneeType:        asgType,
+		ID: id, UserEmail: userEmail, Source: source, Room: room, Task: task,
+		Requester: requester, Assignee: assignee, Link: link, SourceTS: sourceTs,
+		OriginalText: originalText, Done: done, IsDeleted: isDeleted, CreatedAt: createdAt.Time,
+		Category: category, Deadline: deadline, ThreadID: threadID,
+		RequesterCanonical: reqCanonical, AssigneeCanonical: asgCanonical, AssigneeReason: asgReason,
+		RepliedToID: repliedToID, IsContextQuery: isContextQuery > 0, Constraints: constraints,
+		ConsolidatedContext: context, Metadata: json.RawMessage(metadataStr),
+		SourceChannels: channels, RequesterType: reqType, AssigneeType: asgType, Subtasks: subtasks,
 	}
 
 	if assignedAt.Valid {
@@ -845,53 +796,6 @@ func mapVMessageToConsolidated(
 	if completedAt.Valid {
 		msg.CompletedAt = &completedAt.Time
 	}
-
-	return msg
-}
-
-func toConsolidatedMessageLegacy(row db.VMessage) ConsolidatedMessage {
-	var constraints, channels, context []string
-	_ = json.Unmarshal([]byte(row.Constraints), &constraints)
-	_ = json.Unmarshal([]byte(row.SourceChannels), &channels)
-	_ = json.Unmarshal([]byte(row.ConsolidatedContext), &context)
-
-	msg := ConsolidatedMessage{
-		ID:                  int(row.ID),
-		UserEmail:           row.UserEmail,
-		Source:              row.Source,
-		Room:                row.Room,
-		Task:                row.Task,
-		Requester:           row.Requester,
-		Assignee:            row.Assignee,
-		Link:                row.Link,
-		SourceTS:            row.SourceTs,
-		OriginalText:        row.OriginalText,
-		Done:                row.Done,
-		IsDeleted:           row.IsDeleted,
-		CreatedAt:           row.CreatedAt.Time,
-		Category:            row.Category,
-		Deadline:            row.Deadline,
-		ThreadID:            row.ThreadID,
-		RequesterCanonical:  row.RequesterCanonical,
-		AssigneeCanonical:   row.AssigneeCanonical,
-		AssigneeReason:      row.AssigneeReason,
-		RepliedToID:         row.RepliedToID,
-		IsContextQuery:      row.IsContextQuery > 0,
-		Constraints:         constraints,
-		ConsolidatedContext: context,
-		Metadata:            json.RawMessage(row.Metadata),
-		SourceChannels:      channels,
-		RequesterType:       row.RequesterType,
-		AssigneeType:        row.AssigneeType,
-	}
-
-	if row.AssignedAt.Valid {
-		msg.AssignedAt = row.AssignedAt.Time
-	}
-	if row.CompletedAt.Valid {
-		msg.CompletedAt = &row.CompletedAt.Time
-	}
-
 	return msg
 }
 
@@ -906,6 +810,7 @@ func toConsolidatedFromContext(row db.GetActiveTasksForContextRow) ConsolidatedM
 		Room:       row.Room,
 		Done:         row.Done,
 		Category:     row.Category,
+		Subtasks:     []Subtask{},
 	}
 
 	if row.AssignedAt.Valid {
