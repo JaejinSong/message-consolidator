@@ -156,12 +156,14 @@ func setupConnectionPool(dbURL string) {
 }
 
 // LogSQLError provides unified logging for database errors with query context.
+// Why: [Observability] Centralizes error reporting and ensures consistent context (query & args) in logs.
 func LogSQLError(query string, err error, args ...interface{}) error {
 	if err == nil {
 		return nil
 	}
-	logger.Errorf("[DB-ERROR] Query: %s | Args: %v | Error: %v", query, args, err)
-	return err
+	// Why: Detailed logging including query and arguments to accelerate remote debugging of SQL failures.
+	logger.Errorf("[DB-ERROR] SQL_FAILED | Query: %s | Args: %v | Err: %v", query, args, err)
+	return fmt.Errorf("database error in %s: %w", query, err)
 }
 
 func GetDB() *sql.DB {

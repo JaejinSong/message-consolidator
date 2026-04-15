@@ -133,7 +133,7 @@ func executeBulkInsert(ctx context.Context, msgs []ConsolidatedMessage) (map[str
 	conn := GetDB()
 	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, err
+		return nil, LogSQLError("BeginTx (BulkInsert)", err)
 	}
 	defer tx.Rollback()
 
@@ -143,7 +143,7 @@ func executeBulkInsert(ctx context.Context, msgs []ConsolidatedMessage) (map[str
 	for _, msg := range msgs {
 		id, err := queries.CreateMessage(ctx, toCreateMessageParams(msg))
 		if err != nil {
-			return nil, err
+			return nil, LogSQLError("CreateMessage (BulkInsert)", err, msg.UserEmail, msg.SourceTS)
 		}
 		if res[msg.UserEmail] == nil {
 			res[msg.UserEmail] = make(map[string]int)
@@ -152,7 +152,7 @@ func executeBulkInsert(ctx context.Context, msgs []ConsolidatedMessage) (map[str
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, err
+		return nil, LogSQLError("Commit (BulkInsert)", err)
 	}
 	return res, nil
 }
@@ -592,12 +592,17 @@ func GetMessageByID(ctx context.Context, q Querier, email string, id int) (Conso
 }
 
 func findMessageInCache(email string, id int) (ConsolidatedMessage, bool) {
+	if email == "" { return ConsolidatedMessage{}, false }
 	cacheMu.RLock()
 	defer cacheMu.RUnlock()
-	for _, m := range messageCache[email] {
+	
+	userCache := messageCache[email]
+	for _, m := range userCache {
 		if m.ID == id { return m, true }
 	}
-	for _, m := range archiveCache[email] {
+	
+	userArchive := archiveCache[email]
+	for _, m := range userArchive {
 		if m.ID == id { return m, true }
 	}
 	return ConsolidatedMessage{}, false
