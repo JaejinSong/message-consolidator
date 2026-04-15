@@ -331,14 +331,20 @@ export const api = {
         return apiFetch('/reports/history', { errorMessage: 'Fetch report history failed' });
     },
 
-    async generateReport(startDate: string, endDate: string): Promise<IReportData> {
+    async generateReport(startDate: string, endDate: string, channelId?: string, status?: string): Promise<IReportData> {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 120000);
 
         try {
             return await apiFetch('/reports', {
                 method: 'POST',
-                params: { start: startDate, end: endDate },
+                params: { 
+                    start: startDate, 
+                    end: endDate, 
+                    lang: state.currentLang || 'en',
+                    channelId: channelId || '',
+                    status: status || ''
+                },
                 signal: controller.signal,
                 errorMessage: 'Generate report failed'
             });

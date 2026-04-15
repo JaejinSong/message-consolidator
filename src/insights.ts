@@ -177,6 +177,10 @@ export const insights = {
             generateBtn.addEventListener('click', () => this.generateNewReport());
         }
 
+        // Filter UI bindings
+        document.getElementById('reportChannelFilter')?.addEventListener('change', () => this.refreshFilterIndicators());
+        document.getElementById('reportStatusFilter')?.addEventListener('change', () => this.refreshFilterIndicators());
+
         const reportList = document.getElementById('reportList');
         if (reportList) {
             reportList.addEventListener('click', async (e) => {
@@ -207,6 +211,9 @@ export const insights = {
     async generateNewReport() {
         const start = (document.getElementById('reportStartDate') as HTMLInputElement)?.value;
         const end = (document.getElementById('reportEndDate') as HTMLInputElement)?.value;
+        const channelId = (document.getElementById('reportChannelFilter') as HTMLSelectElement)?.value;
+        const status = (document.getElementById('reportStatusFilter') as HTMLSelectElement)?.value;
+
         const btn = document.getElementById('btnGenerateReport') as HTMLButtonElement;
         const reportContent = document.getElementById('reportSummaryContent');
         const i18n = I18N_DATA[state.currentLang || 'en'];
@@ -217,7 +224,7 @@ export const insights = {
             if (btn) btn.disabled = true;
             if (reportContent) insightsRenderer.renderLoading(reportContent, i18n, 'report');
             
-            const result = await api.generateReport(start, end);
+            const result = await api.generateReport(start, end, channelId, status);
             const report = normalizeReportData(result);
             
             if (report.status === 'processing') {
@@ -231,6 +238,21 @@ export const insights = {
             alert(`Generation failed: ${e.message}`);
         } finally {
             if (btn) btn.disabled = false;
+        }
+    },
+
+    refreshFilterIndicators() {
+        // Visual feedback when filters are active
+        const channel = (document.getElementById('reportChannelFilter') as HTMLSelectElement)?.value;
+        const status = (document.getElementById('reportStatusFilter') as HTMLSelectElement)?.value;
+        const generateBtn = document.getElementById('btnGenerateReport');
+        
+        if (generateBtn) {
+            if (channel || status) {
+                generateBtn.classList.add('c-btn--pulse');
+            } else {
+                generateBtn.classList.remove('c-btn--pulse');
+            }
         }
     },
 

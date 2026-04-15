@@ -254,6 +254,15 @@ export const I18N_DATA: Record<string, any> = {
         retryLanguageSelection: "다시 한 번 언어를 선택해 주세요",
         reportTimeout: "생성 시간이 오래 걸리고 있습니다. 잠시 후 리스트를 새로고침 해주세요.",
         reportFailed: "리포트 생성 중 오류가 발생했습니다.",
+        filterLabels: {
+            channel: "채널 선택",
+            status: "상태 선택",
+            all: "전체"
+        },
+        filterStatus: {
+            new: "신규 (New)",
+            resolve: "해결됨 (Resolved)"
+        }
     },
     en: {
         subTitle: "Automated Slack & WhatsApp Task Dashboard",
@@ -510,6 +519,15 @@ export const I18N_DATA: Record<string, any> = {
         retryLanguageSelection: "Please try selecting the language again",
         reportTimeout: "Generation is taking longer than expected. Please check back later.",
         reportFailed: "Report generation failed.",
+        filterLabels: {
+            channel: "Select Channel",
+            status: "Select Status",
+            all: "All"
+        },
+        filterStatus: {
+            new: "New",
+            resolve: "Resolved"
+        }
     },
     id: {
         subTitle: "Dasbor Tugas Slack & WhatsApp Otomatis",

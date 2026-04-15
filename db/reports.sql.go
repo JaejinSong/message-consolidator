@@ -42,6 +42,8 @@ SELECT
 FROM v_messages m
 WHERE m.user_email = ? 
   AND (m.created_at >= ? OR m.assigned_at >= ?)
+  AND (?4 IS NULL OR m.source = ?4)
+  AND (?5 IS NULL OR m.done = ?5)
 ORDER BY m.created_at DESC
 `
 
@@ -49,10 +51,18 @@ type GetMessagesForReportParams struct {
 	UserEmail  string       `json:"user_email"`
 	CreatedAt  sql.NullTime `json:"created_at"`
 	AssignedAt sql.NullTime `json:"assigned_at"`
+	Source     interface{}  `json:"source"`
+	Done       interface{}  `json:"done"`
 }
 
 func (q *Queries) GetMessagesForReport(ctx context.Context, arg GetMessagesForReportParams) ([]VMessage, error) {
-	rows, err := q.db.QueryContext(ctx, getMessagesForReport, arg.UserEmail, arg.CreatedAt, arg.AssignedAt)
+	rows, err := q.db.QueryContext(ctx, getMessagesForReport,
+		arg.UserEmail,
+		arg.CreatedAt,
+		arg.AssignedAt,
+		arg.Source,
+		arg.Done,
+	)
 	if err != nil {
 		return nil, err
 	}

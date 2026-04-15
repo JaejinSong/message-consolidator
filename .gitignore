@@ -51,3 +51,4 @@ test_file.txt
 /ai/testdata/prompt_cache/*.txt
 test_out.txt
 test_timing.txt
+notepad

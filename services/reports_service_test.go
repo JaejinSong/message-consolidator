@@ -506,7 +506,7 @@ func TestReportsService_GenerateReport_MultiLanguage(t *testing.T) {
 	}
 
 	// Since we can't easily mock the internal GeminiClient.TranslateReport call without a real object,
-	report, err := svc.GenerateReport(context.Background(), tenantEmail, startDate, endDate, "en")
+	report, err := svc.GenerateReport(context.Background(), tenantEmail, startDate, endDate, "en", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateReport failed: %v", err)
 	}
@@ -568,7 +568,7 @@ func TestReportsService_CacheHit(t *testing.T) {
 
 	// 1. First Call: Should hit AI
 	ctx := context.Background()
-	_, err = svc.GenerateReport(ctx, email, start, end, "ko")
+	_, err = svc.GenerateReport(ctx, email, start, end, "ko", nil, nil)
 	if err != nil {
 		t.Fatalf("First call failed: %v", err)
 	}
@@ -577,7 +577,7 @@ func TestReportsService_CacheHit(t *testing.T) {
 	}
 
 	// 2. Second Call: Should hit Cache (DB)
-	_, err = svc.GenerateReport(ctx, email, start, end, "ko")
+	_, err = svc.GenerateReport(ctx, email, start, end, "ko", nil, nil)
 	if err != nil {
 		t.Fatalf("Second call failed: %v", err)
 	}
@@ -615,7 +615,7 @@ func TestReportsService_GenerateReport_OnlyRequestedLanguage(t *testing.T) {
 		email, "slack", "Task 1", fixedTime, "alice", "jj")
 
 	ctx := context.Background()
-	report, err := svc.GenerateReport(ctx, email, start, start, "ko")
+	report, err := svc.GenerateReport(ctx, email, start, start, "ko", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateReport failed: %v", err)
 	}

@@ -60,20 +60,23 @@ func NewReportsService(summarizer ReportSummarizer, geminiClient *ai.GeminiClien
 }
 
 // Why: Orchestrates the generation of an AI-powered work report.
-func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, lang string) (*store.Report, error) {
+func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, lang string, source *string, done *bool) (*store.Report, error) {
 	// 1. Check for processing or existing
-	if existing, _ := store.GetReportByDate(ctx, email, start); existing != nil {
-		if existing.Status == "processing" || existing.Status == "completed" {
-			// Populate translations for completed reports to satisfy cache checks
-			if existing.Status == "completed" {
-				existing.Translations, _ = store.GetReportTranslations(ctx, existing.ID)
+	// Note: We ignore cache for filtered reports as the date-based cache in GetReportByDate
+	// currently doesn't account for source/status filters.
+	if source == nil && done == nil {
+		if existing, _ := store.GetReportByDate(ctx, email, start); existing != nil {
+			if existing.Status == "processing" || existing.Status == "completed" {
+				if existing.Status == "completed" {
+					existing.Translations, _ = store.GetReportTranslations(ctx, existing.ID)
+				}
+				return existing, nil
 			}
-			return existing, nil
 		}
 	}
 
 	// 2. Fetch and sanitize
-	filtered, err := s.fetchAndFilterMessages(ctx, email, start, end)
+	filtered, err := s.fetchAndFilterMessages(ctx, email, start, end, source, done)
 	if err != nil {
 		return nil, err
 	}
@@ -105,9 +108,9 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, 
 	return report, nil
 }
 
-func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, startDate, endDate string) ([]Log, error) {
+func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, startDate, endDate string, source *string, done *bool) ([]Log, error) {
 	start, _ := time.Parse("2006-01-02", startDate)
-	messages, err := store.GetMessagesForReport(ctx, email, start)
+	messages, err := store.GetMessagesForReport(ctx, email, start, source, done)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +122,7 @@ func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, star
 		}
 	}
 	if len(filtered) == 0 {
-		return nil, fmt.Errorf("no messages found for %s ~ %s", startDate, endDate)
+		return nil, fmt.Errorf("no messages found for %s ~ %s (source: %v, done: %v)", startDate, endDate, source, done)
 	}
 	return filtered, nil
 }

@@ -252,19 +252,46 @@ func DeleteReport(ctx context.Context, id int, email string) error {
 	})
 }
 
-// GetMessagesForReport fetches all active messages for a user within a specified date range.
-func GetMessagesForReport(ctx context.Context, email string, since time.Time) ([]ConsolidatedMessage, error) {
-	sinceStr := since.Format("2006-01-02 15:04:05")
-	query := "SELECT * FROM v_messages WHERE user_email = ? AND (created_at >= ? OR assigned_at >= ?) AND (is_deleted = 0 OR is_deleted IS NULL) ORDER BY created_at ASC"
-	conn := GetDB()
-	rows, err := conn.QueryContext(ctx, query, email, sinceStr, sinceStr)
-	if err != nil {
-		return nil, err
+// GetMessagesForReport fetches active messages for a user with optional source and status filters.
+func GetMessagesForReport(ctx context.Context, email string, since time.Time, source *string, done *bool) ([]ConsolidatedMessage, error) {
+	arg := db.GetMessagesForReportParams{
+		UserEmail:  email,
+		CreatedAt:  sql.NullTime{Time: since, Valid: true},
+		AssignedAt: sql.NullTime{Time: since, Valid: true},
 	}
-	defer rows.Close()
+	if source != nil {
+		arg.Source = *source
+	}
+	if done != nil {
+		arg.Done = *done
+	}
 
-	return scanMessages(rows)
+	rows, err := db.New(GetDB()).GetMessagesForReport(ctx, arg)
+	if err != nil {
+		return nil, LogSQLError("GetMessagesForReportFiltered", err, email, since)
+	}
+
+	msgs := make([]ConsolidatedMessage, len(rows))
+	for i, row := range rows {
+		msgs[i] = toConsolidatedFromByMessages(row)
+	}
+	return msgs, nil
 }
+
+func toConsolidatedFromByMessages(row db.VMessage) ConsolidatedMessage {
+	return mapVMessageToConsolidated(
+		int(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
+		row.Requester, row.Assignee, row.Link, row.SourceTs,
+		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
+		row.Category, row.Deadline, row.ThreadID,
+		row.RequesterCanonical, row.AssigneeCanonical, row.AssigneeReason,
+		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
+		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
+		row.RequesterType, row.AssigneeType, "", "", row.Subtasks,
+		row.AssignedAt, row.CompletedAt,
+	)
+}
+
 
 func scanMessages(rows *sql.Rows) ([]ConsolidatedMessage, error) {
 	var msgs []ConsolidatedMessage

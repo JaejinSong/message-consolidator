@@ -35,28 +35,53 @@ func (a *API) HandleGetReportHistory(w http.ResponseWriter, r *http.Request) {
 
 // HandleGenerateReport triggers the generation of a new report for a specific period.
 func (a *API) HandleGenerateReport(w http.ResponseWriter, r *http.Request) {
-	email, start := auth.GetUserEmail(r), r.URL.Query().Get("start")
-	end, lang := r.URL.Query().Get("end"), r.URL.Query().Get("lang")
+	email := auth.GetUserEmail(r)
+	start, end, lang, source, done, err := a.parseGenerateReportParams(r)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
-	if _, err := time.Parse("2006-01-02", start); err != nil {
-		respondError(w, http.StatusBadRequest, "Invalid start date")
-		return
-	}
-	if lang == "" {
-		respondError(w, http.StatusBadRequest, "Missing lang parameter")
-		return
-	}
 	if a.Reports == nil {
 		respondError(w, http.StatusServiceUnavailable, "Reports service unavailable")
 		return
 	}
 
-	report, err := a.Reports.GenerateReport(r.Context(), email, start, end, lang)
+	report, err := a.Reports.GenerateReport(r.Context(), email, start, end, lang, source, done)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
+	a.respondWithReportStatus(w, report)
+}
+
+func (a *API) parseGenerateReportParams(r *http.Request) (string, string, string, *string, *bool, error) {
+	q := r.URL.Query()
+	start, end, lang := q.Get("start"), q.Get("end"), q.Get("lang")
+
+	if _, err := time.Parse("2006-01-02", start); err != nil {
+		return "", "", "", nil, nil, httpError("Invalid start date")
+	}
+	if lang == "" {
+		return "", "", "", nil, nil, httpError("Missing lang parameter")
+	}
+
+	var sourcePtr *string
+	if s := q.Get("channelId"); s != "" {
+		sourcePtr = &s
+	}
+
+	var donePtr *bool
+	if status := q.Get("status"); status != "" {
+		val := status == "resolve"
+		donePtr = &val
+	}
+
+	return start, end, lang, sourcePtr, donePtr, nil
+}
+
+func (a *API) respondWithReportStatus(w http.ResponseWriter, report *store.Report) {
 	status := http.StatusAccepted
 	if report.Status == "completed" {
 		status = http.StatusOK
@@ -117,6 +142,11 @@ func (a *API) HandleTranslateReport(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "Missing lang parameter")
 		return
 	}
+
+	a.processReportTranslation(w, r, id, lang)
+}
+
+func (a *API) processReportTranslation(w http.ResponseWriter, r *http.Request, id int, lang string) {
 	if a.Reports == nil {
 		respondError(w, http.StatusServiceUnavailable, "Reports service unavailable")
 		return
@@ -137,6 +167,18 @@ func (a *API) HandleTranslateReport(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) parseReportID(r *http.Request) (int, error) {
 	vars := mux.Vars(r)
-	id64, err := strconv.ParseInt(vars["id"], 10, 64)
-	return int(id64), err
+	idStr := vars["id"]
+	if idStr == "" {
+		return 0, httpError("Missing ID")
+	}
+	id64, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return int(id64), nil
 }
+
+type httpErr string
+
+func (e httpErr) Error() string { return string(e) }
+func httpError(s string) error  { return httpErr(s) }

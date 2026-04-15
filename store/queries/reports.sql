@@ -29,7 +29,10 @@ SELECT
 FROM v_messages m
 WHERE m.user_email = ? 
   AND (m.created_at >= ? OR m.assigned_at >= ?)
+  AND (sqlc.narg('source') IS NULL OR m.source = sqlc.narg('source'))
+  AND (sqlc.narg('done') IS NULL OR m.done = sqlc.narg('done'))
 ORDER BY m.created_at DESC;
+
 
 -- name: DeleteOldReports :exec
 DELETE FROM reports WHERE created_at < datetime('now', '-30 days');

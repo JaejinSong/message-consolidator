@@ -14,7 +14,18 @@ const DEFAULT_LANG = 'en';
  */
 export function t(key: string, lang: string = DEFAULT_LANG): string {
     const locale = lang && I18N_DATA[lang] ? lang : DEFAULT_LANG;
-    return I18N_DATA[locale]?.[key] ?? I18N_DATA[DEFAULT_LANG]?.[key] ?? key;
+    const data = I18N_DATA[locale] ?? I18N_DATA[DEFAULT_LANG];
+    
+    // Support nested path (e.g. "filterLabels.channel")
+    const val = key.split('.').reduce((obj, k) => obj?.[k], data);
+    
+    if (val != null) return val;
+    
+    // Fallback if not found in target lang, try default lang
+    const fallbackData = I18N_DATA[DEFAULT_LANG];
+    const fallbackVal = key.split('.').reduce((obj, k) => obj?.[k], fallbackData);
+    
+    return fallbackVal ?? key;
 }
 
 /**

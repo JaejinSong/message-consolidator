@@ -275,7 +275,18 @@
                                     <p class="u-text-dim" data-i18n="weeklyReportDesc">지정한 기간의 업무 요약 및 관계망 분석</p>
                                 </div>
                                 <div class="c-report-controls">
-                                    <div class="u-flex u-flex-gap-sm">
+                                    <div class="u-flex u-flex-gap-sm u-flex-wrap">
+                                        <select id="reportChannelFilter" class="c-input u-w-auto">
+                                            <option value="" data-i18n="filterLabels.channel">Select Channel</option>
+                                            <option value="slack">Slack</option>
+                                            <option value="whatsapp">WhatsApp</option>
+                                            <option value="gmail">Gmail</option>
+                                        </select>
+                                        <select id="reportStatusFilter" class="c-input u-w-auto">
+                                            <option value="" data-i18n="filterLabels.status">Select Status</option>
+                                            <option value="new" data-i18n="filterStatus.new">New</option>
+                                            <option value="resolve" data-i18n="filterStatus.resolve">Resolved</option>
+                                        </select>
                                         <input type="date" id="reportStartDate" class="c-input u-w-auto">
                                         <span class="u-text-dim u-align-self-center">~</span>
                                         <input type="date" id="reportEndDate" class="c-input u-w-auto">
