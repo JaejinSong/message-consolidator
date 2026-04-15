@@ -247,3 +247,8 @@ UPDATE messages SET category = 'todo' WHERE category = 'promise';
 
 -- name: IsMessageProcessed :one
 SELECT EXISTS(SELECT 1 FROM messages WHERE user_email = ?1 AND source_ts = ?2);
+
+-- name: UpdateProcessed :exec
+INSERT INTO messages (user_email, source_ts, source, room, category, task, original_text)
+VALUES (?1, ?2, 'system', 'General', 'processed', 'Handled by completion pipeline', 'Handled by completion pipeline')
+ON CONFLICT(user_email, source_ts) DO NOTHING;

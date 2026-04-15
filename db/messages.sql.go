@@ -1390,6 +1390,22 @@ func (q *Queries) UpdateMessageIdentity(ctx context.Context, arg UpdateMessageId
 	return err
 }
 
+const updateProcessed = `-- name: UpdateProcessed :exec
+INSERT INTO messages (user_email, source_ts, source, room, category, task, original_text)
+VALUES (?1, ?2, 'system', 'General', 'processed', 'Handled by completion pipeline', 'Handled by completion pipeline')
+ON CONFLICT(user_email, source_ts) DO NOTHING
+`
+
+type UpdateProcessedParams struct {
+	UserEmail sql.NullString `json:"user_email"`
+	SourceTs  sql.NullString `json:"source_ts"`
+}
+
+func (q *Queries) UpdateProcessed(ctx context.Context, arg UpdateProcessedParams) error {
+	_, err := q.db.ExecContext(ctx, updateProcessed, arg.UserEmail, arg.SourceTs)
+	return err
+}
+
 const updateTaskAssignee = `-- name: UpdateTaskAssignee :exec
 UPDATE messages SET assignee = ? WHERE id = ? AND user_email = ?
 `

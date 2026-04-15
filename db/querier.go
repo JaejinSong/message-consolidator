@@ -160,6 +160,7 @@ type Querier interface {
 	UpdateContactType(ctx context.Context, arg UpdateContactTypeParams) error
 	UpdateMessageCategory(ctx context.Context, arg UpdateMessageCategoryParams) error
 	UpdateMessageIdentity(ctx context.Context, arg UpdateMessageIdentityParams) error
+	UpdateProcessed(ctx context.Context, arg UpdateProcessedParams) error
 	UpdateReportStatus(ctx context.Context, arg UpdateReportStatusParams) error
 	UpdateTaskAssignee(ctx context.Context, arg UpdateTaskAssigneeParams) error
 	UpdateTaskDescriptionAppend(ctx context.Context, arg UpdateTaskDescriptionAppendParams) error

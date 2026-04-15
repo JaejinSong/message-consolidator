@@ -652,6 +652,45 @@ func (s *TasksService) MapSubtasks(todoSubtasks []store.TodoSubtask) []store.Sub
 	return subtasks
 }
 
+// DeduplicateTasks removes duplicate tasks based on normalized title and assignee.
+// Why: [Deduplication] Prevents the same task from being extracted multiple times from similar message variations.
+func (s *TasksService) DeduplicateTasks(items []store.TodoItem) []store.TodoItem {
+	unique := make(map[string]*store.TodoItem)
+	var result []store.TodoItem
+
+	for i := range items {
+		key := fmt.Sprintf("%s|%s", normalizeKey(items[i].Task), normalizeKey(items[i].Assignee))
+		if existing, ok := unique[key]; ok {
+			existing.Subtasks = s.mergeSubtasks(existing.Subtasks, items[i].Subtasks)
+			existing.ContextSnippets = append(existing.ContextSnippets, items[i].ContextSnippets...)
+			continue
+		}
+		unique[key] = &items[i]
+		result = append(result, items[i])
+	}
+	return result
+}
+
+// mergeSubtasks combines two subtask arrays using a title-based map for O(N) deduplication.
+func (s *TasksService) mergeSubtasks(a, b []store.TodoSubtask) []store.TodoSubtask {
+	res := a
+	seen := make(map[string]bool)
+	for _, st := range a {
+		seen[normalizeKey(st.Task)] = true
+	}
+	for _, st := range b {
+		if !seen[normalizeKey(st.Task)] {
+			res = append(res, st)
+			seen[normalizeKey(st.Task)] = true
+		}
+	}
+	return res
+}
+
+func normalizeKey(s string) string {
+	return strings.ToLower(strings.ReplaceAll(s, " ", ""))
+}
+
 func (s *TasksService) findMatch(room string, item store.TodoItem, active []store.ConsolidatedMessage) *store.ConsolidatedMessage {
 	for i := range active {
 		m := &active[i]

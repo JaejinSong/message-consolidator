@@ -3,8 +3,8 @@ package services
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"message-consolidator/ai"
-	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
 )
@@ -67,49 +67,43 @@ func NewCompletionService(gemini AICompleter, taskStore TaskStore, tasksSvc *Tas
 }
 
 // ProcessPotentialCompletion checks if a message (reply) completes/updates tasks in the same thread.
-func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg store.ConsolidatedMessage) {
+// Why: [Early Return] Returns true if the message was handled as a task completion/update, signaling the scanner to skip extraction.
+func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg store.ConsolidatedMessage) (bool, error) {
 	if msg.ThreadID == "" && msg.RepliedToID == "" {
-		return
+		return false, nil
 	}
 	targetID := msg.ThreadID
 	if targetID == "" { targetID = msg.RepliedToID }
 
-	// Why: Fetches thread-specific pending tasks to provide parent context for AI evaluation.
 	tasks, _ := s.store.GetIncompleteByThreadID(ctx, s.db, msg.UserEmail, targetID)
-	// Safety Check: If no incomplete tasks found, fallback instead of panicking on index 0.
 	if len(tasks) == 0 {
 		s.fallbackToNewExtraction(ctx, msg)
-		return
+		return false, nil // While extracted as NEW, it wasn't a transition.
 	}
 
-	// Why: [Thread-Aware Intelligence] Evaluates transition against the most relevant parent task.
 	parent := tasks[0]
 	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, parent.Task, msg.OriginalText)
 	if err != nil {
-		logger.Errorf("[COMPLETION] AI transition analysis failed: %v", err)
-		return
+		return false, fmt.Errorf("transition analysis failed: %w", err)
 	}
 
-	s.handleCompletionResult(ctx, res.Status, res.UpdatedText, msg, parent)
+	return s.handleCompletionResult(ctx, res.Status, res.UpdatedText, msg, parent), nil
 }
 
-func (s *CompletionService) handleCompletionResult(ctx context.Context, status, updatedText string, msg, parent store.ConsolidatedMessage) {
+func (s *CompletionService) handleCompletionResult(ctx context.Context, status, updatedText string, msg, parent store.ConsolidatedMessage) bool {
 	switch status {
 	case "RESOLVE":
-		// Why: Pass s.db (*sql.DB) as a store.Querier. The store will handle internal transaction or direct execution.
 		_ = s.store.MarkMessageDone(ctx, s.db, msg.UserEmail, parent.ID, true)
-		logger.Infof("[COMPLETION] Task %d RESOLVED by reply %s", parent.ID, msg.SourceTS)
+		return true
 	case "UPDATE":
 		if updatedText != "" {
-			// Why: Consistently uses s.db for all store interactions to prevent global variable panics.
 			_ = s.store.UpdateTaskText(ctx, s.db, msg.UserEmail, parent.ID, updatedText)
-			logger.Infof("[COMPLETION] Task %d UPDATED by reply %s", parent.ID, msg.SourceTS)
+			return true
 		}
 	case "NEW":
 		s.fallbackToNewExtraction(ctx, msg)
-	default:
-		logger.Debugf("[COMPLETION] No state transition for reply %s", msg.SourceTS)
 	}
+	return false
 }
 
 func (s *CompletionService) fallbackToNewExtraction(ctx context.Context, msg store.ConsolidatedMessage) {

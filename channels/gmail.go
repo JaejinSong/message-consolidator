@@ -88,7 +88,7 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 	return svc, nil
 }
 
-func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage)) []int {
+func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage) bool) []int {
 	svc, err := GetGmailService(ctx, email)
 	if err != nil {
 		logger.Debugf("[SCAN-GMAIL] Skipping %s: %v", email, err)
@@ -386,7 +386,7 @@ func isAssigneeMe(assignee, email, userName, fallback string, aliases []string) 
 	return false
 }
 
-func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage)) []int {
+func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage) bool) []int {
 	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 	if err != nil {
 		logger.Errorf("[SCAN-GMAIL] Failed to init Gemini client: %v", err)
@@ -411,13 +411,13 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 }
 
 // processBatch handles the analysis and persistence of a single batch of emails.
-func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage)) []int {
-	filteredMsgs := filterGmailBatch(ctx, email, batchMsgs, filterSvc)
+func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage) bool) []int {
+	filteredMsgs := filterGmailBatch(ctx, email, batchMsgs, filterSvc, classificationMap, onThreadActivity)
 	if len(filteredMsgs) == 0 {
 		return nil
 	}
 
-	payload, msgMap := buildGmailBatchPayload(email, filteredMsgs, classificationMap, onThreadActivity)
+	payload, msgMap := buildGmailBatchPayload(email, filteredMsgs, classificationMap)
 	items, err := executeGmailAnalysisWithRetry(ctx, gc, email, payload, language, "Inbox")
 	if err != nil {
 		logger.Errorf("[SCAN-GMAIL] Batch Analyze Error for %s: %v", email, err)
@@ -438,15 +438,23 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.Gemini
 }
 
 // filterGmailBatch checks each message for processed status or AI-detected noise.
-func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessage, filterSvc *ai.GeminiLiteFilter) []types.RawMessage {
+func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessage, filterSvc *ai.GeminiLiteFilter, classificationMap map[string]string, onThreadActivity func(store.ConsolidatedMessage) bool) []types.RawMessage {
 	var result []types.RawMessage
 	for _, m := range batch {
 		if processed, err := store.IsProcessed(ctx, store.GetDB(), email, m.ID); err == nil && processed {
 			continue
 		}
-		// Why: [Noise Filtering] Uses Flash-Lite model to skip informational/promotional noise before extraction.
+		// Why: [Early Return] Checks thread activity first. If handled as a completion/update, skips standard extraction.
+		if onThreadActivity != nil && (classificationMap[m.ID] == CategorySent || classificationMap[m.ID] == CategoryMine || classificationMap[m.ID] == CategoryOthers) {
+			if handled := onThreadActivity(store.ConsolidatedMessage{
+				UserEmail: email, Source: "gmail", ThreadID: m.ThreadID,
+				OriginalText: m.Text, SourceTS: m.ID,
+			}); handled {
+				_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.ID)
+				continue
+			}
+		}
 		if isNoise, err := filterSvc.IsNoise(ctx, email, m.Text); err == nil && isNoise {
-			logger.Debugf("[SCAN-GMAIL] Skipping noise/marketing message: %s", m.ID)
 			continue
 		}
 		result = append(result, m)
@@ -455,24 +463,13 @@ func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessag
 }
 
 // Why: Separates the payload construction and side-effects (onThreadActivity callback) from the main AI analysis loop.
-func buildGmailBatchPayload(email string, batchMsgs []types.RawMessage, classificationMap map[string]string, onThreadActivity func(store.ConsolidatedMessage)) (string, map[string]types.RawMessage) {
+func buildGmailBatchPayload(email string, batchMsgs []types.RawMessage, classificationMap map[string]string) (string, map[string]types.RawMessage) {
 	var sb strings.Builder
 	msgMap := make(map[string]types.RawMessage)
 	for _, m := range batchMsgs {
 		msgMap[m.ID] = m
 		metaStr := buildGmailMetadataString(m)
 		sb.WriteString(fmt.Sprintf("[ID:%s]%s F: %s\n%s\n---\n", m.ID, metaStr, m.Sender, m.Text))
-
-		//Why: Analyzes thread activity (both sent and received) to determine if a previously identified task can be marked as completed or transitioned.
-		if onThreadActivity != nil && (classificationMap[m.ID] == CategorySent || classificationMap[m.ID] == CategoryMine || classificationMap[m.ID] == CategoryOthers) {
-			onThreadActivity(store.ConsolidatedMessage{
-				UserEmail:    email,
-				Source:       "gmail",
-				ThreadID:     m.ThreadID,
-				OriginalText: m.Text,
-				SourceTS:     m.ID,
-			})
-		}
 	}
 	return sb.String(), msgMap
 }

@@ -183,10 +183,12 @@ func scanUserChannels(ctx context.Context, email string, effAl []string, wg *syn
 }
 
 func performGmailScan(ctx context.Context, email string, wg *sync.WaitGroup) error {
-	onThreadActivity := func(msg store.ConsolidatedMessage) {
+	onThreadActivity := func(msg store.ConsolidatedMessage) bool {
 		if completionSvc != nil {
-			completionSvc.ProcessPotentialCompletion(context.Background(), msg)
+			handled, _ := completionSvc.ProcessPotentialCompletion(context.Background(), msg)
+			return handled
 		}
+		return false
 	}
 	ids := channels.ScanGmail(ctx, email, "Korean", cfg, onThreadActivity)
 	triggerAsyncTranslation(ctx, email, ids, wg)

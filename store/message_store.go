@@ -62,6 +62,22 @@ func IsProcessed(ctx context.Context, q Querier, email, sourceTS string) (bool, 
 	return count > 0, nil
 }
 
+// MarkAsProcessed manually registers a SourceTS as processed to prevent redundant AI extraction.
+// Why: [Early Return] Allows the scanner to skip standard extraction for messages handled via the completion pipeline.
+func MarkAsProcessed(ctx context.Context, q Querier, email, sourceTS string) error {
+	cacheMu.Lock()
+	if _, ok := knownTS[email]; !ok {
+		knownTS[email] = make(map[string]bool)
+	}
+	knownTS[email][sourceTS] = true
+	cacheMu.Unlock()
+
+	return db.New(q).UpdateProcessed(ctx, db.UpdateProcessedParams{
+		UserEmail: sql.NullString{String: email, Valid: true},
+		SourceTs:  sql.NullString{String: sourceTS, Valid: true},
+	})
+}
+
 // SaveMessages performs a bulk insert of multiple messages.
 // Why: Refactored to satisfy 30-line limit by delegating bulk preparation, DB execution, and multi-user cache updates.
 func SaveMessages(ctx context.Context, msgs []ConsolidatedMessage) ([]int, error) {
