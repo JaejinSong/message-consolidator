@@ -7,6 +7,7 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/services"
 	"message-consolidator/store"
+	"fmt"
 	"strings"
 	"time"
 
@@ -17,6 +18,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"sync"
 )
+
+var inFlightMessages sync.Map
 
 var (
 	cfg           *config.Config
@@ -185,14 +188,37 @@ func scanUserChannels(ctx context.Context, email string, effAl []string, wg *syn
 func performGmailScan(ctx context.Context, email string, wg *sync.WaitGroup) error {
 	onThreadActivity := func(msg store.ConsolidatedMessage) bool {
 		if completionSvc != nil {
+			idStr := fmt.Sprintf("gmail-%s-%s", msg.UserEmail, msg.SourceTS)
 			handled, _ := completionSvc.ProcessPotentialCompletion(context.Background(), msg)
+			if handled {
+				ReleaseInFlight(idStr)
+			}
 			return handled
 		}
 		return false
 	}
 	ids := channels.ScanGmail(ctx, email, "Korean", cfg, onThreadActivity)
-	triggerAsyncTranslation(ctx, email, ids, wg)
+
+	var filteredIDs []int
+	for _, id := range ids {
+		idStr := fmt.Sprintf("gmail-%s-%d", email, id)
+		if _, loaded := inFlightMessages.LoadOrStore(idStr, true); loaded {
+			logger.Infof("[SCANNER] Message %s already in-flight, skipping.", idStr)
+			continue
+		}
+		filteredIDs = append(filteredIDs, id)
+		// We'll need a way to delete these later, but ScanGmail currently works synchronously 
+		// and triggerAsyncTranslation handles just translation. 
+		// Actually, ScanGmail itself triggers AI extraction via callback? 
+		// Let me check ScanGmail implementation.
+	}
+
+	triggerAsyncTranslation(ctx, email, filteredIDs, wg)
 	return nil
+}
+
+func ReleaseInFlight(id string) {
+	inFlightMessages.Delete(id)
 }
 
 

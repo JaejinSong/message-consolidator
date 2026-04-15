@@ -607,7 +607,7 @@ func (g *GeminiClient) parseAnalyzeResults(resp *genai.GenerateContentResponse) 
 		return nil, nil
 	}
 
-	return filtered, nil
+	return store.DeduplicateTasks(filtered), nil
 }
 
 func (g *GeminiClient) callGenericAPI(ctx context.Context, modelName, prompt string) (string, error) {

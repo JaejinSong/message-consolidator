@@ -8,6 +8,7 @@ import (
 	"message-consolidator/db"
 	"strings"
 	"time"
+	"github.com/hbollon/go-edlib"
 )
 
 // SaveMessage persists a single message and updates the local cache.
@@ -20,6 +21,10 @@ func SaveMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool,
 
 	msg.Requester = NormalizeName(msg.UserEmail, msg.Requester)
 	msg.Assignee = NormalizeName(msg.UserEmail, msg.Assignee)
+
+	if isSemanticDup(ctx, q, msg) {
+		return false, 0, nil
+	}
 
 	lastID, err := db.New(q).CreateMessage(ctx, toCreateMessageParams(msg))
 	if err != nil {
@@ -141,6 +146,9 @@ func executeBulkInsert(ctx context.Context, msgs []ConsolidatedMessage) (map[str
 	res := make(map[string]map[string]int)
 
 	for _, msg := range msgs {
+		if isSemanticDup(ctx, tx, msg) {
+			continue
+		}
 		id, err := queries.CreateMessage(ctx, toCreateMessageParams(msg))
 		if err != nil {
 			return nil, LogSQLError("CreateMessage (BulkInsert)", err, msg.UserEmail, msg.SourceTS)
@@ -237,21 +245,53 @@ func UpdateTaskDescriptionAppend(ctx context.Context, q Querier, email, room str
 	})
 }
 
-// UpdateTaskFullAppend appends new content to both task and original_text.
-// Why: [Context Isolation] Requires user_email and room to ensure updates apply only to the correct context.
-func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id int, date, newTask, newOriginalText string) error {
-	err := db.New(q).UpdateTaskFullAppend(ctx, db.UpdateTaskFullAppendParams{
-		Task:         sql.NullString{String: date, Valid: true},
-		Task_2:       sql.NullString{String: newTask, Valid: true},
-		OriginalText: sql.NullString{String: newOriginalText, Valid: true},
-		ID:           int64(id),
-		UserEmail:    sql.NullString{String: email, Valid: true},
-		Room:         sql.NullString{String: room, Valid: true},
-	})
-	if err == nil {
-		InvalidateCache(email)
+func isSemanticDup(ctx context.Context, q Querier, msg ConsolidatedMessage) bool {
+	existing, err := GetActiveContextTasks(ctx, q, msg.UserEmail, msg.Source, msg.Room)
+	if err != nil || len(existing) == 0 {
+		return false
 	}
-	return err
+
+	for _, e := range existing {
+		if CalculateSimilarity(msg.Task, e.Task) >= 0.85 {
+			return true
+		}
+	}
+	return false
+}
+
+// DeduplicateTasks removes semantic duplicates from a list of TodoItems.
+func DeduplicateTasks(items []TodoItem) []TodoItem {
+	if len(items) <= 1 {
+		return items
+	}
+	var results []TodoItem
+	seen := make(map[int]bool)
+	for i := 0; i < len(items); i++ {
+		if seen[i] { continue }
+		bestIdx := findBestMatch(i, items, seen)
+		results = append(results, items[bestIdx])
+	}
+	return results
+}
+
+func findBestMatch(currIdx int, items []TodoItem, seen map[int]bool) int {
+	bestIdx := currIdx
+	seen[currIdx] = true
+	for j := currIdx + 1; j < len(items); j++ {
+		if seen[j] { continue }
+		if CalculateSimilarity(items[bestIdx].Task, items[j].Task) >= 0.85 {
+			seen[j] = true
+			if len(items[j].Task) > len(items[bestIdx].Task) {
+				bestIdx = j
+			}
+		}
+	}
+	return bestIdx
+}
+
+func CalculateSimilarity(s1, s2 string) float64 {
+	res, _ := edlib.StringsSimilarity(s1, s2, edlib.JaroWinkler)
+	return float64(res)
 }
 
 // MergeTasks consolidates multiple tasks into one.
@@ -501,8 +541,22 @@ func UpdateTaskAssigneesBatch(ctx context.Context, email string, updates map[int
 	return err
 }
 
+func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id int, date, newTask, newOriginalText string) error {
+	err := db.New(q).UpdateTaskFullAppend(ctx, db.UpdateTaskFullAppendParams{
+		Task:         sql.NullString{String: date, Valid: true},
+		Task_2:       sql.NullString{String: newTask, Valid: true},
+		OriginalText: sql.NullString{String: newOriginalText, Valid: true},
+		ID:           int64(id),
+		UserEmail:    sql.NullString{String: email, Valid: true},
+		Room:         sql.NullString{String: room, Valid: true},
+	})
+	if err == nil {
+		InvalidateCache(email)
+	}
+	return err
+}
+
 // UpdateMessageIdentity updates both requester and assignee for a task.
-// Why: [Security] Uses composite key (ID, UserEmail, Room) to prevent cross-account/room modifications. Supports transactions.
 func UpdateMessageIdentity(ctx context.Context, q Querier, email, room string, id int, requester, assignee string) error {
 	err := db.New(q).UpdateMessageIdentity(ctx, db.UpdateMessageIdentityParams{
 		Requester: sql.NullString{String: requester, Valid: true},
