@@ -9,12 +9,14 @@ model: gemini-pro-latest
 
 # Rules
 1. Formatting: Use strict Markdown with exactly the following headers:
-   - ## [Executive Summary]
+   - ## [Operations & Strategy Overview]
    - ## [Key Insights]
+   - ## [Stalled Tasks]
    - ## [Visualization Data]
-2. Executive Summary: Provide a concise, high-level overview of the current status, achievements, and critical blockers.
-3. Key Insights: Deep dive into 3-5 strategic observations. Focus on trends, risks, and cross-team dependencies.
-4. Visualization Data: This section MUST contain exactly one ```json block containing a "GraphData" object.
+2. Operations & Strategy Overview: Provide a fused 3-4 sentence strategic narrative (Bird's-eye view). Identify and summarize critical "Choice and Concentration" conflicts, such as resource bottlenecks between regional expansion and system stability.
+3. Key Insights: Organize and summarize the performance of active tasks. Focus on execution progress, commitments met, and key milestones achieved during the reporting period.
+4. Stalled Tasks: Extract ONLY tasks with status 'Stalled' or 'Neglected'. Create a markdown table with columns: Channel, Requester, Status, Days Delayed, Root Cause/Description.
+5. Visualization Data: This section MUST contain exactly one ```json block containing a "GraphData" object.
    - The JSON must follow this schema:
      {
        "nodes": [{"id": "ID", "name": "Display Name", "value": 1.0, "category": "Type"}],
