@@ -26,23 +26,6 @@ func (q *Queries) DeleteContactMapping(ctx context.Context, arg DeleteContactMap
 	return err
 }
 
-const flattenChildren = `-- name: FlattenChildren :exec
-UPDATE contacts
-SET master_contact_id = ?
-WHERE tenant_email = ? AND master_contact_id = ?
-`
-
-type FlattenChildrenParams struct {
-	MasterContactID   sql.NullInt64 `json:"master_contact_id"`
-	TenantEmail       string        `json:"tenant_email"`
-	MasterContactID_2 sql.NullInt64 `json:"master_contact_id_2"`
-}
-
-func (q *Queries) FlattenChildren(ctx context.Context, arg FlattenChildrenParams) error {
-	_, err := q.db.ExecContext(ctx, flattenChildren, arg.MasterContactID, arg.TenantEmail, arg.MasterContactID_2)
-	return err
-}
-
 const getAliasesByValues = `-- name: GetAliasesByValues :many
 SELECT identifier_value, contact_id FROM contact_aliases WHERE identifier_value IN (/*SLICE:values*/?)
 `
@@ -354,25 +337,6 @@ func (q *Queries) LoadContactsAll(ctx context.Context) ([]LoadContactsAllRow, er
 	return items, nil
 }
 
-const migrateContactsAddContactType = `-- name: MigrateContactsAddContactType :exec
-ALTER TABLE contacts ADD COLUMN contact_type TEXT DEFAULT 'none'
-`
-
-func (q *Queries) MigrateContactsAddContactType(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateContactsAddContactType)
-	return err
-}
-
-const migrateLegacyAliases = `-- name: MigrateLegacyAliases :exec
-INSERT OR IGNORE INTO contact_aliases (contact_id, identifier_type, identifier_value, source, trust_level)
-SELECT id, 'legacy', canonical_id, source, 100 FROM contacts
-`
-
-func (q *Queries) MigrateLegacyAliases(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateLegacyAliases)
-	return err
-}
-
 const searchContacts = `-- name: SearchContacts :many
 SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type
 FROM contacts
@@ -429,52 +393,34 @@ func (q *Queries) SearchContacts(ctx context.Context, arg SearchContactsParams) 
 	return items, nil
 }
 
-const unlinkContact = `-- name: UnlinkContact :exec
+const updateContactDetails = `-- name: UpdateContactDetails :exec
 UPDATE contacts
-SET master_contact_id = NULL
-WHERE tenant_email = ? AND id = ?
+SET
+    display_name = COALESCE(?3, display_name),
+    source = COALESCE(?4, source),
+    master_contact_id = ?5,
+    contact_type = COALESCE(?6, contact_type)
+WHERE tenant_email = ?1 AND id = ?2
 `
 
-type UnlinkContactParams struct {
-	TenantEmail string `json:"tenant_email"`
-	ID          int64  `json:"id"`
+type UpdateContactDetailsParams struct {
+	TenantEmail     string         `json:"tenant_email"`
+	ID              int64          `json:"id"`
+	DisplayName     sql.NullString `json:"display_name"`
+	Source          sql.NullString `json:"source"`
+	MasterContactID sql.NullInt64  `json:"master_contact_id"`
+	ContactType     sql.NullString `json:"contact_type"`
 }
 
-func (q *Queries) UnlinkContact(ctx context.Context, arg UnlinkContactParams) error {
-	_, err := q.db.ExecContext(ctx, unlinkContact, arg.TenantEmail, arg.ID)
-	return err
-}
-
-const updateContactLink = `-- name: UpdateContactLink :exec
-UPDATE contacts
-SET master_contact_id = ?
-WHERE tenant_email = ? AND id = ?
-`
-
-type UpdateContactLinkParams struct {
-	MasterContactID sql.NullInt64 `json:"master_contact_id"`
-	TenantEmail     string        `json:"tenant_email"`
-	ID              int64         `json:"id"`
-}
-
-func (q *Queries) UpdateContactLink(ctx context.Context, arg UpdateContactLinkParams) error {
-	_, err := q.db.ExecContext(ctx, updateContactLink, arg.MasterContactID, arg.TenantEmail, arg.ID)
-	return err
-}
-
-const updateContactType = `-- name: UpdateContactType :exec
-UPDATE contacts
-SET contact_type = ?
-WHERE id = ?
-`
-
-type UpdateContactTypeParams struct {
-	ContactType sql.NullString `json:"contact_type"`
-	ID          int64          `json:"id"`
-}
-
-func (q *Queries) UpdateContactType(ctx context.Context, arg UpdateContactTypeParams) error {
-	_, err := q.db.ExecContext(ctx, updateContactType, arg.ContactType, arg.ID)
+func (q *Queries) UpdateContactDetails(ctx context.Context, arg UpdateContactDetailsParams) error {
+	_, err := q.db.ExecContext(ctx, updateContactDetails,
+		arg.TenantEmail,
+		arg.ID,
+		arg.DisplayName,
+		arg.Source,
+		arg.MasterContactID,
+		arg.ContactType,
+	)
 	return err
 }
 
@@ -496,34 +442,6 @@ type UpsertContactMappingParams struct {
 
 func (q *Queries) UpsertContactMapping(ctx context.Context, arg UpsertContactMappingParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, upsertContactMapping,
-		arg.TenantEmail,
-		arg.CanonicalID,
-		arg.DisplayName,
-		arg.Source,
-	)
-	var id int64
-	err := row.Scan(&id)
-	return id, err
-}
-
-const upsertContactMappingSimple = `-- name: UpsertContactMappingSimple :one
-INSERT INTO contacts (tenant_email, canonical_id, display_name, source)
-VALUES (?, ?, ?, ?)
-ON CONFLICT(tenant_email, canonical_id) DO UPDATE SET
-    display_name = EXCLUDED.display_name,
-    source = EXCLUDED.source
-RETURNING id
-`
-
-type UpsertContactMappingSimpleParams struct {
-	TenantEmail string         `json:"tenant_email"`
-	CanonicalID string         `json:"canonical_id"`
-	DisplayName string         `json:"display_name"`
-	Source      sql.NullString `json:"source"`
-}
-
-func (q *Queries) UpsertContactMappingSimple(ctx context.Context, arg UpsertContactMappingSimpleParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, upsertContactMappingSimple,
 		arg.TenantEmail,
 		arg.CanonicalID,
 		arg.DisplayName,

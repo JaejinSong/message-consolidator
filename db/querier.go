@@ -47,7 +47,6 @@ type Querier interface {
 	DeleteTaskTranslations(ctx context.Context, messageID sql.NullInt64) error
 	DeleteTenantAlias(ctx context.Context, arg DeleteTenantAliasParams) error
 	DeleteUserAlias(ctx context.Context, arg DeleteUserAliasParams) error
-	FlattenChildren(ctx context.Context, arg FlattenChildrenParams) error
 	GetAbandonedTasks(ctx context.Context, arg GetAbandonedTasksParams) (int64, error)
 	GetActiveSlackThreadsNew(ctx context.Context) ([]GetActiveSlackThreadsNewRow, error)
 	GetActiveTasksForContext(ctx context.Context, arg GetActiveTasksForContextParams) ([]GetActiveTasksForContextRow, error)
@@ -111,8 +110,6 @@ type Querier interface {
 	LoadTenantAliasesAll(ctx context.Context) ([]LoadTenantAliasesAllRow, error)
 	LoadUserAliasesAll(ctx context.Context) ([]LoadUserAliasesAllRow, error)
 	LoadUsersAll(ctx context.Context) ([]User, error)
-	MigrateContactsAddContactType(ctx context.Context) error
-	MigrateLegacyAliases(ctx context.Context) error
 	MigrateReportTranslationsAddLanguageCode(ctx context.Context) error
 	MigrateReportTranslationsRenameLanguage(ctx context.Context) error
 	MigrateReportsAddIsTruncated(ctx context.Context) error
@@ -129,10 +126,8 @@ type Querier interface {
 	SearchArchivedMessages(ctx context.Context, arg SearchArchivedMessagesParams) ([]SearchArchivedMessagesRow, error)
 	SearchArchivedMessagesCount(ctx context.Context, arg SearchArchivedMessagesCountParams) (int64, error)
 	SearchContacts(ctx context.Context, arg SearchContactsParams) ([]SearchContactsRow, error)
-	UnlinkContact(ctx context.Context, arg UnlinkContactParams) error
 	UpdateCategoryMerged(ctx context.Context, arg UpdateCategoryMergedParams) error
-	UpdateContactLink(ctx context.Context, arg UpdateContactLinkParams) error
-	UpdateContactType(ctx context.Context, arg UpdateContactTypeParams) error
+	UpdateContactDetails(ctx context.Context, arg UpdateContactDetailsParams) error
 	UpdateMessageDetails(ctx context.Context, arg UpdateMessageDetailsParams) error
 	UpdateProcessed(ctx context.Context, arg UpdateProcessedParams) error
 	UpdateReportStatus(ctx context.Context, arg UpdateReportStatusParams) error
@@ -143,7 +138,6 @@ type Querier interface {
 	UpdateUserSlackID(ctx context.Context, arg UpdateUserSlackIDParams) error
 	UpdateUserWAJID(ctx context.Context, arg UpdateUserWAJIDParams) error
 	UpsertContactMapping(ctx context.Context, arg UpsertContactMappingParams) (int64, error)
-	UpsertContactMappingSimple(ctx context.Context, arg UpsertContactMappingSimpleParams) (int64, error)
 	UpsertGmailToken(ctx context.Context, arg UpsertGmailTokenParams) error
 	UpsertScanMetadata(ctx context.Context, arg UpsertScanMetadataParams) error
 	UpsertSlackThread(ctx context.Context, arg UpsertSlackThreadParams) error

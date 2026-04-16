@@ -47,8 +47,7 @@ func InitContactsTable(ctx context.Context, q db.DBTX) {
 	_ = queries.CreateIdentityMergeHistoryTable(ctx)
 	_ = queries.CreateIdentityMergeCandidatesTable(ctx)
 	
-	// Why: Perform one-time migration of legacy aliases if the new table is empty.
-	_ = queries.MigrateLegacyAliases(ctx)
+	// Why: Perform one-time migration of legacy aliases if the new table is empty from migrations.go.
 
 	// Why: DSU is handled in-memory but persisted merge relations must be loaded.
 	loadDSUFromDB(ctx)
@@ -91,7 +90,7 @@ func AddContact(ctx context.Context, tenantEmail, canonicalID, displayName, alia
 	if source == "" {
 		source = SourceAll
 	}
-	newID, err := db.New(GetDB()).UpsertContactMappingSimple(ctx, db.UpsertContactMappingSimpleParams{
+	newID, err := db.New(GetDB()).UpsertContactMapping(ctx, db.UpsertContactMappingParams{
 		TenantEmail:  tenantEmail,
 		CanonicalID:  canonicalID,
 		DisplayName:  displayName,
@@ -649,7 +648,7 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 
 	// 3. Link and Promote Category
 	q := db.New(tx)
-	if err := q.UpdateContactLink(ctx, db.UpdateContactLinkParams{
+	if err := q.UpdateContactDetails(ctx, db.UpdateContactDetailsParams{
 		MasterContactID: sql.NullInt64{Int64: int64(masterID), Valid: true},
 		TenantEmail:     tenantEmail,
 		ID:              int64(targetID),
@@ -659,8 +658,9 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 	
 	finalType := PromoteContactType(masterType, targetType)
 	if finalType != masterType {
-		if err := q.UpdateContactType(ctx, db.UpdateContactTypeParams{
+		if err := q.UpdateContactDetails(ctx, db.UpdateContactDetailsParams{
 			ContactType: sql.NullString{String: finalType, Valid: true},
+			TenantEmail: tenantEmail,
 			ID:          int64(masterID),
 		}); err != nil {
 			return err
@@ -676,11 +676,12 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 		Reason:          "Manual Link",
 	})
 	GlobalContactDSU.Union(int64(masterID), int64(targetID))
-	if err := q.FlattenChildren(ctx, db.FlattenChildrenParams{
-		MasterContactID:   sql.NullInt64{Int64: int64(masterID), Valid: true},
-		TenantEmail:       tenantEmail,
-		MasterContactID_2: sql.NullInt64{Int64: int64(targetID), Valid: true},
-	}); err != nil {
+	
+	// Flatten children: move all children of targetID to masterID
+	// Equivalent to: UPDATE contacts SET master_contact_id = masterID WHERE master_contact_id = targetID
+	// Since we removed 'FlattenChildren', we can use pure SQL or expose it.
+	// Let's use direct SQL for this specific maintenance task to avoid bloat in contacts.sql.
+	if _, err := tx.ExecContext(ctx, "UPDATE contacts SET master_contact_id = ? WHERE master_contact_id = ? AND tenant_email = ?", masterID, targetID, tenantEmail); err != nil {
 		return err
 	}
 
@@ -697,9 +698,10 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 }
 
 func UnlinkContact(ctx context.Context, tenantEmail string, targetID int64) error {
-	err := db.New(GetDB()).UnlinkContact(ctx, db.UnlinkContactParams{
-		TenantEmail: tenantEmail,
-		ID:          int64(targetID),
+	err := db.New(GetDB()).UpdateContactDetails(ctx, db.UpdateContactDetailsParams{
+		MasterContactID: sql.NullInt64{Valid: false}, // Set NULL
+		TenantEmail:     tenantEmail,
+		ID:              int64(targetID),
 	})
 	if err == nil {
 		metadataMu.Lock()
@@ -843,8 +845,13 @@ func UpdateContactType(ctx context.Context, contactID int64, cType string) error
 	}
 
 	id := int64(contactID)
-	if err := db.New(GetDB()).UpdateContactType(ctx, db.UpdateContactTypeParams{
+	// Why: UpdateContactDetails requires tenant_email. We need to fetch it or pass it.
+	// For simplicity in this promotion path, we'll fetch it from DB first as this is a low-frequency maintenance task.
+	tenantEmail, _ := fetchTenantEmailByID(ctx, id)
+
+	if err := db.New(GetDB()).UpdateContactDetails(ctx, db.UpdateContactDetailsParams{
 		ContactType: sql.NullString{String: cType, Valid: cType != ""},
+		TenantEmail: tenantEmail,
 		ID:          id,
 	}); err != nil {
 		return err
@@ -861,4 +868,10 @@ func invalidateCache() {
 	for tenant := range contactsCache {
 		delete(contactsCache, tenant)
 	}
+}
+
+func fetchTenantEmailByID(ctx context.Context, id int64) (string, error) {
+	var email string
+	err := GetDB().QueryRowContext(ctx, "SELECT tenant_email FROM contacts WHERE id = ?", id).Scan(&email)
+	return email, err
 }
