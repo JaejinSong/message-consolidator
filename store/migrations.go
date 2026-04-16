@@ -31,46 +31,45 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 }
 
 func runMigrations(ctx context.Context, q db.DBTX) error {
-	queries := db.New(q)
-	// Why: Execute all required schema migrations using sqlc-generated methods.
+	// Why: Execute all required schema migrations using raw SQL.
 	// We log errors for each step to ensure visibility if a migration fails during deployment.
-	run := func(name string, f func(context.Context) error) {
-		if err := f(ctx); err != nil {
+	run := func(name string, query string) {
+		if _, err := q.ExecContext(ctx, query); err != nil {
 			logger.Warnf("[MIGRATION] %s failed (expected if already applied): %v", name, err)
 		}
 	}
 
-	run("AddUserEmail", queries.MigrateMessagesAddUserEmail)
-	run("AddIsDeleted", queries.MigrateMessagesAddIsDeleted)
-	run("AddRoom", queries.MigrateMessagesAddRoom)
-	run("AddDone", queries.MigrateMessagesAddDone)
-	run("AddCompletedAt", queries.MigrateMessagesAddCompletedAt)
-	run("AddOriginalText", queries.MigrateMessagesAddOriginalText)
-	run("AddCategory", queries.MigrateMessagesAddCategory)
-	run("AddDeadline", queries.MigrateMessagesAddDeadline)
-	run("AddThreadID", queries.MigrateMessagesAddThreadID)
-	run("AddAssigneeReason", queries.MigrateMessagesAddAssigneeReason)
-	run("AddRepliedToID", queries.MigrateMessagesAddRepliedToID)
-	run("AddIsContextQuery", queries.MigrateMessagesAddIsContextQuery)
-	run("AddPinned", queries.MigrateMessagesAddPinned)
-	run("AddConstraints", queries.MigrateMessagesAddConstraints)
-	run("AddMetadata", queries.MigrateMessagesAddMetadata)
-	run("AddSourceChannels", queries.MigrateMessagesAddSourceChannels)
-	run("AddConsolidatedContext", queries.MigrateMessagesAddConsolidatedContext)
-	run("AddSubtasks", queries.MigrateMessagesAddSubtasks)
+	run("AddUserEmail", "ALTER TABLE messages ADD COLUMN user_email TEXT")
+	run("AddIsDeleted", "ALTER TABLE messages ADD COLUMN is_deleted BOOLEAN DEFAULT 0")
+	run("AddRoom", "ALTER TABLE messages ADD COLUMN room TEXT")
+	run("AddDone", "ALTER TABLE messages ADD COLUMN done BOOLEAN DEFAULT 0")
+	run("AddCompletedAt", "ALTER TABLE messages ADD COLUMN completed_at DATETIME")
+	run("AddOriginalText", "ALTER TABLE messages ADD COLUMN original_text TEXT")
+	run("AddCategory", "ALTER TABLE messages ADD COLUMN category TEXT DEFAULT 'todo'")
+	run("AddDeadline", "ALTER TABLE messages ADD COLUMN deadline TEXT")
+	run("AddThreadID", "ALTER TABLE messages ADD COLUMN thread_id TEXT")
+	run("AddAssigneeReason", "ALTER TABLE messages ADD COLUMN assignee_reason TEXT")
+	run("AddRepliedToID", "ALTER TABLE messages ADD COLUMN replied_to_id TEXT")
+	run("AddIsContextQuery", "ALTER TABLE messages ADD COLUMN is_context_query INTEGER DEFAULT 0")
+	run("AddPinned", "ALTER TABLE messages ADD COLUMN pinned BOOLEAN DEFAULT FALSE")
+	run("AddConstraints", "ALTER TABLE messages ADD COLUMN constraints TEXT DEFAULT '[]'")
+	run("AddMetadata", "ALTER TABLE messages ADD COLUMN metadata TEXT DEFAULT '{}'")
+	run("AddSourceChannels", "ALTER TABLE messages ADD COLUMN source_channels TEXT DEFAULT '[]'")
+	run("AddConsolidatedContext", "ALTER TABLE messages ADD COLUMN consolidated_context TEXT DEFAULT '[]'")
+	run("AddSubtasks", "ALTER TABLE messages ADD COLUMN subtasks TEXT DEFAULT '[]'")
 
 	_, _ = q.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_ts ON messages(user_email, source_ts)")
 
-	run("ReportsAddIsTruncated", queries.MigrateReportsAddIsTruncated)
-	run("ReportsAddStatus", queries.MigrateReportsAddStatus)
+	run("ReportsAddIsTruncated", "ALTER TABLE reports ADD COLUMN is_truncated INTEGER DEFAULT 0")
+	run("ReportsAddStatus", "ALTER TABLE reports ADD COLUMN status TEXT DEFAULT 'completed'")
 
-	run("TaskRenameLang", queries.MigrateTaskTranslationsRenameLanguage)
-	run("ReportRenameLang", queries.MigrateReportTranslationsRenameLanguage)
-	run("TaskAddLangCode", queries.MigrateTaskTranslationsAddLanguageCode)
-	run("ReportAddLangCode", queries.MigrateReportTranslationsAddLanguageCode)
-	run("ContactsAddType", queries.MigrateContactsAddContactType)
-	run("LegacyAliases", queries.MigrateLegacyAliases)
-	run("TokenUsageAddFiltered", queries.MigrateTokenUsageAddFilteredCount)
+	run("TaskRenameLang", "ALTER TABLE task_translations RENAME COLUMN language TO language_deprecated")
+	run("ReportRenameLang", "ALTER TABLE report_translations RENAME COLUMN language TO language_deprecated")
+	run("TaskAddLangCode", "ALTER TABLE task_translations ADD COLUMN language_code TEXT NOT NULL DEFAULT 'en'")
+	run("ReportAddLangCode", "ALTER TABLE report_translations ADD COLUMN language_code TEXT NOT NULL DEFAULT 'en'")
+	run("ContactsAddType", "ALTER TABLE contacts ADD COLUMN contact_type TEXT DEFAULT 'none'")
+	run("LegacyAliases", "UPDATE contacts SET source = 'all' WHERE source IS NULL")
+	run("TokenUsageAddFiltered", "ALTER TABLE token_usage ADD COLUMN filtered_count INTEGER DEFAULT 0")
 
 	migrateExistingData(ctx, q)
 	_ = rebuildViews(ctx, q)
@@ -88,11 +87,11 @@ func rebuildViews(ctx context.Context, q db.DBTX) error {
 }
 
 func migrateExistingData(ctx context.Context, q db.DBTX) {
-	queries := db.New(q)
-	_ = queries.MigrateDataNormalizeIsDeleted(ctx)
-	_ = queries.MigrateDataNormalizeRoom(ctx)
-	_ = queries.MigrateDataNormalizeCategoryWaiting(ctx)
-	_ = queries.MigrateDataNormalizeCategoryPromise(ctx)
+	// Why: Basic data normalization for existing records.
+	_, _ = q.ExecContext(ctx, "UPDATE messages SET is_deleted = 0 WHERE is_deleted IS NULL")
+	_, _ = q.ExecContext(ctx, "UPDATE messages SET room = 'General' WHERE room IS NULL OR room = ''")
+	_, _ = q.ExecContext(ctx, "UPDATE messages SET category = 'todo' WHERE category = 'waiting'")
+	_, _ = q.ExecContext(ctx, "UPDATE messages SET category = 'todo' WHERE category = 'promise'")
 }
 
 func createIndexes(ctx context.Context, q db.DBTX) {

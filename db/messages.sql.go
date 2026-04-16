@@ -630,243 +630,6 @@ func (q *Queries) IsMessageProcessed(ctx context.Context, arg IsMessageProcessed
 	return column_1, err
 }
 
-const markMessageDone = `-- name: MarkMessageDone :exec
-UPDATE messages SET done = ?, completed_at = ? WHERE id = ? AND user_email = ?
-`
-
-type MarkMessageDoneParams struct {
-	Done        sql.NullBool   `json:"done"`
-	CompletedAt sql.NullTime   `json:"completed_at"`
-	ID          int64          `json:"id"`
-	UserEmail   sql.NullString `json:"user_email"`
-}
-
-func (q *Queries) MarkMessageDone(ctx context.Context, arg MarkMessageDoneParams) error {
-	_, err := q.db.ExecContext(ctx, markMessageDone,
-		arg.Done,
-		arg.CompletedAt,
-		arg.ID,
-		arg.UserEmail,
-	)
-	return err
-}
-
-const migrateAchievementsAddTargetValue = `-- name: MigrateAchievementsAddTargetValue :exec
-ALTER TABLE achievements ADD COLUMN target_value INTEGER DEFAULT 1
-`
-
-func (q *Queries) MigrateAchievementsAddTargetValue(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateAchievementsAddTargetValue)
-	return err
-}
-
-const migrateAchievementsAddXPReward = `-- name: MigrateAchievementsAddXPReward :exec
-ALTER TABLE achievements ADD COLUMN xp_reward INTEGER DEFAULT 10
-`
-
-func (q *Queries) MigrateAchievementsAddXPReward(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateAchievementsAddXPReward)
-	return err
-}
-
-const migrateDataNormalizeCategoryPromise = `-- name: MigrateDataNormalizeCategoryPromise :exec
-UPDATE messages SET category = 'todo' WHERE category = 'promise'
-`
-
-func (q *Queries) MigrateDataNormalizeCategoryPromise(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateDataNormalizeCategoryPromise)
-	return err
-}
-
-const migrateDataNormalizeCategoryWaiting = `-- name: MigrateDataNormalizeCategoryWaiting :exec
-UPDATE messages SET category = 'todo' WHERE category = 'waiting'
-`
-
-func (q *Queries) MigrateDataNormalizeCategoryWaiting(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateDataNormalizeCategoryWaiting)
-	return err
-}
-
-const migrateDataNormalizeIsDeleted = `-- name: MigrateDataNormalizeIsDeleted :exec
-UPDATE messages SET is_deleted = 0 WHERE is_deleted IS NULL
-`
-
-func (q *Queries) MigrateDataNormalizeIsDeleted(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateDataNormalizeIsDeleted)
-	return err
-}
-
-const migrateDataNormalizeRoom = `-- name: MigrateDataNormalizeRoom :exec
-UPDATE messages SET room = 'General' WHERE room IS NULL OR room = ''
-`
-
-func (q *Queries) MigrateDataNormalizeRoom(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateDataNormalizeRoom)
-	return err
-}
-
-const migrateMessagesAddAssigneeReason = `-- name: MigrateMessagesAddAssigneeReason :exec
-ALTER TABLE messages ADD COLUMN assignee_reason TEXT
-`
-
-func (q *Queries) MigrateMessagesAddAssigneeReason(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddAssigneeReason)
-	return err
-}
-
-const migrateMessagesAddCategory = `-- name: MigrateMessagesAddCategory :exec
-ALTER TABLE messages ADD COLUMN category TEXT DEFAULT 'todo'
-`
-
-func (q *Queries) MigrateMessagesAddCategory(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddCategory)
-	return err
-}
-
-const migrateMessagesAddCompletedAt = `-- name: MigrateMessagesAddCompletedAt :exec
-ALTER TABLE messages ADD COLUMN completed_at DATETIME
-`
-
-func (q *Queries) MigrateMessagesAddCompletedAt(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddCompletedAt)
-	return err
-}
-
-const migrateMessagesAddConsolidatedContext = `-- name: MigrateMessagesAddConsolidatedContext :exec
-ALTER TABLE messages ADD COLUMN consolidated_context TEXT DEFAULT '[]'
-`
-
-func (q *Queries) MigrateMessagesAddConsolidatedContext(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddConsolidatedContext)
-	return err
-}
-
-const migrateMessagesAddConstraints = `-- name: MigrateMessagesAddConstraints :exec
-ALTER TABLE messages ADD COLUMN constraints TEXT DEFAULT '[]'
-`
-
-func (q *Queries) MigrateMessagesAddConstraints(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddConstraints)
-	return err
-}
-
-const migrateMessagesAddDeadline = `-- name: MigrateMessagesAddDeadline :exec
-ALTER TABLE messages ADD COLUMN deadline TEXT
-`
-
-func (q *Queries) MigrateMessagesAddDeadline(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddDeadline)
-	return err
-}
-
-const migrateMessagesAddDone = `-- name: MigrateMessagesAddDone :exec
-ALTER TABLE messages ADD COLUMN done BOOLEAN DEFAULT 0
-`
-
-func (q *Queries) MigrateMessagesAddDone(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddDone)
-	return err
-}
-
-const migrateMessagesAddIsContextQuery = `-- name: MigrateMessagesAddIsContextQuery :exec
-ALTER TABLE messages ADD COLUMN is_context_query INTEGER DEFAULT 0
-`
-
-func (q *Queries) MigrateMessagesAddIsContextQuery(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddIsContextQuery)
-	return err
-}
-
-const migrateMessagesAddIsDeleted = `-- name: MigrateMessagesAddIsDeleted :exec
-ALTER TABLE messages ADD COLUMN is_deleted BOOLEAN DEFAULT 0
-`
-
-func (q *Queries) MigrateMessagesAddIsDeleted(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddIsDeleted)
-	return err
-}
-
-const migrateMessagesAddMetadata = `-- name: MigrateMessagesAddMetadata :exec
-ALTER TABLE messages ADD COLUMN metadata TEXT DEFAULT '{}'
-`
-
-func (q *Queries) MigrateMessagesAddMetadata(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddMetadata)
-	return err
-}
-
-const migrateMessagesAddOriginalText = `-- name: MigrateMessagesAddOriginalText :exec
-ALTER TABLE messages ADD COLUMN original_text TEXT
-`
-
-func (q *Queries) MigrateMessagesAddOriginalText(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddOriginalText)
-	return err
-}
-
-const migrateMessagesAddPinned = `-- name: MigrateMessagesAddPinned :exec
-ALTER TABLE messages ADD COLUMN pinned BOOLEAN DEFAULT FALSE
-`
-
-func (q *Queries) MigrateMessagesAddPinned(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddPinned)
-	return err
-}
-
-const migrateMessagesAddRepliedToID = `-- name: MigrateMessagesAddRepliedToID :exec
-ALTER TABLE messages ADD COLUMN replied_to_id TEXT
-`
-
-func (q *Queries) MigrateMessagesAddRepliedToID(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddRepliedToID)
-	return err
-}
-
-const migrateMessagesAddRoom = `-- name: MigrateMessagesAddRoom :exec
-ALTER TABLE messages ADD COLUMN room TEXT
-`
-
-func (q *Queries) MigrateMessagesAddRoom(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddRoom)
-	return err
-}
-
-const migrateMessagesAddSourceChannels = `-- name: MigrateMessagesAddSourceChannels :exec
-ALTER TABLE messages ADD COLUMN source_channels TEXT DEFAULT '[]'
-`
-
-func (q *Queries) MigrateMessagesAddSourceChannels(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddSourceChannels)
-	return err
-}
-
-const migrateMessagesAddSubtasks = `-- name: MigrateMessagesAddSubtasks :exec
-ALTER TABLE messages ADD COLUMN subtasks TEXT DEFAULT '[]'
-`
-
-func (q *Queries) MigrateMessagesAddSubtasks(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddSubtasks)
-	return err
-}
-
-const migrateMessagesAddThreadID = `-- name: MigrateMessagesAddThreadID :exec
-ALTER TABLE messages ADD COLUMN thread_id TEXT
-`
-
-func (q *Queries) MigrateMessagesAddThreadID(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddThreadID)
-	return err
-}
-
-const migrateMessagesAddUserEmail = `-- name: MigrateMessagesAddUserEmail :exec
-ALTER TABLE messages ADD COLUMN user_email TEXT
-`
-
-func (q *Queries) MigrateMessagesAddUserEmail(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateMessagesAddUserEmail)
-	return err
-}
-
 const refreshCacheActive = `-- name: RefreshCacheActive :many
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
 FROM v_messages 
@@ -1355,40 +1118,42 @@ func (q *Queries) UpdateCategoryMerged(ctx context.Context, arg UpdateCategoryMe
 	return err
 }
 
-const updateMessageCategory = `-- name: UpdateMessageCategory :exec
-UPDATE messages SET category = ? WHERE id = ? AND user_email = ?
+const updateMessageDetails = `-- name: UpdateMessageDetails :exec
+UPDATE messages 
+SET 
+  task = COALESCE(?3, task),
+  assignee = COALESCE(?4, assignee),
+  requester = COALESCE(?5, requester),
+  category = COALESCE(?6, category),
+  done = COALESCE(?7, done),
+  completed_at = COALESCE(?8, completed_at),
+  source_channels = COALESCE(?9, source_channels)
+WHERE id = ?1 AND user_email = ?2
 `
 
-type UpdateMessageCategoryParams struct {
-	Category  sql.NullString `json:"category"`
-	ID        int64          `json:"id"`
-	UserEmail sql.NullString `json:"user_email"`
+type UpdateMessageDetailsParams struct {
+	ID             int64          `json:"id"`
+	UserEmail      sql.NullString `json:"user_email"`
+	Task           sql.NullString `json:"task"`
+	Assignee       sql.NullString `json:"assignee"`
+	Requester      sql.NullString `json:"requester"`
+	Category       sql.NullString `json:"category"`
+	Done           sql.NullBool   `json:"done"`
+	CompletedAt    sql.NullTime   `json:"completed_at"`
+	SourceChannels sql.NullString `json:"source_channels"`
 }
 
-func (q *Queries) UpdateMessageCategory(ctx context.Context, arg UpdateMessageCategoryParams) error {
-	_, err := q.db.ExecContext(ctx, updateMessageCategory, arg.Category, arg.ID, arg.UserEmail)
-	return err
-}
-
-const updateMessageIdentity = `-- name: UpdateMessageIdentity :exec
-UPDATE messages SET requester = ?, assignee = ? WHERE id = ? AND user_email = ? AND room = ?
-`
-
-type UpdateMessageIdentityParams struct {
-	Requester sql.NullString `json:"requester"`
-	Assignee  sql.NullString `json:"assignee"`
-	ID        int64          `json:"id"`
-	UserEmail sql.NullString `json:"user_email"`
-	Room      sql.NullString `json:"room"`
-}
-
-func (q *Queries) UpdateMessageIdentity(ctx context.Context, arg UpdateMessageIdentityParams) error {
-	_, err := q.db.ExecContext(ctx, updateMessageIdentity,
-		arg.Requester,
-		arg.Assignee,
+func (q *Queries) UpdateMessageDetails(ctx context.Context, arg UpdateMessageDetailsParams) error {
+	_, err := q.db.ExecContext(ctx, updateMessageDetails,
 		arg.ID,
 		arg.UserEmail,
-		arg.Room,
+		arg.Task,
+		arg.Assignee,
+		arg.Requester,
+		arg.Category,
+		arg.Done,
+		arg.CompletedAt,
+		arg.SourceChannels,
 	)
 	return err
 }
@@ -1406,21 +1171,6 @@ type UpdateProcessedParams struct {
 
 func (q *Queries) UpdateProcessed(ctx context.Context, arg UpdateProcessedParams) error {
 	_, err := q.db.ExecContext(ctx, updateProcessed, arg.UserEmail, arg.SourceTs)
-	return err
-}
-
-const updateTaskAssignee = `-- name: UpdateTaskAssignee :exec
-UPDATE messages SET assignee = ? WHERE id = ? AND user_email = ?
-`
-
-type UpdateTaskAssigneeParams struct {
-	Assignee  sql.NullString `json:"assignee"`
-	ID        int64          `json:"id"`
-	UserEmail sql.NullString `json:"user_email"`
-}
-
-func (q *Queries) UpdateTaskAssignee(ctx context.Context, arg UpdateTaskAssigneeParams) error {
-	_, err := q.db.ExecContext(ctx, updateTaskAssignee, arg.Assignee, arg.ID, arg.UserEmail)
 	return err
 }
 
@@ -1500,35 +1250,5 @@ func (q *Queries) UpdateTaskMergeComplete(ctx context.Context, arg UpdateTaskMer
 		arg.UserEmail,
 		arg.Room,
 	)
-	return err
-}
-
-const updateTaskSourceChannels = `-- name: UpdateTaskSourceChannels :exec
-UPDATE messages SET source_channels = ? WHERE id = ? AND user_email = ?
-`
-
-type UpdateTaskSourceChannelsParams struct {
-	SourceChannels sql.NullString `json:"source_channels"`
-	ID             int64          `json:"id"`
-	UserEmail      sql.NullString `json:"user_email"`
-}
-
-func (q *Queries) UpdateTaskSourceChannels(ctx context.Context, arg UpdateTaskSourceChannelsParams) error {
-	_, err := q.db.ExecContext(ctx, updateTaskSourceChannels, arg.SourceChannels, arg.ID, arg.UserEmail)
-	return err
-}
-
-const updateTaskText = `-- name: UpdateTaskText :exec
-UPDATE messages SET task = ? WHERE id = ? AND user_email = ?
-`
-
-type UpdateTaskTextParams struct {
-	Task      sql.NullString `json:"task"`
-	ID        int64          `json:"id"`
-	UserEmail sql.NullString `json:"user_email"`
-}
-
-func (q *Queries) UpdateTaskText(ctx context.Context, arg UpdateTaskTextParams) error {
-	_, err := q.db.ExecContext(ctx, updateTaskText, arg.Task, arg.ID, arg.UserEmail)
 	return err
 }

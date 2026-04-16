@@ -111,33 +111,8 @@ type Querier interface {
 	LoadTenantAliasesAll(ctx context.Context) ([]LoadTenantAliasesAllRow, error)
 	LoadUserAliasesAll(ctx context.Context) ([]LoadUserAliasesAllRow, error)
 	LoadUsersAll(ctx context.Context) ([]User, error)
-	MarkMessageDone(ctx context.Context, arg MarkMessageDoneParams) error
-	MigrateAchievementsAddTargetValue(ctx context.Context) error
-	MigrateAchievementsAddXPReward(ctx context.Context) error
 	MigrateContactsAddContactType(ctx context.Context) error
-	MigrateDataNormalizeCategoryPromise(ctx context.Context) error
-	MigrateDataNormalizeCategoryWaiting(ctx context.Context) error
-	MigrateDataNormalizeIsDeleted(ctx context.Context) error
-	MigrateDataNormalizeRoom(ctx context.Context) error
 	MigrateLegacyAliases(ctx context.Context) error
-	MigrateMessagesAddAssigneeReason(ctx context.Context) error
-	MigrateMessagesAddCategory(ctx context.Context) error
-	MigrateMessagesAddCompletedAt(ctx context.Context) error
-	MigrateMessagesAddConsolidatedContext(ctx context.Context) error
-	MigrateMessagesAddConstraints(ctx context.Context) error
-	MigrateMessagesAddDeadline(ctx context.Context) error
-	MigrateMessagesAddDone(ctx context.Context) error
-	MigrateMessagesAddIsContextQuery(ctx context.Context) error
-	MigrateMessagesAddIsDeleted(ctx context.Context) error
-	MigrateMessagesAddMetadata(ctx context.Context) error
-	MigrateMessagesAddOriginalText(ctx context.Context) error
-	MigrateMessagesAddPinned(ctx context.Context) error
-	MigrateMessagesAddRepliedToID(ctx context.Context) error
-	MigrateMessagesAddRoom(ctx context.Context) error
-	MigrateMessagesAddSourceChannels(ctx context.Context) error
-	MigrateMessagesAddSubtasks(ctx context.Context) error
-	MigrateMessagesAddThreadID(ctx context.Context) error
-	MigrateMessagesAddUserEmail(ctx context.Context) error
 	MigrateReportTranslationsAddLanguageCode(ctx context.Context) error
 	MigrateReportTranslationsRenameLanguage(ctx context.Context) error
 	MigrateReportsAddIsTruncated(ctx context.Context) error
@@ -158,16 +133,12 @@ type Querier interface {
 	UpdateCategoryMerged(ctx context.Context, arg UpdateCategoryMergedParams) error
 	UpdateContactLink(ctx context.Context, arg UpdateContactLinkParams) error
 	UpdateContactType(ctx context.Context, arg UpdateContactTypeParams) error
-	UpdateMessageCategory(ctx context.Context, arg UpdateMessageCategoryParams) error
-	UpdateMessageIdentity(ctx context.Context, arg UpdateMessageIdentityParams) error
+	UpdateMessageDetails(ctx context.Context, arg UpdateMessageDetailsParams) error
 	UpdateProcessed(ctx context.Context, arg UpdateProcessedParams) error
 	UpdateReportStatus(ctx context.Context, arg UpdateReportStatusParams) error
-	UpdateTaskAssignee(ctx context.Context, arg UpdateTaskAssigneeParams) error
 	UpdateTaskDescriptionAppend(ctx context.Context, arg UpdateTaskDescriptionAppendParams) error
 	UpdateTaskFullAppend(ctx context.Context, arg UpdateTaskFullAppendParams) error
 	UpdateTaskMergeComplete(ctx context.Context, arg UpdateTaskMergeCompleteParams) error
-	UpdateTaskSourceChannels(ctx context.Context, arg UpdateTaskSourceChannelsParams) error
-	UpdateTaskText(ctx context.Context, arg UpdateTaskTextParams) error
 	UpdateUserNamePicture(ctx context.Context, arg UpdateUserNamePictureParams) error
 	UpdateUserSlackID(ctx context.Context, arg UpdateUserSlackIDParams) error
 	UpdateUserWAJID(ctx context.Context, arg UpdateUserWAJIDParams) error
