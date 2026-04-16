@@ -32,10 +32,8 @@ type Querier interface {
 	CreateTaskTranslationsTable(ctx context.Context) error
 	CreateTenantAliasesTable(ctx context.Context) error
 	CreateTokenUsageTable(ctx context.Context) error
-	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
 	CreateUserAlias(ctx context.Context, arg CreateUserAliasParams) error
 	CreateUserAliasesTable(ctx context.Context) error
-	CreateUserReturningAll(ctx context.Context, arg CreateUserReturningAllParams) (CreateUserReturningAllRow, error)
 	// Consolidated Schema for sqlc (SQLite)
 	CreateUsersTable(ctx context.Context) error
 	DeleteContactMapping(ctx context.Context, arg DeleteContactMappingParams) error
@@ -53,7 +51,7 @@ type Querier interface {
 	GetAliasesByValues(ctx context.Context, values []string) ([]GetAliasesByValuesRow, error)
 	GetAllTenantAliases(ctx context.Context) ([]GetAllTenantAliasesRow, error)
 	GetAllUserAliases(ctx context.Context) ([]GetAllUserAliasesRow, error)
-	GetAllUsers(ctx context.Context) ([]GetAllUsersRow, error)
+	GetAllUsers(ctx context.Context) ([]User, error)
 	GetCompletionHistory(ctx context.Context, arg GetCompletionHistoryParams) ([]GetCompletionHistoryRow, error)
 	GetContactAliases(ctx context.Context, contactID int64) ([]GetContactAliasesRow, error)
 	GetContactByID(ctx context.Context, arg GetContactByIDParams) (GetContactByIDRow, error)
@@ -92,9 +90,9 @@ type Querier interface {
 	GetTotalCompleted(ctx context.Context, dollar_1 string) (int64, error)
 	GetUserAliases(ctx context.Context, userID int64) ([]string, error)
 	GetUserAliasesByEmail(ctx context.Context, email sql.NullString) ([]string, error)
-	GetUserByEmail(ctx context.Context, email sql.NullString) (GetUserByEmailRow, error)
+	GetUserByEmail(ctx context.Context, email sql.NullString) (User, error)
 	GetUserByEmailSimple(ctx context.Context, email sql.NullString) (string, error)
-	GetUserByID(ctx context.Context, dollar_1 int64) (GetUserByIDRow, error)
+	GetUserByID(ctx context.Context, dollar_1 int64) (User, error)
 	HardDeleteMessages(ctx context.Context, arg HardDeleteMessagesParams) error
 	InsertAIInferenceLog(ctx context.Context, arg InsertAIInferenceLogParams) error
 	InsertMergeHistory(ctx context.Context, arg InsertMergeHistoryParams) error
@@ -134,9 +132,7 @@ type Querier interface {
 	UpdateTaskDescriptionAppend(ctx context.Context, arg UpdateTaskDescriptionAppendParams) error
 	UpdateTaskFullAppend(ctx context.Context, arg UpdateTaskFullAppendParams) error
 	UpdateTaskMergeComplete(ctx context.Context, arg UpdateTaskMergeCompleteParams) error
-	UpdateUserNamePicture(ctx context.Context, arg UpdateUserNamePictureParams) error
-	UpdateUserSlackID(ctx context.Context, arg UpdateUserSlackIDParams) error
-	UpdateUserWAJID(ctx context.Context, arg UpdateUserWAJIDParams) error
+	UpdateUserDetails(ctx context.Context, arg UpdateUserDetailsParams) error
 	UpsertContactMapping(ctx context.Context, arg UpsertContactMappingParams) (int64, error)
 	UpsertGmailToken(ctx context.Context, arg UpsertGmailTokenParams) error
 	UpsertScanMetadata(ctx context.Context, arg UpsertScanMetadataParams) error
@@ -144,6 +140,7 @@ type Querier interface {
 	UpsertTaskTranslation(ctx context.Context, arg UpsertTaskTranslationParams) error
 	UpsertTenantAlias(ctx context.Context, arg UpsertTenantAliasParams) error
 	UpsertTokenUsage(ctx context.Context, arg UpsertTokenUsageParams) error
+	UpsertUser(ctx context.Context, arg UpsertUserParams) (User, error)
 }
 
 var _ Querier = (*Queries)(nil)

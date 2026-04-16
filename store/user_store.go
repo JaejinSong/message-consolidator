@@ -20,9 +20,8 @@ func GetAllUsers(ctx context.Context) ([]User, error) {
 	
 	users := make([]User, 0, len(rows))
 	for _, row := range rows {
-		u := fromGetAllUsersRow(row)
-		users = append(users, u)
-		userCache[u.Email] = &u
+		users = append(users, fromDBUser(row))
+		userCache[row.Email.String] = &users[len(users)-1]
 	}
 
 	// Why: Fetch and populate all aliases in one batch to prevent N+1 queries.
@@ -73,16 +72,16 @@ func updateAndCacheUser(ctx context.Context, email, name, picture string) (*User
 	err := WithDBRetry("GetOrCreateUser", func() error {
 		//Why: Use Atomic Upsert to handle concurrent registrations and partial data updates (name/picture) in a single call.
 		conn := GetDB()
-		row, errQuery := db.New(conn).CreateUserReturningAll(ctx, db.CreateUserReturningAllParams{
-			Email:     sql.NullString{String: email, Valid: email != ""},
-			Name:      sql.NullString{String: name, Valid: name != ""},
-			Picture:   sql.NullString{String: picture, Valid: picture != ""},
+		row, errQuery := db.New(conn).UpsertUser(ctx, db.UpsertUserParams{
+			Email:   sql.NullString{String: email, Valid: email != ""},
+			Name:    sql.NullString{String: name, Valid: name != ""},
+			Picture: sql.NullString{String: picture, Valid: picture != ""},
 		})
 		if errQuery != nil {
 			return errQuery
 		}
 
-		u = fromCreateUserReturningAllRow(row)
+		u = fromDBUser(row)
 		return nil
 	})
 
@@ -101,36 +100,35 @@ func updateAndCacheUser(ctx context.Context, email, name, picture string) (*User
 func CreateUser(ctx context.Context, email, name string) error {
 	conn := GetDB()
 	queries := db.New(conn)
-	_, err := queries.CreateUser(ctx, db.CreateUserParams{
-		Email:   sql.NullString{String: email, Valid: email != ""},
-		Name:    sql.NullString{String: name, Valid: name != ""},
-		Picture: sql.NullString{String: "", Valid: true},
+	_, err := queries.UpsertUser(ctx, db.UpsertUserParams{
+		Email: sql.NullString{String: email, Valid: email != ""},
+		Name:  sql.NullString{String: name, Valid: name != ""},
 	})
 	return err
 }
 
 // UpdateUserNamePicture modifies the display name and profile picture of an existing user.
 func UpdateUserNamePicture(ctx context.Context, email, name, picture string) error {
-	return db.New(GetDB()).UpdateUserNamePicture(ctx, db.UpdateUserNamePictureParams{
+	return db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{
 		Email:   sql.NullString{String: email, Valid: true},
-		Name:    sql.NullString{String: name, Valid: true},
-		Picture: sql.NullString{String: picture, Valid: true},
+		Name:    sql.NullString{String: name, Valid: name != ""},
+		Picture: sql.NullString{String: picture, Valid: picture != ""},
 	})
 }
 
 // UpdateUserWAJID updates the WhatsApp JID (identifier) associated with the user.
 func UpdateUserWAJID(ctx context.Context, email, wajid string) error {
-	return db.New(GetDB()).UpdateUserWAJID(ctx, db.UpdateUserWAJIDParams{
+	return db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{
 		Email: sql.NullString{String: email, Valid: true},
-		WaJid: sql.NullString{String: wajid, Valid: true},
+		WaJid: sql.NullString{String: wajid, Valid: wajid != ""},
 	})
 }
 
 // UpdateUserSlackID updates the Slack ID associated with the user.
 func UpdateUserSlackID(ctx context.Context, email, slackID string) error {
-	return db.New(GetDB()).UpdateUserSlackID(ctx, db.UpdateUserSlackIDParams{
+	return db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{
 		Email:   sql.NullString{String: email, Valid: true},
-		SlackID: sql.NullString{String: slackID, Valid: true},
+		SlackID: sql.NullString{String: slackID, Valid: slackID != ""},
 	})
 }
 
@@ -167,26 +165,14 @@ func GetUserName(ctx context.Context, email string) (string, error) {
 
 
 
-func fromGetAllUsersRow(row db.GetAllUsersRow) User {
+func fromDBUser(row db.User) User {
 	return User{
-		ID:            int(row.ID),
-		Email:         row.Email,
-		Name:          row.Name,
-		SlackID:       row.SlackID,
-		WAJID:         row.WaJid,
-		Picture:       row.Picture,
-		CreatedAt:     row.CreatedAt.Time,
-	}
-}
-
-func fromCreateUserReturningAllRow(row db.CreateUserReturningAllRow) User {
-	return User{
-		ID:            int(row.ID),
-		Email:         row.Email,
-		Name:          row.Name,
-		SlackID:       row.SlackID,
-		WAJID:         row.WaJid,
-		Picture:       row.Picture,
-		CreatedAt:     row.CreatedAt.Time,
+		ID:        int(row.ID),
+		Email:     row.Email.String,
+		Name:      row.Name.String,
+		SlackID:   row.SlackID.String,
+		WAJID:     row.WaJid.String,
+		Picture:   row.Picture.String,
+		CreatedAt: row.CreatedAt.Time,
 	}
 }

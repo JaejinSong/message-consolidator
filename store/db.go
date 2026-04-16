@@ -35,8 +35,9 @@ func InitDB(cfg *config.Config) error {
 	dbURL := cfg.TursoURL
 	authToken := cfg.TursoToken
 
-	if dbURL == "" && !cfg.CloudRunMode {
-		dbURL = "file:test.db"
+	// Why: If no Turso URL is provided, default to in-memory for zero-config local development/testing.
+	if dbURL == "" {
+		dbURL = "file::memory:?cache=shared"
 	}
 
 	//Why: Ensures InitDB is idempotent. If we already have a connection to the SAME database,
@@ -130,28 +131,18 @@ func EnsureSchemaAndSeeds(dbConn *sql.DB) error {
 }
 
 func setupConnectionPool(dbURL string) {
-	var maxOpen, idleConns int
-	//Why: Enforces strict connection limits to maintain SQLite stability and prevent resource exhaustion.
-	// For local SQLite, we use a single connection to eliminate lock contention during concurrent test execution.
+	var maxOpen int
+	// Why: Only two environments supported: Turso (Remote) and SQLite (In-Memory).
 	if strings.HasPrefix(dbURL, "file:") {
-		isMemory := strings.Contains(dbURL, "mode=memory") || strings.Contains(dbURL, ":memory:")
-		if isMemory {
-			logger.Infof("[DB] SQLite (Memory) detected. Increasing pool for parallel tests.")
-			maxOpen = 100
-			idleConns = 1
-		} else {
-			logger.Infof("[DB] SQLite (Local File) detected. Enforcing MaxOpenConns=1 for lock safety.")
-			maxOpen = 1
-			idleConns = 1
-		}
+		logger.Infof("[DB] SQLite (In-Memory) detected. Optimizing for parallel tests.")
+		maxOpen = 100
 	} else {
 		logger.Infof("[DB] Turso (Remote) detected. Optimizing pool for high throughput.")
 		maxOpen = 25
-		idleConns = 1
 	}
 
 	conn.SetMaxOpenConns(maxOpen)
-	conn.SetMaxIdleConns(idleConns)
+	conn.SetMaxIdleConns(1) // Why: Strict limit to 1 idle connection to prevent "stream closed" errors.
 	// Why: Reduce lifetime for remote connections to prevent "stream is closed" errors from stale connections.
 	conn.SetConnMaxLifetime(1 * time.Minute)
 	conn.SetConnMaxIdleTime(30 * time.Second)

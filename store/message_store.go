@@ -11,6 +11,15 @@ import (
 	"github.com/hbollon/go-edlib"
 )
 
+func withTx(ctx context.Context, q Querier, fn func(q Querier) error) error {
+	if q == nil {
+		return RunInTx(ctx, func(tx *sql.Tx) error {
+			return fn(tx)
+		})
+	}
+	return fn(q)
+}
+
 // SaveMessage persists a single message and updates the local cache.
 // Why: Enforces 30-line limit by delegating duplication checks, DB insertion, and cache synchronization to specific helpers.
 // SaveMessage persists a single message and updates the local cache. Supports transactions.
@@ -181,12 +190,9 @@ func GetMessages(ctx context.Context, email string) ([]ConsolidatedMessage, erro
 }
 
 func MarkMessageDone(ctx context.Context, q Querier, email string, id int, done bool) error {
-	if q == nil {
-		return RunInTx(ctx, func(tx *sql.Tx) error {
-			return markMessageDoneInternal(ctx, tx, email, id, done)
-		})
-	}
-	return markMessageDoneInternal(ctx, q, email, id, done)
+	return withTx(ctx, q, func(qw Querier) error {
+		return markMessageDoneInternal(ctx, qw, email, id, done)
+	})
 }
 
 func markMessageDoneInternal(ctx context.Context, q Querier, email string, id int, done bool) error {
@@ -209,12 +215,9 @@ func markMessageDoneInternal(ctx context.Context, q Querier, email string, id in
 }
 
 func UpdateTaskText(ctx context.Context, q Querier, email string, id int, task string) error {
-	if q == nil {
-		return RunInTx(ctx, func(tx *sql.Tx) error {
-			return updateTaskTextInternal(ctx, tx, email, id, task)
-		})
-	}
-	return updateTaskTextInternal(ctx, q, email, id, task)
+	return withTx(ctx, q, func(qw Querier) error {
+		return updateTaskTextInternal(ctx, qw, email, id, task)
+	})
 }
 
 func updateTaskTextInternal(ctx context.Context, q Querier, email string, id int, task string) error {
@@ -471,12 +474,9 @@ func applyMergeUpdates(ctx context.Context, tx *sql.Tx, email, room string, dest
 }
 
 func UpdateMessageCategory(ctx context.Context, q Querier, email string, id int, category string) error {
-	if q == nil {
-		return RunInTx(ctx, func(tx *sql.Tx) error {
-			return updateMessageCategoryInternal(ctx, tx, email, id, category)
-		})
-	}
-	return updateMessageCategoryInternal(ctx, q, email, id, category)
+	return withTx(ctx, q, func(qw Querier) error {
+		return updateMessageCategoryInternal(ctx, qw, email, id, category)
+	})
 }
 
 func updateMessageCategoryInternal(ctx context.Context, q Querier, email string, id int, category string) error {
@@ -493,12 +493,9 @@ func updateMessageCategoryInternal(ctx context.Context, q Querier, email string,
 }
 
 func UpdateTaskAssignee(ctx context.Context, q Querier, email string, id int, assignee string) error {
-	if q == nil {
-		return RunInTx(ctx, func(tx *sql.Tx) error {
-			return updateTaskAssigneeInternal(ctx, tx, email, id, assignee)
-		})
-	}
-	return updateTaskAssigneeInternal(ctx, q, email, id, assignee)
+	return withTx(ctx, q, func(qw Querier) error {
+		return updateTaskAssigneeInternal(ctx, qw, email, id, assignee)
+	})
 }
 
 func updateTaskAssigneeInternal(ctx context.Context, q Querier, email string, id int, assignee string) error {
@@ -645,18 +642,21 @@ func GetMessageByID(ctx context.Context, q Querier, email string, id int) (Conso
 }
 
 func findMessageInCache(email string, id int) (ConsolidatedMessage, bool) {
-	if email == "" { return ConsolidatedMessage{}, false }
+	if email == "" {
+		return ConsolidatedMessage{}, false
+	}
 	cacheMu.RLock()
 	defer cacheMu.RUnlock()
-	
-	userCache := messageCache[email]
-	for _, m := range userCache {
-		if m.ID == id { return m, true }
+
+	for _, m := range messageCache[email] {
+		if m.ID == id {
+			return m, true
+		}
 	}
-	
-	userArchive := archiveCache[email]
-	for _, m := range userArchive {
-		if m.ID == id { return m, true }
+	for _, m := range archiveCache[email] {
+		if m.ID == id {
+			return m, true
+		}
 	}
 	return ConsolidatedMessage{}, false
 }
@@ -684,12 +684,10 @@ func GetMessagesByIDs(ctx context.Context, q Querier, email string, ids []int) (
 }
 
 func extractFromCache(email string, ids []int) ([]ConsolidatedMessage, []int) {
-	cacheMu.RLock()
-	defer cacheMu.RUnlock()
 	var found []ConsolidatedMessage
 	var missing []int
 	for _, id := range ids {
-		if m, ok := searchCache(email, id); ok {
+		if m, ok := findMessageInCache(email, id); ok {
 			found = append(found, m)
 		} else {
 			missing = append(missing, id)
@@ -698,15 +696,7 @@ func extractFromCache(email string, ids []int) ([]ConsolidatedMessage, []int) {
 	return found, missing
 }
 
-func searchCache(email string, id int) (ConsolidatedMessage, bool) {
-	for _, m := range messageCache[email] {
-		if m.ID == id { return m, true }
-	}
-	for _, m := range archiveCache[email] {
-		if m.ID == id { return m, true }
-	}
-	return ConsolidatedMessage{}, false
-}
+// searchCache is deprecated in favor of unified findMessageInCache.
 
 func GetIncompleteByThreadID(ctx context.Context, q Querier, email, threadID string) ([]ConsolidatedMessage, error) {
 	if threadID == "" {
@@ -800,7 +790,7 @@ func toConsolidatedFromByID(row db.GetMessageByIDRow) ConsolidatedMessage {
 		row.RequesterCanonical, row.AssigneeCanonical, row.AssigneeReason,
 		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
-		row.RequesterType, row.AssigneeType, "", "", row.Subtasks,
+		row.RequesterType, row.AssigneeType, row.Subtasks,
 		row.AssignedAt, row.CompletedAt,
 	)
 }
@@ -814,7 +804,7 @@ func toConsolidatedFromByIDs(row db.GetMessagesByIDsRow) ConsolidatedMessage {
 		row.RequesterCanonical, row.AssigneeCanonical, row.AssigneeReason,
 		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
-		row.RequesterType, row.AssigneeType, "", "", row.Subtasks,
+		row.RequesterType, row.AssigneeType, row.Subtasks,
 		row.AssignedAt, row.CompletedAt,
 	)
 }
@@ -828,7 +818,7 @@ func toConsolidatedFromIncomplete(row db.GetIncompleteByThreadIDRow) Consolidate
 		row.RequesterCanonical, row.AssigneeCanonical, row.AssigneeReason,
 		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
-		row.RequesterType, row.AssigneeType, "", "", row.Subtasks,
+		row.RequesterType, row.AssigneeType, row.Subtasks,
 		row.AssignedAt, row.CompletedAt,
 	)
 }
@@ -848,7 +838,7 @@ func mapVMessageToConsolidated(
 	originalText string, done, isDeleted bool, createdAt sql.NullTime,
 	category, deadline, threadID, reqCanonical, asgCanonical, asgReason,
 	repliedToID string, isContextQuery int, constraintsStr, contextStr,
-	metadataStr, channelsStr, reqType, asgType, reqDisp, asgDisp, subtasksStr string,
+	metadataStr, channelsStr, reqType, asgType, subtasksStr string,
 	assignedAt, completedAt sql.NullTime,
 ) ConsolidatedMessage {
 	constraints, channels, context, subtasks := unmarshalMessageComponents(constraintsStr, channelsStr, contextStr, subtasksStr)

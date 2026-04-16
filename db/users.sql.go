@@ -10,131 +10,19 @@ import (
 	"database/sql"
 )
 
-const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, name, picture) 
-VALUES (?1, ?2, ?3) 
-ON CONFLICT(email) DO UPDATE SET 
-    name = EXCLUDED.name, 
-    picture = EXCLUDED.picture
-RETURNING 
-    id, 
-    COALESCE(email, '') as email, 
-    COALESCE(name, '') as name, 
-    COALESCE(slack_id, '') as slack_id, 
-    COALESCE(wa_jid, '') as wa_jid, 
-    COALESCE(picture, '') as picture, 
-    created_at
-`
-
-type CreateUserParams struct {
-	Email   sql.NullString `json:"email"`
-	Name    sql.NullString `json:"name"`
-	Picture sql.NullString `json:"picture"`
-}
-
-type CreateUserRow struct {
-	ID        int64        `json:"id"`
-	Email     string       `json:"email"`
-	Name      string       `json:"name"`
-	SlackID   string       `json:"slack_id"`
-	WaJid     string       `json:"wa_jid"`
-	Picture   string       `json:"picture"`
-	CreatedAt sql.NullTime `json:"created_at"`
-}
-
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
-	row := q.db.QueryRowContext(ctx, createUser, arg.Email, arg.Name, arg.Picture)
-	var i CreateUserRow
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.Name,
-		&i.SlackID,
-		&i.WaJid,
-		&i.Picture,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const createUserReturningAll = `-- name: CreateUserReturningAll :one
-INSERT INTO users (email, name, picture) 
-VALUES (?1, ?2, ?3) 
-ON CONFLICT(email) DO UPDATE SET 
-    name = COALESCE(NULLIF(EXCLUDED.name, ''), users.name),
-    picture = COALESCE(NULLIF(EXCLUDED.picture, ''), users.picture)
-RETURNING 
-    id, 
-    COALESCE(email, '') as email, 
-    COALESCE(name, '') as name, 
-    COALESCE(slack_id, '') as slack_id, 
-    COALESCE(wa_jid, '') as wa_jid, 
-    COALESCE(picture, '') as picture, 
-    created_at
-`
-
-type CreateUserReturningAllParams struct {
-	Email   sql.NullString `json:"email"`
-	Name    sql.NullString `json:"name"`
-	Picture sql.NullString `json:"picture"`
-}
-
-type CreateUserReturningAllRow struct {
-	ID        int64        `json:"id"`
-	Email     string       `json:"email"`
-	Name      string       `json:"name"`
-	SlackID   string       `json:"slack_id"`
-	WaJid     string       `json:"wa_jid"`
-	Picture   string       `json:"picture"`
-	CreatedAt sql.NullTime `json:"created_at"`
-}
-
-func (q *Queries) CreateUserReturningAll(ctx context.Context, arg CreateUserReturningAllParams) (CreateUserReturningAllRow, error) {
-	row := q.db.QueryRowContext(ctx, createUserReturningAll, arg.Email, arg.Name, arg.Picture)
-	var i CreateUserReturningAllRow
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.Name,
-		&i.SlackID,
-		&i.WaJid,
-		&i.Picture,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const getAllUsers = `-- name: GetAllUsers :many
-SELECT 
-    id, 
-    COALESCE(email, '') as email, 
-    COALESCE(name, '') as name, 
-    COALESCE(slack_id, '') as slack_id, 
-    COALESCE(wa_jid, '') as wa_jid, 
-    COALESCE(picture, '') as picture, 
-    created_at 
-FROM users
+SELECT id, email, name, slack_id, wa_jid, picture, created_at FROM users
 `
 
-type GetAllUsersRow struct {
-	ID        int64        `json:"id"`
-	Email     string       `json:"email"`
-	Name      string       `json:"name"`
-	SlackID   string       `json:"slack_id"`
-	WaJid     string       `json:"wa_jid"`
-	Picture   string       `json:"picture"`
-	CreatedAt sql.NullTime `json:"created_at"`
-}
-
-func (q *Queries) GetAllUsers(ctx context.Context) ([]GetAllUsersRow, error) {
+func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, getAllUsers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetAllUsersRow
+	var items []User
 	for rows.Next() {
-		var i GetAllUsersRow
+		var i User
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,
@@ -187,31 +75,12 @@ func (q *Queries) GetUserAliasesByEmail(ctx context.Context, email sql.NullStrin
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT 
-    id, 
-    COALESCE(email, '') as email, 
-    COALESCE(name, '') as name, 
-    COALESCE(slack_id, '') as slack_id, 
-    COALESCE(wa_jid, '') as wa_jid, 
-    COALESCE(picture, '') as picture, 
-    created_at 
-FROM users 
-WHERE email = ?1
+SELECT id, email, name, slack_id, wa_jid, picture, created_at FROM users WHERE email = ?1
 `
 
-type GetUserByEmailRow struct {
-	ID        int64        `json:"id"`
-	Email     string       `json:"email"`
-	Name      string       `json:"name"`
-	SlackID   string       `json:"slack_id"`
-	WaJid     string       `json:"wa_jid"`
-	Picture   string       `json:"picture"`
-	CreatedAt sql.NullTime `json:"created_at"`
-}
-
-func (q *Queries) GetUserByEmail(ctx context.Context, email sql.NullString) (GetUserByEmailRow, error) {
+func (q *Queries) GetUserByEmail(ctx context.Context, email sql.NullString) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
-	var i GetUserByEmailRow
+	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
@@ -236,31 +105,12 @@ func (q *Queries) GetUserByEmailSimple(ctx context.Context, email sql.NullString
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT 
-    id, 
-    COALESCE(email, '') as email, 
-    COALESCE(name, '') as name, 
-    COALESCE(slack_id, '') as slack_id, 
-    COALESCE(wa_jid, '') as wa_jid, 
-    COALESCE(picture, '') as picture, 
-    created_at 
-FROM users 
-WHERE id = CAST(?1 AS INTEGER)
+SELECT id, email, name, slack_id, wa_jid, picture, created_at FROM users WHERE id = CAST(?1 AS INTEGER)
 `
 
-type GetUserByIDRow struct {
-	ID        int64        `json:"id"`
-	Email     string       `json:"email"`
-	Name      string       `json:"name"`
-	SlackID   string       `json:"slack_id"`
-	WaJid     string       `json:"wa_jid"`
-	Picture   string       `json:"picture"`
-	CreatedAt sql.NullTime `json:"created_at"`
-}
-
-func (q *Queries) GetUserByID(ctx context.Context, dollar_1 int64) (GetUserByIDRow, error) {
+func (q *Queries) GetUserByID(ctx context.Context, dollar_1 int64) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByID, dollar_1)
-	var i GetUserByIDRow
+	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
@@ -273,45 +123,61 @@ func (q *Queries) GetUserByID(ctx context.Context, dollar_1 int64) (GetUserByIDR
 	return i, err
 }
 
-const updateUserNamePicture = `-- name: UpdateUserNamePicture :exec
-UPDATE users SET name = ?1, picture = ?2 WHERE email = ?3
+const updateUserDetails = `-- name: UpdateUserDetails :exec
+UPDATE users
+SET
+    name = COALESCE(?2, name),
+    picture = COALESCE(?3, picture),
+    wa_jid = COALESCE(?4, wa_jid),
+    slack_id = COALESCE(?5, slack_id)
+WHERE email = ?1
 `
 
-type UpdateUserNamePictureParams struct {
+type UpdateUserDetailsParams struct {
+	Email   sql.NullString `json:"email"`
 	Name    sql.NullString `json:"name"`
 	Picture sql.NullString `json:"picture"`
-	Email   sql.NullString `json:"email"`
-}
-
-func (q *Queries) UpdateUserNamePicture(ctx context.Context, arg UpdateUserNamePictureParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserNamePicture, arg.Name, arg.Picture, arg.Email)
-	return err
-}
-
-const updateUserSlackID = `-- name: UpdateUserSlackID :exec
-UPDATE users SET slack_id = ?1 WHERE email = ?2
-`
-
-type UpdateUserSlackIDParams struct {
+	WaJid   sql.NullString `json:"wa_jid"`
 	SlackID sql.NullString `json:"slack_id"`
-	Email   sql.NullString `json:"email"`
 }
 
-func (q *Queries) UpdateUserSlackID(ctx context.Context, arg UpdateUserSlackIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserSlackID, arg.SlackID, arg.Email)
+func (q *Queries) UpdateUserDetails(ctx context.Context, arg UpdateUserDetailsParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserDetails,
+		arg.Email,
+		arg.Name,
+		arg.Picture,
+		arg.WaJid,
+		arg.SlackID,
+	)
 	return err
 }
 
-const updateUserWAJID = `-- name: UpdateUserWAJID :exec
-UPDATE users SET wa_jid = ?1 WHERE email = ?2
+const upsertUser = `-- name: UpsertUser :one
+INSERT INTO users (email, name, picture) 
+VALUES (?1, ?2, ?3) 
+ON CONFLICT(email) DO UPDATE SET 
+    name = COALESCE(NULLIF(EXCLUDED.name, ''), users.name),
+    picture = COALESCE(NULLIF(EXCLUDED.picture, ''), users.picture)
+RETURNING id, email, name, slack_id, wa_jid, picture, created_at
 `
 
-type UpdateUserWAJIDParams struct {
-	WaJid sql.NullString `json:"wa_jid"`
-	Email sql.NullString `json:"email"`
+type UpsertUserParams struct {
+	Email   sql.NullString `json:"email"`
+	Name    sql.NullString `json:"name"`
+	Picture sql.NullString `json:"picture"`
 }
 
-func (q *Queries) UpdateUserWAJID(ctx context.Context, arg UpdateUserWAJIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserWAJID, arg.WaJid, arg.Email)
-	return err
+func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, upsertUser, arg.Email, arg.Name, arg.Picture)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.SlackID,
+		&i.WaJid,
+		&i.Picture,
+		&i.CreatedAt,
+	)
+	return i, err
 }
