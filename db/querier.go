@@ -11,7 +11,7 @@ import (
 
 type Querier interface {
 	AddContactAlias(ctx context.Context, arg AddContactAliasParams) error
-	ArchiveOldTasks(ctx context.Context, datetime interface{}) error
+	ArchiveOldTasks(ctx context.Context, datetime interface{}) (int64, error)
 	CloseSlackThread(ctx context.Context, arg CloseSlackThreadParams) error
 	CreateAIInferenceLogsTable(ctx context.Context) error
 	CreateContactAliasesTable(ctx context.Context) error

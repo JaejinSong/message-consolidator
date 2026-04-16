@@ -11,13 +11,16 @@ import (
 	"strings"
 )
 
-const archiveOldTasks = `-- name: ArchiveOldTasks :exec
+const archiveOldTasks = `-- name: ArchiveOldTasks :execrows
 UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND done = 1 AND completed_at < datetime('now', ?)
 `
 
-func (q *Queries) ArchiveOldTasks(ctx context.Context, datetime interface{}) error {
-	_, err := q.db.ExecContext(ctx, archiveOldTasks, datetime)
-	return err
+func (q *Queries) ArchiveOldTasks(ctx context.Context, datetime interface{}) (int64, error) {
+	result, err := q.db.ExecContext(ctx, archiveOldTasks, datetime)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const createMessage = `-- name: CreateMessage :one

@@ -295,13 +295,11 @@ func ArchiveOldTasks(ctx context.Context) error {
 
 	logger.Infof("[DB] Auto-archiving tasks completed more than %d days ago...", safeArchiveDays)
 	queries := db.New(GetDB())
-	err := queries.ArchiveOldTasks(ctx, threshold)
+	rows, err := queries.ArchiveOldTasks(ctx, threshold)
 	if err != nil {
 		return err
 	}
-	logger.Infof("[DB] Auto-archiving tasks completed more than %d days ago triggered.", safeArchiveDays)
-	// Note: RowsAffected is not easily available for :exec without modification, but success means execution.
-	rows := int64(0)
+	logger.Infof("[DB] Auto-archiving tasks completed more than %d days ago triggered. Rows: %d", safeArchiveDays, rows)
 
 	lastArchiveTime = time.Now()
 

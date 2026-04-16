@@ -106,7 +106,7 @@ AND (
 ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
 LIMIT ?5 OFFSET ?6;
 
--- name: ArchiveOldTasks :exec
+-- name: ArchiveOldTasks :execrows
 UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND done = 1 AND completed_at < datetime('now', ?);
 
 -- name: GetIncompleteByThreadID :many
