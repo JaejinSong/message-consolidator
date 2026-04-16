@@ -84,6 +84,11 @@ func InitDB(cfg *config.Config) error {
 		}
 	}
 
+	if strings.HasPrefix(finalURL, "libsql://") {
+		// Why: Start background keep-alive for remote connections to prevent idle timeouts.
+		go startKeepAlive(context.Background())
+	}
+
 	return EnsureSchemaAndSeeds(conn)
 }
 
@@ -98,7 +103,7 @@ func EnsureSchemaAndSeeds(dbConn *sql.DB) error {
 	}
 	defer tx.Rollback()
 
-	// Why: Ensure core tables exist BEFORE running migrations. 
+	// Why: Ensure core tables exist BEFORE running migrations.
 	ctx := context.Background()
 	if err := createCoreTables(ctx, tx); err != nil {
 		return fmt.Errorf("core table creation failed: %w", err)
@@ -108,8 +113,6 @@ func EnsureSchemaAndSeeds(dbConn *sql.DB) error {
 	if err := runMigrations(ctx, tx); err != nil {
 		return fmt.Errorf("database migration failed: %w", err)
 	}
-
-
 
 	createIndexes(ctx, tx)
 
@@ -126,7 +129,6 @@ func EnsureSchemaAndSeeds(dbConn *sql.DB) error {
 	return RefreshAllCaches(context.Background())
 }
 
-
 func setupConnectionPool(dbURL string) {
 	var maxOpen, idleConns int
 	//Why: Enforces strict connection limits to maintain SQLite stability and prevent resource exhaustion.
@@ -136,7 +138,7 @@ func setupConnectionPool(dbURL string) {
 		if isMemory {
 			logger.Infof("[DB] SQLite (Memory) detected. Increasing pool for parallel tests.")
 			maxOpen = 100
-			idleConns = 2
+			idleConns = 1
 		} else {
 			logger.Infof("[DB] SQLite (Local File) detected. Enforcing MaxOpenConns=1 for lock safety.")
 			maxOpen = 1
@@ -145,7 +147,7 @@ func setupConnectionPool(dbURL string) {
 	} else {
 		logger.Infof("[DB] Turso (Remote) detected. Optimizing pool for high throughput.")
 		maxOpen = 25
-		idleConns = 10
+		idleConns = 1
 	}
 
 	conn.SetMaxOpenConns(maxOpen)
@@ -153,6 +155,29 @@ func setupConnectionPool(dbURL string) {
 	// Why: Reduce lifetime for remote connections to prevent "stream is closed" errors from stale connections.
 	conn.SetConnMaxLifetime(1 * time.Minute)
 	conn.SetConnMaxIdleTime(30 * time.Second)
+}
+
+// startKeepAlive periodically pings the database to prevent the server or proxy from closing idle connections.
+// Why: [Reliability] Maintains an active connection stream for remote Turso/libsql databases.
+func startKeepAlive(ctx context.Context) {
+	ticker := time.NewTicker(13 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Infof("[DB-KEEPALIVE] Stopping background keep-alive.")
+			return
+		case <-ticker.C:
+			if conn == nil {
+				continue
+			}
+			if err := conn.Ping(); err != nil {
+				logger.Warnf("[DB-KEEPALIVE] Periodic ping failed: %v", err)
+				// Note: We don't exit here; we let database/sql handle reconnection attempts.
+			}
+		}
+	}
 }
 
 // LogSQLError provides unified logging for database errors with query context.
@@ -193,13 +218,13 @@ func GetDSN() string {
 	}
 
 	q.Set("_busy_timeout", "10000")
-	
+
 	u.RawQuery = q.Encode()
 	return u.String()
 }
 
 // RunInTx executes a database transaction and automatically rolls it back if an error occurs.
-//Why: Enforces consistent transaction management across the gamification domain to ensure data integrity.
+// Why: Enforces consistent transaction management across the gamification domain to ensure data integrity.
 func RunInTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	tx, err := conn.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
 	if err != nil {
@@ -215,7 +240,7 @@ func RunInTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 }
 
 // LogDBStats outputs current connection pool statistics for monitoring.
-//Why: Enables observability of database performance and connection usage in production environments.
+// Why: Enables observability of database performance and connection usage in production environments.
 func LogDBStats() {
 	if conn == nil {
 		return

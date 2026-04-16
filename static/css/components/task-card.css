@@ -155,6 +155,20 @@
     border-radius: var(--radius-sm);
 }
 
+/* --- Resolved Task Modifier --- */
+/* Why: Providing a clear visual "done" state for AI-resolved tasks. */
+.c-message-card--resolved {
+    opacity: 0.6;
+    filter: grayscale(0.5);
+    background: rgba(var(--color-bg-rgb, 255, 255, 255), 0.5);
+    border-left: var(--border-thick) solid var(--color-success);
+}
+
+.c-message-card--resolved .c-message-card__description {
+    text-decoration: line-through;
+    opacity: 0.8;
+}
+
 @keyframes fadeInDown {
     from { opacity: 0; transform: translateY(-0.625rem); }
     to { opacity: 1; transform: translateY(0); }

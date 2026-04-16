@@ -1,7 +1,7 @@
 import { apiFetch } from './utils/apiClient';
 import { state, upsertReport } from './state';
 import { normalizeReportData } from './logic';
-import { Message, UserProfile, UserStats, TokenUsage, AchievementEntry, IReportData, AccountItem, CategorizedMessages } from './types';
+import { Message, UserProfile, UserStats, TokenUsage, IReportData, AccountItem, CategorizedMessages } from './types';
 
 /**
  * @file api.ts
@@ -194,14 +194,6 @@ export const api = {
             headers: { 'X-Timezone': tz },
             errorMessage: 'Fetch user stats failed'
         });
-    },
-
-    async fetchAchievements(): Promise<AchievementEntry[]> {
-        return apiFetch('/achievements', { errorMessage: 'Fetch achievements failed' });
-    },
-
-    async fetchUserAchievements(): Promise<any[]> {
-        return apiFetch('/user/achievements', { errorMessage: 'Fetch user achievements failed' });
     },
 
     async addAlias(alias: string): Promise<any> {

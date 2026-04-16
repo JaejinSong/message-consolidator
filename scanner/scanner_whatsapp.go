@@ -156,7 +156,6 @@ func buildWAMetadataString(email string, m types.RawMessage) string {
 
 func saveWAItem(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool) int {
 	if isFromMe(m.Sender, user) && !is1to1 {
-		// Why: Identifies self-sent requests in groups as "waiting" tasks, mirroring Slack's logic for consistency.
 		item.Category = string(types.CategoryTask)
 	}
 
@@ -165,6 +164,13 @@ func saveWAItem(ctx context.Context, user store.User, aliases []string, item sto
 		Room: group, SourceChannels: []string{"whatsapp"},
 	}
 	msg := BuildConsolidatedMessage(params, aliases)
+
+	// Routing Logic: Check if status indicates an update/resolve for existing task.
+	if id, _ := store.RouteTaskByStatus(ctx, nil, user.Email, item, msg); id > 0 {
+		return id
+	}
+
+	// Fallback: Default to insertion via HandleTaskState for new tasks.
 	id, _ := store.HandleTaskState(ctx, nil, user.Email, item, msg)
 	return id
 }

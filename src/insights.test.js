@@ -26,7 +26,7 @@ vi.mock('./insightsRenderer', () => ({
         renderSourceDistribution: vi.fn(),
         renderWaitingMetrics: vi.fn(),
         renderHourlyActivity: vi.fn(),
-        renderAchievements: vi.fn(),
+
         renderAnkiChart: vi.fn(),
         renderLoading: vi.fn(),
         renderError: vi.fn(),
@@ -153,7 +153,7 @@ describe('insights.ts - Controller (Passive View Refactor)', () => {
         const stats = { total_completed: 10, completion_history: [] };
         const i18nKo = I18N_DATA.ko;
 
-        insights.renderAll(stats, [], [], { todayTotal: 100 });
+        insights.renderAll(stats, { todayTotal: 100 });
 
         expect(insightsRenderer.renderTokenUsage).toHaveBeenCalledWith(expect.any(Object), i18nKo);
         expect(insightsRenderer.renderDailyGlance).toHaveBeenCalledWith(stats, i18nKo);

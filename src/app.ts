@@ -347,13 +347,17 @@ const initNavigation = () => {
         });
     };
 
-    document.querySelectorAll('.c-main-nav__item').forEach(tab => {
-        tab.addEventListener('click', () => {
-            const view = tab.getAttribute('data-view');
-            if (!view) return;
-            showView(view);
+    // Event Delegation for Main Navigation
+    const navContainer = document.querySelector('.c-main-nav');
+    if (navContainer) {
+        navContainer.addEventListener('click', (e) => {
+            const target = (e.target as HTMLElement).closest('.c-main-nav__item') as HTMLElement;
+            if (!target) return;
+            
+            const view = target.getAttribute('data-view');
+            if (view) showView(view);
         });
-    });
+    }
 
     const closeArchive = () => showView('dashboard');
     document.getElementById('closeArchiveBtn')?.addEventListener('click', closeArchive);

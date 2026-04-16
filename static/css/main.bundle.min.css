@@ -2193,6 +2193,27 @@ body.light-theme .c-badge--count {
     border-color: var(--accent-color);
 }
 
+/* --- Pulse Animation for Active State --- */
+.c-btn--pulse {
+    animation: c-btn-pulse 2s infinite;
+    box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.7);
+}
+
+@keyframes c-btn-pulse {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.7);
+    }
+    70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 var(--spacing-sm) rgba(var(--accent-rgb), 0);
+    }
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0);
+    }
+}
+
 /* Stat Card Label & Internal Alignment */
 
 
@@ -2733,6 +2754,8 @@ body.light-theme .c-achievement__progress-base {
     overflow-y: auto;
     width: 100%;
     min-width: 0; /* Flexbox item overflow fix */
+    display: flex;
+    flex-direction: column;
 }
 
 .insights-report-header {

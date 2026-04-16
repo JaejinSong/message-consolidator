@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"message-consolidator/logger"
+	"message-consolidator/types"
+	"strings"
 	"time"
 )
 
@@ -12,6 +14,11 @@ import (
 func HandleTaskState(ctx context.Context, q Querier, email string, item TodoItem, msg ConsolidatedMessage) (int, error) {
 	if q == nil {
 		q = GetDB()
+	}
+
+	// [Priority] Use 'status' field if provided by AI, fallback to legacy 'state'.
+	if item.Status != "" {
+		item.State = item.Status
 	}
 
 	resID, err := routeTaskState(ctx, q, email, item, msg)
@@ -28,6 +35,24 @@ func HandleTaskState(ctx context.Context, q Querier, email string, item TodoItem
 	})
 
 	return resID, err
+}
+
+// RouteTaskByStatus provides a single-entry routing point for higher-level services.
+// Only returns ID for valid updates/resolves; returns 0 for new tasks to be handled by bulk pipeline.
+// Why: Standardizes 40-line limit and 2-level nesting constraints.
+func RouteTaskByStatus(ctx context.Context, q Querier, email string, item TodoItem, msg ConsolidatedMessage) (int, error) {
+	status := strings.ToLower(item.Status)
+	// Why: [Consistency] Explicitly handles RESOLVE status which transforms any TASK into a DONE state.
+	if status == "resolve" || status == "done" {
+		return handleResolve(ctx, q, email, item, msg)
+	}
+	if status == "update" && (msg.Category == string(types.CategoryTask) || msg.Category == "TASK") {
+		return handleUpdate(ctx, q, email, item, msg)
+	}
+	if status == "cancel" {
+		return handleCancel(ctx, q, email, item)
+	}
+	return 0, nil // Indicates "new" or unhandled, proceed to INSERT
 }
 
 func routeTaskState(ctx context.Context, q Querier, email string, item TodoItem, msg ConsolidatedMessage) (int, error) {
@@ -102,6 +127,7 @@ func handleUpdate(ctx context.Context, q Querier, email string, item TodoItem, m
 }
 
 func handleResolve(ctx context.Context, q Querier, email string, item TodoItem, msg ConsolidatedMessage) (int, error) {
+	if q == nil { q = GetDB() }
 	if item.ID == nil {
 		return 0, fmt.Errorf("resolve requested but ID is nil")
 	}

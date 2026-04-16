@@ -5,7 +5,7 @@
  * All data and localization must be injected by the controller.
  */
 
-import { IReportData, UserStats, TokenUsage } from './types';
+import { IReportData, UserStats, TokenUsage, ParsedVisualization } from './types';
 import { generateHeatmapData } from './logic';
 import { reportsRenderer } from './renderers/reports-renderer';
 
@@ -302,23 +302,25 @@ export const insightsRenderer = {
         const container = document.getElementById('reportList');
         if (!container) return;
 
+        // reports가 배열이 아니거나 비었을 때의 방어 로직 강화
+        if (!Array.isArray(history) || history.length === 0) {
+            container.innerHTML = `<div class="u-text-dim" style="padding: 1rem; text-align: center;">${i18n.insights.no_reports || '사용 가능한 보고서가 없습니다.'}</div>`;
+            return;
+        }
+
         reportsRenderer.renderHistory(container, history, (selected) => {
             (window as any).insights.loadExistingReport(selected);
         }, i18n);
 
-        // UI auto-selection logic is simplified.
-        if (history.length > 0) {
-            const target = activeId 
-                ? history.find(r => r.id === activeId) 
-                : history[0];
+        // UI auto-selection logic
+        const target = activeId 
+            ? history.find(r => r.id === activeId) 
+            : history[0];
             
-            if (target) {
-                const index = activeId ? history.indexOf(target) : 0;
-                const items = container.querySelectorAll('.c-insights-report-item');
-                if (items[index]) (items[index] as HTMLElement).classList.add('c-insights-report-item--active');
-            }
-        } else {
-            this.renderEmptyState(i18n);
+        if (target) {
+            const index = activeId ? history.indexOf(target) : 0;
+            const items = container.querySelectorAll('.c-insights-report-item');
+            if (items[index]) (items[index] as HTMLElement).classList.add('c-insights-report-item--active');
         }
     },
 
@@ -327,9 +329,9 @@ export const insightsRenderer = {
      */
     renderReport(report: IReportData, lang: string, i18n: any): void {
         const detailContainer = document.querySelector('.c-insights-report-main') as HTMLElement;
-        if (detailContainer) {
-            reportsRenderer.render(report, lang, i18n);
-        }
+        if (!detailContainer || !report) return;
+
+        reportsRenderer.render(report, lang, i18n);
     },
 
     renderLoading(container: HTMLElement, i18n: any, type: 'report' | 'translation' | 'load' = 'report'): void {

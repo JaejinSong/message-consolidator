@@ -35,24 +35,30 @@ export const insights = {
         console.log("[Insights] Module Initialized with Tab Isolation");
         (window as any).insights = this; // Expose for renderer callbacks
 
-        // UI Element References
-        const statsTab = document.querySelector('.insights-tab-btn[data-tab="insightsStatsTab"]') as HTMLElement | null;
-        const reportsTab = document.querySelector('.insights-tab-btn[data-tab="insightsReportsTab"]') as HTMLElement | null;
-        const statsPanel = document.getElementById('insightsStatsTab') as HTMLElement | null;
-        const reportsPanel = document.getElementById('insightsReportsTab') as HTMLElement | null;
-        // insightTabBtns removed: was unused.
+        // Sub-Tab Navigation inside Insights Section (Event Delegation)
+        const insightsTabsContainer = document.querySelector('#insightsSection .c-tabs');
+        if (insightsTabsContainer) {
+            insightsTabsContainer.addEventListener('click', async (e) => {
+                const target = (e.target as HTMLElement).closest('.insights-tab-btn') as HTMLElement;
+                if (!target) return;
+                
+                const tabId = target.getAttribute('data-tab');
+                if (tabId) {
+                    const activePanel = document.getElementById(tabId);
+                    const allTabs = Array.from(document.querySelectorAll('.insights-tab-btn')) as HTMLElement[];
+                    const inactiveBtns = allTabs.filter(b => b !== target);
+                    
+                    const inactivePanels = allTabs
+                        .filter(b => b !== target)
+                        .map(b => document.getElementById(b.getAttribute('data-tab') || ''))
+                        .filter((p): p is HTMLElement => p !== null);
 
-        if (statsTab && reportsTab && statsPanel && reportsPanel) {
-            // Stats Tab Click
-            statsTab.addEventListener('click', async () => {
-                this.setActiveTab(statsTab, statsPanel, [reportsTab], [reportsPanel]);
-                await this.refreshData(); // Fetch stats only
-            });
-
-            // Reports Tab Click
-            reportsTab.addEventListener('click', async () => {
-                this.setActiveTab(reportsTab, reportsPanel, [statsTab], [statsPanel]);
-                await this.refreshReport(); // Fetch reports on-demand
+                    if (activePanel) {
+                        this.setActiveTab(target, activePanel, inactiveBtns, inactivePanels);
+                        if (tabId === 'insightsStatsTab') await this.refreshData();
+                        if (tabId === 'insightsReportsTab') await this.refreshReport();
+                    }
+                }
             });
         }
 
@@ -334,11 +340,15 @@ export const insights = {
         const i18n = I18N_DATA[state.currentLang || 'en'];
         const reportContent = document.getElementById('reportSummaryContent');
         try {
-            const history = await api.fetchReportHistory();
+            const rawHistory = await api.fetchReportHistory();
+            const history = Array.isArray(rawHistory) ? rawHistory : [];
             updateReportHistory(history);
-            insightsRenderer.renderReportList(state.reportHistory, i18n, _activeId);
 
-            if (state.reportHistory.length === 0) {
+            // Access reportHistory from state safely
+            const reportHistory = state.reportHistory || [];
+            insightsRenderer.renderReportList(reportHistory, i18n, _activeId);
+
+            if (reportHistory.length === 0) {
                 // No reports: show empty state immediately (no spinner needed)
                 insightsRenderer.renderEmptyState(i18n);
                 return;
@@ -346,9 +356,9 @@ export const insights = {
 
             // Auto-load the most recent report only when no specific report is active
             if (_activeId === null && !this.lastReport) {
-                await this.loadExistingReport(state.reportHistory[0]);
+                await this.loadExistingReport(reportHistory[0]);
             } else if (_activeId !== null) {
-                const target = state.reportHistory.find(r => r.id === _activeId);
+                const target = reportHistory.find(r => r.id === _activeId);
                 if (target) await this.loadExistingReport(target);
             }
         } catch (e) {
@@ -403,10 +413,8 @@ export const insights = {
         if (loading) loading.classList.add('active');
 
         try {
-            const [stats, _, __, tokenUsage] = await Promise.all([
+            const [stats, tokenUsage] = await Promise.all([
                 api.fetchUserStats().catch(() => null),
-                api.fetchAchievements().catch(() => []),
-                api.fetchUserAchievements().catch(() => []),
                 api.fetchTokenUsage().catch(() => null)
             ]);
 

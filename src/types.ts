@@ -193,8 +193,10 @@ export interface IReportData {
     start_date: string;
     end_date: string;
     report_summary: string;
+    summary?: string;
     translations?: Record<string, string>;
     visualization_data: string | ParsedVisualization;
+    visualization?: string | ParsedVisualization;
     status?: 'processing' | 'completed' | 'failed';
     is_truncated?: boolean;
     created_at?: string;

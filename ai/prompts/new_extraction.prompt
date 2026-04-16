@@ -8,7 +8,7 @@ model: gemini-3-flash-preview
 Extract actionable tasks, operational policies, and context-dependent queries from the message text.
 
 # Core Rules:
-1. **Force JSON Output**: You must respond ONLY in a single JSON object (consolidated): `{"reasoning": "string", "task": "Main Title (EN)", "category": "TASK|POLICY|QUERY|PROMISE", "subtasks": [{"task": "Subtask 1 (EN)", "assignee_id": int|null, "assignee_name": "string"}], "affinity_group_id": "string"}`.
+1. **Force JSON Output**: You must respond ONLY in a single JSON object (consolidated): `{"reasoning": "string", "task": "Main Title (EN)", "status": "new|resolve", "category": "TASK|POLICY|QUERY|PROMISE", "subtasks": [{"task": "Subtask 1 (EN)", "assignee_id": int|null, "assignee_name": "string"}], "affinity_group_id": "string"}`.
 2. **Identity Mapping**: 
    - IF a task/subtask is specifically for the recipient ({{.CurrentUserEmail}}), SET `assignee_id` = {{.CurrentUserID}} and `assignee_name` = "me".
    - ELSE IF it's for someone else, SET `assignee_id` = null and `assignee_name` = "Actual Name". 
@@ -33,7 +33,7 @@ Extract actionable tasks, operational policies, and context-dependent queries fr
 
 # JSON Examples:
 - Input: "@everyone please sync before EOD. @JJ please review the PR."
-- Output JSON: `{"task": "EOD Coordination and PR Review", "category": "TASK", "subtasks": [{"task": "Sync before End of Day", "assignee_id": null, "assignee_name": "shared"}, {"task": "Review the PR", "assignee_id": {{.CurrentUserID}}, "assignee_name": "me"}], "affinity_group_id": "dev-coord"}`
+- Output JSON: `{"task": "EOD Coordination and PR Review", "status": "new", "category": "TASK", "subtasks": [{"task": "Sync before End of Day", "assignee_id": null, "assignee_name": "shared"}, {"task": "Review the PR", "assignee_id": {{.CurrentUserID}}, "assignee_name": "me"}], "affinity_group_id": "dev-coord"}`
 
 [Examples]
 {{range .FewShots}}

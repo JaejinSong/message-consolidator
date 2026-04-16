@@ -142,6 +142,7 @@ type TodoItem struct {
 	AffinityGroupID string          `json:"affinity_group_id,omitempty"` // Shared ID for tasks that should be consolidated.
 	SourceChannels  []string        `json:"source_channels,omitempty"`  // All origins for merged tasks.
 	ContextSnippets []string        `json:"context_snippets,omitempty"` // Justification snippets for the task.
+	Status          string          `json:"status"`            // "new", "update", "resolve", or "cancel"
 	Subtasks        []TodoSubtask   `json:"subtasks,omitempty"`        // Why: Support for hierarchical task-subtask structure from AI.
 }
 

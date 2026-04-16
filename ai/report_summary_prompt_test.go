@@ -39,7 +39,7 @@ func TestReportSummaryPrompt(t *testing.T) {
 - [ ] New API specification review (From: Minjun Lee (Internal), To: Eunseo Choi (Internal), Date: 04-02)
 - [V] v2.4.1 release note draft (From: Younghee Kim (Internal), To: Chulsoo Park (Internal), Date: 04-01)`,
 			expectedOutput: []string{
-				"## 1. Executive Summary",
+				"## 1. Operations & Strategy Overview",
 				"## 2. Pending & Risks",
 				"## 3. Management Gap",
 				"No management gap identified",
@@ -54,7 +54,7 @@ func TestReportSummaryPrompt(t *testing.T) {
 			name:     "Case 2: Management Gap due to External Delay",
 			inputLog: `- [ ] Certificate renewal (Expires 4/5). No response after 2 follow-ups. (From: Minjun Lee (Internal), To: David Kim (External), Date: 03-25)`,
 			expectedOutput: []string{
-				"## 1. Executive Summary",
+				"## 1. Operations & Strategy Overview",
 				"## 3. Management Gap",
 				"David Kim (External)",
 			},

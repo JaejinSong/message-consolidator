@@ -82,6 +82,10 @@ function calculateCircularLayout(nodes: any[], centerX: number, centerY: number,
  * Renders a Network Graph using SVG.
  */
 function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): void {
+    if (!container || !Array.isArray(nodes) || !Array.isArray(links)) {
+        console.warn("[ReportsRenderer] Skipping network rendering: Missing or invalid data.");
+        return;
+    }
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 400;
     const svg = createSVGElement('svg', { width: '100%', height: '100%', viewBox: `0 0 ${width} ${height}` });
@@ -176,6 +180,10 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
  * Renders a Sankey Chart using SVG Cubic Bezier paths.
  */
 function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): void {
+    if (!container || !Array.isArray(nodes) || !Array.isArray(links)) {
+        console.warn("[ReportsRenderer] Skipping sankey rendering: Missing or invalid data.");
+        return;
+    }
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 400;
     const svg = createSVGElement('svg', { width: '100%', height: '100%', viewBox: `0 0 ${width} ${height}` });
@@ -384,13 +392,20 @@ export const reportsRenderer = {
         let viz: ParsedVisualization;
 
         try {
+            let parsed: any;
             if (typeof vizRaw === 'string' && vizRaw.trim()) {
-                viz = JSON.parse(vizRaw);
+                parsed = JSON.parse(vizRaw);
             } else if (vizRaw && typeof vizRaw === 'object') {
-                viz = vizRaw as ParsedVisualization;
+                parsed = vizRaw;
             } else {
-                viz = { nodes: [], links: [] };
+                parsed = { nodes: [], links: [] };
             }
+
+            // Normalize Casing (Nodes/nodes, Links/links)
+            viz = {
+                nodes: parsed.nodes || parsed.Nodes || [],
+                links: parsed.links || parsed.Links || []
+            };
         } catch (e) {
             console.error("[ReportsRenderer] Visualization data parsing failed:", e);
             viz = { nodes: [], links: [] };

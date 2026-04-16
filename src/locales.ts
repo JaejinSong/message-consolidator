@@ -166,7 +166,7 @@ export const I18N_DATA: Record<string, any> = {
         sourceDistTotal: "전체(보관함 포함)",
         sourceDistCurrent: "현재 대시보드",
         hourlyActivity: "시간대별 활동",
-        achievementsTitle: "업적",
+
         reviewStatsTitle: "업무 완료 추이",
         filter1M: "1개월",
         filter3M: "3개월",
@@ -213,18 +213,7 @@ export const I18N_DATA: Record<string, any> = {
         dayNames: ["일", "월", "화", "수", "목", "금", "토"],
         heatmapTaskTooltip: "{count}개의 업무 완료 ({date})",
         hourlyTaskTooltip: "{count}개의 업무 완료 ({time})",
-        achievements: {
-            "Morning Star": { name: "모닝 스타", desc: "오전 9시 이전에 첫 번째 업무를 완료했습니다." },
-            "첫 걸음": { name: "첫 걸음", desc: "첫 번째 업무를 완료했습니다." },
-            "Task Master": { name: "태스크 마스터", desc: "하루에 10개 이상의 업무를 완료했습니다." },
-            "Task Master 10": { name: "태스크 마스터 (10)", desc: "누적 업무 10개를 완료했습니다." },
-            "태스크 마스터 I": { name: "태스크 마스터 I", desc: "누적 10개의 업무를 완료했습니다." },
-            "태스크 마스터 II": { name: "태스크 마스터 II", desc: "누적 50개의 업무를 완료했습니다." },
-            "태스크 마스터 III": { name: "태스크 마스터 III", desc: "누적 100개의 업무를 완료했습니다!" },
-            "Streak Starter": { name: "스트릭 스타터", desc: "3일 연속으로 업무를 완료했습니다." },
-            "Persistence King": { name: "끈기 끝판왕", desc: "7일 연속으로 업무를 완료했습니다." },
-            "꾸준함의 시작": { name: "꾸준함의 시작", desc: "레벨 5에 도달했습니다." }
-        },
+
         unlocked: "해제됨",
         showMore: "더 보기",
         showLess: "접기",
@@ -244,7 +233,7 @@ export const I18N_DATA: Record<string, any> = {
         peakTime: "피크 타임",
         totalCommunication: "총 소통량",
         averageDaily: "일 평균",
-        recentAchievements: "최근 업적",
+
         sourceDistribution: "소스별 비중",
         recentActivity91: "최근 활동 (91일)",
         noReportsYet: "생성된 리포트가 없습니다",
@@ -429,7 +418,7 @@ export const I18N_DATA: Record<string, any> = {
         sourceDistTotal: "Total (incl. Archive)",
         sourceDistCurrent: "Current Dashboard",
         hourlyActivity: "Hourly Activity",
-        achievementsTitle: "Achievements",
+
         reviewStatsTitle: "Completion Trends",
         filter1M: "1 Month",
         filter3M: "3 Months",
@@ -476,20 +465,7 @@ export const I18N_DATA: Record<string, any> = {
         dayNames: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
         heatmapTaskTooltip: "{count} tasks completed ({date})",
         hourlyTaskTooltip: "{count} tasks completed ({time})",
-        achievements: {
-            "Morning Star": { name: "Morning Star", desc: "Completed the first task before 9 AM." },
-            "첫 걸음": { name: "First Step", desc: "Completed your very first task." },
-            "Task Master": { name: "Daily Task Master", desc: "Completed 10 or more tasks in a single day." },
-            "Task Master 10": { name: "Task Master (10)", desc: "Cumulative 10 tasks completed." },
-            "태스크 마스터 I": { name: "Task Master I", desc: "Cumulative 10 tasks completed." },
-            "태스크 마스터 II": { name: "Task Master II", desc: "Cumulative 50 tasks completed." },
-            "태스크 마스터 III": { name: "Task Master III", desc: "Cumulative 100 tasks completed!" },
-            "Streak Starter": { name: "Streak Starter", desc: "Completed tasks for 3 consecutive days." },
-            "Persistence King": { name: "Persistence King", desc: "Completed tasks for 7 consecutive days." },
-            "스트릭 스타터": { name: "Streak Starter", desc: "Completed tasks for 3 consecutive days." },
-            "끈기 끝판왕": { name: "Persistence King", desc: "Completed tasks for 7 consecutive days." },
-            "꾸준함의 시작": { name: "Consistency Starter", desc: "Reached Level 5." }
-        },
+
         unlocked: "Unlocked",
         showMore: "Show More",
         showLess: "Show Less",
@@ -509,7 +485,7 @@ export const I18N_DATA: Record<string, any> = {
         peakTime: "Peak Time",
         totalCommunication: "Total Communication",
         averageDaily: "Daily Average",
-        recentAchievements: "Recent Achievements",
+
         sourceDistribution: "Source Distribution",
         recentActivity91: "Recent Activity (91 Days)",
         noReportsYet: "No reports yet",
@@ -658,7 +634,7 @@ export const I18N_DATA: Record<string, any> = {
         pendingMeTasks: "Tugas Tertunda Saya",
         needsAttentionTasks: "Perlu Perhatian",
         hourlyActivity: "Aktivitas Per Jam",
-        achievementsTitle: "Pencapaian",
+
         reviewStatsTitle: "Tren Penyelesaian",
         filter1M: "1 Bulan",
         filter3M: "3 Bulan",
@@ -701,12 +677,7 @@ export const I18N_DATA: Record<string, any> = {
         dayNames: ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"],
         heatmapTaskTooltip: "{count} tugas selesai ({date})",
         hourlyTaskTooltip: "{count} tugas selesai ({time})",
-        achievements: {
-            "Morning Star": { name: "Bintang Pagi", desc: "Menyelesaikan tugas pertama sebelum pukul 9 pagi." },
-            "Task Master 10": { name: "Ahli Tugas", desc: "Menyelesaikan 10 tugas atau lebih dalam satu hari." },
-            "Streak Starter": { name: "Pemicu Beruntun", desc: "Menyelesaikan tugas selama 3 hari berturut-turut." },
-            "Persistence King": { name: "Raja Ketekunan", desc: "Menyelesaikan tugas selama 7 hari berturut-turut." }
-        }
+
     },
     th: {
         subTitle: "แดชบอร์ดงาน Slack & WhatsApp อัตโนมัติ",
@@ -831,7 +802,7 @@ export const I18N_DATA: Record<string, any> = {
         pendingMeTasks: "งานที่ฉันต้องทำ",
         needsAttentionTasks: "สิ่งที่ต้องตรวจสอบ",
         hourlyActivity: "กิจกรรมรายชั่วโมง",
-        achievementsTitle: "ความสำเร็จ",
+
         reviewStatsTitle: "แนวโน้มการเสร็จสิ้น",
         filter1M: "1 เดือน",
         filter3M: "3 เดือน",
@@ -874,11 +845,6 @@ export const I18N_DATA: Record<string, any> = {
         dayNames: ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."],
         heatmapTaskTooltip: "เสร็จสิ้น {count} งาน ({date})",
         hourlyTaskTooltip: "เสร็จสิ้น {count} งาน ({time})",
-        achievements: {
-            "Morning Star": { name: "ดาวรุ่งยามเช้า", desc: "ทำงานแรกเสร็จก่อน 9 โมงเช้า" },
-            "Task Master 10": { name: "ปรมาจารย์งาน", desc: "ทำงานเสร็จ 10 งานขึ้นไปในหนึ่งวัน" },
-            "Streak Starter": { name: "ผู้เริ่มสตรีค", desc: "ทำงานเสร็จติดต่อกัน 3 วัน" },
-            "Persistence King": { name: "ราชาแห่งความพากเพียร", desc: "ทำงานเสร็จติดต่อกัน 7 วัน" }
-        }
+
     }
 };

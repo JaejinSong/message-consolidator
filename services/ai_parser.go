@@ -37,7 +37,7 @@ func ExtractJSONBlock(content string) (string, string, error) {
 	return jsonStr, strings.TrimSpace(processedStripped), nil
 }
 
-// ExtractSection extracts text from a specific section header (e.g., "## [Executive Summary]") until the next header.
+// ExtractSection extracts text from a specific section header (e.g., "## [Operations & Strategy Overview]") until the next header.
 func ExtractSection(content, sectionName string) string {
 	startIdx := strings.Index(content, sectionName)
 	if startIdx == -1 {
