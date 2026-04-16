@@ -22,6 +22,8 @@ type ReportConfig struct {
 	CutoffSize int
 }
 
+const DefaultReportCutoffSize = 16000
+
 // Log is a type alias for ConsolidatedMessage to satisfy technical requirements while maintaining consistency.
 type Log = store.ConsolidatedMessage
 
@@ -229,7 +231,7 @@ func (s *ReportsService) applyResolution(ctx context.Context, m *Log, identifier
 		*identifierField = c.CanonicalID // Normalized to Email for DB consistency and tests
 		*canonicalField = c.CanonicalID
 		*displayNameField = c.DisplayName // Preserved for UI/Visualization
-		
+
 		// 💡 Promotion: Use contact_type from mapping if present
 		if c.ContactType != "" && c.ContactType != "none" {
 			*typeField = c.ContactType
@@ -242,9 +244,14 @@ func (s *ReportsService) PrepareLogsForAI(email string, rawLogs []Log) (string, 
 	s.sortLogs(rawLogs)
 	var sb strings.Builder
 	curr, truncated := 0, false
+	limit := s.config.CutoffSize
+	if limit <= 0 {
+		limit = DefaultReportCutoffSize
+	}
+
 	for _, m := range rawLogs {
 		line := s.formatLogLine(email, m)
-		if curr+len(line) > 8000 {
+		if curr+len(line) > limit {
 			truncated = true
 			break
 		}
@@ -342,7 +349,7 @@ func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (ma
 		if rName == "" {
 			rName = m.Requester
 		}
-		
+
 		aID := m.AssigneeCanonical
 		if aID == "" {
 			aID = strings.ToLower(m.Assignee)

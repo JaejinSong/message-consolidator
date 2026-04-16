@@ -79,7 +79,7 @@ func main() {
 	if gClient != nil {
 		transSvc = services.NewTranslationService(gClient)
 		summarizer := services.NewFlashSingleSummarizer(gClient)
-		config := services.ReportConfig{CutoffSize: 8000}
+		config := services.ReportConfig{CutoffSize: services.DefaultReportCutoffSize}
 		reportsSvc = services.NewReportsService(summarizer, gClient, transSvc, config)
 		tasksSvc = services.NewTasksService(transSvc, gClient)
 	} else {

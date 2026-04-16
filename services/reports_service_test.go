@@ -11,7 +11,7 @@ import (
 
 func TestReportsService_CalculateGraph(t *testing.T) {
 	store.ResetForTest()
-	svc := &ReportsService{config: ReportConfig{CutoffSize: 8000}, isTest: true}
+	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}, isTest: true}
 	messages := []store.ConsolidatedMessage{
 		{Requester: "Alice", Assignee: "JJ", Source: "slack", RequesterCanonical: "alice", AssigneeCanonical: "jj", RequesterType: "customer", AssigneeType: "internal"},
 		{Requester: "Alice", Assignee: "JJ", Source: "slack", RequesterCanonical: "alice", AssigneeCanonical: "jj", RequesterType: "customer", AssigneeType: "internal"},
@@ -70,8 +70,8 @@ func TestReportsService_TruncatePayload(t *testing.T) {
 
 	summary, isTruncated := svc.PrepareLogsForAI("me@example.com", messages)
 	// Why: The internal cutoff is strictly 8,000 bytes.
-	if len([]byte(summary)) > 8000 {
-		t.Errorf("Summary too long: %d bytes (limit 8000)", len([]byte(summary)))
+	if len([]byte(summary)) > DefaultReportCutoffSize {
+		t.Errorf("Summary too long: %d bytes (limit DefaultReportCutoffSize)", len([]byte(summary)))
 	}
 	if !isTruncated {
 		t.Errorf("Expected isTruncated to be true for large payload, got false")
@@ -118,7 +118,7 @@ func TestReportsService_TruncatePriority(t *testing.T) {
 
 func TestReportsService_Normalization(t *testing.T) {
 	store.ResetForTest()
-	svc := &ReportsService{config: ReportConfig{CutoffSize: 8000}, isTest: true}
+	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}, isTest: true}
 	messages := []store.ConsolidatedMessage{
 		{Requester: "jj@whatap.io", Assignee: "JJ", Source: "slack", RequesterCanonical: "jj@whatap.io", AssigneeCanonical: "jj", RequesterType: "internal", AssigneeType: "none"},
 		{Requester: "JJ", Assignee: "jj@whatap.io", Source: "slack", RequesterCanonical: "jj", AssigneeCanonical: "jj@whatap.io", RequesterType: "none", AssigneeType: "internal"},
@@ -149,7 +149,7 @@ func TestReportsService_Normalization(t *testing.T) {
 
 func TestReportsService_Labeling(t *testing.T) {
 	store.ResetForTest()
-	svc := &ReportsService{config: ReportConfig{CutoffSize: 8000}, isTest: true}
+	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}, isTest: true}
 	messages := []store.ConsolidatedMessage{
 		{Requester: "JJ", Assignee: "Alice", Source: "slack", RequesterCanonical: "jj", AssigneeCanonical: "alice", RequesterType: "none", AssigneeType: "none"},
 	}
@@ -172,7 +172,7 @@ func TestReportsService_Labeling(t *testing.T) {
 
 func TestReportsService_SankeyContract(t *testing.T) {
 	store.ResetForTest()
-	svc := &ReportsService{config: ReportConfig{CutoffSize: 8000}}
+	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}}
 
 	messages := []store.ConsolidatedMessage{
 		// 1. Normal link.
@@ -257,7 +257,7 @@ func TestReportsService_GenerateVisualizationData_WithAliases(t *testing.T) {
 	}
 	defer cleanup()
 
-	svc := &ReportsService{config: ReportConfig{CutoffSize: 8000}}
+	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}}
 	tenantEmail := "admin@whatap.io"
 
 	// 1. Create users
@@ -344,7 +344,7 @@ func TestReportsService_GenerateVisualizationData_AliasCollision(t *testing.T) {
 	}
 	defer cleanup()
 
-	svc := &ReportsService{config: ReportConfig{CutoffSize: 8000}}
+	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}}
 	tenantEmail := "admin@whatap.io"
 
 	// 1. Create two different users with the same name.
@@ -410,7 +410,7 @@ func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) 
 	}
 	defer cleanup()
 
-	svc := &ReportsService{config: ReportConfig{CutoffSize: 8000}}
+	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}}
 	tenantA := "tenant-a@company.com"
 	tenantB := "tenant-b@company.com"
 
@@ -485,7 +485,7 @@ func TestReportsService_GenerateReport_MultiLanguage(t *testing.T) {
 		generateFunc: func(ctx context.Context, logs string) (string, error) {
 			return mockSummary, nil
 		},
-	}, nil, nil, ReportConfig{CutoffSize: 8000})
+	}, nil, nil, ReportConfig{CutoffSize: DefaultReportCutoffSize})
 	svc.isTest = true
 
 	tenantEmail := "test@example.com"
@@ -550,7 +550,7 @@ func TestReportsService_CacheHit(t *testing.T) {
 			callCount++
 			return "AI Generated Report", nil
 		},
-	}, nil, nil, ReportConfig{CutoffSize: 8000})
+	}, nil, nil, ReportConfig{CutoffSize: DefaultReportCutoffSize})
 	svc.isTest = true
 
 	email := "user@cache.com"
@@ -599,7 +599,7 @@ func TestReportsService_GenerateReport_OnlyRequestedLanguage(t *testing.T) {
 		generateFunc: func(ctx context.Context, logs string) (string, error) {
 			return "AI Generated Summary", nil
 		},
-	}, nil, transSvc, ReportConfig{CutoffSize: 8000})
+	}, nil, transSvc, ReportConfig{CutoffSize: DefaultReportCutoffSize})
 	svc.isTest = true
 
 	email := "user@example.com"
