@@ -82,19 +82,23 @@ func GetContactsMappings(email string) ([]ContactRecord, error) {
 }
 
 func AddContactMapping(ctx context.Context, email, canonicalID, displayName, aliases, source string) error {
-	_, err := AddContact(ctx, email, canonicalID, displayName, aliases, source)
+	_, err := UpsertContact(ctx, email, canonicalID, displayName, aliases, source)
 	return err
 }
 
 func AddContact(ctx context.Context, tenantEmail, canonicalID, displayName, aliases, source string) (int64, error) {
+	return UpsertContact(ctx, tenantEmail, canonicalID, displayName, aliases, source)
+}
+
+func UpsertContact(ctx context.Context, tenantEmail, canonicalID, displayName, aliases, source string) (int64, error) {
 	if source == "" {
 		source = SourceAll
 	}
 	newID, err := db.New(GetDB()).UpsertContactMapping(ctx, db.UpsertContactMappingParams{
-		TenantEmail:  tenantEmail,
-		CanonicalID:  canonicalID,
-		DisplayName:  displayName,
-		Source:       sql.NullString{String: source, Valid: true},
+		TenantEmail: tenantEmail,
+		CanonicalID: canonicalID,
+		DisplayName: displayName,
+		Source:      sql.NullString{String: source, Valid: true},
 	})
 	if err != nil {
 		return 0, err
@@ -102,9 +106,9 @@ func AddContact(ctx context.Context, tenantEmail, canonicalID, displayName, alia
 	id := int64(newID)
 
 	// Why: Identity-X requires every primary identifier to be registered as an alias for resolution.
-	aliasType := "email"
+	aliasType := ContactTypeEmail
 	if !strings.Contains(canonicalID, "@") {
-		aliasType = "name"
+		aliasType = ContactTypeName
 	}
 	_ = RegisterAlias(ctx, id, aliasType, canonicalID, source, 5)
 
@@ -120,45 +124,11 @@ func AddContact(ctx context.Context, tenantEmail, canonicalID, displayName, alia
 		}
 	}
 
-	UpdateContactsCache(int64(id), tenantEmail, canonicalID, displayName, source)
-	return int64(id), nil
+	UpdateContactsCache(id, tenantEmail, canonicalID, displayName, source)
+	return id, nil
 }
 
-func UpsertContact(ctx context.Context, tenantEmail, canonicalID, displayName, aliases, source string) (int64, error) {
-	if source == "" {
-		source = SourceAll
-	}
-	newID, err := db.New(GetDB()).UpsertContactMapping(ctx, db.UpsertContactMappingParams{
-		TenantEmail:  tenantEmail,
-		CanonicalID:  canonicalID,
-		DisplayName:  displayName,
-		Source:       sql.NullString{String: source, Valid: true},
-	})
-	id := int64(newID)
-	if err == nil {
-		// Why: Identity-X requires every primary identifier to be registered as an alias for resolution.
-		aliasType := ContactTypeEmail
-		if !strings.Contains(canonicalID, "@") {
-			aliasType = ContactTypeName
-		}
-		_ = RegisterAlias(ctx, id, aliasType, canonicalID, source, 5)
-
-		// Why: Register Display Name as an alias to ensure ResolveAlias works with names too.
-		if strings.TrimSpace(displayName) != "" && !strings.EqualFold(strings.TrimSpace(displayName), canonicalID) {
-			_ = RegisterAlias(ctx, id, ContactTypeName, displayName, source, 1)
-		}
-
-		// Why: Register secondary aliases provided in the legacy format for backwards compatibility and discovery.
-		for _, a := range strings.Split(aliases, ",") {
-			if trimmed := NormalizeIdentifier(a); trimmed != "" {
-				_ = RegisterAlias(ctx, id, ContactTypeName, trimmed, source, 1)
-			}
-		}
-
-		UpdateContactsCache(id, tenantEmail, canonicalID, displayName, source)
-	}
-	return id, err
-}
+// searchCache is moved or merged into specific find helpers.
 
 // UpdateContactsCache localizes cache update logic for reuse across manual and automatic upserts.
 func UpdateContactsCache(id int64, email, canonicalID, displayName, source string) {
@@ -196,14 +166,9 @@ func AutoUpsertContact(tenantEmail, email, name, source string) error {
 	}
 
 	metadataMu.RLock()
-	mappings := contactsCache[tenantEmail]
-	var existing *ContactRecord
-	for i := range mappings {
-		if mappings[i].CanonicalID == canonicalID {
-			existing = &mappings[i]
-			break
-		}
-	}
+	existing := findInCache(tenantEmail, func(m ContactRecord) bool {
+		return m.CanonicalID == canonicalID
+	})
 	metadataMu.RUnlock()
 
 	newName := strings.TrimSpace(name)
@@ -238,21 +203,14 @@ func SaveWhatsAppContact(email, number, name string) error {
 	}
 
 	metadataMu.RLock()
-	mappings := contactsCache[email]
-	var currentCanonical string
-	exists := false
-	for _, m := range mappings {
-		if m.DisplayName == name {
-			currentCanonical = m.CanonicalID
-			exists = true
-			break
-		}
-	}
+	existing := findInCache(email, func(m ContactRecord) bool {
+		return m.DisplayName == name
+	})
 	metadataMu.RUnlock()
 
 	canonical := strings.ToLower(name) // Fallback if not exists
-	if exists {
-		canonical = currentCanonical
+	if existing != nil {
+		canonical = existing.CanonicalID
 	}
 
 	_, err := UpsertContact(context.Background(), email, canonical, name, number, ContactTypeWhatsApp)
@@ -264,18 +222,14 @@ func GetNameByWhatsAppNumber(email, number string) string {
 	if err != nil {
 		return ""
 	}
-	
-	metadataMu.RLock()
-	mappings, ok := contactsCache[email]
-	metadataMu.RUnlock()
-	if !ok {
-		return ""
-	}
 
-	for _, m := range mappings {
-		if m.ID == id {
-			return m.DisplayName
-		}
+	metadataMu.RLock()
+	found := findInCache(email, func(m ContactRecord) bool {
+		return m.ID == id
+	})
+	metadataMu.RUnlock()
+	if found != nil {
+		return found.DisplayName
 	}
 	return ""
 }
@@ -291,8 +245,8 @@ func NormalizeContactName(email, rawName string) string {
 
 	// Why: Lazily populate the cache if it was invalidated or not yet loaded for this tenant.
 	if !ok {
-		all, err := fetchAllTenantContacts(context.Background(), email)
-		if err == nil {
+		all, _ := fetchAllTenantContacts(context.Background(), email)
+		if all != nil {
 			metadataMu.Lock()
 			contactsCache[email] = all
 			mappings = all
@@ -305,17 +259,17 @@ func NormalizeContactName(email, rawName string) string {
 		// 1. Precise Identity-X resolution
 		id, err := ResolveAlias(context.Background(), ContactTypeName, raw)
 		if err == nil {
-			for _, m := range records {
-				if m.ID == id {
-					return m.DisplayName
+			for i := range records {
+				if records[i].ID == id {
+					return records[i].DisplayName
 				}
 			}
 		}
 		// 2. Fuzzy/Identifier matching
 		normalized := strings.TrimSpace(strings.ToLower(raw))
-		for _, m := range records {
-			if strings.ToLower(m.DisplayName) == normalized || strings.ToLower(m.CanonicalID) == normalized {
-				return m.DisplayName
+		for i := range records {
+			if strings.ToLower(records[i].DisplayName) == normalized || strings.ToLower(records[i].CanonicalID) == normalized {
+				return records[i].DisplayName
 			}
 		}
 		return ""
@@ -874,4 +828,17 @@ func fetchTenantEmailByID(ctx context.Context, id int64) (string, error) {
 	var email string
 	err := GetDB().QueryRowContext(ctx, "SELECT tenant_email FROM contacts WHERE id = ?", id).Scan(&email)
 	return email, err
+}
+
+func findInCache(email string, predicate func(ContactRecord) bool) *ContactRecord {
+	mappings, ok := contactsCache[email]
+	if !ok {
+		return nil
+	}
+	for i := range mappings {
+		if predicate(mappings[i]) {
+			return &mappings[i]
+		}
+	}
+	return nil
 }
