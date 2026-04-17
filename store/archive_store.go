@@ -58,13 +58,11 @@ func getFromArchiveCache(f ArchiveFilter) ([]ConsolidatedMessage, int, bool) {
 
 func fetchArchivedFromDB(ctx context.Context, filter ArchiveFilter) ([]ConsolidatedMessage, int, error) {
 	queries := db.New(GetDB())
-	threshold := fmt.Sprintf("-%d days", GetAutoArchiveDays())
 
 	total, err := queries.SearchArchivedMessagesCount(ctx, db.SearchArchivedMessagesCountParams{
-		Column1:  filter.Email,
-		Column2:  threshold,
-		Column3:  filter.Query,
-		Column4:  filter.Status,
+		Column1: filter.Email,
+		Column2: filter.Query,
+		Column3: filter.Status,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("archive count failed: %w", err)
@@ -72,9 +70,8 @@ func fetchArchivedFromDB(ctx context.Context, filter ArchiveFilter) ([]Consolida
 
 	rows, err := queries.SearchArchivedMessages(ctx, db.SearchArchivedMessagesParams{
 		Column1: filter.Email,
-		Column2: threshold,
-		Column3: filter.Query,
-		Column4: filter.Status,
+		Column2: filter.Query,
+		Column3: filter.Status,
 		Limit:   int64(filter.Limit),
 		Offset:  int64(filter.Offset),
 	})
@@ -86,43 +83,21 @@ func fetchArchivedFromDB(ctx context.Context, filter ArchiveFilter) ([]Consolida
 }
 
 func mapRowSliceToMessage(rows []db.SearchArchivedMessagesRow) []ConsolidatedMessage {
-	var msgs []ConsolidatedMessage
-	for _, r := range rows {
-		msgs = append(msgs, mapSearchRowToMessage(r))
+	msgs := make([]ConsolidatedMessage, len(rows))
+	for i, r := range rows {
+		msgs[i] = MapVMessageToConsolidated(
+			int(r.ID), r.UserEmail, r.Source, r.Room, r.Task,
+			r.Requester, r.Assignee, r.Link, r.SourceTs,
+			r.OriginalText, r.Done, r.IsDeleted, r.CreatedAt,
+			r.Category, r.Deadline, r.ThreadID,
+			r.RequesterCanonical, r.AssigneeCanonical, r.AssigneeReason,
+			r.RepliedToID, int(r.IsContextQuery), r.Constraints,
+			r.ConsolidatedContext, r.Metadata, r.SourceChannels,
+			r.RequesterType, r.AssigneeType, r.Subtasks,
+			r.AssignedAt, r.CompletedAt,
+		)
 	}
 	return msgs
-}
-
-func mapSearchRowToMessage(r db.SearchArchivedMessagesRow) ConsolidatedMessage {
-	m := ConsolidatedMessage{
-		ID:                  int(r.ID),
-		UserEmail:           r.UserEmail,
-		Source:              r.Source,
-		Room:                r.Room,
-		Task:                r.Task,
-		Requester:           r.Requester,
-		Assignee:            r.Assignee,
-		Link:                r.Link,
-		SourceTS:            r.SourceTs,
-		OriginalText:        r.OriginalText,
-		Done:                r.Done,
-		IsDeleted:           r.IsDeleted,
-		Category:            r.Category,
-		Deadline:            r.Deadline,
-		ThreadID:            r.ThreadID,
-		AssigneeReason:      r.AssigneeReason,
-		RepliedToID:         r.RepliedToID,
-		IsContextQuery:      r.IsContextQuery == 1,
-		RequesterCanonical:  r.RequesterCanonical,
-		AssigneeCanonical:   r.AssigneeCanonical,
-		RequesterType:       r.RequesterType,
-		AssigneeType:        r.AssigneeType,
-	}
-	m.CreatedAt = r.CreatedAt.Time
-	if r.CompletedAt.Valid {
-		m.CompletedAt = &r.CompletedAt.Time
-	}
-	return m
 }
 
 func filterByStatus(msgs []ConsolidatedMessage, status string) []ConsolidatedMessage {
@@ -150,12 +125,11 @@ func statusMatch(m ConsolidatedMessage, status string) bool {
 
 func GetArchivedMessagesCount(ctx context.Context, filter ArchiveFilter) (int, error) {
 	queries := db.New(GetDB())
-	threshold := fmt.Sprintf("-%d days", GetAutoArchiveDays())
 	
 	total, err := queries.SearchArchivedMessagesCount(ctx, db.SearchArchivedMessagesCountParams{
 		Column1: filter.Email,
-		Column2: threshold,
-		Column3: filter.Query,
+		Column2: filter.Query,
+		Column3: filter.Status,
 	})
 	return int(total), err
 }

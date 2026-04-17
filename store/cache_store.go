@@ -116,108 +116,54 @@ func RefreshAllCaches(ctx context.Context) error {
 	return nil
 }
 
-func fetchCacheActive(ctx context.Context, email, threshold string, knownTS map[string]bool) ([]ConsolidatedMessage, error) {
+func fetchCacheActive(ctx context.Context, email string, knownTS map[string]bool) ([]ConsolidatedMessage, error) {
 	queries := db.New(GetDB())
-	rows, err := queries.RefreshCacheActive(ctx, db.RefreshCacheActiveParams{
-		UserEmail:  email,
-		Datetime: threshold,
-	})
+	rows, err := queries.RefreshCacheActive(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("active query failed: %w", err)
 	}
 
 	var msgs []ConsolidatedMessage
 	for _, r := range rows {
-		m := mapRefreshRowToMessage(r)
+		m := MapVMessageToConsolidated(
+			int(r.ID), r.UserEmail, r.Source, r.Room, r.Task,
+			r.Requester, r.Assignee, r.Link, r.SourceTs,
+			r.OriginalText, r.Done, r.IsDeleted, r.CreatedAt,
+			r.Category, r.Deadline, r.ThreadID,
+			r.RequesterCanonical, r.AssigneeCanonical, r.AssigneeReason,
+			r.RepliedToID, int(r.IsContextQuery), r.Constraints,
+			r.ConsolidatedContext, r.Metadata, r.SourceChannels,
+			r.RequesterType, r.AssigneeType, r.Subtasks,
+			r.AssignedAt, r.CompletedAt,
+		)
 		msgs = append(msgs, m)
 		knownTS[m.SourceTS] = true
 	}
 	return msgs, nil
 }
 
-func mapRefreshRowToMessage(r db.RefreshCacheActiveRow) ConsolidatedMessage {
-	m := ConsolidatedMessage{
-		ID:                  int(r.ID),
-		UserEmail:           r.UserEmail,
-		Source:              r.Source,
-		Room:                r.Room,
-		Task:                r.Task,
-		Requester:           r.Requester,
-		Assignee:            r.Assignee,
-		Link:                r.Link,
-		SourceTS:            r.SourceTs,
-		OriginalText:        r.OriginalText,
-		Done:                r.Done,
-		IsDeleted:           r.IsDeleted,
-		Category:            r.Category,
-		Deadline:            r.Deadline,
-		ThreadID:            r.ThreadID,
-		AssigneeReason:      r.AssigneeReason,
-		RepliedToID:         r.RepliedToID,
-		IsContextQuery:      r.IsContextQuery == 1,
-		RequesterCanonical:  r.RequesterCanonical,
-		AssigneeCanonical:   r.AssigneeCanonical,
-		RequesterType:       r.RequesterType,
-		AssigneeType:        r.AssigneeType,
-	}
-	m.CreatedAt = r.CreatedAt.Time
-	if r.CompletedAt.Valid {
-		m.CompletedAt = &r.CompletedAt.Time
-	}
-	if r.AssignedAt.Valid {
-		m.AssignedAt = r.AssignedAt.Time
-	}
-	return m
-}
+// mapRefreshRowToMessage and mapArchiveRowToMessage were removed in favor of store.MapVMessageToConsolidated
 
-func mapArchiveRowToMessage(r db.RefreshCacheArchiveRow) ConsolidatedMessage {
-	m := ConsolidatedMessage{
-		ID:                  int(r.ID),
-		UserEmail:           r.UserEmail,
-		Source:              r.Source,
-		Room:                r.Room,
-		Task:                r.Task,
-		Requester:           r.Requester,
-		Assignee:            r.Assignee,
-		Link:                r.Link,
-		SourceTS:            r.SourceTs,
-		OriginalText:        r.OriginalText,
-		Done:                r.Done,
-		IsDeleted:           r.IsDeleted,
-		Category:            r.Category,
-		Deadline:            r.Deadline,
-		ThreadID:            r.ThreadID,
-		AssigneeReason:      r.AssigneeReason,
-		RepliedToID:         r.RepliedToID,
-		IsContextQuery:      r.IsContextQuery == 1,
-		RequesterCanonical:  r.RequesterCanonical,
-		AssigneeCanonical:   r.AssigneeCanonical,
-		RequesterType:       r.RequesterType,
-		AssigneeType:        r.AssigneeType,
-	}
-	m.CreatedAt = r.CreatedAt.Time
-	if r.CompletedAt.Valid {
-		m.CompletedAt = &r.CompletedAt.Time
-	}
-	if r.AssignedAt.Valid {
-		m.AssignedAt = r.AssignedAt.Time
-	}
-	return m
-}
-
-func fetchCacheArchive(ctx context.Context, email, threshold string, knownTS map[string]bool) ([]ConsolidatedMessage, error) {
+func fetchCacheArchive(ctx context.Context, email string, knownTS map[string]bool) ([]ConsolidatedMessage, error) {
 	queries := db.New(GetDB())
-	rows, err := queries.RefreshCacheArchive(ctx, db.RefreshCacheArchiveParams{
-		UserEmail:  email,
-		Datetime: threshold,
-	})
+	rows, err := queries.RefreshCacheArchive(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("archive query failed: %w", err)
 	}
 
 	var msgs []ConsolidatedMessage
 	for _, r := range rows {
-		m := mapArchiveRowToMessage(r)
+		m := MapVMessageToConsolidated(
+			int(r.ID), r.UserEmail, r.Source, r.Room, r.Task,
+			r.Requester, r.Assignee, r.Link, r.SourceTs,
+			r.OriginalText, r.Done, r.IsDeleted, r.CreatedAt,
+			r.Category, r.Deadline, r.ThreadID,
+			r.RequesterCanonical, r.AssigneeCanonical, r.AssigneeReason,
+			r.RepliedToID, int(r.IsContextQuery), r.Constraints,
+			r.ConsolidatedContext, r.Metadata, r.SourceChannels,
+			r.RequesterType, r.AssigneeType, r.Subtasks,
+			r.AssignedAt, r.CompletedAt,
+		)
 		msgs = append(msgs, m)
 		knownTS[m.SourceTS] = true
 	}
@@ -229,16 +175,15 @@ func RefreshCache(ctx context.Context, email string) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	threshold := fmt.Sprintf("-%d days", GetAutoArchiveDays())
 	newKnownTS := make(map[string]bool)
 
 	// [Modular logic] Split active and archive fetching to keep functional complexity low (under 40 lines).
-	newActive, err := fetchCacheActive(ctx, email, threshold, newKnownTS)
+	newActive, err := fetchCacheActive(ctx, email, newKnownTS)
 	if err != nil {
 		return err
 	}
 
-	newArchive, err := fetchCacheArchive(ctx, email, threshold, newKnownTS)
+	newArchive, err := fetchCacheArchive(ctx, email, newKnownTS)
 	if err != nil {
 		return err
 	}

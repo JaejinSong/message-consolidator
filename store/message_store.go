@@ -791,7 +791,7 @@ func encodeSubtasks(subtasks []Subtask) string {
 
 
 func toConsolidatedFromByID(row db.GetMessageByIDRow) ConsolidatedMessage {
-	return mapVMessageToConsolidated(
+	return MapVMessageToConsolidated(
 		int(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
 		row.Requester, row.Assignee, row.Link, row.SourceTs,
 		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
@@ -805,7 +805,7 @@ func toConsolidatedFromByID(row db.GetMessageByIDRow) ConsolidatedMessage {
 }
 
 func toConsolidatedFromByIDs(row db.GetMessagesByIDsRow) ConsolidatedMessage {
-	return mapVMessageToConsolidated(
+	return MapVMessageToConsolidated(
 		int(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
 		row.Requester, row.Assignee, row.Link, row.SourceTs,
 		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
@@ -819,7 +819,7 @@ func toConsolidatedFromByIDs(row db.GetMessagesByIDsRow) ConsolidatedMessage {
 }
 
 func toConsolidatedFromIncomplete(row db.GetIncompleteByThreadIDRow) ConsolidatedMessage {
-	return mapVMessageToConsolidated(
+	return MapVMessageToConsolidated(
 		int(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
 		row.Requester, row.Assignee, row.Link, row.SourceTs,
 		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
@@ -832,7 +832,7 @@ func toConsolidatedFromIncomplete(row db.GetIncompleteByThreadIDRow) Consolidate
 	)
 }
 
-func unmarshalMessageComponents(constraintsStr, channelsStr, contextStr, subtasksStr string) ([]string, []string, []string, []Subtask) {
+func UnmarshalMessageComponents(constraintsStr, channelsStr, contextStr, subtasksStr string) ([]string, []string, []string, []Subtask) {
 	var constraints, channels, context []string
 	var subtasks []Subtask
 	_ = json.Unmarshal([]byte(constraintsStr), &constraints)
@@ -842,7 +842,7 @@ func unmarshalMessageComponents(constraintsStr, channelsStr, contextStr, subtask
 	return constraints, channels, context, subtasks
 }
 
-func mapVMessageToConsolidated(
+func MapVMessageToConsolidated(
 	id int, userEmail, source, room, task, requester, assignee, link, sourceTs,
 	originalText string, done, isDeleted bool, createdAt sql.NullTime,
 	category, deadline, threadID, reqCanonical, asgCanonical, asgReason,
@@ -850,7 +850,7 @@ func mapVMessageToConsolidated(
 	metadataStr, channelsStr, reqType, asgType, subtasksStr string,
 	assignedAt, completedAt sql.NullTime,
 ) ConsolidatedMessage {
-	constraints, channels, context, subtasks := unmarshalMessageComponents(constraintsStr, channelsStr, contextStr, subtasksStr)
+	constraints, channels, context, subtasks := UnmarshalMessageComponents(constraintsStr, channelsStr, contextStr, subtasksStr)
 
 	msg := ConsolidatedMessage{
 		ID: id, UserEmail: userEmail, Source: source, Room: room, Task: task,

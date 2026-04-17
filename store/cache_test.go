@@ -66,11 +66,21 @@ func TestCacheInvalidationAndReadThrough(t *testing.T) {
 	}
 
 	// 4. Next GetMessages should load updated state (Read-Through)
+	// Why: Now that we removed the 7-day threshold, 'Done' tasks should disappear from Active immediately.
 	msgsFinal, err := GetMessages(context.Background(), email)
 	if err != nil {
 		t.Fatalf("Second GetMessages failed: %v", err)
 	}
-	if len(msgsFinal) != 1 || !msgsFinal[0].Done {
-		t.Errorf("Read-Through failed to load updated state: %+v", msgsFinal)
+	if len(msgsFinal) != 0 {
+		t.Errorf("Message should have moved to archive immediately, but still in active: %+v", msgsFinal)
+	}
+
+	// 5. Verify it's in the Archive
+	archived, err := GetArchivedMessages(context.Background(), email)
+	if err != nil {
+		t.Fatalf("GetArchivedMessages failed: %v", err)
+	}
+	if len(archived) != 1 || !archived[0].Done {
+		t.Errorf("Message should be in archive: %+v", archived)
 	}
 }

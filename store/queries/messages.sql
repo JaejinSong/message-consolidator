@@ -66,7 +66,7 @@ FROM v_messages WHERE user_email = ?1 AND is_deleted = 0 AND IFNULL(task, '') !=
 -- name: RefreshCacheActive :many
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
 FROM v_messages 
-WHERE user_email = ?1 AND is_deleted = 0 AND (done = 0 OR (done = 1 AND (completed_at IS NULL OR completed_at > datetime('now', ?2))))
+WHERE user_email = ?1 AND is_deleted = 0 AND done = 0
 AND IFNULL(task, '') != ''
 AND IFNULL(category, '') != 'merged'
 ORDER BY created_at DESC 
@@ -75,37 +75,37 @@ LIMIT 200;
 -- name: RefreshCacheArchive :many
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
 FROM v_messages 
-WHERE user_email = ?1 AND (is_deleted = 1 OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', ?2)))
+WHERE user_email = ?1 AND (is_deleted = 1 OR done = 1 OR category = 'merged')
 AND IFNULL(task, '') != ''
 ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
 LIMIT 100;
 
 -- name: SearchArchivedMessagesCount :one
 SELECT COUNT(*) FROM messages 
-WHERE COALESCE(user_email, '') = CAST(?1 AS TEXT) AND (is_deleted = 1 OR category = 'merged' OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', COALESCE(CAST(?2 AS TEXT), '-0 days'))))
-AND (task LIKE '%' || COALESCE(CAST(?3 AS TEXT), '') || '%' OR original_text LIKE '%' || COALESCE(CAST(?3 AS TEXT), '') || '%' OR requester LIKE '%' || COALESCE(CAST(?3 AS TEXT), '') || '%' OR assignee LIKE '%' || COALESCE(CAST(?3 AS TEXT), '') || '%')
+WHERE COALESCE(user_email, '') = CAST(?1 AS TEXT) AND (is_deleted = 1 OR category = 'merged' OR done = 1)
+AND (task LIKE '%' || COALESCE(CAST(?2 AS TEXT), '') || '%' OR original_text LIKE '%' || COALESCE(CAST(?2 AS TEXT), '') || '%' OR requester LIKE '%' || COALESCE(CAST(?2 AS TEXT), '') || '%' OR assignee LIKE '%' || COALESCE(CAST(?2 AS TEXT), '') || '%')
 AND (
-    CAST(?4 AS TEXT) = 'all' OR CAST(?4 AS TEXT) = '' OR
-    (CAST(?4 AS TEXT) = 'done' AND done = 1) OR
-    (CAST(?4 AS TEXT) = 'canceled' AND done = 0 AND is_deleted = 1) OR
-    (CAST(?4 AS TEXT) = 'merged' AND category = 'merged') OR
-    (CAST(?4 AS TEXT) NOT IN ('done', 'canceled', 'merged', 'all', ''))
+    CAST(?3 AS TEXT) = 'all' OR CAST(?3 AS TEXT) = '' OR
+    (CAST(?3 AS TEXT) = 'done' AND done = 1) OR
+    (CAST(?3 AS TEXT) = 'canceled' AND done = 0 AND is_deleted = 1) OR
+    (CAST(?3 AS TEXT) = 'merged' AND category = 'merged') OR
+    (CAST(?3 AS TEXT) NOT IN ('done', 'canceled', 'merged', 'all', ''))
 );
 
 -- name: SearchArchivedMessages :many
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
 FROM v_messages 
-WHERE COALESCE(user_email, '') = CAST(?1 AS TEXT) AND (is_deleted = 1 OR category = 'merged' OR (done = 1 AND completed_at IS NOT NULL AND completed_at <= datetime('now', COALESCE(CAST(?2 AS TEXT), '-0 days'))))
-AND (task LIKE '%' || COALESCE(CAST(?3 AS TEXT), '') || '%' OR original_text LIKE '%' || COALESCE(CAST(?3 AS TEXT), '') || '%' OR requester LIKE '%' || COALESCE(CAST(?3 AS TEXT), '') || '%' OR assignee LIKE '%' || COALESCE(CAST(?3 AS TEXT), '') || '%')
+WHERE COALESCE(user_email, '') = CAST(?1 AS TEXT) AND (is_deleted = 1 OR category = 'merged' OR done = 1)
+AND (task LIKE '%' || COALESCE(CAST(?2 AS TEXT), '') || '%' OR original_text LIKE '%' || COALESCE(CAST(?2 AS TEXT), '') || '%' OR requester LIKE '%' || COALESCE(CAST(?2 AS TEXT), '') || '%' OR assignee LIKE '%' || COALESCE(CAST(?2 AS TEXT), '') || '%')
 AND (
-    CAST(?4 AS TEXT) = 'all' OR CAST(?4 AS TEXT) = '' OR
-    (CAST(?4 AS TEXT) = 'done' AND done = 1) OR
-    (CAST(?4 AS TEXT) = 'canceled' AND done = 0 AND is_deleted = 1) OR
-    (CAST(?4 AS TEXT) = 'merged' AND category = 'merged') OR
-    (CAST(?4 AS TEXT) NOT IN ('done', 'canceled', 'merged', 'all', ''))
+    CAST(?3 AS TEXT) = 'all' OR CAST(?3 AS TEXT) = '' OR
+    (CAST(?3 AS TEXT) = 'done' AND done = 1) OR
+    (CAST(?3 AS TEXT) = 'canceled' AND done = 0 AND is_deleted = 1) OR
+    (CAST(?3 AS TEXT) = 'merged' AND category = 'merged') OR
+    (CAST(?3 AS TEXT) NOT IN ('done', 'canceled', 'merged', 'all', ''))
 )
 ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
-LIMIT ?5 OFFSET ?6;
+LIMIT ?4 OFFSET ?5;
 
 -- name: ArchiveOldTasks :execrows
 UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND done = 1 AND completed_at < datetime('now', ?);

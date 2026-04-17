@@ -117,8 +117,8 @@ type Querier interface {
 	MigrateTaskTranslationsAddLanguageCode(ctx context.Context) error
 	MigrateTaskTranslationsRenameLanguage(ctx context.Context) error
 	MigrateTokenUsageAddFilteredCount(ctx context.Context) error
-	RefreshCacheActive(ctx context.Context, arg RefreshCacheActiveParams) ([]RefreshCacheActiveRow, error)
-	RefreshCacheArchive(ctx context.Context, arg RefreshCacheArchiveParams) ([]RefreshCacheArchiveRow, error)
+	RefreshCacheActive(ctx context.Context, userEmail string) ([]RefreshCacheActiveRow, error)
+	RefreshCacheArchive(ctx context.Context, userEmail string) ([]RefreshCacheArchiveRow, error)
 	RestoreMessages(ctx context.Context, arg RestoreMessagesParams) error
 	// Note: Batching with VALUES %s is not supported by sqlc directly.
 	// Using a single insert that can be called in a transaction.

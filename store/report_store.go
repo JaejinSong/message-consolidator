@@ -279,7 +279,7 @@ func GetMessagesForReport(ctx context.Context, email string, since time.Time, so
 }
 
 func toConsolidatedFromByMessages(row db.VMessage) ConsolidatedMessage {
-	return mapVMessageToConsolidated(
+	return MapVMessageToConsolidated(
 		int(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
 		row.Requester, row.Assignee, row.Link, row.SourceTs,
 		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
