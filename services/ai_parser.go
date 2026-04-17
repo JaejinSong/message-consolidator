@@ -10,7 +10,7 @@ import (
 // Why: Enables clean separation of structured data and descriptive text for reports, handling AI backtick noise.
 func ExtractJSONBlock(content string) (string, string, error) {
 	// 1. Try to find ```json ... ``` or ``` ... ``` using regex (Case-insensitive for 'json')
-	re := regexp.MustCompile(`(?is)[\s\n]*` + "```" + `(?:json)?\s*(.*?)\s*` + "```" + `[\s\n]*`)
+	re := regexp.MustCompile(`(?is)` + "```" + `(?:json)?\s*(.*?)\s*` + "```")
 	match := re.FindStringSubmatch(content)
 
 	var jsonStr string
