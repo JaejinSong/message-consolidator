@@ -41,6 +41,8 @@ func TestReportSummaryPrompt(t *testing.T) {
 			expectedOutput: []string{
 				"## [Operations & Strategy Overview]",
 				"## [Key Insights]",
+				"## [Stalled Tasks]",
+				"## [Visualization Data]",
 				"[Digital Transformation]",
 				"[Release Management]",
 			},
@@ -54,7 +56,9 @@ func TestReportSummaryPrompt(t *testing.T) {
 			inputLog: `- [ ] Certificate renewal (Room: Türkiye Finans, Status: Stalled). (From: Minjun Lee (Internal), To: David Kim (External), Date: 03-25)`,
 			expectedOutput: []string{
 				"## [Operations & Strategy Overview]",
+				"## [Key Insights]",
 				"## [Stalled Tasks]",
+				"## [Visualization Data]",
 				"Türkiye Finans",
 			},
 			notExpected: []string{

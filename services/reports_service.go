@@ -138,15 +138,15 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id i
 		return
 	}
 	// Extract content and visualization JSON
-	vizJSON, text, _ := ExtractJSONBlock(summary)
+	vizJSONRaw, text, err := ExtractJSONBlock(summary)
+	if err != nil {
+		logger.Warnf("[REPORTS] JSON extraction failed for report %d: %v", id, err)
+	}
 	if text == "" {
 		text = summary
 	}
-	if vizJSON == "" {
-		vData := s.generateVisualizationData(email, logs)
-		b, _ := json.Marshal(vData)
-		vizJSON = string(b)
-	}
+
+	vizJSON := s.getVisualizationJSON(email, logs, vizJSONRaw)
 	// Save results and handle translations
 	store.SaveReportTranslation(ctx, int64(id), "en", text)
 	store.UpdateReportStatus(ctx, "completed", vizJSON, isTruncated, id, email)

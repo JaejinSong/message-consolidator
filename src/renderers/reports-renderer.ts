@@ -377,7 +377,22 @@ export const reportsRenderer = {
         // Robust Field mapping: translations > summary > report_summary
         const summaryText = report.translations?.[lang] || report.summary || report.report_summary || "";
 
-        if (summaryArea) summaryArea.innerHTML = parseMarkdown(summaryText);
+        console.log("[ReportsRenderer] Rendering report:", {
+            id: report.id,
+            lang,
+            summaryLength: summaryText.length,
+            hasStalledTasks: summaryText.includes("## [Stalled Tasks]"),
+            hasVizDataHeader: summaryText.includes("## [Visualization Data]"),
+            vizNodesCount: report.visualization ? (typeof report.visualization === 'string' ? 'string' : (report.visualization as any).nodes?.length) : 0
+        });
+
+        if (summaryArea) {
+            summaryArea.innerHTML = parseMarkdown(summaryText);
+            // Ensure visualization section doesn't show raw JSON if parser failed to strip it
+            if (summaryArea.innerHTML.includes("## [Visualization Data]")) {
+                console.warn("[ReportsRenderer] Visualization Data header still present in HTML summary - check stripping logic.");
+            }
+        }
 
         // Headers/Labels
         const summaryTitle = document.querySelector('.c-report-summary-title');

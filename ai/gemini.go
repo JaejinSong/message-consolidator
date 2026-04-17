@@ -26,7 +26,7 @@ const (
 	// DefaultMaxTokens is the standard output limit for short-form analysis tasks.
 	DefaultMaxTokens = 8192
 	// ReportMaxTokens is the expanded limit for long-form report generation tasks.
-	ReportMaxTokens = 16384
+	ReportMaxTokens = 32768
 )
 
 var relaxedSafetySettings = []*genai.SafetySetting{
