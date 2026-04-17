@@ -1,3 +1,12 @@
+# Release Notes - v2.4.5 (2026-04-17 06:32 UTC)
+
+- 🧪 **Under-the-Hood Refinement**: Improved internal testing architecture for a rock-solid application foundation.
+- ⚡ **Database Efficiency**: Optimized core synchronization for a snappier and more responsive data experience.
+- 🛡️ **Error-Free Sync**: Resolved a subtle bug that caused data errors when processing specific message types.
+- 📦 **Smarter Archiving**: Enhanced message cleanup to ensure your workspace remains tidy and free of duplicates.
+
+---
+
 # Release Notes - v2.4.4 (2026-04-17 04:28 UTC)
 
 - 📊 **Precision Reporting**: Enjoy more consistent data visualization with our new strict report headers and improved extraction engine.

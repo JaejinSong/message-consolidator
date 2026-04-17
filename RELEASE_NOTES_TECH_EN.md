@@ -1,3 +1,12 @@
+# Release Notes (Tech) - v2.4.5 (2026-04-17 06:32 UTC)
+
+- [STABILITY] Replace file-based test DB with unique in-memory SQLite to resolve concurrency issues
+- [OPTIMIZE] Refactor database initialization, connection pooling, and schema migration for Turso and SQLite
+- [FIX] Prevent JSON marshaling errors by handling empty metadata
+- [FIX] Correct archive logic and message de-duplication mechanism
+
+---
+
 # Release Notes (Tech) - v2.4.4 (2026-04-17 04:28 UTC)
 
 - [REFACTOR] Remove time-based filtering from message cache and archive queries

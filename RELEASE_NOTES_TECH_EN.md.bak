@@ -1,3 +1,15 @@
+# Release Notes (Tech) - v2.4.4 (2026-04-17 04:28 UTC)
+
+- [REFACTOR] Remove time-based filtering from message cache and archive queries
+- [REFACTOR] Migrate message processing status tracking to scan_metadata table
+- [FIX] Disable whitespace trimming in ExtractJSONBlock regex to prevent data loss
+- [FEAT] Implement strict report structure with mandatory headers and optimized JSON extraction
+- [FEAT] Integrate WhatsApp PushName resolution for contact mapping
+- [FIX] Deploy backend-driven task classification with alias synchronization
+- [FEAT] Enhance assignee identification using aliases and include source context in summaries
+
+---
+
 # Release Notes (Tech) - v2.4.3 (2026-04-17 02:02 UTC)
 
 - [FEAT] Upgrade AI engine to gemini-3-flash-preview and increase report cutoff size to 16,000
