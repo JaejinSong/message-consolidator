@@ -852,6 +852,11 @@ func MapVMessageToConsolidated(
 ) ConsolidatedMessage {
 	constraints, channels, context, subtasks := UnmarshalMessageComponents(constraintsStr, channelsStr, contextStr, subtasksStr)
 
+	metadata := json.RawMessage(metadataStr)
+	if len(metadata) == 0 || strings.TrimSpace(metadataStr) == "" {
+		metadata = json.RawMessage("{}")
+	}
+
 	msg := ConsolidatedMessage{
 		ID: id, UserEmail: userEmail, Source: source, Room: room, Task: task,
 		Requester: requester, Assignee: assignee, Link: link, SourceTS: sourceTs,
@@ -859,7 +864,7 @@ func MapVMessageToConsolidated(
 		Category: category, Deadline: deadline, ThreadID: threadID,
 		RequesterCanonical: reqCanonical, AssigneeCanonical: asgCanonical, AssigneeReason: asgReason,
 		RepliedToID: repliedToID, IsContextQuery: isContextQuery > 0, Constraints: constraints,
-		ConsolidatedContext: context, Metadata: json.RawMessage(metadataStr),
+		ConsolidatedContext: context, Metadata: metadata,
 		SourceChannels: channels, RequesterType: reqType, AssigneeType: asgType, Subtasks: subtasks,
 	}
 
