@@ -1,3 +1,12 @@
+# Release Notes (Tech) - v2.4.2 (2026-04-15 02:30 UTC)
+
+- [STABILITY] Enhance database connection resilience and implement comprehensive error logging
+- [REFACTOR] Implement hierarchical task extraction with subtask support and unified assignee mapping
+- [FEAT] Integrate AI-driven asynchronous task state transitions and completion processing
+- [FEAT] Deploy asynchronous report generation engine with status polling mechanism
+
+---
+
 # Release Notes (Tech) - v2.4.1 (2026-04-14 05:27 UTC)
 
 - [REFACTOR] Deprecate gamification and achievement modules to streamline core logic and database schema

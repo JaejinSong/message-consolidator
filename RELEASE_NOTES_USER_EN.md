@@ -1,3 +1,13 @@
+# Release Notes - v2.4.3 (2026-04-17 02:02 UTC)
+
+- 🚀 **Next-Gen Intelligence**: Experience sharper insights with our latest AI model upgrade and expanded 16k report capacity!
+- 🧠 **Smart Cleanup**: No more clones! New intelligent deduplication ensures your task list stays unique and organized.
+- ✨ **Dynamic Visuals**: Enjoy a more responsive feel with new pulse animations and refined report layouts.
+- 🌍 **Global & Personal**: Full internationalization support and better assignee tracking using custom aliases.
+- ⚡ **Turbocharged Core**: We've streamlined our database architecture for lightning-fast performance and rock-solid stability.
+
+---
+
 # Release Notes - v2.4.2 (2026-04-15 02:30 UTC)
 
 - 🛡️ **Rock-Solid Data**: Enhanced database stability ensures your information is always safe and accessible.
