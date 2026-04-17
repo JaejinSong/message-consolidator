@@ -198,6 +198,17 @@ function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): vo
             fill: n.is_me ? 'var(--color-primary)' : 'var(--color-info)'
         });
         svg.appendChild(rect);
+
+        const isSource = sCoords.has(id);
+        const text = createSVGElement('text', {
+            x: p.x + (isSource ? -12 : 12),
+            y: p.y + 4,
+            'text-anchor': isSource ? 'end' : 'start',
+            fill: 'var(--text-main)',
+            style: 'font-size: 0.7rem; font-weight: 500;'
+        });
+        text.textContent = n.name || n.id;
+        svg.appendChild(text);
     });
 
     container.appendChild(svg);
@@ -226,6 +237,9 @@ export const reportsRenderer = {
                     <span class="c-insights-report-item__date">${item.start_date} ~ ${item.end_date}</span>
                     <div class="c-insights-report-item__title">${statusTag} ${item.title || 'Weekly Report'}</div>
                 </div>
+                <button class="c-insights-report-item__delete" data-id="${item.id}" title="${i18n.delete || 'Delete'}">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
             `;
             btn.onclick = () => {
                 container.querySelectorAll('.c-insights-report-item').forEach(el => el.classList.remove('c-insights-report-item--active'));
