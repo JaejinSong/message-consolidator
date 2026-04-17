@@ -2738,6 +2738,9 @@ body.light-theme .c-achievement__progress-base {
     justify-content: center;
     border-radius: var(--radius-sm);
     color: var(--color-error);
+    background: transparent;
+    border: none;
+    cursor: pointer;
 }
 
 .c-insights-report-item:hover .c-insights-report-item__delete {
