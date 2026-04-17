@@ -1,3 +1,13 @@
+# Release Notes - v2.4.4 (2026-04-17 04:28 UTC)
+
+- 📊 **Precision Reporting**: Enjoy more consistent data visualization with our new strict report headers and improved extraction engine.
+- 👤 **Identity Mapping**: WhatsApp contacts are now more recognizable than ever using native PushName resolution.
+- 🔍 **Clearer Ownership**: Assignee identification is now smarter, ensuring every task in your summary has the right context.
+- 🏗️ **Architectural Refinement**: We've overhauled how we track message statuses and query archives for a more streamlined experience.
+- 🛠️ **Data Safety**: Fixed a subtle bug that could cause content loss during message processing.
+
+---
+
 # Release Notes - v2.4.3 (2026-04-17 02:02 UTC)
 
 - 🚀 **Next-Gen Intelligence**: Experience sharper insights with our latest AI model upgrade and expanded 16k report capacity!

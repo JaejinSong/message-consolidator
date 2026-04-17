@@ -1,3 +1,15 @@
+# Release Notes (Tech) - v2.4.3 (2026-04-17 02:02 UTC)
+
+- [FEAT] Upgrade AI engine to gemini-3-flash-preview and increase report cutoff size to 16,000
+- [FEAT] Implement task deduplication using Jaro-Winkler similarity and prevent concurrent processing
+- [FEAT] Add channel/status filters to reports with i18n support and enhanced assignee identification
+- [UI] Integrate pulse animations and refine report rendering logic
+- [REFACTOR] Consolidate database operations for users, contacts, and messages into unified Upsert/Update interfaces
+- [REFACTOR] Centralize database error logging and implement cache lookup validation helpers
+- [SYS] Enhance ArchiveOldTasks with row-count logging and implement early returns in completion pipelines
+
+---
+
 # Release Notes (Tech) - v2.4.2 (2026-04-15 02:30 UTC)
 
 - [STABILITY] Enhance database connection resilience and implement comprehensive error logging
