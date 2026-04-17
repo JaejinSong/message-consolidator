@@ -35,15 +35,14 @@ func TestReportSummaryPrompt(t *testing.T) {
 	}{
 		{
 			name: "Case 1: Normal Situation (No Management Gap)",
-			inputLog: `- [ ] Next quarter roadmap meeting (From: Chulsoo Park (Internal), To: Minjun Lee (Internal), Date: 04-03)
-- [ ] New API specification review (From: Minjun Lee (Internal), To: Eunseo Choi (Internal), Date: 04-02)
-- [V] v2.4.1 release note draft (From: Younghee Kim (Internal), To: Chulsoo Park (Internal), Date: 04-01)`,
+			inputLog: `- [ ] Next quarter roadmap meeting (Room: Digital Transformation, From: Chulsoo Park (Internal), To: Minjun Lee (Internal), Date: 04-03)
+- [ ] New API specification review (Room: Digital Transformation, From: Minjun Lee (Internal), To: Eunseo Choi (Internal), Date: 04-02)
+- [V] v2.4.1 release note draft (Room: Release Management, From: Younghee Kim (Internal), To: Chulsoo Park (Internal), Date: 04-01)`,
 			expectedOutput: []string{
-				"## 1. Operations & Strategy Overview",
-				"## 2. Pending & Risks",
-				"## 3. Management Gap",
-				"No management gap identified",
-				"## 4. Strategic Insights",
+				"## [Operations & Strategy Overview]",
+				"## [Key Insights]",
+				"[Digital Transformation]",
+				"[Release Management]",
 			},
 			notExpected: []string{
 				"David Kim",
@@ -51,15 +50,15 @@ func TestReportSummaryPrompt(t *testing.T) {
 			},
 		},
 		{
-			name:     "Case 2: Management Gap due to External Delay",
-			inputLog: `- [ ] Certificate renewal (Expires 4/5). No response after 2 follow-ups. (From: Minjun Lee (Internal), To: David Kim (External), Date: 03-25)`,
+			name:     "Case 2: Stalled Task Attribution",
+			inputLog: `- [ ] Certificate renewal (Room: Türkiye Finans, Status: Stalled). (From: Minjun Lee (Internal), To: David Kim (External), Date: 03-25)`,
 			expectedOutput: []string{
-				"## 1. Operations & Strategy Overview",
-				"## 3. Management Gap",
-				"David Kim (External)",
+				"## [Operations & Strategy Overview]",
+				"## [Stalled Tasks]",
+				"Türkiye Finans",
 			},
 			notExpected: []string{
-				"No management gap identified",
+				"Management Gap",
 			},
 		},
 	}

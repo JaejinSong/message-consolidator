@@ -281,8 +281,8 @@ func (s *ReportsService) formatLogLine(email string, m Log) string {
 	asgName := m.Assignee
 	asgCat := s.resolveCategory(email, m.AssigneeCanonical, m.AssigneeType)
 
-	return fmt.Sprintf("- [%s] %s (From: %s (%s), To: %s (%s))\n",
-		status, m.Task, reqName, reqCat, asgName, asgCat)
+	return fmt.Sprintf("- [%s] %s (Room: %s, From: %s (%s), To: %s (%s))\n",
+		status, m.Task, m.Room, reqName, reqCat, asgName, asgCat)
 }
 
 func (s *ReportsService) resolveCategory(tenantEmail, canonicalID, contactType string) string {

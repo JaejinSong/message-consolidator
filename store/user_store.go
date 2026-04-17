@@ -93,6 +93,10 @@ func updateAndCacheUser(ctx context.Context, email, name, picture string) (*User
 	userCache[email] = &u
 	metadataMu.Unlock()
 
+	if name != "" {
+		_ = AddUserAlias(ctx, u.ID, name)
+	}
+
 	return &u, nil
 }
 

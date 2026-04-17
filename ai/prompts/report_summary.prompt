@@ -14,8 +14,8 @@ model: gemini-3-flash-preview
    - ## [Stalled Tasks]
    - ## [Visualization Data]
 2. Operations & Strategy Overview: Provide a fused 3-4 sentence strategic narrative (Bird's-eye view). Identify and summarize critical "Choice and Concentration" conflicts, such as resource bottlenecks between regional expansion and system stability.
-3. Key Insights: Organize and summarize the performance of active tasks. Focus on execution progress, commitments met, and key milestones achieved during the reporting period.
-4. Stalled Tasks: Extract ONLY tasks with status 'Stalled' or 'Neglected'. Create a markdown table with columns: Channel, Requester, Status, Days Delayed, Root Cause/Description.
+3. Key Insights: Organize and summarize the performance of active tasks. Focus on execution progress, commitments met, and key milestones achieved during the reporting period. MANDATORY: Prefix each bullet point with the source (Customer Name or Room Name) in brackets, e.g., `- [Customer Name] Summary...`.
+4. Stalled Tasks: Extract ONLY tasks with status 'Stalled' or 'Neglected'. Create a markdown table with columns: [Source] (Channel/Customer), Requester, Status, Days Delayed, Root Cause/Description.
 5. Visualization Data: This section MUST contain exactly one ```json block containing a "GraphData" object.
    - The JSON must follow this schema:
      {

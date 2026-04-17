@@ -80,7 +80,7 @@ func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string
 	for i := range msgs {
 		msgs[i].Requester = aliasMap[msgs[i].Requester]
 		msgs[i].Assignee = aliasMap[msgs[i].Assignee]
-		s.applyAssigneeRules(user, &msgs[i])
+		s.applyAssigneeRules(ctx, user, &msgs[i])
 		s.assignCategory(email, user, &msgs[i])
 	}
 }
@@ -138,7 +138,7 @@ func extractUniqueIdentifiers(msgs []store.ConsolidatedMessage) []string {
 	return ids
 }
 
-func (s *TasksService) applyAssigneeRules(user *store.User, msg *store.ConsolidatedMessage) {
+func (s *TasksService) applyAssigneeRules(ctx context.Context, user *store.User, msg *store.ConsolidatedMessage) {
 	assignee := strings.TrimSpace(msg.Assignee)
 	isUnknown := strings.EqualFold(assignee, "undefined") || strings.EqualFold(assignee, "unknown")
 	if isUnknown || assignee == "" {
@@ -146,9 +146,9 @@ func (s *TasksService) applyAssigneeRules(user *store.User, msg *store.Consolida
 		return
 	}
 
-	userName := strings.TrimSpace(user.Name)
-	isMe := strings.EqualFold(assignee, userName) || strings.EqualFold(assignee, "me") || strings.EqualFold(assignee, "__current_user__")
-	if isMe {
+	// Why: Broaden 'me' identification by checking against the primary name AND all registered aliases.
+	aliases, _ := store.GetUserAliasesByEmail(ctx, user.Email)
+	if s.IsAssigneeMarkedAsMine(assignee, append(aliases, user.Name)) {
 		msg.Assignee = "me"
 	}
 }
