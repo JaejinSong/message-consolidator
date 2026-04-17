@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"message-consolidator/config"
 	"message-consolidator/logger"
-	"net/url"
 	"strings"
 	"time"
 
@@ -26,132 +25,145 @@ type Querier interface {
 }
 
 var (
-	conn *sql.DB
-	dsn  string
+	conn     *sql.DB
+	dsn      string
+	testMode bool
 )
 
-func InitDB(cfg *config.Config) error {
+func InitDB(ctx context.Context, cfg *config.Config) error {
 	var err error
-	dbURL := cfg.TursoURL
-	authToken := cfg.TursoToken
+	driverName, finalURL := GetDBDriverAndDSN(cfg)
 
-	// Why: If no Turso URL is provided, default to in-memory for zero-config local development/testing.
-	if dbURL == "" {
-		dbURL = "file::memory:?cache=shared"
-	}
-
-	//Why: Ensures InitDB is idempotent. If we already have a connection to the SAME database,
-	// we assume schema is initialized and return immediately. This saves massive overhead in tests.
-	if conn != nil {
-		if err := conn.Ping(); err == nil && dsn != "" && strings.Contains(dsn, "mode=memory") {
-			return nil
+	// Why: Reuse healthy connection if DSN matches (idempotent re-init after ResetForTest).
+	if conn != nil && dsn == finalURL {
+		if err := conn.Ping(); err == nil {
+			return EnsureSchemaAndSeeds(conn)
 		}
 	}
 
-	// If DSN has changed, close the old connection.
-	if conn != nil && dsn != "" && dsn != dbURL {
+	// Close stale connection if DSN changed or ping failed.
+	if conn != nil {
 		conn.Close()
 		conn = nil
 	}
 
-	if strings.HasPrefix(dbURL, "libsql://") && authToken != "" {
-		dbURL = fmt.Sprintf("%s?authToken=%s", dbURL, authToken)
-	}
-
-	dsn = dbURL
-	finalURL := GetDSN()
-
-	driverName := "sqlite"
-	if strings.HasPrefix(finalURL, "libsql://") {
-		driverName = "libsql"
-	}
-
+	dsn = finalURL
 	conn, err = sql.Open(driverName, finalURL)
 	if err != nil {
 		return fmt.Errorf("failed to open database (%s): %w", driverName, err)
 	}
 
-	setupConnectionPool(finalURL)
-
-	// Why: If it's local SQLite, enforce PRAGMAs for performance and concurrency.
-	if strings.HasPrefix(finalURL, "file:") {
-		// Enforce WAL mode and Synchronous=NORMAL for robust concurrent test execution.
-		// These are executed outside a transaction to avoid connection pool deadlock when MaxOpenConns=1.
-		if _, err := conn.Exec("PRAGMA journal_mode = WAL;"); err != nil {
-			logger.Warnf("[DB-INIT] Failed to set WAL mode: %v", err)
-		}
-		if _, err := conn.Exec("PRAGMA synchronous = NORMAL;"); err != nil {
-			logger.Warnf("[DB-INIT] Failed to set synchronous=NORMAL: %v", err)
-		}
-	}
+	setupConnectionPool(cfg, finalURL)
+	applySQLitePragmas(conn, finalURL)
 
 	if strings.HasPrefix(finalURL, "libsql://") {
 		// Why: Start background keep-alive for remote connections to prevent idle timeouts.
-		go startKeepAlive(context.Background())
+		go startKeepAlive(ctx, conn, cfg.DBKeepAliveInterval)
 	}
 
 	return EnsureSchemaAndSeeds(conn)
 }
 
+// GetDBDriverAndDSN constructs the appropriate driver name and DSN based on configuration.
+func GetDBDriverAndDSN(cfg *config.Config) (string, string) {
+	dbURL := cfg.TursoURL
+	if dbURL == "" {
+		// Why: Use a dedicated test.db file for the entire test suite.
+		// Shared-memory SQLite is too volatile across connection pools in Go.
+		dbURL = "file:test.db?_busy_timeout=10000"
+	}
+	if strings.HasPrefix(dbURL, "libsql://") && cfg.TursoToken != "" {
+		dbURL = fmt.Sprintf("%s?authToken=%s", dbURL, cfg.TursoToken)
+	}
+
+	driverName := "sqlite"
+	if strings.HasPrefix(dbURL, "libsql://") {
+		driverName = "libsql"
+	}
+	return driverName, dbURL
+}
+
+// applySQLitePragmas enforces WAL mode and synchronous settings for local file-based databases.
+func applySQLitePragmas(db *sql.DB, dbURL string) {
+	if !strings.HasPrefix(dbURL, "file:") {
+		return
+	}
+	if _, err := db.Exec("PRAGMA journal_mode = WAL;"); err != nil {
+		logger.Warnf("[DB-INIT] Failed to set WAL mode: %v", err)
+	}
+	if _, err := db.Exec("PRAGMA synchronous = NORMAL;"); err != nil {
+		logger.Warnf("[DB-INIT] Failed to set synchronous=NORMAL: %v", err)
+	}
+}
+
 // EnsureSchemaAndSeeds ensures that all core tables, migrations, and seed data are present.
 // It is idempotent and safe to call multiple times.
 func EnsureSchemaAndSeeds(dbConn *sql.DB) error {
-	// Why: Use a transaction for all schema setup to drastically improve SQLite performance.
-	// Individual Exec calls on SQLite (even in-memory) are significantly slower than a single transaction.
-	tx, err := dbConn.Begin()
+	ctx := context.Background()
+	// Why: Use LevelDefault for SQLite file-based DBs. Serializable causes SQLITE_BUSY
+	// on DDL in WAL mode. The original Serializable was needed for in-memory shared-cache
+	// connections (abandoned since modernc.org/sqlite doesn't support cache=shared).
+	tx, err := dbConn.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
 	if err != nil {
 		return fmt.Errorf("failed to start setup transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	// Why: Ensure core tables exist BEFORE running migrations.
-	ctx := context.Background()
+	logger.Infof("[DB-INIT] Starting core table creation...")
 	if err := createCoreTables(ctx, tx); err != nil {
 		return fmt.Errorf("core table creation failed: %w", err)
 	}
+	logger.Infof("[DB-INIT] Core tables created/verified.")
 
 	// Why: Perform schema migrations to add new columns to existing tables.
+	logger.Infof("[DB-INIT] Starting migrations...")
 	if err := runMigrations(ctx, tx); err != nil {
 		return fmt.Errorf("database migration failed: %w", err)
 	}
+	logger.Infof("[DB-INIT] Migrations completed.")
 
+	// Why: Rebuild views AFTER tables and columns exist to ensure they reference current schema.
+	logger.Infof("[DB-INIT] Rebuilding views...")
+	if err := rebuildViews(ctx, tx); err != nil {
+		return fmt.Errorf("view rebuild failed: %w", err)
+	}
+
+	logger.Infof("[DB-INIT] Creating indexes...")
 	createIndexes(ctx, tx)
+	logger.Infof("[DB-INIT] Indexes created.")
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit setup transaction: %w", err)
 	}
+	logger.Infof("[DB-INIT] Schema committed successfully.")
 
-	// Why: Skip expensive cache refresh during in-memory tests to maximize speed.
+	// Why: Skip expensive cache refresh during tests to maximize speed.
 	// Tests will lazily initialize cache if needed via EnsureCacheInitialized.
-	if strings.Contains(dsn, "mode=memory") {
+	if testMode {
 		return nil
 	}
 
 	return RefreshAllCaches(context.Background())
 }
 
-func setupConnectionPool(dbURL string) {
-	var maxOpen int
-	// Why: Only two environments supported: Turso (Remote) and SQLite (In-Memory).
-	if strings.HasPrefix(dbURL, "file:") {
-		logger.Infof("[DB] SQLite (In-Memory) detected. Optimizing for parallel tests.")
+func setupConnectionPool(cfg *config.Config, dbURL string) {
+	maxOpen := cfg.DBMaxOpenConns
+	// Why: Auto-tuning for SQLite if not explicitly overridden via environment.
+	if strings.HasPrefix(dbURL, "file:") && maxOpen == 25 {
 		maxOpen = 100
-	} else {
-		logger.Infof("[DB] Turso (Remote) detected. Optimizing pool for high throughput.")
-		maxOpen = 25
 	}
 
 	conn.SetMaxOpenConns(maxOpen)
-	conn.SetMaxIdleConns(1) // Why: Strict limit to 1 idle connection to prevent "stream closed" errors.
-	// Why: Reduce lifetime for remote connections to prevent "stream is closed" errors from stale connections.
-	conn.SetConnMaxLifetime(1 * time.Minute)
+	conn.SetMaxIdleConns(cfg.DBMaxIdleConns) // Why: Prevents 'stream is closed' by maintaining a stable pool.
+	// Why: Maintains existing 5-minute policy while preventing stale connection accumulation.
+	conn.SetConnMaxLifetime(5 * time.Minute)
 	conn.SetConnMaxIdleTime(30 * time.Second)
 }
 
 // startKeepAlive periodically pings the database to prevent the server or proxy from closing idle connections.
 // Why: [Reliability] Maintains an active connection stream for remote Turso/libsql databases.
-func startKeepAlive(ctx context.Context) {
-	ticker := time.NewTicker(13 * time.Second)
+func startKeepAlive(ctx context.Context, db *sql.DB, interval time.Duration) {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -160,14 +172,18 @@ func startKeepAlive(ctx context.Context) {
 			logger.Infof("[DB-KEEPALIVE] Stopping background keep-alive.")
 			return
 		case <-ticker.C:
-			if conn == nil {
-				continue
-			}
-			if err := conn.Ping(); err != nil {
-				logger.Warnf("[DB-KEEPALIVE] Periodic ping failed: %v", err)
-				// Note: We don't exit here; we let database/sql handle reconnection attempts.
-			}
+			handleKeepAliveTick(ctx, db)
 		}
+	}
+}
+
+// handleKeepAliveTick encapsulates the ping logic to maintain a maximum nesting depth of 2 in the worker loop.
+func handleKeepAliveTick(ctx context.Context, db *sql.DB) {
+	if db == nil {
+		return
+	}
+	if err := db.PingContext(ctx); err != nil {
+		logger.Warnf("[DB-KEEPALIVE] Periodic ping failed: %v", err)
 	}
 }
 
@@ -187,31 +203,7 @@ func GetDB() *sql.DB {
 }
 
 func GetDSN() string {
-	if !strings.HasPrefix(dsn, "file:") {
-		return dsn
-	}
-	u, err := url.Parse(dsn)
-	if err != nil {
-		return dsn
-	}
-	q := u.Query()
-	// Why: In-memory databases MUST use cache=shared to be visible across connection pool.
-	// For file-based DBs, we remove it to avoid WAL mode conflicts.
-	isMemory := q.Get("mode") == "memory" || strings.Contains(dsn, ":memory:")
-
-	if isMemory {
-		q.Set("cache", "shared")
-	} else {
-		q.Del("cache")
-		// Why: Ensure robust local concurrency by enforcing WAL mode and immediate write locks for file DBs.
-		q.Set("_txlock", "immediate")
-		q.Set("_journal_mode", "WAL")
-	}
-
-	q.Set("_busy_timeout", "10000")
-
-	u.RawQuery = q.Encode()
-	return u.String()
+	return dsn
 }
 
 // RunInTx executes a database transaction and automatically rolls it back if an error occurs.

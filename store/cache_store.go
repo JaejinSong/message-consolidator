@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"message-consolidator/db"
 	"message-consolidator/logger"
-	"strings"
+
 	"golang.org/x/sync/singleflight"
 	"sync"
 	"time"
@@ -52,22 +52,26 @@ var (
 )
 
 func ResetForTest() {
-	// Why: Extremely fast DB reset using a single transaction.
-	// This allows us to share one in-memory DB across all tests without sql.Open/Schema setup overhead.
-	if conn := GetDB(); conn != nil && strings.Contains(dsn, "mode=memory") {
-		tx, err := conn.Begin()
+	// Why: Set testMode to skip expensive RefreshAllCaches during schema re-init.
+	testMode = true
+
+	// Why: Fast DB reset by dropping all tables in a single transaction.
+	// Works with file-based test.db (modernc.org/sqlite doesn't support cache=shared for in-memory).
+	if c := GetDB(); c != nil {
+		tx, err := c.Begin()
 		if err == nil {
-			// Note: achievements table is NOT deleted here because it contains static seed data 
-			// required by all tests. Only user-generated data tables are cleared.
 			tables := []string{
 				"users", "user_aliases", "gmail_tokens", "messages", "task_translations",
-				"tenant_aliases", "scan_metadata",
-				"contacts", "reports", "report_translations", "prompt_logs",
-				"ai_inference_logs", "contact_aliases", "identity_merge_history",
-				"identity_merge_candidates", "slack_threads",
+				"tenant_aliases", "scan_metadata", "slack_threads", "token_usage",
+				"contacts", "contact_aliases", "identity_merge_history",
+				"identity_merge_candidates", "reports", "report_translations",
+				"prompt_logs", "ai_inference_logs",
 			}
+			// Why: Drop views first since they depend on tables.
+			_, _ = tx.Exec("DROP VIEW IF EXISTS v_messages")
+			_, _ = tx.Exec("DROP VIEW IF EXISTS v_contacts_resolved")
 			for _, table := range tables {
-				_, _ = tx.Exec("DELETE FROM " + table)
+				_, _ = tx.Exec("DROP TABLE IF EXISTS " + table)
 			}
 			_ = tx.Commit()
 		}

@@ -14,9 +14,9 @@ func setupAliasTest(t *testing.T) (string, func()) {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
 	
-	// Ensure caches are explicitly empty before starting
-	ResetForTest()
-	
+	// Why: SetupTestDB already calls ResetForTest → InitDB in the correct order.
+	// A second ResetForTest() here would drop all tables without re-initializing them,
+	// silently breaking all subsequent DB writes in this test.
 	return "admin@whatap.io", cleanup
 }
 

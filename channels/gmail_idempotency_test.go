@@ -14,7 +14,7 @@ func TestGmailIdempotency(t *testing.T) {
 	// Why: Use in-memory SQLite with shared cache to ensure multiple connections/tx see the same data,
 	// while completely eliminating disk side-effects like .db-shm files.
 	dbURL := "file:memdb_gmail_idempotency?mode=memory&cache=shared"
-	store.InitDB(&config.Config{TursoURL: dbURL})
+	store.InitDB(context.Background(), &config.Config{TursoURL: dbURL})
 	store.InitContactsTable(context.Background(), store.GetDB())
 
 	ctx := context.Background()

@@ -203,7 +203,7 @@ func TestUpsertAddresses(t *testing.T) {
 	dbURL := "file:./test.db?_busy_timeout=5000"
 	
 	// Use store's initialization but with our test URL
-	store.InitDB(&config.Config{TursoURL: dbURL})
+	store.InitDB(context.Background(), &config.Config{TursoURL: dbURL})
 	store.InitContactsTable(context.Background(), store.GetDB())
 
 	tenant := "tenant@whatap.io"

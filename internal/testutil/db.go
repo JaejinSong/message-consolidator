@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"context"
 	"fmt"
 	"message-consolidator/config"
 	"os"
@@ -11,20 +12,26 @@ import (
 
 // SetupTestDB initializes a unified SQLite database for testing at ./test.db.
 // It returns a cleanup function and requires an initFunc to avoid import cycles.
-func SetupTestDB(initFunc func(*config.Config) error, resetFunc func()) (func(), error) {
+func SetupTestDB(initFunc func(context.Context, *config.Config) error, resetFunc func()) (func(), error) {
 	if resetFunc != nil {
 		resetFunc()
 	}
 
-	// Why: Use a single shared in-memory DB for the entire test suite.
-	// We handle isolation by running extremely fast TRUNCATE/DELETE in a transaction between tests.
-	dbURL := "file:memdb_shared?mode=memory&cache=shared&_busy_timeout=10000"
+	// Why: Use a file-based DB for the entire test suite.
+	// modernc.org/sqlite does NOT support cache=shared for in-memory databases.
+	// Support TEST_DB_PATH so parallel packages (store, tests) each get their own file
+	// to avoid cross-package races when running `go test ./...`.
+	dbPath := os.Getenv("TEST_DB_PATH")
+	if dbPath == "" {
+		dbPath = "test.db"
+	}
+	dbURL := "file:" + dbPath + "?_busy_timeout=10000"
 
 	cfg := &config.Config{
 		TursoURL: dbURL,
 	}
 
-	if err := initFunc(cfg); err != nil {
+	if err := initFunc(context.Background(), cfg); err != nil {
 		return nil, fmt.Errorf("failed to init test database: %w", err)
 	}
 

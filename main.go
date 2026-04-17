@@ -51,7 +51,10 @@ func main() {
 	//Why: Synchronizes the store-level auto-archive policy with the central environment configuration to ensure consistent task auditing across the system.
 	store.SetAutoArchiveDays(cfg.AutoArchiveDays)
 
-	if err := store.InitDB(cfg); err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := store.InitDB(ctx, cfg); err != nil {
 		log.Fatalf("DB Init failed: %v", err)
 	}
 
@@ -67,7 +70,7 @@ func main() {
 	var gClient *ai.GeminiClient
 	if cfg.GeminiAPIKey != "" {
 		var err error
-		gClient, err = ai.NewGeminiClient(context.Background(), cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+		gClient, err = ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 		if err != nil {
 			logger.Errorf("Failed to initialize GeminiClient for Reports: %v", err)
 		}
@@ -94,11 +97,9 @@ func main() {
 		wg.Wait()
 	}, func() {
 		var wg sync.WaitGroup
-		scanner.RunAllScans(context.Background(), &wg)
+		scanner.RunAllScans(ctx, &wg)
 		wg.Wait()
 	}, reportsSvc, tasksSvc)
-
-	ctx, cancel := context.WithCancel(context.Background())
 
 	srv := setupApp(cfg, api, ctx)
 

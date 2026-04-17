@@ -24,8 +24,7 @@ func runWAPair(cfg *config.Config) {
 		os.Exit(1)
 	}
 
-	err := store.InitDB(cfg)
-	if err != nil {
+	if err := store.InitDB(context.Background(), cfg); err != nil {
 		fmt.Printf("Error initializing DB: %v\n", err)
 		os.Exit(1)
 	}

@@ -10,7 +10,12 @@ Rules:
 1. Maintain the exact Markdown structure, including headers, lists, and tables.
 2. Do not translate technical terms in code blocks or identifiers.
 3. Use a polite, professional, and clear business tone.
-4. Output ONLY the translated Markdown text.
+13: 4. Output ONLY the translated Markdown text.
+14: 5. [CRITICAL] When translating JSON blocks (e.g., Stalled Tasks):
+15:    - Translate only the values of textual fields (e.g., "reason", "status", "source").
+16:    - DO NOT translate "id", "keys", or any identifiers.
+17:    - Strictly maintain JSON syntax and structure.
+18: 6. Column headers in Markdown text (if any) MUST be translated while keeping structure intact.
 
 [Examples]
 {{range .FewShots}}

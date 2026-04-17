@@ -8,7 +8,7 @@ import (
 )
 
 func runDBInspect(cfg *config.Config) {
-	if err := store.InitDB(cfg); err != nil {
+	if err := store.InitDB(context.Background(), cfg); err != nil {
 		log.Fatalf("DB Init failed: %v", err)
 	}
 

@@ -29,6 +29,9 @@ type Config struct {
 	CloudRunMode           bool
 	InternalScanSecret     string
 	MessageBatchWindow     time.Duration
+	DBMaxIdleConns         int
+	DBMaxOpenConns         int
+	DBKeepAliveInterval    time.Duration
 }
 
 func LoadConfig() *Config {
@@ -78,6 +81,29 @@ func LoadConfig() *Config {
 		}
 	}
 
+	dbMaxIdle := 1
+	if val := os.Getenv("DB_MAX_IDLE_CONNS"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			dbMaxIdle = i
+		}
+	}
+
+	dbMaxOpen := 25
+	if val := os.Getenv("DB_MAX_OPEN_CONNS"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			dbMaxOpen = i
+		}
+	}
+
+	dbKeepAlive := 8 * time.Second
+	if val := os.Getenv("DB_KEEP_ALIVE_INTERVAL"); val != "" {
+		if d, err := time.ParseDuration(val); err == nil {
+			dbKeepAlive = d
+		} else if sec, err := strconv.Atoi(val); err == nil {
+			dbKeepAlive = time.Duration(sec) * time.Second
+		}
+	}
+
 	return &Config{
 		SlackToken:             os.Getenv("SLACK_TOKEN"),
 		GeminiAPIKey:           os.Getenv("GEMINI_API_KEY"),
@@ -98,5 +124,8 @@ func LoadConfig() *Config {
 		CloudRunMode:           os.Getenv("CLOUD_RUN_MODE") == "true",
 		InternalScanSecret:     os.Getenv("INTERNAL_SCAN_SECRET"),
 		MessageBatchWindow:     batchWindow,
+		DBMaxIdleConns:         dbMaxIdle,
+		DBMaxOpenConns:         dbMaxOpen,
+		DBKeepAliveInterval:    dbKeepAlive,
 	}
 }

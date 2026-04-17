@@ -9,7 +9,7 @@ import (
 
 func TestRouteTaskByStatus_Resolve(t *testing.T) {
 	// Initialize in-memory DB for logic verification
-	store.InitDB(&config.Config{TursoURL: "file::memory:?cache=shared"})
+	store.InitDB(context.Background(), &config.Config{TursoURL: "file::memory:?cache=shared"})
 	db := store.GetDB()
 	ctx := context.Background()
 

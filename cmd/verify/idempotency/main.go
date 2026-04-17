@@ -18,7 +18,7 @@ func main() {
 		TursoURL: dbURL,
 	}
 
-	if err := store.InitDB(cfg); err != nil {
+	if err := store.InitDB(context.Background(), cfg); err != nil {
 		log.Fatal(err)
 	}
 

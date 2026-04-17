@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"message-consolidator/db"
 	"message-consolidator/logger"
 )
@@ -9,10 +10,22 @@ import (
 func createCoreTables(ctx context.Context, q db.DBTX) error {
 	queries := db.New(q)
 	// Why: Systematically create all required tables using sqlc methods.
-	_ = queries.CreateUsersTable(ctx)
-	_ = queries.CreateUserAliasesTable(ctx)
-	_ = queries.CreateGmailTokensTable(ctx)
-	_ = queries.CreateMessagesTable(ctx)
+	logger.Infof("[DB-INIT] Creating users table...")
+	if err := queries.CreateUsersTable(ctx); err != nil {
+		logger.Errorf("[DB-INIT] Failed to create users table: %v", err)
+		return fmt.Errorf("failed to create users table: %w", err)
+	}
+	logger.Infof("[DB-INIT] Users table verified.")
+	if err := queries.CreateUserAliasesTable(ctx); err != nil {
+		return fmt.Errorf("failed to create user_aliases table: %w", err)
+	}
+	if err := queries.CreateGmailTokensTable(ctx); err != nil {
+		return fmt.Errorf("failed to create gmail_tokens table: %w", err)
+	}
+	if err := queries.CreateMessagesTable(ctx); err != nil {
+		logger.Errorf("[DB-INIT] Failed to create messages table: %v", err)
+		return fmt.Errorf("failed to create messages table: %w", err)
+	}
 	_ = queries.CreateTaskTranslationsTable(ctx)
 	_ = queries.CreateTenantAliasesTable(ctx)
 	_ = queries.CreateScanMetadataTable(ctx)
@@ -20,13 +33,26 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 	_ = queries.CreateReportsTable(ctx)
 	_ = queries.CreateReportTranslationsTable(ctx)
 	_ = queries.CreatePromptLogsTable(ctx)
-	_ = queries.CreateAIInferenceLogsTable(ctx)
+	if err := queries.CreateAIInferenceLogsTable(ctx); err != nil {
+		return fmt.Errorf("failed to create ai_inference_logs table: %w", err)
+	}
 
-	_ = queries.CreateContactsTable(ctx)
-	_ = queries.CreateContactAliasesTable(ctx)
-	_ = queries.CreateIdentityMergeHistoryTable(ctx)
-	_ = queries.CreateIdentityMergeCandidatesTable(ctx)
-	_ = queries.CreateTokenUsageTable(ctx)
+	if err := queries.CreateContactsTable(ctx); err != nil {
+		logger.Errorf("[DB-INIT] Failed to create contacts table: %v", err)
+		return fmt.Errorf("failed to create contacts table: %w", err)
+	}
+	if err := queries.CreateContactAliasesTable(ctx); err != nil {
+		return fmt.Errorf("failed to create contact_aliases table: %w", err)
+	}
+	if err := queries.CreateIdentityMergeHistoryTable(ctx); err != nil {
+		return fmt.Errorf("failed to create identity_merge_history table: %w", err)
+	}
+	if err := queries.CreateIdentityMergeCandidatesTable(ctx); err != nil {
+		return fmt.Errorf("failed to create identity_merge_candidates table: %w", err)
+	}
+	if err := queries.CreateTokenUsageTable(ctx); err != nil {
+		return fmt.Errorf("failed to create token_usage table: %w", err)
+	}
 	return nil
 }
 
@@ -72,16 +98,19 @@ func runMigrations(ctx context.Context, q db.DBTX) error {
 	run("TokenUsageAddFiltered", "ALTER TABLE token_usage ADD COLUMN filtered_count INTEGER DEFAULT 0")
 
 	migrateExistingData(ctx, q)
-	_ = rebuildViews(ctx, q)
 	return nil
 }
 
 func rebuildViews(ctx context.Context, q db.DBTX) error {
 	queries := db.New(q)
 	_, _ = q.ExecContext(ctx, "DROP VIEW IF EXISTS v_contacts_resolved")
-	_ = queries.CreateContactsResolvedView(ctx)
+	if err := queries.CreateContactsResolvedView(ctx); err != nil {
+		return fmt.Errorf("failed to create v_contacts_resolved: %w", err)
+	}
 	_, _ = q.ExecContext(ctx, "DROP VIEW IF EXISTS v_messages")
-	_ = queries.CreateMessagesView(ctx)
+	if err := queries.CreateMessagesView(ctx); err != nil {
+		return fmt.Errorf("failed to create v_messages: %w", err)
+	}
 
 	return nil
 }
