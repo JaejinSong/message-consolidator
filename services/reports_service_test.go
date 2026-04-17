@@ -274,8 +274,8 @@ func TestReportsService_GenerateVisualizationData_WithAliases(t *testing.T) {
 	if err := store.AddUserAlias(context.Background(), userJJ.ID, "JJ"); err != nil {
 		t.Fatalf("Failed to add user alias: %v", err)
 	}
-	if err := store.AddTenantAlias(context.Background(), tenantEmail, "Song, SongV2, jjsong@whatap.io", "Jaejin Song"); err != nil {
-		t.Fatalf("Failed to add tenant alias: %v", err)
+	if _, err := store.AddContact(context.Background(), tenantEmail, "jjsong@whatap.io", "Jaejin Song", "JJ, Song, SongV2", "test"); err != nil {
+		t.Fatalf("Failed to add test contact: %v", err)
 	}
 
 	// 3. Manually refresh caches to load the new aliases from DB

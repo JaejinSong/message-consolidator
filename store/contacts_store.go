@@ -107,7 +107,9 @@ func UpsertContact(ctx context.Context, tenantEmail, canonicalID, displayName, a
 
 	// Why: Identity-X requires every primary identifier to be registered as an alias for resolution.
 	aliasType := ContactTypeEmail
-	if !strings.Contains(canonicalID, "@") {
+	if source == ContactTypeWhatsApp {
+		aliasType = ContactTypeWhatsApp
+	} else if !strings.Contains(canonicalID, "@") {
 		aliasType = ContactTypeName
 	}
 	_ = RegisterAlias(ctx, id, aliasType, canonicalID, source, 5)
@@ -202,18 +204,32 @@ func SaveWhatsAppContact(email, number, name string) error {
 		return nil
 	}
 
+	// Why: If the name is just the phone number, it's not a useful PushName.
+	if name == number {
+		return nil
+	}
+
 	metadataMu.RLock()
 	existing := findInCache(email, func(m ContactRecord) bool {
-		return m.DisplayName == name
+		return m.CanonicalID == number || m.DisplayName == name
 	})
 	metadataMu.RUnlock()
 
-	canonical := strings.ToLower(name) // Fallback if not exists
+	displayName := name
+	canonical := number
 	if existing != nil {
 		canonical = existing.CanonicalID
+		// Why: Update if the existing name is just the number (temporary fallback) 
+		// or if it's already a PushName and we got a fresh one. 
+		// We only preserve it if it was likely a manual/verified name that differs from both number and new name.
+		if existing.DisplayName == number || existing.DisplayName == "" || strings.Contains(existing.DisplayName, " ") {
+			displayName = name
+		} else {
+			displayName = existing.DisplayName
+		}
 	}
 
-	_, err := UpsertContact(context.Background(), email, canonical, name, number, ContactTypeWhatsApp)
+	_, err := UpsertContact(context.Background(), email, canonical, displayName, number, ContactTypeWhatsApp)
 	return err
 }
 

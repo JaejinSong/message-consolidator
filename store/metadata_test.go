@@ -106,9 +106,6 @@ func TestMetadataIntegrity(t *testing.T) {
 		// Why: Verifies that HandleTaskState correctly merges source_channels during semantic update.
 		// Context: Existing task is from "slack". Incoming message is from "whatsapp".
 		existing := ConsolidatedMessage{
-			ID:             103,
-			UserEmail:      userEmail,
-			Source:         "whatsapp",
 			SourceChannels: []string{"whatsapp", "slack"},
 		}
 		

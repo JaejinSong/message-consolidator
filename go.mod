@@ -5,6 +5,7 @@ go 1.25.6
 require (
 	github.com/google/generative-ai-go v0.13.0
 	github.com/gorilla/mux v1.8.1
+	github.com/hbollon/go-edlib v1.7.0
 	github.com/joho/godotenv v1.5.1
 	github.com/recapco/emailreplyparser v0.0.0-20150819183747-c8d8e0a5749b
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
@@ -48,7 +49,6 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.5 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
-	github.com/hbollon/go-edlib v1.7.0 // indirect
 	github.com/lestrrat-go/strftime v1.0.6 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect

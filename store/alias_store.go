@@ -46,9 +46,11 @@ func fallbackSystemUser(normalized, original string) string {
 }
 
 func resolveCurrentUserAlias(tenantEmail, nameLower string) (string, bool) {
-	if nameLower != "me" && nameLower != "__current_user__" {
+	if nameLower != "me" && nameLower != "__current_user__" && nameLower != "나" {
 		return "", false
 	}
+	metadataMu.RLock()
+	defer metadataMu.RUnlock()
 	if u, ok := userCache[strings.ToLower(tenantEmail)]; ok {
 		if strings.TrimSpace(u.Name) != "" {
 			return u.Name, true
@@ -315,7 +317,6 @@ func findUserInCacheByIDLocked(id int64) *User {
 	return nil
 }
 
-
 func findUserInCacheByID(id int64) *User {
 	metadataMu.RLock()
 	defer metadataMu.RUnlock()
@@ -326,39 +327,6 @@ func findUserInCacheByID(id int64) *User {
 		}
 	}
 	return nil
-}
-
-
-// AddTenantAlias is a legacy compatibility helper for tenant-specific aliases.
-func AddTenantAlias(ctx context.Context, tenantEmail, original, primary string) error {
-	parts := strings.Split(original, ",")
-	bestID := strings.TrimSpace(parts[0])
-	return AddContactMapping(ctx, tenantEmail, strings.ToLower(bestID), primary, original, "legacy")
-}
-
-// DeleteUserAlias removes an alias for a user from the user_aliases table and updates the cache.
-func DeleteUserAlias(ctx context.Context, userID int, alias string) error {
-	trimmed := strings.TrimSpace(alias)
-
-	uID := int64(userID)
-	queries := db.New(GetDB())
-	if err := queries.DeleteUserAlias(ctx, db.DeleteUserAliasParams{
-		UserID:    uID,
-		AliasName: trimmed,
-	}); err != nil {
-		return err
-	}
-
-	updateUserCacheAlias(uID, trimmed, false)
-	return nil
-}
-
-
-// DeleteTenantAlias is a legacy compatibility helper.
-func DeleteTenantAlias(ctx context.Context, tenantEmail, original string) error {
-	parts := strings.Split(original, ",")
-	bestID := strings.TrimSpace(parts[0])
-	return DeleteContactMapping(ctx, tenantEmail, strings.ToLower(bestID))
 }
 
 // GetUserByWAJID searches for a user in the cache by their WhatsApp JID.
