@@ -119,14 +119,9 @@ echo -e "\n${BLUE}==================================================${NC}"
 echo -e "${BLUE}==> STAGE 1: Parallel Testing Gate${NC}"
 echo -e "${BLUE}==================================================${NC}"
 
-# Note: -p=1 runs go test packages sequentially.
-# store and tests packages both use test.db; running them concurrently causes race conditions.
-( run_step "Go Unit Tests" bash -c "
-  TEST_DB_PATH=test_store.db go test -p=1 ./store/... &&
-  TEST_DB_PATH=test_int.db go test -p=1 ./tests/... &&
-  go test -p=1 \$(go list ./... | grep -vE 'message-consolidator/(store|tests|ai)\$') &&
-  rm -f test_store.db test_store.db-shm test_store.db-wal test_int.db test_int.db-shm test_int.db-wal
-" ) & p_test_go=$!
+# Note: Go tests now use unique in-memory SQLite databases per reset,
+# ensuring high-speed execution and perfect isolation between tests.
+( run_step "Go Unit Tests" go test ./... ) & p_test_go=$!
 ( run_step "AI Regressions" go test -tags regression ./ai/... ) & p_test_ai=$!
 ( run_step "NPM (Vitest)" npm test ) & p_test_node=$!
 ( run_step "GCloud Auth" gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet ) & p_auth=$!

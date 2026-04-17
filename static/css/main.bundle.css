@@ -3183,7 +3183,7 @@ body.light-theme .glass-btn:hover {
     border-spacing: 0;
     margin: 2rem 0;
     font-size: 0.875rem;
-    border: 1px solid var(--glass-border);
+    border: var(--border-thin) solid var(--glass-border);
     border-radius: var(--radius-lg);
     overflow: hidden;
     background: rgba(var(--bg-rgb), 0.2);
@@ -3191,14 +3191,16 @@ body.light-theme .glass-btn:hover {
     box-shadow: var(--shadow-main);
 }
 
-.c-report-table th,
-.c-report-table td,
-.c-report-summary__content th,
-.c-report-summary__content td,
-.report-content th,
+.c-report-table-wrapper {
+    width: 100%;
+    margin: var(--spacing-lg) 0;
+    overflow-x: auto;
+    border-radius: var(--radius-lg);
+}
+
 .report-content td {
     padding: 1rem 1.25rem;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: var(--border-thin) solid var(--glass-border);
     text-align: left;
     color: var(--text-main);
     line-height: 1.5;
@@ -3248,7 +3250,7 @@ body.light-theme .glass-btn:hover {
 .c-report-badge--stalled {
     background: rgba(var(--warning-rgb), 0.1);
     color: var(--warning-color);
-    border: 1px solid rgba(var(--warning-rgb), 0.2);
+    border: var(--border-thin) solid rgba(var(--warning-rgb), 0.2);
 }
 
 .c-report-delay-value {
@@ -3261,12 +3263,12 @@ body.light-theme .glass-btn:hover {
 
 .c-report-table__cell--days {
     text-align: center;
-    width: 80px;
+    width: 5rem;
     background: rgba(var(--accent-rgb), 0.03);
 }
 
 .c-report-table__cell--source {
-    width: 120px;
+    width: 7.5rem;
 }
 
 

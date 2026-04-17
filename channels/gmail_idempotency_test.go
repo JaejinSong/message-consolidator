@@ -2,19 +2,19 @@ package channels
 
 import (
 	"context"
-	"message-consolidator/config"
+	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"testing"
 )
 
 func TestGmailIdempotency(t *testing.T) {
-	// 1. Setup - Fully reset memory and file state
-	store.ResetForTest()
-
-	// Why: Use in-memory SQLite with shared cache to ensure multiple connections/tx see the same data,
-	// while completely eliminating disk side-effects like .db-shm files.
-	dbURL := "file:memdb_gmail_idempotency?mode=memory&cache=shared"
-	store.InitDB(context.Background(), &config.Config{TursoURL: dbURL})
+	// Why: Use testutil.SetupTestDB to avoid broken cache=shared in-memory DSN.
+	// modernc.org/sqlite ignores cache=shared, causing each pool connection to see an empty DB.
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
 	store.InitContactsTable(context.Background(), store.GetDB())
 
 	ctx := context.Background()

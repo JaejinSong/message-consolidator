@@ -2,14 +2,20 @@ package services
 
 import (
 	"context"
-	"message-consolidator/config"
+	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"testing"
 )
 
 func TestRouteTaskByStatus_Resolve(t *testing.T) {
-	// Initialize in-memory DB for logic verification
-	store.InitDB(context.Background(), &config.Config{TursoURL: "file::memory:?cache=shared"})
+	// Why: Use testutil.SetupTestDB instead of hardcoded in-memory DSN.
+	// modernc.org/sqlite ignores cache=shared, causing empty DB per connection.
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
 	db := store.GetDB()
 	ctx := context.Background()
 

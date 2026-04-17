@@ -28,6 +28,10 @@ var (
 	conn     *sql.DB
 	dsn      string
 	testMode bool
+
+	// TestDSN allows tests to supply a custom DSN (set before InitDB is called).
+	// Why: Forces a single shared in-memory connection for test isolation.
+	TestDSN string
 )
 
 func InitDB(ctx context.Context, cfg *config.Config) error {
@@ -66,11 +70,14 @@ func InitDB(ctx context.Context, cfg *config.Config) error {
 
 // GetDBDriverAndDSN constructs the appropriate driver name and DSN based on configuration.
 func GetDBDriverAndDSN(cfg *config.Config) (string, string) {
+	// Why: TestDSN takes priority — allows testutil to inject an in-memory DSN.
+	if TestDSN != "" {
+		return "sqlite", TestDSN
+	}
 	dbURL := cfg.TursoURL
 	if dbURL == "" {
-		// Why: Use a dedicated test.db file for the entire test suite.
-		// Shared-memory SQLite is too volatile across connection pools in Go.
-		dbURL = "file:test.db?_busy_timeout=10000"
+		// Why: In production dev mode with no TursoURL, use a local file.
+		dbURL = "file:local.db?_pragma=busy_timeout(10000)"
 	}
 	if strings.HasPrefix(dbURL, "libsql://") && cfg.TursoToken != "" {
 		dbURL = fmt.Sprintf("%s?authToken=%s", dbURL, cfg.TursoToken)
@@ -83,10 +90,15 @@ func GetDBDriverAndDSN(cfg *config.Config) (string, string) {
 	return driverName, dbURL
 }
 
-// applySQLitePragmas enforces WAL mode and synchronous settings for local file-based databases.
+// applySQLitePragmas enforces WAL mode, synchronous settings, and busy timeout for local file-based databases.
 func applySQLitePragmas(db *sql.DB, dbURL string) {
 	if !strings.HasPrefix(dbURL, "file:") {
 		return
+	}
+	// Why: Belt-and-suspenders for busy_timeout. The _pragma DSN param sets it at open,
+	// but we set it again here to guarantee it applies to all connections in the pool.
+	if _, err := db.Exec("PRAGMA busy_timeout = 10000;"); err != nil {
+		logger.Warnf("[DB-INIT] Failed to set busy_timeout: %v", err)
 	}
 	if _, err := db.Exec("PRAGMA journal_mode = WAL;"); err != nil {
 		logger.Warnf("[DB-INIT] Failed to set WAL mode: %v", err)
@@ -148,15 +160,27 @@ func EnsureSchemaAndSeeds(dbConn *sql.DB) error {
 
 func setupConnectionPool(cfg *config.Config, dbURL string) {
 	maxOpen := cfg.DBMaxOpenConns
+	maxIdle := cfg.DBMaxIdleConns
+	maxLifetime := 5 * time.Minute
+
 	// Why: Auto-tuning for SQLite if not explicitly overridden via environment.
 	if strings.HasPrefix(dbURL, "file:") && maxOpen == 25 {
 		maxOpen = 100
 	}
 
+	// Why: If we are in test mode (specifically using in-memory SQLite), we MUST
+	// maintain exactly one active connection to keep the in-memory DB alive.
+	// modernc.org/sqlite ignores cache=shared, and closing the last connection
+	// destroys the DB. maxIdle=1 ensures the connection stays in the pool.
+	if testMode {
+		maxOpen = 1
+		maxIdle = 1
+		maxLifetime = 1 * time.Hour // Prevent connection turnover during tests
+	}
+
 	conn.SetMaxOpenConns(maxOpen)
-	conn.SetMaxIdleConns(cfg.DBMaxIdleConns) // Why: Prevents 'stream is closed' by maintaining a stable pool.
-	// Why: Maintains existing 5-minute policy while preventing stale connection accumulation.
-	conn.SetConnMaxLifetime(5 * time.Minute)
+	conn.SetMaxIdleConns(maxIdle)
+	conn.SetConnMaxLifetime(maxLifetime)
 	conn.SetConnMaxIdleTime(30 * time.Second)
 }
 

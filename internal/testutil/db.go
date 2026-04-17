@@ -4,32 +4,28 @@ import (
 	"context"
 	"fmt"
 	"message-consolidator/config"
-	"os"
 	"time"
 
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
-// SetupTestDB initializes a unified SQLite database for testing at ./test.db.
+// SetupTestDB initializes an in-memory SQLite database for testing.
 // It returns a cleanup function and requires an initFunc to avoid import cycles.
+//
+// Root cause of previous issues:
+//   modernc.org/sqlite does NOT support cache=shared for in-memory databases.
+//   Each connection in sql.DB's pool gets its own separate in-memory DB.
+//
+// Fix: Inject a unique in-memory DSN via store.TestDSN.
+//   store.InitDB detects this and calls db.SetMaxOpenConns(1), forcing all
+//   goroutines to share a single connection → single shared in-memory DB.
 func SetupTestDB(initFunc func(context.Context, *config.Config) error, resetFunc func()) (func(), error) {
 	if resetFunc != nil {
 		resetFunc()
 	}
 
-	// Why: Use a file-based DB for the entire test suite.
-	// modernc.org/sqlite does NOT support cache=shared for in-memory databases.
-	// Support TEST_DB_PATH so parallel packages (store, tests) each get their own file
-	// to avoid cross-package races when running `go test ./...`.
-	dbPath := os.Getenv("TEST_DB_PATH")
-	if dbPath == "" {
-		dbPath = "test.db"
-	}
-	dbURL := "file:" + dbPath + "?_busy_timeout=10000"
-
-	cfg := &config.Config{
-		TursoURL: dbURL,
-	}
+	// Why: Pass an empty config so GetDBDriverAndDSN picks up store.TestDSN instead.
+	cfg := &config.Config{}
 
 	if err := initFunc(context.Background(), cfg); err != nil {
 		return nil, fmt.Errorf("failed to init test database: %w", err)
@@ -46,15 +42,10 @@ func SetupTestDB(initFunc func(context.Context, *config.Config) error, resetFunc
 
 // RemoveTestDBFiles thoroughly removes the SQLite database file and its WAL/SHM artifacts.
 // Why: SQLite in WAL mode creates -shm and -wal files that linger if not explicitly closed and deleted.
-func RemoveTestDBFiles(path string) {
-	_ = os.Remove(path)
-	_ = os.Remove(path + "-shm")
-	_ = os.Remove(path + "-wal")
-	_ = os.Remove(path + "-journal")
-}
+func RemoveTestDBFiles(path string) {}
 
 // RandomEmail generates a unique email address for test data isolation.
-// Why: Ensures parallel tests sharing a single test.db never clash on unique constraints.
+// Why: Ensures tests sharing a single in-memory DB never clash on unique constraints.
 func RandomEmail(prefix string) string {
 	return fmt.Sprintf("%s-%d@test.com", prefix, time.Now().UnixNano())
 }

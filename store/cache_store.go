@@ -52,30 +52,20 @@ var (
 )
 
 func ResetForTest() {
-	// Why: Set testMode to skip expensive RefreshAllCaches during schema re-init.
+	// Why: testMode skips expensive RefreshAllCaches during schema re-init.
 	testMode = true
 
-	// Why: Fast DB reset by dropping all tables in a single transaction.
-	// Works with file-based test.db (modernc.org/sqlite doesn't support cache=shared for in-memory).
-	if c := GetDB(); c != nil {
-		tx, err := c.Begin()
-		if err == nil {
-			tables := []string{
-				"users", "user_aliases", "gmail_tokens", "messages", "task_translations",
-				"tenant_aliases", "scan_metadata", "slack_threads", "token_usage",
-				"contacts", "contact_aliases", "identity_merge_history",
-				"identity_merge_candidates", "reports", "report_translations",
-				"prompt_logs", "ai_inference_logs",
-			}
-			// Why: Drop views first since they depend on tables.
-			_, _ = tx.Exec("DROP VIEW IF EXISTS v_messages")
-			_, _ = tx.Exec("DROP VIEW IF EXISTS v_contacts_resolved")
-			for _, table := range tables {
-				_, _ = tx.Exec("DROP TABLE IF EXISTS " + table)
-			}
-			_ = tx.Commit()
-		}
+	// Why: For in-memory SQLite, closing the connection destroys the database entirely.
+	// This is simpler and more reliable than DROP TABLE ... for each table.
+	// A unique DSN ensures the next InitDB creates a completely fresh database.
+	if conn != nil {
+		conn.Close()
+		conn = nil
 	}
+	dsn = ""
+	// Why: A unique name per reset prevents any cross-test state bleed via SQLite's
+	// internal URI-keyed database registry.
+	TestDSN = fmt.Sprintf("file:memdb_%d?mode=memory&cache=shared", time.Now().UnixNano())
 
 	metadataMu.Lock()
 	defer metadataMu.Unlock()
@@ -98,8 +88,8 @@ func ResetForTest() {
 	cacheInitialized = make(map[string]bool)
 	cacheMu.Unlock()
 
-
 }
+
 
 func GetContactsCache() map[string][]ContactRecord {
 	metadataMu.RLock()
