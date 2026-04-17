@@ -65,15 +65,24 @@ func IsProcessed(ctx context.Context, q Querier, email, sourceTS string) (bool, 
 	}
 
 	queries := db.New(q)
+	// Why: [Idempotency] Check both if it exists as a message and if it was marked processed in scan_metadata.
 	count, err := queries.IsMessageProcessed(ctx, db.IsMessageProcessedParams{
 		UserEmail: sql.NullString{String: email, Valid: true},
 		SourceTs:  sql.NullString{String: sourceTS, Valid: true},
 	})
+	if err == nil && count > 0 {
+		return true, nil
+	}
+
+	processed, err := queries.IsSourceTSProcessed(ctx, db.IsSourceTSProcessedParams{
+		UserEmail: email,
+		TargetID:  sourceTS,
+	})
+	
 	if err != nil {
 		return false, fmt.Errorf("failed to check if message is processed: %w", err)
 	}
-	// count is the result of IsMessageProcessed (int64)
-	return count > 0, nil
+	return processed > 0, nil
 }
 
 // MarkAsProcessed manually registers a SourceTS as processed to prevent redundant AI extraction.
@@ -86,9 +95,9 @@ func MarkAsProcessed(ctx context.Context, q Querier, email, sourceTS string) err
 	knownTS[email][sourceTS] = true
 	cacheMu.Unlock()
 
-	return db.New(q).UpdateProcessed(ctx, db.UpdateProcessedParams{
-		UserEmail: sql.NullString{String: email, Valid: true},
-		SourceTs:  sql.NullString{String: sourceTS, Valid: true},
+	return db.New(q).MarkSourceTSProcessed(ctx, db.MarkSourceTSProcessedParams{
+		UserEmail: email,
+		TargetID:  sourceTS,
 	})
 }
 

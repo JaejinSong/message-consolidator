@@ -26,3 +26,14 @@ DO UPDATE SET last_ts = EXCLUDED.last_ts;
 -- name: DeleteScanMetadataSlackThread :exec
 DELETE FROM scan_metadata 
 WHERE user_email = ? AND source = 'slack_thread' AND target_id = ?;
+
+-- name: IsSourceTSProcessed :one
+SELECT EXISTS(
+    SELECT 1 FROM scan_metadata 
+    WHERE user_email = ? AND source = 'processed_msg' AND target_id = ?
+);
+
+-- name: MarkSourceTSProcessed :exec
+INSERT INTO scan_metadata (user_email, source, target_id, last_ts)
+VALUES (?, 'processed_msg', ?, datetime('now'))
+ON CONFLICT (user_email, source, target_id) DO NOTHING;

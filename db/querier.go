@@ -100,6 +100,7 @@ type Querier interface {
 	InsertReport(ctx context.Context, arg InsertReportParams) (int64, error)
 	InsertReportTranslation(ctx context.Context, arg InsertReportTranslationParams) error
 	IsMessageProcessed(ctx context.Context, arg IsMessageProcessedParams) (int64, error)
+	IsSourceTSProcessed(ctx context.Context, arg IsSourceTSProcessedParams) (int64, error)
 	ListReports(ctx context.Context, userEmail string) ([]ListReportsRow, error)
 	LoadContactsAll(ctx context.Context) ([]LoadContactsAllRow, error)
 	LoadContactsAllScan(ctx context.Context) ([]LoadContactsAllScanRow, error)
@@ -108,6 +109,7 @@ type Querier interface {
 	LoadTenantAliasesAll(ctx context.Context) ([]LoadTenantAliasesAllRow, error)
 	LoadUserAliasesAll(ctx context.Context) ([]LoadUserAliasesAllRow, error)
 	LoadUsersAll(ctx context.Context) ([]User, error)
+	MarkSourceTSProcessed(ctx context.Context, arg MarkSourceTSProcessedParams) error
 	MigrateReportTranslationsAddLanguageCode(ctx context.Context) error
 	MigrateReportTranslationsRenameLanguage(ctx context.Context) error
 	MigrateReportsAddIsTruncated(ctx context.Context) error
@@ -127,7 +129,6 @@ type Querier interface {
 	UpdateCategoryMerged(ctx context.Context, arg UpdateCategoryMergedParams) error
 	UpdateContactDetails(ctx context.Context, arg UpdateContactDetailsParams) error
 	UpdateMessageDetails(ctx context.Context, arg UpdateMessageDetailsParams) error
-	UpdateProcessed(ctx context.Context, arg UpdateProcessedParams) error
 	UpdateReportStatus(ctx context.Context, arg UpdateReportStatusParams) error
 	UpdateTaskDescriptionAppend(ctx context.Context, arg UpdateTaskDescriptionAppendParams) error
 	UpdateTaskFullAppend(ctx context.Context, arg UpdateTaskFullAppendParams) error
