@@ -287,7 +287,7 @@ export function normalizeReportData(data: any): IReportData {
         viz = rawViz as ParsedVisualization;
     }
 
-    const reportSummary = data.report_summary || data.summary || "";
+    const reportSummary = data.report_summary || "";
 
     return {
         id: Number(data.id),

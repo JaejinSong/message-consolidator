@@ -25,9 +25,8 @@ export interface Message {
     waiting_on?: string;
     category?: string;
     metadata?: string | Record<string, any> | null;
-    translating?: boolean;
     is_translating?: boolean;
-    translationError?: string | null;
+    translation_error?: string | null;
     has_original?: boolean;
     room?: string;
     user_email?: string;
@@ -197,10 +196,8 @@ export interface IReportData {
     start_date: string;
     end_date: string;
     report_summary: string;
-    summary?: string;
     translations?: Record<string, string>;
     visualization_data: string | ParsedVisualization;
-    visualization?: string | ParsedVisualization;
     status?: 'processing' | 'completed' | 'failed';
     is_truncated?: boolean;
     created_at?: string;

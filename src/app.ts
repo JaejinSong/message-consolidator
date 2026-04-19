@@ -1,6 +1,6 @@
 import '../static/style.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
-import { state, updateLang, updateTheme, updateStats, updateMessages, setTaskSelection, clearTaskSelection, deleteTaskFromState, updateTaskStatusInState, getTaskById, upsertItem } from './state';
+import { state, updateLang, updateTheme, updateStats, updateMessages, setTaskSelection, clearTaskSelection, deleteTaskFromState, updateTaskStatusInState, updateSubtaskStateInState, getTaskById, upsertItem } from './state';
 import { renderUILanguage } from './renderers/i18n-renderer';
 import { I18N_DATA } from './locales';
 import { api } from './api';
@@ -24,6 +24,7 @@ import {
     bindThemeToggle,
     removeTaskNode,
     updateTaskNodeStatus,
+    updateSubtaskNodeStatus,
     getVisibleUntranslatedIds
 } from './renderer';
 import { I18nDictionary, ServiceHandlers, UserProfile, CategorizedMessages } from './types';
@@ -147,36 +148,13 @@ const handlers: ServiceHandlers = {
         
         // 1. Optimistic Update
         updateSubtaskStateInState(taskId, subtaskIndex, done);
-        // We could write a specific updateSubtaskNodeStatus, but subtasks are small enough
-        // that a local re-render or class toggle is fine. For now, let's just use the state update.
-        // Actually, we need to reflect it in the DOM immediately.
-        const card = document.querySelector(`.c-message-card[data-id="${taskId}"]`);
-        if (card) {
-            const subtaskEls = card.querySelectorAll('.c-message-card__subtask-item');
-            const item = subtaskEls[subtaskIndex];
-            if (item) {
-                item.classList.toggle('c-message-card__subtask-item--done', done);
-                const check = item.querySelector('.c-message-card__subtask-check');
-                if (check) check.textContent = done ? '✅' : '•';
-            }
-        }
+        updateSubtaskNodeStatus(taskId, subtaskIndex, done);
 
         try {
             await api.toggleSubtask(taskIdStr, subtaskIndex, done);
         } catch (e: any) {
             showToast(state.currentLang === 'ko' ? '서브태스크 업데이트 실패' : 'Failed to update subtask', 'error');
             // Rollback
-            updateSubtaskStateInState(taskId, subtaskIndex, !done);
-            const card = document.querySelector(`.c-message-card[data-id="${taskId}"]`);
-            if (card) {
-                const subtaskEls = card.querySelectorAll('.c-message-card__subtask-item');
-                const item = subtaskEls[subtaskIndex];
-                if (item) {
-                    item.classList.toggle('c-message-card__subtask-item--done', !done);
-                    const check = item.querySelector('.c-message-card__subtask-check');
-                    if (check) check.textContent = !done ? '✅' : '•';
-                }
-            }
         }
     }, { triggerAuthOverlay: true })
 };
@@ -242,7 +220,7 @@ async function triggerBatchTranslation(): Promise<void> {
     const all = [...state.messages.inbox, ...state.messages.pending];
     ids.forEach(id => {
         const m = all.find(item => item.id === id);
-        if (m) m.translating = true;
+        if (m) m.is_translating = true;
     });
 
     try {

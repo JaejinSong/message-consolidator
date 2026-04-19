@@ -255,7 +255,7 @@ export const reportsRenderer = {
         const netChartArea = document.getElementById('reportNetworkChart');
         const sankeyChartArea = document.getElementById('reportSankeyChart');
 
-        const summaryText = report.translations?.[lang] || report.summary || report.report_summary || "";
+        const summaryText = report.translations?.[lang] || report.report_summary || "";
 
         if (summaryArea) {
             const html = parseMarkdown(summaryText);
@@ -275,7 +275,7 @@ export const reportsRenderer = {
             }
         }
 
-        const vizRaw = report.visualization || report.visualization_data;
+        const vizRaw = report.visualization_data;
         let viz: ParsedVisualization = { nodes: [], links: [] };
 
         try {

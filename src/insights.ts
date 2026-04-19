@@ -115,7 +115,7 @@ export const insights = {
                         if (!this.lastReport.translations) this.lastReport.translations = {};
                         
                         // Defensively extract translated text from various possible response fields
-                        const translatedText = result.summary || result.report_summary || result.translation || result.translated_text || (typeof result === 'string' ? result : '');
+                        const translatedText = result.report_summary || result.translation || result.translated_text || (typeof result === 'string' ? result : '');
                         
                         this.lastReport.translations[lang] = translatedText;
                         

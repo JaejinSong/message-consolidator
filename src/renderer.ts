@@ -157,8 +157,8 @@ export function createCardElement(m: Message): string {
         category: m.category || 'TASK',
         metadata: typeof m.metadata === 'string' ? m.metadata : JSON.stringify(m.metadata || {}),
         lang: state.currentLang || 'en',
-        translating: !!m.translating,
-        translationError: (m.translationError || undefined) as string | undefined,
+        is_translating: !!m.is_translating,
+        translation_error: (m.translation_error || undefined) as string | undefined,
         has_original: !!m.has_original,
         assigned_to: m.assigned_to,
         isSelected: state.selectedTaskIds.has(m.id)
@@ -251,7 +251,7 @@ export const getVisibleUntranslatedIds = (): number[] => {
         const all = [...state.messages.inbox, ...state.messages.pending];
         const m = all.find(item => item.id === id);
 
-        if (m && !m.task_ko && !m.translating) {
+        if (m && !m.task_ko && !m.is_translating) {
             ids.push(id);
         }
     });
@@ -375,5 +375,21 @@ export function renderArchive(messages: Message[]): void {
 export function bindGlobalClicks(handlers: {}): void {
     document.body.addEventListener('click', () => {
         // Placeholder for future global click handlers
+    });
+}
+
+/**
+ * Why: Optimistically updates a subtask's completion status without full re-render.
+ */
+export function updateSubtaskNodeStatus(taskId: number, index: number, done: boolean): void {
+    const cards = document.querySelectorAll(`.c-message-card[data-id="${taskId}"]`);
+    cards.forEach(card => {
+        const subtaskEls = card.querySelectorAll('.c-message-card__subtask-item');
+        const item = subtaskEls[index];
+        if (item) {
+            item.classList.toggle('c-message-card__subtask-item--done', done);
+            const check = item.querySelector('.c-message-card__subtask-check');
+            if (check) check.textContent = done ? '✅' : '•';
+        }
     });
 }
