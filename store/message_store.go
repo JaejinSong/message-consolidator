@@ -198,51 +198,38 @@ func GetMessages(ctx context.Context, email string) ([]ConsolidatedMessage, erro
 	return []ConsolidatedMessage{}, nil
 }
 
-func MarkMessageDone(ctx context.Context, q Querier, email string, id int, done bool) error {
+// executeUpdateMessageDetails unifies transaction handling, DB execution, and cache invalidation for single-field updates.
+func executeUpdateMessageDetails(ctx context.Context, q Querier, email string, id int, updateFn func(*db.UpdateMessageDetailsParams)) error {
 	return withTx(ctx, q, func(qw Querier) error {
-		return markMessageDoneInternal(ctx, qw, email, id, done)
+		params := db.UpdateMessageDetailsParams{
+			ID:        int64(id),
+			UserEmail: sql.NullString{String: email, Valid: true},
+		}
+		updateFn(&params)
+		if err := db.New(qw).UpdateMessageDetails(ctx, params); err != nil {
+			return err
+		}
+		InvalidateCache(email)
+		return nil
 	})
 }
 
-func markMessageDoneInternal(ctx context.Context, q Querier, email string, id int, done bool) error {
-	var comp sql.NullTime
-	if done {
-		comp = sql.NullTime{Time: time.Now(), Valid: true}
-	}
-
-	err := db.New(q).UpdateMessageDetails(ctx, db.UpdateMessageDetailsParams{
-		Done:        sql.NullBool{Bool: done, Valid: true},
-		CompletedAt: comp,
-		ID:          int64(id),
-		UserEmail:   sql.NullString{String: email, Valid: true},
+func MarkMessageDone(ctx context.Context, q Querier, email string, id int, done bool) error {
+	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
+		p.Done = sql.NullBool{Bool: done, Valid: true}
+		if done {
+			p.CompletedAt = sql.NullTime{Time: time.Now(), Valid: true}
+		}
 	})
-	if err != nil {
-		return err
-	}
-	InvalidateCache(email)
-	return nil
 }
 
 func UpdateTaskText(ctx context.Context, q Querier, email string, id int, task string) error {
-	return withTx(ctx, q, func(qw Querier) error {
-		return updateTaskTextInternal(ctx, qw, email, id, task)
-	})
-}
-
-func updateTaskTextInternal(ctx context.Context, q Querier, email string, id int, task string) error {
 	if id <= 0 {
 		return fmt.Errorf("invalid task id: %d", id)
 	}
-	err := db.New(q).UpdateMessageDetails(ctx, db.UpdateMessageDetailsParams{
-		Task:      sql.NullString{String: task, Valid: true},
-		ID:        int64(id),
-		UserEmail: sql.NullString{String: email, Valid: true},
+	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
+		p.Task = sql.NullString{String: task, Valid: true}
 	})
-	if err != nil {
-		return err
-	}
-	InvalidateCache(email)
-	return nil
 }
 
 // UpdateSubtaskStatus toggles the 'done' status of a specific subtask within a consolidated task.
@@ -549,40 +536,15 @@ func applyMergeUpdates(ctx context.Context, tx *sql.Tx, email, room string, dest
 }
 
 func UpdateMessageCategory(ctx context.Context, q Querier, email string, id int, category string) error {
-	return withTx(ctx, q, func(qw Querier) error {
-		return updateMessageCategoryInternal(ctx, qw, email, id, category)
+	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
+		p.Category = sql.NullString{String: category, Valid: true}
 	})
-}
-
-func updateMessageCategoryInternal(ctx context.Context, q Querier, email string, id int, category string) error {
-	err := db.New(q).UpdateMessageDetails(ctx, db.UpdateMessageDetailsParams{
-		Category:  sql.NullString{String: category, Valid: true},
-		ID:        int64(id),
-		UserEmail: sql.NullString{String: email, Valid: true},
-	})
-	if err != nil {
-		return err
-	}
-	InvalidateCache(email)
-	return nil
 }
 
 func UpdateTaskAssignee(ctx context.Context, q Querier, email string, id int, assignee string) error {
-	return withTx(ctx, q, func(qw Querier) error {
-		return updateTaskAssigneeInternal(ctx, qw, email, id, assignee)
+	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
+		p.Assignee = sql.NullString{String: assignee, Valid: true}
 	})
-}
-
-func updateTaskAssigneeInternal(ctx context.Context, q Querier, email string, id int, assignee string) error {
-	err := db.New(q).UpdateMessageDetails(ctx, db.UpdateMessageDetailsParams{
-		Assignee:  sql.NullString{String: assignee, Valid: true},
-		ID:        int64(id),
-		UserEmail: sql.NullString{String: email, Valid: true},
-	})
-	if err == nil {
-		InvalidateCache(email)
-	}
-	return err
 }
 
 // UpdateTaskAssigneesBatch updates multiple tasks' assignees in a single transaction.
@@ -630,30 +592,17 @@ func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id
 
 // UpdateMessageIdentity updates both requester and assignee for a task.
 func UpdateMessageIdentity(ctx context.Context, q Querier, email, _ string, id int, requester, assignee string) error {
-	err := db.New(q).UpdateMessageDetails(ctx, db.UpdateMessageDetailsParams{
-		Requester: sql.NullString{String: requester, Valid: true},
-		Assignee:  sql.NullString{String: assignee, Valid: true},
-		ID:        int64(id),
-		UserEmail: sql.NullString{String: email, Valid: true},
+	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
+		p.Requester = sql.NullString{String: requester, Valid: true}
+		p.Assignee = sql.NullString{String: assignee, Valid: true}
 	})
-	if err == nil {
-		InvalidateCache(email)
-	}
-	return err
 }
 
 func UpdateTaskSourceChannels(ctx context.Context, q Querier, email string, id int, channels []string) error {
 	channelsJSON, _ := json.Marshal(channels)
-	err := db.New(q).UpdateMessageDetails(ctx, db.UpdateMessageDetailsParams{
-		SourceChannels: sql.NullString{String: string(channelsJSON), Valid: true},
-		ID:             int64(id),
-		UserEmail:      sql.NullString{String: email, Valid: true},
+	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
+		p.SourceChannels = sql.NullString{String: string(channelsJSON), Valid: true}
 	})
-	if err != nil {
-		return err
-	}
-	InvalidateCache(email)
-	return nil
 }
 
 func DeleteMessages(ctx context.Context, q Querier, email string, ids []int) error {
