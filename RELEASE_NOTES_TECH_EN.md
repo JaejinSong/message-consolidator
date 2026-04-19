@@ -1,3 +1,9 @@
+# Release Notes (Tech) - v2.4.6 (2026-04-19 15:33 UTC)
+
+
+
+---
+
 # Release Notes (Tech) - v2.4.5 (2026-04-17 06:32 UTC)
 
 - [STABILITY] Replace file-based test DB with unique in-memory SQLite to resolve concurrency issues
