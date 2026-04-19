@@ -27,7 +27,7 @@ COPY RELEASE_NOTES_*.md whatap.conf entrypoint.sh security.conf ./
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux whatap-go-inst go build -ldflags="-s -w" -o message-consolidator . && \
+    CGO_ENABLED=0 GOOS=linux GOMAXPROCS=$(nproc) whatap-go-inst go build -ldflags="-s -w" -o message-consolidator . && \
     upx -1 message-consolidator
 
 # 3. Final staging preparation
