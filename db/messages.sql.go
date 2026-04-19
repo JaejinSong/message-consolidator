@@ -640,10 +640,6 @@ ORDER BY created_at DESC
 LIMIT 200
 `
 
-type RefreshCacheActiveParams struct {
-	UserEmail string `json:"user_email"`
-}
-
 type RefreshCacheActiveRow struct {
 	ID                  int64        `json:"id"`
 	UserEmail           string       `json:"user_email"`
@@ -739,10 +735,6 @@ AND IFNULL(task, '') != ''
 ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
 LIMIT 100
 `
-
-type RefreshCacheArchiveParams struct {
-	UserEmail string `json:"user_email"`
-}
 
 type RefreshCacheArchiveRow struct {
 	ID                  int64        `json:"id"`
@@ -1077,11 +1069,7 @@ type SearchArchivedMessagesCountParams struct {
 }
 
 func (q *Queries) SearchArchivedMessagesCount(ctx context.Context, arg SearchArchivedMessagesCountParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, searchArchivedMessagesCount,
-		arg.Column1,
-		arg.Column2,
-		arg.Column3,
-	)
+	row := q.db.QueryRowContext(ctx, searchArchivedMessagesCount, arg.Column1, arg.Column2, arg.Column3)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -1149,6 +1137,21 @@ func (q *Queries) UpdateMessageDetails(ctx context.Context, arg UpdateMessageDet
 		arg.CompletedAt,
 		arg.SourceChannels,
 	)
+	return err
+}
+
+const updateSubtasks = `-- name: UpdateSubtasks :exec
+UPDATE messages SET subtasks = ? WHERE id = ? AND user_email = ?
+`
+
+type UpdateSubtasksParams struct {
+	Subtasks  sql.NullString `json:"subtasks"`
+	ID        int64          `json:"id"`
+	UserEmail sql.NullString `json:"user_email"`
+}
+
+func (q *Queries) UpdateSubtasks(ctx context.Context, arg UpdateSubtasksParams) error {
+	_, err := q.db.ExecContext(ctx, updateSubtasks, arg.Subtasks, arg.ID, arg.UserEmail)
 	return err
 }
 

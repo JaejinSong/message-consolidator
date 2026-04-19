@@ -24,6 +24,9 @@ SET
   source_channels = COALESCE(?9, source_channels)
 WHERE id = ?1 AND user_email = ?2;
 
+-- name: UpdateSubtasks :exec
+UPDATE messages SET subtasks = ? WHERE id = ? AND user_email = ?;
+
 -- name: UpdateTaskDescriptionAppend :exec
 UPDATE messages
 SET task = task || char(10) || char(10) || '--- [Update: ' || ? || '] ---' || char(10) || ?

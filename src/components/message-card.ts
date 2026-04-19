@@ -92,8 +92,12 @@ export function MessageCard(props: MessageCardProps): string {
 
     const subtasksHtml = (subtasks && subtasks.length > 0) ? `
         <ul class="c-message-card__subtasks">
-            ${subtasks.map(s => `
-                <li class="c-message-card__subtask-item ${s.done ? 'c-message-card__subtask-item--done' : ''}">
+            ${subtasks.map((s, idx) => `
+                <li class="c-message-card__subtask-item ${s.done ? 'c-message-card__subtask-item--done' : ''}" 
+                    data-action="toggle-subtask" 
+                    data-index="${idx}" 
+                    role="button" 
+                    tabindex="0">
                     <span class="c-message-card__subtask-check">${s.done ? '✅' : '•'}</span>
                     <span class="c-message-card__subtask-task">${escapeHTML(s.task)}</span>
                     ${s.assignee ? `<span class="c-message-card__subtask-assignee">${escapeHTML(s.assignee)}</span>` : ''}

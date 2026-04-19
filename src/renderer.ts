@@ -98,6 +98,13 @@ export function initMessageGridEvents(gridId: string, handlers: MessageHandlers)
                 const isDone = card?.classList.contains('c-message-card--done');
                 await handlers.onToggleDone(id, !isDone);
                 break;
+            case 'toggle-subtask':
+                const index = parseInt(btn.getAttribute('data-index') || '0', 10);
+                const isSubtaskDone = btn.classList.contains('c-message-card__subtask-item--done');
+                if (handlers.onToggleSubtask) {
+                    await handlers.onToggleSubtask(id, index, !isSubtaskDone);
+                }
+                break;
             case 'delete':
                 await handlers.onDeleteTask(id);
                 break;

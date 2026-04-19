@@ -79,6 +79,32 @@ func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 	a.respondWithUpdatedUser(w, r, email)
 }
 
+func (a *API) HandleToggleSubtask(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	var req struct {
+		ID           int  `json:"id"`
+		SubtaskIndex int  `json:"subtask_index"`
+		Done         bool `json:"done"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if req.ID <= 0 {
+		respondError(w, http.StatusBadRequest, "Invalid Task ID")
+		return
+	}
+
+	err := store.UpdateSubtaskStatus(r.Context(), store.GetDB(), email, req.ID, req.SubtaskIndex, req.Done)
+	if err != nil {
+		handleAPIError(w, r, err, "[SUBTASK] Update error", "Failed to update subtask")
+		return
+	}
+
+	a.respondWithUpdatedUser(w, r, email)
+}
+
 func (a *API) HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	q := r.URL.Query().Get("q")

@@ -160,6 +160,22 @@ export const updateTaskStatusInState = (id: number, done: boolean): void => {
 };
 
 /**
+ * Why: Updates a specific subtask's completion status in all relevant state collections.
+ */
+export const updateSubtaskStateInState = (taskId: number, subtaskIndex: number, done: boolean): void => {
+    const update = (m: Message) => {
+        if (m.id !== taskId || !m.subtasks) return m;
+        const nextSubtasks = [...m.subtasks];
+        if (nextSubtasks[subtaskIndex]) {
+            nextSubtasks[subtaskIndex] = { ...nextSubtasks[subtaskIndex], done };
+        }
+        return { ...m, subtasks: nextSubtasks };
+    };
+    state.messages.inbox = state.messages.inbox.map(update);
+    state.messages.pending = state.messages.pending.map(update);
+};
+
+/**
  * Why: O(N) retrieval of a single task from currently loaded categories for rollback.
  */
 export const getTaskById = (id: number): Message | undefined => {

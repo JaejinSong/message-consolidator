@@ -245,6 +245,54 @@ func updateTaskTextInternal(ctx context.Context, q Querier, email string, id int
 	return nil
 }
 
+// UpdateSubtaskStatus toggles the 'done' status of a specific subtask within a consolidated task.
+// Why: [Data Integrity] Loads the entire task to update the JSON subtasks array safely within a transaction.
+func UpdateSubtaskStatus(ctx context.Context, q Querier, email string, id, subtaskIndex int, done bool) error {
+	return withTx(ctx, q, func(qw Querier) error {
+		return updateSubtaskStatusInternal(ctx, qw, email, id, subtaskIndex, done)
+	})
+}
+
+func updateSubtaskStatusInternal(ctx context.Context, q Querier, email string, id, subtaskIndex int, done bool) error {
+	if id <= 0 {
+		return fmt.Errorf("invalid task id: %d", id)
+	}
+
+	queries := db.New(q)
+	msgRow, err := queries.GetMessageByID(ctx, int64(id))
+	if err != nil {
+		return fmt.Errorf("failed to fetch task: %w", err)
+	}
+
+	if msgRow.UserEmail != email {
+		return fmt.Errorf("unauthorized access to task %d", id)
+	}
+
+	_, _, _, subtasks := UnmarshalMessageComponents("", "", "", msgRow.Subtasks)
+	if subtaskIndex < 0 || subtaskIndex >= len(subtasks) {
+		return fmt.Errorf("invalid subtask index: %d (total: %d)", subtaskIndex, len(subtasks))
+	}
+
+	subtasks[subtaskIndex].Done = done
+
+	subtasksJSON, err := json.Marshal(subtasks)
+	if err != nil {
+		return fmt.Errorf("failed to marshal subtasks: %w", err)
+	}
+
+	err = queries.UpdateSubtasks(ctx, db.UpdateSubtasksParams{
+		Subtasks:  sql.NullString{String: string(subtasksJSON), Valid: true},
+		ID:        int64(id),
+		UserEmail: sql.NullString{String: email, Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update subtasks in DB: %w", err)
+	}
+
+	InvalidateCache(email)
+	return nil
+}
+
 // UpdateTaskDescriptionAppend appends new content to the task text only.
 // Why: [Context Isolation] Requires user_email and room to prevent cross-room data manipulation. Supports transactions.
 func UpdateTaskDescriptionAppend(ctx context.Context, q Querier, email, room string, id int, date, newTask string) error {

@@ -46,6 +46,9 @@ export interface UserProfile {
     name: string;
     archive_days?: number;
     aliases?: string[];
+    points?: number;
+    streak?: number;
+    streak_freezes?: number;
 }
 
 export interface TokenUsage {
@@ -150,6 +153,7 @@ export interface I18nDictionary {
 
 export interface MessageHandlers {
     onToggleDone: (id: string, done: boolean) => Promise<void>;
+    onToggleSubtask?: (taskId: string, subtaskIndex: number, done: boolean) => Promise<void>;
     onDeleteTask: (id: string) => Promise<void>;
     onShowOriginal: (id: string) => Promise<void>;
     onMapAlias?: (name: string, source: string) => void;

@@ -141,7 +141,44 @@ const handlers: ServiceHandlers = {
         console.log(`[DEBUG] app.ts - onSelectTask called with id: ${id}, selected: ${selected}`);
         setTaskSelection(id, selected);
         updateMergeBar();
-    }
+    },
+    onToggleSubtask: safeAsync(async (taskIdStr: string, subtaskIndex: number, done: boolean) => {
+        const taskId = Number(taskIdStr);
+        
+        // 1. Optimistic Update
+        updateSubtaskStateInState(taskId, subtaskIndex, done);
+        // We could write a specific updateSubtaskNodeStatus, but subtasks are small enough
+        // that a local re-render or class toggle is fine. For now, let's just use the state update.
+        // Actually, we need to reflect it in the DOM immediately.
+        const card = document.querySelector(`.c-message-card[data-id="${taskId}"]`);
+        if (card) {
+            const subtaskEls = card.querySelectorAll('.c-message-card__subtask-item');
+            const item = subtaskEls[subtaskIndex];
+            if (item) {
+                item.classList.toggle('c-message-card__subtask-item--done', done);
+                const check = item.querySelector('.c-message-card__subtask-check');
+                if (check) check.textContent = done ? '✅' : '•';
+            }
+        }
+
+        try {
+            await api.toggleSubtask(taskIdStr, subtaskIndex, done);
+        } catch (e: any) {
+            showToast(state.currentLang === 'ko' ? '서브태스크 업데이트 실패' : 'Failed to update subtask', 'error');
+            // Rollback
+            updateSubtaskStateInState(taskId, subtaskIndex, !done);
+            const card = document.querySelector(`.c-message-card[data-id="${taskId}"]`);
+            if (card) {
+                const subtaskEls = card.querySelectorAll('.c-message-card__subtask-item');
+                const item = subtaskEls[subtaskIndex];
+                if (item) {
+                    item.classList.toggle('c-message-card__subtask-item--done', !done);
+                    const check = item.querySelector('.c-message-card__subtask-check');
+                    if (check) check.textContent = !done ? '✅' : '•';
+                }
+            }
+        }
+    }, { triggerAuthOverlay: true })
 };
 
 /**

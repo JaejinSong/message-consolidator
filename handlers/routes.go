@@ -78,7 +78,7 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 	r.Handle("/api/contacts/unlink", auth.AuthMiddleware(http.HandlerFunc(a.HandleUnlinkAccount))).Methods("POST")
 	r.Handle("/api/contacts/links", auth.AuthMiddleware(http.HandlerFunc(a.HandleGetLinks))).Methods("GET")
 	r.Handle("/api/admin/reclassify", auth.AuthMiddleware(http.HandlerFunc(a.HandleReclassifyOldData))).Methods("GET")
-	r.Handle("/api/admin/reclassify", auth.AuthMiddleware(http.HandlerFunc(a.HandleReclassifyOldData))).Methods("GET")
+	r.Handle("/api/subtasks/toggle", auth.AuthMiddleware(http.HandlerFunc(a.HandleToggleSubtask))).Methods("POST")
 	r.Handle("/api/admin/restore-gmail-cc", auth.AuthMiddleware(http.HandlerFunc(a.HandleRestoreGmailCC))).Methods("GET")
 	r.Handle("/api/release-notes", auth.AuthMiddleware(http.HandlerFunc(a.HandleGetReleaseNotes))).Methods("GET")
 	r.Handle("/api/reports", auth.AuthMiddleware(http.HandlerFunc(a.HandleListReports))).Methods("GET")

@@ -101,6 +101,15 @@ export const api = {
         });
     },
 
+    async toggleSubtask(id: string | number, subtaskIndex: number, done: boolean): Promise<{ user?: UserProfile }> {
+        const validatedId = ensureInt(id);
+        return apiFetch('/subtasks/toggle', {
+            method: 'POST',
+            body: JSON.stringify({ id: validatedId, subtask_index: subtaskIndex, done }),
+            errorMessage: 'Toggle subtask failed'
+        });
+    },
+
     async deleteTask(idOrIds: string | number | (string | number)[]): Promise<{ user?: UserProfile }> {
         const body = Array.isArray(idOrIds) 
             ? { ids: ensureIntArray(idOrIds) } 
