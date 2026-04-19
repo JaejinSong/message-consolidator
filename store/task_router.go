@@ -107,22 +107,16 @@ func handleUpdate(ctx context.Context, q Querier, email string, item TodoItem, m
 	}
 
 	id := int(*item.ID)
-	// Why: [Security] Validate that the task being updated belongs to the same room as the incoming message.
-	existing, err := GetMessageByID(ctx, q, email, id)
-	if err != nil {
-		logger.Errorf("[ROUTER] Failed to fetch task %d for validation: %v", id, err)
+	
+	// Why: [Security] Extracted common validation logic to ensure cross-room updates are dropped.
+	existing, err := validateTargetTask(ctx, q, email, id, msg.Room)
+	if err != nil || existing == nil {
 		return 0, err
-	}
-
-	if existing.Room != msg.Room {
-		logger.Errorf("[SECURITY] ID Cross-room update attempted: Task %d (Room: %s) vs Incoming (Room: %s)", id, existing.Room, msg.Room)
-		return 0, nil // Drop & Continue pattern
 	}
 
 	// Why: [Contextual Consolidation] Update subtasks if provided by AI during an 'update' cycle.
 	if len(item.Subtasks) > 0 {
-		subtasks := mapTodoSubtasksToStore(item.Subtasks)
-		_ = UpdateSubtasks(ctx, q, email, id, subtasks)
+		_ = UpdateSubtasks(ctx, q, email, id, mapTodoSubtasksToStore(item.Subtasks))
 	}
 
 	date := time.Now().Format("2006-01-02")
@@ -150,14 +144,9 @@ func handleResolve(ctx context.Context, q Querier, email string, item TodoItem, 
 	}
 	id := int(*item.ID)
 
-	// Why: [Security] Validate that the task being resolved belongs to the same room.
-	existing, err := GetMessageByID(ctx, q, email, id)
-	if err != nil {
+	existing, err := validateTargetTask(ctx, q, email, id, msg.Room)
+	if err != nil || existing == nil {
 		return 0, err
-	}
-	if existing.Room != msg.Room {
-		logger.Errorf("[SECURITY] ID Cross-room resolve attempted: Task %d (Room: %s) vs Incoming (Room: %s)", id, existing.Room, msg.Room)
-		return 0, nil
 	}
 
 	if err := MarkMessageDone(ctx, q, email, id, true); err != nil {
@@ -199,4 +188,19 @@ func uniqueStrings(input []string) []string {
 		}
 	}
 	return list
+}
+
+// validateTargetTask ensures the target task belongs to the expected room to prevent unauthorized cross-room modification.
+// Returns nil, nil if validation fails (drop message case), allowing upstream router to continue harmlessly.
+func validateTargetTask(ctx context.Context, q Querier, email string, id int, expectedRoom string) (*ConsolidatedMessage, error) {
+	existing, err := GetMessageByID(ctx, q, email, id)
+	if err != nil {
+		logger.Errorf("[ROUTER] Failed to fetch task %d for validation: %v", id, err)
+		return nil, err
+	}
+	if existing.Room != expectedRoom {
+		logger.Errorf("[SECURITY] ID Cross-room operation attempted: Task %d (Room: %s) vs Incoming (Room: %s)", id, existing.Room, expectedRoom)
+		return nil, nil // Valid Drop & Continue
+	}
+	return &existing, nil
 }
