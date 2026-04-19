@@ -83,9 +83,18 @@ func handleNew(ctx context.Context, q Querier, item TodoItem, msg ConsolidatedMe
 		item.Task = msg.Task
 	}
 
+	// Why: [Contextual Consolidation] Map AI-extracted subtasks to the persistent DB structure.
+	if len(item.Subtasks) > 0 {
+		msg.Subtasks = mapTodoSubtasksToStore(item.Subtasks)
+	}
+
 	if msg.ID != 0 {
-		// Why: If the message already exists in DB, update its task field with the AI-extracted text.
-		return msg.ID, UpdateTaskText(ctx, q, msg.UserEmail, msg.ID, item.Task)
+		// Why: If the message already exists in DB, update its task field and subtasks.
+		err := UpdateTaskText(ctx, q, msg.UserEmail, msg.ID, item.Task)
+		if err == nil && len(msg.Subtasks) > 0 {
+			_ = UpdateSubtasks(ctx, q, msg.UserEmail, msg.ID, msg.Subtasks)
+		}
+		return msg.ID, err
 	}
 	msg.Task = item.Task
 	_, id, err := SaveMessage(ctx, q, msg)
@@ -110,6 +119,12 @@ func handleUpdate(ctx context.Context, q Querier, email string, item TodoItem, m
 		return 0, nil // Drop & Continue pattern
 	}
 
+	// Why: [Contextual Consolidation] Update subtasks if provided by AI during an 'update' cycle.
+	if len(item.Subtasks) > 0 {
+		subtasks := mapTodoSubtasksToStore(item.Subtasks)
+		_ = UpdateSubtasks(ctx, q, email, id, subtasks)
+	}
+
 	date := time.Now().Format("2006-01-02")
 	if err := UpdateTaskFullAppend(ctx, q, email, msg.Room, id, date, item.Task, msg.OriginalText); err != nil {
 		return id, err
@@ -127,7 +142,9 @@ func handleUpdate(ctx context.Context, q Querier, email string, item TodoItem, m
 }
 
 func handleResolve(ctx context.Context, q Querier, email string, item TodoItem, msg ConsolidatedMessage) (int, error) {
-	if q == nil { q = GetDB() }
+	if q == nil {
+		q = GetDB()
+	}
 	if item.ID == nil {
 		return 0, fmt.Errorf("resolve requested but ID is nil")
 	}
@@ -158,6 +175,18 @@ func handleCancel(ctx context.Context, q Querier, email string, item TodoItem) (
 	id := int(*item.ID)
 	err := DeleteMessages(ctx, q, email, []int{id})
 	return 0, err
+}
+
+func mapTodoSubtasksToStore(todo []TodoSubtask) []Subtask {
+	res := make([]Subtask, len(todo))
+	for i, t := range todo {
+		res[i] = Subtask{
+			Task:     t.Task,
+			Assignee: t.AssigneeName,
+			Done:     false,
+		}
+	}
+	return res
 }
 
 func uniqueStrings(input []string) []string {

@@ -253,6 +253,24 @@ func UpdateSubtaskStatus(ctx context.Context, q Querier, email string, id, subta
 	})
 }
 
+// UpdateSubtasks replaces the entire subtask list for a message.
+func UpdateSubtasks(ctx context.Context, q Querier, email string, id int, subtasks []Subtask) error {
+	subtasksJSON, err := json.Marshal(subtasks)
+	if err != nil {
+		return fmt.Errorf("failed to marshal subtasks: %w", err)
+	}
+
+	err = db.New(q).UpdateSubtasks(ctx, db.UpdateSubtasksParams{
+		Subtasks:  sql.NullString{String: string(subtasksJSON), Valid: true},
+		ID:        int64(id),
+		UserEmail: sql.NullString{String: email, Valid: true},
+	})
+	if err == nil {
+		InvalidateCache(email)
+	}
+	return err
+}
+
 func updateSubtaskStatusInternal(ctx context.Context, q Querier, email string, id, subtaskIndex int, done bool) error {
 	if id <= 0 {
 		return fmt.Errorf("invalid task id: %d", id)
