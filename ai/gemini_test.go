@@ -50,7 +50,7 @@ func TestExtractResponseText(t *testing.T) {
 
 func TestLoadPrompt(t *testing.T) {
 	t.Parallel()
-	parsed := loadPrompt("gmail_system.prompt")
+	parsed := LoadPrompt("gmail_system.prompt")
 	if parsed == nil || parsed.Body == "" {
 		t.Error("Expected 'gmail_system.prompt' to load successfully, got empty result")
 	}
