@@ -506,17 +506,6 @@ func fetchAllTenantContacts(ctx context.Context, tenantEmail string) ([]ContactR
 	return all, nil
 }
 
-func findMatchesInBatch(all []ContactRecord, normalized string) []*ContactRecord {
-	var res []*ContactRecord
-	for i := range all {
-		if matchContact(&all[i], normalized) {
-			res = append(res, &all[i])
-		}
-	}
-	return res
-}
-
-
 
 func findByID(all []ContactRecord, id int64) *ContactRecord {
 	for i := range all {
@@ -844,17 +833,6 @@ func ResolveAlias(ctx context.Context, idType, value string) (int64, error) {
 	return ids[0], nil
 }
 
-// ConflictResolveDisplayName selects the best display name based on priority: Manual > Verified > Recent.
-// Why: Ensures data quality when merging identities with differing meta-information.
-func ConflictResolveDisplayName(manual, verified, recent string) string {
-	if manual != "" {
-		return manual
-	}
-	if verified != "" {
-		return verified
-	}
-	return recent
-}
 
 // PromoteContactType returns the higher ranking category between two types.
 // Rank: internal(4) > partner(3) > customer(2) > none(1)

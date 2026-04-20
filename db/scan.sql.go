@@ -44,39 +44,6 @@ func (q *Queries) IsSourceTSProcessed(ctx context.Context, arg IsSourceTSProcess
 	return column_1, err
 }
 
-const loadContactsAllScan = `-- name: LoadContactsAllScan :many
-SELECT tenant_email, canonical_id, display_name FROM contacts
-`
-
-type LoadContactsAllScanRow struct {
-	TenantEmail string `json:"tenant_email"`
-	CanonicalID string `json:"canonical_id"`
-	DisplayName string `json:"display_name"`
-}
-
-func (q *Queries) LoadContactsAllScan(ctx context.Context) ([]LoadContactsAllScanRow, error) {
-	rows, err := q.db.QueryContext(ctx, loadContactsAllScan)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []LoadContactsAllScanRow
-	for rows.Next() {
-		var i LoadContactsAllScanRow
-		if err := rows.Scan(&i.TenantEmail, &i.CanonicalID, &i.DisplayName); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const loadGmailTokensAll = `-- name: LoadGmailTokensAll :many
 SELECT user_email, token_json FROM gmail_tokens
 `
@@ -135,71 +102,6 @@ func (q *Queries) LoadScanMetadataAll(ctx context.Context) ([]LoadScanMetadataAl
 			&i.TargetID,
 			&i.LastTs,
 		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const loadTenantAliasesAll = `-- name: LoadTenantAliasesAll :many
-SELECT user_email, original_name, primary_name FROM tenant_aliases
-`
-
-type LoadTenantAliasesAllRow struct {
-	UserEmail    string `json:"user_email"`
-	OriginalName string `json:"original_name"`
-	PrimaryName  string `json:"primary_name"`
-}
-
-func (q *Queries) LoadTenantAliasesAll(ctx context.Context) ([]LoadTenantAliasesAllRow, error) {
-	rows, err := q.db.QueryContext(ctx, loadTenantAliasesAll)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []LoadTenantAliasesAllRow
-	for rows.Next() {
-		var i LoadTenantAliasesAllRow
-		if err := rows.Scan(&i.UserEmail, &i.OriginalName, &i.PrimaryName); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const loadUserAliasesAll = `-- name: LoadUserAliasesAll :many
-SELECT user_id, alias_name FROM user_aliases
-`
-
-type LoadUserAliasesAllRow struct {
-	UserID    int64  `json:"user_id"`
-	AliasName string `json:"alias_name"`
-}
-
-func (q *Queries) LoadUserAliasesAll(ctx context.Context) ([]LoadUserAliasesAllRow, error) {
-	rows, err := q.db.QueryContext(ctx, loadUserAliasesAll)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []LoadUserAliasesAllRow
-	for rows.Next() {
-		var i LoadUserAliasesAllRow
-		if err := rows.Scan(&i.UserID, &i.AliasName); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

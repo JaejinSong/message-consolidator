@@ -171,9 +171,6 @@ CREATE TABLE IF NOT EXISTS report_translations (
     UNIQUE(report_id, language_code)
 );
 
--- name: CreateReportTranslationsIndex :exec
-CREATE INDEX IF NOT EXISTS idx_report_translations_report_id ON report_translations(report_id);
-
 -- name: CreateSlackThreadsTable :exec
 CREATE TABLE IF NOT EXISTS slack_threads (
     channel_id TEXT,

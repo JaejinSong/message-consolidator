@@ -124,60 +124,6 @@ func (q *Queries) AppendSecondaryID(ctx context.Context, arg AppendSecondaryIDPa
 	return err
 }
 
-const getContactByIdentifier = `-- name: GetContactByIdentifier :many
-SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type
-FROM contacts 
-WHERE tenant_email = ? 
-AND (canonical_id = ? OR display_name = ?)
-`
-
-type GetContactByIdentifierParams struct {
-	TenantEmail string `json:"tenant_email"`
-	CanonicalID string `json:"canonical_id"`
-	DisplayName string `json:"display_name"`
-}
-
-type GetContactByIdentifierRow struct {
-	ID              int64          `json:"id"`
-	TenantEmail     string         `json:"tenant_email"`
-	CanonicalID     string         `json:"canonical_id"`
-	DisplayName     string         `json:"display_name"`
-	Source          sql.NullString `json:"source"`
-	MasterContactID sql.NullInt64  `json:"master_contact_id"`
-	ContactType     sql.NullString `json:"contact_type"`
-}
-
-func (q *Queries) GetContactByIdentifier(ctx context.Context, arg GetContactByIdentifierParams) ([]GetContactByIdentifierRow, error) {
-	rows, err := q.db.QueryContext(ctx, getContactByIdentifier, arg.TenantEmail, arg.CanonicalID, arg.DisplayName)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetContactByIdentifierRow
-	for rows.Next() {
-		var i GetContactByIdentifierRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.TenantEmail,
-			&i.CanonicalID,
-			&i.DisplayName,
-			&i.Source,
-			&i.MasterContactID,
-			&i.ContactType,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getContactsByTenant = `-- name: GetContactsByTenant :many
 SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type, COALESCE(secondary_ids, '[]') FROM contacts WHERE tenant_email = ?
 `

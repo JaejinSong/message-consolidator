@@ -13,12 +13,6 @@ WHERE tenant_email = ? AND canonical_id = ?;
 -- name: LoadContactsAll :many
 SELECT tenant_email, canonical_id, display_name, source, contact_type FROM contacts;
 
--- name: GetContactByIdentifier :many
-SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type
-FROM contacts 
-WHERE tenant_email = ? 
-AND (canonical_id = ? OR display_name = ?);
-
 -- name: SearchContacts :many
 SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type
 FROM contacts

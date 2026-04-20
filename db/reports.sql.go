@@ -414,41 +414,6 @@ func (q *Queries) ListReports(ctx context.Context, userEmail string) ([]ListRepo
 	return items, nil
 }
 
-const migrateReportTranslationsAddLanguageCode = `-- name: MigrateReportTranslationsAddLanguageCode :exec
-ALTER TABLE report_translations ADD COLUMN language_code TEXT
-`
-
-func (q *Queries) MigrateReportTranslationsAddLanguageCode(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateReportTranslationsAddLanguageCode)
-	return err
-}
-
-const migrateReportTranslationsRenameLanguage = `-- name: MigrateReportTranslationsRenameLanguage :exec
-ALTER TABLE report_translations RENAME COLUMN language TO language_deprecated
-`
-
-func (q *Queries) MigrateReportTranslationsRenameLanguage(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateReportTranslationsRenameLanguage)
-	return err
-}
-
-const migrateReportsAddIsTruncated = `-- name: MigrateReportsAddIsTruncated :exec
-ALTER TABLE reports ADD COLUMN is_truncated INTEGER DEFAULT 0
-`
-
-func (q *Queries) MigrateReportsAddIsTruncated(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateReportsAddIsTruncated)
-	return err
-}
-
-const migrateReportsAddStatus = `-- name: MigrateReportsAddStatus :exec
-ALTER TABLE reports ADD COLUMN status TEXT DEFAULT 'completed'
-`
-
-func (q *Queries) MigrateReportsAddStatus(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateReportsAddStatus)
-	return err
-}
 
 const updateReportStatus = `-- name: UpdateReportStatus :exec
 UPDATE reports SET status = ?, visualization = ?, is_truncated = ? WHERE id = ? AND user_email = ?

@@ -53,8 +53,7 @@ type Querier interface {
 	GetCompletionHistory(ctx context.Context, arg GetCompletionHistoryParams) ([]GetCompletionHistoryRow, error)
 	GetContactsByValues(ctx context.Context, values []string) ([]GetContactsByValuesRow, error)
 	GetContactByID(ctx context.Context, arg GetContactByIDParams) (GetContactByIDRow, error)
-	GetContactByIdentifier(ctx context.Context, arg GetContactByIdentifierParams) ([]GetContactByIdentifierRow, error)
-	GetContactsByTenant(ctx context.Context, tenantEmail string) ([]GetContactsByTenantRow, error)
+GetContactsByTenant(ctx context.Context, tenantEmail string) ([]GetContactsByTenantRow, error)
 	GetContactsWithMaster(ctx context.Context) ([]GetContactsWithMasterRow, error)
 	GetDailyCompletions(ctx context.Context, arg GetDailyCompletionsParams) ([]GetDailyCompletionsRow, error)
 	GetDailyFilteredCount(ctx context.Context, arg GetDailyFilteredCountParams) (interface{}, error)
@@ -101,21 +100,11 @@ type Querier interface {
 	IsSourceTSProcessed(ctx context.Context, arg IsSourceTSProcessedParams) (int64, error)
 	ListReports(ctx context.Context, userEmail string) ([]ListReportsRow, error)
 	LoadContactsAll(ctx context.Context) ([]LoadContactsAllRow, error)
-	LoadContactsAllScan(ctx context.Context) ([]LoadContactsAllScanRow, error)
 	LoadGmailTokensAll(ctx context.Context) ([]LoadGmailTokensAllRow, error)
 	LoadScanMetadataAll(ctx context.Context) ([]LoadScanMetadataAllRow, error)
-	LoadTenantAliasesAll(ctx context.Context) ([]LoadTenantAliasesAllRow, error)
-	LoadUserAliasesAll(ctx context.Context) ([]LoadUserAliasesAllRow, error)
 	LoadUsersAll(ctx context.Context) ([]User, error)
 	MarkSourceTSProcessed(ctx context.Context, arg MarkSourceTSProcessedParams) error
-	MigrateReportTranslationsAddLanguageCode(ctx context.Context) error
-	MigrateReportTranslationsRenameLanguage(ctx context.Context) error
-	MigrateReportsAddIsTruncated(ctx context.Context) error
-	MigrateReportsAddStatus(ctx context.Context) error
-	MigrateTaskTranslationsAddLanguageCode(ctx context.Context) error
-	MigrateTaskTranslationsRenameLanguage(ctx context.Context) error
-	MigrateTokenUsageAddFilteredCount(ctx context.Context) error
-	RefreshCacheActive(ctx context.Context, userEmail string) ([]RefreshCacheActiveRow, error)
+RefreshCacheActive(ctx context.Context, userEmail string) ([]RefreshCacheActiveRow, error)
 	RefreshCacheArchive(ctx context.Context, userEmail string) ([]RefreshCacheArchiveRow, error)
 	RestoreMessages(ctx context.Context, arg RestoreMessagesParams) error
 	// Note: Batching with VALUES %s is not supported by sqlc directly.

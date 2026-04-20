@@ -85,23 +85,6 @@ func (q *Queries) GetTaskTranslationsBatch(ctx context.Context, arg GetTaskTrans
 	return items, nil
 }
 
-const migrateTaskTranslationsAddLanguageCode = `-- name: MigrateTaskTranslationsAddLanguageCode :exec
-ALTER TABLE task_translations ADD COLUMN language_code TEXT
-`
-
-func (q *Queries) MigrateTaskTranslationsAddLanguageCode(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateTaskTranslationsAddLanguageCode)
-	return err
-}
-
-const migrateTaskTranslationsRenameLanguage = `-- name: MigrateTaskTranslationsRenameLanguage :exec
-ALTER TABLE task_translations RENAME COLUMN language TO language_deprecated
-`
-
-func (q *Queries) MigrateTaskTranslationsRenameLanguage(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, migrateTaskTranslationsRenameLanguage)
-	return err
-}
 
 const upsertTaskTranslation = `-- name: UpsertTaskTranslation :exec
 INSERT INTO task_translations (message_id, language_code, translated_text)
