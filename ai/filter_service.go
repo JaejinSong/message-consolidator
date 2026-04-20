@@ -21,7 +21,7 @@ func NewGeminiLiteFilter(client *GeminiClient) *GeminiLiteFilter {
 // Returns true if the message is noise, false if it contains actionable context.
 // Why: [Performance] Filter logic is non-blocking and uses a cheaper model (Flash Lite) to save costs.
 func (f *GeminiLiteFilter) IsNoise(ctx context.Context, email, text string) (bool, error) {
-	prompt := loadPrompt("lite_filter.prompt")
+	prompt := LoadPrompt("lite_filter.prompt")
 	data := ExtractionContext{
 		MessagePayload: text,
 		CurrentUser:    email,

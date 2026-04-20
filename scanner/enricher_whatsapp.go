@@ -11,7 +11,7 @@ import (
 
 // EnrichWhatsAppMessage normalizes WhatsApp raw data into a unified EnrichedMessage model.
 // Why: Standardizes incoming WhatsApp messages with user identity lookup and virtual threading for consistent AI analysis.
-func EnrichWhatsAppMessage(rawJID string, msg string, timestamp time.Time, aliasStore *store.AliasStore) (*types.EnrichedMessage, error) {
+func EnrichWhatsAppMessage(rawJID string, msg string, timestamp time.Time) (*types.EnrichedMessage, error) {
 	windowStart := calculateWindowStart(timestamp)
 	threadID := fmt.Sprintf("wa_thread_%s_%d", rawJID, windowStart)
 

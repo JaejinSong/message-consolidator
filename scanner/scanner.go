@@ -137,35 +137,13 @@ func finalizeScanCycle(ctx context.Context, users []store.User) {
 }
 
 
-// Why: Automatically include the user's name and email prefix as default aliases to prevent missed mentions,
-// requiring less manual configuration from the user.
-func getEffectiveAliases(user store.User, aliases []string) []string {
-	unique := make(map[string]bool)
-	for _, a := range aliases {
-		if a != "" {
-			unique[a] = true
-		}
-	}
-	if user.Name != "" {
-		unique[user.Name] = true
-	}
-	if prefix, _, found := strings.Cut(user.Email, "@"); found && prefix != "" {
-		unique[prefix] = true
-	}
-
-	var result []string
-	for a := range unique {
-		result = append(result, a)
-	}
-	return result
-}
 
 func scanAllSources(parentCtx context.Context, user store.User, aliases []string, wg *sync.WaitGroup) {
 	logger.Debugf("[SCAN] Scanning for user: %s", user.Email)
 	ctx, cancel := context.WithTimeout(parentCtx, 45*time.Second)
 	defer cancel()
 
-	effAl := getEffectiveAliases(user, aliases)
+	effAl := services.GetEffectiveAliases(user, aliases)
 	_ = scanUserChannels(ctx, user.Email, effAl, wg)
 	store.PersistAllScanMetadata(user.Email)
 }
@@ -235,7 +213,7 @@ func Scan(email string, lang string, wg *sync.WaitGroup) {
 	ctx, cancel := context.WithTimeout(traceCtx, 60*time.Second)
 	defer cancel()
 
-	effAl := getEffectiveAliases(*user, func() []string {
+	effAl := services.GetEffectiveAliases(*user, func() []string {
 		a, _ := store.GetUserAliases(traceCtx, user.ID)
 		return a
 	}())
@@ -255,7 +233,7 @@ func runManualScans(ctx context.Context, user *store.User, effAl []string, lang 
 
 // Why: Provides strict matching for short aliases (like '나', 'me') to prevent false positives in common sentences,
 // while allowing flexible substring matching for longer, unique names.
-func IsAliasMatched(text, sender, alias string) bool {
+func isAliasMatched(text, sender, alias string) bool {
 	lowerAlias := strings.ToLower(strings.TrimSpace(alias))
 	if lowerAlias == "" {
 		return false
@@ -343,21 +321,14 @@ func NormalizeAssignee(assignee string, user store.User, aliases []string) strin
 	selfIDs := []string{"나", "me", "__current_user__", "담당자", strings.ToLower(user.Name), strings.ToLower(user.Email)}
 	for _, id := range selfIDs {
 		if id != "" && lowerAsg == id {
-			return getPreferredName(user)
+			return user.PreferredName()
 		}
 	}
 
 	for _, alias := range aliases {
 		if alias != "" && lowerAsg == strings.ToLower(alias) {
-			return getPreferredName(user)
+			return user.PreferredName()
 		}
 	}
 	return assignee
-}
-
-func getPreferredName(user store.User) string {
-	if user.Name != "" {
-		return user.Name
-	}
-	return user.Email
 }

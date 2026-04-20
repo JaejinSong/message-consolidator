@@ -114,7 +114,7 @@ func CreateUser(ctx context.Context, email, name string) error {
 // UpdateUserNamePicture modifies the display name and profile picture of an existing user.
 func UpdateUserNamePicture(ctx context.Context, email, name, picture string) error {
 	return db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{
-		Email:   sql.NullString{String: email, Valid: true},
+		Email:   nullString(email),
 		Name:    sql.NullString{String: name, Valid: name != ""},
 		Picture: sql.NullString{String: picture, Valid: picture != ""},
 	})
@@ -123,7 +123,7 @@ func UpdateUserNamePicture(ctx context.Context, email, name, picture string) err
 // UpdateUserWAJID updates the WhatsApp JID (identifier) associated with the user.
 func UpdateUserWAJID(ctx context.Context, email, wajid string) error {
 	return db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{
-		Email: sql.NullString{String: email, Valid: true},
+		Email: nullString(email),
 		WaJid: sql.NullString{String: wajid, Valid: wajid != ""},
 	})
 }
@@ -131,7 +131,7 @@ func UpdateUserWAJID(ctx context.Context, email, wajid string) error {
 // UpdateUserSlackID updates the Slack ID associated with the user.
 func UpdateUserSlackID(ctx context.Context, email, slackID string) error {
 	return db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{
-		Email:   sql.NullString{String: email, Valid: true},
+		Email:   nullString(email),
 		SlackID: sql.NullString{String: slackID, Valid: slackID != ""},
 	})
 }
@@ -144,7 +144,7 @@ func GetUserAliasesByEmail(ctx context.Context, email string) ([]string, error) 
 	}
 	metadataMu.RUnlock()
 
-	aliases, err := db.New(GetDB()).GetUserAliasesByEmail(ctx, sql.NullString{String: email, Valid: true})
+	aliases, err := db.New(GetDB()).GetUserAliasesByEmail(ctx, nullString(email))
 	if err != nil {
 		return nil, err
 	}

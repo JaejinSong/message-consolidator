@@ -35,7 +35,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		defer wg.Done()
 		conn := GetDB()
 		queries := db.New(conn)
-		userName, _ := queries.GetUserByEmailSimple(context.Background(), sql.NullString{String: email, Valid: true})
+		userName, _ := queries.GetUserByEmailSimple(context.Background(), nullString(email))
 		pendingCount, _ := queries.GetPendingMe(context.Background(), db.GetPendingMeParams{
 			Column1: email,
 			Column2: userName,
@@ -52,7 +52,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		queries := db.New(conn)
 		rows, err := queries.GetDailyCompletions(context.Background(), db.GetDailyCompletionsParams{
 			Strftime:  sqliteOffset,
-			UserEmail: sql.NullString{String: email, Valid: true},
+			UserEmail: nullString(email),
 			Datetime:  sqliteOffset,
 		})
 		if err == nil {
@@ -71,7 +71,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		queries := db.New(conn)
 		rows, err := queries.GetHourlyActivity(context.Background(), db.GetHourlyActivityParams{
 			Strftime:  sqliteOffset,
-			UserEmail: sql.NullString{String: email, Valid: true},
+			UserEmail: nullString(email),
 		})
 		if err == nil {
 			for _, row := range rows {
@@ -109,7 +109,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		defer wg.Done()
 		conn := GetDB()
 		queries := db.New(conn)
-		userName, _ := queries.GetUserByEmailSimple(context.Background(), sql.NullString{String: email, Valid: true})
+		userName, _ := queries.GetUserByEmailSimple(context.Background(), nullString(email))
 		thresholdStr := GetLocalThreshold(userTz, 3)
 		threshold, _ := time.Parse(time.RFC3339, thresholdStr)
 		abandonedCount, _ := queries.GetAbandonedTasks(context.Background(), db.GetAbandonedTasksParams{
@@ -125,7 +125,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		defer wg.Done()
 		conn := GetDB()
 		queries := db.New(conn)
-		userName, _ := queries.GetUserByEmailSimple(context.Background(), sql.NullString{String: email, Valid: true})
+		userName, _ := queries.GetUserByEmailSimple(context.Background(), nullString(email))
 		pendingOthersCount, _ := queries.GetPendingOthers(context.Background(), db.GetPendingOthersParams{
 			UserEmail: email,
 			Assignee:  userName,
@@ -181,7 +181,7 @@ func GetUserStats(email string, userTz string) (UserStats, error) {
 		queries := db.New(conn)
 		rows, err := queries.GetCompletionHistory(context.Background(), db.GetCompletionHistoryParams{
 			Strftime:  sqliteOffset,
-			UserEmail: sql.NullString{String: email, Valid: true},
+			UserEmail: nullString(email),
 			Datetime:  sqliteOffset,
 		})
 		if err == nil {

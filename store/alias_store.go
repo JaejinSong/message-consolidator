@@ -346,3 +346,15 @@ func GetUserByWAJID(jid string) (*User, error) {
 	}
 	return nil, fmt.Errorf("user with WAJID %s not found in cache", jid)
 }
+
+// GetUserAliasesByEmailFromCache looks up aliases for a canonical email from the contacts cache.
+func GetUserAliasesByEmailFromCache(ctx context.Context, email string) ([]string, error) {
+	if mappings, ok := GetContactsCache()[email]; ok {
+		for _, m := range mappings {
+			if m.CanonicalID == email {
+				return GetAliasesForContact(ctx, m.ID)
+			}
+		}
+	}
+	return []string{}, nil
+}

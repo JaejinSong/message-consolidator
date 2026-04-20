@@ -106,3 +106,12 @@ func decodeJSON(r *http.Request, v interface{}) error {
 	defer r.Body.Close()
 	return json.NewDecoder(r.Body).Decode(v)
 }
+
+// bindJSON decodes the request body and writes a 400 response on failure. Returns false if decoding failed.
+func bindJSON(w http.ResponseWriter, r *http.Request, v interface{}) bool {
+	if err := decodeJSON(r, v); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return false
+	}
+	return true
+}

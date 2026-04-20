@@ -3,7 +3,7 @@
  * @description Google (Gmail) OAuth service for connection, status check, and disconnection.
  */
 
-import { apiFetch, BASE_URL } from '../utils/apiClient';
+import { apiFetch, BASE_URL } from '../utils/http';
 
 export const authService = {
     /**
@@ -38,7 +38,7 @@ export const authService = {
      * Fetch API must NOT be used here.
      */
     connectGmail(): void {
-        // Why: apiClient.ts logic takes care of /auth routes mapping to root.
+        // Why: http.ts logic takes care of /auth routes mapping to root.
         // For window.location.href, we need an absolute URL.
         const url = BASE_URL.startsWith('http') ? new URL(BASE_URL) : { origin: window.location.origin };
         window.location.href = `${url.origin}/auth/gmail/connect`;

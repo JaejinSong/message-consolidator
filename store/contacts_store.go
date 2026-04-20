@@ -98,7 +98,7 @@ func UpsertContact(ctx context.Context, tenantEmail, canonicalID, displayName, a
 		TenantEmail: tenantEmail,
 		CanonicalID: canonicalID,
 		DisplayName: displayName,
-		Source:      sql.NullString{String: source, Valid: true},
+		Source:      nullString(source),
 	})
 	if err != nil {
 		return 0, err
@@ -561,8 +561,8 @@ func GetContactByID(ctx context.Context, tenantEmail string, id int64) (*Contact
 func SearchContacts(ctx context.Context, tenantEmail, query string) ([]ContactRecord, error) {
 	rows, err := db.New(GetDB()).SearchContacts(ctx, db.SearchContactsParams{
 		TenantEmail: tenantEmail,
-		Column2:     sql.NullString{String: query, Valid: true},
-		Column3:     sql.NullString{String: query, Valid: true},
+		Column2:     nullString(query),
+		Column3:     nullString(query),
 	})
 	if err != nil {
 		return nil, err
@@ -619,7 +619,7 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 	// 3. Link and Promote Category
 	q := db.New(tx)
 	if err := q.UpdateContactDetails(ctx, db.UpdateContactDetailsParams{
-		MasterContactID: sql.NullInt64{Int64: int64(masterID), Valid: true},
+		MasterContactID: nullInt64(int64(masterID)),
 		TenantEmail:     tenantEmail,
 		ID:              int64(targetID),
 	}); err != nil {
@@ -629,7 +629,7 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 	finalType := PromoteContactType(masterType, targetType)
 	if finalType != masterType {
 		if err := q.UpdateContactDetails(ctx, db.UpdateContactDetailsParams{
-			ContactType: sql.NullString{String: finalType, Valid: true},
+			ContactType: nullString(finalType),
 			TenantEmail: tenantEmail,
 			ID:          int64(masterID),
 		}); err != nil {
@@ -714,7 +714,7 @@ func RegisterAlias(ctx context.Context, contactID int64, idType, value, source s
 		IdentifierType:  idType,
 		IdentifierValue: trimmed,
 		Source:          source,
-		TrustLevel:      sql.NullInt64{Int64: int64(trust), Valid: true},
+		TrustLevel:      nullInt64(int64(trust)),
 	}); err != nil {
 		return err
 	}

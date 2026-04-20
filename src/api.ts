@@ -1,4 +1,4 @@
-import { apiFetch } from './utils/apiClient';
+import { apiFetch } from './utils/http';
 import { state, upsertReport } from './state';
 import { normalizeReportData } from './logic';
 import { Message, UserProfile, UserStats, TokenUsage, IReportData, AccountItem, CategorizedMessages } from './types';
@@ -6,7 +6,7 @@ import { Message, UserProfile, UserStats, TokenUsage, IReportData, AccountItem, 
 /**
  * @file api.ts
  * @description Centralized API service collection in TypeScript.
- * All methods use the centralized apiFetch client from src/utils/apiClient.ts.
+ * All methods use the centralized apiFetch client from src/utils/http.ts.
  */
 
 const ensureInt = (id: string | number): number => {

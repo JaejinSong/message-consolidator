@@ -8,7 +8,6 @@ import (
 	"message-consolidator/db"
 	"strings"
 	"time"
-	"github.com/hbollon/go-edlib"
 )
 
 func withTx(ctx context.Context, q Querier, fn func(q Querier) error) error {
@@ -67,8 +66,8 @@ func IsProcessed(ctx context.Context, q Querier, email, sourceTS string) (bool, 
 	queries := db.New(q)
 	// Why: [Idempotency] Check both if it exists as a message and if it was marked processed in scan_metadata.
 	count, err := queries.IsMessageProcessed(ctx, db.IsMessageProcessedParams{
-		UserEmail: sql.NullString{String: email, Valid: true},
-		SourceTs:  sql.NullString{String: sourceTS, Valid: true},
+		UserEmail: nullString(email),
+		SourceTs:  nullString(sourceTS),
 	})
 	if err == nil && count > 0 {
 		return true, nil
@@ -203,7 +202,7 @@ func executeUpdateMessageDetails(ctx context.Context, q Querier, email string, i
 	return withTx(ctx, q, func(qw Querier) error {
 		params := db.UpdateMessageDetailsParams{
 			ID:        int64(id),
-			UserEmail: sql.NullString{String: email, Valid: true},
+			UserEmail: nullString(email),
 		}
 		updateFn(&params)
 		if err := db.New(qw).UpdateMessageDetails(ctx, params); err != nil {
@@ -216,7 +215,7 @@ func executeUpdateMessageDetails(ctx context.Context, q Querier, email string, i
 
 func MarkMessageDone(ctx context.Context, q Querier, email string, id int, done bool) error {
 	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
-		p.Done = sql.NullBool{Bool: done, Valid: true}
+		p.Done = nullBool(done)
 		if done {
 			p.CompletedAt = sql.NullTime{Time: time.Now(), Valid: true}
 		}
@@ -228,7 +227,7 @@ func UpdateTaskText(ctx context.Context, q Querier, email string, id int, task s
 		return fmt.Errorf("invalid task id: %d", id)
 	}
 	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
-		p.Task = sql.NullString{String: task, Valid: true}
+		p.Task = nullString(task)
 	})
 }
 
@@ -248,9 +247,9 @@ func UpdateSubtasks(ctx context.Context, q Querier, email string, id int, subtas
 	}
 
 	err = db.New(q).UpdateSubtasks(ctx, db.UpdateSubtasksParams{
-		Subtasks:  sql.NullString{String: string(subtasksJSON), Valid: true},
+		Subtasks:  nullString(string(subtasksJSON)),
 		ID:        int64(id),
-		UserEmail: sql.NullString{String: email, Valid: true},
+		UserEmail: nullString(email),
 	})
 	if err == nil {
 		InvalidateCache(email)
@@ -286,9 +285,9 @@ func updateSubtaskStatusInternal(ctx context.Context, q Querier, email string, i
 	}
 
 	err = queries.UpdateSubtasks(ctx, db.UpdateSubtasksParams{
-		Subtasks:  sql.NullString{String: string(subtasksJSON), Valid: true},
+		Subtasks:  nullString(string(subtasksJSON)),
 		ID:        int64(id),
-		UserEmail: sql.NullString{String: email, Valid: true},
+		UserEmail: nullString(email),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update subtasks in DB: %w", err)
@@ -302,11 +301,11 @@ func updateSubtaskStatusInternal(ctx context.Context, q Querier, email string, i
 // Why: [Context Isolation] Requires user_email and room to prevent cross-room data manipulation. Supports transactions.
 func UpdateTaskDescriptionAppend(ctx context.Context, q Querier, email, room string, id int, date, newTask string) error {
 	return db.New(q).UpdateTaskDescriptionAppend(ctx, db.UpdateTaskDescriptionAppendParams{
-		Task:      sql.NullString{String: date, Valid: true},
-		Task_2:    sql.NullString{String: newTask, Valid: true},
+		Task:      nullString(date),
+		Task_2:    nullString(newTask),
 		ID:        int64(id),
-		UserEmail: sql.NullString{String: email, Valid: true},
-		Room:      sql.NullString{String: room, Valid: true},
+		UserEmail: nullString(email),
+		Room:      nullString(room),
 	})
 }
 
@@ -354,10 +353,6 @@ func findBestMatch(currIdx int, items []TodoItem, seen map[int]bool) int {
 	return bestIdx
 }
 
-func CalculateSimilarity(s1, s2 string) float64 {
-	res, _ := edlib.StringsSimilarity(s1, s2, edlib.JaroWinkler)
-	return float64(res)
-}
 
 // MergeTasks consolidates multiple tasks into one.
 // Why: Uses a single transaction and strings.Builder to maintain data integrity and memory efficiency during large text concatenation.
@@ -448,11 +443,11 @@ func buildMergeHistory(oldTitle string, sources []ConsolidatedMessage) string {
 func applyMergeTransaction(ctx context.Context, tx *sql.Tx, email, room string, targetIDs []int64, destID int, title, history string) error {
 	queries := db.New(tx)
 	if err := queries.UpdateTaskMergeComplete(ctx, db.UpdateTaskMergeCompleteParams{
-		Task:         sql.NullString{String: title, Valid: true},
-		OriginalText: sql.NullString{String: history, Valid: true},
+		Task:         nullString(title),
+		OriginalText: nullString(history),
 		ID:           int64(destID),
-		UserEmail:    sql.NullString{String: email, Valid: true},
-		Room:         sql.NullString{String: room, Valid: true},
+		UserEmail:    nullString(email),
+		Room:         nullString(room),
 	}); err != nil {
 		return err
 	}
@@ -464,7 +459,7 @@ func applyMergeTransaction(ctx context.Context, tx *sql.Tx, email, room string, 
 
 	if err := queries.UpdateCategoryMerged(ctx, db.UpdateCategoryMergedParams{
 		Ids:       targetIDs,
-		UserEmail: sql.NullString{String: email, Valid: true},
+		UserEmail: nullString(email),
 	}); err != nil {
 		return err
 	}
@@ -472,7 +467,7 @@ func applyMergeTransaction(ctx context.Context, tx *sql.Tx, email, room string, 
 	// Why: Ensures all merged tasks (sources and destination) clear their translation cache to prevent stale text.
 	allIDs := append(targetIDsInt, destID)
 	for _, id := range allIDs {
-		if err := queries.DeleteTaskTranslations(ctx, sql.NullInt64{Int64: int64(id), Valid: true}); err != nil {
+		if err := queries.DeleteTaskTranslations(ctx, nullInt64(int64(id))); err != nil {
 			return err
 		}
 	}
@@ -518,12 +513,12 @@ func applyMergeUpdates(ctx context.Context, tx *sql.Tx, email, room string, dest
 
 	queries := db.New(tx)
 	err := queries.UpdateTaskFullAppend(ctx, db.UpdateTaskFullAppendParams{
-		Task:         sql.NullString{String: "Manual Merge", Valid: true},
-		Task_2:       sql.NullString{String: taskBuilder.String(), Valid: true},
-		OriginalText: sql.NullString{String: textBuilder.String(), Valid: true},
+		Task:         nullString("Manual Merge"),
+		Task_2:       nullString(taskBuilder.String()),
+		OriginalText: nullString(textBuilder.String()),
 		ID:           int64(dest.ID),
-		UserEmail:    sql.NullString{String: email, Valid: true},
-		Room:         sql.NullString{String: room, Valid: true},
+		UserEmail:    nullString(email),
+		Room:         nullString(room),
 	})
 	if err != nil {
 		return err
@@ -531,19 +526,19 @@ func applyMergeUpdates(ctx context.Context, tx *sql.Tx, email, room string, dest
 
 	return queries.UpdateCategoryMerged(ctx, db.UpdateCategoryMergedParams{
 		Ids:       toInt64List(targets),
-		UserEmail: sql.NullString{String: email, Valid: true},
+		UserEmail: nullString(email),
 	})
 }
 
 func UpdateMessageCategory(ctx context.Context, q Querier, email string, id int, category string) error {
 	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
-		p.Category = sql.NullString{String: category, Valid: true}
+		p.Category = nullString(category)
 	})
 }
 
 func UpdateTaskAssignee(ctx context.Context, q Querier, email string, id int, assignee string) error {
 	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
-		p.Assignee = sql.NullString{String: assignee, Valid: true}
+		p.Assignee = nullString(assignee)
 	})
 }
 
@@ -558,9 +553,9 @@ func UpdateTaskAssigneesBatch(ctx context.Context, email string, updates map[int
 		queries := db.New(tx)
 		for id, assignee := range updates {
 			err := queries.UpdateMessageDetails(ctx, db.UpdateMessageDetailsParams{
-				Assignee:  sql.NullString{String: assignee, Valid: true},
+				Assignee:  nullString(assignee),
 				ID:        int64(id),
-				UserEmail: sql.NullString{String: email, Valid: true},
+				UserEmail: nullString(email),
 			})
 			if err != nil {
 				return err
@@ -577,12 +572,12 @@ func UpdateTaskAssigneesBatch(ctx context.Context, email string, updates map[int
 
 func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id int, date, newTask, newOriginalText string) error {
 	err := db.New(q).UpdateTaskFullAppend(ctx, db.UpdateTaskFullAppendParams{
-		Task:         sql.NullString{String: date, Valid: true},
-		Task_2:       sql.NullString{String: newTask, Valid: true},
-		OriginalText: sql.NullString{String: newOriginalText, Valid: true},
+		Task:         nullString(date),
+		Task_2:       nullString(newTask),
+		OriginalText: nullString(newOriginalText),
 		ID:           int64(id),
-		UserEmail:    sql.NullString{String: email, Valid: true},
-		Room:         sql.NullString{String: room, Valid: true},
+		UserEmail:    nullString(email),
+		Room:         nullString(room),
 	})
 	if err == nil {
 		InvalidateCache(email)
@@ -593,15 +588,15 @@ func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id
 // UpdateMessageIdentity updates both requester and assignee for a task.
 func UpdateMessageIdentity(ctx context.Context, q Querier, email, _ string, id int, requester, assignee string) error {
 	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
-		p.Requester = sql.NullString{String: requester, Valid: true}
-		p.Assignee = sql.NullString{String: assignee, Valid: true}
+		p.Requester = nullString(requester)
+		p.Assignee = nullString(assignee)
 	})
 }
 
 func UpdateTaskSourceChannels(ctx context.Context, q Querier, email string, id int, channels []string) error {
 	channelsJSON, _ := json.Marshal(channels)
 	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
-		p.SourceChannels = sql.NullString{String: string(channelsJSON), Valid: true}
+		p.SourceChannels = nullString(string(channelsJSON))
 	})
 }
 
@@ -610,7 +605,7 @@ func DeleteMessages(ctx context.Context, q Querier, email string, ids []int) err
 		return nil
 	}
 	err := db.New(q).DeleteMessages(ctx, db.DeleteMessagesParams{
-		UserEmail: sql.NullString{String: email, Valid: true},
+		UserEmail: nullString(email),
 		Ids:       toInt64List(ids),
 	})
 	if err != nil {
@@ -625,7 +620,7 @@ func HardDeleteMessages(ctx context.Context, q Querier, email string, ids []int)
 		return nil
 	}
 	err := db.New(q).HardDeleteMessages(ctx, db.HardDeleteMessagesParams{
-		UserEmail: sql.NullString{String: email, Valid: true},
+		UserEmail: nullString(email),
 		Ids:       toInt64List(ids),
 	})
 	if err != nil {
@@ -640,7 +635,7 @@ func RestoreMessages(ctx context.Context, q Querier, email string, ids []int) er
 		return nil
 	}
 	err := db.New(q).RestoreMessages(ctx, db.RestoreMessagesParams{
-		UserEmail: sql.NullString{String: email, Valid: true},
+		UserEmail: nullString(email),
 		Ids:       toInt64List(ids),
 	})
 	if err != nil {
@@ -770,27 +765,27 @@ func toCreateMessageParams(msg ConsolidatedMessage) db.CreateMessageParams {
 	}
 
 	params := db.CreateMessageParams{
-		UserEmail:           sql.NullString{String: msg.UserEmail, Valid: true},
-		Source:              sql.NullString{String: msg.Source, Valid: true},
-		Room:                sql.NullString{String: msg.Room, Valid: true},
-		Task:                sql.NullString{String: msg.Task, Valid: true},
-		Requester:           sql.NullString{String: msg.Requester, Valid: true},
-		Assignee:            sql.NullString{String: msg.Assignee, Valid: true},
+		UserEmail:           nullString(msg.UserEmail),
+		Source:              nullString(msg.Source),
+		Room:                nullString(msg.Room),
+		Task:                nullString(msg.Task),
+		Requester:           nullString(msg.Requester),
+		Assignee:            nullString(msg.Assignee),
 		AssignedAt:          sql.NullTime{Time: msg.AssignedAt, Valid: !msg.AssignedAt.IsZero()},
-		Link:                sql.NullString{String: msg.Link, Valid: true},
-		SourceTs:            sql.NullString{String: msg.SourceTS, Valid: true},
-		OriginalText:        sql.NullString{String: msg.OriginalText, Valid: true},
-		Category:            sql.NullString{String: msg.Category, Valid: true},
-		Deadline:            sql.NullString{String: msg.Deadline, Valid: true},
-		ThreadID:            sql.NullString{String: msg.ThreadID, Valid: true},
-		AssigneeReason:      sql.NullString{String: msg.AssigneeReason, Valid: true},
-		RepliedToID:         sql.NullString{String: msg.RepliedToID, Valid: true},
-		IsContextQuery:      sql.NullInt64{Int64: int64(isCtx), Valid: true},
-		Constraints:         sql.NullString{String: string(constraintsJSON), Valid: true},
-		Metadata:            sql.NullString{String: string(msg.Metadata), Valid: true},
-		SourceChannels:      sql.NullString{String: string(channelsJSON), Valid: true},
-		ConsolidatedContext: sql.NullString{String: string(contextJSON), Valid: true},
-		Subtasks:            sql.NullString{String: encodeSubtasks(msg.Subtasks), Valid: true},
+		Link:                nullString(msg.Link),
+		SourceTs:            nullString(msg.SourceTS),
+		OriginalText:        nullString(msg.OriginalText),
+		Category:            nullString(msg.Category),
+		Deadline:            nullString(msg.Deadline),
+		ThreadID:            nullString(msg.ThreadID),
+		AssigneeReason:      nullString(msg.AssigneeReason),
+		RepliedToID:         nullString(msg.RepliedToID),
+		IsContextQuery:      nullInt64(int64(isCtx)),
+		Constraints:         nullString(string(constraintsJSON)),
+		Metadata:            nullString(string(msg.Metadata)),
+		SourceChannels:      nullString(string(channelsJSON)),
+		ConsolidatedContext: nullString(string(contextJSON)),
+		Subtasks:            nullString(encodeSubtasks(msg.Subtasks)),
 	}
 
 	return params

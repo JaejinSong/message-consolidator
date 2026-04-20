@@ -1,5 +1,6 @@
 import { parseMarkdown } from '../logic';
 import { IReportData, ParsedVisualization } from '../types';
+import { escapeHTML } from '../utils';
 
 /**
  * @file reports-renderer.ts
@@ -99,7 +100,7 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
                 stroke: 'var(--color-primary)',
                 opacity: '0.4'
             });
-            line.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${getNodeName(nodes, l.source)} ↔ ${getNodeName(nodes, l.target)}</b><br/>Weight: ${l.value || 1}`));
+            line.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(getNodeName(nodes, l.source))} ↔ ${escapeHTML(getNodeName(nodes, l.target))}</b><br/>Weight: ${l.value || 1}`));
             line.addEventListener('mouseenter', () => {
                 line.setAttribute('opacity', '1');
                 line.setAttribute('stroke', 'var(--color-warning)');
@@ -135,7 +136,7 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
             text.textContent = n.name || n.id;
             g.appendChild(text);
 
-            g.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${n.name || n.id}</b><br/>Activity: ${n.value}`));
+            g.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(n.name || n.id)}</b><br/>Activity: ${n.value}`));
             g.addEventListener('mouseenter', () => { circle.setAttribute('stroke', 'var(--color-warning)'); circle.setAttribute('stroke-width', '3'); });
             g.addEventListener('mouseout', () => { hideTooltip(); circle.removeAttribute('stroke'); circle.removeAttribute('stroke-width'); });
             svg.appendChild(g);
@@ -182,7 +183,7 @@ function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): vo
             d, class: 'c-report-viz__link', fill: 'none', 'stroke-width': sw,
             stroke: 'var(--color-primary)', opacity: '0.4'
         });
-        path.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${getNodeName(nodes, l.source)} → ${getNodeName(nodes, l.target)}</b><br/>Flow: ${l.value || 1}`));
+        path.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(getNodeName(nodes, l.source))} → ${escapeHTML(getNodeName(nodes, l.target))}</b><br/>Flow: ${l.value || 1}`));
         path.addEventListener('mouseenter', () => { path.setAttribute('opacity', '1'); path.setAttribute('stroke', 'var(--color-warning)'); });
         path.addEventListener('mouseout', () => { hideTooltip(); path.setAttribute('opacity', '0.4'); path.setAttribute('stroke', 'var(--color-primary)'); });
         svg.appendChild(path);

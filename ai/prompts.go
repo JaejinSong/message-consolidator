@@ -11,7 +11,7 @@ import (
 //go:embed prompts/*.prompt
 var promptFS embed.FS
 
-func loadPrompt(filename string) *ParsedPrompt {
+func LoadPrompt(filename string) *ParsedPrompt {
 	var content string
 	//Why: [Dev Mode] Attempts to read local prompt files directly from the filesystem to ensure immediate reflection of changes during development and regression testing.
 	_, currentFile, _, ok := runtime.Caller(0)

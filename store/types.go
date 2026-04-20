@@ -84,6 +84,12 @@ type User struct {
 	CreatedAt       time.Time  `json:"created_at"`
 }
 
+func (u User) PreferredName() string {
+	if u.Name != "" {
+		return u.Name
+	}
+	return u.Email
+}
 
 
 // TaskTranslation represents a cached translation for a task

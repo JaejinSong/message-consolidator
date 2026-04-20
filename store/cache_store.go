@@ -110,16 +110,27 @@ func RefreshAllCaches(ctx context.Context) error {
 	return nil
 }
 
+type cacheRowConvertible interface {
+	db.RefreshCacheActiveRow | db.RefreshCacheArchiveRow
+}
+
+func collectCacheRows[T cacheRowConvertible](rows []T, knownTS map[string]bool, convert func(T) ConsolidatedMessage) []ConsolidatedMessage {
+	var msgs []ConsolidatedMessage
+	for _, r := range rows {
+		m := convert(r)
+		msgs = append(msgs, m)
+		knownTS[m.SourceTS] = true
+	}
+	return msgs
+}
+
 func fetchCacheActive(ctx context.Context, email string, knownTS map[string]bool) ([]ConsolidatedMessage, error) {
-	queries := db.New(GetDB())
-	rows, err := queries.RefreshCacheActive(ctx, email)
+	rows, err := db.New(GetDB()).RefreshCacheActive(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("active query failed: %w", err)
 	}
-
-	var msgs []ConsolidatedMessage
-	for _, r := range rows {
-		m := MapVMessageToConsolidated(
+	return collectCacheRows(rows, knownTS, func(r db.RefreshCacheActiveRow) ConsolidatedMessage {
+		return MapVMessageToConsolidated(
 			int(r.ID), r.UserEmail, r.Source, r.Room, r.Task,
 			r.Requester, r.Assignee, r.Link, r.SourceTs,
 			r.OriginalText, r.Done, r.IsDeleted, r.CreatedAt,
@@ -130,24 +141,16 @@ func fetchCacheActive(ctx context.Context, email string, knownTS map[string]bool
 			r.RequesterType, r.AssigneeType, r.Subtasks,
 			r.AssignedAt, r.CompletedAt,
 		)
-		msgs = append(msgs, m)
-		knownTS[m.SourceTS] = true
-	}
-	return msgs, nil
+	}), nil
 }
 
-// mapRefreshRowToMessage and mapArchiveRowToMessage were removed in favor of store.MapVMessageToConsolidated
-
 func fetchCacheArchive(ctx context.Context, email string, knownTS map[string]bool) ([]ConsolidatedMessage, error) {
-	queries := db.New(GetDB())
-	rows, err := queries.RefreshCacheArchive(ctx, email)
+	rows, err := db.New(GetDB()).RefreshCacheArchive(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("archive query failed: %w", err)
 	}
-
-	var msgs []ConsolidatedMessage
-	for _, r := range rows {
-		m := MapVMessageToConsolidated(
+	return collectCacheRows(rows, knownTS, func(r db.RefreshCacheArchiveRow) ConsolidatedMessage {
+		return MapVMessageToConsolidated(
 			int(r.ID), r.UserEmail, r.Source, r.Room, r.Task,
 			r.Requester, r.Assignee, r.Link, r.SourceTs,
 			r.OriginalText, r.Done, r.IsDeleted, r.CreatedAt,
@@ -158,10 +161,7 @@ func fetchCacheArchive(ctx context.Context, email string, knownTS map[string]boo
 			r.RequesterType, r.AssigneeType, r.Subtasks,
 			r.AssignedAt, r.CompletedAt,
 		)
-		msgs = append(msgs, m)
-		knownTS[m.SourceTS] = true
-	}
-	return msgs, nil
+	}), nil
 }
 
 func RefreshCache(ctx context.Context, email string) error {

@@ -62,7 +62,7 @@ func (s *WhatsAppScanner) processSingleGroup(ctx context.Context, user store.Use
 	}
 
 	lastMsg := group[len(group)-1]
-	enriched, err := EnrichWhatsAppMessage(jid, payload, lastMsg.Timestamp, &store.AliasStore{})
+	enriched, err := EnrichWhatsAppMessage(jid, payload, lastMsg.Timestamp)
 	if err != nil {
 		logger.Errorf("[WA-SCAN] Failed to enrich message: %v", err)
 		return nil

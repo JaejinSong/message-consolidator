@@ -54,10 +54,7 @@ func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 		ID   int  `json:"id"`
 		Done bool `json:"done"`
 	}
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
+	if !bindJSON(w, r, &req) { return }
 
 	if a.Tasks == nil {
 		respondError(w, http.StatusServiceUnavailable, "Task service not available")
@@ -86,10 +83,7 @@ func (a *API) HandleToggleSubtask(w http.ResponseWriter, r *http.Request) {
 		SubtaskIndex int  `json:"subtask_index"`
 		Done         bool `json:"done"`
 	}
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
+	if !bindJSON(w, r, &req) { return }
 
 	if req.ID <= 0 {
 		respondError(w, http.StatusBadRequest, "Invalid Task ID")
@@ -178,10 +172,7 @@ func (a *API) HandleGetArchivedCount(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req BatchIDsRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
+	if !bindJSON(w, r, &req) { return }
 
 	if err := req.Validate(); err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
@@ -244,10 +235,7 @@ func (a *API) HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleHardDelete(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req BatchIDsRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
+	if !bindJSON(w, r, &req) { return }
 
 	if err := req.Validate(); err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
@@ -261,10 +249,7 @@ func (a *API) HandleHardDelete(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleRestore(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req BatchIDsRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
+	if !bindJSON(w, r, &req) { return }
 
 	if err := req.Validate(); err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
@@ -281,10 +266,7 @@ func (a *API) HandleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		ID   int    `json:"id"`
 		Task string `json:"task"`
 	}
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
+	if !bindJSON(w, r, &req) { return }
 	if err := store.UpdateTaskText(r.Context(), store.GetDB(), email, req.ID, req.Task); err != nil {
 		handleAPIError(w, r, err, "[UPDATE_TASK] Error for "+email, "Failed to update task")
 		return

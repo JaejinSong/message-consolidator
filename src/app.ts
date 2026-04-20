@@ -32,7 +32,7 @@ import { archive } from './archive';
 import { modals } from './modals';
 import { insights } from './insights';
 import { events, EVENTS } from './events';
-import { safeAsync, hasSessionHint, setupTabs } from './utils';
+import { safeAsync, hasSessionHint, setupTabs, escapeHTML } from './utils';
 import { STATUS_STATES, POLLING_INTERVALS } from './constants';
 import { authService } from './services/authService';
 
@@ -493,8 +493,8 @@ const initActionButtons = () => {
 
         const destId = ids[0];
         const sourceIds = ids.slice(1);
-        const destTitle = getTitle(destId);
-        const sourceTitles = sourceIds.map(id => `<strong>"${getTitle(id)}"</strong>`).join(', ');
+        const destTitle = escapeHTML(getTitle(destId));
+        const sourceTitles = sourceIds.map(id => `<strong>"${escapeHTML(getTitle(id))}"</strong>`).join(', ');
 
         const msgHtml = lang === 'ko'
             ? `${sourceTitles} 를 <br><span class="u-text-accent"><strong>"${destTitle}"</strong></span> (으)로 병합하시겠습니까?`

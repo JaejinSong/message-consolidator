@@ -28,7 +28,7 @@ func GetTaskTranslation(ctx context.Context, messageID int, langCode string) (st
 	conn := GetDB()
 	queries := db.New(conn)
 	translatedText, err := queries.GetTaskTranslation(ctx, db.GetTaskTranslationParams{
-		MessageID:    sql.NullInt64{Int64: int64(messageID), Valid: true},
+		MessageID:    nullInt64(int64(messageID)),
 		LanguageCode: langCode,
 	})
 	if err == sql.ErrNoRows {
@@ -88,7 +88,7 @@ func GetTaskTranslationsBatch(ctx context.Context, messageIDs []int, langCode st
 	queries := db.New(conn)
 	nullIDs := make([]sql.NullInt64, len(missingIDs))
 	for i, id := range missingIDs {
-		nullIDs[i] = sql.NullInt64{Int64: int64(id), Valid: true}
+		nullIDs[i] = nullInt64(int64(id))
 	}
 	rows, err := queries.GetTaskTranslationsBatch(ctx, db.GetTaskTranslationsBatchParams{
 		LanguageCode: langCode,
@@ -126,7 +126,7 @@ func SaveTaskTranslation(ctx context.Context, messageID int, langCode, translate
 	conn := GetDB()
 	queries := db.New(conn)
 	err := queries.UpsertTaskTranslation(ctx, db.UpsertTaskTranslationParams{
-		MessageID:      sql.NullInt64{Int64: int64(messageID), Valid: true},
+		MessageID:      nullInt64(int64(messageID)),
 		LanguageCode:   langCode,
 		TranslatedText: translatedText,
 	})

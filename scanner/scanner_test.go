@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"message-consolidator/services"
 	"message-consolidator/store"
 	"testing"
 )
@@ -13,22 +14,22 @@ func TestGetEffectiveAliases(t *testing.T) {
 		want    []string
 	}{
 		{
-			name:    "should combine name and email prefix as aliases",
+			name:    "should combine name, email, email prefix, and aliases",
 			user:    store.User{Email: "jjsong@whatap.io", Name: "Jaejin Song"},
 			aliases: []string{"JJ", "송재진"},
-			want:    []string{"JJ", "송재진", "Jaejin Song", "jjsong"},
+			want:    []string{"JJ", "송재진", "Jaejin Song", "jjsong", "jjsong@whatap.io"},
 		},
 		{
 			name:    "should de-duplicate aliases when there is partial overlap",
 			user:    store.User{Email: "jjsong@whatap.io", Name: "jjsong"},
 			aliases: []string{"JJ", "jjsong"},
-			want:    []string{"JJ", "jjsong"},
+			want:    []string{"JJ", "jjsong", "jjsong@whatap.io"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := getEffectiveAliases(tt.user, tt.aliases)
+			got := services.GetEffectiveAliases(tt.user, tt.aliases)
 			if len(got) != len(tt.want) {
 				t.Errorf("got %d aliases, want %d", len(got), len(tt.want))
 			}
@@ -65,7 +66,7 @@ func TestIsAliasMatched(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := IsAliasMatched(tt.text, tt.sender, tt.alias)
+			got := isAliasMatched(tt.text, tt.sender, tt.alias)
 			if got != tt.expected {
 				t.Errorf("IsAliasMatched() = %v, want %v (Text: %q, Sender: %q, Alias: %q)", got, tt.expected, tt.text, tt.sender, tt.alias)
 			}

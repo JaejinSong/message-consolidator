@@ -71,7 +71,7 @@ func prepareSlackUserAliases(ctx context.Context, users []store.User) map[string
 	ua := make(map[string][]string)
 	for _, u := range users {
 		aliases, _ := store.GetUserAliases(ctx, u.ID)
-		ua[u.Email] = getEffectiveAliases(u, aliases)
+		ua[u.Email] = services.GetEffectiveAliases(u, aliases)
 	}
 	return ua
 }
@@ -209,7 +209,7 @@ func isGroupMention(text string) bool {
 
 func hasAliasMatch(m types.RawMessage, aliases []string) bool {
 	for _, alias := range aliases {
-		if alias != "" && IsAliasMatched(m.Text, m.Sender, alias) {
+		if alias != "" && isAliasMatched(m.Text, m.Sender, alias) {
 			return true
 		}
 	}
@@ -299,7 +299,7 @@ func handleThreadTimeout(ctx context.Context, sc *channels.SlackClient, t store.
 func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user *store.User, t store.SlackThreadMeta, replies []slack.Message, res threadScanResult, botID string) []types.RawMessage {
 	var candidates []types.RawMessage
 	aliases, _ := store.GetUserAliases(ctx, user.ID)
-	effAl := getEffectiveAliases(*user, aliases)
+	effAl := services.GetEffectiveAliases(*user, aliases)
 
 	for _, m := range replies {
 		if t.LastTS != "" && m.Timestamp <= t.LastTS {
@@ -319,7 +319,7 @@ func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user
 		cls := classifyMessage(c, user, effAl, types.RawMessage{Sender: m.User, Text: m.Text})
 		if cls == types.CategoryTask || cls == types.CategoryQuery {
 			candidates = append(candidates, types.RawMessage{
-				ID: m.Timestamp, Sender: sc.GetUserName(m.User), Text: m.Text, Timestamp: parseSlackTimestamp(m.Timestamp),
+				ID: m.Timestamp, Sender: sc.GetUserName(m.User), Text: m.Text, Timestamp: channels.ParseSlackTimestamp(m.Timestamp),
 				ReplyToID: t.ThreadTS, ChannelID: t.ChannelID, HasAttachment: len(m.Files) > 0,
 				AttachmentNames: sc.ExtractFileNames(m.Files), Reactions: sc.ExtractReactions(m.Reactions), IsPinned: len(m.PinnedTo) > 0,
 			})
@@ -383,14 +383,6 @@ func isThreadTimedOut(lastActivityTS string, threshold time.Duration) bool {
 	return time.Since(time.Unix(sec, 0)) > threshold
 }
 
-func parseSlackTimestamp(ts string) time.Time {
-	parts := strings.Split(ts, ".")
-	if len(parts) == 0 {
-		return time.Now()
-	}
-	sec, _ := strconv.ParseInt(parts[0], 10, 64)
-	return time.Unix(sec, 0)
-}
 
 func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.SlackClient, candidates []types.RawMessage, wg *sync.WaitGroup) {
 	if len(candidates) == 0 {

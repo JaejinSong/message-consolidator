@@ -300,17 +300,27 @@ func (s *TasksService) checkRestoreGmailCC(ctx context.Context, email string, us
 
 // Logic Helpers
 
-// GetEffectiveAliases combines the user's primary name and their registered aliases into a single list.
+// GetEffectiveAliases combines the user's primary name, email, email prefix, and registered aliases.
 func GetEffectiveAliases(user store.User, aliases []string) []string {
-	var all []string
-	if user.Name != "" {
-		all = append(all, user.Name)
+	seen := make(map[string]bool)
+	add := func(s string) {
+		if s != "" && !seen[s] {
+			seen[s] = true
+		}
 	}
-	if user.Email != "" {
-		all = append(all, user.Email)
+	add(user.Name)
+	add(user.Email)
+	if prefix, _, found := strings.Cut(user.Email, "@"); found {
+		add(prefix)
 	}
-	all = append(all, aliases...)
-	return all
+	for _, a := range aliases {
+		add(a)
+	}
+	result := make([]string, 0, len(seen))
+	for k := range seen {
+		result = append(result, k)
+	}
+	return result
 }
 
 // IsTaskMatchedByAlias checks if the task content or requester matches any of the user's identities.
@@ -429,7 +439,7 @@ func findHeaderEnd(text string, start int) int {
 // resolveNewAssignee determines the correct assignee name or clears it.
 func (s *TasksService) resolveNewAssignee(user *store.User, current string, matchedByAlias bool) (string, bool) {
 	if matchedByAlias {
-		name := getPreferredName(user)
+		name := user.PreferredName()
 		return name, current != name
 	}
 	lowCurr := strings.ToLower(current)
@@ -440,13 +450,6 @@ func (s *TasksService) resolveNewAssignee(user *store.User, current string, matc
 	return current, false
 }
 
-// getPreferredName returns the user's display name if available, otherwise their email.
-func getPreferredName(user *store.User) string {
-	if user.Name != "" {
-		return user.Name
-	}
-	return user.Email
-}
 
 // extractToHeader extracts the content of the "To: " header from raw email text.
 func extractToHeader(text string) string {
@@ -696,7 +699,7 @@ func (s *TasksService) findMatch(room string, item store.TodoItem, active []stor
 		m := &active[i]
 		if m.Room != room || m.Category != item.Category { continue }
 		
-		sim := CalculateSimilarity(item.Task, m.Task)
+		sim := store.CalculateSimilarity(item.Task, m.Task)
 		if sim >= 0.80 { return m }
 		
 		// Affinity Group Bonus: If AI group matches, we are more lenient (threshold 0.5)

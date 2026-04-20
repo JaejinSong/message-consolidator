@@ -30,16 +30,7 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	logger.Debugf("[USER] Found user: ID=%d, Email=%s", user.ID, user.Email)
 
-	//Why: Populates aliases from the consolidated contacts cache for the current user.
-	user.Aliases = []string{}
-	if mappings, ok := store.GetContactsCache()[email]; ok {
-		for _, m := range mappings {
-			if m.CanonicalID == email {
-				user.Aliases, _ = store.GetAliasesForContact(r.Context(), m.ID)
-				break
-			}
-		}
-	}
+	user.Aliases, _ = store.GetUserAliasesByEmailFromCache(r.Context(), email)
 	user.ArchiveDays = store.GetAutoArchiveDays()
 
 	a.autoPopulateSlackAliases(r.Context(), user)
@@ -82,14 +73,7 @@ func (a *API) autoPopulateSlackAliases(ctx context.Context, user *store.User) {
 }
 
 func (a *API) refreshUserAliases(ctx context.Context, user *store.User) {
-	if mappings, ok := store.GetContactsCache()[user.Email]; ok {
-		for _, m := range mappings {
-			if m.CanonicalID == user.Email {
-				user.Aliases, _ = store.GetAliasesForContact(ctx, m.ID)
-				return
-			}
-		}
-	}
+	user.Aliases, _ = store.GetUserAliasesByEmailFromCache(ctx, user.Email)
 }
 
 func isSameSlice(a, b []string) bool {
@@ -111,15 +95,7 @@ func isSameSlice(a, b []string) bool {
 
 func (a *API) HandleGetUserAliases(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	var aliases []string
-	if mappings, ok := store.GetContactsCache()[email]; ok {
-		for _, m := range mappings {
-			if m.CanonicalID == email {
-				aliases, _ = store.GetAliasesForContact(r.Context(), m.ID)
-				break
-			}
-		}
-	}
+	aliases, _ := store.GetUserAliasesByEmailFromCache(r.Context(), email)
 	respondJSON(w, http.StatusOK, aliases)
 }
 
@@ -128,29 +104,10 @@ func (a *API) HandleAddAlias(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Alias string `json:"alias"`
 	}
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	
-	// Map to Contact mapping for the user themselves
+	if !bindJSON(w, r, &req) { return }
 	user, _ := store.GetOrCreateUser(r.Context(), email, "", "")
-	existing := ""
-	if mappings, ok := store.GetContactsCache()[email]; ok {
-		for _, m := range mappings {
-			if m.CanonicalID == email {
-				al, _ := store.GetAliasesForContact(r.Context(), m.ID)
-				existing = strings.Join(al, ",")
-				break
-			}
-		}
-	}
-	
-	newAliases := req.Alias
-	if existing != "" {
-		newAliases = existing + "," + req.Alias
-	}
-
+	existing, _ := store.GetUserAliasesByEmailFromCache(r.Context(), email)
+	newAliases := strings.Join(append(existing, req.Alias), ",")
 	if err := store.AddContactMapping(r.Context(), email, email, user.Name, newAliases, "user"); err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to add alias")
 		return
@@ -163,32 +120,16 @@ func (a *API) HandleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Alias string `json:"alias"`
 	}
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
+	if !bindJSON(w, r, &req) { return }
 	user, _ := store.GetOrCreateUser(r.Context(), email, "", "")
-	existing := ""
-	if mappings, ok := store.GetContactsCache()[email]; ok {
-		for _, m := range mappings {
-			if m.CanonicalID == email {
-				al, _ := store.GetAliasesForContact(r.Context(), m.ID)
-				existing = strings.Join(al, ",")
-				break
-			}
+	existing, _ := store.GetUserAliasesByEmailFromCache(r.Context(), email)
+	var kept []string
+	for _, a := range existing {
+		if strings.TrimSpace(a) != req.Alias {
+			kept = append(kept, a)
 		}
 	}
-
-	parts := strings.Split(existing, ",")
-	newParts := []string{}
-	for _, p := range parts {
-		if strings.TrimSpace(p) != req.Alias {
-			newParts = append(newParts, p)
-		}
-	}
-
-	if err := store.AddContactMapping(r.Context(), email, email, user.Name, strings.Join(newParts, ","), "user"); err != nil {
+	if err := store.AddContactMapping(r.Context(), email, email, user.Name, strings.Join(kept, ","), "user"); err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to delete alias")
 		return
 	}
@@ -262,10 +203,7 @@ func (a *API) HandleAddMapping(w http.ResponseWriter, r *http.Request) {
 		Aliases     string `json:"aliases"`
 		Source      string `json:"source"`
 	}
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
+	if !bindJSON(w, r, &req) { return }
 
 	email := auth.GetUserEmail(r)
 	finalID := determineCanonicalID(req.DisplayName, req.Aliases, req.CanonicalID)
@@ -307,10 +245,7 @@ func (a *API) HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CanonicalID string `json:"canonical_id"`
 	}
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
+	if !bindJSON(w, r, &req) { return }
 	if err := store.DeleteContactMapping(r.Context(), email, req.CanonicalID); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -341,10 +276,7 @@ func (a *API) HandleLinkAccounts(w http.ResponseWriter, r *http.Request) {
 		TargetID int64 `json:"target_id"`
 		MasterID int64 `json:"master_id"`
 	}
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
+	if !bindJSON(w, r, &req) { return }
 
 	if req.TargetID == req.MasterID {
 		respondError(w, http.StatusBadRequest, "Cannot link account to itself")
@@ -363,10 +295,7 @@ func (a *API) HandleUnlinkAccount(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ContactID int64 `json:"contact_id"`
 	}
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
+	if !bindJSON(w, r, &req) { return }
 
 	if err := store.UnlinkContact(r.Context(), email, req.ContactID); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())

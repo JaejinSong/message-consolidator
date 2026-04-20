@@ -95,7 +95,7 @@ func withSlackRetry(maxRetries int, contextMsg string, attemptFunc func() error)
 	return err
 }
 
-func parseSlackTimestamp(ts string) time.Time {
+func ParseSlackTimestamp(ts string) time.Time {
 	var sec, nsec int64
 	fmt.Sscanf(ts, "%d.%d", &sec, &nsec)
 	return time.Unix(sec, nsec*1000)
@@ -144,7 +144,7 @@ func (s *SlackClient) processHistoryMessages(channelID string, messages []slack.
 	reachedOld := false
 
 	for _, m := range messages {
-		ts := parseSlackTimestamp(m.Timestamp)
+		ts := ParseSlackTimestamp(m.Timestamp)
 
 		//Why: Terminates the history fetch loop when encountering messages older than the 'since' threshold, as Slack returns results in descending chronological order.
 		if ts.Before(since) {
@@ -237,7 +237,7 @@ func (s *SlackClient) processThreadReplies(threadTS string, replies []slack.Mess
 			ID:              m.Timestamp,
 			Sender:          s.GetUserName(m.User),
 			Text:            m.Text,
-			Timestamp:       parseSlackTimestamp(m.Timestamp),
+			Timestamp:       ParseSlackTimestamp(m.Timestamp),
 			ReplyToID:       threadTS, //Why: Attaches thread metadata to extracted replies to maintain relational integrity and correctly group related tasks in the UI.
 			HasAttachment:   len(m.Files) > 0,
 			AttachmentNames: s.ExtractFileNames(m.Files),

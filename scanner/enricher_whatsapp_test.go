@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"testing"
 	"time"
-
-	"message-consolidator/store"
 )
 
 func TestCalculateWindowStart(t *testing.T) {
@@ -43,8 +41,8 @@ func TestEnrichWhatsAppMessage_Fallback(t *testing.T) {
 	timestamp := time.Now()
 
 	// Use the newly defined AliasStore to satisfy the interface.
-	as := &store.AliasStore{}
-	enriched, err := EnrichWhatsAppMessage(rawJID, msg, timestamp, as)
+	
+	enriched, err := EnrichWhatsAppMessage(rawJID, msg, timestamp)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

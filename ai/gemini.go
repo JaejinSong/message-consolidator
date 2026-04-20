@@ -137,7 +137,7 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
 
-	parsed := loadPrompt("report_summary.prompt")
+	parsed := LoadPrompt("report_summary.prompt")
 	data := ExtractionContext{
 		MessagePayload: tasks,
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -174,7 +174,7 @@ func (g *GeminiClient) EvaluateTaskTransition(ctx context.Context, email, parent
 		return TaskTransition{}, fmt.Errorf("Gemini client not initialized")
 	}
 
-	parsed := loadPrompt("completion_check.prompt")
+	parsed := LoadPrompt("completion_check.prompt")
 	data := ExtractionContext{
 		ParentTask:     parentTask,
 		MessagePayload: replyText,
@@ -264,7 +264,7 @@ func (g *GeminiClient) GenerateVisualizationData(ctx context.Context, email stri
 func (g *GeminiClient) GenerateMergedTaskTitle(ctx context.Context, email string, tasksJSON string) (string, error) {
 	if g == nil || g.client == nil { return "", fmt.Errorf("Gemini client not initialized") }
 
-	parsed := loadPrompt("task_merge_summary.prompt")
+	parsed := LoadPrompt("task_merge_summary.prompt")
 	data := ExtractionContext{
 		MessagePayload: tasksJSON,
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -402,7 +402,7 @@ func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []stor
 }
 
 func (g *GeminiClient) prepareTranslateResources(lang string, requests []store.TranslateRequest) (*genai.GenerativeModel, string) {
-	parsed := loadPrompt("translation_system.prompt")
+	parsed := LoadPrompt("translation_system.prompt")
 	sysInst, _ := parsed.Render(ExtractionContext{
 		Locale:      g.getValidLang(lang),
 		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -427,7 +427,7 @@ func (g *GeminiClient) TranslateReport(ctx context.Context, email string, report
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
 
-	parsed := loadPrompt("report_translator.prompt")
+	parsed := LoadPrompt("report_translator.prompt")
 	data := ExtractionContext{
 		Locale:      g.getValidLang(targetLanguage),
 		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -455,7 +455,7 @@ func (g *GeminiClient) TranslateTaskMessage(ctx context.Context, email string, t
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
 
-	parsed := loadPrompt("task_translator.prompt")
+	parsed := LoadPrompt("task_translator.prompt")
 	data := ExtractionContext{
 		Locale:      g.getValidLang(targetLanguage),
 		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -487,7 +487,7 @@ func (g *GeminiClient) TranslateTasksBatch(ctx context.Context, email string, ta
 		return g.translateInChunks(ctx, email, tasks, lang, 25)
 	}
 
-	parsed := loadPrompt("batch_translator.prompt")
+	parsed := LoadPrompt("batch_translator.prompt")
 	data := ExtractionContext{
 		Locale:      g.getValidLang(lang),
 		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),

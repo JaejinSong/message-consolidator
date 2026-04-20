@@ -64,8 +64,8 @@ func SaveReport(ctx context.Context, r *Report) (int64, error) {
 		StartDate:     r.StartDate,
 		EndDate:       r.EndDate,
 		Visualization: r.Visualization,
-		Status:        sql.NullString{String: r.Status, Valid: true},
-		IsTruncated:   sql.NullInt64{Int64: int64(isTruncated), Valid: true},
+		Status:        nullString(r.Status),
+		IsTruncated:   nullInt64(int64(isTruncated)),
 	})
 	if err != nil {
 		return 0, err
@@ -80,9 +80,9 @@ func UpdateReportStatus(ctx context.Context, status, viz string, isTruncated boo
 		truncVal = 1
 	}
 	return db.New(GetDB()).UpdateReportStatus(ctx, db.UpdateReportStatusParams{
-		Status:        sql.NullString{String: status, Valid: true},
+		Status:        nullString(status),
 		Visualization: viz,
-		IsTruncated:   sql.NullInt64{Int64: truncVal, Valid: true},
+		IsTruncated:   nullInt64(truncVal),
 		ID:            int64(id),
 		UserEmail:     email,
 	})
@@ -221,29 +221,6 @@ func mapTranslationsToReports(reports []Report, transMap map[int]map[string]stri
 	}
 }
 
-func mapReportRowToReport(row db.GetReportByIDRow) *Report {
-	var r Report
-	r.ID = int(row.ID)
-	r.StartDate = row.StartDate
-	r.EndDate = row.EndDate
-	r.CreatedAt = row.CreatedAt.Time
-	r.IsTruncated = row.IsTruncated.Int64 != 0
-	r.ReportSummary = row.Summary
-	r.Visualization = row.Visualization
-	return &r
-}
-
-func mapReportByDateRowToReport(row db.GetReportByDateRow) *Report {
-	var r Report
-	r.ID = int(row.ID)
-	r.StartDate = row.StartDate
-	r.EndDate = row.EndDate
-	r.CreatedAt = row.CreatedAt.Time
-	r.IsTruncated = row.IsTruncated.Int64 != 0
-	r.ReportSummary = row.Summary
-	r.Visualization = row.Visualization
-	return &r
-}
 
 // Why: Allows users to manage their stored reports and remove unneeded entries.
 func DeleteReport(ctx context.Context, id int, email string) error {
@@ -290,17 +267,4 @@ func toConsolidatedFromByMessages(row db.VMessage) ConsolidatedMessage {
 		row.RequesterType, row.AssigneeType, row.Subtasks,
 		row.AssignedAt, row.CompletedAt,
 	)
-}
-
-
-func scanMessages(rows *sql.Rows) ([]ConsolidatedMessage, error) {
-	var msgs []ConsolidatedMessage
-	for rows.Next() {
-		m, err := scanMessageRow(rows)
-		if err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, m)
-	}
-	return msgs, nil
 }

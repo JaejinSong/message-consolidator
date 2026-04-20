@@ -18,10 +18,10 @@ func LogAIInference(messageID int, source, originalText, rawResponse string) err
 	queries := db.New(conn)
 	// Why: Parameters are handled via sql.Null wrappers because the underlying table columns are nullable.
 	err := queries.InsertAIInferenceLog(context.Background(), db.InsertAIInferenceLogParams{
-		MessageID:    sql.NullInt64{Int64: int64(messageID), Valid: true},
-		Source:       sql.NullString{String: source, Valid: true},
-		OriginalText: sql.NullString{String: originalText, Valid: true},
-		RawResponse:  sql.NullString{String: rawResponse, Valid: true},
+		MessageID:    nullInt64(int64(messageID)),
+		Source:       nullString(source),
+		OriginalText: nullString(originalText),
+		RawResponse:  nullString(rawResponse),
 	})
 
 	if err != nil {

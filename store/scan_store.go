@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"message-consolidator/db"
 	"message-consolidator/logger"
@@ -140,7 +139,7 @@ func PersistScanMetadata(userEmail, source, targetID, ts string) error {
 		UserEmail: userEmail,
 		Source:    source,
 		TargetID:  targetID,
-		LastTs:    sql.NullString{String: ts, Valid: true},
+		LastTs:    nullString(ts),
 	})
 }
 
@@ -178,7 +177,7 @@ func PersistAllScanMetadata(userEmail string) {
 				UserEmail: userEmail,
 				Source:    item.source,
 				TargetID:  item.target,
-				LastTs:    sql.NullString{String: item.ts, Valid: true},
+				LastTs:    nullString(item.ts),
 			}); err != nil {
 				return err
 			}
@@ -283,11 +282,11 @@ func RemoveActiveSlackThread(email, channelID, threadTS string) error {
 func RegisterTargetedSlackThread(ctx context.Context, channelID, threadTS, lastReplyTS, userEmail string) error {
 	queries := db.New(GetDB())
 	return queries.UpsertSlackThread(ctx, db.UpsertSlackThreadParams{
-		ChannelID:      sql.NullString{String: channelID, Valid: true},
-		ThreadTs:       sql.NullString{String: threadTS, Valid: true},
-		LastReplyTs:    sql.NullString{String: lastReplyTS, Valid: true},
-		LastActivityTs: sql.NullString{String: lastReplyTS, Valid: true},
-		UserEmail:      sql.NullString{String: userEmail, Valid: true},
+		ChannelID:      nullString(channelID),
+		ThreadTs:       nullString(threadTS),
+		LastReplyTs:    nullString(lastReplyTS),
+		LastActivityTs: nullString(lastReplyTS),
+		UserEmail:      nullString(userEmail),
 	})
 }
 
@@ -314,19 +313,19 @@ func GetTargetedActiveThreads(ctx context.Context) ([]SlackThreadMeta, error) {
 func UpdateTargetedThread(ctx context.Context, channelID, threadTS, lastReplyTS, lastActivityTS, userEmail string) error {
 	queries := db.New(GetDB())
 	return queries.UpsertSlackThread(ctx, db.UpsertSlackThreadParams{
-		ChannelID:      sql.NullString{String: channelID, Valid: true},
-		ThreadTs:       sql.NullString{String: threadTS, Valid: true},
-		LastReplyTs:    sql.NullString{String: lastReplyTS, Valid: true},
-		LastActivityTs: sql.NullString{String: lastActivityTS, Valid: true},
-		UserEmail:      sql.NullString{String: userEmail, Valid: true},
+		ChannelID:      nullString(channelID),
+		ThreadTs:       nullString(threadTS),
+		LastReplyTs:    nullString(lastReplyTS),
+		LastActivityTs: nullString(lastActivityTS),
+		UserEmail:      nullString(userEmail),
 	})
 }
 
 func CloseTargetedThread(ctx context.Context, channelID, threadTS, userEmail string) error {
 	queries := db.New(GetDB())
 	return queries.CloseSlackThread(ctx, db.CloseSlackThreadParams{
-		ChannelID: sql.NullString{String: channelID, Valid: true},
-		ThreadTs:  sql.NullString{String: threadTS, Valid: true},
-		UserEmail: sql.NullString{String: userEmail, Valid: true},
+		ChannelID: nullString(channelID),
+		ThreadTs:  nullString(threadTS),
+		UserEmail: nullString(userEmail),
 	})
 }
