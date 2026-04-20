@@ -16,5 +16,9 @@ func GetDefaultFewShots() []FewShot {
 			Input:    "[ID:Slack_1] User: Please deploy the app.\n[ID:Slack_2] Dev: I'm on it.",
 			Expected: `[{"id": 1, "state": "new", "task": "Deploy the app", "requester": "User", "assignee": "Dev", "assignee_reason": "Dev accepted the deployment task", "category": "PROMISE", "source_ts": "Slack_2"}]`,
 		},
+		{
+			Input:    "[ID:wa1] Jhonatan: Pagi, fyi POC report sudah kirim ke pak Sudianto. Mohon dicek ya pak.\n[ID:wa2] Sudianto: Ok Pak saya cek.\n[ID:wa3] Jhonatan: Baik pak trimakasih. Moon feedback kalau ada ya pak.",
+			Expected: `[{"id": 1, "state": "new", "task": "Review POC report and provide feedback", "requester": "Jhonatan", "assignee": "Sudianto", "assignee_reason": "Sudianto committed with first-person language 'saya cek' without explicit mention", "category": "PROMISE", "source_ts": "wa2"}]`,
+		},
 	}
 }
