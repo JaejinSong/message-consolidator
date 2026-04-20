@@ -404,7 +404,7 @@ func (s *TasksService) IsDirectlyAddressedToMe(m store.ConsolidatedMessage, user
 	lowOrig := strings.ToLower(m.OriginalText)
 	lowEmail := strings.ToLower(userEmail)
 
-	toIdx := strings.Index(lowOrig, "to: ")
+	toIdx := strings.Index(lowOrig, "t: ")
 	if toIdx == -1 {
 		return false
 	}
@@ -421,8 +421,9 @@ func (s *TasksService) IsDirectlyAddressedToMe(m store.ConsolidatedMessage, user
 }
 
 // findHeaderEnd finds the starting position of the next email header after a given point.
+// OriginalText uses abbreviated headers: "T: ", "C: ", "S: ", "B: " separated by newlines.
 func findHeaderEnd(text string, start int) int {
-	headers := []string{"cc: ", "bcc: ", "subject: "}
+	headers := []string{"\nc: ", "\ns: ", "\nb: "}
 	minIdx := -1
 	for _, h := range headers {
 		idx := strings.Index(text[start:], h)
@@ -451,14 +452,18 @@ func (s *TasksService) resolveNewAssignee(user *store.User, current string, matc
 }
 
 
-// extractToHeader extracts the content of the "To: " header from raw email text.
+// extractToHeader extracts the content of the "T: " header from raw email text.
+// OriginalText format: "T: <to>\nC: <cc>\nS: <subject>\nB:\n<body>"
 func extractToHeader(text string) string {
-	toIdx := strings.Index(text, "To: ")
-	subjIdx := strings.Index(text, ", Subject: ")
-	if toIdx != -1 && subjIdx != -1 && subjIdx > toIdx {
-		return text[toIdx+4 : subjIdx]
+	toIdx := strings.Index(text, "T: ")
+	if toIdx == -1 {
+		return ""
 	}
-	return ""
+	endIdx := strings.Index(text[toIdx:], "\n")
+	if endIdx == -1 {
+		return text[toIdx+3:]
+	}
+	return text[toIdx+3 : toIdx+endIdx]
 }
 
 // isMeInToHeader checks if a given email address is present in a header string.

@@ -92,10 +92,10 @@ func TestIsDirectlyAddressedToMe(t *testing.T) {
 		text     string
 		expected bool
 	}{
-		{"To: me@example.com\nSubject: Hello", true},
-		{"To: other@example.com\nCc: me@example.com\nSubject: Hello", false},
-		{"To: dev@group.com\nSubject: Hello", false}, //Why: Validates that group emails where the user is just a recipient (not in 'To') are correctly excluded.
-		{"to: me@example.com\nSubject: Hello", true},  //Why: Ensures case-insensitive header matching for robustness across different email clients.
+		{"T: me@example.com\nC: \nS: Hello\nB:\nbody", true},
+		{"T: other@example.com\nC: me@example.com\nS: Hello\nB:\nbody", false},
+		{"T: dev@group.com\nC: \nS: Hello\nB:\nbody", false}, //Why: Validates that group emails where the user is just a recipient (not in 'To') are correctly excluded.
+		{"T: Me@Example.Com\nC: \nS: Hello\nB:\nbody", true}, //Why: Ensures case-insensitive header matching for robustness across different email clients.
 	}
 
 	for _, tt := range tests {
