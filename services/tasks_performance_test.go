@@ -21,21 +21,14 @@ func TestFormatMessagesPerformance(t *testing.T) {
 	tenant := "test@example.com"
 	svc := &TasksService{}
 
-	// 1. Create base contacts
-	contactID, err := store.AddContact(ctx, tenant, "master@example.com", "Master Contact", "", "test")
-	if err != nil {
-		t.Fatalf("Failed to create master contact: %v", err)
-	}
-
-	// 2. Prepare 600 unique identifiers (to trigger chunking logic)
+	// 1. Create 300 contacts for even-indexed identifiers (to trigger chunking at 500+)
 	var msgs []store.ConsolidatedMessage
 	for i := 0; i < 600; i++ {
-		alias := fmt.Sprintf("Alias_%d", i)
-		// Register even-indexed aliases to the same master contact
+		alias := fmt.Sprintf("alias_%d@example.com", i)
 		if i%2 == 0 {
-			err := store.RegisterAlias(ctx, contactID, store.ContactTypeName, alias, "test", 5)
+			_, err := store.AddContact(ctx, tenant, alias, fmt.Sprintf("Contact %d", i), "", "test")
 			if err != nil {
-				t.Fatalf("Failed to register alias %s: %v", alias, err)
+				t.Fatalf("Failed to create contact %s: %v", alias, err)
 			}
 		}
 		msgs = append(msgs, store.ConsolidatedMessage{
@@ -44,31 +37,28 @@ func TestFormatMessagesPerformance(t *testing.T) {
 		})
 	}
 
-	// 3. Execution: Format messages. 
-	// This will call extractUniqueIdentifiers -> BulkResolveAliases -> GetContactsByIdentifiers -> fetchContactsBatch -> BulkResolveIdentityX (Chunked)
+	// 2. Execution: triggers extractUniqueIdentifiers → BulkResolveAliases → BulkResolveIdentityX (chunked at 500)
 	svc.FormatMessagesForClient(ctx, tenant, msgs)
 
-	// 4. Verification
-	// Alias_0 (even) -> should be resolved to "Master Contact"
-	if msgs[0].Requester != "Master Contact" {
-		t.Errorf("Expected resolution to 'Master Contact' for Alias_0, got '%s'", msgs[0].Requester)
+	// 3. Verification
+	// alias_0 (even, contact exists) -> resolved to display name
+	if msgs[0].Requester != "Contact 0" {
+		t.Errorf("Expected resolution to 'Contact 0' for alias_0, got '%s'", msgs[0].Requester)
 	}
 
-	// Alias_1 (odd) -> should remain "Alias_1" (not registered)
-	if msgs[1].Requester != "Alias_1" {
-		t.Errorf("Expected unresolvable 'Alias_1' to remain 'Alias_1', got '%s'", msgs[1].Requester)
+	// alias_1@example.com (odd, no contact) -> remains as-is
+	if msgs[1].Requester != "alias_1@example.com" {
+		t.Errorf("Expected unresolvable alias to remain, got '%s'", msgs[1].Requester)
 	}
 
-	// Alias_598 (even, in second chunk) -> should be resolved
-	if msgs[598].Requester != "Master Contact" {
-		t.Errorf("Expected resolution to 'Master Contact' for Alias_598 (Chunk 2), got '%s'", msgs[598].Requester)
+	// alias_598 (even, in second chunk) -> resolved
+	if msgs[598].Requester != "Contact 598" {
+		t.Errorf("Expected resolution for alias_598 (Chunk 2), got '%s'", msgs[598].Requester)
 	}
 
-	// 5. Verify Negative Caching manually by checking if unresolvable ID was recorded (internal check via cache state if possible)
-	// Since we can't easily access the private cache from another package, 
-	// we rely on the fact that the second run works correctly.
-	svc.FormatMessagesForClient(ctx, tenant, msgs[1:2]) // Re-run for Alias_1
-	if msgs[1].Requester != "Alias_1" {
-		t.Errorf("Re-run: Expected 'Alias_1', got '%s'", msgs[1].Requester)
+	// 4. Re-run for unresolvable (negative cache check)
+	svc.FormatMessagesForClient(ctx, tenant, msgs[1:2])
+	if msgs[1].Requester != "alias_1@example.com" {
+		t.Errorf("Re-run: Expected 'alias_1@example.com', got '%s'", msgs[1].Requester)
 	}
 }

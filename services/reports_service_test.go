@@ -419,8 +419,7 @@ func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) 
 	if err != nil {
 		t.Fatalf("Failed to create user jj: %v", err)
 	}
-	// Why: Correct setup for localized identity resolution. AddContact handles primary name/email, aliases as CSV.
-	cID, err := store.AddContact(context.Background(), tenantB, "jjsong@whatap.io", "Jaejin Song", "Song", "test")
+	cID, err := store.AddContact(context.Background(), tenantB, "jjsong@whatap.io", "Jaejin Song", "", "test")
 	if err != nil {
 		t.Fatalf("Failed to add contact for tenant B: %v", err)
 	}
@@ -433,32 +432,28 @@ func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) 
 		t.Fatalf("Failed to load metadata into cache: %v", err)
 	}
 
-	// 3. Define a message using the alias.
+	// 3. Define a message using the display_name as requester.
 	messages := []store.ConsolidatedMessage{
-		{Requester: "Song", Assignee: "someone-else@whatap.io", RequesterCanonical: "song", AssigneeCanonical: "someone-else@whatap.io", RequesterType: "none", AssigneeType: "internal"},
+		{Requester: "Jaejin Song", Assignee: "someone-else@whatap.io", RequesterCanonical: "jaejin song", AssigneeCanonical: "someone-else@whatap.io", RequesterType: "none", AssigneeType: "internal"},
 	}
 
-	// 4. Generate graph data for Tenant A and assert that Tenant B's alias was NOT applied.
+	// 4. Tenant A has no such contact — "Jaejin Song" stays unresolved.
 	graphDataA := svc.generateVisualizationData(tenantA, messages)
-	foundGenericSong := false
+	foundUnresolved := false
 	for _, n := range graphDataA.Nodes {
-		if n.ID == "song" && n.Category == "External" {
-			foundGenericSong = true
+		if n.Category == "External" {
+			foundUnresolved = true
 			break
 		}
 	}
-	if !foundGenericSong {
-		t.Fatalf("Expected a generic external node 'song' for tenant A, but it was resolved. Nodes: %+v", graphDataA.Nodes)
+	if !foundUnresolved {
+		t.Fatalf("Expected an unresolved external node for tenant A, but it was resolved. Nodes: %+v", graphDataA.Nodes)
 	}
 
-	// 5. Generate graph data for Tenant B and assert that Tenant B's alias WAS applied.
-	// Act: Run the visualization pipeline.
-	// Why: The reporting pipeline requires sanitization to unify identities and detect tenant-specific categorization.
-	// We call sanitizeMessages here because generateVisualizationData is internal (called via the report generator API).
+	// 5. Tenant B has the contact — "Jaejin Song" resolves to "jjsong@whatap.io".
 	sanitizedB, _ := svc.sanitizeMessages(context.Background(), tenantB, messages)
 	graphDataB := svc.generateVisualizationData(tenantB, sanitizedB)
-	
-	// Assert: Check structure
+
 	foundResolvedSong := false
 	for _, n := range graphDataB.Nodes {
 		if n.ID == "jjsong@whatap.io" && n.Name == "Jaejin Song (Internal)" {
@@ -467,7 +462,7 @@ func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) 
 		}
 	}
 	if !foundResolvedSong {
-		t.Fatalf("Expected 'Song' to be resolved to 'jjsong@whatap.io' for tenant B, but it was not. Nodes: %+v", graphDataB.Nodes)
+		t.Fatalf("Expected 'Jaejin Song' to be resolved to 'jjsong@whatap.io' for tenant B, but it was not. Nodes: %+v", graphDataB.Nodes)
 	}
 }
 func TestReportsService_GenerateReport_MultiLanguage(t *testing.T) {

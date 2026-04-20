@@ -17,12 +17,12 @@ func TestAmbiguitySafeguard(t *testing.T) {
 
 	tenant := testutil.RandomEmail("admin")
 	
-	// 1. 동일한 성(Lee)을 가진 서로 다른 두 명의 연락처 생성
-	err = store.AddContactMapping(context.Background(), tenant, testutil.RandomEmail("lee"), "Lee Jung-jae", "Lee", "test")
+	// 1. 동일한 display_name "Lee"를 가진 서로 다른 두 명의 연락처 생성 (ambiguity 조건)
+	err = store.AddContactMapping(context.Background(), tenant, testutil.RandomEmail("lee1"), "Lee", "", "test")
 	if err != nil {
 		t.Fatalf("Failed to add contact 1: %v", err)
 	}
-	err = store.AddContactMapping(context.Background(), tenant, testutil.RandomEmail("lee"), "Lee Byung-hun", "Lee", "test")
+	err = store.AddContactMapping(context.Background(), tenant, testutil.RandomEmail("lee2"), "Lee", "", "test")
 	if err != nil {
 		t.Fatalf("Failed to add contact 2: %v", err)
 	}

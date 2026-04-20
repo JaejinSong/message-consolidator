@@ -17,16 +17,13 @@ func TestGetContactByIdentifier(t *testing.T) {
 	tenant := testutil.RandomEmail("healing-tenant")
 	email := testutil.RandomEmail("healing-user")
 	name := "User One"
-	alias := testutil.RandomID("alias")
 
 	// 1. 초기 데이터 삽입
-	err = AddContactMapping(context.Background(), tenant, email, name, alias, "test")
+	err = AddContactMapping(context.Background(), tenant, email, name, "", "test")
 	if err != nil {
 		t.Fatalf("Failed to add contact mapping: %v", err)
 	}
 
-	// Cache 강제 로드 (GetContactByIdentifier는 내부적으로 EnsureCacheInitialized 호출)
-	
 	t.Run("LookupByEmail", func(t *testing.T) {
 		c, err := GetContactByIdentifier(context.Background(), tenant, email)
 		if err != nil || c == nil || c.CanonicalID != email {
@@ -41,17 +38,10 @@ func TestGetContactByIdentifier(t *testing.T) {
 		}
 	})
 
-	t.Run("LookupByAlias", func(t *testing.T) {
-		c, err := GetContactByIdentifier(context.Background(), tenant, alias)
+	t.Run("CaseInsensitiveEmail", func(t *testing.T) {
+		c, err := GetContactByIdentifier(context.Background(), tenant, strings.ToUpper(email))
 		if err != nil || c == nil || c.CanonicalID != email {
-			t.Errorf("Lookup by alias failed: %v, result: %+v", err, c)
-		}
-	})
-
-	t.Run("CaseInsensitiveAlias", func(t *testing.T) {
-		c, err := GetContactByIdentifier(context.Background(), tenant, strings.ToLower(alias)) // 소문자 검색
-		if err != nil || c == nil || c.CanonicalID != email {
-			t.Errorf("Case-insensitive lookup by alias failed: %v", err)
+			t.Errorf("Case-insensitive lookup by email failed: %v", err)
 		}
 	})
 }

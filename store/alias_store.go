@@ -222,7 +222,7 @@ func GetTenantAliases(email string) (map[string]string, error) {
 	return res, nil
 }
 
-// GetUserAliases retrieves all identifiers associated with a user's primary contact (Cache-Aside).
+// GetUserAliases retrieves identifiers for a user's primary contact from the in-memory contacts cache.
 func GetUserAliases(ctx context.Context, userID int) ([]string, error) {
 	u, err := GetUserByID(userID)
 	if err != nil {
@@ -231,20 +231,23 @@ func GetUserAliases(ctx context.Context, userID int) ([]string, error) {
 
 	metadataMu.RLock()
 	mappings := contactsCache[u.Email]
-	var contactID int64
-	for _, m := range mappings {
-		if m.CanonicalID == u.Email {
-			contactID = m.ID
+	var found *ContactRecord
+	for i := range mappings {
+		if mappings[i].CanonicalID == u.Email {
+			found = &mappings[i]
 			break
 		}
 	}
 	metadataMu.RUnlock()
 
-	if contactID == 0 {
+	if found == nil {
 		return []string{}, nil
 	}
-
-	return GetAliasesForContact(ctx, contactID)
+	aliases := []string{found.CanonicalID}
+	if found.DisplayName != "" && found.DisplayName != found.CanonicalID {
+		aliases = append(aliases, found.DisplayName)
+	}
+	return aliases, nil
 }
 
 // GetUserByID is a helper to find a user by their integer ID from the cache.
@@ -347,12 +350,16 @@ func GetUserByWAJID(jid string) (*User, error) {
 	return nil, fmt.Errorf("user with WAJID %s not found in cache", jid)
 }
 
-// GetUserAliasesByEmailFromCache looks up aliases for a canonical email from the contacts cache.
+// GetUserAliasesByEmailFromCache looks up identifiers for a canonical email from the contacts cache.
 func GetUserAliasesByEmailFromCache(ctx context.Context, email string) ([]string, error) {
 	if mappings, ok := GetContactsCache()[email]; ok {
 		for _, m := range mappings {
 			if m.CanonicalID == email {
-				return GetAliasesForContact(ctx, m.ID)
+				aliases := []string{m.CanonicalID}
+				if m.DisplayName != "" && m.DisplayName != m.CanonicalID {
+					aliases = append(aliases, m.DisplayName)
+				}
+				return aliases, nil
 			}
 		}
 	}

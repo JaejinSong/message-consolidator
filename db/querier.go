@@ -10,11 +10,10 @@ import (
 )
 
 type Querier interface {
-	AddContactAlias(ctx context.Context, arg AddContactAliasParams) error
+	AppendSecondaryID(ctx context.Context, arg AppendSecondaryIDParams) error
 	ArchiveOldTasks(ctx context.Context, datetime interface{}) (int64, error)
 	CloseSlackThread(ctx context.Context, arg CloseSlackThreadParams) error
 	CreateAIInferenceLogsTable(ctx context.Context) error
-	CreateContactAliasesTable(ctx context.Context) error
 	// Views
 	CreateContactsResolvedView(ctx context.Context) error
 	CreateContactsTable(ctx context.Context) error
@@ -48,12 +47,11 @@ type Querier interface {
 	GetAbandonedTasks(ctx context.Context, arg GetAbandonedTasksParams) (int64, error)
 	GetActiveSlackThreadsNew(ctx context.Context) ([]GetActiveSlackThreadsNewRow, error)
 	GetActiveTasksForContext(ctx context.Context, arg GetActiveTasksForContextParams) ([]GetActiveTasksForContextRow, error)
-	GetAliasesByValues(ctx context.Context, values []string) ([]GetAliasesByValuesRow, error)
 	GetAllTenantAliases(ctx context.Context) ([]GetAllTenantAliasesRow, error)
 	GetAllUserAliases(ctx context.Context) ([]GetAllUserAliasesRow, error)
 	GetAllUsers(ctx context.Context) ([]User, error)
 	GetCompletionHistory(ctx context.Context, arg GetCompletionHistoryParams) ([]GetCompletionHistoryRow, error)
-	GetContactAliases(ctx context.Context, contactID int64) ([]GetContactAliasesRow, error)
+	GetContactsByValues(ctx context.Context, values []string) ([]GetContactsByValuesRow, error)
 	GetContactByID(ctx context.Context, arg GetContactByIDParams) (GetContactByIDRow, error)
 	GetContactByIdentifier(ctx context.Context, arg GetContactByIdentifierParams) ([]GetContactByIdentifierRow, error)
 	GetContactsByTenant(ctx context.Context, tenantEmail string) ([]GetContactsByTenantRow, error)

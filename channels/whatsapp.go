@@ -253,7 +253,7 @@ func (m *WAManager) resolveSenderName(email string, client *whatsmeow.Client, in
 		return "나"
 	}
 	if info.PushName != "" {
-		go store.SaveWhatsAppContact(email, info.Sender.User, info.PushName)
+		go store.SaveWhatsAppContact(context.Background(), email, info.Sender.User, info.PushName)
 		return info.PushName
 	}
 	return info.Sender.String()
@@ -317,7 +317,7 @@ func (m *WAManager) resolveIncomingMentions(email string, client *whatsmeow.Clie
 				}
 				
 				if resolvedName != "" {
-					go store.SaveWhatsAppContact(email, number, resolvedName)
+					go store.SaveWhatsAppContact(context.Background(), email, number, resolvedName)
 				}
 			}
 		}

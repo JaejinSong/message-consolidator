@@ -41,9 +41,6 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 		logger.Errorf("[DB-INIT] Failed to create contacts table: %v", err)
 		return fmt.Errorf("failed to create contacts table: %w", err)
 	}
-	if err := queries.CreateContactAliasesTable(ctx); err != nil {
-		return fmt.Errorf("failed to create contact_aliases table: %w", err)
-	}
 	if err := queries.CreateIdentityMergeHistoryTable(ctx); err != nil {
 		return fmt.Errorf("failed to create identity_merge_history table: %w", err)
 	}
@@ -57,46 +54,8 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 }
 
 func runMigrations(ctx context.Context, q db.DBTX) error {
-	// Why: Execute all required schema migrations using raw SQL.
-	// We log errors for each step to ensure visibility if a migration fails during deployment.
-	run := func(name string, query string) {
-		if _, err := q.ExecContext(ctx, query); err != nil {
-			logger.Warnf("[MIGRATION] %s failed (expected if already applied): %v", name, err)
-		}
-	}
-
-	run("AddUserEmail", "ALTER TABLE messages ADD COLUMN user_email TEXT")
-	run("AddIsDeleted", "ALTER TABLE messages ADD COLUMN is_deleted BOOLEAN DEFAULT 0")
-	run("AddRoom", "ALTER TABLE messages ADD COLUMN room TEXT")
-	run("AddDone", "ALTER TABLE messages ADD COLUMN done BOOLEAN DEFAULT 0")
-	run("AddCompletedAt", "ALTER TABLE messages ADD COLUMN completed_at DATETIME")
-	run("AddOriginalText", "ALTER TABLE messages ADD COLUMN original_text TEXT")
-	run("AddCategory", "ALTER TABLE messages ADD COLUMN category TEXT DEFAULT 'todo'")
-	run("AddDeadline", "ALTER TABLE messages ADD COLUMN deadline TEXT")
-	run("AddThreadID", "ALTER TABLE messages ADD COLUMN thread_id TEXT")
-	run("AddAssigneeReason", "ALTER TABLE messages ADD COLUMN assignee_reason TEXT")
-	run("AddRepliedToID", "ALTER TABLE messages ADD COLUMN replied_to_id TEXT")
-	run("AddIsContextQuery", "ALTER TABLE messages ADD COLUMN is_context_query INTEGER DEFAULT 0")
-	run("AddPinned", "ALTER TABLE messages ADD COLUMN pinned BOOLEAN DEFAULT FALSE")
-	run("AddConstraints", "ALTER TABLE messages ADD COLUMN constraints TEXT DEFAULT '[]'")
-	run("AddMetadata", "ALTER TABLE messages ADD COLUMN metadata TEXT DEFAULT '{}'")
-	run("AddSourceChannels", "ALTER TABLE messages ADD COLUMN source_channels TEXT DEFAULT '[]'")
-	run("AddConsolidatedContext", "ALTER TABLE messages ADD COLUMN consolidated_context TEXT DEFAULT '[]'")
-	run("AddSubtasks", "ALTER TABLE messages ADD COLUMN subtasks TEXT DEFAULT '[]'")
-
-	_, _ = q.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_ts ON messages(user_email, source_ts)")
-
-	run("ReportsAddIsTruncated", "ALTER TABLE reports ADD COLUMN is_truncated INTEGER DEFAULT 0")
-	run("ReportsAddStatus", "ALTER TABLE reports ADD COLUMN status TEXT DEFAULT 'completed'")
-
-	run("TaskRenameLang", "ALTER TABLE task_translations RENAME COLUMN language TO language_deprecated")
-	run("ReportRenameLang", "ALTER TABLE report_translations RENAME COLUMN language TO language_deprecated")
-	run("TaskAddLangCode", "ALTER TABLE task_translations ADD COLUMN language_code TEXT NOT NULL DEFAULT 'en'")
-	run("ReportAddLangCode", "ALTER TABLE report_translations ADD COLUMN language_code TEXT NOT NULL DEFAULT 'en'")
-	run("ContactsAddType", "ALTER TABLE contacts ADD COLUMN contact_type TEXT DEFAULT 'none'")
-	run("LegacyAliases", "UPDATE contacts SET source = 'all' WHERE source IS NULL")
-	run("TokenUsageAddFiltered", "ALTER TABLE token_usage ADD COLUMN filtered_count INTEGER DEFAULT 0")
-
+	// All schema columns are defined in the DDL (CreateXxxTable).
+	// Only data-level normalizations run here for existing deployments.
 	migrateExistingData(ctx, q)
 	return nil
 }

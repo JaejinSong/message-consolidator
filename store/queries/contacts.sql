@@ -45,14 +45,22 @@ WHERE tenant_email = ? AND master_contact_id IS NOT NULL;
 -- name: GetContactsWithMaster :many
 SELECT id, master_contact_id FROM contacts WHERE master_contact_id IS NOT NULL;
 
--- name: GetAliasesByValues :many
-SELECT identifier_value, contact_id FROM contact_aliases WHERE identifier_value IN (sqlc.slice('values'));
+-- name: GetContactsByValues :many
+SELECT id, canonical_id, display_name, secondary_ids FROM contacts
+WHERE LOWER(canonical_id) IN (sqlc.slice('values'))
+   OR LOWER(display_name) IN (sqlc.slice('values'))
+   OR EXISTS (SELECT 1 FROM json_each(secondary_ids) WHERE LOWER(value) IN (sqlc.slice('values')));
 
 -- name: GetContactsByTenant :many
-SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type FROM contacts WHERE tenant_email = ?;
+SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type, secondary_ids FROM contacts WHERE tenant_email = ?;
 
 -- name: GetContactByID :one
-SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type FROM contacts WHERE tenant_email = ? AND id = ?;
+SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type, secondary_ids FROM contacts WHERE tenant_email = ? AND id = ?;
+
+-- name: AppendSecondaryID :exec
+UPDATE contacts
+SET secondary_ids = json_insert(COALESCE(secondary_ids, '[]'), '$[#]', ?1)
+WHERE id = ?2;
 
 
 -- name: InsertMergeHistory :exec

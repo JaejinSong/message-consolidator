@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"strings"
 )
 
@@ -26,37 +27,40 @@ func (q *Queries) DeleteContactMapping(ctx context.Context, arg DeleteContactMap
 	return err
 }
 
-const getAliasesByValues = `-- name: GetAliasesByValues :many
-SELECT identifier_value, contact_id FROM contact_aliases WHERE identifier_value IN (/*SLICE:values*/?)
-`
-
-type GetAliasesByValuesRow struct {
-	IdentifierValue string `json:"identifier_value"`
-	ContactID       int64  `json:"contact_id"`
+type GetContactsByValuesRow struct {
+	ID           int64    `json:"id"`
+	CanonicalID  string   `json:"canonical_id"`
+	DisplayName  string   `json:"display_name"`
+	SecondaryIDs []string `json:"secondary_ids"`
 }
 
-func (q *Queries) GetAliasesByValues(ctx context.Context, values []string) ([]GetAliasesByValuesRow, error) {
-	query := getAliasesByValues
-	var queryParams []interface{}
-	if len(values) > 0 {
-		for _, v := range values {
-			queryParams = append(queryParams, v)
-		}
-		query = strings.Replace(query, "/*SLICE:values*/?", strings.Repeat(",?", len(values))[1:], 1)
-	} else {
-		query = strings.Replace(query, "/*SLICE:values*/?", "NULL", 1)
+func (q *Queries) GetContactsByValues(ctx context.Context, values []string) ([]GetContactsByValuesRow, error) {
+	if len(values) == 0 {
+		return nil, nil
 	}
-	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	placeholders := strings.Repeat(",?", len(values))[1:]
+	query := "SELECT id, canonical_id, display_name, COALESCE(secondary_ids, '[]') FROM contacts" +
+		" WHERE LOWER(canonical_id) IN (" + placeholders + ")" +
+		" OR LOWER(display_name) IN (" + placeholders + ")" +
+		" OR EXISTS (SELECT 1 FROM json_each(secondary_ids) WHERE LOWER(value) IN (" + placeholders + "))"
+	lower := make([]interface{}, len(values))
+	for i, v := range values {
+		lower[i] = strings.ToLower(v)
+	}
+	params := append(append(lower, lower...), lower...)
+	rows, err := q.db.QueryContext(ctx, query, params...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetAliasesByValuesRow
+	var items []GetContactsByValuesRow
 	for rows.Next() {
-		var i GetAliasesByValuesRow
-		if err := rows.Scan(&i.IdentifierValue, &i.ContactID); err != nil {
+		var i GetContactsByValuesRow
+		var secJSON string
+		if err := rows.Scan(&i.ID, &i.CanonicalID, &i.DisplayName, &secJSON); err != nil {
 			return nil, err
 		}
+		_ = json.Unmarshal([]byte(secJSON), &i.SecondaryIDs)
 		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
@@ -69,7 +73,7 @@ func (q *Queries) GetAliasesByValues(ctx context.Context, values []string) ([]Ge
 }
 
 const getContactByID = `-- name: GetContactByID :one
-SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type FROM contacts WHERE tenant_email = ? AND id = ?
+SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type, COALESCE(secondary_ids, '[]') FROM contacts WHERE tenant_email = ? AND id = ?
 `
 
 type GetContactByIDParams struct {
@@ -85,6 +89,7 @@ type GetContactByIDRow struct {
 	Source          sql.NullString `json:"source"`
 	MasterContactID sql.NullInt64  `json:"master_contact_id"`
 	ContactType     sql.NullString `json:"contact_type"`
+	SecondaryIDs    string         `json:"secondary_ids"`
 }
 
 func (q *Queries) GetContactByID(ctx context.Context, arg GetContactByIDParams) (GetContactByIDRow, error) {
@@ -98,8 +103,25 @@ func (q *Queries) GetContactByID(ctx context.Context, arg GetContactByIDParams) 
 		&i.Source,
 		&i.MasterContactID,
 		&i.ContactType,
+		&i.SecondaryIDs,
 	)
 	return i, err
+}
+
+const appendSecondaryID = `-- name: AppendSecondaryID :exec
+UPDATE contacts
+SET secondary_ids = json_insert(COALESCE(secondary_ids, '[]'), '$[#]', ?1)
+WHERE id = ?2
+`
+
+type AppendSecondaryIDParams struct {
+	Value string `json:"value"`
+	ID    int64  `json:"id"`
+}
+
+func (q *Queries) AppendSecondaryID(ctx context.Context, arg AppendSecondaryIDParams) error {
+	_, err := q.db.ExecContext(ctx, appendSecondaryID, arg.Value, arg.ID)
+	return err
 }
 
 const getContactByIdentifier = `-- name: GetContactByIdentifier :many
@@ -157,7 +179,7 @@ func (q *Queries) GetContactByIdentifier(ctx context.Context, arg GetContactById
 }
 
 const getContactsByTenant = `-- name: GetContactsByTenant :many
-SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type FROM contacts WHERE tenant_email = ?
+SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type, COALESCE(secondary_ids, '[]') FROM contacts WHERE tenant_email = ?
 `
 
 type GetContactsByTenantRow struct {
@@ -168,6 +190,7 @@ type GetContactsByTenantRow struct {
 	Source          sql.NullString `json:"source"`
 	MasterContactID sql.NullInt64  `json:"master_contact_id"`
 	ContactType     sql.NullString `json:"contact_type"`
+	SecondaryIDs    string         `json:"secondary_ids"`
 }
 
 func (q *Queries) GetContactsByTenant(ctx context.Context, tenantEmail string) ([]GetContactsByTenantRow, error) {
@@ -187,6 +210,7 @@ func (q *Queries) GetContactsByTenant(ctx context.Context, tenantEmail string) (
 			&i.Source,
 			&i.MasterContactID,
 			&i.ContactType,
+			&i.SecondaryIDs,
 		); err != nil {
 			return nil, err
 		}

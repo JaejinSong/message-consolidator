@@ -17,13 +17,13 @@ func TestIdentityResolution(t *testing.T) {
 	tenant := testutil.RandomEmail("ident")
 
 	// 1. Add unique contacts
-	aliasA := testutil.RandomID("alice")
-	aliasB := testutil.RandomID("bob")
-	aliasC := testutil.RandomID("charlie")
+	emailA := testutil.RandomEmail("user_a")
+	emailB := testutil.RandomEmail("user_b")
+	emailC := testutil.RandomEmail("user_c")
 
-	id1, err1 := AddContact(ctx, tenant, testutil.RandomEmail("user_a"), "User A", aliasA, "manual")
-	id2, err2 := AddContact(ctx, tenant, testutil.RandomEmail("user_b"), "User B", aliasB, "manual")
-	id3, err3 := AddContact(ctx, tenant, testutil.RandomEmail("user_c"), "User C", aliasC, "manual")
+	id1, err1 := AddContact(ctx, tenant, emailA, "User A", "", "manual")
+	id2, err2 := AddContact(ctx, tenant, emailB, "User B", "", "manual")
+	id3, err3 := AddContact(ctx, tenant, emailC, "User C", "", "manual")
 
 	if err1 != nil || err2 != nil || err3 != nil {
 		t.Fatalf("Failed to add contacts: %v, %v, %v", err1, err2, err3)
@@ -35,26 +35,22 @@ func TestIdentityResolution(t *testing.T) {
 		t.Fatalf("Added contacts returned 0 IDs: %d, %d, %d", id1, id2, id3)
 	}
 
-	// 2. Link User A and User B
+	// 2. Link User B into User A (A is master)
 	err = LinkContact(ctx, tenant, int64(id1), int64(id2))
 	if err != nil {
 		t.Fatalf("Failed to link contacts: %v", err)
 	}
 
-	// 3. Resolve by alias (transitive)
-	// A=B, so resolve aliasB should return ID of A (if A is master) or B (if B is master)
-	// In our implementation, LinkContact (masterID, targetID) merges target into master.
-	// So id2 is merged into id1. Resolve aliasB should return id1.
-	res, _ := ResolveAlias(ctx, "name", aliasB)
+	// 3. Resolve emailB — DSU maps id2 → id1
+	res, _ := ResolveAlias(ctx, ContactTypeEmail, emailB)
 	if res != id1 {
-		t.Errorf("Expected resolved ID %d for '%s', got %d", id1, aliasB, res)
+		t.Errorf("Expected resolved ID %d for '%s', got %d", id1, emailB, res)
 	}
 
-	// 4. Test Transitivity: Link User B and User C
-	// A=B, B=C => A=C
+	// 4. Transitivity: B=C, A=B=C → all resolve to id1
 	_ = LinkContact(ctx, tenant, int64(id2), int64(id3))
-	res2, _ := ResolveAlias(ctx, "name", aliasC)
+	res2, _ := ResolveAlias(ctx, ContactTypeEmail, emailC)
 	if res2 != id1 {
-		t.Errorf("Expected resolved ID %d for '%s' (transitive), got %d", id1, aliasC, res2)
+		t.Errorf("Expected resolved ID %d for '%s' (transitive), got %d", id1, emailC, res2)
 	}
 }

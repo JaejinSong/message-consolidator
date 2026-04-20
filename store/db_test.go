@@ -177,14 +177,17 @@ func TestIdentityXTransitiveLink(t *testing.T) {
 		t.Fatalf("Failed to create master: %v", err)
 	}
 
-	// 2. Register an Alias
+	// 2. Create a WhatsApp contact and link to master
 	waID := testutil.RandomID("wa")
-	err = RegisterAlias(ctx, masterID, "whatsapp", waID, "whatsapp", 5)
+	waContactID, err := AddContact(ctx, tenant, waID, "WA User", "", ContactTypeWhatsApp)
 	if err != nil {
-		t.Fatalf("Failed to register alias: %v", err)
+		t.Fatalf("Failed to create WA contact: %v", err)
+	}
+	if err := LinkContact(ctx, tenant, masterID, waContactID); err != nil {
+		t.Fatalf("Failed to link WA contact: %v", err)
 	}
 
-	// 3. Resolve Alias
+	// 3. Resolve WA number — DSU maps waContactID → masterID
 	resolvedID, err := ResolveAlias(ctx, "whatsapp", waID)
 	if err != nil {
 		t.Fatalf("Failed to resolve alias: %v", err)

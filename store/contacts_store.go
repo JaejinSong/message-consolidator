@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"message-consolidator/db"
@@ -38,12 +39,12 @@ type ContactRecord struct {
 	Source          string        `json:"source"`
 	MasterContactID sql.NullInt64 `json:"master_contact_id,omitempty"`
 	ContactType     string        `json:"contact_type"`
+	SecondaryIDs    []string      `json:"secondary_ids,omitempty"`
 }
 
 func InitContactsTable(ctx context.Context, q db.DBTX) {
 	queries := db.New(q)
 	_ = queries.CreateContactsTable(ctx)
-	_ = queries.CreateContactAliasesTable(ctx)
 	_ = queries.CreateIdentityMergeHistoryTable(ctx)
 	_ = queries.CreateIdentityMergeCandidatesTable(ctx)
 	
@@ -94,7 +95,7 @@ func UpsertContact(ctx context.Context, tenantEmail, canonicalID, displayName, a
 	if source == "" {
 		source = SourceAll
 	}
-	newID, err := db.New(GetDB()).UpsertContactMapping(ctx, db.UpsertContactMappingParams{
+	id, err := db.New(GetDB()).UpsertContactMapping(ctx, db.UpsertContactMappingParams{
 		TenantEmail: tenantEmail,
 		CanonicalID: canonicalID,
 		DisplayName: displayName,
@@ -103,27 +104,9 @@ func UpsertContact(ctx context.Context, tenantEmail, canonicalID, displayName, a
 	if err != nil {
 		return 0, err
 	}
-	id := int64(newID)
 
-	// Why: Identity-X requires every primary identifier to be registered as an alias for resolution.
-	aliasType := ContactTypeEmail
-	if source == ContactTypeWhatsApp {
-		aliasType = ContactTypeWhatsApp
-	} else if !strings.Contains(canonicalID, "@") {
-		aliasType = ContactTypeName
-	}
-	_ = RegisterAlias(ctx, id, aliasType, canonicalID, source, 5)
-
-	// Why: Register Display Name as an alias to ensure ResolveAlias works with names too.
-	if strings.TrimSpace(displayName) != "" && !strings.EqualFold(strings.TrimSpace(displayName), canonicalID) {
-		_ = RegisterAlias(ctx, id, ContactTypeName, displayName, source, 1)
-	}
-
-	// Why: Register secondary aliases provided in the legacy format for backwards compatibility and discovery.
-	for _, a := range strings.Split(aliases, ",") {
-		if trimmed := NormalizeIdentifier(a); trimmed != "" {
-			_ = RegisterAlias(ctx, id, ContactTypeName, trimmed, source, 1)
-		}
+	if strings.HasSuffix(strings.ToLower(canonicalID), "@whatap.io") {
+		_ = UpdateContactType(ctx, id, CategoryInternal)
 	}
 
 	UpdateContactsCache(id, tenantEmail, canonicalID, displayName, source)
@@ -161,7 +144,7 @@ func UpdateContactsCache(id int64, email, canonicalID, displayName, source strin
 
 // AutoUpsertContact provides a safe, automatic way to register new email contacts found during ingestion.
 // It merges new aliases and avoids overwriting meaningful display names with raw email addresses.
-func AutoUpsertContact(tenantEmail, email, name, source string) error {
+func AutoUpsertContact(ctx context.Context, tenantEmail, email, name, source string) error {
 	canonicalID := strings.ToLower(strings.TrimSpace(email))
 	if canonicalID == "" {
 		return nil
@@ -184,53 +167,76 @@ func AutoUpsertContact(tenantEmail, email, name, source string) error {
 	}
 
 	if existing != nil {
-		// Defensive Update: Only update display_name if the new name is valid.
 		finalDisplayName := existing.DisplayName
 		if isValidName {
 			finalDisplayName = newName
 		}
-
-		_, err := UpsertContact(context.Background(), tenantEmail, canonicalID, finalDisplayName, aliases, source)
+		_, err := UpsertContact(ctx, tenantEmail, canonicalID, finalDisplayName, aliases, source)
 		return err
 	}
 
-	_, err := UpsertContact(context.Background(), tenantEmail, canonicalID, displayName, aliases, source)
+	_, err := UpsertContact(ctx, tenantEmail, canonicalID, displayName, aliases, source)
 	return err
 }
 
 
-func SaveWhatsAppContact(email, number, name string) error {
-	if number == "" || name == "" {
-		return nil
-	}
-
-	// Why: If the name is just the phone number, it's not a useful PushName.
-	if name == number {
+func SaveWhatsAppContact(ctx context.Context, email, number, name string) error {
+	if number == "" || name == "" || name == number {
 		return nil
 	}
 
 	metadataMu.RLock()
-	existing := findInCache(email, func(m ContactRecord) bool {
-		return m.CanonicalID == number || m.DisplayName == name
+	// Number already stored as secondary_id on an email contact — no further action
+	linkedToEmail := findInCache(email, func(m ContactRecord) bool {
+		return m.CanonicalID != number && slices.Contains(m.SecondaryIDs, number)
+	})
+	// Existing canonical WA contact for this number
+	waContact := findInCache(email, func(m ContactRecord) bool {
+		return m.CanonicalID == number
+	})
+	// Email contact whose display name matches — candidate for secondary_id linking
+	emailContact := findInCache(email, func(m ContactRecord) bool {
+		return m.CanonicalID != number && strings.EqualFold(m.DisplayName, name)
 	})
 	metadataMu.RUnlock()
 
-	displayName := name
-	canonical := number
-	if existing != nil {
-		canonical = existing.CanonicalID
-		// Why: Update if the existing name is just the number (temporary fallback) 
-		// or if it's already a PushName and we got a fresh one. 
-		// We only preserve it if it was likely a manual/verified name that differs from both number and new name.
-		if existing.DisplayName == number || existing.DisplayName == "" || strings.Contains(existing.DisplayName, " ") {
-			displayName = name
-		} else {
-			displayName = existing.DisplayName
+	if linkedToEmail != nil {
+		return nil
+	}
+	// If a matching email contact exists and no canonical WA contact yet, link as secondary_id
+	if emailContact != nil && emailContact.ID > 0 && waContact == nil {
+		return appendSecondaryID(ctx, email, emailContact.ID, number)
+	}
+	// Update existing WA contact's display name if it's a human-readable name
+	if waContact != nil {
+		if waContact.DisplayName == number || waContact.DisplayName == "" || strings.Contains(waContact.DisplayName, " ") {
+			_, err := UpsertContact(ctx, email, number, name, "", ContactTypeWhatsApp)
+			return err
 		}
+		return nil
 	}
 
-	_, err := UpsertContact(context.Background(), email, canonical, displayName, number, ContactTypeWhatsApp)
+	_, err := UpsertContact(ctx, email, number, name, "", ContactTypeWhatsApp)
 	return err
+}
+
+func appendSecondaryID(ctx context.Context, tenantEmail string, contactID int64, value string) error {
+	err := db.New(GetDB()).AppendSecondaryID(ctx, db.AppendSecondaryIDParams{
+		Value: value,
+		ID:    contactID,
+	})
+	if err != nil {
+		return err
+	}
+	metadataMu.Lock()
+	for i := range contactsCache[tenantEmail] {
+		if contactsCache[tenantEmail][i].ID == contactID {
+			contactsCache[tenantEmail][i].SecondaryIDs = append(contactsCache[tenantEmail][i].SecondaryIDs, value)
+			break
+		}
+	}
+	metadataMu.Unlock()
+	return nil
 }
 
 func GetNameByWhatsAppNumber(email, number string) string {
@@ -431,20 +437,39 @@ func BulkResolveIdentityX(ctx context.Context, identifiers []string) (map[string
 
 func processResolutionChunk(ctx context.Context, chunk []string, res map[string]int64, ambiguous map[string]bool) {
 	queries := db.New(GetDB())
-	rows, err := queries.GetAliasesByValues(ctx, chunk)
+	rows, err := queries.GetContactsByValues(ctx, chunk)
 	if err != nil {
 		return
 	}
 
-	idToCanonical := make(map[string][]int64)
-	for _, row := range rows {
-		canonID := GlobalContactDSU.Find(row.ContactID)
-		if !slices.Contains(idToCanonical[row.IdentifierValue], canonID) {
-			idToCanonical[row.IdentifierValue] = append(idToCanonical[row.IdentifierValue], canonID)
+	chunkSet := make(map[string]bool, len(chunk))
+	for _, v := range chunk {
+		chunkSet[strings.ToLower(v)] = true
+	}
+
+	addMatch := func(m map[string][]int64, val string, id int64) {
+		if !slices.Contains(m[val], id) {
+			m[val] = append(m[val], id)
 		}
 	}
 
-	for val, cids := range idToCanonical {
+	idToContacts := make(map[string][]int64)
+	for _, row := range rows {
+		canonID := GlobalContactDSU.Find(row.ID)
+		if lower := strings.ToLower(row.CanonicalID); chunkSet[lower] {
+			addMatch(idToContacts, lower, canonID)
+		}
+		if dn := strings.ToLower(row.DisplayName); dn != "" && chunkSet[dn] {
+			addMatch(idToContacts, dn, canonID)
+		}
+		for _, sid := range row.SecondaryIDs {
+			if sl := strings.ToLower(sid); chunkSet[sl] {
+				addMatch(idToContacts, sl, canonID)
+			}
+		}
+	}
+
+	for val, cids := range idToContacts {
 		if len(cids) > 1 {
 			ambiguous[val] = true
 		} else if len(cids) == 1 {
@@ -463,6 +488,10 @@ func fetchAllTenantContacts(ctx context.Context, tenantEmail string) ([]ContactR
 
 	all := make([]ContactRecord, len(rows))
 	for i, r := range rows {
+		var sids []string
+		if r.SecondaryIDs != "" && r.SecondaryIDs != "null" {
+			_ = json.Unmarshal([]byte(r.SecondaryIDs), &sids)
+		}
 		all[i] = ContactRecord{
 			ID:              r.ID,
 			TenantEmail:     r.TenantEmail,
@@ -471,6 +500,7 @@ func fetchAllTenantContacts(ctx context.Context, tenantEmail string) ([]ContactR
 			Source:          r.Source.String,
 			MasterContactID: r.MasterContactID,
 			ContactType:     r.ContactType.String,
+			SecondaryIDs:    sids,
 		}
 	}
 	return all, nil
@@ -495,6 +525,38 @@ func findByID(all []ContactRecord, id int64) *ContactRecord {
 	return nil
 }
 
+// BulkResolveAliases resolves multiple names to their display names in one pass.
+func BulkResolveAliases(ctx context.Context, tenantEmail string, names []string) map[string]string {
+	if len(names) == 0 {
+		return make(map[string]string)
+	}
+	res, _, err := GetContactsByIdentifiers(ctx, tenantEmail, names)
+	if err != nil {
+		return fallbackToOriginal(names)
+	}
+	return buildResolutionMap(names, res)
+}
+
+func fallbackToOriginal(names []string) map[string]string {
+	m := make(map[string]string)
+	for _, n := range names {
+		m[n] = n
+	}
+	return m
+}
+
+func buildResolutionMap(names []string, res map[string]*ContactRecord) map[string]string {
+	m := make(map[string]string)
+	for _, n := range names {
+		if c, ok := res[n]; ok && c != nil {
+			m[n] = c.DisplayName
+		} else {
+			m[n] = n
+		}
+	}
+	return m
+}
+
 func recordMissing(tenantEmail, normalized string) {
 	metadataMu.Lock()
 	defer metadataMu.Unlock()
@@ -507,7 +569,15 @@ func recordMissing(tenantEmail, normalized string) {
 }
 
 func matchContact(c *ContactRecord, normalized string) bool {
-	return strings.ToLower(c.CanonicalID) == normalized || strings.ToLower(c.DisplayName) == normalized
+	if strings.ToLower(c.CanonicalID) == normalized || strings.ToLower(c.DisplayName) == normalized {
+		return true
+	}
+	for _, sid := range c.SecondaryIDs {
+		if strings.ToLower(sid) == normalized {
+			return true
+		}
+	}
+	return false
 }
 
 // GetContactByIdentifier provides a backward-compatible wrapper for single identity resolution.
@@ -547,6 +617,10 @@ func GetContactByID(ctx context.Context, tenantEmail string, id int64) (*Contact
 	if err != nil {
 		return nil, err
 	}
+	var sids []string
+	if row.SecondaryIDs != "" && row.SecondaryIDs != "null" {
+		_ = json.Unmarshal([]byte(row.SecondaryIDs), &sids)
+	}
 	return &ContactRecord{
 		ID:              row.ID,
 		TenantEmail:     row.TenantEmail,
@@ -555,6 +629,7 @@ func GetContactByID(ctx context.Context, tenantEmail string, id int64) (*Contact
 		Source:          row.Source.String,
 		MasterContactID: row.MasterContactID,
 		ContactType:     row.ContactType.String,
+		SecondaryIDs:    sids,
 	}, nil
 }
 
@@ -701,39 +776,29 @@ func GetLinkedContacts(ctx context.Context, tenantEmail string) ([]ContactRecord
 	return results, nil
 }
 
-// RegisterAlias adds or updates an identifier mapping for a contact.
-// Why: Standardizes the 1:N mapping and ensures all identifiers are indexed for fast resolution.
-func RegisterAlias(ctx context.Context, contactID int64, idType, value, source string, trust int) error {
-	trimmed := strings.ToLower(strings.TrimSpace(value))
-	if trimmed == "" {
-		return nil
-	}
-
-	if err := db.New(GetDB()).AddContactAlias(ctx, db.AddContactAliasParams{
-		ContactID:       int64(contactID),
-		IdentifierType:  idType,
-		IdentifierValue: trimmed,
-		Source:          source,
-		TrustLevel:      nullInt64(int64(trust)),
-	}); err != nil {
-		return err
-	}
-
-	// Promotion: If email alias belongs to internal domain, promote master contact to 'internal'.
-	if idType == ContactTypeEmail && strings.HasSuffix(trimmed, "@whatap.io") {
-		return UpdateContactType(ctx, contactID, CategoryInternal)
-	}
-
-	return nil
-}
 
 func ResolveAliases(ctx context.Context, idType, value string) ([]int64, error) {
 	trimmed := strings.ToLower(strings.TrimSpace(value))
-	
+
 	start := time.Now()
 	conn := GetDB()
-	query := "SELECT contact_id FROM contact_aliases WHERE identifier_value = ? AND identifier_type = ?"
-	rows, err := conn.QueryContext(ctx, query, trimmed, idType)
+
+	var query string
+	var args []interface{}
+	switch idType {
+	case ContactTypeWhatsApp:
+		query = "SELECT id FROM contacts WHERE LOWER(canonical_id) = ?" +
+			" UNION SELECT contacts.id FROM contacts, json_each(secondary_ids) j WHERE LOWER(j.value) = ?"
+		args = []interface{}{trimmed, trimmed}
+	case ContactTypeEmail:
+		query = "SELECT id FROM contacts WHERE LOWER(canonical_id) = ?"
+		args = []interface{}{trimmed}
+	default:
+		query = "SELECT id FROM contacts WHERE LOWER(canonical_id) = ? OR LOWER(display_name) = ?"
+		args = []interface{}{trimmed, trimmed}
+	}
+
+	rows, err := conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -760,7 +825,7 @@ func ResolveAliases(ctx context.Context, idType, value string) ([]int64, error) 
 			seen[cid] = true
 		}
 	}
-	
+
 	elapsed := time.Since(start).Milliseconds()
 	trace.Step(ctx, "IdentityResolution", fmt.Sprintf("Type: %s, Latency: %dms, Results: %d", idType, elapsed, len(canonicalIDs)), int(elapsed), 0)
 

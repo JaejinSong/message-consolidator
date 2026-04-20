@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
+	"strings"
 	"testing"
 	"time"
 )
@@ -19,21 +20,21 @@ func TestSelfHealingEngine(t *testing.T) {
 	tenant := testutil.RandomEmail("admin")
 	email := testutil.RandomEmail("jjsong")
 	name := "Jaejin Song"
-	alias := "JJ" + testutil.RandomID("")
 
 	// 1. Setup Contact (Deep Lookup 대상)
-	err = store.AddContactMapping(context.Background(), tenant, email, name, alias, "test")
+	err = store.AddContactMapping(context.Background(), tenant, email, name, "", "test")
 	if err != nil {
 		t.Fatalf("Failed to add contact: %v", err)
 	}
 
-	// 2. Insert fragmented message (Requester가 별칭인 "JJ"로 저장됨)
+	// 2. Insert fragmented message (Requester가 대소문자 다른 display_name으로 저장됨 — healing 트리거 조건)
+	requester := strings.ToUpper(name) // "JAEJIN SONG" — resolves via case-insensitive lookup but triggers DB heal
 	msg := store.ConsolidatedMessage{
 		UserEmail:  tenant,
 		Source:     "slack",
 		Room:       "room1",
 		Task:       "Test Task",
-		Requester:  alias,
+		Requester:  requester,
 		Assignee:   "someone@else.com",
 		AssignedAt: time.Now(),
 		SourceTS:   fmt.Sprintf("12345.678.%d", time.Now().UnixNano()),
@@ -44,13 +45,12 @@ func TestSelfHealingEngine(t *testing.T) {
 		t.Fatalf("Failed to save message: %v", err)
 	}
 
-
 	// 3. Initialize Service
 	svc := &ReportsService{}
 
 	// 4. Run Sanitization
 	messages := []Log{
-		{ID: msgID, UserEmail: tenant, Room: "room1", Requester: alias, Assignee: "someone@else.com"},
+		{ID: msgID, UserEmail: tenant, Room: "room1", Requester: requester, Assignee: "someone@else.com"},
 	}
 	svc.sanitizeMessages(context.Background(), tenant, messages)
 

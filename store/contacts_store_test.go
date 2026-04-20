@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"message-consolidator/internal/testutil"
 	"testing"
 )
@@ -16,7 +17,7 @@ func TestAutoUpsertContact(t *testing.T) {
 	email := testutil.RandomEmail("contact-user")
 	
 	// 1. Initial Insert
-	err = AutoUpsertContact(tenant, email, "User One", "test")
+	err = AutoUpsertContact(context.Background(), tenant, email, "User One", "test")
 	if err != nil {
 		t.Fatalf("Failed to upsert: %v", err)
 	}
@@ -28,7 +29,7 @@ func TestAutoUpsertContact(t *testing.T) {
 	}
 
 	// 2. Defensive Update: Empty Name
-	err = AutoUpsertContact(tenant, email, "", "test")
+	err = AutoUpsertContact(context.Background(), tenant, email, "", "test")
 	if err != nil {
 		t.Fatalf("Failed to upsert: %v", err)
 	}
@@ -38,7 +39,7 @@ func TestAutoUpsertContact(t *testing.T) {
 	}
 
 	// 3. Defensive Update: Name = Email
-	err = AutoUpsertContact(tenant, email, "user1@whatap.io", "test")
+	err = AutoUpsertContact(context.Background(), tenant, email, "user1@whatap.io", "test")
 	if err != nil {
 		t.Fatalf("Failed to upsert: %v", err)
 	}
@@ -48,7 +49,7 @@ func TestAutoUpsertContact(t *testing.T) {
 	}
 
 	// 4. Update with New Valid Name & Merge Alias
-	err = AutoUpsertContact(tenant, email, "User 1", "test")
+	err = AutoUpsertContact(context.Background(), tenant, email, "User 1", "test")
 	if err != nil {
 		t.Fatalf("Failed to upsert: %v", err)
 	}
@@ -57,13 +58,13 @@ func TestAutoUpsertContact(t *testing.T) {
 		t.Errorf("Update failed: Expected User 1, got %s", name)
 	}
 
-	// Check aliases merged in DB
-	var count int
-	err = GetDB().QueryRow("SELECT COUNT(*) FROM contact_aliases WHERE contact_id = (SELECT id FROM contacts WHERE canonical_id = ?)", email).Scan(&count)
+	// Verify contact exists with the latest display_name
+	var displayName string
+	err = GetDB().QueryRow("SELECT display_name FROM contacts WHERE canonical_id = ?", email).Scan(&displayName)
 	if err != nil {
-		t.Fatalf("Failed to query aliases: %v", err)
+		t.Fatalf("Failed to query contact: %v", err)
 	}
-	if count == 0 {
-		t.Errorf("Aliases merge failed: no aliases found in contact_aliases table")
+	if displayName != "User 1" {
+		t.Errorf("Expected display_name 'User 1', got '%s'", displayName)
 	}
 }

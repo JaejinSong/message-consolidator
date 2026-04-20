@@ -32,7 +32,6 @@ func TestNormalizeWithCategory(t *testing.T) {
 
 	// 2. Setup Identities for Single Identity Resolution (Jaejin Song)
 	jjsongID, _ := AddContact(ctx, tenantEmail, "jjsong@whatap.io", "Jaejin Song", "", "all")
-	_ = RegisterAlias(ctx, jjsongID, ContactTypeName, "JJ", "manual", 5)
 	_ = UpdateContactType(ctx, jjsongID, CategoryInternal)
 
 	// 3. Setup Ambiguity Scenario (Multiple CanonicalIDs for same name "Min")
@@ -74,8 +73,8 @@ func TestNormalizeWithCategory(t *testing.T) {
 			expectedCat:  "Internal",
 		},
 		{
-			testName:     "Single Identity Resolution (Alias lookup)",
-			input:        "JJ",
+			testName:     "Single Identity Resolution (display_name lookup)",
+			input:        "Jaejin Song",
 			expectedID:   "jjsong@whatap.io",
 			expectedName: "Jaejin Song",
 			expectedCat:  "Internal",

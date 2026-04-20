@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"message-consolidator/internal/testutil"
 	"testing"
 )
@@ -17,7 +18,7 @@ func TestWhatsAppNameMapping(t *testing.T) {
 	waPushName := "Hong Gil-dong"
 
 	t.Run("Save New PushName", func(t *testing.T) {
-		err := SaveWhatsAppContact(tenantEmail, waNumber, waPushName)
+		err := SaveWhatsAppContact(context.Background(), tenantEmail, waNumber, waPushName)
 		if err != nil {
 			t.Fatalf("SaveWhatsAppContact failed: %v", err)
 		}
@@ -30,7 +31,7 @@ func TestWhatsAppNameMapping(t *testing.T) {
 
 	t.Run("Prevent Overwriting with Number", func(t *testing.T) {
 		// When a message comes without a PushName (or PushName is the number itself)
-		err := SaveWhatsAppContact(tenantEmail, waNumber, waNumber)
+		err := SaveWhatsAppContact(context.Background(), tenantEmail, waNumber, waNumber)
 		if err != nil {
 			t.Fatalf("SaveWhatsAppContact failed: %v", err)
 		}
@@ -44,7 +45,7 @@ func TestWhatsAppNameMapping(t *testing.T) {
 
 	t.Run("Update PushName", func(t *testing.T) {
 		newPushName := "Gildong Hong"
-		err := SaveWhatsAppContact(tenantEmail, waNumber, newPushName)
+		err := SaveWhatsAppContact(context.Background(), tenantEmail, waNumber, newPushName)
 		if err != nil {
 			t.Fatalf("SaveWhatsAppContact failed: %v", err)
 		}

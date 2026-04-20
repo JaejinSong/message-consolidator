@@ -104,7 +104,7 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 		return nil
 	}
 
-	rawMsgs, clsMap, toMap, maxTS := parseNewEmails(svc, email, allMsgs, cfg)
+	rawMsgs, clsMap, toMap, maxTS := parseNewEmails(ctx, svc, email, allMsgs, cfg)
 	var newIDs []int
 	if len(rawMsgs) > 0 {
 		newIDs = analyzeAndSaveEmails(ctx, email, language, rawMsgs, clsMap, toMap, cfg, onThreadActivity)
@@ -148,7 +148,7 @@ func fetchRecentEmails(svc *gmail.Service, email, query string) []*gmail.Message
 	return allMsgs
 }
 
-func parseNewEmails(svc *gmail.Service, email string, messages []*gmail.Message, cfg *config.Config) ([]types.RawMessage, map[string]string, map[string]string, int64) {
+func parseNewEmails(ctx context.Context, svc *gmail.Service, email string, messages []*gmail.Message, cfg *config.Config) ([]types.RawMessage, map[string]string, map[string]string, int64) {
 	var rawMsgs []types.RawMessage
 	classificationMap := make(map[string]string)
 	toMap := make(map[string]string)
@@ -157,7 +157,7 @@ func parseNewEmails(svc *gmail.Service, email string, messages []*gmail.Message,
 	skips := getGmailSkips(cfg)
 
 	for _, m := range messages {
-		rawMsg, cls, to, ts, err := processSingleEmail(svc, email, m, skips)
+		rawMsg, cls, to, ts, err := processSingleEmail(ctx, svc, email, m, skips)
 		if err != nil {
 			logger.Errorf("[SCAN-GMAIL] Get Error for %s: %v", m.Id, err)
 			continue
@@ -176,7 +176,7 @@ func parseNewEmails(svc *gmail.Service, email string, messages []*gmail.Message,
 }
 
 // Why: Extracts the processing of a single email to reduce cognitive load and simplify the main parsing loop.
-func processSingleEmail(svc *gmail.Service, email string, m *gmail.Message, skips []string) (*types.RawMessage, string, string, int64, error) {
+func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m *gmail.Message, skips []string) (*types.RawMessage, string, string, int64, error) {
 	fullMsg, err := svc.Users.Messages.Get("me", m.Id).Format("full").Do()
 	if err != nil {
 		return nil, "", "", 0, err
@@ -200,9 +200,9 @@ func processSingleEmail(svc *gmail.Service, email string, m *gmail.Message, skip
 	}
 
 	// Why: Automatically registers all participants (sender and recipients) in the contacts database to improve future identity resolution.
-	senderEmail := upsertAddresses(email, fromHeader, "gmail")
-	upsertAddresses(email, toHeader, "gmail")
-	upsertAddresses(email, ccHeader, "gmail")
+	senderEmail := upsertAddresses(ctx, email, fromHeader, "gmail")
+	upsertAddresses(ctx, email, toHeader, "gmail")
+	upsertAddresses(ctx, email, ccHeader, "gmail")
 
 	classification := classifyGmail(isFromMe, isDirect)
 	body := extractBody(fullMsg.Payload)
@@ -235,7 +235,7 @@ func processSingleEmail(svc *gmail.Service, email string, m *gmail.Message, skip
 
 // upsertAddresses parses a comma-separated list of email addresses and registers each one in the contacts store.
 // It returns the email address of the first parsed contact for use as a primary identifier.
-func upsertAddresses(tenantEmail, header, source string) string {
+func upsertAddresses(ctx context.Context, tenantEmail, header, source string) string {
 	if header == "" {
 		return ""
 	}
@@ -263,7 +263,7 @@ func upsertAddresses(tenantEmail, header, source string) string {
 		if decoded, err := dec.DecodeHeader(name); err == nil {
 			name = decoded
 		}
-		_ = store.AutoUpsertContact(tenantEmail, email, name, source)
+		_ = store.AutoUpsertContact(ctx, tenantEmail, email, name, source)
 	}
 
 	if firstEmail != "" {

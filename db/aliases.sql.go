@@ -7,32 +7,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
 )
 
-const addContactAlias = `-- name: AddContactAlias :exec
-INSERT INTO contact_aliases (contact_id, identifier_type, identifier_value, source, trust_level)
-VALUES (?, ?, ?, ?, ?)
-`
-
-type AddContactAliasParams struct {
-	ContactID       int64         `json:"contact_id"`
-	IdentifierType  string        `json:"identifier_type"`
-	IdentifierValue string        `json:"identifier_value"`
-	Source          string        `json:"source"`
-	TrustLevel      sql.NullInt64 `json:"trust_level"`
-}
-
-func (q *Queries) AddContactAlias(ctx context.Context, arg AddContactAliasParams) error {
-	_, err := q.db.ExecContext(ctx, addContactAlias,
-		arg.ContactID,
-		arg.IdentifierType,
-		arg.IdentifierValue,
-		arg.Source,
-		arg.TrustLevel,
-	)
-	return err
-}
 
 const createUserAlias = `-- name: CreateUserAlias :exec
 INSERT INTO user_aliases (user_id, alias_name) 
@@ -144,46 +120,6 @@ func (q *Queries) GetAllUserAliases(ctx context.Context) ([]GetAllUserAliasesRow
 	return items, nil
 }
 
-const getContactAliases = `-- name: GetContactAliases :many
-SELECT contact_id, identifier_type, identifier_value, source, trust_level FROM contact_aliases WHERE contact_id = ?
-`
-
-type GetContactAliasesRow struct {
-	ContactID       int64         `json:"contact_id"`
-	IdentifierType  string        `json:"identifier_type"`
-	IdentifierValue string        `json:"identifier_value"`
-	Source          string        `json:"source"`
-	TrustLevel      sql.NullInt64 `json:"trust_level"`
-}
-
-func (q *Queries) GetContactAliases(ctx context.Context, contactID int64) ([]GetContactAliasesRow, error) {
-	rows, err := q.db.QueryContext(ctx, getContactAliases, contactID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetContactAliasesRow
-	for rows.Next() {
-		var i GetContactAliasesRow
-		if err := rows.Scan(
-			&i.ContactID,
-			&i.IdentifierType,
-			&i.IdentifierValue,
-			&i.Source,
-			&i.TrustLevel,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
 
 const getUserAliases = `-- name: GetUserAliases :many
 SELECT alias_name FROM user_aliases WHERE user_id = ?

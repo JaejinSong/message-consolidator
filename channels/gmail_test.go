@@ -208,7 +208,7 @@ func TestUpsertAddresses(t *testing.T) {
 	
 	// Case 1: Multiple recipients
 	header := "Lim Sola <sola@whatap.io>, Kenny Holmes <kenny@whatap.io>"
-	first := upsertAddresses(tenant, header, "gmail")
+	first := upsertAddresses(context.Background(), tenant, header, "gmail")
 
 	if first != "sola@whatap.io" {
 		t.Errorf("Expected sola@whatap.io, got %s", first)

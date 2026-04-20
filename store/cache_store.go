@@ -29,9 +29,6 @@ var (
 	// contactsCache stores consolidated identity mappings (SSOT) to improve requester identification across platforms.
 	contactsCache    = make(map[string][]ContactRecord)
 
-	// aliasCache stores message aliases for a specific contact (Identity-X resolution support).
-	aliasCache       = make(map[int64][]string)
-
 	// lastArchiveTime tracks the last successful auto-archive execution to ensure throttled processing.
 	lastArchiveTime  time.Time
 	
@@ -74,7 +71,6 @@ func ResetForTest() {
 	dirtyScanKeys = make(map[string]bool)
 	tokenCache = make(map[string]string)
 	contactsCache = make(map[string][]ContactRecord)
-	aliasCache = make(map[int64][]string)
 	GlobalContactDSU.Reset()
 
 	archiveMu.Lock()
@@ -246,51 +242,4 @@ func ArchiveOldTasks(ctx context.Context) error {
 		_ = RefreshAllCaches(ctx)
 	}
 	return nil
-}
-// ClearAliasCache removes the cached aliases for a specific contact.
-func ClearAliasCache(contactID int64) {
-	metadataMu.Lock()
-	defer metadataMu.Unlock()
-	delete(aliasCache, contactID)
-}
-
-// GetAliasesForContact retrieves aliases for a contact from cache or DB (Cache-Aside).
-func GetAliasesForContact(ctx context.Context, contactID int64) ([]string, error) {
-	if cached := getCachedAliases(contactID); cached != nil {
-		return cached, nil
-	}
-
-	key := fmt.Sprintf("aliases:%d", contactID)
-	val, err, _ := sfGroup.Do(key, func() (interface{}, error) {
-		return fetchAndCacheAliases(ctx, contactID)
-	})
-
-	if err != nil {
-		return nil, err
-	}
-	return val.([]string), nil
-}
-
-func getCachedAliases(id int64) []string {
-	metadataMu.RLock()
-	defer metadataMu.RUnlock()
-	return aliasCache[id]
-}
-
-func fetchAndCacheAliases(ctx context.Context, id int64) ([]string, error) {
-	queries := db.New(GetDB())
-	rows, err := queries.GetContactAliases(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	var aliases []string
-	for _, r := range rows {
-		aliases = append(aliases, r.IdentifierValue)
-	}
-
-	metadataMu.Lock()
-	defer metadataMu.Unlock()
-	aliasCache[id] = aliases
-	return aliases, nil
 }

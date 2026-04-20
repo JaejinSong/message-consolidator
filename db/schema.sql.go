@@ -25,23 +25,6 @@ func (q *Queries) CreateAIInferenceLogsTable(ctx context.Context) error {
 	return err
 }
 
-const createContactAliasesTable = `-- name: CreateContactAliasesTable :exec
-CREATE TABLE IF NOT EXISTS contact_aliases (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
-    identifier_type TEXT NOT NULL,
-    identifier_value TEXT NOT NULL,
-    source TEXT NOT NULL,
-    trust_level INTEGER DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(contact_id, identifier_type, identifier_value)
-)
-`
-
-func (q *Queries) CreateContactAliasesTable(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, createContactAliasesTable)
-	return err
-}
 
 const createContactsResolvedView = `-- name: CreateContactsResolvedView :exec
 CREATE VIEW IF NOT EXISTS v_contacts_resolved AS
@@ -74,6 +57,7 @@ CREATE TABLE IF NOT EXISTS contacts (
     source VARCHAR(50) DEFAULT 'all',
     master_contact_id INTEGER REFERENCES contacts(id),
     contact_type TEXT DEFAULT 'none',
+    secondary_ids TEXT DEFAULT '[]',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(tenant_email, canonical_id)
 )

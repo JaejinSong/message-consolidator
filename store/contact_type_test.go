@@ -18,22 +18,12 @@ func TestContactTypePromotion(t *testing.T) {
 	ctx := context.Background()
 	tenant := "test@example.com"
 
-	t.Run("Promotion via Email Alias", func(t *testing.T) {
-		// 1. Create a 'none' contact
-		id, err := AddContact(ctx, tenant, "external@gmail.com", "External User", "", "gmail")
+	t.Run("Promotion via Internal canonical_id", func(t *testing.T) {
+		// Contacts whose canonical_id is @whatap.io are promoted to 'internal' on upsert.
+		id, err := AddContact(ctx, tenant, "staff@whatap.io", "Staff User", "", "manual")
 		assert.NoError(t, err)
 
 		c, _ := GetContactByID(ctx, tenant, id)
-		if c != nil {
-			assert.Equal(t, "none", c.ContactType)
-		}
-
-		// 2. Register internal email alias
-		err = RegisterAlias(ctx, id, "email", "staff@whatap.io", "manual", 5)
-		assert.NoError(t, err)
-
-		// 3. Verify promotion to 'internal'
-		c, _ = GetContactByID(ctx, tenant, id)
 		if c != nil {
 			assert.Equal(t, "internal", c.ContactType)
 		}
