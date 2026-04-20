@@ -3,12 +3,14 @@ package channels
 import (
 	"context"
 	"message-consolidator/config"
+	"message-consolidator/services"
 	"message-consolidator/store"
 	"message-consolidator/types"
 	"strings"
 	"testing"
 	"google.golang.org/api/gmail/v1"
 )
+
 
 
 func TestClassifyGmail(t *testing.T) {
@@ -65,30 +67,26 @@ func TestCheckRecipientStatus(t *testing.T) {
 	}
 }
 
-func TestResolveGmailCategoryAndAssignee(t *testing.T) {
-	fallback := "Jaejin Song"
+func TestBuildTask_GmailIdentityFallback(t *testing.T) {
+	// Why: Proves that the Unified Builder fills in Requester from SenderRaw when AI returns empty.
+	user := store.User{Name: "Jaejin Song", Email: "jaejin@example.com"}
+	item := store.TodoItem{Task: "Check server", Requester: "", Assignee: "__CURRENT_USER__"}
 
-	// Case 1: My Task (CategoryMine)
-	item1 := store.TodoItem{Assignee: "Jaejin Song", Category: "todo"}
-	asg1, cat1 := resolveGmailCategoryAndAssignee(item1, true, CategoryMine, "me@example.com", fallback)
-	if asg1 != fallback || cat1 != CategoryMine {
-		t.Errorf("Case 1 (My Task): got %s, %s; want %s, %s", asg1, cat1, fallback, CategoryMine)
+	params := services.TaskBuildParams{
+		UserEmail: user.Email, User: user, Item: item,
+		SenderRaw: "Kenny Park", Source: "gmail", Room: "Gmail",
+		GmailClassification: CategoryMine,
 	}
+	msg := services.BuildTask(params)
 
-	// Case 2: AI가 나를 지목했지만 메일은 CC인 경우 (AI Claimed CC)
-	item2 := store.TodoItem{Assignee: "me", Category: "todo"}
-	asg2, cat2 := resolveGmailCategoryAndAssignee(item2, true, CategoryOthers, "other@example.com <other@example.com>", fallback)
-	if asg2 != fallback || cat2 != CategoryMine {
-		t.Errorf("Case 2 (AI Claimed CC): got %s, %s; want %s, %s", asg2, cat2, fallback, CategoryMine)
+	if msg.Requester != "Kenny Park" {
+		t.Errorf("Expected Requester='Kenny Park', got %q", msg.Requester)
 	}
-
-	// Case 3: AI가 나를 지목했지만 그룹 메세지인 경우 (Group Mail)
-	item3 := store.TodoItem{Assignee: "me", Category: "todo"}
-	asg3, cat3 := resolveGmailCategoryAndAssignee(item3, true, CategoryOthers, "indonesia@whatap.io", fallback)
-	if asg3 != fallback || cat3 != CategoryMine {
-		t.Errorf("Case 3 (Group Mail): got %s, %s; want %s, %s", asg3, cat3, fallback, CategoryMine)
+	if msg.Assignee != "Jaejin Song" {
+		t.Errorf("Expected Assignee='Jaejin Song' from __CURRENT_USER__, got %q", msg.Assignee)
 	}
 }
+
 
 func TestStripHTML(t *testing.T) {
 	tests := []struct {

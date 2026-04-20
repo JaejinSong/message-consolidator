@@ -6,6 +6,7 @@ import (
 	"message-consolidator/ai"
 	"message-consolidator/channels"
 	"message-consolidator/logger"
+	"message-consolidator/services"
 	"message-consolidator/store"
 	"message-consolidator/types"
 	"regexp"
@@ -19,6 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 )
+
 
 var slackMentionRegex = regexp.MustCompile(`<@([A-Z0-9]+)>`)
 
@@ -477,13 +479,23 @@ func mapSlackItemToMessage(ctx context.Context, item store.TodoItem, m types.Raw
 	}
 	link := buildSlackLinkAndRegisterThread(ctx, m, user.Email)
 
-	params := BuildTaskParams{
-		User: *user, Item: item, Raw: m, Source: "slack",
-		Room: sc.GetChannelName(m.ChannelID), Link: link, ThreadID: threadID,
+	params := services.TaskBuildParams{
+		UserEmail:      user.Email,
+		User:           *user,
+		Aliases:        aliases,
+		Item:           item,
+		SenderRaw:      m.Sender, // Resolved Slack display name — primary identity fallback
+		Source:         "slack",
+		Room:           sc.GetChannelName(m.ChannelID),
+		Link:           link,
+		SourceTS:       m.ID,
+		OriginalText:   m.Text,
+		ThreadID:       threadID,
 		SourceChannels: []string{"slack"},
 	}
-	return BuildConsolidatedMessage(params, aliases)
+	return services.BuildTask(params)
 }
+
 
 
 func buildSlackLinkAndRegisterThread(ctx context.Context, m types.RawMessage, email string) string {

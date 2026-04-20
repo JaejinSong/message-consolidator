@@ -1,0 +1,150 @@
+package services
+
+import (
+	"message-consolidator/store"
+	"message-consolidator/types"
+	"strings"
+)
+
+// TaskBuildParams holds cross-channel inputs required for building a consolidated message.
+// Why: Single input type prevents argument sprawl and makes the factory function stable as new channels are added.
+type TaskBuildParams struct {
+	UserEmail string
+	User      store.User
+	Aliases   []string
+	Item      store.TodoItem
+
+	// Raw metadata from the source channel — used as authoritative fallback if AI leaves fields empty.
+	SenderRaw   string // Resolved display name (e.g., "WhaTap Bot", "Kenny")
+	SenderEmail string // Raw email/ID (e.g., "kenny@whatap.io")
+	ToHeader    string // Primary recipient header (for Gmail assignee resolution)
+
+	Source         string
+	Room           string
+	Link           string
+	ThreadID       string
+	SourceTS       string
+	Timestamp      interface{ IsZero() bool } // time.Time compatible
+	OriginalText   string
+	SourceChannels []string
+
+	// Gmail-specific classification hint (CategorySent / CategoryMine / CategoryOthers)
+	GmailClassification string
+}
+
+// BuildTask creates a ConsolidatedMessage applying shared identity rules across all channels.
+//
+// Rule hierarchy for Requester:
+//  1. AI-extracted requester (if non-empty)
+//  2. SenderRaw (resolved display name from channel metadata)
+//  3. SenderEmail (raw identifier as last resort)
+//
+// Rule hierarchy for Assignee:
+//  1. AI-extracted assignee, normalized via NormalizeAssignee
+//  2. Falls back to AssigneeShared when AI returns empty
+func BuildTask(p TaskBuildParams) store.ConsolidatedMessage {
+	requester := resolveRequester(p)
+	assignee := resolveAssignee(p)
+	category := resolveCategory(p.Item.Category, p.GmailClassification)
+
+	return store.ConsolidatedMessage{
+		UserEmail:           p.UserEmail,
+		Source:              p.Source,
+		Room:                p.Room,
+		Task:                p.Item.Task,
+		Requester:           requester,
+		Assignee:            assignee,
+		Link:                p.Link,
+		SourceTS:            p.SourceTS,
+		OriginalText:        p.OriginalText,
+		Deadline:            p.Item.Deadline,
+		Category:            category,
+		ThreadID:            p.ThreadID,
+		SourceChannels:      p.SourceChannels,
+		ConsolidatedContext: p.Item.ContextSnippets,
+	}
+}
+
+// resolveRequester applies the Requester fallback chain.
+// Prioritizes AI extraction, then raw channel metadata for zero-empty guarantee.
+func resolveRequester(p TaskBuildParams) string {
+	normalize := func(raw string) string {
+		// Why: NormalizeContactName hits the DB; skip if no connection (e.g. unit-test without DB).
+		if store.GetDB() == nil || raw == "" {
+			return raw
+		}
+		if n := store.NormalizeContactName(p.UserEmail, raw); n != "" {
+			return n
+		}
+		return raw
+	}
+
+	// 1. Trust AI if it provided a non-empty, non-garbage value.
+	if trimmed := strings.TrimSpace(p.Item.Requester); trimmed != "" &&
+		!strings.EqualFold(trimmed, "unknown") && !strings.EqualFold(trimmed, "undefined") {
+		return normalize(trimmed)
+	}
+
+	// 2. Use resolved display name from channel metadata (e.g. Slack username, Gmail From header).
+	if p.SenderRaw != "" {
+		return normalize(p.SenderRaw)
+	}
+
+	// 3. Last resort: raw email / ID.
+	return normalize(p.SenderEmail)
+}
+
+
+// resolveAssignee applies the Assignee normalization chain.
+// Maps self-referential tokens ("me", "나", "__CURRENT_USER__") to the user's canonical name,
+// and falls back to AssigneeShared when AI returns empty.
+func resolveAssignee(p TaskBuildParams) string {
+	raw := strings.TrimSpace(p.Item.Assignee)
+	lower := strings.ToLower(raw)
+
+	// Explicitly bad values returned by AI → treat as empty.
+	if lower == "undefined" || lower == "unknown" {
+		raw = ""
+	}
+
+	if raw == "" {
+		// Why: An empty assignee in Slack/WhatsApp is most likely a group/broadcast message.
+		return AssigneeShared
+	}
+
+	// Map self-referential tokens to the user's canonical display name.
+	selfTokens := map[string]bool{
+		"나": true, "me": true, "__current_user__": true, "담당자": true,
+		strings.ToLower(p.User.Name):  true,
+		strings.ToLower(p.User.Email): true,
+	}
+	if selfTokens[lower] {
+		return preferredName(p.User)
+	}
+
+	for _, alias := range p.Aliases {
+		if alias != "" && strings.EqualFold(raw, alias) {
+			return preferredName(p.User)
+		}
+	}
+
+	return raw
+}
+
+// resolveCategory falls back to a sensible default when both AI category and Gmail classification are empty.
+func resolveCategory(aiCategory, gmailCls string) string {
+	if aiCategory != "" {
+		return aiCategory
+	}
+	if gmailCls != "" {
+		return gmailCls
+	}
+	return string(types.CategoryTask)
+}
+
+func preferredName(u store.User) string {
+	if u.Name != "" {
+		return u.Name
+	}
+	return u.Email
+}

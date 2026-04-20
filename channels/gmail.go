@@ -8,6 +8,7 @@ import (
 	"message-consolidator/ai"
 	"message-consolidator/config"
 	"message-consolidator/logger"
+	"message-consolidator/services"
 	"message-consolidator/store"
 	"message-consolidator/types"
 	"mime"
@@ -25,6 +26,7 @@ import (
 
 	"github.com/recapco/emailreplyparser"
 )
+
 
 const (
 	CategorySent   = "발신 메일" //Why: Identifies emails sent by the user to determine if they constitute a commitment or a task update.
@@ -533,83 +535,35 @@ func executeGmailAnalysisWithRetry(ctx context.Context, gc *ai.GeminiClient, ema
 
 func processGeminiItems(email string, user *store.User, aliases []string, items []store.TodoItem, classificationMap, toMap map[string]string, msgMap map[string]types.RawMessage) []store.ConsolidatedMessage {
 	var msgsToSave []store.ConsolidatedMessage
-	fallback := getPreferredName(user)
-
 	for i, item := range items {
-		msg, ok := mapTodoToMessage(email, user, aliases, item, i, fallback, classificationMap, toMap, msgMap)
-		if ok {
-			msgsToSave = append(msgsToSave, msg)
+		m, ok := msgMap[item.SourceTS]
+		if !ok {
+			logger.Warnf("[GMAIL-SCAN] Mismatch SourceTS: %s", item.SourceTS)
+			continue
 		}
+		gmailCls := classificationMap[item.SourceTS]
+		params := services.TaskBuildParams{
+			UserEmail:           email,
+			User:                *user,
+			Aliases:             aliases,
+			Item:                item,
+			SenderRaw:           m.Sender,
+			ToHeader:            toMap[item.SourceTS],
+			Source:              "gmail",
+			Room:                "Gmail",
+			Link:                fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS),
+			SourceTS:            fmt.Sprintf("gmail-%s-%d", item.SourceTS, i),
+			OriginalText:        m.Text,
+			ThreadID:            m.ThreadID,
+			SourceChannels:      []string{"gmail"},
+			GmailClassification: gmailCls,
+		}
+		msgsToSave = append(msgsToSave, services.BuildTask(params))
 	}
 	return msgsToSave
 }
 
-// mapTodoToMessage converts an AI-extracted TodoItem into a ConsolidatedMessage.
-func mapTodoToMessage(email string, user *store.User, aliases []string, item store.TodoItem, index int, fallback string, clsMap, toMap map[string]string, msgMap map[string]types.RawMessage) (store.ConsolidatedMessage, bool) {
-	m, ok := msgMap[item.SourceTS]
-	if !ok {
-		logger.Warnf("[GMAIL-SCAN] Mismatch SourceTS: %s", item.SourceTS)
-		return store.ConsolidatedMessage{}, false
-	}
 
-	isMe := isAssigneeMe(item.Assignee, email, user.Name, fallback, aliases)
-	assignee, category := resolveGmailCategoryAndAssignee(item, isMe, clsMap[item.SourceTS], toMap[item.SourceTS], fallback)
-
-	// Resolve canonical assignee if possible
-	if id, _, _ := store.NormalizeWithCategory(email, assignee); id != "" && strings.Contains(id, "@") {
-		assignee = id
-	}
-
-	return store.ConsolidatedMessage{
-		UserEmail:      email,
-		Source:         "gmail",
-		Room:           "Gmail",
-		Task:           item.Task,
-		Requester:      store.NormalizeContactName(email, m.Sender), //Why: Uses contact name instead of raw email for UI display.
-		Assignee:       assignee,
-		AssignedAt:     m.Timestamp,
-		Link:           fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS),
-		SourceTS:       fmt.Sprintf("gmail-%s-%d", item.SourceTS, index),
-		OriginalText:   m.Text,
-		Deadline:       item.Deadline,
-		Category:       category,
-		ThreadID:       m.ThreadID,
-		SourceChannels: []string{"gmail"}, // Initial source for the new task
-		ConsolidatedContext: item.ContextSnippets,
-	}, true
-}
-
-func resolveGmailCategoryAndAssignee(item store.TodoItem, isMe bool, cls, toHeader, fallback string) (string, string) {
-	assignee := item.Assignee
-	if strings.EqualFold(assignee, "undefined") || strings.EqualFold(assignee, "unknown") {
-		assignee = ""
-	}
-	category := item.Category
-
-	if cls == CategorySent {
-		if isMe {
-			return fallback, "promise"
-		}
-		return assignee, "others"
-	}
-
-	//Why: Prioritize the AI's determination of assignment ('isMe') over original mail categories (CC/Others) to ensure tasks are correctly routed to the user's Inbox.
-	if isMe {
-		assignee = fallback
-		category = CategoryMine
-	} else {
-		//Why: CategoryOthers (CC or group mail) OR not identifying as me. Force group/recipient name as assignee to avoid "me" categorization in UI.
-		assignee = types.ExtractNameFromEmail(toHeader)
-	}
-	return assignee, category
-}
-
-func getPreferredName(user *store.User) string {
-	if user.Name != "" {
-		return user.Name
-	}
-	return user.Email
-}
 
 func extractBody(payload *gmail.MessagePart) string {
 	if payload == nil {
