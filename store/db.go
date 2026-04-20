@@ -178,10 +178,20 @@ func setupConnectionPool(cfg *config.Config, dbURL string) {
 		maxLifetime = 1 * time.Hour // Prevent connection turnover during tests
 	}
 
+	// Why: libSQL HTTP streams are closed server-side when idle. Keeping idle
+	// connections causes "stream is closed: bad connection" on first use.
+	// No idle pool means each request gets a fresh stream — same cost as the
+	// forced reconnect that was happening after the error anyway.
+	if strings.HasPrefix(dbURL, "libsql://") {
+		maxIdle = 0
+	}
+
 	conn.SetMaxOpenConns(maxOpen)
 	conn.SetMaxIdleConns(maxIdle)
 	conn.SetConnMaxLifetime(maxLifetime)
-	conn.SetConnMaxIdleTime(30 * time.Second)
+	if maxIdle > 0 {
+		conn.SetConnMaxIdleTime(30 * time.Second)
+	}
 }
 
 // startKeepAlive periodically pings the database to prevent the server or proxy from closing idle connections.
