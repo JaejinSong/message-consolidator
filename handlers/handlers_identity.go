@@ -1,15 +1,28 @@
 package handlers
 
 import (
+	"context"
 	"message-consolidator/auth"
 	"message-consolidator/store"
 	"net/http"
+	"sync"
 
 	"github.com/gorilla/mux"
 )
 
-// HandleGenerateProposals triggers an AI scan of the tenant's contacts and stores new merge proposals.
-// AI-proposed groups are skipped when every pair in the group has already been handled (pending/rejected).
+type proposalJob struct {
+	Status string `json:"status"` // running | done | error | idle
+	Count  int    `json:"proposals_created,omitempty"`
+	ErrMsg string `json:"error,omitempty"`
+}
+
+var (
+	proposalJobsMu sync.Mutex
+	proposalJobs   = map[string]*proposalJob{}
+)
+
+// HandleGenerateProposals triggers an async AI scan of the tenant's contacts.
+// Returns 202 immediately; poll /api/identity/proposals/job-status for completion.
 func (a *API) HandleGenerateProposals(w http.ResponseWriter, r *http.Request) {
 	if a.IdentityResolver == nil {
 		respondError(w, http.StatusServiceUnavailable, "AI identity resolver not configured")
@@ -17,59 +30,70 @@ func (a *API) HandleGenerateProposals(w http.ResponseWriter, r *http.Request) {
 	}
 
 	email := auth.GetUserEmail(r)
-	contacts, err := store.GetStandaloneContacts(r.Context(), email)
-	if err != nil {
-		handleAPIError(w, r, err, "[Identity]", "Failed to load contacts")
+
+	proposalJobsMu.Lock()
+	if j, ok := proposalJobs[email]; ok && j.Status == "running" {
+		proposalJobsMu.Unlock()
+		respondError(w, http.StatusConflict, "Analysis already in progress")
 		return
 	}
+	proposalJobs[email] = &proposalJob{Status: "running"}
+	proposalJobsMu.Unlock()
 
-	// Load all previously handled pairs so we can skip fully-redundant AI proposals.
-	handledPairs, err := store.LoadHandledPairs(r.Context(), email)
+	go func() {
+		result := a.runProposalJob(email)
+		proposalJobsMu.Lock()
+		proposalJobs[email] = result
+		proposalJobsMu.Unlock()
+	}()
+
+	respondJSON(w, http.StatusAccepted, map[string]string{"status": "running"})
+}
+
+func (a *API) runProposalJob(email string) *proposalJob {
+	ctx := context.Background()
+
+	contacts, err := store.GetStandaloneContacts(ctx, email)
 	if err != nil {
-		handleAPIError(w, r, err, "[Identity]", "Failed to load handled pairs")
-		return
+		return &proposalJob{Status: "error", ErrMsg: err.Error()}
 	}
 
-	groups, err := a.IdentityResolver.ProposeGroups(r.Context(), contacts)
+	handledPairs, err := store.LoadHandledPairs(ctx, email)
 	if err != nil {
-		handleAPIError(w, r, err, "[Identity]", "AI proposal generation failed")
-		return
+		return &proposalJob{Status: "error", ErrMsg: err.Error()}
+	}
+
+	groups, err := a.IdentityResolver.ProposeGroups(ctx, contacts)
+	if err != nil {
+		return &proposalJob{Status: "error", ErrMsg: err.Error()}
 	}
 
 	inserted := 0
 	for _, g := range groups {
-		if len(g.ContactIDs) < 2 {
-			continue
-		}
-		// Skip groups where every pair is already recorded — nothing new to propose.
-		if allPairsHandled(g.ContactIDs, handledPairs) {
+		if len(g.ContactIDs) < 2 || allPairsHandled(g.ContactIDs, handledPairs) {
 			continue
 		}
 		groupID := store.NewGroupID()
-		if err := store.InsertProposalGroup(r.Context(), groupID, g.ContactIDs, g.Confidence, g.Reason); err != nil {
-			handleAPIError(w, r, err, "[Identity]", "Failed to save proposal")
-			return
+		if err := store.InsertProposalGroup(ctx, groupID, g.ContactIDs, g.Confidence, g.Reason); err != nil {
+			return &proposalJob{Status: "error", ErrMsg: err.Error()}
 		}
 		inserted++
 	}
 
-	respondJSON(w, http.StatusOK, map[string]int{"proposals_created": inserted})
+	return &proposalJob{Status: "done", Count: inserted}
 }
 
-// allPairsHandled reports whether every contact pair in ids is already in the handled set.
-func allPairsHandled(ids []int64, handled map[[2]int64]bool) bool {
-	for i := 0; i < len(ids); i++ {
-		for j := i + 1; j < len(ids); j++ {
-			a, b := ids[i], ids[j]
-			if a > b {
-				a, b = b, a
-			}
-			if !handled[[2]int64{a, b}] {
-				return false
-			}
-		}
+// HandleProposalJobStatus returns the current async job state for the authenticated user.
+func (a *API) HandleProposalJobStatus(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	proposalJobsMu.Lock()
+	job, ok := proposalJobs[email]
+	proposalJobsMu.Unlock()
+	if !ok {
+		respondJSON(w, http.StatusOK, &proposalJob{Status: "idle"})
+		return
 	}
-	return true
+	respondJSON(w, http.StatusOK, job)
 }
 
 // HandleListProposals returns all pending merge proposals for the authenticated user's tenant.
@@ -115,4 +139,20 @@ func (a *API) HandleRejectProposal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// allPairsHandled reports whether every contact pair in ids is already in the handled set.
+func allPairsHandled(ids []int64, handled map[[2]int64]bool) bool {
+	for i := 0; i < len(ids); i++ {
+		for j := i + 1; j < len(ids); j++ {
+			a, b := ids[i], ids[j]
+			if a > b {
+				a, b = b, a
+			}
+			if !handled[[2]int64{a, b}] {
+				return false
+			}
+		}
+	}
+	return true
 }

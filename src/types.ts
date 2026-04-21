@@ -89,7 +89,6 @@ export interface CategorizedMessages {
 
 export interface AppState {
     userProfile: UserProfile;
-    userAliases: string[];
     currentLang: string;
     currentTheme: string;
     waConnected: boolean;

@@ -78,6 +78,7 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 	r.Handle("/api/contacts/unlink", auth.AuthMiddleware(http.HandlerFunc(a.HandleUnlinkAccount))).Methods("POST")
 	r.Handle("/api/contacts/links", auth.AuthMiddleware(http.HandlerFunc(a.HandleGetLinks))).Methods("GET")
 	r.Handle("/api/identity/proposals/generate", auth.AuthMiddleware(http.HandlerFunc(a.HandleGenerateProposals))).Methods("POST")
+	r.Handle("/api/identity/proposals/job-status", auth.AuthMiddleware(http.HandlerFunc(a.HandleProposalJobStatus))).Methods("GET")
 	r.Handle("/api/identity/proposals", auth.AuthMiddleware(http.HandlerFunc(a.HandleListProposals))).Methods("GET")
 	r.Handle("/api/identity/proposals/{id}/accept", auth.AuthMiddleware(http.HandlerFunc(a.HandleAcceptProposal))).Methods("POST")
 	r.Handle("/api/identity/proposals/{id}/reject", auth.AuthMiddleware(http.HandlerFunc(a.HandleRejectProposal))).Methods("POST")

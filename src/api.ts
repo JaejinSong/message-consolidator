@@ -193,31 +193,11 @@ export const api = {
         return apiFetch('/user/info', { errorMessage: 'User info fetch failed' });
     },
 
-    async fetchAliases(): Promise<string[]> {
-        return apiFetch('/user/aliases', { errorMessage: 'Fetch aliases failed' });
-    },
-
     async fetchUserStats(): Promise<UserStats> {
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
         return apiFetch('/user/stats', {
             headers: { 'X-Timezone': tz },
             errorMessage: 'Fetch user stats failed'
-        });
-    },
-
-    async addAlias(alias: string): Promise<any> {
-        return apiFetch('/user/alias/add', {
-            method: 'POST',
-            body: JSON.stringify({ alias }),
-            errorMessage: 'Add alias failed'
-        });
-    },
-
-    async removeAlias(alias: string): Promise<any> {
-        return apiFetch('/user/alias/delete', {
-            method: 'POST',
-            body: JSON.stringify({ alias }),
-            errorMessage: 'Remove alias failed'
         });
     },
 
@@ -361,8 +341,12 @@ export const api = {
         });
     },
 
-    async generateIdentityProposals(): Promise<{ proposals_created: number }> {
+    async generateIdentityProposals(): Promise<{ status: string }> {
         return apiFetch('/identity/proposals/generate', { method: 'POST', errorMessage: 'Generate proposals failed' });
+    },
+
+    async getProposalJobStatus(): Promise<{ status: string; proposals_created?: number; error?: string }> {
+        return apiFetch('/identity/proposals/job-status', { errorMessage: 'Failed to get job status' });
     },
 
     async fetchIdentityProposals(): Promise<any[]> {

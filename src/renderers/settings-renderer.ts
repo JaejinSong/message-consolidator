@@ -1,49 +1,5 @@
 import { escapeHTML } from '../utils';
 
-function renderSettingsList<T>(
-    containerId: string,
-    items: T[],
-    emptyHTML: string,
-    renderItem: (item: T) => string,
-    btnSelector: string,
-    onAction: (key: string) => void,
-    dataKey = 'id'
-): void {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    if (!items || items.length === 0) {
-        container.innerHTML = emptyHTML;
-        return;
-    }
-
-    container.innerHTML = items.map(renderItem).join('');
-
-    container.querySelectorAll(btnSelector).forEach(btn => {
-        const key = (btn as HTMLElement).dataset[dataKey];
-        if (key) btn.addEventListener('click', () => onAction(key));
-    });
-}
-
-function normalizeList(data: any, fallbackKey: string): any[] {
-    if (Array.isArray(data)) return data;
-    return data?.[fallbackKey] || data?.data || [];
-}
-
-export function renderAliasList(aliases: any, onRemove: (alias: string) => void): void {
-    const list = normalizeList(aliases, 'aliases');
-    renderSettingsList(
-        'aliasList', list,
-        '<p class="empty-list">No aliases configured</p>',
-        (alias: string) => `
-        <div class="c-settings__item">
-            <span>${escapeHTML(alias)}</span>
-            <button class="c-btn c-btn--ghost c-btn--icon remove-alias-btn" data-alias="${escapeHTML(alias)}">&times;</button>
-        </div>`,
-        '.remove-alias-btn', onRemove, 'alias'
-    );
-}
-
 export function renderProposals(
     proposals: any[],
     onAccept: (groupId: string, canonicalName: string) => void,

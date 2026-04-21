@@ -112,7 +112,7 @@ func generateWithRetry(ctx context.Context, model *genai.GenerativeModel, prompt
 			time.Sleep(jitter + 1*time.Second)
 		}
 	}
-	return nil, fmt.Errorf("all %d attempts failed, last error: %w", maxRetries+1, err)
+	return nil, fmt.Errorf("all %d attempts failed, last error: %s", maxRetries+1, maskAPIKey(err))
 }
 
 // Why: Extracts and records token consumption from the AI response for cost monitoring and precise performance tracing.

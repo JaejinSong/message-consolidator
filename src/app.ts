@@ -265,7 +265,6 @@ const fetchUserProfile = safeAsync(async () => {
     try {
         const data = await api.fetchUserProfile();
         state.userProfile = data;
-        state.userAliases = (data.aliases || []) as string[];
         events.emit(EVENTS.USER_PROFILE_UPDATED, state.userProfile);
     } finally {
         state.isFetchingMessages = false;

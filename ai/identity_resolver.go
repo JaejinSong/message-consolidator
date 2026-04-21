@@ -63,7 +63,7 @@ func (r *IdentityResolver) proposeChunk(ctx context.Context, contacts []store.Co
 	model := r.client.client.GenerativeModel(r.client.analysisModel)
 	model.SetTemperature(0.1)
 
-	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 30*time.Second, 3)
+	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 120*time.Second, 3)
 	if err != nil {
 		return nil, err
 	}

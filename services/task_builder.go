@@ -1,9 +1,11 @@
 package services
 
 import (
+	"context"
 	"message-consolidator/store"
 	"message-consolidator/types"
 	"strings"
+	"time"
 )
 
 // TaskBuildParams holds cross-channel inputs required for building a consolidated message.
@@ -124,6 +126,21 @@ func resolveAssignee(p TaskBuildParams) string {
 
 	for _, alias := range p.Aliases {
 		if alias != "" && strings.EqualFold(raw, alias) {
+			return preferredName(p.User)
+		}
+	}
+
+	if store.GetDB() != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		idType := store.ContactTypeName
+		if strings.Contains(lower, "@") {
+			idType = store.ContactTypeEmail
+		}
+		rawContactID, err1 := store.ResolveAlias(ctx, idType, lower)
+		userContactID, err2 := store.ResolveAlias(ctx, store.ContactTypeEmail, strings.ToLower(p.UserEmail))
+		if err1 == nil && err2 == nil && rawContactID == userContactID {
 			return preferredName(p.User)
 		}
 	}

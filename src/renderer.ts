@@ -24,7 +24,6 @@ export {
 export { updateUserProfile } from './renderers/profile-renderer';
 
 export {
-    renderAliasList,
     renderProposals
 } from './renderers/settings-renderer';
 

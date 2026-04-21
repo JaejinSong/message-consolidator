@@ -2,7 +2,6 @@ import { state } from './state';
 import { api } from './api';
 import {
     showToast,
-    renderAliasList,
     renderReleaseNotes,
     renderProposals
 } from './renderer';
@@ -14,14 +13,20 @@ import { TokenUsageCard } from './components/token-usage';
  * @description UI module for handling modals (settings, release notes, etc.) and their logic.
  */
 
-let onTasksChanged: (() => void) | null = null;
+async function pollProposalJob(): Promise<{ proposals_created: number }> {
+    const MAX = 72; // 6 minutes at 5s intervals
+    for (let i = 0; i < MAX; i++) {
+        await new Promise(r => setTimeout(r, 5000));
+        const s = await api.getProposalJobStatus();
+        if (s.status === 'done') return { proposals_created: s.proposals_created ?? 0 };
+        if (s.status === 'error') throw new Error(s.error || 'Analysis failed');
+    }
+    throw new Error('Analysis timed out');
+}
 
 export interface ModalInterface {
     init(fetchMessagesCallback: () => void): void;
     attachGlobalCloseListeners(): void;
-    fetchAliases(): Promise<void>;
-    addAlias(): Promise<void>;
-    removeAlias(alias: string): Promise<void>;
     setupReleaseNotesModal(): void;
     showOriginalModal(rawContent: string): void;
     fetchIdentityProposals(): Promise<void>;
@@ -42,8 +47,7 @@ export const modals: any = {
      * Initializes the modals module.
      * @param fetchMessagesCallback - Callback to refresh messages.
      */
-    init(fetchMessagesCallback: () => void) {
-        onTasksChanged = fetchMessagesCallback;
+    init(_fetchMessagesCallback: () => void) {
         this.attachGlobalCloseListeners();
         this.setupReleaseNotesModal();
         this.setupSettingsModal();
@@ -82,41 +86,6 @@ export const modals: any = {
      * Internal cleanup logic for specific modals.
      */
     cleanupModal(_modalId: string) {},
-
-    /**
-     * Fetches and renders user aliases.
-     */
-    fetchAliases: safeAsync(async function (this: ModalInterface) {
-        const aliases = await api.fetchAliases();
-        (state as any).userAliases = aliases;
-        renderAliasList((state as any).userAliases, this.removeAlias.bind(this));
-        if (onTasksChanged) onTasksChanged();
-    }),
-
-    /**
-     * Adds a new alias for the user.
-     */
-    addAlias: safeAsync(async function (this: ModalInterface) {
-        const input = document.getElementById('newAliasInput') as HTMLInputElement;
-        if (!input) return;
-        const rawValue = input.value;
-        if (!rawValue.trim()) return;
-
-        const aliases = rawValue.split(',').map(a => a.trim()).filter(a => a);
-        await Promise.all(aliases.map(a => api.addAlias(a)));
-        input.value = '';
-        this.fetchAliases();
-    }, { triggerAuthOverlay: true }),
-
-    /**
-     * Removes an alias.
-     * @param alias - Alias to remove.
-     */
-    removeAlias: safeAsync(async function (this: ModalInterface, alias: string) {
-        await api.removeAlias(alias);
-        this.fetchAliases();
-    }, { triggerAuthOverlay: true }),
-
 
     /**
      * Sets up release notes modal and triggers.
@@ -217,7 +186,12 @@ export const modals: any = {
         const btn = document.getElementById('generateProposalsBtn') as HTMLButtonElement;
         if (btn) { btn.disabled = true; btn.textContent = '분석 중...'; }
         try {
-            const result = await api.generateIdentityProposals();
+            try {
+                await api.generateIdentityProposals();
+            } catch (e: any) {
+                if (e.status !== 409) throw e; // 409 = already running, join the ongoing poll
+            }
+            const result = await pollProposalJob();
             showToast(`제안 ${result.proposals_created}건 생성됨`, 'success');
             this.fetchIdentityProposals();
         } finally {
@@ -249,16 +223,11 @@ export const modals: any = {
             if (modal) {
                 modal.classList.remove('hidden');
                 (modal as HTMLElement).style.display = 'flex';
-                renderAliasList((state as any).userAliases || [], (alias: string) => this.removeAlias(alias));
                 this.fetchIdentityProposals();
                 document.getElementById('generateProposalsBtn')?.addEventListener('click', () => this.generateIdentityProposals());
             }
         });
 
-        document.getElementById('addAliasBtn')?.addEventListener('click', () => this.addAlias());
-        document.getElementById('newAliasInput')?.addEventListener('keypress', (e) => {
-            if ((e as KeyboardEvent).key === 'Enter') this.addAlias();
-        });
     },
 
     /**
