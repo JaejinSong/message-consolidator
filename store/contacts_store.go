@@ -159,23 +159,16 @@ func AutoUpsertContact(ctx context.Context, tenantEmail, email, name, source str
 	newName := strings.TrimSpace(name)
 	isValidName := newName != "" && !strings.Contains(newName, "@") && strings.ToLower(newName) != canonicalID
 
-	displayName := newName
-	aliases := newName
-	if !isValidName {
-		displayName = canonicalID
-		aliases = ""
+	// If we have nothing to improve, skip the DB write entirely.
+	if existing != nil && !isValidName {
+		return nil
 	}
 
-	if existing != nil {
-		finalDisplayName := existing.DisplayName
-		if isValidName {
-			finalDisplayName = newName
-		}
-		_, err := UpsertContact(ctx, tenantEmail, canonicalID, finalDisplayName, aliases, source)
-		return err
+	displayName := canonicalID
+	if isValidName {
+		displayName = newName
 	}
-
-	_, err := UpsertContact(ctx, tenantEmail, canonicalID, displayName, aliases, source)
+	_, err := UpsertContact(ctx, tenantEmail, canonicalID, displayName, newName, source)
 	return err
 }
 

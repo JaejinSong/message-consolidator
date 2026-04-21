@@ -200,7 +200,7 @@ func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m
 	}
 
 	// Why: Automatically registers all participants (sender and recipients) in the contacts database to improve future identity resolution.
-	senderEmail := upsertAddresses(ctx, email, fromHeader, "gmail")
+	senderEmail, senderName := upsertAddresses(ctx, email, fromHeader, "gmail")
 	upsertAddresses(ctx, email, toHeader, "gmail")
 	upsertAddresses(ctx, email, ccHeader, "gmail")
 
@@ -221,9 +221,10 @@ func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m
 	attachmentNames := extractGmailAttachmentNames(fullMsg.Payload)
 
 	rawMsg := &types.RawMessage{
-		ID:              m.Id,
-		Sender:          senderEmail, // Use canonical email as sender ID
-		Text:            fmt.Sprintf("T: %s\nC: %s\nS: %s\nB:\n%s", toHeader, ccHeader, subject, cleanBody),
+		ID:         m.Id,
+		Sender:     senderEmail,
+		SenderName: senderName,
+		Text:       fmt.Sprintf("T: %s\nC: %s\nS: %s\nB:\n%s", toHeader, ccHeader, subject, cleanBody),
 		Timestamp:       time.Unix(ts, 0),
 		ThreadID:        fullMsg.ThreadId,
 		IsImportant:     isImportant,
@@ -234,42 +235,41 @@ func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m
 }
 
 // upsertAddresses parses a comma-separated list of email addresses and registers each one in the contacts store.
-// It returns the email address of the first parsed contact for use as a primary identifier.
-func upsertAddresses(ctx context.Context, tenantEmail, header, source string) string {
+// It returns the (email, displayName) of the first parsed contact.
+func upsertAddresses(ctx context.Context, tenantEmail, header, source string) (string, string) {
 	if header == "" {
-		return ""
+		return "", ""
 	}
 
 	//Why: Parses standard RFC 5322 format for multiple addresses and ensures display names are correctly decoded from MIME encoding.
 	contacts, err := mail.ParseAddressList(header)
 	if err != nil {
 		logger.Debugf("[GMAIL] Failed to parse address list: %v", err)
-		return types.ExtractNameFromEmail(header)
+		return types.ExtractNameFromEmail(header), ""
 	}
 
 	dec := new(mime.WordDecoder)
-	firstEmail := ""
+	firstEmail, firstName := "", ""
 
 	for _, addr := range contacts {
 		email := strings.ToLower(strings.TrimSpace(addr.Address))
 		if email == "" {
 			continue
 		}
-		if firstEmail == "" {
-			firstEmail = email
-		}
-
 		name := addr.Name
 		if decoded, err := dec.DecodeHeader(name); err == nil {
 			name = decoded
+		}
+		if firstEmail == "" {
+			firstEmail, firstName = email, name
 		}
 		_ = store.AutoUpsertContact(ctx, tenantEmail, email, name, source)
 	}
 
 	if firstEmail != "" {
-		return firstEmail
+		return firstEmail, firstName
 	}
-	return types.ExtractNameFromEmail(header)
+	return types.ExtractNameFromEmail(header), ""
 }
 
 func getGmailSkips(cfg *config.Config) []string {
@@ -472,8 +472,8 @@ func buildGmailBatchPayload(email string, batchMsgs []types.RawMessage, classifi
 		msgMap[m.ID] = m
 		metaStr := buildGmailMetadataString(m)
 		senderField := m.Sender
-		if displayName := store.NormalizeContactName(email, m.Sender); displayName != "" && displayName != m.Sender {
-			senderField = fmt.Sprintf("%s <%s>", displayName, m.Sender)
+		if m.SenderName != "" {
+			senderField = fmt.Sprintf("%s <%s>", m.SenderName, m.Sender)
 		}
 		sb.WriteString(fmt.Sprintf("[ID:%s]%s F: %s\n%s\n---\n", m.ID, metaStr, senderField, m.Text))
 	}

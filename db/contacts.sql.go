@@ -398,11 +398,7 @@ const upsertContactMapping = `-- name: UpsertContactMapping :one
 INSERT INTO contacts (tenant_email, canonical_id, display_name, source)
 VALUES (?, ?, ?, ?)
 ON CONFLICT(tenant_email, canonical_id) DO UPDATE SET
-    display_name = CASE
-        WHEN EXCLUDED.display_name != '' AND EXCLUDED.display_name != contacts.canonical_id
-        THEN EXCLUDED.display_name
-        ELSE contacts.display_name
-    END,
+    display_name = IIF(EXCLUDED.display_name != '' AND EXCLUDED.display_name != contacts.canonical_id, EXCLUDED.display_name, contacts.display_name),
     source = EXCLUDED.source
 RETURNING id
 `

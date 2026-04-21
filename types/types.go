@@ -16,9 +16,10 @@ const (
 
 // RawMessage represents a generic text message extracted from any source (Slack, WhatsApp, etc.)
 type RawMessage struct {
-	ID               string
-	Sender           string
-	Text             string
+	ID          string
+	Sender      string
+	SenderName  string // Display name from the From header, for AI prompt enrichment
+	Text        string
 	Timestamp        time.Time
 	ReplyToID        string          //Why: Tracks the original message ID to reconstruct conversation threads during AI-driven task context analysis.
 	RepliedToUser    string          //Why: Identifies the name or ID of the user being replied to for precise assignee allocation.
