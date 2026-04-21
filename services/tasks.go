@@ -81,32 +81,27 @@ func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string
 		msgs[i].Requester = aliasMap[msgs[i].Requester]
 		msgs[i].Assignee = aliasMap[msgs[i].Assignee]
 		s.applyAssigneeRules(ctx, user, &msgs[i])
-		s.assignCategory(email, user, &msgs[i])
+		s.assignCategory(email, &msgs[i])
 	}
 }
 
 // assignCategory implements the server-side categorization priority logic.
 // Priority: 1. personal, 2. shared, 3. requested, 4. others.
-func (s *TasksService) assignCategory(email string, user *store.User, msg *store.ConsolidatedMessage) {
-	// 1. personal: Assigned to 'me' or matches the user's preferred name
+func (s *TasksService) assignCategory(email string, msg *store.ConsolidatedMessage) {
 	if msg.Assignee == "me" {
 		msg.Category = CategoryPersonal
 		return
 	}
-
-	// 2. shared: Explicitly "shared" or contains group tags (@everyone, @channel, @here, etc.)
 	if msg.Assignee == AssigneeShared || hasGroupMention(msg.Task) {
 		msg.Category = CategoryShared
 		return
 	}
-
-	// 3. requested: The current user is the requester but not the assignee
-	if msg.Requester == email || (user.Name != "" && msg.Requester == user.Name) {
+	// Why: RequesterCanonical is the canonical email unaffected by alias resolution.
+	// msg.Requester == email is a fallback for legacy records without RequesterCanonical.
+	if strings.EqualFold(msg.RequesterCanonical, email) || msg.Requester == email {
 		msg.Category = CategoryRequested
 		return
 	}
-
-	// 4. others: Supporting message or non-actionable reference
 	msg.Category = CategoryOthers
 }
 

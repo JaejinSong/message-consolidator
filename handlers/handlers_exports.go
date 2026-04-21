@@ -41,7 +41,7 @@ func (a *API) HandleExportExcel(w http.ResponseWriter, r *http.Request) {
 	f.SetActiveSheet(index)
 	f.DeleteSheet("Sheet1")
 
-	headers := []string{"ID", "Source", "Room", "Task", "Requester", "Assignee", "Assigned At", "Created At", "Completed At"}
+	headers := []string{"ID", "Source", "Room", "Task", "Requester", "Assignee", "Assigned At", "Created At", "Completed At", "Original Message"}
 	for i, h := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 		f.SetCellValue(sheet, cell, h)
@@ -70,6 +70,7 @@ func (a *API) HandleExportExcel(w http.ResponseWriter, r *http.Request) {
 		f.SetCellValue(sheet, fmt.Sprintf("G%d", row), m.AssignedAt.Format("2006-01-02 15:04:05"))
 		f.SetCellValue(sheet, fmt.Sprintf("H%d", row), m.CreatedAt.Format("2006-01-02 15:04:05"))
 		f.SetCellValue(sheet, fmt.Sprintf("I%d", row), compAt)
+		f.SetCellValue(sheet, fmt.Sprintf("J%d", row), m.OriginalText)
 	}
 
 	timestamp := time.Now().Format("20060102_150405")
@@ -114,7 +115,7 @@ func (a *API) HandleExportArchive(w http.ResponseWriter, r *http.Request) {
 	writer := csv.NewWriter(w)
 	defer writer.Flush()
 
-	writer.Write([]string{"ID", "Source", "Room", "Task", "Requester", "Assignee", "Assigned At", "Created At", "Completed At"})
+	writer.Write([]string{"ID", "Source", "Room", "Task", "Requester", "Assignee", "Assigned At", "Created At", "Completed At", "Original Message"})
 
 	for _, m := range msgs {
 		compAt := ""
@@ -131,6 +132,7 @@ func (a *API) HandleExportArchive(w http.ResponseWriter, r *http.Request) {
 			m.AssignedAt.Format("2006-01-02 15:04:05"),
 			m.CreatedAt.Format("2006-01-02 15:04:05"),
 			compAt,
+			m.OriginalText,
 		})
 	}
 }
