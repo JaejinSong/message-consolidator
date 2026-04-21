@@ -471,7 +471,11 @@ func buildGmailBatchPayload(email string, batchMsgs []types.RawMessage, classifi
 	for _, m := range batchMsgs {
 		msgMap[m.ID] = m
 		metaStr := buildGmailMetadataString(m)
-		sb.WriteString(fmt.Sprintf("[ID:%s]%s F: %s\n%s\n---\n", m.ID, metaStr, m.Sender, m.Text))
+		senderField := m.Sender
+		if displayName := store.NormalizeContactName(email, m.Sender); displayName != "" && displayName != m.Sender {
+			senderField = fmt.Sprintf("%s <%s>", displayName, m.Sender)
+		}
+		sb.WriteString(fmt.Sprintf("[ID:%s]%s F: %s\n%s\n---\n", m.ID, metaStr, senderField, m.Text))
 	}
 	return sb.String(), msgMap
 }

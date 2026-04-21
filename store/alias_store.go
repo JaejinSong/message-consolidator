@@ -79,7 +79,7 @@ func resolveIdentityXCanonicalName(tenantEmail, nameLower string) (string, bool)
 		TenantEmail: tenantEmail,
 		ID:          int64(id),
 	})
-	if err == nil {
+	if err == nil && contact.DisplayName != "" {
 		return contact.DisplayName, true
 	}
 	return "", false
