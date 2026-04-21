@@ -9,9 +9,13 @@
     --text-dim: #9ca3af;
     --glass-border: rgba(255, 255, 255, 0.08);
     --shadow-main: 0 1.25rem 2.5rem rgba(0, 0, 0, 0.4);
+    --shadow-xl: 0 2rem 5rem rgba(0, 0, 0, 0.55);
     --border-light: rgba(255, 255, 255, 0.05);
     --shadow-card: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.2);
     --bg-floater: rgba(15, 16, 20, 0.95);
+    --transition-base: 0.2s ease;
+    --bg-rgb: 5, 6, 8;
+    --text-main-rgb: 240, 240, 240;
 
     /* Spacing & Radius Tokens */
     --spacing-xxs: 0.125rem;
@@ -131,7 +135,10 @@ body.light-theme {
     --text-dim: #475569;
     --glass-border: #cbd5e1;
     --shadow-main: 0 0.625rem 1.875rem rgba(15, 23, 42, 0.1);
+    --shadow-xl: 0 2rem 5rem rgba(15, 23, 42, 0.25);
     --shadow-card: 0 0.25rem 0.75rem rgba(15, 23, 42, 0.08);
+    --bg-rgb: 241, 245, 249;
+    --text-main-rgb: 2, 6, 23;
 
     /* Semantic Colors (Light) */
     --color-success: #059669;

@@ -71,7 +71,7 @@ export const insights = {
                 this.currentChartDays = parseInt(target.dataset.days || '30', 10);
 
                 if (this.lastStats) {
-                    insightsRenderer.renderAnkiChart(this.lastStats, this.currentChartDays);
+                    insightsRenderer.renderCompletionTrend(this.lastStats, this.currentChartDays);
                 }
             });
         });
@@ -94,7 +94,7 @@ export const insights = {
             const lang = state.currentLang || 'en';
             const i18n = I18N_DATA[lang];
             if (this.isTabActive('insightsStatsTab') && this.lastStats) {
-                insightsRenderer.renderAnkiChart(this.lastStats, this.currentChartDays);
+                insightsRenderer.renderCompletionTrend(this.lastStats, this.currentChartDays);
             }
             if (this.isTabActive('insightsReportsTab') && this.lastReport) {
                 insightsRenderer.renderReport(this.lastReport, lang, i18n); // Re-render charts
@@ -443,7 +443,7 @@ export const insights = {
             insightsRenderer.renderChannelDistribution(stats, i18n);
             insightsRenderer.renderHourlyActivity(stats, i18n); // Center heatmap (peak integration)
             insightsRenderer.renderStaleTasks(stats, i18n);
-            insightsRenderer.renderAnkiChart(stats, this.currentChartDays);
+            insightsRenderer.renderCompletionTrend(stats, this.currentChartDays);
         }
     }
 };

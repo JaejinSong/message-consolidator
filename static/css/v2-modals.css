@@ -271,7 +271,7 @@
 }
 
 /* Responsive Media Queries */
-@media (max-width: var(--bp-mobile)) {
+@media (max-width: 30rem) {
     .c-modal__content {
         width: 95%;
         padding: var(--spacing-lg);

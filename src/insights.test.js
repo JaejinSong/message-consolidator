@@ -27,7 +27,7 @@ vi.mock('./insightsRenderer', () => ({
         renderWaitingMetrics: vi.fn(),
         renderHourlyActivity: vi.fn(),
 
-        renderAnkiChart: vi.fn(),
+        renderCompletionTrend: vi.fn(),
         renderLoading: vi.fn(),
         renderError: vi.fn(),
         renderTokenUsage: vi.fn(),

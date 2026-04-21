@@ -161,6 +161,24 @@ export const insightsRenderer = {
         const colors = [getCssVariableValue('--color-slack'), getCssVariableValue('--color-whatsapp'), getCssVariableValue('--color-gmail'), getCssVariableValue('--color-warning'), getCssVariableValue('--color-purple')];
         const total = entries.reduce((sum, e) => sum + e.value, 0);
 
+        const showPieTooltip = (name: string, value: number, pct: number, ev: MouseEvent) => {
+            let t = document.getElementById('pie-tooltip');
+            if (!t) {
+                t = document.createElement('div');
+                t.id = 'pie-tooltip';
+                t.className = 'c-insights-tooltip';
+                document.body.appendChild(t);
+            }
+            t.innerHTML = `<strong>${name}</strong><br/>${value.toLocaleString()}건 &nbsp; ${pct}%`;
+            t.style.left = (ev.pageX + 15) + 'px';
+            t.style.top = (ev.pageY + 15) + 'px';
+            t.classList.add('c-insights-tooltip--active');
+        };
+        const hidePieTooltip = () => {
+            const t = document.getElementById('pie-tooltip');
+            if (t) t.classList.remove('c-insights-tooltip--active');
+        };
+
         entries.forEach((e, i) => {
             const p = e.value / total;
             const x1 = 50 + 40 * Math.cos(currentAngle);
@@ -170,7 +188,12 @@ export const insightsRenderer = {
             const y2 = 50 + 40 * Math.sin(currentAngle);
             const largeArc = p > 0.5 ? 1 : 0;
             const d = `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`;
-            svg.appendChild(createSVG('path', { d, fill: colors[i % colors.length], stroke: 'var(--card-bg)', 'stroke-width': 1 }));
+            const path = createSVG('path', { d, fill: colors[i % colors.length], stroke: 'var(--card-bg)', 'stroke-width': 1 });
+            const pct = (p * 100).toFixed(1);
+            path.style.cursor = 'pointer';
+            path.addEventListener('mousemove', (ev) => showPieTooltip(e.name, e.value, Number(pct), ev as MouseEvent));
+            path.addEventListener('mouseleave', hidePieTooltip);
+            svg.appendChild(path);
         });
         svg.appendChild(createSVG('circle', { cx: 50, cy: 50, r: 25, fill: 'var(--bg-color)' }));
         chartNode.appendChild(svg);
@@ -262,32 +285,100 @@ export const insightsRenderer = {
         t.classList.add('c-insights-tooltip--active');
     },
 
-    renderAnkiChart(stats: any, days: number): void {
+    renderCompletionTrend(stats: any, days: number): void {
         const container = document.getElementById('ankiChartContainer');
-        if (!container || !stats.completion_history) return;
+        if (!container) return;
         container.innerHTML = '';
-        
-        const history = (stats.completion_history || []).slice(-days);
-        if (history.length === 0) return;
 
-        const width = 800;
-        const height = 200;
-        const svg = createSVG('svg', { viewBox: `0 0 ${width} ${height}`, width: '100%', height: '100%' });
-        
-        const maxVal = Math.max(...history.map((d: any) => d.total || 0), 1);
-        const padding = 20;
-        const xStep = (width - padding * 2) / (history.length - 1 || 1);
-        
-        const points = history.map((d: any, i: number) => {
-            const x = padding + i * xStep;
-            const y = height - padding - ((d.total || 0) / maxVal) * (height - padding * 2);
-            return { x, y };
+        const rawHistory = stats?.completion_history;
+        if (!rawHistory || rawHistory.length === 0) {
+            container.innerHTML = `<div class="u-text-dim" style="padding:2rem;text-align:center;">데이터 없음</div>`;
+            return;
+        }
+
+        const history = (rawHistory as any[]).slice(-days);
+        if (history.length === 0) {
+            container.innerHTML = `<div class="u-text-dim" style="padding:2rem;text-align:center;">데이터 없음</div>`;
+            return;
+        }
+
+        // counts: Record<string,number> → daily total
+        const totals = history.map((d: any) => ({
+            date: String(d.date ?? ''),
+            total: Object.values(d.counts ?? {}).reduce((a: number, b) => a + (b as number), 0)
+        }));
+
+        const W = 800, H = 200;
+        const PAD = { top: 16, right: 16, bottom: 28, left: 36 };
+        const iW = W - PAD.left - PAD.right;
+        const iH = H - PAD.top - PAD.bottom;
+        const maxVal = Math.max(...totals.map(d => d.total), 1);
+        const xStep = iW / (totals.length - 1 || 1);
+        const toX = (i: number) => PAD.left + i * xStep;
+        const toY = (v: number) => PAD.top + iH - (v / maxVal) * iH;
+        const pts = totals.map((d, i) => ({ x: toX(i), y: toY(d.total), date: d.date, total: d.total }));
+
+        const svg = createSVG('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', height: '180' });
+
+        // gradient def
+        const defs = createSVG('defs', {});
+        const grad = createSVG('linearGradient', { id: 'ankiAreaGrad', x1: '0', y1: '0', x2: '0', y2: '1' });
+        [['0%', '0.25'], ['100%', '0']].forEach(([offset, opacity]) => {
+            const s = createSVG('stop', { offset, 'stop-color': 'var(--accent-color)', 'stop-opacity': opacity });
+            grad.appendChild(s);
+        });
+        defs.appendChild(grad);
+        svg.appendChild(defs);
+
+        // horizontal grid lines + y labels
+        [0.25, 0.5, 0.75, 1].forEach(ratio => {
+            const y = PAD.top + iH * (1 - ratio);
+            svg.appendChild(createSVG('line', {
+                x1: PAD.left, y1: y, x2: PAD.left + iW, y2: y,
+                stroke: 'var(--border-color)', 'stroke-width': 0.5, 'stroke-dasharray': '4 4'
+            }));
+            const lbl = createSVG('text', { x: PAD.left - 4, y: y + 4, 'text-anchor': 'end', 'font-size': 9, fill: 'var(--text-dim)' });
+            lbl.textContent = String(Math.round(maxVal * ratio));
+            svg.appendChild(lbl);
         });
 
-        const d = `M ${points.map((p: any) => `${p.x},${p.y}`).join(' L ')}`;
-        svg.appendChild(createSVG('path', { d, fill: 'none', stroke: 'var(--accent-color)', 'stroke-width': 2 }));
-        
-        points.forEach((p: any) => {
+        // area fill
+        const baseY = PAD.top + iH;
+        const areaD = `M ${pts[0].x},${baseY} L ${pts.map(p => `${p.x},${p.y}`).join(' L ')} L ${pts[pts.length - 1].x},${baseY} Z`;
+        svg.appendChild(createSVG('path', { d: areaD, fill: 'url(#ankiAreaGrad)' }));
+
+        // line
+        svg.appendChild(createSVG('path', {
+            d: `M ${pts.map(p => `${p.x},${p.y}`).join(' L ')}`,
+            fill: 'none', stroke: 'var(--accent-color)', 'stroke-width': 2
+        }));
+
+        // x-axis date labels (up to 6 evenly spaced)
+        const labelCount = Math.min(6, totals.length);
+        const labelIdxStep = (totals.length - 1) / (labelCount - 1 || 1);
+        for (let li = 0; li < labelCount; li++) {
+            const i = Math.round(li * labelIdxStep);
+            const p = pts[i];
+            const lbl = createSVG('text', { x: p.x, y: H - 4, 'text-anchor': 'middle', 'font-size': 9, fill: 'var(--text-dim)' });
+            lbl.textContent = p.date.slice(5); // MM-DD
+            svg.appendChild(lbl);
+        }
+
+        // dots + transparent hit rects for tooltip
+        pts.forEach(p => {
+            const hitW = Math.max(xStep, 20);
+            const hit = createSVG('rect', { x: p.x - hitW / 2, y: PAD.top, width: hitW, height: iH, fill: 'transparent' });
+            hit.style.cursor = 'crosshair';
+            hit.addEventListener('mousemove', (ev) => {
+                let t = document.getElementById('anki-tooltip');
+                if (!t) { t = document.createElement('div'); t.id = 'anki-tooltip'; t.className = 'c-insights-tooltip'; document.body.appendChild(t); }
+                t.innerHTML = `<strong>${p.date}</strong><br/>${p.total.toLocaleString()}건`;
+                t.style.left = ((ev as MouseEvent).pageX + 15) + 'px';
+                t.style.top = ((ev as MouseEvent).pageY + 15) + 'px';
+                t.classList.add('c-insights-tooltip--active');
+            });
+            hit.addEventListener('mouseleave', () => { document.getElementById('anki-tooltip')?.classList.remove('c-insights-tooltip--active'); });
+            svg.appendChild(hit);
             svg.appendChild(createSVG('circle', { cx: p.x, cy: p.y, r: 3, fill: 'var(--accent-color)' }));
         });
 

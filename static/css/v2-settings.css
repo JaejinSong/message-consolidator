@@ -143,7 +143,7 @@
 }
 
 /* Responsive Media Queries */
-@media (max-width: var(--bp-desktop)) {
+@media (max-width: 62.5rem) {
     .c-settings {
         flex-direction: column;
         height: auto;
@@ -171,7 +171,7 @@
     }
 }
 
-@media (max-width: var(--bp-mobile)) {
+@media (max-width: 30rem) {
     .c-settings__panel {
         padding: var(--spacing-lg);
     }
@@ -218,7 +218,7 @@ body.light-theme .status-pill {
     padding-top: 1.25rem;
 }
 
-@media (max-width: var(--bp-mobile)) {
+@media (max-width: 30rem) {
     .c-settings__link-box {
         flex-direction: column;
         align-items: stretch;
