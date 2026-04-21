@@ -60,9 +60,13 @@
     --text-dim: #9ca3af;
     --glass-border: rgba(255, 255, 255, 0.08);
     --shadow-main: 0 1.25rem 2.5rem rgba(0, 0, 0, 0.4);
+    --shadow-xl: 0 2rem 5rem rgba(0, 0, 0, 0.55);
     --border-light: rgba(255, 255, 255, 0.05);
     --shadow-card: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.2);
     --bg-floater: rgba(15, 16, 20, 0.95);
+    --transition-base: 0.2s ease;
+    --bg-rgb: 5, 6, 8;
+    --text-main-rgb: 240, 240, 240;
 
     /* Spacing & Radius Tokens */
     --spacing-xxs: 0.125rem;
@@ -182,7 +186,10 @@ body.light-theme {
     --text-dim: #475569;
     --glass-border: #cbd5e1;
     --shadow-main: 0 0.625rem 1.875rem rgba(15, 23, 42, 0.1);
+    --shadow-xl: 0 2rem 5rem rgba(15, 23, 42, 0.25);
     --shadow-card: 0 0.25rem 0.75rem rgba(15, 23, 42, 0.08);
+    --bg-rgb: 241, 245, 249;
+    --text-main-rgb: 2, 6, 23;
 
     /* Semantic Colors (Light) */
     --color-success: #059669;
@@ -2331,21 +2338,6 @@ body.light-theme .c-badge--count {
     min-width: 0;
 }
 
-/* Tablet: 2 columns (< 64rem) */
-@media (max-width: 64rem) {
-    .c-insights-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-/* Mobile: 1 column (< 42rem) */
-@media (max-width: 42rem) {
-    .c-insights-grid {
-        grid-template-columns: 1fr;
-        gap: var(--spacing-lg);
-    }
-}
-
 /* Modifier: Card Spanning */
 .c-insights-card--double {
     grid-column: span 2;
@@ -2353,6 +2345,52 @@ body.light-theme .c-badge--count {
 
 .c-insights-card--full {
     grid-column: span 3;
+}
+
+/* Pair wrapper: 2 equal cards across the full grid row */
+.c-insights-grid__pair {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-xl);
+}
+
+/* Tablet: 2 columns (< 64rem) */
+@media (max-width: 64rem) {
+    .c-insights-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .c-insights-card--full,
+    .c-insights-card--double {
+        grid-column: span 2;
+    }
+}
+
+/* Mobile: 1 column (< 42rem) */
+@media (max-width: 42rem) {
+    .c-insights-grid {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+    }
+    .c-insights-card--full,
+    .c-insights-card--double {
+        grid-column: span 1;
+        aspect-ratio: auto;
+        min-height: 12rem;
+    }
+    .c-insights-card--square {
+        aspect-ratio: auto;
+        min-height: 10rem;
+    }
+    .c-insights-grid__pair {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+    }
+    .c-chart__header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
 }
 
 .c-insights-summary {
@@ -2462,7 +2500,8 @@ body.light-theme .c-badge--count {
     border: var(--border-thin) solid var(--glass-border);
 }
 
-.c-chart__filter-btn {
+.c-chart__filter-btn,
+.filter-btn {
     padding: 0.4rem 0.8rem;
     border-radius: var(--radius-sm);
     font-size: 0.75rem;
@@ -2474,14 +2513,31 @@ body.light-theme .c-badge--count {
     cursor: pointer;
 }
 
-.c-chart__filter-btn:hover {
+.c-chart__filter-btn:hover,
+.filter-btn:hover {
     color: var(--text-main);
     background: rgba(var(--text-main-rgb), 0.05);
 }
 
-.c-chart__filter-btn.active {
+.c-chart__filter-btn.active,
+.filter-btn.active {
     background: var(--accent-color);
     color: white;
+}
+
+/* Chart containers */
+.c-report-chart {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+}
+
+.c-heatmap-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .c-insights-achievements-list {
@@ -2805,7 +2861,7 @@ body.light-theme .c-achievement__progress-base {
     font-weight: 600;
 }
 
-@media (max-width: var(--bp-laptop)) {
+@media (max-width: 64rem) {
     .c-insights-report-layout {
         grid-template-columns: 1fr;
     }
@@ -3052,30 +3108,6 @@ body.light-theme .c-achievement__progress-base {
     border-color: rgba(var(--color-info-rgb), 0.2);
 }
 
-/* --- Responsive Layouts --- */
-@media (max-width: var(--bp-laptop)) {
-    .c-insights-dashboard {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    .c-insights-section-title,
-    .c-insights-card--full {
-        grid-column: span 2;
-    }
-}
-
-@media (max-width: var(--bp-tablet)) {
-    .c-insights-dashboard {
-        grid-template-columns: 1fr;
-    }
-    .c-insights-section-title,
-    .c-insights-card--full {
-        grid-column: span 1;
-    }
-    .c-insights-card--square {
-        aspect-ratio: auto;
-        min-height: 15rem;
-    }
-}
 
 /* --- Daily Performance Component (BEM) --- */
 
@@ -3321,7 +3353,7 @@ body.light-theme .c-achievement__progress-base {
 }
 
 /* Responsive Media Queries */
-@media (max-width: var(--bp-mobile)) {
+@media (max-width: 30rem) {
     .c-modal__content {
         width: 95%;
         padding: var(--spacing-lg);
@@ -3481,7 +3513,7 @@ body.light-theme .c-modal__close:hover {
 }
 
 /* Responsive Media Queries */
-@media (max-width: var(--bp-desktop)) {
+@media (max-width: 62.5rem) {
     .c-settings {
         flex-direction: column;
         height: auto;
@@ -3509,7 +3541,7 @@ body.light-theme .c-modal__close:hover {
     }
 }
 
-@media (max-width: var(--bp-mobile)) {
+@media (max-width: 30rem) {
     .c-settings__panel {
         padding: var(--spacing-lg);
     }
@@ -3556,7 +3588,7 @@ body.light-theme .status-pill {
     padding-top: 1.25rem;
 }
 
-@media (max-width: var(--bp-mobile)) {
+@media (max-width: 30rem) {
     .c-settings__link-box {
         flex-direction: column;
         align-items: stretch;

@@ -59,7 +59,7 @@ func TestTaskClassificationByAliases(t *testing.T) {
 				Task:      tt.task,
 			}
 			service.applyAssigneeRules(ctx, user, msg)
-			service.assignCategory(email, user, msg)
+			service.assignCategory(email, msg)
 
 			if msg.Category != tt.expectedCategory {
 				t.Errorf("expected category %s, got %s", tt.expectedCategory, msg.Category)

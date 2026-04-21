@@ -143,8 +143,25 @@ func (s *TasksService) applyAssigneeRules(ctx context.Context, user *store.User,
 
 	// Why: Broaden 'me' identification by checking against the primary name AND all registered aliases.
 	aliases, _ := store.GetUserAliasesByEmail(ctx, user.Email)
-	if s.IsAssigneeMarkedAsMine(assignee, append(aliases, user.Name)) {
+	effectiveAliases := append(aliases, user.Name)
+	if s.IsAssigneeMarkedAsMine(assignee, effectiveAliases) {
 		msg.Assignee = "me"
+	}
+
+	// Why: Normalize requester to canonical email so assignCategory can detect CategoryRequested
+	// even when the requester field contains a display name instead of an email address.
+	// NormalizeIdentifier strips parenthesized suffixes (e.g. "Jaejin Song (JJ)" → "jaejin song")
+	// so all name variants resolve to the same base before alias comparison.
+	if msg.RequesterCanonical == "" {
+		requester := strings.TrimSpace(msg.Requester)
+		normalizedRequester := store.NormalizeIdentifier(requester)
+		normalizedAliases := make([]string, len(effectiveAliases))
+		for i, a := range effectiveAliases {
+			normalizedAliases[i] = store.NormalizeIdentifier(a)
+		}
+		if strings.EqualFold(requester, user.Email) || s.IsAssigneeMarkedAsMine(normalizedRequester, normalizedAliases) {
+			msg.RequesterCanonical = user.Email
+		}
 	}
 }
 
@@ -389,6 +406,7 @@ func (s *TasksService) IsAssigneeMarkedAsMine(assignee string, identities []stri
 	}
 	return false
 }
+
 
 // IsDirectlyAddressedToMe parses the raw email text to determine if the user's email
 // is in the "To:" header field, as opposed to CC or BCC.
