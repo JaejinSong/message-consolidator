@@ -78,6 +78,7 @@ func main() {
 	var transSvc *services.TranslationService
 	var reportsSvc *services.ReportsService
 	var tasksSvc *services.TasksService
+	var identityResolver *ai.IdentityResolver
 
 	if gClient != nil {
 		transSvc = services.NewTranslationService(gClient)
@@ -85,6 +86,7 @@ func main() {
 		config := services.ReportConfig{CutoffSize: services.DefaultReportCutoffSize}
 		reportsSvc = services.NewReportsService(summarizer, gClient, transSvc, config)
 		tasksSvc = services.NewTasksService(transSvc, gClient)
+		identityResolver = ai.NewIdentityResolver(gClient)
 	} else {
 		// Even without AI, we initialize TasksService to handle non-AI operations gracefully.
 		tasksSvc = services.NewTasksService(nil, nil)
@@ -99,7 +101,7 @@ func main() {
 		var wg sync.WaitGroup
 		scanner.RunAllScans(ctx, &wg)
 		wg.Wait()
-	}, reportsSvc, tasksSvc)
+	}, reportsSvc, tasksSvc, identityResolver)
 
 	srv := setupApp(cfg, api, ctx)
 

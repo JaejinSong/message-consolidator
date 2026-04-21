@@ -89,6 +89,8 @@ CREATE TABLE IF NOT EXISTS identity_merge_candidates (
     confidence REAL NOT NULL,
     reason TEXT,
     status TEXT DEFAULT 'pending',
+    proposal_group_id TEXT,
+    canonical_name TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(contact_id_a, contact_id_b)
 )

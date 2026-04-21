@@ -250,50 +250,8 @@ export const api = {
         });
     },
 
-    async fetchTenantAliases(): Promise<AccountItem[]> {
-        return apiFetch('/tenant/aliases', { errorMessage: 'Fetch tenant aliases failed' });
-    },
-
-    async addTenantAlias(original: string[], primary: string): Promise<any> {
-        return apiFetch('/tenant/alias/add', {
-            method: 'POST',
-            body: JSON.stringify({ aliases: original, display_name: primary }),
-            errorMessage: 'Add tenant alias failed'
-        });
-    },
-
-    async removeTenantAlias(id: string | number): Promise<any> {
-        const validatedId = ensureInt(id);
-        return apiFetch('/tenant/alias/delete', {
-            method: 'POST',
-            body: JSON.stringify({ canonical_id: validatedId }),
-            errorMessage: 'Remove tenant alias failed'
-        });
-    },
-
     async fetchTokenUsage(): Promise<TokenUsage> {
         return apiFetch('/user/token-usage', { errorMessage: 'Fetch token usage failed' });
-    },
-
-    async fetchContactMappings(): Promise<AccountItem[]> {
-        return apiFetch('/contacts/mappings', { errorMessage: 'Fetch contact mappings failed' });
-    },
-
-    async addContactMapping(repName: string, aliases: string[]): Promise<any> {
-        return apiFetch('/contacts/mapping/add', {
-            method: 'POST',
-            body: JSON.stringify({ display_name: repName, aliases }),
-            errorMessage: 'Add contact mapping failed'
-        });
-    },
-
-    async removeContactMapping(id: string | number): Promise<any> {
-        const validatedId = ensureInt(id);
-        return apiFetch('/contacts/mapping/delete', {
-            method: 'POST',
-            body: JSON.stringify({ canonical_id: validatedId }),
-            errorMessage: 'Remove contact mapping failed'
-        });
     },
 
     async fetchReleaseNotes(type = 'user', lang = 'ko'): Promise<any> {
@@ -403,27 +361,24 @@ export const api = {
         });
     },
 
-    async linkAccounts(targetId: string | number, masterId: string | number): Promise<any> {
-        const vTarget = ensureInt(targetId);
-        const vMaster = ensureInt(masterId);
-        return apiFetch('/contacts/link', {
+    async generateIdentityProposals(): Promise<{ proposals_created: number }> {
+        return apiFetch('/identity/proposals/generate', { method: 'POST', errorMessage: 'Generate proposals failed' });
+    },
+
+    async fetchIdentityProposals(): Promise<any[]> {
+        return apiFetch('/identity/proposals', { errorMessage: 'Fetch proposals failed' });
+    },
+
+    async acceptIdentityProposal(groupId: string, canonicalName: string): Promise<any> {
+        return apiFetch(`/identity/proposals/${groupId}/accept`, {
             method: 'POST',
-            body: JSON.stringify({ target_id: vTarget, master_id: vMaster }),
-            errorMessage: 'Link accounts failed'
+            body: JSON.stringify({ canonical_name: canonicalName }),
+            errorMessage: 'Accept proposal failed'
         });
     },
 
-    async unlinkAccount(contactId: string | number): Promise<any> {
-        const validatedId = ensureInt(contactId);
-        return apiFetch('/contacts/unlink', {
-            method: 'POST',
-            body: JSON.stringify({ contact_id: validatedId }),
-            errorMessage: 'Unlink account failed'
-        });
-    },
-
-    async fetchLinkedAccounts(): Promise<any[]> {
-        return apiFetch('/contacts/links', { errorMessage: 'Fetch linked accounts failed' });
+    async rejectIdentityProposal(groupId: string): Promise<any> {
+        return apiFetch(`/identity/proposals/${groupId}/reject`, { method: 'POST', errorMessage: 'Reject proposal failed' });
     },
 
     async mergeTasks(targetIds: (string | number)[], destinationId: string | number): Promise<any> {

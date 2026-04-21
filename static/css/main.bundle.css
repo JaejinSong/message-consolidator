@@ -4071,6 +4071,73 @@ body.light-theme .c-settings__item {
 body.light-theme .status-pill {
     background: rgba(0, 0, 0, 0.04);
 }
+/* --- AI Identity Proposals --- */
+.c-proposal-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.c-proposal-card__names {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.c-proposal-card__chip {
+    background: rgba(0, 242, 255, 0.08);
+    border: var(--border-thin) solid rgba(0, 242, 255, 0.2);
+    color: var(--accent-color);
+    padding: 0.2rem 0.65rem;
+    border-radius: var(--radius-full);
+    font-size: 0.85rem;
+}
+
+.c-proposal-card__meta {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    font-size: 0.82rem;
+}
+
+.c-proposal-card__confidence {
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: var(--radius-full);
+    padding: 0.15rem 0.55rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.c-proposal-card__reason {
+    color: var(--text-dim);
+    flex: 1;
+}
+
+.c-proposal-card__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.c-proposal-card__canonical {
+    flex: 1;
+    min-width: 10rem;
+}
+
+body.light-theme .c-proposal-card {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+body.light-theme .c-proposal-card__chip {
+    background: rgba(0, 180, 200, 0.08);
+}
+
 /* --- Account Linking --- */
 .c-settings__link-box {
     display: flex;

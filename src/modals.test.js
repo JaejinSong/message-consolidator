@@ -5,13 +5,9 @@ import { api } from './api';
 vi.mock('./api', () => ({
     api: {
         fetchAliases: vi.fn().mockResolvedValue([]),
-        fetchTenantAliases: vi.fn().mockResolvedValue([]),
-        fetchContactMappings: vi.fn().mockResolvedValue([]),
+        fetchIdentityProposals: vi.fn().mockResolvedValue([]),
         fetchTokenUsage: vi.fn().mockResolvedValue({ total: 0 }),
         fetchReleaseNotes: vi.fn().mockResolvedValue({ content: 'test' }),
-        fetchLinkedAccounts: vi.fn().mockResolvedValue([]),
-        linkAccounts: vi.fn().mockResolvedValue({}),
-        unlinkAccount: vi.fn().mockResolvedValue({}),
         searchContacts: vi.fn().mockResolvedValue([])
     }
 }));
@@ -36,7 +32,7 @@ describe('modals', () => {
         
         btn.click();
         expect(modal.classList.contains('hidden')).toBe(false);
-        expect(api.fetchTenantAliases).toHaveBeenCalled();
+        expect(api.fetchIdentityProposals).toHaveBeenCalled();
     });
 
     it('should hide modal when close-btn is clicked (event delegation)', () => {

@@ -453,49 +453,18 @@
 
                            <!-- Mappings Tab -->
                     <div id="mappingsTab" class="c-settings__panel">
-                        <!-- Section A: Account Linking -->
+                        <!-- Section: AI Identity Proposals -->
                         <section class="c-settings__section">
-                            <h4 class="c-settings__section-title" data-i18n="accountLinkingTitle">계정 연결 (Account Linking)</h4>
-                            <p class="c-settings__section-desc" data-i18n="accountLinkingDesc">메신저 식별자를 마스터 이메일 계정에 병합합니다. (예: WhatsApp 번호 → 이메일)</p>
-                            
-                            <div class="c-settings__link-box">
-                                <div class="c-settings__link-field">
-                                    <label class="u-text-xs u-text-dim" data-i18n="targetAccount">대상 계정 (Target)</label>
-                                    <div id="targetAccountCombobox"></div>
-                                </div>
-                                <div class="c-settings__link-arrow">→</div>
-                                <div class="c-settings__link-field">
-                                    <label class="u-text-xs u-text-dim" data-i18n="masterAccount">마스터 계정 (Master)</label>
-                                    <div id="masterAccountCombobox"></div>
-                                </div>
-                                <button type="button" id="linkAccountsBtn" class="c-btn c-btn--primary" style="align-self: flex-end;">Link</button>
+                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem;">
+                                <h4 class="c-settings__section-title" style="margin-bottom:0" data-i18n="identityProposalsTitle">동일인 제안 (AI Identity Proposals)</h4>
+                                <button type="button" id="generateProposalsBtn" class="c-btn c-btn--primary" style="font-size:0.85rem; padding:0.3rem 0.9rem;" data-i18n="generateProposalsBtn">AI 분석 실행</button>
                             </div>
-
-                            <div id="linkedAccountsList" class="c-settings__list u-mt-4">
-                                <!-- Linked accounts will be listed here -->
+                            <p class="c-settings__section-desc" data-i18n="identityProposalsDesc">AI가 동일인으로 추정되는 이름들을 제안합니다. 수락 시 대표 이름을 선택하세요.</p>
+                            <div id="proposalsList" style="margin-top:1rem;">
+                                <!-- Proposals rendered here -->
                             </div>
                         </section>
 
-                        <hr class="c-settings__divider">
-
-                        <!-- Section B: Display Name Override -->
-                        <section class="c-settings__section">
-                            <h4 class="c-settings__section-title" data-i18n="nameMappingTitle">표기명 변경 (Display Name Override)</h4>
-                            <p class="c-settings__section-desc" data-i18n="contactMappingDesc">화면에 표시될 이름을 강제로 지정합니다. (예: 송재진 → Jaejin Song)</p>
-                            <div class="c-settings__group"
-                                style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.75rem;">
-                                <input type="text" id="normOriginalInput"
-                                    data-i18n-placeholder="normOriginalPlaceholder" placeholder="Original"
-                                    class="c-input">
-                                <input type="text" id="normPrimaryInput" data-i18n-placeholder="normPrimaryPlaceholder"
-                                    placeholder="Primary" class="c-input">
-                                <button type="button" id="addNormBtn" class="c-btn c-btn--primary"
-                                    data-i18n="mappingAddBtn">Map</button>
-                            </div>
-                            <div id="normList" class="c-settings__list" style="max-height: 250px; overflow-y: auto;">
-                                <!-- Tenant mappings will be listed here -->
-                            </div>
-                        </section>
                     </div>
 
                     <!-- Token Usage Tab -->

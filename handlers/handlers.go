@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"message-consolidator/ai"
 	"message-consolidator/config"
 	"message-consolidator/logger"
 	"message-consolidator/services"
@@ -13,22 +14,23 @@ import (
 
 // API holds all dependencies for API handlers, promoting testability and avoiding global state.
 type API struct {
-	Config       *config.Config
-	ScanFunc     func(email string, lang string)
-	FullScanFunc func()
-	Reports      *services.ReportsService
-	Tasks        *services.TasksService
-	//Why: Allows for future expansion of shared dependencies like database stores or logger instances.
+	Config           *config.Config
+	ScanFunc         func(email string, lang string)
+	FullScanFunc     func()
+	Reports          *services.ReportsService
+	Tasks            *services.TasksService
+	IdentityResolver *ai.IdentityResolver
 }
 
 // NewAPI is a constructor for the API struct, making dependency injection explicit.
-func NewAPI(cfg *config.Config, scanFunc func(string, string), fullScanFunc func(), reports *services.ReportsService, tasks *services.TasksService) *API {
+func NewAPI(cfg *config.Config, scanFunc func(string, string), fullScanFunc func(), reports *services.ReportsService, tasks *services.TasksService, identityResolver *ai.IdentityResolver) *API {
 	return &API{
-		Config:       cfg,
-		ScanFunc:     scanFunc,
-		FullScanFunc: fullScanFunc,
-		Reports:      reports,
-		Tasks:        tasks,
+		Config:           cfg,
+		ScanFunc:         scanFunc,
+		FullScanFunc:     fullScanFunc,
+		Reports:          reports,
+		Tasks:            tasks,
+		IdentityResolver: identityResolver,
 	}
 }
 

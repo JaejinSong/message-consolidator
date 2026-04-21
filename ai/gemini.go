@@ -8,6 +8,7 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
+	"regexp"
 	"strings"
 	"time"
 
@@ -15,6 +16,15 @@ import (
 	"github.com/whatap/go-api/trace"
 	"google.golang.org/api/option"
 )
+
+var apiKeyPattern = regexp.MustCompile(`(key=)[^&"'\s]+`)
+
+func maskAPIKey(err error) string {
+	if err == nil {
+		return ""
+	}
+	return apiKeyPattern.ReplaceAllString(err.Error(), "${1}***")
+}
 
 // TaskTransition represents the AI's decision on how a reply impacts a parent task.
 type TaskTransition struct {
@@ -94,7 +104,7 @@ func generateWithRetry(ctx context.Context, model *genai.GenerativeModel, prompt
 			return nil, ctx.Err() //Why: Exits immediately if the context was canceled by the caller (e.g. timeout or client disconnect) to avoid redundant retry attempts.
 		}
 
-		logger.Warnf("[GEMINI] API call failed (attempt %d/%d): %v", attempt+1, maxRetries+1, err)
+		logger.Warnf("[GEMINI] API call failed (attempt %d/%d): %s", attempt+1, maxRetries+1, maskAPIKey(err))
 		if attempt < maxRetries {
 			// Why: Adds random jitter to the exponential backoff to prevent synchronized retries (thundering herd) and improve reliability against rate limits.
 			backoff := time.Duration(1<<attempt) * time.Second

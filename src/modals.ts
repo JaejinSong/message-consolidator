@@ -1,16 +1,12 @@
 import { state } from './state';
 import { api } from './api';
-import { 
-    showToast, 
-    renderAliasList, 
-    renderTenantAliasList, 
-    renderContactMappings, 
-    renderReleaseNotes, 
-    renderLinkedAccounts, 
-    initAccountLinkingCompos 
+import {
+    showToast,
+    renderAliasList,
+    renderReleaseNotes,
+    renderProposals
 } from './renderer';
 import { safeAsync } from './utils';
-import { SettingsCompos } from './renderers/settings-renderer';
 import { TokenUsageCard } from './components/token-usage';
 
 /**
@@ -19,7 +15,6 @@ import { TokenUsageCard } from './components/token-usage';
  */
 
 let onTasksChanged: (() => void) | null = null;
-let settingsCompos: SettingsCompos | null = null;
 
 export interface ModalInterface {
     init(fetchMessagesCallback: () => void): void;
@@ -27,17 +22,12 @@ export interface ModalInterface {
     fetchAliases(): Promise<void>;
     addAlias(): Promise<void>;
     removeAlias(alias: string): Promise<void>;
-    fetchTenantAliases(): Promise<void>;
-    addTenantAliasMapping(): Promise<void>;
-    removeTenantAliasMapping(original: string): Promise<void>;
-    fetchContactMappings(): Promise<void>;
-    addContactMapping(): Promise<void>;
-    removeContactMapping(repName: string): Promise<void>;
     setupReleaseNotesModal(): void;
     showOriginalModal(rawContent: string): void;
-    fetchLinkedAccounts(): Promise<void>;
-    linkAccounts(targetId: string, masterId: string): Promise<void>;
-    unlinkAccount(targetId: string): Promise<void>;
+    fetchIdentityProposals(): Promise<void>;
+    generateIdentityProposals(): Promise<void>;
+    acceptIdentityProposal(groupId: string, canonicalName: string): Promise<void>;
+    rejectIdentityProposal(groupId: string): Promise<void>;
     setupSettingsModal(): void;
     cleanupModal(modalId: string): void;
     openAliasMapping(name: string): void;
@@ -91,14 +81,7 @@ export const modals: any = {
     /**
      * Internal cleanup logic for specific modals.
      */
-    cleanupModal(modalId: string) {
-        if (modalId === 'settingsModal' && settingsCompos) {
-            console.debug('[MODAL] Cleaning up settings comboboxes');
-            settingsCompos.targetCombo.destroy();
-            settingsCompos.masterCombo.destroy();
-            settingsCompos = null;
-        }
-    },
+    cleanupModal(_modalId: string) {},
 
     /**
      * Fetches and renders user aliases.
@@ -134,85 +117,6 @@ export const modals: any = {
         this.fetchAliases();
     }, { triggerAuthOverlay: true }),
 
-    /**
-     * Fetches and renders tenant aliases.
-     */
-    fetchTenantAliases: safeAsync(async function (this: ModalInterface) {
-        const aliases = await api.fetchTenantAliases();
-        renderTenantAliasList(aliases, this.removeTenantAliasMapping.bind(this));
-    }),
-
-    /**
-     * Adds a new tenant alias mapping.
-     */
-    addTenantAliasMapping: safeAsync(async function (this: ModalInterface) {
-        const origInput = document.getElementById('normOriginalInput') as HTMLInputElement;
-        const primInput = document.getElementById('normPrimaryInput') as HTMLInputElement;
-        if (!origInput || !primInput) return;
-
-        const original = origInput.value.trim();
-        const primary = primInput.value.trim();
-        if (!original || !primary) return;
-
-        await api.addTenantAlias([original], primary);
-        origInput.value = '';
-        primInput.value = '';
-        this.fetchTenantAliases();
-    }, { triggerAuthOverlay: true }),
-
-    /**
-     * Removes a tenant alias mapping.
-     * @param original - Original name.
-     */
-    removeTenantAliasMapping: safeAsync(async function (this: ModalInterface, original: string) {
-        await api.removeTenantAlias(original);
-        this.fetchTenantAliases();
-    }, { triggerAuthOverlay: true }),
-
-
-    /**
-     * Fetches and renders contact mappings.
-     */
-    fetchContactMappings: safeAsync(async function (this: ModalInterface) {
-        const mappings = await api.fetchContactMappings();
-        renderContactMappings(mappings, (repName: string) => this.removeContactMapping(repName));
-    }, { triggerAuthOverlay: true }),
-
-    /**
-     * Adds a new contact mapping.
-     */
-    addContactMapping: safeAsync(async function (this: ModalInterface) {
-        const repInput = document.getElementById('contactRepInput') as HTMLInputElement;
-        const aliasInput = document.getElementById('contactAliasesInput') as HTMLInputElement;
-        if (!repInput || !aliasInput) return;
-
-        const repName = repInput.value.trim();
-        const aliases = aliasInput.value.trim();
-        if (!repName || !aliases) return;
-
-        try {
-            await api.addContactMapping(repName, aliases.split(',').map(s => s.trim()).filter(Boolean));
-            repInput.value = '';
-            aliasInput.value = '';
-            this.fetchContactMappings();
-            showToast('Contact mapping added successfully', 'success');
-        } catch (e: any) {
-            if (e.status === 409) {
-            showToast('Mapping already exists for this identity', 'error');
-                return;
-            }
-            throw e;
-        }
-    }, { triggerAuthOverlay: true }),
-
-    /**
-     * Removes a contact mapping.
-     * @param repName - Representative name to remove.
-     */
-    removeContactMapping: safeAsync(async function (this: ModalInterface, repName: string) {
-        await api.removeContactMapping(repName);
-        this.fetchContactMappings();
-    }, { triggerAuthOverlay: true }),
 
     /**
      * Sets up release notes modal and triggers.
@@ -300,35 +204,36 @@ export const modals: any = {
         }
     },
 
-    /**
-     * Fetches and renders current account links.
-     */
-    fetchLinkedAccounts: safeAsync(async function (this: ModalInterface) {
-        const links = await api.fetchLinkedAccounts();
-        renderLinkedAccounts(links, (id: string) => this.unlinkAccount(id));
+    fetchIdentityProposals: safeAsync(async function (this: ModalInterface) {
+        const proposals = await api.fetchIdentityProposals();
+        renderProposals(
+            proposals,
+            (groupId: string, name: string) => this.acceptIdentityProposal(groupId, name),
+            (groupId: string) => this.rejectIdentityProposal(groupId)
+        );
     }),
 
-    /**
-     * Links two accounts.
-     */
-    linkAccounts: safeAsync(async function (this: ModalInterface, targetId: string, masterId: string) {
-        if (targetId === masterId) {
-            showToast('자기 자신을 연결할 수 없습니다.', 'error');
-            return;
+    generateIdentityProposals: safeAsync(async function (this: ModalInterface) {
+        const btn = document.getElementById('generateProposalsBtn') as HTMLButtonElement;
+        if (btn) { btn.disabled = true; btn.textContent = '분석 중...'; }
+        try {
+            const result = await api.generateIdentityProposals();
+            showToast(`제안 ${result.proposals_created}건 생성됨`, 'success');
+            this.fetchIdentityProposals();
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = 'AI 분석 실행'; }
         }
-        await api.linkAccounts(targetId, masterId);
-        showToast('계정이 성공적으로 연결되었습니다.', 'success');
-        this.fetchLinkedAccounts();
     }, { triggerAuthOverlay: true }),
 
-    /**
-     * Unlinks an account.
-     */
-    unlinkAccount: safeAsync(async function (this: ModalInterface, targetId: string) {
-        if (!confirm('정말로 이 연결을 해제하시겠습니까?')) return;
-        await api.unlinkAccount(targetId);
-        showToast('연결이 해제되었습니다.', 'success');
-        this.fetchLinkedAccounts();
+    acceptIdentityProposal: safeAsync(async function (this: ModalInterface, groupId: string, canonicalName: string) {
+        await api.acceptIdentityProposal(groupId, canonicalName);
+        showToast(`"${canonicalName}"으로 통합됨`, 'success');
+        this.fetchIdentityProposals();
+    }, { triggerAuthOverlay: true }),
+
+    rejectIdentityProposal: safeAsync(async function (this: ModalInterface, groupId: string) {
+        await api.rejectIdentityProposal(groupId);
+        this.fetchIdentityProposals();
     }, { triggerAuthOverlay: true }),
 
     /**
@@ -345,54 +250,28 @@ export const modals: any = {
                 modal.classList.remove('hidden');
                 (modal as HTMLElement).style.display = 'flex';
                 renderAliasList((state as any).userAliases || [], (alias: string) => this.removeAlias(alias));
-                this.fetchTenantAliases();
-                this.fetchContactMappings();
-                this.fetchLinkedAccounts();
-
-                // Why: Always re-initialize to ensure fresh DOM state, cleanup handled by global close listener.
-                if (settingsCompos) {
-                    settingsCompos.targetCombo.destroy();
-                    settingsCompos.masterCombo.destroy();
-                }
-                
-                const compos = initAccountLinkingCompos(
-                    (q: string) => api.searchContacts(q),
-                    (target: number, master: number) => this.linkAccounts(String(target), String(master))
-                );
-
-                if (compos) {
-                    settingsCompos = compos;
-                }
+                this.fetchIdentityProposals();
+                document.getElementById('generateProposalsBtn')?.addEventListener('click', () => this.generateIdentityProposals());
             }
         });
 
-        const bindEnter = (inputId: string, btnId: string, fn: Function) => {
-            document.getElementById(btnId)?.addEventListener('click', () => fn.call(this));
-            document.getElementById(inputId)?.addEventListener('keypress', (e) => { 
-                if ((e as KeyboardEvent).key === 'Enter') fn.call(this); 
-            });
-        };
-        bindEnter('newAliasInput', 'addAliasBtn', this.addAlias);
-        bindEnter('normPrimaryInput', 'addNormBtn', this.addTenantAliasMapping);
+        document.getElementById('addAliasBtn')?.addEventListener('click', () => this.addAlias());
+        document.getElementById('newAliasInput')?.addEventListener('keypress', (e) => {
+            if ((e as KeyboardEvent).key === 'Enter') this.addAlias();
+        });
     },
 
     /**
      * Opens alias mapping modal for a specific name.
      * @param name - Name to prepopulate mapping for.
      */
-    openAliasMapping(name: string) {
+    openAliasMapping(_name: string) {
         const settingsModal = document.getElementById('settingsModal');
         if (settingsModal) {
             settingsModal.classList.remove('hidden');
             (settingsModal as HTMLElement).style.display = 'flex';
             (document.querySelector('[data-settings-tab="mappingsTab"]') as HTMLElement)?.click();
-            this.fetchTenantAliases();
-            this.fetchContactMappings();
-            const origInput = document.getElementById('normOriginalInput') as HTMLInputElement;
-            const contactAliasInput = document.getElementById('contactAliasesInput') as HTMLInputElement;
-            if (origInput) origInput.value = name;
-            if (contactAliasInput) contactAliasInput.value = name;
-            (document.getElementById('normPrimaryInput') as HTMLElement)?.focus();
+            this.fetchIdentityProposals();
         }
     },
 

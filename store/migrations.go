@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"message-consolidator/db"
 	"message-consolidator/logger"
@@ -75,11 +76,43 @@ func rebuildViews(ctx context.Context, q db.DBTX) error {
 }
 
 func migrateExistingData(ctx context.Context, q db.DBTX) {
+	// If the table is missing core columns (e.g. leftover from an old schema), drop and recreate it.
+	// identity_merge_candidates holds only AI-generated proposals so data loss is acceptable.
+	if !tableHasColumn(ctx, q, "identity_merge_candidates", "contact_id_a") {
+		_, _ = q.ExecContext(ctx, "DROP TABLE IF EXISTS identity_merge_candidates")
+		_ = db.New(q).CreateIdentityMergeCandidatesTable(ctx)
+	}
+
+	// Why: ALTER TABLE ADD COLUMN is idempotent on SQLite when columns are added conditionally via ignored errors.
+	_, _ = q.ExecContext(ctx, "ALTER TABLE identity_merge_candidates ADD COLUMN proposal_group_id TEXT")
+	_, _ = q.ExecContext(ctx, "ALTER TABLE identity_merge_candidates ADD COLUMN canonical_name TEXT")
+
 	// Why: Basic data normalization for existing records.
 	_, _ = q.ExecContext(ctx, "UPDATE messages SET is_deleted = 0 WHERE is_deleted IS NULL")
 	_, _ = q.ExecContext(ctx, "UPDATE messages SET room = 'General' WHERE room IS NULL OR room = ''")
 	_, _ = q.ExecContext(ctx, "UPDATE messages SET category = 'todo' WHERE category = 'waiting'")
 	_, _ = q.ExecContext(ctx, "UPDATE messages SET category = 'todo' WHERE category = 'promise'")
+}
+
+// tableHasColumn reports whether the given SQLite table contains a column with the given name.
+func tableHasColumn(ctx context.Context, q db.DBTX, table, column string) bool {
+	rows, err := q.QueryContext(ctx, "PRAGMA table_info("+table+")")
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, typ string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
+			continue
+		}
+		if name == column {
+			return true
+		}
+	}
+	return false
 }
 
 func createIndexes(ctx context.Context, q db.DBTX) {

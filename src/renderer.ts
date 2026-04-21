@@ -25,10 +25,7 @@ export { updateUserProfile } from './renderers/profile-renderer';
 
 export {
     renderAliasList,
-    renderTenantAliasList,
-    renderContactMappings,
-    renderLinkedAccounts,
-    initAccountLinkingCompos
+    renderProposals
 } from './renderers/settings-renderer';
 
 export {
