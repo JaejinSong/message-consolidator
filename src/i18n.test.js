@@ -4,23 +4,23 @@ import { I18N_DATA } from './locales';
 
 describe('i18n.ts - t()', () => {
     it('returns the correct EN string for a known key', () => {
-        expect(t('myTasks', 'en')).toBe(I18N_DATA['en'].myTasks);
+        expect(t('receivedTasks', 'en')).toBe(I18N_DATA['en'].receivedTasks);
     });
 
     it('returns the correct KO string for a known key', () => {
-        expect(t('myTasks', 'ko')).toBe(I18N_DATA['ko'].myTasks);
+        expect(t('receivedTasks', 'ko')).toBe(I18N_DATA['ko'].receivedTasks);
     });
 
     it('falls back to EN when lang is empty string', () => {
-        expect(t('myTasks', '')).toBe(I18N_DATA['en'].myTasks);
+        expect(t('receivedTasks', '')).toBe(I18N_DATA['en'].receivedTasks);
     });
 
     it('falls back to EN when lang is undefined/missing', () => {
-        expect(t('myTasks')).toBe(I18N_DATA['en'].myTasks);
+        expect(t('receivedTasks')).toBe(I18N_DATA['en'].receivedTasks);
     });
 
     it('falls back to EN when lang is unknown locale', () => {
-        expect(t('myTasks', 'zz')).toBe(I18N_DATA['en'].myTasks);
+        expect(t('receivedTasks', 'zz')).toBe(I18N_DATA['en'].receivedTasks);
     });
 
     it('returns the key itself when key does not exist in any locale', () => {

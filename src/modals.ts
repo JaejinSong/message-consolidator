@@ -154,7 +154,7 @@ export const modals: any = {
         const primary = primInput.value.trim();
         if (!original || !primary) return;
 
-        await api.addTenantAlias(original, primary);
+        await api.addTenantAlias([original], primary);
         origInput.value = '';
         primInput.value = '';
         this.fetchTenantAliases();
@@ -191,7 +191,7 @@ export const modals: any = {
         if (!repName || !aliases) return;
 
         try {
-            await api.addContactMapping(repName, aliases);
+            await api.addContactMapping(repName, aliases.split(',').map(s => s.trim()).filter(Boolean));
             repInput.value = '';
             aliasInput.value = '';
             this.fetchContactMappings();

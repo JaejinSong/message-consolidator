@@ -205,21 +205,32 @@ func TestUpsertAddresses(t *testing.T) {
 	store.InitContactsTable(context.Background(), store.GetDB())
 
 	tenant := "tenant@whatap.io"
-	
-	// Case 1: Multiple recipients
+
+	// Case 1: Multiple recipients — first email returned, both contacts registered
 	header := "Lim Sola <sola@whatap.io>, Kenny Holmes <kenny@whatap.io>"
-	first := upsertAddresses(context.Background(), tenant, header, "gmail")
+	first, _ := upsertAddresses(context.Background(), tenant, header, "gmail")
 
 	if first != "sola@whatap.io" {
 		t.Errorf("Expected sola@whatap.io, got %s", first)
 	}
-	
-	// Check if both were registered in store (via NormalizeContactName)
 	if name := store.NormalizeContactName(tenant, "sola@whatap.io"); name != "Lim Sola" {
 		t.Errorf("Lim Sola not registered correctly: %s", name)
 	}
 	if name := store.NormalizeContactName(tenant, "kenny@whatap.io"); name != "Kenny Holmes" {
 		t.Errorf("Kenny Holmes not registered correctly: %s", name)
+	}
+
+	// Case 2: Empty header — must return empty strings without panic
+	empty, _ := upsertAddresses(context.Background(), tenant, "", "gmail")
+	if empty != "" {
+		t.Errorf("Expected empty string for empty header, got %s", empty)
+	}
+
+	// Case 3: Single recipient without display name — email used as identifier
+	plain := "noreply@whatap.io"
+	single, _ := upsertAddresses(context.Background(), tenant, plain, "gmail")
+	if single == "" {
+		t.Errorf("Expected non-empty result for plain email header, got empty")
 	}
 }
 

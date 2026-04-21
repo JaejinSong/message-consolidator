@@ -5,7 +5,7 @@
  * All data and localization must be injected by the controller.
  */
 
-import { IReportData, UserStats, TokenUsage, ParsedVisualization } from './types';
+import { IReportData, UserStats, TokenUsage } from './types';
 import { generateHeatmapData } from './logic';
 import { reportsRenderer } from './renderers/reports-renderer';
 

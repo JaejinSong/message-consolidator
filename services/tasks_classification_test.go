@@ -29,23 +29,34 @@ func TestTaskClassificationByAliases(t *testing.T) {
 	service := &TasksService{}
 
 	tests := []struct {
-		name     string
-		assignee string
+		name             string
+		assignee         string
+		requester        string
+		task             string
 		expectedCategory string
 		expectedAssignee string
 	}{
-		{"Exact Name Match", "Jaejin Song", CategoryPersonal, "me"},
-		{"Alias Match (Korean)", "송재진", CategoryPersonal, "me"},
-		{"Alias Match (Short)", "jj", CategoryPersonal, "me"},
-		{"Token Match", "__CURRENT_USER__", CategoryPersonal, "me"},
-		{"Literal 'me'", "me", CategoryPersonal, "me"},
-		{"Non-match", "Other Person", CategoryOthers, "Other Person"},
+		{"Exact Name Match", "Jaejin Song", "", "some task", CategoryPersonal, "me"},
+		{"Alias Match (Korean)", "송재진", "", "some task", CategoryPersonal, "me"},
+		{"Alias Match (Short)", "jj", "", "some task", CategoryPersonal, "me"},
+		{"Token Match", "__CURRENT_USER__", "", "some task", CategoryPersonal, "me"},
+		{"Literal 'me'", "me", "", "some task", CategoryPersonal, "me"},
+		{"Non-match → others", "Other Person", "Other Person", "some task", CategoryOthers, "Other Person"},
+		{"Undefined assignee → others", "undefined", "", "some task", CategoryOthers, ""},
+		{"Unknown assignee → others", "unknown", "", "some task", CategoryOthers, ""},
+		{"Requested: requester by email", "Other Person", email, "some task", CategoryRequested, "Other Person"},
+		{"Requested: requester by name", "Other Person", name, "some task", CategoryRequested, "Other Person"},
+		{"Shared: explicit shared assignee", "shared", "", "some task", CategoryShared, "shared"},
+		{"Shared: @channel group mention", "", "", "@channel update please", CategoryShared, ""},
+		{"Shared: @here group mention", "", "", "@here check this", CategoryShared, ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			msg := &store.ConsolidatedMessage{
-				Assignee: tt.assignee,
+				Assignee:  tt.assignee,
+				Requester: tt.requester,
+				Task:      tt.task,
 			}
 			service.applyAssigneeRules(ctx, user, msg)
 			service.assignCategory(email, user, msg)

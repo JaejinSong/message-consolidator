@@ -183,20 +183,28 @@ export function renderMessages(categorized: CategorizedMessages): void {
         if (el) el.textContent = count.toString();
     };
 
-    updateCount('myCount', getActiveCount(categorized.inbox));
-    updateCount('otherCount', getActiveCount(categorized.pending));
+    const delegatedMsgs = filterByTab(categorized.pending || [], 'delegated');
+    const referenceMsgs = filterByTab(categorized.pending || [], 'reference');
+    updateCount('receivedCount', getActiveCount(categorized.inbox));
+    updateCount('delegatedCount', getActiveCount(delegatedMsgs));
+    updateCount('referenceCount', getActiveCount(referenceMsgs));
     updateCount('allCount', getActiveCount(allTasks));
 
     const gridsConfig: { tab: TaskTab, gridId: string, messages: Message[] }[] = [
-        { 
-            tab: 'my', 
-            gridId: 'myTasksList', 
-            messages: filterByTab(categorized.inbox || [], 'my') 
+        {
+            tab: 'received',
+            gridId: 'receivedTasksList',
+            messages: filterByTab(categorized.inbox || [], 'received')
         },
-        { 
-            tab: 'other', 
-            gridId: 'otherTasksList', 
-            messages: filterByTab(categorized.pending || [], 'other') 
+        {
+            tab: 'delegated',
+            gridId: 'delegatedTasksList',
+            messages: delegatedMsgs
+        },
+        {
+            tab: 'reference',
+            gridId: 'referenceTasksList',
+            messages: referenceMsgs
         },
         {
             tab: 'all',
@@ -214,7 +222,7 @@ export function renderMessages(categorized: CategorizedMessages): void {
         if (!grid) return;
 
         const filtered = sortAndSearchMessages(config.messages, searchQuery);
-        const isMyTasksEmpty = (config.tab === 'my' && config.messages.length === 0 && !searchQuery);
+        const isMyTasksEmpty = (config.tab === 'received' && config.messages.length === 0 && !searchQuery);
 
         grid.innerHTML = '';
         if (isMyTasksEmpty) {
@@ -277,7 +285,7 @@ export function removeTaskNode(id: number): void {
 
             // If grid is now empty, show empty state
             if (grid && grid.children.length === 0) {
-                renderEmptyGrid(grid as HTMLElement, grid.id === 'myTasksList');
+                renderEmptyGrid(grid as HTMLElement, grid.id === 'receivedTasksList');
             }
         }, 300);
     });
@@ -289,8 +297,9 @@ export function removeTaskNode(id: number): void {
             const el = document.getElementById(countId);
             if (el) el.textContent = count.toString();
         };
-        updateCount('myCount', getActiveCount(state.messages.inbox));
-        updateCount('otherCount', getActiveCount(state.messages.pending));
+        updateCount('receivedCount', getActiveCount(state.messages.inbox));
+        updateCount('delegatedCount', getActiveCount(filterByTab(state.messages.pending, 'delegated')));
+        updateCount('referenceCount', getActiveCount(filterByTab(state.messages.pending, 'reference')));
         updateCount('allCount', getActiveCount(allTasks));
     }, 300);
 }
@@ -318,8 +327,9 @@ export function updateTaskNodeStatus(id: number, done: boolean): void {
         const el = document.getElementById(id);
         if (el) el.textContent = count.toString();
     };
-    updateCount('myCount', getActiveCount(state.messages.inbox));
-    updateCount('otherCount', getActiveCount(state.messages.pending));
+    updateCount('receivedCount', getActiveCount(state.messages.inbox));
+    updateCount('delegatedCount', getActiveCount(filterByTab(state.messages.pending, 'delegated')));
+    updateCount('referenceCount', getActiveCount(filterByTab(state.messages.pending, 'reference')));
     updateCount('allCount', getActiveCount(allTasks));
 }
 
@@ -372,7 +382,7 @@ export function renderArchive(messages: Message[]): void {
 /**
  * Binds global click events.
  */
-export function bindGlobalClicks(handlers: {}): void {
+export function bindGlobalClicks(_handlers: {}): void {
     document.body.addEventListener('click', () => {
         // Placeholder for future global click handlers
     });

@@ -607,13 +607,13 @@ const initApp = () => {
             modals.fetchTokenUsage();
         }
     });
-    setTimeout(() => (document.querySelector('[data-tab="myTasksTab"]') as HTMLElement)?.click(), 500);
+    setTimeout(() => (document.querySelector('[data-tab="receivedTasksTab"]') as HTMLElement)?.click(), 500);
 
     initNavigation();
     initActionButtons();
     
     // Initialize Event Delegation for all grids
-    ['myTasksList', 'otherTasksList', 'allTasksList'].forEach(id => {
+    ['receivedTasksList', 'delegatedTasksList', 'referenceTasksList', 'allTasksList'].forEach(id => {
         initMessageGridEvents(id, handlers);
     });
 

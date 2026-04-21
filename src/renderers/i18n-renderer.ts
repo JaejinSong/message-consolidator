@@ -81,13 +81,13 @@ export function renderUILanguage(lang: string): void {
 
     applyDataAttributes(safeLang);
 
-    applyNavLink('myTasksTab', 'dashboardTitle', safeLang);
+    applyNavLink('receivedTasksTab', 'dashboardTitle', safeLang);
     applyNavLink('archiveLink', 'archiveTitle', safeLang);
     applyNavLink('insightsLink', 'insightsTitle', safeLang);
 
-    applyTabLabel('myTasksTab', 'myTasks', safeLang);
-    applyTabLabel('otherTasksTab', 'otherTasks', safeLang);
-    applyTabLabel('waitingTasksTab', 'waitingTasks', safeLang);
+    applyTabLabel('receivedTasksTab', 'receivedTasks', safeLang);
+    applyTabLabel('delegatedTasksTab', 'delegatedTasks', safeLang);
+    applyTabLabel('referenceTasksTab', 'referenceTasks', safeLang);
     applyTabLabel('allTasksTab', 'allTasks', safeLang);
 
     applyArchiveHeader(safeLang);

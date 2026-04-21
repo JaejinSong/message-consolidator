@@ -169,32 +169,32 @@
 
             <div id="dashboardContent" class="tabs-container">
                 <div class="tabs c-tabs">
-                    <button type="button" class="tab-btn c-tabs__btn active" data-tab="myTasksTab">
-                        <span data-i18n="myTasks">My Tasks</span>
-                        <span class="c-badge c-badge--count" id="myCount">0</span></button>
-                    <button type="button" class="tab-btn c-tabs__btn" data-tab="otherTasksTab">
-                        <span data-i18n="otherTasks">Other Tasks</span>
-                        <span class="c-badge c-badge--count" id="otherCount">0</span></button>
+                    <button type="button" class="tab-btn c-tabs__btn active" data-tab="receivedTasksTab">
+                        <span data-i18n="receivedTasks">받은 업무</span>
+                        <span class="c-badge c-badge--count" id="receivedCount">0</span></button>
+                    <button type="button" class="tab-btn c-tabs__btn" data-tab="delegatedTasksTab">
+                        <span data-i18n="delegatedTasks">맡긴 업무</span>
+                        <span class="c-badge c-badge--count" id="delegatedCount">0</span></button>
+                    <button type="button" class="tab-btn c-tabs__btn" data-tab="referenceTasksTab">
+                        <span data-i18n="referenceTasks">참조 업무</span>
+                        <span class="c-badge c-badge--count" id="referenceCount">0</span></button>
                     <button type="button" class="tab-btn c-tabs__btn" data-tab="allTasksTab">
-                        <span data-i18n="allTasks">All Tasks</span>
+                        <span data-i18n="allTasks">전체</span>
                         <span class="c-badge c-badge--count" id="allCount">0</span></button>
                 </div>
 
 
-                <div id="myTasksTab" class="c-tabs__panel c-tabs__panel--active">
-                    <div id="myTasksList" class="task-list">
-                        <!-- My Cards will be injected here -->
-                    </div>
+                <div id="receivedTasksTab" class="c-tabs__panel c-tabs__panel--active">
+                    <div id="receivedTasksList" class="task-list"></div>
                 </div>
-                <div id="otherTasksTab" class="c-tabs__panel">
-                    <div id="otherTasksList" class="task-list">
-                        <!-- Other Cards will be injected here -->
-                    </div>
+                <div id="delegatedTasksTab" class="c-tabs__panel">
+                    <div id="delegatedTasksList" class="task-list"></div>
+                </div>
+                <div id="referenceTasksTab" class="c-tabs__panel">
+                    <div id="referenceTasksList" class="task-list"></div>
                 </div>
                 <div id="allTasksTab" class="c-tabs__panel">
-                    <div id="allTasksList" class="task-list">
-                        <!-- All Cards will be injected here -->
-                    </div>
+                    <div id="allTasksList" class="task-list"></div>
                 </div>
             </div>
 

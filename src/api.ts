@@ -167,7 +167,7 @@ export const api = {
         });
     },
 
-    async fetchArchive(params: any = {}): Promise<Message[]> {
+    async fetchArchive(params: any = {}): Promise<{ total: number; messages: Message[] }> {
         const queryParams = { ...params };
         if (!queryParams.lang) queryParams.lang = 'ko';
         if (!queryParams.status) queryParams.status = 'all';
