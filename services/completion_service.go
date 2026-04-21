@@ -112,7 +112,11 @@ func (s *CompletionService) fallbackToNewExtraction(ctx context.Context, msg sto
 		SenderName: msg.Requester, VirtualThreadID: msg.ThreadID, Timestamp: msg.CreatedAt,
 	}
 	// Why: If AI identifies a 'NEW' task in a reply thread, we route it back to the standard extraction pipeline.
-	items, err := s.gemini.Analyze(ctx, msg.UserEmail, enriched, "Korean", msg.Source, msg.Room)
+	room := msg.Room
+	if room == "" {
+		room = "General"
+	}
+	items, err := s.gemini.Analyze(ctx, msg.UserEmail, enriched, "Korean", msg.Source, room)
 	if err != nil || len(items) == 0 { return }
 
 	_ = s.runInTx(ctx, func(tx *sql.Tx) error {

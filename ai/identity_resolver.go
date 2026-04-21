@@ -27,7 +27,7 @@ type MergeGroup struct {
 	Reason     string  `json:"reason"`
 }
 
-const identityChunkSize = 50
+const identityChunkSize = 20
 
 // ProposeGroups analyzes the given contacts and returns groups of likely-same-person contacts.
 func (r *IdentityResolver) ProposeGroups(ctx context.Context, contacts []store.ContactRecord) ([]MergeGroup, error) {
@@ -59,11 +59,16 @@ func (r *IdentityResolver) proposeInChunks(ctx context.Context, contacts []store
 }
 
 func (r *IdentityResolver) proposeChunk(ctx context.Context, contacts []store.ContactRecord) ([]MergeGroup, error) {
-	prompt := buildGroupMergePrompt(contacts)
-	model := r.client.client.GenerativeModel(r.client.analysisModel)
-	model.SetTemperature(0.1)
+	parsed := LoadPrompt("identity_group_merge.prompt")
+	rendered, err := parsed.Render(ExtractionContext{
+		MessagePayload: formatContactsForPrompt(contacts),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to render identity prompt: %w", err)
+	}
 
-	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 120*time.Second, 3)
+	model := r.client.initModel(r.client.getEffectiveModel(parsed, r.client.analysisModel), 0.1, 0, "", "")
+	resp, err := generateWithRetry(ctx, model, genai.Text(rendered), 300*time.Second, 2)
 	if err != nil {
 		return nil, err
 	}
@@ -91,22 +96,10 @@ func (r *IdentityResolver) proposeChunk(ctx context.Context, contacts []store.Co
 	return groups, nil
 }
 
-func buildGroupMergePrompt(contacts []store.ContactRecord) string {
+func formatContactsForPrompt(contacts []store.ContactRecord) string {
 	var sb strings.Builder
-	sb.WriteString("Analyze the following contacts and identify groups that are likely the same physical person.\n")
-	sb.WriteString("Return ONLY a JSON array. Each element: {\"contact_ids\": [id1, id2, ...], \"confidence\": 0.0-1.0, \"reason\": \"...\"}\n\n")
-	sb.WriteString("Contacts:\n")
 	for _, c := range contacts {
 		sb.WriteString(fmt.Sprintf("- id: %d, name: %q, canonical_id: %q\n", c.ID, c.DisplayName, c.CanonicalID))
 	}
-	sb.WriteString("\nMatching rules (all case-insensitive):\n")
-	sb.WriteString("1. Name reordering: 'Jaejin Song' and 'Song Jaejin' are the same.\n")
-	sb.WriteString("2. Korean-English transliteration: '송재진' and 'Jaejin Song' are the same person.\n")
-	sb.WriteString("3. Parenthesized nickname: 'Jaejin Song (JJ)' matches 'Jaejin Song' and 'JJ'.\n")
-	sb.WriteString("4. Email username hint: 'jjsong@whatap.io' suggests the person named 'JJ Song' or 'Jaejin Song'.\n")
-	sb.WriteString("5. Partial name + same email domain strongly suggests same person.\n")
-	sb.WriteString("Only include groups with confidence > 0.6 and at least 2 contact_ids.\n")
-	sb.WriteString("Do NOT merge contacts that are clearly different people.\n")
-	sb.WriteString("Return [] if no confident matches found.\n")
 	return sb.String()
 }

@@ -78,8 +78,12 @@ func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string
 	aliasMap := store.BulkResolveAliases(ctx, email, identifiers)
 
 	for i := range msgs {
-		msgs[i].Requester = aliasMap[msgs[i].Requester]
-		msgs[i].Assignee = aliasMap[msgs[i].Assignee]
+		if resolved := aliasMap[msgs[i].Requester]; resolved != "" {
+			msgs[i].Requester = resolved
+		}
+		if resolved := aliasMap[msgs[i].Assignee]; resolved != "" {
+			msgs[i].Assignee = resolved
+		}
 		s.applyAssigneeRules(ctx, user, &msgs[i])
 		s.assignCategory(email, &msgs[i])
 	}

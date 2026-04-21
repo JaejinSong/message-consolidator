@@ -11,9 +11,10 @@ import (
 )
 
 type proposalJob struct {
-	Status string `json:"status"` // running | done | error | idle
-	Count  int    `json:"proposals_created,omitempty"`
-	ErrMsg string `json:"error,omitempty"`
+	Status     string `json:"status"` // running | done | error | idle
+	Count      int    `json:"proposals_created,omitempty"`
+	AutoMerged int    `json:"auto_merged,omitempty"`
+	ErrMsg     string `json:"error,omitempty"`
 }
 
 var (
@@ -53,7 +54,12 @@ func (a *API) HandleGenerateProposals(w http.ResponseWriter, r *http.Request) {
 func (a *API) runProposalJob(email string) *proposalJob {
 	ctx := context.Background()
 
-	contacts, err := store.GetStandaloneContacts(ctx, email)
+	autoMerged, err := store.AutoMergeByCanonicalID(ctx, email)
+	if err != nil {
+		return &proposalJob{Status: "error", ErrMsg: err.Error()}
+	}
+
+	contacts, err := store.GetCandidateContacts(ctx, email)
 	if err != nil {
 		return &proposalJob{Status: "error", ErrMsg: err.Error()}
 	}
@@ -80,7 +86,7 @@ func (a *API) runProposalJob(email string) *proposalJob {
 		inserted++
 	}
 
-	return &proposalJob{Status: "done", Count: inserted}
+	return &proposalJob{Status: "done", Count: inserted, AutoMerged: autoMerged}
 }
 
 // HandleProposalJobStatus returns the current async job state for the authenticated user.

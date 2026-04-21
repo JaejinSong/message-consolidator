@@ -544,7 +544,9 @@ func (g *GeminiClient) initModel(modelName string, temp float64, tokens int32, m
 	model := g.client.GenerativeModel(modelName)
 	model.SafetySettings = relaxedSafetySettings
 	model.SetTemperature(float32(temp))
-	model.SetMaxOutputTokens(tokens)
+	if tokens > 0 {
+		model.SetMaxOutputTokens(tokens)
+	}
 	if mime != "" {
 		model.ResponseMIMEType = mime
 	}

@@ -449,8 +449,8 @@ func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessag
 		// Why: [Early Return] Checks thread activity first. If handled as a completion/update, skips standard extraction.
 		if onThreadActivity != nil && (classificationMap[m.ID] == CategorySent || classificationMap[m.ID] == CategoryMine || classificationMap[m.ID] == CategoryOthers) {
 			if handled := onThreadActivity(store.ConsolidatedMessage{
-				UserEmail: email, Source: "gmail", ThreadID: m.ThreadID,
-				OriginalText: m.Text, SourceTS: m.ID,
+				UserEmail: email, Source: "gmail", Room: "Gmail", ThreadID: m.ThreadID,
+				OriginalText: m.Text, SourceTS: m.ID, Requester: m.SenderName,
 			}); handled {
 				_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.ID)
 				continue

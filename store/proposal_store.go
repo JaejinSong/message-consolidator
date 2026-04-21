@@ -39,7 +39,37 @@ func GetStandaloneContacts(ctx context.Context, tenantEmail string) ([]ContactRe
 		return nil, err
 	}
 	defer rows.Close()
+	return scanContactRows(rows)
+}
 
+// GetCandidateContacts returns only contacts that have at least one other contact with a
+// similar name — exact match or one name containing the other (min 4 chars).
+// This pre-filters the 208-contact list down to ~49, reducing AI chunk calls from 11 to 3.
+func GetCandidateContacts(ctx context.Context, tenantEmail string) ([]ContactRecord, error) {
+	rows, err := GetDB().QueryContext(ctx,
+		`SELECT DISTINCT c1.id, c1.tenant_email, c1.canonical_id, c1.display_name,
+		        COALESCE(c1.source, ''), c1.master_contact_id, COALESCE(c1.contact_type, 'none')
+		 FROM contacts c1
+		 JOIN contacts c2
+		   ON c1.id != c2.id
+		  AND c2.master_contact_id IS NULL
+		  AND c1.tenant_email = c2.tenant_email
+		  AND (
+		    LOWER(c1.display_name) = LOWER(c2.display_name)
+		    OR (LENGTH(c2.display_name) >= 4 AND LOWER(c1.display_name) LIKE '%' || LOWER(c2.display_name) || '%')
+		    OR (LENGTH(c1.display_name) >= 4 AND LOWER(c2.display_name) LIKE '%' || LOWER(c1.display_name) || '%')
+		  )
+		 WHERE c1.tenant_email = ? AND c1.master_contact_id IS NULL`,
+		tenantEmail,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanContactRows(rows)
+}
+
+func scanContactRows(rows *sql.Rows) ([]ContactRecord, error) {
 	var result []ContactRecord
 	for rows.Next() {
 		var c ContactRecord
@@ -195,6 +225,47 @@ func AcceptProposalGroup(ctx context.Context, tenantEmail, groupID, canonicalNam
 // RejectProposalGroup marks all rows in the group as rejected.
 func RejectProposalGroup(ctx context.Context, tenantEmail, groupID string) error {
 	return db.New(GetDB()).UpdateProposalGroupStatus(ctx, groupID, "rejected", "")
+}
+
+// AutoMergeByCanonicalID finds unlinked contact pairs that share an identical email-based
+// canonical_id and merges them without AI involvement. Returns the number of merges performed.
+func AutoMergeByCanonicalID(ctx context.Context, tenantEmail string) (int, error) {
+	rows, err := GetDB().QueryContext(ctx, `
+		SELECT c1.id, c2.id
+		FROM contacts c1
+		JOIN contacts c2 ON c1.id < c2.id
+		  AND c1.master_contact_id IS NULL
+		  AND c2.master_contact_id IS NULL
+		  AND c1.tenant_email = c2.tenant_email
+		  AND LOWER(c1.canonical_id) = LOWER(c2.canonical_id)
+		  AND c1.canonical_id LIKE '%@%'
+		WHERE c1.tenant_email = ?`, tenantEmail)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	type pair struct{ master, target int64 }
+	var pairs []pair
+	for rows.Next() {
+		var p pair
+		if err := rows.Scan(&p.master, &p.target); err != nil {
+			return 0, err
+		}
+		pairs = append(pairs, p)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	merged := 0
+	for _, p := range pairs {
+		if err := LinkContact(ctx, tenantEmail, p.master, p.target); err != nil {
+			return merged, err
+		}
+		merged++
+	}
+	return merged, nil
 }
 
 // getContactsByIDs loads contacts by ID, using the in-memory cache with DB fallback.

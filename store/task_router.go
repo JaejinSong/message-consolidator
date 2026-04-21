@@ -97,6 +97,15 @@ func handleNew(ctx context.Context, q Querier, item TodoItem, msg ConsolidatedMe
 		return msg.ID, err
 	}
 	msg.Task = item.Task
+	if item.Requester != "" {
+		msg.Requester = item.Requester
+	}
+	if item.Assignee != "" {
+		msg.Assignee = item.Assignee
+	}
+	if item.AssigneeReason != "" {
+		msg.AssigneeReason = item.AssigneeReason
+	}
 	_, id, err := SaveMessage(ctx, q, msg)
 	return id, err
 }

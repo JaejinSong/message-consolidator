@@ -1,0 +1,22 @@
+---
+name: identity_group_merge
+version: 1.1.0
+model: gemini-3-flash-preview
+temperature: 0.1
+---
+From the following contacts, find ALL groups of contacts that are likely the same physical person.
+Return a JSON array of groups: [{"contact_ids": [id1, id2, ...], "confidence": 0.0-1.0, "reason": "..."}, ...]
+Return [] if no confident matches are found.
+
+Contacts:
+{{.MessagePayload}}
+
+Matching rules (all case-insensitive):
+1. Same name from different sources (e.g. gmail vs whatsapp): very likely the same person.
+2. Name reordering: 'John Smith' and 'Smith John' are the same person.
+3. Korean-English transliteration: '홍길동' and 'Gil-dong Hong' are the same person.
+4. Parenthesized nickname: 'John Smith (JS)' matches 'John Smith' and 'JS'.
+5. Email username hint: if canonical_id looks like an email, the username part may hint at the person's name.
+6. Partial name + same email domain strongly suggests same person.
+Only include a group if confidence > 0.6 and it has at least 2 contact_ids.
+Do NOT merge contacts that are clearly different people.

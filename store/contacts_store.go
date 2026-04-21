@@ -356,9 +356,15 @@ func findAllInMappings(mappings []ContactRecord, normalized string) []*ContactRe
 			if m.ID == -1 {
 				return nil
 			}
-			if !seen[m.CanonicalID] {
+			// Deduplicate by master when contact is merged — slave contacts sharing
+			// the same master_contact_id count as one match, not many.
+			dedupeKey := m.CanonicalID
+			if m.MasterContactID.Valid {
+				dedupeKey = fmt.Sprintf("master:%d", m.MasterContactID.Int64)
+			}
+			if !seen[dedupeKey] {
 				res = append(res, m)
-				seen[m.CanonicalID] = true
+				seen[dedupeKey] = true
 			}
 		}
 	}
@@ -530,7 +536,7 @@ func fallbackToOriginal(names []string) map[string]string {
 func buildResolutionMap(names []string, res map[string]*ContactRecord) map[string]string {
 	m := make(map[string]string)
 	for _, n := range names {
-		if c, ok := res[n]; ok && c != nil {
+		if c, ok := res[n]; ok && c != nil && c.DisplayName != "" {
 			m[n] = c.DisplayName
 		} else {
 			m[n] = n
