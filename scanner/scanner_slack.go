@@ -402,7 +402,11 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 
 	payload, msgMap := buildSlackAnalysisPayload(candidates, sc)
 	lastMsg := candidates[len(candidates)-1]
-	enriched, _ := EnrichSlackMessage(lastMsg.Sender, sc.GetUserName(lastMsg.Sender), lastMsg.ChannelID, lastMsg.ReplyToID, payload, lastMsg.Timestamp)
+	senderName := lastMsg.SenderName
+	if senderName == "" {
+		senderName = lastMsg.Sender
+	}
+	enriched, _ := EnrichSlackMessage(lastMsg.Sender, senderName, lastMsg.ChannelID, lastMsg.ReplyToID, payload, lastMsg.Timestamp)
 
 	proposals, err := gc.Analyze(ctx, user.Email, *enriched, "Korean", "slack", channelName)
 	if err != nil {
@@ -447,7 +451,11 @@ func buildSlackAnalysisPayload(candidates []types.RawMessage, sc *channels.Slack
 		msgMap[m.ID] = m
 		resolvedText := resolveSlackMentions(m.Text, sc)
 		metaStr := buildSlackMetadataString(m)
-		sb.WriteString(fmt.Sprintf("[ID:%s]%s %s: %s\n", m.ID, metaStr, m.Sender, resolvedText))
+		senderLabel := m.SenderName
+		if senderLabel == "" {
+			senderLabel = m.Sender
+		}
+		sb.WriteString(fmt.Sprintf("[ID:%s]%s %s: %s\n", m.ID, metaStr, senderLabel, resolvedText))
 	}
 	return sb.String(), msgMap
 }

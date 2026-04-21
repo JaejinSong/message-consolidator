@@ -161,6 +161,7 @@ func (s *SlackClient) processHistoryMessages(channelID string, messages []slack.
 		msgs = append(msgs, types.RawMessage{
 			ID:              m.Timestamp,
 			Sender:          s.GetUserName(m.User),
+			SenderName:      s.GetUserName(m.User),
 			Text:            m.Text,
 			Timestamp:       ts,
 			HasAttachment:   len(m.Files) > 0,
@@ -236,6 +237,7 @@ func (s *SlackClient) processThreadReplies(threadTS string, replies []slack.Mess
 		msgs = append(msgs, types.RawMessage{
 			ID:              m.Timestamp,
 			Sender:          s.GetUserName(m.User),
+			SenderName:      s.GetUserName(m.User),
 			Text:            m.Text,
 			Timestamp:       ParseSlackTimestamp(m.Timestamp),
 			ReplyToID:       threadTS, //Why: Attaches thread metadata to extracted replies to maintain relational integrity and correctly group related tasks in the UI.
