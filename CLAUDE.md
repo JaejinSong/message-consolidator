@@ -71,6 +71,12 @@ store/queries/*.sql 편집 → sqlc generate → db/*.sql.go 자동 갱신
 - 파일 전체 조회 금지
 - `grep` / `mcp__serena__find_symbol` / `mcp__serena__get_symbols_overview` 로 필요한 심볼만 확인
 
+### DB 확인
+- DB 상태 확인이 필요한 경우 **`mcp__turso-db`** MCP 툴을 직접 사용
+  - `mcp__turso-db__list_tables` — 테이블 목록 확인
+  - `mcp__turso-db__describe_table` — 테이블 스키마 확인
+  - `mcp__turso-db__query` — 직접 SQL 조회/검증
+
 ### Logic-First
 - 브라우저 테스트 전 Node.js / Go 스크립트 기반 논리 검증 우선
 

@@ -588,8 +588,14 @@ func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id
 // UpdateMessageIdentity updates both requester and assignee for a task.
 func UpdateMessageIdentity(ctx context.Context, q Querier, email, _ string, id int, requester, assignee string) error {
 	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
-		p.Requester = nullString(requester)
-		p.Assignee = nullString(assignee)
+		// Why: nullString("") is {Valid:true}, so COALESCE("", existing) = "" — wipes the field.
+		// Only set the fields being updated; unset fields stay {Valid:false} and COALESCE preserves existing values.
+		if requester != "" {
+			p.Requester = nullString(requester)
+		}
+		if assignee != "" {
+			p.Assignee = nullString(assignee)
+		}
 	})
 }
 

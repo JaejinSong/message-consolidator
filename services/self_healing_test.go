@@ -54,22 +54,20 @@ func TestSelfHealingEngine(t *testing.T) {
 	}
 	svc.sanitizeMessages(context.Background(), tenant, messages)
 
-	// 5. Verify In-Memory Update (즉시 반영 확인)
+	// 5. Verify In-Memory Update — sanitizeMessages resolves for display without writing to DB.
 	if messages[0].Requester != email {
-		t.Errorf("In-memory requester not healed. Expected %s, got %s", email, messages[0].Requester)
+		t.Errorf("in-memory requester not resolved: expected %s, got %s", email, messages[0].Requester)
 	}
 
-	// 6. Verify DB Update (비동기 고루틴 실행 대기)
-	time.Sleep(200 * time.Millisecond) // Goroutine 대기
-	
+	// 6. Verify DB is NOT modified by sanitizeMessages — read path must have no write side-effects.
+	// SaveMessage already normalizes the requester (e.g. "JAEJIN SONG" → "Jaejin Song"),
+	// but sanitizeMessages must not further rewrite it to a canonical email.
 	db := store.GetDB()
 	var dbReq string
-	err = db.QueryRow("SELECT requester FROM messages WHERE id = ?", msgID).Scan(&dbReq)
-	if err != nil {
+	if err = db.QueryRow("SELECT requester FROM messages WHERE id = ?", msgID).Scan(&dbReq); err != nil {
 		t.Fatalf("Failed to query DB: %v", err)
 	}
-
-	if dbReq != email {
-		t.Errorf("DB requester not healed. Expected %s, got %s", email, dbReq)
+	if dbReq == email {
+		t.Errorf("sanitizeMessages must not rewrite requester to canonical email %q in DB", email)
 	}
 }

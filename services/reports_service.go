@@ -180,13 +180,13 @@ func (s *ReportsService) sanitizeMessages(ctx context.Context, email string, msg
 
 	for i := range msgs {
 		m := &msgs[i]
-		s.applyResolution(ctx, m, &m.Requester, &m.RequesterCanonical, &m.RequesterDisplayName, &m.RequesterType, contacts, ambiguous, true)
-		s.applyResolution(ctx, m, &m.Assignee, &m.AssigneeCanonical, &m.AssigneeDisplayName, &m.AssigneeType, contacts, ambiguous, false)
+		s.applyResolution(ctx, m, &m.Requester, &m.RequesterCanonical, &m.RequesterDisplayName, &m.RequesterType, contacts, ambiguous)
+		s.applyResolution(ctx, m, &m.Assignee, &m.AssigneeCanonical, &m.AssigneeDisplayName, &m.AssigneeType, contacts, ambiguous)
 	}
 	return msgs, nil
 }
 
-func (s *ReportsService) applyResolution(ctx context.Context, m *Log, identifierField *string, canonicalField *string, displayNameField *string, typeField *string, contacts map[string]*store.ContactRecord, ambiguous map[string]bool, isRequester bool) {
+func (s *ReportsService) applyResolution(_ context.Context, m *Log, identifierField *string, canonicalField *string, displayNameField *string, typeField *string, contacts map[string]*store.ContactRecord, ambiguous map[string]bool) {
 	identifier := *identifierField
 	if ambiguous[identifier] {
 		*identifierField = identifier + " (Ambiguous)"
@@ -194,25 +194,10 @@ func (s *ReportsService) applyResolution(ctx context.Context, m *Log, identifier
 	}
 
 	if c, ok := contacts[identifier]; ok {
-		// 💡 Self-Healing: Update DB if non-canonical ID was used.
-		if identifier != c.CanonicalID && identifier != c.DisplayName {
-			go func() {
-				req, asg := "", ""
-				if isRequester {
-					req = c.CanonicalID
-				} else {
-					asg = c.CanonicalID
-				}
-				if err := store.UpdateMessageIdentity(context.Background(), store.GetDB(), m.UserEmail, m.Room, m.ID, req, asg); err != nil {
-					logger.Errorf("[REPORTS] Identity self-healing failed for task %d: %v", m.ID, err)
-				}
-			}()
-		}
-		*identifierField = c.CanonicalID // Normalized to Email for DB consistency and tests
+		*identifierField = c.CanonicalID
 		*canonicalField = c.CanonicalID
-		*displayNameField = c.DisplayName // Preserved for UI/Visualization
+		*displayNameField = c.DisplayName
 
-		// 💡 Promotion: Use contact_type from mapping if present
 		if c.ContactType != "" && c.ContactType != "none" {
 			*typeField = c.ContactType
 		} else if strings.HasSuffix(strings.ToLower(c.CanonicalID), "@whatap.io") || strings.EqualFold(c.CanonicalID, m.UserEmail) {
