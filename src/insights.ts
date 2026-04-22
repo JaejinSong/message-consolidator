@@ -106,26 +106,7 @@ export const insights = {
             const i18n = I18N_DATA[lang || 'en'];
             if (this.isTabActive('insightsReportsTab') && this.lastReport) {
                 const reportContent = document.getElementById('reportSummaryContent');
-                if (reportContent) insightsRenderer.renderLoading(reportContent, i18n, 'translation');
-                
-                // If translation doesn't exist, fetch it
-                if (!this.lastReport.translations?.[lang]) {
-                    try {
-                        const result = await api.translateReport(this.lastReport.id, lang);
-                        if (!this.lastReport.translations) this.lastReport.translations = {};
-                        
-                        // Defensively extract translated text from various possible response fields
-                        const translatedText = result.report_summary || result.translation || result.translated_text || (typeof result === 'string' ? result : '');
-                        
-                        this.lastReport.translations[lang] = translatedText;
-                        
-                        // Persist to global state (AppState.reports) for O(1) tab-switching retrieval
-                        upsertReport(this.lastReport);
-                    } catch (e) {
-                        console.error("[Insights] Translation failed:", e);
-                    }
-                }
-                insightsRenderer.renderReport(this.lastReport, lang, i18n);
+                await this._renderWithTranslation(this.lastReport, lang, i18n, reportContent);
             }
         });
     },
@@ -376,21 +357,21 @@ export const insights = {
         const i18n = I18N_DATA[lang];
         const reportContent = document.getElementById('reportSummaryContent');
         const key = `${reportMetadata.start_date}_${reportMetadata.end_date}`;
-        
+
         try {
             // Level 1: Memory Cache hit?
             if (state.reports[key] && state.reports[key].report_summary) {
                 this.lastReport = state.reports[key];
-                insightsRenderer.renderReport(this.lastReport, lang, i18n);
+                await this._renderWithTranslation(this.lastReport, lang, i18n, reportContent);
                 return;
             }
 
             // Level 2: API Fetch with spinner
             if (reportContent) insightsRenderer.renderLoading(reportContent, i18n, 'load');
-            
+
             const rawReport = await api.fetchReportDetail(reportMetadata.id);
             const report = normalizeReportData(rawReport);
-            
+
             this.lastReport = report;
             upsertReport(report);
 
@@ -399,13 +380,31 @@ export const insights = {
             } else if (report.status === 'failed') {
                 if (reportContent) insightsRenderer.renderError(reportContent, i18n.reportFailed || "Generation failed.", i18n);
             } else {
-                insightsRenderer.renderReport(report, lang, i18n);
+                await this._renderWithTranslation(report, lang, i18n, reportContent);
             }
         } catch (e: any) {
             console.error("[Insights] Load existing report failed:", e);
             // Guarantee spinner is cleared even on silent failure
             if (reportContent) insightsRenderer.renderError(reportContent, e.message, i18n);
         }
+    },
+
+    async _renderWithTranslation(report: IReportData, lang: string, i18n: any, reportContent: HTMLElement | null) {
+        if (lang !== 'en' && !report.translations?.[lang]) {
+            if (reportContent) insightsRenderer.renderLoading(reportContent, i18n, 'translation');
+            try {
+                const result = await api.translateReport(report.id, lang);
+                if (!report.translations) report.translations = {};
+                const translatedText = result.report_summary || result.translation || result.translated_text || (typeof result === 'string' ? result : '');
+                if (translatedText) {
+                    report.translations[lang] = translatedText;
+                    upsertReport(report);
+                }
+            } catch (e) {
+                console.error("[Insights] Translation failed:", e);
+            }
+        }
+        insightsRenderer.renderReport(report, lang, i18n);
     },
 
     async refreshData() {
