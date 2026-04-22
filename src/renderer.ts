@@ -347,10 +347,7 @@ export function renderArchive(messages: Message[]): void {
         const ts = m.timestamp || m.created_at || '';
         const compTs = m.completed_at || '-';
 
-        const isMe = m.assignee?.toLowerCase() === 'me';
-        const assigneeHtml = isMe
-            ? `<span class="c-badge c-badge--accent">${escapeHTML(m.assignee || '')}</span>`
-            : `<span class="c-badge c-badge--dim">${escapeHTML(m.assignee || '-')}</span>`;
+        const assigneeHtml = `<span class="c-badge c-badge--dim">${escapeHTML(m.assignee || '-')}</span>`;
 
         const isDeleted = (m as any).is_deleted === true || (m as any).is_deleted === 1;
         const trashIcon = isDeleted ? `<span class="trash-icon" title="${state.currentLang === 'ko' ? '취소함' : 'Canceled'}">🗑️</span> ` : '';

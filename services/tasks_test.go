@@ -73,11 +73,11 @@ func TestFormatMessagesForClient(t *testing.T) {
 
 	s.FormatMessagesForClient(context.Background(), email, msgs)
 
-	if msgs[0].Assignee != "me" {
-		t.Errorf("Expected assignee 'me' for msg 0, got '%s'", msgs[0].Assignee)
+	if msgs[0].Assignee != "Test User" {
+		t.Errorf("Expected assignee 'Test User' for msg 0, got '%s'", msgs[0].Assignee)
 	}
-	if msgs[1].Assignee != "me" {
-		t.Errorf("Expected assignee 'me' for msg 1, got '%s'", msgs[1].Assignee)
+	if msgs[1].Assignee != "Test User" {
+		t.Errorf("Expected assignee 'Test User' for msg 1, got '%s'", msgs[1].Assignee)
 	}
 	if msgs[2].Assignee != "Other" {
 		t.Errorf("Expected assignee 'Other' for msg 2, got '%s'", msgs[2].Assignee)
@@ -207,7 +207,8 @@ func TestIsTaskMatchedByAlias_GroupMentions(t *testing.T) {
 func TestAssignCategory(t *testing.T) {
 	s := &TasksService{}
 	email := "me@example.com"
-
+	user := &store.User{Email: email}
+	identities := []string{email}
 
 	tests := []struct {
 		name               string
@@ -237,7 +238,7 @@ func TestAssignCategory(t *testing.T) {
 				RequesterCanonical: tt.requesterCanonical,
 				Task:               tt.task,
 			}
-			s.assignCategory(email, msg)
+			s.assignCategory(user, identities, msg)
 			if msg.Category != tt.expected {
 				t.Errorf("assignCategory() category = %v, want %v", msg.Category, tt.expected)
 			}
@@ -291,6 +292,9 @@ func TestApplyAssigneeRules_RequesterCanonical(t *testing.T) {
 		},
 	}
 
+	aliases, _ := store.GetUserAliasesByEmail(ctx, email)
+	identities := GetEffectiveAliases(*user, aliases)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			msg := &store.ConsolidatedMessage{
@@ -298,7 +302,7 @@ func TestApplyAssigneeRules_RequesterCanonical(t *testing.T) {
 				RequesterCanonical: tt.existingCanonical,
 				Assignee:           "other",
 			}
-			s.applyAssigneeRules(ctx, user, msg)
+			s.applyAssigneeRules(user, identities, msg)
 			if msg.RequesterCanonical != tt.wantCanonical {
 				t.Errorf("RequesterCanonical = %q, want %q", msg.RequesterCanonical, tt.wantCanonical)
 			}

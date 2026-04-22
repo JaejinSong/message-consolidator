@@ -121,7 +121,6 @@ export interface I18nEntry {
     viewOriginal?: string;
     markDone?: string;
     delete?: string;
-    assigneeMe?: string;
     assigneeShared?: string;
     promiseTag?: string;
     originalNotAvailable?: string;

@@ -138,7 +138,6 @@ export const id: Record<string, any> = {
         unlocked: "Terbuka",
         locked: "Terkunci",
         promiseTag: "Komitmen",
-        assigneeMe: "Saya",
         assigneeShared: "Bersama",
         sharedTag: "Bersama",
         sharedTasks: "Tugas Bersama",

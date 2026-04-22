@@ -180,7 +180,6 @@ export const ko: Record<string, any> = {
         loginRequiredDesc: "계속하려면 다시 로그인해 주세요.",
         loginWithGoogle: "Google로 로그인",
         promiseTag: "확약",
-        assigneeMe: "나",
         assigneeShared: "공용",
         sharedTag: "공용",
         sharedTasks: "공유 업무",

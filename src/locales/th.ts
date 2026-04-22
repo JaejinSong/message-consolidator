@@ -132,7 +132,6 @@ export const th: Record<string, any> = {
         unlocked: "ปลดล็อคแล้ว",
         locked: "ล็อคอยู่",
         promiseTag: "คำยืนยัน",
-        assigneeMe: "ฉัน",
         assigneeShared: "งานส่วนกลาง",
         sharedTag: "ส่วนกลาง",
         sharedTasks: "งานส่วนกลาง",

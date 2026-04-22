@@ -34,8 +34,6 @@ type BatchTranslateResult struct {
 var (
 	//Why: Defines keywords returned by the AI for unspecific or group tasks to support standardized unassignment logic.
 	genericOtherAssignees = map[string]bool{"기타 업무": true, "기타업무": true, "other tasks": true, "미지정": true}
-
-	genericMeAssignees = map[string]bool{store.AssigneeMe: true, store.AssigneeCurrentUser: true}
 )
 
 // TasksService handles task-related operations including formatting, completion, and batch translation.
@@ -76,6 +74,9 @@ func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string
 	identifiers := extractUniqueIdentifiers(msgs)
 	aliasMap := store.BulkResolveAliases(ctx, email, identifiers)
 
+	aliases, _ := store.GetUserAliasesByEmail(ctx, email)
+	identities := GetEffectiveAliases(*user, aliases)
+
 	for i := range msgs {
 		if resolved := aliasMap[msgs[i].Requester]; resolved != "" {
 			msgs[i].Requester = resolved
@@ -83,15 +84,15 @@ func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string
 		if resolved := aliasMap[msgs[i].Assignee]; resolved != "" {
 			msgs[i].Assignee = resolved
 		}
-		s.applyAssigneeRules(ctx, user, &msgs[i])
-		s.assignCategory(email, &msgs[i])
+		s.applyAssigneeRules(user, identities, &msgs[i])
+		s.assignCategory(user, identities, &msgs[i])
 	}
 }
 
 // assignCategory implements the server-side categorization priority logic.
 // Priority: 1. personal, 2. shared, 3. requested, 4. others.
-func (s *TasksService) assignCategory(email string, msg *store.ConsolidatedMessage) {
-	if msg.Assignee == store.AssigneeMe {
+func (s *TasksService) assignCategory(user *store.User, identities []string, msg *store.ConsolidatedMessage) {
+	if s.IsAssigneeMarkedAsMine(msg.Assignee, identities) {
 		msg.Category = CategoryPersonal
 		return
 	}
@@ -100,8 +101,8 @@ func (s *TasksService) assignCategory(email string, msg *store.ConsolidatedMessa
 		return
 	}
 	// Why: RequesterCanonical is the canonical email unaffected by alias resolution.
-	// msg.Requester == email is a fallback for legacy records without RequesterCanonical.
-	if strings.EqualFold(msg.RequesterCanonical, email) || msg.Requester == email {
+	// msg.Requester == user.Email is a fallback for legacy records without RequesterCanonical.
+	if strings.EqualFold(msg.RequesterCanonical, user.Email) || msg.Requester == user.Email {
 		msg.Category = CategoryRequested
 		return
 	}
@@ -136,7 +137,7 @@ func extractUniqueIdentifiers(msgs []store.ConsolidatedMessage) []string {
 	return ids
 }
 
-func (s *TasksService) applyAssigneeRules(ctx context.Context, user *store.User, msg *store.ConsolidatedMessage) {
+func (s *TasksService) applyAssigneeRules(user *store.User, identities []string, msg *store.ConsolidatedMessage) {
 	assignee := strings.TrimSpace(msg.Assignee)
 	isUnknown := strings.EqualFold(assignee, "undefined") || strings.EqualFold(assignee, "unknown")
 	if isUnknown || assignee == "" {
@@ -144,11 +145,8 @@ func (s *TasksService) applyAssigneeRules(ctx context.Context, user *store.User,
 		return
 	}
 
-	aliases, _ := store.GetUserAliasesByEmail(ctx, user.Email)
-	identities := GetEffectiveAliases(*user, aliases)
-
 	if s.IsAssigneeMarkedAsMine(assignee, identities) {
-		msg.Assignee = store.AssigneeMe
+		msg.Assignee = user.PreferredName()
 	}
 
 	if strings.EqualFold(strings.TrimSpace(msg.Requester), user.Email) || s.IsAssigneeMarkedAsMine(msg.Requester, identities) {
@@ -333,8 +331,7 @@ func IsTaskMatchedByAlias(m store.ConsolidatedMessage, aliases []string, isDirec
 		return false
 	}
 
-	//Why: Augmented alias list with generic self-referential keywords ("나", "me") to broaden task matching coverage.
-	checkAliases := append([]string{store.AssigneeMe}, aliases...)
+	checkAliases := aliases
 	for _, a := range checkAliases {
 		if a == "" {
 			continue
@@ -378,17 +375,18 @@ func shouldClearAssignee(assignee string) bool {
 	return genericOtherAssignees[norm]
 }
 
-// isAssigneeGeneric checks if an assignee is either empty or a generic "me" keyword.
+// isAssigneeGeneric checks if an assignee is either empty or a self-referential AI token.
 func isAssigneeGeneric(assignee string) bool {
 	norm := strings.ToLower(strings.TrimSpace(assignee))
-	return norm == "" || genericMeAssignees[norm]
+	return norm == "" || store.IsSelfAssigneeToken(norm)
 }
 
-// IsAssigneeMarkedAsMine checks if the assignee matches any of the user's known identities or generic "me" keywords.
+// IsAssigneeMarkedAsMine checks if the assignee matches any of the user's known identities.
+// store.IsSelfAssigneeToken handles backward-compat for legacy "me" records in DB.
 // Both sides are normalized so suffix variants like "Jaejin Song (JJ)" match "Jaejin Song".
 func (s *TasksService) IsAssigneeMarkedAsMine(assignee string, identities []string) bool {
 	norm := strings.ToLower(strings.TrimSpace(assignee))
-	if genericMeAssignees[norm] {
+	if store.IsSelfAssigneeToken(norm) {
 		return true
 	}
 	normalizedAssignee := store.NormalizeIdentifier(assignee)
@@ -450,8 +448,8 @@ func (s *TasksService) resolveNewAssignee(user *store.User, current string, matc
 		return name, current != name
 	}
 	lowCurr := strings.ToLower(current)
-	if genericMeAssignees[lowCurr] {
-		// Instead of clearing or using me, mark as shared if it was a generic "me" but didn't match an alias
+	if store.IsSelfAssigneeToken(lowCurr) {
+		// Self-token without a matched alias: treat as shared broadcast.
 		return AssigneeShared, current != AssigneeShared
 	}
 	return current, false

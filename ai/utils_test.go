@@ -225,9 +225,9 @@ func TestMapFlexToTodo_IdentityNormalization(t *testing.T) {
 		wantSubtaskAssigneeName string
 	}{
 		{
-			name:         "assignee_id matches → me",
+			name:         "assignee_id matches → userEmail",
 			item:         flexItem{Task: "t", AssigneeID: ptr(userID), Assignee: "Jaejin Song (JJ)"},
-			wantAssignee: "me",
+			wantAssignee: userEmail,
 		},
 		{
 			name:         "assignee_id mismatch → name unchanged",
@@ -250,11 +250,11 @@ func TestMapFlexToTodo_IdentityNormalization(t *testing.T) {
 			wantRequesterCanonical: "",
 		},
 		{
-			name: "subtask assignee_id matches → me",
+			name: "subtask assignee_id matches → userEmail",
 			item: flexItem{Task: "t", Subtasks: []flexSubtask{
 				{Task: "sub", AssigneeID: ptr(userID), AssigneeName: "Jaejin Song (JJ)"},
 			}},
-			wantSubtaskAssigneeName: "me",
+			wantSubtaskAssigneeName: userEmail,
 		},
 		{
 			name: "subtask assignee_id mismatch → name unchanged",

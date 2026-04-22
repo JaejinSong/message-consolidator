@@ -90,7 +90,7 @@ func unmarshalAnalyze(cleanJSON, rawJSON, userEmail string, currentUserID int) (
 func mapFlexToTodo(f flexItem, currentUserID int, userEmail string) store.TodoItem {
 	assignee := f.Assignee
 	if f.AssigneeID != nil && *f.AssigneeID == currentUserID {
-		assignee = store.AssigneeMe
+		assignee = userEmail
 	}
 	requesterCanonical := ""
 	if f.RequesterID != nil && *f.RequesterID == currentUserID {
@@ -107,11 +107,10 @@ func mapFlexToTodo(f flexItem, currentUserID int, userEmail string) store.TodoIt
 		AffinityGroupID: f.AffinityGroupID,
 	}
 
-	// Subtasks mapping — normalize assignee_id to canonical "me" token.
 	for _, s := range f.Subtasks {
 		name := s.AssigneeName
 		if s.AssigneeID != nil && *s.AssigneeID == currentUserID {
-			name = store.AssigneeMe
+			name = userEmail
 		}
 		item.Subtasks = append(item.Subtasks, store.TodoSubtask{
 			Task: s.Task, AssigneeID: s.AssigneeID, AssigneeName: name,

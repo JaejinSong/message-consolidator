@@ -251,7 +251,7 @@ func (m *WAManager) parseMessageContent(email string, client *whatsmeow.Client, 
 
 func (m *WAManager) resolveSenderName(email string, client *whatsmeow.Client, info waTypes.MessageInfo) string {
 	if info.IsFromMe {
-		return "나"
+		return email
 	}
 	if info.PushName != "" {
 		go store.SaveWhatsAppContact(context.Background(), email, info.Sender.User, info.PushName)

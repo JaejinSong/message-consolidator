@@ -28,6 +28,9 @@ func TestTaskClassificationByAliases(t *testing.T) {
 
 	service := &TasksService{}
 
+	aliases, _ := store.GetUserAliasesByEmail(ctx, email)
+	identities := GetEffectiveAliases(*user, aliases)
+
 	tests := []struct {
 		name             string
 		assignee         string
@@ -36,11 +39,11 @@ func TestTaskClassificationByAliases(t *testing.T) {
 		expectedCategory string
 		expectedAssignee string
 	}{
-		{"Exact Name Match", "Jaejin Song", "", "some task", CategoryPersonal, "me"},
-		{"Alias Match (Korean)", "송재진", "", "some task", CategoryPersonal, "me"},
-		{"Alias Match (Short)", "jj", "", "some task", CategoryPersonal, "me"},
-		{"Token Match", "__CURRENT_USER__", "", "some task", CategoryPersonal, "me"},
-		{"Literal 'me'", "me", "", "some task", CategoryPersonal, "me"},
+		{"Exact Name Match", "Jaejin Song", "", "some task", CategoryPersonal, name},
+		{"Alias Match (Korean)", "송재진", "", "some task", CategoryPersonal, name},
+		{"Alias Match (Short)", "jj", "", "some task", CategoryPersonal, name},
+		{"Token Match", "__CURRENT_USER__", "", "some task", CategoryPersonal, name},
+		{"Literal 'me'", "me", "", "some task", CategoryPersonal, name},
 		{"Non-match → others", "Other Person", "Other Person", "some task", CategoryOthers, "Other Person"},
 		{"Undefined assignee → others", "undefined", "", "some task", CategoryOthers, ""},
 		{"Unknown assignee → others", "unknown", "", "some task", CategoryOthers, ""},
@@ -58,8 +61,8 @@ func TestTaskClassificationByAliases(t *testing.T) {
 				Requester: tt.requester,
 				Task:      tt.task,
 			}
-			service.applyAssigneeRules(ctx, user, msg)
-			service.assignCategory(email, msg)
+			service.applyAssigneeRules(user, identities, msg)
+			service.assignCategory(user, identities, msg)
 
 			if msg.Category != tt.expectedCategory {
 				t.Errorf("expected category %s, got %s", tt.expectedCategory, msg.Category)

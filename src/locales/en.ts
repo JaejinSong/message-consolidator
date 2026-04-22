@@ -179,7 +179,6 @@ export const en: Record<string, any> = {
         loginRequiredDesc: "Please login again to continue.",
         loginWithGoogle: "Login with Google",
         promiseTag: "Commitment",
-        assigneeMe: "Me",
         assigneeShared: "Shared",
         sharedTag: "Shared",
         sharedTasks: "Shared Tasks",

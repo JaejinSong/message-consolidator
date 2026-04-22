@@ -56,7 +56,6 @@ export function MessageCard(props: MessageCardProps): string {
         assignee === ASSIGNEE_SHARED ? 'c-message-card--shared' : ''
     ].filter(Boolean).join(' ');
 
-    const isMe = assignee?.toLowerCase() === 'me';
     const isShared = assignee === ASSIGNEE_SHARED || category === 'shared';
 
     const categoryBadgeHtml = category === 'POLICY' ? `<div class="c-message-card__badge c-message-card__badge--policy">${i18n.policyLabel || 'Policy'}</div>` : 
@@ -106,13 +105,10 @@ export function MessageCard(props: MessageCardProps): string {
         </ul>
     ` : '';
 
-    const assigneeMe = i18n?.assigneeMe || 'Me';
     const isInvalid = !assignee || assignee === 'undefined' || assignee === 'unknown';
-    
+
     let assigneeHtml = '';
-    if (isMe) {
-        assigneeHtml = `<span class="c-message-card__assignee--me">${assigneeMe}</span>`;
-    } else if (isShared) {
+    if (isShared) {
         assigneeHtml = `<span class="c-message-card__assignee--shared">${i18n.sharedTag || 'Shared'}</span>`;
     } else {
         assigneeHtml = `<span class="c-message-card__assignee--other">${isInvalid ? '-' : escapeHTML(assignee)}</span>`;

@@ -34,9 +34,6 @@ const (
 	CategoryOthers = "기타 업무" //Why: Classifies CC'd or group emails as lower-priority informational items.
 )
 
-var genericMeAssignees = map[string]bool{
-	store.AssigneeMe: true, store.AssigneeCurrentUser: true,
-}
 
 var GmailOauthConfig *oauth2.Config
 
@@ -362,7 +359,7 @@ func isAssigneeMe(assignee, email, userName, fallback string, aliases []string) 
 		return false
 	}
 	lowerAsg := strings.ToLower(assignee)
-	if genericMeAssignees[lowerAsg] {
+	if store.IsSelfAssigneeToken(lowerAsg) {
 		return true
 	}
 
