@@ -25,8 +25,13 @@ func GetReport(ctx context.Context, email, start, end string) (*Report, error) {
 // GetReportByDate retrieves a report for a specific date (YYYY-MM-DD).
 // Why: Enables exact date-based caching to avoid redundant AI generation for the same day.
 func GetReportByDate(ctx context.Context, email, date string) (*Report, error) {
+	return GetReportByDateRange(ctx, email, date, date)
+}
+
+// GetReportByDateRange retrieves a report matching both start and end dates exactly.
+func GetReportByDateRange(ctx context.Context, email, start, end string) (*Report, error) {
 	row, err := db.New(GetDB()).GetReportByDate(ctx, db.GetReportByDateParams{
-		UserEmail: email, StartDate: date, EndDate: date,
+		UserEmail: email, StartDate: start, EndDate: end,
 	})
 	if err != nil {
 		return nil, err

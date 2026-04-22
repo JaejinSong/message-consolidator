@@ -21,12 +21,8 @@ function createSVG(tag: string, attrs: Record<string, string | number>): SVGElem
 }
 
 export const insightsRenderer = {
-    resizeAll() {
-        // Vanilla SVG charts using viewBox resize automatically with container.
-    },
-
     /**
-     * Updates AI consumption slots. 
+     * Updates AI consumption slots.
      */
     renderTokenUsage(usage: TokenUsage | null, i18n: any): void {
         const slot = document.getElementById('ai-usage-consolidated');
@@ -438,24 +434,21 @@ export const insightsRenderer = {
      * Renders empty state when no report is selected or exists.
      */
     renderEmptyState(i18n: any): void {
-        const main = document.querySelector('.c-insights-report-main');
-        if (!main) return;
-        
-        main.innerHTML = `
-            <div class="c-reports-empty-state u-p-12 u-text-center">
+        const summaryContent = document.getElementById('reportSummaryContent');
+        if (!summaryContent) return;
+
+        summaryContent.innerHTML = `
+            <div class="c-reports-empty-state u-p-8 u-text-center">
                 <div class="u-text-6xl u-mb-4">📊</div>
                 <h3 class="u-text-xl u-font-bold u-mb-2">${i18n.noReportsYet || '생성된 리포트가 없습니다'}</h3>
-                <p class="u-text-dim u-mb-8">${i18n.generateReportDesc || 'AI를 통해 오늘 업무 리포트를 생성해 보세요.'}</p>
-                <button id="emptyStateGenerateBtn" class="c-btn c-btn--primary c-btn--lg">
-                    <span class="u-mr-2">✨</span> ${i18n.generateReportBtn || 'AI 리포트 생성하기'}
-                </button>
+                <p class="u-text-dim">${i18n.generateReportDesc || 'AI를 통해 오늘 업무 리포트를 생성해 보세요.'}</p>
             </div>
         `;
-        
-        const btn = document.getElementById('emptyStateGenerateBtn');
-        if (btn) {
-            btn.onclick = () => window.dispatchEvent(new CustomEvent('generate-report-clicked'));
-        }
+
+        const netChart = document.getElementById('reportNetworkChart');
+        const sankeyChart = document.getElementById('reportSankeyChart');
+        if (netChart) netChart.innerHTML = '';
+        if (sankeyChart) sankeyChart.innerHTML = '';
     },
 
     renderError(container: HTMLElement, message: string, i18n: any): void {

@@ -18,17 +18,6 @@ export const insights = {
     currentChartDays: 30,
 
     /**
-     * Pure function to extract Daily Performance metrics with Guard Clauses.
-     */
-    getDailyGlanceMetrics(stats: UserStats | null) {
-        if (!stats) return { completed: 0, pending: 0 };
-        return {
-            completed: stats.total_completed || 0,
-            pending: stats.pending_me || 0
-        };
-    },
-
-    /**
      * Initializes the insights module and sets up tab isolation.
      */
     init() {
@@ -78,16 +67,6 @@ export const insights = {
 
         this.bindReportEvents();
         this.initDatePickers();
-
-        // Global Resize Handling
-        window.addEventListener('resize', () => {
-            insightsRenderer.resizeAll();
-        });
-
-        // Handle empty state generate button through custom event
-        window.addEventListener('generate-report-clicked', () => {
-            this.handleGenerateClick();
-        });
 
         // Theme Change Handling
         events.on(EVENTS.THEME_CHANGED, () => {
@@ -164,10 +143,6 @@ export const insights = {
             generateBtn.addEventListener('click', () => this.generateNewReport());
         }
 
-        // Filter UI bindings
-        document.getElementById('reportChannelFilter')?.addEventListener('change', () => this.refreshFilterIndicators());
-        document.getElementById('reportStatusFilter')?.addEventListener('change', () => this.refreshFilterIndicators());
-
         const reportList = document.getElementById('reportList');
         if (reportList) {
             reportList.addEventListener('click', async (e) => {
@@ -184,17 +159,6 @@ export const insights = {
         }
     },
     
-    async handleGenerateClick() {
-        const today = new Date().toISOString().split('T')[0];
-        try {
-            const result = await api.generateReport(today, today);
-            await this.refreshReport(result.id || (result as any).report_id);
-        } catch (e: any) {
-            console.error("[Insights] Automatic generation failed:", e);
-            alert(`Generation failed: ${e.message}`);
-        }
-    },
-
     async generateNewReport() {
         const start = (document.getElementById('reportStartDate') as HTMLInputElement)?.value;
         const end = (document.getElementById('reportEndDate') as HTMLInputElement)?.value;
@@ -230,21 +194,6 @@ export const insights = {
             alert(`Generation failed: ${e.message}`);
         } finally {
             if (btn) btn.disabled = false;
-        }
-    },
-
-    refreshFilterIndicators() {
-        // Visual feedback when filters are active
-        const channel = (document.getElementById('reportChannelFilter') as HTMLSelectElement)?.value;
-        const status = (document.getElementById('reportStatusFilter') as HTMLSelectElement)?.value;
-        const generateBtn = document.getElementById('btnGenerateReport');
-        
-        if (generateBtn) {
-            if (channel || status) {
-                generateBtn.classList.add('c-btn--pulse');
-            } else {
-                generateBtn.classList.remove('c-btn--pulse');
-            }
         }
     },
 

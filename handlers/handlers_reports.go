@@ -83,7 +83,7 @@ func (a *API) parseGenerateReportParams(r *http.Request) (string, string, string
 
 func (a *API) respondWithReportStatus(w http.ResponseWriter, report *store.Report) {
 	status := http.StatusAccepted
-	if report.Status == "completed" {
+	if report.Status == store.ReportStatusCompleted {
 		status = http.StatusOK
 	}
 	respondJSON(w, status, report)

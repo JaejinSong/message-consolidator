@@ -213,6 +213,12 @@ type ReportTranslation struct {
 	Summary      string `json:"summary"`
 }
 
+const (
+	ReportStatusProcessing = "processing"
+	ReportStatusCompleted  = "completed"
+	ReportStatusFailed     = "failed"
+)
+
 // Report represents a cached AI-generated summary (metadata) and backend-calculated visualization.
 // Why: Standardizes the 1:N relationship where one metadata entry can have multiple language translations.
 type Report struct {

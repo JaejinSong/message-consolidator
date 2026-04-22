@@ -67,9 +67,9 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, 
 	// Note: We ignore cache for filtered reports as the date-based cache in GetReportByDate
 	// currently doesn't account for source/status filters.
 	if source == nil && done == nil {
-		if existing, _ := store.GetReportByDate(ctx, email, start); existing != nil {
-			if existing.Status == "processing" || existing.Status == "completed" {
-				if existing.Status == "completed" {
+		if existing, _ := store.GetReportByDateRange(ctx, email, start, end); existing != nil {
+			if existing.Status == store.ReportStatusProcessing || existing.Status == store.ReportStatusCompleted {
+				if existing.Status == store.ReportStatusCompleted {
 					existing.Translations, _ = store.GetReportTranslations(ctx, existing.ID)
 				}
 				return existing, nil
@@ -82,12 +82,12 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, 
 	if err != nil {
 		return nil, err
 	}
-	s.sanitizeMessages(ctx, email, filtered) // Ignore error, self-healing
+	filtered, _ = s.sanitizeMessages(ctx, email, filtered) // Ignore error, self-healing
 
 	// 3. Create Placeholder
 	report := &store.Report{
 		UserEmail: email, StartDate: start, EndDate: end,
-		Status: "processing", Visualization: "{}", Translations: make(map[string]string),
+		Status: store.ReportStatusProcessing, Visualization: "{}", Translations: make(map[string]string),
 	}
 	id, err := store.SaveReport(ctx, report)
 	if err != nil {
@@ -149,14 +149,14 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id i
 	vizJSON := s.getVisualizationJSON(email, logs, vizJSONRaw)
 	// Save results and handle translations
 	store.SaveReportTranslation(ctx, int64(id), "en", text)
-	store.UpdateReportStatus(ctx, "completed", vizJSON, isTruncated, id, email)
+	store.UpdateReportStatus(ctx, store.ReportStatusCompleted, vizJSON, isTruncated, id, email)
 	if lang != "" && lang != "en" {
 		s.ProcessOnDemandTranslation(ctx, email, id, lang)
 	}
 }
 
 func (s *ReportsService) markFailed(ctx context.Context, email string, id int) {
-	store.UpdateReportStatus(ctx, "failed", "{}", false, id, email)
+	store.UpdateReportStatus(ctx, store.ReportStatusFailed, "{}", false, id, email)
 }
 
 func (s *ReportsService) getVisualizationJSON(email string, logs []Log, aiJSON string) string {
@@ -171,13 +171,6 @@ func (s *ReportsService) getVisualizationJSON(email string, logs []Log, aiJSON s
 	vizData := s.generateVisualizationData(email, logs)
 	b, _ := json.Marshal(vizData)
 	return string(b)
-}
-
-func (s *ReportsService) getGeminiClient() *ai.GeminiClient {
-	if fs, ok := s.summarizer.(*FlashSingleSummarizer); ok {
-		return fs.gemini
-	}
-	return nil
 }
 
 // sanitizeMessages performs batch identity resolution to eliminate N+1 overhead.
@@ -196,7 +189,10 @@ func (s *ReportsService) sanitizeMessages(ctx context.Context, email string, msg
 		ids = append(ids, id)
 	}
 
-	contacts, ambiguous, _ := store.GetContactsByIdentifiers(ctx, email, ids)
+	contacts, ambiguous, err := store.GetContactsByIdentifiers(ctx, email, ids)
+	if err != nil {
+		return msgs, err
+	}
 
 	for i := range msgs {
 		m := &msgs[i]
@@ -276,9 +272,9 @@ func (s *ReportsService) formatLogLine(email string, m Log) string {
 		status = "V"
 	}
 
-	reqName := m.Requester
+	reqName := strings.TrimSuffix(m.Requester, " (Ambiguous)")
 	reqCat := s.resolveCategory(email, m.RequesterCanonical, m.RequesterType)
-	asgName := m.Assignee
+	asgName := strings.TrimSuffix(m.Assignee, " (Ambiguous)")
 	asgCat := s.resolveCategory(email, m.AssigneeCanonical, m.AssigneeType)
 
 	return fmt.Sprintf("- [%s] %s (Room: %s, From: %s (%s), To: %s (%s))\n",
@@ -342,22 +338,22 @@ func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (ma
 		// Why: Prioritize canonical IDs for node unification; fallback to raw requester/assignee strings if not resolved.
 		rID := m.RequesterCanonical
 		if rID == "" {
-			rID = strings.ToLower(m.Requester)
+			rID = strings.ToLower(strings.TrimSuffix(m.Requester, " (Ambiguous)"))
 		}
 		rCat := s.resolveCategory(email, rID, m.RequesterType)
 		rName := m.RequesterDisplayName
 		if rName == "" {
-			rName = m.Requester
+			rName = strings.TrimSuffix(m.Requester, " (Ambiguous)")
 		}
 
 		aID := m.AssigneeCanonical
 		if aID == "" {
-			aID = strings.ToLower(m.Assignee)
+			aID = strings.ToLower(strings.TrimSuffix(m.Assignee, " (Ambiguous)"))
 		}
 		aCat := s.resolveCategory(email, aID, m.AssigneeType)
 		aName := m.AssigneeDisplayName
 		if aName == "" {
-			aName = m.Assignee
+			aName = strings.TrimSuffix(m.Assignee, " (Ambiguous)")
 		}
 
 		if rID == "" || aID == "" || rID == aID {
