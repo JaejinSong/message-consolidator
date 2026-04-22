@@ -27,11 +27,13 @@ Translate technical or operational task summaries from **English** into the targ
 4. **FINAL OUTPUT**:
    - OUTPUT ONLY the translated text string.
 
+{{if .FewShots}}
 [Examples]
 {{range .FewShots}}
 Input: {{.Input}}
 Output: {{.Expected}}
 ---
+{{end}}
 {{end}}
 
 [Context]

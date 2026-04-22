@@ -27,10 +27,12 @@ model: gemini-3-flash-preview
 Input: Meeting request for WhaTap automation on April 20th. Also, here is the script guide.
 Output: [{"id": 0, "state": "new", "task": "WhaTap 서비스 재시작 프로세스 자동화 구현을 위한 4월 20일 원격지원", "requester": "Kenny", "assignee": "__CURRENT_USER__", "category": "TASK", "subtasks": [{"task": "시스템 데몬 등록 스크립트 가이드 확인", "assignee": "__CURRENT_USER__"}, {"task": "4월 20일 원격지원 세션 참석", "assignee": "__CURRENT_USER__"}]}]
 ---
+{{if .FewShots}}
 {{range .FewShots}}
 Input: {{.Input}}
 Output: {{.Expected}}
 ---
+{{end}}
 {{end}}
 
 [Context]

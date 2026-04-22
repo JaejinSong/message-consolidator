@@ -7,11 +7,13 @@ model: gemini-3.1-flash-lite-preview
 Translate task text to {{.Locale}}. Map @id to names. Output ONLY JSON:
 {"translations":[{"id":1,"text":"Result in {{.Locale}}"}]}
 
+{{if .FewShots}}
 [Examples]
 {{range .FewShots}}
 Input: {{.Input}}
 Output: {{.Expected}}
 ---
+{{end}}
 {{end}}
 
 [Context]

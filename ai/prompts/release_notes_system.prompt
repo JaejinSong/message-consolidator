@@ -16,11 +16,13 @@ Rules:
    - Use `## {TITLE}` for the main theme.
    - Use bullet points with bolded tags.
 
+{{if .FewShots}}
 [Examples]
 {{range .FewShots}}
 Input: {{.Input}}
 Output: {{.Expected}}
 ---
+{{end}}
 {{end}}
 
 [Context]

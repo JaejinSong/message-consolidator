@@ -10,11 +10,13 @@ Rules:
 2. Extract commitments made by the user in comments.
 3. IGNORE: General document text, resolved comments, or purely informational notes.
 
+{{if .FewShots}}
 [Examples]
 {{range .FewShots}}
 Input: {{.Input}}
 Output: {{.Expected}}
 ---
+{{end}}
 {{end}}
 
 [Context]

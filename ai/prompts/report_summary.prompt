@@ -50,11 +50,13 @@ model: gemini-3-flash-preview
 ```
 (If none, output: "No stalled tasks identified.")
 
+{{if .FewShots}}
 [Examples]
 {{range .FewShots}}
 Input: {{.Input}}
 Output: {{.Expected}}
 ---
+{{end}}
 {{end}}
 
 [Context]

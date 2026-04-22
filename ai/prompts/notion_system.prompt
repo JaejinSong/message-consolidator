@@ -18,11 +18,13 @@ model: gemini-3-flash-preview
    - `assigned_at`, `source_ts`: ONLY fill if found in the text. Do NOT use current time.
 - **Language**: The `task` and `assignee_reason` MUST be written in **English**.
 
+{{if .FewShots}}
 [Examples]
 {{range .FewShots}}
 Input: {{.Input}}
 Output: {{.Expected}}
 ---
+{{end}}
 {{end}}
 
 [Context]

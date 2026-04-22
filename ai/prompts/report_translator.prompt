@@ -17,11 +17,13 @@ Rules:
    - Strictly maintain JSON syntax and structure.
 6. Column headers in Markdown text (if any) MUST be translated while keeping structure intact.
 
+{{if .FewShots}}
 [Examples]
 {{range .FewShots}}
 Input: {{.Input}}
 Output: {{.Expected}}
 ---
+{{end}}
 {{end}}
 
 [Context]
