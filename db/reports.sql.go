@@ -414,7 +414,6 @@ func (q *Queries) ListReports(ctx context.Context, userEmail string) ([]ListRepo
 	return items, nil
 }
 
-
 const updateReportStatus = `-- name: UpdateReportStatus :exec
 UPDATE reports SET status = ?, visualization = ?, is_truncated = ? WHERE id = ? AND user_email = ?
 `

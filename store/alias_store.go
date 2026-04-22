@@ -52,12 +52,11 @@ func fallbackSystemUser(normalized, original string) string {
 	return original
 }
 
+// resolveCurrentUserAlias must be called while holding metadataMu.RLock().
 func resolveCurrentUserAlias(tenantEmail, nameLower string) (string, bool) {
 	if !IsSelfAssigneeToken(nameLower) {
 		return "", false
 	}
-	metadataMu.RLock()
-	defer metadataMu.RUnlock()
 	if u, ok := userCache[strings.ToLower(tenantEmail)]; ok {
 		if strings.TrimSpace(u.Name) != "" {
 			return u.Name, true
@@ -68,26 +67,9 @@ func resolveCurrentUserAlias(tenantEmail, nameLower string) (string, bool) {
 }
 
 func resolveIdentityXCanonicalName(tenantEmail, nameLower string) (string, bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	idType := "email"
-	if !strings.Contains(nameLower, "@") {
-		idType = "name"
-	}
-
-	id, err := ResolveAlias(ctx, idType, nameLower)
-	if err != nil || id <= 0 {
-		return "", false
-	}
-
-	queries := db.New(GetDB())
-	contact, err := queries.GetContactByID(ctx, db.GetContactByIDParams{
-		TenantEmail: tenantEmail,
-		ID:          int64(id),
-	})
-	if err == nil && contact.DisplayName != "" {
-		return contact.DisplayName, true
+	c, ok := resolveContactIdentity(tenantEmail, nameLower)
+	if ok && c.DisplayName != "" {
+		return c.DisplayName, true
 	}
 	return "", false
 }
@@ -219,45 +201,29 @@ func MapContactType(contactType, finalID, tenantEmail string) string {
 	return "External"
 }
 
-func GetTenantAliases(email string) (map[string]string, error) {
-	metadataMu.RLock()
-	defer metadataMu.RUnlock()
-
-	res := make(map[string]string)
-	if mappings, ok := contactsCache[email]; ok {
-		for _, m := range mappings {
-			res[m.CanonicalID] = m.DisplayName
-		}
-	}
-	return res, nil
-}
-
-// GetUserAliases retrieves identifiers for a user's primary contact from the in-memory contacts cache.
+// GetUserAliases retrieves identifiers for a user's primary contact from the resolution table.
 func GetUserAliases(ctx context.Context, userID int) ([]string, error) {
 	u, err := GetUserByID(userID)
 	if err != nil {
 		return []string{}, nil
 	}
-
-	metadataMu.RLock()
-	mappings := contactsCache[u.Email]
-	var found *ContactRecord
-	for i := range mappings {
-		if mappings[i].CanonicalID == u.Email {
-			found = &mappings[i]
-			break
-		}
-	}
-	metadataMu.RUnlock()
-
-	if found == nil {
+	norm := NormalizeIdentifier(u.Email)
+	rows, err := db.New(GetDB()).GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{
+		TenantEmail: u.Email,
+		Identifiers: []string{norm},
+	})
+	if err != nil || len(rows) == 0 {
 		return []string{}, nil
 	}
-	aliases := []string{found.CanonicalID}
-	if found.DisplayName != "" && found.DisplayName != found.CanonicalID {
-		aliases = append(aliases, found.DisplayName)
+	byID := fetchContactsByIDs(ctx, []int64{rows[0].ContactID})
+	if c, ok := byID[rows[0].ContactID]; ok {
+		aliases := []string{c.CanonicalID}
+		if c.DisplayName != "" && c.DisplayName != c.CanonicalID {
+			aliases = append(aliases, c.DisplayName)
+		}
+		return aliases, nil
 	}
-	return aliases, nil
+	return []string{}, nil
 }
 
 // GetUserByID is a helper to find a user by their integer ID from the cache.
@@ -348,18 +314,23 @@ func GetUserByWAJID(jid string) (*User, error) {
 	return nil, fmt.Errorf("user with WAJID %s not found in cache", jid)
 }
 
-// GetUserAliasesByEmailFromCache looks up identifiers for a canonical email from the contacts cache.
+// GetUserAliasesByEmailFromCache looks up identifiers for a canonical email from the resolution table.
 func GetUserAliasesByEmailFromCache(ctx context.Context, email string) ([]string, error) {
-	if mappings, ok := GetContactsCache()[email]; ok {
-		for _, m := range mappings {
-			if m.CanonicalID == email {
-				aliases := []string{m.CanonicalID}
-				if m.DisplayName != "" && m.DisplayName != m.CanonicalID {
-					aliases = append(aliases, m.DisplayName)
-				}
-				return aliases, nil
-			}
+	norm := NormalizeIdentifier(email)
+	rows, err := db.New(GetDB()).GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{
+		TenantEmail: email,
+		Identifiers: []string{norm},
+	})
+	if err != nil || len(rows) == 0 {
+		return []string{}, nil
+	}
+	byID := fetchContactsByIDs(ctx, []int64{rows[0].ContactID})
+	if c, ok := byID[rows[0].ContactID]; ok {
+		aliases := []string{c.CanonicalID}
+		if c.DisplayName != "" && c.DisplayName != c.CanonicalID {
+			aliases = append(aliases, c.DisplayName)
 		}
+		return aliases, nil
 	}
 	return []string{}, nil
 }

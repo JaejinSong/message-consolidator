@@ -24,24 +24,12 @@ func TestBulkAliasResolution(t *testing.T) {
 		}
 	})
 
-	// 2. Test Negative Caching
-	t.Run("NegativeCaching", func(t *testing.T) {
+	// 2. Test Unknown Identifier Returns Nil
+	t.Run("UnknownIdentifier", func(t *testing.T) {
 		unknown := "unknown_id_123"
-		// First call should record missing
-		_, _, _ = GetContactsByIdentifiers(ctx, tenant, []string{unknown})
-		
-		metadataMu.RLock()
-		mappings := contactsCache[tenant]
-		found := false
-		for _, m := range mappings {
-			if m.CanonicalID == unknown && m.ID == -1 {
-				found = true
-				break
-			}
-		}
-		metadataMu.RUnlock()
-		if !found {
-			t.Errorf("Sentinel value ID=-1 not found in cache for %s", unknown)
+		res, _, _ := GetContactsByIdentifiers(ctx, tenant, []string{unknown})
+		if res[unknown] != nil {
+			t.Errorf("Expected nil for unknown identifier, got %+v", res[unknown])
 		}
 	})
 

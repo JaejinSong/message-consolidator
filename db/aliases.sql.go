@@ -9,7 +9,6 @@ import (
 	"context"
 )
 
-
 const createUserAlias = `-- name: CreateUserAlias :exec
 INSERT INTO user_aliases (user_id, alias_name) 
 VALUES (?, ?) 
@@ -119,7 +118,6 @@ func (q *Queries) GetAllUserAliases(ctx context.Context) ([]GetAllUserAliasesRow
 	}
 	return items, nil
 }
-
 
 const getUserAliases = `-- name: GetUserAliases :many
 SELECT alias_name FROM user_aliases WHERE user_id = ?

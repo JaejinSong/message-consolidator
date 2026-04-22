@@ -60,3 +60,19 @@ WHERE id = ?2;
 -- name: InsertMergeHistory :exec
 INSERT INTO identity_merge_history (source_contact_id, target_contact_id, reason)
 VALUES (?, ?, ?);
+
+-- name: UpsertContactResolution :exec
+INSERT INTO contact_resolution (tenant_email, raw_identifier, contact_id)
+VALUES (?, ?, ?)
+ON CONFLICT(tenant_email, raw_identifier) DO UPDATE SET contact_id = excluded.contact_id;
+
+-- name: GetResolutionsByIdentifiers :many
+SELECT raw_identifier, contact_id FROM contact_resolution
+WHERE tenant_email = ? AND raw_identifier IN (sqlc.slice('identifiers'));
+
+-- name: UpdateResolutionContactID :exec
+UPDATE contact_resolution SET contact_id = ?1 WHERE tenant_email = ?2 AND contact_id = ?3;
+
+-- name: GetContactsByIDs :many
+SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type, secondary_ids
+FROM contacts WHERE id IN (sqlc.slice('ids'));

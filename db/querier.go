@@ -14,6 +14,7 @@ type Querier interface {
 	ArchiveOldTasks(ctx context.Context, datetime interface{}) (int64, error)
 	CloseSlackThread(ctx context.Context, arg CloseSlackThreadParams) error
 	CreateAIInferenceLogsTable(ctx context.Context) error
+	CreateContactResolutionTable(ctx context.Context) error
 	// Views
 	CreateContactsResolvedView(ctx context.Context) error
 	CreateContactsTable(ctx context.Context) error
@@ -51,9 +52,10 @@ type Querier interface {
 	GetAllUserAliases(ctx context.Context) ([]GetAllUserAliasesRow, error)
 	GetAllUsers(ctx context.Context) ([]User, error)
 	GetCompletionHistory(ctx context.Context, arg GetCompletionHistoryParams) ([]GetCompletionHistoryRow, error)
-	GetContactsByValues(ctx context.Context, values []string) ([]GetContactsByValuesRow, error)
 	GetContactByID(ctx context.Context, arg GetContactByIDParams) (GetContactByIDRow, error)
-GetContactsByTenant(ctx context.Context, tenantEmail string) ([]GetContactsByTenantRow, error)
+	GetContactsByIDs(ctx context.Context, ids []int64) ([]GetContactsByIDsRow, error)
+	GetContactsByTenant(ctx context.Context, tenantEmail string) ([]GetContactsByTenantRow, error)
+	GetContactsByValues(ctx context.Context) ([]GetContactsByValuesRow, error)
 	GetContactsWithMaster(ctx context.Context) ([]GetContactsWithMasterRow, error)
 	GetDailyCompletions(ctx context.Context, arg GetDailyCompletionsParams) ([]GetDailyCompletionsRow, error)
 	GetDailyFilteredCount(ctx context.Context, arg GetDailyFilteredCountParams) (interface{}, error)
@@ -79,6 +81,7 @@ GetContactsByTenant(ctx context.Context, tenantEmail string) ([]GetContactsByTen
 	GetReportByID(ctx context.Context, arg GetReportByIDParams) (GetReportByIDRow, error)
 	GetReportList(ctx context.Context, userEmail string) ([]GetReportListRow, error)
 	GetReportTranslations(ctx context.Context, reportID int64) ([]GetReportTranslationsRow, error)
+	GetResolutionsByIdentifiers(ctx context.Context, arg GetResolutionsByIdentifiersParams) ([]GetResolutionsByIdentifiersRow, error)
 	GetSourceDistributionActive(ctx context.Context, userEmail string) ([]GetSourceDistributionActiveRow, error)
 	GetSourceDistributionTotal(ctx context.Context, userEmail string) ([]GetSourceDistributionTotalRow, error)
 	GetTaskCountByContactType(ctx context.Context, userEmail string) ([]GetTaskCountByContactTypeRow, error)
@@ -104,7 +107,7 @@ GetContactsByTenant(ctx context.Context, tenantEmail string) ([]GetContactsByTen
 	LoadScanMetadataAll(ctx context.Context) ([]LoadScanMetadataAllRow, error)
 	LoadUsersAll(ctx context.Context) ([]User, error)
 	MarkSourceTSProcessed(ctx context.Context, arg MarkSourceTSProcessedParams) error
-RefreshCacheActive(ctx context.Context, userEmail string) ([]RefreshCacheActiveRow, error)
+	RefreshCacheActive(ctx context.Context, userEmail string) ([]RefreshCacheActiveRow, error)
 	RefreshCacheArchive(ctx context.Context, userEmail string) ([]RefreshCacheArchiveRow, error)
 	RestoreMessages(ctx context.Context, arg RestoreMessagesParams) error
 	// Note: Batching with VALUES %s is not supported by sqlc directly.
@@ -117,12 +120,14 @@ RefreshCacheActive(ctx context.Context, userEmail string) ([]RefreshCacheActiveR
 	UpdateContactDetails(ctx context.Context, arg UpdateContactDetailsParams) error
 	UpdateMessageDetails(ctx context.Context, arg UpdateMessageDetailsParams) error
 	UpdateReportStatus(ctx context.Context, arg UpdateReportStatusParams) error
+	UpdateResolutionContactID(ctx context.Context, arg UpdateResolutionContactIDParams) error
 	UpdateSubtasks(ctx context.Context, arg UpdateSubtasksParams) error
 	UpdateTaskDescriptionAppend(ctx context.Context, arg UpdateTaskDescriptionAppendParams) error
 	UpdateTaskFullAppend(ctx context.Context, arg UpdateTaskFullAppendParams) error
 	UpdateTaskMergeComplete(ctx context.Context, arg UpdateTaskMergeCompleteParams) error
 	UpdateUserDetails(ctx context.Context, arg UpdateUserDetailsParams) error
 	UpsertContactMapping(ctx context.Context, arg UpsertContactMappingParams) (int64, error)
+	UpsertContactResolution(ctx context.Context, arg UpsertContactResolutionParams) error
 	UpsertGmailToken(ctx context.Context, arg UpsertGmailTokenParams) error
 	UpsertScanMetadata(ctx context.Context, arg UpsertScanMetadataParams) error
 	UpsertSlackThread(ctx context.Context, arg UpsertSlackThreadParams) error

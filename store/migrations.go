@@ -45,6 +45,9 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 	if err := queries.CreateIdentityMergeHistoryTable(ctx); err != nil {
 		return fmt.Errorf("failed to create identity_merge_history table: %w", err)
 	}
+	if err := queries.CreateContactResolutionTable(ctx); err != nil {
+		return fmt.Errorf("failed to create contact_resolution table: %w", err)
+	}
 	if err := queries.CreateIdentityMergeCandidatesTable(ctx); err != nil {
 		return fmt.Errorf("failed to create identity_merge_candidates table: %w", err)
 	}
@@ -55,10 +58,37 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 }
 
 func runMigrations(ctx context.Context, q db.DBTX) error {
-	// All schema columns are defined in the DDL (CreateXxxTable).
-	// Only data-level normalizations run here for existing deployments.
 	migrateExistingData(ctx, q)
+	go migrateContactResolution(ctx)
 	return nil
+}
+
+// migrateContactResolution rebuilds the contact_resolution table for all tenants
+// if it is empty (first run after introducing the table).
+func migrateContactResolution(ctx context.Context) {
+	rows, err := GetDB().QueryContext(ctx, "SELECT DISTINCT tenant_email FROM contacts")
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	var tenants []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err == nil {
+			tenants = append(tenants, t)
+		}
+	}
+	var count int
+	_ = GetDB().QueryRowContext(ctx, "SELECT COUNT(*) FROM contact_resolution").Scan(&count)
+	if count > 0 {
+		return
+	}
+	for _, t := range tenants {
+		if err := RebuildContactResolution(ctx, t); err != nil {
+			logger.Errorf("[RESOLUTION] rebuild failed for %s: %v", t, err)
+		}
+	}
+	logger.Infof("[RESOLUTION] contact_resolution table populated for %d tenants", len(tenants))
 }
 
 func rebuildViews(ctx context.Context, q db.DBTX) error {

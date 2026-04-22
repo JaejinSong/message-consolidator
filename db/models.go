@@ -26,17 +26,14 @@ type Contact struct {
 	Source          sql.NullString `json:"source"`
 	MasterContactID sql.NullInt64  `json:"master_contact_id"`
 	ContactType     sql.NullString `json:"contact_type"`
+	SecondaryIds    sql.NullString `json:"secondary_ids"`
 	CreatedAt       sql.NullTime   `json:"created_at"`
 }
 
-type ContactAlias struct {
-	ID              int64         `json:"id"`
-	ContactID       int64         `json:"contact_id"`
-	IdentifierType  string        `json:"identifier_type"`
-	IdentifierValue string        `json:"identifier_value"`
-	Source          string        `json:"source"`
-	TrustLevel      sql.NullInt64 `json:"trust_level"`
-	CreatedAt       sql.NullTime  `json:"created_at"`
+type ContactResolution struct {
+	TenantEmail   string `json:"tenant_email"`
+	RawIdentifier string `json:"raw_identifier"`
+	ContactID     int64  `json:"contact_id"`
 }
 
 type GmailToken struct {

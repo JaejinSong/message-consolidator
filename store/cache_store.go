@@ -26,9 +26,6 @@ var (
 	// tokenCache holds OAuth refresh tokens for background service authentications.
 	tokenCache       = make(map[string]string)
 	
-	// contactsCache stores consolidated identity mappings (SSOT) to improve requester identification across platforms.
-	contactsCache    = make(map[string][]ContactRecord)
-
 	// lastArchiveTime tracks the last successful auto-archive execution to ensure throttled processing.
 	lastArchiveTime  time.Time
 	
@@ -70,7 +67,6 @@ func ResetForTest() {
 	scanCache = make(map[string]string)
 	dirtyScanKeys = make(map[string]bool)
 	tokenCache = make(map[string]string)
-	contactsCache = make(map[string][]ContactRecord)
 	GlobalContactDSU.Reset()
 
 	archiveMu.Lock()
@@ -86,12 +82,6 @@ func ResetForTest() {
 
 }
 
-
-func GetContactsCache() map[string][]ContactRecord {
-	metadataMu.RLock()
-	defer metadataMu.RUnlock()
-	return contactsCache
-}
 
 func RefreshAllCaches(ctx context.Context) error {
 	users, err := GetAllUsers(ctx)

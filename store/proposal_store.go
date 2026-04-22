@@ -216,7 +216,6 @@ func AcceptProposalGroup(ctx context.Context, tenantEmail, groupID, canonicalNam
 		); err != nil {
 			return err
 		}
-		invalidateCache()
 	}
 
 	return db.New(GetDB()).UpdateProposalGroupStatus(ctx, groupID, "accepted", canonicalName)
@@ -268,37 +267,11 @@ func AutoMergeByCanonicalID(ctx context.Context, tenantEmail string) (int, error
 	return merged, nil
 }
 
-// getContactsByIDs loads contacts by ID, using the in-memory cache with DB fallback.
-func getContactsByIDs(ctx context.Context, tenantEmail string, ids []int64) ([]ContactRecord, error) {
-	idSet := make(map[int64]bool, len(ids))
-	for _, id := range ids {
-		idSet[id] = true
-	}
-
-	metadataMu.RLock()
-	var result []ContactRecord
-	for _, c := range contactsCache[tenantEmail] {
-		if idSet[c.ID] {
-			result = append(result, c)
-			delete(idSet, c.ID)
-		}
-	}
-	metadataMu.RUnlock()
-
-	// DB fallback for any not found in cache
-	for id := range idSet {
-		var c ContactRecord
-		var masterID sql.NullInt64
-		err := GetDB().QueryRowContext(ctx,
-			`SELECT id, tenant_email, canonical_id, display_name,
-			        COALESCE(source, ''), master_contact_id, COALESCE(contact_type, 'none')
-			 FROM contacts WHERE id = ? AND tenant_email = ?`,
-			id, tenantEmail,
-		).Scan(&c.ID, &c.TenantEmail, &c.CanonicalID, &c.DisplayName, &c.Source, &masterID, &c.ContactType)
-		if err == nil {
-			c.MasterContactID = masterID
-			result = append(result, c)
-		}
+func getContactsByIDs(ctx context.Context, _ string, ids []int64) ([]ContactRecord, error) {
+	byID := fetchContactsByIDs(ctx, ids)
+	result := make([]ContactRecord, 0, len(byID))
+	for _, c := range byID {
+		result = append(result, *c)
 	}
 	return result, nil
 }

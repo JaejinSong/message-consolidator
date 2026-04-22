@@ -108,6 +108,14 @@ CREATE INDEX IF NOT EXISTS idx_contacts_canonical ON contacts(canonical_id);
 CREATE INDEX IF NOT EXISTS idx_contacts_tenant_canonical ON contacts(tenant_email, canonical_id);
 
 
+-- name: CreateContactResolutionTable :exec
+CREATE TABLE IF NOT EXISTS contact_resolution (
+    tenant_email TEXT NOT NULL,
+    raw_identifier TEXT NOT NULL,
+    contact_id   INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+    PRIMARY KEY (tenant_email, raw_identifier)
+);
+
 -- name: CreateIdentityMergeHistoryTable :exec
 CREATE TABLE IF NOT EXISTS identity_merge_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

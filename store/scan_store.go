@@ -93,21 +93,7 @@ func LoadMetadata() error {
 		tokenCache[row.UserEmail] = row.TokenJson
 	}
 
-	//Why: Loads consolidated contact mappings for improved requester identification.
-	logger.Infof("[CACHE] Loading consolidated contacts into memory...")
-	contactRows, err := queries.LoadContactsAll(context.Background())
-	if err == nil {
-		for _, row := range contactRows {
-			contactsCache[row.TenantEmail] = append(contactsCache[row.TenantEmail], ContactRecord{
-				CanonicalID: row.CanonicalID,
-				DisplayName: row.DisplayName,
-				Source:      row.Source.String,
-				ContactType: row.ContactType.String,
-			})
-		}
-	}
-
-	logger.Infof("[CACHE] Loaded %d users, %d scan entries, %d tokens, %d contact mappings.", len(userCache), len(scanCache), len(tokenCache), len(contactsCache))
+	logger.Infof("[CACHE] Loaded %d users, %d scan entries, %d tokens.", len(userCache), len(scanCache), len(tokenCache))
 	return nil
 }
 

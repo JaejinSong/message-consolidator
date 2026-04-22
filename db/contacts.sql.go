@@ -8,9 +8,24 @@ package db
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"strings"
 )
+
+const appendSecondaryID = `-- name: AppendSecondaryID :exec
+UPDATE contacts
+SET secondary_ids = json_insert(COALESCE(secondary_ids, '[]'), '$[#]', ?1)
+WHERE id = ?2
+`
+
+type AppendSecondaryIDParams struct {
+	JsonInsert interface{} `json:"json_insert"`
+	ID         int64       `json:"id"`
+}
+
+func (q *Queries) AppendSecondaryID(ctx context.Context, arg AppendSecondaryIDParams) error {
+	_, err := q.db.ExecContext(ctx, appendSecondaryID, arg.JsonInsert, arg.ID)
+	return err
+}
 
 const deleteContactMapping = `-- name: DeleteContactMapping :exec
 DELETE FROM contacts
@@ -27,53 +42,8 @@ func (q *Queries) DeleteContactMapping(ctx context.Context, arg DeleteContactMap
 	return err
 }
 
-type GetContactsByValuesRow struct {
-	ID           int64    `json:"id"`
-	CanonicalID  string   `json:"canonical_id"`
-	DisplayName  string   `json:"display_name"`
-	SecondaryIDs []string `json:"secondary_ids"`
-}
-
-func (q *Queries) GetContactsByValues(ctx context.Context, values []string) ([]GetContactsByValuesRow, error) {
-	if len(values) == 0 {
-		return nil, nil
-	}
-	placeholders := strings.Repeat(",?", len(values))[1:]
-	query := "SELECT id, canonical_id, display_name, COALESCE(secondary_ids, '[]') FROM contacts" +
-		" WHERE LOWER(canonical_id) IN (" + placeholders + ")" +
-		" OR LOWER(display_name) IN (" + placeholders + ")" +
-		" OR EXISTS (SELECT 1 FROM json_each(secondary_ids) WHERE LOWER(value) IN (" + placeholders + "))"
-	lower := make([]interface{}, len(values))
-	for i, v := range values {
-		lower[i] = strings.ToLower(v)
-	}
-	params := append(append(lower, lower...), lower...)
-	rows, err := q.db.QueryContext(ctx, query, params...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetContactsByValuesRow
-	for rows.Next() {
-		var i GetContactsByValuesRow
-		var secJSON string
-		if err := rows.Scan(&i.ID, &i.CanonicalID, &i.DisplayName, &secJSON); err != nil {
-			return nil, err
-		}
-		_ = json.Unmarshal([]byte(secJSON), &i.SecondaryIDs)
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getContactByID = `-- name: GetContactByID :one
-SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type, COALESCE(secondary_ids, '[]') FROM contacts WHERE tenant_email = ? AND id = ?
+SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type, secondary_ids FROM contacts WHERE tenant_email = ? AND id = ?
 `
 
 type GetContactByIDParams struct {
@@ -89,7 +59,7 @@ type GetContactByIDRow struct {
 	Source          sql.NullString `json:"source"`
 	MasterContactID sql.NullInt64  `json:"master_contact_id"`
 	ContactType     sql.NullString `json:"contact_type"`
-	SecondaryIDs    string         `json:"secondary_ids"`
+	SecondaryIds    sql.NullString `json:"secondary_ids"`
 }
 
 func (q *Queries) GetContactByID(ctx context.Context, arg GetContactByIDParams) (GetContactByIDRow, error) {
@@ -103,29 +73,71 @@ func (q *Queries) GetContactByID(ctx context.Context, arg GetContactByIDParams) 
 		&i.Source,
 		&i.MasterContactID,
 		&i.ContactType,
-		&i.SecondaryIDs,
+		&i.SecondaryIds,
 	)
 	return i, err
 }
 
-const appendSecondaryID = `-- name: AppendSecondaryID :exec
-UPDATE contacts
-SET secondary_ids = json_insert(COALESCE(secondary_ids, '[]'), '$[#]', ?1)
-WHERE id = ?2
+const getContactsByIDs = `-- name: GetContactsByIDs :many
+SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type, secondary_ids
+FROM contacts WHERE id IN (/*SLICE:ids*/?)
 `
 
-type AppendSecondaryIDParams struct {
-	Value string `json:"value"`
-	ID    int64  `json:"id"`
+type GetContactsByIDsRow struct {
+	ID              int64          `json:"id"`
+	TenantEmail     string         `json:"tenant_email"`
+	CanonicalID     string         `json:"canonical_id"`
+	DisplayName     string         `json:"display_name"`
+	Source          sql.NullString `json:"source"`
+	MasterContactID sql.NullInt64  `json:"master_contact_id"`
+	ContactType     sql.NullString `json:"contact_type"`
+	SecondaryIds    sql.NullString `json:"secondary_ids"`
 }
 
-func (q *Queries) AppendSecondaryID(ctx context.Context, arg AppendSecondaryIDParams) error {
-	_, err := q.db.ExecContext(ctx, appendSecondaryID, arg.Value, arg.ID)
-	return err
+func (q *Queries) GetContactsByIDs(ctx context.Context, ids []int64) ([]GetContactsByIDsRow, error) {
+	query := getContactsByIDs
+	var queryParams []interface{}
+	if len(ids) > 0 {
+		for _, v := range ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetContactsByIDsRow
+	for rows.Next() {
+		var i GetContactsByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantEmail,
+			&i.CanonicalID,
+			&i.DisplayName,
+			&i.Source,
+			&i.MasterContactID,
+			&i.ContactType,
+			&i.SecondaryIds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getContactsByTenant = `-- name: GetContactsByTenant :many
-SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type, COALESCE(secondary_ids, '[]') FROM contacts WHERE tenant_email = ?
+SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type, secondary_ids FROM contacts WHERE tenant_email = ?
 `
 
 type GetContactsByTenantRow struct {
@@ -136,7 +148,7 @@ type GetContactsByTenantRow struct {
 	Source          sql.NullString `json:"source"`
 	MasterContactID sql.NullInt64  `json:"master_contact_id"`
 	ContactType     sql.NullString `json:"contact_type"`
-	SecondaryIDs    string         `json:"secondary_ids"`
+	SecondaryIds    sql.NullString `json:"secondary_ids"`
 }
 
 func (q *Queries) GetContactsByTenant(ctx context.Context, tenantEmail string) ([]GetContactsByTenantRow, error) {
@@ -156,7 +168,49 @@ func (q *Queries) GetContactsByTenant(ctx context.Context, tenantEmail string) (
 			&i.Source,
 			&i.MasterContactID,
 			&i.ContactType,
-			&i.SecondaryIDs,
+			&i.SecondaryIds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getContactsByValues = `-- name: GetContactsByValues :many
+SELECT id, canonical_id, display_name, secondary_ids FROM contacts
+WHERE LOWER(canonical_id) IN (/*SLICE:values*/?)
+   OR LOWER(display_name) IN (/*SLICE:values*/?)
+   OR EXISTS (SELECT 1 FROM json_each(secondary_ids) WHERE LOWER(value) IN (/*SLICE:values*/?))
+`
+
+type GetContactsByValuesRow struct {
+	ID           int64          `json:"id"`
+	CanonicalID  string         `json:"canonical_id"`
+	DisplayName  string         `json:"display_name"`
+	SecondaryIds sql.NullString `json:"secondary_ids"`
+}
+
+func (q *Queries) GetContactsByValues(ctx context.Context) ([]GetContactsByValuesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getContactsByValues)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetContactsByValuesRow
+	for rows.Next() {
+		var i GetContactsByValuesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CanonicalID,
+			&i.DisplayName,
+			&i.SecondaryIds,
 		); err != nil {
 			return nil, err
 		}
@@ -237,6 +291,55 @@ func (q *Queries) GetLinkedContacts(ctx context.Context, tenantEmail string) ([]
 			&i.MasterContactID,
 			&i.ContactType,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getResolutionsByIdentifiers = `-- name: GetResolutionsByIdentifiers :many
+SELECT raw_identifier, contact_id FROM contact_resolution
+WHERE tenant_email = ? AND raw_identifier IN (/*SLICE:identifiers*/?)
+`
+
+type GetResolutionsByIdentifiersParams struct {
+	TenantEmail string   `json:"tenant_email"`
+	Identifiers []string `json:"identifiers"`
+}
+
+type GetResolutionsByIdentifiersRow struct {
+	RawIdentifier string `json:"raw_identifier"`
+	ContactID     int64  `json:"contact_id"`
+}
+
+func (q *Queries) GetResolutionsByIdentifiers(ctx context.Context, arg GetResolutionsByIdentifiersParams) ([]GetResolutionsByIdentifiersRow, error) {
+	query := getResolutionsByIdentifiers
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.TenantEmail)
+	if len(arg.Identifiers) > 0 {
+		for _, v := range arg.Identifiers {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:identifiers*/?", strings.Repeat(",?", len(arg.Identifiers))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:identifiers*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetResolutionsByIdentifiersRow
+	for rows.Next() {
+		var i GetResolutionsByIdentifiersRow
+		if err := rows.Scan(&i.RawIdentifier, &i.ContactID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -394,6 +497,21 @@ func (q *Queries) UpdateContactDetails(ctx context.Context, arg UpdateContactDet
 	return err
 }
 
+const updateResolutionContactID = `-- name: UpdateResolutionContactID :exec
+UPDATE contact_resolution SET contact_id = ?1 WHERE tenant_email = ?2 AND contact_id = ?3
+`
+
+type UpdateResolutionContactIDParams struct {
+	ContactID   int64  `json:"contact_id"`
+	TenantEmail string `json:"tenant_email"`
+	ContactID_2 int64  `json:"contact_id_2"`
+}
+
+func (q *Queries) UpdateResolutionContactID(ctx context.Context, arg UpdateResolutionContactIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateResolutionContactID, arg.ContactID, arg.TenantEmail, arg.ContactID_2)
+	return err
+}
+
 const upsertContactMapping = `-- name: UpsertContactMapping :one
 INSERT INTO contacts (tenant_email, canonical_id, display_name, source)
 VALUES (?, ?, ?, ?)
@@ -420,4 +538,21 @@ func (q *Queries) UpsertContactMapping(ctx context.Context, arg UpsertContactMap
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const upsertContactResolution = `-- name: UpsertContactResolution :exec
+INSERT INTO contact_resolution (tenant_email, raw_identifier, contact_id)
+VALUES (?, ?, ?)
+ON CONFLICT(tenant_email, raw_identifier) DO UPDATE SET contact_id = excluded.contact_id
+`
+
+type UpsertContactResolutionParams struct {
+	TenantEmail   string `json:"tenant_email"`
+	RawIdentifier string `json:"raw_identifier"`
+	ContactID     int64  `json:"contact_id"`
+}
+
+func (q *Queries) UpsertContactResolution(ctx context.Context, arg UpsertContactResolutionParams) error {
+	_, err := q.db.ExecContext(ctx, upsertContactResolution, arg.TenantEmail, arg.RawIdentifier, arg.ContactID)
+	return err
 }

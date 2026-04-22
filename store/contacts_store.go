@@ -47,10 +47,6 @@ func InitContactsTable(ctx context.Context, q db.DBTX) {
 	_ = queries.CreateContactsTable(ctx)
 	_ = queries.CreateIdentityMergeHistoryTable(ctx)
 	_ = queries.CreateIdentityMergeCandidatesTable(ctx)
-	
-	// Why: Perform one-time migration of legacy aliases if the new table is empty from migrations.go.
-
-	// Why: DSU is handled in-memory but persisted merge relations must be loaded.
 	loadDSUFromDB(ctx)
 }
 
@@ -60,7 +56,6 @@ func loadDSUFromDB(ctx context.Context) {
 	if err != nil {
 		return
 	}
-
 	for _, row := range rows {
 		if row.MasterContactID.Valid {
 			GlobalContactDSU.Union(row.MasterContactID.Int64, row.ID)
@@ -70,16 +65,7 @@ func loadDSUFromDB(ctx context.Context) {
 }
 
 func GetContactsMappings(email string) ([]ContactRecord, error) {
-	metadataMu.RLock()
-	defer metadataMu.RUnlock()
-	mappings, ok := contactsCache[email]
-	if !ok {
-		return []ContactRecord{}, nil
-	}
-
-	result := make([]ContactRecord, len(mappings))
-	copy(result, mappings)
-	return result, nil
+	return fetchAllTenantContacts(context.Background(), email)
 }
 
 func AddContactMapping(ctx context.Context, email, canonicalID, displayName, aliases, source string) error {
@@ -109,59 +95,29 @@ func UpsertContact(ctx context.Context, tenantEmail, canonicalID, displayName, a
 		_ = UpdateContactType(ctx, id, CategoryInternal)
 	}
 
-	UpdateContactsCache(id, tenantEmail, canonicalID, displayName, source)
+	rootID := GlobalContactDSU.Find(id)
+	upsertResolutionForContact(ctx, tenantEmail, rootID, canonicalID, displayName, nil)
 	return id, nil
 }
 
-// searchCache is moved or merged into specific find helpers.
-
-// UpdateContactsCache localizes cache update logic for reuse across manual and automatic upserts.
-func UpdateContactsCache(id int64, email, canonicalID, displayName, source string) {
-	metadataMu.Lock()
-	defer metadataMu.Unlock()
-	
-	if _, ok := contactsCache[email]; !ok {
-		contactsCache[email] = []ContactRecord{}
-	}
-	idx := slices.IndexFunc(contactsCache[email], func(m ContactRecord) bool {
-		return m.CanonicalID == canonicalID
-	})
-	if idx >= 0 {
-		contactsCache[email][idx].ID = id
-		contactsCache[email][idx].DisplayName = displayName
-		contactsCache[email][idx].Source = source
-	} else {
-		contactsCache[email] = append(contactsCache[email], ContactRecord{
-			ID:          id,
-			TenantEmail: email,
-			CanonicalID: canonicalID,
-			DisplayName: displayName,
-			Source:      source,
-			ContactType: CategoryNone, // Default for manual cache update
-		})
-	}
-}
-
 // AutoUpsertContact provides a safe, automatic way to register new email contacts found during ingestion.
-// It merges new aliases and avoids overwriting meaningful display names with raw email addresses.
 func AutoUpsertContact(ctx context.Context, tenantEmail, email, name, source string) error {
 	canonicalID := strings.ToLower(strings.TrimSpace(email))
 	if canonicalID == "" {
 		return nil
 	}
 
-	metadataMu.RLock()
-	existing := findInCache(tenantEmail, func(m ContactRecord) bool {
-		return m.CanonicalID == canonicalID
-	})
-	metadataMu.RUnlock()
-
 	newName := strings.TrimSpace(name)
 	isValidName := newName != "" && !strings.Contains(newName, "@") && strings.ToLower(newName) != canonicalID
 
-	// If we have nothing to improve, skip the DB write entirely.
-	if existing != nil && !isValidName {
-		return nil
+	if !isValidName {
+		rows, _ := db.New(GetDB()).GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{
+			TenantEmail: tenantEmail,
+			Identifiers: []string{NormalizeIdentifier(canonicalID)},
+		})
+		if len(rows) > 0 {
+			return nil
+		}
 	}
 
 	displayName := canonicalID
@@ -172,41 +128,48 @@ func AutoUpsertContact(ctx context.Context, tenantEmail, email, name, source str
 	return err
 }
 
-
 func SaveWhatsAppContact(ctx context.Context, email, number, name string) error {
 	if number == "" || name == "" || name == number {
 		return nil
 	}
 
-	metadataMu.RLock()
-	// Number already stored as secondary_id on an email contact — no further action
-	linkedToEmail := findInCache(email, func(m ContactRecord) bool {
-		return m.CanonicalID != number && slices.Contains(m.SecondaryIDs, number)
-	})
-	// Existing canonical WA contact for this number
-	waContact := findInCache(email, func(m ContactRecord) bool {
-		return m.CanonicalID == number
-	})
-	// Email contact whose display name matches — candidate for secondary_id linking
-	emailContact := findInCache(email, func(m ContactRecord) bool {
-		return m.CanonicalID != number && strings.EqualFold(m.DisplayName, name)
-	})
-	metadataMu.RUnlock()
+	queries := db.New(GetDB())
+	norm := NormalizeIdentifier(number)
 
-	if linkedToEmail != nil {
-		return nil
-	}
-	// If a matching email contact exists and no canonical WA contact yet, link as secondary_id
-	if emailContact != nil && emailContact.ID > 0 && waContact == nil {
-		return appendSecondaryID(ctx, email, emailContact.ID, number)
-	}
-	// Update existing WA contact's display name if it's a human-readable name
-	if waContact != nil {
-		if waContact.DisplayName == number || waContact.DisplayName == "" || strings.Contains(waContact.DisplayName, " ") {
-			_, err := UpsertContact(ctx, email, number, name, "", ContactTypeWhatsApp)
-			return err
+	rows, _ := queries.GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{
+		TenantEmail: email,
+		Identifiers: []string{norm},
+	})
+
+	if len(rows) > 0 {
+		cid := rows[0].ContactID
+		byID := fetchContactsByIDs(ctx, []int64{cid})
+		if contact, ok := byID[cid]; ok {
+			if contact.CanonicalID != number {
+				// Number is already a secondary ID on another contact
+				return nil
+			}
+			// It's the canonical WA contact — update display name if a better name is available
+			if contact.DisplayName == number || contact.DisplayName == "" || strings.Contains(name, " ") {
+				_, err := UpsertContact(ctx, email, number, name, "", ContactTypeWhatsApp)
+				return err
+			}
+			return nil
 		}
-		return nil
+	}
+
+	// Check if an email contact with matching display name exists
+	nameNorm := NormalizeIdentifier(name)
+	nameRows, _ := queries.GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{
+		TenantEmail: email,
+		Identifiers: []string{nameNorm},
+	})
+	if len(nameRows) > 0 {
+		cid := nameRows[0].ContactID
+		byID := fetchContactsByIDs(ctx, []int64{cid})
+		if emailContact, ok := byID[cid]; ok && emailContact.CanonicalID != number {
+			return appendSecondaryID(ctx, email, emailContact.ID, number)
+		}
 	}
 
 	_, err := UpsertContact(ctx, email, number, name, "", ContactTypeWhatsApp)
@@ -215,20 +178,21 @@ func SaveWhatsAppContact(ctx context.Context, email, number, name string) error 
 
 func appendSecondaryID(ctx context.Context, tenantEmail string, contactID int64, value string) error {
 	err := db.New(GetDB()).AppendSecondaryID(ctx, db.AppendSecondaryIDParams{
-		Value: value,
-		ID:    contactID,
+		JsonInsert: value,
+		ID:         contactID,
 	})
 	if err != nil {
 		return err
 	}
-	metadataMu.Lock()
-	for i := range contactsCache[tenantEmail] {
-		if contactsCache[tenantEmail][i].ID == contactID {
-			contactsCache[tenantEmail][i].SecondaryIDs = append(contactsCache[tenantEmail][i].SecondaryIDs, value)
-			break
-		}
+	norm := NormalizeIdentifier(value)
+	if norm != "" {
+		rootID := GlobalContactDSU.Find(contactID)
+		_ = db.New(GetDB()).UpsertContactResolution(ctx, db.UpsertContactResolutionParams{
+			TenantEmail:   tenantEmail,
+			RawIdentifier: norm,
+			ContactID:     rootID,
+		})
 	}
-	metadataMu.Unlock()
 	return nil
 }
 
@@ -237,83 +201,33 @@ func GetNameByWhatsAppNumber(email, number string) string {
 	if err != nil {
 		return ""
 	}
-
-	metadataMu.RLock()
-	found := findInCache(email, func(m ContactRecord) bool {
-		return m.ID == id
-	})
-	metadataMu.RUnlock()
-	if found != nil {
-		return found.DisplayName
+	byID := fetchContactsByIDs(context.Background(), []int64{id})
+	if c, ok := byID[id]; ok {
+		return c.DisplayName
 	}
 	return ""
 }
 
 func NormalizeContactName(email, rawName string) string {
-	if rawName == "" {
-		return ""
-	}
-	if GetDB() == nil {
+	if rawName == "" || GetDB() == nil {
 		return rawName
 	}
-
-	metadataMu.RLock()
-	mappings, ok := contactsCache[email]
-	metadataMu.RUnlock()
-
-	// Why: Lazily populate the cache if it was invalidated or not yet loaded for this tenant.
-	if !ok && GetDB() != nil {
-		all, _ := fetchAllTenantContacts(context.Background(), email)
-		if all != nil {
-			metadataMu.Lock()
-			contactsCache[email] = all
-			mappings = all
-			metadataMu.Unlock()
-		}
+	norm := NormalizeIdentifier(rawName)
+	rows, err := db.New(GetDB()).GetResolutionsByIdentifiers(context.Background(), db.GetResolutionsByIdentifiersParams{
+		TenantEmail: email,
+		Identifiers: []string{norm},
+	})
+	if err != nil || len(rows) == 0 {
+		return rawName
 	}
-
-	// Helper for matching
-	match := func(records []ContactRecord, raw string) string {
-		// 1. Precise Identity-X resolution
-		id, err := ResolveAlias(context.Background(), ContactTypeName, raw)
-		if err == nil {
-			for i := range records {
-				if records[i].ID == id {
-					return records[i].DisplayName
-				}
-			}
-		}
-		// 2. Fuzzy/Identifier matching
-		normalized := strings.TrimSpace(strings.ToLower(raw))
-		for i := range records {
-			if strings.ToLower(records[i].DisplayName) == normalized || strings.ToLower(records[i].CanonicalID) == normalized {
-				return records[i].DisplayName
-			}
-		}
-		return ""
+	byID := fetchContactsByIDs(context.Background(), []int64{rows[0].ContactID})
+	if c, ok := byID[rows[0].ContactID]; ok && c.DisplayName != "" {
+		return c.DisplayName
 	}
-
-	if name := match(mappings, rawName); name != "" {
-		return name
-	}
-
-	// Why: If not found in cache, it might be due to a recent partial cache invalidation (e.g. during promotion loop).
-	// We force a reload from DB once more before giving up.
-	all, err := fetchAllTenantContacts(context.Background(), email)
-	if err == nil {
-		metadataMu.Lock()
-		contactsCache[email] = all
-		metadataMu.Unlock()
-		if name := match(all, rawName); name != "" {
-			return name
-		}
-	}
-
 	return rawName
 }
 
-
-// GetContactsByIdentifiers fetches multiple contacts in a single pass to eliminate N+1 overhead in report generation.
+// GetContactsByIdentifiers resolves identifiers via the contact_resolution table in a single batch pass.
 func GetContactsByIdentifiers(ctx context.Context, tenantEmail string, identifiers []string) (map[string]*ContactRecord, map[string]bool, error) {
 	if len(identifiers) == 0 {
 		return make(map[string]*ContactRecord), make(map[string]bool), nil
@@ -321,170 +235,177 @@ func GetContactsByIdentifiers(ctx context.Context, tenantEmail string, identifie
 
 	res := make(map[string]*ContactRecord)
 	ambiguous := make(map[string]bool)
-	var remaining []string
 
-	metadataMu.RLock()
-	mappings := contactsCache[tenantEmail]
+	normToOriginals := make(map[string][]string)
+	var normList []string
+
 	for _, id := range identifiers {
-		normalized := NormalizeIdentifier(id)
 		if id == tenantEmail {
 			res[id] = &ContactRecord{ID: 0, TenantEmail: tenantEmail, CanonicalID: tenantEmail, DisplayName: "Me", ContactType: CategoryInternal}
 			continue
 		}
-		matches := findAllInMappings(mappings, normalized)
-		if len(matches) > 1 {
-			ambiguous[id] = true
-			res[id] = matches[0]
-		} else if len(matches) == 1 {
-			res[id] = matches[0]
-		} else {
-			remaining = append(remaining, id)
+		norm := NormalizeIdentifier(id)
+		if norm == "" {
+			continue
 		}
+		if _, seen := normToOriginals[norm]; !seen {
+			normList = append(normList, norm)
+		}
+		normToOriginals[norm] = append(normToOriginals[norm], id)
 	}
-	metadataMu.RUnlock()
 
-	if len(remaining) == 0 {
+	if len(normList) == 0 {
 		return res, ambiguous, nil
 	}
 
-	return fetchContactsBatch(ctx, tenantEmail, remaining, res, ambiguous)
-}
-
-func findAllInMappings(mappings []ContactRecord, normalized string) []*ContactRecord {
-	var res []*ContactRecord
-	seen := make(map[int64]bool)
-	for i := range mappings {
-		m := &mappings[i]
-		if matchContact(m, normalized) {
-			if m.ID == -1 {
-				return nil
-			}
-			// Use DSU root for deduplication — consistent with processResolutionChunk.
-			// MasterContactID in cache entries may be zero-valued if added via UpdateContactsCache,
-			// but GlobalContactDSU is always authoritative for merge relations.
-			dsuRoot := GlobalContactDSU.Find(m.ID)
-			if seen[dsuRoot] {
-				continue
-			}
-			seen[dsuRoot] = true
-			entry := m
-			if dsuRoot != m.ID {
-				if master := findByID(mappings, dsuRoot); master != nil {
-					entry = master
-				}
-			}
-			res = append(res, entry)
-		}
+	rows, err := db.New(GetDB()).GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{
+		TenantEmail: tenantEmail,
+		Identifiers: normList,
+	})
+	if err != nil {
+		return res, ambiguous, err
 	}
-	return res
-}
 
+	normToContactID := make(map[string]int64, len(rows))
+	contactIDSet := make(map[int64]bool)
+	for _, row := range rows {
+		normToContactID[row.RawIdentifier] = row.ContactID
+		contactIDSet[row.ContactID] = true
+	}
 
-func fetchContactsBatch(ctx context.Context, tenantEmail string, remaining []string, res map[string]*ContactRecord, ambiguous map[string]bool) (map[string]*ContactRecord, map[string]bool, error) {
-	all, _ := fetchAllTenantContacts(ctx, tenantEmail)
-	
-	// Phase 1: Bulk resolve unknown identifiers using Identity-X
-	resolvedIDs, ambigMap := BulkResolveIdentityX(ctx, remaining)
-	
-	// Phase 2: Map resolved IDs back to ContactRecords and handle missing/ambiguous
-	for _, id := range remaining {
-		normalized := NormalizeIdentifier(id)
-		
-		// Case A: Identity-X identified this as ambiguous
-		if ambigMap[normalized] {
-			ambiguous[id] = true
-			res[id] = &ContactRecord{ID: -1} // Sentinel for ambiguous
+	idList := make([]int64, 0, len(contactIDSet))
+	for id := range contactIDSet {
+		idList = append(idList, id)
+	}
+	contactByID := fetchContactsByIDs(ctx, idList)
+
+	// Detect genuine ambiguity: multiple unmerged contacts share the same normalized display_name.
+	ambiguousNorms := detectDisplayNameAmbiguity(ctx, tenantEmail, normList)
+
+	for norm, originals := range normToOriginals {
+		if ambiguousNorms[norm] {
+			for _, orig := range originals {
+				ambiguous[orig] = true
+			}
 			continue
 		}
-		
-		// Case B: Identity-X found a single mapping
-		if foundID, ok := resolvedIDs[normalized]; ok {
-			if contact := findByID(all, foundID); contact != nil {
-				res[id] = contact
-				continue
-			}
+		cid, ok := normToContactID[norm]
+		if !ok {
+			continue
 		}
-		
-		// Case C: Truly missing - negative cache it
-		recordMissing(tenantEmail, id)
+		contact := contactByID[cid]
+		for _, orig := range originals {
+			res[orig] = contact
+		}
 	}
-	
+
 	return res, ambiguous, nil
 }
 
-// BulkResolveIdentityX performs a batch lookup of identifiers in contact_aliases with SQLite-safe chunking.
-// Why: Eliminates N+1 performance bottleneck by consolidating multiple identity lookups into a single IN query.
-func BulkResolveIdentityX(ctx context.Context, identifiers []string) (map[string]int64, map[string]bool) {
-	uniqueNormalized := make(map[string]bool)
-	var normalizedList []string
-	for _, id := range identifiers {
-		if norm := NormalizeIdentifier(id); norm != "" && !uniqueNormalized[norm] {
-			uniqueNormalized[norm] = true
-			normalizedList = append(normalizedList, norm)
-		}
+// detectDisplayNameAmbiguity returns normalized display names that are shared by multiple unmerged contacts.
+func detectDisplayNameAmbiguity(ctx context.Context, tenantEmail string, normList []string) map[string]bool {
+	if len(normList) == 0 {
+		return nil
 	}
-
-	res := make(map[string]int64)
-	ambiguous := make(map[string]bool)
-	if len(normalizedList) == 0 {
-		return res, ambiguous
+	placeholders := strings.Repeat(",?", len(normList))[1:]
+	args := make([]interface{}, len(normList)+1)
+	args[0] = tenantEmail
+	for i, n := range normList {
+		args[i+1] = n
 	}
-
-	// SQLite has a parameter limit (usually 999). We use 500 for safety.
-	const chunkSize = 500
-	for i := 0; i < len(normalizedList); i += chunkSize {
-		end := i + chunkSize
-		if end > len(normalizedList) {
-			end = len(normalizedList)
-		}
-		processResolutionChunk(ctx, normalizedList[i:end], res, ambiguous)
-	}
-	return res, ambiguous
-}
-
-func processResolutionChunk(ctx context.Context, chunk []string, res map[string]int64, ambiguous map[string]bool) {
-	queries := db.New(GetDB())
-	rows, err := queries.GetContactsByValues(ctx, chunk)
+	rows, err := GetDB().QueryContext(ctx,
+		"SELECT id, LOWER(display_name) FROM contacts WHERE tenant_email = ? AND LOWER(display_name) IN ("+placeholders+")",
+		args...)
 	if err != nil {
-		return
+		return nil
 	}
-
-	chunkSet := make(map[string]bool, len(chunk))
-	for _, v := range chunk {
-		chunkSet[strings.ToLower(v)] = true
-	}
-
-	addMatch := func(m map[string][]int64, val string, id int64) {
-		if !slices.Contains(m[val], id) {
-			m[val] = append(m[val], id)
-		}
-	}
-
-	idToContacts := make(map[string][]int64)
-	for _, row := range rows {
-		canonID := GlobalContactDSU.Find(row.ID)
-		if lower := strings.ToLower(row.CanonicalID); chunkSet[lower] {
-			addMatch(idToContacts, lower, canonID)
-		}
-		if dn := strings.ToLower(row.DisplayName); dn != "" && chunkSet[dn] {
-			addMatch(idToContacts, dn, canonID)
-		}
-		for _, sid := range row.SecondaryIDs {
-			if sl := strings.ToLower(sid); chunkSet[sl] {
-				addMatch(idToContacts, sl, canonID)
+	defer rows.Close()
+	dnToRoots := make(map[string]map[int64]bool)
+	for rows.Next() {
+		var id int64
+		var dn string
+		if err := rows.Scan(&id, &dn); err == nil {
+			root := GlobalContactDSU.Find(id)
+			if dnToRoots[dn] == nil {
+				dnToRoots[dn] = make(map[int64]bool)
 			}
+			dnToRoots[dn][root] = true
 		}
 	}
-
-	for val, cids := range idToContacts {
-		if len(cids) > 1 {
-			ambiguous[val] = true
-		} else if len(cids) == 1 {
-			res[val] = cids[0]
+	result := make(map[string]bool)
+	for dn, roots := range dnToRoots {
+		if len(roots) > 1 {
+			result[dn] = true
 		}
+	}
+	return result
+}
+
+// RebuildContactResolution rebuilds the contact_resolution table for a tenant from all existing contacts.
+func RebuildContactResolution(ctx context.Context, tenantEmail string) error {
+	all, err := fetchAllTenantContacts(ctx, tenantEmail)
+	if err != nil {
+		return err
+	}
+	for _, c := range all {
+		rootID := GlobalContactDSU.Find(c.ID)
+		upsertResolutionForContact(ctx, tenantEmail, rootID, c.CanonicalID, c.DisplayName, c.SecondaryIDs)
+	}
+	return nil
+}
+
+func upsertResolutionForContact(ctx context.Context, tenantEmail string, contactID int64, canonicalID, displayName string, secondaryIDs []string) {
+	queries := db.New(GetDB())
+	seen := make(map[string]bool)
+	upsert := func(raw string) {
+		norm := NormalizeIdentifier(raw)
+		if norm == "" || seen[norm] {
+			return
+		}
+		seen[norm] = true
+		_ = queries.UpsertContactResolution(ctx, db.UpsertContactResolutionParams{
+			TenantEmail:   tenantEmail,
+			RawIdentifier: norm,
+			ContactID:     contactID,
+		})
+	}
+	upsert(canonicalID)
+	if displayName != canonicalID {
+		upsert(displayName)
+	}
+	for _, sid := range secondaryIDs {
+		upsert(sid)
 	}
 }
 
+func fetchContactsByIDs(ctx context.Context, ids []int64) map[int64]*ContactRecord {
+	if len(ids) == 0 {
+		return make(map[int64]*ContactRecord)
+	}
+	rows, err := db.New(GetDB()).GetContactsByIDs(ctx, ids)
+	if err != nil {
+		return make(map[int64]*ContactRecord)
+	}
+	result := make(map[int64]*ContactRecord, len(rows))
+	for _, r := range rows {
+		var sids []string
+		if r.SecondaryIds.String != "" && r.SecondaryIds.String != "null" {
+			_ = json.Unmarshal([]byte(r.SecondaryIds.String), &sids)
+		}
+		c := &ContactRecord{
+			ID:              r.ID,
+			TenantEmail:     r.TenantEmail,
+			CanonicalID:     r.CanonicalID,
+			DisplayName:     r.DisplayName,
+			Source:          r.Source.String,
+			MasterContactID: r.MasterContactID,
+			ContactType:     r.ContactType.String,
+			SecondaryIDs:    sids,
+		}
+		result[r.ID] = c
+	}
+	return result
+}
 
 func fetchAllTenantContacts(ctx context.Context, tenantEmail string) ([]ContactRecord, error) {
 	queries := db.New(GetDB())
@@ -496,8 +417,8 @@ func fetchAllTenantContacts(ctx context.Context, tenantEmail string) ([]ContactR
 	all := make([]ContactRecord, len(rows))
 	for i, r := range rows {
 		var sids []string
-		if r.SecondaryIDs != "" && r.SecondaryIDs != "null" {
-			_ = json.Unmarshal([]byte(r.SecondaryIDs), &sids)
+		if r.SecondaryIds.String != "" && r.SecondaryIds.String != "null" {
+			_ = json.Unmarshal([]byte(r.SecondaryIds.String), &sids)
 		}
 		all[i] = ContactRecord{
 			ID:              r.ID,
@@ -511,14 +432,6 @@ func fetchAllTenantContacts(ctx context.Context, tenantEmail string) ([]ContactR
 		}
 	}
 	return all, nil
-}
-
-
-func findByID(all []ContactRecord, id int64) *ContactRecord {
-	for i := range all {
-		if all[i].ID == id { return &all[i] }
-	}
-	return nil
 }
 
 // BulkResolveAliases resolves multiple names to their display names in one pass.
@@ -553,29 +466,6 @@ func buildResolutionMap(names []string, res map[string]*ContactRecord) map[strin
 	return m
 }
 
-func recordMissing(tenantEmail, normalized string) {
-	metadataMu.Lock()
-	defer metadataMu.Unlock()
-	contactsCache[tenantEmail] = append(contactsCache[tenantEmail], ContactRecord{
-		ID: -1, 
-		TenantEmail: tenantEmail, 
-		CanonicalID: normalized, 
-		DisplayName: normalized,
-	})
-}
-
-func matchContact(c *ContactRecord, normalized string) bool {
-	if strings.ToLower(c.CanonicalID) == normalized || strings.ToLower(c.DisplayName) == normalized {
-		return true
-	}
-	for _, sid := range c.SecondaryIDs {
-		if strings.ToLower(sid) == normalized {
-			return true
-		}
-	}
-	return false
-}
-
 // GetContactByIdentifier provides a backward-compatible wrapper for single identity resolution.
 func GetContactByIdentifier(ctx context.Context, tenantEmail, identifier string) (*ContactRecord, error) {
 	res, ambig, err := GetContactsByIdentifiers(ctx, tenantEmail, []string{identifier})
@@ -589,20 +479,11 @@ func GetContactByIdentifier(ctx context.Context, tenantEmail, identifier string)
 }
 
 func DeleteContactMapping(ctx context.Context, email, canonicalID string) error {
-	err := db.New(GetDB()).DeleteContactMapping(ctx, db.DeleteContactMappingParams{
+	// contact_resolution entries are removed via ON DELETE CASCADE on the contacts table.
+	return db.New(GetDB()).DeleteContactMapping(ctx, db.DeleteContactMappingParams{
 		TenantEmail: email,
 		CanonicalID: canonicalID,
 	})
-	if err == nil {
-		metadataMu.Lock()
-		defer metadataMu.Unlock()
-		if mappings, ok := contactsCache[email]; ok {
-			contactsCache[email] = slices.DeleteFunc(mappings, func(m ContactRecord) bool {
-				return m.CanonicalID == canonicalID
-			})
-		}
-	}
-	return err
 }
 
 func GetContactByID(ctx context.Context, tenantEmail string, id int64) (*ContactRecord, error) {
@@ -614,8 +495,8 @@ func GetContactByID(ctx context.Context, tenantEmail string, id int64) (*Contact
 		return nil, err
 	}
 	var sids []string
-	if row.SecondaryIDs != "" && row.SecondaryIDs != "null" {
-		_ = json.Unmarshal([]byte(row.SecondaryIDs), &sids)
+	if row.SecondaryIds.String != "" && row.SecondaryIds.String != "null" {
+		_ = json.Unmarshal([]byte(row.SecondaryIds.String), &sids)
 	}
 	return &ContactRecord{
 		ID:              row.ID,
@@ -665,7 +546,7 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 	}
 	defer tx.Rollback()
 
-	// 1. Safety Check & Type Fetch: If Master is already a Child, use its parent to keep flat tree.
+	// If master is already a child, use its parent to keep a flat tree.
 	var masterType string
 	var masterParentID *int64
 	err = tx.QueryRowContext(ctx, "SELECT master_contact_id, contact_type FROM contacts WHERE id = ? AND tenant_email = ?", int64(masterID), tenantEmail).Scan(&masterParentID, &masterType)
@@ -680,14 +561,12 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 		_ = tx.QueryRowContext(ctx, "SELECT contact_type FROM contacts WHERE id = ? AND tenant_email = ?", int64(masterID), tenantEmail).Scan(&masterType)
 	}
 
-	// 2. Fetch Target Type
 	var targetType string
 	err = tx.QueryRowContext(ctx, "SELECT contact_type FROM contacts WHERE id = ? AND tenant_email = ?", int64(targetID), tenantEmail).Scan(&targetType)
 	if err != nil {
 		return err
 	}
 
-	// 3. Link and Promote Category
 	q := db.New(tx)
 	if err := q.UpdateContactDetails(ctx, db.UpdateContactDetailsParams{
 		MasterContactID: nullInt64(int64(masterID)),
@@ -696,7 +575,7 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 	}); err != nil {
 		return err
 	}
-	
+
 	finalType := PromoteContactType(masterType, targetType)
 	if finalType != masterType {
 		if err := q.UpdateContactDetails(ctx, db.UpdateContactDetailsParams{
@@ -707,21 +586,16 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 			return err
 		}
 		trace.Step(ctx, "ContactTypePromotion", fmt.Sprintf("ID:%d promoted to %s via merge", masterID, finalType), 0, int(masterID))
-		invalidateCache()
 	}
 
-	// 4. Record Merge History, DSU, and Flatten
 	_ = q.InsertMergeHistory(ctx, db.InsertMergeHistoryParams{
 		SourceContactID: int64(targetID),
 		TargetContactID: int64(masterID),
 		Reason:          "Manual Link",
 	})
 	GlobalContactDSU.Union(int64(masterID), int64(targetID))
-	
-	// Flatten children: move all children of targetID to masterID
-	// Equivalent to: UPDATE contacts SET master_contact_id = masterID WHERE master_contact_id = targetID
-	// Since we removed 'FlattenChildren', we can use pure SQL or expose it.
-	// Let's use direct SQL for this specific maintenance task to avoid bloat in contacts.sql.
+
+	// Flatten children: move all children of targetID to masterID.
 	if _, err := tx.ExecContext(ctx, "UPDATE contacts SET master_contact_id = ? WHERE master_contact_id = ? AND tenant_email = ?", masterID, targetID, tenantEmail); err != nil {
 		return err
 	}
@@ -730,26 +604,27 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 		return err
 	}
 
-	// Simple cache invalidation
-	metadataMu.Lock()
-	delete(contactsCache, tenantEmail)
-	metadataMu.Unlock()
+	// Redirect all resolution entries from targetID to masterID.
+	_ = db.New(GetDB()).UpdateResolutionContactID(ctx, db.UpdateResolutionContactIDParams{
+		ContactID:   masterID,
+		TenantEmail: tenantEmail,
+		ContactID_2: targetID,
+	})
 
 	return nil
 }
 
 func UnlinkContact(ctx context.Context, tenantEmail string, targetID int64) error {
 	err := db.New(GetDB()).UpdateContactDetails(ctx, db.UpdateContactDetailsParams{
-		MasterContactID: sql.NullInt64{Valid: false}, // Set NULL
+		MasterContactID: sql.NullInt64{Valid: false},
 		TenantEmail:     tenantEmail,
 		ID:              int64(targetID),
 	})
-	if err == nil {
-		metadataMu.Lock()
-		delete(contactsCache, tenantEmail)
-		metadataMu.Unlock()
+	if err != nil {
+		return err
 	}
-	return err
+	// Rebuild resolution table for this tenant to reflect the unlink.
+	return RebuildContactResolution(ctx, tenantEmail)
 }
 
 func GetLinkedContacts(ctx context.Context, tenantEmail string) ([]ContactRecord, error) {
@@ -771,7 +646,6 @@ func GetLinkedContacts(ctx context.Context, tenantEmail string) ([]ContactRecord
 	}
 	return results, nil
 }
-
 
 func ResolveAliases(ctx context.Context, idType, value string) ([]int64, error) {
 	trimmed := strings.ToLower(strings.TrimSpace(value))
@@ -840,7 +714,6 @@ func ResolveAlias(ctx context.Context, idType, value string) (int64, error) {
 	return ids[0], nil
 }
 
-
 // PromoteContactType returns the higher ranking category between two types.
 // Rank: internal(4) > partner(3) > customer(2) > none(1)
 func PromoteContactType(current, newcomer string) string {
@@ -856,8 +729,7 @@ func PromoteContactType(current, newcomer string) string {
 	return current
 }
 
-// UpdateContactType updates the categorization for a contact and synchronizes cache.
-// Why: Standardizes the promotion logic and ensures strict type validation.
+// UpdateContactType updates the categorization for a contact.
 func UpdateContactType(ctx context.Context, contactID int64, cType string) error {
 	validTypes := []string{CategoryInternal, CategoryPartner, CategoryCustomer, CategoryNone}
 	if !slices.Contains(validTypes, cType) {
@@ -865,8 +737,6 @@ func UpdateContactType(ctx context.Context, contactID int64, cType string) error
 	}
 
 	id := int64(contactID)
-	// Why: UpdateContactDetails requires tenant_email. We need to fetch it or pass it.
-	// For simplicity in this promotion path, we'll fetch it from DB first as this is a low-frequency maintenance task.
 	tenantEmail, _ := fetchTenantEmailByID(ctx, id)
 
 	if err := db.New(GetDB()).UpdateContactDetails(ctx, db.UpdateContactDetailsParams{
@@ -878,33 +748,11 @@ func UpdateContactType(ctx context.Context, contactID int64, cType string) error
 	}
 
 	trace.Step(ctx, "ContactTypePromotion", fmt.Sprintf("ContactID:%d set to %s", id, cType), 0, int(id))
-	invalidateCache()
 	return nil
-}
-
-func invalidateCache() {
-	metadataMu.Lock()
-	defer metadataMu.Unlock()
-	for tenant := range contactsCache {
-		delete(contactsCache, tenant)
-	}
 }
 
 func fetchTenantEmailByID(ctx context.Context, id int64) (string, error) {
 	var email string
 	err := GetDB().QueryRowContext(ctx, "SELECT tenant_email FROM contacts WHERE id = ?", id).Scan(&email)
 	return email, err
-}
-
-func findInCache(email string, predicate func(ContactRecord) bool) *ContactRecord {
-	mappings, ok := contactsCache[email]
-	if !ok {
-		return nil
-	}
-	for i := range mappings {
-		if predicate(mappings[i]) {
-			return &mappings[i]
-		}
-	}
-	return nil
 }

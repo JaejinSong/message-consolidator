@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// TestFormatMessagesPerformance verifies that BulkResolveIdentityX correctly handles large batches
-// and respects the chunking logic (500 items).
+// TestFormatMessagesPerformance verifies that BulkResolveAliases correctly handles large batches
+// via the contact_resolution table.
 func TestFormatMessagesPerformance(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
@@ -37,7 +37,7 @@ func TestFormatMessagesPerformance(t *testing.T) {
 		})
 	}
 
-	// 2. Execution: triggers extractUniqueIdentifiers → BulkResolveAliases → BulkResolveIdentityX (chunked at 500)
+	// 2. Execution: triggers extractUniqueIdentifiers → BulkResolveAliases → contact_resolution table lookup
 	svc.FormatMessagesForClient(ctx, tenant, msgs)
 
 	// 3. Verification

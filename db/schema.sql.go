@@ -25,6 +25,19 @@ func (q *Queries) CreateAIInferenceLogsTable(ctx context.Context) error {
 	return err
 }
 
+const createContactResolutionTable = `-- name: CreateContactResolutionTable :exec
+CREATE TABLE IF NOT EXISTS contact_resolution (
+    tenant_email TEXT NOT NULL,
+    raw_identifier TEXT NOT NULL,
+    contact_id   INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+    PRIMARY KEY (tenant_email, raw_identifier)
+)
+`
+
+func (q *Queries) CreateContactResolutionTable(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, createContactResolutionTable)
+	return err
+}
 
 const createContactsResolvedView = `-- name: CreateContactsResolvedView :exec
 CREATE VIEW IF NOT EXISTS v_contacts_resolved AS
@@ -89,8 +102,6 @@ CREATE TABLE IF NOT EXISTS identity_merge_candidates (
     confidence REAL NOT NULL,
     reason TEXT,
     status TEXT DEFAULT 'pending',
-    proposal_group_id TEXT,
-    canonical_name TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(contact_id_a, contact_id_b)
 )

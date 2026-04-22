@@ -85,7 +85,6 @@ func (q *Queries) GetTaskTranslationsBatch(ctx context.Context, arg GetTaskTrans
 	return items, nil
 }
 
-
 const upsertTaskTranslation = `-- name: UpsertTaskTranslation :exec
 INSERT INTO task_translations (message_id, language_code, translated_text)
 VALUES (?, ?, ?)

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /home/jinro/.gemini/message-consolidator diff HEAD~3 HEAD -- services/task_builder.go)",
+      "Bash(git -C /home/jinro/.gemini/message-consolidator show edb958a -- services/task_builder.go)",
+      "Bash(git -C /home/jinro/.gemini/message-consolidator diff -- store/alias_store.go store/contacts_store.go services/tasks.go)",
+      "Bash(git -C /home/jinro/.gemini/message-consolidator diff -- ai/few_shots.go ai/gemini.go ai/executor.go)",
+      "Bash(git -C /home/jinro/.gemini/message-consolidator log --oneline -8 -- ai/few_shots.go ai/gemini.go ai/executor.go ai/parser.go)"
+    ]
+  }
+}
