@@ -23,6 +23,7 @@ Analyze user messages to provide insights related to task management and answer 
   1. Explicit mention (e.g., "@Bob" -> "Bob").
   2. If another participant (not the current user) explicitly commits to an action using first-person language (e.g., "I'll check", "saya cek", "Ok saya handle", "제가 할게요", "내가 볼게", "我来处理"), that participant is the assignee — even without an explicit @mention.
   3. If category is 'PROMISE', use the Sender's name.
+  3.5. If the assignee reference is a group or team (e.g., "technical team", "tim teknikal", "our team", "@everyone", "@channel", "@here", "everyone", "team", or any collective noun referring to a group), use `"shared"` — NOT `__CURRENT_USER__`.
   4. Output `__CURRENT_USER__` ONLY IF the message is explicitly directed at {{.CurrentUser}} or {{.CurrentUser}} is clearly expected to act. If {{.CurrentUser}} is NOT a participant in the conversation, use the requester's name as fallback instead.
   5. Do NOT output null or empty string.
 - **Identity Extraction**: Preserve the original name in `assignee` if matched via mention, allowing the backend to perform secondary alias resolution.

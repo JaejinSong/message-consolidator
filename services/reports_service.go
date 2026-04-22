@@ -137,18 +137,9 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id i
 		s.markFailed(ctx, email, id)
 		return
 	}
-	// Extract content and visualization JSON
-	vizJSONRaw, text, err := ExtractJSONBlock(summary)
-	if err != nil {
-		logger.Warnf("[REPORTS] JSON extraction failed for report %d: %v", id, err)
-	}
-	if text == "" {
-		text = summary
-	}
-
-	vizJSON := s.getVisualizationJSON(email, logs, vizJSONRaw)
+	vizJSON := s.getVisualizationJSON(email, logs)
 	// Save results and handle translations
-	store.SaveReportTranslation(ctx, int64(id), "en", text)
+	store.SaveReportTranslation(ctx, int64(id), "en", summary)
 	store.UpdateReportStatus(ctx, store.ReportStatusCompleted, vizJSON, isTruncated, id, email)
 	if lang != "" && lang != "en" {
 		s.ProcessOnDemandTranslation(ctx, email, id, lang)
@@ -159,15 +150,8 @@ func (s *ReportsService) markFailed(ctx context.Context, email string, id int) {
 	store.UpdateReportStatus(ctx, store.ReportStatusFailed, "{}", false, id, email)
 }
 
-func (s *ReportsService) getVisualizationJSON(email string, logs []Log, aiJSON string) string {
-	if aiJSON != "" {
-		var gData GraphData
-		if err := json.Unmarshal([]byte(aiJSON), &gData); err == nil && len(gData.Nodes) > 0 {
-			b, _ := json.Marshal(gData)
-			return string(b)
-		}
-	}
-	// Fallback to manual aggregation
+func (s *ReportsService) getVisualizationJSON(email string, logs []Log) string {
+	// Why: Manual aggregation uses RequesterCanonical as node ID, correctly unifying all aliases resolved by sanitizeMessages.
 	vizData := s.generateVisualizationData(email, logs)
 	b, _ := json.Marshal(vizData)
 	return string(b)
@@ -272,9 +256,15 @@ func (s *ReportsService) formatLogLine(email string, m Log) string {
 		status = "V"
 	}
 
-	reqName := strings.TrimSuffix(m.Requester, " (Ambiguous)")
+	reqName := m.RequesterDisplayName
+	if reqName == "" {
+		reqName = stripParenSuffix(m.Requester)
+	}
 	reqCat := s.resolveCategory(email, m.RequesterCanonical, m.RequesterType)
-	asgName := strings.TrimSuffix(m.Assignee, " (Ambiguous)")
+	asgName := m.AssigneeDisplayName
+	if asgName == "" {
+		asgName = stripParenSuffix(m.Assignee)
+	}
 	asgCat := s.resolveCategory(email, m.AssigneeCanonical, m.AssigneeType)
 
 	return fmt.Sprintf("- [%s] %s (Room: %s, From: %s (%s), To: %s (%s))\n",
@@ -330,6 +320,14 @@ type nodeMeta struct {
 	Cat  string
 }
 
+// stripParenSuffix removes parenthetical content (e.g. "(JJ)", "(Ambiguous)") while preserving original case.
+func stripParenSuffix(s string) string {
+	if i := strings.Index(s, "("); i > 0 {
+		return strings.TrimSpace(s[:i])
+	}
+	return s
+}
+
 func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (map[string]float64, map[string]float64, map[string]nodeMeta) {
 	counts := make(map[string]float64)
 	pairWeights := make(map[string]float64)
@@ -338,22 +336,22 @@ func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (ma
 		// Why: Prioritize canonical IDs for node unification; fallback to raw requester/assignee strings if not resolved.
 		rID := m.RequesterCanonical
 		if rID == "" {
-			rID = strings.ToLower(strings.TrimSuffix(m.Requester, " (Ambiguous)"))
+			rID = store.NormalizeIdentifier(m.Requester)
 		}
 		rCat := s.resolveCategory(email, rID, m.RequesterType)
 		rName := m.RequesterDisplayName
 		if rName == "" {
-			rName = strings.TrimSuffix(m.Requester, " (Ambiguous)")
+			rName = stripParenSuffix(m.Requester)
 		}
 
 		aID := m.AssigneeCanonical
 		if aID == "" {
-			aID = strings.ToLower(strings.TrimSuffix(m.Assignee, " (Ambiguous)"))
+			aID = store.NormalizeIdentifier(m.Assignee)
 		}
 		aCat := s.resolveCategory(email, aID, m.AssigneeType)
 		aName := m.AssigneeDisplayName
 		if aName == "" {
-			aName = strings.TrimSuffix(m.Assignee, " (Ambiguous)")
+			aName = stripParenSuffix(m.Assignee)
 		}
 
 		if rID == "" || aID == "" || rID == aID {

@@ -524,6 +524,143 @@ func TestReportsService_GenerateReport_MultiLanguage(t *testing.T) {
 	}
 }
 
+// TestReportsService_NodeUnification_ParenSuffix verifies that names with parenthetical
+// suffixes like "(JJ)" are treated as the same node as the base name.
+func TestReportsService_NodeUnification_ParenSuffix(t *testing.T) {
+	store.ResetForTest()
+	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}}
+
+	messages := []store.ConsolidatedMessage{
+		// "Jaejin Song (JJ)" and "Jaejin Song" are the same person — both unresolved (no canonical set).
+		{Requester: "Jaejin Song (JJ)", Assignee: "Alice", RequesterCanonical: "", AssigneeCanonical: "alice@company.com", RequesterType: "none", AssigneeType: "internal"},
+		{Requester: "Jaejin Song", Assignee: "Alice", RequesterCanonical: "", AssigneeCanonical: "alice@company.com", RequesterType: "none", AssigneeType: "internal"},
+		{Requester: "Jaejin Song (Work)", Assignee: "Alice", RequesterCanonical: "", AssigneeCanonical: "alice@company.com", RequesterType: "none", AssigneeType: "internal"},
+	}
+
+	graphData := svc.generateVisualizationData("admin@company.com", messages)
+
+	// All three variants must collapse into a single "jaejin song" node.
+	jaejinCount := 0
+	for _, n := range graphData.Nodes {
+		if n.ID == "jaejin song" {
+			jaejinCount++
+			if n.Value != 3 {
+				t.Errorf("Expected merged node value 3, got %f", n.Value)
+			}
+		}
+	}
+	if jaejinCount != 1 {
+		t.Errorf("Expected exactly 1 merged node for 'jaejin song', got %d. Nodes: %+v", jaejinCount, graphData.Nodes)
+	}
+}
+
+// TestReportsService_NodeUnification_CaseInsensitive verifies that name variants differing
+// only in case (e.g. "YOSEP PARK" vs "Yosep Park") are unified into a single node.
+func TestReportsService_NodeUnification_CaseInsensitive(t *testing.T) {
+	store.ResetForTest()
+	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}}
+
+	messages := []store.ConsolidatedMessage{
+		{Requester: "YOSEP PARK", Assignee: "Bob", RequesterCanonical: "", AssigneeCanonical: "bob@company.com", RequesterType: "none", AssigneeType: "internal"},
+		{Requester: "Yosep Park", Assignee: "Bob", RequesterCanonical: "", AssigneeCanonical: "bob@company.com", RequesterType: "none", AssigneeType: "internal"},
+		{Requester: "yosep park", Assignee: "Bob", RequesterCanonical: "", AssigneeCanonical: "bob@company.com", RequesterType: "none", AssigneeType: "internal"},
+	}
+
+	graphData := svc.generateVisualizationData("admin@company.com", messages)
+
+	yosepCount := 0
+	for _, n := range graphData.Nodes {
+		if n.ID == "yosep park" {
+			yosepCount++
+			if n.Value != 3 {
+				t.Errorf("Expected merged node value 3, got %f", n.Value)
+			}
+		}
+	}
+	if yosepCount != 1 {
+		t.Errorf("Expected exactly 1 merged node for 'yosep park', got %d. Nodes: %+v", yosepCount, graphData.Nodes)
+	}
+}
+
+// TestReportsService_NodeUnification_CaseAndParen verifies combined case + paren suffix normalization.
+func TestReportsService_NodeUnification_CaseAndParen(t *testing.T) {
+	store.ResetForTest()
+	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}}
+
+	messages := []store.ConsolidatedMessage{
+		{Requester: "YOSEP PARK (Admin)", Assignee: "Carol", RequesterCanonical: "", AssigneeCanonical: "carol@company.com", RequesterType: "none", AssigneeType: "internal"},
+		{Requester: "Yosep Park", Assignee: "Carol", RequesterCanonical: "", AssigneeCanonical: "carol@company.com", RequesterType: "none", AssigneeType: "internal"},
+	}
+
+	graphData := svc.generateVisualizationData("admin@company.com", messages)
+
+	yosepCount := 0
+	for _, n := range graphData.Nodes {
+		if n.ID == "yosep park" {
+			yosepCount++
+		}
+	}
+	if yosepCount != 1 {
+		t.Errorf("Expected 1 unified node for 'yosep park', got %d. Nodes: %+v", yosepCount, graphData.Nodes)
+	}
+}
+
+// TestReportsService_NodeName_NoAmbiguousSuffix verifies that "(Ambiguous)" never leaks into node display names.
+func TestReportsService_NodeName_NoAmbiguousSuffix(t *testing.T) {
+	store.ResetForTest()
+	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}}
+
+	// Simulate what sanitizeMessages produces for an ambiguous identity:
+	// m.Requester gets " (Ambiguous)" appended, canonical/displayName stay empty.
+	messages := []store.ConsolidatedMessage{
+		{Requester: "Jaejin Song (Ambiguous)", Assignee: "Alice", RequesterCanonical: "", AssigneeCanonical: "alice@company.com", RequesterType: "none", AssigneeType: "internal"},
+	}
+
+	graphData := svc.generateVisualizationData("admin@company.com", messages)
+
+	for _, n := range graphData.Nodes {
+		if strings.Contains(n.Name, "(Ambiguous)") {
+			t.Errorf("Node name must not contain '(Ambiguous)': %s", n.Name)
+		}
+	}
+}
+
+// TestReportsService_FormatLogLine_DisplayName verifies that formatLogLine uses DisplayName
+// when available, so the AI prompt receives human-readable names rather than canonical IDs.
+func TestReportsService_FormatLogLine_DisplayName(t *testing.T) {
+	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}}
+
+	msg := store.ConsolidatedMessage{
+		Task:                 "Fix login bug",
+		Room:                 "dev-channel",
+		Requester:            "jjsong@whatap.io",
+		RequesterCanonical:   "jjsong@whatap.io",
+		RequesterDisplayName: "Jaejin Song",
+		RequesterType:        "internal",
+		Assignee:             "YOSEP PARK (Ambiguous)",
+		AssigneeCanonical:    "",
+		AssigneeDisplayName:  "",
+		AssigneeType:         "none",
+		Done:                 true,
+	}
+
+	line := svc.formatLogLine("jjsong@whatap.io", msg)
+
+	if !strings.Contains(line, "Jaejin Song") {
+		t.Errorf("Expected DisplayName 'Jaejin Song' in log line, got: %s", line)
+	}
+	if strings.Contains(line, "jjsong@whatap.io") {
+		t.Errorf("Raw canonical ID must not appear when DisplayName is set, got: %s", line)
+	}
+	// Ambiguous suffix must be stripped for assignee
+	if strings.Contains(line, "(Ambiguous)") {
+		t.Errorf("'(Ambiguous)' must be stripped from log line, got: %s", line)
+	}
+	if !strings.Contains(line, "YOSEP PARK") {
+		t.Errorf("Expected cleaned assignee name 'YOSEP PARK' in log line, got: %s", line)
+	}
+}
+
 type mockSummarizer struct {
 	generateFunc func(ctx context.Context, logs string) (string, error)
 }
