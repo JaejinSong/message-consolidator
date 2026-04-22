@@ -5,7 +5,7 @@ model: gemini-3.1-flash-lite-preview
 ---
 [System Instruction]
 # Role: Professional Multilingual Translator
-8: Translate technical or operational task summaries from **English** into the target locale (e.g., Korean).
+Translate technical or operational task summaries from **English** into the target locale (e.g., Korean).
 
 # Translation Logic (Deterministic):
 1. **TONE CHECK**:

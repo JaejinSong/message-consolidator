@@ -10,6 +10,7 @@ import { parseTaskContext } from '../logic/task-context';
 export type MessageCardProps = Message & {
     lang: string;
     isSelected?: boolean;
+    currentUserNames?: string[];
 };
 
 /**
@@ -30,8 +31,14 @@ function parseMetadata(metadata: any): Record<string, any> | null {
  * Decouples rendering logic from the main application state to allow for independent testing.
  */
 export function MessageCard(props: MessageCardProps): string {
-    const { id, source, source_channels, room, is_translating, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translation_error, has_original, assigned_to, subtasks, isSelected } = props;
-    
+    const { id, source, source_channels, room, is_translating, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translation_error, has_original, assigned_to, subtasks, isSelected, currentUserNames } = props;
+
+    const isSelf = (name: string | undefined): boolean =>
+        !!name && !!currentUserNames?.length &&
+        currentUserNames.some(n => n.toLowerCase() === name.toLowerCase());
+
+    const selfTag = `<span class="c-message-card__self-tag" title="나">◉</span>`;
+
     // Unified translating state (support legacy and new fields)
     const translating = is_translating;
     const displayTask = getDisplayTask(props, lang);
@@ -111,7 +118,9 @@ export function MessageCard(props: MessageCardProps): string {
     if (isShared) {
         assigneeHtml = `<span class="c-message-card__assignee--shared">${i18n.sharedTag || 'Shared'}</span>`;
     } else {
-        assigneeHtml = `<span class="c-message-card__assignee--other">${isInvalid ? '-' : escapeHTML(assignee)}</span>`;
+        const assigneeName = isInvalid ? '-' : escapeHTML(assignee);
+        const assigneeSelf = !isInvalid && isSelf(assignee) ? selfTag : '';
+        assigneeHtml = `<span class="c-message-card__assignee--other">${assigneeName}${assigneeSelf}</span>`;
     }
 
     return `
@@ -149,8 +158,8 @@ export function MessageCard(props: MessageCardProps): string {
                 <div class="c-message-card__info-group">
                     <div class="c-message-card__requester" title="Requester">
                         <span class="c-message-card__label">👤</span>
-                        <strong class="c-message-card__name">${escapeHTML(requester)}</strong>
-                        <button class="c-message-card__inline-action map-alias-btn" 
+                        <strong class="c-message-card__name">${escapeHTML(requester)}${isSelf(requester) ? selfTag : ''}</strong>
+                        <button class="c-message-card__inline-action map-alias-btn"
                                 data-action="map-alias" 
                                 data-name="${escapeHTML(requester)}" 
                                 data-source="${source}" 

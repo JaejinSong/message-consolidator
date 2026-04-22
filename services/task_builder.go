@@ -99,7 +99,7 @@ func resolveRequester(p TaskBuildParams) string {
 
 
 // resolveAssignee applies the Assignee normalization chain.
-// Maps self-referential tokens ("me", "나", "__CURRENT_USER__") to the user's canonical name,
+// Maps self-referential tokens ("me", "__CURRENT_USER__") to the user's canonical name,
 // and falls back to AssigneeShared when AI returns empty.
 func resolveAssignee(p TaskBuildParams) string {
 	raw := strings.TrimSpace(p.Item.Assignee)

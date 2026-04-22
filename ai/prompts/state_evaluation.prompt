@@ -20,8 +20,8 @@ You MUST respond ONLY with a valid JSON object matching this schema:
   "target_task_id": number | null,
   "new_content": "string",
   "assigned_to": "string" | null,
-  "affinity_score": 0,
-  "affinity_group_id": ""
+  "affinity_score": integer (0-100),
+  "affinity_group_id": "string"
 }
 
 # Decision Logic (Deterministic):
@@ -36,11 +36,11 @@ You MUST respond ONLY with a valid JSON object matching this schema:
        SET action = "new"
 
 2. **AFFINITY & ID**:
-    SET affinity_group_id = short unique descriptive slug for the topic
+    SET affinity_score = relevance to existing tasks (0-100)
+    SET affinity_group_id = short unique descriptive slug for the topic (empty string if affinity_score < 80)
     ALWAYS SET target_task_id = 0. Hallucinating or matching existing IDs is FORBIDDEN; the Backend handles ID mapping.
 
-
-2. **DETERMINE assigned_to**:
+3. **DETERMINE assigned_to**:
    IF message_content CONTAINS "@Name":
       SET assigned_to = "Name" (Extracted)
    ELSE IF action == "new" AND message_category == "PROMISE":
@@ -48,7 +48,7 @@ You MUST respond ONLY with a valid JSON object matching this schema:
    ELSE:
       SET assigned_to = "__CURRENT_USER__"
 
-3. **REFINE new_content (English Only)**:
+4. **REFINE new_content (English Only)**:
    IF action == "update":
       SET new_content = summary_of_added_info(message_content)
    ELSE IF action == "resolve":
@@ -56,9 +56,8 @@ You MUST respond ONLY with a valid JSON object matching this schema:
    ELSE:
       SET new_content = summary_of_task(message_content)
 
-4. **FINAL CONSTRAINTS**:
+5. **FINAL CONSTRAINTS**:
    - NEVER include 'priority'.
-   - affinity_group_id = (affinity_score >= 80 ? "short_unique_id" : "")
    - OUTPUT ONLY JSON. No Markdown.
 
 [Examples]

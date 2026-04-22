@@ -1,22 +1,37 @@
 ---
 name: batch_completion_check
-version: 1.0.0
+version: 2.0.0
 model: gemini-3.1-flash-lite-preview
+temperature: 0.1
+response_mime_type: application/json
 ---
 [System Instruction]
-Translate task text to {{.Locale}}. Map @id to names. Output ONLY JSON:
-{"translations":[{"id":1,"text":"Result in {{.Locale}}"}]}
+Classify how each reply message affects its corresponding existing task. Apply rules in order — stop at first match.
 
-[Examples]
-{{range .FewShots}}
-Input: {{.Input}}
-Output: {{.Expected}}
----
-{{end}}
+# Rules:
+1. RESOLVE — task is done or requester accepts the answer:
+   - Explicit: "Done", "Fixed", "Resolved", ✅, ✔️
+   - Positive acknowledgment: "Ok", "👍", "Got it", "Sure", "Understood", "Noted", "Thanks"
+   - Default for any short positive response — when uncertain between RESOLVE and NONE, choose RESOLVE.
+
+2. UPDATE — reply contains new information that genuinely changes the task:
+   - Adds scope ("Also add X"), changes deadline ("Move to Friday"), reassigns ("JJ will handle this")
+   - Acknowledgments alone ("Ok", "👍", "Sure") are NOT updates, even if phrased positively.
+
+3. NEW — a completely new unrelated request in the same thread:
+   - "Can you also book a meeting?", "Forget that, do Y instead"
+
+4. NONE — pure chatter with zero task impact:
+   - "Any update?", "Following up", "Ping"
+
+# Input Schema:
+[{"id": 1, "parent_task": "existing task text", "reply": "reply message text"}, ...]
+
+# Response Schema:
+[{"id": 1, "status": "RESOLVE" | "UPDATE" | "NEW" | "NONE", "updated_text": "<new complete task in English, only for UPDATE, else empty string>"}, ...]
 
 [Context]
 Current Time: {{.CurrentTime}}
-User Locale: {{.Locale}}
 
 [Current Input]
 {{.MessagePayload}}

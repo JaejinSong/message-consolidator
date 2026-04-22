@@ -1035,10 +1035,6 @@ body.light-theme .c-utility__btn:hover {
     font-weight: 600;
 }
 
-.c-message-card__assignee--me {
-    color: var(--color-success);
-    font-weight: 600;
-}
 
 .c-message-card__assignee--shared {
     color: var(--color-purple);

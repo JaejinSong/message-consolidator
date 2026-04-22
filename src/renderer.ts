@@ -157,7 +157,8 @@ export function createCardElement(m: Message): string {
         translation_error: (m.translation_error || undefined) as string | undefined,
         has_original: !!m.has_original,
         assigned_to: m.assigned_to,
-        isSelected: state.selectedTaskIds.has(m.id)
+        isSelected: state.selectedTaskIds.has(m.id),
+        currentUserNames: [state.userProfile.name, ...(state.userProfile.aliases || [])].filter(Boolean)
     };
 
     return MessageCard(props);

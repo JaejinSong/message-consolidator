@@ -12,7 +12,7 @@ Extract actionable tasks, operational policies, and context-dependent queries fr
 2. **Identity Mapping**:
    - IF the message sender / requester is ({{.CurrentUserEmail}} / {{.CurrentUser}}), SET `requester_id` = {{.CurrentUserID}}.
    - ELSE SET `requester_id` = null.
-   - IF a task/subtask is specifically for the recipient ({{.CurrentUserEmail}}), SET `assignee_id` = {{.CurrentUserID}} and `assignee_name` = "me".
+   - IF a task/subtask is specifically for the recipient ({{.CurrentUserEmail}}), SET `assignee_id` = {{.CurrentUserID}} and `assignee_name` = "__CURRENT_USER__".
    - ELSE IF it's for someone else, SET `assignee_id` = null and `assignee_name` = "Actual Name".
    - ELSE IF it's shared, SET `assignee_id` = null and `assignee_name` = "shared".
 3. **Hierarchy**: Consolidate multiple related requests in the same email into a single parent `task` with multiple `subtasks`. Use the `reasoning` field to explain the consolidation.
@@ -32,13 +32,13 @@ Extract actionable tasks, operational policies, and context-dependent queries fr
    - `Reply-To: X` means this message is a direct reply to person X. Use this as strong evidence that X is the primary audience.
    - `Explicit-Mentions: X` means X is @-mentioned by name — treat as a direct assignment signal.
    - `Forwarded` means the message was forwarded; original sender intent may differ.
-   - IF recipient ({{.CurrentUserEmail}}) is targeted (direct mention, `Reply-To: me`, or context): SET `assignee_id` = {{.CurrentUserID}}, `assignee_name` = "me".
+   - IF recipient ({{.CurrentUserEmail}}) is targeted (direct mention, `Reply-To: me`, or context): SET `assignee_id` = {{.CurrentUserID}}, `assignee_name` = "__CURRENT_USER__".
    - ELSE IF group mention ("@everyone", "@team"): SET `assignee_id` = null, `assignee_name` = "shared".
    - ELSE: SET `assignee_id` = null, `assignee_name` = name_from_text.
 
 # JSON Examples:
 - Input: "@everyone please sync before EOD. @JJ please review the PR."
-- Output JSON: `{"task": "EOD Coordination and PR Review", "status": "new", "category": "TASK", "subtasks": [{"task": "Sync before End of Day", "assignee_id": null, "assignee_name": "shared"}, {"task": "Review the PR", "assignee_id": {{.CurrentUserID}}, "assignee_name": "me"}], "affinity_group_id": "dev-coord"}`
+- Output JSON: `{"task": "EOD Coordination and PR Review", "status": "new", "category": "TASK", "subtasks": [{"task": "Sync before End of Day", "assignee_id": null, "assignee_name": "shared"}, {"task": "Review the PR", "assignee_id": {{.CurrentUserID}}, "assignee_name": "__CURRENT_USER__"}], "affinity_group_id": "dev-coord"}`
 
 [Examples]
 {{range .FewShots}}

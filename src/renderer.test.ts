@@ -60,10 +60,11 @@ describe('renderer.js - createCardElement', () => {
         expect(html).toContain('👥');
     });
 
-    it('should use assignee-me class for current user', () => {
+    it('should render legacy "me" assignee as a regular name', () => {
         const msg = { id: 3, source: 'gmail', task: 'Task', requester: 'Req', timestamp: new Date().toISOString(), done: false, assignee: 'me', room: 'R' };
         const html = renderer.createCardElement(msg);
-        expect(html).toContain('c-message-card__assignee--me');
+        expect(html).toContain('c-message-card__assignee--other');
+        expect(html).not.toContain('c-message-card__assignee--me');
     });
 
     it('should handle literal "undefined" or "unknown" assignee by not rendering it', () => {
