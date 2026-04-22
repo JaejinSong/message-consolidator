@@ -61,6 +61,18 @@ function getNodeName(nodes: any[], id: string) {
     return n ? (n.name || n.id) : id;
 }
 
+const NODE_COLORS = {
+    me:       '#f97316',
+    internal: '#22c55e',
+    external: '#38bdf8',
+};
+
+function getNodeColor(n: any): string {
+    if (n.is_me) return NODE_COLORS.me;
+    if (n.category === 'Internal') return NODE_COLORS.internal;
+    return NODE_COLORS.external;
+}
+
 /**
  * Renders a Network Graph using SVG.
  */
@@ -69,81 +81,80 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 400;
     const svg = createSVGElement('svg', { width: '100%', height: '100%', viewBox: `0 0 ${width} ${height}` });
-    
+
     const centerX = width / 2;
     const centerY = height / 2;
-    const radius = Math.min(width, height) / 2 - 60;
-    const coords = new Map<string, { x: number, y: number }>();
+    const radius = Math.min(width, height) / 2 - 90;
+    const coords = new Map<string, { x: number; y: number; angle: number }>();
     const angleStep = (2 * Math.PI) / (nodes.length || 1);
 
     nodes.forEach((node, i) => {
-        const angle = i * angleStep;
-        coords.set(node.id, {
-            x: centerX + radius * Math.cos(angle),
-            y: centerY + radius * Math.sin(angle)
-        });
+        const angle = i * angleStep - Math.PI / 2;
+        coords.set(node.id, { x: centerX + radius * Math.cos(angle), y: centerY + radius * Math.sin(angle), angle });
         if (node.value === undefined) {
-            node.value = links.reduce((sum, l) => sum + (l.source === node.id || l.target === node.id ? (l.value || 1) : 0), 0);
+            node.value = links.reduce((sum, l) => sum + (l.source === node.id || l.target === node.id ? (l.weight || 1) : 0), 0);
         }
     });
-
-    const nodeShapes = new Map<string, SVGElement>();
 
     links.forEach(l => {
         const s = coords.get(l.source);
         const t = coords.get(l.target);
-        if (s && t) {
-            const sw = Math.max(1, Math.min(8, Math.sqrt(l.weight || 1) * 2));
-            const line = createSVGElement('line', {
-                x1: s.x, y1: s.y, x2: t.x, y2: t.y,
-                class: 'c-report-viz__link',
-                'stroke-width': sw,
-                stroke: 'var(--color-primary)',
-                opacity: '0.4'
-            });
-            line.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(getNodeName(nodes, l.source))} ↔ ${escapeHTML(getNodeName(nodes, l.target))}</b><br/>Connections: ${l.weight || 1}`));
-            line.addEventListener('mouseenter', () => {
-                line.setAttribute('opacity', '1');
-                line.setAttribute('stroke', 'var(--color-warning)');
-            });
-            line.addEventListener('mouseleave', () => {
-                hideTooltip();
-                line.setAttribute('opacity', '0.4');
-                line.setAttribute('stroke', 'var(--color-primary)');
-            });
-            svg.appendChild(line);
-        }
+        if (!s || !t) return;
+        const sw = Math.max(1, Math.min(6, Math.sqrt(l.weight || 1) * 1.5));
+        const line = createSVGElement('line', {
+            x1: s.x, y1: s.y, x2: t.x, y2: t.y,
+            'stroke-width': sw, stroke: '#94a3b8', opacity: '0.2'
+        });
+        line.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(getNodeName(nodes, l.source))} ↔ ${escapeHTML(getNodeName(nodes, l.target))}</b><br/>Connections: ${l.weight || 1}`));
+        line.addEventListener('mouseenter', () => { line.setAttribute('opacity', '0.9'); line.setAttribute('stroke', NODE_COLORS.me); });
+        line.addEventListener('mouseleave', () => { hideTooltip(); line.setAttribute('opacity', '0.2'); line.setAttribute('stroke', '#94a3b8'); });
+        svg.appendChild(line);
     });
 
     nodes.forEach(n => {
         const p = coords.get(n.id);
-        if (p) {
-            const r = Math.max(6, 4 + Math.sqrt(n.value || 1) * 3);
-            const g = createSVGElement('g', { class: 'c-report-viz__node-group' });
-            const nodeColor = n.is_me ? 'var(--color-primary)' : n.category === 'Internal' ? 'var(--color-success)' : 'var(--color-info)';
-            const circle = createSVGElement('circle', {
-                cx: p.x, cy: p.y, r,
-                class: `c-report-viz__node ${n.is_me ? 'c-report-viz__node--me' : ''}`,
-                fill: nodeColor
-            });
-            nodeShapes.set(n.id, circle);
-            g.appendChild(circle);
+        if (!p) return;
+        const r = Math.max(5, 3 + Math.sqrt(n.value || 1) * 2.2);
+        const color = getNodeColor(n);
+        const g = createSVGElement('g', { style: 'cursor:pointer' });
 
-            const text = createSVGElement('text', {
-                x: p.x, y: p.y + r + 14,
-                'text-anchor': 'middle',
-                fill: 'var(--text-main)',
-                style: `font-size: 0.75rem; font-weight: ${n.is_me ? 'bold' : 'normal'}`
-            });
-            text.textContent = n.name || n.id;
-            g.appendChild(text);
+        const circle = createSVGElement('circle', {
+            cx: p.x, cy: p.y, r, fill: color,
+            stroke: n.is_me ? '#fff' : 'none', 'stroke-width': n.is_me ? '2' : '0'
+        });
+        g.appendChild(circle);
 
-            g.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(n.name || n.id)}</b><br/>Activity: ${n.value}<br/>${escapeHTML(n.category || '')}`));
-            g.addEventListener('mouseenter', () => { circle.setAttribute('stroke', 'var(--color-warning)'); circle.setAttribute('stroke-width', '3'); });
-            g.addEventListener('mouseleave', () => { hideTooltip(); circle.removeAttribute('stroke'); circle.removeAttribute('stroke-width'); });
-            svg.appendChild(g);
-        }
+        // Label radiates outward from center
+        const labelDist = r + 8;
+        const lx = p.x + Math.cos(p.angle) * labelDist;
+        const ly = p.y + Math.sin(p.angle) * labelDist;
+        const anchor = Math.cos(p.angle) > 0.15 ? 'start' : Math.cos(p.angle) < -0.15 ? 'end' : 'middle';
+        const raw = n.name || n.id;
+        const label = raw.length > 18 ? raw.slice(0, 17) + '…' : raw;
+
+        const text = createSVGElement('text', {
+            x: lx, y: ly, 'text-anchor': anchor, 'dominant-baseline': 'middle',
+            fill: '#e2e8f0',
+            style: `font-size:0.65rem;font-weight:${n.is_me ? '700' : '400'};paint-order:stroke;stroke:#0f172a;stroke-width:3px;stroke-linejoin:round;`
+        });
+        text.textContent = label;
+        g.appendChild(text);
+
+        g.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(raw)}</b><br/>Activity: ${n.value}<br/>${escapeHTML(n.category || 'External')}`));
+        g.addEventListener('mouseenter', () => { circle.setAttribute('stroke', '#fff'); circle.setAttribute('stroke-width', '2'); });
+        g.addEventListener('mouseleave', () => { hideTooltip(); circle.setAttribute('stroke', n.is_me ? '#fff' : 'none'); circle.setAttribute('stroke-width', n.is_me ? '2' : '0'); });
+        svg.appendChild(g);
     });
+
+    // Legend
+    ([['me', 'Me'], ['internal', 'Internal'], ['external', 'External']] as const).forEach(([key, label], i) => {
+        const lx = 16, ly = 18 + i * 20;
+        svg.appendChild(createSVGElement('circle', { cx: lx, cy: ly, r: 5, fill: NODE_COLORS[key] }));
+        const t = createSVGElement('text', { x: lx + 12, y: ly, 'dominant-baseline': 'middle', fill: '#94a3b8', style: 'font-size:0.68rem;' });
+        t.textContent = label;
+        svg.appendChild(t);
+    });
+
     container.appendChild(svg);
 }
 
