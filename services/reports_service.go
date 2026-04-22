@@ -272,10 +272,7 @@ func (s *ReportsService) formatLogLine(email string, m Log) string {
 }
 
 func (s *ReportsService) resolveCategory(tenantEmail, canonicalID, contactType string) string {
-	if contactType == "internal" || strings.EqualFold(canonicalID, tenantEmail) {
-		return "Internal"
-	}
-	return "External"
+	return store.MapContactType(contactType, strings.ToLower(canonicalID), tenantEmail)
 }
 
 type GraphData struct {

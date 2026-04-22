@@ -28,8 +28,8 @@ func TestReportsService_CalculateGraph(t *testing.T) {
 		// Why: IDs are normalized to lowercase by NormalizeWithCategory.
 		if n.ID == "alice" {
 			foundAlice = true
-			if n.Category != "External" {
-				t.Errorf("Alice category expected External, got %s", n.Category)
+			if n.Category != "Customer" {
+				t.Errorf("Alice category expected Customer, got %s", n.Category)
 			}
 			if n.Value != 3 { // Requester 2 + Assignee 1
 				t.Errorf("Alice value expected 3, got %f", n.Value)

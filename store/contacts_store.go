@@ -259,7 +259,7 @@ func NormalizeContactName(email, rawName string) string {
 	metadataMu.RUnlock()
 
 	// Why: Lazily populate the cache if it was invalidated or not yet loaded for this tenant.
-	if !ok {
+	if !ok && GetDB() != nil {
 		all, _ := fetchAllTenantContacts(context.Background(), email)
 		if all != nil {
 			metadataMu.Lock()

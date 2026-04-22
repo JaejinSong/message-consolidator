@@ -126,6 +126,9 @@ func cleanRawName(rawName string) string {
 }
 
 func resolveContactIdentity(tenantEmail, name string) (ContactRecord, bool) {
+	if GetDB() == nil {
+		return ContactRecord{}, false
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -177,7 +180,7 @@ func finalizeCategory(tenantEmail, cleanName, resolvedName, foundEmail, contactT
 		finalID = strings.ToLower(foundEmail)
 	}
 
-	category := mapContactType(contactType, finalID, tenantEmail)
+	category := MapContactType(contactType, finalID, tenantEmail)
 
 	displayResult := resolvedName
 	if category != "Internal" {
@@ -187,7 +190,7 @@ func finalizeCategory(tenantEmail, cleanName, resolvedName, foundEmail, contactT
 	return finalID, displayResult, category
 }
 
-func mapContactType(contactType, finalID, tenantEmail string) string {
+func MapContactType(contactType, finalID, tenantEmail string) string {
 	switch contactType {
 	case "internal":
 		return "Internal"
@@ -314,18 +317,6 @@ func updateUserCacheAlias(userID int64, alias string, isAdd bool) {
 }
 
 func findUserInCacheByIDLocked(id int64) *User {
-	for _, u := range userCache {
-		if int64(u.ID) == id {
-			return u
-		}
-	}
-	return nil
-}
-
-func findUserInCacheByID(id int64) *User {
-	metadataMu.RLock()
-	defer metadataMu.RUnlock()
-
 	for _, u := range userCache {
 		if int64(u.ID) == id {
 			return u
