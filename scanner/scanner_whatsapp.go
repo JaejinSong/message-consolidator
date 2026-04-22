@@ -34,7 +34,7 @@ func (s *WhatsAppScanner) processWhatsAppRoom(ctx context.Context, user store.Us
 
 	// Why: [Async Transition] WhatsApp replies/quotes also trigger the transition pipeline.
 	for _, m := range msgs {
-		if isFromMe(m.Sender, user) && m.ReplyToID != "" && completionSvc != nil {
+		if isFromMe(m, user) && m.ReplyToID != "" && completionSvc != nil {
 			go func(bgCtx context.Context, u store.User, raw types.RawMessage, g string) {
 				completionSvc.ProcessPotentialCompletion(bgCtx, store.ConsolidatedMessage{
 					UserEmail: u.Email, Source: "whatsapp", Room: g, ThreadID: raw.ReplyToID,
@@ -135,6 +135,10 @@ func buildWAMetadataString(email string, m types.RawMessage) string {
 		tags = append(tags, "Forwarded")
 	}
 	
+	if m.RepliedToUser != "" {
+		tags = append(tags, fmt.Sprintf("Reply-To: %s", m.RepliedToUser))
+	}
+
 	//Why: Lists explicitly mentioned names in metadata to provide the AI with a 100% accurate source for 'Assignee' identification.
 	if len(m.MentionedIDs) > 0 {
 		var mentionNames []string
@@ -163,7 +167,7 @@ func buildWAMetadataString(email string, m types.RawMessage) string {
 }
 
 func saveWAItem(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool) int {
-	if isFromMe(m.Sender, user) && !is1to1 {
+	if isFromMe(m, user) && !is1to1 {
 		item.Category = string(types.CategoryTask)
 	}
 
@@ -183,8 +187,11 @@ func saveWAItem(ctx context.Context, user store.User, aliases []string, item sto
 	return id
 }
 
-func isFromMe(sender string, user store.User) bool {
-	lowerSender := strings.ToLower(sender)
+func isFromMe(m types.RawMessage, user store.User) bool {
+	if m.IsFromMe {
+		return true
+	}
+	lowerSender := strings.ToLower(m.Sender)
 	return lowerSender == strings.ToLower(user.Name) || lowerSender == strings.ToLower(user.Email)
 }
 

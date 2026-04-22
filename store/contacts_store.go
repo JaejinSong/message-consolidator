@@ -356,14 +356,18 @@ func findAllInMappings(mappings []ContactRecord, normalized string) []*ContactRe
 			if m.ID == -1 {
 				return nil
 			}
-			// Deduplicate by master when contact is merged — slave contacts sharing
-			// the same master_contact_id count as one match, not many.
 			dedupeKey := m.CanonicalID
 			if m.MasterContactID.Valid {
 				dedupeKey = fmt.Sprintf("master:%d", m.MasterContactID.Int64)
 			}
 			if !seen[dedupeKey] {
-				res = append(res, m)
+				entry := m
+				if m.MasterContactID.Valid {
+					if master := findByID(mappings, m.MasterContactID.Int64); master != nil {
+						entry = master
+					}
+				}
+				res = append(res, entry)
 				seen[dedupeKey] = true
 			}
 		}

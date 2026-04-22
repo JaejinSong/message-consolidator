@@ -26,8 +26,11 @@ Extract actionable tasks, operational policies, and context-dependent queries fr
    - ELSE IF sender_says ("I will", "I'll"): SET category = "PROMISE"
    - ELSE: SET category = "TASK"
 
-2. **DETERMINE Assignee**:
-   - IF recipient ({{.CurrentUserEmail}}) is targeted (direct mention or context): SET `assignee_id` = {{.CurrentUserID}}, `assignee_name` = "me".
+2. **DETERMINE Assignee** (Message metadata tags are in `[Tags: ...]` prefix):
+   - `Reply-To: X` means this message is a direct reply to person X. Use this as strong evidence that X is the primary audience.
+   - `Explicit-Mentions: X` means X is @-mentioned by name — treat as a direct assignment signal.
+   - `Forwarded` means the message was forwarded; original sender intent may differ.
+   - IF recipient ({{.CurrentUserEmail}}) is targeted (direct mention, `Reply-To: me`, or context): SET `assignee_id` = {{.CurrentUserID}}, `assignee_name` = "me".
    - ELSE IF group mention ("@everyone", "@team"): SET `assignee_id` = null, `assignee_name` = "shared".
    - ELSE: SET `assignee_id` = null, `assignee_name` = name_from_text.
 

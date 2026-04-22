@@ -145,25 +145,15 @@ func (s *TasksService) applyAssigneeRules(ctx context.Context, user *store.User,
 		return
 	}
 
-	// Why: Broaden 'me' identification by checking against the primary name AND all registered aliases.
 	aliases, _ := store.GetUserAliasesByEmail(ctx, user.Email)
-	effectiveAliases := append(aliases, user.Name)
-	if s.IsAssigneeMarkedAsMine(assignee, effectiveAliases) {
+	identities := GetEffectiveAliases(*user, aliases)
+
+	if s.IsAssigneeMarkedAsMine(assignee, identities) {
 		msg.Assignee = "me"
 	}
 
-	// Why: Normalize requester to canonical email so assignCategory can detect CategoryRequested
-	// even when the requester field contains a display name instead of an email address.
-	// NormalizeIdentifier strips parenthesized suffixes (e.g. "Jaejin Song (JJ)" → "jaejin song")
-	// so all name variants resolve to the same base before alias comparison.
 	if msg.RequesterCanonical == "" {
-		requester := strings.TrimSpace(msg.Requester)
-		normalizedRequester := store.NormalizeIdentifier(requester)
-		normalizedAliases := make([]string, len(effectiveAliases))
-		for i, a := range effectiveAliases {
-			normalizedAliases[i] = store.NormalizeIdentifier(a)
-		}
-		if strings.EqualFold(requester, user.Email) || s.IsAssigneeMarkedAsMine(normalizedRequester, normalizedAliases) {
+		if strings.EqualFold(strings.TrimSpace(msg.Requester), user.Email) || s.IsAssigneeMarkedAsMine(msg.Requester, identities) {
 			msg.RequesterCanonical = user.Email
 		}
 	}
@@ -398,13 +388,15 @@ func isAssigneeGeneric(assignee string) bool {
 }
 
 // IsAssigneeMarkedAsMine checks if the assignee matches any of the user's known identities or generic "me" keywords.
+// Both sides are normalized so suffix variants like "Jaejin Song (JJ)" match "Jaejin Song".
 func (s *TasksService) IsAssigneeMarkedAsMine(assignee string, identities []string) bool {
 	norm := strings.ToLower(strings.TrimSpace(assignee))
 	if genericMeAssignees[norm] {
 		return true
 	}
+	normalizedAssignee := store.NormalizeIdentifier(assignee)
 	for _, a := range identities {
-		if a != "" && strings.EqualFold(assignee, a) {
+		if a != "" && (strings.EqualFold(assignee, a) || strings.EqualFold(normalizedAssignee, store.NormalizeIdentifier(a))) {
 			return true
 		}
 	}

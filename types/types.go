@@ -32,6 +32,7 @@ type RawMessage struct {
 	// Extended Metadata for AI Context Enrichment
 	HasAttachment   bool     `json:"has_attachment"`
 	AttachmentNames []string `json:"attachment_names"`
+	IsFromMe        bool     `json:"is_from_me"`
 	IsForwarded     bool     `json:"is_forwarded"`
 	IsPinned        bool     `json:"is_pinned"`
 	IsImportant     bool     `json:"is_important"`
