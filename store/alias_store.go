@@ -10,13 +10,15 @@ import (
 	"time"
 )
 
+var decorativeEdgeRe = regexp.MustCompile(`^[-~*=_| ]+|[-~*=_| ]+$`)
+
 func NormalizeIdentifier(id string) string {
 	if id == "" {
 		return ""
 	}
 	id = strings.ToLower(strings.TrimSpace(id))
-	re := regexp.MustCompile(`\s*\(.*?\)\s*`)
-	return strings.TrimSpace(re.ReplaceAllString(id, ""))
+	id = strings.TrimSpace(regexp.MustCompile(`\s*\(.*?\)\s*`).ReplaceAllString(id, ""))
+	return decorativeEdgeRe.ReplaceAllString(id, "")
 }
 
 func NormalizeName(tenantEmail, name string) string {
@@ -170,7 +172,7 @@ func resolveSystemUser(name string) (string, string, bool) {
 }
 
 func finalizeCategory(tenantEmail, cleanName, resolvedName, foundEmail, contactType string) (string, string, string) {
-	finalID := strings.ToLower(cleanName)
+	finalID := NormalizeIdentifier(cleanName)
 	if foundEmail != "" {
 		finalID = strings.ToLower(foundEmail)
 	}

@@ -69,6 +69,8 @@ func TestNormalizeIdentifier(t *testing.T) {
 		{"  Test (Aux)  ", "test"},
 		{"user@example.com", "user@example.com"},
 		{"+82-10-1234", "+82-10-1234"},
+		{"-- Ardi --", "ardi"},
+		{"~~ test ~~", "test"},
 	}
 
 	for _, tt := range tests {

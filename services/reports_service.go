@@ -335,21 +335,21 @@ func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (ma
 	for _, m := range messages {
 		// Why: Prioritize canonical IDs for node unification; fallback to raw requester/assignee strings if not resolved.
 		rID := m.RequesterCanonical
-		if rID == "" {
-			rID = store.NormalizeIdentifier(m.Requester)
-		}
-		rCat := s.resolveCategory(email, rID, m.RequesterType)
 		rName := m.RequesterDisplayName
+		rCat := s.resolveCategory(email, rID, m.RequesterType)
+		if rID == "" {
+			rID, rName, rCat = store.NormalizeWithCategory(email, m.Requester)
+		}
 		if rName == "" {
 			rName = stripParenSuffix(m.Requester)
 		}
 
 		aID := m.AssigneeCanonical
-		if aID == "" {
-			aID = store.NormalizeIdentifier(m.Assignee)
-		}
-		aCat := s.resolveCategory(email, aID, m.AssigneeType)
 		aName := m.AssigneeDisplayName
+		aCat := s.resolveCategory(email, aID, m.AssigneeType)
+		if aID == "" {
+			aID, aName, aCat = store.NormalizeWithCategory(email, m.Assignee)
+		}
 		if aName == "" {
 			aName = stripParenSuffix(m.Assignee)
 		}
