@@ -83,6 +83,7 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 	r.Handle("/api/identity/proposals/{id}/accept", auth.AuthMiddleware(http.HandlerFunc(a.HandleAcceptProposal))).Methods("POST")
 	r.Handle("/api/identity/proposals/{id}/reject", auth.AuthMiddleware(http.HandlerFunc(a.HandleRejectProposal))).Methods("POST")
 	r.Handle("/api/admin/reclassify", auth.AuthMiddleware(http.HandlerFunc(a.HandleReclassifyOldData))).Methods("GET")
+	r.Handle("/api/admin/invalidate-cache", auth.AuthMiddleware(http.HandlerFunc(a.HandleInvalidateCache))).Methods("POST")
 	r.Handle("/api/subtasks/toggle", auth.AuthMiddleware(http.HandlerFunc(a.HandleToggleSubtask))).Methods("POST")
 	r.Handle("/api/admin/restore-gmail-cc", auth.AuthMiddleware(http.HandlerFunc(a.HandleRestoreGmailCC))).Methods("GET")
 	r.Handle("/api/release-notes", auth.AuthMiddleware(http.HandlerFunc(a.HandleGetReleaseNotes))).Methods("GET")

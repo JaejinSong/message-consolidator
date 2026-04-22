@@ -296,3 +296,9 @@ func (a *API) processArchiveRestore(ctx context.Context, email string, user *sto
 	}
 	return totalFixed
 }
+
+func (a *API) HandleInvalidateCache(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	store.InvalidateCache(email)
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok", "email": email})
+}
