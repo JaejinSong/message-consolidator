@@ -26,6 +26,11 @@ func NormalizeName(tenantEmail, name string) string {
 		return ""
 	}
 	normalized := NormalizeIdentifier(name)
+	// Why: NormalizeIdentifier strips leading/trailing underscores, breaking __current_user__ → "current_user".
+	// Check IsSelfAssigneeToken on raw input before normalization strips the token.
+	if raw := strings.ToLower(strings.TrimSpace(name)); IsSelfAssigneeToken(raw) {
+		normalized = raw
+	}
 	metadataMu.RLock()
 	defer metadataMu.RUnlock()
 

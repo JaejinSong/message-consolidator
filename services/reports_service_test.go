@@ -224,17 +224,21 @@ func TestReportsService_SankeyContract(t *testing.T) {
 	if !foundExternal {
 		t.Errorf("External node 'external-user@gmail.com' missing")
 	}
-	if externalUserNode.Name != "external-user@gmail.com (External)" {
-		t.Errorf("Expected fallback name for external user to be 'external-user@gmail.com (External)', got '%s'", externalUserNode.Name)
+	if externalUserNode.Name != "external-user@gmail.com" {
+		t.Errorf("Expected fallback name for external user to be 'external-user@gmail.com', got '%s'", externalUserNode.Name)
+	}
+	if externalUserNode.Category != "External" {
+		t.Errorf("Expected external user category to be 'External', got '%s'", externalUserNode.Category)
 	}
 
 	if !foundHady {
 		t.Errorf("External node 'hady.partner@gmail.com' missing")
 	}
-	// NOTE: The current logic in `NormalizeWithCategory` returns the full email as the name for unknown external users.
-	// This test asserts the current, correct behavior.
-	if hadyPartnerNode.Name != "hady.partner@gmail.com (External)" {
-		t.Errorf("Expected fallback name for hady.partner to be 'hady.partner@gmail.com (External)', got '%s'", hadyPartnerNode.Name)
+	if hadyPartnerNode.Name != "hady.partner@gmail.com" {
+		t.Errorf("Expected fallback name for hady.partner to be 'hady.partner@gmail.com', got '%s'", hadyPartnerNode.Name)
+	}
+	if hadyPartnerNode.Category != "External" {
+		t.Errorf("Expected hady.partner category to be 'External', got '%s'", hadyPartnerNode.Category)
 	}
 
 	// Check link consistency (all source/target IDs must exist in nodes).
@@ -316,8 +320,11 @@ func TestReportsService_GenerateVisualizationData_WithAliases(t *testing.T) {
 	if nodeJJ.ID == "" {
 		t.Fatalf("Node for 'jjsong@whatap.io' not found")
 	}
-	if nodeJJ.Name != "Jaejin Song (Internal)" {
-		t.Errorf("Expected JJ's name to be 'Jaejin Song (Internal)', got '%s'", nodeJJ.Name)
+	if nodeJJ.Name != "Jaejin Song" {
+		t.Errorf("Expected JJ's name to be 'Jaejin Song', got '%s'", nodeJJ.Name)
+	}
+	if nodeJJ.Category != "Internal" {
+		t.Errorf("Expected JJ's category to be 'Internal', got '%s'", nodeJJ.Category)
 	}
 	if nodeJJ.Value != 5 {
 		t.Errorf("Expected JJ's value to be 5, got %f", nodeJJ.Value)
@@ -395,11 +402,17 @@ func TestReportsService_GenerateVisualizationData_AliasCollision(t *testing.T) {
 		t.Fatalf("Expected to find two separate nodes for 'alice.a' and 'alice.b', but one or both are missing. Found A: %v, Found B: %v", foundA, foundB)
 	}
 
-	if nodeAliceA.Name != "Alice (Internal)" {
-		t.Errorf("Expected node 'alice.a' to have name 'Alice (Internal)', got '%s'", nodeAliceA.Name)
+	if nodeAliceA.Name != "Alice" {
+		t.Errorf("Expected node 'alice.a' to have name 'Alice', got '%s'", nodeAliceA.Name)
 	}
-	if nodeAliceB.Name != "Alice (Internal)" {
-		t.Errorf("Expected node 'alice.b' to have name 'Alice (Internal)', got '%s'", nodeAliceB.Name)
+	if nodeAliceA.Category != "Internal" {
+		t.Errorf("Expected node 'alice.a' to have category 'Internal', got '%s'", nodeAliceA.Category)
+	}
+	if nodeAliceB.Name != "Alice" {
+		t.Errorf("Expected node 'alice.b' to have name 'Alice', got '%s'", nodeAliceB.Name)
+	}
+	if nodeAliceB.Category != "Internal" {
+		t.Errorf("Expected node 'alice.b' to have category 'Internal', got '%s'", nodeAliceB.Category)
 	}
 }
 
@@ -456,7 +469,7 @@ func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) 
 
 	foundResolvedSong := false
 	for _, n := range graphDataB.Nodes {
-		if n.ID == "jjsong@whatap.io" && n.Name == "Jaejin Song (Internal)" {
+		if n.ID == "jjsong@whatap.io" && n.Name == "Jaejin Song" && n.Category == "Internal" {
 			foundResolvedSong = true
 			break
 		}

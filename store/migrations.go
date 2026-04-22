@@ -82,6 +82,10 @@ func migrateExistingData(ctx context.Context, q db.DBTX) {
 		_, _ = q.ExecContext(ctx, "DROP TABLE IF EXISTS identity_merge_candidates")
 		_ = db.New(q).CreateIdentityMergeCandidatesTable(ctx)
 	}
+	if !tableHasColumn(ctx, q, "identity_merge_history", "source_contact_id") {
+		_, _ = q.ExecContext(ctx, "DROP TABLE IF EXISTS identity_merge_history")
+		_ = db.New(q).CreateIdentityMergeHistoryTable(ctx)
+	}
 
 	// Why: ALTER TABLE ADD COLUMN is idempotent on SQLite when columns are added conditionally via ignored errors.
 	_, _ = q.ExecContext(ctx, "ALTER TABLE identity_merge_candidates ADD COLUMN proposal_group_id TEXT")

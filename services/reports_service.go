@@ -215,6 +215,8 @@ func (s *ReportsService) applyResolution(ctx context.Context, m *Log, identifier
 		// 💡 Promotion: Use contact_type from mapping if present
 		if c.ContactType != "" && c.ContactType != "none" {
 			*typeField = c.ContactType
+		} else if strings.HasSuffix(strings.ToLower(c.CanonicalID), "@whatap.io") || strings.EqualFold(c.CanonicalID, m.UserEmail) {
+			*typeField = store.CategoryInternal
 		}
 	}
 }
@@ -300,7 +302,7 @@ func (s *ReportsService) generateVisualizationData(email string, messages []Log)
 	nodes := make([]Node, 0)
 	for id, val := range counts {
 		nodes = append(nodes, Node{
-			ID: id, Name: fmt.Sprintf("%s (%s)", meta[id].Name, meta[id].Cat),
+			ID: id, Name: meta[id].Name,
 			Value: val, IsMe: strings.EqualFold(id, email), Category: meta[id].Cat,
 		})
 	}
@@ -336,9 +338,19 @@ func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (ma
 		rCat := s.resolveCategory(email, rID, m.RequesterType)
 		if rID == "" {
 			rID, rName, rCat = store.NormalizeWithCategory(email, m.Requester)
+		} else if rCat == "External" && m.RequesterType == "" {
+			fallback := m.RequesterDisplayName
+			if fallback == "" {
+				fallback = m.Requester
+			}
+			if _, _, c := store.NormalizeWithCategory(email, fallback); c != "External" {
+				rCat = c
+			}
 		}
 		if rName == "" {
 			rName = stripParenSuffix(m.Requester)
+		} else {
+			rName = stripParenSuffix(rName)
 		}
 
 		aID := m.AssigneeCanonical
@@ -346,9 +358,19 @@ func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (ma
 		aCat := s.resolveCategory(email, aID, m.AssigneeType)
 		if aID == "" {
 			aID, aName, aCat = store.NormalizeWithCategory(email, m.Assignee)
+		} else if aCat == "External" && m.AssigneeType == "" {
+			fallback := m.AssigneeDisplayName
+			if fallback == "" {
+				fallback = m.Assignee
+			}
+			if _, _, c := store.NormalizeWithCategory(email, fallback); c != "External" {
+				aCat = c
+			}
 		}
 		if aName == "" {
 			aName = stripParenSuffix(m.Assignee)
+		} else {
+			aName = stripParenSuffix(aName)
 		}
 
 		if rID == "" || aID == "" || rID == aID {

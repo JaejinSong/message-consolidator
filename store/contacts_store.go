@@ -253,6 +253,9 @@ func NormalizeContactName(email, rawName string) string {
 	if rawName == "" {
 		return ""
 	}
+	if GetDB() == nil {
+		return rawName
+	}
 
 	metadataMu.RLock()
 	mappings, ok := contactsCache[email]

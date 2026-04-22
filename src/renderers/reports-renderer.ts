@@ -93,19 +93,20 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
         const s = coords.get(l.source);
         const t = coords.get(l.target);
         if (s && t) {
+            const sw = Math.max(1, Math.min(8, Math.sqrt(l.weight || 1) * 2));
             const line = createSVGElement('line', {
                 x1: s.x, y1: s.y, x2: t.x, y2: t.y,
                 class: 'c-report-viz__link',
-                'stroke-width': Math.max(1, (l.value || 1) * 2),
+                'stroke-width': sw,
                 stroke: 'var(--color-primary)',
                 opacity: '0.4'
             });
-            line.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(getNodeName(nodes, l.source))} ↔ ${escapeHTML(getNodeName(nodes, l.target))}</b><br/>Weight: ${l.value || 1}`));
+            line.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(getNodeName(nodes, l.source))} ↔ ${escapeHTML(getNodeName(nodes, l.target))}</b><br/>Connections: ${l.weight || 1}`));
             line.addEventListener('mouseenter', () => {
                 line.setAttribute('opacity', '1');
                 line.setAttribute('stroke', 'var(--color-warning)');
             });
-            line.addEventListener('mouseout', () => {
+            line.addEventListener('mouseleave', () => {
                 hideTooltip();
                 line.setAttribute('opacity', '0.4');
                 line.setAttribute('stroke', 'var(--color-primary)');
@@ -119,10 +120,11 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
         if (p) {
             const r = Math.max(6, 4 + Math.sqrt(n.value || 1) * 3);
             const g = createSVGElement('g', { class: 'c-report-viz__node-group' });
+            const nodeColor = n.is_me ? 'var(--color-primary)' : n.category === 'Internal' ? 'var(--color-success)' : 'var(--color-info)';
             const circle = createSVGElement('circle', {
                 cx: p.x, cy: p.y, r,
                 class: `c-report-viz__node ${n.is_me ? 'c-report-viz__node--me' : ''}`,
-                fill: n.is_me ? 'var(--color-primary)' : 'var(--color-info)'
+                fill: nodeColor
             });
             nodeShapes.set(n.id, circle);
             g.appendChild(circle);
@@ -136,9 +138,9 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
             text.textContent = n.name || n.id;
             g.appendChild(text);
 
-            g.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(n.name || n.id)}</b><br/>Activity: ${n.value}`));
+            g.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(n.name || n.id)}</b><br/>Activity: ${n.value}<br/>${escapeHTML(n.category || '')}`));
             g.addEventListener('mouseenter', () => { circle.setAttribute('stroke', 'var(--color-warning)'); circle.setAttribute('stroke-width', '3'); });
-            g.addEventListener('mouseout', () => { hideTooltip(); circle.removeAttribute('stroke'); circle.removeAttribute('stroke-width'); });
+            g.addEventListener('mouseleave', () => { hideTooltip(); circle.removeAttribute('stroke'); circle.removeAttribute('stroke-width'); });
             svg.appendChild(g);
         }
     });
@@ -156,7 +158,7 @@ function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): vo
 
     nodes.forEach(n => {
         if (n.value === undefined) {
-            n.value = links.reduce((sum, l) => sum + (l.source === n.id || l.target === n.id ? (l.value || 1) : 0), 0);
+            n.value = links.reduce((sum, l) => sum + (l.source === n.id || l.target === n.id ? (l.weight || 1) : 0), 0);
         }
     });
 
@@ -177,15 +179,15 @@ function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): vo
         const s = sCoords.get(l.source);
         const t = tCoords.get(l.target);
         if (!s || !t) return;
-        const sw = Math.max(2, (l.value || 1) * 2);
+        const sw = Math.max(2, Math.min(16, Math.sqrt(l.weight || 1) * 3));
         const d = `M ${s.x} ${s.y} C ${(s.x + t.x) / 2} ${s.y}, ${(s.x + t.x) / 2} ${t.y}, ${t.x} ${t.y}`;
         const path = createSVGElement('path', {
             d, class: 'c-report-viz__link', fill: 'none', 'stroke-width': sw,
             stroke: 'var(--color-primary)', opacity: '0.4'
         });
-        path.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(getNodeName(nodes, l.source))} → ${escapeHTML(getNodeName(nodes, l.target))}</b><br/>Flow: ${l.value || 1}`));
+        path.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(getNodeName(nodes, l.source))} → ${escapeHTML(getNodeName(nodes, l.target))}</b><br/>Connections: ${l.weight || 1}`));
         path.addEventListener('mouseenter', () => { path.setAttribute('opacity', '1'); path.setAttribute('stroke', 'var(--color-warning)'); });
-        path.addEventListener('mouseout', () => { hideTooltip(); path.setAttribute('opacity', '0.4'); path.setAttribute('stroke', 'var(--color-primary)'); });
+        path.addEventListener('mouseleave', () => { hideTooltip(); path.setAttribute('opacity', '0.4'); path.setAttribute('stroke', 'var(--color-primary)'); });
         svg.appendChild(path);
     });
 
@@ -193,10 +195,11 @@ function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): vo
         const n = nodes.find(node => node.id === id);
         if (!n) return;
         const h = Math.max(16, 10 + Math.sqrt(n.value || 1) * 4);
+        const rectColor = n.is_me ? 'var(--color-primary)' : n.category === 'Internal' ? 'var(--color-success)' : 'var(--color-info)';
         const rect = createSVGElement('rect', {
             x: p.x - 4, y: p.y - h / 2, width: 8, height: h,
             class: 'c-report-viz__node', rx: 2,
-            fill: n.is_me ? 'var(--color-primary)' : 'var(--color-info)'
+            fill: rectColor
         });
         svg.appendChild(rect);
 
@@ -289,8 +292,15 @@ export const reportsRenderer = {
         }
 
         if (viz.nodes.length > 0) {
-            if (netChartArea) { netChartArea.innerHTML = ''; renderNetworkSVG(netChartArea, viz.nodes, viz.links); }
-            if (sankeyChartArea) { sankeyChartArea.innerHTML = ''; renderSankeySVG(sankeyChartArea, viz.nodes, viz.links); }
+            const vizKey = JSON.stringify(viz);
+            if (netChartArea && netChartArea.dataset.vizKey !== vizKey) {
+                netChartArea.dataset.vizKey = vizKey;
+                requestAnimationFrame(() => { netChartArea.innerHTML = ''; renderNetworkSVG(netChartArea, viz.nodes, viz.links); });
+            }
+            if (sankeyChartArea && sankeyChartArea.dataset.vizKey !== vizKey) {
+                sankeyChartArea.dataset.vizKey = vizKey;
+                requestAnimationFrame(() => { sankeyChartArea.innerHTML = ''; renderSankeySVG(sankeyChartArea, viz.nodes, viz.links); });
+            }
         }
     },
 
