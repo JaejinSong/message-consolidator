@@ -1,9 +1,18 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { insightsRenderer } from './insightsRenderer.ts';
 import { state } from './state.ts';
 
+interface MockI18n {
+    completedTasks: string;
+    totalCommunication: string;
+    waiting: string;
+    tokenUsageTitle: string;
+    sourceDistribution: string;
+    weeklyReportTitle: string;
+}
+
 describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
-    const mockI18n = {
+    const mockI18n: MockI18n = {
         completedTasks: '완료 업무',
         totalCommunication: '총 소통량',
         waiting: '대기',
@@ -31,27 +40,27 @@ describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
     });
 
     it('should update daily glance slots without destroying card title', () => {
-        const data = { total_completed: 42, peak_time: '14:00' };
+        const data = { total_completed: 42, peak_time: '14:00', pending_me: 0, pending_others: 0, abandoned_tasks: 0, daily_completions: {}, source_distribution: {}, source_distribution_total: {}, hourly_activity: {}, completion_history: [] };
         insightsRenderer.renderDailyGlance(data, mockI18n);
 
-        const card = document.getElementById('cardDailyGlance');
-        const value = document.getElementById('dailyGlanceValue');
+        const card = document.getElementById('cardDailyGlance') as HTMLElement;
+        const value = document.getElementById('dailyGlanceValue') as HTMLElement;
         const title = card.querySelector('.c-insights-card__title');
 
         expect(value.textContent).toContain('42');
-        expect(title.textContent).toBe('Daily Stats');
+        expect(title?.textContent).toBe('Daily Stats');
         expect(card.classList.contains('c-insights-card')).toBe(true);
     });
 
     it('should update consolidated AI usage widget with formatted numbers and breakdown (Daily/Monthly)', () => {
-        const usage = { 
-            todayTotal: 1234, todayPrompt: 600, todayCompletion: 634,
+        const usage = {
+            todayTotal: 1234, todayPrompt: 600, todayCompletion: 634, todayCost: 0,
             monthlyTotal: 56789, monthlyPrompt: 30000, monthlyCompletion: 26789,
-            monthlyCost: 1.25, model: 'Gemini 3 Flash' 
+            monthlyCost: 1.25, model: 'Gemini 3 Flash'
         };
         insightsRenderer.renderTokenUsage(usage, mockI18n);
-        
-        const slot = document.getElementById('ai-usage-consolidated');
+
+        const slot = document.getElementById('ai-usage-consolidated') as HTMLElement;
         expect(slot.innerHTML).toContain('토큰 사용량');
         expect(slot.innerHTML).toContain('1,234');
         expect(slot.innerHTML).toContain('입 600');
@@ -68,9 +77,9 @@ describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
         const stats = { source_distribution: { slack: 70, whatsapp: 30 } };
         insightsRenderer.renderChannelDistribution(stats, mockI18n);
 
-        const container = document.getElementById('source-distribution-slot');
+        const container = document.getElementById('source-distribution-slot') as HTMLElement;
         const chartNode = document.getElementById('sourceDistributionChart');
-        
+
         expect(chartNode).not.toBeNull();
         expect(container.innerHTML).toContain('소스별 비중');
     });

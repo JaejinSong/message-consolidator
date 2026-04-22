@@ -38,43 +38,43 @@ describe('archive', () => {
         state.archiveTotalCount = 50; // 3 pages (20 + 20 + 10)
         state.archivePage = 2;
         archive.updatePaginationUI();
-        
-        const info = document.getElementById('archivePageInfo');
+
+        const info = document.getElementById('archivePageInfo') as HTMLElement;
         expect(info.textContent).toContain('2 / 3');
         expect(info.textContent).toContain('50');
 
-        expect(document.getElementById('prevArchivePage').disabled).toBe(false);
-        expect(document.getElementById('nextArchivePage').disabled).toBe(false);
+        expect((document.getElementById('prevArchivePage') as HTMLButtonElement).disabled).toBe(false);
+        expect((document.getElementById('nextArchivePage') as HTMLButtonElement).disabled).toBe(false);
     });
 
     it('should disable next button on last page', () => {
         state.archiveTotalCount = 20;
         state.archivePage = 1;
         archive.updatePaginationUI();
-        expect(document.getElementById('nextArchivePage').disabled).toBe(true);
+        expect((document.getElementById('nextArchivePage') as HTMLButtonElement).disabled).toBe(true);
     });
 
     it('should toggle action buttons based on selection', () => {
-        const checks = document.querySelectorAll('.archive-check');
+        const checks = document.querySelectorAll<HTMLInputElement>('.archive-check');
         checks[0].checked = true;
-        
+
         archive.updateActionsVisibility();
-        expect(document.getElementById('restoreSelectedBtn').style.display).toBe('inline-block');
-        
+        expect((document.getElementById('restoreSelectedBtn') as HTMLElement).style.display).toBe('inline-block');
+
         checks[0].checked = false;
         archive.updateActionsVisibility();
-        expect(document.getElementById('restoreSelectedBtn').style.display).toBe('none');
+        expect((document.getElementById('restoreSelectedBtn') as HTMLElement).style.display).toBe('none');
     });
 
     it('should collect selected IDs', () => {
-        const checks = document.querySelectorAll('.archive-check');
+        const checks = document.querySelectorAll<HTMLInputElement>('.archive-check');
         checks[0].checked = true;
         checks[1].checked = true;
         expect(archive.getSelectedIds()).toEqual([1, 2]);
     });
 
     it('should update state.archiveStatus when tabs are clicked', async () => {
-        api.fetchArchive.mockResolvedValue({ total: 0, messages: [] });
+        (api.fetchArchive as ReturnType<typeof vi.fn>).mockResolvedValue({ total: 0, messages: [] });
         document.body.innerHTML += `
             <div id="archiveSection">
                 <button class="tab-btn" data-tab="archiveAllTab" id="archiveAllTab"></button>
@@ -83,23 +83,23 @@ describe('archive', () => {
             </div>
         `;
         archive.setupEventListeners();
-        
-        const doneTab = document.getElementById('archiveDoneTab');
+
+        const doneTab = document.getElementById('archiveDoneTab') as HTMLElement;
         doneTab.click();
         expect(state.archiveStatus).toBe('done');
         expect(state.archivePage).toBe(1);
 
-        const canceledTab = document.getElementById('archiveCanceledTab');
+        const canceledTab = document.getElementById('archiveCanceledTab') as HTMLElement;
         canceledTab.click();
         expect(state.archiveStatus).toBe('canceled');
 
-        const allTab = document.getElementById('archiveAllTab');
+        const allTab = document.getElementById('archiveAllTab') as HTMLElement;
         allTab.click();
         expect(state.archiveStatus).toBe('all');
     });
 
     it('should fetch and update state', async () => {
-        api.fetchArchive.mockResolvedValue({ total: 100, messages: [] });
+        (api.fetchArchive as ReturnType<typeof vi.fn>).mockResolvedValue({ total: 100, messages: [] });
         await archive.fetch();
         expect(state.archiveTotalCount).toBe(100);
         expect(api.fetchArchive).toHaveBeenCalled();

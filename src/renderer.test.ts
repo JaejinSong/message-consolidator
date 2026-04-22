@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import * as renderer from './renderer.ts';
 import { I18N_DATA } from './locales';
 
@@ -8,7 +8,7 @@ describe('renderer.js - Empty State Messages', () => {
         const lang = 'ko';
         const messages = I18N_DATA[lang].emptyStateMessages;
         expect(messages.length).toBeGreaterThanOrEqual(15);
-        expect(messages.some(m => m.includes('커피'))).toBe(true);
+        expect(messages.some((m: string) => m.includes('커피'))).toBe(true);
     });
 });
 
@@ -17,7 +17,7 @@ describe('renderer.js - Empty State Messages', () => {
 describe('renderer.js - showToast', () => {
     it('should create and append a toast element', () => {
         renderer.showToast('Test Message', 'success');
-        const toast = document.querySelector('.toast-popup');
+        const toast = document.querySelector('.toast-popup') as HTMLElement;
         expect(toast).not.toBeNull();
         expect(toast.classList.contains('toast-success')).toBe(true);
         expect(toast.textContent).toContain('Test Message');
@@ -35,13 +35,13 @@ describe('renderer.js - setScanLoading', () => {
     });
 
     it('should toggle loading state', () => {
-        renderer.setScanLoading(true, 'ko');
-        expect(document.getElementById('scanBtn').disabled).toBe(true);
-        expect(document.getElementById('loading').classList.contains('active')).toBe(true);
+        renderer.setScanLoading(true);
+        expect((document.getElementById('scanBtn') as HTMLButtonElement).disabled).toBe(true);
+        expect((document.getElementById('loading') as HTMLElement).classList.contains('active')).toBe(true);
 
-        renderer.setScanLoading(false, 'ko');
-        expect(document.getElementById('scanBtn').disabled).toBe(false);
-        expect(document.getElementById('loading').classList.contains('active')).toBe(false);
+        renderer.setScanLoading(false);
+        expect((document.getElementById('scanBtn') as HTMLButtonElement).disabled).toBe(false);
+        expect((document.getElementById('loading') as HTMLElement).classList.contains('active')).toBe(false);
     });
 });
 
@@ -77,14 +77,14 @@ describe('renderer.js - createCardElement', () => {
     });
 
     it('should escape HTML in task, requester, and room to prevent XSS', () => {
-        const xssMsg = { 
-            id: 6, 
-            source: 'slack', 
-            task: '<script>alert("xss")</script>', 
-            requester: '<b>Attacker</b>', 
+        const xssMsg = {
+            id: 6,
+            source: 'slack',
+            task: '<script>alert("xss")</script>',
+            requester: '<b>Attacker</b>',
             room: '<img src=x onerror=alert(1)>',
-            timestamp: new Date().toISOString(), 
-            done: false 
+            timestamp: new Date().toISOString(),
+            done: false
         };
         const html = renderer.createCardElement(xssMsg);
         expect(html).toContain('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
@@ -106,23 +106,23 @@ describe('renderer.js - updateUserProfile', () => {
 
     it('should unhide userEmail and handle profile picture visibility', () => {
         // With email and picture
-        renderer.updateUserProfile({ 
-            email: 'test@example.com', 
+        renderer.updateUserProfile({
+            email: 'test@example.com',
             picture: 'http://pic.jpg',
             name: 'Test User'
         });
-        const emailEl = document.getElementById('userEmail');
+        const emailEl = document.getElementById('userEmail') as HTMLElement;
         expect(emailEl.classList.contains('hidden')).toBe(false);
         expect(emailEl.textContent).toBe('test@example.com');
-        expect(document.getElementById('userPicture').classList.contains('hidden')).toBe(false);
+        expect((document.getElementById('userPicture') as HTMLElement).classList.contains('hidden')).toBe(false);
 
         // Without picture
-        renderer.updateUserProfile({ 
-            email: 'test@example.com', 
+        renderer.updateUserProfile({
+            email: 'test@example.com',
             picture: '',
             name: 'Test User'
         });
-        expect(document.getElementById('userPicture').classList.contains('hidden')).toBe(true);
+        expect((document.getElementById('userPicture') as HTMLElement).classList.contains('hidden')).toBe(true);
     });
 
     it('should not throw error if DOM elements are missing', () => {
@@ -148,17 +148,17 @@ describe('renderer.js - updateServiceStatusUI', () => {
     it('should toggle active classes and sections via public methods', () => {
         // Slack Connected
         renderer.updateSlackStatus(true);
-        expect(document.getElementById('slackStatusLarge').classList.contains('c-status-card--active')).toBe(true);
-        
+        expect((document.getElementById('slackStatusLarge') as HTMLElement).classList.contains('c-status-card--active')).toBe(true);
+
         // WhatsApp Connected
         renderer.updateWhatsAppStatus(true);
-        expect(document.getElementById('waQRSection').classList.contains('hidden')).toBe(true);
-        expect(document.getElementById('waConnectedSection').classList.contains('hidden')).toBe(false);
+        expect((document.getElementById('waQRSection') as HTMLElement).classList.contains('hidden')).toBe(true);
+        expect((document.getElementById('waConnectedSection') as HTMLElement).classList.contains('hidden')).toBe(false);
 
         // WhatsApp Disconnected
         renderer.updateWhatsAppStatus(false);
-        expect(document.getElementById('waQRSection').classList.contains('hidden')).toBe(false);
-        expect(document.getElementById('waConnectedSection').classList.contains('hidden')).toBe(true);
+        expect((document.getElementById('waQRSection') as HTMLElement).classList.contains('hidden')).toBe(false);
+        expect((document.getElementById('waConnectedSection') as HTMLElement).classList.contains('hidden')).toBe(true);
     });
 
     it('should not throw error when service status DOM is completely missing', () => {

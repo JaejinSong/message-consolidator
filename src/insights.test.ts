@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { insights } from './insights';
 import { api } from './api';
 import { insightsRenderer } from './insightsRenderer';
-import { upsertReport, state } from './state';
+import { state } from './state';
 import { I18N_DATA } from './locales';
 
 // Mock Modules
@@ -79,8 +79,8 @@ describe('insights.ts - Controller (Passive View Refactor)', () => {
     });
 
     it('should refresh reports and render the list with i18n injection', async () => {
-        const mockHistory = [{ id: 1, start_date: '2024-03-01', end_date: '2024-03-07' }];
-        api.fetchReportHistory.mockResolvedValue(mockHistory);
+        const mockHistory = [{ id: 1, start_date: '2024-03-01', end_date: '2024-03-07', user_email: '', report_summary: '', visualization_data: '' }];
+        (api.fetchReportHistory as ReturnType<typeof vi.fn>).mockResolvedValue(mockHistory);
         state.reportHistory = mockHistory;
 
         await insights.refreshReport();
@@ -94,9 +94,9 @@ describe('insights.ts - Controller (Passive View Refactor)', () => {
     });
 
     it('should load report details with DI (report, lang, i18n)', async () => {
-        const reportMeta = { id: 1, start_date: '2024-03-01', end_date: '2024-03-07' };
+        const reportMeta = { id: 1, start_date: '2024-03-01', end_date: '2024-03-07', user_email: '', report_summary: '', visualization_data: '' };
         const mockReport = { ...reportMeta, report_summary: 'Test Content' };
-        api.fetchReportDetail.mockResolvedValue(mockReport);
+        (api.fetchReportDetail as ReturnType<typeof vi.fn>).mockResolvedValue(mockReport);
 
         await insights.loadExistingReport(reportMeta);
 
@@ -109,8 +109,8 @@ describe('insights.ts - Controller (Passive View Refactor)', () => {
     });
 
     it('should inject correct i18n message when loading report', async () => {
-        const reportMeta = { id: 1, start_date: '2024-03-01', end_date: '2024-03-07' };
-        api.fetchReportDetail.mockResolvedValue({ id: 1 });
+        const reportMeta = { id: 1, start_date: '2024-03-01', end_date: '2024-03-07', user_email: '', report_summary: '', visualization_data: '' };
+        (api.fetchReportDetail as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 1 });
 
         await insights.loadExistingReport(reportMeta);
 
@@ -123,12 +123,12 @@ describe('insights.ts - Controller (Passive View Refactor)', () => {
 
     it('should handle JIT translation with injected i18n on language change', async () => {
         // Manually trigger init to bind events
-        insights.init(); 
-        
-        const mockReport = { id: 1, report_summary: 'English Original', translations: {} };
+        insights.init();
+
+        const mockReport = { id: 1, user_email: '', start_date: '', end_date: '', report_summary: 'English Original', visualization_data: '', translations: {} };
         insights.lastReport = mockReport;
-        
-        api.translateReport.mockResolvedValue({ report_summary: '번역된 요약' });
+
+        (api.translateReport as ReturnType<typeof vi.fn>).mockResolvedValue({ report_summary: '번역된 요약' });
 
         const { events, EVENTS } = await import('./events');
         events.emit(EVENTS.LANGUAGE_CHANGED, 'ko');
@@ -141,7 +141,7 @@ describe('insights.ts - Controller (Passive View Refactor)', () => {
         );
 
         await vi.waitFor(() => expect(api.translateReport).toHaveBeenCalledWith(1, 'ko'));
-        
+
         expect(insightsRenderer.renderReport).toHaveBeenCalledWith(
             mockReport,
             'ko',
@@ -150,10 +150,10 @@ describe('insights.ts - Controller (Passive View Refactor)', () => {
     });
 
     it('should render all widgets with i18n injection in renderAll', () => {
-        const stats = { total_completed: 10, completion_history: [] };
+        const stats = { total_completed: 10, completion_history: [], pending_me: 0, pending_others: 0, peak_time: '', abandoned_tasks: 0, daily_completions: {}, source_distribution: {}, source_distribution_total: {}, hourly_activity: {} };
         const i18nKo = I18N_DATA.ko;
 
-        insights.renderAll(stats, { todayTotal: 100 });
+        insights.renderAll(stats, { todayTotal: 100, todayPrompt: 0, todayCompletion: 0, todayCost: 0, monthlyTotal: 0, monthlyPrompt: 0, monthlyCompletion: 0, monthlyCost: 0, model: '' });
 
         expect(insightsRenderer.renderTokenUsage).toHaveBeenCalledWith(expect.any(Object), i18nKo);
         expect(insightsRenderer.renderDailyGlance).toHaveBeenCalledWith(stats, i18nKo);

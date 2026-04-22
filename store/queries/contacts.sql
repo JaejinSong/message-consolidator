@@ -76,3 +76,21 @@ UPDATE contact_resolution SET contact_id = ?1 WHERE tenant_email = ?2 AND contac
 -- name: GetContactsByIDs :many
 SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type, secondary_ids
 FROM contacts WHERE id IN (sqlc.slice('ids'));
+
+-- name: GetContactTypeByID :one
+SELECT contact_type FROM contacts WHERE id = ?1 AND tenant_email = ?2;
+
+-- name: GetMasterAndTypeByID :one
+SELECT master_contact_id, contact_type FROM contacts WHERE id = ?1 AND tenant_email = ?2;
+
+-- name: FlattenContactChildren :exec
+UPDATE contacts SET master_contact_id = ?1 WHERE master_contact_id = ?2 AND tenant_email = ?3;
+
+-- name: GetDisplayNameByID :one
+SELECT display_name FROM contacts WHERE id = ?;
+
+-- name: UpdateDisplayNameIfEmpty :exec
+UPDATE contacts SET display_name = ?1 WHERE id = ?2 AND tenant_email = ?3 AND (display_name IS NULL OR display_name = '');
+
+-- name: GetTenantEmailByContactID :one
+SELECT tenant_email FROM contacts WHERE id = ?;

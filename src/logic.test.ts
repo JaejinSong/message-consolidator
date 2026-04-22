@@ -6,11 +6,9 @@ import {
     processTimeSeriesData,
     // Filter Logic
     sortAndSearchMessages,
-    getArchiveThresholdDays,
     // Format Logic
     getDeadlineBadge,
     parseMarkdown,
-    getReportSummary
 } from './logic.ts';
 
 // ----------------------------------------------------------------------
@@ -57,19 +55,13 @@ describe('logic.js - Data Processing', () => {
 // 2. Filtering & Classification Logic
 // ----------------------------------------------------------------------
 describe('logic.js - Filtering & Classification', () => {
-    const mockMessages = [
-        { id: 1, requester: 'Alice', task: 'Hello', source: 'slack', timestamp: '2023-01-01T12:00:00Z', done: false, assignee: 'me' },
-        { id: 2, requester: 'Bob', task: 'World', source: 'whatsapp', timestamp: '2023-01-01T10:00:00Z', done: false, assignee: 'other' },
-        { id: 3, requester: 'Charlie', task: 'Wait', source: 'slack', timestamp: '2023-01-01T11:00:00Z', done: false, waiting_on: 'Dave' },
-    ];
-
     describe('sortAndSearchMessages', () => {
         it('should correctly filter tasks by search query', () => {
             const messages = [
                 { id: 1, task: 'Buy milk', requester: 'Alice', source: 'slack', done: false, timestamp: new Date().toISOString() },
                 { id: 2, task: 'Clean room', requester: 'Bob', source: 'slack', done: false, timestamp: new Date().toISOString() }
             ];
-            
+
             expect(sortAndSearchMessages(messages, 'mIlK').length).toBe(1);
             expect(sortAndSearchMessages(messages, 'BOB').length).toBe(1);
         });
@@ -95,7 +87,7 @@ describe('logic.js - Formatting', () => {
 
         it('should return empty string if task is done or date is missing', () => {
             expect(getDeadlineBadge(new Date().toISOString(), true)).toBe('');
-            expect(getDeadlineBadge(null, false)).toBe('');
+            expect(getDeadlineBadge(undefined, false)).toBe('');
         });
 
         it('should return stale badge after 24 hours of inactivity', () => {
@@ -147,10 +139,10 @@ describe('logic.js - Formatting', () => {
             expect(html).toContain('<li');
             expect(html).toContain('item');
         });
-        
+
         it('should gracefully handle empty or null input', () => {
             expect(parseMarkdown('')).toBe('');
-            expect(parseMarkdown(null)).toBe('');
+            expect(parseMarkdown(null as unknown as string)).toBe('');
         });
     });
 });

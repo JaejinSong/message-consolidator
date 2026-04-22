@@ -2,11 +2,11 @@ import { vi } from 'vitest';
 
 // 1. Mock Markdown Parser (Marked)
 const markedMock = {
-    parse: vi.fn((text) => `<p>${text}</p>`),
+    parse: vi.fn((text: string) => `<p>${text}</p>`),
     use: vi.fn().mockReturnThis(),
     setOptions: vi.fn().mockReturnThis(),
     default: {
-        parse: vi.fn((text) => `<p>${text}</p>`),
+        parse: vi.fn((text: string) => `<p>${text}</p>`),
         use: vi.fn().mockReturnThis(),
         setOptions: vi.fn().mockReturnThis()
     }
@@ -23,7 +23,7 @@ vi.mock('marked', () => ({
 
 // 3. Mock DOM getComputedStyle for CSS variable resolution testing
 vi.stubGlobal('getComputedStyle', vi.fn(() => ({
-    getPropertyValue: vi.fn((prop) => {
+    getPropertyValue: vi.fn((prop: string) => {
         if (prop === '--accent-color') return '#00f2ff';
         if (prop === '--color-primary') return '#3b82f6';
         if (prop === '--text-dim') return '#9ca3af';

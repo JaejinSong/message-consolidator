@@ -18,7 +18,7 @@ describe('Mobile Layout Regression Tests', () => {
         // Check for padding: 1.25rem 0.75rem in the mobile media query
         const hasOptimizedPadding = /padding:\s*1\.25rem\s*0\.75rem;/.test(content);
         const hasOptimizedRadius = /border-radius:\s*var\(--radius-lg\);/.test(content);
-        
+
         expect(hasOptimizedPadding).toBe(true);
         expect(hasOptimizedRadius).toBe(true);
     });
@@ -27,9 +27,9 @@ describe('Mobile Layout Regression Tests', () => {
         const content = fs.readFileSync(layoutCssPath, 'utf8');
         // @media 선언부와 주석을 제외하여 오인을 방지합니다.
         const lines = content.split('\n');
-        const propertyLines = lines.filter(line => !line.trim().startsWith('@media'));
+        const propertyLines = lines.filter((line: string) => !line.trim().startsWith('@media'));
         const cleanContent = propertyLines.join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
-        
+
         const hasHardcodedPx = /(?<!var\(--)[0-9]+px/.test(cleanContent);
         expect(hasHardcodedPx).toBe(false);
     });

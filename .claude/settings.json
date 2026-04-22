@@ -5,7 +5,15 @@
       "Bash(git -C /home/jinro/.gemini/message-consolidator show edb958a -- services/task_builder.go)",
       "Bash(git -C /home/jinro/.gemini/message-consolidator diff -- store/alias_store.go store/contacts_store.go services/tasks.go)",
       "Bash(git -C /home/jinro/.gemini/message-consolidator diff -- ai/few_shots.go ai/gemini.go ai/executor.go)",
-      "Bash(git -C /home/jinro/.gemini/message-consolidator log --oneline -8 -- ai/few_shots.go ai/gemini.go ai/executor.go ai/parser.go)"
+      "Bash(git -C /home/jinro/.gemini/message-consolidator log --oneline -8 -- ai/few_shots.go ai/gemini.go ai/executor.go ai/parser.go)",
+      "Bash(git -C /home/jinro/.gemini/message-consolidator diff store/contacts_store.go)",
+      "Bash(sqlc generate *)",
+      "Bash(git -C /home/jinro/.gemini/message-consolidator stash)",
+      "Bash(git -C /home/jinro/.gemini/message-consolidator stash pop)",
+      "Bash(git -C /home/jinro/.gemini/message-consolidator diff db/messages.sql.go)",
+      "Bash(git -C /home/jinro/.gemini/message-consolidator checkout db/messages.sql.go db/querier.go)",
+      "Bash(git -C /home/jinro/.gemini/message-consolidator diff db/contacts.sql.go)",
+      "Bash(git -C /home/jinro/.gemini/message-consolidator diff store/queries/contacts.sql)"
     ]
   }
 }

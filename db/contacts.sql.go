@@ -42,6 +42,21 @@ func (q *Queries) DeleteContactMapping(ctx context.Context, arg DeleteContactMap
 	return err
 }
 
+const flattenContactChildren = `-- name: FlattenContactChildren :exec
+UPDATE contacts SET master_contact_id = ?1 WHERE master_contact_id = ?2 AND tenant_email = ?3
+`
+
+type FlattenContactChildrenParams struct {
+	MasterContactID   sql.NullInt64 `json:"master_contact_id"`
+	MasterContactID_2 sql.NullInt64 `json:"master_contact_id_2"`
+	TenantEmail       string        `json:"tenant_email"`
+}
+
+func (q *Queries) FlattenContactChildren(ctx context.Context, arg FlattenContactChildrenParams) error {
+	_, err := q.db.ExecContext(ctx, flattenContactChildren, arg.MasterContactID, arg.MasterContactID_2, arg.TenantEmail)
+	return err
+}
+
 const getContactByID = `-- name: GetContactByID :one
 SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type, secondary_ids FROM contacts WHERE tenant_email = ? AND id = ?
 `
@@ -76,6 +91,22 @@ func (q *Queries) GetContactByID(ctx context.Context, arg GetContactByIDParams) 
 		&i.SecondaryIds,
 	)
 	return i, err
+}
+
+const getContactTypeByID = `-- name: GetContactTypeByID :one
+SELECT contact_type FROM contacts WHERE id = ?1 AND tenant_email = ?2
+`
+
+type GetContactTypeByIDParams struct {
+	ID          int64  `json:"id"`
+	TenantEmail string `json:"tenant_email"`
+}
+
+func (q *Queries) GetContactTypeByID(ctx context.Context, arg GetContactTypeByIDParams) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getContactTypeByID, arg.ID, arg.TenantEmail)
+	var contact_type sql.NullString
+	err := row.Scan(&contact_type)
+	return contact_type, err
 }
 
 const getContactsByIDs = `-- name: GetContactsByIDs :many
@@ -257,6 +288,17 @@ func (q *Queries) GetContactsWithMaster(ctx context.Context) ([]GetContactsWithM
 	return items, nil
 }
 
+const getDisplayNameByID = `-- name: GetDisplayNameByID :one
+SELECT display_name FROM contacts WHERE id = ?
+`
+
+func (q *Queries) GetDisplayNameByID(ctx context.Context, id int64) (string, error) {
+	row := q.db.QueryRowContext(ctx, getDisplayNameByID, id)
+	var display_name string
+	err := row.Scan(&display_name)
+	return display_name, err
+}
+
 const getLinkedContacts = `-- name: GetLinkedContacts :many
 SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type
 FROM contacts
@@ -302,6 +344,27 @@ func (q *Queries) GetLinkedContacts(ctx context.Context, tenantEmail string) ([]
 		return nil, err
 	}
 	return items, nil
+}
+
+const getMasterAndTypeByID = `-- name: GetMasterAndTypeByID :one
+SELECT master_contact_id, contact_type FROM contacts WHERE id = ?1 AND tenant_email = ?2
+`
+
+type GetMasterAndTypeByIDParams struct {
+	ID          int64  `json:"id"`
+	TenantEmail string `json:"tenant_email"`
+}
+
+type GetMasterAndTypeByIDRow struct {
+	MasterContactID sql.NullInt64  `json:"master_contact_id"`
+	ContactType     sql.NullString `json:"contact_type"`
+}
+
+func (q *Queries) GetMasterAndTypeByID(ctx context.Context, arg GetMasterAndTypeByIDParams) (GetMasterAndTypeByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getMasterAndTypeByID, arg.ID, arg.TenantEmail)
+	var i GetMasterAndTypeByIDRow
+	err := row.Scan(&i.MasterContactID, &i.ContactType)
+	return i, err
 }
 
 const getResolutionsByIdentifiers = `-- name: GetResolutionsByIdentifiers :many
@@ -351,6 +414,17 @@ func (q *Queries) GetResolutionsByIdentifiers(ctx context.Context, arg GetResolu
 		return nil, err
 	}
 	return items, nil
+}
+
+const getTenantEmailByContactID = `-- name: GetTenantEmailByContactID :one
+SELECT tenant_email FROM contacts WHERE id = ?
+`
+
+func (q *Queries) GetTenantEmailByContactID(ctx context.Context, id int64) (string, error) {
+	row := q.db.QueryRowContext(ctx, getTenantEmailByContactID, id)
+	var tenant_email string
+	err := row.Scan(&tenant_email)
+	return tenant_email, err
 }
 
 const insertMergeHistory = `-- name: InsertMergeHistory :exec
@@ -494,6 +568,21 @@ func (q *Queries) UpdateContactDetails(ctx context.Context, arg UpdateContactDet
 		arg.MasterContactID,
 		arg.ContactType,
 	)
+	return err
+}
+
+const updateDisplayNameIfEmpty = `-- name: UpdateDisplayNameIfEmpty :exec
+UPDATE contacts SET display_name = ?1 WHERE id = ?2 AND tenant_email = ?3 AND (display_name IS NULL OR display_name = '')
+`
+
+type UpdateDisplayNameIfEmptyParams struct {
+	DisplayName string `json:"display_name"`
+	ID          int64  `json:"id"`
+	TenantEmail string `json:"tenant_email"`
+}
+
+func (q *Queries) UpdateDisplayNameIfEmpty(ctx context.Context, arg UpdateDisplayNameIfEmptyParams) error {
+	_, err := q.db.ExecContext(ctx, updateDisplayNameIfEmpty, arg.DisplayName, arg.ID, arg.TenantEmail)
 	return err
 }
 

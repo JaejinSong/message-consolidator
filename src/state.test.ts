@@ -25,7 +25,7 @@ describe('state', () => {
         const initialProfile = { ...state.userProfile };
         const newStats = { points: 100, streak: 5 };
         updateStats(newStats);
-        
+
         expect(state.userProfile.points).toBe(100);
         expect(state.userProfile.streak).toBe(5);
         expect(state.userProfile.email).toBe(initialProfile.email);

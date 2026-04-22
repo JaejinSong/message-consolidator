@@ -132,48 +132,45 @@ func SaveWhatsAppContact(ctx context.Context, email, number, name string) error 
 	if number == "" || name == "" || name == number {
 		return nil
 	}
-
 	queries := db.New(GetDB())
 	norm := NormalizeIdentifier(number)
-
-	rows, _ := queries.GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{
-		TenantEmail: email,
-		Identifiers: []string{norm},
-	})
-
+	rows, _ := queries.GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{TenantEmail: email, Identifiers: []string{norm}})
 	if len(rows) > 0 {
-		cid := rows[0].ContactID
-		byID := fetchContactsByIDs(ctx, []int64{cid})
-		if contact, ok := byID[cid]; ok {
-			if contact.CanonicalID != number {
-				// Number is already a secondary ID on another contact
-				return nil
-			}
-			// It's the canonical WA contact — update display name if a better name is available
-			if contact.DisplayName == number || contact.DisplayName == "" || strings.Contains(name, " ") {
-				_, err := UpsertContact(ctx, email, number, name, "", ContactTypeWhatsApp)
-				return err
-			}
-			return nil
-		}
+		return handleExistingWAContact(ctx, email, rows[0].ContactID, number, name)
 	}
-
-	// Check if an email contact with matching display name exists
 	nameNorm := NormalizeIdentifier(name)
-	nameRows, _ := queries.GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{
-		TenantEmail: email,
-		Identifiers: []string{nameNorm},
-	})
+	nameRows, _ := queries.GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{TenantEmail: email, Identifiers: []string{nameNorm}})
 	if len(nameRows) > 0 {
-		cid := nameRows[0].ContactID
-		byID := fetchContactsByIDs(ctx, []int64{cid})
-		if emailContact, ok := byID[cid]; ok && emailContact.CanonicalID != number {
-			return appendSecondaryID(ctx, email, emailContact.ID, number)
-		}
+		return handleWANameMatch(ctx, email, nameRows[0].ContactID, number)
 	}
-
 	_, err := UpsertContact(ctx, email, number, name, "", ContactTypeWhatsApp)
 	return err
+}
+
+func handleExistingWAContact(ctx context.Context, email string, cid int64, number, name string) error {
+	byID := fetchContactsByIDs(ctx, []int64{cid})
+	contact, ok := byID[cid]
+	if !ok {
+		_, err := UpsertContact(ctx, email, number, name, "", ContactTypeWhatsApp)
+		return err
+	}
+	if contact.CanonicalID != number {
+		return nil
+	}
+	if contact.DisplayName == number || contact.DisplayName == "" || strings.Contains(name, " ") {
+		_, err := UpsertContact(ctx, email, number, name, "", ContactTypeWhatsApp)
+		return err
+	}
+	return nil
+}
+
+func handleWANameMatch(ctx context.Context, email string, cid int64, number string) error {
+	byID := fetchContactsByIDs(ctx, []int64{cid})
+	emailContact, ok := byID[cid]
+	if !ok || emailContact.CanonicalID == number {
+		return nil
+	}
+	return appendSecondaryID(ctx, email, emailContact.ID, number)
 }
 
 func appendSecondaryID(ctx context.Context, tenantEmail string, contactID int64, value string) error {
@@ -232,36 +229,18 @@ func GetContactsByIdentifiers(ctx context.Context, tenantEmail string, identifie
 	if len(identifiers) == 0 {
 		return make(map[string]*ContactRecord), make(map[string]bool), nil
 	}
-
 	res := make(map[string]*ContactRecord)
 	ambiguous := make(map[string]bool)
 
-	normToOriginals := make(map[string][]string)
-	var normList []string
-
-	for _, id := range identifiers {
-		if id == tenantEmail {
-			res[id] = &ContactRecord{ID: 0, TenantEmail: tenantEmail, CanonicalID: tenantEmail, DisplayName: "Me", ContactType: CategoryInternal}
-			continue
-		}
-		norm := NormalizeIdentifier(id)
-		if norm == "" {
-			continue
-		}
-		if _, seen := normToOriginals[norm]; !seen {
-			normList = append(normList, norm)
-		}
-		normToOriginals[norm] = append(normToOriginals[norm], id)
+	normToOriginals, normList, preResolved := normalizeIdentifierList(tenantEmail, identifiers)
+	for k, v := range preResolved {
+		res[k] = v
 	}
-
 	if len(normList) == 0 {
 		return res, ambiguous, nil
 	}
 
-	rows, err := db.New(GetDB()).GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{
-		TenantEmail: tenantEmail,
-		Identifiers: normList,
-	})
+	rows, err := db.New(GetDB()).GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{TenantEmail: tenantEmail, Identifiers: normList})
 	if err != nil {
 		return res, ambiguous, err
 	}
@@ -272,39 +251,14 @@ func GetContactsByIdentifiers(ctx context.Context, tenantEmail string, identifie
 		normToContactID[row.RawIdentifier] = row.ContactID
 		contactIDSet[row.ContactID] = true
 	}
-
 	idList := make([]int64, 0, len(contactIDSet))
 	for id := range contactIDSet {
 		idList = append(idList, id)
 	}
 	contactByID := fetchContactsByIDs(ctx, idList)
+	followMasterContacts(ctx, contactByID)
 
-	// Follow master_contact_id: replace slave contacts with their master so all
-	// aliases of the same person share one canonical_id in the graph.
-	masterIDs := make(map[int64]bool)
-	for _, c := range contactByID {
-		if c.MasterContactID.Valid {
-			masterIDs[c.MasterContactID.Int64] = true
-		}
-	}
-	if len(masterIDs) > 0 {
-		masterList := make([]int64, 0, len(masterIDs))
-		for mid := range masterIDs {
-			masterList = append(masterList, mid)
-		}
-		masterByID := fetchContactsByIDs(ctx, masterList)
-		for id, c := range contactByID {
-			if c.MasterContactID.Valid {
-				if master, ok := masterByID[c.MasterContactID.Int64]; ok {
-					contactByID[id] = master
-				}
-			}
-		}
-	}
-
-	// Detect genuine ambiguity: multiple unmerged contacts share the same normalized display_name.
 	ambiguousNorms := detectDisplayNameAmbiguity(ctx, tenantEmail, normList)
-
 	for norm, originals := range normToOriginals {
 		if ambiguousNorms[norm] {
 			for _, orig := range originals {
@@ -316,13 +270,61 @@ func GetContactsByIdentifiers(ctx context.Context, tenantEmail string, identifie
 		if !ok {
 			continue
 		}
-		contact := contactByID[cid]
 		for _, orig := range originals {
-			res[orig] = contact
+			res[orig] = contactByID[cid]
 		}
 	}
-
 	return res, ambiguous, nil
+}
+
+func normalizeIdentifierList(tenantEmail string, identifiers []string) (normToOriginals map[string][]string, normList []string, preResolved map[string]*ContactRecord) {
+	normToOriginals = make(map[string][]string)
+	preResolved = make(map[string]*ContactRecord)
+	for _, id := range identifiers {
+		if id == tenantEmail {
+			preResolved[id] = &ContactRecord{ID: 0, TenantEmail: tenantEmail, CanonicalID: tenantEmail, DisplayName: "Me", ContactType: CategoryInternal}
+			continue
+		}
+		norm := NormalizeIdentifier(id)
+		if norm == "" {
+			continue
+		}
+		if _, seen := normToOriginals[norm]; !seen {
+			normList = append(normList, norm)
+		}
+		normToOriginals[norm] = append(normToOriginals[norm], id)
+	}
+	return
+}
+
+func followMasterContacts(ctx context.Context, contactByID map[int64]*ContactRecord) {
+	masterIDs := make(map[int64]bool)
+	for _, c := range contactByID {
+		if c.MasterContactID.Valid {
+			masterIDs[c.MasterContactID.Int64] = true
+		}
+	}
+	if len(masterIDs) == 0 {
+		return
+	}
+	masterList := make([]int64, 0, len(masterIDs))
+	for mid := range masterIDs {
+		masterList = append(masterList, mid)
+	}
+	masterByID := fetchContactsByIDs(ctx, masterList)
+	for id, c := range contactByID {
+		if !c.MasterContactID.Valid {
+			continue
+		}
+		master, ok := masterByID[c.MasterContactID.Int64]
+		if !ok {
+			continue
+		}
+		if master.DisplayName == "" {
+			master.DisplayName = c.DisplayName
+		}
+		contactByID[id] = master
+	}
 }
 
 // detectDisplayNameAmbiguity returns normalized display names that are shared by multiple unmerged contacts.
@@ -561,79 +563,85 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 	if masterID == targetID {
 		return fmt.Errorf("cannot link a contact to itself")
 	}
-
-	conn := GetDB()
-	tx, err := conn.BeginTx(ctx, nil)
+	tx, err := GetDB().BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	// If master is already a child, use its parent to keep a flat tree.
-	var masterType string
-	var masterParentID *int64
-	err = tx.QueryRowContext(ctx, "SELECT master_contact_id, contact_type FROM contacts WHERE id = ? AND tenant_email = ?", int64(masterID), tenantEmail).Scan(&masterParentID, &masterType)
+	masterID, masterType, err := resolveEffectiveMaster(ctx, tx, tenantEmail, masterID, targetID)
 	if err != nil {
 		return err
 	}
-	if masterParentID != nil {
-		masterID = *masterParentID
-		if masterID == targetID {
-			return fmt.Errorf("circular reference detected: target is already the master of this account")
-		}
-		_ = tx.QueryRowContext(ctx, "SELECT contact_type FROM contacts WHERE id = ? AND tenant_email = ?", int64(masterID), tenantEmail).Scan(&masterType)
-	}
-
-	var targetType string
-	err = tx.QueryRowContext(ctx, "SELECT contact_type FROM contacts WHERE id = ? AND tenant_email = ?", int64(targetID), tenantEmail).Scan(&targetType)
-	if err != nil {
-		return err
-	}
-
 	q := db.New(tx)
-	if err := q.UpdateContactDetails(ctx, db.UpdateContactDetailsParams{
-		MasterContactID: nullInt64(int64(masterID)),
-		TenantEmail:     tenantEmail,
-		ID:              int64(targetID),
-	}); err != nil {
+	targetRow, err := q.GetContactTypeByID(ctx, db.GetContactTypeByIDParams{ID: targetID, TenantEmail: tenantEmail})
+	if err != nil {
 		return err
 	}
-
-	finalType := PromoteContactType(masterType, targetType)
-	if finalType != masterType {
-		if err := q.UpdateContactDetails(ctx, db.UpdateContactDetailsParams{
-			ContactType: nullString(finalType),
-			TenantEmail: tenantEmail,
-			ID:          int64(masterID),
-		}); err != nil {
-			return err
-		}
-		trace.Step(ctx, "ContactTypePromotion", fmt.Sprintf("ID:%d promoted to %s via merge", masterID, finalType), 0, int(masterID))
-	}
-
-	_ = q.InsertMergeHistory(ctx, db.InsertMergeHistoryParams{
-		SourceContactID: int64(targetID),
-		TargetContactID: int64(masterID),
-		Reason:          "Manual Link",
-	})
-	GlobalContactDSU.Union(int64(masterID), int64(targetID))
-
-	// Flatten children: move all children of targetID to masterID.
-	if _, err := tx.ExecContext(ctx, "UPDATE contacts SET master_contact_id = ? WHERE master_contact_id = ? AND tenant_email = ?", masterID, targetID, tenantEmail); err != nil {
+	targetType := targetRow.String
+	if err := applyLinkUpdates(ctx, tx, tenantEmail, masterID, targetID, masterType, targetType); err != nil {
 		return err
 	}
-
+	if err := q.FlattenContactChildren(ctx, db.FlattenContactChildrenParams{MasterContactID: sql.NullInt64{Int64: masterID, Valid: true}, MasterContactID_2: sql.NullInt64{Int64: targetID, Valid: true}, TenantEmail: tenantEmail}); err != nil {
+		return err
+	}
+	if slaveName, err := q.GetDisplayNameByID(ctx, targetID); err == nil && slaveName != "" {
+		_ = q.UpdateDisplayNameIfEmpty(ctx, db.UpdateDisplayNameIfEmptyParams{DisplayName: slaveName, ID: masterID, TenantEmail: tenantEmail})
+	}
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-
-	// Redirect all resolution entries from targetID to masterID.
 	_ = db.New(GetDB()).UpdateResolutionContactID(ctx, db.UpdateResolutionContactIDParams{
 		ContactID:   masterID,
 		TenantEmail: tenantEmail,
 		ContactID_2: targetID,
 	})
+	return nil
+}
 
+func resolveEffectiveMaster(ctx context.Context, tx *sql.Tx, tenantEmail string, masterID, targetID int64) (int64, string, error) {
+	q := db.New(tx)
+	row, err := q.GetMasterAndTypeByID(ctx, db.GetMasterAndTypeByIDParams{ID: masterID, TenantEmail: tenantEmail})
+	if err != nil {
+		return 0, "", err
+	}
+	if !row.MasterContactID.Valid {
+		return masterID, row.ContactType.String, nil
+	}
+	masterID = row.MasterContactID.Int64
+	if masterID == targetID {
+		return 0, "", fmt.Errorf("circular reference detected: target is already the master of this account")
+	}
+	parentRow, _ := q.GetMasterAndTypeByID(ctx, db.GetMasterAndTypeByIDParams{ID: masterID, TenantEmail: tenantEmail})
+	return masterID, parentRow.ContactType.String, nil
+}
+
+func applyLinkUpdates(ctx context.Context, tx *sql.Tx, tenantEmail string, masterID, targetID int64, masterType, targetType string) error {
+	q := db.New(tx)
+	if err := q.UpdateContactDetails(ctx, db.UpdateContactDetailsParams{
+		MasterContactID: nullInt64(masterID),
+		TenantEmail:     tenantEmail,
+		ID:              targetID,
+	}); err != nil {
+		return err
+	}
+	finalType := PromoteContactType(masterType, targetType)
+	if finalType != masterType {
+		if err := q.UpdateContactDetails(ctx, db.UpdateContactDetailsParams{
+			ContactType: nullString(finalType),
+			TenantEmail: tenantEmail,
+			ID:          masterID,
+		}); err != nil {
+			return err
+		}
+		trace.Step(ctx, "ContactTypePromotion", fmt.Sprintf("ID:%d promoted to %s via merge", masterID, finalType), 0, int(masterID))
+	}
+	_ = q.InsertMergeHistory(ctx, db.InsertMergeHistoryParams{
+		SourceContactID: targetID,
+		TargetContactID: masterID,
+		Reason:          "Manual Link",
+	})
+	GlobalContactDSU.Union(masterID, targetID)
 	return nil
 }
 
@@ -672,26 +680,10 @@ func GetLinkedContacts(ctx context.Context, tenantEmail string) ([]ContactRecord
 
 func ResolveAliases(ctx context.Context, idType, value string) ([]int64, error) {
 	trimmed := strings.ToLower(strings.TrimSpace(value))
-
 	start := time.Now()
-	conn := GetDB()
 
-	var query string
-	var args []interface{}
-	switch idType {
-	case ContactTypeWhatsApp:
-		query = "SELECT id FROM contacts WHERE LOWER(canonical_id) = ?" +
-			" UNION SELECT contacts.id FROM contacts, json_each(secondary_ids) j WHERE LOWER(j.value) = ?"
-		args = []interface{}{trimmed, trimmed}
-	case ContactTypeEmail:
-		query = "SELECT id FROM contacts WHERE LOWER(canonical_id) = ?"
-		args = []interface{}{trimmed}
-	default:
-		query = "SELECT id FROM contacts WHERE LOWER(canonical_id) = ? OR LOWER(display_name) = ?"
-		args = []interface{}{trimmed, trimmed}
-	}
-
-	rows, err := conn.QueryContext(ctx, query, args...)
+	query, args := buildAliasQuery(idType, trimmed)
+	rows, err := GetDB().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -704,25 +696,40 @@ func ResolveAliases(ctx context.Context, idType, value string) ([]int64, error) 
 			rawIDs = append(rawIDs, rid)
 		}
 	}
-
 	if len(rawIDs) == 0 {
 		return nil, sql.ErrNoRows
 	}
 
+	canonicalIDs := deduplicateByDSU(rawIDs)
+	elapsed := time.Since(start).Milliseconds()
+	trace.Step(ctx, "IdentityResolution", fmt.Sprintf("Type: %s, Latency: %dms, Results: %d", idType, elapsed, len(canonicalIDs)), int(elapsed), 0)
+	return canonicalIDs, nil
+}
+
+func buildAliasQuery(idType, trimmed string) (string, []interface{}) {
+	switch idType {
+	case ContactTypeWhatsApp:
+		return "SELECT id FROM contacts WHERE LOWER(canonical_id) = ?" +
+			" UNION SELECT contacts.id FROM contacts, json_each(secondary_ids) j WHERE LOWER(j.value) = ?",
+			[]interface{}{trimmed, trimmed}
+	case ContactTypeEmail:
+		return "SELECT id FROM contacts WHERE LOWER(canonical_id) = ?", []interface{}{trimmed}
+	default:
+		return "SELECT id FROM contacts WHERE LOWER(canonical_id) = ? OR LOWER(display_name) = ?", []interface{}{trimmed, trimmed}
+	}
+}
+
+func deduplicateByDSU(rawIDs []int64) []int64 {
 	seen := make(map[int64]bool)
-	var canonicalIDs []int64
+	result := make([]int64, 0, len(rawIDs))
 	for _, rid := range rawIDs {
 		cid := GlobalContactDSU.Find(rid)
 		if !seen[cid] {
-			canonicalIDs = append(canonicalIDs, cid)
+			result = append(result, cid)
 			seen[cid] = true
 		}
 	}
-
-	elapsed := time.Since(start).Milliseconds()
-	trace.Step(ctx, "IdentityResolution", fmt.Sprintf("Type: %s, Latency: %dms, Results: %d", idType, elapsed, len(canonicalIDs)), int(elapsed), 0)
-
-	return canonicalIDs, nil
+	return result
 }
 
 // ResolveAlias is a convenience wrapper for ResolveAliases when only one result is expected.
@@ -775,7 +782,5 @@ func UpdateContactType(ctx context.Context, contactID int64, cType string) error
 }
 
 func fetchTenantEmailByID(ctx context.Context, id int64) (string, error) {
-	var email string
-	err := GetDB().QueryRowContext(ctx, "SELECT tenant_email FROM contacts WHERE id = ?", id).Scan(&email)
-	return email, err
+	return db.New(GetDB()).GetTenantEmailByContactID(ctx, id)
 }
