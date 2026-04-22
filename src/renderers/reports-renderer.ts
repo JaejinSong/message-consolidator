@@ -84,13 +84,18 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
 
     const centerX = width / 2;
     const centerY = height / 2;
-    const radius = Math.min(width, height) / 2 - 90;
-    const coords = new Map<string, { x: number; y: number; angle: number }>();
-    const angleStep = (2 * Math.PI) / (nodes.length || 1);
+    const nodeCount = nodes.length;
+    // Larger radius gives more arc space between adjacent nodes for labels
+    const radius = Math.min(width, height) / 2 - (nodeCount > 18 ? 65 : 55);
+    const coords = new Map<string, { x: number; y: number; angle: number; stagger: number }>();
+    const angleStep = (2 * Math.PI) / (nodeCount || 1);
+    // Two stagger levels when dense: even-indexed labels push out 16px further
+    const useStagger = nodeCount > 12;
 
     nodes.forEach((node, i) => {
         const angle = i * angleStep - Math.PI / 2;
-        coords.set(node.id, { x: centerX + radius * Math.cos(angle), y: centerY + radius * Math.sin(angle), angle });
+        const stagger = useStagger ? (i % 2) * 16 : 0;
+        coords.set(node.id, { x: centerX + radius * Math.cos(angle), y: centerY + radius * Math.sin(angle), angle, stagger });
         if (node.value === undefined) {
             node.value = links.reduce((sum, l) => sum + (l.source === node.id || l.target === node.id ? (l.weight || 1) : 0), 0);
         }
@@ -145,18 +150,18 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
         });
         g.appendChild(circle);
 
-        // Label radiates outward from center
-        const labelDist = r + 8;
+        // Label radiates outward, staggered to reduce overlap in dense layouts
+        const labelDist = r + 10 + p.stagger;
         const lx = p.x + Math.cos(p.angle) * labelDist;
         const ly = p.y + Math.sin(p.angle) * labelDist;
         const anchor = Math.cos(p.angle) > 0.15 ? 'start' : Math.cos(p.angle) < -0.15 ? 'end' : 'middle';
         const raw = n.name || n.id;
-        const label = raw.length > 18 ? raw.slice(0, 17) + '…' : raw;
+        const label = raw.length > 20 ? raw.slice(0, 19) + '…' : raw;
 
         const text = createSVGElement('text', {
             x: lx, y: ly, 'text-anchor': anchor, 'dominant-baseline': 'middle',
             fill: 'var(--text-main)',
-            style: `font-size:0.65rem;font-weight:${n.is_me ? '700' : '400'};paint-order:stroke;stroke:var(--bg-color);stroke-width:0.2rem;stroke-linejoin:round;`
+            style: `font-size:0.75rem;font-weight:${n.is_me ? '700' : '400'};paint-order:stroke;stroke:var(--bg-color);stroke-width:0.25rem;stroke-linejoin:round;`
         });
         text.textContent = label;
         g.appendChild(text);
