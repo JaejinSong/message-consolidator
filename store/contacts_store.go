@@ -352,27 +352,28 @@ func GetContactsByIdentifiers(ctx context.Context, tenantEmail string, identifie
 
 func findAllInMappings(mappings []ContactRecord, normalized string) []*ContactRecord {
 	var res []*ContactRecord
-	seen := make(map[string]bool)
+	seen := make(map[int64]bool)
 	for i := range mappings {
 		m := &mappings[i]
 		if matchContact(m, normalized) {
 			if m.ID == -1 {
 				return nil
 			}
-			dedupeKey := m.CanonicalID
-			if m.MasterContactID.Valid {
-				dedupeKey = fmt.Sprintf("master:%d", m.MasterContactID.Int64)
+			// Use DSU root for deduplication — consistent with processResolutionChunk.
+			// MasterContactID in cache entries may be zero-valued if added via UpdateContactsCache,
+			// but GlobalContactDSU is always authoritative for merge relations.
+			dsuRoot := GlobalContactDSU.Find(m.ID)
+			if seen[dsuRoot] {
+				continue
 			}
-			if !seen[dedupeKey] {
-				entry := m
-				if m.MasterContactID.Valid {
-					if master := findByID(mappings, m.MasterContactID.Int64); master != nil {
-						entry = master
-					}
+			seen[dsuRoot] = true
+			entry := m
+			if dsuRoot != m.ID {
+				if master := findByID(mappings, dsuRoot); master != nil {
+					entry = master
 				}
-				res = append(res, entry)
-				seen[dedupeKey] = true
 			}
+			res = append(res, entry)
 		}
 	}
 	return res

@@ -62,9 +62,9 @@ function getNodeName(nodes: any[], id: string) {
 }
 
 const NODE_COLORS = {
-    me:       '#f97316',
-    internal: '#22c55e',
-    external: '#38bdf8',
+    me:       'var(--color-warning)',
+    internal: 'var(--color-success)',
+    external: 'var(--color-primary)',
 };
 
 function getNodeColor(n: any): string {
@@ -103,11 +103,11 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
         const sw = Math.max(1, Math.min(6, Math.sqrt(l.weight || 1) * 1.5));
         const line = createSVGElement('line', {
             x1: s.x, y1: s.y, x2: t.x, y2: t.y,
-            'stroke-width': sw, stroke: '#94a3b8', opacity: '0.2'
+            'stroke-width': sw, stroke: 'var(--text-dim)', opacity: '0.2'
         });
         line.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(getNodeName(nodes, l.source))} ↔ ${escapeHTML(getNodeName(nodes, l.target))}</b><br/>Connections: ${l.weight || 1}`));
         line.addEventListener('mouseenter', () => { line.setAttribute('opacity', '0.9'); line.setAttribute('stroke', NODE_COLORS.me); });
-        line.addEventListener('mouseleave', () => { hideTooltip(); line.setAttribute('opacity', '0.2'); line.setAttribute('stroke', '#94a3b8'); });
+        line.addEventListener('mouseleave', () => { hideTooltip(); line.setAttribute('opacity', '0.2'); line.setAttribute('stroke', 'var(--text-dim)'); });
         svg.appendChild(line);
     });
 
@@ -120,7 +120,7 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
 
         const circle = createSVGElement('circle', {
             cx: p.x, cy: p.y, r, fill: color,
-            stroke: n.is_me ? '#fff' : 'none', 'stroke-width': n.is_me ? '2' : '0'
+            stroke: n.is_me ? 'var(--text-main)' : 'none', 'stroke-width': n.is_me ? '2' : '0'
         });
         g.appendChild(circle);
 
@@ -134,15 +134,15 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
 
         const text = createSVGElement('text', {
             x: lx, y: ly, 'text-anchor': anchor, 'dominant-baseline': 'middle',
-            fill: '#e2e8f0',
-            style: `font-size:0.65rem;font-weight:${n.is_me ? '700' : '400'};paint-order:stroke;stroke:#0f172a;stroke-width:3px;stroke-linejoin:round;`
+            fill: 'var(--text-main)',
+            style: `font-size:0.65rem;font-weight:${n.is_me ? '700' : '400'};paint-order:stroke;stroke:var(--bg-color);stroke-width:0.2rem;stroke-linejoin:round;`
         });
         text.textContent = label;
         g.appendChild(text);
 
         g.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(raw)}</b><br/>Activity: ${n.value}<br/>${escapeHTML(n.category || 'External')}`));
-        g.addEventListener('mouseenter', () => { circle.setAttribute('stroke', '#fff'); circle.setAttribute('stroke-width', '2'); });
-        g.addEventListener('mouseleave', () => { hideTooltip(); circle.setAttribute('stroke', n.is_me ? '#fff' : 'none'); circle.setAttribute('stroke-width', n.is_me ? '2' : '0'); });
+        g.addEventListener('mouseenter', () => { circle.setAttribute('stroke', 'var(--text-main)'); circle.setAttribute('stroke-width', '2'); });
+        g.addEventListener('mouseleave', () => { hideTooltip(); circle.setAttribute('stroke', n.is_me ? 'var(--text-main)' : 'none'); circle.setAttribute('stroke-width', n.is_me ? '2' : '0'); });
         svg.appendChild(g);
     });
 
@@ -150,7 +150,7 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
     ([['me', 'Me'], ['internal', 'Internal'], ['external', 'External']] as const).forEach(([key, label], i) => {
         const lx = 16, ly = 18 + i * 20;
         svg.appendChild(createSVGElement('circle', { cx: lx, cy: ly, r: 5, fill: NODE_COLORS[key] }));
-        const t = createSVGElement('text', { x: lx + 12, y: ly, 'dominant-baseline': 'middle', fill: '#94a3b8', style: 'font-size:0.68rem;' });
+        const t = createSVGElement('text', { x: lx + 12, y: ly, 'dominant-baseline': 'middle', fill: 'var(--text-dim)', style: 'font-size:0.68rem;' });
         t.textContent = label;
         svg.appendChild(t);
     });
