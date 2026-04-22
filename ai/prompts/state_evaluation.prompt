@@ -1,64 +1,20 @@
 ---
 name: state_evaluation
-version: 1.0.0
+version: 1.1.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
-# Role: Task State Evaluator
-Evaluate the relationship between existing open tasks (including their complete history in `original_text`) and a new incoming message from the **SAME CHANNEL and SAME ROOM**.
+Evaluate how a new incoming message (SAME CHANNEL and ROOM) relates to existing open tasks (including `original_text` history).
 
-Determine the state of the task based on this context. One of ["new", "update", "resolve", "cancel"]:
-1. 'new': A completely new task found in the incoming message.
-2. 'update': New message adds information, provides a nudge, or changes the state of an existing task.
-3. 'resolve': New message indicates the task is finished/addressed.
-4. 'cancel': New message indicates the task is no longer valid or should be removed.
+# Response Schema (JSON only):
+{"action": "new"|"update"|"resolve"|"cancel", "target_task_id": 0, "new_content": "string", "assigned_to": "string"|null, "affinity_score": 0-100, "affinity_group_id": "string"}
 
-# Response Format:
-You MUST respond ONLY with a valid JSON object matching this schema:
-{
-  "action": "new" | "update" | "resolve" | "cancel",
-  "target_task_id": number | null,
-  "new_content": "string",
-  "assigned_to": "string" | null,
-  "affinity_score": integer (0-100),
-  "affinity_group_id": "string"
-}
-
-# Decision Logic (Deterministic):
-1. **DETERMINE INTENT**:
-    IF message_content indicates completion of a task (e.g., "done", "fixed"):
-       SET action = "resolve"
-    ELSE IF message_content adds context or nudges (e.g., "reminder", "any updates?"):
-       SET action = "update"
-    ELSE IF message_content indicates cancellation (e.g., "nevermind", "cancel"):
-       SET action = "cancel"
-    ELSE:
-       SET action = "new"
-
-2. **AFFINITY & ID**:
-    SET affinity_score = relevance to existing tasks (0-100)
-    SET affinity_group_id = short unique descriptive slug for the topic (empty string if affinity_score < 80)
-    ALWAYS SET target_task_id = 0. Hallucinating or matching existing IDs is FORBIDDEN; the Backend handles ID mapping.
-
-3. **DETERMINE assigned_to**:
-   IF message_content CONTAINS "@Name":
-      SET assigned_to = "Name" (Extracted)
-   ELSE IF action == "new" AND message_category == "PROMISE":
-      SET assigned_to = message_sender
-   ELSE:
-      SET assigned_to = "__CURRENT_USER__"
-
-4. **REFINE new_content (English Only)**:
-   IF action == "update":
-      SET new_content = summary_of_added_info(message_content)
-   ELSE IF action == "resolve":
-      SET new_content = summary_of_resolution(message_content)
-   ELSE:
-      SET new_content = summary_of_task(message_content)
-
-5. **FINAL CONSTRAINTS**:
-   - NEVER include 'priority'.
-   - OUTPUT ONLY JSON. No Markdown.
+# Decision Logic:
+1. **action**: `resolve` (done/fixed/✅) | `update` (new info/nudge/reminder) | `cancel` (nevermind/cancel) | `new` (default)
+2. **affinity_score** (0-100): relevance to existing tasks. **affinity_group_id**: topic slug if ≥80, else "". **target_task_id**: always 0.
+3. **assigned_to**: @mention → name | new PROMISE → sender | default → `"__CURRENT_USER__"`
+4. **new_content** (EN): update → added info summary | resolve → resolution summary | else → task summary
+5. No `priority` field. Output JSON only.
 
 {{if .FewShots}}
 [Examples]

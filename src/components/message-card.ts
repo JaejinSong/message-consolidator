@@ -37,7 +37,7 @@ export function MessageCard(props: MessageCardProps): string {
         !!name && !!currentUserNames?.length &&
         currentUserNames.some(n => n.toLowerCase() === name.toLowerCase());
 
-    const selfTag = `<span class="c-message-card__self-tag" title="나">◉</span>`;
+    const selfTag = `<span class="c-message-card__self-tag" title="나">✦</span>`;
 
     // Unified translating state (support legacy and new fields)
     const translating = is_translating;
