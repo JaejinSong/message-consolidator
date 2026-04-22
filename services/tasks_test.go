@@ -245,6 +245,67 @@ func TestAssignCategory(t *testing.T) {
 	}
 }
 
+func TestApplyAssigneeRules_RequesterCanonical(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	s := &TasksService{}
+	ctx := context.Background()
+	email := "jj@example.com"
+	user, _ := store.GetOrCreateUser(ctx, email, "Jaejin Song", "")
+
+	tests := []struct {
+		name               string
+		requester          string
+		existingCanonical  string
+		wantCanonical      string
+	}{
+		{
+			name:          "exact email match",
+			requester:     email,
+			wantCanonical: email,
+		},
+		{
+			name:          "display name with parenthetical suffix",
+			requester:     "Jaejin Song (JJ)",
+			wantCanonical: email,
+		},
+		{
+			name:          "exact name match",
+			requester:     "Jaejin Song",
+			wantCanonical: email,
+		},
+		{
+			name:              "stale wrong canonical gets overwritten",
+			requester:         "Jaejin Song",
+			existingCanonical: "wrong@example.com",
+			wantCanonical:     email,
+		},
+		{
+			name:          "different person → canonical unchanged",
+			requester:     "Hady",
+			wantCanonical: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := &store.ConsolidatedMessage{
+				Requester:          tt.requester,
+				RequesterCanonical: tt.existingCanonical,
+				Assignee:           "other",
+			}
+			s.applyAssigneeRules(ctx, user, msg)
+			if msg.RequesterCanonical != tt.wantCanonical {
+				t.Errorf("RequesterCanonical = %q, want %q", msg.RequesterCanonical, tt.wantCanonical)
+			}
+		})
+	}
+}
+
 func TestNormalizeRequesterMatching(t *testing.T) {
 	tests := []struct {
 		name      string

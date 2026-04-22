@@ -199,13 +199,87 @@ func TestUnmarshalAnalyze(t *testing.T) {
 		tt := tt // Closure capture
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := unmarshalAnalyze(tt.cleanJSON, tt.cleanJSON)
+			got, err := unmarshalAnalyze(tt.cleanJSON, tt.cleanJSON, "", 0)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("unmarshalAnalyze() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if len(got) != tt.expected {
 				t.Errorf("unmarshalAnalyze() len = %v, want %v", len(got), tt.expected)
+			}
+		})
+	}
+}
+
+func TestMapFlexToTodo_IdentityNormalization(t *testing.T) {
+	t.Parallel()
+	const userID = 42
+	const userEmail = "jj@example.com"
+	ptr := func(i int) *int { return &i }
+
+	tests := []struct {
+		name                    string
+		item                    flexItem
+		wantAssignee            string
+		wantRequesterCanonical  string
+		wantSubtaskAssigneeName string
+	}{
+		{
+			name:         "assignee_id matches → me",
+			item:         flexItem{Task: "t", AssigneeID: ptr(userID), Assignee: "Jaejin Song (JJ)"},
+			wantAssignee: "me",
+		},
+		{
+			name:         "assignee_id mismatch → name unchanged",
+			item:         flexItem{Task: "t", AssigneeID: ptr(99), Assignee: "Hady"},
+			wantAssignee: "Hady",
+		},
+		{
+			name:         "assignee_id nil → name unchanged",
+			item:         flexItem{Task: "t", Assignee: "Hady"},
+			wantAssignee: "Hady",
+		},
+		{
+			name:                   "requester_id matches → RequesterCanonical set",
+			item:                   flexItem{Task: "t", RequesterID: ptr(userID), Requester: "Jaejin Song (JJ)"},
+			wantRequesterCanonical: userEmail,
+		},
+		{
+			name:                   "requester_id mismatch → RequesterCanonical empty",
+			item:                   flexItem{Task: "t", RequesterID: ptr(99), Requester: "Hady"},
+			wantRequesterCanonical: "",
+		},
+		{
+			name: "subtask assignee_id matches → me",
+			item: flexItem{Task: "t", Subtasks: []flexSubtask{
+				{Task: "sub", AssigneeID: ptr(userID), AssigneeName: "Jaejin Song (JJ)"},
+			}},
+			wantSubtaskAssigneeName: "me",
+		},
+		{
+			name: "subtask assignee_id mismatch → name unchanged",
+			item: flexItem{Task: "t", Subtasks: []flexSubtask{
+				{Task: "sub", AssigneeID: ptr(99), AssigneeName: "Hady"},
+			}},
+			wantSubtaskAssigneeName: "Hady",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := mapFlexToTodo(tt.item, userID, userEmail)
+			if tt.wantAssignee != "" && got.Assignee != tt.wantAssignee {
+				t.Errorf("Assignee = %q, want %q", got.Assignee, tt.wantAssignee)
+			}
+			if got.RequesterCanonical != tt.wantRequesterCanonical {
+				t.Errorf("RequesterCanonical = %q, want %q", got.RequesterCanonical, tt.wantRequesterCanonical)
+			}
+			if tt.wantSubtaskAssigneeName != "" && len(got.Subtasks) > 0 {
+				if got.Subtasks[0].AssigneeName != tt.wantSubtaskAssigneeName {
+					t.Errorf("Subtask[0].AssigneeName = %q, want %q", got.Subtasks[0].AssigneeName, tt.wantSubtaskAssigneeName)
+				}
 			}
 		})
 	}

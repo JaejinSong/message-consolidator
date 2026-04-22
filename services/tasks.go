@@ -151,10 +151,8 @@ func (s *TasksService) applyAssigneeRules(ctx context.Context, user *store.User,
 		msg.Assignee = store.AssigneeMe
 	}
 
-	if msg.RequesterCanonical == "" {
-		if strings.EqualFold(strings.TrimSpace(msg.Requester), user.Email) || s.IsAssigneeMarkedAsMine(msg.Requester, identities) {
-			msg.RequesterCanonical = user.Email
-		}
+	if strings.EqualFold(strings.TrimSpace(msg.Requester), user.Email) || s.IsAssigneeMarkedAsMine(msg.Requester, identities) {
+		msg.RequesterCanonical = user.Email
 	}
 }
 

@@ -132,9 +132,10 @@ type TodoItem struct {
 	ID              *int            `json:"id,omitempty"` // ID of the existing task to update or resolve
 	State           string          `json:"state"`        // "new", "update", "resolve", or "cancel"
 	Reasoning       string          `json:"reasoning,omitempty"` // AI justification for state/merge choice
-	Task            string          `json:"task"`
-	Requester       string          `json:"requester"`
-	Assignee        string          `json:"assignee"`
+	Task               string          `json:"task"`
+	Requester          string          `json:"requester"`
+	RequesterCanonical string          `json:"requester_canonical,omitempty"`
+	Assignee           string          `json:"assignee"`
 	AssignedTo      string          `json:"assigned_to,omitempty"`
 	AssignedAt      string          `json:"assigned_at"`
 	SourceTS        string          `json:"source_ts"`

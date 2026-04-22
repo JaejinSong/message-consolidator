@@ -328,7 +328,7 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email string, msg
 	trace.Step(ctx, "Gemini-Analyze", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "Analyze", resp)
 
-	candidates, err := g.parseAnalyzeResults(resp, data.CurrentUserID)
+	candidates, err := g.parseAnalyzeResults(resp, data.CurrentUserID, data.CurrentUserEmail)
 	if err != nil {
 		return nil, err
 	}
@@ -591,7 +591,7 @@ func (g *GeminiClient) getAnalyzeUserPrompt(analyzer SourceAnalyzer, data Extrac
 	return data.MessagePayload
 }
 
-func (g *GeminiClient) parseAnalyzeResults(resp *genai.GenerateContentResponse, currentUserID int) ([]store.TodoItem, error) {
+func (g *GeminiClient) parseAnalyzeResults(resp *genai.GenerateContentResponse, currentUserID int, userEmail string) ([]store.TodoItem, error) {
 	raw, err := extractResponseText(resp)
 	if err != nil {
 		return nil, err
@@ -601,7 +601,7 @@ func (g *GeminiClient) parseAnalyzeResults(resp *genai.GenerateContentResponse, 
 	if clean == "" || clean == "[]" {
 		return nil, nil
 	}
-	items, err := unmarshalAnalyze(clean, raw, currentUserID)
+	items, err := unmarshalAnalyze(clean, raw, userEmail, currentUserID)
 	if err != nil {
 		return nil, err
 	}

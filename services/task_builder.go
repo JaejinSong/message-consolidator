@@ -55,6 +55,7 @@ func BuildTask(p TaskBuildParams) store.ConsolidatedMessage {
 		Room:                p.Room,
 		Task:                p.Item.Task,
 		Requester:           requester,
+		RequesterCanonical:  p.Item.RequesterCanonical,
 		Assignee:            assignee,
 		Link:                p.Link,
 		SourceTS:            p.SourceTS,

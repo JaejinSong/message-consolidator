@@ -21,7 +21,9 @@ type flexItem struct {
 	Reasoning       string          `json:"reasoning,omitempty"`
 	Task            string          `json:"task"`
 	Requester       string          `json:"requester"`
+	RequesterID     *int            `json:"requester_id"`
 	Assignee        string          `json:"assignee"`
+	AssigneeID      *int            `json:"assignee_id"`
 	AssignedTo      string          `json:"assigned_to,omitempty"`
 	AssignedAt      string          `json:"assigned_at"`
 	SourceTS        string          `json:"source_ts"`
@@ -36,7 +38,7 @@ type flexItem struct {
 	Subtasks        []flexSubtask   `json:"subtasks,omitempty"`
 }
 
-func unmarshalAnalyze(cleanJSON, rawJSON string, currentUserID int) ([]store.TodoItem, error) {
+func unmarshalAnalyze(cleanJSON, rawJSON, userEmail string, currentUserID int) ([]store.TodoItem, error) {
 	cleanJSON = strings.TrimSpace(cleanJSON)
 	if len(cleanJSON) < 2 {
 		return nil, fmt.Errorf("empty JSON")
@@ -46,7 +48,7 @@ func unmarshalAnalyze(cleanJSON, rawJSON string, currentUserID int) ([]store.Tod
 	if strings.HasPrefix(cleanJSON, "{") {
 		var f flexItem
 		if err := json.Unmarshal([]byte(cleanJSON), &f); err == nil && f.Task != "" {
-			return []store.TodoItem{mapFlexToTodo(f, currentUserID)}, nil
+			return []store.TodoItem{mapFlexToTodo(f, currentUserID, userEmail)}, nil
 		}
 	}
 
@@ -71,7 +73,7 @@ func unmarshalAnalyze(cleanJSON, rawJSON string, currentUserID int) ([]store.Tod
 		var items []store.TodoItem
 		for _, f := range flexItems {
 			if f.Task != "" || strings.ToLower(f.State) == "none" {
-				items = append(items, mapFlexToTodo(f, currentUserID))
+				items = append(items, mapFlexToTodo(f, currentUserID, userEmail))
 			}
 		}
 		return items, nil
@@ -85,11 +87,19 @@ func unmarshalAnalyze(cleanJSON, rawJSON string, currentUserID int) ([]store.Tod
 	return nil, fmt.Errorf("no valid items found in JSON")
 }
 
-func mapFlexToTodo(f flexItem, currentUserID int) store.TodoItem {
+func mapFlexToTodo(f flexItem, currentUserID int, userEmail string) store.TodoItem {
 	assignee := f.Assignee
+	if f.AssigneeID != nil && *f.AssigneeID == currentUserID {
+		assignee = store.AssigneeMe
+	}
+	requesterCanonical := ""
+	if f.RequesterID != nil && *f.RequesterID == currentUserID {
+		requesterCanonical = userEmail
+	}
 
 	item := store.TodoItem{
 		State: f.State, Reasoning: f.Reasoning, Task: f.Task, Requester: f.Requester,
+		RequesterCanonical: requesterCanonical,
 		Assignee: assignee, AssignedTo: f.AssignedTo, AssignedAt: f.AssignedAt,
 		SourceTS: f.SourceTS, Category: f.Category, Deadline: f.Deadline,
 		AssigneeReason: f.AssigneeReason, IsContextQuery: f.IsContextQuery,

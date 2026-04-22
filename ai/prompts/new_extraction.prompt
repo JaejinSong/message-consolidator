@@ -8,10 +8,12 @@ model: gemini-3-flash-preview
 Extract actionable tasks, operational policies, and context-dependent queries from the message text.
 
 # Core Rules:
-1. **Force JSON Output**: You must respond ONLY in a single JSON object (consolidated): `{"reasoning": "string", "task": "Main Title (EN)", "status": "new|resolve", "category": "TASK|POLICY|QUERY|PROMISE", "subtasks": [{"task": "Subtask 1 (EN)", "assignee_id": int|null, "assignee_name": "string"}], "affinity_group_id": "string"}`.
-2. **Identity Mapping**: 
+1. **Force JSON Output**: You must respond ONLY in a single JSON object (consolidated): `{"reasoning": "string", "task": "Main Title (EN)", "status": "new|resolve", "category": "TASK|POLICY|QUERY|PROMISE", "requester_id": int|null, "assignee_id": int|null, "assignee_name": "string", "subtasks": [{"task": "Subtask 1 (EN)", "assignee_id": int|null, "assignee_name": "string"}], "affinity_group_id": "string"}`.
+2. **Identity Mapping**:
+   - IF the message sender / requester is ({{.CurrentUserEmail}} / {{.CurrentUser}}), SET `requester_id` = {{.CurrentUserID}}.
+   - ELSE SET `requester_id` = null.
    - IF a task/subtask is specifically for the recipient ({{.CurrentUserEmail}}), SET `assignee_id` = {{.CurrentUserID}} and `assignee_name` = "me".
-   - ELSE IF it's for someone else, SET `assignee_id` = null and `assignee_name` = "Actual Name". 
+   - ELSE IF it's for someone else, SET `assignee_id` = null and `assignee_name` = "Actual Name".
    - ELSE IF it's shared, SET `assignee_id` = null and `assignee_name` = "shared".
 3. **Hierarchy**: Consolidate multiple related requests in the same email into a single parent `task` with multiple `subtasks`. Use the `reasoning` field to explain the consolidation.
 4. **Canonical Language**: All 'task' and 'subtask' summaries MUST be written in **English (EN)** only.
