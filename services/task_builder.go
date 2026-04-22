@@ -114,9 +114,8 @@ func resolveAssignee(p TaskBuildParams) string {
 		return AssigneeShared
 	}
 
-	// Map self-referential tokens to the user's canonical display name.
 	selfTokens := map[string]bool{
-		"나": true, "me": true, "__current_user__": true, "담당자": true,
+		store.AssigneeMe: true, store.AssigneeCurrentUser: true,
 		strings.ToLower(p.User.Name):  true,
 		strings.ToLower(p.User.Email): true,
 	}

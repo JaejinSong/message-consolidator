@@ -46,7 +46,7 @@ func fallbackSystemUser(normalized, original string) string {
 }
 
 func resolveCurrentUserAlias(tenantEmail, nameLower string) (string, bool) {
-	if nameLower != "me" && nameLower != "__current_user__" && nameLower != "나" {
+	if !IsSelfAssigneeToken(nameLower) {
 		return "", false
 	}
 	metadataMu.RLock()

@@ -35,8 +35,7 @@ var (
 	//Why: Defines keywords returned by the AI for unspecific or group tasks to support standardized unassignment logic.
 	genericOtherAssignees = map[string]bool{"기타 업무": true, "기타업무": true, "other tasks": true, "미지정": true}
 
-	//Why: Defines keywords used by the AI to classify a task as belonging to the current user, enabling uniform "__CURRENT_USER__" mapping.
-	genericMeAssignees = map[string]bool{"내 업무": true, "내업무": true, "my tasks": true, "mytasks": true, "나": true, "me": true, "__current_user__": true}
+	genericMeAssignees = map[string]bool{store.AssigneeMe: true, store.AssigneeCurrentUser: true}
 )
 
 // TasksService handles task-related operations including formatting, completion, and batch translation.
@@ -92,7 +91,7 @@ func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string
 // assignCategory implements the server-side categorization priority logic.
 // Priority: 1. personal, 2. shared, 3. requested, 4. others.
 func (s *TasksService) assignCategory(email string, msg *store.ConsolidatedMessage) {
-	if msg.Assignee == "me" {
+	if msg.Assignee == store.AssigneeMe {
 		msg.Category = CategoryPersonal
 		return
 	}
@@ -149,7 +148,7 @@ func (s *TasksService) applyAssigneeRules(ctx context.Context, user *store.User,
 	identities := GetEffectiveAliases(*user, aliases)
 
 	if s.IsAssigneeMarkedAsMine(assignee, identities) {
-		msg.Assignee = "me"
+		msg.Assignee = store.AssigneeMe
 	}
 
 	if msg.RequesterCanonical == "" {
@@ -337,7 +336,7 @@ func IsTaskMatchedByAlias(m store.ConsolidatedMessage, aliases []string, isDirec
 	}
 
 	//Why: Augmented alias list with generic self-referential keywords ("나", "me") to broaden task matching coverage.
-	checkAliases := append([]string{"나", "me"}, aliases...)
+	checkAliases := append([]string{store.AssigneeMe}, aliases...)
 	for _, a := range checkAliases {
 		if a == "" {
 			continue

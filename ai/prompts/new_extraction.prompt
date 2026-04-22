@@ -48,6 +48,7 @@ Output: {{.Expected}}
 [Context]
 Current Time: {{.CurrentTime}}
 User Locale: {{.Locale}}
+CurrentUserName: {{.CurrentUser}}
 CurrentUserEmail: {{.CurrentUserEmail}}
 CurrentUserID: {{.CurrentUserID}}
 Existing Tasks JSON: {{.ExistingTasksJSON}}

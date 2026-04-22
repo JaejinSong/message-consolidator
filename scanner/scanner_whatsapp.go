@@ -117,10 +117,10 @@ func buildWAPayload(user store.User, aliases []string, msgs []types.RawMessage) 
 		resolvedText := channels.ResolveWAMentions(user.Email, m.Text, m.MentionedIDs)
 		metaStr := buildWAMetadataString(user.Email, m)
 
-		// Why: Provides a human-readable name hint to the AI instead of a raw JID, 
-		// ensuring the extracted 'Requester' is accurate and consistent with the contact store.
 		senderName := m.Sender
-		if name := store.GetNameByWhatsAppNumber(user.Email, m.Sender); name != "" {
+		if m.IsFromMe {
+			senderName = user.Name
+		} else if name := store.GetNameByWhatsAppNumber(user.Email, m.Sender); name != "" {
 			senderName = name
 		}
 

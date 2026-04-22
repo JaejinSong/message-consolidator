@@ -36,7 +36,7 @@ type flexItem struct {
 	Subtasks        []flexSubtask   `json:"subtasks,omitempty"`
 }
 
-func unmarshalAnalyze(cleanJSON, rawJSON string) ([]store.TodoItem, error) {
+func unmarshalAnalyze(cleanJSON, rawJSON string, currentUserID int) ([]store.TodoItem, error) {
 	cleanJSON = strings.TrimSpace(cleanJSON)
 	if len(cleanJSON) < 2 {
 		return nil, fmt.Errorf("empty JSON")
@@ -46,7 +46,7 @@ func unmarshalAnalyze(cleanJSON, rawJSON string) ([]store.TodoItem, error) {
 	if strings.HasPrefix(cleanJSON, "{") {
 		var f flexItem
 		if err := json.Unmarshal([]byte(cleanJSON), &f); err == nil && f.Task != "" {
-			return []store.TodoItem{mapFlexToTodo(f)}, nil
+			return []store.TodoItem{mapFlexToTodo(f, currentUserID)}, nil
 		}
 	}
 
@@ -71,7 +71,7 @@ func unmarshalAnalyze(cleanJSON, rawJSON string) ([]store.TodoItem, error) {
 		var items []store.TodoItem
 		for _, f := range flexItems {
 			if f.Task != "" || strings.ToLower(f.State) == "none" {
-				items = append(items, mapFlexToTodo(f))
+				items = append(items, mapFlexToTodo(f, currentUserID))
 			}
 		}
 		return items, nil
@@ -85,20 +85,26 @@ func unmarshalAnalyze(cleanJSON, rawJSON string) ([]store.TodoItem, error) {
 	return nil, fmt.Errorf("no valid items found in JSON")
 }
 
-func mapFlexToTodo(f flexItem) store.TodoItem {
+func mapFlexToTodo(f flexItem, currentUserID int) store.TodoItem {
+	assignee := f.Assignee
+
 	item := store.TodoItem{
 		State: f.State, Reasoning: f.Reasoning, Task: f.Task, Requester: f.Requester,
-		Assignee: f.Assignee, AssignedTo: f.AssignedTo, AssignedAt: f.AssignedAt,
+		Assignee: assignee, AssignedTo: f.AssignedTo, AssignedAt: f.AssignedAt,
 		SourceTS: f.SourceTS, Category: f.Category, Deadline: f.Deadline,
 		AssigneeReason: f.AssigneeReason, IsContextQuery: f.IsContextQuery,
 		Constraints: f.Constraints, Metadata: f.Metadata, AffinityScore: f.AffinityScore,
 		AffinityGroupID: f.AffinityGroupID,
 	}
 
-	// Subtasks mapping
+	// Subtasks mapping — normalize assignee_id to canonical "me" token.
 	for _, s := range f.Subtasks {
+		name := s.AssigneeName
+		if s.AssigneeID != nil && *s.AssigneeID == currentUserID {
+			name = store.AssigneeMe
+		}
 		item.Subtasks = append(item.Subtasks, store.TodoSubtask{
-			Task: s.Task, AssigneeID: s.AssigneeID, AssigneeName: s.AssigneeName,
+			Task: s.Task, AssigneeID: s.AssigneeID, AssigneeName: name,
 		})
 	}
 

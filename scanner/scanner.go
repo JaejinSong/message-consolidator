@@ -317,8 +317,7 @@ func NormalizeAssignee(assignee string, user store.User, aliases []string) strin
 		return services.AssigneeShared
 	}
 
-	// Why: Ensures "Me" or "나" results in the user's primary name for consistent dashboard auditing.
-	selfIDs := []string{"나", "me", "__current_user__", "담당자", strings.ToLower(user.Name), strings.ToLower(user.Email)}
+	selfIDs := []string{store.AssigneeMe, store.AssigneeCurrentUser, strings.ToLower(user.Name), strings.ToLower(user.Email)}
 	for _, id := range selfIDs {
 		if id != "" && lowerAsg == id {
 			return user.PreferredName()

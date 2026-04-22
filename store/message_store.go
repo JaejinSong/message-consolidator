@@ -941,7 +941,7 @@ func IsAssignedToUser(m ConsolidatedMessage, userEmail string, aliases []string)
 
 	// 2. Check Raw Assignee (Legacy/Fallback)
 	assignee := m.Assignee
-	if assignee == "me" || strings.EqualFold(assignee, userEmail) {
+	if assignee == AssigneeMe || strings.EqualFold(assignee, userEmail) {
 		return true
 	}
 	for _, a := range aliases {
