@@ -213,10 +213,15 @@ export const insights = {
             
             const result = await api.generateReport(start, end, channelId, status);
             const report = normalizeReportData(result);
-            
+
             if (report.status === 'processing') {
+                await this.refreshReport();
                 this.pollReportStatus(report.id);
             } else {
+                const lang = state.currentLang || 'en';
+                this.lastReport = report;
+                upsertReport(report);
+                await this._renderWithTranslation(report, lang, i18n, reportContent);
                 await this.refreshReport(report.id);
             }
         } catch (e: any) {
