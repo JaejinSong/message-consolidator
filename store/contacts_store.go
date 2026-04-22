@@ -279,6 +279,29 @@ func GetContactsByIdentifiers(ctx context.Context, tenantEmail string, identifie
 	}
 	contactByID := fetchContactsByIDs(ctx, idList)
 
+	// Follow master_contact_id: replace slave contacts with their master so all
+	// aliases of the same person share one canonical_id in the graph.
+	masterIDs := make(map[int64]bool)
+	for _, c := range contactByID {
+		if c.MasterContactID.Valid {
+			masterIDs[c.MasterContactID.Int64] = true
+		}
+	}
+	if len(masterIDs) > 0 {
+		masterList := make([]int64, 0, len(masterIDs))
+		for mid := range masterIDs {
+			masterList = append(masterList, mid)
+		}
+		masterByID := fetchContactsByIDs(ctx, masterList)
+		for id, c := range contactByID {
+			if c.MasterContactID.Valid {
+				if master, ok := masterByID[c.MasterContactID.Int64]; ok {
+					contactByID[id] = master
+				}
+			}
+		}
+	}
+
 	// Detect genuine ambiguity: multiple unmerged contacts share the same normalized display_name.
 	ambiguousNorms := detectDisplayNameAmbiguity(ctx, tenantEmail, normList)
 
@@ -303,6 +326,7 @@ func GetContactsByIdentifiers(ctx context.Context, tenantEmail string, identifie
 }
 
 // detectDisplayNameAmbiguity returns normalized display names that are shared by multiple unmerged contacts.
+// Uses COALESCE(master_contact_id, id) from DB directly to avoid stale GlobalContactDSU false positives.
 func detectDisplayNameAmbiguity(ctx context.Context, tenantEmail string, normList []string) map[string]bool {
 	if len(normList) == 0 {
 		return nil
@@ -314,7 +338,7 @@ func detectDisplayNameAmbiguity(ctx context.Context, tenantEmail string, normLis
 		args[i+1] = n
 	}
 	rows, err := GetDB().QueryContext(ctx,
-		"SELECT id, LOWER(display_name) FROM contacts WHERE tenant_email = ? AND LOWER(display_name) IN ("+placeholders+")",
+		"SELECT COALESCE(master_contact_id, id), LOWER(display_name) FROM contacts WHERE tenant_email = ? AND LOWER(display_name) IN ("+placeholders+")",
 		args...)
 	if err != nil {
 		return nil
@@ -322,10 +346,9 @@ func detectDisplayNameAmbiguity(ctx context.Context, tenantEmail string, normLis
 	defer rows.Close()
 	dnToRoots := make(map[string]map[int64]bool)
 	for rows.Next() {
-		var id int64
+		var root int64
 		var dn string
-		if err := rows.Scan(&id, &dn); err == nil {
-			root := GlobalContactDSU.Find(id)
+		if err := rows.Scan(&root, &dn); err == nil {
 			if dnToRoots[dn] == nil {
 				dnToRoots[dn] = make(map[int64]bool)
 			}

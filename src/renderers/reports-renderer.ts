@@ -96,6 +96,26 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
         }
     });
 
+    // Index for hover highlight
+    const lineEls: Array<{ el: SVGElement; source: string; target: string }> = [];
+    const nodeEls = new Map<string, { g: SVGElement; circle: SVGElement }>();
+
+    const highlightNode = (nodeId: string) => {
+        const connected = new Set<string>([nodeId]);
+        lineEls.forEach(({ el, source, target }) => {
+            const hit = source === nodeId || target === nodeId;
+            el.setAttribute('opacity', hit ? '0.9' : '0.04');
+            el.setAttribute('stroke', hit ? NODE_COLORS.me : 'var(--text-dim)');
+            if (hit) { connected.add(source); connected.add(target); }
+        });
+        nodeEls.forEach(({ g }, id) => g.setAttribute('opacity', connected.has(id) ? '1' : '0.2'));
+    };
+
+    const resetHighlight = () => {
+        lineEls.forEach(({ el }) => { el.setAttribute('opacity', '0.2'); el.setAttribute('stroke', 'var(--text-dim)'); });
+        nodeEls.forEach(({ g }) => g.setAttribute('opacity', '1'));
+    };
+
     links.forEach(l => {
         const s = coords.get(l.source);
         const t = coords.get(l.target);
@@ -108,6 +128,7 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
         line.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(getNodeName(nodes, l.source))} ↔ ${escapeHTML(getNodeName(nodes, l.target))}</b><br/>Connections: ${l.weight || 1}`));
         line.addEventListener('mouseenter', () => { line.setAttribute('opacity', '0.9'); line.setAttribute('stroke', NODE_COLORS.me); });
         line.addEventListener('mouseleave', () => { hideTooltip(); line.setAttribute('opacity', '0.2'); line.setAttribute('stroke', 'var(--text-dim)'); });
+        lineEls.push({ el: line, source: l.source, target: l.target });
         svg.appendChild(line);
     });
 
@@ -140,9 +161,20 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
         text.textContent = label;
         g.appendChild(text);
 
+        nodeEls.set(n.id, { g, circle });
+
         g.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(raw)}</b><br/>Activity: ${n.value}<br/>${escapeHTML(n.category || 'External')}`));
-        g.addEventListener('mouseenter', () => { circle.setAttribute('stroke', 'var(--text-main)'); circle.setAttribute('stroke-width', '2'); });
-        g.addEventListener('mouseleave', () => { hideTooltip(); circle.setAttribute('stroke', n.is_me ? 'var(--text-main)' : 'none'); circle.setAttribute('stroke-width', n.is_me ? '2' : '0'); });
+        g.addEventListener('mouseenter', () => {
+            circle.setAttribute('stroke', 'var(--text-main)');
+            circle.setAttribute('stroke-width', '2');
+            highlightNode(n.id);
+        });
+        g.addEventListener('mouseleave', () => {
+            hideTooltip();
+            circle.setAttribute('stroke', n.is_me ? 'var(--text-main)' : 'none');
+            circle.setAttribute('stroke-width', n.is_me ? '2' : '0');
+            resetHighlight();
+        });
         svg.appendChild(g);
     });
 
