@@ -58,6 +58,31 @@ func TestResolveProposals(t *testing.T) {
 	}
 }
 
+func TestResolveProposals_IDMatch(t *testing.T) {
+	s := &TasksService{}
+	email := "test@example.com"
+	room := "biz-global-thailand"
+
+	existingID := 5
+	active := []store.ConsolidatedMessage{
+		{ID: existingID, Room: room, Category: "TASK", Task: "Attend Carabao online meeting"},
+	}
+
+	// AI explicitly sets id=5 from ExistingTasksJSON — text similarity is low.
+	rawItems := []store.TodoItem{
+		{ID: &existingID, Task: "Attend Carabao meeting with Yosep next week", Category: "TASK", State: "update"},
+	}
+
+	results := s.ResolveProposals(context.Background(), email, room, rawItems, active)
+
+	if results[0].ID == nil || *results[0].ID != existingID {
+		t.Errorf("expected ID-based match to %d, got %v", existingID, results[0].ID)
+	}
+	if results[0].State != "update" {
+		t.Errorf("expected state 'update', got %q", results[0].State)
+	}
+}
+
 func TestResolveProposals_AffinityBonus(t *testing.T) {
 	s := &TasksService{}
 	email := "test@example.com"

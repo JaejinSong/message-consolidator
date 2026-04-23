@@ -1166,15 +1166,57 @@ body.light-theme .c-utility__btn:hover {
     100% { opacity: 0.4; transform: scale(0.95); }
 }
 
-/* --- Subtasks (Hierarchical) --- */
+/* --- Subtasks (Hierarchical, collapsible) --- */
+.c-message-card__subtasks-wrap {
+    margin-top: var(--spacing-sm);
+    border-top: var(--border-thin) dashed var(--glass-border);
+    padding-top: var(--spacing-xs);
+}
+
+.c-message-card__subtasks-toggle {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    padding: var(--spacing-xs) 0;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    color: var(--text-dim);
+    font-size: 0.8rem;
+}
+
+.c-message-card__subtasks-toggle::-webkit-details-marker { display: none; }
+
+.c-message-card__subtasks-toggle::before {
+    content: '▶';
+    font-size: 0.6rem;
+    transition: transform 0.15s ease;
+    display: inline-block;
+}
+
+.c-message-card__subtasks-toggle:hover {
+    color: var(--text-main);
+}
+
+.c-message-card__subtasks-label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.c-message-card__subtasks-progress {
+    color: var(--color-success);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
 .c-message-card__subtasks {
-    margin: var(--spacing-sm) 0 0 0;
-    padding: var(--spacing-sm) 0 0 0;
+    margin: var(--spacing-xs) 0 0 var(--spacing-sm);
+    padding: 0;
     list-style: none;
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xs);
-    border-top: var(--border-thin) dashed var(--glass-border);
 }
 
 .c-message-card__subtask-item {

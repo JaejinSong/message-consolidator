@@ -134,6 +134,35 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		}
 	})
 
+	t.Run("Current User Reply (UPDATE+updatedText) - Should update category AND task text", func(t *testing.T) {
+		newScope := "JVM Crash/ZFS 블로그 검색 최적화 및 가독성 개선"
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(0), State: "update", Task: newScope}}}
+		mockStore := &MockStore{
+			Tasks: []store.ConsolidatedMessage{{ID: 204, Task: "JVM Crash/ZFS 블로그 최신화 및 검수"}},
+		}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:          "jjsong@whatap.io",
+			ThreadID:           "thread_blog",
+			OriginalText:       "최신화보다 검색 확률 및 가독성 개선 방향으로 도움드리겠습니다.",
+			RequesterCanonical: "jjsong@whatap.io",
+		}
+
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+
+		if !handled {
+			t.Fatal("expected handled=true")
+		}
+		if len(mockStore.ReleasedCategories) != 1 || mockStore.ReleasedCategories[0] != CategoryRequested {
+			t.Errorf("expected category=%q, got %v", CategoryRequested, mockStore.ReleasedCategories)
+		}
+		// ReleasedIDs collects both UpdateMessageCategory and UpdateTaskText calls.
+		if len(mockStore.ReleasedIDs) != 2 {
+			t.Errorf("expected category+text both updated (2 ReleasedIDs), got %v", mockStore.ReleasedIDs)
+		}
+	})
+
 	t.Run("Current User Reply (RESOLVE) - Should Mark Done", func(t *testing.T) {
 		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(0), State: "resolve", Task: "IFC 말레이시아 미팅 참여 범위 확정"}}}
 		mockStore := &MockStore{

@@ -109,10 +109,11 @@ func (s *CompletionService) handleCompletionResult(ctx context.Context, status, 
 		// it moves to 맡긴 업무 — the ball is in the other party's court.
 		if fromMe {
 			_ = s.store.UpdateMessageCategory(ctx, s.db, msg.UserEmail, parent.ID, CategoryRequested)
-			return true
 		}
 		if updatedText != "" {
 			_ = s.store.UpdateTaskText(ctx, s.db, msg.UserEmail, parent.ID, updatedText)
+		}
+		if fromMe || updatedText != "" {
 			return true
 		}
 	case "NEW":

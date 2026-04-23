@@ -748,13 +748,22 @@ func parseTranslatedText(raw string) (string, []string) {
 }
 
 func (s *TasksService) findMatch(room string, item store.TodoItem, active []store.ConsolidatedMessage) *store.ConsolidatedMessage {
+	// ID-first: AI explicitly identified the target task from existing context.
+	if item.ID != nil && *item.ID != 0 {
+		for i := range active {
+			if active[i].ID == *item.ID {
+				return &active[i]
+			}
+		}
+	}
+
 	for i := range active {
 		m := &active[i]
 		if m.Room != room || m.Category != item.Category { continue }
-		
+
 		sim := store.CalculateSimilarity(item.Task, m.Task)
 		if sim >= 0.80 { return m }
-		
+
 		// Affinity Group Bonus: If AI group matches, we are more lenient (threshold 0.5)
 		if item.AffinityGroupID != "" && len(m.Metadata) > 0 {
 			var meta map[string]interface{}

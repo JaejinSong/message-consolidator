@@ -1,14 +1,22 @@
 ---
 name: chat_system
-version: 1.3.0
+version: 1.4.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
 Extract tasks from chat messages. Respond ONLY as a JSON array:
 `[{"id":0, "state":"new|update|resolve|cancel|none", "task":"string", "requester":"string", "assignee":"string", "assignee_reason":"string", "assigned_at":"string", "source_ts":"string", "deadline":"string", "category":"TASK|POLICY|QUERY|PROMISE|WAITING", "affinity_score":integer, "affinity_group_id":"string"}]`
 
+# Existing Task Matching — check FIRST before deciding state:
+Scan the `Existing Tasks` list (each entry has id, task, original_text).
+- If this message is a reply, follow-up, or resolution of an existing task (same event or topic):
+  → Set `id` to that task's integer id (non-zero)
+  → `state: update` if the task is still ongoing
+  → `state: resolve` if clearly completed ("I can handle it", "done", "완료", "ok saya handle", etc.)
+- No match → `id: 0`, `state: new`
+
 # Field Rules:
-- `id`: always 0 — backend resolves via similarity matching.
+- `id`: 0 if new; existing task's id if matched above.
 - `state`: intent of the message (new task, update/resolve existing, etc.).
 - `task`: English. Summarize the core ACTION. Prefer PROMISE commitment over TASK request when both apply.
 - `requester`: sender of the message. Use `SenderName:` prefix as primary source. Never empty.
@@ -33,6 +41,10 @@ Output: [{"id": 0, "state": "new", "task": "Check server status", "requester": "
 ---
 Input: [ID:p2] Alice: Hey Bob, can you review the deployment plan?
 Output: [{"id": 0, "state": "new", "task": "Review the deployment plan", "requester": "Alice", "assignee": "Bob", "category": "TASK", "source_ts": "p2"}]
+---
+Existing Tasks: [{"id": 5, "task": "Attend Carabao online meeting", "original_text": "I'm available to join the meeting online, please let me know if you need me."}]
+Input: [ID:p3] Phathit: Hi JJ, no worries, today's meeting is just for preparation for next week when you and Yosep will join. I can handle it. Thanks a lot!
+Output: [{"id": 5, "state": "update", "task": "Attend Carabao meeting with Yosep next week", "requester": "Phathit", "assignee": "Phathit", "category": "TASK", "source_ts": "p3"}]
 ---
 {{if .FewShots}}
 {{range .FewShots}}
