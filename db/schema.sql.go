@@ -41,7 +41,7 @@ func (q *Queries) CreateContactResolutionTable(ctx context.Context) error {
 
 const createContactsResolvedView = `-- name: CreateContactsResolvedView :exec
 CREATE VIEW IF NOT EXISTS v_contacts_resolved AS
-SELECT 
+SELECT
     c.id,
     c.tenant_email,
     c.canonical_id AS original_canonical_id,
@@ -167,24 +167,24 @@ func (q *Queries) CreateMessagesTable(ctx context.Context) error {
 
 const createMessagesView = `-- name: CreateMessagesView :exec
 CREATE VIEW IF NOT EXISTS v_messages AS
-SELECT 
-    m.id, 
-    COALESCE(m.user_email, '') as user_email, 
-    COALESCE(m.source, '') as source, 
-    COALESCE(m.room, '') as room, 
-    COALESCE(m.task, '') as task, 
-    COALESCE(cr_req.effective_display_name, m.requester, '') as requester, 
+SELECT
+    m.id,
+    COALESCE(m.user_email, '') as user_email,
+    COALESCE(m.source, '') as source,
+    COALESCE(m.room, '') as room,
+    COALESCE(m.task, '') as task,
+    COALESCE(cr_req.effective_display_name, m.requester, '') as requester,
     COALESCE(cr_asg.effective_display_name, m.assignee, '') as assignee,
     m.assigned_at,
-    COALESCE(m.link, '') as link, 
-    COALESCE(m.source_ts, '') as source_ts, 
+    COALESCE(m.link, '') as link,
+    COALESCE(m.source_ts, '') as source_ts,
     COALESCE(m.pinned, 0) as pinned,
-    COALESCE(m.original_text, '') as original_text, 
-    COALESCE(m.done, 0) as done, 
-    COALESCE(m.is_deleted, 0) as is_deleted, 
-    m.created_at, 
-    m.completed_at, 
-    COALESCE(m.category, 'todo') as category, 
+    COALESCE(m.original_text, '') as original_text,
+    COALESCE(m.done, 0) as done,
+    COALESCE(m.is_deleted, 0) as is_deleted,
+    m.created_at,
+    m.completed_at,
+    COALESCE(m.category, 'todo') as category,
     COALESCE(m.deadline, '') as deadline,
     COALESCE(m.thread_id, '') as thread_id,
     COALESCE(m.assignee_reason, '') as assignee_reason,
@@ -368,6 +368,7 @@ CREATE TABLE IF NOT EXISTS users (
 `
 
 // Consolidated Schema for sqlc (SQLite)
+// NOTE: CREATE INDEX statements are stripped by sqlc and must be defined in createIndexes() in migrations.go.
 func (q *Queries) CreateUsersTable(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, createUsersTable)
 	return err

@@ -269,8 +269,8 @@ func (q *Queries) GetPendingOthers(ctx context.Context, arg GetPendingOthersPara
 }
 
 const getSourceDistributionActive = `-- name: GetSourceDistributionActive :many
-SELECT source, COUNT(*) FROM v_messages 
-WHERE user_email = ? AND is_deleted = 0 AND IFNULL(task, '') != ''
+SELECT COALESCE(source, '') as source, COUNT(*) as count FROM messages
+WHERE user_email = CAST(? AS TEXT) AND is_deleted = 0 AND IFNULL(task, '') != ''
 GROUP BY source
 `
 
@@ -279,8 +279,8 @@ type GetSourceDistributionActiveRow struct {
 	Count  int64  `json:"count"`
 }
 
-func (q *Queries) GetSourceDistributionActive(ctx context.Context, userEmail string) ([]GetSourceDistributionActiveRow, error) {
-	rows, err := q.db.QueryContext(ctx, getSourceDistributionActive, userEmail)
+func (q *Queries) GetSourceDistributionActive(ctx context.Context, dollar_1 string) ([]GetSourceDistributionActiveRow, error) {
+	rows, err := q.db.QueryContext(ctx, getSourceDistributionActive, dollar_1)
 	if err != nil {
 		return nil, err
 	}
@@ -303,8 +303,8 @@ func (q *Queries) GetSourceDistributionActive(ctx context.Context, userEmail str
 }
 
 const getSourceDistributionTotal = `-- name: GetSourceDistributionTotal :many
-SELECT source, COUNT(*) FROM v_messages 
-WHERE user_email = ? AND IFNULL(task, '') != ''
+SELECT COALESCE(source, '') as source, COUNT(*) as count FROM messages
+WHERE user_email = CAST(? AS TEXT) AND IFNULL(task, '') != ''
 GROUP BY source
 `
 
@@ -313,8 +313,8 @@ type GetSourceDistributionTotalRow struct {
 	Count  int64  `json:"count"`
 }
 
-func (q *Queries) GetSourceDistributionTotal(ctx context.Context, userEmail string) ([]GetSourceDistributionTotalRow, error) {
-	rows, err := q.db.QueryContext(ctx, getSourceDistributionTotal, userEmail)
+func (q *Queries) GetSourceDistributionTotal(ctx context.Context, dollar_1 string) ([]GetSourceDistributionTotalRow, error) {
+	rows, err := q.db.QueryContext(ctx, getSourceDistributionTotal, dollar_1)
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +372,7 @@ func (q *Queries) GetTaskCountByContactType(ctx context.Context, userEmail strin
 }
 
 const getTotalCompleted = `-- name: GetTotalCompleted :one
-SELECT COUNT(*) FROM v_messages WHERE user_email = CAST(?1 AS TEXT) AND done = 1
+SELECT COUNT(*) FROM messages WHERE user_email = CAST(?1 AS TEXT) AND done = 1
 `
 
 func (q *Queries) GetTotalCompleted(ctx context.Context, dollar_1 string) (int64, error) {

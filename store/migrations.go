@@ -150,6 +150,9 @@ func createIndexes(ctx context.Context, q db.DBTX) {
 		"CREATE INDEX IF NOT EXISTS idx_contacts_tenant_canonical ON contacts(tenant_email, canonical_id)",
 		// slack_threads
 		"CREATE INDEX IF NOT EXISTS idx_slack_threads_status ON slack_threads(status)",
+		// archive pagination: avoid temp B-tree sort for the two common archive states
+		"CREATE INDEX IF NOT EXISTS idx_messages_archive_canceled ON messages(user_email, created_at DESC) WHERE is_deleted = 1 AND done = 0",
+		"CREATE INDEX IF NOT EXISTS idx_messages_archive_done_completed ON messages(user_email, completed_at DESC) WHERE done = 1 AND is_deleted = 0",
 	}
 	for _, ddl := range indexes {
 		_, _ = q.ExecContext(ctx, ddl)

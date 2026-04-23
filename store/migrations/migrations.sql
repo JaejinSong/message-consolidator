@@ -152,3 +152,9 @@ ALTER TABLE messages ADD COLUMN subtasks TEXT DEFAULT '[]';
 
 -- name: MigrateContactsSoftDeprecateAliases :exec
 ALTER TABLE contacts RENAME COLUMN aliases TO legacy_aliases_deprecated;
+
+-- name: CreateIdxMessagesArchiveCanceled :exec
+CREATE INDEX IF NOT EXISTS idx_messages_archive_canceled ON messages (user_email, created_at DESC) WHERE is_deleted = 1 AND done = 0;
+
+-- name: CreateIdxMessagesArchiveDoneCompleted :exec
+CREATE INDEX IF NOT EXISTS idx_messages_archive_done_completed ON messages (user_email, completed_at DESC) WHERE done = 1 AND is_deleted = 0;

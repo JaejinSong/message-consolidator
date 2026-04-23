@@ -74,7 +74,7 @@ func fetchArchivedFromDB(ctx context.Context, filter ArchiveFilter) ([]Consolida
 	}
 
 	rows, err := queries.SearchArchivedMessages(ctx, db.SearchArchivedMessagesParams{
-		UserEmail: filter.Email,
+		UserEmail: nullString(filter.Email),
 		Column2:   filter.Query,
 		Column3:   filter.Status,
 		Limit:     int64(filter.Limit),

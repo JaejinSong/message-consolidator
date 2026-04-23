@@ -1,5 +1,5 @@
 -- name: GetTotalCompleted :one
-SELECT COUNT(*) FROM v_messages WHERE user_email = CAST(?1 AS TEXT) AND done = 1;
+SELECT COUNT(*) FROM messages WHERE user_email = CAST(?1 AS TEXT) AND done = 1;
 
 -- name: GetPendingMe :one
 SELECT COUNT(*) FROM v_messages 
@@ -29,13 +29,13 @@ AND created_at < ? AND (assignee != ? AND assignee != 'me')
 AND IFNULL(task, '') != '';
 
 -- name: GetSourceDistributionActive :many
-SELECT source, COUNT(*) FROM v_messages 
-WHERE user_email = ? AND is_deleted = 0 AND IFNULL(task, '') != ''
+SELECT COALESCE(source, '') as source, COUNT(*) as count FROM messages
+WHERE user_email = CAST(? AS TEXT) AND is_deleted = 0 AND IFNULL(task, '') != ''
 GROUP BY source;
 
 -- name: GetSourceDistributionTotal :many
-SELECT source, COUNT(*) FROM v_messages 
-WHERE user_email = ? AND IFNULL(task, '') != ''
+SELECT COALESCE(source, '') as source, COUNT(*) as count FROM messages
+WHERE user_email = CAST(? AS TEXT) AND IFNULL(task, '') != ''
 GROUP BY source;
 
 -- name: GetCompletionHistory :many

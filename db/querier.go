@@ -35,6 +35,7 @@ type Querier interface {
 	CreateUserAlias(ctx context.Context, arg CreateUserAliasParams) error
 	CreateUserAliasesTable(ctx context.Context) error
 	// Consolidated Schema for sqlc (SQLite)
+	// NOTE: CREATE INDEX statements are stripped by sqlc and must be defined in createIndexes() in migrations.go.
 	CreateUsersTable(ctx context.Context) error
 	DeleteContactMapping(ctx context.Context, arg DeleteContactMappingParams) error
 	DeleteGmailToken(ctx context.Context, userEmail string) error
@@ -86,8 +87,8 @@ type Querier interface {
 	GetReportList(ctx context.Context, userEmail string) ([]GetReportListRow, error)
 	GetReportTranslations(ctx context.Context, reportID int64) ([]GetReportTranslationsRow, error)
 	GetResolutionsByIdentifiers(ctx context.Context, arg GetResolutionsByIdentifiersParams) ([]GetResolutionsByIdentifiersRow, error)
-	GetSourceDistributionActive(ctx context.Context, userEmail string) ([]GetSourceDistributionActiveRow, error)
-	GetSourceDistributionTotal(ctx context.Context, userEmail string) ([]GetSourceDistributionTotalRow, error)
+	GetSourceDistributionActive(ctx context.Context, dollar_1 string) ([]GetSourceDistributionActiveRow, error)
+	GetSourceDistributionTotal(ctx context.Context, dollar_1 string) ([]GetSourceDistributionTotalRow, error)
 	GetTaskCountByContactType(ctx context.Context, userEmail string) ([]GetTaskCountByContactTypeRow, error)
 	GetTaskTranslation(ctx context.Context, arg GetTaskTranslationParams) (string, error)
 	GetTaskTranslationsBatch(ctx context.Context, arg GetTaskTranslationsBatchParams) ([]GetTaskTranslationsBatchRow, error)

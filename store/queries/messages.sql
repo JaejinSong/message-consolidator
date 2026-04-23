@@ -91,24 +91,28 @@ AND (
     (?3 = '' OR ?3 = 'all') OR
     (?3 = 'done' AND done = 1) OR
     (?3 = 'canceled' AND done = 0 AND is_deleted = 1) OR
-    (?3 = 'merged' AND category = 'merged') OR
-    (?3 != '' AND ?3 != 'all' AND ?3 != 'done' AND ?3 != 'canceled' AND ?3 != 'merged')
+    (?3 = 'merged' AND category = 'merged')
 );
 
 -- name: SearchArchivedMessages :many
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
-FROM v_messages
-WHERE (user_email = ?1 OR (user_email IS NULL AND ?1 = '')) AND (is_deleted = 1 OR category = 'merged' OR done = 1)
-AND (?2 = '' OR task LIKE '%' || ?2 || '%' OR original_text LIKE '%' || ?2 || '%' OR requester LIKE '%' || ?2 || '%' OR assignee LIKE '%' || ?2 || '%')
-AND (
-    (?3 = '' OR ?3 = 'all') OR
-    (?3 = 'done' AND done = 1) OR
-    (?3 = 'canceled' AND done = 0 AND is_deleted = 1) OR
-    (?3 = 'merged' AND category = 'merged') OR
-    (?3 != '' AND ?3 != 'all' AND ?3 != 'done' AND ?3 != 'canceled' AND ?3 != 'merged')
+SELECT vm.id, COALESCE(vm.user_email, '') as user_email, COALESCE(vm.source, '') as source, COALESCE(vm.room, '') as room, COALESCE(vm.task, '') as task, COALESCE(vm.requester, '') as requester, COALESCE(vm.assignee, '') as assignee, vm.assigned_at, COALESCE(vm.link, '') as link, COALESCE(vm.source_ts, '') as source_ts, COALESCE(vm.original_text, '') as original_text, vm.done, vm.is_deleted, vm.created_at, vm.completed_at, COALESCE(vm.category, '') as category, COALESCE(vm.deadline, '') as deadline, COALESCE(vm.thread_id, '') as thread_id, COALESCE(vm.assignee_reason, '') as assignee_reason, COALESCE(vm.replied_to_id, '') as replied_to_id, vm.is_context_query, COALESCE(vm.constraints, '') as constraints, COALESCE(vm.metadata, '') as metadata, COALESCE(vm.source_channels, '') as source_channels, COALESCE(vm.consolidated_context, '') as consolidated_context, COALESCE(vm.subtasks, '[]') as subtasks, COALESCE(vm.requester_canonical, '') as requester_canonical, COALESCE(vm.assignee_canonical, '') as assignee_canonical, COALESCE(vm.requester_type, '') as requester_type, COALESCE(vm.assignee_type, '') as assignee_type
+FROM v_messages vm
+WHERE vm.id IN (
+  SELECT m2.id FROM messages m2
+  WHERE (m2.user_email = ?1 OR (m2.user_email IS NULL AND ?1 = ''))
+    AND (m2.is_deleted = 1 OR m2.category = 'merged' OR m2.done = 1)
+    AND (?2 = '' OR m2.task LIKE '%' || ?2 || '%' OR m2.original_text LIKE '%' || ?2 || '%'
+         OR m2.requester LIKE '%' || ?2 || '%' OR m2.assignee LIKE '%' || ?2 || '%')
+    AND (
+      (?3 = '' OR ?3 = 'all') OR
+      (?3 = 'done' AND m2.done = 1) OR
+      (?3 = 'canceled' AND m2.done = 0 AND m2.is_deleted = 1) OR
+      (?3 = 'merged' AND m2.category = 'merged')
+    )
+  ORDER BY CASE WHEN m2.is_deleted = 1 THEN m2.created_at ELSE m2.completed_at END DESC
+  LIMIT ?4 OFFSET ?5
 )
-ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
-LIMIT ?4 OFFSET ?5;
+ORDER BY CASE WHEN vm.is_deleted = 1 THEN vm.created_at ELSE vm.completed_at END DESC;
 
 -- name: ArchiveOldTasks :execrows
 UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND done = 1 AND completed_at < datetime('now', ?);
