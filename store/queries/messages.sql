@@ -67,17 +67,17 @@ SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as sourc
 FROM v_messages WHERE user_email = ?1 AND is_deleted = 0 AND IFNULL(task, '') != '' ORDER BY created_at DESC;
 
 -- name: RefreshCacheActive :many
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
-FROM v_messages 
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks
+FROM messages
 WHERE user_email = ?1 AND is_deleted = 0 AND done = 0
 AND IFNULL(task, '') != ''
 AND IFNULL(category, '') != 'merged'
-ORDER BY created_at DESC 
+ORDER BY created_at DESC
 LIMIT 200;
 
 -- name: RefreshCacheArchive :many
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
-FROM v_messages 
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks
+FROM messages
 WHERE user_email = ?1 AND (is_deleted = 1 OR done = 1 OR category = 'merged')
 AND IFNULL(task, '') != ''
 ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
@@ -88,24 +88,24 @@ SELECT COUNT(*) FROM messages
 WHERE (user_email = ?1 OR (user_email IS NULL AND ?1 = '')) AND (is_deleted = 1 OR category = 'merged' OR done = 1)
 AND (?2 = '' OR task LIKE '%' || ?2 || '%' OR original_text LIKE '%' || ?2 || '%' OR requester LIKE '%' || ?2 || '%' OR assignee LIKE '%' || ?2 || '%')
 AND (
-    ?3 IN ('all', '') OR
+    (?3 = '' OR ?3 = 'all') OR
     (?3 = 'done' AND done = 1) OR
     (?3 = 'canceled' AND done = 0 AND is_deleted = 1) OR
     (?3 = 'merged' AND category = 'merged') OR
-    (?3 NOT IN ('done', 'canceled', 'merged', 'all', ''))
+    (?3 != '' AND ?3 != 'all' AND ?3 != 'done' AND ?3 != 'canceled' AND ?3 != 'merged')
 );
 
 -- name: SearchArchivedMessages :many
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
-FROM v_messages 
+FROM v_messages
 WHERE (user_email = ?1 OR (user_email IS NULL AND ?1 = '')) AND (is_deleted = 1 OR category = 'merged' OR done = 1)
 AND (?2 = '' OR task LIKE '%' || ?2 || '%' OR original_text LIKE '%' || ?2 || '%' OR requester LIKE '%' || ?2 || '%' OR assignee LIKE '%' || ?2 || '%')
 AND (
-    ?3 IN ('all', '') OR
+    (?3 = '' OR ?3 = 'all') OR
     (?3 = 'done' AND done = 1) OR
     (?3 = 'canceled' AND done = 0 AND is_deleted = 1) OR
     (?3 = 'merged' AND category = 'merged') OR
-    (?3 NOT IN ('done', 'canceled', 'merged', 'all', ''))
+    (?3 != '' AND ?3 != 'all' AND ?3 != 'done' AND ?3 != 'canceled' AND ?3 != 'merged')
 )
 ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
 LIMIT ?4 OFFSET ?5;

@@ -29,7 +29,6 @@ func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 		a.Tasks.PrepareMessagesForClient(r.Context(), email, msgs, r.URL.Query().Get("lang"))
 	}
 
-	aliases, _ := store.GetUserAliasesByEmail(r.Context(), email)
 	res := struct {
 		Inbox   []store.ConsolidatedMessage `json:"inbox"`
 		Pending []store.ConsolidatedMessage `json:"pending"`
@@ -39,7 +38,7 @@ func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, m := range msgs {
-		if store.IsAssignedToUser(m, email, aliases) {
+		if m.Category == services.CategoryPersonal {
 			res.Inbox = append(res.Inbox, m)
 		} else {
 			res.Pending = append(res.Pending, m)

@@ -631,49 +631,45 @@ func (q *Queries) IsMessageProcessed(ctx context.Context, arg IsMessageProcessed
 }
 
 const refreshCacheActive = `-- name: RefreshCacheActive :many
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
-FROM v_messages 
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks
+FROM messages
 WHERE user_email = ?1 AND is_deleted = 0 AND done = 0
 AND IFNULL(task, '') != ''
 AND IFNULL(category, '') != 'merged'
-ORDER BY created_at DESC 
+ORDER BY created_at DESC
 LIMIT 200
 `
 
 type RefreshCacheActiveRow struct {
-	ID                  int64        `json:"id"`
-	UserEmail           string       `json:"user_email"`
-	Source              string       `json:"source"`
-	Room                string       `json:"room"`
-	Task                string       `json:"task"`
-	Requester           string       `json:"requester"`
-	Assignee            string       `json:"assignee"`
-	AssignedAt          sql.NullTime `json:"assigned_at"`
-	Link                string       `json:"link"`
-	SourceTs            string       `json:"source_ts"`
-	OriginalText        string       `json:"original_text"`
-	Done                bool         `json:"done"`
-	IsDeleted           bool         `json:"is_deleted"`
-	CreatedAt           sql.NullTime `json:"created_at"`
-	CompletedAt         sql.NullTime `json:"completed_at"`
-	Category            string       `json:"category"`
-	Deadline            string       `json:"deadline"`
-	ThreadID            string       `json:"thread_id"`
-	AssigneeReason      string       `json:"assignee_reason"`
-	RepliedToID         string       `json:"replied_to_id"`
-	IsContextQuery      int64        `json:"is_context_query"`
-	Constraints         string       `json:"constraints"`
-	Metadata            string       `json:"metadata"`
-	SourceChannels      string       `json:"source_channels"`
-	ConsolidatedContext string       `json:"consolidated_context"`
-	Subtasks            string       `json:"subtasks"`
-	RequesterCanonical  string       `json:"requester_canonical"`
-	AssigneeCanonical   string       `json:"assignee_canonical"`
-	RequesterType       string       `json:"requester_type"`
-	AssigneeType        string       `json:"assignee_type"`
+	ID                  int64         `json:"id"`
+	UserEmail           string        `json:"user_email"`
+	Source              string        `json:"source"`
+	Room                string        `json:"room"`
+	Task                string        `json:"task"`
+	Requester           string        `json:"requester"`
+	Assignee            string        `json:"assignee"`
+	AssignedAt          sql.NullTime  `json:"assigned_at"`
+	Link                string        `json:"link"`
+	SourceTs            string        `json:"source_ts"`
+	OriginalText        string        `json:"original_text"`
+	Done                sql.NullBool  `json:"done"`
+	IsDeleted           sql.NullBool  `json:"is_deleted"`
+	CreatedAt           sql.NullTime  `json:"created_at"`
+	CompletedAt         sql.NullTime  `json:"completed_at"`
+	Category            string        `json:"category"`
+	Deadline            string        `json:"deadline"`
+	ThreadID            string        `json:"thread_id"`
+	AssigneeReason      string        `json:"assignee_reason"`
+	RepliedToID         string        `json:"replied_to_id"`
+	IsContextQuery      sql.NullInt64 `json:"is_context_query"`
+	Constraints         string        `json:"constraints"`
+	Metadata            string        `json:"metadata"`
+	SourceChannels      string        `json:"source_channels"`
+	ConsolidatedContext string        `json:"consolidated_context"`
+	Subtasks            string        `json:"subtasks"`
 }
 
-func (q *Queries) RefreshCacheActive(ctx context.Context, userEmail string) ([]RefreshCacheActiveRow, error) {
+func (q *Queries) RefreshCacheActive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheActiveRow, error) {
 	rows, err := q.db.QueryContext(ctx, refreshCacheActive, userEmail)
 	if err != nil {
 		return nil, err
@@ -709,10 +705,6 @@ func (q *Queries) RefreshCacheActive(ctx context.Context, userEmail string) ([]R
 			&i.SourceChannels,
 			&i.ConsolidatedContext,
 			&i.Subtasks,
-			&i.RequesterCanonical,
-			&i.AssigneeCanonical,
-			&i.RequesterType,
-			&i.AssigneeType,
 		); err != nil {
 			return nil, err
 		}
@@ -728,8 +720,8 @@ func (q *Queries) RefreshCacheActive(ctx context.Context, userEmail string) ([]R
 }
 
 const refreshCacheArchive = `-- name: RefreshCacheArchive :many
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
-FROM v_messages 
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks
+FROM messages
 WHERE user_email = ?1 AND (is_deleted = 1 OR done = 1 OR category = 'merged')
 AND IFNULL(task, '') != ''
 ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
@@ -737,39 +729,35 @@ LIMIT 100
 `
 
 type RefreshCacheArchiveRow struct {
-	ID                  int64        `json:"id"`
-	UserEmail           string       `json:"user_email"`
-	Source              string       `json:"source"`
-	Room                string       `json:"room"`
-	Task                string       `json:"task"`
-	Requester           string       `json:"requester"`
-	Assignee            string       `json:"assignee"`
-	AssignedAt          sql.NullTime `json:"assigned_at"`
-	Link                string       `json:"link"`
-	SourceTs            string       `json:"source_ts"`
-	OriginalText        string       `json:"original_text"`
-	Done                bool         `json:"done"`
-	IsDeleted           bool         `json:"is_deleted"`
-	CreatedAt           sql.NullTime `json:"created_at"`
-	CompletedAt         sql.NullTime `json:"completed_at"`
-	Category            string       `json:"category"`
-	Deadline            string       `json:"deadline"`
-	ThreadID            string       `json:"thread_id"`
-	AssigneeReason      string       `json:"assignee_reason"`
-	RepliedToID         string       `json:"replied_to_id"`
-	IsContextQuery      int64        `json:"is_context_query"`
-	Constraints         string       `json:"constraints"`
-	Metadata            string       `json:"metadata"`
-	SourceChannels      string       `json:"source_channels"`
-	ConsolidatedContext string       `json:"consolidated_context"`
-	Subtasks            string       `json:"subtasks"`
-	RequesterCanonical  string       `json:"requester_canonical"`
-	AssigneeCanonical   string       `json:"assignee_canonical"`
-	RequesterType       string       `json:"requester_type"`
-	AssigneeType        string       `json:"assignee_type"`
+	ID                  int64         `json:"id"`
+	UserEmail           string        `json:"user_email"`
+	Source              string        `json:"source"`
+	Room                string        `json:"room"`
+	Task                string        `json:"task"`
+	Requester           string        `json:"requester"`
+	Assignee            string        `json:"assignee"`
+	AssignedAt          sql.NullTime  `json:"assigned_at"`
+	Link                string        `json:"link"`
+	SourceTs            string        `json:"source_ts"`
+	OriginalText        string        `json:"original_text"`
+	Done                sql.NullBool  `json:"done"`
+	IsDeleted           sql.NullBool  `json:"is_deleted"`
+	CreatedAt           sql.NullTime  `json:"created_at"`
+	CompletedAt         sql.NullTime  `json:"completed_at"`
+	Category            string        `json:"category"`
+	Deadline            string        `json:"deadline"`
+	ThreadID            string        `json:"thread_id"`
+	AssigneeReason      string        `json:"assignee_reason"`
+	RepliedToID         string        `json:"replied_to_id"`
+	IsContextQuery      sql.NullInt64 `json:"is_context_query"`
+	Constraints         string        `json:"constraints"`
+	Metadata            string        `json:"metadata"`
+	SourceChannels      string        `json:"source_channels"`
+	ConsolidatedContext string        `json:"consolidated_context"`
+	Subtasks            string        `json:"subtasks"`
 }
 
-func (q *Queries) RefreshCacheArchive(ctx context.Context, userEmail string) ([]RefreshCacheArchiveRow, error) {
+func (q *Queries) RefreshCacheArchive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheArchiveRow, error) {
 	rows, err := q.db.QueryContext(ctx, refreshCacheArchive, userEmail)
 	if err != nil {
 		return nil, err
@@ -805,10 +793,6 @@ func (q *Queries) RefreshCacheArchive(ctx context.Context, userEmail string) ([]
 			&i.SourceChannels,
 			&i.ConsolidatedContext,
 			&i.Subtasks,
-			&i.RequesterCanonical,
-			&i.AssigneeCanonical,
-			&i.RequesterType,
-			&i.AssigneeType,
 		); err != nil {
 			return nil, err
 		}
@@ -938,22 +922,22 @@ FROM v_messages
 WHERE (user_email = ?1 OR (user_email IS NULL AND ?1 = '')) AND (is_deleted = 1 OR category = 'merged' OR done = 1)
 AND (?2 = '' OR task LIKE '%' || ?2 || '%' OR original_text LIKE '%' || ?2 || '%' OR requester LIKE '%' || ?2 || '%' OR assignee LIKE '%' || ?2 || '%')
 AND (
-    ?3 IN ('all', '') OR
+    (?3 = '' OR ?3 = 'all') OR
     (?3 = 'done' AND done = 1) OR
     (?3 = 'canceled' AND done = 0 AND is_deleted = 1) OR
     (?3 = 'merged' AND category = 'merged') OR
-    (?3 NOT IN ('done', 'canceled', 'merged', 'all', ''))
+    (?3 != '' AND ?3 != 'all' AND ?3 != 'done' AND ?3 != 'canceled' AND ?3 != 'merged')
 )
 ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
 LIMIT ?4 OFFSET ?5
 `
 
 type SearchArchivedMessagesParams struct {
-	Column1 string `json:"column_1"`
-	Column2 string `json:"column_2"`
-	Column3 string `json:"column_3"`
-	Limit   int64  `json:"limit"`
-	Offset  int64  `json:"offset"`
+	UserEmail string      `json:"user_email"`
+	Column2   interface{} `json:"column_2"`
+	Column3   interface{} `json:"column_3"`
+	Limit     int64       `json:"limit"`
+	Offset    int64       `json:"offset"`
 }
 
 type SearchArchivedMessagesRow struct {
@@ -991,7 +975,7 @@ type SearchArchivedMessagesRow struct {
 
 func (q *Queries) SearchArchivedMessages(ctx context.Context, arg SearchArchivedMessagesParams) ([]SearchArchivedMessagesRow, error) {
 	rows, err := q.db.QueryContext(ctx, searchArchivedMessages,
-		arg.Column1,
+		arg.UserEmail,
 		arg.Column2,
 		arg.Column3,
 		arg.Limit,
@@ -1054,22 +1038,22 @@ SELECT COUNT(*) FROM messages
 WHERE (user_email = ?1 OR (user_email IS NULL AND ?1 = '')) AND (is_deleted = 1 OR category = 'merged' OR done = 1)
 AND (?2 = '' OR task LIKE '%' || ?2 || '%' OR original_text LIKE '%' || ?2 || '%' OR requester LIKE '%' || ?2 || '%' OR assignee LIKE '%' || ?2 || '%')
 AND (
-    ?3 IN ('all', '') OR
+    (?3 = '' OR ?3 = 'all') OR
     (?3 = 'done' AND done = 1) OR
     (?3 = 'canceled' AND done = 0 AND is_deleted = 1) OR
     (?3 = 'merged' AND category = 'merged') OR
-    (?3 NOT IN ('done', 'canceled', 'merged', 'all', ''))
+    (?3 != '' AND ?3 != 'all' AND ?3 != 'done' AND ?3 != 'canceled' AND ?3 != 'merged')
 )
 `
 
 type SearchArchivedMessagesCountParams struct {
-	Column1 string `json:"column_1"`
-	Column2 string `json:"column_2"`
-	Column3 string `json:"column_3"`
+	UserEmail sql.NullString `json:"user_email"`
+	Column2   interface{}    `json:"column_2"`
+	Column3   interface{}    `json:"column_3"`
 }
 
 func (q *Queries) SearchArchivedMessagesCount(ctx context.Context, arg SearchArchivedMessagesCountParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, searchArchivedMessagesCount, arg.Column1, arg.Column2, arg.Column3)
+	row := q.db.QueryRowContext(ctx, searchArchivedMessagesCount, arg.UserEmail, arg.Column2, arg.Column3)
 	var count int64
 	err := row.Scan(&count)
 	return count, err

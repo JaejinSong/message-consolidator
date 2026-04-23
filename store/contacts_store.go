@@ -784,3 +784,45 @@ func UpdateContactType(ctx context.Context, contactID int64, cType string) error
 func fetchTenantEmailByID(ctx context.Context, id int64) (string, error) {
 	return db.New(GetDB()).GetTenantEmailByContactID(ctx, id)
 }
+
+// ResolvedContact holds the effective contact info after following master_contact_id.
+type ResolvedContact struct {
+	DisplayName string
+	CanonicalID string
+	ContactType string
+}
+
+// BuildContactResolver loads all contacts for a tenant once and returns a map
+// from raw canonical_id → effective resolved contact (merge-aware).
+func BuildContactResolver(ctx context.Context, tenantEmail string) (map[string]ResolvedContact, error) {
+	contacts, err := fetchAllTenantContacts(ctx, tenantEmail)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[int64]ContactRecord, len(contacts))
+	for _, c := range contacts {
+		byID[c.ID] = c
+	}
+	resolver := make(map[string]ResolvedContact, len(contacts))
+	for _, c := range contacts {
+		eff := ResolvedContact{DisplayName: c.DisplayName, CanonicalID: c.CanonicalID, ContactType: c.ContactType}
+		if c.MasterContactID.Valid {
+			if master, ok := byID[c.MasterContactID.Int64]; ok {
+				eff.DisplayName = master.DisplayName
+				eff.CanonicalID = master.CanonicalID
+				eff.ContactType = master.ContactType
+			}
+		}
+		resolver[c.CanonicalID] = eff
+	}
+	return resolver, nil
+}
+
+// resolveContact looks up display name, canonical ID, and type for a raw identifier.
+// Falls back to the raw value when not found.
+func resolveContact(resolver map[string]ResolvedContact, raw string) (display, canonical, contactType string) {
+	if r, ok := resolver[raw]; ok {
+		return r.DisplayName, r.CanonicalID, r.ContactType
+	}
+	return raw, raw, "none"
+}

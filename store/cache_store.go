@@ -38,8 +38,11 @@ var (
 	// knownTS maintains a registry of processed message timestamps to eliminate duplicate entries during synchronization.
 	knownTS          = make(map[string]map[string]bool)
 	
-	// cacheInitialized track whether a specific user's message cache has been populated.
+	// cacheInitialized track whether a specific user's active message cache has been populated.
 	cacheInitialized = make(map[string]bool)
+
+	// archiveInitialized tracks whether the archive cache has been separately populated.
+	archiveInitialized = make(map[string]bool)
 
 	// sfGroup handles single-flight requests to prevent cache stampede.
 	sfGroup singleflight.Group
@@ -78,6 +81,7 @@ func ResetForTest() {
 	archiveCache = make(map[string][]ConsolidatedMessage)
 	knownTS = make(map[string]map[string]bool)
 	cacheInitialized = make(map[string]bool)
+	archiveInitialized = make(map[string]bool)
 	cacheMu.Unlock()
 
 }
@@ -90,91 +94,106 @@ func RefreshAllCaches(ctx context.Context) error {
 	}
 	for _, u := range users {
 		if err := RefreshCache(ctx, u.Email); err != nil {
-			logger.Errorf("Failed to refresh cache for %s: %v", u.Email, err)
+			logger.Errorf("Failed to refresh active cache for %s: %v", u.Email, err)
+		}
+		if err := RefreshArchiveCache(ctx, u.Email); err != nil {
+			logger.Errorf("Failed to refresh archive cache for %s: %v", u.Email, err)
 		}
 	}
 	return nil
 }
 
-type cacheRowConvertible interface {
-	db.RefreshCacheActiveRow | db.RefreshCacheArchiveRow
-}
-
-func collectCacheRows[T cacheRowConvertible](rows []T, knownTS map[string]bool, convert func(T) ConsolidatedMessage) []ConsolidatedMessage {
-	var msgs []ConsolidatedMessage
+func buildMessages(rows []db.RefreshCacheActiveRow, resolver map[string]ResolvedContact, knownTS map[string]bool) []ConsolidatedMessage {
+	msgs := make([]ConsolidatedMessage, 0, len(rows))
 	for _, r := range rows {
-		m := convert(r)
+		reqDisplay, reqCanon, reqType := resolveContact(resolver, r.Requester)
+		asgDisplay, asgCanon, asgType := resolveContact(resolver, r.Assignee)
+		m := MapVMessageToConsolidated(
+			int(r.ID), r.UserEmail, r.Source, r.Room, r.Task,
+			reqDisplay, asgDisplay, r.Link, r.SourceTs,
+			r.OriginalText, r.Done.Bool, r.IsDeleted.Bool, r.CreatedAt,
+			r.Category, r.Deadline, r.ThreadID,
+			reqCanon, asgCanon, r.AssigneeReason,
+			r.RepliedToID, int(r.IsContextQuery.Int64), r.Constraints,
+			r.ConsolidatedContext, r.Metadata, r.SourceChannels,
+			reqType, asgType, r.Subtasks,
+			r.AssignedAt, r.CompletedAt,
+		)
 		msgs = append(msgs, m)
 		knownTS[m.SourceTS] = true
 	}
 	return msgs
 }
 
-func fetchCacheActive(ctx context.Context, email string, knownTS map[string]bool) ([]ConsolidatedMessage, error) {
-	rows, err := db.New(GetDB()).RefreshCacheActive(ctx, email)
-	if err != nil {
-		return nil, fmt.Errorf("active query failed: %w", err)
-	}
-	return collectCacheRows(rows, knownTS, func(r db.RefreshCacheActiveRow) ConsolidatedMessage {
-		return MapVMessageToConsolidated(
+func buildArchiveMessages(rows []db.RefreshCacheArchiveRow, resolver map[string]ResolvedContact) []ConsolidatedMessage {
+	msgs := make([]ConsolidatedMessage, 0, len(rows))
+	for _, r := range rows {
+		reqDisplay, reqCanon, reqType := resolveContact(resolver, r.Requester)
+		asgDisplay, asgCanon, asgType := resolveContact(resolver, r.Assignee)
+		msgs = append(msgs, MapVMessageToConsolidated(
 			int(r.ID), r.UserEmail, r.Source, r.Room, r.Task,
-			r.Requester, r.Assignee, r.Link, r.SourceTs,
-			r.OriginalText, r.Done, r.IsDeleted, r.CreatedAt,
+			reqDisplay, asgDisplay, r.Link, r.SourceTs,
+			r.OriginalText, r.Done.Bool, r.IsDeleted.Bool, r.CreatedAt,
 			r.Category, r.Deadline, r.ThreadID,
-			r.RequesterCanonical, r.AssigneeCanonical, r.AssigneeReason,
-			r.RepliedToID, int(r.IsContextQuery), r.Constraints,
+			reqCanon, asgCanon, r.AssigneeReason,
+			r.RepliedToID, int(r.IsContextQuery.Int64), r.Constraints,
 			r.ConsolidatedContext, r.Metadata, r.SourceChannels,
-			r.RequesterType, r.AssigneeType, r.Subtasks,
+			reqType, asgType, r.Subtasks,
 			r.AssignedAt, r.CompletedAt,
-		)
-	}), nil
+		))
+	}
+	return msgs
 }
 
-func fetchCacheArchive(ctx context.Context, email string, knownTS map[string]bool) ([]ConsolidatedMessage, error) {
-	rows, err := db.New(GetDB()).RefreshCacheArchive(ctx, email)
-	if err != nil {
-		return nil, fmt.Errorf("archive query failed: %w", err)
-	}
-	return collectCacheRows(rows, knownTS, func(r db.RefreshCacheArchiveRow) ConsolidatedMessage {
-		return MapVMessageToConsolidated(
-			int(r.ID), r.UserEmail, r.Source, r.Room, r.Task,
-			r.Requester, r.Assignee, r.Link, r.SourceTs,
-			r.OriginalText, r.Done, r.IsDeleted, r.CreatedAt,
-			r.Category, r.Deadline, r.ThreadID,
-			r.RequesterCanonical, r.AssigneeCanonical, r.AssigneeReason,
-			r.RepliedToID, int(r.IsContextQuery), r.Constraints,
-			r.ConsolidatedContext, r.Metadata, r.SourceChannels,
-			r.RequesterType, r.AssigneeType, r.Subtasks,
-			r.AssignedAt, r.CompletedAt,
-		)
-	}), nil
-}
-
+// RefreshCache reloads only the active message cache for a user.
+// Contact resolution is performed in Go to avoid expensive view JOINs.
 func RefreshCache(ctx context.Context, email string) error {
-	//Why: Prevents cache refresh operations from hanging indefinitely by enforcing a 10-second timeout.
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
+	resolver, err := BuildContactResolver(ctx, email)
+	if err != nil {
+		return fmt.Errorf("contact resolver: %w", err)
+	}
+
+	rows, err := db.New(GetDB()).RefreshCacheActive(ctx, nullString(email))
+	if err != nil {
+		return fmt.Errorf("active query failed: %w", err)
+	}
+
 	newKnownTS := make(map[string]bool)
-
-	// [Modular logic] Split active and archive fetching to keep functional complexity low (under 40 lines).
-	newActive, err := fetchCacheActive(ctx, email, newKnownTS)
-	if err != nil {
-		return err
-	}
-
-	newArchive, err := fetchCacheArchive(ctx, email, newKnownTS)
-	if err != nil {
-		return err
-	}
+	newActive := buildMessages(rows, resolver, newKnownTS)
 
 	cacheMu.Lock()
 	messageCache[email] = newActive
-	archiveCache[email] = newArchive
 	knownTS[email] = newKnownTS
 	cacheInitialized[email] = true
 	cacheMu.Unlock()
+	return nil
+}
 
+// RefreshArchiveCache reloads only the archive cache for a user.
+// Separated from RefreshCache so the active path avoids the archive query on cold start.
+func RefreshArchiveCache(ctx context.Context, email string) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	resolver, err := BuildContactResolver(ctx, email)
+	if err != nil {
+		return fmt.Errorf("contact resolver: %w", err)
+	}
+
+	rows, err := db.New(GetDB()).RefreshCacheArchive(ctx, nullString(email))
+	if err != nil {
+		return fmt.Errorf("archive query failed: %w", err)
+	}
+
+	newArchive := buildArchiveMessages(rows, resolver)
+
+	cacheMu.Lock()
+	archiveCache[email] = newArchive
+	archiveInitialized[email] = true
+	cacheMu.Unlock()
 	return nil
 }
 
@@ -193,6 +212,19 @@ func EnsureCacheInitialized(ctx context.Context, email string) error {
 	return err
 }
 
+func EnsureArchiveCacheInitialized(ctx context.Context, email string) error {
+	cacheMu.RLock()
+	initialized := archiveInitialized[email]
+	cacheMu.RUnlock()
+	if initialized {
+		return nil
+	}
+	_, err, _ := sfGroup.Do("archive:"+email, func() (interface{}, error) {
+		return nil, RefreshArchiveCache(ctx, email)
+	})
+	return err
+}
+
 func InvalidateCache(email string) {
 	cacheMu.Lock()
 	defer cacheMu.Unlock()
@@ -200,6 +232,7 @@ func InvalidateCache(email string) {
 	delete(archiveCache, email)
 	delete(knownTS, email)
 	delete(cacheInitialized, email)
+	delete(archiveInitialized, email)
 }
 
 func ArchiveOldTasks(ctx context.Context) error {

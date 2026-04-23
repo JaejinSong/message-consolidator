@@ -10,10 +10,9 @@ const mockMessages: any[] = [
 ];
 
 describe('taskFilter.ts - filterByTab', () => {
-    it('should filter messages for "received" tab (personal only)', () => {
+    it('should return all messages for "received" tab (inbox is pre-filtered server-side)', () => {
         const result = filterByTab(mockMessages, 'received');
-        expect(result.length).toBe(2);
-        expect(result.every(m => m.category === 'personal')).toBe(true);
+        expect(result.length).toBe(mockMessages.length);
     });
 
     it('should filter messages for "delegated" tab (requested only)', () => {
@@ -22,12 +21,24 @@ describe('taskFilter.ts - filterByTab', () => {
         expect(result[0].id).toBe(4);
     });
 
-    it('should filter messages for "reference" tab (shared + others)', () => {
+    it('should filter messages for "reference" tab (everything except requested)', () => {
         const result = filterByTab(mockMessages, 'reference');
-        expect(result.length).toBe(2);
+        expect(result.length).toBe(4); // personal×2, shared, others — excludes only 'requested'
         const ids = result.map(m => m.id);
+        expect(ids).toContain(1);
         expect(ids).toContain(2);
         expect(ids).toContain(3);
+        expect(ids).not.toContain(4); // requested → delegated tab only
+    });
+
+    it('should show personal-category items in reference when they appear in pending (divergence case)', () => {
+        const pendingWithPersonal: any[] = [
+            { id: 20, task: 'Name-matched task', category: 'personal', done: false, requester: 'User X', source: 'slack' },
+            { id: 21, task: 'Shared task', category: 'shared', done: false, requester: 'User Y', source: 'slack' },
+        ];
+        const result = filterByTab(pendingWithPersonal, 'reference');
+        expect(result.length).toBe(2);
+        expect(result.map(m => m.id)).toContain(20);
     });
 
     it('should return all tasks in "all" tab', () => {
@@ -35,12 +46,12 @@ describe('taskFilter.ts - filterByTab', () => {
         expect(result.length).toBe(5);
     });
 
-    it('should return empty for non-matching categories when not "all" tab', () => {
-        const legacyMessages: any[] = [
-            { id: 10, task: 'Legacy My', assignee: 'me', done: false, requester: 'User A', source: 'slack' },
-            { id: 11, task: 'Legacy Other', assignee: 'other', done: false, requester: 'User B', source: 'slack' }
+    it('should return all for "all" and "received" tabs regardless of category', () => {
+        const msgs: any[] = [
+            { id: 10, task: 'Task A', done: false, requester: 'User A', source: 'slack' },
+            { id: 11, task: 'Task B', done: false, requester: 'User B', source: 'slack' }
         ];
-        expect(filterByTab(legacyMessages, 'received').length).toBe(0);
-        expect(filterByTab(legacyMessages, 'all').length).toBe(2);
+        expect(filterByTab(msgs, 'received').length).toBe(2);
+        expect(filterByTab(msgs, 'all').length).toBe(2);
     });
 });

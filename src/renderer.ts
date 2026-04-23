@@ -191,7 +191,7 @@ export function renderMessages(categorized: CategorizedMessages): void {
         {
             tab: 'received',
             gridId: 'receivedTasksList',
-            messages: filterByTab(categorized.inbox || [], 'received')
+            messages: categorized.inbox || []
         },
         {
             tab: 'delegated',

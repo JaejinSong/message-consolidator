@@ -7,6 +7,9 @@ import (
 )
 
 func GetArchivedMessages(ctx context.Context, email string) ([]ConsolidatedMessage, error) {
+	if err := EnsureArchiveCacheInitialized(ctx, email); err != nil {
+		return nil, err
+	}
 	cacheMu.RLock()
 	defer cacheMu.RUnlock()
 	if msgs, ok := archiveCache[email]; ok {
@@ -30,8 +33,10 @@ func GetAutoArchiveDays() int {
 func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]ConsolidatedMessage, int, error) {
 	// [Guard Clause] Serve from cache for first-page, non-search requests to reduce DB load.
 	if filter.Query == "" && filter.Offset == 0 && filter.Limit >= 50 {
-		if msgs, total, ok := getFromArchiveCache(filter); ok {
-			return msgs, total, nil
+		if err := EnsureArchiveCacheInitialized(ctx, filter.Email); err == nil {
+			if msgs, total, ok := getFromArchiveCache(filter); ok {
+				return msgs, total, nil
+			}
 		}
 	}
 	return fetchArchivedFromDB(ctx, filter)
@@ -60,20 +65,20 @@ func fetchArchivedFromDB(ctx context.Context, filter ArchiveFilter) ([]Consolida
 	queries := db.New(GetDB())
 
 	total, err := queries.SearchArchivedMessagesCount(ctx, db.SearchArchivedMessagesCountParams{
-		Column1: filter.Email,
-		Column2: filter.Query,
-		Column3: filter.Status,
+		UserEmail: nullString(filter.Email),
+		Column2:   filter.Query,
+		Column3:   filter.Status,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("archive count failed: %w", err)
 	}
 
 	rows, err := queries.SearchArchivedMessages(ctx, db.SearchArchivedMessagesParams{
-		Column1: filter.Email,
-		Column2: filter.Query,
-		Column3: filter.Status,
-		Limit:   int64(filter.Limit),
-		Offset:  int64(filter.Offset),
+		UserEmail: filter.Email,
+		Column2:   filter.Query,
+		Column3:   filter.Status,
+		Limit:     int64(filter.Limit),
+		Offset:    int64(filter.Offset),
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("archive search failed: %w", err)
@@ -127,9 +132,9 @@ func GetArchivedMessagesCount(ctx context.Context, filter ArchiveFilter) (int, e
 	queries := db.New(GetDB())
 	
 	total, err := queries.SearchArchivedMessagesCount(ctx, db.SearchArchivedMessagesCountParams{
-		Column1: filter.Email,
-		Column2: filter.Query,
-		Column3: filter.Status,
+		UserEmail: nullString(filter.Email),
+		Column2:   filter.Query,
+		Column3:   filter.Status,
 	})
 	return int(total), err
 }

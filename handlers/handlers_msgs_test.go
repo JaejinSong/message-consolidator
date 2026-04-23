@@ -26,7 +26,7 @@ func TestHandleGetMessages(t *testing.T) {
 	_, err = store.GetDB().Exec(`INSERT INTO messages 
 		(user_email, task, source, source_ts, done, requester, assignee, link, room, original_text, category, deadline, assigned_at, created_at) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		email, "Test Task", "slack", "ts123", 0, "Requester", "me", "http://link", "Room", "Original", "todo", "", time.Now(), time.Now())
+		email, "Test Task", "slack", "ts123", 0, "Requester", "me", "http://link", "Room", "Original", "personal", "", time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("Failed to insert mock message: %v", err)
 	}

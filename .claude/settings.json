@@ -13,7 +13,9 @@
       "Bash(git -C /home/jinro/.gemini/message-consolidator diff db/messages.sql.go)",
       "Bash(git -C /home/jinro/.gemini/message-consolidator checkout db/messages.sql.go db/querier.go)",
       "Bash(git -C /home/jinro/.gemini/message-consolidator diff db/contacts.sql.go)",
-      "Bash(git -C /home/jinro/.gemini/message-consolidator diff store/queries/contacts.sql)"
+      "Bash(git -C /home/jinro/.gemini/message-consolidator diff store/queries/contacts.sql)",
+      "Bash(bash unit-test.sh)",
+      "Bash(git stash *)"
     ]
   }
 }

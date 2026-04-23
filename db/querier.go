@@ -45,6 +45,7 @@ type Querier interface {
 	DeleteTaskTranslations(ctx context.Context, messageID sql.NullInt64) error
 	DeleteTenantAlias(ctx context.Context, arg DeleteTenantAliasParams) error
 	DeleteUserAlias(ctx context.Context, arg DeleteUserAliasParams) error
+	FlattenContactChildren(ctx context.Context, arg FlattenContactChildrenParams) error
 	GetAbandonedTasks(ctx context.Context, arg GetAbandonedTasksParams) (int64, error)
 	GetActiveSlackThreadsNew(ctx context.Context) ([]GetActiveSlackThreadsNewRow, error)
 	GetActiveTasksForContext(ctx context.Context, arg GetActiveTasksForContextParams) ([]GetActiveTasksForContextRow, error)
@@ -53,6 +54,7 @@ type Querier interface {
 	GetAllUsers(ctx context.Context) ([]User, error)
 	GetCompletionHistory(ctx context.Context, arg GetCompletionHistoryParams) ([]GetCompletionHistoryRow, error)
 	GetContactByID(ctx context.Context, arg GetContactByIDParams) (GetContactByIDRow, error)
+	GetContactTypeByID(ctx context.Context, arg GetContactTypeByIDParams) (sql.NullString, error)
 	GetContactsByIDs(ctx context.Context, ids []int64) ([]GetContactsByIDsRow, error)
 	GetContactsByTenant(ctx context.Context, tenantEmail string) ([]GetContactsByTenantRow, error)
 	GetContactsByValues(ctx context.Context) ([]GetContactsByValuesRow, error)
@@ -60,12 +62,14 @@ type Querier interface {
 	GetDailyCompletions(ctx context.Context, arg GetDailyCompletionsParams) ([]GetDailyCompletionsRow, error)
 	GetDailyFilteredCount(ctx context.Context, arg GetDailyFilteredCountParams) (interface{}, error)
 	GetDailyTokenUsage(ctx context.Context, arg GetDailyTokenUsageParams) (GetDailyTokenUsageRow, error)
+	GetDisplayNameByID(ctx context.Context, id int64) (string, error)
 	GetEarlyBirdCompleted(ctx context.Context, dollar_1 string) (int64, error)
 	GetEmergencyCompleted(ctx context.Context, userEmail sql.NullString) (int64, error)
 	GetGmailToken(ctx context.Context, userEmail string) (string, error)
 	GetHourlyActivity(ctx context.Context, arg GetHourlyActivityParams) ([]GetHourlyActivityRow, error)
 	GetIncompleteByThreadID(ctx context.Context, arg GetIncompleteByThreadIDParams) ([]GetIncompleteByThreadIDRow, error)
 	GetLinkedContacts(ctx context.Context, tenantEmail string) ([]GetLinkedContactsRow, error)
+	GetMasterAndTypeByID(ctx context.Context, arg GetMasterAndTypeByIDParams) (GetMasterAndTypeByIDRow, error)
 	GetMaxDailyCompleted(ctx context.Context, dollar_1 string) (interface{}, error)
 	GetMessageByID(ctx context.Context, id int64) (GetMessageByIDRow, error)
 	GetMessagesByEmail(ctx context.Context, userEmail string) ([]GetMessagesByEmailRow, error)
@@ -87,6 +91,7 @@ type Querier interface {
 	GetTaskCountByContactType(ctx context.Context, userEmail string) ([]GetTaskCountByContactTypeRow, error)
 	GetTaskTranslation(ctx context.Context, arg GetTaskTranslationParams) (string, error)
 	GetTaskTranslationsBatch(ctx context.Context, arg GetTaskTranslationsBatchParams) ([]GetTaskTranslationsBatchRow, error)
+	GetTenantEmailByContactID(ctx context.Context, id int64) (string, error)
 	GetTotalCompleted(ctx context.Context, dollar_1 string) (int64, error)
 	GetUserAliases(ctx context.Context, userID int64) ([]string, error)
 	GetUserAliasesByEmail(ctx context.Context, email sql.NullString) ([]string, error)
@@ -107,8 +112,8 @@ type Querier interface {
 	LoadScanMetadataAll(ctx context.Context) ([]LoadScanMetadataAllRow, error)
 	LoadUsersAll(ctx context.Context) ([]User, error)
 	MarkSourceTSProcessed(ctx context.Context, arg MarkSourceTSProcessedParams) error
-	RefreshCacheActive(ctx context.Context, userEmail string) ([]RefreshCacheActiveRow, error)
-	RefreshCacheArchive(ctx context.Context, userEmail string) ([]RefreshCacheArchiveRow, error)
+	RefreshCacheActive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheActiveRow, error)
+	RefreshCacheArchive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheArchiveRow, error)
 	RestoreMessages(ctx context.Context, arg RestoreMessagesParams) error
 	// Note: Batching with VALUES %s is not supported by sqlc directly.
 	// Using a single insert that can be called in a transaction.
@@ -118,6 +123,7 @@ type Querier interface {
 	SearchContacts(ctx context.Context, arg SearchContactsParams) ([]SearchContactsRow, error)
 	UpdateCategoryMerged(ctx context.Context, arg UpdateCategoryMergedParams) error
 	UpdateContactDetails(ctx context.Context, arg UpdateContactDetailsParams) error
+	UpdateDisplayNameIfEmpty(ctx context.Context, arg UpdateDisplayNameIfEmptyParams) error
 	UpdateMessageDetails(ctx context.Context, arg UpdateMessageDetailsParams) error
 	UpdateReportStatus(ctx context.Context, arg UpdateReportStatusParams) error
 	UpdateResolutionContactID(ctx context.Context, arg UpdateResolutionContactIDParams) error
