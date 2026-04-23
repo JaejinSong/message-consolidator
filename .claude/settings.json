@@ -22,7 +22,12 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git -C /home/jinro/.gemini/message-consolidator log --diff-filter=D --name-only --oneline -5)",
-      "Bash(bash /home/jinro/.gemini/message-consolidator/unit-test.sh)"
+      "Bash(bash /home/jinro/.gemini/message-consolidator/unit-test.sh)",
+      "mcp__serena__check_onboarding_performed",
+      "Bash(go install *)",
+      "Bash(npx ts-unused-exports *)",
+      "Bash(deadcode .)",
+      "Bash(deadcode -test .)"
     ]
   }
 }

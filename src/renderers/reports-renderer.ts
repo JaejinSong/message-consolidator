@@ -467,20 +467,27 @@ export const reportsRenderer = {
 
         if (summaryArea) {
             const html = parseMarkdown(summaryText);
-            const stalledMatch = summaryText.match(/## \[Stalled Tasks\]\s*```json\s*([\s\S]*?)```/);
-            
-            if (stalledMatch) {
+            const jsonBlocks = [...summaryText.matchAll(/```json\s*(\[[\s\S]*?\])\s*```/g)];
+            let renderedHTML = html;
+
+            for (const match of jsonBlocks) {
                 try {
-                    const stalledData = JSON.parse(stalledMatch[1]);
-                    const renderedTable = this.renderStalledTasksComponent(stalledData, i18n);
-                    summaryArea.innerHTML = html.replace(/<pre><code class="language-json">[\s\S]*?<\/code><\/pre>/, renderedTable);
+                    const data = JSON.parse(match[1]);
+                    if (!Array.isArray(data)) continue;
+                    if (data.length === 0) {
+                        renderedHTML = renderedHTML.replace(/<pre><code class="language-json">[\s\S]*?<\/code><\/pre>/, '');
+                        continue;
+                    }
+                    const isActivity = typeof data[0] === 'object' && data[0] !== null && ('customer' in data[0] || 'count' in data[0]);
+                    const component = isActivity
+                        ? this.renderActivityComponent(data, i18n)
+                        : this.renderStalledTasksComponent(data, i18n);
+                    renderedHTML = renderedHTML.replace(/<pre><code class="language-json">[\s\S]*?<\/code><\/pre>/, component);
                 } catch (e) {
                     console.error("[ReportsRenderer] JSON parse failed:", e);
-                    summaryArea.innerHTML = html;
                 }
-            } else {
-                summaryArea.innerHTML = html;
             }
+            summaryArea.innerHTML = renderedHTML;
         }
 
         const vizRaw = report.visualization_data;
@@ -510,6 +517,30 @@ export const reportsRenderer = {
                 requestAnimationFrame(() => { matrixChartArea.innerHTML = ''; renderMatrixSVG(matrixChartArea, viz.nodes, viz.links); });
             }
         }
+    },
+
+    renderActivityComponent(data: Array<{customer: string, count: number}>, i18n: any): string {
+        const rows = data.map((item, idx) => `
+            <tr>
+                <td class="c-report-table__cell--rank">${idx + 1}</td>
+                <td>${escapeHTML(item.customer || '-')}</td>
+                <td class="c-report-table__cell--count"><span class="c-report-delay-value">${item.count || 0}</span></td>
+            </tr>
+        `).join('');
+        return `
+            <div class="c-report-table-wrapper u-mt-4">
+                <table class="c-report-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>${i18n.customer || '고객사'}</th>
+                            <th>${i18n.taskCount || '태스크'}</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        `;
     },
 
     renderStalledTasksComponent(data: any[], i18n: any): string {
