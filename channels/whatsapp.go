@@ -470,12 +470,6 @@ func ResolveWAMentions(email, text string, jids []string) string {
 	return result
 }
 
-func (m *WAManager) GetClient(email string) *whatsmeow.Client {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.clients[email]
-}
-
 func (m *WAManager) PopMessages(email string) map[string][]types.RawMessage {
 	m.mu.Lock()
 	defer m.mu.Unlock()

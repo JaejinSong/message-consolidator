@@ -41,53 +41,6 @@ export function showToast(message: string, type: ToastType = 'error'): void {
 }
 
 /**
- * Triggers XP animation in the UI.
- */
-export function triggerXPAnimation(): void {
-    const overlay = document.getElementById('xpOverlay') as HTMLElement | null;
-    if (!overlay) return;
-    overlay.classList.remove('hidden');
-    overlay.style.animation = 'none';
-    void overlay.offsetHeight; // force reflow
-    overlay.style.animation = 'xpFloat 1.2s ease-out forwards';
-    setTimeout(() => overlay.classList.add('hidden'), 1200);
-}
-
-/**
- * Triggers confetti animation.
- */
-export function triggerConfetti(type: 'classic' | 'star' | 'snow' = 'classic'): void {
-    if (typeof confetti !== 'function') return;
-
-    if (type === 'star') {
-        confetti({
-            particleCount: 100,
-            spread: 70,
-            origin: { y: 0.6 },
-            colors: ['var(--color-warning)', 'var(--color-confetti-gold)', 'var(--white)'],
-            shapes: ['star', 'circle']
-        });
-    } else if (type === 'snow') {
-        confetti({
-            particleCount: 150,
-            spread: 100,
-            origin: { y: 0.4 },
-            colors: ['var(--white)', 'var(--color-confetti-snow-1)', 'var(--color-confetti-snow-2)'],
-            shapes: ['circle'],
-            gravity: 0.3,
-            scalar: 0.7
-        });
-    } else {
-        confetti({
-            particleCount: 100,
-            spread: 70,
-            origin: { y: 0.6 },
-            colors: ['var(--color-confetti-sky)', 'var(--color-info)', 'var(--white)', 'var(--color-confetti-pink)', 'var(--color-confetti-lime)']
-        });
-    }
-}
-
-/**
  * Renders release notes in the modal.
  */
 export function renderReleaseNotes(content: string): void {

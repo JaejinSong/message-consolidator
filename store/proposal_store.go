@@ -25,23 +25,6 @@ func NewGroupID() string {
 	return hex.EncodeToString(b)
 }
 
-// GetStandaloneContacts returns all unlinked (master_contact_id IS NULL) contacts for a tenant.
-// These are the candidates the AI scans when generating merge proposals.
-func GetStandaloneContacts(ctx context.Context, tenantEmail string) ([]ContactRecord, error) {
-	rows, err := GetDB().QueryContext(ctx,
-		`SELECT id, tenant_email, canonical_id, display_name,
-		        COALESCE(source, ''), master_contact_id, COALESCE(contact_type, 'none')
-		 FROM contacts
-		 WHERE tenant_email = ? AND master_contact_id IS NULL`,
-		tenantEmail,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanContactRows(rows)
-}
-
 // GetCandidateContacts returns only contacts that have at least one other contact with a
 // similar name — exact match or one name containing the other (min 4 chars).
 // This pre-filters the 208-contact list down to ~49, reducing AI chunk calls from 11 to 3.

@@ -36,25 +36,6 @@ var (
 	usageCacheMu sync.RWMutex
 )
 
-func InitTokenUsageTable(q Querier) {
-	if q == nil {
-		q = GetDB()
-	}
-	// Why: Fallback to manual DDL for self-healing, as sqlc doesn't manage DDL execution directly.
-	query := `CREATE TABLE IF NOT EXISTS token_usage (
-		email TEXT NOT NULL,
-		prompt_tokens INTEGER NOT NULL DEFAULT 0,
-		completion_tokens INTEGER NOT NULL DEFAULT 0,
-		total_tokens INTEGER NOT NULL DEFAULT 0,
-		usage_date TEXT NOT NULL,
-		PRIMARY KEY (email, usage_date)
-	);`
-	_, err := q.Exec(query)
-	if err != nil {
-		logger.Errorf("Failed to initialize token_usage table: %v", err)
-	}
-}
-
 func AddTokenUsage(email string, promptTokens, completionTokens int) error {
 	tokenMu.Lock()
 	defer tokenMu.Unlock()

@@ -236,10 +236,6 @@ func GetDB() *sql.DB {
 	return conn
 }
 
-func GetDSN() string {
-	return dsn
-}
-
 // RunInTx executes a database transaction and automatically rolls it back if an error occurs.
 // Why: Enforces consistent transaction management across the gamification domain to ensure data integrity.
 func RunInTx(ctx context.Context, fn func(tx *sql.Tx) error) error {

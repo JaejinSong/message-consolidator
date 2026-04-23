@@ -1,5 +1,4 @@
 import { I18N_DATA } from './locales';
-import { ICONS } from './icons';
 import { TimeService } from './utils';
 import { state } from './state';
 import { marked } from 'marked';
@@ -12,7 +11,7 @@ import { marked } from 'marked';
 import { Message, I18nDictionary, IReportData, ParsedVisualization } from './types';
 
 /** 완료된 업무가 대시보드에 노출되는 기준일 (보관함 이관 기준) */
-export const getArchiveThresholdDays = (): number => state.archiveThresholdDays || 7;
+const getArchiveThresholdDays = (): number => state.archiveThresholdDays || 7;
 
 /**
  * Sorts and filters messages based on the current search query.
@@ -64,40 +63,6 @@ export function getActiveCount(messages: Message[] | undefined): number {
 
 
 
-export function calculateStats(messages: Message[]) {
-    const total = messages.length;
-    const completed = messages.filter(m => m.done).length;
-    const categories: Record<string, number> = {};
-    
-    messages.forEach(m => {
-        const cat = m.category || 'TASK';
-        categories[cat] = (categories[cat] || 0) + 1;
-    });
-
-    const counts = messages.reduce((acc: Record<string, number>, m) => {
-        const source = m.source || 'unknown';
-        acc[source] = (acc[source] || 0) + 1;
-        return acc;
-    }, {});
-
-    return { total, completed, categories, counts };
-}
-
-/**
- * Why: Logic to find recent trends for dashboard visualization.
- */
-export function getRecentTrends(messages: Message[]): Record<string, number> {
-    const trends: Record<string, number> = {};
-    
-    messages.forEach(m => {
-        const d = new Date(m.timestamp || m.created_at || "");
-        const dayStr = d.toISOString().split('T')[0];
-        trends[dayStr] = (trends[dayStr] || 0) + 1;
-    });
-
-    return trends;
-}
-
 /**
  * Generates continuous heatmap data for the last X days.
  */
@@ -133,30 +98,6 @@ export function calculateHeatmapLevel(count: number): number {
     if (count < 5) return 2;
     if (count < 8) return 3;
     return 4;
-}
-
-/**
- * Calculates distribution percentages for different sources.
- */
-export function calculateSourceDistribution(distributionMap: Record<string, number> = {}): Record<string, number> {
-    const values = Object.values(distributionMap) as number[];
-    const total = values.reduce((a: number, b: number) => a + b, 0);
-    if (total === 0) return {};
-
-    const result: Record<string, number> = {};
-    let currentSum = 0;
-    const entries = Object.entries(distributionMap).sort((a, b) => b[1] - a[1]);
-
-    entries.forEach(([key, val], index) => {
-        if (index === entries.length - 1) {
-            result[key] = 100 - currentSum;
-        } else {
-            const p = Math.round((val / total) * 100);
-            result[key] = p;
-            currentSum += p;
-        }
-    });
-    return result;
 }
 
 /**

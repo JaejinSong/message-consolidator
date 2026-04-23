@@ -101,90 +101,6 @@ func MarkAsProcessed(ctx context.Context, q Querier, email, sourceTS string) err
 	})
 }
 
-// SaveMessages performs a bulk insert of multiple messages.
-// Why: Refactored to satisfy 30-line limit by delegating bulk preparation, DB execution, and multi-user cache updates.
-func SaveMessages(ctx context.Context, msgs []ConsolidatedMessage) ([]int, error) {
-	toInsert := filterNewOnly(msgs)
-	if len(toInsert) == 0 {
-		return nil, nil
-	}
-
-	normalizeMsgs(toInsert)
-	newIDsMap, err := executeBulkInsert(ctx, toInsert)
-	if err != nil {
-		return nil, err
-	}
-
-	// Why: Batch invalidation for all users affected by the bulk operation.
-	for email := range newIDsMap {
-		InvalidateCache(email)
-	}
-	
-	return flattenIDs(newIDsMap), nil
-}
-
-func flattenIDs(newIDsMap map[string]map[string]int) []int {
-	var ids []int
-	for _, userMap := range newIDsMap {
-		for _, id := range userMap {
-			ids = append(ids, id)
-		}
-	}
-	return ids
-}
-
-func filterNewOnly(msgs []ConsolidatedMessage) []ConsolidatedMessage {
-	cacheMu.RLock()
-	defer cacheMu.RUnlock()
-	var filtered []ConsolidatedMessage
-	for _, m := range msgs {
-		if known, ok := knownTS[m.UserEmail]; !ok || !known[m.SourceTS] {
-			filtered = append(filtered, m)
-		}
-	}
-	return filtered
-}
-
-func normalizeMsgs(msgs []ConsolidatedMessage) {
-	for i := range msgs {
-		msgs[i].Requester = NormalizeName(msgs[i].UserEmail, msgs[i].Requester)
-		msgs[i].Assignee = NormalizeName(msgs[i].UserEmail, msgs[i].Assignee)
-	}
-}
-
-func executeBulkInsert(ctx context.Context, msgs []ConsolidatedMessage) (map[string]map[string]int, error) {
-	conn := GetDB()
-	tx, err := conn.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, LogSQLError("BeginTx (BulkInsert)", err)
-	}
-	defer tx.Rollback()
-
-	queries := db.New(tx)
-	res := make(map[string]map[string]int)
-
-	for _, msg := range msgs {
-		if isSemanticDup(ctx, tx, msg) {
-			continue
-		}
-		id, err := queries.CreateMessage(ctx, toCreateMessageParams(msg))
-		if err != nil {
-			return nil, LogSQLError("CreateMessage (BulkInsert)", err, msg.UserEmail, msg.SourceTS)
-		}
-		if res[msg.UserEmail] == nil {
-			res[msg.UserEmail] = make(map[string]int)
-		}
-		res[msg.UserEmail][msg.SourceTS] = int(id)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, LogSQLError("Commit (BulkInsert)", err)
-	}
-	return res, nil
-}
-
-// scanBulkIDs is deprecated after refactoring to transaction-based CreateMessage loop.
-
 func GetMessages(ctx context.Context, email string) ([]ConsolidatedMessage, error) {
 	if err := EnsureCacheInitialized(ctx, email); err != nil {
 		return nil, err
@@ -298,18 +214,6 @@ func updateSubtaskStatusInternal(ctx context.Context, q Querier, email string, i
 	return nil
 }
 
-// UpdateTaskDescriptionAppend appends new content to the task text only.
-// Why: [Context Isolation] Requires user_email and room to prevent cross-room data manipulation. Supports transactions.
-func UpdateTaskDescriptionAppend(ctx context.Context, q Querier, email, room string, id int, date, newTask string) error {
-	return db.New(q).UpdateTaskDescriptionAppend(ctx, db.UpdateTaskDescriptionAppendParams{
-		Task:      nullString(date),
-		Task_2:    nullString(newTask),
-		ID:        int64(id),
-		UserEmail: nullString(email),
-		Room:      nullString(room),
-	})
-}
-
 func isSemanticDup(ctx context.Context, q Querier, msg ConsolidatedMessage) bool {
 	existing, err := GetActiveContextTasks(ctx, q, msg.UserEmail, msg.Source, msg.Room)
 	if err != nil || len(existing) == 0 {
@@ -354,24 +258,6 @@ func findBestMatch(currIdx int, items []TodoItem, seen map[int]bool) int {
 	return bestIdx
 }
 
-
-// MergeTasks consolidates multiple tasks into one.
-// Why: Uses a single transaction and strings.Builder to maintain data integrity and memory efficiency during large text concatenation.
-func MergeTasks(ctx context.Context, email string, targetIDs []int, destID int) error {
-	conn := GetDB()
-	tx, err := conn.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if err := executeMerge(ctx, tx, email, targetIDs, destID); err != nil {
-		return err
-	}
-
-	InvalidateCache(email)
-	return nil
-}
 
 // MergeTasksWithTitle consolidates multiple tasks into one with a specific title (AI generated).
 // Why: [Unified Consolidation] Combines source tasks into a destination task while setting a new optimized title.
@@ -475,62 +361,6 @@ func applyMergeTransaction(ctx context.Context, tx *sql.Tx, email, room string, 
 	return nil
 }
 
-func executeMerge(ctx context.Context, tx *sql.Tx, email string, targets []int, destID int) error {
-	allIDs := append(targets, destID)
-	msgs, err := GetMessagesByIDs(ctx, tx, email, allIDs)
-	if err != nil {
-		return err
-	}
-
-	var dest *ConsolidatedMessage
-	var sources []ConsolidatedMessage
-	for i := range msgs {
-		if msgs[i].ID == destID {
-			dest = &msgs[i]
-		} else {
-			sources = append(sources, msgs[i])
-		}
-	}
-
-	if dest == nil || len(sources) == 0 {
-		return fmt.Errorf("invalid merge: destination or sources not found")
-	}
-
-	return applyMergeUpdates(ctx, tx, email, dest.Room, dest, sources, targets)
-}
-
-func applyMergeUpdates(ctx context.Context, tx *sql.Tx, email, room string, dest *ConsolidatedMessage, sources []ConsolidatedMessage, targets []int) error {
-	var taskBuilder, textBuilder strings.Builder
-
-	for i, s := range sources {
-		if i > 0 {
-			taskBuilder.WriteString("\n\n")
-			textBuilder.WriteString("\n\n")
-		}
-		divider := fmt.Sprintf("=== [Merged Task: %d] ===\n", s.ID)
-		taskBuilder.WriteString(divider + s.Task)
-		textBuilder.WriteString(divider + s.OriginalText)
-	}
-
-	queries := db.New(tx)
-	err := queries.UpdateTaskFullAppend(ctx, db.UpdateTaskFullAppendParams{
-		Task:         nullString("Manual Merge"),
-		Task_2:       nullString(taskBuilder.String()),
-		OriginalText: nullString(textBuilder.String()),
-		ID:           int64(dest.ID),
-		UserEmail:    nullString(email),
-		Room:         nullString(room),
-	})
-	if err != nil {
-		return err
-	}
-
-	return queries.UpdateCategoryMerged(ctx, db.UpdateCategoryMergedParams{
-		Ids:       toInt64List(targets),
-		UserEmail: nullString(email),
-	})
-}
-
 func UpdateMessageCategory(ctx context.Context, q Querier, email string, id int, category string) error {
 	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
 		p.Category = nullString(category)
@@ -584,20 +414,6 @@ func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id
 		InvalidateCache(email)
 	}
 	return err
-}
-
-// UpdateMessageIdentity updates both requester and assignee for a task.
-func UpdateMessageIdentity(ctx context.Context, q Querier, email, _ string, id int, requester, assignee string) error {
-	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
-		// Why: nullString("") is {Valid:true}, so COALESCE("", existing) = "" — wipes the field.
-		// Only set the fields being updated; unset fields stay {Valid:false} and COALESCE preserves existing values.
-		if requester != "" {
-			p.Requester = nullString(requester)
-		}
-		if assignee != "" {
-			p.Assignee = nullString(assignee)
-		}
-	})
 }
 
 func UpdateTaskSourceChannels(ctx context.Context, q Querier, email string, id int, channels []string) error {

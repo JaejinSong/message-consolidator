@@ -9,25 +9,6 @@ import (
 	"time"
 )
 
-func GetReport(ctx context.Context, email, start, end string) (*Report, error) {
-	row, err := db.New(GetDB()).GetReport(ctx, db.GetReportParams{
-		UserEmail: email, StartDate: start, EndDate: end,
-	})
-	if err != nil {
-		return nil, err
-	}
-	r := reportFromRow(int(row.ID), row.UserEmail, row.StartDate, row.EndDate,
-		row.Visualization, row.Status.String, row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
-	r.Translations, _ = GetReportTranslations(ctx, r.ID)
-	return r, nil
-}
-
-// GetReportByDate retrieves a report for a specific date (YYYY-MM-DD).
-// Why: Enables exact date-based caching to avoid redundant AI generation for the same day.
-func GetReportByDate(ctx context.Context, email, date string) (*Report, error) {
-	return GetReportByDateRange(ctx, email, date, date)
-}
-
 // GetReportByDateRange retrieves a report matching both start and end dates exactly.
 func GetReportByDateRange(ctx context.Context, email, start, end string) (*Report, error) {
 	row, err := db.New(GetDB()).GetReportByDate(ctx, db.GetReportByDateParams{

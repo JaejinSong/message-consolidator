@@ -100,26 +100,6 @@ func updateAndCacheUser(ctx context.Context, email, name, picture string) (*User
 	return &u, nil
 }
 
-// CreateUser inserts a new user record into the database with just an email and name.
-func CreateUser(ctx context.Context, email, name string) error {
-	conn := GetDB()
-	queries := db.New(conn)
-	_, err := queries.UpsertUser(ctx, db.UpsertUserParams{
-		Email: sql.NullString{String: email, Valid: email != ""},
-		Name:  sql.NullString{String: name, Valid: name != ""},
-	})
-	return err
-}
-
-// UpdateUserNamePicture modifies the display name and profile picture of an existing user.
-func UpdateUserNamePicture(ctx context.Context, email, name, picture string) error {
-	return db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{
-		Email:   nullString(email),
-		Name:    sql.NullString{String: name, Valid: name != ""},
-		Picture: sql.NullString{String: picture, Valid: picture != ""},
-	})
-}
-
 // UpdateUserWAJID updates the WhatsApp JID (identifier) associated with the user.
 func UpdateUserWAJID(ctx context.Context, email, wajid string) error {
 	return db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{
@@ -162,12 +142,6 @@ func updateUserCacheAliases(email string, aliases []string) {
 		u.Aliases = aliases
 	}
 }
-
-func GetUserName(ctx context.Context, email string) (string, error) {
-	return db.New(GetDB()).GetUserByEmailSimple(ctx, sql.NullString{String: email, Valid: email != ""})
-}
-
-
 
 func fromDBUser(row db.User) User {
 	return User{

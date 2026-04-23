@@ -101,14 +101,6 @@ export const setTaskSelection = (id: number, isSelected: boolean): void => {
 };
 
 /**
- * Toggles a task ID in the selection set.
- */
-export const toggleTaskSelection = (id: number): void => {
-    const isSelected = state.selectedTaskIds.has(id);
-    setTaskSelection(id, !isSelected);
-};
-
-/**
  * Clears all current task selections.
  */
 export const clearTaskSelection = (): void => {

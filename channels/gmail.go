@@ -353,38 +353,6 @@ func classifyGmail(isFromMe, isTo bool) string {
 	return CategoryOthers
 }
 
-// isAssigneeMe checks if the AI-extracted assignee refers to the current user.
-func isAssigneeMe(assignee, email, userName, fallback string, aliases []string) bool {
-	if assignee == "" || strings.EqualFold(assignee, "undefined") || strings.EqualFold(assignee, "unknown") {
-		return false
-	}
-	lowerAsg := strings.ToLower(assignee)
-	if store.IsSelfAssigneeToken(lowerAsg) {
-		return true
-	}
-
-	lowerEmail := strings.ToLower(email)
-	lowerName := strings.ToLower(userName)
-	lowerFallback := strings.ToLower(fallback)
-
-	// Direct matches
-	if lowerAsg == lowerEmail || lowerAsg == lowerName || lowerAsg == lowerFallback {
-		return true
-	}
-
-	//Why: Allows partial name matches to account for cases where Slack real names include supplementary information like parentheses or suffixes.
-	if len(lowerAsg) > 3 && (strings.Contains(lowerName, lowerAsg) || strings.Contains(lowerAsg, lowerName)) {
-		return true
-	}
-
-	for _, alias := range aliases {
-		if alias != "" && strings.EqualFold(assignee, alias) {
-			return true
-		}
-	}
-	return false
-}
-
 func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage) bool) []int {
 	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 	if err != nil {

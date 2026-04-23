@@ -14,45 +14,6 @@ var (
 	translationMu    sync.RWMutex
 )
 
-func GetTaskTranslation(ctx context.Context, messageID int, langCode string) (string, error) {
-	if langCode == "" { langCode = "en" }
-	translationMu.RLock()
-	if langCache, ok := translationCache[langCode]; ok {
-		if text, exists := langCache[messageID]; exists {
-			translationMu.RUnlock()
-			return text, nil
-		}
-	}
-	translationMu.RUnlock()
-
-	conn := GetDB()
-	queries := db.New(conn)
-	translatedText, err := queries.GetTaskTranslation(ctx, db.GetTaskTranslationParams{
-		MessageID:    nullInt64(int64(messageID)),
-		LanguageCode: langCode,
-	})
-	if err == sql.ErrNoRows {
-		translationMu.Lock()
-		if translationCache[langCode] == nil {
-			translationCache[langCode] = make(map[int]string)
-		}
-		translationCache[langCode][messageID] = "" //Why: Caches the absence of a translation to prevent redundant database queries for non-existent records.
-		translationMu.Unlock()
-		return "", nil
-	}
-
-	if err == nil && translatedText != "" {
-		translationMu.Lock()
-		if translationCache[langCode] == nil {
-			translationCache[langCode] = make(map[int]string)
-		}
-		translationCache[langCode][messageID] = translatedText
-		translationMu.Unlock()
-	}
-
-	return translatedText, err
-}
-
 func GetTaskTranslationsBatch(ctx context.Context, messageIDs []int, langCode string) (map[int]string, error) {
 	if langCode == "" { langCode = "en" }
 	if len(messageIDs) == 0 {
@@ -121,30 +82,6 @@ func GetTaskTranslationsBatch(ctx context.Context, messageIDs []int, langCode st
 	return results, nil
 }
 
-func SaveTaskTranslation(ctx context.Context, messageID int, langCode, translatedText string) error {
-	if langCode == "" { langCode = "en" }
-	conn := GetDB()
-	queries := db.New(conn)
-	err := queries.UpsertTaskTranslation(ctx, db.UpsertTaskTranslationParams{
-		MessageID:      nullInt64(int64(messageID)),
-		LanguageCode:   langCode,
-		TranslatedText: translatedText,
-	})
-
-	if err == nil {
-		translationMu.Lock()
-		if translationCache[langCode] == nil {
-			translationCache[langCode] = make(map[int]string)
-		}
-		translationCache[langCode][messageID] = translatedText
-		translationMu.Unlock()
-	}
-
-	return err
-}
-
-// SaveTaskTranslationsBulk saves multiple translations in a single transaction.
-// Why: Minimizes database lock contention and ensures atomicity for batch AI results.
 // SaveTaskTranslationsBulk saves multiple translations in a single optimized SQL execution.
 // Why: Minimizes database lock contention and ensures atomicity for batch AI results.
 func SaveTaskTranslationsBulk(ctx context.Context, langCode string, results map[int]string) error {

@@ -86,22 +86,6 @@ func (a *API) refreshUserAliases(ctx context.Context, user *store.User) {
 	user.Aliases, _ = store.GetUserAliasesByEmailFromCache(ctx, user.Email)
 }
 
-func isSameSlice(a, b []string) bool {
-	if len(a) != len(b) { return false }
-	counts := make(map[string]int)
-	for _, s := range a {
-		counts[strings.TrimSpace(s)]++
-	}
-	for _, s := range b {
-		ts := strings.TrimSpace(s)
-		if counts[ts] == 0 { return false }
-		counts[ts]--
-	}
-	return true
-}
-
-
-
 
 func (a *API) HandleGetUserAliases(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)

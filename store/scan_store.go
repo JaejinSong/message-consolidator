@@ -118,17 +118,6 @@ func UpdateLastScan(userEmail, source, targetID, ts string) error {
 	return nil
 }
 
-func PersistScanMetadata(userEmail, source, targetID, ts string) error {
-	conn := GetDB()
-	queries := db.New(conn)
-	return queries.UpsertScanMetadata(context.Background(), db.UpsertScanMetadataParams{
-		UserEmail: userEmail,
-		Source:    source,
-		TargetID:  targetID,
-		LastTs:    nullString(ts),
-	})
-}
-
 func PersistAllScanMetadata(userEmail string) {
 	metadataMu.RLock()
 	var toPersist []struct{ source, target, ts string }
@@ -209,59 +198,6 @@ type SlackThreadMeta struct {
 	ThreadTS       string
 	LastTS         string
 	LastActivityTS string
-}
-
-func RegisterActiveSlackThread(email, channelID, threadTS string) error {
-	targetID := channelID + "|" + threadTS
-	key := fmt.Sprintf("%s:slack_thread:%s", email, targetID)
-
-	//Why: Registers the thread timestamp in memory and dirty caches only to support lazy writes without waking the database.
-	metadataMu.Lock()
-	if _, exists := scanCache[key]; !exists {
-		scanCache[key] = threadTS
-		dirtyScanKeys[key] = true
-	}
-	metadataMu.Unlock()
-	return nil
-}
-
-func GetActiveSlackThreads() ([]SlackThreadMeta, error) {
-	var threads []SlackThreadMeta
-	//Why: Filters active threads directly from the memory cache to avoid expensive database queries.
-	metadataMu.RLock()
-	for key, lastTS := range scanCache {
-		parts := strings.Split(key, ":")
-		if len(parts) == 3 && parts[1] == "slack_thread" {
-			targetParts := strings.Split(parts[2], "|")
-			if len(targetParts) == 2 {
-				threads = append(threads, SlackThreadMeta{UserEmail: parts[0], ChannelID: targetParts[0], ThreadTS: targetParts[1], LastTS: lastTS})
-			}
-		}
-	}
-	metadataMu.RUnlock()
-	return threads, nil
-}
-
-func UpdateSlackThreadLastTS(email, channelID, threadTS, lastTS string) error {
-	//Why: Piggybacks on the existing lazy write pipeline instead of writing directly to the database.
-	return UpdateLastScan(email, "slack_thread", channelID+"|"+threadTS, lastTS)
-}
-
-func RemoveActiveSlackThread(email, channelID, threadTS string) error {
-	targetID := channelID + "|" + threadTS
-	key := fmt.Sprintf("%s:slack_thread:%s", email, targetID)
-
-	metadataMu.Lock()
-	delete(scanCache, key)
-	delete(dirtyScanKeys, key)
-	metadataMu.Unlock()
-
-	conn := GetDB()
-	queries := db.New(conn)
-	return queries.DeleteScanMetadataSlackThread(context.Background(), db.DeleteScanMetadataSlackThreadParams{
-		UserEmail: email,
-		TargetID:  targetID,
-	})
 }
 
 //Why: Provides support functions for the targeted Slack thread scanner worker.
