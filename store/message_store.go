@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"message-consolidator/db"
+	"message-consolidator/types"
 	"strings"
 	"time"
 )
@@ -761,6 +762,13 @@ func GetActiveContextTasks(ctx context.Context, q Querier, email, source, room s
 	return msgs, nil
 }
 
+func categoryOrDefault(c string) string {
+	if c == "" {
+		return string(types.CategoryTask)
+	}
+	return c
+}
+
 func toCreateMessageParams(msg ConsolidatedMessage) db.CreateMessageParams {
 	constraintsJSON, _ := json.Marshal(msg.Constraints)
 	channelsJSON, _ := json.Marshal(msg.SourceChannels)
@@ -781,7 +789,7 @@ func toCreateMessageParams(msg ConsolidatedMessage) db.CreateMessageParams {
 		Link:                nullString(msg.Link),
 		SourceTs:            nullString(msg.SourceTS),
 		OriginalText:        nullString(msg.OriginalText),
-		Category:            nullString(msg.Category),
+		Category:            nullString(categoryOrDefault(msg.Category)),
 		Deadline:            nullString(msg.Deadline),
 		ThreadID:            nullString(msg.ThreadID),
 		AssigneeReason:      nullString(msg.AssigneeReason),

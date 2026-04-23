@@ -7,6 +7,7 @@ import (
 	"message-consolidator/ai"
 	"message-consolidator/store"
 	"message-consolidator/types"
+	"strings"
 )
 
 type AICompleter interface {
@@ -81,21 +82,35 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		return false, nil // While extracted as NEW, it wasn't a transition.
 	}
 
-	parent := tasks[0]
-	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, parent.Task, msg.OriginalText)
+	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, tasks[0].Task, msg.OriginalText)
 	if err != nil {
 		return false, fmt.Errorf("transition analysis failed: %w", err)
 	}
 
-	return s.handleCompletionResult(ctx, res.Status, res.UpdatedText, msg, parent), nil
+	// Why: Apply the same transition to all incomplete tasks in the thread —
+	// a single reply affects every open item from that conversation.
+	handled := false
+	for _, task := range tasks {
+		if s.handleCompletionResult(ctx, res.Status, res.UpdatedText, msg, task) {
+			handled = true
+		}
+	}
+	return handled, nil
 }
 
 func (s *CompletionService) handleCompletionResult(ctx context.Context, status, updatedText string, msg, parent store.ConsolidatedMessage) bool {
+	fromMe := strings.EqualFold(msg.RequesterCanonical, msg.UserEmail)
 	switch status {
 	case "RESOLVE":
 		_ = s.store.MarkMessageDone(ctx, s.db, msg.UserEmail, parent.ID, true)
 		return true
 	case "UPDATE":
+		// Why: If the current user sent the reply and the task isn't fully resolved,
+		// it moves to 맡긴 업무 — the ball is in the other party's court.
+		if fromMe {
+			_ = s.store.UpdateMessageCategory(ctx, s.db, msg.UserEmail, parent.ID, CategoryRequested)
+			return true
+		}
 		if updatedText != "" {
 			_ = s.store.UpdateTaskText(ctx, s.db, msg.UserEmail, parent.ID, updatedText)
 			return true

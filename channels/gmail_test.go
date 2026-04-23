@@ -13,6 +13,93 @@ import (
 
 
 
+func TestProcessGeminiItems_SourceTSAlignment(t *testing.T) {
+	t.Parallel()
+
+	user := store.User{Email: "test@example.com", Name: "Test User"}
+
+	// msgMap has only B and C — A is missing (simulates AI SourceTS mismatch)
+	msgMap := map[string]types.RawMessage{
+		"ts-B": {ID: "ts-B", Sender: "sender@example.com", Text: "Task B"},
+		"ts-C": {ID: "ts-C", Sender: "sender@example.com", Text: "Task C"},
+	}
+	classificationMap := map[string]string{"ts-B": CategoryMine, "ts-C": CategoryMine}
+	toMap := map[string]string{}
+
+	items := []store.TodoItem{
+		{Task: "Task A", SourceTS: "ts-A", Category: "TASK"}, // SourceTS not in msgMap
+		{Task: "Task B", SourceTS: "ts-B", Category: "TASK"},
+		{Task: "Task C", SourceTS: "ts-C", Category: "TASK"},
+	}
+
+	result := processGeminiItems(user.Email, &user, nil, items, classificationMap, toMap, msgMap)
+
+	if _, ok := result["ts-A"]; ok {
+		t.Error("ts-A should be skipped (SourceTS not in msgMap)")
+	}
+	msgB, ok := result["ts-B"]
+	if !ok {
+		t.Fatal("ts-B should be present in result")
+	}
+	if !strings.Contains(msgB.Task, "Task B") {
+		t.Errorf("ts-B task = %q, want to contain 'Task B'", msgB.Task)
+	}
+	msgC, ok := result["ts-C"]
+	if !ok {
+		t.Fatal("ts-C should be present in result")
+	}
+	if !strings.Contains(msgC.Task, "Task C") {
+		t.Errorf("ts-C task = %q, want to contain 'Task C'", msgC.Task)
+	}
+}
+
+func TestProcessGeminiItems_NoDuplicateOnSkip(t *testing.T) {
+	t.Parallel()
+
+	user := store.User{Email: "test@example.com", Name: "Test User"}
+	msgMap := map[string]types.RawMessage{
+		"ts-1": {ID: "ts-1", Sender: "a@example.com", Text: "Only item"},
+	}
+
+	// Two items but only one has a valid SourceTS
+	items := []store.TodoItem{
+		{Task: "Ghost Task", SourceTS: "ts-missing", Category: "TASK"},
+		{Task: "Real Task", SourceTS: "ts-1", Category: "TASK"},
+	}
+
+	result := processGeminiItems(user.Email, &user, nil, items, map[string]string{}, map[string]string{}, msgMap)
+
+	if len(result) != 1 {
+		t.Errorf("expected 1 result, got %d", len(result))
+	}
+	if _, ok := result["ts-1"]; !ok {
+		t.Error("ts-1 should be in result")
+	}
+}
+
+func TestProcessGeminiItems_UsesServicesBuiltTask(t *testing.T) {
+	t.Parallel()
+
+	user := store.User{Email: "test@example.com", Name: "Tester"}
+	msgMap := map[string]types.RawMessage{
+		"ts-x": {ID: "ts-x", Sender: "from@example.com", Text: "hello"},
+	}
+	items := []store.TodoItem{{Task: "Do something", SourceTS: "ts-x", Category: "QUERY"}}
+
+	result := processGeminiItems(user.Email, &user, nil, items, map[string]string{"ts-x": CategoryMine}, map[string]string{}, msgMap)
+
+	msg, ok := result["ts-x"]
+	if !ok {
+		t.Fatal("expected ts-x in result")
+	}
+	if msg.Category == "" {
+		t.Error("category should not be empty")
+	}
+	if msg.Source != "gmail" {
+		t.Errorf("source = %q, want 'gmail'", msg.Source)
+	}
+}
+
 func TestClassifyGmail(t *testing.T) {
 	tests := []struct {
 		isFromMe bool

@@ -498,13 +498,27 @@ func mapSlackItemToMessage(ctx context.Context, item store.TodoItem, m types.Raw
 
 
 
-func buildSlackLinkAndRegisterThread(ctx context.Context, m types.RawMessage, email string) string {
+func buildSlackLink(m types.RawMessage) string {
 	link := fmt.Sprintf("https://slack.com/archives/%s/p%s", m.ChannelID, strings.ReplaceAll(m.ID, ".", ""))
 	if m.ReplyToID != "" {
-		if err := store.RegisterTargetedSlackThread(ctx, m.ChannelID, m.ReplyToID, m.ID, email); err == nil {
-			logger.Debugf("[INTAKE-SLACK] Targeted thread registered: %s (User: %s)", m.ReplyToID, email)
-		}
 		link += fmt.Sprintf("?thread_ts=%s", m.ReplyToID)
+	}
+	return link
+}
+
+func slackThreadTS(m types.RawMessage) string {
+	if m.ReplyToID != "" {
+		return m.ReplyToID
+	}
+	return m.ID
+}
+
+func buildSlackLinkAndRegisterThread(ctx context.Context, m types.RawMessage, email string) string {
+	link := buildSlackLink(m)
+	threadTS := slackThreadTS(m)
+	// Why: register both parent messages and replies so slow sweeper always tracks future activity.
+	if err := store.RegisterTargetedSlackThread(ctx, m.ChannelID, threadTS, m.ID, email); err == nil {
+		logger.Debugf("[INTAKE-SLACK] Thread registered for tracking: %s (User: %s)", threadTS, email)
 	}
 	return link
 }

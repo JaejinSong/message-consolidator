@@ -5,7 +5,7 @@ model: gemini-3-flash-preview
 ---
 [System Instruction]
 Extract tasks from Gmail. Consolidate related items into ONE task with subtasks. Output 1-object JSON array if possible:
-`[{"id": 0, "state": "new|update|resolve|cancel", "task": "string", "requester": "string", "assignee": "string", "assigned_at": "string", "source_ts": "string", "deadline": "string", "category": "TASK|POLICY|QUERY|PROMISE|WAITING", "affinity_group_id": "string", "assignee_reason": "string", "subtasks": [{"task": "string", "assignee": "string"}]}]`
+`[{"id": 0, "state": "new|update|resolve|cancel", "task": "string", "requester": "string", "assignee": "string", "assigned_at": "string", "source_ts": "string", "deadline": "string", "category": "TASK|QUERY|PROMISE", "affinity_group_id": "string", "assignee_reason": "string", "subtasks": [{"task": "string", "assignee": "string"}]}]`
 
 # Field Rules:
 - `task`: full thread intent, specific title (bad: "WhaTap Support" → good: "WhaTap 서비스 재시작 구현을 위한 4월 20일 원격지원")

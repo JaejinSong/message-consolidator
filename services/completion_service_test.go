@@ -107,6 +107,86 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		}
 	})
 
+	t.Run("Current User Reply (UPDATE) - Should Reclassify as Delegated", func(t *testing.T) {
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(0), State: "update", Task: "IFC 말레이시아 미팅 참여 범위 확정"}}}
+		mockStore := &MockStore{
+			Tasks: []store.ConsolidatedMessage{{ID: 202, Task: "IFC 말레이시아 미팅 참여 범위 확정"}},
+		}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:          "jjsong@whatap.io",
+			ThreadID:           "thread_ifc",
+			OriginalText:       "이 부분 다시 확인 부탁드립니다.",
+			RequesterCanonical: "jjsong@whatap.io",
+		}
+
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+
+		if !handled {
+			t.Fatal("expected handled=true for current-user reply")
+		}
+		if len(mockStore.CapturedIDs) != 0 {
+			t.Errorf("expected task NOT marked done, got CapturedIDs=%v", mockStore.CapturedIDs)
+		}
+		if len(mockStore.ReleasedCategories) != 1 || mockStore.ReleasedCategories[0] != CategoryRequested {
+			t.Errorf("expected category=%q, got %v", CategoryRequested, mockStore.ReleasedCategories)
+		}
+	})
+
+	t.Run("Current User Reply (RESOLVE) - Should Mark Done", func(t *testing.T) {
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(0), State: "resolve", Task: "IFC 말레이시아 미팅 참여 범위 확정"}}}
+		mockStore := &MockStore{
+			Tasks: []store.ConsolidatedMessage{{ID: 203, Task: "IFC 말레이시아 미팅 참여 범위 확정"}},
+		}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:          "jjsong@whatap.io",
+			ThreadID:           "thread_ifc_done",
+			OriginalText:       "네, 5월 5-6일 참석 확정입니다.",
+			RequesterCanonical: "jjsong@whatap.io",
+		}
+
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+
+		if !handled {
+			t.Fatal("expected handled=true")
+		}
+		if len(mockStore.CapturedIDs) != 1 || mockStore.CapturedIDs[0] != 203 {
+			t.Errorf("expected task 203 marked done, got %v", mockStore.CapturedIDs)
+		}
+		if len(mockStore.ReleasedCategories) != 0 {
+			t.Errorf("expected no category change on RESOLVE, got %v", mockStore.ReleasedCategories)
+		}
+	})
+
+	t.Run("Multiple Tasks in Thread - All Should Be Processed", func(t *testing.T) {
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(0), State: "resolve", Task: "IFC 미팅"}}}
+		mockStore := &MockStore{
+			Tasks: []store.ConsolidatedMessage{
+				{ID: 11689, Task: "Andy에게 기술 지원 범위 확인"},
+				{ID: 11690, Task: "5월 5-6일 미팅 참여 범위 확정"},
+			},
+		}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:    "jjsong@whatap.io",
+			ThreadID:     "19db836a225d9092",
+			OriginalText: "네, 5월 5-6일 참석 확정입니다.",
+		}
+
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+
+		if !handled {
+			t.Fatal("expected handled=true")
+		}
+		if len(mockStore.CapturedIDs) != 2 {
+			t.Errorf("expected both tasks marked done, got CapturedIDs=%v", mockStore.CapturedIDs)
+		}
+	})
+
 	t.Run("Mention in Body - Should Delegate (Update)", func(t *testing.T) {
 		// AI Proposes: Delegate to 김개발 (outputs 0)
 		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(0), State: "update", Task: "T1", AssignedTo: "김개발"}}}

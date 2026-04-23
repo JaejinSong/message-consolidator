@@ -423,14 +423,15 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.Gemini
 		return nil
 	}
 
-	msgs := processGeminiItems(email, user, aliases, items, classificationMap, toMap, msgMap)
+	msgByTS := processGeminiItems(email, user, aliases, items, classificationMap, toMap, msgMap)
 	var newIDs []int
-	for i, item := range items {
-		if i < len(msgs) {
-			id, _ := store.HandleTaskState(ctx, store.GetDB(), email, item, msgs[i])
-			if id > 0 {
-				newIDs = append(newIDs, id)
-			}
+	for _, item := range items {
+		msg, ok := msgByTS[item.SourceTS]
+		if !ok {
+			continue
+		}
+		if id, _ := store.HandleTaskState(ctx, store.GetDB(), email, item, msg); id > 0 {
+			newIDs = append(newIDs, id)
 		}
 	}
 	return newIDs
@@ -445,10 +446,16 @@ func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessag
 		}
 		// Why: [Early Return] Checks thread activity first. If handled as a completion/update, skips standard extraction.
 		if onThreadActivity != nil && (classificationMap[m.ID] == CategorySent || classificationMap[m.ID] == CategoryMine || classificationMap[m.ID] == CategoryOthers) {
-			if handled := onThreadActivity(store.ConsolidatedMessage{
+			cm := store.ConsolidatedMessage{
 				UserEmail: email, Source: "gmail", Room: "Gmail", ThreadID: m.ThreadID,
 				OriginalText: m.Text, SourceTS: m.ID, Requester: m.SenderName,
-			}); handled {
+			}
+			if classificationMap[m.ID] == CategorySent {
+				// Why: Signals to ProcessPotentialCompletion that the current user sent this reply,
+				// so the task should be reclassified as delegated (맡긴 업무) rather than resolved.
+				cm.RequesterCanonical = email
+			}
+			if handled := onThreadActivity(cm); handled {
 				_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.ID)
 				continue
 			}
@@ -534,15 +541,14 @@ func executeGmailAnalysisWithRetry(ctx context.Context, gc *ai.GeminiClient, ema
 	return nil, analyzeErr
 }
 
-func processGeminiItems(email string, user *store.User, aliases []string, items []store.TodoItem, classificationMap, toMap map[string]string, msgMap map[string]types.RawMessage) []store.ConsolidatedMessage {
-	var msgsToSave []store.ConsolidatedMessage
-	for i, item := range items {
+func processGeminiItems(email string, user *store.User, aliases []string, items []store.TodoItem, classificationMap, toMap map[string]string, msgMap map[string]types.RawMessage) map[string]store.ConsolidatedMessage {
+	result := make(map[string]store.ConsolidatedMessage, len(items))
+	for _, item := range items {
 		m, ok := msgMap[item.SourceTS]
 		if !ok {
 			logger.Warnf("[GMAIL-SCAN] Mismatch SourceTS: %s", item.SourceTS)
 			continue
 		}
-		gmailCls := classificationMap[item.SourceTS]
 		params := services.TaskBuildParams{
 			UserEmail:           email,
 			User:                *user,
@@ -553,15 +559,15 @@ func processGeminiItems(email string, user *store.User, aliases []string, items 
 			Source:              "gmail",
 			Room:                "Gmail",
 			Link:                fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS),
-			SourceTS:            fmt.Sprintf("gmail-%s-%d", item.SourceTS, i),
+			SourceTS:            fmt.Sprintf("gmail-%s", item.SourceTS),
 			OriginalText:        m.Text,
 			ThreadID:            m.ThreadID,
 			SourceChannels:      []string{"gmail"},
-			GmailClassification: gmailCls,
+			GmailClassification: classificationMap[item.SourceTS],
 		}
-		msgsToSave = append(msgsToSave, services.BuildTask(params))
+		result[item.SourceTS] = services.BuildTask(params)
 	}
-	return msgsToSave
+	return result
 }
 
 

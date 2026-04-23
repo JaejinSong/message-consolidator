@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/slack-go/slack"
+	"message-consolidator/types"
 )
 
 func TestScanThreadReplies(t *testing.T) {
@@ -201,5 +202,60 @@ func TestThreadIntakeLogicLink(t *testing.T) {
 	expected := "https://slack.com/archives/C123/p123456789?thread_ts=11111.0000"
 	if linkThread != expected {
 		t.Errorf("Thread link mismatch. got=%s, want=%s", linkThread, expected)
+	}
+}
+
+func TestBuildSlackLink(t *testing.T) {
+	cases := []struct {
+		name     string
+		m        types.RawMessage
+		expected string
+	}{
+		{
+			name:     "reply appends thread_ts",
+			m:        types.RawMessage{ChannelID: "C123", ID: "999.000", ReplyToID: "111.000"},
+			expected: "https://slack.com/archives/C123/p999000?thread_ts=111.000",
+		},
+		{
+			name:     "parent message has no thread_ts param",
+			m:        types.RawMessage{ChannelID: "C123", ID: "111.000"},
+			expected: "https://slack.com/archives/C123/p111000",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := buildSlackLink(tc.m)
+			if got != tc.expected {
+				t.Errorf("got=%s, want=%s", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestSlackThreadTS(t *testing.T) {
+	// Why: covers the bug where parent messages (no ReplyToID) were never registered for slow sweeper tracking.
+	cases := []struct {
+		name     string
+		m        types.RawMessage
+		expected string
+	}{
+		{
+			name:     "reply uses parent as threadTS",
+			m:        types.RawMessage{ID: "999.000", ReplyToID: "111.000"},
+			expected: "111.000",
+		},
+		{
+			name:     "parent message uses own ID as threadTS",
+			m:        types.RawMessage{ID: "111.000"},
+			expected: "111.000",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := slackThreadTS(tc.m)
+			if got != tc.expected {
+				t.Errorf("got=%s, want=%s", got, tc.expected)
+			}
+		})
 	}
 }

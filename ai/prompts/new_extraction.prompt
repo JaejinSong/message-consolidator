@@ -8,7 +8,8 @@ model: gemini-3-flash-preview
 Extract actionable tasks, operational policies, and context-dependent queries from the message text.
 
 # Core Rules:
-1. **Force JSON Output**: You must respond ONLY in a single JSON object (consolidated): `{"reasoning": "string", "task": "Main Title (EN)", "status": "new|resolve", "category": "TASK|POLICY|QUERY|PROMISE", "requester_id": int|null, "assignee_id": int|null, "assignee_name": "string", "subtasks": [{"task": "Subtask 1 (EN)", "assignee_id": int|null, "assignee_name": "string"}], "affinity_group_id": "string"}`.
+1. **Force JSON Output**: You must respond ONLY in a single JSON object (consolidated): `{"id": int|null, "reasoning": "string", "task": "Main Title (EN)", "status": "new|resolve", "category": "TASK|QUERY|PROMISE", "requester_id": int|null, "assignee_id": int|null, "assignee_name": "string", "subtasks": [{"task": "Subtask 1 (EN)", "assignee_id": int|null, "assignee_name": "string"}], "affinity_group_id": "string"}`.
+   - `id`: ID of the existing task being resolved or updated (from Existing Tasks context). Set to `null` for new tasks.
 2. **Identity Mapping**:
    - IF the message sender / requester is the current user (see Context), SET `requester_id` = CurrentUserID.
    - ELSE SET `requester_id` = null.
@@ -23,12 +24,16 @@ Extract actionable tasks, operational policies, and context-dependent queries fr
 
 # Extraction Logic (Deterministic):
 1. **IDENTIFY Category**:
-   - IF (rule, notice, procedure): SET category = "POLICY"
    - ELSE IF (question, clarification): SET category = "QUERY"
-   - ELSE IF sender_says ("I will", "I'll"): SET category = "PROMISE"
+   - ELSE IF sender_says ("I will", "I'll", commitment language): SET category = "PROMISE"
    - ELSE: SET category = "TASK"
 
-2. **DETERMINE Assignee** (Message metadata tags are in `[Tags: ...]` prefix):
+2. **RESOLVE PROMISE**:
+   - IF category = "PROMISE": Find the best matching task in Existing Tasks JSON.
+   - IF match found (affinity ≥ 70): SET status = "resolve", id = matched task ID, task = "NONE" is NOT allowed here.
+   - IF no match found: SET task = "NONE" (drop — a promise with no trackable task is noise).
+
+3. **DETERMINE Assignee** (Message metadata tags are in `[Tags: ...]` prefix):
    - `Reply-To: X` means this message is a direct reply to person X. Use this as strong evidence that X is the primary audience.
    - `Explicit-Mentions: X` means X is @-mentioned by name — treat as a direct assignment signal.
    - `Forwarded` means the message was forwarded; original sender intent may differ.

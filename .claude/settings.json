@@ -20,7 +20,9 @@
       "Bash(git rm *)",
       "Bash(git mv *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(git -C /home/jinro/.gemini/message-consolidator log --diff-filter=D --name-only --oneline -5)",
+      "Bash(bash /home/jinro/.gemini/message-consolidator/unit-test.sh)"
     ]
   }
 }

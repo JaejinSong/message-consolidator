@@ -285,6 +285,75 @@ func TestMapFlexToTodo_IdentityNormalization(t *testing.T) {
 	}
 }
 
+func TestMapFlexToTodo_StatusMapping(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		item       flexItem
+		wantStatus string
+		wantState  string
+	}{
+		{"status=resolve is mapped to TodoItem.Status", flexItem{Task: "t", Status: "resolve"}, "resolve", ""},
+		{"status=new is mapped to TodoItem.Status", flexItem{Task: "t", Status: "new"}, "new", ""},
+		{"state field still populates TodoItem.State", flexItem{Task: "t", State: "update"}, "", "update"},
+		{"empty status stays empty", flexItem{Task: "t"}, "", ""},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := mapFlexToTodo(tt.item, 0, "")
+			if got.Status != tt.wantStatus {
+				t.Errorf("Status = %q, want %q", got.Status, tt.wantStatus)
+			}
+			if got.State != tt.wantState {
+				t.Errorf("State = %q, want %q", got.State, tt.wantState)
+			}
+		})
+	}
+}
+
+func TestUnmarshalAnalyze_StatusKey(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		json       string
+		wantStatus string
+		wantState  string
+	}{
+		{
+			name:       "new_extraction format: status key → TodoItem.Status",
+			json:       `[{"task": "Follow up", "status": "resolve", "category": "PROMISE"}]`,
+			wantStatus: "resolve",
+			wantState:  "",
+		},
+		{
+			name:      "gmail format: state key → TodoItem.State",
+			json:      `[{"task": "Follow up", "state": "resolve", "category": "TASK"}]`,
+			wantState: "resolve",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			items, err := unmarshalAnalyze(tt.json, tt.json, "", 0)
+			if err != nil {
+				t.Fatalf("unmarshalAnalyze() error = %v", err)
+			}
+			if len(items) == 0 {
+				t.Fatal("expected at least 1 item")
+			}
+			if items[0].Status != tt.wantStatus {
+				t.Errorf("Status = %q, want %q", items[0].Status, tt.wantStatus)
+			}
+			if items[0].State != tt.wantState {
+				t.Errorf("State = %q, want %q", items[0].State, tt.wantState)
+			}
+		})
+	}
+}
+
 func TestUnmarshalTranslate(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

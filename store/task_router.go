@@ -96,6 +96,20 @@ func handleNew(ctx context.Context, q Querier, item TodoItem, msg ConsolidatedMe
 		}
 		return msg.ID, err
 	}
+
+	// Why: If an incomplete task already exists for this thread, consolidate into it
+	// rather than creating a duplicate — multiple emails in the same thread belong to one task.
+	if msg.ThreadID != "" {
+		if existing, _ := GetIncompleteByThreadID(ctx, q, msg.UserEmail, msg.ThreadID); len(existing) > 0 {
+			id := existing[0].ID
+			err := UpdateTaskText(ctx, q, msg.UserEmail, id, item.Task)
+			if err == nil && len(msg.Subtasks) > 0 {
+				_ = UpdateSubtasks(ctx, q, msg.UserEmail, id, msg.Subtasks)
+			}
+			return id, err
+		}
+	}
+
 	msg.Task = item.Task
 	if item.Requester != "" {
 		msg.Requester = item.Requester

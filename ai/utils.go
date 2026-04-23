@@ -18,6 +18,7 @@ type flexSubtask struct {
 type flexItem struct {
 	ID              interface{}     `json:"id"`
 	State           string          `json:"state"`
+	Status          string          `json:"status"`
 	Reasoning       string          `json:"reasoning,omitempty"`
 	Task            string          `json:"task"`
 	Requester       string          `json:"requester"`
@@ -98,7 +99,7 @@ func mapFlexToTodo(f flexItem, currentUserID int, userEmail string) store.TodoIt
 	}
 
 	item := store.TodoItem{
-		State: f.State, Reasoning: f.Reasoning, Task: f.Task, Requester: f.Requester,
+		State: f.State, Status: f.Status, Reasoning: f.Reasoning, Task: f.Task, Requester: f.Requester,
 		RequesterCanonical: requesterCanonical,
 		Assignee: assignee, AssignedTo: f.AssignedTo, AssignedAt: f.AssignedAt,
 		SourceTS: f.SourceTS, Category: f.Category, Deadline: f.Deadline,
