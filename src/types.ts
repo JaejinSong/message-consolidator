@@ -37,6 +37,7 @@ export interface Message {
     source_channels?: string[];
     consolidated_context?: string[];
     subtasks?: Subtask[];
+    deadline?: string;
 }
 
 export interface UserProfile {
@@ -108,6 +109,7 @@ export interface AppState {
     reportHistory: IReportData[];
     isFetchingMessages: boolean;
     isFetchingStatus: boolean;
+    deadlineFilter: 'all' | 'today' | 'week' | 'has_deadline';
 }
 
 
@@ -138,6 +140,14 @@ export interface I18nEntry {
     totalCompleted?: string;
     abandoned?: string;
     stale?: string;
+    deadlineToday?: string;
+    deadlineTomorrow?: string;
+    deadlineSoon?: string;
+    deadlinePast?: string;
+    dlFilterAll?: string;
+    dlFilterToday?: string;
+    dlFilterWeek?: string;
+    dlFilterHas?: string;
     reviewStatsTitle?: string;
     sharedTag?: string;
     sharedTasks?: string;

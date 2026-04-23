@@ -26,6 +26,7 @@ export const state: AppState = {
     reportHistory: [],
     isFetchingMessages: false,
     isFetchingStatus: false,
+    deadlineFilter: 'all',
 };
 
 /**

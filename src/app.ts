@@ -601,6 +601,16 @@ const initApp = () => {
     setupTabs('#dashboardContent .tab-btn', '#dashboardContent .c-tabs__panel', 'data-tab', 'active', async () => {
         await fetchMessages(true);
     });
+
+    document.getElementById('deadlineFilterBar')?.addEventListener('click', (e) => {
+        const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-dl-filter]');
+        if (!btn) return;
+        const filter = btn.dataset.dlFilter as typeof state.deadlineFilter;
+        state.deadlineFilter = filter;
+        document.querySelectorAll('#deadlineFilterBar [data-dl-filter]').forEach(b => b.classList.remove('c-deadline-filter__btn--active'));
+        btn.classList.add('c-deadline-filter__btn--active');
+        renderMessages(state.messages);
+    });
     setupTabs('.c-settings__tab', '.c-settings__panel', 'data-settings-tab', 'c-settings__tab--active', (tabId: string) => {
         if (tabId === 'tokenUsageTab') {
             modals.fetchTokenUsage();

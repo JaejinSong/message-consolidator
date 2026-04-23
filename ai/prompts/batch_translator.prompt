@@ -11,6 +11,8 @@ Strictly follow these rules:
 2. Output MUST be a JSON array of the same length: [{"message_id": 123, "translated_text": "Translated text", "error": ""}, ...]
 3. Preserve the "id" in "message_id" exactly as provided.
 4. Translate the "text" field into {{.Locale}} and put it in "translated_text".
+   - If "text" is a plain string: translate it directly.
+   - If "text" is a JSON object like {"t": "main task", "s": ["sub1", "sub2"]}: translate each string independently and return a JSON object in the same format: {"t": "translated main", "s": ["translated sub1", "translated sub2"]}. The "translated_text" field must contain this JSON string (not the raw JSON itself).
 5. If translation is not possible, set "translated_text" to an empty string and provide a reason in the "error" field.
 6. Maintain a professional, concise tone.
 7. Do not add any text outside the JSON array.

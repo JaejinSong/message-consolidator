@@ -11,41 +11,33 @@ describe('logic.js - getDeadlineBadge', () => {
     });
 
     it('should return empty string if task is done', () => {
-        expect(getDeadlineBadge(new Date().toISOString(), true)).toBe('');
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-04-23T10:00:00Z'));
+        expect(getDeadlineBadge('2026-04-23', true)).toBe('');
     });
 
-    it('should return stale badge after 24 hours', () => {
-        // Wednesday at noon
-        const now = new Date('2026-03-25T12:00:00Z');
+    it('should return today badge when deadline is today', () => {
         vi.useFakeTimers();
-        vi.setSystemTime(now);
-
-        // Created Tuesday morning (non-weekend transition)
-        const staleDate = new Date(now.getTime() - 26 * 60 * 60 * 1000).toISOString();
-        const badge = getDeadlineBadge(staleDate, false, 'ko');
-        expect(badge).toContain('c-badge--priority-medium');
-        expect(badge).toContain('정체됨');
+        vi.setSystemTime(new Date('2026-04-23T10:00:00Z'));
+        const badge = getDeadlineBadge('2026-04-23', false, 'ko');
+        expect(badge).toContain('c-badge--deadline-today');
+        expect(badge).toContain('오늘');
     });
 
-    it('should return abandoned badge after 72 hours (excluding weekends)', () => {
-        // Thursday to Wednesday next week (enough time even with weekends)
-        const past = new Date('2026-03-12T10:00:00Z').toISOString();
+    it('should return tomorrow badge when deadline is tomorrow', () => {
         vi.useFakeTimers();
-        vi.setSystemTime(new Date('2026-03-18T10:00:00Z')); // 6 days later (including Sat/Sun)
-        const badge = getDeadlineBadge(past, false, 'ko');
-        expect(badge).toContain('c-badge--priority-high');
-        expect(badge).toContain('방치됨');
+        vi.setSystemTime(new Date('2026-04-23T10:00:00Z'));
+        const badge = getDeadlineBadge('2026-04-24', false, 'ko');
+        expect(badge).toContain('c-badge--deadline-tomorrow');
+        expect(badge).toContain('내일');
     });
 
-    it('should ignore weekends in calculation', () => {
-        // Friday to Monday 
-        const fri = '2026-03-20T12:00:00Z';
+    it('should return past badge for recently missed deadline', () => {
         vi.useFakeTimers();
-        vi.setSystemTime(new Date('2026-03-23T13:00:00Z')); // ~73 hours elapsed
-        const badge = getDeadlineBadge(fri, false, 'ko');
-        // 73 hours - 48 hours (weekend) = 25 hours -> Stale
-        expect(badge).toContain('c-badge--priority-medium');
-        expect(badge).not.toContain('c-badge--priority-high');
+        vi.setSystemTime(new Date('2026-04-23T10:00:00Z'));
+        const badge = getDeadlineBadge('2026-04-21', false, 'ko');
+        expect(badge).toContain('c-badge--deadline-past');
+        expect(badge).toContain('지남');
     });
 });
 

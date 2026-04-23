@@ -158,19 +158,24 @@ export function createCardElement(m: Message): string {
         has_original: !!m.has_original,
         assigned_to: m.assigned_to,
         isSelected: state.selectedTaskIds.has(m.id),
-        currentUserNames: [state.userProfile.name, ...(state.userProfile.aliases || [])].filter(Boolean)
+        currentUserNames: [state.userProfile.name, ...(state.userProfile.aliases || [])].filter(Boolean),
+        deadline: m.deadline || '',
+        source_channels: m.source_channels,
+        consolidated_context: m.consolidated_context,
+        subtasks: m.subtasks,
     };
 
     return MessageCard(props);
 }
 
-import { filterByTab, TaskTab } from './taskFilter';
+import { filterByTab, filterByDeadline, TaskTab } from './taskFilter';
 
 /**
  * Renders message cards based on categorized data.
  */
 export function renderMessages(categorized: CategorizedMessages): void {
     const searchQuery = (document.getElementById('taskSearch') as HTMLInputElement)?.value || '';
+    const dlFilter = state.deadlineFilter || 'all';
 
     const allTasks = [...(categorized.inbox || []), ...(categorized.pending || [])];
 
@@ -191,22 +196,22 @@ export function renderMessages(categorized: CategorizedMessages): void {
         {
             tab: 'received',
             gridId: 'receivedTasksList',
-            messages: categorized.inbox || []
+            messages: filterByDeadline(categorized.inbox || [], dlFilter)
         },
         {
             tab: 'delegated',
             gridId: 'delegatedTasksList',
-            messages: delegatedMsgs
+            messages: filterByDeadline(delegatedMsgs, dlFilter)
         },
         {
             tab: 'reference',
             gridId: 'referenceTasksList',
-            messages: referenceMsgs
+            messages: filterByDeadline(referenceMsgs, dlFilter)
         },
         {
             tab: 'all',
             gridId: 'allTasksList',
-            messages: filterByTab([...allTasks], 'all').sort((a, b) => {
+            messages: filterByDeadline(filterByTab([...allTasks], 'all'), dlFilter).sort((a, b) => {
                 const dateA = new Date(a.timestamp || a.created_at || 0).getTime();
                 const dateB = new Date(b.timestamp || b.created_at || 0).getTime();
                 return dateB - dateA;

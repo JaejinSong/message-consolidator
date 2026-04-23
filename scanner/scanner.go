@@ -306,6 +306,7 @@ func BuildConsolidatedMessage(p BuildTaskParams, aliases []string) store.Consoli
 		Assignee:   NormalizeAssignee(p.Item.Assignee, p.User, aliases),
 		AssignedAt: p.Raw.Timestamp, Link: p.Link, SourceTS: p.Raw.ID,
 		OriginalText: p.Raw.Text, Category: category, ThreadID: p.ThreadID,
+		RepliedToID: p.Raw.ReplyToID,
 		SourceChannels: p.SourceChannels,
 	}
 }

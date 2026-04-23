@@ -5,6 +5,7 @@ import (
 	"message-consolidator/types"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestIsFromMe(t *testing.T) {
@@ -107,5 +108,42 @@ func TestBuildWAMetadataString(t *testing.T) {
 				t.Errorf("buildWAMetadataString() = %q, should NOT contain %q", got, tt.wantAbsent)
 			}
 		})
+	}
+}
+
+func TestBuildConsolidatedMessage_ReplyToID(t *testing.T) {
+	// Why: RepliedToID was never propagated from RawMessage — quoted WhatsApp replies
+	// were always stored with empty replied_to_id, breaking thread consolidation and
+	// completion detection for non-self messages.
+	user := store.User{Email: "jj@whatap.io", Name: "JJ"}
+	raw := types.RawMessage{
+		ID:        "3EB03618D26C9F586A3578",
+		ReplyToID: "3EB0F9CD4AC385A720E9E8",
+		Timestamp: time.Now(),
+	}
+	params := BuildTaskParams{
+		User: user, Raw: raw, Source: "whatsapp", Room: "Bank BNI",
+		Item: store.TodoItem{Task: "Check pod manifest", Category: "TASK"},
+	}
+
+	msg := BuildConsolidatedMessage(params, nil)
+
+	if msg.RepliedToID != raw.ReplyToID {
+		t.Errorf("RepliedToID = %q, want %q", msg.RepliedToID, raw.ReplyToID)
+	}
+}
+
+func TestBuildConsolidatedMessage_NoReplyToID(t *testing.T) {
+	user := store.User{Email: "jj@whatap.io", Name: "JJ"}
+	raw := types.RawMessage{ID: "3EB0F9CD4AC385A720E9E8", Timestamp: time.Now()}
+	params := BuildTaskParams{
+		User: user, Raw: raw, Source: "whatsapp", Room: "Bank BNI",
+		Item: store.TodoItem{Task: "Share YAML metadata tag", Category: "TASK"},
+	}
+
+	msg := BuildConsolidatedMessage(params, nil)
+
+	if msg.RepliedToID != "" {
+		t.Errorf("RepliedToID = %q, want empty", msg.RepliedToID)
 	}
 }

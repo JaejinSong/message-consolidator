@@ -364,7 +364,7 @@ func (a *API) prepareMissingRequests(ctx context.Context, email string, ids []in
 	for _, id := range ids {
 		msg, err := store.GetMessageByID(ctx, store.GetDB(), email, id)
 		if err == nil {
-			reqs = append(reqs, store.TranslateRequest{ID: id, Text: msg.Task})
+			reqs = append(reqs, services.BuildTranslateRequest(id, msg.Task, msg.Subtasks))
 		}
 	}
 	return reqs

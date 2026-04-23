@@ -31,7 +31,7 @@ function parseMetadata(metadata: any): Record<string, any> | null {
  * Decouples rendering logic from the main application state to allow for independent testing.
  */
 export function MessageCard(props: MessageCardProps): string {
-    const { id, source, source_channels, room, is_translating, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translation_error, has_original, assigned_to, subtasks, isSelected, currentUserNames } = props;
+    const { id, source, source_channels, room, is_translating, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translation_error, has_original, assigned_to, subtasks, isSelected, currentUserNames, deadline } = props;
 
     const isSelf = (name: string | undefined): boolean =>
         !!name && !!currentUserNames?.length &&
@@ -47,7 +47,7 @@ export function MessageCard(props: MessageCardProps): string {
     const rawTime = String(timestamp || created_at || "");
     const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
     const displayTime = TimeService.formatDisplayTime(rawTime, lang);
-    const deadlineBadge = getDeadlineBadge(rawTime, done, lang);
+    const deadlineBadge = getDeadlineBadge(deadline, done, lang);
     const contextSnippets = parseTaskContext(props.consolidated_context);
 
     const metadata = parseMetadata(rawMetadata);
@@ -96,20 +96,29 @@ export function MessageCard(props: MessageCardProps): string {
         </ul>
     ` : '';
 
+    const doneCount = subtasks ? subtasks.filter(s => s.done).length : 0;
     const subtasksHtml = (subtasks && subtasks.length > 0) ? `
-        <ul class="c-message-card__subtasks">
-            ${subtasks.map((s, idx) => `
-                <li class="c-message-card__subtask-item ${s.done ? 'c-message-card__subtask-item--done' : ''}" 
-                    data-action="toggle-subtask" 
-                    data-index="${idx}" 
-                    role="button" 
-                    tabindex="0">
-                    <span class="c-message-card__subtask-check">${s.done ? '✅' : '•'}</span>
-                    <span class="c-message-card__subtask-task">${escapeHTML(s.task)}</span>
-                    ${s.assignee ? `<span class="c-message-card__subtask-assignee">${escapeHTML(s.assignee)}</span>` : ''}
-                </li>
-            `).join('')}
-        </ul>
+        <details class="c-message-card__subtasks-wrap">
+            <summary class="c-message-card__subtasks-toggle">
+                <span class="c-message-card__subtasks-label">
+                    • ${subtasks.length}${lang === 'ko' ? '개 세부 업무' : ' subtasks'}
+                    ${doneCount > 0 ? `<span class="c-message-card__subtasks-progress">(${doneCount}/${subtasks.length})</span>` : ''}
+                </span>
+            </summary>
+            <ul class="c-message-card__subtasks">
+                ${subtasks.map((s, idx) => `
+                    <li class="c-message-card__subtask-item ${s.done ? 'c-message-card__subtask-item--done' : ''}"
+                        data-action="toggle-subtask"
+                        data-index="${idx}"
+                        role="button"
+                        tabindex="0">
+                        <span class="c-message-card__subtask-check">${s.done ? '✅' : '•'}</span>
+                        <span class="c-message-card__subtask-task">${escapeHTML(s.task)}</span>
+                        ${s.assignee ? `<span class="c-message-card__subtask-assignee">${escapeHTML(s.assignee)}</span>` : ''}
+                    </li>
+                `).join('')}
+            </ul>
+        </details>
     ` : '';
 
     const isInvalid = !assignee || assignee === 'undefined' || assignee === 'unknown';

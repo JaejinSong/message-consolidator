@@ -85,39 +85,65 @@ describe('logic.js - Formatting', () => {
             vi.useRealTimers();
         });
 
-        it('should return empty string if task is done or date is missing', () => {
-            expect(getDeadlineBadge(new Date().toISOString(), true)).toBe('');
-            expect(getDeadlineBadge(undefined, false)).toBe('');
+        it('should return empty string if done or deadline is missing', () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-04-23T10:00:00Z'));
+            expect(getDeadlineBadge('2026-04-23', true, 'ko')).toBe('');
+            expect(getDeadlineBadge(undefined, false, 'ko')).toBe('');
+            expect(getDeadlineBadge('', false, 'ko')).toBe('');
         });
 
-        it('should return stale badge after 24 hours of inactivity', () => {
-            const now = new Date('2026-03-25T12:00:00Z');
+        it('should return "오늘" badge when deadline is today', () => {
             vi.useFakeTimers();
-            vi.setSystemTime(now);
-
-            const staleDate = new Date(now.getTime() - 26 * 60 * 60 * 1000).toISOString();
-            const badge = getDeadlineBadge(staleDate, false, 'ko');
-            expect(badge).toContain('c-badge--priority-medium');
-            expect(badge).toContain('정체됨');
+            vi.setSystemTime(new Date('2026-04-23T10:00:00Z'));
+            const badge = getDeadlineBadge('2026-04-23', false, 'ko');
+            expect(badge).toContain('c-badge--deadline-today');
+            expect(badge).toContain('오늘');
         });
 
-        it('should return abandoned badge after 72 hours (excluding weekends)', () => {
-            const past = new Date('2026-03-12T10:00:00Z').toISOString();
+        it('should return "내일" badge when deadline is tomorrow', () => {
             vi.useFakeTimers();
-            vi.setSystemTime(new Date('2026-03-18T10:00:00Z'));
-            const badge = getDeadlineBadge(past, false, 'ko');
-            expect(badge).toContain('c-badge--priority-high');
-            expect(badge).toContain('방치됨');
+            vi.setSystemTime(new Date('2026-04-23T10:00:00Z'));
+            const badge = getDeadlineBadge('2026-04-24', false, 'ko');
+            expect(badge).toContain('c-badge--deadline-tomorrow');
+            expect(badge).toContain('내일');
         });
 
-        it('should strictly ignore weekends in duration calculation', () => {
-            const fri = '2026-03-20T12:00:00Z';
+        it('should return "D-N" badge for deadline 2-7 days away', () => {
             vi.useFakeTimers();
-            vi.setSystemTime(new Date('2026-03-23T13:00:00Z')); // ~73 hours physical time later
-            const badge = getDeadlineBadge(fri, false, 'ko');
-            // 73 - 48 (weekend) = 25 business hours -> Stale
-            expect(badge).toContain('c-badge--priority-medium');
-            expect(badge).not.toContain('c-badge--priority-high');
+            vi.setSystemTime(new Date('2026-04-23T10:00:00Z'));
+            const badge = getDeadlineBadge('2026-04-27', false, 'ko');
+            expect(badge).toContain('c-badge--deadline-soon');
+            expect(badge).toContain('D-4');
+        });
+
+        it('should return "지남" badge for deadline 1-7 days past', () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-04-23T10:00:00Z'));
+            const badge = getDeadlineBadge('2026-04-20', false, 'ko');
+            expect(badge).toContain('c-badge--deadline-past');
+            expect(badge).toContain('지남');
+        });
+
+        it('should return empty string for deadline more than 7 days away', () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-04-23T10:00:00Z'));
+            const badge = getDeadlineBadge('2026-05-10', false, 'ko');
+            expect(badge).toBe('');
+        });
+
+        it('should return empty string for deadline more than 7 days past', () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-04-23T10:00:00Z'));
+            const badge = getDeadlineBadge('2026-04-01', false, 'ko');
+            expect(badge).toBe('');
+        });
+
+        it('should use English labels for en locale', () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-04-23T10:00:00Z'));
+            expect(getDeadlineBadge('2026-04-23', false, 'en')).toContain('Today');
+            expect(getDeadlineBadge('2026-04-24', false, 'en')).toContain('Tomorrow');
         });
     });
 

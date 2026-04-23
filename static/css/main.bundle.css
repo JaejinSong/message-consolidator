@@ -1739,6 +1739,32 @@ body.light-theme .c-utility__btn:hover {
     border: var(--border-thin) solid var(--glass-border);
 }
 
+/* Deadline date badges */
+.c-badge--deadline-today {
+    background: rgba(var(--color-error-rgb), 0.12);
+    color: var(--color-error);
+    border: var(--border-thin) solid rgba(var(--color-error-rgb), 0.25);
+    font-weight: 700;
+}
+
+.c-badge--deadline-tomorrow {
+    background: rgba(var(--color-warning-rgb), 0.12);
+    color: var(--color-warning);
+    border: var(--border-thin) solid rgba(var(--color-warning-rgb), 0.25);
+}
+
+.c-badge--deadline-soon {
+    background: rgba(var(--color-info-rgb), 0.1);
+    color: var(--color-info);
+    border: var(--border-thin) solid rgba(var(--color-info-rgb), 0.2);
+}
+
+.c-badge--deadline-past {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-dim);
+    border: var(--border-thin) solid var(--glass-border);
+}
+
 /* Dashboard Counter Modifier */
 .c-badge--count {
     margin-left: var(--spacing-xs);
@@ -1758,6 +1784,38 @@ body.light-theme .c-badge--count {
     background: rgba(15, 23, 42, 0.05);
     color: var(--text-main);
     border-color: var(--glass-border);
+}
+
+/* Deadline quick-filter pills */
+.c-deadline-filter {
+    display: flex;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-md);
+    flex-wrap: wrap;
+}
+
+.c-deadline-filter__btn {
+    padding: 0.3rem 0.8rem;
+    border-radius: var(--radius-full);
+    border: var(--border-thin) solid var(--glass-border);
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.c-deadline-filter__btn:hover {
+    color: var(--text-main);
+    border-color: var(--color-primary);
+}
+
+.c-deadline-filter__btn--active {
+    background: rgba(var(--color-primary-rgb), 0.12);
+    color: var(--color-primary);
+    border-color: rgba(var(--color-primary-rgb), 0.4);
+    font-weight: 600;
 }
 
 /* --- End of static/css/components/badge.css --- */

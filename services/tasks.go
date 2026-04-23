@@ -167,8 +167,14 @@ func (s *TasksService) ApplyTranslations(ctx context.Context, email, lang string
 	translations, _ := store.GetTaskTranslationsBatch(ctx, ids, lang)
 	var missingIDs []int
 	for i := range msgs {
-		if t, ok := translations[msgs[i].ID]; ok {
-			msgs[i].Task = t
+		if raw, ok := translations[msgs[i].ID]; ok {
+			mainTask, subTexts := parseTranslatedText(raw)
+			msgs[i].Task = mainTask
+			if len(subTexts) > 0 && len(msgs[i].Subtasks) == len(subTexts) {
+				for j := range msgs[i].Subtasks {
+					msgs[i].Subtasks[j].Task = subTexts[j]
+				}
+			}
 		} else {
 			missingIDs = append(missingIDs, msgs[i].ID)
 		}
@@ -550,7 +556,7 @@ func (s *TasksService) prepareTranslateRequests(ctx context.Context, email strin
 	for _, id := range ids {
 		msg, err := store.GetMessageByID(ctx, store.GetDB(), email, id)
 		if err != nil { continue }
-		reqs = append(reqs, store.TranslateRequest{ID: id, Text: msg.Task})
+		reqs = append(reqs, BuildTranslateRequest(id, msg.Task, msg.Subtasks))
 	}
 	return reqs
 }
@@ -701,6 +707,44 @@ func (s *TasksService) mergeSubtasks(a, b []store.TodoSubtask) []store.TodoSubta
 
 func normalizeKey(s string) string {
 	return strings.ToLower(strings.ReplaceAll(s, " ", ""))
+}
+
+// translationPayload is the JSON structure stored in task_translations.translated_text
+// when subtasks are present. Plain strings (legacy) are still supported.
+type translationPayload struct {
+	T string   `json:"t"`
+	S []string `json:"s,omitempty"`
+}
+
+// BuildTranslateRequest encodes task + subtask texts into a single TranslateRequest.
+// The Text field uses JSON when subtasks exist so the translator receives structured content.
+func BuildTranslateRequest(id int, task string, subtasks []store.Subtask) store.TranslateRequest {
+	if len(subtasks) == 0 {
+		return store.TranslateRequest{ID: id, Text: task}
+	}
+	subs := make([]string, len(subtasks))
+	for i, s := range subtasks {
+		subs[i] = s.Task
+	}
+	p := translationPayload{T: task, S: subs}
+	b, err := json.Marshal(p)
+	if err != nil {
+		return store.TranslateRequest{ID: id, Text: task}
+	}
+	return store.TranslateRequest{ID: id, Text: string(b)}
+}
+
+// parseTranslatedText parses a stored translated_text value (plain or JSON).
+// Returns (mainTask, subtaskTexts).
+func parseTranslatedText(raw string) (string, []string) {
+	if len(raw) == 0 || raw[0] != '{' {
+		return raw, nil
+	}
+	var p translationPayload
+	if err := json.Unmarshal([]byte(raw), &p); err != nil {
+		return raw, nil
+	}
+	return p.T, p.S
 }
 
 func (s *TasksService) findMatch(room string, item store.TodoItem, active []store.ConsolidatedMessage) *store.ConsolidatedMessage {

@@ -14,6 +14,11 @@ Extract tasks from Gmail. Consolidate related items into ONE task with subtasks.
 - `assignee`: `"__CURRENT_USER__"` for {{.CurrentUser}}.
 - `category`: default 'TASK'
 - Language: Korean input → Korean `task`/`subtasks.task`. Else → English.
+- `deadline`: The scheduled event date or action due date. Rules:
+  - Output format: `YYYY-MM-DD` (ISO 8601 date only). Empty string `""` if no date found.
+  - When multiple dates appear in a thread (e.g., past email headers, vs. actual meeting date), pick the **scheduled future event date** closest to CurrentTime, not past email timestamps.
+  - If the event date is in the past relative to CurrentTime, still record it (it may be today or recently passed).
+  - A "meeting on April 23" → `"2026-04-23"`. "4월 24일" → `"2026-04-24"`. "the 27th" with CurrentTime in April 2026 → `"2026-04-27"`.
 
 [Examples]
 Input: Meeting request for WhaTap automation on April 20th. Also, here is the script guide.

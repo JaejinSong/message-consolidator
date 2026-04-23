@@ -204,36 +204,31 @@ export function processTimeSeriesData(history: { date: string; counts: Record<st
 }
 
 /**
- * Gets the deadline badge HTML.
+ * Gets the deadline badge HTML based on a scheduled event date (YYYY-MM-DD).
+ * Shows urgency relative to today: today / tomorrow / D-N (2-7 days) / past.
  */
-export function getDeadlineBadge(timestamp: string | undefined, isDone: boolean, lang: string = 'ko'): string {
-    if (isDone || !timestamp) return '';
+export function getDeadlineBadge(deadline: string | undefined, isDone: boolean, lang: string = 'ko'): string {
+    if (isDone || !deadline) return '';
 
-    const start = new Date(timestamp);
-    const now = new Date();
-    if (start >= now) return '';
-
-    let diffMs = now.getTime() - start.getTime();
-    let current = new Date(start);
-    let weekendDays = 0;
-
-    current.setHours(0, 0, 0, 0);
-    let endObj = new Date(now);
-    endObj.setHours(0, 0, 0, 0);
-
-    while (current < endObj) {
-        current.setDate(current.getDate() + 1);
-        if (current.getDay() === 0 || current.getDay() === 6) weekendDays++;
-    }
-
-    const diffHours = (diffMs - (weekendDays * 24 * 60 * 60 * 1000)) / (1000 * 60 * 60);
     const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const today = new Date(todayStr);
+    const target = new Date(deadline.slice(0, 10));
+    if (isNaN(target.getTime())) return '';
 
-    if (diffHours >= 72) {
-        return `<span class="c-badge c-badge--priority-high">${ICONS.abandoned}${i18n.abandoned}</span>`;
+    const diffDays = Math.round((target.getTime() - today.getTime()) / 86400000);
+
+    if (diffDays === 0) {
+        return `<span class="c-badge c-badge--deadline-today">${i18n.deadlineToday ?? '오늘'}</span>`;
     }
-    if (diffHours >= 24) {
-        return `<span class="c-badge c-badge--priority-medium">${ICONS.stale}${i18n.stale}</span>`;
+    if (diffDays === 1) {
+        return `<span class="c-badge c-badge--deadline-tomorrow">${i18n.deadlineTomorrow ?? '내일'}</span>`;
+    }
+    if (diffDays >= 2 && diffDays <= 7) {
+        return `<span class="c-badge c-badge--deadline-soon">${i18n.deadlineSoon ?? 'D-'}${diffDays}</span>`;
+    }
+    if (diffDays < 0 && diffDays >= -7) {
+        return `<span class="c-badge c-badge--deadline-past">${i18n.deadlinePast ?? '지남'}</span>`;
     }
     return '';
 }
