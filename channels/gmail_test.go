@@ -2,7 +2,7 @@ package channels
 
 import (
 	"context"
-	"message-consolidator/config"
+	"message-consolidator/internal/testutil"
 	"message-consolidator/services"
 	"message-consolidator/store"
 	"message-consolidator/types"
@@ -196,13 +196,11 @@ func TestExtractNameFromEmail(t *testing.T) {
 }
 
 func TestUpsertAddresses(t *testing.T) {
-	// Setup test DB for store dependency
-	store.ResetForTest()
-	dbURL := "file:./test.db?_busy_timeout=5000"
-	
-	// Use store's initialization but with our test URL
-	store.InitDB(context.Background(), &config.Config{TursoURL: dbURL})
-	store.InitContactsTable(context.Background(), store.GetDB())
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("failed to setup test DB: %v", err)
+	}
+	defer cleanup()
 
 	tenant := "tenant@whatap.io"
 
