@@ -195,8 +195,16 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
     container.appendChild(svg);
 }
 
+const SANKEY_PALETTE = [
+    'hsl(210,80%,65%)', 'hsl(150,65%,55%)', 'hsl(45,90%,60%)',
+    'hsl(280,65%,68%)', 'hsl(0,72%,65%)',   'hsl(185,70%,55%)',
+    'hsl(330,68%,65%)', 'hsl(30,80%,62%)',  'hsl(240,60%,72%)',
+    'hsl(90,62%,58%)',
+];
+
 /**
  * Renders a Sankey Chart using SVG.
+ * Each source gets a distinct color; hover highlights all paths from that source.
  */
 function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): void {
     if (!container || !Array.isArray(nodes) || !Array.isArray(links)) return;
@@ -204,63 +212,210 @@ function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): vo
     const height = container.clientHeight || 400;
     const svg = createSVGElement('svg', { width: '100%', height: '100%', viewBox: `0 0 ${width} ${height}` });
 
-    nodes.forEach(n => {
-        if (n.value === undefined) {
-            n.value = links.reduce((sum, l) => sum + (l.source === n.id || l.target === n.id ? (l.weight || 1) : 0), 0);
-        }
+    const outVol = new Map<string, number>();
+    const inVol  = new Map<string, number>();
+    links.forEach(l => {
+        const v = l.value ?? l.weight ?? 1;
+        outVol.set(l.source, (outVol.get(l.source) || 0) + v);
+        inVol.set(l.target,  (inVol.get(l.target)  || 0) + v);
     });
 
-    const sources = nodes.filter(n => links.some(l => l.source === n.id));
-    const targets = nodes.filter(n => links.some(l => l.target === n.id && !sources.includes(n)));
+    const sourceIds = [...new Set(links.map(l => l.source))]
+        .sort((a, b) => (outVol.get(b) || 0) - (outVol.get(a) || 0));
+    const targetIds = [...new Set(links.map(l => l.target))]
+        .filter(id => !sourceIds.includes(id))
+        .sort((a, b) => (inVol.get(b) || 0) - (inVol.get(a) || 0));
 
-    const createLayout = (list: any[], x: number) => {
-        const coords = new Map<string, { x: number, y: number }>();
-        const step = height / (list.length + 1);
-        list.forEach((n, i) => coords.set(n.id, { x, y: (i + 1) * step }));
-        return coords;
+    const sourceColor = new Map(sourceIds.map((id, i) => [id, SANKEY_PALETTE[i % SANKEY_PALETTE.length]]));
+
+    const layout = (ids: string[], x: number) => {
+        const step = height / (ids.length + 1);
+        return new Map(ids.map((id, i) => [id, { x, y: (i + 1) * step }]));
     };
+    const sCoords = layout(sourceIds, 130);
+    const tCoords = layout(targetIds, width - 130);
 
-    const sCoords = createLayout(sources, 120);
-    const tCoords = createLayout(targets, width - 120);
+    const pathsBySource = new Map<string, SVGElement[]>();
 
     links.forEach(l => {
         const s = sCoords.get(l.source);
         const t = tCoords.get(l.target);
         if (!s || !t) return;
-        const sw = Math.max(2, Math.min(16, Math.sqrt(l.weight || 1) * 3));
-        const d = `M ${s.x} ${s.y} C ${(s.x + t.x) / 2} ${s.y}, ${(s.x + t.x) / 2} ${t.y}, ${t.x} ${t.y}`;
+        const v   = l.value ?? l.weight ?? 1;
+        const sw  = Math.max(2, Math.min(20, Math.sqrt(v) * 4));
+        const col = sourceColor.get(l.source) || 'var(--color-primary)';
+        const mx  = (s.x + t.x) / 2;
+        const d   = `M ${s.x} ${s.y} C ${mx} ${s.y}, ${mx} ${t.y}, ${t.x} ${t.y}`;
+
         const path = createSVGElement('path', {
-            d, class: 'c-report-viz__link', fill: 'none', 'stroke-width': sw,
-            stroke: 'var(--color-primary)', opacity: '0.4'
+            d, fill: 'none', 'stroke-width': sw, stroke: col, opacity: '0.45'
         });
-        path.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, `<b>${escapeHTML(getNodeName(nodes, l.source))} → ${escapeHTML(getNodeName(nodes, l.target))}</b><br/>Connections: ${l.weight || 1}`));
-        path.addEventListener('mouseenter', () => { path.setAttribute('opacity', '1'); path.setAttribute('stroke', 'var(--color-warning)'); });
-        path.addEventListener('mouseleave', () => { hideTooltip(); path.setAttribute('opacity', '0.4'); path.setAttribute('stroke', 'var(--color-primary)'); });
+        const tip = `<b>${escapeHTML(getNodeName(nodes, l.source))} → ${escapeHTML(getNodeName(nodes, l.target))}</b><br/>${v}건`;
+        path.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, tip));
+        path.addEventListener('mouseenter', () => pathsBySource.get(l.source)?.forEach(p => p.setAttribute('opacity', '1')));
+        path.addEventListener('mouseleave', () => { hideTooltip(); pathsBySource.get(l.source)?.forEach(p => p.setAttribute('opacity', '0.45')); });
+
+        if (!pathsBySource.has(l.source)) pathsBySource.set(l.source, []);
+        pathsBySource.get(l.source)!.push(path);
         svg.appendChild(path);
     });
 
+    const NODE_W = 12;
     [...sCoords, ...tCoords].forEach(([id, p]) => {
         const n = nodes.find(node => node.id === id);
         if (!n) return;
-        const h = Math.max(16, 10 + Math.sqrt(n.value || 1) * 4);
-        const rectColor = n.is_me ? 'var(--color-primary)' : n.category === 'Internal' ? 'var(--color-success)' : 'var(--color-info)';
+        const isSource = sCoords.has(id);
+        const totalVol = (outVol.get(id) || 0) + (inVol.get(id) || 0);
+        const h   = Math.max(20, 8 + Math.sqrt(totalVol) * 5);
+        const col = isSource
+            ? (sourceColor.get(id) || 'var(--color-primary)')
+            : (n.is_me ? 'var(--color-warning)' : n.category === 'Internal' ? 'var(--color-success)' : 'var(--color-info)');
+
         const rect = createSVGElement('rect', {
-            x: p.x - 4, y: p.y - h / 2, width: 8, height: h,
-            class: 'c-report-viz__node', rx: 2,
-            fill: rectColor
+            x: p.x - NODE_W / 2, y: p.y - h / 2, width: NODE_W, height: h, rx: 3, fill: col
         });
+        rect.addEventListener('mouseenter', () => pathsBySource.get(id)?.forEach(p => p.setAttribute('opacity', '1')));
+        rect.addEventListener('mouseleave', () => pathsBySource.get(id)?.forEach(p => p.setAttribute('opacity', '0.45')));
         svg.appendChild(rect);
 
-        const isSource = sCoords.has(id);
+        const raw = n.name || n.id;
+        const label = raw.length > 18 ? raw.slice(0, 17) + '…' : raw;
         const text = createSVGElement('text', {
-            x: p.x + (isSource ? -12 : 12),
-            y: p.y + 4,
-            'text-anchor': isSource ? 'end' : 'start',
-            fill: 'var(--text-main)',
-            style: 'font-size: 0.7rem; font-weight: 500;'
+            x: p.x + (isSource ? -(NODE_W / 2 + 6) : (NODE_W / 2 + 6)),
+            y: p.y, 'text-anchor': isSource ? 'end' : 'start', 'dominant-baseline': 'middle',
+            fill: 'var(--text-main)', style: 'font-size:0.72rem;font-weight:500;'
         });
-        text.textContent = n.name || n.id;
+        text.textContent = label;
         svg.appendChild(text);
+    });
+
+    container.appendChild(svg);
+}
+
+const TOP_N = 15;
+const MATRIX_LABEL_W = 130;
+const MATRIX_LABEL_H = 90;
+const MATRIX_TITLE_H = 28;
+
+function buildMatrixData(nodes: any[], links: any[], topN: number) {
+    const vol = new Map<string, number>();
+    links.forEach(l => {
+        const v = l.value ?? l.weight ?? 1;
+        vol.set(l.source, (vol.get(l.source) || 0) + v);
+        vol.set(l.target, (vol.get(l.target) || 0) + v);
+    });
+    const allIds = [...new Set<string>(links.flatMap(l => [l.source, l.target]))];
+    const topIds = allIds.sort((a, b) => (vol.get(b) || 0) - (vol.get(a) || 0)).slice(0, topN);
+    const topSet = new Set(topIds);
+    const matrix = new Map<string, Map<string, number>>();
+    topIds.forEach(src => matrix.set(src, new Map(topIds.map(tgt => [tgt, 0]))));
+    links.forEach(l => {
+        if (!topSet.has(l.source) || !topSet.has(l.target) || l.source === l.target) return;
+        const row = matrix.get(l.source)!;
+        row.set(l.target, (row.get(l.target) || 0) + (l.value ?? l.weight ?? 1));
+    });
+    let maxVal = 0;
+    matrix.forEach(row => row.forEach(v => { if (v > maxVal) maxVal = v; }));
+    const rowTotals = new Map<string, number>();
+    const colTotals = new Map<string, number>();
+    topIds.forEach(src => {
+        const rowSum = [...(matrix.get(src)?.values() || [])].reduce((a, b) => a + b, 0);
+        rowTotals.set(src, rowSum);
+    });
+    topIds.forEach(tgt => {
+        const colSum = topIds.reduce((sum, src) => sum + (matrix.get(src)?.get(tgt) || 0), 0);
+        colTotals.set(tgt, colSum);
+    });
+    const getName = (id: string) => {
+        const n = nodes.find(n => n.id === id);
+        const raw = n ? (n.name || n.id) : id;
+        return raw.length > 14 ? raw.slice(0, 13) + '…' : raw;
+    };
+    const getFullName = (id: string) => {
+        const n = nodes.find(n => n.id === id);
+        return n ? (n.name || n.id) : id;
+    };
+    return { topIds, matrix, maxVal, rowTotals, colTotals, getName, getFullName };
+}
+
+/**
+ * Renders a directed Matrix Heatmap (X→Y request volume) using SVG.
+ */
+function renderMatrixSVG(container: HTMLElement, nodes: any[], links: any[]): void {
+    if (!container || !Array.isArray(links) || links.length === 0) return;
+    const { topIds, matrix, maxVal, rowTotals, colTotals, getName, getFullName } = buildMatrixData(nodes, links, TOP_N);
+    if (maxVal === 0) return;
+
+    const containerW = container.clientWidth || 640;
+    const N = topIds.length;
+    const cellSize = Math.max(18, Math.min(36, Math.floor((containerW - MATRIX_LABEL_W - 12) / N)));
+    const svgW = MATRIX_LABEL_W + N * cellSize + 8;
+    const svgH = MATRIX_TITLE_H + MATRIX_LABEL_H + N * cellSize + 8;
+
+    const svg = createSVGElement('svg', {
+        width: '100%', height: svgH,
+        viewBox: `0 0 ${svgW} ${svgH}`,
+        preserveAspectRatio: 'xMinYMin meet'
+    });
+
+    const titleEl = createSVGElement('text', { x: 0, y: 18, fill: 'var(--text-dim)', style: 'font-size:0.7rem;font-weight:600;' });
+    titleEl.textContent = `요청 흐름 행렬 (상위 ${N}명 · 행=발신 · 열=수신)`;
+    svg.appendChild(titleEl);
+
+    const offsetY = MATRIX_TITLE_H;
+
+    topIds.forEach((tgt, j) => {
+        const x = MATRIX_LABEL_W + j * cellSize + cellSize / 2;
+        const y = offsetY + MATRIX_LABEL_H - 6;
+        const text = createSVGElement('text', {
+            x: 0, y: 0, transform: `translate(${x},${y}) rotate(-45)`,
+            'text-anchor': 'start', fill: 'var(--text-dim)', style: 'font-size:0.62rem;'
+        });
+        text.textContent = getName(tgt);
+        svg.appendChild(text);
+    });
+
+    topIds.forEach((src, i) => {
+        const rowY = offsetY + MATRIX_LABEL_H + i * cellSize;
+        const lbl = createSVGElement('text', {
+            x: MATRIX_LABEL_W - 8, y: rowY + cellSize / 2,
+            'text-anchor': 'end', 'dominant-baseline': 'middle',
+            fill: 'var(--text-main)', style: 'font-size:0.65rem;'
+        });
+        lbl.textContent = getName(src);
+        svg.appendChild(lbl);
+
+        topIds.forEach((tgt, j) => {
+            const val = matrix.get(src)?.get(tgt) || 0;
+            const cx = MATRIX_LABEL_W + j * cellSize;
+            const opacity = val === 0 ? 0.06 : Math.max(0.12, (val / maxVal) * 0.88);
+            const cell = createSVGElement('rect', {
+                x: cx + 1, y: rowY + 1, width: cellSize - 2, height: cellSize - 2, rx: 2,
+                fill: val === 0 ? 'var(--text-dim)' : 'var(--color-primary)',
+                'fill-opacity': opacity
+            });
+            if (val > 0) {
+                const srcName = getFullName(src);
+                const tgtName = getFullName(tgt);
+                const rowPct = Math.round(val / (rowTotals.get(src) || 1) * 100);
+                const colPct = Math.round(val / (colTotals.get(tgt) || 1) * 100);
+                const tip = `<b>${escapeHTML(srcName)} → ${escapeHTML(tgtName)}</b><br/>${val}건<br/><span style="color:var(--text-dim)">${srcName} 발신의 ${rowPct}% &nbsp;·&nbsp; ${tgtName} 수신의 ${colPct}%</span>`;
+                cell.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, tip));
+                cell.addEventListener('mouseleave', () => hideTooltip());
+            }
+            svg.appendChild(cell);
+
+            if (val > 0 && cellSize >= 22) {
+                const num = createSVGElement('text', {
+                    x: cx + cellSize / 2, y: rowY + cellSize / 2,
+                    'text-anchor': 'middle', 'dominant-baseline': 'middle',
+                    fill: 'var(--text-main)',
+                    style: `font-size:${cellSize >= 28 ? '0.6' : '0.5'}rem;pointer-events:none;opacity:0.75;`
+                });
+                num.textContent = String(val);
+                svg.appendChild(num);
+            }
+        });
     });
 
     container.appendChild(svg);
@@ -306,6 +461,7 @@ export const reportsRenderer = {
         const summaryArea = document.getElementById('reportSummaryContent');
         const netChartArea = document.getElementById('reportNetworkChart');
         const sankeyChartArea = document.getElementById('reportSankeyChart');
+        const matrixChartArea = document.getElementById('reportMatrixChart');
 
         const summaryText = report.translations?.[lang] || report.report_summary || "";
 
@@ -348,6 +504,10 @@ export const reportsRenderer = {
             if (sankeyChartArea && sankeyChartArea.dataset.vizKey !== vizKey) {
                 sankeyChartArea.dataset.vizKey = vizKey;
                 requestAnimationFrame(() => { sankeyChartArea.innerHTML = ''; renderSankeySVG(sankeyChartArea, viz.nodes, viz.links); });
+            }
+            if (matrixChartArea && matrixChartArea.dataset.vizKey !== vizKey) {
+                matrixChartArea.dataset.vizKey = vizKey;
+                requestAnimationFrame(() => { matrixChartArea.innerHTML = ''; renderMatrixSVG(matrixChartArea, viz.nodes, viz.links); });
             }
         }
     },
