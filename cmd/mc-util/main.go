@@ -22,8 +22,6 @@ func main() {
 		fmt.Println("Usage: mc-util <command> [args]")
 		fmt.Println("Commands:")
 		fmt.Println("  db-diag       : Database diagnostics (total counts, samples)")
-		fmt.Println("  db-inspect    : Inspect specific message IDs")
-		fmt.Println("  db-sync       : Sync Turso DB to local db/test.db")
 		fmt.Println("  wa-pair       : WhatsApp CLI pairing tool")
 		fmt.Println("  release-notes : Generate synchronized release notes")
 		os.Exit(1)
@@ -35,10 +33,6 @@ func main() {
 	switch cmd {
 	case "db-diag":
 		runDBDiag(cfg)
-	case "db-inspect":
-		runDBInspect(cfg)
-	case "db-sync":
-		runDBSync(cfg)
 	case "wa-pair":
 		runWAPair(cfg)
 	case "release-notes":

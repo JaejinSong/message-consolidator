@@ -3,7 +3,7 @@ app
 app_*
 message-consolidator
 message-consolidator-vps
-mc-util
+/mc-util
 mc_test
 tmp_build
 test_bin
