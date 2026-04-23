@@ -12,6 +12,18 @@ import (
 	"testing"
 )
 
+func TestIsSameSliceSkipsUpdateWhenNamesMatch(t *testing.T) {
+	// Regression: GetUserAliasesByEmailFromCache previously returned [email, name],
+	// causing isSameSlice to always return false (len mismatch) and triggering a DB write every request.
+	// Now GetUserAliasesByEmailFromCache returns only display names, so comparison works directly.
+	userAliases := []string{"Jaejin Song"}
+	newAliases := []string{"Jaejin Song"}
+
+	if !isSameSlice(userAliases, newAliases) {
+		t.Error("expected no update needed when names already match")
+	}
+}
+
 func TestHandleAddMappingConflict(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {

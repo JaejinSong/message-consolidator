@@ -314,7 +314,8 @@ func GetUserByWAJID(jid string) (*User, error) {
 	return nil, fmt.Errorf("user with WAJID %s not found in cache", jid)
 }
 
-// GetUserAliasesByEmailFromCache looks up identifiers for a canonical email from the resolution table.
+// GetUserAliasesByEmailFromCache returns only the display-name aliases for a canonical email.
+// The canonical email itself is excluded — it is an identity, not an alias.
 func GetUserAliasesByEmailFromCache(ctx context.Context, email string) ([]string, error) {
 	norm := NormalizeIdentifier(email)
 	rows, err := db.New(GetDB()).GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{
@@ -326,11 +327,10 @@ func GetUserAliasesByEmailFromCache(ctx context.Context, email string) ([]string
 	}
 	byID := fetchContactsByIDs(ctx, []int64{rows[0].ContactID})
 	if c, ok := byID[rows[0].ContactID]; ok {
-		aliases := []string{c.CanonicalID}
 		if c.DisplayName != "" && c.DisplayName != c.CanonicalID {
-			aliases = append(aliases, c.DisplayName)
+			return []string{c.DisplayName}, nil
 		}
-		return aliases, nil
+		return []string{}, nil
 	}
 	return []string{}, nil
 }
