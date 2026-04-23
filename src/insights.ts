@@ -349,7 +349,7 @@ export const insights = {
             try {
                 const result = await api.translateReport(report.id, lang);
                 if (!report.translations) report.translations = {};
-                const translatedText = result.report_summary || result.translation || result.translated_text || (typeof result === 'string' ? result : '');
+                const translatedText = result.report_summary || result.summary || result.translation || result.translated_text || (typeof result === 'string' ? result : '');
                 if (translatedText) {
                     report.translations[lang] = translatedText;
                     upsertReport(report);

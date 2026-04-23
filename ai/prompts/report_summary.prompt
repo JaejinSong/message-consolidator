@@ -9,7 +9,15 @@ Generate a professional Executive Report with qualitative business insights.
 # Rules
 1. Headers (all 3 required, in order): `## [Operations & Strategy Overview]`, `## [Key Insights]`, `## [Stalled Tasks]`
 2. **Operations & Strategy Overview**: 3-4 sentence strategic narrative (bird's-eye view). Identify "Choice and Concentration" conflicts (e.g., resource bottlenecks between regional expansion and system stability).
-3. **Key Insights**: Active task performance summary. Each bullet: `- [Source] one sentence.`
+3. **Key Insights**: Surface non-obvious patterns, risks, and anomalies — NOT a task list. Each bullet must answer "so what?": bottlenecks, single-point-of-failure risks, stalled patterns, unusual request concentration, or cross-source dependencies. Format: `- [Source] finding + implication.` Additional rules:
+   - At least 1 bullet must flag a risk or anomaly (not merely "X tasks are active").
+   - If one person holds >40% of open tasks, call it out explicitly.
+   - If a cross-source pattern exists (e.g., most requests flow A→B), include 1 cross-source bullet.
+   - Never restate task names or counts without adding the "so what".
+   BAD:  `- [Digital] 3 tasks active, 1 completed.`
+   GOOD: `- [Digital] Completion rate at 25% (1/4); 2 items stalled 7+ days with no update, suggesting a hidden blocker.`
+   BAD:  `- [Release] Pak Sudi has 2 open items.`
+   GOOD: `- [Release] Pak Sudi owns 3 of 5 open tasks — single-point dependency risk if unavailable before deadline.`
 4. **Stalled Tasks**: Only 'Stalled'/'Neglected'. One ```json block: `[{"source": str, "requester": str, "status": str, "days": num, "reason": str}]`. If none: `"No stalled tasks identified."`
 5. Tone: dry, professional, data-driven. English only. 1 bullet = 1 sentence — no paragraphs.
 

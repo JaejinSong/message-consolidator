@@ -292,7 +292,7 @@ function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): vo
     container.appendChild(svg);
 }
 
-const TOP_N = 15;
+const TOP_N = 10;
 const MATRIX_LABEL_W = 130;
 const MATRIX_LABEL_H = 90;
 const MATRIX_TITLE_H = 28;
