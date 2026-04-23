@@ -12,15 +12,29 @@ import (
 	"testing"
 )
 
-func TestIsSameSliceSkipsUpdateWhenNamesMatch(t *testing.T) {
-	// Regression: GetUserAliasesByEmailFromCache previously returned [email, name],
-	// causing isSameSlice to always return false (len mismatch) and triggering a DB write every request.
-	// Now GetUserAliasesByEmailFromCache returns only display names, so comparison works directly.
-	userAliases := []string{"Jaejin Song"}
-	newAliases := []string{"Jaejin Song"}
-
-	if !isSameSlice(userAliases, newAliases) {
-		t.Error("expected no update needed when names already match")
+func TestBuildSlackAliases(t *testing.T) {
+	cases := []struct {
+		realName    string
+		displayName string
+		expected    []string
+	}{
+		{"Jaejin Song", "JJ", []string{"Jaejin Song", "JJ"}},
+		{"Jaejin Song", "Jaejin Song", []string{"Jaejin Song"}},
+		{"Jaejin Song", "", []string{"Jaejin Song"}},
+		{"", "JJ", []string{"JJ"}},
+		{"", "", []string{}},
+	}
+	for _, tc := range cases {
+		got := buildSlackAliases(tc.realName, tc.displayName)
+		if len(got) != len(tc.expected) {
+			t.Errorf("buildSlackAliases(%q, %q) len=%d, want %d", tc.realName, tc.displayName, len(got), len(tc.expected))
+			continue
+		}
+		for i := range got {
+			if got[i] != tc.expected[i] {
+				t.Errorf("buildSlackAliases(%q, %q)[%d] = %q, want %q", tc.realName, tc.displayName, i, got[i], tc.expected[i])
+			}
+		}
 	}
 }
 

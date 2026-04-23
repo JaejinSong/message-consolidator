@@ -1,4 +1,5 @@
 -- Consolidated Schema for sqlc (SQLite)
+-- NOTE: CREATE INDEX statements are stripped by sqlc and must be defined in createIndexes() in migrations.go.
 
 -- name: CreateUsersTable :exec
 CREATE TABLE IF NOT EXISTS users (
@@ -18,7 +19,6 @@ CREATE TABLE IF NOT EXISTS user_aliases (
     alias_name TEXT NOT NULL,
     UNIQUE(user_id, alias_name)
 );
-CREATE INDEX IF NOT EXISTS idx_user_aliases_user_id ON user_aliases(user_id);
 
 -- name: CreateGmailTokensTable :exec
 CREATE TABLE IF NOT EXISTS gmail_tokens (
@@ -58,8 +58,6 @@ CREATE TABLE IF NOT EXISTS messages (
     subtasks TEXT DEFAULT '[]',
     UNIQUE(user_email, source_ts)
 );
-CREATE INDEX IF NOT EXISTS idx_thread_id ON messages(thread_id);
-CREATE INDEX IF NOT EXISTS idx_messages_dashboard_filter ON messages(user_email, is_deleted, done, category, assignee);
 
 -- name: CreateTaskTranslationsTable :exec
 CREATE TABLE IF NOT EXISTS task_translations (
@@ -89,8 +87,6 @@ CREATE TABLE IF NOT EXISTS scan_metadata (
     UNIQUE(user_email, source, target_id)
 );
 
-
-
 -- name: CreateContactsTable :exec
 CREATE TABLE IF NOT EXISTS contacts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,9 +100,6 @@ CREATE TABLE IF NOT EXISTS contacts (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(tenant_email, canonical_id)
 );
-CREATE INDEX IF NOT EXISTS idx_contacts_canonical ON contacts(canonical_id);
-CREATE INDEX IF NOT EXISTS idx_contacts_tenant_canonical ON contacts(tenant_email, canonical_id);
-
 
 -- name: CreateContactResolutionTable :exec
 CREATE TABLE IF NOT EXISTS contact_resolution (
@@ -206,7 +199,7 @@ CREATE TABLE IF NOT EXISTS token_usage (
 -- Views
 -- name: CreateContactsResolvedView :exec
 CREATE VIEW IF NOT EXISTS v_contacts_resolved AS
-SELECT 
+SELECT
     c.id,
     c.tenant_email,
     c.canonical_id AS original_canonical_id,
@@ -221,24 +214,24 @@ LEFT JOIN contacts m ON c.master_contact_id = m.id AND c.tenant_email = m.tenant
 
 -- name: CreateMessagesView :exec
 CREATE VIEW IF NOT EXISTS v_messages AS
-SELECT 
-    m.id, 
-    COALESCE(m.user_email, '') as user_email, 
-    COALESCE(m.source, '') as source, 
-    COALESCE(m.room, '') as room, 
-    COALESCE(m.task, '') as task, 
-    COALESCE(cr_req.effective_display_name, m.requester, '') as requester, 
+SELECT
+    m.id,
+    COALESCE(m.user_email, '') as user_email,
+    COALESCE(m.source, '') as source,
+    COALESCE(m.room, '') as room,
+    COALESCE(m.task, '') as task,
+    COALESCE(cr_req.effective_display_name, m.requester, '') as requester,
     COALESCE(cr_asg.effective_display_name, m.assignee, '') as assignee,
     m.assigned_at,
-    COALESCE(m.link, '') as link, 
-    COALESCE(m.source_ts, '') as source_ts, 
+    COALESCE(m.link, '') as link,
+    COALESCE(m.source_ts, '') as source_ts,
     COALESCE(m.pinned, 0) as pinned,
-    COALESCE(m.original_text, '') as original_text, 
-    COALESCE(m.done, 0) as done, 
-    COALESCE(m.is_deleted, 0) as is_deleted, 
-    m.created_at, 
-    m.completed_at, 
-    COALESCE(m.category, 'todo') as category, 
+    COALESCE(m.original_text, '') as original_text,
+    COALESCE(m.done, 0) as done,
+    COALESCE(m.is_deleted, 0) as is_deleted,
+    m.created_at,
+    m.completed_at,
+    COALESCE(m.category, 'todo') as category,
     COALESCE(m.deadline, '') as deadline,
     COALESCE(m.thread_id, '') as thread_id,
     COALESCE(m.assignee_reason, '') as assignee_reason,

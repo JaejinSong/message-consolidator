@@ -54,22 +54,32 @@ func (a *API) autoPopulateSlackAliases(ctx context.Context, user *store.User) {
 	slackUser, err := sc.LookupUserByEmail(user.Email)
 	if err != nil || slackUser == nil { return }
 
-	if user.SlackID != slackUser.ID {
+	slackIDUnchanged := user.SlackID == slackUser.ID
+	if !slackIDUnchanged {
 		_ = store.UpdateUserSlackID(ctx, user.Email, slackUser.ID)
 	}
 
-	newAliases := []string{}
-	if slackUser.RealName != "" {
-		newAliases = append(newAliases, strings.TrimSpace(slackUser.RealName))
-	}
-	if slackUser.Profile.DisplayName != "" && slackUser.Profile.DisplayName != slackUser.RealName {
-		newAliases = append(newAliases, strings.TrimSpace(slackUser.Profile.DisplayName))
+	// SlackID가 같고 이미 alias가 있으면 alias 동기화 불필요
+	if slackIDUnchanged && len(user.Aliases) > 0 {
+		return
 	}
 
-	if len(newAliases) > 0 && !isSameSlice(user.Aliases, newAliases) {
+	newAliases := buildSlackAliases(slackUser.RealName, slackUser.Profile.DisplayName)
+	if len(newAliases) > 0 {
 		_ = store.AddContactMapping(ctx, user.Email, user.Email, user.Name, strings.Join(newAliases, ","), "slack")
 		a.refreshUserAliases(ctx, user)
 	}
+}
+
+func buildSlackAliases(realName, displayName string) []string {
+	aliases := []string{}
+	if realName != "" {
+		aliases = append(aliases, strings.TrimSpace(realName))
+	}
+	if displayName != "" && displayName != realName {
+		aliases = append(aliases, strings.TrimSpace(displayName))
+	}
+	return aliases
 }
 
 func (a *API) refreshUserAliases(ctx context.Context, user *store.User) {
