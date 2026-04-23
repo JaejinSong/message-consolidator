@@ -5,10 +5,7 @@ import (
 	"message-consolidator/auth"
 	"message-consolidator/store"
 	"net/http"
-	"strconv"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 // HandleListReports lists all reports for the current user.
@@ -91,7 +88,7 @@ func (a *API) respondWithReportStatus(w http.ResponseWriter, report *store.Repor
 
 // HandleGetReportByID retrieves a specific report by its unique ID.
 func (a *API) HandleGetReportByID(w http.ResponseWriter, r *http.Request) {
-	id, err := a.parseReportID(r)
+	id, err := parsePathID(r, "id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid report ID format")
 		return
@@ -109,7 +106,7 @@ func (a *API) HandleGetReportByID(w http.ResponseWriter, r *http.Request) {
 
 // HandleDeleteReport removes a report from the database.
 func (a *API) HandleDeleteReport(w http.ResponseWriter, r *http.Request) {
-	id, err := a.parseReportID(r)
+	id, err := parsePathID(r, "id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid report ID format")
 		return
@@ -131,7 +128,7 @@ func (a *API) HandleDeleteReport(w http.ResponseWriter, r *http.Request) {
 
 // HandleTranslateReport handles the on-demand translation request for a report.
 func (a *API) HandleTranslateReport(w http.ResponseWriter, r *http.Request) {
-	id, err := a.parseReportID(r)
+	id, err := parsePathID(r, "id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid report ID format")
 		return
@@ -163,19 +160,6 @@ func (a *API) processReportTranslation(w http.ResponseWriter, r *http.Request, i
 	}
 
 	respondJSON(w, http.StatusOK, map[string]string{"language_code": lang, "summary": summary})
-}
-
-func (a *API) parseReportID(r *http.Request) (int, error) {
-	vars := mux.Vars(r)
-	idStr := vars["id"]
-	if idStr == "" {
-		return 0, httpError("Missing ID")
-	}
-	id64, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-	return int(id64), nil
 }
 
 type httpErr string

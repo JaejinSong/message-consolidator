@@ -11,8 +11,6 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/services"
 	"message-consolidator/store"
-
-	"github.com/gorilla/mux"
 )
 
 func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
@@ -170,15 +168,11 @@ func (a *API) HandleGetArchivedCount(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	var req BatchIDsRequest
-	if !bindJSON(w, r, &req) { return }
-
-	if err := req.Validate(); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+	ids, ok := parseBatchIDs(w, r)
+	if !ok {
 		return
 	}
-
-	_ = store.DeleteMessages(r.Context(), store.GetDB(), email, req.GetIDs())
+	_ = store.DeleteMessages(r.Context(), store.GetDB(), email, ids)
 	a.respondWithUpdatedUser(w, r, email)
 }
 
@@ -201,12 +195,9 @@ func (a *API) respondWithUpdatedUser(w http.ResponseWriter, r *http.Request, ema
 // Why: [Explicit Integer Conversion] and [Guard Clauses] ensure type safety and early failure for malformed or unauthorized requests.
 func (a *API) HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	vars := mux.Vars(r)
-
-	// [Explicit Integer Conversion] Parse and validate ID from path parameter.
-	id, err := strconv.Atoi(vars["id"])
+	id, err := parsePathID(r, "id")
 	if err != nil {
-		logger.Warnf("[GET_ORIGINAL] Invalid ID provided by %s: %s", email, vars["id"])
+		logger.Warnf("[GET_ORIGINAL] Invalid ID provided by %s", email)
 		respondError(w, http.StatusBadRequest, "Invalid message ID format")
 		return
 	}
@@ -233,29 +224,21 @@ func (a *API) HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) HandleHardDelete(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	var req BatchIDsRequest
-	if !bindJSON(w, r, &req) { return }
-
-	if err := req.Validate(); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+	ids, ok := parseBatchIDs(w, r)
+	if !ok {
 		return
 	}
-
-	_ = store.HardDeleteMessages(r.Context(), store.GetDB(), email, req.GetIDs())
+	_ = store.HardDeleteMessages(r.Context(), store.GetDB(), email, ids)
 	w.WriteHeader(http.StatusOK)
 }
 
 func (a *API) HandleRestore(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	var req BatchIDsRequest
-	if !bindJSON(w, r, &req) { return }
-
-	if err := req.Validate(); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+	ids, ok := parseBatchIDs(w, r)
+	if !ok {
 		return
 	}
-
-	_ = store.RestoreMessages(r.Context(), store.GetDB(), email, req.GetIDs())
+	_ = store.RestoreMessages(r.Context(), store.GetDB(), email, ids)
 	w.WriteHeader(http.StatusOK)
 }
 

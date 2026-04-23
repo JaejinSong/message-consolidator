@@ -10,6 +10,9 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/services"
 	"net/http"
+	"strconv"
+
+	"github.com/gorilla/mux"
 )
 
 // API holds all dependencies for API handlers, promoting testability and avoiding global state.
@@ -100,6 +103,32 @@ func (r *BatchIDsRequest) Validate() error {
 		}
 	}
 	return nil
+}
+
+// parsePathID extracts and parses an integer path variable by key.
+func parsePathID(r *http.Request, key string) (int, error) {
+	idStr := mux.Vars(r)[key]
+	if idStr == "" {
+		return 0, httpError("Missing " + key)
+	}
+	id64, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return int(id64), nil
+}
+
+// parseBatchIDs decodes and validates a BatchIDsRequest, writing error responses on failure.
+func parseBatchIDs(w http.ResponseWriter, r *http.Request) ([]int, bool) {
+	var req BatchIDsRequest
+	if !bindJSON(w, r, &req) {
+		return nil, false
+	}
+	if err := req.Validate(); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return nil, false
+	}
+	return req.GetIDs(), true
 }
 
 // decodeJSON is a common helper that parses JSON from an HTTP request and safely closes the Body to prevent memory leaks.

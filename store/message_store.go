@@ -423,49 +423,33 @@ func UpdateTaskSourceChannels(ctx context.Context, q Querier, email string, id i
 	})
 }
 
-func DeleteMessages(ctx context.Context, q Querier, email string, ids []int) error {
+func batchMsgOp(email string, ids []int, op func([]int64) error) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	err := db.New(q).DeleteMessages(ctx, db.DeleteMessagesParams{
-		UserEmail: nullString(email),
-		Ids:       toInt64List(ids),
-	})
-	if err != nil {
+	if err := op(toInt64List(ids)); err != nil {
 		return err
 	}
 	InvalidateCache(email)
 	return nil
+}
+
+func DeleteMessages(ctx context.Context, q Querier, email string, ids []int) error {
+	return batchMsgOp(email, ids, func(i64 []int64) error {
+		return db.New(q).DeleteMessages(ctx, db.DeleteMessagesParams{UserEmail: nullString(email), Ids: i64})
+	})
 }
 
 func HardDeleteMessages(ctx context.Context, q Querier, email string, ids []int) error {
-	if len(ids) == 0 {
-		return nil
-	}
-	err := db.New(q).HardDeleteMessages(ctx, db.HardDeleteMessagesParams{
-		UserEmail: nullString(email),
-		Ids:       toInt64List(ids),
+	return batchMsgOp(email, ids, func(i64 []int64) error {
+		return db.New(q).HardDeleteMessages(ctx, db.HardDeleteMessagesParams{UserEmail: nullString(email), Ids: i64})
 	})
-	if err != nil {
-		return err
-	}
-	InvalidateCache(email)
-	return nil
 }
 
 func RestoreMessages(ctx context.Context, q Querier, email string, ids []int) error {
-	if len(ids) == 0 {
-		return nil
-	}
-	err := db.New(q).RestoreMessages(ctx, db.RestoreMessagesParams{
-		UserEmail: nullString(email),
-		Ids:       toInt64List(ids),
+	return batchMsgOp(email, ids, func(i64 []int64) error {
+		return db.New(q).RestoreMessages(ctx, db.RestoreMessagesParams{UserEmail: nullString(email), Ids: i64})
 	})
-	if err != nil {
-		return err
-	}
-	InvalidateCache(email)
-	return nil
 }
 
 func GetMessageByID(ctx context.Context, q Querier, email string, id int) (ConsolidatedMessage, error) {

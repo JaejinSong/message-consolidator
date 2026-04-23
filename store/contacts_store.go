@@ -17,6 +17,15 @@ import (
 
 var ErrAmbiguousIdentity = errors.New("ambiguous identity match")
 
+func parseSecondaryIDs(raw sql.NullString) []string {
+	if raw.String == "" || raw.String == "null" {
+		return nil
+	}
+	var sids []string
+	_ = json.Unmarshal([]byte(raw.String), &sids)
+	return sids
+}
+
 type AmbiguousIdentityError struct {
 	Identifier string
 	Emails     []string
@@ -413,10 +422,6 @@ func fetchContactsByIDs(ctx context.Context, ids []int64) map[int64]*ContactReco
 	}
 	result := make(map[int64]*ContactRecord, len(rows))
 	for _, r := range rows {
-		var sids []string
-		if r.SecondaryIds.String != "" && r.SecondaryIds.String != "null" {
-			_ = json.Unmarshal([]byte(r.SecondaryIds.String), &sids)
-		}
 		c := &ContactRecord{
 			ID:              r.ID,
 			TenantEmail:     r.TenantEmail,
@@ -425,7 +430,7 @@ func fetchContactsByIDs(ctx context.Context, ids []int64) map[int64]*ContactReco
 			Source:          r.Source.String,
 			MasterContactID: r.MasterContactID,
 			ContactType:     r.ContactType.String,
-			SecondaryIDs:    sids,
+			SecondaryIDs:    parseSecondaryIDs(r.SecondaryIds),
 		}
 		result[r.ID] = c
 	}
@@ -441,10 +446,6 @@ func fetchAllTenantContacts(ctx context.Context, tenantEmail string) ([]ContactR
 
 	all := make([]ContactRecord, len(rows))
 	for i, r := range rows {
-		var sids []string
-		if r.SecondaryIds.String != "" && r.SecondaryIds.String != "null" {
-			_ = json.Unmarshal([]byte(r.SecondaryIds.String), &sids)
-		}
 		all[i] = ContactRecord{
 			ID:              r.ID,
 			TenantEmail:     r.TenantEmail,
@@ -453,7 +454,7 @@ func fetchAllTenantContacts(ctx context.Context, tenantEmail string) ([]ContactR
 			Source:          r.Source.String,
 			MasterContactID: r.MasterContactID,
 			ContactType:     r.ContactType.String,
-			SecondaryIDs:    sids,
+			SecondaryIDs:    parseSecondaryIDs(r.SecondaryIds),
 		}
 	}
 	return all, nil
@@ -519,10 +520,6 @@ func GetContactByID(ctx context.Context, tenantEmail string, id int64) (*Contact
 	if err != nil {
 		return nil, err
 	}
-	var sids []string
-	if row.SecondaryIds.String != "" && row.SecondaryIds.String != "null" {
-		_ = json.Unmarshal([]byte(row.SecondaryIds.String), &sids)
-	}
 	return &ContactRecord{
 		ID:              row.ID,
 		TenantEmail:     row.TenantEmail,
@@ -531,7 +528,7 @@ func GetContactByID(ctx context.Context, tenantEmail string, id int64) (*Contact
 		Source:          row.Source.String,
 		MasterContactID: row.MasterContactID,
 		ContactType:     row.ContactType.String,
-		SecondaryIDs:    sids,
+		SecondaryIDs:    parseSecondaryIDs(row.SecondaryIds),
 	}, nil
 }
 
