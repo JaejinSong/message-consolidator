@@ -24,6 +24,7 @@ func main() {
 		fmt.Println("  db-diag       : Database diagnostics (total counts, samples)")
 		fmt.Println("  wa-pair       : WhatsApp CLI pairing tool")
 		fmt.Println("  release-notes : Generate synchronized release notes")
+		fmt.Println("  dedup-tasks   : Remove duplicate [Update:] sections from task fields")
 		os.Exit(1)
 	}
 
@@ -37,6 +38,8 @@ func main() {
 		runWAPair(cfg)
 	case "release-notes":
 		runReleaseNotes(cfg)
+	case "dedup-tasks":
+		runDedupTasks(cfg)
 	default:
 		log.Fatalf("Unknown command: %s", cmd)
 	}

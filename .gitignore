@@ -54,3 +54,7 @@ test_file.txt
 test_out.txt
 test_timing.txt
 notepad
+
+# === TestSprite ===
+.testsprite/
+testsprite_tests/

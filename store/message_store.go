@@ -422,6 +422,11 @@ func UpdateTaskAssigneesBatch(ctx context.Context, email string, updates map[int
 }
 
 func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id int, date, newTask, newOriginalText string) error {
+	if trimmed := strings.TrimSpace(newTask); trimmed != "" && trimmed != "[Resolved]" {
+		if existing, err := GetMessageByID(ctx, q, email, id); err == nil && strings.Contains(existing.Task, trimmed) {
+			return nil
+		}
+	}
 	err := db.New(q).UpdateTaskFullAppend(ctx, db.UpdateTaskFullAppendParams{
 		Task:         nullString(date),
 		Task_2:       nullString(newTask),
