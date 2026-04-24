@@ -18,7 +18,7 @@ Generate a professional Executive Report with qualitative business insights.
    GOOD: `- [Digital] Completion rate at 25% (1/4); 2 items stalled 7+ days with no update, suggesting a hidden blocker.`
    BAD:  `- [Release] Pak Sudi has 2 open items.`
    GOOD: `- [Release] Pak Sudi owns 3 of 5 open tasks — single-point dependency risk if unavailable before deadline.`
-4. **Activity**: Identify all customer or company names referenced in the period. Infer from room/channel names and task descriptions (e.g. "WhaTap APM Tools POC for Bank BNI" → "Bank BNI", "biz-global-malaysia" → "Malaysia Biz"). If no company name can be inferred, use the room/channel name as-is. Output one ```json block: `[{"customer": str, "count": num}]` sorted by count DESC. If no customers identified: `[]`
+4. **Activity**: Identify all customer or company names referenced in the period. Infer from room/channel names and task descriptions (e.g. "WhaTap APM Tools POC for Bank BNI" → "Bank BNI", "biz-global-malaysia" → "Malaysia Biz"). If no company name can be inferred, use the room/channel name as-is. Output one ```json block: `[{"customer": str, "count": num, "summary": str}]` sorted by count DESC — `summary` is a 1-2 sentence description of what was worked on for that customer (e.g. "APM agent setup and POC support. Focused on onboarding and initial configuration."). If no customers identified: `[]`
 5. **Stalled Tasks**: Only 'Stalled'/'Neglected'. One ```json block: `[{"source": str, "requester": str, "status": str, "days": num, "reason": str}]`. If none: `"No stalled tasks identified."`
 6. Tone: dry, professional, data-driven. English only. 1 bullet = 1 sentence — no paragraphs.
 

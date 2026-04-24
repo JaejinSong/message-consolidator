@@ -946,7 +946,7 @@ body.light-theme .glass-btn:hover {
 
 .c-report-table th,
 .c-report-table td {
-    padding: var(--spacing-md) var(--spacing-lg);
+    padding: var(--spacing-xs) var(--spacing-lg);
 }
 
 .c-report-table__cell--rank {
@@ -964,12 +964,21 @@ body.light-theme .glass-btn:hover {
     text-align: center;
 }
 
+.c-report-table th:nth-child(3) {
+    text-align: right;
+}
+
 .c-report-table th:last-child {
     text-align: right;
 }
 
+.c-report-table .c-report-delay-value {
+    font-size: 1rem;
+}
+
 .c-report-table-wrapper {
     width: 100%;
+    max-width: 52rem;
     margin: var(--spacing-sm) 0;
     overflow-x: auto;
     border-radius: var(--radius-lg);
@@ -1052,14 +1061,11 @@ body.light-theme .glass-btn:hover {
     display: block;
 }
 
-.c-report-customer-summary {
-    display: block;
-    font-size: 0.75rem;
+.c-report-table__cell--summary {
+    font-size: 0.8125rem;
     color: var(--text-dim);
     font-style: italic;
-    margin-top: 0.25rem;
     line-height: 1.4;
-    font-weight: 400;
 }
 
 
@@ -1101,7 +1107,7 @@ body.light-theme .report-content th {
     color: var(--text-dim);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin-bottom: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
 }
 
 /* --- AI Report Content Typography & Spacing (UI/UX Patch) --- */
@@ -1109,7 +1115,6 @@ body.light-theme .report-content th {
     line-height: 1.7;
     font-size: 0.95rem;
     color: var(--text-dim);
-    white-space: pre-wrap;
     word-break: keep-all;
     overflow-wrap: break-word;
 }
@@ -1127,7 +1132,7 @@ body.light-theme .report-content th {
 #reportSummaryContent p,
 #reportSummaryContent ul,
 #reportSummaryContent ol {
-    margin-bottom: 1.5rem;
+    margin-bottom: var(--spacing-md);
 }
 
 #reportSummaryContent ul,

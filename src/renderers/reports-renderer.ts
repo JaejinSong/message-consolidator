@@ -426,11 +426,9 @@ export const reportsRenderer = {
         const rows = data.map((item, idx) => `
             <tr>
                 <td class="c-report-table__cell--rank">${idx + 1}</td>
-                <td>
-                    <span class="c-report-customer-name">${escapeHTML(item.customer || '-')}</span>
-                    ${item.summary ? `<span class="c-report-customer-summary">${escapeHTML(item.summary)}</span>` : ''}
-                </td>
+                <td><span class="c-report-customer-name">${escapeHTML(item.customer || '-')}</span></td>
                 <td class="c-report-table__cell--count"><span class="c-report-delay-value">${item.count || 0}</span></td>
+                <td class="c-report-table__cell--summary">${escapeHTML(item.summary || '-')}</td>
             </tr>
         `).join('');
         return `
@@ -441,6 +439,7 @@ export const reportsRenderer = {
                             <th>#</th>
                             <th>${i18n.customer || '고객사'}</th>
                             <th>${i18n.taskCount || '태스크'}</th>
+                            <th>${i18n.taskSummary || 'Summary'}</th>
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
