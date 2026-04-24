@@ -170,3 +170,11 @@ CREATE TABLE IF NOT EXISTS telegram_sessions (
     session_data BLOB NOT NULL,
     updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- name: CreateTelegramCredentials :exec
+CREATE TABLE IF NOT EXISTS telegram_credentials (
+    email      TEXT PRIMARY KEY,
+    app_id     INTEGER NOT NULL,
+    app_hash   TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

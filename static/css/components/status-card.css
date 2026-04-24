@@ -57,6 +57,10 @@
     color: var(--color-gmail);
 }
 
+.c-status-card--telegram.c-status-card--active {
+    color: var(--color-telegram);
+}
+
 .c-status-card--inactive {
     opacity: 0.4;
     filter: grayscale(1);
@@ -67,7 +71,7 @@
 @media (max-width: 480px) {
     .c-status-group {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: var(--spacing-sm);
         width: 100%;
     }

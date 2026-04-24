@@ -1,0 +1,66 @@
+/* --- Telegram 3-step auth modal --- */
+.c-telegram-modal__step {
+    padding: var(--spacing-lg);
+    animation: tg-step-fade-in var(--transition-base) ease-out;
+}
+
+.c-telegram-modal__step.hidden {
+    display: none;
+}
+
+.c-telegram-modal__label {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-dim);
+}
+
+.c-telegram-modal__input {
+    width: 100%;
+    margin-bottom: var(--spacing-md);
+}
+
+.c-telegram-modal__submit {
+    width: 100%;
+}
+
+.c-telegram-modal__error {
+    margin: var(--spacing-sm) var(--spacing-lg) 0;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    background: rgba(var(--color-error-rgb), 0.12);
+    border: var(--border-thin) solid rgba(var(--color-error-rgb), 0.35);
+    color: var(--color-error);
+    font-size: 0.85rem;
+}
+
+.c-telegram-modal__error.hidden {
+    display: none;
+}
+
+.c-telegram-modal__hint {
+    margin: 0 0 var(--spacing-md);
+    font-size: 0.8rem;
+}
+
+.c-telegram-modal__hint a {
+    color: var(--color-telegram);
+    text-decoration: none;
+}
+
+.c-telegram-modal__hint a:hover {
+    text-decoration: underline;
+}
+
+.c-telegram-modal__link {
+    display: block;
+    width: 100%;
+    margin-top: var(--spacing-sm);
+    font-size: 0.8rem;
+}
+
+@keyframes tg-step-fade-in {
+    from { opacity: 0; transform: translateY(var(--spacing-xs)); }
+    to   { opacity: 1; transform: translateY(0); }
+}

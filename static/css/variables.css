@@ -65,6 +65,8 @@
     --color-whatsapp-rgb: 37, 211, 102;
     --color-gmail: #EA4335;
     --color-gmail-rgb: 234, 67, 53;
+    --color-telegram: #0088cc;
+    --color-telegram-rgb: 0, 136, 204;
     --color-purple: #A29BFE;
     --color-purple-rgb: 162, 155, 254;
     --color-shared-accent: var(--color-purple);

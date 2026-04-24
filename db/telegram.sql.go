@@ -9,6 +9,15 @@ import (
 	"context"
 )
 
+const deleteTelegramCredentials = `-- name: DeleteTelegramCredentials :exec
+DELETE FROM telegram_credentials WHERE email = ?1
+`
+
+func (q *Queries) DeleteTelegramCredentials(ctx context.Context, email string) error {
+	_, err := q.db.ExecContext(ctx, deleteTelegramCredentials, email)
+	return err
+}
+
 const deleteTelegramSession = `-- name: DeleteTelegramSession :exec
 DELETE FROM telegram_sessions WHERE email = ?1
 `
@@ -16,6 +25,22 @@ DELETE FROM telegram_sessions WHERE email = ?1
 func (q *Queries) DeleteTelegramSession(ctx context.Context, email string) error {
 	_, err := q.db.ExecContext(ctx, deleteTelegramSession, email)
 	return err
+}
+
+const getTelegramCredentials = `-- name: GetTelegramCredentials :one
+SELECT app_id, app_hash FROM telegram_credentials WHERE email = ?1
+`
+
+type GetTelegramCredentialsRow struct {
+	AppID   int64  `json:"app_id"`
+	AppHash string `json:"app_hash"`
+}
+
+func (q *Queries) GetTelegramCredentials(ctx context.Context, email string) (GetTelegramCredentialsRow, error) {
+	row := q.db.QueryRowContext(ctx, getTelegramCredentials, email)
+	var i GetTelegramCredentialsRow
+	err := row.Scan(&i.AppID, &i.AppHash)
+	return i, err
 }
 
 const getTelegramSession = `-- name: GetTelegramSession :one
@@ -27,6 +52,23 @@ func (q *Queries) GetTelegramSession(ctx context.Context, email string) ([]byte,
 	var session_data []byte
 	err := row.Scan(&session_data)
 	return session_data, err
+}
+
+const upsertTelegramCredentials = `-- name: UpsertTelegramCredentials :exec
+INSERT INTO telegram_credentials (email, app_id, app_hash, updated_at)
+VALUES (?1, ?2, ?3, CURRENT_TIMESTAMP)
+ON CONFLICT(email) DO UPDATE SET app_id = ?2, app_hash = ?3, updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertTelegramCredentialsParams struct {
+	Email   string `json:"email"`
+	AppID   int64  `json:"app_id"`
+	AppHash string `json:"app_hash"`
+}
+
+func (q *Queries) UpsertTelegramCredentials(ctx context.Context, arg UpsertTelegramCredentialsParams) error {
+	_, err := q.db.ExecContext(ctx, upsertTelegramCredentials, arg.Email, arg.AppID, arg.AppHash)
+	return err
 }
 
 const upsertTelegramSession = `-- name: UpsertTelegramSession :exec

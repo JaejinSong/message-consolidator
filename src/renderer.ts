@@ -12,13 +12,17 @@ export {
     updateSlackStatus,
     updateWhatsAppStatus,
     updateGmailStatus,
+    updateTelegramStatus,
     showWaModal,
     showGmailModal,
+    showTelegramModal,
+    hideTelegramModal,
     bindGetQRBtn,
     updateWhatsAppQR,
     updateQRTimer,
     bindGmailStatus,
-    bindWhatsAppStatus
+    bindWhatsAppStatus,
+    bindTelegramStatus
 } from './renderers/status-renderer';
 
 export { updateUserProfile } from './renderers/profile-renderer';
@@ -335,7 +339,10 @@ export function renderArchive(messages: Message[]): void {
     }
 
     tableBody.innerHTML = messages.map(m => {
-        const sourceIcon = m.source === 'slack' ? ICONS.slack : m.source === 'whatsapp' ? ICONS.whatsapp : ICONS.gmail;
+        const sourceIcon = m.source === 'slack' ? ICONS.slack
+            : m.source === 'whatsapp' ? ICONS.whatsapp
+            : m.source === 'telegram' ? ICONS.telegram
+            : ICONS.gmail;
         const ts = m.timestamp || m.created_at || '';
         const compTs = m.completed_at || '-';
 

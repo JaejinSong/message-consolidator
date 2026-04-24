@@ -32,6 +32,7 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 		{"identity_merge_candidates", queries.CreateIdentityMergeCandidatesTable},
 		{"token_usage", queries.CreateTokenUsageTable},
 		{"telegram_sessions", queries.CreateTelegramSessionsTable},
+		{"telegram_credentials", queries.CreateTelegramCredentialsTable},
 	} {
 		if err := step.fn(ctx); err != nil {
 			return fmt.Errorf("failed to create %s table: %w", step.name, err)

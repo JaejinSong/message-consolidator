@@ -11,6 +11,7 @@ export interface IconSet {
     slack: string;
     whatsapp: string;
     gmail: string;
+    telegram: string;
     stale: string;
     abandoned: string;
     info: string;
@@ -45,6 +46,10 @@ export const ICONS: IconSet = {
         </svg>`,
     gmail: `<svg viewBox="0 0 512 512" style="width: var(--spacing-xl); height: var(--spacing-xl);">
             <path fill="var(--color-gmail)" d="M48 64C21.5 64 0 85.5 0 112v288c0 26.5 21.5 48 48 48h416c26.5 0 48-21.5 48-48V112c0-26.5-21.5-48-48-48H48zM48 96h416c8.8 0 16 7.2 16 16v21.3L256 295.1 32 133.3V112c0-8.8 7.2-16 16-16zm-16 70.6l208 147.3L448 166.6V400c0 8.8-7.2 16-16 16H80c-8.8 0-16-7.2-16-16V166.6z"/>
+        </svg>`,
+    telegram: `<svg viewBox="0 0 240 240" style="width: var(--spacing-xl); height: var(--spacing-xl);">
+            <circle cx="120" cy="120" r="120" fill="var(--color-telegram)"/>
+            <path fill="#ffffff" d="M53.6 115.8l123.5-47.6c5.7-2.1 10.7 1.4 8.9 10.1l-21 99c-1.5 7-5.6 8.7-11.4 5.4l-31.5-23.2-15.2 14.6c-1.7 1.7-3.1 3.1-6.3 3.1l2.2-31.9 58.1-52.5c2.5-2.2-.5-3.5-3.9-1.3L85 124.3l-30.4-9.5c-6.6-2.1-6.7-6.6 1-9z"/>
         </svg>`,
     stale: `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: var(--spacing-md); height: var(--spacing-md); vertical-align: middle; margin-right: var(--spacing-xxs);">

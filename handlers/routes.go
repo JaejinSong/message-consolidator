@@ -64,6 +64,7 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 	r.Handle("/api/telegram/auth/confirm", auth.AuthMiddleware(http.HandlerFunc(a.HandleTelegramAuthConfirm))).Methods("POST")
 	r.Handle("/api/telegram/auth/password", auth.AuthMiddleware(http.HandlerFunc(a.HandleTelegramAuthPassword))).Methods("POST")
 	r.Handle("/api/telegram/logout", auth.AuthMiddleware(http.HandlerFunc(a.HandleTelegramLogout))).Methods("POST")
+	r.Handle("/api/telegram/credentials", auth.AuthMiddleware(http.HandlerFunc(a.HandleTelegramSetCredentials))).Methods("POST")
 	r.Handle("/api/scan", auth.AuthMiddleware(http.HandlerFunc(a.HandleManualScan))).Methods("GET")
 	r.HandleFunc("/api/internal/scan", a.HandleInternalScan).Methods("GET")
 	r.Handle("/api/translate", auth.AuthMiddleware(http.HandlerFunc(a.HandleTranslate))).Methods("POST")

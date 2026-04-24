@@ -5,15 +5,47 @@ import (
 	"message-consolidator/auth"
 	"message-consolidator/channels"
 	"message-consolidator/logger"
+	"message-consolidator/store"
 	"net/http"
+	"strings"
 )
 
-// HandleTelegramStatus returns the current Telegram connection state for the authenticated user.
+// HandleTelegramStatus returns the current Telegram connection state plus whether the user
+// has usable App ID/Hash credentials (so the UI can decide to show the setup step).
 func (a *API) HandleTelegramStatus(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	status := channels.GetTelegramStatus(email)
-	logger.Debugf("[CHANNEL] Telegram status for %s: %s", email, status)
-	respondJSON(w, http.StatusOK, map[string]string{"status": status})
+	hasCreds := channels.HasTelegramCredentials(email, a.Config)
+	logger.Debugf("[CHANNEL] Telegram status for %s: %s (hasCreds=%v)", email, status, hasCreds)
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":          status,
+		"has_credentials": hasCreds,
+	})
+}
+
+// HandleTelegramSetCredentials persists per-user App ID / Hash obtained from https://my.telegram.org.
+// Body: {"app_id": 12345, "app_hash": "abcd..."}.
+func (a *API) HandleTelegramSetCredentials(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	var body struct {
+		AppID   int    `json:"app_id"`
+		AppHash string `json:"app_hash"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	body.AppHash = strings.TrimSpace(body.AppHash)
+	if body.AppID <= 0 || body.AppHash == "" {
+		respondError(w, http.StatusBadRequest, "app_id (positive integer) and app_hash are required")
+		return
+	}
+	if err := store.UpsertTelegramCreds(r.Context(), email, body.AppID, body.AppHash); err != nil {
+		logger.Warnf("[CHANNEL] UpsertTelegramCreds failed for %s: %v", email, err)
+		respondError(w, http.StatusInternalServerError, "failed to save credentials")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "saved"})
 }
 
 // HandleTelegramAuthStart begins the phone-number auth flow (step 1 of 3).
@@ -25,6 +57,10 @@ func (a *API) HandleTelegramAuthStart(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	if strings.TrimSpace(body.Phone) == "" {
+		respondError(w, http.StatusBadRequest, "phone required")
 		return
 	}
 	if err := channels.StartTelegramAuth(email, body.Phone, a.Config); err != nil {

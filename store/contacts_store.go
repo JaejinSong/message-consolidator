@@ -214,6 +214,51 @@ func GetNameByWhatsAppNumber(email, number string) string {
 	return ""
 }
 
+// SaveTelegramContact upserts a Telegram user mapping (canonical_id=numeric user ID).
+// Mirrors SaveWhatsAppContact: preserves richer display names, merges by identifier when possible.
+func SaveTelegramContact(ctx context.Context, email, userID, name string) error {
+	if userID == "" || name == "" || name == userID {
+		return nil
+	}
+	queries := db.New(GetDB())
+	norm := NormalizeIdentifier(userID)
+	rows, _ := queries.GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{TenantEmail: email, Identifiers: []string{norm}})
+	if len(rows) > 0 {
+		return handleExistingTelegramContact(ctx, email, rows[0].ContactID, userID, name)
+	}
+	_, err := UpsertContact(ctx, email, userID, name, "", ContactTypeTelegram)
+	return err
+}
+
+func handleExistingTelegramContact(ctx context.Context, email string, cid int64, userID, name string) error {
+	byID := fetchContactsByIDs(ctx, []int64{cid})
+	contact, ok := byID[cid]
+	if !ok {
+		_, err := UpsertContact(ctx, email, userID, name, "", ContactTypeTelegram)
+		return err
+	}
+	if contact.CanonicalID != userID {
+		return nil
+	}
+	if contact.DisplayName == userID || contact.DisplayName == "" || strings.Contains(name, " ") {
+		_, err := UpsertContact(ctx, email, userID, name, "", ContactTypeTelegram)
+		return err
+	}
+	return nil
+}
+
+func GetNameByTelegramID(email, userID string) string {
+	id, err := ResolveAlias(context.Background(), ContactTypeTelegram, userID)
+	if err != nil {
+		return ""
+	}
+	byID := fetchContactsByIDs(context.Background(), []int64{id})
+	if c, ok := byID[id]; ok {
+		return c.DisplayName
+	}
+	return ""
+}
+
 func NormalizeContactName(email, rawName string) string {
 	if rawName == "" || GetDB() == nil {
 		return rawName
@@ -705,7 +750,7 @@ func ResolveAliases(ctx context.Context, idType, value string) ([]int64, error) 
 
 func buildAliasQuery(idType, trimmed string) (string, []interface{}) {
 	switch idType {
-	case ContactTypeWhatsApp:
+	case ContactTypeWhatsApp, ContactTypeTelegram:
 		return "SELECT id FROM contacts WHERE LOWER(canonical_id) = ?" +
 			" UNION SELECT contacts.id FROM contacts, json_each(secondary_ids) j WHERE LOWER(j.value) = ?",
 			[]interface{}{trimmed, trimmed}

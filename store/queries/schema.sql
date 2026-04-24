@@ -20,6 +20,14 @@ CREATE TABLE IF NOT EXISTS telegram_sessions (
     updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- name: CreateTelegramCredentialsTable :exec
+CREATE TABLE IF NOT EXISTS telegram_credentials (
+    email      TEXT PRIMARY KEY,
+    app_id     INTEGER NOT NULL,
+    app_hash   TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- name: CreateUserAliasesTable :exec
 CREATE TABLE IF NOT EXISTS user_aliases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

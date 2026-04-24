@@ -31,6 +31,7 @@ type Querier interface {
 	CreateScanMetadataTable(ctx context.Context) error
 	CreateSlackThreadsTable(ctx context.Context) error
 	CreateTaskTranslationsTable(ctx context.Context) error
+	CreateTelegramCredentialsTable(ctx context.Context) error
 	CreateTelegramSessionsTable(ctx context.Context) error
 	CreateTenantAliasesTable(ctx context.Context) error
 	CreateTokenUsageTable(ctx context.Context) error
@@ -46,6 +47,7 @@ type Querier interface {
 	DeleteReport(ctx context.Context, arg DeleteReportParams) error
 	DeleteScanMetadataSlackThread(ctx context.Context, arg DeleteScanMetadataSlackThreadParams) error
 	DeleteTaskTranslations(ctx context.Context, messageID sql.NullInt64) error
+	DeleteTelegramCredentials(ctx context.Context, email string) error
 	DeleteTelegramSession(ctx context.Context, email string) error
 	DeleteTenantAlias(ctx context.Context, arg DeleteTenantAliasParams) error
 	DeleteUserAlias(ctx context.Context, arg DeleteUserAliasParams) error
@@ -95,6 +97,7 @@ type Querier interface {
 	GetTaskCountByContactType(ctx context.Context, userEmail string) ([]GetTaskCountByContactTypeRow, error)
 	GetTaskTranslation(ctx context.Context, arg GetTaskTranslationParams) (string, error)
 	GetTaskTranslationsBatch(ctx context.Context, arg GetTaskTranslationsBatchParams) ([]GetTaskTranslationsBatchRow, error)
+	GetTelegramCredentials(ctx context.Context, email string) (GetTelegramCredentialsRow, error)
 	GetTelegramSession(ctx context.Context, email string) ([]byte, error)
 	GetTenantEmailByContactID(ctx context.Context, id int64) (string, error)
 	GetTotalCompleted(ctx context.Context, dollar_1 string) (int64, error)
@@ -142,6 +145,7 @@ type Querier interface {
 	UpsertScanMetadata(ctx context.Context, arg UpsertScanMetadataParams) error
 	UpsertSlackThread(ctx context.Context, arg UpsertSlackThreadParams) error
 	UpsertTaskTranslation(ctx context.Context, arg UpsertTaskTranslationParams) error
+	UpsertTelegramCredentials(ctx context.Context, arg UpsertTelegramCredentialsParams) error
 	UpsertTelegramSession(ctx context.Context, arg UpsertTelegramSessionParams) error
 	UpsertTenantAlias(ctx context.Context, arg UpsertTenantAliasParams) error
 	UpsertTokenUsage(ctx context.Context, arg UpsertTokenUsageParams) error

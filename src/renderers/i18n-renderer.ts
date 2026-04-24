@@ -93,4 +93,5 @@ export function renderUILanguage(lang: string): void {
     applyArchiveHeader(safeLang);
     applyStatusText('slackStatusLarge', 'slackStatusText', safeLang);
     applyStatusText('waStatusLarge', 'waStatusText', safeLang);
+    applyStatusText('telegramStatusLarge', 'telegramStatusText', safeLang);
 }

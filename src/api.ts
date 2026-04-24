@@ -217,9 +217,52 @@ export const api = {
     },
 
     async disconnectGmail(): Promise<any> {
-        return apiFetch('/gmail/disconnect', { 
-            method: 'POST', 
-            errorMessage: 'Gmail disconnect failed' 
+        return apiFetch('/gmail/disconnect', {
+            method: 'POST',
+            errorMessage: 'Gmail disconnect failed'
+        });
+    },
+
+    async fetchTelegramStatus(): Promise<{ status: string; has_credentials?: boolean }> {
+        return apiFetch('/telegram/status', { errorMessage: 'Telegram status check failed' });
+    },
+
+    async saveTelegramCredentials(appId: number, appHash: string): Promise<{ status: string }> {
+        return apiFetch('/telegram/credentials', {
+            method: 'POST',
+            body: JSON.stringify({ app_id: appId, app_hash: appHash }),
+            errorMessage: 'Telegram credentials save failed'
+        });
+    },
+
+    async startTelegramAuth(phone: string): Promise<{ status: string }> {
+        return apiFetch('/telegram/auth/start', {
+            method: 'POST',
+            body: JSON.stringify({ phone }),
+            errorMessage: 'Telegram auth start failed'
+        });
+    },
+
+    async confirmTelegramCode(code: string): Promise<{ status: string }> {
+        return apiFetch('/telegram/auth/confirm', {
+            method: 'POST',
+            body: JSON.stringify({ code }),
+            errorMessage: 'Telegram code confirmation failed'
+        });
+    },
+
+    async confirmTelegramPassword(password: string): Promise<{ status: string }> {
+        return apiFetch('/telegram/auth/password', {
+            method: 'POST',
+            body: JSON.stringify({ password }),
+            errorMessage: 'Telegram password confirmation failed'
+        });
+    },
+
+    async logoutTelegram(): Promise<{ status: string }> {
+        return apiFetch('/telegram/logout', {
+            method: 'POST',
+            errorMessage: 'Telegram logout failed'
         });
     },
 
@@ -248,17 +291,19 @@ export const api = {
         });
     },
 
-    async getChannelStatus(): Promise<{ slack: boolean, whatsapp: boolean, gmail: boolean }> {
-        const [slack, whatsapp, gmail] = await Promise.all([
+    async getChannelStatus(): Promise<{ slack: boolean, whatsapp: boolean, gmail: boolean, telegram: boolean }> {
+        const [slack, whatsapp, gmail, telegram] = await Promise.all([
             this.fetchSlackStatus().catch(() => ({ status: 'DISCONNECTED' })),
             this.fetchWhatsAppStatus().catch(() => ({ status: 'DISCONNECTED' })),
-            this.fetchGmailStatus().catch(() => ({ connected: false }))
+            this.fetchGmailStatus().catch(() => ({ connected: false })),
+            this.fetchTelegramStatus().catch(() => ({ status: 'disconnected' }))
         ]);
 
         return {
             slack: slack?.status === 'CONNECTED',
             whatsapp: whatsapp?.status === 'CONNECTED',
-            gmail: gmail?.connected === true
+            gmail: gmail?.connected === true,
+            telegram: telegram?.status === 'connected'
         };
     },
 

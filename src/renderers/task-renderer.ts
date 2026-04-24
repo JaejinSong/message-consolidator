@@ -37,7 +37,8 @@ function getChannelLabel(channel: string): string {
     const labels: Record<string, string> = {
         slack: 'Slack',
         whatsapp: 'WhatsApp',
-        gmail: 'Gmail'
+        gmail: 'Gmail',
+        telegram: 'Telegram'
     };
     return labels[channel.toLowerCase()] || 'Other Source';
 }

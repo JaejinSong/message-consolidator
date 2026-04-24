@@ -1,5 +1,5 @@
 import { I18N_DATA } from '../locales';
-import { DOM_IDS, STATUS_STATES, UI_TEXT } from '../constants';
+import { DOM_IDS, STATUS_STATES, UI_TEXT, TELEGRAM_STATUS } from '../constants';
 import { showToast } from './ui-effects';
 
 /**
@@ -75,6 +75,22 @@ export function updateGmailStatus(connected: boolean, email: string | undefined)
     }
 }
 
+/**
+ * Why: Telegram status is a 4-value enum (connected / pending_code / pending_password / disconnected).
+ * The dashboard card shows ON only when fully connected. Modal step transitions live in
+ * `syncTelegramModalToStatus` (telegram-modal-renderer) — this function only owns the dashboard card
+ * and the connected/disconnected toggle of the modal's final panel.
+ */
+export function updateTelegramStatus(status: string): void {
+    const isConnected = status === TELEGRAM_STATUS.CONNECTED;
+    updateServiceStatusUI('telegram', isConnected);
+
+    const connectedSection = document.getElementById('telegramConnectedSection');
+    if (connectedSection && isConnected) {
+        connectedSection.classList.remove('hidden');
+    }
+}
+
 export function showWaModal(): void {
     const modal = document.getElementById('waModal');
     if (modal) {
@@ -88,6 +104,22 @@ export function showGmailModal(): void {
     if (modal) {
         modal.classList.remove('hidden');
         modal.style.display = 'flex';
+    }
+}
+
+export function showTelegramModal(): void {
+    const modal = document.getElementById('telegramModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+    }
+}
+
+export function hideTelegramModal(): void {
+    const modal = document.getElementById('telegramModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
     }
 }
 
@@ -152,4 +184,8 @@ export function bindGmailStatus(onClick: (ev: MouseEvent) => void): void {
 
 export function bindWhatsAppStatus(onClick: (ev: MouseEvent) => void): void {
     document.getElementById('waStatusLarge')?.addEventListener('click', onClick);
+}
+
+export function bindTelegramStatus(onClick: (ev: MouseEvent) => void): void {
+    document.getElementById(DOM_IDS.TELEGRAM_STATUS_LARGE)?.addEventListener('click', onClick);
 }

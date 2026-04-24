@@ -108,6 +108,7 @@ const (
 	ContactTypeName     = "name"
 	ContactTypeWhatsApp = "whatsapp"
 	ContactTypeSlack    = "slack"
+	ContactTypeTelegram = "telegram"
 
 	// Contact categories (who they are / categorization)
 	CategoryInternal = "internal"
@@ -119,6 +120,7 @@ const (
 	SourceSlack    = "slack"
 	SourceWhatsApp = "whatsapp"
 	SourceGmail    = "gmail"
+	SourceTelegram = "telegram"
 	SourceManual   = "manual"
 	SourceAll      = "all"
 )

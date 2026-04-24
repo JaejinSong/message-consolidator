@@ -4,22 +4,25 @@ import { state, updateLang, updateTheme, updateStats, updateMessages, setTaskSel
 import { renderUILanguage } from './renderers/i18n-renderer';
 import { I18N_DATA } from './locales';
 import { api } from './api';
-import { 
-    renderMessages, 
-    updateUserProfile, 
-    updateWhatsAppStatus, 
-    updateGmailStatus, 
+import {
+    renderMessages,
+    updateUserProfile,
+    updateWhatsAppStatus,
+    updateGmailStatus,
+    updateTelegramStatus,
     initMessageGridEvents,
     showToast,
     updateWhatsAppQR,
     showWaModal,
     showGmailModal,
+    showTelegramModal,
     updateQRTimer,
     updateSlackStatus,
     setTheme,
     bindGetQRBtn,
     bindWhatsAppStatus,
     bindGmailStatus,
+    bindTelegramStatus,
     bindGlobalClicks,
     bindThemeToggle,
     removeTaskNode,
@@ -27,6 +30,7 @@ import {
     updateSubtaskNodeStatus,
     getVisibleUntranslatedIds
 } from './renderer';
+import { bindTelegramModal, syncTelegramModalToStatus } from './renderers/telegram-modal-renderer';
 import { I18nDictionary, ServiceHandlers, UserProfile, CategorizedMessages } from './types';
 import { archive } from './archive';
 import { modals } from './modals';
@@ -255,7 +259,10 @@ const checkAllStatus = safeAsync(async (bypassVisibility: boolean = false) => {
             authService.checkGmailStatus().then(d => {
                 state.gmailConnected = d.connected;
                 updateGmailStatus(d.connected, d.email);
-            })
+            }),
+            api.fetchTelegramStatus().then(d => {
+                if (d) updateTelegramStatus(d.status);
+            }).catch(() => updateTelegramStatus('disconnected'))
         ]);
     } finally {
         state.isFetchingStatus = false;
@@ -454,6 +461,24 @@ const initActionButtons = () => {
 
     bindGmailStatus(() => {
         showGmailModal();
+    });
+
+    bindTelegramStatus(async () => {
+        showTelegramModal();
+        try {
+            const s = await api.fetchTelegramStatus();
+            const status = s?.status || 'disconnected';
+            const hasCreds = s?.has_credentials !== false;
+            syncTelegramModalToStatus(status, hasCreds);
+            updateTelegramStatus(status);
+        } catch {
+            syncTelegramModalToStatus('disconnected', false);
+        }
+    });
+
+    bindTelegramModal({
+        onConnected: () => checkAllStatus(true),
+        onLoggedOut: () => checkAllStatus(true)
     });
 
     // New Bindings for logout/disconnect/relink

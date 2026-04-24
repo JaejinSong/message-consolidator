@@ -6,7 +6,8 @@
 export const SERVICE_IDS = {
     SLACK: 'slack',
     WHATSAPP: 'wa',
-    GMAIL: 'gmail'
+    GMAIL: 'gmail',
+    TELEGRAM: 'telegram'
 } as const;
 
 export type ServiceId = typeof SERVICE_IDS[keyof typeof SERVICE_IDS];
@@ -17,7 +18,9 @@ export const DOM_IDS = {
     STATUS_LARGE: (service: string) => `${service}StatusLarge`,
     STATUS_TEXT: (service: string) => `${service}StatusText`,
     WHATSAPP_DOT: 'waStatusLarge',
-    WHATSAPP_TEXT: 'waStatusText'
+    WHATSAPP_TEXT: 'waStatusText',
+    TELEGRAM_STATUS_LARGE: 'telegramStatusLarge',
+    TELEGRAM_STATUS_TEXT: 'telegramStatusText'
 } as const;
 
 export const STATUS_STATES = {
@@ -39,5 +42,15 @@ export const POLLING_INTERVALS = {
     WHATSAPP: 10000,
     SLACK: 10000,
     GMAIL: 30000,
+    TELEGRAM: 10000,
     TOKEN_USAGE: 60000
 } as const;
+
+export const TELEGRAM_STATUS = {
+    CONNECTED: 'connected',
+    PENDING_CODE: 'pending_code',
+    PENDING_PASSWORD: 'pending_password',
+    DISCONNECTED: 'disconnected'
+} as const;
+
+export type TelegramStatus = typeof TELEGRAM_STATUS[keyof typeof TELEGRAM_STATUS];

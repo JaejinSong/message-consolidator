@@ -127,6 +127,15 @@
                         </svg>
                         <span id="gmailStatusText" class="c-status-card__label">OFF</span>
                     </div>
+                    <div id="telegramStatusLarge" class="c-status-card c-status-card--telegram c-status-card--inactive u-cursor-pointer"
+                        title="Telegram: Click to connect" data-i18n-title="telegramStatusClickToConnect">
+                        <svg viewBox="0 0 240 240">
+                            <circle cx="120" cy="120" r="120" fill="#0088cc"/>
+                            <path fill="#ffffff"
+                                d="M53.6 115.8l123.5-47.6c5.7-2.1 10.7 1.4 8.9 10.1l-21 99c-1.5 7-5.6 8.7-11.4 5.4l-31.5-23.2-15.2 14.6c-1.7 1.7-3.1 3.1-6.3 3.1l2.2-31.9 58.1-52.5c2.5-2.2-.5-3.5-3.9-1.3L85 124.3l-30.4-9.5c-6.6-2.1-6.7-6.6 1-9z" />
+                        </svg>
+                        <span id="telegramStatusText" class="c-status-card__label">OFF</span>
+                    </div>
                 </div>
 
             </section>
@@ -606,6 +615,60 @@
                     <p class="u-text-dim u-mb-4" data-i18n="gmailDesc">Click the Gmail icon on the dashboard to connect
                         your company account.</p>
                     <a href="/auth/gmail/connect" id="gmailConnectBtn" class="c-btn c-btn--primary" data-i18n="confirmBtn">Connect</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Telegram Modal (3-step auth: phone → code → optional 2FA) -->
+    <div id="telegramModal" class="c-modal hidden">
+        <div class="c-modal__content c-modal__content--small">
+            <div class="c-modal__header">
+                <h3 class="c-modal__title" data-i18n="telegramTitle">Telegram Integration</h3>
+                <button id="closeTelegramModalBtn" class="c-modal__close">&times;</button>
+            </div>
+            <div class="c-modal__body">
+                <div id="telegramModalError" class="c-telegram-modal__error hidden"></div>
+
+                <div id="telegramStepCredentials" class="c-telegram-modal__step hidden">
+                    <p class="u-text-dim u-mb-4" data-i18n="telegramCredsDesc">Paste the App ID and App Hash issued at my.telegram.org.</p>
+                    <p class="u-text-dim c-telegram-modal__hint">
+                        <a href="https://my.telegram.org/apps" target="_blank" rel="noopener" data-i18n="telegramCredsLink">Open my.telegram.org/apps ↗</a>
+                    </p>
+                    <label class="c-telegram-modal__label" for="telegramAppIdInput" data-i18n="telegramAppIdLabel">App ID</label>
+                    <input type="text" inputmode="numeric" id="telegramAppIdInput" class="c-input c-telegram-modal__input" placeholder="1234567" autocomplete="off" />
+                    <label class="c-telegram-modal__label" for="telegramAppHashInput" data-i18n="telegramAppHashLabel">App Hash</label>
+                    <input type="text" id="telegramAppHashInput" class="c-input c-telegram-modal__input" placeholder="0123456789abcdef0123456789abcdef" autocomplete="off" spellcheck="false" />
+                    <button id="telegramSaveCredsBtn" class="c-btn c-btn--primary c-telegram-modal__submit" data-i18n="telegramSaveCredsBtn">Save &amp; Continue</button>
+                </div>
+
+                <div id="telegramStepPhone" class="c-telegram-modal__step">
+                    <p class="u-text-dim u-mb-4" data-i18n="telegramPhoneDesc">Enter your phone number in international format (e.g. +821012345678).</p>
+                    <label class="c-telegram-modal__label" for="telegramPhoneInput" data-i18n="telegramPhoneLabel">Phone number</label>
+                    <input type="tel" id="telegramPhoneInput" class="c-input c-telegram-modal__input" placeholder="+821012345678" autocomplete="tel" />
+                    <button id="telegramSendCodeBtn" class="c-btn c-btn--primary c-telegram-modal__submit" data-i18n="telegramSendCodeBtn">Send Code</button>
+                    <button id="telegramChangeCredsBtn" class="c-btn c-btn--ghost c-telegram-modal__link" data-i18n="telegramChangeCredsBtn">Change App ID / Hash</button>
+                </div>
+
+                <div id="telegramStepCode" class="c-telegram-modal__step hidden">
+                    <p class="u-text-dim u-mb-4" data-i18n="telegramCodeDesc">Enter the code sent to your Telegram app.</p>
+                    <label class="c-telegram-modal__label" for="telegramCodeInput" data-i18n="telegramCodeLabel">Verification code</label>
+                    <input type="text" id="telegramCodeInput" class="c-input c-telegram-modal__input" inputmode="numeric" autocomplete="one-time-code" />
+                    <button id="telegramConfirmCodeBtn" class="c-btn c-btn--primary c-telegram-modal__submit" data-i18n="telegramConfirmBtn">Confirm</button>
+                </div>
+
+                <div id="telegramStepPassword" class="c-telegram-modal__step hidden">
+                    <p class="u-text-dim u-mb-4" data-i18n="telegramPasswordDesc">Two-factor authentication is enabled. Enter your cloud password.</p>
+                    <label class="c-telegram-modal__label" for="telegramPasswordInput" data-i18n="telegramPasswordLabel">2FA password</label>
+                    <input type="password" id="telegramPasswordInput" class="c-input c-telegram-modal__input" autocomplete="current-password" />
+                    <button id="telegramConfirmPasswordBtn" class="c-btn c-btn--primary c-telegram-modal__submit" data-i18n="telegramConfirmBtn">Confirm</button>
+                </div>
+
+                <div id="telegramConnectedSection" class="c-telegram-modal__step hidden c-modal__content--center">
+                    <div class="c-modal__icon">✈️</div>
+                    <h4 data-i18n="telegramStatusConnected" class="u-mb-1">Telegram Connected</h4>
+                    <p class="u-text-dim u-mb-4" data-i18n="telegramConnectedDesc">Telegram is securely connected and monitoring new messages.</p>
+                    <button id="telegramDisconnectBtn" class="c-btn c-btn--danger" data-i18n="telegramDisconnectBtn">Disconnect</button>
                 </div>
             </div>
         </div>

@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"message-consolidator/config"
 	"message-consolidator/logger"
+	"message-consolidator/store"
 	"message-consolidator/types"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -67,12 +69,26 @@ func (s *tgAuthState) getStatus() string {
 type TelegramManager struct {
 	states        map[string]*tgAuthState
 	messageBuffer map[string]map[string][]types.RawMessage
+	clients       map[string]*telegram.Client
 	mu            sync.RWMutex
 
+	// groupCache: chatKey ("tg_user_X" / "tg_chat_X" / "tg_channel_X") → display title.
+	// Populated from tg.Entities on every ingest and from MessagesGetDialogs at connect.
+	// Why: group/channel titles are only reachable via Telegram API; persisting them
+	// to contacts overloads the table, so an in-memory cache mirrors WhatsApp's pattern.
+	groupCache sync.Map
+
 	FetchUserTgSession func(email string) ([]byte, error)
+	FetchUserTgCreds   func(email string) (appID int, appHash string, ok bool)
 	OnSessionUpdated   func(email string, data []byte)
 	OnConnected        func(email string, userID int64)
 	OnLoggedOut        func(email string)
+}
+
+// TelegramCreds is the resolved App ID/Hash pair used to instantiate a gotd client.
+type TelegramCreds struct {
+	AppID   int
+	AppHash string
 }
 
 // DefaultTelegramManager mirrors DefaultWAManager — process-wide singleton.
@@ -82,11 +98,35 @@ func NewTelegramManager() *TelegramManager {
 	return &TelegramManager{
 		states:             make(map[string]*tgAuthState),
 		messageBuffer:      make(map[string]map[string][]types.RawMessage),
+		clients:            make(map[string]*telegram.Client),
 		FetchUserTgSession: func(email string) ([]byte, error) { return nil, nil },
+		FetchUserTgCreds:   func(email string) (int, string, bool) { return 0, "", false },
 		OnSessionUpdated:   func(email string, data []byte) {},
 		OnConnected:        func(email string, userID int64) {},
 		OnLoggedOut:        func(email string) {},
 	}
+}
+
+// resolveCreds prefers per-user DB credentials (entered via the UI) and falls back
+// to the process-wide env-configured pair. Returns an error only when neither source
+// has a complete (non-zero AppID + non-empty AppHash) pair.
+func (m *TelegramManager) resolveCreds(email string, cfg *config.Config) (TelegramCreds, error) {
+	if m.FetchUserTgCreds != nil {
+		if id, hash, ok := m.FetchUserTgCreds(email); ok && id != 0 && hash != "" {
+			return TelegramCreds{AppID: id, AppHash: hash}, nil
+		}
+	}
+	if cfg != nil && cfg.TelegramAppID != 0 && cfg.TelegramAppHash != "" {
+		return TelegramCreds{AppID: cfg.TelegramAppID, AppHash: cfg.TelegramAppHash}, nil
+	}
+	return TelegramCreds{}, errors.New("telegram: credentials not configured — set them via the UI or TELEGRAM_APP_ID/HASH env")
+}
+
+// HasCredentials reports whether StartAuth would find a usable App ID/Hash pair.
+// Used by the status handler so the UI can show the credentials step proactively.
+func (m *TelegramManager) HasCredentials(email string, cfg *config.Config) bool {
+	_, err := m.resolveCreds(email, cfg)
+	return err == nil
 }
 
 // dbSessionStorage satisfies session.Storage by delegating to the manager's IoC callbacks.
@@ -153,16 +193,17 @@ func (c *channelAuth) SignUp(_ context.Context) (auth.UserInfo, error) {
 }
 
 // InitTelegram attempts to restore a session for the given user at startup.
-// No session → silently returns; manual /api/telegram/auth/start is required.
+// No session or no credentials → silently returns; manual /api/telegram/auth/start is required.
 func (m *TelegramManager) InitTelegram(email string, cfg *config.Config) {
-	if cfg.TelegramAppID == 0 || cfg.TelegramAppHash == "" {
+	creds, err := m.resolveCreds(email, cfg)
+	if err != nil {
 		return
 	}
 	data, err := m.FetchUserTgSession(email)
 	if err != nil || len(data) == 0 {
 		return
 	}
-	if err := m.startClient(email, cfg, "", true); err != nil {
+	if err := m.startClient(email, creds, "", true); err != nil {
 		logger.Warnf("[TG] session restore failed for %s: %v", email, err)
 	}
 }
@@ -170,16 +211,17 @@ func (m *TelegramManager) InitTelegram(email string, cfg *config.Config) {
 // StartAuth begins a fresh phone-number auth. Cancels any prior attempt for the email.
 // Blocks until the auth goroutine reports pending_code (SendCode completed) or fails.
 func (m *TelegramManager) StartAuth(email, phone string, cfg *config.Config) error {
-	if cfg.TelegramAppID == 0 || cfg.TelegramAppHash == "" {
-		return errors.New("telegram: TELEGRAM_APP_ID/HASH not configured")
-	}
 	if phone == "" {
 		return errors.New("telegram: phone required")
+	}
+	creds, err := m.resolveCreds(email, cfg)
+	if err != nil {
+		return err
 	}
 
 	m.cancelPrevious(email)
 
-	if err := m.startClient(email, cfg, phone, false); err != nil {
+	if err := m.startClient(email, creds, phone, false); err != nil {
 		return err
 	}
 	return m.waitForStatus(email, tgAuthStartTimeout, TGStatusPendingCode, TGStatusConnected)
@@ -322,7 +364,7 @@ func (m *TelegramManager) LogoutTelegram(email string) error {
 	return nil
 }
 
-func (m *TelegramManager) startClient(email string, cfg *config.Config, phone string, restoreOnly bool) error {
+func (m *TelegramManager) startClient(email string, creds TelegramCreds, phone string, restoreOnly bool) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	state := &tgAuthState{
 		phone:    phone,
@@ -338,10 +380,14 @@ func (m *TelegramManager) startClient(email string, cfg *config.Config, phone st
 
 	storage := &dbSessionStorage{email: email, manager: m}
 	dispatcher := m.newDispatcher(email)
-	client := telegram.NewClient(cfg.TelegramAppID, cfg.TelegramAppHash, telegram.Options{
+	client := telegram.NewClient(creds.AppID, creds.AppHash, telegram.Options{
 		SessionStorage: storage,
 		UpdateHandler:  dispatcher,
 	})
+
+	m.mu.Lock()
+	m.clients[email] = client
+	m.mu.Unlock()
 
 	go m.runClient(ctx, email, client, state, restoreOnly)
 	return nil
@@ -353,6 +399,9 @@ func (m *TelegramManager) runClient(ctx context.Context, email string, client *t
 			state.setStatus(TGStatusDisconnected)
 		}
 		m.dropBuffer(email)
+		m.mu.Lock()
+		delete(m.clients, email)
+		m.mu.Unlock()
 	}()
 
 	err := client.Run(ctx, func(ctx context.Context) error {
@@ -370,6 +419,11 @@ func (m *TelegramManager) runClient(ctx context.Context, email string, client *t
 		state.mu.Unlock()
 		m.OnConnected(email, self.ID)
 		logger.Infof("[TG] connected for %s (userID=%d)", email, self.ID)
+
+		// Backfill peer metadata (user names + chat/channel titles) from our dialog
+		// list so GetGroupName can resolve titles immediately and historical rows
+		// with numeric requesters/rooms get retroactively named.
+		go m.backfillDialogs(ctx, client, email)
 
 		// Block until ctx is cancelled — inbound updates are delivered via the
 		// UpdateDispatcher registered on telegram.Options.UpdateHandler.
@@ -439,6 +493,10 @@ func ConfirmTelegramPassword(email, password string) error {
 
 func LogoutTelegram(email string) error { return DefaultTelegramManager.LogoutTelegram(email) }
 
+func HasTelegramCredentials(email string, cfg *config.Config) bool {
+	return DefaultTelegramManager.HasCredentials(email, cfg)
+}
+
 // newDispatcher builds the per-user UpdateDispatcher. Registered in startClient
 // via telegram.Options.UpdateHandler so the gotd client invokes it on every push.
 func (m *TelegramManager) newDispatcher(email string) tg.UpdateDispatcher {
@@ -465,23 +523,27 @@ func (m *TelegramManager) ingestMessage(email string, e tg.Entities, mc tg.Messa
 	if !ok {
 		return
 	}
-	raw := m.parseMessage(e, msg)
+	go m.storeEntities(email, e)
+	raw := m.parseMessage(email, e, msg)
 	m.bufferMessage(email, chatKey, raw)
 	logger.Debugf("[TG-EVENT][%s] %s: %s", email, chatKey, raw.Text)
 }
 
 // parseMessage maps a *tg.Message into types.RawMessage. Sender display name
-// and reply-to sender are resolved from the dispatched Entities.Users map.
-func (m *TelegramManager) parseMessage(e tg.Entities, msg *tg.Message) types.RawMessage {
+// resolves from the entities bundle first, then falls back to the persisted
+// contact cache so the scanner never sees a bare numeric ID when we've seen
+// this user before.
+func (m *TelegramManager) parseMessage(email string, e tg.Entities, msg *tg.Message) types.RawMessage {
 	senderID, senderName := resolveSender(e, msg)
+	if senderName == "" && senderID != "" {
+		senderName = store.GetNameByTelegramID(email, senderID)
+	}
 	var replyToID string
-	var repliedUser string
 	if h, ok := msg.ReplyTo.(*tg.MessageReplyHeader); ok {
 		if id, have := h.GetReplyToMsgID(); have {
 			replyToID = strconv.Itoa(id)
 		}
 	}
-	_, _, _ = repliedUser, senderID, senderName
 
 	return types.RawMessage{
 		ID:            strconv.Itoa(msg.ID),
@@ -493,6 +555,45 @@ func (m *TelegramManager) parseMessage(e tg.Entities, msg *tg.Message) types.Raw
 		IsFromMe:      msg.Out,
 		HasAttachment: msg.Media != nil,
 	}
+}
+
+// storeEntities walks the dispatched users/chats/channels and (a) persists user
+// display names to `contacts` for auto-retroactive v_messages resolution,
+// (b) caches chat/channel titles in groupCache for GetGroupName. Runs async.
+func (m *TelegramManager) storeEntities(email string, e tg.Entities) {
+	ctx := context.Background()
+	for id, u := range e.Users {
+		name := buildUserDisplayName(u)
+		uid := strconv.FormatInt(id, 10)
+		if name != "" {
+			_ = store.SaveTelegramContact(ctx, email, uid, name)
+			m.groupCache.Store(fmt.Sprintf("tg_user_%d", id), name)
+		}
+	}
+	for id, c := range e.Chats {
+		if c.Title != "" {
+			m.groupCache.Store(fmt.Sprintf("tg_chat_%d", id), c.Title)
+		}
+	}
+	for id, c := range e.Channels {
+		if c.Title != "" {
+			m.groupCache.Store(fmt.Sprintf("tg_channel_%d", id), c.Title)
+		}
+	}
+}
+
+func buildUserDisplayName(u *tg.User) string {
+	name := u.FirstName
+	if u.LastName != "" {
+		if name != "" {
+			name += " "
+		}
+		name += u.LastName
+	}
+	if name == "" {
+		name = u.Username
+	}
+	return name
 }
 
 // peerKey converts the message's PeerID into a stable scanner-facing string key.
@@ -529,17 +630,7 @@ func userName(e tg.Entities, id int64) string {
 	if !ok {
 		return ""
 	}
-	name := u.FirstName
-	if u.LastName != "" {
-		if name != "" {
-			name += " "
-		}
-		name += u.LastName
-	}
-	if name == "" {
-		name = u.Username
-	}
-	return name
+	return buildUserDisplayName(u)
 }
 
 // bufferMessage appends raw into email→chatKey circular buffer (cap 200).
@@ -582,14 +673,149 @@ func (m *TelegramManager) dropBuffer(email string) {
 	m.mu.Unlock()
 }
 
-// GetGroupName returns a human-friendly label for a chat key. Phase B fallback:
-// the numeric tail of the key. Real name resolution may be added in a later pass
-// once we cache entities server-side.
-func (m *TelegramManager) GetGroupName(_ string, chatKey string) string {
+// GetGroupName returns a human-friendly label for a chatKey. Resolution order:
+//   1. in-memory groupCache (populated by storeEntities + backfillDialogs)
+//   2. persisted contact cache (DMs only — mirrors WhatsApp's store lookup)
+//   3. live MessagesGetChats RPC for basic chats (no access_hash required)
+//   4. numeric tail fallback
+func (m *TelegramManager) GetGroupName(email string, chatKey string) string {
+	if v, ok := m.groupCache.Load(chatKey); ok {
+		if s, ok := v.(string); ok && s != "" {
+			return s
+		}
+	}
+	if strings.HasPrefix(chatKey, "tg_user_") {
+		uid := strings.TrimPrefix(chatKey, "tg_user_")
+		if name := store.GetNameByTelegramID(email, uid); name != "" {
+			m.groupCache.Store(chatKey, name)
+			return name
+		}
+	}
+	if strings.HasPrefix(chatKey, "tg_chat_") {
+		idStr := strings.TrimPrefix(chatKey, "tg_chat_")
+		if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
+			if title := m.lookupBasicChatTitle(email, id); title != "" {
+				m.groupCache.Store(chatKey, title)
+				return title
+			}
+		}
+	}
 	for _, prefix := range []string{"tg_user_", "tg_chat_", "tg_channel_"} {
-		if len(chatKey) > len(prefix) && chatKey[:len(prefix)] == prefix {
-			return chatKey[len(prefix):]
+		if strings.HasPrefix(chatKey, prefix) {
+			return strings.TrimPrefix(chatKey, prefix)
 		}
 	}
 	return chatKey
+}
+
+// backfillDialogs fetches the dialog list once on connect to seed groupCache
+// and `contacts` with every peer we can reach. After the seed, historical rows
+// whose requester is a numeric ID get auto-resolved via v_messages, and room
+// names are rewritten in place by backfillMessageRooms.
+func (m *TelegramManager) backfillDialogs(ctx context.Context, client *telegram.Client, email string) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	resp, err := client.API().MessagesGetDialogs(ctx, &tg.MessagesGetDialogsRequest{
+		OffsetPeer: &tg.InputPeerEmpty{},
+		Limit:      200,
+	})
+	if err != nil {
+		logger.Warnf("[TG-BACKFILL][%s] GetDialogs: %v", email, err)
+		return
+	}
+
+	e := tg.Entities{
+		Users:    make(map[int64]*tg.User),
+		Chats:    make(map[int64]*tg.Chat),
+		Channels: make(map[int64]*tg.Channel),
+	}
+	var users []tg.UserClass
+	var chats []tg.ChatClass
+	switch d := resp.(type) {
+	case *tg.MessagesDialogs:
+		users, chats = d.Users, d.Chats
+	case *tg.MessagesDialogsSlice:
+		users, chats = d.Users, d.Chats
+	default:
+		return
+	}
+	for _, u := range users {
+		if user, ok := u.(*tg.User); ok {
+			e.Users[user.ID] = user
+		}
+	}
+	for _, c := range chats {
+		switch v := c.(type) {
+		case *tg.Chat:
+			e.Chats[v.ID] = v
+		case *tg.Channel:
+			e.Channels[v.ID] = v
+		}
+	}
+	m.storeEntities(email, e)
+	logger.Infof("[TG-BACKFILL][%s] cached %d users, %d chats, %d channels", email, len(e.Users), len(e.Chats), len(e.Channels))
+
+	m.backfillMessageRooms(ctx, email)
+}
+
+// backfillMessageRooms rewrites messages.room from numeric IDs to real titles
+// whenever groupCache knows the mapping. Scanner wrote the raw numeric tail
+// (e.g. "5290590884") at ingest time; here we check all three peer prefixes
+// because the DB column no longer carries the prefix.
+func (m *TelegramManager) backfillMessageRooms(ctx context.Context, email string) {
+	rooms, err := store.GetDistinctTelegramRooms(ctx, email)
+	if err != nil {
+		logger.Warnf("[TG-BACKFILL][%s] GetDistinctTelegramRooms: %v", email, err)
+		return
+	}
+	updated := 0
+	for _, room := range rooms {
+		title := m.resolveNumericRoom(room)
+		if title == "" || title == room {
+			continue
+		}
+		if err := store.UpdateTelegramRoomName(ctx, email, room, title); err != nil {
+			logger.Warnf("[TG-BACKFILL][%s] UpdateTelegramRoomName %s→%s: %v", email, room, title, err)
+			continue
+		}
+		updated++
+	}
+	if updated > 0 {
+		logger.Infof("[TG-BACKFILL][%s] rewrote %d numeric rooms", email, updated)
+	}
+}
+
+func (m *TelegramManager) resolveNumericRoom(numericID string) string {
+	for _, prefix := range []string{"tg_channel_", "tg_chat_", "tg_user_"} {
+		if v, ok := m.groupCache.Load(prefix + numericID); ok {
+			if s, ok := v.(string); ok && s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+// lookupBasicChatTitle performs a live gotd RPC to resolve a legacy (non-channel)
+// chat's title. Channels/supergroups require an access_hash we don't have on a
+// cold miss, so this path only handles tg_chat_* keys.
+func (m *TelegramManager) lookupBasicChatTitle(email string, chatID int64) string {
+	m.mu.RLock()
+	client, ok := m.clients[email]
+	m.mu.RUnlock()
+	if !ok {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	resp, err := client.API().MessagesGetChats(ctx, []int64{chatID})
+	if err != nil {
+		return ""
+	}
+	for _, c := range resp.GetChats() {
+		if chat, ok := c.(*tg.Chat); ok && chat.ID == chatID && chat.Title != "" {
+			return chat.Title
+		}
+	}
+	return ""
 }

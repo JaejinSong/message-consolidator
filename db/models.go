@@ -143,6 +143,13 @@ type TaskTranslation struct {
 	TranslatedText     string         `json:"translated_text"`
 }
 
+type TelegramCredential struct {
+	Email     string       `json:"email"`
+	AppID     int64        `json:"app_id"`
+	AppHash   string       `json:"app_hash"`
+	UpdatedAt sql.NullTime `json:"updated_at"`
+}
+
 type TelegramSession struct {
 	Email       string       `json:"email"`
 	SessionData []byte       `json:"session_data"`

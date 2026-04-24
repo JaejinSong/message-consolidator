@@ -177,6 +177,14 @@ func setupApp(cfg *config.Config, api *handlers.API, ctx context.Context) *http.
 	channels.DefaultTelegramManager.FetchUserTgSession = func(email string) ([]byte, error) {
 		return store.GetTelegramSession(ctx, email)
 	}
+	channels.DefaultTelegramManager.FetchUserTgCreds = func(email string) (int, string, bool) {
+		id, hash, ok, err := store.GetTelegramCreds(context.Background(), email)
+		if err != nil {
+			logger.Warnf("[TG] GetTelegramCreds failed for %s: %v", email, err)
+			return 0, "", false
+		}
+		return id, hash, ok
+	}
 	channels.DefaultTelegramManager.OnSessionUpdated = func(email string, data []byte) {
 		if err := store.UpsertTelegramSession(context.Background(), email, data); err != nil {
 			logger.Warnf("[TG] UpsertTelegramSession failed for %s: %v", email, err)
