@@ -69,7 +69,8 @@
       "Bash(rg -n \"^type \\(InputUser|InputChannel\\)\\(FromMessage|ChannelFromMessage|\\)\\\\b\" /home/jinro/go/pkg/mod/github.com/gotd/td@v0.143.0/tg/*.go)",
       "Bash(rg -n \"^type MessagesChatsClass|^type MessagesChats\\\\b|^type MessagesDialogs\\\\b|^type MessagesDialogsSlice|GetChats\\\\\\(\\\\\\)|GetUsers\\\\\\(\\\\\\) \\\\\\(|GetChats\\\\\\(\\\\\\) \\\\\\(|func.*MessagesChats\\\\\\) GetChats|MessagesDialogs struct\" /home/jinro/go/pkg/mod/github.com/gotd/td@v0.143.0/tg/*.go)",
       "Bash(rg -n \"^type MessagesChats struct|MessagesChats struct|^type MessagesDialogs struct|type MessagesGetDialogsRequest struct\" /home/jinro/go/pkg/mod/github.com/gotd/td@v0.143.0/tg/*.go)",
-      "Bash(rg -n \"^-- name:\" /home/jinro/.gemini/message-consolidator/store/queries/*.sql)"
+      "Bash(rg -n \"^-- name:\" /home/jinro/.gemini/message-consolidator/store/queries/*.sql)",
+      "Bash(./deploy.sh)"
     ],
     "additionalDirectories": [
       "/tmp",

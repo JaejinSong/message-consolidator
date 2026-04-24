@@ -785,15 +785,28 @@ func (m *TelegramManager) backfillMessageRooms(ctx context.Context, email string
 	}
 }
 
+// resolveNumericRoom walks the three peer prefixes and returns a cached title
+// only when exactly one distinct title is found. Telegram's user/chat/channel
+// ID namespaces are independent — collisions on the numeric tail are rare but
+// possible, and messages.room lost the prefix at scan time, so we skip the
+// UPDATE entirely when the mapping is ambiguous rather than risk mislabeling.
 func (m *TelegramManager) resolveNumericRoom(numericID string) string {
+	var found string
 	for _, prefix := range []string{"tg_channel_", "tg_chat_", "tg_user_"} {
-		if v, ok := m.groupCache.Load(prefix + numericID); ok {
-			if s, ok := v.(string); ok && s != "" {
-				return s
-			}
+		v, ok := m.groupCache.Load(prefix + numericID)
+		if !ok {
+			continue
 		}
+		s, ok := v.(string)
+		if !ok || s == "" {
+			continue
+		}
+		if found != "" && found != s {
+			return ""
+		}
+		found = s
 	}
-	return ""
+	return found
 }
 
 // lookupBasicChatTitle performs a live gotd RPC to resolve a legacy (non-channel)

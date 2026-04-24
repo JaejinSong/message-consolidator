@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"text/template"
 )
@@ -60,5 +61,28 @@ func verifyTemplateExecution(t *testing.T, tmpl *template.Template) {
 
 	if err := tmpl.Execute(io.Discard, dummy); err != nil {
 		t.Errorf("template execution failed: %v", err)
+	}
+}
+
+// TestChatSystemPurposeRule guards the v1.5.0 purpose-first title rule.
+// Why: Prevents accidental regression to action-led titles (e.g. "Check and confirm
+// availability ..." dropping the PoC scope-alignment purpose).
+func TestChatSystemPurposeRule(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/chat_system.prompt")
+	if err != nil {
+		t.Fatalf("read chat_system: %v", err)
+	}
+	body := string(content)
+	required := []string{
+		"Lead with the **WHY (outcome/purpose)**",
+		"Layered TASK + PROMISE",
+		"preserve the existing task's purpose-phrase",
+		"Align POC scope via online session",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Errorf("chat_system.prompt missing required rule phrase: %q", token)
+		}
 	}
 }

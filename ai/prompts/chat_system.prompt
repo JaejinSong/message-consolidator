@@ -1,6 +1,6 @@
 ---
 name: chat_system
-version: 1.4.0
+version: 1.5.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
@@ -18,7 +18,11 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
 # Field Rules:
 - `id`: 0 if new; existing task's id if matched above.
 - `state`: intent of the message (new task, update/resolve existing, etc.).
-- `task`: English. Summarize the core ACTION. Prefer PROMISE commitment over TASK request when both apply.
+- `task`: English. Lead with the **WHY (outcome/purpose)**, not the last-sentence verb.
+  - Preferred shape: `<Outcome> via/through <mechanism>` (e.g. "Align POC scope via online session"). Fall back to `<Verb> <Object for Purpose>` when outcome/mechanism split is unnatural (e.g. "Attend Carabao meeting").
+  - Layered TASK + PROMISE: when one message contains both a TASK request AND a PROMISE about executing it, the title reflects the TASK's purpose; the PROMISE is captured by `assignee` + `deadline`, NEVER repeated in the title.
+  - PROMISE-only (no TASK layer): title = the deliverable as purpose (e.g. "Deliver quarterly report"), not the commitment verb ("Send report").
+- `task` on `state=update`: preserve the existing task's purpose-phrase and only enrich with new scope/participants/timeline. EXCEPTION — rewrite purpose-first if the existing title is demonstrably vague (< 3 content words, or omits the purpose entirely).
 - `requester`: sender of the message. Use `SenderName:` prefix as primary source. Never empty.
 - `deadline`: most specific date/time mentioned (e.g. "Friday" > "this week").
 - `source_ts`: exact literal value from `[ID:...]` tag — treat as opaque string.
@@ -46,6 +50,10 @@ Output: [{"id": 0, "state": "new", "task": "Review the deployment plan", "reques
 Existing Tasks: [{"id": 5, "task": "Attend Carabao online meeting", "original_text": "I'm available to join the meeting online, please let me know if you need me."}]
 Input: [ID:p3] Phathit: Hi JJ, no worries, today's meeting is just for preparation for next week when you and Yosep will join. I can handle it. Thanks a lot!
 Output: [{"id": 5, "state": "update", "task": "Attend Carabao meeting with Yosep next week", "requester": "Phathit", "assignee": "Phathit", "category": "TASK", "source_ts": "p3"}]
+---
+Existing Tasks: [{"id": 12, "task": "Schedule POC kickoff call", "original_text": "let's set up a call for the POC"}]
+Input: [ID:p4] Vy: @{{.CurrentUser}} we would like to arrange an online session to run through the POC to align scope, expectations and timeline. Is next Thursday 10am (KH time) or with Canadia side? Let me check and confirm you by Monday next week.
+Output: [{"id": 12, "state": "update", "task": "Align POC scope via online session (Thu 10am KH vs Canadia)", "requester": "Vy", "assignee": "Vy", "category": "PROMISE", "deadline": "2026-04-27", "source_ts": "p4"}]
 ---
 {{if .FewShots}}
 {{range .FewShots}}
