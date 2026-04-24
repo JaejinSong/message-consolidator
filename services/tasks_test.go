@@ -84,6 +84,70 @@ func TestFormatMessagesForClient(t *testing.T) {
 	}
 }
 
+// Regression: same row must yield identical Category regardless of display lang.
+// Reproduces the bug where EN view classified a delegated task as "shared" because
+// Task body contained "dev team" (hasGroupMention matched), while KO view (translated
+// text without the English "team" keyword) classified it as "others" → SHARED badge
+// flickered in/out with language.
+func TestPrepareMessagesForClient_CategoryStableAcrossLang(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	email := "jj@example.com"
+	_, _ = store.GetOrCreateUser(ctx, email, "Jaejin Song", "")
+
+	const taskEN = "Raise the request to the dev team once business context is provided"
+	const taskKO = "비즈니스 맥락이 제공되면 개발 팀에 요청을 상신하십시오."
+
+	s := &TasksService{translationSvc: NewTranslationService(nil)}
+
+	build := func() []store.ConsolidatedMessage {
+		return []store.ConsolidatedMessage{{
+			ID:        101,
+			UserEmail: email,
+			Assignee:  "Yoga Wiranda",
+			Requester: "Someone Else",
+			Task:      taskEN,
+			Source:    "slack",
+			Room:      "biz-global-tech",
+		}}
+	}
+
+	// Pre-seed KO translation so ApplyTranslations hits the cache and skips JIT.
+	if err := store.SaveTaskTranslationsBulk(ctx, "ko", map[int]string{101: taskKO}); err != nil {
+		t.Fatalf("seed translation: %v", err)
+	}
+
+	msgsEN := build()
+	s.PrepareMessagesForClient(ctx, email, msgsEN, "en")
+
+	msgsKO := build()
+	s.PrepareMessagesForClient(ctx, email, msgsKO, "ko")
+
+	if msgsEN[0].Category != CategoryOthers {
+		t.Errorf("EN category: want %q, got %q", CategoryOthers, msgsEN[0].Category)
+	}
+	if msgsKO[0].Category != CategoryOthers {
+		t.Errorf("KO category: want %q, got %q", CategoryOthers, msgsKO[0].Category)
+	}
+	if msgsEN[0].Category != msgsKO[0].Category {
+		t.Errorf("Category must be lang-independent: EN=%q KO=%q", msgsEN[0].Category, msgsKO[0].Category)
+	}
+	if msgsEN[0].Assignee != "Yoga Wiranda" || msgsKO[0].Assignee != "Yoga Wiranda" {
+		t.Errorf("Assignee must be preserved across langs: EN=%q KO=%q", msgsEN[0].Assignee, msgsKO[0].Assignee)
+	}
+	if msgsKO[0].Task != taskKO {
+		t.Errorf("KO task must be translated: got %q", msgsKO[0].Task)
+	}
+	if msgsEN[0].Task != taskEN {
+		t.Errorf("EN task must remain original: got %q", msgsEN[0].Task)
+	}
+}
+
 func TestIsDirectlyAddressedToMe(t *testing.T) {
 	s := &TasksService{}
 	email := "me@example.com"
@@ -219,12 +283,12 @@ func TestAssignCategory(t *testing.T) {
 		expected           string
 	}{
 		{"personal: me", "me", "someone", "", "task", CategoryPersonal},
-		{"shared: shared", "shared", "someone", "", "task", CategoryShared},
-		{"shared: group mention @everyone", "", "someone", "", "@everyone check this", CategoryShared},
-		{"shared: group mention @channel", "", "someone", "", "@channel update", CategoryShared},
-		{"shared: group mention @here", "", "someone", "", "@here heads up", CategoryShared},
-		{"shared: group mention everyone keyword", "", "someone", "", "everyone please review", CategoryShared},
-		{"shared: group mention team keyword", "", "someone", "", "team please check this", CategoryShared},
+		{"shared: explicit shared assignee", "shared", "someone", "", "task", CategoryShared},
+		// Body-text group mentions no longer override structural fields.
+		// AI is expected to emit Assignee="shared" at extraction time for broadcasts.
+		{"empty assignee + @everyone body → others", "", "someone", "", "@everyone check this", CategoryOthers},
+		{"empty assignee + @channel body → others", "", "someone", "", "@channel update", CategoryOthers},
+		{"named assignee + team noun in body → others", "Other Person", "someone", "", "ask the dev team", CategoryOthers},
 		{"requested: me to someone", "someone", email, "", "do this", CategoryRequested},
 		{"requested: my canonical email to someone", "someone", "Jaejin Song", email, "do this", CategoryRequested},
 		{"others: default", "someone", "someone", "", "just fyi", CategoryOthers},

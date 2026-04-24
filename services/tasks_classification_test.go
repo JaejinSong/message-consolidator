@@ -50,8 +50,9 @@ func TestTaskClassificationByAliases(t *testing.T) {
 		{"Requested: requester by email", "Other Person", email, "some task", CategoryRequested, "Other Person"},
 		{"Requested: requester by name", "Other Person", name, "some task", CategoryRequested, "Other Person"},
 		{"Shared: explicit shared assignee", "shared", "", "some task", CategoryShared, "shared"},
-		{"Shared: @channel group mention", "", "", "@channel update please", CategoryShared, ""},
-		{"Shared: @here group mention", "", "", "@here check this", CategoryShared, ""},
+		// Body-text group mentions no longer override category; rely on AI to set Assignee="shared".
+		{"Empty assignee + @channel body → others", "", "", "@channel update please", CategoryOthers, ""},
+		{"Empty assignee + @here body → others", "", "", "@here check this", CategoryOthers, ""},
 	}
 
 	// Requester 정규화: RequesterCanonical이 user.Email이면 표시명을 PreferredName으로 통일

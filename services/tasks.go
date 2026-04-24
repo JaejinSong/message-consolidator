@@ -91,17 +91,19 @@ func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string
 
 // assignCategory implements the server-side categorization priority logic.
 // Priority: 1. personal, 2. shared, 3. requested, 4. others.
+// Why: Decision is derived only from structural identity fields (Assignee/AssigneeCanonical/
+// RequesterCanonical), never from Task body text. This keeps classification stable across
+// languages and translation state, and avoids second-guessing AI's assignee extraction.
+// Broadcast detection is the AI's responsibility at extraction time (Assignee == AssigneeShared).
 func (s *TasksService) assignCategory(user *store.User, identities []string, msg *store.ConsolidatedMessage) {
 	if s.IsAssigneeMarkedAsMine(msg.Assignee, identities) || strings.EqualFold(msg.AssigneeCanonical, user.Email) {
 		msg.Category = CategoryPersonal
 		return
 	}
-	if msg.Assignee == AssigneeShared || hasGroupMention(msg.Task) {
+	if msg.Assignee == AssigneeShared {
 		msg.Category = CategoryShared
 		return
 	}
-	// Why: RequesterCanonical is the canonical email unaffected by alias resolution.
-	// msg.Requester == user.Email is a fallback for legacy records without RequesterCanonical.
 	if strings.EqualFold(msg.RequesterCanonical, user.Email) || msg.Requester == user.Email {
 		msg.Category = CategoryRequested
 		return
@@ -196,10 +198,12 @@ func (s *TasksService) triggerJITTranslation(email, lang string, ids []int) {
 }
 
 // PrepareMessagesForClient unifies translations, stripping, and formatting.
+// Why: Category must be derived from the untranslated Task so that hasGroupMention's
+// English-only keyword list yields the same classification regardless of display lang.
 func (s *TasksService) PrepareMessagesForClient(ctx context.Context, email string, msgs []store.ConsolidatedMessage, lang string) {
+	s.FormatMessagesForClient(ctx, email, msgs)
 	s.ApplyTranslations(ctx, email, lang, msgs)
 	s.StripOriginalText(msgs)
-	s.FormatMessagesForClient(ctx, email, msgs)
 }
 
 // HandleTaskCompletion orchestrates the process of marking a task as done.
