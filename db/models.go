@@ -88,6 +88,7 @@ type Message struct {
 	SourceChannels      sql.NullString `json:"source_channels"`
 	ConsolidatedContext sql.NullString `json:"consolidated_context"`
 	Subtasks            sql.NullString `json:"subtasks"`
+	IsArchived          sql.NullInt64  `json:"is_archived"`
 }
 
 type PromptLog struct {

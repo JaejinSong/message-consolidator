@@ -101,6 +101,12 @@ func migrateExistingData(ctx context.Context, q db.DBTX) {
 	_, _ = q.ExecContext(ctx, "ALTER TABLE identity_merge_candidates ADD COLUMN proposal_group_id TEXT")
 	_, _ = q.ExecContext(ctx, "ALTER TABLE identity_merge_candidates ADD COLUMN canonical_name TEXT")
 
+	if !tableHasColumn(ctx, q, "messages", "is_archived") {
+		_, _ = q.ExecContext(ctx, `ALTER TABLE messages ADD COLUMN is_archived INTEGER GENERATED ALWAYS AS (
+			CASE WHEN is_deleted = 1 OR category = 'merged' OR done = 1 THEN 1 ELSE 0 END
+		) VIRTUAL`)
+	}
+
 	_, _ = q.ExecContext(ctx, "UPDATE messages SET is_deleted = 0 WHERE is_deleted IS NULL")
 	_, _ = q.ExecContext(ctx, "UPDATE messages SET room = 'General' WHERE room IS NULL OR room = ''")
 	_, _ = q.ExecContext(ctx, "UPDATE messages SET category = 'todo' WHERE category IN ('waiting', 'promise')")
@@ -132,27 +138,22 @@ func createIndexes(ctx context.Context, q db.DBTX) {
 		"CREATE INDEX IF NOT EXISTS idx_user_aliases_user_id ON user_aliases(user_id)",
 		// messages
 		"CREATE INDEX IF NOT EXISTS idx_messages_dashboard_filter ON messages(user_email, is_deleted, done, category, assignee)",
-		"CREATE INDEX IF NOT EXISTS idx_messages_thread_id ON messages(thread_id)",
 		"CREATE INDEX IF NOT EXISTS idx_messages_task ON messages(task)",
 		"CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room)",
 		"CREATE INDEX IF NOT EXISTS idx_messages_requester ON messages(requester)",
 		"CREATE INDEX IF NOT EXISTS idx_messages_assignee ON messages(assignee)",
-		"CREATE INDEX IF NOT EXISTS idx_messages_original_text ON messages(original_text)",
 		"CREATE INDEX IF NOT EXISTS idx_messages_source ON messages(source)",
-		"CREATE INDEX IF NOT EXISTS idx_messages_created_at_desc ON messages(created_at DESC)",
-		"CREATE INDEX IF NOT EXISTS idx_messages_user_email ON messages(user_email)",
 		"CREATE INDEX IF NOT EXISTS idx_messages_is_deleted ON messages(is_deleted)",
 		"CREATE INDEX IF NOT EXISTS idx_messages_completed_at ON messages(completed_at)",
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_user_source_ts ON messages(user_email, source, source_ts)",
 		"CREATE INDEX IF NOT EXISTS idx_messages_user_done_completed ON messages(user_email, done, completed_at)",
 		// contacts
 		"CREATE INDEX IF NOT EXISTS idx_contacts_canonical ON contacts(canonical_id)",
 		"CREATE INDEX IF NOT EXISTS idx_contacts_tenant_canonical ON contacts(tenant_email, canonical_id)",
+		"CREATE INDEX IF NOT EXISTS idx_contacts_tenant_display_name ON contacts(tenant_email, LOWER(display_name))",
 		// slack_threads
 		"CREATE INDEX IF NOT EXISTS idx_slack_threads_status ON slack_threads(status)",
-		// archive pagination: avoid temp B-tree sort for the two common archive states
-		"CREATE INDEX IF NOT EXISTS idx_messages_archive_canceled ON messages(user_email, created_at DESC) WHERE is_deleted = 1 AND done = 0",
-		"CREATE INDEX IF NOT EXISTS idx_messages_archive_done_completed ON messages(user_email, completed_at DESC) WHERE done = 1 AND is_deleted = 0",
+		// archive: is_archived narrows to the full set, done/is_deleted cover status filtering
+		"CREATE INDEX IF NOT EXISTS idx_messages_archive_filter ON messages(user_email, is_archived, done, is_deleted)",
 	}
 	for _, ddl := range indexes {
 		_, _ = q.ExecContext(ctx, ddl)

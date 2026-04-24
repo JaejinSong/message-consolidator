@@ -722,7 +722,7 @@ func (q *Queries) RefreshCacheActive(ctx context.Context, userEmail sql.NullStri
 const refreshCacheArchive = `-- name: RefreshCacheArchive :many
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks
 FROM messages
-WHERE user_email = ?1 AND (is_deleted = 1 OR done = 1 OR category = 'merged')
+WHERE user_email = ?1 AND is_archived = 1
 AND IFNULL(task, '') != ''
 ORDER BY CASE WHEN is_deleted = 1 THEN created_at ELSE completed_at END DESC
 LIMIT 100
@@ -922,7 +922,7 @@ FROM v_messages vm
 WHERE vm.id IN (
   SELECT m2.id FROM messages m2
   WHERE (m2.user_email = ?1 OR (m2.user_email IS NULL AND ?1 = ''))
-    AND (m2.is_deleted = 1 OR m2.category = 'merged' OR m2.done = 1)
+    AND m2.is_archived = 1
     AND (?2 = '' OR m2.task LIKE '%' || ?2 || '%' OR m2.original_text LIKE '%' || ?2 || '%'
          OR m2.requester LIKE '%' || ?2 || '%' OR m2.assignee LIKE '%' || ?2 || '%')
     AND (
@@ -1040,7 +1040,7 @@ func (q *Queries) SearchArchivedMessages(ctx context.Context, arg SearchArchived
 
 const searchArchivedMessagesCount = `-- name: SearchArchivedMessagesCount :one
 SELECT COUNT(*) FROM messages
-WHERE (user_email = ?1 OR (user_email IS NULL AND ?1 = '')) AND (is_deleted = 1 OR category = 'merged' OR done = 1)
+WHERE (user_email = ?1 OR (user_email IS NULL AND ?1 = '')) AND is_archived = 1
 AND (?2 = '' OR task LIKE '%' || ?2 || '%' OR original_text LIKE '%' || ?2 || '%' OR requester LIKE '%' || ?2 || '%' OR assignee LIKE '%' || ?2 || '%')
 AND (
     (?3 = '' OR ?3 = 'all') OR

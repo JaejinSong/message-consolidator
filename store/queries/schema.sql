@@ -56,6 +56,9 @@ CREATE TABLE IF NOT EXISTS messages (
     source_channels TEXT DEFAULT '[]',
     consolidated_context TEXT DEFAULT '[]',
     subtasks TEXT DEFAULT '[]',
+    is_archived INTEGER GENERATED ALWAYS AS (
+        CASE WHEN is_deleted = 1 OR category = 'merged' OR done = 1 THEN 1 ELSE 0 END
+    ) VIRTUAL,
     UNIQUE(user_email, source_ts)
 );
 
