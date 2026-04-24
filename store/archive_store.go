@@ -11,6 +11,16 @@ func GetArchivedMessages(ctx context.Context, email string) ([]ConsolidatedMessa
 		return nil, err
 	}
 	cacheMu.RLock()
+	msgs, ok := archiveCache[email]
+	cacheMu.RUnlock()
+	if ok {
+		return msgs, nil
+	}
+	// Cache was invalidated between EnsureArchiveCacheInitialized and the read (TOCTOU race).
+	if err := RefreshArchiveCache(ctx, email); err != nil {
+		return nil, err
+	}
+	cacheMu.RLock()
 	defer cacheMu.RUnlock()
 	if msgs, ok := archiveCache[email]; ok {
 		return msgs, nil

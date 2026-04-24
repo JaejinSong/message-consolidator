@@ -46,7 +46,7 @@ func SaveMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool,
 		return false, 0, nil
 	}
 
-	InvalidateCache(msg.UserEmail)
+	InvalidateCacheActive(msg.UserEmail)
 	return true, int(lastID), nil
 }
 
@@ -137,7 +137,7 @@ func executeUpdateMessageDetails(ctx context.Context, q Querier, email string, i
 		if err := db.New(qw).UpdateMessageDetails(ctx, params); err != nil {
 			return err
 		}
-		InvalidateCache(email)
+		InvalidateCacheActive(email)
 		return nil
 	})
 }
@@ -181,7 +181,7 @@ func UpdateSubtasks(ctx context.Context, q Querier, email string, id int, subtas
 		UserEmail: nullString(email),
 	})
 	if err == nil {
-		InvalidateCache(email)
+		InvalidateCacheActive(email)
 	}
 	return err
 }
@@ -222,7 +222,7 @@ func updateSubtaskStatusInternal(ctx context.Context, q Querier, email string, i
 		return fmt.Errorf("failed to update subtasks in DB: %w", err)
 	}
 
-	InvalidateCache(email)
+	InvalidateCacheActive(email)
 	return nil
 }
 
@@ -300,7 +300,7 @@ func MergeTasksWithTitle(ctx context.Context, email string, targetIDs []int64, d
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	InvalidateCache(email)
+	InvalidateCacheActive(email)
 	return nil
 }
 
@@ -408,7 +408,7 @@ func UpdateTaskAssigneesBatch(ctx context.Context, email string, updates map[int
 	})
 
 	if err == nil {
-		InvalidateCache(email)
+		InvalidateCacheActive(email)
 	}
 	return err
 }
@@ -423,7 +423,7 @@ func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id
 		Room:         nullString(room),
 	})
 	if err == nil {
-		InvalidateCache(email)
+		InvalidateCacheActive(email)
 	}
 	return err
 }

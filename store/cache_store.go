@@ -197,34 +197,46 @@ func RefreshArchiveCache(ctx context.Context, email string) error {
 	return nil
 }
 
-func EnsureCacheInitialized(ctx context.Context, email string) error {
+// ensureCache is the shared singleflight-guarded initializer for both cache kinds.
+func ensureCache(sfKey string, isReady func() bool, refresh func() error) error {
 	cacheMu.RLock()
-	initialized := cacheInitialized[email]
+	ready := isReady()
 	cacheMu.RUnlock()
-
-	if initialized {
+	if ready {
 		return nil
 	}
-	// Why: Use singleflight to prevent multiple concurrent DB hits for the same user.
-	_, err, _ := sfGroup.Do(email, func() (interface{}, error) {
-		return nil, RefreshCache(ctx, email)
+	_, err, _ := sfGroup.Do(sfKey, func() (interface{}, error) {
+		return nil, refresh()
 	})
 	return err
+}
+
+func EnsureCacheInitialized(ctx context.Context, email string) error {
+	return ensureCache(email,
+		func() bool { return cacheInitialized[email] },
+		func() error { return RefreshCache(ctx, email) },
+	)
 }
 
 func EnsureArchiveCacheInitialized(ctx context.Context, email string) error {
-	cacheMu.RLock()
-	initialized := archiveInitialized[email]
-	cacheMu.RUnlock()
-	if initialized {
-		return nil
-	}
-	_, err, _ := sfGroup.Do("archive:"+email, func() (interface{}, error) {
-		return nil, RefreshArchiveCache(ctx, email)
-	})
-	return err
+	return ensureCache("archive:"+email,
+		func() bool { return archiveInitialized[email] },
+		func() error { return RefreshArchiveCache(ctx, email) },
+	)
 }
 
+// InvalidateCacheActive clears only the active message cache.
+// Use this when a write affects only active (non-archived) messages.
+func InvalidateCacheActive(email string) {
+	cacheMu.Lock()
+	defer cacheMu.Unlock()
+	delete(messageCache, email)
+	delete(knownTS, email)
+	delete(cacheInitialized, email)
+}
+
+// InvalidateCache clears both active and archive caches.
+// Use this when a write may affect archived messages (delete, hard-delete, restore).
 func InvalidateCache(email string) {
 	cacheMu.Lock()
 	defer cacheMu.Unlock()
