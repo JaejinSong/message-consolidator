@@ -615,14 +615,27 @@ func (s *TasksService) generateSummaryTitle(ctx context.Context, email string, d
 
 	data, _ := json.Marshal(inputs)
 	title, err := s.geminiClient.GenerateMergedTaskTitle(ctx, email, string(data))
-	if err == nil && title != "" { return title }
+	// Why: TrimSpace guard rejects whitespace-only AI output that would otherwise
+	// pass `title != ""` and silently wipe the destination task title.
+	if err == nil && strings.TrimSpace(title) != "" {
+		return title
+	}
 
 	// Why: [Reliability] AI response blocks/timeouts fallback to simple title concatenation to prevent info loss.
 	logger.Warnf("[TASKS] AI Merge Summary Failed (Error: %v). Falling back to concatenation.", err)
 	titles := make([]string, 0, len(sources)+1)
-	titles = append(titles, dest.Task)
+	if t := strings.TrimSpace(dest.Task); t != "" {
+		titles = append(titles, t)
+	}
 	for _, src := range sources {
-		titles = append(titles, src.Task)
+		if t := strings.TrimSpace(src.Task); t != "" {
+			titles = append(titles, t)
+		}
+	}
+	// Why: All inputs blank → preserve dest.Task verbatim (caller's last-line guard
+	// will reject if even that is empty). Never collapse to "" here.
+	if len(titles) == 0 {
+		return dest.Task
 	}
 	return s.truncateTitle(strings.Join(titles, " | "), 250)
 }

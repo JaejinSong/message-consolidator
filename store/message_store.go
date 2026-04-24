@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"message-consolidator/db"
+	"message-consolidator/logger"
 	"message-consolidator/types"
 	"strings"
 	"time"
@@ -157,6 +158,13 @@ func UpdateTaskText(ctx context.Context, q Querier, email string, id int, task s
 	if id <= 0 {
 		return fmt.Errorf("invalid task id: %d", id)
 	}
+	// Why: Empty task hides the row from the active list. AI extractions sometimes
+	// return blank task text on update/new states; preserve the existing title in
+	// that case rather than silently wiping it.
+	if strings.TrimSpace(task) == "" {
+		logger.Warnf("[STORE] UpdateTaskText skipped: empty task for id=%d email=%s", id, email)
+		return nil
+	}
 	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
 		p.Task = nullString(task)
 	})
@@ -298,6 +306,16 @@ func MergeTasksWithTitle(ctx context.Context, email string, targetIDs []int64, d
 		return err
 	}
 
+	// Why: Final guard against empty/whitespace title leaking from upstream.
+	// An empty task field hides the row from the active list (filter
+	// `IFNULL(task,'') != ''`) so the merge would silently lose it.
+	if strings.TrimSpace(newTitle) == "" {
+		newTitle = dest.Task
+	}
+	if strings.TrimSpace(newTitle) == "" {
+		return fmt.Errorf("merge aborted: refusing to set empty task on dest=%d", destID)
+	}
+
 	history := buildMergeHistory(dest.Task, sources)
 	if err := applyMergeTransaction(ctx, tx, email, dest.Room, targetIDs, dest.ID, newTitle, history); err != nil {
 		return err
@@ -422,6 +440,13 @@ func UpdateTaskAssigneesBatch(ctx context.Context, email string, updates map[int
 }
 
 func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id int, newTask, newOriginalText string) error {
+	// Why: An empty newTask would overwrite the existing title and hide the row.
+	// Fall back to append-only path so original_text still grows for audit while
+	// task text is preserved.
+	if strings.TrimSpace(newTask) == "" {
+		logger.Warnf("[STORE] UpdateTaskFullAppend: empty newTask for id=%d, falling back to append-only", id)
+		return AppendOriginalText(ctx, q, email, room, id, newOriginalText)
+	}
 	err := db.New(q).UpdateTaskFullAppend(ctx, db.UpdateTaskFullAppendParams{
 		Task:         nullString(newTask),
 		OriginalText: nullString(newOriginalText),

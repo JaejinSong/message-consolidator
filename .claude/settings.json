@@ -72,7 +72,8 @@
       "Bash(rg -n \"^-- name:\" /home/jinro/.gemini/message-consolidator/store/queries/*.sql)",
       "Bash(./deploy.sh)",
       "mcp__serena__initial_instructions",
-      "Bash(go doc *)"
+      "Bash(go doc *)",
+      "mcp__serena__read_memory"
     ],
     "additionalDirectories": [
       "/tmp",
