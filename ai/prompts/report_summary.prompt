@@ -1,23 +1,26 @@
 ---
 name: report_summary
-version: 2.3.0
+version: 2.4.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
-Generate a professional Executive Report with qualitative business insights.
+Generate a professional Executive Report grounded in the `Evidence: "..."` text of each input line. Never infer beyond what Evidence explicitly supports.
 
 # Rules
 1. Headers (all 4 required, in order): `## [Operations & Strategy Overview]`, `## [Key Insights]`, `## [Activity]`, `## [Stalled Tasks]`
-2. **Operations & Strategy Overview**: 4-5 sentence strategic narrative (bird's-eye view). Identify "Choice and Concentration" conflicts (e.g., resource bottlenecks between regional expansion and system stability). Write each sentence as its own paragraph separated by a blank line — do NOT merge sentences into one block.
-3. **Key Insights**: Surface non-obvious patterns, risks, and anomalies — NOT a task list. Each bullet must answer "so what?": bottlenecks, single-point-of-failure risks, stalled patterns, unusual request concentration, or cross-source dependencies. Format: `- [Source] finding + implication.` Additional rules:
-   - At least 1 bullet must flag a risk or anomaly (not merely "X tasks are active").
-   - If one person holds >40% of open tasks, call it out explicitly.
-   - If a cross-source pattern exists (e.g., most requests flow A→B), include 1 cross-source bullet.
+2. **Operations & Strategy Overview**: 4-5 sentence strategic narrative grounded in Evidence. Identify "Choice and Concentration" conflicts ONLY when two or more tasks in Activity share genuinely conflicting resource/timing constraints visible in Evidence — do NOT invent strategic tensions. Write each sentence as its own paragraph separated by a blank line — do NOT merge sentences into one block.
+3. **Key Insights**: Surface non-obvious patterns, risks, and anomalies that are **explicitly supported by the Evidence text** — NOT a task list. Each risk/anomaly bullet MUST include a verbatim quote (≤10 words) from Evidence, in double quotes, proving the claim. Format: `- [Source] finding + "verbatim evidence quote" + implication.`
+   - **Flag risks ONLY if supported by Evidence.** Look for explicit signals: "blocked", "stuck", "no response", "waiting since", "can't", "not scalable", "unable to", "delayed", "overdue", or equivalent direct speaker language. Do NOT infer bottlenecks from task titles alone.
+   - If no evidence-backed risks exist, emit exactly one bullet: `- No anomalies detected.` Do not pad with generic observations.
+   - **Preserve speaker stance.** When Evidence shows the speaker describing their own workflow (e.g., "share the context and I'll raise the request"), do NOT reframe it as a systemic bottleneck. Keep the speaker's verb and subject.
+   - **No nominalization.** Avoid patterns that convert speaker actions into abstract nouns: "the requirement to X", "indicates a Y", "the need to Z". Use the speaker's original verbs and subjects.
+   - If one person holds >40% of open tasks (verify by counting Activity), call it out with the count ratio.
+   - If a cross-source pattern exists (verify by inspecting Source/Room fields), include 1 cross-source bullet.
    - Never restate task names or counts without adding the "so what".
    BAD:  `- [Digital] 3 tasks active, 1 completed.`
-   GOOD: `- [Digital] Completion rate at 25% (1/4); 2 items stalled 7+ days with no update, suggesting a hidden blocker.`
-   BAD:  `- [Release] Pak Sudi has 2 open items.`
-   GOOD: `- [Release] Pak Sudi owns 3 of 5 open tasks — single-point dependency risk if unavailable before deadline.`
+   GOOD: `- [Digital] 2 tasks stalled 7+ days per Evidence "waiting since Monday" — hidden blocker likely.`
+   BAD:  `- [Slack] The requirement to provide business context before raising dev requests indicates a process bottleneck.`
+   GOOD: `- [Slack] No anomalies detected.` (when Evidence shows a normal escalation flow, not a grievance)
 4. **Activity**: Identify all customer or company names referenced in the period. Infer from room/channel names and task descriptions (e.g. "WhaTap APM Tools POC for Bank BNI" → "Bank BNI", "biz-global-malaysia" → "Malaysia Biz"). If no company name can be inferred, use the room/channel name as-is. Output one ```json block: `[{"customer": str, "count": num, "summary": str}]` sorted by count DESC — `summary` is a 1-2 sentence description of what was worked on for that customer (e.g. "APM agent setup and POC support. Focused on onboarding and initial configuration."). If no customers identified: `[]`
 5. **Stalled Tasks**: Only 'Stalled'/'Neglected'. One ```json block: `[{"source": str, "requester": str, "status": str, "days": num, "reason": str}]`. If none: `"No stalled tasks identified."`
 6. Tone: dry, professional, data-driven. English only. 1 bullet = 1 sentence — no paragraphs.

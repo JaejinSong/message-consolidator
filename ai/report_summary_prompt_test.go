@@ -65,6 +65,32 @@ func TestReportSummaryPrompt(t *testing.T) {
 				"Management Gap",
 			},
 		},
+		{
+			// Regression: Bun.js/XIMPLY Slack thread (2026-04-23).
+			// The v2.3.0 prompt inverted the speaker's stance into a bogus "process bottleneck"
+			// insight ("requirement to provide business context ... indicates a process
+			// bottleneck that could delay scalability improvements"). v2.4.0 evidence-gating
+			// + no-nominalization rules must prevent this reframing when Evidence shows a
+			// normal escalation protocol, not a grievance.
+			name: "Case 3: No Evidence-Backed Anomaly (Normal Escalation)",
+			inputLog: `- [ ][QUERY] Support Bun.js runtime for XIMPLY backend (Room: slack-support, From: Yoga Wiranda (Customer), To: Jaejin Song (Internal)) | Evidence: Is it possible to install the WhaTap agent on a Bun.js backend service? XIMPLY is our client.
+- [ ][POLICY] Escalation requires business context and technical info (Room: slack-support, From: Jaejin Song (Internal), To: shared (Team)) | Evidence: Before I escalate, I need two things from you: business context (check with Andy or Kamal) and technical info (package.json, framework).
+- [ ][TASK] Gather business context from Andy or Kamal (Room: slack-support, From: Jaejin Song (Internal), To: Yoga Wiranda (Customer)) | Evidence: Is this a PoC, or an active/paid deployment? Expected deal size or revenue impact if we support it.`,
+			expectedOutput: []string{
+				"## [Operations & Strategy Overview]",
+				"## [Key Insights]",
+				"## [Stalled Tasks]",
+				"XIMPLY",
+			},
+			notExpected: []string{
+				"process bottleneck",
+				"requirement to provide",
+				"indicates a",
+				"delay scalability",
+				"scalability improvements",
+				"The requirement to",
+			},
+		},
 	}
 
 	ctx := context.Background()

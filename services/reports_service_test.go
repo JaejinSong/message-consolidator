@@ -111,8 +111,49 @@ func TestReportsService_TruncatePriority(t *testing.T) {
 		t.Errorf("Critical incomplete old task was truncated, but it should have been prioritized")
 	}
 
-	if !strings.Contains(summary, "- [ ] URGENT OLD TASK") {
-		t.Errorf("Task status mark should be [ ]; got summary: %s", summary)
+	if !strings.Contains(summary, "- [ ][TASK] URGENT OLD TASK") {
+		t.Errorf("Task status+category mark should be [ ][TASK]; got summary: %s", summary)
+	}
+}
+
+func TestFormatLogLine_CategoryAndEvidence(t *testing.T) {
+	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}, isTest: true}
+	messages := []store.ConsolidatedMessage{
+		{
+			Task:         "Support Bun.js runtime",
+			Category:     "QUERY",
+			Requester:    "Yoga",
+			Assignee:     "Jaejin",
+			OriginalText: "latest: confirming backend service\n\nolder: initial request about Bun.js",
+		},
+		{Task: "No evidence task", Category: "TASK", Requester: "A", Assignee: "B"},
+		{Task: "Long evidence task", Requester: "A", Assignee: "B", OriginalText: strings.Repeat("x", 300)},
+	}
+	summary, _ := svc.PrepareLogsForAI("test@example.com", messages)
+
+	if !strings.Contains(summary, "[QUERY] Support Bun.js runtime") {
+		t.Errorf("expected [QUERY] category marker; got: %s", summary)
+	}
+	if !strings.Contains(summary, "Evidence: latest: confirming backend service") {
+		t.Errorf("expected evidence to contain newest block only; got: %s", summary)
+	}
+	if strings.Contains(summary, "older: initial request") {
+		t.Errorf("evidence must exclude older blocks (first-block-only post-flip rule); got: %s", summary)
+	}
+	for _, line := range strings.Split(summary, "\n") {
+		if strings.Contains(line, "No evidence task") && strings.Contains(line, "Evidence:") {
+			t.Errorf("empty OriginalText should yield no Evidence suffix; got: %s", line)
+		}
+		if strings.Contains(line, "Long evidence task") {
+			if idx := strings.Index(line, "Evidence: "); idx != -1 {
+				if n := len([]rune(line[idx+len("Evidence: "):])); n > 200 {
+					t.Errorf("evidence must be truncated to 200 chars; got %d runes: %s", n, line)
+				}
+			}
+		}
+	}
+	if !strings.Contains(summary, "- [ ][TASK] No evidence task") {
+		t.Errorf("missing category should default to TASK; got: %s", summary)
 	}
 }
 

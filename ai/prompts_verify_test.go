@@ -86,3 +86,35 @@ func TestChatSystemPurposeRule(t *testing.T) {
 		}
 	}
 }
+
+// TestReportSummaryEvidenceGating guards the v2.4.0 evidence-gating + speaker-stance rules.
+// Why: Prevents regression to the v2.3.0 "must flag a risk" mandate that caused
+// hallucination of bottlenecks from task titles without Evidence support (Bun.js/XIMPLY case, 2026-04-23).
+func TestReportSummaryEvidenceGating(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/report_summary.prompt")
+	if err != nil {
+		t.Fatalf("read report_summary: %v", err)
+	}
+	body := string(content)
+	required := []string{
+		"Flag risks ONLY if supported by Evidence",
+		"No anomalies detected.",
+		"Preserve speaker stance",
+		"No nominalization",
+		"verbatim quote",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Errorf("report_summary.prompt missing required rule phrase: %q", token)
+		}
+	}
+	forbidden := []string{
+		"At least 1 bullet must flag a risk",
+	}
+	for _, token := range forbidden {
+		if strings.Contains(body, token) {
+			t.Errorf("report_summary.prompt must not contain deprecated phrase: %q", token)
+		}
+	}
+}

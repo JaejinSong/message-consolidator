@@ -22,7 +22,7 @@ type ReportConfig struct {
 	CutoffSize int
 }
 
-const DefaultReportCutoffSize = 16000
+const DefaultReportCutoffSize = 32000
 
 // Log is a type alias for ConsolidatedMessage to satisfy technical requirements while maintaining consistency.
 type Log = store.ConsolidatedMessage
@@ -258,8 +258,33 @@ func (s *ReportsService) formatLogLine(email string, m Log) string {
 	}
 	asgCat := s.resolveCategory(email, m.AssigneeCanonical, m.AssigneeType)
 
-	return fmt.Sprintf("- [%s] %s (Room: %s, From: %s (%s), To: %s (%s))\n",
-		status, m.Task, m.Room, reqName, reqCat, asgName, asgCat)
+	cat := m.Category
+	if cat == "" {
+		cat = "TASK"
+	}
+	evidence := truncateEvidence(m.OriginalText, 200)
+
+	return fmt.Sprintf("- [%s][%s] %s (Room: %s, From: %s (%s), To: %s (%s))%s\n",
+		status, cat, m.Task, m.Room, reqName, reqCat, asgName, asgCat, evidence)
+}
+
+
+// truncateEvidence extracts the newest block from OriginalText (first block post-flip)
+// and returns it as a bounded " | Evidence: ..." suffix. Empty if no content.
+func truncateEvidence(text string, max int) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+	if idx := strings.Index(text, "\n\n"); idx != -1 {
+		text = text[:idx]
+	}
+	text = strings.ReplaceAll(text, "\n", " ")
+	runes := []rune(text)
+	if len(runes) > max {
+		runes = runes[:max]
+	}
+	return " | Evidence: " + string(runes)
 }
 
 func (s *ReportsService) resolveCategory(tenantEmail, canonicalID, contactType string) string {
