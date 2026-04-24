@@ -1861,6 +1861,26 @@ body.light-theme .c-badge--count {
     margin-bottom: var(--spacing-md);
 }
 
+/* Report Viz Container: side-by-side layout */
+.c-report-viz-container--row {
+    display: flex;
+    flex-direction: row;
+    gap: var(--spacing-xl);
+    align-items: stretch;
+}
+
+.c-report-viz-panel {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 25rem;
+}
+
+@media (max-width: 48rem) {
+    .c-report-viz-container--row {
+        flex-direction: column;
+    }
+}
+
 /* Visual Analytics Sections */
 .c-report-viz {
     display: flex;
@@ -2931,8 +2951,7 @@ body.light-theme .c-achievement__progress-base {
 
 /* Container styles already defined at top of file */
 
-#reportNetworkChart,
-#reportSankeyChart {
+#reportNetworkChart {
     min-height: 25rem;
     width: 100%;
 }

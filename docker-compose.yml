@@ -20,7 +20,7 @@ services:
 
   # Why: Lightweight frontend asset provider. It syncs dist to the shared volume on startup.
   frontend:
-    image: ${FE_IMAGE}
+    image: ${FE_IMAGE:-us-central1-docker.pkg.dev/gemini-enterprise-487906/message-consolidator-repo/frontend:latest}
     container_name: message-consolidator-frontend
     pull_policy: always
     volumes:
@@ -31,7 +31,7 @@ services:
 
   # Why: Backend service providing the REST API.
   backend:
-    image: ${BE_IMAGE}
+    image: ${BE_IMAGE:-us-central1-docker.pkg.dev/gemini-enterprise-487906/message-consolidator-repo/backend:latest}
     container_name: message-consolidator-backend
     deploy:
       replicas: 1

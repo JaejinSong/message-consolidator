@@ -446,9 +446,7 @@ export const insightsRenderer = {
         `;
 
         const netChart = document.getElementById('reportNetworkChart');
-        const sankeyChart = document.getElementById('reportSankeyChart');
         if (netChart) netChart.innerHTML = '';
-        if (sankeyChart) sankeyChart.innerHTML = '';
     },
 
     renderError(container: HTMLElement, message: string, i18n: any): void {

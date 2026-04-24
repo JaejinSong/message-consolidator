@@ -460,7 +460,6 @@ export const reportsRenderer = {
     render(report: IReportData, lang: string, i18n: any): void {
         const summaryArea = document.getElementById('reportSummaryContent');
         const netChartArea = document.getElementById('reportNetworkChart');
-        const sankeyChartArea = document.getElementById('reportSankeyChart');
         const matrixChartArea = document.getElementById('reportMatrixChart');
 
         const summaryText = report.translations?.[lang] || report.report_summary || "";
@@ -507,10 +506,6 @@ export const reportsRenderer = {
             if (netChartArea && netChartArea.dataset.vizKey !== vizKey) {
                 netChartArea.dataset.vizKey = vizKey;
                 requestAnimationFrame(() => { netChartArea.innerHTML = ''; renderNetworkSVG(netChartArea, viz.nodes, viz.links); });
-            }
-            if (sankeyChartArea && sankeyChartArea.dataset.vizKey !== vizKey) {
-                sankeyChartArea.dataset.vizKey = vizKey;
-                requestAnimationFrame(() => { sankeyChartArea.innerHTML = ''; renderSankeySVG(sankeyChartArea, viz.nodes, viz.links); });
             }
             if (matrixChartArea && matrixChartArea.dataset.vizKey !== vizKey) {
                 matrixChartArea.dataset.vizKey = vizKey;

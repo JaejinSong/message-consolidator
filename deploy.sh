@@ -110,16 +110,20 @@ echo -e "\n${BLUE}==================================================${NC}"
 echo -e "${BLUE}==> STAGE 1: Parallel Testing Gate${NC}"
 echo -e "${BLUE}==================================================${NC}"
 
-# Note: Go tests now use unique in-memory SQLite databases per reset,
-# ensuring high-speed execution and perfect isolation between tests.
-( run_step "Go Unit Tests" go test ./... ) & p_test_go=$!
-( run_step "AI Regressions" go test -tags regression ./ai/... ) & p_test_ai=$!
-( run_step "NPM (Vitest)" npm test ) & p_test_node=$!
+p_test_go=""; p_test_ai=""; p_test_node=""
+
+if [[ "$MODE" == "all" || "$MODE" == "be" ]]; then
+    ( run_step "Go Unit Tests" go test ./... ) & p_test_go=$!
+    ( run_step "AI Regressions" go test -tags regression ./ai/... ) & p_test_ai=$!
+fi
+if [[ "$MODE" == "all" || "$MODE" == "fe" ]]; then
+    ( run_step "NPM (Vitest)" npm test ) & p_test_node=$!
+fi
 ( run_step "GCloud Auth" gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet ) & p_auth=$!
 
-wait $p_test_go || { echo -e "${RED}FATAL: Go Tests Failed${NC}"; exit 1; }
-wait $p_test_ai || { echo -e "${RED}FATAL: AI Regressions Failed${NC}"; exit 1; }
-wait $p_test_node || { echo -e "${RED}FATAL: Node Tests Failed${NC}"; exit 1; }
+[[ -n "$p_test_go" ]] && { wait $p_test_go || { echo -e "${RED}FATAL: Go Tests Failed${NC}"; exit 1; }; }
+[[ -n "$p_test_ai" ]] && { wait $p_test_ai || { echo -e "${RED}FATAL: AI Regressions Failed${NC}"; exit 1; }; }
+[[ -n "$p_test_node" ]] && { wait $p_test_node || { echo -e "${RED}FATAL: Node Tests Failed${NC}"; exit 1; }; }
 wait $p_auth || { echo -e "${RED}FATAL: GCloud Auth Failed${NC}"; exit 1; }
 
 echo -e "${GREEN}Stage 1 passed! All tests validated.${NC}"
