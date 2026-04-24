@@ -25,7 +25,7 @@ Classify how a reply message affects an existing task. Apply rules in order — 
    - "Any update?", "Following up", "Ping"
 
 # Response Schema:
-{"status": "RESOLVE" | "UPDATE" | "NEW" | "NONE", "updated_text": "<new complete task in English, only for UPDATE, else empty string>"}
+{"status": "RESOLVE" | "UPDATE" | "NEW" | "NONE", "updated_text": "<only the new/changed information added by this reply, NOT the full task history — only for UPDATE, else empty string>"}
 
 [Context]
 Parent Task: {{.ParentTask}}

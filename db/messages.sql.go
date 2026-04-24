@@ -1143,31 +1143,6 @@ func (q *Queries) UpdateSubtasks(ctx context.Context, arg UpdateSubtasksParams) 
 	return err
 }
 
-const updateTaskDescriptionAppend = `-- name: UpdateTaskDescriptionAppend :exec
-UPDATE messages
-SET task = task || char(10) || char(10) || '--- [Update: ' || ? || '] ---' || char(10) || ?
-WHERE id = ? AND user_email = ? AND room = ?
-`
-
-type UpdateTaskDescriptionAppendParams struct {
-	Task      sql.NullString `json:"task"`
-	Task_2    sql.NullString `json:"task_2"`
-	ID        int64          `json:"id"`
-	UserEmail sql.NullString `json:"user_email"`
-	Room      sql.NullString `json:"room"`
-}
-
-func (q *Queries) UpdateTaskDescriptionAppend(ctx context.Context, arg UpdateTaskDescriptionAppendParams) error {
-	_, err := q.db.ExecContext(ctx, updateTaskDescriptionAppend,
-		arg.Task,
-		arg.Task_2,
-		arg.ID,
-		arg.UserEmail,
-		arg.Room,
-	)
-	return err
-}
-
 const updateTaskFullAppend = `-- name: UpdateTaskFullAppend :exec
 UPDATE messages
 SET task = task || char(10) || char(10) || '--- [Update: ' || ? || '] ---' || char(10) || ?,

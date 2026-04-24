@@ -27,11 +27,6 @@ WHERE id = ?1 AND user_email = ?2;
 -- name: UpdateSubtasks :exec
 UPDATE messages SET subtasks = ? WHERE id = ? AND user_email = ?;
 
--- name: UpdateTaskDescriptionAppend :exec
-UPDATE messages
-SET task = task || char(10) || char(10) || '--- [Update: ' || ? || '] ---' || char(10) || ?
-WHERE id = ? AND user_email = ? AND room = ?;
-
 -- name: UpdateTaskFullAppend :exec
 UPDATE messages
 SET task = task || char(10) || char(10) || '--- [Update: ' || ? || '] ---' || char(10) || ?,

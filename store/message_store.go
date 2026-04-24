@@ -428,6 +428,7 @@ func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id
 	})
 	if err == nil {
 		InvalidateCacheActive(email)
+		InvalidateTaskTranslation(ctx, id)
 	}
 	return err
 }

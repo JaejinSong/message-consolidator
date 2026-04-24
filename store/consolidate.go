@@ -52,8 +52,7 @@ func pickConsolidationPrimary(tasks []TodoItem, indices []int) (primary, seconda
 }
 
 // consolidateMergeInto combines secondary into primary with a timestamped separator.
-// Note: original_text deduplication (same vs. different source) is handled at the DB layer
-// via UpdateTaskDescriptionAppend / UpdateTaskFullAppend.
+// Note: original_text deduplication is handled at the DB layer via UpdateTaskFullAppend.
 func consolidateMergeInto(primary, secondary TodoItem) TodoItem {
 	secondaryContent := strings.TrimSpace(secondary.Task)
 	if secondaryContent == "" || strings.Contains(primary.Task, secondaryContent) {

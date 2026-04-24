@@ -19,10 +19,8 @@ type AICompleter interface {
 type TaskStore interface {
 	GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error)
 	GetActiveContextTasks(ctx context.Context, q store.Querier, email, source, room string) ([]store.ConsolidatedMessage, error)
-	MarkMessageDone(ctx context.Context, q store.Querier, email string, id int, done bool) error
 	UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id int, category string) error
 	HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error)
-	UpdateTaskText(ctx context.Context, q store.Querier, email string, id int, task string) error
 	GetMessageByID(ctx context.Context, q store.Querier, email string, id int) (store.ConsolidatedMessage, error)
 }
 
@@ -36,20 +34,12 @@ func (d *DefaultTaskStore) GetActiveContextTasks(ctx context.Context, q store.Qu
 	return store.GetActiveContextTasks(ctx, q, email, source, room)
 }
 
-func (d *DefaultTaskStore) MarkMessageDone(ctx context.Context, q store.Querier, email string, id int, done bool) error {
-	return store.MarkMessageDone(ctx, q, email, id, done)
-}
-
 func (d *DefaultTaskStore) UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id int, category string) error {
 	return store.UpdateMessageCategory(ctx, q, email, id, category)
 }
 
 func (d *DefaultTaskStore) HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
 	return store.HandleTaskState(ctx, q, email, item, msg)
-}
-
-func (d *DefaultTaskStore) UpdateTaskText(ctx context.Context, q store.Querier, email string, id int, task string) error {
-	return store.UpdateTaskText(ctx, q, email, id, task)
 }
 
 func (d *DefaultTaskStore) GetMessageByID(ctx context.Context, q store.Querier, email string, id int) (store.ConsolidatedMessage, error) {
@@ -100,9 +90,11 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 
 func (s *CompletionService) handleCompletionResult(ctx context.Context, status, updatedText string, msg, parent store.ConsolidatedMessage) bool {
 	fromMe := strings.EqualFold(msg.RequesterCanonical, msg.UserEmail)
+	parentID := parent.ID
 	switch status {
 	case "RESOLVE":
-		_ = s.store.MarkMessageDone(ctx, s.db, msg.UserEmail, parent.ID, true)
+		item := store.TodoItem{State: "resolve", ID: &parentID}
+		_, _ = s.store.HandleTaskState(ctx, s.db, msg.UserEmail, item, msg)
 		return true
 	case "UPDATE":
 		// Why: If the current user sent the reply and the task isn't fully resolved,
@@ -111,7 +103,8 @@ func (s *CompletionService) handleCompletionResult(ctx context.Context, status, 
 			_ = s.store.UpdateMessageCategory(ctx, s.db, msg.UserEmail, parent.ID, CategoryRequested)
 		}
 		if updatedText != "" {
-			_ = s.store.UpdateTaskText(ctx, s.db, msg.UserEmail, parent.ID, updatedText)
+			item := store.TodoItem{State: "update", ID: &parentID, Task: updatedText}
+			_, _ = s.store.HandleTaskState(ctx, s.db, msg.UserEmail, item, msg)
 		}
 		if fromMe || updatedText != "" {
 			return true

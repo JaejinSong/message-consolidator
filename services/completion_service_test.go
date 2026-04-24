@@ -54,11 +54,6 @@ func (m *MockStore) GetActiveContextTasks(ctx context.Context, q store.Querier, 
 	return m.Tasks, nil
 }
 
-func (m *MockStore) MarkMessageDone(ctx context.Context, q store.Querier, email string, id int, isDone bool) error {
-	m.CapturedIDs = append(m.CapturedIDs, id)
-	return nil
-}
-
 func (m *MockStore) UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id int, category string) error {
 	m.ReleasedIDs = append(m.ReleasedIDs, id)
 	m.ReleasedCategories = append(m.ReleasedCategories, category)
@@ -66,15 +61,14 @@ func (m *MockStore) UpdateMessageCategory(ctx context.Context, q store.Querier, 
 }
 
 func (m *MockStore) HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
-	if item.State == "resolve" {
-		m.CapturedIDs = append(m.CapturedIDs, *item.ID)
+	id := int(*item.ID)
+	switch item.State {
+	case "resolve":
+		m.CapturedIDs = append(m.CapturedIDs, id)
+	case "update":
+		m.ReleasedIDs = append(m.ReleasedIDs, id)
 	}
 	return 0, nil
-}
-
-func (m *MockStore) UpdateTaskText(ctx context.Context, q store.Querier, email string, id int, task string) error {
-	m.ReleasedIDs = append(m.ReleasedIDs, id)
-	return nil
 }
 
 func (m *MockStore) GetMessageByID(ctx context.Context, q store.Querier, email string, id int) (store.ConsolidatedMessage, error) {
@@ -157,7 +151,7 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		if len(mockStore.ReleasedCategories) != 1 || mockStore.ReleasedCategories[0] != CategoryRequested {
 			t.Errorf("expected category=%q, got %v", CategoryRequested, mockStore.ReleasedCategories)
 		}
-		// ReleasedIDs collects both UpdateMessageCategory and UpdateTaskText calls.
+		// ReleasedIDs collects UpdateMessageCategory + HandleTaskState("update") calls.
 		if len(mockStore.ReleasedIDs) != 2 {
 			t.Errorf("expected category+text both updated (2 ReleasedIDs), got %v", mockStore.ReleasedIDs)
 		}

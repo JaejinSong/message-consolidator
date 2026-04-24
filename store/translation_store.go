@@ -114,3 +114,14 @@ func syncCacheBatch(langCode string, results map[int]string) {
 		translationCache[langCode][id] = text
 	}
 }
+
+// InvalidateTaskTranslation removes a task's translation from both the in-memory cache
+// and the DB so it will be re-translated JIT on the next dashboard load.
+func InvalidateTaskTranslation(ctx context.Context, messageID int) {
+	translationMu.Lock()
+	for _, langCache := range translationCache {
+		delete(langCache, messageID)
+	}
+	translationMu.Unlock()
+	_ = db.New(GetDB()).DeleteTaskTranslations(ctx, nullInt64(int64(messageID)))
+}
