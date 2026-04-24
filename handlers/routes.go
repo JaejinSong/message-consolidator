@@ -93,6 +93,7 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 	r.Handle("/api/reports/{id:[0-9]+}", auth.AuthMiddleware(http.HandlerFunc(a.HandleGetReportByID))).Methods("GET")
 	r.Handle("/api/reports/{id:[0-9]+}", auth.AuthMiddleware(http.HandlerFunc(a.HandleDeleteReport))).Methods("DELETE")
 	r.Handle("/api/reports/{id:[0-9]+}/translate", auth.AuthMiddleware(http.HandlerFunc(a.HandleTranslateReport))).Methods("POST")
+	r.Handle("/api/reports/{id:[0-9]+}/export/notion", auth.AuthMiddleware(http.HandlerFunc(a.HandleExportReportToNotion))).Methods("POST")
 
 	//Why: Provides dedicated OAuth flow endpoints for connecting and disconnected Gmail as a message source.
 	r.Handle("/auth/gmail/connect", auth.AuthMiddleware(http.HandlerFunc(a.HandleGmailConnect))).Methods("GET")

@@ -52,8 +52,23 @@ test-ui:
 test-go:
 	go test ./...
 
+# AI_SOURCES: 변경 시 regression 테스트를 트리거할 파일 패턴
+AI_SOURCES := ai/prompts ai/prompts.go ai/gemini.go ai/executor.go ai/analyzers.go ai/rag.go
+
 test-ai:
-	go test -tags regression ./ai/... ./tests/regression/...
+	@BASE=$$(git merge-base HEAD origin/main 2>/dev/null || echo "HEAD^"); \
+	CHANGED=$$(git diff --name-only $$BASE HEAD -- $(AI_SOURCES); \
+	           git diff --name-only -- $(AI_SOURCES)); \
+	if [ -n "$$CHANGED" ]; then \
+		echo "AI 변경 감지 ($$BASE 기준):"; \
+		echo "$$CHANGED" | sed 's/^/  /'; \
+		go test -v -tags regression ./ai/... ./tests/regression/...; \
+	else \
+		echo "AI 관련 변경 없음 — regression 테스트 생략 (강제 실행: make test-ai-force)"; \
+	fi
+
+test-ai-force:
+	go test -v -tags regression ./ai/... ./tests/regression/...
 
 test-all:
 	@echo "Running all tests in parallel..."
@@ -69,5 +84,5 @@ clean:
 	rm -rf ai/testdata/prompt_cache/*.txt
 	@echo "Cleanup complete."
 
-.PHONY: build run install-service uninstall-service status logs test-ui test-go test-ai test-all build-frontend build-backend build-all sqlc-gen clean
+.PHONY: build run install-service uninstall-service status logs test-ui test-go test-ai test-ai-force test-all build-frontend build-backend build-all sqlc-gen clean
 

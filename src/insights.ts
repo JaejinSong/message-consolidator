@@ -148,6 +148,11 @@ export const insights = {
             exportBtn.addEventListener('click', () => this.exportToPDF());
         }
 
+        const notionBtn = document.getElementById('btnExportNotion');
+        if (notionBtn) {
+            notionBtn.addEventListener('click', () => this.exportToNotion());
+        }
+
         const reportList = document.getElementById('reportList');
         if (reportList) {
             reportList.addEventListener('click', async (e) => {
@@ -365,6 +370,29 @@ export const insights = {
         }
         insightsRenderer.renderReport(report, lang, i18n);
         document.getElementById('btnExportPDF')?.classList.remove('u-hidden');
+        document.getElementById('btnExportNotion')?.classList.remove('u-hidden');
+    },
+
+    async exportToNotion() {
+        const report = this.lastReport;
+        if (!report?.id) return;
+
+        const btn = document.getElementById('btnExportNotion') as HTMLButtonElement;
+        const original = btn.textContent ?? 'Notion';
+        btn.textContent = '저장 중...';
+        btn.disabled = true;
+
+        try {
+            const res = await fetch(`/api/reports/${report.id}/export/notion`, { method: 'POST' });
+            const data = await res.json() as { url?: string; error?: string };
+            if (!res.ok || !data.url) throw new Error(data.error ?? 'Export failed');
+            window.open(data.url, '_blank');
+        } catch (e) {
+            alert(`Notion 내보내기 실패: ${e instanceof Error ? e.message : String(e)}`);
+        } finally {
+            btn.textContent = original;
+            btn.disabled = false;
+        }
     },
 
     exportToPDF() {

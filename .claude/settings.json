@@ -27,7 +27,11 @@
       "Bash(go install *)",
       "Bash(npx ts-unused-exports *)",
       "Bash(deadcode .)",
-      "Bash(deadcode -test .)"
+      "Bash(deadcode -test .)",
+      "Bash(bash deploy.sh fe)",
+      "Bash(git checkout *)",
+      "Bash(bash deploy.sh be)",
+      "Bash(make test-ai *)"
     ],
     "additionalDirectories": [
       "/tmp"

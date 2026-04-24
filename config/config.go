@@ -26,6 +26,8 @@ type Config struct {
 	LogLevel               string
 	GmailSkipSenders       string
 	AutoArchiveDays        int
+	NotionToken          string
+	NotionReportPageID   string
 	CloudRunMode           bool
 	InternalScanSecret     string
 	MessageBatchWindow     time.Duration
@@ -119,6 +121,8 @@ func LoadConfig() *Config {
 		LogLevel:               logLevel,
 		GeminiAnalysisModel:    geminiAnalysisModel,
 		GeminiTranslationModel: geminiTranslationModel,
+		NotionToken:            os.Getenv("NOTION_TOKEN"),
+		NotionReportPageID:     os.Getenv("NOTION_REPORT_PAGE_ID"),
 		GmailSkipSenders:       os.Getenv("GMAIL_SKIP_SENDERS"),
 		AutoArchiveDays:        autoArchiveDays,
 		CloudRunMode:           os.Getenv("CLOUD_RUN_MODE") == "true",

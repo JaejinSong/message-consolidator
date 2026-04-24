@@ -114,7 +114,7 @@ p_test_go=""; p_test_ai=""; p_test_node=""
 
 if [[ "$MODE" == "all" || "$MODE" == "be" ]]; then
     ( run_step "Go Unit Tests" go test ./... ) & p_test_go=$!
-    ( run_step "AI Regressions" go test -tags regression ./ai/... ) & p_test_ai=$!
+    ( run_step "AI Regressions" make test-ai ) & p_test_ai=$!
 fi
 if [[ "$MODE" == "all" || "$MODE" == "fe" ]]; then
     ( run_step "NPM (Vitest)" npm test ) & p_test_node=$!

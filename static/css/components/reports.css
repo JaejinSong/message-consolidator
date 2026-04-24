@@ -342,6 +342,10 @@
     #reportDetailArea {
         display: block !important;
         width: 100% !important;
+        height: auto !important;
+        max-height: none !important;
+        min-height: 0 !important;
+        overflow: visible !important;
         padding: 0 !important;
         margin: 0 !important;
         border: none !important;

@@ -29,7 +29,7 @@ func TestSelectFewShots(t *testing.T) {
 			name:     "No limit",
 			payload:  "general task",
 			limit:    10,
-			expected: 6, // Only 6 total in DefaultFewShots
+			expected: 7, // Only 7 total in DefaultFewShots
 		},
 		{
 			name:     "Zero or negative limit",

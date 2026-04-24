@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"message-consolidator/auth"
+	"message-consolidator/services"
 	"message-consolidator/store"
 	"net/http"
 	"time"
@@ -160,6 +162,40 @@ func (a *API) processReportTranslation(w http.ResponseWriter, r *http.Request, i
 	}
 
 	respondJSON(w, http.StatusOK, map[string]string{"language_code": lang, "summary": summary})
+}
+
+// HandleExportReportToNotion exports a report to Notion and returns the page URL.
+func (a *API) HandleExportReportToNotion(w http.ResponseWriter, r *http.Request) {
+	id, err := parsePathID(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid report ID format")
+		return
+	}
+
+	email := auth.GetUserEmail(r)
+	report, err := store.GetReportByID(r.Context(), id, email)
+	if err != nil || report.UserEmail != email {
+		respondError(w, http.StatusNotFound, "Report not found or Forbidden")
+		return
+	}
+
+	exporter := services.NewNotionExporter(a.Config.NotionToken, a.Config.NotionReportPageID)
+	if !exporter.Enabled() {
+		respondError(w, http.StatusServiceUnavailable, "Notion integration not configured")
+		return
+	}
+
+	title := fmt.Sprintf("Report_%s_%s", report.StartDate, report.EndDate)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	url, err := exporter.ExportReport(ctx, title, report.ReportSummary)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"url": url})
 }
 
 type httpErr string
