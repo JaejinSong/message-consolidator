@@ -107,6 +107,18 @@ func GetMessages(ctx context.Context, email string) ([]ConsolidatedMessage, erro
 	}
 
 	cacheMu.RLock()
+	msgs, ok := messageCache[email]
+	cacheMu.RUnlock()
+	if ok {
+		return msgs, nil
+	}
+
+	// Cache was invalidated between EnsureCacheInitialized and the read (TOCTOU race).
+	// Refresh once and return the new data.
+	if err := RefreshCache(ctx, email); err != nil {
+		return nil, err
+	}
+	cacheMu.RLock()
 	defer cacheMu.RUnlock()
 	if msgs, ok := messageCache[email]; ok {
 		return msgs, nil
