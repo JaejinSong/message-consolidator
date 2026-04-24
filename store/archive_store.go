@@ -61,13 +61,23 @@ func getFromArchiveCache(f ArchiveFilter) ([]ConsolidatedMessage, int, bool) {
 	return filtered[:limit], len(filtered), true
 }
 
+func normalizeArchiveStatus(status string) string {
+	switch status {
+	case "done", "canceled", "merged", "all", "":
+		return status
+	default:
+		return ""
+	}
+}
+
 func fetchArchivedFromDB(ctx context.Context, filter ArchiveFilter) ([]ConsolidatedMessage, int, error) {
 	queries := db.New(GetDB())
+	status := normalizeArchiveStatus(filter.Status)
 
 	total, err := queries.SearchArchivedMessagesCount(ctx, db.SearchArchivedMessagesCountParams{
 		UserEmail: nullString(filter.Email),
 		Column2:   filter.Query,
-		Column3:   filter.Status,
+		Column3:   status,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("archive count failed: %w", err)
@@ -76,7 +86,7 @@ func fetchArchivedFromDB(ctx context.Context, filter ArchiveFilter) ([]Consolida
 	rows, err := queries.SearchArchivedMessages(ctx, db.SearchArchivedMessagesParams{
 		UserEmail: nullString(filter.Email),
 		Column2:   filter.Query,
-		Column3:   filter.Status,
+		Column3:   status,
 		Limit:     int64(filter.Limit),
 		Offset:    int64(filter.Offset),
 	})

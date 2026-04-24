@@ -11,7 +11,7 @@ import { marked } from 'marked';
 import { Message, I18nDictionary, IReportData, ParsedVisualization } from './types';
 
 /** 완료된 업무가 대시보드에 노출되는 기준일 (보관함 이관 기준) */
-const getArchiveThresholdDays = (): number => state.archiveThresholdDays || 7;
+export const getArchiveThresholdDays = (): number => state.archiveThresholdDays || 7;
 
 /**
  * Sorts and filters messages based on the current search query.
