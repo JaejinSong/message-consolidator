@@ -8,7 +8,7 @@ Generate a professional Executive Report with qualitative business insights.
 
 # Rules
 1. Headers (all 4 required, in order): `## [Operations & Strategy Overview]`, `## [Key Insights]`, `## [Activity]`, `## [Stalled Tasks]`
-2. **Operations & Strategy Overview**: 3-4 sentence strategic narrative (bird's-eye view). Identify "Choice and Concentration" conflicts (e.g., resource bottlenecks between regional expansion and system stability). Write each sentence as its own paragraph separated by a blank line — do NOT merge sentences into one block.
+2. **Operations & Strategy Overview**: 4-5 sentence strategic narrative (bird's-eye view). Identify "Choice and Concentration" conflicts (e.g., resource bottlenecks between regional expansion and system stability). Write each sentence as its own paragraph separated by a blank line — do NOT merge sentences into one block.
 3. **Key Insights**: Surface non-obvious patterns, risks, and anomalies — NOT a task list. Each bullet must answer "so what?": bottlenecks, single-point-of-failure risks, stalled patterns, unusual request concentration, or cross-source dependencies. Format: `- [Source] finding + implication.` Additional rules:
    - At least 1 bullet must flag a risk or anomaly (not merely "X tasks are active").
    - If one person holds >40% of open tasks, call it out explicitly.
@@ -18,7 +18,7 @@ Generate a professional Executive Report with qualitative business insights.
    GOOD: `- [Digital] Completion rate at 25% (1/4); 2 items stalled 7+ days with no update, suggesting a hidden blocker.`
    BAD:  `- [Release] Pak Sudi has 2 open items.`
    GOOD: `- [Release] Pak Sudi owns 3 of 5 open tasks — single-point dependency risk if unavailable before deadline.`
-4. **Activity**: Identify all customer or company names referenced in the period. Infer from room/channel names and task descriptions (e.g. "WhaTap APM Tools POC for Bank BNI" → "Bank BNI", "biz-global-malaysia" → "Malaysia Biz"). If no company name can be inferred, use the room/channel name as-is. Output one ```json block: `[{"customer": str, "count": num, "summary": str}]` sorted by count DESC. The "summary" is 1-2 sentences in English describing the key activities performed for that customer during this period. If no customers identified: `[]`
+4. **Activity**: Identify all customer or company names referenced in the period. Infer from room/channel names and task descriptions (e.g. "WhaTap APM Tools POC for Bank BNI" → "Bank BNI", "biz-global-malaysia" → "Malaysia Biz"). If no company name can be inferred, use the room/channel name as-is. Output one ```json block: `[{"customer": str, "count": num}]` sorted by count DESC. If no customers identified: `[]`
 5. **Stalled Tasks**: Only 'Stalled'/'Neglected'. One ```json block: `[{"source": str, "requester": str, "status": str, "days": num, "reason": str}]`. If none: `"No stalled tasks identified."`
 6. Tone: dry, professional, data-driven. English only. 1 bullet = 1 sentence — no paragraphs.
 

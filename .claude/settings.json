@@ -31,10 +31,23 @@
       "Bash(bash deploy.sh fe)",
       "Bash(git checkout *)",
       "Bash(bash deploy.sh be)",
-      "Bash(make test-ai *)"
+      "Bash(make test-ai *)",
+      "mcp__whatap__whatap_list_projects",
+      "Bash(ssh -o ConnectTimeout=5 chat-analyzer-vps \"ss -tnp | grep ':22'\")",
+      "Bash(ssh -o ConnectTimeout=5 chat-analyzer-vps \"ss -tnp | grep ':22' | wc -l && echo '---' && ps aux | grep sshd | grep -v grep | wc -l && echo '---' && who | head -20\")",
+      "Bash(ssh -o ConnectTimeout=5 chat-analyzer-vps \"ps aux | grep sshd | grep -v grep | awk '{print \\\\$8, \\\\$11}' | sort | uniq -c | sort -rn | head -20\")",
+      "Bash(ssh chat-analyzer-vps *)",
+      "Bash(ps aux *)",
+      "Bash(pkill -f testsprite-mcp-plugin)",
+      "Bash(pkill -f \"npm exec @testsprite\")",
+      "Bash(npm exec *)",
+      "mcp__TestSprite__testsprite_check_account_info",
+      "mcp__TestSprite__testsprite_generate_code_summary",
+      "Bash(go clean *)"
     ],
     "additionalDirectories": [
-      "/tmp"
+      "/tmp",
+      "/home/jinro/.ssh"
     ]
   }
 }

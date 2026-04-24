@@ -81,7 +81,7 @@ func TestAnalyze_Regression(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
-	defer cleanup()
+	t.Cleanup(cleanup)
 	logger.InitAIInferenceLogger()
 
 	godotenv.Load("../../.env", ".env", "../.env")

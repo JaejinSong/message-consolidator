@@ -262,9 +262,13 @@ func findBestMatch(currIdx int, items []TodoItem, seen map[int]bool) int {
 	seen[currIdx] = true
 	for j := currIdx + 1; j < len(items); j++ {
 		if seen[j] { continue }
-		if CalculateSimilarity(items[bestIdx].Task, items[j].Task) >= 0.85 {
+		a, b := items[bestIdx], items[j]
+		if a.SourceTS != "" && b.SourceTS != "" && a.SourceTS != b.SourceTS {
+			continue
+		}
+		if CalculateSimilarity(a.Task, b.Task) >= 0.85 {
 			seen[j] = true
-			if len(items[j].Task) > len(items[bestIdx].Task) {
+			if len(b.Task) > len(a.Task) {
 				bestIdx = j
 			}
 		}
