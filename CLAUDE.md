@@ -65,6 +65,18 @@ store/queries/*.sql 편집 → sqlc generate → db/*.sql.go 자동 갱신
 
 ---
 
+## Serena Setup
+
+**매 대화 시작 시 가장 먼저** `mcp__serena__activate_project`를 호출해야 합니다.
+
+```
+project_path: /home/jinro/.gemini/message-consolidator
+```
+
+다른 `mcp__serena__*` 툴을 사용하기 전에 반드시 activate가 완료되어야 합니다.
+
+---
+
 ## Development Process
 
 ### Surgical Read
