@@ -295,21 +295,24 @@
    @media print — PDF Export
    ============================================= */
 @media print {
-    /* 보고서 영역 외 모든 요소 숨김 */
-    body > *:not(#app),
-    #app > *:not(#mainContent),
+    /* 보고서 영역 외 모든 요소 숨김 — 실제 DOM 기준 (#app/#mainContent 없음) */
     header,
+    footer,
     nav,
     .c-nav,
+    .c-main-nav,
+    .c-merge-bar,
     .c-tabs__btn,
     .insights-report-header,
     .c-insights-report-sidebar,
+    #loading,
+    #dashboardContent,
     #insightsStatsTab,
     #archiveSection,
-    #taskSection,
     #btnExportPDF,
     #btnGenerateReport,
-    .c-report-warning {
+    .c-report-warning,
+    .c-modal {
         display: none !important;
     }
 
@@ -319,6 +322,20 @@
         color: #111 !important;
     }
 
+    /* glass-container / main 레이아웃 해제 */
+    .glass-container,
+    main {
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+
+    #insightsSection,
     #insightsReportsTab,
     .c-insights-report-layout,
     .c-insights-report-main,
