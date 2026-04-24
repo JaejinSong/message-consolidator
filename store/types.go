@@ -66,9 +66,10 @@ type Subtask struct {
 // CategorizedMessages represents groups of messages for the dashboard tabs.
 // Why: Enables Zero-Logic UI by delegating all filtering and categorization to the backend.
 type CategorizedMessages struct {
-	Inbox   []ConsolidatedMessage `json:"inbox" Gennode:"true"`   // Active tasks assigned to the user ('me' or userName)
-	Pending []ConsolidatedMessage `json:"pending" Gennode:"true"` // Active tasks assigned to others
-	All     []ConsolidatedMessage `json:"all" Gennode:"true"`     // All active tasks regardless of assignee or category
+	Inbox     []ConsolidatedMessage `json:"inbox" Gennode:"true"`     // personal: tasks assigned to the user
+	Delegated []ConsolidatedMessage `json:"delegated" Gennode:"true"` // requested: tasks the user assigned to others
+	Reference []ConsolidatedMessage `json:"reference" Gennode:"true"` // shared + others: informational tasks
+	All       []ConsolidatedMessage `json:"all" Gennode:"true"`       // all active tasks
 }
 
 // User represents an application user

@@ -28,18 +28,23 @@ func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := struct {
-		Inbox   []store.ConsolidatedMessage `json:"inbox"`
-		Pending []store.ConsolidatedMessage `json:"pending"`
+		Inbox     []store.ConsolidatedMessage `json:"inbox"`
+		Delegated []store.ConsolidatedMessage `json:"delegated"`
+		Reference []store.ConsolidatedMessage `json:"reference"`
 	}{
-		Inbox:   make([]store.ConsolidatedMessage, 0),
-		Pending: make([]store.ConsolidatedMessage, 0),
+		Inbox:     make([]store.ConsolidatedMessage, 0),
+		Delegated: make([]store.ConsolidatedMessage, 0),
+		Reference: make([]store.ConsolidatedMessage, 0),
 	}
 
 	for _, m := range msgs {
-		if m.Category == services.CategoryPersonal {
+		switch m.Category {
+		case services.CategoryPersonal:
 			res.Inbox = append(res.Inbox, m)
-		} else {
-			res.Pending = append(res.Pending, m)
+		case services.CategoryRequested:
+			res.Delegated = append(res.Delegated, m)
+		default:
+			res.Reference = append(res.Reference, m)
 		}
 	}
 	respondJSON(w, http.StatusOK, res)

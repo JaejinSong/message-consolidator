@@ -85,7 +85,8 @@ export interface UserStats {
 
 export interface CategorizedMessages {
     inbox: Message[];
-    pending: Message[];
+    delegated: Message[];
+    reference: Message[];
 }
 
 export interface AppState {

@@ -9,9 +9,10 @@ describe('State Sync Logic', () => {
                 { id: 1, task: 'Task 1', done: false } as Message,
                 { id: 2, task: 'Task 2', done: false } as Message
             ],
-            pending: [
+            delegated: [
                 { id: 3, task: 'Task 3', done: false } as Message
-            ]
+            ],
+            reference: []
         };
     });
 
@@ -24,7 +25,7 @@ describe('State Sync Logic', () => {
     it('should handle deleting non-existent ID gracefully', () => {
         deleteTaskFromState(999);
         expect(state.messages.inbox.length).toBe(2);
-        expect(state.messages.pending.length).toBe(1);
+        expect(state.messages.delegated.length).toBe(1);
     });
 
     it('should toggle status and maintain array length', () => {
@@ -39,13 +40,15 @@ describe('State Sync Logic', () => {
         // @ts-ignore
         updateMessages(null);
         expect(state.messages.inbox).toEqual([]);
-        expect(state.messages.pending).toEqual([]);
+        expect(state.messages.delegated).toEqual([]);
+        expect(state.messages.reference).toEqual([]);
     });
 
     it('should handle malformed messages structure in updateMessages', () => {
         // @ts-ignore
         updateMessages({ something: 'else' });
         expect(state.messages.inbox).toEqual([]);
-        expect(state.messages.pending).toEqual([]);
+        expect(state.messages.delegated).toEqual([]);
+        expect(state.messages.reference).toEqual([]);
     });
 });

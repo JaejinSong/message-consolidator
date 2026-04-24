@@ -92,7 +92,7 @@ func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string
 // assignCategory implements the server-side categorization priority logic.
 // Priority: 1. personal, 2. shared, 3. requested, 4. others.
 func (s *TasksService) assignCategory(user *store.User, identities []string, msg *store.ConsolidatedMessage) {
-	if s.IsAssigneeMarkedAsMine(msg.Assignee, identities) {
+	if s.IsAssigneeMarkedAsMine(msg.Assignee, identities) || strings.EqualFold(msg.AssigneeCanonical, user.Email) {
 		msg.Category = CategoryPersonal
 		return
 	}
@@ -145,12 +145,13 @@ func (s *TasksService) applyAssigneeRules(user *store.User, identities []string,
 		return
 	}
 
-	if s.IsAssigneeMarkedAsMine(assignee, identities) {
+	if s.IsAssigneeMarkedAsMine(assignee, identities) || strings.EqualFold(msg.AssigneeCanonical, user.Email) {
 		msg.Assignee = user.PreferredName()
 	}
 
-	if strings.EqualFold(strings.TrimSpace(msg.Requester), user.Email) || s.IsAssigneeMarkedAsMine(msg.Requester, identities) {
+	if strings.EqualFold(strings.TrimSpace(msg.Requester), user.Email) || s.IsAssigneeMarkedAsMine(msg.Requester, identities) || strings.EqualFold(msg.RequesterCanonical, user.Email) {
 		msg.RequesterCanonical = user.Email
+		msg.Requester = user.PreferredName()
 	}
 }
 

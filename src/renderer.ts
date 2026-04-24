@@ -168,7 +168,7 @@ export function createCardElement(m: Message): string {
     return MessageCard(props);
 }
 
-import { filterByTab, filterByDeadline, TaskTab } from './taskFilter';
+import { filterByDeadline, TaskTab } from './taskFilter';
 
 /**
  * Renders message cards based on categorized data.
@@ -177,41 +177,29 @@ export function renderMessages(categorized: CategorizedMessages): void {
     const searchQuery = (document.getElementById('taskSearch') as HTMLInputElement)?.value || '';
     const dlFilter = state.deadlineFilter || 'all';
 
-    const allTasks = [...(categorized.inbox || []), ...(categorized.pending || [])];
+    const inbox     = categorized.inbox     || [];
+    const delegated = categorized.delegated || [];
+    const reference = categorized.reference || [];
+    const allTasks  = [...inbox, ...delegated, ...reference];
 
-    // O(1) Counter Updates based on categorized data lengths
     const updateCount = (id: string, count: number) => {
         const el = document.getElementById(id);
         if (el) el.textContent = count.toString();
     };
 
-    const delegatedMsgs = filterByTab(categorized.pending || [], 'delegated');
-    const referenceMsgs = filterByTab(categorized.pending || [], 'reference');
-    updateCount('receivedCount', getActiveCount(categorized.inbox));
-    updateCount('delegatedCount', getActiveCount(delegatedMsgs));
-    updateCount('referenceCount', getActiveCount(referenceMsgs));
-    updateCount('allCount', getActiveCount(allTasks));
+    updateCount('receivedCount',  getActiveCount(inbox));
+    updateCount('delegatedCount', getActiveCount(delegated));
+    updateCount('referenceCount', getActiveCount(reference));
+    updateCount('allCount',       getActiveCount(allTasks));
 
     const gridsConfig: { tab: TaskTab, gridId: string, messages: Message[] }[] = [
-        {
-            tab: 'received',
-            gridId: 'receivedTasksList',
-            messages: filterByDeadline(categorized.inbox || [], dlFilter)
-        },
-        {
-            tab: 'delegated',
-            gridId: 'delegatedTasksList',
-            messages: filterByDeadline(delegatedMsgs, dlFilter)
-        },
-        {
-            tab: 'reference',
-            gridId: 'referenceTasksList',
-            messages: filterByDeadline(referenceMsgs, dlFilter)
-        },
+        { tab: 'received',  gridId: 'receivedTasksList',  messages: filterByDeadline(inbox, dlFilter) },
+        { tab: 'delegated', gridId: 'delegatedTasksList', messages: filterByDeadline(delegated, dlFilter) },
+        { tab: 'reference', gridId: 'referenceTasksList', messages: filterByDeadline(reference, dlFilter) },
         {
             tab: 'all',
             gridId: 'allTasksList',
-            messages: filterByDeadline(filterByTab([...allTasks], 'all'), dlFilter).sort((a, b) => {
+            messages: filterByDeadline(allTasks, dlFilter).sort((a, b) => {
                 const dateA = new Date(a.timestamp || a.created_at || 0).getTime();
                 const dateB = new Date(b.timestamp || b.created_at || 0).getTime();
                 return dateB - dateA;
@@ -258,7 +246,7 @@ export const getVisibleUntranslatedIds = (): number[] => {
         if (isNaN(id)) return;
 
         // Use global state to check if it needs translation
-        const all = [...state.messages.inbox, ...state.messages.pending];
+        const all = [...state.messages.inbox, ...state.messages.delegated, ...state.messages.reference];
         const m = all.find(item => item.id === id);
 
         if (m && !m.task_ko && !m.is_translating) {
@@ -293,16 +281,15 @@ export function removeTaskNode(id: number): void {
     });
 
     setTimeout(() => {
-        // Update global counts in UI
-        const allTasks = [...state.messages.inbox, ...state.messages.pending];
+        const allTasks = [...state.messages.inbox, ...state.messages.delegated, ...state.messages.reference];
         const updateCount = (countId: string, count: number) => {
             const el = document.getElementById(countId);
             if (el) el.textContent = count.toString();
         };
-        updateCount('receivedCount', getActiveCount(state.messages.inbox));
-        updateCount('delegatedCount', getActiveCount(filterByTab(state.messages.pending, 'delegated')));
-        updateCount('referenceCount', getActiveCount(filterByTab(state.messages.pending, 'reference')));
-        updateCount('allCount', getActiveCount(allTasks));
+        updateCount('receivedCount',  getActiveCount(state.messages.inbox));
+        updateCount('delegatedCount', getActiveCount(state.messages.delegated));
+        updateCount('referenceCount', getActiveCount(state.messages.reference));
+        updateCount('allCount',       getActiveCount(allTasks));
     }, 300);
 }
 
@@ -323,16 +310,15 @@ export function updateTaskNodeStatus(id: number, done: boolean): void {
         }
     });
 
-    // Update global counts
-    const allTasks = [...state.messages.inbox, ...state.messages.pending];
+    const allTasks = [...state.messages.inbox, ...state.messages.delegated, ...state.messages.reference];
     const updateCount = (id: string, count: number) => {
         const el = document.getElementById(id);
         if (el) el.textContent = count.toString();
     };
-    updateCount('receivedCount', getActiveCount(state.messages.inbox));
-    updateCount('delegatedCount', getActiveCount(filterByTab(state.messages.pending, 'delegated')));
-    updateCount('referenceCount', getActiveCount(filterByTab(state.messages.pending, 'reference')));
-    updateCount('allCount', getActiveCount(allTasks));
+    updateCount('receivedCount',  getActiveCount(state.messages.inbox));
+    updateCount('delegatedCount', getActiveCount(state.messages.delegated));
+    updateCount('referenceCount', getActiveCount(state.messages.reference));
+    updateCount('allCount',       getActiveCount(allTasks));
 }
 
 /**

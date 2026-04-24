@@ -88,7 +88,13 @@ const handlers: ServiceHandlers = {
             // 2. Rollback on Failure
             showToast(state.currentLang === 'ko' ? '삭제 실패' : 'Delete failed', 'error');
             // Restore in state
-            state.messages.inbox = upsertItem(state.messages.inbox, oldTask);
+            if (oldTask.category === 'requested') {
+                state.messages.delegated = upsertItem(state.messages.delegated, oldTask);
+            } else if (oldTask.category === 'personal') {
+                state.messages.inbox = upsertItem(state.messages.inbox, oldTask);
+            } else {
+                state.messages.reference = upsertItem(state.messages.reference, oldTask);
+            }
             // Since it was removed from DOM, we need to trigger a re-render or re-insert
             // Full re-render is safest for rollback
             renderMessages(state.messages);
@@ -217,7 +223,7 @@ async function triggerBatchTranslation(): Promise<void> {
     if (targetLang === 'en') return;
 
     // Mark as translating in state immediately to prevent duplicate triggers
-    const all = [...state.messages.inbox, ...state.messages.pending];
+    const all = [...state.messages.inbox, ...state.messages.delegated, ...state.messages.reference];
     ids.forEach(id => {
         const m = all.find(item => item.id === id);
         if (m) m.is_translating = true;
@@ -484,7 +490,7 @@ const initActionButtons = () => {
         if (!modal || !desc) return;
 
         // Find titles from current messages state
-        const allMsgs = [...state.messages.inbox, ...state.messages.pending];
+        const allMsgs = [...state.messages.inbox, ...state.messages.delegated, ...state.messages.reference];
         const getTitle = (id: number) => {
             const m = allMsgs.find(msg => msg.id === id);
             return m ? (m.task.length > 50 ? m.task.substring(0, 47) + '...' : m.task) : `#${id}`;

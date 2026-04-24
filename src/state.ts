@@ -19,7 +19,7 @@ export const state: AppState = {
     archiveTotalCount: 0,
     archiveThresholdDays: 7, 
     archiveStatus: 'all',
-    messages: { inbox: [], pending: [] },
+    messages: { inbox: [], delegated: [], reference: [] },
     userStats: null,
     selectedTaskIds: new Set<number>(),
     reports: {},
@@ -66,10 +66,11 @@ export const updateStats = (user: Partial<UserProfile> | null): void => {
  * as it's the single source of truth from the backend. 
  */
 export const updateMessages = (messages: CategorizedMessages): void => {
-    const raw = messages || { inbox: [], pending: [] };
+    const raw = messages || { inbox: [], delegated: [], reference: [] };
     state.messages = {
-        inbox: Array.isArray(raw.inbox) ? raw.inbox : [],
-        pending: Array.isArray(raw.pending) ? raw.pending : []
+        inbox:     Array.isArray(raw.inbox)     ? raw.inbox     : [],
+        delegated: Array.isArray(raw.delegated) ? raw.delegated : [],
+        reference: Array.isArray(raw.reference) ? raw.reference : [],
     };
 };
 
@@ -138,8 +139,9 @@ export const removeReportFromState = (startDate: string, endDate: string): void 
  * Use for Optimistic UI updates to avoid full state replacement.
  */
 export const deleteTaskFromState = (id: number): void => {
-    state.messages.inbox = state.messages.inbox.filter(m => m.id !== id);
-    state.messages.pending = state.messages.pending.filter(m => m.id !== id);
+    state.messages.inbox     = state.messages.inbox.filter(m => m.id !== id);
+    state.messages.delegated = state.messages.delegated.filter(m => m.id !== id);
+    state.messages.reference = state.messages.reference.filter(m => m.id !== id);
 };
 
 /**
@@ -147,8 +149,9 @@ export const deleteTaskFromState = (id: number): void => {
  */
 export const updateTaskStatusInState = (id: number, done: boolean): void => {
     const update = (m: Message) => m.id === id ? { ...m, done, completed_at: done ? new Date().toISOString() : undefined } : m;
-    state.messages.inbox = state.messages.inbox.map(update);
-    state.messages.pending = state.messages.pending.map(update);
+    state.messages.inbox     = state.messages.inbox.map(update);
+    state.messages.delegated = state.messages.delegated.map(update);
+    state.messages.reference = state.messages.reference.map(update);
 };
 
 /**
@@ -163,14 +166,12 @@ export const updateSubtaskStateInState = (taskId: number, subtaskIndex: number, 
         }
         return { ...m, subtasks: nextSubtasks };
     };
-    state.messages.inbox = state.messages.inbox.map(update);
-    state.messages.pending = state.messages.pending.map(update);
+    state.messages.inbox     = state.messages.inbox.map(update);
+    state.messages.delegated = state.messages.delegated.map(update);
+    state.messages.reference = state.messages.reference.map(update);
 };
 
-/**
- * Why: O(N) retrieval of a single task from currently loaded categories for rollback.
- */
 export const getTaskById = (id: number): Message | undefined => {
-    const all = [...state.messages.inbox, ...state.messages.pending];
+    const all = [...state.messages.inbox, ...state.messages.delegated, ...state.messages.reference];
     return all.find(m => m.id === id);
 };

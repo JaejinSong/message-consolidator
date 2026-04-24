@@ -2,16 +2,6 @@ import { Message } from './types';
 export type TaskTab = 'received' | 'delegated' | 'reference' | 'all';
 export type DeadlineFilter = 'all' | 'today' | 'week' | 'has_deadline';
 
-export function filterByTab(messages: Message[], tab: TaskTab): Message[] {
-    if (!messages || tab === 'all' || tab === 'received') return messages || [];
-    return messages.filter(m => {
-        const cat = m.category || 'others';
-        if (tab === 'delegated') return cat === 'requested';
-        if (tab === 'reference') return cat !== 'requested';
-        return true;
-    });
-}
-
 export function filterByDeadline(messages: Message[], filter: DeadlineFilter): Message[] {
     if (!messages || filter === 'all') return messages || [];
     const todayStr = new Date().toISOString().slice(0, 10);

@@ -127,6 +127,8 @@ func GetMessages(ctx context.Context, email string) ([]ConsolidatedMessage, erro
 }
 
 // executeUpdateMessageDetails unifies transaction handling, DB execution, and cache invalidation for single-field updates.
+// Why: Full invalidation — callers like MarkMessageDone change `done`, which flips the computed `is_archived` column,
+// moving the message between active and archive caches.
 func executeUpdateMessageDetails(ctx context.Context, q Querier, email string, id int, updateFn func(*db.UpdateMessageDetailsParams)) error {
 	return withTx(ctx, q, func(qw Querier) error {
 		params := db.UpdateMessageDetailsParams{
@@ -137,7 +139,7 @@ func executeUpdateMessageDetails(ctx context.Context, q Querier, email string, i
 		if err := db.New(qw).UpdateMessageDetails(ctx, params); err != nil {
 			return err
 		}
-		InvalidateCacheActive(email)
+		InvalidateCache(email)
 		return nil
 	})
 }
@@ -300,7 +302,9 @@ func MergeTasksWithTitle(ctx context.Context, email string, targetIDs []int64, d
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	InvalidateCacheActive(email)
+	// Why: Full invalidation — MergeTasks sets category='merged' on source tasks,
+	// which flips is_archived to 1, moving them from active to archive cache.
+	InvalidateCache(email)
 	return nil
 }
 
