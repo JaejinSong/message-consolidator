@@ -1,8 +1,7 @@
-// Package channels — Telegram MTProto user-level client (Phase A: auth skeleton).
+// Package channels — Telegram MTProto user-level client.
 // Manages per-user sessions via gotd/td, bridges the HTTP 3-step phone/OTP/2FA flow
-// and the blocking client.Run goroutine through per-user channels.
-//
-// Message ingestion (update handlers, PopMessages) is deferred to Phase B.
+// and the blocking client.Run goroutine through per-user channels, and buffers
+// inbound messages for the scanner via a tg.UpdateDispatcher.
 package channels
 
 import (
@@ -11,6 +10,8 @@ import (
 	"fmt"
 	"message-consolidator/config"
 	"message-consolidator/logger"
+	"message-consolidator/types"
+	"strconv"
 	"sync"
 	"time"
 
@@ -64,8 +65,9 @@ func (s *tgAuthState) getStatus() string {
 // Callbacks (FetchUserTgSession / OnSessionUpdated / OnConnected / OnLoggedOut) implement
 // the same IoC pattern used by WAManager — they decouple this package from store/.
 type TelegramManager struct {
-	states map[string]*tgAuthState
-	mu     sync.RWMutex
+	states        map[string]*tgAuthState
+	messageBuffer map[string]map[string][]types.RawMessage
+	mu            sync.RWMutex
 
 	FetchUserTgSession func(email string) ([]byte, error)
 	OnSessionUpdated   func(email string, data []byte)
@@ -79,6 +81,7 @@ var DefaultTelegramManager = NewTelegramManager()
 func NewTelegramManager() *TelegramManager {
 	return &TelegramManager{
 		states:             make(map[string]*tgAuthState),
+		messageBuffer:      make(map[string]map[string][]types.RawMessage),
 		FetchUserTgSession: func(email string) ([]byte, error) { return nil, nil },
 		OnSessionUpdated:   func(email string, data []byte) {},
 		OnConnected:        func(email string, userID int64) {},
@@ -334,8 +337,10 @@ func (m *TelegramManager) startClient(email string, cfg *config.Config, phone st
 	m.mu.Unlock()
 
 	storage := &dbSessionStorage{email: email, manager: m}
+	dispatcher := m.newDispatcher(email)
 	client := telegram.NewClient(cfg.TelegramAppID, cfg.TelegramAppHash, telegram.Options{
 		SessionStorage: storage,
+		UpdateHandler:  dispatcher,
 	})
 
 	go m.runClient(ctx, email, client, state, restoreOnly)
@@ -344,11 +349,10 @@ func (m *TelegramManager) startClient(email string, cfg *config.Config, phone st
 
 func (m *TelegramManager) runClient(ctx context.Context, email string, client *telegram.Client, state *tgAuthState, restoreOnly bool) {
 	defer func() {
-		// Only clear to disconnected if we never reached connected; a deliberate Logout
-		// already removed the state from the map, so this is a no-op in that path.
 		if state.getStatus() != TGStatusConnected {
 			state.setStatus(TGStatusDisconnected)
 		}
+		m.dropBuffer(email)
 	}()
 
 	err := client.Run(ctx, func(ctx context.Context) error {
@@ -367,13 +371,12 @@ func (m *TelegramManager) runClient(ctx context.Context, email string, client *t
 		m.OnConnected(email, self.ID)
 		logger.Infof("[TG] connected for %s (userID=%d)", email, self.ID)
 
-		// Phase A keeps the client alive so the session stays valid; Phase B will
-		// attach an UpdateDispatcher for inbound message buffering here.
+		// Block until ctx is cancelled — inbound updates are delivered via the
+		// UpdateDispatcher registered on telegram.Options.UpdateHandler.
 		<-ctx.Done()
 		return nil
 	})
 
-	// Non-blocking done signal — the most recent confirm-step is the only expected reader.
 	select {
 	case state.doneChan <- err:
 	default:
@@ -435,3 +438,158 @@ func ConfirmTelegramPassword(email, password string) error {
 }
 
 func LogoutTelegram(email string) error { return DefaultTelegramManager.LogoutTelegram(email) }
+
+// newDispatcher builds the per-user UpdateDispatcher. Registered in startClient
+// via telegram.Options.UpdateHandler so the gotd client invokes it on every push.
+func (m *TelegramManager) newDispatcher(email string) tg.UpdateDispatcher {
+	d := tg.NewUpdateDispatcher()
+	d.OnNewMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateNewMessage) error {
+		m.ingestMessage(email, e, u.Message)
+		return nil
+	})
+	d.OnNewChannelMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateNewChannelMessage) error {
+		m.ingestMessage(email, e, u.Message)
+		return nil
+	})
+	return d
+}
+
+// ingestMessage narrows MessageClass to *tg.Message (skips MessageService/Empty)
+// and pushes a normalized RawMessage into the per-chat buffer.
+func (m *TelegramManager) ingestMessage(email string, e tg.Entities, mc tg.MessageClass) {
+	msg, ok := mc.(*tg.Message)
+	if !ok || msg.Message == "" {
+		return
+	}
+	chatKey, ok := peerKey(msg.PeerID)
+	if !ok {
+		return
+	}
+	raw := m.parseMessage(e, msg)
+	m.bufferMessage(email, chatKey, raw)
+	logger.Debugf("[TG-EVENT][%s] %s: %s", email, chatKey, raw.Text)
+}
+
+// parseMessage maps a *tg.Message into types.RawMessage. Sender display name
+// and reply-to sender are resolved from the dispatched Entities.Users map.
+func (m *TelegramManager) parseMessage(e tg.Entities, msg *tg.Message) types.RawMessage {
+	senderID, senderName := resolveSender(e, msg)
+	var replyToID string
+	var repliedUser string
+	if h, ok := msg.ReplyTo.(*tg.MessageReplyHeader); ok {
+		if id, have := h.GetReplyToMsgID(); have {
+			replyToID = strconv.Itoa(id)
+		}
+	}
+	_, _, _ = repliedUser, senderID, senderName
+
+	return types.RawMessage{
+		ID:            strconv.Itoa(msg.ID),
+		Sender:        senderID,
+		SenderName:    senderName,
+		Text:          msg.Message,
+		Timestamp:     time.Unix(int64(msg.Date), 0),
+		ReplyToID:     replyToID,
+		IsFromMe:      msg.Out,
+		HasAttachment: msg.Media != nil,
+	}
+}
+
+// peerKey converts the message's PeerID into a stable scanner-facing string key.
+// Prefixes ("tg_user_" / "tg_chat_" / "tg_channel_") distinguish DM vs group later.
+func peerKey(p tg.PeerClass) (string, bool) {
+	switch v := p.(type) {
+	case *tg.PeerUser:
+		return fmt.Sprintf("tg_user_%d", v.UserID), true
+	case *tg.PeerChat:
+		return fmt.Sprintf("tg_chat_%d", v.ChatID), true
+	case *tg.PeerChannel:
+		return fmt.Sprintf("tg_channel_%d", v.ChannelID), true
+	default:
+		return "", false
+	}
+}
+
+// resolveSender returns (senderID, senderName). Missing FromID falls back to PeerID
+// (DM case where the whole chat is the sender).
+func resolveSender(e tg.Entities, msg *tg.Message) (string, string) {
+	if from, ok := msg.GetFromID(); ok {
+		if pu, ok := from.(*tg.PeerUser); ok {
+			return strconv.FormatInt(pu.UserID, 10), userName(e, pu.UserID)
+		}
+	}
+	if pu, ok := msg.PeerID.(*tg.PeerUser); ok {
+		return strconv.FormatInt(pu.UserID, 10), userName(e, pu.UserID)
+	}
+	return "", ""
+}
+
+func userName(e tg.Entities, id int64) string {
+	u, ok := e.Users[id]
+	if !ok {
+		return ""
+	}
+	name := u.FirstName
+	if u.LastName != "" {
+		if name != "" {
+			name += " "
+		}
+		name += u.LastName
+	}
+	if name == "" {
+		name = u.Username
+	}
+	return name
+}
+
+// bufferMessage appends raw into email→chatKey circular buffer (cap 200).
+func (m *TelegramManager) bufferMessage(email, chatKey string, raw types.RawMessage) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.messageBuffer[email]; !ok {
+		m.messageBuffer[email] = make(map[string][]types.RawMessage)
+	}
+	buf := append(m.messageBuffer[email][chatKey], raw)
+	if len(buf) > 200 {
+		buf = buf[len(buf)-200:]
+	}
+	m.messageBuffer[email][chatKey] = buf
+}
+
+// PopMessages atomically drains every chat buffer for the given user.
+func (m *TelegramManager) PopMessages(email string) map[string][]types.RawMessage {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	userBuf, ok := m.messageBuffer[email]
+	if !ok || len(userBuf) == 0 {
+		return nil
+	}
+
+	out := make(map[string][]types.RawMessage, len(userBuf))
+	for k, msgs := range userBuf {
+		if len(msgs) > 0 {
+			out[k] = msgs
+		}
+	}
+	m.messageBuffer[email] = make(map[string][]types.RawMessage)
+	return out
+}
+
+func (m *TelegramManager) dropBuffer(email string) {
+	m.mu.Lock()
+	delete(m.messageBuffer, email)
+	m.mu.Unlock()
+}
+
+// GetGroupName returns a human-friendly label for a chat key. Phase B fallback:
+// the numeric tail of the key. Real name resolution may be added in a later pass
+// once we cache entities server-side.
+func (m *TelegramManager) GetGroupName(_ string, chatKey string) string {
+	for _, prefix := range []string{"tg_user_", "tg_chat_", "tg_channel_"} {
+		if len(chatKey) > len(prefix) && chatKey[:len(prefix)] == prefix {
+			return chatKey[len(prefix):]
+		}
+	}
+	return chatKey
+}

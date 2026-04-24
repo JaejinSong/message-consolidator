@@ -160,6 +160,12 @@ func scanUserChannels(ctx context.Context, email string, effAl []string, wg *syn
 		scanWhatsApp(ctx, *user, effAl, "Korean", wg)
 		return nil
 	})
+
+	eg.Go(func() error {
+		user, _ := store.GetOrCreateUser(ctx, email, "", "")
+		scanTelegram(ctx, *user, effAl, "Korean", wg)
+		return nil
+	})
 	return eg.Wait()
 }
 

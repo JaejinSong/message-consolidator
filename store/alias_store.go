@@ -329,6 +329,23 @@ func GetUserByWAJID(jid string) (*User, error) {
 	return nil, fmt.Errorf("user with WAJID %s not found in cache", jid)
 }
 
+// GetUserByTgID searches the user cache by Telegram user ID (stringified int64).
+func GetUserByTgID(tgUserID string) (*User, error) {
+	metadataMu.RLock()
+	defer metadataMu.RUnlock()
+
+	if tgUserID == "" {
+		return nil, fmt.Errorf("empty Telegram user ID provided")
+	}
+
+	for _, u := range userCache {
+		if u.TgUserID == tgUserID {
+			return u, nil
+		}
+	}
+	return nil, fmt.Errorf("user with TgUserID %s not found in cache", tgUserID)
+}
+
 // GetUserAliasesByEmailFromCache returns only the display-name aliases for a canonical email.
 // The canonical email itself is excluded — it is an identity, not an alias.
 func GetUserAliasesByEmailFromCache(ctx context.Context, email string) ([]string, error) {
