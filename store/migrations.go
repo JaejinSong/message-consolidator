@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"message-consolidator/db"
 	"message-consolidator/logger"
+	"strings"
 )
 
 func createCoreTables(ctx context.Context, q db.DBTX) error {
@@ -118,6 +119,50 @@ func migrateExistingData(ctx context.Context, q db.DBTX) {
 	}
 
 	migrateTokenUsageBreakdown(ctx, q)
+	migrateOriginalTextOrder(ctx, q)
+}
+
+// migrateOriginalTextOrder reverses block order in messages.original_text so newest appears first.
+// Why: matches the post-2026-04-24 append queries (prepend pattern). Historical rows stored oldest-first.
+func migrateOriginalTextOrder(ctx context.Context, q db.DBTX) {
+	if tableHasColumn(ctx, q, "messages", "original_text_flipped") {
+		return
+	}
+	if _, err := q.ExecContext(ctx, "ALTER TABLE messages ADD COLUMN original_text_flipped INTEGER DEFAULT 0"); err != nil {
+		logger.Errorf("[MIGRATE] original_text flip: add column failed: %v", err)
+		return
+	}
+
+	rows, err := q.QueryContext(ctx, "SELECT id, original_text FROM messages WHERE original_text LIKE '%' || char(10) || char(10) || '%'")
+	if err != nil {
+		logger.Errorf("[MIGRATE] original_text flip: query failed: %v", err)
+		return
+	}
+	type pair struct {
+		id   int
+		text string
+	}
+	var pending []pair
+	for rows.Next() {
+		var p pair
+		if err := rows.Scan(&p.id, &p.text); err == nil {
+			pending = append(pending, p)
+		}
+	}
+	rows.Close()
+
+	reversed := 0
+	for _, p := range pending {
+		blocks := strings.Split(p.text, "\n\n")
+		for i, j := 0, len(blocks)-1; i < j; i, j = i+1, j-1 {
+			blocks[i], blocks[j] = blocks[j], blocks[i]
+		}
+		if _, err := q.ExecContext(ctx, "UPDATE messages SET original_text = ?, original_text_flipped = 1 WHERE id = ?", strings.Join(blocks, "\n\n"), p.id); err == nil {
+			reversed++
+		}
+	}
+	_, _ = q.ExecContext(ctx, "UPDATE messages SET original_text_flipped = 1 WHERE original_text_flipped = 0")
+	logger.Infof("[MIGRATE] original_text order flipped for %d multi-block rows (of %d pending)", reversed, len(pending))
 }
 
 // migrateTokenUsageBreakdown rebuilds token_usage with step/model/source/call_count columns

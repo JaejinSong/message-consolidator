@@ -29,20 +29,20 @@ UPDATE messages SET subtasks = ? WHERE id = ? AND user_email = ?;
 
 -- name: UpdateTaskFullAppend :exec
 UPDATE messages
-SET task = ?,
-    original_text = original_text || char(10) || char(10) || ?
-WHERE id = ? AND user_email = ? AND room = ?;
+SET task = sqlc.arg(task),
+    original_text = sqlc.arg(original_text) || char(10) || char(10) || original_text
+WHERE id = sqlc.arg(id) AND user_email = sqlc.arg(user_email) AND room = sqlc.arg(room);
 
 -- name: AppendOriginalText :exec
 UPDATE messages
-SET original_text = original_text || char(10) || char(10) || ?
-WHERE id = ? AND user_email = ? AND room = ?;
+SET original_text = sqlc.arg(original_text) || char(10) || char(10) || original_text
+WHERE id = sqlc.arg(id) AND user_email = sqlc.arg(user_email) AND room = sqlc.arg(room);
 
 -- name: UpdateTaskMergeComplete :exec
 UPDATE messages
-SET task = ?,
-    original_text = original_text || char(10) || char(10) || ?
-WHERE id = ? AND user_email = ? AND room = ?;
+SET task = sqlc.arg(task),
+    original_text = sqlc.arg(original_text) || char(10) || char(10) || original_text
+WHERE id = sqlc.arg(id) AND user_email = sqlc.arg(user_email) AND room = sqlc.arg(room);
 
 
 -- name: DeleteMessages :exec

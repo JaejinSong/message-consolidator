@@ -13,8 +13,8 @@ import (
 
 const appendOriginalText = `-- name: AppendOriginalText :exec
 UPDATE messages
-SET original_text = original_text || char(10) || char(10) || ?
-WHERE id = ? AND user_email = ? AND room = ?
+SET original_text = ?1 || char(10) || char(10) || original_text
+WHERE id = ?2 AND user_email = ?3 AND room = ?4
 `
 
 type AppendOriginalTextParams struct {
@@ -1168,9 +1168,9 @@ func (q *Queries) UpdateSubtasks(ctx context.Context, arg UpdateSubtasksParams) 
 
 const updateTaskFullAppend = `-- name: UpdateTaskFullAppend :exec
 UPDATE messages
-SET task = ?,
-    original_text = original_text || char(10) || char(10) || ?
-WHERE id = ? AND user_email = ? AND room = ?
+SET task = ?1,
+    original_text = ?2 || char(10) || char(10) || original_text
+WHERE id = ?3 AND user_email = ?4 AND room = ?5
 `
 
 type UpdateTaskFullAppendParams struct {
@@ -1194,9 +1194,9 @@ func (q *Queries) UpdateTaskFullAppend(ctx context.Context, arg UpdateTaskFullAp
 
 const updateTaskMergeComplete = `-- name: UpdateTaskMergeComplete :exec
 UPDATE messages
-SET task = ?,
-    original_text = original_text || char(10) || char(10) || ?
-WHERE id = ? AND user_email = ? AND room = ?
+SET task = ?1,
+    original_text = ?2 || char(10) || char(10) || original_text
+WHERE id = ?3 AND user_email = ?4 AND room = ?5
 `
 
 type UpdateTaskMergeCompleteParams struct {
