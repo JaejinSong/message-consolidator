@@ -25,7 +25,7 @@ services:
     pull_policy: always
     volumes:
       - caddy_assets:/public
-    restart: always
+    restart: "no"
     networks:
       - mc-network
 

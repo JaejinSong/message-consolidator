@@ -1,5 +1,5 @@
 # WhaTap Builder Image for Go Backend
-FROM golang:alpine
+FROM golang:1.26-alpine
 
 # 1. Install necessary build tools
 RUN apk add --no-cache git wget tar upx

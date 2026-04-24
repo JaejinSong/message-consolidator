@@ -41,8 +41,6 @@ export GEMINI_API_KEY_FOR_TEST=${GEMINI_API_KEY_FOR_TEST:-$GEMINI_API_KEY}
 # Final image vars
 IMAGE_FE_TAG="${REGISTRY}/frontend:${BUILD_TAG}"
 IMAGE_BE_TAG="${REGISTRY}/backend:${BUILD_TAG}"
-FINAL_FE_IMAGE=${FE_IMAGE:-"${REGISTRY}/frontend:latest"}
-FINAL_BE_IMAGE=${BE_IMAGE:-"${REGISTRY}/backend:latest"}
 
 # --- Helpers ---
 
@@ -85,7 +83,6 @@ chain_be() {
     build_be
     echo -e "${BLUE}==> Pushing Backend...${NC}"
     run_step "BE: Push" bash -c "docker push ${IMAGE_BE_TAG} > /dev/null 2>&1 && docker push ${REGISTRY}/backend:latest > /dev/null 2>&1"
-    FINAL_BE_IMAGE="${IMAGE_BE_TAG}"
     echo -e "${BLUE}==> Deploying Backend Container...${NC}"
     run_step "BE: Deploy" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose up -d --force-recreate backend"
 }
@@ -94,7 +91,6 @@ chain_fe() {
     build_fe
     echo -e "${BLUE}==> Pushing Frontend...${NC}"
     run_step "FE: Push" bash -c "docker push ${IMAGE_FE_TAG} > /dev/null 2>&1 && docker push ${REGISTRY}/frontend:latest > /dev/null 2>&1"
-    FINAL_FE_IMAGE="${IMAGE_FE_TAG}"
     echo -e "${BLUE}==> Deploying Frontend Container...${NC}"
     run_step "FE: Deploy" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose up -d --force-recreate frontend"
 }
@@ -104,11 +100,6 @@ chain_caddy() {
     # Why: Reloading Caddy in-place for zero-downtime config updates.
     run_step "Caddy: Reload" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile" || \
     run_step "Caddy: Restart" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose restart caddy"
-}
-
-task_db_sync() {
-    # Deprecated: No local test.db synchronization needed for In-Memory/Remote DB strategy.
-    return 0
 }
 
 
@@ -141,24 +132,30 @@ echo -e "${BLUE}==================================================${NC}"
 # 2.0 Prep: Sync Config Files to VPS
 echo -e "${BLUE}==> Syncing Orchestration Files...${NC}"
 grep -vE '^(FE_IMAGE|BE_IMAGE)=' .env > .env.vps
-echo "FE_IMAGE=${IMAGE_FE_TAG}" >> .env.vps
-echo "BE_IMAGE=${IMAGE_BE_TAG}" >> .env.vps
+if [[ "$MODE" == "all" || "$MODE" == "fe" ]]; then
+    echo "FE_IMAGE=${IMAGE_FE_TAG}" >> .env.vps
+else
+    grep '^FE_IMAGE=' .env >> .env.vps || true
+fi
+if [[ "$MODE" == "all" || "$MODE" == "be" ]]; then
+    echo "BE_IMAGE=${IMAGE_BE_TAG}" >> .env.vps
+else
+    grep '^BE_IMAGE=' .env >> .env.vps || true
+fi
 run_step "Upload Configs" ${SCP_CMD} .env.vps docker-compose.yml Caddyfile ${VPS_NAME}:~/message-consolidator/
 ${SSH_CMD} "cd ~/message-consolidator && mv .env.vps .env"
 
 # 2.1 Start Chains
-p_be=""; p_fe=""; p_caddy=""; p_sync=""
+p_be=""; p_fe=""; p_caddy=""
 
 if [[ "$MODE" == "all" || "$MODE" == "be" ]]; then chain_be & p_be=$!; fi
 if [[ "$MODE" == "all" || "$MODE" == "fe" ]]; then chain_fe & p_fe=$!; fi
 chain_caddy & p_caddy=$!
-task_db_sync & p_sync=$!
 
 # 2.2 Wait for Convergence
 [ -n "$p_be" ] && { wait $p_be || exit 1; }
 [ -n "$p_fe" ] && { wait $p_fe || exit 1; }
 wait $p_caddy || exit 1
-wait $p_sync || exit 1
 
 echo -e "\n${GREEN}Stage 2 complete! Infrastructure updated.${NC}"
 
