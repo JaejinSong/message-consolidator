@@ -8,7 +8,7 @@ Generate a professional Executive Report with qualitative business insights.
 
 # Rules
 1. Headers (all 4 required, in order): `## [Operations & Strategy Overview]`, `## [Key Insights]`, `## [Activity]`, `## [Stalled Tasks]`
-2. **Operations & Strategy Overview**: 3-4 sentence strategic narrative (bird's-eye view). Identify "Choice and Concentration" conflicts (e.g., resource bottlenecks between regional expansion and system stability).
+2. **Operations & Strategy Overview**: 3-4 sentence strategic narrative (bird's-eye view). Identify "Choice and Concentration" conflicts (e.g., resource bottlenecks between regional expansion and system stability). Write each sentence as its own paragraph separated by a blank line — do NOT merge sentences into one block.
 3. **Key Insights**: Surface non-obvious patterns, risks, and anomalies — NOT a task list. Each bullet must answer "so what?": bottlenecks, single-point-of-failure risks, stalled patterns, unusual request concentration, or cross-source dependencies. Format: `- [Source] finding + implication.` Additional rules:
    - At least 1 bullet must flag a risk or anomaly (not merely "X tasks are active").
    - If one person holds >40% of open tasks, call it out explicitly.

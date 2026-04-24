@@ -28,7 +28,7 @@
 }
 
 .c-report-card__title {
-    font-size: 1.25rem;
+    font-size: 1.3125rem;
     font-weight: 800;
     color: var(--accent-color);
     letter-spacing: -0.02em;
@@ -36,15 +36,15 @@
 }
 
 .c-report-card__meta {
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     color: var(--text-dim);
     margin-top: var(--spacing-xs);
 }
 
 /* Typography Hierarchy for Markdown Content */
 .c-report-content {
-    line-height: 1.6;
-    font-size: 1rem;
+    line-height: 1.7;
+    font-size: 1.0625rem;
     color: var(--text-main);
 }
 
@@ -103,7 +103,7 @@
 }
 
 .c-report-viz__title {
-    font-size: 0.875rem;
+    font-size: 0.9375rem;
     font-weight: 700;
     color: var(--text-dim);
     text-transform: uppercase;
@@ -159,7 +159,7 @@
 }
 
 .c-report-viz__label {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     pointer-events: none;
     fill: var(--text-dim);
     font-weight: 500;
@@ -206,7 +206,7 @@
     }
     
     .c-report-card__title {
-        font-size: 1.125rem;
+        font-size: 1.1875rem;
     }
 }
 
@@ -239,21 +239,21 @@
 }
 
 .c-insights-report-item__title {
-    font-size: 0.875rem;
+    font-size: 0.9375rem;
     font-weight: 600;
     color: var(--text-main);
 }
 
 .c-insights-report-item__meta {
     margin-top: 0.125rem;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     color: var(--text-dim);
 }
 
 .c-report-list__empty {
     text-align: center;
     color: var(--text-dim);
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
 }
 
 .c-reports-empty-state {
@@ -270,7 +270,7 @@
 
 .c-insights-report-item__status {
     margin-top: var(--spacing-xs);
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -289,4 +289,82 @@
 
 .c-insights-report-item__status--failed {
     color: var(--color-danger);
+}
+
+/* =============================================
+   @media print — PDF Export
+   ============================================= */
+@media print {
+    /* 보고서 영역 외 모든 요소 숨김 */
+    body > *:not(#app),
+    #app > *:not(#mainContent),
+    header,
+    nav,
+    .c-nav,
+    .c-tabs,
+    .c-tabs__btn,
+    .insights-report-header,
+    .c-insights-report-sidebar,
+    #insightsStatsTab,
+    #archiveSection,
+    #taskSection,
+    #btnExportPDF,
+    #btnGenerateReport,
+    .c-report-warning {
+        display: none !important;
+    }
+
+    /* 보고서 레이아웃 print용 펼치기 */
+    html, body {
+        background: #fff !important;
+        color: #111 !important;
+    }
+
+    #insightsReportsTab,
+    .c-insights-report-layout,
+    .c-insights-report-main,
+    #reportDetailArea {
+        display: block !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+
+    /* SVG 차트 색상 강제 출력 */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* 차트 좌우 배치 유지, 페이지 넘김 방지 */
+    .c-report-viz-container--row {
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 1rem !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    .c-report-viz-panel {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+    }
+
+    /* 섹션 간 페이지 넘김 허용 */
+    .c-insights-report-summary { page-break-after: auto; }
+    .c-insights-report-viz    { page-break-before: auto; }
+
+    /* 본문 typography */
+    .c-report-content {
+        font-size: 11pt !important;
+        line-height: 1.6 !important;
+        color: #111 !important;
+    }
+
+    .c-report-content h2, .c-report-content h3 {
+        color: #000 !important;
+    }
 }

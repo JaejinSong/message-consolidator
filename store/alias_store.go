@@ -21,6 +21,21 @@ func NormalizeIdentifier(id string) string {
 	return decorativeEdgeRe.ReplaceAllString(id, "")
 }
 
+// sortedNameTokens returns a canonical token-sorted form of a normalized name.
+// Used to detect reversed-order names (e.g. "Phathit Chulothok" ↔ "Chulothok Phathit").
+// Identifiers containing "@" or "+" (email, phone) are returned unchanged.
+func sortedNameTokens(norm string) string {
+	if norm == "" || strings.ContainsAny(norm, "@+") {
+		return norm
+	}
+	tokens := strings.Fields(norm)
+	if len(tokens) <= 1 {
+		return norm
+	}
+	slices.Sort(tokens)
+	return strings.Join(tokens, " ")
+}
+
 func NormalizeName(tenantEmail, name string) string {
 	if name == "" {
 		return ""

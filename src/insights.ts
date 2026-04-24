@@ -143,6 +143,11 @@ export const insights = {
             generateBtn.addEventListener('click', () => this.generateNewReport());
         }
 
+        const exportBtn = document.getElementById('btnExportPDF');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => this.exportToPDF());
+        }
+
         const reportList = document.getElementById('reportList');
         if (reportList) {
             reportList.addEventListener('click', async (e) => {
@@ -359,6 +364,17 @@ export const insights = {
             }
         }
         insightsRenderer.renderReport(report, lang, i18n);
+        document.getElementById('btnExportPDF')?.classList.remove('u-hidden');
+    },
+
+    exportToPDF() {
+        const report = this.lastReport;
+        const prevTitle = document.title;
+        if (report?.start_date && report?.end_date) {
+            document.title = `Report_${report.start_date}_${report.end_date}`;
+        }
+        window.print();
+        document.title = prevTitle;
     },
 
     async refreshData() {

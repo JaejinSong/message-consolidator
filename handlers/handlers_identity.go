@@ -86,6 +86,22 @@ func (a *API) runProposalJob(email string) *proposalJob {
 		inserted++
 	}
 
+	// Token-sort proposals: detect reversed-order names (e.g. "Phathit Chulothok" ↔ "Chulothok Phathit").
+	tokenProposals, err := store.GenerateTokenSortedProposals(ctx, email, handledPairs)
+	if err != nil {
+		return &proposalJob{Status: "error", ErrMsg: err.Error()}
+	}
+	for _, p := range tokenProposals {
+		if allPairsHandled(p.ContactIDs, handledPairs) {
+			continue
+		}
+		groupID := store.NewGroupID()
+		if err := store.InsertProposalGroup(ctx, groupID, p.ContactIDs, p.Confidence, p.Reason); err != nil {
+			return &proposalJob{Status: "error", ErrMsg: err.Error()}
+		}
+		inserted++
+	}
+
 	return &proposalJob{Status: "done", Count: inserted, AutoMerged: autoMerged}
 }
 

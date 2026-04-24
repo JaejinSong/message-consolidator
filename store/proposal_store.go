@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"message-consolidator/db"
 	"sort"
+	"strings"
 )
 
 // ProposalGroup is a pending identity merge proposal returned to the UI.
@@ -257,4 +258,137 @@ func getContactsByIDs(ctx context.Context, _ string, ids []int64) ([]ContactReco
 		result = append(result, *c)
 	}
 	return result, nil
+}
+
+// PendingProposal is an intermediate merge candidate before DB persistence.
+type PendingProposal struct {
+	ContactIDs []int64
+	Confidence float64
+	Reason     string
+}
+
+// GenerateTokenSortedProposals detects contacts whose name tokens match when sorted
+// alphabetically (e.g. "Phathit Chulothok" ↔ "Chulothok Phathit").
+// Also checks unresolved message requester/assignee names against existing contacts.
+func GenerateTokenSortedProposals(ctx context.Context, tenantEmail string, handledPairs map[[2]int64]bool) ([]PendingProposal, error) {
+	contacts, err := fetchAllTenantContacts(ctx, tenantEmail)
+	if err != nil {
+		return nil, err
+	}
+
+	type entry struct {
+		id   int64
+		name string
+	}
+	tokenGroups := make(map[string][]entry)
+	for _, c := range contacts {
+		if c.MasterContactID.Valid {
+			continue
+		}
+		key := sortedNameTokens(NormalizeIdentifier(c.DisplayName))
+		if key == "" || len(strings.Fields(key)) < 2 {
+			continue
+		}
+		tokenGroups[key] = append(tokenGroups[key], entry{c.ID, c.DisplayName})
+	}
+
+	var proposals []PendingProposal
+
+	for key, group := range tokenGroups {
+		if len(group) < 2 {
+			continue
+		}
+		seen := make(map[int64]bool)
+		var ids []int64
+		for i := 0; i < len(group); i++ {
+			for j := i + 1; j < len(group); j++ {
+				a, b := group[i].id, group[j].id
+				if a > b {
+					a, b = b, a
+				}
+				if handledPairs[[2]int64{a, b}] {
+					continue
+				}
+				for _, id := range []int64{group[i].id, group[j].id} {
+					if !seen[id] {
+						seen[id] = true
+						ids = append(ids, id)
+					}
+				}
+			}
+		}
+		if len(ids) < 2 {
+			continue
+		}
+		proposals = append(proposals, PendingProposal{
+			ContactIDs: ids,
+			Confidence: 0.7,
+			Reason:     fmt.Sprintf("Name word order may be reversed (sorted key: '%s')", key),
+		})
+	}
+
+	unresolvedNames, err := getUnresolvedMessageNames(ctx, tenantEmail)
+	if err != nil {
+		return proposals, nil // non-fatal
+	}
+	for _, rawName := range unresolvedNames {
+		key := sortedNameTokens(NormalizeIdentifier(rawName))
+		if key == "" || len(strings.Fields(key)) < 2 {
+			continue
+		}
+		group, ok := tokenGroups[key]
+		if !ok {
+			continue
+		}
+		norm := NormalizeIdentifier(rawName)
+		newID, err := UpsertContact(ctx, tenantEmail, norm, rawName, "", "auto-detected")
+		if err != nil || newID == 0 {
+			continue
+		}
+		for _, existing := range group {
+			a, b := newID, existing.id
+			if a > b {
+				a, b = b, a
+			}
+			if handledPairs[[2]int64{a, b}] {
+				continue
+			}
+			proposals = append(proposals, PendingProposal{
+				ContactIDs: []int64{newID, existing.id},
+				Confidence: 0.7,
+				Reason:     fmt.Sprintf("Name '%s' may be '%s' with word order reversed", rawName, existing.name),
+			})
+		}
+	}
+	return proposals, nil
+}
+
+// getUnresolvedMessageNames returns distinct requester/assignee strings from messages
+// that have no matching entry in contact_resolution for this tenant.
+func getUnresolvedMessageNames(ctx context.Context, tenantEmail string) ([]string, error) {
+	rows, err := GetDB().QueryContext(ctx, `
+		SELECT DISTINCT name FROM (
+			SELECT requester AS name FROM messages WHERE user_email = ?
+			UNION
+			SELECT assignee  AS name FROM messages WHERE user_email = ?
+		)
+		WHERE name IS NOT NULL AND name != ''
+		  AND name NOT LIKE '%@%'
+		  AND NOT EXISTS (
+		      SELECT 1 FROM contact_resolution cr
+		      WHERE cr.tenant_email = ? AND cr.raw_identifier = LOWER(name)
+		  )
+	`, tenantEmail, tenantEmail, tenantEmail)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var names []string
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err == nil {
+			names = append(names, n)
+		}
+	}
+	return names, rows.Err()
 }

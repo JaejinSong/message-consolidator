@@ -28,6 +28,9 @@
       "Bash(npx ts-unused-exports *)",
       "Bash(deadcode .)",
       "Bash(deadcode -test .)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
     ]
   }
 }

@@ -44,9 +44,13 @@ function showTooltip(e: MouseEvent, content: string) {
         document.body.appendChild(tooltip);
     }
     tooltip.innerHTML = content;
-    tooltip.style.left = `${e.pageX + 15}px`;
-    tooltip.style.top = `${e.pageY + 15}px`;
     tooltip.style.display = 'block';
+    const tw = tooltip.offsetWidth;
+    const th = tooltip.offsetHeight;
+    const left = e.pageX + 15 + tw > window.innerWidth ? e.pageX - tw - 10 : e.pageX + 15;
+    const top = e.pageY + 15 + th > window.innerHeight ? e.pageY - th - 10 : e.pageY + 15;
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
 }
 
 function hideTooltip() {
@@ -195,103 +199,6 @@ function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): v
     container.appendChild(svg);
 }
 
-const SANKEY_PALETTE = [
-    'hsl(210,80%,65%)', 'hsl(150,65%,55%)', 'hsl(45,90%,60%)',
-    'hsl(280,65%,68%)', 'hsl(0,72%,65%)',   'hsl(185,70%,55%)',
-    'hsl(330,68%,65%)', 'hsl(30,80%,62%)',  'hsl(240,60%,72%)',
-    'hsl(90,62%,58%)',
-];
-
-/**
- * Renders a Sankey Chart using SVG.
- * Each source gets a distinct color; hover highlights all paths from that source.
- */
-function renderSankeySVG(container: HTMLElement, nodes: any[], links: any[]): void {
-    if (!container || !Array.isArray(nodes) || !Array.isArray(links)) return;
-    const width = container.clientWidth || 800;
-    const height = container.clientHeight || 400;
-    const svg = createSVGElement('svg', { width: '100%', height: '100%', viewBox: `0 0 ${width} ${height}` });
-
-    const outVol = new Map<string, number>();
-    const inVol  = new Map<string, number>();
-    links.forEach(l => {
-        const v = l.value ?? l.weight ?? 1;
-        outVol.set(l.source, (outVol.get(l.source) || 0) + v);
-        inVol.set(l.target,  (inVol.get(l.target)  || 0) + v);
-    });
-
-    const sourceIds = [...new Set(links.map(l => l.source))]
-        .sort((a, b) => (outVol.get(b) || 0) - (outVol.get(a) || 0));
-    const targetIds = [...new Set(links.map(l => l.target))]
-        .filter(id => !sourceIds.includes(id))
-        .sort((a, b) => (inVol.get(b) || 0) - (inVol.get(a) || 0));
-
-    const sourceColor = new Map(sourceIds.map((id, i) => [id, SANKEY_PALETTE[i % SANKEY_PALETTE.length]]));
-
-    const layout = (ids: string[], x: number) => {
-        const step = height / (ids.length + 1);
-        return new Map(ids.map((id, i) => [id, { x, y: (i + 1) * step }]));
-    };
-    const sCoords = layout(sourceIds, 130);
-    const tCoords = layout(targetIds, width - 130);
-
-    const pathsBySource = new Map<string, SVGElement[]>();
-
-    links.forEach(l => {
-        const s = sCoords.get(l.source);
-        const t = tCoords.get(l.target);
-        if (!s || !t) return;
-        const v   = l.value ?? l.weight ?? 1;
-        const sw  = Math.max(2, Math.min(20, Math.sqrt(v) * 4));
-        const col = sourceColor.get(l.source) || 'var(--color-primary)';
-        const mx  = (s.x + t.x) / 2;
-        const d   = `M ${s.x} ${s.y} C ${mx} ${s.y}, ${mx} ${t.y}, ${t.x} ${t.y}`;
-
-        const path = createSVGElement('path', {
-            d, fill: 'none', 'stroke-width': sw, stroke: col, opacity: '0.45'
-        });
-        const tip = `<b>${escapeHTML(getNodeName(nodes, l.source))} → ${escapeHTML(getNodeName(nodes, l.target))}</b><br/>${v}건`;
-        path.addEventListener('mousemove', (e) => showTooltip(e as MouseEvent, tip));
-        path.addEventListener('mouseenter', () => pathsBySource.get(l.source)?.forEach(p => p.setAttribute('opacity', '1')));
-        path.addEventListener('mouseleave', () => { hideTooltip(); pathsBySource.get(l.source)?.forEach(p => p.setAttribute('opacity', '0.45')); });
-
-        if (!pathsBySource.has(l.source)) pathsBySource.set(l.source, []);
-        pathsBySource.get(l.source)!.push(path);
-        svg.appendChild(path);
-    });
-
-    const NODE_W = 12;
-    [...sCoords, ...tCoords].forEach(([id, p]) => {
-        const n = nodes.find(node => node.id === id);
-        if (!n) return;
-        const isSource = sCoords.has(id);
-        const totalVol = (outVol.get(id) || 0) + (inVol.get(id) || 0);
-        const h   = Math.max(20, 8 + Math.sqrt(totalVol) * 5);
-        const col = isSource
-            ? (sourceColor.get(id) || 'var(--color-primary)')
-            : (n.is_me ? 'var(--color-warning)' : n.category === 'Internal' ? 'var(--color-success)' : 'var(--color-info)');
-
-        const rect = createSVGElement('rect', {
-            x: p.x - NODE_W / 2, y: p.y - h / 2, width: NODE_W, height: h, rx: 3, fill: col
-        });
-        rect.addEventListener('mouseenter', () => pathsBySource.get(id)?.forEach(p => p.setAttribute('opacity', '1')));
-        rect.addEventListener('mouseleave', () => pathsBySource.get(id)?.forEach(p => p.setAttribute('opacity', '0.45')));
-        svg.appendChild(rect);
-
-        const raw = n.name || n.id;
-        const label = raw.length > 18 ? raw.slice(0, 17) + '…' : raw;
-        const text = createSVGElement('text', {
-            x: p.x + (isSource ? -(NODE_W / 2 + 6) : (NODE_W / 2 + 6)),
-            y: p.y, 'text-anchor': isSource ? 'end' : 'start', 'dominant-baseline': 'middle',
-            fill: 'var(--text-main)', style: 'font-size:0.72rem;font-weight:500;'
-        });
-        text.textContent = label;
-        svg.appendChild(text);
-    });
-
-    container.appendChild(svg);
-}
-
 const TOP_N = 10;
 const MATRIX_LABEL_W = 130;
 const MATRIX_LABEL_H = 90;
@@ -358,11 +265,7 @@ function renderMatrixSVG(container: HTMLElement, nodes: any[], links: any[]): vo
         preserveAspectRatio: 'xMinYMin meet'
     });
 
-    const titleEl = createSVGElement('text', { x: 0, y: 18, fill: 'var(--text-dim)', style: 'font-size:0.7rem;font-weight:600;' });
-    titleEl.textContent = `요청 흐름 행렬 (상위 ${N}명 · 행=발신 · 열=수신)`;
-    svg.appendChild(titleEl);
-
-    const offsetY = MATRIX_TITLE_H;
+    const offsetY = 0;
 
     topIds.forEach((tgt, j) => {
         const x = MATRIX_LABEL_W + j * cellSize + cellSize / 2;
@@ -417,6 +320,10 @@ function renderMatrixSVG(container: HTMLElement, nodes: any[], links: any[]): vo
             }
         });
     });
+
+    const titleEl = createSVGElement('text', { x: 0, y: svgH - 6, fill: 'var(--text-dim)', style: 'font-size:0.7rem;font-weight:600;' });
+    titleEl.textContent = `요청 흐름 행렬 (상위 ${N}명 · 행=발신 · 열=수신)`;
+    svg.appendChild(titleEl);
 
     container.appendChild(svg);
 }
