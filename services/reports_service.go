@@ -132,6 +132,10 @@ func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, star
 func (s *ReportsService) processAsyncReport(email, start, end, lang string, id int, logs []Log) {
 	ctx := context.Background()
 	taskLogs, isTruncated := s.PrepareLogsForAI(email, logs)
+	if isTruncated {
+		logger.Warnf("[REPORTS] input logs truncated at cutoff (%d bytes): email=%s, total_logs=%d, report_id=%d",
+			s.config.CutoffSize, email, len(logs), id)
+	}
 	summary, err := s.summarizer.Generate(ctx, taskLogs)
 	if err != nil {
 		s.markFailed(ctx, email, id)

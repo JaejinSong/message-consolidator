@@ -36,7 +36,7 @@ const (
 	// DefaultMaxTokens is the standard output limit for short-form analysis tasks.
 	DefaultMaxTokens = 8192
 	// ReportMaxTokens is the expanded limit for long-form report generation tasks.
-	ReportMaxTokens = 32768
+	ReportMaxTokens = 65536
 )
 
 var relaxedSafetySettings = []*genai.SafetySetting{
@@ -170,6 +170,10 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 	text, err := extractResponseText(resp)
 	if err != nil {
 		return "", err
+	}
+	if fr := resp.Candidates[0].FinishReason; fr == genai.FinishReasonMaxTokens {
+		logger.Warnf("[GEMINI] ReportSummary output truncated: FinishReason=MAX_TOKENS, completion=%d/%d tokens, prompt=%d, email=%s",
+			resp.UsageMetadata.CandidatesTokenCount, ReportMaxTokens, resp.UsageMetadata.PromptTokenCount, email)
 	}
 
 	trace.Step(ctx, "Gemini-ReportSummary", "", int(time.Since(start).Milliseconds()), 0)

@@ -388,3 +388,21 @@
         color: #000 !important;
     }
 }
+
+.c-report-warning {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    background-color: rgba(var(--color-warning-rgb), 0.1);
+    border-left: 0.1875rem solid var(--color-warning);
+    border-radius: var(--radius-md);
+    color: var(--color-warning);
+    font-size: 0.875rem;
+}
+
+.c-report-warning__icon {
+    font-size: 1rem;
+    line-height: 1;
+}

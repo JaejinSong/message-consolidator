@@ -394,6 +394,10 @@ export const reportsRenderer = {
                 }
             }
             renderedHTML = renderedHTML.replace(/<p>\s*(<br\s*\/?>)?\s*<\/p>/g, '');
+            if (report.is_truncated) {
+                const msg = i18n.truncationWarning || 'Some past data were omitted due to token limit.';
+                renderedHTML = `<div class="c-report-warning" role="alert"><span class="c-report-warning__icon">⚠️</span><span>${msg}</span></div>` + renderedHTML;
+            }
             summaryArea.innerHTML = renderedHTML;
         }
 
