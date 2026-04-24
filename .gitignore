@@ -35,6 +35,8 @@ channels/logs/
 node_modules/
 .vite/
 dist/
+static/css/main.bundle.css
+static/css/main.bundle.min.css
 
 # === Temporary & Test Artifacts ===
 tasks_migration.csv
