@@ -79,6 +79,7 @@ type User struct {
 	Name            string     `json:"name"`
 	SlackID         string     `json:"slack_id"`
 	WAJID           string     `json:"wa_jid"`
+	TgUserID        string     `json:"tg_user_id"`
 	Picture         string     `json:"picture"`
 	Aliases         []string   `json:"aliases"`
 	ArchiveDays     int        `json:"archive_days"`

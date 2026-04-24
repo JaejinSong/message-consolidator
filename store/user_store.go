@@ -116,6 +116,14 @@ func UpdateUserSlackID(ctx context.Context, email, slackID string) error {
 	})
 }
 
+// UpdateUserTgID updates the Telegram user ID associated with the user.
+func UpdateUserTgID(ctx context.Context, email, tgUserID string) error {
+	return db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{
+		Email:    nullString(email),
+		TgUserID: sql.NullString{String: tgUserID, Valid: tgUserID != ""},
+	})
+}
+
 func GetUserAliasesByEmail(ctx context.Context, email string) ([]string, error) {
 	metadataMu.RLock()
 	if u, ok := userCache[email]; ok && len(u.Aliases) > 0 {
@@ -150,6 +158,7 @@ func fromDBUser(row db.User) User {
 		Name:      row.Name.String,
 		SlackID:   row.SlackID.String,
 		WAJID:     row.WaJid.String,
+		TgUserID:  row.TgUserID.String,
 		Picture:   row.Picture.String,
 		CreatedAt: row.CreatedAt.Time,
 	}

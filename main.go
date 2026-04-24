@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -121,8 +122,9 @@ func main() {
 
 	go func() {
 		defer wg.Done()
-		logger.Infof("[Shutdown] 1/4 Disconnecting external clients (WhatsApp)...")
+		logger.Infof("[Shutdown] 1/4 Disconnecting external clients (WhatsApp, Telegram)...")
 		channels.DisconnectAllWhatsApp()
+		channels.DisconnectAllTelegram()
 	}()
 
 	go func() {
@@ -171,10 +173,30 @@ func setupApp(cfg *config.Config, api *handlers.API, ctx context.Context) *http.
 		store.UpdateUserWAJID(context.Background(), email, "")
 	}
 
+	//Why: Telegram IoC — same pattern as WhatsApp. FetchUserTgSession/OnSessionUpdated are wired to telegram_sessions; OnConnected/OnLoggedOut persist tg_user_id.
+	channels.DefaultTelegramManager.FetchUserTgSession = func(email string) ([]byte, error) {
+		return store.GetTelegramSession(ctx, email)
+	}
+	channels.DefaultTelegramManager.OnSessionUpdated = func(email string, data []byte) {
+		if err := store.UpsertTelegramSession(context.Background(), email, data); err != nil {
+			logger.Warnf("[TG] UpsertTelegramSession failed for %s: %v", email, err)
+		}
+	}
+	channels.DefaultTelegramManager.OnConnected = func(email string, userID int64) {
+		store.UpdateUserTgID(context.Background(), email, strconv.FormatInt(userID, 10))
+	}
+	channels.DefaultTelegramManager.OnLoggedOut = func(email string) {
+		store.UpdateUserTgID(context.Background(), email, "")
+		if err := store.DeleteTelegramSession(context.Background(), email); err != nil {
+			logger.Warnf("[TG] DeleteTelegramSession failed for %s: %v", email, err)
+		}
+	}
+
 	//Why: Boots WhatsApp client sessions asynchronously for all registered users to ensure the main server startup remains non-blocking.
 	users, _ := store.GetAllUsers(ctx)
 	for _, u := range users {
 		go channels.DefaultWAManager.InitWhatsApp(u.Email, cfg)
+		go channels.DefaultTelegramManager.InitTelegram(u.Email, cfg)
 	}
 
 	//Why: Initializes OAuth configurations for third-party integrations (Google/Gmail) and system-wide authentication.

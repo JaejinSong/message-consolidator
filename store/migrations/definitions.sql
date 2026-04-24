@@ -160,3 +160,13 @@ ALTER TABLE achievements ADD COLUMN target_value INTEGER DEFAULT 1;
 
 -- name: MigrateAchievementsAddXPReward :exec
 ALTER TABLE achievements ADD COLUMN xp_reward INTEGER DEFAULT 10;
+
+-- name: MigrateUsersAddTgUserID :exec
+ALTER TABLE users ADD COLUMN tg_user_id TEXT DEFAULT '';
+
+-- name: CreateTelegramSessions :exec
+CREATE TABLE IF NOT EXISTS telegram_sessions (
+    email        TEXT PRIMARY KEY,
+    session_data BLOB NOT NULL,
+    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+);

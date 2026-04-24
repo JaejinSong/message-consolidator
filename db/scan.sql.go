@@ -116,7 +116,7 @@ func (q *Queries) LoadScanMetadataAll(ctx context.Context) ([]LoadScanMetadataAl
 }
 
 const loadUsersAll = `-- name: LoadUsersAll :many
-SELECT id, email, name, slack_id, wa_jid, picture, created_at 
+SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, created_at
 FROM users
 `
 
@@ -135,6 +135,7 @@ func (q *Queries) LoadUsersAll(ctx context.Context) ([]User, error) {
 			&i.Name,
 			&i.SlackID,
 			&i.WaJid,
+			&i.TgUserID,
 			&i.Picture,
 			&i.CreatedAt,
 		); err != nil {

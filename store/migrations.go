@@ -31,6 +31,7 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 		{"contact_resolution", queries.CreateContactResolutionTable},
 		{"identity_merge_candidates", queries.CreateIdentityMergeCandidatesTable},
 		{"token_usage", queries.CreateTokenUsageTable},
+		{"telegram_sessions", queries.CreateTelegramSessionsTable},
 	} {
 		if err := step.fn(ctx); err != nil {
 			return fmt.Errorf("failed to create %s table: %w", step.name, err)
@@ -110,6 +111,10 @@ func migrateExistingData(ctx context.Context, q db.DBTX) {
 	_, _ = q.ExecContext(ctx, "UPDATE messages SET is_deleted = 0 WHERE is_deleted IS NULL")
 	_, _ = q.ExecContext(ctx, "UPDATE messages SET room = 'General' WHERE room IS NULL OR room = ''")
 	_, _ = q.ExecContext(ctx, "UPDATE messages SET category = 'todo' WHERE category IN ('waiting', 'promise')")
+
+	if !tableHasColumn(ctx, q, "users", "tg_user_id") {
+		_, _ = q.ExecContext(ctx, "ALTER TABLE users ADD COLUMN tg_user_id TEXT DEFAULT ''")
+	}
 }
 
 func tableHasColumn(ctx context.Context, q db.DBTX, table, column string) bool {

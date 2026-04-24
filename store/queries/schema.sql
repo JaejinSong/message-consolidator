@@ -8,8 +8,16 @@ CREATE TABLE IF NOT EXISTS users (
     name TEXT,
     slack_id TEXT,
     wa_jid TEXT,
+    tg_user_id TEXT DEFAULT '',
     picture TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- name: CreateTelegramSessionsTable :exec
+CREATE TABLE IF NOT EXISTS telegram_sessions (
+    email        TEXT PRIMARY KEY,
+    session_data BLOB NOT NULL,
+    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- name: CreateUserAliasesTable :exec

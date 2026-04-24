@@ -1,5 +1,5 @@
 -- name: LoadUsersAll :many
-SELECT id, email, name, slack_id, wa_jid, picture, created_at 
+SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, created_at
 FROM users;
 
 -- name: LoadScanMetadataAll :many

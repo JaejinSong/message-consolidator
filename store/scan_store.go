@@ -63,6 +63,7 @@ func LoadMetadata() error {
 			Name:      row.Name.String,
 			SlackID:   row.SlackID.String,
 			WAJID:     row.WaJid.String,
+			TgUserID:  row.TgUserID.String,
 			Picture:   row.Picture.String,
 			CreatedAt: row.CreatedAt.Time,
 		}

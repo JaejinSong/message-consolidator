@@ -143,6 +143,12 @@ type TaskTranslation struct {
 	TranslatedText     string         `json:"translated_text"`
 }
 
+type TelegramSession struct {
+	Email       string       `json:"email"`
+	SessionData []byte       `json:"session_data"`
+	UpdatedAt   sql.NullTime `json:"updated_at"`
+}
+
 type TenantAlias struct {
 	ID           int64  `json:"id"`
 	UserEmail    string `json:"user_email"`
@@ -166,6 +172,7 @@ type User struct {
 	Name      sql.NullString `json:"name"`
 	SlackID   sql.NullString `json:"slack_id"`
 	WaJid     sql.NullString `json:"wa_jid"`
+	TgUserID  sql.NullString `json:"tg_user_id"`
 	Picture   sql.NullString `json:"picture"`
 	CreatedAt sql.NullTime   `json:"created_at"`
 }

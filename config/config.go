@@ -28,6 +28,8 @@ type Config struct {
 	AutoArchiveDays        int
 	NotionToken          string
 	NotionReportPageID   string
+	TelegramAppID          int
+	TelegramAppHash        string
 	CloudRunMode           bool
 	InternalScanSecret     string
 	MessageBatchWindow     time.Duration
@@ -106,6 +108,16 @@ func LoadConfig() *Config {
 		}
 	}
 
+	//Why: Telegram App ID is an integer issued by https://my.telegram.org; empty/invalid value disables the Telegram channel gracefully.
+	tgAppID := 0
+	if v := os.Getenv("TELEGRAM_APP_ID"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			tgAppID = n
+		} else {
+			logger.Warnf("invalid TELEGRAM_APP_ID: %v", err)
+		}
+	}
+
 	return &Config{
 		SlackToken:             os.Getenv("SLACK_TOKEN"),
 		GeminiAPIKey:           os.Getenv("GEMINI_API_KEY"),
@@ -123,6 +135,8 @@ func LoadConfig() *Config {
 		GeminiTranslationModel: geminiTranslationModel,
 		NotionToken:            os.Getenv("NOTION_TOKEN"),
 		NotionReportPageID:     os.Getenv("NOTION_REPORT_PAGE_ID"),
+		TelegramAppID:          tgAppID,
+		TelegramAppHash:        os.Getenv("TELEGRAM_APP_HASH"),
 		GmailSkipSenders:       os.Getenv("GMAIL_SKIP_SENDERS"),
 		AutoArchiveDays:        autoArchiveDays,
 		CloudRunMode:           os.Getenv("CLOUD_RUN_MODE") == "true",

@@ -11,7 +11,7 @@ import (
 )
 
 const getAllUsers = `-- name: GetAllUsers :many
-SELECT id, email, name, slack_id, wa_jid, picture, created_at FROM users
+SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, created_at FROM users
 `
 
 func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
@@ -29,6 +29,7 @@ func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
 			&i.Name,
 			&i.SlackID,
 			&i.WaJid,
+			&i.TgUserID,
 			&i.Picture,
 			&i.CreatedAt,
 		); err != nil {
@@ -75,7 +76,7 @@ func (q *Queries) GetUserAliasesByEmail(ctx context.Context, email sql.NullStrin
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, slack_id, wa_jid, picture, created_at FROM users WHERE email = ?1
+SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, created_at FROM users WHERE email = ?1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email sql.NullString) (User, error) {
@@ -87,6 +88,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email sql.NullString) (Use
 		&i.Name,
 		&i.SlackID,
 		&i.WaJid,
+		&i.TgUserID,
 		&i.Picture,
 		&i.CreatedAt,
 	)
@@ -105,7 +107,7 @@ func (q *Queries) GetUserByEmailSimple(ctx context.Context, email sql.NullString
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, slack_id, wa_jid, picture, created_at FROM users WHERE id = CAST(?1 AS INTEGER)
+SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, created_at FROM users WHERE id = CAST(?1 AS INTEGER)
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, dollar_1 int64) (User, error) {
@@ -117,6 +119,7 @@ func (q *Queries) GetUserByID(ctx context.Context, dollar_1 int64) (User, error)
 		&i.Name,
 		&i.SlackID,
 		&i.WaJid,
+		&i.TgUserID,
 		&i.Picture,
 		&i.CreatedAt,
 	)
@@ -129,16 +132,18 @@ SET
     name = COALESCE(?2, name),
     picture = COALESCE(?3, picture),
     wa_jid = COALESCE(?4, wa_jid),
-    slack_id = COALESCE(?5, slack_id)
+    slack_id = COALESCE(?5, slack_id),
+    tg_user_id = COALESCE(?6, tg_user_id)
 WHERE email = ?1
 `
 
 type UpdateUserDetailsParams struct {
-	Email   sql.NullString `json:"email"`
-	Name    sql.NullString `json:"name"`
-	Picture sql.NullString `json:"picture"`
-	WaJid   sql.NullString `json:"wa_jid"`
-	SlackID sql.NullString `json:"slack_id"`
+	Email    sql.NullString `json:"email"`
+	Name     sql.NullString `json:"name"`
+	Picture  sql.NullString `json:"picture"`
+	WaJid    sql.NullString `json:"wa_jid"`
+	SlackID  sql.NullString `json:"slack_id"`
+	TgUserID sql.NullString `json:"tg_user_id"`
 }
 
 func (q *Queries) UpdateUserDetails(ctx context.Context, arg UpdateUserDetailsParams) error {
@@ -148,17 +153,18 @@ func (q *Queries) UpdateUserDetails(ctx context.Context, arg UpdateUserDetailsPa
 		arg.Picture,
 		arg.WaJid,
 		arg.SlackID,
+		arg.TgUserID,
 	)
 	return err
 }
 
 const upsertUser = `-- name: UpsertUser :one
-INSERT INTO users (email, name, picture) 
-VALUES (?1, ?2, ?3) 
-ON CONFLICT(email) DO UPDATE SET 
+INSERT INTO users (email, name, picture)
+VALUES (?1, ?2, ?3)
+ON CONFLICT(email) DO UPDATE SET
     name = COALESCE(NULLIF(EXCLUDED.name, ''), users.name),
     picture = COALESCE(NULLIF(EXCLUDED.picture, ''), users.picture)
-RETURNING id, email, name, slack_id, wa_jid, picture, created_at
+RETURNING id, email, name, slack_id, wa_jid, tg_user_id, picture, created_at
 `
 
 type UpsertUserParams struct {
@@ -176,6 +182,7 @@ func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (User, e
 		&i.Name,
 		&i.SlackID,
 		&i.WaJid,
+		&i.TgUserID,
 		&i.Picture,
 		&i.CreatedAt,
 	)

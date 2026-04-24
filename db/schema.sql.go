@@ -310,6 +310,19 @@ func (q *Queries) CreateTaskTranslationsTable(ctx context.Context) error {
 	return err
 }
 
+const createTelegramSessionsTable = `-- name: CreateTelegramSessionsTable :exec
+CREATE TABLE IF NOT EXISTS telegram_sessions (
+    email        TEXT PRIMARY KEY,
+    session_data BLOB NOT NULL,
+    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+`
+
+func (q *Queries) CreateTelegramSessionsTable(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, createTelegramSessionsTable)
+	return err
+}
+
 const createTenantAliasesTable = `-- name: CreateTenantAliasesTable :exec
 CREATE TABLE IF NOT EXISTS tenant_aliases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -365,6 +378,7 @@ CREATE TABLE IF NOT EXISTS users (
     name TEXT,
     slack_id TEXT,
     wa_jid TEXT,
+    tg_user_id TEXT DEFAULT '',
     picture TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )
