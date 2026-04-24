@@ -421,11 +421,14 @@ export const reportsRenderer = {
         }
     },
 
-    renderActivityComponent(data: Array<{customer: string, count: number}>, i18n: any): string {
+    renderActivityComponent(data: Array<{customer: string, count: number, summary?: string}>, i18n: any): string {
         const rows = data.map((item, idx) => `
             <tr>
                 <td class="c-report-table__cell--rank">${idx + 1}</td>
-                <td>${escapeHTML(item.customer || '-')}</td>
+                <td>
+                    <span class="c-report-customer-name">${escapeHTML(item.customer || '-')}</span>
+                    ${item.summary ? `<span class="c-report-customer-summary">${escapeHTML(item.summary)}</span>` : ''}
+                </td>
                 <td class="c-report-table__cell--count"><span class="c-report-delay-value">${item.count || 0}</span></td>
             </tr>
         `).join('');
