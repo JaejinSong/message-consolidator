@@ -373,5 +373,9 @@ export const api = {
             body: JSON.stringify({ target_ids: validatedTargets, destination_id: validatedDest }),
             errorMessage: 'Merge tasks failed'
         });
+    },
+
+    invalidateCache(): Promise<{ status: string }> {
+        return apiFetch('/admin/invalidate-cache', { method: 'POST', errorMessage: 'Cache invalidation failed' });
     }
 };

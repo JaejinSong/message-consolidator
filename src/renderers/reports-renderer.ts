@@ -393,6 +393,7 @@ export const reportsRenderer = {
                     console.error("[ReportsRenderer] JSON parse failed:", e);
                 }
             }
+            renderedHTML = renderedHTML.replace(/<p>\s*(<br\s*\/?>)?\s*<\/p>/g, '');
             summaryArea.innerHTML = renderedHTML;
         }
 
@@ -433,7 +434,7 @@ export const reportsRenderer = {
             </tr>
         `).join('');
         return `
-            <div class="c-report-table-wrapper u-mt-4">
+            <div class="c-report-table-wrapper">
                 <table class="c-report-table">
                     <thead>
                         <tr>
@@ -460,7 +461,7 @@ export const reportsRenderer = {
         `).join('');
 
         return `
-            <div class="c-report-table-wrapper u-mt-4">
+            <div class="c-report-table-wrapper">
                 <table class="c-report-table">
                     <thead>
                         <tr>

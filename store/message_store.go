@@ -421,15 +421,9 @@ func UpdateTaskAssigneesBatch(ctx context.Context, email string, updates map[int
 	return err
 }
 
-func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id int, date, newTask, newOriginalText string) error {
-	if trimmed := strings.TrimSpace(newTask); trimmed != "" && trimmed != "[Resolved]" {
-		if existing, err := GetMessageByID(ctx, q, email, id); err == nil && strings.Contains(existing.Task, trimmed) {
-			return nil
-		}
-	}
+func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id int, newTask, newOriginalText string) error {
 	err := db.New(q).UpdateTaskFullAppend(ctx, db.UpdateTaskFullAppendParams{
-		Task:         nullString(date),
-		Task_2:       nullString(newTask),
+		Task:         nullString(newTask),
 		OriginalText: nullString(newOriginalText),
 		ID:           int64(id),
 		UserEmail:    nullString(email),
@@ -438,6 +432,19 @@ func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id
 	if err == nil {
 		InvalidateCacheActive(email)
 		InvalidateTaskTranslation(ctx, id)
+	}
+	return err
+}
+
+func AppendOriginalText(ctx context.Context, q Querier, email, room string, id int, text string) error {
+	err := db.New(q).AppendOriginalText(ctx, db.AppendOriginalTextParams{
+		OriginalText: nullString(text),
+		ID:           int64(id),
+		UserEmail:    nullString(email),
+		Room:         nullString(room),
+	})
+	if err == nil {
+		InvalidateCacheActive(email)
 	}
 	return err
 }

@@ -142,8 +142,7 @@ func handleUpdate(ctx context.Context, q Querier, email string, item TodoItem, m
 		_ = UpdateSubtasks(ctx, q, email, id, mapTodoSubtasksToStore(item.Subtasks))
 	}
 
-	date := time.Now().Format("2006-01-02")
-	if err := UpdateTaskFullAppend(ctx, q, email, msg.Room, id, date, item.Task, msg.OriginalText); err != nil {
+	if err := UpdateTaskFullAppend(ctx, q, email, msg.Room, id, item.Task, msg.OriginalText); err != nil {
 		return id, err
 	}
 
@@ -175,8 +174,8 @@ func handleResolve(ctx context.Context, q Querier, email string, item TodoItem, 
 	if err := MarkMessageDone(ctx, q, email, id, true); err != nil {
 		return id, err
 	}
-	// Why: Appends the context of the resolution message to the task for audit trial.
-	_ = UpdateTaskFullAppend(ctx, q, email, msg.Room, id, time.Now().Format("2006-01-02"), "[Resolved]", msg.OriginalText)
+	// Why: Appends the resolution message to original_text for audit trail without overwriting the task title.
+	_ = AppendOriginalText(ctx, q, email, msg.Room, id, fmt.Sprintf("[Resolved: %s]\n%s", time.Now().Format("2006-01-02"), msg.OriginalText))
 	return id, nil
 }
 

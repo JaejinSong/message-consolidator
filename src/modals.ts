@@ -225,9 +225,27 @@ export const modals: any = {
                 (modal as HTMLElement).style.display = 'flex';
                 this.fetchIdentityProposals();
                 document.getElementById('generateProposalsBtn')?.addEventListener('click', () => this.generateIdentityProposals());
+                this.setupRefreshCacheBtn();
             }
         });
 
+    },
+
+    setupRefreshCacheBtn() {
+        const btn = document.getElementById('refreshCacheBtn');
+        if (!btn || btn.dataset.bound === '1') return;
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', safeAsync(async () => {
+            const label = document.getElementById('refreshCacheBtnLabel');
+            btn.setAttribute('disabled', 'true');
+            if (label) label.textContent = '초기화 중...';
+            await api.invalidateCache();
+            if (label) label.textContent = '완료!';
+            setTimeout(() => {
+                if (label) label.textContent = '캐시 초기화';
+                btn.removeAttribute('disabled');
+            }, 1500);
+        }));
     },
 
     /**

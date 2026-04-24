@@ -10,6 +10,7 @@ import (
 )
 
 type Querier interface {
+	AppendOriginalText(ctx context.Context, arg AppendOriginalTextParams) error
 	AppendSecondaryID(ctx context.Context, arg AppendSecondaryIDParams) error
 	ArchiveOldTasks(ctx context.Context, datetime interface{}) (int64, error)
 	CloseSlackThread(ctx context.Context, arg CloseSlackThreadParams) error

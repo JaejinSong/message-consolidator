@@ -934,7 +934,7 @@ body.light-theme .glass-btn:hover {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    margin: 2rem 0;
+    margin: 0;
     font-size: 0.875rem;
     border: var(--border-thin) solid var(--glass-border);
     border-radius: var(--radius-lg);
@@ -944,9 +944,33 @@ body.light-theme .glass-btn:hover {
     box-shadow: var(--shadow-main);
 }
 
+.c-report-table th,
+.c-report-table td {
+    padding: var(--spacing-md) var(--spacing-lg);
+}
+
+.c-report-table__cell--rank {
+    width: 2.5rem;
+    text-align: center;
+    color: var(--text-dim);
+}
+
+.c-report-table__cell--count {
+    width: 5rem;
+    text-align: right;
+}
+
+.c-report-table th:first-child {
+    text-align: center;
+}
+
+.c-report-table th:last-child {
+    text-align: right;
+}
+
 .c-report-table-wrapper {
     width: 100%;
-    margin: var(--spacing-lg) 0;
+    margin: var(--spacing-sm) 0;
     overflow-x: auto;
     border-radius: var(--radius-lg);
 }

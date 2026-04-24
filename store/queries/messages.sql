@@ -29,8 +29,13 @@ UPDATE messages SET subtasks = ? WHERE id = ? AND user_email = ?;
 
 -- name: UpdateTaskFullAppend :exec
 UPDATE messages
-SET task = task || char(10) || char(10) || '--- [Update: ' || ? || '] ---' || char(10) || ?,
+SET task = ?,
     original_text = original_text || char(10) || char(10) || ?
+WHERE id = ? AND user_email = ? AND room = ?;
+
+-- name: AppendOriginalText :exec
+UPDATE messages
+SET original_text = original_text || char(10) || char(10) || ?
 WHERE id = ? AND user_email = ? AND room = ?;
 
 -- name: UpdateTaskMergeComplete :exec

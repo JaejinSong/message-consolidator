@@ -11,6 +11,29 @@ import (
 	"strings"
 )
 
+const appendOriginalText = `-- name: AppendOriginalText :exec
+UPDATE messages
+SET original_text = original_text || char(10) || char(10) || ?
+WHERE id = ? AND user_email = ? AND room = ?
+`
+
+type AppendOriginalTextParams struct {
+	OriginalText sql.NullString `json:"original_text"`
+	ID           int64          `json:"id"`
+	UserEmail    sql.NullString `json:"user_email"`
+	Room         sql.NullString `json:"room"`
+}
+
+func (q *Queries) AppendOriginalText(ctx context.Context, arg AppendOriginalTextParams) error {
+	_, err := q.db.ExecContext(ctx, appendOriginalText,
+		arg.OriginalText,
+		arg.ID,
+		arg.UserEmail,
+		arg.Room,
+	)
+	return err
+}
+
 const archiveOldTasks = `-- name: ArchiveOldTasks :execrows
 UPDATE messages SET is_deleted = 1 WHERE is_deleted = 0 AND done = 1 AND completed_at < datetime('now', ?)
 `
@@ -1145,14 +1168,13 @@ func (q *Queries) UpdateSubtasks(ctx context.Context, arg UpdateSubtasksParams) 
 
 const updateTaskFullAppend = `-- name: UpdateTaskFullAppend :exec
 UPDATE messages
-SET task = task || char(10) || char(10) || '--- [Update: ' || ? || '] ---' || char(10) || ?,
+SET task = ?,
     original_text = original_text || char(10) || char(10) || ?
 WHERE id = ? AND user_email = ? AND room = ?
 `
 
 type UpdateTaskFullAppendParams struct {
 	Task         sql.NullString `json:"task"`
-	Task_2       sql.NullString `json:"task_2"`
 	OriginalText sql.NullString `json:"original_text"`
 	ID           int64          `json:"id"`
 	UserEmail    sql.NullString `json:"user_email"`
@@ -1162,7 +1184,6 @@ type UpdateTaskFullAppendParams struct {
 func (q *Queries) UpdateTaskFullAppend(ctx context.Context, arg UpdateTaskFullAppendParams) error {
 	_, err := q.db.ExecContext(ctx, updateTaskFullAppend,
 		arg.Task,
-		arg.Task_2,
 		arg.OriginalText,
 		arg.ID,
 		arg.UserEmail,
