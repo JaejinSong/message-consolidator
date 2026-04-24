@@ -1,115 +1,44 @@
 package scanner
 
 import (
-	"context"
 	"fmt"
-	"message-consolidator/ai"
-	"message-consolidator/channels"
-	"message-consolidator/logger"
-	"message-consolidator/store"
-	"message-consolidator/types"
 	"strings"
 	"sync"
-	"golang.org/x/sync/errgroup"
+	"time"
+
 	waTypes "go.mau.fi/whatsmeow/types"
+
+	"context"
+	"message-consolidator/channels"
+	"message-consolidator/store"
+	"message-consolidator/types"
 )
 
+// whatsAppAdapter adapts WAManager to the shared channel scanner driver.
+type whatsAppAdapter struct{}
 
-
-func (s *WhatsAppScanner) processWhatsAppRoom(ctx context.Context, user store.User, aliases []string, jid string, msgs []types.RawMessage, language string, wg *sync.WaitGroup) []int {
-	lockKey := roomLockSvc.GetRoomKey(user.Email, "whatsapp", jid)
-	lock := roomLockSvc.AcquireLock(lockKey)
-	lock.Lock()
-	defer lock.Unlock()
-
-	groupName := channels.DefaultWAManager.GetGroupName(user.Email, jid)
-	msgGroups := ai.GroupMessagesByTime(msgs, cfg.MessageBatchWindow)
-	
-	var allIDs []int
-	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
-	if err != nil {
-		logger.Errorf("[WA-LOCK] AI Client Error: %v", err)
-		return nil
-	}
-
-	// Why: [Async Transition] WhatsApp replies/quotes also trigger the transition pipeline.
-	for _, m := range msgs {
-		if isFromMe(m, user) && m.ReplyToID != "" && completionSvc != nil {
-			go func(bgCtx context.Context, u store.User, raw types.RawMessage, g string) {
-				completionSvc.ProcessPotentialCompletion(bgCtx, store.ConsolidatedMessage{
-					UserEmail: u.Email, Source: "whatsapp", Room: g, ThreadID: raw.ReplyToID,
-					OriginalText: raw.Text, SourceTS: raw.ID, CreatedAt: raw.Timestamp,
-				})
-			}(context.Background(), user, m, groupName)
-		}
-	}
-
-	for _, group := range msgGroups {
-		if ids := s.processSingleGroup(ctx, user, aliases, jid, groupName, group, gc, language, wg); len(ids) > 0 {
-			allIDs = append(allIDs, ids...)
-		}
-	}
-	return allIDs
+func (whatsAppAdapter) Source() string    { return "whatsapp" }
+func (whatsAppAdapter) LogPrefix() string { return "WA" }
+func (whatsAppAdapter) PopMessages(email string) map[string][]types.RawMessage {
+	return channels.DefaultWAManager.PopMessages(email)
+}
+func (whatsAppAdapter) GetGroupName(email, roomKey string) string {
+	return channels.DefaultWAManager.GetGroupName(email, roomKey)
 }
 
-func (s *WhatsAppScanner) processSingleGroup(ctx context.Context, user store.User, aliases []string, jid string, groupName string, group []types.RawMessage, gc *ai.GeminiClient, language string, wg *sync.WaitGroup) []int {
-	if len(group) == 0 {
-		return nil
-	}
-	payload, msgMap := buildWAPayload(user, aliases, group)
-	if s.isIgnorableNoise(ctx, user.Email, payload) {
-		return nil
-	}
+// Is1To1 — WhatsApp group JIDs carry the "@g.us" suffix; everything else is a DM.
+func (whatsAppAdapter) Is1To1(roomKey string) bool { return !strings.Contains(roomKey, "@g.us") }
 
-	lastMsg := group[len(group)-1]
-	enriched, err := EnrichWhatsAppMessage(jid, payload, lastMsg.Timestamp)
-	if err != nil {
-		logger.Errorf("[WA-SCAN] Failed to enrich message: %v", err)
-		return nil
-	}
-
-	// Why: [Context Merge] Rebuilds extraction context by combining DB history and new message payload.
-	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, "whatsapp", groupName)
-	logger.Infof("[WA-CONTEXT] Found %d active tasks for room %s", len(tasks), groupName)
-
-	candidates, err := gc.AnalyzeWithContext(ctx, user.Email, *enriched, language, "whatsapp", groupName, tasks)
-	if err != nil {
-		logger.Errorf("[WA-SCAN] AI Analysis Error: %v", err)
-		return nil
-	}
-
-	// Why: [Service-Oriented Resolve] AI candidates (id:0) are resolved with deterministic similarity logic in the backend.
-	items := tasksSvc.ResolveProposals(ctx, user.Email, groupName, candidates, tasks)
-
-	return s.processWAItems(ctx, user, aliases, items, msgMap, groupName, !strings.Contains(jid, "@g.us"), wg)
+func (whatsAppAdapter) BuildPayload(user store.User, aliases []string, msgs []types.RawMessage) (string, map[string]types.RawMessage) {
+	return buildWAPayload(user, aliases, msgs)
 }
 
-func (s *WhatsAppScanner) isIgnorableNoise(ctx context.Context, email string, payload string) bool {
-	if filterSvc == nil {
-		return false
-	}
-	isNoise, err := filterSvc.IsNoise(ctx, email, payload)
-	if err != nil {
-		logger.Warnf("[WA-SCAN] Filter failed for %s: %v", email, err)
-		return false
-	}
-	return isNoise
-}
-
-func (s *WhatsAppScanner) processWAItems(ctx context.Context, user store.User, aliases []string, items []store.TodoItem, msgMap map[string]types.RawMessage, group string, is1to1 bool, wg *sync.WaitGroup) []int {
-	var newIDs []int
-	for _, item := range items {
-		if m, ok := msgMap[item.SourceTS]; ok {
-			if id := saveWAItem(ctx, user, aliases, item, m, group, is1to1); id > 0 {
-				newIDs = append(newIDs, id)
-			}
-		}
-	}
-	triggerAsyncTranslation(ctx, user.Email, newIDs, wg)
-	return newIDs
+func (whatsAppAdapter) Enrich(roomKey, payload string, ts time.Time) (*types.EnrichedMessage, error) {
+	return EnrichWhatsAppMessage(roomKey, payload, ts)
 }
 
 func buildWAPayload(user store.User, aliases []string, msgs []types.RawMessage) (string, map[string]types.RawMessage) {
+	_ = aliases
 	var sb strings.Builder
 	msgMap := make(map[string]types.RawMessage)
 	for _, m := range msgs {
@@ -134,12 +63,12 @@ func buildWAMetadataString(email string, m types.RawMessage) string {
 	if m.IsForwarded {
 		tags = append(tags, "Forwarded")
 	}
-	
 	if m.RepliedToUser != "" {
 		tags = append(tags, fmt.Sprintf("Reply-To: %s", m.RepliedToUser))
 	}
 
-	//Why: Lists explicitly mentioned names in metadata to provide the AI with a 100% accurate source for 'Assignee' identification.
+	// Why: Lists explicitly mentioned names in metadata to give the AI a 100% accurate
+	// source for 'Assignee' identification; falls back to a bare count when unresolved.
 	if len(m.MentionedIDs) > 0 {
 		var mentionNames []string
 		for _, jid := range m.MentionedIDs {
@@ -166,60 +95,6 @@ func buildWAMetadataString(email string, m types.RawMessage) string {
 	return sb.String()
 }
 
-func saveWAItem(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool) int {
-	if isFromMe(m, user) && !is1to1 {
-		item.Category = string(types.CategoryTask)
-	}
-
-	params := BuildTaskParams{
-		User: user, Item: item, Raw: m, Source: "whatsapp",
-		Room: group, SourceChannels: []string{"whatsapp"},
-	}
-	msg := BuildConsolidatedMessage(params, aliases)
-
-	// Routing Logic: Check if status indicates an update/resolve for existing task.
-	if id, _ := store.RouteTaskByStatus(ctx, nil, user.Email, item, msg); id > 0 {
-		return id
-	}
-
-	// Fallback: Default to insertion via HandleTaskState for new tasks.
-	id, _ := store.HandleTaskState(ctx, nil, user.Email, item, msg)
-	return id
-}
-
-func isFromMe(m types.RawMessage, user store.User) bool {
-	if m.IsFromMe {
-		return true
-	}
-	lowerSender := strings.ToLower(m.Sender)
-	return lowerSender == strings.ToLower(user.Name) || lowerSender == strings.ToLower(user.Email)
-}
-
-
 func scanWhatsApp(ctx context.Context, user store.User, aliases []string, language string, wg *sync.WaitGroup) []int {
-	buffer := channels.DefaultWAManager.PopMessages(user.Email)
-	if len(buffer) == 0 {
-		return nil
-	}
-
-	var mu sync.Mutex
-	var newIDs []int
-	var eg errgroup.Group
-	s := &WhatsAppScanner{}
-
-	for jid, msgs := range buffer {
-		j, m := jid, msgs
-		eg.Go(func() error {
-			ids := s.processWhatsAppRoom(ctx, user, aliases, j, m, language, wg)
-			mu.Lock()
-			newIDs = append(newIDs, ids...)
-			mu.Unlock()
-			return nil
-		})
-	}
-	_ = eg.Wait()
-	triggerAsyncTranslation(ctx, user.Email, newIDs, wg)
-	return newIDs
+	return scanChannel(ctx, user, aliases, language, wg, whatsAppAdapter{})
 }
-
-type WhatsAppScanner struct{}
