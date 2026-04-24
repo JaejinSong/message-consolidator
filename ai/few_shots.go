@@ -28,5 +28,9 @@ func GetDefaultFewShots() []FewShot {
 			Input:    "[ID:wa1] Kamal: nnti kalo ada tambahan di request langsung aja pak sama mas hady.",
 			Expected: `[{"id": 0, "state": "new", "task": "Contact Hady for additional project or license requests", "requester": "Kamal", "assignee": "shared", "assignee_reason": "Kamal broadcast a policy directive to the group; not directed at a specific person", "category": "POLICY", "source_ts": "wa1"}]`,
 		},
+		{
+			Input:    "[ID:sl1] JJ: Raise the request to the dev team once Yoga provides business context, while addressing the scalability concerns regarding manual case verification.",
+			Expected: `[{"id": 0, "state": "new", "task": "Raise scalability concern to the dev team once business context is provided", "requester": "JJ", "assignee": "Yoga", "assignee_reason": "JJ is waiting on Yoga to provide business context before proceeding; Yoga must act first", "category": "WAITING", "source_ts": "sl1"}]`,
+		},
 	}
 }

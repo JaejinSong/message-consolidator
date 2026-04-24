@@ -55,6 +55,10 @@ func pickConsolidationPrimary(tasks []TodoItem, indices []int) (primary, seconda
 // Note: original_text deduplication (same vs. different source) is handled at the DB layer
 // via UpdateTaskDescriptionAppend / UpdateTaskFullAppend.
 func consolidateMergeInto(primary, secondary TodoItem) TodoItem {
+	secondaryContent := strings.TrimSpace(secondary.Task)
+	if secondaryContent == "" || strings.Contains(primary.Task, secondaryContent) {
+		return primary
+	}
 	date := strings.SplitN(secondary.AssignedAt, "T", 2)[0]
 	if date == "" {
 		date = secondary.SourceTS
@@ -64,7 +68,7 @@ func consolidateMergeInto(primary, secondary TodoItem) TodoItem {
 	b.WriteString("\n\n--- [Update: ")
 	b.WriteString(date)
 	b.WriteString("] ---\n")
-	b.WriteString(secondary.Task)
+	b.WriteString(secondaryContent)
 	primary.Task = b.String()
 	return primary
 }
