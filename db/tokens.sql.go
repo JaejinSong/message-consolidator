@@ -22,7 +22,7 @@ func (q *Queries) DeleteGmailToken(ctx context.Context, userEmail string) error 
 
 const getDailyTokenUsage = `-- name: GetDailyTokenUsage :one
 SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(filtered_count), 0)
-FROM token_usage 
+FROM token_usage
 WHERE user_email = ? AND date = ?
 `
 
@@ -57,7 +57,7 @@ func (q *Queries) GetGmailToken(ctx context.Context, userEmail string) (string, 
 
 const getMonthlyTokenUsage = `-- name: GetMonthlyTokenUsage :one
 SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(filtered_count), 0)
-FROM token_usage 
+FROM token_usage
 WHERE user_email = ? AND date >= ? AND date < ?
 `
 
@@ -80,6 +80,163 @@ func (q *Queries) GetMonthlyTokenUsage(ctx context.Context, arg GetMonthlyTokenU
 	return i, err
 }
 
+const getTokenUsageByModel = `-- name: GetTokenUsageByModel :many
+SELECT model,
+       COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
+       COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+       COALESCE(SUM(call_count), 0)        AS call_count
+FROM token_usage
+WHERE user_email = ? AND date >= ? AND date < ?
+GROUP BY model
+ORDER BY prompt_tokens DESC
+`
+
+type GetTokenUsageByModelParams struct {
+	UserEmail string    `json:"user_email"`
+	Date      time.Time `json:"date"`
+	Date_2    time.Time `json:"date_2"`
+}
+
+type GetTokenUsageByModelRow struct {
+	Model            string      `json:"model"`
+	PromptTokens     interface{} `json:"prompt_tokens"`
+	CompletionTokens interface{} `json:"completion_tokens"`
+	CallCount        interface{} `json:"call_count"`
+}
+
+func (q *Queries) GetTokenUsageByModel(ctx context.Context, arg GetTokenUsageByModelParams) ([]GetTokenUsageByModelRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTokenUsageByModel, arg.UserEmail, arg.Date, arg.Date_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTokenUsageByModelRow
+	for rows.Next() {
+		var i GetTokenUsageByModelRow
+		if err := rows.Scan(
+			&i.Model,
+			&i.PromptTokens,
+			&i.CompletionTokens,
+			&i.CallCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTokenUsageBySource = `-- name: GetTokenUsageBySource :many
+SELECT source,
+       COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
+       COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+       COALESCE(SUM(call_count), 0)        AS call_count
+FROM token_usage
+WHERE user_email = ? AND date >= ? AND date < ?
+GROUP BY source
+ORDER BY prompt_tokens DESC
+`
+
+type GetTokenUsageBySourceParams struct {
+	UserEmail string    `json:"user_email"`
+	Date      time.Time `json:"date"`
+	Date_2    time.Time `json:"date_2"`
+}
+
+type GetTokenUsageBySourceRow struct {
+	Source           string      `json:"source"`
+	PromptTokens     interface{} `json:"prompt_tokens"`
+	CompletionTokens interface{} `json:"completion_tokens"`
+	CallCount        interface{} `json:"call_count"`
+}
+
+func (q *Queries) GetTokenUsageBySource(ctx context.Context, arg GetTokenUsageBySourceParams) ([]GetTokenUsageBySourceRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTokenUsageBySource, arg.UserEmail, arg.Date, arg.Date_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTokenUsageBySourceRow
+	for rows.Next() {
+		var i GetTokenUsageBySourceRow
+		if err := rows.Scan(
+			&i.Source,
+			&i.PromptTokens,
+			&i.CompletionTokens,
+			&i.CallCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTokenUsageByStep = `-- name: GetTokenUsageByStep :many
+SELECT step,
+       COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
+       COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+       COALESCE(SUM(call_count), 0)        AS call_count
+FROM token_usage
+WHERE user_email = ? AND date >= ? AND date < ?
+GROUP BY step
+ORDER BY prompt_tokens DESC
+`
+
+type GetTokenUsageByStepParams struct {
+	UserEmail string    `json:"user_email"`
+	Date      time.Time `json:"date"`
+	Date_2    time.Time `json:"date_2"`
+}
+
+type GetTokenUsageByStepRow struct {
+	Step             string      `json:"step"`
+	PromptTokens     interface{} `json:"prompt_tokens"`
+	CompletionTokens interface{} `json:"completion_tokens"`
+	CallCount        interface{} `json:"call_count"`
+}
+
+// Dashboard: per-step breakdown over a date range (inclusive start, exclusive end).
+func (q *Queries) GetTokenUsageByStep(ctx context.Context, arg GetTokenUsageByStepParams) ([]GetTokenUsageByStepRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTokenUsageByStep, arg.UserEmail, arg.Date, arg.Date_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTokenUsageByStepRow
+	for rows.Next() {
+		var i GetTokenUsageByStepRow
+		if err := rows.Scan(
+			&i.Step,
+			&i.PromptTokens,
+			&i.CompletionTokens,
+			&i.CallCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertGmailToken = `-- name: UpsertGmailToken :exec
 INSERT INTO gmail_tokens (user_email, token_json, updated_at)
 VALUES (?, ?, DATETIME('now'))
@@ -98,33 +255,42 @@ func (q *Queries) UpsertGmailToken(ctx context.Context, arg UpsertGmailTokenPara
 }
 
 const upsertTokenUsage = `-- name: UpsertTokenUsage :exec
-INSERT INTO token_usage (user_email, prompt_tokens, completion_tokens, total_tokens, filtered_count, date)
-VALUES (?, ?, ?, ?, ?, ?)
-ON CONFLICT (user_email, date)
-DO UPDATE SET 
+INSERT INTO token_usage (user_email, date, step, model, source, prompt_tokens, completion_tokens, total_tokens, call_count, filtered_count)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (user_email, date, step, model, source)
+DO UPDATE SET
     prompt_tokens = token_usage.prompt_tokens + EXCLUDED.prompt_tokens,
     completion_tokens = token_usage.completion_tokens + EXCLUDED.completion_tokens,
     total_tokens = token_usage.total_tokens + EXCLUDED.total_tokens,
+    call_count = token_usage.call_count + EXCLUDED.call_count,
     filtered_count = token_usage.filtered_count + EXCLUDED.filtered_count
 `
 
 type UpsertTokenUsageParams struct {
 	UserEmail        string        `json:"user_email"`
+	Date             time.Time     `json:"date"`
+	Step             string        `json:"step"`
+	Model            string        `json:"model"`
+	Source           string        `json:"source"`
 	PromptTokens     sql.NullInt64 `json:"prompt_tokens"`
 	CompletionTokens sql.NullInt64 `json:"completion_tokens"`
 	TotalTokens      sql.NullInt64 `json:"total_tokens"`
+	CallCount        sql.NullInt64 `json:"call_count"`
 	FilteredCount    sql.NullInt64 `json:"filtered_count"`
-	Date             time.Time     `json:"date"`
 }
 
 func (q *Queries) UpsertTokenUsage(ctx context.Context, arg UpsertTokenUsageParams) error {
 	_, err := q.db.ExecContext(ctx, upsertTokenUsage,
 		arg.UserEmail,
+		arg.Date,
+		arg.Step,
+		arg.Model,
+		arg.Source,
 		arg.PromptTokens,
 		arg.CompletionTokens,
 		arg.TotalTokens,
+		arg.CallCount,
 		arg.FilteredCount,
-		arg.Date,
 	)
 	return err
 }

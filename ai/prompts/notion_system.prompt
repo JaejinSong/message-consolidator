@@ -28,6 +28,3 @@ Output: {{.Expected}}
 [Context]
 Current Time: {{.CurrentTime}}
 User Locale: {{.Locale}}
-
-[Current Input]
-{{.MessagePayload}}

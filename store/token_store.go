@@ -9,10 +9,20 @@ import (
 	"time"
 )
 
+// tokenBucket keys in-memory token data by the same dimensions used in the DB UNIQUE
+// constraint, so per-(step, model, source) breakdown survives buffering and flushing.
+type tokenBucket struct {
+	Email  string
+	Step   string
+	Model  string
+	Source string
+}
+
 type tokenData struct {
 	Prompt     int
 	Completion int
-	Filtered   int
+	Calls      int
+	Filtered   int //Why: Filtered count is a per-user counter, written only to the legacy bucket (step="", model="", source="").
 }
 
 type tokenUsageCacheData struct {
@@ -28,68 +38,69 @@ type tokenUsageCacheData struct {
 
 var (
 	tokenMu           sync.Mutex
-	tokenDirtyData    = make(map[string]*tokenData)
-	tokenFlushingData = make(map[string]*tokenData) //Why: Buffers data currently being flushed to the database to prevent data loss if a parallel write occurs.
+	tokenDirtyData    = make(map[tokenBucket]*tokenData)
+	tokenFlushingData = make(map[tokenBucket]*tokenData) //Why: Buffers data currently being flushed to the database to prevent data loss if a parallel write occurs.
 	lastTokenFlush    time.Time
 
 	usageCache   = make(map[string]*tokenUsageCacheData)
 	usageCacheMu sync.RWMutex
 )
 
-func AddTokenUsage(email string, promptTokens, completionTokens int) error {
+// AddTokenUsage records token consumption for a single AI call, attributed to a specific
+// (step, model, source) bucket. Use step="" for unattributed legacy calls.
+func AddTokenUsage(email, step, model, source string, promptTokens, completionTokens int) error {
+	key := tokenBucket{Email: email, Step: step, Model: model, Source: source}
+
 	tokenMu.Lock()
-	defer tokenMu.Unlock()
-
-	if _, ok := tokenDirtyData[email]; !ok {
-		tokenDirtyData[email] = &tokenData{}
+	if _, ok := tokenDirtyData[key]; !ok {
+		tokenDirtyData[key] = &tokenData{}
 	}
-	tokenDirtyData[email].Prompt += promptTokens
-	tokenDirtyData[email].Completion += completionTokens
+	tokenDirtyData[key].Prompt += promptTokens
+	tokenDirtyData[key].Completion += completionTokens
+	tokenDirtyData[key].Calls++
+	tokenMu.Unlock()
 
-	//Why: Proactively updates the in-memory usage cache to avoid redundant database reads for the current period.
-	today := time.Now().Format("2006-01-02")
-	currentMonth := time.Now().Format("2006-01")
-
-	usageCacheMu.Lock()
-	if cache, ok := usageCache[email]; ok {
-		if cache.Date == today {
-			cache.DailyPrompt += promptTokens
-			cache.DailyCompletion += completionTokens
-		}
-		if cache.Month == currentMonth {
-			cache.MonthlyPrompt += promptTokens
-			cache.MonthlyCompletion += completionTokens
-		}
-	}
-	usageCacheMu.Unlock()
-
+	updateUsageCache(email, promptTokens, completionTokens, 0)
 	return nil
 }
 
 // IncrementFilteredCount increments the filtered message count for the user.
 // Why: [Performance] Caches the filtered count in-memory to minimize DB writes for high-frequency noise rejection.
 func IncrementFilteredCount(email string) {
+	key := tokenBucket{Email: email}
+
 	tokenMu.Lock()
-	defer tokenMu.Unlock()
-
-	if _, ok := tokenDirtyData[email]; !ok {
-		tokenDirtyData[email] = &tokenData{}
+	if _, ok := tokenDirtyData[key]; !ok {
+		tokenDirtyData[key] = &tokenData{}
 	}
-	tokenDirtyData[email].Filtered++
+	tokenDirtyData[key].Filtered++
+	tokenMu.Unlock()
 
+	updateUsageCache(email, 0, 0, 1)
+}
+
+// updateUsageCache keeps the daily/monthly aggregates hot so GetDailyTokenUsage/GetMonthlyTokenUsage
+// can answer without a DB round-trip between flushes.
+func updateUsageCache(email string, prompt, completion, filtered int) {
 	today := time.Now().Format("2006-01-02")
 	currentMonth := time.Now().Format("2006-01")
 
 	usageCacheMu.Lock()
-	if cache, ok := usageCache[email]; ok {
-		if cache.Date == today {
-			cache.DailyFiltered++
-		}
-		if cache.Month == currentMonth {
-			cache.MonthlyFiltered++
-		}
+	defer usageCacheMu.Unlock()
+	cache, ok := usageCache[email]
+	if !ok {
+		return
 	}
-	usageCacheMu.Unlock()
+	if cache.Date == today {
+		cache.DailyPrompt += prompt
+		cache.DailyCompletion += completion
+		cache.DailyFiltered += filtered
+	}
+	if cache.Month == currentMonth {
+		cache.MonthlyPrompt += prompt
+		cache.MonthlyCompletion += completion
+		cache.MonthlyFiltered += filtered
+	}
 }
 
 func FlushTokenUsage(ctx context.Context) error {
@@ -99,24 +110,27 @@ func FlushTokenUsage(ctx context.Context) error {
 		return nil
 	}
 	tokenFlushingData = tokenDirtyData
-	tokenDirtyData = make(map[string]*tokenData)
+	tokenDirtyData = make(map[tokenBucket]*tokenData)
 	tokenMu.Unlock()
 
 	err := WithDBRetry("FlushTokenUsage", func() error {
 		conn := GetDB()
 		queries := db.New(conn)
-		today := time.Now().Format("2006-01-02")
+		parsedDate, _ := time.Parse("2006-01-02", time.Now().Format("2006-01-02"))
 
-		for email, data := range tokenFlushingData {
+		for key, data := range tokenFlushingData {
 			totalTokens := data.Prompt + data.Completion
-			parsedDate, _ := time.Parse("2006-01-02", today)
 			err := queries.UpsertTokenUsage(ctx, db.UpsertTokenUsageParams{
-				UserEmail:        email,
+				UserEmail:        key.Email,
+				Date:             parsedDate,
+				Step:             key.Step,
+				Model:            key.Model,
+				Source:           key.Source,
 				PromptTokens:     sql.NullInt64{Int64: int64(data.Prompt), Valid: true},
 				CompletionTokens: sql.NullInt64{Int64: int64(data.Completion), Valid: true},
 				TotalTokens:      sql.NullInt64{Int64: int64(totalTokens), Valid: true},
+				CallCount:        sql.NullInt64{Int64: int64(data.Calls), Valid: true},
 				FilteredCount:    sql.NullInt64{Int64: int64(data.Filtered), Valid: true},
-				Date:             parsedDate,
 			})
 			if err != nil {
 				return err
@@ -128,16 +142,17 @@ func FlushTokenUsage(ctx context.Context) error {
 	tokenMu.Lock()
 	if err != nil {
 		logger.Errorf("[STORE] Failed to flush token usage: %v", err)
-		for email, data := range tokenFlushingData {
-			if _, ok := tokenDirtyData[email]; !ok {
-				tokenDirtyData[email] = &tokenData{}
+		for key, data := range tokenFlushingData {
+			if _, ok := tokenDirtyData[key]; !ok {
+				tokenDirtyData[key] = &tokenData{}
 			}
-			tokenDirtyData[email].Prompt += data.Prompt
-			tokenDirtyData[email].Completion += data.Completion
-			tokenDirtyData[email].Filtered += data.Filtered
+			tokenDirtyData[key].Prompt += data.Prompt
+			tokenDirtyData[key].Completion += data.Completion
+			tokenDirtyData[key].Calls += data.Calls
+			tokenDirtyData[key].Filtered += data.Filtered
 		}
 	}
-	tokenFlushingData = make(map[string]*tokenData)
+	tokenFlushingData = make(map[tokenBucket]*tokenData)
 	tokenMu.Unlock()
 
 	return err
@@ -157,23 +172,26 @@ func FlushTokenUsageIfNeeded(ctx context.Context) {
 	}
 }
 
-// getInMemoryUsage gathers pending token usage from dirty and flushing buffers.
+// getInMemoryUsage gathers pending token usage from dirty and flushing buffers,
+// summing across every (step, model, source) bucket that belongs to the email.
 // Why: [Performance] Shared logic for daily/monthly stats that ensures thread safety.
 func getInMemoryUsage(email string) (int, int, int) {
 	tokenMu.Lock()
 	defer tokenMu.Unlock()
 
 	p, c, f := 0, 0, 0
-	if data, ok := tokenDirtyData[email]; ok {
-		p += data.Prompt
-		c += data.Completion
-		f += data.Filtered
+	sum := func(buf map[tokenBucket]*tokenData) {
+		for key, data := range buf {
+			if key.Email != email {
+				continue
+			}
+			p += data.Prompt
+			c += data.Completion
+			f += data.Filtered
+		}
 	}
-	if data, ok := tokenFlushingData[email]; ok {
-		p += data.Prompt
-		c += data.Completion
-		f += data.Filtered
-	}
+	sum(tokenDirtyData)
+	sum(tokenFlushingData)
 	return p, c, f
 }
 

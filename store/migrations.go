@@ -116,6 +116,44 @@ func migrateExistingData(ctx context.Context, q db.DBTX) {
 	if !tableHasColumn(ctx, q, "users", "tg_user_id") {
 		_, _ = q.ExecContext(ctx, "ALTER TABLE users ADD COLUMN tg_user_id TEXT DEFAULT ''")
 	}
+
+	migrateTokenUsageBreakdown(ctx, q)
+}
+
+// migrateTokenUsageBreakdown rebuilds token_usage with step/model/source/call_count columns
+// and the new composite UNIQUE key. SQLite cannot alter UNIQUE constraints in place, so we
+// copy historical rows into the legacy bucket (step='', model='', source='').
+func migrateTokenUsageBreakdown(ctx context.Context, q db.DBTX) {
+	if tableHasColumn(ctx, q, "token_usage", "step") {
+		return
+	}
+	stmts := []string{
+		`CREATE TABLE token_usage_new (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_email VARCHAR(255) NOT NULL,
+			date DATE NOT NULL DEFAULT (date('now')),
+			step TEXT NOT NULL DEFAULT '',
+			model TEXT NOT NULL DEFAULT '',
+			source TEXT NOT NULL DEFAULT '',
+			prompt_tokens INT DEFAULT 0,
+			completion_tokens INT DEFAULT 0,
+			total_tokens INT DEFAULT 0,
+			call_count INT DEFAULT 0,
+			filtered_count INT DEFAULT 0,
+			UNIQUE(user_email, date, step, model, source)
+		)`,
+		`INSERT INTO token_usage_new (user_email, date, prompt_tokens, completion_tokens, total_tokens, filtered_count)
+		 SELECT user_email, date, prompt_tokens, completion_tokens, total_tokens, filtered_count FROM token_usage`,
+		`DROP TABLE token_usage`,
+		`ALTER TABLE token_usage_new RENAME TO token_usage`,
+	}
+	for _, s := range stmts {
+		if _, err := q.ExecContext(ctx, s); err != nil {
+			logger.Errorf("[MIGRATE] token_usage rebuild step failed: %v", err)
+			return
+		}
+	}
+	logger.Infof("[MIGRATE] token_usage extended with step/model/source/call_count")
 }
 
 func tableHasColumn(ctx context.Context, q db.DBTX, table, column string) bool {

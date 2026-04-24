@@ -167,9 +167,13 @@ type TokenUsage struct {
 	ID               int64         `json:"id"`
 	UserEmail        string        `json:"user_email"`
 	Date             time.Time     `json:"date"`
+	Step             string        `json:"step"`
+	Model            string        `json:"model"`
+	Source           string        `json:"source"`
 	PromptTokens     sql.NullInt64 `json:"prompt_tokens"`
 	CompletionTokens sql.NullInt64 `json:"completion_tokens"`
 	TotalTokens      sql.NullInt64 `json:"total_tokens"`
+	CallCount        sql.NullInt64 `json:"call_count"`
 	FilteredCount    sql.NullInt64 `json:"filtered_count"`
 }
 

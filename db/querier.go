@@ -100,6 +100,10 @@ type Querier interface {
 	GetTelegramCredentials(ctx context.Context, email string) (GetTelegramCredentialsRow, error)
 	GetTelegramSession(ctx context.Context, email string) ([]byte, error)
 	GetTenantEmailByContactID(ctx context.Context, id int64) (string, error)
+	GetTokenUsageByModel(ctx context.Context, arg GetTokenUsageByModelParams) ([]GetTokenUsageByModelRow, error)
+	GetTokenUsageBySource(ctx context.Context, arg GetTokenUsageBySourceParams) ([]GetTokenUsageBySourceRow, error)
+	// Dashboard: per-step breakdown over a date range (inclusive start, exclusive end).
+	GetTokenUsageByStep(ctx context.Context, arg GetTokenUsageByStepParams) ([]GetTokenUsageByStepRow, error)
 	GetTotalCompleted(ctx context.Context, dollar_1 string) (int64, error)
 	GetUserAliases(ctx context.Context, userID int64) ([]string, error)
 	GetUserAliasesByEmail(ctx context.Context, email sql.NullString) ([]string, error)

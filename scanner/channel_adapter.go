@@ -107,7 +107,7 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 	source := adapter.Source()
 
 	payload, msgMap := adapter.BuildPayload(user, aliases, group)
-	if isIgnorableChannelNoise(ctx, user.Email, payload, prefix) {
+	if isIgnorableChannelNoise(ctx, user.Email, source, payload, prefix) {
 		return nil
 	}
 
@@ -130,11 +130,11 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 	return processChannelItems(ctx, user, aliases, items, msgMap, groupName, adapter.Is1To1(roomKey), wg, source)
 }
 
-func isIgnorableChannelNoise(ctx context.Context, email, payload, prefix string) bool {
+func isIgnorableChannelNoise(ctx context.Context, email, source, payload, prefix string) bool {
 	if filterSvc == nil {
 		return false
 	}
-	isNoise, err := filterSvc.IsNoise(ctx, email, payload)
+	isNoise, err := filterSvc.IsNoise(ctx, email, source, payload)
 	if err != nil {
 		logger.Warnf("[%s-SCAN] Filter failed for %s: %v", prefix, email, err)
 		return false

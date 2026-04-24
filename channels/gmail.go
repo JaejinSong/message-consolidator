@@ -428,7 +428,7 @@ func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessag
 				continue
 			}
 		}
-		if isNoise, err := filterSvc.IsNoise(ctx, email, m.Text); err == nil && isNoise {
+		if isNoise, err := filterSvc.IsNoise(ctx, email, "gmail", m.Text); err == nil && isNoise {
 			continue
 		}
 		result = append(result, m)

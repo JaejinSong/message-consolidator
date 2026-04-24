@@ -36,6 +36,3 @@ Output: {{.Expected}}
 Current Time: {{.CurrentTime}}
 User Locale: {{.Locale}}
 Current User Context: {{.CurrentUser}} ({{.CurrentUserEmail}})
-
-[Current Input]
-{{.MessagePayload}}

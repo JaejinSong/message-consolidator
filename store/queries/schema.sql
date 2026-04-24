@@ -207,11 +207,15 @@ CREATE TABLE IF NOT EXISTS token_usage (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_email VARCHAR(255) NOT NULL,
     date DATE NOT NULL DEFAULT (date('now')),
+    step TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT '',
     prompt_tokens INT DEFAULT 0,
     completion_tokens INT DEFAULT 0,
     total_tokens INT DEFAULT 0,
+    call_count INT DEFAULT 0,
     filtered_count INT DEFAULT 0,
-    UNIQUE(user_email, date)
+    UNIQUE(user_email, date, step, model, source)
 );
 
 
