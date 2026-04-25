@@ -49,14 +49,22 @@ func runMigrations(ctx context.Context, q db.DBTX) error {
 }
 
 // migrateContactResolution rebuilds contact_resolution on first run after the table was introduced.
+// migrateContactResolution rebuilds contact_resolution on first run after the table was introduced.
+// Why: spawned as a fire-and-forget goroutine from runMigrations. Captures the *sql.DB once at start
+// so a concurrent ResetForTest (test teardown) cannot nil the global mid-execution and panic.
 func migrateContactResolution(ctx context.Context) {
+	conn := GetDB()
+	if conn == nil {
+		return
+	}
+
 	var count int
-	_ = GetDB().QueryRowContext(ctx, "SELECT COUNT(*) FROM contact_resolution").Scan(&count)
+	_ = conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM contact_resolution").Scan(&count)
 	if count > 0 {
 		return
 	}
 
-	rows, err := GetDB().QueryContext(ctx, "SELECT DISTINCT tenant_email FROM contacts")
+	rows, err := conn.QueryContext(ctx, "SELECT DISTINCT tenant_email FROM contacts")
 	if err != nil {
 		return
 	}
