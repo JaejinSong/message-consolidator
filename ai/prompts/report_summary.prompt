@@ -4,7 +4,14 @@ version: 2.5.1
 model: gemini-3-flash-preview
 ---
 [System Instruction]
-Generate a professional Executive Report grounded in the `Evidence: "..."` text of each input line. Never infer beyond what Evidence explicitly supports.
+Generate a professional Executive Report. Each input line carries 5W context in this shape:
+`- [<status>][<category>] <task> (Room: <project>, From: <requester> (<cat>), To: <assignee> (<cat>), Due: <deadline>) | Evidence: "<snippet>"`
+
+Two grounding rules:
+- **Activity counting and customer roll-up**: use `task`, `Room`, and `From/To` fields directly. Status `[V]` = done, `[ ]` = active. Evidence is optional context.
+- **Key Insights and risk claims**: anchor every bullet in `Evidence: "..."` text — verbatim quote required. Tasks with no Evidence cannot appear in Key Insights.
+
+Never infer beyond what task title or Evidence explicitly supports.
 
 # Rules
 1. Headers (all 4 required, in order): `## [Operations & Strategy Overview]`, `## [Key Insights]`, `## [Activity]`, `## [Stalled Tasks]`
@@ -12,6 +19,9 @@ Generate a professional Executive Report grounded in the `Evidence: "..."` text 
 3. **Key Insights**: Surface non-obvious patterns, risks, and anomalies that are **explicitly supported by the Evidence text** — NOT a task list. Each risk/anomaly bullet MUST include a verbatim quote (≤10 words) from Evidence, in double quotes, proving the claim. Format: `- [Source] finding + "verbatim evidence quote" + implication.`
    - **Flag risks ONLY if supported by Evidence.** Look for explicit signals: "blocked", "stuck", "no response", "waiting since", "can't", "not scalable", "unable to", "delayed", "overdue", or equivalent direct speaker language. Do NOT infer bottlenecks from task titles alone.
    - If no evidence-backed risks exist, emit exactly one bullet: `- No anomalies detected.` Do not pad with generic observations.
+   - **No quota padding**: target count is 0–5 bullets. If genuine evidence-backed risks number fewer than 3, output ONLY the real ones (or `- No anomalies detected.`). Never pad with weak/derivative observations to reach a count. A single strong bullet beats five filler bullets.
+   - **"So what" test**: every bullet must independently articulate consequence. If the bullet, with its quote stripped, would read as just a task summary, it FAILS the test — drop it. The consequence is what makes it an insight rather than a log entry.
+   - **Done task exclusion**: tasks marked `[V]` (already resolved) cannot generate risk/anomaly bullets — by definition they are not active risks. Use them only for cross-cutting patterns (e.g., "5 of 7 done tasks involved license issuance" *if* such pattern is genuinely visible).
    - **Preserve speaker stance.** When Evidence shows the speaker describing their own workflow (e.g., "share the context and I'll raise the request"), do NOT reframe it as a systemic bottleneck. Keep the speaker's verb and subject.
    - **No nominalization.** Avoid patterns that convert speaker actions into abstract nouns: "the requirement to X", "indicates a Y", "the need to Z". Use the speaker's original verbs and subjects.
    - **No free-form consequent clauses.** Do NOT append trailing implications (`", which blocks X"`, `", leading to Y"`, `", causing Z"`, `", delaying W"`, `", resulting in V"`) unless the consequent words appear **verbatim in Evidence**. If you feel compelled to add a consequent, you are inferring — stop.
@@ -25,7 +35,11 @@ Generate a professional Executive Report grounded in the `Evidence: "..."` text 
    GOOD: `- [Slack] No anomalies detected.` (when Evidence shows a normal escalation flow, not a grievance)
    BAD:  `- [biz-global-tech] Jaejin Song states "Verifying every case on my end isn't scalable" when discussing manual verification.` (too weak — missing the finding label)
    GOOD: `- [biz-global-tech] Jaejin Song flags scalability ceiling on solo verification: "Verifying every case on my end isn't scalable".` (finding label reuses Evidence words "scalable" + "verifying"; no fabricated consequent)
-4. **Activity**: Identify all customer or company names referenced in the period. Infer from room/channel names and task descriptions (e.g. "WhaTap APM Tools POC for Bank BNI" → "Bank BNI", "biz-global-malaysia" → "Malaysia Biz"). If no company name can be inferred, use the room/channel name as-is. Output one ```json block: `[{"customer": str, "count": num, "summary": str}]` sorted by count DESC — `summary` is a 1-2 sentence description of what was worked on for that customer (e.g. "APM agent setup and POC support. Focused on onboarding and initial configuration."). If no customers identified: `[]`
+4. **Activity**: Count and roll up **every task line** — both `[V]` done and `[ ]` active count equally. Evidence is NOT required for Activity counting; use `task`, `Room`, and `From/To` fields. Identify customer/company names by inferring from room/channel names and task descriptions (e.g. "WhaTap APM Tools POC for Bank BNI" → "Bank BNI", "biz-global-malaysia" → "Malaysia Biz"). If no company name can be inferred, use the room/channel name as-is. Output one ```json block: `[{"customer": str, "count": num, "summary": str}]` sorted by count DESC. If no customers identified: `[]`
+   - `summary`: 1–2 sentences describing the customer engagement using 5W signals from the input lines (task verbs + Room + From/To roles + Due dates).
+   - When prominent, reference the *what specifically*, the key counterparty (assignee role, e.g. "with their dev lead"), and notable upcoming deadlines visible in `Due:` fields.
+   - GOOD: `"Quoting and license issuance for SIMASFIN POC, with monitoring deployment due 2026-04-27 led by Yoga."`
+   - BAD: `"APM agent setup and POC support. Focused on onboarding and initial configuration."` (generic — no actor, no deadline, no specifics)
 5. **Stalled Tasks**: Only 'Stalled'/'Neglected'. One ```json block: `[{"source": str, "requester": str, "status": str, "days": num, "reason": str}]`. If none: `"No stalled tasks identified."`
 6. Tone: dry, professional, data-driven. English only. 1 bullet = 1 sentence — no paragraphs.
 

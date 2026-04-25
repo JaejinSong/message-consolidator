@@ -53,7 +53,7 @@ func BuildTask(p TaskBuildParams) store.ConsolidatedMessage {
 		UserEmail:           p.UserEmail,
 		Source:              p.Source,
 		Room:                p.Room,
-		Task:                p.Item.Task,
+		Task:                resolveTaskTitle(p.Item.Task, p.Room, p.OriginalText),
 		Requester:           requester,
 		RequesterCanonical:  p.Item.RequesterCanonical,
 		Assignee:            assignee,
@@ -66,6 +66,36 @@ func BuildTask(p TaskBuildParams) store.ConsolidatedMessage {
 		SourceChannels:      p.SourceChannels,
 		ConsolidatedContext: p.Item.ContextSnippets,
 	}
+}
+
+// resolveTaskTitle returns a non-empty, descriptive title for a task.
+// Why: Empty/stub titles ("", "NONE", or <5 chars) get hidden from the dashboard
+// active list (filter `IFNULL(task,'') != ''`) and report Activity counting.
+// Falls back through Gmail subject line → original snippet → room marker so every
+// row carries a minimum identifier even if upstream AI returns garbage.
+func resolveTaskTitle(aiTitle, room, original string) string {
+	if t := strings.TrimSpace(aiTitle); len(t) >= 5 && !strings.EqualFold(t, "NONE") {
+		return t
+	}
+	for _, line := range strings.Split(original, "\n") {
+		if strings.HasPrefix(line, "S: ") {
+			if s := strings.TrimSpace(line[2:]); len(s) >= 5 {
+				return s
+			}
+		}
+	}
+	cleaned := strings.TrimSpace(strings.ReplaceAll(original, "\n", " "))
+	runes := []rune(cleaned)
+	if len(runes) >= 5 {
+		if len(runes) > 60 {
+			runes = runes[:60]
+		}
+		return strings.TrimSpace(string(runes))
+	}
+	if room != "" {
+		return "[" + room + "]"
+	}
+	return "[Unidentified message]"
 }
 
 // resolveRequester applies the Requester fallback chain.

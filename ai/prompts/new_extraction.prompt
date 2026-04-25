@@ -8,7 +8,7 @@ model: gemini-3-flash-preview
 Extract actionable tasks, operational policies, and context-dependent queries from the message text.
 
 # Core Rules:
-1. **Force JSON Output**: You must respond ONLY in a single JSON object (consolidated): `{"id": int|null, "reasoning": "string", "task": "Main Title (EN)", "status": "new|resolve", "category": "TASK|QUERY|PROMISE", "requester_id": int|null, "assignee_id": int|null, "assignee_name": "string", "subtasks": [{"task": "Subtask 1 (EN)", "assignee_id": int|null, "assignee_name": "string"}], "affinity_group_id": "string"}`.
+1. **Force JSON Output**: You must respond ONLY in a single JSON object (consolidated): `{"id": int|null, "reasoning": "string", "task": "Main Title (EN)", "status": "new|resolve", "category": "TASK|QUERY|PROMISE", "requester_id": int|null, "assignee_id": int|null, "assignee_name": "string", "deadline": "string", "subtasks": [{"task": "Subtask 1 (EN)", "assignee_id": int|null, "assignee_name": "string"}], "affinity_group_id": "string"}`.
    - `id`: ID of the existing task being resolved or updated (from Existing Tasks context). Set to `null` for new tasks.
 2. **Identity Mapping**:
    - IF the message sender / requester is the current user (see Context), SET `requester_id` = CurrentUserID.
@@ -20,9 +20,27 @@ Extract actionable tasks, operational policies, and context-dependent queries fr
    - Parent `task` MUST be a **neutral umbrella** (e.g., "Dev escalation and verification scope"). Do NOT join independent paragraphs with causal connectors ("while", "because", "once", "since", "so that"). Causality fabricated here propagates as hallucinated implications in downstream report summaries.
    - When a single message contains N paragraphs separated by `\n\n` and the paragraphs do not share a subject+verb pair, emit N subtasks — one per independent thought. Do NOT squash them into a compound Task string.
 4. **Canonical Language**: All 'task' and 'subtask' summaries MUST be written in **English (EN)** only.
-5. **Negative Constraints**: 
+5. **Negative Constraints**:
    - IF the input is just conversational filler (e.g., "OK", "Sure", "Thanks", "네", "확인했습니다"), RETURN `{"task": "NONE", "category": "TASK", "subtasks": []}`.
    - DO NOT extract greetings or meta-talk.
+6. **Self-contained Title Rule**: `task` MUST stand alone — readable in an Activity table without seeing original_text.
+   - REQUIRED structure: verb + object + key qualifier (customer, channel, deadline, or subject matter).
+   - MIN 30 chars unless original is genuinely brief (e.g., the entire message is "Link?" or "OK").
+   - REJECTED bare-verb patterns: "Schedule", "Review", "Check", "Update", "Coordinate", "Discuss" alone without an object/context. Always append the *what* and *with whom*.
+     BAD:  `"task": "Schedule"`
+     GOOD: `"task": "Schedule Korean team meeting for Android update follow-up"`
+     BAD:  `"task": "Review Monitoring"`
+     GOOD: `"task": "Review WhaTap monitoring features and OpenMetrics docs for Heitech"`
+   - Calendar invites (input contains `S: <subject>` header lines): use the subject line plus date as the title — e.g., `"Attend Onsite [Stream-Deves] WhaTap presentation, 2026-04-30"`. Never return empty `task` for a calendar event.
+   - **Action verb specificity**: Replace generic verbs ("handle", "process", "manage", "follow up on") with the actual operation visible in the message. The title must communicate *what specifically* will be done — even when *who/where/when* lives in metadata columns (requester/assignee/room/deadline are tracked separately). Reader should grasp the operation without external context.
+     BAD:  `"task": "Handle license issue"`
+     GOOD: `"task": "Replace WhaTap license file via direct upload"`
+     BAD:  `"task": "Follow up on POC"`
+     GOOD: `"task": "Provide final monitoring quantities for SIMASFIN POC quotation"`
+7. **Deadline Extraction**: Default is **no deadline**. Most messages have none — that is normal, not a failure.
+   - Set `deadline` ONLY when the message states a CONCRETE date/time, or a relative term that resolves unambiguously to one (e.g. "by Friday", "next Monday", "내일 오전", "by EOD today").
+   - For VAGUE/ABSENT cues — "soon", "ASAP", "later", "when possible", "이번 주 안에", or no temporal mention at all — SET `deadline=""`. Do NOT guess.
+   - FORMAT when present: `YYYY-MM-DD` (date-only) or `YYYY-MM-DD HH:MM TZ` (with time). Resolve relative terms against `Current Time` from context.
 
 # Extraction Logic (Deterministic):
 1. **IDENTIFY Category**:

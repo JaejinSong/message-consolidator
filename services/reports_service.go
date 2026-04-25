@@ -264,15 +264,22 @@ func (s *ReportsService) formatLogLine(email string, m Log) string {
 	if cat == "" {
 		cat = "TASK"
 	}
-	// Why: Done=true는 status "V"로 이미 명시되어 AI가 재추론할 필요 없음 → evidence 제거.
-	// Active(Done=false) task만 80자 evidence로 grounding 유지 → 환각 방지 + 비용 절감.
-	evidence := ""
+	// Why: Active task는 Key Insights의 evidence-grounded 분석 대상이라 200자 유지 — 80자로
+	// 축약하면 risk 신호("blocked", "waiting since" 등)가 잘려 Insights가 빈약해짐.
+	// Done task는 Activity 카운팅용 grounding signal만 필요하므로 80자로 축약 → 입력 절감.
+	evLen := 80
 	if !m.Done {
-		evidence = truncateEvidence(m.OriginalText, 80)
+		evLen = 200
+	}
+	evidence := truncateEvidence(m.OriginalText, evLen)
+
+	deadlineStr := ""
+	if m.Deadline != "" {
+		deadlineStr = ", Due: " + m.Deadline
 	}
 
-	return fmt.Sprintf("- [%s][%s] %s (Room: %s, From: %s (%s), To: %s (%s))%s\n",
-		status, cat, m.Task, m.Room, reqName, reqCat, asgName, asgCat, evidence)
+	return fmt.Sprintf("- [%s][%s] %s (Room: %s, From: %s (%s), To: %s (%s)%s)%s\n",
+		status, cat, m.Task, m.Room, reqName, reqCat, asgName, asgCat, deadlineStr, evidence)
 }
 
 
