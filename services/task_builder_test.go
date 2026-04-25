@@ -126,7 +126,7 @@ func TestResolveRequester_EnvelopeOverridesAI(t *testing.T) {
 				SenderRaw:   tt.senderRaw,
 				SenderEmail: tt.senderEmail,
 			}
-			got := resolveRequester(p)
+			got := resolveRequester(t.Context(), p)
 			if got != tt.want {
 				t.Errorf("resolveRequester() = %q; want %q", got, tt.want)
 			}
@@ -191,7 +191,7 @@ func TestResolveAssignee_PromiseBranchUsesSenderRaw(t *testing.T) {
 				},
 				SenderRaw: tt.senderRaw,
 			}
-			got := resolveAssignee(p)
+			got := resolveAssignee(t.Context(), p)
 			if got != tt.want {
 				t.Errorf("resolveAssignee() = %q; want %q", got, tt.want)
 			}

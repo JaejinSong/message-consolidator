@@ -30,8 +30,8 @@ func SaveMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool,
 		return false, 0, nil
 	}
 
-	msg.Requester = NormalizeName(msg.UserEmail, msg.Requester) //nolint:contextcheck // Identity-resolution chain is sweep target of Wave 2 I.
-	msg.Assignee = NormalizeName(msg.UserEmail, msg.Assignee)   //nolint:contextcheck // Identity-resolution chain is sweep target of Wave 2 I.
+	msg.Requester = NormalizeName(ctx, msg.UserEmail, msg.Requester)
+	msg.Assignee = NormalizeName(ctx, msg.UserEmail, msg.Assignee)
 
 	if isSemanticDup(ctx, q, msg) {
 		return false, 0, nil

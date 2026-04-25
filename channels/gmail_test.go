@@ -32,7 +32,7 @@ func TestProcessGeminiItems_SourceTSAlignment(t *testing.T) {
 		{Task: "Task C", SourceTS: "ts-C", Category: "TASK"},
 	}
 
-	result := processGeminiItems(user.Email, &user, nil, items, classificationMap, toMap, msgMap)
+	result := processGeminiItems(t.Context(), user.Email, &user, nil, items, classificationMap, toMap, msgMap)
 
 	if _, ok := result["ts-A"]; ok {
 		t.Error("ts-A should be skipped (SourceTS not in msgMap)")
@@ -67,7 +67,7 @@ func TestProcessGeminiItems_NoDuplicateOnSkip(t *testing.T) {
 		{Task: "Real Task", SourceTS: "ts-1", Category: "TASK"},
 	}
 
-	result := processGeminiItems(user.Email, &user, nil, items, map[string]string{}, map[string]string{}, msgMap)
+	result := processGeminiItems(t.Context(), user.Email, &user, nil, items, map[string]string{}, map[string]string{}, msgMap)
 
 	if len(result) != 1 {
 		t.Errorf("expected 1 result, got %d", len(result))
@@ -86,7 +86,7 @@ func TestProcessGeminiItems_UsesServicesBuiltTask(t *testing.T) {
 	}
 	items := []store.TodoItem{{Task: "Do something", SourceTS: "ts-x", Category: "QUERY"}}
 
-	result := processGeminiItems(user.Email, &user, nil, items, map[string]string{"ts-x": CategoryMine}, map[string]string{}, msgMap)
+	result := processGeminiItems(t.Context(), user.Email, &user, nil, items, map[string]string{"ts-x": CategoryMine}, map[string]string{}, msgMap)
 
 	msg, ok := result["ts-x"]
 	if !ok {
@@ -164,7 +164,7 @@ func TestBuildTask_GmailIdentityFallback(t *testing.T) {
 		SenderRaw: "Kenny Park", Source: "gmail", Room: "Gmail",
 		GmailClassification: CategoryMine,
 	}
-	msg := services.BuildTask(params)
+	msg := services.BuildTask(t.Context(), params)
 
 	if msg.Requester != "Kenny Park" {
 		t.Errorf("Expected Requester='Kenny Park', got %q", msg.Requester)
@@ -298,10 +298,10 @@ func TestUpsertAddresses(t *testing.T) {
 	if first != "sola@whatap.io" {
 		t.Errorf("Expected sola@whatap.io, got %s", first)
 	}
-	if name := store.NormalizeContactName(tenant, "sola@whatap.io"); name != "Lim Sola" {
+	if name := store.NormalizeContactName(t.Context(), tenant, "sola@whatap.io"); name != "Lim Sola" {
 		t.Errorf("Lim Sola not registered correctly: %s", name)
 	}
-	if name := store.NormalizeContactName(tenant, "kenny@whatap.io"); name != "Kenny Holmes" {
+	if name := store.NormalizeContactName(t.Context(), tenant, "kenny@whatap.io"); name != "Kenny Holmes" {
 		t.Errorf("Kenny Holmes not registered correctly: %s", name)
 	}
 

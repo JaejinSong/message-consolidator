@@ -111,7 +111,7 @@ func TestNormalizeWithCategory(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
-			id, name, cat := NormalizeWithCategory(tenantEmail, tc.input)
+			id, name, cat := NormalizeWithCategory(t.Context(), tenantEmail, tc.input)
 
 			if id != tc.expectedID {
 				t.Errorf("[%s] ID mismatch: got %q, want %q", tc.testName, id, tc.expectedID)
@@ -147,7 +147,7 @@ func TestNormalizeName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := NormalizeName(tenantEmail, tt.input)
+			got := NormalizeName(t.Context(), tenantEmail, tt.input)
 			if got != tt.expected {
 				t.Errorf("%s: got %q, want %q", tt.name, got, tt.expected)
 			}

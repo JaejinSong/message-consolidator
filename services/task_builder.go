@@ -45,9 +45,9 @@ type TaskBuildParams struct {
 //  1. AI-extracted assignee, normalized via NormalizeAssignee
 //  2. Category=PROMISE with empty AI → SenderRaw (envelope-driven speaker fallback)
 //  3. Falls back to AssigneeShared when AI returns empty
-func BuildTask(p TaskBuildParams) store.ConsolidatedMessage {
-	requester := resolveRequester(p)
-	assignee := resolveAssignee(p)
+func BuildTask(ctx context.Context, p TaskBuildParams) store.ConsolidatedMessage {
+	requester := resolveRequester(ctx, p)
+	assignee := resolveAssignee(ctx, p)
 	category := resolveCategory(p.Item.Category, p.GmailClassification)
 
 	return store.ConsolidatedMessage{
@@ -101,13 +101,13 @@ func resolveTaskTitle(aiTitle, room, original string) string {
 
 // resolveRequester applies the Requester fallback chain.
 // Phase J Path B: envelope (SenderRaw / SenderEmail) is authoritative; AI is last-resort fallback.
-func resolveRequester(p TaskBuildParams) string {
+func resolveRequester(ctx context.Context, p TaskBuildParams) string {
 	normalize := func(raw string) string {
 		// Why: NormalizeContactName hits the DB; skip if no connection (e.g. unit-test without DB).
 		if store.GetDB() == nil || raw == "" {
 			return raw
 		}
-		if n := store.NormalizeContactName(p.UserEmail, raw); n != "" {
+		if n := store.NormalizeContactName(ctx, p.UserEmail, raw); n != "" {
 			return n
 		}
 		return raw
@@ -134,7 +134,7 @@ func resolveRequester(p TaskBuildParams) string {
 // resolveAssignee applies the Assignee normalization chain.
 // Maps self-referential tokens ("me", "__CURRENT_USER__") to the user's canonical name,
 // and falls back to AssigneeShared when AI returns empty.
-func resolveAssignee(p TaskBuildParams) string {
+func resolveAssignee(ctx context.Context, p TaskBuildParams) string {
 	raw := normalizeAIAssignee(p)
 	if raw == "" {
 		// Empty assignee in Slack/WhatsApp typically signals a group/broadcast message.
@@ -146,7 +146,7 @@ func resolveAssignee(p TaskBuildParams) string {
 	if matchesAlias(raw, p.Aliases) {
 		return preferredName(p.User)
 	}
-	if resolvesToCurrentUser(raw, p) {
+	if resolvesToCurrentUser(ctx, raw, p) {
 		return preferredName(p.User)
 	}
 	return raw
@@ -184,22 +184,22 @@ func matchesAlias(raw string, aliases []string) bool {
 }
 
 //Why: ResolveAlias is the only DB-backed branch — wrapped so resolveAssignee stays in cognitive budget. Gracefully returns false if the DB hasn't been initialized.
-func resolvesToCurrentUser(raw string, p TaskBuildParams) bool {
+func resolvesToCurrentUser(ctx context.Context, raw string, p TaskBuildParams) bool {
 	if store.GetDB() == nil {
 		return false
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	dbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	idType := store.ContactTypeName
 	lower := strings.ToLower(raw)
 	if strings.Contains(lower, "@") {
 		idType = store.ContactTypeEmail
 	}
-	rawContactID, err1 := store.ResolveAlias(ctx, idType, lower)
+	rawContactID, err1 := store.ResolveAlias(dbCtx, idType, lower)
 	if err1 != nil {
 		return false
 	}
-	userContactID, err2 := store.ResolveAlias(ctx, store.ContactTypeEmail, strings.ToLower(p.UserEmail))
+	userContactID, err2 := store.ResolveAlias(dbCtx, store.ContactTypeEmail, strings.ToLower(p.UserEmail))
 	if err2 != nil {
 		return false
 	}

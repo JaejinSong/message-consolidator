@@ -153,7 +153,7 @@ func handleUpdate(ctx context.Context, q store.Querier, email string, item store
 	}
 
 	if item.AssignedTo != "" {
-		normalized := store.NormalizeName(email, item.AssignedTo) //nolint:contextcheck // Identity-resolution chain is sweep target of Wave 2 I.
+		normalized := store.NormalizeName(ctx, email, item.AssignedTo)
 		// Why (Phase J Path B): @mention reassignment must bump assigned_at to the trigger
 		// envelope timestamp so envelope metadata doesn't go stale. Same assignee = no-op.
 		if existing.Assignee != normalized {

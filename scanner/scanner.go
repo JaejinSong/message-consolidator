@@ -178,7 +178,7 @@ func performGmailScan(ctx context.Context, email string, wg *sync.WaitGroup) err
 	onThreadActivity := func(msg store.ConsolidatedMessage) bool {
 		if completionSvc != nil {
 			idStr := fmt.Sprintf("gmail-%s-%s", msg.UserEmail, msg.SourceTS)
-			handled, _ := completionSvc.ProcessPotentialCompletion(context.Background(), msg)
+			handled, _ := completionSvc.ProcessPotentialCompletion(ctx, msg)
 			if handled {
 				ReleaseInFlight(idStr)
 			}

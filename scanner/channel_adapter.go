@@ -84,19 +84,20 @@ func processChannelRoom(ctx context.Context, user store.User, aliases []string, 
 
 // triggerOutgoingCompletions feeds the async completion pipeline when the user
 // themselves reply/quote in the given room — mirrors the pre-refactor per-channel loop.
-// Why: ctx is plumbed through so WhaTap trace propagation continues into the async
-// goroutine; the goroutine itself uses Background() to outlive the parent scan timeout.
-func triggerOutgoingCompletions(_ context.Context, msgs []types.RawMessage, user store.User, source, groupName string) {
+// Why: WithoutCancel preserves the WhaTap trace context (carried as a value) while
+// detaching cancellation so the goroutine outlives the parent scan timeout.
+func triggerOutgoingCompletions(ctx context.Context, msgs []types.RawMessage, user store.User, source, groupName string) {
 	if completionSvc == nil {
 		return
 	}
+	asyncCtx := context.WithoutCancel(ctx)
 	for _, m := range msgs {
 		if !isFromMe(m, user) || m.ReplyToID == "" {
 			continue
 		}
 		raw := m
-		go func(em, src, room string, r types.RawMessage) { //nolint:contextcheck // Independent completion pipeline; lifecycle decoupled from scan ctx.
-			if _, err := completionSvc.ProcessPotentialCompletion(context.Background(), store.ConsolidatedMessage{
+		go func(em, src, room string, r types.RawMessage) {
+			if _, err := completionSvc.ProcessPotentialCompletion(asyncCtx, store.ConsolidatedMessage{
 				UserEmail: em, Source: src, Room: room, ThreadID: r.ReplyToID,
 				OriginalText: r.Text, SourceTS: r.ID, CreatedAt: r.Timestamp,
 			}); err != nil {

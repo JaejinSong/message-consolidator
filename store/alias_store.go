@@ -36,7 +36,7 @@ func sortedNameTokens(norm string) string {
 	return strings.Join(tokens, " ")
 }
 
-func NormalizeName(tenantEmail, name string) string {
+func NormalizeName(ctx context.Context, tenantEmail, name string) string {
 	if name == "" {
 		return ""
 	}
@@ -52,7 +52,7 @@ func NormalizeName(tenantEmail, name string) string {
 	if res, ok := resolveCurrentUserAlias(tenantEmail, normalized); ok {
 		return res
 	}
-	if res, ok := resolveIdentityXCanonicalName(tenantEmail, normalized); ok {
+	if res, ok := resolveIdentityXCanonicalName(ctx, tenantEmail, normalized); ok {
 		return res
 	}
 	return fallbackSystemUser(normalized, name)
@@ -81,8 +81,8 @@ func resolveCurrentUserAlias(tenantEmail, nameLower string) (string, bool) {
 	return tenantEmail, true
 }
 
-func resolveIdentityXCanonicalName(tenantEmail, nameLower string) (string, bool) {
-	c, ok := resolveContactIdentity(tenantEmail, nameLower)
+func resolveIdentityXCanonicalName(ctx context.Context, tenantEmail, nameLower string) (string, bool) {
+	c, ok := resolveContactIdentity(ctx, tenantEmail, nameLower)
 	if ok && c.DisplayName != "" {
 		return c.DisplayName, true
 	}
@@ -90,13 +90,13 @@ func resolveIdentityXCanonicalName(tenantEmail, nameLower string) (string, bool)
 }
 
 
-func NormalizeWithCategory(tenantEmail, rawName string) (string, string, string) {
+func NormalizeWithCategory(ctx context.Context, tenantEmail, rawName string) (string, string, string) {
 	if rawName == "" {
 		return "", "", "External"
 	}
 
 	cleanName := cleanRawName(rawName)
-	contact, found := resolveContactIdentity(tenantEmail, cleanName)
+	contact, found := resolveContactIdentity(ctx, tenantEmail, cleanName)
 
 	resolvedName := cleanName
 	foundEmail := ""
@@ -118,7 +118,7 @@ func NormalizeWithCategory(tenantEmail, rawName string) (string, string, string)
 		}
 	}
 
-	return finalizeCategory(tenantEmail, cleanName, resolvedName, foundEmail, contactType)
+	return finalizeCategory(ctx, tenantEmail, cleanName, resolvedName, foundEmail, contactType)
 }
 
 func cleanRawName(rawName string) string {
@@ -127,11 +127,11 @@ func cleanRawName(rawName string) string {
 	return strings.TrimSuffix(cleanName, " (External)")
 }
 
-func resolveContactIdentity(tenantEmail, name string) (ContactRecord, bool) {
+func resolveContactIdentity(ctx context.Context, tenantEmail, name string) (ContactRecord, bool) {
 	if GetDB() == nil {
 		return ContactRecord{}, false
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	dbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	nameLower := strings.ToLower(name)
@@ -140,9 +140,9 @@ func resolveContactIdentity(tenantEmail, name string) (ContactRecord, bool) {
 		idType = "email"
 	}
 
-	if id, err := ResolveAlias(ctx, idType, nameLower); err == nil && id > 0 {
+	if id, err := ResolveAlias(dbCtx, idType, nameLower); err == nil && id > 0 {
 		queries := db.New(GetDB())
-		row, err := queries.GetContactByID(ctx, db.GetContactByIDParams{
+		row, err := queries.GetContactByID(dbCtx, db.GetContactByIDParams{
 			TenantEmail: tenantEmail,
 			ID:          int64(id),
 		})
@@ -176,7 +176,7 @@ func resolveSystemUser(name string) (string, string, bool) {
 	return "", "", false
 }
 
-func finalizeCategory(tenantEmail, cleanName, resolvedName, foundEmail, contactType string) (string, string, string) {
+func finalizeCategory(ctx context.Context, tenantEmail, cleanName, resolvedName, foundEmail, contactType string) (string, string, string) {
 	finalID := NormalizeIdentifier(cleanName)
 	if foundEmail != "" {
 		finalID = strings.ToLower(foundEmail)
@@ -186,7 +186,7 @@ func finalizeCategory(tenantEmail, cleanName, resolvedName, foundEmail, contactT
 
 	displayResult := resolvedName
 	if category != "Internal" {
-		displayResult = NormalizeContactName(tenantEmail, resolvedName)
+		displayResult = NormalizeContactName(ctx, tenantEmail, resolvedName)
 	}
 
 	return finalID, displayResult, category

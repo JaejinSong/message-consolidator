@@ -434,7 +434,7 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.Gemini
 		return nil
 	}
 
-	msgByTS := processGeminiItems(email, user, aliases, items, classificationMap, toMap, msgMap) //nolint:contextcheck // Identity-resolution chain (NormalizeContactName) is sweep target of Wave 2 I.
+	msgByTS := processGeminiItems(ctx, email, user, aliases, items, classificationMap, toMap, msgMap)
 	var newIDs []store.MessageID
 	for _, item := range items {
 		msg, ok := msgByTS[item.SourceTS]
@@ -563,7 +563,7 @@ func executeGmailAnalysisWithRetry(ctx context.Context, gc *ai.GeminiClient, ema
 	return nil, analyzeErr
 }
 
-func processGeminiItems(email string, user *store.User, aliases []string, items []store.TodoItem, classificationMap, toMap map[string]string, msgMap map[string]types.RawMessage) map[string]store.ConsolidatedMessage {
+func processGeminiItems(ctx context.Context, email string, user *store.User, aliases []string, items []store.TodoItem, classificationMap, toMap map[string]string, msgMap map[string]types.RawMessage) map[string]store.ConsolidatedMessage {
 	result := make(map[string]store.ConsolidatedMessage, len(items))
 	for _, item := range items {
 		m, ok := msgMap[item.SourceTS]
@@ -587,7 +587,7 @@ func processGeminiItems(email string, user *store.User, aliases []string, items 
 			SourceChannels:      []string{"gmail"},
 			GmailClassification: classificationMap[item.SourceTS],
 		}
-		result[item.SourceTS] = services.BuildTask(params)
+		result[item.SourceTS] = services.BuildTask(ctx, params)
 	}
 	return result
 }

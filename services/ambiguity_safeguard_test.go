@@ -39,7 +39,7 @@ func TestAmbiguitySafeguard(t *testing.T) {
 		SourceTS:   "999.999",
 		Category:   "todo",
 	}
-	_, msgID, err := store.SaveMessage(context.TODO(), store.GetDB(), msg)
+	_, msgID, err := store.SaveMessage(t.Context(), store.GetDB(), msg)
 	if err != nil {
 		t.Fatalf("Failed to save message: %v", err)
 	}

@@ -19,7 +19,7 @@ func TestReportsService_CalculateGraph(t *testing.T) {
 		{Requester: "JJ", Assignee: "Alice", Source: "slack", RequesterCanonical: "jj", AssigneeCanonical: "alice", RequesterType: "internal", AssigneeType: "customer"},
 	}
 
-	graphData := svc.generateVisualizationData("me@example.com", messages)
+	graphData := svc.generateVisualizationData(t.Context(), "me@example.com", messages)
 
 	// Verify nodes
 	foundAlice := false
@@ -166,7 +166,7 @@ func TestReportsService_Normalization(t *testing.T) {
 	}
 
 	// Case 1: Without aliases, they should be separate with domain-based labels
-	graphData := svc.generateVisualizationData("jj@whatap.io", messages)
+	graphData := svc.generateVisualizationData(t.Context(), "jj@whatap.io", messages)
 	// Nodes: "jj@whatap.io (Internal)", "JJ (External)"
 	if len(graphData.Nodes) != 2 {
 		t.Errorf("Expected 2 nodes without aliases, got %d", len(graphData.Nodes))
@@ -198,7 +198,7 @@ func TestReportsService_Labeling(t *testing.T) {
 	// jj@whatap.io -> should be (Internal) by domain
 	// JJ -> should be (External) by default
 	// Alice -> should be (External) by default
-	graphData := svc.generateVisualizationData("jj@whatap.io", messages)
+	graphData := svc.generateVisualizationData(t.Context(), "jj@whatap.io", messages)
 
 	foundAlice := false
 	for _, n := range graphData.Nodes {
@@ -230,7 +230,7 @@ func TestReportsService_SankeyContract(t *testing.T) {
 		{Requester: "hady.partner@gmail.com", Assignee: "alice@whatap.io", Task: "external-task-2", RequesterCanonical: "hady.partner@gmail.com", AssigneeCanonical: "alice@whatap.io", RequesterType: "none", AssigneeType: "internal"},
 	}
 
-	graphData := svc.generateVisualizationData("alice@whatap.io", messages)
+	graphData := svc.generateVisualizationData(t.Context(), "alice@whatap.io", messages)
 
 	// Check for self-loop removal.
 	if len(graphData.Links) != 3 {
@@ -340,7 +340,7 @@ func TestReportsService_GenerateVisualizationData_WithAliases(t *testing.T) {
 	}
 
 	// 5. Generate graph data
-	graphData := svc.generateVisualizationData(tenantEmail, messages)
+	graphData := svc.generateVisualizationData(t.Context(), tenantEmail, messages)
 
 	// 6. Assertions
 	if len(graphData.Nodes) != 2 {
@@ -421,7 +421,7 @@ func TestReportsService_GenerateVisualizationData_AliasCollision(t *testing.T) {
 	}
 
 	// 4. Generate graph data.
-	graphData := svc.generateVisualizationData(tenantEmail, messages)
+	graphData := svc.generateVisualizationData(t.Context(), tenantEmail, messages)
 
 	// 5. Assertions: It should create two separate nodes for each "Alice" because their IDs (emails) are different.
 	if len(graphData.Nodes) != 3 {
@@ -492,7 +492,7 @@ func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) 
 	}
 
 	// 4. Tenant A has no such contact — "Jaejin Song" stays unresolved.
-	graphDataA := svc.generateVisualizationData(tenantA, messages)
+	graphDataA := svc.generateVisualizationData(t.Context(), tenantA, messages)
 	foundUnresolved := false
 	for _, n := range graphDataA.Nodes {
 		if n.Category == "External" {
@@ -506,7 +506,7 @@ func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) 
 
 	// 5. Tenant B has the contact — "Jaejin Song" resolves to "jjsong@whatap.io".
 	sanitizedB, _ := svc.sanitizeMessages(context.Background(), tenantB, messages)
-	graphDataB := svc.generateVisualizationData(tenantB, sanitizedB)
+	graphDataB := svc.generateVisualizationData(t.Context(), tenantB, sanitizedB)
 
 	foundResolvedSong := false
 	for _, n := range graphDataB.Nodes {
@@ -591,7 +591,7 @@ func TestReportsService_NodeUnification_ParenSuffix(t *testing.T) {
 		{Requester: "Jaejin Song (Work)", Assignee: "Alice", RequesterCanonical: "", AssigneeCanonical: "alice@company.com", RequesterType: "none", AssigneeType: "internal"},
 	}
 
-	graphData := svc.generateVisualizationData("admin@company.com", messages)
+	graphData := svc.generateVisualizationData(t.Context(), "admin@company.com", messages)
 
 	// All three variants must collapse into a single "jaejin song" node.
 	jaejinCount := 0
@@ -620,7 +620,7 @@ func TestReportsService_NodeUnification_CaseInsensitive(t *testing.T) {
 		{Requester: "yosep park", Assignee: "Bob", RequesterCanonical: "", AssigneeCanonical: "bob@company.com", RequesterType: "none", AssigneeType: "internal"},
 	}
 
-	graphData := svc.generateVisualizationData("admin@company.com", messages)
+	graphData := svc.generateVisualizationData(t.Context(), "admin@company.com", messages)
 
 	yosepCount := 0
 	for _, n := range graphData.Nodes {
@@ -646,7 +646,7 @@ func TestReportsService_NodeUnification_CaseAndParen(t *testing.T) {
 		{Requester: "Yosep Park", Assignee: "Carol", RequesterCanonical: "", AssigneeCanonical: "carol@company.com", RequesterType: "none", AssigneeType: "internal"},
 	}
 
-	graphData := svc.generateVisualizationData("admin@company.com", messages)
+	graphData := svc.generateVisualizationData(t.Context(), "admin@company.com", messages)
 
 	yosepCount := 0
 	for _, n := range graphData.Nodes {
@@ -670,7 +670,7 @@ func TestReportsService_NodeName_NoAmbiguousSuffix(t *testing.T) {
 		{Requester: "Jaejin Song (Ambiguous)", Assignee: "Alice", RequesterCanonical: "", AssigneeCanonical: "alice@company.com", RequesterType: "none", AssigneeType: "internal"},
 	}
 
-	graphData := svc.generateVisualizationData("admin@company.com", messages)
+	graphData := svc.generateVisualizationData(t.Context(), "admin@company.com", messages)
 
 	for _, n := range graphData.Nodes {
 		if strings.Contains(n.Name, "(Ambiguous)") {

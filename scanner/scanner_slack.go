@@ -719,7 +719,7 @@ func mapSlackItemToMessage(ctx context.Context, item store.TodoItem, m types.Raw
 		ThreadID:       threadID,
 		SourceChannels: []string{"slack"},
 	}
-	return services.BuildTask(params) //nolint:contextcheck // Identity-resolution chain (NormalizeContactName) is sweep target of Wave 2 I.
+	return services.BuildTask(ctx, params)
 }
 
 

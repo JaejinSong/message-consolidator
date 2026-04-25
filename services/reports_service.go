@@ -158,7 +158,7 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id s
 		s.markFailed(ctx, email, id)
 		return
 	}
-	vizJSON := s.getVisualizationJSON(email, logs)
+	vizJSON := s.getVisualizationJSON(ctx, email, logs)
 	if err := store.SaveReportTranslation(ctx, id, "en", summary); err != nil {
 		logger.Warnf("[REPORTS] SaveReportTranslation failed for report %d: %v", id, err)
 	}
@@ -178,9 +178,9 @@ func (s *ReportsService) markFailed(ctx context.Context, email string, id store.
 	}
 }
 
-func (s *ReportsService) getVisualizationJSON(email string, logs []Log) string {
+func (s *ReportsService) getVisualizationJSON(ctx context.Context, email string, logs []Log) string {
 	// Why: Manual aggregation uses RequesterCanonical as node ID, correctly unifying all aliases resolved by sanitizeMessages.
-	vizData := s.generateVisualizationData(email, logs)
+	vizData := s.generateVisualizationData(ctx, email, logs)
 	b, _ := json.Marshal(vizData)
 	return string(b)
 }
@@ -347,8 +347,8 @@ type Edge struct {
 }
 
 // generateVisualizationData constructs a weighted network graph from logs.
-func (s *ReportsService) generateVisualizationData(email string, messages []Log) GraphData {
-	counts, pairWeights, meta := s.aggregateRelationsAlt(email, messages)
+func (s *ReportsService) generateVisualizationData(ctx context.Context, email string, messages []Log) GraphData {
+	counts, pairWeights, meta := s.aggregateRelationsAlt(ctx, email, messages)
 	nodes := make([]Node, 0)
 	for id, val := range counts {
 		nodes = append(nodes, Node{
@@ -377,13 +377,13 @@ func stripParenSuffix(s string) string {
 	return s
 }
 
-func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (map[string]float64, map[string]float64, map[string]nodeMeta) {
+func (s *ReportsService) aggregateRelationsAlt(ctx context.Context, email string, messages []Log) (map[string]float64, map[string]float64, map[string]nodeMeta) {
 	counts := make(map[string]float64)
 	pairWeights := make(map[string]float64)
 	meta := make(map[string]nodeMeta)
 	for _, m := range messages {
-		rID, rName, rCat := s.resolveRelationActor(email, m.RequesterCanonical, m.RequesterDisplayName, m.RequesterType, m.Requester)
-		aID, aName, aCat := s.resolveRelationActor(email, m.AssigneeCanonical, m.AssigneeDisplayName, m.AssigneeType, m.Assignee)
+		rID, rName, rCat := s.resolveRelationActor(ctx, email, m.RequesterCanonical, m.RequesterDisplayName, m.RequesterType, m.Requester)
+		aID, aName, aCat := s.resolveRelationActor(ctx, email, m.AssigneeCanonical, m.AssigneeDisplayName, m.AssigneeType, m.Assignee)
 		if rID == "" || aID == "" || rID == aID {
 			continue
 		}
@@ -398,19 +398,19 @@ func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (ma
 
 //Why: Prefer the persisted canonical/display/category triple, but fall back to NormalizeWithCategory when the canonical ID is missing
 // or when the persisted category is "External" with no explicit type — that fallback is the only path that re-classifies a contact.
-func (s *ReportsService) resolveRelationActor(email, canonicalID, displayName, contactType, raw string) (string, string, string) {
+func (s *ReportsService) resolveRelationActor(ctx context.Context, email, canonicalID, displayName, contactType, raw string) (string, string, string) {
 	id := canonicalID
 	name := displayName
 	cat := s.resolveCategory(email, id, contactType)
 	switch {
 	case id == "":
-		id, name, cat = store.NormalizeWithCategory(email, raw)
+		id, name, cat = store.NormalizeWithCategory(ctx, email, raw)
 	case cat == "External" && contactType == "":
 		fallback := displayName
 		if fallback == "" {
 			fallback = raw
 		}
-		if _, _, c := store.NormalizeWithCategory(email, fallback); c != "External" {
+		if _, _, c := store.NormalizeWithCategory(ctx, email, fallback); c != "External" {
 			cat = c
 		}
 	}

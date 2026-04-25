@@ -186,6 +186,7 @@ func TestAutoUpsertContact(t *testing.T) {
 	}
 	defer cleanup()
 
+	ctx := t.Context()
 	tenant := testutil.RandomEmail("contact-tenant")
 	email := testutil.RandomEmail("contact-user")
 	
@@ -196,7 +197,7 @@ func TestAutoUpsertContact(t *testing.T) {
 	}
 
 	
-	name := NormalizeContactName(tenant, email)
+	name := NormalizeContactName(ctx, tenant, email)
 	if name != "User One" {
 		t.Errorf("Expected User One, got %s", name)
 	}
@@ -206,7 +207,7 @@ func TestAutoUpsertContact(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to upsert: %v", err)
 	}
-	name = NormalizeContactName(tenant, email)
+	name = NormalizeContactName(ctx, tenant, email)
 	if name != "User One" {
 		t.Errorf("Defensive update failed: Expected User One, got %s", name)
 	}
@@ -216,7 +217,7 @@ func TestAutoUpsertContact(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to upsert: %v", err)
 	}
-	name = NormalizeContactName(tenant, email)
+	name = NormalizeContactName(ctx, tenant, email)
 	if name != "User One" {
 		t.Errorf("Defensive update (email) failed: Expected User One, got %s", name)
 	}
@@ -226,7 +227,7 @@ func TestAutoUpsertContact(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to upsert: %v", err)
 	}
-	name = NormalizeContactName(tenant, email)
+	name = NormalizeContactName(ctx, tenant, email)
 	if name != "User 1" {
 		t.Errorf("Update failed: Expected User 1, got %s", name)
 	}

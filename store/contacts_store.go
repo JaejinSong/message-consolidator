@@ -259,19 +259,19 @@ func GetNameByTelegramID(ctx context.Context, email, userID string) string {
 	return ""
 }
 
-func NormalizeContactName(email, rawName string) string {
+func NormalizeContactName(ctx context.Context, email, rawName string) string {
 	if rawName == "" || GetDB() == nil {
 		return rawName
 	}
 	norm := NormalizeIdentifier(rawName)
-	rows, err := db.New(GetDB()).GetResolutionsByIdentifiers(context.Background(), db.GetResolutionsByIdentifiersParams{
+	rows, err := db.New(GetDB()).GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{
 		TenantEmail: email,
 		Identifiers: []string{norm},
 	})
 	if err != nil || len(rows) == 0 {
 		return rawName
 	}
-	byID := fetchContactsByIDs(context.Background(), []int64{rows[0].ContactID})
+	byID := fetchContactsByIDs(ctx, []int64{rows[0].ContactID})
 	if c, ok := byID[rows[0].ContactID]; ok && c.DisplayName != "" {
 		return c.DisplayName
 	}
