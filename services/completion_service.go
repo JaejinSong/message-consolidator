@@ -18,10 +18,8 @@ type AICompleter interface {
 
 type TaskStore interface {
 	GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error)
-	GetActiveContextTasks(ctx context.Context, q store.Querier, email, source, room string) ([]store.ConsolidatedMessage, error)
 	UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id store.MessageID, category string) error
 	HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error)
-	GetMessageByID(ctx context.Context, q store.Querier, email string, id store.MessageID) (store.ConsolidatedMessage, error)
 }
 
 type DefaultTaskStore struct{}
@@ -30,20 +28,12 @@ func (d *DefaultTaskStore) GetIncompleteByThreadID(ctx context.Context, q store.
 	return store.GetIncompleteByThreadID(ctx, q, email, threadID)
 }
 
-func (d *DefaultTaskStore) GetActiveContextTasks(ctx context.Context, q store.Querier, email, source, room string) ([]store.ConsolidatedMessage, error) {
-	return store.GetActiveContextTasks(ctx, q, email, source, room)
-}
-
 func (d *DefaultTaskStore) UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id store.MessageID, category string) error {
 	return store.UpdateMessageCategory(ctx, q, email, id, category)
 }
 
 func (d *DefaultTaskStore) HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
 	return HandleTaskState(ctx, q, email, item, msg)
-}
-
-func (d *DefaultTaskStore) GetMessageByID(ctx context.Context, q store.Querier, email string, id store.MessageID) (store.ConsolidatedMessage, error) {
-	return store.GetMessageByID(ctx, q, email, id)
 }
 
 type CompletionService struct {

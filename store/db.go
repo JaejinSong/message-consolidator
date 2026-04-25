@@ -18,6 +18,7 @@ import (
 
 // Querier is a common interface for sql.DB and sql.Tx.
 // any 사유: database/sql 표준 시그니처와 일치 — driver가 query placeholder별 임의 타입 인자를 수용해야 함.
+// 메서드 7개 사유: database/sql 표준 라이브러리가 sql.DB와 sql.Tx에 공통 supertype을 제공하지 않아 둘 다에 sqlc/raw 호출을 위임하려면 7개 메서드를 모두 노출해야 함. 분할 시 모든 호출처가 합쳐진 인터페이스를 다시 요구.
 type Querier interface {
 	Exec(query string, args ...any) (sql.Result, error)
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)

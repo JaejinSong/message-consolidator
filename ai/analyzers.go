@@ -7,6 +7,7 @@ import (
 )
 
 // SourceAnalyzer defines how to extract tasks from different message sources.
+// 메서드 4개 사유: 단일 strategy 단위(채널별 프롬프트/모델/전처리)로 모든 구현체가 4개를 동시에 제공해야 하므로 분리 시 응집성 손상.
 type SourceAnalyzer interface {
 	GetSystemInstruction(data ExtractionContext) string
 	GetUserPrompt(data ExtractionContext) string

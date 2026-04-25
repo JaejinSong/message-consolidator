@@ -21,6 +21,10 @@ import (
 	"message-consolidator/types"
 )
 
+// ChannelAdapter — 단일 channel 단위(WhatsApp/Telegram/Slack)로 작용하는 polymorphism 계약.
+// 메서드 7개 사유: 공유 드라이버(scanChannel/processChannelRoom/processChannelGroup) 3단계가 각 단계마다
+// 채널별 식별/조회/payload 빌드 메서드를 혼용해서 호출하므로 reader/writer 등으로 분할하면 모든 구현체가
+// 결국 합쳐진 슈퍼셋을 구현하게 되어 분할이 실효 없음.
 type ChannelAdapter interface {
 	Source() string
 	LogPrefix() string

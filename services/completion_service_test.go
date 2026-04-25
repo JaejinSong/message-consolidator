@@ -50,10 +50,6 @@ func (m *MockStore) GetIncompleteByThreadID(ctx context.Context, q store.Querier
 	return m.Tasks, nil
 }
 
-func (m *MockStore) GetActiveContextTasks(ctx context.Context, q store.Querier, email, source, room string) ([]store.ConsolidatedMessage, error) {
-	return m.Tasks, nil
-}
-
 func (m *MockStore) UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id store.MessageID, category string) error {
 	m.ReleasedIDs = append(m.ReleasedIDs, id)
 	m.ReleasedCategories = append(m.ReleasedCategories, category)
@@ -69,10 +65,6 @@ func (m *MockStore) HandleTaskState(ctx context.Context, q store.Querier, email 
 		m.ReleasedIDs = append(m.ReleasedIDs, id)
 	}
 	return 0, nil
-}
-
-func (m *MockStore) GetMessageByID(ctx context.Context, q store.Querier, email string, id store.MessageID) (store.ConsolidatedMessage, error) {
-	return store.ConsolidatedMessage{}, nil
 }
 
 func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
