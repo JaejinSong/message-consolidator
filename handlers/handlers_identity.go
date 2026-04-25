@@ -41,7 +41,7 @@ func (a *API) HandleGenerateProposals(w http.ResponseWriter, r *http.Request) {
 	proposalJobs[email] = &proposalJob{Status: "running"}
 	proposalJobsMu.Unlock()
 
-	go func() {
+	go func() { //nolint:contextcheck // Async job uses Background ctx by design; lifecycle outlives request.
 		result := a.runProposalJob(email)
 		proposalJobsMu.Lock()
 		proposalJobs[email] = result

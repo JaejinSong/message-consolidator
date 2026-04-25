@@ -178,8 +178,8 @@ func compareVersions(a, b string) int {
 	bp := strings.Split(b, ".")
 	for i := 0; i < 3 && i < len(ap) && i < len(bp); i++ {
 		var av, bv int
-		fmt.Sscanf(ap[i], "%d", &av)
-		fmt.Sscanf(bp[i], "%d", &bv)
+		_, _ = fmt.Sscanf(ap[i], "%d", &av)
+		_, _ = fmt.Sscanf(bp[i], "%d", &bv)
 		if av > bv {
 			return 1
 		}
@@ -196,9 +196,9 @@ func incrementPatch(v string) string {
 		return v
 	}
 	var major, minor, patch int
-	fmt.Sscanf(parts[0], "%d", &major)
-	fmt.Sscanf(parts[1], "%d", &minor)
-	fmt.Sscanf(parts[2], "%d", &patch)
+	_, _ = fmt.Sscanf(parts[0], "%d", &major)
+	_, _ = fmt.Sscanf(parts[1], "%d", &minor)
+	_, _ = fmt.Sscanf(parts[2], "%d", &patch)
 	return fmt.Sprintf("%d.%d.%d", major, minor, patch+1)
 }
 

@@ -81,7 +81,7 @@ func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translat
 	//     beneath the WhaTap RoundTripper to preserve HTTPC visibility AND auth.
 	allOpts := append([]option.ClientOption{
 		option.WithAPIKey(apiKey),
-		option.WithHTTPClient(whataphttpx.ClientWithAPIKey(apiKey)),
+		option.WithHTTPClient(whataphttpx.ClientWithAPIKey(apiKey)), //nolint:contextcheck // Builds HTTP client; per-request ctx passes through SDK calls.
 	}, opts...)
 	client, err := genai.NewClient(ctx, allOpts...)
 	if err != nil {
@@ -129,7 +129,7 @@ func generateWithRetry(ctx context.Context, model *genai.GenerativeModel, prompt
 		if attempt < maxRetries {
 			// Why: Adds random jitter to the exponential backoff to prevent synchronized retries (thundering herd) and improve reliability against rate limits.
 			backoff := time.Duration(1<<attempt) * time.Second
-			jitter := time.Duration(float64(backoff) * (0.5 + 0.5*rand.Float64()))
+			jitter := time.Duration(float64(backoff) * (0.5 + 0.5*rand.Float64())) //nolint:gosec // Jitter does not need cryptographic strength; math/rand suffices.
 			time.Sleep(jitter + 1*time.Second)
 		}
 	}
@@ -146,8 +146,10 @@ func logTokenUsage(ctx context.Context, email, step, model, source string, resp 
 
 	pTokens := int(resp.UsageMetadata.PromptTokenCount)
 	cTokens := int(resp.UsageMetadata.CandidatesTokenCount)
-	store.AddTokenUsage(email, step, model, source, pTokens, cTokens)
-	trace.Step(ctx, fmt.Sprintf("TokenUsage-%s (Prompt: %d, Comp: %d)", step, pTokens, cTokens), "", 0, 0)
+	if err := store.AddTokenUsage(email, step, model, source, pTokens, cTokens); err != nil {
+		logger.Warnf("[TOKEN-USAGE] %s/%s: %v", email, step, err)
+	}
+	_ = trace.Step(ctx, fmt.Sprintf("TokenUsage-%s (Prompt: %d, Comp: %d)", step, pTokens, cTokens), "", 0, 0)
 }
 
 // Why: Safely extracts the response text from the Gemini API candidates, handling empty or blocked responses gracefully.
@@ -189,7 +191,9 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 	if err != nil {
 		// P1: Surface burned-but-unattributed retry-exhausted calls so the cost dashboard
 		// can flag invisible spend. Gemini does not return UsageMetadata on timeout/cancel.
-		store.AddTokenUsage(email, "ReportSummary", modelName, "failed", 0, 0)
+		if uErr := store.AddTokenUsage(email, "ReportSummary", modelName, "failed", 0, 0); uErr != nil {
+			logger.Warnf("[TOKEN-USAGE] ReportSummary failure attribution: %v", uErr)
+		}
 		return "", err
 	}
 
@@ -203,7 +207,7 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 			resp.UsageMetadata.CandidatesTokenCount, ReportMaxTokens, resp.UsageMetadata.PromptTokenCount, email)
 	}
 
-	trace.Step(ctx, "Gemini-ReportSummary", "", int(time.Since(start).Milliseconds()), 0)
+	_ = trace.Step(ctx, "Gemini-ReportSummary", "", int(time.Since(start).Milliseconds()), 0)
 	return text, nil
 }
 
@@ -328,7 +332,7 @@ func (g *GeminiClient) GenerateMergedTaskTitle(ctx context.Context, email string
 	text, err := extractResponseText(resp)
 	if err != nil { return "", err }
 
-	trace.Step(ctx, "Gemini-MergeSummary", "", int(time.Since(start).Milliseconds()), 0)
+	_ = trace.Step(ctx, "Gemini-MergeSummary", "", int(time.Since(start).Milliseconds()), 0)
 	return CleanMarkdownText(text), nil
 }
 
@@ -355,9 +359,9 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email string, msg
 	}
 
 	raw, _ := extractResponseText(resp)
-	g.logInferenceAsync(source, msg.RawContent, raw)
+	g.logInferenceAsync(source, msg.RawContent, raw) //nolint:contextcheck // Fire-and-forget filesystem log; ctx not applicable.
 
-	trace.Step(ctx, "Gemini-Analyze", "", int(time.Since(start).Milliseconds()), 0)
+	_ = trace.Step(ctx, "Gemini-Analyze", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "Analyze", modelName, source, resp)
 
 	candidates, err := g.parseAnalyzeResults(resp, data.CurrentUserID, data.CurrentUserEmail)
@@ -449,7 +453,7 @@ func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []stor
 		return nil, err
 	}
 
-	trace.Step(ctx, "Gemini-Translate", "", int(time.Since(start).Milliseconds()), 0)
+	_ = trace.Step(ctx, "Gemini-Translate", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "Translate", modelName, "", resp)
 	return g.parseTranslateResults(resp)
 }
@@ -498,7 +502,7 @@ func (g *GeminiClient) TranslateReport(ctx context.Context, email string, report
 		return "", err
 	}
 
-	trace.Step(ctx, "Gemini-TranslateReport", "", int(time.Since(start).Milliseconds()), 0)
+	_ = trace.Step(ctx, "Gemini-TranslateReport", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "TranslateReport", modelName, "", resp)
 	return extractResponseText(resp)
 }
@@ -527,7 +531,7 @@ func (g *GeminiClient) TranslateTaskMessage(ctx context.Context, email string, t
 		return "", err
 	}
 
-	trace.Step(ctx, "Gemini-TranslateTask", "", int(time.Since(start).Milliseconds()), 0)
+	_ = trace.Step(ctx, "Gemini-TranslateTask", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "TranslateTask", modelName, "", resp)
 	return extractResponseText(resp)
 }

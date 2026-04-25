@@ -179,7 +179,7 @@ func (a *API) HandleExportReportToNotion(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	exporter := services.NewNotionExporter(a.Config.NotionToken, a.Config.NotionReportPageID)
+	exporter := services.NewNotionExporter(a.Config.NotionToken, a.Config.NotionReportPageID) //nolint:contextcheck // Constructor builds HTTP client; per-request ctx flows via Export() calls.
 	if !exporter.Enabled() {
 		respondError(w, http.StatusServiceUnavailable, "Notion integration not configured")
 		return

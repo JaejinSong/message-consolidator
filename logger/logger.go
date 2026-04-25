@@ -42,25 +42,25 @@ func getLogDir() string {
 
 func Debugf(format string, v ...interface{}) {
 	if currentLevel <= LevelDebug {
-		log.Output(2, fmt.Sprintf("[DEBUG] "+format, v...))
+		_ = log.Output(2, fmt.Sprintf("[DEBUG] "+format, v...))
 	}
 }
 
 func Infof(format string, v ...interface{}) {
 	if currentLevel <= LevelInfo {
-		log.Output(2, fmt.Sprintf("[INFO] "+format, v...))
+		_ = log.Output(2, fmt.Sprintf("[INFO] "+format, v...))
 	}
 }
 
 func Warnf(format string, v ...interface{}) {
 	if currentLevel <= LevelWarn {
-		log.Output(2, fmt.Sprintf("[WARN] "+format, v...))
+		_ = log.Output(2, fmt.Sprintf("[WARN] "+format, v...))
 	}
 }
 
 func Errorf(format string, v ...interface{}) {
 	if currentLevel <= LevelError {
-		log.Output(2, fmt.Sprintf("[ERROR] "+format, v...))
+		_ = log.Output(2, fmt.Sprintf("[ERROR] "+format, v...))
 	}
 }
 

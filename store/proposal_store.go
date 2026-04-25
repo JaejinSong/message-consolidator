@@ -105,19 +105,28 @@ func ListPendingProposalGroups(ctx context.Context, tenantEmail string) ([]Propo
 	if err != nil {
 		return nil, err
 	}
-
-	type entry struct {
-		contactIDs map[int64]bool
-		confidence float64
-		reason     string
+	groupMap, allIDs := indexProposalGroups(rows)
+	contactByID, err := loadContactByIDMap(ctx, tenantEmail, allIDs)
+	if err != nil {
+		return nil, err
 	}
-	groupMap := map[string]*entry{}
-	allContactIDs := make(map[int64]bool)
+	return materializeProposalGroups(groupMap, contactByID), nil
+}
 
+type proposalGroupEntry struct {
+	contactIDs map[int64]bool
+	confidence float64
+	reason     string
+}
+
+//Why: Folds (group_id, contact_a, contact_b) join rows into one entry per group while collecting the de-duped contact-id set for the batched fetch.
+func indexProposalGroups(rows []db.ProposalGroupRow) (map[string]*proposalGroupEntry, []int64) {
+	groupMap := map[string]*proposalGroupEntry{}
+	allContactIDs := make(map[int64]bool)
 	for _, r := range rows {
 		g, ok := groupMap[r.GroupID]
 		if !ok {
-			g = &entry{contactIDs: make(map[int64]bool)}
+			g = &proposalGroupEntry{contactIDs: make(map[int64]bool)}
 			groupMap[r.GroupID] = g
 		}
 		g.contactIDs[r.ContactIDA] = true
@@ -131,21 +140,26 @@ func ListPendingProposalGroups(ctx context.Context, tenantEmail string) ([]Propo
 			g.reason = r.Reason.String
 		}
 	}
-
-	// Batch-load all contacts at once instead of one call per group.
 	allIDs := make([]int64, 0, len(allContactIDs))
 	for id := range allContactIDs {
 		allIDs = append(allIDs, id)
 	}
-	allContacts, err := getContactsByIDs(ctx, tenantEmail, allIDs)
+	return groupMap, allIDs
+}
+
+func loadContactByIDMap(ctx context.Context, tenantEmail string, ids []int64) (map[int64]ContactRecord, error) {
+	contacts, err := getContactsByIDs(ctx, tenantEmail, ids)
 	if err != nil {
 		return nil, err
 	}
-	contactByID := make(map[int64]ContactRecord, len(allContacts))
-	for _, c := range allContacts {
-		contactByID[c.ID] = c
+	byID := make(map[int64]ContactRecord, len(contacts))
+	for _, c := range contacts {
+		byID[c.ID] = c
 	}
+	return byID, nil
+}
 
+func materializeProposalGroups(groupMap map[string]*proposalGroupEntry, contactByID map[int64]ContactRecord) []ProposalGroup {
 	var result []ProposalGroup
 	for gid, g := range groupMap {
 		contacts := make([]ContactRecord, 0, len(g.contactIDs))
@@ -161,7 +175,7 @@ func ListPendingProposalGroups(ctx context.Context, tenantEmail string) ([]Propo
 			Reason:     g.reason,
 		})
 	}
-	return result, nil
+	return result
 }
 
 // AcceptProposalGroup links all contacts in the group under a single master and sets the canonical display name.
@@ -275,12 +289,25 @@ func GenerateTokenSortedProposals(ctx context.Context, tenantEmail string, handl
 	if err != nil {
 		return nil, err
 	}
+	tokenGroups := indexContactsByTokenKey(contacts)
+	proposals := proposalsFromTokenGroups(tokenGroups, handledPairs)
 
-	type entry struct {
-		id   int64
-		name string
+	unresolvedNames, err := getUnresolvedMessageNames(ctx, tenantEmail)
+	if err != nil {
+		return proposals, nil // non-fatal
 	}
-	tokenGroups := make(map[string][]entry)
+	proposals = append(proposals, proposalsFromUnresolvedNames(ctx, tenantEmail, unresolvedNames, tokenGroups, handledPairs)...)
+	return proposals, nil
+}
+
+type tokenContact struct {
+	id   int64
+	name string
+}
+
+//Why: Builds a sorted-token-key → contacts map so reversed-name pairs can be detected by exact key match instead of O(n^2) string compare.
+func indexContactsByTokenKey(contacts []ContactRecord) map[string][]tokenContact {
+	groups := make(map[string][]tokenContact)
 	for _, c := range contacts {
 		if c.MasterContactID.Valid {
 			continue
@@ -289,34 +316,18 @@ func GenerateTokenSortedProposals(ctx context.Context, tenantEmail string, handl
 		if key == "" || len(strings.Fields(key)) < 2 {
 			continue
 		}
-		tokenGroups[key] = append(tokenGroups[key], entry{c.ID, c.DisplayName})
+		groups[key] = append(groups[key], tokenContact{c.ID, c.DisplayName})
 	}
+	return groups
+}
 
+func proposalsFromTokenGroups(tokenGroups map[string][]tokenContact, handledPairs map[[2]int64]bool) []PendingProposal {
 	var proposals []PendingProposal
-
 	for key, group := range tokenGroups {
 		if len(group) < 2 {
 			continue
 		}
-		seen := make(map[int64]bool)
-		var ids []int64
-		for i := 0; i < len(group); i++ {
-			for j := i + 1; j < len(group); j++ {
-				a, b := group[i].id, group[j].id
-				if a > b {
-					a, b = b, a
-				}
-				if handledPairs[[2]int64{a, b}] {
-					continue
-				}
-				for _, id := range []int64{group[i].id, group[j].id} {
-					if !seen[id] {
-						seen[id] = true
-						ids = append(ids, id)
-					}
-				}
-			}
-		}
+		ids := pendingPairContactIDs(group, handledPairs)
 		if len(ids) < 2 {
 			continue
 		}
@@ -326,11 +337,40 @@ func GenerateTokenSortedProposals(ctx context.Context, tenantEmail string, handl
 			Reason:     fmt.Sprintf("Name word order may be reversed (sorted key: '%s')", key),
 		})
 	}
+	return proposals
+}
 
-	unresolvedNames, err := getUnresolvedMessageNames(ctx, tenantEmail)
-	if err != nil {
-		return proposals, nil // non-fatal
+//Why: Returns the de-duped contact-ID list for any pair in `group` that is not already in handledPairs; ordering matches insertion.
+func pendingPairContactIDs(group []tokenContact, handledPairs map[[2]int64]bool) []int64 {
+	seen := make(map[int64]bool)
+	var ids []int64
+	for i := 0; i < len(group); i++ {
+		for j := i + 1; j < len(group); j++ {
+			a, b := orderedPair(group[i].id, group[j].id)
+			if handledPairs[[2]int64{a, b}] {
+				continue
+			}
+			for _, id := range []int64{group[i].id, group[j].id} {
+				if !seen[id] {
+					seen[id] = true
+					ids = append(ids, id)
+				}
+			}
+		}
 	}
+	return ids
+}
+
+func orderedPair(a, b int64) (int64, int64) {
+	if a > b {
+		return b, a
+	}
+	return a, b
+}
+
+//Why: Looks up unresolved message names against the existing token-key index and proposes auto-merge candidates for each match.
+func proposalsFromUnresolvedNames(ctx context.Context, tenantEmail string, unresolvedNames []string, tokenGroups map[string][]tokenContact, handledPairs map[[2]int64]bool) []PendingProposal {
+	var proposals []PendingProposal
 	for _, rawName := range unresolvedNames {
 		key := sortedNameTokens(NormalizeIdentifier(rawName))
 		if key == "" || len(strings.Fields(key)) < 2 {
@@ -340,16 +380,12 @@ func GenerateTokenSortedProposals(ctx context.Context, tenantEmail string, handl
 		if !ok {
 			continue
 		}
-		norm := NormalizeIdentifier(rawName)
-		newID, err := UpsertContact(ctx, tenantEmail, norm, rawName, "", "auto-detected")
+		newID, err := UpsertContact(ctx, tenantEmail, NormalizeIdentifier(rawName), rawName, "", "auto-detected")
 		if err != nil || newID == 0 {
 			continue
 		}
 		for _, existing := range group {
-			a, b := newID, existing.id
-			if a > b {
-				a, b = b, a
-			}
+			a, b := orderedPair(newID, existing.id)
 			if handledPairs[[2]int64{a, b}] {
 				continue
 			}
@@ -360,7 +396,7 @@ func GenerateTokenSortedProposals(ctx context.Context, tenantEmail string, handl
 			})
 		}
 	}
-	return proposals, nil
+	return proposals
 }
 
 // getUnresolvedMessageNames returns distinct requester/assignee strings from messages

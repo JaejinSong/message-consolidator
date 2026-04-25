@@ -70,7 +70,7 @@ func processChannelRoom(ctx context.Context, user store.User, aliases []string, 
 		return nil
 	}
 
-	triggerOutgoingCompletions(msgs, user, adapter.Source(), groupName)
+	triggerOutgoingCompletions(ctx, msgs, user, adapter.Source(), groupName)
 
 	var allIDs []int
 	for _, group := range msgGroups {
@@ -84,7 +84,9 @@ func processChannelRoom(ctx context.Context, user store.User, aliases []string, 
 
 // triggerOutgoingCompletions feeds the async completion pipeline when the user
 // themselves reply/quote in the given room — mirrors the pre-refactor per-channel loop.
-func triggerOutgoingCompletions(msgs []types.RawMessage, user store.User, source, groupName string) {
+// Why: ctx is plumbed through so WhaTap trace propagation continues into the async
+// goroutine; the goroutine itself uses Background() to outlive the parent scan timeout.
+func triggerOutgoingCompletions(_ context.Context, msgs []types.RawMessage, user store.User, source, groupName string) {
 	if completionSvc == nil {
 		return
 	}
@@ -93,10 +95,14 @@ func triggerOutgoingCompletions(msgs []types.RawMessage, user store.User, source
 			continue
 		}
 		raw := m
-		go completionSvc.ProcessPotentialCompletion(context.Background(), store.ConsolidatedMessage{
-			UserEmail: user.Email, Source: source, Room: groupName, ThreadID: raw.ReplyToID,
-			OriginalText: raw.Text, SourceTS: raw.ID, CreatedAt: raw.Timestamp,
-		})
+		go func(em, src, room string, r types.RawMessage) { //nolint:contextcheck // Independent completion pipeline; lifecycle decoupled from scan ctx.
+			if _, err := completionSvc.ProcessPotentialCompletion(context.Background(), store.ConsolidatedMessage{
+				UserEmail: em, Source: src, Room: room, ThreadID: r.ReplyToID,
+				OriginalText: r.Text, SourceTS: r.ID, CreatedAt: r.Timestamp,
+			}); err != nil {
+				logger.Warnf("[OUTGOING-COMPLETION] %s/%s: %v", src, room, err)
+			}
+		}(user.Email, source, groupName, raw)
 	}
 }
 

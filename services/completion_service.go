@@ -140,7 +140,7 @@ func (s *CompletionService) runInTx(ctx context.Context, fn func(tx *sql.Tx) err
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil { return err }
 	if err := fn(tx); err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return err
 	}
 	return tx.Commit()

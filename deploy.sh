@@ -72,16 +72,7 @@ build_be() {
         # Builder push is rare, can happen in background
         docker push "$BUILDER_TAG" > /dev/null 2>&1 &
     fi
-    # Why: Compile on host to reuse ~/.cache/go-build already warmed by Stage 1's
-    # `go test ./...`. Docker's BuildKit cache mount is isolated from the host
-    # cache so the same compile inside the container floored BE: Build at ~21s.
-    # `-trimpath -buildvcs=false` keeps the binary reproducible across machines.
-    run_step "BE: Compile" bash -c "
-        CGO_ENABLED=0 GOOS=linux go build -trimpath -buildvcs=false -ldflags='-s -w' -o message-consolidator . && \
-        upx -1 -q message-consolidator >/dev/null
-    "
     run_step "BE: Build" docker build --platform linux/amd64 -q -t "${IMAGE_BE_TAG}" -t "${REGISTRY}/backend:latest" -f docker/backend/Dockerfile --build-arg BUILDER_IMAGE="$BUILDER_TAG" .
-    rm -f message-consolidator
 }
 
 # --- Execution ---

@@ -41,7 +41,7 @@ func (a *API) registerAuthRoutes(r *mux.Router) {
 }
 
 func (a *API) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
-	auth.HandleGoogleCallback(w, r, a.Config.SlackToken, func(email string) (string, string, error) {
+	auth.HandleGoogleCallback(w, r, a.Config.SlackToken, func(email string) (string, string, error) { //nolint:contextcheck // Auth callback uses request ctx through HandleGoogleCallback; SlackClient constructor is ctx-free.
 		sc := channels.NewSlackClient(a.Config.SlackToken)
 		slackUser, err := sc.LookupUserByEmail(email)
 		if err != nil {

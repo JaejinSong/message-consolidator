@@ -41,97 +41,7 @@ type Config struct {
 }
 
 func LoadConfig() *Config {
-	//Why: Attempts to load environment variables from a local .env file, while allowing a silent fallback to system environment variables for production environments like Cloud Run.
-	_ = godotenv.Load(".env")
-
-	//Why: Loads local overrides from .env.local if present, ensuring local development settings take precedence over shared .env settings.
-	if _, err := os.Stat(".env.local"); err == nil {
-		if err := godotenv.Overload(".env.local"); err != nil {
-			logger.Warnf("Failed to load .env.local: %v", err)
-		} else {
-			logger.Infof("Loaded local overrides from .env.local")
-		}
-	}
-
-	logLevel := os.Getenv("LOG_LEVEL")
-	if logLevel == "" {
-		logLevel = "INFO"
-	}
-
-	geminiAnalysisModel := os.Getenv("GEMINI_ANALYSIS_MODEL")
-	if geminiAnalysisModel == "" {
-		geminiAnalysisModel = "gemini-3-flash-preview"
-	}
-
-	geminiTranslationModel := os.Getenv("GEMINI_TRANSLATION_MODEL")
-	if geminiTranslationModel == "" {
-		geminiTranslationModel = "gemini-3.1-flash-lite"
-	}
-
-	autoArchiveDays := 7
-	if daysStr := os.Getenv("AUTO_ARCHIVE_DAYS"); daysStr != "" {
-		if days, err := strconv.Atoi(daysStr); err == nil {
-			autoArchiveDays = days
-		}
-	}
-	if daysStr := os.Getenv("ARCHIVE_DAYS"); daysStr != "" {
-		if days, err := strconv.Atoi(daysStr); err == nil {
-			autoArchiveDays = days
-		}
-	}
-
-	batchWindow := 5 * time.Minute
-	if wStr := os.Getenv("MESSAGE_BATCH_WINDOW"); wStr != "" {
-		if d, err := time.ParseDuration(wStr); err == nil {
-			batchWindow = d
-		}
-	}
-
-	dbMaxIdle := 1
-	if val := os.Getenv("DB_MAX_IDLE_CONNS"); val != "" {
-		if i, err := strconv.Atoi(val); err == nil {
-			dbMaxIdle = i
-		}
-	}
-
-	dbMaxOpen := 25
-	if val := os.Getenv("DB_MAX_OPEN_CONNS"); val != "" {
-		if i, err := strconv.Atoi(val); err == nil {
-			dbMaxOpen = i
-		}
-	}
-
-	dbKeepAlive := 8 * time.Second
-	if val := os.Getenv("DB_KEEP_ALIVE_INTERVAL"); val != "" {
-		if d, err := time.ParseDuration(val); err == nil {
-			dbKeepAlive = d
-		} else if sec, err := strconv.Atoi(val); err == nil {
-			dbKeepAlive = time.Duration(sec) * time.Second
-		}
-	}
-
-	//Why: Comma-separated company domains used to whitelist internal Google Group traffic past the marketing-header filter,
-	// which would otherwise drop every internal mailing-list copy due to the List-Unsubscribe header Google Groups injects.
-	var companyDomains []string
-	if v := os.Getenv("COMPANY_DOMAINS"); v != "" {
-		for _, s := range strings.Split(v, ",") {
-			s = strings.TrimSpace(strings.ToLower(s))
-			if s != "" {
-				companyDomains = append(companyDomains, s)
-			}
-		}
-	}
-
-	//Why: Telegram App ID is an integer issued by https://my.telegram.org; empty/invalid value disables the Telegram channel gracefully.
-	tgAppID := 0
-	if v := os.Getenv("TELEGRAM_APP_ID"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			tgAppID = n
-		} else {
-			logger.Warnf("invalid TELEGRAM_APP_ID: %v", err)
-		}
-	}
-
+	loadDotenv()
 	return &Config{
 		SlackToken:             os.Getenv("SLACK_TOKEN"),
 		GeminiAPIKey:           os.Getenv("GEMINI_API_KEY"),
@@ -144,21 +54,106 @@ func LoadConfig() *Config {
 		TursoToken:             os.Getenv("TURSO_AUTH_TOKEN"),
 		TursoSyncURL:           os.Getenv("TURSO_SYNC_URL"),
 		TursoSyncInterval:      os.Getenv("TURSO_SYNC_INTERVAL"),
-		LogLevel:               logLevel,
-		GeminiAnalysisModel:    geminiAnalysisModel,
-		GeminiTranslationModel: geminiTranslationModel,
+		LogLevel:               envOr("LOG_LEVEL", "INFO"),
+		GeminiAnalysisModel:    envOr("GEMINI_ANALYSIS_MODEL", "gemini-3-flash-preview"),
+		GeminiTranslationModel: envOr("GEMINI_TRANSLATION_MODEL", "gemini-3.1-flash-lite"),
 		NotionToken:            os.Getenv("NOTION_TOKEN"),
 		NotionReportPageID:     os.Getenv("NOTION_REPORT_PAGE_ID"),
-		TelegramAppID:          tgAppID,
+		TelegramAppID:          envInt("TELEGRAM_APP_ID", 0),
 		TelegramAppHash:        os.Getenv("TELEGRAM_APP_HASH"),
 		GmailSkipSenders:       os.Getenv("GMAIL_SKIP_SENDERS"),
-		CompanyDomains:         companyDomains,
-		AutoArchiveDays:        autoArchiveDays,
+		CompanyDomains:         splitCSV(os.Getenv("COMPANY_DOMAINS")),
+		AutoArchiveDays:        envIntFirst([]string{"AUTO_ARCHIVE_DAYS", "ARCHIVE_DAYS"}, 7),
 		CloudRunMode:           os.Getenv("CLOUD_RUN_MODE") == "true",
 		InternalScanSecret:     os.Getenv("INTERNAL_SCAN_SECRET"),
-		MessageBatchWindow:     batchWindow,
-		DBMaxIdleConns:         dbMaxIdle,
-		DBMaxOpenConns:         dbMaxOpen,
-		DBKeepAliveInterval:    dbKeepAlive,
+		MessageBatchWindow:     envDuration("MESSAGE_BATCH_WINDOW", 5*time.Minute),
+		DBMaxIdleConns:         envInt("DB_MAX_IDLE_CONNS", 1),
+		DBMaxOpenConns:         envInt("DB_MAX_OPEN_CONNS", 25),
+		DBKeepAliveInterval:    envDurationOrSeconds("DB_KEEP_ALIVE_INTERVAL", 8*time.Second),
 	}
+}
+
+//Why: .env loads with silent fallback (Cloud Run injects vars directly); .env.local overrides for local-only secrets.
+func loadDotenv() {
+	_ = godotenv.Load(".env")
+	if _, err := os.Stat(".env.local"); err != nil {
+		return
+	}
+	if err := godotenv.Overload(".env.local"); err != nil {
+		logger.Warnf("Failed to load .env.local: %v", err)
+		return
+	}
+	logger.Infof("Loaded local overrides from .env.local")
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func envInt(key string, fallback int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		if key == "TELEGRAM_APP_ID" {
+			logger.Warnf("invalid TELEGRAM_APP_ID: %v", err)
+		}
+		return fallback
+	}
+	return n
+}
+
+//Why: AUTO_ARCHIVE_DAYS and ARCHIVE_DAYS are aliases — last non-empty value wins.
+func envIntFirst(keys []string, fallback int) int {
+	value := fallback
+	for _, k := range keys {
+		value = envInt(k, value)
+	}
+	return value
+}
+
+func envDuration(key string, fallback time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	if d, err := time.ParseDuration(v); err == nil {
+		return d
+	}
+	return fallback
+}
+
+//Why: DB_KEEP_ALIVE_INTERVAL accepts either Go duration ("8s") or bare seconds ("8") for ops convenience.
+func envDurationOrSeconds(key string, fallback time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	if d, err := time.ParseDuration(v); err == nil {
+		return d
+	}
+	if sec, err := strconv.Atoi(v); err == nil {
+		return time.Duration(sec) * time.Second
+	}
+	return fallback
+}
+
+//Why: Comma-separated values are normalized lower-cased and trimmed; empty entries dropped.
+func splitCSV(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	var out []string
+	for _, s := range strings.Split(raw, ",") {
+		s = strings.TrimSpace(strings.ToLower(s))
+		if s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }

@@ -182,7 +182,7 @@ func (s *TasksService) ApplyTranslations(ctx context.Context, email, lang string
 			missingIDs = append(missingIDs, msgs[i].ID)
 		}
 	}
-	s.triggerJITTranslation(email, lang, missingIDs)
+	s.triggerJITTranslation(email, lang, missingIDs) //nolint:contextcheck // Async fan-out uses Background ctx with its own timeout.
 }
 
 func (s *TasksService) triggerJITTranslation(email, lang string, ids []int) {
@@ -652,27 +652,32 @@ func (s *TasksService) truncateTitle(t string, max int) string {
 func (s *TasksService) ResolveProposals(ctx context.Context, email, room string, rawItems []store.TodoItem, active []store.ConsolidatedMessage) []store.TodoItem {
 	var results []store.TodoItem
 	for _, item := range rawItems {
-		match := s.findMatch(room, item, active)
-		if match != nil {
-			item.ID = &match.ID
-			// Upgrade 'new' to 'update' if we found an existing task.
-			// Keep 'resolve', 'cancel', 'update' as AI intended.
-			if item.State == "new" {
-				item.State = "update"
-			}
-		} else {
-			// Logic: If no match found, states requiring an ID must be downgraded.
-			if item.State == "update" || item.State == "resolve" || item.State == "cancel" {
-				if item.Task != "" && item.State == "update" {
-					item.State = "new" // Only 'update' can safely downgrade to 'new'
-				} else {
-					item.State = "none" // resolve/cancel with no match is dropped
-				}
-			}
-		}
-		results = append(results, item)
+		results = append(results, s.resolveProposalItem(room, item, active))
 	}
 	return results
+}
+
+//Why: Pulls the per-item match/state decision out of ResolveProposals so the loop body stays flat (≤3 nested levels).
+func (s *TasksService) resolveProposalItem(room string, item store.TodoItem, active []store.ConsolidatedMessage) store.TodoItem {
+	if match := s.findMatch(room, item, active); match != nil {
+		item.ID = &match.ID
+		// Upgrade 'new' to 'update' if we found an existing task.
+		// Keep 'resolve', 'cancel', 'update' as AI intended.
+		if item.State == "new" {
+			item.State = "update"
+		}
+		return item
+	}
+	// Logic: If no match found, states requiring an ID must be downgraded.
+	if item.State != "update" && item.State != "resolve" && item.State != "cancel" {
+		return item
+	}
+	if item.Task != "" && item.State == "update" {
+		item.State = "new" // Only 'update' can safely downgrade to 'new'
+	} else {
+		item.State = "none" // resolve/cancel with no match is dropped
+	}
+	return item
 }
 
 // translationPayload is the JSON structure stored in task_translations.translated_text
@@ -731,14 +736,22 @@ func (s *TasksService) findMatch(room string, item store.TodoItem, active []stor
 		if sim >= 0.80 { return m }
 
 		// Affinity Group Bonus: If AI group matches, we are more lenient (threshold 0.5)
-		if item.AffinityGroupID != "" && len(m.Metadata) > 0 {
-			var meta map[string]interface{}
-			if err := json.Unmarshal(m.Metadata, &meta); err == nil {
-				if gid, ok := meta["affinity_group_id"].(string); ok && gid == item.AffinityGroupID {
-					if sim >= 0.50 { return m }
-				}
-			}
+		if hasAffinityMatch(m, item, sim) {
+			return m
 		}
 	}
 	return nil
+}
+
+//Why: Affinity-group lookup is a structural match path; isolate it so findMatch's main loop avoids deep nesting.
+func hasAffinityMatch(m *store.ConsolidatedMessage, item store.TodoItem, sim float64) bool {
+	if item.AffinityGroupID == "" || len(m.Metadata) == 0 || sim < 0.50 {
+		return false
+	}
+	var meta map[string]interface{}
+	if err := json.Unmarshal(m.Metadata, &meta); err != nil {
+		return false
+	}
+	gid, ok := meta["affinity_group_id"].(string)
+	return ok && gid == item.AffinityGroupID
 }

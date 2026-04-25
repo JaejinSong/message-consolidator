@@ -70,19 +70,7 @@ func buildWAMetadataString(email string, m types.RawMessage) string {
 	// Why: Lists explicitly mentioned names in metadata to give the AI a 100% accurate
 	// source for 'Assignee' identification; falls back to a bare count when unresolved.
 	if len(m.MentionedIDs) > 0 {
-		var mentionNames []string
-		for _, jid := range m.MentionedIDs {
-			if id, _ := waTypes.ParseJID(jid); id.User != "" {
-				if name := store.GetNameByWhatsAppNumber(email, id.User); name != "" {
-					mentionNames = append(mentionNames, name)
-				}
-			}
-		}
-		if len(mentionNames) > 0 {
-			tags = append(tags, fmt.Sprintf("Explicit-Mentions: %s", strings.Join(mentionNames, ", ")))
-		} else {
-			tags = append(tags, fmt.Sprintf("Mentions: %d", len(m.MentionedIDs)))
-		}
+		tags = append(tags, formatWAMentionTag(email, m.MentionedIDs))
 	}
 
 	var sb strings.Builder
@@ -93,6 +81,24 @@ func buildWAMetadataString(email string, m types.RawMessage) string {
 		sb.WriteString(fmt.Sprintf(" [Files: %s]", strings.Join(m.AttachmentNames, ", ")))
 	}
 	return sb.String()
+}
+
+//Why: Splits the mention-tag formatting out of buildWAMetadataString so the parent function avoids deep nesting and stays in nestif budget.
+func formatWAMentionTag(email string, mentionedIDs []string) string {
+	var names []string
+	for _, jid := range mentionedIDs {
+		id, _ := waTypes.ParseJID(jid)
+		if id.User == "" {
+			continue
+		}
+		if name := store.GetNameByWhatsAppNumber(email, id.User); name != "" {
+			names = append(names, name)
+		}
+	}
+	if len(names) > 0 {
+		return fmt.Sprintf("Explicit-Mentions: %s", strings.Join(names, ", "))
+	}
+	return fmt.Sprintf("Mentions: %d", len(mentionedIDs))
 }
 
 func scanWhatsApp(ctx context.Context, user store.User, aliases []string, language string, wg *sync.WaitGroup) []int {

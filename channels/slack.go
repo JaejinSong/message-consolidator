@@ -109,7 +109,7 @@ func withSlackRetry(maxRetries int, contextMsg string, attemptFunc func() error)
 
 func ParseSlackTimestamp(ts string) time.Time {
 	var sec, nsec int64
-	fmt.Sscanf(ts, "%d.%d", &sec, &nsec)
+	_, _ = fmt.Sscanf(ts, "%d.%d", &sec, &nsec)
 	return time.Unix(sec, nsec*1000)
 }
 

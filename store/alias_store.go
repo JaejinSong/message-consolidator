@@ -269,11 +269,11 @@ func AddUserAlias(ctx context.Context, userID int, alias string) error {
 		return err
 	}
 
-	updateUserCacheAlias(uID, trimmed, true)
+	updateUserCacheAlias(ctx, uID, trimmed, true)
 	return nil
 }
 
-func updateUserCacheAlias(userID int64, alias string, isAdd bool) {
+func updateUserCacheAlias(ctx context.Context, userID int64, alias string, isAdd bool) {
 	var uEmail, uName string
 	metadataMu.Lock()
 
@@ -298,7 +298,7 @@ func updateUserCacheAlias(userID int64, alias string, isAdd bool) {
 
 	// Why: Move DB operation outside the metadata lock to prevent holding the mutex during I/O.
 	if isAdd && uEmail != "" {
-		_ = AddContactMapping(context.Background(), "all", strings.ToLower(uEmail), uName, alias, "user")
+		_ = AddContactMapping(ctx, "all", strings.ToLower(uEmail), uName, alias, "user")
 	}
 }
 

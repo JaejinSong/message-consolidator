@@ -6,6 +6,7 @@ import (
 	"message-consolidator/config"
 	"time"
 
+	// Why: Registers the libsql SQL driver via init() so testutil consumers can open Turso/libSQL DBs without importing it directly.
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 

@@ -66,11 +66,11 @@ func writeExcelArchiveSheet(f *excelize.File, msgs []store.ConsolidatedMessage) 
 	const sheet = "Tasks"
 	index, _ := f.NewSheet(sheet)
 	f.SetActiveSheet(index)
-	f.DeleteSheet("Sheet1")
+	_ = f.DeleteSheet("Sheet1")
 
 	for i, h := range exportColumns {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
-		f.SetCellValue(sheet, cell, h)
+		_ = f.SetCellValue(sheet, cell, h)
 	}
 
 	// Why: bold + grey fill on the header row makes the export easier to scan.
@@ -78,7 +78,7 @@ func writeExcelArchiveSheet(f *excelize.File, msgs []store.ConsolidatedMessage) 
 		Font: &excelize.Font{Bold: true},
 		Fill: excelize.Fill{Type: "pattern", Color: []string{"#E0E0E0"}, Pattern: 1},
 	})
-	f.SetRowStyle(sheet, 1, 1, style)
+	_ = f.SetRowStyle(sheet, 1, 1, style)
 
 	for i, m := range msgs {
 		writeExcelArchiveRow(f, sheet, i+2, m)
@@ -95,7 +95,7 @@ func writeExcelArchiveRow(f *excelize.File, sheet string, row int, m store.Conso
 	}
 	for i, v := range values {
 		cell, _ := excelize.CoordinatesToCellName(i+1, row)
-		f.SetCellValue(sheet, cell, v)
+		_ = f.SetCellValue(sheet, cell, v)
 	}
 }
 
@@ -107,13 +107,13 @@ func (a *API) HandleExportArchive(w http.ResponseWriter, r *http.Request) {
 	}
 
 	setExportDownloadHeaders(w, "text/csv; charset=utf-8", "csv")
-	w.Write([]byte("\xEF\xBB\xBF"))
+	_, _ = w.Write([]byte("\xEF\xBB\xBF"))
 	writer := csv.NewWriter(w)
 	defer writer.Flush()
 
-	writer.Write(exportColumns)
+	_ = writer.Write(exportColumns)
 	for _, m := range msgs {
-		writer.Write([]string{
+		_ = writer.Write([]string{
 			fmt.Sprintf("%d", m.ID),
 			m.Source, m.Room, m.Task, m.Requester, m.Assignee,
 			m.AssignedAt.Format("2006-01-02 15:04:05"),

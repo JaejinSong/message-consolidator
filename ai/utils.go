@@ -53,22 +53,8 @@ func unmarshalAnalyze(cleanJSON, rawJSON, userEmail string, currentUserID int) (
 		}
 	}
 
-	// 2. Try array (Legacy/Fallback Format)
-	var flexItems []flexItem
-	if err := json.Unmarshal([]byte(cleanJSON), &flexItems); err != nil {
-		// 3. Try wrapped object {"tasks": [...]} or {"items": [...]}
-		var wrapped struct {
-			Tasks []flexItem `json:"tasks"`
-			Items []flexItem `json:"items"`
-		}
-		if err2 := json.Unmarshal([]byte(cleanJSON), &wrapped); err2 == nil {
-			if len(wrapped.Tasks) > 0 {
-				flexItems = wrapped.Tasks
-			} else if len(wrapped.Items) > 0 {
-				flexItems = wrapped.Items
-			}
-		}
-	}
+	// 2. Try array (Legacy/Fallback Format), then 3. wrapped object {tasks|items: [...]}.
+	flexItems := tryDecodeFlexItems(cleanJSON)
 
 	if len(flexItems) > 0 {
 		var items []store.TodoItem
@@ -86,6 +72,24 @@ func unmarshalAnalyze(cleanJSON, rawJSON, userEmail string, currentUserID int) (
 	}
 
 	return nil, fmt.Errorf("no valid items found in JSON")
+}
+
+func tryDecodeFlexItems(cleanJSON string) []flexItem {
+	var items []flexItem
+	if err := json.Unmarshal([]byte(cleanJSON), &items); err == nil {
+		return items
+	}
+	var wrapped struct {
+		Tasks []flexItem `json:"tasks"`
+		Items []flexItem `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(cleanJSON), &wrapped); err != nil {
+		return nil
+	}
+	if len(wrapped.Tasks) > 0 {
+		return wrapped.Tasks
+	}
+	return wrapped.Items
 }
 
 func mapFlexToTodo(f flexItem, currentUserID int, userEmail string) store.TodoItem {
@@ -139,20 +143,28 @@ func mapFlexToTodo(f flexItem, currentUserID int, userEmail string) store.TodoIt
 func unmarshalTranslate(cleanJSON, rawJSON, language string) ([]store.TranslateRequest, error) {
 	var translations []store.TranslateRequest
 	if err := json.Unmarshal([]byte(cleanJSON), &translations); err != nil {
-		//Why: [Fallback] Checks if the translation response is wrapped in a dedicated object structure before failing, ensuring robustness against varying AI output formats.
-		var tr store.TranslateResponse
-		if err2 := json.Unmarshal([]byte(cleanJSON), &tr); err2 == nil && len(tr.Translations) > 0 {
-			translations = tr.Translations
-		} else {
-			if err2 != nil {
-				logger.Errorf("[GEMINI] Translation JSON unmarshal fallback failed: %v", err2)
-			}
+		fallback, fbErr := decodeTranslationFallback(cleanJSON)
+		if fbErr != nil {
+			logger.Errorf("[GEMINI] Translation JSON unmarshal fallback failed: %v", fbErr)
 			logger.Errorf("[GEMINI] Translation JSON unmarshal failed: %v, RAW: %s", err, rawJSON)
 			return nil, err
 		}
+		translations = fallback
 	}
 	logger.Debugf("[GEMINI] Successfully translated %d items to %s", len(translations), language)
 	return translations, nil
+}
+
+//Why: Wrapped TranslateResponse is an alternate AI output shape; isolating the decode keeps unmarshalTranslate flat.
+func decodeTranslationFallback(cleanJSON string) ([]store.TranslateRequest, error) {
+	var tr store.TranslateResponse
+	if err := json.Unmarshal([]byte(cleanJSON), &tr); err != nil {
+		return nil, err
+	}
+	if len(tr.Translations) == 0 {
+		return nil, fmt.Errorf("translation response wrapper empty")
+	}
+	return tr.Translations, nil
 }
 
 func DecodeBase64URL(data string) (string, error) {

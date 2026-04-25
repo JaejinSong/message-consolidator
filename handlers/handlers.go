@@ -72,7 +72,7 @@ func respondJSON(w http.ResponseWriter, code int, payload interface{}) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	w.Write(response)
+	_, _ = w.Write(response)
 }
 
 // BatchIDsRequest is a common DTO for operations targeting multiple message IDs.

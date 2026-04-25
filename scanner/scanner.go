@@ -90,7 +90,7 @@ func RunAllScans(ctx context.Context, wg *sync.WaitGroup) {
 	// Name prefixed with `/` so urlutil.NewURL parses it as Path (otherwise the WhaTap
 	// Transaction column shows blank because the name lands in Host instead).
 	traceCtx, _ := trace.Start(ctx, "/Background-RunAllScans")
-	defer trace.End(traceCtx, nil)
+	defer func() { _ = trace.End(traceCtx, nil) }()
 
 	users, err := store.GetAllUsers(traceCtx)
 	if err != nil {
@@ -133,7 +133,7 @@ func performSlackScan(ctx context.Context, users []store.User, wg *sync.WaitGrou
 
 func finalizeScanCycle(ctx context.Context, users []store.User) {
 	for _, u := range users {
-		store.PersistAllScanMetadata(u.Email)
+		store.PersistAllScanMetadata(ctx, u.Email)
 	}
 
 	_ = store.ArchiveOldTasks(ctx)
@@ -150,7 +150,7 @@ func scanAllSources(parentCtx context.Context, user store.User, aliases []string
 
 	effAl := services.GetEffectiveAliases(user, aliases)
 	_ = scanUserChannels(ctx, user.Email, effAl, wg)
-	store.PersistAllScanMetadata(user.Email)
+	store.PersistAllScanMetadata(ctx, user.Email)
 }
 func scanUserChannels(ctx context.Context, email string, effAl []string, wg *sync.WaitGroup) error {
 	var eg errgroup.Group
@@ -213,7 +213,7 @@ func ReleaseInFlight(id string) {
 
 func Scan(email string, lang string, wg *sync.WaitGroup) {
 	traceCtx, _ := trace.Start(context.Background(), "/ManualScan")
-	defer trace.End(traceCtx, nil)
+	defer func() { _ = trace.End(traceCtx, nil) }()
 
 	user, err := store.GetOrCreateUser(traceCtx, email, "", "")
 	if err != nil {
@@ -229,13 +229,15 @@ func Scan(email string, lang string, wg *sync.WaitGroup) {
 		return a
 	}())
 	runManualScans(ctx, user, effAl, lang, wg)
-	
-	store.PersistAllScanMetadata(user.Email)
+
+	store.PersistAllScanMetadata(ctx, user.Email)
 }
 
 func runManualScans(ctx context.Context, user *store.User, effAl []string, lang string, wg *sync.WaitGroup) {
 	if store.HasGmailToken(user.Email) {
-		performGmailScan(ctx, user.Email, wg)
+		if err := performGmailScan(ctx, user.Email, wg); err != nil {
+			logger.Warnf("[SCAN] Gmail scan failed for %s: %v", user.Email, err)
+		}
 	}
 	scanSlack(ctx, []store.User{*user}, wg)
 	scanWhatsApp(ctx, *user, effAl, lang, wg)
@@ -258,21 +260,18 @@ func isAliasMatched(text, sender, alias string) bool {
 		}
 	}
 
-	if text != "" {
-		lowerText := strings.ToLower(text)
-		if aliasLen <= 2 {
-			// Why: Short aliases are highly susceptible to false positives (e.g., '나' inside '지나가다').
-			// We tokenize the text and check for exact matches or Korean particle postfixes (e.g., '나는', '나를').
-			words := strings.Fields(lowerText)
-			for _, w := range words {
-				if w == lowerAlias || (strings.HasPrefix(w, lowerAlias) && len([]rune(w)) <= aliasLen+2) {
-					return true
-				}
-			}
-		} else {
-			if strings.Contains(lowerText, lowerAlias) {
-				return true
-			}
+	if text == "" {
+		return false
+	}
+	lowerText := strings.ToLower(text)
+	if aliasLen > 2 {
+		return strings.Contains(lowerText, lowerAlias)
+	}
+	// Why: Short aliases are highly susceptible to false positives (e.g., '나' inside '지나가다').
+	// We tokenize the text and check for exact matches or Korean particle postfixes (e.g., '나는', '나를').
+	for _, w := range strings.Fields(lowerText) {
+		if w == lowerAlias || (strings.HasPrefix(w, lowerAlias) && len([]rune(w)) <= aliasLen+2) {
+			return true
 		}
 	}
 	return false

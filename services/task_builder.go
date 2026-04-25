@@ -135,59 +135,75 @@ func resolveRequester(p TaskBuildParams) string {
 // Maps self-referential tokens ("me", "__CURRENT_USER__") to the user's canonical name,
 // and falls back to AssigneeShared when AI returns empty.
 func resolveAssignee(p TaskBuildParams) string {
+	raw := normalizeAIAssignee(p)
+	if raw == "" {
+		// Empty assignee in Slack/WhatsApp typically signals a group/broadcast message.
+		return AssigneeShared
+	}
+	if isSelfReference(raw, p) {
+		return preferredName(p.User)
+	}
+	if matchesAlias(raw, p.Aliases) {
+		return preferredName(p.User)
+	}
+	if resolvesToCurrentUser(raw, p) {
+		return preferredName(p.User)
+	}
+	return raw
+}
+
+func normalizeAIAssignee(p TaskBuildParams) string {
 	raw := strings.TrimSpace(p.Item.Assignee)
 	lower := strings.ToLower(raw)
-
 	// Explicitly bad values returned by AI → treat as empty.
 	if lower == "undefined" || lower == "unknown" {
 		raw = ""
-		lower = ""
 	}
-
-	// Why (Phase J Path B): chat_system Assignee rule 4 (`category=PROMISE → Sender`) moved from
-	// prompt to code so envelope drives the speaker fallback. Applies only when AI left assignee
-	// blank — explicit AI assignments still win.
+	// Why (Phase J Path B): chat_system Assignee rule 4 (`category=PROMISE → Sender`) moved from prompt to code so envelope drives the speaker fallback. Applies only when AI left assignee blank — explicit AI assignments still win.
 	if raw == "" && strings.EqualFold(p.Item.Category, "PROMISE") && p.SenderRaw != "" {
 		raw = p.SenderRaw
-		lower = strings.ToLower(raw)
 	}
-
-	if raw == "" {
-		// Why: An empty assignee in Slack/WhatsApp is most likely a group/broadcast message.
-		return AssigneeShared
-	}
-
-	selfTokens := map[string]bool{
-		store.AssigneeMe: true, store.AssigneeCurrentUser: true,
-		strings.ToLower(p.User.Name):  true,
-		strings.ToLower(p.User.Email): true,
-	}
-	if selfTokens[lower] {
-		return preferredName(p.User)
-	}
-
-	for _, alias := range p.Aliases {
-		if alias != "" && strings.EqualFold(raw, alias) {
-			return preferredName(p.User)
-		}
-	}
-
-	if store.GetDB() != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-
-		idType := store.ContactTypeName
-		if strings.Contains(lower, "@") {
-			idType = store.ContactTypeEmail
-		}
-		rawContactID, err1 := store.ResolveAlias(ctx, idType, lower)
-		userContactID, err2 := store.ResolveAlias(ctx, store.ContactTypeEmail, strings.ToLower(p.UserEmail))
-		if err1 == nil && err2 == nil && rawContactID == userContactID {
-			return preferredName(p.User)
-		}
-	}
-
 	return raw
+}
+
+func isSelfReference(raw string, p TaskBuildParams) bool {
+	lower := strings.ToLower(raw)
+	return lower == store.AssigneeMe ||
+		lower == store.AssigneeCurrentUser ||
+		lower == strings.ToLower(p.User.Name) ||
+		lower == strings.ToLower(p.User.Email)
+}
+
+func matchesAlias(raw string, aliases []string) bool {
+	for _, alias := range aliases {
+		if alias != "" && strings.EqualFold(raw, alias) {
+			return true
+		}
+	}
+	return false
+}
+
+//Why: ResolveAlias is the only DB-backed branch — wrapped so resolveAssignee stays in cognitive budget. Gracefully returns false if the DB hasn't been initialized.
+func resolvesToCurrentUser(raw string, p TaskBuildParams) bool {
+	if store.GetDB() == nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	idType := store.ContactTypeName
+	lower := strings.ToLower(raw)
+	if strings.Contains(lower, "@") {
+		idType = store.ContactTypeEmail
+	}
+	rawContactID, err1 := store.ResolveAlias(ctx, idType, lower)
+	if err1 != nil {
+		return false
+	}
+	userContactID, err2 := store.ResolveAlias(ctx, store.ContactTypeEmail, strings.ToLower(p.UserEmail))
+	if err2 != nil {
+		return false
+	}
+	return rawContactID == userContactID
 }
 
 // resolveCategory falls back to a sensible default when both AI category and Gmail classification are empty.

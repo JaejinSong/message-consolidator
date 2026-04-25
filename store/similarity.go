@@ -25,6 +25,11 @@ func preprocessString(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
+// Why: Three-pass scan (match window → transposition fold → prefix bonus) is the textbook Jaro–Winkler algorithm.
+// Splitting the passes into helpers reads worse than the inline form, and the function is hot enough that
+// extra call frames are noise; cognitive complexity is intrinsic to the algorithm, not the structure.
+//
+//nolint:gocognit // Algorithmic complexity is intrinsic to Jaro–Winkler.
 func jaroWinkler(s1, s2 string) float64 {
 	l1, l2 := len(s1), len(s2)
 	matchDist := (max(l1, l2) / 2) - 1

@@ -50,7 +50,7 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 func (a *API) autoPopulateSlackAliases(ctx context.Context, user *store.User) {
 	if a.Config.SlackToken == "" { return }
 
-	sc := channels.NewSlackClient(a.Config.SlackToken)
+	sc := channels.NewSlackClient(a.Config.SlackToken) //nolint:contextcheck // SlackClient constructor; per-request ctx flows through individual API calls.
 	slackUser, err := sc.LookupUserByEmail(user.Email)
 	if err != nil || slackUser == nil { return }
 
@@ -132,7 +132,7 @@ func (a *API) HandleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) HandleGetTenantAliases(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	mappings, err := store.GetContactsMappings(email)
+	mappings, err := store.GetContactsMappings(r.Context(), email)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -182,7 +182,7 @@ func (a *API) gatherTokenUsageStats(ctx context.Context, email string) map[strin
 
 func (a *API) HandleGetMappings(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	mappings, err := store.GetContactsMappings(email)
+	mappings, err := store.GetContactsMappings(r.Context(), email)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

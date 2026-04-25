@@ -121,7 +121,9 @@ func (n *NotionExporter) call(ctx context.Context, method, path string, body any
 	}
 
 	var result map[string]any
-	json.Unmarshal(raw, &result)
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, fmt.Errorf("notion: decode response: %w", err)
+	}
 	return result, nil
 }
 

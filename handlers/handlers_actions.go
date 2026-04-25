@@ -31,9 +31,9 @@ func (a *API) HandleManualScan(w http.ResponseWriter, r *http.Request) {
 	logger.Debugf("Manual scan triggered via API for %s (lang: %s)", email, lang)
 
 	if ScanFunc != nil {
-		go func() {
+		go func() { //nolint:contextcheck // Async scan outlives the request; uses Background ctx by design.
 			ScanFunc(email, lang)
-			store.PersistAllScanMetadata(email)
+			store.PersistAllScanMetadata(context.Background(), email)
 		}()
 	}
 
@@ -99,7 +99,7 @@ func (a *API) authorizeInternalScan(w http.ResponseWriter, r *http.Request) bool
 func (a *API) applyCloudRunJitter() {
 	//Why: Adds a random jitter in Cloud Run mode to staggered incoming requests and prevent 'thundering herd' synchronization issues.
 	if a.Config.CloudRunMode {
-		jitter := time.Duration(rand.Intn(5)) * time.Second
+		jitter := time.Duration(rand.Intn(5)) * time.Second //nolint:gosec // Jitter staggering only; cryptographic strength is unnecessary.
 		logger.Debugf("[INTERNAL-SCAN] Cloud Run Mode: Sleeping for %v jitter...", jitter)
 		time.Sleep(jitter)
 	}

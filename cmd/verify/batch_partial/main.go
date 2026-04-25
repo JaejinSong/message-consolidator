@@ -9,6 +9,10 @@ import (
 	"message-consolidator/internal/testutil"
 )
 
+// Why: cmd/verify/* tools are end-to-end harness scripts; their linear narrative (setup → mock AI → save → assert)
+// reads better as a single function than as a chain of helpers — splitting would obscure the verification flow.
+//
+//nolint:gocognit // Verification harness; linear narrative is intentional.
 func main() {
 	// 1. Setup Test DB
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)

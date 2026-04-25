@@ -60,20 +60,31 @@ func NewReportsService(summarizer ReportSummarizer, geminiClient *ai.GeminiClien
 	}
 }
 
+//Why: Date-range cache only kicks in for unfiltered queries — source/done filters bypass the cached report by design.
+func (s *ReportsService) findReusableReport(ctx context.Context, email, start, end string, source *string, done *bool) *store.Report {
+	if source != nil || done != nil {
+		return nil
+	}
+	existing, _ := store.GetReportByDateRange(ctx, email, start, end)
+	if existing == nil {
+		return nil
+	}
+	if existing.Status != store.ReportStatusProcessing && existing.Status != store.ReportStatusCompleted {
+		return nil
+	}
+	if existing.Status == store.ReportStatusCompleted {
+		existing.Translations, _ = store.GetReportTranslations(ctx, existing.ID)
+	}
+	return existing
+}
+
 // Why: Orchestrates the generation of an AI-powered work report.
 func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, lang string, source *string, done *bool) (*store.Report, error) {
 	// 1. Check for processing or existing
 	// Note: We ignore cache for filtered reports as the date-based cache in GetReportByDate
 	// currently doesn't account for source/status filters.
-	if source == nil && done == nil {
-		if existing, _ := store.GetReportByDateRange(ctx, email, start, end); existing != nil {
-			if existing.Status == store.ReportStatusProcessing || existing.Status == store.ReportStatusCompleted {
-				if existing.Status == store.ReportStatusCompleted {
-					existing.Translations, _ = store.GetReportTranslations(ctx, existing.ID)
-				}
-				return existing, nil
-			}
-		}
+	if existing := s.findReusableReport(ctx, email, start, end, source, done); existing != nil {
+		return existing, nil
 	}
 
 	// 2. Fetch and sanitize
@@ -96,14 +107,14 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, 
 
 	// 4. Background Job
 	if s.isTest {
-		s.processAsyncReport(email, start, end, lang, report.ID, filtered)
+		s.processAsyncReport(email, start, end, lang, report.ID, filtered) //nolint:contextcheck // Identity resolution chain (Wave 2 I).
 		// 💡 Sync update for test: Re-fetch report to ensure all fields (Status, Summary, Translations) are refreshed
 		refreshed, err := store.GetReportByID(ctx, report.ID, email)
 		if err == nil {
 			*report = *refreshed
 		}
 	} else {
-		go s.processAsyncReport(email, start, end, lang, report.ID, filtered)
+		go s.processAsyncReport(email, start, end, lang, report.ID, filtered) //nolint:contextcheck // Identity resolution chain (Wave 2 I).
 	}
 
 	return report, nil
@@ -135,7 +146,7 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id i
 	// it becomes Host and the WhaTap Transaction column renders blank.
 	ctx, _ := trace.Start(context.Background(), "/ReportGeneration")
 	var err error
-	defer func() { trace.End(ctx, err) }()
+	defer func() { _ = trace.End(ctx, err) }()
 
 	taskLogs, isTruncated := s.PrepareLogsForAI(email, logs)
 	if isTruncated {
@@ -148,16 +159,23 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id i
 		return
 	}
 	vizJSON := s.getVisualizationJSON(email, logs)
-	// Save results and handle translations
-	store.SaveReportTranslation(ctx, int64(id), "en", summary)
-	store.UpdateReportStatus(ctx, store.ReportStatusCompleted, vizJSON, isTruncated, id, email)
+	if err := store.SaveReportTranslation(ctx, int64(id), "en", summary); err != nil {
+		logger.Warnf("[REPORTS] SaveReportTranslation failed for report %d: %v", id, err)
+	}
+	if err := store.UpdateReportStatus(ctx, store.ReportStatusCompleted, vizJSON, isTruncated, id, email); err != nil {
+		logger.Warnf("[REPORTS] UpdateReportStatus(completed) failed for report %d: %v", id, err)
+	}
 	if lang != "" && lang != "en" {
-		s.ProcessOnDemandTranslation(ctx, email, id, lang)
+		if _, err := s.ProcessOnDemandTranslation(ctx, email, id, lang); err != nil {
+			logger.Warnf("[REPORTS] ProcessOnDemandTranslation(%s) failed for report %d: %v", lang, id, err)
+		}
 	}
 }
 
 func (s *ReportsService) markFailed(ctx context.Context, email string, id int) {
-	store.UpdateReportStatus(ctx, store.ReportStatusFailed, "{}", false, id, email)
+	if err := store.UpdateReportStatus(ctx, store.ReportStatusFailed, "{}", false, id, email); err != nil {
+		logger.Warnf("[REPORTS] UpdateReportStatus(failed) failed for report %d: %v", id, err)
+	}
 }
 
 func (s *ReportsService) getVisualizationJSON(email string, logs []Log) string {
@@ -364,47 +382,8 @@ func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (ma
 	pairWeights := make(map[string]float64)
 	meta := make(map[string]nodeMeta)
 	for _, m := range messages {
-		// Why: Prioritize canonical IDs for node unification; fallback to raw requester/assignee strings if not resolved.
-		rID := m.RequesterCanonical
-		rName := m.RequesterDisplayName
-		rCat := s.resolveCategory(email, rID, m.RequesterType)
-		if rID == "" {
-			rID, rName, rCat = store.NormalizeWithCategory(email, m.Requester)
-		} else if rCat == "External" && m.RequesterType == "" {
-			fallback := m.RequesterDisplayName
-			if fallback == "" {
-				fallback = m.Requester
-			}
-			if _, _, c := store.NormalizeWithCategory(email, fallback); c != "External" {
-				rCat = c
-			}
-		}
-		if rName == "" {
-			rName = stripParenSuffix(m.Requester)
-		} else {
-			rName = stripParenSuffix(rName)
-		}
-
-		aID := m.AssigneeCanonical
-		aName := m.AssigneeDisplayName
-		aCat := s.resolveCategory(email, aID, m.AssigneeType)
-		if aID == "" {
-			aID, aName, aCat = store.NormalizeWithCategory(email, m.Assignee)
-		} else if aCat == "External" && m.AssigneeType == "" {
-			fallback := m.AssigneeDisplayName
-			if fallback == "" {
-				fallback = m.Assignee
-			}
-			if _, _, c := store.NormalizeWithCategory(email, fallback); c != "External" {
-				aCat = c
-			}
-		}
-		if aName == "" {
-			aName = stripParenSuffix(m.Assignee)
-		} else {
-			aName = stripParenSuffix(aName)
-		}
-
+		rID, rName, rCat := s.resolveRelationActor(email, m.RequesterCanonical, m.RequesterDisplayName, m.RequesterType, m.Requester)
+		aID, aName, aCat := s.resolveRelationActor(email, m.AssigneeCanonical, m.AssigneeDisplayName, m.AssigneeType, m.Assignee)
 		if rID == "" || aID == "" || rID == aID {
 			continue
 		}
@@ -415,6 +394,30 @@ func (s *ReportsService) aggregateRelationsAlt(email string, messages []Log) (ma
 		meta[aID] = nodeMeta{aName, aCat}
 	}
 	return counts, pairWeights, meta
+}
+
+//Why: Prefer the persisted canonical/display/category triple, but fall back to NormalizeWithCategory when the canonical ID is missing
+// or when the persisted category is "External" with no explicit type — that fallback is the only path that re-classifies a contact.
+func (s *ReportsService) resolveRelationActor(email, canonicalID, displayName, contactType, raw string) (string, string, string) {
+	id := canonicalID
+	name := displayName
+	cat := s.resolveCategory(email, id, contactType)
+	switch {
+	case id == "":
+		id, name, cat = store.NormalizeWithCategory(email, raw)
+	case cat == "External" && contactType == "":
+		fallback := displayName
+		if fallback == "" {
+			fallback = raw
+		}
+		if _, _, c := store.NormalizeWithCategory(email, fallback); c != "External" {
+			cat = c
+		}
+	}
+	if name == "" {
+		name = raw
+	}
+	return id, stripParenSuffix(name), cat
 }
 
 // ProcessOnDemandTranslation handles Just-In-Time (JIT) translation for a specific report and language.

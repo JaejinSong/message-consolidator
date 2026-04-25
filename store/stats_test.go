@@ -53,7 +53,7 @@ func TestGetUserStats_IncludesArchived(t *testing.T) {
 	}
 
 	//Why: Triggers GetUserStats across all states to validate the consolidated report.
-	stats, err := GetUserStats(email, "UTC")
+	stats, err := GetUserStats(context.Background(), email, "UTC")
 	if err != nil {
 		t.Fatalf("GetUserStats failed: %v", err)
 	}

@@ -4,9 +4,9 @@ dist/
 .git/
 .gitignore
 
-# Why: Exclude Go-specific build data. The backend binary is intentionally built
-# on the host by deploy.sh and copied into the image, so it must not be excluded.
+# Why: Exclude Go-specific build data.
 go-build/
+message-consolidator
 mc-util
 
 # Why: Exclude sensitive environment variables and keys. All .env.* files are excluded.

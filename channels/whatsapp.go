@@ -133,15 +133,16 @@ func (m *WAManager) InitWhatsApp(email string, cfg *config.Config) {
 
 	if client.Store.ID == nil {
 		logger.Infof("WA: No existing session found for %s, please scan QR code.", email)
-	} else {
-		logger.Infof("WA: Found existing session ID for %s, connecting...", email)
-		err = client.Connect()
-		if err != nil {
-			logger.Infof("WA Connect failed for %s: %v", email, err)
-		} else {
-			logger.Infof("WA: Connected successfully for %s", email)
-			client.SendPresence(context.Background(), waTypes.PresenceAvailable)
-		}
+		return
+	}
+	logger.Infof("WA: Found existing session ID for %s, connecting...", email)
+	if err = client.Connect(); err != nil {
+		logger.Infof("WA Connect failed for %s: %v", email, err)
+		return
+	}
+	logger.Infof("WA: Connected successfully for %s", email)
+	if err := client.SendPresence(context.Background(), waTypes.PresenceAvailable); err != nil {
+		logger.Warnf("[WA] SendPresence failed for %s: %v", email, err)
 	}
 }
 
@@ -254,7 +255,11 @@ func (m *WAManager) resolveSenderName(email string, client *whatsmeow.Client, in
 		return email
 	}
 	if info.PushName != "" {
-		go store.SaveWhatsAppContact(context.Background(), email, info.Sender.User, info.PushName)
+		go func(em, num, name string) {
+			if err := store.SaveWhatsAppContact(context.Background(), em, num, name); err != nil {
+				logger.Warnf("[WA] SaveWhatsAppContact failed for %s/%s: %v", em, num, err)
+			}
+		}(email, info.Sender.User, info.PushName)
 		return info.PushName
 	}
 	return info.Sender.String()
@@ -304,31 +309,46 @@ func (m *WAManager) resolveIncomingMentions(email string, client *whatsmeow.Clie
 		jid, _ := waTypes.ParseJID(jidStr)
 		number := jid.User
 		placeholder := "@" + number
-		
-		// Attempt to resolve name from local store or contact list
-		resolvedName := store.GetNameByWhatsAppNumber(email, number)
-		if resolvedName == "" {
-			if contact, err := client.Store.Contacts.GetContact(context.Background(), jid); err == nil {
-				if contact.FullName != "" {
-					resolvedName = contact.FullName
-				} else if contact.PushName != "" {
-					resolvedName = contact.PushName
-				} else if contact.BusinessName != "" {
-					resolvedName = contact.BusinessName
-				}
-				
-				if resolvedName != "" {
-					go store.SaveWhatsAppContact(context.Background(), email, number, resolvedName)
-				}
-			}
-		}
 
-		if resolvedName != "" {
-			//Why: Only replaces the specific numeric occurrence if we have high-confidence metadata from the API.
-			result = strings.ReplaceAll(result, placeholder, "@"+resolvedName)
+		resolvedName := m.resolveMentionName(email, client, jid, number)
+		if resolvedName == "" {
+			continue
 		}
+		//Why: Only replaces the specific numeric occurrence if we have high-confidence metadata from the API.
+		result = strings.ReplaceAll(result, placeholder, "@"+resolvedName)
 	}
 	return result
+}
+
+//Why: Falls back to whatsmeow contact metadata in priority order (full → push → business) and persists asynchronously so the next mention skips the API hop.
+func (m *WAManager) resolveMentionName(email string, client *whatsmeow.Client, jid waTypes.JID, number string) string {
+	if name := store.GetNameByWhatsAppNumber(email, number); name != "" {
+		return name
+	}
+	contact, err := client.Store.Contacts.GetContact(context.Background(), jid)
+	if err != nil {
+		return ""
+	}
+	resolved := pickContactName(contact)
+	if resolved == "" {
+		return ""
+	}
+	go func(em, num, name string) {
+		if err := store.SaveWhatsAppContact(context.Background(), em, num, name); err != nil {
+			logger.Warnf("[WA] SaveWhatsAppContact failed for %s/%s: %v", em, num, err)
+		}
+	}(email, number, resolved)
+	return resolved
+}
+
+func pickContactName(c waTypes.ContactInfo) string {
+	if c.FullName != "" {
+		return c.FullName
+	}
+	if c.PushName != "" {
+		return c.PushName
+	}
+	return c.BusinessName
 }
 
 func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
@@ -361,6 +381,11 @@ func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
 		return "", fmt.Errorf("failed to connect for %s: %w", email, err)
 	}
 
+	return m.consumeQRChannel(ctx, email, qrChan)
+}
+
+//Why: Splits the QR-event consumption loop out of GetQR so the parent function stays in cognitive budget; switch is intrinsic to the upstream event protocol.
+func (m *WAManager) consumeQRChannel(ctx context.Context, email string, qrChan <-chan whatsmeow.QRChannelItem) (string, error) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -369,26 +394,34 @@ func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
 			if !ok {
 				return "", fmt.Errorf("QR channel closed")
 			}
-			switch evt.Event {
-			case "code":
-				png, err := qrcode.Encode(evt.Code, qrcode.High, 300)
-				if err != nil {
-					logger.Errorf("[WA-QR] Failed to encode QR for %s: %v", email, err)
-					return "", fmt.Errorf("failed to encode QR: %w", err)
-				}
-				encoded := base64.StdEncoding.EncodeToString(png)
-				m.mu.Lock()
-				m.latestQR[email] = encoded
-				m.mu.Unlock()
-				logger.Infof("[WA-QR] Generated new QR code for %s (len: %d)", email, len(encoded))
-				return encoded, nil
-			case "success":
-				logger.Infof("[WA-QR] QR Scan success for %s", email)
-				return "CONNECTED", nil
-			default:
-				logger.Debugf("[WA-QR] Received unknown QR event for %s: %s", email, evt.Event)
+			result, done, err := m.handleQREvent(email, evt)
+			if done {
+				return result, err
 			}
 		}
+	}
+}
+
+func (m *WAManager) handleQREvent(email string, evt whatsmeow.QRChannelItem) (string, bool, error) {
+	switch evt.Event {
+	case "code":
+		png, err := qrcode.Encode(evt.Code, qrcode.High, 300)
+		if err != nil {
+			logger.Errorf("[WA-QR] Failed to encode QR for %s: %v", email, err)
+			return "", true, fmt.Errorf("failed to encode QR: %w", err)
+		}
+		encoded := base64.StdEncoding.EncodeToString(png)
+		m.mu.Lock()
+		m.latestQR[email] = encoded
+		m.mu.Unlock()
+		logger.Infof("[WA-QR] Generated new QR code for %s (len: %d)", email, len(encoded))
+		return encoded, true, nil
+	case "success":
+		logger.Infof("[WA-QR] QR Scan success for %s", email)
+		return "CONNECTED", true, nil
+	default:
+		logger.Debugf("[WA-QR] Received unknown QR event for %s: %s", email, evt.Event)
+		return "", false, nil
 	}
 }
 
@@ -406,7 +439,7 @@ func (m *WAManager) GetStatus(email string) string {
 	return "disconnected"
 }
 
-func (m *WAManager) LogoutWhatsApp(email string) error {
+func (m *WAManager) LogoutWhatsApp(ctx context.Context, email string) error {
 	m.mu.Lock()
 	client, ok := m.clients[email]
 	m.mu.Unlock()
@@ -416,7 +449,7 @@ func (m *WAManager) LogoutWhatsApp(email string) error {
 	}
 
 	if client.IsConnected() {
-		err := client.Logout(context.Background())
+		err := client.Logout(ctx)
 		if err != nil {
 			logger.Errorf("[WA-LOGOUT] Failed to logout for %s: %v", email, err)
 			return err
@@ -497,8 +530,8 @@ func GetWhatsAppQR(ctx context.Context, email string) (string, error) {
 	return DefaultWAManager.GetQR(ctx, email)
 }
 
-func LogoutWhatsApp(email string) error {
-	return DefaultWAManager.LogoutWhatsApp(email)
+func LogoutWhatsApp(ctx context.Context, email string) error {
+	return DefaultWAManager.LogoutWhatsApp(ctx, email)
 }
 
 func DisconnectAllWhatsApp() {

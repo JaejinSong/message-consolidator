@@ -73,8 +73,8 @@ func loadDSUFromDB(ctx context.Context) {
 	logger.Infof("[Identity-X] DSU initialized with persistent merge relations.")
 }
 
-func GetContactsMappings(email string) ([]ContactRecord, error) {
-	return fetchAllTenantContacts(context.Background(), email)
+func GetContactsMappings(ctx context.Context, email string) ([]ContactRecord, error) {
+	return fetchAllTenantContacts(ctx, email)
 }
 
 func AddContactMapping(ctx context.Context, email, canonicalID, displayName, aliases, source string) error {
@@ -247,12 +247,12 @@ func handleExistingTelegramContact(ctx context.Context, email string, cid int64,
 	return nil
 }
 
-func GetNameByTelegramID(email, userID string) string {
-	id, err := ResolveAlias(context.Background(), ContactTypeTelegram, userID)
+func GetNameByTelegramID(ctx context.Context, email, userID string) string {
+	id, err := ResolveAlias(ctx, ContactTypeTelegram, userID)
 	if err != nil {
 		return ""
 	}
-	byID := fetchContactsByIDs(context.Background(), []int64{id})
+	byID := fetchContactsByIDs(ctx, []int64{id})
 	if c, ok := byID[id]; ok {
 		return c.DisplayName
 	}
@@ -298,21 +298,36 @@ func GetContactsByIdentifiers(ctx context.Context, tenantEmail string, identifie
 	if err != nil {
 		return res, ambiguous, err
 	}
-
-	normToContactID := make(map[string]int64, len(rows))
-	contactIDSet := make(map[int64]bool)
-	for _, row := range rows {
-		normToContactID[row.RawIdentifier] = row.ContactID
-		contactIDSet[row.ContactID] = true
-	}
-	idList := make([]int64, 0, len(contactIDSet))
-	for id := range contactIDSet {
-		idList = append(idList, id)
-	}
-	contactByID := fetchContactsByIDs(ctx, idList)
+	normToContactID := buildNormToContactIDMap(rows)
+	contactByID := fetchContactsByIDs(ctx, distinctContactIDs(rows))
 	followMasterContacts(ctx, contactByID)
-
 	ambiguousNorms := detectDisplayNameAmbiguity(ctx, tenantEmail, normList)
+	mergeIdentifierResolutions(normToOriginals, normToContactID, contactByID, ambiguousNorms, res, ambiguous)
+	return res, ambiguous, nil
+}
+
+func buildNormToContactIDMap(rows []db.GetResolutionsByIdentifiersRow) map[string]int64 {
+	out := make(map[string]int64, len(rows))
+	for _, row := range rows {
+		out[row.RawIdentifier] = row.ContactID
+	}
+	return out
+}
+
+func distinctContactIDs(rows []db.GetResolutionsByIdentifiersRow) []int64 {
+	set := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		set[row.ContactID] = true
+	}
+	out := make([]int64, 0, len(set))
+	for id := range set {
+		out = append(out, id)
+	}
+	return out
+}
+
+//Why: Maps every original identifier to its resolved ContactRecord (or marks ambiguous), inverting the normalize index used during the SQL fetch.
+func mergeIdentifierResolutions(normToOriginals map[string][]string, normToContactID map[string]int64, contactByID map[int64]*ContactRecord, ambiguousNorms map[string]bool, res map[string]*ContactRecord, ambiguous map[string]bool) {
 	for norm, originals := range normToOriginals {
 		if ambiguousNorms[norm] {
 			for _, orig := range originals {
@@ -328,7 +343,6 @@ func GetContactsByIdentifiers(ctx context.Context, tenantEmail string, identifie
 			res[orig] = contactByID[cid]
 		}
 	}
-	return res, ambiguous, nil
 }
 
 func normalizeIdentifierList(tenantEmail string, identifiers []string) (normToOriginals map[string][]string, normList []string, preResolved map[string]*ContactRecord) {
@@ -614,7 +628,7 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	masterID, masterType, err := resolveEffectiveMaster(ctx, tx, tenantEmail, masterID, targetID)
 	if err != nil {
@@ -681,7 +695,7 @@ func applyLinkUpdates(ctx context.Context, tx *sql.Tx, tenantEmail string, maste
 		}); err != nil {
 			return err
 		}
-		trace.Step(ctx, "ContactTypePromotion", fmt.Sprintf("ID:%d promoted to %s via merge", masterID, finalType), 0, int(masterID))
+		_ = trace.Step(ctx, "ContactTypePromotion", fmt.Sprintf("ID:%d promoted to %s via merge", masterID, finalType), 0, int(masterID))
 	}
 	_ = q.InsertMergeHistory(ctx, db.InsertMergeHistoryParams{
 		SourceContactID: targetID,
@@ -749,7 +763,7 @@ func ResolveAliases(ctx context.Context, idType, value string) ([]int64, error) 
 
 	canonicalIDs := deduplicateByDSU(rawIDs)
 	elapsed := time.Since(start).Milliseconds()
-	trace.Step(ctx, "IdentityResolution", fmt.Sprintf("Type: %s, Latency: %dms, Results: %d", idType, elapsed, len(canonicalIDs)), int(elapsed), 0)
+	_ = trace.Step(ctx, "IdentityResolution", fmt.Sprintf("Type: %s, Latency: %dms, Results: %d", idType, elapsed, len(canonicalIDs)), int(elapsed), 0)
 	return canonicalIDs, nil
 }
 
@@ -824,7 +838,7 @@ func UpdateContactType(ctx context.Context, contactID int64, cType string) error
 		return err
 	}
 
-	trace.Step(ctx, "ContactTypePromotion", fmt.Sprintf("ContactID:%d set to %s", id, cType), 0, int(id))
+	_ = trace.Step(ctx, "ContactTypePromotion", fmt.Sprintf("ContactID:%d set to %s", id, cType), 0, int(id))
 	return nil
 }
 

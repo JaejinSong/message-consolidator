@@ -20,25 +20,7 @@ func GetTaskTranslationsBatch(ctx context.Context, messageIDs []int, langCode st
 		return make(map[int]string), nil
 	}
 
-	results := make(map[int]string)
-	var missingIDs []int
-
-	translationMu.RLock()
-	langCache, ok := translationCache[langCode]
-	if ok {
-		for _, id := range messageIDs {
-			if text, exists := langCache[id]; exists {
-				if text != "" {
-					results[id] = text
-				}
-			} else {
-				missingIDs = append(missingIDs, id)
-			}
-		}
-	} else {
-		missingIDs = append(missingIDs, messageIDs...) //Why: Forces a full database lookup if the requested language is completely missing from the cache.
-	}
-	translationMu.RUnlock()
+	results, missingIDs := splitTranslationsByCache(langCode, messageIDs)
 
 	//Why: Skips the database query entirely if all requested translations are already available in the cache.
 	if len(missingIDs) == 0 {
@@ -82,6 +64,32 @@ func GetTaskTranslationsBatch(ctx context.Context, messageIDs []int, langCode st
 	return results, nil
 }
 
+//Why: Cache hit returns the translated text immediately; misses (or absent language) bubble up to the SQL fetch.
+func splitTranslationsByCache(langCode string, messageIDs []int) (map[int]string, []int) {
+	results := make(map[int]string)
+	translationMu.RLock()
+	defer translationMu.RUnlock()
+	langCache, ok := translationCache[langCode]
+	if !ok {
+		// Forces a full database lookup if the requested language is missing from the cache.
+		missing := make([]int, len(messageIDs))
+		copy(missing, messageIDs)
+		return results, missing
+	}
+	var missing []int
+	for _, id := range messageIDs {
+		text, exists := langCache[id]
+		if !exists {
+			missing = append(missing, id)
+			continue
+		}
+		if text != "" {
+			results[id] = text
+		}
+	}
+	return results, missing
+}
+
 // SaveTaskTranslationsBulk saves multiple translations in a single optimized SQL execution.
 // Why: Minimizes database lock contention and ensures atomicity for batch AI results.
 func SaveTaskTranslationsBulk(ctx context.Context, langCode string, results map[int]string) error {
@@ -95,7 +103,9 @@ func SaveTaskTranslationsBulk(ctx context.Context, langCode string, results map[
 		args = append(args, id, langCode, text)
 	}
 
-	query := fmt.Sprintf("INSERT INTO task_translations (message_id, language_code, translated_text) VALUES %s ON CONFLICT(message_id, language_code) DO UPDATE SET translated_text=excluded.translated_text", strings.Join(placeholders, ","))
+	// Why: Placeholders are static "(?, ?, ?)" tokens generated from len(results); user data
+	// flows through args, not the format string. SQL injection is structurally impossible here.
+	query := fmt.Sprintf("INSERT INTO task_translations (message_id, language_code, translated_text) VALUES %s ON CONFLICT(message_id, language_code) DO UPDATE SET translated_text=excluded.translated_text", strings.Join(placeholders, ",")) //nolint:gosec // Placeholders are constant tokens, not interpolated user input.
 	conn := GetDB()
 	_, err := conn.ExecContext(ctx, query, args...)
 	if err == nil {

@@ -318,22 +318,32 @@ func (m *TelegramManager) waitForStatus(email string, timeout time.Duration, ter
 		case <-deadline:
 			return fmt.Errorf("telegram: wait for %v timed out", terminal)
 		case err := <-s.doneChan:
-			if err != nil {
-				return err
-			}
-			if s.getStatus() == TGStatusConnected {
-				return nil
-			}
-			return errors.New("telegram: auth goroutine exited without connection")
+			return interpretAuthDone(err, s)
 		case <-ticker.C:
-			st := s.getStatus()
-			for _, t := range terminal {
-				if st == t {
-					return nil
-				}
+			if matchesTerminalStatus(s.getStatus(), terminal) {
+				return nil
 			}
 		}
 	}
+}
+
+func interpretAuthDone(err error, s *tgAuthState) error {
+	if err != nil {
+		return err
+	}
+	if s.getStatus() == TGStatusConnected {
+		return nil
+	}
+	return errors.New("telegram: auth goroutine exited without connection")
+}
+
+func matchesTerminalStatus(current string, terminal []string) bool {
+	for _, t := range terminal {
+		if current == t {
+			return true
+		}
+	}
+	return false
 }
 
 // GetStatus reports the current auth/connection status for the user, or
@@ -501,11 +511,11 @@ func HasTelegramCredentials(email string, cfg *config.Config) bool {
 func (m *TelegramManager) newDispatcher(email string) tg.UpdateDispatcher {
 	d := tg.NewUpdateDispatcher()
 	d.OnNewMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateNewMessage) error {
-		m.ingestMessage(email, e, u.Message)
+		m.ingestMessage(ctx, email, e, u.Message)
 		return nil
 	})
 	d.OnNewChannelMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateNewChannelMessage) error {
-		m.ingestMessage(email, e, u.Message)
+		m.ingestMessage(ctx, email, e, u.Message)
 		return nil
 	})
 	return d
@@ -513,7 +523,7 @@ func (m *TelegramManager) newDispatcher(email string) tg.UpdateDispatcher {
 
 // ingestMessage narrows MessageClass to *tg.Message (skips MessageService/Empty)
 // and pushes a normalized RawMessage into the per-chat buffer.
-func (m *TelegramManager) ingestMessage(email string, e tg.Entities, mc tg.MessageClass) {
+func (m *TelegramManager) ingestMessage(ctx context.Context, email string, e tg.Entities, mc tg.MessageClass) {
 	msg, ok := mc.(*tg.Message)
 	if !ok || msg.Message == "" {
 		return
@@ -522,8 +532,8 @@ func (m *TelegramManager) ingestMessage(email string, e tg.Entities, mc tg.Messa
 	if !ok {
 		return
 	}
-	go m.storeEntities(email, e)
-	raw := m.parseMessage(email, e, msg)
+	go m.storeEntities(ctx, email, e)
+	raw := m.parseMessage(ctx, email, e, msg)
 	m.bufferMessage(email, chatKey, raw)
 	logger.Debugf("[TG-EVENT][%s] %s: %s", email, chatKey, raw.Text)
 }
@@ -532,10 +542,10 @@ func (m *TelegramManager) ingestMessage(email string, e tg.Entities, mc tg.Messa
 // resolves from the entities bundle first, then falls back to the persisted
 // contact cache so the scanner never sees a bare numeric ID when we've seen
 // this user before.
-func (m *TelegramManager) parseMessage(email string, e tg.Entities, msg *tg.Message) types.RawMessage {
+func (m *TelegramManager) parseMessage(ctx context.Context, email string, e tg.Entities, msg *tg.Message) types.RawMessage {
 	senderID, senderName := resolveSender(e, msg)
 	if senderName == "" && senderID != "" {
-		senderName = store.GetNameByTelegramID(email, senderID)
+		senderName = store.GetNameByTelegramID(ctx, email, senderID)
 	}
 	var replyToID string
 	if h, ok := msg.ReplyTo.(*tg.MessageReplyHeader); ok {
@@ -559,8 +569,7 @@ func (m *TelegramManager) parseMessage(email string, e tg.Entities, msg *tg.Mess
 // storeEntities walks the dispatched users/chats/channels and (a) persists user
 // display names to `contacts` for auto-retroactive v_messages resolution,
 // (b) caches chat/channel titles in groupCache for GetGroupName. Runs async.
-func (m *TelegramManager) storeEntities(email string, e tg.Entities) {
-	ctx := context.Background()
+func (m *TelegramManager) storeEntities(ctx context.Context, email string, e tg.Entities) {
 	for id, u := range e.Users {
 		name := buildUserDisplayName(u)
 		uid := strconv.FormatInt(id, 10)
@@ -678,27 +687,52 @@ func (m *TelegramManager) dropBuffer(email string) {
 //   3. live MessagesGetChats RPC for basic chats (no access_hash required)
 //   4. numeric tail fallback
 func (m *TelegramManager) GetGroupName(email string, chatKey string) string {
-	if v, ok := m.groupCache.Load(chatKey); ok {
-		if s, ok := v.(string); ok && s != "" {
-			return s
-		}
+	if cached := m.cachedGroupName(chatKey); cached != "" {
+		return cached
 	}
-	if strings.HasPrefix(chatKey, "tg_user_") {
-		uid := strings.TrimPrefix(chatKey, "tg_user_")
-		if name := store.GetNameByTelegramID(email, uid); name != "" {
-			m.groupCache.Store(chatKey, name)
-			return name
-		}
+	if name := m.resolveDMName(email, chatKey); name != "" {
+		m.groupCache.Store(chatKey, name)
+		return name
 	}
-	if strings.HasPrefix(chatKey, "tg_chat_") {
-		idStr := strings.TrimPrefix(chatKey, "tg_chat_")
-		if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
-			if title := m.lookupBasicChatTitle(email, id); title != "" {
-				m.groupCache.Store(chatKey, title)
-				return title
-			}
-		}
+	if title := m.resolveBasicChatTitle(email, chatKey); title != "" {
+		m.groupCache.Store(chatKey, title)
+		return title
 	}
+	return stripTelegramKeyPrefix(chatKey)
+}
+
+func (m *TelegramManager) cachedGroupName(chatKey string) string {
+	v, ok := m.groupCache.Load(chatKey)
+	if !ok {
+		return ""
+	}
+	s, ok := v.(string)
+	if !ok {
+		return ""
+	}
+	return s
+}
+
+func (m *TelegramManager) resolveDMName(email, chatKey string) string {
+	if !strings.HasPrefix(chatKey, "tg_user_") {
+		return ""
+	}
+	uid := strings.TrimPrefix(chatKey, "tg_user_")
+	return store.GetNameByTelegramID(context.Background(), email, uid)
+}
+
+func (m *TelegramManager) resolveBasicChatTitle(email, chatKey string) string {
+	if !strings.HasPrefix(chatKey, "tg_chat_") {
+		return ""
+	}
+	id, err := strconv.ParseInt(strings.TrimPrefix(chatKey, "tg_chat_"), 10, 64)
+	if err != nil {
+		return ""
+	}
+	return m.lookupBasicChatTitle(email, id)
+}
+
+func stripTelegramKeyPrefix(chatKey string) string {
 	for _, prefix := range []string{"tg_user_", "tg_chat_", "tg_channel_"} {
 		if strings.HasPrefix(chatKey, prefix) {
 			return strings.TrimPrefix(chatKey, prefix)
@@ -750,7 +784,7 @@ func (m *TelegramManager) hydrateDialogs(ctx context.Context, client *telegram.C
 			e.Channels[v.ID] = v
 		}
 	}
-	m.storeEntities(email, e)
+	m.storeEntities(ctx, email, e)
 	logger.Infof("[TG-HYDRATE][%s] cached %d users, %d chats, %d channels", email, len(e.Users), len(e.Chats), len(e.Channels))
 }
 

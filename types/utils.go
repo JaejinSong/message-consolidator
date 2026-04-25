@@ -40,28 +40,30 @@ func ExtractContacts(header string) []mail.Address {
 		}
 
 		// Robust fallback for "Name <email>" even if slightly malformed
-		if idx := strings.Index(p, "<"); idx != -1 {
-			name := strings.TrimSpace(p[:idx])
-			name = strings.Trim(name, "\"")
-
-			dec := new(mime.WordDecoder)
-			if decoded, err := dec.DecodeHeader(name); err == nil {
-				name = decoded
-			}
-
-			endIdx := strings.Index(p, ">")
-			var email string
-			if endIdx > idx {
-				email = strings.TrimSpace(p[idx+1 : endIdx])
-			} else {
-				email = strings.TrimSpace(p[idx+1:])
-			}
-			contacts = append(contacts, mail.Address{Name: name, Address: email})
-		} else {
+		idx := strings.Index(p, "<")
+		if idx == -1 {
 			contacts = append(contacts, mail.Address{Name: "", Address: p})
+			continue
 		}
+		contacts = append(contacts, parseNameAndEmail(p, idx))
 	}
 	return contacts
+}
+
+func parseNameAndEmail(p string, idx int) mail.Address {
+	name := strings.Trim(strings.TrimSpace(p[:idx]), "\"")
+	dec := new(mime.WordDecoder)
+	if decoded, err := dec.DecodeHeader(name); err == nil {
+		name = decoded
+	}
+	endIdx := strings.Index(p, ">")
+	email := ""
+	if endIdx > idx {
+		email = strings.TrimSpace(p[idx+1 : endIdx])
+	} else {
+		email = strings.TrimSpace(p[idx+1:])
+	}
+	return mail.Address{Name: name, Address: email}
 }
 
 // ExtractNameFromEmail parses an email address header (e.g., "Name <email@example.com>")

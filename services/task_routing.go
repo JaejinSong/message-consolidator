@@ -78,30 +78,42 @@ func handleNew(ctx context.Context, q store.Querier, item store.TodoItem, msg st
 	if item.Task == "" {
 		item.Task = msg.Task
 	}
-
 	if len(item.Subtasks) > 0 {
 		msg.Subtasks = mapTodoSubtasksToStore(item.Subtasks)
 	}
-
 	if msg.ID != 0 {
-		err := store.UpdateTaskText(ctx, q, msg.UserEmail, msg.ID, item.Task)
-		if err == nil && len(msg.Subtasks) > 0 {
-			_ = store.UpdateSubtasks(ctx, q, msg.UserEmail, msg.ID, msg.Subtasks)
-		}
-		return msg.ID, err
+		return updateExistingTask(ctx, q, msg.UserEmail, msg.ID, item.Task, msg.Subtasks)
 	}
-
-	if msg.ThreadID != "" {
-		if existing, _ := store.GetIncompleteByThreadID(ctx, q, msg.UserEmail, msg.ThreadID); len(existing) > 0 {
-			id := existing[0].ID
-			err := store.UpdateTaskText(ctx, q, msg.UserEmail, id, item.Task)
-			if err == nil && len(msg.Subtasks) > 0 {
-				_ = store.UpdateSubtasks(ctx, q, msg.UserEmail, id, msg.Subtasks)
-			}
-			return id, err
-		}
+	if id, ok, err := updateThreadParentIfPresent(ctx, q, msg, item.Task); ok {
+		return id, err
 	}
+	return createTaskFromItem(ctx, q, item, msg)
+}
 
+//Why: Whichever path lands on an existing task ID applies the same text+subtask update; consolidate so handleNew has one branch instead of two.
+func updateExistingTask(ctx context.Context, q store.Querier, email string, id int, task string, subtasks []store.Subtask) (int, error) {
+	err := store.UpdateTaskText(ctx, q, email, id, task)
+	if err == nil && len(subtasks) > 0 {
+		_ = store.UpdateSubtasks(ctx, q, email, id, subtasks)
+	}
+	return id, err
+}
+
+//Why: Resolves to an existing thread-parent task when the message has no explicit ID; returns ok=false so handleNew falls through to creation.
+func updateThreadParentIfPresent(ctx context.Context, q store.Querier, msg store.ConsolidatedMessage, task string) (int, bool, error) {
+	if msg.ThreadID == "" {
+		return 0, false, nil
+	}
+	existing, _ := store.GetIncompleteByThreadID(ctx, q, msg.UserEmail, msg.ThreadID)
+	if len(existing) == 0 {
+		return 0, false, nil
+	}
+	id, err := updateExistingTask(ctx, q, msg.UserEmail, existing[0].ID, task, msg.Subtasks)
+	return id, true, err
+}
+
+//Why: Folds the SaveMessage path so handleNew's body stays linear. AI-supplied requester/assignee/reason override the envelope when present.
+func createTaskFromItem(ctx context.Context, q store.Querier, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
 	msg.Task = item.Task
 	if item.Requester != "" {
 		msg.Requester = item.Requester
@@ -136,7 +148,7 @@ func handleUpdate(ctx context.Context, q store.Querier, email string, item store
 	}
 
 	if item.AssignedTo != "" {
-		normalized := store.NormalizeName(email, item.AssignedTo)
+		normalized := store.NormalizeName(email, item.AssignedTo) //nolint:contextcheck // Identity-resolution chain is sweep target of Wave 2 I.
 		// Why (Phase J Path B): @mention reassignment must bump assigned_at to the trigger
 		// envelope timestamp so envelope metadata doesn't go stale. Same assignee = no-op.
 		if existing.Assignee != normalized {

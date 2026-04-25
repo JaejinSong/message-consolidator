@@ -30,8 +30,8 @@ func SaveMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool,
 		return false, 0, nil
 	}
 
-	msg.Requester = NormalizeName(msg.UserEmail, msg.Requester)
-	msg.Assignee = NormalizeName(msg.UserEmail, msg.Assignee)
+	msg.Requester = NormalizeName(msg.UserEmail, msg.Requester) //nolint:contextcheck // Identity-resolution chain is sweep target of Wave 2 I.
+	msg.Assignee = NormalizeName(msg.UserEmail, msg.Assignee)   //nolint:contextcheck // Identity-resolution chain is sweep target of Wave 2 I.
 
 	if isSemanticDup(ctx, q, msg) {
 		return false, 0, nil
@@ -311,7 +311,7 @@ func MergeTasksWithTitle(ctx context.Context, email string, targetIDs []int64, d
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	allIDs := append(toIntList(targetIDs), int(destID))
 	msgs, err := GetMessagesByIDs(ctx, tx, email, allIDs)

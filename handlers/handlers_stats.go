@@ -15,7 +15,7 @@ func (a *API) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 		tz = "UTC"
 	}
 
-	stats, err := store.GetUserStats(email, tz)
+	stats, err := store.GetUserStats(r.Context(), email, tz)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

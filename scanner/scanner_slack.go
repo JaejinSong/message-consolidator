@@ -81,7 +81,7 @@ func scanSlack(ctx context.Context, users []store.User, wg *sync.WaitGroup) {
 	if cfg == nil || cfg.SlackToken == "" || len(users) == 0 {
 		return
 	}
-	sc := channels.NewSlackClient(cfg.SlackToken)
+	sc := channels.NewSlackClient(cfg.SlackToken) //nolint:contextcheck // SlackClient constructor; per-request ctx flows through individual API calls.
 	_ = sc.FetchUsers()
 
 	chans, _, err := sc.LookupChannels()
@@ -97,7 +97,7 @@ func scanSlack(ctx context.Context, users []store.User, wg *sync.WaitGroup) {
 
 	//Why: Forces immediate persistence of scan cursors after each cycle to prevent data loss or scan gaps in case of process termination.
 	for _, u := range users {
-		store.PersistAllScanMetadata(u.Email)
+		store.PersistAllScanMetadata(ctx, u.Email)
 	}
 }
 
@@ -172,30 +172,41 @@ func classifyAndCollect(ctx context.Context, c slack.Channel, m types.RawMessage
 		if lts != "" && m.ID <= lts {
 			continue
 		}
-		isFromMe := strings.EqualFold(m.Sender, u.Name) || strings.EqualFold(m.Sender, u.Email)
-		if isFromMe && completionSvc != nil && m.ReplyToID != "" {
-			// Why: [Async Transition] Triggers task state evaluation (RESOLVE/UPDATE) in a background goroutine 
-			// to prevent Gemini API latency from blocking the ingestion loop. 
-			// Uses context.Background() to decouple from parent scan timeout.
-			go func(bgCtx context.Context, email string, raw types.RawMessage) {
-				completionSvc.ProcessPotentialCompletion(bgCtx, store.ConsolidatedMessage{
-					UserEmail: email, Source: "slack", ThreadID: raw.ReplyToID, 
-					OriginalText: raw.Text, SourceTS: raw.ID, CreatedAt: raw.Timestamp,
-				})
-			}(context.Background(), u.Email, m)
-		}
+		dispatchOutgoingCompletionIfMine(ctx, u, m)
 		cls := classifyMessage(c, &u, userAl[u.Email], m)
-		// Soft Filtering: Always include Task and Query categories if they reached this stage.
 		if cls == types.CategoryTask || cls == types.CategoryQuery {
 			m.ChannelID = c.ID
 			candidates[u.Email] = append(candidates[u.Email], m)
 		}
-		if newTS[u.Email] == nil {
-			newTS[u.Email] = make(map[string]string)
+		updateChannelCursor(newTS, u.Email, c.ID, m.ID)
+	}
+}
+
+//Why: When the user replies in their own thread we evaluate state (RESOLVE/UPDATE) on a Background ctx so Gemini latency doesn't block the scan loop.
+// _ ctx is accepted for trace propagation parity with the rest of classifyAndCollect; the goroutine itself uses Background.
+func dispatchOutgoingCompletionIfMine(_ context.Context, u store.User, m types.RawMessage) {
+	if completionSvc == nil || m.ReplyToID == "" {
+		return
+	}
+	if !strings.EqualFold(m.Sender, u.Name) && !strings.EqualFold(m.Sender, u.Email) {
+		return
+	}
+	go func(bgCtx context.Context, email string, raw types.RawMessage) { //nolint:contextcheck // Goroutine outlives the parent scan ctx by design.
+		if _, err := completionSvc.ProcessPotentialCompletion(bgCtx, store.ConsolidatedMessage{
+			UserEmail: email, Source: "slack", ThreadID: raw.ReplyToID,
+			OriginalText: raw.Text, SourceTS: raw.ID, CreatedAt: raw.Timestamp,
+		}); err != nil {
+			logger.Warnf("[SLACK-COMPLETION] %s: %v", email, err)
 		}
-		if curr, ok := newTS[u.Email][c.ID]; !ok || m.ID > curr {
-			newTS[u.Email][c.ID] = m.ID
-		}
+	}(context.Background(), u.Email, m)
+}
+
+func updateChannelCursor(newTS map[string]map[string]string, email, channelID, msgID string) {
+	if newTS[email] == nil {
+		newTS[email] = make(map[string]string)
+	}
+	if curr, ok := newTS[email][channelID]; !ok || msgID > curr {
+		newTS[email][channelID] = msgID
 	}
 }
 
@@ -214,7 +225,9 @@ func processSlackCandidates(ctx context.Context, users []store.User, sc *channel
 func updateSlackCursors(newTS map[string]map[string]string) {
 	for email, channelMap := range newTS {
 		for chanID, ts := range channelMap {
-			store.UpdateLastScan(email, "slack", chanID, ts)
+			if err := store.UpdateLastScan(email, "slack", chanID, ts); err != nil {
+				logger.Warnf("[SLACK] UpdateLastScan failed for %s/%s: %v", email, chanID, err)
+			}
 		}
 	}
 }
@@ -291,7 +304,7 @@ func startSlowSweeper(ctx context.Context, wg *sync.WaitGroup) {
 
 func sweepSlackThreads(ctx context.Context, wg *sync.WaitGroup) {
 	traceCtx, _ := trace.Start(ctx, "/Background-SweepSlackThreads")
-	defer trace.End(traceCtx, nil)
+	defer func() { _ = trace.End(traceCtx, nil) }()
 
 	if cfg == nil || cfg.SlackToken == "" {
 		return
@@ -302,7 +315,7 @@ func sweepSlackThreads(ctx context.Context, wg *sync.WaitGroup) {
 		return
 	}
 
-	sc, botID := getOrInitSlackClient(cfg.SlackToken)
+	sc, botID := getOrInitSlackClient(cfg.SlackToken) //nolint:contextcheck // SlackClient constructor; per-request ctx flows through individual API calls.
 
 	// Why: alias 결정은 tenant(UserEmail) 단위로 동일하므로 thread 루프 밖에서 1회만 조회한다.
 	// 기존엔 thread당 GetUserAliases가 contact_resolution + contacts 2 SELECT를 돌려 N+1을 만들었음.
@@ -495,7 +508,7 @@ func handleThreadTimeout(ctx context.Context, sc *channels.SlackClient, t store.
 
 func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user *store.User, t store.SlackThreadMeta, replies []slack.Message, res threadScanResult, effAl []string) []types.RawMessage {
 	var candidates []types.RawMessage
-
+	c := slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: t.ChannelID}}}
 	for _, m := range replies {
 		if t.LastTS != "" && m.Timestamp <= t.LastTS {
 			continue
@@ -503,24 +516,33 @@ func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user
 		if res.isResolved && m.Timestamp > res.newLastTS {
 			continue
 		}
-		isFromMe := strings.EqualFold(m.User, user.SlackID) || sc.GetUserName(m.User) == user.Name
-		if isFromMe && completionSvc != nil && m.ThreadTimestamp != "" {
-			completionSvc.ProcessPotentialCompletion(ctx, store.ConsolidatedMessage{
-				UserEmail: user.Email, Source: "slack", ThreadID: t.ThreadTS, OriginalText: m.Text, SourceTS: m.Timestamp,
-			})
-		}
-		// Why: Architecture Separation—Redundant isBot/Empty text checks are removed here as the channels layer already pre-filters these.
-		c := slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: t.ChannelID}}}
+		dispatchThreadCompletionIfMine(ctx, sc, user, t, m)
+		// Architecture Separation: bot/empty pre-filters live in the channels layer.
 		cls := classifyMessage(c, user, effAl, types.RawMessage{Sender: m.User, Text: m.Text})
-		if cls == types.CategoryTask || cls == types.CategoryQuery {
-			candidates = append(candidates, types.RawMessage{
-				ID: m.Timestamp, Sender: sc.GetUserName(m.User), Text: m.Text, Timestamp: channels.ParseSlackTimestamp(m.Timestamp),
-				ReplyToID: t.ThreadTS, ChannelID: t.ChannelID, HasAttachment: len(m.Files) > 0,
-				AttachmentNames: sc.ExtractFileNames(m.Files), Reactions: sc.ExtractReactions(m.Reactions), IsPinned: len(m.PinnedTo) > 0,
-			})
+		if cls != types.CategoryTask && cls != types.CategoryQuery {
+			continue
 		}
+		candidates = append(candidates, types.RawMessage{
+			ID: m.Timestamp, Sender: sc.GetUserName(m.User), Text: m.Text, Timestamp: channels.ParseSlackTimestamp(m.Timestamp),
+			ReplyToID: t.ThreadTS, ChannelID: t.ChannelID, HasAttachment: len(m.Files) > 0,
+			AttachmentNames: sc.ExtractFileNames(m.Files), Reactions: sc.ExtractReactions(m.Reactions), IsPinned: len(m.PinnedTo) > 0,
+		})
 	}
 	return candidates
+}
+
+func dispatchThreadCompletionIfMine(ctx context.Context, sc *channels.SlackClient, user *store.User, t store.SlackThreadMeta, m slack.Message) {
+	if completionSvc == nil || m.ThreadTimestamp == "" {
+		return
+	}
+	if !strings.EqualFold(m.User, user.SlackID) && sc.GetUserName(m.User) != user.Name {
+		return
+	}
+	if _, err := completionSvc.ProcessPotentialCompletion(ctx, store.ConsolidatedMessage{
+		UserEmail: user.Email, Source: "slack", ThreadID: t.ThreadTS, OriginalText: m.Text, SourceTS: m.Timestamp,
+	}); err != nil {
+		logger.Warnf("[SLACK-THREAD-COMPLETION] %s: %v", user.Email, err)
+	}
 }
 
 func updateThreadStatus(ctx context.Context, sc *channels.SlackClient, t store.SlackThreadMeta, res threadScanResult) {
@@ -550,14 +572,10 @@ func scanThreadReplies(replies []slack.Message, lastTS, lastActivityTS, botID st
 		if lastTS != "" && m.Timestamp <= lastTS {
 			continue
 		}
-		for _, r := range m.Reactions {
-			if r.Name == "white_check_mark" {
-				isResolved = true
-				break
-			}
+		if hasResolvedReaction(m) {
+			isResolved = true
 		}
-		isBot := m.User == botID || m.BotID != ""
-		if !isBot && !isResolved && m.Timestamp > newLastActivity {
+		if !isBotAuthor(m, botID) && !isResolved && m.Timestamp > newLastActivity {
 			newLastActivity = m.Timestamp
 		}
 		if m.Timestamp > newLastTS {
@@ -568,6 +586,19 @@ func scanThreadReplies(replies []slack.Message, lastTS, lastActivityTS, botID st
 		}
 	}
 	return threadScanResult{isResolved: isResolved, newLastTS: newLastTS, newLastActivity: newLastActivity}
+}
+
+func hasResolvedReaction(m slack.Message) bool {
+	for _, r := range m.Reactions {
+		if r.Name == "white_check_mark" {
+			return true
+		}
+	}
+	return false
+}
+
+func isBotAuthor(m slack.Message, botID string) bool {
+	return m.User == botID || m.BotID != ""
 }
 
 func isThreadTimedOut(lastActivityTS string, threshold time.Duration) bool {
@@ -688,7 +719,7 @@ func mapSlackItemToMessage(ctx context.Context, item store.TodoItem, m types.Raw
 		ThreadID:       threadID,
 		SourceChannels: []string{"slack"},
 	}
-	return services.BuildTask(params)
+	return services.BuildTask(params) //nolint:contextcheck // Identity-resolution chain (NormalizeContactName) is sweep target of Wave 2 I.
 }
 
 

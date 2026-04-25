@@ -87,7 +87,7 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 	// thread fetches, ...) appears as an HTTPC step under the parent TX with
 	// auth still attached. Passing option.WithHTTPClient forces the SDK to use
 	// our wrapped client instead of building its own.
-	httpClient := whataphttpx.WrapClient(oauth2.NewClient(ctx, tokenSource))
+	httpClient := whataphttpx.WrapClient(oauth2.NewClient(ctx, tokenSource)) //nolint:contextcheck // WrapClient builds a transport; ctx is propagated by oauth2.NewClient and per-request SDK calls.
 	svc, err := gmail.NewService(ctx, option.WithHTTPClient(httpClient))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gmail service: %w", err)
@@ -116,7 +116,9 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 	}
 
 	if maxTS > 0 {
-		store.UpdateLastScan(email, "gmail", "inbox", fmt.Sprintf("%d", maxTS))
+		if err := store.UpdateLastScan(email, "gmail", "inbox", fmt.Sprintf("%d", maxTS)); err != nil {
+			logger.Warnf("[GMAIL] UpdateLastScan failed for %s: %v", email, err)
+		}
 	}
 	return newIDs
 }
@@ -432,7 +434,7 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.Gemini
 		return nil
 	}
 
-	msgByTS := processGeminiItems(email, user, aliases, items, classificationMap, toMap, msgMap)
+	msgByTS := processGeminiItems(email, user, aliases, items, classificationMap, toMap, msgMap) //nolint:contextcheck // Identity-resolution chain (NormalizeContactName) is sweep target of Wave 2 I.
 	var newIDs []int
 	for _, item := range items {
 		msg, ok := msgByTS[item.SourceTS]
@@ -453,21 +455,8 @@ func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessag
 		if processed, err := store.IsProcessed(ctx, store.GetDB(), email, m.ID); err == nil && processed {
 			continue
 		}
-		// Why: [Early Return] Checks thread activity first. If handled as a completion/update, skips standard extraction.
-		if onThreadActivity != nil && (classificationMap[m.ID] == CategorySent || classificationMap[m.ID] == CategoryMine || classificationMap[m.ID] == CategoryOthers) {
-			cm := store.ConsolidatedMessage{
-				UserEmail: email, Source: "gmail", Room: "Gmail", ThreadID: m.ThreadID,
-				OriginalText: m.Text, SourceTS: m.ID, Requester: m.SenderName,
-			}
-			if classificationMap[m.ID] == CategorySent {
-				// Why: Signals to ProcessPotentialCompletion that the current user sent this reply,
-				// so the task should be reclassified as delegated (맡긴 업무) rather than resolved.
-				cm.RequesterCanonical = email
-			}
-			if handled := onThreadActivity(cm); handled {
-				_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.ID)
-				continue
-			}
+		if handleThreadActivity(ctx, email, m, classificationMap, onThreadActivity) {
+			continue
 		}
 		if isNoise, err := filterSvc.IsNoise(ctx, email, "gmail", m.Text); err == nil && isNoise {
 			continue
@@ -475,6 +464,30 @@ func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessag
 		result = append(result, m)
 	}
 	return result
+}
+
+//Why: Reply/sent threads enter the completion pipeline before standard extraction, so the early-return path lives here to keep filterGmailBatch flat.
+func handleThreadActivity(ctx context.Context, email string, m types.RawMessage, classificationMap map[string]string, onThreadActivity func(store.ConsolidatedMessage) bool) bool {
+	if onThreadActivity == nil {
+		return false
+	}
+	cls := classificationMap[m.ID]
+	if cls != CategorySent && cls != CategoryMine && cls != CategoryOthers {
+		return false
+	}
+	cm := store.ConsolidatedMessage{
+		UserEmail: email, Source: "gmail", Room: "Gmail", ThreadID: m.ThreadID,
+		OriginalText: m.Text, SourceTS: m.ID, Requester: m.SenderName,
+	}
+	if cls == CategorySent {
+		// Signals ProcessPotentialCompletion that the user sent this reply, so the task is reclassified as delegated rather than resolved.
+		cm.RequesterCanonical = email
+	}
+	if !onThreadActivity(cm) {
+		return false
+	}
+	_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.ID)
+	return true
 }
 
 // Why: Separates the payload construction and side-effects (onThreadActivity callback) from the main AI analysis loop.
@@ -585,31 +598,38 @@ func extractBody(payload *gmail.MessagePart) string {
 	if payload == nil {
 		return ""
 	}
-
-	if payload.MimeType == "text/plain" && payload.Body != nil && payload.Body.Data != "" {
-		return decodeBase64URL(payload.Body.Data)
+	if body := decodePart(payload); body != "" {
+		return body
 	}
-
-	//Why: Falls back to stripping HTML tags from the body if a plain-text version of the email is unavailable.
-	if payload.MimeType == "text/html" && payload.Body != nil && payload.Body.Data != "" {
-		return stripHTML(decodeBase64URL(payload.Body.Data))
-	}
-
 	for _, part := range payload.Parts {
-		if part.MimeType == "text/plain" && part.Body != nil && part.Body.Data != "" {
-			return decodeBase64URL(part.Body.Data)
+		if part.MimeType == "text/plain" {
+			if body := decodePart(part); body != "" {
+				return body
+			}
 		}
 	}
-
 	for _, part := range payload.Parts {
-		if part.MimeType == "text/html" && part.Body != nil && part.Body.Data != "" {
-			return stripHTML(decodeBase64URL(part.Body.Data))
+		if body := decodePart(part); body != "" {
+			return body
 		}
 		if result := extractBody(part); result != "" {
 			return result
 		}
 	}
+	return ""
+}
 
+//Why: Decodes the body of a single MIME part using its declared MIME type so extractBody can iterate without nested branches.
+func decodePart(part *gmail.MessagePart) string {
+	if part == nil || part.Body == nil || part.Body.Data == "" {
+		return ""
+	}
+	switch part.MimeType {
+	case "text/plain":
+		return decodeBase64URL(part.Body.Data)
+	case "text/html":
+		return stripHTML(decodeBase64URL(part.Body.Data))
+	}
 	return ""
 }
 
@@ -617,6 +637,11 @@ var (
 	reWhitespace = regexp.MustCompile(`\s+`)
 )
 
+// Why: HTML walker recurses with conditional pruning (script/style/blockquote/Gmail-quote)
+// and per-element trailing whitespace; cognitive complexity is intrinsic to DOM traversal,
+// not the structure. Splitting the inner closure into helpers fragments the parse contract.
+//
+//nolint:gocognit // DOM walker complexity is intrinsic to HTML sanitization.
 func stripHTML(raw string) string {
 	doc, err := html.Parse(strings.NewReader(raw))
 	if err != nil {

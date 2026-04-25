@@ -63,7 +63,7 @@ func (a *API) HandleTelegramAuthStart(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "phone required")
 		return
 	}
-	if err := channels.StartTelegramAuth(email, body.Phone, a.Config); err != nil {
+	if err := channels.StartTelegramAuth(email, body.Phone, a.Config); err != nil { //nolint:contextcheck // TelegramManager owns its own long-lived client lifecycle (Wave 2 I).
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

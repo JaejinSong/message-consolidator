@@ -43,23 +43,7 @@ func main() {
 	trace.Init(map[string]string{})
 	defer trace.Shutdown()
 
-	//Why: Diagnoses the "ghost" _timeout parameter by inspecting the environment as seen by the binary.
-	logger.Infof("[ENV-DEBUG] Checking environment for DSN modifiers...")
-	for _, env := range os.Environ() {
-		if strings.HasPrefix(env, "TURSO_") || strings.HasPrefix(env, "WHATAP_") {
-			parts := strings.SplitN(env, "=", 2)
-			key, value := parts[0], ""
-			if len(parts) > 1 {
-				value = parts[1]
-			}
-			if key == "TURSO_AUTH_TOKEN" || key == "WHATAP_LICENSE" {
-				value = "****"
-			}
-			logger.Infof("[ENV-DEBUG] %s=%s", key, value)
-		}
-	}
-
-	//Why: Synchronizes the store-level auto-archive policy with the central environment configuration to ensure consistent task auditing across the system.
+	logEnvDebug()
 	store.SetAutoArchiveDays(cfg.AutoArchiveDays)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -68,42 +52,13 @@ func main() {
 	if err := store.InitDB(ctx, cfg); err != nil {
 		log.Fatalf("DB Init failed: %v", err)
 	}
-
-	//Why: Pre-warms the in-memory cache with frequently accessed metadata (e.g., users, aliases) to minimize database I/O latency on high-traffic paths.
 	if err := store.LoadMetadata(); err != nil {
 		logger.Warnf("Failed to load metadata cache: %v", err)
 	}
-
-	//Why: Initializes the scanner subsystem early because HTTP handlers inject scanner function pointers as dependencies, requiring a strict boot order.
 	scanner.Init(cfg)
 
-	//Why: Initializes the AI-powered reporting service with a dedicated Gemini client for business intelligence generation.
-	var gClient *ai.GeminiClient
-	if cfg.GeminiAPIKey != "" {
-		var err error
-		gClient, err = ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
-		if err != nil {
-			logger.Errorf("Failed to initialize GeminiClient for Reports: %v", err)
-		}
-	}
-	var transSvc *services.TranslationService
-	var reportsSvc *services.ReportsService
-	var tasksSvc *services.TasksService
-	var identityResolver *ai.IdentityResolver
+	reportsSvc, tasksSvc, identityResolver := initAIServices(ctx, cfg)
 
-	if gClient != nil {
-		transSvc = services.NewTranslationService(gClient)
-		summarizer := services.NewFlashSingleSummarizer(gClient)
-		config := services.ReportConfig{CutoffSize: services.DefaultReportCutoffSize}
-		reportsSvc = services.NewReportsService(summarizer, gClient, transSvc, config)
-		tasksSvc = services.NewTasksService(transSvc, gClient)
-		identityResolver = ai.NewIdentityResolver(gClient)
-	} else {
-		// Even without AI, we initialize TasksService to handle non-AI operations gracefully.
-		tasksSvc = services.NewTasksService(nil, nil)
-	}
-
-	//Why: Creates the API handler structure with explicit dependency injection, simplifying unit testing and mock substitution.
 	api := handlers.NewAPI(cfg, func(email, lang string) {
 		var wg sync.WaitGroup
 		scanner.Scan(email, lang, &wg)
@@ -114,29 +69,74 @@ func main() {
 		wg.Wait()
 	}, reportsSvc, tasksSvc, identityResolver)
 
-	srv := setupApp(cfg, api, ctx)
+	srv := setupApp(ctx, cfg, api)
 
-	//Why: Traps termination signals (SIGINT/SIGTERM) to orchestrate a graceful shutdown, ensuring in-flight messages are processed and database states are consistent.
+	waitForShutdownSignal()
+	cancel()
+	gracefulShutdown(srv)
+}
+
+//Why: Diagnoses DSN-modifying env vars (TURSO_*/WHATAP_*) at boot. Secrets masked.
+func logEnvDebug() {
+	logger.Infof("[ENV-DEBUG] Checking environment for DSN modifiers...")
+	for _, env := range os.Environ() {
+		if !strings.HasPrefix(env, "TURSO_") && !strings.HasPrefix(env, "WHATAP_") {
+			continue
+		}
+		parts := strings.SplitN(env, "=", 2)
+		key, value := parts[0], ""
+		if len(parts) > 1 {
+			value = parts[1]
+		}
+		if key == "TURSO_AUTH_TOKEN" || key == "WHATAP_LICENSE" {
+			value = "****"
+		}
+		logger.Infof("[ENV-DEBUG] %s=%s", key, value)
+	}
+}
+
+//Why: Boots Gemini-backed services lazily; falls back to AI-less TasksService when no API key is configured.
+func initAIServices(ctx context.Context, cfg *config.Config) (*services.ReportsService, *services.TasksService, *ai.IdentityResolver) {
+	var gClient *ai.GeminiClient
+	if cfg.GeminiAPIKey != "" {
+		var err error
+		gClient, err = ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+		if err != nil {
+			logger.Errorf("Failed to initialize GeminiClient for Reports: %v", err)
+		}
+	}
+	if gClient == nil {
+		return nil, services.NewTasksService(nil, nil), nil
+	}
+	transSvc := services.NewTranslationService(gClient)
+	summarizer := services.NewFlashSingleSummarizer(gClient)
+	reportsCfg := services.ReportConfig{CutoffSize: services.DefaultReportCutoffSize}
+	reportsSvc := services.NewReportsService(summarizer, gClient, transSvc, reportsCfg)
+	tasksSvc := services.NewTasksService(transSvc, gClient)
+	identityResolver := ai.NewIdentityResolver(gClient)
+	return reportsSvc, tasksSvc, identityResolver
+}
+
+//Why: Blocks until SIGINT/SIGTERM so the orchestration loop can drive a controlled shutdown.
+func waitForShutdownSignal() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit //Why: Blocks the main goroutine to keep the application alive until a termination signal is manually or systemically triggered.
+	<-quit
+}
 
-	cancel() //Why: Triggers the cancellation of background worker contexts to stop message scanning and event listeners during shutdown.
-
+//Why: Runs disconnect, flush, HTTP drain, and DB close concurrently so one slow dependency cannot stall the others.
+func gracefulShutdown(srv *http.Server) {
 	logger.Infof("Shutting down server gracefully...")
 	shutdownStart := time.Now()
 
-	//Why: Executes cleanup tasks concurrently to prevent one slow dependency (e.g., a lagging WhatsApp WebSocket) from delaying the entire shutdown process.
 	var wg sync.WaitGroup
 	wg.Add(2)
-
 	go func() {
 		defer wg.Done()
 		logger.Infof("[Shutdown] 1/4 Disconnecting external clients (WhatsApp, Telegram)...")
 		channels.DisconnectAllWhatsApp()
 		channels.DisconnectAllTelegram()
 	}()
-
 	go func() {
 		defer wg.Done()
 		logger.Infof("[Shutdown] 2/4 Flushing in-memory data to Database...")
@@ -146,18 +146,15 @@ func main() {
 		store.FlushAllScanMetadata()
 		logger.Infof("[Shutdown] In-memory data flushed successfully.")
 	}()
-
 	wg.Wait()
 
-	//Why: [Shutdown 3/4] Drains in-flight HTTP requests with a bounded 5s timeout to allow active sessions to complete without hanging the process indefinitely.
-	logger.Infof("[Shutdown] 3/4 Waiting for active HTTP requests to finish (Max 5s)...")
+	logger.Infof("[Shutdown] 3/4 Waiting for active HTTP requests to finish (Max 30s)...")
 	ctxTimeout, cancelTimeout := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelTimeout()
 	if err := srv.Shutdown(ctxTimeout); err != nil {
 		logger.Errorf("Server shutdown error: %v", err)
 	}
 
-	//Why: [Shutdown 4/4] Explicitly releases all database connections back to the Turso server cleanly to prevent connection leaks.
 	if db := store.GetDB(); db != nil {
 		logger.Infof("[Shutdown] 4/4 Closing database connections...")
 		db.Close()
@@ -167,55 +164,10 @@ func main() {
 }
 
 //Why: Encapsulates the wiring of external services, background workers, and HTTP routes to provide a testable, fully configured server instance.
-func setupApp(cfg *config.Config, api *handlers.API, ctx context.Context) *http.Server {
-	//Why: Injects WhatsApp manager callback hooks as an Inversion of Control (IoC) pattern to break circular dependency cycles between the 'channels' and 'store' packages.
-	channels.DefaultWAManager.FetchUserWAJID = func(email string) (string, error) {
-		u, err := store.GetOrCreateUser(ctx, email, "", "")
-		if err != nil {
-			return "", err
-		}
-		return u.WAJID, nil
-	}
-	channels.DefaultWAManager.OnConnected = func(email, wajid string) {
-		store.UpdateUserWAJID(context.Background(), email, wajid)
-	}
-	channels.DefaultWAManager.OnLoggedOut = func(email string) {
-		store.UpdateUserWAJID(context.Background(), email, "")
-	}
-
-	//Why: Telegram IoC — same pattern as WhatsApp. FetchUserTgSession/OnSessionUpdated are wired to telegram_sessions; OnConnected/OnLoggedOut persist tg_user_id.
-	channels.DefaultTelegramManager.FetchUserTgSession = func(email string) ([]byte, error) {
-		return store.GetTelegramSession(ctx, email)
-	}
-	channels.DefaultTelegramManager.FetchUserTgCreds = func(email string) (int, string, bool) {
-		id, hash, ok, err := store.GetTelegramCreds(context.Background(), email)
-		if err != nil {
-			logger.Warnf("[TG] GetTelegramCreds failed for %s: %v", email, err)
-			return 0, "", false
-		}
-		return id, hash, ok
-	}
-	channels.DefaultTelegramManager.OnSessionUpdated = func(email string, data []byte) {
-		if err := store.UpsertTelegramSession(context.Background(), email, data); err != nil {
-			logger.Warnf("[TG] UpsertTelegramSession failed for %s: %v", email, err)
-		}
-	}
-	channels.DefaultTelegramManager.OnConnected = func(email string, userID int64) {
-		store.UpdateUserTgID(context.Background(), email, strconv.FormatInt(userID, 10))
-	}
-	channels.DefaultTelegramManager.OnLoggedOut = func(email string) {
-		store.UpdateUserTgID(context.Background(), email, "")
-		if err := store.DeleteTelegramSession(context.Background(), email); err != nil {
-			logger.Warnf("[TG] DeleteTelegramSession failed for %s: %v", email, err)
-		}
-	}
-
-	//Why: Boots WhatsApp client sessions asynchronously for all registered users to ensure the main server startup remains non-blocking.
-	users, _ := store.GetAllUsers(ctx)
-	for _, u := range users {
-		go channels.DefaultWAManager.InitWhatsApp(u.Email, cfg)
-		go channels.DefaultTelegramManager.InitTelegram(u.Email, cfg)
-	}
+func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.Server {
+	wireWhatsAppHooks(ctx)
+	wireTelegramHooks(ctx)
+	bootChannelClients(ctx, cfg)
 
 	//Why: Initializes OAuth configurations for third-party integrations (Google/Gmail) and system-wide authentication.
 	auth.SetupOAuth(cfg)
@@ -238,8 +190,9 @@ func setupApp(cfg *config.Config, api *handlers.API, ctx context.Context) *http.
 	}
 
 	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: r,
+		Addr:              ":" + port,
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	go func() {
@@ -250,4 +203,67 @@ func setupApp(cfg *config.Config, api *handlers.API, ctx context.Context) *http.
 	}()
 
 	return srv
+}
+
+//Why: WhatsApp IoC hooks injected before client boot — UpdateUserWAJID writes back via Background ctx because OnConnected/OnLoggedOut fire from manager goroutines outlasting the boot ctx.
+func wireWhatsAppHooks(ctx context.Context) {
+	channels.DefaultWAManager.FetchUserWAJID = func(email string) (string, error) {
+		u, err := store.GetOrCreateUser(ctx, email, "", "")
+		if err != nil {
+			return "", err
+		}
+		return u.WAJID, nil
+	}
+	channels.DefaultWAManager.OnConnected = func(email, wajid string) {
+		if err := store.UpdateUserWAJID(context.Background(), email, wajid); err != nil {
+			logger.Warnf("[WA] UpdateUserWAJID(connect) failed for %s: %v", email, err)
+		}
+	}
+	channels.DefaultWAManager.OnLoggedOut = func(email string) {
+		if err := store.UpdateUserWAJID(context.Background(), email, ""); err != nil {
+			logger.Warnf("[WA] UpdateUserWAJID(logout) failed for %s: %v", email, err)
+		}
+	}
+}
+
+//Why: Telegram IoC mirrors WhatsApp; FetchUserTgSession/OnSessionUpdated bind telegram_sessions, OnConnected/OnLoggedOut persist tg_user_id.
+func wireTelegramHooks(ctx context.Context) {
+	channels.DefaultTelegramManager.FetchUserTgSession = func(email string) ([]byte, error) {
+		return store.GetTelegramSession(ctx, email)
+	}
+	channels.DefaultTelegramManager.FetchUserTgCreds = func(email string) (int, string, bool) {
+		id, hash, ok, err := store.GetTelegramCreds(context.Background(), email)
+		if err != nil {
+			logger.Warnf("[TG] GetTelegramCreds failed for %s: %v", email, err)
+			return 0, "", false
+		}
+		return id, hash, ok
+	}
+	channels.DefaultTelegramManager.OnSessionUpdated = func(email string, data []byte) {
+		if err := store.UpsertTelegramSession(context.Background(), email, data); err != nil {
+			logger.Warnf("[TG] UpsertTelegramSession failed for %s: %v", email, err)
+		}
+	}
+	channels.DefaultTelegramManager.OnConnected = func(email string, userID int64) {
+		if err := store.UpdateUserTgID(context.Background(), email, strconv.FormatInt(userID, 10)); err != nil {
+			logger.Warnf("[TG] UpdateUserTgID(connect) failed for %s: %v", email, err)
+		}
+	}
+	channels.DefaultTelegramManager.OnLoggedOut = func(email string) {
+		if err := store.UpdateUserTgID(context.Background(), email, ""); err != nil {
+			logger.Warnf("[TG] UpdateUserTgID(logout) failed for %s: %v", email, err)
+		}
+		if err := store.DeleteTelegramSession(context.Background(), email); err != nil {
+			logger.Warnf("[TG] DeleteTelegramSession failed for %s: %v", email, err)
+		}
+	}
+}
+
+//Why: Init*X owns its own long-lived client lifecycle (teardown via DisconnectAllX in gracefulShutdown), so it intentionally outlives the boot ctx.
+func bootChannelClients(ctx context.Context, cfg *config.Config) {
+	users, _ := store.GetAllUsers(ctx)
+	for _, u := range users {
+		go channels.DefaultWAManager.InitWhatsApp(u.Email, cfg)       //nolint:contextcheck // Independent lifecycle owned by WAManager; teardown via DisconnectAllWhatsApp.
+		go channels.DefaultTelegramManager.InitTelegram(u.Email, cfg) //nolint:contextcheck // Independent lifecycle owned by TelegramManager; teardown via DisconnectAllTelegram.
+	}
 }

@@ -29,7 +29,7 @@ func (a *API) HandleWhatsAppQR(w http.ResponseWriter, r *http.Request) {
 //Why: Terminates the WhatsApp session for the authenticated user, effectively logging them out and revoking access tokens.
 func (a *API) HandleWhatsAppLogout(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	err := channels.LogoutWhatsApp(email)
+	err := channels.LogoutWhatsApp(r.Context(), email)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

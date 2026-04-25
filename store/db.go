@@ -9,8 +9,10 @@ import (
 	"strings"
 	"time"
 
+	// Why: Registers the libsql SQL driver via init() so sql.Open("libsql", ...) resolves at runtime.
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
 	"github.com/whatap/go-api/instrumentation/database/sql/whatapsql"
+	// Why: Registers modernc.org/sqlite as the "sqlite" driver for the in-memory test DB and local fallback paths.
 	_ "modernc.org/sqlite"
 )
 
@@ -42,7 +44,7 @@ func InitDB(ctx context.Context, cfg *config.Config) error {
 	// Why: Reuse healthy connection if DSN matches (idempotent re-init after ResetForTest).
 	if conn != nil && dsn == finalURL {
 		if err := conn.Ping(); err == nil {
-			return EnsureSchemaAndSeeds(conn)
+			return EnsureSchemaAndSeeds(ctx, conn)
 		}
 	}
 
@@ -70,7 +72,7 @@ func InitDB(ctx context.Context, cfg *config.Config) error {
 		go startKeepAlive(ctx, conn, cfg.DBKeepAliveInterval)
 	}
 
-	return EnsureSchemaAndSeeds(conn)
+	return EnsureSchemaAndSeeds(ctx, conn)
 }
 
 // GetDBDriverAndDSN constructs the appropriate driver name and DSN based on configuration.
@@ -115,8 +117,7 @@ func applySQLitePragmas(db *sql.DB, dbURL string) {
 
 // EnsureSchemaAndSeeds ensures that all core tables, migrations, and seed data are present.
 // It is idempotent and safe to call multiple times.
-func EnsureSchemaAndSeeds(dbConn *sql.DB) error {
-	ctx := context.Background()
+func EnsureSchemaAndSeeds(ctx context.Context, dbConn *sql.DB) error {
 	// Why: Use LevelDefault for SQLite file-based DBs. Serializable causes SQLITE_BUSY
 	// on DDL in WAL mode. The original Serializable was needed for in-memory shared-cache
 	// connections (abandoned since modernc.org/sqlite doesn't support cache=shared).
@@ -124,7 +125,7 @@ func EnsureSchemaAndSeeds(dbConn *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to start setup transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	logger.Infof("[DB-INIT] Starting core table creation...")
 	if err := createCoreTables(ctx, tx); err != nil {
@@ -160,7 +161,7 @@ func EnsureSchemaAndSeeds(dbConn *sql.DB) error {
 		return nil
 	}
 
-	return RefreshAllCaches(context.Background())
+	return RefreshAllCaches(ctx)
 }
 
 func setupConnectionPool(cfg *config.Config, dbURL string) {
@@ -250,7 +251,7 @@ func RunInTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	}
 
 	if err := fn(tx); err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return err
 	}
 

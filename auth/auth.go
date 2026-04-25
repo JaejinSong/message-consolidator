@@ -109,17 +109,26 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 	if err != nil {
 		logger.Errorf("Failed to sync user to DB: %v", err)
 	} else {
-		//Why: Employs a function callback pattern to perform cross-service Slack ID resolution without creating a circular package dependency.
-		slackID, realName, err := lookupUserByEmail(user.Email)
-		if err == nil && slackID != "" {
-			store.UpdateUserSlackID(r.Context(), user.Email, slackID)
-			store.AddUserAlias(r.Context(), user.ID, realName)
-			logger.Infof("Auto-discovered Slack ID %s and aliases for %s", slackID, user.Email)
-		}
+		autoLinkSlack(r.Context(), user, lookupUserByEmail)
 	}
 
 	SetSessionCookie(w, userInfo.Email)
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+}
+
+//Why: Cross-service Slack ID resolution without creating a circular package dependency between auth/store/channels.
+func autoLinkSlack(ctx context.Context, user *store.User, lookup func(string) (string, string, error)) {
+	slackID, realName, err := lookup(user.Email)
+	if err != nil || slackID == "" {
+		return
+	}
+	if err := store.UpdateUserSlackID(ctx, user.Email, slackID); err != nil {
+		logger.Warnf("[AUTH] UpdateUserSlackID failed for %s: %v", user.Email, err)
+	}
+	if err := store.AddUserAlias(ctx, user.ID, realName); err != nil {
+		logger.Warnf("[AUTH] AddUserAlias failed for %s: %v", user.Email, err)
+	}
+	logger.Infof("Auto-discovered Slack ID %s and aliases for %s", slackID, user.Email)
 }
 
 func HandleLogout(w http.ResponseWriter, r *http.Request) {
@@ -151,7 +160,10 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 //Why: Generates a cryptographically secure random string for use as the OAuth2 'state' parameter to prevent CSRF attacks.
 func generateStateCookie(w http.ResponseWriter) string {
 	var b [16]byte
-	rand.Read(b[:])
+	if _, err := rand.Read(b[:]); err != nil {
+		// crypto/rand only fails if /dev/urandom is unavailable; treat as fatal-quality but degrade to time-seeded fallback.
+		logger.Errorf("[AUTH] crypto/rand.Read failed: %v", err)
+	}
 	state := base64.RawURLEncoding.EncodeToString(b[:])
 	isProd := os.Getenv("ENV") == "production" || strings.HasPrefix(appBaseURL, "https://")
 	http.SetCookie(w, &http.Cookie{
@@ -219,7 +231,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			logger.Warnf("[AUTH] Session cookie missing for path: %s", r.URL.Path)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]interface{}{"error": "unauthorized", "code": 401})
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"error": "unauthorized", "code": 401})
 			return
 		}
 
@@ -231,7 +243,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			logger.Errorf("[AUTH] Error decoding session cookie for %s: %v", r.URL.Path, err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]interface{}{"error": "unauthorized", "code": 401})
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"error": "unauthorized", "code": 401})
 			return
 		}
 		email := string(decodedEmailBytes)

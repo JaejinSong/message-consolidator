@@ -119,62 +119,75 @@ func UpdateLastScan(userEmail, source, targetID, ts string) error {
 	return nil
 }
 
-func PersistAllScanMetadata(userEmail string) {
-	metadataMu.RLock()
-	var toPersist []struct{ source, target, ts string }
-	prefix := userEmail + ":"
-	for key := range dirtyScanKeys {
-		if strings.HasPrefix(key, prefix) {
-			parts := strings.Split(key, ":")
-			if len(parts) == 3 {
-				ts := scanCache[key]
-				toPersist = append(toPersist, struct{ source, target, ts string }{parts[1], parts[2], ts})
-			}
-		}
-	}
-	metadataMu.RUnlock()
+type scanMetaUpdate struct {
+	source string
+	target string
+	ts     string
+}
 
+func PersistAllScanMetadata(ctx context.Context, userEmail string) {
+	toPersist := snapshotDirtyScanEntries(userEmail)
 	if len(toPersist) == 0 {
-		return //Why: Avoids unnecessary database connections if no dirty metadata entries exist, preserving resources.
+		return //Why: Avoids unnecessary database connections if no dirty metadata entries exist.
 	}
+	if err := persistScanMetadataTx(ctx, userEmail, toPersist); err != nil {
+		logger.Errorf("Failed to persist scan metadata after retries: %v", err)
+		return
+	}
+	clearDirtyScanFlags(userEmail, toPersist)
+}
 
-	err := WithDBRetry("PersistAllScanMetadata", func() error {
-		conn := GetDB()
-		tx, err := conn.Begin()
+func snapshotDirtyScanEntries(userEmail string) []scanMetaUpdate {
+	metadataMu.RLock()
+	defer metadataMu.RUnlock()
+	prefix := userEmail + ":"
+	var out []scanMetaUpdate
+	for key := range dirtyScanKeys {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		parts := strings.Split(key, ":")
+		if len(parts) != 3 {
+			continue
+		}
+		out = append(out, scanMetaUpdate{source: parts[1], target: parts[2], ts: scanCache[key]})
+	}
+	return out
+}
+
+func persistScanMetadataTx(ctx context.Context, userEmail string, updates []scanMetaUpdate) error {
+	return WithDBRetry("PersistAllScanMetadata", func() error {
+		tx, err := GetDB().Begin()
 		if err != nil {
 			return err
 		}
-		defer tx.Rollback() //Why: Uses a deferred rollback to ensure transaction safety; it is overridden by an explicit commit on success.
+		defer func() { _ = tx.Rollback() }() //Why: Deferred rollback safety net; the explicit Commit overrides on success.
 
 		queries := db.New(tx)
-
-		for _, item := range toPersist {
-			if err := queries.UpsertScanMetadata(context.Background(), db.UpsertScanMetadataParams{
+		for _, u := range updates {
+			if err := queries.UpsertScanMetadata(ctx, db.UpsertScanMetadataParams{
 				UserEmail: userEmail,
-				Source:    item.source,
-				TargetID:  item.target,
-				LastTs:    nullString(item.ts),
+				Source:    u.source,
+				TargetID:  u.target,
+				LastTs:    nullString(u.ts),
 			}); err != nil {
 				return err
 			}
 		}
 		return tx.Commit()
 	})
+}
 
-	if err != nil {
-		logger.Errorf("Failed to persist scan metadata after retries: %v", err)
-		return
-	}
-
+//Why: Concurrency guard — only clear the dirty flag if scanCache is still pointing at the same ts; otherwise a parallel writer's update would be lost.
+func clearDirtyScanFlags(userEmail string, updates []scanMetaUpdate) {
 	metadataMu.Lock()
-	for _, item := range toPersist {
-		key := userEmail + ":" + item.source + ":" + item.target
-		//Why: Implements a concurrency guard to only clear the dirty flag if no new updates occurred during the persistence process.
-		if scanCache[key] == item.ts {
+	defer metadataMu.Unlock()
+	for _, u := range updates {
+		key := userEmail + ":" + u.source + ":" + u.target
+		if scanCache[key] == u.ts {
 			delete(dirtyScanKeys, key)
 		}
 	}
-	metadataMu.Unlock()
 }
 
 func FlushAllScanMetadata() {
@@ -189,7 +202,7 @@ func FlushAllScanMetadata() {
 	metadataMu.RUnlock()
 
 	for email := range usersToFlush {
-		PersistAllScanMetadata(email)
+		PersistAllScanMetadata(context.Background(), email)
 	}
 }
 
