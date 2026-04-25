@@ -36,10 +36,10 @@ const (
 )
 
 
-var GmailOauthConfig *oauth2.Config
+var GmailOAuthConfig *oauth2.Config
 
 func SetupGmailOAuth(cfg *config.Config) {
-	GmailOauthConfig = &oauth2.Config{
+	GmailOAuthConfig = &oauth2.Config{
 		RedirectURL:  fmt.Sprintf("%s/auth/gmail/callback", cfg.AppBaseURL),
 		ClientID:     cfg.GoogleClientID,
 		ClientSecret: cfg.GoogleClientSecret,
@@ -51,11 +51,11 @@ func SetupGmailOAuth(cfg *config.Config) {
 }
 
 func GetGmailAuthURL(state string) string {
-	return GmailOauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
+	return GmailOAuthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 }
 
 func ExchangeGmailCode(ctx context.Context, code string) (*oauth2.Token, error) {
-	return GmailOauthConfig.Exchange(ctx, code)
+	return GmailOAuthConfig.Exchange(ctx, code)
 }
 
 func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) {
@@ -69,7 +69,7 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 		return nil, fmt.Errorf("failed to parse gmail token for %s: %w", email, err)
 	}
 
-	tokenSource := GmailOauthConfig.TokenSource(ctx, &token)
+	tokenSource := GmailOAuthConfig.TokenSource(ctx, &token)
 
 	//Why: Automatically refreshes the OAuth2 token if it has expired and persists the new token to the database to ensure uninterrupted Gmail access.
 	newToken, err := tokenSource.Token()

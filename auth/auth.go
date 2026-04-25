@@ -27,7 +27,7 @@ type authError struct {
 var unauthorizedResponse = authError{Error: "unauthorized", Code: http.StatusUnauthorized}
 
 var (
-	GoogleOauthConfig *oauth2.Config
+	GoogleOAuthConfig *oauth2.Config
 	AuthDisabled      bool
 	appBaseURL        string
 )
@@ -51,7 +51,7 @@ func GetUserEmail(r *http.Request) string {
 func SetupOAuth(cfg *config.Config) {
 	AuthDisabled = cfg.AuthDisabled
 	appBaseURL = cfg.AppBaseURL
-	GoogleOauthConfig = &oauth2.Config{
+	GoogleOAuthConfig = &oauth2.Config{
 		// Why: Matches the redirect route with handlers/routes.go and Caddyfile to avoid 404 mismatch.
 		// IMPORTANT: Ensure 'https://34.67.133.18.nip.io/auth/callback' is authorized in GCP Console.
 		RedirectURL:  fmt.Sprintf("%s/auth/callback", cfg.AppBaseURL),
@@ -67,7 +67,7 @@ func SetupOAuth(cfg *config.Config) {
 
 func HandleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 	state := generateStateCookie(w)
-	url := GoogleOauthConfig.AuthCodeURL(state)
+	url := GoogleOAuthConfig.AuthCodeURL(state)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
@@ -86,7 +86,7 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 		return
 	}
 
-	token, err := GoogleOauthConfig.Exchange(r.Context(), r.FormValue("code"))
+	token, err := GoogleOAuthConfig.Exchange(r.Context(), r.FormValue("code"))
 	if err != nil {
 		fmt.Fprintf(w, "Code exchange failed: %s", err.Error())
 		return

@@ -52,8 +52,8 @@ func TestSetupOAuth_RedirectURL(t *testing.T) {
 	SetupOAuth(cfg)
 
 	expected := "https://example.com/auth/callback"
-	if GoogleOauthConfig.RedirectURL != expected {
-		t.Errorf("expected RedirectURL %s, got %s", expected, GoogleOauthConfig.RedirectURL)
+	if GoogleOAuthConfig.RedirectURL != expected {
+		t.Errorf("expected RedirectURL %s, got %s", expected, GoogleOAuthConfig.RedirectURL)
 	}
 }
 
