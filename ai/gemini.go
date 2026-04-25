@@ -35,12 +35,13 @@ type TaskTransition struct {
 const (
 	// DefaultMaxTokens is the standard output limit for short-form analysis tasks.
 	DefaultMaxTokens = 8192
-	// ReportMaxTokens caps long-form report output to ~8K tokens.
-	// Why: Empirical reports generate 500~1500 completion tokens; 64K cap forced Gemini Flash
-	// to allocate oversized streaming buffers and stretch generation time. 8192 keeps 4~8×
-	// headroom while restoring competitive latency. FinishReason=MAX_TOKENS warning at
-	// gemini.go:178 surfaces if any report ever truly needs more.
-	ReportMaxTokens = 8192
+	// ReportMaxTokens caps total response (thinking + output) for long-form reports.
+	// Why: Gemini 3 Flash is a thinking model — `max_output_tokens` budgets both internal
+	// reasoning AND visible completion. 8192 starved the visible output to ~300 tokens
+	// (thinking ate ~7800), truncating activity tables. 32768 leaves ~24K for thinking
+	// plus ~8K headroom for ≤2K typical reports. Don't drop without auditing thinking-token
+	// consumption, otherwise activity/insight sections silently truncate.
+	ReportMaxTokens = 32768
 )
 
 var relaxedSafetySettings = []*genai.SafetySetting{

@@ -142,6 +142,29 @@ func TestReportSummaryNoConsequentClause(t *testing.T) {
 	}
 }
 
+// TestReportSummaryFindingLabel guards the v2.5.1 positive-guide rule.
+// Why: v2.5.0 over-corrected by allowing only `"<speaker> states "<quote>" when
+// discussing X"` framings, losing the "so what". v2.5.1 re-enables finding labels
+// drawn from Evidence vocabulary while keeping the consequent-clause ban.
+func TestReportSummaryFindingLabel(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/report_summary.prompt")
+	if err != nil {
+		t.Fatalf("read report_summary: %v", err)
+	}
+	body := string(content)
+	required := []string{
+		"DO add a finding label drawn from Evidence",
+		"reuses Evidence vocabulary",
+		"TOO WEAK",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Errorf("report_summary.prompt missing v2.5.1 rule phrase: %q", token)
+		}
+	}
+}
+
 // TestNewExtractionNeutralUmbrella guards the v1.2.0 neutral-umbrella + paragraph-split rule.
 // Why: Prevents regression to v1.1.0 where LLM joined independent paragraphs with causal
 // connectors (`while`, `because`, `once`) producing compound Tasks that seeded downstream

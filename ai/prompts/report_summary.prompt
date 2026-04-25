@@ -1,6 +1,6 @@
 ---
 name: report_summary
-version: 2.5.0
+version: 2.5.1
 model: gemini-3-flash-preview
 ---
 [System Instruction]
@@ -14,7 +14,8 @@ Generate a professional Executive Report grounded in the `Evidence: "..."` text 
    - If no evidence-backed risks exist, emit exactly one bullet: `- No anomalies detected.` Do not pad with generic observations.
    - **Preserve speaker stance.** When Evidence shows the speaker describing their own workflow (e.g., "share the context and I'll raise the request"), do NOT reframe it as a systemic bottleneck. Keep the speaker's verb and subject.
    - **No nominalization.** Avoid patterns that convert speaker actions into abstract nouns: "the requirement to X", "indicates a Y", "the need to Z". Use the speaker's original verbs and subjects.
-   - **No free-form consequent clauses.** Do NOT append trailing implications (`", which blocks X"`, `", leading to Y"`, `", causing Z"`, `", delaying W"`, `", resulting in V"`) unless the consequent words appear **verbatim in Evidence**. End the bullet after the verbatim quote plus a neutral framing of what the speaker literally said. If you feel compelled to add a consequent, you are inferring — stop.
+   - **No free-form consequent clauses.** Do NOT append trailing implications (`", which blocks X"`, `", leading to Y"`, `", causing Z"`, `", delaying W"`, `", resulting in V"`) unless the consequent words appear **verbatim in Evidence**. If you feel compelled to add a consequent, you are inferring — stop.
+   - **DO add a finding label drawn from Evidence.** You MAY prefix (or immediately follow) the quote with a short finding label (2-5 words) whose nouns/verbs already appear in Evidence — e.g., `flags scalability ceiling:`, `raises capacity concern on`, `reports verification bottleneck`. The label reuses Evidence vocabulary; it must NOT introduce new causal verbs ("blocks", "causes", "prevents") or new subjects not mentioned in Evidence. Bullets consisting only of `"<speaker> states "<quote>" when discussing X"` are TOO WEAK — they miss the "so what". Always surface the finding that Evidence literally supports.
    - If one person holds >40% of open tasks (verify by counting Activity), call it out with the count ratio.
    - If a cross-source pattern exists (verify by inspecting Source/Room fields), include 1 cross-source bullet.
    - Never restate task names or counts without adding the "so what".
@@ -22,6 +23,8 @@ Generate a professional Executive Report grounded in the `Evidence: "..."` text 
    GOOD: `- [Digital] 2 tasks stalled 7+ days per Evidence "waiting since Monday" — hidden blocker likely.`
    BAD:  `- [Slack] The requirement to provide business context before raising dev requests indicates a process bottleneck.`
    GOOD: `- [Slack] No anomalies detected.` (when Evidence shows a normal escalation flow, not a grievance)
+   BAD:  `- [biz-global-tech] Jaejin Song states "Verifying every case on my end isn't scalable" when discussing manual verification.` (too weak — missing the finding label)
+   GOOD: `- [biz-global-tech] Jaejin Song flags scalability ceiling on solo verification: "Verifying every case on my end isn't scalable".` (finding label reuses Evidence words "scalable" + "verifying"; no fabricated consequent)
 4. **Activity**: Identify all customer or company names referenced in the period. Infer from room/channel names and task descriptions (e.g. "WhaTap APM Tools POC for Bank BNI" → "Bank BNI", "biz-global-malaysia" → "Malaysia Biz"). If no company name can be inferred, use the room/channel name as-is. Output one ```json block: `[{"customer": str, "count": num, "summary": str}]` sorted by count DESC — `summary` is a 1-2 sentence description of what was worked on for that customer (e.g. "APM agent setup and POC support. Focused on onboarding and initial configuration."). If no customers identified: `[]`
 5. **Stalled Tasks**: Only 'Stalled'/'Neglected'. One ```json block: `[{"source": str, "requester": str, "status": str, "days": num, "reason": str}]`. If none: `"No stalled tasks identified."`
 6. Tone: dry, professional, data-driven. English only. 1 bullet = 1 sentence — no paragraphs.
