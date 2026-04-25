@@ -61,33 +61,3 @@ func DeleteTelegramCreds(ctx context.Context, email string) error {
 	return db.New(GetDB()).DeleteTelegramCredentials(ctx, email)
 }
 
-// GetDistinctTelegramRooms returns the set of raw room values currently stored
-// on telegram messages for this tenant. Used by backfillMessageRooms to find
-// rows that still show a numeric ID and should be replaced with a resolved title.
-func GetDistinctTelegramRooms(ctx context.Context, userEmail string) ([]string, error) {
-	rows, err := GetDB().QueryContext(ctx,
-		"SELECT DISTINCT room FROM messages WHERE user_email = ? AND source = 'telegram' AND room != ''",
-		userEmail)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var r string
-		if err := rows.Scan(&r); err == nil {
-			out = append(out, r)
-		}
-	}
-	return out, nil
-}
-
-// UpdateTelegramRoomName rewrites messages.room for a single (oldRoom → newRoom)
-// mapping in a tenant. Called from backfillMessageRooms after we've resolved a
-// numeric chat ID to its real title.
-func UpdateTelegramRoomName(ctx context.Context, userEmail, oldRoom, newRoom string) error {
-	_, err := GetDB().ExecContext(ctx,
-		"UPDATE messages SET room = ? WHERE user_email = ? AND source = 'telegram' AND room = ?",
-		newRoom, userEmail, oldRoom)
-	return err
-}

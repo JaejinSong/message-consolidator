@@ -420,10 +420,9 @@ func (m *TelegramManager) runClient(ctx context.Context, email string, client *t
 		m.OnConnected(email, self.ID)
 		logger.Infof("[TG] connected for %s (userID=%d)", email, self.ID)
 
-		// Backfill peer metadata (user names + chat/channel titles) from our dialog
-		// list so GetGroupName can resolve titles immediately and historical rows
-		// with numeric requesters/rooms get retroactively named.
-		go m.backfillDialogs(ctx, client, email)
+		// Hydrate groupCache + contacts from the dialog list so GetGroupName can
+		// resolve titles for dormant chats that haven't pushed a new message yet.
+		go m.hydrateDialogs(ctx, client, email)
 
 		// Block until ctx is cancelled — inbound updates are delivered via the
 		// UpdateDispatcher registered on telegram.Options.UpdateHandler.
@@ -674,7 +673,7 @@ func (m *TelegramManager) dropBuffer(email string) {
 }
 
 // GetGroupName returns a human-friendly label for a chatKey. Resolution order:
-//   1. in-memory groupCache (populated by storeEntities + backfillDialogs)
+//   1. in-memory groupCache (populated by storeEntities + hydrateDialogs)
 //   2. persisted contact cache (DMs only — mirrors WhatsApp's store lookup)
 //   3. live MessagesGetChats RPC for basic chats (no access_hash required)
 //   4. numeric tail fallback
@@ -708,11 +707,10 @@ func (m *TelegramManager) GetGroupName(email string, chatKey string) string {
 	return chatKey
 }
 
-// backfillDialogs fetches the dialog list once on connect to seed groupCache
-// and `contacts` with every peer we can reach. After the seed, historical rows
-// whose requester is a numeric ID get auto-resolved via v_messages, and room
-// names are rewritten in place by backfillMessageRooms.
-func (m *TelegramManager) backfillDialogs(ctx context.Context, client *telegram.Client, email string) {
+// hydrateDialogs fetches the dialog list once on connect to seed groupCache and
+// `contacts` with every peer we can reach, so GetGroupName resolves titles for
+// dormant chats that won't push a new message through ingestMessage.
+func (m *TelegramManager) hydrateDialogs(ctx context.Context, client *telegram.Client, email string) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	resp, err := client.API().MessagesGetDialogs(ctx, &tg.MessagesGetDialogsRequest{
@@ -720,7 +718,7 @@ func (m *TelegramManager) backfillDialogs(ctx context.Context, client *telegram.
 		Limit:      200,
 	})
 	if err != nil {
-		logger.Warnf("[TG-BACKFILL][%s] GetDialogs: %v", email, err)
+		logger.Warnf("[TG-HYDRATE][%s] GetDialogs: %v", email, err)
 		return
 	}
 
@@ -753,60 +751,7 @@ func (m *TelegramManager) backfillDialogs(ctx context.Context, client *telegram.
 		}
 	}
 	m.storeEntities(email, e)
-	logger.Infof("[TG-BACKFILL][%s] cached %d users, %d chats, %d channels", email, len(e.Users), len(e.Chats), len(e.Channels))
-
-	m.backfillMessageRooms(ctx, email)
-}
-
-// backfillMessageRooms rewrites messages.room from numeric IDs to real titles
-// whenever groupCache knows the mapping. Scanner wrote the raw numeric tail
-// (e.g. "5290590884") at ingest time; here we check all three peer prefixes
-// because the DB column no longer carries the prefix.
-func (m *TelegramManager) backfillMessageRooms(ctx context.Context, email string) {
-	rooms, err := store.GetDistinctTelegramRooms(ctx, email)
-	if err != nil {
-		logger.Warnf("[TG-BACKFILL][%s] GetDistinctTelegramRooms: %v", email, err)
-		return
-	}
-	updated := 0
-	for _, room := range rooms {
-		title := m.resolveNumericRoom(room)
-		if title == "" || title == room {
-			continue
-		}
-		if err := store.UpdateTelegramRoomName(ctx, email, room, title); err != nil {
-			logger.Warnf("[TG-BACKFILL][%s] UpdateTelegramRoomName %s→%s: %v", email, room, title, err)
-			continue
-		}
-		updated++
-	}
-	if updated > 0 {
-		logger.Infof("[TG-BACKFILL][%s] rewrote %d numeric rooms", email, updated)
-	}
-}
-
-// resolveNumericRoom walks the three peer prefixes and returns a cached title
-// only when exactly one distinct title is found. Telegram's user/chat/channel
-// ID namespaces are independent — collisions on the numeric tail are rare but
-// possible, and messages.room lost the prefix at scan time, so we skip the
-// UPDATE entirely when the mapping is ambiguous rather than risk mislabeling.
-func (m *TelegramManager) resolveNumericRoom(numericID string) string {
-	var found string
-	for _, prefix := range []string{"tg_channel_", "tg_chat_", "tg_user_"} {
-		v, ok := m.groupCache.Load(prefix + numericID)
-		if !ok {
-			continue
-		}
-		s, ok := v.(string)
-		if !ok || s == "" {
-			continue
-		}
-		if found != "" && found != s {
-			return ""
-		}
-		found = s
-	}
-	return found
+	logger.Infof("[TG-HYDRATE][%s] cached %d users, %d chats, %d channels", email, len(e.Users), len(e.Chats), len(e.Channels))
 }
 
 // lookupBasicChatTitle performs a live gotd RPC to resolve a legacy (non-channel)

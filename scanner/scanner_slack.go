@@ -347,22 +347,33 @@ func fetchChannelHistoryActivity(sc *channels.SlackClient, chID string, threads 
 		logger.Warnf("[SLACK-SWEEP] history fetch failed for channel %s: %v", chID, err)
 		return channelActivity{}
 	}
-	return buildChannelActivity(hist.Messages)
+	return buildChannelActivity(hist.Messages, trackedThreadSet(threads))
 }
 
-func buildChannelActivity(messages []slack.Message) channelActivity {
+func trackedThreadSet(threads []store.SlackThreadMeta) map[string]struct{} {
+	out := make(map[string]struct{}, len(threads))
+	for _, t := range threads {
+		out[t.ThreadTS] = struct{}{}
+	}
+	return out
+}
+
+func buildChannelActivity(messages []slack.Message, tracked map[string]struct{}) channelActivity {
 	out := channelActivity{
-		latestReplies: make(map[string]string, len(messages)),
-		replyCounts:   make(map[string]int, len(messages)),
+		latestReplies: make(map[string]string, len(tracked)),
+		replyCounts:   make(map[string]int, len(tracked)),
 		fetched:       true,
 	}
 	for _, m := range messages {
-		// Why: thread parent만 latest_reply/reply_count를 보유한다. ThreadTimestamp==Timestamp가
-		// parent의 정의(Slack 데이터 모델)이므로 reply 메시지는 인덱스에서 제외한다.
-		if m.ThreadTimestamp != "" && m.ThreadTimestamp == m.Timestamp {
-			out.latestReplies[m.Timestamp] = m.LatestReply
-			out.replyCounts[m.Timestamp] = m.ReplyCount
+		// Why: Slack은 reply가 0인 thread parent에 ThreadTimestamp를 채우지 않는다. 이전 필터
+		// (ThreadTimestamp==Timestamp)는 silent parent를 인덱스에서 누락시켜 정작 skip 대상이
+		// 매번 conversations.replies로 넘어갔다. trackedTS 기준으로 매칭해 silent parent가
+		// latest_reply="" 로 등록되도록 한다.
+		if _, ok := tracked[m.Timestamp]; !ok {
+			continue
 		}
+		out.latestReplies[m.Timestamp] = m.LatestReply
+		out.replyCounts[m.Timestamp] = m.ReplyCount
 	}
 	return out
 }

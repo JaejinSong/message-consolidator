@@ -289,11 +289,16 @@ func TestGroupThreadsByChannel(t *testing.T) {
 
 func TestBuildChannelActivity(t *testing.T) {
 	parentTS := "1700000000.000000"
+	silentParentTS := "1700000777.000000"
+	tracked := map[string]struct{}{parentTS: {}, silentParentTS: {}}
+
 	parent := slack.Message{Msg: slack.Msg{Timestamp: parentTS, ThreadTimestamp: parentTS, LatestReply: "1700000050.000000", ReplyCount: 3}}
 	reply := slack.Message{Msg: slack.Msg{Timestamp: "1700000050.000000", ThreadTimestamp: parentTS}}
+	// Why: Slack omits ThreadTimestamp on a parent with zero replies. trackedTS membership must still index it.
+	silentParent := slack.Message{Msg: slack.Msg{Timestamp: silentParentTS}}
 	standalone := slack.Message{Msg: slack.Msg{Timestamp: "1700000999.000000"}}
 
-	a := buildChannelActivity([]slack.Message{parent, reply, standalone})
+	a := buildChannelActivity([]slack.Message{parent, reply, silentParent, standalone}, tracked)
 	if !a.fetched {
 		t.Fatal("fetched=false")
 	}
@@ -303,11 +308,17 @@ func TestBuildChannelActivity(t *testing.T) {
 	if a.replyCounts[parentTS] != 3 {
 		t.Errorf("reply_count=%d", a.replyCounts[parentTS])
 	}
+	if v, ok := a.latestReplies[silentParentTS]; !ok || v != "" {
+		t.Errorf("silent parent must be indexed with empty latest_reply, got ok=%v v=%q", ok, v)
+	}
+	if a.replyCounts[silentParentTS] != 0 {
+		t.Errorf("silent parent reply_count=%d, want 0", a.replyCounts[silentParentTS])
+	}
 	if _, ok := a.latestReplies["1700000050.000000"]; ok {
 		t.Error("reply message must not be indexed as parent")
 	}
 	if _, ok := a.latestReplies["1700000999.000000"]; ok {
-		t.Error("non-thread message must not be indexed")
+		t.Error("untracked message must not be indexed")
 	}
 }
 

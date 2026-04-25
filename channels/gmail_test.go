@@ -320,10 +320,12 @@ func TestUpsertAddresses(t *testing.T) {
 }
 
 func TestIsMarketingHeader(t *testing.T) {
+	internal := []string{"whatap.io"}
 	tests := []struct {
-		name     string
-		headers  []*gmail.MessagePartHeader
-		expected bool
+		name            string
+		headers         []*gmail.MessagePartHeader
+		internalDomains []string
+		expected        bool
 	}{
 		{
 			name: "List-Unsubscribe exists",
@@ -331,21 +333,24 @@ func TestIsMarketingHeader(t *testing.T) {
 				{Name: "List-Unsubscribe", Value: "<mailto:unsubscribe@example.com>"},
 				{Name: "Subject", Value: "Promo"},
 			},
-			expected: true,
+			internalDomains: internal,
+			expected:        true,
 		},
 		{
 			name: "Precedence bulk",
 			headers: []*gmail.MessagePartHeader{
 				{Name: "Precedence", Value: "bulk"},
 			},
-			expected: true,
+			internalDomains: internal,
+			expected:        true,
 		},
 		{
 			name: "Precedence list",
 			headers: []*gmail.MessagePartHeader{
 				{Name: "Precedence", Value: "LIST"},
 			},
-			expected: true,
+			internalDomains: internal,
+			expected:        true,
 		},
 		{
 			name: "Normal Email",
@@ -353,13 +358,68 @@ func TestIsMarketingHeader(t *testing.T) {
 				{Name: "From", Value: "boss@example.com"},
 				{Name: "Subject", Value: "Report"},
 			},
-			expected: false,
+			internalDomains: internal,
+			expected:        false,
+		},
+		{
+			name: "Internal Google Group (bracketed List-ID) exempt",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "List-Unsubscribe", Value: "<https://groups.google.com/...>"},
+				{Name: "List-ID", Value: "WhaTap Indonesia <indonesia.whatap.io>"},
+			},
+			internalDomains: internal,
+			expected:        false,
+		},
+		{
+			name: "Internal List-ID bare domain exempt",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "List-Unsubscribe", Value: "<mailto:x@y.com>"},
+				{Name: "List-ID", Value: "all.whatap.io"},
+			},
+			internalDomains: internal,
+			expected:        false,
+		},
+		{
+			name: "External List-ID still filtered",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "List-Unsubscribe", Value: "<mailto:unsubscribe@external.com>"},
+				{Name: "List-ID", Value: "<news.external.com>"},
+			},
+			internalDomains: internal,
+			expected:        true,
+		},
+		{
+			name: "Internal List-ID overrides Precedence bulk",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "Precedence", Value: "bulk"},
+				{Name: "List-ID", Value: "<eng.whatap.io>"},
+			},
+			internalDomains: internal,
+			expected:        false,
+		},
+		{
+			name: "Empty internal domains — no exemption applied",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "List-Unsubscribe", Value: "<x>"},
+				{Name: "List-ID", Value: "<x.whatap.io>"},
+			},
+			internalDomains: nil,
+			expected:        true,
+		},
+		{
+			name: "Multiple internal domains — second matches",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "List-Unsubscribe", Value: "<x>"},
+				{Name: "List-ID", Value: "<team.whatap.com>"},
+			},
+			internalDomains: []string{"whatap.io", "whatap.com"},
+			expected:        false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isMarketingHeader(tt.headers); got != tt.expected {
+			if got := isMarketingHeader(tt.headers, tt.internalDomains); got != tt.expected {
 				t.Errorf("isMarketingHeader() = %v; want %v", got, tt.expected)
 			}
 		})

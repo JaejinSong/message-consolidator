@@ -160,9 +160,10 @@ func parseNewEmails(ctx context.Context, svc *gmail.Service, email string, messa
 	var maxTS int64
 
 	skips := getGmailSkips(cfg)
+	internalDomains := cfg.CompanyDomains
 
 	for _, m := range messages {
-		rawMsg, cls, to, ts, err := processSingleEmail(ctx, svc, email, m, skips)
+		rawMsg, cls, to, ts, err := processSingleEmail(ctx, svc, email, m, skips, internalDomains)
 		if err != nil {
 			logger.Errorf("[SCAN-GMAIL] Get Error for %s: %v", m.Id, err)
 			continue
@@ -181,7 +182,7 @@ func parseNewEmails(ctx context.Context, svc *gmail.Service, email string, messa
 }
 
 // Why: Extracts the processing of a single email to reduce cognitive load and simplify the main parsing loop.
-func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m *gmail.Message, skips []string) (*types.RawMessage, string, string, int64, error) {
+func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m *gmail.Message, skips []string, internalDomains []string) (*types.RawMessage, string, string, int64, error) {
 	fullMsg, err := svc.Users.Messages.Get("me", m.Id).Format("full").Do()
 	if err != nil {
 		return nil, "", "", 0, err
@@ -190,7 +191,7 @@ func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m
 	ts := fullMsg.InternalDate / 1000 // ms to s
 
 	subject, fromHeader, toHeader, ccHeader, bccHeader, deliveredTo := extractHeaders(fullMsg.Payload.Headers)
-	if isMarketingHeader(fullMsg.Payload.Headers) {
+	if isMarketingHeader(fullMsg.Payload.Headers, internalDomains) {
 		logger.Debugf("[SCAN-GMAIL] Ignoring marketing email from: %s", fromHeader)
 		store.IncrementFilteredCount(email)
 		return nil, "", "", ts, nil
@@ -312,7 +313,12 @@ func extractHeaders(headers []*gmail.MessagePartHeader) (subject, from, to, cc, 
 }
 
 // isMarketingHeader identifies promotional emails using standard headers like List-Unsubscribe and Precedence.
-func isMarketingHeader(headers []*gmail.MessagePartHeader) bool {
+// Why: Internal Google Groups (e.g. indonesia@whatap.io) re-inject List-Unsubscribe on every member copy per RFC 2369;
+// without a List-ID-domain allowlist, all internal group traffic gets misclassified as marketing and dropped pre-AI.
+func isMarketingHeader(headers []*gmail.MessagePartHeader, internalDomains []string) bool {
+	if hasInternalListID(headers, internalDomains) {
+		return false
+	}
 	for _, h := range headers {
 		if h.Name == "List-Unsubscribe" {
 			return true
@@ -322,6 +328,33 @@ func isMarketingHeader(headers []*gmail.MessagePartHeader) bool {
 			if val == "bulk" || val == "list" || val == "junk" {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func hasInternalListID(headers []*gmail.MessagePartHeader, internalDomains []string) bool {
+	if len(internalDomains) == 0 {
+		return false
+	}
+	for _, h := range headers {
+		if h.Name == "List-ID" && listIDMatchesAny(h.Value, internalDomains) {
+			return true
+		}
+	}
+	return false
+}
+
+func listIDMatchesAny(headerValue string, domains []string) bool {
+	val := strings.ToLower(strings.TrimSpace(headerValue))
+	if start := strings.LastIndex(val, "<"); start >= 0 {
+		if end := strings.Index(val[start:], ">"); end > 0 {
+			val = strings.TrimSpace(val[start+1 : start+end])
+		}
+	}
+	for _, d := range domains {
+		if val == d || strings.HasSuffix(val, "."+d) {
+			return true
 		}
 	}
 	return false

@@ -4,6 +4,7 @@ import (
 	"message-consolidator/logger"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -25,6 +26,7 @@ type Config struct {
 	GeminiTranslationModel string
 	LogLevel               string
 	GmailSkipSenders       string
+	CompanyDomains         []string
 	AutoArchiveDays        int
 	NotionToken          string
 	NotionReportPageID   string
@@ -108,6 +110,18 @@ func LoadConfig() *Config {
 		}
 	}
 
+	//Why: Comma-separated company domains used to whitelist internal Google Group traffic past the marketing-header filter,
+	// which would otherwise drop every internal mailing-list copy due to the List-Unsubscribe header Google Groups injects.
+	var companyDomains []string
+	if v := os.Getenv("COMPANY_DOMAINS"); v != "" {
+		for _, s := range strings.Split(v, ",") {
+			s = strings.TrimSpace(strings.ToLower(s))
+			if s != "" {
+				companyDomains = append(companyDomains, s)
+			}
+		}
+	}
+
 	//Why: Telegram App ID is an integer issued by https://my.telegram.org; empty/invalid value disables the Telegram channel gracefully.
 	tgAppID := 0
 	if v := os.Getenv("TELEGRAM_APP_ID"); v != "" {
@@ -138,6 +152,7 @@ func LoadConfig() *Config {
 		TelegramAppID:          tgAppID,
 		TelegramAppHash:        os.Getenv("TELEGRAM_APP_HASH"),
 		GmailSkipSenders:       os.Getenv("GMAIL_SKIP_SENDERS"),
+		CompanyDomains:         companyDomains,
 		AutoArchiveDays:        autoArchiveDays,
 		CloudRunMode:           os.Getenv("CLOUD_RUN_MODE") == "true",
 		InternalScanSecret:     os.Getenv("INTERNAL_SCAN_SECRET"),
