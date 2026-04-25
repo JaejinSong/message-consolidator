@@ -13,7 +13,7 @@ import (
 // timestamp when assignee changes (e.g. @mention reassignment), and must leave it untouched when
 // the assignee is unchanged or absent. These three regression tests pin that contract.
 
-func setupAssignedAtFixture(t *testing.T, room, assignee string, assignedAt time.Time) (string, int) {
+func setupAssignedAtFixture(t *testing.T, room, assignee string, assignedAt time.Time) (string, store.MessageID) {
 	t.Helper()
 	email := "assigned-at-test@example.com"
 	res, err := store.GetDB().Exec(
@@ -24,10 +24,10 @@ func setupAssignedAtFixture(t *testing.T, room, assignee string, assignedAt time
 		t.Fatalf("seed: %v", err)
 	}
 	id64, _ := res.LastInsertId()
-	return email, int(id64)
+	return email, store.MessageID(id64)
 }
 
-func readAssignedAt(t *testing.T, email string, id int) (string, time.Time) {
+func readAssignedAt(t *testing.T, email string, id store.MessageID) (string, time.Time) {
 	t.Helper()
 	var assignee string
 	var assignedAt sql.NullTime

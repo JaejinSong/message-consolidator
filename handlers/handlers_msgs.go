@@ -53,8 +53,8 @@ func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
-		ID   int  `json:"id"`
-		Done bool `json:"done"`
+		ID   store.MessageID `json:"id"`
+		Done bool            `json:"done"`
 	}
 	if !bindJSON(w, r, &req) { return }
 
@@ -81,9 +81,9 @@ func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleToggleSubtask(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
-		ID           int  `json:"id"`
-		SubtaskIndex int  `json:"subtask_index"`
-		Done         bool `json:"done"`
+		ID           store.MessageID `json:"id"`
+		SubtaskIndex int             `json:"subtask_index"`
+		Done         bool            `json:"done"`
 	}
 	if !bindJSON(w, r, &req) { return }
 
@@ -200,7 +200,8 @@ func (a *API) respondWithUpdatedUser(w http.ResponseWriter, r *http.Request, ema
 // Why: [Explicit Integer Conversion] and [Guard Clauses] ensure type safety and early failure for malformed or unauthorized requests.
 func (a *API) HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	id, err := parsePathID(r, "id")
+	rawID, err := parsePathID(r, "id")
+	id := store.MessageID(rawID)
 	if err != nil {
 		logger.Warnf("[GET_ORIGINAL] Invalid ID provided by %s", email)
 		respondError(w, http.StatusBadRequest, "Invalid message ID format")
@@ -250,8 +251,8 @@ func (a *API) HandleRestore(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
-		ID   int    `json:"id"`
-		Task string `json:"task"`
+		ID   store.MessageID `json:"id"`
+		Task string          `json:"task"`
 	}
 	if !bindJSON(w, r, &req) { return }
 	if err := store.UpdateTaskText(r.Context(), store.GetDB(), email, req.ID, req.Task); err != nil {
@@ -266,8 +267,8 @@ func (a *API) HandleUpdateTask(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleMergeTasks(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
-		TargetIDs     []int `json:"target_ids"`
-		DestinationID int   `json:"destination_id"`
+		TargetIDs     []store.MessageID `json:"target_ids"`
+		DestinationID store.MessageID   `json:"destination_id"`
 	}
 
 	if err := decodeJSON(r, &req); err != nil {
@@ -281,8 +282,7 @@ func (a *API) HandleMergeTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Why: [Logic Delegation] Delegates task logic to services to ensure AI summary and transaction integrity.
-	targetIDs64 := a.toInt64Slice(req.TargetIDs)
-	if err := a.Tasks.MergeTasks(r.Context(), email, targetIDs64, int64(req.DestinationID)); err != nil {
+	if err := a.Tasks.MergeTasks(r.Context(), email, req.TargetIDs, req.DestinationID); err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to merge tasks: "+err.Error())
 		return
 	}
@@ -295,8 +295,8 @@ func (a *API) HandleMergeTasks(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
-		TaskIDs []int  `json:"task_ids"`
-		Lang    string `json:"lang"`
+		TaskIDs []store.MessageID `json:"task_ids"`
+		Lang    string            `json:"lang"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid request format")
@@ -322,8 +322,8 @@ func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// 3. [Partial Success] Save only entries without errors.
-	successMap := make(map[int]string)
-	errorMap := make(map[int]string)
+	successMap := make(map[store.MessageID]string)
+	errorMap := make(map[store.MessageID]string)
 	for _, rt := range newTrans {
 		if rt.Error == "" {
 			successMap[rt.MessageID] = rt.Text
@@ -339,15 +339,15 @@ func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) 
 	a.respondWithResults(w, req.TaskIDs, cached, successMap, errorMap)
 }
 
-func (a *API) getMissingIDs(all []int, cached map[int]string) []int {
-	var missing []int
+func (a *API) getMissingIDs(all []store.MessageID, cached map[store.MessageID]string) []store.MessageID {
+	var missing []store.MessageID
 	for _, id := range all {
 		if _, ok := cached[id]; !ok { missing = append(missing, id) }
 	}
 	return missing
 }
 
-func (a *API) prepareMissingRequests(ctx context.Context, email string, ids []int) []store.TranslateRequest {
+func (a *API) prepareMissingRequests(ctx context.Context, email string, ids []store.MessageID) []store.TranslateRequest {
 	var reqs []store.TranslateRequest
 	for _, id := range ids {
 		msg, err := store.GetMessageByID(ctx, store.GetDB(), email, id)
@@ -358,7 +358,7 @@ func (a *API) prepareMissingRequests(ctx context.Context, email string, ids []in
 	return reqs
 }
 
-func (a *API) respondWithResults(w http.ResponseWriter, ids []int, cached, newlyTrans, errors map[int]string) {
+func (a *API) respondWithResults(w http.ResponseWriter, ids []store.MessageID, cached, newlyTrans, errors map[store.MessageID]string) {
 	results := make([]services.BatchTranslateResult, len(ids))
 	for i, id := range ids {
 		text, ok := cached[id]
@@ -374,8 +374,3 @@ func (a *API) respondWithResults(w http.ResponseWriter, ids []int, cached, newly
 	respondJSON(w, http.StatusOK, map[string]interface{}{"results": results})
 }
 
-func (a *API) toInt64Slice(ids []int) []int64 {
-	res := make([]int64, len(ids))
-	for i, id := range ids { res[i] = int64(id) }
-	return res
-}

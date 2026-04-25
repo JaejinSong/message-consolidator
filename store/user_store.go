@@ -153,7 +153,7 @@ func updateUserCacheAliases(email string, aliases []string) {
 
 func fromDBUser(row db.User) User {
 	return User{
-		ID:        int(row.ID),
+		ID:        UserID(row.ID),
 		Email:     row.Email.String,
 		Name:      row.Name.String,
 		SlackID:   row.SlackID.String,

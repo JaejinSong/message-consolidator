@@ -74,6 +74,6 @@ func buildTGMetadataString(m types.RawMessage) string {
 	return sb.String()
 }
 
-func scanTelegram(ctx context.Context, user store.User, aliases []string, language string, wg *sync.WaitGroup) []int {
+func scanTelegram(ctx context.Context, user store.User, aliases []string, language string, wg *sync.WaitGroup) []store.MessageID {
 	return scanChannel(ctx, user, aliases, language, wg, telegramAdapter{})
 }

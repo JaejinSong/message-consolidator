@@ -103,9 +103,9 @@ func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translat
 // TranslationResult defines the standardized AI response schema for batch translation tasks.
 // Why: Enables partial failure handling by tracking errors per-message instead of failing the entire batch.
 type TranslationResult struct {
-	MessageID int    `json:"message_id"`
-	Text      string `json:"translated_text"`
-	Error     string `json:"error,omitempty"`
+	MessageID store.MessageID `json:"message_id"`
+	Text      string          `json:"translated_text"`
+	Error     string          `json:"error,omitempty"`
 }
 
 // Why: Safely retries AI API calls with exponential backoff to handle transient errors and rate limits gracefully, ensuring reliability under high load.
@@ -414,9 +414,9 @@ func (g *GeminiClient) marshalTasksForAI(tasks []store.ConsolidatedMessage) stri
 	// thread_id is not referenced by any prompt. Only id/task/original_text are consumed by the AI.
 	// original_text is truncated to preserve topical matching signal without shipping full history.
 	type contextTask struct {
-		ID       int    `json:"id"`
-		Task     string `json:"task"`
-		Original string `json:"original_text,omitempty"`
+		ID       store.MessageID `json:"id"`
+		Task     string          `json:"task"`
+		Original string          `json:"original_text,omitempty"`
 	}
 	ctxTasks := make([]contextTask, 0, len(tasks))
 	for _, t := range tasks {
@@ -642,7 +642,7 @@ func (g *GeminiClient) getAnalyzeUserPrompt(analyzer SourceAnalyzer, data Extrac
 	return data.MessagePayload
 }
 
-func (g *GeminiClient) parseAnalyzeResults(resp *genai.GenerateContentResponse, currentUserID int, userEmail string) ([]store.TodoItem, error) {
+func (g *GeminiClient) parseAnalyzeResults(resp *genai.GenerateContentResponse, currentUserID store.UserID, userEmail string) ([]store.TodoItem, error) {
 	raw, err := extractResponseText(resp)
 	if err != nil {
 		return nil, err

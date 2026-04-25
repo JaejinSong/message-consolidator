@@ -44,7 +44,7 @@ func TestMetadataIntegrity(t *testing.T) {
 	var id103 int64 // Shared ID for cross-channel deduplication tests
 
 	t.Run("ScanIsContextQuery", func(t *testing.T) {
-		msg, err := GetMessageByID(ctx, GetDB(), userEmail, int(id101))
+		msg, err := GetMessageByID(ctx, GetDB(), userEmail, MessageID(id101))
 		if err != nil {
 			t.Fatalf("GetMessageByID failed: %v", err)
 		}
@@ -56,7 +56,7 @@ func TestMetadataIntegrity(t *testing.T) {
 	})
 
 	t.Run("ScanConstraintsJSON", func(t *testing.T) {
-		msg, err := GetMessageByID(ctx, GetDB(), userEmail, int(id101))
+		msg, err := GetMessageByID(ctx, GetDB(), userEmail, MessageID(id101))
 		if err != nil {
 			t.Fatalf("GetMessageByID failed: %v", err)
 		}
@@ -77,7 +77,7 @@ func TestMetadataIntegrity(t *testing.T) {
 			userEmail, "slack", "No metadata", "ts_metadata_102", false, 0, 0)
 		id102, _ := res.LastInsertId()
 		
-		msg, err := GetMessageByID(ctx, GetDB(), userEmail, int(id102))
+		msg, err := GetMessageByID(ctx, GetDB(), userEmail, MessageID(id102))
 		if err != nil {
 			t.Fatalf("GetMessageByID failed: %v", err)
 		}
@@ -102,7 +102,7 @@ func TestMetadataIntegrity(t *testing.T) {
 		}
 		id103, _ = res.LastInsertId()
 
-		msg, err := GetMessageByID(ctx, GetDB(), userEmail, int(id103))
+		msg, err := GetMessageByID(ctx, GetDB(), userEmail, MessageID(id103))
 		if err != nil {
 			t.Fatalf("GetMessageByID failed: %v", err)
 		}
@@ -127,23 +127,23 @@ func TestMetadataIntegrity(t *testing.T) {
 		newSource := "email"
 		combined := uniqueStrings(append(existing.SourceChannels, newSource))
 		
-		err := UpdateTaskSourceChannels(ctx, GetDB(), userEmail, int(id103), combined)
+		err := UpdateTaskSourceChannels(ctx, GetDB(), userEmail, MessageID(id103), combined)
 		if err != nil {
 			t.Fatalf("UpdateTaskSourceChannels failed: %v", err)
 		}
 
-		updated, _ := GetMessageByID(ctx, GetDB(), userEmail, int(id103))
+		updated, _ := GetMessageByID(ctx, GetDB(), userEmail, MessageID(id103))
 		if len(updated.SourceChannels) != 3 {
 			t.Errorf("Expected 3 channels after merge, got %d: %v", len(updated.SourceChannels), updated.SourceChannels)
 		}
 		
 		// Check uniqueness
-		err = UpdateTaskSourceChannels(ctx, GetDB(), userEmail, int(id103), uniqueStrings(append(updated.SourceChannels, "slack")))
+		err = UpdateTaskSourceChannels(ctx, GetDB(), userEmail, MessageID(id103), uniqueStrings(append(updated.SourceChannels, "slack")))
 		if err != nil {
 			t.Fatalf("Second UpdateTaskSourceChannels failed: %v", err)
 		}
 		
-		final, _ := GetMessageByID(ctx, GetDB(), userEmail, int(id103))
+		final, _ := GetMessageByID(ctx, GetDB(), userEmail, MessageID(id103))
 		if len(final.SourceChannels) != 3 {
 			t.Errorf("Expected still 3 channels after duplicate merge, got %d: %v", len(final.SourceChannels), final.SourceChannels)
 		}

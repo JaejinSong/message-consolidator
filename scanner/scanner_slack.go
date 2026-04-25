@@ -648,7 +648,7 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 
 func processSlackItems(ctx context.Context, user *store.User, items []store.TodoItem, msgMap map[string]types.RawMessage, sc *channels.SlackClient, wg *sync.WaitGroup) {
 	aliases, _ := store.GetUserAliases(ctx, user.ID)
-	var newIDs []int
+	var newIDs []store.MessageID
 	for _, item := range items {
 		m, ok := msgMap[item.SourceTS]
 		if !ok {

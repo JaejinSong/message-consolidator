@@ -3,6 +3,17 @@ package store
 import (
 	"encoding/json"
 	"time"
+
+	"message-consolidator/internal/ids"
+)
+
+// Re-export phantom ID types so callers within store/ and consumers can
+// reference them via store.MessageID etc. without an extra import.
+type (
+	MessageID = ids.MessageID
+	ContactID = ids.ContactID
+	ReportID  = ids.ReportID
+	UserID    = ids.UserID
 )
 
 // RawChatMessage represents a raw message from any source (Slack, WhatsApp, Gmail)
@@ -19,7 +30,7 @@ type RawChatMessage struct {
 
 // ConsolidatedMessage represents a normalized task message stored in DB
 type ConsolidatedMessage struct {
-	ID           int        `json:"id"`
+	ID           MessageID  `json:"id"`
 	UserEmail    string     `json:"user_email"`
 	Source       string     `json:"source"`
 	Room         string     `json:"room"`
@@ -57,10 +68,10 @@ type ConsolidatedMessage struct {
 
 // Subtask represents a smaller action item within a consolidated task.
 type Subtask struct {
-	Task       string `json:"task"`
-	AssigneeID *int   `json:"assignee_id"`
-	Assignee   string `json:"assignee"`
-	Done       bool   `json:"done"`
+	Task       string  `json:"task"`
+	AssigneeID *UserID `json:"assignee_id"`
+	Assignee   string  `json:"assignee"`
+	Done       bool    `json:"done"`
 }
 
 // CategorizedMessages represents groups of messages for the dashboard tabs.
@@ -74,7 +85,7 @@ type CategorizedMessages struct {
 
 // User represents an application user
 type User struct {
-	ID              int        `json:"id"`
+	ID              UserID     `json:"id"`
 	Email           string     `json:"email"`
 	Name            string     `json:"name"`
 	SlackID         string     `json:"slack_id"`
@@ -96,9 +107,9 @@ func (u User) PreferredName() string {
 
 // TaskTranslation represents a cached translation for a task
 type TaskTranslation struct {
-	MessageID      int    `json:"message_id"`
-	LanguageCode   string `json:"language_code"`
-	TranslatedText string `json:"translated_text"`
+	MessageID      MessageID `json:"message_id"`
+	LanguageCode   string    `json:"language_code"`
+	TranslatedText string    `json:"translated_text"`
 }
 
 // UserAlias represents a name alias for a user
@@ -126,14 +137,14 @@ const (
 )
 
 type UserAlias struct {
-	ID        int    `json:"id"`
-	UserID    int    `json:"user_id"`
+	ID        int64  `json:"id"`
+	UserID    UserID `json:"user_id"`
 	AliasName string `json:"alias_name"`
 }
 
 // TodoItem is the task structure returned by Gemini Analyze
 type TodoItem struct {
-	ID              *int            `json:"id,omitempty"` // ID of the existing task to update or resolve
+	ID              *MessageID      `json:"id,omitempty"` // ID of the existing task to update or resolve
 	State           string          `json:"state"`        // "new", "update", "resolve", or "cancel"
 	Reasoning       string          `json:"reasoning,omitempty"` // AI justification for state/merge choice
 	Task               string          `json:"task"`
@@ -159,16 +170,16 @@ type TodoItem struct {
 
 // TodoSubtask represents a sub-action extracted by AI.
 type TodoSubtask struct {
-	Task         string `json:"task"`
-	AssigneeID   *int   `json:"assignee_id"`
-	AssigneeName string `json:"assignee_name"`
+	Task         string  `json:"task"`
+	AssigneeID   *UserID `json:"assignee_id"`
+	AssigneeName string  `json:"assignee_name"`
 }
 
 // TranslateRequest represents a request to translate a specific task
 type TranslateRequest struct {
-	ID           int    `json:"id"`
-	Text         string `json:"text"`
-	OriginalText string `json:"original_text"`
+	ID           MessageID `json:"id"`
+	Text         string    `json:"text"`
+	OriginalText string    `json:"original_text"`
 }
 
 // TranslateResponse represents the batch translation response from Gemini
@@ -226,7 +237,7 @@ const (
 // Report represents a cached AI-generated summary (metadata) and backend-calculated visualization.
 // Why: Standardizes the 1:N relationship where one metadata entry can have multiple language translations.
 type Report struct {
-	ID            int                 `json:"id"`
+	ID            ReportID            `json:"id"`
 	UserEmail     string              `json:"user_email"`
 	StartDate     string              `json:"start_date"`
 	EndDate       string              `json:"end_date"`

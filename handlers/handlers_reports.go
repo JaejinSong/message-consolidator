@@ -90,7 +90,8 @@ func (a *API) respondWithReportStatus(w http.ResponseWriter, report *store.Repor
 
 // HandleGetReportByID retrieves a specific report by its unique ID.
 func (a *API) HandleGetReportByID(w http.ResponseWriter, r *http.Request) {
-	id, err := parsePathID(r, "id")
+	rawID, err := parsePathID(r, "id")
+	id := store.ReportID(rawID)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid report ID format")
 		return
@@ -108,7 +109,8 @@ func (a *API) HandleGetReportByID(w http.ResponseWriter, r *http.Request) {
 
 // HandleDeleteReport removes a report from the database.
 func (a *API) HandleDeleteReport(w http.ResponseWriter, r *http.Request) {
-	id, err := parsePathID(r, "id")
+	rawID, err := parsePathID(r, "id")
+	id := store.ReportID(rawID)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid report ID format")
 		return
@@ -130,7 +132,8 @@ func (a *API) HandleDeleteReport(w http.ResponseWriter, r *http.Request) {
 
 // HandleTranslateReport handles the on-demand translation request for a report.
 func (a *API) HandleTranslateReport(w http.ResponseWriter, r *http.Request) {
-	id, err := parsePathID(r, "id")
+	rawID, err := parsePathID(r, "id")
+	id := store.ReportID(rawID)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid report ID format")
 		return
@@ -145,7 +148,7 @@ func (a *API) HandleTranslateReport(w http.ResponseWriter, r *http.Request) {
 	a.processReportTranslation(w, r, id, lang)
 }
 
-func (a *API) processReportTranslation(w http.ResponseWriter, r *http.Request, id int, lang string) {
+func (a *API) processReportTranslation(w http.ResponseWriter, r *http.Request, id store.ReportID, lang string) {
 	if a.Reports == nil {
 		respondError(w, http.StatusServiceUnavailable, "Reports service unavailable")
 		return
@@ -166,7 +169,8 @@ func (a *API) processReportTranslation(w http.ResponseWriter, r *http.Request, i
 
 // HandleExportReportToNotion exports a report to Notion and returns the page URL.
 func (a *API) HandleExportReportToNotion(w http.ResponseWriter, r *http.Request) {
-	id, err := parsePathID(r, "id")
+	rawID, err := parsePathID(r, "id")
+	id := store.ReportID(rawID)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid report ID format")
 		return

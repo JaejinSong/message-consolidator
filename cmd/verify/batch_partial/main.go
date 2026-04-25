@@ -38,7 +38,7 @@ func main() {
 	}
 
 	fmt.Println("\n--- [2] Filtering and Bulk Saving ---")
-	successMap := make(map[int]string)
+	successMap := make(map[store.MessageID]string)
 	for _, rt := range newTrans {
 		if rt.Error == "" {
 			successMap[rt.MessageID] = rt.Text
@@ -52,7 +52,7 @@ func main() {
 	fmt.Printf("Bulk saved %d items.\n", len(successMap))
 
 	fmt.Println("\n--- [3] Verification (DB Check) ---")
-	cached, _ := store.GetTaskTranslationsBatch(context.Background(), []int{1, 2, 3}, lang)
+	cached, _ := store.GetTaskTranslationsBatch(context.Background(), []store.MessageID{1, 2, 3}, lang)
 	fmt.Printf("Cached items in DB: %v\n", cached)
 
 	if _, ok := cached[2]; ok {
@@ -64,7 +64,7 @@ func main() {
 
 	fmt.Println("\n--- [4] Verification (Response Simulation) ---")
 	// simulate the response building logic
-	for _, id := range []int{1, 2, 3} {
+	for _, id := range []store.MessageID{1, 2, 3} {
 		text := cached[id]
 		errorMsg := ""
 		for _, nt := range newTrans {

@@ -30,14 +30,14 @@ type ChannelAdapter interface {
 	Enrich(roomKey, payload string, ts time.Time) (*types.EnrichedMessage, error)
 }
 
-func scanChannel(ctx context.Context, user store.User, aliases []string, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []int {
+func scanChannel(ctx context.Context, user store.User, aliases []string, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []store.MessageID {
 	buffer := adapter.PopMessages(user.Email)
 	if len(buffer) == 0 {
 		return nil
 	}
 
 	var mu sync.Mutex
-	var newIDs []int
+	var newIDs []store.MessageID
 	var eg errgroup.Group
 
 	for roomKey, msgs := range buffer {
@@ -55,7 +55,7 @@ func scanChannel(ctx context.Context, user store.User, aliases []string, languag
 	return newIDs
 }
 
-func processChannelRoom(ctx context.Context, user store.User, aliases []string, roomKey string, msgs []types.RawMessage, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []int {
+func processChannelRoom(ctx context.Context, user store.User, aliases []string, roomKey string, msgs []types.RawMessage, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []store.MessageID {
 	lockKey := roomLockSvc.GetRoomKey(user.Email, adapter.Source(), roomKey)
 	lock := roomLockSvc.AcquireLock(lockKey)
 	lock.Lock()
@@ -72,7 +72,7 @@ func processChannelRoom(ctx context.Context, user store.User, aliases []string, 
 
 	triggerOutgoingCompletions(ctx, msgs, user, adapter.Source(), groupName)
 
-	var allIDs []int
+	var allIDs []store.MessageID
 	for _, group := range msgGroups {
 		ids := processChannelGroup(ctx, user, aliases, roomKey, groupName, group, gc, language, wg, adapter)
 		if len(ids) > 0 {
@@ -106,7 +106,7 @@ func triggerOutgoingCompletions(_ context.Context, msgs []types.RawMessage, user
 	}
 }
 
-func processChannelGroup(ctx context.Context, user store.User, aliases []string, roomKey, groupName string, group []types.RawMessage, gc *ai.GeminiClient, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []int {
+func processChannelGroup(ctx context.Context, user store.User, aliases []string, roomKey, groupName string, group []types.RawMessage, gc *ai.GeminiClient, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []store.MessageID {
 	if len(group) == 0 {
 		return nil
 	}
@@ -149,8 +149,8 @@ func isIgnorableChannelNoise(ctx context.Context, email, source, payload, prefix
 	return isNoise
 }
 
-func processChannelItems(ctx context.Context, user store.User, aliases []string, items []store.TodoItem, msgMap map[string]types.RawMessage, group string, is1to1 bool, wg *sync.WaitGroup, source string) []int {
-	var newIDs []int
+func processChannelItems(ctx context.Context, user store.User, aliases []string, items []store.TodoItem, msgMap map[string]types.RawMessage, group string, is1to1 bool, wg *sync.WaitGroup, source string) []store.MessageID {
+	var newIDs []store.MessageID
 	for _, item := range items {
 		m, ok := msgMap[item.SourceTS]
 		if !ok {
@@ -164,7 +164,7 @@ func processChannelItems(ctx context.Context, user store.User, aliases []string,
 	return newIDs
 }
 
-func saveChannelItem(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool, source string) int {
+func saveChannelItem(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool, source string) store.MessageID {
 	if isFromMe(m, user) && !is1to1 {
 		item.Category = string(types.CategoryTask)
 	}

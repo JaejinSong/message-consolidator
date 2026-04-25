@@ -15,19 +15,19 @@ func GetReportByDateRange(ctx context.Context, email, start, end string) (*Repor
 	if err != nil {
 		return nil, err
 	}
-	r := reportFromRow(int(row.ID), row.UserEmail, row.StartDate, row.EndDate,
+	r := reportFromRow(ReportID(row.ID), row.UserEmail, row.StartDate, row.EndDate,
 		row.Visualization, row.Status.String, row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
 	r.Translations, _ = GetReportTranslations(ctx, r.ID)
 	return r, nil
 }
 
 // Why: Retrieves a specific report by its unique ID, ensuring it belongs to the requesting user.
-func GetReportByID(ctx context.Context, id int, email string) (*Report, error) {
+func GetReportByID(ctx context.Context, id ReportID, email string) (*Report, error) {
 	row, err := db.New(GetDB()).GetReportByID(ctx, db.GetReportByIDParams{ID: int64(id), UserEmail: email})
 	if err != nil {
 		return nil, err
 	}
-	r := reportFromRow(int(row.ID), row.UserEmail, row.StartDate, row.EndDate,
+	r := reportFromRow(ReportID(row.ID), row.UserEmail, row.StartDate, row.EndDate,
 		row.Visualization, row.Status.String, row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
 	r.Translations, _ = GetReportTranslations(ctx, r.ID)
 	return r, nil
@@ -35,7 +35,7 @@ func GetReportByID(ctx context.Context, id int, email string) (*Report, error) {
 
 // Why: Saves the metadata portion of a report and returns the generated primary key.
 // Uses sqlc-generated InsertReport to avoid SQL.InsertReport being an empty bridge string.
-func SaveReport(ctx context.Context, r *Report) (int64, error) {
+func SaveReport(ctx context.Context, r *Report) (ReportID, error) {
 	isTruncated := 0
 	if r.IsTruncated {
 		isTruncated = 1
@@ -54,11 +54,11 @@ func SaveReport(ctx context.Context, r *Report) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return int64(newID), nil
+	return ReportID(newID), nil
 }
 
 // UpdateReportStatus updates the generation status and visualization data for a report.
-func UpdateReportStatus(ctx context.Context, status, viz string, isTruncated bool, id int, email string) error {
+func UpdateReportStatus(ctx context.Context, status, viz string, isTruncated bool, id ReportID, email string) error {
 	truncVal := int64(0)
 	if isTruncated {
 		truncVal = 1
@@ -73,18 +73,18 @@ func UpdateReportStatus(ctx context.Context, status, viz string, isTruncated boo
 }
 
 // Why: Persists a specific language translation for a given report metadata entry.
-func SaveReportTranslation(ctx context.Context, reportID int64, langCode, summary string) error {
+func SaveReportTranslation(ctx context.Context, reportID ReportID, langCode, summary string) error {
 	return db.New(GetDB()).InsertReportTranslation(ctx, db.InsertReportTranslationParams{
-		ReportID:     reportID,
+		ReportID:     int64(reportID),
 		LanguageCode: langCode,
 		Summary:      summary,
 	})
 }
 
 // GetReportTranslationsBatch retrieves translations for multiple reports in a single query to eliminate N+1 overhead.
-func GetReportTranslationsBatch(ctx context.Context, reportIDs []int) (map[int]map[string]string, error) {
+func GetReportTranslationsBatch(ctx context.Context, reportIDs []ReportID) (map[ReportID]map[string]string, error) {
 	if len(reportIDs) == 0 {
-		return make(map[int]map[string]string), nil
+		return make(map[ReportID]map[string]string), nil
 	}
 
 	ids := make([]int64, len(reportIDs))
@@ -96,9 +96,9 @@ func GetReportTranslationsBatch(ctx context.Context, reportIDs []int) (map[int]m
 		return nil, err
 	}
 
-	res := make(map[int]map[string]string)
+	res := make(map[ReportID]map[string]string)
 	for _, row := range rows {
-		rid := int(row.ReportID)
+		rid := ReportID(row.ReportID)
 		if res[rid] == nil {
 			res[rid] = make(map[string]string)
 		}
@@ -108,7 +108,7 @@ func GetReportTranslationsBatch(ctx context.Context, reportIDs []int) (map[int]m
 }
 
 // Why: Retrieves all available language translations for a specific report to support the multi-language UI.
-func GetReportTranslations(ctx context.Context, reportID int) (map[string]string, error) {
+func GetReportTranslations(ctx context.Context, reportID ReportID) (map[string]string, error) {
 	rows, err := db.New(GetDB()).GetReportTranslations(ctx, int64(reportID))
 	if err != nil {
 		return nil, err
@@ -121,7 +121,7 @@ func GetReportTranslations(ctx context.Context, reportID int) (map[string]string
 }
 
 // reportFromRow maps sqlc row fields to a Report domain object.
-func reportFromRow(id int, email, start, end, viz, status string, isTruncated int64, createdAt time.Time, summary string) *Report {
+func reportFromRow(id ReportID, email, start, end, viz, status string, isTruncated int64, createdAt time.Time, summary string) *Report {
 	if status == "" {
 		status = "completed"
 	}
@@ -142,7 +142,7 @@ func ListReports(ctx context.Context, email string) ([]Report, error) {
 	}
 	var reports []Report
 	for _, row := range rows {
-		r := reportFromRow(int(row.ID), email, row.StartDate, row.EndDate,
+		r := reportFromRow(ReportID(row.ID), email, row.StartDate, row.EndDate,
 			"", row.Status.String, row.IsTruncated.Int64, row.CreatedAt.Time, row.Summary)
 		reports = append(reports, *r)
 	}
@@ -171,7 +171,7 @@ func GetReportList(ctx context.Context, email string) ([]Report, error) {
 	var reports []Report
 	for _, row := range rows {
 		reports = append(reports, Report{
-			ID:        int(row.ID),
+			ID:        ReportID(row.ID),
 			StartDate: row.StartDate,
 			EndDate:   row.EndDate,
 			CreatedAt: row.CreatedAt.Time,
@@ -181,15 +181,15 @@ func GetReportList(ctx context.Context, email string) ([]Report, error) {
 	return reports, nil
 }
 
-func collectReportIDs(reports []Report) []int {
-	ids := make([]int, len(reports))
+func collectReportIDs(reports []Report) []ReportID {
+	ids := make([]ReportID, len(reports))
 	for i, r := range reports {
 		ids[i] = r.ID
 	}
 	return ids
 }
 
-func mapTranslationsToReports(reports []Report, transMap map[int]map[string]string) {
+func mapTranslationsToReports(reports []Report, transMap map[ReportID]map[string]string) {
 	for i := range reports {
 		reports[i].Translations = transMap[reports[i].ID]
 	}
@@ -197,7 +197,7 @@ func mapTranslationsToReports(reports []Report, transMap map[int]map[string]stri
 
 
 // Why: Allows users to manage their stored reports and remove unneeded entries.
-func DeleteReport(ctx context.Context, id int, email string) error {
+func DeleteReport(ctx context.Context, id ReportID, email string) error {
 	return db.New(GetDB()).DeleteReport(ctx, db.DeleteReportParams{
 		ID: int64(id), UserEmail: email,
 	})
@@ -231,7 +231,7 @@ func GetMessagesForReport(ctx context.Context, email string, since time.Time, so
 
 func toConsolidatedFromByMessages(row db.VMessage) ConsolidatedMessage {
 	return MapVMessageToConsolidated(
-		int(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
+		MessageID(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
 		row.Requester, row.Assignee, row.Link, row.SourceTs,
 		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
 		row.Category, row.Deadline, row.ThreadID,

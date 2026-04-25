@@ -36,7 +36,7 @@ func TestMergeTaskInvalidation(t *testing.T) {
 	if err != nil { t.Fatalf("translation seed error: %v", err) }
 
 	// 3. Action: Merge
-	err = MergeTasksWithTitle(ctx, email, []int64{id1}, id2, "New Merged Title")
+	err = MergeTasksWithTitle(ctx, email, []MessageID{MessageID(id1)}, MessageID(id2), "New Merged Title")
 	if err != nil {
 		t.Fatalf("Merge failed: %v", err)
 	}

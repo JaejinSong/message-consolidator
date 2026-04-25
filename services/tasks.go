@@ -25,10 +25,10 @@ const (
 
 // BatchTranslateResult represents the status of a single task translation within a batch request.
 type BatchTranslateResult struct {
-	ID             int    `json:"id"`
-	Success        bool   `json:"success"`
-	TranslatedText string `json:"translated_text,omitempty"`
-	Error          string `json:"error,omitempty"`
+	ID             store.MessageID `json:"id"`
+	Success        bool            `json:"success"`
+	TranslatedText string          `json:"translated_text,omitempty"`
+	Error          string          `json:"error,omitempty"`
 }
 
 var (
@@ -163,12 +163,12 @@ func (s *TasksService) ApplyTranslations(ctx context.Context, email, lang string
 	if lang == "" || strings.EqualFold(lang, "en") || len(msgs) == 0 {
 		return
 	}
-	ids := make([]int, len(msgs))
+	ids := make([]store.MessageID, len(msgs))
 	for i, m := range msgs {
 		ids[i] = m.ID
 	}
 	translations, _ := store.GetTaskTranslationsBatch(ctx, ids, lang)
-	var missingIDs []int
+	var missingIDs []store.MessageID
 	for i := range msgs {
 		if raw, ok := translations[msgs[i].ID]; ok {
 			mainTask, subTexts := parseTranslatedText(raw)
@@ -185,7 +185,7 @@ func (s *TasksService) ApplyTranslations(ctx context.Context, email, lang string
 	s.triggerJITTranslation(email, lang, missingIDs) //nolint:contextcheck // Async fan-out uses Background ctx with its own timeout.
 }
 
-func (s *TasksService) triggerJITTranslation(email, lang string, ids []int) {
+func (s *TasksService) triggerJITTranslation(email, lang string, ids []store.MessageID) {
 	if len(ids) == 0 {
 		return
 	}
@@ -207,7 +207,7 @@ func (s *TasksService) PrepareMessagesForClient(ctx context.Context, email strin
 }
 
 // HandleTaskCompletion orchestrates the process of marking a task as done.
-func (s *TasksService) HandleTaskCompletion(ctx context.Context, email string, taskID int, done bool) error {
+func (s *TasksService) HandleTaskCompletion(ctx context.Context, email string, taskID store.MessageID, done bool) error {
 	if taskID <= 0 {
 		return fmt.Errorf("invalid task id: %d", taskID)
 	}
@@ -264,8 +264,8 @@ func (s *TasksService) reclassifySingleTask(ctx context.Context, email string, u
 
 // RestoreGmailCCAssignment identifies Gmail tasks that were incorrectly assigned due to the user being CC'd.
 // Why: [Performance] Uses errgroup with a worker limit of 20 to parallelize Gmail API resolution and returns a map for batch DB updates.
-func (s *TasksService) RestoreGmailCCAssignment(ctx context.Context, email string, user *store.User, aliases []string, msgs []store.ConsolidatedMessage, svc *gmail.Service) (map[int]string, int) {
-	updates := make(map[int]string)
+func (s *TasksService) RestoreGmailCCAssignment(ctx context.Context, email string, user *store.User, aliases []string, msgs []store.ConsolidatedMessage, svc *gmail.Service) (map[store.MessageID]string, int) {
+	updates := make(map[store.MessageID]string)
 	var mu sync.Mutex
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(20)
@@ -287,7 +287,7 @@ func (s *TasksService) RestoreGmailCCAssignment(ctx context.Context, email strin
 	return updates, len(updates)
 }
 
-func (s *TasksService) checkRestoreGmailCC(ctx context.Context, email string, user *store.User, aliases []string, m store.ConsolidatedMessage, svc *gmail.Service) (int, string, bool) {
+func (s *TasksService) checkRestoreGmailCC(ctx context.Context, email string, user *store.User, aliases []string, m store.ConsolidatedMessage, svc *gmail.Service) (store.MessageID, string, bool) {
 	if m.Source != "gmail" {
 		return 0, "", false
 	}
@@ -514,13 +514,13 @@ func resolveActualAssignee(ctx context.Context, m store.ConsolidatedMessage, toH
 
 // ProcessBatchTranslation handles multiple task translation requests in an optimized single batch.
 // Why: Implements Page-unit Pure JIT pattern to eliminate N+1 AI calls.
-func (s *TasksService) ProcessBatchTranslation(ctx context.Context, email string, taskIDs []int, lang string) ([]BatchTranslateResult, error) {
+func (s *TasksService) ProcessBatchTranslation(ctx context.Context, email string, taskIDs []store.MessageID, lang string) ([]BatchTranslateResult, error) {
 	if s.translationSvc == nil { return nil, fmt.Errorf("service not ready") }
-	
+
 	cached, _ := store.GetTaskTranslationsBatch(ctx, taskIDs, lang)
 	missingIDs := s.getMissingIDs(taskIDs, cached)
-	
-	newTrans := make(map[int]string)
+
+	newTrans := make(map[store.MessageID]string)
 	if len(missingIDs) > 0 {
 		var err error
 		newTrans, err = s.executeBatchTranslation(ctx, email, missingIDs, lang)
@@ -530,33 +530,33 @@ func (s *TasksService) ProcessBatchTranslation(ctx context.Context, email string
 	return s.mergeBatchResults(taskIDs, cached, newTrans), nil
 }
 
-func (s *TasksService) getMissingIDs(all []int, cached map[int]string) []int {
-	var missing []int
+func (s *TasksService) getMissingIDs(all []store.MessageID, cached map[store.MessageID]string) []store.MessageID {
+	var missing []store.MessageID
 	for _, id := range all {
 		if _, ok := cached[id]; !ok { missing = append(missing, id) }
 	}
 	return missing
 }
 
-func (s *TasksService) executeBatchTranslation(ctx context.Context, email string, ids []int, lang string) (map[int]string, error) {
+func (s *TasksService) executeBatchTranslation(ctx context.Context, email string, ids []store.MessageID, lang string) (map[store.MessageID]string, error) {
 	reqs := s.prepareTranslateRequests(ctx, email, ids)
 	if len(reqs) == 0 { return nil, nil }
 
 	results, err := s.translationSvc.TranslateBatch(ctx, email, reqs, lang)
 	if err != nil { return nil, err }
 
-	batchMap := make(map[int]string)
+	batchMap := make(map[store.MessageID]string)
 	for _, r := range results {
 		if r.Error == "" {
 			batchMap[r.MessageID] = r.Text
 		}
 	}
-	
+
 	_ = store.SaveTaskTranslationsBulk(ctx, lang, batchMap)
 	return batchMap, nil
 }
 
-func (s *TasksService) prepareTranslateRequests(ctx context.Context, email string, ids []int) []store.TranslateRequest {
+func (s *TasksService) prepareTranslateRequests(ctx context.Context, email string, ids []store.MessageID) []store.TranslateRequest {
 	var reqs []store.TranslateRequest
 	for _, id := range ids {
 		msg, err := store.GetMessageByID(ctx, store.GetDB(), email, id)
@@ -566,12 +566,12 @@ func (s *TasksService) prepareTranslateRequests(ctx context.Context, email strin
 	return reqs
 }
 
-func (s *TasksService) mergeBatchResults(ids []int, cached, newTrans map[int]string) []BatchTranslateResult {
+func (s *TasksService) mergeBatchResults(ids []store.MessageID, cached, newTrans map[store.MessageID]string) []BatchTranslateResult {
 	final := make([]BatchTranslateResult, len(ids))
 	for i, id := range ids {
 		text, ok := cached[id]
 		if !ok { text = newTrans[id] }
-		
+
 		success := text != ""
 		final[i] = BatchTranslateResult{ID: id, Success: success, TranslatedText: text}
 		if !success { final[i].Error = "translation missing" }
@@ -581,30 +581,25 @@ func (s *TasksService) mergeBatchResults(ids []int, cached, newTrans map[int]str
 
 // MergeTasks consolidates multiple tasks into one using AI summarization for the title.
 // Why: [Contextual Merge] Generates a representative English title from all merged messages.
-func (s *TasksService) MergeTasks(ctx context.Context, email string, targetIDs []int64, destID int64) error {
+func (s *TasksService) MergeTasks(ctx context.Context, email string, targetIDs []store.MessageID, destID store.MessageID) error {
 	if destID <= 0 || len(targetIDs) == 0 {
 		return fmt.Errorf("invalid merge parameters: targetCount=%d, destID=%d", len(targetIDs), destID)
 	}
-	allIDs := append(targetIDs, destID)
-	msgs, err := store.GetMessagesByIDs(ctx, store.GetDB(), email, s.toIntSlice(allIDs))
+	allIDs := append([]store.MessageID{}, targetIDs...)
+	allIDs = append(allIDs, destID)
+	msgs, err := store.GetMessagesByIDs(ctx, store.GetDB(), email, allIDs)
 	if err != nil { return err }
 
 	var dest *store.ConsolidatedMessage
 	var sources []store.ConsolidatedMessage
 	for i := range msgs {
-		if int64(msgs[i].ID) == destID { dest = &msgs[i] } else { sources = append(sources, msgs[i]) }
+		if msgs[i].ID == destID { dest = &msgs[i] } else { sources = append(sources, msgs[i]) }
 	}
 	if dest == nil { return fmt.Errorf("destination task not found") }
 
 	// Why: [Reliability] AI summary is progressive; failures fallback to existing title.
 	newTitle := s.generateSummaryTitle(ctx, email, dest, sources)
 	return store.MergeTasksWithTitle(ctx, email, targetIDs, destID, newTitle)
-}
-
-func (s *TasksService) toIntSlice(ids []int64) []int {
-	res := make([]int, len(ids))
-	for i, id := range ids { res[i] = int(id) }
-	return res
 }
 
 func (s *TasksService) generateSummaryTitle(ctx context.Context, email string, dest *store.ConsolidatedMessage, sources []store.ConsolidatedMessage) string {
@@ -689,7 +684,7 @@ type translationPayload struct {
 
 // BuildTranslateRequest encodes task + subtask texts into a single TranslateRequest.
 // The Text field uses JSON when subtasks exist so the translator receives structured content.
-func BuildTranslateRequest(id int, task string, subtasks []store.Subtask) store.TranslateRequest {
+func BuildTranslateRequest(id store.MessageID, task string, subtasks []store.Subtask) store.TranslateRequest {
 	if len(subtasks) == 0 {
 		return store.TranslateRequest{ID: id, Text: task}
 	}

@@ -40,8 +40,8 @@ func (m *MockAI) Analyze(ctx context.Context, email string, msg types.EnrichedMe
 
 // MockStore captures calls to MarkMessageDone and UpdateMessageCategory
 type MockStore struct {
-	CapturedIDs        []int
-	ReleasedIDs        []int
+	CapturedIDs        []store.MessageID
+	ReleasedIDs        []store.MessageID
 	ReleasedCategories []string
 	Tasks              []store.ConsolidatedMessage
 }
@@ -54,14 +54,14 @@ func (m *MockStore) GetActiveContextTasks(ctx context.Context, q store.Querier, 
 	return m.Tasks, nil
 }
 
-func (m *MockStore) UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id int, category string) error {
+func (m *MockStore) UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id store.MessageID, category string) error {
 	m.ReleasedIDs = append(m.ReleasedIDs, id)
 	m.ReleasedCategories = append(m.ReleasedCategories, category)
 	return nil
 }
 
-func (m *MockStore) HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
-	id := int(*item.ID)
+func (m *MockStore) HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
+	id := *item.ID
 	switch item.State {
 	case "resolve":
 		m.CapturedIDs = append(m.CapturedIDs, id)
@@ -71,7 +71,7 @@ func (m *MockStore) HandleTaskState(ctx context.Context, q store.Querier, email 
 	return 0, nil
 }
 
-func (m *MockStore) GetMessageByID(ctx context.Context, q store.Querier, email string, id int) (store.ConsolidatedMessage, error) {
+func (m *MockStore) GetMessageByID(ctx context.Context, q store.Querier, email string, id store.MessageID) (store.ConsolidatedMessage, error) {
 	return store.ConsolidatedMessage{}, nil
 }
 
@@ -80,7 +80,7 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 
 	t.Run("Positive Path - Individual Completion", func(t *testing.T) {
 		// AI Proposes: Task is completed, but doesn't know ID 101 (outputs 0)
-		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(0), State: "resolve", Task: "Send report"}}}
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "resolve", Task: "Send report"}}}
 		mockStore := &MockStore{
 			Tasks: []store.ConsolidatedMessage{{ID: 101, SourceTS: "original_ts", Task: "Send report", OriginalText: "Send report"}},
 		}
@@ -102,7 +102,7 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 	})
 
 	t.Run("Current User Reply (UPDATE) - Should Reclassify as Delegated", func(t *testing.T) {
-		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(0), State: "update", Task: "IFC 말레이시아 미팅 참여 범위 확정"}}}
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "update", Task: "IFC 말레이시아 미팅 참여 범위 확정"}}}
 		mockStore := &MockStore{
 			Tasks: []store.ConsolidatedMessage{{ID: 202, Task: "IFC 말레이시아 미팅 참여 범위 확정"}},
 		}
@@ -130,7 +130,7 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 
 	t.Run("Current User Reply (UPDATE+updatedText) - Should update category AND task text", func(t *testing.T) {
 		newScope := "JVM Crash/ZFS 블로그 검색 최적화 및 가독성 개선"
-		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(0), State: "update", Task: newScope}}}
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "update", Task: newScope}}}
 		mockStore := &MockStore{
 			Tasks: []store.ConsolidatedMessage{{ID: 204, Task: "JVM Crash/ZFS 블로그 최신화 및 검수"}},
 		}
@@ -158,7 +158,7 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 	})
 
 	t.Run("Current User Reply (RESOLVE) - Should Mark Done", func(t *testing.T) {
-		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(0), State: "resolve", Task: "IFC 말레이시아 미팅 참여 범위 확정"}}}
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "resolve", Task: "IFC 말레이시아 미팅 참여 범위 확정"}}}
 		mockStore := &MockStore{
 			Tasks: []store.ConsolidatedMessage{{ID: 203, Task: "IFC 말레이시아 미팅 참여 범위 확정"}},
 		}
@@ -185,7 +185,7 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 	})
 
 	t.Run("Multiple Tasks in Thread - All Should Be Processed", func(t *testing.T) {
-		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(0), State: "resolve", Task: "IFC 미팅"}}}
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "resolve", Task: "IFC 미팅"}}}
 		mockStore := &MockStore{
 			Tasks: []store.ConsolidatedMessage{
 				{ID: 11689, Task: "Andy에게 기술 지원 범위 확인"},
@@ -212,7 +212,7 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 
 	t.Run("Mention in Body - Should Delegate (Update)", func(t *testing.T) {
 		// AI Proposes: Delegate to 김개발 (outputs 0)
-		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(0), State: "update", Task: "T1", AssignedTo: "김개발"}}}
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "update", Task: "T1", AssignedTo: "김개발"}}}
 		mockStore := &MockStore{
 			Tasks: []store.ConsolidatedMessage{{ID: 501, Task: "T1", OriginalText: "T1"}},
 		}

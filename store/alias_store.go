@@ -217,7 +217,7 @@ func MapContactType(contactType, finalID, tenantEmail string) string {
 }
 
 // GetUserAliases retrieves identifiers for a user's primary contact from the resolution table.
-func GetUserAliases(ctx context.Context, userID int) ([]string, error) {
+func GetUserAliases(ctx context.Context, userID UserID) ([]string, error) {
 	u, err := GetUserByID(userID)
 	if err != nil {
 		return []string{}, nil
@@ -242,7 +242,7 @@ func GetUserAliases(ctx context.Context, userID int) ([]string, error) {
 }
 
 // GetUserByID is a helper to find a user by their integer ID from the cache.
-func GetUserByID(id int) (*User, error) {
+func GetUserByID(id UserID) (*User, error) {
 	metadataMu.RLock()
 	defer metadataMu.RUnlock()
 	for _, u := range userCache {
@@ -254,26 +254,25 @@ func GetUserByID(id int) (*User, error) {
 }
 
 // AddUserAlias creates a new alias for a user in the user_aliases table and updates the cache.
-func AddUserAlias(ctx context.Context, userID int, alias string) error {
+func AddUserAlias(ctx context.Context, userID UserID, alias string) error {
 	trimmed := strings.TrimSpace(alias)
 	if trimmed == "" {
 		return nil
 	}
 
-	uID := int64(userID)
 	queries := db.New(GetDB())
 	if err := queries.CreateUserAlias(ctx, db.CreateUserAliasParams{
-		UserID:    uID,
+		UserID:    int64(userID),
 		AliasName: trimmed,
 	}); err != nil {
 		return err
 	}
 
-	updateUserCacheAlias(ctx, uID, trimmed, true)
+	updateUserCacheAlias(ctx, userID, trimmed, true)
 	return nil
 }
 
-func updateUserCacheAlias(ctx context.Context, userID int64, alias string, isAdd bool) {
+func updateUserCacheAlias(ctx context.Context, userID UserID, alias string, isAdd bool) {
 	var uEmail, uName string
 	metadataMu.Lock()
 
@@ -302,9 +301,9 @@ func updateUserCacheAlias(ctx context.Context, userID int64, alias string, isAdd
 	}
 }
 
-func findUserInCacheByIDLocked(id int64) *User {
+func findUserInCacheByIDLocked(id UserID) *User {
 	for _, u := range userCache {
-		if int64(u.ID) == id {
+		if u.ID == id {
 			return u
 		}
 	}

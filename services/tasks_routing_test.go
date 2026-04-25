@@ -28,7 +28,7 @@ func TestRouteTaskByStatus_Resolve(t *testing.T) {
 		t.Fatalf("failed to insert dummy task: %v", err)
 	}
 	id64, _ := taskID.LastInsertId()
-	id := int(id64)
+	id := store.MessageID(id64)
 
 	// 2. Mock AI returning 'resolve' status for this ID
 	item := store.TodoItem{
@@ -89,7 +89,7 @@ func TestHandleTaskState_PromiseResolvesExistingTask(t *testing.T) {
 
 	res, _ := db.Exec("INSERT INTO messages (user_email, source, room, task, category, done) VALUES (?, 'whatsapp', ?, 'Submit the report', 'TASK', 0)", email, room)
 	id64, _ := res.LastInsertId()
-	id := int(id64)
+	id := store.MessageID(id64)
 
 	item := store.TodoItem{
 		ID:       &id,
@@ -137,7 +137,7 @@ func TestHandleTaskState_NewConsolidatesExistingThreadTask(t *testing.T) {
 		email, threadID,
 	)
 	existingID64, _ := res.LastInsertId()
-	existingID := int(existingID64)
+	existingID := store.MessageID(existingID64)
 
 	item := store.TodoItem{
 		State: "new",

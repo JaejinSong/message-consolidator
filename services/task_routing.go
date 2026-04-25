@@ -12,7 +12,7 @@ import (
 
 // HandleTaskState routes task operations based on the AI-determined state.
 // Why: Centralizes task state transitions to ensure consistency.
-func HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
+func HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
 	if q == nil {
 		q = store.GetDB()
 	}
@@ -23,12 +23,17 @@ func HandleTaskState(ctx context.Context, q store.Querier, email string, item st
 
 	resID, err := routeTaskState(ctx, q, email, item, msg)
 
+	var taskIDPtr *int64
+	if item.ID != nil {
+		raw := int64(*item.ID)
+		taskIDPtr = &raw
+	}
 	logger.LogDecision(logger.DecisionLog{
 		UserEmail: email,
 		Source:    msg.Source,
 		Room:      msg.Room,
 		State:     item.State,
-		TaskID:    item.ID,
+		TaskID:    taskIDPtr,
 		Task:      item.Task,
 		Reasoning: item.Reasoning,
 	})
@@ -38,7 +43,7 @@ func HandleTaskState(ctx context.Context, q store.Querier, email string, item st
 
 // RouteTaskByStatus provides a single-entry routing point for higher-level callers.
 // Returns 0 for new/unhandled cases so the bulk INSERT pipeline takes over.
-func RouteTaskByStatus(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
+func RouteTaskByStatus(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
 	status := strings.ToLower(item.Status)
 	if status == "resolve" || status == "done" {
 		return handleResolve(ctx, q, email, item, msg)
@@ -52,7 +57,7 @@ func RouteTaskByStatus(ctx context.Context, q store.Querier, email string, item 
 	return 0, nil
 }
 
-func routeTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
+func routeTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
 	switch item.State {
 	case "none":
 		return handleNone()
@@ -70,11 +75,11 @@ func routeTaskState(ctx context.Context, q store.Querier, email string, item sto
 	}
 }
 
-func handleNone() (int, error) {
+func handleNone() (store.MessageID, error) {
 	return 0, nil
 }
 
-func handleNew(ctx context.Context, q store.Querier, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
+func handleNew(ctx context.Context, q store.Querier, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
 	if item.Task == "" {
 		item.Task = msg.Task
 	}
@@ -91,7 +96,7 @@ func handleNew(ctx context.Context, q store.Querier, item store.TodoItem, msg st
 }
 
 //Why: Whichever path lands on an existing task ID applies the same text+subtask update; consolidate so handleNew has one branch instead of two.
-func updateExistingTask(ctx context.Context, q store.Querier, email string, id int, task string, subtasks []store.Subtask) (int, error) {
+func updateExistingTask(ctx context.Context, q store.Querier, email string, id store.MessageID, task string, subtasks []store.Subtask) (store.MessageID, error) {
 	err := store.UpdateTaskText(ctx, q, email, id, task)
 	if err == nil && len(subtasks) > 0 {
 		_ = store.UpdateSubtasks(ctx, q, email, id, subtasks)
@@ -100,7 +105,7 @@ func updateExistingTask(ctx context.Context, q store.Querier, email string, id i
 }
 
 //Why: Resolves to an existing thread-parent task when the message has no explicit ID; returns ok=false so handleNew falls through to creation.
-func updateThreadParentIfPresent(ctx context.Context, q store.Querier, msg store.ConsolidatedMessage, task string) (int, bool, error) {
+func updateThreadParentIfPresent(ctx context.Context, q store.Querier, msg store.ConsolidatedMessage, task string) (store.MessageID, bool, error) {
 	if msg.ThreadID == "" {
 		return 0, false, nil
 	}
@@ -113,7 +118,7 @@ func updateThreadParentIfPresent(ctx context.Context, q store.Querier, msg store
 }
 
 //Why: Folds the SaveMessage path so handleNew's body stays linear. AI-supplied requester/assignee/reason override the envelope when present.
-func createTaskFromItem(ctx context.Context, q store.Querier, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
+func createTaskFromItem(ctx context.Context, q store.Querier, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
 	msg.Task = item.Task
 	if item.Requester != "" {
 		msg.Requester = item.Requester
@@ -128,11 +133,11 @@ func createTaskFromItem(ctx context.Context, q store.Querier, item store.TodoIte
 	return id, err
 }
 
-func handleUpdate(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
+func handleUpdate(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
 	if item.ID == nil {
 		return 0, fmt.Errorf("update requested but ID is nil")
 	}
-	id := int(*item.ID)
+	id := *item.ID
 
 	existing, err := validateTargetTask(ctx, q, email, id, msg.Room)
 	if err != nil || existing == nil {
@@ -162,14 +167,14 @@ func handleUpdate(ctx context.Context, q store.Querier, email string, item store
 	return id, nil
 }
 
-func handleResolve(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
+func handleResolve(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
 	if q == nil {
 		q = store.GetDB()
 	}
 	if item.ID == nil {
 		return 0, fmt.Errorf("resolve requested but ID is nil")
 	}
-	id := int(*item.ID)
+	id := *item.ID
 
 	existing, err := validateTargetTask(ctx, q, email, id, msg.Room)
 	if err != nil || existing == nil {
@@ -183,12 +188,12 @@ func handleResolve(ctx context.Context, q store.Querier, email string, item stor
 	return id, nil
 }
 
-func handleCancel(ctx context.Context, q store.Querier, email string, item store.TodoItem) (int, error) {
+func handleCancel(ctx context.Context, q store.Querier, email string, item store.TodoItem) (store.MessageID, error) {
 	if item.ID == nil {
 		return 0, fmt.Errorf("cancel requested but ID is nil")
 	}
-	id := int(*item.ID)
-	err := store.DeleteMessages(ctx, q, email, []int{id})
+	id := *item.ID
+	err := store.DeleteMessages(ctx, q, email, []store.MessageID{id})
 	return 0, err
 }
 
@@ -218,7 +223,7 @@ func uniqueStrings(input []string) []string {
 
 // validateTargetTask drops cross-room operations to prevent unauthorized modification.
 // Returns nil, nil for the drop case so callers can continue harmlessly.
-func validateTargetTask(ctx context.Context, q store.Querier, email string, id int, expectedRoom string) (*store.ConsolidatedMessage, error) {
+func validateTargetTask(ctx context.Context, q store.Querier, email string, id store.MessageID, expectedRoom string) (*store.ConsolidatedMessage, error) {
 	existing, err := store.GetMessageByID(ctx, q, email, id)
 	if err != nil {
 		logger.Errorf("[ROUTER] Failed to fetch task %d for validation: %v", id, err)

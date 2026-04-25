@@ -58,7 +58,7 @@ func LoadMetadata() error {
 
 	for _, row := range userRows {
 		u := User{
-			ID:        int(row.ID),
+			ID:        UserID(row.ID),
 			Email:     row.Email.String,
 			Name:      row.Name.String,
 			SlackID:   row.SlackID.String,

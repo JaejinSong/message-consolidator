@@ -188,7 +188,7 @@ func performGmailScan(ctx context.Context, email string, wg *sync.WaitGroup) err
 	}
 	ids := channels.ScanGmail(ctx, email, "Korean", cfg, onThreadActivity)
 
-	var filteredIDs []int
+	var filteredIDs []store.MessageID
 	for _, id := range ids {
 		idStr := fmt.Sprintf("gmail-%s-%d", email, id)
 		if _, loaded := inFlightMessages.LoadOrStore(idStr, true); loaded {
@@ -277,7 +277,7 @@ func isAliasMatched(text, sender, alias string) bool {
 	return false
 }
 
-func triggerAsyncTranslation(ctx context.Context, email string, ids []int, wg *sync.WaitGroup) {
+func triggerAsyncTranslation(ctx context.Context, email string, ids []store.MessageID, wg *sync.WaitGroup) {
 	if tasksSvc == nil || len(ids) == 0 {
 		return
 	}

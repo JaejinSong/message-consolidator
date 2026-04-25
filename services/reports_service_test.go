@@ -812,7 +812,7 @@ func TestReportsService_GenerateReport_OnlyRequestedLanguage(t *testing.T) {
 	report.Translations, _ = store.GetReportTranslations(ctx, report.ID)
 	if _, ok := report.Translations["ko"]; !ok {
 		// Defensive seeding for test environment if sync call didn't trigger for some reason
-		_ = store.SaveReportTranslation(ctx, int64(report.ID), "ko", "AI Generated Summary (KO)")
+		_ = store.SaveReportTranslation(ctx, report.ID, "ko", "AI Generated Summary (KO)")
 		report.Translations, _ = store.GetReportTranslations(ctx, report.ID)
 	}
 

@@ -25,7 +25,7 @@ func withTx(ctx context.Context, q Querier, fn func(q Querier) error) error {
 // SaveMessage persists a single message and updates the local cache.
 // Why: Enforces 30-line limit by delegating duplication checks, DB insertion, and cache synchronization to specific helpers.
 // SaveMessage persists a single message and updates the local cache. Supports transactions.
-func SaveMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool, int, error) {
+func SaveMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool, MessageID, error) {
 	if isDuplicate(msg.UserEmail, msg.SourceTS) {
 		return false, 0, nil
 	}
@@ -42,14 +42,14 @@ func SaveMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool,
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, 0, nil
 		}
-		return false, int(lastID), err
+		return false, MessageID(lastID), err
 	}
 	if lastID == 0 {
 		return false, 0, nil
 	}
 
 	InvalidateCacheActive(msg.UserEmail)
-	return true, int(lastID), nil
+	return true, MessageID(lastID), nil
 }
 
 func isDuplicate(email, ts string) bool {
@@ -131,7 +131,7 @@ func GetMessages(ctx context.Context, email string) ([]ConsolidatedMessage, erro
 // executeUpdateMessageDetails unifies transaction handling, DB execution, and cache invalidation for single-field updates.
 // Why: Full invalidation — callers like MarkMessageDone change `done`, which flips the computed `is_archived` column,
 // moving the message between active and archive caches.
-func executeUpdateMessageDetails(ctx context.Context, q Querier, email string, id int, updateFn func(*db.UpdateMessageDetailsParams)) error {
+func executeUpdateMessageDetails(ctx context.Context, q Querier, email string, id MessageID, updateFn func(*db.UpdateMessageDetailsParams)) error {
 	return withTx(ctx, q, func(qw Querier) error {
 		params := db.UpdateMessageDetailsParams{
 			ID:        int64(id),
@@ -146,7 +146,7 @@ func executeUpdateMessageDetails(ctx context.Context, q Querier, email string, i
 	})
 }
 
-func MarkMessageDone(ctx context.Context, q Querier, email string, id int, done bool) error {
+func MarkMessageDone(ctx context.Context, q Querier, email string, id MessageID, done bool) error {
 	if !done {
 		return unmarkMessageDone(ctx, q, email, id)
 	}
@@ -161,10 +161,10 @@ func MarkMessageDone(ctx context.Context, q Querier, email string, id int, done 
 // passing sql.NullTime{Valid:false} preserves the prior value instead of clearing
 // it — leaving the invariant `done=0 ⇔ completed_at IS NULL` violated. Raw SQL
 // is the cleanest expression here since sqlc cannot represent "set NULL".
-func unmarkMessageDone(ctx context.Context, q Querier, email string, id int) error {
+func unmarkMessageDone(ctx context.Context, q Querier, email string, id MessageID) error {
 	return withTx(ctx, q, func(qw Querier) error {
 		const stmt = `UPDATE messages SET done = 0, completed_at = NULL WHERE id = ? AND user_email = ?`
-		if _, err := qw.ExecContext(ctx, stmt, id, email); err != nil {
+		if _, err := qw.ExecContext(ctx, stmt, int64(id), email); err != nil {
 			return err
 		}
 		InvalidateCache(email)
@@ -172,7 +172,7 @@ func unmarkMessageDone(ctx context.Context, q Querier, email string, id int) err
 	})
 }
 
-func UpdateTaskText(ctx context.Context, q Querier, email string, id int, task string) error {
+func UpdateTaskText(ctx context.Context, q Querier, email string, id MessageID, task string) error {
 	if id <= 0 {
 		return fmt.Errorf("invalid task id: %d", id)
 	}
@@ -190,14 +190,14 @@ func UpdateTaskText(ctx context.Context, q Querier, email string, id int, task s
 
 // UpdateSubtaskStatus toggles the 'done' status of a specific subtask within a consolidated task.
 // Why: [Data Integrity] Loads the entire task to update the JSON subtasks array safely within a transaction.
-func UpdateSubtaskStatus(ctx context.Context, q Querier, email string, id, subtaskIndex int, done bool) error {
+func UpdateSubtaskStatus(ctx context.Context, q Querier, email string, id MessageID, subtaskIndex int, done bool) error {
 	return withTx(ctx, q, func(qw Querier) error {
 		return updateSubtaskStatusInternal(ctx, qw, email, id, subtaskIndex, done)
 	})
 }
 
 // UpdateSubtasks replaces the entire subtask list for a message.
-func UpdateSubtasks(ctx context.Context, q Querier, email string, id int, subtasks []Subtask) error {
+func UpdateSubtasks(ctx context.Context, q Querier, email string, id MessageID, subtasks []Subtask) error {
 	subtasksJSON, err := json.Marshal(subtasks)
 	if err != nil {
 		return fmt.Errorf("failed to marshal subtasks: %w", err)
@@ -214,7 +214,7 @@ func UpdateSubtasks(ctx context.Context, q Querier, email string, id int, subtas
 	return err
 }
 
-func updateSubtaskStatusInternal(ctx context.Context, q Querier, email string, id, subtaskIndex int, done bool) error {
+func updateSubtaskStatusInternal(ctx context.Context, q Querier, email string, id MessageID, subtaskIndex int, done bool) error {
 	if id <= 0 {
 		return fmt.Errorf("invalid task id: %d", id)
 	}
@@ -305,7 +305,7 @@ func findBestMatch(currIdx int, items []TodoItem, seen map[int]bool) int {
 
 // MergeTasksWithTitle consolidates multiple tasks into one with a specific title (AI generated).
 // Why: [Unified Consolidation] Combines source tasks into a destination task while setting a new optimized title.
-func MergeTasksWithTitle(ctx context.Context, email string, targetIDs []int64, destID int64, newTitle string) error {
+func MergeTasksWithTitle(ctx context.Context, email string, targetIDs []MessageID, destID MessageID, newTitle string) error {
 	conn := GetDB()
 	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
@@ -313,7 +313,8 @@ func MergeTasksWithTitle(ctx context.Context, email string, targetIDs []int64, d
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	allIDs := append(toIntList(targetIDs), int(destID))
+	allIDs := append([]MessageID{}, targetIDs...)
+	allIDs = append(allIDs, destID)
 	msgs, err := GetMessagesByIDs(ctx, tx, email, allIDs)
 	if err != nil {
 		return err
@@ -348,23 +349,17 @@ func MergeTasksWithTitle(ctx context.Context, email string, targetIDs []int64, d
 	return nil
 }
 
-func toInt64List(ids []int) []int64 {
+func toInt64List(ids []MessageID) []int64 {
 	res := make([]int64, len(ids))
 	for i, id := range ids { res[i] = int64(id) }
 	return res
 }
 
-func toIntList(ids []int64) []int {
-	res := make([]int, len(ids))
-	for i, id := range ids { res[i] = int(id) }
-	return res
-}
-
-func splitMergeTasks(msgs []ConsolidatedMessage, destID int64) (*ConsolidatedMessage, []ConsolidatedMessage, error) {
+func splitMergeTasks(msgs []ConsolidatedMessage, destID MessageID) (*ConsolidatedMessage, []ConsolidatedMessage, error) {
 	var dest *ConsolidatedMessage
 	var sources []ConsolidatedMessage
 	for i := range msgs {
-		if int64(msgs[i].ID) == destID {
+		if msgs[i].ID == destID {
 			dest = &msgs[i]
 		} else {
 			sources = append(sources, msgs[i])
@@ -383,7 +378,7 @@ func buildMergeHistory(oldTitle string, sources []ConsolidatedMessage) string {
 	return builder.String()
 }
 
-func applyMergeTransaction(ctx context.Context, tx *sql.Tx, email, room string, targetIDs []int64, destID int, title, history string) error {
+func applyMergeTransaction(ctx context.Context, tx *sql.Tx, email, room string, targetIDs []MessageID, destID MessageID, title, history string) error {
 	queries := db.New(tx)
 	if err := queries.UpdateTaskMergeComplete(ctx, db.UpdateTaskMergeCompleteParams{
 		Task:         nullString(title),
@@ -395,35 +390,32 @@ func applyMergeTransaction(ctx context.Context, tx *sql.Tx, email, room string, 
 		return err
 	}
 
-	targetIDsInt := make([]int, len(targetIDs))
-	for i, id := range targetIDs {
-		targetIDsInt[i] = int(id)
-	}
+	targetIDsRaw := toInt64List(targetIDs)
 
 	if err := queries.UpdateCategoryMerged(ctx, db.UpdateCategoryMergedParams{
-		Ids:       targetIDs,
+		Ids:       targetIDsRaw,
 		UserEmail: nullString(email),
 	}); err != nil {
 		return err
 	}
 
 	// Why: Ensures all merged tasks (sources and destination) clear their translation cache to prevent stale text.
-	allIDs := append(targetIDsInt, destID)
+	allIDs := append(targetIDsRaw, int64(destID))
 	for _, id := range allIDs {
-		if err := queries.DeleteTaskTranslations(ctx, nullInt64(int64(id))); err != nil {
+		if err := queries.DeleteTaskTranslations(ctx, nullInt64(id)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func UpdateMessageCategory(ctx context.Context, q Querier, email string, id int, category string) error {
+func UpdateMessageCategory(ctx context.Context, q Querier, email string, id MessageID, category string) error {
 	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
 		p.Category = nullString(category)
 	})
 }
 
-func UpdateTaskAssignee(ctx context.Context, q Querier, email string, id int, assignee string) error {
+func UpdateTaskAssignee(ctx context.Context, q Querier, email string, id MessageID, assignee string) error {
 	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
 		p.Assignee = nullString(assignee)
 	})
@@ -432,7 +424,7 @@ func UpdateTaskAssignee(ctx context.Context, q Querier, email string, id int, as
 // UpdateTaskAssigneeAndAssignedAt atomically updates the assignee and assigned_at envelope timestamp.
 // Why (Phase J Path B): @mention reassignment must bump assigned_at to the trigger message's envelope
 // timestamp. Splitting into two separate updates is racy and leaves stale assigned_at on intermediate reads.
-func UpdateTaskAssigneeAndAssignedAt(ctx context.Context, q Querier, email string, id int, assignee string, assignedAt time.Time) error {
+func UpdateTaskAssigneeAndAssignedAt(ctx context.Context, q Querier, email string, id MessageID, assignee string, assignedAt time.Time) error {
 	return withTx(ctx, q, func(qw Querier) error {
 		if err := db.New(qw).UpdateTaskAssigneeAndAssignedAt(ctx, db.UpdateTaskAssigneeAndAssignedAtParams{
 			ID:         int64(id),
@@ -449,7 +441,7 @@ func UpdateTaskAssigneeAndAssignedAt(ctx context.Context, q Querier, email strin
 
 // UpdateTaskAssigneesBatch updates multiple tasks' assignees in a single transaction.
 // Why: [Performance] Eliminates N+1 DB operations by batching updates and invalidating cache once.
-func UpdateTaskAssigneesBatch(ctx context.Context, email string, updates map[int]string) error {
+func UpdateTaskAssigneesBatch(ctx context.Context, email string, updates map[MessageID]string) error {
 	if len(updates) == 0 {
 		return nil
 	}
@@ -475,7 +467,7 @@ func UpdateTaskAssigneesBatch(ctx context.Context, email string, updates map[int
 	return err
 }
 
-func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id int, newTask, newOriginalText string) error {
+func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id MessageID, newTask, newOriginalText string) error {
 	// Why: An empty newTask would overwrite the existing title and hide the row.
 	// Fall back to append-only path so original_text still grows for audit while
 	// task text is preserved.
@@ -497,7 +489,7 @@ func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id
 	return err
 }
 
-func AppendOriginalText(ctx context.Context, q Querier, email, room string, id int, text string) error {
+func AppendOriginalText(ctx context.Context, q Querier, email, room string, id MessageID, text string) error {
 	err := db.New(q).AppendOriginalText(ctx, db.AppendOriginalTextParams{
 		OriginalText: nullString(text),
 		ID:           int64(id),
@@ -510,14 +502,14 @@ func AppendOriginalText(ctx context.Context, q Querier, email, room string, id i
 	return err
 }
 
-func UpdateTaskSourceChannels(ctx context.Context, q Querier, email string, id int, channels []string) error {
+func UpdateTaskSourceChannels(ctx context.Context, q Querier, email string, id MessageID, channels []string) error {
 	channelsJSON, _ := json.Marshal(channels)
 	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
 		p.SourceChannels = nullString(string(channelsJSON))
 	})
 }
 
-func batchMsgOp(email string, ids []int, op func([]int64) error) error {
+func batchMsgOp(email string, ids []MessageID, op func([]int64) error) error {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -528,25 +520,25 @@ func batchMsgOp(email string, ids []int, op func([]int64) error) error {
 	return nil
 }
 
-func DeleteMessages(ctx context.Context, q Querier, email string, ids []int) error {
+func DeleteMessages(ctx context.Context, q Querier, email string, ids []MessageID) error {
 	return batchMsgOp(email, ids, func(i64 []int64) error {
 		return db.New(q).DeleteMessages(ctx, db.DeleteMessagesParams{UserEmail: nullString(email), Ids: i64})
 	})
 }
 
-func HardDeleteMessages(ctx context.Context, q Querier, email string, ids []int) error {
+func HardDeleteMessages(ctx context.Context, q Querier, email string, ids []MessageID) error {
 	return batchMsgOp(email, ids, func(i64 []int64) error {
 		return db.New(q).HardDeleteMessages(ctx, db.HardDeleteMessagesParams{UserEmail: nullString(email), Ids: i64})
 	})
 }
 
-func RestoreMessages(ctx context.Context, q Querier, email string, ids []int) error {
+func RestoreMessages(ctx context.Context, q Querier, email string, ids []MessageID) error {
 	return batchMsgOp(email, ids, func(i64 []int64) error {
 		return db.New(q).RestoreMessages(ctx, db.RestoreMessagesParams{UserEmail: nullString(email), Ids: i64})
 	})
 }
 
-func GetMessageByID(ctx context.Context, q Querier, email string, id int) (ConsolidatedMessage, error) {
+func GetMessageByID(ctx context.Context, q Querier, email string, id MessageID) (ConsolidatedMessage, error) {
 	if msg, found := findMessageInCache(email, id); found {
 		return msg, nil
 	}
@@ -561,7 +553,7 @@ func GetMessageByID(ctx context.Context, q Querier, email string, id int) (Conso
 	return toConsolidatedFromByID(row), nil
 }
 
-func findMessageInCache(email string, id int) (ConsolidatedMessage, bool) {
+func findMessageInCache(email string, id MessageID) (ConsolidatedMessage, bool) {
 	if email == "" {
 		return ConsolidatedMessage{}, false
 	}
@@ -581,7 +573,7 @@ func findMessageInCache(email string, id int) (ConsolidatedMessage, bool) {
 	return ConsolidatedMessage{}, false
 }
 
-func GetMessagesByIDs(ctx context.Context, q Querier, email string, ids []int) ([]ConsolidatedMessage, error) {
+func GetMessagesByIDs(ctx context.Context, q Querier, email string, ids []MessageID) ([]ConsolidatedMessage, error) {
 	if len(ids) == 0 {
 		return []ConsolidatedMessage{}, nil
 	}
@@ -603,9 +595,9 @@ func GetMessagesByIDs(ctx context.Context, q Querier, email string, ids []int) (
 	return append(found, fromDB...), nil
 }
 
-func extractFromCache(email string, ids []int) ([]ConsolidatedMessage, []int) {
+func extractFromCache(email string, ids []MessageID) ([]ConsolidatedMessage, []MessageID) {
 	var found []ConsolidatedMessage
-	var missing []int
+	var missing []MessageID
 	for _, id := range ids {
 		if m, ok := findMessageInCache(email, id); ok {
 			found = append(found, m)
@@ -710,7 +702,7 @@ func encodeSubtasks(subtasks []Subtask) string {
 
 func toConsolidatedFromByID(row db.GetMessageByIDRow) ConsolidatedMessage {
 	return MapVMessageToConsolidated(
-		int(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
+		MessageID(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
 		row.Requester, row.Assignee, row.Link, row.SourceTs,
 		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
 		row.Category, row.Deadline, row.ThreadID,
@@ -724,7 +716,7 @@ func toConsolidatedFromByID(row db.GetMessageByIDRow) ConsolidatedMessage {
 
 func toConsolidatedFromByIDs(row db.GetMessagesByIDsRow) ConsolidatedMessage {
 	return MapVMessageToConsolidated(
-		int(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
+		MessageID(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
 		row.Requester, row.Assignee, row.Link, row.SourceTs,
 		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
 		row.Category, row.Deadline, row.ThreadID,
@@ -738,7 +730,7 @@ func toConsolidatedFromByIDs(row db.GetMessagesByIDsRow) ConsolidatedMessage {
 
 func toConsolidatedFromIncomplete(row db.GetIncompleteByThreadIDRow) ConsolidatedMessage {
 	return MapVMessageToConsolidated(
-		int(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
+		MessageID(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
 		row.Requester, row.Assignee, row.Link, row.SourceTs,
 		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
 		row.Category, row.Deadline, row.ThreadID,
@@ -761,7 +753,7 @@ func UnmarshalMessageComponents(constraintsStr, channelsStr, contextStr, subtask
 }
 
 func MapVMessageToConsolidated(
-	id int, userEmail, source, room, task, requester, assignee, link, sourceTs,
+	id MessageID, userEmail, source, room, task, requester, assignee, link, sourceTs,
 	originalText string, done, isDeleted bool, createdAt sql.NullTime,
 	category, deadline, threadID, reqCanonical, asgCanonical, asgReason,
 	repliedToID string, isContextQuery int, constraintsStr, contextStr,
@@ -797,7 +789,7 @@ func MapVMessageToConsolidated(
 
 func toConsolidatedFromContext(row db.GetActiveTasksForContextRow) ConsolidatedMessage {
 	msg := ConsolidatedMessage{
-		ID:           int(row.ID),
+		ID:           MessageID(row.ID),
 		Task:         row.Task,
 		OriginalText: row.OriginalText,
 		Requester:    row.Requester,

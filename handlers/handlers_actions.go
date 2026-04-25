@@ -162,10 +162,10 @@ func (a *API) gatherMessagesForTranslation(ctx context.Context, email string) ([
 }
 
 // Why: Optimizes AI API usage by stripping duplicate task IDs and filtering out tasks that have already been translated.
-func (a *API) filterUntranslatedIDs(ctx context.Context, msgs []store.ConsolidatedMessage, lang string) ([]int, error) {
+func (a *API) filterUntranslatedIDs(ctx context.Context, msgs []store.ConsolidatedMessage, lang string) ([]store.MessageID, error) {
 	//Why: Deduplicates message IDs before processing to avoid redundant translation requests and minimize AI API expenses.
-	uniqueIDs := make(map[int]bool)
-	var idList []int
+	uniqueIDs := make(map[store.MessageID]bool)
+	var idList []store.MessageID
 	for _, m := range msgs {
 		if !uniqueIDs[m.ID] {
 			uniqueIDs[m.ID] = true
@@ -178,7 +178,7 @@ func (a *API) filterUntranslatedIDs(ctx context.Context, msgs []store.Consolidat
 		return nil, err
 	}
 
-	var toTranslateIDs []int
+	var toTranslateIDs []store.MessageID
 	for _, id := range idList {
 		if _, ok := existingTranslations[id]; !ok {
 			toTranslateIDs = append(toTranslateIDs, id)
@@ -188,7 +188,7 @@ func (a *API) filterUntranslatedIDs(ctx context.Context, msgs []store.Consolidat
 }
 
 // Why: Chunks large translation requests into manageable batches to stay within token limits and handle partial failures gracefully.
-func (a *API) processTranslationBatches(ctx context.Context, email string, toTranslateIDs []int, lang string) {
+func (a *API) processTranslationBatches(ctx context.Context, email string, toTranslateIDs []store.MessageID, lang string) {
 	const batchSize = 30
 	var totalTranslated int
 

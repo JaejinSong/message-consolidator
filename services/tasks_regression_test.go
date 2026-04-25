@@ -88,7 +88,7 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 		{"Turn7_Bob_Res2", "Bob", "네, 좋습니다! 확인했습니다.", "resolve"},
 	}
 
-	var taskAID, taskBID int
+	var taskAID, taskBID store.MessageID
 
 	for i, turn := range scenario {
 		turnNum := i + 1
@@ -111,7 +111,8 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 			mockAI.CurrentTurn = turnNum
 			if matches, ok := mockAI.Results[turnNum]; ok {
 				for j := range matches {
-					matches[j].ID = ptr(0)
+					id := store.MessageID(0)
+					matches[j].ID = &id
 				}
 				mockAI.Results[turnNum] = matches
 			}
@@ -137,10 +138,10 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 			}
 
 			if turn.Expected == "resolve" {
-				var targetID int
+				var targetID store.MessageID
 				if turnNum == 5 { targetID = taskAID }
 				if turnNum == 7 { targetID = taskBID }
-				
+
 				m, _ := store.GetMessageByID(ctx, store.GetDB(), email, targetID)
 				if !m.Done {
 					t.Errorf("%s: Task %d should be resolved", turn.Name, targetID)
@@ -150,6 +151,6 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 	}
 }
 
-func ptr(i int) *int {
-	return &i
+func ptr[T any](v T) *T {
+	return &v
 }

@@ -103,7 +103,7 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, 
 	if err != nil {
 		return nil, err
 	}
-	report.ID = int(id)
+	report.ID = id
 
 	// 4. Background Job
 	if s.isTest {
@@ -139,7 +139,7 @@ func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, star
 	return filtered, nil
 }
 
-func (s *ReportsService) processAsyncReport(email, start, end, lang string, id int, logs []Log) {
+func (s *ReportsService) processAsyncReport(email, start, end, lang string, id store.ReportID, logs []Log) {
 	// Why: trace.Start (not StartWithContext) creates a NEW trace context on a fresh
 	// background ctx — StartWithContext silently skips when no parent trace ctx exists.
 	// Name MUST start with `/` so urlutil.NewURL parses it as Path; without the slash
@@ -159,7 +159,7 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id i
 		return
 	}
 	vizJSON := s.getVisualizationJSON(email, logs)
-	if err := store.SaveReportTranslation(ctx, int64(id), "en", summary); err != nil {
+	if err := store.SaveReportTranslation(ctx, id, "en", summary); err != nil {
 		logger.Warnf("[REPORTS] SaveReportTranslation failed for report %d: %v", id, err)
 	}
 	if err := store.UpdateReportStatus(ctx, store.ReportStatusCompleted, vizJSON, isTruncated, id, email); err != nil {
@@ -172,7 +172,7 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id i
 	}
 }
 
-func (s *ReportsService) markFailed(ctx context.Context, email string, id int) {
+func (s *ReportsService) markFailed(ctx context.Context, email string, id store.ReportID) {
 	if err := store.UpdateReportStatus(ctx, store.ReportStatusFailed, "{}", false, id, email); err != nil {
 		logger.Warnf("[REPORTS] UpdateReportStatus(failed) failed for report %d: %v", id, err)
 	}
@@ -422,7 +422,7 @@ func (s *ReportsService) resolveRelationActor(email, canonicalID, displayName, c
 
 // ProcessOnDemandTranslation handles Just-In-Time (JIT) translation for a specific report and language.
 // It delegates the heavy lifting to TranslationService while managing report-specific caching.
-func (s *ReportsService) ProcessOnDemandTranslation(ctx context.Context, email string, reportID int, langCode string) (string, error) {
+func (s *ReportsService) ProcessOnDemandTranslation(ctx context.Context, email string, reportID store.ReportID, langCode string) (string, error) {
 	// 2. Fetch the original report (usually English if it's the fallback)
 	report, err := store.GetReportByID(ctx, reportID, email)
 	if err != nil {
@@ -445,7 +445,7 @@ func (s *ReportsService) ProcessOnDemandTranslation(ctx context.Context, email s
 	}
 
 	// 4. Cache in DB
-	if err := store.SaveReportTranslation(ctx, int64(reportID), langCode, translated); err != nil {
+	if err := store.SaveReportTranslation(ctx, reportID, langCode, translated); err != nil {
 		logger.Errorf("[REPORTS] Failed to cache translation: %v", err)
 	}
 

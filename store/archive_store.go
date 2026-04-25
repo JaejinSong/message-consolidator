@@ -111,7 +111,7 @@ func mapRowSliceToMessage(rows []db.SearchArchivedMessagesRow) []ConsolidatedMes
 	msgs := make([]ConsolidatedMessage, len(rows))
 	for i, r := range rows {
 		msgs[i] = MapVMessageToConsolidated(
-			int(r.ID), r.UserEmail, r.Source, r.Room, r.Task,
+			MessageID(r.ID), r.UserEmail, r.Source, r.Room, r.Task,
 			r.Requester, r.Assignee, r.Link, r.SourceTs,
 			r.OriginalText, r.Done, r.IsDeleted, r.CreatedAt,
 			r.Category, r.Deadline, r.ThreadID,

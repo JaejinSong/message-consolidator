@@ -48,7 +48,7 @@ func TestMergeTasksWithTitle_EmptyTitle_PreservesDest(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := MergeTasksWithTitle(ctx, email, []int64{int64(srcID)}, int64(destID), tc.title)
+			err := MergeTasksWithTitle(ctx, email, []MessageID{srcID}, destID, tc.title)
 			if err == nil {
 				// Even if the call succeeds (because guard substituted dest.Task),
 				// dest must not have an empty task.

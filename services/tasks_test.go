@@ -118,7 +118,7 @@ func TestPrepareMessagesForClient_CategoryStableAcrossLang(t *testing.T) {
 	}
 
 	// Pre-seed KO translation so ApplyTranslations hits the cache and skips JIT.
-	if err := store.SaveTaskTranslationsBulk(ctx, "ko", map[int]string{101: taskKO}); err != nil {
+	if err := store.SaveTaskTranslationsBulk(ctx, "ko", map[store.MessageID]string{101: taskKO}); err != nil {
 		t.Fatalf("seed translation: %v", err)
 	}
 

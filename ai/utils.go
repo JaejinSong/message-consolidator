@@ -10,9 +10,9 @@ import (
 )
 
 type flexSubtask struct {
-	Task         string `json:"task"`
-	AssigneeID   *int   `json:"assignee_id"`
-	AssigneeName string `json:"assignee_name"`
+	Task         string         `json:"task"`
+	AssigneeID   *store.UserID  `json:"assignee_id"`
+	AssigneeName string         `json:"assignee_name"`
 }
 
 type flexItem struct {
@@ -22,9 +22,9 @@ type flexItem struct {
 	Reasoning       string          `json:"reasoning,omitempty"`
 	Task            string          `json:"task"`
 	Requester       string          `json:"requester"`
-	RequesterID     *int            `json:"requester_id"`
+	RequesterID     *store.UserID   `json:"requester_id"`
 	Assignee        string          `json:"assignee"`
-	AssigneeID      *int            `json:"assignee_id"`
+	AssigneeID      *store.UserID   `json:"assignee_id"`
 	AssignedTo      string          `json:"assigned_to,omitempty"`
 	AssignedAt      string          `json:"assigned_at"`
 	SourceTS        string          `json:"source_ts"`
@@ -39,7 +39,7 @@ type flexItem struct {
 	Subtasks        []flexSubtask   `json:"subtasks,omitempty"`
 }
 
-func unmarshalAnalyze(cleanJSON, rawJSON, userEmail string, currentUserID int) ([]store.TodoItem, error) {
+func unmarshalAnalyze(cleanJSON, rawJSON, userEmail string, currentUserID store.UserID) ([]store.TodoItem, error) {
 	cleanJSON = strings.TrimSpace(cleanJSON)
 	if len(cleanJSON) < 2 {
 		return nil, fmt.Errorf("empty JSON")
@@ -92,7 +92,7 @@ func tryDecodeFlexItems(cleanJSON string) []flexItem {
 	return wrapped.Items
 }
 
-func mapFlexToTodo(f flexItem, currentUserID int, userEmail string) store.TodoItem {
+func mapFlexToTodo(f flexItem, currentUserID store.UserID, userEmail string) store.TodoItem {
 	assignee := f.Assignee
 	if f.AssigneeID != nil && *f.AssigneeID == currentUserID {
 		assignee = userEmail
@@ -129,11 +129,12 @@ func mapFlexToTodo(f flexItem, currentUserID int, userEmail string) store.TodoIt
 	// ID type normalization
 	switch v := f.ID.(type) {
 	case float64:
-		id := int(v)
+		id := store.MessageID(v)
 		item.ID = &id
 	case string:
-		var id int
-		if _, err := fmt.Sscanf(v, "%d", &id); err == nil {
+		var raw int64
+		if _, err := fmt.Sscanf(v, "%d", &raw); err == nil {
+			id := store.MessageID(raw)
 			item.ID = &id
 		}
 	}

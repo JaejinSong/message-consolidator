@@ -2,6 +2,7 @@ package ai
 
 import (
 	"encoding/base64"
+	"message-consolidator/store"
 	"testing"
 )
 
@@ -213,9 +214,9 @@ func TestUnmarshalAnalyze(t *testing.T) {
 
 func TestMapFlexToTodo_IdentityNormalization(t *testing.T) {
 	t.Parallel()
-	const userID = 42
+	const userID store.UserID = 42
 	const userEmail = "jj@example.com"
-	ptr := func(i int) *int { return &i }
+	ptr := func(i store.UserID) *store.UserID { return &i }
 
 	tests := []struct {
 		name                    string

@@ -63,7 +63,7 @@ func TestResolveProposals_IDMatch(t *testing.T) {
 	email := "test@example.com"
 	room := "biz-global-thailand"
 
-	existingID := 5
+	existingID := store.MessageID(5)
 	active := []store.ConsolidatedMessage{
 		{ID: existingID, Room: room, Category: "TASK", Task: "Attend Carabao online meeting"},
 	}

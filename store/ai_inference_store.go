@@ -9,7 +9,7 @@ import (
 
 // LogAIInference records the raw AI input and output for long-term prompt performance analysis.
 // Why: Enables Data Flywheel by building a dataset of real-world AI inferences for future fine-tuning and evaluation.
-func LogAIInference(messageID int, source, originalText, rawResponse string) error {
+func LogAIInference(messageID MessageID, source, originalText, rawResponse string) error {
 	conn := GetDB()
 	if conn == nil {
 		return sql.ErrConnDone

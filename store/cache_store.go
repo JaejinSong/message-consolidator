@@ -112,7 +112,7 @@ func buildMessages(rows []db.RefreshCacheActiveRow, resolver map[string]Resolved
 		reqDisplay, reqCanon, reqType := resolveContact(resolver, r.Requester)
 		asgDisplay, asgCanon, asgType := resolveContact(resolver, r.Assignee)
 		m := MapVMessageToConsolidated(
-			int(r.ID), r.UserEmail, r.Source, r.Room, r.Task,
+			MessageID(r.ID), r.UserEmail, r.Source, r.Room, r.Task,
 			reqDisplay, asgDisplay, r.Link, r.SourceTs,
 			r.OriginalText, r.Done.Bool, r.IsDeleted.Bool, r.CreatedAt,
 			r.Category, r.Deadline, r.ThreadID,
@@ -134,7 +134,7 @@ func buildArchiveMessages(rows []db.RefreshCacheArchiveRow, resolver map[string]
 		reqDisplay, reqCanon, reqType := resolveContact(resolver, r.Requester)
 		asgDisplay, asgCanon, asgType := resolveContact(resolver, r.Assignee)
 		msgs = append(msgs, MapVMessageToConsolidated(
-			int(r.ID), r.UserEmail, r.Source, r.Room, r.Task,
+			MessageID(r.ID), r.UserEmail, r.Source, r.Room, r.Task,
 			reqDisplay, asgDisplay, r.Link, r.SourceTs,
 			r.OriginalText, r.Done.Bool, r.IsDeleted.Bool, r.CreatedAt,
 			r.Category, r.Deadline, r.ThreadID,

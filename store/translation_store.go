@@ -10,14 +10,14 @@ import (
 )
 
 var (
-	translationCache = make(map[string]map[int]string) //Why: Maps language codes and message IDs to translated text for fast lookups.
+	translationCache = make(map[string]map[MessageID]string) //Why: Maps language codes and message IDs to translated text for fast lookups.
 	translationMu    sync.RWMutex
 )
 
-func GetTaskTranslationsBatch(ctx context.Context, messageIDs []int, langCode string) (map[int]string, error) {
+func GetTaskTranslationsBatch(ctx context.Context, messageIDs []MessageID, langCode string) (map[MessageID]string, error) {
 	if langCode == "" { langCode = "en" }
 	if len(messageIDs) == 0 {
-		return make(map[int]string), nil
+		return make(map[MessageID]string), nil
 	}
 
 	results, missingIDs := splitTranslationsByCache(langCode, messageIDs)
@@ -41,16 +41,16 @@ func GetTaskTranslationsBatch(ctx context.Context, messageIDs []int, langCode st
 		return nil, err
 	}
 
-	dbResults := make(map[int]string)
+	dbResults := make(map[MessageID]string)
 	for _, row := range rows {
-		mid := int(row.MessageID.Int64)
+		mid := MessageID(row.MessageID.Int64)
 		dbResults[mid] = row.TranslatedText
 		results[mid] = row.TranslatedText
 	}
 
 	translationMu.Lock()
 	if translationCache[langCode] == nil {
-		translationCache[langCode] = make(map[int]string)
+		translationCache[langCode] = make(map[MessageID]string)
 	}
 	for _, id := range missingIDs {
 		if text, ok := dbResults[id]; ok {
@@ -65,18 +65,18 @@ func GetTaskTranslationsBatch(ctx context.Context, messageIDs []int, langCode st
 }
 
 //Why: Cache hit returns the translated text immediately; misses (or absent language) bubble up to the SQL fetch.
-func splitTranslationsByCache(langCode string, messageIDs []int) (map[int]string, []int) {
-	results := make(map[int]string)
+func splitTranslationsByCache(langCode string, messageIDs []MessageID) (map[MessageID]string, []MessageID) {
+	results := make(map[MessageID]string)
 	translationMu.RLock()
 	defer translationMu.RUnlock()
 	langCache, ok := translationCache[langCode]
 	if !ok {
 		// Forces a full database lookup if the requested language is missing from the cache.
-		missing := make([]int, len(messageIDs))
+		missing := make([]MessageID, len(messageIDs))
 		copy(missing, messageIDs)
 		return results, missing
 	}
-	var missing []int
+	var missing []MessageID
 	for _, id := range messageIDs {
 		text, exists := langCache[id]
 		if !exists {
@@ -92,7 +92,7 @@ func splitTranslationsByCache(langCode string, messageIDs []int) (map[int]string
 
 // SaveTaskTranslationsBulk saves multiple translations in a single optimized SQL execution.
 // Why: Minimizes database lock contention and ensures atomicity for batch AI results.
-func SaveTaskTranslationsBulk(ctx context.Context, langCode string, results map[int]string) error {
+func SaveTaskTranslationsBulk(ctx context.Context, langCode string, results map[MessageID]string) error {
 	if langCode == "" { langCode = "en" }
 	if len(results) == 0 { return nil }
 
@@ -100,7 +100,7 @@ func SaveTaskTranslationsBulk(ctx context.Context, langCode string, results map[
 	args := make([]interface{}, 0, len(results)*3)
 	for id, text := range results {
 		placeholders = append(placeholders, "(?, ?, ?)")
-		args = append(args, id, langCode, text)
+		args = append(args, int64(id), langCode, text)
 	}
 
 	// Why: Placeholders are static "(?, ?, ?)" tokens generated from len(results); user data
@@ -114,11 +114,11 @@ func SaveTaskTranslationsBulk(ctx context.Context, langCode string, results map[
 	return err
 }
 
-func syncCacheBatch(langCode string, results map[int]string) {
+func syncCacheBatch(langCode string, results map[MessageID]string) {
 	translationMu.Lock()
 	defer translationMu.Unlock()
 	if translationCache[langCode] == nil {
-		translationCache[langCode] = make(map[int]string)
+		translationCache[langCode] = make(map[MessageID]string)
 	}
 	for id, text := range results {
 		translationCache[langCode][id] = text
@@ -127,7 +127,7 @@ func syncCacheBatch(langCode string, results map[int]string) {
 
 // InvalidateTaskTranslation removes a task's translation from both the in-memory cache
 // and the DB so it will be re-translated JIT on the next dashboard load.
-func InvalidateTaskTranslation(ctx context.Context, messageID int) {
+func InvalidateTaskTranslation(ctx context.Context, messageID MessageID) {
 	translationMu.Lock()
 	for _, langCache := range translationCache {
 		delete(langCache, messageID)

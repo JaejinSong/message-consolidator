@@ -26,11 +26,11 @@ func main() {
 
 	fmt.Println("--- [1] Initial Cache Check (Expected: Empty) ---")
 	ctx := context.Background()
-	cached, _ := store.GetTaskTranslationsBatch(ctx, []int{1, 2, 3, 4, 5}, lang)
+	cached, _ := store.GetTaskTranslationsBatch(ctx, []store.MessageID{1, 2, 3, 4, 5}, lang)
 	fmt.Printf("Cached count: %d\n", len(cached))
 
 	fmt.Println("\n--- [2] Bulk Save Simulation ---")
-	newTranslations := map[int]string{
+	newTranslations := map[store.MessageID]string{
 		1: "작업 1",
 		2: "작업 2",
 		3: "작업 3",
@@ -42,7 +42,7 @@ func main() {
 	fmt.Println("Bulk save successful.")
 
 	fmt.Println("\n--- [3] Second Cache Check (Expected: 3 items) ---")
-	cached, _ = store.GetTaskTranslationsBatch(ctx, []int{1, 2, 3, 4, 5}, lang)
+	cached, _ = store.GetTaskTranslationsBatch(ctx, []store.MessageID{1, 2, 3, 4, 5}, lang)
 	fmt.Printf("Cached items: %v\n", cached)
 	
 	if len(cached) != 3 {
@@ -50,11 +50,11 @@ func main() {
 	}
 
 	fmt.Println("\n--- [4] Bulk Upsert Verification (Overwrite test) ---")
-	updates := map[int]string{
+	updates := map[store.MessageID]string{
 		1: "작업 1 (수정됨)",
 	}
 	_ = store.SaveTaskTranslationsBulk(ctx, lang, updates)
-	cached, _ = store.GetTaskTranslationsBatch(ctx, []int{1}, lang)
+	cached, _ = store.GetTaskTranslationsBatch(ctx, []store.MessageID{1}, lang)
 	fmt.Printf("Updated item 1: %s\n", cached[1])
 
 	fmt.Println("\n[Success] Translation Batch Cost Optimization Logic Verified.")

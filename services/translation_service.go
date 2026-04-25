@@ -58,7 +58,7 @@ func (s *TranslationService) Translate(ctx context.Context, email string, dedupl
 func (s *TranslationService) TranslateBatch(ctx context.Context, email string, tasks []store.TranslateRequest, lang string) ([]ai.TranslationResult, error) {
 	if s.gemini == nil || len(tasks) == 0 { return nil, nil }
 	
-	ids := make([]int, len(tasks))
+	ids := make([]store.MessageID, len(tasks))
 	for i, t := range tasks { ids[i] = t.ID }
 	key := fmt.Sprintf("batch-%s-%v", lang, ids)
 

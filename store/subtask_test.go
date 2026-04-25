@@ -36,7 +36,7 @@ func TestUpdateSubtaskStatus(t *testing.T) {
 
 	t.Run("ToggleSubtaskDone", func(t *testing.T) {
 		// Toggle first subtask to DONE
-		err := UpdateSubtaskStatus(ctx, db, email, int(id), 0, true)
+		err := UpdateSubtaskStatus(ctx, db, email, MessageID(id), 0, true)
 		if err != nil {
 			t.Fatalf("UpdateSubtaskStatus failed: %v", err)
 		}
@@ -64,7 +64,7 @@ func TestUpdateSubtaskStatus(t *testing.T) {
 
 	t.Run("ToggleSubtaskBackToNotDone", func(t *testing.T) {
 		// Toggle first subtask back to NOT DONE
-		err := UpdateSubtaskStatus(ctx, db, email, int(id), 0, false)
+		err := UpdateSubtaskStatus(ctx, db, email, MessageID(id), 0, false)
 		if err != nil {
 			t.Fatalf("UpdateSubtaskStatus failed: %v", err)
 		}
@@ -81,7 +81,7 @@ func TestUpdateSubtaskStatus(t *testing.T) {
 	})
 
 	t.Run("InvalidIndex", func(t *testing.T) {
-		err := UpdateSubtaskStatus(ctx, db, email, int(id), 99, true)
+		err := UpdateSubtaskStatus(ctx, db, email, MessageID(id), 99, true)
 		if err == nil {
 			t.Error("Expected error for invalid subtask index, got nil")
 		}

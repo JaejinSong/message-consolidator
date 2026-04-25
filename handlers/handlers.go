@@ -9,6 +9,7 @@ import (
 	"message-consolidator/config"
 	"message-consolidator/logger"
 	"message-consolidator/services"
+	"message-consolidator/store"
 	"net/http"
 	"strconv"
 
@@ -78,14 +79,14 @@ func respondJSON(w http.ResponseWriter, code int, payload interface{}) {
 // BatchIDsRequest is a common DTO for operations targeting multiple message IDs.
 // Why: [DRY] Consolidates request parsing and validation for deletion, restoration, and batch updates.
 type BatchIDsRequest struct {
-	IDs []int `json:"ids"`
-	ID  int   `json:"id"` // Fallback for single ID operations
+	IDs []store.MessageID `json:"ids"`
+	ID  store.MessageID   `json:"id"` // Fallback for single ID operations
 }
 
 // GetIDs normalizes single and multiple ID inputs into a uniform slice.
-func (r *BatchIDsRequest) GetIDs() []int {
+func (r *BatchIDsRequest) GetIDs() []store.MessageID {
 	if len(r.IDs) == 0 && r.ID != 0 {
-		return []int{r.ID}
+		return []store.MessageID{r.ID}
 	}
 	return r.IDs
 }
@@ -105,8 +106,10 @@ func (r *BatchIDsRequest) Validate() error {
 	return nil
 }
 
-// parsePathID extracts and parses an integer path variable by key.
-func parsePathID(r *http.Request, key string) (int, error) {
+// parsePathID extracts a primary-key path variable as a raw int64. Callers
+// wrap with the appropriate phantom type (store.MessageID, store.ReportID, …)
+// since a single path can target different entities (messages vs reports).
+func parsePathID(r *http.Request, key string) (int64, error) {
 	idStr := mux.Vars(r)[key]
 	if idStr == "" {
 		return 0, httpError("Missing " + key)
@@ -115,11 +118,11 @@ func parsePathID(r *http.Request, key string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return int(id64), nil
+	return id64, nil
 }
 
 // parseBatchIDs decodes and validates a BatchIDsRequest, writing error responses on failure.
-func parseBatchIDs(w http.ResponseWriter, r *http.Request) ([]int, bool) {
+func parseBatchIDs(w http.ResponseWriter, r *http.Request) ([]store.MessageID, bool) {
 	var req BatchIDsRequest
 	if !bindJSON(w, r, &req) {
 		return nil, false

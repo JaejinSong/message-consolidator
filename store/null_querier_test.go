@@ -24,7 +24,7 @@ func TestNullQuerierHandling(t *testing.T) {
 		t.Fatalf("Failed to seed message: %v", err)
 	}
 	id64, _ := res.LastInsertId()
-	id := int(id64)
+	id := MessageID(id64)
 
 	t.Run("MarkMessageDone_NullQuerier", func(t *testing.T) {
 		// This should not panic

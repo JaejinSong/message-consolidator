@@ -45,7 +45,7 @@ type RawMessage struct {
 type EnrichedMessage struct {
 	RawContent      string    `json:"raw_content"`
 	SourceChannel   string    `json:"source_channel"` // "whatsapp", "slack", "email"
-	SenderID        int       `json:"sender_id"`      // Why: Explicit integer conversion for DB identity security.
+	SenderID        int64     `json:"sender_id"`      // Why: Explicit integer conversion for DB identity security.
 	SenderName      string    `json:"sender_name"`
 	VirtualThreadID string    `json:"virtual_thread_id"`
 	Timestamp       time.Time `json:"timestamp"`

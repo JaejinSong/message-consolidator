@@ -12,7 +12,7 @@ type DecisionLog struct {
 	Source    string    `json:"source"`
 	Room      string    `json:"room"`
 	State     string    `json:"state"`
-	TaskID    *int      `json:"task_id,omitempty"`
+	TaskID    *int64    `json:"task_id,omitempty"`
 	Task      string    `json:"task"`
 	Reasoning string    `json:"reasoning,omitempty"`
 }

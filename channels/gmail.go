@@ -95,7 +95,7 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 	return svc, nil
 }
 
-func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage) bool) []int {
+func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
 	svc, err := GetGmailService(ctx, email)
 	if err != nil {
 		logger.Debugf("[SCAN-GMAIL] Skipping %s: %v", email, err)
@@ -110,7 +110,7 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 	}
 
 	rawMsgs, clsMap, toMap, maxTS := parseNewEmails(ctx, svc, email, allMsgs, cfg)
-	var newIDs []int
+	var newIDs []store.MessageID
 	if len(rawMsgs) > 0 {
 		newIDs = analyzeAndSaveEmails(ctx, email, language, rawMsgs, clsMap, toMap, cfg, onThreadActivity)
 	}
@@ -396,7 +396,7 @@ func classifyGmail(isFromMe, isTo bool) string {
 	return CategoryOthers
 }
 
-func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage) bool) []int {
+func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
 	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 	if err != nil {
 		logger.Errorf("[SCAN-GMAIL] Failed to init Gemini client: %v", err)
@@ -407,7 +407,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 	aliases, _ := store.GetUserAliases(ctx, user.ID)
 	filterSvc := ai.NewGeminiLiteFilter(gc)
 
-	var totalNewIDs []int
+	var totalNewIDs []store.MessageID
 	batchSize := 10
 	for i := 0; i < len(rawMsgs); i += batchSize {
 		end := i + batchSize
@@ -421,7 +421,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 }
 
 // processBatch handles the analysis and persistence of a single batch of emails.
-func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage) bool) []int {
+func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
 	filteredMsgs := filterGmailBatch(ctx, email, batchMsgs, filterSvc, classificationMap, onThreadActivity)
 	if len(filteredMsgs) == 0 {
 		return nil
@@ -435,7 +435,7 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.Gemini
 	}
 
 	msgByTS := processGeminiItems(email, user, aliases, items, classificationMap, toMap, msgMap) //nolint:contextcheck // Identity-resolution chain (NormalizeContactName) is sweep target of Wave 2 I.
-	var newIDs []int
+	var newIDs []store.MessageID
 	for _, item := range items {
 		msg, ok := msgByTS[item.SourceTS]
 		if !ok {

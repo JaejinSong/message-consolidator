@@ -84,7 +84,7 @@ func TestBatchOperations(t *testing.T) {
 	ctx := context.Background()
 
 	// Use IDs returned by the DB instead of hardcoded ones to prevent collisions.
-	var ids []int
+	var ids []MessageID
 	conn := GetDB()
 	for i := 1; i <= 3; i++ {
 		ts := testutil.RandomTS(fmt.Sprintf("batch_%d", i))
@@ -94,7 +94,7 @@ func TestBatchOperations(t *testing.T) {
 			t.Fatalf("Failed to seed message %d: %v", i, err)
 		}
 		newID, _ := res.LastInsertId()
-		ids = append(ids, int(newID))
+		ids = append(ids, MessageID(newID))
 	}
 
 	t.Run("GetMessagesByIDs", func(t *testing.T) {
@@ -126,7 +126,7 @@ func TestBatchOperations(t *testing.T) {
 		}
 
 		//Why: [Step 2/3] Tests the restoration of a previously soft-deleted message to ensure users can recover items from the trash.
-		if err := RestoreMessages(context.Background(), GetDB(), email, []int{ids[0]}); err != nil {
+		if err := RestoreMessages(context.Background(), GetDB(), email, []MessageID{ids[0]}); err != nil {
 			t.Fatalf("Restore failed: %v", err)
 		}
 		_ = GetDB().QueryRow("SELECT COUNT(*) FROM messages WHERE is_deleted = 1 AND user_email = ?", email).Scan(&count)
