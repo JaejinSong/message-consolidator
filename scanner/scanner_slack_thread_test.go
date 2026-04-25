@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/slack-go/slack"
+	"message-consolidator/store"
 	"message-consolidator/types"
 )
 
@@ -255,6 +256,96 @@ func TestSlackThreadTS(t *testing.T) {
 			got := slackThreadTS(tc.m)
 			if got != tc.expected {
 				t.Errorf("got=%s, want=%s", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestMinThreadTS(t *testing.T) {
+	got := minThreadTS([]store.SlackThreadMeta{
+		{ThreadTS: "1700000200.000000"},
+		{ThreadTS: "1700000100.000000"},
+		{ThreadTS: "1700000300.000000"},
+	})
+	if got != "1700000100.000000" {
+		t.Errorf("got=%s, want=1700000100.000000", got)
+	}
+	if got := minThreadTS(nil); got != "" {
+		t.Errorf("empty input got=%q, want empty", got)
+	}
+}
+
+func TestGroupThreadsByChannel(t *testing.T) {
+	threads := []store.SlackThreadMeta{
+		{ChannelID: "C1", ThreadTS: "1.0"},
+		{ChannelID: "C2", ThreadTS: "2.0"},
+		{ChannelID: "C1", ThreadTS: "3.0"},
+	}
+	out := groupThreadsByChannel(threads)
+	if len(out) != 2 || len(out["C1"]) != 2 || len(out["C2"]) != 1 {
+		t.Errorf("unexpected grouping: %+v", out)
+	}
+}
+
+func TestBuildChannelActivity(t *testing.T) {
+	parentTS := "1700000000.000000"
+	parent := slack.Message{Msg: slack.Msg{Timestamp: parentTS, ThreadTimestamp: parentTS, LatestReply: "1700000050.000000", ReplyCount: 3}}
+	reply := slack.Message{Msg: slack.Msg{Timestamp: "1700000050.000000", ThreadTimestamp: parentTS}}
+	standalone := slack.Message{Msg: slack.Msg{Timestamp: "1700000999.000000"}}
+
+	a := buildChannelActivity([]slack.Message{parent, reply, standalone})
+	if !a.fetched {
+		t.Fatal("fetched=false")
+	}
+	if a.latestReplies[parentTS] != "1700000050.000000" {
+		t.Errorf("latest_reply=%s", a.latestReplies[parentTS])
+	}
+	if a.replyCounts[parentTS] != 3 {
+		t.Errorf("reply_count=%d", a.replyCounts[parentTS])
+	}
+	if _, ok := a.latestReplies["1700000050.000000"]; ok {
+		t.Error("reply message must not be indexed as parent")
+	}
+	if _, ok := a.latestReplies["1700000999.000000"]; ok {
+		t.Error("non-thread message must not be indexed")
+	}
+}
+
+func TestShouldSkipThreadFetch(t *testing.T) {
+	recent := fmt.Sprintf("%d.000000", time.Now().Unix()-3600)
+	expired := fmt.Sprintf("%d.000000", time.Now().Add(-8*24*time.Hour).Unix())
+
+	mkActivity := func(latest string, replyCount int, found bool) map[string]channelActivity {
+		a := channelActivity{
+			latestReplies: map[string]string{},
+			replyCounts:   map[string]int{},
+			fetched:       true,
+		}
+		if found {
+			a.latestReplies["T1"] = latest
+			a.replyCounts["T1"] = replyCount
+		}
+		return map[string]channelActivity{"C1": a}
+	}
+
+	cases := []struct {
+		name string
+		t    store.SlackThreadMeta
+		act  map[string]channelActivity
+		want bool
+	}{
+		{"timed-out forces fetch", store.SlackThreadMeta{ChannelID: "C1", ThreadTS: "T1", LastTS: "X", LastActivityTS: expired}, mkActivity("X", 1, true), false},
+		{"channel not fetched falls through", store.SlackThreadMeta{ChannelID: "C1", ThreadTS: "T1", LastTS: "X", LastActivityTS: recent}, map[string]channelActivity{"C1": {fetched: false}}, false},
+		{"thread parent missing falls through", store.SlackThreadMeta{ChannelID: "C1", ThreadTS: "T1", LastTS: "X", LastActivityTS: recent}, mkActivity("", 0, false), false},
+		{"no replies → skip", store.SlackThreadMeta{ChannelID: "C1", ThreadTS: "T1", LastTS: "", LastActivityTS: recent}, mkActivity("", 0, true), true},
+		{"first reply ever → fetch", store.SlackThreadMeta{ChannelID: "C1", ThreadTS: "T1", LastTS: "", LastActivityTS: recent}, mkActivity("1700000050.000000", 1, true), false},
+		{"latest_reply unchanged → skip", store.SlackThreadMeta{ChannelID: "C1", ThreadTS: "T1", LastTS: "1700000050.000000", LastActivityTS: recent}, mkActivity("1700000050.000000", 1, true), true},
+		{"latest_reply moved forward → fetch", store.SlackThreadMeta{ChannelID: "C1", ThreadTS: "T1", LastTS: "1700000050.000000", LastActivityTS: recent}, mkActivity("1700000099.000000", 2, true), false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := shouldSkipThreadFetch(c.t, c.act); got != c.want {
+				t.Errorf("got=%v want=%v", got, c.want)
 			}
 		})
 	}

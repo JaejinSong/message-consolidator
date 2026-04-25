@@ -81,6 +81,13 @@ func (s *SlackClient) GetChannelName(id string) string {
 	return id
 }
 
+// Why: Exported so scanner-side callers (e.g. sweepSlackThreads) can wrap raw API
+// calls without re-implementing Retry-After handling. Internal callers retain the
+// shorter alias to preserve git blame.
+func WithSlackRetry(maxRetries int, contextMsg string, attemptFunc func() error) error {
+	return withSlackRetry(maxRetries, contextMsg, attemptFunc)
+}
+
 // Why: Implements a retry wrapper that respects Slack's 'Retry-After' header to handle API rate limiting gracefully during heavy scans.
 func withSlackRetry(maxRetries int, contextMsg string, attemptFunc func() error) error {
 	var err error
