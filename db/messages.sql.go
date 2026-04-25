@@ -1166,6 +1166,30 @@ func (q *Queries) UpdateSubtasks(ctx context.Context, arg UpdateSubtasksParams) 
 	return err
 }
 
+const updateTaskAssigneeAndAssignedAt = `-- name: UpdateTaskAssigneeAndAssignedAt :exec
+UPDATE messages
+SET assignee = ?1,
+    assigned_at = ?2
+WHERE id = ?3 AND user_email = ?4
+`
+
+type UpdateTaskAssigneeAndAssignedAtParams struct {
+	Assignee   sql.NullString `json:"assignee"`
+	AssignedAt sql.NullTime   `json:"assigned_at"`
+	ID         int64          `json:"id"`
+	UserEmail  sql.NullString `json:"user_email"`
+}
+
+func (q *Queries) UpdateTaskAssigneeAndAssignedAt(ctx context.Context, arg UpdateTaskAssigneeAndAssignedAtParams) error {
+	_, err := q.db.ExecContext(ctx, updateTaskAssigneeAndAssignedAt,
+		arg.Assignee,
+		arg.AssignedAt,
+		arg.ID,
+		arg.UserEmail,
+	)
+	return err
+}
+
 const updateTaskFullAppend = `-- name: UpdateTaskFullAppend :exec
 UPDATE messages
 SET task = ?1,

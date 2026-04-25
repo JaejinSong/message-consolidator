@@ -27,6 +27,12 @@ WHERE id = ?1 AND user_email = ?2;
 -- name: UpdateSubtasks :exec
 UPDATE messages SET subtasks = ? WHERE id = ? AND user_email = ?;
 
+-- name: UpdateTaskAssigneeAndAssignedAt :exec
+UPDATE messages
+SET assignee = sqlc.arg(assignee),
+    assigned_at = sqlc.arg(assigned_at)
+WHERE id = sqlc.arg(id) AND user_email = sqlc.arg(user_email);
+
 -- name: UpdateTaskFullAppend :exec
 UPDATE messages
 SET task = sqlc.arg(task),

@@ -140,6 +140,7 @@ type Querier interface {
 	UpdateReportStatus(ctx context.Context, arg UpdateReportStatusParams) error
 	UpdateResolutionContactID(ctx context.Context, arg UpdateResolutionContactIDParams) error
 	UpdateSubtasks(ctx context.Context, arg UpdateSubtasksParams) error
+	UpdateTaskAssigneeAndAssignedAt(ctx context.Context, arg UpdateTaskAssigneeAndAssignedAtParams) error
 	UpdateTaskFullAppend(ctx context.Context, arg UpdateTaskFullAppendParams) error
 	UpdateTaskMergeComplete(ctx context.Context, arg UpdateTaskMergeCompleteParams) error
 	UpdateUserDetails(ctx context.Context, arg UpdateUserDetailsParams) error

@@ -36,14 +36,15 @@ type TaskBuildParams struct {
 
 // BuildTask creates a ConsolidatedMessage applying shared identity rules across all channels.
 //
-// Rule hierarchy for Requester:
-//  1. AI-extracted requester (if non-empty)
-//  2. SenderRaw (resolved display name from channel metadata)
-//  3. SenderEmail (raw identifier as last resort)
+// Rule hierarchy for Requester (envelope-driven; AI is fallback only):
+//  1. SenderRaw (resolved display name from channel metadata)
+//  2. SenderEmail (raw identifier)
+//  3. AI-extracted requester (only when both envelope sources are empty)
 //
 // Rule hierarchy for Assignee:
 //  1. AI-extracted assignee, normalized via NormalizeAssignee
-//  2. Falls back to AssigneeShared when AI returns empty
+//  2. Category=PROMISE with empty AI → SenderRaw (envelope-driven speaker fallback)
+//  3. Falls back to AssigneeShared when AI returns empty
 func BuildTask(p TaskBuildParams) store.ConsolidatedMessage {
 	requester := resolveRequester(p)
 	assignee := resolveAssignee(p)
@@ -99,7 +100,7 @@ func resolveTaskTitle(aiTitle, room, original string) string {
 }
 
 // resolveRequester applies the Requester fallback chain.
-// Prioritizes AI extraction, then raw channel metadata for zero-empty guarantee.
+// Phase J Path B: envelope (SenderRaw / SenderEmail) is authoritative; AI is last-resort fallback.
 func resolveRequester(p TaskBuildParams) string {
 	normalize := func(raw string) string {
 		// Why: NormalizeContactName hits the DB; skip if no connection (e.g. unit-test without DB).
@@ -112,19 +113,21 @@ func resolveRequester(p TaskBuildParams) string {
 		return raw
 	}
 
-	// 1. Trust AI if it provided a non-empty, non-garbage value.
+	// Why (Phase J Path B): envelope is metadata-driven. SenderRaw / SenderEmail come from the platform
+	// adapter and are authoritative. AI extraction is allowed only as last-resort fallback when the
+	// adapter could not resolve the sender at all.
+	if p.SenderRaw != "" {
+		return normalize(p.SenderRaw)
+	}
+	if p.SenderEmail != "" {
+		return normalize(p.SenderEmail)
+	}
+
 	if trimmed := strings.TrimSpace(p.Item.Requester); trimmed != "" &&
 		!strings.EqualFold(trimmed, "unknown") && !strings.EqualFold(trimmed, "undefined") {
 		return normalize(trimmed)
 	}
-
-	// 2. Use resolved display name from channel metadata (e.g. Slack username, Gmail From header).
-	if p.SenderRaw != "" {
-		return normalize(p.SenderRaw)
-	}
-
-	// 3. Last resort: raw email / ID.
-	return normalize(p.SenderEmail)
+	return ""
 }
 
 
@@ -138,6 +141,15 @@ func resolveAssignee(p TaskBuildParams) string {
 	// Explicitly bad values returned by AI → treat as empty.
 	if lower == "undefined" || lower == "unknown" {
 		raw = ""
+		lower = ""
+	}
+
+	// Why (Phase J Path B): chat_system Assignee rule 4 (`category=PROMISE → Sender`) moved from
+	// prompt to code so envelope drives the speaker fallback. Applies only when AI left assignee
+	// blank — explicit AI assignments still win.
+	if raw == "" && strings.EqualFold(p.Item.Category, "PROMISE") && p.SenderRaw != "" {
+		raw = p.SenderRaw
+		lower = strings.ToLower(raw)
 	}
 
 	if raw == "" {

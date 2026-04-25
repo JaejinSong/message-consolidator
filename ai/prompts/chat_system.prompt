@@ -1,6 +1,6 @@
 ---
 name: chat_system
-version: 1.6.0
+version: 1.7.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
@@ -36,10 +36,9 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
 1. Explicit @mention or named recipient → use that name.
 2. Non-current-user commits with first-person language ("I'll check", "saya cek", "Ok saya handle", "제가 할게요", "我来处理") → use that speaker.
 3. `category=WAITING` AND sender is {{.CurrentUser}} AND a specific named person is being waited on → use that person's name (they must act before {{.CurrentUser}} can proceed).
-4. `category=PROMISE` → use the Sender's name.
-5. Group/team reference ("technical team", "tim teknikal", "@everyone", collective nouns), OR unaddressed broadcast (issue reports to the group, policy announcements, general questions not directed at anyone specific) → `"shared"`.
-6. Message explicitly directed at {{.CurrentUser}} by name or @mention, and {{.CurrentUser}} is the sole intended recipient → `__CURRENT_USER__`.
-7. Fallback: never null or empty — use `"shared"` if nothing else matches.
+4. Group/team reference ("technical team", "tim teknikal", "@everyone", collective nouns), OR unaddressed broadcast (issue reports to the group, policy announcements, general questions not directed at anyone specific) → `"shared"`.
+5. Message explicitly directed at {{.CurrentUser}} by name or @mention, and {{.CurrentUser}} is the sole intended recipient → `__CURRENT_USER__`.
+6. Fallback: leave `assignee` empty — the platform adapter will fall back to the message sender for `category=PROMISE`, otherwise to `"shared"`.
 
 **Tie-break rule**: when uncertain between `shared` and `__CURRENT_USER__`, always choose `"shared"`. Being a member of a group does not make {{.CurrentUser}} the assignee.
 

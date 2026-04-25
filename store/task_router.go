@@ -130,7 +130,7 @@ func handleUpdate(ctx context.Context, q Querier, email string, item TodoItem, m
 	}
 
 	id := int(*item.ID)
-	
+
 	// Why: [Security] Extracted common validation logic to ensure cross-room updates are dropped.
 	existing, err := validateTargetTask(ctx, q, email, id, msg.Room)
 	if err != nil || existing == nil {
@@ -147,13 +147,18 @@ func handleUpdate(ctx context.Context, q Querier, email string, item TodoItem, m
 	}
 
 	if item.AssignedTo != "" {
-		_ = UpdateTaskAssignee(ctx, q, email, id, NormalizeName(email, item.AssignedTo))
+		normalized := NormalizeName(email, item.AssignedTo)
+		// Why (Phase J Path B): assignee change → bump assigned_at to the trigger message envelope
+		// timestamp so @mention reassignment doesn't leave stale envelope metadata. Same assignee = no-op.
+		if existing.Assignee != normalized {
+			_ = UpdateTaskAssigneeAndAssignedAt(ctx, q, email, id, normalized, msg.AssignedAt)
+		}
 	}
 
 	// Why: Appends the source of the triggering message to the existing task's source_channels.
 	merged := append(existing.SourceChannels, msg.Source)
 	_ = UpdateTaskSourceChannels(ctx, q, email, id, uniqueStrings(merged))
-	
+
 	return id, nil
 }
 

@@ -428,6 +428,24 @@ func UpdateTaskAssignee(ctx context.Context, q Querier, email string, id int, as
 	})
 }
 
+// UpdateTaskAssigneeAndAssignedAt atomically updates the assignee and assigned_at envelope timestamp.
+// Why (Phase J Path B): @mention reassignment must bump assigned_at to the trigger message's envelope
+// timestamp. Splitting into two separate updates is racy and leaves stale assigned_at on intermediate reads.
+func UpdateTaskAssigneeAndAssignedAt(ctx context.Context, q Querier, email string, id int, assignee string, assignedAt time.Time) error {
+	return withTx(ctx, q, func(qw Querier) error {
+		if err := db.New(qw).UpdateTaskAssigneeAndAssignedAt(ctx, db.UpdateTaskAssigneeAndAssignedAtParams{
+			ID:         int64(id),
+			UserEmail:  nullString(email),
+			Assignee:   nullString(assignee),
+			AssignedAt: sql.NullTime{Time: assignedAt, Valid: !assignedAt.IsZero()},
+		}); err != nil {
+			return err
+		}
+		InvalidateCache(email)
+		return nil
+	})
+}
+
 // UpdateTaskAssigneesBatch updates multiple tasks' assignees in a single transaction.
 // Why: [Performance] Eliminates N+1 DB operations by batching updates and invalidating cache once.
 func UpdateTaskAssigneesBatch(ctx context.Context, email string, updates map[int]string) error {
