@@ -104,6 +104,46 @@ func TestUpdateTaskText_EmptyInput_NoOp(t *testing.T) {
 	}
 }
 
+// Regression: MarkMessageDone(false) must clear completed_at, not leave the
+// timestamp from a prior completion. Reproduces the row-11657 anomaly where
+// completed_at remained populated even though done was flipped back to 0.
+func TestMarkMessageDone_Undo_ClearsCompletedAt(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	email := testutil.RandomEmail("undo")
+
+	_, id, err := SaveMessage(ctx, GetDB(), ConsolidatedMessage{
+		UserEmail: email, Source: "slack", SourceTS: "u-1", Task: "T",
+	})
+	if err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	if err := MarkMessageDone(ctx, GetDB(), email, id, true); err != nil {
+		t.Fatalf("mark done: %v", err)
+	}
+	mDone, _ := GetMessageByID(ctx, GetDB(), email, id)
+	if mDone.CompletedAt == nil {
+		t.Fatalf("post-done: completed_at must be populated")
+	}
+
+	if err := MarkMessageDone(ctx, GetDB(), email, id, false); err != nil {
+		t.Fatalf("undo done: %v", err)
+	}
+	mUndone, _ := GetMessageByID(ctx, GetDB(), email, id)
+	if mUndone.Done {
+		t.Errorf("done should be false after undo")
+	}
+	if mUndone.CompletedAt != nil {
+		t.Errorf("completed_at must be NULL after undo, got %v", *mUndone.CompletedAt)
+	}
+}
+
 // Regression: UpdateTaskFullAppend with blank newTask must preserve the title
 // while still appending to original_text (audit trail intact).
 func TestUpdateTaskFullAppend_EmptyTask_AppendsOnly(t *testing.T) {

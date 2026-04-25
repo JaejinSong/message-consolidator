@@ -10,11 +10,13 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/whatap/go-api/trace"
 )
 
 // ReportSummarizer defines the strategy for generating report summaries from logs.
 type ReportSummarizer interface {
-	Generate(ctx context.Context, logs string) (string, error)
+	Generate(ctx context.Context, email, logs string) (string, error)
 }
 
 // ReportConfig encapsulates configuration parameters for the report service.
@@ -37,11 +39,8 @@ func NewFlashSingleSummarizer(gemini *ai.GeminiClient) *FlashSingleSummarizer {
 }
 
 // Generate implements the ReportSummarizer interface by calling the Gemini API for a single-pass summary.
-func (s *FlashSingleSummarizer) Generate(ctx context.Context, logs string) (string, error) {
-	// Note: email is not passed here as per the requested interface signature.
-	// GeminiClient's GenerateReportSummary currently uses email for token usage logging.
-	// We'll pass an empty string or consider refactoring GeminiClient if persistent user-tracking is needed here.
-	return s.gemini.GenerateReportSummary(ctx, "", logs)
+func (s *FlashSingleSummarizer) Generate(ctx context.Context, email, logs string) (string, error) {
+	return s.gemini.GenerateReportSummary(ctx, email, logs)
 }
 
 type ReportsService struct {
@@ -130,13 +129,16 @@ func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, star
 }
 
 func (s *ReportsService) processAsyncReport(email, start, end, lang string, id int, logs []Log) {
-	ctx := context.Background()
+	ctx, _ := trace.StartWithContext(context.Background(), "ReportGeneration")
+	var err error
+	defer func() { trace.End(ctx, err) }()
+
 	taskLogs, isTruncated := s.PrepareLogsForAI(email, logs)
 	if isTruncated {
 		logger.Warnf("[REPORTS] input logs truncated at cutoff (%d bytes): email=%s, total_logs=%d, report_id=%d",
 			s.config.CutoffSize, email, len(logs), id)
 	}
-	summary, err := s.summarizer.Generate(ctx, taskLogs)
+	summary, err := s.summarizer.Generate(ctx, email, taskLogs)
 	if err != nil {
 		s.markFailed(ctx, email, id)
 		return

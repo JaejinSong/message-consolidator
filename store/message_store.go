@@ -146,11 +146,28 @@ func executeUpdateMessageDetails(ctx context.Context, q Querier, email string, i
 }
 
 func MarkMessageDone(ctx context.Context, q Querier, email string, id int, done bool) error {
+	if !done {
+		return unmarkMessageDone(ctx, q, email, id)
+	}
 	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
 		p.Done = nullBool(done)
-		if done {
-			p.CompletedAt = sql.NullTime{Time: time.Now(), Valid: true}
+		p.CompletedAt = sql.NullTime{Time: time.Now(), Valid: true}
+	})
+}
+
+// unmarkMessageDone clears both done and completed_at in one statement.
+// Why: UpdateMessageDetails wraps completed_at in COALESCE(?, completed_at), so
+// passing sql.NullTime{Valid:false} preserves the prior value instead of clearing
+// it — leaving the invariant `done=0 ⇔ completed_at IS NULL` violated. Raw SQL
+// is the cleanest expression here since sqlc cannot represent "set NULL".
+func unmarkMessageDone(ctx context.Context, q Querier, email string, id int) error {
+	return withTx(ctx, q, func(qw Querier) error {
+		const stmt = `UPDATE messages SET done = 0, completed_at = NULL WHERE id = ? AND user_email = ?`
+		if _, err := qw.ExecContext(ctx, stmt, id, email); err != nil {
+			return err
 		}
+		InvalidateCache(email)
+		return nil
 	})
 }
 
