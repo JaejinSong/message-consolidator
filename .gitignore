@@ -1,28 +1,19 @@
 # === Binaries ===
-app
-app_*
-message-consolidator
-message-consolidator-vps
+/app
+/app_*
+/message-consolidator*
 /mc-util
-mc_test
-tmp_build
-test_bin
-local_test_bin
-test_build
+/mc_test
+/tmp_build
+/test_bin
+/test_build
+/local_test_bin
 
 # === Databases ===
-*.db
-*.db-shm
-*.db-wal
-# Specific test databases in subdirectories
-channels/test.db*
-/store/test.db*
+*.db*
 
 # === Logs ===
 *.log
-go_test*.log
-loading_ui_test.log
-db_diag.log
 channels/logs/
 /tmp/logs/
 
@@ -35,27 +26,22 @@ channels/logs/
 node_modules/
 .vite/
 dist/
-static/css/main.bundle.css
-static/css/main.bundle.min.css
+static/css/main.bundle*
 
 # === Temporary & Test Artifacts ===
+*.swp
+test_*.txt
 tasks_migration.csv
-.deploy.sh.swp
 branch.txt
 verify-fix.js
-test_timing.txt
-test_times.txt
-test_file.txt
+notepad
 /scratch/
 /channels/tmp/
-
-# Test & AI Cache Artifacts
 /ai/testdata/prompt_cache/*.txt
-test_out.txt
-test_timing.txt
-notepad
 
 # === TestSprite ===
 .testsprite/
 testsprite_tests/
+
+# === Claude ===
 .claude/
