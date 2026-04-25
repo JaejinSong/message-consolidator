@@ -743,10 +743,11 @@ func hasAffinityMatch(m *store.ConsolidatedMessage, item store.TodoItem, sim flo
 	if item.AffinityGroupID == "" || len(m.Metadata) == 0 || sim < 0.50 {
 		return false
 	}
-	var meta map[string]interface{}
+	var meta struct {
+		AffinityGroupID string `json:"affinity_group_id"`
+	}
 	if err := json.Unmarshal(m.Metadata, &meta); err != nil {
 		return false
 	}
-	gid, ok := meta["affinity_group_id"].(string)
-	return ok && gid == item.AffinityGroupID
+	return meta.AffinityGroupID != "" && meta.AffinityGroupID == item.AffinityGroupID
 }

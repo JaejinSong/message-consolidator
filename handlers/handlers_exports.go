@@ -86,7 +86,8 @@ func writeExcelArchiveSheet(f *excelize.File, msgs []store.ConsolidatedMessage) 
 }
 
 func writeExcelArchiveRow(f *excelize.File, sheet string, row int, m store.ConsolidatedMessage) {
-	values := []interface{}{
+	// any 사유: excelize.SetCellValue가 cell type별 다른 Go 값(int64/string/time)을 수용.
+	values := []any{
 		m.ID, m.Source, m.Room, m.Task, m.Requester, m.Assignee,
 		m.AssignedAt.Format("2006-01-02 15:04:05"),
 		m.CreatedAt.Format("2006-01-02 15:04:05"),

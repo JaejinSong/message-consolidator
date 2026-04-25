@@ -407,7 +407,8 @@ func detectDisplayNameAmbiguity(ctx context.Context, tenantEmail string, normLis
 	// requires LOWER on the column side to be hit, so we cannot work around by pre-lowercasing.
 	// Per CLAUDE.md: "raw SQL은 동적 IN절 등 sqlc 정적 분석 불가 케이스에 한정".
 	placeholders := strings.Repeat(",?", len(normList))[1:]
-	args := make([]interface{}, len(normList)+1)
+	// any 사유: QueryContext variadic args 시그니처 — 동적 IN절 placeholder별 string/email 인자.
+	args := make([]any, len(normList)+1)
 	args[0] = tenantEmail
 	for i, n := range normList {
 		args[i+1] = n
@@ -767,16 +768,17 @@ func ResolveAliases(ctx context.Context, idType, value string) ([]int64, error) 
 	return canonicalIDs, nil
 }
 
-func buildAliasQuery(idType, trimmed string) (string, []interface{}) {
+// any 사유: 호출자가 QueryContext에 그대로 forward — driver가 placeholder 타입 정합성 검사.
+func buildAliasQuery(idType, trimmed string) (string, []any) {
 	switch idType {
 	case ContactTypeWhatsApp, ContactTypeTelegram:
 		return "SELECT id FROM contacts WHERE LOWER(canonical_id) = ?" +
 			" UNION SELECT contacts.id FROM contacts, json_each(secondary_ids) j WHERE LOWER(j.value) = ?",
-			[]interface{}{trimmed, trimmed}
+			[]any{trimmed, trimmed}
 	case ContactTypeEmail:
-		return "SELECT id FROM contacts WHERE LOWER(canonical_id) = ?", []interface{}{trimmed}
+		return "SELECT id FROM contacts WHERE LOWER(canonical_id) = ?", []any{trimmed}
 	default:
-		return "SELECT id FROM contacts WHERE LOWER(canonical_id) = ? OR LOWER(display_name) = ?", []interface{}{trimmed, trimmed}
+		return "SELECT id FROM contacts WHERE LOWER(canonical_id) = ? OR LOWER(display_name) = ?", []any{trimmed, trimmed}
 	}
 }
 

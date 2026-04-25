@@ -208,7 +208,8 @@ func ensureCache(sfKey string, isReady func() bool, refresh func() error) error 
 	if ready {
 		return nil
 	}
-	_, err, _ := sfGroup.Do(sfKey, func() (interface{}, error) {
+	// any 사유: singleflight.Group.Do callback 시그니처 — 반환값 미사용(error 전파만).
+	_, err, _ := sfGroup.Do(sfKey, func() (any, error) {
 		return nil, refresh()
 	})
 	return err

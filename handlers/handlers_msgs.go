@@ -13,6 +13,15 @@ import (
 	"message-consolidator/store"
 )
 
+type archivedMessagesResponse struct {
+	Messages []store.ConsolidatedMessage `json:"messages"`
+	Total    int                         `json:"total"`
+}
+
+type batchTranslateResponse struct {
+	Results []services.BatchTranslateResult `json:"results"`
+}
+
 func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	msgsRaw, err := store.GetMessages(r.Context(), email)
@@ -143,10 +152,7 @@ func (a *API) HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 		a.Tasks.PrepareMessagesForClient(r.Context(), email, msgs, lang)
 	}
 
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"messages": msgs,
-		"total":    total,
-	})
+	respondJSON(w, http.StatusOK, archivedMessagesResponse{Messages: msgs, Total: total})
 }
 
 func (a *API) HandleGetArchivedCount(w http.ResponseWriter, r *http.Request) {
@@ -371,6 +377,6 @@ func (a *API) respondWithResults(w http.ResponseWriter, ids []store.MessageID, c
 			Error:          errors[id],
 		}
 	}
-	respondJSON(w, http.StatusOK, map[string]interface{}{"results": results})
+	respondJSON(w, http.StatusOK, batchTranslateResponse{Results: results})
 }
 

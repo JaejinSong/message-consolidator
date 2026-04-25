@@ -16,7 +16,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// Querier is a common interface for sql.DB and sql.Tx
+// Querier is a common interface for sql.DB and sql.Tx.
+// any 사유: database/sql 표준 시그니처와 일치 — driver가 query placeholder별 임의 타입 인자를 수용해야 함.
 type Querier interface {
 	Exec(query string, args ...any) (sql.Result, error)
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
@@ -229,7 +230,8 @@ func handleKeepAliveTick(ctx context.Context, db *sql.DB) {
 
 // LogSQLError provides unified logging for database errors with query context.
 // Why: [Observability] Centralizes error reporting and ensures consistent context (query & args) in logs.
-func LogSQLError(query string, err error, args ...interface{}) error {
+// any 사유: SQL placeholder 인자는 query마다 타입이 다름 — Querier와 동일한 variadic any 채택.
+func LogSQLError(query string, err error, args ...any) error {
 	if err == nil {
 		return nil
 	}

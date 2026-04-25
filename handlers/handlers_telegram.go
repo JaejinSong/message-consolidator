@@ -10,6 +10,11 @@ import (
 	"strings"
 )
 
+type telegramStatusResponse struct {
+	Status         string `json:"status"`
+	HasCredentials bool   `json:"has_credentials"`
+}
+
 // HandleTelegramStatus returns the current Telegram connection state plus whether the user
 // has usable App ID/Hash credentials (so the UI can decide to show the setup step).
 func (a *API) HandleTelegramStatus(w http.ResponseWriter, r *http.Request) {
@@ -17,10 +22,7 @@ func (a *API) HandleTelegramStatus(w http.ResponseWriter, r *http.Request) {
 	status := channels.GetTelegramStatus(email)
 	hasCreds := channels.HasTelegramCredentials(email, a.Config)
 	logger.Debugf("[CHANNEL] Telegram status for %s: %s (hasCreds=%v)", email, status, hasCreds)
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"status":          status,
-		"has_credentials": hasCreds,
-	})
+	respondJSON(w, http.StatusOK, telegramStatusResponse{Status: status, HasCredentials: hasCreds})
 }
 
 // HandleTelegramSetCredentials persists per-user App ID / Hash obtained from https://my.telegram.org.

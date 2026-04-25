@@ -127,7 +127,8 @@ func (m *WAManager) InitWhatsApp(email string, cfg *config.Config) {
 	}
 	m.mu.Unlock()
 
-	client.AddEventHandler(func(evt interface{}) {
+	// any 사유: whatsmeow.Client.AddEventHandler 콜백 시그니처(`func(any)`) — 내부 type switch로 디스패치.
+	client.AddEventHandler(func(evt any) {
 		m.handleEvent(email, client, evt)
 	})
 
@@ -146,7 +147,8 @@ func (m *WAManager) InitWhatsApp(email string, cfg *config.Config) {
 	}
 }
 
-func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt interface{}) {
+// any 사유: whatsmeow 이벤트는 events.Message/events.Connected 등 다양한 구조체로 내려옴 — type switch로 디스패치.
+func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt any) {
 	switch v := evt.(type) {
 	case *events.Message:
 		m.handleMessageEvent(email, client, v)

@@ -40,25 +40,26 @@ func getLogDir() string {
 	return "/app/logs"
 }
 
-func Debugf(format string, v ...interface{}) {
+// any 사유: printf-style variadic (stdlib log.Output / fmt.Sprintf 시그니처와 동일).
+func Debugf(format string, v ...any) {
 	if currentLevel <= LevelDebug {
 		_ = log.Output(2, fmt.Sprintf("[DEBUG] "+format, v...))
 	}
 }
 
-func Infof(format string, v ...interface{}) {
+func Infof(format string, v ...any) {
 	if currentLevel <= LevelInfo {
 		_ = log.Output(2, fmt.Sprintf("[INFO] "+format, v...))
 	}
 }
 
-func Warnf(format string, v ...interface{}) {
+func Warnf(format string, v ...any) {
 	if currentLevel <= LevelWarn {
 		_ = log.Output(2, fmt.Sprintf("[WARN] "+format, v...))
 	}
 }
 
-func Errorf(format string, v ...interface{}) {
+func Errorf(format string, v ...any) {
 	if currentLevel <= LevelError {
 		_ = log.Output(2, fmt.Sprintf("[ERROR] "+format, v...))
 	}

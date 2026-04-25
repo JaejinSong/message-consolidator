@@ -1,3 +1,5 @@
+// any 사유 (파일 전역): Notion REST API DTO는 block 종류(heading/paragraph/code/table/...)별로
+// payload 키와 값 타입이 모두 다른 heterogeneous JSON. 구조체 분기 대신 map[string]any로 직접 빌드.
 package services
 
 import (

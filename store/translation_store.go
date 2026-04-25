@@ -97,7 +97,8 @@ func SaveTaskTranslationsBulk(ctx context.Context, langCode string, results map[
 	if len(results) == 0 { return nil }
 
 	placeholders := make([]string, 0, len(results))
-	args := make([]interface{}, 0, len(results)*3)
+	// any 사유: ExecContext variadic args 시그니처 — id/lang/text 혼합 타입 placeholder.
+	args := make([]any, 0, len(results)*3)
 	for id, text := range results {
 		placeholders = append(placeholders, "(?, ?, ?)")
 		args = append(args, int64(id), langCode, text)

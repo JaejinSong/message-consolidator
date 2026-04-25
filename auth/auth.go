@@ -19,6 +19,13 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
+type authError struct {
+	Error string `json:"error"`
+	Code  int    `json:"code"`
+}
+
+var unauthorizedResponse = authError{Error: "unauthorized", Code: http.StatusUnauthorized}
+
 var (
 	GoogleOauthConfig *oauth2.Config
 	AuthDisabled      bool
@@ -231,7 +238,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			logger.Warnf("[AUTH] Session cookie missing for path: %s", r.URL.Path)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{"error": "unauthorized", "code": 401})
+			_ = json.NewEncoder(w).Encode(unauthorizedResponse)
 			return
 		}
 
@@ -243,7 +250,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			logger.Errorf("[AUTH] Error decoding session cookie for %s: %v", r.URL.Path, err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{"error": "unauthorized", "code": 401})
+			_ = json.NewEncoder(w).Encode(unauthorizedResponse)
 			return
 		}
 		email := string(decodedEmailBytes)

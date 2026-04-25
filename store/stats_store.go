@@ -77,6 +77,7 @@ func loadHourlyActivity(ctx context.Context, q *db.Queries, email, offset string
 	stats.PeakTime = computePeakTime(stats.HourlyActivity)
 }
 
+// any 사유: SQLite driver는 strftime/cast 결과를 string 또는 []byte로 임의 반환 — type switch로 정규화.
 func parseHourString(raw any) int {
 	hrStr := ""
 	switch v := raw.(type) {

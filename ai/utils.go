@@ -16,7 +16,8 @@ type flexSubtask struct {
 }
 
 type flexItem struct {
-	ID              interface{}     `json:"id"`
+	// any 사유: AI 응답이 ID를 string("uuid") 또는 number(42)로 임의 직렬화 — 후처리에서 normalize.
+	ID              any             `json:"id"`
 	State           string          `json:"state"`
 	Status          string          `json:"status"`
 	Reasoning       string          `json:"reasoning,omitempty"`

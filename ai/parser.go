@@ -30,6 +30,7 @@ type FewShot struct {
 }
 
 // Render는 주어진 컨텍스트를 사용하여 프롬프트 본문을 렌더링합니다.
+// any 사유: text/template.Execute 시그니처와 동일 — 호출자별 임의 데이터 모델 수용.
 func (p *ParsedPrompt) Render(data any) (string, error) {
 	tmpl, err := template.New("prompt").Parse(p.Body)
 	if err != nil {

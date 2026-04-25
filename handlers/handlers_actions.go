@@ -3,17 +3,20 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"message-consolidator/auth"
 	"message-consolidator/channels"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
 	"sync"
-	"time"
 
 	"google.golang.org/api/gmail/v1"
 )
+
+type fixedCountResponse struct {
+	Status     string `json:"status"`
+	FixedCount int    `json:"fixed_count"`
+}
 
 var ScanFunc func(string, string)
 var FullScanFunc func()
@@ -62,8 +65,6 @@ func (a *API) HandleInternalScan(w http.ResponseWriter, r *http.Request) {
 		scanMutex.Unlock()
 	}()
 
-	a.applyCloudRunJitter()
-
 	logger.Infof("[INTERNAL-SCAN] Starting full scan triggered via API")
 	if FullScanFunc != nil {
 		FullScanFunc()
@@ -94,15 +95,6 @@ func (a *API) authorizeInternalScan(w http.ResponseWriter, r *http.Request) bool
 		return false
 	}
 	return true
-}
-
-func (a *API) applyCloudRunJitter() {
-	//Why: Adds a random jitter in Cloud Run mode to staggered incoming requests and prevent 'thundering herd' synchronization issues.
-	if a.Config.CloudRunMode {
-		jitter := time.Duration(rand.Intn(5)) * time.Second //nolint:gosec // Jitter staggering only; cryptographic strength is unnecessary.
-		logger.Debugf("[INTERNAL-SCAN] Cloud Run Mode: Sleeping for %v jitter...", jitter)
-		time.Sleep(jitter)
-	}
 }
 
 func (a *API) HandleTranslate(w http.ResponseWriter, r *http.Request) {
@@ -234,7 +226,7 @@ func (a *API) HandleReclassifyOldData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fixedCount := a.Tasks.ReclassifyUserTasks(r.Context(), email, user, aliases, msgs)
-	respondJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "fixed_count": fixedCount})
+	respondJSON(w, http.StatusOK, fixedCountResponse{Status: "success", FixedCount: fixedCount})
 }
 
 func (a *API) HandleRestoreGmailCC(w http.ResponseWriter, r *http.Request) {
@@ -255,7 +247,7 @@ func (a *API) HandleRestoreGmailCC(w http.ResponseWriter, r *http.Request) {
 	totalFixed := a.processActiveRestore(r.Context(), email, user, aliases, svc)
 	archiveFixed := a.processArchiveRestore(r.Context(), email, user, aliases, svc)
 	
-	respondJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "fixed_count": totalFixed + archiveFixed})
+	respondJSON(w, http.StatusOK, fixedCountResponse{Status: "success", FixedCount: totalFixed + archiveFixed})
 }
 
 func (a *API) processActiveRestore(ctx context.Context, email string, user *store.User, aliases []string, svc *gmail.Service) int {

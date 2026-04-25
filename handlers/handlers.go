@@ -64,7 +64,8 @@ func handleAPIError(w http.ResponseWriter, r *http.Request, err error, logPrefix
 }
 
 // respondJSON is a helper function to marshal data and send a JSON response.
-func respondJSON(w http.ResponseWriter, code int, payload interface{}) {
+// any 사유: payload는 호출자별 임의 DTO 구조체 — 제네릭 marshaller 시그니처.
+func respondJSON(w http.ResponseWriter, code int, payload any) {
 	response, err := json.Marshal(payload)
 	if err != nil {
 		logger.Errorf("Internal Server Error: Failed to marshal JSON response: %v", err)
@@ -136,13 +137,14 @@ func parseBatchIDs(w http.ResponseWriter, r *http.Request) ([]store.MessageID, b
 
 // decodeJSON is a common helper that parses JSON from an HTTP request and safely closes the Body to prevent memory leaks.
 // Why: [DRY] Centralizes JSON decoding logic used across multiple handler files.
-func decodeJSON(r *http.Request, v interface{}) error {
+// any 사유: v는 호출자별 임의 DTO 포인터 — encoding/json Decode 시그니처와 동일.
+func decodeJSON(r *http.Request, v any) error {
 	defer r.Body.Close()
 	return json.NewDecoder(r.Body).Decode(v)
 }
 
 // bindJSON decodes the request body and writes a 400 response on failure. Returns false if decoding failed.
-func bindJSON(w http.ResponseWriter, r *http.Request, v interface{}) bool {
+func bindJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 	if err := decodeJSON(r, v); err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return false

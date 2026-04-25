@@ -20,6 +20,20 @@ const (
 	TokenUnitDenominator = 1000000.0
 )
 
+type tokenUsageResponse struct {
+	TodayPrompt       int     `json:"todayPrompt"`
+	TodayCompletion   int     `json:"todayCompletion"`
+	TodayFiltered     int     `json:"todayFiltered"`
+	TodayTotal        int     `json:"todayTotal"`
+	TodayCost         float64 `json:"todayCost"`
+	MonthlyPrompt     int     `json:"monthlyPrompt"`
+	MonthlyCompletion int     `json:"monthlyCompletion"`
+	MonthlyFiltered   int     `json:"monthlyFiltered"`
+	MonthlyTotal      int     `json:"monthlyTotal"`
+	MonthlyCost       float64 `json:"monthlyCost"`
+	Model             string  `json:"model"`
+}
+
 func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	logger.Infof("[USER] Fetching info for email: %s", email)
@@ -38,7 +52,7 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 
 	respondJSON(w, http.StatusOK, struct {
 		*store.User
-		TokenUsage map[string]interface{} `json:"token_usage"`
+		TokenUsage tokenUsageResponse `json:"token_usage"`
 	}{
 		User:       user,
 		TokenUsage: tokenUsage,
@@ -157,7 +171,7 @@ func (a *API) HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 
 // Why: Includes daily and monthly AI token usage data in the user info response to provide transparency on service costs and resource consumption.
 // This refactoring centralizes all arithmetic logic in the backend, using Gemini 3 Flash pricing.
-func (a *API) gatherTokenUsageStats(ctx context.Context, email string) map[string]interface{} {
+func (a *API) gatherTokenUsageStats(ctx context.Context, email string) tokenUsageResponse {
 	todayPrompt, todayCompletion, todayFiltered, _ := store.GetDailyTokenUsage(ctx, email)
 	monthPrompt, monthCompletion, monthFiltered, _ := store.GetMonthlyTokenUsage(ctx, email)
 
@@ -165,18 +179,18 @@ func (a *API) gatherTokenUsageStats(ctx context.Context, email string) map[strin
 		return (float64(p)*RatePromptGemini3Flash + float64(c)*RateCompletionGemini3Flash) / TokenUnitDenominator
 	}
 
-	return map[string]interface{}{
-		"todayPrompt":        todayPrompt,
-		"todayCompletion":    todayCompletion,
-		"todayFiltered":      todayFiltered,
-		"todayTotal":         todayPrompt + todayCompletion,
-		"todayCost":          calculateCost(todayPrompt, todayCompletion),
-		"monthlyPrompt":      monthPrompt,
-		"monthlyCompletion":  monthCompletion,
-		"monthlyFiltered":    monthFiltered,
-		"monthlyTotal":       monthPrompt + monthCompletion,
-		"monthlyCost":        calculateCost(monthPrompt, monthCompletion),
-		"model":              "Gemini 3 Flash",
+	return tokenUsageResponse{
+		TodayPrompt:       todayPrompt,
+		TodayCompletion:   todayCompletion,
+		TodayFiltered:     todayFiltered,
+		TodayTotal:        todayPrompt + todayCompletion,
+		TodayCost:         calculateCost(todayPrompt, todayCompletion),
+		MonthlyPrompt:     monthPrompt,
+		MonthlyCompletion: monthCompletion,
+		MonthlyFiltered:   monthFiltered,
+		MonthlyTotal:      monthPrompt + monthCompletion,
+		MonthlyCost:       calculateCost(monthPrompt, monthCompletion),
+		Model:             "Gemini 3 Flash",
 	}
 }
 

@@ -219,7 +219,7 @@ func GetDailyTokenUsage(ctx context.Context, email string) (int, int, int, error
 		return 0, 0, 0, err
 	}
 
-	// sqlc COALESCE(SUM(...)) returns interface{} which is float64 or int64 depending on driver
+	// any 사유: sqlc COALESCE(SUM(...))는 driver별로 float64 또는 int64로 반환 — 양쪽 모두 normalize.
 	prompt := 0
 	if val, ok := row.Coalesce.(int64); ok {
 		prompt = int(val)

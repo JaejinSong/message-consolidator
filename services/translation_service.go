@@ -30,7 +30,8 @@ func (s *TranslationService) Translate(ctx context.Context, email string, dedupl
 		return "", fmt.Errorf("AI service not initialized")
 	}
 
-	val, err, _ := s.requestGroup.Do(deduplicationKey, func() (interface{}, error) {
+	// any 사유: singleflight.Group.Do callback 시그니처(any 반환) — string으로 단일 타입 단정.
+	val, err, _ := s.requestGroup.Do(deduplicationKey, func() (any, error) {
 		// Why: Semaphore limits concurrent AI API calls to 5 to prevent rate limiting.
 		s.semaphore <- struct{}{}
 		defer func() { <-s.semaphore }()
@@ -62,7 +63,8 @@ func (s *TranslationService) TranslateBatch(ctx context.Context, email string, t
 	for i, t := range tasks { ids[i] = t.ID }
 	key := fmt.Sprintf("batch-%s-%v", lang, ids)
 
-	val, err, _ := s.requestGroup.Do(key, func() (interface{}, error) {
+	// any 사유: singleflight.Group.Do callback 시그니처 — []ai.TranslationResult로 단일 타입 단정.
+	val, err, _ := s.requestGroup.Do(key, func() (any, error) {
 		s.semaphore <- struct{}{}
 		defer func() { <-s.semaphore }()
 		return s.gemini.TranslateTasksBatch(ctx, email, tasks, GetLanguageName(lang))
