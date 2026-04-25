@@ -181,8 +181,8 @@ func TestIsThreadTimedOut(t *testing.T) {
 //Why: [Throttling & Intake] Ensures that API rate limit protections and thread link construction logic are correctly implemented.
 
 func TestSlackThrottlingInterval(t *testing.T) {
-	//Why: Verifies the 1.2s throttling interval to ensure compliance with Slack API rate limits during bulk message retrieval.
-	expected := 1200 * time.Millisecond
+	//Why: 1.0s = 60/min stays within Tier 3 burst tolerance for conversations.replies; 429 fallback handled by withSlackRetry.
+	expected := 1000 * time.Millisecond
 	if SlackThrottlingInterval != expected {
 		t.Errorf("SlackThrottlingInterval should be %v, got %v", expected, SlackThrottlingInterval)
 	}

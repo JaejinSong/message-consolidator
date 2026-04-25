@@ -24,9 +24,43 @@ import (
 
 var slackMentionRegex = regexp.MustCompile(`<@([A-Z0-9]+)>`)
 
-const SlackThrottlingInterval = 1200 * time.Millisecond
+// Why: Tier 3 conversations.replies caps at ~50/min (=1.2s); 1.0s = 60/min is within burst tolerance,
+// and `withSlackRetry` honors `Retry-After` if Slack pushes back. Saves ~200ms per thread iteration.
+const SlackThrottlingInterval = 1000 * time.Millisecond
 
 var slackLimiter = rate.NewLimiter(rate.Every(SlackThrottlingInterval), 1)
+
+// Why: SlackClient + botID + users.list 결과는 토큰 단위로 불변. 매 sweep마다 NewSlackClient/FetchUsers/AuthTest를
+// 다시 부르면 sweep당 ~250ms (users.list ×2 + auth.test) 낭비. 토큰 키 캐시로 한 번만 초기화한다.
+var (
+	slackClientMu     sync.Mutex
+	cachedSlackToken  string
+	cachedSlackClient *channels.SlackClient
+	cachedSlackBotID  string
+)
+
+func getOrInitSlackClient(token string) (*channels.SlackClient, string) {
+	slackClientMu.Lock()
+	defer slackClientMu.Unlock()
+	if cachedSlackClient != nil && cachedSlackToken == token {
+		return cachedSlackClient, cachedSlackBotID
+	}
+	c := channels.NewSlackClient(token)
+	_ = c.FetchUsers()
+	botID := ""
+	if a, _ := c.GetAPI().AuthTest(); a != nil {
+		botID = a.UserID
+	}
+	cachedSlackToken = token
+	cachedSlackClient = c
+	cachedSlackBotID = botID
+	return c, botID
+}
+
+type slackThreadIdentity struct {
+	user       *store.User
+	effAliases []string
+}
 
 type slackUserResolver interface {
 	GetUserName(userID string) string
@@ -245,33 +279,48 @@ func sweepSlackThreads(ctx context.Context, wg *sync.WaitGroup) {
 		return
 	}
 
-	sc := channels.NewSlackClient(cfg.SlackToken)
-	_ = sc.FetchUsers()
+	sc, botID := getOrInitSlackClient(cfg.SlackToken)
 
-	auth, _ := sc.GetAPI().AuthTest()
-	botID := ""
-	if auth != nil {
-		botID = auth.UserID
-	}
+	// Why: alias 결정은 tenant(UserEmail) 단위로 동일하므로 thread 루프 밖에서 1회만 조회한다.
+	// 기존엔 thread당 GetUserAliases가 contact_resolution + contacts 2 SELECT를 돌려 N+1을 만들었음.
+	aliasCache := buildSlackAliasCache(traceCtx, threads)
 
 	for _, t := range threads {
 		if err := slackLimiter.Wait(traceCtx); err != nil {
 			return
 		}
-		processSingleSlackThread(traceCtx, sc, t, botID, wg)
+		processSingleSlackThread(traceCtx, sc, t, botID, aliasCache, wg)
 	}
 }
 
-func processSingleSlackThread(ctx context.Context, sc *channels.SlackClient, t store.SlackThreadMeta, botID string, wg *sync.WaitGroup) {
+func buildSlackAliasCache(ctx context.Context, threads []store.SlackThreadMeta) map[string]slackThreadIdentity {
+	out := make(map[string]slackThreadIdentity, len(threads))
+	for _, t := range threads {
+		if _, ok := out[t.UserEmail]; ok {
+			continue
+		}
+		u, _ := store.GetOrCreateUser(ctx, t.UserEmail, "", "")
+		if u == nil {
+			out[t.UserEmail] = slackThreadIdentity{}
+			continue
+		}
+		al, _ := store.GetUserAliases(ctx, u.ID)
+		out[t.UserEmail] = slackThreadIdentity{user: u, effAliases: services.GetEffectiveAliases(*u, al)}
+	}
+	return out
+}
+
+func processSingleSlackThread(ctx context.Context, sc *channels.SlackClient, t store.SlackThreadMeta, botID string, aliasCache map[string]slackThreadIdentity, wg *sync.WaitGroup) {
 	if isThreadTimedOut(t.LastActivityTS, 7*24*time.Hour) {
 		handleThreadTimeout(ctx, sc, t)
 		return
 	}
 
-	user, _ := store.GetOrCreateUser(ctx, t.UserEmail, "", "")
-	if user == nil {
+	ident, ok := aliasCache[t.UserEmail]
+	if !ok || ident.user == nil {
 		return
 	}
+	user := ident.user
 
 	params := &slack.GetConversationRepliesParameters{
 		ChannelID: t.ChannelID, Timestamp: t.ThreadTS, Oldest: t.LastTS, Limit: 100,
@@ -282,7 +331,7 @@ func processSingleSlackThread(ctx context.Context, sc *channels.SlackClient, t s
 	}
 
 	res := scanThreadReplies(replies, t.LastTS, t.LastActivityTS, botID)
-	candidates := collectThreadCandidates(ctx, sc, user, t, replies, res, botID)
+	candidates := collectThreadCandidates(ctx, sc, user, t, replies, res, ident.effAliases)
 
 	if len(candidates) > 0 {
 		analyzeAndSaveSlack(ctx, user, sc, candidates, wg)
@@ -296,10 +345,8 @@ func handleThreadTimeout(ctx context.Context, sc *channels.SlackClient, t store.
 	_ = store.CloseTargetedThread(ctx, t.ChannelID, t.ThreadTS, t.UserEmail)
 }
 
-func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user *store.User, t store.SlackThreadMeta, replies []slack.Message, res threadScanResult, botID string) []types.RawMessage {
+func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user *store.User, t store.SlackThreadMeta, replies []slack.Message, res threadScanResult, effAl []string) []types.RawMessage {
 	var candidates []types.RawMessage
-	aliases, _ := store.GetUserAliases(ctx, user.ID)
-	effAl := services.GetEffectiveAliases(*user, aliases)
 
 	for _, m := range replies {
 		if t.LastTS != "" && m.Timestamp <= t.LastTS {
