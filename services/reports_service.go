@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"message-consolidator/ai"
+	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"sort"
@@ -114,7 +115,10 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, 
 			*report = *refreshed
 		}
 	} else {
-		go s.processAsyncReport(email, start, end, lang, report.ID, filtered) //nolint:contextcheck // Identity resolution chain (Wave 2 I).
+		go func() { //nolint:contextcheck // Identity resolution chain (Wave 2 I).
+			defer safego.Recover("async-report")
+			s.processAsyncReport(email, start, end, lang, report.ID, filtered)
+		}()
 	}
 
 	return report, nil

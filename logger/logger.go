@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -65,7 +66,7 @@ func Errorf(format string, v ...any) {
 	}
 }
 
-func InitLogging() {
+func InitLogging() *lumberjack.Logger {
 	// Call AI inference logger initialization to ensure logs directory exists and log files are ready.
 	InitAIInferenceLogger()
 
@@ -80,17 +81,33 @@ func InitLogging() {
 
 	multiWriter := io.MultiWriter(os.Stdout, lumberjackLogger)
 	log.SetOutput(multiWriter)
+	return lumberjackLogger
+}
 
-	//Why: Implements a background goroutine to trigger log rotation at midnight, ensuring each day's logs are physically separated and easier to manage.
+// StartLogRotator launches the daily log rotation goroutine. ctx-aware so the
+// rotator exits cleanly on shutdown instead of leaking past process termination.
+//
+//Why: Implements a background goroutine to trigger log rotation at midnight, ensuring each day's logs are physically separated and easier to manage.
+func StartLogRotator(ctx context.Context, lumberjackLogger *lumberjack.Logger) {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				Errorf("[PANIC] log-rotator recovered: %v", r)
+			}
+		}()
 		for {
 			now := time.Now()
 			nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
-			time.Sleep(time.Until(nextMidnight))
-
-			Infof("[LOG] Rotating log file for new day...")
-			if err := lumberjackLogger.Rotate(); err != nil {
-				Errorf("[LOG] Error rotating log: %v", err)
+			timer := time.NewTimer(time.Until(nextMidnight))
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+				Infof("[LOG] Rotating log file for new day...")
+				if err := lumberjackLogger.Rotate(); err != nil {
+					Errorf("[LOG] Error rotating log: %v", err)
+				}
 			}
 		}
 	}()

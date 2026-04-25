@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
@@ -191,6 +192,7 @@ func (s *TasksService) triggerJITTranslation(email, lang string, ids []store.Mes
 	}
 	// Why: Asynchronously triggers JIT translation to avoid blocking the main data request.
 	go func() {
+		defer safego.Recover("jit-translation")
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 		_, _ = s.ProcessBatchTranslation(ctx, email, ids, lang)

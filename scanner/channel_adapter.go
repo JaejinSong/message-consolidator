@@ -14,6 +14,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"message-consolidator/ai"
+	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"message-consolidator/services"
 	"message-consolidator/store"
@@ -43,6 +44,7 @@ func scanChannel(ctx context.Context, user store.User, aliases []string, languag
 	for roomKey, msgs := range buffer {
 		k, m := roomKey, msgs
 		eg.Go(func() error {
+			defer safego.Recover("scan-" + adapter.Source() + "-" + k)
 			ids := processChannelRoom(ctx, user, aliases, k, m, language, wg, adapter)
 			mu.Lock()
 			newIDs = append(newIDs, ids...)
@@ -97,6 +99,7 @@ func triggerOutgoingCompletions(ctx context.Context, msgs []types.RawMessage, us
 		}
 		raw := m
 		go func(em, src, room string, r types.RawMessage) {
+			defer safego.Recover("outgoing-completion-" + src)
 			if _, err := completionSvc.ProcessPotentialCompletion(asyncCtx, store.ConsolidatedMessage{
 				UserEmail: em, Source: src, Room: room, ThreadID: r.ReplyToID,
 				OriginalText: r.Text, SourceTS: r.ID, CreatedAt: r.Timestamp,

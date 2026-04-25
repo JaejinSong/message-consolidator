@@ -4,6 +4,7 @@ import (
 	"context"
 	"message-consolidator/channels"
 	"message-consolidator/config"
+	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"message-consolidator/services"
 	"message-consolidator/store"
@@ -127,6 +128,7 @@ func performSlackScan(ctx context.Context, users []store.User, wg *sync.WaitGrou
 	go func() {
 		defer wg.Done()
 		defer cancel()
+		defer safego.Recover("scan-slack")
 		scanSlack(sCtx, users, wg)
 	}()
 }
@@ -285,6 +287,7 @@ func triggerAsyncTranslation(ctx context.Context, email string, ids []store.Mess
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer safego.Recover("trigger-async-translation")
 		tCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		defer cancel()
 		_, _ = tasksSvc.ProcessBatchTranslation(tCtx, email, ids, "ko")

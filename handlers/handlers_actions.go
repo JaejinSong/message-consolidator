@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"message-consolidator/auth"
 	"message-consolidator/channels"
+	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
@@ -35,6 +36,7 @@ func (a *API) HandleManualScan(w http.ResponseWriter, r *http.Request) {
 
 	if ScanFunc != nil {
 		go func() { //nolint:contextcheck // Async scan outlives the request; uses Background ctx by design.
+			defer safego.Recover("manual-scan")
 			ScanFunc(email, lang)
 			store.PersistAllScanMetadata(context.Background(), email)
 		}()

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"message-consolidator/config"
+	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
@@ -399,7 +400,10 @@ func (m *TelegramManager) startClient(email string, creds TelegramCreds, phone s
 	m.clients[email] = client
 	m.mu.Unlock()
 
-	go m.runClient(ctx, email, client, state, restoreOnly)
+	go func() {
+		defer safego.Recover("tg-run-client")
+		m.runClient(ctx, email, client, state, restoreOnly)
+	}()
 	return nil
 }
 
@@ -432,7 +436,10 @@ func (m *TelegramManager) runClient(ctx context.Context, email string, client *t
 
 		// Hydrate groupCache + contacts from the dialog list so GetGroupName can
 		// resolve titles for dormant chats that haven't pushed a new message yet.
-		go m.hydrateDialogs(ctx, client, email)
+		go func() {
+			defer safego.Recover("tg-hydrate-dialogs")
+			m.hydrateDialogs(ctx, client, email)
+		}()
 
 		// Block until ctx is cancelled — inbound updates are delivered via the
 		// UpdateDispatcher registered on telegram.Options.UpdateHandler.
@@ -532,7 +539,10 @@ func (m *TelegramManager) ingestMessage(ctx context.Context, email string, e tg.
 	if !ok {
 		return
 	}
-	go m.storeEntities(ctx, email, e)
+	go func() {
+		defer safego.Recover("tg-store-entities")
+		m.storeEntities(ctx, email, e)
+	}()
 	raw := m.parseMessage(ctx, email, e, msg)
 	m.bufferMessage(email, chatKey, raw)
 	logger.Debugf("[TG-EVENT][%s] %s: %s", email, chatKey, raw.Text)

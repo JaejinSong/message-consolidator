@@ -31,7 +31,7 @@ import (
 var cfg *config.Config
 
 func main() {
-	logger.InitLogging()
+	lumberjackLogger := logger.InitLogging()
 	cfg = config.LoadConfig()
 	logger.SetLevel(cfg.LogLevel)
 
@@ -49,6 +49,8 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	logger.StartLogRotator(ctx, lumberjackLogger)
 
 	if err := store.InitDB(ctx, cfg); err != nil {
 		log.Fatalf("DB Init failed: %v", err)

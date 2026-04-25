@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"message-consolidator/config"
+	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
@@ -258,6 +259,7 @@ func (m *WAManager) resolveSenderName(email string, client *whatsmeow.Client, in
 	}
 	if info.PushName != "" {
 		go func(em, num, name string) {
+			defer safego.Recover("wa-save-contact")
 			if err := store.SaveWhatsAppContact(context.Background(), em, num, name); err != nil {
 				logger.Warnf("[WA] SaveWhatsAppContact failed for %s/%s: %v", em, num, err)
 			}
@@ -336,6 +338,7 @@ func (m *WAManager) resolveMentionName(email string, client *whatsmeow.Client, j
 		return ""
 	}
 	go func(em, num, name string) {
+		defer safego.Recover("wa-save-contact-mention")
 		if err := store.SaveWhatsAppContact(context.Background(), em, num, name); err != nil {
 			logger.Warnf("[WA] SaveWhatsAppContact failed for %s/%s: %v", em, num, err)
 		}

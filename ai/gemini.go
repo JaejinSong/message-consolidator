@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"message-consolidator/internal/safego"
 	"message-consolidator/internal/whataphttpx"
 	"message-consolidator/logger"
 	"message-consolidator/store"
@@ -396,6 +397,7 @@ func (g *GeminiClient) prepareAnalysisData(ctx context.Context, email string, ms
 
 func (g *GeminiClient) logInferenceAsync(source, input, output string) {
 	go func() {
+		defer safego.Recover("ai-log-inference")
 		logger.LogAIInferenceToFile(source, input, output)
 		_ = store.LogAIInference(0, source, input, output)
 	}()

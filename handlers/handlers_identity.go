@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"message-consolidator/auth"
+	"message-consolidator/internal/safego"
 	"message-consolidator/store"
 	"net/http"
 	"sync"
@@ -42,6 +43,7 @@ func (a *API) HandleGenerateProposals(w http.ResponseWriter, r *http.Request) {
 	proposalJobsMu.Unlock()
 
 	go func() { //nolint:contextcheck // Async job uses Background ctx by design; lifecycle outlives request.
+		defer safego.Recover("proposal-job")
 		result := a.runProposalJob(email)
 		proposalJobsMu.Lock()
 		proposalJobs[email] = result

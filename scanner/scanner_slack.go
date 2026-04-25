@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"message-consolidator/ai"
 	"message-consolidator/channels"
+	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"message-consolidator/services"
 	"message-consolidator/store"
@@ -192,6 +193,7 @@ func dispatchOutgoingCompletionIfMine(_ context.Context, u store.User, m types.R
 		return
 	}
 	go func(bgCtx context.Context, email string, raw types.RawMessage) { //nolint:contextcheck // Goroutine outlives the parent scan ctx by design.
+		defer safego.Recover("slack-outgoing-completion")
 		if _, err := completionSvc.ProcessPotentialCompletion(bgCtx, store.ConsolidatedMessage{
 			UserEmail: email, Source: "slack", ThreadID: raw.ReplyToID,
 			OriginalText: raw.Text, SourceTS: raw.ID, CreatedAt: raw.Timestamp,
