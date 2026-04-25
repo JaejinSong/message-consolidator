@@ -98,10 +98,10 @@ func TestReportSummaryEvidenceGating(t *testing.T) {
 	}
 	body := string(content)
 	required := []string{
-		"Flag risks ONLY if supported by Evidence",
+		"MUST include verbatim quote",
 		"No anomalies detected.",
 		"Preserve speaker stance",
-		"No nominalization",
+		"nominalization",
 		"verbatim quote",
 	}
 	for _, token := range required {
@@ -165,7 +165,63 @@ func TestReportSummaryFindingLabel(t *testing.T) {
 	}
 }
 
-// TestNewExtractionNeutralUmbrella guards the v1.2.0 neutral-umbrella + paragraph-split rule.
+// TestReportSummaryQuoteContiguity guards the v2.5.3 quote-contiguity + speaker-anchor rule.
+// Why: v2.5.2 emitted `Jaejin Song reports verifying every case "isn't scalable" on his end.`
+// The LLM sliced the verbatim sentence "Verifying every case on my end isn't scalable" (8
+// words, well within ≤10) into a 2-word predicate fragment `"isn't scalable"` and rebuilt
+// the subject as paraphrased bullet prose, flipping first-person `my end` to third-person
+// `his end`. v2.5.3 mandates contiguous-span quoting and forbids paraphrase around the quote.
+func TestReportSummaryQuoteContiguity(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/report_summary.prompt")
+	if err != nil {
+		t.Fatalf("read report_summary: %v", err)
+	}
+	body := string(content)
+	required := []string{
+		"contiguous Evidence span",
+		"quote it whole",
+		"MUST stay inside the quote",
+		"flips first-person stance to third-person attribution",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Errorf("report_summary.prompt missing v2.5.3 rule phrase: %q", token)
+		}
+	}
+}
+
+// TestReportSummaryBulletTypes guards the v2.5.2 bullet-type decoupling rule.
+// Why: v2.5.1 collapsed Key Insights to 1 bullet because the verbatim-quote mandate
+// at L19 conflicted with the structural >40% / cross-source rules at L29-30. v2.5.2
+// splits Key Insights into Type A/B/C with independent grounding contracts — Type B
+// (concentration) and Type C (cross-source) are unconditional when their thresholds
+// are crossed and do NOT require Evidence quotes.
+func TestReportSummaryBulletTypes(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/report_summary.prompt")
+	if err != nil {
+		t.Fatalf("read report_summary: %v", err)
+	}
+	body := string(content)
+	required := []string{
+		"Type A — Evidence-backed Risk/Anomaly",
+		"Type B — Ownership Concentration",
+		"Type C — Cross-source Pattern",
+		"single point of failure risk",
+		"unconditional",
+		"do NOT compete for a single quota",
+		"If ALL three types yield zero",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Errorf("report_summary.prompt missing v2.5.2 rule phrase: %q", token)
+		}
+	}
+}
+
+// TestNewExtractionNeutralUmbrella guards the neutral-umbrella + paragraph-split rule
+// preserved across v1.2.0 → v2.0.0.
 // Why: Prevents regression to v1.1.0 where LLM joined independent paragraphs with causal
 // connectors (`while`, `because`, `once`) producing compound Tasks that seeded downstream
 // consequent-clause hallucinations in report summaries (msg 11705, 2026-04-24).
@@ -183,7 +239,75 @@ func TestNewExtractionNeutralUmbrella(t *testing.T) {
 	}
 	for _, token := range required {
 		if !strings.Contains(body, token) {
-			t.Errorf("new_extraction.prompt missing v1.2.0 rule phrase: %q", token)
+			t.Errorf("new_extraction.prompt missing rule phrase: %q", token)
+		}
+	}
+}
+
+// TestExtractionPromptsEnvelopeMetadata guards the Phase J Path A invariant — extraction
+// prompts must NOT ask the LLM to populate envelope metadata fields (`requester`,
+// `assigned_at`) because the platform adapter (Slack/Gmail/Notion/WhatsApp/Telegram)
+// already resolves them from message metadata. Asking the LLM to extract envelope fields
+// duplicates work, opens a fabrication path (LLM picks a body-mentioned name as sender),
+// and conflicts with the user's design philosophy that WHO sent / WHEN sent / WHERE are
+// platform-driven, not text-extracted. Each affected prompt must carry the
+// "Envelope is metadata-driven" note as a stable marker.
+func TestExtractionPromptsEnvelopeMetadata(t *testing.T) {
+	t.Parallel()
+	prompts := []string{
+		"prompts/new_extraction.prompt",
+		"prompts/gmail_system.prompt",
+		"prompts/chat_system.prompt",
+		"prompts/notion_system.prompt",
+	}
+	for _, p := range prompts {
+		p := p
+		t.Run(filepath.Base(p), func(t *testing.T) {
+			t.Parallel()
+			content, err := os.ReadFile(p)
+			if err != nil {
+				t.Fatalf("read %s: %v", p, err)
+			}
+			body := string(content)
+			if !strings.Contains(body, "Envelope is metadata-driven") {
+				t.Errorf("%s missing envelope-metadata note", p)
+			}
+			forbidden := []string{
+				`"requester": "string"`,
+				`"requester":"string"`,
+				`"assigned_at": "string"`,
+				`"assigned_at":"string"`,
+			}
+			for _, token := range forbidden {
+				if strings.Contains(body, token) {
+					t.Errorf("%s schema must not include envelope field token: %q", p, token)
+				}
+			}
+		})
+	}
+}
+
+// TestNewExtractionBlankPolicy guards the v2.0.0 "leave blank if absent" core principle.
+// Why: v2.0.0 dropped the v1.2.0 title-quality rules (MIN 30 chars, bare-verb rejection,
+// action verb specificity) that contradicted the user's design philosophy of single-message
+// 5W1H fidelity with downstream merge backfilling gaps. The "Core principle" sentence and
+// the deadline-default-blank rule are the load-bearing invariants protecting this contract.
+func TestNewExtractionBlankPolicy(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/new_extraction.prompt")
+	if err != nil {
+		t.Fatalf("read new_extraction: %v", err)
+	}
+	body := string(content)
+	required := []string{
+		"5W1H",
+		"leave blank what it doesn't",
+		"Never fabricate",
+		"Vague cues",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Errorf("new_extraction.prompt missing v2.0.0 rule phrase: %q", token)
 		}
 	}
 }

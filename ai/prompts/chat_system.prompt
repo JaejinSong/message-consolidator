@@ -1,11 +1,15 @@
 ---
 name: chat_system
-version: 1.5.0
+version: 1.6.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
-Extract tasks from chat messages. Respond ONLY as a JSON array:
-`[{"id":0, "state":"new|update|resolve|cancel|none", "task":"string", "requester":"string", "assignee":"string", "assignee_reason":"string", "assigned_at":"string", "source_ts":"string", "deadline":"string", "category":"TASK|POLICY|QUERY|PROMISE|WAITING", "affinity_score":integer, "affinity_group_id":"string"}]`
+Extract tasks from chat messages.
+
+**Envelope is metadata-driven (do NOT extract):** WHO sent (`SenderName:` prefix), WHEN sent, WHERE (channel/room) are filled by the chat adapter. Do NOT output `requester`, `assigned_at`. Focus on linguistic extraction: WHAT, WHO does, WHEN due, WHY.
+
+Respond ONLY as a JSON array:
+`[{"id":0, "state":"new|update|resolve|cancel|none", "task":"string", "assignee":"string", "assignee_reason":"string", "source_ts":"string", "deadline":"string", "category":"TASK|POLICY|QUERY|PROMISE|WAITING", "affinity_score":integer, "affinity_group_id":"string"}]`
 
 # Existing Task Matching — check FIRST before deciding state:
 Scan the `Existing Tasks` list (each entry has id, task, original_text).
@@ -23,7 +27,6 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
   - Layered TASK + PROMISE: when one message contains both a TASK request AND a PROMISE about executing it, the title reflects the TASK's purpose; the PROMISE is captured by `assignee` + `deadline`, NEVER repeated in the title.
   - PROMISE-only (no TASK layer): title = the deliverable as purpose (e.g. "Deliver quarterly report"), not the commitment verb ("Send report").
 - `task` on `state=update`: preserve the existing task's purpose-phrase and only enrich with new scope/participants/timeline. EXCEPTION — rewrite purpose-first if the existing title is demonstrably vague (< 3 content words, or omits the purpose entirely).
-- `requester`: sender of the message. Use `SenderName:` prefix as primary source. Never empty.
 - `deadline`: most specific date/time mentioned (e.g. "Friday" > "this week").
 - `source_ts`: exact literal value from `[ID:...]` tag — treat as opaque string.
 - `affinity_group_id`: same value for contextually related tasks.
@@ -42,18 +45,18 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
 
 [Examples]
 Input: [ID:p1] SlackUser: Hey {{.CurrentUser}}, check server status please.
-Output: [{"id": 0, "state": "new", "task": "Check server status", "requester": "SlackUser", "assignee": "__CURRENT_USER__", "category": "TASK", "source_ts": "p1"}]
+Output: [{"id": 0, "state": "new", "task": "Check server status", "assignee": "__CURRENT_USER__", "category": "TASK", "source_ts": "p1"}]
 ---
 Input: [ID:p2] Alice: Hey Bob, can you review the deployment plan?
-Output: [{"id": 0, "state": "new", "task": "Review the deployment plan", "requester": "Alice", "assignee": "Bob", "category": "TASK", "source_ts": "p2"}]
+Output: [{"id": 0, "state": "new", "task": "Review the deployment plan", "assignee": "Bob", "category": "TASK", "source_ts": "p2"}]
 ---
 Existing Tasks: [{"id": 5, "task": "Attend Carabao online meeting", "original_text": "I'm available to join the meeting online, please let me know if you need me."}]
 Input: [ID:p3] Phathit: Hi JJ, no worries, today's meeting is just for preparation for next week when you and Yosep will join. I can handle it. Thanks a lot!
-Output: [{"id": 5, "state": "update", "task": "Attend Carabao meeting with Yosep next week", "requester": "Phathit", "assignee": "Phathit", "category": "TASK", "source_ts": "p3"}]
+Output: [{"id": 5, "state": "update", "task": "Attend Carabao meeting with Yosep next week", "assignee": "Phathit", "category": "TASK", "source_ts": "p3"}]
 ---
 Existing Tasks: [{"id": 12, "task": "Schedule POC kickoff call", "original_text": "let's set up a call for the POC"}]
 Input: [ID:p4] Vy: @{{.CurrentUser}} we would like to arrange an online session to run through the POC to align scope, expectations and timeline. Is next Thursday 10am (KH time) or with Canadia side? Let me check and confirm you by Monday next week.
-Output: [{"id": 12, "state": "update", "task": "Align POC scope via online session (Thu 10am KH vs Canadia)", "requester": "Vy", "assignee": "Vy", "category": "PROMISE", "deadline": "2026-04-27", "source_ts": "p4"}]
+Output: [{"id": 12, "state": "update", "task": "Align POC scope via online session (Thu 10am KH vs Canadia)", "assignee": "Vy", "category": "PROMISE", "deadline": "2026-04-27", "source_ts": "p4"}]
 ---
 {{if .FewShots}}
 {{range .FewShots}}

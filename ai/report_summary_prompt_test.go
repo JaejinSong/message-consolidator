@@ -112,6 +112,95 @@ func TestReportSummaryPrompt(t *testing.T) {
 				"leading to",
 				"delaying",
 				"causing dev",
+				// v2.5.3: forbid sliced-predicate + paraphrased-subject pattern
+				`"isn't scalable" on his end`,
+				`"isn't scalable" on her end`,
+				`verifying every case "isn't scalable"`,
+				`on his end.`,
+				`on her end.`,
+			},
+		},
+		{
+			// Regression: v2.5.1 over-suppression (2026-04-25). v2.4.0 emitted 4 bullets
+			// (1 risk + 1 risk + 1 concentration + 1 cross-source); v2.5.1 collapsed to 1
+			// bullet because the verbatim-quote mandate at L19 conflicted with the
+			// structural >40% / cross-source rules at L29-30 — LLM resolved the conflict
+			// by dropping the structural bullets. v2.5.2 splits Key Insights into
+			// independent Type A/B/C bullets.
+			//
+			// Real msg ids (DB snapshot 2026-04-25, jjsong@whatap.io, all open):
+			//   11705 biz-global-tech       — scalability concern (Type A anchor)
+			//   11707 biz-global-malaysia   — Heitech presentation, neutral
+			//   11708 biz-global-malaysia   — Canadia Bank PoC measurement criteria
+			//   11695 biz-global-malaysia   — HeiTech research, neutral
+			//   11675 Gmail                 — onsite presentation invite
+			//   11657 WhaTap_Weefer Batam   — verbatim "Discuss POC for Canadia Bank (Cambodia)"
+			//   11712 Canadia-Whatap POC    — POC scope alignment session
+			//
+			// Concentration distribution: shared=2/7=28%, others=1/7. No Type B trigger.
+			// Cross-source: Canadia Bank POC across biz-global-malaysia, Canadia-Whatap POC,
+			// WhaTap_Weefer Batam → Type C MUST emit. Type A: msg 11705 evidence carries
+			// "not scalable" → MUST emit. v2.5.1 emitted only Type A; v2.5.2 must emit A+C.
+			name: "Case 5: Type A + Type C Coexistence (No Type B)",
+			inputLog: `- [ ][TASK] Align POC scope via online session (6-May-26 2pm) (Room: Canadia-Whatap POC, From: Vylin Heng (Customer), To: Vylin Heng (Customer)) | Evidence: Ok @vylinheng thank you for reverting. @andyphan72 @Sebastosjp r u guys ok with the proposed date and time?
+- [ ][TASK] Align measurement criteria for the Canadia Bank PoC (Room: biz-global-malaysia, From: Andy Phan (Customer), To: shared (Team)) | Evidence: yes agree. We will do the criteria alignment with them
+- [ ][TASK] Include Use Case 2 and additional considerations in the Heitech presentation (Room: biz-global-malaysia, From: Andy Phan (Customer), To: Yosep Park (Internal)) | Evidence: Ok. Specifically Use Case 2 and some additional considerations.
+- [ ][TASK] Raise the request to the dev team once business context is provided, while addressing the scalability concerns regarding manual case verification. (Room: biz-global-tech, From: Jaejin Song (Internal), To: Yoga Wiranda (Customer)) | Evidence: Verifying every case on my end isn't scalable.
+- [ ][TASK] Review HeiTech Padu Berhad's latest projects and strategic developments (Room: biz-global-malaysia, From: Yosep Park (Internal), To: shared (Team)) | Evidence: Financial Strategy: HeiTech has been active in private placements and bonus issues to fund its diversification into renewable energy and advanced AI infrastructure.
+- [ ][TASK] Onsite [Stream-Deves] : Present Observability Monitoring Tool (WhaTap) (Room: Gmail, From: Stream-Deves (External), To: Jaejin Song (Internal)) | Evidence: S: Onsite [Stream-Deves] : Present Observability Monitoring Tool (WhaTap) Location: https://share.google/9osEZMi2wT5x4OKbz
+- [ ][TASK] Review the WhaTap features and OpenMetrics introduction documents and check details through Hady (Room: WhaTap_Weefer Batam, From: Jaejin Song (Internal), To: Hady (Internal)) | Evidence: --- [Source: 11708] --- Title: Discuss POC for Canadia Bank (Cambodia) Text: btw for the Canadia Bank (Cambodia), by Innovatif. They would like to discuss on POC`,
+			expectedOutput: []string{
+				"## [Operations & Strategy Overview]",
+				"## [Key Insights]",
+				"Cross-source",
+				"Canadia Bank",
+				"biz-global-tech",
+				"scalable",
+			},
+			notExpected: []string{
+				"which blocks",
+				", which ",
+				"leading to",
+				"single point of failure",
+				// v2.5.3: forbid sliced-predicate + paraphrased-subject pattern
+				`"isn't scalable" on his end`,
+				`"isn't scalable" on her end`,
+				`verifying every case "isn't scalable"`,
+				`on his end.`,
+				`on her end.`,
+			},
+		},
+		{
+			// Regression: v2.5.1 dropped the Type B (>40% concentration) bullet entirely
+			// despite L29 still mandating it. v2.5.2 declares Type B unconditional when
+			// threshold crossed. Real msg ids subset chosen so `shared` assignee holds
+			// 2/4 = 50% of open tasks — Type B MUST emit. No risk Evidence in this subset
+			// (Type A absent). Canadia POC appears in only one room here (Type C absent).
+			//
+			// Real msg ids (DB snapshot 2026-04-25, all open):
+			//   11708 biz-global-malaysia → To: shared       — Canadia Bank PoC criteria
+			//   11695 biz-global-malaysia → To: shared       — HeiTech research
+			//   11707 biz-global-malaysia → To: Yosep Park
+			//   11675 Gmail               → To: Jaejin Song (JJ)
+			//
+			// Distribution: shared=2/4=50%, Yosep Park=1/4, Jaejin Song=1/4. Threshold crossed.
+			name: "Case 6: Type B Concentration Trigger (Real Subset)",
+			inputLog: `- [ ][TASK] Align measurement criteria for the Canadia Bank PoC (Room: biz-global-malaysia, From: Andy Phan (Customer), To: shared (Team)) | Evidence: yes agree. We will do the criteria alignment with them
+- [ ][TASK] Review HeiTech Padu Berhad's latest projects and strategic developments (Room: biz-global-malaysia, From: Yosep Park (Internal), To: shared (Team)) | Evidence: Financial Strategy: HeiTech has been active in private placements and bonus issues to fund its diversification into renewable energy and advanced AI infrastructure.
+- [ ][TASK] Include Use Case 2 and additional considerations in the Heitech presentation (Room: biz-global-malaysia, From: Andy Phan (Customer), To: Yosep Park (Internal)) | Evidence: Ok. Specifically Use Case 2 and some additional considerations.
+- [ ][TASK] Onsite [Stream-Deves] : Present Observability Monitoring Tool (WhaTap) (Room: Gmail, From: Stream-Deves (External), To: Jaejin Song (Internal)) | Evidence: S: Onsite [Stream-Deves] : Present Observability Monitoring Tool (WhaTap) Location: https://share.google/9osEZMi2wT5x4OKbz`,
+			expectedOutput: []string{
+				"## [Operations & Strategy Overview]",
+				"## [Key Insights]",
+				"single point of failure",
+				"50%",
+				"shared",
+			},
+			notExpected: []string{
+				"Cross-source",
+				"which blocks",
+				", which ",
+				"No anomalies detected",
 			},
 		},
 	}

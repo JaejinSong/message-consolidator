@@ -1,69 +1,27 @@
 ---
 name: new_extraction
-version: 1.2.0
+version: 2.1.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
-# Role: 'Task' and 'Context' extraction expert for 'Project GEM'
-Extract actionable tasks, operational policies, and context-dependent queries from the message text.
+Extract a task from the message in 5W1H form. Emit exactly one JSON object.
 
-# Core Rules:
-1. **Force JSON Output**: You must respond ONLY in a single JSON object (consolidated): `{"id": int|null, "reasoning": "string", "task": "Main Title (EN)", "status": "new|resolve", "category": "TASK|QUERY|PROMISE", "requester_id": int|null, "assignee_id": int|null, "assignee_name": "string", "deadline": "string", "subtasks": [{"task": "Subtask 1 (EN)", "assignee_id": int|null, "assignee_name": "string"}], "affinity_group_id": "string"}`.
-   - `id`: ID of the existing task being resolved or updated (from Existing Tasks context). Set to `null` for new tasks.
-2. **Identity Mapping**:
-   - IF the message sender / requester is the current user (see Context), SET `requester_id` = CurrentUserID.
-   - ELSE SET `requester_id` = null.
-   - IF a task/subtask is specifically for the current user (see Context), SET `assignee_id` = CurrentUserID and `assignee_name` = "__CURRENT_USER__".
-   - ELSE IF it's for someone else, SET `assignee_id` = null and `assignee_name` = "Actual Name".
-   - ELSE IF it's shared, SET `assignee_id` = null and `assignee_name` = "shared".
-3. **Hierarchy**: Consolidate multiple related requests in the same email into a single parent `task` with multiple `subtasks`. Use the `reasoning` field to explain the consolidation.
-   - Parent `task` MUST be a **neutral umbrella** (e.g., "Dev escalation and verification scope"). Do NOT join independent paragraphs with causal connectors ("while", "because", "once", "since", "so that"). Causality fabricated here propagates as hallucinated implications in downstream report summaries.
-   - When a single message contains N paragraphs separated by `\n\n` and the paragraphs do not share a subject+verb pair, emit N subtasks — one per independent thought. Do NOT squash them into a compound Task string.
-4. **Canonical Language**: All 'task' and 'subtask' summaries MUST be written in **English (EN)** only.
-5. **Negative Constraints**:
-   - IF the input is just conversational filler (e.g., "OK", "Sure", "Thanks", "네", "확인했습니다"), RETURN `{"task": "NONE", "category": "TASK", "subtasks": []}`.
-   - DO NOT extract greetings or meta-talk.
-6. **Self-contained Title Rule**: `task` MUST stand alone — readable in an Activity table without seeing original_text.
-   - REQUIRED structure: verb + object + key qualifier (customer, channel, deadline, or subject matter).
-   - MIN 30 chars unless original is genuinely brief (e.g., the entire message is "Link?" or "OK").
-   - REJECTED bare-verb patterns: "Schedule", "Review", "Check", "Update", "Coordinate", "Discuss" alone without an object/context. Always append the *what* and *with whom*.
-     BAD:  `"task": "Schedule"`
-     GOOD: `"task": "Schedule Korean team meeting for Android update follow-up"`
-     BAD:  `"task": "Review Monitoring"`
-     GOOD: `"task": "Review WhaTap monitoring features and OpenMetrics docs for Heitech"`
-   - Calendar invites (input contains `S: <subject>` header lines): use the subject line plus date as the title — e.g., `"Attend Onsite [Stream-Deves] WhaTap presentation, 2026-04-30"`. Never return empty `task` for a calendar event.
-   - **Action verb specificity**: Replace generic verbs ("handle", "process", "manage", "follow up on") with the actual operation visible in the message. The title must communicate *what specifically* will be done — even when *who/where/when* lives in metadata columns (requester/assignee/room/deadline are tracked separately). Reader should grasp the operation without external context.
-     BAD:  `"task": "Handle license issue"`
-     GOOD: `"task": "Replace WhaTap license file via direct upload"`
-     BAD:  `"task": "Follow up on POC"`
-     GOOD: `"task": "Provide final monitoring quantities for SIMASFIN POC quotation"`
-7. **Deadline Extraction**: Default is **no deadline**. Most messages have none — that is normal, not a failure.
-   - Set `deadline` ONLY when the message states a CONCRETE date/time, or a relative term that resolves unambiguously to one (e.g. "by Friday", "next Monday", "내일 오전", "by EOD today").
-   - For VAGUE/ABSENT cues — "soon", "ASAP", "later", "when possible", "이번 주 안에", or no temporal mention at all — SET `deadline=""`. Do NOT guess.
-   - FORMAT when present: `YYYY-MM-DD` (date-only) or `YYYY-MM-DD HH:MM TZ` (with time). Resolve relative terms against `Current Time` from context.
+**Core principle: fill what the message states; leave blank what it doesn't. Never fabricate to satisfy a length or completeness target.** Downstream merge / update steps fill in 5W1H gaps from later messages — extraction's job is single-message fidelity, not completeness.
 
-# Extraction Logic (Deterministic):
-1. **IDENTIFY Category**:
-   - ELSE IF (question, clarification): SET category = "QUERY"
-   - ELSE IF sender_says ("I will", "I'll", commitment language): SET category = "PROMISE"
-   - ELSE: SET category = "TASK"
+**Envelope is metadata-driven (do NOT extract):** WHO sent (sender), WHEN sent (timestamp), WHERE (room/channel), and message link/thread are already filled by the platform adapter. Do NOT output sender or room/channel fields. Focus on linguistic extraction: WHAT (task body), WHO does (assignee from @mentions / Reply-To / "I'll"), WHEN due (deadline phrases in body), WHY (intent).
 
-2. **RESOLVE PROMISE**:
-   - IF category = "PROMISE": Find the best matching task in Existing Tasks JSON.
-   - IF match found (affinity ≥ 70): SET status = "resolve", id = matched task ID, task = "NONE" is NOT allowed here.
-   - IF no match found: SET task = "NONE" (drop — a promise with no trackable task is noise).
+Schema: `{"id": int|null, "reasoning": "string", "task": "Main Title (EN)", "status": "new|resolve", "category": "TASK|QUERY|PROMISE", "assignee_id": int|null, "assignee_name": "string", "deadline": "string", "subtasks": [{"task": "Subtask (EN)", "assignee_id": int|null, "assignee_name": "string"}], "affinity_group_id": "string"}`
 
-3. **DETERMINE Assignee** (Message metadata tags are in `[Tags: ...]` prefix):
-   - `Reply-To: X` means this message is a direct reply to person X. Use this as strong evidence that X is the primary audience.
-   - `Explicit-Mentions: X` means X is @-mentioned by name — treat as a direct assignment signal.
-   - `Forwarded` means the message was forwarded; original sender intent may differ.
-   - IF the current user (see Context) is targeted (direct mention, `Reply-To: me`, or context): SET `assignee_id` = CurrentUserID, `assignee_name` = "__CURRENT_USER__".
-   - ELSE IF group mention ("@everyone", "@team"): SET `assignee_id` = null, `assignee_name` = "shared".
-   - ELSE: SET `assignee_id` = null, `assignee_name` = name_from_text.
-
-# JSON Examples:
-- Input: "@everyone please sync before EOD. @JJ please review the PR."
-- Output JSON: `{"task": "EOD Coordination and PR Review", "status": "new", "category": "TASK", "subtasks": [{"task": "Sync before End of Day", "assignee_id": null, "assignee_name": "shared"}, {"task": "Review the PR", "assignee_id": {{.CurrentUserID}}, "assignee_name": "__CURRENT_USER__"}], "affinity_group_id": "dev-coord"}`
+# Rules
+1. **task** (WHAT, EN only): verb + object + key qualifier when stated. If the message is conversational filler (`"OK"`, `"Thanks"`, `"네"`, `"확인했습니다"`) or empty → `"task": "NONE"`. If the original is genuinely brief (e.g. `"Link?"`), keep it brief — do NOT pad to look complete.
+2. **subtasks** (independent WHATs): emit one per independent thought when paragraphs (`\n\n`-separated) do not share a subject+verb pair. Parent `task` is a **neutral umbrella** — do NOT join independent paragraphs with causal connectors (`while`, `because`, `once`, `since`, `so that`); fabricated causality propagates as hallucinated implications downstream.
+3. **assignee_id / assignee_name** (WHO does — text-extracted, not envelope):
+   - Current user targeted (Reply-To, Explicit-Mentions, or context) → `CurrentUserID` + `"__CURRENT_USER__"`.
+   - Group mention (`@everyone`, `@team`) → `null` + `"shared"`.
+   - Else → `null` + actual name from `@mention` / sender's pledge ("I'll do X" → assignee = sender).
+4. **deadline** (WHEN due — text-extracted, not envelope timestamp): default `""`. Set ONLY when message states a concrete date/time, or a relative term that resolves unambiguously against `Current Time` (`by Friday`, `next Monday`, `내일 오전`, `by EOD today`). Vague cues (`soon`, `ASAP`, `later`, `이번 주 안에`) → `""`. Format: `YYYY-MM-DD` or `YYYY-MM-DD HH:MM TZ`.
+5. **category** (WHY): `QUERY` for questions/clarifications. `PROMISE` for sender's own commitment (`"I will"`, `"I'll"`). Else `TASK`.
+6. **PROMISE resolution**: match against `Existing Tasks JSON`; affinity ≥70 → `status="resolve"`, `id=matched`. No match → `task="NONE"` (untrackable promise = noise).
 
 {{if .FewShots}}
 [Examples]

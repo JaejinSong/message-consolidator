@@ -1,40 +1,45 @@
 ---
 name: report_summary
-version: 2.5.1
+version: 2.6.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
 Generate a professional Executive Report. Each input line carries 5W context in this shape:
 `- [<status>][<category>] <task> (Room: <project>, From: <requester> (<cat>), To: <assignee> (<cat>), Due: <deadline>) | Evidence: "<snippet>"`
 
-Two grounding rules:
-- **Activity counting and customer roll-up**: use `task`, `Room`, and `From/To` fields directly. Status `[V]` = done, `[ ]` = active. Evidence is optional context.
-- **Key Insights and risk claims**: anchor every bullet in `Evidence: "..."` text — verbatim quote required. Tasks with no Evidence cannot appear in Key Insights.
-
-Never infer beyond what task title or Evidence explicitly supports.
+Status `[V]` = done, `[ ]` = active. Each rule below declares its own grounding contract; Key Insights bullets follow per-type contracts in rule 3. Never infer beyond what task title or Evidence explicitly supports.
 
 # Rules
 1. Headers (all 4 required, in order): `## [Operations & Strategy Overview]`, `## [Key Insights]`, `## [Activity]`, `## [Stalled Tasks]`
 2. **Operations & Strategy Overview**: 4-5 sentence strategic narrative grounded in Evidence. Identify "Choice and Concentration" conflicts ONLY when two or more tasks in Activity share genuinely conflicting resource/timing constraints visible in Evidence — do NOT invent strategic tensions. Write each sentence as its own paragraph separated by a blank line — do NOT merge sentences into one block.
-3. **Key Insights**: Surface non-obvious patterns, risks, and anomalies that are **explicitly supported by the Evidence text** — NOT a task list. Each risk/anomaly bullet MUST include a verbatim quote (≤10 words) from Evidence, in double quotes, proving the claim. Format: `- [Source] finding + "verbatim evidence quote" + implication.`
-   - **Flag risks ONLY if supported by Evidence.** Look for explicit signals: "blocked", "stuck", "no response", "waiting since", "can't", "not scalable", "unable to", "delayed", "overdue", or equivalent direct speaker language. Do NOT infer bottlenecks from task titles alone.
-   - If no evidence-backed risks exist, emit exactly one bullet: `- No anomalies detected.` Do not pad with generic observations.
-   - **No quota padding**: target count is 0–5 bullets. If genuine evidence-backed risks number fewer than 3, output ONLY the real ones (or `- No anomalies detected.`). Never pad with weak/derivative observations to reach a count. A single strong bullet beats five filler bullets.
-   - **"So what" test**: every bullet must independently articulate consequence. If the bullet, with its quote stripped, would read as just a task summary, it FAILS the test — drop it. The consequence is what makes it an insight rather than a log entry.
-   - **Done task exclusion**: tasks marked `[V]` (already resolved) cannot generate risk/anomaly bullets — by definition they are not active risks. Use them only for cross-cutting patterns (e.g., "5 of 7 done tasks involved license issuance" *if* such pattern is genuinely visible).
-   - **Preserve speaker stance.** When Evidence shows the speaker describing their own workflow (e.g., "share the context and I'll raise the request"), do NOT reframe it as a systemic bottleneck. Keep the speaker's verb and subject.
-   - **No nominalization.** Avoid patterns that convert speaker actions into abstract nouns: "the requirement to X", "indicates a Y", "the need to Z". Use the speaker's original verbs and subjects.
-   - **No free-form consequent clauses.** Do NOT append trailing implications (`", which blocks X"`, `", leading to Y"`, `", causing Z"`, `", delaying W"`, `", resulting in V"`) unless the consequent words appear **verbatim in Evidence**. If you feel compelled to add a consequent, you are inferring — stop.
-   - **DO add a finding label drawn from Evidence.** You MAY prefix (or immediately follow) the quote with a short finding label (2-5 words) whose nouns/verbs already appear in Evidence — e.g., `flags scalability ceiling:`, `raises capacity concern on`, `reports verification bottleneck`. The label reuses Evidence vocabulary; it must NOT introduce new causal verbs ("blocks", "causes", "prevents") or new subjects not mentioned in Evidence. Bullets consisting only of `"<speaker> states "<quote>" when discussing X"` are TOO WEAK — they miss the "so what". Always surface the finding that Evidence literally supports.
-   - If one person holds >40% of open tasks (verify by counting Activity), call it out with the count ratio.
-   - If a cross-source pattern exists (verify by inspecting Source/Room fields), include 1 cross-source bullet.
-   - Never restate task names or counts without adding the "so what".
-   BAD:  `- [Digital] 3 tasks active, 1 completed.`
-   GOOD: `- [Digital] 2 tasks stalled 7+ days per Evidence "waiting since Monday" — hidden blocker likely.`
-   BAD:  `- [Slack] The requirement to provide business context before raising dev requests indicates a process bottleneck.`
-   GOOD: `- [Slack] No anomalies detected.` (when Evidence shows a normal escalation flow, not a grievance)
-   BAD:  `- [biz-global-tech] Jaejin Song states "Verifying every case on my end isn't scalable" when discussing manual verification.` (too weak — missing the finding label)
-   GOOD: `- [biz-global-tech] Jaejin Song flags scalability ceiling on solo verification: "Verifying every case on my end isn't scalable".` (finding label reuses Evidence words "scalable" + "verifying"; no fabricated consequent)
+3. **Key Insights**: Surface non-obvious patterns, risks, and anomalies — NOT a task list. Bullets fall into three TYPES with **distinct grounding contracts**. Emit each type independently — they do NOT compete for a single quota.
+
+   **Type A — Evidence-backed Risk/Anomaly** (`- [Source] <finding label> "<verbatim quote>" <implication>`)
+   - **MUST include verbatim quote ≤10 words from Evidence in double quotes — as a contiguous Evidence span.** When the relevant Evidence sentence already fits, quote it whole — do NOT extract only the predicate (`"isn't scalable"`) and rebuild the subject in your prose. First-person anchors (`my`, `I`, `me`, `on my end`, `on our side`, `we`) that grammatically attach to the concern phrase MUST stay inside the quote — NEVER reattach as `"<predicate>" on his/her end` (flips first-person stance to third-person attribution). Bullet prose around the quote must add information BEYOND Evidence (finding label, source, implication) — never paraphrase or restate Evidence words.
+   - **Preserve speaker stance — stay in the speaker's voice.** No nominalization (`"the requirement to X"`, `"indicates a Y"`, `"the need to Z"` — keep the speaker's original verbs and subject). No free-form consequent clauses (`", which blocks X"`, `", leading to Y"`, `", causing Z"`, `", delaying W"`) unless the consequent words appear **verbatim in Evidence**.
+   - **DO add a finding label drawn from Evidence (2-5 words).** Prefix or immediately follow the quote with a label whose nouns/verbs already appear in Evidence — e.g., `flags scalability ceiling`, `raises capacity concern on`. The label reuses Evidence vocabulary; it must NOT introduce new causal verbs ("blocks", "causes", "prevents") or new subjects. Bullets shaped `"<speaker> states "<quote>" when discussing X"` are TOO WEAK — they miss the "so what".
+   - **Source gating**: only `[ ]` tasks (`[V]` Done excluded — not active risks). A risk = any verbatim Evidence phrase a reader would highlight as a concern; do NOT infer from task title alone. 0–4 bullets — never pad to reach a count.
+
+   **Type B — Ownership Concentration** (`- <Person> holds <N> of <Total> open tasks (<pct>%) — single point of failure risk.`)
+   - Verbatim quote NOT required. Grounding = Activity counts.
+   - Emit ONE Type B bullet **unconditionally** when any single `To:` (Internal) holds **>40%** of `[ ]` open tasks. Compute by counting input lines with `[ ]` status grouped by `To:` field. Skip when the threshold is not crossed — do NOT fabricate.
+
+   **Type C — Cross-source Pattern** (`- [Cross-source] <pattern> across <Room1>, <Room2>, <Room3> — "<≤10-word verbatim quote from any matching Evidence>".`)
+   - Verbatim quote required (any one matching task's Evidence containing the shared subject).
+   - Emit ONE Type C bullet **unconditionally** when ≥3 distinct `Room:` values share a common subject (same customer, same product, same initiative). Verify by inspecting Source/Room fields against task titles + Evidence.
+
+   **Emission contract**:
+   - Type A: 0–4 bullets.
+   - Type B: 0–1 bullet (unconditional when threshold crossed; this is NOT padding).
+   - Type C: 0–1 bullet (unconditional when threshold crossed).
+   - If ALL three types yield zero, emit exactly one bullet: `- No anomalies detected.` Do NOT emit `- No anomalies detected.` when Type B or Type C bullets are present.
+
+   **Examples by type**:
+   GOOD-A: `- [biz-global-tech] Jaejin Song flags scalability ceiling on solo verification: "Verifying every case on my end isn't scalable".`
+   GOOD-B: `- Minjun Lee holds 8 of 15 open tasks (53%) — single point of failure risk.`
+   GOOD-C: `- [Cross-source] Canadia Bank POC coordination across biz-global-malaysia, Canadia-Whatap POC, WhaTap_Weefer Batam — "Discuss POC for Canadia Bank (Cambodia)".`
+   BAD:    `- [biz-global-tech] Jaejin Song reports verifying every case "isn't scalable" on his end.` (sliced quote — predicate extracted, subject paraphrased, first-person flipped to third-person; quote the full sentence instead)
+   BAD:    `- [Slack] The requirement to provide business context indicates a process bottleneck.` (nominalization + fabricated consequent; stay in the speaker's voice)
 4. **Activity**: Count and roll up **every task line** — both `[V]` done and `[ ]` active count equally. Evidence is NOT required for Activity counting; use `task`, `Room`, and `From/To` fields. Identify customer/company names by inferring from room/channel names and task descriptions (e.g. "WhaTap APM Tools POC for Bank BNI" → "Bank BNI", "biz-global-malaysia" → "Malaysia Biz"). If no company name can be inferred, use the room/channel name as-is. Output one ```json block: `[{"customer": str, "count": num, "summary": str}]` sorted by count DESC. If no customers identified: `[]`
    - `summary`: 1–2 sentences describing the customer engagement using 5W signals from the input lines (task verbs + Room + From/To roles + Due dates).
    - When prominent, reference the *what specifically*, the key counterparty (assignee role, e.g. "with their dev lead"), and notable upcoming deadlines visible in `Due:` fields.

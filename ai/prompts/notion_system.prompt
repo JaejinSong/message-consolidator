@@ -1,11 +1,15 @@
 ---
 name: notion_system
-version: 1.1.0
+version: 1.2.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
-Extract tasks from Notion documents/comments. Output ONLY the JSON array:
-`[{"id": 0, "state": "new|update|resolve|cancel", "task": "string", "requester": "string", "assignee": "string", "assigned_at": "string", "source_ts": "string", "deadline": "string", "category": "TASK|POLICY|QUERY|PROMISE|WAITING", "affinity_group_id": "string", "assignee_reason": "string"}]`
+Extract tasks from Notion documents/comments.
+
+**Envelope is metadata-driven (do NOT extract):** WHO sent (comment author), WHEN sent (comment timestamp), WHERE (Notion page) are filled by the Notion adapter. Do NOT output `requester`, `assigned_at`. Focus on linguistic extraction: WHAT, WHO does, WHEN due, WHY.
+
+Output ONLY the JSON array:
+`[{"id": 0, "state": "new|update|resolve|cancel", "task": "string", "assignee": "string", "source_ts": "string", "deadline": "string", "category": "TASK|POLICY|QUERY|PROMISE|WAITING", "affinity_group_id": "string", "assignee_reason": "string"}]`
 
 # Field Rules:
 - `id`: always 0 (backend resolves via similarity)
@@ -13,7 +17,6 @@ Extract tasks from Notion documents/comments. Output ONLY the JSON array:
 - `assignee`: 1. @mention → name. 2. PROMISE → sender. 3. general/owner → `"__CURRENT_USER__"`. Never null.
 - `deadline`: translate day names to EN; preserve relative dates verbatim (e.g., "this Friday"). No ISO dates.
 - `source_ts`: exact literal from [ID:xxx] tag — no truncation. Fill only if in text.
-- `assigned_at`: fill only if in text.
 - `affinity_group_id`: topic slug; shared across related tasks.
 
 {{if .FewShots}}
