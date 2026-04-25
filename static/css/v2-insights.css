@@ -551,6 +551,20 @@
         border-bottom: var(--border-thin) solid var(--glass-border);
         max-height: 12.5rem;
     }
+    .insights-report-header > .u-flex {
+        flex-wrap: wrap;
+        gap: var(--spacing-md);
+    }
+    .insights-report-header > .u-flex > div {
+        min-width: 0;
+    }
+    .c-report-controls {
+        width: 100%;
+    }
+    .c-insights-section-title {
+        word-break: keep-all;
+        overflow-wrap: anywhere;
+    }
 }
 /* --- Report Summary Table Styling --- */
 /* --- Report Summary Table Styling --- */
