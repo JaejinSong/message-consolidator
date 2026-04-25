@@ -18,7 +18,7 @@ handlers/        — HTTP handlers (라우팅만)
 services/        — business logic
 store/           — DB access layer (sqlc + raw SQL 예외)
 store/queries/   — sqlc .sql 원본 쿼리 파일
-db/              — sqlc 생성 코드 (수동 편집 금지)
+db/              — sqlc 생성 코드
 internal/        — shared utilities
 scanner/         — message scanning
 channels/        — channel integrations (whatsmeow, slack-go)
@@ -104,13 +104,11 @@ store/queries/*.sql 편집 → sqlc generate → db/*.sql.go 자동 갱신
 **SDK auth transport 주의** — `google.golang.org/api/option.WithHTTPClient`를 지정하면 라이브러리는 `WithAPIKey` / `WithCredentials` / `WithTokenSource`를 **모두 무시**한다. 즉 `whataphttpx.Client()`(베이스 transport `nil`)로 SDK를 감싸면 인증 헤더가 누락되어 403 `Method doesn't allow unregistered callers`가 발생. 다음 두 패턴 중 하나로만 SDK를 래핑할 것:
 - **OAuth2/토큰 기반 SDK** — `whataphttpx.WrapClient(<sdk가 만든 인증 클라이언트>)` (예: `oauth2.NewClient`, Gmail). 기존 transport를 base로 보존
 - **API key SDK (Gemini 등)** — `whataphttpx.ClientWithAPIKey(apiKey)`. WhaTap RoundTripper 아래에 `x-goog-api-key` 헤더 주입 transport를 깔아 인증 보존
-신규 SDK 통합 시 `option.WithHTTPClient(whataphttpx.Client())` 패턴은 **사용 금지**.
 
 ### TypeScript
 - UI 코드는 **전부 TypeScript** (`.ts` / `.tsx`)
-- `.js` 파일 발견 시 `.ts`로 즉시 전환 (테스트 파일 포함)
+- `.js` 파일 발견 시 `.ts`로 즉시 전환 (vitest 설정 등 테스트 파일 포함)
 - `any` 타입 금지 — 불가피한 경우 `unknown` + type guard 사용
-- vitest 설정(`setupFiles` 등)도 `.ts` 기준으로 유지
 
 ### CSS
 - `px`, `hex` 하드코딩 **금지**
