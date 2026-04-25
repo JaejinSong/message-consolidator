@@ -29,7 +29,7 @@
 }
 
 .c-badge--ghost {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(var(--surface-rgb), 0.05);
     color: var(--text-dim);
     border: var(--border-thin) solid var(--glass-border);
 }
@@ -48,7 +48,7 @@
 
 
 .c-badge--dim {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(var(--surface-rgb), 0.05);
     color: var(--text-dim);
     border: var(--border-thin) solid var(--glass-border);
 }
@@ -74,7 +74,7 @@
 }
 
 .c-badge--deadline-past {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(var(--surface-rgb), 0.05);
     color: var(--text-dim);
     border: var(--border-thin) solid var(--glass-border);
 }
@@ -82,7 +82,7 @@
 /* Dashboard Counter Modifier */
 .c-badge--count {
     margin-left: var(--spacing-xs);
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(var(--surface-rgb), 0.1);
     color: var(--text-main);
     border: var(--border-thin) solid var(--glass-border);
     min-width: 1.5rem;

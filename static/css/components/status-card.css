@@ -16,7 +16,7 @@
     justify-content: center;
     gap: var(--spacing-sm);
     border-radius: var(--radius-xl);
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(var(--surface-rgb), 0.03);
     border: var(--border-thin) solid var(--glass-border);
     transition: all var(--transition-base) cubic-bezier(0.4, 0, 0.2, 1);
     color: var(--text-dim);

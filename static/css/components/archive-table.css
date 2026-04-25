@@ -2,7 +2,7 @@
 .c-archive-table {
     width: 100%;
     margin-top: 1rem;
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(var(--surface-rgb), 0.03);
     border-radius: var(--radius-lg);
     border: var(--border-thin) solid var(--glass-border);
     overflow: hidden;
@@ -13,7 +13,7 @@
 .c-archive-table th {
     padding: 1.25rem 1rem;
     text-align: left;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(var(--surface-rgb), 0.05);
     font-size: 0.8rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -29,7 +29,7 @@
 }
 
 .c-archive-table tr:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(var(--surface-rgb), 0.05);
 }
 
 .c-archive-table tr:last-child td {

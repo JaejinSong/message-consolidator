@@ -76,7 +76,8 @@
       "mcp__serena__read_memory",
       "Read(//app/**)",
       "Read(//var/log/**)",
-      "Bash(./deploy.sh be *)"
+      "Bash(./deploy.sh be *)",
+      "mcp__serena__replace_content"
     ],
     "additionalDirectories": [
       "/tmp",

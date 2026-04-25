@@ -167,16 +167,16 @@ header {
     text-align: center;
     width: 100%;
     grid-column: 1 / -1;
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(var(--surface-rgb), 0.02);
     border-radius: var(--radius-2xl);
-    border: var(--border-thin) dashed rgba(255, 255, 255, 0.1);
+    border: var(--border-thin) dashed rgba(var(--surface-rgb), 0.1);
     margin-bottom: 2rem;
 }
 
 .completed-list-divider {
     grid-column: 1 / -1;
     height: var(--border-thin);
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    background: linear-gradient(90deg, transparent, rgba(var(--surface-rgb), 0.1), transparent);
     margin: 1rem 0 3rem 0;
     position: relative;
 }

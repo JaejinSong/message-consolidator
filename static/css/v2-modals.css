@@ -98,7 +98,7 @@
 
 .c-modal__close:hover {
     color: var(--color-error);
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(var(--surface-rgb), 0.05);
 }
 
 .c-modal__body {
@@ -258,7 +258,7 @@
 }
 
 .release-notes-markdown code {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(var(--surface-rgb), 0.1);
     padding: 0.2rem 0.4rem;
     border-radius: var(--radius-sm);
     font-family: monospace;

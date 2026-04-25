@@ -41,13 +41,13 @@
 }
 
 .c-btn--ghost {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(var(--surface-rgb), 0.05);
     color: var(--text-dim);
     border-color: var(--glass-border);
 }
 
 .c-btn--ghost:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(var(--surface-rgb), 0.1);
     color: var(--text-main);
 }
 
@@ -113,7 +113,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(var(--surface-rgb), 0.05);
     border: var(--border-thin) solid var(--glass-border);
     border-radius: var(--radius-md);
     cursor: pointer;
@@ -122,7 +122,7 @@
 }
 
 .c-utility__btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(var(--surface-rgb), 0.1);
     transform: translateY(calc(var(--border-thin) * -1));
     border-color: var(--accent-color);
 }

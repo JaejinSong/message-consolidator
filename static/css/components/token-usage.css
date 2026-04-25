@@ -29,7 +29,7 @@
     transform: translateY(-0.25rem);
     box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.3);
     border-color: rgba(var(--accent-rgb), 0.4);
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(var(--surface-rgb), 0.05);
 }
 
 .c-token-usage__card::after {
@@ -56,7 +56,7 @@
     font-weight: 800;
     color: var(--text-main);
     line-height: 1.2;
-    text-shadow: 0 0 1rem rgba(255, 255, 255, 0.05);
+    text-shadow: 0 0 1rem rgba(var(--surface-rgb), 0.05);
 }
 
 .c-token-usage__footer {

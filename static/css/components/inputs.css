@@ -1,6 +1,6 @@
 /* --- Inputs (.c-input) --- */
 .c-input {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(var(--surface-rgb), 0.05);
     border: var(--border-thin) solid var(--glass-border);
     border-radius: var(--radius-md);
     padding: 0.75rem 1.25rem;
@@ -13,7 +13,7 @@
 
 .c-input:focus {
     border-color: var(--accent-color);
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(var(--surface-rgb), 0.08);
     box-shadow: 0 0 0 0.1875rem var(--accent-glow);
 }
 

@@ -30,7 +30,7 @@
 }
 
 .chart-container, .heatmap-container, .svg-chart-container {
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(var(--surface-rgb), 0.02);
     border: var(--border-thin) solid var(--glass-border);
     border-radius: var(--radius-lg);
     padding: var(--spacing-xs);
@@ -38,7 +38,7 @@
 }
 
 .insights-card, .c-insight-card {
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(var(--surface-rgb), 0.04);
     border: var(--border-thin) solid var(--glass-border);
     border-radius: var(--radius-lg);
     padding: 0.5rem 0.75rem;
@@ -121,7 +121,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 1rem 0;
-    border-bottom: var(--border-thin) solid rgba(255, 255, 255, 0.05);
+    border-bottom: var(--border-thin) solid rgba(var(--surface-rgb), 0.05);
 }
 
 .c-insight-item:last-child {

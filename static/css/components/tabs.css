@@ -7,7 +7,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--spacing-sm);
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(var(--surface-rgb), 0.03);
     padding: var(--spacing-xs);
     border-radius: var(--radius-lg);
     border: var(--border-thin) solid var(--glass-border);
@@ -46,7 +46,7 @@
 
 .c-tabs__btn:hover {
     color: var(--text-main);
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(var(--surface-rgb), 0.05);
 }
 
 .c-tabs__btn.active {
@@ -71,7 +71,7 @@
         grid-template-columns: repeat(2, 1fr) !important;
         width: 100% !important;
         gap: var(--spacing-xs) !important;
-        background: rgba(255, 255, 255, 0.05) !important;
+        background: rgba(var(--surface-rgb), 0.05) !important;
         padding: var(--spacing-xs) !important;
     }
 
