@@ -66,12 +66,24 @@ export function getActiveCount(messages: Message[] | undefined): number {
 /**
  * Generates continuous heatmap data for the last X days.
  */
-export function generateHeatmapData(history: any[], days: number = 30) {
-    const historyMap: Record<string, { total: number; counts: any }> = {};
+export interface HeatmapHistoryPoint {
+    date: string;
+    counts: Record<string, number>;
+}
+
+export interface HeatmapCell {
+    date: string;
+    count: number;
+    counts: Record<string, number>;
+    level: number;
+}
+
+export function generateHeatmapData(history: HeatmapHistoryPoint[], days: number = 30): HeatmapCell[] {
+    const historyMap: Record<string, { total: number; counts: Record<string, number> }> = {};
     if (history && Array.isArray(history)) {
         history.forEach(p => {
             if (!p.date || !p.counts) return;
-            const sum = Object.values(p.counts as Record<string, number>).reduce((a, b) => a + (Number(b) || 0), 0);
+            const sum = Object.values(p.counts).reduce((a, b) => a + (Number(b) || 0), 0);
             historyMap[p.date] = { total: sum, counts: p.counts };
         });
     }
@@ -100,11 +112,18 @@ export function calculateHeatmapLevel(count: number): number {
     return 4;
 }
 
+export interface TimeSeriesEntry {
+    date: string;
+    counts: Record<string, number>;
+    total: number;
+    cumulative: number;
+}
+
 /**
  * Processes raw completion history into a continuous timeline.
  */
-export function processTimeSeriesData(history: { date: string; counts: Record<string, number> }[], days: number): any[] {
-    const result: any[] = [];
+export function processTimeSeriesData(history: { date: string; counts: Record<string, number> }[], days: number): TimeSeriesEntry[] {
+    const result: TimeSeriesEntry[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -208,17 +227,31 @@ export function getDisplayTask(m: Message, lang?: string): string {
     return m.task_en || m.task || "";
 }
 
+export interface RawReportInput {
+    id?: number | string;
+    user_email?: string;
+    start_date?: string;
+    end_date?: string;
+    report_summary?: string;
+    translations?: Record<string, string>;
+    visualization?: string | ParsedVisualization;
+    visualization_data?: string | ParsedVisualization;
+    is_truncated?: boolean | number;
+    status?: IReportData['status'];
+    created_at?: string;
+}
+
 /**
  * Why: Normalizes raw report data with safe JSON parsing for visualization.
  */
-export function normalizeReportData(data: any): IReportData {
+export function normalizeReportData(data: RawReportInput | null | undefined): IReportData {
     if (!data) return {} as IReportData;
 
     let viz: ParsedVisualization = { nodes: [], links: [] };
     const rawViz = data.visualization || data.visualization_data;
 
     if (typeof rawViz === 'string' && rawViz.trim()) {
-        try { viz = JSON.parse(rawViz); } catch (e) { /* Fallback */ }
+        try { viz = JSON.parse(rawViz); } catch { /* Fallback */ }
     } else if (rawViz && typeof rawViz === 'object') {
         viz = rawViz as ParsedVisualization;
     }

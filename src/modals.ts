@@ -40,8 +40,13 @@ export interface ModalInterface {
     setupEventListeners(): void;
 }
 
-export const modals: any = {
-    tokenCard: null as TokenUsageCard | null,
+interface ModalsImpl extends ModalInterface {
+    tokenCard: TokenUsageCard | null;
+    setupRefreshCacheBtn(): void;
+}
+
+export const modals: ModalsImpl = {
+    tokenCard: null,
 
     /**
      * Initializes the modals module.

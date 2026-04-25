@@ -4,11 +4,22 @@
  * Inherits Base URL from VITE_API_BASE_URL environment variable.
  */
 
-export const BASE_URL = ((import.meta as any).env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+export const BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 export interface ApiRequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
   errorMessage?: string;
+}
+
+export class ApiError extends Error {
+  status: number;
+  isAuthError: boolean;
+  constructor(message: string, status: number, isAuthError = false) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.isAuthError = isAuthError;
+  }
 }
 
 /**
@@ -16,7 +27,7 @@ export interface ApiRequestOptions extends RequestInit {
  * @param endpoint The API endpoint (e.g., '/api/messages')
  * @param options Fetch options and query parameters
  */
-export async function apiFetch<T = any>(
+export async function apiFetch<T = unknown>(
   endpoint: string,
   options: ApiRequestOptions = {}
 ): Promise<T> {
@@ -85,10 +96,7 @@ export async function apiFetch<T = any>(
 
   // Handle common status codes
   if (resp.status === 401) {
-    const err: any = new Error('Session Expired or Unauthorized');
-    err.isAuthError = true;
-    err.status = 401;
-    throw err;
+    throw new ApiError('Session Expired or Unauthorized', 401, true);
   }
 
   const contentType = resp.headers.get("content-type");
@@ -104,10 +112,7 @@ export async function apiFetch<T = any>(
     }
     
     // Why: Prevent JSON.parse error by failing early with a meaningful message.
-    const err: any = new Error('Authentication Required (Session Expired or Proxy Redirect)');
-    err.isAuthError = true;
-    err.status = 401;
-    throw err;
+    throw new ApiError('Authentication Required (Session Expired or Proxy Redirect)', 401, true);
   }
 
   if (!resp.ok) {
@@ -115,9 +120,7 @@ export async function apiFetch<T = any>(
     if (import.meta.env.DEV) {
       console.error(`[API Error] Status: ${resp.status}`, text);
     }
-    const err: any = new Error(errorMessage || text || `Error ${resp.status}`);
-    err.status = resp.status;
-    throw err;
+    throw new ApiError(errorMessage || text || `Error ${resp.status}`, resp.status);
   }
 
   if (contentType && contentType.includes("application/json")) {

@@ -439,7 +439,7 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.Gemini
 		if !ok {
 			continue
 		}
-		if id, _ := store.HandleTaskState(ctx, store.GetDB(), email, item, msg); id > 0 {
+		if id, _ := services.HandleTaskState(ctx, store.GetDB(), email, item, msg); id > 0 {
 			newIDs = append(newIDs, id)
 		}
 	}

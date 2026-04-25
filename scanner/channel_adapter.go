@@ -15,6 +15,7 @@ import (
 
 	"message-consolidator/ai"
 	"message-consolidator/logger"
+	"message-consolidator/services"
 	"message-consolidator/store"
 	"message-consolidator/types"
 )
@@ -168,10 +169,10 @@ func saveChannelItem(ctx context.Context, user store.User, aliases []string, ite
 	}
 	msg := BuildConsolidatedMessage(params, aliases)
 
-	if id, _ := store.RouteTaskByStatus(ctx, nil, user.Email, item, msg); id > 0 {
+	if id, _ := services.RouteTaskByStatus(ctx, nil, user.Email, item, msg); id > 0 {
 		return id
 	}
-	id, _ := store.HandleTaskState(ctx, nil, user.Email, item, msg)
+	id, _ := services.HandleTaskState(ctx, nil, user.Email, item, msg)
 	return id
 }
 

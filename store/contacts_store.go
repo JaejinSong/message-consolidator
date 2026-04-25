@@ -387,6 +387,11 @@ func detectDisplayNameAmbiguity(ctx context.Context, tenantEmail string, normLis
 	if len(normList) == 0 {
 		return nil
 	}
+	// Why: raw SQL retained here. sqlc v1.30 (sqlite engine) drops the slice parameter
+	// when sqlc.slice() is paired with a function-wrapped LHS (LOWER(display_name) IN ...).
+	// The functional index `idx_contacts_tenant_display_name(tenant_email, LOWER(display_name))`
+	// requires LOWER on the column side to be hit, so we cannot work around by pre-lowercasing.
+	// Per CLAUDE.md: "raw SQL은 동적 IN절 등 sqlc 정적 분석 불가 케이스에 한정".
 	placeholders := strings.Repeat(",?", len(normList))[1:]
 	args := make([]interface{}, len(normList)+1)
 	args[0] = tenantEmail

@@ -39,7 +39,7 @@ func (d *DefaultTaskStore) UpdateMessageCategory(ctx context.Context, q store.Qu
 }
 
 func (d *DefaultTaskStore) HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (int, error) {
-	return store.HandleTaskState(ctx, q, email, item, msg)
+	return HandleTaskState(ctx, q, email, item, msg)
 }
 
 func (d *DefaultTaskStore) GetMessageByID(ctx context.Context, q store.Querier, email string, id int) (store.ConsolidatedMessage, error) {

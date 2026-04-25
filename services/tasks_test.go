@@ -188,7 +188,7 @@ func TestConsolidateTasks_SameSource_NoOriginalTextDuplication(t *testing.T) {
 		},
 	}
 
-	result := store.ConsolidateTasks(tasks)
+	result := ConsolidateTasks(tasks)
 
 	if len(result) != 1 {
 		t.Fatalf("expected 1 consolidated task, got %d", len(result))
@@ -220,7 +220,7 @@ func TestConsolidateTasks_DifferentSource_FullAppend(t *testing.T) {
 		},
 	}
 
-	result := store.ConsolidateTasks(tasks)
+	result := ConsolidateTasks(tasks)
 
 	if len(result) != 1 {
 		t.Fatalf("expected 1 consolidated task, got %d", len(result))
@@ -239,7 +239,7 @@ func TestConsolidateTasks_BelowThreshold_NotMerged(t *testing.T) {
 		{Task: "Task Y", State: "new", SourceTS: "ts-001", AffinityGroupID: "group-3", AffinityScore: 70},
 	}
 
-	result := store.ConsolidateTasks(tasks)
+	result := ConsolidateTasks(tasks)
 
 	if len(result) != 2 {
 		t.Errorf("tasks below threshold should NOT be merged, got %d tasks", len(result))

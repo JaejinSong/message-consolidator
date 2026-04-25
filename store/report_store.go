@@ -3,9 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"message-consolidator/db"
-	"strings"
 	"time"
 )
 
@@ -89,32 +87,22 @@ func GetReportTranslationsBatch(ctx context.Context, reportIDs []int) (map[int]m
 		return make(map[int]map[string]string), nil
 	}
 
-	placeholders := make([]string, len(reportIDs))
-	args := make([]interface{}, len(reportIDs))
+	ids := make([]int64, len(reportIDs))
 	for i, id := range reportIDs {
-		placeholders[i] = "?"
-		args[i] = id
+		ids[i] = int64(id)
 	}
-
-	query := fmt.Sprintf("SELECT report_id, language_code, summary FROM report_translations WHERE report_id IN (%s)", strings.Join(placeholders, ","))
-	conn := GetDB()
-	rows, err := conn.QueryContext(ctx, query, args...)
+	rows, err := db.New(GetDB()).GetReportTranslationsByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	res := make(map[int]map[string]string)
-	for rows.Next() {
-		var rid int
-		var lang, summary string
-		if err := rows.Scan(&rid, &lang, &summary); err != nil {
-			return nil, err
-		}
+	for _, row := range rows {
+		rid := int(row.ReportID)
 		if res[rid] == nil {
 			res[rid] = make(map[string]string)
 		}
-		res[rid][lang] = summary
+		res[rid][row.LanguageCode] = row.Summary
 	}
 	return res, nil
 }

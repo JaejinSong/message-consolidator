@@ -56,53 +56,68 @@ func (a *API) runProposalJob(email string) *proposalJob {
 
 	autoMerged, err := store.AutoMergeByCanonicalID(ctx, email)
 	if err != nil {
-		return &proposalJob{Status: "error", ErrMsg: err.Error()}
+		return proposalJobError(err)
 	}
-
 	contacts, err := store.GetCandidateContacts(ctx, email)
 	if err != nil {
-		return &proposalJob{Status: "error", ErrMsg: err.Error()}
+		return proposalJobError(err)
 	}
-
 	handledPairs, err := store.LoadHandledPairs(ctx, email)
 	if err != nil {
-		return &proposalJob{Status: "error", ErrMsg: err.Error()}
+		return proposalJobError(err)
 	}
 
+	aiInserted, err := a.insertAIProposalGroups(ctx, contacts, handledPairs)
+	if err != nil {
+		return proposalJobError(err)
+	}
+	tokenInserted, err := insertTokenSortedProposals(ctx, email, handledPairs)
+	if err != nil {
+		return proposalJobError(err)
+	}
+
+	return &proposalJob{Status: "done", Count: aiInserted + tokenInserted, AutoMerged: autoMerged}
+}
+
+func proposalJobError(err error) *proposalJob {
+	return &proposalJob{Status: "error", ErrMsg: err.Error()}
+}
+
+func (a *API) insertAIProposalGroups(ctx context.Context, contacts []store.ContactRecord, handledPairs map[[2]int64]bool) (int, error) {
 	groups, err := a.IdentityResolver.ProposeGroups(ctx, contacts)
 	if err != nil {
-		return &proposalJob{Status: "error", ErrMsg: err.Error()}
+		return 0, err
 	}
-
 	inserted := 0
 	for _, g := range groups {
 		if len(g.ContactIDs) < 2 || allPairsHandled(g.ContactIDs, handledPairs) {
 			continue
 		}
-		groupID := store.NewGroupID()
-		if err := store.InsertProposalGroup(ctx, groupID, g.ContactIDs, g.Confidence, g.Reason); err != nil {
-			return &proposalJob{Status: "error", ErrMsg: err.Error()}
+		if err := store.InsertProposalGroup(ctx, store.NewGroupID(), g.ContactIDs, g.Confidence, g.Reason); err != nil {
+			return inserted, err
 		}
 		inserted++
 	}
+	return inserted, nil
+}
 
-	// Token-sort proposals: detect reversed-order names (e.g. "Phathit Chulothok" ↔ "Chulothok Phathit").
-	tokenProposals, err := store.GenerateTokenSortedProposals(ctx, email, handledPairs)
+// insertTokenSortedProposals catches reversed-order names (e.g. "Phathit Chulothok" ↔ "Chulothok Phathit").
+func insertTokenSortedProposals(ctx context.Context, email string, handledPairs map[[2]int64]bool) (int, error) {
+	proposals, err := store.GenerateTokenSortedProposals(ctx, email, handledPairs)
 	if err != nil {
-		return &proposalJob{Status: "error", ErrMsg: err.Error()}
+		return 0, err
 	}
-	for _, p := range tokenProposals {
+	inserted := 0
+	for _, p := range proposals {
 		if allPairsHandled(p.ContactIDs, handledPairs) {
 			continue
 		}
-		groupID := store.NewGroupID()
-		if err := store.InsertProposalGroup(ctx, groupID, p.ContactIDs, p.Confidence, p.Reason); err != nil {
-			return &proposalJob{Status: "error", ErrMsg: err.Error()}
+		if err := store.InsertProposalGroup(ctx, store.NewGroupID(), p.ContactIDs, p.Confidence, p.Reason); err != nil {
+			return inserted, err
 		}
 		inserted++
 	}
-
-	return &proposalJob{Status: "done", Count: inserted, AutoMerged: autoMerged}
+	return inserted, nil
 }
 
 // HandleProposalJobStatus returns the current async job state for the authenticated user.

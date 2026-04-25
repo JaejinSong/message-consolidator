@@ -31,9 +31,40 @@ src/             — frontend (domain layer / UI layer 분리)
 ## Code Constraints
 
 ### Go
-- 단일 함수 **40라인 이내**
-- 중첩 depth **최대 2단계** — Guard Clauses 우선
-- ID 파라미터: **Explicit Integer Conversion** (`int64(id)`) 필수
+#### 복잡도
+- 순환/인지 복잡도 ≤ 15 (`gocyclo`, `gocognit`)
+- 라인 수 60 초과 시 분리 검토 (의미 없는 분리는 금지)
+
+#### 제어 흐름
+- 중첩 최대 3단계, Guard Clauses 우선 (early return)
+- `if-else` 체인 대신 `switch` 또는 early return
+
+#### 타입
+- ID는 Phantom Type (`type UserID int64`), 단순 `int64` 금지
+- `any`/`interface{}` 사용 시 사유 주석 필수
+
+#### 에러
+- 래핑 필수: `fmt.Errorf("context: %w", err)`
+- 검사: `errors.Is` / `errors.As`
+- 런타임 경로 `panic` 금지
+
+#### Context
+- 모든 I/O 함수 첫 파라미터: `ctx context.Context`
+- `context.TODO()` 머지 전 제거
+
+#### 인터페이스
+- 사용처(consumer)에 정의, 메서드 3개 이하
+- Accept interfaces, return structs
+
+#### 동시성
+- goroutine은 `ctx` 취소 또는 `done` 채널 필수
+- 공유 상태는 mutex 또는 채널 중 하나로 통일
+
+#### 명명
+- 약어 케이스 일관: `userID`, `httpClient`
+
+#### 검증
+- `golangci-lint` CI 통과 필수
 
 ### DB
 

@@ -353,12 +353,12 @@ func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
 	qrChan, err := client.GetQRChannel(ctx)
 	if err != nil {
 		logger.Errorf("[WA-QR] Failed to get QR channel for %s: %v", email, err)
-		return "", fmt.Errorf("failed to get QR channel for %s: %v", email, err)
+		return "", fmt.Errorf("failed to get QR channel for %s: %w", email, err)
 	}
 
 	if err := client.Connect(); err != nil {
 		logger.Errorf("[WA-QR] Failed to connect client for %s: %v", email, err)
-		return "", fmt.Errorf("failed to connect for %s: %v", email, err)
+		return "", fmt.Errorf("failed to connect for %s: %w", email, err)
 	}
 
 	for {
@@ -374,7 +374,7 @@ func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
 				png, err := qrcode.Encode(evt.Code, qrcode.High, 300)
 				if err != nil {
 					logger.Errorf("[WA-QR] Failed to encode QR for %s: %v", email, err)
-					return "", fmt.Errorf("failed to encode QR: %v", err)
+					return "", fmt.Errorf("failed to encode QR: %w", err)
 				}
 				encoded := base64.StdEncoding.EncodeToString(png)
 				m.mu.Lock()

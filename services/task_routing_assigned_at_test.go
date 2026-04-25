@@ -1,9 +1,10 @@
-package store
+package services
 
 import (
 	"context"
 	"database/sql"
 	"message-consolidator/internal/testutil"
+	"message-consolidator/store"
 	"testing"
 	"time"
 )
@@ -15,7 +16,7 @@ import (
 func setupAssignedAtFixture(t *testing.T, room, assignee string, assignedAt time.Time) (string, int) {
 	t.Helper()
 	email := "assigned-at-test@example.com"
-	res, err := GetDB().Exec(
+	res, err := store.GetDB().Exec(
 		"INSERT INTO messages (user_email, source, room, task, assignee, assigned_at, source_ts, done, is_deleted) VALUES (?, 'slack', ?, 'Existing Task', ?, ?, ?, 0, 0)",
 		email, room, assignee, assignedAt, "ts-1",
 	)
@@ -30,7 +31,7 @@ func readAssignedAt(t *testing.T, email string, id int) (string, time.Time) {
 	t.Helper()
 	var assignee string
 	var assignedAt sql.NullTime
-	err := GetDB().QueryRow(
+	err := store.GetDB().QueryRow(
 		"SELECT COALESCE(assignee, ''), assigned_at FROM messages WHERE user_email = ? AND id = ?",
 		email, id,
 	).Scan(&assignee, &assignedAt)
@@ -41,7 +42,7 @@ func readAssignedAt(t *testing.T, email string, id int) (string, time.Time) {
 }
 
 func TestHandleUpdate_BumpsAssignedAtOnAssigneeChange(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
 		t.Fatalf("setup: %v", err)
 	}
@@ -53,13 +54,13 @@ func TestHandleUpdate_BumpsAssignedAtOnAssigneeChange(t *testing.T) {
 	email, id := setupAssignedAtFixture(t, room, "Alice", t1)
 
 	idVal := id
-	item := TodoItem{
+	item := store.TodoItem{
 		ID:         &idVal,
 		State:      "update",
 		Task:       "Existing Task",
 		AssignedTo: "Bob",
 	}
-	msg := ConsolidatedMessage{
+	msg := store.ConsolidatedMessage{
 		UserEmail:  email,
 		Source:     "slack",
 		Room:       room,
@@ -80,7 +81,7 @@ func TestHandleUpdate_BumpsAssignedAtOnAssigneeChange(t *testing.T) {
 }
 
 func TestHandleUpdate_AssignedAtNoOpOnSameAssignee(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
 		t.Fatalf("setup: %v", err)
 	}
@@ -92,13 +93,13 @@ func TestHandleUpdate_AssignedAtNoOpOnSameAssignee(t *testing.T) {
 	email, id := setupAssignedAtFixture(t, room, "Alice", t1)
 
 	idVal := id
-	item := TodoItem{
+	item := store.TodoItem{
 		ID:         &idVal,
 		State:      "update",
 		Task:       "Existing Task",
 		AssignedTo: "Alice",
 	}
-	msg := ConsolidatedMessage{
+	msg := store.ConsolidatedMessage{
 		UserEmail:  email,
 		Source:     "slack",
 		Room:       room,
@@ -119,7 +120,7 @@ func TestHandleUpdate_AssignedAtNoOpOnSameAssignee(t *testing.T) {
 }
 
 func TestHandleUpdate_AssignedAtPreservedOnEmptyAssignee(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
 		t.Fatalf("setup: %v", err)
 	}
@@ -131,13 +132,13 @@ func TestHandleUpdate_AssignedAtPreservedOnEmptyAssignee(t *testing.T) {
 	email, id := setupAssignedAtFixture(t, room, "Alice", t1)
 
 	idVal := id
-	item := TodoItem{
+	item := store.TodoItem{
 		ID:         &idVal,
 		State:      "update",
 		Task:       "Existing Task",
 		AssignedTo: "",
 	}
-	msg := ConsolidatedMessage{
+	msg := store.ConsolidatedMessage{
 		UserEmail:  email,
 		Source:     "slack",
 		Room:       room,

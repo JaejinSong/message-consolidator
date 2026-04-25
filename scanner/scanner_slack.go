@@ -220,21 +220,44 @@ func updateSlackCursors(newTS map[string]map[string]string) {
 }
 
 func classifyMessage(channel slack.Channel, user *store.User, aliases []string, m types.RawMessage) types.MessageCategory {
-	isFromMe := strings.EqualFold(m.Sender, user.Name) || strings.EqualFold(m.Sender, user.Email) || (user.SlackID != "" && m.Sender == user.SlackID)
-	// Why: Identifies self-sent requests to others in non-direct channels to track "waiting for reply" states.
-	if isFromMe && !channel.IsIM && !channel.IsMpIM {
-		if strings.Contains(m.Text, "<@U") && (user.SlackID == "" || !strings.Contains(m.Text, "<@"+user.SlackID+">")) {
-			return types.CategoryTask
-		}
-	}
-	// Why: Broadens capture by prioritizing direct messages, group mentions, and specific personal mentions.
-	if channel.IsIM || channel.IsMpIM || isGroupMention(m.Text) {
+	if isOutgoingMentionToOther(channel, user, m) {
 		return types.CategoryTask
 	}
-	if (user.SlackID != "" && strings.Contains(m.Text, "<@"+user.SlackID+">")) || hasAliasMatch(m, aliases) {
+	if isBroadcastChannel(channel, m) {
+		return types.CategoryTask
+	}
+	if isDirectlyAddressed(user, m, aliases) {
 		return types.CategoryTask
 	}
 	return types.CategoryQuery
+}
+
+func isFromUser(user *store.User, m types.RawMessage) bool {
+	return strings.EqualFold(m.Sender, user.Name) ||
+		strings.EqualFold(m.Sender, user.Email) ||
+		(user.SlackID != "" && m.Sender == user.SlackID)
+}
+
+// Why: 자기가 비-DM 채널에서 다른 사람을 멘션한 outgoing 메시지를 "waiting reply" task 로 분류 (자기 멘션은 제외)
+func isOutgoingMentionToOther(channel slack.Channel, user *store.User, m types.RawMessage) bool {
+	if !isFromUser(user, m) || channel.IsIM || channel.IsMpIM {
+		return false
+	}
+	if !strings.Contains(m.Text, "<@U") {
+		return false
+	}
+	return user.SlackID == "" || !strings.Contains(m.Text, "<@"+user.SlackID+">")
+}
+
+func isBroadcastChannel(channel slack.Channel, m types.RawMessage) bool {
+	return channel.IsIM || channel.IsMpIM || isGroupMention(m.Text)
+}
+
+func isDirectlyAddressed(user *store.User, m types.RawMessage, aliases []string) bool {
+	if user.SlackID != "" && strings.Contains(m.Text, "<@"+user.SlackID+">") {
+		return true
+	}
+	return hasAliasMatch(m, aliases)
 }
 
 func isGroupMention(text string) bool {
@@ -603,12 +626,12 @@ func processSlackItems(ctx context.Context, user *store.User, items []store.Todo
 		msg := mapSlackItemToMessage(ctx, item, m, user, aliases, sc)
 
 		// Routing Logic: Identifies resolve/update status before insertion.
-		if id, _ := store.RouteTaskByStatus(ctx, nil, user.Email, item, msg); id > 0 {
+		if id, _ := services.RouteTaskByStatus(ctx, nil, user.Email, item, msg); id > 0 {
 			newIDs = append(newIDs, id)
 			continue
 		}
 
-		id, err := store.HandleTaskState(ctx, nil, user.Email, item, msg)
+		id, err := services.HandleTaskState(ctx, nil, user.Email, item, msg)
 		if err == nil && id > 0 {
 			newIDs = append(newIDs, id)
 		}

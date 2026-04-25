@@ -7,7 +7,13 @@ import (
 	"message-consolidator/db"
 	"message-consolidator/logger"
 	"strings"
+	"sync"
 )
+
+// Why: Guards the fire-and-forget contact_resolution backfill so concurrent runMigrations
+// calls (e.g. test reuse, double-init) cannot spawn duplicate goroutines within one process.
+// Multi-instance protection still relies on the in-function `count > 0` early-return.
+var migrateContactResolutionOnce sync.Once
 
 func createCoreTables(ctx context.Context, q db.DBTX) error {
 	queries := db.New(q)
@@ -44,11 +50,12 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 
 func runMigrations(ctx context.Context, q db.DBTX) error {
 	migrateExistingData(ctx, q)
-	go migrateContactResolution(ctx)
+	migrateContactResolutionOnce.Do(func() {
+		go migrateContactResolution(ctx)
+	})
 	return nil
 }
 
-// migrateContactResolution rebuilds contact_resolution on first run after the table was introduced.
 // migrateContactResolution rebuilds contact_resolution on first run after the table was introduced.
 // Why: spawned as a fire-and-forget goroutine from runMigrations. Captures the *sql.DB once at start
 // so a concurrent ResetForTest (test teardown) cannot nil the global mid-execution and panic.

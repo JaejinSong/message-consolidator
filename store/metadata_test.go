@@ -6,6 +6,19 @@ import (
 	"testing"
 )
 
+func uniqueStrings(input []string) []string {
+	seen := make(map[string]bool, len(input))
+	out := make([]string, 0, len(input))
+	for _, s := range input {
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	return out
+}
+
 // TestMetadataIntegrity verifies the mapping of SQLite-specific types to Go struct fields.
 // Why: Ensures that 'is_context_query' (Integer 0/1) and 'constraints' (JSON String) are correctly handled during scanning.
 func TestMetadataIntegrity(t *testing.T) {

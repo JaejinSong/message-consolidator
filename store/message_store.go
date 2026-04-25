@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"message-consolidator/db"
 	"message-consolidator/logger"
@@ -38,7 +39,7 @@ func SaveMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool,
 
 	lastID, err := db.New(q).CreateMessage(ctx, toCreateMessageParams(msg))
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return false, 0, nil
 		}
 		return false, int(lastID), err

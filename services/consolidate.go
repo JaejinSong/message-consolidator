@@ -1,14 +1,16 @@
-package store
+package services
 
-import "strings"
+import (
+	"message-consolidator/store"
+	"strings"
+)
 
 // MinConsolidationScore is the minimum affinity score required to merge two tasks.
 const MinConsolidationScore int = 80
 
 // ConsolidateTasks merges tasks sharing the same affinity group when their score meets the threshold.
 // Tasks from the same source message (SourceTS) skip original_text append to prevent duplication.
-// Placed in store package so both ai and services packages can consume it without circular imports.
-func ConsolidateTasks(tasks []TodoItem) []TodoItem {
+func ConsolidateTasks(tasks []store.TodoItem) []store.TodoItem {
 	if len(tasks) < 2 {
 		return tasks
 	}
@@ -22,7 +24,7 @@ func ConsolidateTasks(tasks []TodoItem) []TodoItem {
 	}
 
 	merged := make([]bool, len(tasks))
-	result := make([]TodoItem, 0, len(tasks))
+	result := make([]store.TodoItem, 0, len(tasks))
 
 	for _, indices := range groups {
 		if len(indices) < 2 {
@@ -41,8 +43,7 @@ func ConsolidateTasks(tasks []TodoItem) []TodoItem {
 	return result
 }
 
-// pickConsolidationPrimary selects the base task (preferring "update" state to preserve existing IDs).
-func pickConsolidationPrimary(tasks []TodoItem, indices []int) (primary, secondary int) {
+func pickConsolidationPrimary(tasks []store.TodoItem, indices []int) (primary, secondary int) {
 	primary = indices[0]
 	secondary = indices[1]
 	if tasks[secondary].State == "update" && tasks[primary].State != "update" {
@@ -53,7 +54,7 @@ func pickConsolidationPrimary(tasks []TodoItem, indices []int) (primary, seconda
 
 // consolidateMergeInto combines secondary into primary with a timestamped separator.
 // Note: original_text deduplication is handled at the DB layer via UpdateTaskFullAppend.
-func consolidateMergeInto(primary, secondary TodoItem) TodoItem {
+func consolidateMergeInto(primary, secondary store.TodoItem) store.TodoItem {
 	secondaryContent := strings.TrimSpace(secondary.Task)
 	if secondaryContent == "" || strings.Contains(primary.Task, secondaryContent) {
 		return primary

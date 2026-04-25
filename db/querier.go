@@ -91,6 +91,7 @@ type Querier interface {
 	GetReportByID(ctx context.Context, arg GetReportByIDParams) (GetReportByIDRow, error)
 	GetReportList(ctx context.Context, userEmail string) ([]GetReportListRow, error)
 	GetReportTranslations(ctx context.Context, reportID int64) ([]GetReportTranslationsRow, error)
+	GetReportTranslationsByIDs(ctx context.Context, reportIds []int64) ([]GetReportTranslationsByIDsRow, error)
 	GetResolutionsByIdentifiers(ctx context.Context, arg GetResolutionsByIdentifiersParams) ([]GetResolutionsByIdentifiersRow, error)
 	GetSourceDistributionActive(ctx context.Context, dollar_1 string) ([]GetSourceDistributionActiveRow, error)
 	GetSourceDistributionTotal(ctx context.Context, dollar_1 string) ([]GetSourceDistributionTotalRow, error)

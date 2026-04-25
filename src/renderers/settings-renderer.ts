@@ -1,7 +1,19 @@
 import { escapeHTML } from '../utils';
 
+export interface ProposalContact {
+    display_name?: string;
+    canonical_id?: string;
+}
+
+export interface ProposalGroup {
+    group_id?: string;
+    contacts?: ProposalContact[];
+    confidence?: number;
+    reason?: string;
+}
+
 export function renderProposals(
-    proposals: any[],
+    proposals: ProposalGroup[],
     onAccept: (groupId: string, canonicalName: string) => void,
     onReject: (groupId: string) => void
 ): void {
@@ -13,12 +25,12 @@ export function renderProposals(
         return;
     }
 
-    container.innerHTML = proposals.map((p: any) => {
+    container.innerHTML = proposals.map(p => {
         const groupId = escapeHTML(p.group_id || '');
-        const contacts: any[] = p.contacts || [];
+        const contacts: ProposalContact[] = p.contacts || [];
         const confidence = Math.round((p.confidence || 0) * 100);
         const reason = escapeHTML(p.reason || '');
-        const names = contacts.map((c: any) => c.display_name || c.canonical_id).filter(Boolean);
+        const names = contacts.map(c => c.display_name || c.canonical_id).filter((n): n is string => Boolean(n));
 
         const chips = names.map(n => `<span class="c-proposal-card__chip">${escapeHTML(n)}</span>`).join('');
         const options = names.map(n => `<option value="${escapeHTML(n)}">${escapeHTML(n)}</option>`).join('');

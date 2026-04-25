@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"message-consolidator/db"
 	"message-consolidator/logger"
 	"sync"
@@ -214,7 +215,7 @@ func GetDailyTokenUsage(ctx context.Context, email string) (int, int, int, error
 		Date:      parsedDate,
 	})
 
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return 0, 0, 0, err
 	}
 
@@ -284,7 +285,7 @@ func GetMonthlyTokenUsage(ctx context.Context, email string) (int, int, int, err
 		Date_2:    pNextMonth,
 	})
 
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return 0, 0, 0, err
 	}
 

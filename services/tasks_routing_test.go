@@ -43,7 +43,7 @@ func TestRouteTaskByStatus_Resolve(t *testing.T) {
 	}
 
 	// 3. Execute Routing
-	resID, err := store.RouteTaskByStatus(ctx, nil, email, item, msg)
+	resID, err := RouteTaskByStatus(ctx, nil, email, item, msg)
 	if err != nil {
 		t.Fatalf("RouteTaskByStatus failed: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestHandleTaskState_PromiseResolvesExistingTask(t *testing.T) {
 	}
 	msg := store.ConsolidatedMessage{UserEmail: email, Source: "whatsapp", Room: room}
 
-	resID, err := store.HandleTaskState(ctx, nil, email, item, msg)
+	resID, err := HandleTaskState(ctx, nil, email, item, msg)
 	if err != nil {
 		t.Fatalf("HandleTaskState: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestHandleTaskState_NewConsolidatesExistingThreadTask(t *testing.T) {
 		UserEmail: email, Source: "gmail", Room: "Gmail", ThreadID: threadID,
 	}
 
-	retID, err := store.HandleTaskState(ctx, nil, email, item, msg)
+	retID, err := HandleTaskState(ctx, nil, email, item, msg)
 	if err != nil {
 		t.Fatalf("HandleTaskState: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestRouteTaskByStatus_New(t *testing.T) {
 		UserEmail: email,
 	}
 
-	resID, err := store.RouteTaskByStatus(ctx, nil, email, item, msg)
+	resID, err := RouteTaskByStatus(ctx, nil, email, item, msg)
 	if err != nil {
 		t.Fatalf("RouteTaskByStatus failed: %v", err)
 	}

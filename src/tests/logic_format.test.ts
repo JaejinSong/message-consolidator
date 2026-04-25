@@ -1,11 +1,11 @@
 import {
     getDeadlineBadge,
-    parseMarkdown
+    parseMarkdown,
 } from '../logic';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 vi.unmock('marked');
 
-describe('logic.js - getDeadlineBadge', () => {
+describe('logic.ts - getDeadlineBadge', () => {
     afterEach(() => {
         vi.useRealTimers();
     });
@@ -41,7 +41,7 @@ describe('logic.js - getDeadlineBadge', () => {
     });
 });
 
-describe('logic.js - parseMarkdown', () => {
+describe('logic.ts - parseMarkdown', () => {
     it('should parse headers correctly', () => {
         expect(parseMarkdown('# Hello')).toContain('<h1');
         expect(parseMarkdown('## World')).toContain('<h2');

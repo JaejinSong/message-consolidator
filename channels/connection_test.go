@@ -15,9 +15,9 @@ func TestLogoutWhatsApp(t *testing.T) {
 	manager.latestQR[email] = "some-qr"
 	manager.mu.Unlock()
 
-	// Verify initial state
-	if manager.GetStatus(email) != "disconnected" { // Because IsConnected() will be false for empty struct
-		// This is expected given the current implementation of GetStatus
+	// Why: zero-value whatsmeow.Client → IsConnected()==false → status "disconnected"
+	if got := manager.GetStatus(email); got != "disconnected" {
+		t.Fatalf("expected disconnected, got %s", got)
 	}
 
 	// We only test the cleanup part here as calling Logout() on a zero-value client might panic

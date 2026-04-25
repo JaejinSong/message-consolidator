@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const deleteOldReports = `-- name: DeleteOldReports :exec
@@ -306,6 +307,51 @@ func (q *Queries) GetReportTranslations(ctx context.Context, reportID int64) ([]
 	for rows.Next() {
 		var i GetReportTranslationsRow
 		if err := rows.Scan(&i.LanguageCode, &i.Summary); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getReportTranslationsByIDs = `-- name: GetReportTranslationsByIDs :many
+SELECT report_id, language_code, summary
+FROM report_translations
+WHERE report_id IN (/*SLICE:report_ids*/?)
+`
+
+type GetReportTranslationsByIDsRow struct {
+	ReportID     int64  `json:"report_id"`
+	LanguageCode string `json:"language_code"`
+	Summary      string `json:"summary"`
+}
+
+func (q *Queries) GetReportTranslationsByIDs(ctx context.Context, reportIds []int64) ([]GetReportTranslationsByIDsRow, error) {
+	query := getReportTranslationsByIDs
+	var queryParams []interface{}
+	if len(reportIds) > 0 {
+		for _, v := range reportIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:report_ids*/?", strings.Repeat(",?", len(reportIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:report_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetReportTranslationsByIDsRow
+	for rows.Next() {
+		var i GetReportTranslationsByIDsRow
+		if err := rows.Scan(&i.ReportID, &i.LanguageCode, &i.Summary); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

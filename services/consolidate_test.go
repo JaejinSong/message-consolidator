@@ -1,12 +1,13 @@
-package store
+package services
 
 import (
+	"message-consolidator/store"
 	"strings"
 	"testing"
 )
 
-func makeTodo(task, state, groupID string, score int) TodoItem {
-	return TodoItem{
+func makeTodo(task, state, groupID string, score int) store.TodoItem {
+	return store.TodoItem{
 		Task:            task,
 		State:           state,
 		AffinityGroupID: groupID,
@@ -58,7 +59,7 @@ func TestConsolidateMergeInto_ContentAlreadyIncluded(t *testing.T) {
 
 func TestConsolidateTasks_NoDuplicateTitle(t *testing.T) {
 	content := "Raise the request to the dev team."
-	tasks := []TodoItem{
+	tasks := []store.TodoItem{
 		makeTodo(content, "new", "g1", 90),
 		makeTodo(content, "update", "g1", 90),
 	}

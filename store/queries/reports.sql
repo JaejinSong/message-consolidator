@@ -61,6 +61,11 @@ SELECT language_code, summary
 FROM report_translations
 WHERE report_id = ?;
 
+-- name: GetReportTranslationsByIDs :many
+SELECT report_id, language_code, summary
+FROM report_translations
+WHERE report_id IN (sqlc.slice('report_ids'));
+
 -- name: UpdateReportStatus :exec
 UPDATE reports SET status = ?, visualization = ?, is_truncated = ? WHERE id = ? AND user_email = ?;
 

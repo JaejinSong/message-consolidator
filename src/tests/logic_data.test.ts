@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
     calculateHeatmapLevel,
-    processTimeSeriesData
+    processTimeSeriesData,
 } from '../logic';
 
-describe('logic.js - calculateHeatmapLevel', () => {
+describe('logic.ts - calculateHeatmapLevel', () => {
     it('should return correct level based on task count', () => {
         expect(calculateHeatmapLevel(0)).toBe(0);
         expect(calculateHeatmapLevel(2)).toBe(1);
@@ -15,7 +15,7 @@ describe('logic.js - calculateHeatmapLevel', () => {
     });
 });
 
-describe('logic.js - processTimeSeriesData', () => {
+describe('logic.ts - processTimeSeriesData', () => {
     it('should generate continuous daily data', () => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -24,7 +24,7 @@ describe('logic.js - processTimeSeriesData', () => {
         const yStr = yesterday.toISOString().split('T')[0];
 
         const rawHistory = [
-            { date: yStr, counts: { slack: 5, telegram: 2 } }
+            { date: yStr, counts: { slack: 5, telegram: 2 } as Record<string, number> },
         ];
 
         const processed = processTimeSeriesData(rawHistory, 3);

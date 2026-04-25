@@ -41,7 +41,7 @@ import { STATUS_STATES, POLLING_INTERVALS } from './constants';
 import { authService } from './services/authService';
 
 let lastMessageDataHash = '';
-const activeTimers: any[] = [];
+const activeTimers: ReturnType<typeof setTimeout>[] = [];
 
 /**
  * @file app.ts
