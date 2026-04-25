@@ -1,6 +1,6 @@
 ---
 name: report_summary
-version: 2.4.0
+version: 2.5.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
@@ -14,6 +14,7 @@ Generate a professional Executive Report grounded in the `Evidence: "..."` text 
    - If no evidence-backed risks exist, emit exactly one bullet: `- No anomalies detected.` Do not pad with generic observations.
    - **Preserve speaker stance.** When Evidence shows the speaker describing their own workflow (e.g., "share the context and I'll raise the request"), do NOT reframe it as a systemic bottleneck. Keep the speaker's verb and subject.
    - **No nominalization.** Avoid patterns that convert speaker actions into abstract nouns: "the requirement to X", "indicates a Y", "the need to Z". Use the speaker's original verbs and subjects.
+   - **No free-form consequent clauses.** Do NOT append trailing implications (`", which blocks X"`, `", leading to Y"`, `", causing Z"`, `", delaying W"`, `", resulting in V"`) unless the consequent words appear **verbatim in Evidence**. End the bullet after the verbatim quote plus a neutral framing of what the speaker literally said. If you feel compelled to add a consequent, you are inferring — stop.
    - If one person holds >40% of open tasks (verify by counting Activity), call it out with the count ratio.
    - If a cross-source pattern exists (verify by inspecting Source/Room fields), include 1 cross-source bullet.
    - Never restate task names or counts without adding the "so what".

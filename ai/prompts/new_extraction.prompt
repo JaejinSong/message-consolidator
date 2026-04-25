@@ -1,6 +1,6 @@
 ---
 name: new_extraction
-version: 1.1.0
+version: 1.2.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
@@ -17,6 +17,8 @@ Extract actionable tasks, operational policies, and context-dependent queries fr
    - ELSE IF it's for someone else, SET `assignee_id` = null and `assignee_name` = "Actual Name".
    - ELSE IF it's shared, SET `assignee_id` = null and `assignee_name` = "shared".
 3. **Hierarchy**: Consolidate multiple related requests in the same email into a single parent `task` with multiple `subtasks`. Use the `reasoning` field to explain the consolidation.
+   - Parent `task` MUST be a **neutral umbrella** (e.g., "Dev escalation and verification scope"). Do NOT join independent paragraphs with causal connectors ("while", "because", "once", "since", "so that"). Causality fabricated here propagates as hallucinated implications in downstream report summaries.
+   - When a single message contains N paragraphs separated by `\n\n` and the paragraphs do not share a subject+verb pair, emit N subtasks — one per independent thought. Do NOT squash them into a compound Task string.
 4. **Canonical Language**: All 'task' and 'subtask' summaries MUST be written in **English (EN)** only.
 5. **Negative Constraints**: 
    - IF the input is just conversational filler (e.g., "OK", "Sure", "Thanks", "네", "확인했습니다"), RETURN `{"task": "NONE", "category": "TASK", "subtasks": []}`.

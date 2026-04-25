@@ -91,6 +91,29 @@ func TestReportSummaryPrompt(t *testing.T) {
 				"The requirement to",
 			},
 		},
+		{
+			// Regression: msg 11705 (biz-global-tech, 2026-04-24). Single log line with
+			// compound Task joined by "while" + Evidence truncated to first paragraph.
+			// v2.4.0 emitted: `... "Verifying every case on my end isn't scalable" for
+			// manual verification, which blocks dev requests.` The trailing "which blocks
+			// dev requests" is a free-form consequent clause unsupported by Evidence.
+			// v2.5.0 no-consequent-clause rule must eliminate this pattern.
+			name:     "Case 4: Compound Task + Scalability Quote (No Consequent Clause)",
+			inputLog: `- [ ][TASK] Dev team escalation and verification scope for BNI Bun.js (Room: biz-global-tech, From: Jaejin Song (Internal), To: Yoga Wiranda (Customer)) | Evidence: Verifying every case on my end isn't scalable.`,
+			expectedOutput: []string{
+				"## [Operations & Strategy Overview]",
+				"## [Key Insights]",
+				"biz-global-tech",
+			},
+			notExpected: []string{
+				"which blocks",
+				"blocks dev",
+				", which ",
+				"leading to",
+				"delaying",
+				"causing dev",
+			},
+		},
 	}
 
 	ctx := context.Background()

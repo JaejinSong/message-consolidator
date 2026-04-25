@@ -118,3 +118,49 @@ func TestReportSummaryEvidenceGating(t *testing.T) {
 		}
 	}
 }
+
+// TestReportSummaryNoConsequentClause guards the v2.5.0 no-free-form-consequent-clause rule.
+// Why: Prevents regression to the v2.4.0 gap where speaker verbs were preserved but a
+// trailing unsupported consequent clause was appended (msg 11705, biz-global-tech,
+// 2026-04-24 — `... "Verifying every case on my end isn't scalable" ..., which blocks dev requests.`).
+func TestReportSummaryNoConsequentClause(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/report_summary.prompt")
+	if err != nil {
+		t.Fatalf("read report_summary: %v", err)
+	}
+	body := string(content)
+	required := []string{
+		"No free-form consequent clauses",
+		"verbatim in Evidence",
+		", which blocks X",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Errorf("report_summary.prompt missing v2.5.0 rule phrase: %q", token)
+		}
+	}
+}
+
+// TestNewExtractionNeutralUmbrella guards the v1.2.0 neutral-umbrella + paragraph-split rule.
+// Why: Prevents regression to v1.1.0 where LLM joined independent paragraphs with causal
+// connectors (`while`, `because`, `once`) producing compound Tasks that seeded downstream
+// consequent-clause hallucinations in report summaries (msg 11705, 2026-04-24).
+func TestNewExtractionNeutralUmbrella(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/new_extraction.prompt")
+	if err != nil {
+		t.Fatalf("read new_extraction: %v", err)
+	}
+	body := string(content)
+	required := []string{
+		"neutral umbrella",
+		"causal connectors",
+		"one per independent thought",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Errorf("new_extraction.prompt missing v1.2.0 rule phrase: %q", token)
+		}
+	}
+}
