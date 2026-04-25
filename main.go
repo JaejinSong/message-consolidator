@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"message-consolidator/ai"
 	"message-consolidator/auth"
@@ -197,7 +198,7 @@ func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.
 
 	go func() {
 		logger.Infof("Startup Complete (Server starting on :%s...)", port)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("Server error: %v", err)
 		}
 	}()
