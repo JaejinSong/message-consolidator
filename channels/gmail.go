@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"message-consolidator/ai"
 	"message-consolidator/config"
+	"message-consolidator/internal/whataphttpx"
 	"message-consolidator/logger"
 	"message-consolidator/services"
 	"message-consolidator/store"
@@ -80,7 +81,14 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 		_ = store.SaveGmailToken(ctx, email, string(newTokenJSON))
 	}
 
-	svc, err := gmail.NewService(ctx, option.WithTokenSource(tokenSource))
+	// Why: oauth2.NewClient builds an http.Client that auto-injects bearer tokens
+	// from tokenSource. WrapClient layers WhaTap's RoundTripper on top of that
+	// transport so every Gmail API call (Users.Messages.List, Users.Messages.Get,
+	// thread fetches, ...) appears as an HTTPC step under the parent TX with
+	// auth still attached. Passing option.WithHTTPClient forces the SDK to use
+	// our wrapped client instead of building its own.
+	httpClient := whataphttpx.WrapClient(oauth2.NewClient(ctx, tokenSource))
+	svc, err := gmail.NewService(ctx, option.WithHTTPClient(httpClient))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gmail service: %w", err)
 	}

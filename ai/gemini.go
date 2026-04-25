@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"message-consolidator/internal/whataphttpx"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
@@ -66,7 +67,15 @@ func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translat
 	logger.Infof("[GEMINI] Initializing client (Key length: %d, Prefix: %s..., Analysis: %s, Translation: %s)",
 		len(apiKey), apiKey[:4], analysisModel, translationModel)
 
-	allOpts := append([]option.ClientOption{option.WithAPIKey(apiKey)}, opts...)
+	// Why: genai.NewClient at v0.13.0 uses the REST transport (gl.NewGenerativeRESTClient).
+	// option.WithHTTPClient forces the SDK to dispatch requests through our WhaTap-wrapped
+	// client so each generateContent / streamGenerateContent / files / models call surfaces
+	// as a real HTTPC step on the parent TX. Without this the SDK builds its own client
+	// and only the trace.Step elapsed markers (Gemini-Analyze, Gemini-Translate, ...) show.
+	allOpts := append([]option.ClientOption{
+		option.WithAPIKey(apiKey),
+		option.WithHTTPClient(whataphttpx.Client()),
+	}, opts...)
 	client, err := genai.NewClient(ctx, allOpts...)
 	if err != nil {
 		return nil, err

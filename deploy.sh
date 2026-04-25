@@ -82,7 +82,13 @@ build_be() {
 chain_be() {
     build_be
     echo -e "${BLUE}==> Pushing Backend...${NC}"
-    run_step "BE: Push" bash -c "docker push ${IMAGE_BE_TAG} > /dev/null 2>&1 && docker push ${REGISTRY}/backend:latest > /dev/null 2>&1"
+    # Same image, two tags: registry dedups blob upload, only manifests differ.
+    # Parallel publish saves one manifest round-trip.
+    run_step "BE: Push" bash -c "
+        docker push ${IMAGE_BE_TAG} > /dev/null 2>&1 & p1=\$!
+        docker push ${REGISTRY}/backend:latest > /dev/null 2>&1 & p2=\$!
+        wait \$p1 && wait \$p2
+    "
     echo -e "${BLUE}==> Deploying Backend Container...${NC}"
     run_step "BE: Deploy" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose up -d --force-recreate backend"
 }
@@ -90,7 +96,11 @@ chain_be() {
 chain_fe() {
     build_fe
     echo -e "${BLUE}==> Pushing Frontend...${NC}"
-    run_step "FE: Push" bash -c "docker push ${IMAGE_FE_TAG} > /dev/null 2>&1 && docker push ${REGISTRY}/frontend:latest > /dev/null 2>&1"
+    run_step "FE: Push" bash -c "
+        docker push ${IMAGE_FE_TAG} > /dev/null 2>&1 & p1=\$!
+        docker push ${REGISTRY}/frontend:latest > /dev/null 2>&1 & p2=\$!
+        wait \$p1 && wait \$p2
+    "
     echo -e "${BLUE}==> Deploying Frontend Container...${NC}"
     run_step "FE: Deploy" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose up -d --force-recreate frontend"
 }

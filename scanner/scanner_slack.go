@@ -233,7 +233,7 @@ func startSlowSweeper(ctx context.Context, wg *sync.WaitGroup) {
 }
 
 func sweepSlackThreads(ctx context.Context, wg *sync.WaitGroup) {
-	traceCtx, _ := trace.Start(ctx, "Background-SweepSlackThreads")
+	traceCtx, _ := trace.Start(ctx, "/Background-SweepSlackThreads")
 	defer trace.End(traceCtx, nil)
 
 	if cfg == nil || cfg.SlackToken == "" {

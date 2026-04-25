@@ -130,10 +130,10 @@ func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, star
 
 func (s *ReportsService) processAsyncReport(email, start, end, lang string, id int, logs []Log) {
 	// Why: trace.Start (not StartWithContext) creates a NEW trace context on a fresh
-	// background ctx. StartWithContext only renames an EXISTING trace ctx and silently
-	// skips when none exists — verified in WhaTap go-api source at Trace.go L179.
-	// Background entry points must use Start; otherwise the TX never registers.
-	ctx, _ := trace.Start(context.Background(), "ReportGeneration")
+	// background ctx — StartWithContext silently skips when no parent trace ctx exists.
+	// Name MUST start with `/` so urlutil.NewURL parses it as Path; without the slash
+	// it becomes Host and the WhaTap Transaction column renders blank.
+	ctx, _ := trace.Start(context.Background(), "/ReportGeneration")
 	var err error
 	defer func() { trace.End(ctx, err) }()
 

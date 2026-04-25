@@ -63,7 +63,7 @@ store/queries/*.sql 편집 → sqlc generate → db/*.sql.go 자동 갱신
 | HTTP 인바운드 | `r.Use(WhatapMiddleware)` — [middleware_whatap.go](handlers/middleware_whatap.go) |
 | HTTP 아웃바운드 | `whataphttp.HttpGet(ctx, url)` 또는 `Transport: whataphttp.NewRoundTrip(ctx, nil)` |
 | SQL/sqlc | `whatapsql.OpenContext(ctx, driver, dsn)` — [store/db.go](store/db.go), 모든 sqlc 쿼리 자동 노출 |
-| Background goroutine | `trace.Start(ctx, name)` + `defer trace.End(ctx, err)` — **`StartWithContext` 사용 금지** (기존 trace ctx 없으면 silent skip) |
+| Background goroutine | `trace.Start(ctx, "/<TxName>")` + `defer trace.End(ctx, err)` — **이름은 `/`로 시작** (urlutil.NewURL이 슬래시 없으면 Host로 파싱해 Transaction 컬럼 빈 칸). **`StartWithContext` 사용 금지** (기존 trace ctx 없으면 silent skip) |
 | 함수 단위 추적 | `method.Start(ctx, name)` + `defer method.End(methodCtx, err)` — TX 내부 호출 그래프 형성 |
 | 마커형 step (외부 SDK 후 elapsed 기록) | `trace.Step(ctx, name, "", elapsedMs, value)` |
 | gRPC | `whatapgrpc.{Unary,Stream}{Client,Server}Interceptor()` |

@@ -80,7 +80,13 @@
       "mcp__serena__replace_content",
       "Bash(gh api *)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:docs.whatap.io)"
+      "WebFetch(domain:docs.whatap.io)",
+      "Bash(docker history *)",
+      "Bash(docker run *)",
+      "Bash(docker build *)",
+      "Bash(bash -n /home/jinro/.gemini/message-consolidator/deploy.sh)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(echo \"vet=$?\")"
     ],
     "additionalDirectories": [
       "/tmp",
