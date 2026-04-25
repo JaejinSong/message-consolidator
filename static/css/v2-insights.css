@@ -72,7 +72,7 @@
     pointer-events: none;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.15s ease, visibility 0.15s ease;
+    transition: opacity var(--transition-fast), visibility var(--transition-fast);
     backdrop-filter: blur(var(--blur-md));
     -webkit-backdrop-filter: blur(var(--blur-md));
     white-space: nowrap;
@@ -525,7 +525,7 @@
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--text-dim);
-    transition: all 0.2s ease;
+    transition: all var(--transition-base);
     border: none;
     background: transparent;
     cursor: pointer;
@@ -664,7 +664,7 @@
     cursor: pointer;
     font-size: 0.8rem;
     font-weight: 600;
-    transition: all 0.2s;
+    transition: all var(--transition-base);
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -783,7 +783,7 @@ body.light-theme .glass-btn:hover {
     padding: 1rem;
     border-radius: var(--radius-md);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all var(--transition-base);
     margin-bottom: 0.5rem;
     position: relative;
     border: var(--border-thin) solid transparent;
@@ -837,7 +837,7 @@ body.light-theme .glass-btn:hover {
     top: 50%;
     transform: translateY(-50%);
     opacity: 0;
-    transition: opacity 0.2s;
+    transition: opacity var(--transition-base);
     width: var(--spacing-2xl);
     height: var(--spacing-2xl);
     display: flex;
@@ -1175,7 +1175,7 @@ body.light-theme .report-content th {
 .report-content a {
     color: var(--accent-color);
     text-decoration: none;
-    transition: color 0.2s;
+    transition: color var(--transition-base);
 }
 
 .report-content a:hover {

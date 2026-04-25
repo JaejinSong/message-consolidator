@@ -10,7 +10,7 @@
     cursor: help;
     margin-left: var(--spacing-sm);
     color: var(--text-dim);
-    transition: color 0.2s ease;
+    transition: color var(--transition-base);
     vertical-align: middle;
 }
 

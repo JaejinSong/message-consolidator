@@ -73,7 +73,10 @@
       "Bash(./deploy.sh)",
       "mcp__serena__initial_instructions",
       "Bash(go doc *)",
-      "mcp__serena__read_memory"
+      "mcp__serena__read_memory",
+      "Read(//app/**)",
+      "Read(//var/log/**)",
+      "Bash(./deploy.sh be *)"
     ],
     "additionalDirectories": [
       "/tmp",

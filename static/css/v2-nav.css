@@ -72,7 +72,7 @@
     font-weight: 700;
     font-size: 0.9rem;
     border-radius: var(--radius-md);
-    transition: all 0.2s ease;
+    transition: all var(--transition-base);
     cursor: pointer;
     white-space: nowrap;
 }
@@ -170,7 +170,7 @@
     justify-content: center;
     color: var(--text-main);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all var(--transition-base);
 }
 
 .c-utility__btn:hover {

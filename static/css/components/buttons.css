@@ -117,7 +117,7 @@
     border: var(--border-thin) solid var(--glass-border);
     border-radius: var(--radius-md);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all var(--transition-base);
     padding: 0;
 }
 

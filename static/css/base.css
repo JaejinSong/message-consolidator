@@ -24,7 +24,7 @@ body {
     }
 }
 
-@media (max-width: var(--bp-mobile)) {
+@media (max-width: 30rem) {
     body {
         padding: 0.5rem;
     }

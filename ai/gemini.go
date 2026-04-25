@@ -164,8 +164,11 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 	model := g.initModel(modelName, 0.1, ReportMaxTokens, "", rendered)
 
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, model, genai.Text(""), 60*time.Second, 2)
+	resp, err := generateWithRetry(ctx, model, genai.Text(""), 180*time.Second, 2)
 	if err != nil {
+		// P1: Surface burned-but-unattributed retry-exhausted calls so the cost dashboard
+		// can flag invisible spend. Gemini does not return UsageMetadata on timeout/cancel.
+		store.AddTokenUsage(email, "ReportSummary", modelName, "failed", 0, 0)
 		return "", err
 	}
 

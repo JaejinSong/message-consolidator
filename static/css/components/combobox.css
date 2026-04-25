@@ -17,7 +17,7 @@
     color: var(--text-main);
     font-size: 0.875rem;
     outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition: border-color var(--transition-base), box-shadow var(--transition-base);
 }
 
 .c-combobox__input:focus {

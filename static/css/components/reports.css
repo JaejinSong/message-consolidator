@@ -163,7 +163,7 @@
     pointer-events: none;
     fill: var(--text-dim);
     font-weight: 500;
-    transition: fill 0.2s ease;
+    transition: fill var(--transition-base);
 }
 
 .c-report-viz__node-group {
@@ -187,7 +187,7 @@
     z-index: var(--z-index-dropdown);
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.2s ease;
+    transition: opacity var(--transition-base);
     max-width: 15rem;
 }
 

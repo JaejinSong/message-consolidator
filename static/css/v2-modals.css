@@ -87,7 +87,7 @@
     font-size: 1.8rem;
     cursor: pointer;
     line-height: 1;
-    transition: color 0.2s ease;
+    transition: color var(--transition-base);
     display: flex;
     align-items: center;
     justify-content: center;

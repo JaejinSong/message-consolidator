@@ -8,9 +8,25 @@ describe('Mobile Layout Regression Tests', () => {
 
     it('base.css should have reduced body padding for mobile (480px)', () => {
         const content = fs.readFileSync(baseCssPath, 'utf8');
-        // Check for media query and body padding
-        const hasMobilePadding = /@media\s*\(max-width:\s*var\(--bp-mobile\)\)\s*{\s*body\s*{\s*padding:\s*0\.5rem;/.test(content);
+        // CSS custom properties are not supported as length values inside @media queries
+        // in any major browser as of 2026 — must use a literal value (30rem == --bp-mobile).
+        const hasMobilePadding = /@media\s*\(max-width:\s*30rem\)\s*{\s*body\s*{\s*padding:\s*0\.5rem;/.test(content);
         expect(hasMobilePadding).toBe(true);
+    });
+
+    it('base.css must not use CSS custom properties as @media length values', () => {
+        const content = fs.readFileSync(baseCssPath, 'utf8');
+        // Regression: @media (max-width: var(--bp-*)) silently never matches.
+        const usesCustomPropInMedia = /@media\s*\([^)]*var\(--bp-/.test(content);
+        expect(usesCustomPropInMedia).toBe(false);
+    });
+
+    it('message-card.css should drop min-width on mobile to prevent horizontal overflow', () => {
+        const cardCssPath = path.resolve(process.cwd(), 'static/css/components/message-card.css');
+        const content = fs.readFileSync(cardCssPath, 'utf8');
+        // Regression: .c-message-card { min-width: 25rem } overflowed iPhone-class viewports.
+        const hasMobileOverride = /@media\s*\(max-width:\s*48rem\)\s*{\s*\.c-message-card\s*{\s*min-width:\s*0;/.test(content);
+        expect(hasMobileOverride).toBe(true);
     });
 
     it('layout.css should have optimized glass-container padding for mobile breakpoints', () => {

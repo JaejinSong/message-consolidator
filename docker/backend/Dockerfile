@@ -43,6 +43,10 @@ RUN apk --no-cache add ca-certificates tzdata libc6-compat
 COPY --from=builder /stage/app/ /app/
 COPY --from=builder /usr/whatap/agent/ /usr/whatap/agent/
 
+# WhaTap agent reads whatap.conf from its own home (whatap-agent wrapper does `cd /usr/whatap/agent`),
+# so the file must live there — copying only to /app silently loses logsink settings.
+RUN cp /app/whatap.conf /usr/whatap/agent/whatap.conf
+
 WORKDIR /app
 
 VOLUME ["/data"]

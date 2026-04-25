@@ -2,13 +2,10 @@
     width: 100%;
     max-width: 115rem;
     background: var(--card-bg);
-    backdrop-filter: blur(var(--blur-md));
-    /* 렌더링 부하 감소 */
     border: var(--border-thin) solid var(--glass-border);
     border-radius: var(--spacing-3xl);
     padding: 3rem;
     box-shadow: var(--shadow-main);
-    /* 페인팅 부하 감소 */
     transition: background-color 0.4s ease, border-color 0.4s ease;
 }
 
@@ -56,7 +53,7 @@ header {
     font-weight: 500;
     color: var(--text-dim);
     letter-spacing: 0.02em;
-    transition: color 0.2s ease;
+    transition: color var(--transition-base);
 }
 
 
@@ -70,7 +67,7 @@ header {
 
 .logout-minimal {
     color: var(--text-dim);
-    transition: all 0.2s;
+    transition: all var(--transition-base);
 }
 
 .logout-minimal:hover {
