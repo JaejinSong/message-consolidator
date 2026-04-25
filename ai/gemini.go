@@ -72,9 +72,16 @@ func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translat
 	// client so each generateContent / streamGenerateContent / files / models call surfaces
 	// as a real HTTPC step on the parent TX. Without this the SDK builds its own client
 	// and only the trace.Step elapsed markers (Gemini-Analyze, Gemini-Translate, ...) show.
+	//
+	// Both options are required:
+	//   - WithAPIKey: genai SDK reads this into its internal client field for URL
+	//     construction and rejects NewClient if missing.
+	//   - WithHTTPClient(ClientWithAPIKey(...)): the option library skips its auth-header
+	//     transport when WithHTTPClient is set, so we layer x-goog-api-key injection
+	//     beneath the WhaTap RoundTripper to preserve HTTPC visibility AND auth.
 	allOpts := append([]option.ClientOption{
 		option.WithAPIKey(apiKey),
-		option.WithHTTPClient(whataphttpx.Client()),
+		option.WithHTTPClient(whataphttpx.ClientWithAPIKey(apiKey)),
 	}, opts...)
 	client, err := genai.NewClient(ctx, allOpts...)
 	if err != nil {

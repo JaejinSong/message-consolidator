@@ -31,3 +31,26 @@ func WrapClient(c *http.Client) *http.Client {
 	c.Transport = whataphttp.NewRoundTrip(context.Background(), c.Transport)
 	return c
 }
+
+// ClientWithAPIKey returns an *http.Client that injects the Gemini API key as
+// the x-goog-api-key header before the WhaTap RoundTripper observes the
+// request.
+//
+// Why: google.golang.org/api/option.WithHTTPClient causes the API library to
+// skip option.WithAPIKey, so the custom client must inject auth itself —
+// mirror of how WrapClient preserves OAuth2 token injection beneath WhaTap.
+func ClientWithAPIKey(apiKey string) *http.Client {
+	base := &apiKeyTransport{key: apiKey, rt: http.DefaultTransport}
+	return &http.Client{Transport: whataphttp.NewRoundTrip(context.Background(), base)}
+}
+
+type apiKeyTransport struct {
+	key string
+	rt  http.RoundTripper
+}
+
+func (t *apiKeyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	r := req.Clone(req.Context())
+	r.Header.Set("x-goog-api-key", t.key)
+	return t.rt.RoundTrip(r)
+}
