@@ -1317,3 +1317,46 @@ body.light-theme .report-content th {
     line-height: 1.4;
     font-weight: 500;
 }
+
+/* --- AI Usage Consolidated Widget (.c-ai-usage) --- */
+.c-ai-usage {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    gap: var(--spacing-sm);
+    padding: 2.2rem 0.5rem 0.5rem;
+}
+
+.c-ai-usage__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    width: 100%;
+}
+
+.c-ai-usage__value {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--text-main);
+    line-height: 1;
+}
+
+.c-ai-usage__info {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.02rem;
+    opacity: 0.7;
+}
+
+.c-ai-usage__detail {
+    font-size: 0.7rem;
+    color: var(--accent-light);
+    opacity: 0.6;
+    margin-top: 0.05rem;
+}

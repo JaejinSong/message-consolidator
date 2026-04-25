@@ -411,6 +411,172 @@ details[open] .c-message-card__subtasks-toggle::before {
     white-space: nowrap;
 }
 
+/* --- Merged Task Modifier --- */
+.c-message-card--merged {
+    border-left: var(--border-thick) solid var(--color-info);
+    background: linear-gradient(135deg, rgba(var(--color-info-rgb, 59, 130, 246), 0.04), transparent);
+}
+
+.c-message-card__badge--affinity {
+    background: rgba(var(--color-info-rgb, 59, 130, 246), 0.15);
+    color: var(--color-info);
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: var(--spacing-xxs) var(--spacing-xs);
+    border-radius: var(--radius-sm);
+    letter-spacing: 0.03em;
+}
+
+/* Why: Consolidated task bodies can be long; scroll container prevents layout overflow. */
+.c-message-card__description--merged {
+    max-height: 7.5rem;
+    overflow-y: auto;
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: var(--text-dim);
+    white-space: pre-wrap;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-left: 0.1875rem solid var(--glass-border);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--glass-border) transparent;
+}
+
+.c-message-card__description--merged::-webkit-scrollbar {
+    width: 0.25rem;
+}
+
+.c-message-card__description--merged::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.c-message-card__description--merged::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: var(--radius-sm);
+}
+
+.c-message-card__subtask-count {
+    font-size: 0.6875rem;
+    color: var(--color-info);
+    font-weight: 600;
+    margin-left: var(--spacing-xs);
+    opacity: 0.85;
+}
+
+.c-message-card__checkbox-wrapper {
+    margin-right: var(--spacing-sm);
+    display: flex;
+    align-items: center;
+}
+
+.c-message-card__checkbox {
+    width: 1.125rem;
+    height: 1.125rem;
+    cursor: pointer;
+    accent-color: var(--color-primary);
+}
+
+/* --- Merge Selection Bar --- */
+/* Why: Replaces FAB with a more integrated, premium top-bar between Nav and Content. */
+.c-merge-bar {
+    width: 100%;
+    padding: var(--spacing-sm) 0;
+    background: rgba(var(--color-primary-rgb), 0.08);
+    border-bottom: 0.0625rem solid var(--glass-border);
+    margin-bottom: var(--spacing-md);
+    animation: fadeInDown 0.25s ease-out;
+}
+
+.c-merge-bar.hidden {
+    display: none !important;
+}
+
+.c-merge-bar__content {
+    max-width: var(--bp-desktop);
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xl);
+    padding: 0 var(--spacing-lg);
+}
+
+.c-merge-bar__info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--color-primary);
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.c-merge-bar__info .count {
+    background: var(--color-primary);
+    color: var(--bg-color);
+    padding: 0 var(--spacing-sm);
+    border-radius: var(--radius-full);
+    font-size: 0.8125rem;
+    font-weight: 800;
+}
+
+.c-merge-bar__info .icon {
+    font-size: 1rem;
+}
+
+/* --- Shared Task Modifier --- */
+.c-message-card--shared {
+    border-left: var(--border-thick) solid var(--color-shared-accent);
+    background: linear-gradient(135deg, rgba(var(--color-shared-accent-rgb), 0.08), transparent);
+    box-shadow: 0 0.5rem 1rem rgba(var(--color-shared-accent-rgb), 0.1);
+}
+
+.c-message-card--shared:hover {
+    box-shadow: 0 0.75rem 1.5rem rgba(var(--color-shared-accent-rgb), 0.2);
+    border-left-width: 0.5rem;
+}
+
+.c-message-card__badge--shared {
+    background: rgba(var(--color-shared-accent-rgb), 0.15);
+    color: var(--color-shared-accent);
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: var(--spacing-xxs) var(--spacing-xs);
+    border-radius: var(--radius-sm);
+    letter-spacing: 0.03em;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xxs);
+}
+
+.c-message-card__assignee--shared {
+    color: var(--color-shared-accent);
+    font-weight: 700;
+    background: rgba(var(--color-shared-accent-rgb), 0.1);
+    padding: var(--spacing-xxs) var(--spacing-xs);
+    border-radius: var(--radius-sm);
+}
+
+/* --- Resolved Task Modifier --- */
+/* Why: AI-resolved tasks need a clear "done" state. */
+.c-message-card--resolved {
+    opacity: 0.6;
+    filter: grayscale(0.5);
+    background: rgba(var(--color-bg-rgb, 255, 255, 255), 0.5);
+    border-left: var(--border-thick) solid var(--color-success);
+}
+
+.c-message-card--resolved .c-message-card__description {
+    text-decoration: line-through;
+    opacity: 0.8;
+}
+
+@keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-0.625rem); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 /* Mobile: 카드 min-width 해제 — 좁은 뷰포트에서 가로 오버플로 방지 */
 @media (max-width: 48rem) {
     .c-message-card {
