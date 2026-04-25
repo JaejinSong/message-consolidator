@@ -283,7 +283,3 @@ body.light-theme .release-notes-markdown code {
     background: rgba(0, 0, 0, 0.05);
     color: var(--accent-color);
 }
-
-body.light-theme .c-modal__close:hover {
-    background: rgba(0, 0, 0, 0.05);
-}

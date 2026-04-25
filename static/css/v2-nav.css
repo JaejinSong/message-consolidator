@@ -180,14 +180,6 @@
 }
 
 /* --- Light Theme Overrides --- */
-body.light-theme .c-main-nav {
-    background: rgba(0, 0, 0, 0.03);
-}
-
-body.light-theme .c-main-nav__item:hover {
-    background: rgba(0, 0, 0, 0.05);
-}
-
 body.light-theme .gamification-stats {
     background: rgba(0, 0, 0, 0.02);
 }

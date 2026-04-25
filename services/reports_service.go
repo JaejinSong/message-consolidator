@@ -264,7 +264,12 @@ func (s *ReportsService) formatLogLine(email string, m Log) string {
 	if cat == "" {
 		cat = "TASK"
 	}
-	evidence := truncateEvidence(m.OriginalText, 200)
+	// Why: Done=true는 status "V"로 이미 명시되어 AI가 재추론할 필요 없음 → evidence 제거.
+	// Active(Done=false) task만 80자 evidence로 grounding 유지 → 환각 방지 + 비용 절감.
+	evidence := ""
+	if !m.Done {
+		evidence = truncateEvidence(m.OriginalText, 80)
+	}
 
 	return fmt.Sprintf("- [%s][%s] %s (Room: %s, From: %s (%s), To: %s (%s))%s\n",
 		status, cat, m.Task, m.Room, reqName, reqCat, asgName, asgCat, evidence)
