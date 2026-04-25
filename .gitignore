@@ -58,4 +58,4 @@ notepad
 # === TestSprite ===
 .testsprite/
 testsprite_tests/
-.claude/settings.json
+.claude/
