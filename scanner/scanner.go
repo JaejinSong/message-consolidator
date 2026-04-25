@@ -84,7 +84,10 @@ func StartBackgroundScanner(ctx context.Context) {
 }
 
 func RunAllScans(ctx context.Context, wg *sync.WaitGroup) {
-	traceCtx, _ := trace.StartWithContext(ctx, "Background-RunAllScans")
+	// Why: trace.Start creates a new background TX. StartWithContext only renames an
+	// existing trace ctx and silently skips when none exists (Trace.go:179-205) — the
+	// scheduler tick passes a plain context.Background() so we need real Start semantics.
+	traceCtx, _ := trace.Start(ctx, "Background-RunAllScans")
 	defer trace.End(traceCtx, nil)
 
 	users, err := store.GetAllUsers(traceCtx)
@@ -207,7 +210,7 @@ func ReleaseInFlight(id string) {
 
 
 func Scan(email string, lang string, wg *sync.WaitGroup) {
-	traceCtx, _ := trace.StartWithContext(context.Background(), "ManualScan")
+	traceCtx, _ := trace.Start(context.Background(), "ManualScan")
 	defer trace.End(traceCtx, nil)
 
 	user, err := store.GetOrCreateUser(traceCtx, email, "", "")

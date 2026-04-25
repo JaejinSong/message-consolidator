@@ -129,7 +129,11 @@ func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, star
 }
 
 func (s *ReportsService) processAsyncReport(email, start, end, lang string, id int, logs []Log) {
-	ctx, _ := trace.StartWithContext(context.Background(), "ReportGeneration")
+	// Why: trace.Start (not StartWithContext) creates a NEW trace context on a fresh
+	// background ctx. StartWithContext only renames an EXISTING trace ctx and silently
+	// skips when none exists — verified in WhaTap go-api source at Trace.go L179.
+	// Background entry points must use Start; otherwise the TX never registers.
+	ctx, _ := trace.Start(context.Background(), "ReportGeneration")
 	var err error
 	defer func() { trace.End(ctx, err) }()
 

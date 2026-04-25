@@ -6,7 +6,7 @@
 |---|---|
 | Backend | Go 1.25.6, gorilla/mux, SQLite/Turso, sqlc v2 |
 | Integrations | whatsmeow, slack-go |
-| Monitoring | WhaTap APM (`github.com/whatap/go-api/trace`) |
+| Monitoring | WhaTap APM (`github.com/whatap/go-api/trace`) — **manual instrumentation only**, see policy below |
 | Frontend | Vite + Vanilla TypeScript (Clean Architecture) |
 | Infra | Docker (FE/BE 완전 분리), Caddy, GCP Cloud Run |
 
@@ -51,6 +51,24 @@ store/queries/*.sql 편집 → sqlc generate → db/*.sql.go 자동 갱신
 ### Architecture
 - Handler → Service → Store 단방향 의존성
 - Store 레이어에 비즈니스 로직 포함 금지
+
+### WhaTap APM Instrumentation
+
+- **Manual only** — 자동 도구(`whatap-go-inst`) 금지, 빌드는 `go build`
+- **부트스트랩** — [main.go](main.go) 진입부에 `trace.Init(map[string]string{})` + `defer trace.Shutdown()`. 누락 시 모든 trace 호출이 no-op
+- 공식 예제: https://github.com/whatap/go-api-example
+
+| 영역 | 패턴 / 위치 |
+|---|---|
+| HTTP 인바운드 | `r.Use(WhatapMiddleware)` — [middleware_whatap.go](handlers/middleware_whatap.go) |
+| HTTP 아웃바운드 | `whataphttp.HttpGet(ctx, url)` 또는 `Transport: whataphttp.NewRoundTrip(ctx, nil)` |
+| SQL/sqlc | `whatapsql.OpenContext(ctx, driver, dsn)` — [store/db.go](store/db.go), 모든 sqlc 쿼리 자동 노출 |
+| Background goroutine | `trace.Start(ctx, name)` + `defer trace.End(ctx, err)` — **`StartWithContext` 사용 금지** (기존 trace ctx 없으면 silent skip) |
+| 함수 단위 추적 | `method.Start(ctx, name)` + `defer method.End(methodCtx, err)` — TX 내부 호출 그래프 형성 |
+| 마커형 step (외부 SDK 후 elapsed 기록) | `trace.Step(ctx, name, "", elapsedMs, value)` |
+| gRPC | `whatapgrpc.{Unary,Stream}{Client,Server}Interceptor()` |
+
+**우회 금지** — `http.DefaultClient` / `http.Get` / `sql.Open` 직접 사용 시 trace 누락.
 
 ### TypeScript
 - UI 코드는 **전부 TypeScript** (`.ts` / `.tsx`)

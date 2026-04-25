@@ -12,7 +12,11 @@ build-frontend:
 
 build-backend:
 	@echo "Building Backend (Go)..."
-	CGO_ENABLED=0 whatap-go-inst go build -ldflags="-s -w" -o $(BINARY_NAME) .
+	# Why: Manual WhaTap instrumentation only (HTTP middleware in handlers/middleware_whatap.go +
+	# explicit trace.StartWithContext for background goroutines). Auto-instrumentation
+	# `whatap-go-inst` was removed because it failed to wrap gorilla/mux handlers,
+	# leaving WhaTap with zero transaction visibility (verified 2026-04-25).
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY_NAME) .
 	upx -1 $(BINARY_NAME)
 	CGO_ENABLED=0 go build -ldflags="-s -w" -o mc-util ./cmd/mc-util
 	upx -1 mc-util

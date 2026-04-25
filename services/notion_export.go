@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/whatap/go-api/instrumentation/net/http/whataphttp"
 )
 
 const (
@@ -21,10 +23,18 @@ const (
 type NotionExporter struct {
 	token        string
 	parentPageID string
+	client       *http.Client
 }
 
 func NewNotionExporter(token, parentPageID string) *NotionExporter {
-	return &NotionExporter{token: token, parentPageID: parentPageID}
+	// Why: whataphttp.NewRoundTrip wraps the default transport so every Notion API call
+	// shows up as a WhaTap HTTPC step under the active transaction (e.g. report export).
+	// Reusing one client preserves connection pooling.
+	return &NotionExporter{
+		token:        token,
+		parentPageID: parentPageID,
+		client:       &http.Client{Transport: whataphttp.NewRoundTrip(context.Background(), nil)},
+	}
 }
 
 func (n *NotionExporter) Enabled() bool {
@@ -103,7 +113,7 @@ func (n *NotionExporter) call(ctx context.Context, method, path string, body any
 	req.Header.Set("Notion-Version", notionAPIVersion)
 	req.Header.Set("Content-Type", "application/json")
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := n.client.Do(req)
 	if err != nil {
 		return nil, err
 	}

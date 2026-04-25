@@ -11,6 +11,11 @@ import (
 
 // RegisterRoutes registers all the API and Auth routes.
 func (a *API) RegisterRoutes(r *mux.Router) {
+	// Why: Manual WhaTap APM instrumentation — wraps every request as a transaction
+	// so HTTP traffic is visible in WhaTap's resp_time/tps_context dashboards.
+	// Placed outermost so auth failures and unauthenticated probes are also traced.
+	r.Use(WhatapMiddleware)
+
 	//Why: Defines authentication-related routes including Google Login, Callback, and Logout.
 	r.HandleFunc("/auth/login", auth.HandleGoogleLogin).Methods("GET")
 	r.HandleFunc("/auth/callback", func(w http.ResponseWriter, r *http.Request) {

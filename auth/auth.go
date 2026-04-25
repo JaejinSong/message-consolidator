@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/whatap/go-api/instrumentation/net/http/whataphttp"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -84,7 +85,9 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 		return
 	}
 
-	response, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + token.AccessToken)
+	// Why: whataphttp.HttpGet wraps the call as a WhaTap HTTPC step on the active transaction
+	// and propagates trace context (x-whatap-mtid headers) for distributed tracing.
+	response, err := whataphttp.HttpGet(r.Context(), "https://www.googleapis.com/oauth2/v2/userinfo?access_token="+token.AccessToken)
 	if err != nil {
 		fmt.Fprintf(w, "Failed getting user info: %s", err.Error())
 		return

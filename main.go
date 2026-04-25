@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/whatap/go-api/trace"
 )
 
 var cfg *config.Config
@@ -32,6 +33,15 @@ func main() {
 	logger.InitLogging()
 	cfg = config.LoadConfig()
 	logger.SetLevel(cfg.LogLevel)
+
+	// Why: Manual WhaTap instrumentation requires explicit trace.Init/Shutdown.
+	// `whatap-go-inst` auto-instrumentation used to inject these calls at build time,
+	// but we removed that toolchain (gorilla/mux incompatible). Without Init the
+	// global `disable` flag stays true and every trace.Start*/Step is a no-op,
+	// producing zero transactions in WhaTap (verified 2026-04-25).
+	// Empty config map → agent reads whatap.conf for license, server.host, app_name.
+	trace.Init(map[string]string{})
+	defer trace.Shutdown()
 
 	//Why: Diagnoses the "ghost" _timeout parameter by inspecting the environment as seen by the binary.
 	logger.Infof("[ENV-DEBUG] Checking environment for DSN modifiers...")

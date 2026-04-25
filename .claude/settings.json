@@ -77,7 +77,10 @@
       "Read(//app/**)",
       "Read(//var/log/**)",
       "Bash(./deploy.sh be *)",
-      "mcp__serena__replace_content"
+      "mcp__serena__replace_content",
+      "Bash(gh api *)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.whatap.io)"
     ],
     "additionalDirectories": [
       "/tmp",

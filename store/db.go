@@ -10,6 +10,7 @@ import (
 	"time"
 
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
+	"github.com/whatap/go-api/instrumentation/database/sql/whatapsql"
 	_ "modernc.org/sqlite"
 )
 
@@ -52,7 +53,11 @@ func InitDB(ctx context.Context, cfg *config.Config) error {
 	}
 
 	dsn = finalURL
-	conn, err = sql.Open(driverName, finalURL)
+	// Why: whatapsql.OpenContext wraps the underlying driver so every Exec/Query/QueryRow
+	// becomes a WhaTap SQL trace step automatically. Falls back to plain sql.Open when
+	// trace is disabled or `go_sql_profile_enabled=false`. sqlc's DBTX interface is
+	// satisfied transparently — no generated code changes required.
+	conn, err = whatapsql.OpenContext(ctx, driverName, finalURL)
 	if err != nil {
 		return fmt.Errorf("failed to open database (%s): %w", driverName, err)
 	}
