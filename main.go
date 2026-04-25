@@ -174,12 +174,7 @@ func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.
 	auth.SetupOAuth(cfg)
 	channels.SetupGmailOAuth(cfg)
 
-	//Why: Disables the background polling loop in Cloud Run environments to optimize compute costs, relying on external API triggers or Cloud Scheduler schedules.
-	if !cfg.CloudRunMode {
-		go scanner.StartBackgroundScanner(ctx)
-	} else {
-		logger.Infof("Cloud Run Mode: Background scanner disabled. Triggers via API expected.")
-	}
+	go scanner.StartBackgroundScanner(ctx)
 
 	//Why: Registers all application endpoints to the HTTP router, enabling public and private access points.
 	r := mux.NewRouter()

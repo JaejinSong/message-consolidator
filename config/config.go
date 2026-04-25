@@ -32,7 +32,6 @@ type Config struct {
 	NotionReportPageID   string
 	TelegramAppID          int
 	TelegramAppHash        string
-	CloudRunMode           bool
 	InternalScanSecret     string
 	MessageBatchWindow     time.Duration
 	DBMaxIdleConns         int
@@ -64,7 +63,6 @@ func LoadConfig() *Config {
 		GmailSkipSenders:       os.Getenv("GMAIL_SKIP_SENDERS"),
 		CompanyDomains:         splitCSV(os.Getenv("COMPANY_DOMAINS")),
 		AutoArchiveDays:        envIntFirst([]string{"AUTO_ARCHIVE_DAYS", "ARCHIVE_DAYS"}, 7),
-		CloudRunMode:           os.Getenv("CLOUD_RUN_MODE") == "true",
 		InternalScanSecret:     os.Getenv("INTERNAL_SCAN_SECRET"),
 		MessageBatchWindow:     envDuration("MESSAGE_BATCH_WINDOW", 5*time.Minute),
 		DBMaxIdleConns:         envInt("DB_MAX_IDLE_CONNS", 1),
@@ -73,7 +71,7 @@ func LoadConfig() *Config {
 	}
 }
 
-//Why: .env loads with silent fallback (Cloud Run injects vars directly); .env.local overrides for local-only secrets.
+//Why: .env loads with silent fallback (env vars may be injected by host/Docker); .env.local overrides for local-only secrets.
 func loadDotenv() {
 	_ = godotenv.Load(".env")
 	if _, err := os.Stat(".env.local"); err != nil {

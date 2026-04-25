@@ -8,7 +8,7 @@
 | Integrations | whatsmeow, slack-go |
 | Monitoring | WhaTap APM (`github.com/whatap/go-api/trace`) — **manual instrumentation only**, see policy below |
 | Frontend | Vite + Vanilla TypeScript (Clean Architecture) |
-| Infra | Docker (FE/BE 완전 분리), Caddy, GCP Cloud Run |
+| Infra | Docker (FE/BE 완전 분리), Caddy, GCP Compute Engine (e2-micro) |
 
 ## Directory Structure
 

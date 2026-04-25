@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	// Why: Ignores missing .env errors — env vars may come from host/Docker/Cloud Run instead.
+	// Why: Ignores missing .env errors — env vars may come from host/Docker instead.
 	_ = godotenv.Load()
 
 	logger.InitLogging()

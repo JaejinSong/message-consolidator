@@ -78,6 +78,8 @@ linters-settings:
         msg: "WhaTap trace 누락 — whataphttp.HttpGet 등 사용"
       - p: ^sql\.Open$
         msg: "WhaTap trace 누락 — whatapsql.OpenContext 사용 (store/db.go)"
+      - p: ^panic$
+        msg: "런타임 경로 panic 금지 — error 반환으로 전환 (CLAUDE.md 에러 섹션)"
   revive:
     severity: warning
     rules:
