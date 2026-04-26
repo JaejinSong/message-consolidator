@@ -77,6 +77,20 @@
 - **Bug Fix**: 케이스 커버 테스트 작성/보완 필수. 테스트 없는 fix는 미완성
 - **컨텍스트 절약**: 대규모 grep/find/log 분석 (3 query 이상 또는 raw 출력 large 예상)은 `Agent(subagent_type=Explore)` 위임 — main context 오염 방지. Read는 `offset/limit` 명시, Bash는 `| head -N`/`| wc -l` 등으로 출력 절제
 
+## 모델 위임 (Opus 계획 → Sonnet 구현)
+
+**판단 원칙**: 작업이 **계획서로 환원 가능**(파일 경로 + 함수 시그니처 + 동작 명시 가능)하면 Sonnet, **판단·추론 필요**(옵션 비교, 원인 진단, 트레이드오프)하면 Opus.
+
+- **Main (Opus)**: 판단형 — 계획·진단·리뷰·아키텍처·디버깅. 위임 시 계획서(경로/시그니처/동작/검증 명령) 작성
+- **`implementer` (Sonnet)** — [.claude/agents/implementer.md](.claude/agents/implementer.md)
+  - 호출: `Agent(subagent_type=implementer, prompt=<계획서 전문>)`
+  - 모호 지점 발견 시 즉시 main에 반환 (추측 금지)
+  - 반환 diff는 Opus가 검증 후 머지
+- **`Explore`**: 대규모 grep/탐색 (별도 규칙, 위 컨텍스트 절약 항목)
+- **소규모 수정** (수십 줄 이하 한 파일): main 직접 — 계획서 오버헤드 회피
+
+판단 의심 시 자문: *"이 작업을 계획서 한 장으로 적을 수 있는가?"* 예→Sonnet, 아니오→Opus.
+
 ## Commands
 
 ```bash
