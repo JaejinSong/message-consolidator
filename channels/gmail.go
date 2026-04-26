@@ -238,6 +238,8 @@ func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m
 		IsImportant:     isImportant,
 		HasAttachment:   len(attachmentNames) > 0,
 		AttachmentNames: attachmentNames,
+		IsFromMe:        isFromMe,
+		IsCcOnly:        isCc && !isFromMe && !isDirect && !isBcc && !isDelTo,
 	}
 	return rawMsg, classification, toHeader, ts, nil
 }

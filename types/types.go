@@ -33,6 +33,7 @@ type RawMessage struct {
 	HasAttachment   bool     `json:"has_attachment"`
 	AttachmentNames []string `json:"attachment_names"`
 	IsFromMe        bool     `json:"is_from_me"`
+	IsCcOnly        bool     `json:"is_cc_only"` // Why: User is on Cc but not To/Bcc/From — informational copy, not actor. Drives envelope-based assignee guard in services.BuildTask.
 	IsForwarded     bool     `json:"is_forwarded"`
 	IsPinned        bool     `json:"is_pinned"`
 	IsImportant     bool     `json:"is_important"`

@@ -174,6 +174,54 @@ func TestBuildTask_GmailIdentityFallback(t *testing.T) {
 	}
 }
 
+// Why: Cc-only Gmail messages must NOT be assigned to the user even when AI's
+// __CURRENT_USER__ bias kicks in. Envelope role overrides AI self-assignment so the
+// task lands in the Reference tab (CategoryShared) instead of the Inbox.
+func TestBuildTask_CcOnlyRoutesToShared(t *testing.T) {
+	user := store.User{Name: "Jaejin Song", Email: "jjsong@whatap.io"}
+	item := store.TodoItem{Task: "kind reminder", Requester: "", Assignee: "__CURRENT_USER__"}
+
+	params := services.TaskBuildParams{
+		UserEmail: user.Email, User: user, Item: item,
+		SenderRaw: "Yosep Park", Source: "gmail", Room: "Gmail",
+		GmailClassification: CategoryOthers,
+		IsCcOnly:            true,
+	}
+	msg := services.BuildTask(t.Context(), params)
+
+	if msg.Assignee != services.AssigneeShared {
+		t.Errorf("Expected Assignee=%q for Cc-only, got %q", services.AssigneeShared, msg.Assignee)
+	}
+}
+
+// Why: Truth table for the IsCcOnly derivation expression in processSingleEmail.
+// Locks the rule that Cc-only requires the user be on Cc AND nowhere else.
+func TestIsCcOnlyDerivation(t *testing.T) {
+	derive := func(isFromMe, isDirect, isCc, isBcc, isDelTo bool) bool {
+		return isCc && !isFromMe && !isDirect && !isBcc && !isDelTo
+	}
+	tests := []struct {
+		name string
+		isFromMe, isDirect, isCc, isBcc, isDelTo bool
+		want bool
+	}{
+		{"Cc only", false, false, true, false, false, true},
+		{"To + Cc → not Cc-only", false, true, true, false, false, false},
+		{"Bcc + Cc → not Cc-only", false, false, true, true, false, false},
+		{"DeliveredTo + Cc → not Cc-only", false, false, true, false, true, false},
+		{"FromMe + Cc → not Cc-only", true, false, true, false, false, false},
+		{"To only → not Cc-only", false, true, false, false, false, false},
+		{"Nothing → not Cc-only", false, false, false, false, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := derive(tt.isFromMe, tt.isDirect, tt.isCc, tt.isBcc, tt.isDelTo); got != tt.want {
+				t.Errorf("isCcOnly = %v; want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 
 func TestStripHTML(t *testing.T) {
 	tests := []struct {

@@ -32,6 +32,11 @@ type TaskBuildParams struct {
 
 	// Gmail-specific classification hint (CategorySent / CategoryMine / CategoryOthers)
 	GmailClassification string
+
+	// IsCcOnly indicates the user appears only in Cc (not To/Bcc/From). Envelope-driven
+	// signal that overrides AI self-assignment so informational copies route to the
+	// Reference tab instead of the user's Inbox.
+	IsCcOnly bool
 }
 
 // BuildTask creates a ConsolidatedMessage applying shared identity rules across all channels.
@@ -138,6 +143,12 @@ func resolveAssignee(ctx context.Context, p TaskBuildParams) string {
 	raw := normalizeAIAssignee(p)
 	if raw == "" {
 		// Empty assignee in Slack/WhatsApp typically signals a group/broadcast message.
+		return AssigneeShared
+	}
+	// Why: User is only on Cc — informational copy. AI's self-assignment bias must not
+	// pull the task into the user's Inbox. Falls through to AssigneeShared so assignCategory
+	// resolves to CategoryShared → handler default → Reference tab.
+	if p.IsCcOnly && (isSelfReference(raw, p) || matchesAlias(raw, p.Aliases) || resolvesToCurrentUser(ctx, raw, p)) {
 		return AssigneeShared
 	}
 	if isSelfReference(raw, p) {

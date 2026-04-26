@@ -198,3 +198,70 @@ func TestResolveAssignee_PromiseBranchUsesSenderRaw(t *testing.T) {
 		})
 	}
 }
+
+// Why: Cc-only Gmail messages must route to the Reference tab (CategoryShared) regardless
+// of AI's __CURRENT_USER__ bias. Guard sits in resolveAssignee so envelope role overrides
+// AI self-assignment before any name/alias matching kicks in.
+func TestResolveAssignee_CcOnlyOverridesSelf(t *testing.T) {
+	user := store.User{Email: "jjsong@whatap.io", Name: "Jaejin Song"}
+	tests := []struct {
+		name     string
+		isCcOnly bool
+		aiAssign string
+		aliases  []string
+		want     string
+	}{
+		{
+			name:     "Cc-only + AI __CURRENT_USER__ → AssigneeShared",
+			isCcOnly: true,
+			aiAssign: "__CURRENT_USER__",
+			want:     AssigneeShared,
+		},
+		{
+			name:     "Cc-only + AI user name → AssigneeShared",
+			isCcOnly: true,
+			aiAssign: "Jaejin Song",
+			want:     AssigneeShared,
+		},
+		{
+			name:     "Cc-only + AI alias match → AssigneeShared",
+			isCcOnly: true,
+			aiAssign: "JJ",
+			aliases:  []string{"JJ", "송재진"},
+			want:     AssigneeShared,
+		},
+		{
+			name:     "Cc-only + AI third party → unchanged (passes through)",
+			isCcOnly: true,
+			aiAssign: "Hady Tandibali",
+			want:     "Hady Tandibali",
+		},
+		{
+			name:     "To recipient (not Cc-only) + AI __CURRENT_USER__ → preferredName (regression)",
+			isCcOnly: false,
+			aiAssign: "__CURRENT_USER__",
+			want:     "Jaejin Song",
+		},
+		{
+			name:     "To recipient + AI user name → preferredName (regression)",
+			isCcOnly: false,
+			aiAssign: "Jaejin Song",
+			want:     "Jaejin Song",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := TaskBuildParams{
+				UserEmail: user.Email,
+				User:      user,
+				Aliases:   tt.aliases,
+				Item:      store.TodoItem{Assignee: tt.aiAssign, Category: "TASK"},
+				IsCcOnly:  tt.isCcOnly,
+			}
+			got := resolveAssignee(t.Context(), p)
+			if got != tt.want {
+				t.Errorf("resolveAssignee(IsCcOnly=%v, ai=%q) = %q; want %q", tt.isCcOnly, tt.aiAssign, got, tt.want)
+			}
+		})
+	}
+}
