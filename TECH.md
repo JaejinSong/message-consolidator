@@ -72,3 +72,77 @@ graph TD
 
 ### 4) Distributed Locking (sync.Map & RoomLock)
 *   동일한 채팅방이나 이메일 스레드에 대해 고성능 AI 추론이 동시에 중복 실행되는 것을 방지하기 위해 **In-flight Lock** 시스템을 운영합니다.
+
+---
+
+## 4. Prime-Pool Cadence — 백그라운드 스캐너 부하 분산
+
+### 4.1 문제
+
+이 앱의 단위 작업은 단순 polling이 아니라 **`scan → parse → LLM API → DB update`** 파이프라인입니다. 하나의 cycle이 트리거되면
+
+1. 채널(Gmail/Slack/WhatsApp/Telegram)에서 신규 메시지 fetch,
+2. Raw Parser → Flash-Lite → Flash로 이어지는 다단계 LLM 호출,
+3. Task 추출 결과를 SQLite/Turso에 batch upsert
+
+까지 한 번에 발생합니다. 모든 채널을 **단일 ticker**로 묶어 일괄 주기로 돌리면 다음 부작용이 누적됩니다.
+
+| 현상 | 원인 |
+|---|---|
+| LLM API 429 (rate limit) | 4개 채널이 동시에 Flash/Flash-Lite를 호출 → burst |
+| DB write 경합 | 여러 채널이 동시에 task upsert · `PersistAllScanMetadata` 발화 |
+| 외부 1분 cron과의 harmonic resonance | 단일 60s 주기 ticker가 다른 60s cron과 정렬되며 부하가 같은 시점에 누적 |
+| 단일 장애점 | 한 채널의 긴 LLM 호출이 다음 사이클 전체를 지연시킴 |
+
+### 4.2 설계
+
+모든 백그라운드 주기 태스크를 **독립 ticker**로 분리하고, 각 tick의 *다음 주기*를 매번 prime pool에서 random pick.
+
+```go
+// scanner/scanner_loop.go
+var primePool = []time.Duration{
+    59 * time.Second,
+    61 * time.Second,
+    67 * time.Second,
+    71 * time.Second,
+    73 * time.Second,
+}
+```
+
+| 결정 | 근거 |
+|---|---|
+| **소수만** 사용 | 외부 cron(1분/5분/15분 등)과의 LCM(최소공배수)이 길어 harmonic resonance를 구조적으로 회피 |
+| 60초 근방 (59 ~ 73) | 사용자 체감 latency를 기존 단일 59s ticker 수준으로 유지 (평균 ≈ 66s) |
+| 풀에서 5종 | 4개 채널 + 3개 유지보수 + 1개 sweep = **8 loop** 가 매 tick 다른 prime을 추첨 → 동시 정렬 확률 매우 낮음 |
+| **매 tick 재추첨** | 두 loop가 우연히 같은 prime을 뽑아도 다음 tick에서 위상이 어긋남. 장기 정렬 자동 와해 |
+| **Skip-when-running** (atomic CAS) | 한 사이클이 다음 tick까지 늘어져도 queue 폭증 없이 단순 skip → 회복력 확보 |
+| 풀 확장 1줄 | `primePool` 슬라이스에 prime 1개 추가하면 전 loop 즉시 반영 (e.g. 79s, 83s) |
+
+### 4.3 적용된 8개 Loop
+
+| Loop | runFn | WhaTap Transaction |
+|---|---|---|
+| Gmail scan | `runGmailForAllUsers` | `/Background-ScanGmail` |
+| WhatsApp scan | `runWhatsAppForAllUsers` | `/Background-ScanWhatsApp` |
+| Telegram scan | `runTelegramForAllUsers` | `/Background-ScanTelegram` |
+| Slack scan | `runSlackForAllUsers` | `/Background-ScanSlack` |
+| Archive old tasks | `runArchiveOldTasks` | `/Background-ArchiveOldTasks` |
+| Token usage flush | `runFlushTokenUsage` | `/Background-FlushTokenUsage` |
+| DB stats log | `runLogDBStats` | `/Background-LogDBStats` |
+| Slack thread sweep | `runSlackSweep` | `/Background-SweepSlackThreads` |
+
+> 관리자용 manual full scan(`/api/internal/scan` → `FullScanFunc`)은 본 분산 정책을 우회하고 기존 일괄 흐름(`RunAllScans`)을 유지합니다 — 운영자가 명시적으로 "지금 전부 스캔"을 의도한 신호이기 때문.
+
+### 4.4 동작 모식
+
+```
+시각:  0s            70s           140s          210s
+gmail  ▮─── 67s ───▮─── 71s ───▮─── 59s ───▮─── 73s ───▮
+whats  ▮── 59s ─▮─── 73s ───▮─── 61s ───▮─── 67s ───▮
+slack  ▮─── 71s ───▮─── 67s ───▮─── 73s ───▮── 59s ─▮
+...
+```
+
+- 시작 시 모든 loop가 즉시 1회 실행 후, 각자 prime 풀에서 랜덤 주기 추첨
+- 같은 시점에 정렬되는 burst가 발생해도 **다음 사이클에는 자동으로 어긋남**
+- LLM API/DB 부하는 시간축에 평탄하게 분산
