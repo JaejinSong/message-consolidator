@@ -234,10 +234,11 @@ func handleKeepAliveTick(ctx context.Context, db *sql.DB) {
 		return
 	}
 	traceCtx, _ := trace.Start(ctx, "/Background-DBKeepAlive")
-	err := db.PingContext(traceCtx)
+	var v int
+	err := db.QueryRowContext(traceCtx, "SELECT 1").Scan(&v)
 	_ = trace.End(traceCtx, err)
 	if err != nil {
-		logger.Warnf("[DB-KEEPALIVE] Periodic ping failed: %v", err)
+		logger.Warnf("[DB-KEEPALIVE] Periodic SELECT 1 failed: %v", err)
 	}
 }
 
