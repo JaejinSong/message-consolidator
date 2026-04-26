@@ -18,6 +18,13 @@ var (
 
 	// userCache maps email addresses to User objects for rapid profile and preference lookups.
 	userCache        = make(map[string]*User)
+
+	// allUsersCache memoizes the full user list for GetAllUsers. The scanner ticks every
+	// ~minute against a libsql DB at us-east-1, so each cold call eats ~900-1800ms of
+	// cross-region RTT for a 1-row SCAN — see WhaTap trace 2026-04-26 13:53:30.433.
+	// Invalidate via InvalidateAllUsersCache on any user/alias write.
+	allUsersCache    []User
+	allUsersCachedAt time.Time
 	
 	// scanCache stores the last processed timestamp for each source to prevent redundant processing of historical data.
 	scanCache        = make(map[string]string)
@@ -67,6 +74,8 @@ func ResetForTest() {
 	metadataMu.Lock()
 	defer metadataMu.Unlock()
 	userCache = make(map[string]*User)
+	allUsersCache = nil
+	allUsersCachedAt = time.Time{}
 	scanCache = make(map[string]string)
 	dirtyScanKeys = make(map[string]bool)
 	tokenCache = make(map[string]string)

@@ -4,34 +4,72 @@ import (
 	"context"
 	"database/sql"
 	"message-consolidator/db"
+	"time"
 )
 
-// GetAllUsers retrieves all users and their aliases from the database to ensure data consistency.
+// allUsersCacheTTL bounds staleness when an invalidation is missed. The scanner
+// runs every ~59s; with a 5min ceiling we still cap DB load to ~12 GetAllUsers
+// queries per hour even if no writes occur.
+const allUsersCacheTTL = 5 * time.Minute
+
+// GetAllUsers retrieves all users and their aliases.
+// Memoized in-process: cross-region libsql RTT made every tick eat ~900-1800ms for
+// a 1-row table. Invalidate via InvalidateAllUsersCache on any user/alias write.
 func GetAllUsers(ctx context.Context) ([]User, error) {
-	conn := GetDB()
-	queries := db.New(conn)
+	metadataMu.RLock()
+	if allUsersCache != nil && time.Since(allUsersCachedAt) < allUsersCacheTTL {
+		cached := allUsersCache
+		metadataMu.RUnlock()
+		return cached, nil
+	}
+	metadataMu.RUnlock()
+
+	// Why: singleflight collapses concurrent misses (scanner tick + RefreshAllCaches
+	// firing at boot) into a single DB round-trip.
+	v, err, _ := sfGroup.Do("store.GetAllUsers", func() (any, error) {
+		return loadAllUsersFromDB(ctx)
+	})
+	if err != nil {
+		return nil, err
+	}
+	users, _ := v.([]User)
+	return users, nil
+}
+
+func loadAllUsersFromDB(ctx context.Context) ([]User, error) {
+	queries := db.New(GetDB())
 	rows, err := queries.GetAllUsers(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	aliasRows, aliasErr := queries.GetAllUserAliases(ctx)
+
 	metadataMu.Lock()
 	defer metadataMu.Unlock()
-	
+
 	users := make([]User, 0, len(rows))
 	for _, row := range rows {
 		users = append(users, fromDBUser(row))
 		userCache[row.Email.String] = &users[len(users)-1]
 	}
 
-	// Why: Fetch and populate all aliases in one batch to prevent N+1 queries.
-	aliasRows, err := queries.GetAllUserAliases(ctx)
-	if err != nil {
-		return users, nil // Return users even if alias fetch fails
+	if aliasErr == nil {
+		mapAliasesToUsers(users, aliasRows)
 	}
 
-	mapAliasesToUsers(users, aliasRows)
+	allUsersCache = users
+	allUsersCachedAt = time.Now()
 	return users, nil
+}
+
+// InvalidateAllUsersCache drops the memoized user list so the next GetAllUsers
+// hits the DB. Call from any user/alias write path.
+func InvalidateAllUsersCache() {
+	metadataMu.Lock()
+	allUsersCache = nil
+	allUsersCachedAt = time.Time{}
+	metadataMu.Unlock()
 }
 
 func mapAliasesToUsers(users []User, aliasRows []db.GetAllUserAliasesRow) {
@@ -91,6 +129,8 @@ func updateAndCacheUser(ctx context.Context, email, name, picture string) (*User
 
 	metadataMu.Lock()
 	userCache[email] = &u
+	allUsersCache = nil
+	allUsersCachedAt = time.Time{}
 	metadataMu.Unlock()
 
 	if name != "" {
@@ -102,26 +142,38 @@ func updateAndCacheUser(ctx context.Context, email, name, picture string) (*User
 
 // UpdateUserWAJID updates the WhatsApp JID (identifier) associated with the user.
 func UpdateUserWAJID(ctx context.Context, email, wajid string) error {
-	return db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{
+	if err := db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{
 		Email: nullString(email),
 		WaJid: sql.NullString{String: wajid, Valid: wajid != ""},
-	})
+	}); err != nil {
+		return err
+	}
+	InvalidateAllUsersCache()
+	return nil
 }
 
 // UpdateUserSlackID updates the Slack ID associated with the user.
 func UpdateUserSlackID(ctx context.Context, email, slackID string) error {
-	return db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{
+	if err := db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{
 		Email:   nullString(email),
 		SlackID: sql.NullString{String: slackID, Valid: slackID != ""},
-	})
+	}); err != nil {
+		return err
+	}
+	InvalidateAllUsersCache()
+	return nil
 }
 
 // UpdateUserTgID updates the Telegram user ID associated with the user.
 func UpdateUserTgID(ctx context.Context, email, tgUserID string) error {
-	return db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{
+	if err := db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{
 		Email:    nullString(email),
 		TgUserID: sql.NullString{String: tgUserID, Valid: tgUserID != ""},
-	})
+	}); err != nil {
+		return err
+	}
+	InvalidateAllUsersCache()
+	return nil
 }
 
 func GetUserAliasesByEmail(ctx context.Context, email string) ([]string, error) {

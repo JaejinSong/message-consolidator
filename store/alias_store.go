@@ -269,6 +269,7 @@ func AddUserAlias(ctx context.Context, userID UserID, alias string) error {
 	}
 
 	updateUserCacheAlias(ctx, userID, trimmed, true)
+	InvalidateAllUsersCache()
 	return nil
 }
 
