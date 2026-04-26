@@ -67,8 +67,8 @@ func LoadConfig() *Config {
 		MessageBatchWindow:     envDuration("MESSAGE_BATCH_WINDOW", 5*time.Minute),
 		DBMaxIdleConns:         envInt("DB_MAX_IDLE_CONNS", 1),
 		DBMaxOpenConns:         envInt("DB_MAX_OPEN_CONNS", 25),
-		// Why: Turso server-side closes idle libsql streams after 10s; 6s leaves 4s margin for jitter/GC.
-		DBKeepAliveInterval: envDurationOrSeconds("DB_KEEP_ALIVE_INTERVAL", 6*time.Second),
+		// Why: Turso server-side closes idle libsql streams after 10s; 7s leaves 3s margin for jitter/GC.
+		DBKeepAliveInterval: envDurationOrSeconds("DB_KEEP_ALIVE_INTERVAL", 7*time.Second),
 	}
 }
 
