@@ -58,13 +58,26 @@ run_step() {
 
 # --- Functions ---
 
-# Frontend Build
+# Frontend Build (load to local daemon; push happens after test gate)
 build_fe() {
     run_step "FE: CSS Optimize" npm run optimize:css
-    run_step "FE: Build" docker build --platform linux/amd64 -q -t "${IMAGE_FE_TAG}" -t "${REGISTRY}/frontend:latest" -f docker/frontend/Dockerfile .
+    run_step "FE: Build" docker buildx build --platform linux/amd64 -q \
+        -t "${IMAGE_FE_TAG}" -t "${REGISTRY}/frontend:latest" \
+        -f docker/frontend/Dockerfile \
+        --load .
 }
 
-# Backend Build
+push_fe() {
+    # Why: Two tags share the same blob; registry dedups so only manifests differ.
+    # Parallel publish saves one manifest round-trip.
+    run_step "FE: Push" bash -c "
+        docker push ${IMAGE_FE_TAG} > /dev/null 2>&1 & p1=\$!
+        docker push ${REGISTRY}/frontend:latest > /dev/null 2>&1 & p2=\$!
+        wait \$p1 && wait \$p2
+    "
+}
+
+# Backend Build (load to local daemon; push happens after test gate)
 build_be() {
     BUILDER_TAG="${REGISTRY}/backend-builder:latest"
     if [[ "$FORCE_BUILDER" == "true" ]] || ! docker image inspect "$BUILDER_TAG" >/dev/null 2>&1; then
@@ -72,7 +85,21 @@ build_be() {
         # Builder push is rare, can happen in background
         docker push "$BUILDER_TAG" > /dev/null 2>&1 &
     fi
-    run_step "BE: Build" docker build --platform linux/amd64 -q -t "${IMAGE_BE_TAG}" -t "${REGISTRY}/backend:latest" -f docker/backend/Dockerfile --build-arg BUILDER_IMAGE="$BUILDER_TAG" .
+    # Why: --load builds to local daemon without push, allowing the build to run in
+    # parallel with Stage 1 tests. Push is gated on test success in Stage 2.
+    run_step "BE: Build" docker buildx build --platform linux/amd64 -q \
+        -t "${IMAGE_BE_TAG}" -t "${REGISTRY}/backend:latest" \
+        -f docker/backend/Dockerfile \
+        --build-arg BUILDER_IMAGE="$BUILDER_TAG" \
+        --load .
+}
+
+push_be() {
+    run_step "BE: Push" bash -c "
+        docker push ${IMAGE_BE_TAG} > /dev/null 2>&1 & p1=\$!
+        docker push ${REGISTRY}/backend:latest > /dev/null 2>&1 & p2=\$!
+        wait \$p1 && wait \$p2
+    "
 }
 
 # --- Execution ---
@@ -80,27 +107,13 @@ build_be() {
 # --- Deployment Chains ---
 
 chain_be() {
-    build_be
-    echo -e "${BLUE}==> Pushing Backend...${NC}"
-    # Same image, two tags: registry dedups blob upload, only manifests differ.
-    # Parallel publish saves one manifest round-trip.
-    run_step "BE: Push" bash -c "
-        docker push ${IMAGE_BE_TAG} > /dev/null 2>&1 & p1=\$!
-        docker push ${REGISTRY}/backend:latest > /dev/null 2>&1 & p2=\$!
-        wait \$p1 && wait \$p2
-    "
+    push_be
     echo -e "${BLUE}==> Deploying Backend Container...${NC}"
     run_step "BE: Deploy" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose up -d --force-recreate backend"
 }
 
 chain_fe() {
-    build_fe
-    echo -e "${BLUE}==> Pushing Frontend...${NC}"
-    run_step "FE: Push" bash -c "
-        docker push ${IMAGE_FE_TAG} > /dev/null 2>&1 & p1=\$!
-        docker push ${REGISTRY}/frontend:latest > /dev/null 2>&1 & p2=\$!
-        wait \$p1 && wait \$p2
-    "
+    push_fe
     echo -e "${BLUE}==> Deploying Frontend Container...${NC}"
     run_step "FE: Deploy" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose up -d --force-recreate frontend"
 }
@@ -115,32 +128,41 @@ chain_caddy() {
 
 # --- Execution Flow ---
 
-# [STAGE 1] Parallel Testing Gate
+# [STAGE 1] Parallel: Tests + Builds + Auth
+# Why: Builds use buildx --load (no push) so they can overlap with the test gate.
+# Push happens in Stage 2 only after tests pass — failed tests don't pollute registry.
 echo -e "\n${BLUE}==================================================${NC}"
-echo -e "${BLUE}==> STAGE 1: Parallel Testing Gate${NC}"
+echo -e "${BLUE}==> STAGE 1: Tests + Builds (parallel)${NC}"
 echo -e "${BLUE}==================================================${NC}"
 
-p_test_go=""; p_test_ai=""; p_test_node=""
+p_test_go=""; p_test_ai=""; p_test_node=""; p_build_be=""; p_build_fe=""
 
 if [[ "$MODE" == "all" || "$MODE" == "be" ]]; then
     ( run_step "Go Unit Tests" go test ./... ) & p_test_go=$!
     ( run_step "AI Regressions" make test-ai ) & p_test_ai=$!
+    ( build_be ) & p_build_be=$!
 fi
 if [[ "$MODE" == "all" || "$MODE" == "fe" ]]; then
     ( run_step "NPM (Vitest)" npm test ) & p_test_node=$!
+    ( build_fe ) & p_build_fe=$!
 fi
 ( run_step "GCloud Auth" gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet ) & p_auth=$!
 
+# Test gate (fail fast — built images stay local, never pushed)
 [[ -n "$p_test_go" ]] && { wait $p_test_go || { echo -e "${RED}FATAL: Go Tests Failed${NC}"; exit 1; }; }
 [[ -n "$p_test_ai" ]] && { wait $p_test_ai || { echo -e "${RED}FATAL: AI Regressions Failed${NC}"; exit 1; }; }
 [[ -n "$p_test_node" ]] && { wait $p_test_node || { echo -e "${RED}FATAL: Node Tests Failed${NC}"; exit 1; }; }
 wait $p_auth || { echo -e "${RED}FATAL: GCloud Auth Failed${NC}"; exit 1; }
 
-echo -e "${GREEN}Stage 1 passed! All tests validated.${NC}"
+# Build gate (tests passed — now require builds to have succeeded too)
+[[ -n "$p_build_be" ]] && { wait $p_build_be || { echo -e "${RED}FATAL: BE Build Failed${NC}"; exit 1; }; }
+[[ -n "$p_build_fe" ]] && { wait $p_build_fe || { echo -e "${RED}FATAL: FE Build Failed${NC}"; exit 1; }; }
 
-# [STAGE 2] Parallel Deployment Chains & Sync
+echo -e "${GREEN}Stage 1 passed! Tests + builds validated.${NC}"
+
+# [STAGE 2] Parallel Push + Deploy Chains
 echo -e "\n${BLUE}==================================================${NC}"
-echo -e "${BLUE}==> STAGE 2: Parallel Deployment Chains & Sync${NC}"
+echo -e "${BLUE}==> STAGE 2: Push + Deploy (parallel chains)${NC}"
 echo -e "${BLUE}==================================================${NC}"
 
 # 2.0 Prep: Sync Config Files to VPS
