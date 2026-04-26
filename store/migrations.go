@@ -145,6 +145,7 @@ func migrateExistingData(ctx context.Context, q db.DBTX) {
 	migrateTokenUsageBreakdown(ctx, q)
 	migrateTokenUsageReportID(ctx, q)
 	migrateOriginalTextOrder(ctx, q)
+	migrateMessagesFTS(ctx, q)
 }
 
 // migrateOriginalTextOrder reverses block order in messages.original_text so newest appears first.
@@ -261,6 +262,53 @@ func migrateTokenUsageBreakdown(ctx context.Context, q db.DBTX) {
 		}
 	}
 	logger.Infof("[MIGRATE] token_usage extended with step/model/source/call_count")
+}
+
+func tableExists(ctx context.Context, q db.DBTX, name string) bool {
+	row := q.QueryRowContext(ctx, "SELECT 1 FROM sqlite_master WHERE type IN ('table','view') AND name=?", name)
+	var v int
+	err := row.Scan(&v)
+	return err == nil
+}
+
+// migrateMessagesFTS creates an fts5 virtual table over messages for full-text search.
+// Why: trigram tokenizer enables substring match without LIKE '%...%' full scans.
+func migrateMessagesFTS(ctx context.Context, q db.DBTX) {
+	if tableExists(ctx, q, "messages_fts") {
+		return
+	}
+	steps := []struct {
+		name string
+		sql  string
+	}{
+		{"create fts5 table", `CREATE VIRTUAL TABLE messages_fts USING fts5(
+			task, original_text, requester, assignee,
+			content='messages', content_rowid='id',
+			tokenize='trigram case_sensitive 0'
+		)`},
+		{"create insert trigger", `CREATE TRIGGER messages_ai AFTER INSERT ON messages BEGIN
+			INSERT INTO messages_fts(rowid, task, original_text, requester, assignee)
+			VALUES (new.id, new.task, new.original_text, new.requester, new.assignee);
+		END`},
+		{"create delete trigger", `CREATE TRIGGER messages_ad AFTER DELETE ON messages BEGIN
+			INSERT INTO messages_fts(messages_fts, rowid, task, original_text, requester, assignee)
+			VALUES ('delete', old.id, old.task, old.original_text, old.requester, old.assignee);
+		END`},
+		{"create update trigger", `CREATE TRIGGER messages_au AFTER UPDATE ON messages BEGIN
+			INSERT INTO messages_fts(messages_fts, rowid, task, original_text, requester, assignee)
+			VALUES ('delete', old.id, old.task, old.original_text, old.requester, old.assignee);
+			INSERT INTO messages_fts(rowid, task, original_text, requester, assignee)
+			VALUES (new.id, new.task, new.original_text, new.requester, new.assignee);
+		END`},
+		{"rebuild", `INSERT INTO messages_fts(messages_fts) VALUES('rebuild')`},
+	}
+	for _, s := range steps {
+		if _, err := q.ExecContext(ctx, s.sql); err != nil {
+			logger.Errorf("[MIGRATE] messages_fts %s: %v", s.name, err)
+			return
+		}
+	}
+	logger.Infof("[MIGRATE] messages_fts created and rebuilt")
 }
 
 func tableHasColumn(ctx context.Context, q db.DBTX, table, column string) bool {

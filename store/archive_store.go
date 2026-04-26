@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"message-consolidator/db"
+	"strings"
 )
 
 func GetArchivedMessages(ctx context.Context, email string) ([]ConsolidatedMessage, error) {
@@ -81,6 +82,9 @@ func normalizeArchiveStatus(status string) string {
 }
 
 func fetchArchivedFromDB(ctx context.Context, filter ArchiveFilter) ([]ConsolidatedMessage, int, error) {
+	if filter.Query != "" && len([]rune(filter.Query)) >= 3 {
+		return ftsSearchArchivedMessages(ctx, filter)
+	}
 	queries := db.New(GetDB())
 	status := normalizeArchiveStatus(filter.Status)
 
@@ -146,6 +150,91 @@ func statusMatch(m ConsolidatedMessage, status string) bool {
 	default:
 		return true
 	}
+}
+
+func ftsSearchArchivedMessages(ctx context.Context, filter ArchiveFilter) ([]ConsolidatedMessage, int, error) {
+	status := normalizeArchiveStatus(filter.Status)
+	fts := `"` + strings.ReplaceAll(filter.Query, `"`, `""`) + `"`
+
+	// Why: v_messages does not expose is_archived; filter via messages table then join v_messages for resolved contacts.
+	const countSQL = `
+		SELECT COUNT(*) FROM messages m
+		WHERE m.id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?1)
+		  AND (m.user_email = ?2 OR (m.user_email IS NULL AND ?2 = ''))
+		  AND m.is_archived = 1
+		  AND (
+		    (?3 = '' OR ?3 = 'all') OR
+		    (?3 = 'done' AND m.done = 1) OR
+		    (?3 = 'canceled' AND m.done = 0 AND m.is_deleted = 1) OR
+		    (?3 = 'merged' AND m.category = 'merged')
+		  )`
+
+	var total int
+	if err := GetDB().QueryRowContext(ctx, countSQL, fts, filter.Email, status).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("fts archive count failed: %w", err)
+	}
+
+	const rowsSQL = `
+		SELECT vm.id, COALESCE(vm.user_email, '') as user_email, COALESCE(vm.source, '') as source,
+		       COALESCE(vm.room, '') as room, COALESCE(vm.task, '') as task,
+		       COALESCE(vm.requester, '') as requester, COALESCE(vm.assignee, '') as assignee,
+		       vm.assigned_at, COALESCE(vm.link, '') as link, COALESCE(vm.source_ts, '') as source_ts,
+		       COALESCE(vm.original_text, '') as original_text, vm.done, vm.is_deleted,
+		       vm.created_at, vm.completed_at, COALESCE(vm.category, '') as category,
+		       COALESCE(vm.deadline, '') as deadline, COALESCE(vm.thread_id, '') as thread_id,
+		       COALESCE(vm.assignee_reason, '') as assignee_reason,
+		       COALESCE(vm.replied_to_id, '') as replied_to_id, vm.is_context_query,
+		       COALESCE(vm.constraints, '') as constraints, COALESCE(vm.metadata, '') as metadata,
+		       COALESCE(vm.source_channels, '') as source_channels,
+		       COALESCE(vm.consolidated_context, '') as consolidated_context,
+		       COALESCE(vm.subtasks, '[]') as subtasks,
+		       COALESCE(vm.requester_canonical, '') as requester_canonical,
+		       COALESCE(vm.assignee_canonical, '') as assignee_canonical,
+		       COALESCE(vm.requester_type, '') as requester_type,
+		       COALESCE(vm.assignee_type, '') as assignee_type
+		FROM v_messages vm
+		WHERE vm.id IN (
+		  SELECT m.id FROM messages m
+		  WHERE m.id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?1)
+		    AND (m.user_email = ?2 OR (m.user_email IS NULL AND ?2 = ''))
+		    AND m.is_archived = 1
+		    AND (
+		      (?3 = '' OR ?3 = 'all') OR
+		      (?3 = 'done' AND m.done = 1) OR
+		      (?3 = 'canceled' AND m.done = 0 AND m.is_deleted = 1) OR
+		      (?3 = 'merged' AND m.category = 'merged')
+		    )
+		  ORDER BY CASE WHEN m.is_deleted = 1 THEN m.created_at ELSE m.completed_at END DESC
+		  LIMIT ?4 OFFSET ?5
+		)
+		ORDER BY CASE WHEN vm.is_deleted = 1 THEN vm.created_at ELSE vm.completed_at END DESC`
+
+	sqlRows, err := GetDB().QueryContext(ctx, rowsSQL, fts, filter.Email, status, int64(filter.Limit), int64(filter.Offset))
+	if err != nil {
+		return nil, 0, fmt.Errorf("fts archive search failed: %w", err)
+	}
+	defer sqlRows.Close()
+
+	var rows []db.SearchArchivedMessagesRow
+	for sqlRows.Next() {
+		var r db.SearchArchivedMessagesRow
+		if err := sqlRows.Scan(
+			&r.ID, &r.UserEmail, &r.Source, &r.Room, &r.Task,
+			&r.Requester, &r.Assignee, &r.AssignedAt, &r.Link, &r.SourceTs,
+			&r.OriginalText, &r.Done, &r.IsDeleted, &r.CreatedAt, &r.CompletedAt,
+			&r.Category, &r.Deadline, &r.ThreadID, &r.AssigneeReason, &r.RepliedToID,
+			&r.IsContextQuery, &r.Constraints, &r.Metadata, &r.SourceChannels,
+			&r.ConsolidatedContext, &r.Subtasks, &r.RequesterCanonical, &r.AssigneeCanonical,
+			&r.RequesterType, &r.AssigneeType,
+		); err != nil {
+			return nil, 0, fmt.Errorf("fts archive search failed: %w", err)
+		}
+		rows = append(rows, r)
+	}
+	if err := sqlRows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("fts archive search failed: %w", err)
+	}
+	return mapRowSliceToMessage(rows), total, nil
 }
 
 func GetArchivedMessagesCount(ctx context.Context, filter ArchiveFilter) (int, error) {
