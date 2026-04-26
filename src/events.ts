@@ -3,33 +3,27 @@
  * @description Type-safe Event Emitter for decoupled frontend communication.
  */
 
-export type EventCallback = (data?: any) => void;
+// Why: generic event bus carries heterogeneous payloads. The runtime store keeps
+// listeners as `EventCallback<unknown>` while `on/emit` accept a per-call generic
+// so callers keep typed callbacks without `any`.
+export type EventCallback<T = unknown> = (data: T) => void;
 
 class EventEmitter {
-    private events: Record<string, EventCallback[]> = {};
+    private events: Record<string, EventCallback<unknown>[]> = {};
 
-    /**
-     * Subscribes to an event.
-     */
-    on(event: string, listener: EventCallback): void {
+    on<T = unknown>(event: string, listener: EventCallback<T>): void {
         if (!this.events[event]) {
             this.events[event] = [];
         }
-        this.events[event].push(listener);
+        this.events[event].push(listener as EventCallback<unknown>);
     }
 
-    /**
-     * Unsubscribes from an event.
-     */
-    off(event: string, listener: EventCallback): void {
+    off<T = unknown>(event: string, listener: EventCallback<T>): void {
         if (!this.events[event]) return;
-        this.events[event] = this.events[event].filter(l => l !== listener);
+        this.events[event] = this.events[event].filter(l => l !== (listener as EventCallback<unknown>));
     }
 
-    /**
-     * Emits an event with optional data.
-     */
-    emit(event: string, data?: any): void {
+    emit<T = unknown>(event: string, data: T): void {
         if (!this.events[event]) return;
         this.events[event].forEach(listener => listener(data));
     }

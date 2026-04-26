@@ -5,6 +5,6 @@ import { id } from './locales/id';
 import { th } from './locales/th';
 import type { I18nDictionary } from './types';
 
-// Why: locale files declare loose `Record<string, any>` for incremental migration; the cast
-// pins the consumer-facing type to I18nDictionary so call sites drop their `(I18N_DATA as any)` casts.
-export const I18N_DATA = { ko, en, id, th } as unknown as I18nDictionary;
+// Why: locale files now declare `I18nEntry` directly (single source of truth in types.ts).
+// The literal map is structurally compatible with I18nDictionary, so no cast is needed.
+export const I18N_DATA: I18nDictionary = { ko, en, id, th };

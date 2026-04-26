@@ -1,4 +1,6 @@
-export const id: Record<string, any> = {
+import type { I18nEntry } from '../types';
+
+export const id: I18nEntry = {
         subTitle: "Dasbor Tugas Slack & WhatsApp Otomatis",
         realTimeTasks: "Tugas Real-time",
         scanNow: "🔄 Pindai Sekarang",

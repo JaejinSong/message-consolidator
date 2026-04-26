@@ -1,5 +1,5 @@
 import { parseMarkdown } from '../logic';
-import { IReportData, ParsedVisualization } from '../types';
+import { IReportData, IReportNode, IReportLink, ParsedVisualization, I18nEntry, StalledTaskRow } from '../types';
 import { escapeHTML } from '../utils';
 
 /**
@@ -60,7 +60,7 @@ function hideTooltip() {
     }
 }
 
-function getNodeName(nodes: any[], id: string) {
+function getNodeName(nodes: IReportNode[], id: string) {
     const n = nodes.find(n => n.id === id);
     return n ? (n.name || n.id) : id;
 }
@@ -71,7 +71,7 @@ const NODE_COLORS = {
     external: 'var(--color-primary)',
 };
 
-function getNodeColor(n: any): string {
+function getNodeColor(n: IReportNode): string {
     if (n.is_me) return NODE_COLORS.me;
     if (n.category === 'Internal') return NODE_COLORS.internal;
     return NODE_COLORS.external;
@@ -80,7 +80,7 @@ function getNodeColor(n: any): string {
 /**
  * Renders a Network Graph using SVG.
  */
-function renderNetworkSVG(container: HTMLElement, nodes: any[], links: any[]): void {
+function renderNetworkSVG(container: HTMLElement, nodes: IReportNode[], links: IReportLink[]): void {
     if (!container || !Array.isArray(nodes) || !Array.isArray(links)) return;
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 400;
@@ -204,7 +204,7 @@ const MATRIX_LABEL_W = 130;
 const MATRIX_LABEL_H = 90;
 const MATRIX_TITLE_H = 28;
 
-function buildMatrixData(nodes: any[], links: any[], topN: number) {
+function buildMatrixData(nodes: IReportNode[], links: IReportLink[], topN: number) {
     const vol = new Map<string, number>();
     links.forEach(l => {
         const v = l.value ?? l.weight ?? 1;
@@ -248,7 +248,7 @@ function buildMatrixData(nodes: any[], links: any[], topN: number) {
 /**
  * Renders a directed Matrix Heatmap (X→Y request volume) using SVG.
  */
-function renderMatrixSVG(container: HTMLElement, nodes: any[], links: any[]): void {
+function renderMatrixSVG(container: HTMLElement, nodes: IReportNode[], links: IReportLink[]): void {
     if (!container || !Array.isArray(links) || links.length === 0) return;
     const { topIds, matrix, maxVal, rowTotals, colTotals, getName, getFullName } = buildMatrixData(nodes, links, TOP_N);
     if (maxVal === 0) return;
@@ -329,7 +329,7 @@ function renderMatrixSVG(container: HTMLElement, nodes: any[], links: any[]): vo
 }
 
 export const reportsRenderer = {
-    renderHistory(container: HTMLElement, items: IReportData[], onSelect: (item: IReportData) => void, i18n: any): void {
+    renderHistory(container: HTMLElement, items: IReportData[], onSelect: (item: IReportData) => void, i18n: I18nEntry): void {
         container.innerHTML = '';
         if (!items || items.length === 0) {
             container.innerHTML = `<div class="u-text-dim u-p-4">${i18n.noReports || 'Reports not found.'}</div>`;
@@ -364,7 +364,7 @@ export const reportsRenderer = {
         });
     },
 
-    render(report: IReportData, lang: string, i18n: any): void {
+    render(report: IReportData, lang: string, i18n: I18nEntry): void {
         const summaryArea = document.getElementById('reportSummaryContent');
         const netChartArea = document.getElementById('reportNetworkChart');
         const matrixChartArea = document.getElementById('reportMatrixChart');
@@ -426,7 +426,7 @@ export const reportsRenderer = {
         }
     },
 
-    renderActivityComponent(data: Array<{customer: string, count: number, summary?: string}>, i18n: any): string {
+    renderActivityComponent(data: Array<{customer: string, count: number, summary?: string}>, i18n: I18nEntry): string {
         const rows = data.map((item, idx) => `
             <tr>
                 <td class="c-report-table__cell--rank">${idx + 1}</td>
@@ -452,7 +452,7 @@ export const reportsRenderer = {
         `;
     },
 
-    renderStalledTasksComponent(data: any[], i18n: any): string {
+    renderStalledTasksComponent(data: StalledTaskRow[], i18n: I18nEntry): string {
         const rows = data.map(item => `
             <tr>
                 <td class="c-report-table__cell--source">${item.source || '-'}</td>

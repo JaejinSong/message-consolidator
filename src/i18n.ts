@@ -5,6 +5,7 @@
  */
 
 import { I18N_DATA } from './locales';
+import type { I18nEntry } from './types';
 
 const DEFAULT_LANG = 'en';
 
@@ -30,6 +31,6 @@ export function t(key: string, lang: string = DEFAULT_LANG): string {
  * Returns the entire locale data object for a given language.
  * Falls back to 'en' if the requested locale is unavailable.
  */
-export function getLocale(lang: string = DEFAULT_LANG): Record<string, any> {
+export function getLocale(lang: string = DEFAULT_LANG): I18nEntry {
     return I18N_DATA[lang] ?? I18N_DATA[DEFAULT_LANG] ?? {};
 }

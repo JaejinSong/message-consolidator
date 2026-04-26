@@ -24,7 +24,7 @@ export interface Message {
     assignee?: string;
     waiting_on?: string;
     category?: string;
-    metadata?: string | Record<string, any> | null;
+    metadata?: string | Record<string, unknown> | null;
     is_translating?: boolean;
     translation_error?: string | null;
     has_original?: boolean;
@@ -158,6 +158,8 @@ export interface IReportLink {
     source: string;
     target: string;
     value: number;
+    // Why: legacy AI payload sometimes uses `weight` instead of `value`; readers fall back via `l.value ?? l.weight ?? 1`.
+    weight?: number;
 }
 
 export interface ParsedVisualization {
@@ -177,6 +179,20 @@ export interface IReportData {
     status?: 'processing' | 'completed' | 'failed';
     is_truncated?: boolean;
     created_at?: string;
+}
+
+export interface TranslateBatchResult {
+    id: number;
+    translated_text?: string;
+    error?: string;
+}
+
+export interface StalledTaskRow {
+    source?: string;
+    requester?: string;
+    status?: string;
+    days?: number;
+    reason?: string;
 }
 
 export interface AccountItem {

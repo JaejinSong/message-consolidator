@@ -271,9 +271,10 @@ export const modals: ModalsImpl = {
      * Sets up global event listeners.
      */
     setupEventListeners() {
-        window.addEventListener('openAliasMapping', (e: any) => {
-            if (e.detail && e.detail.name) {
-                this.openAliasMapping(e.detail.name);
+        window.addEventListener('openAliasMapping', (e: Event) => {
+            const detail = (e as CustomEvent<{ name?: string }>).detail;
+            if (detail && detail.name) {
+                this.openAliasMapping(detail.name);
             }
         });
     },
@@ -281,7 +282,7 @@ export const modals: ModalsImpl = {
     /**
      * Fetches and renders token usage.
      */
-    fetchTokenUsage: safeAsync(async function (this: any) {
+    fetchTokenUsage: safeAsync(async function (this: ModalsImpl) {
         const usage = await api.fetchTokenUsage();
         if (usage && this.tokenCard) {
             this.tokenCard.render(usage);

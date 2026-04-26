@@ -1,7 +1,7 @@
 import { apiFetch } from './utils/http';
 import { state, upsertReport } from './state';
 import { normalizeReportData } from './logic';
-import { Message, UserProfile, UserStats, TokenUsage, IReportData, AccountItem, CategorizedMessages } from './types';
+import { Message, UserProfile, UserStats, TokenUsage, IReportData, AccountItem, CategorizedMessages, TranslateBatchResult } from './types';
 import type { ProposalGroup } from './renderers/settings-renderer';
 
 // Why: shared shape for mutation endpoints that the backend answers with `{ status: "ok" }` or
@@ -69,7 +69,7 @@ class TranslationBatcher {
         try {
             const { results } = await api.translateTasksBatch(ids, lang);
             ids.forEach(id => {
-                const res = (results as any[]).find(r => r.id === id);
+                const res = results.find(r => r.id === id);
                 const key = `${id}_${lang}`;
                 const entry = this.promises.get(key);
                 if (entry) {
@@ -168,7 +168,7 @@ export const api = {
         });
     },
 
-    async translateTasksBatch(taskIds: number[], lang: string): Promise<{ results: any[] }> {
+    async translateTasksBatch(taskIds: number[], lang: string): Promise<{ results: TranslateBatchResult[] }> {
         return apiFetch('/tasks/translate-batch', {
             method: 'POST',
             body: JSON.stringify({ task_ids: taskIds, lang }),

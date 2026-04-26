@@ -10,7 +10,7 @@ import { I18N_DATA } from './locales';
 import { insightsRenderer } from './insightsRenderer';
 import { normalizeReportData } from './logic';
 import { events, EVENTS } from './events';
-import { UserStats, TokenUsage, IReportData } from './types';
+import { UserStats, TokenUsage, IReportData, I18nEntry } from './types';
 import { getErrorMessage } from './utils';
 
 export const insights = {
@@ -310,7 +310,7 @@ export const insights = {
             }
         } catch (e) {
             console.error("[Insights] Refresh reports failed:", e);
-            if (reportContent) insightsRenderer.renderError(reportContent, (e as any).message, i18n);
+            if (reportContent) insightsRenderer.renderError(reportContent, getErrorMessage(e), i18n);
         }
     },
 
@@ -355,7 +355,7 @@ export const insights = {
         }
     },
 
-    async _renderWithTranslation(report: IReportData, lang: string, i18n: any, reportContent: HTMLElement | null) {
+    async _renderWithTranslation(report: IReportData, lang: string, i18n: I18nEntry, reportContent: HTMLElement | null) {
         if (lang !== 'en' && !report.translations?.[lang]) {
             if (reportContent) insightsRenderer.renderLoading(reportContent, i18n, 'translation');
             try {

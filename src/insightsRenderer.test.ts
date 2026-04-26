@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { insightsRenderer } from './insightsRenderer.ts';
 import { state } from './state.ts';
+import { UserStats } from './types.ts';
 
 interface MockI18n {
     completedTasks: string;
@@ -74,7 +75,15 @@ describe('insightsRenderer.ts - Slot-based Rendering (JS Test)', () => {
 
 
     it('should render source distribution chart container and labels correctly', () => {
-        const stats = { source_distribution: { slack: 70, whatsapp: 30 } };
+        // Why: renderer prefers source_distribution_total when non-empty, so we populate it
+        // for the chart-render path. Empty object would fall through to the "No data" branch.
+        const stats: UserStats = {
+            pending_me: 0, pending_others: 0, total_completed: 0, peak_time: '',
+            abandoned_tasks: 0, daily_completions: {},
+            source_distribution: { slack: 70, whatsapp: 30 },
+            source_distribution_total: { slack: 70, whatsapp: 30 },
+            hourly_activity: {}, completion_history: []
+        };
         insightsRenderer.renderChannelDistribution(stats, mockI18n);
 
         const container = document.getElementById('source-distribution-slot') as HTMLElement;

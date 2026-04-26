@@ -348,7 +348,7 @@ export function renderArchive(messages: Message[]): void {
 
         const assigneeHtml = `<span class="c-badge c-badge--dim">${escapeHTML(m.assignee || '-')}</span>`;
 
-        const isDeleted = (m as any).is_deleted === true || (m as any).is_deleted === 1;
+        const isDeleted = m.is_deleted === true || m.is_deleted === 1;
         const trashIcon = isDeleted ? `<span class="trash-icon" title="${state.currentLang === 'ko' ? '취소함' : 'Canceled'}">🗑️</span> ` : '';
         const rowClass = isDeleted ? 'archive-row-deleted' : '';
 

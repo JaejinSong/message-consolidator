@@ -5,8 +5,8 @@
  * All data and localization must be injected by the controller.
  */
 
-import { IReportData, UserStats, TokenUsage } from './types';
-import { generateHeatmapData } from './logic';
+import { IReportData, UserStats, TokenUsage, I18nEntry, TimeSeriesPoint } from './types';
+import { generateHeatmapData, HeatmapCell } from './logic';
 import { reportsRenderer } from './renderers/reports-renderer';
 
 const getCssVariableValue = (varName: string): string => {
@@ -24,7 +24,7 @@ export const insightsRenderer = {
     /**
      * Updates AI consumption slots.
      */
-    renderTokenUsage(usage: TokenUsage | null, i18n: any): void {
+    renderTokenUsage(usage: TokenUsage | null, i18n: I18nEntry): void {
         const slot = document.getElementById('ai-usage-consolidated');
         if (!slot) return;
         slot.innerHTML = '';
@@ -62,7 +62,7 @@ export const insightsRenderer = {
     /**
      * Updates Noise Rejection slots.
      */
-    renderFilteredNoise(usage: TokenUsage | null, i18n: any): void {
+    renderFilteredNoise(usage: TokenUsage | null, i18n: I18nEntry): void {
         const slot = document.getElementById('ai-noise-filtered');
         if (!slot) return;
         slot.innerHTML = '';
@@ -87,7 +87,7 @@ export const insightsRenderer = {
     /**
      * Updates daily performance slots.
      */
-    renderDailyGlance(stats: UserStats | null, i18n: any): void {
+    renderDailyGlance(stats: UserStats | null, i18n: I18nEntry): void {
         const valSlot = document.getElementById('dailyGlanceValue');
         const detSlot = document.getElementById('dailyGlanceDetail');
         if (!valSlot || !stats) return;
@@ -114,7 +114,7 @@ export const insightsRenderer = {
     /**
      * Updates stale tasks count.
      */
-    renderStaleTasks(stats: UserStats | null, i18n: any): void {
+    renderStaleTasks(stats: UserStats | null, i18n: I18nEntry): void {
         const slot = document.getElementById('staleTasksValue');
         if (!slot) return;
         slot.innerHTML = '';
@@ -131,7 +131,7 @@ export const insightsRenderer = {
     /**
      * Updates channel distribution slot with a Pie Chart.
      */
-    renderChannelDistribution(stats: any, i18n: any): void {
+    renderChannelDistribution(stats: UserStats, i18n: I18nEntry): void {
         const container = document.getElementById('source-distribution-slot');
         if (!container) return;
         const dist = stats.source_distribution_total || stats.source_distribution || {};
@@ -195,7 +195,7 @@ export const insightsRenderer = {
         chartNode.appendChild(svg);
     },
 
-    renderHourlyActivity(stats: UserStats | null, i18n: any): void {
+    renderHourlyActivity(stats: UserStats | null, i18n: I18nEntry): void {
         const container = document.getElementById('stat-peak');
         if (!container || !stats?.hourly_activity) return;
         container.innerHTML = '';
@@ -224,7 +224,7 @@ export const insightsRenderer = {
         `;
     },
 
-    renderActivityHeatmap(stats: any, i18n: any, targetId: string = 'activity-heatmap-slot'): void {
+    renderActivityHeatmap(stats: UserStats | null, i18n: I18nEntry, targetId: string = 'activity-heatmap-slot'): void {
         const container = document.getElementById(targetId);
         if (!container) return;
         container.innerHTML = '';
@@ -235,7 +235,7 @@ export const insightsRenderer = {
         }
 
         const heatmapData = generateHeatmapData(history, 91);
-        const cells = heatmapData.map((d: any) => {
+        const cells = heatmapData.map((d: HeatmapCell) => {
             const tier = d.level > 0 ? `heatmap-grid__cell--tier-${d.level}` : '';
             const cStr = JSON.stringify(d.counts).replace(/"/g, '&quot;');
             return `<div class="heatmap-grid__cell ${tier}" data-date="${d.date}" data-count="${d.count}" data-counts="${cStr}"></div>`;
@@ -281,7 +281,7 @@ export const insightsRenderer = {
         t.classList.add('c-insights-tooltip--active');
     },
 
-    renderCompletionTrend(stats: any, days: number): void {
+    renderCompletionTrend(stats: UserStats | null, days: number): void {
         const container = document.getElementById('ankiChartContainer');
         if (!container) return;
         container.innerHTML = '';
@@ -292,14 +292,14 @@ export const insightsRenderer = {
             return;
         }
 
-        const history = (rawHistory as any[]).slice(-days);
+        const history: TimeSeriesPoint[] = rawHistory.slice(-days);
         if (history.length === 0) {
             container.innerHTML = `<div class="u-text-dim" style="padding:2rem;text-align:center;">데이터 없음</div>`;
             return;
         }
 
         // counts: Record<string,number> → daily total
-        const totals = history.map((d: any) => ({
+        const totals = history.map((d: TimeSeriesPoint) => ({
             date: String(d.date ?? ''),
             total: Object.values(d.counts ?? {}).reduce((a: number, b) => a + (b as number), 0)
         }));
@@ -385,7 +385,7 @@ export const insightsRenderer = {
      * Initializes the report list UI.
      * Logic for fetching and auto-loading moved to Controller.
      */
-    renderReportList(history: IReportData[], i18n: any, activeId: number | null = null): void {
+    renderReportList(history: IReportData[], i18n: I18nEntry, activeId: number | null = null): void {
         const container = document.getElementById('reportList');
         if (!container) return;
 
@@ -414,14 +414,14 @@ export const insightsRenderer = {
     /**
      * Renders the detail of a single report.
      */
-    renderReport(report: IReportData, lang: string, i18n: any): void {
+    renderReport(report: IReportData, lang: string, i18n: I18nEntry): void {
         const detailContainer = document.querySelector('.c-insights-report-main') as HTMLElement;
         if (!detailContainer || !report) return;
 
         reportsRenderer.render(report, lang, i18n);
     },
 
-    renderLoading(container: HTMLElement, i18n: any, type: 'report' | 'translation' | 'load' = 'report'): void {
+    renderLoading(container: HTMLElement, i18n: I18nEntry, type: 'report' | 'translation' | 'load' = 'report'): void {
         let msg = i18n.generatingReport || "AI 리포트 분석 중...";
         
         if (type === 'translation') msg = i18n.generatingTranslation || "AI 번역 생성 중...";
@@ -433,7 +433,7 @@ export const insightsRenderer = {
     /**
      * Renders empty state when no report is selected or exists.
      */
-    renderEmptyState(i18n: any): void {
+    renderEmptyState(i18n: I18nEntry): void {
         const summaryContent = document.getElementById('reportSummaryContent');
         if (!summaryContent) return;
 
@@ -449,7 +449,7 @@ export const insightsRenderer = {
         if (netChart) netChart.innerHTML = '';
     },
 
-    renderError(container: HTMLElement, message: string, i18n: any): void {
+    renderError(container: HTMLElement, message: string, i18n: I18nEntry): void {
         const retryMsg = i18n.retryLanguageSelection || "다시 한 번 언어를 선택해 주세요";
         container.innerHTML = `
             <div class="c-report-error u-p-8 u-text-error">

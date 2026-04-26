@@ -1,4 +1,6 @@
-export const en: Record<string, any> = {
+import type { I18nEntry } from '../types';
+
+export const en: I18nEntry = {
         subTitle: "Automated Slack & WhatsApp Task Dashboard",
         realTimeTasks: "Real-time Tasks",
         scanNow: "🔄 Scan Now",

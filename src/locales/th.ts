@@ -1,4 +1,6 @@
-export const th: Record<string, any> = {
+import type { I18nEntry } from '../types';
+
+export const th: I18nEntry = {
         subTitle: "แดชบอร์ดงาน Slack & WhatsApp อัตโนมัติ",
         realTimeTasks: "งานแบบเรียลไทม์",
         scanNow: "🔄 สแกนทันที",

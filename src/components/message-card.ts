@@ -15,13 +15,17 @@ export type MessageCardProps = Message & {
 
 /**
  * Why: Safely parses metadata from either string or object format.
+ * Returns Record<string, unknown> — readers must narrow individual fields before use.
  */
-function parseMetadata(metadata: any): Record<string, any> | null {
+function parseMetadata(metadata: unknown): Record<string, unknown> | null {
     if (!metadata) return null;
-    if (typeof metadata === 'object') return metadata;
+    if (typeof metadata === 'object') return metadata as Record<string, unknown>;
+    if (typeof metadata !== 'string') return null;
     try {
-        return JSON.parse(metadata);
-    } catch (e) {
+        const parsed: unknown = JSON.parse(metadata);
+        if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>;
+        return null;
+    } catch {
         return null;
     }
 }

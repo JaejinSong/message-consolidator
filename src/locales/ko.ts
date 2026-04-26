@@ -1,4 +1,6 @@
-export const ko: Record<string, any> = {
+import type { I18nEntry } from '../types';
+
+export const ko: I18nEntry = {
         subTitle: "자동화된 Slack & WhatsApp 업무 대시보드",
         realTimeTasks: "실행 중인 업무",
         scanNow: "🔄 지금 스캔",

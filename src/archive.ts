@@ -110,7 +110,7 @@ export const archive: ArchiveModule = {
             }
         });
 
-        let searchTimeout: any;
+        let searchTimeout: ReturnType<typeof setTimeout> | undefined;
         document.getElementById('archiveSearchInput')?.addEventListener('input', (e) => {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {

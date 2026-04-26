@@ -16,9 +16,15 @@ function applyDataAttributes(lang: string): void {
     const apply = (attr: string, prop: 'textContent' | 'title' | 'placeholder') => {
         document.querySelectorAll<HTMLElement>(`[${attr}]`).forEach(el => {
             const key = el.getAttribute(attr);
-            if (key && locale[key] != null) {
-                (el as any)[prop] = locale[key];
+            const value = key ? locale[key] : null;
+            if (typeof value !== 'string') return;
+            if (prop === 'placeholder') {
+                if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+                    el.placeholder = value;
+                }
+                return;
             }
+            el[prop] = value;
         });
     };
 
