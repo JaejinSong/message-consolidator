@@ -215,5 +215,6 @@ export const th: I18nEntry = {
         connSlackIdLabel: "Slack User ID",
         connSlackReadOnlyNotice: "Slack ได้รับการจัดการในระดับเวิร์กสเปซโดยผู้ดูแลระบบ",
         connNoMappingNotice: "การจับคู่อัตโนมัติยังไม่เสร็จสมบูรณ์",
-        connEmptyValue: "—"
+        connEmptyValue: "—",
+        searchTasksPlaceholder: "ค้นหางาน..."
 };

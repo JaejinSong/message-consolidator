@@ -221,5 +221,6 @@ export const id: I18nEntry = {
         connSlackIdLabel: "Slack User ID",
         connSlackReadOnlyNotice: "Slack dikelola di tingkat workspace oleh administrator.",
         connNoMappingNotice: "Pemetaan otomatis belum selesai.",
-        connEmptyValue: "—"
+        connEmptyValue: "—",
+        searchTasksPlaceholder: "Cari tugas..."
 };

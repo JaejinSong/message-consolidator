@@ -301,5 +301,6 @@ export const en: I18nEntry = {
         connSlackIdLabel: "Slack User ID",
         connSlackReadOnlyNotice: "Slack is managed at the workspace level by your administrator.",
         connNoMappingNotice: "Automatic mapping has not completed yet.",
-        connEmptyValue: "—"
+        connEmptyValue: "—",
+        searchTasksPlaceholder: "Search tasks..."
 };

@@ -302,5 +302,6 @@ export const ko: I18nEntry = {
         connSlackIdLabel: "Slack 사용자 ID",
         connSlackReadOnlyNotice: "Slack은 워크스페이스 단위로 운영자가 관리합니다.",
         connNoMappingNotice: "자동 매핑이 아직 완료되지 않았습니다.",
-        connEmptyValue: "—"
+        connEmptyValue: "—",
+        searchTasksPlaceholder: "업무 검색..."
 };

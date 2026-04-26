@@ -664,6 +664,12 @@ const initApp = () => {
         btn.classList.add('c-deadline-filter__btn--active');
         renderMessages(state.messages);
     });
+
+    let taskSearchDebounce: ReturnType<typeof setTimeout> | undefined;
+    document.getElementById('taskSearch')?.addEventListener('input', () => {
+        clearTimeout(taskSearchDebounce);
+        taskSearchDebounce = setTimeout(() => renderMessages(state.messages), 300);
+    });
     setupTabs('.c-settings__tab', '.c-settings__panel', 'data-settings-tab', 'c-settings__tab--active', (tabId: string) => {
         if (tabId === 'tokenUsageTab') {
             modals.fetchTokenUsage();

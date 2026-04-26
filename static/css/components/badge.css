@@ -149,3 +149,9 @@ body.light-theme .c-badge--count {
     border-color: rgba(var(--color-primary-rgb), 0.4);
     font-weight: 600;
 }
+
+.c-deadline-filter__search {
+    margin-left: auto;
+    width: 14rem;
+    max-width: 100%;
+}
