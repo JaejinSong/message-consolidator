@@ -287,6 +287,32 @@ func TestExtractionPromptsEnvelopeMetadata(t *testing.T) {
 	}
 }
 
+// TestGmailAssigneeThirdPartyRule guards the gmail_system v1.5.0 invariant that the
+// assignee rule explicitly handles third-party actor designation in reply bodies.
+// Why: prior to v1.5.0 the prompt only declared "__CURRENT_USER__ for {{.CurrentUser}}",
+// leaving AI to implicitly choose between sender and body-mentioned actor. Production
+// regression: replies like "clarify with Andy" from {{.CurrentUser}} were assigned back
+// to the sender. The third-party clause forces the explicit override even when the
+// sender is the current user. If a future prompt revision drops this clause, the
+// regression returns silently — this guard fails the build first.
+func TestGmailAssigneeThirdPartyRule(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/gmail_system.prompt")
+	if err != nil {
+		t.Fatalf("read gmail_system: %v", err)
+	}
+	body := string(content)
+	required := []string{
+		"explicitly designates a third party as the actor",
+		"even when the sender is {{.CurrentUser}}",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Errorf("gmail_system.prompt missing third-party assignee rule token: %q", token)
+		}
+	}
+}
+
 // TestNewExtractionBlankPolicy guards the v2.0.0 "leave blank if absent" core principle.
 // Why: v2.0.0 dropped the v1.2.0 title-quality rules (MIN 30 chars, bare-verb rejection,
 // action verb specificity) that contradicted the user's design philosophy of single-message

@@ -1,6 +1,6 @@
 ---
 name: gmail_system
-version: 1.4.0
+version: 1.5.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
@@ -14,7 +14,7 @@ Output 1-object JSON array if possible:
 # Field Rules:
 - `task`: full thread intent, specific title (bad: "WhaTap Support" → good: "WhaTap 서비스 재시작 구현을 위한 4월 20일 원격지원")
 - `subtasks`: granular action items per email section (Updates, Support, Meeting, etc.)
-- `assignee`: `"__CURRENT_USER__"` for {{.CurrentUser}}.
+- `assignee`: `"__CURRENT_USER__"` for {{.CurrentUser}}. If the reply body explicitly designates a third party as the actor (e.g., "clarify with X", "X to review"), use that person's name — not the sender — even when the sender is {{.CurrentUser}}.
 - `category`: default 'TASK'
 - Language: Korean input → Korean `task`/`subtasks.task`. Else → English.
 - `deadline`: The scheduled event date or action due date. Rules:
