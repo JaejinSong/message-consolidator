@@ -165,6 +165,13 @@ func parseNewEmails(ctx context.Context, svc *gmail.Service, email string, messa
 	internalDomains := cfg.CompanyDomains
 
 	for _, m := range messages {
+		// Why: Gmail's `after:since` is second-precision inclusive, so messages at the
+		// boundary timestamp re-appear every cycle. Skip Gmail Get + header parse +
+		// contact upsert for IDs we've already processed. maxTS is unaffected — those
+		// messages were already counted in a prior scan and UpdateLastScan committed.
+		if processed, _ := store.IsProcessed(ctx, store.GetDB(), email, m.Id); processed {
+			continue
+		}
 		rawMsg, cls, to, ts, err := processSingleEmail(ctx, svc, email, m, skips, internalDomains)
 		if err != nil {
 			logger.Errorf("[SCAN-GMAIL] Get Error for %s: %v", m.Id, err)
@@ -193,17 +200,24 @@ func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m
 	ts := fullMsg.InternalDate / 1000 // ms to s
 
 	subject, fromHeader, toHeader, ccHeader, bccHeader, deliveredTo := extractHeaders(fullMsg.Payload.Headers)
+	// Why: Each terminal filter below marks the message ID processed so the next scan
+	// cycle's parseNewEmails IsProcessed check skips Gmail Get + header parse +
+	// contact upsert entirely. Without marking, Gmail's `after:` boundary inclusivity
+	// re-fetches these messages every cycle and burns Google API quota for nothing.
 	if isMarketingHeader(fullMsg.Payload.Headers, internalDomains) {
 		logger.Debugf("[SCAN-GMAIL] Ignoring marketing email from: %s", fromHeader)
 		store.IncrementFilteredCount(email)
+		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
 		return nil, "", "", ts, nil
 	}
 	if isSkipSender(fromHeader, skips) {
+		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
 		return nil, "", "", ts, nil
 	}
 
 	isFromMe, isDirect, isCc, isBcc, isDelTo := checkRecipientStatus(email, fromHeader, toHeader, ccHeader, bccHeader, deliveredTo)
 	if !isFromMe && !isDirect && !isCc && !isBcc && !isDelTo {
+		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
 		return nil, "", "", ts, nil
 	}
 
@@ -213,35 +227,45 @@ func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m
 	upsertAddresses(ctx, email, ccHeader, "gmail")
 
 	classification := classifyGmail(isFromMe, isDirect)
-	body := extractBody(fullMsg.Payload)
-	cleanBody := cleanEmailBody(body)
+	cleanBody := cleanEmailBody(extractBody(fullMsg.Payload))
 	if cleanBody == "" {
+		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
 		return nil, "", "", ts, nil
 	}
-	isImportant := false
-	for _, lbl := range fullMsg.LabelIds {
-		if lbl == "IMPORTANT" || lbl == "STARRED" {
-			isImportant = true
-			break
-		}
-	}
 
+	rawMsg := assembleGmailRawMessage(fullMsg, m.Id, ts, senderEmail, senderName, subject, toHeader, ccHeader, cleanBody, isFromMe, isDirect, isCc, isBcc, isDelTo)
+	return rawMsg, classification, toHeader, ts, nil
+}
+
+// assembleGmailRawMessage builds the RawMessage from already-parsed fields. Extracted
+// to keep processSingleEmail's cyclomatic complexity under the project ceiling (≤15)
+// after the four MarkAsProcessed early-return branches were added — the label scan
+// and CcOnly multi-conjunction live here so the parent function only carries
+// filter/skip control flow.
+func assembleGmailRawMessage(fullMsg *gmail.Message, msgID string, ts int64, senderEmail, senderName, subject, toHeader, ccHeader, cleanBody string, isFromMe, isDirect, isCc, isBcc, isDelTo bool) *types.RawMessage {
 	attachmentNames := extractGmailAttachmentNames(fullMsg.Payload)
-
-	rawMsg := &types.RawMessage{
-		ID:         m.Id,
-		Sender:     senderEmail,
-		SenderName: senderName,
-		Text:       fmt.Sprintf("T: %s\nC: %s\nS: %s\nB:\n%s", toHeader, ccHeader, subject, cleanBody),
+	return &types.RawMessage{
+		ID:              msgID,
+		Sender:          senderEmail,
+		SenderName:      senderName,
+		Text:            fmt.Sprintf("T: %s\nC: %s\nS: %s\nB:\n%s", toHeader, ccHeader, subject, cleanBody),
 		Timestamp:       time.Unix(ts, 0),
 		ThreadID:        fullMsg.ThreadId,
-		IsImportant:     isImportant,
+		IsImportant:     hasImportantLabel(fullMsg.LabelIds),
 		HasAttachment:   len(attachmentNames) > 0,
 		AttachmentNames: attachmentNames,
 		IsFromMe:        isFromMe,
 		IsCcOnly:        isCc && !isFromMe && !isDirect && !isBcc && !isDelTo,
 	}
-	return rawMsg, classification, toHeader, ts, nil
+}
+
+func hasImportantLabel(labels []string) bool {
+	for _, lbl := range labels {
+		if lbl == "IMPORTANT" || lbl == "STARRED" {
+			return true
+		}
+	}
+	return false
 }
 
 // upsertAddresses parses a comma-separated list of email addresses and registers each one in the contacts store.
@@ -441,6 +465,15 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.Gemini
 		return nil
 	}
 
+	// Why: AI cost is sunk once Analyze returns, so mark every batch member processed
+	// regardless of HandleTaskState outcome. Without this, `messages.source_ts` is
+	// stored with a "gmail-" prefix while IsProcessed checks raw m.ID — mismatch
+	// leaves processBatch-routed messages eligible for re-extraction every cycle,
+	// burning prompt tokens with no new state to find.
+	for _, m := range filteredMsgs {
+		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.ID)
+	}
+
 	msgByTS := processGeminiItems(ctx, email, user, aliases, items, classificationMap, toMap, msgMap)
 	var newIDs []store.MessageID
 	for _, item := range items {
@@ -455,17 +488,19 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.Gemini
 	return newIDs
 }
 
-// filterGmailBatch checks each message for processed status or AI-detected noise.
+// filterGmailBatch checks each message for AI-detected noise or thread completion status.
+// Why: IsProcessed early-skip moved upstream to parseNewEmails so already-processed
+// IDs never reach this batch. Remaining duties: thread-completion routing + LiteFilter
+// noise gate. IsNoise=true marks the message processed so the next cycle's parseNewEmails
+// short-circuits before paying LiteFilter again.
 func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessage, filterSvc *ai.GeminiLiteFilter, classificationMap map[string]string, onThreadActivity func(store.ConsolidatedMessage) bool) []types.RawMessage {
 	var result []types.RawMessage
 	for _, m := range batch {
-		if processed, err := store.IsProcessed(ctx, store.GetDB(), email, m.ID); err == nil && processed {
-			continue
-		}
 		if handleThreadActivity(ctx, email, m, classificationMap, onThreadActivity) {
 			continue
 		}
 		if isNoise, err := filterSvc.IsNoise(ctx, email, "gmail", m.Text); err == nil && isNoise {
+			_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.ID)
 			continue
 		}
 		result = append(result, m)
@@ -569,6 +604,7 @@ func processGeminiItems(ctx context.Context, email string, user *store.User, ali
 			ThreadID:            m.ThreadID,
 			SourceChannels:      []string{"gmail"},
 			GmailClassification: classificationMap[item.SourceTS],
+			IsCcOnly:            m.IsCcOnly,
 		}
 		result[item.SourceTS] = services.BuildTask(ctx, params)
 	}

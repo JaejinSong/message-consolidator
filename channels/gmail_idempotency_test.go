@@ -61,3 +61,43 @@ func TestGmailIdempotency(t *testing.T) {
 		t.Errorf("Expected id=0 on conflict, got %d", id)
 	}
 }
+
+// Why: Gmail flow uses raw Google message ID (e.g. "1968a3b4c5d6e7f8") for
+// MarkAsProcessed / IsProcessed, while messages.source_ts stores it with a
+// "gmail-" prefix. parseNewEmails's new early-skip relies on the raw-ID
+// scan_metadata path being the source of truth. This test pins the contract:
+// MarkAsProcessed(rawID) → IsProcessed(rawID) returns true on the next cycle,
+// independent of any messages.source_ts row.
+func TestGmailRawIDIdempotency_ScanMetadataChannel(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+	store.InitContactsTable(context.Background(), store.GetDB())
+
+	ctx := context.Background()
+	email := "test@example.com"
+	rawID := "1968a3b4c5d6e7f8" // shape of a real Gmail message ID
+
+	if processed, _ := store.IsProcessed(ctx, store.GetDB(), email, rawID); processed {
+		t.Fatal("expected fresh ID to be unprocessed")
+	}
+
+	if err := store.MarkAsProcessed(ctx, store.GetDB(), email, rawID); err != nil {
+		t.Fatalf("MarkAsProcessed: %v", err)
+	}
+
+	processed, err := store.IsProcessed(ctx, store.GetDB(), email, rawID)
+	if err != nil {
+		t.Fatalf("IsProcessed: %v", err)
+	}
+	if !processed {
+		t.Fatal("MarkAsProcessed(rawID) → IsProcessed(rawID) must be true; parseNewEmails early-skip relies on this")
+	}
+
+	// Tenant isolation — same raw ID under a different tenant must not collide.
+	if processed, _ := store.IsProcessed(ctx, store.GetDB(), "other@example.com", rawID); processed {
+		t.Error("scan_metadata is per-tenant; cross-tenant collision indicates a key bug")
+	}
+}
