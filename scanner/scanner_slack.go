@@ -80,8 +80,7 @@ func scanSlack(ctx context.Context, users []store.User, wg *sync.WaitGroup) {
 	if cfg == nil || cfg.SlackToken == "" || len(users) == 0 {
 		return
 	}
-	sc := channels.NewSlackClient(cfg.SlackToken) //nolint:contextcheck // SlackClient constructor; per-request ctx flows through individual API calls.
-	_ = sc.FetchUsers()
+	sc, _ := getOrInitSlackClient(cfg.SlackToken) //nolint:contextcheck // SlackClient constructor; per-request ctx flows through individual API calls.
 
 	chans, _, err := sc.LookupChannels()
 	if err != nil {
