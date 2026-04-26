@@ -5,24 +5,34 @@ CREATE TABLE IF NOT EXISTS token_usage (
     step TEXT NOT NULL DEFAULT '',
     model TEXT NOT NULL DEFAULT '',
     source TEXT NOT NULL DEFAULT '',
+    report_id INTEGER NOT NULL DEFAULT 0,
     prompt_tokens INT DEFAULT 0,
     completion_tokens INT DEFAULT 0,
     total_tokens INT DEFAULT 0,
     call_count INT DEFAULT 0,
     filtered_count INT DEFAULT 0,
-    UNIQUE(user_email, date, step, model, source)
+    UNIQUE(user_email, date, step, model, source, report_id)
 );
 
 -- name: UpsertTokenUsage :exec
-INSERT INTO token_usage (user_email, date, step, model, source, prompt_tokens, completion_tokens, total_tokens, call_count, filtered_count)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (user_email, date, step, model, source)
+INSERT INTO token_usage (user_email, date, step, model, source, report_id, prompt_tokens, completion_tokens, total_tokens, call_count, filtered_count)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (user_email, date, step, model, source, report_id)
 DO UPDATE SET
     prompt_tokens = token_usage.prompt_tokens + EXCLUDED.prompt_tokens,
     completion_tokens = token_usage.completion_tokens + EXCLUDED.completion_tokens,
     total_tokens = token_usage.total_tokens + EXCLUDED.total_tokens,
     call_count = token_usage.call_count + EXCLUDED.call_count,
     filtered_count = token_usage.filtered_count + EXCLUDED.filtered_count;
+
+-- name: GetReportTokenUsage :one
+-- Cost dashboard: prompt/completion/calls aggregated for a single report. Sums across the
+-- 3 report-bound steps (ReportSummary/ReportVizData/TranslateReport) plus any future buckets.
+SELECT COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
+       COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+       COALESCE(SUM(call_count), 0)        AS call_count
+FROM token_usage
+WHERE report_id = ?;
 
 -- name: GetDailyTokenUsage :one
 SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(filtered_count), 0)

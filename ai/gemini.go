@@ -137,17 +137,18 @@ func generateWithRetry(ctx context.Context, model *genai.GenerativeModel, prompt
 	return nil, fmt.Errorf("all %d attempts failed, last error: %s", maxRetries+1, maskAPIKey(err))
 }
 
-// logTokenUsage records prompt/completion tokens against a (step, model, source) bucket
-// so downstream dashboards can attribute cost. Pass source="" for steps that aren't
-// bound to a specific channel (reports, translation, merge, etc.).
-func logTokenUsage(ctx context.Context, email, step, model, source string, resp *genai.GenerateContentResponse) {
+// logTokenUsage records prompt/completion tokens against a (step, model, source, report_id)
+// bucket so downstream dashboards can attribute cost. Pass source="" for steps that aren't
+// bound to a specific channel (reports, translation, merge, etc.) and reportID=0 for steps
+// not bound to a specific report.
+func logTokenUsage(ctx context.Context, email, step, model, source string, reportID store.ReportID, resp *genai.GenerateContentResponse) {
 	if resp == nil || resp.UsageMetadata == nil {
 		return
 	}
 
 	pTokens := int(resp.UsageMetadata.PromptTokenCount)
 	cTokens := int(resp.UsageMetadata.CandidatesTokenCount)
-	if err := store.AddTokenUsage(email, step, model, source, pTokens, cTokens); err != nil {
+	if err := store.AddTokenUsage(email, step, model, source, reportID, pTokens, cTokens); err != nil {
 		logger.Warnf("[TOKEN-USAGE] %s/%s: %v", email, step, err)
 	}
 	_ = trace.Step(ctx, fmt.Sprintf("TokenUsage-%s (Prompt: %d, Comp: %d)", step, pTokens, cTokens), "", 0, 0)
@@ -168,7 +169,7 @@ func extractResponseText(resp *genai.GenerateContentResponse) (string, error) {
 }
 
 // Why: Summarizes a list of tasks into a structured Markdown business report.
-func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, tasks string) (string, error) {
+func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, tasks string, reportID store.ReportID) (string, error) {
 	if g == nil || g.client == nil {
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
@@ -192,13 +193,13 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 	if err != nil {
 		// P1: Surface burned-but-unattributed retry-exhausted calls so the cost dashboard
 		// can flag invisible spend. Gemini does not return UsageMetadata on timeout/cancel.
-		if uErr := store.AddTokenUsage(email, "ReportSummary", modelName, "failed", 0, 0); uErr != nil {
+		if uErr := store.AddTokenUsage(email, "ReportSummary", modelName, "failed", reportID, 0, 0); uErr != nil {
 			logger.Warnf("[TOKEN-USAGE] ReportSummary failure attribution: %v", uErr)
 		}
 		return "", err
 	}
 
-	logTokenUsage(ctx, email, "ReportSummary", modelName, "", resp)
+	logTokenUsage(ctx, email, "ReportSummary", modelName, "", reportID, resp)
 	text, err := extractResponseText(resp)
 	if err != nil {
 		return "", err
@@ -240,7 +241,7 @@ func (g *GeminiClient) EvaluateTaskTransition(ctx context.Context, email, parent
 		return TaskTransition{}, err
 	}
 
-	logTokenUsage(ctx, email, "EvaluateTransition", modelName, "", resp)
+	logTokenUsage(ctx, email, "EvaluateTransition", modelName, "", 0, resp)
 	raw, err := extractResponseText(resp)
 	if err != nil {
 		return TaskTransition{}, err
@@ -256,7 +257,7 @@ func (g *GeminiClient) EvaluateTaskTransition(ctx context.Context, email, parent
 
 // GenerateVisualizationData extracts graph structural data using strict ResponseSchema enforcement.
 // Why: [Hallucination Defense] Eliminates invalid JSON by forcing the model to adhere to a predefined schema.
-func (g *GeminiClient) GenerateVisualizationData(ctx context.Context, email string, tasks string) (string, error) {
+func (g *GeminiClient) GenerateVisualizationData(ctx context.Context, email string, tasks string, reportID store.ReportID) (string, error) {
 	if g == nil || g.client == nil {
 		return "", fmt.Errorf("Gemini client not initialized")
 	}
@@ -302,7 +303,7 @@ func (g *GeminiClient) GenerateVisualizationData(ctx context.Context, email stri
 		return "", err
 	}
 
-	logTokenUsage(ctx, email, "ReportVizData", g.analysisModel, "", resp)
+	logTokenUsage(ctx, email, "ReportVizData", g.analysisModel, "", reportID, resp)
 	return extractResponseText(resp)
 }
 
@@ -329,7 +330,7 @@ func (g *GeminiClient) GenerateMergedTaskTitle(ctx context.Context, email string
 	resp, err := generateWithRetry(ctx, model, genai.Text(""), 10*time.Second, 1)
 	if err != nil { return "", err }
 
-	logTokenUsage(ctx, email, "MergeSummary", modelName, "", resp)
+	logTokenUsage(ctx, email, "MergeSummary", modelName, "", 0, resp)
 	text, err := extractResponseText(resp)
 	if err != nil { return "", err }
 
@@ -363,7 +364,7 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email string, msg
 	g.logInferenceAsync(source, msg.RawContent, raw) //nolint:contextcheck // Fire-and-forget filesystem log; ctx not applicable.
 
 	_ = trace.Step(ctx, "Gemini-Analyze", "", int(time.Since(start).Milliseconds()), 0)
-	logTokenUsage(ctx, email, "Analyze", modelName, source, resp)
+	logTokenUsage(ctx, email, "Analyze", modelName, source, 0, resp)
 
 	candidates, err := g.parseAnalyzeResults(resp, data.CurrentUserID, data.CurrentUserEmail)
 	if err != nil {
@@ -456,7 +457,7 @@ func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []stor
 	}
 
 	_ = trace.Step(ctx, "Gemini-Translate", "", int(time.Since(start).Milliseconds()), 0)
-	logTokenUsage(ctx, email, "Translate", modelName, "", resp)
+	logTokenUsage(ctx, email, "Translate", modelName, "", 0, resp)
 	return g.parseTranslateResults(resp)
 }
 
@@ -482,7 +483,7 @@ func (g *GeminiClient) parseTranslateResults(resp *genai.GenerateContentResponse
 
 // Why: Translates a complete Markdown report into a target language while strictly preserving the structure.
 // Uses the lightweight Flash-Lite model for maximum cost efficiency.
-func (g *GeminiClient) TranslateReport(ctx context.Context, email string, reportInEnglish string, targetLanguage string) (string, error) {
+func (g *GeminiClient) TranslateReport(ctx context.Context, email string, reportInEnglish string, targetLanguage string, reportID store.ReportID) (string, error) {
 	if g == nil || g.client == nil {
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
@@ -505,7 +506,7 @@ func (g *GeminiClient) TranslateReport(ctx context.Context, email string, report
 	}
 
 	_ = trace.Step(ctx, "Gemini-TranslateReport", "", int(time.Since(start).Milliseconds()), 0)
-	logTokenUsage(ctx, email, "TranslateReport", modelName, "", resp)
+	logTokenUsage(ctx, email, "TranslateReport", modelName, "", reportID, resp)
 	return extractResponseText(resp)
 }
 
@@ -534,7 +535,7 @@ func (g *GeminiClient) TranslateTaskMessage(ctx context.Context, email string, t
 	}
 
 	_ = trace.Step(ctx, "Gemini-TranslateTask", "", int(time.Since(start).Milliseconds()), 0)
-	logTokenUsage(ctx, email, "TranslateTask", modelName, "", resp)
+	logTokenUsage(ctx, email, "TranslateTask", modelName, "", 0, resp)
 	return extractResponseText(resp)
 }
 
@@ -564,13 +565,13 @@ func (g *GeminiClient) TranslateTasksBatch(ctx context.Context, email string, ta
 		// Why: Mirror ReportSummary failure attribution — surface burned-but-unattributed
 		// retry-exhausted calls so the cost dashboard can flag invisible spend.
 		// Gemini does not return UsageMetadata on timeout/cancel.
-		if uErr := store.AddTokenUsage(email, "BatchTranslate", modelName, "failed", 0, 0); uErr != nil {
+		if uErr := store.AddTokenUsage(email, "BatchTranslate", modelName, "failed", 0, 0, 0); uErr != nil {
 			logger.Warnf("[TOKEN-USAGE] BatchTranslate failure attribution: %v", uErr)
 		}
 		return nil, err
 	}
 
-	logTokenUsage(ctx, email, "BatchTranslate", modelName, "", resp)
+	logTokenUsage(ctx, email, "BatchTranslate", modelName, "", 0, resp)
 	raw, _ := extractResponseText(resp)
 	var results []TranslationResult
 	if err := json.Unmarshal([]byte(sanitizeJSON(raw)), &results); err != nil {
@@ -701,6 +702,6 @@ func (g *GeminiClient) CallGenericAPI(ctx context.Context, email, step, source, 
 		return "", err
 	}
 
-	logTokenUsage(ctx, email, step, modelName, source, resp)
+	logTokenUsage(ctx, email, step, modelName, source, 0, resp)
 	return extractResponseText(resp)
 }

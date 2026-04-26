@@ -531,7 +531,7 @@ func TestReportsService_GenerateReport_MultiLanguage(t *testing.T) {
 	// summarizer := NewFlashSingleSummarizer(nil) // (ID: c7755db8) Removed unused variable
 
 	svc := NewReportsService(&mockSummarizer{
-		generateFunc: func(ctx context.Context, email, logs string) (string, error) {
+		generateFunc: func(ctx context.Context, email, logs string, _ store.ReportID) (string, error) {
 			return mockSummary, nil
 		},
 	}, nil, nil, ReportConfig{CutoffSize: DefaultReportCutoffSize})
@@ -716,11 +716,11 @@ func TestReportsService_FormatLogLine_DisplayName(t *testing.T) {
 }
 
 type mockSummarizer struct {
-	generateFunc func(ctx context.Context, email, logs string) (string, error)
+	generateFunc func(ctx context.Context, email, logs string, reportID store.ReportID) (string, error)
 }
 
-func (m *mockSummarizer) Generate(ctx context.Context, email, logs string) (string, error) {
-	return m.generateFunc(ctx, email, logs)
+func (m *mockSummarizer) Generate(ctx context.Context, email, logs string, reportID store.ReportID) (string, error) {
+	return m.generateFunc(ctx, email, logs, reportID)
 }
 
 func TestReportsService_CacheHit(t *testing.T) {
@@ -732,7 +732,7 @@ func TestReportsService_CacheHit(t *testing.T) {
 
 	callCount := 0
 	svc := NewReportsService(&mockSummarizer{
-		generateFunc: func(ctx context.Context, email, logs string) (string, error) {
+		generateFunc: func(ctx context.Context, email, logs string, _ store.ReportID) (string, error) {
 			callCount++
 			return "AI Generated Report", nil
 		},
@@ -782,7 +782,7 @@ func TestReportsService_GenerateReport_OnlyRequestedLanguage(t *testing.T) {
 	// Mock TranslationService to simulate AI translation
 	transSvc := NewTranslationService(nil) 
 	svc := NewReportsService(&mockSummarizer{
-		generateFunc: func(ctx context.Context, email, logs string) (string, error) {
+		generateFunc: func(ctx context.Context, email, logs string, _ store.ReportID) (string, error) {
 			return "AI Generated Summary", nil
 		},
 	}, nil, transSvc, ReportConfig{CutoffSize: DefaultReportCutoffSize})

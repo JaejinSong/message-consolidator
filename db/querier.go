@@ -90,6 +90,9 @@ type Querier interface {
 	GetReportByDate(ctx context.Context, arg GetReportByDateParams) (GetReportByDateRow, error)
 	GetReportByID(ctx context.Context, arg GetReportByIDParams) (GetReportByIDRow, error)
 	GetReportList(ctx context.Context, userEmail string) ([]GetReportListRow, error)
+	// Cost dashboard: prompt/completion/calls aggregated for a single report. Sums across the
+	// 3 report-bound steps (ReportSummary/ReportVizData/TranslateReport) plus any future buckets.
+	GetReportTokenUsage(ctx context.Context, reportID int64) (GetReportTokenUsageRow, error)
 	GetReportTranslations(ctx context.Context, reportID int64) ([]GetReportTranslationsRow, error)
 	GetReportTranslationsByIDs(ctx context.Context, reportIds []int64) ([]GetReportTranslationsByIDsRow, error)
 	GetResolutionsByIdentifiers(ctx context.Context, arg GetResolutionsByIdentifiersParams) ([]GetResolutionsByIdentifiersRow, error)

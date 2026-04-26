@@ -80,6 +80,29 @@ func (q *Queries) GetMonthlyTokenUsage(ctx context.Context, arg GetMonthlyTokenU
 	return i, err
 }
 
+const getReportTokenUsage = `-- name: GetReportTokenUsage :one
+SELECT COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
+       COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+       COALESCE(SUM(call_count), 0)        AS call_count
+FROM token_usage
+WHERE report_id = ?
+`
+
+type GetReportTokenUsageRow struct {
+	PromptTokens     interface{} `json:"prompt_tokens"`
+	CompletionTokens interface{} `json:"completion_tokens"`
+	CallCount        interface{} `json:"call_count"`
+}
+
+// Cost dashboard: prompt/completion/calls aggregated for a single report. Sums across the
+// 3 report-bound steps (ReportSummary/ReportVizData/TranslateReport) plus any future buckets.
+func (q *Queries) GetReportTokenUsage(ctx context.Context, reportID int64) (GetReportTokenUsageRow, error) {
+	row := q.db.QueryRowContext(ctx, getReportTokenUsage, reportID)
+	var i GetReportTokenUsageRow
+	err := row.Scan(&i.PromptTokens, &i.CompletionTokens, &i.CallCount)
+	return i, err
+}
+
 const getTokenUsageByModel = `-- name: GetTokenUsageByModel :many
 SELECT model,
        COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
@@ -255,9 +278,9 @@ func (q *Queries) UpsertGmailToken(ctx context.Context, arg UpsertGmailTokenPara
 }
 
 const upsertTokenUsage = `-- name: UpsertTokenUsage :exec
-INSERT INTO token_usage (user_email, date, step, model, source, prompt_tokens, completion_tokens, total_tokens, call_count, filtered_count)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (user_email, date, step, model, source)
+INSERT INTO token_usage (user_email, date, step, model, source, report_id, prompt_tokens, completion_tokens, total_tokens, call_count, filtered_count)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (user_email, date, step, model, source, report_id)
 DO UPDATE SET
     prompt_tokens = token_usage.prompt_tokens + EXCLUDED.prompt_tokens,
     completion_tokens = token_usage.completion_tokens + EXCLUDED.completion_tokens,
@@ -272,6 +295,7 @@ type UpsertTokenUsageParams struct {
 	Step             string        `json:"step"`
 	Model            string        `json:"model"`
 	Source           string        `json:"source"`
+	ReportID         int64         `json:"report_id"`
 	PromptTokens     sql.NullInt64 `json:"prompt_tokens"`
 	CompletionTokens sql.NullInt64 `json:"completion_tokens"`
 	TotalTokens      sql.NullInt64 `json:"total_tokens"`
@@ -286,6 +310,7 @@ func (q *Queries) UpsertTokenUsage(ctx context.Context, arg UpsertTokenUsagePara
 		arg.Step,
 		arg.Model,
 		arg.Source,
+		arg.ReportID,
 		arg.PromptTokens,
 		arg.CompletionTokens,
 		arg.TotalTokens,

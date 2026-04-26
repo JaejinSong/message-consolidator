@@ -134,6 +134,7 @@ func migrateExistingData(ctx context.Context, q db.DBTX) {
 	}
 
 	migrateTokenUsageBreakdown(ctx, q)
+	migrateTokenUsageReportID(ctx, q)
 	migrateOriginalTextOrder(ctx, q)
 }
 
@@ -178,6 +179,43 @@ func migrateOriginalTextOrder(ctx context.Context, q db.DBTX) {
 	}
 	_, _ = q.ExecContext(ctx, "UPDATE messages SET original_text_flipped = 1 WHERE original_text_flipped = 0")
 	logger.Infof("[MIGRATE] original_text order flipped for %d multi-block rows (of %d pending)", reversed, len(pending))
+}
+
+// migrateTokenUsageReportID extends token_usage with a report_id column and folds it into the
+// composite UNIQUE key so per-report cost can be aggregated. Historical rows back-fill report_id=0
+// (un-attributed bucket). SQLite cannot alter UNIQUE in place — full table rebuild.
+func migrateTokenUsageReportID(ctx context.Context, q db.DBTX) {
+	if tableHasColumn(ctx, q, "token_usage", "report_id") {
+		return
+	}
+	stmts := []string{
+		`CREATE TABLE token_usage_new (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_email VARCHAR(255) NOT NULL,
+			date DATE NOT NULL DEFAULT (date('now')),
+			step TEXT NOT NULL DEFAULT '',
+			model TEXT NOT NULL DEFAULT '',
+			source TEXT NOT NULL DEFAULT '',
+			report_id INTEGER NOT NULL DEFAULT 0,
+			prompt_tokens INT DEFAULT 0,
+			completion_tokens INT DEFAULT 0,
+			total_tokens INT DEFAULT 0,
+			call_count INT DEFAULT 0,
+			filtered_count INT DEFAULT 0,
+			UNIQUE(user_email, date, step, model, source, report_id)
+		)`,
+		`INSERT INTO token_usage_new (user_email, date, step, model, source, prompt_tokens, completion_tokens, total_tokens, call_count, filtered_count)
+		 SELECT user_email, date, step, model, source, prompt_tokens, completion_tokens, total_tokens, call_count, filtered_count FROM token_usage`,
+		`DROP TABLE token_usage`,
+		`ALTER TABLE token_usage_new RENAME TO token_usage`,
+	}
+	for _, s := range stmts {
+		if _, err := q.ExecContext(ctx, s); err != nil {
+			logger.Errorf("[MIGRATE] token_usage report_id rebuild step failed: %v", err)
+			return
+		}
+	}
+	logger.Infof("[MIGRATE] token_usage extended with report_id")
 }
 
 // migrateTokenUsageBreakdown rebuilds token_usage with step/model/source/call_count columns

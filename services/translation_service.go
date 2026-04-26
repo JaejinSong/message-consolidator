@@ -25,7 +25,8 @@ func NewTranslationService(gemini *ai.GeminiClient) *TranslationService {
 }
 
 // Translate handles a single translation request using the Gemini AI client.
-func (s *TranslationService) Translate(ctx context.Context, email string, deduplicationKey string, text string, targetLangCode string, isReport bool) (string, error) {
+// reportID attributes report-translation cost when isReport=true; pass 0 for task-message translations.
+func (s *TranslationService) Translate(ctx context.Context, email string, deduplicationKey string, text string, targetLangCode string, isReport bool, reportID store.ReportID) (string, error) {
 	if s.gemini == nil {
 		return "", fmt.Errorf("AI service not initialized")
 	}
@@ -38,7 +39,7 @@ func (s *TranslationService) Translate(ctx context.Context, email string, dedupl
 
 		targetLangName := GetLanguageName(targetLangCode)
 		if isReport {
-			return s.gemini.TranslateReport(ctx, email, text, targetLangName)
+			return s.gemini.TranslateReport(ctx, email, text, targetLangName, reportID)
 		}
 		return s.gemini.TranslateTaskMessage(ctx, email, text, targetLangName)
 	})

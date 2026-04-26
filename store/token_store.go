@@ -11,12 +11,14 @@ import (
 )
 
 // tokenBucket keys in-memory token data by the same dimensions used in the DB UNIQUE
-// constraint, so per-(step, model, source) breakdown survives buffering and flushing.
+// constraint, so per-(step, model, source, report_id) breakdown survives buffering and
+// flushing. ReportID=0 = un-attributed (default for non-report calls).
 type tokenBucket struct {
-	Email  string
-	Step   string
-	Model  string
-	Source string
+	Email    string
+	Step     string
+	Model    string
+	Source   string
+	ReportID ReportID
 }
 
 type tokenData struct {
@@ -48,9 +50,10 @@ var (
 )
 
 // AddTokenUsage records token consumption for a single AI call, attributed to a specific
-// (step, model, source) bucket. Use step="" for unattributed legacy calls.
-func AddTokenUsage(email, step, model, source string, promptTokens, completionTokens int) error {
-	key := tokenBucket{Email: email, Step: step, Model: model, Source: source}
+// (step, model, source, report_id) bucket. Use step="" for unattributed legacy calls and
+// reportID=0 for AI calls not bound to a specific report.
+func AddTokenUsage(email, step, model, source string, reportID ReportID, promptTokens, completionTokens int) error {
+	key := tokenBucket{Email: email, Step: step, Model: model, Source: source, ReportID: reportID}
 
 	tokenMu.Lock()
 	if _, ok := tokenDirtyData[key]; !ok {
@@ -127,6 +130,7 @@ func FlushTokenUsage(ctx context.Context) error {
 				Step:             key.Step,
 				Model:            key.Model,
 				Source:           key.Source,
+				ReportID:         int64(key.ReportID),
 				PromptTokens:     sql.NullInt64{Int64: int64(data.Prompt), Valid: true},
 				CompletionTokens: sql.NullInt64{Int64: int64(data.Completion), Valid: true},
 				TotalTokens:      sql.NullInt64{Int64: int64(totalTokens), Valid: true},
@@ -326,6 +330,60 @@ func GetMonthlyTokenUsage(ctx context.Context, email string) (int, int, int, err
 	usageCacheMu.Unlock()
 
 	return prompt, completion, filteredCount, nil
+}
+
+// ReportTokenCost is the per-report aggregate of prompt/completion tokens and call count
+// across all report-bound steps (ReportSummary, ReportVizData, TranslateReport, ...).
+type ReportTokenCost struct {
+	PromptTokens     int
+	CompletionTokens int
+	CallCount        int
+}
+
+// GetReportTokenUsage returns DB-flushed + in-memory token totals for a single report.
+// Mirrors the DB+buffer sum pattern used by GetDailyTokenUsage so callers see real-time cost
+// even before the hourly flush.
+func GetReportTokenUsage(ctx context.Context, reportID ReportID) (ReportTokenCost, error) {
+	conn := GetDB()
+	queries := db.New(conn)
+	row, err := queries.GetReportTokenUsage(ctx, int64(reportID))
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return ReportTokenCost{}, err
+	}
+
+	cost := ReportTokenCost{
+		PromptTokens:     coalesceInt(row.PromptTokens),
+		CompletionTokens: coalesceInt(row.CompletionTokens),
+		CallCount:        coalesceInt(row.CallCount),
+	}
+
+	tokenMu.Lock()
+	defer tokenMu.Unlock()
+	addBuf := func(buf map[tokenBucket]*tokenData) {
+		for key, data := range buf {
+			if key.ReportID != reportID {
+				continue
+			}
+			cost.PromptTokens += data.Prompt
+			cost.CompletionTokens += data.Completion
+			cost.CallCount += data.Calls
+		}
+	}
+	addBuf(tokenDirtyData)
+	addBuf(tokenFlushingData)
+	return cost, nil
+}
+
+// coalesceInt normalizes sqlc COALESCE(SUM(...)) results — driver returns int64 or float64.
+// any 사유: sqlc COALESCE(SUM(...))는 driver별로 float64 또는 int64로 반환.
+func coalesceInt(v any) int {
+	switch x := v.(type) {
+	case int64:
+		return int(x)
+	case float64:
+		return int(x)
+	}
+	return 0
 }
 
 func SaveGmailToken(ctx context.Context, email, tokenJSON string) error {

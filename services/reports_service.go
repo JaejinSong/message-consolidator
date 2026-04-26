@@ -16,8 +16,9 @@ import (
 )
 
 // ReportSummarizer defines the strategy for generating report summaries from logs.
+// reportID enables per-report token cost attribution.
 type ReportSummarizer interface {
-	Generate(ctx context.Context, email, logs string) (string, error)
+	Generate(ctx context.Context, email, logs string, reportID store.ReportID) (string, error)
 }
 
 // ReportConfig encapsulates configuration parameters for the report service.
@@ -45,8 +46,8 @@ func NewFlashSingleSummarizer(gemini *ai.GeminiClient) *FlashSingleSummarizer {
 }
 
 // Generate implements the ReportSummarizer interface by calling the Gemini API for a single-pass summary.
-func (s *FlashSingleSummarizer) Generate(ctx context.Context, email, logs string) (string, error) {
-	return s.gemini.GenerateReportSummary(ctx, email, logs)
+func (s *FlashSingleSummarizer) Generate(ctx context.Context, email, logs string, reportID store.ReportID) (string, error) {
+	return s.gemini.GenerateReportSummary(ctx, email, logs, reportID)
 }
 
 type ReportsService struct {
@@ -162,7 +163,7 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id s
 		logger.Warnf("[REPORTS] input logs truncated at cutoff (%d bytes): email=%s, total_logs=%d, report_id=%d",
 			s.config.CutoffSize, email, len(logs), id)
 	}
-	summary, err := s.summarizer.Generate(ctx, email, taskLogs)
+	summary, err := s.summarizer.Generate(ctx, email, taskLogs, id)
 	if err != nil {
 		s.markFailed(ctx, email, id)
 		return
@@ -189,6 +190,8 @@ func (s *ReportsService) markFailed(ctx context.Context, email string, id store.
 
 func (s *ReportsService) getVisualizationJSON(ctx context.Context, email string, logs []Log) string {
 	// Why: Manual aggregation uses RequesterCanonical as node ID, correctly unifying all aliases resolved by sanitizeMessages.
+	// In-process aggregation only — no AI call here. The Gemini-backed GenerateVisualizationData
+	// has its own reportID parameter for the day it gets wired into this path.
 	vizData := s.generateVisualizationData(ctx, email, logs)
 	b, _ := json.Marshal(vizData)
 	return string(b)
@@ -451,7 +454,7 @@ func (s *ReportsService) ProcessOnDemandTranslation(ctx context.Context, email s
 		return report.ReportSummary, nil // Return original English as fallback
 	}
 	key := fmt.Sprintf("report_%d_%s", reportID, langCode)
-	translated, err := s.translationSvc.Translate(ctx, email, key, report.ReportSummary, langCode, true)
+	translated, err := s.translationSvc.Translate(ctx, email, key, report.ReportSummary, langCode, true, reportID)
 	if err != nil {
 		return "", fmt.Errorf("AI translation failed: %w", err)
 	}
