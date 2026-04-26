@@ -1,6 +1,7 @@
 package channels
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"message-consolidator/internal/whataphttpx"
@@ -31,6 +32,19 @@ func NewSlackClient(token string) *SlackClient {
 
 func (s *SlackClient) GetAPI() *slack.Client {
 	return s.api
+}
+
+// SendDM posts a direct message to slackUserID. Slack's chat.postMessage
+// auto-opens an IM channel when the bot has chat:write (and im:write for first-time DMs).
+func (s *SlackClient) SendDM(ctx context.Context, slackUserID, text string) error {
+	if s == nil || s.api == nil {
+		return fmt.Errorf("slack client not initialized")
+	}
+	_, _, err := s.api.PostMessageContext(ctx, slackUserID, slack.MsgOptionText(text, false))
+	if err != nil {
+		return fmt.Errorf("slack DM to %s: %w", slackUserID, err)
+	}
+	return nil
 }
 
 func (s *SlackClient) LookupChannels() ([]slack.Channel, string, error) {

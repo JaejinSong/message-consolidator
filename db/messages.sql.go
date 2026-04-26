@@ -1086,6 +1086,62 @@ func (q *Queries) SearchArchivedMessagesCount(ctx context.Context, arg SearchArc
 	return count, err
 }
 
+const selectDueSoonMessages = `-- name: SelectDueSoonMessages :many
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(task, '') as task, COALESCE(deadline, '') as deadline, COALESCE(metadata, '') as metadata, COALESCE(room, '') as room, COALESCE(source, '') as source
+FROM messages
+WHERE done = 0 AND is_deleted = 0
+  AND deadline IS NOT NULL AND deadline != ''
+  AND deadline >= ?
+  AND deadline <= ?
+ORDER BY user_email, deadline
+`
+
+type SelectDueSoonMessagesParams struct {
+	Deadline   sql.NullString `json:"deadline"`
+	Deadline_2 sql.NullString `json:"deadline_2"`
+}
+
+type SelectDueSoonMessagesRow struct {
+	ID        int64  `json:"id"`
+	UserEmail string `json:"user_email"`
+	Task      string `json:"task"`
+	Deadline  string `json:"deadline"`
+	Metadata  string `json:"metadata"`
+	Room      string `json:"room"`
+	Source    string `json:"source"`
+}
+
+func (q *Queries) SelectDueSoonMessages(ctx context.Context, arg SelectDueSoonMessagesParams) ([]SelectDueSoonMessagesRow, error) {
+	rows, err := q.db.QueryContext(ctx, selectDueSoonMessages, arg.Deadline, arg.Deadline_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SelectDueSoonMessagesRow
+	for rows.Next() {
+		var i SelectDueSoonMessagesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserEmail,
+			&i.Task,
+			&i.Deadline,
+			&i.Metadata,
+			&i.Room,
+			&i.Source,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateCategoryMerged = `-- name: UpdateCategoryMerged :exec
 UPDATE messages SET category = 'merged' WHERE id IN (/*SLICE:ids*/?) AND user_email = ?
 `
@@ -1148,6 +1204,21 @@ func (q *Queries) UpdateMessageDetails(ctx context.Context, arg UpdateMessageDet
 		arg.CompletedAt,
 		arg.SourceChannels,
 	)
+	return err
+}
+
+const updateMessageMetadataByID = `-- name: UpdateMessageMetadataByID :exec
+UPDATE messages SET metadata = ? WHERE id = ? AND user_email = ?
+`
+
+type UpdateMessageMetadataByIDParams struct {
+	Metadata  sql.NullString `json:"metadata"`
+	ID        int64          `json:"id"`
+	UserEmail sql.NullString `json:"user_email"`
+}
+
+func (q *Queries) UpdateMessageMetadataByID(ctx context.Context, arg UpdateMessageMetadataByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateMessageMetadataByID, arg.Metadata, arg.ID, arg.UserEmail)
 	return err
 }
 

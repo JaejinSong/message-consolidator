@@ -46,6 +46,10 @@ func Init(c *config.Config) {
 		completionSvc = services.NewCompletionService(gClient, &services.DefaultTaskStore{}, tasksSvc, store.GetDB())
 		filterSvc = ai.NewGeminiLiteFilter(gClient)
 	}
+	if cfg.SlackToken != "" {
+		slackClient := channels.NewSlackClient(cfg.SlackToken)
+		reminderSvc = services.NewReminderService(slackClient, cfg.ReminderWindowsHours)
+	}
 }
 
 func StartBackgroundScanner(ctx context.Context) {
@@ -62,6 +66,7 @@ func StartBackgroundScanner(ctx context.Context) {
 		{name: "flush-token-usage", traceName: "/Background-FlushTokenUsage", runFn: runFlushTokenUsage},
 		{name: "log-db-stats", traceName: "/Background-LogDBStats", runFn: runLogDBStats},
 		{name: "sweep-slack-threads", traceName: "/Background-SweepSlackThreads", runFn: runSlackSweep},
+		{name: "deadline-reminder", traceName: "/Background-DeadlineReminder", runFn: runDeadlineReminder},
 	}
 	for _, l := range loops {
 		first := pickPrime()

@@ -146,3 +146,15 @@ LIMIT 50;
 
 -- name: IsMessageProcessed :one
 SELECT EXISTS(SELECT 1 FROM messages WHERE user_email = ?1 AND source_ts = ?2);
+
+-- name: SelectDueSoonMessages :many
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(task, '') as task, COALESCE(deadline, '') as deadline, COALESCE(metadata, '') as metadata, COALESCE(room, '') as room, COALESCE(source, '') as source
+FROM messages
+WHERE done = 0 AND is_deleted = 0
+  AND deadline IS NOT NULL AND deadline != ''
+  AND deadline >= ?
+  AND deadline <= ?
+ORDER BY user_email, deadline;
+
+-- name: UpdateMessageMetadataByID :exec
+UPDATE messages SET metadata = ? WHERE id = ? AND user_email = ?;

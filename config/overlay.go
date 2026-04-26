@@ -119,6 +119,10 @@ func assignField(cfg *Config, key, raw string) {
 		} else if n, err := strconv.Atoi(raw); err == nil {
 			cfg.DBKeepAliveInterval = time.Duration(n) * time.Second
 		}
+	case "REMINDER_ENABLED":
+		cfg.ReminderEnabled = strings.EqualFold(strings.TrimSpace(raw), "true")
+	case "REMINDER_WINDOWS_HOURS":
+		cfg.ReminderWindowsHours = parseIntCSV(raw, []int{24, 1})
 	}
 }
 

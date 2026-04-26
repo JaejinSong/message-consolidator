@@ -37,6 +37,8 @@ type Config struct {
 	DBMaxIdleConns         int
 	DBMaxOpenConns         int
 	DBKeepAliveInterval    time.Duration
+	ReminderEnabled        bool
+	ReminderWindowsHours   []int
 }
 
 func LoadConfig() *Config {
@@ -68,7 +70,9 @@ func LoadConfig() *Config {
 		DBMaxIdleConns:         envInt("DB_MAX_IDLE_CONNS", 1),
 		DBMaxOpenConns:         envInt("DB_MAX_OPEN_CONNS", 25),
 		// Why: Turso server-side closes idle libsql streams after 10s; 7s leaves 3s margin for jitter/GC.
-		DBKeepAliveInterval: envDurationOrSeconds("DB_KEEP_ALIVE_INTERVAL", 7*time.Second),
+		DBKeepAliveInterval:  envDurationOrSeconds("DB_KEEP_ALIVE_INTERVAL", 7*time.Second),
+		ReminderEnabled:      parseBoolEnv("REMINDER_ENABLED", false),
+		ReminderWindowsHours: parseIntCSV(os.Getenv("REMINDER_WINDOWS_HOURS"), []int{24, 1}),
 	}
 }
 
@@ -153,6 +157,41 @@ func splitCSV(raw string) []string {
 		if s != "" {
 			out = append(out, s)
 		}
+	}
+	return out
+}
+
+// parseBoolEnv reads an env var and returns true for "true"/"1"/"yes" (case-insensitive).
+func parseBoolEnv(key string, fallback bool) bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	switch v {
+	case "true", "1", "yes":
+		return true
+	case "false", "0", "no":
+		return false
+	}
+	return fallback
+}
+
+// parseIntCSV parses a comma-separated string of integers. Returns fallback on empty or parse error.
+func parseIntCSV(raw string, fallback []int) []int {
+	if raw == "" {
+		return fallback
+	}
+	var out []int
+	for _, s := range strings.Split(raw, ",") {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		n, err := strconv.Atoi(s)
+		if err != nil {
+			return fallback
+		}
+		out = append(out, n)
+	}
+	if len(out) == 0 {
+		return fallback
 	}
 	return out
 }

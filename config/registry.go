@@ -77,6 +77,8 @@ var Registry = []SettingDef{
 	{Key: "ARCHIVE_DAYS", Label: "Auto-Archive Days", Category: "ops", Type: TypeInt, DefaultValue: "7", Validate: intValidator},
 	{Key: "MESSAGE_BATCH_WINDOW", Label: "Message Batch Window", Category: "ops", Type: TypeDuration, DefaultValue: "5m", Validate: durationValidator},
 	{Key: "INTERNAL_SCAN_SECRET", Label: "Internal Scan Secret", Category: "ops", Type: TypeString, Secret: true, RestartRequired: true},
+	{Key: "REMINDER_ENABLED", Label: "Deadline Reminder Enabled", Category: "ops", Type: TypeBool, DefaultValue: "false", Validate: boolValidator},
+	{Key: "REMINDER_WINDOWS_HOURS", Label: "Reminder Windows Hours (CSV)", Category: "ops", Type: TypeString, DefaultValue: "24,1"},
 }
 
 // FindDef returns the registry entry for `key`, or nil if the key is not exposed to the admin UI.
