@@ -12,6 +12,7 @@ import (
 	// Why: Registers the libsql SQL driver via init() so sql.Open("libsql", ...) resolves at runtime.
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
 	"github.com/whatap/go-api/instrumentation/database/sql/whatapsql"
+	"github.com/whatap/go-api/trace"
 	// Why: Registers modernc.org/sqlite as the "sqlite" driver for the in-memory test DB and local fallback paths.
 	_ "modernc.org/sqlite"
 )
@@ -186,12 +187,11 @@ func setupConnectionPool(cfg *config.Config, dbURL string) {
 		maxLifetime = 1 * time.Hour // Prevent connection turnover during tests
 	}
 
-	// Why: libSQL HTTP streams are closed server-side when idle. Keeping idle
-	// connections causes "stream is closed: bad connection" on first use.
-	// No idle pool means each request gets a fresh stream — same cost as the
-	// forced reconnect that was happening after the error anyway.
+	// Why: libSQL streams expire after ~10s of inactivity (per Turso SQL-over-HTTP docs).
+	// startKeepAlive pings the warm conn before that timeout, so a 1-slot idle pool
+	// can be safely reused across requests instead of opening a fresh stream each call.
 	if strings.HasPrefix(dbURL, "libsql://") {
-		maxIdle = 0
+		maxIdle = 1
 	}
 
 	conn.SetMaxOpenConns(maxOpen)
@@ -220,11 +220,16 @@ func startKeepAlive(ctx context.Context, db *sql.DB, interval time.Duration) {
 }
 
 // handleKeepAliveTick encapsulates the ping logic to maintain a maximum nesting depth of 2 in the worker loop.
+// Why: Each tick is wrapped as its own bounded WhaTap transaction (per CLAUDE.md WhaTap policy — `/`
+// prefix so urlutil.NewURL parses it as Path, not Host).
 func handleKeepAliveTick(ctx context.Context, db *sql.DB) {
 	if db == nil {
 		return
 	}
-	if err := db.PingContext(ctx); err != nil {
+	traceCtx, _ := trace.Start(ctx, "/Background-DBKeepAlive")
+	err := db.PingContext(traceCtx)
+	_ = trace.End(traceCtx, err)
+	if err != nil {
 		logger.Warnf("[DB-KEEPALIVE] Periodic ping failed: %v", err)
 	}
 }
