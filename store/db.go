@@ -71,7 +71,10 @@ func InitDB(ctx context.Context, cfg *config.Config) error {
 	applySQLitePragmas(conn, finalURL)
 
 	if strings.HasPrefix(finalURL, "libsql://") {
-		// Why: Start background keep-alive for remote connections to prevent idle timeouts.
+		// Why: Start background reachability heartbeat. Note: with maxIdle=0 this does NOT
+		// keep a warm pool conn — every user request opens its own fresh stream — but the
+		// periodic ping surfaces Turso connectivity loss in logs/WhaTap before users hit it.
+		logger.Infof("[DB-KEEPALIVE] Starting heartbeat (interval=%v)", cfg.DBKeepAliveInterval)
 		go startKeepAlive(ctx, conn, cfg.DBKeepAliveInterval)
 	}
 
@@ -187,11 +190,15 @@ func setupConnectionPool(cfg *config.Config, dbURL string) {
 		maxLifetime = 1 * time.Hour // Prevent connection turnover during tests
 	}
 
-	// Why: libSQL streams expire after ~10s of inactivity (per Turso SQL-over-HTTP docs).
-	// startKeepAlive pings the warm conn before that timeout, so a 1-slot idle pool
-	// can be safely reused across requests instead of opening a fresh stream each call.
+	// Why: libSQL HTTP streams expire after 10s server-side idle. Keeping idle pool
+	// conns risks "stream is closed: bad connection" on next use (regressed when we
+	// briefly tried maxIdle=1 + 6s ping — keepalive ping windows still leak past
+	// timeout, e.g. mid-tx >10s operations or ticker GC pauses). hranaV2's
+	// ResetSession also calls closeStream every borrow, so a "warm pool" only
+	// reuses TCP+TLS, not the stream — the perf benefit is marginal.
+	// maxIdle=0 forces every request to open a fresh stream — robust by design.
 	if strings.HasPrefix(dbURL, "libsql://") {
-		maxIdle = 1
+		maxIdle = 0
 	}
 
 	conn.SetMaxOpenConns(maxOpen)
