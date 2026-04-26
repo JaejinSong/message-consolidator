@@ -49,41 +49,41 @@ func Init(c *config.Config) {
 }
 
 func StartBackgroundScanner(ctx context.Context) {
-	interval := cfg.ScannerTickInterval
-	logger.Infof("Background scanner started (%s interval for anti-resonance)...", interval)
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	logger.Infof("Background scanner started (per-loop random prime cadence from %v)...", primePool)
 
 	var wg sync.WaitGroup
 
-	//Why: Triggers an immediate scan upon startup to ensure the dashboard is populated without waiting for the first ticker interval.
-	RunAllScans(ctx, &wg)
+	loops := []*primeLoop{
+		{name: "gmail", traceName: "/Background-ScanGmail", runFn: runGmailForAllUsers},
+		{name: "whatsapp", traceName: "/Background-ScanWhatsApp", runFn: runWhatsAppForAllUsers},
+		{name: "telegram", traceName: "/Background-ScanTelegram", runFn: runTelegramForAllUsers},
+		{name: "slack", traceName: "/Background-ScanSlack", runFn: runSlackForAllUsers},
+		{name: "archive-old-tasks", traceName: "/Background-ArchiveOldTasks", runFn: runArchiveOldTasks},
+		{name: "flush-token-usage", traceName: "/Background-FlushTokenUsage", runFn: runFlushTokenUsage},
+		{name: "log-db-stats", traceName: "/Background-LogDBStats", runFn: runLogDBStats},
+		{name: "sweep-slack-threads", traceName: "/Background-SweepSlackThreads", runFn: runSlackSweep},
+	}
+	for _, l := range loops {
+		first := pickPrime()
+		logger.Infof("[SCANNER] %s loop start interval=%s", l.name, first)
+		wg.Add(1)
+		go l.start(ctx, &wg, first)
+	}
 
-	//Why: Starts the background archival process (Slow Sweeper) to periodically clean up outdated tasks and maintain database performance.
-	wg.Add(1)
-	go startSlowSweeper(ctx, &wg)
+	<-ctx.Done()
+	logger.Infof("[SCANNER] Shutdown signal received. Waiting for in-flight tasks...")
 
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Infof("[SCANNER] Shutdown signal received. Waiting for in-flight tasks...")
-			
-			//Why: Uses a generous timeout to allow AI-intensive scans and translations (which can take 15-20s) to complete before termination.
-			done := make(chan struct{})
-			go func() {
-				wg.Wait()
-				close(done)
-			}()
-			select {
-			case <-done:
-				logger.Infof("[SCANNER] All background tasks finished gracefully.")
-			case <-time.After(30 * time.Second):
-				logger.Warnf("[SCANNER] Timeout waiting for background tasks to finish. Forcing exit.")
-			}
-			return
-		case <-ticker.C:
-			RunAllScans(ctx, &wg)
-		}
+	//Why: Generous timeout allows AI-intensive scans and translations (15-20s) to complete before termination.
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		logger.Infof("[SCANNER] All background tasks finished gracefully.")
+	case <-time.After(30 * time.Second):
+		logger.Warnf("[SCANNER] Timeout waiting for background tasks to finish. Forcing exit.")
 	}
 }
 
@@ -144,6 +144,126 @@ func finalizeScanCycle(ctx context.Context, users []store.User) {
 	_ = store.ArchiveOldTasks(ctx)
 	store.FlushTokenUsageIfNeeded(ctx)
 	store.LogDBStats()
+}
+
+// userBundle pairs a user with their effective alias set, computed once per scan cycle.
+type userBundle struct {
+	user    store.User
+	aliases []string
+}
+
+func loadUsersForScan(ctx context.Context) []userBundle {
+	users, err := store.GetAllUsers(ctx)
+	if err != nil {
+		logger.Errorf("[SCANNER] Failed to get users: %v", err)
+		return nil
+	}
+	out := make([]userBundle, 0, len(users))
+	for _, u := range users {
+		al, _ := store.GetUserAliases(ctx, u.ID)
+		out = append(out, userBundle{user: u, aliases: services.GetEffectiveAliases(u, al)})
+	}
+	return out
+}
+
+func runGmailForAllUsers(ctx context.Context, wg *sync.WaitGroup) {
+	bundles := loadUsersForScan(ctx)
+	if len(bundles) == 0 {
+		return
+	}
+	var eg errgroup.Group
+	eg.SetLimit(5)
+	for _, b := range bundles {
+		b := b
+		if !store.HasGmailToken(b.user.Email) {
+			continue
+		}
+		eg.Go(func() error {
+			scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+			defer cancel()
+			defer safego.Recover("scan-gmail")
+			_ = performGmailScan(scanCtx, b.user.Email, wg)
+			store.PersistAllScanMetadata(scanCtx, b.user.Email)
+			return nil
+		})
+	}
+	_ = eg.Wait()
+}
+
+func runWhatsAppForAllUsers(ctx context.Context, wg *sync.WaitGroup) {
+	bundles := loadUsersForScan(ctx)
+	if len(bundles) == 0 {
+		return
+	}
+	var eg errgroup.Group
+	eg.SetLimit(5)
+	for _, b := range bundles {
+		b := b
+		eg.Go(func() error {
+			scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+			defer cancel()
+			defer safego.Recover("scan-whatsapp")
+			scanWhatsApp(scanCtx, b.user, b.aliases, "Korean", wg)
+			store.PersistAllScanMetadata(scanCtx, b.user.Email)
+			return nil
+		})
+	}
+	_ = eg.Wait()
+}
+
+func runTelegramForAllUsers(ctx context.Context, wg *sync.WaitGroup) {
+	bundles := loadUsersForScan(ctx)
+	if len(bundles) == 0 {
+		return
+	}
+	var eg errgroup.Group
+	eg.SetLimit(5)
+	for _, b := range bundles {
+		b := b
+		eg.Go(func() error {
+			scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+			defer cancel()
+			defer safego.Recover("scan-telegram")
+			scanTelegram(scanCtx, b.user, b.aliases, "Korean", wg)
+			store.PersistAllScanMetadata(scanCtx, b.user.Email)
+			return nil
+		})
+	}
+	_ = eg.Wait()
+}
+
+func runSlackForAllUsers(ctx context.Context, wg *sync.WaitGroup) {
+	if cfg == nil || cfg.SlackToken == "" {
+		return
+	}
+	users, err := store.GetAllUsers(ctx)
+	if err != nil {
+		logger.Errorf("[SCANNER] Failed to get users for Slack scan: %v", err)
+		return
+	}
+	scanCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	defer safego.Recover("scan-slack")
+	scanSlack(scanCtx, users, wg)
+}
+
+func runArchiveOldTasks(ctx context.Context, _ *sync.WaitGroup) {
+	_ = store.ArchiveOldTasks(ctx)
+}
+
+func runFlushTokenUsage(ctx context.Context, _ *sync.WaitGroup) {
+	store.FlushTokenUsageIfNeeded(ctx)
+}
+
+func runLogDBStats(_ context.Context, _ *sync.WaitGroup) {
+	store.LogDBStats()
+}
+
+func runSlackSweep(ctx context.Context, wg *sync.WaitGroup) {
+	if cfg == nil || cfg.SlackToken == "" {
+		return
+	}
+	sweepSlackThreads(ctx, wg)
 }
 
 

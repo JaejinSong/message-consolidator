@@ -37,8 +37,6 @@ type Config struct {
 	DBMaxIdleConns         int
 	DBMaxOpenConns         int
 	DBKeepAliveInterval    time.Duration
-	ScannerTickInterval    time.Duration
-	SlackSweepInterval     time.Duration
 }
 
 func LoadConfig() *Config {
@@ -71,10 +69,6 @@ func LoadConfig() *Config {
 		DBMaxOpenConns:         envInt("DB_MAX_OPEN_CONNS", 25),
 		// Why: Turso server-side closes idle libsql streams after 10s; 6s leaves 4s margin for jitter/GC.
 		DBKeepAliveInterval: envDurationOrSeconds("DB_KEEP_ALIVE_INTERVAL", 6*time.Second),
-		// Why: 59s (vs round 60s) avoids harmonic resonance with 1-minute upstream cron/poller cadences.
-		ScannerTickInterval: envDuration("SCANNER_TICK_INTERVAL", 59*time.Second),
-		// Why: Slack thread sweep runs alongside the 59s scanner — 5m offsets reduce load spikes and matches Slack rate-limit headroom.
-		SlackSweepInterval: envDuration("SLACK_SWEEP_INTERVAL", 5*time.Minute),
 	}
 }
 

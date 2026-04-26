@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/slack-go/slack"
-	"github.com/whatap/go-api/trace"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 )
@@ -287,32 +286,14 @@ func hasAliasMatch(m types.RawMessage, aliases []string) bool {
 	return false
 }
 
-func startSlowSweeper(ctx context.Context, wg *sync.WaitGroup) {
-	defer wg.Done()
-	interval := cfg.SlackSweepInterval
-	logger.Infof("Slack Slow Sweeper started (%s, monitoring old threads)...", interval)
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			sweepSlackThreads(ctx, wg)
-		}
-	}
-}
-
+// sweepSlackThreads is invoked by the prime-loop scheduler (see runSlackSweep in scanner.go);
+// the loop owns the trace span, so this function does not start its own.
 func sweepSlackThreads(ctx context.Context, wg *sync.WaitGroup) {
-	traceCtx, _ := trace.Start(ctx, "/Background-SweepSlackThreads")
-	defer func() { _ = trace.End(traceCtx, nil) }()
-
 	if cfg == nil || cfg.SlackToken == "" {
 		return
 	}
 
-	threads, err := store.GetTargetedActiveThreads(traceCtx)
+	threads, err := store.GetTargetedActiveThreads(ctx)
 	if err != nil || len(threads) == 0 {
 		return
 	}
@@ -321,21 +302,21 @@ func sweepSlackThreads(ctx context.Context, wg *sync.WaitGroup) {
 
 	// Why: alias 결정은 tenant(UserEmail) 단위로 동일하므로 thread 루프 밖에서 1회만 조회한다.
 	// 기존엔 thread당 GetUserAliases가 contact_resolution + contacts 2 SELECT를 돌려 N+1을 만들었음.
-	aliasCache := buildSlackAliasCache(traceCtx, threads)
+	aliasCache := buildSlackAliasCache(ctx, threads)
 
 	// Why: 채널별 conversations.history 1회로 thread parent의 latest_reply/reply_count를 묶어
 	// 가져오면 변동 없는 thread에 대한 conversations.replies 호출을 스킵할 수 있다. Tier 3
 	// 호출 수가 N(thread)에서 K(channel) + 변동 thread 수로 줄어 sweep latency가 압축된다.
-	activity := scanChannelHistoryActivity(traceCtx, sc, threads)
+	activity := scanChannelHistoryActivity(ctx, sc, threads)
 
 	for _, t := range threads {
 		if shouldSkipThreadFetch(t, activity) {
 			continue
 		}
-		if err := slackLimiter.Wait(traceCtx); err != nil {
+		if err := slackLimiter.Wait(ctx); err != nil {
 			return
 		}
-		processSingleSlackThread(traceCtx, sc, t, botID, aliasCache, wg)
+		processSingleSlackThread(ctx, sc, t, botID, aliasCache, wg)
 	}
 }
 
