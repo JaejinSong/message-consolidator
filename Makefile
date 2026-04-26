@@ -2,7 +2,7 @@ BINARY_NAME=message-consolidator
 SERVICE_NAME=message-consolidator.service
 INSTALL_DIR=/home/jinro/.gemini/message-consolidator
 
-.PHONY: build run install-service uninstall-service status logs test-ui test-go test-ai test-all build-frontend build-backend build-all
+.PHONY: build run install-service uninstall-service status logs test-ui test-go test-ai test-all build-frontend build-backend build-mc-util build-all
 
 build: build-all
 
@@ -18,6 +18,9 @@ build-backend:
 	# leaving WhaTap with zero transaction visibility (verified 2026-04-25).
 	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY_NAME) .
 	upx -1 $(BINARY_NAME)
+
+build-mc-util:
+	@echo "Building mc-util (Go)..."
 	CGO_ENABLED=0 go build -ldflags="-s -w" -o mc-util ./cmd/mc-util
 	upx -1 mc-util
 
@@ -96,5 +99,5 @@ clean:
 	rm -rf ai/testdata/prompt_cache/*.txt
 	@echo "Cleanup complete."
 
-.PHONY: build run install-service uninstall-service status logs test-ui test-go test-ai test-ai-force test-all build-frontend build-backend build-all sqlc-gen lint lint-fix clean
+.PHONY: build run install-service uninstall-service status logs test-ui test-go test-ai test-ai-force test-all build-frontend build-backend build-mc-util build-all sqlc-gen lint lint-fix clean
 
