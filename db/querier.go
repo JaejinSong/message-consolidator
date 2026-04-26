@@ -26,7 +26,6 @@ type Querier interface {
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (int64, error)
 	CreateMessagesTable(ctx context.Context) error
 	CreateMessagesView(ctx context.Context) error
-	CreatePromptLogsTable(ctx context.Context) error
 	CreateReportTranslationsTable(ctx context.Context) error
 	CreateReportsTable(ctx context.Context) error
 	CreateScanMetadataTable(ctx context.Context) error
@@ -120,7 +119,6 @@ type Querier interface {
 	HardDeleteMessages(ctx context.Context, arg HardDeleteMessagesParams) error
 	InsertAIInferenceLog(ctx context.Context, arg InsertAIInferenceLogParams) error
 	InsertMergeHistory(ctx context.Context, arg InsertMergeHistoryParams) error
-	InsertPromptLog(ctx context.Context, arg InsertPromptLogParams) error
 	InsertReport(ctx context.Context, arg InsertReportParams) (int64, error)
 	InsertReportTranslation(ctx context.Context, arg InsertReportTranslationParams) error
 	IsMessageProcessed(ctx context.Context, arg IsMessageProcessedParams) (int64, error)
@@ -142,11 +140,13 @@ type Querier interface {
 	SearchArchivedMessages(ctx context.Context, arg SearchArchivedMessagesParams) ([]SearchArchivedMessagesRow, error)
 	SearchArchivedMessagesCount(ctx context.Context, arg SearchArchivedMessagesCountParams) (int64, error)
 	SearchContacts(ctx context.Context, arg SearchContactsParams) ([]SearchContactsRow, error)
+	SelectDueSoonMessages(ctx context.Context, arg SelectDueSoonMessagesParams) ([]SelectDueSoonMessagesRow, error)
 	SetUserAdmin(ctx context.Context, arg SetUserAdminParams) error
 	UpdateCategoryMerged(ctx context.Context, arg UpdateCategoryMergedParams) error
 	UpdateContactDetails(ctx context.Context, arg UpdateContactDetailsParams) error
 	UpdateDisplayNameIfEmpty(ctx context.Context, arg UpdateDisplayNameIfEmptyParams) error
 	UpdateMessageDetails(ctx context.Context, arg UpdateMessageDetailsParams) error
+	UpdateMessageMetadataByID(ctx context.Context, arg UpdateMessageMetadataByIDParams) error
 	UpdateReportStatus(ctx context.Context, arg UpdateReportStatusParams) error
 	UpdateResolutionContactID(ctx context.Context, arg UpdateResolutionContactIDParams) error
 	UpdateSubtasks(ctx context.Context, arg UpdateSubtasksParams) error

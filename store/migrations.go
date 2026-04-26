@@ -31,7 +31,6 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 		{"slack_threads", queries.CreateSlackThreadsTable},
 		{"reports", queries.CreateReportsTable},
 		{"report_translations", queries.CreateReportTranslationsTable},
-		{"prompt_logs", queries.CreatePromptLogsTable},
 		{"ai_inference_logs", queries.CreateAIInferenceLogsTable},
 		{"contacts", queries.CreateContactsTable},
 		{"identity_merge_history", queries.CreateIdentityMergeHistoryTable},
@@ -107,6 +106,9 @@ func rebuildViews(ctx context.Context, q db.DBTX) error {
 }
 
 func migrateExistingData(ctx context.Context, q db.DBTX) {
+	// prompt_logs was never populated by application code — drop the orphan table.
+	_, _ = q.ExecContext(ctx, "DROP TABLE IF EXISTS prompt_logs")
+
 	// identity_merge_candidates holds only AI-generated proposals; data loss on schema change is acceptable.
 	if !tableHasColumn(ctx, q, "identity_merge_candidates", "contact_id_a") {
 		_, _ = q.ExecContext(ctx, "DROP TABLE IF EXISTS identity_merge_candidates")

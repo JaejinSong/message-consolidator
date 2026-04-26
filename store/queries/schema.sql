@@ -168,16 +168,6 @@ CREATE TABLE IF NOT EXISTS ai_inference_logs (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- name: CreatePromptLogsTable :exec
-CREATE TABLE IF NOT EXISTS prompt_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    version TEXT NOT NULL,
-    model TEXT NOT NULL,
-    status TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 -- name: CreateReportsTable :exec
 CREATE TABLE IF NOT EXISTS reports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

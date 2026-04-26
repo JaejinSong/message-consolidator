@@ -226,22 +226,6 @@ func (q *Queries) CreateMessagesView(ctx context.Context) error {
 	return err
 }
 
-const createPromptLogsTable = `-- name: CreatePromptLogsTable :exec
-CREATE TABLE IF NOT EXISTS prompt_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    version TEXT NOT NULL,
-    model TEXT NOT NULL,
-    status TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-)
-`
-
-func (q *Queries) CreatePromptLogsTable(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, createPromptLogsTable)
-	return err
-}
-
 const createReportTranslationsTable = `-- name: CreateReportTranslationsTable :exec
 CREATE TABLE IF NOT EXISTS report_translations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

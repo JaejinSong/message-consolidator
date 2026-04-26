@@ -98,15 +98,6 @@ type Message struct {
 	IsArchived          sql.NullInt64  `json:"is_archived"`
 }
 
-type PromptLog struct {
-	ID        int64        `json:"id"`
-	Name      string       `json:"name"`
-	Version   string       `json:"version"`
-	Model     string       `json:"model"`
-	Status    string       `json:"status"`
-	CreatedAt sql.NullTime `json:"created_at"`
-}
-
 type Report struct {
 	ID            int64          `json:"id"`
 	UserEmail     string         `json:"user_email"`
