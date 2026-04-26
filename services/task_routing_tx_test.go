@@ -121,6 +121,61 @@ func TestHandleResolve_AutoTx_AppliesBothMarkDoneAndAppend(t *testing.T) {
 	}
 }
 
+// Why: re-firing a resolve on an already-resolved task must not prepend the
+// "[Resolved: ...]" prefix again. The guard checks existing.OriginalText for
+// the marker before appending. Production race source: completion-service
+// fan-out outside the room lock + scanner re-analysis of the same trigger.
+func TestHandleResolve_Idempotent_NoDuplicatePrefix(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	defer cleanup()
+
+	email := "resolve-idempotent@example.com"
+	room := "Idempotent-Room"
+	res, err := store.GetDB().Exec(
+		"INSERT INTO messages (user_email, source, room, task, original_text, source_ts, done, is_deleted) VALUES (?, 'slack', ?, 'T', 'orig text', 'ts-i', 0, 0)",
+		email, room,
+	)
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	id64, _ := res.LastInsertId()
+	id := store.MessageID(id64)
+
+	idVal := id
+	ctx := context.Background()
+
+	first := store.TodoItem{ID: &idVal, Status: "resolve"}
+	firstMsg := store.ConsolidatedMessage{
+		UserEmail: email, Source: "slack", Room: room, OriginalText: "그건 끝났어요",
+	}
+	if _, err := HandleTaskState(ctx, nil, email, first, firstMsg); err != nil {
+		t.Fatalf("first resolve: %v", err)
+	}
+
+	second := store.TodoItem{ID: &idVal, Status: "resolve"}
+	secondMsg := store.ConsolidatedMessage{
+		UserEmail: email, Source: "slack", Room: room, OriginalText: "다시 한 번 끝났다고 합니다",
+	}
+	if _, err := HandleTaskState(ctx, nil, email, second, secondMsg); err != nil {
+		t.Fatalf("second resolve: %v", err)
+	}
+
+	var orig string
+	if err := store.GetDB().QueryRow("SELECT COALESCE(original_text, '') FROM messages WHERE id = ?", id).Scan(&orig); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	count := strings.Count(orig, "[Resolved:")
+	if count != 1 {
+		t.Errorf("[Resolved:] count = %d, want 1\noriginal_text = %q", count, orig)
+	}
+	if strings.Contains(orig, "다시 한 번 끝났다고 합니다") {
+		t.Errorf("second trigger text leaked into original_text: %q", orig)
+	}
+}
+
 // Why: validateTargetTask drops cross-room operations (existing == nil). Under runTaskTx
 // the auto-tx must commit (no statements ran) and the caller must still receive id=0 with
 // no error — same observable behavior as before the wrapping.

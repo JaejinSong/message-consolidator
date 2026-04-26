@@ -6,8 +6,15 @@ import (
 	"fmt"
 	"message-consolidator/logger"
 	"message-consolidator/store"
+	"strings"
 	"time"
 )
+
+// resolvedPrefixMarker identifies an already-resolved task's appended audit line.
+// Why: handleResolve prepends "[Resolved: YYYY-MM-DD]" to original_text on every
+// resolve trigger; without this guard a re-fired resolve (e.g. duplicate AI
+// signal, completion-service + scanner overlap) would prepend the prefix again.
+const resolvedPrefixMarker = "[Resolved:"
 
 // runTaskTx wraps a multi-statement task transition in a transaction so partial
 // writes can't leak. If the caller already passes *sql.Tx, the existing tx is
@@ -196,6 +203,9 @@ func handleResolve(ctx context.Context, q store.Querier, email string, item stor
 		}
 		if err := store.MarkMessageDone(ctx, q, email, id, true); err != nil {
 			return err
+		}
+		if strings.Contains(existing.OriginalText, resolvedPrefixMarker) {
+			return nil
 		}
 		return store.AppendOriginalText(ctx, q, email, msg.Room, id, fmt.Sprintf("[Resolved: %s]\n%s", time.Now().Format("2006-01-02"), msg.OriginalText))
 	})
