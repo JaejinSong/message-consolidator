@@ -426,7 +426,14 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.Gemini
 	}
 
 	payload, msgMap := buildGmailBatchPayload(email, filteredMsgs, classificationMap)
-	items, err := executeGmailAnalysisWithRetry(ctx, gc, email, payload, language, "Inbox")
+	enriched := types.EnrichedMessage{
+		RawContent:    payload,
+		SourceChannel: "gmail",
+		SenderID:      0,
+		SenderName:    "Gmail System",
+		Timestamp:     time.Now(),
+	}
+	items, err := gc.Analyze(ctx, email, enriched, language, "gmail", "Inbox")
 	if err != nil {
 		logger.Errorf("[SCAN-GMAIL] Batch Analyze Error for %s: %v", email, err)
 		return nil
@@ -535,30 +542,6 @@ func extractGmailAttachmentNames(payload *gmail.MessagePart) []string {
 		names = append(names, extractGmailAttachmentNames(part)...)
 	}
 	return names
-}
-
-// Why: Encapsulates the retry mechanism for Gemini API calls to keep the control flow clean.
-func executeGmailAnalysisWithRetry(ctx context.Context, gc *ai.GeminiClient, email, payload, language, room string) ([]store.TodoItem, error) {
-	var items []store.TodoItem
-	var analyzeErr error
-	// Why: [Metadata Enrichment] Creates a unified input for Gmail batches, using the payload as content.
-	enriched := types.EnrichedMessage{
-		RawContent:    payload,
-		SourceChannel: "gmail",
-		SenderID:      0,
-		SenderName:    "Gmail System", // Generic for batch processing
-		Timestamp:     time.Now(),
-	}
-
-	for attempt := 1; attempt <= 2; attempt++ {
-		items, analyzeErr = gc.Analyze(ctx, email, enriched, language, "gmail", room)
-		if analyzeErr == nil {
-			return items, nil
-		}
-		logger.Warnf("[SCAN-GMAIL] Gemini Analyze retry %d for %s: %v", attempt, email, analyzeErr)
-		time.Sleep(1 * time.Second)
-	}
-	return nil, analyzeErr
 }
 
 func processGeminiItems(ctx context.Context, email string, user *store.User, aliases []string, items []store.TodoItem, classificationMap, toMap map[string]string, msgMap map[string]types.RawMessage) map[string]store.ConsolidatedMessage {
