@@ -5,7 +5,7 @@ import {
     renderReleaseNotes,
     renderProposals
 } from './renderer';
-import { safeAsync } from './utils';
+import { safeAsync, isApiError } from './utils';
 import { TokenUsageCard } from './components/token-usage';
 
 /**
@@ -193,8 +193,8 @@ export const modals: ModalsImpl = {
         try {
             try {
                 await api.generateIdentityProposals();
-            } catch (e: any) {
-                if (e.status !== 409) throw e; // 409 = already running, join the ongoing poll
+            } catch (e: unknown) {
+                if (!isApiError(e) || e.status !== 409) throw e; // 409 = already running, join the ongoing poll
             }
             const result = await pollProposalJob();
             showToast(`제안 ${result.proposals_created}건 생성됨`, 'success');

@@ -36,7 +36,7 @@ import { archive } from './archive';
 import { modals } from './modals';
 import { insights } from './insights';
 import { events, EVENTS } from './events';
-import { safeAsync, hasSessionHint, setupTabs, escapeHTML } from './utils';
+import { safeAsync, hasSessionHint, setupTabs, escapeHTML, getErrorMessage } from './utils';
 import { STATUS_STATES, POLLING_INTERVALS } from './constants';
 import { authService } from './services/authService';
 
@@ -67,7 +67,7 @@ const handlers: ServiceHandlers = {
             if (done) {
                 events.emit(EVENTS.TASK_COMPLETED, { id: idStr, result });
             }
-        } catch (e: any) {
+        } catch {
             // 2. Rollback on Failure
             showToast(state.currentLang === 'ko' ? '상태 업데이트 실패' : 'Failed to update status', 'error');
             updateTaskStatusInState(id, !done);
@@ -88,7 +88,7 @@ const handlers: ServiceHandlers = {
             const result = await api.deleteTask(idStr);
             if (result && result.user) updateStats(result.user);
             if (archive.isVisible()) archive.fetch();
-        } catch (e: any) {
+        } catch {
             // 2. Rollback on Failure
             showToast(state.currentLang === 'ko' ? '삭제 실패' : 'Delete failed', 'error');
             // Restore in state
@@ -162,7 +162,7 @@ const handlers: ServiceHandlers = {
 
         try {
             await api.toggleSubtask(taskIdStr, subtaskIndex, done);
-        } catch (e: any) {
+        } catch {
             showToast(state.currentLang === 'ko' ? '서브태스크 업데이트 실패' : 'Failed to update subtask', 'error');
             // Rollback
         }
@@ -431,8 +431,8 @@ const refreshWhatsAppQR = async () => {
             updateWhatsAppQR('show', data.qr, state.currentLang);
             startQRAutoRefresh();
         }
-    } catch (e: any) {
-        updateWhatsAppQR('error', e.message || 'Failed to fetch QR', state.currentLang);
+    } catch (e: unknown) {
+        updateWhatsAppQR('error', getErrorMessage(e) || 'Failed to fetch QR', state.currentLang);
         stopQRAutoRefresh();
     }
 };
@@ -544,8 +544,8 @@ const initActionButtons = () => {
                 clearTaskSelection();
                 updateMergeBar();
                 fetchMessages(true);
-            } catch (e: any) {
-                showToast(e.message || 'Merge failed', 'error');
+            } catch (e: unknown) {
+                showToast(getErrorMessage(e) || 'Merge failed', 'error');
             }
         };
         confirmBtn?.addEventListener('click', handleConfirm, { once: true });

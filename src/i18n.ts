@@ -17,15 +17,13 @@ export function t(key: string, lang: string = DEFAULT_LANG): string {
     const data = I18N_DATA[locale] ?? I18N_DATA[DEFAULT_LANG];
     
     // Support nested path (e.g. "filterLabels.channel")
-    const val = key.split('.').reduce((obj, k) => obj?.[k], data);
-    
-    if (val != null) return val;
-    
+    const val = key.split('.').reduce<unknown>((obj, k) => (obj as Record<string, unknown> | undefined)?.[k], data);
+    if (typeof val === 'string') return val;
+
     // Fallback if not found in target lang, try default lang
     const fallbackData = I18N_DATA[DEFAULT_LANG];
-    const fallbackVal = key.split('.').reduce((obj, k) => obj?.[k], fallbackData);
-    
-    return fallbackVal ?? key;
+    const fallbackVal = key.split('.').reduce<unknown>((obj, k) => (obj as Record<string, unknown> | undefined)?.[k], fallbackData);
+    return typeof fallbackVal === 'string' ? fallbackVal : key;
 }
 
 /**

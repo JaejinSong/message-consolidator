@@ -24,6 +24,7 @@ var inFlightMessages sync.Map
 
 var (
 	cfg           *config.Config
+	gClient       *ai.GeminiClient
 	completionSvc *services.CompletionService
 	tasksSvc      *services.TasksService
 	filterSvc     *ai.GeminiLiteFilter
@@ -34,11 +35,12 @@ func Init(c *config.Config) {
 	cfg = c
 	roomLockSvc = services.NewRoomLockService()
 	if cfg.GeminiAPIKey != "" {
-		gClient, err := ai.NewGeminiClient(context.Background(), cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+		gc, err := ai.NewGeminiClient(context.Background(), cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 		if err != nil {
 			logger.Errorf("[SCANNER] Failed to init GeminiClient: %v", err)
 			return
 		}
+		gClient = gc
 		transSvc := services.NewTranslationService(gClient)
 		tasksSvc = services.NewTasksService(transSvc, gClient)
 		completionSvc = services.NewCompletionService(gClient, &services.DefaultTaskStore{}, tasksSvc, store.GetDB())
@@ -188,7 +190,7 @@ func performGmailScan(ctx context.Context, email string, wg *sync.WaitGroup) err
 		}
 		return false
 	}
-	ids := channels.ScanGmail(ctx, email, "Korean", cfg, onThreadActivity)
+	ids := channels.ScanGmail(ctx, email, "Korean", cfg, gClient, filterSvc, onThreadActivity)
 
 	var filteredIDs []store.MessageID
 	for _, id := range ids {
@@ -198,10 +200,6 @@ func performGmailScan(ctx context.Context, email string, wg *sync.WaitGroup) err
 			continue
 		}
 		filteredIDs = append(filteredIDs, id)
-		// We'll need a way to delete these later, but ScanGmail currently works synchronously 
-		// and triggerAsyncTranslation handles just translation. 
-		// Actually, ScanGmail itself triggers AI extraction via callback? 
-		// Let me check ScanGmail implementation.
 	}
 
 	triggerAsyncTranslation(ctx, email, filteredIDs, wg)

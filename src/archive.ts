@@ -2,7 +2,7 @@ import { state } from './state';
 import { I18N_DATA } from './locales';
 import { api } from './api';
 import { renderArchive, showToast } from './renderer';
-import { safeAsync } from './utils';
+import { safeAsync, getErrorMessage } from './utils';
 
 let onTasksChangedCallback: (() => void) | null = null;
 
@@ -69,7 +69,7 @@ export const archive: ArchiveModule = {
     updatePaginationUI() {
         const totalPages = Math.ceil(state.archiveTotalCount / state.archiveLimit) || 1;
         const pageInfo = document.getElementById('archivePageInfo');
-        const i18n = (I18N_DATA as any)[state.currentLang];
+        const i18n = I18N_DATA[state.currentLang];
 
         if (pageInfo && i18n) {
             let text = i18n.archivePageInfo || `Page {page} / {totalPages} (Total: {totalCount})`;
@@ -147,10 +147,10 @@ export const archive: ArchiveModule = {
             this.fetch();
             if (onTasksChangedCallback) onTasksChangedCallback();
         }, { 
-            onError: (e: any) => {
-                showToast(((I18N_DATA as any)[state.currentLang]?.errorRestore || 'Error: ') + e.message, 'error');
-            }, 
-            triggerAuthOverlay: true 
+            onError: (e: unknown) => {
+                showToast((I18N_DATA[state.currentLang]?.errorRestore || 'Error: ') + getErrorMessage(e), 'error');
+            },
+            triggerAuthOverlay: true
         }));
 
         // Sorting
@@ -211,10 +211,10 @@ export const archive: ArchiveModule = {
             if (countEl) countEl.textContent = countData.count.toString();
             if (exportModal) exportModal.classList.remove('hidden');
         }, { 
-            onError: (e: any) => {
-                showToast(((I18N_DATA as any)[state.currentLang]?.errorArchiveCount || 'Error: ') + e.message, 'error');
-            }, 
-            triggerAuthOverlay: true 
+            onError: (e: unknown) => {
+                showToast((I18N_DATA[state.currentLang]?.errorArchiveCount || 'Error: ') + getErrorMessage(e), 'error');
+            },
+            triggerAuthOverlay: true
         }));
 
         const downloadFile = (url: string, defaultFilename: string) => {
@@ -278,10 +278,10 @@ export const archive: ArchiveModule = {
             this.fetch();
             if (deleteConfirmModal) deleteConfirmModal.classList.add('hidden');
         }, { 
-            onError: (error: any) => {
-                showToast(((I18N_DATA as any)[state.currentLang]?.errorHardDelete || 'Error: ') + error.message, 'error');
-            }, 
-            triggerAuthOverlay: true 
+            onError: (error: unknown) => {
+                showToast((I18N_DATA[state.currentLang]?.errorHardDelete || 'Error: ') + getErrorMessage(error), 'error');
+            },
+            triggerAuthOverlay: true
         }));
     }
 };

@@ -2,6 +2,15 @@ import { apiFetch } from './utils/http';
 import { state, upsertReport } from './state';
 import { normalizeReportData } from './logic';
 import { Message, UserProfile, UserStats, TokenUsage, IReportData, AccountItem, CategorizedMessages } from './types';
+import type { ProposalGroup } from './renderers/settings-renderer';
+
+// Why: shared shape for mutation endpoints that the backend answers with `{ status: "ok" }` or
+// `{ status, user }` — keeps the per-method generic narrow without losing the optional user echo
+// some toggles return for cheap stat refresh.
+export interface ApiStatusResponse {
+    status?: string;
+    user?: UserProfile;
+}
 
 /**
  * @file api.ts
@@ -26,7 +35,7 @@ const ensureIntArray = (ids: (string | number)[]): number[] => {
 
 class TranslationBatcher {
     private queue: Map<string, Set<number>> = new Map();
-    private promises: Map<string, { promise: Promise<string>; resolve: (value: string) => void; reject: (reason?: any) => void }> = new Map();
+    private promises: Map<string, { promise: Promise<string>; resolve: (value: string) => void; reject: (reason?: unknown) => void }> = new Map();
     private timer: ReturnType<typeof setTimeout> | null = null;
 
     request(id: string | number, lang: string): Promise<string> {
@@ -38,7 +47,7 @@ class TranslationBatcher {
         this.queue.get(lang)!.add(validatedId);
 
         let resolve!: (value: string) => void;
-        let reject!: (reason?: any) => void;
+        let reject!: (reason?: unknown) => void;
         const promise = new Promise<string>((res, rej) => { resolve = res; reject = rej; });
         this.promises.set(key, { promise, resolve, reject });
 
@@ -121,7 +130,7 @@ export const api = {
         });
     },
 
-    async hardDeleteTasks(ids: (string | number)[]): Promise<any> {
+    async hardDeleteTasks(ids: (string | number)[]): Promise<ApiStatusResponse> {
         const validatedIds = ensureIntArray(ids);
         return apiFetch('/messages/hard-delete', {
             method: 'POST',
@@ -130,7 +139,7 @@ export const api = {
         });
     },
 
-    async restoreTasks(ids: (string | number)[]): Promise<any> {
+    async restoreTasks(ids: (string | number)[]): Promise<ApiStatusResponse> {
         const validatedIds = ensureIntArray(ids);
         return apiFetch('/messages/restore', {
             method: 'POST',
@@ -147,15 +156,15 @@ export const api = {
         return apiFetch('/slack/status', { errorMessage: 'Slack status check failed' });
     },
 
-    async triggerScan(lang: string): Promise<any> {
+    async triggerScan(lang: string): Promise<ApiStatusResponse> {
         return apiFetch('/scan', { params: { lang }, errorMessage: 'Scan failed' });
     },
 
-    async translateTasks(lang: string): Promise<any> {
-        return apiFetch('/translate', { 
-            method: 'POST', 
-            params: { lang }, 
-            errorMessage: 'Translation failed' 
+    async translateTasks(lang: string): Promise<ApiStatusResponse> {
+        return apiFetch('/translate', {
+            method: 'POST',
+            params: { lang },
+            errorMessage: 'Translation failed'
         });
     },
 
@@ -167,25 +176,25 @@ export const api = {
         });
     },
 
-    async fetchArchive(params: any = {}): Promise<{ total: number; messages: Message[] }> {
+    async fetchArchive(params: Record<string, string | number | boolean | undefined> = {}): Promise<{ total: number; messages: Message[] }> {
         const queryParams = { ...params };
         if (!queryParams.lang) queryParams.lang = 'ko';
         if (!queryParams.status) queryParams.status = 'all';
 
-        return apiFetch('/messages/archive', { 
-            params: queryParams, 
-            errorMessage: 'Fetch archive failed' 
+        return apiFetch('/messages/archive', {
+            params: queryParams,
+            errorMessage: 'Fetch archive failed'
         });
     },
 
     async fetchArchiveCount(q = '', status = 'all'): Promise<{ count: number }> {
-        const params: any = {};
+        const params: Record<string, string | undefined> = {};
         if (q) params.q = q;
         if (status) params.status = status;
-        
-        return apiFetch('/messages/archive/count', { 
-            params, 
-            errorMessage: 'Fetch archive count failed' 
+
+        return apiFetch('/messages/archive/count', {
+            params,
+            errorMessage: 'Fetch archive count failed'
         });
     },
 
@@ -205,10 +214,10 @@ export const api = {
         return apiFetch('/whatsapp/qr', { errorMessage: 'QR fetch failed' });
     },
 
-    async logoutWhatsApp(): Promise<any> {
-        return apiFetch('/whatsapp/logout', { 
-            method: 'POST', 
-            errorMessage: 'WhatsApp logout failed' 
+    async logoutWhatsApp(): Promise<ApiStatusResponse> {
+        return apiFetch('/whatsapp/logout', {
+            method: 'POST',
+            errorMessage: 'WhatsApp logout failed'
         });
     },
 
@@ -216,7 +225,7 @@ export const api = {
         return apiFetch('/gmail/status', { errorMessage: 'Gmail status check failed' });
     },
 
-    async disconnectGmail(): Promise<any> {
+    async disconnectGmail(): Promise<ApiStatusResponse> {
         return apiFetch('/gmail/disconnect', {
             method: 'POST',
             errorMessage: 'Gmail disconnect failed'
@@ -266,10 +275,10 @@ export const api = {
         });
     },
 
-    async buyStreakFreeze(): Promise<any> {
-        return apiFetch('/user/buy-freeze', { 
-            method: 'POST', 
-            errorMessage: 'Purchase failed' 
+    async buyStreakFreeze(): Promise<ApiStatusResponse> {
+        return apiFetch('/user/buy-freeze', {
+            method: 'POST',
+            errorMessage: 'Purchase failed'
         });
     },
 
@@ -277,10 +286,10 @@ export const api = {
         return apiFetch('/user/token-usage', { errorMessage: 'Fetch token usage failed' });
     },
 
-    async fetchReleaseNotes(type = 'user', lang = 'ko'): Promise<any> {
-        return apiFetch('/release-notes', { 
-            params: { type, lang }, 
-            errorMessage: 'Fetch release notes failed' 
+    async fetchReleaseNotes(type = 'user', lang = 'ko'): Promise<{ content?: string }> {
+        return apiFetch('/release-notes', {
+            params: { type, lang },
+            errorMessage: 'Fetch release notes failed'
         });
     },
 
@@ -311,7 +320,7 @@ export const api = {
         return apiFetch('/reports', { errorMessage: 'Fetch reports failed' });
     },
 
-    async fetchReportHistory(): Promise<any[]> {
+    async fetchReportHistory(): Promise<IReportData[]> {
         return apiFetch('/reports/history', { errorMessage: 'Fetch report history failed' });
     },
 
@@ -332,8 +341,8 @@ export const api = {
                 signal: controller.signal,
                 errorMessage: 'Generate report failed'
             });
-        } catch (err: any) {
-            if (err.name === 'AbortError') {
+        } catch (err: unknown) {
+            if (err instanceof Error && err.name === 'AbortError') {
                 throw new Error('AI 리포트 생성 시간이 초과되었습니다 (120초). 잠시 후 다시 시도해 주세요.');
             }
             throw err;
@@ -362,7 +371,7 @@ export const api = {
         return apiFetch(`/reports/${validatedId}`, { errorMessage: 'Fetch report detail failed' });
     },
 
-    async deleteReport(id: string | number): Promise<any> {
+    async deleteReport(id: string | number): Promise<ApiStatusResponse> {
         const validatedId = ensureInt(id);
         return apiFetch(`/reports/${validatedId}`, {
             method: 'DELETE',
@@ -370,12 +379,25 @@ export const api = {
         });
     },
 
-    async translateReport(id: string | number, lang: string): Promise<any> {
+    async translateReport(id: string | number, lang: string): Promise<{
+        report_summary?: string;
+        summary?: string;
+        translation?: string;
+        translated_text?: string;
+    }> {
         const validatedId = ensureInt(id);
         return apiFetch(`/reports/${validatedId}/translate`, {
             method: 'POST',
             params: { lang },
             errorMessage: 'Translation request failed'
+        });
+    },
+
+    async exportReportToNotion(id: string | number): Promise<{ url?: string; error?: string }> {
+        const validatedId = ensureInt(id);
+        return apiFetch(`/reports/${validatedId}/export/notion`, {
+            method: 'POST',
+            errorMessage: 'Notion export failed'
         });
     },
 
@@ -394,11 +416,11 @@ export const api = {
         return apiFetch('/identity/proposals/job-status', { errorMessage: 'Failed to get job status' });
     },
 
-    async fetchIdentityProposals(): Promise<any[]> {
+    async fetchIdentityProposals(): Promise<ProposalGroup[]> {
         return apiFetch('/identity/proposals', { errorMessage: 'Fetch proposals failed' });
     },
 
-    async acceptIdentityProposal(groupId: string, canonicalName: string): Promise<any> {
+    async acceptIdentityProposal(groupId: string, canonicalName: string): Promise<ApiStatusResponse> {
         return apiFetch(`/identity/proposals/${groupId}/accept`, {
             method: 'POST',
             body: JSON.stringify({ canonical_name: canonicalName }),
@@ -406,11 +428,11 @@ export const api = {
         });
     },
 
-    async rejectIdentityProposal(groupId: string): Promise<any> {
+    async rejectIdentityProposal(groupId: string): Promise<ApiStatusResponse> {
         return apiFetch(`/identity/proposals/${groupId}/reject`, { method: 'POST', errorMessage: 'Reject proposal failed' });
     },
 
-    async mergeTasks(targetIds: (string | number)[], destinationId: string | number): Promise<any> {
+    async mergeTasks(targetIds: (string | number)[], destinationId: string | number): Promise<ApiStatusResponse> {
         const validatedTargets = ensureIntArray(targetIds);
         const validatedDest = ensureInt(destinationId);
         return apiFetch('/tasks/merge', {

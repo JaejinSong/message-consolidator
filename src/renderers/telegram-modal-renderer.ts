@@ -7,6 +7,7 @@ import { api } from '../api';
 import { TELEGRAM_STATUS } from '../constants';
 import { showToast } from './ui-effects';
 import { updateTelegramStatus, hideTelegramModal } from './status-renderer';
+import { getErrorMessage } from '../utils';
 
 type StepId = 'credentials' | 'phone' | 'code' | 'password' | 'connected';
 
@@ -89,8 +90,8 @@ async function handleCredentialsSubmit(): Promise<void> {
         await api.saveTelegramCredentials(appId, appHash);
         showToast('Telegram credentials saved', 'success');
         showStep('phone');
-    } catch (e: any) {
-        setError(e?.message || 'Failed to save credentials');
+    } catch (e: unknown) {
+        setError(getErrorMessage(e) || 'Failed to save credentials');
     } finally {
         setBusy('telegramSaveCredsBtn', false);
     }
@@ -108,8 +109,8 @@ async function handlePhoneSubmit(onConnected: () => void): Promise<void> {
     try {
         await api.startTelegramAuth(phone);
         showStep('code');
-    } catch (e: any) {
-        setError(e?.message || 'Failed to send code');
+    } catch (e: unknown) {
+        setError(getErrorMessage(e) || 'Failed to send code');
     } finally {
         setBusy('telegramSendCodeBtn', false);
         void onConnected;
@@ -134,8 +135,8 @@ async function handleCodeSubmit(onConnected: () => void): Promise<void> {
         updateTelegramStatus(TELEGRAM_STATUS.CONNECTED);
         showToast('Telegram connected', 'success');
         onConnected();
-    } catch (e: any) {
-        setError(e?.message || 'Invalid code');
+    } catch (e: unknown) {
+        setError(getErrorMessage(e) || 'Invalid code');
     } finally {
         setBusy('telegramConfirmCodeBtn', false);
     }
@@ -155,8 +156,8 @@ async function handlePasswordSubmit(onConnected: () => void): Promise<void> {
         updateTelegramStatus(TELEGRAM_STATUS.CONNECTED);
         showToast('Telegram connected', 'success');
         onConnected();
-    } catch (e: any) {
-        setError(e?.message || 'Invalid password');
+    } catch (e: unknown) {
+        setError(getErrorMessage(e) || 'Invalid password');
     } finally {
         setBusy('telegramConfirmPasswordBtn', false);
     }
@@ -173,8 +174,8 @@ async function handleLogout(onLoggedOut: () => void): Promise<void> {
         hideTelegramModal();
         showToast('Telegram disconnected', 'success');
         onLoggedOut();
-    } catch (e: any) {
-        setError(e?.message || 'Logout failed');
+    } catch (e: unknown) {
+        setError(getErrorMessage(e) || 'Logout failed');
     } finally {
         setBusy('telegramDisconnectBtn', false);
     }

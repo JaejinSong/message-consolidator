@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { apiFetch } from './http';
+import { apiFetch, ApiError } from './http';
 
 describe('apiFetch', () => {
   beforeEach(() => {
@@ -17,10 +17,12 @@ describe('apiFetch', () => {
     try {
       await apiFetch('/test');
       expect.fail('Should have thrown an error');
-    } catch (err: any) {
-      expect(err.message).toBe('Session Expired or Unauthorized');
-      expect(err.isAuthError).toBe(true);
-      expect(err.status).toBe(401);
+    } catch (err: unknown) {
+      expect(err).toBeInstanceOf(ApiError);
+      const apiErr = err as ApiError;
+      expect(apiErr.message).toBe('Session Expired or Unauthorized');
+      expect(apiErr.isAuthError).toBe(true);
+      expect(apiErr.status).toBe(401);
     }
   });
 
@@ -35,9 +37,11 @@ describe('apiFetch', () => {
     try {
       await apiFetch('/test');
       expect.fail('Should have thrown an error');
-    } catch (err: any) {
-      expect(err.message).toBe('Authentication Required (Session Expired or Proxy Redirect)');
-      expect(err.isAuthError).toBe(true);
+    } catch (err: unknown) {
+      expect(err).toBeInstanceOf(ApiError);
+      const apiErr = err as ApiError;
+      expect(apiErr.message).toBe('Authentication Required (Session Expired or Proxy Redirect)');
+      expect(apiErr.isAuthError).toBe(true);
     }
   });
 

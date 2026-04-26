@@ -95,7 +95,7 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 	return svc, nil
 }
 
-func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
+func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
 	svc, err := GetGmailService(ctx, email)
 	if err != nil {
 		logger.Debugf("[SCAN-GMAIL] Skipping %s: %v", email, err)
@@ -112,7 +112,7 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 	rawMsgs, clsMap, toMap, maxTS := parseNewEmails(ctx, svc, email, allMsgs, cfg)
 	var newIDs []store.MessageID
 	if len(rawMsgs) > 0 {
-		newIDs = analyzeAndSaveEmails(ctx, email, language, rawMsgs, clsMap, toMap, cfg, onThreadActivity)
+		newIDs = analyzeAndSaveEmails(ctx, email, language, rawMsgs, clsMap, toMap, gc, filterSvc, onThreadActivity)
 	}
 
 	if maxTS > 0 {
@@ -396,16 +396,14 @@ func classifyGmail(isFromMe, isTo bool) string {
 	return CategoryOthers
 }
 
-func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, cfg *config.Config, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
-	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
-	if err != nil {
-		logger.Errorf("[SCAN-GMAIL] Failed to init Gemini client: %v", err)
+func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
+	if gc == nil || filterSvc == nil {
+		logger.Errorf("[SCAN-GMAIL] gc/filterSvc missing; scanner.Init may have failed")
 		return nil
 	}
 
 	user, _ := store.GetOrCreateUser(ctx, email, "", "")
 	aliases, _ := store.GetUserAliases(ctx, user.ID)
-	filterSvc := ai.NewGeminiLiteFilter(gc)
 
 	var totalNewIDs []store.MessageID
 	batchSize := 10

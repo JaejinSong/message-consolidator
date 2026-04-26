@@ -1,4 +1,6 @@
 import { TokenUsage } from '../types';
+import { t } from '../i18n';
+import { state } from '../state';
 
 /**
  * TokenUsageCard components renders AI API consumption metrics
@@ -37,10 +39,9 @@ export class TokenUsageCard {
         const monthlyCost = data.monthlyCost;
         const modelName = data.model;
 
-        // Get labels from global i18n if available, else fallback
-        const i18n = (window as any).i18n;
-        const labelToday = i18n?.t('tokenMenuTitle') || 'Today\'s Consumption';
-        const labelMonthly = i18n?.t('tokenUsed') || 'Monthly Total';
+        const lang = state.currentLang || 'en';
+        const labelToday = t('tokenMenuTitle', lang) || 'Today\'s Consumption';
+        const labelMonthly = t('tokenUsed', lang) || 'Monthly Total';
         const labelIn = 'IN';
         const labelOut = 'OUT';
         const labelEstCost = 'Est. Cost';

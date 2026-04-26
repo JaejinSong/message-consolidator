@@ -1,27 +1,36 @@
 import { I18N_DATA } from './locales';
+import { ApiError } from './utils/http';
 
 /**
  * @file utils.ts
  * @description Shared utility functions and services with TypeScript.
  */
 
+export function getErrorMessage(e: unknown): string {
+    return e instanceof Error ? e.message : String(e);
+}
+
+export function isApiError(e: unknown): e is ApiError {
+    return e instanceof ApiError;
+}
+
 /**
  * Higher-order function for common async error handling.
  */
-export const safeAsync = <T extends any[], R>(
+export const safeAsync = <T extends unknown[], R>(
     fn: (...args: T) => Promise<R>,
     options: {
         triggerAuthOverlay?: boolean;
-        onError?: (e: any) => void;
+        onError?: (e: unknown) => void;
     } = {}
 ) => {
-    return async function(this: any, ...args: T): Promise<R | undefined> {
+    return async function(this: unknown, ...args: T): Promise<R | undefined> {
         const { triggerAuthOverlay = false, onError } = options;
         try {
             return await fn.apply(this, args);
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error('[Async Error]', e);
-            if (e.isAuthError && triggerAuthOverlay) {
+            if (isApiError(e) && e.isAuthError && triggerAuthOverlay) {
                 if (!hasSessionHint()) {
                     console.warn('[safeAsync] AuthError and no session hint. Triggering login overlay.');
                     const overlay = document.getElementById('loginOverlay');
@@ -79,7 +88,7 @@ export function formatDisplayTime(isoStr: string, lang: string = 'en'): string {
 
     const now = new Date();
     const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
-    const i18n = (I18N_DATA as any)[lang] || (I18N_DATA as any)['en'];
+    const i18n = I18N_DATA[lang] || I18N_DATA['en'];
 
     // Relative time for same day
     if (diffSec < 86400 && date.getDate() === now.getDate()) {

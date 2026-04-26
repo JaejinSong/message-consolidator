@@ -3,7 +3,6 @@ package scanner
 import (
 	"context"
 	"fmt"
-	"message-consolidator/ai"
 	"message-consolidator/channels"
 	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
@@ -616,9 +615,8 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 	if len(candidates) == 0 {
 		return
 	}
-	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
-	if err != nil {
-		logger.Errorf("[SCAN-SLACK] Failed to init Gemini client: %v", err)
+	if gClient == nil {
+		logger.Errorf("[SCAN-SLACK] gClient not initialized; scanner.Init may have failed")
 		return
 	}
 
@@ -636,7 +634,7 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 	}
 	enriched, _ := EnrichSlackMessage(lastMsg.Sender, senderName, lastMsg.ChannelID, lastMsg.ReplyToID, payload, lastMsg.Timestamp)
 
-	proposals, err := gc.Analyze(ctx, user.Email, *enriched, "Korean", "slack", channelName)
+	proposals, err := gClient.Analyze(ctx, user.Email, *enriched, "Korean", "slack", channelName)
 	if err != nil {
 		logger.Errorf("[SCAN-SLACK] Gemini Analyze Error for %s: %v", user.Email, err)
 		return

@@ -396,7 +396,7 @@ export const insightsRenderer = {
         }
 
         reportsRenderer.renderHistory(container, history, (selected) => {
-            (window as any).insights.loadExistingReport(selected);
+            window.insights?.loadExistingReport(selected);
         }, i18n);
 
         // UI auto-selection logic

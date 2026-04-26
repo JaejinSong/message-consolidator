@@ -11,6 +11,7 @@ import { insightsRenderer } from './insightsRenderer';
 import { normalizeReportData } from './logic';
 import { events, EVENTS } from './events';
 import { UserStats, TokenUsage, IReportData } from './types';
+import { getErrorMessage } from './utils';
 
 export const insights = {
     lastStats: null as UserStats | null,
@@ -22,7 +23,7 @@ export const insights = {
      */
     init() {
         console.log("[Insights] Module Initialized with Tab Isolation");
-        (window as any).insights = this; // Expose for renderer callbacks
+        window.insights = this; // Expose for renderer callbacks
 
         // Sub-Tab Navigation inside Insights Section (Event Delegation)
         const insightsTabsContainer = document.querySelector('#insightsSection .c-tabs');
@@ -198,10 +199,11 @@ export const insights = {
                 await this._renderWithTranslation(report, lang, i18n, reportContent);
                 await this.refreshReport(report.id);
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("[Insights] Generate report failed:", e);
-            if (reportContent) insightsRenderer.renderError(reportContent, e.message, i18n);
-            alert(`Generation failed: ${e.message}`);
+            const msg = getErrorMessage(e);
+            if (reportContent) insightsRenderer.renderError(reportContent, msg, i18n);
+            alert(`Generation failed: ${msg}`);
         } finally {
             if (btn) btn.disabled = false;
         }
@@ -248,7 +250,7 @@ export const insights = {
 
     async deleteReport(id: number) {
         const lang = state.currentLang || 'en';
-        const i18n = (I18N_DATA as any)[lang];
+        const i18n = I18N_DATA[lang];
         if (!confirm(i18n.deleteReportConfirm || 'Delete this report?')) return;
 
         try {
@@ -263,7 +265,7 @@ export const insights = {
             if (this.lastReport?.id === id) {
                 this.handleDeletionFallback();
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("[Insights] Delete failed:", e);
         }
     },
@@ -346,10 +348,10 @@ export const insights = {
             } else {
                 await this._renderWithTranslation(report, lang, i18n, reportContent);
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("[Insights] Load existing report failed:", e);
             // Guarantee spinner is cleared even on silent failure
-            if (reportContent) insightsRenderer.renderError(reportContent, e.message, i18n);
+            if (reportContent) insightsRenderer.renderError(reportContent, getErrorMessage(e), i18n);
         }
     },
 
@@ -383,9 +385,8 @@ export const insights = {
         btn.disabled = true;
 
         try {
-            const res = await fetch(`/api/reports/${report.id}/export/notion`, { method: 'POST' });
-            const data = await res.json() as { url?: string; error?: string };
-            if (!res.ok || !data.url) throw new Error(data.error ?? 'Export failed');
+            const data = await api.exportReportToNotion(report.id);
+            if (!data.url) throw new Error(data.error ?? 'Export failed');
             window.open(data.url, '_blank');
         } catch (e) {
             alert(`Notion 내보내기 실패: ${e instanceof Error ? e.message : String(e)}`);

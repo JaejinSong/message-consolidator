@@ -115,45 +115,12 @@ export interface AppState {
 
 
 
-export interface I18nEntry {
-    subTitle?: string;
-    realTimeTasks?: string;
-    scanNow?: string;
-    scanning?: string;
-    noTasks?: string;
-    viewOriginal?: string;
-    markDone?: string;
-    delete?: string;
-    assigneeShared?: string;
-    promiseTag?: string;
-    originalNotAvailable?: string;
-    logoutConfirm?: string;
-    disconnectConfirm?: string;
-    policyLabel?: string;
-    queryLabel?: string;
-    promise?: string;
-    waiting?: string;
-    emptyStateMessages?: string[];
-    waConnected?: string;
-    qrError?: string;
-    error?: string;
-    generating?: string;
-    totalCompleted?: string;
-    abandoned?: string;
-    stale?: string;
-    deadlineToday?: string;
-    deadlineTomorrow?: string;
-    deadlineSoon?: string;
-    deadlinePast?: string;
-    dlFilterAll?: string;
-    dlFilterToday?: string;
-    dlFilterWeek?: string;
-    dlFilterHas?: string;
-    reviewStatsTitle?: string;
-    sharedTag?: string;
-    sharedTasks?: string;
-
-}
+// Why: locale dictionaries grew organically with ~220 keys per language and a few array values
+// (glance* templates, emptyStateMessages); a strict named interface would force every UI string
+// to be enumerated. Looser per-entry typing keeps the gain at the dictionary level (typed access
+// by lang code) without forcing exhaustive locale audits.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type I18nEntry = Record<string, any>;
 
 export interface I18nDictionary {
     [lang: string]: I18nEntry;

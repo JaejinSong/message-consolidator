@@ -39,14 +39,8 @@ func (f *GeminiLiteFilter) IsNoise(ctx context.Context, email, source, text stri
 		return false, fmt.Errorf("filter execution error: %w", err)
 	}
 
+	// Why: lite_filter.prompt outputs TRUE=actionable, FALSE=noise.
 	isNoise := strings.TrimSpace(strings.ToUpper(result)) == "FALSE"
-	
-	// If it IS noise (TRUE means Actionable, FALSE means Noise in prompt logic)
-	// Actually, the prompt says:
-	// - PASS (TRUE): Actionable
-	// - IGNORE (FALSE): Noise
-	// So if result is FALSE, it is noise.
-	
 	if isNoise {
 		store.IncrementFilteredCount(email)
 	}

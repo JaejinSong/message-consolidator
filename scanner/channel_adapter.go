@@ -70,9 +70,8 @@ func processChannelRoom(ctx context.Context, user store.User, aliases []string, 
 	groupName := adapter.GetGroupName(user.Email, roomKey)
 	msgGroups := ai.GroupMessagesByTime(msgs, cfg.MessageBatchWindow)
 
-	gc, err := ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
-	if err != nil {
-		logger.Errorf("[%s-LOCK] AI Client Error: %v", adapter.LogPrefix(), err)
+	if gClient == nil {
+		logger.Errorf("[%s-LOCK] gClient not initialized; scanner.Init may have failed", adapter.LogPrefix())
 		return nil
 	}
 
@@ -80,7 +79,7 @@ func processChannelRoom(ctx context.Context, user store.User, aliases []string, 
 
 	var allIDs []store.MessageID
 	for _, group := range msgGroups {
-		ids := processChannelGroup(ctx, user, aliases, roomKey, groupName, group, gc, language, wg, adapter)
+		ids := processChannelGroup(ctx, user, aliases, roomKey, groupName, group, gClient, language, wg, adapter)
 		if len(ids) > 0 {
 			allIDs = append(allIDs, ids...)
 		}

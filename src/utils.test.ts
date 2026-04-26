@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { escapeHTML, formatDisplayTime, safeAsync, setupTabs } from './utils.ts';
+import { ApiError } from './utils/http';
 
 describe('utils.js - escapeHTML', () => {
     it('should escape HTML special characters', () => {
@@ -31,7 +32,7 @@ describe('utils.js - safeAsync (DOM Interaction)', () => {
         // Setup Happy DOM environment
         document.body.innerHTML = '<div id="loginOverlay" class="hidden"></div>';
 
-        const mockFn = vi.fn().mockRejectedValue({ isAuthError: true });
+        const mockFn = vi.fn().mockRejectedValue(new ApiError('unauthorized', 401, true));
         const safeFn = safeAsync(mockFn);
 
         try {
@@ -48,7 +49,7 @@ describe('utils.js - safeAsync (DOM Interaction)', () => {
         // Setup Happy DOM environment
         document.body.innerHTML = '<div id="loginOverlay" class="hidden"></div>';
 
-        const mockFn = vi.fn().mockRejectedValue({ isAuthError: true });
+        const mockFn = vi.fn().mockRejectedValue(new ApiError('unauthorized', 401, true));
         const safeFn = safeAsync(mockFn, { triggerAuthOverlay: true });
 
         try {
