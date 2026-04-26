@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"message-consolidator/logger"
 	"message-consolidator/store"
@@ -9,6 +10,18 @@ import (
 	"strings"
 	"time"
 )
+
+// runTaskTx wraps a multi-statement task transition in a transaction so partial
+// writes can't leak. If the caller already passes *sql.Tx, the existing tx is
+// reused (caller owns commit/rollback). Nil or *sql.DB ⇒ start a new tx.
+func runTaskTx(ctx context.Context, q store.Querier, fn func(q store.Querier) error) error {
+	if tx, ok := q.(*sql.Tx); ok {
+		return fn(tx)
+	}
+	return store.RunInTx(ctx, func(tx *sql.Tx) error {
+		return fn(tx)
+	})
+}
 
 // HandleTaskState routes task operations based on the AI-determined state.
 // Why: Centralizes task state transitions to ensure consistency.
@@ -138,53 +151,75 @@ func handleUpdate(ctx context.Context, q store.Querier, email string, item store
 		return 0, fmt.Errorf("update requested but ID is nil")
 	}
 	id := *item.ID
+	var dropped bool
 
-	existing, err := validateTargetTask(ctx, q, email, id, msg.Room)
-	if err != nil || existing == nil {
+	err := runTaskTx(ctx, q, func(q store.Querier) error {
+		existing, err := validateTargetTask(ctx, q, email, id, msg.Room)
+		if err != nil {
+			return err
+		}
+		if existing == nil {
+			dropped = true
+			return nil
+		}
+		return applyTaskUpdates(ctx, q, email, id, item, msg, existing)
+	})
+	if err != nil || dropped {
 		return 0, err
 	}
-
-	if len(item.Subtasks) > 0 {
-		_ = store.UpdateSubtasks(ctx, q, email, id, mapTodoSubtasksToStore(item.Subtasks))
-	}
-
-	if err := store.UpdateTaskFullAppend(ctx, q, email, msg.Room, id, item.Task, msg.OriginalText); err != nil {
-		return id, err
-	}
-
-	if item.AssignedTo != "" {
-		normalized := store.NormalizeName(ctx, email, item.AssignedTo)
-		// Why (Phase J Path B): @mention reassignment must bump assigned_at to the trigger
-		// envelope timestamp so envelope metadata doesn't go stale. Same assignee = no-op.
-		if existing.Assignee != normalized {
-			_ = store.UpdateTaskAssigneeAndAssignedAt(ctx, q, email, id, normalized, msg.AssignedAt)
-		}
-	}
-
-	merged := append(existing.SourceChannels, msg.Source)
-	_ = store.UpdateTaskSourceChannels(ctx, q, email, id, uniqueStrings(merged))
-
 	return id, nil
 }
 
-func handleResolve(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
-	if q == nil {
-		q = store.GetDB()
+func applyTaskUpdates(ctx context.Context, q store.Querier, email string, id store.MessageID, item store.TodoItem, msg store.ConsolidatedMessage, existing *store.ConsolidatedMessage) error {
+	if len(item.Subtasks) > 0 {
+		if err := store.UpdateSubtasks(ctx, q, email, id, mapTodoSubtasksToStore(item.Subtasks)); err != nil {
+			return err
+		}
 	}
+	if err := store.UpdateTaskFullAppend(ctx, q, email, msg.Room, id, item.Task, msg.OriginalText); err != nil {
+		return err
+	}
+	if err := applyAssigneeChange(ctx, q, email, id, item, msg, existing); err != nil {
+		return err
+	}
+	merged := append(existing.SourceChannels, msg.Source)
+	return store.UpdateTaskSourceChannels(ctx, q, email, id, uniqueStrings(merged))
+}
+
+// Why (Phase J Path B): @mention reassignment must bump assigned_at to the trigger
+// envelope timestamp so envelope metadata doesn't go stale. Same assignee = no-op.
+func applyAssigneeChange(ctx context.Context, q store.Querier, email string, id store.MessageID, item store.TodoItem, msg store.ConsolidatedMessage, existing *store.ConsolidatedMessage) error {
+	if item.AssignedTo == "" {
+		return nil
+	}
+	normalized := store.NormalizeName(ctx, email, item.AssignedTo)
+	if existing.Assignee == normalized {
+		return nil
+	}
+	return store.UpdateTaskAssigneeAndAssignedAt(ctx, q, email, id, normalized, msg.AssignedAt)
+}
+
+func handleResolve(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
 	if item.ID == nil {
 		return 0, fmt.Errorf("resolve requested but ID is nil")
 	}
 	id := *item.ID
+	var dropped bool
 
-	existing, err := validateTargetTask(ctx, q, email, id, msg.Room)
-	if err != nil || existing == nil {
+	err := runTaskTx(ctx, q, func(q store.Querier) error {
+		existing, err := validateTargetTask(ctx, q, email, id, msg.Room)
+		if err != nil || existing == nil {
+			dropped = true
+			return err
+		}
+		if err := store.MarkMessageDone(ctx, q, email, id, true); err != nil {
+			return err
+		}
+		return store.AppendOriginalText(ctx, q, email, msg.Room, id, fmt.Sprintf("[Resolved: %s]\n%s", time.Now().Format("2006-01-02"), msg.OriginalText))
+	})
+	if err != nil || dropped {
 		return 0, err
 	}
-
-	if err := store.MarkMessageDone(ctx, q, email, id, true); err != nil {
-		return id, err
-	}
-	_ = store.AppendOriginalText(ctx, q, email, msg.Room, id, fmt.Sprintf("[Resolved: %s]\n%s", time.Now().Format("2006-01-02"), msg.OriginalText))
 	return id, nil
 }
 

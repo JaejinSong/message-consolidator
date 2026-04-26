@@ -128,11 +128,16 @@ func syncCacheBatch(langCode string, results map[MessageID]string) {
 
 // InvalidateTaskTranslation removes a task's translation from both the in-memory cache
 // and the DB so it will be re-translated JIT on the next dashboard load.
-func InvalidateTaskTranslation(ctx context.Context, messageID MessageID) {
+// Why: q must reuse the caller's tx — grabbing a fresh connection mid-transaction
+// would deadlock under tight pools (test maxOpen=1, libsql idle=0).
+func InvalidateTaskTranslation(ctx context.Context, q Querier, messageID MessageID) {
 	translationMu.Lock()
 	for _, langCache := range translationCache {
 		delete(langCache, messageID)
 	}
 	translationMu.Unlock()
-	_ = db.New(GetDB()).DeleteTaskTranslations(ctx, nullInt64(int64(messageID)))
+	if q == nil {
+		q = GetDB()
+	}
+	_ = db.New(q).DeleteTaskTranslations(ctx, nullInt64(int64(messageID)))
 }
