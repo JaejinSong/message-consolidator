@@ -93,6 +93,10 @@ func ResetForTest() {
 	archiveInitialized = make(map[string]bool)
 	cacheMu.Unlock()
 
+	autoUpsertCacheMu.Lock()
+	autoUpsertCache = make(map[string]string)
+	autoUpsertCacheMu.Unlock()
+
 	// Why: tests recreate the in-memory DB between cases, so the once-guard must reset
 	// to allow the contact_resolution backfill to re-run against the fresh schema.
 	migrateContactResolutionOnce = sync.Once{}

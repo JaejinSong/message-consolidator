@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"message-consolidator/internal/testutil"
+	"strings"
 	"testing"
 )
 
@@ -240,5 +241,63 @@ func TestAutoUpsertContact(t *testing.T) {
 	}
 	if displayName != "User 1" {
 		t.Errorf("Expected display_name 'User 1', got '%s'", displayName)
+	}
+}
+
+// Why: Regression for the "no-op scan still emits 5×N contact SQL" trace. With the
+// in-process autoUpsertCache, a repeat AutoUpsertContact for an unchanged
+// (tenant, canonical, displayName) tuple must short-circuit before issuing SQL.
+// We verify by directly mutating the DB row out-of-band and re-calling the upsert —
+// if the cache works, the second call is a no-op and the out-of-band value persists.
+func TestAutoUpsertContact_CacheSkipsRepeatUpsert(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	tenant := testutil.RandomEmail("cache-tenant")
+	email := testutil.RandomEmail("cache-user")
+	ctx := t.Context()
+
+	if err := AutoUpsertContact(ctx, tenant, email, "Alice", "test"); err != nil {
+		t.Fatalf("first upsert: %v", err)
+	}
+
+	// Mutate the row out-of-band — UpsertContact would overwrite this on a real call.
+	if _, err := GetDB().ExecContext(ctx,
+		"UPDATE contacts SET display_name = ? WHERE tenant_email = ? AND canonical_id = ?",
+		"Alice [pinned by admin]", tenant, strings.ToLower(email),
+	); err != nil {
+		t.Fatalf("out-of-band update: %v", err)
+	}
+
+	if err := AutoUpsertContact(ctx, tenant, email, "Alice", "test"); err != nil {
+		t.Fatalf("second upsert: %v", err)
+	}
+
+	var got string
+	if err := GetDB().QueryRowContext(ctx,
+		"SELECT display_name FROM contacts WHERE tenant_email = ? AND canonical_id = ?",
+		tenant, strings.ToLower(email),
+	).Scan(&got); err != nil {
+		t.Fatalf("readback: %v", err)
+	}
+	if got != "Alice [pinned by admin]" {
+		t.Errorf("cache miss: expected out-of-band value preserved, got %q (UpsertContact ran when it shouldn't have)", got)
+	}
+
+	// Display-name change must invalidate the cache entry — third call with a new name re-upserts.
+	if err := AutoUpsertContact(ctx, tenant, email, "Alice Updated", "test"); err != nil {
+		t.Fatalf("third upsert: %v", err)
+	}
+	if err := GetDB().QueryRowContext(ctx,
+		"SELECT display_name FROM contacts WHERE tenant_email = ? AND canonical_id = ?",
+		tenant, strings.ToLower(email),
+	).Scan(&got); err != nil {
+		t.Fatalf("readback after rename: %v", err)
+	}
+	if got != "Alice Updated" {
+		t.Errorf("expected rename to take effect, got %q", got)
 	}
 }

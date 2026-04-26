@@ -10,9 +10,23 @@ import (
 	"message-consolidator/logger"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/whatap/go-api/trace"
+)
+
+// autoUpsertCache memoizes (tenantEmail, canonicalID) → displayName from the last
+// successful AutoUpsertContact call so that repeat scans of the same Gmail boundary
+// messages skip the contacts/contact_resolution SQL chain entirely. A no-op scan
+// cycle previously emitted ~5 SQL per recurring sender (INSERT contacts + SELECT
+// tenant_email + UPDATE contacts + 2x INSERT contact_resolution) for senders the
+// scanner had already registered. The cache resets on process restart; the first
+// cycle after restart still re-upserts (UpsertContactMapping uses ON CONFLICT DO
+// UPDATE so it is idempotent at the DB level) and warms the cache.
+var (
+	autoUpsertCacheMu sync.RWMutex
+	autoUpsertCache   = make(map[string]string)
 )
 
 var ErrAmbiguousIdentity = errors.New("ambiguous identity match")
@@ -119,22 +133,41 @@ func AutoUpsertContact(ctx context.Context, tenantEmail, email, name, source str
 	newName := strings.TrimSpace(name)
 	isValidName := newName != "" && !strings.Contains(newName, "@") && strings.ToLower(newName) != canonicalID
 
+	displayName := canonicalID
+	if isValidName {
+		displayName = newName
+	}
+
+	cacheKey := tenantEmail + "|" + canonicalID
+	autoUpsertCacheMu.RLock()
+	cachedName, cacheHit := autoUpsertCache[cacheKey]
+	autoUpsertCacheMu.RUnlock()
+	if cacheHit && cachedName == displayName {
+		return nil
+	}
+
 	if !isValidName {
 		rows, _ := db.New(GetDB()).GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{
 			TenantEmail: tenantEmail,
 			Identifiers: []string{NormalizeIdentifier(canonicalID)},
 		})
 		if len(rows) > 0 {
+			rememberAutoUpsert(cacheKey, displayName)
 			return nil
 		}
 	}
 
-	displayName := canonicalID
-	if isValidName {
-		displayName = newName
-	}
 	_, err := UpsertContact(ctx, tenantEmail, canonicalID, displayName, newName, source)
+	if err == nil {
+		rememberAutoUpsert(cacheKey, displayName)
+	}
 	return err
+}
+
+func rememberAutoUpsert(cacheKey, displayName string) {
+	autoUpsertCacheMu.Lock()
+	autoUpsertCache[cacheKey] = displayName
+	autoUpsertCacheMu.Unlock()
 }
 
 func SaveWhatsAppContact(ctx context.Context, email, number, name string) error {
