@@ -182,9 +182,6 @@ func saveChannelItem(ctx context.Context, user store.User, aliases []string, ite
 	}
 	msg := BuildConsolidatedMessage(params, aliases)
 
-	if id, _ := services.RouteTaskByStatus(ctx, nil, user.Email, item, msg); id > 0 {
-		return id
-	}
 	id, _ := services.HandleTaskState(ctx, nil, user.Email, item, msg)
 	return id
 }

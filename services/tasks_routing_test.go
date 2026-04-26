@@ -7,9 +7,11 @@ import (
 	"testing"
 )
 
-func TestRouteTaskByStatus_Resolve(t *testing.T) {
-	// Why: Use testutil.SetupTestDB instead of hardcoded in-memory DSN.
-	// modernc.org/sqlite ignores cache=shared, causing empty DB per connection.
+// Why: scanner/Slack pipelines feed AI's `status` key as TodoItem.Status. HandleTaskState
+// must normalize status → state and resolve the existing task without inserting a duplicate.
+// (Prior to Phase B this path went through RouteTaskByStatus; the dispatcher was removed
+// because the carved-out cases were a strict subset of routeTaskState's own switch.)
+func TestHandleTaskState_StatusResolveNormalizesAndCloses(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
@@ -22,7 +24,6 @@ func TestRouteTaskByStatus_Resolve(t *testing.T) {
 	email := "test@example.com"
 	room := "General"
 
-	// 1. Create a dummy task
 	taskID, err := db.Exec("INSERT INTO messages (user_email, source, room, task, category, done) VALUES (?, 'slack', ?, 'Existing Task', 'TASK', 0)", email, room)
 	if err != nil {
 		t.Fatalf("failed to insert dummy task: %v", err)
@@ -30,7 +31,6 @@ func TestRouteTaskByStatus_Resolve(t *testing.T) {
 	id64, _ := taskID.LastInsertId()
 	id := store.MessageID(id64)
 
-	// 2. Mock AI returning 'resolve' status for this ID
 	item := store.TodoItem{
 		ID:     &id,
 		Status: "resolve",
@@ -42,32 +42,24 @@ func TestRouteTaskByStatus_Resolve(t *testing.T) {
 		Room:      room,
 	}
 
-	// 3. Execute Routing
-	resID, err := RouteTaskByStatus(ctx, nil, email, item, msg)
+	resID, err := HandleTaskState(ctx, nil, email, item, msg)
 	if err != nil {
-		t.Fatalf("RouteTaskByStatus failed: %v", err)
+		t.Fatalf("HandleTaskState failed: %v", err)
 	}
-
 	if resID != id {
 		t.Errorf("expected resID %d, got %d", id, resID)
 	}
 
-	// 4. Verify DB state (should be done)
 	var done int
-	row := db.QueryRow("SELECT done FROM messages WHERE id = ?", id)
-	err = row.Scan(&done)
-	if err != nil {
+	if err := db.QueryRow("SELECT done FROM messages WHERE id = ?", id).Scan(&done); err != nil {
 		t.Fatalf("failed to query task status: %v", err)
 	}
-
 	if done != 1 {
 		t.Errorf("expected task %d to be done, but it is not", id)
 	}
 
-	// 5. Verify no new records were created (count should still be 1)
 	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM messages").Scan(&count)
-	if err != nil {
+	if err := db.QueryRow("SELECT COUNT(*) FROM messages").Scan(&count); err != nil {
 		t.Fatalf("failed to query message count: %v", err)
 	}
 	if count != 1 {
@@ -168,24 +160,3 @@ func TestHandleTaskState_NewConsolidatesExistingThreadTask(t *testing.T) {
 	}
 }
 
-func TestRouteTaskByStatus_New(t *testing.T) {
-	ctx := context.Background()
-	email := "test@example.com"
-
-	item := store.TodoItem{
-		Status: "new",
-		Task:   "New Task",
-	}
-	msg := store.ConsolidatedMessage{
-		UserEmail: email,
-	}
-
-	resID, err := RouteTaskByStatus(ctx, nil, email, item, msg)
-	if err != nil {
-		t.Fatalf("RouteTaskByStatus failed: %v", err)
-	}
-
-	if resID != 0 {
-		t.Errorf("expected resID 0 for 'new' status, got %d", resID)
-	}
-}

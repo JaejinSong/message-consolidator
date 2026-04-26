@@ -657,12 +657,6 @@ func processSlackItems(ctx context.Context, user *store.User, items []store.Todo
 		}
 		msg := mapSlackItemToMessage(ctx, item, m, user, aliases, sc)
 
-		// Routing Logic: Identifies resolve/update status before insertion.
-		if id, _ := services.RouteTaskByStatus(ctx, nil, user.Email, item, msg); id > 0 {
-			newIDs = append(newIDs, id)
-			continue
-		}
-
 		id, err := services.HandleTaskState(ctx, nil, user.Email, item, msg)
 		if err == nil && id > 0 {
 			newIDs = append(newIDs, id)

@@ -100,12 +100,12 @@ func TestHandleResolve_AutoTx_AppliesBothMarkDoneAndAppend(t *testing.T) {
 		OriginalText: "그건 끝났어요",
 	}
 
-	got, err := RouteTaskByStatus(context.Background(), nil, email, item, msg)
+	got, err := HandleTaskState(context.Background(), nil, email, item, msg)
 	if err != nil {
-		t.Fatalf("RouteTaskByStatus: %v", err)
+		t.Fatalf("HandleTaskState: %v", err)
 	}
 	if got != id {
-		t.Fatalf("RouteTaskByStatus id = %d, want %d", got, id)
+		t.Fatalf("HandleTaskState id = %d, want %d", got, id)
 	}
 
 	var done int

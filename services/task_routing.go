@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"message-consolidator/logger"
 	"message-consolidator/store"
-	"message-consolidator/types"
-	"strings"
 	"time"
 )
 
@@ -52,22 +50,6 @@ func HandleTaskState(ctx context.Context, q store.Querier, email string, item st
 	})
 
 	return resID, err
-}
-
-// RouteTaskByStatus provides a single-entry routing point for higher-level callers.
-// Returns 0 for new/unhandled cases so the bulk INSERT pipeline takes over.
-func RouteTaskByStatus(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
-	status := strings.ToLower(item.Status)
-	if status == "resolve" || status == "done" {
-		return handleResolve(ctx, q, email, item, msg)
-	}
-	if status == "update" && (msg.Category == string(types.CategoryTask) || msg.Category == "TASK") {
-		return handleUpdate(ctx, q, email, item, msg)
-	}
-	if status == "cancel" {
-		return handleCancel(ctx, q, email, item)
-	}
-	return 0, nil
 }
 
 func routeTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
