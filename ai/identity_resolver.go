@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/generative-ai-go/genai"
+	"github.com/whatap/go-api/trace"
 )
 
 // IdentityResolver uses Gemini to propose groups of contacts that are likely the same person.
@@ -68,10 +69,12 @@ func (r *IdentityResolver) proposeChunk(ctx context.Context, contacts []store.Co
 	}
 
 	model := r.client.initModel(r.client.getEffectiveModel(parsed, r.client.analysisModel), 0.1, 0, "", "")
+	start := time.Now()
 	resp, err := generateWithRetry(ctx, model, genai.Text(rendered), 300*time.Second, 2)
 	if err != nil {
 		return nil, err
 	}
+	_ = trace.Step(ctx, "Gemini-IdentityResolve", "", int(time.Since(start).Milliseconds()), len(contacts))
 
 	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
 		return nil, nil

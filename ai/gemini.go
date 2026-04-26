@@ -236,11 +236,13 @@ func (g *GeminiClient) EvaluateTaskTransition(ctx context.Context, email, parent
 
 	modelName := g.getEffectiveModel(parsed, g.analysisModel)
 	model := g.initModel(modelName, 0.1, 1024, "application/json", rendered)
+	start := time.Now()
 	resp, err := generateWithRetry(ctx, model, genai.Text(""), 30*time.Second, 2)
 	if err != nil {
 		return TaskTransition{}, err
 	}
 
+	_ = trace.Step(ctx, "Gemini-EvaluateTransition", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "EvaluateTransition", modelName, "", 0, resp)
 	raw, err := extractResponseText(resp)
 	if err != nil {
@@ -298,11 +300,13 @@ func (g *GeminiClient) GenerateVisualizationData(ctx context.Context, email stri
 	model.ResponseSchema = schema
 
 	prompt := fmt.Sprintf("Extract task network graph (Nodes=People, Links=Handover/Mention) from these logs:\n%s", tasks)
+	start := time.Now()
 	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 60*time.Second, 2)
 	if err != nil {
 		return "", err
 	}
 
+	_ = trace.Step(ctx, "Gemini-Visualization", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "ReportVizData", g.analysisModel, "", reportID, resp)
 	return extractResponseText(resp)
 }
@@ -697,11 +701,13 @@ func (g *GeminiClient) CallGenericAPI(ctx context.Context, email, step, source, 
 	model.SafetySettings = relaxedSafetySettings
 	model.SetTemperature(0.1)
 
+	start := time.Now()
 	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 30*time.Second, 2)
 	if err != nil {
 		return "", err
 	}
 
+	_ = trace.Step(ctx, "Gemini-"+step, "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, step, modelName, source, 0, resp)
 	return extractResponseText(resp)
 }
