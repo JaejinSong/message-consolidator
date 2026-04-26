@@ -4,11 +4,12 @@
  */
 
 import { AppState, UserProfile, CategorizedMessages, IReportData, Message } from './types';
+import { STORAGE_KEYS, storage } from './storage';
 
 export const state: AppState = {
     userProfile: { email: "", picture: "", name: "", points: 0, streak: 0, streak_freezes: 0 },
-    currentLang: (typeof localStorage !== 'undefined') ? (localStorage.getItem('mc_lang') || 'en') : 'en',
-    currentTheme: (typeof localStorage !== 'undefined') ? (localStorage.getItem('mc_theme') || 'dark') : 'dark',
+    currentLang: storage.get(STORAGE_KEYS.LANG, 'en'),
+    currentTheme: storage.get(STORAGE_KEYS.THEME, 'dark'),
     waConnected: false,
     gmailConnected: false,
     archivePage: 1,
@@ -34,9 +35,7 @@ export const state: AppState = {
  */
 export const updateLang = (lang: string): void => {
     state.currentLang = lang;
-    if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('mc_lang', lang);
-    }
+    storage.set(STORAGE_KEYS.LANG, lang);
 };
 
 /**
@@ -44,9 +43,7 @@ export const updateLang = (lang: string): void => {
  */
 export const updateTheme = (theme: string): void => {
     state.currentTheme = theme;
-    if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('mc_theme', theme);
-    }
+    storage.set(STORAGE_KEYS.THEME, theme);
 };
 
 /**
