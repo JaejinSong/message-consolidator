@@ -33,4 +33,14 @@ export function updateUserProfile(profile: UserProfile | null): void {
             userPic.classList.add('hidden');
         }
     }
+
+    toggleAdminVisibility(Boolean(profile.is_admin || profile.is_super_admin));
+}
+
+// Why: super admin or delegated admin sees the Admin tab; everyone else stays unaware.
+// Toggling on the button alone is enough — clicking activates the panel via setupTabs.
+function toggleAdminVisibility(showAdmin: boolean): void {
+    const adminTabBtn = document.querySelector<HTMLElement>('[data-settings-tab="adminTab"]');
+    if (!adminTabBtn) return;
+    adminTabBtn.classList.toggle('hidden', !showAdmin);
 }

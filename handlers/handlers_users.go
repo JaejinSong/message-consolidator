@@ -50,12 +50,20 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	a.autoPopulateSlackAliases(r.Context(), user)
 	tokenUsage := a.gatherTokenUsageStats(r.Context(), email)
 
+	// Why: super admin is hardcoded so it stays admin even if its DB row predates the is_admin column.
+	isSuper := store.IsSuperAdmin(email)
+	if isSuper {
+		user.IsAdmin = true
+	}
+
 	respondJSON(w, http.StatusOK, struct {
 		*store.User
-		TokenUsage tokenUsageResponse `json:"token_usage"`
+		IsSuperAdmin bool               `json:"is_super_admin"`
+		TokenUsage   tokenUsageResponse `json:"token_usage"`
 	}{
-		User:       user,
-		TokenUsage: tokenUsage,
+		User:         user,
+		IsSuperAdmin: isSuper,
+		TokenUsage:   tokenUsage,
 	})
 }
 

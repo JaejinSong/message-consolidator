@@ -212,6 +212,24 @@ func SetSessionCookie(w http.ResponseWriter, email string) {
 	})
 }
 
+// AdminMiddleware enforces administrator privilege for the wrapped handler. Wraps AuthMiddleware
+// so unauthenticated requests still receive the standard 401, while authenticated non-admins
+// receive 403. Super admin (jjsong@whatap.io) is always allowed; other admins are toggled via
+// `users.is_admin`.
+func AdminMiddleware(next http.Handler) http.Handler {
+	return AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		email := GetUserEmail(r)
+		if !store.IsAdmin(r.Context(), email) {
+			logger.Warnf("[AUTH] Admin access denied for %s on %s", email, r.URL.Path)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(authError{Error: "admin only", Code: http.StatusForbidden})
+			return
+		}
+		next.ServeHTTP(w, r)
+	}))
+}
+
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if AuthDisabled {

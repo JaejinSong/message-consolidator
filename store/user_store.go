@@ -212,6 +212,7 @@ func fromDBUser(row db.User) User {
 		WAJID:     row.WaJid.String,
 		TgUserID:  row.TgUserID.String,
 		Picture:   row.Picture.String,
+		IsAdmin:   row.IsAdmin != 0,
 		CreatedAt: row.CreatedAt.Time,
 	}
 }

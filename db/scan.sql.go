@@ -120,15 +120,26 @@ SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, created_at
 FROM users
 `
 
-func (q *Queries) LoadUsersAll(ctx context.Context) ([]User, error) {
+type LoadUsersAllRow struct {
+	ID        int64          `json:"id"`
+	Email     sql.NullString `json:"email"`
+	Name      sql.NullString `json:"name"`
+	SlackID   sql.NullString `json:"slack_id"`
+	WaJid     sql.NullString `json:"wa_jid"`
+	TgUserID  sql.NullString `json:"tg_user_id"`
+	Picture   sql.NullString `json:"picture"`
+	CreatedAt sql.NullTime   `json:"created_at"`
+}
+
+func (q *Queries) LoadUsersAll(ctx context.Context) ([]LoadUsersAllRow, error) {
 	rows, err := q.db.QueryContext(ctx, loadUsersAll)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []LoadUsersAllRow
 	for rows.Next() {
-		var i User
+		var i LoadUsersAllRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,

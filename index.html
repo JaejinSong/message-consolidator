@@ -435,6 +435,8 @@
                         data-i18n="tabMappings">Name Mappings</button>
                     <button class="c-settings__tab" data-settings-tab="tokenUsageTab"
                         data-i18n="tabTokenUsage">Token Usage</button>
+                    <button class="c-settings__tab c-settings__tab--admin hidden" data-settings-tab="adminTab"
+                        data-i18n="tabAdmin">Admin</button>
                 </aside>
                 <div class="c-settings__main">
                     <!-- General Tab -->
@@ -485,6 +487,24 @@
                             <h4 class="c-settings__section-title" data-i18n="tokenMenuTitle">Token Usage Monitoring</h4>
                             <p class="c-settings__section-desc" data-i18n="tokenMenuDesc">Monitor your Gemini AI API token usage.</p>
                             <div id="settingsTokenUsageContainer"></div>
+                        </section>
+                    </div>
+
+                    <!-- Admin Tab -->
+                    <div id="adminTab" class="c-settings__panel">
+                        <section class="c-settings__section">
+                            <h4 class="c-settings__section-title" data-i18n="adminSettingsTitle">환경 설정 관리</h4>
+                            <p class="c-settings__section-desc" data-i18n="adminSettingsDesc">.env에 정의된 값을 UI에서 직접 갱신합니다. 시크릿은 마스킹되며, 빈 값으로 저장하면 .env 기본값으로 되돌아갑니다.</p>
+                            <div id="adminSettingsList" class="c-admin-settings"></div>
+                        </section>
+                        <section class="c-settings__section">
+                            <h4 class="c-settings__section-title" data-i18n="adminAdminsTitle">관리자 위임</h4>
+                            <p class="c-settings__section-desc" data-i18n="adminAdminsDesc">Super admin은 변경할 수 없습니다. 추가 관리자는 이메일로 위임/회수합니다.</p>
+                            <div id="adminAdminsList" class="c-admin-admins"></div>
+                            <div class="c-admin-admins__form">
+                                <input type="email" id="adminAddAdminInput" class="c-input" placeholder="user@example.com" />
+                                <button type="button" id="adminAddAdminBtn" class="c-btn c-btn--primary" data-i18n="adminGrantBtn">관리자 위임</button>
+                            </div>
                         </section>
                     </div>
                 </div>

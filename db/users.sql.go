@@ -11,7 +11,7 @@ import (
 )
 
 const getAllUsers = `-- name: GetAllUsers :many
-SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, created_at FROM users
+SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, is_admin, created_at FROM users
 `
 
 func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
@@ -31,6 +31,7 @@ func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
 			&i.WaJid,
 			&i.TgUserID,
 			&i.Picture,
+			&i.IsAdmin,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -76,7 +77,7 @@ func (q *Queries) GetUserAliasesByEmail(ctx context.Context, email sql.NullStrin
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, created_at FROM users WHERE email = ?1
+SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, is_admin, created_at FROM users WHERE email = ?1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email sql.NullString) (User, error) {
@@ -90,6 +91,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email sql.NullString) (Use
 		&i.WaJid,
 		&i.TgUserID,
 		&i.Picture,
+		&i.IsAdmin,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -107,7 +109,7 @@ func (q *Queries) GetUserByEmailSimple(ctx context.Context, email sql.NullString
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, created_at FROM users WHERE id = CAST(?1 AS INTEGER)
+SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, is_admin, created_at FROM users WHERE id = CAST(?1 AS INTEGER)
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, dollar_1 int64) (User, error) {
@@ -121,9 +123,61 @@ func (q *Queries) GetUserByID(ctx context.Context, dollar_1 int64) (User, error)
 		&i.WaJid,
 		&i.TgUserID,
 		&i.Picture,
+		&i.IsAdmin,
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listAdminUsers = `-- name: ListAdminUsers :many
+SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, is_admin, created_at FROM users WHERE is_admin = 1
+`
+
+func (q *Queries) ListAdminUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, listAdminUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Name,
+			&i.SlackID,
+			&i.WaJid,
+			&i.TgUserID,
+			&i.Picture,
+			&i.IsAdmin,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setUserAdmin = `-- name: SetUserAdmin :exec
+UPDATE users SET is_admin = ?2 WHERE email = ?1
+`
+
+type SetUserAdminParams struct {
+	Email   sql.NullString `json:"email"`
+	IsAdmin int64          `json:"is_admin"`
+}
+
+func (q *Queries) SetUserAdmin(ctx context.Context, arg SetUserAdminParams) error {
+	_, err := q.db.ExecContext(ctx, setUserAdmin, arg.Email, arg.IsAdmin)
+	return err
 }
 
 const updateUserDetails = `-- name: UpdateUserDetails :exec
@@ -164,7 +218,7 @@ VALUES (?1, ?2, ?3)
 ON CONFLICT(email) DO UPDATE SET
     name = COALESCE(NULLIF(EXCLUDED.name, ''), users.name),
     picture = COALESCE(NULLIF(EXCLUDED.picture, ''), users.picture)
-RETURNING id, email, name, slack_id, wa_jid, tg_user_id, picture, created_at
+RETURNING id, email, name, slack_id, wa_jid, tg_user_id, picture, is_admin, created_at
 `
 
 type UpsertUserParams struct {
@@ -184,6 +238,7 @@ func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (User, e
 		&i.WaJid,
 		&i.TgUserID,
 		&i.Picture,
+		&i.IsAdmin,
 		&i.CreatedAt,
 	)
 	return i, err

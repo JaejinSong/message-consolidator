@@ -34,6 +34,11 @@ func (a *API) protected(h http.HandlerFunc) http.Handler {
 	return auth.AuthMiddleware(http.HandlerFunc(h))
 }
 
+// adminProtected wraps an API handler in the admin middleware (auth + super/is_admin check).
+func (a *API) adminProtected(h http.HandlerFunc) http.Handler {
+	return auth.AdminMiddleware(http.HandlerFunc(h))
+}
+
 func (a *API) registerAuthRoutes(r *mux.Router) {
 	r.HandleFunc("/auth/login", auth.HandleGoogleLogin).Methods("GET")
 	r.HandleFunc("/auth/callback", a.handleAuthCallback).Methods("GET")
@@ -138,9 +143,17 @@ func (a *API) registerIdentityRoutes(r *mux.Router) {
 }
 
 func (a *API) registerAdminRoutes(r *mux.Router) {
-	r.Handle("/api/admin/reclassify", a.protected(a.HandleReclassifyOldData)).Methods("GET")
-	r.Handle("/api/admin/invalidate-cache", a.protected(a.HandleInvalidateCache)).Methods("POST")
-	r.Handle("/api/admin/restore-gmail-cc", a.protected(a.HandleRestoreGmailCC)).Methods("GET")
+	// Why: previously these were only `protected` (any authenticated user). Tightened to admin-only
+	// alongside the new admin surface — operational endpoints should never be reachable by tenants.
+	r.Handle("/api/admin/reclassify", a.adminProtected(a.HandleReclassifyOldData)).Methods("GET")
+	r.Handle("/api/admin/invalidate-cache", a.adminProtected(a.HandleInvalidateCache)).Methods("POST")
+	r.Handle("/api/admin/restore-gmail-cc", a.adminProtected(a.HandleRestoreGmailCC)).Methods("GET")
+
+	r.Handle("/api/admin/settings", a.adminProtected(a.HandleListAdminSettings)).Methods("GET")
+	r.Handle("/api/admin/settings/{key}", a.adminProtected(a.HandleUpdateAdminSetting)).Methods("PUT")
+	r.Handle("/api/admin/admins", a.adminProtected(a.HandleListAdmins)).Methods("GET")
+	r.Handle("/api/admin/admins", a.adminProtected(a.HandleAddAdmin)).Methods("POST")
+	r.Handle("/api/admin/admins/{email}", a.adminProtected(a.HandleRemoveAdmin)).Methods("DELETE")
 }
 
 func (a *API) registerReportRoutes(r *mux.Router) {

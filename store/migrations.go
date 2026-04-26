@@ -40,6 +40,7 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 		{"token_usage", queries.CreateTokenUsageTable},
 		{"telegram_sessions", queries.CreateTelegramSessionsTable},
 		{"telegram_credentials", queries.CreateTelegramCredentialsTable},
+		{"app_settings", queries.CreateAppSettingsTable},
 	} {
 		if err := step.fn(ctx); err != nil {
 			return fmt.Errorf("failed to create %s table: %w", step.name, err)
@@ -132,6 +133,12 @@ func migrateExistingData(ctx context.Context, q db.DBTX) {
 	if !tableHasColumn(ctx, q, "users", "tg_user_id") {
 		_, _ = q.ExecContext(ctx, "ALTER TABLE users ADD COLUMN tg_user_id TEXT DEFAULT ''")
 	}
+
+	if !tableHasColumn(ctx, q, "users", "is_admin") {
+		_, _ = q.ExecContext(ctx, "ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
+	}
+	// Why: super admin email is hardcoded; backfill flag if the row was created before the column existed.
+	_, _ = q.ExecContext(ctx, "UPDATE users SET is_admin = 1 WHERE email = ?1 AND is_admin = 0", SuperAdminEmail)
 
 	migrateTokenUsageBreakdown(ctx, q)
 	migrateTokenUsageReportID(ctx, q)

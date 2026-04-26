@@ -30,6 +30,7 @@ import {
 } from './renderer';
 import { bindTelegramModal } from './renderers/telegram-modal-renderer';
 import { setupConnectionsTab, renderConnections, rerenderConnections, ConnectionsState } from './renderers/connections-renderer';
+import { renderAdminPanel } from './renderers/admin-renderer';
 import { I18nDictionary, ServiceHandlers, UserProfile, CategorizedMessages } from './types';
 import { archive } from './archive';
 import { modals } from './modals';
@@ -668,6 +669,8 @@ const initApp = () => {
             modals.fetchTokenUsage();
         } else if (tabId === 'connectionsTab') {
             setupConnectionsTab();
+        } else if (tabId === 'adminTab') {
+            void renderAdminPanel();
         }
     });
     setTimeout(() => (document.querySelector('[data-tab="receivedTasksTab"]') as HTMLElement)?.click(), 500);

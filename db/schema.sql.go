@@ -25,6 +25,20 @@ func (q *Queries) CreateAIInferenceLogsTable(ctx context.Context) error {
 	return err
 }
 
+const createAppSettingsTable = `-- name: CreateAppSettingsTable :exec
+CREATE TABLE IF NOT EXISTS app_settings (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL DEFAULT '',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_by TEXT NOT NULL DEFAULT ''
+)
+`
+
+func (q *Queries) CreateAppSettingsTable(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, createAppSettingsTable)
+	return err
+}
+
 const createContactResolutionTable = `-- name: CreateContactResolutionTable :exec
 CREATE TABLE IF NOT EXISTS contact_resolution (
     tenant_email TEXT NOT NULL,
@@ -399,6 +413,7 @@ CREATE TABLE IF NOT EXISTS users (
     wa_jid TEXT,
     tg_user_id TEXT DEFAULT '',
     picture TEXT,
+    is_admin INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )
 `

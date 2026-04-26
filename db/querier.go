@@ -15,6 +15,7 @@ type Querier interface {
 	ArchiveOldTasks(ctx context.Context, datetime interface{}) (int64, error)
 	CloseSlackThread(ctx context.Context, arg CloseSlackThreadParams) error
 	CreateAIInferenceLogsTable(ctx context.Context) error
+	CreateAppSettingsTable(ctx context.Context) error
 	CreateContactResolutionTable(ctx context.Context) error
 	// Views
 	CreateContactsResolvedView(ctx context.Context) error
@@ -40,6 +41,7 @@ type Querier interface {
 	// Consolidated Schema for sqlc (SQLite)
 	// NOTE: CREATE INDEX statements are stripped by sqlc and must be defined in createIndexes() in migrations.go.
 	CreateUsersTable(ctx context.Context) error
+	DeleteAppSetting(ctx context.Context, key string) error
 	DeleteContactMapping(ctx context.Context, arg DeleteContactMappingParams) error
 	DeleteGmailToken(ctx context.Context, userEmail string) error
 	DeleteMessages(ctx context.Context, arg DeleteMessagesParams) error
@@ -58,6 +60,7 @@ type Querier interface {
 	GetAllTenantAliases(ctx context.Context) ([]GetAllTenantAliasesRow, error)
 	GetAllUserAliases(ctx context.Context) ([]GetAllUserAliasesRow, error)
 	GetAllUsers(ctx context.Context) ([]User, error)
+	GetAppSetting(ctx context.Context, key string) (AppSetting, error)
 	GetCompletionHistory(ctx context.Context, arg GetCompletionHistoryParams) ([]GetCompletionHistoryRow, error)
 	GetContactByID(ctx context.Context, arg GetContactByIDParams) (GetContactByIDRow, error)
 	GetContactTypeByID(ctx context.Context, arg GetContactTypeByIDParams) (sql.NullString, error)
@@ -122,11 +125,13 @@ type Querier interface {
 	InsertReportTranslation(ctx context.Context, arg InsertReportTranslationParams) error
 	IsMessageProcessed(ctx context.Context, arg IsMessageProcessedParams) (int64, error)
 	IsSourceTSProcessed(ctx context.Context, arg IsSourceTSProcessedParams) (int64, error)
+	ListAdminUsers(ctx context.Context) ([]User, error)
+	ListAppSettings(ctx context.Context) ([]AppSetting, error)
 	ListReports(ctx context.Context, userEmail string) ([]ListReportsRow, error)
 	LoadContactsAll(ctx context.Context) ([]LoadContactsAllRow, error)
 	LoadGmailTokensAll(ctx context.Context) ([]LoadGmailTokensAllRow, error)
 	LoadScanMetadataAll(ctx context.Context) ([]LoadScanMetadataAllRow, error)
-	LoadUsersAll(ctx context.Context) ([]User, error)
+	LoadUsersAll(ctx context.Context) ([]LoadUsersAllRow, error)
 	MarkSourceTSProcessed(ctx context.Context, arg MarkSourceTSProcessedParams) error
 	RefreshCacheActive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheActiveRow, error)
 	RefreshCacheArchive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheArchiveRow, error)
@@ -137,6 +142,7 @@ type Querier interface {
 	SearchArchivedMessages(ctx context.Context, arg SearchArchivedMessagesParams) ([]SearchArchivedMessagesRow, error)
 	SearchArchivedMessagesCount(ctx context.Context, arg SearchArchivedMessagesCountParams) (int64, error)
 	SearchContacts(ctx context.Context, arg SearchContactsParams) ([]SearchContactsRow, error)
+	SetUserAdmin(ctx context.Context, arg SetUserAdminParams) error
 	UpdateCategoryMerged(ctx context.Context, arg UpdateCategoryMergedParams) error
 	UpdateContactDetails(ctx context.Context, arg UpdateContactDetailsParams) error
 	UpdateDisplayNameIfEmpty(ctx context.Context, arg UpdateDisplayNameIfEmptyParams) error
@@ -148,6 +154,7 @@ type Querier interface {
 	UpdateTaskFullAppend(ctx context.Context, arg UpdateTaskFullAppendParams) error
 	UpdateTaskMergeComplete(ctx context.Context, arg UpdateTaskMergeCompleteParams) error
 	UpdateUserDetails(ctx context.Context, arg UpdateUserDetailsParams) error
+	UpsertAppSetting(ctx context.Context, arg UpsertAppSettingParams) error
 	UpsertContactMapping(ctx context.Context, arg UpsertContactMappingParams) (int64, error)
 	UpsertContactResolution(ctx context.Context, arg UpsertContactResolutionParams) error
 	UpsertGmailToken(ctx context.Context, arg UpsertGmailTokenParams) error

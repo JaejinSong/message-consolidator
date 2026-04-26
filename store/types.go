@@ -92,6 +92,7 @@ type User struct {
 	WAJID           string     `json:"wa_jid"`
 	TgUserID        string     `json:"tg_user_id"`
 	Picture         string     `json:"picture"`
+	IsAdmin         bool       `json:"is_admin"`
 	Aliases         []string   `json:"aliases"`
 	ArchiveDays     int        `json:"archive_days"`
 	CreatedAt       time.Time  `json:"created_at"`

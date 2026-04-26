@@ -10,7 +10,16 @@ CREATE TABLE IF NOT EXISTS users (
     wa_jid TEXT,
     tg_user_id TEXT DEFAULT '',
     picture TEXT,
+    is_admin INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- name: CreateAppSettingsTable :exec
+CREATE TABLE IF NOT EXISTS app_settings (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL DEFAULT '',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_by TEXT NOT NULL DEFAULT ''
 );
 
 -- name: CreateTelegramSessionsTable :exec

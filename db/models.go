@@ -18,6 +18,13 @@ type AiInferenceLog struct {
 	CreatedAt    sql.NullTime   `json:"created_at"`
 }
 
+type AppSetting struct {
+	Key       string       `json:"key"`
+	Value     string       `json:"value"`
+	UpdatedAt sql.NullTime `json:"updated_at"`
+	UpdatedBy string       `json:"updated_by"`
+}
+
 type Contact struct {
 	ID              int64          `json:"id"`
 	TenantEmail     string         `json:"tenant_email"`
@@ -186,6 +193,7 @@ type User struct {
 	WaJid     sql.NullString `json:"wa_jid"`
 	TgUserID  sql.NullString `json:"tg_user_id"`
 	Picture   sql.NullString `json:"picture"`
+	IsAdmin   int64          `json:"is_admin"`
 	CreatedAt sql.NullTime   `json:"created_at"`
 }
 

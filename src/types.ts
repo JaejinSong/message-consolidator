@@ -49,6 +49,34 @@ export interface UserProfile {
     points?: number;
     streak?: number;
     streak_freezes?: number;
+    is_admin?: boolean;
+    is_super_admin?: boolean;
+}
+
+export interface AdminSetting {
+    key: string;
+    label: string;
+    category: string;
+    type: string;
+    secret: boolean;
+    restart_required: boolean;
+    enum_values?: string[];
+    value: string;
+    has_value: boolean;
+    updated_at?: string;
+    updated_by?: string;
+}
+
+export interface AdminUser {
+    email: string;
+    name: string;
+    is_super: boolean;
+}
+
+export interface AdminSettingUpdateResult {
+    status: string;
+    applied: boolean;
+    restart_required: boolean;
 }
 
 export interface TokenUsage {

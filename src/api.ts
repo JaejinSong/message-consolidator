@@ -2,7 +2,7 @@ import { apiFetch } from './utils/http';
 import { state, upsertReport } from './state';
 import { normalizeReportData } from './logic';
 import { isStatusConnected } from './utils';
-import { Message, UserProfile, UserStats, TokenUsage, IReportData, AccountItem, CategorizedMessages, TranslateBatchResult } from './types';
+import { Message, UserProfile, UserStats, TokenUsage, IReportData, AccountItem, CategorizedMessages, TranslateBatchResult, AdminSetting, AdminUser, AdminSettingUpdateResult } from './types';
 import type { ProposalGroup } from './renderers/settings-renderer';
 
 // Why: shared shape for mutation endpoints that the backend answers with `{ status: "ok" }` or
@@ -445,5 +445,36 @@ export const api = {
 
     invalidateCache(): Promise<{ status: string }> {
         return apiFetch('/admin/invalidate-cache', { method: 'POST', errorMessage: 'Cache invalidation failed' });
+    },
+
+    fetchAdminSettings(): Promise<AdminSetting[]> {
+        return apiFetch('/admin/settings', { errorMessage: 'Fetch admin settings failed' });
+    },
+
+    updateAdminSetting(key: string, value: string): Promise<AdminSettingUpdateResult> {
+        return apiFetch(`/admin/settings/${encodeURIComponent(key)}`, {
+            method: 'PUT',
+            body: JSON.stringify({ value }),
+            errorMessage: 'Update admin setting failed'
+        });
+    },
+
+    fetchAdmins(): Promise<AdminUser[]> {
+        return apiFetch('/admin/admins', { errorMessage: 'Fetch admins failed' });
+    },
+
+    addAdmin(email: string): Promise<{ status: string }> {
+        return apiFetch('/admin/admins', {
+            method: 'POST',
+            body: JSON.stringify({ email }),
+            errorMessage: 'Grant admin failed'
+        });
+    },
+
+    removeAdmin(email: string): Promise<{ status: string }> {
+        return apiFetch(`/admin/admins/${encodeURIComponent(email)}`, {
+            method: 'DELETE',
+            errorMessage: 'Revoke admin failed'
+        });
     }
 };

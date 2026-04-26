@@ -55,6 +55,13 @@ func main() {
 	if err := store.InitDB(ctx, cfg); err != nil {
 		log.Fatalf("DB Init failed: %v", err)
 	}
+	// Why: applies admin-managed app_settings on top of .env so DB-stored overrides win at boot.
+	// Failure is non-fatal — operator config issues should not block startup.
+	if err := config.OverlayFromDB(ctx, cfg, store.LoadAllSettings); err != nil {
+		logger.Warnf("Failed to overlay DB settings onto config: %v", err)
+	}
+	logger.SetLevel(cfg.LogLevel)
+	store.SetAutoArchiveDays(cfg.AutoArchiveDays)
 	if err := store.LoadMetadata(); err != nil {
 		logger.Warnf("Failed to load metadata cache: %v", err)
 	}

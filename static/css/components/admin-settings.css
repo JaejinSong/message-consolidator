@@ -1,0 +1,140 @@
+/* --- Admin Settings Panel --- */
+
+.c-admin-settings {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.c-admin-settings__group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.c-admin-settings__group-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0;
+}
+
+.c-admin-settings__items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.c-admin-settings__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr);
+    gap: var(--spacing-md);
+    align-items: center;
+    padding: var(--spacing-sm);
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-md);
+    background: rgba(var(--surface-rgb), 0.04);
+}
+
+.c-admin-settings__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.c-admin-settings__label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-main);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.c-admin-settings__key {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    word-break: break-all;
+}
+
+.c-admin-settings__hint {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+.c-admin-settings__control {
+    display: flex;
+    gap: var(--spacing-xs);
+    align-items: center;
+}
+
+.c-admin-settings__control .c-input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* --- Admin Admins Panel --- */
+
+.c-admin-admins {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-md);
+}
+
+.c-admin-admins__row {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: center;
+    padding: 0.5rem 0.7rem;
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    background: rgba(var(--surface-rgb), 0.04);
+}
+
+.c-admin-admins__email {
+    font-weight: 600;
+    color: var(--text-main);
+    flex: 0 0 auto;
+}
+
+.c-admin-admins__name {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.c-admin-admins__form {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.c-admin-admins__form .c-input {
+    flex: 1 1 auto;
+}
+
+/* --- Admin Toast --- */
+
+.c-admin-toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    padding: 0.7rem 1rem;
+    background: var(--accent-light);
+    color: #fff;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,0.2));
+    z-index: 9999;
+    font-size: 0.85rem;
+    max-width: 24rem;
+}
+
+.c-admin-toast--error {
+    background: var(--color-error);
+}

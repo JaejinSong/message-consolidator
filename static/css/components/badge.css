@@ -34,6 +34,24 @@
     border: var(--border-thin) solid var(--glass-border);
 }
 
+.c-badge--warn {
+    background: rgba(var(--color-warning-rgb), 0.12);
+    color: var(--color-warning);
+    border: var(--border-thin) solid rgba(var(--color-warning-rgb), 0.25);
+}
+
+.c-badge--ok {
+    background: rgba(var(--color-success-rgb, 48, 209, 88), 0.12);
+    color: var(--color-success);
+    border: var(--border-thin) solid rgba(var(--color-success-rgb, 48, 209, 88), 0.25);
+}
+
+.c-badge--info {
+    background: rgba(var(--color-info-rgb), 0.12);
+    color: var(--color-info);
+    border: var(--border-thin) solid rgba(var(--color-info-rgb), 0.25);
+}
+
 .c-badge--status {
     padding: 0.25rem 0.5rem;
     font-size: 0.7rem;
