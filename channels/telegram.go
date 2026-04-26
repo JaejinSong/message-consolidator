@@ -359,6 +359,20 @@ func (m *TelegramManager) GetStatus(email string) string {
 	return s.getStatus()
 }
 
+// GetPhone returns the phone number that initiated the current auth attempt.
+// Empty for restored sessions whose phone never re-entered the live state.
+func (m *TelegramManager) GetPhone(email string) string {
+	m.mu.RLock()
+	s, ok := m.states[email]
+	m.mu.RUnlock()
+	if !ok {
+		return ""
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.phone
+}
+
 // LogoutTelegram cancels the client goroutine and fires the OnLoggedOut callback.
 // Actual session data deletion is delegated to the store layer via that callback.
 func (m *TelegramManager) LogoutTelegram(email string) error {
@@ -494,6 +508,8 @@ func (m *TelegramManager) DisconnectAll() {
 // Package-level accessors — mirror the WhatsApp convention (GetWhatsAppStatus, etc.).
 
 func GetTelegramStatus(email string) string { return DefaultTelegramManager.GetStatus(email) }
+
+func GetTelegramPhone(email string) string { return DefaultTelegramManager.GetPhone(email) }
 
 func StartTelegramAuth(email, phone string, cfg *config.Config) error {
 	return DefaultTelegramManager.StartAuth(email, phone, cfg)

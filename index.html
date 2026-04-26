@@ -429,6 +429,8 @@
                 <aside class="c-settings__sidebar">
                     <button class="c-settings__tab c-settings__tab--active" data-settings-tab="generalTab"
                         data-i18n="tabGeneral">General</button>
+                    <button class="c-settings__tab" data-settings-tab="connectionsTab"
+                        data-i18n="connectionsTab">Connections</button>
                     <button class="c-settings__tab" data-settings-tab="mappingsTab"
                         data-i18n="tabMappings">Name Mappings</button>
                     <button class="c-settings__tab" data-settings-tab="tokenUsageTab"
@@ -437,20 +439,6 @@
                 <div class="c-settings__main">
                     <!-- General Tab -->
                     <div id="generalTab" class="c-settings__panel c-settings__panel--active">
-
-                        <section class="c-settings__section">
-                            <h4 class="c-settings__section-title" data-i18n="gmailTitle">Gmail Integration</h4>
-                            <p class="c-settings__section-desc" data-i18n="gmailDesc">Click the Gmail icon on the
-                                dashboard to connect your
-                                company Gmail account.</p>
-                            <div id="gmailConnectedStatus" class="hidden status-pill gmail-pill">
-                                <span class="check-mark">✓</span>
-                                <span data-i18n="gmailStatusConnected">Gmail Connected</span>
-                            </div>
-                        </section>
-
-                        <hr style="border: 0; border-top: 1px solid var(--glass-border); margin: 2rem 0;">
-
                         <section class="c-settings__section">
                             <h4 class="c-settings__section-title">데이터 캐시</h4>
                             <p class="c-settings__section-desc">서버 캐시를 초기화하여 최신 데이터를 불러옵니다.</p>
@@ -461,6 +449,17 @@
                                 </svg>
                                 <span id="refreshCacheBtnLabel">캐시 초기화</span>
                             </button>
+                        </section>
+                    </div>
+
+                    <!-- Connections Tab -->
+                    <div id="connectionsTab" class="c-settings__panel">
+                        <section class="c-settings__section">
+                            <h4 class="c-settings__section-title" data-i18n="connectionsHeading">Channel Connections</h4>
+                            <p class="c-settings__section-desc" data-i18n="connectionsSubtitle">Manage each channel's link status and authentication in one place.</p>
+                            <div id="connectionsList" class="c-connections-list">
+                                <!-- Cards rendered by connectionsRenderer.ts -->
+                            </div>
                         </section>
                     </div>
 

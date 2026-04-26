@@ -14,8 +14,6 @@ import {
     showToast,
     updateWhatsAppQR,
     showWaModal,
-    showGmailModal,
-    showTelegramModal,
     updateQRTimer,
     updateSlackStatus,
     setTheme,
@@ -30,7 +28,8 @@ import {
     updateSubtaskNodeStatus,
     getVisibleUntranslatedIds
 } from './renderer';
-import { bindTelegramModal, syncTelegramModalToStatus } from './renderers/telegram-modal-renderer';
+import { bindTelegramModal } from './renderers/telegram-modal-renderer';
+import { setupConnectionsTab, renderConnections, rerenderConnections, ConnectionsState } from './renderers/connections-renderer';
 import { I18nDictionary, ServiceHandlers, UserProfile, CategorizedMessages } from './types';
 import { archive } from './archive';
 import { modals } from './modals';
@@ -245,29 +244,62 @@ async function triggerBatchTranslation(): Promise<void> {
  */
 const checkAllStatus = safeAsync(async (bypassVisibility: boolean = false) => {
     if (state.isFetchingStatus || (!bypassVisibility && document.hidden)) return;
-    
+
     state.isFetchingStatus = true;
+    const snapshot: ConnectionsState = {
+        gmail: { connected: false },
+        whatsapp: { connected: false },
+        telegram: { status: 'disconnected' },
+        slack: { connected: false },
+    };
     try {
         await Promise.allSettled([
-            api.fetchSlackStatus().then(d => updateSlackStatus(d.status === STATUS_STATES.CONNECTED)),
+            api.fetchSlackStatus().then(d => {
+                const connected = d.status === STATUS_STATES.CONNECTED;
+                updateSlackStatus(connected);
+                snapshot.slack = { connected, slackId: d.slack_id };
+            }),
             api.fetchWhatsAppStatus().then(d => {
-                if (d) {
-                    state.waConnected = (d.status === STATUS_STATES.CONNECTED);
-                    updateWhatsAppStatus(d.status);
-                }
+                if (!d) return;
+                const connected = d.status === STATUS_STATES.CONNECTED;
+                state.waConnected = connected;
+                updateWhatsAppStatus(d.status);
+                snapshot.whatsapp = { connected, deviceName: d.device_name };
             }),
             authService.checkGmailStatus().then(d => {
                 state.gmailConnected = d.connected;
                 updateGmailStatus(d.connected, d.email);
+                snapshot.gmail = { connected: d.connected, email: d.email };
             }),
             api.fetchTelegramStatus().then(d => {
-                if (d) updateTelegramStatus(d.status);
+                if (!d) return;
+                updateTelegramStatus(d.status);
+                snapshot.telegram = {
+                    status: d.status,
+                    hasCredentials: d.has_credentials,
+                    phoneMasked: d.phone_masked,
+                    appIdMasked: d.app_id_masked,
+                };
             }).catch(() => updateTelegramStatus('disconnected'))
         ]);
+        renderConnections(snapshot);
     } finally {
         state.isFetchingStatus = false;
     }
 });
+
+/**
+ * Opens the Settings modal pre-focused on the Connections tab.
+ * Why: Top channel icons no longer trigger per-channel modals directly — they all funnel into one place.
+ */
+function openConnectionsSettings(): void {
+    const modal = document.getElementById('settingsModal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    (modal as HTMLElement).style.display = 'flex';
+    (document.querySelector('[data-settings-tab="connectionsTab"]') as HTMLElement | null)?.click();
+    setupConnectionsTab();
+}
 
 /**
  * Fetches user profile and updates state.
@@ -296,6 +328,10 @@ events.on(EVENTS.TASK_COMPLETED, () => {
 
 events.on(EVENTS.USER_PROFILE_UPDATED, (profile: UserProfile) => {
     updateUserProfile(profile);
+});
+
+events.on(EVENTS.LANGUAGE_CHANGED, () => {
+    rerenderConnections();
 });
 
 /**
@@ -455,26 +491,11 @@ const initActionButtons = () => {
         }, 3001);
     });
 
-    bindWhatsAppStatus(() => {
-        showWaModal();
-    });
-
-    bindGmailStatus(() => {
-        showGmailModal();
-    });
-
-    bindTelegramStatus(async () => {
-        showTelegramModal();
-        try {
-            const s = await api.fetchTelegramStatus();
-            const status = s?.status || 'disconnected';
-            const hasCreds = s?.has_credentials !== false;
-            syncTelegramModalToStatus(status, hasCreds);
-            updateTelegramStatus(status);
-        } catch {
-            syncTelegramModalToStatus('disconnected', false);
-        }
-    });
+    // Top channel icons → unified Settings → Connections tab.
+    // Per-channel sub-modals are opened from the cards themselves, not from the dashboard header.
+    bindWhatsAppStatus(openConnectionsSettings);
+    bindGmailStatus(openConnectionsSettings);
+    bindTelegramStatus(openConnectionsSettings);
 
     bindTelegramModal({
         onConnected: () => checkAllStatus(true),
@@ -645,6 +666,8 @@ const initApp = () => {
     setupTabs('.c-settings__tab', '.c-settings__panel', 'data-settings-tab', 'c-settings__tab--active', (tabId: string) => {
         if (tabId === 'tokenUsageTab') {
             modals.fetchTokenUsage();
+        } else if (tabId === 'connectionsTab') {
+            setupConnectionsTab();
         }
     });
     setTimeout(() => (document.querySelector('[data-tab="receivedTasksTab"]') as HTMLElement)?.click(), 500);
@@ -660,6 +683,7 @@ const initApp = () => {
     archive.init(fetchMessages);
     modals.init(fetchMessages);
     insights.init?.();
+    setupConnectionsTab();
 
     fetchUserProfile();
     checkAllStatus(true);

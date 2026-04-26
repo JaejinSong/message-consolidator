@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"fmt"
+	"message-consolidator/auth"
 	"message-consolidator/logger"
+	"message-consolidator/store"
 	"net/http"
 	"os"
 	"strings"
@@ -62,12 +64,27 @@ func (a *API) HandleGetReleaseNotes(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]string{"content": string(data)})
 }
 
+type slackStatusResponse struct {
+	Status  string `json:"status"`
+	SlackID string `json:"slack_id,omitempty"`
+}
+
 // Why: Checks the presence of the Slack API token to determine the current connection status of the Slack integration.
+// Also returns the caller's mapped slack_id so the Connections UI can show what account
+// the workspace bot has linked to this user.
 func (a *API) HandleSlackStatus(w http.ResponseWriter, r *http.Request) {
-	status := "DISCONNECTED"
+	resp := slackStatusResponse{Status: "DISCONNECTED"}
 	if a.Config.SlackToken != "" {
-		status = "CONNECTED"
+		resp.Status = "CONNECTED"
 	}
-	logger.Debugf("[CHANNEL] Slack token status: %s", status)
-	respondJSON(w, http.StatusOK, map[string]string{"status": status})
+
+	email := auth.GetUserEmail(r)
+	if email != "" {
+		if user, err := store.GetOrCreateUser(r.Context(), email, "", ""); err == nil && user != nil {
+			resp.SlackID = user.SlackID
+		}
+	}
+
+	logger.Debugf("[CHANNEL] Slack status for %s: %s (slackID=%q)", email, resp.Status, resp.SlackID)
+	respondJSON(w, http.StatusOK, resp)
 }

@@ -46,7 +46,7 @@ export const en: I18nEntry = {
         hTime: "Time",
         hActions: "Actions",
         hCompletedAt: "Completed At",
-        settingsTitle: "Admin Menu",
+        settingsTitle: "Settings",
         tokenMenuTitle: "Token Usage Monitoring",
         tokenMenuDesc: "Monitor your Gemini AI API token usage.",
         tokenUsed: "Tokens Used",
@@ -280,5 +280,26 @@ export const en: I18nEntry = {
         filterStatus: {
             new: "New",
             resolve: "Resolved"
-        }
+        },
+
+        // Settings → Connections tab
+        connectionsTab: "Connections",
+        connectionsHeading: "Channel Connections",
+        connectionsSubtitle: "Manage each channel's link status and authentication in one place.",
+        connStatusConnected: "Connected",
+        connStatusDisconnected: "Not connected",
+        connConnectBtn: "Connect",
+        connReauthBtn: "Re-authenticate",
+        connDisconnectBtn: "Disconnect",
+        connRescanBtn: "Re-scan QR",
+        connLogoutBtn: "Log out",
+        connChangeCredsBtn: "Change App ID / Hash",
+        connDeviceLabel: "Device",
+        connEmailLabel: "Email",
+        connPhoneLabel: "Phone",
+        connAppIdLabel: "App ID",
+        connSlackIdLabel: "Slack User ID",
+        connSlackReadOnlyNotice: "Slack is managed at the workspace level by your administrator.",
+        connNoMappingNotice: "Automatic mapping has not completed yet.",
+        connEmptyValue: "—"
 };

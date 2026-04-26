@@ -7,12 +7,15 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
 type telegramStatusResponse struct {
 	Status         string `json:"status"`
 	HasCredentials bool   `json:"has_credentials"`
+	PhoneMasked    string `json:"phone_masked,omitempty"`
+	AppIDMasked    string `json:"app_id_masked,omitempty"`
 }
 
 // HandleTelegramStatus returns the current Telegram connection state plus whether the user
@@ -21,8 +24,43 @@ func (a *API) HandleTelegramStatus(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	status := channels.GetTelegramStatus(email)
 	hasCreds := channels.HasTelegramCredentials(email, a.Config)
+
+	resp := telegramStatusResponse{Status: status, HasCredentials: hasCreds}
+	resp.PhoneMasked = maskTelegramPhone(channels.GetTelegramPhone(email))
+	if appID, _, ok, _ := store.GetTelegramCreds(r.Context(), email); ok {
+		resp.AppIDMasked = maskTelegramAppID(appID)
+	} else if a.Config != nil && a.Config.TelegramAppID != 0 {
+		resp.AppIDMasked = maskTelegramAppID(a.Config.TelegramAppID)
+	}
+
 	logger.Debugf("[CHANNEL] Telegram status for %s: %s (hasCreds=%v)", email, status, hasCreds)
-	respondJSON(w, http.StatusOK, telegramStatusResponse{Status: status, HasCredentials: hasCreds})
+	respondJSON(w, http.StatusOK, resp)
+}
+
+// maskTelegramPhone preserves the country prefix and last 4 digits, masking the middle.
+// Returns "" when input is too short to mask meaningfully.
+func maskTelegramPhone(phone string) string {
+	phone = strings.TrimSpace(phone)
+	if len(phone) < 5 {
+		return ""
+	}
+	last4 := phone[len(phone)-4:]
+	if len(phone) > 7 {
+		return phone[:3] + "****" + last4
+	}
+	return "****" + last4
+}
+
+// maskTelegramAppID exposes the first 3 digits of the App ID, masking the rest.
+func maskTelegramAppID(id int) string {
+	if id <= 0 {
+		return ""
+	}
+	s := strconv.Itoa(id)
+	if len(s) <= 3 {
+		return s + "***"
+	}
+	return s[:3] + "***"
 }
 
 // HandleTelegramSetCredentials persists per-user App ID / Hash obtained from https://my.telegram.org.

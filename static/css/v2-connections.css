@@ -1,0 +1,105 @@
+/*
+   v2-connections.css
+   Settings → Connections 탭의 채널 카드 스타일.
+*/
+
+.c-connections-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+    margin-top: var(--spacing-xl);
+}
+
+.c-connection-card {
+    background: var(--card-bg);
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-xl);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.c-connection-card--disconnected {
+    opacity: 0.85;
+}
+
+.c-connection-card__header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.c-connection-card__icon {
+    width: 1.75rem;
+    height: 1.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-main);
+}
+
+.c-connection-card__name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-main);
+    flex: 1;
+}
+
+.c-connection-card__badge {
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-radius: var(--radius-full);
+    border: var(--border-thin) solid var(--glass-border);
+    color: var(--text-dim);
+    background: rgba(var(--surface-rgb), 0.04);
+}
+
+.c-connection-card__badge--connected {
+    color: var(--color-success);
+    border-color: rgba(var(--color-success-rgb), 0.4);
+    background: rgba(var(--color-success-rgb), 0.1);
+}
+
+.c-connection-card__badge--disconnected {
+    color: var(--text-dim);
+}
+
+.c-connection-card__meta {
+    display: grid;
+    grid-template-columns: minmax(6rem, max-content) 1fr;
+    gap: var(--spacing-xs) var(--spacing-lg);
+    font-size: 0.85rem;
+}
+
+.c-connection-card__meta-key {
+    color: var(--text-dim);
+}
+
+.c-connection-card__meta-value {
+    color: var(--text-main);
+    word-break: break-all;
+}
+
+.c-connection-card__notice {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    line-height: 1.4;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-left: var(--border-thin) solid var(--glass-border);
+    background: rgba(var(--surface-rgb), 0.03);
+    border-radius: var(--radius-sm);
+}
+
+.c-connection-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-xs);
+}
+
+.c-connection-card__actions .c-btn {
+    font-size: 0.85rem;
+    padding: var(--spacing-xs) var(--spacing-lg);
+}

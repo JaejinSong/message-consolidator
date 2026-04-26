@@ -526,9 +526,28 @@ func (m *WAManager) PopMessages(email string) map[string][]types.RawMessage {
 	return bufferCopy
 }
 
+// GetDeviceName returns the linked WhatsApp device's PushName (or Platform as fallback).
+// Empty when no client exists or pairing has not completed — caller decides whether to surface that.
+func (m *WAManager) GetDeviceName(email string) string {
+	m.mu.RLock()
+	client, ok := m.clients[email]
+	m.mu.RUnlock()
+	if !ok || client == nil || client.Store == nil || client.Store.ID == nil {
+		return ""
+	}
+	if client.Store.PushName != "" {
+		return client.Store.PushName
+	}
+	return client.Store.Platform
+}
+
 // Why: Provides simplified global access points to the WhatsApp manager instance for common operations like status checks and logging out.
 func GetWhatsAppStatus(email string) string {
 	return DefaultWAManager.GetStatus(email)
+}
+
+func GetWhatsAppDeviceName(email string) string {
+	return DefaultWAManager.GetDeviceName(email)
 }
 
 func GetWhatsAppQR(ctx context.Context, email string) (string, error) {

@@ -46,7 +46,7 @@ export const ko: I18nEntry = {
         hTime: "시간",
         hActions: "관리",
         hCompletedAt: "완료 시간",
-        settingsTitle: "관리자 메뉴",
+        settingsTitle: "사용자 설정",
         tokenMenuTitle: "토큰 사용량 모니터링",
         tokenMenuDesc: "Gemini AI API 토큰 사용량을 확인합니다.",
         tokenUsed: "사용된 토큰",
@@ -281,5 +281,26 @@ export const ko: I18nEntry = {
         filterStatus: {
             new: "신규 (New)",
             resolve: "해결됨 (Resolved)"
-        }
+        },
+
+        // Settings → Connections 탭
+        connectionsTab: "연결",
+        connectionsHeading: "채널 연결",
+        connectionsSubtitle: "각 채널의 연동 상태와 인증 정보를 한 곳에서 관리합니다.",
+        connStatusConnected: "연결됨",
+        connStatusDisconnected: "연결 안됨",
+        connConnectBtn: "연결하기",
+        connReauthBtn: "재인증",
+        connDisconnectBtn: "연동 해제",
+        connRescanBtn: "QR 재스캔",
+        connLogoutBtn: "로그아웃",
+        connChangeCredsBtn: "App ID·Hash 변경",
+        connDeviceLabel: "디바이스",
+        connEmailLabel: "이메일",
+        connPhoneLabel: "전화번호",
+        connAppIdLabel: "App ID",
+        connSlackIdLabel: "Slack 사용자 ID",
+        connSlackReadOnlyNotice: "Slack은 워크스페이스 단위로 운영자가 관리합니다.",
+        connNoMappingNotice: "자동 매핑이 아직 완료되지 않았습니다.",
+        connEmptyValue: "—"
 };

@@ -148,11 +148,11 @@ export const api = {
         });
     },
 
-    async fetchWhatsAppStatus(): Promise<{ status: string }> {
+    async fetchWhatsAppStatus(): Promise<{ status: string; device_name?: string }> {
         return apiFetch('/whatsapp/status', { errorMessage: 'WA status check failed' });
     },
 
-    async fetchSlackStatus(): Promise<{ status: string }> {
+    async fetchSlackStatus(): Promise<{ status: string; slack_id?: string }> {
         return apiFetch('/slack/status', { errorMessage: 'Slack status check failed' });
     },
 
@@ -232,7 +232,7 @@ export const api = {
         });
     },
 
-    async fetchTelegramStatus(): Promise<{ status: string; has_credentials?: boolean }> {
+    async fetchTelegramStatus(): Promise<{ status: string; has_credentials?: boolean; phone_masked?: string; app_id_masked?: string }> {
         return apiFetch('/telegram/status', { errorMessage: 'Telegram status check failed' });
     },
 
