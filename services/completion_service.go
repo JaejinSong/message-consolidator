@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"message-consolidator/ai"
+	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
 	"strings"
@@ -58,8 +59,10 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 
 	tasks, _ := s.store.GetIncompleteByThreadID(ctx, s.db, msg.UserEmail, targetID)
 	if len(tasks) == 0 {
-		s.fallbackToNewExtraction(ctx, msg)
-		return false, nil // While extracted as NEW, it wasn't a transition.
+		// Why: Fallback consumes its own AI Analyze + persists tasks. Returning true
+		// signals the caller to MarkAsProcessed so the next scan cycle skips this msg
+		// instead of paying for LiteFilter + Analyze + batch Analyze again.
+		return s.fallbackToNewExtraction(ctx, msg), nil
 	}
 
 	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, tasks[0].Task, msg.OriginalText)
@@ -100,39 +103,45 @@ func (s *CompletionService) handleCompletionResult(ctx context.Context, status, 
 			return true
 		}
 	case "NEW":
-		s.fallbackToNewExtraction(ctx, msg)
+		return s.fallbackToNewExtraction(ctx, msg)
 	}
 	return false
 }
 
-func (s *CompletionService) fallbackToNewExtraction(ctx context.Context, msg store.ConsolidatedMessage) {
+// fallbackToNewExtraction runs an isolated AI extraction for messages whose thread
+// has no incomplete parent task. Returns true once AI Analyze succeeds so callers
+// can MarkAsProcessed and avoid paying tokens again next scan cycle (the prior
+// void return left the message in filteredMsgs, causing a second batch Analyze
+// in processBatch within the same cycle and re-extraction every cycle thereafter).
+func (s *CompletionService) fallbackToNewExtraction(ctx context.Context, msg store.ConsolidatedMessage) bool {
 	enriched := types.EnrichedMessage{
 		RawContent: msg.OriginalText, SourceChannel: msg.Source,
 		SenderName: msg.Requester, VirtualThreadID: msg.ThreadID, Timestamp: msg.CreatedAt,
 	}
-	// Why: If AI identifies a 'NEW' task in a reply thread, we route it back to the standard extraction pipeline.
 	room := msg.Room
 	if room == "" {
 		room = "General"
 	}
 	items, err := s.gemini.Analyze(ctx, msg.UserEmail, enriched, "Korean", msg.Source, room)
-	if err != nil || len(items) == 0 { return }
-
-	_ = s.runInTx(ctx, func(tx *sql.Tx) error {
-		for _, item := range items {
-			_, _ = s.store.HandleTaskState(ctx, tx, msg.UserEmail, item, msg)
-		}
-		return nil
-	})
-}
-
-func (s *CompletionService) runInTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil { return err }
-	if err := fn(tx); err != nil {
-		_ = tx.Rollback()
-		return err
+	if err != nil || len(items) == 0 {
+		return false
 	}
-	return tx.Commit()
+
+	// Why: items are independent SaveMessage calls — wrapping them in a single
+	// outer tx only widened the libsql writer-lock window and silently swallowed
+	// per-item INSERT failures via tx.Commit() on a nil-return fn. WithDBRetry
+	// absorbs transient `database is locked` errors (5 attempts, 100ms→1.6s
+	// backoff). AI cost is sunk regardless of save outcome — the bool return is
+	// what stops the token bleed, not save success.
+	for _, item := range items {
+		err := store.WithDBRetry("CompletionFallback.HandleTaskState", func() error {
+			_, e := s.store.HandleTaskState(ctx, s.db, msg.UserEmail, item, msg)
+			return e
+		})
+		if err != nil {
+			logger.Warnf("[COMPLETION-FALLBACK] HandleTaskState dropped item after retries: %v", err)
+		}
+	}
+	return true
 }
 

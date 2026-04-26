@@ -43,6 +43,7 @@ type MockStore struct {
 	CapturedIDs        []store.MessageID
 	ReleasedIDs        []store.MessageID
 	ReleasedCategories []string
+	NewItemTasks       []string
 	Tasks              []store.ConsolidatedMessage
 }
 
@@ -57,12 +58,13 @@ func (m *MockStore) UpdateMessageCategory(ctx context.Context, q store.Querier, 
 }
 
 func (m *MockStore) HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
-	id := *item.ID
 	switch item.State {
 	case "resolve":
-		m.CapturedIDs = append(m.CapturedIDs, id)
+		m.CapturedIDs = append(m.CapturedIDs, *item.ID)
 	case "update":
-		m.ReleasedIDs = append(m.ReleasedIDs, id)
+		m.ReleasedIDs = append(m.ReleasedIDs, *item.ID)
+	case "new":
+		m.NewItemTasks = append(m.NewItemTasks, item.Task)
 	}
 	return 0, nil
 }
@@ -219,5 +221,59 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		}
 
 		svc.ProcessPotentialCompletion(ctx, msg)
+	})
+
+	// Why: Regression for token-bleed bug. When the thread had no incomplete parent
+	// task, fallbackToNewExtraction used to return void, leaving handled=false. The
+	// caller (handleGmailThreadActivity) then skipped MarkAsProcessed AND left the
+	// message in filteredMsgs, triggering: (a) a second batch Analyze in the SAME
+	// scan cycle, and (b) re-processing every cycle thereafter. Fix is to return
+	// true once Analyze succeeds so the message gets marked processed.
+	t.Run("No Thread Parent - Fallback returns handled=true to stop token bleed", func(t *testing.T) {
+		mockAI := &MockAI{Results: []store.TodoItem{
+			{ID: ptr(store.MessageID(0)), State: "new", Task: "Review the launch checklist"},
+		}}
+		mockStore := &MockStore{Tasks: nil} // no thread parent → fallback path
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:    "test@example.com",
+			Source:       "gmail",
+			Room:         "Gmail",
+			ThreadID:     "thread_no_parent",
+			SourceTS:     "msg_001",
+			OriginalText: "Please review the launch checklist by EOD.",
+		}
+
+		handled, err := svc.ProcessPotentialCompletion(ctx, msg)
+		if err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+		if !handled {
+			t.Fatal("expected handled=true so caller can MarkAsProcessed and stop re-extraction")
+		}
+		if len(mockStore.NewItemTasks) != 1 || mockStore.NewItemTasks[0] != "Review the launch checklist" {
+			t.Errorf("expected fallback HandleTaskState(new) call, got NewItemTasks=%v", mockStore.NewItemTasks)
+		}
+	})
+
+	t.Run("No Thread Parent - AI Analyze fails - Fallback returns handled=false", func(t *testing.T) {
+		mockAI := &MockAI{Results: nil, Err: nil} // empty items → fallback returns false
+		mockStore := &MockStore{Tasks: nil}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail: "test@example.com", Source: "gmail",
+			ThreadID: "thread_empty", SourceTS: "msg_002",
+			OriginalText: "...",
+		}
+
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+		if handled {
+			t.Fatal("expected handled=false when AI returns no items so the standard pipeline can retry")
+		}
+		if len(mockStore.NewItemTasks) != 0 {
+			t.Errorf("expected no HandleTaskState calls when items empty, got %v", mockStore.NewItemTasks)
+		}
 	})
 }
