@@ -1,6 +1,7 @@
 import { apiFetch } from './utils/http';
 import { state, upsertReport } from './state';
 import { normalizeReportData } from './logic';
+import { isStatusConnected } from './utils';
 import { Message, UserProfile, UserStats, TokenUsage, IReportData, AccountItem, CategorizedMessages, TranslateBatchResult } from './types';
 import type { ProposalGroup } from './renderers/settings-renderer';
 
@@ -302,17 +303,17 @@ export const api = {
 
     async getChannelStatus(): Promise<{ slack: boolean, whatsapp: boolean, gmail: boolean, telegram: boolean }> {
         const [slack, whatsapp, gmail, telegram] = await Promise.all([
-            this.fetchSlackStatus().catch(() => ({ status: 'DISCONNECTED' })),
-            this.fetchWhatsAppStatus().catch(() => ({ status: 'DISCONNECTED' })),
+            this.fetchSlackStatus().catch(() => ({ status: 'disconnected' })),
+            this.fetchWhatsAppStatus().catch(() => ({ status: 'disconnected' })),
             this.fetchGmailStatus().catch(() => ({ connected: false })),
             this.fetchTelegramStatus().catch(() => ({ status: 'disconnected' }))
         ]);
 
         return {
-            slack: slack?.status === 'CONNECTED',
-            whatsapp: whatsapp?.status === 'CONNECTED',
+            slack: isStatusConnected(slack?.status),
+            whatsapp: isStatusConnected(whatsapp?.status),
             gmail: gmail?.connected === true,
-            telegram: telegram?.status === 'connected'
+            telegram: isStatusConnected(telegram?.status)
         };
     },
 

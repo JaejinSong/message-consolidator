@@ -1,6 +1,28 @@
 import { describe, it, expect, vi } from 'vitest';
-import { escapeHTML, formatDisplayTime, safeAsync, setupTabs } from './utils.ts';
+import { escapeHTML, formatDisplayTime, isStatusConnected, safeAsync, setupTabs } from './utils.ts';
 import { ApiError } from './utils/http';
+
+describe('isStatusConnected', () => {
+    it('matches Slack-style uppercase backend response', () => {
+        expect(isStatusConnected('CONNECTED')).toBe(true);
+    });
+
+    it('matches WhatsApp/Telegram-style lowercase backend response', () => {
+        expect(isStatusConnected('connected')).toBe(true);
+    });
+
+    it('rejects disconnected variants', () => {
+        expect(isStatusConnected('DISCONNECTED')).toBe(false);
+        expect(isStatusConnected('disconnected')).toBe(false);
+        expect(isStatusConnected('pending_code')).toBe(false);
+    });
+
+    it('treats empty input as disconnected', () => {
+        expect(isStatusConnected(undefined)).toBe(false);
+        expect(isStatusConnected(null)).toBe(false);
+        expect(isStatusConnected('')).toBe(false);
+    });
+});
 
 describe('utils.js - escapeHTML', () => {
     it('should escape HTML special characters', () => {

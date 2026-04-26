@@ -14,8 +14,8 @@ func TestHandleSlackStatus(t *testing.T) {
 		token string
 		want  string
 	}{
-		{"connected when token set", "xoxb-fake", "CONNECTED"},
-		{"disconnected when token empty", "", "DISCONNECTED"},
+		{"connected when token set", "xoxb-fake", "connected"},
+		{"disconnected when token empty", "", "disconnected"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

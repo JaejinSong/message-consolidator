@@ -86,6 +86,10 @@ func (a *API) registerMessageRoutes(r *mux.Router) {
 	r.Handle("/api/subtasks/toggle", a.protected(a.HandleToggleSubtask)).Methods("POST")
 }
 
+// Channel status string convention: every /api/<channel>/status handler MUST emit
+// lowercase status values ("connected" / "disconnected" / channel-specific state).
+// Frontend comparison goes through src/utils.ts:isStatusConnected which normalizes case
+// as a safety net — but new channels should still adhere to the lowercase standard.
 func (a *API) registerChannelRoutes(r *mux.Router) {
 	r.Handle("/api/whatsapp/qr", a.protected(a.HandleWhatsAppQR)).Methods("GET")
 	r.Handle("/api/whatsapp/status", a.protected(a.HandleWhatsAppStatus)).Methods("GET")

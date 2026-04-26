@@ -72,10 +72,14 @@ type slackStatusResponse struct {
 // Why: Checks the presence of the Slack API token to determine the current connection status of the Slack integration.
 // Also returns the caller's mapped slack_id so the Connections UI can show what account
 // the workspace bot has linked to this user.
+//
+// Status string convention: lowercase — "connected" / "disconnected".
+// All channel status handlers (whatsapp, telegram, slack) emit lowercase so the frontend
+// can compare via a single helper (isStatusConnected) without per-channel casing exceptions.
 func (a *API) HandleSlackStatus(w http.ResponseWriter, r *http.Request) {
-	resp := slackStatusResponse{Status: "DISCONNECTED"}
+	resp := slackStatusResponse{Status: "disconnected"}
 	if a.Config.SlackToken != "" {
-		resp.Status = "CONNECTED"
+		resp.Status = "connected"
 	}
 
 	email := auth.GetUserEmail(r)

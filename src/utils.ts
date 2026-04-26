@@ -1,5 +1,6 @@
 import { I18N_DATA } from './locales';
 import { ApiError } from './utils/http';
+import { STATUS_STATES } from './constants';
 
 /**
  * @file utils.ts
@@ -12,6 +13,21 @@ export function getErrorMessage(e: unknown): string {
 
 export function isApiError(e: unknown): e is ApiError {
     return e instanceof ApiError;
+}
+
+/**
+ * Single comparison entry-point for channel status strings.
+ *
+ * Backend convention is lowercase ("connected" / "disconnected") — see the comment on
+ * STATUS_STATES in constants.ts and the per-handler note in handlers/handlers_misc.go.
+ * The toLowerCase normalization here is a defense-in-depth guard so a future backend
+ * casing slip on a new channel doesn't silently regress the Connections UI.
+ *
+ * All frontend callers comparing channel status MUST go through this function rather
+ * than `=== STATUS_STATES.CONNECTED`.
+ */
+export function isStatusConnected(status: string | undefined | null): boolean {
+    return (status ?? '').toLowerCase() === STATUS_STATES.CONNECTED.toLowerCase();
 }
 
 /**

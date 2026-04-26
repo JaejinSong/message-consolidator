@@ -35,8 +35,8 @@ import { archive } from './archive';
 import { modals } from './modals';
 import { insights } from './insights';
 import { events, EVENTS } from './events';
-import { safeAsync, hasSessionHint, setupTabs, escapeHTML, getErrorMessage } from './utils';
-import { STATUS_STATES, POLLING_INTERVALS } from './constants';
+import { safeAsync, hasSessionHint, setupTabs, escapeHTML, getErrorMessage, isStatusConnected } from './utils';
+import { POLLING_INTERVALS } from './constants';
 import { authService } from './services/authService';
 
 let lastMessageDataHash = '';
@@ -255,13 +255,13 @@ const checkAllStatus = safeAsync(async (bypassVisibility: boolean = false) => {
     try {
         await Promise.allSettled([
             api.fetchSlackStatus().then(d => {
-                const connected = d.status === STATUS_STATES.CONNECTED;
+                const connected = isStatusConnected(d.status);
                 updateSlackStatus(connected);
                 snapshot.slack = { connected, slackId: d.slack_id };
             }),
             api.fetchWhatsAppStatus().then(d => {
                 if (!d) return;
-                const connected = d.status === STATUS_STATES.CONNECTED;
+                const connected = isStatusConnected(d.status);
                 state.waConnected = connected;
                 updateWhatsAppStatus(d.status);
                 snapshot.whatsapp = { connected, deviceName: d.device_name };

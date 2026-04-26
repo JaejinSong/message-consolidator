@@ -23,11 +23,19 @@ export const DOM_IDS = {
     TELEGRAM_STATUS_TEXT: 'telegramStatusText'
 } as const;
 
+/**
+ * Channel status string standard.
+ *
+ * Convention: backend status responses are lowercase (e.g. "connected", "disconnected").
+ * Per-channel handlers in /handlers/handlers_*.go must follow the same convention.
+ * Frontend code should compare via `isStatusConnected` (src/utils.ts) rather than direct
+ * string equality, so a casing slip on either side is detected by the case-insensitive guard.
+ */
 export const STATUS_STATES = {
-    CONNECTED: 'CONNECTED',
+    CONNECTED: 'connected',
     AUTHENTICATED: 'authenticated',
-    OFFLINE: 'OFFLINE',
-    DISCONNECTED: 'DISCONNECTED'
+    OFFLINE: 'offline',
+    DISCONNECTED: 'disconnected'
 } as const;
 
 export const UI_TEXT = {
