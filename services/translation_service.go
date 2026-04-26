@@ -69,9 +69,11 @@ func (s *TranslationService) TranslateBatch(ctx context.Context, email string, t
 		defer func() { <-s.semaphore }()
 		return s.gemini.TranslateTasksBatch(ctx, email, tasks, GetLanguageName(lang))
 	})
-	
-	if err != nil { return nil, err }
-	return val.([]ai.TranslationResult), nil
+
+	// Why: translateInChunks returns (partial, err) when a later chunk fails. Surface partial
+	// successes (already token-attributed) so callers can cache them instead of double-spending.
+	partial, _ := val.([]ai.TranslationResult)
+	return partial, err
 }
 
 // GetLanguageName maps ISO 639-1 language codes to descriptive names for the AI prompt.

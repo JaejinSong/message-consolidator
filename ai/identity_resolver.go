@@ -59,7 +59,7 @@ func (r *IdentityResolver) proposeInChunks(ctx context.Context, contacts []store
 }
 
 func (r *IdentityResolver) proposeChunk(ctx context.Context, contacts []store.ContactRecord) ([]MergeGroup, error) {
-	parsed := LoadPrompt("identity_group_merge.prompt")
+	parsed := LoadPrompt(PromptIdentityGroupMerge)
 	rendered, err := parsed.Render(ExtractionContext{
 		MessagePayload: formatContactsForPrompt(contacts),
 	})

@@ -115,7 +115,7 @@ func fetchReleaseNotes(cfg *config.Config, commits, version string) ReleaseNotes
 }
 
 func loadPrompt(commits, version string) string {
-	parsed := ai.LoadPrompt("release_notes_combined.prompt")
+	parsed := ai.LoadPrompt(ai.PromptReleaseNotesCombined)
 	data := ai.ExtractionContext{
 		Version:        version,
 		MessagePayload: commits,

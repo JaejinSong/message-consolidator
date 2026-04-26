@@ -173,7 +173,7 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
 
-	parsed := LoadPrompt("report_summary.prompt")
+	parsed := LoadPrompt(PromptReportSummary)
 	data := ExtractionContext{
 		MessagePayload: tasks,
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -220,7 +220,7 @@ func (g *GeminiClient) EvaluateTaskTransition(ctx context.Context, email, parent
 		return TaskTransition{}, fmt.Errorf("Gemini client not initialized")
 	}
 
-	parsed := LoadPrompt("completion_check.prompt")
+	parsed := LoadPrompt(PromptCompletionCheck)
 	data := ExtractionContext{
 		ParentTask:     parentTask,
 		MessagePayload: replyText,
@@ -311,7 +311,7 @@ func (g *GeminiClient) GenerateVisualizationData(ctx context.Context, email stri
 func (g *GeminiClient) GenerateMergedTaskTitle(ctx context.Context, email string, tasksJSON string) (string, error) {
 	if g == nil || g.client == nil { return "", fmt.Errorf("Gemini client not initialized") }
 
-	parsed := LoadPrompt("task_merge_summary.prompt")
+	parsed := LoadPrompt(PromptTaskMergeSummary)
 	data := ExtractionContext{
 		MessagePayload: tasksJSON,
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -461,7 +461,7 @@ func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []stor
 }
 
 func (g *GeminiClient) prepareTranslateResources(lang string, requests []store.TranslateRequest) (*genai.GenerativeModel, string, string) {
-	parsed := LoadPrompt("translation_system.prompt")
+	parsed := LoadPrompt(PromptTranslationSystem)
 	sysInst, _ := parsed.Render(ExtractionContext{
 		Locale:      g.getValidLang(lang),
 		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -487,7 +487,7 @@ func (g *GeminiClient) TranslateReport(ctx context.Context, email string, report
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
 
-	parsed := LoadPrompt("report_translator.prompt")
+	parsed := LoadPrompt(PromptReportTranslator)
 	data := ExtractionContext{
 		Locale:      g.getValidLang(targetLanguage),
 		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -516,7 +516,7 @@ func (g *GeminiClient) TranslateTaskMessage(ctx context.Context, email string, t
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
 
-	parsed := LoadPrompt("task_translator.prompt")
+	parsed := LoadPrompt(PromptTaskTranslator)
 	data := ExtractionContext{
 		Locale:      g.getValidLang(targetLanguage),
 		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -549,7 +549,7 @@ func (g *GeminiClient) TranslateTasksBatch(ctx context.Context, email string, ta
 		return g.translateInChunks(ctx, email, tasks, lang, 25)
 	}
 
-	parsed := LoadPrompt("batch_translator.prompt")
+	parsed := LoadPrompt(PromptBatchTranslator)
 	data := ExtractionContext{
 		Locale:      g.getValidLang(lang),
 		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -561,6 +561,12 @@ func (g *GeminiClient) TranslateTasksBatch(ctx context.Context, email string, ta
 	tasksJSON, _ := json.Marshal(tasks)
 	resp, err := generateWithRetry(ctx, model, genai.Text(string(tasksJSON)), 45*time.Second, 3)
 	if err != nil {
+		// Why: Mirror ReportSummary failure attribution — surface burned-but-unattributed
+		// retry-exhausted calls so the cost dashboard can flag invisible spend.
+		// Gemini does not return UsageMetadata on timeout/cancel.
+		if uErr := store.AddTokenUsage(email, "BatchTranslate", modelName, "failed", 0, 0); uErr != nil {
+			logger.Warnf("[TOKEN-USAGE] BatchTranslate failure attribution: %v", uErr)
+		}
 		return nil, err
 	}
 
@@ -584,7 +590,10 @@ func (g *GeminiClient) translateInChunks(ctx context.Context, email string, task
 
 		chunk, err := g.TranslateTasksBatch(ctx, email, tasks[i:end], lang)
 		if err != nil {
-			return nil, err
+			// Why: Return partial successes alongside the error so a single chunk failure
+			// doesn't waste tokens already burned on prior chunks. logTokenUsage has already
+			// attributed those chunks; callers SaveTaskTranslationsBulk-cache the partial map.
+			return allResults, fmt.Errorf("chunk %d-%d failed (kept %d prior results): %w", i, end, len(allResults), err)
 		}
 		allResults = append(allResults, chunk...)
 	}

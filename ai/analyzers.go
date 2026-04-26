@@ -19,17 +19,17 @@ type SourceAnalyzer interface {
 type GmailAnalyzer struct{}
 
 func (g *GmailAnalyzer) GetSystemInstruction(data ExtractionContext) string {
-	res, _ := LoadPrompt("gmail_system.prompt").Render(data)
+	res, _ := LoadPrompt(PromptGmailSystem).Render(data)
 	return res
 }
 
 func (g *GmailAnalyzer) GetUserPrompt(data ExtractionContext) string {
-	res, _ := LoadPrompt("gmail_user.prompt").Render(data)
+	res, _ := LoadPrompt(PromptGmailUser).Render(data)
 	return res
 }
 
 func (g *GmailAnalyzer) GetModelName(defaultModel string) string {
-	if p := LoadPrompt("gmail_system.prompt"); p.Meta.Model != "" {
+	if p := LoadPrompt(PromptGmailSystem); p.Meta.Model != "" {
 		return p.Meta.Model
 	}
 	return defaultModel
@@ -54,17 +54,17 @@ func (c *ChatAnalyzer) GetSystemInstruction(data ExtractionContext) string {
 	allShots := GetDefaultFewShots()
 	data.FewShots = SelectFewShots(data.MessagePayload, allShots, 2)
 	
-	res, _ := LoadPrompt("chat_system.prompt").Render(data)
+	res, _ := LoadPrompt(PromptChatSystem).Render(data)
 	return res
 }
 
 func (c *ChatAnalyzer) GetUserPrompt(data ExtractionContext) string {
-	res, _ := LoadPrompt("chat_user.prompt").Render(data)
+	res, _ := LoadPrompt(PromptChatUser).Render(data)
 	return res
 }
 
 func (c *ChatAnalyzer) GetModelName(defaultModel string) string {
-	if p := LoadPrompt("chat_system.prompt"); p.Meta.Model != "" {
+	if p := LoadPrompt(PromptChatSystem); p.Meta.Model != "" {
 		return p.Meta.Model
 	}
 	return defaultModel
@@ -83,17 +83,17 @@ func (c *ChatAnalyzer) PreProcess(text string) string {
 type NotionAnalyzer struct{}
 
 func (n *NotionAnalyzer) GetSystemInstruction(data ExtractionContext) string {
-	res, _ := LoadPrompt("notion_system.prompt").Render(data)
+	res, _ := LoadPrompt(PromptNotionSystem).Render(data)
 	return res
 }
 
 func (n *NotionAnalyzer) GetUserPrompt(data ExtractionContext) string {
-	res, _ := LoadPrompt("notion_user.prompt").Render(data)
+	res, _ := LoadPrompt(PromptNotionUser).Render(data)
 	return res
 }
 
 func (n *NotionAnalyzer) GetModelName(defaultModel string) string {
-	if p := LoadPrompt("notion_system.prompt"); p.Meta.Model != "" {
+	if p := LoadPrompt(PromptNotionSystem); p.Meta.Model != "" {
 		return p.Meta.Model
 	}
 	return defaultModel

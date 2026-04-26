@@ -37,6 +37,8 @@ type Config struct {
 	DBMaxIdleConns         int
 	DBMaxOpenConns         int
 	DBKeepAliveInterval    time.Duration
+	ScannerTickInterval    time.Duration
+	SlackSweepInterval     time.Duration
 }
 
 func LoadConfig() *Config {
@@ -68,6 +70,10 @@ func LoadConfig() *Config {
 		DBMaxIdleConns:         envInt("DB_MAX_IDLE_CONNS", 1),
 		DBMaxOpenConns:         envInt("DB_MAX_OPEN_CONNS", 25),
 		DBKeepAliveInterval:    envDurationOrSeconds("DB_KEEP_ALIVE_INTERVAL", 8*time.Second),
+		// Why: 59s (vs round 60s) avoids harmonic resonance with 1-minute upstream cron/poller cadences.
+		ScannerTickInterval: envDuration("SCANNER_TICK_INTERVAL", 59*time.Second),
+		// Why: Slack thread sweep runs alongside the 59s scanner — 5m offsets reduce load spikes and matches Slack rate-limit headroom.
+		SlackSweepInterval: envDuration("SLACK_SWEEP_INTERVAL", 5*time.Minute),
 	}
 }
 

@@ -22,7 +22,7 @@ func NewGeminiLiteFilter(client *GeminiClient) *GeminiLiteFilter {
 // Why: [Performance] Filter logic is non-blocking and uses a cheaper model (Flash Lite) to save costs.
 // `source` (slack|whatsapp|telegram|gmail|...) attributes the token cost to the right bucket.
 func (f *GeminiLiteFilter) IsNoise(ctx context.Context, email, source, text string) (bool, error) {
-	prompt := LoadPrompt("lite_filter.prompt")
+	prompt := LoadPrompt(PromptLiteFilter)
 	data := ExtractionContext{
 		MessagePayload: text,
 		CurrentUser:    email,

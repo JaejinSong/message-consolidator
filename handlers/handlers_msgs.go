@@ -13,6 +13,12 @@ import (
 	"message-consolidator/store"
 )
 
+// Why: prevent unbounded SQL fan-out / memory blow-up from a forged ?limit=. defaultArchivePageSize matches FE infinite-scroll batch.
+const (
+	defaultArchivePageSize = 50
+	maxArchivePageSize     = 200
+)
+
 type archivedMessagesResponse struct {
 	Messages []store.ConsolidatedMessage `json:"messages"`
 	Total    int                         `json:"total"`
@@ -127,7 +133,12 @@ func (a *API) HandleGetArchived(w http.ResponseWriter, r *http.Request) {
 	offset, _ := strconv.Atoi(offsetStr)
 
 	if limit <= 0 {
-		limit = 50
+		limit = defaultArchivePageSize
+	} else if limit > maxArchivePageSize {
+		limit = maxArchivePageSize
+	}
+	if offset < 0 {
+		offset = 0
 	}
 
 	filter := store.ArchiveFilter{

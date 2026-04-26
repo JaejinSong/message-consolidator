@@ -49,8 +49,9 @@ func Init(c *config.Config) {
 }
 
 func StartBackgroundScanner(ctx context.Context) {
-	logger.Infof("Background scanner started (59s interval for anti-resonance)...")
-	ticker := time.NewTicker(59 * time.Second)
+	interval := cfg.ScannerTickInterval
+	logger.Infof("Background scanner started (%s interval for anti-resonance)...", interval)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	var wg sync.WaitGroup

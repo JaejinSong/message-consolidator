@@ -544,8 +544,9 @@ func (s *TasksService) executeBatchTranslation(ctx context.Context, email string
 	reqs := s.prepareTranslateRequests(ctx, email, ids)
 	if len(reqs) == 0 { return nil, nil }
 
+	// Why: TranslateBatch may return (partial, err) when a later chunk fails — keep the
+	// successful prefix so prior chunks' token spend isn't wasted on next JIT retry.
 	results, err := s.translationSvc.TranslateBatch(ctx, email, reqs, lang)
-	if err != nil { return nil, err }
 
 	batchMap := make(map[store.MessageID]string)
 	for _, r := range results {
@@ -555,7 +556,7 @@ func (s *TasksService) executeBatchTranslation(ctx context.Context, email string
 	}
 
 	_ = store.SaveTaskTranslationsBulk(ctx, lang, batchMap)
-	return batchMap, nil
+	return batchMap, err
 }
 
 func (s *TasksService) prepareTranslateRequests(ctx context.Context, email string, ids []store.MessageID) []store.TranslateRequest {

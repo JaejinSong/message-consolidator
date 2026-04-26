@@ -289,8 +289,9 @@ func hasAliasMatch(m types.RawMessage, aliases []string) bool {
 
 func startSlowSweeper(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
-	logger.Infof("Slack Slow Sweeper started (monitoring old threads)...")
-	ticker := time.NewTicker(5 * time.Minute)
+	interval := cfg.SlackSweepInterval
+	logger.Infof("Slack Slow Sweeper started (%s, monitoring old threads)...", interval)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {

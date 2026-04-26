@@ -27,6 +27,11 @@ type ReportConfig struct {
 
 const DefaultReportCutoffSize = 32000
 
+// Why: bound JIT translation latency so async report goroutines and slow Gemini calls
+// can't keep the request/parent context alive indefinitely. WithTimeout derives from
+// the caller's deadline, so a tighter parent deadline still wins.
+const defaultOnDemandTranslationTimeout = 30 * time.Second
+
 // Log is a type alias for ConsolidatedMessage to satisfy technical requirements while maintaining consistency.
 type Log = store.ConsolidatedMessage
 
@@ -427,6 +432,9 @@ func (s *ReportsService) resolveRelationActor(ctx context.Context, email, canoni
 // ProcessOnDemandTranslation handles Just-In-Time (JIT) translation for a specific report and language.
 // It delegates the heavy lifting to TranslationService while managing report-specific caching.
 func (s *ReportsService) ProcessOnDemandTranslation(ctx context.Context, email string, reportID store.ReportID, langCode string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, defaultOnDemandTranslationTimeout)
+	defer cancel()
+
 	// 2. Fetch the original report (usually English if it's the fallback)
 	report, err := store.GetReportByID(ctx, reportID, email)
 	if err != nil {
