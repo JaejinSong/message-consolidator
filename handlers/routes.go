@@ -75,6 +75,7 @@ func (a *API) registerStaticRoutes(r *mux.Router) {
 
 func (a *API) registerMessageRoutes(r *mux.Router) {
 	r.Handle("/api/messages", a.protected(a.HandleGetMessages)).Methods("GET")
+	r.Handle("/api/messages/search", a.protected(a.HandleSearchActive)).Methods("GET")
 	r.Handle("/api/messages/done", a.protected(a.HandleMarkDone)).Methods("POST")
 	r.Handle("/api/messages/delete", a.protected(a.HandleDelete)).Methods("POST")
 	r.Handle("/api/messages/hard-delete", a.protected(a.HandleHardDelete)).Methods("POST")

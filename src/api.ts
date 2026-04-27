@@ -102,6 +102,10 @@ export const api = {
         return apiFetch('/messages', { params: { lang }, errorMessage: 'Fetch messages failed' });
     },
 
+    async searchActiveMessages(q: string, lang: string): Promise<CategorizedMessages> {
+        return apiFetch('/messages/search', { params: { q, lang }, errorMessage: 'Search messages failed' });
+    },
+
     async toggleDone(id: string | number, done: boolean): Promise<{ user?: UserProfile }> {
         const validatedId = ensureInt(id);
         return apiFetch('/messages/done', {

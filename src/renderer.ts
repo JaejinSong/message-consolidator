@@ -176,9 +176,11 @@ import { filterByDeadline, TaskTab } from './taskFilter';
 
 /**
  * Renders message cards based on categorized data.
+ * skipClientSearch: bypass client-side LIKE filter when categorized is already FTS-filtered server-side.
  */
-export function renderMessages(categorized: CategorizedMessages): void {
-    const searchQuery = (document.getElementById('taskSearch') as HTMLInputElement)?.value || '';
+export function renderMessages(categorized: CategorizedMessages, opts?: { skipClientSearch?: boolean }): void {
+    const inputVal = (document.getElementById('taskSearch') as HTMLInputElement)?.value || '';
+    const searchQuery = opts?.skipClientSearch ? '' : inputVal;
     const dlFilter = state.deadlineFilter || 'all';
 
     const inbox     = categorized.inbox     || [];
@@ -216,7 +218,7 @@ export function renderMessages(categorized: CategorizedMessages): void {
         if (!grid) return;
 
         const filtered = sortAndSearchMessages(config.messages, searchQuery);
-        const isMyTasksEmpty = (config.tab === 'received' && config.messages.length === 0 && !searchQuery);
+        const isMyTasksEmpty = (config.tab === 'received' && config.messages.length === 0 && !inputVal);
 
         grid.innerHTML = '';
         if (isMyTasksEmpty) {

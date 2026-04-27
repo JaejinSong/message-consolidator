@@ -666,9 +666,27 @@ const initApp = () => {
     });
 
     let taskSearchDebounce: ReturnType<typeof setTimeout> | undefined;
-    document.getElementById('taskSearch')?.addEventListener('input', () => {
+    let taskSearchSeq = 0;
+    document.getElementById('taskSearch')?.addEventListener('input', (e) => {
         clearTimeout(taskSearchDebounce);
-        taskSearchDebounce = setTimeout(() => renderMessages(state.messages), 300);
+        const q = (e.target as HTMLInputElement).value;
+        // Why: trigram tokenizer needs ≥3 runes; below threshold use cached client-side LIKE.
+        const useFts = [...q.trim()].length >= 3;
+        taskSearchDebounce = setTimeout(async () => {
+            if (!useFts) {
+                renderMessages(state.messages);
+                return;
+            }
+            const seq = ++taskSearchSeq;
+            try {
+                const filtered = await api.searchActiveMessages(q, state.currentLang);
+                if (seq !== taskSearchSeq) return;
+                renderMessages(filtered, { skipClientSearch: true });
+            } catch {
+                if (seq !== taskSearchSeq) return;
+                renderMessages(state.messages);
+            }
+        }, 300);
     });
     setupTabs('.c-settings__tab', '.c-settings__panel', 'data-settings-tab', 'c-settings__tab--active', (tabId: string) => {
         if (tabId === 'tokenUsageTab') {

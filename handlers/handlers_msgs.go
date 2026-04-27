@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
+	"unicode/utf8"
 
 	"message-consolidator/auth"
 	"message-consolidator/logger"
@@ -28,6 +30,31 @@ type batchTranslateResponse struct {
 	Results []services.BatchTranslateResult `json:"results"`
 }
 
+type categorizedMessages struct {
+	Inbox     []store.ConsolidatedMessage `json:"inbox"`
+	Delegated []store.ConsolidatedMessage `json:"delegated"`
+	Reference []store.ConsolidatedMessage `json:"reference"`
+}
+
+func categorizeForResponse(msgs []store.ConsolidatedMessage) categorizedMessages {
+	res := categorizedMessages{
+		Inbox:     make([]store.ConsolidatedMessage, 0),
+		Delegated: make([]store.ConsolidatedMessage, 0),
+		Reference: make([]store.ConsolidatedMessage, 0),
+	}
+	for _, m := range msgs {
+		switch m.Category {
+		case services.CategoryPersonal:
+			res.Inbox = append(res.Inbox, m)
+		case services.CategoryRequested:
+			res.Delegated = append(res.Delegated, m)
+		default:
+			res.Reference = append(res.Reference, m)
+		}
+	}
+	return res
+}
+
 func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	msgsRaw, err := store.GetMessages(r.Context(), email)
@@ -42,27 +69,30 @@ func (a *API) HandleGetMessages(w http.ResponseWriter, r *http.Request) {
 		a.Tasks.PrepareMessagesForClient(r.Context(), email, msgs, r.URL.Query().Get("lang"))
 	}
 
-	res := struct {
-		Inbox     []store.ConsolidatedMessage `json:"inbox"`
-		Delegated []store.ConsolidatedMessage `json:"delegated"`
-		Reference []store.ConsolidatedMessage `json:"reference"`
-	}{
-		Inbox:     make([]store.ConsolidatedMessage, 0),
-		Delegated: make([]store.ConsolidatedMessage, 0),
-		Reference: make([]store.ConsolidatedMessage, 0),
+	respondJSON(w, http.StatusOK, categorizeForResponse(msgs))
+}
+
+// Why: trigram tokenizer needs ≥3 runes; below threshold FE keeps client-side LIKE on cached state.
+const minActiveSearchRunes = 3
+
+func (a *API) HandleSearchActive(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if utf8.RuneCountInString(q) < minActiveSearchRunes {
+		respondError(w, http.StatusBadRequest, "query must be at least 3 characters")
+		return
 	}
 
-	for _, m := range msgs {
-		switch m.Category {
-		case services.CategoryPersonal:
-			res.Inbox = append(res.Inbox, m)
-		case services.CategoryRequested:
-			res.Delegated = append(res.Delegated, m)
-		default:
-			res.Reference = append(res.Reference, m)
-		}
+	msgs, err := store.SearchActiveMessages(r.Context(), email, q)
+	if err != nil {
+		handleAPIError(w, r, err, "[MESSAGES] Active search error for "+email, "Failed to search messages")
+		return
 	}
-	respondJSON(w, http.StatusOK, res)
+	if a.Tasks != nil {
+		a.Tasks.PrepareMessagesForClient(r.Context(), email, msgs, r.URL.Query().Get("lang"))
+	}
+
+	respondJSON(w, http.StatusOK, categorizeForResponse(msgs))
 }
 
 func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {
