@@ -204,8 +204,14 @@ func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m
 	// cycle's parseNewEmails IsProcessed check skips Gmail Get + header parse +
 	// contact upsert entirely. Without marking, Gmail's `after:` boundary inclusivity
 	// re-fetches these messages every cycle and burns Google API quota for nothing.
-	if isMarketingHeader(fullMsg.Payload.Headers, internalDomains) {
+	if isMarketingHeader(fullMsg.Payload.Headers, fromHeader, internalDomains) {
 		logger.Debugf("[SCAN-GMAIL] Ignoring marketing email from: %s", fromHeader)
+		store.IncrementFilteredCount(email)
+		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
+		return nil, "", "", ts, nil
+	}
+	if isSelfAddressedBulk(fromHeader, toHeader, email) {
+		logger.Debugf("[SCAN-GMAIL] Ignoring self-addressed bulk from: %s", fromHeader)
 		store.IncrementFilteredCount(email)
 		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
 		return nil, "", "", ts, nil
@@ -340,11 +346,82 @@ func extractHeaders(headers []*gmail.MessagePartHeader) (subject, from, to, cc, 
 	return
 }
 
+// parseAddrLower extracts the bare email address from a header value
+// (display-name and surrounding whitespace stripped) and lowercases it.
+// Returns empty string on parse failure or empty input.
+func parseAddrLower(header string) string {
+	if header == "" {
+		return ""
+	}
+	addr, err := mail.ParseAddress(header)
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(addr.Address))
+}
+
+// isSelfAddressedBulk detects the "From == To, recipients in BCC" bulk-send
+// pattern used by senders that bypass ESPs (no List-Unsubscribe / Precedence).
+// Why: External advertisers using their own SMTP often address the message to
+// themselves and BCC the distribution list; matching From/To addresses with the
+// user appearing only via BCC/Delivered-To is a strong bulk signal. Excludes
+// the user's own self-memos (isFromMe path handled elsewhere).
+// Strict rule: cut only when To parses to exactly one address equal to From.
+// Multi-recipient To headers are left to other filters.
+func isSelfAddressedBulk(fromHeader, toHeader, userEmail string) bool {
+	fromAddr := parseAddrLower(fromHeader)
+	if fromAddr == "" {
+		return false
+	}
+	if fromAddr == strings.ToLower(strings.TrimSpace(userEmail)) {
+		return false
+	}
+	toList, err := mail.ParseAddressList(toHeader)
+	if err != nil || len(toList) != 1 {
+		return false
+	}
+	toAddr := strings.ToLower(strings.TrimSpace(toList[0].Address))
+	return fromAddr == toAddr
+}
+
+// isInternalSender reports whether the From header's email domain belongs to an
+// internal domain (exact match or subdomain). Used to scope the internal-List-ID
+// marketing exemption to in-house senders only — external advertisers routing
+// through an internal Google Group must not inherit the exemption.
+func isInternalSender(fromHeader string, internalDomains []string) bool {
+	if fromHeader == "" || len(internalDomains) == 0 {
+		return false
+	}
+	addr, err := mail.ParseAddress(fromHeader)
+	if err != nil {
+		return false
+	}
+	at := strings.LastIndex(addr.Address, "@")
+	if at < 0 {
+		return false
+	}
+	domain := strings.ToLower(strings.TrimSpace(addr.Address[at+1:]))
+	if domain == "" {
+		return false
+	}
+	for _, d := range internalDomains {
+		d = strings.ToLower(strings.TrimSpace(d))
+		if d == "" {
+			continue
+		}
+		if domain == d || strings.HasSuffix(domain, "."+d) {
+			return true
+		}
+	}
+	return false
+}
+
 // isMarketingHeader identifies promotional emails using standard headers like List-Unsubscribe and Precedence.
 // Why: Internal Google Groups (e.g. indonesia@whatap.io) re-inject List-Unsubscribe on every member copy per RFC 2369;
-// without a List-ID-domain allowlist, all internal group traffic gets misclassified as marketing and dropped pre-AI.
-func isMarketingHeader(headers []*gmail.MessagePartHeader, internalDomains []string) bool {
-	if hasInternalListID(headers, internalDomains) {
+// the exemption applies only when BOTH List-ID matches an internal domain AND the From sender is internal —
+// otherwise an external advertiser routing through an internal group inherits the exemption and bypasses the cut.
+func isMarketingHeader(headers []*gmail.MessagePartHeader, fromHeader string, internalDomains []string) bool {
+	if hasInternalListID(headers, internalDomains) && isInternalSender(fromHeader, internalDomains) {
 		return false
 	}
 	for _, h := range headers {

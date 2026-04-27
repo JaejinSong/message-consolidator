@@ -372,6 +372,7 @@ func TestIsMarketingHeader(t *testing.T) {
 	tests := []struct {
 		name            string
 		headers         []*gmail.MessagePartHeader
+		fromHeader      string
 		internalDomains []string
 		expected        bool
 	}{
@@ -381,6 +382,7 @@ func TestIsMarketingHeader(t *testing.T) {
 				{Name: "List-Unsubscribe", Value: "<mailto:unsubscribe@example.com>"},
 				{Name: "Subject", Value: "Promo"},
 			},
+			fromHeader:      "promo@external.com",
 			internalDomains: internal,
 			expected:        true,
 		},
@@ -389,6 +391,7 @@ func TestIsMarketingHeader(t *testing.T) {
 			headers: []*gmail.MessagePartHeader{
 				{Name: "Precedence", Value: "bulk"},
 			},
+			fromHeader:      "newsletter@external.com",
 			internalDomains: internal,
 			expected:        true,
 		},
@@ -397,6 +400,7 @@ func TestIsMarketingHeader(t *testing.T) {
 			headers: []*gmail.MessagePartHeader{
 				{Name: "Precedence", Value: "LIST"},
 			},
+			fromHeader:      "list@external.com",
 			internalDomains: internal,
 			expected:        true,
 		},
@@ -406,6 +410,7 @@ func TestIsMarketingHeader(t *testing.T) {
 				{Name: "From", Value: "boss@example.com"},
 				{Name: "Subject", Value: "Report"},
 			},
+			fromHeader:      "boss@example.com",
 			internalDomains: internal,
 			expected:        false,
 		},
@@ -415,6 +420,7 @@ func TestIsMarketingHeader(t *testing.T) {
 				{Name: "List-Unsubscribe", Value: "<https://groups.google.com/...>"},
 				{Name: "List-ID", Value: "WhaTap Indonesia <indonesia.whatap.io>"},
 			},
+			fromHeader:      "lead@whatap.io",
 			internalDomains: internal,
 			expected:        false,
 		},
@@ -424,6 +430,7 @@ func TestIsMarketingHeader(t *testing.T) {
 				{Name: "List-Unsubscribe", Value: "<mailto:x@y.com>"},
 				{Name: "List-ID", Value: "all.whatap.io"},
 			},
+			fromHeader:      "ops@whatap.io",
 			internalDomains: internal,
 			expected:        false,
 		},
@@ -433,6 +440,7 @@ func TestIsMarketingHeader(t *testing.T) {
 				{Name: "List-Unsubscribe", Value: "<mailto:unsubscribe@external.com>"},
 				{Name: "List-ID", Value: "<news.external.com>"},
 			},
+			fromHeader:      "news@external.com",
 			internalDomains: internal,
 			expected:        true,
 		},
@@ -442,6 +450,7 @@ func TestIsMarketingHeader(t *testing.T) {
 				{Name: "Precedence", Value: "bulk"},
 				{Name: "List-ID", Value: "<eng.whatap.io>"},
 			},
+			fromHeader:      "eng-lead@whatap.io",
 			internalDomains: internal,
 			expected:        false,
 		},
@@ -451,6 +460,7 @@ func TestIsMarketingHeader(t *testing.T) {
 				{Name: "List-Unsubscribe", Value: "<x>"},
 				{Name: "List-ID", Value: "<x.whatap.io>"},
 			},
+			fromHeader:      "x@external.com",
 			internalDomains: nil,
 			expected:        true,
 		},
@@ -460,15 +470,137 @@ func TestIsMarketingHeader(t *testing.T) {
 				{Name: "List-Unsubscribe", Value: "<x>"},
 				{Name: "List-ID", Value: "<team.whatap.com>"},
 			},
+			fromHeader:      "team@whatap.com",
 			internalDomains: []string{"whatap.io", "whatap.com"},
 			expected:        false,
+		},
+		{
+			name: "Internal List-ID but external From — KOTRA group routing pattern",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "List-Unsubscribe", Value: "<mailto:googlegroups-manage+...>"},
+				{Name: "List-ID", Value: "<global.whatap.io>"},
+				{Name: "Precedence", Value: "list"},
+			},
+			fromHeader:      `"KOTRA아카데미" <academy@kotra.or.kr>`,
+			internalDomains: internal,
+			expected:        true,
+		},
+		{
+			name: "Internal List-ID + internal From with display name — exempt",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "List-Unsubscribe", Value: "<mailto:x>"},
+				{Name: "List-ID", Value: "<eng.whatap.io>"},
+			},
+			fromHeader:      `"Eng Lead" <lead@whatap.io>`,
+			internalDomains: internal,
+			expected:        false,
+		},
+		{
+			name: "Internal List-ID + empty From — no exemption (treated as external)",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "List-Unsubscribe", Value: "<mailto:x>"},
+				{Name: "List-ID", Value: "<all.whatap.io>"},
+			},
+			fromHeader:      "",
+			internalDomains: internal,
+			expected:        true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isMarketingHeader(tt.headers, tt.internalDomains); got != tt.expected {
+			if got := isMarketingHeader(tt.headers, tt.fromHeader, tt.internalDomains); got != tt.expected {
 				t.Errorf("isMarketingHeader() = %v; want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsSelfAddressedBulk(t *testing.T) {
+	const user = "jjsong@whatap.io"
+	tests := []struct {
+		name       string
+		fromHeader string
+		toHeader   string
+		userEmail  string
+		expected   bool
+	}{
+		{
+			name:       "SparkPlus pattern — From == To, display name on To",
+			fromHeader: `"스파크플러스 강남4호점" <gangnam4@sparkplus.co>`,
+			toHeader:   `"강남4호점" <gangnam4@sparkplus.co>`,
+			userEmail:  user,
+			expected:   true,
+		},
+		{
+			name:       "Bare addresses, From == To",
+			fromHeader: "promo@sender.com",
+			toHeader:   "promo@sender.com",
+			userEmail:  user,
+			expected:   true,
+		},
+		{
+			name:       "Case-insensitive address match",
+			fromHeader: "Promo@Sender.COM",
+			toHeader:   "promo@sender.com",
+			userEmail:  user,
+			expected:   true,
+		},
+		{
+			name:       "User's own self-memo not cut",
+			fromHeader: `"Me" <jjsong@whatap.io>`,
+			toHeader:   "jjsong@whatap.io",
+			userEmail:  user,
+			expected:   false,
+		},
+		{
+			name:       "Different From and To",
+			fromHeader: "boss@example.com",
+			toHeader:   "jjsong@whatap.io",
+			userEmail:  user,
+			expected:   false,
+		},
+		{
+			name:       "Multiple To recipients — not cut",
+			fromHeader: "promo@sender.com",
+			toHeader:   "promo@sender.com, other@elsewhere.com",
+			userEmail:  user,
+			expected:   false,
+		},
+		{
+			name:       "Empty From",
+			fromHeader: "",
+			toHeader:   "promo@sender.com",
+			userEmail:  user,
+			expected:   false,
+		},
+		{
+			name:       "Empty To",
+			fromHeader: "promo@sender.com",
+			toHeader:   "",
+			userEmail:  user,
+			expected:   false,
+		},
+		{
+			name:       "Malformed From",
+			fromHeader: "not-an-email",
+			toHeader:   "promo@sender.com",
+			userEmail:  user,
+			expected:   false,
+		},
+		{
+			name:       "Malformed To",
+			fromHeader: "promo@sender.com",
+			toHeader:   "not-an-email",
+			userEmail:  user,
+			expected:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isSelfAddressedBulk(tt.fromHeader, tt.toHeader, tt.userEmail); got != tt.expected {
+				t.Errorf("isSelfAddressedBulk() = %v; want %v", got, tt.expected)
 			}
 		})
 	}
