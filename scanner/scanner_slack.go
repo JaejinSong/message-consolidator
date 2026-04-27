@@ -194,6 +194,7 @@ func dispatchOutgoingCompletionIfMine(_ context.Context, u store.User, m types.R
 		if _, err := completionSvc.ProcessPotentialCompletion(bgCtx, store.ConsolidatedMessage{
 			UserEmail: email, Source: "slack", ThreadID: raw.ReplyToID,
 			OriginalText: raw.Text, SourceTS: raw.ID, CreatedAt: raw.Timestamp,
+			RequesterCanonical: email,
 		}); err != nil {
 			logger.Warnf("[SLACK-COMPLETION] %s: %v", email, err)
 		}
@@ -522,6 +523,7 @@ func dispatchThreadCompletionIfMine(ctx context.Context, sc *channels.SlackClien
 	}
 	if _, err := completionSvc.ProcessPotentialCompletion(ctx, store.ConsolidatedMessage{
 		UserEmail: user.Email, Source: "slack", ThreadID: t.ThreadTS, OriginalText: m.Text, SourceTS: m.Timestamp,
+		RequesterCanonical: user.Email,
 	}); err != nil {
 		logger.Warnf("[SLACK-THREAD-COMPLETION] %s: %v", user.Email, err)
 	}

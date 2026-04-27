@@ -65,6 +65,16 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		return s.fallbackToNewExtraction(ctx, msg), nil
 	}
 
+	// Why: 멘션 + 본인 답글은 ball-passed의 명백한 구조적 신호. AI는 NONE/NEW를
+	// 잘못 반환할 수 있고, fromMe RESOLVE("Thanks" 등)로 본인이 본인 task를
+	// 닫는 케이스도 위험 — 명시적 close는 대시보드 ✅로.
+	if strings.EqualFold(msg.RequesterCanonical, msg.UserEmail) {
+		for _, task := range tasks {
+			_ = s.store.UpdateMessageCategory(ctx, s.db, msg.UserEmail, task.ID, CategoryRequested)
+		}
+		return true, nil
+	}
+
 	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, tasks[0].Task, msg.OriginalText)
 	if err != nil {
 		return false, fmt.Errorf("transition analysis failed: %w", err)
@@ -82,7 +92,6 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 }
 
 func (s *CompletionService) handleCompletionResult(ctx context.Context, status, updatedText string, msg, parent store.ConsolidatedMessage) bool {
-	fromMe := strings.EqualFold(msg.RequesterCanonical, msg.UserEmail)
 	parentID := parent.ID
 	switch status {
 	case "RESOLVE":
@@ -90,18 +99,12 @@ func (s *CompletionService) handleCompletionResult(ctx context.Context, status, 
 		_, _ = s.store.HandleTaskState(ctx, s.db, msg.UserEmail, item, msg)
 		return true
 	case "UPDATE":
-		// Why: If the current user sent the reply and the task isn't fully resolved,
-		// it moves to 맡긴 업무 — the ball is in the other party's court.
-		if fromMe {
-			_ = s.store.UpdateMessageCategory(ctx, s.db, msg.UserEmail, parent.ID, CategoryRequested)
+		if updatedText == "" {
+			return false
 		}
-		if updatedText != "" {
-			item := store.TodoItem{State: "update", ID: &parentID, Task: updatedText}
-			_, _ = s.store.HandleTaskState(ctx, s.db, msg.UserEmail, item, msg)
-		}
-		if fromMe || updatedText != "" {
-			return true
-		}
+		item := store.TodoItem{State: "update", ID: &parentID, Task: updatedText}
+		_, _ = s.store.HandleTaskState(ctx, s.db, msg.UserEmail, item, msg)
+		return true
 	case "NEW":
 		return s.fallbackToNewExtraction(ctx, msg)
 	}

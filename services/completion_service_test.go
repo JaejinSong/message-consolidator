@@ -145,13 +145,13 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		if len(mockStore.ReleasedCategories) != 1 || mockStore.ReleasedCategories[0] != CategoryRequested {
 			t.Errorf("expected category=%q, got %v", CategoryRequested, mockStore.ReleasedCategories)
 		}
-		// ReleasedIDs collects UpdateMessageCategory + HandleTaskState("update") calls.
-		if len(mockStore.ReleasedIDs) != 2 {
-			t.Errorf("expected category+text both updated (2 ReleasedIDs), got %v", mockStore.ReleasedIDs)
+		// Why: shortcut bypasses AI+HandleTaskState("update"); only UpdateMessageCategory fires.
+		if len(mockStore.ReleasedIDs) != 1 {
+			t.Errorf("expected only category update (no text update via shortcut), got %v", mockStore.ReleasedIDs)
 		}
 	})
 
-	t.Run("Current User Reply (RESOLVE) - Should Mark Done", func(t *testing.T) {
+	t.Run("Current User Reply (RESOLVE-shaped) - Still Reclassifies, Never Auto-Closes", func(t *testing.T) {
 		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "resolve", Task: "IFC 말레이시아 미팅 참여 범위 확정"}}}
 		mockStore := &MockStore{
 			Tasks: []store.ConsolidatedMessage{{ID: 203, Task: "IFC 말레이시아 미팅 참여 범위 확정"}},
@@ -170,11 +170,38 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		if !handled {
 			t.Fatal("expected handled=true")
 		}
-		if len(mockStore.CapturedIDs) != 1 || mockStore.CapturedIDs[0] != 203 {
-			t.Errorf("expected task 203 marked done, got %v", mockStore.CapturedIDs)
+		if len(mockStore.CapturedIDs) != 0 {
+			t.Errorf("expected NOT auto-closed (fromMe shortcut bypasses AI RESOLVE), got %v", mockStore.CapturedIDs)
 		}
-		if len(mockStore.ReleasedCategories) != 0 {
-			t.Errorf("expected no category change on RESOLVE, got %v", mockStore.ReleasedCategories)
+		if len(mockStore.ReleasedCategories) != 1 || mockStore.ReleasedCategories[0] != CategoryRequested {
+			t.Errorf("expected category=%q, got %v", CategoryRequested, mockStore.ReleasedCategories)
+		}
+	})
+
+	t.Run("Current User Reply - Bypasses AI And Reclassifies As Delegated", func(t *testing.T) {
+		// AI는 호출되어선 안 됨 — Results를 의도적으로 RESOLVE로 두고도 NOT closed 확인.
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "resolve", Task: "X"}}}
+		mockStore := &MockStore{
+			Tasks: []store.ConsolidatedMessage{{ID: 301, Task: "Provide WhaTap agent error capture documentation"}},
+		}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:          "jjsong@whatap.io",
+			ThreadID:           "thread_apm_doc",
+			OriginalText:       "Most APMs, including WhaTap, record error data by hooking into the exception handling logic of frameworks and languages.",
+			RequesterCanonical: "jjsong@whatap.io",
+		}
+
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+		if !handled {
+			t.Fatal("expected handled=true")
+		}
+		if len(mockStore.CapturedIDs) != 0 {
+			t.Errorf("expected NOT closed (AI bypassed), got CapturedIDs=%v", mockStore.CapturedIDs)
+		}
+		if len(mockStore.ReleasedCategories) != 1 || mockStore.ReleasedCategories[0] != CategoryRequested {
+			t.Errorf("expected category=%q, got %v", CategoryRequested, mockStore.ReleasedCategories)
 		}
 	})
 

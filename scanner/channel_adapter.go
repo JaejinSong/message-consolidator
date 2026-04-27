@@ -106,6 +106,7 @@ func triggerOutgoingCompletions(ctx context.Context, msgs []types.RawMessage, us
 			if _, err := completionSvc.ProcessPotentialCompletion(asyncCtx, store.ConsolidatedMessage{
 				UserEmail: em, Source: src, Room: room, ThreadID: r.ReplyToID,
 				OriginalText: r.Text, SourceTS: r.ID, CreatedAt: r.Timestamp,
+				RequesterCanonical: em,
 			}); err != nil {
 				logger.Warnf("[OUTGOING-COMPLETION] %s/%s: %v", src, room, err)
 			}
