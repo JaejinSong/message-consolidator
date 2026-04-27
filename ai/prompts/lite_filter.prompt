@@ -18,7 +18,7 @@ Decide whether a message should be processed for task extraction or ignored as n
   5. **Casual Acknowledgments**: "Ok", "Thanks", "Got it" - UNLESS they clearly indicate task resolution.
   6. **Policy Notices**: Standing instructions or informational announcements with no immediate action (e.g., "Contact Hady for license requests", "Use this format for licenses").
 
-Note: Marketing/Newsletters are ALWAYS noise, even if they contain calls-to-action (CTAs) like "Buy" or "Enroll".
+Note: Marketing/Newsletters are ALWAYS noise, even if they contain calls-to-action (CTAs) like "Buy" or "Enroll", appear as 1:1 outreach, or wrap promotion in informational/educational content. Body-level signals (explicit unsubscribe text, discount/coupon codes, limited-quantity offers like "先着 N社限定" / "쿠폰 코드 : ...", "이 메일이 잘 안보이시나요") confirm marketing intent regardless of tone.
 
 # Output:
 - Respond ONLY with `TRUE` or `FALSE`.
