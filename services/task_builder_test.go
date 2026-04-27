@@ -1,8 +1,10 @@
 package services
 
 import (
+	"context"
 	"message-consolidator/store"
 	"testing"
+	"time"
 )
 
 func TestResolveTaskTitle(t *testing.T) {
@@ -195,6 +197,84 @@ func TestResolveAssignee_PromiseBranchUsesSenderRaw(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("resolveAssignee() = %q; want %q", got, tt.want)
 			}
+		})
+	}
+}
+
+// Why (Phase J Path B): WA/Telegram envelope fields (SenderRaw, Timestamp, RepliedToID)
+// must survive the services.BuildTask path. Regression table covers 4 authoritative scenarios.
+func TestBuildTask_EnvelopeFields(t *testing.T) {
+	fixedTS := time.Date(2026, 4, 27, 10, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name       string
+		params     TaskBuildParams
+		checkFn    func(t *testing.T, msg store.ConsolidatedMessage)
+	}{
+		{
+			name: "WhatsApp PushName SenderRaw fills empty AI requester",
+			params: TaskBuildParams{
+				UserEmail: "u@test.com",
+				User:      store.User{Email: "u@test.com", Name: "U"},
+				Item:      store.TodoItem{Task: "do something", Category: "TASK"},
+				SenderRaw: "Kenny",
+			},
+			checkFn: func(t *testing.T, msg store.ConsolidatedMessage) {
+				t.Helper()
+				if msg.Requester != "Kenny" {
+					t.Errorf("Requester = %q, want %q", msg.Requester, "Kenny")
+				}
+			},
+		},
+		{
+			name: "Telegram SenderName preferred over numeric Sender",
+			params: TaskBuildParams{
+				UserEmail: "u@test.com",
+				User:      store.User{Email: "u@test.com", Name: "U"},
+				Item:      store.TodoItem{Task: "do something", Category: "TASK"},
+				SenderRaw: "John Doe", // adapter가 SenderName 우선 처리한 결과
+			},
+			checkFn: func(t *testing.T, msg store.ConsolidatedMessage) {
+				t.Helper()
+				if msg.Requester != "John Doe" {
+					t.Errorf("Requester = %q, want %q", msg.Requester, "John Doe")
+				}
+			},
+		},
+		{
+			name: "AssignedAt envelope timestamp propagates",
+			params: TaskBuildParams{
+				UserEmail: "u@test.com",
+				User:      store.User{Email: "u@test.com", Name: "U"},
+				Item:      store.TodoItem{Task: "do something", Category: "TASK"},
+				Timestamp: fixedTS,
+			},
+			checkFn: func(t *testing.T, msg store.ConsolidatedMessage) {
+				t.Helper()
+				if !msg.AssignedAt.Equal(fixedTS) {
+					t.Errorf("AssignedAt = %v, want %v", msg.AssignedAt, fixedTS)
+				}
+			},
+		},
+		{
+			name: "RepliedToID envelope propagates",
+			params: TaskBuildParams{
+				UserEmail:   "u@test.com",
+				User:        store.User{Email: "u@test.com", Name: "U"},
+				Item:        store.TodoItem{Task: "do something", Category: "TASK"},
+				RepliedToID: "msg_abc123",
+			},
+			checkFn: func(t *testing.T, msg store.ConsolidatedMessage) {
+				t.Helper()
+				if msg.RepliedToID != "msg_abc123" {
+					t.Errorf("RepliedToID = %q, want %q", msg.RepliedToID, "msg_abc123")
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := BuildTask(context.Background(), tt.params)
+			tt.checkFn(t, msg)
 		})
 	}
 }

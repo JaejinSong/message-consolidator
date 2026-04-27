@@ -1,6 +1,8 @@
 package scanner
 
 import (
+	"context"
+	"message-consolidator/services"
 	"message-consolidator/store"
 	"message-consolidator/types"
 	"strings"
@@ -111,38 +113,52 @@ func TestBuildWAMetadataString(t *testing.T) {
 	}
 }
 
-func TestBuildConsolidatedMessage_ReplyToID(t *testing.T) {
-	// Why: RepliedToID was never propagated from RawMessage — quoted WhatsApp replies
-	// were always stored with empty replied_to_id, breaking thread consolidation and
-	// completion detection for non-self messages.
-	user := store.User{Email: "jj@whatap.io", Name: "JJ"}
+// TestSaveChannelItem_RepliedToID — envelope reply chain이 services.BuildTask 경로에서 보존되는지.
+func TestSaveChannelItem_RepliedToID(t *testing.T) {
 	raw := types.RawMessage{
-		ID:        "3EB03618D26C9F586A3578",
-		ReplyToID: "3EB0F9CD4AC385A720E9E8",
-		Timestamp: time.Now(),
+		ID: "msg-1", Sender: "Kenny", SenderName: "Kenny Park",
+		Text: "test", Timestamp: time.Now(),
+		ReplyToID: "parent-msg-id",
 	}
-	params := BuildTaskParams{
-		User: user, Raw: raw, Source: "whatsapp", Room: "Bank BNI",
-		Item: store.TodoItem{Task: "Check pod manifest", Category: "TASK"},
+	params := services.TaskBuildParams{
+		UserEmail:      "u@test.com",
+		User:           store.User{Email: "u@test.com", Name: "U"},
+		Item:           store.TodoItem{Task: "do something", Category: "TASK"},
+		SenderRaw:      raw.SenderName,
+		Source:         "whatsapp",
+		Room:           "Test Group",
+		SourceTS:       raw.ID,
+		Timestamp:      raw.Timestamp,
+		OriginalText:   raw.Text,
+		RepliedToID:    raw.ReplyToID,
+		SourceChannels: []string{"whatsapp"},
 	}
-
-	msg := BuildConsolidatedMessage(params, nil)
-
+	msg := services.BuildTask(context.Background(), params)
 	if msg.RepliedToID != raw.ReplyToID {
 		t.Errorf("RepliedToID = %q, want %q", msg.RepliedToID, raw.ReplyToID)
 	}
 }
 
-func TestBuildConsolidatedMessage_NoReplyToID(t *testing.T) {
-	user := store.User{Email: "jj@whatap.io", Name: "JJ"}
-	raw := types.RawMessage{ID: "3EB0F9CD4AC385A720E9E8", Timestamp: time.Now()}
-	params := BuildTaskParams{
-		User: user, Raw: raw, Source: "whatsapp", Room: "Bank BNI",
-		Item: store.TodoItem{Task: "Share YAML metadata tag", Category: "TASK"},
+// TestSaveChannelItem_NoReplyToID — empty reply는 빈 값 그대로.
+func TestSaveChannelItem_NoReplyToID(t *testing.T) {
+	raw := types.RawMessage{
+		ID: "msg-2", Sender: "Kenny", Text: "test", Timestamp: time.Now(),
+		// ReplyToID intentionally empty
 	}
-
-	msg := BuildConsolidatedMessage(params, nil)
-
+	params := services.TaskBuildParams{
+		UserEmail:      "u@test.com",
+		User:           store.User{Email: "u@test.com", Name: "U"},
+		Item:           store.TodoItem{Task: "do something", Category: "TASK"},
+		SenderRaw:      raw.Sender,
+		Source:         "whatsapp",
+		Room:           "Test Group",
+		SourceTS:       raw.ID,
+		Timestamp:      raw.Timestamp,
+		OriginalText:   raw.Text,
+		RepliedToID:    raw.ReplyToID,
+		SourceChannels: []string{"whatsapp"},
+	}
+	msg := services.BuildTask(context.Background(), params)
 	if msg.RepliedToID != "" {
 		t.Errorf("RepliedToID = %q, want empty", msg.RepliedToID)
 	}

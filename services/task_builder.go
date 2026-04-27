@@ -26,7 +26,8 @@ type TaskBuildParams struct {
 	Link           string
 	ThreadID       string
 	SourceTS       string
-	Timestamp      interface{ IsZero() bool } // time.Time compatible
+	Timestamp      time.Time // Envelope message timestamp → ConsolidatedMessage.AssignedAt
+	RepliedToID    string    // Envelope reply chain → ConsolidatedMessage.RepliedToID (Slack thread/Telegram reply/WA quoted)
 	OriginalText   string
 	SourceChannels []string
 
@@ -63,12 +64,14 @@ func BuildTask(ctx context.Context, p TaskBuildParams) store.ConsolidatedMessage
 		Requester:           requester,
 		RequesterCanonical:  p.Item.RequesterCanonical,
 		Assignee:            assignee,
+		AssignedAt:          p.Timestamp,
 		Link:                p.Link,
 		SourceTS:            p.SourceTS,
 		OriginalText:        p.OriginalText,
 		Deadline:            p.Item.Deadline,
 		Category:            category,
 		ThreadID:            p.ThreadID,
+		RepliedToID:         p.RepliedToID,
 		SourceChannels:      p.SourceChannels,
 		ConsolidatedContext: p.Item.ContextSnippets,
 	}

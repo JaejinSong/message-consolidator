@@ -176,11 +176,29 @@ func saveChannelItem(ctx context.Context, user store.User, aliases []string, ite
 		item.Category = string(types.CategoryTask)
 	}
 
-	params := BuildTaskParams{
-		User: user, Item: item, Raw: m, Source: source,
-		Room: group, SourceChannels: []string{source},
+	// Why: Telegram의 m.Sender는 숫자 ID(예 "123456789"), m.SenderName이 표시명.
+	// WhatsApp은 m.Sender에 PushName/JID, m.SenderName 빈 칸.
+	// SenderName 우선 → Sender 폴백으로 양 채널 모두 가독 가능한 이름을 SenderRaw로 전달.
+	senderRaw := m.SenderName
+	if senderRaw == "" {
+		senderRaw = m.Sender
 	}
-	msg := BuildConsolidatedMessage(params, aliases)
+
+	params := services.TaskBuildParams{
+		UserEmail:      user.Email,
+		User:           user,
+		Aliases:        aliases,
+		Item:           item,
+		SenderRaw:      senderRaw,
+		Source:         source,
+		Room:           group,
+		SourceTS:       m.ID,
+		Timestamp:      m.Timestamp,
+		OriginalText:   m.Text,
+		RepliedToID:    m.ReplyToID,
+		SourceChannels: []string{source},
+	}
+	msg := services.BuildTask(ctx, params)
 
 	id, _ := services.HandleTaskState(ctx, nil, user.Email, item, msg)
 	return id

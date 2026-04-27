@@ -690,8 +690,10 @@ func mapSlackItemToMessage(ctx context.Context, item store.TodoItem, m types.Raw
 		Room:           sc.GetChannelName(m.ChannelID),
 		Link:           link,
 		SourceTS:       m.ID,
+		Timestamp:      m.Timestamp,
 		OriginalText:   m.Text,
 		ThreadID:       threadID,
+		RepliedToID:    m.ReplyToID,
 		SourceChannels: []string{"slack"},
 	}
 	return services.BuildTask(ctx, params)

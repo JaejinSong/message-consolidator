@@ -14,7 +14,6 @@ import (
 
 	"message-consolidator/ai"
 
-	"message-consolidator/types"
 	"github.com/whatap/go-api/trace"
 	"golang.org/x/sync/errgroup"
 	"sync"
@@ -418,54 +417,3 @@ func triggerAsyncTranslation(ctx context.Context, email string, ids []store.Mess
 	}()
 }
 
-// BuildTaskParams holds cross-platform metadata required for message consolidation.
-type BuildTaskParams struct {
-	User           store.User
-	Item           store.TodoItem
-	Raw            types.RawMessage
-	Source         string
-	Room           string
-	Link           string
-	ThreadID       string
-	SourceChannels []string
-}
-
-// BuildConsolidatedMessage creates a unified message entity from AI results and platform metadata.
-func BuildConsolidatedMessage(p BuildTaskParams, aliases []string) store.ConsolidatedMessage {
-	category := p.Item.Category
-	if category == "" {
-		category = string(types.CategoryTask)
-	}
-
-	return store.ConsolidatedMessage{
-		UserEmail: p.User.Email, Source: p.Source, Room: p.Room,
-		Task: p.Item.Task, Requester: p.Item.Requester,
-		Assignee:   NormalizeAssignee(p.Item.Assignee, p.User, aliases),
-		AssignedAt: p.Raw.Timestamp, Link: p.Link, SourceTS: p.Raw.ID,
-		OriginalText: p.Raw.Text, Category: category, ThreadID: p.ThreadID,
-		RepliedToID: p.Raw.ReplyToID,
-		SourceChannels: p.SourceChannels,
-	}
-}
-
-// NormalizeAssignee centralizes self-identification across languages ("나", "me") and user aliases.
-func NormalizeAssignee(assignee string, user store.User, aliases []string) string {
-	lowerAsg := strings.ToLower(strings.TrimSpace(assignee))
-	if lowerAsg == "" {
-		return services.AssigneeShared
-	}
-
-	selfIDs := []string{store.AssigneeMe, store.AssigneeCurrentUser, strings.ToLower(user.Name), strings.ToLower(user.Email)}
-	for _, id := range selfIDs {
-		if id != "" && lowerAsg == id {
-			return user.PreferredName()
-		}
-	}
-
-	for _, alias := range aliases {
-		if alias != "" && lowerAsg == strings.ToLower(alias) {
-			return user.PreferredName()
-		}
-	}
-	return assignee
-}
