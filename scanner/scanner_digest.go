@@ -10,12 +10,12 @@ import (
 
 var (
 	digestSvc          digestDispatcher
-	digestLastSentDate atomic.Value // stores string "YYYY-MM-DD" KST date
-	// digestNowFn is replaceable in tests to inject a fixed clock.
+	digestLastSentDate atomic.Value // Why: KST YYYY-MM-DD dedup key blocks repeat sends within the same day.
+	// Why: indirection for clock injection in tests; direct time.Now() blocks mocking.
 	digestNowFn = func() time.Time { return time.Now() }
 )
 
-// digestDispatcher decouples scanner from services package for test injection.
+// Why: scanner→services dependency inversion, mirroring reminderDispatcher in reminder_service.go.
 type digestDispatcher interface {
 	Dispatch(ctx context.Context) error
 }

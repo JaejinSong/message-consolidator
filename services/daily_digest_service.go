@@ -12,7 +12,6 @@ import (
 
 const maxTaskRunes = 80
 
-// DailyDigestService dispatches the daily task summary via Slack DM.
 type DailyDigestService struct {
 	Slack          SlackPoster
 	RecipientEmail string
@@ -20,7 +19,6 @@ type DailyDigestService struct {
 	Timezone       string
 }
 
-// NewDailyDigestService constructs a DailyDigestService.
 func NewDailyDigestService(slack SlackPoster, recipientEmail string, limit int, tz string) *DailyDigestService {
 	return &DailyDigestService{
 		Slack:          slack,
@@ -30,7 +28,6 @@ func NewDailyDigestService(slack SlackPoster, recipientEmail string, limit int, 
 	}
 }
 
-// Dispatch builds and sends the daily digest DM to the configured recipient.
 func (s *DailyDigestService) Dispatch(ctx context.Context) error {
 	if s == nil || s.Slack == nil || s.RecipientEmail == "" {
 		return nil
@@ -56,7 +53,6 @@ func (s *DailyDigestService) Dispatch(ctx context.Context) error {
 	return s.Slack.SendDM(ctx, user.SlackID, text)
 }
 
-// formatDigest builds the Slack message text for the daily digest.
 func formatDigest(snap store.DigestSnapshot, now time.Time) string {
 	var sb strings.Builder
 
@@ -97,8 +93,7 @@ func formatDigest(snap store.DigestSnapshot, now time.Time) string {
 	return sb.String()
 }
 
-// formatTaskLine formats a single DigestTask line with optional room, counterpart, and deadline.
-// incoming=true → 받은 업무(상대가 요청자, "←" 화살표); incoming=false → 맡긴 업무(상대가 수임자, "→" 화살표).
+// Why: incoming=true (received) → '←' arrow (counterpart is requester); false (assigned) → '→' (counterpart is assignee).
 func formatTaskLine(t store.DigestTask, incoming bool) string {
 	task := truncateRunes(t.Task, maxTaskRunes)
 
@@ -135,13 +130,12 @@ func buildSuffix(counterpart, deadline string, deadlineValid, incoming bool) str
 		parts = append(parts, arrow+" "+counterpart)
 	}
 	if deadlineValid && deadline != "" {
-		// Format as ~MM-DD if the deadline contains date info.
 		parts = append(parts, "~"+formatDeadlineShort(deadline))
 	}
 	return strings.Join(parts, ", ")
 }
 
-// formatDeadlineShort extracts MM-DD from a deadline string like "2026-04-30" or "2026-04-30T00:00:00Z".
+// Why: deadline may be "2026-04-30" or RFC3339 — slice positions 5..10 yield MM-DD in both cases.
 func formatDeadlineShort(deadline string) string {
 	if len(deadline) >= 10 {
 		return deadline[5:10]
@@ -149,7 +143,6 @@ func formatDeadlineShort(deadline string) string {
 	return deadline
 }
 
-// truncateRunes cuts s to at most maxRunes runes, appending "…" if truncated.
 func truncateRunes(s string, maxRunes int) string {
 	if utf8.RuneCountInString(s) <= maxRunes {
 		return s
@@ -158,7 +151,6 @@ func truncateRunes(s string, maxRunes int) string {
 	return string(runes[:maxRunes]) + "…"
 }
 
-// koreanWeekday maps time.Weekday to Korean single-character weekday names.
 func koreanWeekday(w time.Weekday) string {
 	switch w {
 	case time.Monday:

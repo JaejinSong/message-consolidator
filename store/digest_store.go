@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-// DigestTask holds a single task entry for the daily digest.
 type DigestTask struct {
 	ID          int64
 	Task        string
@@ -16,10 +15,9 @@ type DigestTask struct {
 	Room        string
 	CreatedAt   time.Time
 	Deadline    sql.NullString
-	Counterpart string // received tasks: requester / assigned tasks: assignee
+	Counterpart string // Why: received=requester / assigned=assignee — single field for bidirectional rendering.
 }
 
-// DigestSnapshot is the result of GetDailyDigest.
 type DigestSnapshot struct {
 	Received      []DigestTask
 	Assigned      []DigestTask
@@ -27,15 +25,13 @@ type DigestSnapshot struct {
 	AssignedTotal int
 }
 
-// GetDailyDigest fetches pending tasks for the digest email.
-// limit ≤ 0 defaults to 23.
 func GetDailyDigest(ctx context.Context, email string, limit int) (DigestSnapshot, error) {
 	if limit <= 0 {
 		limit = 23
 	}
 	q := db.New(GetDB())
 
-	// Resolve canonical user name the same way stats_store does.
+	// Why: same canonical-name resolution as stats_store.loadPendingMe so assignee equality matches.
 	userName, _ := q.GetUserByEmailSimple(ctx, nullString(email))
 
 	var snap DigestSnapshot
@@ -131,8 +127,7 @@ func nullTimeToTime(nt sql.NullTime) time.Time {
 	return time.Time{}
 }
 
-// stringToNullString converts a plain string to sql.NullString.
-// Empty string is treated as null for optional fields like deadline.
+// Why: treat empty string as NULL so optional fields (deadline) keep IS NULL query semantics.
 func stringToNullString(s string) sql.NullString {
 	return sql.NullString{String: s, Valid: s != ""}
 }

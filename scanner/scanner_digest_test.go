@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-// mockDigestDispatcher counts Dispatch invocations.
 type mockDigestDispatcher struct {
 	callCount int
 	mu        sync.Mutex
@@ -28,7 +27,6 @@ func (m *mockDigestDispatcher) Count() int {
 	return m.callCount
 }
 
-// setupDigestTest resets package-level state and injects test dependencies.
 func setupDigestTest(mock *mockDigestDispatcher, enabled bool, hour int) {
 	digestLastSentDate = atomic.Value{}
 	digestSvc = mock
@@ -39,7 +37,6 @@ func setupDigestTest(mock *mockDigestDispatcher, enabled bool, hour int) {
 	}
 }
 
-// kstTime builds a time.Time in Asia/Seoul.
 func kstTime(year, month, day, hour, minute, second int) time.Time {
 	loc, _ := time.LoadLocation("Asia/Seoul")
 	return time.Date(year, time.Month(month), day, hour, minute, second, 0, loc)
@@ -49,7 +46,6 @@ func TestRunDailyDigest_WeekdayAtHour_Dispatches(t *testing.T) {
 	mock := &mockDigestDispatcher{}
 	setupDigestTest(mock, true, 18)
 
-	// 2026-04-28 (화) 18:00:00 KST
 	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 18, 0, 0) }
 
 	runDailyDigest(context.Background(), nil)
@@ -66,14 +62,13 @@ func TestRunDailyDigest_SameDaySecondTick_NoDispatch(t *testing.T) {
 	mock := &mockDigestDispatcher{}
 	setupDigestTest(mock, true, 18)
 
-	// First tick at 18:00:00
 	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 18, 0, 0) }
 	runDailyDigest(context.Background(), nil)
 	if mock.Count() != 1 {
 		t.Fatalf("expected 1 dispatch after first tick, got %d", mock.Count())
 	}
 
-	// Second tick at 18:01:30 — same date, should not dispatch again.
+	// Why: second tick same day — dedup key must block re-dispatch.
 	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 18, 1, 30) }
 	runDailyDigest(context.Background(), nil)
 	if mock.Count() != 1 {
@@ -85,7 +80,6 @@ func TestRunDailyDigest_BeforeHour_NoDispatch(t *testing.T) {
 	mock := &mockDigestDispatcher{}
 	setupDigestTest(mock, true, 18)
 
-	// 17:59:50 — not yet the hour
 	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 17, 59, 50) }
 	runDailyDigest(context.Background(), nil)
 	if mock.Count() != 0 {
@@ -97,7 +91,6 @@ func TestRunDailyDigest_PastMinute5_NoDispatch(t *testing.T) {
 	mock := &mockDigestDispatcher{}
 	setupDigestTest(mock, true, 18)
 
-	// 18:05:00 — minute >= 5, window closed
 	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 18, 5, 0) }
 	runDailyDigest(context.Background(), nil)
 	if mock.Count() != 0 {
@@ -109,7 +102,6 @@ func TestRunDailyDigest_Saturday_NoDispatch(t *testing.T) {
 	mock := &mockDigestDispatcher{}
 	setupDigestTest(mock, true, 18)
 
-	// 2026-05-02 (토) 18:00:00 KST
 	digestNowFn = func() time.Time {
 		loc, _ := time.LoadLocation("Asia/Seoul")
 		t := time.Date(2026, 5, 2, 18, 0, 0, 0, loc)
@@ -126,7 +118,7 @@ func TestRunDailyDigest_Saturday_NoDispatch(t *testing.T) {
 
 func TestRunDailyDigest_Disabled_NoDispatch(t *testing.T) {
 	mock := &mockDigestDispatcher{}
-	setupDigestTest(mock, false, 18) // DailyDigestEnabled = false
+	setupDigestTest(mock, false, 18)
 
 	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 18, 0, 0) }
 	runDailyDigest(context.Background(), nil)

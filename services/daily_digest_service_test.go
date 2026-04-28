@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// makeKSTTime creates a time.Time in Asia/Seoul for test helpers.
 func makeKSTTime(year, month, day int) time.Time {
 	loc, _ := time.LoadLocation("Asia/Seoul")
 	return time.Date(year, time.Month(month), day, 18, 0, 0, 0, loc)
@@ -91,7 +90,6 @@ func TestFormatDigest_WithItems(t *testing.T) {
 func TestFormatDigest_LimitTruncation(t *testing.T) {
 	now := makeKSTTime(2026, 4, 28)
 
-	// 2 items shown but total is 7 → "외 5건"
 	snap := store.DigestSnapshot{
 		Received: []store.DigestTask{
 			{ID: 1, Task: "task1", Source: "Slack", Room: "a"},
@@ -106,7 +104,7 @@ func TestFormatDigest_LimitTruncation(t *testing.T) {
 }
 
 func TestFormatDigest_TaskTrim80Runes(t *testing.T) {
-	// Build a 100-rune Korean string (each 가 is one rune).
+	// Why: '가' is 1 rune, so 100 chars = 100 runes — exercises multi-byte truncation.
 	longTask := ""
 	for i := 0; i < 100; i++ {
 		longTask += "가"
@@ -123,12 +121,9 @@ func TestFormatDigest_TaskTrim80Runes(t *testing.T) {
 
 	text := formatDigest(snap, now)
 
-	// Verify truncation: the rendered task should be ≤ 80 runes + "…"
-	// Find the line that starts with "• "
 	for _, line := range splitLines(text) {
 		runes := []rune(line)
 		if len(runes) > 0 && runes[0] == '•' {
-			// Extract task portion after "[Slack/ch] "
 			if len(runes) > 100 {
 				t.Errorf("task line exceeds expected length: %d runes", len(runes))
 			}
@@ -156,7 +151,6 @@ func TestFormatDigest_WeekdayKorean(t *testing.T) {
 	}
 }
 
-// assertContains is a helper that fails the test if s does not contain sub.
 func assertContains(t *testing.T, s, sub string) {
 	t.Helper()
 	if !contains(s, sub) {
