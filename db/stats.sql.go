@@ -381,3 +381,117 @@ func (q *Queries) GetTotalCompleted(ctx context.Context, dollar_1 string) (int64
 	err := row.Scan(&count)
 	return count, err
 }
+
+const listPendingMe = `-- name: ListPendingMe :many
+SELECT id, task, source, room, created_at, deadline, requester
+FROM v_messages
+WHERE user_email = CAST(?1 AS TEXT) AND done = 0 AND is_deleted = 0
+  AND (assignee = CAST(?2 AS TEXT) OR assignee = 'me')
+  AND IFNULL(task, '') != '' AND IFNULL(category, '') != 'merged'
+ORDER BY COALESCE(deadline, created_at) ASC
+LIMIT CAST(?3 AS INTEGER)
+`
+
+type ListPendingMeParams struct {
+	Column1 string `json:"column_1"`
+	Column2 string `json:"column_2"`
+	Column3 int64  `json:"column_3"`
+}
+
+type ListPendingMeRow struct {
+	ID        int64        `json:"id"`
+	Task      string       `json:"task"`
+	Source    string       `json:"source"`
+	Room      string       `json:"room"`
+	CreatedAt sql.NullTime `json:"created_at"`
+	Deadline  string       `json:"deadline"`
+	Requester string       `json:"requester"`
+}
+
+func (q *Queries) ListPendingMe(ctx context.Context, arg ListPendingMeParams) ([]ListPendingMeRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingMe, arg.Column1, arg.Column2, arg.Column3)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPendingMeRow
+	for rows.Next() {
+		var i ListPendingMeRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Task,
+			&i.Source,
+			&i.Room,
+			&i.CreatedAt,
+			&i.Deadline,
+			&i.Requester,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPendingOthers = `-- name: ListPendingOthers :many
+SELECT id, task, source, room, created_at, deadline, assignee
+FROM v_messages
+WHERE user_email = ? AND done = 0 AND is_deleted = 0
+  AND (assignee != ? AND assignee != 'me')
+  AND IFNULL(task, '') != '' AND IFNULL(category, '') != 'merged'
+ORDER BY COALESCE(deadline, created_at) ASC
+LIMIT ?
+`
+
+type ListPendingOthersParams struct {
+	UserEmail string `json:"user_email"`
+	Assignee  string `json:"assignee"`
+	Limit     int64  `json:"limit"`
+}
+
+type ListPendingOthersRow struct {
+	ID        int64        `json:"id"`
+	Task      string       `json:"task"`
+	Source    string       `json:"source"`
+	Room      string       `json:"room"`
+	CreatedAt sql.NullTime `json:"created_at"`
+	Deadline  string       `json:"deadline"`
+	Assignee  string       `json:"assignee"`
+}
+
+func (q *Queries) ListPendingOthers(ctx context.Context, arg ListPendingOthersParams) ([]ListPendingOthersRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingOthers, arg.UserEmail, arg.Assignee, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPendingOthersRow
+	for rows.Next() {
+		var i ListPendingOthersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Task,
+			&i.Source,
+			&i.Room,
+			&i.CreatedAt,
+			&i.Deadline,
+			&i.Assignee,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

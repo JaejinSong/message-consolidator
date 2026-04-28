@@ -37,8 +37,13 @@ type Config struct {
 	DBMaxIdleConns         int
 	DBMaxOpenConns         int
 	DBKeepAliveInterval    time.Duration
-	ReminderEnabled        bool
-	ReminderWindowsHours   []int
+	ReminderEnabled           bool
+	ReminderWindowsHours      []int
+	DailyDigestEnabled        bool
+	DailyDigestRecipientEmail string
+	DailyDigestHour           int
+	DailyDigestTimezone       string
+	DailyDigestListLimit      int
 }
 
 func LoadConfig() *Config {
@@ -71,8 +76,13 @@ func LoadConfig() *Config {
 		DBMaxOpenConns:         envInt("DB_MAX_OPEN_CONNS", 25),
 		// Why: Turso server-side closes idle libsql streams after 10s; 7s leaves 3s margin for jitter/GC.
 		DBKeepAliveInterval:  envDurationOrSeconds("DB_KEEP_ALIVE_INTERVAL", 7*time.Second),
-		ReminderEnabled:      parseBoolEnv("REMINDER_ENABLED", false),
-		ReminderWindowsHours: parseIntCSV(os.Getenv("REMINDER_WINDOWS_HOURS"), []int{24, 1}),
+		ReminderEnabled:           parseBoolEnv("REMINDER_ENABLED", false),
+		ReminderWindowsHours:      parseIntCSV(os.Getenv("REMINDER_WINDOWS_HOURS"), []int{24, 1}),
+		DailyDigestEnabled:        parseBoolEnv("DAILY_DIGEST_ENABLED", false),
+		DailyDigestRecipientEmail: os.Getenv("DAILY_DIGEST_RECIPIENT_EMAIL"),
+		DailyDigestHour:           envInt("DAILY_DIGEST_HOUR", 18),
+		DailyDigestTimezone:       envOr("DAILY_DIGEST_TIMEZONE", "Asia/Seoul"),
+		DailyDigestListLimit:      envInt("DAILY_DIGEST_LIST_LIMIT", 23),
 	}
 }
 

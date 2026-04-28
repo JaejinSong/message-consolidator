@@ -48,6 +48,9 @@ func Init(c *config.Config) {
 	if cfg.SlackToken != "" {
 		slackClient := channels.NewSlackClient(cfg.SlackToken)
 		reminderSvc = services.NewReminderService(slackClient, cfg.ReminderWindowsHours)
+		if cfg.DailyDigestEnabled && cfg.DailyDigestRecipientEmail != "" {
+			digestSvc = services.NewDailyDigestService(slackClient, cfg.DailyDigestRecipientEmail, cfg.DailyDigestListLimit, cfg.DailyDigestTimezone)
+		}
 	}
 }
 
@@ -66,6 +69,7 @@ func StartBackgroundScanner(ctx context.Context) {
 		{name: "log-db-stats", traceName: "/Background-LogDBStats", runFn: runLogDBStats},
 		{name: "sweep-slack-threads", traceName: "/Background-SweepSlackThreads", runFn: runSlackSweep},
 		{name: "deadline-reminder", traceName: "/Background-DeadlineReminder", runFn: runDeadlineReminder},
+		{name: "daily-digest", traceName: "/Background-DailyDigest", runFn: runDailyDigest},
 	}
 	for _, l := range loops {
 		first := pickPrime()
