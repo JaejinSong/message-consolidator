@@ -128,6 +128,14 @@ SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as sourc
 FROM v_messages WHERE user_email = ? AND thread_id = ? AND done = 0 AND is_deleted = 0 AND IFNULL(task, '') != '';
 
 
+-- name: GetLatestThreadAssignee :one
+SELECT COALESCE(assignee, '') AS assignee
+FROM v_messages
+WHERE user_email = ? AND thread_id = ? AND is_deleted = 0
+  AND IFNULL(assignee, '') != '' AND assignee != 'shared'
+ORDER BY created_at DESC
+LIMIT 1;
+
 -- name: UpdateCategoryMerged :exec
 UPDATE messages SET category = 'merged' WHERE id IN (sqlc.slice('ids')) AND user_email = ?;
 

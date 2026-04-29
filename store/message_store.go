@@ -637,6 +637,26 @@ func GetIncompleteByThreadID(ctx context.Context, q Querier, email, threadID str
 	return msgs, nil
 }
 
+// GetLatestThreadAssignee returns the most recent non-shared assignee in a thread (incl. done).
+// Why: completion fallback path may INSERT a new task when the thread has no incomplete parent;
+// surfacing the prior assignee preserves thread routing instead of dumping to "shared".
+func GetLatestThreadAssignee(ctx context.Context, q Querier, email, threadID string) (string, error) {
+	if threadID == "" {
+		return "", nil
+	}
+	assignee, err := db.New(q).GetLatestThreadAssignee(ctx, db.GetLatestThreadAssigneeParams{
+		UserEmail: email,
+		ThreadID:  threadID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return assignee, nil
+}
+
 // GetActiveContextTasks retrieves a subset of incomplete tasks to provide context for AI analysis.
 // Why: Limits results to 50 items and 30 days to optimize AI token usage and memory overhead.
 func GetActiveContextTasks(ctx context.Context, q Querier, email, source, room string) ([]ConsolidatedMessage, error) {

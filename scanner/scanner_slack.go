@@ -145,7 +145,7 @@ func scanSingleSlackChannel(ctx context.Context, users []store.User, c slack.Cha
 	mu.Lock()
 	defer mu.Unlock()
 	for _, m := range msgs {
-		classifyAndCollect(ctx, c, m, users, userAl, candidates, newTS)
+		classifyAndCollect(ctx, c, sc, m, users, userAl, candidates, newTS)
 	}
 	return nil
 }
@@ -164,16 +164,16 @@ func getMinLastTS(users []store.User, channelID string) string {
 	return min
 }
 
-func classifyAndCollect(ctx context.Context, c slack.Channel, m types.RawMessage, users []store.User, userAl map[string][]string, candidates map[string][]types.RawMessage, newTS map[string]map[string]string) {
+func classifyAndCollect(ctx context.Context, c slack.Channel, sc *channels.SlackClient, m types.RawMessage, users []store.User, userAl map[string][]string, candidates map[string][]types.RawMessage, newTS map[string]map[string]string) {
+	m.ChannelID = c.ID
 	for _, u := range users {
 		lts := store.GetLastScan(u.Email, "slack", c.ID)
 		if lts != "" && m.ID <= lts {
 			continue
 		}
-		dispatchOutgoingCompletionIfMine(ctx, u, m)
+		dispatchOutgoingCompletionIfMine(ctx, sc, u, m)
 		cls := classifyMessage(c, &u, userAl[u.Email], m)
 		if cls == types.CategoryTask || cls == types.CategoryQuery {
-			m.ChannelID = c.ID
 			candidates[u.Email] = append(candidates[u.Email], m)
 		}
 		updateChannelCursor(newTS, u.Email, c.ID, m.ID)
@@ -182,23 +182,32 @@ func classifyAndCollect(ctx context.Context, c slack.Channel, m types.RawMessage
 
 //Why: When the user replies in their own thread we evaluate state (RESOLVE/UPDATE) on a Background ctx so Gemini latency doesn't block the scan loop.
 // _ ctx is accepted for trace propagation parity with the rest of classifyAndCollect; the goroutine itself uses Background.
-func dispatchOutgoingCompletionIfMine(_ context.Context, u store.User, m types.RawMessage) {
+func dispatchOutgoingCompletionIfMine(_ context.Context, sc *channels.SlackClient, u store.User, m types.RawMessage) {
 	if completionSvc == nil || m.ReplyToID == "" {
 		return
 	}
 	if !strings.EqualFold(m.Sender, u.Name) && !strings.EqualFold(m.Sender, u.Email) {
 		return
 	}
-	go func(bgCtx context.Context, email string, raw types.RawMessage) { //nolint:contextcheck // Goroutine outlives the parent scan ctx by design.
+	// Why: completion-fallback may INSERT a new task when the thread has no
+	// open parent. Propagate envelope (Requester/Room/Link/AssignedAt/SourceChannels)
+	// so the resulting row matches the normal scanner path instead of empty fields.
+	room := sc.GetChannelName(m.ChannelID)
+	link := buildSlackLink(m)
+	go func(bgCtx context.Context, email string, raw types.RawMessage, room, link string) { //nolint:contextcheck // Goroutine outlives the parent scan ctx by design.
 		defer safego.Recover("slack-outgoing-completion")
 		if _, err := completionSvc.ProcessPotentialCompletion(bgCtx, store.ConsolidatedMessage{
-			UserEmail: email, Source: "slack", ThreadID: raw.ReplyToID,
-			OriginalText: raw.Text, SourceTS: raw.ID, CreatedAt: raw.Timestamp,
-			RequesterCanonical: email,
+			UserEmail: email, Source: "slack",
+			Room: room, Link: link,
+			Requester: raw.Sender, RequesterCanonical: email,
+			AssignedAt: raw.Timestamp, CreatedAt: raw.Timestamp,
+			ThreadID: raw.ReplyToID, RepliedToID: raw.ReplyToID,
+			OriginalText: raw.Text, SourceTS: raw.ID,
+			SourceChannels: []string{"slack"},
 		}); err != nil {
 			logger.Warnf("[SLACK-COMPLETION] %s: %v", email, err)
 		}
-	}(context.Background(), u.Email, m)
+	}(context.Background(), u.Email, m, room, link)
 }
 
 func updateChannelCursor(newTS map[string]map[string]string, email, channelID, msgID string) {

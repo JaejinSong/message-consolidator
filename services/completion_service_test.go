@@ -51,6 +51,10 @@ func (m *MockStore) GetIncompleteByThreadID(ctx context.Context, q store.Querier
 	return m.Tasks, nil
 }
 
+func (m *MockStore) GetLatestThreadAssignee(ctx context.Context, q store.Querier, email, threadID string) (string, error) {
+	return "", nil
+}
+
 func (m *MockStore) UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id store.MessageID, category string) error {
 	m.ReleasedIDs = append(m.ReleasedIDs, id)
 	m.ReleasedCategories = append(m.ReleasedCategories, category)

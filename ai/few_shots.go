@@ -25,6 +25,14 @@ func GetDefaultFewShots() []FewShot {
 			Expected: `[{"id": 0, "state": "new", "task": "Investigate Nginx data log collection issue", "requester": "Agi", "assignee": "shared", "assignee_reason": "Agi reported a technical issue to the group without directing it at a specific person; no one explicitly committed to handle it", "category": "QUERY", "source_ts": "wa3"}]`,
 		},
 		{
+			Input:    "[ID:wa1] Sunpho: ok thankyou pak Hady, besok saya infokan lagi ya pak Hady\n[ID:wa2] Sunpho: sambil saya minta pak Handi untuk share capturean nya ya",
+			Expected: `[{"id": 0, "state": "new", "task": "Investigate the issue and report findings tomorrow", "requester": "Sunpho", "assignee": "Sunpho", "assignee_reason": "Sunpho explicitly committed first-person follow-up ('saya infokan lagi') for their own action; requester == assignee when the speaker promises self-driven follow-up, not a group broadcast", "category": "PROMISE", "source_ts": "wa1"}]`,
+		},
+		{
+			Input:    "[ID:wa1] Laurence: ok\n[ID:wa2] Laurence: i will prepare then alignment scope and timeline\n[Document: poc-cases.pptx]",
+			Expected: `[{"id": 0, "state": "new", "task": "Prepare alignment scope and timeline for the POC", "requester": "Laurence", "assignee": "Laurence", "assignee_reason": "Laurence explicitly committed first-person ('i will prepare') to drive the prep themselves; an attached document does not override an explicit self-commit by the sender", "category": "PROMISE", "source_ts": "wa2"}]`,
+		},
+		{
 			Input:    "[ID:wa1] Kamal: nnti kalo ada tambahan di request langsung aja pak sama mas hady.",
 			Expected: `[{"id": 0, "state": "new", "task": "Contact Hady for additional project or license requests", "requester": "Kamal", "assignee": "shared", "assignee_reason": "Kamal broadcast a policy directive to the group; not directed at a specific person", "category": "POLICY", "source_ts": "wa1"}]`,
 		},

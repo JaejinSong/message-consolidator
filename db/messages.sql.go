@@ -293,6 +293,27 @@ func (q *Queries) GetIncompleteByThreadID(ctx context.Context, arg GetIncomplete
 	return items, nil
 }
 
+const getLatestThreadAssignee = `-- name: GetLatestThreadAssignee :one
+SELECT COALESCE(assignee, '') AS assignee
+FROM v_messages
+WHERE user_email = ? AND thread_id = ? AND is_deleted = 0
+  AND IFNULL(assignee, '') != '' AND assignee != 'shared'
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetLatestThreadAssigneeParams struct {
+	UserEmail string `json:"user_email"`
+	ThreadID  string `json:"thread_id"`
+}
+
+func (q *Queries) GetLatestThreadAssignee(ctx context.Context, arg GetLatestThreadAssigneeParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getLatestThreadAssignee, arg.UserEmail, arg.ThreadID)
+	var assignee string
+	err := row.Scan(&assignee)
+	return assignee, err
+}
+
 const getMessageByID = `-- name: GetMessageByID :one
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
 FROM v_messages WHERE id = ?

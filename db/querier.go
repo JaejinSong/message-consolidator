@@ -76,6 +76,7 @@ type Querier interface {
 	GetGmailToken(ctx context.Context, userEmail string) (string, error)
 	GetHourlyActivity(ctx context.Context, arg GetHourlyActivityParams) ([]GetHourlyActivityRow, error)
 	GetIncompleteByThreadID(ctx context.Context, arg GetIncompleteByThreadIDParams) ([]GetIncompleteByThreadIDRow, error)
+	GetLatestThreadAssignee(ctx context.Context, arg GetLatestThreadAssigneeParams) (string, error)
 	GetLinkedContacts(ctx context.Context, tenantEmail string) ([]GetLinkedContactsRow, error)
 	GetMasterAndTypeByID(ctx context.Context, arg GetMasterAndTypeByIDParams) (GetMasterAndTypeByIDRow, error)
 	GetMaxDailyCompleted(ctx context.Context, dollar_1 string) (interface{}, error)

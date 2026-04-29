@@ -19,6 +19,7 @@ type AICompleter interface {
 
 type TaskStore interface {
 	GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error)
+	GetLatestThreadAssignee(ctx context.Context, q store.Querier, email, threadID string) (string, error)
 	UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id store.MessageID, category string) error
 	HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error)
 }
@@ -27,6 +28,10 @@ type DefaultTaskStore struct{}
 
 func (d *DefaultTaskStore) GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error) {
 	return store.GetIncompleteByThreadID(ctx, q, email, threadID)
+}
+
+func (d *DefaultTaskStore) GetLatestThreadAssignee(ctx context.Context, q store.Querier, email, threadID string) (string, error) {
+	return store.GetLatestThreadAssignee(ctx, q, email, threadID)
 }
 
 func (d *DefaultTaskStore) UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id store.MessageID, category string) error {
@@ -117,6 +122,14 @@ func (s *CompletionService) handleCompletionResult(ctx context.Context, status, 
 // void return left the message in filteredMsgs, causing a second batch Analyze
 // in processBatch within the same cycle and re-extraction every cycle thereafter).
 func (s *CompletionService) fallbackToNewExtraction(ctx context.Context, msg store.ConsolidatedMessage) bool {
+	// Why: thread had a real (done) parent task — propagate its assignee so the
+	// new row inherits routing context. AI per-item Assignee still wins via
+	// createTaskFromItem override; this only fills the envelope default.
+	if msg.Assignee == "" && msg.ThreadID != "" {
+		if a, err := s.store.GetLatestThreadAssignee(ctx, s.db, msg.UserEmail, msg.ThreadID); err == nil && a != "" {
+			msg.Assignee = a
+		}
+	}
 	enriched := types.EnrichedMessage{
 		RawContent: msg.OriginalText, SourceChannel: msg.Source,
 		SenderName: msg.Requester, VirtualThreadID: msg.ThreadID, Timestamp: msg.CreatedAt,
