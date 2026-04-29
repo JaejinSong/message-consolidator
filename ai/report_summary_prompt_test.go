@@ -171,6 +171,35 @@ func TestReportSummaryPrompt(t *testing.T) {
 			},
 		},
 		{
+			// Regression: v2.6.0 emitted "Gmail (전략/운영)" / "Gmail" as a customer label
+			// when generic Gmail Inbox tasks lacked a counterparty signal — channel name
+			// leaked into the Activity JSON as if it were a customer. v2.7.0 mandates an
+			// "Other Tasks" fallback bucket and forbids channel/source-only labels.
+			//
+			// Input mixes:
+			//   - 2 Gmail tasks with no customer signal (must collapse into "Other Tasks")
+			//   - 1 biz-global-malaysia task (room encodes counterparty → "Malaysia Biz")
+			//   - 1 Gmail task whose body names a customer (Stream-Deves) — stays separate
+			name: "Case 7: Activity Fallback — Channel-Only Labels Must Collapse to Other Tasks",
+			inputLog: `- [ ][TASK] 2분기 전략 기획 검토 (Room: Gmail, From: Andy Phan (Internal), To: Jaejin Song (Internal)) | Evidence: Q2 strategy planning kickoff
+- [ ][TASK] TKDN 피드백 정리 후 회신 (Room: Gmail, From: Andy Phan (Internal), To: Jaejin Song (Internal)) | Evidence: please review the TKDN feedback and respond
+- [ ][TASK] Align measurement criteria for the Canadia Bank PoC (Room: biz-global-malaysia, From: Andy Phan (Customer), To: shared (Team)) | Evidence: yes agree. We will do the criteria alignment with them
+- [ ][TASK] Onsite [Stream-Deves]: Present Observability Monitoring Tool (WhaTap) (Room: Gmail, From: Stream-Deves (External), To: Jaejin Song (Internal)) | Evidence: S: Onsite [Stream-Deves] : Present Observability Monitoring Tool (WhaTap)`,
+			expectedOutput: []string{
+				"## [Activity]",
+				"Other Tasks",
+				"Stream-Deves",
+			},
+			notExpected: []string{
+				`"customer": "Gmail"`,
+				`"customer": "Gmail (전략/운영)"`,
+				`"customer": "Gmail (`,
+				`"customer": "Slack"`,
+				`"customer": "Inbox"`,
+				`"customer": "DM"`,
+			},
+		},
+		{
 			// Regression: v2.5.1 dropped the Type B (>40% concentration) bullet entirely
 			// despite L29 still mandating it. v2.5.2 declares Type B unconditional when
 			// threshold crossed. Real msg ids subset chosen so `shared` assignee holds

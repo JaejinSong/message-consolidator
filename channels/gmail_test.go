@@ -606,3 +606,87 @@ func TestIsSelfAddressedBulk(t *testing.T) {
 	}
 }
 
+type stubNoiseFilter struct {
+	noise bool
+	calls int
+}
+
+func (s *stubNoiseFilter) IsNoise(_ context.Context, _, _, _ string) (bool, error) {
+	s.calls++
+	return s.noise, nil
+}
+
+// Why: regression for the LiteFilter bypass introduced when fallbackToNewExtraction
+// started returning true (5449d56) — handleThreadActivity → ProcessPotentialCompletion
+// → fallbackToNewExtraction would run Analyze directly without LiteFilter, persisting
+// marketing newsletters (Studypie WELCOME7) as tasks. The noise gate must fire BEFORE
+// thread routing.
+func TestFilterGmailBatch_NoiseGateRunsBeforeThreadRouting(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	email := "user@example.com"
+	batch := []types.RawMessage{{ID: "msg-noise-1", ThreadID: "thr-1", Text: "WELCOME7 쿠폰 newsletter"}}
+	classMap := map[string]string{"msg-noise-1": CategoryMine}
+
+	filter := &stubNoiseFilter{noise: true}
+	threadCalls := 0
+	onThread := func(store.ConsolidatedMessage) bool {
+		threadCalls++
+		return true
+	}
+
+	got := filterGmailBatch(ctx, email, batch, filter, classMap, onThread)
+
+	if len(got) != 0 {
+		t.Errorf("noise message must not survive filter, got %d", len(got))
+	}
+	if filter.calls != 1 {
+		t.Errorf("IsNoise must run exactly once, got %d", filter.calls)
+	}
+	if threadCalls != 0 {
+		t.Errorf("thread routing must be skipped when noise=true, got %d calls", threadCalls)
+	}
+	if processed, _ := store.IsProcessed(ctx, store.GetDB(), email, "msg-noise-1"); !processed {
+		t.Errorf("noise message must be marked processed to prevent re-fetch")
+	}
+}
+
+// Why: pin the positive path — clean message reaches thread routing only after passing
+// the noise gate, so legitimate thread replies still drive ProcessPotentialCompletion.
+func TestFilterGmailBatch_CleanMessageReachesThreadRouting(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	email := "user@example.com"
+	batch := []types.RawMessage{{ID: "msg-clean-1", ThreadID: "thr-2", Text: "이거 금요일까지 가능할까요?"}}
+	classMap := map[string]string{"msg-clean-1": CategoryMine}
+
+	filter := &stubNoiseFilter{noise: false}
+	threadCalls := 0
+	onThread := func(store.ConsolidatedMessage) bool {
+		threadCalls++
+		return true
+	}
+
+	got := filterGmailBatch(ctx, email, batch, filter, classMap, onThread)
+
+	if len(got) != 0 {
+		t.Errorf("thread-handled message must not flow to Analyze batch, got %d", len(got))
+	}
+	if filter.calls != 1 {
+		t.Errorf("IsNoise must run before thread routing, got %d calls", filter.calls)
+	}
+	if threadCalls != 1 {
+		t.Errorf("thread routing must run exactly once for clean message, got %d", threadCalls)
+	}
+}
+

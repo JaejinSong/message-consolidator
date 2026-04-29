@@ -565,19 +565,29 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.Gemini
 	return newIDs
 }
 
+// noiseFilter is the consumer-side contract for the AI noise gate.
+// Why: defined here (channels) instead of accepting *ai.GeminiLiteFilter so unit tests
+// can inject a fake without spinning up a real Gemini client.
+type noiseFilter interface {
+	IsNoise(ctx context.Context, email, source, text string) (bool, error)
+}
+
 // filterGmailBatch checks each message for AI-detected noise or thread completion status.
 // Why: IsProcessed early-skip moved upstream to parseNewEmails so already-processed
-// IDs never reach this batch. Remaining duties: thread-completion routing + LiteFilter
-// noise gate. IsNoise=true marks the message processed so the next cycle's parseNewEmails
-// short-circuits before paying LiteFilter again.
-func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessage, filterSvc *ai.GeminiLiteFilter, classificationMap map[string]string, onThreadActivity func(store.ConsolidatedMessage) bool) []types.RawMessage {
+// IDs never reach this batch. Remaining duties: LiteFilter noise gate + thread-completion
+// routing. Noise gate runs FIRST: a thread reply that is actually marketing/newsletter must
+// not slip into ProcessPotentialCompletion.fallbackToNewExtraction, which executes Analyze
+// directly without LiteFilter and would persist the spam as a task. IsNoise=true marks the
+// message processed so the next cycle's parseNewEmails short-circuits before paying
+// LiteFilter again.
+func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessage, filterSvc noiseFilter, classificationMap map[string]string, onThreadActivity func(store.ConsolidatedMessage) bool) []types.RawMessage {
 	var result []types.RawMessage
 	for _, m := range batch {
-		if handleThreadActivity(ctx, email, m, classificationMap, onThreadActivity) {
-			continue
-		}
 		if isNoise, err := filterSvc.IsNoise(ctx, email, "gmail", m.Text); err == nil && isNoise {
 			_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.ID)
+			continue
+		}
+		if handleThreadActivity(ctx, email, m, classificationMap, onThreadActivity) {
 			continue
 		}
 		result = append(result, m)

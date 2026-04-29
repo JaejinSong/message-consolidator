@@ -1,6 +1,6 @@
 ---
 name: report_summary
-version: 2.6.0
+version: 2.7.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
@@ -40,11 +40,17 @@ Status `[V]` = done, `[ ]` = active. Each rule below declares its own grounding 
    GOOD-C: `- [Cross-source] Canadia Bank POC coordination across biz-global-malaysia, Canadia-Whatap POC, WhaTap_Weefer Batam — "Discuss POC for Canadia Bank (Cambodia)".`
    BAD:    `- [biz-global-tech] Jaejin Song reports verifying every case "isn't scalable" on his end.` (sliced quote — predicate extracted, subject paraphrased, first-person flipped to third-person; quote the full sentence instead)
    BAD:    `- [Slack] The requirement to provide business context indicates a process bottleneck.` (nominalization + fabricated consequent; stay in the speaker's voice)
-4. **Activity**: Count and roll up **every task line** — both `[V]` done and `[ ]` active count equally. Evidence is NOT required for Activity counting; use `task`, `Room`, and `From/To` fields. Identify customer/company names by inferring from room/channel names and task descriptions (e.g. "WhaTap APM Tools POC for Bank BNI" → "Bank BNI", "biz-global-malaysia" → "Malaysia Biz"). If no company name can be inferred, use the room/channel name as-is. Output one ```json block: `[{"customer": str, "count": num, "summary": str}]` sorted by count DESC. If no customers identified: `[]`
+4. **Activity**: Count and roll up **every task line** — both `[V]` done and `[ ]` active count equally. Evidence is NOT required for Activity counting; use `task`, `Room`, and `From/To` fields.
+   - **Customer inference**: derive each task's `customer` from the strongest counterparty signal — task description first (e.g. "WhaTap APM Tools POC for Bank BNI" → "Bank BNI"), then a room/channel name that already encodes a counterparty (e.g. "biz-global-malaysia" → "Malaysia Biz", "Canadia-Whatap POC" → "Canadia Bank", "SIMASFIN-POC" → "SIMASFIN").
+   - **Fallback bucket**: when neither task nor room yields a real counterparty — generic mailboxes/channels (`Gmail`, `Inbox`, `Sent`, `Drafts`), internal-only DMs, or miscellaneous chat rooms with no customer signal in the task — assign `"customer": "Other Tasks"` and merge them into a single bucket. NEVER emit a channel/source name as a customer value (`"Gmail"`, `"Gmail (전략/운영)"`, `"Slack"`, `"DM"`, `"Inbox"`) — those signal failed inference, not a customer.
+   - Output one ```json block: `[{"customer": str, "count": num, "summary": str}]` sorted by count DESC. If no tasks: `[]`.
    - `summary`: 1–2 sentences describing the customer engagement using 5W signals from the input lines (task verbs + Room + From/To roles + Due dates).
    - When prominent, reference the *what specifically*, the key counterparty (assignee role, e.g. "with their dev lead"), and notable upcoming deadlines visible in `Due:` fields.
-   - GOOD: `"Quoting and license issuance for SIMASFIN POC, with monitoring deployment due 2026-04-27 led by Yoga."`
-   - BAD: `"APM agent setup and POC support. Focused on onboarding and initial configuration."` (generic — no actor, no deadline, no specifics)
+   - GOOD: `{"customer": "SIMASFIN", "count": 3, "summary": "Quoting and license issuance for SIMASFIN POC, with monitoring deployment due 2026-04-27 led by Yoga."}`
+   - GOOD: `{"customer": "Other Tasks", "count": 4, "summary": "Internal strategy and ops items routed through Gmail/Slack with no single counterparty: Q2 planning review, TKDN feedback, travel logistics."}`
+   - BAD: `{"customer": "Gmail (전략/운영)", ...}` (channel-only label — failed inference, must merge into "Other Tasks")
+   - BAD: `{"customer": "Slack", ...}` (source name as customer — must merge into "Other Tasks")
+   - BAD: `{"customer": "...", "summary": "APM agent setup and POC support. Focused on onboarding and initial configuration."}` (generic summary — no actor, no deadline, no specifics)
 5. **Stalled Tasks**: Only 'Stalled'/'Neglected'. One ```json block: `[{"source": str, "requester": str, "status": str, "days": num, "reason": str}]`. If none: `"No stalled tasks identified."`
 6. Tone: dry, professional, data-driven. English only. 1 bullet = 1 sentence — no paragraphs.
 
