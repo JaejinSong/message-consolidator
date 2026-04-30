@@ -7,165 +7,115 @@ import (
 	"message-consolidator/store"
 	"strings"
 	"time"
-	"unicode/utf8"
 )
 
-const maxTaskRunes = 80
-
-type DailyDigestService struct {
-	Slack          SlackPoster
-	RecipientEmail string
-	Limit          int
-	Timezone       string
+type DailyDigestSlack interface {
+	SendDM(ctx context.Context, slackUserID, text string) error
+	LookupSlackIDByEmail(email string) (string, error)
 }
 
-func NewDailyDigestService(slack SlackPoster, recipientEmail string, limit int, tz string) *DailyDigestService {
+type DailyDigestConfig struct {
+	RecipientEmails []string
+	Hour            int
+	Timezone        string
+	Language        string
+	PollInterval    time.Duration
+	PollTimeout     time.Duration
+}
+
+type DailyDigestService struct {
+	Slack   DailyDigestSlack
+	Reports *ReportsService
+	Config  DailyDigestConfig
+	nowFn   func() time.Time
+}
+
+func NewDailyDigestService(slack DailyDigestSlack, reports *ReportsService, cfg DailyDigestConfig) *DailyDigestService {
+	if cfg.PollInterval == 0 {
+		cfg.PollInterval = 7 * time.Second
+	}
+	if cfg.PollTimeout == 0 {
+		cfg.PollTimeout = 11 * time.Minute
+	}
+	if cfg.Language == "" {
+		cfg.Language = "en"
+	}
+	if cfg.Timezone == "" {
+		cfg.Timezone = "Asia/Seoul"
+	}
 	return &DailyDigestService{
-		Slack:          slack,
-		RecipientEmail: recipientEmail,
-		Limit:          limit,
-		Timezone:       tz,
+		Slack: slack, Reports: reports, Config: cfg,
+		nowFn: func() time.Time { return time.Now() },
 	}
 }
 
 func (s *DailyDigestService) Dispatch(ctx context.Context) error {
-	if s == nil || s.Slack == nil || s.RecipientEmail == "" {
+	if s == nil || s.Slack == nil || s.Reports == nil || len(s.Config.RecipientEmails) == 0 {
 		return nil
 	}
-
-	user, err := store.GetOrCreateUser(ctx, s.RecipientEmail, "", "")
-	if err != nil || user == nil || strings.TrimSpace(user.SlackID) == "" {
-		logger.Warnf("[DIGEST] no slack id for %s", s.RecipientEmail)
-		return nil
-	}
-
-	snap, err := store.GetDailyDigest(ctx, s.RecipientEmail, s.Limit)
-	if err != nil {
-		return fmt.Errorf("digest: get snapshot: %w", err)
-	}
-
-	loc, err := time.LoadLocation(s.Timezone)
+	loc, err := time.LoadLocation(s.Config.Timezone)
 	if err != nil {
 		loc = time.UTC
 	}
-	text := formatDigest(snap, time.Now().In(loc))
+	start, end := computeDailyWindow(s.nowFn().In(loc))
 
-	return s.Slack.SendDM(ctx, user.SlackID, text)
-}
+	primary := s.Config.RecipientEmails[0]
+	placeholder, err := s.Reports.GenerateReport(ctx, primary, start, end, s.Config.Language, nil, nil)
+	if err != nil {
+		return fmt.Errorf("daily: generate: %w", err)
+	}
+	completed, err := pollUntilReportCompleted(ctx, placeholder.ID, primary, s.Config.PollInterval, s.Config.PollTimeout)
+	if err != nil {
+		return fmt.Errorf("daily: wait: %w", err)
+	}
 
-func formatDigest(snap store.DigestSnapshot, now time.Time) string {
-	var sb strings.Builder
-
-	dateStr := now.Format("2006-01-02")
-	weekday := koreanWeekday(now.Weekday())
-	fmt.Fprintf(&sb, ":bookmark_tabs: *%s (%s) 일일 업무 요약*\n\n", dateStr, weekday)
-
-	// Received tasks
-	fmt.Fprintf(&sb, "📥 *받은 업무* — %d건\n", snap.ReceivedTotal)
-	if len(snap.Received) == 0 {
-		sb.WriteString("   (없음)\n")
-	} else {
-		for _, t := range snap.Received {
-			sb.WriteString(formatTaskLine(t, true))
+	body := formatDailyDMText(start, end, completed.ReportSummary)
+	for _, email := range s.Config.RecipientEmails {
+		slackID, err := s.ensureSlackIDFor(ctx, email)
+		if err != nil {
+			logger.Warnf("[DIGEST] slack id for %s: %v", email, err)
+			continue
 		}
-		remainder := snap.ReceivedTotal - len(snap.Received)
-		if remainder > 0 {
-			fmt.Fprintf(&sb, "   …외 %d건\n", remainder)
+		if err := s.Slack.SendDM(ctx, slackID, body); err != nil {
+			logger.Warnf("[DIGEST] send dm to %s: %v", email, err)
 		}
 	}
-
-	sb.WriteString("\n")
-
-	// Assigned tasks
-	fmt.Fprintf(&sb, "📤 *맡긴 업무* — %d건\n", snap.AssignedTotal)
-	if len(snap.Assigned) == 0 {
-		sb.WriteString("   (없음)\n")
-	} else {
-		for _, t := range snap.Assigned {
-			sb.WriteString(formatTaskLine(t, false))
-		}
-		remainder := snap.AssignedTotal - len(snap.Assigned)
-		if remainder > 0 {
-			fmt.Fprintf(&sb, "   …외 %d건\n", remainder)
-		}
-	}
-
-	return sb.String()
+	return nil
 }
 
-// Why: incoming=true (received) → '←' arrow (counterpart is requester); false (assigned) → '→' (counterpart is assignee).
-func formatTaskLine(t store.DigestTask, incoming bool) string {
-	task := truncateRunes(t.Task, maxTaskRunes)
-
-	prefix := buildSourcePrefix(t.Source, t.Room)
-
-	suffix := buildSuffix(t.Counterpart, t.Deadline.String, t.Deadline.Valid, incoming)
-
-	if suffix != "" {
-		return fmt.Sprintf("• %s%s (%s)\n", prefix, task, suffix)
+// Why: Slack DM silently no-ops when user.slack_id is blank — bootstrap via lookupByEmail on first send.
+func (s *DailyDigestService) ensureSlackIDFor(ctx context.Context, email string) (string, error) {
+	user, err := store.GetOrCreateUser(ctx, email, "", "")
+	if err != nil || user == nil {
+		return "", fmt.Errorf("get user %s: %w", email, err)
 	}
-	return fmt.Sprintf("• %s%s\n", prefix, task)
+	if id := strings.TrimSpace(user.SlackID); id != "" {
+		return id, nil
+	}
+	id, err := s.Slack.LookupSlackIDByEmail(email)
+	if err != nil {
+		return "", fmt.Errorf("lookup slack id: %w", err)
+	}
+	if err := store.UpdateUserSlackID(ctx, email, id); err != nil {
+		logger.Warnf("[DIGEST] persist slack id failed: %v", err)
+	}
+	return id, nil
 }
 
-func buildSourcePrefix(source, room string) string {
-	if source == "" && room == "" {
-		return ""
+// Why: working-day digest spans calendar dates in KST. Mon = Sat..Mon (Sat/Sun no-send
+// accumulates weekend pendings into Monday's window); Tue..Fri = today only.
+func computeDailyWindow(now time.Time) (string, string) {
+	layout := "2006-01-02"
+	end := now.Format(layout)
+	if now.Weekday() == time.Monday {
+		return now.AddDate(0, 0, -2).Format(layout), end
 	}
-	if room == "" {
-		return fmt.Sprintf("[%s] ", source)
-	}
-	if source == "" {
-		return fmt.Sprintf("[%s] ", room)
-	}
-	return fmt.Sprintf("[%s/%s] ", source, room)
+	return end, end
 }
 
-func buildSuffix(counterpart, deadline string, deadlineValid, incoming bool) string {
-	parts := make([]string, 0, 2)
-	if counterpart != "" {
-		arrow := "→"
-		if incoming {
-			arrow = "←"
-		}
-		parts = append(parts, arrow+" "+counterpart)
+func formatDailyDMText(start, end, summary string) string {
+	if start == end {
+		return fmt.Sprintf(":sunrise: *Daily Report* (%s)\n\n%s", start, summary)
 	}
-	if deadlineValid && deadline != "" {
-		parts = append(parts, "~"+formatDeadlineShort(deadline))
-	}
-	return strings.Join(parts, ", ")
-}
-
-// Why: deadline may be "2026-04-30" or RFC3339 — slice positions 5..10 yield MM-DD in both cases.
-func formatDeadlineShort(deadline string) string {
-	if len(deadline) >= 10 {
-		return deadline[5:10]
-	}
-	return deadline
-}
-
-func truncateRunes(s string, maxRunes int) string {
-	if utf8.RuneCountInString(s) <= maxRunes {
-		return s
-	}
-	runes := []rune(s)
-	return string(runes[:maxRunes]) + "…"
-}
-
-func koreanWeekday(w time.Weekday) string {
-	switch w {
-	case time.Monday:
-		return "월"
-	case time.Tuesday:
-		return "화"
-	case time.Wednesday:
-		return "수"
-	case time.Thursday:
-		return "목"
-	case time.Friday:
-		return "금"
-	case time.Saturday:
-		return "토"
-	default:
-		return "일"
-	}
+	return fmt.Sprintf(":sunrise: *Daily Report* (%s ~ %s)\n\n%s", start, end, summary)
 }

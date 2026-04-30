@@ -41,26 +41,26 @@ SELECT
     m.requester, m.assignee, m.assigned_at, m.link, m.source_ts, m.pinned, m.original_text, m.done, m.is_deleted, m.created_at, m.completed_at, m.category, m.deadline, m.thread_id,
     m.assignee_reason, m.replied_to_id, m.is_context_query, m.constraints, m.metadata, m.source_channels, m.consolidated_context, m.subtasks, m.requester_canonical, m.assignee_canonical, m.requester_type, m.assignee_type
 FROM v_messages m
-WHERE m.user_email = ? 
-  AND (m.created_at >= ? OR m.assigned_at >= ?)
+WHERE m.user_email = ?
+  AND (m.created_at >= datetime(?) OR m.assigned_at >= datetime(?))
   AND (?4 IS NULL OR m.source = ?4)
   AND (?5 IS NULL OR m.done = ?5)
 ORDER BY m.created_at DESC
 `
 
 type GetMessagesForReportParams struct {
-	UserEmail  string       `json:"user_email"`
-	CreatedAt  sql.NullTime `json:"created_at"`
-	AssignedAt sql.NullTime `json:"assigned_at"`
-	Source     interface{}  `json:"source"`
-	Done       interface{}  `json:"done"`
+	UserEmail  string      `json:"user_email"`
+	Datetime   interface{} `json:"datetime"`
+	Datetime_2 interface{} `json:"datetime_2"`
+	Source     interface{} `json:"source"`
+	Done       interface{} `json:"done"`
 }
 
 func (q *Queries) GetMessagesForReport(ctx context.Context, arg GetMessagesForReportParams) ([]VMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getMessagesForReport,
 		arg.UserEmail,
-		arg.CreatedAt,
-		arg.AssignedAt,
+		arg.Datetime,
+		arg.Datetime_2,
 		arg.Source,
 		arg.Done,
 	)
