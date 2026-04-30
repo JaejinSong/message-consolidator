@@ -10,6 +10,7 @@ import (
 	"message-consolidator/services"
 	"message-consolidator/store"
 	"os"
+	"strings"
 
 	"github.com/whatap/go-api/trace"
 )
@@ -29,11 +30,11 @@ func main() {
 	if cfg.GeminiAPIKey == "" || cfg.SlackToken == "" || cfg.NotionToken == "" {
 		log.Fatalf("missing required env: GEMINI_API_KEY/SLACK_TOKEN/NOTION_TOKEN")
 	}
-	recipient := cfg.WeeklyReportRecipientEmail
-	if recipient == "" {
-		recipient = os.Getenv("WEEKLY_REPORT_RECIPIENT_EMAIL")
+	recipients := cfg.WeeklyReportRecipientEmails
+	if v := os.Getenv("SIM_WEEKLY_RECIPIENT"); v != "" {
+		recipients = splitCSV(v)
 	}
-	if recipient == "" {
+	if len(recipients) == 0 {
 		log.Fatalf("missing WEEKLY_REPORT_RECIPIENT_EMAIL")
 	}
 
@@ -52,15 +53,26 @@ func main() {
 	}
 
 	svc := services.NewWeeklyReportService(slack, reportsSvc, notion, services.WeeklyReportConfig{
-		RecipientEmail: recipient,
-		Hour:           cfg.WeeklyReportHour,
-		Timezone:       cfg.WeeklyReportTimezone,
-		Language:       cfg.WeeklyReportLang,
+		RecipientEmails: recipients,
+		Hour:            cfg.WeeklyReportHour,
+		Timezone:        cfg.WeeklyReportTimezone,
+		Language:        cfg.WeeklyReportLang,
 	})
 
-	log.Printf("[SIM-WEEKLY] dispatching for %s ...", recipient)
+	log.Printf("[SIM-WEEKLY] dispatching for %v ...", recipients)
 	if err := svc.Dispatch(ctx); err != nil {
 		log.Fatalf("dispatch: %v", err)
 	}
 	log.Printf("[SIM-WEEKLY] done — check Slack DM")
+}
+
+func splitCSV(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }

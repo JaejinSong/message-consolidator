@@ -44,9 +44,9 @@ type Config struct {
 	DailyDigestHour            int
 	DailyDigestTimezone        string
 	DailyDigestLanguage        string
-	WeeklyReportEnabled        bool
-	WeeklyReportRecipientEmail string
-	WeeklyReportHour           int
+	WeeklyReportEnabled         bool
+	WeeklyReportRecipientEmails []string
+	WeeklyReportHour            int
 	WeeklyReportTimezone       string
 	WeeklyReportLang           string
 }
@@ -88,11 +88,11 @@ func LoadConfig() *Config {
 		DailyDigestHour:            envInt("DAILY_DIGEST_HOUR", 18),
 		DailyDigestTimezone:        envOr("DAILY_DIGEST_TIMEZONE", "Asia/Seoul"),
 		DailyDigestLanguage:        envOr("DAILY_DIGEST_LANGUAGE", "en"),
-		WeeklyReportEnabled:        parseBoolEnv("WEEKLY_REPORT_ENABLED", false),
-		WeeklyReportRecipientEmail: os.Getenv("WEEKLY_REPORT_RECIPIENT_EMAIL"),
-		WeeklyReportHour:           envInt("WEEKLY_REPORT_HOUR", 18),
-		WeeklyReportTimezone:       envOr("WEEKLY_REPORT_TIMEZONE", "Asia/Seoul"),
-		WeeklyReportLang:           envOr("WEEKLY_REPORT_LANG", "en"),
+		WeeklyReportEnabled:         parseBoolEnv("WEEKLY_REPORT_ENABLED", false),
+		WeeklyReportRecipientEmails: splitCSV(os.Getenv("WEEKLY_REPORT_RECIPIENT_EMAIL")),
+		WeeklyReportHour:            envInt("WEEKLY_REPORT_HOUR", 18),
+		WeeklyReportTimezone:        envOr("WEEKLY_REPORT_TIMEZONE", "Asia/Seoul"),
+		WeeklyReportLang:            envOr("WEEKLY_REPORT_LANG", "en"),
 	}
 }
 
