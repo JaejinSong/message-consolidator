@@ -71,14 +71,35 @@ func (s *SlackClient) LookupUserByEmail(email string) (*slack.User, error) {
 	return s.api.GetUserByEmail(email)
 }
 
-func (s *SlackClient) GetUserName(id string) string {
+func (s *SlackClient) LookupSlackIDByEmail(email string) (string, error) {
+	u, err := s.LookupUserByEmail(email)
+	if err != nil {
+		return "", err
+	}
+	if u == nil || u.ID == "" {
+		return "", fmt.Errorf("slack: no user for email %q", email)
+	}
+	return u.ID, nil
+}
+
+func (s *SlackClient) GetUserName(ctx context.Context, id string) string {
 	if u, ok := s.users[id]; ok {
 		if u.RealName != "" {
 			return u.RealName
 		}
 		return u.Name
 	}
-	return id
+	// Why: users.list misses restricted/external/post-FetchUsers members; on-demand
+	// GetUserInfo + cache prevents permanent raw-ID exposure (e.g. "U07EBSTP5C5").
+	u, err := s.api.GetUserInfoContext(ctx, id)
+	if err != nil || u == nil {
+		return id
+	}
+	s.users[id] = *u
+	if u.RealName != "" {
+		return u.RealName
+	}
+	return u.Name
 }
 
 func (s *SlackClient) GetChannelName(id string) string {
@@ -127,7 +148,7 @@ func ParseSlackTimestamp(ts string) time.Time {
 	return time.Unix(sec, nsec*1000)
 }
 
-func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS string) ([]types.RawMessage, error) {
+func (s *SlackClient) GetMessages(ctx context.Context, channelID string, since time.Time, lastTS string) ([]types.RawMessage, error) {
 	var msgs []types.RawMessage
 	cursor := ""
 	maxRetries := 3 //Why: Limits API retries to 3 attempts to prevent infinite loops during persistent Slack outages.
@@ -143,7 +164,7 @@ func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS stri
 		var history *slack.GetConversationHistoryResponse
 		err := withSlackRetry(maxRetries, fmt.Sprintf("channel %s", channelID), func() error {
 			var e error
-			history, e = s.api.GetConversationHistory(params)
+			history, e = s.api.GetConversationHistoryContext(ctx, params)
 			return e
 		})
 
@@ -151,7 +172,7 @@ func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS stri
 			return nil, err
 		}
 
-		pageMsgs, reachedOld := s.processHistoryMessages(channelID, history.Messages, since)
+		pageMsgs, reachedOld := s.processHistoryMessages(ctx, channelID, history.Messages, since)
 		msgs = append(msgs, pageMsgs...)
 
 		if reachedOld || !history.HasMore || history.ResponseMetaData.NextCursor == "" {
@@ -165,7 +186,7 @@ func (s *SlackClient) GetMessages(channelID string, since time.Time, lastTS stri
 }
 
 // Why: Separates the message filtering, mapping, and thread expansion logic from the main pagination loop.
-func (s *SlackClient) processHistoryMessages(channelID string, messages []slack.Message, since time.Time) ([]types.RawMessage, bool) {
+func (s *SlackClient) processHistoryMessages(ctx context.Context, channelID string, messages []slack.Message, since time.Time) ([]types.RawMessage, bool) {
 	var msgs []types.RawMessage
 	reachedOld := false
 
@@ -186,8 +207,8 @@ func (s *SlackClient) processHistoryMessages(channelID string, messages []slack.
 
 		msgs = append(msgs, types.RawMessage{
 			ID:              m.Timestamp,
-			Sender:          s.GetUserName(m.User),
-			SenderName:      s.GetUserName(m.User),
+			Sender:          s.GetUserName(ctx, m.User),
+			SenderName:      s.GetUserName(ctx, m.User),
 			Text:            m.Text,
 			Timestamp:       ts,
 			HasAttachment:   len(m.Files) > 0,
@@ -198,7 +219,7 @@ func (s *SlackClient) processHistoryMessages(channelID string, messages []slack.
 
 		//Why: Recursively fetches thread replies if a message is a thread parent to ensure full conversation context for task extraction.
 		if m.ReplyCount > 0 && m.ThreadTimestamp == m.Timestamp {
-			replies, err := s.FetchNewThreadReplies(channelID, m.Timestamp, m.Timestamp)
+			replies, err := s.FetchNewThreadReplies(ctx, channelID, m.Timestamp, m.Timestamp)
 			if err == nil {
 				msgs = append(msgs, replies...)
 			} else {
@@ -210,7 +231,7 @@ func (s *SlackClient) processHistoryMessages(channelID string, messages []slack.
 }
 
 // Why: Handles pagination and rate-limiting to fetch all replies in a Slack thread.
-func (s *SlackClient) FetchNewThreadReplies(channelID, threadTS, sinceTS string) ([]types.RawMessage, error) {
+func (s *SlackClient) FetchNewThreadReplies(ctx context.Context, channelID, threadTS, sinceTS string) ([]types.RawMessage, error) {
 	var msgs []types.RawMessage
 	cursor := ""
 	maxRetries := 3
@@ -229,7 +250,7 @@ func (s *SlackClient) FetchNewThreadReplies(channelID, threadTS, sinceTS string)
 
 		err := withSlackRetry(maxRetries, "thread replies", func() error {
 			var e error
-			replies, hasMore, nextCursor, e = s.api.GetConversationReplies(params)
+			replies, hasMore, nextCursor, e = s.api.GetConversationRepliesContext(ctx, params)
 			return e
 		})
 
@@ -237,7 +258,7 @@ func (s *SlackClient) FetchNewThreadReplies(channelID, threadTS, sinceTS string)
 			return nil, err
 		}
 
-		msgs = append(msgs, s.processThreadReplies(threadTS, replies)...)
+		msgs = append(msgs, s.processThreadReplies(ctx, threadTS, replies)...)
 
 		if !hasMore || nextCursor == "" {
 			break
@@ -249,7 +270,7 @@ func (s *SlackClient) FetchNewThreadReplies(channelID, threadTS, sinceTS string)
 }
 
 // Why: Isolates the thread reply filtering and mapping logic from the pagination control flow.
-func (s *SlackClient) processThreadReplies(threadTS string, replies []slack.Message) []types.RawMessage {
+func (s *SlackClient) processThreadReplies(ctx context.Context, threadTS string, replies []slack.Message) []types.RawMessage {
 	var msgs []types.RawMessage
 	for _, m := range replies {
 		//Why: Skips the parent message within the thread reply list to avoid duplicate processing of the initial task request.
@@ -262,8 +283,8 @@ func (s *SlackClient) processThreadReplies(threadTS string, replies []slack.Mess
 
 		msgs = append(msgs, types.RawMessage{
 			ID:              m.Timestamp,
-			Sender:          s.GetUserName(m.User),
-			SenderName:      s.GetUserName(m.User),
+			Sender:          s.GetUserName(ctx, m.User),
+			SenderName:      s.GetUserName(ctx, m.User),
 			Text:            m.Text,
 			Timestamp:       ParseSlackTimestamp(m.Timestamp),
 			ReplyToID:       threadTS, //Why: Attaches thread metadata to extracted replies to maintain relational integrity and correctly group related tasks in the UI.

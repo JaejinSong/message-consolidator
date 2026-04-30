@@ -28,6 +28,7 @@ var (
 	tasksSvc      *services.TasksService
 	filterSvc     *ai.GeminiLiteFilter
 	roomLockSvc   *services.RoomLockService
+	slackClient   *channels.SlackClient
 )
 
 func Init(c *config.Config) {
@@ -46,7 +47,7 @@ func Init(c *config.Config) {
 		filterSvc = ai.NewGeminiLiteFilter(gClient)
 	}
 	if cfg.SlackToken != "" {
-		slackClient := channels.NewSlackClient(cfg.SlackToken)
+		slackClient = channels.NewSlackClient(cfg.SlackToken)
 		reminderSvc = services.NewReminderService(slackClient, cfg.ReminderWindowsHours)
 		if cfg.DailyDigestEnabled && cfg.DailyDigestRecipientEmail != "" {
 			digestSvc = services.NewDailyDigestService(slackClient, cfg.DailyDigestRecipientEmail, cfg.DailyDigestListLimit, cfg.DailyDigestTimezone)
@@ -70,6 +71,7 @@ func StartBackgroundScanner(ctx context.Context) {
 		{name: "sweep-slack-threads", traceName: "/Background-SweepSlackThreads", runFn: runSlackSweep},
 		{name: "deadline-reminder", traceName: "/Background-DeadlineReminder", runFn: runDeadlineReminder},
 		{name: "daily-digest", traceName: "/Background-DailyDigest", runFn: runDailyDigest},
+		{name: "weekly-report", traceName: "/Background-WeeklyReport", runFn: runWeeklyReport},
 	}
 	for _, l := range loops {
 		first := pickPrime()
@@ -419,5 +421,27 @@ func triggerAsyncTranslation(ctx context.Context, email string, ids []store.Mess
 		defer cancel()
 		_, _ = tasksSvc.ProcessBatchTranslation(tCtx, email, ids, "ko")
 	}()
+}
+
+// Why: WeeklyReportService needs reportsSvc which is built post-Init in main.go's initAIServices.
+func WireWeeklyReport(reportsSvc *services.ReportsService) {
+	if cfg == nil || !cfg.WeeklyReportEnabled || reportsSvc == nil || slackClient == nil {
+		return
+	}
+	if cfg.WeeklyReportRecipientEmail == "" {
+		logger.Warnf("[WEEKLY] recipient email not set")
+		return
+	}
+	notion := services.NewNotionExporter(cfg.NotionToken, cfg.NotionReportPageID)
+	if !notion.Enabled() {
+		logger.Warnf("[WEEKLY] notion not configured")
+		return
+	}
+	weeklyReportSvc = services.NewWeeklyReportService(slackClient, reportsSvc, notion, services.WeeklyReportConfig{
+		RecipientEmail: cfg.WeeklyReportRecipientEmail,
+		Hour:           cfg.WeeklyReportHour,
+		Timezone:       cfg.WeeklyReportTimezone,
+		Language:       cfg.WeeklyReportLang,
+	})
 }
 

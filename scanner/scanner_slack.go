@@ -62,13 +62,13 @@ type slackThreadIdentity struct {
 }
 
 type slackUserResolver interface {
-	GetUserName(userID string) string
+	GetUserName(ctx context.Context, userID string) string
 }
 
-func resolveSlackMentions(text string, sc slackUserResolver) string {
+func resolveSlackMentions(ctx context.Context, text string, sc slackUserResolver) string {
 	return slackMentionRegex.ReplaceAllStringFunc(text, func(match string) string {
 		userID := match[2 : len(match)-1]
-		userName := sc.GetUserName(userID)
+		userName := sc.GetUserName(ctx, userID)
 		if userName != "" && userName != userID {
 			return "@" + userName
 		}
@@ -132,7 +132,7 @@ func scanSingleSlackChannel(ctx context.Context, users []store.User, c slack.Cha
 	// but respects minTS as a lower bound only if it provides a safer (older) starting point, 
 	// preventing "islands" of unproccessed messages between scan intervals.
 	since := time.Now().Add(-24 * time.Hour)
-	msgs, err := sc.GetMessages(c.ID, since, minTS)
+	msgs, err := sc.GetMessages(ctx, c.ID, since, minTS)
 	if err != nil {
 		logger.Errorf("[SLACK-ERROR] GetMessages failed for %s: %v", c.ID, err)
 		return err
@@ -515,7 +515,7 @@ func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user
 			continue
 		}
 		candidates = append(candidates, types.RawMessage{
-			ID: m.Timestamp, Sender: sc.GetUserName(m.User), Text: m.Text, Timestamp: channels.ParseSlackTimestamp(m.Timestamp),
+			ID: m.Timestamp, Sender: sc.GetUserName(ctx, m.User), Text: m.Text, Timestamp: channels.ParseSlackTimestamp(m.Timestamp),
 			ReplyToID: t.ThreadTS, ChannelID: t.ChannelID, HasAttachment: len(m.Files) > 0,
 			AttachmentNames: sc.ExtractFileNames(m.Files), Reactions: sc.ExtractReactions(m.Reactions), IsPinned: len(m.PinnedTo) > 0,
 		})
@@ -527,7 +527,7 @@ func dispatchThreadCompletionIfMine(ctx context.Context, sc *channels.SlackClien
 	if completionSvc == nil || m.ThreadTimestamp == "" {
 		return
 	}
-	if !strings.EqualFold(m.User, user.SlackID) && sc.GetUserName(m.User) != user.Name {
+	if !strings.EqualFold(m.User, user.SlackID) && sc.GetUserName(ctx, m.User) != user.Name {
 		return
 	}
 	if _, err := completionSvc.ProcessPotentialCompletion(ctx, store.ConsolidatedMessage{
@@ -618,7 +618,7 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 	lock.Lock()
 	defer lock.Unlock()
 
-	payload, msgMap := buildSlackAnalysisPayload(candidates, sc)
+	payload, msgMap := buildSlackAnalysisPayload(ctx, candidates, sc)
 	lastMsg := candidates[len(candidates)-1]
 	senderName := lastMsg.SenderName
 	if senderName == "" {
@@ -656,12 +656,12 @@ func processSlackItems(ctx context.Context, user *store.User, items []store.Todo
 	triggerAsyncTranslation(ctx, user.Email, newIDs, wg)
 }
 
-func buildSlackAnalysisPayload(candidates []types.RawMessage, sc *channels.SlackClient) (string, map[string]types.RawMessage) {
+func buildSlackAnalysisPayload(ctx context.Context, candidates []types.RawMessage, sc *channels.SlackClient) (string, map[string]types.RawMessage) {
 	var sb strings.Builder
 	msgMap := make(map[string]types.RawMessage)
 	for _, m := range candidates {
 		msgMap[m.ID] = m
-		resolvedText := resolveSlackMentions(m.Text, sc)
+		resolvedText := resolveSlackMentions(ctx, m.Text, sc)
 		metaStr := buildSlackMetadataString(m)
 		senderLabel := m.SenderName
 		if senderLabel == "" {

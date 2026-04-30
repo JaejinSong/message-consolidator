@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"context"
 	"message-consolidator/services"
 	"message-consolidator/store"
 	"testing"
@@ -80,7 +81,7 @@ type mockSlackResolver struct {
 	users map[string]string
 }
 
-func (m mockSlackResolver) GetUserName(userID string) string {
+func (m mockSlackResolver) GetUserName(_ context.Context, userID string) string {
 	return m.users[userID] // Why: Simulates the actual API behavior where an unknown ID yields an empty string.
 }
 
@@ -116,7 +117,7 @@ func TestResolveSlackMentions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := resolveSlackMentions(tt.text, mockResolver)
+			got := resolveSlackMentions(context.Background(), tt.text, mockResolver)
 			if got != tt.expected {
 				t.Errorf("resolveSlackMentions()\n got  = %q\n want = %q", got, tt.expected)
 			}

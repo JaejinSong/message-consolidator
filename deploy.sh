@@ -13,6 +13,21 @@ REPO_NAME="message-consolidator-repo"
 VPS_NAME="chat-analyzer-vps"
 REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}"
 
+# Why: shell may be on a personal gcloud config (e.g. `pocready-personal`).
+# Pin the company config locally so docker credential helper / Artifact Registry
+# push always use jjsong@whatap.io without mutating the user's global active config.
+export CLOUDSDK_ACTIVE_CONFIG_NAME="default"
+EXPECTED_ACCOUNT="jjsong@whatap.io"
+ACTIVE_ACCOUNT=$(gcloud config get-value account 2>/dev/null || true)
+if [ "$ACTIVE_ACCOUNT" != "$EXPECTED_ACCOUNT" ]; then
+    echo -e "${RED}FATAL: gcloud account mismatch (got '${ACTIVE_ACCOUNT}', expected '${EXPECTED_ACCOUNT}'). Check 'gcloud config configurations describe default'.${NC}"
+    exit 1
+fi
+if [ "$(gcloud config get-value project 2>/dev/null)" != "$PROJECT_ID" ]; then
+    echo -e "${RED}FATAL: gcloud project mismatch under config 'default'. Run: gcloud config set project ${PROJECT_ID} --configuration=default${NC}"
+    exit 1
+fi
+
 # SSH Configuration
 SSH_OPTS="-o ControlMaster=auto -o ControlPath=~/.ssh/control-%C -o ControlPersist=10m -q"
 SSH_CMD="ssh ${SSH_OPTS} ${VPS_NAME}"
