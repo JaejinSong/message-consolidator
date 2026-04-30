@@ -47,6 +47,22 @@ func (s *SlackClient) SendDM(ctx context.Context, slackUserID, text string) erro
 	return nil
 }
 
+// Why: Block Kit payload requires a plain-text fallback for desktop notifications and
+// accessibility; without it Slack renders a generic "This content can't be displayed" toast.
+func (s *SlackClient) SendDMBlocks(ctx context.Context, slackUserID string, blocks []slack.Block, fallback string) error {
+	if s == nil || s.api == nil {
+		return fmt.Errorf("slack client not initialized")
+	}
+	_, _, err := s.api.PostMessageContext(ctx, slackUserID,
+		slack.MsgOptionText(fallback, false),
+		slack.MsgOptionBlocks(blocks...),
+	)
+	if err != nil {
+		return fmt.Errorf("slack DM blocks to %s: %w", slackUserID, err)
+	}
+	return nil
+}
+
 func (s *SlackClient) LookupChannels() ([]slack.Channel, string, error) {
 	//Why: Uses GetConversationsForUser to accurately retrieve only the subset of channels and DM lists where the bot is explicitly invited.
 	return s.api.GetConversationsForUser(&slack.GetConversationsForUserParameters{

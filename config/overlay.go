@@ -123,6 +123,10 @@ func assignField(cfg *Config, key, raw string) {
 		cfg.ReminderEnabled = strings.EqualFold(strings.TrimSpace(raw), "true")
 	case "REMINDER_WINDOWS_HOURS":
 		cfg.ReminderWindowsHours = parseIntCSV(raw, []int{24, 1})
+	case "STALE_THRESHOLD_WORKING_DAYS":
+		if n, err := strconv.Atoi(raw); err == nil {
+			cfg.StaleThresholdWorkingDays = n
+		}
 	case "DAILY_DIGEST_ENABLED":
 		cfg.DailyDigestEnabled = parseBool(raw)
 	case "DAILY_DIGEST_RECIPIENT_EMAIL":

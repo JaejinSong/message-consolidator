@@ -45,6 +45,7 @@ export interface UserProfile {
     picture: string;
     name: string;
     archive_days?: number;
+    stale_threshold_working_days?: number;
     aliases?: string[];
     points?: number;
     streak?: number;
@@ -130,6 +131,7 @@ export interface AppState {
     archiveOrder: 'ASC' | 'DESC';
     archiveTotalCount: number;
     archiveThresholdDays: number;
+    staleThresholdWorkingDays: number;
     archiveStatus: string;
     messages: CategorizedMessages;
     userStats: UserStats | null;

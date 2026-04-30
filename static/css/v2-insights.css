@@ -456,6 +456,28 @@
     text-overflow: ellipsis;
 }
 
+.c-insights-report-item__kind {
+    display: inline-block;
+    font-size: 0.625rem;
+    font-weight: 600;
+    padding: 0.125rem 0.4rem;
+    border-radius: 0.625rem;
+    margin-right: 0.4rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+.c-insights-report-item__kind--daily {
+    background: rgba(var(--color-warning-rgb), 0.18);
+    color: var(--color-warning);
+}
+
+.c-insights-report-item__kind--weekly {
+    background: rgba(var(--color-primary-rgb), 0.18);
+    color: var(--color-primary);
+}
+
 .c-insights-report-item__range {
     display: block;
     font-size: 0.75rem;

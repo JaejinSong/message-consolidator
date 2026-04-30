@@ -442,7 +442,7 @@ func WireWeeklyReport(reportsSvc *services.ReportsService) {
 	if cfg == nil || !cfg.WeeklyReportEnabled || reportsSvc == nil || slackClient == nil {
 		return
 	}
-	if cfg.WeeklyReportRecipientEmail == "" {
+	if len(cfg.WeeklyReportRecipientEmails) == 0 {
 		logger.Warnf("[WEEKLY] recipient email not set")
 		return
 	}
@@ -452,10 +452,10 @@ func WireWeeklyReport(reportsSvc *services.ReportsService) {
 		return
 	}
 	weeklyReportSvc = services.NewWeeklyReportService(slackClient, reportsSvc, notion, services.WeeklyReportConfig{
-		RecipientEmail: cfg.WeeklyReportRecipientEmail,
-		Hour:           cfg.WeeklyReportHour,
-		Timezone:       cfg.WeeklyReportTimezone,
-		Language:       cfg.WeeklyReportLang,
+		RecipientEmails: cfg.WeeklyReportRecipientEmails,
+		Hour:            cfg.WeeklyReportHour,
+		Timezone:        cfg.WeeklyReportTimezone,
+		Language:        cfg.WeeklyReportLang,
 	})
 }
 

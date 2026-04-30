@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"database/sql"
 	"message-consolidator/db"
 	"time"
 )
@@ -205,10 +204,14 @@ func DeleteReport(ctx context.Context, id ReportID, email string) error {
 
 // GetMessagesForReport fetches active messages for a user with optional source and status filters.
 func GetMessagesForReport(ctx context.Context, email string, since time.Time, source *string, done *bool) ([]ConsolidatedMessage, error) {
+	// Why: libsql driver serializes sql.NullTime in a way SQLite's lexical compare on
+	// "YYYY-MM-DD HH:MM:SS" rejects; binding the canonical string and wrapping in
+	// datetime() in SQL gives a deterministic, format-independent compare.
+	sinceStr := since.UTC().Format("2006-01-02 15:04:05")
 	arg := db.GetMessagesForReportParams{
 		UserEmail:  email,
-		CreatedAt:  sql.NullTime{Time: since, Valid: true},
-		AssignedAt: sql.NullTime{Time: since, Valid: true},
+		Datetime:   sinceStr,
+		Datetime_2: sinceStr,
 	}
 	if source != nil {
 		arg.Source = *source

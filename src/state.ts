@@ -18,7 +18,8 @@ export const state: AppState = {
     archiveSort: '',
     archiveOrder: 'DESC',
     archiveTotalCount: 0,
-    archiveThresholdDays: 7, 
+    archiveThresholdDays: 7,
+    staleThresholdWorkingDays: 3,
     archiveStatus: 'all',
     messages: { inbox: [], delegated: [], reference: [] },
     userStats: null,
@@ -53,6 +54,9 @@ export const updateStats = (user: Partial<UserProfile> | null): void => {
     if (!user) return;
     if (user.archive_days !== undefined) {
         state.archiveThresholdDays = user.archive_days;
+    }
+    if (user.stale_threshold_working_days !== undefined && user.stale_threshold_working_days > 0) {
+        state.staleThresholdWorkingDays = user.stale_threshold_working_days;
     }
     state.userProfile = { ...state.userProfile, ...user } as UserProfile;
 };

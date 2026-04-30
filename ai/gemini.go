@@ -179,6 +179,7 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 		MessagePayload: tasks,
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 		Locale:         "English",
+		StaleThreshold: store.GetStaleThresholdWorkingDays(),
 	}
 	rendered, err := parsed.Render(data)
 	if err != nil {

@@ -346,10 +346,19 @@ export const reportsRenderer = {
             else if (item.status === 'failed') statusTag = `⚠️`;
             else if (item.status === 'completed') statusTag = `✅`;
 
+            const isDaily = item.start_date === item.end_date;
+            const kind = isDaily ? 'daily' : 'weekly';
+            const kindLabel = isDaily ? 'Daily Report' : 'Weekly Report';
+            const dateText = isDaily ? item.start_date : `${item.start_date} ~ ${item.end_date}`;
+            const customTitle = item.title ? ` <span class="c-insights-report-item__custom-title">${item.title}</span>` : '';
+
             btn.innerHTML = `
                 <div class="c-insights-report-item__content">
-                    <span class="c-insights-report-item__date">${item.start_date} ~ ${item.end_date}</span>
-                    <div class="c-insights-report-item__title">${statusTag} ${item.title || 'Weekly Report'}</div>
+                    <span class="c-insights-report-item__date">${dateText}</span>
+                    <div class="c-insights-report-item__title">
+                        <span class="c-insights-report-item__kind c-insights-report-item__kind--${kind}">${kindLabel}</span>
+                        ${statusTag}${customTitle}
+                    </div>
                 </div>
                 <button class="c-insights-report-item__delete" data-id="${item.id}" title="${i18n.delete || 'Delete'}">
                     <i class="fas fa-trash-alt"></i>

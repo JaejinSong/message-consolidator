@@ -93,9 +93,10 @@ type User struct {
 	TgUserID        string     `json:"tg_user_id"`
 	Picture         string     `json:"picture"`
 	IsAdmin         bool       `json:"is_admin"`
-	Aliases         []string   `json:"aliases"`
-	ArchiveDays     int        `json:"archive_days"`
-	CreatedAt       time.Time  `json:"created_at"`
+	Aliases                   []string  `json:"aliases"`
+	ArchiveDays               int       `json:"archive_days"`
+	StaleThresholdWorkingDays int       `json:"stale_threshold_working_days"`
+	CreatedAt                 time.Time `json:"created_at"`
 }
 
 func (u User) PreferredName() string {

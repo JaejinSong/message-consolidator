@@ -15,12 +15,12 @@ type WeeklyReportSlack interface {
 }
 
 type WeeklyReportConfig struct {
-	RecipientEmail string
-	Hour           int
-	Timezone       string
-	Language       string
-	PollInterval   time.Duration
-	PollTimeout    time.Duration
+	RecipientEmails []string
+	Hour            int
+	Timezone        string
+	Language        string
+	PollInterval    time.Duration
+	PollTimeout     time.Duration
 }
 
 type WeeklyReportService struct {
@@ -51,12 +51,8 @@ func NewWeeklyReportService(slack WeeklyReportSlack, reports *ReportsService, no
 }
 
 func (s *WeeklyReportService) Dispatch(ctx context.Context) error {
-	if s == nil || s.Slack == nil || s.Reports == nil || s.Notion == nil || s.Config.RecipientEmail == "" {
+	if s == nil || s.Slack == nil || s.Reports == nil || s.Notion == nil || len(s.Config.RecipientEmails) == 0 {
 		return nil
-	}
-	slackID, err := s.ensureSlackID(ctx)
-	if err != nil {
-		return fmt.Errorf("weekly: slack id: %w", err)
 	}
 	loc, err := time.LoadLocation(s.Config.Timezone)
 	if err != nil {
@@ -64,11 +60,12 @@ func (s *WeeklyReportService) Dispatch(ctx context.Context) error {
 	}
 	start, end := computeWeekWindow(s.nowFn().In(loc))
 
-	placeholder, err := s.Reports.GenerateReport(ctx, s.Config.RecipientEmail, start, end, s.Config.Language, nil, nil)
+	primary := s.Config.RecipientEmails[0]
+	placeholder, err := s.Reports.GenerateReport(ctx, primary, start, end, s.Config.Language, nil, nil)
 	if err != nil {
 		return fmt.Errorf("weekly: generate: %w", err)
 	}
-	completed, err := s.waitForCompletion(ctx, placeholder.ID, s.Config.RecipientEmail)
+	completed, err := s.waitForCompletion(ctx, placeholder.ID, primary)
 	if err != nil {
 		return fmt.Errorf("weekly: wait: %w", err)
 	}
@@ -79,26 +76,33 @@ func (s *WeeklyReportService) Dispatch(ctx context.Context) error {
 		return fmt.Errorf("weekly: notion: %w", err)
 	}
 	text := formatWeeklyDMText(start, end, url)
-	if err := s.Slack.SendDM(ctx, slackID, text); err != nil {
-		return fmt.Errorf("weekly: slack dm: %w", err)
+	for _, email := range s.Config.RecipientEmails {
+		slackID, err := s.ensureSlackIDFor(ctx, email)
+		if err != nil {
+			logger.Warnf("[WEEKLY] slack id for %s: %v", email, err)
+			continue
+		}
+		if err := s.Slack.SendDM(ctx, slackID, text); err != nil {
+			logger.Warnf("[WEEKLY] send dm to %s: %v", email, err)
+		}
 	}
 	return nil
 }
 
-// Why: Slack DM silently no-ops when user.slack_id is blank — bootstrap via lookupByEmail on first run.
-func (s *WeeklyReportService) ensureSlackID(ctx context.Context) (string, error) {
-	user, err := store.GetOrCreateUser(ctx, s.Config.RecipientEmail, "", "")
+// Why: Slack DM silently no-ops when user.slack_id is blank — bootstrap via lookupByEmail on first send.
+func (s *WeeklyReportService) ensureSlackIDFor(ctx context.Context, email string) (string, error) {
+	user, err := store.GetOrCreateUser(ctx, email, "", "")
 	if err != nil || user == nil {
-		return "", fmt.Errorf("get user %s: %w", s.Config.RecipientEmail, err)
+		return "", fmt.Errorf("get user %s: %w", email, err)
 	}
 	if id := strings.TrimSpace(user.SlackID); id != "" {
 		return id, nil
 	}
-	id, err := s.Slack.LookupSlackIDByEmail(s.Config.RecipientEmail)
+	id, err := s.Slack.LookupSlackIDByEmail(email)
 	if err != nil {
 		return "", fmt.Errorf("lookup slack id: %w", err)
 	}
-	if err := store.UpdateUserSlackID(ctx, s.Config.RecipientEmail, id); err != nil {
+	if err := store.UpdateUserSlackID(ctx, email, id); err != nil {
 		logger.Warnf("[WEEKLY] persist slack id failed: %v", err)
 	}
 	return id, nil

@@ -16,6 +16,7 @@ type ExtractionContext struct {
 	CurrentUserEmail    string        //Why: Provides the primary email of the user for strict identity mapping.
 	CurrentUserID       store.UserID  //Why: Securely identifies the user for internal DB assignee mapping logic.
 	ParentTask          string        //Why: Context for completion/update evaluation threads.
+	StaleThreshold      int           //Why: Working-day cutoff for the report_summary Stalled Tasks rule; 0 omits the deterministic clause.
 }
 
 // LimitFewShots는 최대 주입 가능한 예시 개수를 통제합니다.

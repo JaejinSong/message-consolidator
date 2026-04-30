@@ -79,6 +79,7 @@ var Registry = []SettingDef{
 	{Key: "INTERNAL_SCAN_SECRET", Label: "Internal Scan Secret", Category: "ops", Type: TypeString, Secret: true, RestartRequired: true},
 	{Key: "REMINDER_ENABLED", Label: "Deadline Reminder Enabled", Category: "ops", Type: TypeBool, DefaultValue: "false", Validate: boolValidator},
 	{Key: "REMINDER_WINDOWS_HOURS", Label: "Reminder Windows Hours (CSV)", Category: "ops", Type: TypeString, DefaultValue: "24,1"},
+	{Key: "STALE_THRESHOLD_WORKING_DAYS", Label: "Stale Task Threshold (working days)", Category: "ops", Type: TypeInt, DefaultValue: "3", Validate: intValidator},
 
 	// Why: digestSvc captures these into Config at WireDailyDigest time, so changes
 	// take effect on next process start (RestartRequired = true).

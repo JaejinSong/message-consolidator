@@ -21,14 +21,19 @@ LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = '
 WHERE r.user_email = ? AND r.start_date = ? AND r.end_date = ?;
 
 -- name: GetMessagesForReport :many
-SELECT 
-    m.id, m.user_email, m.source, m.room, 
-    m.task, 
+-- Why: (done=0, is_deleted=1) is user-cancel; (done=1, is_deleted=1) is the 30-day
+-- auto-sweep of completed tasks (still valid evidence). category=merged rows were
+-- absorbed into another task; counting them inflates activity and edge weights.
+SELECT
+    m.id, m.user_email, m.source, m.room,
+    m.task,
     m.requester, m.assignee, m.assigned_at, m.link, m.source_ts, m.pinned, m.original_text, m.done, m.is_deleted, m.created_at, m.completed_at, m.category, m.deadline, m.thread_id,
     m.assignee_reason, m.replied_to_id, m.is_context_query, m.constraints, m.metadata, m.source_channels, m.consolidated_context, m.subtasks, m.requester_canonical, m.assignee_canonical, m.requester_type, m.assignee_type
 FROM v_messages m
-WHERE m.user_email = ? 
-  AND (m.created_at >= ? OR m.assigned_at >= ?)
+WHERE m.user_email = ?
+  AND (m.created_at >= datetime(?) OR m.assigned_at >= datetime(?))
+  AND NOT (m.done = 0 AND m.is_deleted = 1)
+  AND m.category != 'merged'
   AND (sqlc.narg('source') IS NULL OR m.source = sqlc.narg('source'))
   AND (sqlc.narg('done') IS NULL OR m.done = sqlc.narg('done'))
 ORDER BY m.created_at DESC;

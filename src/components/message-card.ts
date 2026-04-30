@@ -11,6 +11,7 @@ export type MessageCardProps = Message & {
     lang: string;
     isSelected?: boolean;
     currentUserNames?: string[];
+    staleThresholdWorkingDays?: number;
 };
 
 /**
@@ -35,7 +36,7 @@ function parseMetadata(metadata: unknown): Record<string, unknown> | null {
  * Decouples rendering logic from the main application state to allow for independent testing.
  */
 export function MessageCard(props: MessageCardProps): string {
-    const { id, source, source_channels, room, is_translating, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translation_error, has_original, assigned_to, subtasks, isSelected, currentUserNames, deadline } = props;
+    const { id, source, source_channels, room, is_translating, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translation_error, has_original, assigned_to, subtasks, isSelected, currentUserNames, deadline, staleThresholdWorkingDays } = props;
 
     const isSelf = (name: string | undefined): boolean =>
         !!name && !!currentUserNames?.length &&
@@ -68,6 +69,24 @@ export function MessageCard(props: MessageCardProps): string {
     ].filter(Boolean).join(' ');
 
     const isShared = assignee === ASSIGNEE_SHARED || category === 'shared';
+
+    // Why: stall badge is purely view-side (backend has no per-task status column); compute from
+    // created_at via the same working-day rule the prompt uses, gated to active non-shared tasks.
+    let isStale = false;
+    let staleAge = 0;
+    if (!done && !isShared && staleThresholdWorkingDays && staleThresholdWorkingDays > 0) {
+        const since = created_at || timestamp;
+        if (since) {
+            const d = new Date(since);
+            if (!isNaN(d.getTime())) {
+                staleAge = TimeService.getWorkingDaysSince(d);
+                isStale = staleAge >= staleThresholdWorkingDays;
+            }
+        }
+    }
+    const staleBadgeHtml = isStale
+        ? `<div class="c-message-card__badge c-message-card__badge--stale" title="${staleAge} ${lang === 'ko' ? '영업일 경과' : 'working days idle'}">⏳ ${lang === 'ko' ? '정체' : 'Stale'} · ${staleAge}d</div>`
+        : '';
 
     const categoryBadgeHtml = category === 'POLICY' ? `<div class="c-message-card__badge c-message-card__badge--policy">${i18n.policyLabel || 'Policy'}</div>` : 
                              category === 'QUERY' ? `<div class="c-message-card__badge c-message-card__badge--query">${i18n.queryLabel || 'Question'}</div>` :
@@ -147,6 +166,7 @@ export function MessageCard(props: MessageCardProps): string {
                 <div class="c-message-card__room">${room ? `<span class="c-message-card__badge-room">${escapeHTML(room)}</span>` : '-'}</div>
                 ${delegatedHtml}
                 ${categoryBadgeHtml}
+                ${staleBadgeHtml}
                 <div class="c-message-card__actions">
                     ${has_original ? `<button class="c-message-card__action-btn view-original-btn" data-action="show-original" title="${i18n.viewOriginal || 'View Original'}">${ICONS.viewOriginal}</button>` : ''}
                     <button class="c-message-card__action-btn delete-btn" data-action="delete" title="${i18n?.delete || 'Delete'}">${ICONS.delete}</button>

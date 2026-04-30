@@ -2,15 +2,21 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"message-consolidator/logger"
 	"message-consolidator/store"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/slack-go/slack"
 )
 
 type DailyDigestSlack interface {
-	SendDM(ctx context.Context, slackUserID, text string) error
+	SendDMBlocks(ctx context.Context, slackUserID string, blocks []slack.Block, fallback string) error
 	LookupSlackIDByEmail(email string) (string, error)
 }
 
@@ -69,14 +75,15 @@ func (s *DailyDigestService) Dispatch(ctx context.Context) error {
 		return fmt.Errorf("daily: wait: %w", err)
 	}
 
-	body := formatDailyDMText(start, end, completed.ReportSummary)
+	blocks := formatDailyDMBlocks(start, end, completed.ReportSummary)
+	fallback := formatDailyDMText(start, end, completed.ReportSummary)
 	for _, email := range s.Config.RecipientEmails {
 		slackID, err := s.ensureSlackIDFor(ctx, email)
 		if err != nil {
 			logger.Warnf("[DIGEST] slack id for %s: %v", email, err)
 			continue
 		}
-		if err := s.Slack.SendDM(ctx, slackID, body); err != nil {
+		if err := s.Slack.SendDMBlocks(ctx, slackID, blocks, fallback); err != nil {
 			logger.Warnf("[DIGEST] send dm to %s: %v", email, err)
 		}
 	}
@@ -118,4 +125,208 @@ func formatDailyDMText(start, end, summary string) string {
 		return fmt.Sprintf(":sunrise: *Daily Report* (%s)\n\n%s", start, summary)
 	}
 	return fmt.Sprintf(":sunrise: *Daily Report* (%s ~ %s)\n\n%s", start, end, summary)
+}
+
+// Why: AI emits any tabular section (Activity, Stalled Tasks, ...) as a fenced
+// ```json [...]``` block that Slack mrkdwn renders verbatim; capture every block so we
+// can replace it with structured Block Kit fields without touching the prompt.
+var dailyJSONRe = regexp.MustCompile("(?s)```(?:json)?\\s*\\n(\\[.*?\\])\\s*```")
+
+// Why: encoding/json drops map insertion order when unmarshaling into map[string]any;
+// recover the AI's intended field order by scanning the raw JSON for "key": tokens.
+var jsonKeyOrderRe = regexp.MustCompile(`"([A-Za-z_][A-Za-z0-9_]*)"\s*:`)
+
+func formatDailyDMBlocks(start, end, summary string) []slack.Block {
+	title := fmt.Sprintf(":sunrise: Daily Report (%s)", start)
+	if start != end {
+		title = fmt.Sprintf(":sunrise: Daily Report (%s ~ %s)", start, end)
+	}
+	blocks := []slack.Block{
+		slack.NewHeaderBlock(slack.NewTextBlockObject(slack.PlainTextType, title, true, false)),
+	}
+
+	cursor := 0
+	for _, loc := range dailyJSONRe.FindAllStringSubmatchIndex(summary, -1) {
+		blocks = appendMrkdwnSections(blocks, summary[cursor:loc[0]])
+		blocks = appendJSONArrayBlocks(blocks, summary[loc[2]:loc[3]])
+		cursor = loc[1]
+	}
+	blocks = appendMrkdwnSections(blocks, summary[cursor:])
+	return blocks
+}
+
+func appendJSONArrayBlocks(blocks []slack.Block, raw string) []slack.Block {
+	var items []map[string]any
+	if err := json.Unmarshal([]byte(raw), &items); err != nil || len(items) == 0 {
+		return appendMrkdwnChunks(blocks, "```\n"+strings.TrimSpace(raw)+"\n```")
+	}
+	keyOrder := extractJSONKeyOrder(raw)
+	for _, item := range items {
+		blocks = appendJSONItemBlocks(blocks, item, keyOrder)
+		blocks = append(blocks, slack.NewDividerBlock())
+	}
+	return blocks
+}
+
+// Why: short scalars belong in the 2-column fields grid, but anything multi-line or
+// long (>80 chars) wraps awkwardly inside fields — promote those to their own section.
+func appendJSONItemBlocks(blocks []slack.Block, item map[string]any, keyOrder []string) []slack.Block {
+	const inlineFieldLimit = 80
+	const maxFields = 10
+
+	var fields []*slack.TextBlockObject
+	var bodyLines []string
+	for _, k := range orderItemKeys(item, keyOrder) {
+		v := stringifyJSONValue(item[k])
+		label := titleizeKey(k)
+		if len(v) > inlineFieldLimit || strings.Contains(v, "\n") {
+			bodyLines = append(bodyLines, fmt.Sprintf("*%s*: %s", label, v))
+			continue
+		}
+		if len(fields) < maxFields {
+			fields = append(fields, slack.NewTextBlockObject(slack.MarkdownType,
+				fmt.Sprintf("*%s*\n%s", label, v), false, false))
+		}
+	}
+	if len(fields) > 0 {
+		blocks = append(blocks, slack.NewSectionBlock(nil, fields, nil))
+	}
+	for _, line := range bodyLines {
+		blocks = append(blocks, slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType, line, false, false),
+			nil, nil,
+		))
+	}
+	return blocks
+}
+
+func extractJSONKeyOrder(raw string) []string {
+	seen := make(map[string]bool)
+	var order []string
+	for _, m := range jsonKeyOrderRe.FindAllStringSubmatch(raw, -1) {
+		if !seen[m[1]] {
+			seen[m[1]] = true
+			order = append(order, m[1])
+		}
+	}
+	return order
+}
+
+func orderItemKeys(item map[string]any, preferred []string) []string {
+	out := make([]string, 0, len(item))
+	seen := make(map[string]bool, len(item))
+	for _, k := range preferred {
+		if _, ok := item[k]; ok && !seen[k] {
+			out = append(out, k)
+			seen[k] = true
+		}
+	}
+	leftover := make([]string, 0)
+	for k := range item {
+		if !seen[k] {
+			leftover = append(leftover, k)
+		}
+	}
+	sort.Strings(leftover)
+	return append(out, leftover...)
+}
+
+func stringifyJSONValue(v any) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return t
+	case float64:
+		if t == float64(int64(t)) {
+			return strconv.FormatInt(int64(t), 10)
+		}
+		return strconv.FormatFloat(t, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(t)
+	default:
+		b, err := json.Marshal(t)
+		if err != nil {
+			return fmt.Sprint(t)
+		}
+		return string(b)
+	}
+}
+
+// Why: AI emits keys in snake_case/camelCase ("source_ts", "customerName"); a single
+// uppercase-first pass keeps the Slack label readable without requiring a full word-split.
+func titleizeKey(k string) string {
+	if k == "" {
+		return k
+	}
+	return strings.ToUpper(k[:1]) + k[1:]
+}
+
+// Why: AI emits sections as `## [Title]` which Slack mrkdwn renders as literal "## "
+// prefix; promote each marker to a Block Kit header so Overview/Insights/Stalled get
+// the same visual weight as Activity.
+var sectionHeaderRe = regexp.MustCompile(`(?m)^##\s*\[?([^\]\n]+?)\]?\s*$`)
+
+func appendMrkdwnSections(blocks []slack.Block, text string) []slack.Block {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return blocks
+	}
+	matches := sectionHeaderRe.FindAllStringSubmatchIndex(text, -1)
+	if len(matches) == 0 {
+		return appendMrkdwnChunks(blocks, text)
+	}
+	if intro := strings.TrimSpace(text[:matches[0][0]]); intro != "" {
+		blocks = appendMrkdwnChunks(blocks, intro)
+	}
+	for i, m := range matches {
+		title := strings.TrimSpace(text[m[2]:m[3]])
+		bodyEnd := len(text)
+		if i+1 < len(matches) {
+			bodyEnd = matches[i+1][0]
+		}
+		body := strings.TrimSpace(text[m[1]:bodyEnd])
+		blocks = append(blocks, slack.NewHeaderBlock(
+			slack.NewTextBlockObject(slack.PlainTextType, title, false, false),
+		))
+		if body != "" {
+			blocks = appendMrkdwnChunks(blocks, body)
+		}
+	}
+	return blocks
+}
+
+// Why: Slack section blocks cap mrkdwn text at 3000 chars; chunk on paragraph boundaries
+// so long bodies don't trigger invalid_blocks errors mid-dispatch.
+func appendMrkdwnChunks(blocks []slack.Block, text string) []slack.Block {
+	const maxSectionChars = 2900
+	for _, chunk := range chunkByParagraph(text, maxSectionChars) {
+		blocks = append(blocks, slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType, chunk, false, false),
+			nil, nil,
+		))
+	}
+	return blocks
+}
+
+func chunkByParagraph(text string, limit int) []string {
+	if len(text) <= limit {
+		return []string{text}
+	}
+	var chunks []string
+	var buf strings.Builder
+	for _, para := range strings.Split(text, "\n\n") {
+		if buf.Len()+len(para)+2 > limit && buf.Len() > 0 {
+			chunks = append(chunks, strings.TrimSpace(buf.String()))
+			buf.Reset()
+		}
+		if buf.Len() > 0 {
+			buf.WriteString("\n\n")
+		}
+		buf.WriteString(para)
+	}
+	if buf.Len() > 0 {
+		chunks = append(chunks, strings.TrimSpace(buf.String()))
+	}
+	return chunks
 }

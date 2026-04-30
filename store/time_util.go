@@ -30,6 +30,24 @@ func GetWorkingDaysAgo(days int, now time.Time) time.Time {
 	return t
 }
 
+// WorkingDaysSince counts elapsed weekdays from `since` up to `now` (exclusive of `since`'s
+// own day, inclusive of any weekday already advanced past). Returns 0 when `since` is in the
+// future or the same day as `now`.
+func WorkingDaysSince(since, now time.Time) int {
+	if !since.Before(now) {
+		return 0
+	}
+	n := 0
+	cur := since
+	for cur.Before(now) {
+		cur = cur.AddDate(0, 0, 1)
+		if cur.Weekday() != time.Saturday && cur.Weekday() != time.Sunday {
+			n++
+		}
+	}
+	return n
+}
+
 // GetLocalThreshold returns a threshold string formatted in RFC3339 for 'days' working days ago
 // considering the user's timezone.
 func GetLocalThreshold(userTz string, days int) string {

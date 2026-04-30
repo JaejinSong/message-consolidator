@@ -46,6 +46,7 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 
 	user.Aliases, _ = store.GetUserAliasesByEmailFromCache(r.Context(), email)
 	user.ArchiveDays = store.GetAutoArchiveDays()
+	user.StaleThresholdWorkingDays = store.GetStaleThresholdWorkingDays()
 
 	a.autoPopulateSlackAliases(r.Context(), user)
 	tokenUsage := a.gatherTokenUsageStats(r.Context(), email)

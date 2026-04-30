@@ -104,6 +104,14 @@
     color: var(--white);
 }
 
+.c-message-card__badge--stale {
+    background: rgba(var(--color-warning-rgb), 0.18);
+    color: var(--color-warning);
+    border: 0.0625rem solid rgba(var(--color-warning-rgb), 0.4);
+    text-transform: none;
+    letter-spacing: 0.02em;
+}
+
 .c-message-card__badge--delegated {
     background: var(--color-warning);
     color: var(--bg-color);

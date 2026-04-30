@@ -163,6 +163,7 @@ export function createCardElement(m: Message): string {
         assigned_to: m.assigned_to,
         isSelected: state.selectedTaskIds.has(m.id),
         currentUserNames: [state.userProfile.name, ...(state.userProfile.aliases || [])].filter(Boolean),
+        staleThresholdWorkingDays: state.staleThresholdWorkingDays,
         deadline: m.deadline || '',
         source_channels: m.source_channels,
         consolidated_context: m.consolidated_context,

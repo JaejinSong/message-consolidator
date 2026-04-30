@@ -112,7 +112,7 @@ func computePeakTime(activity map[int]int) string {
 
 func loadAbandonedTasks(ctx context.Context, q *db.Queries, email, tz string, stats *UserStats) {
 	userName, _ := q.GetUserByEmailSimple(ctx, nullString(email))
-	thresholdStr := GetLocalThreshold(tz, 3)
+	thresholdStr := GetLocalThreshold(tz, GetStaleThresholdWorkingDays())
 	threshold, _ := time.Parse(time.RFC3339, thresholdStr)
 	abandonedCount, _ := q.GetAbandonedTasks(ctx, db.GetAbandonedTasksParams{
 		UserEmail: email,

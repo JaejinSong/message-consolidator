@@ -81,6 +81,21 @@ export const TimeService = {
         return Math.floor(Math.abs(date1.getTime() - date2.getTime()) / (1000 * 60 * 60 * 24));
     },
 
+    // Why: matches store.WorkingDaysSince — counts weekday transitions from `since` up to `now`,
+    // so frontend stale badging stays consistent with backend Stalled Tasks rule.
+    getWorkingDaysSince(since: Date, now: Date = new Date()): number {
+        if (!(since instanceof Date) || isNaN(since.getTime())) return 0;
+        if (since >= now) return 0;
+        let n = 0;
+        const cur = new Date(since.getTime());
+        while (cur < now) {
+            cur.setDate(cur.getDate() + 1);
+            const dow = cur.getDay();
+            if (dow !== 0 && dow !== 6) n++;
+        }
+        return n;
+    },
+
     formatDisplayTime(isoStr: string, lang: string = 'en'): string {
         return formatDisplayTime(isoStr, lang);
     }

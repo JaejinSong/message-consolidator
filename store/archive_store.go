@@ -41,6 +41,18 @@ func GetAutoArchiveDays() int {
 	return autoArchiveDays
 }
 
+var staleThresholdWorkingDays int = 3
+
+func SetStaleThresholdWorkingDays(days int) {
+	if days > 0 {
+		staleThresholdWorkingDays = days
+	}
+}
+
+func GetStaleThresholdWorkingDays() int {
+	return staleThresholdWorkingDays
+}
+
 func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]ConsolidatedMessage, int, error) {
 	// [Guard Clause] Serve from cache for first-page, non-search requests to reduce DB load.
 	if filter.Query == "" && filter.Offset == 0 && filter.Limit >= 50 {

@@ -46,6 +46,7 @@ func main() {
 
 	logEnvDebug()
 	store.SetAutoArchiveDays(cfg.AutoArchiveDays)
+	store.SetStaleThresholdWorkingDays(cfg.StaleThresholdWorkingDays)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -62,6 +63,7 @@ func main() {
 	}
 	logger.SetLevel(cfg.LogLevel)
 	store.SetAutoArchiveDays(cfg.AutoArchiveDays)
+	store.SetStaleThresholdWorkingDays(cfg.StaleThresholdWorkingDays)
 	if err := store.LoadMetadata(); err != nil {
 		logger.Warnf("Failed to load metadata cache: %v", err)
 	}

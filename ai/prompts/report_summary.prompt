@@ -51,7 +51,7 @@ Status `[V]` = done, `[ ]` = active. Each rule below declares its own grounding 
    - BAD: `{"customer": "Gmail (전략/운영)", ...}` (channel-only label — failed inference, must merge into "Other Tasks")
    - BAD: `{"customer": "Slack", ...}` (source name as customer — must merge into "Other Tasks")
    - BAD: `{"customer": "...", "summary": "APM agent setup and POC support. Focused on onboarding and initial configuration."}` (generic summary — no actor, no deadline, no specifics)
-5. **Stalled Tasks**: Only 'Stalled'/'Neglected'. One ```json block: `[{"source": str, "requester": str, "status": str, "days": num, "reason": str}]`. If none: `"No stalled tasks identified."`
+5. **Stalled Tasks**: Active (`[ ]`) tasks where the input line carries `Age: Nwd` with `N >= {{.StaleThreshold}}` (working-day cutoff). Optional `[V]` Done tasks are NEVER stalled. Set `days` to the `N` value from the `Age:` field. One ```json block: `[{"source": str, "requester": str, "status": str, "days": num, "reason": str}]`. If none: `"No stalled tasks identified."`
 6. Tone: dry, professional, data-driven. English only. 1 bullet = 1 sentence — no paragraphs.
 
 {{if .FewShots}}
