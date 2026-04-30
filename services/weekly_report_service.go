@@ -105,7 +105,11 @@ func (s *WeeklyReportService) ensureSlackID(ctx context.Context) (string, error)
 }
 
 func (s *WeeklyReportService) waitForCompletion(ctx context.Context, id store.ReportID, email string) (*store.Report, error) {
-	deadline := time.Now().Add(s.Config.PollTimeout)
+	return pollUntilReportCompleted(ctx, id, email, s.Config.PollInterval, s.Config.PollTimeout)
+}
+
+func pollUntilReportCompleted(ctx context.Context, id store.ReportID, email string, pollInterval, pollTimeout time.Duration) (*store.Report, error) {
+	deadline := time.Now().Add(pollTimeout)
 	for {
 		r, err := store.GetReportByID(ctx, id, email)
 		if err != nil {
@@ -121,12 +125,12 @@ func (s *WeeklyReportService) waitForCompletion(ctx context.Context, id store.Re
 			return nil, fmt.Errorf("report %d failed", id)
 		}
 		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("report %d not completed within %s", id, s.Config.PollTimeout)
+			return nil, fmt.Errorf("report %d not completed within %s", id, pollTimeout)
 		}
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(s.Config.PollInterval):
+		case <-time.After(pollInterval):
 		}
 	}
 }

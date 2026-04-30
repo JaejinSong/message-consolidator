@@ -70,6 +70,7 @@ func main() {
 	reportsSvc, tasksSvc, identityResolver := initAIServices(ctx, cfg)
 
 	scanner.WireWeeklyReport(reportsSvc)
+	scanner.WireDailyDigest(reportsSvc)
 
 	api := handlers.NewAPI(cfg, func(email, lang string) {
 		var wg sync.WaitGroup

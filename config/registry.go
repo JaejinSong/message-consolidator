@@ -79,6 +79,14 @@ var Registry = []SettingDef{
 	{Key: "INTERNAL_SCAN_SECRET", Label: "Internal Scan Secret", Category: "ops", Type: TypeString, Secret: true, RestartRequired: true},
 	{Key: "REMINDER_ENABLED", Label: "Deadline Reminder Enabled", Category: "ops", Type: TypeBool, DefaultValue: "false", Validate: boolValidator},
 	{Key: "REMINDER_WINDOWS_HOURS", Label: "Reminder Windows Hours (CSV)", Category: "ops", Type: TypeString, DefaultValue: "24,1"},
+
+	// Why: digestSvc captures these into Config at WireDailyDigest time, so changes
+	// take effect on next process start (RestartRequired = true).
+	{Key: "DAILY_DIGEST_ENABLED", Label: "Daily Digest Enabled", Category: "ops", Type: TypeBool, DefaultValue: "false", RestartRequired: true, Validate: boolValidator},
+	{Key: "DAILY_DIGEST_RECIPIENT_EMAIL", Label: "Daily Digest Recipients (CSV)", Category: "ops", Type: TypeCSV, RestartRequired: true},
+	{Key: "DAILY_DIGEST_HOUR", Label: "Daily Digest Hour (0-23)", Category: "ops", Type: TypeInt, DefaultValue: "18", RestartRequired: true, Validate: intValidator},
+	{Key: "DAILY_DIGEST_TIMEZONE", Label: "Daily Digest Timezone", Category: "ops", Type: TypeString, DefaultValue: "Asia/Seoul", RestartRequired: true},
+	{Key: "DAILY_DIGEST_LANGUAGE", Label: "Daily Digest Language", Category: "ops", Type: TypeEnum, EnumValues: []string{"en", "ko"}, DefaultValue: "en", RestartRequired: true, Validate: enumValidator("en", "ko")},
 }
 
 // FindDef returns the registry entry for `key`, or nil if the key is not exposed to the admin UI.

@@ -39,11 +39,11 @@ type Config struct {
 	DBKeepAliveInterval    time.Duration
 	ReminderEnabled           bool
 	ReminderWindowsHours      []int
-	DailyDigestEnabled        bool
-	DailyDigestRecipientEmail string
-	DailyDigestHour           int
-	DailyDigestTimezone       string
-	DailyDigestListLimit      int
+	DailyDigestEnabled         bool
+	DailyDigestRecipientEmails []string
+	DailyDigestHour            int
+	DailyDigestTimezone        string
+	DailyDigestLanguage        string
 	WeeklyReportEnabled        bool
 	WeeklyReportRecipientEmail string
 	WeeklyReportHour           int
@@ -83,11 +83,11 @@ func LoadConfig() *Config {
 		DBKeepAliveInterval:  envDurationOrSeconds("DB_KEEP_ALIVE_INTERVAL", 7*time.Second),
 		ReminderEnabled:           parseBoolEnv("REMINDER_ENABLED", false),
 		ReminderWindowsHours:      parseIntCSV(os.Getenv("REMINDER_WINDOWS_HOURS"), []int{24, 1}),
-		DailyDigestEnabled:        parseBoolEnv("DAILY_DIGEST_ENABLED", false),
-		DailyDigestRecipientEmail: os.Getenv("DAILY_DIGEST_RECIPIENT_EMAIL"),
-		DailyDigestHour:           envInt("DAILY_DIGEST_HOUR", 18),
-		DailyDigestTimezone:       envOr("DAILY_DIGEST_TIMEZONE", "Asia/Seoul"),
-		DailyDigestListLimit:      envInt("DAILY_DIGEST_LIST_LIMIT", 23),
+		DailyDigestEnabled:         parseBoolEnv("DAILY_DIGEST_ENABLED", false),
+		DailyDigestRecipientEmails: splitCSV(os.Getenv("DAILY_DIGEST_RECIPIENT_EMAIL")),
+		DailyDigestHour:            envInt("DAILY_DIGEST_HOUR", 18),
+		DailyDigestTimezone:        envOr("DAILY_DIGEST_TIMEZONE", "Asia/Seoul"),
+		DailyDigestLanguage:        envOr("DAILY_DIGEST_LANGUAGE", "en"),
 		WeeklyReportEnabled:        parseBoolEnv("WEEKLY_REPORT_ENABLED", false),
 		WeeklyReportRecipientEmail: os.Getenv("WEEKLY_REPORT_RECIPIENT_EMAIL"),
 		WeeklyReportHour:           envInt("WEEKLY_REPORT_HOUR", 18),

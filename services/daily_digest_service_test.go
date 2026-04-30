@@ -1,187 +1,56 @@
 package services
 
 import (
-	"database/sql"
-	"message-consolidator/store"
 	"testing"
 	"time"
 )
 
-func makeKSTTime(year, month, day int) time.Time {
+func TestComputeDailyWindow(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Seoul")
-	return time.Date(year, time.Month(month), day, 18, 0, 0, 0, loc)
+	cases := []struct {
+		name      string
+		now       time.Time
+		wantStart string
+		wantEnd   string
+	}{
+		{"tuesday", time.Date(2026, 4, 28, 18, 0, 0, 0, loc), "2026-04-28", "2026-04-28"},
+		{"wednesday", time.Date(2026, 4, 29, 18, 0, 0, 0, loc), "2026-04-29", "2026-04-29"},
+		{"thursday", time.Date(2026, 4, 30, 18, 0, 0, 0, loc), "2026-04-30", "2026-04-30"},
+		{"friday", time.Date(2026, 5, 1, 18, 0, 0, 0, loc), "2026-05-01", "2026-05-01"},
+		{"monday_includes_weekend", time.Date(2026, 5, 4, 18, 0, 0, 0, loc), "2026-05-02", "2026-05-04"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			gotStart, gotEnd := computeDailyWindow(tc.now)
+			if gotStart != tc.wantStart {
+				t.Errorf("start: want %q got %q", tc.wantStart, gotStart)
+			}
+			if gotEnd != tc.wantEnd {
+				t.Errorf("end: want %q got %q", tc.wantEnd, gotEnd)
+			}
+		})
+	}
 }
 
-func nullStr(s string) sql.NullString {
-	return sql.NullString{String: s, Valid: s != ""}
-}
-
-func TestFormatDigest_Empty(t *testing.T) {
-	snap := store.DigestSnapshot{
-		Received:      nil,
-		Assigned:      nil,
-		ReceivedTotal: 0,
-		AssignedTotal: 0,
-	}
-	now := makeKSTTime(2026, 4, 28) // Tuesday
-	text := formatDigest(snap, now)
-
-	if text == "" {
-		t.Fatal("expected non-empty output")
-	}
-	assertContains(t, text, "2026-04-28")
-	assertContains(t, text, "(화)")
-	assertContains(t, text, "받은 업무* — 0건")
-	assertContains(t, text, "맡긴 업무* — 0건")
-	assertContains(t, text, "(없음)")
-}
-
-func TestFormatDigest_WithItems(t *testing.T) {
-	now := makeKSTTime(2026, 4, 28)
-	snap := store.DigestSnapshot{
-		Received: []store.DigestTask{
-			{
-				ID:          1,
-				Task:        "API 응답 포맷 정리",
-				Source:      "Slack",
-				Room:        "dev",
-				CreatedAt:   now,
-				Deadline:    nullStr("2026-04-30"),
-				Counterpart: "김PM",
-			},
-			{
-				ID:          2,
-				Task:        "인보이스 검토 요청",
-				Source:      "Gmail",
-				Room:        "",
-				CreatedAt:   now,
-				Deadline:    nullStr(""),
-				Counterpart: "정OO",
-			},
-		},
-		ReceivedTotal: 2,
-		Assigned: []store.DigestTask{
-			{
-				ID:          3,
-				Task:        "코드 리뷰",
-				Source:      "Slack",
-				Room:        "backend",
-				CreatedAt:   now,
-				Deadline:    nullStr(""),
-				Counterpart: "이개발",
-			},
-		},
-		AssignedTotal: 1,
-	}
-
-	text := formatDigest(snap, now)
-
-	assertContains(t, text, "받은 업무* — 2건")
-	assertContains(t, text, "[Slack/dev] API 응답 포맷 정리")
-	assertContains(t, text, "← 김PM")
-	assertContains(t, text, "~04-30")
-	assertContains(t, text, "[Gmail] 인보이스 검토 요청")
-	assertContains(t, text, "← 정OO")
-	assertContains(t, text, "맡긴 업무* — 1건")
-	assertContains(t, text, "[Slack/backend] 코드 리뷰")
-	assertContains(t, text, "→ 이개발")
-}
-
-func TestFormatDigest_LimitTruncation(t *testing.T) {
-	now := makeKSTTime(2026, 4, 28)
-
-	snap := store.DigestSnapshot{
-		Received: []store.DigestTask{
-			{ID: 1, Task: "task1", Source: "Slack", Room: "a"},
-			{ID: 2, Task: "task2", Source: "Slack", Room: "b"},
-		},
-		ReceivedTotal: 7,
-		AssignedTotal: 0,
-	}
-
-	text := formatDigest(snap, now)
-	assertContains(t, text, "외 5건")
-}
-
-func TestFormatDigest_TaskTrim80Runes(t *testing.T) {
-	// Why: '가' is 1 rune, so 100 chars = 100 runes — exercises multi-byte truncation.
-	longTask := ""
-	for i := 0; i < 100; i++ {
-		longTask += "가"
-	}
-
-	now := makeKSTTime(2026, 4, 28)
-	snap := store.DigestSnapshot{
-		Received: []store.DigestTask{
-			{ID: 1, Task: longTask, Source: "Slack", Room: "ch"},
-		},
-		ReceivedTotal: 1,
-		AssignedTotal: 0,
-	}
-
-	text := formatDigest(snap, now)
-
-	for _, line := range splitLines(text) {
-		runes := []rune(line)
-		if len(runes) > 0 && runes[0] == '•' {
-			if len(runes) > 100 {
-				t.Errorf("task line exceeds expected length: %d runes", len(runes))
+func TestFormatDailyDMText(t *testing.T) {
+	t.Run("same_day", func(t *testing.T) {
+		got := formatDailyDMText("2026-04-28", "2026-04-28", "summary body")
+		for _, want := range []string{"Daily Report", "2026-04-28", "summary body"} {
+			if !containsString(got, want) {
+				t.Errorf("result %q missing %q", got, want)
 			}
 		}
-	}
-	assertContains(t, text, "…")
-}
-
-func TestFormatDigest_WeekdayKorean(t *testing.T) {
-	loc, _ := time.LoadLocation("Asia/Seoul")
-
-	cases := []struct {
-		date    time.Time
-		wantDay string
-	}{
-		{time.Date(2026, 4, 28, 18, 0, 0, 0, loc), "화"},
-		{time.Date(2026, 5, 1, 18, 0, 0, 0, loc), "금"},
-	}
-
-	for _, tc := range cases {
-		snap := store.DigestSnapshot{}
-		text := formatDigest(snap, tc.date)
-		want := "(" + tc.wantDay + ")"
-		assertContains(t, text, want)
-	}
-}
-
-func assertContains(t *testing.T, s, sub string) {
-	t.Helper()
-	if !contains(s, sub) {
-		t.Errorf("expected output to contain %q\ngot:\n%s", sub, s)
-	}
-}
-
-func contains(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub || len(sub) == 0 || stringContains(s, sub))
-}
-
-func stringContains(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
+		if containsString(got, "~") {
+			t.Errorf("same-day form should not contain '~': %q", got)
 		}
-	}
-	return false
-}
-
-func splitLines(s string) []string {
-	var lines []string
-	start := 0
-	for i, c := range s {
-		if c == '\n' {
-			lines = append(lines, s[start:i])
-			start = i + 1
+	})
+	t.Run("monday_range", func(t *testing.T) {
+		got := formatDailyDMText("2026-05-02", "2026-05-04", "weekend body")
+		for _, want := range []string{"2026-05-02", "2026-05-04", "~", "weekend body"} {
+			if !containsString(got, want) {
+				t.Errorf("result %q missing %q", got, want)
+			}
 		}
-	}
-	if start < len(s) {
-		lines = append(lines, s[start:])
-	}
-	return lines
+	})
 }

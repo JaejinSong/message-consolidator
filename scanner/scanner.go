@@ -49,9 +49,6 @@ func Init(c *config.Config) {
 	if cfg.SlackToken != "" {
 		slackClient = channels.NewSlackClient(cfg.SlackToken)
 		reminderSvc = services.NewReminderService(slackClient, cfg.ReminderWindowsHours)
-		if cfg.DailyDigestEnabled && cfg.DailyDigestRecipientEmail != "" {
-			digestSvc = services.NewDailyDigestService(slackClient, cfg.DailyDigestRecipientEmail, cfg.DailyDigestListLimit, cfg.DailyDigestTimezone)
-		}
 	}
 }
 
@@ -421,6 +418,23 @@ func triggerAsyncTranslation(ctx context.Context, email string, ids []store.Mess
 		defer cancel()
 		_, _ = tasksSvc.ProcessBatchTranslation(tCtx, email, ids, "ko")
 	}()
+}
+
+// Why: DailyDigestService needs reportsSvc, built post-Init in main.initAIServices.
+func WireDailyDigest(reportsSvc *services.ReportsService) {
+	if cfg == nil || !cfg.DailyDigestEnabled || reportsSvc == nil || slackClient == nil {
+		return
+	}
+	if len(cfg.DailyDigestRecipientEmails) == 0 {
+		logger.Warnf("[DIGEST] recipient emails not set")
+		return
+	}
+	digestSvc = services.NewDailyDigestService(slackClient, reportsSvc, services.DailyDigestConfig{
+		RecipientEmails: cfg.DailyDigestRecipientEmails,
+		Hour:            cfg.DailyDigestHour,
+		Timezone:        cfg.DailyDigestTimezone,
+		Language:        cfg.DailyDigestLanguage,
+	})
 }
 
 // Why: WeeklyReportService needs reportsSvc which is built post-Init in main.go's initAIServices.
