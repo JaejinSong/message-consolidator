@@ -561,7 +561,7 @@ func (m *TelegramManager) ingestMessage(ctx context.Context, email string, e tg.
 	}()
 	raw := m.parseMessage(ctx, email, e, msg)
 	m.bufferMessage(email, chatKey, raw)
-	logger.Debugf("[TG-EVENT][%s] %s: %s", email, chatKey, raw.Text)
+	logger.Debugf("[TG] event for %s: %s: %s", email, chatKey, raw.Text)
 }
 
 // parseMessage maps a *tg.Message into types.RawMessage. Sender display name
@@ -778,7 +778,7 @@ func (m *TelegramManager) hydrateDialogs(ctx context.Context, client *telegram.C
 		Limit:      200,
 	})
 	if err != nil {
-		logger.Warnf("[TG-HYDRATE][%s] GetDialogs: %v", email, err)
+		logger.Warnf("[TG] hydrate dialogs failed for %s: %v", email, err)
 		return
 	}
 
@@ -811,7 +811,7 @@ func (m *TelegramManager) hydrateDialogs(ctx context.Context, client *telegram.C
 		}
 	}
 	m.storeEntities(ctx, email, e)
-	logger.Infof("[TG-HYDRATE][%s] cached %d users, %d chats, %d channels", email, len(e.Users), len(e.Chats), len(e.Channels))
+	logger.Infof("[TG] hydrated %d users, %d chats, %d channels for %s", len(e.Users), len(e.Chats), len(e.Channels), email)
 }
 
 // lookupBasicChatTitle performs a live gotd RPC to resolve a legacy (non-channel)

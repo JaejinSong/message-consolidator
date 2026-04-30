@@ -476,7 +476,7 @@ func (s *ReportsService) ProcessOnDemandTranslation(ctx context.Context, email s
 
 	// 4. Cache in DB
 	if err := store.SaveReportTranslation(ctx, reportID, langCode, translated); err != nil {
-		logger.Errorf("[REPORTS] Failed to cache translation: %v", err)
+		logger.Warnf("[REPORTS] cache translation failed: %v", err)
 	}
 
 	return translated, nil

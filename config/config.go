@@ -105,10 +105,10 @@ func loadDotenv() {
 		return
 	}
 	if err := godotenv.Overload(".env.local"); err != nil {
-		logger.Warnf("Failed to load .env.local: %v", err)
+		logger.Warnf("[CONFIG] failed to load .env.local: %v", err)
 		return
 	}
-	logger.Infof("Loaded local overrides from .env.local")
+	logger.Infof("[CONFIG] loaded local overrides from .env.local")
 }
 
 func envOr(key, fallback string) string {
@@ -126,7 +126,7 @@ func envInt(key string, fallback int) int {
 	n, err := strconv.Atoi(v)
 	if err != nil {
 		if key == "TELEGRAM_APP_ID" {
-			logger.Warnf("invalid TELEGRAM_APP_ID: %v", err)
+			logger.Warnf("[CONFIG] invalid TELEGRAM_APP_ID: %v", err)
 		}
 		return fallback
 	}

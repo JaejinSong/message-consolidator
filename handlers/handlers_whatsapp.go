@@ -17,7 +17,7 @@ func (a *API) HandleWhatsAppStatus(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	status := channels.GetWhatsAppStatus(email)
 	device := channels.GetWhatsAppDeviceName(email)
-	logger.Debugf("[CHANNEL] WhatsApp status for %s: %s (device=%q)", email, status, device)
+	logger.Debugf("[WA] status for %s: %s (device=%q)", email, status, device)
 	respondJSON(w, http.StatusOK, whatsappStatusResponse{Status: status, DeviceName: device})
 }
 

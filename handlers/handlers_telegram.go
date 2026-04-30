@@ -33,7 +33,7 @@ func (a *API) HandleTelegramStatus(w http.ResponseWriter, r *http.Request) {
 		resp.AppIDMasked = maskTelegramAppID(a.Config.TelegramAppID)
 	}
 
-	logger.Debugf("[CHANNEL] Telegram status for %s: %s (hasCreds=%v)", email, status, hasCreds)
+	logger.Debugf("[TG] status for %s: %s (hasCreds=%v)", email, status, hasCreds)
 	respondJSON(w, http.StatusOK, resp)
 }
 
@@ -81,7 +81,7 @@ func (a *API) HandleTelegramSetCredentials(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if err := store.UpsertTelegramCreds(r.Context(), email, body.AppID, body.AppHash); err != nil {
-		logger.Warnf("[CHANNEL] UpsertTelegramCreds failed for %s: %v", email, err)
+		logger.Warnf("[TG] UpsertTelegramCreds failed for %s: %v", email, err)
 		respondError(w, http.StatusInternalServerError, "failed to save credentials")
 		return
 	}

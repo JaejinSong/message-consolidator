@@ -37,7 +37,7 @@ type primeLoop struct {
 
 func (l *primeLoop) tick(ctx context.Context, wg *sync.WaitGroup) {
 	if !l.running.CompareAndSwap(false, true) {
-		logger.Warnf("[%s] previous run still in flight, skipping tick", l.name)
+		logger.Warnf("[SCAN] %s: previous run still in flight, skipping tick", l.name)
 		return
 	}
 	defer l.running.Store(false)

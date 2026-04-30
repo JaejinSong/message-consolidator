@@ -257,7 +257,7 @@ func validateTargetTask(ctx context.Context, q store.Querier, email string, id s
 		return nil, err
 	}
 	if existing.Room != expectedRoom {
-		logger.Errorf("[SECURITY] ID Cross-room operation attempted: Task %d (Room: %s) vs Incoming (Room: %s)", id, existing.Room, expectedRoom)
+		logger.Errorf("[ROUTER] security: cross-room operation attempted: Task %d (Room: %s) vs Incoming (Room: %s)", id, existing.Room, expectedRoom)
 		return nil, nil
 	}
 	return &existing, nil

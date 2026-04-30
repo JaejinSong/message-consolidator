@@ -59,13 +59,13 @@ func main() {
 	// Why: applies admin-managed app_settings on top of .env so DB-stored overrides win at boot.
 	// Failure is non-fatal — operator config issues should not block startup.
 	if err := config.OverlayFromDB(ctx, cfg, store.LoadAllSettings); err != nil {
-		logger.Warnf("Failed to overlay DB settings onto config: %v", err)
+		logger.Warnf("[INIT] failed to overlay DB settings onto config: %v", err)
 	}
 	logger.SetLevel(cfg.LogLevel)
 	store.SetAutoArchiveDays(cfg.AutoArchiveDays)
 	store.SetStaleThresholdWorkingDays(cfg.StaleThresholdWorkingDays)
 	if err := store.LoadMetadata(); err != nil {
-		logger.Warnf("Failed to load metadata cache: %v", err)
+		logger.Warnf("[INIT] failed to load metadata cache: %v", err)
 	}
 	scanner.Init(cfg)
 
@@ -117,7 +117,7 @@ func initAIServices(ctx context.Context, cfg *config.Config) (*services.ReportsS
 		var err error
 		gClient, err = ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 		if err != nil {
-			logger.Errorf("Failed to initialize GeminiClient for Reports: %v", err)
+			logger.Errorf("[INIT] failed to initialize GeminiClient: %v", err)
 		}
 	}
 	if gClient == nil {
@@ -141,41 +141,41 @@ func waitForShutdownSignal() {
 
 //Why: Runs disconnect, flush, HTTP drain, and DB close concurrently so one slow dependency cannot stall the others.
 func gracefulShutdown(srv *http.Server) {
-	logger.Infof("Shutting down server gracefully...")
+	logger.Infof("[SHUTDOWN] shutting down server gracefully...")
 	shutdownStart := time.Now()
 
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		logger.Infof("[Shutdown] 1/4 Disconnecting external clients (WhatsApp, Telegram)...")
+		logger.Infof("[SHUTDOWN] 1/4 Disconnecting external clients (WhatsApp, Telegram)...")
 		channels.DisconnectAllWhatsApp()
 		channels.DisconnectAllTelegram()
 	}()
 	go func() {
 		defer wg.Done()
-		logger.Infof("[Shutdown] 2/4 Flushing in-memory data to Database...")
+		logger.Infof("[SHUTDOWN] 2/4 Flushing in-memory data to Database...")
 		if err := store.FlushTokenUsage(context.Background()); err != nil {
-			logger.Errorf("Failed to flush token usage during shutdown: %v", err)
+			logger.Errorf("[SHUTDOWN] failed to flush token usage: %v", err)
 		}
 		store.FlushAllScanMetadata()
-		logger.Infof("[Shutdown] In-memory data flushed successfully.")
+		logger.Infof("[SHUTDOWN] In-memory data flushed successfully.")
 	}()
 	wg.Wait()
 
-	logger.Infof("[Shutdown] 3/4 Waiting for active HTTP requests to finish (Max 30s)...")
+	logger.Infof("[SHUTDOWN] 3/4 Waiting for active HTTP requests to finish (Max 30s)...")
 	ctxTimeout, cancelTimeout := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelTimeout()
 	if err := srv.Shutdown(ctxTimeout); err != nil {
-		logger.Errorf("Server shutdown error: %v", err)
+		logger.Errorf("[SHUTDOWN] server shutdown error: %v", err)
 	}
 
 	if db := store.GetDB(); db != nil {
-		logger.Infof("[Shutdown] 4/4 Closing database connections...")
+		logger.Infof("[SHUTDOWN] 4/4 Closing database connections...")
 		db.Close()
 	}
 
-	logger.Infof("Server exited successfully. Total shutdown time: %v", time.Since(shutdownStart))
+	logger.Infof("[SHUTDOWN] server exited. total shutdown time: %v", time.Since(shutdownStart))
 }
 
 //Why: Encapsulates the wiring of external services, background workers, and HTTP routes to provide a testable, fully configured server instance.
@@ -206,7 +206,7 @@ func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.
 	}
 
 	go func() {
-		logger.Infof("Startup Complete (Server starting on :%s...)", port)
+		logger.Infof("[INIT] startup complete, server listening on :%s", port)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("Server error: %v", err)
 		}

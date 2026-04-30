@@ -77,7 +77,7 @@ func (m *WAManager) initContainer(cfg *config.Config) {
 		m.container = sqlstore.NewWithDB(store.GetDB(), "sqlite3", dbLog)
 		//Why: Forces a database schema upgrade to ensure the WhatsApp message store remains compatible with the current version of the library.
 		if err := m.container.Upgrade(context.Background()); err != nil {
-			logger.Errorf("WA Store upgrade failed: %v", err)
+			logger.Errorf("[WA] store upgrade failed: %v", err)
 		}
 	})
 }
@@ -94,14 +94,14 @@ func (m *WAManager) InitWhatsApp(email string, cfg *config.Config) {
 	m.initContainer(cfg)
 
 	if m.container == nil {
-		logger.Errorf("WA Store permanently failed for %s", email)
+		logger.Errorf("[WA] store permanently failed for %s", email)
 		return
 	}
 
 	//Why: Retrieves the previously associated WhatsApp JID for the user to attempt a session restoration without requiring a new QR scan.
 	wajid, err := m.FetchUserWAJID(email)
 	if err != nil {
-		logger.Infof("InitWA: Failed to fetch WAJID for %s: %v", email, err)
+		logger.Warnf("[WA] failed to fetch WAJID for %s: %v", email, err)
 		return
 	}
 
@@ -110,7 +110,7 @@ func (m *WAManager) InitWhatsApp(email string, cfg *config.Config) {
 		jid, _ := waTypes.ParseJID(wajid)
 		device, err = m.container.GetDevice(context.Background(), jid)
 		if err != nil {
-			logger.Errorf("WA Device Store failed for %s (JID: %s): %v", email, wajid, err)
+			logger.Errorf("[WA] device store failed for %s (JID: %s): %v", email, wajid, err)
 		}
 	}
 
@@ -134,15 +134,15 @@ func (m *WAManager) InitWhatsApp(email string, cfg *config.Config) {
 	})
 
 	if client.Store.ID == nil {
-		logger.Infof("WA: No existing session found for %s, please scan QR code.", email)
+		logger.Infof("[WA] no existing session for %s, please scan QR code", email)
 		return
 	}
-	logger.Infof("WA: Found existing session ID for %s, connecting...", email)
+	logger.Infof("[WA] found existing session for %s, connecting...", email)
 	if err = client.Connect(); err != nil {
-		logger.Infof("WA Connect failed for %s: %v", email, err)
+		logger.Warnf("[WA] connect failed for %s: %v", email, err)
 		return
 	}
-	logger.Infof("WA: Connected successfully for %s", email)
+	logger.Infof("[WA] connected successfully for %s", email)
 	if err := client.SendPresence(context.Background(), waTypes.PresenceAvailable); err != nil {
 		logger.Warnf("[WA] SendPresence failed for %s: %v", email, err)
 	}
@@ -157,14 +157,14 @@ func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt any)
 		// [Optimization] 프로필 사진 업데이트 이벤트 무시
 		return
 	case *events.Connected:
-		logger.Debugf("[WA-EVENT][%s] Connected to WhatsApp", email)
+		logger.Debugf("[WA] event for %s: connected to WhatsApp", email)
 		if client.Store.ID != nil {
 			m.OnConnected(email, client.Store.ID.String())
 		}
 	case *events.OfflineSyncCompleted:
-		logger.Debugf("[WA-EVENT][%s] Offline sync completed", email)
+		logger.Debugf("[WA] event for %s: offline sync completed", email)
 	case *events.LoggedOut:
-		logger.Debugf("[WA-EVENT][%s] Logged out from WhatsApp", email)
+		logger.Debugf("[WA] event for %s: logged out", email)
 		m.OnLoggedOut(email)
 		m.mu.Lock()
 		delete(m.clients, email)
@@ -218,7 +218,7 @@ func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, m
 		AttachmentNames: meta.AttachmentNames,
 	})
 
-	logger.Debugf("[WA-EVENT][%s] Message from %s (Chat: %s): %s", email, sender, msg.Info.Chat, msgText)
+	logger.Debugf("[WA] event for %s: message from %s (chat: %s): %s", email, sender, msg.Info.Chat, msgText)
 }
 
 type messageMetadata struct {
@@ -371,18 +371,18 @@ func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
 
 	//Why: Ensures the QR code channel is initialized before establishing the connection, as required by the underlying WhatsApp library for proper pairing flow.
 	if client.IsConnected() {
-		logger.Infof("[WA-QR] Client already connected for %s, disconnecting to get QR channel...", email)
+		logger.Infof("[WA] qr: client already connected for %s, disconnecting to get QR channel...", email)
 		client.Disconnect()
 	}
 
 	qrChan, err := client.GetQRChannel(ctx)
 	if err != nil {
-		logger.Errorf("[WA-QR] Failed to get QR channel for %s: %v", email, err)
+		logger.Errorf("[WA] failed to get QR channel for %s: %v", email, err)
 		return "", fmt.Errorf("failed to get QR channel for %s: %w", email, err)
 	}
 
 	if err := client.Connect(); err != nil {
-		logger.Errorf("[WA-QR] Failed to connect client for %s: %v", email, err)
+		logger.Errorf("[WA] failed to connect client for %s: %v", email, err)
 		return "", fmt.Errorf("failed to connect for %s: %w", email, err)
 	}
 
@@ -412,20 +412,20 @@ func (m *WAManager) handleQREvent(email string, evt whatsmeow.QRChannelItem) (st
 	case "code":
 		png, err := qrcode.Encode(evt.Code, qrcode.High, 300)
 		if err != nil {
-			logger.Errorf("[WA-QR] Failed to encode QR for %s: %v", email, err)
+			logger.Errorf("[WA] failed to encode QR for %s: %v", email, err)
 			return "", true, fmt.Errorf("failed to encode QR: %w", err)
 		}
 		encoded := base64.StdEncoding.EncodeToString(png)
 		m.mu.Lock()
 		m.latestQR[email] = encoded
 		m.mu.Unlock()
-		logger.Infof("[WA-QR] Generated new QR code for %s (len: %d)", email, len(encoded))
+		logger.Infof("[WA] qr generated for %s (len: %d)", email, len(encoded))
 		return encoded, true, nil
 	case "success":
-		logger.Infof("[WA-QR] QR Scan success for %s", email)
+		logger.Infof("[WA] qr scan success for %s", email)
 		return "CONNECTED", true, nil
 	default:
-		logger.Debugf("[WA-QR] Received unknown QR event for %s: %s", email, evt.Event)
+		logger.Debugf("[WA] unknown qr event for %s: %s", email, evt.Event)
 		return "", false, nil
 	}
 }
@@ -456,7 +456,7 @@ func (m *WAManager) LogoutWhatsApp(ctx context.Context, email string) error {
 	if client.IsConnected() {
 		err := client.Logout(ctx)
 		if err != nil {
-			logger.Errorf("[WA-LOGOUT] Failed to logout for %s: %v", email, err)
+			logger.Errorf("[WA] logout failed for %s: %v", email, err)
 			return err
 		}
 	}
@@ -467,7 +467,7 @@ func (m *WAManager) LogoutWhatsApp(ctx context.Context, email string) error {
 	delete(m.latestQR, email)
 	m.mu.Unlock()
 
-	logger.Infof("[WA-LOGOUT] Successfully logged out and cleaned up for %s", email)
+	logger.Infof("[WA] logout cleanup for %s complete", email)
 	return nil
 }
 

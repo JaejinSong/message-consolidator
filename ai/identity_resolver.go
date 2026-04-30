@@ -74,7 +74,7 @@ func (r *IdentityResolver) proposeChunk(ctx context.Context, contacts []store.Co
 	start := time.Now()
 	resp, err := generateWithRetry(ctx, model, genai.Text(rendered), 300*time.Second, 2)
 	elapsedMs := time.Since(start).Milliseconds()
-	logger.Infof("[Identity] Gemini call: %dms (model=%s contacts=%d err=%v)", elapsedMs, modelName, len(contacts), err)
+	logger.Infof("[RESOLUTION] identity resolve: %dms model=%s contacts=%d err=%v", elapsedMs, modelName, len(contacts), err)
 	if err != nil {
 		return nil, err
 	}

@@ -32,7 +32,7 @@ func (a *API) HandleManualScan(w http.ResponseWriter, r *http.Request) {
 	if lang == "" {
 		lang = "Korean"
 	}
-	logger.Debugf("Manual scan triggered via API for %s (lang: %s)", email, lang)
+	logger.Debugf("[SCAN] manual scan triggered for %s (lang: %s)", email, lang)
 
 	if ScanFunc != nil {
 		go func() { //nolint:contextcheck // Async scan outlives the request; uses Background ctx by design.
@@ -54,7 +54,7 @@ func (a *API) HandleInternalScan(w http.ResponseWriter, r *http.Request) {
 	scanMutex.Lock()
 	if isScanning {
 		scanMutex.Unlock()
-		logger.Warnf("[INTERNAL-SCAN] Full scan skipped: already in progress")
+		logger.Warnf("[SCAN] Full scan skipped: already in progress")
 		respondJSON(w, http.StatusOK, map[string]string{"status": "skipped", "reason": "scan already in progress"})
 		return
 	}
@@ -67,11 +67,11 @@ func (a *API) HandleInternalScan(w http.ResponseWriter, r *http.Request) {
 		scanMutex.Unlock()
 	}()
 
-	logger.Infof("[INTERNAL-SCAN] Starting full scan triggered via API")
+	logger.Infof("[SCAN] Starting full scan triggered via API")
 	if FullScanFunc != nil {
 		FullScanFunc()
 	} else {
-		logger.Errorf("[INTERNAL-SCAN] FullScanFunc not initialized")
+		logger.Errorf("[SCAN] FullScanFunc not initialized")
 		respondError(w, http.StatusInternalServerError, "Internal Server Error")
 		return
 	}
@@ -86,13 +86,13 @@ func (a *API) HandleInternalScan(w http.ResponseWriter, r *http.Request) {
 // Why: Isolates security checks to keep the main handler focused on business logic.
 func (a *API) authorizeInternalScan(w http.ResponseWriter, r *http.Request) bool {
 	if a.Config.InternalScanSecret == "" {
-		logger.Warnf("[INTERNAL-SCAN] Internal scan attempt for unconfigured secret from %s", r.RemoteAddr)
+		logger.Warnf("[SCAN] Internal scan attempt for unconfigured secret from %s", r.RemoteAddr)
 		respondError(w, http.StatusForbidden, "Forbidden")
 		return false
 	}
 	secret := r.Header.Get("X-Internal-Secret")
 	if secret != a.Config.InternalScanSecret {
-		logger.Warnf("[INTERNAL-SCAN] Unauthorized access attempt from %s", r.RemoteAddr)
+		logger.Warnf("[SCAN] Unauthorized access attempt from %s", r.RemoteAddr)
 		respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return false
 	}
@@ -195,7 +195,7 @@ func (a *API) processTranslationBatches(ctx context.Context, email string, toTra
 
 		results, err := a.Tasks.ProcessBatchTranslation(ctx, email, chunk, lang)
 		if err != nil {
-			logger.Errorf("[TRANSLATE] Batch translation failed at chunk %d: %v", i, err)
+			logger.Warnf("[TRANSLATE] batch failed at chunk %d: %v", i, err)
 			break
 		}
 		for _, r := range results {

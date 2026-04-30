@@ -61,40 +61,40 @@ func (a *API) runProposalJob(email string) *proposalJob {
 
 	t := time.Now()
 	autoMerged, err := store.AutoMergeByCanonicalID(ctx, email)
-	logger.Infof("[Identity] AutoMerge: %dms (merged=%d)", time.Since(t).Milliseconds(), autoMerged)
+	logger.Infof("[RESOLUTION] AutoMerge: %dms (merged=%d)", time.Since(t).Milliseconds(), autoMerged)
 	if err != nil {
 		return proposalJobError(err)
 	}
 
 	t = time.Now()
 	contacts, err := store.GetCandidateContacts(ctx, email)
-	logger.Infof("[Identity] GetCandidates: %dms (n=%d)", time.Since(t).Milliseconds(), len(contacts))
+	logger.Infof("[RESOLUTION] GetCandidates: %dms (n=%d)", time.Since(t).Milliseconds(), len(contacts))
 	if err != nil {
 		return proposalJobError(err)
 	}
 
 	t = time.Now()
 	handledPairs, err := store.LoadHandledPairs(ctx, email)
-	logger.Infof("[Identity] LoadHandled: %dms (pairs=%d)", time.Since(t).Milliseconds(), len(handledPairs))
+	logger.Infof("[RESOLUTION] LoadHandled: %dms (pairs=%d)", time.Since(t).Milliseconds(), len(handledPairs))
 	if err != nil {
 		return proposalJobError(err)
 	}
 
 	t = time.Now()
 	aiInserted, err := a.insertAIProposalGroups(ctx, contacts, handledPairs)
-	logger.Infof("[Identity] AIPropose: %dms (inserted=%d)", time.Since(t).Milliseconds(), aiInserted)
+	logger.Infof("[RESOLUTION] AIPropose: %dms (inserted=%d)", time.Since(t).Milliseconds(), aiInserted)
 	if err != nil {
 		return proposalJobError(err)
 	}
 
 	t = time.Now()
 	tokenInserted, err := insertTokenSortedProposals(ctx, email, handledPairs)
-	logger.Infof("[Identity] TokenSort: %dms (inserted=%d)", time.Since(t).Milliseconds(), tokenInserted)
+	logger.Infof("[RESOLUTION] TokenSort: %dms (inserted=%d)", time.Since(t).Milliseconds(), tokenInserted)
 	if err != nil {
 		return proposalJobError(err)
 	}
 
-	logger.Infof("[Identity] TOTAL: %dms (auto=%d ai=%d token=%d)", time.Since(jobStart).Milliseconds(), autoMerged, aiInserted, tokenInserted)
+	logger.Infof("[RESOLUTION] TOTAL: %dms (auto=%d ai=%d token=%d)", time.Since(jobStart).Milliseconds(), autoMerged, aiInserted, tokenInserted)
 	return &proposalJob{Status: "done", Count: aiInserted + tokenInserted, AutoMerged: autoMerged}
 }
 
@@ -157,7 +157,7 @@ func (a *API) HandleListProposals(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	proposals, err := store.ListPendingProposalGroups(r.Context(), email)
 	if err != nil {
-		handleAPIError(w, r, err, "[Identity]", "Failed to list proposals")
+		handleAPIError(w, r, err, "[RESOLUTION]", "Failed to list proposals")
 		return
 	}
 	if proposals == nil {
@@ -179,7 +179,7 @@ func (a *API) HandleAcceptProposal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := store.AcceptProposalGroup(r.Context(), email, groupID, req.CanonicalName); err != nil {
-		handleAPIError(w, r, err, "[Identity]", "Failed to accept proposal")
+		handleAPIError(w, r, err, "[RESOLUTION]", "Failed to accept proposal")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -191,7 +191,7 @@ func (a *API) HandleRejectProposal(w http.ResponseWriter, r *http.Request) {
 	groupID := mux.Vars(r)["id"]
 
 	if err := store.RejectProposalGroup(r.Context(), email, groupID); err != nil {
-		handleAPIError(w, r, err, "[Identity]", "Failed to reject proposal")
+		handleAPIError(w, r, err, "[RESOLUTION]", "Failed to reject proposal")
 		return
 	}
 	w.WriteHeader(http.StatusOK)

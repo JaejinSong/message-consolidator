@@ -149,7 +149,7 @@ func withSlackRetry(maxRetries int, contextMsg string, attemptFunc func() error)
 		}
 		var rateLimitedError *slack.RateLimitedError
 		if errors.As(err, &rateLimitedError) {
-			logger.Warnf("[SLACK-API] Rate limited on %s. Retrying after %v (attempt %d/%d)", contextMsg, rateLimitedError.RetryAfter, i+1, maxRetries)
+			logger.Warnf("[SLACK] rate limited on %s, retrying after %v (attempt %d/%d)", contextMsg, rateLimitedError.RetryAfter, i+1, maxRetries)
 			time.Sleep(rateLimitedError.RetryAfter)
 			continue
 		}
@@ -217,7 +217,7 @@ func (s *SlackClient) processHistoryMessages(ctx context.Context, channelID stri
 
 		//Why: Filters out automated bot messages and empty notifications to focus analysis on actionable user-generated task descriptions.
 		if m.BotID != "" || m.Text == "" {
-			logger.Debugf("[SLACK-DEBUG] Dropping msg: ID=%s, BotID=%s, TextLen=%d", m.Timestamp, m.BotID, len(m.Text))
+			logger.Debugf("[SLACK] dropping msg: ID=%s, BotID=%s, TextLen=%d", m.Timestamp, m.BotID, len(m.Text))
 			continue
 		}
 
@@ -239,7 +239,7 @@ func (s *SlackClient) processHistoryMessages(ctx context.Context, channelID stri
 			if err == nil {
 				msgs = append(msgs, replies...)
 			} else {
-				logger.Warnf("[SLACK-API] Failed to fetch thread replies for %s: %v", m.Timestamp, err)
+				logger.Warnf("[SLACK] failed to fetch thread replies for %s: %v", m.Timestamp, err)
 			}
 		}
 	}

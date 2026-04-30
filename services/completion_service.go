@@ -155,7 +155,7 @@ func (s *CompletionService) fallbackToNewExtraction(ctx context.Context, msg sto
 			return e
 		})
 		if err != nil {
-			logger.Warnf("[COMPLETION-FALLBACK] HandleTaskState dropped item after retries: %v", err)
+			logger.Warnf("[COMPLETION] fallback: HandleTaskState dropped item after retries: %v", err)
 		}
 	}
 	return true

@@ -84,7 +84,7 @@ func loadDSUFromDB(ctx context.Context) {
 			GlobalContactDSU.Union(row.MasterContactID.Int64, row.ID)
 		}
 	}
-	logger.Infof("[Identity-X] DSU initialized with persistent merge relations.")
+	logger.Infof("[RESOLUTION] DSU initialized with persistent merge relations")
 }
 
 func GetContactsMappings(ctx context.Context, email string) ([]ContactRecord, error) {

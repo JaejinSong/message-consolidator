@@ -17,7 +17,7 @@ func EnrichWhatsAppMessage(rawJID string, msg string, timestamp time.Time) (*typ
 func resolveWhatsAppSender(rawJID string) (store.UserID, string) {
 	u, err := store.GetUserByWAJID(rawJID)
 	if err != nil {
-		logger.Debugf("WhatsApp sender mapping failed for JID: %s. Using fallback.", rawJID)
+		logger.Debugf("[WA] sender mapping failed for JID: %s; using fallback.", rawJID)
 		return 0, rawJID
 	}
 	return u.ID, u.Name

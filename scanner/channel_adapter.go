@@ -71,7 +71,7 @@ func processChannelRoom(ctx context.Context, user store.User, aliases []string, 
 	msgGroups := ai.GroupMessagesByTime(msgs, cfg.MessageBatchWindow)
 
 	if gClient == nil {
-		logger.Errorf("[%s-LOCK] gClient not initialized; scanner.Init may have failed", adapter.LogPrefix())
+		logger.Errorf("[SCAN] %s: gClient not initialized; scanner.Init may have failed", adapter.LogPrefix())
 		return nil
 	}
 
@@ -108,7 +108,7 @@ func triggerOutgoingCompletions(ctx context.Context, msgs []types.RawMessage, us
 				OriginalText: r.Text, SourceTS: r.ID, CreatedAt: r.Timestamp,
 				RequesterCanonical: em,
 			}); err != nil {
-				logger.Warnf("[OUTGOING-COMPLETION] %s/%s: %v", src, room, err)
+				logger.Warnf("[SCAN] %s: outgoing completion failed for %s: %v", src, room, err)
 			}
 		}(user.Email, source, groupName, raw)
 	}
@@ -128,16 +128,16 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 
 	enriched, err := adapter.Enrich(roomKey, payload, group[len(group)-1].Timestamp)
 	if err != nil {
-		logger.Errorf("[%s-SCAN] Failed to enrich message: %v", prefix, err)
+		logger.Errorf("[SCAN] %s: enrichment failed: %v", prefix, err)
 		return nil
 	}
 
 	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, source, groupName)
-	logger.Infof("[%s-CONTEXT] Found %d active tasks for room %s", prefix, len(tasks), groupName)
+	logger.Debugf("[SCAN] %s: found %d active tasks for room %s", prefix, len(tasks), groupName)
 
 	candidates, err := gc.AnalyzeWithContext(ctx, user.Email, *enriched, language, source, groupName, tasks)
 	if err != nil {
-		logger.Errorf("[%s-SCAN] AI Analysis Error: %v", prefix, err)
+		logger.Errorf("[SCAN] %s: AI analysis error: %v", prefix, err)
 		return nil
 	}
 
@@ -151,7 +151,7 @@ func isIgnorableChannelNoise(ctx context.Context, email, source, payload, prefix
 	}
 	isNoise, err := filterSvc.IsNoise(ctx, email, source, payload)
 	if err != nil {
-		logger.Warnf("[%s-SCAN] Filter failed for %s: %v", prefix, email, err)
+		logger.Warnf("[SCAN] %s: filter failed for %s: %v", prefix, email, err)
 		return false
 	}
 	return isNoise

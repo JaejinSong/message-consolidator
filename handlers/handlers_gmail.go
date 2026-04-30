@@ -31,7 +31,7 @@ func (a *API) HandleGmailCallback(w http.ResponseWriter, r *http.Request) {
 
 	token, err := channels.ExchangeGmailCode(ctx, code)
 	if err != nil {
-		logger.Debugf("[GMAIL-CALLBACK] Token exchange failed for %s: %v", email, err)
+		logger.Warnf("[GMAIL] callback: token exchange failed for %s: %v", email, err)
 		respondError(w, http.StatusInternalServerError, "Token exchange failed: "+err.Error())
 		return
 	}
@@ -43,19 +43,19 @@ func (a *API) HandleGmailCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := store.SaveGmailToken(r.Context(), email, string(tokenJSON)); err != nil {
-		logger.Debugf("[GMAIL-CALLBACK] Failed to save token for %s: %v", email, err)
+		logger.Warnf("[GMAIL] callback: failed to save token for %s: %v", email, err)
 		respondError(w, http.StatusInternalServerError, "Failed to save token")
 		return
 	}
 
-	logger.Infof("[GMAIL-CALLBACK] Gmail connected for %s", email)
+	logger.Infof("[GMAIL] connected for %s", email)
 	http.Redirect(w, r, "/?gmail=connected", http.StatusTemporaryRedirect)
 }
 
 func (a *API) HandleGmailStatus(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	connected := store.HasGmailToken(email)
-	logger.Debugf("[CHANNEL] Gmail status for %s: connected=%v", email, connected)
+	logger.Debugf("[GMAIL] status for %s: connected=%v", email, connected)
 	w.Header().Set("Content-Type", "application/json")
 	respondJSON(w, http.StatusOK, map[string]bool{"connected": connected})
 }

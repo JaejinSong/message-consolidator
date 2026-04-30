@@ -98,7 +98,7 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
 	svc, err := GetGmailService(ctx, email)
 	if err != nil {
-		logger.Debugf("[SCAN-GMAIL] Skipping %s: %v", email, err)
+		logger.Debugf("[GMAIL] skipping %s: %v", email, err)
 		return nil
 	}
 
@@ -139,7 +139,7 @@ func fetchRecentEmails(svc *gmail.Service, email, query string) []*gmail.Message
 	for {
 		res, err := svc.Users.Messages.List("me").Q(query).PageToken(pageToken).MaxResults(100).Do()
 		if err != nil {
-			logger.Errorf("[SCAN-GMAIL] List Error for %s: %v", email, err)
+			logger.Errorf("[GMAIL] list error for %s: %v", email, err)
 			return allMsgs
 		}
 		allMsgs = append(allMsgs, res.Messages...)
@@ -174,7 +174,7 @@ func parseNewEmails(ctx context.Context, svc *gmail.Service, email string, messa
 		}
 		rawMsg, cls, to, ts, err := processSingleEmail(ctx, svc, email, m, skips, internalDomains)
 		if err != nil {
-			logger.Errorf("[SCAN-GMAIL] Get Error for %s: %v", m.Id, err)
+			logger.Errorf("[GMAIL] get error for %s: %v", m.Id, err)
 			continue
 		}
 		if ts > maxTS {
@@ -205,13 +205,13 @@ func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m
 	// contact upsert entirely. Without marking, Gmail's `after:` boundary inclusivity
 	// re-fetches these messages every cycle and burns Google API quota for nothing.
 	if isMarketingHeader(fullMsg.Payload.Headers, fromHeader, internalDomains) {
-		logger.Debugf("[SCAN-GMAIL] Ignoring marketing email from: %s", fromHeader)
+		logger.Debugf("[GMAIL] ignoring marketing email from: %s", fromHeader)
 		store.IncrementFilteredCount(email)
 		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
 		return nil, "", "", ts, nil
 	}
 	if isSelfAddressedBulk(fromHeader, toHeader, email) {
-		logger.Debugf("[SCAN-GMAIL] Ignoring self-addressed bulk from: %s", fromHeader)
+		logger.Debugf("[GMAIL] ignoring self-addressed bulk from: %s", fromHeader)
 		store.IncrementFilteredCount(email)
 		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
 		return nil, "", "", ts, nil
@@ -472,7 +472,7 @@ func isSkipSender(from string, skips []string) bool {
 	}
 	for _, s := range skips {
 		if strings.Contains(fromLower, s) {
-			logger.Debugf("[SCAN-GMAIL] Skipping noise email from: %s (matches skip rule: %s)", from, s)
+			logger.Debugf("[GMAIL] skipping noise email from: %s (matches skip rule: %s)", from, s)
 			return true
 		}
 	}
@@ -501,7 +501,7 @@ func classifyGmail(isFromMe, isTo bool) string {
 
 func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
 	if gc == nil || filterSvc == nil {
-		logger.Errorf("[SCAN-GMAIL] gc/filterSvc missing; scanner.Init may have failed")
+		logger.Errorf("[GMAIL] gc/filterSvc missing; scanner.Init may have failed")
 		return nil
 	}
 
@@ -538,7 +538,7 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.Gemini
 	}
 	items, err := gc.Analyze(ctx, email, enriched, language, "gmail", "Inbox")
 	if err != nil {
-		logger.Errorf("[SCAN-GMAIL] Batch Analyze Error for %s: %v", email, err)
+		logger.Errorf("[GMAIL] batch analyze error for %s: %v", email, err)
 		return nil
 	}
 
@@ -673,7 +673,7 @@ func processGeminiItems(ctx context.Context, email string, user *store.User, ali
 	for _, item := range items {
 		m, ok := msgMap[item.SourceTS]
 		if !ok {
-			logger.Warnf("[GMAIL-SCAN] Mismatch SourceTS: %s", item.SourceTS)
+			logger.Warnf("[GMAIL] mismatch SourceTS: %s", item.SourceTS)
 			continue
 		}
 		params := services.TaskBuildParams{

@@ -250,7 +250,7 @@ func (a *API) HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
 	rawID, err := parsePathID(r, "id")
 	id := store.MessageID(rawID)
 	if err != nil {
-		logger.Warnf("[GET_ORIGINAL] Invalid ID provided by %s", email)
+		logger.Warnf("[MESSAGES] Invalid ID provided by %s", email)
 		respondError(w, http.StatusBadRequest, "Invalid message ID format")
 		return
 	}
@@ -258,16 +258,16 @@ func (a *API) HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
 	msg, err := store.GetMessageByID(r.Context(), store.GetDB(), email, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, context.Canceled) {
-			handleAPIError(w, r, err, "[GET_ORIGINAL] Error for "+email, "Message not found")
+			handleAPIError(w, r, err, "[MESSAGES] Error for "+email, "Message not found")
 			return
 		}
-		handleAPIError(w, r, err, "[GET_ORIGINAL] DB error for "+email, "Failed to fetch original text")
+		handleAPIError(w, r, err, "[MESSAGES] DB error for "+email, "Failed to fetch original text")
 		return
 	}
 
 	// [Security] Strict isolation check to prevent cross-user ID enumeration.
 	if msg.UserEmail != email {
-		logger.Errorf("[GET_ORIGINAL] Unauthorized access attempt by %s for message %d (belongs to %s)", email, id, msg.UserEmail)
+		logger.Errorf("[MESSAGES] Unauthorized access attempt by %s for message %d (belongs to %s)", email, id, msg.UserEmail)
 		respondError(w, http.StatusUnauthorized, "Unauthorized access")
 		return
 	}

@@ -20,7 +20,7 @@ func EnrichTelegramMessage(chatKey string, msg string, timestamp time.Time) (*ty
 func resolveTelegramSender(chatKey string) (store.UserID, string) {
 	u, err := store.GetUserByTgID(chatKey)
 	if err != nil {
-		logger.Debugf("Telegram sender mapping failed for chatKey: %s. Using fallback.", chatKey)
+		logger.Debugf("[TG] sender mapping failed for chatKey: %s; using fallback.", chatKey)
 		return 0, chatKey
 	}
 	return u.ID, u.Name

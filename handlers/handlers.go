@@ -68,7 +68,7 @@ func handleAPIError(w http.ResponseWriter, r *http.Request, err error, logPrefix
 func respondJSON(w http.ResponseWriter, code int, payload any) {
 	response, err := json.Marshal(payload)
 	if err != nil {
-		logger.Errorf("Internal Server Error: Failed to marshal JSON response: %v", err)
+		logger.Errorf("[SERVER] marshal JSON response failed: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}

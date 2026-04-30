@@ -84,7 +84,7 @@ func scanSlack(ctx context.Context, users []store.User, wg *sync.WaitGroup) {
 
 	chans, _, err := sc.LookupChannels()
 	if err != nil {
-		logger.Errorf("[SCAN-SLACK] Failed to fetch channels: %v", err)
+		logger.Errorf("[SCAN] slack: failed to fetch channels: %v", err)
 		return
 	}
 
@@ -127,18 +127,18 @@ func collectSlackHistory(ctx context.Context, users []store.User, chans []slack.
 
 func scanSingleSlackChannel(ctx context.Context, users []store.User, c slack.Channel, sc *channels.SlackClient, userAl map[string][]string, mu *sync.Mutex, candidates map[string][]types.RawMessage, newTS map[string]map[string]string) error {
 	minTS := getMinLastTS(users, c.ID)
-	logger.Debugf("[SLACK-DEBUG] Channel %s: minTS=%s", c.ID, minTS)
+	logger.Debugf("[SLACK] channel %s: minTS=%s", c.ID, minTS)
 	//Why: Uses a dual-strategy scan window. It scans up to 24 hours back by default, 
 	// but respects minTS as a lower bound only if it provides a safer (older) starting point, 
 	// preventing "islands" of unproccessed messages between scan intervals.
 	since := time.Now().Add(-24 * time.Hour)
 	msgs, err := sc.GetMessages(ctx, c.ID, since, minTS)
 	if err != nil {
-		logger.Errorf("[SLACK-ERROR] GetMessages failed for %s: %v", c.ID, err)
+		logger.Errorf("[SCAN] slack: GetMessages failed for channel %s: %v", c.ID, err)
 		return err
 	}
 	if len(msgs) == 0 {
-		logger.Debugf("[SLACK-DEBUG] No new messages for channel %s (minTS: %s)", c.ID, minTS)
+		logger.Debugf("[SLACK] channel %s: no new messages (minTS: %s)", c.ID, minTS)
 		return nil
 	}
 
@@ -205,7 +205,7 @@ func dispatchOutgoingCompletionIfMine(_ context.Context, sc *channels.SlackClien
 			OriginalText: raw.Text, SourceTS: raw.ID,
 			SourceChannels: []string{"slack"},
 		}); err != nil {
-			logger.Warnf("[SLACK-COMPLETION] %s: %v", email, err)
+			logger.Warnf("[SLACK] outgoing completion failed for %s: %v", email, err)
 		}
 	}(context.Background(), u.Email, m, room, link)
 }
@@ -225,8 +225,7 @@ func processSlackCandidates(ctx context.Context, users []store.User, sc *channel
 		if err != nil || user == nil {
 			continue
 		}
-		// Why: Provides visibility into the collection pipeline by logging the number of candidates queued for AI analysis.
-		logger.Debugf("[SLACK-COLLECT] User: %s, Total candidates for AI processing: %d", email, len(msgs))
+		logger.Debugf("[SLACK] user %s: %d candidates queued for AI analysis", email, len(msgs))
 		analyzeAndSaveSlack(ctx, user, sc, msgs, wg)
 	}
 }
@@ -235,7 +234,7 @@ func updateSlackCursors(newTS map[string]map[string]string) {
 	for email, channelMap := range newTS {
 		for chanID, ts := range channelMap {
 			if err := store.UpdateLastScan(email, "slack", chanID, ts); err != nil {
-				logger.Warnf("[SLACK] UpdateLastScan failed for %s/%s: %v", email, chanID, err)
+				logger.Warnf("[SCAN] slack: UpdateLastScan failed for %s/%s: %v", email, chanID, err)
 			}
 		}
 	}
@@ -372,7 +371,7 @@ func fetchChannelHistoryActivity(sc *channels.SlackClient, chID string, threads 
 		return e
 	})
 	if err != nil || hist == nil {
-		logger.Warnf("[SLACK-SWEEP] history fetch failed for channel %s: %v", chID, err)
+		logger.Warnf("[SLACK] sweep: history fetch failed for channel %s: %v", chID, err)
 		return channelActivity{}
 	}
 	return buildChannelActivity(hist.Messages, trackedThreadSet(threads))
@@ -534,7 +533,7 @@ func dispatchThreadCompletionIfMine(ctx context.Context, sc *channels.SlackClien
 		UserEmail: user.Email, Source: "slack", ThreadID: t.ThreadTS, OriginalText: m.Text, SourceTS: m.Timestamp,
 		RequesterCanonical: user.Email,
 	}); err != nil {
-		logger.Warnf("[SLACK-THREAD-COMPLETION] %s: %v", user.Email, err)
+		logger.Warnf("[SLACK] thread completion failed for %s: %v", user.Email, err)
 	}
 }
 
@@ -608,7 +607,7 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 		return
 	}
 	if gClient == nil {
-		logger.Errorf("[SCAN-SLACK] gClient not initialized; scanner.Init may have failed")
+		logger.Errorf("[SCAN] slack: gClient not initialized; scanner.Init may have failed")
 		return
 	}
 
@@ -628,7 +627,7 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 
 	proposals, err := gClient.Analyze(ctx, user.Email, *enriched, "Korean", "slack", channelName)
 	if err != nil {
-		logger.Errorf("[SCAN-SLACK] Gemini Analyze Error for %s: %v", user.Email, err)
+		logger.Errorf("[SCAN] slack: Gemini analyze error for %s: %v", user.Email, err)
 		return
 	}
 
@@ -732,7 +731,7 @@ func buildSlackLinkAndRegisterThread(ctx context.Context, m types.RawMessage, em
 	threadTS := slackThreadTS(m)
 	// Why: register both parent messages and replies so slow sweeper always tracks future activity.
 	if err := store.RegisterTargetedSlackThread(ctx, m.ChannelID, threadTS, m.ID, email); err == nil {
-		logger.Debugf("[INTAKE-SLACK] Thread registered for tracking: %s (User: %s)", threadTS, email)
+		logger.Debugf("[SLACK] thread registered for tracking: %s (user: %s)", threadTS, email)
 	}
 	return link
 }

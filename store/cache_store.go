@@ -110,10 +110,10 @@ func RefreshAllCaches(ctx context.Context) error {
 	}
 	for _, u := range users {
 		if err := RefreshCache(ctx, u.Email); err != nil {
-			logger.Errorf("Failed to refresh active cache for %s: %v", u.Email, err)
+			logger.Errorf("[CACHE] refresh active cache failed for %s: %v", u.Email, err)
 		}
 		if err := RefreshArchiveCache(ctx, u.Email); err != nil {
-			logger.Errorf("Failed to refresh archive cache for %s: %v", u.Email, err)
+			logger.Errorf("[CACHE] refresh archive cache failed for %s: %v", u.Email, err)
 		}
 	}
 	return nil
@@ -280,13 +280,13 @@ func ArchiveOldTasks(ctx context.Context) error {
 	safeArchiveDays := GetAutoArchiveDays()
 	threshold := fmt.Sprintf("-%d days", safeArchiveDays)
 
-	logger.Infof("[DB] Auto-archiving tasks completed more than %d days ago...", safeArchiveDays)
+	logger.Infof("[STORE] auto-archiving tasks older than %d days", safeArchiveDays)
 	queries := db.New(GetDB())
 	rows, err := queries.ArchiveOldTasks(ctx, threshold)
 	if err != nil {
 		return err
 	}
-	logger.Infof("[DB] Auto-archiving tasks completed more than %d days ago triggered. Rows: %d", safeArchiveDays, rows)
+	logger.Infof("[STORE] auto-archive complete: %d rows archived (threshold: %d days)", rows, safeArchiveDays)
 
 	lastArchiveTime = time.Now()
 

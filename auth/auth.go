@@ -75,13 +75,13 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 	oauthState, err := r.Cookie("oauthstate")
 
 	if err != nil {
-		logger.Errorf("Missing oauth state cookie (Why: Possible Domain/HTTPS mismatch?): %v", err)
+		logger.Errorf("[AUTH] missing oauth state cookie (possible domain/HTTPS mismatch): %v", err)
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
 	if r.FormValue("state") != oauthState.Value {
-		logger.Errorf("Invalid oauth google state. Expected: %s, Got: %s", oauthState.Value, r.FormValue("state"))
+		logger.Errorf("[AUTH] invalid oauth google state: expected=%s got=%s", oauthState.Value, r.FormValue("state"))
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
@@ -114,7 +114,7 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 	//Why: Synchronizes the Google user metadata with the local database to ensure user records stay current across logins.
 	user, err := store.GetOrCreateUser(r.Context(), userInfo.Email, userInfo.Name, userInfo.Picture)
 	if err != nil {
-		logger.Errorf("Failed to sync user to DB: %v", err)
+		logger.Errorf("[AUTH] failed to sync user to DB: %v", err)
 	} else {
 		autoLinkSlack(r.Context(), user, lookupUserByEmail)
 	}
@@ -135,7 +135,7 @@ func autoLinkSlack(ctx context.Context, user *store.User, lookup func(string) (s
 	if err := store.AddUserAlias(ctx, user.ID, realName); err != nil {
 		logger.Warnf("[AUTH] AddUserAlias failed for %s: %v", user.Email, err)
 	}
-	logger.Infof("Auto-discovered Slack ID %s and aliases for %s", slackID, user.Email)
+	logger.Infof("[AUTH] auto-discovered Slack ID %s and aliases for %s", slackID, user.Email)
 }
 
 func HandleLogout(w http.ResponseWriter, r *http.Request) {

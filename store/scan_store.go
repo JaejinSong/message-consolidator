@@ -36,7 +36,7 @@ func WithDBRetry(operationName string, fn func() error) error {
 		// Why: Use exponential backoff to handle concurrent lock contention or serverless cold starts.
 		// Progression: 100ms, 200ms, 400ms, 800ms, 1600ms
 		delay := baseDelay * (1 << (i - 1))
-		logger.Warnf("[DB-RETRY] %s failed (attempt %d/%d). Retrying in %v... Err: %v", operationName, i, maxRetries, delay, err)
+		logger.Warnf("[DB] retry: %s failed (attempt %d/%d), retrying in %v: %v", operationName, i, maxRetries, delay, err)
 		time.Sleep(delay)
 	}
 	return err
@@ -71,7 +71,7 @@ func LoadMetadata() error {
 	}
 
 	//Why: Restores the last scan timestamps for each source to memory for efficient duplicate detection.
-	logger.Infof("[SCAN] Loading existing scan metadata into memory...")
+	logger.Infof("[STORE] scan: loading existing scan metadata into memory")
 	scanRows, err := queries.LoadScanMetadataAll(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to load scan metadata: %w", err)
@@ -81,10 +81,10 @@ func LoadMetadata() error {
 		key := fmt.Sprintf("%s:%s:%s", row.UserEmail, row.Source, row.TargetID)
 		scanCache[key] = row.LastTs.String
 	}
-	logger.Infof("[SCAN] Loaded %d scan metadata entries.", len(scanCache))
+	logger.Infof("[STORE] scan: loaded %d scan metadata entries", len(scanCache))
 
 	//Why: Loads OAuth refresh tokens into the cache to support background Gmail synchronization.
-	logger.Infof("[SCAN] Loading existing gmail tokens into memory...")
+	logger.Infof("[STORE] scan: loading existing gmail tokens into memory")
 	tokenRows, err := queries.LoadGmailTokensAll(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to load gmail tokens: %w", err)
@@ -131,7 +131,7 @@ func PersistAllScanMetadata(ctx context.Context, userEmail string) {
 		return //Why: Avoids unnecessary database connections if no dirty metadata entries exist.
 	}
 	if err := persistScanMetadataTx(ctx, userEmail, toPersist); err != nil {
-		logger.Errorf("Failed to persist scan metadata after retries: %v", err)
+		logger.Errorf("[STORE] persist scan metadata failed after retries: %v", err)
 		return
 	}
 	clearDirtyScanFlags(userEmail, toPersist)

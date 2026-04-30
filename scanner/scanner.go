@@ -37,7 +37,7 @@ func Init(c *config.Config) {
 	if cfg.GeminiAPIKey != "" {
 		gc, err := ai.NewGeminiClient(context.Background(), cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
 		if err != nil {
-			logger.Errorf("[SCANNER] Failed to init GeminiClient: %v", err)
+			logger.Errorf("[SCAN] failed to init GeminiClient: %v", err)
 			return
 		}
 		gClient = gc
@@ -53,7 +53,7 @@ func Init(c *config.Config) {
 }
 
 func StartBackgroundScanner(ctx context.Context) {
-	logger.Infof("Background scanner started (per-loop random prime cadence from %v)...", primePool)
+	logger.Infof("[SCAN] background scanner started (per-loop random prime cadence from %v)", primePool)
 
 	var wg sync.WaitGroup
 
@@ -72,13 +72,13 @@ func StartBackgroundScanner(ctx context.Context) {
 	}
 	for _, l := range loops {
 		first := pickPrime()
-		logger.Infof("[SCANNER] %s loop start interval=%s", l.name, first)
+		logger.Infof("[SCAN] %s loop start interval=%s", l.name, first)
 		wg.Add(1)
 		go l.start(ctx, &wg, first)
 	}
 
 	<-ctx.Done()
-	logger.Infof("[SCANNER] Shutdown signal received. Waiting for in-flight tasks...")
+	logger.Infof("[SCAN] shutdown signal received; waiting for in-flight tasks...")
 
 	//Why: Generous timeout allows AI-intensive scans and translations (15-20s) to complete before termination.
 	done := make(chan struct{})
@@ -88,9 +88,9 @@ func StartBackgroundScanner(ctx context.Context) {
 	}()
 	select {
 	case <-done:
-		logger.Infof("[SCANNER] All background tasks finished gracefully.")
+		logger.Infof("[SCAN] all background tasks finished gracefully.")
 	case <-time.After(30 * time.Second):
-		logger.Warnf("[SCANNER] Timeout waiting for background tasks to finish. Forcing exit.")
+		logger.Warnf("[SCAN] timeout waiting for background tasks; forcing exit.")
 	}
 }
 
@@ -105,7 +105,7 @@ func RunAllScans(ctx context.Context, wg *sync.WaitGroup) {
 
 	users, err := store.GetAllUsers(traceCtx)
 	if err != nil {
-		logger.Errorf("Scanner Error: Failed to get users: %v", err)
+		logger.Errorf("[SCAN] failed to get users: %v", err)
 		return
 	}
 
@@ -162,7 +162,7 @@ type userBundle struct {
 func loadUsersForScan(ctx context.Context) []userBundle {
 	users, err := store.GetAllUsers(ctx)
 	if err != nil {
-		logger.Errorf("[SCANNER] Failed to get users: %v", err)
+		logger.Errorf("[SCAN] failed to get users: %v", err)
 		return nil
 	}
 	out := make([]userBundle, 0, len(users))
@@ -245,7 +245,7 @@ func runSlackForAllUsers(ctx context.Context, wg *sync.WaitGroup) {
 	}
 	users, err := store.GetAllUsers(ctx)
 	if err != nil {
-		logger.Errorf("[SCANNER] Failed to get users for Slack scan: %v", err)
+		logger.Errorf("[SCAN] failed to get users for slack scan: %v", err)
 		return
 	}
 	scanCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
@@ -324,7 +324,7 @@ func performGmailScan(ctx context.Context, email string, wg *sync.WaitGroup) err
 	for _, id := range ids {
 		idStr := fmt.Sprintf("gmail-%s-%d", email, id)
 		if _, loaded := inFlightMessages.LoadOrStore(idStr, true); loaded {
-			logger.Infof("[SCANNER] Message %s already in-flight, skipping.", idStr)
+			logger.Debugf("[SCAN] gmail: message %s already in-flight, skipping.", idStr)
 			continue
 		}
 		filteredIDs = append(filteredIDs, id)
@@ -345,7 +345,7 @@ func Scan(email string, lang string, wg *sync.WaitGroup) {
 
 	user, err := store.GetOrCreateUser(traceCtx, email, "", "")
 	if err != nil {
-		logger.Errorf("[SCAN] Failed to get user %s: %v", email, err)
+		logger.Errorf("[SCAN] failed to get user %s: %v", email, err)
 		return
 	}
 	
@@ -364,7 +364,7 @@ func Scan(email string, lang string, wg *sync.WaitGroup) {
 func runManualScans(ctx context.Context, user *store.User, effAl []string, lang string, wg *sync.WaitGroup) {
 	if store.HasGmailToken(user.Email) {
 		if err := performGmailScan(ctx, user.Email, wg); err != nil {
-			logger.Warnf("[SCAN] Gmail scan failed for %s: %v", user.Email, err)
+			logger.Warnf("[SCAN] gmail: scan failed for %s: %v", user.Email, err)
 		}
 	}
 	scanSlack(ctx, []store.User{*user}, wg)

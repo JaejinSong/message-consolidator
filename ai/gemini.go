@@ -664,7 +664,7 @@ func (g *GeminiClient) parseAnalyzeResults(resp *genai.GenerateContentResponse, 
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("[DEBUG-GEMINI] RAW: %s\n", raw)
+	logger.Debugf("[GEMINI] raw response: %s", raw)
 	clean := sanitizeJSON(raw)
 	if clean == "" || clean == "[]" {
 		return nil, nil

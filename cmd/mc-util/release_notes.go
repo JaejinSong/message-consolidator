@@ -162,14 +162,14 @@ func dispatchReleaseNotes(notes ReleaseNotesJSON, version string) {
 func writeWithBackup(path, content, version string) {
 	current, _ := os.ReadFile(path)
 	if strings.Contains(string(current), "v"+version) {
-		logger.Infof("[SKIP] %s already updated", path)
+		logger.Infof("[RELEASE] skip %s (already updated)", path)
 		return
 	}
 
 	_ = os.WriteFile(path+".bak", current, 0644)
 	newContent := content + "\n\n---\n\n" + string(current)
 	_ = os.WriteFile(path, []byte(newContent), 0644)
-	logger.Infof("[DONE] Updated %s", path)
+	logger.Infof("[RELEASE] updated %s", path)
 }
 
 // Helper to compare versions (a > b -> 1, a < b -> -1, a == b -> 0)

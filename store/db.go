@@ -74,7 +74,7 @@ func InitDB(ctx context.Context, cfg *config.Config) error {
 		// Why: Start background reachability heartbeat. Note: with maxIdle=0 this does NOT
 		// keep a warm pool conn — every user request opens its own fresh stream — but the
 		// periodic ping surfaces Turso connectivity loss in logs/WhaTap before users hit it.
-		logger.Infof("[DB-KEEPALIVE] Starting heartbeat (interval=%v)", cfg.DBKeepAliveInterval)
+		logger.Infof("[DB] keepalive: starting heartbeat (interval=%v)", cfg.DBKeepAliveInterval)
 		go startKeepAlive(ctx, conn, cfg.DBKeepAliveInterval)
 	}
 
@@ -111,13 +111,13 @@ func applySQLitePragmas(db *sql.DB, dbURL string) {
 	// Why: Belt-and-suspenders for busy_timeout. The _pragma DSN param sets it at open,
 	// but we set it again here to guarantee it applies to all connections in the pool.
 	if _, err := db.Exec("PRAGMA busy_timeout = 10000;"); err != nil {
-		logger.Warnf("[DB-INIT] Failed to set busy_timeout: %v", err)
+		logger.Warnf("[DB] init: failed to set busy_timeout: %v", err)
 	}
 	if _, err := db.Exec("PRAGMA journal_mode = WAL;"); err != nil {
-		logger.Warnf("[DB-INIT] Failed to set WAL mode: %v", err)
+		logger.Warnf("[DB] init: failed to set WAL mode: %v", err)
 	}
 	if _, err := db.Exec("PRAGMA synchronous = NORMAL;"); err != nil {
-		logger.Warnf("[DB-INIT] Failed to set synchronous=NORMAL: %v", err)
+		logger.Warnf("[DB] init: failed to set synchronous=NORMAL: %v", err)
 	}
 }
 
@@ -133,33 +133,33 @@ func EnsureSchemaAndSeeds(ctx context.Context, dbConn *sql.DB) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	logger.Infof("[DB-INIT] Starting core table creation...")
+	logger.Infof("[DB] init: starting core table creation")
 	if err := createCoreTables(ctx, tx); err != nil {
 		return fmt.Errorf("core table creation failed: %w", err)
 	}
-	logger.Infof("[DB-INIT] Core tables created/verified.")
+	logger.Infof("[DB] init: core tables created/verified")
 
 	// Why: Perform schema migrations to add new columns to existing tables.
-	logger.Infof("[DB-INIT] Starting migrations...")
+	logger.Infof("[DB] init: starting migrations")
 	if err := runMigrations(ctx, tx); err != nil {
 		return fmt.Errorf("database migration failed: %w", err)
 	}
-	logger.Infof("[DB-INIT] Migrations completed.")
+	logger.Infof("[DB] init: migrations completed")
 
 	// Why: Rebuild views AFTER tables and columns exist to ensure they reference current schema.
-	logger.Infof("[DB-INIT] Rebuilding views...")
+	logger.Infof("[DB] init: rebuilding views")
 	if err := rebuildViews(ctx, tx); err != nil {
 		return fmt.Errorf("view rebuild failed: %w", err)
 	}
 
-	logger.Infof("[DB-INIT] Creating indexes...")
+	logger.Infof("[DB] init: creating indexes")
 	createIndexes(ctx, tx)
-	logger.Infof("[DB-INIT] Indexes created.")
+	logger.Infof("[DB] init: indexes created")
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit setup transaction: %w", err)
 	}
-	logger.Infof("[DB-INIT] Schema committed successfully.")
+	logger.Infof("[DB] init: schema committed successfully")
 
 	// Why: Skip expensive cache refresh during tests to maximize speed.
 	// Tests will lazily initialize cache if needed via EnsureCacheInitialized.
@@ -218,7 +218,7 @@ func startKeepAlive(ctx context.Context, db *sql.DB, interval time.Duration) {
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Infof("[DB-KEEPALIVE] Stopping background keep-alive.")
+			logger.Infof("[DB] keepalive: stopping background keep-alive")
 			return
 		case <-ticker.C:
 			handleKeepAliveTick(ctx, db)
@@ -238,7 +238,7 @@ func handleKeepAliveTick(ctx context.Context, db *sql.DB) {
 	err := db.QueryRowContext(traceCtx, "SELECT 1").Scan(&v)
 	_ = trace.End(traceCtx, err)
 	if err != nil {
-		logger.Warnf("[DB-KEEPALIVE] Periodic SELECT 1 failed: %v", err)
+		logger.Warnf("[DB] keepalive: periodic SELECT 1 failed: %v", err)
 	}
 }
 
@@ -250,7 +250,7 @@ func LogSQLError(query string, err error, args ...any) error {
 		return nil
 	}
 	// Why: Detailed logging including query and arguments to accelerate remote debugging of SQL failures.
-	logger.Errorf("[DB-ERROR] SQL_FAILED | Query: %s | Args: %v | Err: %v", query, args, err)
+	logger.Errorf("[DB] SQL_FAILED | query: %s | args: %v | err: %v", query, args, err)
 	return fmt.Errorf("database error in %s: %w", query, err)
 }
 
@@ -281,5 +281,5 @@ func LogDBStats() {
 		return
 	}
 	stats := conn.Stats()
-	logger.Debugf("[DB-STATS] Open: %d | InUse: %d | Idle: %d | WaitCount: %d", stats.OpenConnections, stats.InUse, stats.Idle, stats.WaitCount)
+	logger.Debugf("[DB] stats: open=%d inUse=%d idle=%d waitCount=%d", stats.OpenConnections, stats.InUse, stats.Idle, stats.WaitCount)
 }

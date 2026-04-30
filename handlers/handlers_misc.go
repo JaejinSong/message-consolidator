@@ -51,13 +51,13 @@ func (a *API) HandleGetReleaseNotes(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile(fileName)
 	if os.IsNotExist(err) {
 		// Fallback to English if the requested language is not found
-		logger.Warnf("Release note for lang '%s' not found, falling back to EN.", lang)
+		logger.Warnf("[RELEASE] lang '%s' not found, falling back to EN.", lang)
 		fallbackFileName := fmt.Sprintf("./RELEASE_NOTES_%s_EN.md", noteType)
 		data, err = os.ReadFile(fallbackFileName)
 	}
 
 	if err != nil {
-		logger.Errorf("Failed to read release notes file %s (or its fallback): %v", fileName, err)
+		logger.Errorf("[RELEASE] read failed %s (or its fallback): %v", fileName, err)
 		respondError(w, http.StatusInternalServerError, "Failed to load release notes")
 		return
 	}
@@ -89,6 +89,6 @@ func (a *API) HandleSlackStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	logger.Debugf("[CHANNEL] Slack status for %s: %s (slackID=%q)", email, resp.Status, resp.SlackID)
+	logger.Debugf("[SLACK] status for %s: %s (slackID=%q)", email, resp.Status, resp.SlackID)
 	respondJSON(w, http.StatusOK, resp)
 }

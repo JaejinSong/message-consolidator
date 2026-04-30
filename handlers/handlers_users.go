@@ -36,7 +36,7 @@ type tokenUsageResponse struct {
 
 func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	logger.Infof("[USER] Fetching info for email: %s", email)
+	logger.Debugf("[USER] fetching info for %s", email)
 	user, err := store.GetOrCreateUser(r.Context(), email, "", "")
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to fetch user info")
@@ -249,11 +249,11 @@ func determineCanonicalID(displayName, aliases, canonicalID string) string {
 
 func handleMappingError(w http.ResponseWriter, err error, email, finalID string) {
 	if strings.Contains(err.Error(), "UNIQUE") {
-		logger.Warnf("[AMBIGUOUS_CONFLICT] Conflict detected for user: %s, ID: %s", email, finalID)
+		logger.Warnf("[USER] mapping conflict: user=%s id=%s", email, finalID)
 		respondError(w, http.StatusConflict, "Mapping already exists for this identity")
 		return
 	}
-	logger.Errorf("[SYSTEM_ERROR] Failed to add mapping: %v", err)
+	logger.Errorf("[USER] add mapping failed: %v", err)
 	respondError(w, http.StatusInternalServerError, "Internal Server Error")
 }
 

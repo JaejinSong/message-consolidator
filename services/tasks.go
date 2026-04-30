@@ -526,7 +526,7 @@ func (s *TasksService) ProcessBatchTranslation(ctx context.Context, email string
 	if len(missingIDs) > 0 {
 		var err error
 		newTrans, err = s.executeBatchTranslation(ctx, email, missingIDs, lang)
-		if err != nil { logger.Errorf("[TASKS] Batch failed: %v", err) }
+		if err != nil { logger.Warnf("[TASKS] batch translation failed: %v", err) }
 	}
 
 	return s.mergeBatchResults(taskIDs, cached, newTrans), nil

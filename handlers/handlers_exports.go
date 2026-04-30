@@ -58,7 +58,7 @@ func (a *API) HandleExportExcel(w http.ResponseWriter, r *http.Request) {
 
 	setExportDownloadHeaders(w, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx")
 	if err := f.Write(w); err != nil {
-		logger.Errorf("Failed to write excel: %v", err)
+		logger.Errorf("[EXPORTS] write excel failed: %v", err)
 	}
 }
 
@@ -136,6 +136,6 @@ func (a *API) HandleExportJSON(w http.ResponseWriter, r *http.Request) {
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(msgs); err != nil {
-		logger.Errorf("Failed to write json export: %v", err)
+		logger.Errorf("[EXPORTS] write JSON export failed: %v", err)
 	}
 }
