@@ -173,6 +173,18 @@ CREATE TABLE IF NOT EXISTS messages (
     is_archived INTEGER GENERATED ALWAYS AS (
         CASE WHEN is_deleted = 1 OR category = 'merged' OR done = 1 THEN 1 ELSE 0 END
     ) VIRTUAL,
+    -- Why: collapses (done, is_deleted, category) into one explicit lifecycle label so
+    -- callers filter by intent (active/done/canceled/swept/merged) instead of re-deriving
+    -- the boolean combo. Order matters: merged > canceled > swept > done > active.
+    lifecycle TEXT GENERATED ALWAYS AS (
+        CASE
+            WHEN category = 'merged'             THEN 'merged'
+            WHEN done = 0 AND is_deleted = 1     THEN 'canceled'
+            WHEN done = 1 AND is_deleted = 1     THEN 'swept'
+            WHEN done = 1                        THEN 'done'
+            ELSE 'active'
+        END
+    ) VIRTUAL,
     UNIQUE(user_email, source_ts)
 )
 `
@@ -212,6 +224,7 @@ SELECT
     COALESCE(m.source_channels, '[]') as source_channels,
     COALESCE(m.consolidated_context, '[]') as consolidated_context,
     COALESCE(m.subtasks, '[]') as subtasks,
+    COALESCE(m.lifecycle, 'active') as lifecycle,
     COALESCE(cr_req.effective_canonical_id, m.requester, '') as requester_canonical,
     COALESCE(cr_asg.effective_canonical_id, m.assignee, '') as assignee_canonical,
     COALESCE(cr_req.contact_type, 'none') as requester_type,

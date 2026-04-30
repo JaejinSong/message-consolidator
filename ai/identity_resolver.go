@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"message-consolidator/logger"
 	"message-consolidator/store"
 	"strings"
 	"time"
@@ -68,13 +69,16 @@ func (r *IdentityResolver) proposeChunk(ctx context.Context, contacts []store.Co
 		return nil, fmt.Errorf("failed to render identity prompt: %w", err)
 	}
 
-	model := r.client.initModel(r.client.getEffectiveModel(parsed, r.client.analysisModel), 0.1, 0, "", "")
+	modelName := r.client.getEffectiveModel(parsed, r.client.analysisModel)
+	model := r.client.initModel(modelName, 0.1, 0, "", "")
 	start := time.Now()
 	resp, err := generateWithRetry(ctx, model, genai.Text(rendered), 300*time.Second, 2)
+	elapsedMs := time.Since(start).Milliseconds()
+	logger.Infof("[Identity] Gemini call: %dms (model=%s contacts=%d err=%v)", elapsedMs, modelName, len(contacts), err)
 	if err != nil {
 		return nil, err
 	}
-	_ = trace.Step(ctx, "Gemini-IdentityResolve", "", int(time.Since(start).Milliseconds()), len(contacts))
+	_ = trace.Step(ctx, "Gemini-IdentityResolve", "", int(elapsedMs), len(contacts))
 
 	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
 		return nil, nil

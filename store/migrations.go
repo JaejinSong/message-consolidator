@@ -49,7 +49,10 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 }
 
 func runMigrations(ctx context.Context, q db.DBTX) error {
-	migrateExistingData(ctx, q)
+	migrateTokenUsageBreakdown(ctx, q)
+	migrateTokenUsageReportID(ctx, q)
+	migrateOriginalTextOrder(ctx, q)
+	migrateMessagesFTS(ctx, q)
 	migrateContactResolutionOnce.Do(func() {
 		go migrateContactResolution(ctx)
 	})
@@ -103,49 +106,6 @@ func rebuildViews(ctx context.Context, q db.DBTX) error {
 		return fmt.Errorf("failed to create v_messages: %w", err)
 	}
 	return nil
-}
-
-func migrateExistingData(ctx context.Context, q db.DBTX) {
-	// prompt_logs was never populated by application code — drop the orphan table.
-	_, _ = q.ExecContext(ctx, "DROP TABLE IF EXISTS prompt_logs")
-
-	// identity_merge_candidates holds only AI-generated proposals; data loss on schema change is acceptable.
-	if !tableHasColumn(ctx, q, "identity_merge_candidates", "contact_id_a") {
-		_, _ = q.ExecContext(ctx, "DROP TABLE IF EXISTS identity_merge_candidates")
-		_ = db.New(q).CreateIdentityMergeCandidatesTable(ctx)
-	}
-	if !tableHasColumn(ctx, q, "identity_merge_history", "source_contact_id") {
-		_, _ = q.ExecContext(ctx, "DROP TABLE IF EXISTS identity_merge_history")
-		_ = db.New(q).CreateIdentityMergeHistoryTable(ctx)
-	}
-
-	_, _ = q.ExecContext(ctx, "ALTER TABLE identity_merge_candidates ADD COLUMN proposal_group_id TEXT")
-	_, _ = q.ExecContext(ctx, "ALTER TABLE identity_merge_candidates ADD COLUMN canonical_name TEXT")
-
-	if !tableHasColumn(ctx, q, "messages", "is_archived") {
-		_, _ = q.ExecContext(ctx, `ALTER TABLE messages ADD COLUMN is_archived INTEGER GENERATED ALWAYS AS (
-			CASE WHEN is_deleted = 1 OR category = 'merged' OR done = 1 THEN 1 ELSE 0 END
-		) VIRTUAL`)
-	}
-
-	_, _ = q.ExecContext(ctx, "UPDATE messages SET is_deleted = 0 WHERE is_deleted IS NULL")
-	_, _ = q.ExecContext(ctx, "UPDATE messages SET room = 'General' WHERE room IS NULL OR room = ''")
-	_, _ = q.ExecContext(ctx, "UPDATE messages SET category = 'todo' WHERE category IN ('waiting', 'promise')")
-
-	if !tableHasColumn(ctx, q, "users", "tg_user_id") {
-		_, _ = q.ExecContext(ctx, "ALTER TABLE users ADD COLUMN tg_user_id TEXT DEFAULT ''")
-	}
-
-	if !tableHasColumn(ctx, q, "users", "is_admin") {
-		_, _ = q.ExecContext(ctx, "ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
-	}
-	// Why: super admin email is hardcoded; backfill flag if the row was created before the column existed.
-	_, _ = q.ExecContext(ctx, "UPDATE users SET is_admin = 1 WHERE email = ?1 AND is_admin = 0", SuperAdminEmail)
-
-	migrateTokenUsageBreakdown(ctx, q)
-	migrateTokenUsageReportID(ctx, q)
-	migrateOriginalTextOrder(ctx, q)
-	migrateMessagesFTS(ctx, q)
 }
 
 // migrateOriginalTextOrder reverses block order in messages.original_text so newest appears first.

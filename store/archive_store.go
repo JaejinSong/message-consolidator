@@ -168,17 +168,17 @@ func ftsSearchArchivedMessages(ctx context.Context, filter ArchiveFilter) ([]Con
 	status := normalizeArchiveStatus(filter.Status)
 	fts := `"` + strings.ReplaceAll(filter.Query, `"`, `""`) + `"`
 
-	// Why: v_messages does not expose is_archived; filter via messages table then join v_messages for resolved contacts.
+	// Why: messages_fts is rowid-bound to messages; filter on messages then join v_messages for resolved contacts.
 	const countSQL = `
 		SELECT COUNT(*) FROM messages m
 		WHERE m.id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?1)
 		  AND (m.user_email = ?2 OR (m.user_email IS NULL AND ?2 = ''))
-		  AND m.is_archived = 1
+		  AND m.lifecycle != 'active'
 		  AND (
 		    (?3 = '' OR ?3 = 'all') OR
-		    (?3 = 'done' AND m.done = 1) OR
-		    (?3 = 'canceled' AND m.done = 0 AND m.is_deleted = 1) OR
-		    (?3 = 'merged' AND m.category = 'merged')
+		    (?3 = 'done' AND m.lifecycle IN ('done','swept')) OR
+		    (?3 = 'canceled' AND m.lifecycle = 'canceled') OR
+		    (?3 = 'merged' AND m.lifecycle = 'merged')
 		  )`
 
 	var total int
@@ -209,12 +209,12 @@ func ftsSearchArchivedMessages(ctx context.Context, filter ArchiveFilter) ([]Con
 		  SELECT m.id FROM messages m
 		  WHERE m.id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?1)
 		    AND (m.user_email = ?2 OR (m.user_email IS NULL AND ?2 = ''))
-		    AND m.is_archived = 1
+		    AND m.lifecycle != 'active'
 		    AND (
 		      (?3 = '' OR ?3 = 'all') OR
-		      (?3 = 'done' AND m.done = 1) OR
-		      (?3 = 'canceled' AND m.done = 0 AND m.is_deleted = 1) OR
-		      (?3 = 'merged' AND m.category = 'merged')
+		      (?3 = 'done' AND m.lifecycle IN ('done','swept')) OR
+		      (?3 = 'canceled' AND m.lifecycle = 'canceled') OR
+		      (?3 = 'merged' AND m.lifecycle = 'merged')
 		    )
 		  ORDER BY CASE WHEN m.is_deleted = 1 THEN m.created_at ELSE m.completed_at END DESC
 		  LIMIT ?4 OFFSET ?5

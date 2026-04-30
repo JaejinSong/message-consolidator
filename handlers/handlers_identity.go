@@ -4,9 +4,11 @@ import (
 	"context"
 	"message-consolidator/auth"
 	"message-consolidator/internal/safego"
+	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -55,29 +57,44 @@ func (a *API) HandleGenerateProposals(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) runProposalJob(email string) *proposalJob {
 	ctx := context.Background()
+	jobStart := time.Now()
 
+	t := time.Now()
 	autoMerged, err := store.AutoMergeByCanonicalID(ctx, email)
+	logger.Infof("[Identity] AutoMerge: %dms (merged=%d)", time.Since(t).Milliseconds(), autoMerged)
 	if err != nil {
 		return proposalJobError(err)
 	}
+
+	t = time.Now()
 	contacts, err := store.GetCandidateContacts(ctx, email)
+	logger.Infof("[Identity] GetCandidates: %dms (n=%d)", time.Since(t).Milliseconds(), len(contacts))
 	if err != nil {
 		return proposalJobError(err)
 	}
+
+	t = time.Now()
 	handledPairs, err := store.LoadHandledPairs(ctx, email)
+	logger.Infof("[Identity] LoadHandled: %dms (pairs=%d)", time.Since(t).Milliseconds(), len(handledPairs))
 	if err != nil {
 		return proposalJobError(err)
 	}
 
+	t = time.Now()
 	aiInserted, err := a.insertAIProposalGroups(ctx, contacts, handledPairs)
-	if err != nil {
-		return proposalJobError(err)
-	}
-	tokenInserted, err := insertTokenSortedProposals(ctx, email, handledPairs)
+	logger.Infof("[Identity] AIPropose: %dms (inserted=%d)", time.Since(t).Milliseconds(), aiInserted)
 	if err != nil {
 		return proposalJobError(err)
 	}
 
+	t = time.Now()
+	tokenInserted, err := insertTokenSortedProposals(ctx, email, handledPairs)
+	logger.Infof("[Identity] TokenSort: %dms (inserted=%d)", time.Since(t).Milliseconds(), tokenInserted)
+	if err != nil {
+		return proposalJobError(err)
+	}
+
+	logger.Infof("[Identity] TOTAL: %dms (auto=%d ai=%d token=%d)", time.Since(jobStart).Milliseconds(), autoMerged, aiInserted, tokenInserted)
 	return &proposalJob{Status: "done", Count: aiInserted + tokenInserted, AutoMerged: autoMerged}
 }
 

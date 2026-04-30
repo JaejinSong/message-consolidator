@@ -229,7 +229,11 @@ export const modals: ModalsImpl = {
                 modal.classList.remove('hidden');
                 (modal as HTMLElement).style.display = 'flex';
                 this.fetchIdentityProposals();
-                document.getElementById('generateProposalsBtn')?.addEventListener('click', () => this.generateIdentityProposals());
+                const genBtn = document.getElementById('generateProposalsBtn');
+                if (genBtn && genBtn.dataset.bound !== '1') {
+                    genBtn.dataset.bound = '1';
+                    genBtn.addEventListener('click', () => this.generateIdentityProposals());
+                }
                 this.setupRefreshCacheBtn();
             }
         });

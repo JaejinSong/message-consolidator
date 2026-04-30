@@ -96,6 +96,7 @@ type Message struct {
 	ConsolidatedContext sql.NullString `json:"consolidated_context"`
 	Subtasks            sql.NullString `json:"subtasks"`
 	IsArchived          sql.NullInt64  `json:"is_archived"`
+	Lifecycle           sql.NullString `json:"lifecycle"`
 }
 
 type Report struct {
@@ -234,6 +235,7 @@ type VMessage struct {
 	SourceChannels      string       `json:"source_channels"`
 	ConsolidatedContext string       `json:"consolidated_context"`
 	Subtasks            string       `json:"subtasks"`
+	Lifecycle           string       `json:"lifecycle"`
 	RequesterCanonical  string       `json:"requester_canonical"`
 	AssigneeCanonical   string       `json:"assignee_canonical"`
 	RequesterType       string       `json:"requester_type"`

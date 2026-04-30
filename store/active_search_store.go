@@ -36,7 +36,7 @@ func SearchActiveMessages(ctx context.Context, email, query string) ([]Consolida
 		  SELECT m.id FROM messages m
 		  WHERE m.id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?1)
 		    AND (m.user_email = ?2 OR (m.user_email IS NULL AND ?2 = ''))
-		    AND m.is_archived = 0
+		    AND m.lifecycle = 'active'
 		)
 		ORDER BY vm.created_at DESC`
 
