@@ -67,7 +67,7 @@ func TestTelegramSenderShim(t *testing.T) {
 	t.Parallel()
 
 	id, name := telegramSenderShim("tg_user_xyz")
-	if id != int64(0) {
+	if id != 0 {
 		t.Errorf("id = %d; want 0", id)
 	}
 	if name != "tg_user_xyz" {

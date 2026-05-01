@@ -3,6 +3,7 @@ package scanner
 import (
 	"time"
 
+	"message-consolidator/internal/ids"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
@@ -29,7 +30,8 @@ func resolveTelegramSender(chatKey string) (store.UserID, string) {
 // telegramSenderShim adapts resolveTelegramSender's phantom-typed UserID return
 // to the int64 boundary expected by enrichChannelMessage (types.EnrichedMessage
 // lives upstream of store and cannot import phantom IDs).
-func telegramSenderShim(chatKey string) (int64, string) {
-	id, name := resolveTelegramSender(chatKey)
-	return int64(id), name
+// telegramSenderShim adapts resolveTelegramSender's phantom-typed UserID return
+// to the boundary expected by enrichChannelMessage.
+func telegramSenderShim(chatKey string) (ids.UserID, string) {
+	return resolveTelegramSender(chatKey)
 }

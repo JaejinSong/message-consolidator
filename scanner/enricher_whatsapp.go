@@ -3,6 +3,7 @@ package scanner
 import (
 	"time"
 
+	"message-consolidator/internal/ids"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
@@ -25,7 +26,8 @@ func resolveWhatsAppSender(rawJID string) (store.UserID, string) {
 
 // whatsAppSenderShim adapts the phantom-typed UserID return to the int64 boundary
 // expected by enrichChannelMessage (types package cannot import store).
-func whatsAppSenderShim(rawJID string) (int64, string) {
-	id, name := resolveWhatsAppSender(rawJID)
-	return int64(id), name
+// whatsAppSenderShim adapts the phantom-typed UserID return to the boundary
+// expected by enrichChannelMessage.
+func whatsAppSenderShim(rawJID string) (ids.UserID, string) {
+	return resolveWhatsAppSender(rawJID)
 }

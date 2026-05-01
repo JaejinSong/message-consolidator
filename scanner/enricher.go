@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"time"
 
+	"message-consolidator/internal/ids"
 	"message-consolidator/types"
 )
 
 // enrichChannelMessage normalizes channel raw data into the shared EnrichedMessage.
 // threadPrefix is the short namespace ("wa", "tg", …) and resolveSender maps the
 // roomKey to (senderID, senderName), returning (0, roomKey) as the documented fallback.
-func enrichChannelMessage(source, threadPrefix, roomKey, payload string, ts time.Time, resolveSender func(string) (int64, string)) *types.EnrichedMessage {
+func enrichChannelMessage(source, threadPrefix, roomKey, payload string, ts time.Time, resolveSender func(string) (ids.UserID, string)) *types.EnrichedMessage {
 	windowStart := calculateWindowStart(ts)
 	senderID, senderName := resolveSender(roomKey)
 

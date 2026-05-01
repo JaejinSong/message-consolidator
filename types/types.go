@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/json"
+	"message-consolidator/internal/ids"
 	"time"
 )
 
@@ -46,7 +47,7 @@ type RawMessage struct {
 type EnrichedMessage struct {
 	RawContent      string    `json:"raw_content"`
 	SourceChannel   string    `json:"source_channel"` // "whatsapp", "slack", "email"
-	SenderID        int64     `json:"sender_id"`      // Why: Explicit integer conversion for DB identity security.
+	SenderID        ids.UserID `json:"sender_id"`      // Why: Explicit phantom type for DB identity security.
 	SenderName      string    `json:"sender_name"`
 	VirtualThreadID string    `json:"virtual_thread_id"`
 	Timestamp       time.Time `json:"timestamp"`
