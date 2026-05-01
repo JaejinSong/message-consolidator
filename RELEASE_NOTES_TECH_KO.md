@@ -1,3 +1,7 @@
+> [!NOTE]
+> **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
+> 최신 정식 버전 / Latest authoritative version: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md)
+
 # 업데이트 소식 (기술) - v2.4.6 (2026-04-19 15:33 UTC)
 
 

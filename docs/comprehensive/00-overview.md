@@ -106,7 +106,7 @@ A 4-stage cascade — Raw Parser noise gate → Flash-Lite binary filter → Fla
 | 03 | *(예정)* 03-database.md | sqlc 흐름·마이그레이션·쿼리 패턴 |
 | 04 | *(예정)* 04-ai-pipeline.md | 4단계 파이프라인 상세·프롬프트 설계 |
 | 05 | *(예정)* 05-channels.md | Slack·Gmail·Telegram·WhatsApp 어댑터 |
-| 06 | *(예정)* 06-scanner.md | Prime-Pool 분산 스케줄러·8개 loop |
+| 06 | *(예정)* 06-scanner-pipeline.md | Prime-Pool 분산 스케줄러·8개 loop |
 | 07 | *(예정)* 07-services.md | 비즈니스 로직·게이미피케이션·번역 |
 | 08 | *(예정)* 08-handlers.md | REST API·미들웨어·라우팅 |
 | 09 | *(예정)* 09-auth.md | Google OAuth·세션 쿠키 흐름 |

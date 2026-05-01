@@ -99,3 +99,7 @@ go test ./...         # 전체 테스트
 bash unit-test.sh     # unit tests only
 sqlc generate         # DB 쿼리 코드 재생성
 ```
+
+---
+
+> **종합 문서 (SSOT)**: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md). 본 파일의 운영 룰은 SSOT와 별도로 유지되며, 충돌 시 본 파일 우선 적용 후 SSOT 갱신.

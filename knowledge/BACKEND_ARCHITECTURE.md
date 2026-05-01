@@ -1,3 +1,7 @@
+> [!NOTE]
+> **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
+> 최신 정식 버전 / Latest authoritative version: [../docs/comprehensive/INDEX.md](../docs/comprehensive/INDEX.md)
+
 # Backend Architecture & Maintenance Guide
 
 본 문서는 `message-consolidator` 백엔드(Go) 프로젝트의 구조, 설계 철학, 그리고 패키지별 역할을 정의한 유지보수 가이드입니다.

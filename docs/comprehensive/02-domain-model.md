@@ -1,6 +1,6 @@
 # 02 — Domain Model
 
-> Cross-references: DB 스키마 상세 → [04-data-layer.md](04-data-layer.md) · AI 식별/매핑 알고리즘 → [09-identity-resolution.md](09-identity-resolution.md) · 데이터 영속화 → [04-data-layer.md](04-data-layer.md)
+> Cross-references: DB 스키마 상세 → [04-data-layer.md](04-data-layer.md) · AI 식별/매핑 알고리즘 → [09-identity-and-dedup.md](09-identity-and-dedup.md) · 데이터 영속화 → [04-data-layer.md](04-data-layer.md)
 
 ---
 
@@ -501,8 +501,8 @@ The constraints below are enforced at code or DB level. Violating them breaks da
 ## 7. Cross-References
 
 - **DB 스키마 상세 (테이블 DDL, 인덱스, 마이그레이션)** → [04-data-layer.md](04-data-layer.md)
-- **AI 식별/매핑 알고리즘 (Flash-Lite 노이즈 게이트, Flash 태스크 추출, Jaro-Winkler 중복 제거)** → [09-identity-resolution.md](09-identity-resolution.md)
+- **AI 식별/매핑 알고리즘 (Flash-Lite 노이즈 게이트, Flash 태스크 추출, Jaro-Winkler 중복 제거)** → [09-identity-and-dedup.md](09-identity-and-dedup.md)
 - **데이터 영속화 (sqlc 생성 흐름, store 레이어 패턴)** → [04-data-layer.md](04-data-layer.md)
 - **백그라운드 스캐너 및 Prime-Pool 분산** → [06-scanner-pipeline.md](06-scanner-pipeline.md)
-- **보고서 생성 파이프라인** → [07-report-pipeline.md](07-report-pipeline.md)
-- **WhaTap APM 계측 패턴** → [10-observability.md](10-observability.md)
+- **보고서 생성 파이프라인** → [08-services-business-logic.md](08-services-business-logic.md)
+- **WhaTap APM 계측 패턴** → [15-observability.md](15-observability.md)

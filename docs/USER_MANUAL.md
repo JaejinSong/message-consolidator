@@ -1,3 +1,7 @@
+> [!NOTE]
+> **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
+> 최신 정식 버전 / Latest authoritative version: [comprehensive/INDEX.md](comprehensive/INDEX.md)
+
 # Message Consolidator 사용자 매뉴얼
 
 본 문서는 이미 배포된 Message Consolidator 인스턴스에 가입하여 사용하는 **최종 사용자**를 위한 안내서입니다. 인프라 셋업·환경변수 구성은 운영자 매뉴얼 영역이므로 다루지 않습니다.

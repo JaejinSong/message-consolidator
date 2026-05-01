@@ -1,3 +1,7 @@
+> [!NOTE]
+> **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
+> 최신 정식 버전 / Latest authoritative version: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md)
+
 # 배포 가이드 (Deployment Guide) - Stage 2 Decoupling
 
 본 문서는 Caddy와 Go API를 분리한 다중 컨테이너 기반의 배포 및 사전 검증 절차를 설명합니다.

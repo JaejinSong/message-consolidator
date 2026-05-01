@@ -1,3 +1,7 @@
+> [!NOTE]
+> **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
+> 최신 정식 버전 / Latest authoritative version: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md)
+
 # Project GEM Filtering Pipeline & Technical Architecture
 
 Message Consolidator은 수많은 메시지(Email, Slack, WhatsApp 등) 속에서 **실행 가능한 작업(Task)**을 효율적으로 추출하고 관리하기 위해 고안된 다단계 필터링 파이프라인을 갖추고 있습니다.
