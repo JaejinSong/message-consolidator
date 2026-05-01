@@ -128,11 +128,27 @@ func (s *SlackClient) GetChannelName(id string) string {
 	channel, err := s.api.GetConversationInfo(&slack.GetConversationInfoInput{
 		ChannelID: id,
 	})
-	if err == nil {
-		s.channels[id] = channel.Name
-		return channel.Name
+	if err != nil {
+		return id
 	}
-	return id
+	name := slackChannelDisplayName(channel, id)
+	s.channels[id] = name
+	return name
+}
+
+// Why: Slack returns empty Name for IM/MpIM conversations, which surfaces as
+// "-" in the dashboard and produces an empty room key for per-room locks.
+func slackChannelDisplayName(c *slack.Channel, fallback string) string {
+	if c.Name != "" {
+		return c.Name
+	}
+	if c.IsIM {
+		return "DM"
+	}
+	if c.IsMpIM {
+		return "Group DM"
+	}
+	return fallback
 }
 
 // Why: Exported so scanner-side callers (e.g. sweepSlackThreads) can wrap raw API
