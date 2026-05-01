@@ -1,0 +1,80 @@
+package scanner
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"testing"
+
+	"message-consolidator/config"
+)
+
+type fakeReminderDispatcher struct {
+	called int
+	err    error
+}
+
+func (f *fakeReminderDispatcher) DispatchDueSoon(_ context.Context) error {
+	f.called++
+	return f.err
+}
+
+func TestRunDeadlineReminder_NilSvc(t *testing.T) {
+	origSvc := reminderSvc
+	origCfg := cfg
+	t.Cleanup(func() { reminderSvc = origSvc; cfg = origCfg })
+
+	reminderSvc = nil
+	// Why: cfg is not set to avoid nil deref — the nil-svc guard returns before cfg is accessed.
+	cfg = nil
+
+	runDeadlineReminder(context.Background(), &sync.WaitGroup{})
+}
+
+func TestRunDeadlineReminder_Disabled(t *testing.T) {
+	origSvc := reminderSvc
+	origCfg := cfg
+	t.Cleanup(func() { reminderSvc = origSvc; cfg = origCfg })
+
+	fake := &fakeReminderDispatcher{}
+	reminderSvc = fake
+	cfg = &config.Config{ReminderEnabled: false}
+
+	runDeadlineReminder(context.Background(), &sync.WaitGroup{})
+
+	if fake.called != 0 {
+		t.Errorf("called = %d, want 0", fake.called)
+	}
+}
+
+func TestRunDeadlineReminder_Dispatched(t *testing.T) {
+	origSvc := reminderSvc
+	origCfg := cfg
+	t.Cleanup(func() { reminderSvc = origSvc; cfg = origCfg })
+
+	fake := &fakeReminderDispatcher{}
+	reminderSvc = fake
+	cfg = &config.Config{ReminderEnabled: true}
+
+	runDeadlineReminder(context.Background(), &sync.WaitGroup{})
+
+	if fake.called != 1 {
+		t.Errorf("called = %d, want 1", fake.called)
+	}
+}
+
+func TestRunDeadlineReminder_DispatchError(t *testing.T) {
+	origSvc := reminderSvc
+	origCfg := cfg
+	t.Cleanup(func() { reminderSvc = origSvc; cfg = origCfg })
+
+	fake := &fakeReminderDispatcher{err: errors.New("boom")}
+	reminderSvc = fake
+	cfg = &config.Config{ReminderEnabled: true}
+
+	runDeadlineReminder(context.Background(), &sync.WaitGroup{})
+
+	if fake.called != 1 {
+		t.Errorf("called = %d, want 1", fake.called)
+	}
+}
