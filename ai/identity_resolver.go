@@ -32,26 +32,26 @@ type MergeGroup struct {
 const identityChunkSize = 20
 
 // ProposeGroups analyzes the given contacts and returns groups of likely-same-person contacts.
-func (r *IdentityResolver) ProposeGroups(ctx context.Context, contacts []store.ContactRecord) ([]MergeGroup, error) {
+func (r *IdentityResolver) ProposeGroups(ctx context.Context, email string, contacts []store.ContactRecord) ([]MergeGroup, error) {
 	if len(contacts) < 2 {
 		return nil, nil
 	}
 
 	if len(contacts) > identityChunkSize {
-		return r.proposeInChunks(ctx, contacts)
+		return r.proposeInChunks(ctx, email, contacts)
 	}
 
-	return r.proposeChunk(ctx, contacts)
+	return r.proposeChunk(ctx, email, contacts)
 }
 
-func (r *IdentityResolver) proposeInChunks(ctx context.Context, contacts []store.ContactRecord) ([]MergeGroup, error) {
+func (r *IdentityResolver) proposeInChunks(ctx context.Context, email string, contacts []store.ContactRecord) ([]MergeGroup, error) {
 	var all []MergeGroup
 	for i := 0; i < len(contacts); i += identityChunkSize {
 		end := i + identityChunkSize
 		if end > len(contacts) {
 			end = len(contacts)
 		}
-		groups, err := r.proposeChunk(ctx, contacts[i:end])
+		groups, err := r.proposeChunk(ctx, email, contacts[i:end])
 		if err != nil {
 			return nil, err
 		}
@@ -60,7 +60,7 @@ func (r *IdentityResolver) proposeInChunks(ctx context.Context, contacts []store
 	return all, nil
 }
 
-func (r *IdentityResolver) proposeChunk(ctx context.Context, contacts []store.ContactRecord) ([]MergeGroup, error) {
+func (r *IdentityResolver) proposeChunk(ctx context.Context, email string, contacts []store.ContactRecord) ([]MergeGroup, error) {
 	parsed := LoadPrompt(PromptIdentityGroupMerge)
 	rendered, err := parsed.Render(ExtractionContext{
 		MessagePayload: formatContactsForPrompt(contacts),
@@ -78,6 +78,7 @@ func (r *IdentityResolver) proposeChunk(ctx context.Context, contacts []store.Co
 	if err != nil {
 		return nil, err
 	}
+	logTokenUsage(ctx, email, "IdentityResolve", modelName, "", 0, resp)
 	_ = trace.Step(ctx, "Gemini-IdentityResolve", "", int(elapsedMs), len(contacts))
 
 	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {

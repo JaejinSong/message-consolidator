@@ -81,7 +81,7 @@ func (a *API) runProposalJob(email string) *proposalJob {
 	}
 
 	t = time.Now()
-	aiInserted, err := a.insertAIProposalGroups(ctx, contacts, handledPairs)
+	aiInserted, err := a.insertAIProposalGroups(ctx, email, contacts, handledPairs)
 	logger.Infof("[RESOLUTION] AIPropose: %dms (inserted=%d)", time.Since(t).Milliseconds(), aiInserted)
 	if err != nil {
 		return proposalJobError(err)
@@ -102,8 +102,8 @@ func proposalJobError(err error) *proposalJob {
 	return &proposalJob{Status: "error", ErrMsg: err.Error()}
 }
 
-func (a *API) insertAIProposalGroups(ctx context.Context, contacts []store.ContactRecord, handledPairs map[[2]int64]bool) (int, error) {
-	groups, err := a.IdentityResolver.ProposeGroups(ctx, contacts)
+func (a *API) insertAIProposalGroups(ctx context.Context, email string, contacts []store.ContactRecord, handledPairs map[[2]int64]bool) (int, error) {
+	groups, err := a.IdentityResolver.ProposeGroups(ctx, email, contacts)
 	if err != nil {
 		return 0, err
 	}
