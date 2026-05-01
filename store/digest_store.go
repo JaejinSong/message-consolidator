@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"message-consolidator/db"
+	"message-consolidator/logger"
 	"sync"
 	"time"
 )
@@ -45,6 +46,7 @@ func GetDailyDigest(ctx context.Context, email string, limit int) (DigestSnapsho
 			Column3: int64(limit),
 		})
 		if err != nil {
+			logger.Warnf("[DIGEST] GetDailyDigest ListPendingMe failed for %s: %v", email, err)
 			return
 		}
 		tasks := make([]DigestTask, 0, len(rows))
@@ -71,6 +73,7 @@ func GetDailyDigest(ctx context.Context, email string, limit int) (DigestSnapsho
 			Limit:     int64(limit),
 		})
 		if err != nil {
+			logger.Warnf("[DIGEST] GetDailyDigest ListPendingOthers failed for %s: %v", email, err)
 			return
 		}
 		tasks := make([]DigestTask, 0, len(rows))
@@ -96,6 +99,7 @@ func GetDailyDigest(ctx context.Context, email string, limit int) (DigestSnapsho
 			Column2: userName,
 		})
 		if err != nil {
+			logger.Warnf("[DIGEST] GetDailyDigest GetPendingMe failed for %s: %v", email, err)
 			return
 		}
 		mu.Lock()
@@ -109,6 +113,7 @@ func GetDailyDigest(ctx context.Context, email string, limit int) (DigestSnapsho
 			Assignee:  userName,
 		})
 		if err != nil {
+			logger.Warnf("[DIGEST] GetDailyDigest GetPendingOthers failed for %s: %v", email, err)
 			return
 		}
 		mu.Lock()

@@ -17,7 +17,7 @@ func (a *API) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 
 	stats, err := store.GetUserStats(r.Context(), email, tz)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[STATS]", "Failed to load stats")
 		return
 	}
 	respondJSON(w, http.StatusOK, stats)

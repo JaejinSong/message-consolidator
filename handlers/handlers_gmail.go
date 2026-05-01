@@ -38,7 +38,7 @@ func (a *API) HandleGmailCallback(w http.ResponseWriter, r *http.Request) {
 
 	tokenJSON, err := json.Marshal(token)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to marshal token")
+		handleAPIError(w, r, err, "[GMAIL]", "Failed to marshal token")
 		return
 	}
 
@@ -63,7 +63,7 @@ func (a *API) HandleGmailStatus(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleGmailDisconnect(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	if err := store.DeleteGmailToken(r.Context(), email); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[GMAIL]", "Failed to disconnect Gmail")
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "disconnected"})

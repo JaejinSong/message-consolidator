@@ -104,7 +104,7 @@ func (a *API) HandleTelegramAuthStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := channels.StartTelegramAuth(email, body.Phone, a.Config); err != nil { //nolint:contextcheck // TelegramManager owns its own long-lived client lifecycle (Wave 2 I).
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[TG]", "Failed to start Telegram auth")
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "code_sent"})
@@ -155,7 +155,7 @@ func (a *API) HandleTelegramAuthPassword(w http.ResponseWriter, r *http.Request)
 func (a *API) HandleTelegramLogout(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	if err := channels.LogoutTelegram(email); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[TG]", "Failed to logout Telegram")
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "logged_out"})

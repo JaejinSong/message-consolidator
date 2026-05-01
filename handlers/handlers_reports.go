@@ -15,7 +15,7 @@ func (a *API) HandleListReports(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	reports, err := store.ListReports(r.Context(), email)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[REPORTS]", "Failed to list reports")
 		return
 	}
 	respondJSON(w, http.StatusOK, reports)
@@ -26,7 +26,7 @@ func (a *API) HandleGetReportHistory(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	reports, err := store.GetReportList(r.Context(), email)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[REPORTS]", "Failed to load report history")
 		return
 	}
 	respondJSON(w, http.StatusOK, reports)
@@ -48,7 +48,7 @@ func (a *API) HandleGenerateReport(w http.ResponseWriter, r *http.Request) {
 
 	report, err := a.Reports.GenerateReport(r.Context(), email, start, end, lang, source, done)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[REPORTS]", "Failed to generate report")
 		return
 	}
 
@@ -123,7 +123,7 @@ func (a *API) HandleDeleteReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := store.DeleteReport(r.Context(), id, email); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[REPORTS]", "Failed to delete report")
 		return
 	}
 
@@ -160,7 +160,7 @@ func (a *API) processReportTranslation(w http.ResponseWriter, r *http.Request, i
 
 	summary, err := a.Reports.ProcessOnDemandTranslation(ctx, email, id, lang)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[REPORTS]", "Failed to translate report")
 		return
 	}
 
@@ -195,7 +195,7 @@ func (a *API) HandleExportReportToNotion(w http.ResponseWriter, r *http.Request)
 
 	url, err := exporter.ExportReport(ctx, title, report.ReportSummary)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[REPORTS]", "Failed to export report")
 		return
 	}
 

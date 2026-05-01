@@ -48,7 +48,7 @@ func formatCompletedAt(m store.ConsolidatedMessage) string {
 func (a *API) HandleExportExcel(w http.ResponseWriter, r *http.Request) {
 	msgs, err := loadArchiveExport(r)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[EXPORTS]", "Failed to export archive")
 		return
 	}
 
@@ -103,7 +103,7 @@ func writeExcelArchiveRow(f *excelize.File, sheet string, row int, m store.Conso
 func (a *API) HandleExportArchive(w http.ResponseWriter, r *http.Request) {
 	msgs, err := loadArchiveExport(r)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[EXPORTS]", "Failed to export archive")
 		return
 	}
 
@@ -128,7 +128,7 @@ func (a *API) HandleExportArchive(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleExportJSON(w http.ResponseWriter, r *http.Request) {
 	msgs, err := loadArchiveExport(r)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[EXPORTS]", "Failed to export archive")
 		return
 	}
 

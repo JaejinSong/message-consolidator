@@ -583,6 +583,7 @@ func DisconnectAllWhatsApp() {
 		wg.Add(1)
 		go func(email string, c *whatsmeow.Client) {
 			defer wg.Done()
+			defer safego.Recover("wa-disconnect-client")
 			logger.Infof("[WA] Disconnecting client for %s...", email)
 			c.Disconnect()
 		}(info.email, info.client)
@@ -591,6 +592,7 @@ func DisconnectAllWhatsApp() {
 	//Why: Disconnect external clients concurrently with a timeout to prevent network issues from hanging the entire application shutdown.
 	done := make(chan struct{})
 	go func() {
+		defer safego.Recover("wa-disconnect-wait")
 		wg.Wait()
 		close(done)
 	}()

@@ -116,7 +116,7 @@ func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 
 	err := a.Tasks.HandleTaskCompletion(r.Context(), email, req.ID, req.Done)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to complete task")
+		handleAPIError(w, r, err, "[TASKS]", "Failed to complete task")
 		return
 	}
 
@@ -233,7 +233,7 @@ func (a *API) HandleDelete(w http.ResponseWriter, r *http.Request) {
 func (a *API) respondWithUpdatedUser(w http.ResponseWriter, r *http.Request, email string) {
 	user, err := store.GetOrCreateUser(r.Context(), email, "", "")
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to refresh user info")
+		handleAPIError(w, r, err, "[USER]", "Failed to refresh user info")
 		return
 	}
 	respondJSON(w, http.StatusOK, struct {
@@ -330,7 +330,7 @@ func (a *API) HandleMergeTasks(w http.ResponseWriter, r *http.Request) {
 
 	// Why: [Logic Delegation] Delegates task logic to services to ensure AI summary and transaction integrity.
 	if err := a.Tasks.MergeTasks(r.Context(), email, req.TargetIDs, req.DestinationID); err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to merge tasks: "+err.Error())
+		handleAPIError(w, r, err, "[TASKS]", "Failed to merge tasks")
 		return
 	}
 
@@ -364,7 +364,7 @@ func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) 
 	missingReqs := a.prepareMissingRequests(r.Context(), email, missingIDs)
 	newTrans, err := a.Tasks.GetTranslationService().TranslateBatch(r.Context(), email, missingReqs, req.Lang)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Translation service failed")
+		handleAPIError(w, r, err, "[TRANSLATE]", "Translation service failed")
 		return
 	}
 

@@ -39,7 +39,7 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	logger.Debugf("[USER] fetching info for %s", email)
 	user, err := store.GetOrCreateUser(r.Context(), email, "", "")
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch user info")
+		handleAPIError(w, r, err, "[USER]", "Failed to fetch user info")
 		return
 	}
 	logger.Debugf("[USER] Found user: ID=%d, Email=%s", user.ID, user.Email)
@@ -126,7 +126,7 @@ func (a *API) HandleAddAlias(w http.ResponseWriter, r *http.Request) {
 	existing, _ := store.GetUserAliasesByEmailFromCache(r.Context(), email)
 	newAliases := strings.Join(append(existing, req.Alias), ",")
 	if err := store.AddContactMapping(r.Context(), email, email, user.Name, newAliases, "user"); err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to add alias")
+		handleAPIError(w, r, err, "[USER]", "Failed to add alias")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -147,7 +147,7 @@ func (a *API) HandleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := store.AddContactMapping(r.Context(), email, email, user.Name, strings.Join(kept, ","), "user"); err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to delete alias")
+		handleAPIError(w, r, err, "[USER]", "Failed to delete alias")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -157,7 +157,7 @@ func (a *API) HandleGetTenantAliases(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	mappings, err := store.GetContactsMappings(r.Context(), email)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[USER]", "Failed to load tenant aliases")
 		return
 	}
 	respondJSON(w, http.StatusOK, mappings)
@@ -207,7 +207,7 @@ func (a *API) HandleGetMappings(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	mappings, err := store.GetContactsMappings(r.Context(), email)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[USER]", "Failed to load mappings")
 		return
 	}
 	respondJSON(w, http.StatusOK, mappings)
@@ -264,7 +264,7 @@ func (a *API) HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
 	}
 	if !bindJSON(w, r, &req) { return }
 	if err := store.DeleteContactMapping(r.Context(), email, req.CanonicalID); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[USER]", "Failed to delete mapping")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -281,7 +281,7 @@ func (a *API) HandleSearchContacts(w http.ResponseWriter, r *http.Request) {
 
 	results, err := store.SearchContacts(r.Context(), email, query)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[USER]", "Failed to search contacts")
 		return
 	}
 	respondJSON(w, http.StatusOK, results)
@@ -301,7 +301,7 @@ func (a *API) HandleLinkAccounts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := store.LinkContact(r.Context(), email, req.MasterID, req.TargetID); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[USER]", "Failed to link accounts")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -315,7 +315,7 @@ func (a *API) HandleUnlinkAccount(w http.ResponseWriter, r *http.Request) {
 	if !bindJSON(w, r, &req) { return }
 
 	if err := store.UnlinkContact(r.Context(), email, req.ContactID); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[USER]", "Failed to unlink account")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -325,7 +325,7 @@ func (a *API) HandleGetLinks(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	links, err := store.GetLinkedContacts(r.Context(), email)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[USER]", "Failed to load linked contacts")
 		return
 	}
 	respondJSON(w, http.StatusOK, links)

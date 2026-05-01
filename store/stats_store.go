@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"message-consolidator/db"
+	"message-consolidator/internal/safego"
+	"message-consolidator/logger"
 	"sync"
 	"time"
 )
@@ -38,24 +40,34 @@ func runStatsQuery(wg *sync.WaitGroup, fn func()) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer safego.Recover("stats-query")
 		fn()
 	}()
 }
 
 func loadTotalCompleted(ctx context.Context, q *db.Queries, email string, stats *UserStats) {
-	totalCount, _ := q.GetTotalCompleted(ctx, email)
+	totalCount, err := q.GetTotalCompleted(ctx, email)
+	if err != nil {
+		logger.Warnf("[STATS] loadTotalCompleted failed for %s: %v", email, err)
+		return
+	}
 	stats.TotalCompleted = int(totalCount)
 }
 
 func loadPendingMe(ctx context.Context, q *db.Queries, email string, stats *UserStats) {
 	userName, _ := q.GetUserByEmailSimple(ctx, nullString(email))
-	pendingCount, _ := q.GetPendingMe(ctx, db.GetPendingMeParams{Column1: email, Column2: userName})
+	pendingCount, err := q.GetPendingMe(ctx, db.GetPendingMeParams{Column1: email, Column2: userName})
+	if err != nil {
+		logger.Warnf("[STATS] loadPendingMe failed for %s: %v", email, err)
+		return
+	}
 	stats.PendingMe = int(pendingCount)
 }
 
 func loadDailyCompletions(ctx context.Context, q *db.Queries, email, offset string, stats *UserStats) {
 	rows, err := q.GetDailyCompletions(ctx, db.GetDailyCompletionsParams{Strftime: offset, UserEmail: nullString(email), Datetime: offset})
 	if err != nil {
+		logger.Warnf("[STATS] loadDailyCompletions failed for %s: %v", email, err)
 		return
 	}
 	for _, row := range rows {
@@ -67,7 +79,9 @@ func loadDailyCompletions(ctx context.Context, q *db.Queries, email, offset stri
 
 func loadHourlyActivity(ctx context.Context, q *db.Queries, email, offset string, stats *UserStats) {
 	rows, err := q.GetHourlyActivity(ctx, db.GetHourlyActivityParams{Strftime: offset, UserEmail: nullString(email)})
-	if err == nil {
+	if err != nil {
+		logger.Warnf("[STATS] loadHourlyActivity failed for %s: %v", email, err)
+	} else {
 		for _, row := range rows {
 			if hr := parseHourString(row.Hr); hr >= 0 {
 				stats.HourlyActivity[hr] = int(row.C)
@@ -114,23 +128,32 @@ func loadAbandonedTasks(ctx context.Context, q *db.Queries, email, tz string, st
 	userName, _ := q.GetUserByEmailSimple(ctx, nullString(email))
 	thresholdStr := GetLocalThreshold(tz, GetStaleThresholdWorkingDays())
 	threshold, _ := time.Parse(time.RFC3339, thresholdStr)
-	abandonedCount, _ := q.GetAbandonedTasks(ctx, db.GetAbandonedTasksParams{
+	abandonedCount, err := q.GetAbandonedTasks(ctx, db.GetAbandonedTasksParams{
 		UserEmail: email,
 		CreatedAt: sql.NullTime{Time: threshold, Valid: !threshold.IsZero()},
 		Assignee:  userName,
 	})
+	if err != nil {
+		logger.Warnf("[STATS] loadAbandonedTasks failed for %s: %v", email, err)
+		return
+	}
 	stats.AbandonedTasks = int(abandonedCount)
 }
 
 func loadPendingOthers(ctx context.Context, q *db.Queries, email string, stats *UserStats) {
 	userName, _ := q.GetUserByEmailSimple(ctx, nullString(email))
-	pendingOthersCount, _ := q.GetPendingOthers(ctx, db.GetPendingOthersParams{UserEmail: email, Assignee: userName})
+	pendingOthersCount, err := q.GetPendingOthers(ctx, db.GetPendingOthersParams{UserEmail: email, Assignee: userName})
+	if err != nil {
+		logger.Warnf("[STATS] loadPendingOthers failed for %s: %v", email, err)
+		return
+	}
 	stats.PendingOthers = int(pendingOthersCount)
 }
 
 func loadContactTypeBreakdown(ctx context.Context, q *db.Queries, email string, stats *UserStats) {
 	rows, err := q.GetTaskCountByContactType(ctx, email)
 	if err != nil {
+		logger.Warnf("[STATS] loadContactTypeBreakdown failed for %s: %v", email, err)
 		return
 	}
 	for _, row := range rows {
@@ -148,12 +171,16 @@ func loadContactTypeBreakdown(ctx context.Context, q *db.Queries, email string, 
 }
 
 func loadSourceDistributions(ctx context.Context, q *db.Queries, email string, stats *UserStats) {
-	if rows, err := q.GetSourceDistributionActive(ctx, email); err == nil {
+	if rows, err := q.GetSourceDistributionActive(ctx, email); err != nil {
+		logger.Warnf("[STATS] loadSourceDistributions (active) failed for %s: %v", email, err)
+	} else {
 		for _, row := range rows {
 			stats.SourceDistribution[row.Source] = int(row.Count)
 		}
 	}
-	if rowsTotal, err := q.GetSourceDistributionTotal(ctx, email); err == nil {
+	if rowsTotal, err := q.GetSourceDistributionTotal(ctx, email); err != nil {
+		logger.Warnf("[STATS] loadSourceDistributions (total) failed for %s: %v", email, err)
+	} else {
 		for _, row := range rowsTotal {
 			stats.SourceDistributionTotal[row.Source] = int(row.Count)
 		}
@@ -163,6 +190,7 @@ func loadSourceDistributions(ctx context.Context, q *db.Queries, email string, s
 func loadCompletionHistory(ctx context.Context, q *db.Queries, email, offset string, stats *UserStats) {
 	rows, err := q.GetCompletionHistory(ctx, db.GetCompletionHistoryParams{Strftime: offset, UserEmail: nullString(email), Datetime: offset})
 	if err != nil {
+		logger.Warnf("[STATS] loadCompletionHistory failed for %s: %v", email, err)
 		return
 	}
 	stats.CompletionHistory = buildCompletionHistory(rows)

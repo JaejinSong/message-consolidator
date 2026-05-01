@@ -11,6 +11,7 @@ import (
 	"message-consolidator/channels"
 	"message-consolidator/config"
 	"message-consolidator/handlers"
+	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"message-consolidator/scanner"
 	"message-consolidator/services"
@@ -148,12 +149,14 @@ func gracefulShutdown(srv *http.Server) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
+		defer safego.Recover("shutdown-disconnect")
 		logger.Infof("[SHUTDOWN] 1/4 Disconnecting external clients (WhatsApp, Telegram)...")
 		channels.DisconnectAllWhatsApp()
 		channels.DisconnectAllTelegram()
 	}()
 	go func() {
 		defer wg.Done()
+		defer safego.Recover("shutdown-flush")
 		logger.Infof("[SHUTDOWN] 2/4 Flushing in-memory data to Database...")
 		if err := store.FlushTokenUsage(context.Background()); err != nil {
 			logger.Errorf("[SHUTDOWN] failed to flush token usage: %v", err)
