@@ -7,8 +7,10 @@ import (
 	"message-consolidator/channels"
 	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
+	"message-consolidator/services"
 	"message-consolidator/store"
 	"net/http"
+	"strings"
 	"sync"
 
 	"google.golang.org/api/gmail/v1"
@@ -109,7 +111,7 @@ func (a *API) HandleTranslate(w http.ResponseWriter, r *http.Request) {
 
 	msgs, err := a.gatherMessagesForTranslation(r.Context(), email)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[TRANSLATE]", "Failed to gather messages for translation")
 		return
 	}
 
@@ -211,14 +213,14 @@ func (a *API) HandleReclassifyOldData(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	user, err := store.GetOrCreateUser(r.Context(), email, "", "")
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[USER]", "Failed to load user")
 		return
 	}
 	aliases, _ := store.GetUserAliases(r.Context(), user.ID)
 
 	msgs, err := store.GetMessages(r.Context(), email)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		handleAPIError(w, r, err, "[MESSAGES]", "Failed to load messages")
 		return
 	}
 
@@ -235,7 +237,7 @@ func (a *API) HandleRestoreGmailCC(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	svc, err := channels.GetGmailService(r.Context(), email)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Gmail service error: "+err.Error())
+		handleAPIError(w, r, err, "[GMAIL]", "Gmail service error")
 		return
 	}
 
@@ -289,6 +291,78 @@ func (a *API) processArchiveRestore(ctx context.Context, email string, user *sto
 		}
 	}
 	return totalFixed
+}
+
+type roomActorBackfillCandidate struct {
+	ID               store.MessageID `json:"id"`
+	Room             string          `json:"room"`
+	CurrentAssignee  string          `json:"current_assignee"`
+	ProposedAssignee string          `json:"proposed_assignee"`
+	Requester        string          `json:"requester"`
+	TaskExcerpt      string          `json:"task_excerpt"`
+}
+
+type roomActorBackfillResponse struct {
+	Status       string                       `json:"status"`
+	DryRun       bool                         `json:"dry_run"`
+	Candidates   []roomActorBackfillCandidate `json:"candidates"`
+	AppliedCount int                          `json:"applied_count"`
+}
+
+// Why: retrospective backfill for shared tasks where the room has a dominant default actor.
+//
+//	Default dry_run=true — caller passes ?dry_run=false to actually update.
+func (a *API) HandleBackfillRoomActor(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	dryRun := r.URL.Query().Get("dry_run") != "false"
+
+	msgs, err := store.GetMessages(r.Context(), email)
+	if err != nil {
+		handleAPIError(w, r, err, "[MESSAGES]", "Failed to load messages")
+		return
+	}
+
+	candidates := make([]roomActorBackfillCandidate, 0)
+	roomCache := make(map[string]string)
+	for _, m := range msgs {
+		if m.Assignee != services.AssigneeShared || m.Room == "" {
+			continue
+		}
+		actor, cached := roomCache[m.Room]
+		if !cached {
+			actor, _ = lookupRoomActor(r.Context(), email, m.Room)
+			roomCache[m.Room] = actor
+		}
+		if actor == "" || strings.EqualFold(strings.TrimSpace(m.Requester), actor) {
+			continue
+		}
+		excerpt := m.Task
+		if len(excerpt) > 80 {
+			excerpt = excerpt[:80]
+		}
+		candidates = append(candidates, roomActorBackfillCandidate{
+			ID: m.ID, Room: m.Room, CurrentAssignee: m.Assignee,
+			ProposedAssignee: actor, Requester: m.Requester, TaskExcerpt: excerpt,
+		})
+	}
+
+	applied := 0
+	if !dryRun {
+		for _, c := range candidates {
+			if err := store.UpdateTaskAssignee(r.Context(), nil, email, c.ID, c.ProposedAssignee); err == nil {
+				applied++
+			}
+		}
+	}
+
+	respondJSON(w, http.StatusOK, roomActorBackfillResponse{
+		Status: "success", DryRun: dryRun, Candidates: candidates, AppliedCount: applied,
+	})
+}
+
+// Why: 별도 함수로 분리 — 동일 룸에 대한 store 조회를 cache miss 분기 가독성 위해 추출.
+func lookupRoomActor(ctx context.Context, email, room string) (string, bool) {
+	return store.GetRoomDefaultActor(ctx, email, room)
 }
 
 func (a *API) HandleInvalidateCache(w http.ResponseWriter, r *http.Request) {

@@ -23,6 +23,38 @@ import (
 
 var slackMentionRegex = regexp.MustCompile(`<@([A-Z0-9]+)>`)
 
+// Why: extract <@USERID> mentions in document order; preserves first-mention primacy
+//
+//	so resolveAssignee can pick a primary actor when AI returns "shared".
+func extractSlackMentionUserIDs(text string) []string {
+	matches := slackMentionRegex.FindAllStringSubmatch(text, -1)
+	ids := make([]string, 0, len(matches))
+	seen := make(map[string]bool)
+	for _, m := range matches {
+		if len(m) < 2 || seen[m[1]] {
+			continue
+		}
+		seen[m[1]] = true
+		ids = append(ids, m[1])
+	}
+	return ids
+}
+
+// Why: resolves a list of Slack user IDs to display names via SlackClient cache + on-demand
+//
+//	GetUserInfo; unresolved IDs are dropped (caller treats empty list as no-mention).
+func resolveSlackMentionNames(ctx context.Context, sc slackUserResolver, userIDs []string) []string {
+	out := make([]string, 0, len(userIDs))
+	for _, id := range userIDs {
+		name := sc.GetUserName(ctx, id)
+		if name == "" || name == id {
+			continue
+		}
+		out = append(out, name)
+	}
+	return out
+}
+
 // Why: Tier 3 conversations.replies caps at ~50/min (=1.2s); 1.0s = 60/min is within burst tolerance,
 // and `withSlackRetry` honors `Retry-After` if Slack pushes back. Saves ~200ms per thread iteration.
 const SlackThrottlingInterval = 1000 * time.Millisecond
@@ -689,22 +721,25 @@ func mapSlackItemToMessage(ctx context.Context, item store.TodoItem, m types.Raw
 		threadID = m.ID
 	}
 	link := buildSlackLinkAndRegisterThread(ctx, m, user.Email)
+	mentionIDs := extractSlackMentionUserIDs(m.Text)
+	explicitMentions := resolveSlackMentionNames(ctx, sc, mentionIDs)
 
 	params := services.TaskBuildParams{
-		UserEmail:      user.Email,
-		User:           *user,
-		Aliases:        aliases,
-		Item:           item,
-		SenderRaw:      m.Sender, // Resolved Slack display name — primary identity fallback
-		Source:         "slack",
-		Room:           sc.GetChannelName(m.ChannelID),
-		Link:           link,
-		SourceTS:       m.ID,
-		Timestamp:      m.Timestamp,
-		OriginalText:   m.Text,
-		ThreadID:       threadID,
-		RepliedToID:    m.ReplyToID,
-		SourceChannels: []string{"slack"},
+		UserEmail:        user.Email,
+		User:             *user,
+		Aliases:          aliases,
+		Item:             item,
+		SenderRaw:        m.Sender, // Resolved Slack display name — primary identity fallback
+		Source:           "slack",
+		Room:             sc.GetChannelName(m.ChannelID),
+		Link:             link,
+		SourceTS:         m.ID,
+		Timestamp:        m.Timestamp,
+		OriginalText:     m.Text,
+		ThreadID:         threadID,
+		RepliedToID:      m.ReplyToID,
+		SourceChannels:   []string{"slack"},
+		ExplicitMentions: explicitMentions,
 	}
 	return services.BuildTask(ctx, params)
 }

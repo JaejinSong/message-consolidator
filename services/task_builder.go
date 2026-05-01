@@ -38,6 +38,11 @@ type TaskBuildParams struct {
 	// signal that overrides AI self-assignment so informational copies route to the
 	// Reference tab instead of the user's Inbox.
 	IsCcOnly bool
+
+	// Why: envelope-resolved explicit mentions in document order. Slack <@USERID> resolved
+	//      to display names; WA MentionedJID resolved to push names. First-pick fallback
+	//      activates when AI returns "shared" for messages that explicitly addressed people.
+	ExplicitMentions []string
 }
 
 // BuildTask creates a ConsolidatedMessage applying shared identity rules across all channels.
@@ -139,14 +144,10 @@ func resolveRequester(ctx context.Context, p TaskBuildParams) string {
 }
 
 
-// resolveAssignee applies the Assignee normalization chain.
-// Maps self-referential tokens ("me", "__CURRENT_USER__") to the user's canonical name,
-// and falls back to AssigneeShared when AI returns empty.
 func resolveAssignee(ctx context.Context, p TaskBuildParams) string {
 	raw := normalizeAIAssignee(p)
 	if raw == "" {
-		// Empty assignee in Slack/WhatsApp typically signals a group/broadcast message.
-		return AssigneeShared
+		raw = AssigneeShared
 	}
 	// Why: User is only on Cc — informational copy. AI's self-assignment bias must not
 	// pull the task into the user's Inbox. Falls through to AssigneeShared so assignCategory
@@ -163,7 +164,56 @@ func resolveAssignee(ctx context.Context, p TaskBuildParams) string {
 	if resolvesToCurrentUser(ctx, raw, p) {
 		return preferredName(p.User)
 	}
+	if raw == AssigneeShared {
+		if picked := pickFirstMentionAssignee(p); picked != "" {
+			return picked
+		}
+		if picked := pickRoomDefaultActor(ctx, p); picked != "" {
+			return picked
+		}
+	}
 	return raw
+}
+
+// Why (M): first explicit mention is the linguistic primary actor; activates only when AI
+//
+//	returned "shared" despite explicit recipients (e.g. multi-mention compliance gap).
+func pickFirstMentionAssignee(p TaskBuildParams) string {
+	for _, name := range p.ExplicitMentions {
+		trimmed := strings.TrimSpace(name)
+		if trimmed == "" {
+			continue
+		}
+		if isSelfReference(trimmed, p) || matchesAlias(trimmed, p.Aliases) {
+			return preferredName(p.User)
+		}
+		return trimmed
+	}
+	return ""
+}
+
+// Why (R): per-room dominant actor (count≥2, ≥50% of non-shared/non-requester assignments).
+//
+//	Activates only for shared fallback when room has a clear single-actor pattern
+//	and the requester themselves isn't that actor (avoids self-assignment).
+func pickRoomDefaultActor(ctx context.Context, p TaskBuildParams) string {
+	if p.Room == "" || store.GetDB() == nil {
+		return ""
+	}
+	dbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	actor, ok := store.GetRoomDefaultActor(dbCtx, p.UserEmail, p.Room)
+	if !ok {
+		return ""
+	}
+	requester := strings.TrimSpace(p.Item.Requester)
+	if requester != "" && strings.EqualFold(requester, actor) {
+		return ""
+	}
+	if isSelfReference(actor, p) || matchesAlias(actor, p.Aliases) {
+		return preferredName(p.User)
+	}
+	return actor
 }
 
 func normalizeAIAssignee(p TaskBuildParams) string {
@@ -171,6 +221,11 @@ func normalizeAIAssignee(p TaskBuildParams) string {
 	lower := strings.ToLower(raw)
 	// Explicitly bad values returned by AI → treat as empty.
 	if lower == "undefined" || lower == "unknown" {
+		raw = ""
+	}
+	// Why: PROMISE에서 AI가 보수적으로 "shared"를 반환할 때 envelope speaker로 override.
+	//      tie-break rule 영향으로 1인칭 약속도 shared로 분류되는 회귀를 차단.
+	if strings.EqualFold(raw, "shared") && strings.EqualFold(p.Item.Category, "PROMISE") && p.SenderRaw != "" {
 		raw = ""
 	}
 	// Why (Phase J Path B): chat_system Assignee rule 4 (`category=PROMISE → Sender`) moved from prompt to code so envelope drives the speaker fallback. Applies only when AI left assignee blank — explicit AI assignments still win.

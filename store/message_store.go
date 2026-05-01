@@ -838,3 +838,25 @@ func toConsolidatedFromContext(row db.GetActiveTasksForContextRow) ConsolidatedM
 
 	return msg
 }
+
+// Why: dominance-gated room default actor. count<2 또는 top<50% 시 ok=false (조용히 skip).
+//
+//	message_store 레이어에서 dominance 룰을 캡슐화해 호출자(task_builder)는 ok 만 검사.
+func GetRoomDefaultActor(ctx context.Context, email, room string) (string, bool) {
+	rows, err := db.New(GetDB()).GetRoomActorFrequency(ctx, db.GetRoomActorFrequencyParams{
+		UserEmail: email,
+		Room:      room,
+	})
+	if err != nil || len(rows) == 0 {
+		return "", false
+	}
+	var total int64
+	for _, r := range rows {
+		total += r.N
+	}
+	top := rows[0]
+	if top.N < 2 || top.N*2 <= total {
+		return "", false
+	}
+	return top.Assignee, true
+}

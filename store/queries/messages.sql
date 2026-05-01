@@ -165,3 +165,14 @@ ORDER BY user_email, deadline;
 
 -- name: UpdateMessageMetadataByID :exec
 UPDATE messages SET metadata = ? WHERE id = ? AND user_email = ?;
+
+-- name: GetRoomActorFrequency :many
+SELECT COALESCE(assignee, '') AS assignee, COUNT(*) AS n
+FROM v_messages
+WHERE user_email = ? AND room = ? AND is_deleted = 0
+  AND IFNULL(assignee, '') NOT IN ('', 'shared')
+  AND IFNULL(assignee, '') != IFNULL(requester, '')
+  AND created_at >= datetime('now', '-60 day')
+GROUP BY assignee
+ORDER BY n DESC
+LIMIT 5;

@@ -149,6 +149,7 @@ func (a *API) registerAdminRoutes(r *mux.Router) {
 	r.Handle("/api/admin/reclassify", a.adminProtected(a.HandleReclassifyOldData)).Methods("GET")
 	r.Handle("/api/admin/invalidate-cache", a.adminProtected(a.HandleInvalidateCache)).Methods("POST")
 	r.Handle("/api/admin/restore-gmail-cc", a.adminProtected(a.HandleRestoreGmailCC)).Methods("GET")
+	r.Handle("/api/admin/backfill-room-actor", a.adminProtected(a.HandleBackfillRoomActor)).Methods("GET")
 
 	r.Handle("/api/admin/settings", a.adminProtected(a.HandleListAdminSettings)).Methods("GET")
 	r.Handle("/api/admin/settings/{key}", a.adminProtected(a.HandleUpdateAdminSetting)).Methods("PUT")

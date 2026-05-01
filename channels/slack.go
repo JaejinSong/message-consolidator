@@ -109,6 +109,9 @@ func (s *SlackClient) GetUserName(ctx context.Context, id string) string {
 	// GetUserInfo + cache prevents permanent raw-ID exposure (e.g. "U07EBSTP5C5").
 	u, err := s.api.GetUserInfoContext(ctx, id)
 	if err != nil || u == nil {
+		// Why: API miss → raw `U...` ID가 prompt로 흘러 AI가 mention을 못 읽고 shared 폴백 발생.
+		//      log로 가시성 확보 — 빈도 측정 후 negative cache / retry 정책 결정.
+		logger.Warnf("[SLACK] GetUserName resolve failed for id=%s: %v", id, err)
 		return id
 	}
 	s.users[id] = *u

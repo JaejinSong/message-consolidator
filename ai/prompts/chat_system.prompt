@@ -1,6 +1,6 @@
 ---
 name: chat_system
-version: 1.7.0
+version: 1.8.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
@@ -33,7 +33,7 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
 - `assignee_reason`: English only.
 
 # Assignee — priority order (stop at first match):
-1. Explicit @mention or named recipient → use that name.
+1. Explicit @mention or named recipient → use that name. **Co-addressee exception**: when multiple named recipients are addressed simultaneously (e.g. "Hey Yosep and JJ", "@Alice @Bob") AND {{.CurrentUser}} is one of them, choose `__CURRENT_USER__` (the user's own task surface takes precedence over collective shared).
 2. Non-current-user commits with first-person language ("I'll check", "saya cek", "Ok saya handle", "제가 할게요", "我来处理") → use that speaker.
 3. `category=WAITING` AND sender is {{.CurrentUser}} AND a specific named person is being waited on → use that person's name (they must act before {{.CurrentUser}} can proceed).
 4. Group/team reference ("technical team", "tim teknikal", "@everyone", collective nouns), OR unaddressed broadcast (issue reports to the group, policy announcements, general questions not directed at anyone specific) → `"shared"`.
@@ -56,6 +56,9 @@ Output: [{"id": 5, "state": "update", "task": "Attend Carabao meeting with Yosep
 Existing Tasks: [{"id": 12, "task": "Schedule POC kickoff call", "original_text": "let's set up a call for the POC"}]
 Input: [ID:p4] Vy: @{{.CurrentUser}} we would like to arrange an online session to run through the POC to align scope, expectations and timeline. Is next Thursday 10am (KH time) or with Canadia side? Let me check and confirm you by Monday next week.
 Output: [{"id": 12, "state": "update", "task": "Align POC scope via online session (Thu 10am KH vs Canadia)", "assignee": "Vy", "category": "PROMISE", "deadline": "2026-04-27", "source_ts": "p4"}]
+---
+Input: [ID:p5] Andy: Can both of you, @Yosep and {{.CurrentUser}}, join this group?
+Output: [{"id": 0, "state": "new", "task": "Join the group via the provided link", "assignee": "__CURRENT_USER__", "assignee_reason": "Co-addressed with Yosep; current-user inclusion triggers self-assignment over shared", "category": "TASK", "source_ts": "p5"}]
 ---
 {{if .FewShots}}
 {{range .FewShots}}

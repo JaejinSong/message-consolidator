@@ -102,6 +102,7 @@ type Querier interface {
 	GetReportTranslations(ctx context.Context, reportID int64) ([]GetReportTranslationsRow, error)
 	GetReportTranslationsByIDs(ctx context.Context, reportIds []int64) ([]GetReportTranslationsByIDsRow, error)
 	GetResolutionsByIdentifiers(ctx context.Context, arg GetResolutionsByIdentifiersParams) ([]GetResolutionsByIdentifiersRow, error)
+	GetRoomActorFrequency(ctx context.Context, arg GetRoomActorFrequencyParams) ([]GetRoomActorFrequencyRow, error)
 	GetSourceDistributionActive(ctx context.Context, dollar_1 string) ([]GetSourceDistributionActiveRow, error)
 	GetSourceDistributionTotal(ctx context.Context, dollar_1 string) ([]GetSourceDistributionTotalRow, error)
 	GetTaskCountByContactType(ctx context.Context, userEmail string) ([]GetTaskCountByContactTypeRow, error)

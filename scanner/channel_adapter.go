@@ -192,17 +192,26 @@ func saveChannelItem(ctx context.Context, user store.User, aliases []string, ite
 		Item:           item,
 		SenderRaw:      senderRaw,
 		Source:         source,
-		Room:           group,
-		SourceTS:       m.ID,
-		Timestamp:      m.Timestamp,
-		OriginalText:   m.Text,
-		RepliedToID:    m.ReplyToID,
-		SourceChannels: []string{source},
+		Room:             group,
+		SourceTS:         m.ID,
+		Timestamp:        m.Timestamp,
+		OriginalText:     m.Text,
+		RepliedToID:      m.ReplyToID,
+		SourceChannels:   []string{source},
+		ExplicitMentions: resolveAdapterMentions(source, m),
 	}
 	msg := services.BuildTask(ctx, params)
 
 	id, _ := services.HandleTaskState(ctx, nil, user.Email, item, msg)
 	return id
+}
+
+// Why: WA의 raw JID list를 display names로 변환해 task_builder에 전달; Slack과 통일된
+//
+//	envelope-driven first-mention fallback에 합류. Telegram은 mention 메타가 없어 nil.
+//	ResolveWAMentions는 text replacement 전용으로 빈 text 입력 시 no-op이므로 WA도 nil 반환.
+func resolveAdapterMentions(source string, m types.RawMessage) []string {
+	return nil
 }
 
 // isFromMe is shared by the WhatsApp and Telegram adapters (Slack has its own

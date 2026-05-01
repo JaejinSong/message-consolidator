@@ -176,6 +176,20 @@ func TestResolveAssignee_PromiseBranchUsesSenderRaw(t *testing.T) {
 			want:      AssigneeShared,
 		},
 		{
+			name:      "PROMISE + AI 'shared' → SenderRaw (override conservative AI)",
+			aiAssign:  "shared",
+			category:  "PROMISE",
+			senderRaw: "Phathit",
+			want:      "Phathit",
+		},
+		{
+			name:      "Non-PROMISE + AI 'shared' → shared (no override outside PROMISE)",
+			aiAssign:  "shared",
+			category:  "TASK",
+			senderRaw: "Phathit",
+			want:      AssigneeShared,
+		},
+		{
 			name:      "PROMISE + empty AI + empty SenderRaw → AssigneeShared (no envelope speaker)",
 			aiAssign:  "",
 			category:  "PROMISE",
@@ -192,6 +206,59 @@ func TestResolveAssignee_PromiseBranchUsesSenderRaw(t *testing.T) {
 					Category: tt.category,
 				},
 				SenderRaw: tt.senderRaw,
+			}
+			got := resolveAssignee(t.Context(), p)
+			if got != tt.want {
+				t.Errorf("resolveAssignee() = %q; want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestResolveAssignee_FirstMentionFallback guards M (multi-mention first-pick).
+// Why: AI multi-mention compliance gap (id=11710) — raw="shared" with explicit
+//
+//	ExplicitMentions must route to first mention, with self-reference taking
+//	precedence over external names.
+func TestResolveAssignee_FirstMentionFallback(t *testing.T) {
+	tests := []struct {
+		name     string
+		aiAssign string
+		mentions []string
+		want     string
+	}{
+		{
+			name:     "AI shared + first mention → first name",
+			aiAssign: "shared",
+			mentions: []string{"Kamaludin", "Hady"},
+			want:     "Kamaludin",
+		},
+		{
+			name:     "AI shared + first mention is self-reference → preferred name",
+			aiAssign: "shared",
+			mentions: []string{"alice@example.com", "Bob"},
+			want:     "Alice",
+		},
+		{
+			name:     "AI shared + no mentions → shared (no override)",
+			aiAssign: "shared",
+			mentions: nil,
+			want:     AssigneeShared,
+		},
+		{
+			name:     "AI explicit assignee + mentions → AI wins",
+			aiAssign: "Charlie",
+			mentions: []string{"Kamaludin"},
+			want:     "Charlie",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := TaskBuildParams{
+				UserEmail:        "alice@example.com",
+				User:             store.User{Name: "Alice", Email: "alice@example.com"},
+				Item:             store.TodoItem{Assignee: tt.aiAssign, Category: "TASK"},
+				ExplicitMentions: tt.mentions,
 			}
 			got := resolveAssignee(t.Context(), p)
 			if got != tt.want {

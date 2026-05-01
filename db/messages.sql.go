@@ -633,6 +633,51 @@ func (q *Queries) GetMessagesForMerge(ctx context.Context, arg GetMessagesForMer
 	return items, nil
 }
 
+const getRoomActorFrequency = `-- name: GetRoomActorFrequency :many
+SELECT COALESCE(assignee, '') AS assignee, COUNT(*) AS n
+FROM v_messages
+WHERE user_email = ? AND room = ? AND is_deleted = 0
+  AND IFNULL(assignee, '') NOT IN ('', 'shared')
+  AND IFNULL(assignee, '') != IFNULL(requester, '')
+  AND created_at >= datetime('now', '-60 day')
+GROUP BY assignee
+ORDER BY n DESC
+LIMIT 5
+`
+
+type GetRoomActorFrequencyParams struct {
+	UserEmail string `json:"user_email"`
+	Room      string `json:"room"`
+}
+
+type GetRoomActorFrequencyRow struct {
+	Assignee string `json:"assignee"`
+	N        int64  `json:"n"`
+}
+
+func (q *Queries) GetRoomActorFrequency(ctx context.Context, arg GetRoomActorFrequencyParams) ([]GetRoomActorFrequencyRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRoomActorFrequency, arg.UserEmail, arg.Room)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRoomActorFrequencyRow
+	for rows.Next() {
+		var i GetRoomActorFrequencyRow
+		if err := rows.Scan(&i.Assignee, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const hardDeleteMessages = `-- name: HardDeleteMessages :exec
 DELETE FROM messages WHERE user_email = ? AND id IN (/*SLICE:ids*/?)
 `

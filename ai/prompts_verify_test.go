@@ -87,6 +87,28 @@ func TestChatSystemPurposeRule(t *testing.T) {
 	}
 }
 
+// TestChatSystemCoAddresseeRule guards the v1.8.0 co-addressee exception.
+// Why: prevents regression where multi-recipient mentions (e.g. "JJ and Bob")
+// fall through Assignee rule 1 to rule 4 (Group → shared) via the tie-break,
+// burying the user's own tasks under the Shared bucket.
+func TestChatSystemCoAddresseeRule(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/chat_system.prompt")
+	if err != nil {
+		t.Fatalf("read chat_system: %v", err)
+	}
+	body := string(content)
+	required := []string{
+		"Co-addressee exception",
+		"version: 1.8.0",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Errorf("chat_system.prompt missing v1.8.0 token: %q", token)
+		}
+	}
+}
+
 // TestReportSummaryEvidenceGating guards the v2.4.0 evidence-gating + speaker-stance rules.
 // Why: Prevents regression to the v2.3.0 "must flag a risk" mandate that caused
 // hallucination of bottlenecks from task titles without Evidence support (Bun.js/XIMPLY case, 2026-04-23).
