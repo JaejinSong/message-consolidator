@@ -183,10 +183,13 @@ GeminiClient.Analyze(ctx, email, msg, language, source, room)
 
 ### ExtractionContext — 프롬프트 바인딩 타입
 
+`ExtractionContext` (ai/executor.go)는 템플릿 렌더링에 사용되는 구조체입니다.
+
 ```go
 type ExtractionContext struct {
     MessagePayload      string         // 전처리 완료된 메시지 텍스트
     CurrentTime         string         // UTC "2006-01-02 15:04:05 UTC"
+    Version             string         // 릴리스 노트용 버전
     Locale              string         // 출력 언어 (기본 "Korean")
     FewShots            []FewShot      // RAG 선택된 예시 (chat만)
     ExistingTasksJSON   string         // 기존 활성 태스크 JSON (상태 평가용)
@@ -195,7 +198,7 @@ type ExtractionContext struct {
     CurrentUserEmail    string         // 이메일 기반 신원 고정
     CurrentUserID       store.UserID   // DB 매핑 assignee 정규화용
     ParentTask          string         // completion check 전용
-    StaleThreshold      int            // 보고서 stale 판정 영업일 수
+    StaleThreshold      int            // 보고서 stalled 판정 영업일 수
 }
 ```
 
@@ -222,6 +225,7 @@ type contextTask struct {
   "task": "영문 작업 제목",
   "requester": "발신자명",
   "assignee": "수신자명 | shared | __CURRENT_USER__",
+  "assigned_to": "보조 수신자명 (optional)",
   "assignee_reason": "판단 근거",
   "category": "PROMISE|QUERY|POLICY|WAITING",
   "deadline": "자연어 기한",
@@ -482,7 +486,7 @@ const (
 | 파일명 | 모델 라우팅 | 버전 | 용도 |
 |---|---|---|---|
 | `batch_translator.prompt` | `gemini-3.1-flash-lite-preview` | — | 태스크 배치 번역 (JSON 응답) |
-| `chat_system.prompt` | `gemini-3-flash-preview` | 1.7.0 | Chat 채널 태스크 추출 시스템 프롬프트 |
+| `chat_system.prompt` | `gemini-3-flash-preview` | 1.8.0 | Chat 채널 태스크 추출 시스템 프롬프트 |
 | `chat_user.prompt` | `gemini-3-flash-preview` | 1.0.0 | Chat 채널 태스크 추출 유저 프롬프트 |
 | `completion_check.prompt` | `gemini-3.1-flash-lite-preview` | 2.0.0 | 답변→부모 태스크 상태 전이 판별 |
 | `gmail_system.prompt` | `gemini-3-flash-preview` | 1.6.0 | Gmail 스레드 태스크 추출 시스템 프롬프트 |

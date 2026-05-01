@@ -117,12 +117,12 @@ var primePool = []time.Duration{
 |---|---|
 | **소수만** 사용 | 외부 cron(1분/5분/15분 등)과의 LCM(최소공배수)이 길어 harmonic resonance를 구조적으로 회피 |
 | 60초 근방 (59 ~ 73) | 사용자 체감 latency를 기존 단일 59s ticker 수준으로 유지 (평균 ≈ 66s) |
-| 풀에서 5종 | 4개 채널 + 3개 유지보수 + 1개 sweep = **8 loop** 가 매 tick 다른 prime을 추첨 → 동시 정렬 확률 매우 낮음 |
+| 풀에서 11종 | 4개 채널 + 3개 유지보수 + 1개 sweep + 3개 확장 = **11 loop** 가 매 tick 다른 prime을 추첨 → 동시 정렬 확률 매우 낮음 |
 | **매 tick 재추첨** | 두 loop가 우연히 같은 prime을 뽑아도 다음 tick에서 위상이 어긋남. 장기 정렬 자동 와해 |
 | **Skip-when-running** (atomic CAS) | 한 사이클이 다음 tick까지 늘어져도 queue 폭증 없이 단순 skip → 회복력 확보 |
 | 풀 확장 1줄 | `primePool` 슬라이스에 prime 1개 추가하면 전 loop 즉시 반영 (e.g. 79s, 83s) |
 
-### 4.3 적용된 8개 Loop
+### 4.3 적용된 11개 Loop
 
 | Loop | runFn | WhaTap Transaction |
 |---|---|---|
@@ -134,6 +134,9 @@ var primePool = []time.Duration{
 | Token usage flush | `runFlushTokenUsage` | `/Background-FlushTokenUsage` |
 | DB stats log | `runLogDBStats` | `/Background-LogDBStats` |
 | Slack thread sweep | `runSlackSweep` | `/Background-SweepSlackThreads` |
+| Deadline reminder | `runDeadlineReminder` | `/Background-DeadlineReminder` |
+| Daily digest | `runDailyDigest` | `/Background-DailyDigest` |
+| Weekly report | `runWeeklyReport` | `/Background-WeeklyReport` |
 
 > 관리자용 manual full scan(`/api/internal/scan` → `FullScanFunc`)은 본 분산 정책을 우회하고 기존 일괄 흐름(`RunAllScans`)을 유지합니다 — 운영자가 명시적으로 "지금 전부 스캔"을 의도한 신호이기 때문.
 
