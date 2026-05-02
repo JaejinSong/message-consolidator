@@ -23,7 +23,7 @@ COPY main.go ./
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o message-consolidator . && \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o message-consolidator . && \
     upx -1 message-consolidator
 
 # 3. Final staging preparation
