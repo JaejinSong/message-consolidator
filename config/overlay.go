@@ -40,105 +40,80 @@ func OverlayFromDB(ctx context.Context, cfg *Config, load SettingsLoaderFunc) er
 }
 
 // applyOverlay maps each known key onto the corresponding Config field.
-// Why: explicit switch (no reflection) keeps the override surface auditable and lint-friendly.
+// Why: dispatch table (no reflection) keeps the override surface auditable, lint-friendly,
+// and bounded in cyclomatic complexity regardless of key count.
 func applyOverlay(cfg *Config, v map[string]string) {
 	for key, raw := range v {
-		def := FindDef(key)
-		if def == nil {
+		if FindDef(key) == nil {
 			continue
 		}
-		assignField(cfg, key, raw)
+		if setter, ok := overlaySetters[key]; ok {
+			setter(cfg, raw)
+		}
 	}
 }
 
-func assignField(cfg *Config, key, raw string) {
-	switch key {
-	case "SLACK_TOKEN":
-		cfg.SlackToken = raw
-	case "GEMINI_API_KEY":
-		cfg.GeminiAPIKey = raw
-	case "GOOGLE_CLIENT_ID":
-		cfg.GoogleClientID = raw
-	case "GOOGLE_CLIENT_SECRET":
-		cfg.GoogleClientSecret = raw
-	case "AUTH_SECRET":
-		cfg.AuthSecret = raw
-	case "AUTH_DISABLED":
-		cfg.AuthDisabled = parseBool(raw)
-	case "APP_BASE_URL":
-		cfg.AppBaseURL = raw
-	case "TURSO_DATABASE_URL":
-		cfg.TursoURL = raw
-	case "TURSO_AUTH_TOKEN":
-		cfg.TursoToken = raw
-	case "TURSO_SYNC_URL":
-		cfg.TursoSyncURL = raw
-	case "TURSO_SYNC_INTERVAL":
-		cfg.TursoSyncInterval = raw
-	case "GEMINI_ANALYSIS_MODEL":
-		cfg.GeminiAnalysisModel = raw
-	case "GEMINI_TRANSLATION_MODEL":
-		cfg.GeminiTranslationModel = raw
-	case "LOG_LEVEL":
-		cfg.LogLevel = raw
-	case "GMAIL_SKIP_SENDERS":
-		cfg.GmailSkipSenders = raw
-	case "COMPANY_DOMAINS":
-		cfg.CompanyDomains = splitCSV(raw)
-	case "ARCHIVE_DAYS":
-		if n, err := strconv.Atoi(raw); err == nil {
-			cfg.AutoArchiveDays = n
-		}
-	case "NOTION_TOKEN":
-		cfg.NotionToken = raw
-	case "NOTION_REPORT_PAGE_ID":
-		cfg.NotionReportPageID = raw
-	case "TELEGRAM_APP_ID":
-		if n, err := strconv.Atoi(raw); err == nil {
-			cfg.TelegramAppID = n
-		}
-	case "TELEGRAM_APP_HASH":
-		cfg.TelegramAppHash = raw
-	case "INTERNAL_SCAN_SECRET":
-		cfg.InternalScanSecret = raw
-	case "MESSAGE_BATCH_WINDOW":
-		if d, err := time.ParseDuration(raw); err == nil {
-			cfg.MessageBatchWindow = d
-		}
-	case "DB_MAX_IDLE_CONNS":
-		if n, err := strconv.Atoi(raw); err == nil {
-			cfg.DBMaxIdleConns = n
-		}
-	case "DB_MAX_OPEN_CONNS":
-		if n, err := strconv.Atoi(raw); err == nil {
-			cfg.DBMaxOpenConns = n
-		}
-	case "DB_KEEP_ALIVE_INTERVAL":
-		if d, err := time.ParseDuration(raw); err == nil {
-			cfg.DBKeepAliveInterval = d
-		} else if n, err := strconv.Atoi(raw); err == nil {
-			cfg.DBKeepAliveInterval = time.Duration(n) * time.Second
-		}
-	case "REMINDER_ENABLED":
-		cfg.ReminderEnabled = strings.EqualFold(strings.TrimSpace(raw), "true")
-	case "REMINDER_WINDOWS_HOURS":
-		cfg.ReminderWindowsHours = parseIntCSV(raw, []int{24, 1})
-	case "STALE_THRESHOLD_WORKING_DAYS":
-		if n, err := strconv.Atoi(raw); err == nil {
-			cfg.StaleThresholdWorkingDays = n
-		}
-	case "DAILY_DIGEST_ENABLED":
-		cfg.DailyDigestEnabled = parseBool(raw)
-	case "DAILY_DIGEST_RECIPIENT_EMAIL":
-		cfg.DailyDigestRecipientEmails = splitCSV(raw)
-	case "DAILY_DIGEST_HOUR":
-		if n, err := strconv.Atoi(raw); err == nil {
-			cfg.DailyDigestHour = n
-		}
-	case "DAILY_DIGEST_TIMEZONE":
-		cfg.DailyDigestTimezone = raw
-	case "DAILY_DIGEST_LANGUAGE":
-		cfg.DailyDigestLanguage = raw
+type fieldSetter func(*Config, string)
+
+// Why: each entry maps an admin-managed key to a typed setter. Lookup keeps assignField at O(1)
+// branches and confines per-key parsing to its closure — extending the registry adds one entry.
+var overlaySetters = map[string]fieldSetter{
+	"SLACK_TOKEN":                  func(c *Config, r string) { c.SlackToken = r },
+	"GEMINI_API_KEY":               func(c *Config, r string) { c.GeminiAPIKey = r },
+	"GOOGLE_CLIENT_ID":             func(c *Config, r string) { c.GoogleClientID = r },
+	"GOOGLE_CLIENT_SECRET":         func(c *Config, r string) { c.GoogleClientSecret = r },
+	"AUTH_SECRET":                  func(c *Config, r string) { c.AuthSecret = r },
+	"AUTH_DISABLED":                func(c *Config, r string) { c.AuthDisabled = parseBool(r) },
+	"APP_BASE_URL":                 func(c *Config, r string) { c.AppBaseURL = r },
+	"TURSO_DATABASE_URL":           func(c *Config, r string) { c.TursoURL = r },
+	"TURSO_AUTH_TOKEN":             func(c *Config, r string) { c.TursoToken = r },
+	"TURSO_SYNC_URL":               func(c *Config, r string) { c.TursoSyncURL = r },
+	"TURSO_SYNC_INTERVAL":          func(c *Config, r string) { c.TursoSyncInterval = r },
+	"GEMINI_ANALYSIS_MODEL":        func(c *Config, r string) { c.GeminiAnalysisModel = r },
+	"GEMINI_TRANSLATION_MODEL":     func(c *Config, r string) { c.GeminiTranslationModel = r },
+	"LOG_LEVEL":                    func(c *Config, r string) { c.LogLevel = r },
+	"GMAIL_SKIP_SENDERS":           func(c *Config, r string) { c.GmailSkipSenders = r },
+	"COMPANY_DOMAINS":              func(c *Config, r string) { c.CompanyDomains = splitCSV(r) },
+	"ARCHIVE_DAYS":                 func(c *Config, r string) { setIntIfValid(&c.AutoArchiveDays, r) },
+	"NOTION_TOKEN":                 func(c *Config, r string) { c.NotionToken = r },
+	"NOTION_REPORT_PAGE_ID":        func(c *Config, r string) { c.NotionReportPageID = r },
+	"TELEGRAM_APP_ID":              func(c *Config, r string) { setIntIfValid(&c.TelegramAppID, r) },
+	"TELEGRAM_APP_HASH":            func(c *Config, r string) { c.TelegramAppHash = r },
+	"INTERNAL_SCAN_SECRET":         func(c *Config, r string) { c.InternalScanSecret = r },
+	"MESSAGE_BATCH_WINDOW":         func(c *Config, r string) { setDurationIfValid(&c.MessageBatchWindow, r) },
+	"DB_MAX_IDLE_CONNS":            func(c *Config, r string) { setIntIfValid(&c.DBMaxIdleConns, r) },
+	"DB_MAX_OPEN_CONNS":            func(c *Config, r string) { setIntIfValid(&c.DBMaxOpenConns, r) },
+	"DB_KEEP_ALIVE_INTERVAL":       func(c *Config, r string) { setKeepAlive(&c.DBKeepAliveInterval, r) },
+	"REMINDER_ENABLED":             func(c *Config, r string) { c.ReminderEnabled = parseBool(r) },
+	"REMINDER_WINDOWS_HOURS":       func(c *Config, r string) { c.ReminderWindowsHours = parseIntCSV(r, []int{24, 1}) },
+	"STALE_THRESHOLD_WORKING_DAYS": func(c *Config, r string) { setIntIfValid(&c.StaleThresholdWorkingDays, r) },
+	"DAILY_DIGEST_ENABLED":         func(c *Config, r string) { c.DailyDigestEnabled = parseBool(r) },
+	"DAILY_DIGEST_RECIPIENT_EMAIL": func(c *Config, r string) { c.DailyDigestRecipientEmails = splitCSV(r) },
+	"DAILY_DIGEST_HOUR":            func(c *Config, r string) { setIntIfValid(&c.DailyDigestHour, r) },
+	"DAILY_DIGEST_TIMEZONE":        func(c *Config, r string) { c.DailyDigestTimezone = r },
+	"DAILY_DIGEST_LANGUAGE":        func(c *Config, r string) { c.DailyDigestLanguage = r },
+}
+
+func setIntIfValid(target *int, raw string) {
+	if n, err := strconv.Atoi(raw); err == nil {
+		*target = n
+	}
+}
+
+func setDurationIfValid(target *time.Duration, raw string) {
+	if d, err := time.ParseDuration(raw); err == nil {
+		*target = d
+	}
+}
+
+// Why: bare integer means seconds (legacy compatibility); duration string takes precedence.
+func setKeepAlive(target *time.Duration, raw string) {
+	if d, err := time.ParseDuration(raw); err == nil {
+		*target = d
+		return
+	}
+	if n, err := strconv.Atoi(raw); err == nil {
+		*target = time.Duration(n) * time.Second
 	}
 }
 
