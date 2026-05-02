@@ -18,7 +18,9 @@ import (
 
 // check-slack-scope verifies that SLACK_TOKEN can post DMs (chat:write + im:write).
 // Usage: go run ./cmd/check-slack-scope -to <slack_user_id>
-//   ex: go run ./cmd/check-slack-scope -to U01ABCD1234
+//
+//	ex: go run ./cmd/check-slack-scope -to U01ABCD1234
+//
 // If -to omitted, falls back to looking up the bot's own user (auth.test) — only
 // proves chat:write to self, which Slack treats as a no-op for bot tokens.
 func main() {
@@ -100,4 +102,3 @@ func fetchScopes(ctx context.Context, token string) string {
 	}
 	return "<no X-OAuth-Scopes header>"
 }
-

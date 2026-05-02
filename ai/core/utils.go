@@ -10,9 +10,9 @@ import (
 )
 
 type flexSubtask struct {
-	Task         string         `json:"task"`
-	AssigneeID   *store.UserID  `json:"assignee_id"`
-	AssigneeName string         `json:"assignee_name"`
+	Task         string        `json:"task"`
+	AssigneeID   *store.UserID `json:"assignee_id"`
+	AssigneeName string        `json:"assignee_name"`
 }
 
 type flexItem struct {
@@ -106,7 +106,7 @@ func mapFlexToTodo(f flexItem, currentUserID store.UserID, userEmail string) sto
 	item := store.TodoItem{
 		State: f.State, Status: f.Status, Reasoning: f.Reasoning, Task: f.Task, Requester: f.Requester,
 		RequesterCanonical: requesterCanonical,
-		Assignee: assignee, AssignedTo: f.AssignedTo, AssignedAt: f.AssignedAt,
+		Assignee:           assignee, AssignedTo: f.AssignedTo, AssignedAt: f.AssignedAt,
 		SourceTS: f.SourceTS, Category: f.Category, Deadline: f.Deadline,
 		AssigneeReason: f.AssigneeReason, IsContextQuery: f.IsContextQuery,
 		Constraints: f.Constraints, Metadata: f.Metadata, AffinityScore: f.AffinityScore,
@@ -157,7 +157,7 @@ func UnmarshalTranslate(cleanJSON, rawJSON, language string) ([]store.TranslateR
 	return translations, nil
 }
 
-//Why: Wrapped TranslateResponse is an alternate AI output shape; isolating the decode keeps UnmarshalTranslate flat.
+// Why: Wrapped TranslateResponse is an alternate AI output shape; isolating the decode keeps UnmarshalTranslate flat.
 func decodeTranslationFallback(cleanJSON string) ([]store.TranslateRequest, error) {
 	var tr store.TranslateResponse
 	if err := json.Unmarshal([]byte(cleanJSON), &tr); err != nil {

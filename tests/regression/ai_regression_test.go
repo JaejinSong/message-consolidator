@@ -311,4 +311,3 @@ func containsKorean(s string) bool {
 	}
 	return false
 }
-

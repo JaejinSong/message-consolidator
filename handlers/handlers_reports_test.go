@@ -55,7 +55,7 @@ func TestHandleGenerateReport_LangValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("POST", "/api/reports"+tt.query, nil)
-			
+
 			// Why: Inject mock user email into context to bypass auth check in handler
 			ctx := context.WithValue(req.Context(), auth.UserEmailKey, "test@example.com")
 			req = req.WithContext(ctx)

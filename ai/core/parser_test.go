@@ -61,7 +61,7 @@ Body`,
 			wantBody: "Body",
 		},
 		{
-			name: "Empty content",
+			name:    "Empty content",
 			content: "",
 			wantErr: ErrInvalidFrontmatter,
 		},

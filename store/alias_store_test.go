@@ -13,7 +13,7 @@ func setupAliasTest(t *testing.T) (string, func()) {
 	if err != nil {
 		t.Fatalf("Failed to setup test DB: %v", err)
 	}
-	
+
 	// Why: SetupTestDB already calls ResetForTest → InitDB in the correct order.
 	// A second ResetForTest() here would drop all tables without re-initializing them,
 	// silently breaking all subsequent DB writes in this test.

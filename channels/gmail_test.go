@@ -2,16 +2,14 @@ package channels
 
 import (
 	"context"
+	"google.golang.org/api/gmail/v1"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/services"
 	"message-consolidator/store"
 	"message-consolidator/types"
 	"strings"
 	"testing"
-	"google.golang.org/api/gmail/v1"
 )
-
-
 
 func TestProcessGeminiItems_SourceTSAlignment(t *testing.T) {
 	t.Parallel()
@@ -201,9 +199,9 @@ func TestIsCcOnlyDerivation(t *testing.T) {
 		return isCc && !isFromMe && !isDirect && !isBcc && !isDelTo
 	}
 	tests := []struct {
-		name string
+		name                                     string
 		isFromMe, isDirect, isCc, isBcc, isDelTo bool
-		want bool
+		want                                     bool
 	}{
 		{"Cc only", false, false, true, false, false, true},
 		{"To + Cc → not Cc-only", false, true, true, false, false, false},
@@ -221,7 +219,6 @@ func TestIsCcOnlyDerivation(t *testing.T) {
 		})
 	}
 }
-
 
 func TestStripHTML(t *testing.T) {
 	tests := []struct {
@@ -317,7 +314,7 @@ func TestExtractNameFromEmail(t *testing.T) {
 		{"=?utf-8?B?7Iah7J6s7KeE?= <jaejin@whatap.io>", "송재진"},          // Case insensitive charset
 		{"=?UTF-8?Q?Jaejin_Song?= <jaejin@example.com>", "Jaejin Song"}, // Quoted-printable encoded
 		{"indonesia@whatap.io", "indonesia@whatap.io"},                  // Plain email without brackets
-		{"송현빈 <wisebean@goggle.com>", "송현빈"},                        // Korean name (Plain UTF-8)
+		{"송현빈 <wisebean@goggle.com>", "송현빈"},                            // Korean name (Plain UTF-8)
 	}
 
 	for _, tt := range tests {
@@ -689,4 +686,3 @@ func TestFilterGmailBatch_CleanMessageReachesThreadRouting(t *testing.T) {
 		t.Errorf("thread routing must run exactly once for clean message, got %d", threadCalls)
 	}
 }
-

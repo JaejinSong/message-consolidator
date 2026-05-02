@@ -68,9 +68,11 @@ func GetArchivedMessagesFiltered(ctx context.Context, filter ArchiveFilter) ([]C
 func getFromArchiveCache(f ArchiveFilter) ([]ConsolidatedMessage, int, bool) {
 	cacheMu.RLock()
 	defer cacheMu.RUnlock()
-	
+
 	raw, ok := archiveCache[f.Email]
-	if !ok { return nil, 0, false }
+	if !ok {
+		return nil, 0, false
+	}
 
 	filtered := filterByStatus(raw, f.Status)
 	// Why: Only return cache if it likely contains the full set of recent items (count < cache limit).
@@ -79,8 +81,10 @@ func getFromArchiveCache(f ArchiveFilter) ([]ConsolidatedMessage, int, bool) {
 	}
 
 	limit := f.Limit
-	if len(filtered) < limit { limit = len(filtered) }
-	
+	if len(filtered) < limit {
+		limit = len(filtered)
+	}
+
 	return filtered[:limit], len(filtered), true
 }
 
@@ -251,7 +255,7 @@ func ftsSearchArchivedMessages(ctx context.Context, filter ArchiveFilter) ([]Con
 
 func GetArchivedMessagesCount(ctx context.Context, filter ArchiveFilter) (int, error) {
 	queries := db.New(GetDB())
-	
+
 	total, err := queries.SearchArchivedMessagesCount(ctx, db.SearchArchivedMessagesCountParams{
 		UserEmail: nullString(filter.Email),
 		Column2:   filter.Query,

@@ -53,7 +53,7 @@ func (c *ChatAnalyzer) GetSystemInstruction(data ExtractionContext) string {
 	// [Dynamic Few-Shots] RAG-like selection based on input message payload.
 	allShots := GetDefaultFewShots()
 	data.FewShots = SelectFewShots(data.MessagePayload, allShots, 2)
-	
+
 	res, _ := LoadPrompt(PromptChatSystem).Render(data)
 	return res
 }

@@ -119,7 +119,7 @@ type proposalGroupEntry struct {
 	reason     string
 }
 
-//Why: Folds (group_id, contact_a, contact_b) join rows into one entry per group while collecting the de-duped contact-id set for the batched fetch.
+// Why: Folds (group_id, contact_a, contact_b) join rows into one entry per group while collecting the de-duped contact-id set for the batched fetch.
 func indexProposalGroups(rows []db.ProposalGroupRow) (map[string]*proposalGroupEntry, []int64) {
 	groupMap := map[string]*proposalGroupEntry{}
 	allContactIDs := make(map[int64]bool)
@@ -305,7 +305,7 @@ type tokenContact struct {
 	name string
 }
 
-//Why: Builds a sorted-token-key → contacts map so reversed-name pairs can be detected by exact key match instead of O(n^2) string compare.
+// Why: Builds a sorted-token-key → contacts map so reversed-name pairs can be detected by exact key match instead of O(n^2) string compare.
 func indexContactsByTokenKey(contacts []ContactRecord) map[string][]tokenContact {
 	groups := make(map[string][]tokenContact)
 	for _, c := range contacts {
@@ -340,7 +340,7 @@ func proposalsFromTokenGroups(tokenGroups map[string][]tokenContact, handledPair
 	return proposals
 }
 
-//Why: Returns the de-duped contact-ID list for any pair in `group` that is not already in handledPairs; ordering matches insertion.
+// Why: Returns the de-duped contact-ID list for any pair in `group` that is not already in handledPairs; ordering matches insertion.
 func pendingPairContactIDs(group []tokenContact, handledPairs map[[2]int64]bool) []int64 {
 	seen := make(map[int64]bool)
 	var ids []int64
@@ -368,7 +368,7 @@ func orderedPair(a, b int64) (int64, int64) {
 	return a, b
 }
 
-//Why: Looks up unresolved message names against the existing token-key index and proposes auto-merge candidates for each match.
+// Why: Looks up unresolved message names against the existing token-key index and proposes auto-merge candidates for each match.
 func proposalsFromUnresolvedNames(ctx context.Context, tenantEmail string, unresolvedNames []string, tokenGroups map[string][]tokenContact, handledPairs map[[2]int64]bool) []PendingProposal {
 	var proposals []PendingProposal
 	for _, rawName := range unresolvedNames {

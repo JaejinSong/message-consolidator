@@ -121,9 +121,9 @@ func TestFormatWAMentionTagPure(t *testing.T) {
 	initTestDB(t)
 	email := "test@example.com"
 	tests := []struct {
-		name        string
+		name         string
 		mentionedIDs []string
-		wantContain string
+		wantContain  string
 	}{
 		{"empty list returns Mentions: 0", []string{}, "Mentions: 0"},
 		{"invalid JIDs return Mentions: N", []string{"not-a-jid"}, "Mentions: 1"},

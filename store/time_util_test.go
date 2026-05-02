@@ -55,4 +55,3 @@ func TestGetLocalThreshold(t *testing.T) {
 		t.Errorf("GetLocalThreshold produced invalid RFC3339: %v", err)
 	}
 }
-

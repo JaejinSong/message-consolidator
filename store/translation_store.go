@@ -15,7 +15,9 @@ var (
 )
 
 func GetTaskTranslationsBatch(ctx context.Context, messageIDs []MessageID, langCode string) (map[MessageID]string, error) {
-	if langCode == "" { langCode = "en" }
+	if langCode == "" {
+		langCode = "en"
+	}
 	if len(messageIDs) == 0 {
 		return make(map[MessageID]string), nil
 	}
@@ -64,7 +66,7 @@ func GetTaskTranslationsBatch(ctx context.Context, messageIDs []MessageID, langC
 	return results, nil
 }
 
-//Why: Cache hit returns the translated text immediately; misses (or absent language) bubble up to the SQL fetch.
+// Why: Cache hit returns the translated text immediately; misses (or absent language) bubble up to the SQL fetch.
 func splitTranslationsByCache(langCode string, messageIDs []MessageID) (map[MessageID]string, []MessageID) {
 	results := make(map[MessageID]string)
 	translationMu.RLock()
@@ -93,8 +95,12 @@ func splitTranslationsByCache(langCode string, messageIDs []MessageID) (map[Mess
 // SaveTaskTranslationsBulk saves multiple translations in a single optimized SQL execution.
 // Why: Minimizes database lock contention and ensures atomicity for batch AI results.
 func SaveTaskTranslationsBulk(ctx context.Context, langCode string, results map[MessageID]string) error {
-	if langCode == "" { langCode = "en" }
-	if len(results) == 0 { return nil }
+	if langCode == "" {
+		langCode = "en"
+	}
+	if len(results) == 0 {
+		return nil
+	}
 
 	placeholders := make([]string, 0, len(results))
 	// any 사유: ExecContext variadic args 시그니처 — id/lang/text 혼합 타입 placeholder.

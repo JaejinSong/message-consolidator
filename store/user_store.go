@@ -200,12 +200,12 @@ func GetUserAliasesByEmail(ctx context.Context, email string) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Why: Update cache with loaded aliases for subsequent requests.
 	metadataMu.Lock()
 	updateUserCacheAliases(email, aliases)
 	metadataMu.Unlock()
-	
+
 	return aliases, err
 }
 

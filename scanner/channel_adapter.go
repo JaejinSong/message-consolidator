@@ -187,12 +187,12 @@ func saveChannelItem(ctx context.Context, user store.User, aliases []string, ite
 	}
 
 	params := services.TaskBuildParams{
-		UserEmail:      user.Email,
-		User:           user,
-		Aliases:        aliases,
-		Item:           item,
-		SenderRaw:      senderRaw,
-		Source:         source,
+		UserEmail:        user.Email,
+		User:             user,
+		Aliases:          aliases,
+		Item:             item,
+		SenderRaw:        senderRaw,
+		Source:           source,
 		Room:             group,
 		SourceTS:         m.ID,
 		Timestamp:        m.Timestamp,

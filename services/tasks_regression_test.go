@@ -61,13 +61,13 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 	// Task B (Meeting): Turn 4 (Create) -> Turn 7 (Resolve)
 	mockAI := &RegressionMockAI{
 		Results: map[int][]store.TodoItem{
-			1: {{State: "none"}},                                       // Bob: "Hi"
-			2: {{State: "new", Task: "보고서 공유"}},                        // Bob: "Report please"
-			3: {{State: "none"}},                                       // JJ: "Checking..."
-			4: {{State: "new", Task: "다음 주 미팅 일정 수립"}},                  // Bob: "Also schedule meeting"
-			5: {{State: "resolve", Task: "보고서 공유"}},                     // JJ: "Here's report"
-			6: {{State: "none"}},                                       // JJ: "How about Tue 2PM?"
-			7: {{State: "resolve", Task: "다음 주 미팅 일정 수립"}},               // Bob: "Sounds good!"
+			1: {{State: "none"}},                           // Bob: "Hi"
+			2: {{State: "new", Task: "보고서 공유"}},            // Bob: "Report please"
+			3: {{State: "none"}},                           // JJ: "Checking..."
+			4: {{State: "new", Task: "다음 주 미팅 일정 수립"}},     // Bob: "Also schedule meeting"
+			5: {{State: "resolve", Task: "보고서 공유"}},        // JJ: "Here's report"
+			6: {{State: "none"}},                           // JJ: "How about Tue 2PM?"
+			7: {{State: "resolve", Task: "다음 주 미팅 일정 수립"}}, // Bob: "Sounds good!"
 		},
 	}
 	tsrv := &TasksService{}
@@ -126,8 +126,12 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 				if updated.Task == "" {
 					t.Errorf("%s: Task should have been created", turn.Name)
 				}
-				if turnNum == 2 { taskAID = msgID }
-				if turnNum == 4 { taskBID = msgID }
+				if turnNum == 2 {
+					taskAID = msgID
+				}
+				if turnNum == 4 {
+					taskBID = msgID
+				}
 			}
 
 			if turn.Expected == "none" {
@@ -139,8 +143,12 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 
 			if turn.Expected == "resolve" {
 				var targetID store.MessageID
-				if turnNum == 5 { targetID = taskAID }
-				if turnNum == 7 { targetID = taskBID }
+				if turnNum == 5 {
+					targetID = taskAID
+				}
+				if turnNum == 7 {
+					targetID = taskBID
+				}
 
 				m, _ := store.GetMessageByID(ctx, store.GetDB(), email, targetID)
 				if !m.Done {

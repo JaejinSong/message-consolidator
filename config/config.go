@@ -11,40 +11,40 @@ import (
 )
 
 type Config struct {
-	SlackToken             string
-	SlackSigningSecret     string
-	GeminiAPIKey           string
-	GoogleClientID         string
-	GoogleClientSecret     string
-	AuthSecret             string
-	AuthDisabled           bool
-	AppBaseURL             string
-	TursoURL               string
-	TursoToken             string
-	TursoSyncURL           string
-	TursoSyncInterval      string
-	GeminiAnalysisModel    string
-	GeminiTranslationModel string
-	LogLevel               string
-	GmailSkipSenders       string
-	CompanyDomains         []string
-	AutoArchiveDays        int
-	NotionToken          string
-	NotionReportPageID   string
-	TelegramAppID          int
-	TelegramAppHash        string
-	InternalScanSecret     string
-	MessageBatchWindow     time.Duration
-	DBMaxIdleConns         int
-	DBMaxOpenConns         int
-	DBKeepAliveInterval    time.Duration
-	ReminderEnabled           bool
-	ReminderWindowsHours      []int
-	DailyDigestEnabled         bool
-	DailyDigestRecipientEmails []string
-	DailyDigestHour            int
-	DailyDigestTimezone        string
-	DailyDigestLanguage        string
+	SlackToken                  string
+	SlackSigningSecret          string
+	GeminiAPIKey                string
+	GoogleClientID              string
+	GoogleClientSecret          string
+	AuthSecret                  string
+	AuthDisabled                bool
+	AppBaseURL                  string
+	TursoURL                    string
+	TursoToken                  string
+	TursoSyncURL                string
+	TursoSyncInterval           string
+	GeminiAnalysisModel         string
+	GeminiTranslationModel      string
+	LogLevel                    string
+	GmailSkipSenders            string
+	CompanyDomains              []string
+	AutoArchiveDays             int
+	NotionToken                 string
+	NotionReportPageID          string
+	TelegramAppID               int
+	TelegramAppHash             string
+	InternalScanSecret          string
+	MessageBatchWindow          time.Duration
+	DBMaxIdleConns              int
+	DBMaxOpenConns              int
+	DBKeepAliveInterval         time.Duration
+	ReminderEnabled             bool
+	ReminderWindowsHours        []int
+	DailyDigestEnabled          bool
+	DailyDigestRecipientEmails  []string
+	DailyDigestHour             int
+	DailyDigestTimezone         string
+	DailyDigestLanguage         string
 	WeeklyReportEnabled         bool
 	WeeklyReportRecipientEmails []string
 	WeeklyReportHour            int
@@ -83,14 +83,14 @@ func LoadConfig() *Config {
 		DBMaxIdleConns:         envInt("DB_MAX_IDLE_CONNS", 1),
 		DBMaxOpenConns:         envInt("DB_MAX_OPEN_CONNS", 25),
 		// Why: Turso server-side closes idle libsql streams after 10s; 7s leaves 3s margin for jitter/GC.
-		DBKeepAliveInterval:  envDurationOrSeconds("DB_KEEP_ALIVE_INTERVAL", 7*time.Second),
-		ReminderEnabled:           parseBoolEnv("REMINDER_ENABLED", false),
-		ReminderWindowsHours:      parseIntCSV(os.Getenv("REMINDER_WINDOWS_HOURS"), []int{24, 1}),
-		DailyDigestEnabled:         parseBoolEnv("DAILY_DIGEST_ENABLED", false),
-		DailyDigestRecipientEmails: splitCSV(os.Getenv("DAILY_DIGEST_RECIPIENT_EMAIL")),
-		DailyDigestHour:            envInt("DAILY_DIGEST_HOUR", 18),
-		DailyDigestTimezone:        envOr("DAILY_DIGEST_TIMEZONE", "Asia/Seoul"),
-		DailyDigestLanguage:        envOr("DAILY_DIGEST_LANGUAGE", "en"),
+		DBKeepAliveInterval:         envDurationOrSeconds("DB_KEEP_ALIVE_INTERVAL", 7*time.Second),
+		ReminderEnabled:             parseBoolEnv("REMINDER_ENABLED", false),
+		ReminderWindowsHours:        parseIntCSV(os.Getenv("REMINDER_WINDOWS_HOURS"), []int{24, 1}),
+		DailyDigestEnabled:          parseBoolEnv("DAILY_DIGEST_ENABLED", false),
+		DailyDigestRecipientEmails:  splitCSV(os.Getenv("DAILY_DIGEST_RECIPIENT_EMAIL")),
+		DailyDigestHour:             envInt("DAILY_DIGEST_HOUR", 18),
+		DailyDigestTimezone:         envOr("DAILY_DIGEST_TIMEZONE", "Asia/Seoul"),
+		DailyDigestLanguage:         envOr("DAILY_DIGEST_LANGUAGE", "en"),
 		WeeklyReportEnabled:         parseBoolEnv("WEEKLY_REPORT_ENABLED", false),
 		WeeklyReportRecipientEmails: splitCSV(os.Getenv("WEEKLY_REPORT_RECIPIENT_EMAIL")),
 		WeeklyReportHour:            envInt("WEEKLY_REPORT_HOUR", 18),
@@ -100,7 +100,7 @@ func LoadConfig() *Config {
 	}
 }
 
-//Why: .env loads with silent fallback (env vars may be injected by host/Docker); .env.local overrides for local-only secrets.
+// Why: .env loads with silent fallback (env vars may be injected by host/Docker); .env.local overrides for local-only secrets.
 func loadDotenv() {
 	_ = godotenv.Load(".env")
 	if _, err := os.Stat(".env.local"); err != nil {
@@ -135,7 +135,7 @@ func envInt(key string, fallback int) int {
 	return n
 }
 
-//Why: AUTO_ARCHIVE_DAYS and ARCHIVE_DAYS are aliases — last non-empty value wins.
+// Why: AUTO_ARCHIVE_DAYS and ARCHIVE_DAYS are aliases — last non-empty value wins.
 func envIntFirst(keys []string, fallback int) int {
 	value := fallback
 	for _, k := range keys {
@@ -155,7 +155,7 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 	return fallback
 }
 
-//Why: DB_KEEP_ALIVE_INTERVAL accepts either Go duration ("8s") or bare seconds ("8") for ops convenience.
+// Why: DB_KEEP_ALIVE_INTERVAL accepts either Go duration ("8s") or bare seconds ("8") for ops convenience.
 func envDurationOrSeconds(key string, fallback time.Duration) time.Duration {
 	v := os.Getenv(key)
 	if v == "" {
@@ -170,7 +170,7 @@ func envDurationOrSeconds(key string, fallback time.Duration) time.Duration {
 	return fallback
 }
 
-//Why: Comma-separated values are normalized lower-cased and trimmed; empty entries dropped.
+// Why: Comma-separated values are normalized lower-cased and trimmed; empty entries dropped.
 func splitCSV(raw string) []string {
 	if raw == "" {
 		return nil

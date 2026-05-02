@@ -2,7 +2,7 @@ package store
 
 import "time"
 
-//Why: Converts an IANA timezone string into a SQLite-compatible offset modifier to ensure correct date-time calculations in database queries.
+// Why: Converts an IANA timezone string into a SQLite-compatible offset modifier to ensure correct date-time calculations in database queries.
 func GetSQLiteOffset(userTz string) string {
 	if userTz == "" || userTz == "UTC" {
 		return "+00:00"
@@ -57,4 +57,3 @@ func GetLocalThreshold(userTz string, days int) string {
 	}
 	return GetWorkingDaysAgo(days, now).Format(time.RFC3339)
 }
-

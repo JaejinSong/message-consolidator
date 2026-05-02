@@ -122,8 +122,9 @@ func buildTaskMeta(t store.ConsolidatedMessage) string {
 }
 
 // Why: Slack mrkdwn treats <, >, & as control chars (autolink, entity); escape per
-//      api.slack.com/reference/surfaces/formatting#escaping to prevent broken rendering
-//      from task titles containing email <addr@host> or "&" symbols.
+//
+//	api.slack.com/reference/surfaces/formatting#escaping to prevent broken rendering
+//	from task titles containing email <addr@host> or "&" symbols.
 func slackEscape(s string) string {
 	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 	return r.Replace(s)

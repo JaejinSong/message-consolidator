@@ -16,7 +16,7 @@ func TestAmbiguitySafeguard(t *testing.T) {
 	defer cleanup()
 
 	tenant := testutil.RandomEmail("admin")
-	
+
 	// 1. 동일한 display_name "Lee"를 가진 서로 다른 두 명의 연락처 생성 (ambiguity 조건)
 	err = store.AddContactMapping(context.Background(), tenant, testutil.RandomEmail("lee1"), "Lee", "", "test")
 	if err != nil {
@@ -44,7 +44,6 @@ func TestAmbiguitySafeguard(t *testing.T) {
 		t.Fatalf("Failed to save message: %v", err)
 	}
 
-
 	// 3. 서비스 초기화 및 정규화 실행
 	svc := &ReportsService{}
 	messages := []Log{
@@ -60,7 +59,7 @@ func TestAmbiguitySafeguard(t *testing.T) {
 	// 5. DB 데이터 검증: 업데이트가 수행되지 않았어야 함 (원본 "Lee" 유지)
 	// 비동기 업데이트 여부를 확인하기 위해 충분한 시간 대기
 	time.Sleep(300 * time.Millisecond)
-	
+
 	db := store.GetDB()
 	var dbReq string
 	err = db.QueryRow("SELECT requester FROM messages WHERE id = ?", msgID).Scan(&dbReq)

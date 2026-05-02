@@ -56,11 +56,11 @@ func TestResolveTaskTitle(t *testing.T) {
 			want:     "[Unidentified message]",
 		},
 		{
-			name:    "case-insensitive NONE detection",
-			aiTitle: "none",
-			room:    "channel-x",
+			name:     "case-insensitive NONE detection",
+			aiTitle:  "none",
+			room:     "channel-x",
 			original: "Real content here that survives the filter.",
-			want:    "Real content here that survives the filter.",
+			want:     "Real content here that survives the filter.",
 		},
 	}
 
@@ -141,11 +141,11 @@ func TestResolveRequester_SelfDMOverride(t *testing.T) {
 
 func TestResolveRequester_EnvelopeOverridesAI(t *testing.T) {
 	tests := []struct {
-		name           string
-		aiRequester    string
-		senderRaw      string
-		senderEmail    string
-		want           string
+		name        string
+		aiRequester string
+		senderRaw   string
+		senderEmail string
+		want        string
 	}{
 		{
 			name:        "SenderRaw wins over AI",
@@ -336,9 +336,9 @@ func TestResolveAssignee_FirstMentionFallback(t *testing.T) {
 func TestBuildTask_EnvelopeFields(t *testing.T) {
 	fixedTS := time.Date(2026, 4, 27, 10, 0, 0, 0, time.UTC)
 	tests := []struct {
-		name       string
-		params     TaskBuildParams
-		checkFn    func(t *testing.T, msg store.ConsolidatedMessage)
+		name    string
+		params  TaskBuildParams
+		checkFn func(t *testing.T, msg store.ConsolidatedMessage)
 	}{
 		{
 			name: "WhatsApp PushName SenderRaw fills empty AI requester",

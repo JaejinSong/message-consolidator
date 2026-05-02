@@ -1,14 +1,14 @@
 package channels
 
 import (
-	"testing"
 	"go.mau.fi/whatsmeow"
+	"testing"
 )
 
 func TestLogoutWhatsApp(t *testing.T) {
 	manager := NewWAManager()
 	email := "test@example.com"
-	
+
 	// Mock client entry (can't easily mock the client itself without interface, but can test map cleanup)
 	manager.mu.Lock()
 	manager.clients[email] = &whatsmeow.Client{}
@@ -22,7 +22,7 @@ func TestLogoutWhatsApp(t *testing.T) {
 
 	// We only test the cleanup part here as calling Logout() on a zero-value client might panic
 	// In a real scenario, we'd use an interface for whatsmeow.Client
-	
+
 	manager.mu.Lock()
 	delete(manager.clients, email)
 	delete(manager.latestQR, email)

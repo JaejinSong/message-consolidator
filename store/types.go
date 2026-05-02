@@ -30,40 +30,40 @@ type RawChatMessage struct {
 
 // ConsolidatedMessage represents a normalized task message stored in DB
 type ConsolidatedMessage struct {
-	ID           MessageID  `json:"id"`
-	UserEmail    string     `json:"user_email"`
-	Source       string     `json:"source"`
-	Room         string     `json:"room"`
-	Task         string     `json:"task"`
-	Requester    string     `json:"requester"`
-	Assignee     string     `json:"assignee"`
-	AssignedAt   time.Time  `json:"assigned_at"`
-	Link         string     `json:"link"`
-	SourceTS     string     `json:"source_ts"`
-	Pinned       bool       `json:"pinned"`
-	OriginalText string     `json:"original_text,omitempty"`
-	HasOriginal  bool       `json:"has_original,omitempty"`
-	Done         bool       `json:"done"`
-	IsDeleted    bool       `json:"is_deleted"`
-	CreatedAt    time.Time  `json:"created_at"`
-	CompletedAt  *time.Time `json:"completed_at"`
-	Category     string     `json:"category"`
-	Deadline     string     `json:"deadline,omitempty"`
-	ThreadID           string     `json:"thread_id,omitempty"`
-	RequesterCanonical string     `json:"requester_canonical,omitempty"`
-	AssigneeCanonical  string     `json:"assignee_canonical,omitempty"`
-	AssigneeReason     string     `json:"assignee_reason,omitempty"`
-	RepliedToID        string     `json:"replied_to_id,omitempty"`
-	IsContextQuery     bool            `json:"is_context_query"` //Why: Indicates if the message is a follow-up inquiry about existing policies or tasks.
-	Constraints        []string        `json:"constraints"`      //Why: Stores behavioral rules extracted from POLICY-type messages.
-	ConsolidatedContext []string       `json:"consolidated_context"` //Why: Stores 1-2 sentence snippets from the original message that justify the task.
-	Metadata           json.RawMessage `json:"metadata"`         //Why: Flexible JSON storage for future-proofing message attributes.
-	SourceChannels     []string        `json:"source_channels"`  //Why: Tracks all channels that contributed to this consolidated task.
-	RequesterType      string          `json:"requester_type,omitempty"`
-	AssigneeType       string          `json:"assignee_type,omitempty"`
+	ID                   MessageID       `json:"id"`
+	UserEmail            string          `json:"user_email"`
+	Source               string          `json:"source"`
+	Room                 string          `json:"room"`
+	Task                 string          `json:"task"`
+	Requester            string          `json:"requester"`
+	Assignee             string          `json:"assignee"`
+	AssignedAt           time.Time       `json:"assigned_at"`
+	Link                 string          `json:"link"`
+	SourceTS             string          `json:"source_ts"`
+	Pinned               bool            `json:"pinned"`
+	OriginalText         string          `json:"original_text,omitempty"`
+	HasOriginal          bool            `json:"has_original,omitempty"`
+	Done                 bool            `json:"done"`
+	IsDeleted            bool            `json:"is_deleted"`
+	CreatedAt            time.Time       `json:"created_at"`
+	CompletedAt          *time.Time      `json:"completed_at"`
+	Category             string          `json:"category"`
+	Deadline             string          `json:"deadline,omitempty"`
+	ThreadID             string          `json:"thread_id,omitempty"`
+	RequesterCanonical   string          `json:"requester_canonical,omitempty"`
+	AssigneeCanonical    string          `json:"assignee_canonical,omitempty"`
+	AssigneeReason       string          `json:"assignee_reason,omitempty"`
+	RepliedToID          string          `json:"replied_to_id,omitempty"`
+	IsContextQuery       bool            `json:"is_context_query"`     //Why: Indicates if the message is a follow-up inquiry about existing policies or tasks.
+	Constraints          []string        `json:"constraints"`          //Why: Stores behavioral rules extracted from POLICY-type messages.
+	ConsolidatedContext  []string        `json:"consolidated_context"` //Why: Stores 1-2 sentence snippets from the original message that justify the task.
+	Metadata             json.RawMessage `json:"metadata"`             //Why: Flexible JSON storage for future-proofing message attributes.
+	SourceChannels       []string        `json:"source_channels"`      //Why: Tracks all channels that contributed to this consolidated task.
+	RequesterType        string          `json:"requester_type,omitempty"`
+	AssigneeType         string          `json:"assignee_type,omitempty"`
 	RequesterDisplayName string          `json:"requester_display_name,omitempty"`
 	AssigneeDisplayName  string          `json:"assignee_display_name,omitempty"`
-	Subtasks             []Subtask      `json:"subtasks,omitempty"` //Why: Hierarchical task structure for consolidated emails.
+	Subtasks             []Subtask       `json:"subtasks,omitempty"` //Why: Hierarchical task structure for consolidated emails.
 }
 
 // Subtask represents a smaller action item within a consolidated task.
@@ -85,14 +85,14 @@ type CategorizedMessages struct {
 
 // User represents an application user
 type User struct {
-	ID              UserID     `json:"id"`
-	Email           string     `json:"email"`
-	Name            string     `json:"name"`
-	SlackID         string     `json:"slack_id"`
-	WAJID           string     `json:"wa_jid"`
-	TgUserID        string     `json:"tg_user_id"`
-	Picture         string     `json:"picture"`
-	IsAdmin         bool       `json:"is_admin"`
+	ID                        UserID    `json:"id"`
+	Email                     string    `json:"email"`
+	Name                      string    `json:"name"`
+	SlackID                   string    `json:"slack_id"`
+	WAJID                     string    `json:"wa_jid"`
+	TgUserID                  string    `json:"tg_user_id"`
+	Picture                   string    `json:"picture"`
+	IsAdmin                   bool      `json:"is_admin"`
 	Aliases                   []string  `json:"aliases"`
 	ArchiveDays               int       `json:"archive_days"`
 	StaleThresholdWorkingDays int       `json:"stale_threshold_working_days"`
@@ -105,7 +105,6 @@ func (u User) PreferredName() string {
 	}
 	return u.Email
 }
-
 
 // TaskTranslation represents a cached translation for a task
 type TaskTranslation struct {
@@ -146,28 +145,28 @@ type UserAlias struct {
 
 // TodoItem is the task structure returned by Gemini Analyze
 type TodoItem struct {
-	ID              *MessageID      `json:"id,omitempty"` // ID of the existing task to update or resolve
-	State           string          `json:"state"`        // "new", "update", "resolve", or "cancel"
-	Reasoning       string          `json:"reasoning,omitempty"` // AI justification for state/merge choice
+	ID                 *MessageID      `json:"id,omitempty"`        // ID of the existing task to update or resolve
+	State              string          `json:"state"`               // "new", "update", "resolve", or "cancel"
+	Reasoning          string          `json:"reasoning,omitempty"` // AI justification for state/merge choice
 	Task               string          `json:"task"`
 	Requester          string          `json:"requester"`
 	RequesterCanonical string          `json:"requester_canonical,omitempty"`
 	Assignee           string          `json:"assignee"`
-	AssignedTo      string          `json:"assigned_to,omitempty"`
-	AssignedAt      string          `json:"assigned_at"`
-	SourceTS        string          `json:"source_ts"`
-	Category        string          `json:"category"`
-	Deadline        string          `json:"deadline"`
-	AssigneeReason  string          `json:"assignee_reason,omitempty"`
-	IsContextQuery  bool            `json:"is_context_query"`
-	Constraints     []string        `json:"constraints"`
-	Metadata        json.RawMessage `json:"metadata"`
-	AffinityScore   int             `json:"affinity_score,omitempty"`   // Contextual similarity score (0-100) for consolidation.
-	AffinityGroupID string          `json:"affinity_group_id,omitempty"` // Shared ID for tasks that should be consolidated.
-	SourceChannels  []string        `json:"source_channels,omitempty"`  // All origins for merged tasks.
-	ContextSnippets []string        `json:"context_snippets,omitempty"` // Justification snippets for the task.
-	Status          string          `json:"status"`            // "new", "update", "resolve", or "cancel"
-	Subtasks        []TodoSubtask   `json:"subtasks,omitempty"`        // Why: Support for hierarchical task-subtask structure from AI.
+	AssignedTo         string          `json:"assigned_to,omitempty"`
+	AssignedAt         string          `json:"assigned_at"`
+	SourceTS           string          `json:"source_ts"`
+	Category           string          `json:"category"`
+	Deadline           string          `json:"deadline"`
+	AssigneeReason     string          `json:"assignee_reason,omitempty"`
+	IsContextQuery     bool            `json:"is_context_query"`
+	Constraints        []string        `json:"constraints"`
+	Metadata           json.RawMessage `json:"metadata"`
+	AffinityScore      int             `json:"affinity_score,omitempty"`    // Contextual similarity score (0-100) for consolidation.
+	AffinityGroupID    string          `json:"affinity_group_id,omitempty"` // Shared ID for tasks that should be consolidated.
+	SourceChannels     []string        `json:"source_channels,omitempty"`   // All origins for merged tasks.
+	ContextSnippets    []string        `json:"context_snippets,omitempty"`  // Justification snippets for the task.
+	Status             string          `json:"status"`                      // "new", "update", "resolve", or "cancel"
+	Subtasks           []TodoSubtask   `json:"subtasks,omitempty"`          // Why: Support for hierarchical task-subtask structure from AI.
 }
 
 // TodoSubtask represents a sub-action extracted by AI.
@@ -239,16 +238,16 @@ const (
 // Report represents a cached AI-generated summary (metadata) and backend-calculated visualization.
 // Why: Standardizes the 1:N relationship where one metadata entry can have multiple language translations.
 type Report struct {
-	ID            ReportID            `json:"id"`
-	UserEmail     string              `json:"user_email"`
-	StartDate     string              `json:"start_date"`
-	EndDate       string              `json:"end_date"`
-	ReportSummary string              `json:"report_summary"` // Primary summary (typically English)
-	Translations  map[string]string   `json:"translations,omitempty"`
-	Visualization string              `json:"visualization_data"` // JSON string of Node/Edge data
-	Status        string              `json:"status"`             // "processing", "completed", "failed"
-	IsTruncated   bool                `json:"is_truncated"`       // Why: Flag to indicate if the report was limited due to token boundaries.
-	CreatedAt     time.Time           `json:"created_at"`
+	ID            ReportID          `json:"id"`
+	UserEmail     string            `json:"user_email"`
+	StartDate     string            `json:"start_date"`
+	EndDate       string            `json:"end_date"`
+	ReportSummary string            `json:"report_summary"` // Primary summary (typically English)
+	Translations  map[string]string `json:"translations,omitempty"`
+	Visualization string            `json:"visualization_data"` // JSON string of Node/Edge data
+	Status        string            `json:"status"`             // "processing", "completed", "failed"
+	IsTruncated   bool              `json:"is_truncated"`       // Why: Flag to indicate if the report was limited due to token boundaries.
+	CreatedAt     time.Time         `json:"created_at"`
 }
 
 // AliasStore provides an interface for metadata enrichment and identity resolution.

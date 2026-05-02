@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-//Why: Ensures the graceful shutdown procedure for WhatsApp clients completes within the strict 2-second timeout bound, preventing application hanging during Docker SIGTERM signals.
+// Why: Ensures the graceful shutdown procedure for WhatsApp clients completes within the strict 2-second timeout bound, preventing application hanging during Docker SIGTERM signals.
 func TestDisconnectAllWhatsApp_GracefulTimeout(t *testing.T) {
 	// Initialize logger to prevent nil pointer errors
 	logger.InitLogging()

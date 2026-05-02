@@ -34,11 +34,11 @@ func runWAPair(cfg *config.Config) {
 
 	//Why: Overrides the user metadata fetcher to bypass existing JID checks during a fresh CLI pairing attempt.
 	channels.DefaultWAManager.FetchUserWAJID = func(email string) (string, error) {
-		return "", nil 
+		return "", nil
 	}
 
 	channels.DefaultWAManager.InitWhatsApp(email, cfg)
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -72,7 +72,7 @@ func runWAPair(cfg *config.Config) {
 	}
 
 	fmt.Println("\nWaiting for connection success... (Ctrl+C to stop)")
-	
+
 	//Why: Blocks the main thread to allow the WhatsApp background workers to process the pairing success event after the user scans the QR code.
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)

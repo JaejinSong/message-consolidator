@@ -250,7 +250,7 @@ func (a *API) HandleRestoreGmailCC(w http.ResponseWriter, r *http.Request) {
 
 	totalFixed := a.processActiveRestore(r.Context(), email, user, aliases, svc)
 	archiveFixed := a.processArchiveRestore(r.Context(), email, user, aliases, svc)
-	
+
 	respondJSON(w, http.StatusOK, fixedCountResponse{Status: "success", FixedCount: totalFixed + archiveFixed})
 }
 

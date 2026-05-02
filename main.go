@@ -93,7 +93,7 @@ func main() {
 	gracefulShutdown(srv)
 }
 
-//Why: Diagnoses DSN-modifying env vars (TURSO_*/WHATAP_*) at boot. Secrets masked.
+// Why: Diagnoses DSN-modifying env vars (TURSO_*/WHATAP_*) at boot. Secrets masked.
 func logEnvDebug() {
 	logger.Infof("[ENV-DEBUG] Checking environment for DSN modifiers...")
 	for _, env := range os.Environ() {
@@ -122,7 +122,7 @@ func initSlackBot(cfg *config.Config, tasks *services.TasksService) *services.Sl
 	return services.NewSlackBot(channels.NewSlackClient(cfg.SlackToken), tasks)
 }
 
-//Why: Boots Gemini-backed services lazily; falls back to AI-less TasksService when no API key is configured.
+// Why: Boots Gemini-backed services lazily; falls back to AI-less TasksService when no API key is configured.
 func initAIServices(ctx context.Context, cfg *config.Config) (*services.ReportsService, *services.TasksService, *ai.IdentityResolver) {
 	var gClient *ai.GeminiClient
 	if cfg.GeminiAPIKey != "" {
@@ -144,14 +144,14 @@ func initAIServices(ctx context.Context, cfg *config.Config) (*services.ReportsS
 	return reportsSvc, tasksSvc, identityResolver
 }
 
-//Why: Blocks until SIGINT/SIGTERM so the orchestration loop can drive a controlled shutdown.
+// Why: Blocks until SIGINT/SIGTERM so the orchestration loop can drive a controlled shutdown.
 func waitForShutdownSignal() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 }
 
-//Why: Runs disconnect, flush, HTTP drain, and DB close concurrently so one slow dependency cannot stall the others.
+// Why: Runs disconnect, flush, HTTP drain, and DB close concurrently so one slow dependency cannot stall the others.
 func gracefulShutdown(srv *http.Server) {
 	logger.Infof("[SHUTDOWN] shutting down server gracefully...")
 	shutdownStart := time.Now()
@@ -192,7 +192,7 @@ func gracefulShutdown(srv *http.Server) {
 	logger.Infof("[SHUTDOWN] server exited. total shutdown time: %v", time.Since(shutdownStart))
 }
 
-//Why: Encapsulates the wiring of external services, background workers, and HTTP routes to provide a testable, fully configured server instance.
+// Why: Encapsulates the wiring of external services, background workers, and HTTP routes to provide a testable, fully configured server instance.
 func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.Server {
 	wireWhatsAppHooks(ctx)
 	wireTelegramHooks(ctx)
@@ -229,7 +229,7 @@ func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.
 	return srv
 }
 
-//Why: WhatsApp IoC hooks injected before client boot — UpdateUserWAJID writes back via Background ctx because OnConnected/OnLoggedOut fire from manager goroutines outlasting the boot ctx.
+// Why: WhatsApp IoC hooks injected before client boot — UpdateUserWAJID writes back via Background ctx because OnConnected/OnLoggedOut fire from manager goroutines outlasting the boot ctx.
 func wireWhatsAppHooks(ctx context.Context) {
 	channels.DefaultWAManager.FetchUserWAJID = func(email string) (string, error) {
 		u, err := store.GetOrCreateUser(ctx, email, "", "")
@@ -250,7 +250,7 @@ func wireWhatsAppHooks(ctx context.Context) {
 	}
 }
 
-//Why: Telegram IoC mirrors WhatsApp; FetchUserTgSession/OnSessionUpdated bind telegram_sessions, OnConnected/OnLoggedOut persist tg_user_id.
+// Why: Telegram IoC mirrors WhatsApp; FetchUserTgSession/OnSessionUpdated bind telegram_sessions, OnConnected/OnLoggedOut persist tg_user_id.
 func wireTelegramHooks(ctx context.Context) {
 	channels.DefaultTelegramManager.FetchUserTgSession = func(email string) ([]byte, error) {
 		return store.GetTelegramSession(ctx, email)
@@ -283,7 +283,7 @@ func wireTelegramHooks(ctx context.Context) {
 	}
 }
 
-//Why: Init*X owns its own long-lived client lifecycle (teardown via DisconnectAllX in gracefulShutdown), so it intentionally outlives the boot ctx.
+// Why: Init*X owns its own long-lived client lifecycle (teardown via DisconnectAllX in gracefulShutdown), so it intentionally outlives the boot ctx.
 func bootChannelClients(ctx context.Context, cfg *config.Config) {
 	users, _ := store.GetAllUsers(ctx)
 	for _, u := range users {

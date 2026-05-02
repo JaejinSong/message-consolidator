@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 	"message-consolidator/ai"
-	"message-consolidator/store"
 	"message-consolidator/internal/testutil"
+	"message-consolidator/store"
 )
 
 // Why: cmd/verify/* tools are end-to-end harness scripts; their linear narrative (setup → mock AI → save → assert)
@@ -22,7 +22,7 @@ func main() {
 	defer cleanup()
 
 	lang := "ko"
-	
+
 	// Seed messages
 	for i := 1; i <= 3; i++ {
 		_, _ = store.GetDB().Exec("INSERT INTO messages (id, user_email, task, source, done, is_deleted, source_ts) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -47,7 +47,9 @@ func main() {
 
 	if len(successMap) > 0 {
 		err = store.SaveTaskTranslationsBulk(context.Background(), lang, successMap)
-		if err != nil { fmt.Printf("Error during bulk save: %v\n", err) }
+		if err != nil {
+			fmt.Printf("Error during bulk save: %v\n", err)
+		}
 	}
 	fmt.Printf("Bulk saved %d items.\n", len(successMap))
 
@@ -68,10 +70,12 @@ func main() {
 		text := cached[id]
 		errorMsg := ""
 		for _, nt := range newTrans {
-			if nt.MessageID == id { errorMsg = nt.Error }
+			if nt.MessageID == id {
+				errorMsg = nt.Error
+			}
 		}
-		
-		fmt.Printf("ID %d: Success=%v, Text='%s', Error='%s'\n", 
+
+		fmt.Printf("ID %d: Success=%v, Text='%s', Error='%s'\n",
 			id, text != "", text, errorMsg)
 	}
 

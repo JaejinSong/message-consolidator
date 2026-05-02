@@ -60,4 +60,3 @@ func UpsertTelegramCreds(ctx context.Context, email string, appID int, appHash s
 func DeleteTelegramCreds(ctx context.Context, email string) error {
 	return db.New(GetDB()).DeleteTelegramCredentials(ctx, email)
 }
-

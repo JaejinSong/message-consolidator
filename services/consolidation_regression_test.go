@@ -18,7 +18,7 @@ func TestTaskConsolidationRegression(t *testing.T) {
 
 	ctx := context.Background()
 	email := "user@example.com"
-	
+
 	// Realistic complex email body (Hyundai Transys scenario)
 	complexBody := `
 Updates
@@ -33,7 +33,7 @@ Date: April 20th 10:00 AM
 	// This simulates how AI should respond based on v1.1.0 prompt
 	consolidatedResult := []store.TodoItem{
 		{
-			Task: "WhaTap 서비스 재시작 프로세스 자동화 구현 및 4월 20일 원격지원",
+			Task:  "WhaTap 서비스 재시작 프로세스 자동화 구현 및 4월 20일 원격지원",
 			State: "new",
 			Subtasks: []store.TodoSubtask{
 				{Task: "자동화 스크립트 및 가이드 적용"},
@@ -48,13 +48,13 @@ Date: April 20th 10:00 AM
 			1: consolidatedResult,
 		},
 	}
-	
+
 	tsrv := &TasksService{}
 	svc := NewCompletionService(mockAI, &DefaultTaskStore{}, tsrv, store.GetDB())
 
 	t.Run("ExtractOneTaskWithMultipleSubtasks", func(t *testing.T) {
 		mockAI.CurrentTurn = 1
-		
+
 		// Simulate saving and processing the message
 		_, msgID, _ := store.SaveMessage(ctx, store.GetDB(), store.ConsolidatedMessage{
 			UserEmail:    email,
@@ -66,7 +66,7 @@ Date: April 20th 10:00 AM
 		})
 
 		msg, _ := store.GetMessageByID(ctx, store.GetDB(), email, msgID)
-		
+
 		// Process with AI
 		svc.ProcessPotentialCompletion(ctx, msg)
 

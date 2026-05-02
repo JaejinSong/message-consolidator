@@ -88,7 +88,7 @@ func IsProcessed(ctx context.Context, q Querier, email, sourceTS string) (bool, 
 		UserEmail: email,
 		TargetID:  sourceTS,
 	})
-	
+
 	if err != nil {
 		return false, fmt.Errorf("failed to check if message is processed: %w", err)
 	}
@@ -284,7 +284,9 @@ func DeduplicateTasks(items []TodoItem) []TodoItem {
 	var results []TodoItem
 	seen := make(map[int]bool)
 	for i := 0; i < len(items); i++ {
-		if seen[i] { continue }
+		if seen[i] {
+			continue
+		}
 		bestIdx := findBestMatch(i, items, seen)
 		results = append(results, items[bestIdx])
 	}
@@ -295,7 +297,9 @@ func findBestMatch(currIdx int, items []TodoItem, seen map[int]bool) int {
 	bestIdx := currIdx
 	seen[currIdx] = true
 	for j := currIdx + 1; j < len(items); j++ {
-		if seen[j] { continue }
+		if seen[j] {
+			continue
+		}
 		a, b := items[bestIdx], items[j]
 		if a.SourceTS != "" && b.SourceTS != "" && a.SourceTS != b.SourceTS {
 			continue
@@ -309,7 +313,6 @@ func findBestMatch(currIdx int, items []TodoItem, seen map[int]bool) int {
 	}
 	return bestIdx
 }
-
 
 // MergeTasksWithTitle consolidates multiple tasks into one with a specific title (AI generated).
 // Why: [Unified Consolidation] Combines source tasks into a destination task while setting a new optimized title.
@@ -359,7 +362,9 @@ func MergeTasksWithTitle(ctx context.Context, email string, targetIDs []MessageI
 
 func toInt64List(ids []MessageID) []int64 {
 	res := make([]int64, len(ids))
-	for i, id := range ids { res[i] = int64(id) }
+	for i, id := range ids {
+		res[i] = int64(id)
+	}
 	return res
 }
 
@@ -373,7 +378,9 @@ func splitMergeTasks(msgs []ConsolidatedMessage, destID MessageID) (*Consolidate
 			sources = append(sources, msgs[i])
 		}
 	}
-	if dest == nil { return nil, nil, fmt.Errorf("destination task %d not found", destID) }
+	if dest == nil {
+		return nil, nil, fmt.Errorf("destination task %d not found", destID)
+	}
 	return dest, sources, nil
 }
 
@@ -727,7 +734,6 @@ func encodeSubtasks(subtasks []Subtask) string {
 	return string(data)
 }
 
-
 func toConsolidatedFromByID(row db.GetMessageByIDRow) ConsolidatedMessage {
 	return MapVMessageToConsolidated(
 		MessageID(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
@@ -823,7 +829,7 @@ func toConsolidatedFromContext(row db.GetActiveTasksForContextRow) ConsolidatedM
 		Requester:    row.Requester,
 		Assignee:     row.Assignee,
 		Source:       row.Source,
-		Room:       row.Room,
+		Room:         row.Room,
 		Done:         row.Done,
 		Category:     row.Category,
 		Subtasks:     []Subtask{},

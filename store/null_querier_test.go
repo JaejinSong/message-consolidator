@@ -15,7 +15,7 @@ func TestNullQuerierHandling(t *testing.T) {
 
 	ctx := context.Background()
 	email := "test-null@example.com"
-	
+
 	// Seed a message
 	conn := GetDB()
 	res, err := conn.Exec("INSERT INTO messages (user_email, task, source, done, is_deleted, source_ts) VALUES (?, ?, ?, ?, ?, ?)",

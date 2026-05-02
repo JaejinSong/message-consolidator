@@ -84,7 +84,7 @@ func BuildTask(ctx context.Context, p TaskBuildParams) store.ConsolidatedMessage
 
 // resolveTaskTitle returns a non-empty, descriptive title for a task.
 // Why: Empty/stub titles ("", "NONE", or <5 chars) get hidden from the dashboard
-// active list (filter `IFNULL(task,'') != ''`) and report Activity counting.
+// active list (filter `IFNULL(task,”) != ”`) and report Activity counting.
 // Falls back through Gmail subject line → original snippet → room marker so every
 // row carries a minimum identifier even if upstream AI returns garbage.
 func resolveTaskTitle(aiTitle, room, original string) string {
@@ -176,7 +176,6 @@ func senderIsCurrentUser(ctx context.Context, p TaskBuildParams) bool {
 	}
 	return false
 }
-
 
 func resolveAssignee(ctx context.Context, p TaskBuildParams) string {
 	raw := normalizeAIAssignee(p)
@@ -286,7 +285,7 @@ func matchesAlias(raw string, aliases []string) bool {
 	return false
 }
 
-//Why: ResolveAlias is the only DB-backed branch — wrapped so resolveAssignee stays in cognitive budget. Gracefully returns false if the DB hasn't been initialized.
+// Why: ResolveAlias is the only DB-backed branch — wrapped so resolveAssignee stays in cognitive budget. Gracefully returns false if the DB hasn't been initialized.
 func resolvesToCurrentUser(ctx context.Context, raw string, p TaskBuildParams) bool {
 	if store.GetDB() == nil {
 		return false

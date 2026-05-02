@@ -1,11 +1,11 @@
 package channels
 
 import (
-	"testing"
+	waProto "go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
 	waTypes "go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
-	"go.mau.fi/whatsmeow/types"
-	waProto "go.mau.fi/whatsmeow/proto/waE2E"
+	"testing"
 )
 
 func TestIsSystemMessage(t *testing.T) {
@@ -95,7 +95,7 @@ func TestIsSystemMessage(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "Nil message",
+			name:     "Nil message",
 			msg:      nil,
 			expected: true,
 		},

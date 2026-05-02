@@ -123,7 +123,7 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 
-//Why: Cross-service Slack ID resolution without creating a circular package dependency between auth/store/channels.
+// Why: Cross-service Slack ID resolution without creating a circular package dependency between auth/store/channels.
 func autoLinkSlack(ctx context.Context, user *store.User, lookup func(string) (string, string, error)) {
 	slackID, realName, err := lookup(user.Email)
 	if err != nil || slackID == "" {
@@ -140,7 +140,7 @@ func autoLinkSlack(ctx context.Context, user *store.User, lookup func(string) (s
 
 func HandleLogout(w http.ResponseWriter, r *http.Request) {
 	isProd := os.Getenv("ENV") == "production" || strings.HasPrefix(appBaseURL, "https://")
-	
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session_token",
 		Value:    "",
@@ -164,7 +164,7 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 
-//Why: Generates a cryptographically secure random string for use as the OAuth2 'state' parameter to prevent CSRF attacks.
+// Why: Generates a cryptographically secure random string for use as the OAuth2 'state' parameter to prevent CSRF attacks.
 func generateStateCookie(w http.ResponseWriter) string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -235,8 +235,8 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		if AuthDisabled {
 			email := os.Getenv("DEFAULT_USER_EMAIL")
 			logger.Debugf("[AUTH] AuthDisabled is true. Bypassing authentication for %s. Using default user: %s", r.URL.Path, email)
-			
-			// Why: If the parameter 'email' is already present (e.g. injected by Vite Proxy or Front-end), 
+
+			// Why: If the parameter 'email' is already present (e.g. injected by Vite Proxy or Front-end),
 			// we skip manual injection to prevent 'Double Injection' that breaks logic integrity.
 			if r.URL.Query().Get("email") == "" {
 				q := r.URL.Query()
@@ -248,8 +248,6 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
-
-
 
 		cookie, err := r.Cookie("session_token")
 		if err != nil {

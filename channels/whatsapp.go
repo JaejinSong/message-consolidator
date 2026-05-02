@@ -16,15 +16,13 @@ import (
 	"github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
+	waProto "go.mau.fi/whatsmeow/proto/waE2E"
 	waStore "go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waTypes "go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
-	waProto "go.mau.fi/whatsmeow/proto/waE2E"
 )
-
-
 
 type WAManager struct {
 	clients       map[string]*whatsmeow.Client
@@ -213,7 +211,7 @@ func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, m
 		ID: msg.Info.ID, Sender: sender, Text: msgText,
 		Timestamp: msg.Info.Timestamp, ReplyToID: meta.ReplyToID,
 		RepliedToUser: meta.RepliedToUser, IsForwarded: meta.IsForwarded,
-		IsFromMe: msg.Info.IsFromMe,
+		IsFromMe:     msg.Info.IsFromMe,
 		MentionedIDs: meta.MentionedIDs, HasAttachment: meta.HasAttachment,
 		AttachmentNames: meta.AttachmentNames,
 	})
@@ -324,7 +322,7 @@ func (m *WAManager) resolveIncomingMentions(email string, client *whatsmeow.Clie
 	return result
 }
 
-//Why: Falls back to whatsmeow contact metadata in priority order (full → push → business) and persists asynchronously so the next mention skips the API hop.
+// Why: Falls back to whatsmeow contact metadata in priority order (full → push → business) and persists asynchronously so the next mention skips the API hop.
 func (m *WAManager) resolveMentionName(email string, client *whatsmeow.Client, jid waTypes.JID, number string) string {
 	if name := store.GetNameByWhatsAppNumber(email, number); name != "" {
 		return name
@@ -389,7 +387,7 @@ func (m *WAManager) GetQR(ctx context.Context, email string) (string, error) {
 	return m.consumeQRChannel(ctx, email, qrChan)
 }
 
-//Why: Splits the QR-event consumption loop out of GetQR so the parent function stays in cognitive budget; switch is intrinsic to the upstream event protocol.
+// Why: Splits the QR-event consumption loop out of GetQR so the parent function stays in cognitive budget; switch is intrinsic to the upstream event protocol.
 func (m *WAManager) consumeQRChannel(ctx context.Context, email string, qrChan <-chan whatsmeow.QRChannelItem) (string, error) {
 	for {
 		select {
@@ -560,13 +558,13 @@ func LogoutWhatsApp(ctx context.Context, email string) error {
 
 func DisconnectAllWhatsApp() {
 	DefaultWAManager.mu.Lock()
-	
+
 	type waClientInfo struct {
-		email   string
-		client  *whatsmeow.Client
+		email  string
+		client *whatsmeow.Client
 	}
 	var clientsToDisconnect []waClientInfo
-	
+
 	for email, client := range DefaultWAManager.clients {
 		if client.IsConnected() {
 			clientsToDisconnect = append(clientsToDisconnect, waClientInfo{email: email, client: client})
@@ -606,13 +604,17 @@ func DisconnectAllWhatsApp() {
 }
 
 func (m *WAManager) extractMediaInfo(msg *waProto.Message) (string, bool, []string) {
-	if msg == nil { return "", false, nil }
+	if msg == nil {
+		return "", false, nil
+	}
 	if msg.ImageMessage != nil {
 		return "[Image]", true, []string{"image.jpg"}
 	}
 	if msg.DocumentMessage != nil {
 		name := msg.DocumentMessage.GetFileName()
-		if name == "" { name = "document" }
+		if name == "" {
+			name = "document"
+		}
 		return fmt.Sprintf("[Document: %s]", name), true, []string{name}
 	}
 	if msg.VideoMessage != nil {

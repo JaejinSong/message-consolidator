@@ -29,13 +29,11 @@ import (
 	"github.com/recapco/emailreplyparser"
 )
 
-
 const (
 	CategorySent   = "발신 메일" //Why: Identifies emails sent by the user to determine if they constitute a commitment or a task update.
 	CategoryMine   = "내 업무"  //Why: Marks emails where the user is the primary recipient as personal tasks.
 	CategoryOthers = "기타 업무" //Why: Classifies CC'd or group emails as lower-priority informational items.
 )
-
 
 var GmailOAuthConfig *oauth2.Config
 
@@ -596,7 +594,7 @@ func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessag
 	return result
 }
 
-//Why: Reply/sent threads enter the completion pipeline before standard extraction, so the early-return path lives here to keep filterGmailBatch flat.
+// Why: Reply/sent threads enter the completion pipeline before standard extraction, so the early-return path lives here to keep filterGmailBatch flat.
 func handleThreadActivity(ctx context.Context, email string, m types.RawMessage, classificationMap map[string]string, onThreadActivity func(store.ConsolidatedMessage) bool) bool {
 	if onThreadActivity == nil {
 		return false
@@ -701,8 +699,6 @@ func processGeminiItems(ctx context.Context, email string, user *store.User, ali
 	return result
 }
 
-
-
 func extractBody(payload *gmail.MessagePart) string {
 	if payload == nil {
 		return ""
@@ -728,7 +724,7 @@ func extractBody(payload *gmail.MessagePart) string {
 	return ""
 }
 
-//Why: Decodes the body of a single MIME part using its declared MIME type so extractBody can iterate without nested branches.
+// Why: Decodes the body of a single MIME part using its declared MIME type so extractBody can iterate without nested branches.
 func decodePart(part *gmail.MessagePart) string {
 	if part == nil || part.Body == nil || part.Body.Data == "" {
 		return ""

@@ -780,7 +780,7 @@ func TestReportsService_GenerateReport_OnlyRequestedLanguage(t *testing.T) {
 	defer cleanup()
 
 	// Mock TranslationService to simulate AI translation
-	transSvc := NewTranslationService(nil) 
+	transSvc := NewTranslationService(nil)
 	svc := NewReportsService(&mockSummarizer{
 		generateFunc: func(ctx context.Context, email, logs string, _ store.ReportID) (string, error) {
 			return "AI Generated Summary", nil
@@ -806,7 +806,7 @@ func TestReportsService_GenerateReport_OnlyRequestedLanguage(t *testing.T) {
 		t.Fatalf("GenerateReport failed: %v", err)
 	}
 
-	// 💡 Logic Correction: Since TranslationService.Translate (with nil gemini) 
+	// 💡 Logic Correction: Since TranslationService.Translate (with nil gemini)
 	// returns report.Summary as-is, and processAsyncReport already saves "en",
 	// we just need to verify that 'ko' was saved via ProcessOnDemandTranslation (which is called sync in isTest).
 	report.Translations, _ = store.GetReportTranslations(ctx, report.ID)
@@ -819,7 +819,7 @@ func TestReportsService_GenerateReport_OnlyRequestedLanguage(t *testing.T) {
 	if _, ok := report.Translations["ko"]; !ok {
 		t.Errorf("Expected 'ko' translation to be present in %+v", report.Translations)
 	}
-	
+
 	// Ensure other languages like 'id' or 'th' are NOT present
 	if _, ok := report.Translations["id"]; ok {
 		t.Error("Unexpected 'id' translation found")

@@ -20,7 +20,6 @@ import (
 	"golang.org/x/time/rate"
 )
 
-
 var slackMentionRegex = regexp.MustCompile(`<@([A-Z0-9]+)>`)
 
 // Why: extract <@USERID> mentions in document order; preserves first-mention primacy
@@ -160,8 +159,8 @@ func collectSlackHistory(ctx context.Context, users []store.User, chans []slack.
 func scanSingleSlackChannel(ctx context.Context, users []store.User, c slack.Channel, sc *channels.SlackClient, userAl map[string][]string, mu *sync.Mutex, candidates map[string][]types.RawMessage, newTS map[string]map[string]string) error {
 	minTS := getMinLastTS(users, c.ID)
 	logger.Debugf("[SLACK] channel %s: minTS=%s", c.ID, minTS)
-	//Why: Uses a dual-strategy scan window. It scans up to 24 hours back by default, 
-	// but respects minTS as a lower bound only if it provides a safer (older) starting point, 
+	//Why: Uses a dual-strategy scan window. It scans up to 24 hours back by default,
+	// but respects minTS as a lower bound only if it provides a safer (older) starting point,
 	// preventing "islands" of unproccessed messages between scan intervals.
 	since := time.Now().Add(-24 * time.Hour)
 	msgs, err := sc.GetMessages(ctx, c.ID, since, minTS)
@@ -212,7 +211,7 @@ func classifyAndCollect(ctx context.Context, c slack.Channel, sc *channels.Slack
 	}
 }
 
-//Why: When the user replies in their own thread we evaluate state (RESOLVE/UPDATE) on a Background ctx so Gemini latency doesn't block the scan loop.
+// Why: When the user replies in their own thread we evaluate state (RESOLVE/UPDATE) on a Background ctx so Gemini latency doesn't block the scan loop.
 // _ ctx is accepted for trace propagation parity with the rest of classifyAndCollect; the goroutine itself uses Background.
 func dispatchOutgoingCompletionIfMine(_ context.Context, sc *channels.SlackClient, u store.User, m types.RawMessage) {
 	if completionSvc == nil || m.ReplyToID == "" {
@@ -633,7 +632,6 @@ func isThreadTimedOut(lastActivityTS string, threshold time.Duration) bool {
 	return time.Since(time.Unix(sec, 0)) > threshold
 }
 
-
 func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.SlackClient, candidates []types.RawMessage, wg *sync.WaitGroup) {
 	if len(candidates) == 0 {
 		return
@@ -705,13 +703,25 @@ func buildSlackAnalysisPayload(ctx context.Context, candidates []types.RawMessag
 
 func buildSlackMetadataString(m types.RawMessage) string {
 	var tags []string
-	if m.IsPinned { tags = append(tags, "Pinned") }
-	if m.IsImportant { tags = append(tags, "Important") }
-	if m.IsForwarded { tags = append(tags, "Forwarded") }
+	if m.IsPinned {
+		tags = append(tags, "Pinned")
+	}
+	if m.IsImportant {
+		tags = append(tags, "Important")
+	}
+	if m.IsForwarded {
+		tags = append(tags, "Forwarded")
+	}
 	var sb strings.Builder
-	if len(tags) > 0 { sb.WriteString(fmt.Sprintf(" [Tags: %s]", strings.Join(tags, ", "))) }
-	if len(m.Reactions) > 0 { sb.WriteString(fmt.Sprintf(" [Reactions: %s]", strings.Join(m.Reactions, ", "))) }
-	if len(m.AttachmentNames) > 0 { sb.WriteString(fmt.Sprintf(" [Files: %s]", strings.Join(m.AttachmentNames, ", "))) }
+	if len(tags) > 0 {
+		sb.WriteString(fmt.Sprintf(" [Tags: %s]", strings.Join(tags, ", ")))
+	}
+	if len(m.Reactions) > 0 {
+		sb.WriteString(fmt.Sprintf(" [Reactions: %s]", strings.Join(m.Reactions, ", ")))
+	}
+	if len(m.AttachmentNames) > 0 {
+		sb.WriteString(fmt.Sprintf(" [Files: %s]", strings.Join(m.AttachmentNames, ", ")))
+	}
 	return sb.String()
 }
 
@@ -743,8 +753,6 @@ func mapSlackItemToMessage(ctx context.Context, item store.TodoItem, m types.Raw
 	}
 	return services.BuildTask(ctx, params)
 }
-
-
 
 func buildSlackLink(m types.RawMessage) string {
 	link := fmt.Sprintf("https://slack.com/archives/%s/p%s", m.ChannelID, strings.ReplaceAll(m.ID, ".", ""))

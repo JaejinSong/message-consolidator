@@ -1,9 +1,9 @@
 package store
 
 import (
-	"message-consolidator/internal/testutil"
 	"context"
 	"fmt"
+	"message-consolidator/internal/testutil"
 	"testing"
 )
 
@@ -53,6 +53,6 @@ func TestListReportsPerformance(t *testing.T) {
 			t.Errorf("Report %d: Translation content missing", r.ID)
 		}
 	}
-	
+
 	t.Logf("Successfully verified 1+1 batch loading for %d reports", len(reports))
 }

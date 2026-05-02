@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"message-consolidator/store"
 	"message-consolidator/internal/testutil"
+	"message-consolidator/store"
 )
 
 func main() {
@@ -17,7 +17,7 @@ func main() {
 	defer cleanup()
 
 	lang := "ko"
-	
+
 	// Why: Create mock messages to simulate real tasks for translation.
 	for i := 1; i <= 5; i++ {
 		_, _ = store.GetDB().Exec("INSERT INTO messages (id, user_email, task, source, done, is_deleted, source_ts) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -44,7 +44,7 @@ func main() {
 	fmt.Println("\n--- [3] Second Cache Check (Expected: 3 items) ---")
 	cached, _ = store.GetTaskTranslationsBatch(ctx, []store.MessageID{1, 2, 3, 4, 5}, lang)
 	fmt.Printf("Cached items: %v\n", cached)
-	
+
 	if len(cached) != 3 {
 		log.Fatalf("Logic error: Expected 3 cached items, got %d", len(cached))
 	}

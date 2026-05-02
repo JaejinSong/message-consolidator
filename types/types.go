@@ -14,13 +14,12 @@ const (
 	CategoryQuery  MessageCategory = "QUERY"
 )
 
-
 // RawMessage represents a generic text message extracted from any source (Slack, WhatsApp, etc.)
 type RawMessage struct {
-	ID          string
-	Sender      string
-	SenderName  string // Display name from the From header, for AI prompt enrichment
-	Text        string
+	ID               string
+	Sender           string
+	SenderName       string // Display name from the From header, for AI prompt enrichment
+	Text             string
 	Timestamp        time.Time
 	ReplyToID        string          //Why: Tracks the original message ID to reconstruct conversation threads during AI-driven task context analysis.
 	RepliedToUser    string          //Why: Identifies the name or ID of the user being replied to for precise assignee allocation.
@@ -45,10 +44,10 @@ type RawMessage struct {
 // EnrichedMessage represents a unified message model for task analysis.
 // Why: Standardizes cross-channel metadata (WhatsApp, Slack, Email) to provide a consistent schema for AI-driven task extraction.
 type EnrichedMessage struct {
-	RawContent      string    `json:"raw_content"`
-	SourceChannel   string    `json:"source_channel"` // "whatsapp", "slack", "email"
+	RawContent      string     `json:"raw_content"`
+	SourceChannel   string     `json:"source_channel"` // "whatsapp", "slack", "email"
 	SenderID        ids.UserID `json:"sender_id"`      // Why: Explicit phantom type for DB identity security.
-	SenderName      string    `json:"sender_name"`
-	VirtualThreadID string    `json:"virtual_thread_id"`
-	Timestamp       time.Time `json:"timestamp"`
+	SenderName      string     `json:"sender_name"`
+	VirtualThreadID string     `json:"virtual_thread_id"`
+	Timestamp       time.Time  `json:"timestamp"`
 }

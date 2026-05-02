@@ -17,7 +17,7 @@ var (
 	cacheMu    sync.RWMutex
 
 	// userCache maps email addresses to User objects for rapid profile and preference lookups.
-	userCache        = make(map[string]*User)
+	userCache = make(map[string]*User)
 
 	// allUsersCache memoizes the full user list for GetAllUsers. The scanner ticks every
 	// ~minute against a libsql DB at us-east-1, so each cold call eats ~900-1800ms of
@@ -25,26 +25,26 @@ var (
 	// Invalidate via InvalidateAllUsersCache on any user/alias write.
 	allUsersCache    []User
 	allUsersCachedAt time.Time
-	
+
 	// scanCache stores the last processed timestamp for each source to prevent redundant processing of historical data.
-	scanCache        = make(map[string]string)
-	dirtyScanKeys    = make(map[string]bool)
-	
+	scanCache     = make(map[string]string)
+	dirtyScanKeys = make(map[string]bool)
+
 	// tokenCache holds OAuth refresh tokens for background service authentications.
-	tokenCache       = make(map[string]string)
-	
+	tokenCache = make(map[string]string)
+
 	// lastArchiveTime tracks the last successful auto-archive execution to ensure throttled processing.
-	lastArchiveTime  time.Time
-	
+	lastArchiveTime time.Time
+
 	// messageCache provides a fast lookup for active tasks in a user's dashboard.
-	messageCache     = make(map[string][]ConsolidatedMessage)
-	
+	messageCache = make(map[string][]ConsolidatedMessage)
+
 	// archiveCache provides a fast lookup for completed or dismissed tasks.
-	archiveCache     = make(map[string][]ConsolidatedMessage)
-	
+	archiveCache = make(map[string][]ConsolidatedMessage)
+
 	// knownTS maintains a registry of processed message timestamps to eliminate duplicate entries during synchronization.
-	knownTS          = make(map[string]map[string]bool)
-	
+	knownTS = make(map[string]map[string]bool)
+
 	// cacheInitialized track whether a specific user's active message cache has been populated.
 	cacheInitialized = make(map[string]bool)
 
@@ -97,7 +97,6 @@ func ResetForTest() {
 	autoUpsertCache = make(map[string]string)
 	autoUpsertCacheMu.Unlock()
 }
-
 
 func RefreshAllCaches(ctx context.Context) error {
 	users, err := GetAllUsers(ctx)

@@ -132,7 +132,7 @@ func TestLinkContact_CircularReference(t *testing.T) {
 
 func TestBuildAliasQuery(t *testing.T) {
 	cases := []struct {
-		idType  string
+		idType   string
 		wantArgs int
 	}{
 		{ContactTypeWhatsApp, 2},
@@ -190,14 +190,13 @@ func TestAutoUpsertContact(t *testing.T) {
 	ctx := t.Context()
 	tenant := testutil.RandomEmail("contact-tenant")
 	email := testutil.RandomEmail("contact-user")
-	
+
 	// 1. Initial Insert
 	err = AutoUpsertContact(context.Background(), tenant, email, "User One", "test")
 	if err != nil {
 		t.Fatalf("Failed to upsert: %v", err)
 	}
 
-	
 	name := NormalizeContactName(ctx, tenant, email)
 	if name != "User One" {
 		t.Errorf("Expected User One, got %s", name)

@@ -67,7 +67,7 @@ func TestGetReportTokenUsage_AggregatesAcrossSteps(t *testing.T) {
 	rid := ReportID(7777)
 
 	cases := []struct {
-		step, model string
+		step, model  string
 		prompt, comp int
 	}{
 		{"ReportSummary", "gemini-3-flash", 8000, 1500},

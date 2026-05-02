@@ -1,8 +1,8 @@
 package store
 
 import (
-	"message-consolidator/internal/testutil"
 	"context"
+	"message-consolidator/internal/testutil"
 	"testing"
 	"time"
 )

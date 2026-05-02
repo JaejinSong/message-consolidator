@@ -89,7 +89,6 @@ func resolveIdentityXCanonicalName(ctx context.Context, tenantEmail, nameLower s
 	return "", false
 }
 
-
 func NormalizeWithCategory(ctx context.Context, tenantEmail, rawName string) (string, string, string) {
 	if rawName == "" {
 		return "", "", "External"
@@ -161,7 +160,7 @@ func resolveContactIdentity(ctx context.Context, tenantEmail, name string) (Cont
 
 func resolveSystemUser(name string) (string, string, bool) {
 	nameLower := strings.ToLower(name)
-	
+
 	metadataMu.RLock()
 	defer metadataMu.RUnlock()
 
@@ -201,13 +200,13 @@ func MapContactType(contactType, finalID, tenantEmail string) string {
 	case "customer":
 		return "Customer"
 	}
-	
+
 	// Why: Prioritize company domain as Internal even for non-resolved contacts.
 	lowerID := strings.ToLower(finalID)
 	if strings.HasSuffix(lowerID, "@whatap.io") || strings.EqualFold(finalID, tenantEmail) {
 		return "Internal"
 	}
-	
+
 	// Why: Handle name <email@whatap.io> format.
 	if strings.Contains(lowerID, "@whatap.io") && strings.Contains(lowerID, "<") {
 		return "Internal"

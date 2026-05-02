@@ -12,7 +12,8 @@ import (
 )
 
 // Why: Slack tolerates ±5min timestamp skew per docs (api.slack.com/authentication/verifying-requests-from-slack).
-//      Tighter than 5min causes legitimate replays during clock drift; looser opens replay window.
+//
+//	Tighter than 5min causes legitimate replays during clock drift; looser opens replay window.
 const slackSignatureMaxAge = 5 * time.Minute
 
 var (
@@ -26,7 +27,8 @@ var (
 
 // VerifySlackRequest validates the v0 HMAC-SHA256 signature Slack attaches to every webhook request.
 // Why: Slack signs `v0:<timestamp>:<raw body>` with the workspace signing secret; rejecting unsigned
-//      or replayed requests is the only auth path for /api/slack/{events,interactive,commands}.
+//
+//	or replayed requests is the only auth path for /api/slack/{events,interactive,commands}.
 func VerifySlackRequest(secret, timestamp, signature string, body []byte) error {
 	return verifySlackRequestAt(secret, timestamp, signature, body, time.Now())
 }

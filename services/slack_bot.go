@@ -40,7 +40,8 @@ type SlackDMCommand struct {
 
 // ParseDMCommand extracts the command from a freeform DM/mention body.
 // Why: Slack `app_mention` events prefix the bot user id (`<@U123> tasks`); strip it
-//      so the same parser works for IM (no prefix) and mentions.
+//
+//	so the same parser works for IM (no prefix) and mentions.
 func ParseDMCommand(text string) SlackDMCommand {
 	t := strings.TrimSpace(text)
 	if strings.HasPrefix(t, "<@") {
@@ -102,7 +103,8 @@ func (b *SlackBot) HandleListTasks(ctx context.Context, email, channel string, p
 
 // HandleDoneAction marks the task done and rewrites the Block Kit message in place.
 // Why: Called from the interactive (block_actions) handler — channel/ts come from the
-//      payload's container, so the user sees the same message refresh instead of a new DM.
+//
+//	payload's container, so the user sees the same message refresh instead of a new DM.
 func (b *SlackBot) HandleDoneAction(ctx context.Context, slackUserID, channel, messageTS string, taskID store.MessageID, page int) error {
 	user, err := b.resolveUser(ctx, slackUserID)
 	if err != nil {
@@ -171,7 +173,8 @@ func (b *SlackBot) resolveUser(ctx context.Context, slackUserID string) (*store.
 
 // fetchActiveTasks returns the page slice + total active count (done=0, lifecycle=active).
 // Why: store.GetMessages already serves the cached active-only list for the user, so
-//      paging in Go avoids a new SQL query for low-cardinality DM use.
+//
+//	paging in Go avoids a new SQL query for low-cardinality DM use.
 func (b *SlackBot) fetchActiveTasks(ctx context.Context, email string, page, pageSize int) ([]store.ConsolidatedMessage, int, error) {
 	all, err := store.GetMessages(ctx, email)
 	if err != nil {

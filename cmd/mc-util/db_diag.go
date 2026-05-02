@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"message-consolidator/config"
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
+	"message-consolidator/config"
 )
 
 func runDBDiag(cfg *config.Config) {

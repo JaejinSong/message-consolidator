@@ -87,7 +87,7 @@ func InitLogging() *lumberjack.Logger {
 // StartLogRotator launches the daily log rotation goroutine. ctx-aware so the
 // rotator exits cleanly on shutdown instead of leaking past process termination.
 //
-//Why: Implements a background goroutine to trigger log rotation at midnight, ensuring each day's logs are physically separated and easier to manage.
+// Why: Implements a background goroutine to trigger log rotation at midnight, ensuring each day's logs are physically separated and easier to manage.
 func StartLogRotator(ctx context.Context, lumberjackLogger *lumberjack.Logger) {
 	go func() {
 		defer func() {

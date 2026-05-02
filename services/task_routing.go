@@ -97,7 +97,7 @@ func handleNew(ctx context.Context, q store.Querier, item store.TodoItem, msg st
 	return createTaskFromItem(ctx, q, item, msg)
 }
 
-//Why: Whichever path lands on an existing task ID applies the same text+subtask update; consolidate so handleNew has one branch instead of two.
+// Why: Whichever path lands on an existing task ID applies the same text+subtask update; consolidate so handleNew has one branch instead of two.
 func updateExistingTask(ctx context.Context, q store.Querier, email string, id store.MessageID, task string, subtasks []store.Subtask) (store.MessageID, error) {
 	err := store.UpdateTaskText(ctx, q, email, id, task)
 	if err == nil && len(subtasks) > 0 {
@@ -106,7 +106,7 @@ func updateExistingTask(ctx context.Context, q store.Querier, email string, id s
 	return id, err
 }
 
-//Why: Resolves to an existing thread-parent task when the message has no explicit ID; returns ok=false so handleNew falls through to creation.
+// Why: Resolves to an existing thread-parent task when the message has no explicit ID; returns ok=false so handleNew falls through to creation.
 func updateThreadParentIfPresent(ctx context.Context, q store.Querier, msg store.ConsolidatedMessage, task string) (store.MessageID, bool, error) {
 	if msg.ThreadID == "" {
 		return 0, false, nil
@@ -119,7 +119,7 @@ func updateThreadParentIfPresent(ctx context.Context, q store.Querier, msg store
 	return id, true, err
 }
 
-//Why: Folds the SaveMessage path so handleNew's body stays linear. AI-supplied requester/assignee/reason override the envelope when present.
+// Why: Folds the SaveMessage path so handleNew's body stays linear. AI-supplied requester/assignee/reason override the envelope when present.
 func createTaskFromItem(ctx context.Context, q store.Querier, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
 	msg.Task = item.Task
 	if item.Requester != "" {

@@ -1,10 +1,10 @@
 package store
 
 import (
-	"message-consolidator/internal/testutil"
 	"context"
 	"database/sql"
 	"fmt"
+	"message-consolidator/internal/testutil"
 	"testing"
 )
 

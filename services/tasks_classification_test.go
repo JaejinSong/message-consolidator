@@ -76,11 +76,11 @@ func TestTaskClassificationByAliases(t *testing.T) {
 	// AssigneeCanonical fallback: 표시명이 identities와 매칭 안 되더라도 canonical이 user.Email이면 personal
 	t.Run("AssigneeCanonical fallback: Korean display name not in identities", func(t *testing.T) {
 		msg := &store.ConsolidatedMessage{
-			Assignee:          "'송재진 (JJ Song)'",
-			Requester:         "'송재진 (JJ Song)'",
+			Assignee:           "'송재진 (JJ Song)'",
+			Requester:          "'송재진 (JJ Song)'",
 			RequesterCanonical: email,
-			AssigneeCanonical: email,
-			Task:              "some task",
+			AssigneeCanonical:  email,
+			Task:               "some task",
 		}
 		service.applyAssigneeRules(user, identities, msg)
 		service.assignCategory(user, identities, msg)

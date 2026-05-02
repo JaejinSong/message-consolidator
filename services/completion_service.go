@@ -60,7 +60,9 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		return false, nil
 	}
 	targetID := msg.ThreadID
-	if targetID == "" { targetID = msg.RepliedToID }
+	if targetID == "" {
+		targetID = msg.RepliedToID
+	}
 
 	tasks, _ := s.store.GetIncompleteByThreadID(ctx, s.db, msg.UserEmail, targetID)
 	if len(tasks) == 0 {
@@ -160,4 +162,3 @@ func (s *CompletionService) fallbackToNewExtraction(ctx context.Context, msg sto
 	}
 	return true
 }
-

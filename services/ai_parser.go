@@ -20,7 +20,7 @@ func ExtractJSONBlock(content string) (string, string, error) {
 	return jsonStr, strings.TrimSpace(processedStripped), nil
 }
 
-//Why: Markdown ```json``` (or bare ```) is the AI's preferred container — try that first.
+// Why: Markdown ```json``` (or bare ```) is the AI's preferred container — try that first.
 func extractFencedJSON(content string) (string, string, error) {
 	re := regexp.MustCompile(`(?is)` + "```" + `(?:json)?\s*(.*?)\s*` + "```")
 	match := re.FindStringSubmatch(content)
@@ -30,7 +30,7 @@ func extractFencedJSON(content string) (string, string, error) {
 	return strings.TrimSpace(match[1]), re.ReplaceAllString(content, ""), nil
 }
 
-//Why: Fallback when fences are missing — locate the first '{'…'}' span, optionally anchored by the [Visualization Data] header.
+// Why: Fallback when fences are missing — locate the first '{'…'}' span, optionally anchored by the [Visualization Data] header.
 func extractBraceJSON(content string) (string, string, error) {
 	const vizHeader = "## [Visualization Data]"
 	headerIdx := strings.LastIndex(content, vizHeader)

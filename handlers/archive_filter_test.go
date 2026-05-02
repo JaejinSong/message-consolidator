@@ -1,16 +1,16 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"message-consolidator/auth"
+	"message-consolidator/config"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
-	"context"
-	"message-consolidator/config"
 )
 
 func TestArchiveFilteringAndPriority(t *testing.T) {
@@ -30,7 +30,7 @@ func TestArchiveFilteringAndPriority(t *testing.T) {
 		1, email, "Done Task", "slack", 1, 0, oldDate, oldDate, oldDate); err != nil {
 		t.Fatalf("Insert 1 failed: %v", err)
 	}
-	
+
 	// 2. Only Deleted
 	if _, err := store.GetDB().Exec(`INSERT INTO messages (id, user_email, task, source, done, is_deleted, assigned_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		2, email, "Deleted Task", "slack", 0, 1, oldDate, oldDate); err != nil {
@@ -58,7 +58,7 @@ func TestArchiveFilteringAndPriority(t *testing.T) {
 		req = req.WithContext(context.WithValue(req.Context(), auth.UserEmailKey, email))
 		rr := httptest.NewRecorder()
 		api.HandleGetArchived(rr, req)
-		
+
 		if rr.Code != http.StatusOK {
 			t.Fatalf("StatusAll failed with status %d: %s", rr.Code, rr.Body.String())
 		}
@@ -84,7 +84,7 @@ func TestArchiveFilteringAndPriority(t *testing.T) {
 		req = req.WithContext(context.WithValue(req.Context(), auth.UserEmailKey, email))
 		rr := httptest.NewRecorder()
 		api.HandleGetArchived(rr, req)
-		
+
 		var resp struct {
 			Messages []store.ConsolidatedMessage `json:"messages"`
 			Total    int                         `json:"total"`
@@ -94,14 +94,14 @@ func TestArchiveFilteringAndPriority(t *testing.T) {
 			t.Errorf("Expected 2 messages in 'done', got %d. Body: %s", resp.Total, rr.Body.String())
 		}
 	})
-	
+
 	// Test Status = Canceled (Should return ID 2 - Uncompleted but deleted)
 	t.Run("StatusCanceled", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/messages/archive?status=canceled", nil)
 		req = req.WithContext(context.WithValue(req.Context(), auth.UserEmailKey, email))
 		rr := httptest.NewRecorder()
 		api.HandleGetArchived(rr, req)
-		
+
 		var resp struct {
 			Messages []store.ConsolidatedMessage `json:"messages"`
 			Total    int                         `json:"total"`
@@ -120,7 +120,7 @@ func TestArchiveFilteringAndPriority(t *testing.T) {
 		req = req.WithContext(context.WithValue(req.Context(), auth.UserEmailKey, email))
 		rr := httptest.NewRecorder()
 		api.HandleExportExcel(rr, req)
-		
+
 		if rr.Code != http.StatusOK {
 			t.Errorf("Export failed with status %d", rr.Code)
 		}

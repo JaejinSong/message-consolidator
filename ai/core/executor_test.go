@@ -23,7 +23,7 @@ func TestExecutePromptRendering(t *testing.T) {
 	if !strings.Contains(prompt.Body, "{{.MessagePayload}}") {
 		t.Errorf("Prompt body should contains template tag")
 	}
-	
+
 	// 3. ExtractionContext 필드 값 확인
 	if ctxData.MessagePayload != "World" {
 		t.Errorf("Expected World, got %s", ctxData.MessagePayload)

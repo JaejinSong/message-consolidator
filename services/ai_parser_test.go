@@ -14,38 +14,38 @@ func TestExtractJSONBlock(t *testing.T) {
 		wantStripped string
 	}{
 		{
-			name: "Perfect Block",
-			content: "Summary before\n```json\n{\"id\": 1}\n```\nInsight after",
-			wantErr: false,
-			wantJSON: "{\"id\": 1}",
+			name:         "Perfect Block",
+			content:      "Summary before\n```json\n{\"id\": 1}\n```\nInsight after",
+			wantErr:      false,
+			wantJSON:     "{\"id\": 1}",
 			wantStripped: "Summary before\n\nInsight after",
 		},
 		{
-			name: "No JSON Block",
-			content: "Just plain text here.",
-			wantErr: true,
-			wantJSON: "",
+			name:         "No JSON Block",
+			content:      "Just plain text here.",
+			wantErr:      true,
+			wantJSON:     "",
 			wantStripped: "Just plain text here.",
 		},
 		{
-			name: "Unclosed Block (Should fallback)",
-			content: "Start here\n```json\n{\"id\": 1}\nSome content but no end mark",
-			wantErr: false,
-			wantJSON: "{\"id\": 1}",
+			name:         "Unclosed Block (Should fallback)",
+			content:      "Start here\n```json\n{\"id\": 1}\nSome content but no end mark",
+			wantErr:      false,
+			wantJSON:     "{\"id\": 1}",
 			wantStripped: "Start here\n```json\n\nSome content but no end mark",
 		},
 		{
-			name: "No Markers Raw JSON",
-			content: "Plain text\n{\"id\": 2}\nMore text",
-			wantErr: false,
-			wantJSON: "{\"id\": 2}",
+			name:         "No Markers Raw JSON",
+			content:      "Plain text\n{\"id\": 2}\nMore text",
+			wantErr:      false,
+			wantJSON:     "{\"id\": 2}",
 			wantStripped: "Plain text\n\nMore text",
 		},
 		{
-			name: "Empty JSON Block",
-			content: "Start\n```json\n\n```\nEnd",
-			wantErr: false,
-			wantJSON: "",
+			name:         "Empty JSON Block",
+			content:      "Start\n```json\n\n```\nEnd",
+			wantErr:      false,
+			wantJSON:     "",
 			wantStripped: "Start\n\nEnd",
 		},
 	}
@@ -70,7 +70,7 @@ func TestExtractJSONBlock(t *testing.T) {
 
 func TestExtractSection(t *testing.T) {
 	content := "## [A]\nBody A\n## [B]\nBody B\nSome more text\n## [C]\nBody C"
-	
+
 	t.Run("Section A", func(t *testing.T) {
 		got := ExtractSection(content, "## [A]")
 		if got != "Body A" {

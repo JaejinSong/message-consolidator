@@ -14,12 +14,14 @@ import (
 // It returns a cleanup function and requires an initFunc to avoid import cycles.
 //
 // Root cause of previous issues:
-//   modernc.org/sqlite does NOT support cache=shared for in-memory databases.
-//   Each connection in sql.DB's pool gets its own separate in-memory DB.
+//
+//	modernc.org/sqlite does NOT support cache=shared for in-memory databases.
+//	Each connection in sql.DB's pool gets its own separate in-memory DB.
 //
 // Fix: Inject a unique in-memory DSN via store.TestDSN.
-//   store.InitDB detects this and calls db.SetMaxOpenConns(1), forcing all
-//   goroutines to share a single connection → single shared in-memory DB.
+//
+//	store.InitDB detects this and calls db.SetMaxOpenConns(1), forcing all
+//	goroutines to share a single connection → single shared in-memory DB.
 func SetupTestDB(initFunc func(context.Context, *config.Config) error, resetFunc func()) (func(), error) {
 	if resetFunc != nil {
 		resetFunc()

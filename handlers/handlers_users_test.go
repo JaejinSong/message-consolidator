@@ -587,8 +587,8 @@ func TestHandleAddMappingConflict(t *testing.T) {
 	payload := map[string]string{
 		"display_name": "Conflict User",
 		"canonical_id": "conflict@gmail.com",
-		"aliases":     "conflict-alias",
-		"source":      "gmail",
+		"aliases":      "conflict-alias",
+		"source":       "gmail",
 	}
 	body, _ := json.Marshal(payload)
 

@@ -101,7 +101,7 @@ func TestResolveProposals_AffinityBonus(t *testing.T) {
 	// Affinity Group Bonus: Lower text similarity but shared group ID
 	rawItems := []store.TodoItem{
 		{
-			Task:            "Report: finish draft", 
+			Task:            "Report: finish draft",
 			Category:        "TASK",
 			AffinityGroupID: "report_group",
 			State:           "new",

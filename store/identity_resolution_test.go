@@ -20,7 +20,7 @@ func TestIdentityResolutionViews(t *testing.T) {
 	childEmail := testutil.RandomEmail("minion")
 	masterID, _ := AddContact(context.Background(), tenantEmail, masterEmail, "The Big Boss", "", "gmail")
 	childID, _ := AddContact(context.Background(), tenantEmail, childEmail, "Poor Minion", "", "whatsapp")
-	
+
 	_ = LinkContact(context.Background(), tenantEmail, masterID, childID)
 
 	t.Run("v_contacts_resolved", func(t *testing.T) {
@@ -28,11 +28,11 @@ func TestIdentityResolutionViews(t *testing.T) {
 		var effectiveName, effectiveCanonical string
 		err := GetDB().QueryRow("SELECT effective_display_name, effective_canonical_id FROM v_contacts_resolved WHERE id = ?", childID).
 			Scan(&effectiveName, &effectiveCanonical)
-		
+
 		if err != nil {
 			t.Fatalf("Failed to query v_contacts_resolved: %v", err)
 		}
-		
+
 		if effectiveName != "The Big Boss" {
 			t.Errorf("Expected master name 'The Big Boss', got '%s'", effectiveName)
 		}
@@ -53,7 +53,7 @@ func TestIdentityResolutionViews(t *testing.T) {
 		var requesterName string
 		err = GetDB().QueryRow("SELECT requester FROM v_messages WHERE user_email = ? AND source_ts = ?", tenantEmail, sourceTS).
 			Scan(&requesterName)
-		
+
 		if err != nil {
 			t.Fatalf("Failed to query v_messages: %v", err)
 		}

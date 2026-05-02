@@ -37,7 +37,7 @@ func TestBulkAliasResolution(t *testing.T) {
 	t.Run("BulkMapping", func(t *testing.T) {
 		names := []string{tenant, "unknown_1", "unknown_2"}
 		mapping := BulkResolveAliases(ctx, tenant, names)
-		
+
 		if mapping[tenant] != "Me" {
 			t.Errorf("Expected 'Me', got %s", mapping[tenant])
 		}

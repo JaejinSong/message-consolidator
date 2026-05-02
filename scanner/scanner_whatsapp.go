@@ -83,7 +83,7 @@ func buildWAMetadataString(email string, m types.RawMessage) string {
 	return sb.String()
 }
 
-//Why: Splits the mention-tag formatting out of buildWAMetadataString so the parent function avoids deep nesting and stays in nestif budget.
+// Why: Splits the mention-tag formatting out of buildWAMetadataString so the parent function avoids deep nesting and stays in nestif budget.
 func formatWAMentionTag(email string, mentionedIDs []string) string {
 	var names []string
 	for _, jid := range mentionedIDs {

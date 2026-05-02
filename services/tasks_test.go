@@ -323,10 +323,10 @@ func TestApplyAssigneeRules_RequesterCanonical(t *testing.T) {
 	user, _ := store.GetOrCreateUser(ctx, email, "Jaejin Song", "")
 
 	tests := []struct {
-		name               string
-		requester          string
-		existingCanonical  string
-		wantCanonical      string
+		name              string
+		requester         string
+		existingCanonical string
+		wantCanonical     string
 	}{
 		{
 			name:          "exact email match",

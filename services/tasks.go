@@ -69,7 +69,7 @@ func (s *TasksService) StripOriginalText(msgs []store.ConsolidatedMessage) {
 
 func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string, msgs []store.ConsolidatedMessage) {
 	user, _ := store.GetOrCreateUser(ctx, email, "", "")
-	
+
 	// Pre-aggregation Phase: Extract all unique identifiers from message batch.
 	// Why: Eliminates N+1 DB queries by resolving identities in a single bulk operation.
 	identifiers := extractUniqueIdentifiers(msgs)
@@ -247,7 +247,7 @@ func (s *TasksService) reclassifySingleTask(ctx context.Context, email string, u
 	}
 
 	isDirectGmail := s.IsDirectlyAddressedToMe(m, user.Email)
-	
+
 	// Guard: Automatically un-assign Gmail tasks wrongly assigned to "me" if only CC/BCC.
 	if m.Source == "gmail" && !isDirectGmail && isAssigneeGeneric(m.Assignee) {
 		_ = store.UpdateTaskAssignee(ctx, nil, email, m.ID, "")
@@ -310,7 +310,6 @@ func (s *TasksService) checkRestoreGmailCC(ctx context.Context, email string, us
 
 	return m.ID, actualAssignee, true
 }
-
 
 // Logic Helpers
 
@@ -411,7 +410,6 @@ func (s *TasksService) IsAssigneeMarkedAsMine(assignee string, identities []stri
 	return false
 }
 
-
 // IsDirectlyAddressedToMe parses the raw email text to determine if the user's email
 // is in the "To:" header field, as opposed to CC or BCC.
 func (s *TasksService) IsDirectlyAddressedToMe(m store.ConsolidatedMessage, userEmail string) bool {
@@ -468,7 +466,6 @@ func (s *TasksService) resolveNewAssignee(user *store.User, current string, matc
 	return current, false
 }
 
-
 // extractToHeader extracts the content of the "T: " header from raw email text.
 // OriginalText format: "T: <to>\nC: <cc>\nS: <subject>\nB:\n<body>"
 func extractToHeader(text string) string {
@@ -488,8 +485,7 @@ func isMeInToHeader(header, email string) bool {
 	return header != "" && strings.Contains(strings.ToLower(header), strings.ToLower(email))
 }
 
-
-//Why: Resolves the true primary recipient of an email by parsing the local "To" header or falling back to a Gmail API metadata request for precise correction of over-assigned tasks.
+// Why: Resolves the true primary recipient of an email by parsing the local "To" header or falling back to a Gmail API metadata request for precise correction of over-assigned tasks.
 func resolveActualAssignee(ctx context.Context, m store.ConsolidatedMessage, toHeader string, svc *gmail.Service) string {
 	if toHeader != "" {
 		return types.ExtractNameFromEmail(toHeader)
@@ -517,7 +513,9 @@ func resolveActualAssignee(ctx context.Context, m store.ConsolidatedMessage, toH
 // ProcessBatchTranslation handles multiple task translation requests in an optimized single batch.
 // Why: Implements Page-unit Pure JIT pattern to eliminate N+1 AI calls.
 func (s *TasksService) ProcessBatchTranslation(ctx context.Context, email string, taskIDs []store.MessageID, lang string) ([]BatchTranslateResult, error) {
-	if s.translationSvc == nil { return nil, fmt.Errorf("service not ready") }
+	if s.translationSvc == nil {
+		return nil, fmt.Errorf("service not ready")
+	}
 
 	cached, _ := store.GetTaskTranslationsBatch(ctx, taskIDs, lang)
 	missingIDs := s.getMissingIDs(taskIDs, cached)
@@ -526,7 +524,9 @@ func (s *TasksService) ProcessBatchTranslation(ctx context.Context, email string
 	if len(missingIDs) > 0 {
 		var err error
 		newTrans, err = s.executeBatchTranslation(ctx, email, missingIDs, lang)
-		if err != nil { logger.Warnf("[TASKS] batch translation failed: %v", err) }
+		if err != nil {
+			logger.Warnf("[TASKS] batch translation failed: %v", err)
+		}
 	}
 
 	return s.mergeBatchResults(taskIDs, cached, newTrans), nil
@@ -535,14 +535,18 @@ func (s *TasksService) ProcessBatchTranslation(ctx context.Context, email string
 func (s *TasksService) getMissingIDs(all []store.MessageID, cached map[store.MessageID]string) []store.MessageID {
 	var missing []store.MessageID
 	for _, id := range all {
-		if _, ok := cached[id]; !ok { missing = append(missing, id) }
+		if _, ok := cached[id]; !ok {
+			missing = append(missing, id)
+		}
 	}
 	return missing
 }
 
 func (s *TasksService) executeBatchTranslation(ctx context.Context, email string, ids []store.MessageID, lang string) (map[store.MessageID]string, error) {
 	reqs := s.prepareTranslateRequests(ctx, email, ids)
-	if len(reqs) == 0 { return nil, nil }
+	if len(reqs) == 0 {
+		return nil, nil
+	}
 
 	// Why: TranslateBatch may return (partial, err) when a later chunk fails — keep the
 	// successful prefix so prior chunks' token spend isn't wasted on next JIT retry.
@@ -563,7 +567,9 @@ func (s *TasksService) prepareTranslateRequests(ctx context.Context, email strin
 	var reqs []store.TranslateRequest
 	for _, id := range ids {
 		msg, err := store.GetMessageByID(ctx, store.GetDB(), email, id)
-		if err != nil { continue }
+		if err != nil {
+			continue
+		}
 		reqs = append(reqs, BuildTranslateRequest(id, msg.Task, msg.Subtasks))
 	}
 	return reqs
@@ -573,11 +579,15 @@ func (s *TasksService) mergeBatchResults(ids []store.MessageID, cached, newTrans
 	final := make([]BatchTranslateResult, len(ids))
 	for i, id := range ids {
 		text, ok := cached[id]
-		if !ok { text = newTrans[id] }
+		if !ok {
+			text = newTrans[id]
+		}
 
 		success := text != ""
 		final[i] = BatchTranslateResult{ID: id, Success: success, TranslatedText: text}
-		if !success { final[i].Error = "translation missing" }
+		if !success {
+			final[i].Error = "translation missing"
+		}
 	}
 	return final
 }
@@ -591,14 +601,22 @@ func (s *TasksService) MergeTasks(ctx context.Context, email string, targetIDs [
 	allIDs := append([]store.MessageID{}, targetIDs...)
 	allIDs = append(allIDs, destID)
 	msgs, err := store.GetMessagesByIDs(ctx, store.GetDB(), email, allIDs)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	var dest *store.ConsolidatedMessage
 	var sources []store.ConsolidatedMessage
 	for i := range msgs {
-		if msgs[i].ID == destID { dest = &msgs[i] } else { sources = append(sources, msgs[i]) }
+		if msgs[i].ID == destID {
+			dest = &msgs[i]
+		} else {
+			sources = append(sources, msgs[i])
+		}
 	}
-	if dest == nil { return fmt.Errorf("destination task not found") }
+	if dest == nil {
+		return fmt.Errorf("destination task not found")
+	}
 
 	// Why: [Reliability] AI summary is progressive; failures fallback to existing title.
 	newTitle := s.generateSummaryTitle(ctx, email, dest, sources)
@@ -655,7 +673,7 @@ func (s *TasksService) ResolveProposals(ctx context.Context, email, room string,
 	return results
 }
 
-//Why: Pulls the per-item match/state decision out of ResolveProposals so the loop body stays flat (≤3 nested levels).
+// Why: Pulls the per-item match/state decision out of ResolveProposals so the loop body stays flat (≤3 nested levels).
 func (s *TasksService) resolveProposalItem(room string, item store.TodoItem, active []store.ConsolidatedMessage) store.TodoItem {
 	if match := s.findMatch(room, item, active); match != nil {
 		item.ID = &match.ID
@@ -728,10 +746,14 @@ func (s *TasksService) findMatch(room string, item store.TodoItem, active []stor
 
 	for i := range active {
 		m := &active[i]
-		if m.Room != room || m.Category != item.Category { continue }
+		if m.Room != room || m.Category != item.Category {
+			continue
+		}
 
 		sim := store.CalculateSimilarity(item.Task, m.Task)
-		if sim >= 0.80 { return m }
+		if sim >= 0.80 {
+			return m
+		}
 
 		// Affinity Group Bonus: If AI group matches, we are more lenient (threshold 0.5)
 		if hasAffinityMatch(m, item, sim) {
@@ -741,7 +763,7 @@ func (s *TasksService) findMatch(room string, item store.TodoItem, active []stor
 	return nil
 }
 
-//Why: Affinity-group lookup is a structural match path; isolate it so findMatch's main loop avoids deep nesting.
+// Why: Affinity-group lookup is a structural match path; isolate it so findMatch's main loop avoids deep nesting.
 func hasAffinityMatch(m *store.ConsolidatedMessage, item store.TodoItem, sim float64) bool {
 	if item.AffinityGroupID == "" || len(m.Metadata) == 0 || sim < 0.50 {
 		return false

@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-
 func TestDeleteGmailToken(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
 	if err != nil {
@@ -31,7 +30,6 @@ func TestDeleteGmailToken(t *testing.T) {
 	if err := DeleteGmailToken(t.Context(), email); err != nil {
 		t.Fatalf("failed to delete token: %v", err)
 	}
-
 
 	//Why: Validates that the token is properly purged from the cache and database to maintain security and consistency.
 	has = HasGmailToken(email)

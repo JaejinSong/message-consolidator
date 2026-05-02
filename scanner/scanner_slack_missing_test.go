@@ -33,19 +33,19 @@ func TestGetMinLastTS(t *testing.T) {
 
 func TestScanSingleSlackChannel_Logic(t *testing.T) {
 	// This test focuses on the coordination between getMinLastTS and sc.GetMessages parameters.
-	// Since we cannot easily mock channels.SlackClient without an interface, 
+	// Since we cannot easily mock channels.SlackClient without an interface,
 	// we verify the internal logic that feeds into it.
-	
+
 	users := []store.User{{Email: "test@example.com"}}
 	// c := slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: "C999"}}}
-	
+
 	// Case: minTS is empty -> should lead to default scan (24h back)
 	store.UpdateLastScan("test@example.com", "slack", "C999", "")
 	minTS := getMinLastTS(users, "C999")
 	if minTS != "" {
 		t.Errorf("Expected empty minTS, got %s", minTS)
 	}
-	
+
 	// Case: minTS is set -> should feed into GetMessages as Oldest
 	store.UpdateLastScan("test@example.com", "slack", "C999", "1700000000.000000")
 	minTS = getMinLastTS(users, "C999")

@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-//Why: Retrieves processed activity statistics for the user based on their specific timezone to ensure dashboard visualisations are chronologically accurate.
+// Why: Retrieves processed activity statistics for the user based on their specific timezone to ensure dashboard visualisations are chronologically accurate.
 func (a *API) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 

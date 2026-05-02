@@ -2,8 +2,8 @@ package store
 
 import (
 	"context"
-	"testing"
 	"message-consolidator/internal/testutil"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -31,7 +31,7 @@ func TestContactTypePromotion(t *testing.T) {
 
 	t.Run("Promotion via Merge Hierarchy", func(t *testing.T) {
 		// internal(4) > partner(3) > customer(2) > none(1)
-		
+
 		// 1. Create Customer
 		custID, _ := AddContact(ctx, tenant, "cust@client.com", "Customer", "", "crm")
 		err := UpdateContactType(ctx, custID, "customer")
@@ -58,12 +58,12 @@ func TestContactTypePromotion(t *testing.T) {
 		assert.NoError(t, err)
 
 		// 6. Merge Customer (Master) and Internal (Target)
-		// Note: LinkContact uses parent if masterID is already a child, 
+		// Note: LinkContact uses parent if masterID is already a child,
 		// but here custID is already under partID.
 		err = LinkContact(ctx, tenant, custID, intID)
 		assert.NoError(t, err)
 
-		// The final master (partID) should be promoted to 'internal' 
+		// The final master (partID) should be promoted to 'internal'
 		// because one of the merging parties (intID) was internal.
 		finalMaster, _ := GetContactByID(ctx, tenant, partID)
 		if finalMaster != nil {

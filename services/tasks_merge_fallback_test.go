@@ -87,10 +87,10 @@ func TestGenerateSummaryTitle_AllBlankSources_PreservesDest(t *testing.T) {
 
 func TestGenerateSummaryTitle_Truncation(t *testing.T) {
 	s := &TasksService{}
-	
+
 	longTitle := strings.Repeat("A", 300)
 	result := s.truncateTitle(longTitle, 10)
-	
+
 	if len(result) != 10 {
 		t.Errorf("Expected truncated length 10, got %d", len(result))
 	}

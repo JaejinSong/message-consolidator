@@ -1,8 +1,8 @@
 package store
 
 import (
-	"message-consolidator/internal/testutil"
 	"context"
+	"message-consolidator/internal/testutil"
 	"testing"
 )
 
@@ -73,10 +73,10 @@ func TestMetadataIntegrity(t *testing.T) {
 	})
 
 	t.Run("ScanDefaultEmptyConstraints", func(t *testing.T) {
-		res, _ := GetDB().Exec("INSERT INTO messages (user_email, source, task, source_ts, pinned, done, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+		res, _ := GetDB().Exec("INSERT INTO messages (user_email, source, task, source_ts, pinned, done, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)",
 			userEmail, "slack", "No metadata", "ts_metadata_102", false, 0, 0)
 		id102, _ := res.LastInsertId()
-		
+
 		msg, err := GetMessageByID(ctx, GetDB(), userEmail, MessageID(id102))
 		if err != nil {
 			t.Fatalf("GetMessageByID failed: %v", err)
@@ -121,12 +121,12 @@ func TestMetadataIntegrity(t *testing.T) {
 		existing := ConsolidatedMessage{
 			SourceChannels: []string{"whatsapp", "slack"},
 		}
-		
+
 		// Simulated AI finding: Duplicate across channels.
 		// We use UpdateTaskSourceChannels directly to verify the persistence.
 		newSource := "email"
 		combined := uniqueStrings(append(existing.SourceChannels, newSource))
-		
+
 		err := UpdateTaskSourceChannels(ctx, GetDB(), userEmail, MessageID(id103), combined)
 		if err != nil {
 			t.Fatalf("UpdateTaskSourceChannels failed: %v", err)
@@ -136,13 +136,13 @@ func TestMetadataIntegrity(t *testing.T) {
 		if len(updated.SourceChannels) != 3 {
 			t.Errorf("Expected 3 channels after merge, got %d: %v", len(updated.SourceChannels), updated.SourceChannels)
 		}
-		
+
 		// Check uniqueness
 		err = UpdateTaskSourceChannels(ctx, GetDB(), userEmail, MessageID(id103), uniqueStrings(append(updated.SourceChannels, "slack")))
 		if err != nil {
 			t.Fatalf("Second UpdateTaskSourceChannels failed: %v", err)
 		}
-		
+
 		final, _ := GetMessageByID(ctx, GetDB(), userEmail, MessageID(id103))
 		if len(final.SourceChannels) != 3 {
 			t.Errorf("Expected still 3 channels after duplicate merge, got %d: %v", len(final.SourceChannels), final.SourceChannels)

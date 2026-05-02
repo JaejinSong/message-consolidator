@@ -59,10 +59,14 @@ func (s *TranslationService) Translate(ctx context.Context, email string, dedupl
 // TranslateBatch handles multiple tasks in a single AI call with semaphore protection.
 // Why: Minimizes AI calls and costs by batching N tasks into a single structured prompt.
 func (s *TranslationService) TranslateBatch(ctx context.Context, email string, tasks []store.TranslateRequest, lang string) ([]ai.TranslationResult, error) {
-	if s.gemini == nil || len(tasks) == 0 { return nil, nil }
-	
+	if s.gemini == nil || len(tasks) == 0 {
+		return nil, nil
+	}
+
 	ids := make([]store.MessageID, len(tasks))
-	for i, t := range tasks { ids[i] = t.ID }
+	for i, t := range tasks {
+		ids[i] = t.ID
+	}
 	key := fmt.Sprintf("batch-%s-%v", lang, ids)
 
 	// any 사유: singleflight.Group.Do callback 시그니처 — []ai.TranslationResult로 단일 타입 단정.

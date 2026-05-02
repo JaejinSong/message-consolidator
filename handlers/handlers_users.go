@@ -71,11 +71,15 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 // Why: Automatically prepopulates user aliases from Slack if none exist.
 // Idempotency: Skip DB updates if SlackID or Aliases are already identical.
 func (a *API) autoPopulateSlackAliases(ctx context.Context, user *store.User) {
-	if a.Config.SlackToken == "" { return }
+	if a.Config.SlackToken == "" {
+		return
+	}
 
 	sc := channels.NewSlackClient(a.Config.SlackToken) //nolint:contextcheck // SlackClient constructor; per-request ctx flows through individual API calls.
 	slackUser, err := sc.LookupUserByEmail(user.Email)
-	if err != nil || slackUser == nil { return }
+	if err != nil || slackUser == nil {
+		return
+	}
 
 	slackIDUnchanged := user.SlackID == slackUser.ID
 	if !slackIDUnchanged {
@@ -109,7 +113,6 @@ func (a *API) refreshUserAliases(ctx context.Context, user *store.User) {
 	user.Aliases, _ = store.GetUserAliasesByEmailFromCache(ctx, user.Email)
 }
 
-
 func (a *API) HandleGetUserAliases(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	aliases, _ := store.GetUserAliasesByEmailFromCache(r.Context(), email)
@@ -121,7 +124,9 @@ func (a *API) HandleAddAlias(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Alias string `json:"alias"`
 	}
-	if !bindJSON(w, r, &req) { return }
+	if !bindJSON(w, r, &req) {
+		return
+	}
 	user, _ := store.GetOrCreateUser(r.Context(), email, "", "")
 	existing, _ := store.GetUserAliasesByEmailFromCache(r.Context(), email)
 	newAliases := strings.Join(append(existing, req.Alias), ",")
@@ -137,7 +142,9 @@ func (a *API) HandleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Alias string `json:"alias"`
 	}
-	if !bindJSON(w, r, &req) { return }
+	if !bindJSON(w, r, &req) {
+		return
+	}
 	user, _ := store.GetOrCreateUser(r.Context(), email, "", "")
 	existing, _ := store.GetUserAliasesByEmailFromCache(r.Context(), email)
 	var kept []string
@@ -170,7 +177,6 @@ func (a *API) HandleAddTenantAlias(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleDeleteTenantAlias(w http.ResponseWriter, r *http.Request) {
 	a.HandleDeleteMapping(w, r)
 }
-
 
 func (a *API) HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
@@ -220,7 +226,9 @@ func (a *API) HandleAddMapping(w http.ResponseWriter, r *http.Request) {
 		Aliases     string `json:"aliases"`
 		Source      string `json:"source"`
 	}
-	if !bindJSON(w, r, &req) { return }
+	if !bindJSON(w, r, &req) {
+		return
+	}
 
 	email := auth.GetUserEmail(r)
 	finalID := determineCanonicalID(req.DisplayName, req.Aliases, req.CanonicalID)
@@ -262,14 +270,15 @@ func (a *API) HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CanonicalID string `json:"canonical_id"`
 	}
-	if !bindJSON(w, r, &req) { return }
+	if !bindJSON(w, r, &req) {
+		return
+	}
 	if err := store.DeleteContactMapping(r.Context(), email, req.CanonicalID); err != nil {
 		handleAPIError(w, r, err, "[USER]", "Failed to delete mapping")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
 }
-
 
 func (a *API) HandleSearchContacts(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
@@ -293,7 +302,9 @@ func (a *API) HandleLinkAccounts(w http.ResponseWriter, r *http.Request) {
 		TargetID int64 `json:"target_id"`
 		MasterID int64 `json:"master_id"`
 	}
-	if !bindJSON(w, r, &req) { return }
+	if !bindJSON(w, r, &req) {
+		return
+	}
 
 	if req.TargetID == req.MasterID {
 		respondError(w, http.StatusBadRequest, "Cannot link account to itself")
@@ -312,7 +323,9 @@ func (a *API) HandleUnlinkAccount(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ContactID int64 `json:"contact_id"`
 	}
-	if !bindJSON(w, r, &req) { return }
+	if !bindJSON(w, r, &req) {
+		return
+	}
 
 	if err := store.UnlinkContact(r.Context(), email, req.ContactID); err != nil {
 		handleAPIError(w, r, err, "[USER]", "Failed to unlink account")

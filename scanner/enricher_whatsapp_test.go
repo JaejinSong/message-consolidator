@@ -41,7 +41,7 @@ func TestEnrichWhatsAppMessage_Fallback(t *testing.T) {
 	timestamp := time.Now()
 
 	// Use the newly defined AliasStore to satisfy the interface.
-	
+
 	enriched, err := EnrichWhatsAppMessage(rawJID, msg, timestamp)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)

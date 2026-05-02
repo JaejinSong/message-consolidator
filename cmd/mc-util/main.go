@@ -5,9 +5,9 @@ import (
 	"log"
 	"os"
 
+	"github.com/joho/godotenv"
 	"message-consolidator/config"
 	"message-consolidator/logger"
-	"github.com/joho/godotenv"
 )
 
 func main() {

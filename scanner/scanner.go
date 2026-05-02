@@ -2,13 +2,13 @@ package scanner
 
 import (
 	"context"
+	"fmt"
 	"message-consolidator/channels"
 	"message-consolidator/config"
 	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"message-consolidator/services"
 	"message-consolidator/store"
-	"fmt"
 	"strings"
 	"time"
 
@@ -274,8 +274,6 @@ func runSlackSweep(ctx context.Context, wg *sync.WaitGroup) {
 	sweepSlackThreads(ctx, wg)
 }
 
-
-
 func scanAllSources(parentCtx context.Context, user store.User, aliases []string, wg *sync.WaitGroup) {
 	logger.Debugf("[SCAN] Scanning for user: %s", user.Email)
 	ctx, cancel := context.WithTimeout(parentCtx, 45*time.Second)
@@ -339,7 +337,6 @@ func ReleaseInFlight(id string) {
 	inFlightMessages.Delete(id)
 }
 
-
 func Scan(email string, lang string, wg *sync.WaitGroup) {
 	traceCtx, _ := trace.Start(context.Background(), "/Scanner-Manual")
 	defer func() { _ = trace.End(traceCtx, nil) }()
@@ -349,7 +346,7 @@ func Scan(email string, lang string, wg *sync.WaitGroup) {
 		logger.Errorf("[SCAN] failed to get user %s: %v", email, err)
 		return
 	}
-	
+
 	ctx, cancel := context.WithTimeout(traceCtx, 60*time.Second)
 	defer cancel()
 
@@ -371,7 +368,6 @@ func runManualScans(ctx context.Context, user *store.User, effAl []string, lang 
 	scanSlack(ctx, []store.User{*user}, wg)
 	scanWhatsApp(ctx, *user, effAl, lang, wg)
 }
-
 
 // Why: Provides strict matching for short aliases (like '나', 'me') to prevent false positives in common sentences,
 // while allowing flexible substring matching for longer, unique names.
@@ -459,4 +455,3 @@ func WireWeeklyReport(reportsSvc *services.ReportsService) {
 		Language:        cfg.WeeklyReportLang,
 	})
 }
-

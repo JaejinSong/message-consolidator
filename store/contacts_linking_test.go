@@ -14,7 +14,7 @@ func TestLinkContact(t *testing.T) {
 	defer cleanup()
 
 	tenantEmail := "test@example.com"
-	
+
 	// Setup initial contacts
 	masterID, err := AddContact(context.Background(), tenantEmail, "master@gmail.com", "Master User", "", "gmail")
 	if err != nil {
@@ -41,7 +41,7 @@ func TestLinkContact(t *testing.T) {
 		// Scenario: masterID <- childID 이미 연결됨.
 		// 새로운 rootID를 만들고 masterID를 rootID에 연결.
 		rootID, _ := AddContact(context.Background(), tenantEmail, "root@boss.com", "Root Boss", "", "gmail")
-		
+
 		err := LinkContact(context.Background(), tenantEmail, rootID, masterID)
 		if err != nil {
 			t.Fatalf("Failed to link master to root: %v", err)
@@ -86,7 +86,7 @@ func TestLinkContact(t *testing.T) {
 		if rootID == nil {
 			t.Fatalf("Failed to resolve root@boss.com")
 		}
-		
+
 		err := LinkContact(context.Background(), tenantEmail, masterID, rootID.ID)
 		if err == nil {
 			t.Error("Expected circular reference error, got nil")

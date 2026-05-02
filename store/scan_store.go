@@ -24,10 +24,10 @@ func WithDBRetry(operationName string, fn func() error) error {
 
 		// Why: Only retry on transient database errors (like SQLITE_BUSY or connection reset).
 		errStr := err.Error()
-		isTransient := strings.Contains(errStr, "database is locked") || 
-					  strings.Contains(errStr, "SQLITE_BUSY") || 
-					  strings.Contains(errStr, "connection refused") ||
-					  strings.Contains(errStr, "handshake failed")
+		isTransient := strings.Contains(errStr, "database is locked") ||
+			strings.Contains(errStr, "SQLITE_BUSY") ||
+			strings.Contains(errStr, "connection refused") ||
+			strings.Contains(errStr, "handshake failed")
 
 		if !isTransient {
 			return err
@@ -178,7 +178,7 @@ func persistScanMetadataTx(ctx context.Context, userEmail string, updates []scan
 	})
 }
 
-//Why: Concurrency guard — only clear the dirty flag if scanCache is still pointing at the same ts; otherwise a parallel writer's update would be lost.
+// Why: Concurrency guard — only clear the dirty flag if scanCache is still pointing at the same ts; otherwise a parallel writer's update would be lost.
 func clearDirtyScanFlags(userEmail string, updates []scanMetaUpdate) {
 	metadataMu.Lock()
 	defer metadataMu.Unlock()
@@ -214,7 +214,7 @@ type SlackThreadMeta struct {
 	LastActivityTS string
 }
 
-//Why: Provides support functions for the targeted Slack thread scanner worker.
+// Why: Provides support functions for the targeted Slack thread scanner worker.
 func RegisterTargetedSlackThread(ctx context.Context, channelID, threadTS, lastReplyTS, userEmail string) error {
 	queries := db.New(GetDB())
 	return queries.UpsertSlackThread(ctx, db.UpsertSlackThreadParams{

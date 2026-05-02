@@ -194,7 +194,6 @@ func mapTranslationsToReports(reports []Report, transMap map[ReportID]map[string
 	}
 }
 
-
 // Why: Allows users to manage their stored reports and remove unneeded entries.
 func DeleteReport(ctx context.Context, id ReportID, email string) error {
 	return db.New(GetDB()).DeleteReport(ctx, db.DeleteReportParams{

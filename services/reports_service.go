@@ -67,7 +67,7 @@ func NewReportsService(summarizer ReportSummarizer, geminiClient *ai.GeminiClien
 	}
 }
 
-//Why: Date-range cache only kicks in for unfiltered queries — source/done filters bypass the cached report by design.
+// Why: Date-range cache only kicks in for unfiltered queries — source/done filters bypass the cached report by design.
 func (s *ReportsService) findReusableReport(ctx context.Context, email, start, end string, source *string, done *bool) *store.Report {
 	if source != nil || done != nil {
 		return nil
@@ -331,7 +331,6 @@ func (s *ReportsService) formatLogLine(email string, m Log) string {
 		status, cat, m.Task, m.Room, reqName, reqCat, asgName, asgCat, deadlineStr, ageStr, evidence)
 }
 
-
 // truncateEvidence extracts the newest block from OriginalText (first block post-flip)
 // and returns it as a bounded " | Evidence: ..." suffix. Empty if no content.
 func truncateEvidence(text string, max int) string {
@@ -423,7 +422,7 @@ func (s *ReportsService) aggregateRelationsAlt(ctx context.Context, email string
 	return counts, pairWeights, meta
 }
 
-//Why: Prefer the persisted canonical/display/category triple, but fall back to NormalizeWithCategory when the canonical ID is missing
+// Why: Prefer the persisted canonical/display/category triple, but fall back to NormalizeWithCategory when the canonical ID is missing
 // or when the persisted category is "External" with no explicit type — that fallback is the only path that re-classifies a contact.
 func (s *ReportsService) resolveRelationActor(ctx context.Context, email, canonicalID, displayName, contactType, raw string) (string, string, string) {
 	id := canonicalID

@@ -216,7 +216,7 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 }
 
 // EvaluateTaskTransition determines if a reply completes or updates a specific parent task.
-// Why: [Thread-Aware Intelligence] Uses a specialized prompt to analyze the conversational relationship 
+// Why: [Thread-Aware Intelligence] Uses a specialized prompt to analyze the conversational relationship
 // between a parent message and its reply, enabling deterministic state transitions (RESOLVE/UPDATE).
 func (g *GeminiClient) EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string) (TaskTransition, error) {
 	if g == nil || g.client == nil {
@@ -316,7 +316,9 @@ func (g *GeminiClient) GenerateVisualizationData(ctx context.Context, email stri
 // GenerateMergedTaskTitle summarizes multiple task titles and messages into a single English title.
 // Why: [Unified Consistency] Strictly enforces 30-character English limit via AI for unified task presentation.
 func (g *GeminiClient) GenerateMergedTaskTitle(ctx context.Context, email string, tasksJSON string) (string, error) {
-	if g == nil || g.client == nil { return "", fmt.Errorf("Gemini client not initialized") }
+	if g == nil || g.client == nil {
+		return "", fmt.Errorf("Gemini client not initialized")
+	}
 
 	parsed := core.LoadPrompt(core.PromptTaskMergeSummary)
 	data := core.ExtractionContext{
@@ -326,7 +328,9 @@ func (g *GeminiClient) GenerateMergedTaskTitle(ctx context.Context, email string
 	}
 
 	rendered, err := parsed.Render(data)
-	if err != nil { return "", fmt.Errorf("failed to render merge summary prompt: %w", err) }
+	if err != nil {
+		return "", fmt.Errorf("failed to render merge summary prompt: %w", err)
+	}
 
 	// Why: [Performance] gemini-3-flash-preview is used for high-speed, high-quality short-form summary.
 	modelName := g.getEffectiveModel(parsed, "gemini-3-flash-preview")
@@ -334,11 +338,15 @@ func (g *GeminiClient) GenerateMergedTaskTitle(ctx context.Context, email string
 
 	start := time.Now()
 	resp, err := generateWithRetry(ctx, model, genai.Text(""), 10*time.Second, 1)
-	if err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
 
 	logTokenUsage(ctx, email, "MergeSummary", modelName, "", 0, resp)
 	text, err := extractResponseText(resp)
-	if err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
 
 	_ = trace.Step(ctx, "Gemini-MergeSummary", "", int(time.Since(start).Milliseconds()), 0)
 	return core.CleanMarkdownText(text), nil

@@ -101,7 +101,9 @@ func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 		ID   store.MessageID `json:"id"`
 		Done bool            `json:"done"`
 	}
-	if !bindJSON(w, r, &req) { return }
+	if !bindJSON(w, r, &req) {
+		return
+	}
 
 	if a.Tasks == nil {
 		respondError(w, http.StatusServiceUnavailable, "Task service not available")
@@ -130,7 +132,9 @@ func (a *API) HandleToggleSubtask(w http.ResponseWriter, r *http.Request) {
 		SubtaskIndex int             `json:"subtask_index"`
 		Done         bool            `json:"done"`
 	}
-	if !bindJSON(w, r, &req) { return }
+	if !bindJSON(w, r, &req) {
+		return
+	}
 
 	if req.ID <= 0 {
 		respondError(w, http.StatusBadRequest, "Invalid Task ID")
@@ -301,7 +305,9 @@ func (a *API) HandleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		ID   store.MessageID `json:"id"`
 		Task string          `json:"task"`
 	}
-	if !bindJSON(w, r, &req) { return }
+	if !bindJSON(w, r, &req) {
+		return
+	}
 	if err := store.UpdateTaskText(r.Context(), store.GetDB(), email, req.ID, req.Task); err != nil {
 		handleAPIError(w, r, err, "[UPDATE_TASK] Error for "+email, "Failed to update task")
 		return
@@ -389,7 +395,9 @@ func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) 
 func (a *API) getMissingIDs(all []store.MessageID, cached map[store.MessageID]string) []store.MessageID {
 	var missing []store.MessageID
 	for _, id := range all {
-		if _, ok := cached[id]; !ok { missing = append(missing, id) }
+		if _, ok := cached[id]; !ok {
+			missing = append(missing, id)
+		}
 	}
 	return missing
 }
@@ -409,8 +417,10 @@ func (a *API) respondWithResults(w http.ResponseWriter, ids []store.MessageID, c
 	results := make([]services.BatchTranslateResult, len(ids))
 	for i, id := range ids {
 		text, ok := cached[id]
-		if !ok { text = newlyTrans[id] }
-		
+		if !ok {
+			text = newlyTrans[id]
+		}
+
 		results[i] = services.BatchTranslateResult{
 			ID:             id,
 			Success:        text != "",
@@ -420,4 +430,3 @@ func (a *API) respondWithResults(w http.ResponseWriter, ids []store.MessageID, c
 	}
 	respondJSON(w, http.StatusOK, batchTranslateResponse{Results: results})
 }
-

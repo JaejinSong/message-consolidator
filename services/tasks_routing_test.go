@@ -159,4 +159,3 @@ func TestHandleTaskState_NewConsolidatesExistingThreadTask(t *testing.T) {
 		t.Errorf("expected task to be updated to %q, got %q", item.Task, task)
 	}
 }
-

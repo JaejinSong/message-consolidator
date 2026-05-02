@@ -359,7 +359,7 @@ func distinctContactIDs(rows []db.GetResolutionsByIdentifiersRow) []int64 {
 	return out
 }
 
-//Why: Maps every original identifier to its resolved ContactRecord (or marks ambiguous), inverting the normalize index used during the SQL fetch.
+// Why: Maps every original identifier to its resolved ContactRecord (or marks ambiguous), inverting the normalize index used during the SQL fetch.
 func mergeIdentifierResolutions(normToOriginals map[string][]string, normToContactID map[string]int64, contactByID map[int64]*ContactRecord, ambiguousNorms map[string]bool, res map[string]*ContactRecord, ambiguous map[string]bool) {
 	for norm, originals := range normToOriginals {
 		if ambiguousNorms[norm] {
@@ -806,7 +806,7 @@ func buildAliasQuery(idType, trimmed string) (string, []any) {
 	switch idType {
 	case ContactTypeWhatsApp, ContactTypeTelegram:
 		return "SELECT id FROM contacts WHERE LOWER(canonical_id) = ?" +
-			" UNION SELECT contacts.id FROM contacts, json_each(secondary_ids) j WHERE LOWER(j.value) = ?",
+				" UNION SELECT contacts.id FROM contacts, json_each(secondary_ids) j WHERE LOWER(j.value) = ?",
 			[]any{trimmed, trimmed}
 	case ContactTypeEmail:
 		return "SELECT id FROM contacts WHERE LOWER(canonical_id) = ?", []any{trimmed}

@@ -708,10 +708,10 @@ func (m *TelegramManager) dropBuffer(email string) {
 }
 
 // GetGroupName returns a human-friendly label for a chatKey. Resolution order:
-//   1. in-memory groupCache (populated by storeEntities + hydrateDialogs)
-//   2. persisted contact cache (DMs only — mirrors WhatsApp's store lookup)
-//   3. live MessagesGetChats RPC for basic chats (no access_hash required)
-//   4. numeric tail fallback
+//  1. in-memory groupCache (populated by storeEntities + hydrateDialogs)
+//  2. persisted contact cache (DMs only — mirrors WhatsApp's store lookup)
+//  3. live MessagesGetChats RPC for basic chats (no access_hash required)
+//  4. numeric tail fallback
 func (m *TelegramManager) GetGroupName(email string, chatKey string) string {
 	if cached := m.cachedGroupName(chatKey); cached != "" {
 		return cached

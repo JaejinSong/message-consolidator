@@ -39,7 +39,7 @@ func main() {
 
 	for _, tc := range testCases {
 		fmt.Printf("Run Test: %s\n", tc.name)
-		
+
 		// Create a request with initial query
 		req := httptest.NewRequest("GET", "/api/user/info?"+tc.initialQuery, nil)
 		rr := httptest.NewRecorder()
@@ -48,15 +48,15 @@ func main() {
 		finalHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			q := r.URL.Query()
 			emails := q["email"]
-			
+
 			if len(emails) != tc.expectedCount {
 				log.Fatalf("[FAIL] %s: Expected %d email parameter(s), got %d: %v", tc.name, tc.expectedCount, len(emails), emails)
 			}
-			
+
 			if len(emails) > 0 && emails[0] != "test-user@whatap.io" {
 				log.Fatalf("[FAIL] %s: Expected email 'test-user@whatap.io', got '%s'", tc.name, emails[0])
 			}
-			
+
 			w.WriteHeader(http.StatusOK)
 		})
 
@@ -67,7 +67,7 @@ func main() {
 		if rr.Code != http.StatusOK {
 			log.Fatalf("[FAIL] %s: Handler returned non-OK status: %d", tc.name, rr.Code)
 		}
-		
+
 		fmt.Printf("[PASS] %s: Parameter injection verified (Count: %d)\n", tc.name, tc.expectedCount)
 	}
 

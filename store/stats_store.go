@@ -35,7 +35,7 @@ func GetUserStats(ctx context.Context, email string, userTz string) (UserStats, 
 	return stats, nil
 }
 
-//Why: Each stat panel runs an independent SQL query in parallel; runStatsQuery owns the WaitGroup bookkeeping so callers stay declarative.
+// Why: Each stat panel runs an independent SQL query in parallel; runStatsQuery owns the WaitGroup bookkeeping so callers stay declarative.
 func runStatsQuery(wg *sync.WaitGroup, fn func()) {
 	wg.Add(1)
 	go func() {
@@ -196,7 +196,7 @@ func loadCompletionHistory(ctx context.Context, q *db.Queries, email, offset str
 	stats.CompletionHistory = buildCompletionHistory(rows)
 }
 
-//Why: Folds the per-row CompletionHistory aggregation out of the goroutine to keep nesting shallow; rows arrive sorted by date.
+// Why: Folds the per-row CompletionHistory aggregation out of the goroutine to keep nesting shallow; rows arrive sorted by date.
 func buildCompletionHistory(rows []db.GetCompletionHistoryRow) []TimeSeriesPoint {
 	var points []TimeSeriesPoint
 	var currentDate string
