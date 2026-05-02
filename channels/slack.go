@@ -63,6 +63,24 @@ func (s *SlackClient) SendDMBlocks(ctx context.Context, slackUserID string, bloc
 	return nil
 }
 
+// UpdateDMBlocks rewrites a previously sent Block Kit message in place via chat.update.
+// Why: Bot DM lifecycle (list → click 완료 → list refresh) needs to mutate the original
+// message so the user does not see a chain of stale lists. ts/channel come from the
+// interactive payload's container.message_ts / container.channel_id.
+func (s *SlackClient) UpdateDMBlocks(ctx context.Context, channel, ts string, blocks []slack.Block, fallback string) error {
+	if s == nil || s.api == nil {
+		return fmt.Errorf("slack client not initialized")
+	}
+	_, _, _, err := s.api.UpdateMessageContext(ctx, channel, ts,
+		slack.MsgOptionText(fallback, false),
+		slack.MsgOptionBlocks(blocks...),
+	)
+	if err != nil {
+		return fmt.Errorf("slack chat.update %s/%s: %w", channel, ts, err)
+	}
+	return nil
+}
+
 func (s *SlackClient) LookupChannels() ([]slack.Channel, string, error) {
 	//Why: Uses GetConversationsForUser to accurately retrieve only the subset of channels and DM lists where the bot is explicitly invited.
 	return s.api.GetConversationsForUser(&slack.GetConversationsForUserParameters{

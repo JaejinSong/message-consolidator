@@ -129,6 +129,27 @@ func (q *Queries) GetUserByID(ctx context.Context, dollar_1 int64) (User, error)
 	return i, err
 }
 
+const getUserBySlackID = `-- name: GetUserBySlackID :one
+SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, is_admin, created_at FROM users WHERE slack_id = ?1 LIMIT 1
+`
+
+func (q *Queries) GetUserBySlackID(ctx context.Context, slackID sql.NullString) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserBySlackID, slackID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.SlackID,
+		&i.WaJid,
+		&i.TgUserID,
+		&i.Picture,
+		&i.IsAdmin,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listAdminUsers = `-- name: ListAdminUsers :many
 SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, is_admin, created_at FROM users WHERE is_admin = 1
 `

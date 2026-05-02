@@ -140,6 +140,18 @@ func updateAndCacheUser(ctx context.Context, email, name, picture string) (*User
 	return &u, nil
 }
 
+// GetUserBySlackID resolves a Slack user ID to the canonical User row.
+// Why: Slack DM bot inverts the existing email→slackID mapping; raw lookup with no
+// cache because (1) DM traffic is low-volume, (2) avoiding write-path invalidation.
+func GetUserBySlackID(ctx context.Context, slackID string) (*User, error) {
+	row, err := db.New(GetDB()).GetUserBySlackID(ctx, sql.NullString{String: slackID, Valid: slackID != ""})
+	if err != nil {
+		return nil, err
+	}
+	u := fromDBUser(row)
+	return &u, nil
+}
+
 // UpdateUserWAJID updates the WhatsApp JID (identifier) associated with the user.
 func UpdateUserWAJID(ctx context.Context, email, wajid string) error {
 	if err := db.New(GetDB()).UpdateUserDetails(ctx, db.UpdateUserDetailsParams{

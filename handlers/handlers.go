@@ -24,10 +24,11 @@ type API struct {
 	Reports          *services.ReportsService
 	Tasks            *services.TasksService
 	IdentityResolver *ai.IdentityResolver
+	Bot              *services.SlackBot
 }
 
 // NewAPI is a constructor for the API struct, making dependency injection explicit.
-func NewAPI(cfg *config.Config, scanFunc func(string, string), fullScanFunc func(), reports *services.ReportsService, tasks *services.TasksService, identityResolver *ai.IdentityResolver) *API {
+func NewAPI(cfg *config.Config, scanFunc func(string, string), fullScanFunc func(), reports *services.ReportsService, tasks *services.TasksService, identityResolver *ai.IdentityResolver, bot *services.SlackBot) *API {
 	return &API{
 		Config:           cfg,
 		ScanFunc:         scanFunc,
@@ -35,6 +36,7 @@ func NewAPI(cfg *config.Config, scanFunc func(string, string), fullScanFunc func
 		Reports:          reports,
 		Tasks:            tasks,
 		IdentityResolver: identityResolver,
+		Bot:              bot,
 	}
 }
 

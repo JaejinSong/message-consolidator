@@ -18,6 +18,9 @@ RETURNING id, email, name, slack_id, wa_jid, tg_user_id, picture, is_admin, crea
 -- name: GetUserByEmailSimple :one
 SELECT COALESCE(name, '') as name FROM users WHERE email = ?1;
 
+-- name: GetUserBySlackID :one
+SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, is_admin, created_at FROM users WHERE slack_id = ?1 LIMIT 1;
+
 -- name: UpdateUserDetails :exec
 UPDATE users
 SET

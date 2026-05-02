@@ -121,6 +121,7 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, email sql.NullString) (User, error)
 	GetUserByEmailSimple(ctx context.Context, email sql.NullString) (string, error)
 	GetUserByID(ctx context.Context, dollar_1 int64) (User, error)
+	GetUserBySlackID(ctx context.Context, slackID sql.NullString) (User, error)
 	HardDeleteMessages(ctx context.Context, arg HardDeleteMessagesParams) error
 	InsertAIInferenceLog(ctx context.Context, arg InsertAIInferenceLogParams) error
 	InsertMergeHistory(ctx context.Context, arg InsertMergeHistoryParams) error

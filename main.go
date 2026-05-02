@@ -71,6 +71,7 @@ func main() {
 	scanner.Init(cfg)
 
 	reportsSvc, tasksSvc, identityResolver := initAIServices(ctx, cfg)
+	slackBot := initSlackBot(cfg, tasksSvc)
 
 	scanner.WireWeeklyReport(reportsSvc)
 	scanner.WireDailyDigest(reportsSvc)
@@ -83,7 +84,7 @@ func main() {
 		var wg sync.WaitGroup
 		scanner.RunAllScans(ctx, &wg)
 		wg.Wait()
-	}, reportsSvc, tasksSvc, identityResolver)
+	}, reportsSvc, tasksSvc, identityResolver, slackBot)
 
 	srv := setupApp(ctx, cfg, api)
 
@@ -109,6 +110,16 @@ func logEnvDebug() {
 		}
 		logger.Infof("[ENV-DEBUG] %s=%s", key, value)
 	}
+}
+
+// initSlackBot returns a configured SlackBot or nil when SLACK_TOKEN is unset.
+// Why: routes.go gates registration on `Bot == nil`, so a missing token cleanly disables
+// the DM surface without forcing optional checks throughout the call graph.
+func initSlackBot(cfg *config.Config, tasks *services.TasksService) *services.SlackBot {
+	if cfg.SlackToken == "" || tasks == nil {
+		return nil
+	}
+	return services.NewSlackBot(channels.NewSlackClient(cfg.SlackToken), tasks)
 }
 
 //Why: Boots Gemini-backed services lazily; falls back to AI-less TasksService when no API key is configured.

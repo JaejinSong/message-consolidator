@@ -26,7 +26,19 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 	a.registerAdminRoutes(r)
 	a.registerReportRoutes(r)
 	a.registerGmailRoutes(r)
+	a.registerSlackBotRoutes(r)
 	r.HandleFunc("/health", a.HandleHealth).Methods("GET")
+}
+
+// registerSlackBotRoutes wires the Slack DM bot webhooks. Skipped when the signing secret
+// is unset so a misconfigured deploy does not expose unverified endpoints.
+func (a *API) registerSlackBotRoutes(r *mux.Router) {
+	if a.Config.SlackSigningSecret == "" || a.Bot == nil {
+		return
+	}
+	r.HandleFunc("/api/slack/events", a.HandleSlackEvent).Methods("POST")
+	r.HandleFunc("/api/slack/interactive", a.HandleSlackInteractive).Methods("POST")
+	r.HandleFunc("/api/slack/commands", a.HandleSlackCommand).Methods("POST")
 }
 
 // protected wraps an API handler in the auth middleware. Returns the wrapped handler.

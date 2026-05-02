@@ -12,6 +12,7 @@ import (
 
 type Config struct {
 	SlackToken             string
+	SlackSigningSecret     string
 	GeminiAPIKey           string
 	GoogleClientID         string
 	GoogleClientSecret     string
@@ -56,6 +57,7 @@ func LoadConfig() *Config {
 	loadDotenv()
 	return &Config{
 		SlackToken:             os.Getenv("SLACK_TOKEN"),
+		SlackSigningSecret:     os.Getenv("SLACK_SIGNING_SECRET"),
 		GeminiAPIKey:           os.Getenv("GEMINI_API_KEY"),
 		GoogleClientID:         os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret:     os.Getenv("GOOGLE_CLIENT_SECRET"),
