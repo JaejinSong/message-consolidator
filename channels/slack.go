@@ -34,13 +34,21 @@ func (s *SlackClient) GetAPI() *slack.Client {
 	return s.api
 }
 
+// Why: bot DM/update paths share the same Tier-3 chat.* rate limits as the scanner; reuse
+// the scanner's Retry-After-aware wrapper so click bursts on the task list don't silently
+// drop UI refreshes.
+const slackBotMaxRetries = 3
+
 // SendDM posts a direct message to slackUserID. Slack's chat.postMessage
 // auto-opens an IM channel when the bot has chat:write (and im:write for first-time DMs).
 func (s *SlackClient) SendDM(ctx context.Context, slackUserID, text string) error {
 	if s == nil || s.api == nil {
 		return fmt.Errorf("slack client not initialized")
 	}
-	_, _, err := s.api.PostMessageContext(ctx, slackUserID, slack.MsgOptionText(text, false))
+	err := withSlackRetry(slackBotMaxRetries, fmt.Sprintf("DM to %s", slackUserID), func() error {
+		_, _, e := s.api.PostMessageContext(ctx, slackUserID, slack.MsgOptionText(text, false))
+		return e
+	})
 	if err != nil {
 		return fmt.Errorf("slack DM to %s: %w", slackUserID, err)
 	}
@@ -53,10 +61,13 @@ func (s *SlackClient) SendDMBlocks(ctx context.Context, slackUserID string, bloc
 	if s == nil || s.api == nil {
 		return fmt.Errorf("slack client not initialized")
 	}
-	_, _, err := s.api.PostMessageContext(ctx, slackUserID,
-		slack.MsgOptionText(fallback, false),
-		slack.MsgOptionBlocks(blocks...),
-	)
+	err := withSlackRetry(slackBotMaxRetries, fmt.Sprintf("DM blocks to %s", slackUserID), func() error {
+		_, _, e := s.api.PostMessageContext(ctx, slackUserID,
+			slack.MsgOptionText(fallback, false),
+			slack.MsgOptionBlocks(blocks...),
+		)
+		return e
+	})
 	if err != nil {
 		return fmt.Errorf("slack DM blocks to %s: %w", slackUserID, err)
 	}
@@ -71,10 +82,13 @@ func (s *SlackClient) UpdateDMBlocks(ctx context.Context, channel, ts string, bl
 	if s == nil || s.api == nil {
 		return fmt.Errorf("slack client not initialized")
 	}
-	_, _, _, err := s.api.UpdateMessageContext(ctx, channel, ts,
-		slack.MsgOptionText(fallback, false),
-		slack.MsgOptionBlocks(blocks...),
-	)
+	err := withSlackRetry(slackBotMaxRetries, fmt.Sprintf("chat.update %s/%s", channel, ts), func() error {
+		_, _, _, e := s.api.UpdateMessageContext(ctx, channel, ts,
+			slack.MsgOptionText(fallback, false),
+			slack.MsgOptionBlocks(blocks...),
+		)
+		return e
+	})
 	if err != nil {
 		return fmt.Errorf("slack chat.update %s/%s: %w", channel, ts, err)
 	}

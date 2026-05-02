@@ -42,6 +42,12 @@ func (a *API) HandleSlackEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if num, reason, skip := slackRetryHeader(r); skip {
+		logger.Infof("[SLACKBOT] dropping Slack-side retry num=%s reason=%s", num, reason)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	event, err := slackevents.ParseEvent(body, slackevents.OptionNoVerifyToken())
 	if err != nil {
 		logger.Warnf("[SLACKBOT] parse event failed: %v", err)
@@ -55,6 +61,17 @@ func (a *API) HandleSlackEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	go a.dispatchSlackEvent(event) //nolint:contextcheck // Slack 3s ACK rule: request ctx dies after w.WriteHeader. Background goroutine starts fresh trace context.
+}
+
+// slackRetryHeader reports whether the inbound request is a Slack-side retry that should
+// be ack'd-and-dropped. Why: dispatch paths (list/page) are not idempotent against
+// duplicate posts, so honor X-Slack-Retry-Num to avoid double-rendering the user's UI.
+func slackRetryHeader(r *http.Request) (num, reason string, skip bool) {
+	num = r.Header.Get("X-Slack-Retry-Num")
+	if num == "" || num == "0" {
+		return "", "", false
+	}
+	return num, r.Header.Get("X-Slack-Retry-Reason"), true
 }
 
 // HandleSlackInteractive receives Block Kit button clicks (block_actions).

@@ -71,7 +71,7 @@ func ParseDMCommand(text string) SlackDMCommand {
 // dmChannel is the IM channel (or app_mention channel) — used as the reply destination.
 func (b *SlackBot) HandleDMText(ctx context.Context, slackUserID, dmChannel, text string) error {
 	cmd := ParseDMCommand(text)
-	user, err := b.resolveUser(ctx, slackUserID, dmChannel)
+	user, err := b.resolveUser(ctx, slackUserID)
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func (b *SlackBot) HandleListTasks(ctx context.Context, email, channel string, p
 // Why: Called from the interactive (block_actions) handler — channel/ts come from the
 //      payload's container, so the user sees the same message refresh instead of a new DM.
 func (b *SlackBot) HandleDoneAction(ctx context.Context, slackUserID, channel, messageTS string, taskID store.MessageID, page int) error {
-	user, err := b.resolveUser(ctx, slackUserID, channel)
+	user, err := b.resolveUser(ctx, slackUserID)
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (b *SlackBot) HandleDoneAction(ctx context.Context, slackUserID, channel, m
 
 // HandlePageAction re-renders the list message at a different page.
 func (b *SlackBot) HandlePageAction(ctx context.Context, slackUserID, channel, messageTS string, page int) error {
-	user, err := b.resolveUser(ctx, slackUserID, channel)
+	user, err := b.resolveUser(ctx, slackUserID)
 	if err != nil {
 		return err
 	}
@@ -158,10 +158,12 @@ func (b *SlackBot) sendHelp(ctx context.Context, channel string) error {
 }
 
 // resolveUser maps slackUserID → User (via stored slack_id mapping). On miss, sends a guidance DM.
-func (b *SlackBot) resolveUser(ctx context.Context, slackUserID, channel string) (*store.User, error) {
+// Why: target the user's IM (slackUserID), not the caller-supplied channel — app_mention may
+// pass a public channel where leaking "이 Slack 계정이…" exposes company context to bystanders.
+func (b *SlackBot) resolveUser(ctx context.Context, slackUserID string) (*store.User, error) {
 	user, err := store.GetUserBySlackID(ctx, slackUserID)
 	if err != nil || user == nil {
-		_ = b.client.SendDM(ctx, channel, "이 Slack 계정이 message-consolidator 사용자와 연결되어 있지 않습니다.\nGoogle 로그인 시 같은 회사 이메일로 접속하면 자동 연결됩니다.")
+		_ = b.client.SendDM(ctx, slackUserID, "이 Slack 계정이 message-consolidator 사용자와 연결되어 있지 않습니다.\nGoogle 로그인 시 같은 회사 이메일로 접속하면 자동 연결됩니다.")
 		return nil, fmt.Errorf("slack id %s not mapped to user: %w", slackUserID, err)
 	}
 	return user, nil
