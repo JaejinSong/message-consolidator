@@ -6,10 +6,16 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 )
 
 //go:embed prompts/*.prompt
 var promptFS embed.FS
+
+// Why: Prod 모드(embed.FS) 로딩은 prompt당 1회로 충분 — 매 호출 frontmatter 파싱 +
+// template 재컴파일 비용을 누적 부담하지 않게 한다. Dev 모드(filesystem hot-reload)
+// 경로는 캐시를 우회해 prompt 수정이 즉시 반영되도록 유지.
+var promptCache sync.Map // map[PromptName]*ParsedPrompt
 
 // PromptName pins prompt filenames at compile time so a typo or removed file is caught
 // during build instead of triggering a silent fallback to an empty ParsedPrompt at runtime.
@@ -39,32 +45,47 @@ const (
 
 func LoadPrompt(name PromptName) *ParsedPrompt {
 	filename := string(name)
-	var content string
+
 	//Why: [Dev Mode] Attempts to read local prompt files directly from the filesystem to ensure immediate reflection of changes during development and regression testing.
+	if content := tryLoadFromDisk(filename); content != "" {
+		return parsePromptOrFallback(filename, content)
+	}
+
+	// Why: prod 경로는 embed.FS 결과가 빌드 동안 불변 — 첫 파싱 결과를 캐시.
+	if v, ok := promptCache.Load(name); ok {
+		return v.(*ParsedPrompt)
+	}
+
+	//Why: [Prod Mode] Falls back to the embedded prompt filesystem (embed.FS) if local files are inaccessible, ensuring the binary is self-contained for production.
+	b, err := promptFS.ReadFile("prompts/" + filename)
+	if err != nil {
+		logger.Errorf("[GEMINI] Failed to load prompt file %s from embed FS: %v", filename, err)
+		return &ParsedPrompt{} // Why: 실패는 캐시 안 함 — 일시 오류가 영구화되는 것 방지.
+	}
+
+	parsed := parsePromptOrFallback(filename, string(b))
+	promptCache.Store(name, parsed)
+	return parsed
+}
+
+func tryLoadFromDisk(filename string) string {
 	_, currentFile, _, ok := runtime.Caller(0)
-	if ok {
-		aiDir := filepath.Dir(currentFile)
-		localPath := filepath.Join(aiDir, "prompts", filename)
-		if b, err := os.ReadFile(localPath); err == nil {
-			content = string(b)
-		}
+	if !ok {
+		return ""
 	}
-
-	if content == "" {
-		//Why: [Prod Mode] Falls back to the embedded prompt filesystem (embed.FS) if local files are inaccessible, ensuring the binary is self-contained for production.
-		b, err := promptFS.ReadFile("prompts/" + filename)
-		if err != nil {
-			logger.Errorf("[GEMINI] Failed to load prompt file %s from embed FS: %v", filename, err)
-			return &ParsedPrompt{} // Return empty prompt on failure
-		}
-		content = string(b)
+	localPath := filepath.Join(filepath.Dir(currentFile), "prompts", filename)
+	b, err := os.ReadFile(localPath)
+	if err != nil {
+		return ""
 	}
+	return string(b)
+}
 
-	// [New Logic]: Parse the prompt to extract metadata (e.g., model routing).
+func parsePromptOrFallback(filename, content string) *ParsedPrompt {
 	parsed, err := ParsePrompt(content)
 	if err != nil {
 		logger.Warnf("[GEMINI] Failed to parse prompt frontmatter for %s: %v. Using as raw body.", filename, err)
-		return &ParsedPrompt{Body: content} // Fallback to raw content if parsing fails
+		return &ParsedPrompt{Body: content}
 	}
 	return parsed
 }

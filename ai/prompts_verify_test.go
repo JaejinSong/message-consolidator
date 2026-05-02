@@ -39,8 +39,10 @@ func verifyPromptFile(t *testing.T, path string) {
 		t.Fatalf("frontmatter parse error: %v", err)
 	}
 
-	// 2. 템플릿 문법 검증
-	tmpl, err := template.New("test").Parse(parsed.Body)
+	// Why: catch undefined-key references (e.g. `{{.CurrentUserName}}` typo) at parse time
+	// instead of letting them silently render as the zero value. Struct field misses already
+	// fail by default; the option future-proofs against migration to map-based context.
+	tmpl, err := template.New("test").Option("missingkey=error").Parse(parsed.Body)
 	if err != nil {
 		t.Fatalf("template syntax error: %v", err)
 	}
@@ -49,18 +51,82 @@ func verifyPromptFile(t *testing.T, path string) {
 	verifyTemplateExecution(t, tmpl)
 }
 
-// verifyTemplateExecution은 더미 데이터를 주입하여 템플릿 실행 가능 여부를 확인합니다.
+// verifyTemplateExecution은 sentinel 더미를 주입하여 템플릿 실행 가능 여부를 확인합니다.
+// Why: zero-value strings collapse misuse (e.g. `{{.Locale}}` in a CurrentUser slot) into
+// indistinguishable blanks. Sentinel values let downstream spot tests assert that each
+// variable lands in its intended position.
 func verifyTemplateExecution(t *testing.T, tmpl *template.Template) {
 	dummy := ExtractionContext{
-		MessagePayload: "dummy input",
-		CurrentTime:    "2026-04-03 12:00:00",
-		Version:        "1.0.0",
-		Locale:         "ko-KR",
-		FewShots:       make([]FewShot, 0),
+		MessagePayload:      "<<MSG>>",
+		CurrentTime:         "2026-04-03 12:00:00",
+		Version:             "1.0.0",
+		Locale:              "ko-KR",
+		FewShots:            []FewShot{{Input: "<<IN>>", Expected: "<<EX>>"}},
+		ExistingTasksJSON:   "<<TASKS>>",
+		EnrichedMessageJSON: "<<ENRICHED>>",
+		CurrentUser:         "<<USER>>",
+		CurrentUserEmail:    "<<EMAIL>>",
+		CurrentUserID:       0,
+		ParentTask:          "<<PARENT>>",
+		StaleThreshold:      0,
 	}
 
 	if err := tmpl.Execute(io.Discard, dummy); err != nil {
 		t.Errorf("template execution failed: %v", err)
+	}
+}
+
+// renderPromptWithSentinels은 spot 테스트용으로 sentinel 컨텍스트로 prompt를 렌더링합니다.
+// Why: 변수 오용(예: notion_user v1.0.0의 `for user: {{.Locale}}`) 류 회귀를
+// "위치-감지" 방식으로 잡기 위한 공용 렌더 헬퍼. zero-value 검증으로는 빈 문자열이
+// 빈 문자열로 흡수되어 차이가 사라진다.
+func renderPromptWithSentinels(t *testing.T, path string) string {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	parsed, err := ParsePrompt(string(content))
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	tmpl, err := template.New("spot").Option("missingkey=error").Parse(parsed.Body)
+	if err != nil {
+		t.Fatalf("template parse %s: %v", path, err)
+	}
+	dummy := ExtractionContext{
+		MessagePayload:      "<<MSG>>",
+		CurrentTime:         "2026-04-03 12:00:00",
+		Version:             "1.0.0",
+		Locale:              "<<LOC>>",
+		FewShots:            []FewShot{{Input: "<<IN>>", Expected: "<<EX>>"}},
+		ExistingTasksJSON:   "<<TASKS>>",
+		EnrichedMessageJSON: "<<ENRICHED>>",
+		CurrentUser:         "<<USER>>",
+		CurrentUserEmail:    "<<EMAIL>>",
+		CurrentUserID:       0,
+		ParentTask:          "<<PARENT>>",
+		StaleThreshold:      0,
+	}
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, dummy); err != nil {
+		t.Fatalf("execute %s: %v", path, err)
+	}
+	return buf.String()
+}
+
+// TestNotionUserAddresseeBindsCurrentUser guards the v1.1.0 fix where the addressee
+// slot in notion_user used `{{.Locale}}` (rendering as e.g. "ko-KR") instead of
+// `{{.CurrentUser}}`. The verifyTemplateExecution dummy with zero-value strings could
+// not catch this — both fields rendered to the empty string.
+func TestNotionUserAddresseeBindsCurrentUser(t *testing.T) {
+	t.Parallel()
+	rendered := renderPromptWithSentinels(t, "prompts/notion_user.prompt")
+	if !strings.Contains(rendered, "for user: <<USER>>") {
+		t.Errorf("notion_user.prompt addressee slot must bind CurrentUser; rendered output:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "for user: <<LOC>>") {
+		t.Errorf("notion_user.prompt addressee slot regressed to Locale binding")
 	}
 }
 
