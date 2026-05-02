@@ -1,38 +1,32 @@
-# Why: Exclude heavy directories and intermediate build artifacts to speed up Docker build context transfer.
+# Why: Heavy directories and intermediate artifacts — never needed in build context.
 node_modules/
 dist/
 .git/
 .gitignore
-
-# Why: Exclude Go-specific build data.
+.serena/
 go-build/
+db_data/
+tmp/
+
+# Why: Local Go binaries built by Makefile (build-backend / build-mc-util) — must not leak into image.
 message-consolidator
 mc-util
+message-consolidator.service
 
-# Why: Exclude sensitive environment variables and keys. All .env.* files are excluded.
-# Vite env vars must be injected via build ARGs (--build-arg VITE_API_BASE_URL=...) instead.
-.env
-.env.*
+# Why: Env files with secrets. Vite vars must be passed via --build-arg, not COPY.
+.env*
 
-# Why: Allow release notes inside container (served by backend).
+# Why: Allow release notes inside container (backend serves them at runtime).
 !RELEASE_NOTES_*.md
 README.md
 TODO.md
 planning/
 
-# Why: Miscellaneous junk and local tools.
+# Why: Logs, local DBs, test outputs — runtime/dev artifacts, not build inputs.
 **/*.log
 **/*.db
-db_data/
-tmp/
-scripts/vps/
-message-consolidator.service
-test_timing.txt
-go_test*.log
-loading_ui_test.log
-db_diag.log
+test_*.txt
+ai/testdata/prompt_cache/*.txt
 
-# Test & AI Cache Artifacts
-/ai/testdata/prompt_cache/*.txt
-test_out.txt
-test_timing.txt
+# Why: VPS-only scripts run on the host, not inside containers.
+scripts/vps/
