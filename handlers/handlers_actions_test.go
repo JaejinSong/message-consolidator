@@ -4,6 +4,7 @@ import (
 	"context"
 	"message-consolidator/config"
 	"message-consolidator/internal/testutil"
+	"message-consolidator/services"
 	"message-consolidator/store"
 	"net/http"
 	"net/http/httptest"
@@ -47,6 +48,68 @@ func TestHandleManualScan_TriggersScanFunc(t *testing.T) {
 	}
 	if got := called.Load(); got != 1 {
 		t.Errorf("expected 1 invocation, got %d", got)
+	}
+}
+
+func TestHandleTranslate_EmptyLang(t *testing.T) {
+	api := &API{}
+	req := NewMockRequest("POST", "/api/translate?lang=", "u@example.com")
+	rr := httptest.NewRecorder()
+	api.HandleTranslate(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rr.Code)
+	}
+	if body := rr.Body.String(); body == "" {
+		t.Error("expected JSON body")
+	}
+}
+
+func TestHandleReclassifyOldData_NilTasks(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	api := &API{Tasks: nil}
+	req := NewMockRequest("GET", "/api/admin/reclassify", "u@example.com")
+	rr := httptest.NewRecorder()
+	api.HandleReclassifyOldData(rr, req)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want 503", rr.Code)
+	}
+}
+
+func TestHandleInvalidateCache_OK(t *testing.T) {
+	api := &API{}
+	req := NewMockRequest("POST", "/api/admin/invalidate-cache", "u@example.com")
+	rr := httptest.NewRecorder()
+	api.HandleInvalidateCache(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rr.Code)
+	}
+}
+
+func TestEvaluateBackfillCandidate_NonSharedAssignee(t *testing.T) {
+	m := store.ConsolidatedMessage{Assignee: "someone", Room: "room1"}
+	_, ok := evaluateBackfillCandidate(context.Background(), "u@example.com", m, map[string]string{})
+	if ok {
+		t.Error("expected false for non-shared assignee")
+	}
+}
+
+func TestEvaluateBackfillCandidate_EmptyRoom(t *testing.T) {
+	m := store.ConsolidatedMessage{Assignee: services.AssigneeShared, Room: ""}
+	_, ok := evaluateBackfillCandidate(context.Background(), "u@example.com", m, map[string]string{})
+	if ok {
+		t.Error("expected false for empty room")
+	}
+}
+
+func TestBuildBackfillCandidates_EmptyMsgs(t *testing.T) {
+	result := buildBackfillCandidates(context.Background(), "u@example.com", nil)
+	if len(result) != 0 {
+		t.Errorf("expected empty candidates, got %v", result)
 	}
 }
 
