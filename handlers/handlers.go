@@ -25,6 +25,7 @@ type API struct {
 	Tasks            *services.TasksService
 	IdentityResolver *ai.IdentityResolver
 	Bot              *services.SlackBot
+	Embeddings       *services.EmbeddingService
 }
 
 // NewAPI is a constructor for the API struct, making dependency injection explicit.

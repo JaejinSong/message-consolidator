@@ -371,9 +371,14 @@
                 <!-- Archive Header with Actions -->
                 <div class="archive-header"
                     style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
-                    <div class="search-box">
+                    <div class="search-box" style="display: flex; align-items: center; gap: 0.5rem;">
                         <input type="text" id="archiveSearchInput" placeholder="Search archive..."
                             class="c-input c-input--pill" style="width: 300px;">
+                        <button type="button" id="archiveSemanticToggle"
+                            class="c-btn c-btn--outline c-btn--sm"
+                            data-i18n="archiveSemanticToggle"
+                            data-i18n-title="archiveSemanticToggleHint"
+                            aria-pressed="false">Smart</button>
                     </div>
                     <div class="archive-actions" style="display: flex; gap: 0.75rem; align-items: center;">
                         <button type="button" id="restoreSelectedBtn" class="c-btn c-btn--outline"

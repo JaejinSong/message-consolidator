@@ -41,6 +41,16 @@ export const archive: ArchiveModule = {
         const loader = document.getElementById('archiveLoading');
         if (loader) loader.classList.add('active');
         try {
+            // Why: semantic mode skips status/sort filters because the hybrid ranker
+            // returns RRF-fused results across the full archive, not a paged status slice.
+            const useSemantic = state.archiveSemantic && state.archiveSearch.trim().length >= 3;
+            if (useSemantic) {
+                const data = await api.fetchArchiveSemantic(state.archiveSearch, state.currentLang, state.archiveLimit);
+                state.archiveTotalCount = data.total;
+                renderArchive(data.messages);
+                this.updatePaginationUI();
+                return;
+            }
             const params = {
                 q: state.archiveSearch,
                 limit: state.archiveLimit,
@@ -118,6 +128,18 @@ export const archive: ArchiveModule = {
                 state.archivePage = 1;
                 this.fetch();
             }, 500);
+        });
+
+        // Why: smart toggle flips state and immediately re-runs fetch so the user
+        // sees results swap between lexical (FTS) and hybrid (RRF) without retyping.
+        const semanticBtn = document.getElementById('archiveSemanticToggle');
+        semanticBtn?.addEventListener('click', () => {
+            state.archiveSemantic = !state.archiveSemantic;
+            state.archivePage = 1;
+            semanticBtn.setAttribute('aria-pressed', state.archiveSemantic ? 'true' : 'false');
+            semanticBtn.classList.toggle('c-btn--primary', state.archiveSemantic);
+            semanticBtn.classList.toggle('c-btn--outline', !state.archiveSemantic);
+            this.fetch();
         });
 
         document.getElementById('prevArchivePage')?.addEventListener('click', () => {

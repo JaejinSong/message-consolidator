@@ -57,6 +57,8 @@ export const th: I18nEntry = {
         archiveMerged: "งานที่รวมเข้าด้วยกัน",
         confirmDelete: "คุณแน่ใจหรือไม่ว่าต้องการลบงานนี้? งานจะถูกย้ายไปยังคลังข้อมูล",
         archiveSearchPlaceholder: "ค้นหาคลังข้อมูล...",
+        archiveSemanticToggle: "อัจฉริยะ",
+        archiveSemanticToggleHint: "ค้นหาแบบผสม: คำสำคัญ + ความหมาย",
         exportSummaryTitle: "สรุปการส่งออก",
         exportSummaryText: "งานพร้อมส่งออกแล้ว",
         exportExcelBtn: "ดาวน์โหลดเป็น Excel (.xlsx)",

@@ -94,6 +94,7 @@ func (a *API) registerMessageRoutes(r *mux.Router) {
 	r.Handle("/api/messages/restore", a.protected(a.HandleRestore)).Methods("POST")
 	r.Handle("/api/messages/archive", a.protected(a.HandleGetArchived)).Methods("GET")
 	r.Handle("/api/messages/archive/count", a.protected(a.HandleGetArchivedCount)).Methods("GET")
+	r.Handle("/api/messages/archive/semantic", a.protected(a.HandleSemanticArchiveSearch)).Methods("GET")
 	r.Handle("/api/messages/export", a.protected(a.HandleExportArchive)).Methods("GET")
 	r.Handle("/api/messages/export/excel", a.protected(a.HandleExportExcel)).Methods("GET")
 	r.Handle("/api/messages/export/json", a.protected(a.HandleExportJSON)).Methods("GET")
@@ -160,6 +161,7 @@ func (a *API) registerAdminRoutes(r *mux.Router) {
 	// alongside the new admin surface — operational endpoints should never be reachable by tenants.
 	r.Handle("/api/admin/reclassify", a.adminProtected(a.HandleReclassifyOldData)).Methods("GET")
 	r.Handle("/api/admin/invalidate-cache", a.adminProtected(a.HandleInvalidateCache)).Methods("POST")
+	r.Handle("/api/admin/embeddings/backfill", a.adminProtected(a.HandleBackfillEmbeddings)).Methods("POST")
 	r.Handle("/api/admin/restore-gmail-cc", a.adminProtected(a.HandleRestoreGmailCC)).Methods("GET")
 	r.Handle("/api/admin/backfill-room-actor", a.adminProtected(a.HandleBackfillRoomActor)).Methods("GET")
 

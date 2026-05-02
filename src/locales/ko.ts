@@ -66,6 +66,8 @@ export const ko: I18nEntry = {
         archiveMerged: "병합한 업무",
         confirmDelete: "정말 이 업무를 삭제하시겠습니까? 취소하거나 완료한 업무는 보관함으로 이동합니다.",
         archiveSearchPlaceholder: "아카이브 검색...",
+        archiveSemanticToggle: "스마트",
+        archiveSemanticToggleHint: "키워드 + 의미 통합 검색",
         exportSummaryTitle: "내보내기 요약",
         exportSummaryText: "개의 업무를 내보낼 준비가 되었습니다.",
         exportExcelBtn: "Excel로 다운로드 (.xlsx)",

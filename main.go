@@ -71,6 +71,7 @@ func main() {
 	scanner.Init(cfg)
 
 	reportsSvc, tasksSvc, identityResolver := initAIServices(ctx, cfg)
+	embeddingSvc := initEmbeddingService(ctx, cfg, tasksSvc)
 	slackBot := initSlackBot(cfg, tasksSvc)
 
 	scanner.WireWeeklyReport(reportsSvc)
@@ -85,6 +86,7 @@ func main() {
 		scanner.RunAllScans(ctx, &wg)
 		wg.Wait()
 	}, reportsSvc, tasksSvc, identityResolver, slackBot)
+	api.Embeddings = embeddingSvc
 
 	srv := setupApp(ctx, cfg, api)
 
@@ -142,6 +144,27 @@ func initAIServices(ctx context.Context, cfg *config.Config) (*services.ReportsS
 	tasksSvc := services.NewTasksService(transSvc, gClient)
 	identityResolver := ai.NewIdentityResolver(gClient)
 	return reportsSvc, tasksSvc, identityResolver
+}
+
+// initEmbeddingService boots the Gemini embedding pipeline used by archive
+// semantic search and wires the MarkDone enqueue hook on TasksService. Returns
+// nil (and leaves Tasks unchanged) when the API key is missing — semantic search
+// then short-circuits with 503 instead of failing startup.
+func initEmbeddingService(ctx context.Context, cfg *config.Config, tasks *services.TasksService) *services.EmbeddingService {
+	if cfg.GeminiAPIKey == "" {
+		logger.Infof("[INIT] embeddings disabled — GEMINI_API_KEY not set")
+		return nil
+	}
+	client, err := ai.NewEmbeddingClient(ctx, cfg.GeminiAPIKey, ai.DefaultEmbeddingModel)
+	if err != nil {
+		logger.Errorf("[INIT] failed to init embedding client: %v", err)
+		return nil
+	}
+	svc := services.NewEmbeddingService(client)
+	if tasks != nil {
+		tasks.SetEmbedder(svc)
+	}
+	return svc
 }
 
 // Why: Blocks until SIGINT/SIGTERM so the orchestration loop can drive a controlled shutdown.

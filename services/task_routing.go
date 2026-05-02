@@ -220,6 +220,11 @@ func handleResolve(ctx context.Context, q store.Querier, email string, item stor
 	if err != nil || dropped {
 		return 0, err
 	}
+	// Why: AI-driven resolve flips done=1 inside a transaction routed through free
+	// functions, so the embedding enqueue is intentionally skipped here. Manual
+	// MarkDone covers the typical archive transition; AI-resolved tasks get vectors
+	// from the admin backfill endpoint, which sweeps any rows missing for the
+	// configured model.
 	return id, nil
 }
 

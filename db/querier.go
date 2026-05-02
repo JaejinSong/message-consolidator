@@ -14,6 +14,7 @@ type Querier interface {
 	AppendSecondaryID(ctx context.Context, arg AppendSecondaryIDParams) error
 	ArchiveOldTasks(ctx context.Context, datetime interface{}) (int64, error)
 	CloseSlackThread(ctx context.Context, arg CloseSlackThreadParams) error
+	CountMissingEmbeddingsForUser(ctx context.Context, arg CountMissingEmbeddingsForUserParams) (int64, error)
 	CreateAIInferenceLogsTable(ctx context.Context) error
 	CreateAppSettingsTable(ctx context.Context) error
 	CreateContactResolutionTable(ctx context.Context) error
@@ -24,6 +25,7 @@ type Querier interface {
 	CreateIdentityMergeCandidatesTable(ctx context.Context) error
 	CreateIdentityMergeHistoryTable(ctx context.Context) error
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (int64, error)
+	CreateMessageEmbeddingsTable(ctx context.Context) error
 	CreateMessagesTable(ctx context.Context) error
 	CreateMessagesView(ctx context.Context) error
 	CreateReportTranslationsTable(ctx context.Context) error
@@ -42,6 +44,7 @@ type Querier interface {
 	CreateUsersTable(ctx context.Context) error
 	DeleteAppSetting(ctx context.Context, key string) error
 	DeleteContactMapping(ctx context.Context, arg DeleteContactMappingParams) error
+	DeleteEmbeddingsByModel(ctx context.Context, model string) error
 	DeleteGmailToken(ctx context.Context, userEmail string) error
 	DeleteMessages(ctx context.Context, arg DeleteMessagesParams) error
 	DeleteOldReports(ctx context.Context) error
@@ -81,6 +84,7 @@ type Querier interface {
 	GetMasterAndTypeByID(ctx context.Context, arg GetMasterAndTypeByIDParams) (GetMasterAndTypeByIDRow, error)
 	GetMaxDailyCompleted(ctx context.Context, dollar_1 string) (interface{}, error)
 	GetMessageByID(ctx context.Context, id int64) (GetMessageByIDRow, error)
+	GetMessageEmbedding(ctx context.Context, messageID int64) (MessageEmbedding, error)
 	GetMessagesByEmail(ctx context.Context, userEmail string) ([]GetMessagesByEmailRow, error)
 	GetMessagesByIDs(ctx context.Context, ids []int64) ([]GetMessagesByIDsRow, error)
 	GetMessagesForMerge(ctx context.Context, arg GetMessagesForMergeParams) ([]GetMessagesForMergeRow, error)
@@ -131,6 +135,8 @@ type Querier interface {
 	IsSourceTSProcessed(ctx context.Context, arg IsSourceTSProcessedParams) (int64, error)
 	ListAdminUsers(ctx context.Context) ([]User, error)
 	ListAppSettings(ctx context.Context) ([]AppSetting, error)
+	ListArchiveEmbeddingsPage(ctx context.Context, arg ListArchiveEmbeddingsPageParams) ([]ListArchiveEmbeddingsPageRow, error)
+	ListMissingEmbeddingsForUser(ctx context.Context, arg ListMissingEmbeddingsForUserParams) ([]ListMissingEmbeddingsForUserRow, error)
 	ListPendingMe(ctx context.Context, arg ListPendingMeParams) ([]ListPendingMeRow, error)
 	ListPendingOthers(ctx context.Context, arg ListPendingOthersParams) ([]ListPendingOthersRow, error)
 	ListReports(ctx context.Context, userEmail string) ([]ListReportsRow, error)
@@ -166,6 +172,7 @@ type Querier interface {
 	UpsertContactMapping(ctx context.Context, arg UpsertContactMappingParams) (int64, error)
 	UpsertContactResolution(ctx context.Context, arg UpsertContactResolutionParams) error
 	UpsertGmailToken(ctx context.Context, arg UpsertGmailTokenParams) error
+	UpsertMessageEmbedding(ctx context.Context, arg UpsertMessageEmbeddingParams) error
 	UpsertScanMetadata(ctx context.Context, arg UpsertScanMetadataParams) error
 	UpsertSlackThread(ctx context.Context, arg UpsertSlackThreadParams) error
 	UpsertTaskTranslation(ctx context.Context, arg UpsertTaskTranslationParams) error

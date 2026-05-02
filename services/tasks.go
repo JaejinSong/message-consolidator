@@ -43,9 +43,16 @@ type TaskAI interface {
 	GenerateMergedTaskTitle(ctx context.Context, email string, tasksJSON string) (string, error)
 }
 
+// TaskEmbedder is satisfied by *EmbeddingService and is the seam tasks use to
+// enqueue archive embeddings after MarkDone. nil-safe via the optional setter.
+type TaskEmbedder interface {
+	EnqueueForMessage(ctx context.Context, msgID store.MessageID)
+}
+
 type TasksService struct {
 	translationSvc *TranslationService
 	geminiClient   TaskAI
+	embedder       TaskEmbedder
 }
 
 func NewTasksService(trans *TranslationService, gemini TaskAI) *TasksService {
@@ -54,6 +61,11 @@ func NewTasksService(trans *TranslationService, gemini TaskAI) *TasksService {
 		geminiClient:   gemini,
 	}
 }
+
+// SetEmbedder wires a background embedding hook for archive transitions.
+// Why: separated from the constructor so main.go can build it after Gemini
+// init without reshuffling existing callers/tests that pass two args.
+func (s *TasksService) SetEmbedder(e TaskEmbedder) { s.embedder = e }
 
 func (s *TasksService) GetTranslationService() *TranslationService {
 	return s.translationSvc
@@ -218,7 +230,16 @@ func (s *TasksService) HandleTaskCompletion(ctx context.Context, email string, t
 		return nil
 	}
 
-	return store.MarkMessageDone(ctx, store.GetDB(), email, taskID, done)
+	if err := store.MarkMessageDone(ctx, store.GetDB(), email, taskID, done); err != nil {
+		return err
+	}
+	// Why: archive transition (done=true) is the only point we want to spend an
+	// embedding API call. Background-detached so the user's MarkDone response
+	// returns immediately even if Gemini is slow.
+	if done && s.embedder != nil {
+		s.embedder.EnqueueForMessage(ctx, taskID)
+	}
+	return nil
 }
 
 // ReclassifyUserTasks re-evaluates assignees for a user's tasks based on identities and content.

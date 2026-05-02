@@ -141,6 +141,22 @@ func (q *Queries) CreateIdentityMergeHistoryTable(ctx context.Context) error {
 	return err
 }
 
+const createMessageEmbeddingsTable = `-- name: CreateMessageEmbeddingsTable :exec
+CREATE TABLE IF NOT EXISTS message_embeddings (
+    message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+    model      TEXT NOT NULL,
+    dim        INTEGER NOT NULL,
+    vec        BLOB NOT NULL,
+    text_hash  TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+`
+
+func (q *Queries) CreateMessageEmbeddingsTable(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, createMessageEmbeddingsTable)
+	return err
+}
+
 const createMessagesTable = `-- name: CreateMessagesTable :exec
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
