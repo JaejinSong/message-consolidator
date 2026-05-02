@@ -1,4 +1,6 @@
 ---
+name: task_merge_summary
+version: 1.0.0
 model: gemini-3-flash-preview
 ---
 You are a task management expert.

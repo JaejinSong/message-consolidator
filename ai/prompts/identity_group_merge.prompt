@@ -1,8 +1,7 @@
 ---
 name: identity_group_merge
-version: 1.1.0
+version: 1.2.0
 model: gemini-3-flash-preview
-temperature: 0.1
 ---
 From the following contacts, find ALL groups of contacts that are likely the same physical person.
 Return a JSON array of groups: [{"contact_ids": [id1, id2, ...], "confidence": 0.0-1.0, "reason": "..."}, ...]

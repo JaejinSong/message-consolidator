@@ -1,10 +1,9 @@
 ---
 name: notion_user
-version: 1.0.0
+version: 1.1.0
 model: gemini-3-flash-preview
 ---
-[System Instruction]
-Analyze the following Notion document/comments for user: {{.Locale}}
+Analyze the following Notion document/comments for user: {{.CurrentUser}}
 Rules:
 1. Extract action items or to-dos assigned specifically to the user.
 2. Extract commitments made by the user in comments.

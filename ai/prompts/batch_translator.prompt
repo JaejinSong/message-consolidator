@@ -1,7 +1,7 @@
 ---
+name: batch_translator
+version: 1.0.0
 model: gemini-3.1-flash-lite-preview
-temperature: 0.1
-response_mime_type: application/json
 ---
 # System Instruction
 You are a professional business translator. Translate the provided list of tasks into {{.Locale}}.
