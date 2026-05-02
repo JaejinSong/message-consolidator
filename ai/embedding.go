@@ -16,12 +16,12 @@ import (
 )
 
 // DefaultEmbeddingModel is the production embedding model for archive semantic search.
-// Why: embedding-001 (768-dim) is the v1beta-compatible generation; text-embedding-004
-// requires the v1 stable API which the genai Go SDK v0.13.0 does not route to.
-// Upgrade path: bump generative-ai-go → v0.20.1 and switch back to text-embedding-004.
+// Why: gemini-embedding-001 is the v1beta-compatible stable model for this API key
+// (3072-dim). text-embedding-004 / embedding-001 are v1-only and return 404 on the
+// genai Go SDK v0.13.0 which routes all requests through v1beta.
 const (
-	DefaultEmbeddingModel = "embedding-001"
-	DefaultEmbeddingDim   = 768
+	DefaultEmbeddingModel = "gemini-embedding-001"
+	DefaultEmbeddingDim   = 3072
 	embedRequestTimeout   = 20 * time.Second
 )
 
