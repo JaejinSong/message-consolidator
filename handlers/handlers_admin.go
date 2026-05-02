@@ -132,61 +132,91 @@ func (a *API) HandleUpdateAdminSetting(w http.ResponseWriter, r *http.Request) {
 
 // applyHotReload mutates live process state for runtime-changeable settings.
 // Returns true when the change took effect immediately, false when only persisted (restart needed).
-// Why: explicit switch keeps the side-effect surface auditable; unknown keys default to false.
+// Why: dispatch table keeps each side-effect isolated and bounds applyHotReload's complexity;
+// unknown keys fall through to false.
 func (a *API) applyHotReload(def *config.SettingDef, value string) bool {
 	if def.RestartRequired {
 		return false
 	}
-	switch def.Key {
-	case "LOG_LEVEL":
-		level := value
-		if level == "" {
-			level = "INFO"
-		}
-		logger.SetLevel(level)
-		a.Config.LogLevel = level
-		return true
-	case "ARCHIVE_DAYS":
-		n, err := strconv.Atoi(value)
-		if err != nil {
-			return false
-		}
-		store.SetAutoArchiveDays(n)
-		a.Config.AutoArchiveDays = n
-		return true
-	case "AUTH_DISABLED":
-		flag := strings.EqualFold(value, "true") || value == "1"
-		auth.AuthDisabled = flag
-		a.Config.AuthDisabled = flag
-		return true
-	case "DEFAULT_USER_EMAIL":
-		// Read live from os.Getenv in auth.GetUserEmail; persist into the cfg so future readers stay in sync.
-		return true
-	case "GEMINI_ANALYSIS_MODEL":
-		a.Config.GeminiAnalysisModel = value
-		return true
-	case "GEMINI_TRANSLATION_MODEL":
-		a.Config.GeminiTranslationModel = value
-		return true
-	case "COMPANY_DOMAINS":
-		a.Config.CompanyDomains = splitCSVForReload(value)
-		return true
-	case "GMAIL_SKIP_SENDERS":
-		a.Config.GmailSkipSenders = value
-		return true
-	case "MESSAGE_BATCH_WINDOW":
-		d, err := time.ParseDuration(value)
-		if err != nil {
-			return false
-		}
-		a.Config.MessageBatchWindow = d
-		return true
-	case "DB_KEEP_ALIVE_INTERVAL":
-		// Why: changing this only affects subsequent ticker creation; the running loop keeps its old interval.
-		// Persist into cfg so a restart reads the new value, but report applied=false to nudge restart.
-		return false
+	if reload, ok := hotReloaders[def.Key]; ok {
+		return reload(a, value)
 	}
 	return false
+}
+
+type hotReloader func(a *API, value string) bool
+
+var hotReloaders = map[string]hotReloader{
+	"LOG_LEVEL":                reloadLogLevel,
+	"ARCHIVE_DAYS":             reloadArchiveDays,
+	"AUTH_DISABLED":            reloadAuthDisabled,
+	"DEFAULT_USER_EMAIL":       reloadDefaultUserEmail,
+	"GEMINI_ANALYSIS_MODEL":    reloadGeminiAnalysisModel,
+	"GEMINI_TRANSLATION_MODEL": reloadGeminiTranslationModel,
+	"COMPANY_DOMAINS":          reloadCompanyDomains,
+	"GMAIL_SKIP_SENDERS":       reloadGmailSkipSenders,
+	"MESSAGE_BATCH_WINDOW":     reloadMessageBatchWindow,
+	// Why: ticker keeps its old interval; persist for restart but report not-yet-applied.
+	"DB_KEEP_ALIVE_INTERVAL": func(*API, string) bool { return false },
+}
+
+func reloadLogLevel(a *API, value string) bool {
+	level := value
+	if level == "" {
+		level = "INFO"
+	}
+	logger.SetLevel(level)
+	a.Config.LogLevel = level
+	return true
+}
+
+func reloadArchiveDays(a *API, value string) bool {
+	n, err := strconv.Atoi(value)
+	if err != nil {
+		return false
+	}
+	store.SetAutoArchiveDays(n)
+	a.Config.AutoArchiveDays = n
+	return true
+}
+
+func reloadAuthDisabled(a *API, value string) bool {
+	flag := strings.EqualFold(value, "true") || value == "1"
+	auth.AuthDisabled = flag
+	a.Config.AuthDisabled = flag
+	return true
+}
+
+// Why: live read happens in auth.GetUserEmail via os.Getenv; nothing to mutate here.
+func reloadDefaultUserEmail(*API, string) bool { return true }
+
+func reloadGeminiAnalysisModel(a *API, value string) bool {
+	a.Config.GeminiAnalysisModel = value
+	return true
+}
+
+func reloadGeminiTranslationModel(a *API, value string) bool {
+	a.Config.GeminiTranslationModel = value
+	return true
+}
+
+func reloadCompanyDomains(a *API, value string) bool {
+	a.Config.CompanyDomains = splitCSVForReload(value)
+	return true
+}
+
+func reloadGmailSkipSenders(a *API, value string) bool {
+	a.Config.GmailSkipSenders = value
+	return true
+}
+
+func reloadMessageBatchWindow(a *API, value string) bool {
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return false
+	}
+	a.Config.MessageBatchWindow = d
+	return true
 }
 
 func splitCSVForReload(raw string) []string {
