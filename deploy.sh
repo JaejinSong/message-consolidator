@@ -216,7 +216,7 @@ echo -e "\n${BLUE}==> Final Post-Deployment Verification...${NC}"
 echo -n "Waiting for Backend Startup... "
 ${SSH_CMD} -- "
   for i in \$(seq 1 30); do
-    sudo docker logs message-consolidator-backend 2>&1 | grep -q 'Startup Complete' && exit 0
+    sudo docker logs message-consolidator-backend 2>&1 | grep -qi 'startup complete' && exit 0
     sleep 2
   done
   exit 1
