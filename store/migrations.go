@@ -2,9 +2,35 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"strconv"
+
 	"message-consolidator/db"
 )
+
+// schemaVersion gates DDL replay on startup. Bump whenever this file changes
+// (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
+// migrations on next deploy. Stored in app_settings under key "schema_version".
+const schemaVersion = 1
+
+func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
+	queries := db.New(dbConn)
+	row, err := queries.GetAppSetting(ctx, "schema_version")
+	if err != nil {
+		return false
+	}
+	return row.Value == strconv.Itoa(schemaVersion)
+}
+
+func stampSchemaVersion(ctx context.Context, q db.DBTX) error {
+	queries := db.New(q)
+	return queries.UpsertAppSetting(ctx, db.UpsertAppSettingParams{
+		Key:       "schema_version",
+		Value:     strconv.Itoa(schemaVersion),
+		UpdatedBy: "system",
+	})
+}
 
 func createCoreTables(ctx context.Context, q db.DBTX) error {
 	queries := db.New(q)

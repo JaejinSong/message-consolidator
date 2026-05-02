@@ -123,8 +123,36 @@ func applySQLitePragmas(db *sql.DB, dbURL string) {
 }
 
 // EnsureSchemaAndSeeds ensures that all core tables, migrations, and seed data are present.
-// It is idempotent and safe to call multiple times.
+// It is idempotent and safe to call multiple times. Schema version gate skips ~2.5s of
+// DDL round-trips when migrations.go content is unchanged since last successful apply.
 func EnsureSchemaAndSeeds(ctx context.Context, dbConn *sql.DB) error {
+	if schemaIsCurrent(ctx, dbConn) {
+		logger.Infof("[DB] init: schema v%d up-to-date — skipping DDL", schemaVersion)
+	} else if err := runFullDDL(ctx, dbConn); err != nil {
+		return err
+	}
+
+	// Why: Skip expensive cache refresh during tests to maximize speed.
+	// Tests will lazily initialize cache if needed via EnsureCacheInitialized.
+	if testMode {
+		return nil
+	}
+
+	// Why: Cache refresh runs in background so startup_complete fires immediately.
+	// First per-user request falls back to EnsureCacheInitialized (singleflight-deduped lazy load).
+	go func() {
+		defer safego.Recover("cache-refresh-on-boot")
+		traceCtx, _ := trace.Start(ctx, "/Background-Cache-RefreshOnBoot")
+		err := RefreshAllCaches(traceCtx)
+		_ = trace.End(traceCtx, err)
+		if err != nil {
+			logger.Errorf("[CACHE] background refresh failed: %v", err)
+		}
+	}()
+	return nil
+}
+
+func runFullDDL(ctx context.Context, dbConn *sql.DB) error {
 	// Why: Use LevelDefault for SQLite file-based DBs. Serializable causes SQLITE_BUSY
 	// on DDL in WAL mode. The original Serializable was needed for in-memory shared-cache
 	// connections (abandoned since modernc.org/sqlite doesn't support cache=shared).
@@ -150,18 +178,15 @@ func EnsureSchemaAndSeeds(ctx context.Context, dbConn *sql.DB) error {
 	createIndexes(ctx, tx)
 	logger.Infof("[DB] init: indexes created")
 
+	if err := stampSchemaVersion(ctx, tx); err != nil {
+		return fmt.Errorf("failed to stamp schema version: %w", err)
+	}
+
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit setup transaction: %w", err)
 	}
-	logger.Infof("[DB] init: schema committed successfully")
-
-	// Why: Skip expensive cache refresh during tests to maximize speed.
-	// Tests will lazily initialize cache if needed via EnsureCacheInitialized.
-	if testMode {
-		return nil
-	}
-
-	return RefreshAllCaches(ctx)
+	logger.Infof("[DB] init: schema v%d committed successfully", schemaVersion)
+	return nil
 }
 
 func setupConnectionPool(cfg *config.Config, dbURL string) {

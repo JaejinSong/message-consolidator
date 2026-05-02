@@ -22,8 +22,8 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # Phase 2: Asset Provisioner (Sidecar)
-# Why: Separating web server from assets to reduce image size and improve architecture.
-FROM alpine:3.21
+# Why: busybox:musl (~0.9MB) over alpine (8.5MB) — sidecar only needs sh + cp, no apk needed.
+FROM busybox:1.37.0-musl
 
 WORKDIR /app
 COPY --from=builder /app/dist /app/dist

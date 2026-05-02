@@ -2,42 +2,39 @@
 set -e
 set -o pipefail
 
-# Colors & constants
-RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; NC='\033[0m'
-START_TIME=$(date +%s)
-
-# Configuration
+# --- Configuration ---
 PROJECT_ID="gemini-enterprise-487906"
 REGION="us-central1"
 REPO_NAME="message-consolidator-repo"
 VPS_NAME="chat-analyzer-vps"
+VPS_PATH="~/message-consolidator"
+HEALTH_URL="https://34.67.133.18.nip.io/health"
+EXPECTED_ACCOUNT="jjsong@whatap.io"
 REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}"
 
+# --- UI helpers ---
+RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; NC='\033[0m'
+say_blue()  { echo -e "${BLUE}$*${NC}"; }
+say_green() { echo -e "${GREEN}$*${NC}"; }
+say_red()   { echo -e "${RED}$*${NC}"; }
+fatal()     { say_red "FATAL: $*"; exit 1; }
+
+# --- gcloud sanity check ---
 # Why: shell may be on a personal gcloud config (e.g. `pocready-personal`).
 # Pin the company config locally so docker credential helper / Artifact Registry
 # push always use jjsong@whatap.io without mutating the user's global active config.
 export CLOUDSDK_ACTIVE_CONFIG_NAME="default"
-EXPECTED_ACCOUNT="jjsong@whatap.io"
 ACTIVE_ACCOUNT=$(gcloud config get-value account 2>/dev/null || true)
-if [ "$ACTIVE_ACCOUNT" != "$EXPECTED_ACCOUNT" ]; then
-    echo -e "${RED}FATAL: gcloud account mismatch (got '${ACTIVE_ACCOUNT}', expected '${EXPECTED_ACCOUNT}'). Check 'gcloud config configurations describe default'.${NC}"
-    exit 1
-fi
-if [ "$(gcloud config get-value project 2>/dev/null)" != "$PROJECT_ID" ]; then
-    echo -e "${RED}FATAL: gcloud project mismatch under config 'default'. Run: gcloud config set project ${PROJECT_ID} --configuration=default${NC}"
-    exit 1
-fi
+[ "$ACTIVE_ACCOUNT" = "$EXPECTED_ACCOUNT" ] || fatal "gcloud account mismatch (got '${ACTIVE_ACCOUNT}', expected '${EXPECTED_ACCOUNT}'). Check 'gcloud config configurations describe default'."
+[ "$(gcloud config get-value project 2>/dev/null)" = "$PROJECT_ID" ] || fatal "gcloud project mismatch under config 'default'. Run: gcloud config set project ${PROJECT_ID} --configuration=default"
 
-# SSH Configuration
+# --- SSH ---
 SSH_OPTS="-o ControlMaster=auto -o ControlPath=~/.ssh/control-%C -o ControlPersist=10m -q"
 SSH_CMD="ssh ${SSH_OPTS} ${VPS_NAME}"
-SCP_CMD="scp ${SSH_OPTS}"
-
-# Establish background master connection
-echo -e "${BLUE}==> Pre-establishing SSH Master Connection...${NC}"
+say_blue "==> Pre-establishing SSH Master Connection..."
 ${SSH_CMD} -M -f -N || true
 
-# CLI Arguments
+# --- CLI args ---
 MODE="all"; FORCE_BUILDER="false"
 for arg in "$@"; do
     case $arg in
@@ -45,20 +42,19 @@ for arg in "$@"; do
         --builder) FORCE_BUILDER="true" ;;
     esac
 done
+BUILD_FE=false; BUILD_BE=false
+[[ "$MODE" == "all" || "$MODE" == "fe" ]] && BUILD_FE=true
+[[ "$MODE" == "all" || "$MODE" == "be" ]] && BUILD_BE=true
 
-# Build Tags
+# --- Env + tag ---
+START_TIME=$(date +%s)
 BUILD_TAG=$(date +%Y%m%d%H%M%S)
-
-# Load Environment
 [ -f .env ] && { set -a; source .env; set +a; }
 export GEMINI_API_KEY_FOR_TEST=${GEMINI_API_KEY_FOR_TEST:-$GEMINI_API_KEY}
-
-# Final image vars
 IMAGE_FE_TAG="${REGISTRY}/frontend:${BUILD_TAG}"
 IMAGE_BE_TAG="${REGISTRY}/backend:${BUILD_TAG}"
 
-# --- Helpers ---
-
+# --- run_step ---
 run_step() {
     local name="$1"; shift
     local s_time=$(date +%s); local tmp_log=$(mktemp)
@@ -71,28 +67,36 @@ run_step() {
     fi
 }
 
-# --- Functions ---
+# --- Build / Push helpers ---
+# Why: Two tags share the same blob; registry dedups so only manifests differ.
+# Parallel publish saves one manifest round-trip.
+push_dual_tag() {
+    local name="$1" t1="$2" t2="$3"
+    run_step "$name" bash -c "
+        docker push ${t1} > /dev/null 2>&1 & p1=\$!
+        docker push ${t2} > /dev/null 2>&1 & p2=\$!
+        wait \$p1 && wait \$p2
+    "
+}
 
-# Frontend Build (load to local daemon; push happens after test gate)
+# Why: tar | ssh streams all files through a single SSH channel — replaces scp,
+# which (on OpenSSH 9.0+) uses SFTP and pays per-file open/close/fsync overhead.
+# On e2-micro this is the difference between ~3s and ~0.5-1s for 2-3 small files.
+upload_via_tar() {
+    tar c "$@" | ${SSH_CMD} "cd ${VPS_PATH} && tar x"
+}
+
 build_fe() {
     run_step "FE: CSS Optimize" npm run optimize:css
+    # Why: --provenance=false --sbom=false drops buildx attestation manifests (~5-15MB
+    # per image on registry push) — internal-use images don't need supply-chain metadata.
     run_step "FE: Build" docker buildx build --platform linux/amd64 -q \
+        --provenance=false --sbom=false \
         -t "${IMAGE_FE_TAG}" -t "${REGISTRY}/frontend:latest" \
         -f docker/frontend/Dockerfile \
         --load .
 }
 
-push_fe() {
-    # Why: Two tags share the same blob; registry dedups so only manifests differ.
-    # Parallel publish saves one manifest round-trip.
-    run_step "FE: Push" bash -c "
-        docker push ${IMAGE_FE_TAG} > /dev/null 2>&1 & p1=\$!
-        docker push ${REGISTRY}/frontend:latest > /dev/null 2>&1 & p2=\$!
-        wait \$p1 && wait \$p2
-    "
-}
-
-# Backend Build (load to local daemon; push happens after test gate)
 build_be() {
     BUILDER_TAG="${REGISTRY}/backend-builder:latest"
     if [[ "$FORCE_BUILDER" == "true" ]] || ! docker image inspect "$BUILDER_TAG" >/dev/null 2>&1; then
@@ -102,129 +106,127 @@ build_be() {
     fi
     # Why: --load builds to local daemon without push, allowing the build to run in
     # parallel with Stage 1 tests. Push is gated on test success in Stage 2.
+    # --provenance=false --sbom=false drops buildx attestation manifests (~5-15MB).
     run_step "BE: Build" docker buildx build --platform linux/amd64 -q \
+        --provenance=false --sbom=false \
         -t "${IMAGE_BE_TAG}" -t "${REGISTRY}/backend:latest" \
         -f docker/backend/Dockerfile \
         --build-arg BUILDER_IMAGE="$BUILDER_TAG" \
         --load .
 }
 
-push_be() {
-    run_step "BE: Push" bash -c "
-        docker push ${IMAGE_BE_TAG} > /dev/null 2>&1 & p1=\$!
-        docker push ${REGISTRY}/backend:latest > /dev/null 2>&1 & p2=\$!
-        wait \$p1 && wait \$p2
-    "
-}
-
-# --- Execution ---
-
-# --- Deployment Chains ---
-
-chain_be() {
-    push_be
-    echo -e "${BLUE}==> Deploying Backend Container...${NC}"
-    run_step "BE: Deploy" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose up -d --force-recreate backend"
-}
-
-chain_fe() {
-    push_fe
-    echo -e "${BLUE}==> Deploying Frontend Container...${NC}"
-    run_step "FE: Deploy" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose up -d --force-recreate frontend"
-}
-
-chain_caddy() {
-    echo -e "${BLUE}==> Deploying Caddy Configuration...${NC}"
-    # Why: Reloading Caddy in-place for zero-downtime config updates.
-    run_step "Caddy: Reload" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile" || \
-    run_step "Caddy: Restart" ${SSH_CMD} "cd ~/message-consolidator && sudo docker compose restart caddy"
-}
-
-
-# --- Execution Flow ---
-
-# [STAGE 1] Parallel: Tests + Builds + Auth
+# --- Stage 1: Tests + Builds + Auth (parallel) ---
 # Why: Builds use buildx --load (no push) so they can overlap with the test gate.
 # Push happens in Stage 2 only after tests pass — failed tests don't pollute registry.
-echo -e "\n${BLUE}==================================================${NC}"
-echo -e "${BLUE}==> STAGE 1: Tests + Builds (parallel)${NC}"
-echo -e "${BLUE}==================================================${NC}"
+echo
+say_blue "=================================================="
+say_blue "==> STAGE 1: Tests + Builds (parallel)"
+say_blue "=================================================="
 
 p_test_go=""; p_test_ai=""; p_test_node=""; p_build_be=""; p_build_fe=""
-
-if [[ "$MODE" == "all" || "$MODE" == "be" ]]; then
+if $BUILD_BE; then
     ( run_step "Go Unit Tests" go test ./... ) & p_test_go=$!
     ( run_step "AI Regressions" make test-ai ) & p_test_ai=$!
     ( build_be ) & p_build_be=$!
 fi
-if [[ "$MODE" == "all" || "$MODE" == "fe" ]]; then
+if $BUILD_FE; then
     ( run_step "NPM (Vitest)" npm test ) & p_test_node=$!
     ( build_fe ) & p_build_fe=$!
 fi
 ( run_step "GCloud Auth" gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet ) & p_auth=$!
 
 # Test gate (fail fast — built images stay local, never pushed)
-[[ -n "$p_test_go" ]] && { wait $p_test_go || { echo -e "${RED}FATAL: Go Tests Failed${NC}"; exit 1; }; }
-[[ -n "$p_test_ai" ]] && { wait $p_test_ai || { echo -e "${RED}FATAL: AI Regressions Failed${NC}"; exit 1; }; }
-[[ -n "$p_test_node" ]] && { wait $p_test_node || { echo -e "${RED}FATAL: Node Tests Failed${NC}"; exit 1; }; }
-wait $p_auth || { echo -e "${RED}FATAL: GCloud Auth Failed${NC}"; exit 1; }
+[ -n "$p_test_go" ]   && { wait $p_test_go   || fatal "Go Tests Failed"; }
+[ -n "$p_test_ai" ]   && { wait $p_test_ai   || fatal "AI Regressions Failed"; }
+[ -n "$p_test_node" ] && { wait $p_test_node || fatal "Node Tests Failed"; }
+wait $p_auth || fatal "GCloud Auth Failed"
 
 # Build gate (tests passed — now require builds to have succeeded too)
-[[ -n "$p_build_be" ]] && { wait $p_build_be || { echo -e "${RED}FATAL: BE Build Failed${NC}"; exit 1; }; }
-[[ -n "$p_build_fe" ]] && { wait $p_build_fe || { echo -e "${RED}FATAL: FE Build Failed${NC}"; exit 1; }; }
+[ -n "$p_build_be" ] && { wait $p_build_be || fatal "BE Build Failed"; }
+[ -n "$p_build_fe" ] && { wait $p_build_fe || fatal "FE Build Failed"; }
 
-echo -e "${GREEN}Stage 1 passed! Tests + builds validated.${NC}"
+say_green "Stage 1 passed! Tests + builds validated."
 
-# [STAGE 2] Parallel Push + Deploy Chains
-echo -e "\n${BLUE}==================================================${NC}"
-echo -e "${BLUE}==> STAGE 2: Push + Deploy (parallel chains)${NC}"
-echo -e "${BLUE}==================================================${NC}"
+# --- Stage 2: Push + Deploy (parallel chains) ---
+echo
+say_blue "=================================================="
+say_blue "==> STAGE 2: Push + Deploy (parallel chains)"
+say_blue "=================================================="
 
-# 2.0 Prep: Sync Config Files to VPS
-echo -e "${BLUE}==> Syncing Orchestration Files...${NC}"
+# 2.0 Sync orchestration files to VPS
+say_blue "==> Syncing Orchestration Files..."
 grep -vE '^(FE_IMAGE|BE_IMAGE)=' .env > .env.vps
-if [[ "$MODE" == "all" || "$MODE" == "fe" ]]; then
-    echo "FE_IMAGE=${IMAGE_FE_TAG}" >> .env.vps
-else
-    grep '^FE_IMAGE=' .env >> .env.vps || true
+if $BUILD_FE; then echo "FE_IMAGE=${IMAGE_FE_TAG}" >> .env.vps; else grep '^FE_IMAGE=' .env >> .env.vps || true; fi
+if $BUILD_BE; then echo "BE_IMAGE=${IMAGE_BE_TAG}" >> .env.vps; else grep '^BE_IMAGE=' .env >> .env.vps || true; fi
+
+# Why: Skip Caddyfile upload + reload when local content matches VPS copy.
+# Empty remote hash (file missing / SSH error) defaults to CADDY_CHANGED=true (safe).
+LOCAL_CADDY_HASH=$(sha256sum Caddyfile | awk '{print $1}')
+REMOTE_CADDY_OUT=$(${SSH_CMD} "sha256sum ${VPS_PATH}/Caddyfile 2>/dev/null" 2>/dev/null || true)
+REMOTE_CADDY_HASH="${REMOTE_CADDY_OUT%% *}"
+CADDY_CHANGED=true
+[ -n "$REMOTE_CADDY_HASH" ] && [ "$LOCAL_CADDY_HASH" = "$REMOTE_CADDY_HASH" ] && CADDY_CHANGED=false
+
+UPLOAD_FILES=(.env.vps docker-compose.yml)
+if $CADDY_CHANGED; then UPLOAD_FILES+=(Caddyfile); fi
+run_step "Upload Configs" upload_via_tar "${UPLOAD_FILES[@]}"
+${SSH_CMD} "cd ${VPS_PATH} && mv .env.vps .env"
+
+# 2.1 Start chains (push + deploy inlined per service)
+p_be=""; p_fe=""
+if $BUILD_BE; then
+    (
+        push_dual_tag "BE: Push" "${IMAGE_BE_TAG}" "${REGISTRY}/backend:latest"
+        say_blue "==> Deploying Backend Container..."
+        run_step "BE: Deploy" ${SSH_CMD} "cd ${VPS_PATH} && sudo docker compose up -d --force-recreate backend"
+        # Why: Poll readiness inline so chain_fe (still running) absorbs the wait, and
+        # the time becomes a visible PASS line instead of invisible post-deploy delay.
+        # Why: sleep 0.5 (vs 2) lifts polling round-up cost by 4x — same 60s budget,
+        # 4x finer detection. Each iter ~0.5-0.8s incl. docker logs grep.
+        run_step "BE: Startup" ${SSH_CMD} "
+            for i in \$(seq 1 120); do
+                sudo docker logs message-consolidator-backend 2>&1 | grep -qi 'startup complete' && exit 0
+                sleep 0.5
+            done
+            echo 'Backend did not signal startup complete within 60s' >&2
+            exit 1
+        "
+    ) & p_be=$!
 fi
-if [[ "$MODE" == "all" || "$MODE" == "be" ]]; then
-    echo "BE_IMAGE=${IMAGE_BE_TAG}" >> .env.vps
-else
-    grep '^BE_IMAGE=' .env >> .env.vps || true
+if $BUILD_FE; then
+    (
+        push_dual_tag "FE: Push" "${IMAGE_FE_TAG}" "${REGISTRY}/frontend:latest"
+        say_blue "==> Deploying Frontend Container..."
+        run_step "FE: Deploy" ${SSH_CMD} "cd ${VPS_PATH} && sudo docker compose up -d --force-recreate frontend"
+    ) & p_fe=$!
 fi
-run_step "Upload Configs" ${SCP_CMD} .env.vps docker-compose.yml Caddyfile ${VPS_NAME}:~/message-consolidator/
-${SSH_CMD} "cd ~/message-consolidator && mv .env.vps .env"
+p_caddy=""
+if $CADDY_CHANGED; then
+    (
+        say_blue "==> Deploying Caddy Configuration..."
+        # Why: Reloading Caddy in-place for zero-downtime config updates.
+        run_step "Caddy: Reload" ${SSH_CMD} "cd ${VPS_PATH} && sudo docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile" || \
+        run_step "Caddy: Restart" ${SSH_CMD} "cd ${VPS_PATH} && sudo docker compose restart caddy"
+    ) & p_caddy=$!
+else
+    say_blue "==> Caddyfile unchanged — skip reload"
+fi
 
-# 2.1 Start Chains
-p_be=""; p_fe=""; p_caddy=""
+# 2.2 Wait for convergence
+[ -n "$p_be" ]    && { wait $p_be    || exit 1; }
+[ -n "$p_fe" ]    && { wait $p_fe    || exit 1; }
+[ -n "$p_caddy" ] && { wait $p_caddy || exit 1; }
 
-if [[ "$MODE" == "all" || "$MODE" == "be" ]]; then chain_be & p_be=$!; fi
-if [[ "$MODE" == "all" || "$MODE" == "fe" ]]; then chain_fe & p_fe=$!; fi
-chain_caddy & p_caddy=$!
-
-# 2.2 Wait for Convergence
-[ -n "$p_be" ] && { wait $p_be || exit 1; }
-[ -n "$p_fe" ] && { wait $p_fe || exit 1; }
-wait $p_caddy || exit 1
-
-echo -e "\n${GREEN}Stage 2 complete! Infrastructure updated.${NC}"
+echo
+say_green "Stage 2 complete! Infrastructure updated."
 
 # --- Post-Deployment ---
+echo
+say_blue "==> Final Post-Deployment Verification..."
+run_step "Health Check" bash -c "curl -s -k '${HEALTH_URL}' | grep -q 'OK'"
 
-echo -e "\n${BLUE}==> Final Post-Deployment Verification...${NC}"
-echo -n "Waiting for Backend Startup... "
-${SSH_CMD} -- "
-  for i in \$(seq 1 30); do
-    sudo docker logs message-consolidator-backend 2>&1 | grep -qi 'startup complete' && exit 0
-    sleep 2
-  done
-  exit 1
-" && echo -e "${GREEN}Ready!${NC}" || { echo -e "${RED}Timeout!${NC}"; exit 1; }
-
-run_step "Health Check" bash -c "curl -s -k 'https://34.67.133.18.nip.io/health' | grep -q 'OK'"
-
-echo -e "\n${GREEN}🚀 Full Stack Deployed in $(( $(date +%s) - START_TIME ))s!${NC}"
+echo
+say_green "🚀 Full Stack Deployed in $(( $(date +%s) - START_TIME ))s!"
 
 # Why: Cleans up dangling images to prevent VPS disk space exhaustion.
 run_step "Cleanup: Prune Images" ${SSH_CMD} "sudo docker image prune -f"
