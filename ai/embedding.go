@@ -16,9 +16,11 @@ import (
 )
 
 // DefaultEmbeddingModel is the production embedding model for archive semantic search.
-// Gemini's text-embedding-004 returns 768-dim float32 vectors with multilingual support.
+// Why: embedding-001 (768-dim) is the v1beta-compatible generation; text-embedding-004
+// requires the v1 stable API which the genai Go SDK v0.13.0 does not route to.
+// Upgrade path: bump generative-ai-go → v0.20.1 and switch back to text-embedding-004.
 const (
-	DefaultEmbeddingModel = "text-embedding-004"
+	DefaultEmbeddingModel = "embedding-001"
 	DefaultEmbeddingDim   = 768
 	embedRequestTimeout   = 20 * time.Second
 )
