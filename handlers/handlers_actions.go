@@ -322,42 +322,60 @@ func (a *API) HandleBackfillRoomActor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	candidates := make([]roomActorBackfillCandidate, 0)
-	roomCache := make(map[string]string)
-	for _, m := range msgs {
-		if m.Assignee != services.AssigneeShared || m.Room == "" {
-			continue
-		}
-		actor, cached := roomCache[m.Room]
-		if !cached {
-			actor, _ = lookupRoomActor(r.Context(), email, m.Room)
-			roomCache[m.Room] = actor
-		}
-		if actor == "" || strings.EqualFold(strings.TrimSpace(m.Requester), actor) {
-			continue
-		}
-		excerpt := m.Task
-		if len(excerpt) > 80 {
-			excerpt = excerpt[:80]
-		}
-		candidates = append(candidates, roomActorBackfillCandidate{
-			ID: m.ID, Room: m.Room, CurrentAssignee: m.Assignee,
-			ProposedAssignee: actor, Requester: m.Requester, TaskExcerpt: excerpt,
-		})
-	}
+	candidates := buildBackfillCandidates(r.Context(), email, msgs)
 
 	applied := 0
 	if !dryRun {
-		for _, c := range candidates {
-			if err := store.UpdateTaskAssignee(r.Context(), nil, email, c.ID, c.ProposedAssignee); err == nil {
-				applied++
-			}
-		}
+		applied = applyBackfillCandidates(r.Context(), email, candidates)
 	}
 
 	respondJSON(w, http.StatusOK, roomActorBackfillResponse{
 		Status: "success", DryRun: dryRun, Candidates: candidates, AppliedCount: applied,
 	})
+}
+
+func buildBackfillCandidates(ctx context.Context, email string, msgs []store.ConsolidatedMessage) []roomActorBackfillCandidate {
+	candidates := make([]roomActorBackfillCandidate, 0)
+	roomCache := make(map[string]string)
+	for _, m := range msgs {
+		c, ok := evaluateBackfillCandidate(ctx, email, m, roomCache)
+		if ok {
+			candidates = append(candidates, c)
+		}
+	}
+	return candidates
+}
+
+func evaluateBackfillCandidate(ctx context.Context, email string, m store.ConsolidatedMessage, roomCache map[string]string) (roomActorBackfillCandidate, bool) {
+	if m.Assignee != services.AssigneeShared || m.Room == "" {
+		return roomActorBackfillCandidate{}, false
+	}
+	actor, cached := roomCache[m.Room]
+	if !cached {
+		actor, _ = lookupRoomActor(ctx, email, m.Room)
+		roomCache[m.Room] = actor
+	}
+	if actor == "" || strings.EqualFold(strings.TrimSpace(m.Requester), actor) {
+		return roomActorBackfillCandidate{}, false
+	}
+	excerpt := m.Task
+	if len(excerpt) > 80 {
+		excerpt = excerpt[:80]
+	}
+	return roomActorBackfillCandidate{
+		ID: m.ID, Room: m.Room, CurrentAssignee: m.Assignee,
+		ProposedAssignee: actor, Requester: m.Requester, TaskExcerpt: excerpt,
+	}, true
+}
+
+func applyBackfillCandidates(ctx context.Context, email string, candidates []roomActorBackfillCandidate) int {
+	applied := 0
+	for _, c := range candidates {
+		if err := store.UpdateTaskAssignee(ctx, nil, email, c.ID, c.ProposedAssignee); err == nil {
+			applied++
+		}
+	}
+	return applied
 }
 
 // Why: 별도 함수로 분리 — 동일 룸에 대한 store 조회를 cache miss 분기 가독성 위해 추출.
