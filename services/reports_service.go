@@ -314,21 +314,28 @@ func (s *ReportsService) formatLogLine(email string, m Log) string {
 
 	// Why: Age is the deterministic signal for the Stalled Tasks rule (working-day cutoff).
 	// Done tasks aren't candidates and stays out of the prompt to avoid steering Activity counting.
-	ageStr := ""
-	if !m.Done {
-		base := m.CreatedAt
-		if !m.AssignedAt.IsZero() && m.AssignedAt.After(base) {
-			base = m.AssignedAt
-		}
-		if !base.IsZero() {
-			if days := store.WorkingDaysSince(base, time.Now()); days > 0 {
-				ageStr = fmt.Sprintf(", Age: %dwd", days)
-			}
-		}
-	}
+	ageStr := formatAge(m)
 
 	return fmt.Sprintf("- [%s][%s] %s (Room: %s, From: %s (%s), To: %s (%s)%s%s)%s\n",
 		status, cat, m.Task, m.Room, reqName, reqCat, asgName, asgCat, deadlineStr, ageStr, evidence)
+}
+
+func formatAge(m Log) string {
+	if m.Done {
+		return ""
+	}
+	base := m.CreatedAt
+	if !m.AssignedAt.IsZero() && m.AssignedAt.After(base) {
+		base = m.AssignedAt
+	}
+	if base.IsZero() {
+		return ""
+	}
+	days := store.WorkingDaysSince(base, time.Now())
+	if days <= 0 {
+		return ""
+	}
+	return fmt.Sprintf(", Age: %dwd", days)
 }
 
 // truncateEvidence extracts the newest block from OriginalText (first block post-flip)

@@ -31,7 +31,8 @@ type adminSettingDTO struct {
 	UpdatedBy       string   `json:"updated_by,omitempty"`
 }
 
-const maskedSecretValue = "••••••••"
+// Why: UI placeholder shown to mask secret values; not a credential. gosec G101 false positive.
+const maskedSecretValue = "••••••••" // #nosec G101
 
 // HandleListAdminSettings returns every registry-defined setting with its current DB-stored value.
 // Secrets are masked before serialization.
