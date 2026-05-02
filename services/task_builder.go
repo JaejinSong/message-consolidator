@@ -114,6 +114,9 @@ func resolveTaskTitle(aiTitle, room, original string) string {
 
 // resolveRequester applies the Requester fallback chain.
 // Phase J Path B: envelope (SenderRaw / SenderEmail) is authoritative; AI is last-resort fallback.
+// Self-DM exception: when sender is the current user and AI emitted a distinct requester
+// (chat_system 1.9.0 reported-speech rule), the AI value overrides envelope to preserve the
+// original external requester recorded inside the memo body.
 func resolveRequester(ctx context.Context, p TaskBuildParams) string {
 	normalize := func(raw string) string {
 		// Why: NormalizeContactName hits the DB; skip if no connection (e.g. unit-test without DB).
@@ -124,6 +127,10 @@ func resolveRequester(ctx context.Context, p TaskBuildParams) string {
 			return n
 		}
 		return raw
+	}
+
+	if ai := aiRequesterOverrideForSelfDM(ctx, p); ai != "" {
+		return normalize(ai)
 	}
 
 	// Why (Phase J Path B): envelope is metadata-driven. SenderRaw / SenderEmail come from the platform
@@ -141,6 +148,33 @@ func resolveRequester(ctx context.Context, p TaskBuildParams) string {
 		return normalize(trimmed)
 	}
 	return ""
+}
+
+// aiRequesterOverrideForSelfDM returns the AI-extracted requester when the envelope sender is
+// the current user and AI identified a distinct external requester (self-DM reported-speech).
+// Returns "" otherwise.
+func aiRequesterOverrideForSelfDM(ctx context.Context, p TaskBuildParams) string {
+	ai := strings.TrimSpace(p.Item.Requester)
+	if ai == "" || strings.EqualFold(ai, "unknown") || strings.EqualFold(ai, "undefined") {
+		return ""
+	}
+	if isSelfReference(ai, p) || matchesAlias(ai, p.Aliases) {
+		return ""
+	}
+	if !senderIsCurrentUser(ctx, p) {
+		return ""
+	}
+	return ai
+}
+
+func senderIsCurrentUser(ctx context.Context, p TaskBuildParams) bool {
+	if p.SenderRaw != "" && (isSelfReference(p.SenderRaw, p) || matchesAlias(p.SenderRaw, p.Aliases) || resolvesToCurrentUser(ctx, p.SenderRaw, p)) {
+		return true
+	}
+	if p.SenderEmail != "" && (isSelfReference(p.SenderEmail, p) || matchesAlias(p.SenderEmail, p.Aliases) || resolvesToCurrentUser(ctx, p.SenderEmail, p)) {
+		return true
+	}
+	return false
 }
 
 

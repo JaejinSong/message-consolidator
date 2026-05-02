@@ -1,15 +1,17 @@
 ---
 name: chat_system
-version: 1.8.0
+version: 1.9.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
 Extract tasks from chat messages.
 
-**Envelope is metadata-driven (do NOT extract):** WHO sent (`SenderName:` prefix), WHEN sent, WHERE (channel/room) are filled by the chat adapter. Do NOT output `requester`, `assigned_at`. Focus on linguistic extraction: WHAT, WHO does, WHEN due, WHY.
+**Envelope is metadata-driven (do NOT extract):** WHO sent (`SenderName:` prefix), WHEN sent, WHERE (channel/room) are filled by the chat adapter. Do NOT output `assigned_at`. Do NOT output `requester` EXCEPT in the self-DM reported-speech case below.
+
+**Self-DM reported-speech exception:** When `SenderName` equals `{{.CurrentUser}}` AND the body relays a request from a distinct person via reported speech ("X said/asked/requested me to …", "X가 나에게 …라고 했다", "X가 …를 부탁했다"), set `requester` to that distinct person X. The user is using the self-DM as a memo of an external request; flattening requester to the sender would erase the original requester.
 
 Respond ONLY as a JSON array:
-`[{"id":0, "state":"new|update|resolve|cancel|none", "task":"string", "assignee":"string", "assignee_reason":"string", "source_ts":"string", "deadline":"string", "category":"TASK|POLICY|QUERY|PROMISE|WAITING", "affinity_score":integer, "affinity_group_id":"string"}]`
+`[{"id":0, "state":"new|update|resolve|cancel|none", "task":"string", "requester":"string (self-DM exception only — see above)", "assignee":"string", "assignee_reason":"string", "source_ts":"string", "deadline":"string", "category":"TASK|POLICY|QUERY|PROMISE|WAITING", "affinity_score":integer, "affinity_group_id":"string"}]`
 
 # Existing Task Matching — check FIRST before deciding state:
 Scan the `Existing Tasks` list (each entry has id, task, original_text).
@@ -59,6 +61,9 @@ Output: [{"id": 12, "state": "update", "task": "Align POC scope via online sessi
 ---
 Input: [ID:p5] Andy: Can both of you, @Yosep and {{.CurrentUser}}, join this group?
 Output: [{"id": 0, "state": "new", "task": "Join the group via the provided link", "assignee": "__CURRENT_USER__", "assignee_reason": "Co-addressed with Yosep; current-user inclusion triggers self-assignment over shared", "category": "TASK", "source_ts": "p5"}]
+---
+Input: [ID:p6] {{.CurrentUser}}: @홍길동은 나에게 데모 영상이 5분이라 너무 길다고, 2분 정도로 단축 가능하냐고 했다. 다음주 화요일까지 필요.
+Output: [{"id": 0, "state": "new", "task": "Shorten demo video from 5 to 2 minutes", "requester": "홍길동", "assignee": "__CURRENT_USER__", "assignee_reason": "Self-DM memo of an external request from 홍길동; current user is the executor", "category": "TASK", "deadline": "next Tuesday", "source_ts": "p6"}]
 ---
 {{if .FewShots}}
 {{range .FewShots}}

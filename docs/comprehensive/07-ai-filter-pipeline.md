@@ -486,7 +486,7 @@ const (
 | 파일명 | 모델 라우팅 | 버전 | 용도 |
 |---|---|---|---|
 | `batch_translator.prompt` | `gemini-3.1-flash-lite-preview` | — | 태스크 배치 번역 (JSON 응답) |
-| `chat_system.prompt` | `gemini-3-flash-preview` | 1.8.0 | Chat 채널 태스크 추출 시스템 프롬프트 |
+| `chat_system.prompt` | `gemini-3-flash-preview` | 1.9.0 | Chat 채널 태스크 추출 시스템 프롬프트 |
 | `chat_user.prompt` | `gemini-3-flash-preview` | 1.0.0 | Chat 채널 태스크 추출 유저 프롬프트 |
 | `completion_check.prompt` | `gemini-3.1-flash-lite-preview` | 2.0.0 | 답변→부모 태스크 상태 전이 판별 |
 | `gmail_system.prompt` | `gemini-3-flash-preview` | 1.6.0 | Gmail 스레드 태스크 추출 시스템 프롬프트 |

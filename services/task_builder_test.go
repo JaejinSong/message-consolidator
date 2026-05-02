@@ -76,6 +76,69 @@ func TestResolveTaskTitle(t *testing.T) {
 
 // Why (Phase J Path B / J-7): envelope (SenderRaw / SenderEmail) must outrank AI extraction
 // for `requester`. AI is reachable only when both envelope sources are empty.
+func TestResolveRequester_SelfDMOverride(t *testing.T) {
+	user := store.User{Name: "Jaejin", Email: "jj@example.com"}
+
+	tests := []struct {
+		name        string
+		aiRequester string
+		senderRaw   string
+		senderEmail string
+		want        string
+	}{
+		{
+			name:        "self-DM by name + AI distinct external requester → AI wins",
+			aiRequester: "홍길동",
+			senderRaw:   "Jaejin",
+			senderEmail: "jj@example.com",
+			want:        "홍길동",
+		},
+		{
+			name:        "self-DM by email + AI distinct → AI wins",
+			aiRequester: "External Person",
+			senderRaw:   "",
+			senderEmail: "jj@example.com",
+			want:        "External Person",
+		},
+		{
+			name:        "self-DM but AI also self-references → no override (envelope wins)",
+			aiRequester: "Jaejin",
+			senderRaw:   "Jaejin",
+			senderEmail: "jj@example.com",
+			want:        "Jaejin",
+		},
+		{
+			name:        "self-DM but AI omitted requester → envelope wins",
+			aiRequester: "",
+			senderRaw:   "Jaejin",
+			senderEmail: "jj@example.com",
+			want:        "Jaejin",
+		},
+		{
+			name:        "non-self sender + AI distinct → envelope still wins (J Path B)",
+			aiRequester: "홍길동",
+			senderRaw:   "Alice",
+			senderEmail: "alice@example.com",
+			want:        "Alice",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := TaskBuildParams{
+				UserEmail:   user.Email,
+				User:        user,
+				Item:        store.TodoItem{Requester: tt.aiRequester},
+				SenderRaw:   tt.senderRaw,
+				SenderEmail: tt.senderEmail,
+			}
+			got := resolveRequester(t.Context(), p)
+			if got != tt.want {
+				t.Errorf("resolveRequester() = %q; want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestResolveRequester_EnvelopeOverridesAI(t *testing.T) {
 	tests := []struct {
 		name           string

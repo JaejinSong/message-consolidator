@@ -98,13 +98,29 @@ func TestChatSystemCoAddresseeRule(t *testing.T) {
 		t.Fatalf("read chat_system: %v", err)
 	}
 	body := string(content)
+	if !strings.Contains(body, "Co-addressee exception") {
+		t.Errorf("chat_system.prompt missing v1.8.0 rule phrase: %q", "Co-addressee exception")
+	}
+}
+
+// TestChatSystemSelfDMReportedSpeechRule guards the v1.9.0 self-DM exception.
+// Why: prevents regression where self-DM memos relaying an external request
+// (e.g. "X said to me ...") flatten requester to the sender (= current user)
+// because the chat path forbids requester output by default.
+func TestChatSystemSelfDMReportedSpeechRule(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/chat_system.prompt")
+	if err != nil {
+		t.Fatalf("read chat_system: %v", err)
+	}
+	body := string(content)
 	required := []string{
-		"Co-addressee exception",
-		"version: 1.8.0",
+		"Self-DM reported-speech exception",
+		"version: 1.9.0",
 	}
 	for _, token := range required {
 		if !strings.Contains(body, token) {
-			t.Errorf("chat_system.prompt missing v1.8.0 token: %q", token)
+			t.Errorf("chat_system.prompt missing v1.9.0 token: %q", token)
 		}
 	}
 }
