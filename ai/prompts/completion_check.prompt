@@ -1,6 +1,6 @@
 ---
 name: completion_check
-version: 2.1.0
+version: 2.2.0
 model: gemini-3.1-flash-lite-preview
 ---
 [System Instruction]
@@ -23,6 +23,7 @@ Classify how a reply message affects an existing task. Apply rules in order — 
    - "Any update?", "Following up", "Ping"
 
 # Response Schema:
+Output ONLY the JSON object below. No markdown, no prose, no code fences.
 {"status": "RESOLVE" | "UPDATE" | "NEW" | "NONE", "updated_text": "<updated complete task title reflecting all changes, will replace the current title — only for UPDATE, else empty string>"}
 
 [Context]
