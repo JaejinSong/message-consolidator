@@ -2,19 +2,9 @@ package store
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"message-consolidator/db"
-	"message-consolidator/internal/safego"
-	"message-consolidator/logger"
-	"strings"
-	"sync"
 )
-
-// Why: Guards the fire-and-forget contact_resolution backfill so concurrent runMigrations
-// calls (e.g. test reuse, double-init) cannot spawn duplicate goroutines within one process.
-// Multi-instance protection still relies on the in-function `count > 0` early-return.
-var migrateContactResolutionOnce sync.Once
 
 func createCoreTables(ctx context.Context, q db.DBTX) error {
 	queries := db.New(q)
@@ -46,55 +36,44 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 			return fmt.Errorf("failed to create %s table: %w", step.name, err)
 		}
 	}
+	if err := createMessagesFTS(ctx, q); err != nil {
+		return fmt.Errorf("failed to create messages_fts: %w", err)
+	}
 	return nil
 }
 
-func runMigrations(ctx context.Context, q db.DBTX) error {
-	migrateTokenUsageBreakdown(ctx, q)
-	migrateTokenUsageReportID(ctx, q)
-	migrateOriginalTextOrder(ctx, q)
-	migrateMessagesFTS(ctx, q)
-	migrateContactResolutionOnce.Do(func() {
-		go migrateContactResolution(ctx)
-	})
+// createMessagesFTS provisions the fts5 virtual table over messages plus the three
+// sync triggers. Why: kept out of sqlc because sqlc-sqlite truncates trigger bodies
+// at the first ';' inside BEGIN…END, so each trigger would lose its tail statement.
+// IF NOT EXISTS makes every step idempotent across cold starts and existing prod DBs.
+func createMessagesFTS(ctx context.Context, q db.DBTX) error {
+	stmts := []string{
+		`CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+			task, original_text, requester, assignee,
+			content='messages', content_rowid='id',
+			tokenize='trigram case_sensitive 0'
+		)`,
+		`CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
+			INSERT INTO messages_fts(rowid, task, original_text, requester, assignee)
+			VALUES (new.id, new.task, new.original_text, new.requester, new.assignee);
+		END`,
+		`CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+			INSERT INTO messages_fts(messages_fts, rowid, task, original_text, requester, assignee)
+			VALUES ('delete', old.id, old.task, old.original_text, old.requester, old.assignee);
+		END`,
+		`CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+			INSERT INTO messages_fts(messages_fts, rowid, task, original_text, requester, assignee)
+			VALUES ('delete', old.id, old.task, old.original_text, old.requester, old.assignee);
+			INSERT INTO messages_fts(rowid, task, original_text, requester, assignee)
+			VALUES (new.id, new.task, new.original_text, new.requester, new.assignee);
+		END`,
+	}
+	for _, s := range stmts {
+		if _, err := q.ExecContext(ctx, s); err != nil {
+			return err
+		}
+	}
 	return nil
-}
-
-// migrateContactResolution rebuilds contact_resolution on first run after the table was introduced.
-// Why: spawned as a fire-and-forget goroutine from runMigrations. Captures the *sql.DB once at start
-// so a concurrent ResetForTest (test teardown) cannot nil the global mid-execution and panic.
-func migrateContactResolution(ctx context.Context) {
-	defer safego.Recover("migrate-contact-resolution")
-	conn := GetDB()
-	if conn == nil {
-		return
-	}
-
-	var count int
-	_ = conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM contact_resolution").Scan(&count)
-	if count > 0 {
-		return
-	}
-
-	rows, err := conn.QueryContext(ctx, "SELECT DISTINCT tenant_email FROM contacts")
-	if err != nil {
-		return
-	}
-	defer rows.Close()
-
-	var tenants []string
-	for rows.Next() {
-		var t string
-		if err := rows.Scan(&t); err == nil {
-			tenants = append(tenants, t)
-		}
-	}
-	for _, t := range tenants {
-		if err := RebuildContactResolution(ctx, t); err != nil {
-			logger.Errorf("[RESOLUTION] rebuild failed for %s: %v", t, err)
-		}
-	}
-	logger.Infof("[RESOLUTION] contact_resolution populated for %d tenants", len(tenants))
 }
 
 func rebuildViews(ctx context.Context, q db.DBTX) error {
@@ -108,189 +87,6 @@ func rebuildViews(ctx context.Context, q db.DBTX) error {
 		return fmt.Errorf("failed to create v_messages: %w", err)
 	}
 	return nil
-}
-
-// migrateOriginalTextOrder reverses block order in messages.original_text so newest appears first.
-// Why: matches the post-2026-04-24 append queries (prepend pattern). Historical rows stored oldest-first.
-func migrateOriginalTextOrder(ctx context.Context, q db.DBTX) {
-	if tableHasColumn(ctx, q, "messages", "original_text_flipped") {
-		return
-	}
-	if _, err := q.ExecContext(ctx, "ALTER TABLE messages ADD COLUMN original_text_flipped INTEGER DEFAULT 0"); err != nil {
-		logger.Errorf("[MIGRATE] original_text flip: add column failed: %v", err)
-		return
-	}
-
-	rows, err := q.QueryContext(ctx, "SELECT id, original_text FROM messages WHERE original_text LIKE '%' || char(10) || char(10) || '%'")
-	if err != nil {
-		logger.Errorf("[MIGRATE] original_text flip: query failed: %v", err)
-		return
-	}
-	type pair struct {
-		id   int
-		text string
-	}
-	var pending []pair
-	for rows.Next() {
-		var p pair
-		if err := rows.Scan(&p.id, &p.text); err == nil {
-			pending = append(pending, p)
-		}
-	}
-	rows.Close()
-
-	reversed := 0
-	for _, p := range pending {
-		blocks := strings.Split(p.text, "\n\n")
-		for i, j := 0, len(blocks)-1; i < j; i, j = i+1, j-1 {
-			blocks[i], blocks[j] = blocks[j], blocks[i]
-		}
-		if _, err := q.ExecContext(ctx, "UPDATE messages SET original_text = ?, original_text_flipped = 1 WHERE id = ?", strings.Join(blocks, "\n\n"), p.id); err == nil {
-			reversed++
-		}
-	}
-	_, _ = q.ExecContext(ctx, "UPDATE messages SET original_text_flipped = 1 WHERE original_text_flipped = 0")
-	logger.Infof("[MIGRATE] original_text order flipped for %d multi-block rows (of %d pending)", reversed, len(pending))
-}
-
-// migrateTokenUsageReportID extends token_usage with a report_id column and folds it into the
-// composite UNIQUE key so per-report cost can be aggregated. Historical rows back-fill report_id=0
-// (un-attributed bucket). SQLite cannot alter UNIQUE in place — full table rebuild.
-func migrateTokenUsageReportID(ctx context.Context, q db.DBTX) {
-	if tableHasColumn(ctx, q, "token_usage", "report_id") {
-		return
-	}
-	stmts := []string{
-		`CREATE TABLE token_usage_new (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_email VARCHAR(255) NOT NULL,
-			date DATE NOT NULL DEFAULT (date('now')),
-			step TEXT NOT NULL DEFAULT '',
-			model TEXT NOT NULL DEFAULT '',
-			source TEXT NOT NULL DEFAULT '',
-			report_id INTEGER NOT NULL DEFAULT 0,
-			prompt_tokens INT DEFAULT 0,
-			completion_tokens INT DEFAULT 0,
-			total_tokens INT DEFAULT 0,
-			call_count INT DEFAULT 0,
-			filtered_count INT DEFAULT 0,
-			UNIQUE(user_email, date, step, model, source, report_id)
-		)`,
-		`INSERT INTO token_usage_new (user_email, date, step, model, source, prompt_tokens, completion_tokens, total_tokens, call_count, filtered_count)
-		 SELECT user_email, date, step, model, source, prompt_tokens, completion_tokens, total_tokens, call_count, filtered_count FROM token_usage`,
-		`DROP TABLE token_usage`,
-		`ALTER TABLE token_usage_new RENAME TO token_usage`,
-	}
-	for _, s := range stmts {
-		if _, err := q.ExecContext(ctx, s); err != nil {
-			logger.Errorf("[MIGRATE] token_usage report_id rebuild step failed: %v", err)
-			return
-		}
-	}
-	logger.Infof("[MIGRATE] token_usage extended with report_id")
-}
-
-// migrateTokenUsageBreakdown rebuilds token_usage with step/model/source/call_count columns
-// and the new composite UNIQUE key. SQLite cannot alter UNIQUE constraints in place, so we
-// copy historical rows into the legacy bucket (step='', model='', source='').
-func migrateTokenUsageBreakdown(ctx context.Context, q db.DBTX) {
-	if tableHasColumn(ctx, q, "token_usage", "step") {
-		return
-	}
-	stmts := []string{
-		`CREATE TABLE token_usage_new (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_email VARCHAR(255) NOT NULL,
-			date DATE NOT NULL DEFAULT (date('now')),
-			step TEXT NOT NULL DEFAULT '',
-			model TEXT NOT NULL DEFAULT '',
-			source TEXT NOT NULL DEFAULT '',
-			prompt_tokens INT DEFAULT 0,
-			completion_tokens INT DEFAULT 0,
-			total_tokens INT DEFAULT 0,
-			call_count INT DEFAULT 0,
-			filtered_count INT DEFAULT 0,
-			UNIQUE(user_email, date, step, model, source)
-		)`,
-		`INSERT INTO token_usage_new (user_email, date, prompt_tokens, completion_tokens, total_tokens, filtered_count)
-		 SELECT user_email, date, prompt_tokens, completion_tokens, total_tokens, filtered_count FROM token_usage`,
-		`DROP TABLE token_usage`,
-		`ALTER TABLE token_usage_new RENAME TO token_usage`,
-	}
-	for _, s := range stmts {
-		if _, err := q.ExecContext(ctx, s); err != nil {
-			logger.Errorf("[MIGRATE] token_usage rebuild step failed: %v", err)
-			return
-		}
-	}
-	logger.Infof("[MIGRATE] token_usage extended with step/model/source/call_count")
-}
-
-func tableExists(ctx context.Context, q db.DBTX, name string) bool {
-	row := q.QueryRowContext(ctx, "SELECT 1 FROM sqlite_master WHERE type IN ('table','view') AND name=?", name)
-	var v int
-	err := row.Scan(&v)
-	return err == nil
-}
-
-// migrateMessagesFTS creates an fts5 virtual table over messages for full-text search.
-// Why: trigram tokenizer enables substring match without LIKE '%...%' full scans.
-func migrateMessagesFTS(ctx context.Context, q db.DBTX) {
-	if tableExists(ctx, q, "messages_fts") {
-		return
-	}
-	steps := []struct {
-		name string
-		sql  string
-	}{
-		{"create fts5 table", `CREATE VIRTUAL TABLE messages_fts USING fts5(
-			task, original_text, requester, assignee,
-			content='messages', content_rowid='id',
-			tokenize='trigram case_sensitive 0'
-		)`},
-		{"create insert trigger", `CREATE TRIGGER messages_ai AFTER INSERT ON messages BEGIN
-			INSERT INTO messages_fts(rowid, task, original_text, requester, assignee)
-			VALUES (new.id, new.task, new.original_text, new.requester, new.assignee);
-		END`},
-		{"create delete trigger", `CREATE TRIGGER messages_ad AFTER DELETE ON messages BEGIN
-			INSERT INTO messages_fts(messages_fts, rowid, task, original_text, requester, assignee)
-			VALUES ('delete', old.id, old.task, old.original_text, old.requester, old.assignee);
-		END`},
-		{"create update trigger", `CREATE TRIGGER messages_au AFTER UPDATE ON messages BEGIN
-			INSERT INTO messages_fts(messages_fts, rowid, task, original_text, requester, assignee)
-			VALUES ('delete', old.id, old.task, old.original_text, old.requester, old.assignee);
-			INSERT INTO messages_fts(rowid, task, original_text, requester, assignee)
-			VALUES (new.id, new.task, new.original_text, new.requester, new.assignee);
-		END`},
-		{"rebuild", `INSERT INTO messages_fts(messages_fts) VALUES('rebuild')`},
-	}
-	for _, s := range steps {
-		if _, err := q.ExecContext(ctx, s.sql); err != nil {
-			logger.Errorf("[MIGRATE] messages_fts %s: %v", s.name, err)
-			return
-		}
-	}
-	logger.Infof("[MIGRATE] messages_fts created and rebuilt")
-}
-
-func tableHasColumn(ctx context.Context, q db.DBTX, table, column string) bool {
-	rows, err := q.QueryContext(ctx, "PRAGMA table_info("+table+")")
-	if err != nil {
-		return false
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var cid, notnull, pk int
-		var name, typ string
-		var dflt sql.NullString
-		if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
-			continue
-		}
-		if name == column {
-			return true
-		}
-	}
-	return false
 }
 
 func createIndexes(ctx context.Context, q db.DBTX) {

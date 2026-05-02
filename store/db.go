@@ -140,13 +140,6 @@ func EnsureSchemaAndSeeds(ctx context.Context, dbConn *sql.DB) error {
 	}
 	logger.Infof("[DB] init: core tables created/verified")
 
-	// Why: Perform schema migrations to add new columns to existing tables.
-	logger.Infof("[DB] init: starting migrations")
-	if err := runMigrations(ctx, tx); err != nil {
-		return fmt.Errorf("database migration failed: %w", err)
-	}
-	logger.Infof("[DB] init: migrations completed")
-
 	// Why: Rebuild views AFTER tables and columns exist to ensure they reference current schema.
 	logger.Infof("[DB] init: rebuilding views")
 	if err := rebuildViews(ctx, tx); err != nil {
