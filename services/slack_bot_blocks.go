@@ -99,7 +99,7 @@ func taskRowBlock(t store.ConsolidatedMessage) slack.Block {
 }
 
 func buildTaskMeta(t store.ConsolidatedMessage) string {
-	parts := make([]string, 0, 4)
+	parts := make([]string, 0, 5)
 	if t.Source != "" {
 		parts = append(parts, t.Source)
 	}
@@ -108,6 +108,9 @@ func buildTaskMeta(t store.ConsolidatedMessage) string {
 	}
 	if t.Requester != "" {
 		parts = append(parts, "from "+t.Requester)
+	}
+	if t.Assignee != "" {
+		parts = append(parts, "to "+t.Assignee)
 	}
 	if t.Deadline != "" {
 		parts = append(parts, "due "+t.Deadline)
