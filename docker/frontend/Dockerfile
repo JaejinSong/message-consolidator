@@ -7,11 +7,12 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# Optimization: Copy source files and set Production environment
-COPY src/ ./src/
-COPY static/ ./static/
-COPY index.html ./
+# Why: Order COPYs from least- to most-frequently changed so config edits do not
+# bust the src layer cache when only tsconfig/vite.config tweaks happen.
 COPY tsconfig.json vite.config.ts ./
+COPY index.html ./
+COPY static/ ./static/
+COPY src/ ./src/
 
 # Why: Pass VITE_API_BASE_URL to Vite build process for correct API endpoint resolution.
 ARG VITE_API_BASE_URL=/api
