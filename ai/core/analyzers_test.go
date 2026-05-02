@@ -1,4 +1,4 @@
-package ai
+package core
 
 import (
 	"reflect"
@@ -94,9 +94,9 @@ func TestGetAnalyzer(t *testing.T) {
 		tt := tt // Closure capture
 		t.Run(tt.source, func(t *testing.T) {
 			t.Parallel()
-			analyzer := getAnalyzer(tt.source)
+			analyzer := GetAnalyzer(tt.source)
 			if reflect.TypeOf(analyzer) != tt.expectedType {
-				t.Errorf("getAnalyzer() for source '%s' returned type %T, want %v", tt.source, analyzer, tt.expectedType)
+				t.Errorf("GetAnalyzer() for source '%s' returned type %T, want %v", tt.source, analyzer, tt.expectedType)
 			}
 		})
 	}

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"message-consolidator/ai"
+	"message-consolidator/ai/core"
 	"message-consolidator/config"
 	"message-consolidator/internal/whataphttpx"
 	"message-consolidator/logger"
@@ -808,7 +809,7 @@ func stripHTML(raw string) string {
 }
 
 func decodeBase64URL(data string) string {
-	decoded, err := ai.DecodeBase64URL(data)
+	decoded, err := core.DecodeBase64URL(data)
 	if err != nil {
 		return ""
 	}

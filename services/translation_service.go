@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"message-consolidator/ai"
+	"message-consolidator/ai/core"
 	"message-consolidator/store"
 	"strings"
 
@@ -52,7 +53,7 @@ func (s *TranslationService) Translate(ctx context.Context, email string, dedupl
 	if isReport {
 		return result, nil
 	}
-	return ai.CleanMarkdownText(result), nil
+	return core.CleanMarkdownText(result), nil
 }
 
 // TranslateBatch handles multiple tasks in a single AI call with semaphore protection.

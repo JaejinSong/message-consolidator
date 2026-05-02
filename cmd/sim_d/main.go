@@ -10,7 +10,7 @@ import (
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
 
-	"message-consolidator/ai"
+	"message-consolidator/ai/core"
 )
 
 const baselinePayload = `[ID:m1] sunpho: pak @Hady nanti jadi ya jam 16:00, saya ada book calendar cuman nanti link meetingnya saya share disini
@@ -59,7 +59,7 @@ func main() {
 	}
 	defer client.Close()
 
-	analyzer := &ai.ChatAnalyzer{Source: "whatsapp"}
+	analyzer := &core.ChatAnalyzer{Source: "whatsapp"}
 
 	fmt.Println("=== BASELINE (current behavior) ===")
 	runVariant(ctx, client, analyzer, baselinePayload, "", 3)
@@ -68,8 +68,8 @@ func main() {
 	runVariant(ctx, client, analyzer, dPayload, dSystemAddendum, 3)
 }
 
-func runVariant(ctx context.Context, client *genai.Client, analyzer *ai.ChatAnalyzer, payload, sysAddendum string, n int) {
-	extractionCtx := ai.ExtractionContext{
+func runVariant(ctx context.Context, client *genai.Client, analyzer *core.ChatAnalyzer, payload, sysAddendum string, n int) {
+	extractionCtx := core.ExtractionContext{
 		MessagePayload:    payload,
 		CurrentTime:       time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 		Locale:            "en-US",

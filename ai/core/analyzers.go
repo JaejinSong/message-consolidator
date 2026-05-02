@@ -1,4 +1,4 @@
-package ai
+package core
 
 import (
 	"message-consolidator/logger"
@@ -104,7 +104,7 @@ func (n *NotionAnalyzer) PreProcess(text string) string {
 	return text
 }
 
-func getAnalyzer(source string) SourceAnalyzer {
+func GetAnalyzer(source string) SourceAnalyzer {
 	switch source {
 	case "gmail":
 		return &GmailAnalyzer{}

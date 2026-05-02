@@ -247,7 +247,7 @@ func TestReportSummaryPrompt(t *testing.T) {
 	}
 	defer client.Close()
 
-	promptBytes, err := os.ReadFile("prompts/report_summary.prompt")
+	promptBytes, err := os.ReadFile("core/prompts/report_summary.prompt")
 	if err != nil {
 		t.Fatalf("프롬프트 파일 읽기 실패: %v", err)
 	}

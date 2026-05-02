@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"message-consolidator/ai/core"
 	"message-consolidator/internal/safego"
 	"message-consolidator/internal/whataphttpx"
 	"message-consolidator/logger"
@@ -174,8 +175,8 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
 
-	parsed := LoadPrompt(PromptReportSummary)
-	data := ExtractionContext{
+	parsed := core.LoadPrompt(core.PromptReportSummary)
+	data := core.ExtractionContext{
 		MessagePayload: tasks,
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 		Locale:         "English",
@@ -222,8 +223,8 @@ func (g *GeminiClient) EvaluateTaskTransition(ctx context.Context, email, parent
 		return TaskTransition{}, fmt.Errorf("Gemini client not initialized")
 	}
 
-	parsed := LoadPrompt(PromptCompletionCheck)
-	data := ExtractionContext{
+	parsed := core.LoadPrompt(core.PromptCompletionCheck)
+	data := core.ExtractionContext{
 		ParentTask:     parentTask,
 		MessagePayload: replyText,
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -251,7 +252,7 @@ func (g *GeminiClient) EvaluateTaskTransition(ctx context.Context, email, parent
 	}
 
 	var result TaskTransition
-	if err := json.Unmarshal([]byte(sanitizeJSON(raw)), &result); err != nil {
+	if err := json.Unmarshal([]byte(core.SanitizeJSON(raw)), &result); err != nil {
 		return TaskTransition{}, fmt.Errorf("failed to parse AI transition response: %w (raw: %s)", err, raw)
 	}
 
@@ -317,8 +318,8 @@ func (g *GeminiClient) GenerateVisualizationData(ctx context.Context, email stri
 func (g *GeminiClient) GenerateMergedTaskTitle(ctx context.Context, email string, tasksJSON string) (string, error) {
 	if g == nil || g.client == nil { return "", fmt.Errorf("Gemini client not initialized") }
 
-	parsed := LoadPrompt(PromptTaskMergeSummary)
-	data := ExtractionContext{
+	parsed := core.LoadPrompt(core.PromptTaskMergeSummary)
+	data := core.ExtractionContext{
 		MessagePayload: tasksJSON,
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 		Locale:         "English",
@@ -340,7 +341,7 @@ func (g *GeminiClient) GenerateMergedTaskTitle(ctx context.Context, email string
 	if err != nil { return "", err }
 
 	_ = trace.Step(ctx, "Gemini-MergeSummary", "", int(time.Since(start).Milliseconds()), 0)
-	return CleanMarkdownText(text), nil
+	return core.CleanMarkdownText(text), nil
 }
 
 func (g *GeminiClient) Analyze(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string) ([]store.TodoItem, error) {
@@ -354,7 +355,7 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email string, msg
 	}
 
 	data := g.prepareAnalysisData(ctx, email, msg, language, source, room, tasks)
-	analyzer := getAnalyzer(source)
+	analyzer := core.GetAnalyzer(source)
 	modelName := g.getAnalyzeModelName(analyzer)
 	model := g.initModel(modelName, 0.0, DefaultMaxTokens, "application/json", g.getAnalyzeSysInst(analyzer, data))
 	prompt := g.getAnalyzeUserPrompt(analyzer, data)
@@ -379,13 +380,13 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email string, msg
 	return candidates, nil
 }
 
-func (g *GeminiClient) prepareAnalysisData(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string, tasks []store.ConsolidatedMessage) ExtractionContext {
+func (g *GeminiClient) prepareAnalysisData(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string, tasks []store.ConsolidatedMessage) core.ExtractionContext {
 	user, _ := store.GetOrCreateUser(ctx, email, "", "")
 	userName := user.Name
 	if userName == "" {
 		userName = email
 	}
-	data := ExtractionContext{
+	data := core.ExtractionContext{
 		MessagePayload:      msg.RawContent,
 		CurrentTime:         time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 		Locale:              g.getValidLang(language),
@@ -395,7 +396,7 @@ func (g *GeminiClient) prepareAnalysisData(ctx context.Context, email string, ms
 		CurrentUserEmail:    user.Email,
 		CurrentUserID:       user.ID,
 	}
-	if analyzer := getAnalyzer(source); analyzer != nil {
+	if analyzer := core.GetAnalyzer(source); analyzer != nil {
 		data.MessagePayload = analyzer.PreProcess(data.MessagePayload)
 	}
 	return data
@@ -467,8 +468,8 @@ func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []stor
 }
 
 func (g *GeminiClient) prepareTranslateResources(lang string, requests []store.TranslateRequest) (*genai.GenerativeModel, string, string) {
-	parsed := LoadPrompt(PromptTranslationSystem)
-	sysInst, _ := parsed.Render(ExtractionContext{
+	parsed := core.LoadPrompt(core.PromptTranslationSystem)
+	sysInst, _ := parsed.Render(core.ExtractionContext{
 		Locale:      g.getValidLang(lang),
 		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 	})
@@ -483,7 +484,7 @@ func (g *GeminiClient) parseTranslateResults(resp *genai.GenerateContentResponse
 	if err != nil {
 		return nil, err
 	}
-	return unmarshalTranslate(sanitizeJSON(raw), raw, "")
+	return core.UnmarshalTranslate(core.SanitizeJSON(raw), raw, "")
 }
 
 // Why: Translates a complete Markdown report into a target language while strictly preserving the structure.
@@ -493,8 +494,8 @@ func (g *GeminiClient) TranslateReport(ctx context.Context, email string, report
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
 
-	parsed := LoadPrompt(PromptReportTranslator)
-	data := ExtractionContext{
+	parsed := core.LoadPrompt(core.PromptReportTranslator)
+	data := core.ExtractionContext{
 		Locale:      g.getValidLang(targetLanguage),
 		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 	}
@@ -522,8 +523,8 @@ func (g *GeminiClient) TranslateTaskMessage(ctx context.Context, email string, t
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
 
-	parsed := LoadPrompt(PromptTaskTranslator)
-	data := ExtractionContext{
+	parsed := core.LoadPrompt(core.PromptTaskTranslator)
+	data := core.ExtractionContext{
 		Locale:      g.getValidLang(targetLanguage),
 		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 	}
@@ -555,8 +556,8 @@ func (g *GeminiClient) TranslateTasksBatch(ctx context.Context, email string, ta
 		return g.translateInChunks(ctx, email, tasks, lang, 25)
 	}
 
-	parsed := LoadPrompt(PromptBatchTranslator)
-	data := ExtractionContext{
+	parsed := core.LoadPrompt(core.PromptBatchTranslator)
+	data := core.ExtractionContext{
 		Locale:      g.getValidLang(lang),
 		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 	}
@@ -579,7 +580,7 @@ func (g *GeminiClient) TranslateTasksBatch(ctx context.Context, email string, ta
 	logTokenUsage(ctx, email, "BatchTranslate", modelName, "", 0, resp)
 	raw, _ := extractResponseText(resp)
 	var results []TranslationResult
-	if err := json.Unmarshal([]byte(sanitizeJSON(raw)), &results); err != nil {
+	if err := json.Unmarshal([]byte(core.SanitizeJSON(raw)), &results); err != nil {
 		return nil, fmt.Errorf("failed to parse AI response: %w", err)
 	}
 
@@ -624,7 +625,7 @@ func (g *GeminiClient) initModel(modelName string, temp float64, tokens int32, m
 	return model
 }
 
-func (g *GeminiClient) getEffectiveModel(p *ParsedPrompt, def string) string {
+func (g *GeminiClient) getEffectiveModel(p *core.ParsedPrompt, def string) string {
 	if p != nil && p.Meta.Model != "" {
 		return p.Meta.Model
 	}
@@ -638,21 +639,21 @@ func (g *GeminiClient) getValidLang(lang string) string {
 	return lang
 }
 
-func (g *GeminiClient) getAnalyzeModelName(analyzer SourceAnalyzer) string {
+func (g *GeminiClient) getAnalyzeModelName(analyzer core.SourceAnalyzer) string {
 	if analyzer != nil {
 		return analyzer.GetModelName(g.analysisModel)
 	}
 	return g.analysisModel
 }
 
-func (g *GeminiClient) getAnalyzeSysInst(analyzer SourceAnalyzer, data ExtractionContext) string {
+func (g *GeminiClient) getAnalyzeSysInst(analyzer core.SourceAnalyzer, data core.ExtractionContext) string {
 	if analyzer != nil {
 		return analyzer.GetSystemInstruction(data)
 	}
 	return `Extract tasks as JSON array: [{"id", "state", "task", "requester", "assignee", "assigned_at", "source_ts", "deadline", "category"}]`
 }
 
-func (g *GeminiClient) getAnalyzeUserPrompt(analyzer SourceAnalyzer, data ExtractionContext) string {
+func (g *GeminiClient) getAnalyzeUserPrompt(analyzer core.SourceAnalyzer, data core.ExtractionContext) string {
 	if analyzer != nil {
 		return analyzer.GetUserPrompt(data)
 	}
@@ -665,11 +666,11 @@ func (g *GeminiClient) parseAnalyzeResults(resp *genai.GenerateContentResponse, 
 		return nil, err
 	}
 	logger.Debugf("[GEMINI] raw response: %s", raw)
-	clean := sanitizeJSON(raw)
+	clean := core.SanitizeJSON(raw)
 	if clean == "" || clean == "[]" {
 		return nil, nil
 	}
-	items, err := unmarshalAnalyze(clean, raw, userEmail, currentUserID)
+	items, err := core.UnmarshalAnalyze(clean, raw, userEmail, currentUserID)
 	if err != nil {
 		return nil, err
 	}

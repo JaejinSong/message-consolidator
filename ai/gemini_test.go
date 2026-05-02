@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"message-consolidator/ai/core"
 	"testing"
 
 	"github.com/google/generative-ai-go/genai"
@@ -50,7 +51,7 @@ func TestExtractResponseText(t *testing.T) {
 
 func TestLoadPrompt(t *testing.T) {
 	t.Parallel()
-	parsed := LoadPrompt(PromptGmailSystem)
+	parsed := core.LoadPrompt(core.PromptGmailSystem)
 	if parsed == nil || parsed.Body == "" {
 		t.Error("Expected 'gmail_system.prompt' to load successfully, got empty result")
 	}

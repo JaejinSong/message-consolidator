@@ -1,4 +1,4 @@
-package ai
+package core
 
 import (
 	"encoding/base64"
@@ -40,7 +40,7 @@ type flexItem struct {
 	Subtasks        []flexSubtask   `json:"subtasks,omitempty"`
 }
 
-func unmarshalAnalyze(cleanJSON, rawJSON, userEmail string, currentUserID store.UserID) ([]store.TodoItem, error) {
+func UnmarshalAnalyze(cleanJSON, rawJSON, userEmail string, currentUserID store.UserID) ([]store.TodoItem, error) {
 	cleanJSON = strings.TrimSpace(cleanJSON)
 	if len(cleanJSON) < 2 {
 		return nil, fmt.Errorf("empty JSON")
@@ -142,7 +142,7 @@ func mapFlexToTodo(f flexItem, currentUserID store.UserID, userEmail string) sto
 	return item
 }
 
-func unmarshalTranslate(cleanJSON, rawJSON, language string) ([]store.TranslateRequest, error) {
+func UnmarshalTranslate(cleanJSON, rawJSON, language string) ([]store.TranslateRequest, error) {
 	var translations []store.TranslateRequest
 	if err := json.Unmarshal([]byte(cleanJSON), &translations); err != nil {
 		fallback, fbErr := decodeTranslationFallback(cleanJSON)
@@ -157,7 +157,7 @@ func unmarshalTranslate(cleanJSON, rawJSON, language string) ([]store.TranslateR
 	return translations, nil
 }
 
-//Why: Wrapped TranslateResponse is an alternate AI output shape; isolating the decode keeps unmarshalTranslate flat.
+//Why: Wrapped TranslateResponse is an alternate AI output shape; isolating the decode keeps UnmarshalTranslate flat.
 func decodeTranslationFallback(cleanJSON string) ([]store.TranslateRequest, error) {
 	var tr store.TranslateResponse
 	if err := json.Unmarshal([]byte(cleanJSON), &tr); err != nil {
@@ -210,9 +210,9 @@ func CleanMarkdownText(input string) string {
 	return strings.TrimSpace(replacer.Replace(input))
 }
 
-// sanitizeJSON cleans AI response from markdown code blocks and whitespace.
+// SanitizeJSON cleans AI response from markdown code blocks and whitespace.
 // Why: Orchestrates the multi-stage JSON extraction process while adhering to strict 30-line function limits.
-func sanitizeJSON(s string) string {
+func SanitizeJSON(s string) string {
 	s = CleanMarkdownText(s)
 	s = extractMarkdownBlock(s)
 	return extractBracketPayload(s)

@@ -1,4 +1,4 @@
-package ai
+package core
 
 // GetDefaultFewShots는 모든 분석기에서 공통으로 사용할 수 있는 기본 예시 풀을 반환합니다.
 // Why: [Token Economy] 프롬프트에 하드코딩된 예시를 제거하고, 필요할 때만 동적으로 선택하여 주입함으로써 토큰 절감 및 응답 속도를 개선합니다.

@@ -1,4 +1,4 @@
-package ai
+package core
 
 import (
 	"encoding/base64"
@@ -174,9 +174,9 @@ func TestSanitizeJSON(t *testing.T) {
 		tt := tt // Closure capture
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := sanitizeJSON(tt.input)
+			got := SanitizeJSON(tt.input)
 			if got != tt.expected {
-				t.Errorf("sanitizeJSON() = %v, want %v (Input: %s)", got, tt.expected, tt.input)
+				t.Errorf("SanitizeJSON() = %v, want %v (Input: %s)", got, tt.expected, tt.input)
 			}
 		})
 	}
@@ -200,13 +200,13 @@ func TestUnmarshalAnalyze(t *testing.T) {
 		tt := tt // Closure capture
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := unmarshalAnalyze(tt.cleanJSON, tt.cleanJSON, "", 0)
+			got, err := UnmarshalAnalyze(tt.cleanJSON, tt.cleanJSON, "", 0)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("unmarshalAnalyze() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("UnmarshalAnalyze() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if len(got) != tt.expected {
-				t.Errorf("unmarshalAnalyze() len = %v, want %v", len(got), tt.expected)
+				t.Errorf("UnmarshalAnalyze() len = %v, want %v", len(got), tt.expected)
 			}
 		})
 	}
@@ -338,9 +338,9 @@ func TestUnmarshalAnalyze_StatusKey(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			items, err := unmarshalAnalyze(tt.json, tt.json, "", 0)
+			items, err := UnmarshalAnalyze(tt.json, tt.json, "", 0)
 			if err != nil {
-				t.Fatalf("unmarshalAnalyze() error = %v", err)
+				t.Fatalf("UnmarshalAnalyze() error = %v", err)
 			}
 			if len(items) == 0 {
 				t.Fatal("expected at least 1 item")
@@ -372,13 +372,13 @@ func TestUnmarshalTranslate(t *testing.T) {
 		tt := tt // Closure capture
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := unmarshalTranslate(tt.cleanJSON, tt.cleanJSON, "en")
+			got, err := UnmarshalTranslate(tt.cleanJSON, tt.cleanJSON, "en")
 			if (err != nil) != tt.wantErr {
-				t.Errorf("unmarshalTranslate() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("UnmarshalTranslate() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if len(got) != tt.expected {
-				t.Errorf("unmarshalTranslate() len = %v, want %v", len(got), tt.expected)
+				t.Errorf("UnmarshalTranslate() len = %v, want %v", len(got), tt.expected)
 			}
 		})
 	}

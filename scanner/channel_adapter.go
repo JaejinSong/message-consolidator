@@ -14,6 +14,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"message-consolidator/ai"
+	"message-consolidator/ai/core"
 	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"message-consolidator/services"
@@ -68,7 +69,7 @@ func processChannelRoom(ctx context.Context, user store.User, aliases []string, 
 	defer lock.Unlock()
 
 	groupName := adapter.GetGroupName(user.Email, roomKey)
-	msgGroups := ai.GroupMessagesByTime(msgs, cfg.MessageBatchWindow)
+	msgGroups := core.GroupMessagesByTime(msgs, cfg.MessageBatchWindow)
 
 	if gClient == nil {
 		logger.Errorf("[SCAN] %s: gClient not initialized; scanner.Init may have failed", adapter.LogPrefix())

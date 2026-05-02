@@ -1,4 +1,4 @@
-package ai
+package core
 
 import "message-consolidator/store"
 

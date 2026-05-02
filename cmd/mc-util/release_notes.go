@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"message-consolidator/ai"
+	"message-consolidator/ai/core"
 	"message-consolidator/config"
 	"message-consolidator/logger"
 
@@ -115,8 +115,8 @@ func fetchReleaseNotes(cfg *config.Config, commits, version string) ReleaseNotes
 }
 
 func loadPrompt(commits, version string) string {
-	parsed := ai.LoadPrompt(ai.PromptReleaseNotesCombined)
-	data := ai.ExtractionContext{
+	parsed := core.LoadPrompt(core.PromptReleaseNotesCombined)
+	data := core.ExtractionContext{
 		Version:        version,
 		MessagePayload: commits,
 	}

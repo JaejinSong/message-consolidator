@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"message-consolidator/ai/core"
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"strings"
@@ -61,8 +62,8 @@ func (r *IdentityResolver) proposeInChunks(ctx context.Context, email string, co
 }
 
 func (r *IdentityResolver) proposeChunk(ctx context.Context, email string, contacts []store.ContactRecord) ([]MergeGroup, error) {
-	parsed := LoadPrompt(PromptIdentityGroupMerge)
-	rendered, err := parsed.Render(ExtractionContext{
+	parsed := core.LoadPrompt(core.PromptIdentityGroupMerge)
+	rendered, err := parsed.Render(core.ExtractionContext{
 		MessagePayload: formatContactsForPrompt(contacts),
 	})
 	if err != nil {
