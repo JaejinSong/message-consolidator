@@ -134,7 +134,7 @@ func (a *API) readAndVerifySlack(w http.ResponseWriter, r *http.Request) ([]byte
 
 func (a *API) dispatchSlackEvent(event slackevents.EventsAPIEvent) {
 	defer safego.Recover("slackbot-event")
-	ctx, _ := trace.Start(context.Background(), "/SlackBot-Event")
+	ctx, _ := trace.Start(context.Background(), "/Slack-Event")
 	var err error
 	defer func() { _ = trace.End(ctx, err) }()
 
@@ -159,7 +159,7 @@ func (a *API) dispatchSlackEvent(event slackevents.EventsAPIEvent) {
 
 func (a *API) dispatchSlackInteraction(cb slack.InteractionCallback) {
 	defer safego.Recover("slackbot-interaction")
-	ctx, _ := trace.Start(context.Background(), "/SlackBot-Interaction")
+	ctx, _ := trace.Start(context.Background(), "/Slack-Interaction")
 	var err error
 	defer func() { _ = trace.End(ctx, err) }()
 
@@ -200,7 +200,7 @@ func (a *API) dispatchSlackInteraction(cb slack.InteractionCallback) {
 
 func (a *API) dispatchSlackCommand(slackUserID, channel, text string) {
 	defer safego.Recover("slackbot-command")
-	ctx, _ := trace.Start(context.Background(), "/SlackBot-Command")
+	ctx, _ := trace.Start(context.Background(), "/Slack-Command")
 	var err error
 	defer func() { _ = trace.End(ctx, err) }()
 

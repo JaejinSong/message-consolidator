@@ -58,17 +58,17 @@ func StartBackgroundScanner(ctx context.Context) {
 	var wg sync.WaitGroup
 
 	loops := []*primeLoop{
-		{name: "gmail", traceName: "/Background-ScanGmail", runFn: runGmailForAllUsers},
-		{name: "whatsapp", traceName: "/Background-ScanWhatsApp", runFn: runWhatsAppForAllUsers},
-		{name: "telegram", traceName: "/Background-ScanTelegram", runFn: runTelegramForAllUsers},
-		{name: "slack", traceName: "/Background-ScanSlack", runFn: runSlackForAllUsers},
-		{name: "archive-old-tasks", traceName: "/Background-ArchiveOldTasks", runFn: runArchiveOldTasks},
-		{name: "flush-token-usage", traceName: "/Background-FlushTokenUsage", runFn: runFlushTokenUsage},
-		{name: "log-db-stats", traceName: "/Background-LogDBStats", runFn: runLogDBStats},
-		{name: "sweep-slack-threads", traceName: "/Background-SweepSlackThreads", runFn: runSlackSweep},
-		{name: "deadline-reminder", traceName: "/Background-DeadlineReminder", runFn: runDeadlineReminder},
-		{name: "daily-digest", traceName: "/Background-DailyDigest", runFn: runDailyDigest},
-		{name: "weekly-report", traceName: "/Background-WeeklyReport", runFn: runWeeklyReport},
+		{name: "gmail", traceName: "/Background-Gmail-Scan", runFn: runGmailForAllUsers},
+		{name: "whatsapp", traceName: "/Background-WhatsApp-Scan", runFn: runWhatsAppForAllUsers},
+		{name: "telegram", traceName: "/Background-Telegram-Scan", runFn: runTelegramForAllUsers},
+		{name: "slack", traceName: "/Background-Slack-Scan", runFn: runSlackForAllUsers},
+		{name: "archive-old-tasks", traceName: "/Background-Tasks-Archive", runFn: runArchiveOldTasks},
+		{name: "flush-token-usage", traceName: "/Background-Infra-FlushTokenUsage", runFn: runFlushTokenUsage},
+		{name: "log-db-stats", traceName: "/Background-Infra-LogDBStats", runFn: runLogDBStats},
+		{name: "sweep-slack-threads", traceName: "/Background-Slack-SweepThreads", runFn: runSlackSweep},
+		{name: "deadline-reminder", traceName: "/Background-Tasks-DeadlineReminder", runFn: runDeadlineReminder},
+		{name: "daily-digest", traceName: "/Background-Reports-DailyDigest", runFn: runDailyDigest},
+		{name: "weekly-report", traceName: "/Background-Reports-WeeklyReport", runFn: runWeeklyReport},
 	}
 	for _, l := range loops {
 		first := pickPrime()
@@ -83,6 +83,7 @@ func StartBackgroundScanner(ctx context.Context) {
 	//Why: Generous timeout allows AI-intensive scans and translations (15-20s) to complete before termination.
 	done := make(chan struct{})
 	go func() {
+		defer safego.Recover("scanner-wg-sentinel")
 		wg.Wait()
 		close(done)
 	}()
@@ -100,7 +101,7 @@ func RunAllScans(ctx context.Context, wg *sync.WaitGroup) {
 	// scheduler tick passes a plain context.Background() so we need real Start semantics.
 	// Name prefixed with `/` so urlutil.NewURL parses it as Path (otherwise the WhaTap
 	// Transaction column shows blank because the name lands in Host instead).
-	traceCtx, _ := trace.Start(ctx, "/Background-RunAllScans")
+	traceCtx, _ := trace.Start(ctx, "/Background-Scanner-RunAll")
 	defer func() { _ = trace.End(traceCtx, nil) }()
 
 	users, err := store.GetAllUsers(traceCtx)
@@ -340,7 +341,7 @@ func ReleaseInFlight(id string) {
 
 
 func Scan(email string, lang string, wg *sync.WaitGroup) {
-	traceCtx, _ := trace.Start(context.Background(), "/ManualScan")
+	traceCtx, _ := trace.Start(context.Background(), "/Scanner-Manual")
 	defer func() { _ = trace.End(traceCtx, nil) }()
 
 	user, err := store.GetOrCreateUser(traceCtx, email, "", "")

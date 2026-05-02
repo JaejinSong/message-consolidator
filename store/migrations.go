@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"message-consolidator/db"
+	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"strings"
 	"sync"
@@ -63,6 +64,7 @@ func runMigrations(ctx context.Context, q db.DBTX) error {
 // Why: spawned as a fire-and-forget goroutine from runMigrations. Captures the *sql.DB once at start
 // so a concurrent ResetForTest (test teardown) cannot nil the global mid-execution and panic.
 func migrateContactResolution(ctx context.Context) {
+	defer safego.Recover("migrate-contact-resolution")
 	conn := GetDB()
 	if conn == nil {
 		return

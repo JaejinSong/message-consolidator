@@ -21,7 +21,7 @@ type SlackClient struct {
 func NewSlackClient(token string) *SlackClient {
 	// Why: slack.OptionHTTPClient injects a WhaTap-instrumented http.Client so every
 	// Slack Web API call appears as an HTTPC step under the parent TX (e.g.
-	// /Background-RunAllScans). Without this slack-go falls back to http.DefaultClient
+	// /Background-Scanner-RunAll). Without this slack-go falls back to http.DefaultClient
 	// and the outbound calls are invisible to WhaTap.
 	return &SlackClient{
 		api:      slack.New(token, slack.OptionHTTPClient(whataphttpx.Client())),

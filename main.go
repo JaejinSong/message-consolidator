@@ -287,7 +287,14 @@ func wireTelegramHooks(ctx context.Context) {
 func bootChannelClients(ctx context.Context, cfg *config.Config) {
 	users, _ := store.GetAllUsers(ctx)
 	for _, u := range users {
-		go channels.DefaultWAManager.InitWhatsApp(u.Email, cfg)       //nolint:contextcheck // Independent lifecycle owned by WAManager; teardown via DisconnectAllWhatsApp.
-		go channels.DefaultTelegramManager.InitTelegram(u.Email, cfg) //nolint:contextcheck // Independent lifecycle owned by TelegramManager; teardown via DisconnectAllTelegram.
+		email := u.Email
+		go func() { //nolint:contextcheck // Independent lifecycle owned by WAManager; teardown via DisconnectAllWhatsApp.
+			defer safego.Recover("init-whatsapp-" + email)
+			channels.DefaultWAManager.InitWhatsApp(email, cfg)
+		}()
+		go func() { //nolint:contextcheck // Independent lifecycle owned by TelegramManager; teardown via DisconnectAllTelegram.
+			defer safego.Recover("init-telegram-" + email)
+			channels.DefaultTelegramManager.InitTelegram(email, cfg)
+		}()
 	}
 }

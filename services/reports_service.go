@@ -154,7 +154,7 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id s
 	// background ctx — StartWithContext silently skips when no parent trace ctx exists.
 	// Name MUST start with `/` so urlutil.NewURL parses it as Path; without the slash
 	// it becomes Host and the WhaTap Transaction column renders blank.
-	ctx, _ := trace.Start(context.Background(), "/ReportGeneration")
+	ctx, _ := trace.Start(context.Background(), "/Reports-Generate")
 	var err error
 	defer func() { _ = trace.End(ctx, err) }()
 

@@ -3,6 +3,7 @@ package scanner
 import (
 	"context"
 	"math/rand/v2"
+	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"sync"
 	"sync/atomic"
@@ -49,6 +50,7 @@ func (l *primeLoop) tick(ctx context.Context, wg *sync.WaitGroup) {
 
 func (l *primeLoop) start(ctx context.Context, wg *sync.WaitGroup, first time.Duration) {
 	defer wg.Done()
+	defer safego.Recover("primeloop-" + l.name)
 
 	// Why: Immediate first run preserves the legacy startup behavior where dashboards populate without waiting.
 	l.tick(ctx, wg)

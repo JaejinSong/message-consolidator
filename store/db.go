@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"message-consolidator/config"
+	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"strings"
 	"time"
@@ -212,6 +213,7 @@ func setupConnectionPool(cfg *config.Config, dbURL string) {
 // startKeepAlive periodically pings the database to prevent the server or proxy from closing idle connections.
 // Why: [Reliability] Maintains an active connection stream for remote Turso/libsql databases.
 func startKeepAlive(ctx context.Context, db *sql.DB, interval time.Duration) {
+	defer safego.Recover("db-keepalive")
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -233,7 +235,7 @@ func handleKeepAliveTick(ctx context.Context, db *sql.DB) {
 	if db == nil {
 		return
 	}
-	traceCtx, _ := trace.Start(ctx, "/Background-DBKeepAlive")
+	traceCtx, _ := trace.Start(ctx, "/Background-Infra-DBKeepAlive")
 	var v int
 	err := db.QueryRowContext(traceCtx, "SELECT 1").Scan(&v)
 	_ = trace.End(traceCtx, err)
