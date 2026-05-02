@@ -47,6 +47,29 @@ func TestGetWorkingDaysAgo(t *testing.T) {
 	}
 }
 
+func TestWorkingDaysSince(t *testing.T) {
+	t.Parallel()
+	mon := time.Date(2026, 3, 23, 0, 0, 0, 0, time.UTC) // Monday
+	wed := time.Date(2026, 3, 25, 0, 0, 0, 0, time.UTC) // Wednesday
+
+	if got := WorkingDaysSince(mon, wed); got != 2 {
+		t.Errorf("Mon→Wed = %d, want 2", got)
+	}
+	// Same time: 0
+	if got := WorkingDaysSince(mon, mon); got != 0 {
+		t.Errorf("same = %d, want 0", got)
+	}
+	// since > now: 0
+	if got := WorkingDaysSince(wed, mon); got != 0 {
+		t.Errorf("future since = %d, want 0", got)
+	}
+	// Mon → next Mon (spans weekend)
+	nextMon := time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC)
+	if got := WorkingDaysSince(mon, nextMon); got != 5 {
+		t.Errorf("Mon→nextMon = %d, want 5", got)
+	}
+}
+
 func TestGetLocalThreshold(t *testing.T) {
 	//Why: Verifies that the threshold generation logic is robust against different timezones and doesn't produce panic-inducing malformed strings.
 	res := GetLocalThreshold("Asia/Seoul", 3)

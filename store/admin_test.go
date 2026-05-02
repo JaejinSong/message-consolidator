@@ -92,3 +92,20 @@ func TestSettingsCacheRoundtrip(t *testing.T) {
 		t.Fatalf("expected fallback after delete, got %q", v)
 	}
 }
+
+func TestListAdmins_Empty(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	admins, err := ListAdmins(context.Background())
+	if err != nil {
+		t.Fatalf("ListAdmins: %v", err)
+	}
+	// Super admin always appears even if no DB rows.
+	if len(admins) == 0 {
+		t.Error("expected at least super admin in list")
+	}
+}

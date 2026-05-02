@@ -634,3 +634,20 @@ func TestTasksService_TruncateTitle(t *testing.T) {
 		}
 	}
 }
+
+func TestNewTasksService(t *testing.T) {
+	t.Parallel()
+	svc := NewTasksService(nil, nil)
+	if svc == nil {
+		t.Error("NewTasksService returned nil")
+	}
+	if got := svc.GetTranslationService(); got != nil {
+		t.Errorf("GetTranslationService = %v, want nil when none set", got)
+	}
+}
+
+func TestSetEmbedder(t *testing.T) {
+	t.Parallel()
+	svc := NewTasksService(nil, nil)
+	svc.SetEmbedder(nil) // nil embedder is a valid no-op
+}

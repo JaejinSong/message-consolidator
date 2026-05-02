@@ -619,3 +619,28 @@ func TestRespondWithUpdatedUser(t *testing.T) {
 		t.Errorf("user = %+v", resp.User)
 	}
 }
+
+func TestPrepareMissingRequests_NoMessages(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	api := &API{}
+	ids := []store.MessageID{store.MessageID(999998), store.MessageID(999999)}
+	reqs := api.prepareMissingRequests(context.Background(), "u@example.com", ids)
+	// Non-existent IDs should result in empty slice (errors are swallowed).
+	if len(reqs) != 0 {
+		t.Errorf("expected 0 requests for unknown IDs, got %d", len(reqs))
+	}
+}
+
+func TestPrepareMissingRequests_EmptyIDs(t *testing.T) {
+	t.Parallel()
+	api := &API{}
+	reqs := api.prepareMissingRequests(context.Background(), "u@example.com", nil)
+	if reqs != nil {
+		t.Errorf("expected nil for empty IDs, got %v", reqs)
+	}
+}

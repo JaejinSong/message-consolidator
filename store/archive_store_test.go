@@ -7,6 +7,90 @@ import (
 	"time"
 )
 
+func TestNormalizeArchiveStatus(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ in, want string }{
+		{"done", "done"}, {"canceled", "canceled"}, {"merged", "merged"},
+		{"all", "all"}, {"", ""},
+		{"invalid", ""}, {"Done", ""},
+	}
+	for _, c := range cases {
+		if got := normalizeArchiveStatus(c.in); got != c.want {
+			t.Errorf("normalizeArchiveStatus(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestStatusMatch(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		m    ConsolidatedMessage
+		stat string
+		want bool
+	}{
+		{ConsolidatedMessage{Done: true}, "done", true},
+		{ConsolidatedMessage{Done: false}, "done", false},
+		{ConsolidatedMessage{Done: false, IsDeleted: true}, "canceled", true},
+		{ConsolidatedMessage{Done: true, IsDeleted: false}, "canceled", false},
+		{ConsolidatedMessage{Category: "merged"}, "merged", true},
+		{ConsolidatedMessage{Category: "other"}, "merged", false},
+		{ConsolidatedMessage{Done: true}, "all", true},
+		{ConsolidatedMessage{Done: false}, "", true},
+	}
+	for _, tt := range tests {
+		if got := statusMatch(tt.m, tt.stat); got != tt.want {
+			t.Errorf("statusMatch(%+v, %q) = %v, want %v", tt.m, tt.stat, got, tt.want)
+		}
+	}
+}
+
+func TestFilterByStatus(t *testing.T) {
+	t.Parallel()
+	msgs := []ConsolidatedMessage{
+		{Done: true},
+		{Done: false, IsDeleted: true},
+		{Done: false},
+		{Category: "merged"},
+	}
+	if got := filterByStatus(msgs, "done"); len(got) != 1 {
+		t.Errorf("done filter: got %d, want 1", len(got))
+	}
+	if got := filterByStatus(msgs, "canceled"); len(got) != 1 {
+		t.Errorf("canceled filter: got %d, want 1", len(got))
+	}
+	if got := filterByStatus(msgs, ""); len(got) != 4 {
+		t.Errorf("empty filter: got %d, want 4", len(got))
+	}
+}
+
+func TestSetGetAutoArchiveDays(t *testing.T) {
+	orig := autoArchiveDays
+	t.Cleanup(func() { autoArchiveDays = orig })
+
+	SetAutoArchiveDays(30)
+	if GetAutoArchiveDays() != 30 {
+		t.Errorf("GetAutoArchiveDays() = %d, want 30", GetAutoArchiveDays())
+	}
+	SetAutoArchiveDays(0) // ignored
+	if GetAutoArchiveDays() != 30 {
+		t.Error("SetAutoArchiveDays(0) should be a no-op")
+	}
+}
+
+func TestSetStaleThresholdWorkingDays(t *testing.T) {
+	orig := staleThresholdWorkingDays
+	t.Cleanup(func() { staleThresholdWorkingDays = orig })
+
+	SetStaleThresholdWorkingDays(5)
+	if GetStaleThresholdWorkingDays() != 5 {
+		t.Errorf("GetStaleThresholdWorkingDays() = %d, want 5", GetStaleThresholdWorkingDays())
+	}
+	SetStaleThresholdWorkingDays(-1) // ignored
+	if GetStaleThresholdWorkingDays() != 5 {
+		t.Error("SetStaleThresholdWorkingDays(-1) should be a no-op")
+	}
+}
+
 func TestGetArchivedMessagesFiltered_Status(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
 	if err != nil {
@@ -152,5 +236,37 @@ func TestGetArchivedMessagesFiltered_Status(t *testing.T) {
 				t.Errorf("Expected messages length to be %d, but got %d (Filter: %s)", expectedPage, len(msgs), tc.name)
 			}
 		})
+	}
+}
+
+func TestGetArchivedMessagesCount_EmptyUser(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	n, err := GetArchivedMessagesCount(context.Background(), ArchiveFilter{Email: "nobody@example.com"})
+	if err != nil {
+		t.Fatalf("GetArchivedMessagesCount: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("expected 0, got %d", n)
+	}
+}
+
+func TestSetAutoArchiveDaysNonZero(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	orig := autoArchiveDays
+	t.Cleanup(func() { autoArchiveDays = orig })
+
+	SetAutoArchiveDays(21)
+	if GetAutoArchiveDays() != 21 {
+		t.Errorf("got %d, want 21", GetAutoArchiveDays())
 	}
 }

@@ -181,3 +181,35 @@ func TestHandleExportReportToNotion_Validation(t *testing.T) {
 		})
 	}
 }
+
+func TestHandleListReports_EmptyUser(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	api := &API{}
+	req := NewMockRequest("GET", "/api/reports", "nodata@example.com")
+	rr := httptest.NewRecorder()
+	api.HandleListReports(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("HandleListReports status = %d, want 200", rr.Code)
+	}
+}
+
+func TestHandleGetReportHistory_EmptyUser(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	api := &API{}
+	req := NewMockRequest("GET", "/api/reports/history", "nodata@example.com")
+	rr := httptest.NewRecorder()
+	api.HandleGetReportHistory(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("HandleGetReportHistory status = %d, want 200", rr.Code)
+	}
+}

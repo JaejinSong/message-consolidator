@@ -154,3 +154,58 @@ func TestNormalizeName(t *testing.T) {
 		})
 	}
 }
+
+func TestGetUserByID_NotFound(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	_, err = GetUserByID(UserID(999999))
+	if err == nil {
+		t.Error("expected error for unknown ID, got nil")
+	}
+}
+
+func TestGetUserAliases_UnknownUser(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	aliases, err := GetUserAliases(context.Background(), UserID(999999))
+	if err != nil {
+		t.Errorf("GetUserAliases unknown user: unexpected error %v", err)
+	}
+	if len(aliases) != 0 {
+		t.Errorf("expected 0 aliases, got %v", aliases)
+	}
+}
+
+func TestGetUserByWAJID_Unknown(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	u, err := GetUserByWAJID("unknown-jid@s.whatsapp.net")
+	if err == nil {
+		t.Errorf("expected error, got user %+v", u)
+	}
+}
+
+func TestGetUserByTgID_Unknown(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	u, err := GetUserByTgID("99999999")
+	if err == nil {
+		t.Errorf("expected error, got user %+v", u)
+	}
+}

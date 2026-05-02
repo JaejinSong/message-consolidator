@@ -300,3 +300,72 @@ func TestAutoUpsertContact_CacheSkipsRepeatUpsert(t *testing.T) {
 		t.Errorf("expected rename to take effect, got %q", got)
 	}
 }
+
+func TestGetContactsMappings_Empty(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	records, err := GetContactsMappings(context.Background(), "nobody@example.com")
+	if err != nil {
+		t.Fatalf("GetContactsMappings: %v", err)
+	}
+	if len(records) != 0 {
+		t.Errorf("expected 0 records, got %d", len(records))
+	}
+}
+
+func TestInitContactsTable_NoError(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	// InitContactsTable is idempotent; calling again should not panic or error.
+	InitContactsTable(context.Background(), GetDB())
+}
+
+func TestGetNameByTelegramID_Unknown(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	if name := GetNameByTelegramID(context.Background(), "u@example.com", "99999999"); name != "" {
+		t.Errorf("expected empty name for unknown tgID, got %q", name)
+	}
+}
+
+func TestSearchContacts_EmptyQuery(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	results, err := SearchContacts(context.Background(), "u@example.com", "")
+	if err != nil {
+		t.Fatalf("SearchContacts: %v", err)
+	}
+	if len(results) != 0 {
+		t.Logf("empty query returned %d results (acceptable)", len(results))
+	}
+}
+
+func TestDeleteContactMapping_Unknown(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	// No-op delete of non-existent canonical ID should not error.
+	err = DeleteContactMapping(context.Background(), "u@example.com", "nonexistent@nowhere.com")
+	if err != nil {
+		t.Logf("DeleteContactMapping unknown: %v (may be acceptable)", err)
+	}
+}

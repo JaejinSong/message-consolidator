@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"message-consolidator/config"
+	"message-consolidator/internal/testutil"
+	"message-consolidator/store"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -243,4 +245,36 @@ func TestHandleLogout_ProdSecureCookie(t *testing.T) {
 	// Reset
 	appBaseURL = "http://localhost"
 	_ = time.Now() // ensure time import used
+}
+
+func TestAdminMiddleware_NonAdmin(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	AuthDisabled = false
+	encoded := base64.RawURLEncoding.EncodeToString([]byte("regular@example.com"))
+	req := httptest.NewRequest("GET", "/admin", nil)
+	req.AddCookie(&http.Cookie{Name: "session_token", Value: encoded})
+	ctx := context.WithValue(req.Context(), UserEmailKey, "regular@example.com")
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	handler := AdminMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called for non-admin")
+	}))
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403", rr.Code)
+	}
+	var body map[string]interface{}
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body["error"] != "admin only" {
+		t.Errorf("error = %v, want admin only", body["error"])
+	}
 }

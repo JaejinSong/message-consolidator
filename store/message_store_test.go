@@ -57,3 +57,105 @@ func insertActorSample(ctx context.Context, t *testing.T, email, room, requester
 		 VALUES (?, 'slack', ?, 't', ?, ?, 0, datetime('now'))`,
 		email, room, requester, assignee)
 }
+
+func TestIsProcessed_UnknownMessage(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	ok, err := IsProcessed(ctx, GetDB(), "user@example.com", "ts-nonexistent")
+	if err != nil {
+		t.Fatalf("IsProcessed: %v", err)
+	}
+	if ok {
+		t.Error("expected false for unknown sourceTS")
+	}
+}
+
+func TestMarkAsProcessed_Then_IsProcessed(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	email := "mark@example.com"
+	ts := "ts-mark-test"
+
+	if err := MarkAsProcessed(ctx, GetDB(), email, ts); err != nil {
+		t.Fatalf("MarkAsProcessed: %v", err)
+	}
+
+	ok, err := IsProcessed(ctx, GetDB(), email, ts)
+	if err != nil {
+		t.Fatalf("IsProcessed after mark: %v", err)
+	}
+	if !ok {
+		t.Error("expected true after MarkAsProcessed")
+	}
+}
+
+func TestDeduplicateTasks_Empty(t *testing.T) {
+	t.Parallel()
+	if got := DeduplicateTasks(nil); got != nil {
+		t.Errorf("expected nil for nil input, got %v", got)
+	}
+	if got := DeduplicateTasks([]TodoItem{}); len(got) != 0 {
+		t.Errorf("expected empty, got %v", got)
+	}
+}
+
+func TestDeduplicateTasks_NoDuplicates(t *testing.T) {
+	t.Parallel()
+	items := []TodoItem{
+		{Task: "Fix login bug", SourceTS: "ts1"},
+		{Task: "Update readme file", SourceTS: "ts2"},
+	}
+	got := DeduplicateTasks(items)
+	if len(got) != 2 {
+		t.Errorf("expected 2 items, got %d", len(got))
+	}
+}
+
+func TestDeduplicateTasks_WithDuplicate(t *testing.T) {
+	t.Parallel()
+	items := []TodoItem{
+		{Task: "Fix login bug", SourceTS: "ts1"},
+		{Task: "Fix the login bug", SourceTS: "ts1"},
+	}
+	got := DeduplicateTasks(items)
+	if len(got) != 1 {
+		t.Errorf("expected 1 after dedup, got %d: %v", len(got), got)
+	}
+}
+
+func TestUpdateTaskAssigneesBatch_Empty(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	// Empty updates map should be a no-op without error.
+	if err := UpdateTaskAssigneesBatch(context.Background(), "u@example.com", map[MessageID]string{}); err != nil {
+		t.Errorf("UpdateTaskAssigneesBatch empty: %v", err)
+	}
+}
+
+func TestUpdateSubtasks_NoRows(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	// Message ID 999 does not exist; should not panic.
+	err = UpdateSubtasks(context.Background(), GetDB(), "u@example.com", MessageID(999999), nil)
+	if err != nil {
+		t.Logf("UpdateSubtasks unknown id: %v (acceptable)", err)
+	}
+}

@@ -3,6 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	"message-consolidator/config"
+	"message-consolidator/internal/testutil"
+	"message-consolidator/store"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -61,5 +63,21 @@ func TestHandleGetReleaseNotes_Validation(t *testing.T) {
 				t.Errorf("expected %d, got %d (body=%s)", tt.want, rr.Code, rr.Body.String())
 			}
 		})
+	}
+}
+
+func TestHandleGetStats_EmptyUser(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	api := &API{}
+	req := NewMockRequest("GET", "/api/stats", "stats@example.com")
+	rr := httptest.NewRecorder()
+	api.HandleGetStats(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("HandleGetStats status = %d, want 200", rr.Code)
 	}
 }

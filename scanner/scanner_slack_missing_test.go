@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"context"
 	"message-consolidator/store"
 	"testing"
 )
@@ -28,6 +29,40 @@ func TestGetMinLastTS(t *testing.T) {
 	want = ""
 	if got != want {
 		t.Errorf("getMinLastTS() with empty cursor = %v, want %v", got, want)
+	}
+}
+
+func TestExtractSlackMentionUserIDs(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		text string
+		want []string
+	}{
+		{"<@U123> hello", []string{"U123"}},
+		{"<@U123> and <@U456>", []string{"U123", "U456"}},
+		{"<@U123> <@U123>", []string{"U123"}}, // dedup
+		{"no mentions here", []string{}},
+	}
+	for _, tt := range tests {
+		got := extractSlackMentionUserIDs(tt.text)
+		if len(got) != len(tt.want) {
+			t.Errorf("extractSlackMentionUserIDs(%q) = %v, want %v", tt.text, got, tt.want)
+			continue
+		}
+		for i, w := range tt.want {
+			if got[i] != w {
+				t.Errorf("[%d] got %q, want %q", i, got[i], w)
+			}
+		}
+	}
+}
+
+func TestResolveSlackMentionNames(t *testing.T) {
+	t.Parallel()
+	r := mockSlackResolver{users: map[string]string{"U1": "Alice", "U2": ""}}
+	got := resolveSlackMentionNames(context.Background(), r, []string{"U1", "U2", "U3"})
+	if len(got) != 1 || got[0] != "Alice" {
+		t.Errorf("resolveSlackMentionNames = %v, want [Alice]", got)
 	}
 }
 

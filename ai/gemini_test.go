@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"errors"
 	"message-consolidator/ai/core"
 	"testing"
 
@@ -46,6 +47,41 @@ func TestExtractResponseText(t *testing.T) {
 	}
 	if text != "Hello World!" {
 		t.Errorf("Expected 'Hello World!', got '%s'", text)
+	}
+}
+
+func TestMaskAPIKey(t *testing.T) {
+	t.Parallel()
+	if got := maskAPIKey(nil); got != "" {
+		t.Errorf("maskAPIKey(nil) = %q, want empty", got)
+	}
+	plain := maskAPIKey(errors.New("no key here"))
+	if plain != "no key here" {
+		t.Errorf("maskAPIKey plain = %q", plain)
+	}
+	masked := maskAPIKey(errors.New("key=AIzaSyABC123DEF456GHI"))
+	if masked == "" {
+		t.Error("maskAPIKey should not return empty for error with key")
+	}
+}
+
+func TestTruncateRunes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		s    string
+		max  int
+		want string
+	}{
+		{"hello", 10, "hello"},
+		{"hello", 3, "hel"},
+		{"안녕하세요", 3, "안녕하"},
+		{"hello", 0, ""},
+		{"", 5, ""},
+	}
+	for _, tt := range tests {
+		if got := truncateRunes(tt.s, tt.max); got != tt.want {
+			t.Errorf("truncateRunes(%q, %d) = %q, want %q", tt.s, tt.max, got, tt.want)
+		}
 	}
 }
 

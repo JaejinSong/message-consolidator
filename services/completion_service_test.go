@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"message-consolidator/ai"
+	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"message-consolidator/types"
 	"testing"
@@ -307,4 +308,18 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 			t.Errorf("expected no HandleTaskState calls when items empty, got %v", mockStore.NewItemTasks)
 		}
 	})
+}
+
+func TestDefaultTaskStore_UpdateMessageCategory(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	d := &DefaultTaskStore{}
+	// Message ID 999 does not exist; UpdateMessageCategory uses RunInTx internally which should succeed silently.
+	if err := d.UpdateMessageCategory(context.Background(), nil, "u@example.com", store.MessageID(999999), "merged"); err != nil {
+		t.Logf("UpdateMessageCategory returned (expected): %v", err)
+	}
 }

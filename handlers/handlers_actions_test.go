@@ -149,3 +149,80 @@ func TestHandleInternalScan_AuthRules(t *testing.T) {
 		})
 	}
 }
+
+func TestFilterUntranslatedIDs_WithDB(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	api := &API{}
+	msgs := []store.ConsolidatedMessage{
+		{ID: store.MessageID(1)},
+		{ID: store.MessageID(2)},
+		{ID: store.MessageID(1)}, // duplicate
+	}
+	ids, err := api.filterUntranslatedIDs(context.Background(), msgs, "ko")
+	if err != nil {
+		t.Fatalf("filterUntranslatedIDs: %v", err)
+	}
+	// No translations exist yet, so all unique IDs should be returned
+	if len(ids) != 2 {
+		t.Errorf("expected 2 unique IDs, got %d: %v", len(ids), ids)
+	}
+}
+
+func TestFilterUntranslatedIDs_EmptyMsgs(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	api := &API{}
+	ids, err := api.filterUntranslatedIDs(context.Background(), nil, "en")
+	if err != nil {
+		t.Fatalf("filterUntranslatedIDs nil: %v", err)
+	}
+	if len(ids) != 0 {
+		t.Errorf("expected 0 ids, got %d", len(ids))
+	}
+}
+
+func TestHandleBackfillRoomActor_EmptyMessages(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	api := &API{}
+	req := NewMockRequest("GET", "/api/admin/backfill-room-actor?dry_run=true", "u@example.com")
+	rr := httptest.NewRecorder()
+	api.HandleBackfillRoomActor(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200 (body=%s)", rr.Code, rr.Body.String())
+	}
+}
+
+func TestApplyBackfillCandidates_Empty(t *testing.T) {
+	t.Parallel()
+	n := applyBackfillCandidates(context.Background(), "u@example.com", nil)
+	if n != 0 {
+		t.Errorf("expected 0 applied for empty candidates, got %d", n)
+	}
+}
+
+func TestLookupRoomActor_Unknown(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	actor, ok := lookupRoomActor(context.Background(), "u@example.com", "room-xyz")
+	if ok || actor != "" {
+		t.Errorf("lookupRoomActor unknown room: actor=%q ok=%v, want empty/false", actor, ok)
+	}
+}

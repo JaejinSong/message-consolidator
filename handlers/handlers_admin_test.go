@@ -471,3 +471,13 @@ func TestHandleRemoveAdmin(t *testing.T) {
 		}
 	})
 }
+
+func TestReloadGeminiTranslationModel(t *testing.T) {
+	api := &API{Config: &config.Config{}}
+	if !reloadGeminiTranslationModel(api, "gemini-1.5-pro") {
+		t.Error("reloadGeminiTranslationModel should return true")
+	}
+	if api.Config.GeminiTranslationModel != "gemini-1.5-pro" {
+		t.Errorf("GeminiTranslationModel = %q, want gemini-1.5-pro", api.Config.GeminiTranslationModel)
+	}
+}

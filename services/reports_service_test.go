@@ -825,3 +825,15 @@ func TestReportsService_GenerateReport_OnlyRequestedLanguage(t *testing.T) {
 		t.Error("Unexpected 'id' translation found")
 	}
 }
+
+func TestMarkFailed_NoReport(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	svc := &ReportsService{}
+	// Non-existent report ID should not panic — logs warning and returns.
+	svc.markFailed(context.Background(), "u@example.com", store.ReportID(999999))
+}

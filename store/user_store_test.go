@@ -233,3 +233,31 @@ func TestUpdateUserSlackID(t *testing.T) {
 		t.Errorf("Slack ID not updated in DB: %v (slack_id: %s)", err, dbSlackID)
 	}
 }
+
+func TestPreferredName(t *testing.T) {
+	t.Parallel()
+	u := User{Name: "Alice", Email: "alice@example.com"}
+	if got := u.PreferredName(); got != "Alice" {
+		t.Errorf("PreferredName with name = %q, want Alice", got)
+	}
+	u2 := User{Email: "alice@example.com"}
+	if got := u2.PreferredName(); got != "alice@example.com" {
+		t.Errorf("PreferredName without name = %q, want email", got)
+	}
+}
+
+func TestGetUserAliasesByEmail(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	aliases, err := GetUserAliasesByEmail(context.Background(), "nobody@example.com")
+	if err != nil {
+		t.Fatalf("GetUserAliasesByEmail: %v", err)
+	}
+	if len(aliases) != 0 {
+		t.Errorf("expected 0 aliases for unknown user, got %d", len(aliases))
+	}
+}
