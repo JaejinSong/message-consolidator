@@ -21,31 +21,31 @@ COPY types/ ./types/
 COPY db/ ./db/
 COPY main.go ./
 
-# Copy required config/meta files for the final stage
-COPY RELEASE_NOTES_*.md whatap.conf entrypoint.sh security.conf ./
-
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o message-consolidator . && \
     upx -1 message-consolidator
 
 # 3. Final staging preparation
-RUN mkdir -p /stage/app && \
-    mv message-consolidator /stage/app/ && \
-    cp RELEASE_NOTES_*.md whatap.conf entrypoint.sh security.conf /stage/app/ && \
-    chmod +x /stage/app/entrypoint.sh
+RUN mkdir -p /stage/app && mv message-consolidator /stage/app/
 
 # Final stage
 FROM alpine:3.21
 RUN apk --no-cache add ca-certificates tzdata libc6-compat
 
-# Explicitly copy application files and WhaTap agent to the final stage
+# Explicitly copy application binary and WhaTap agent to the final stage
 COPY --from=builder /stage/app/ /app/
 COPY --from=builder /usr/whatap/agent/ /usr/whatap/agent/
 
+# Why: Runtime assets are pulled in the final stage (not the builder) so that
+# editing release notes / configs / entrypoint never invalidates the go build cache.
+COPY whatap.conf security.conf entrypoint.sh /app/
+COPY RELEASE_NOTES_*.md /app/
+
 # WhaTap agent reads whatap.conf from its own home (whatap-agent wrapper does `cd /usr/whatap/agent`),
 # so the file must live there — copying only to /app silently loses logsink settings.
-RUN cp /app/whatap.conf /usr/whatap/agent/whatap.conf
+RUN chmod +x /app/entrypoint.sh && \
+    cp /app/whatap.conf /usr/whatap/agent/whatap.conf
 
 WORKDIR /app
 
