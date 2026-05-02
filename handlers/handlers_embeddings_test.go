@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"message-consolidator/config"
 )
 
 func TestHandleSemanticArchiveSearch_NoService(t *testing.T) {
@@ -40,5 +42,34 @@ func TestHandleBackfillEmbeddings_NoService(t *testing.T) {
 	api.HandleBackfillEmbeddings(rr, req)
 	if rr.Code != http.StatusServiceUnavailable {
 		t.Errorf("expected 503 when Embeddings nil, got %d", rr.Code)
+	}
+}
+
+func TestHandleInternalBackfill_AuthRules(t *testing.T) {
+	cases := []struct {
+		name       string
+		secret     string
+		header     string
+		wantStatus int
+	}{
+		{"unconfigured secret returns 403", "", "anything", http.StatusForbidden},
+		{"wrong header returns 401", "right", "wrong", http.StatusUnauthorized},
+		{"missing header returns 401", "right", "", http.StatusUnauthorized},
+		// matched secret falls through to the Embeddings==nil guard below
+		{"matched secret falls through to 503", "right", "right", http.StatusServiceUnavailable},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			api := &API{Config: &config.Config{InternalScanSecret: tc.secret}}
+			req, _ := http.NewRequest("POST", "/api/internal/embeddings/backfill", nil)
+			if tc.header != "" {
+				req.Header.Set("X-Internal-Secret", tc.header)
+			}
+			rr := httptest.NewRecorder()
+			api.HandleInternalBackfillEmbeddings(rr, req)
+			if rr.Code != tc.wantStatus {
+				t.Errorf("status: got %d want %d body=%s", rr.Code, tc.wantStatus, rr.Body.String())
+			}
+		})
 	}
 }

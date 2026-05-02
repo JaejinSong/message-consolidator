@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"strings"
@@ -397,5 +398,239 @@ func TestNormalizeRequesterMatching(t *testing.T) {
 				t.Errorf("NormalizeIdentifier match(%q, %q) = %v, want %v", tt.requester, tt.alias, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestShouldClearAssignee(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		in   string
+		want bool
+	}{
+		{"기타 업무", true},
+		{"기타업무", true},
+		{"  Other Tasks ", true},
+		{"OTHER TASKS", true},
+		{"미지정", true},
+		{"", false},
+		{"shared", false},
+		{"Hady", false},
+	}
+	for _, tt := range tests {
+		if got := shouldClearAssignee(tt.in); got != tt.want {
+			t.Errorf("shouldClearAssignee(%q) = %v, want %v", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestIsAssigneeGeneric(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		in   string
+		want bool
+	}{
+		{"", true},
+		{"   ", true},
+		{"me", true},
+		{"Me", true},
+		{"shared", false},
+		{"Hady", false},
+	}
+	for _, tt := range tests {
+		if got := isAssigneeGeneric(tt.in); got != tt.want {
+			t.Errorf("isAssigneeGeneric(%q) = %v, want %v", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestExtractToHeader(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, in, want string
+	}{
+		{"missing header", "C: x@y.com\nS: subj", ""},
+		{"with newline boundary", "T: alice@x.com\nC: bob@x.com\nS: hi", "alice@x.com"},
+		{"no trailing newline → returns rest", "T: alice@x.com", "alice@x.com"},
+		{"multi-recipient preserved", "T: a@x.com, b@x.com\nC:", "a@x.com, b@x.com"},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := extractToHeader(tt.in); got != tt.want {
+				t.Errorf("extractToHeader(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsMeInToHeader(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		header, email string
+		want          bool
+	}{
+		{"", "me@x.com", false},
+		{"alice@x.com, me@x.com", "ME@X.COM", true},
+		{"Alice@X.com", "alice@x.com", true},
+		{"alice@x.com", "me@x.com", false},
+	}
+	for _, tt := range tests {
+		if got := isMeInToHeader(tt.header, tt.email); got != tt.want {
+			t.Errorf("isMeInToHeader(%q, %q) = %v, want %v", tt.header, tt.email, got, tt.want)
+		}
+	}
+}
+
+func TestBuildTranslateRequest(t *testing.T) {
+	t.Parallel()
+	t.Run("no subtasks → plain text", func(t *testing.T) {
+		t.Parallel()
+		req := BuildTranslateRequest(42, "do the thing", nil)
+		if req.ID != 42 || req.Text != "do the thing" {
+			t.Errorf("plain req = %+v, want id=42 text='do the thing'", req)
+		}
+	})
+	t.Run("with subtasks → JSON payload", func(t *testing.T) {
+		t.Parallel()
+		req := BuildTranslateRequest(7, "main", []store.Subtask{{Task: "sub a"}, {Task: "sub b"}})
+		if req.ID != 7 {
+			t.Errorf("ID = %d, want 7", req.ID)
+		}
+		var p struct {
+			T string   `json:"t"`
+			S []string `json:"s"`
+		}
+		if err := json.Unmarshal([]byte(req.Text), &p); err != nil {
+			t.Fatalf("payload not valid JSON: %v", err)
+		}
+		if p.T != "main" || len(p.S) != 2 || p.S[0] != "sub a" || p.S[1] != "sub b" {
+			t.Errorf("payload = %+v", p)
+		}
+	})
+}
+
+func TestParseTranslatedText(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		raw       string
+		wantMain  string
+		wantSubs  []string
+	}{
+		{"empty", "", "", nil},
+		{"plain string passthrough", "hello world", "hello world", nil},
+		{"malformed JSON falls back to raw", "{not json", "{not json", nil},
+		{"JSON payload split", `{"t":"main","s":["a","b"]}`, "main", []string{"a", "b"}},
+		{"JSON without subs", `{"t":"only"}`, "only", nil},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			gotMain, gotSubs := parseTranslatedText(tt.raw)
+			if gotMain != tt.wantMain {
+				t.Errorf("main = %q, want %q", gotMain, tt.wantMain)
+			}
+			if len(gotSubs) != len(tt.wantSubs) {
+				t.Fatalf("subs len = %d, want %d", len(gotSubs), len(tt.wantSubs))
+			}
+			for i, s := range tt.wantSubs {
+				if gotSubs[i] != s {
+					t.Errorf("subs[%d] = %q, want %q", i, gotSubs[i], s)
+				}
+			}
+		})
+	}
+}
+
+func TestHasAffinityMatch(t *testing.T) {
+	t.Parallel()
+	withMeta := func(groupID string) *store.ConsolidatedMessage {
+		raw, _ := json.Marshal(map[string]string{"affinity_group_id": groupID})
+		return &store.ConsolidatedMessage{Metadata: raw}
+	}
+
+	tests := []struct {
+		name string
+		msg  *store.ConsolidatedMessage
+		item store.TodoItem
+		sim  float64
+		want bool
+	}{
+		{"no item group → false", withMeta("g1"), store.TodoItem{AffinityGroupID: ""}, 0.9, false},
+		{"sim below 0.50 → false", withMeta("g1"), store.TodoItem{AffinityGroupID: "g1"}, 0.49, false},
+		{"empty msg metadata → false", &store.ConsolidatedMessage{}, store.TodoItem{AffinityGroupID: "g1"}, 0.9, false},
+		{"meta unmarshal error → false", &store.ConsolidatedMessage{Metadata: []byte("not json")}, store.TodoItem{AffinityGroupID: "g1"}, 0.9, false},
+		{"groups mismatch → false", withMeta("g2"), store.TodoItem{AffinityGroupID: "g1"}, 0.9, false},
+		{"groups match → true", withMeta("g1"), store.TodoItem{AffinityGroupID: "g1"}, 0.55, true},
+		{"meta has empty group → false", withMeta(""), store.TodoItem{AffinityGroupID: "g1"}, 0.9, false},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := hasAffinityMatch(tt.msg, tt.item, tt.sim); got != tt.want {
+				t.Errorf("hasAffinityMatch = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTasksService_GetMissingIDs(t *testing.T) {
+	t.Parallel()
+	s := &TasksService{}
+	all := []store.MessageID{1, 2, 3, 4}
+	cached := map[store.MessageID]string{1: "x", 3: "y"}
+	got := s.getMissingIDs(all, cached)
+	want := []store.MessageID{2, 4}
+	if len(got) != len(want) {
+		t.Fatalf("missing IDs = %v, want %v", got, want)
+	}
+	for i, id := range want {
+		if got[i] != id {
+			t.Errorf("missing[%d] = %d, want %d", i, got[i], id)
+		}
+	}
+}
+
+func TestTasksService_MergeBatchResults(t *testing.T) {
+	t.Parallel()
+	s := &TasksService{}
+	ids := []store.MessageID{1, 2, 3}
+	cached := map[store.MessageID]string{1: "cached-1"}
+	newTrans := map[store.MessageID]string{2: "new-2"} // id=3 missing on both sides
+
+	got := s.mergeBatchResults(ids, cached, newTrans)
+	if len(got) != 3 {
+		t.Fatalf("results len = %d, want 3", len(got))
+	}
+	if !got[0].Success || got[0].TranslatedText != "cached-1" {
+		t.Errorf("idx 0 = %+v, want cached success", got[0])
+	}
+	if !got[1].Success || got[1].TranslatedText != "new-2" {
+		t.Errorf("idx 1 = %+v, want new success", got[1])
+	}
+	if got[2].Success || got[2].Error == "" {
+		t.Errorf("idx 2 = %+v, want failure with error message", got[2])
+	}
+}
+
+func TestTasksService_TruncateTitle(t *testing.T) {
+	t.Parallel()
+	s := &TasksService{}
+	tests := []struct {
+		in   string
+		max  int
+		want string
+	}{
+		{"short", 10, "short"},
+		{"exactly10x", 10, "exactly10x"},
+		{"this is too long for limit", 10, "this is..."},
+	}
+	for _, tt := range tests {
+		if got := s.truncateTitle(tt.in, tt.max); got != tt.want {
+			t.Errorf("truncateTitle(%q, %d) = %q, want %q", tt.in, tt.max, got, tt.want)
+		}
 	}
 }

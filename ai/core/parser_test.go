@@ -2,8 +2,66 @@ package core
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
+
+func TestParsedPrompt_Render(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		body    string
+		data    any
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "Renders Struct Fields",
+			body: "user={{.CurrentUser}}, payload={{.MessagePayload}}",
+			data: ExtractionContext{CurrentUser: "alice", MessagePayload: "p1"},
+			want: "user=alice, payload=p1",
+		},
+		{
+			name: "Renders Map Data",
+			body: "k={{.k}}",
+			data: map[string]string{"k": "v"},
+			want: "k=v",
+		},
+		{
+			name:    "Invalid Template Syntax Returns Parse Error",
+			body:    "Hello {{.Name",
+			data:    map[string]string{},
+			wantErr: true,
+		},
+		{
+			name:    "Execute Error On Missing Struct Field",
+			body:    "{{.NotARealField}}",
+			data:    ExtractionContext{},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			p := &ParsedPrompt{Body: tt.body}
+			got, err := p.Render(tt.data)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil (output=%q)", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !strings.Contains(got, tt.want) && got != tt.want {
+				t.Errorf("Render() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
 
 func TestParsePrompt(t *testing.T) {
 	t.Parallel()

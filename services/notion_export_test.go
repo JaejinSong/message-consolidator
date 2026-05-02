@@ -68,3 +68,69 @@ func TestJsonArrayToTable_InvalidJSON(t *testing.T) {
 		t.Error("expected nil for non-array JSON")
 	}
 }
+
+func TestNotionLang(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		in, want string
+	}{
+		{"json", "json"},
+		{"JSON", "json"},
+		{"  go ", "go"},
+		{"js", "javascript"},
+		{"javascript", "javascript"},
+		{"ts", "typescript"},
+		{"typescript", "typescript"},
+		{"", "plain text"},
+		{"perl", "plain text"},
+	}
+	for _, tt := range tests {
+		if got := notionLang(tt.in); got != tt.want {
+			t.Errorf("notionLang(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestMin(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		a, b, want int
+	}{
+		{1, 2, 1},
+		{2, 1, 1},
+		{0, 0, 0},
+		{-3, -1, -3},
+		{5, 5, 5},
+	}
+	for _, tt := range tests {
+		if got := min(tt.a, tt.b); got != tt.want {
+			t.Errorf("min(%d, %d) = %d, want %d", tt.a, tt.b, got, tt.want)
+		}
+	}
+}
+
+func TestNewNotionExporter_Enabled(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, token, parent string
+		want                bool
+	}{
+		{"both set", "tok", "page", true},
+		{"missing token", "", "page", false},
+		{"missing parent", "tok", "", false},
+		{"both missing", "", "", false},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			n := NewNotionExporter(tt.token, tt.parent)
+			if n == nil {
+				t.Fatal("constructor returned nil")
+			}
+			if got := n.Enabled(); got != tt.want {
+				t.Errorf("Enabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -122,6 +122,7 @@ func (a *API) registerChannelRoutes(r *mux.Router) {
 	r.Handle("/api/telegram/credentials", a.protected(a.HandleTelegramSetCredentials)).Methods("POST")
 	r.Handle("/api/scan", a.protected(a.HandleManualScan)).Methods("GET")
 	r.HandleFunc("/api/internal/scan", a.HandleInternalScan).Methods("GET")
+	r.HandleFunc("/api/internal/embeddings/backfill", a.HandleInternalBackfillEmbeddings).Methods("POST")
 	r.Handle("/api/translate", a.protected(a.HandleTranslate)).Methods("POST")
 }
 

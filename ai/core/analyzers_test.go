@@ -1,10 +1,100 @@
 package core
 
 import (
+	"message-consolidator/types"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestAnalyzersPromptHooks(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		analyzer SourceAnalyzer
+	}{
+		{"Gmail", &GmailAnalyzer{}},
+		{"Chat", &ChatAnalyzer{Source: "slack", Window: time.Minute}},
+		{"Notion", &NotionAnalyzer{}},
+	}
+
+	ctx := ExtractionContext{MessagePayload: "hello", CurrentUser: "tester"}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name+"_GetSystemInstruction", func(t *testing.T) {
+			t.Parallel()
+			if got := tc.analyzer.GetSystemInstruction(ctx); got == "" {
+				t.Errorf("%s system instruction is empty", tc.name)
+			}
+		})
+		t.Run(tc.name+"_GetUserPrompt", func(t *testing.T) {
+			t.Parallel()
+			if got := tc.analyzer.GetUserPrompt(ctx); got == "" {
+				t.Errorf("%s user prompt is empty", tc.name)
+			}
+		})
+		t.Run(tc.name+"_GetModelName_FallbackUsesDefault", func(t *testing.T) {
+			t.Parallel()
+			got := tc.analyzer.GetModelName("default-model")
+			if got == "" {
+				t.Errorf("%s model name is empty", tc.name)
+			}
+		})
+	}
+}
+
+func TestGroupMessagesByTime(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	mk := func(sender string, offsetSec int) types.RawMessage {
+		return types.RawMessage{Sender: sender, Timestamp: base.Add(time.Duration(offsetSec) * time.Second)}
+	}
+
+	tests := []struct {
+		name     string
+		input    []types.RawMessage
+		interval time.Duration
+		groups   int
+	}{
+		{name: "Empty Returns Nil", input: nil, interval: time.Minute, groups: 0},
+		{
+			name: "Single Sender Within Window Forms One Group",
+			input: []types.RawMessage{
+				mk("alice", 0), mk("alice", 30), mk("alice", 50),
+			},
+			interval: time.Minute,
+			groups:   1,
+		},
+		{
+			name: "Sender Switch Splits Groups",
+			input: []types.RawMessage{
+				mk("alice", 0), mk("bob", 5), mk("alice", 10),
+			},
+			interval: time.Minute,
+			groups:   3,
+		},
+		{
+			name: "Same Sender Past Interval Splits",
+			input: []types.RawMessage{
+				mk("alice", 0), mk("alice", 120),
+			},
+			interval: time.Minute,
+			groups:   2,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := GroupMessagesByTime(tt.input, tt.interval)
+			if len(got) != tt.groups {
+				t.Errorf("GroupMessagesByTime() groups = %d, want %d (got %#v)", len(got), tt.groups, got)
+			}
+		})
+	}
+}
 
 func TestAnalyzersPreProcess(t *testing.T) {
 	t.Parallel()

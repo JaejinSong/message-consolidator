@@ -77,6 +77,41 @@ func TestVerifySlackRequest_BodyTamper(t *testing.T) {
 	}
 }
 
+func TestVerifySlackRequest_MissingSignature(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	ts := strconv.FormatInt(now.Unix(), 10)
+	if err := verifySlackRequestAt("shhh", ts, "", []byte("{}"), now); !errors.Is(err, ErrSlackSignatureMissing) {
+		t.Fatalf("expected ErrSlackSignatureMissing, got %v", err)
+	}
+}
+
+func TestVerifySlackRequest_MissingTimestamp(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	if err := verifySlackRequestAt("shhh", "", "v0=x", []byte("{}"), now); !errors.Is(err, ErrSlackTimestampMissing) {
+		t.Fatalf("expected ErrSlackTimestampMissing, got %v", err)
+	}
+}
+
+func TestVerifySlackRequest_InvalidTimestamp(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	err := verifySlackRequestAt("shhh", "not-a-number", "v0=x", []byte("{}"), now)
+	if !errors.Is(err, ErrSlackTimestampInvalid) {
+		t.Fatalf("expected ErrSlackTimestampInvalid, got %v", err)
+	}
+}
+
+func TestVerifySlackRequest_PublicWrapperUsesNow(t *testing.T) {
+	// Why: Exercises the exported wrapper so a future signing-secret rotation
+	// regression is caught at the public surface, not just the internal helper.
+	secret := "shhh"
+	body := []byte("{}")
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	sig := signSlack(t, secret, ts, body)
+	if err := VerifySlackRequest(secret, ts, sig, body); err != nil {
+		t.Fatalf("VerifySlackRequest with current ts should pass, got %v", err)
+	}
+}
+
 func TestVerifySlackRequest_FutureTimestampWithinWindow(t *testing.T) {
 	secret := "shhh"
 	body := []byte("{}")

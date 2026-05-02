@@ -56,6 +56,45 @@ type embeddingBackfillResponse struct {
 	Remaining int `json:"remaining"`
 }
 
+// HandleInternalBackfillEmbeddings is the cron-callable variant — same logic as
+// HandleBackfillEmbeddings but gated on the X-Internal-Secret header instead of
+// the admin session middleware. Why: GCP cron / curl from the host shell has no
+// session cookie, so we mirror the /api/internal/scan auth pattern with the
+// shared INTERNAL_SCAN_SECRET. Refusing to run when the secret is unset prevents
+// accidental open access in dev.
+//
+//	POST /api/internal/embeddings/backfill?batch=200&email=user
+//	     -H 'X-Internal-Secret: <INTERNAL_SCAN_SECRET>'
+func (a *API) HandleInternalBackfillEmbeddings(w http.ResponseWriter, r *http.Request) {
+	if !a.authorizeInternalScan(w, r) {
+		return
+	}
+	if a.Embeddings == nil {
+		respondError(w, http.StatusServiceUnavailable, "semantic search not available")
+		return
+	}
+	target := strings.TrimSpace(r.URL.Query().Get("email"))
+	batch := 100
+	if v, err := strconv.Atoi(r.URL.Query().Get("batch")); err == nil && v > 0 {
+		if v > 500 {
+			v = 500
+		}
+		batch = v
+	}
+	processed, skipped, failed, err := a.Embeddings.BackfillBatch(r.Context(), target, batch)
+	if err != nil {
+		handleAPIError(w, r, err, "[EMBED] Internal backfill error for "+target, "Failed to run backfill")
+		return
+	}
+	remaining, _ := a.Embeddings.CountMissing(r.Context(), target)
+	respondJSON(w, http.StatusOK, embeddingBackfillResponse{
+		Processed: processed,
+		Skipped:   skipped,
+		Failed:    failed,
+		Remaining: remaining,
+	})
+}
+
 // HandleBackfillEmbeddings triggers a bounded batch of archive-message embedding
 // generation for the requesting admin (or, when ?email=user is passed, for that
 // tenant's archive). Repeated calls drain the missing queue.
