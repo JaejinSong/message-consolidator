@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, it, expect, beforeEach } from 'vitest';
 import { insightsRenderer } from './insightsRenderer.ts';
 import { state } from './state.ts';

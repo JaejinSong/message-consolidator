@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as renderer from './renderer.ts';
 import { I18N_DATA } from './locales';

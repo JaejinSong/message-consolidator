@@ -3,7 +3,9 @@ import path from 'path';
 
 export default defineConfig({
   test: {
-    environment: 'happy-dom',
+    // Why: Default to node — happy-dom boot ~1.5s per file × 16 non-DOM files = wasted ~24s cumulative.
+    // The 6 DOM-needing files override per-file via `// @vitest-environment happy-dom` directive.
+    environment: 'node',
     globals: true,
     setupFiles: ['./src/tests/setup.ts'],
   },

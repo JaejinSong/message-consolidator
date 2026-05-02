@@ -11,6 +11,7 @@ VPS_PATH="~/message-consolidator"
 HEALTH_URL="https://34.67.133.18.nip.io/health"
 EXPECTED_ACCOUNT="jjsong@whatap.io"
 REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}"
+BUILDER_TAG="${REGISTRY}/backend-builder:latest"
 
 # --- UI helpers ---
 RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -69,7 +70,10 @@ run_step() {
 
 # --- Build / Push helpers ---
 # Why: Two tags share the same blob; registry dedups so only manifests differ.
-# Parallel publish saves one manifest round-trip.
+# Parallel publish saves one manifest round-trip. Direct `docker push` is ~3s faster
+# than `buildx build --push` because buildx adds graph re-evaluation + per-layer
+# HEAD round-trips. Verified empirically (zstd/gzip/level-1/level-3 all equally
+# slow vs docker push); the cost is buildx orchestration, not compression algo.
 push_dual_tag() {
     local name="$1" t1="$2" t2="$3"
     run_step "$name" bash -c "
@@ -98,7 +102,6 @@ build_fe() {
 }
 
 build_be() {
-    BUILDER_TAG="${REGISTRY}/backend-builder:latest"
     if [[ "$FORCE_BUILDER" == "true" ]] || ! docker image inspect "$BUILDER_TAG" >/dev/null 2>&1; then
         run_step "BE: Builder" docker build --platform linux/amd64 -q -t "$BUILDER_TAG" -f docker/backend/Dockerfile.builder .
         # Builder push is rare, can happen in background

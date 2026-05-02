@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, it, expect, vi } from 'vitest';
 import { escapeHTML, formatDisplayTime, isStatusConnected, safeAsync, setupTabs } from './utils.ts';
 import { ApiError } from './utils/http';
