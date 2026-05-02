@@ -140,8 +140,17 @@ func handleUpdate(ctx context.Context, q store.Querier, email string, item store
 		return 0, fmt.Errorf("update requested but ID is nil")
 	}
 	id := *item.ID
-	var dropped bool
 
+	// Why: NormalizeName issues its own DB read (resolveContactIdentity → GetDB().QueryContext).
+	// Inside runTaskTx the tx already holds the only test conn (maxOpen=1, modernc in-memory),
+	// so the normalize-time conn lookup deadlocks until its 3s WithTimeout expires. Pre-normalize
+	// outside the tx — read-only, doesn't depend on tx state — also halves conn pressure in prod.
+	var normalizedAssignee string
+	if item.AssignedTo != "" {
+		normalizedAssignee = store.NormalizeName(ctx, email, item.AssignedTo)
+	}
+
+	var dropped bool
 	err := runTaskTx(ctx, q, func(q store.Querier) error {
 		existing, err := validateTargetTask(ctx, q, email, id, msg.Room)
 		if err != nil {
@@ -151,7 +160,7 @@ func handleUpdate(ctx context.Context, q store.Querier, email string, item store
 			dropped = true
 			return nil
 		}
-		return applyTaskUpdates(ctx, q, email, id, item, msg, existing)
+		return applyTaskUpdates(ctx, q, email, id, item, msg, existing, normalizedAssignee)
 	})
 	if err != nil || dropped {
 		return 0, err
@@ -159,7 +168,7 @@ func handleUpdate(ctx context.Context, q store.Querier, email string, item store
 	return id, nil
 }
 
-func applyTaskUpdates(ctx context.Context, q store.Querier, email string, id store.MessageID, item store.TodoItem, msg store.ConsolidatedMessage, existing *store.ConsolidatedMessage) error {
+func applyTaskUpdates(ctx context.Context, q store.Querier, email string, id store.MessageID, item store.TodoItem, msg store.ConsolidatedMessage, existing *store.ConsolidatedMessage, normalizedAssignee string) error {
 	if len(item.Subtasks) > 0 {
 		if err := store.UpdateSubtasks(ctx, q, email, id, mapTodoSubtasksToStore(item.Subtasks)); err != nil {
 			return err
@@ -168,7 +177,7 @@ func applyTaskUpdates(ctx context.Context, q store.Querier, email string, id sto
 	if err := store.UpdateTaskFullAppend(ctx, q, email, msg.Room, id, item.Task, msg.OriginalText); err != nil {
 		return err
 	}
-	if err := applyAssigneeChange(ctx, q, email, id, item, msg, existing); err != nil {
+	if err := applyAssigneeChange(ctx, q, email, id, item, msg, existing, normalizedAssignee); err != nil {
 		return err
 	}
 	merged := append(existing.SourceChannels, msg.Source)
@@ -177,15 +186,14 @@ func applyTaskUpdates(ctx context.Context, q store.Querier, email string, id sto
 
 // Why (Phase J Path B): @mention reassignment must bump assigned_at to the trigger
 // envelope timestamp so envelope metadata doesn't go stale. Same assignee = no-op.
-func applyAssigneeChange(ctx context.Context, q store.Querier, email string, id store.MessageID, item store.TodoItem, msg store.ConsolidatedMessage, existing *store.ConsolidatedMessage) error {
+func applyAssigneeChange(ctx context.Context, q store.Querier, email string, id store.MessageID, item store.TodoItem, msg store.ConsolidatedMessage, existing *store.ConsolidatedMessage, normalizedAssignee string) error {
 	if item.AssignedTo == "" {
 		return nil
 	}
-	normalized := store.NormalizeName(ctx, email, item.AssignedTo)
-	if existing.Assignee == normalized {
+	if existing.Assignee == normalizedAssignee {
 		return nil
 	}
-	return store.UpdateTaskAssigneeAndAssignedAt(ctx, q, email, id, normalized, msg.AssignedAt)
+	return store.UpdateTaskAssigneeAndAssignedAt(ctx, q, email, id, normalizedAssignee, msg.AssignedAt)
 }
 
 func handleResolve(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
