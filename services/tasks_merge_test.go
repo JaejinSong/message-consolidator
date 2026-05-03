@@ -114,3 +114,46 @@ func TestResolveProposals_AffinityBonus(t *testing.T) {
 		t.Errorf("expected affinity group match to 201, got %v", results[0].ID)
 	}
 }
+
+// TestResolveProposals_CrossThreadGuard verifies findMatch respects thread boundaries.
+func TestResolveProposals_CrossThreadGuard(t *testing.T) {
+	s := &TasksService{}
+	email := "test@example.com"
+	room := "biz-global-tech"
+
+	active := []store.ConsolidatedMessage{
+		{ID: 301, Room: room, Category: "TASK", Task: "Resolve Carabao issue by updating K8s agent", ThreadID: "T1"},
+	}
+
+	cases := []struct {
+		name       string
+		threadID   string
+		wantMatch  bool
+	}{
+		{"same thread high sim", "T1", true},
+		{"different thread high sim", "T2", false},
+		{"empty thread high sim", "", true},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			item := store.TodoItem{
+				Task:     "Resolve Carabao issue by updating K8s agent to latest", // sim ≥ 0.85
+				Category: "TASK",
+				ThreadID: tc.threadID,
+				State:    "new",
+			}
+			results := s.ResolveProposals(context.Background(), email, room, []store.TodoItem{item}, active)
+			if tc.wantMatch {
+				if results[0].ID == nil || *results[0].ID != 301 {
+					t.Errorf("%s: expected match to 301, got %v", tc.name, results[0].ID)
+				}
+			} else {
+				if results[0].ID != nil {
+					t.Errorf("%s: expected no match (different thread), got ID=%v", tc.name, *results[0].ID)
+				}
+			}
+		})
+	}
+}
