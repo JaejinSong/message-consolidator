@@ -1,8 +1,8 @@
 # 종합 문서 / Comprehensive Documentation
 
-**최종 갱신 / Last Updated:** 2026-04-30
+**최종 갱신 / Last Updated:** 2026-05-03
 **상태 / Status:** SSOT (Single Source of Truth)
-**총 분량 / Total:** 23 챕터 + INDEX, 11,505줄
+**총 분량 / Total:** 23 챕터 + INDEX, 11,938줄
 
 ## 한국어
 
@@ -21,24 +21,24 @@ This directory is the **single source of truth** for the `message-consolidator` 
 | 00 | [overview.md](00-overview.md) | 157 | 비전·스택·아키텍처 1-pager | Vision, stack, architecture | [main.go](../../main.go), [package.json](../../package.json) |
 | 01 | [getting-started.md](01-getting-started.md) | 268 | 로컬 개발·빌드·테스트 | Local dev, build, test | [Makefile](../../Makefile), [unit-test.sh](../../unit-test.sh) |
 | 02 | [domain-model.md](02-domain-model.md) | 508 | 메시지·태스크·컨택트·리포트 모델 | Message/Task/Contact/Report model | [internal/ids/](../../internal/ids/), [db/models.go](../../db/models.go) |
-| 03 | [backend-architecture.md](03-backend-architecture.md) | 686 | DI·패키지·요청 플로우 | DI, packages, request flow | [main.go](../../main.go), [handlers/routes.go](../../handlers/routes.go) |
-| 04 | [data-layer.md](04-data-layer.md) | 606 | sqlc·Turso·19 entity·migrations | sqlc, Turso, 19 entities, migrations | [store/](../../store/), [db/](../../db/), [store/queries/](../../store/queries/) |
-| 05 | [channels.md](05-channels.md) | 405 | 4 채널 어댑터 (Slack/Gmail/Telegram/WhatsApp) | 4 channel adapters | [channels/](../../channels/) |
+| 03 | [backend-architecture.md](03-backend-architecture.md) | 665 | DI·패키지·요청 플로우 | DI, packages, request flow | [main.go](../../main.go), [handlers/routes.go](../../handlers/routes.go) |
+| 04 | [data-layer.md](04-data-layer.md) | 719 | sqlc·Turso·19 entity·migrations | sqlc, Turso, 19 entities, migrations | [store/](../../store/), [db/](../../db/), [store/queries/](../../store/queries/) |
+| 05 | [channels.md](05-channels.md) | 463 | 4 채널 어댑터 (Slack/Gmail/Telegram/WhatsApp) | 4 channel adapters | [channels/](../../channels/) |
 | 06 | [scanner-pipeline.md](06-scanner-pipeline.md) | 388 | 스캔 루프·enricher·prime-pool | Scan loop, enricher, prime-pool | [scanner/](../../scanner/) |
-| 07 | [ai-filter-pipeline.md](07-ai-filter-pipeline.md) | 655 | Parser→Flash-Lite→Flash→Pro·RAG | 4-stage filter + RAG | [ai/](../../ai/) |
-| 08 | [services-business-logic.md](08-services-business-logic.md) | 651 | 13 서비스 (tasks·consolidate·reports) | 13 service modules | [services/](../../services/) |
-| 09 | [identity-and-dedup.md](09-identity-and-dedup.md) | 456 | DSU·alias·신원 매핑·중복 제거 | DSU, alias, identity, dedup | [ai/identity_resolver.go](../../ai/identity_resolver.go), [store/dsu.go](../../store/dsu.go) |
-| 10 | [locking-and-concurrency.md](10-locking-and-concurrency.md) | 498 | 분산 락·safego·graceful shutdown | Lock, safego, shutdown | [services/lock_service.go](../../services/lock_service.go), [internal/safego/](../../internal/safego/) |
-| 11 | [handlers-and-api.md](11-handlers-and-api.md) | 861 | 12 handler·68 라우트·미들웨어 | 12 handlers, 68 routes, middleware | [handlers/](../../handlers/) |
-| 12 | [auth-and-security.md](12-auth-and-security.md) | 441 | Google OAuth·세션·AdminMiddleware | Google OAuth, session, admin | [auth/](../../auth/) |
-| 13 | [frontend-architecture.md](13-frontend-architecture.md) | 735 | 모듈·이벤트·state·renderer | Modules, events, state, renderer | [src/app.ts](../../src/app.ts), [src/state.ts](../../src/state.ts) |
+| 07 | [ai-filter-pipeline.md](07-ai-filter-pipeline.md) | 690 | Parser→Flash-Lite→Flash→Pro·RAG | 4-stage filter + RAG | [ai/](../../ai/) |
+| 08 | [services-business-logic.md](08-services-business-logic.md) | 831 | 13 서비스 (tasks·consolidate·reports) | 13 service modules | [services/](../../services/) |
+| 09 | [identity-and-dedup.md](09-identity-and-dedup.md) | 403 | DSU·alias·신원 매핑·중복 제거 | DSU, alias, identity, dedup | [ai/identity_resolver.go](../../ai/identity_resolver.go), [store/dsu.go](../../store/dsu.go) |
+| 10 | [locking-and-concurrency.md](10-locking-and-concurrency.md) | 489 | 분산 락·safego·graceful shutdown | Lock, safego, shutdown | [services/lock_service.go](../../services/lock_service.go), [internal/safego/](../../internal/safego/) |
+| 11 | [handlers-and-api.md](11-handlers-and-api.md) | 916 | 12 handler·68 라우트·미들웨어 | 12 handlers, 68 routes, middleware | [handlers/](../../handlers/) |
+| 12 | [auth-and-security.md](12-auth-and-security.md) | 466 | Google OAuth·세션·AdminMiddleware | Google OAuth, session, admin | [auth/](../../auth/) |
+| 13 | [frontend-architecture.md](13-frontend-architecture.md) | 751 | 모듈·이벤트·state·renderer | Modules, events, state, renderer | [src/app.ts](../../src/app.ts), [src/state.ts](../../src/state.ts) |
 | 14 | [frontend-ui-system.md](14-frontend-ui-system.md) | 519 | CSS 토큰·BEM·components·i18n | CSS tokens, BEM, components, i18n | [static/css/](../../static/css/), [src/components/](../../src/components/) |
-| 15 | [observability.md](15-observability.md) | 374 | WhaTap·logger 3종·ai_logger | WhaTap, 3 loggers, ai_logger | [logger/](../../logger/), [internal/whataphttpx/](../../internal/whataphttpx/) |
+| 15 | [observability.md](15-observability.md) | 441 | WhaTap·logger 3종·ai_logger | WhaTap, 3 loggers, ai_logger | [logger/](../../logger/), [internal/whataphttpx/](../../internal/whataphttpx/) |
 | 16 | [cli-and-tools.md](16-cli-and-tools.md) | 498 | 15 CLI 단위 (sim·verify·check·util) | 15 CLI tools | [cmd/](../../cmd/) |
-| 17 | [testing-strategy.md](17-testing-strategy.md) | 371 | 88 Go 테스트·21 vitest·AI 회귀 | 88 Go, 21 vitest, AI regression | [tests/](../../tests/), [unit-test.sh](../../unit-test.sh) |
-| 18 | [build-and-deploy.md](18-build-and-deploy.md) | 668 | Makefile 19 target·Docker·Caddy·VPS | 19 targets, Docker, Caddy, VPS | [Makefile](../../Makefile), [docker-compose.yml](../../docker-compose.yml), [Caddyfile](../../Caddyfile) |
+| 17 | [testing-strategy.md](17-testing-strategy.md) | 386 | 88 Go 테스트·21 vitest·AI 회귀 | 88 Go, 21 vitest, AI regression | [tests/](../../tests/), [unit-test.sh](../../unit-test.sh) |
+| 18 | [build-and-deploy.md](18-build-and-deploy.md) | 639 | Makefile 19 target·Docker·Caddy·VPS | 19 targets, Docker, Caddy, VPS | [Makefile](../../Makefile), [docker-compose.yml](../../docker-compose.yml), [Caddyfile](../../Caddyfile) |
 | 19 | [user-manual.md](19-user-manual.md) | 575 | 최종 사용자 가이드 (채널 연동·FAQ) | End-user guide | (UI labels in [src/locales/](../../src/locales/)) |
-| 20 | [operations-runbook.md](20-operations-runbook.md) | 526 | 트러블슈팅 10건·사고 대응 | 10 troubleshooting scenarios | — |
+| 20 | [operations-runbook.md](20-operations-runbook.md) | 507 | 트러블슈팅 10건·사고 대응 | 10 troubleshooting scenarios | — |
 | 21 | [release-history.md](21-release-history.md) | 346 | v2.4.1~v2.4.6 통합·최근 50 commit | Releases consolidated | [RELEASE_NOTES_*](../../) |
 | 99 | [glossary.md](99-glossary.md) | 313 | 40+ 용어 사전 (한/영) | 40+ term glossary (KO/EN) | — |
 
@@ -72,10 +72,13 @@ This directory is the **single source of truth** for the `message-consolidator` 
 - **OAuth 흐름**: 12 (사용자 로그인), 05 (Gmail), 18 (.env)
 - **회귀 테스트 (AI)**: 17, 16 (verify/*)
 - **로그 3종 (logger/structured/ai)**: 15
+- **Hybrid Archive Search (의미 검색)**: 04 (F32_BLOB/vector_distance_cos 스키마), 08 (EmbeddingService/RRF), 11 (라우트), 13 (Smart 토글)
 
 **English:**
 
 Same structure — see chapter cross-references inside each file.
+
+- **Hybrid Archive Search**: 04 (F32_BLOB/vector_distance_cos schema), 08 (EmbeddingService/RRF), 11 (routes), 13 (Smart toggle)
 
 ---
 
@@ -161,7 +164,6 @@ done
 | deploy.md | 프론트 컨테이너 | "Caddy 이미지" | alpine sidecar (Caddy 없음) | 18 |
 | deploy.md | DISABLE_STATIC_SERVING | 미언급 | docker-compose.yml에 존재 | 18 |
 | deploy.md | entrypoint.sh WhaTap | 미언급 | Agent 기동 로직 포함 | 18 |
-| (코드) | types/types.go SenderID | Phantom Type 룰 | int64 사용 (위반) | 09 |
 | (코드) | language_deprecated 컬럼 | — | task/report_translations에 존재하나 미사용 | 04 |
 | (코드) | store/migrations/*.sql | — | 3 파일 삭제됨, migrations.go만 사용 | 04 |
 | (코드) | safego API | 가설 `safego.Go(ctx,fn)` | 실제 `safego.Recover(name)` 단일 | 10 |

@@ -1,6 +1,6 @@
 # 21. 릴리즈 히스토리 / Release History
 
-> 최종 갱신: 2026-04-30
+> 최종 갱신: 2026-05-03
 >
 > Cross-references:
 > - AI 필터 파이프라인 → [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md)
@@ -37,7 +37,7 @@
 
 `v<major>.<minor>.<patch>` (semver). minor 버전 변경은 breaking change 또는 주요 기능 추가를 의미한다. patch는 버그 수정 및 소규모 개선이다.
 
-현재 최신: **v2.4.6** (2026-04-19). 내부 코드 버전은 `main.go` 상단 `Version` 상수로 관리된다.
+현재 최신: **v2.4.7** (2026-05-03). 내부 코드 버전은 `main.go` 상단 `Version` 상수로 관리된다.
 
 ### 갱신 책임
 
@@ -48,6 +48,56 @@
 ---
 
 ## 2. 타임라인 (최신순) / Release Timeline
+
+### v2.4.7 — 2026-05-03
+**Commit 범위**: `6a40fb3`..`8b3e616` (2026-04-30 ~ 2026-05-03, ~50 커밋)
+
+#### 사용자 관점 (KO)
+- **스마트 검색**: 아카이브 메시지에 의미 기반 검색 추가 — 키워드가 없어도 의미로 찾는다. "Smart" 토글 UI 제공
+- **Slack DM 태스크 관리**: Slack DM으로 태스크 목록 조회·완료 처리 가능. `/tasks` 슬래시 커맨드 지원
+- **담당자 정보 강화**: Slack 태스크에 담당자 정보 포함 — 누가 처리 중인지 DM에서 바로 확인
+- **메모 정확도 향상**: self-DM 요청 메모에서 외부 요청자 정보 보존
+- **검색 응답 속도**: 벡터 유사도 계산을 DB 서버로 이전 — 응답 데이터 전송량 약 700배 감소
+
+#### User Perspective (EN)
+- Semantic Search: hybrid BM25+cosine archive search — find messages by meaning with "Smart" toggle
+- Slack DM Task Interface: query and complete tasks via Slack DM; `/tasks` slash command
+- Richer Task Context: assignee info now included in Slack task metadata
+- Accurate Memos: external requester preserved in self-DM reported-speech notes
+- Faster Search: cosine computation offloaded to DB server (~700× less WAN transfer)
+
+#### 기술 상세
+
+**Features**
+- `[FEAT]` Hybrid semantic archive search — FTS5 BM25 ∪ cosine(gemini-embedding-001 768d), RRF k=60 퓨전. `/api/messages/archive/semantic` 신규 엔드포인트. 프론트엔드 "Smart" 토글 (en/ko/id/th i18n) (→ [11-handlers-and-api.md](11-handlers-and-api.md), [14-frontend-ui-system.md](14-frontend-ui-system.md))
+- `[FEAT]` Slack DM Bot — Events API / Block Kit interactive / `/tasks` slash command. 태스크 목록 조회 및 완료 처리 DM 인터페이스 (→ [05-channels.md](05-channels.md))
+- `[FEAT]` Slack 태스크 메타데이터에 assignee 정보 포함 (→ [05-channels.md](05-channels.md))
+- `[FEAT]` self-DM reported-speech 메모에서 external requester 보존 (→ [08-services-business-logic.md](08-services-business-logic.md))
+- `[FEAT]` IdentityResolve 토큰 사용량 로깅 (→ [15-observability.md](15-observability.md))
+
+**Performance**
+- `[PERF]` `vector_distance_cos`로 코사인 계산을 libsql 서버로 이전 — WAN 전송량 ~700× 감소 (→ [04-data-layer.md](04-data-layer.md))
+- `[PERF]` `message_embeddings.vec` BLOB → F32_BLOB(768), schema v3→v4 (→ [04-data-layer.md](04-data-layer.md))
+- `[PERF]` Docker COPY 레이어 순서 최적화, runtime assets final stage 분리 — go build 캐시 보존
+
+**Refactors**
+- `[REFACTOR]` `ai/` → `ai/`(Gemini SDK 결합) + `ai/core/`(순수 로직) 분리 (→ [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md))
+- `[REFACTOR]` Gemini SDK `google.golang.org/genai` (v1) 마이그레이션
+- `[REFACTOR]` `applyHotReload` dispatch table 전환, `HandleBackfillRoomActor` build/apply 단계 분리 (→ [11-handlers-and-api.md](11-handlers-and-api.md))
+- `[REFACTOR]` legacy data migrations 제거 (production Turso 적용 검증 완료) (→ [04-data-layer.md](04-data-layer.md))
+- `[REFACTOR]` safego gaps 보완, WhaTap TX 이름 통일 (→ [15-observability.md](15-observability.md))
+- `[REFACTOR]` `EnrichedMessage.SenderID` → `ids.UserID` phantom type 승격
+
+**Fixes & Quality**
+- `[FIX]` gemini-embedding-001 `OutputDimensionality=768` 유지 — 모델 변경 시 차원 불일치 방지
+- `[FIX]` Slack DM 봇 rate limit·retry·channel leak 방어 강화
+- `[FIX]` assignee shared-fallback regression — envelope 및 room-actor fallback 경로 수정
+- `[SYS]` `handleAPIError` 39 호출 사이트 표준화 로깅
+- `[SYS]` `-trimpath` 빌드 플래그 추가 (deterministic output)
+- `[SYS]` golangci-lint MEDIUM/LOW 지적 해소, gofmt 전체 적용
+- `[TEST]` 커버리지 36.9% → 40.0% (store/handlers/services/auth/logger 추가), VCR dump gitignore, regression 통합
+
+---
 
 ### v2.4.6 — 2026-04-19 15:33 UTC
 **Commit**: `dc7c234` (근사값, 태그 미설정)
@@ -198,7 +248,7 @@
 
 ## 3. 최근 30일 Commit 요약 / Recent Commit Summary
 
-> 기준: `git log --oneline -50` (2026-04-30 기준 상위 50커밋). 릴리즈 태그가 없는 커밋은 주제별로 그룹핑하여 정리한다.
+> 기준: `git log --oneline -50` (2026-05-03 기준 상위 50커밋). 릴리즈 태그가 없는 커밋은 주제별로 그룹핑하여 정리한다.
 
 ### Feature (신규 기능)
 
@@ -279,21 +329,19 @@
 
 ## 4. 알려진 마이그레이션 / Breaking Changes
 
-### Migrations Phase C — 보류 중 (2026-04-30 기준)
+### Migrations Phase C — 완료 (2026-05-02 기준)
 
 5개 데이터 마이그레이션 함수가 `migrations.go`에 잔존한다.
 
 | 함수 | 상태 |
 |---|---|
-| `migrateTokenUsageBreakdown` | Turso 적용 완료, 코드 미제거 |
-| `migrateTokenUsageReportID` | Turso 적용 완료, 코드 미제거 |
-| `migrateOriginalTextOrder` | Turso 적용 완료, 코드 미제거 |
-| `migrateMessagesFTS` | 의존 코드 존재 (FTS 검색 코드가 `messages_fts` 가상 테이블에 의존) |
-| `migrateContactResolution` | Turso 적용 완료, 코드 미제거 |
+| `migrateTokenUsageBreakdown` | ~~제거 완료 (v2.4.7)~~ |
+| `migrateTokenUsageReportID` | ~~제거 완료 (v2.4.7)~~ |
+| `migrateOriginalTextOrder` | ~~제거 완료 (v2.4.7)~~ |
+| `migrateMessagesFTS` | ~~제거 완료 (v2.4.7)~~ |
+| `migrateContactResolution` | ~~제거 완료 (v2.4.7)~~ |
 
-**제거 조건**: production Turso 전체 적용 검증 + `messages_fts` 가상 테이블을 `schema.sql`로 이관 후 진행 가능. 이관 전 제거 시 fresh DB 환경에서 FTS 쿼리 실패.
-
-재평가 기준일: **2026-05-10** (누적 데이터로 risk 패턴 판단 후) — [project_report_pipeline_stabilization.md](.claude/memory/)
+**v2.4.7 완료**: production Turso 적용 검증 후 5개 함수 전체 제거됨 (`refactor(store): drop legacy data migrations after prod parity verified`). fresh DB는 `schema.sql` 직접 적용 경로만 존재.
 
 ### Breaking Changes 이력
 
@@ -303,6 +351,9 @@
 | v2.4.3 | DB Upsert/Update 인터페이스 통합 | 이전 개별 insert 경로 제거됨 |
 | v2.4.4 | `scan_metadata` 테이블로 상태 추적 이관 | 메시지 처리 상태 쿼리 경로 변경 |
 | v2.4.4 | 시간 기반 필터링 메시지 캐시 쿼리에서 제거 | 이전 시간 범위 기반 API 응답 변경 가능성 |
+| v2.4.7 | `message_embeddings.vec` BLOB → F32_BLOB(768), schema v4 | 기존 BLOB 임베딩 재색인 필요 (schema 자동 마이그레이션) |
+| v2.4.7 | legacy data migrations 제거 (`migrations.go` 5개 함수) | production Turso 적용 완료 후 제거. fresh DB는 `schema.sql` 직접 적용 |
+| v2.4.7 | `ai/` 패키지 분리 (`ai/core/` 신설) | `ai/` 직접 import 경로 변경 필요 |
 
 ---
 
@@ -312,10 +363,7 @@
 
 ### 확정된 보류 항목
 
-1. **Migrations Phase C 진행**
-   - 트리거: production Turso에서 5개 마이그레이션 함수 적용 완료 검증 후
-   - 선행 조건: `messages_fts` 가상 테이블 + 트리거 3개를 `schema.sql`로 이관
-   - 참조: [04-data-layer.md](04-data-layer.md)
+1. ~~**Migrations Phase C 진행**~~ — **v2.4.7 완료**. 5개 마이그레이션 함수 제거됨.
 
 2. **Key Insights 리스크 패턴 재평가 (2026-05-10)**
    - 미완료 태스크 비율이 약 10%로, 리스크 패턴 검증 데이터 부족
@@ -323,7 +371,7 @@
    - 참조: [08-services-business-logic.md](08-services-business-logic.md)
 
 3. **Notion 블록 마크다운 필터링**
-   - 위치: [`ai/analyzers.go`](../../ai/analyzers.go) 103번째 줄 `TODO`
+   - 위치: [`ai/core/analyzers.go`](../../ai/core/analyzers.go) 103번째 줄 `TODO`
    - 목적: Notion 블록에서 불필요한 마크다운 제거로 태스크 추출 컨텍스트 정제
    - 참조: [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md)
 

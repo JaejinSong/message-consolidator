@@ -14,7 +14,7 @@
 
 **Affinity Group (친화 그룹)**
 — AI가 부여하는 `affinity_group_id`. Jaro-Winkler 유사도가 낮더라도 맥락상 같은 업무로 판단된 태스크를 하나의 그룹으로 묶어 중복 생성을 방지합니다.
-— [`ai/analyzers.go`](../../ai/analyzers.go)
+— [`ai/core/analyzers.go`](../../ai/core/analyzers.go)
 
 **Alias (별칭)**
 — 동일 인물을 가리키는 여러 이름 표현 (예: "나", "Me", "Song"). DSU로 병합되어 하나의 Contact로 정규화됩니다.
@@ -92,7 +92,7 @@
 
 **Few-shot (퓨샷)**
 — 프롬프트에 예시(few examples)를 포함하여 LLM이 원하는 출력 형식을 모방하도록 유도하는 기법. 태스크 추출 프롬프트에 적용.
-— [`ai/prompts/`](../../ai/prompts/)
+— [`ai/core/prompts/`](../../ai/core/prompts/)
 
 **Flash-Lite (Gemini Flash-Lite)**
 — Step 2에서 noise 이진 필터로 사용하는 초경량 Gemini 모델. 인사말·광고·OTP 등을 빠르게 제거해 비용을 최소화.
@@ -144,7 +144,7 @@
 
 **Jaro-Winkler**
 — 두 문자열의 의미적 유사도를 [0,1]로 측정하는 알고리즘. 기본 임계값 0.85 이상이면 동일 태스크로 간주해 중복 생성을 막음.
-— [`ai/analyzers.go`](../../ai/analyzers.go)
+— [`ai/core/analyzers.go`](../../ai/core/analyzers.go)
 
 **JWT (JSON Web Token)**
 — 서명된 토큰 포맷. 이 프로젝트에서는 세션 쿠키 방식을 사용하며 JWT는 직접 노출되지 않음.
@@ -207,7 +207,7 @@
 
 **RAG (Retrieval-Augmented Generation)**
 — DB에 저장된 과거 태스크·컨텍스트를 LLM 프롬프트에 삽입하여 할루시네이션을 줄이는 기법.
-— [`ai/rag.go`](../../ai/rag.go)
+— [`ai/core/rag.go`](../../ai/core/rag.go)
 
 **Reminder (리마인더)**
 — 기한 초과·스테일 태스크를 지정 시간대에 Slack Block Kit DM으로 알려주는 기능.

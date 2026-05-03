@@ -77,6 +77,10 @@ type API struct {
 
 `handleAPIError` emits HTTP 499 for `context.Canceled` because Turso (libsql) returns this error on client disconnect. Treating it as 500 pollutes APM error dashboards. 499 (nginx/Caddy convention for client-closed request) is recognized as non-actionable by WhaTap.
 
+**39-site 표준화:** 모든 핸들러 에러 경로가 `handleAPIError(w, r, err, "[TAG]", msg)` 단일 패턴으로 통일됐다. 이전에는 일부 핸들러가 `respondError`를 직접 호출하거나 `context.Canceled` 분기를 인라인으로 처리했다. 표준화 후 서버사이드 로그가 `[TAG]` 접두사로 필터링 가능해졌고, Turso `context-canceled` → 499 처리가 전체 코드베이스에서 일관된다.
+
+**39-site standardization:** All handler error paths now use the single `handleAPIError(w, r, err, "[TAG]", msg)` pattern. Previously, some handlers called `respondError` directly or inlined the `context.Canceled` branch. After standardization, server-side logs are filterable by `[TAG]` prefix, and Turso `context-canceled` → 499 mapping is consistent across the entire codebase.
+
 ---
 
 ## 2. 라우트 등록
@@ -112,6 +116,7 @@ All routes are registered in `RegisterRoutes`. gorilla/mux is used. `r.Use(Whata
 | | `/api/messages/restore` | POST | auth |
 | | `/api/messages/archive` | GET | auth |
 | | `/api/messages/archive/count` | GET | auth |
+| | `/api/messages/archive/semantic` | GET | auth |
 | | `/api/messages/export` | GET | auth |
 | | `/api/messages/export/excel` | GET | auth |
 | | `/api/messages/export/json` | GET | auth |
@@ -132,6 +137,7 @@ All routes are registered in `RegisterRoutes`. gorilla/mux is used. `r.Use(Whata
 | | `/api/telegram/credentials` | POST | auth |
 | | `/api/scan` | GET | auth |
 | | `/api/internal/scan` | GET | **public + secret header** |
+| | `/api/internal/embeddings/backfill` | POST | **public + secret header** |
 | | `/api/translate` | POST | auth |
 | **Users** | `/api/user/info` | GET | auth |
 | | `/api/user/aliases` | GET | auth |
@@ -155,7 +161,9 @@ All routes are registered in `RegisterRoutes`. gorilla/mux is used. `r.Use(Whata
 | | `/api/identity/proposals` | GET | auth |
 | | `/api/identity/proposals/{id}/accept` | POST | auth |
 | | `/api/identity/proposals/{id}/reject` | POST | auth |
-| **Admin** | `/api/admin/reclassify` | GET | admin |
+| **Admin** | `/api/admin/embeddings/backfill` | POST | admin |
+| | `/api/admin/backfill-room-actor` | GET | admin |
+| | `/api/admin/reclassify` | GET | admin |
 | | `/api/admin/invalidate-cache` | POST | admin |
 | | `/api/admin/restore-gmail-cc` | GET | admin |
 | | `/api/admin/settings` | GET | admin |
@@ -174,7 +182,7 @@ All routes are registered in `RegisterRoutes`. gorilla/mux is used. `r.Use(Whata
 | | `/api/gmail/disconnect` | POST | auth |
 | **Health** | `/health` | GET | public |
 
-총 라우트: 약 68개
+총 라우트: 약 73개
 
 ---
 
@@ -311,6 +319,7 @@ Owns the active message feed, FTS search, archive, done-marking, batch delete/re
 | POST | `/api/messages/restore` | 아카이브 → 활성 복원 |
 | GET | `/api/messages/archive` | 아카이브 목록 (offset 페이지네이션) |
 | GET | `/api/messages/archive/count` | 아카이브 카운트 |
+| GET | `/api/messages/archive/semantic` | 하이브리드 시맨틱 검색 (→ handlers_embeddings.go) |
 | POST | `/api/messages/update` | 태스크 텍스트 수정 |
 | GET | `/api/messages/{id}/original` | 원문 조회 (cross-user 차단) |
 | PUT | `/api/tasks/merge` | 태스크 병합 |
@@ -391,6 +400,10 @@ Owns manual scan trigger, internal (cron) scan trigger, full translation, data r
 **`HandleInternalScan` concurrency guard:** `scanMutex` + `isScanning` 플래그로 중복 전체 스캔을 방지한다. 이미 실행 중이면 `{"status":"skipped"}` 반환.
 
 **Why sync.Mutex over channel:** 스캔 함수는 단일 goroutine이며 채널 오버헤드가 불필요하다. mutex가 더 단순하고 가독성이 높다.
+
+**`HandleBackfillRoomActor` build/apply 분리:** 핸들러가 `buildBackfillCandidates` (후보 수집) + `applyBackfillCandidates` (DB 적용) 두 단계로 분리됐다. 각 함수가 단일 책임을 가져 복잡도를 낮추고, `buildBackfillCandidates`는 DB 없이 단독 단위 테스트가 가능하다.
+
+**`HandleBackfillRoomActor` build/apply split:** The handler delegates to `buildBackfillCandidates` (collect candidates) and `applyBackfillCandidates` (persist to DB) as separate stages. Each stage has a single responsibility; `buildBackfillCandidates` can be unit-tested without a DB.
 
 **의존:** `ScanFunc` (패키지 레벨 변수), `FullScanFunc`, `services.TasksService`
 
@@ -570,6 +583,34 @@ Exports archive data as CSV, Excel (xlsx), or JSON. All formats share `loadArchi
 
 ---
 
+### 4.9-b handlers_embeddings.go — 하이브리드 시맨틱 검색 / 임베딩 백필
+
+**파일:** [`handlers/handlers_embeddings.go`](../../handlers/handlers_embeddings.go)
+
+**한국어:**
+
+아카이브 메시지의 벡터 임베딩을 활용한 하이브리드 검색(FTS5 ∪ cosine similarity)과 임베딩 백필 트리거 3개를 담당한다.
+
+**English:**
+
+Owns hybrid archive search (FTS5 ∪ cosine similarity over stored embeddings) and three embedding backfill trigger endpoints.
+
+| 메서드 | 경로 | 보호 | 설명 |
+|---|---|---|---|
+| GET | `/api/messages/archive/semantic` | auth | FTS5 + 코사인 유사도 하이브리드 검색 |
+| POST | `/api/admin/embeddings/backfill` | admin | 배치 임베딩 백필 (bounded batch) |
+| POST | `/api/internal/embeddings/backfill` | **public + secret header** | cron용 임베딩 백필 (same logic, header auth) |
+
+**하이브리드 검색 동작:** FTS5 키워드 결과와 `vector_distance_cos` 기반 코사인 검색 결과를 union한다. `?q=` 파라미터가 3자 미만이면 400 반환.
+
+**Hybrid search:** Unions FTS5 keyword matches with cosine-similarity results via `vector_distance_cos` (computed in libsql). Returns 400 when `?q=` is shorter than 3 characters.
+
+**`HandleInternalBackfillEmbeddings`:** `HandleBackfillEmbeddings`와 동일 로직이지만 `adminProtected` 대신 `X-Internal-Secret` 헤더로 인가된다 (`HandleInternalScan` 패턴 동일).
+
+**의존:** `services.TasksService` (EmbeddingService 포함), `store.GetArchivedMessagesFiltered`
+
+---
+
 ### 4.10 handlers_admin.go — 관리자 설정 / 어드민 관리
 
 **파일:** [`handlers/handlers_admin.go`](../../handlers/handlers_admin.go)
@@ -593,6 +634,10 @@ Owns settings CRUD backed by `config.Registry`, admin user grant/revoke, secret 
 **핫리로드 대상:** `LOG_LEVEL`, `ARCHIVE_DAYS`, `AUTH_DISABLED`, `DEFAULT_USER_EMAIL`, `GEMINI_ANALYSIS_MODEL`, `GEMINI_TRANSLATION_MODEL`, `COMPANY_DOMAINS`, `GMAIL_SKIP_SENDERS`, `MESSAGE_BATCH_WINDOW`. `GEMINI_API_KEY`, `DB_KEEP_ALIVE_INTERVAL` 등은 재시작 필요.
 
 **Hot-reloadable keys:** `LOG_LEVEL`, `ARCHIVE_DAYS`, `AUTH_DISABLED`, `DEFAULT_USER_EMAIL`, `GEMINI_ANALYSIS_MODEL`, `GEMINI_TRANSLATION_MODEL`, `COMPANY_DOMAINS`, `GMAIL_SKIP_SENDERS`, `MESSAGE_BATCH_WINDOW`. Keys like `GEMINI_API_KEY` and `DB_KEEP_ALIVE_INTERVAL` require restart.
+
+**applyHotReload dispatch table:** `switch` 문에서 `map[string]hotReloader` dispatch table로 리팩터됐다. 각 설정 키의 사이드이펙트 함수(`reloadLogLevel`, `reloadArchiveDays` 등)가 독립적으로 분리되어 `applyHotReload` 자체의 복잡도(gocognit)가 경계 이하로 유지된다. 새 핫리로드 대상을 추가할 때 `hotReloaders` map에 항목만 추가하면 된다.
+
+**applyHotReload dispatch table:** Refactored from a `switch` to a `map[string]hotReloader` dispatch table. Each key's side-effect function (`reloadLogLevel`, `reloadArchiveDays`, etc.) is isolated, keeping `applyHotReload` itself within the gocognit ≤ 15 limit. Adding a new hot-reloadable key requires only a new entry in the `hotReloaders` map.
 
 **Secret 마스킹 이유:** DB에 평문 저장된 API 키가 `/api/admin/settings` 응답에 노출되지 않도록, `def.Secret=true`인 설정은 항상 `••••••••`로 치환한다. `has_value`는 여전히 `true`로 반환해 UI가 "저장됨" 상태를 표시할 수 있게 한다.
 
@@ -856,6 +901,16 @@ Each test starts with an isolated DB. `ResetForTest` truncates tables, preventin
 
 5. **토큰 사용량 이중 노출:** `HandleUserInfo`가 `token_usage` 필드를 응답에 포함하고, `HandleGetTokenUsage`가 동일 데이터를 별도 엔드포인트로도 노출한다. 두 엔드포인트 모두 `gatherTokenUsageStats`를 호출한다.
 
+6. **신규 라우트 (2026-05):**
+
+| 항목 | 이전 | 현재 |
+|---|---|---|
+| 신규 라우트 | — | `/api/messages/archive/semantic`, `/api/admin/embeddings/backfill`, `/api/internal/embeddings/backfill` |
+| `handleAPIError` | 미표준화 (일부 직접 호출) | 39 site 표준화 완료 (`[TAG]` prefix + 499 일관화) |
+| `applyHotReload` | `switch` 문 | `map[string]hotReloader` dispatch table 리팩터 |
+| `HandleBackfillRoomActor` | 단일 함수 | `buildBackfillCandidates` + `applyBackfillCandidates` build/apply 분리 |
+| `handlers_embeddings.go` | 미존재 | 신규 파일 — 시맨틱 검색 및 임베딩 백필 핸들러 3개 |
+
 ---
 
-_챕터 작성 기준: 코드 상태 2026-05-01_
+_챕터 작성 기준: 코드 상태 2026-05-03_

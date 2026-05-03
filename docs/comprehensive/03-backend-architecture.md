@@ -16,10 +16,10 @@
 | **Service** | 도메인 규칙·AI 연동·게임화 로직. DB를 직접 호출하지 않음 |
 | **Store** | Turso(libsql) 쿼리 전담, 비즈니스 로직 금지 |
 
-지원 패키지(`config`, `channels`, `ai`, `scanner`, `auth`, `logger`, `internal/*`, `types`)는 레이어를 수평으로 보조합니다. `channels`와 `scanner`는 고루틴 기반 독립 수명 주기를 가지며, `main.go`가 IoC 후크로 연결합니다.
+지원 패키지(`config`, `channels`, `ai`, `ai/core`, `scanner`, `auth`, `logger`, `internal/*`, `types`)는 레이어를 수평으로 보조합니다. `ai/`는 Gemini SDK 결합 레이어이고, `ai/core/`는 SDK import 없는 순수 로직(프롬프트·파서·분석기·RAG)을 분리한 서브패키지입니다. `channels`와 `scanner`는 고루틴 기반 독립 수명 주기를 가지며, `main.go`가 IoC 후크로 연결합니다.
 
 **English:**
-The backend is divided into three vertical layers with a one-way dependency rule (Handler → Service → Store). Circular imports are blocked at compile time. Support packages (`config`, `channels`, `ai`, `scanner`, `auth`, `logger`, `internal/*`, `types`) assist horizontally without forming a fourth layer. `channels` and `scanner` each own their own goroutine lifecycle; `main.go` wires them via IoC hooks.
+The backend is divided into three vertical layers with a one-way dependency rule (Handler → Service → Store). Circular imports are blocked at compile time. Support packages (`config`, `channels`, `ai`, `ai/core`, `scanner`, `auth`, `logger`, `internal/*`, `types`) assist horizontally without forming a fourth layer. `ai/` is the Gemini SDK coupling layer; `ai/core/` is a sub-package containing pure logic (prompts, parsers, analyzers, RAG) with no SDK import. `channels` and `scanner` each own their own goroutine lifecycle; `main.go` wires them via IoC hooks.
 
 ```mermaid
 graph LR
@@ -35,7 +35,8 @@ graph LR
 
     subgraph Business["Business Layer"]
         services["services/"]
-        ai["ai/"]
+        ai["ai/\n(Gemini SDK 결합)"]
+        aicore["ai/core/\n(순수 로직)"]
     end
 
     subgraph Data["Data Layer"]
@@ -76,8 +77,10 @@ graph LR
     store --> db
     store --> config
 
+    ai --> aicore
     ai --> store
     ai --> types
+    aicore --> types
 
     channels --> store
 
@@ -269,23 +272,37 @@ Scanner polls channels at randomized prime-second intervals (59–73 s) to avoid
 
 ---
 
-### 2.8 `ai/` — Gemini AI 엔진
+### 2.8 `ai/` — Gemini SDK 결합 레이어
 
 **한국어:**
-`ai/`는 Google Gemini API와의 단일 통합 지점입니다. 프롬프트 관리, 토큰 비용 절감을 위한 청킹, RAG(retrieval-augmented generation), 아이덴티티 해석, 필터링 등을 담당합니다. `GeminiClient`는 분석 모델(`gemini-3-flash-preview`)과 번역 모델(`gemini-3.1-flash-lite`)을 분리해 비용을 최적화합니다.
+`ai/`는 Google Gemini SDK와의 결합 지점입니다. Gemini SDK를 직접 import하는 파일만 이 패키지에 놓이며, 순수 로직(프롬프트·파서·분석기·RAG)은 SDK import 없는 `ai/core/`로 분리됩니다. `GeminiClient`는 분석 모델(`gemini-3-flash-preview`)과 번역 모델(`gemini-3.1-flash-lite`)을 분리해 비용을 최적화합니다.
 
 **English:**
-`ai/` is the single integration point for Google Gemini. It manages prompt construction, token-cost reduction via chunking, RAG for context-enriched analysis, noise filtering, and identity resolution. Two model slots (analysis + translation) let heavier models be assigned only where needed.
+`ai/` is the Gemini SDK coupling layer — only files that directly import the SDK live here. Pure logic (prompts, parsers, analyzers, RAG) is isolated in `ai/core/`, which has no SDK dependency. Two model slots (analysis + translation) let heavier models be assigned only where needed.
 
-- **주요 심볼:** `GeminiClient`, `NewGeminiClient()`, `IdentityResolver`, `GeminiLiteFilter`, `GeminiAnalyze()`, `RAG`
+- **주요 심볼:** `GeminiClient`, `NewGeminiClient()`, `IdentityResolver`, `GeminiLiteFilter`, `EmbeddingClient`
 - **주요 파일:**
   - [`ai/gemini.go`](../../ai/gemini.go) — 클라이언트, 모델 분리
-  - [`ai/analyzers.go`](../../ai/analyzers.go) — 메시지 분류 분석기
-  - [`ai/rag.go`](../../ai/rag.go) — RAG 컨텍스트 주입
+  - [`ai/embedding.go`](../../ai/embedding.go) — 임베딩 클라이언트
   - [`ai/identity_resolver.go`](../../ai/identity_resolver.go) — 발신자 아이덴티티 해석
   - [`ai/filter_service.go`](../../ai/filter_service.go) — 노이즈 게이트 필터
-  - [`ai/prompts.go`](../../ai/prompts.go) + `ai/prompts/` — 프롬프트 관리
-- **외부 의존:** `google/generative-ai-go/genai`, `whataphttpx.ClientWithAPIKey()`
+- **외부 의존:** `google.golang.org/genai`, `whataphttpx.ClientWithAPIKey()`
+
+#### `ai/core/` — 순수 로직 서브패키지
+
+**한국어:**
+`ai/core/`는 Gemini SDK import 없는 순수 Go 로직만 포함합니다. 프롬프트 렌더링, 응답 파싱, 메시지 분류 분석기, RAG 컨텍스트 조립, 추출 컨텍스트 타입 등이 여기에 있습니다. SDK와 분리되어 있어 단독 단위 테스트가 가능합니다.
+
+**English:**
+`ai/core/` contains pure Go logic with no Gemini SDK dependency. This makes it independently unit-testable. All prompt rendering, response parsing, message analyzers, and RAG logic live here.
+
+- **주요 심볼:** `SourceAnalyzer`, `ExtractionContext`, `RAG`, 프롬프트 렌더러
+- **주요 파일:**
+  - [`ai/core/analyzers.go`](../../ai/core/analyzers.go) — 메시지 분류 분석기
+  - [`ai/core/rag.go`](../../ai/core/rag.go) — RAG 컨텍스트 주입
+  - [`ai/core/prompts.go`](../../ai/core/prompts.go) + `ai/core/prompts/` — 프롬프트 관리
+  - [`ai/core/parser.go`](../../ai/core/parser.go) — 응답 파싱
+  - [`ai/core/executor.go`](../../ai/core/executor.go) — 분석 실행기
 
 → AI 엔진 상세: [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md)
 
@@ -637,6 +654,7 @@ case <-ticker.C:
 
 | 주제 | 링크 |
 |------|------|
+| ai/ 패키지 분리 델타 | `ai/` (Gemini SDK 결합: GeminiClient·EmbeddingClient·LiteFilter) + `ai/core/` (순수 로직: SourceAnalyzer·ExtractionContext·RAG·프롬프트 렌더링, SDK import 없음) |
 | 데이터 레이어 (DB 스키마, sqlc 워크플로, 마이그레이션, 캐시) | [04-data-layer.md](04-data-layer.md) |
 | 채널 어댑터 (Slack, WhatsApp, Telegram, Gmail) | [05-channels.md](05-channels.md) |
 | Scanner 상세 (primeLoop, 스캔 파이프라인, 주간/일간 리포트) | [06-scanner-pipeline.md](06-scanner-pipeline.md) |

@@ -147,15 +147,20 @@ WhaTap 에이전트 바이너리 다운로드 (~22 MB)를 **안정 캐시 레이
 
 ```
 builder stage
-├── Go 소스 → CGO_ENABLED=0 go build → message-consolidator
+├── Go 소스 → CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" → message-consolidator
 ├── upx -1 message-consolidator
-└── /stage/app/ (바이너리 + 설정 파일 스테이징)
+└── /stage/app/ (바이너리 스테이징)
 
 final stage (alpine:3.21)
 ├── ca-certificates, tzdata, libc6-compat  ← TLS / 시간대 / 호환성
-├── /app/ (바이너리 + entrypoint.sh + whatap.conf + RELEASE_NOTES)
-└── /usr/whatap/agent/ (WhaTap Data Relay Agent)
+├── COPY --from=builder /stage/app/ /app/       ← go build 결과
+├── COPY --from=builder /usr/whatap/agent/      ← WhaTap Data Relay Agent
+└── COPY whatap.conf entrypoint.sh RELEASE_NOTES_*.md /app/  ← runtime assets (final stage)
 ```
+
+**왜 `-trimpath`?** 빌드 머신의 절대 경로가 바이너리에 embed되는 것을 제거하여 동일 소스→동일 바이너리 (deterministic output)를 보장한다. 경로 노출 없이 panic stack trace가 상대 경로로 출력된다.
+
+**왜 runtime assets를 final stage에서 COPY?** `whatap.conf`, `entrypoint.sh`, `RELEASE_NOTES_*.md`는 소스 변경 없이 편집될 수 있다. builder stage에서 COPY하면 이 파일을 수정할 때마다 `go build` 캐시가 무효화된다. final stage로 분리하면 Go 빌드 캐시가 보존된다.
 
 **왜 `libc6-compat`?** WhaTap 에이전트 wrapper가 내부적으로 `/lib/ld-musl` 심볼을 호출하는 구간이 있어 Alpine에서 호환성 레이어가 필요하다.
 
@@ -189,27 +194,30 @@ exec ./message-consolidator  # PID 1 교체 (신호 전달 보장)
 
 ```
 Phase 1 (node:22-alpine builder)
-├── npm ci
-├── COPY src/, static/, index.html, tsconfig.json, vite.config.ts
+├── COPY package*.json → npm ci            ← 의존성 레이어 (가장 드물게 변경)
+├── COPY tsconfig.json vite.config.ts      ← 설정 레이어
+├── COPY index.html
+├── COPY static/
+├── COPY src/                              ← 소스 레이어 (가장 자주 변경)
 ├── ARG VITE_API_BASE_URL=/api
 └── npm run build → /app/dist/
 
-Phase 2 (alpine:3.21 sidecar)
+Phase 2 (busybox:1.37.0-musl sidecar)
 ├── COPY --from=builder /app/dist /app/dist
 └── CMD: cp -r /app/dist/* /public/ && echo 'Sync complete.'
 ```
 
 **왜 sidecar (Asset Provisioner) 패턴?**
 웹 서버(Caddy)와 정적 자산을 분리함으로써:
-- Frontend 이미지는 **nginx / Caddy 없이** 순수 Alpine (~5 MB)으로 유지된다.
+- Frontend 이미지는 **nginx / Caddy 없이** busybox:musl (~0.9 MB)으로 유지된다. alpine(8.5 MB) 대신 busybox를 선택한 이유는 sidecar가 `sh + cp`만 필요하기 때문이다.
 - `restart: "no"` — 컨테이너는 볼륨 동기화 후 즉시 종료한다. 상시 실행 불필요.
 - `caddy_assets` 볼륨을 통해 Caddy에 자산을 전달하므로 컨테이너 간 HTTP 통신이 없다.
 
 **`VITE_API_BASE_URL` build arg:**
 빌드 시 `/api`를 기본값으로 주입하여 프로덕션 환경에서 동일 도메인 API를 사용한다. 개발 환경에서는 `.env.development`의 `VITE_API_BASE_URL`이 Vite dev server에 적용된다.
 
-**레이어 캐시 최적화:**
-`package*.json`을 소스 파일보다 먼저 `COPY`함으로써 의존성 변경이 없을 때 `npm ci` 레이어가 캐시에서 재사용된다.
+**레이어 캐시 최적화 (COPY 순서):**
+COPY를 변경 빈도 오름차순으로 정렬한다: `package*.json` → `tsconfig.json/vite.config.ts` → `index.html` → `static/` → `src/`. `src/` 수정 시 `npm ci` 레이어가 캐시에서 재사용되고, 설정 파일만 변경될 때 `src/` 레이어도 유지된다.
 
 ---
 
@@ -459,55 +467,45 @@ go run cmd/mc-util/*.go db-diag
 
 ### 단계 2: Docker 이미지 빌드 및 푸시
 
-```bash
-# GCP Artifact Registry 인증
-gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
-
-# 빌드 — 빌더 이미지 지정 (WhaTap 에이전트 포함)
-docker build \
-  --build-arg BUILDER_IMAGE=us-central1-docker.pkg.dev/.../backend-builder:latest \
-  -t us-central1-docker.pkg.dev/.../frontend:latest \
-  -f docker/frontend/Dockerfile .
-
-# 푸시
-docker push us-central1-docker.pkg.dev/.../frontend:latest
-docker push us-central1-docker.pkg.dev/.../backend:latest
-```
-
-**빌더 이미지를 ARG로 지정하는 이유:** CI/로컬 환경 모두에서 동일한 WhaTap 에이전트 버전을 보장하기 위해서다. `golang:alpine` 기본값도 허용되지만 에이전트 없이 빌드된다.
-
-### 단계 3: 설정 파일 GCS 업로드
+`deploy.sh`는 Stage 1(테스트 + 빌드)과 Stage 2(푸시 + 배포)를 명확히 분리한다. 빌드에는 `docker buildx build --load`를 사용하여 테스트 통과 전에는 레지스트리에 push되지 않는다.
 
 ```bash
-gcloud storage cp .env docker-compose.yml Caddyfile \
-  gs://message-consolidator-deploy-gemini-enterprise-487906/vps/
+# Stage 1: 테스트 + 빌드 병렬 실행 (go test, npm test, AI 회귀, buildx --load)
+# Stage 2: 테스트 통과 후에만 push (타임스탬프 태그 + latest 이중 태그)
+push_dual_tag() { docker push ${tag1} & docker push ${tag2} & wait }
 ```
 
-**왜 GCS 중계?** VPS에 SSH로 직접 파일을 업로드하는 대신 GCS를 중간 저장소로 사용하면:
-- 로컬 네트워크 상태와 무관하게 설정 파일이 배포 가능하다.
-- VPS에서 GCS 버킷으로의 IAM 권한 하나로 모든 설정 파일 접근을 통제한다.
-- 롤백 시 이전 GCS 오브젝트 버전을 사용할 수 있다 (버전 관리 활성화 시).
+**빌더 이미지를 ARG로 지정하는 이유:** `--build-arg BUILDER_IMAGE=.../backend-builder:latest`로 WhaTap 에이전트 다운로드 레이어를 안정 캐시로 분리한다. `--force-builder` 플래그 없으면 로컬에 이미 pull된 빌더 이미지를 재사용한다.
+
+**`--provenance=false --sbom=false`의 이유:** buildx attestation manifest를 생략하여 이미지당 5–15 MB의 메타데이터 push를 방지한다. 내부 전용 이미지에서는 공급망 메타데이터가 불필요하다.
+
+### 단계 3: 설정 파일 VPS 업로드
+
+```bash
+# tar | ssh — scp보다 ~3–5배 빠름 (per-file SFTP 오버헤드 제거)
+upload_via_tar .env.vps docker-compose.yml [Caddyfile]
+```
+
+**Caddyfile 조건부 업로드:** `sha256sum`으로 로컬과 VPS의 Caddyfile 해시를 비교하여 변경이 없으면 업로드와 Caddy reload를 건너뛴다. 설정 파일만 변경된 배포에서 TLS 세션 중단을 예방한다.
+
+**`.env.vps` 생성 이유:** 배포 시 타임스탬프 기반 이미지 태그(`FE_IMAGE=.../frontend:20260503120000`)를 `.env`에서 분리하여 VPS에 주입한다. 롤백 시 이전 태그값을 참조할 수 있다.
 
 ### 단계 4: VPS 배포
 
 ```bash
-gcloud compute ssh chat-analyzer-vps --zone=us-central1-a --command="
-  cd ~/message-consolidator &&
-  gcloud storage cp gs://.../vps/.env . &&
-  gcloud storage cp gs://.../vps/docker-compose.yml . &&
-  gcloud storage cp gs://.../vps/Caddyfile . &&
+# SSH ControlMaster로 단일 연결 재사용 (멀티 커맨드 간 핸드셰이크 오버헤드 제거)
+SSH_OPTS="-o ControlMaster=auto -o ControlPath=~/.ssh/control-%C -o ControlPersist=10m"
 
-  # 포트 80/443 충돌 방지: host nginx가 있으면 중지
-  sudo systemctl stop nginx || true
-
-  sudo docker compose pull &&
-  sudo docker compose up -d --remove-orphans
-"
+# 서비스별 병렬 배포: BE / FE / Caddy 체인이 독립 백그라운드 프로세스로 실행
+sudo docker rm -f message-consolidator-backend 2>/dev/null || true
+sudo docker compose up -d --force-recreate backend
 ```
 
-**`--remove-orphans` 플래그의 이유:** 서비스 이름이 변경되거나 삭제된 경우 이전 컨테이너가 남아 포트나 볼륨을 점유하는 것을 방지한다.
+**`docker rm -f` 먼저 실행하는 이유:** compose 외부에서 생성된 고아 컨테이너가 `--force-recreate` 단독으로는 정리되지 않는 경우를 처리한다.
 
-**`sudo docker compose pull` 먼저 실행하는 이유:** pull이 완료된 후 up을 실행하면 다운타임이 `up` 명령 실행 시간으로만 제한된다. pull과 up을 함께 실행하면 이미지 다운로드 중 구 버전 컨테이너가 종료되어 다운타임이 길어진다.
+**백엔드 시작 대기:** `docker logs | grep -qi 'startup complete'`를 0.5초 간격으로 최대 60초 폴링한다. FE/Caddy 배포와 병렬 실행되므로 대기 시간이 전체 배포 시간에 추가되지 않는다.
+
+**Caddy 무중단 반영:** 설정 변경 시 `caddy reload`를 우선 시도하고 실패하면 `docker compose restart caddy`로 fallback한다. `reload`는 TLS 세션을 유지하면서 설정만 갱신한다.
 
 ### 단계 5: 사후 검증 (Post-verification)
 
@@ -605,9 +603,22 @@ make logs               # journalctl -f
 | 없음 (Systemd 대안 미설명) | §10 신규 작성 |
 
 **코드 확인 중 발견된 deploy.md와의 차이:**
-- `deploy.md`는 프론트엔드를 "Caddy 이미지"로 언급하나 실제 `docker/frontend/Dockerfile`은 **alpine sidecar** 패턴이다 (Caddy 없음). Caddy는 별도 `caddy:2-alpine` 공식 이미지를 사용한다.
+- `deploy.md`는 프론트엔드를 "Caddy 이미지"로 언급하나 실제 `docker/frontend/Dockerfile`은 **busybox sidecar** 패턴이다 (Caddy 없음). Caddy는 별도 `caddy:2-alpine` 공식 이미지를 사용한다.
 - `docker-compose.yml`에는 `DISABLE_STATIC_SERVING=true` 환경 변수가 있으나 `deploy.md`에 미언급.
 - `entrypoint.sh`의 WhaTap Agent 기동 로직은 `deploy.md`에 없음.
+
+**최근 변경 델타 (2026-05-03):**
+
+| 항목 | 이전 | 변경 후 |
+|---|---|---|
+| Backend `go build` 플래그 | `-ldflags="-s -w"` | `-trimpath -ldflags="-s -w"` 추가 (deterministic output) |
+| Backend runtime assets COPY | builder stage에서 복사 | final stage에서 복사 (go build 캐시 보호) |
+| Frontend sidecar 베이스 이미지 | `alpine:3.21` | `busybox:1.37.0-musl` (~0.9 MB, apk 불필요) |
+| Frontend COPY 순서 | 순서 미정의 | 변경 빈도 오름차순 (`package*.json` → `src/`) |
+| deploy.sh gcloud 검증 | 전역 config 사용 | `CLOUDSDK_ACTIVE_CONFIG_NAME=default` 핀 + project 불일치 시 fatal |
+| deploy.sh 설정 파일 업로드 | `gcloud storage cp` | `tar \| ssh` (ControlMaster 재사용, ~3–5x 빠름) |
+| deploy.sh Caddyfile 업로드 | 매 배포마다 업로드 | `sha256sum` 비교 후 변경 시만 업로드 |
+| deploy.sh Stage 분리 | 단일 순차 흐름 | Stage 1 (테스트+빌드 병렬) → Stage 2 (푸시+배포 병렬 체인) |
 
 ### Cross-References
 
@@ -620,8 +631,8 @@ make logs               # journalctl -f
 
 ---
 
-*Final report:*
-- *줄 수: ~760줄*
+*Final report (2026-05-03):*
+- *줄 수: ~840줄*
 - *Makefile target 카운트: 19개 (.PHONY 선언 기준)*
 - *.env 파일 갯수: 5종 (.env, .env.production, .env.development, .env.vps, .env.local)*
 - *deploy.md 흡수: 전문 흡수 완료. 코드 차이 3건 발견 (Frontend sidecar 패턴, DISABLE_STATIC_SERVING, entrypoint.sh WhaTap 기동)*

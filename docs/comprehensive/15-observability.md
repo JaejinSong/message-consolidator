@@ -1,6 +1,6 @@
 # 15. 관측 가능성 (Observability)
 
-> 관련 파일: [`main.go`](../../main.go), [`handlers/middleware_whatap.go`](../../handlers/middleware_whatap.go), [`store/db.go`](../../store/db.go), [`internal/whataphttpx/whataphttpx.go`](../../internal/whataphttpx/whataphttpx.go), [`logger/logger.go`](../../logger/logger.go), [`logger/structured_logger.go`](../../logger/structured_logger.go), [`logger/ai_logger.go`](../../logger/ai_logger.go)
+> 관련 파일: [`main.go`](../../main.go), [`handlers/middleware_whatap.go`](../../handlers/middleware_whatap.go), [`handlers/handlers.go`](../../handlers/handlers.go), [`store/db.go`](../../store/db.go), [`internal/whataphttpx/whataphttpx.go`](../../internal/whataphttpx/whataphttpx.go), [`internal/safego/safego.go`](../../internal/safego/safego.go), [`logger/logger.go`](../../logger/logger.go), [`logger/structured_logger.go`](../../logger/structured_logger.go), [`logger/ai_logger.go`](../../logger/ai_logger.go)
 
 ---
 
@@ -116,10 +116,10 @@ trace가 비활성화되어 있거나 `go_sql_profile_enabled=false`인 경우 `
 
 ### 3-4. 백그라운드 고루틴: trace.Start + defer trace.End
 
-파일: [`store/db.go`](../../store/db.go) L236–239:
+파일: [`store/db.go`](../../store/db.go):
 
 ```go
-traceCtx, _ := trace.Start(ctx, "/Background-DBKeepAlive")
+traceCtx, _ := trace.Start(ctx, "/Background-Infra-DBKeepAlive")
 err := db.QueryRowContext(traceCtx, "SELECT 1").Scan(&v)
 _ = trace.End(traceCtx, err)
 ```
@@ -127,6 +127,18 @@ _ = trace.End(traceCtx, err)
 **규칙**: 백그라운드 TX 이름은 반드시 `/`로 시작해야 합니다. `urlutil.NewURL`이 슬래시 없는 문자열을 Host로 파싱하므로, 슬래시 미포함 시 WhaTap 콘솔의 Transaction 컬럼이 빈 칸으로 표시됩니다.
 
 `StartWithContext` 대신 `trace.Start`를 사용해야 하는 이유: `StartWithContext`는 부모 trace context가 없으면 silent skip합니다. 독립 백그라운드 작업은 항상 `trace.Start`로 새 루트 TX를 시작해야 합니다.
+
+코드베이스에서 사용 중인 백그라운드 TX 이름 목록 (모두 `/` 접두사 적용 완료):
+
+| 이름 | 진입점 |
+|---|---|
+| `/Background-Infra-DBKeepAlive` | `store/db.go` keepalive goroutine |
+| `/Background-Cache-RefreshOnBoot` | `store/db.go` 캐시 워밍 goroutine |
+| `/Background-Scanner-RunAll` | `scanner/scanner.go` 전체 스캔 루프 |
+| `/Scanner-Manual` | `scanner/scanner.go` 수동 트리거 |
+| `/Reports-Generate` | `services/reports_service.go` 비동기 리포트 |
+| `/embed.EnqueueForMessage` | `services/embedding_service.go` 임베딩 큐 |
+| `/Slack-Event`, `/Slack-Interaction`, `/Slack-Command` | `handlers/handlers_slack_bot.go` |
 
 → 백그라운드 고루틴 동시성 패턴: [10-locking-and-concurrency.md](10-locking-and-concurrency.md)
 
@@ -263,12 +275,49 @@ logger.LogAIInferenceToFile(source, originalText, rawResponse)
 
 → AI 필터 파이프라인 호출 흐름: [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md)
 
-### 5-4. 로거 선택 결정표
+### 5-4. handleAPIError — 500응답 서버사이드 로깅 표준화
+
+파일: [`handlers/handlers.go`](../../handlers/handlers.go)
+
+```go
+func handleAPIError(w http.ResponseWriter, r *http.Request, err error, logPrefix, errMsg string) {
+    if errors.Is(err, context.Canceled) {
+        w.WriteHeader(499) // Client Closed Request
+        return
+    }
+    logger.Errorf("%s: %v", logPrefix, err)
+    respondError(w, http.StatusInternalServerError, errMsg)
+}
+```
+
+이전에 `respondError(500, err.Error())`만 호출하던 39개 핸들러 사이트가 이 함수로 통일됐습니다.
+
+**동작 요약:**
+- `context.Canceled` (Turso DB가 클라이언트 연결 해제 후 반환): HTTP **499** 응답, 서버 로그 없음
+- 그 외 에러: `logger.Errorf("[TAG]: %v", err)` 서버사이드 로그 + HTTP 500 응답
+
+Turso 원격 DB는 클라이언트가 연결을 끊으면 진행 중인 쿼리에서 `context.Canceled`를 반환합니다. 이전에는 이 경우도 500으로 기록되어 노이즈가 발생했습니다.
+
+### 5-5. safego — 고루틴 패닉 격리
+
+파일: [`internal/safego/safego.go`](../../internal/safego/safego.go)
+
+```go
+defer safego.Recover("scanner-room-extract")
+```
+
+`Recover(name)`은 패닉 발생 시 스택 트레이스를 `logger.Errorf("[PANIC] goroutine %q recovered: ...")` 형식으로 기록하고 프로세스 종료를 방지합니다. **정상 리턴 시 no-op**입니다.
+
+적용 범위 (완료 기준): 모든 `go func(...)` fire-and-forget 진입점 — 스캐너 루프, 리포트 생성, 임베딩 큐, Slack 이벤트, 종료 훅 (`shutdown-disconnect`, `shutdown-flush`), AI 추론 로그 (`ai-log-inference`), identity proposal job.
+
+### 5-6. 로거 선택 결정표
 
 | 상황 | 로거 |
 |---|---|
 | 서버 기동/종료, DB 연결 | `logger.Infof` |
 | SQL 에러, 채널 연결 실패 | `logger.Errorf` |
+| 500 핸들러 에러 (표준화됨) | `handleAPIError(w, r, err, "[TAG]", msg)` |
+| 고루틴 패닉 격리 | `defer safego.Recover("tag")` |
 | 메시지 라우팅 결정 추적 | `logger.LogDecision` |
 | AI 프롬프트/응답 원문 보존 | `logger.LogAIInferenceToFile` |
 | 비용/토큰 집계 | DB `token_usage` 테이블 (로거 아님) |
@@ -326,6 +375,16 @@ SELECT model, SUM(prompt_tokens) ... GROUP BY model;  -- GetTokenUsageByModel
 
 → AI 추론 로그 보존 정책 논의: [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md)
 
+### 6-4. IdentityResolve 토큰 귀속
+
+파일: [`ai/identity_resolver.go`](../../ai/identity_resolver.go) L82:
+
+```go
+logTokenUsage(ctx, email, "IdentityResolve", modelName, "", 0, resp)
+```
+
+`IdentityResolver.proposeChunk`가 Gemini 응답 수신 후 `logTokenUsage`를 호출해 토큰을 `token_usage` 테이블에 귀속합니다. `step="IdentityResolve"`, `report_id=0` (리포트 비귀속). `ch07` Deltas에 기록된 "비용 귀속: store.AddTokenUsage 미호출 (개선 여지)" 항목이 이 커밋으로 해소됐습니다.
+
 ---
 
 ## 7. 환경별 설정 (Environment Configuration)
@@ -367,7 +426,15 @@ WhaTap 에이전트 동작에 필요한 환경변수 이름 (값 절대 인용 �
 | 백그라운드 고루틴 TX / 동시성 패턴 | → [10-locking-and-concurrency.md](10-locking-and-concurrency.md) |
 | `token_usage` / `ai_logger` AI 파이프라인 흐름 | → [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md) |
 
-**Deltas (이 챕터 집필 시점 알려진 미결 사항)**
+**Deltas**
+
+| 항목 | 이전 상태 | 현재 상태 |
+|---|---|---|
+| safego TX 이름 | 일부 goroutine에 `/` 미접두 | 전체 background goroutine에 `/` 접두사 적용 완료 |
+| handleAPIError | 미도입, 39 사이트 `respondError(500)` 직접 호출 | 전체 통일, `context.Canceled` → 499, 그 외 → 500 + 서버 로그 |
+| IdentityResolve 토큰 | `logTokenUsage` 미호출, 비용 미귀속 | `proposeChunk`에서 `logTokenUsage` 호출 추가 |
+
+**미결 사항:**
 
 - `token_usage` 인메모리 버퍼의 flush 주기가 shutdown에만 묶여 있어, 장기 실행 중 비정상 종료 시 마지막 배치 유실 가능. 주기적 flush 또는 WAL 방식 검토 필요.
 - `ai_inference_logs`의 `original_text`/`raw_response` 컬럼 제거(Migrations Phase C)가 보류 중임. → [MEMORY: project_migrations_phase_c_pending.md]

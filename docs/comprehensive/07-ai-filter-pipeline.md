@@ -64,9 +64,35 @@ Stage 3가 Pro가 아닌 Flash를 쓰는 것처럼 보이는 이유는 Flash thi
 
 ---
 
-## 2. Stage 0: Parser & Noise Gate
+## 2. 패키지 구조: `ai/` vs `ai/core/`
 
-**파일**: `ai/analyzers.go`, `ai/parser.go` (프롬프트 파서), `services/ai_parser.go`
+**한국어:** `refactor(ai)` 커밋으로 AI 레이어가 두 패키지로 분리됐다.
+
+| 패키지 | 포함 파일 | 역할 |
+|---|---|---|
+| `ai/` | `gemini.go`, `embedding.go`, `filter_service.go`, `identity_resolver.go` | Gemini SDK(`google.golang.org/genai`) 결합 — 네트워크 I/O, 인증, 재시도 |
+| `ai/core/` | `analyzers.go`, `executor.go`, `parser.go`, `rag.go`, `few_shots.go`, `utils.go`, `prompts.go`, `prompts/*.prompt` | 순수 로직 — 프롬프트 렌더링, 파서, 스코어링. SDK import 없음 |
+
+분리 이유: `ai/core/` 는 `google.golang.org/genai` 를 import하지 않아 단독 단위 테스트가 가능하다. Gemini SDK 버전을 교체하거나 다른 AI 공급자로 전환할 때 `ai/core/` 는 수정 불필요.
+
+**Gemini SDK 마이그레이션**: `chore(deps): migrate Gemini SDK to google.golang.org/genai` 커밋으로 SDK가 기존 버전에서 `google.golang.org/genai` (v1)으로 전환됐다. 클라이언트 생성 패턴:
+
+```go
+// ai/gemini.go
+client, err := genai.NewClient(ctx, &genai.ClientConfig{
+    APIKey:     apiKey,
+    Backend:    genai.BackendGeminiAPI,
+    HTTPClient: whataphttpx.Client(),  // WhaTap APM 래핑
+})
+```
+
+**English:** The `ai/` package holds SDK-coupled code (network I/O, auth, retry); `ai/core/` holds pure logic (prompt rendering, parsing, scoring) with no SDK imports. This boundary keeps `ai/core/` unit-testable in isolation and insulates it from SDK version churn.
+
+---
+
+## 3. Stage 0: Parser & Noise Gate
+
+**파일**: `ai/core/analyzers.go`, `ai/core/parser.go` (프롬프트 파서), `services/ai_parser.go`
 
 Stage 0은 토큰 비용이 전혀 없는 로컬 전처리 단계입니다. 메시지 원문을 AI에 전달하기 전에 콘텐츠 품질을 높이고 컨텍스트 윈도를 절약합니다.
 
@@ -76,15 +102,15 @@ Stage 0은 토큰 비용이 전혀 없는 로컬 전처리 단계입니다. 메�
 
 | Analyzer | 구현체 | 입력 상한 | 전략 |
 |---|---|---|---|
-| `GmailAnalyzer` | `ai/analyzers.go` | 15,000자 | `text[:maxChars]` — 스레드 헤더부터 잘라 최신 본문 우선 |
-| `ChatAnalyzer` | `ai/analyzers.go` | 30,000자 | `text[len(text)-maxChars:]` — 끝부터 잘라 최신 메시지 우선 |
-| `NotionAnalyzer` | `ai/analyzers.go` | 무제한 | TODO: Notion 블록 필터링 예정 |
+| `GmailAnalyzer` | `ai/core/analyzers.go` | 15,000자 | `text[:maxChars]` — 스레드 헤더부터 잘라 최신 본문 우선 |
+| `ChatAnalyzer` | `ai/core/analyzers.go` | 30,000자 | `text[len(text)-maxChars:]` — 끝부터 잘라 최신 메시지 우선 |
+| `NotionAnalyzer` | `ai/core/analyzers.go` | 무제한 | TODO: Notion 블록 필터링 예정 |
 
 Gmail과 Chat이 잘라내는 방향(앞 vs 끝)이 다른 이유: 이메일 스레드는 인용이 하단에 쌓여 오래된 내용이 뒤에 위치하지만, 채팅 버퍼는 최신 메시지가 끝에 append되므로 잘라내는 방향이 반대입니다.
 
 ### Time-Topic Hybrid Grouping
 
-`GroupMessagesByTime(msgs []types.RawMessage, interval time.Duration) [][]types.RawMessage` (ai/analyzers.go)는 동일 발신자가 단기간에 연속 전송한 메시지를 하나의 컨텍스트 묶음으로 합칩니다. 이렇게 하면 "오전에 연속으로 보낸 5개 메시지"가 각각 독립된 AI 호출을 유발하지 않습니다. 스캐너 레이어가 이 함수를 호출하여 배치를 구성합니다 (→ [06-scanner-pipeline.md]).
+`GroupMessagesByTime(msgs []types.RawMessage, interval time.Duration) [][]types.RawMessage` (ai/core/analyzers.go)는 동일 발신자가 단기간에 연속 전송한 메시지를 하나의 컨텍스트 묶음으로 합칩니다. 이렇게 하면 "오전에 연속으로 보낸 5개 메시지"가 각각 독립된 AI 호출을 유발하지 않습니다. 스캐너 레이어가 이 함수를 호출하여 배치를 구성합니다 (→ [06-scanner-pipeline.md]).
 
 ### services/ai_parser.go 역할
 
@@ -99,7 +125,7 @@ Gmail과 Chat이 잘라내는 방향(앞 vs 끝)이 다른 이유: 이메일 스
 
 ---
 
-## 3. Stage 1: Flash-Lite Filter
+## 4. Stage 1: Flash-Lite Filter
 
 **파일**: `ai/filter_service.go`  
 **프롬프트**: `ai/prompts/lite_filter.prompt` (model: `gemini-3.1-flash-lite-preview`)
@@ -152,9 +178,9 @@ logTokenUsage(ctx, email, "LiteFilter", source, model, 0, resp)  // gemini.go
 
 ---
 
-## 4. Stage 2: Flash Task Extraction
+## 5. Stage 2: Flash Task Extraction
 
-**파일**: `ai/gemini.go` (Analyze, AnalyzeWithContext), `ai/analyzers.go` (SourceAnalyzer 구현체), `ai/few_shots.go` (FewShot 풀), `ai/utils.go` (unmarshalAnalyze)
+**파일**: `ai/gemini.go` (Analyze, AnalyzeWithContext), `ai/core/analyzers.go` (SourceAnalyzer 구현체), `ai/core/few_shots.go` (FewShot 풀), `ai/core/utils.go` (unmarshalAnalyze)
 
 ### 진입 흐름
 
@@ -172,7 +198,7 @@ GeminiClient.Analyze(ctx, email, msg, language, source, room)
 
 ### SourceAnalyzer 전략 패턴
 
-`getAnalyzer(source string) SourceAnalyzer` (ai/analyzers.go)는 채널을 세 전략으로 라우팅합니다.
+`getAnalyzer(source string) SourceAnalyzer` (ai/core/analyzers.go)는 채널을 세 전략으로 라우팅합니다.
 
 | source | 구현체 | 시스템 프롬프트 | 유저 프롬프트 |
 |---|---|---|---|
@@ -183,7 +209,7 @@ GeminiClient.Analyze(ctx, email, msg, language, source, room)
 
 ### ExtractionContext — 프롬프트 바인딩 타입
 
-`ExtractionContext` (ai/executor.go)는 템플릿 렌더링에 사용되는 구조체입니다.
+`ExtractionContext` (ai/core/executor.go)는 템플릿 렌더링에 사용되는 구조체입니다.
 
 ```go
 type ExtractionContext struct {
@@ -216,7 +242,7 @@ type contextTask struct {
 
 ### 추출 결과 JSON 스키마
 
-모델에 `"application/json"` MIME을 지정하여 JSON 모드를 강제합니다. AI가 반환하는 각 태스크 아이템의 구조는 `flexItem` (ai/utils.go)이 수용합니다.
+모델에 `"application/json"` MIME을 지정하여 JSON 모드를 강제합니다. AI가 반환하는 각 태스크 아이템의 구조는 `flexItem` (ai/core/utils.go)이 수용합니다.
 
 ```
 {
@@ -249,9 +275,9 @@ type contextTask struct {
 
 ---
 
-## 5. Stage 2 세부: 태스크 파싱 & 디듀플리케이션
+## 6. Stage 2 세부: 태스크 파싱 & 디듀플리케이션
 
-**파일**: `ai/utils.go`, `ai/gemini.go` (parseAnalyzeResults)
+**파일**: `ai/core/utils.go`, `ai/gemini.go` (parseAnalyzeResults)
 
 ### sanitizeJSON — 3단계 정제
 
@@ -299,7 +325,7 @@ Fire-and-forget goroutine으로 `logger.LogAIInferenceToFile`과 `store.LogAIInf
 
 ---
 
-## 6. Stage 3: Pro Report Generation
+## 7. Stage 3: Pro Report Generation
 
 **파일**: `ai/gemini.go` (GenerateReportSummary, GenerateVisualizationData, EvaluateTaskTransition)  
 **프롬프트**: `ai/prompts/report_summary.prompt` (model: `gemini-3-flash-preview`, v2.7.0)  
@@ -374,13 +400,13 @@ type TaskTransition struct {
 
 ---
 
-## 7. RAG (Retrieval-Augmented Generation)
+## 8. Few-Shot RAG (Stage 2 Prompt Augmentation 전용)
 
-**파일**: `ai/rag.go` (SelectFewShots, calculateScore), `ai/few_shots.go` (GetDefaultFewShots)
+**파일**: `ai/core/rag.go` (SelectFewShots, calculateScore), `ai/core/few_shots.go` (GetDefaultFewShots)
 
 ### 아키텍처 위치
 
-Message Consolidator의 RAG는 벡터 DB 없이 동작하는 **경량 키워드 기반 few-shot 선택기**입니다. Stage 2의 `ChatAnalyzer.GetSystemInstruction`에서만 활성화됩니다.
+Message Consolidator의 RAG는 벡터 DB 없이 동작하는 **경량 키워드 기반 few-shot 선택기**입니다. Stage 2의 `ChatAnalyzer.GetSystemInstruction`에서만 활성화됩니다. 벡터 기반 의미 검색(Hybrid Archive Search)과는 완전히 별개 시스템입니다 — 목적(Stage 2 프롬프트 augmentation), 알고리즘(키워드 스코어링), 데이터 저장소(인메모리 `[]FewShot`) 모두 다름 (→ [08-services-business-logic.md]).
 
 ```go
 func (c *ChatAnalyzer) GetSystemInstruction(data ExtractionContext) string {
@@ -395,7 +421,7 @@ Gmail·Notion은 few-shot을 주입하지 않습니다 — 이메일/문서는 �
 
 ### Few-Shot 풀 (GetDefaultFewShots)
 
-`ai/few_shots.go`는 9개의 다국어 예시를 정의합니다.
+`ai/core/few_shots.go`는 9개의 다국어 예시를 정의합니다.
 
 | # | 언어 | 시나리오 | 카테고리 |
 |---|---|---|---|
@@ -411,7 +437,7 @@ Gmail·Notion은 few-shot을 주입하지 않습니다 — 이메일/문서는 �
 
 특히 예시 6·7은 `requester == assignee` 케이스를 명시적으로 다루어, 화자가 스스로 약속하는 상황에서의 오탐지(타인 assignee로 추출)를 방지합니다.
 
-### SelectFewShots 알고리즘 (ai/rag.go)
+### SelectFewShots 알고리즘 (ai/core/rag.go)
 
 ```go
 func SelectFewShots(payload string, examples []FewShot, limit int) []FewShot
@@ -442,15 +468,15 @@ func (ctx *ExtractionContext) LimitFewShots(max int) {
 }
 ```
 
-`ExtractionContext.LimitFewShots` (ai/executor.go)는 호출자가 few-shot 주입 개수를 O(1) 슬라이싱으로 상한 설정합니다. 현재 `ChatAnalyzer`는 `SelectFewShots(..., 2)` 호출 시 이미 2로 제한되므로 이중 방어입니다.
+`ExtractionContext.LimitFewShots` (ai/core/executor.go)는 호출자가 few-shot 주입 개수를 O(1) 슬라이싱으로 상한 설정합니다. 현재 `ChatAnalyzer`는 `SelectFewShots(..., 2)` 호출 시 이미 2로 제한되므로 이중 방어입니다.
 
 token_usage 테이블에는 step=`Analyze`, model=`gemini-3-flash-preview`로 기록됩니다. few-shot 포함 여부에 따른 prompt 토큰 증가는 이 레코드에 자연스럽게 반영됩니다 (→ [15-observability.md]).
 
 ---
 
-## 8. Prompts 카탈로그
+## 9. Prompts 카탈로그
 
-**파일**: `ai/prompts.go` (PromptName 타입 + LoadPrompt), `ai/prompts/*.prompt`
+**파일**: `ai/core/prompts.go` (PromptName 타입 + LoadPrompt), `ai/core/prompts/*.prompt`
 
 ### PromptName — 컴파일 타임 인벤토리
 
@@ -479,9 +505,9 @@ const (
 )
 ```
 
-총 **16개** 상수. `new_extraction.prompt`는 `ai/prompts/` 디렉토리에 파일이 존재하지만 `prompts.go`에 상수가 없으므로 현재 코드 경로에서 참조되지 않는 실험적 파일입니다.
+총 **16개** 상수. `new_extraction.prompt`는 `ai/core/prompts/` 디렉토리에 파일이 존재하지만 `prompts.go`에 상수가 없으므로 현재 코드 경로에서 참조되지 않는 실험적 파일입니다.
 
-### ai/prompts/ 파일 인벤토리 (17개 파일)
+### ai/core/prompts/ 파일 인벤토리 (17개 파일)
 
 | 파일명 | 모델 라우팅 | 버전 | 용도 |
 |---|---|---|---|
@@ -522,15 +548,16 @@ response_mime_type: <mime>      ← optional
 
 ### 프롬프트 수정 워크플로
 
-1. `ai/prompts/<name>.prompt` 파일 직접 편집
+1. `ai/core/prompts/<name>.prompt` 파일 직접 편집
 2. 개발 환경에서는 `runtime.Caller(0)`로 파일시스템 경로를 탐색하여 즉시 반영 (바이너리 재빌드 불필요)
+2a. 프로덕션 빌드에서는 `LoadPrompt` 결과를 `sync.Map` 에 캐시 — 첫 호출 후 파일 재파싱 없음 (`perf(ai): cache LoadPrompt in prod mode`)
 3. 프로덕션 빌드에서는 `//go:embed prompts/*.prompt`로 바이너리에 내장되므로 재빌드 필요
-4. 회귀 테스트: `ai/*_test.go`, `ai/prompts_verify_test.go` 실행 (→ [17-testing.md])
+4. 회귀 테스트: `ai/*_test.go`, `ai/core/prompts_verify_test.go` 실행 (→ [17-testing.md])
 5. `version` 필드 증가 권장 (변경 추적용)
 
 ---
 
-## 9. Identity Resolver
+## 10. Identity Resolver
 
 **파일**: `ai/identity_resolver.go`  
 **상세**: → [09-identity-and-dedup.md]
@@ -554,7 +581,7 @@ func (r *IdentityResolver) ProposeGroups(ctx context.Context, contacts []store.C
 
 ---
 
-## 10. 에러 처리 + 재시도 + 비용 관측
+## 11. 에러 처리 + 재시도 + 비용 관측
 
 ### 재시도 전략 (generateWithRetry)
 
@@ -634,7 +661,7 @@ TokenUsage-<step>       → 프롬프트/완성 토큰 수 포함
 
 ---
 
-## 11. Deltas from Legacy Docs & Cross-References
+## 12. Deltas from Legacy Docs & Cross-References
 
 ### Deltas
 
@@ -647,6 +674,10 @@ TokenUsage-<step>       → 프롬프트/완성 토큰 수 포함
 | Few-shot RAG | "RAG-like selection" | 키워드 기반 스코어링, 벡터 DB 없음 |
 | IdentityResolver token_usage | 미기술 | 현재 미귀속 (개선 여지) |
 | `new_extraction.prompt` | 미기술 | 파일 존재, 상수 미등록 — 실험적 |
+| `ai/analyzers.go` 등 위치 | `ai/` 루트 | `ai/core/` 서브패키지 |
+| Gemini SDK import | 이전 SDK | `google.golang.org/genai` (v1) |
+| `EmbeddingClient` | 없음 | `ai/embedding.go` — `gemini-embedding-001` 768d |
+| `LoadPrompt` 캐시 | 매 호출 파일 파싱 | prod 모드에서 `sync.Map` 캐시 |
 
 ### Cross-References
 

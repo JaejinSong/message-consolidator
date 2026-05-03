@@ -84,7 +84,68 @@ GetMessages
 
 **프로필 캐싱:** `GetUserName`은 초기 `FetchUsers`로 세운 `users` 맵을 우선 조회하고, 미스 시 `GetUserInfoContext` + 캐시 업데이트를 수행합니다. `users.list`는 restricted/external 멤버를 누락하므로 on-demand fallback이 필수입니다.
 
-### 2.4 Rate Limit 재시도 / Rate Limit Retry
+### 2.4 DM Bot
+
+**한국어:** Slack DM Bot은 Events API, Block Kit 인터랙티브 콜백, slash command 세 진입점을 통해 사용자에게 task 목록 조회·완료 처리를 제공합니다.
+
+**English:** The Slack DM Bot exposes three inbound surfaces — Events API, Block Kit interactive callbacks, and slash commands — all routing into `services.SlackBot`.
+
+#### 수신 이벤트 유형 / Inbound Event Types
+
+| 진입점 | 엔드포인트 | 수신 유형 | 핸들러 |
+|---|---|---|---|
+| Events API | `POST /api/slack/events` | `message.im` / `app_mention` / `url_verification` | `handlers.HandleSlackEvent` |
+| Block Kit interactive | `POST /api/slack/interactive` | `block_actions` | `handlers.HandleSlackInteractive` |
+| Slash command | `POST /api/slack/commands` | `/tasks` | `handlers.HandleSlackCommand` |
+
+#### 라우팅 흐름 / Routing Flow
+
+```
+HandleSlackEvent
+  ├─ url_verification  → 200 + challenge (동기)
+  ├─ X-Slack-Retry-Num ≥ 1  → 200 + drop (중복 방지)
+  ├─ AppMentionEvent   → dispatchSlackEvent → Bot.HandleDMText
+  └─ MessageEvent (channel_type=im, bot_id="")
+                       → dispatchSlackEvent → Bot.HandleDMText
+
+HandleSlackInteractive
+  └─ block_actions[0].action_id
+       ├─ "task_done:<id>"   → Bot.HandleDoneAction → tasks.HandleTaskCompletion
+       └─ "task_page:<page>" → Bot.HandlePageAction
+
+HandleSlackCommand (/tasks)
+  └─ text=="" → "tasks" 으로 정규화 → Bot.HandleDMText
+```
+
+**`HandleDMText` 파서:** `ParseDMCommand`가 `<@UXXXX>` 멘션 prefix를 제거하고 `tasks` / `done <id>` / `help` 세 키워드로 분기합니다. `app_mention`과 IM DM 양쪽에서 같은 파서를 재사용하여 동작 일관성을 유지합니다.
+
+**Block Kit 메시지 갱신:** `HandleDoneAction`은 `chat.postMessage` 대신 `chat.update`(`UpdateDMBlocks`)로 완료 후 같은 메시지를 재렌더링합니다. 인터랙티브 payload의 `container.channel_id` / `container.message_ts`를 그대로 사용하므로 DM 스레드에 중복 메시지가 쌓이지 않습니다.
+
+**서명 검증:** 모든 세 진입점은 `readAndVerifySlack`에서 `auth.VerifySlackRequest`를 공통으로 호출합니다. → [12-auth-and-security.md](12-auth-and-security.md) (HMAC-SHA256 검증 상세)
+
+#### Rate Limit 방어 / Rate Limit Defence
+
+DM 발송(`SendDM`, `SendDMBlocks`, `UpdateDMBlocks`)은 폴링 경로와 동일한 `withSlackRetry(3, ...)` 래퍼를 재사용합니다. Slack의 DM 관련 API는 `chat.*` Tier-3 rate limit에 속하며, 폴링과 같은 버킷을 공유하므로 전역 상한이 적용됩니다.
+
+**Channel leak 방지:** `dispatchSlackInteraction`에서 `cb.Container.ChannelID`가 빈 칸이면 `cb.Channel.ID`로 fallback합니다. 일부 클라이언트(구형 앱)가 `container.channel_id`를 채우지 않는 경우를 방어합니다.
+
+### 2.5 채널 이름 레이블링 / Channel Name Labelling
+
+**한국어:** Slack은 IM(1:1 DM) 및 MpIM(그룹 DM) 대화에 대해 `Name` 필드를 빈 문자열로 반환합니다. `slackChannelDisplayName`이 이를 보완하여 대시보드에 `-`가 표시되거나 per-room lock 키가 빈 칸이 되는 현상을 방지합니다.
+
+```go
+// channels/slack.go
+func slackChannelDisplayName(c *slack.Channel, fallback string) string {
+    if c.Name != ""  { return c.Name }
+    if c.IsIM        { return "DM" }
+    if c.IsMpIM      { return "Group DM" }
+    return fallback
+}
+```
+
+**English:** `IsIM`/`IsMpIM` flags are checked only when `Name` is empty, so named public/private channels are unaffected.
+
+### 2.6 Rate Limit 재시도 / Rate Limit Retry
 
 ```go
 // channels/slack.go#L143
@@ -389,6 +450,8 @@ Gmail refresh token이 만료된 경우 자동 알림 메커니즘이 현재 없
 | Telegram auth 흐름 | 언급 없음 | 3-step (phone → code → optional 2FA), goroutine-channel 브릿지 |
 | WhatsApp 미디어 | 언급 없음 | 다운로드 미구현, 텍스트 표현(placeholder) |
 | whataphttpx 래핑 | CLAUDE.md에만 기술 | WrapClient(OAuth) vs Client(plain) vs ClientWithAPIKey 구분 명문화 |
+| Slack DM Bot | 없음 | Events API + Block Kit + slash command DM 인터페이스 추가 (§2.4) |
+| IM channel label | Name 빈 칸 처리 없음 | Name 빈 칸 시 `IsIM`→"DM", `IsMpIM`→"Group DM"으로 레이블링 (§2.5) |
 
 ---
 

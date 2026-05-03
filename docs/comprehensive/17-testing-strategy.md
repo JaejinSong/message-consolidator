@@ -12,16 +12,18 @@
 
 | 축 (Axis) | 커버리지 대상 | 진입점 | 실행 속도 |
 |---|---|---|---|
-| **Go 단위** | 순수 함수 · 서비스 로직 | `go test ./...` | 빠름 (<10s) |
-| **Go 통합** | DB 계층 + 핸들러 HTTP 흐름 | `go test ./...` (동일) | 중간 |
-| **Go 회귀 (AI)** | Gemini 분석 결과 안정성 | `make test-ai` | 느림 (VCR) |
+| **Go 단위 + 통합 + 회귀** | 순수 함수 · DB 계층 · 핸들러 · regression | `go test -tags regression ./...` | 중간 (<30s) |
 | **TS 단위 (vitest)** | 프런트엔드 로직 · 렌더러 | `npm test` | 빠름 (<5s) |
+| **UI 검증** | 빌드 아티팩트 정적 분석 | `node tests/verify-loading-ui.cjs` | 빠름 (<3s) |
+| **AI 회귀 (선택)** | Gemini 분석 결과 안정성 | `make test-ai` | 느림 (VCR) |
 
-`bash unit-test.sh`는 위 4축을 모두 **동시(background PID)**로 실행하고 합산 결과를 출력한다. 어느 축 하나라도 실패하면 exit 1.
+`bash unit-test.sh`는 위 3축(Go·NPM·UI)을 **동시(background PID)**로 실행하고 합산 결과를 출력한다. AI 회귀 테스트(`make test-ai`)는 `ai/` 소스 변경이 없으면 자동 건너뛰는 별도 진입점이다. 어느 축 하나라도 실패하면 exit 1.
 
 ### WHY: AI 회귀 테스트가 존재하는 이유
 
 Gemini 모델은 버전 deprecate 또는 내부 가중치 변화로 동일 입력에 다른 결과를 낼 수 있다. 또한 프롬프트 수정(drift)이 의도치 않은 task 추출 변화를 유발한다. 회귀 테스트는 이 두 위험을 **자동으로** 포착한다.
+
+> AI 회귀 테스트는 `unit-test.sh`에서 분리되어 `make test-ai` / `make test-ai-force`로 실행된다 (→ 섹션 4).
 
 ### CLAUDE.md Bug Fix 룰
 
@@ -47,7 +49,7 @@ Gemini 모델은 버전 deprecate 또는 내부 가중치 변화로 동일 입�
 | `handlers` | 9 | HTTP 핸들러 테이블 |
 | `ai` | 8 | 프롬프트 파서 + VCR |
 | `channels` | 5 | 채널 연결 · 필터 |
-| `tests` | 3 | regression 패키지 별도 |
+| `tests` | 2 | regression 패키지 (`ai_regression_test.go`, `gmail_mock_test.go`) |
 | 기타 | 4 | `logger`, `internal`, `config`, `auth` |
 
 `store`와 `services` 두 패키지가 전체의 57%를 차지한다. 이는 데이터 계층과 비즈니스 로직이 테스트 밀도가 가장 높아야 한다는 아키텍처 원칙과 일치한다. → [03-backend-architecture.md]
@@ -83,8 +85,8 @@ for _, tc := range cases { ... }
 ### 진입점
 
 ```bash
-go test ./...                # 전체 단위 + 통합 (regression 태그 제외)
-bash unit-test.sh            # 4축 병렬 실행
+go test -tags regression ./...  # 단위 + 통합 + regression 통합 실행
+bash unit-test.sh               # 3축 병렬 실행 (Go·NPM·UI)
 ```
 
 ---
@@ -93,6 +95,8 @@ bash unit-test.sh            # 4축 병렬 실행
 
 ### tests/ 디렉토리 구조
 
+Go unit 테스트와 regression 테스트는 `go test -tags regression ./...` 단일 명령으로 통합 실행된다. 별도 AI 전용 test 바이너리는 제거되었다.
+
 ```
 tests/
 ├── logic_verification_test.go  # 루트 레벨 로직 검증
@@ -100,7 +104,7 @@ tests/
 ├── regression/
 │   ├── ai_regression_test.go   # AI 회귀 (//go:build regression)
 │   ├── gmail_mock_test.go      # Gmail 채널 목
-│   └── testdata/               # VCR 입력·기대값·덤프 (→ 섹션 4)
+│   └── testdata/               # VCR 입력·기대값 (덤프는 로컬 전용, → 섹션 4)
 └── verify-loading-ui.cjs       # CSS/HTML 구조 검증 (Node.js)
 ```
 
@@ -189,14 +193,21 @@ ai/prompts  ai/prompts.go  ai/gemini.go  ai/executor.go  ai/analyzers.go  ai/rag
 
 각 케이스는 3~4개 파일 세트:
 
-| 파일 | 역할 |
-|---|---|
-| `<name>_input.txt` | Gemini에 전달할 원본 메시지 텍스트 |
-| `<name>_expected.json` | 기대하는 `[]store.TodoItem` |
-| `<name>_vcr.dump` | HTTP 응답 바이너리 덤프 (replay용) |
-| `<name>_lang.txt` | (선택) 언어 힌트 (`ko`, `id` 등) |
+| 파일 | 역할 | VCS |
+|---|---|---|
+| `<name>_input.txt` | Gemini에 전달할 원본 메시지 텍스트 | 추적 |
+| `<name>_expected.json` | 기대하는 `[]store.TodoItem` | 추적 |
+| `<name>_vcr.dump` | HTTP 응답 바이너리 덤프 (replay용) | **비추적** (`.gitignore`) |
+| `<name>_lang.txt` | (선택) 언어 힌트 (`ko`, `id` 등) | 추적 |
 
-현재 케이스: `01_simple_slack`, `02_indonesian_kita`, `03_no_tasks`, `04_we_pronoun`, `05_id_formats`, `gmail_twin_task`.
+`*_vcr.dump` 파일은 `.gitignore`에 등록되어 VCS 비추적 상태로 유지된다. SDK 버전 특이적이며 `UPDATE_GOLDEN=1` 환경 변수 또는 VCR 파일 부재 시 자동 재생성된다.
+
+```bash
+# VCR 덤프 재생성 (실제 Gemini API 호출)
+UPDATE_GOLDEN=1 go test -v -tags regression ./tests/regression/...
+```
+
+현재 케이스 (8개): `01_simple_slack`, `02_indonesian_kita`, `03_no_tasks`, `04_we_pronoun`, `05_id_formats`, `gmail_twin_task`, `negative`, `slack_unrefined`.
 
 ### 회귀 검증 흐름
 
@@ -260,14 +271,21 @@ src/
 ```typescript
 export default defineConfig({
   test: {
-    environment: 'happy-dom',   // Why: jsdom 대비 경량, DOM API 커버 충분
+    // Why: Default to node — happy-dom boot ~1.5s per file × 16 non-DOM files = wasted ~24s cumulative.
+    // The 6 DOM-needing files override per-file via `// @vitest-environment happy-dom` directive.
+    environment: 'node',
     globals: true,
     setupFiles: ['./src/tests/setup.ts'],
   },
 });
 ```
 
-`happy-dom`을 선택한 이유: jsdom 대비 메모리 사용량이 낮고 실행 속도가 빠르다. `document.querySelector`, `localStorage` 등 이 프로젝트에서 사용하는 DOM API를 충분히 지원한다.
+기본 환경을 `node`로 변경한 이유: DOM이 불필요한 파일(16개)에서 `happy-dom` 부트스트랩 비용(`~1.5s × 16 ≈ 24s`)을 제거하기 위해서다. DOM API가 필요한 파일(6개)은 파일 상단에 `// @vitest-environment happy-dom` 디렉티브를 명시해 개별 지정한다.
+
+```typescript
+// @vitest-environment happy-dom
+// (파일 상단에 선언 — archive.test.ts, modals.test.ts, renderer.test.ts 등 6개)
+```
 
 ### 주요 테스트 대상과 WHY
 
@@ -339,11 +357,21 @@ WHY 미포함: GCP e2-micro 인프라에서 Gemini API 키를 CI secret으로 �
 | → [13-frontend-architecture.md] | Clean Architecture → vitest 순수 함수 테스트 가능 이유 |
 | → [16-cli-and-tools.md] | `mc-util`, `verify-logic.ts` 등 CLI 도구 검증 방법 |
 
+### Recent Changes (변경 이력)
+
+| 항목 | 이전 | 현재 |
+|---|---|---|
+| Go 커버리지 | 36.9% | 40.0% |
+| VCR fixtures | git 추적 | `.gitignore` (`*_vcr.dump`) 비추적 |
+| vitest 기본 환경 | `happy-dom` | `node` (DOM 필요 파일만 개별 `happy-dom`) |
+| 테스트 진입점 구조 | unit · regression · AI 분리 | Go unit + regression 통합, AI는 `make test-ai` 별도 |
+| AI 회귀 케이스 수 | 6개 | 8개 (`negative`, `slack_unrefined` 추가) |
+
 ### Known Deltas (미해결 사항)
 
 1. **CI 테스트 미자동화**: `go test ./...`와 `npm test`가 CI workflow에 없다. lint 단독으로는 논리 오류를 잡지 못한다.
-2. **회귀 VCR 케이스 확장**: 현재 6개 케이스. WhatsApp/Telegram 채널용 케이스 부재.
-3. **핸들러 커버리지 갭**: `handlers/` 9개 파일 중 `handlers_gmail.go`, `handlers_whatsapp.go`, `handlers_stats.go` 등의 통합 테스트가 얕다 (git status 기준 수정된 파일).
+2. **회귀 VCR 케이스 확장**: 현재 8개 케이스. WhatsApp/Telegram 채널용 케이스 부재.
+3. **핸들러 커버리지 갭**: `handlers/` 9개 파일 중 `handlers_gmail.go`, `handlers_whatsapp.go`, `handlers_stats.go` 등의 통합 테스트가 얕다.
 4. **store 테스트 DB 전략**: `store.TestDSN` + `SetMaxOpenConns(1)` 방식은 병렬 테스트 패키지 간 DB 상태 공유를 전제한다. 패키지 간 격리가 필요하면 `ResetForTest`를 각 테스트 함수에서 명시적으로 호출해야 한다.
 
 ---
@@ -352,6 +380,7 @@ WHY 미포함: GCP e2-micro 인프라에서 Gemini API 키를 CI secret으로 �
 
 - **`*_test.go` 총 파일 수**: 88개
 - **`*.test.ts` 총 파일 수**: 21개
-- **AI 회귀 testdata 위치**: [`tests/regression/testdata/`](../../tests/regression/testdata/) (케이스 6개, 각 3~4 파일)
-- **단위 테스트 스크립트**: [`unit-test.sh`](../../unit-test.sh) — 4축 병렬 실행, 단일 exit code
+- **Go 커버리지**: 40.0%
+- **AI 회귀 testdata 위치**: [`tests/regression/testdata/`](../../tests/regression/testdata/) (케이스 8개, `*_vcr.dump`는 로컬 전용)
+- **단위 테스트 스크립트**: [`unit-test.sh`](../../unit-test.sh) — 3축 병렬 실행 (Go·NPM·UI), 단일 exit code
 - **CI**: lint 전용 ([`.github/workflows/lint.yml`](../../.github/workflows/lint.yml)), 테스트 자동화 미포함

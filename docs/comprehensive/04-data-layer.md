@@ -415,7 +415,22 @@ erDiagram
 - **주요 컬럼**: `message_id FK`, `source`, `original_text`, `raw_response`, `created_at`
 - **외래키**: `message_id → messages(id)` (nullable — message 생성 전 로깅 허용)
 
-**English:** `scan_metadata` is the scanner's restart checkpoint — `source='processed_msg'` rows double as a deduplication guard. `gmail_tokens` persists OAuth refresh tokens so that server restarts do not trigger re-authorisation. `telegram_sessions` and `telegram_credentials` are keyed by email so multi-user deployments each carry their own MTProto state. `app_settings` is a runtime feature-flag store updated without redeployment. `token_usage` tracks AI cost at a 6-dimensional grain; `ai_inference_logs` retains raw request/response pairs for reproducibility.
+#### `message_embeddings` ★ (schema v2 추가)
+- **책임**: 아카이브 메시지의 벡터 임베딩 저장. 의미 검색(hybrid archive search)에 사용.
+- **주요 컬럼**:
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| `message_id` | INT PK | `messages(id)` 참조 |
+| `model` | TEXT | 임베딩 모델명 (예: `gemini-embedding-001`) |
+| `dim` | INT | 벡터 차원 수 (현재 768) |
+| `vec` | F32_BLOB(768) | little-endian float32 벡터 (schema v4 이후) |
+| `text_hash` | TEXT | 텍스트 변경 감지용 해시 — 동일 텍스트 재임베딩 방지 |
+
+- **인덱스**: `idx_msg_emb_model_id ON message_embeddings(model, message_id)` — `SemanticTopK`의 WHERE+ORDER BY 커버링
+- **마이그레이션**: schema v2에서 BLOB로 최초 생성 → v4에서 `migrateEmbeddingsToF32`로 F32_BLOB(768) 재구성
+
+**English:** `scan_metadata` is the scanner's restart checkpoint — `source='processed_msg'` rows double as a deduplication guard. `gmail_tokens` persists OAuth refresh tokens so that server restarts do not trigger re-authorisation. `telegram_sessions` and `telegram_credentials` are keyed by email so multi-user deployments each carry their own MTProto state. `app_settings` is a runtime feature-flag store updated without redeployment. `token_usage` tracks AI cost at a 6-dimensional grain; `ai_inference_logs` retains raw request/response pairs for reproducibility. `message_embeddings` holds the 768-d float32 vectors used by the hybrid archive search — stored as `F32_BLOB(768)` so libsql can run `vector_distance_cos` server-side without transferring raw blobs over the network.
 
 ### 4.6 VIEW 엔티티
 
@@ -458,17 +473,20 @@ flowchart TD
     A[InitDB] --> B[whatapsql.OpenContext]
     B --> C[setupConnectionPool]
     C --> D[EnsureSchemaAndSeeds]
-    D --> E[createCoreTables]
-    E --> F[runMigrations]
-    F --> G[rebuildViews]
-    G --> H[createIndexes]
-    H --> I[tx.Commit]
+    D --> E{schemaIsCurrent?\napp_settings schema_version == 4}
+    E -- Yes --> J
+    E -- No --> F[runFullDDL]
+    F --> F1[createCoreTables\n포함: message_embeddings]
+    F1 --> F2[migrateEmbeddingsToF32\nBLOB→F32_BLOB idempotent]
+    F2 --> G[rebuildViews]
+    G --> H[createIndexes\n포함: idx_msg_emb_model_id]
+    H --> I[stampSchemaVersion v4]
     I --> J{testMode?}
-    J -- No --> K[RefreshAllCaches]
+    J -- No --> K[go RefreshAllCaches\nbackground]
     J -- Yes --> L[skip cache]
 ```
 
-**한국어:** 전체 흐름은 단일 트랜잭션(`BeginTx(ctx, LevelDefault)`) 내에서 실행됩니다. `LevelDefault` 사용 이유: WAL 모드 SQLite에서 `Serializable` 격리 수준은 DDL 실행 시 `SQLITE_BUSY` 를 발생시킵니다.
+**한국어:** `schemaIsCurrent` 가 `true` 이면 전체 DDL을 건너뜁니다 — 이미 v4인 프로덕션 DB는 재시작마다 마이그레이션을 재실행하지 않습니다. DDL이 필요한 경우 `runFullDDL` 이 단일 트랜잭션(`BeginTx(ctx, LevelDefault)`) 내에서 실행됩니다. `LevelDefault` 사용 이유: WAL 모드 SQLite에서 `Serializable` 격리 수준은 DDL 실행 시 `SQLITE_BUSY` 를 발생시킵니다.
 
 **English:** The entire `EnsureSchemaAndSeeds` flow runs inside a single transaction. `LevelDefault` (read-committed equivalent) is chosen deliberately — `Serializable` isolation triggers `SQLITE_BUSY` on DDL statements in WAL mode SQLite.
 
@@ -478,21 +496,21 @@ flowchart TD
 
 **English:** Table creation order in `createCoreTables` respects foreign key dependencies. SQLite enforces FK constraints at DML time (not DDL), but maintaining declaration order documents intent.
 
-### 5.4 `runMigrations()` 함수 체인
+### 5.4 `runFullDDL()` 함수 체인
 
-**한국어:** `runMigrations` 가 순서대로 호출하는 마이그레이션 함수들:
+**한국어:** `schemaIsCurrent` 가 `false` 일 때 실행되는 `runFullDDL` 의 단계:
 
-| 함수 | 목적 | 완료 조건 |
+| 단계 | 함수 | 목적 |
 |---|---|---|
-| `migrateTokenUsageBreakdown` | `token_usage` 에 `step/model/source/call_count` 추가 + UNIQUE 재구성 | `tableHasColumn("token_usage", "step")` |
-| `migrateTokenUsageReportID` | `token_usage` 에 `report_id` 추가 + UNIQUE 재구성 | `tableHasColumn("token_usage", "report_id")` |
-| `migrateOriginalTextOrder` | `messages.original_text` 블록 순서를 최신 우선으로 뒤집기 + `original_text_flipped` 플래그 컬럼 추가 | `tableHasColumn("messages", "original_text_flipped")` |
-| `migrateMessagesFTS` | fts5 virtual table `messages_fts` + insert/delete/update 트리거 생성 | `tableExists("messages_fts")` |
-| `migrateContactResolution` | `contact_resolution` 테이블 최초 백필 (goroutine, fire-and-forget) | `COUNT(*) > 0` early-return |
+| 1 | `createCoreTables` | 21개 테이블 `CREATE TABLE IF NOT EXISTS` (message_embeddings 포함) + FTS5 트리거 |
+| 2 | `migrateEmbeddingsToF32` | `message_embeddings.vec` BLOB → F32_BLOB(768) 원자적 재구성 (멱등, §5.8 참고) |
+| 3 | `rebuildViews` | `v_contacts_resolved`, `v_messages` DROP+CREATE |
+| 4 | `createIndexes` | 전체 인덱스 `CREATE INDEX IF NOT EXISTS` (idx_msg_emb_model_id 포함) |
+| 5 | `stampSchemaVersion` | `app_settings["schema_version"] = "4"` — 다음 재시작 시 DDL 건너뜀 |
 
-**한국어:** `migrateContactResolution` 은 `sync.Once` 로 감싸져 있어 동일 프로세스 내 중복 goroutine 생성을 방지합니다. `ResetForTest()` 는 테스트 간 격리를 위해 `migrateContactResolutionOnce = sync.Once{}` 로 초기화합니다.
+**한국어:** 과거 프로덕션 DB에서 개별 idempotent 마이그레이션 함수(`migrateTokenUsageBreakdown` 등)로 처리하던 스키마 변경은 schema v4로 전환하면서 `createCoreTables` 의 `IF NOT EXISTS` DDL로 흡수됐습니다. `runFullDDL` 은 전체 DDL을 한 번에 재실행하며, `schemaVersion` 상수(현재 4)가 게이팅합니다.
 
-**English:** `migrateContactResolution` is wrapped in `sync.Once` to prevent duplicate goroutine spawning across hot-reload or multi-call startup paths. Test isolation resets the `sync.Once` guard via `ResetForTest()` so each test begins with a clean backfill state.
+**English:** The former `runMigrations` chain (per-function idempotency guards) was replaced by schema-version gating. `runFullDDL` re-runs all DDL atomically when `schemaVersion` advances, relying on `IF NOT EXISTS` clauses and `migrateEmbeddingsToF32`'s DDL probe for idempotency.
 
 ### 5.5 SQLite UNIQUE 재구성 패턴
 
@@ -525,11 +543,72 @@ CREATE VIRTUAL TABLE messages_fts USING fts5(
 
 **English:** The `trigram` tokeniser enables substring search without a leading wildcard table scan. Three triggers (`after_insert`, `after_delete`, `after_update`) keep `messages_fts` in sync with `messages` automatically. `case_sensitive 0` normalises casing so searches are case-insensitive by default.
 
-### 5.7 Phase C 보류 정책
+### 5.7 Phase C 완료 (2026-05-02)
 
-**한국어:** CLAUDE.md memory 기록: `token_usage` / FTS / `original_text` 관련 마이그레이션 함수 제거(Phase C)는 **Turso + fresh setup 검증 후**로 보류됩니다 (2026-04-30 기준). 이 함수들은 현재 production DB에 이미 적용된 상태이며, 함수 제거는 fresh DB에서만 안전합니다. → Deltas from legacy docs 섹션 참조.
+**한국어:** 이전 "Phase C 보류"에서 예고했던 개별 마이그레이션 함수(`migrateTokenUsageBreakdown`, `migrateTokenUsageReportID`, `migrateOriginalTextOrder`, `migrateContactResolution`) 제거가 완료됐습니다. `schemaVersion` 게이팅 메커니즘으로 전환하면서 프로덕션 DB 동등성 확인 후 해당 함수들을 `migrations.go` 에서 제거했습니다. 이제 `createCoreTables` 의 `IF NOT EXISTS` DDL이 동일한 역할을 흡수합니다.
 
-**English:** Phase C removal of `migrateTokenUsageBreakdown`, `migrateMessagesFTS`, and `migrateOriginalTextOrder` is deferred until a Turso fresh-setup test confirms the migration functions are no longer needed. Removing them from a live deployment that has not yet applied the migrations would leave the schema in an inconsistent state.
+**English:** The per-function migration chain (`migrateTokenUsageBreakdown` etc.) has been removed. Schema correctness is now guaranteed by the `schemaVersion` constant: when the version advances, `runFullDDL` re-runs all DDL atomically. Fresh deployments and upgrades both follow the same path.
+
+### 5.8 Vector & FTS Indices (Hybrid Archive Search)
+
+**한국어:** Hybrid Archive Search는 두 종류의 인덱스를 조합합니다.
+
+#### F32_BLOB(768) — libsql 벡터 컬럼
+
+`message_embeddings.vec` 는 schema v4 기준 `F32_BLOB(768)` 타입입니다. libsql 고유 타입으로 sqlc가 `interface{}` 로 매핑하며, 드라이버는 실제로 `[]byte` 를 반환합니다.
+
+```go
+// store/embeddings_store.go — GetEmbedding
+vecBytes, ok := row.Vec.([]byte)
+// Why: F32_BLOB(768) is a libsql extension type that sqlc maps to interface{};
+// assert back to []byte which is what the driver actually delivers.
+```
+
+v3→v4 마이그레이션(`migrateEmbeddingsToF32`): 기존 little-endian float32 BLOB 바이트를 그대로 복사하므로 데이터 손실 없음.
+
+#### `vector_distance_cos` — 서버사이드 코사인 거리
+
+`SemanticTopK`는 코사인 유사도 계산을 libsql에 위임하여 WAN 전송량을 대폭 줄입니다.
+
+```sql
+-- store/embeddings_store.go — SemanticTopK
+SELECT m.id, vector_distance_cos(e.vec, vector32(?1)) AS dist
+FROM message_embeddings e
+JOIN messages m ON m.id = e.message_id
+WHERE e.model = ?2 AND m.user_email = ?3 AND m.lifecycle != 'active'
+ORDER BY dist
+LIMIT ?4
+```
+
+| 방식 | WAN 전송 (top-100, 768d) | 연산 위치 |
+|---|---|---|
+| 이전 (BLOB 스트리밍) | ~1.1 MB (전체 vec BLOB) | Go 클라이언트 |
+| 현재 (vector_distance_cos) | ~1.6 KB ((id, dist) 페어만) | libsql 서버 |
+
+`vector32(?1)` 바인딩: 쿼리 벡터를 JSON `[f32, f32, ...]` 형식으로 전달. `vectorToJSON(vec []float32) string` 헬퍼가 인코딩.
+
+#### `idx_msg_emb_model_id` 인덱스
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_msg_emb_model_id ON message_embeddings(model, message_id)
+```
+
+`SemanticTopK` 의 `WHERE model = ?` + `ORDER BY message_id`(내부 정렬)를 커버링 인덱스로 처리합니다. 이 인덱스 없이는 전체 `message_embeddings` 스캔 후 정렬이 발생합니다.
+
+#### FTS5 (`messages_fts`) — BM25 전문 검색
+
+```sql
+-- store/embeddings_store.go — ArchiveFTSTopIDs
+SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?
+```
+
+`ArchiveFTSTopIDs` 는 BM25 순위로 아카이브 메시지 ID를 반환합니다. `messages_fts` 는 `trigram` 토크나이저로 부분 문자열 매칭을 지원합니다 (→ §5.6).
+
+#### Hybrid Search 흐름 요약
+
+FTS와 cosine topK의 결합은 `services/embedding_service.go` 의 `SearchHybrid` 에서 수행됩니다 (→ [08-services-business-logic.md](08-services-business-logic.md)). 데이터 레이어는 `SemanticTopK`와 `ArchiveFTSTopIDs` 두 함수만 노출하며, 퓨전(RRF) 로직은 서비스 계층 책임입니다.
+
+**English:** The data layer exposes two primitives — `SemanticTopK` (cosine via `vector_distance_cos`) and `ArchiveFTSTopIDs` (BM25 via FTS5) — and delegates rank fusion to the service layer. The `F32_BLOB(768)` column type and `vector_distance_cos` are libsql extensions; the same SQL would not run on standard SQLite, which must be noted in any portability analysis. For the hybrid ranker implementation (RRF k=60, candidate caps) see → [08-services-business-logic.md](08-services-business-logic.md).
 
 ---
 
@@ -614,18 +693,22 @@ _, err, _ := sfGroup.Do(sfKey, func() (any, error) {
 
 ## 7. Deltas from legacy docs
 
-**한국어:** `knowledge/BACKEND_ARCHITECTURE.md` 와 현재 코드 간 차이점:
+**한국어:** 이전 문서 대비 변경 사항:
 
-| 항목 | 기존 문서 기술 | 실제 코드 상태 |
+| 항목 | 이전 문서 | 현재 코드 상태 |
 |---|---|---|
-| **마이그레이션 방식** | "Turso libsql 마이그레이션" 항목으로 간략 언급, `.sql` 파일 흔적 (`store/migrations/` 경로 존재했음) | `store/migrations/` 하위 `.sql` 파일 전부 삭제됨 (`cleanup_legacy_aliases.sql`, `definitions.sql`, `migrations.sql`). 코드 기반 `migrations.go` 로 완전 전환 |
-| **Keep-alive 구현** | 명시 없음 | `SELECT 1` (PingContext 대신) — CLAUDE.md memory에 기록된 의도적 결정 |
-| **Phase C 보류** | 없음 | `token_usage`/FTS/`original_text_flipped` 마이그레이션 함수 제거 보류 — Turso fresh setup 검증 후 진행 예정 |
-| **`v_messages` 뷰 빌드 시점** | "SQL VIEW 활용" 만 언급 | 매 `EnsureSchemaAndSeeds` 호출마다 `DROP IF EXISTS → CREATE` 재구성 |
-| **캐시 분리** | "인메모리 캐시 동기화" 언급 | `RefreshCacheActive` 와 `RefreshCacheArchive` 두 경로로 분리 — 활성/아카이브 cold start 비용 분리 |
+| **마이그레이션 방식** | `.sql` 파일 (`store/migrations/` 경로 존재) | `cleanup_legacy_aliases.sql`, `definitions.sql`, `migrations.sql` 삭제 완료. `migrations.go` 로 완전 전환 |
+| **초기화 흐름** | `runMigrations` 체인 (per-function 멱등성) | `schemaVersion` 게이팅 + `runFullDDL` 단일 패스 (schema v4) |
+| **Phase C 보류** | 마이그레이션 함수 제거 보류 | 완료 — `migrateTokenUsageBreakdown` 등 제거됨 (2026-05-02) |
+| **`message_embeddings` 테이블** | 없음 | schema v2 추가, v4에서 `F32_BLOB(768)` 으로 재구성 |
+| **`vector_distance_cos`** | 없음 | libsql 서버사이드 코사인 계산 — WAN 전송 ~700× 감소 |
+| **`idx_msg_emb_model_id`** | 없음 | `createIndexes` 에 추가 — SemanticTopK 커버링 |
+| **Keep-alive 구현** | 명시 없음 | `SELECT 1` (PingContext 대신) — libsql warm 보장 목적 |
+| **`v_messages` 뷰 빌드 시점** | "SQL VIEW 활용" 만 언급 | `schemaIsCurrent` 실패 시에만 `rebuildViews` 재실행 |
+| **캐시 refresh 타이밍** | "인메모리 캐시 동기화" 언급 | background goroutine으로 분리 — startup_complete 즉시 발화 |
 | **sqlc 버전** | 언급 없음 | `db/models.go` 헤더: `sqlc v1.30.0` |
 
-**English:** The most significant delta is the complete removal of the `store/migrations/` SQL file tree (3 files deleted, visible in git status). All migration logic now lives in `migrations.go`. Legacy docs predated this refactor.
+**English:** The most significant structural delta since the last SSOT update: the per-function migration chain has been replaced by `schemaVersion`-gated `runFullDDL`, the `message_embeddings` table was added and migrated to `F32_BLOB(768)` for libsql-side `vector_distance_cos` execution, and the legacy `store/migrations/*.sql` files were removed.
 
 ---
 

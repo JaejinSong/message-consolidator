@@ -366,15 +366,17 @@ CREATE TABLE IF NOT EXISTS identity_merge_history (
 
 ## 8. Known Limitations / Violation Cases
 
-### 8.1 Phantom Type Violation: `EnrichedMessage.SenderID`
+### ~~8.1 Phantom Type Violation: `EnrichedMessage.SenderID`~~ (해소됨 / Resolved)
 
-In `types/types.go`:
+**Resolved** — `refactor(types): promote EnrichedMessage.SenderID to ids.UserID phantom` 커밋으로 수정됨 (2026-05-01).
+
+현재 `types/types.go`:
 
 ```go
-SenderID int64 `json:"sender_id"` // Why: Explicit integer conversion for DB identity security.
+SenderID ids.UserID `json:"sender_id"` // Why: Explicit phantom type for DB identity security.
 ```
 
-Per CLAUDE.md: "ID는 Phantom Type (`type UserID int64`), 단순 `int64` 금지". `SenderID` should be typed as a domain-specific phantom type (e.g. `store.ContactID` or `store.UserID`) rather than bare `int64`. The comment justifies the *conversion*, not the lack of a type. This was identified by Wave 1 Agent A2 and is recorded here as a known violation — no fix is proposed in this chapter.
+`ids.UserID` (`type UserID int64`) phantom type으로 교체되어 CLAUDE.md "ID는 Phantom Type, 단순 `int64` 금지" 규칙을 준수한다.
 
 ### 8.2 DSU Not Updated on Unlink (In-Process)
 
@@ -397,5 +399,5 @@ As noted in §7.4: after `UnlinkContact`, `GlobalContactDSU` is not rebuilt. The
 | Full schema for `contacts`, `contact_resolution`, `user_aliases` | → [04-data-layer.md] |
 | AI filter pipeline (Gemini client, `generateWithRetry`, WhaTap APM instrumentation) | → [07-ai-filter-pipeline.md] |
 | `HandleTaskState` and `routeTaskState` — where resolved assignee names are consumed | → [08-services-business-logic.md] |
-| `EnrichedMessage` type definition (SenderID violation site) | → [02-domain-model.md] |
+| `EnrichedMessage` type definition (SenderID — `ids.UserID` phantom type) | → [02-domain-model.md] |
 | Settings UI for managing contacts and proposals | → [14-frontend-settings.md] |

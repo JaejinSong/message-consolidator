@@ -9,8 +9,9 @@
 5. [채널 토큰 영속](#5-채널-토큰-영속)
 6. [시크릿 관리](#6-시크릿-관리)
 7. [TLS / 프록시](#7-tls--프록시)
-8. [알려진 위협 및 완화](#8-알려진-위협-및-완화)
-9. [Cross-References + Deltas](#9-cross-references--deltas)
+8. [Slack HMAC 서명 검증](#8-slack-hmac-서명-검증)
+9. [알려진 위협 및 완화](#9-알려진-위협-및-완화)
+10. [Cross-References + Deltas](#10-cross-references--deltas)
 
 ---
 
@@ -324,7 +325,64 @@ isProd := os.Getenv("ENV") == "production" || strings.HasPrefix(appBaseURL, "htt
 
 ---
 
-## 8. 알려진 위협 및 완화
+## 8. Slack HMAC 서명 검증
+
+→ 구현 파일: [`auth/slack_sign.go`](../../auth/slack_sign.go)
+
+### WHY 서명 검증
+
+Slack Events API, block_actions(interactive components), slash command 엔드포인트는 공개 URL로 노출된다. 서명이 없으면 임의의 서버가 Slack인 척 요청을 전송할 수 있다.
+Slack은 모든 webhook 요청에 `X-Slack-Signature` / `X-Slack-Request-Timestamp` 헤더를 첨부한다. 이를 HMAC-SHA256으로 재계산해 비교하는 것이 유일한 인증 경로다.
+
+### 함수 시그니처
+
+```go
+// auth/slack_sign.go
+func VerifySlackRequest(secret, timestamp, signature string, body []byte) error
+```
+
+핸들러 계층에서 `X-Slack-Request-Timestamp`, `X-Slack-Signature` 헤더 값과 요청 바디 전체를 추출해 전달한다.
+
+### HMAC-SHA256 계산
+
+```go
+mac := hmac.New(sha256.New, []byte(secret))
+mac.Write([]byte("v0:"))
+mac.Write([]byte(timestamp))
+mac.Write([]byte(":"))
+mac.Write(body)
+expected := "v0=" + hex.EncodeToString(mac.Sum(nil))
+```
+
+서명 문자열 포맷은 Slack 공식 스펙(`v0:<unix_timestamp>:<raw_body>`)을 따른다.
+`hmac.Equal`로 constant-time 비교를 수행해 타이밍 오라클(timing oracle)을 방지한다.
+
+### Replay Attack 방어
+
+`slackSignatureMaxAge = 5 * time.Minute` — Slack 공식 문서(api.slack.com/authentication/verifying-requests-from-slack)에서 권고하는 값이다.
+`|now.Unix() − timestamp| > 5분` 이면 `ErrSlackTimestampExpired`를 반환한다.
+미래 타임스탬프(최대 +5분)도 동일 윈도우로 허용해 서버 간 clock drift를 수용한다.
+
+### 에러 센티넬
+
+| 에러 | 발생 조건 |
+|------|-----------|
+| `ErrSlackSecretMissing` | 서명 시크릿 환경변수 미설정 |
+| `ErrSlackSignatureMissing` | `X-Slack-Signature` 헤더 없음 |
+| `ErrSlackTimestampMissing` | `X-Slack-Request-Timestamp` 헤더 없음 |
+| `ErrSlackTimestampInvalid` | 타임스탬프가 Unix int로 파싱 불가 |
+| `ErrSlackTimestampExpired` | ±5분 윈도우 초과 |
+| `ErrSlackSignatureMismatch` | HMAC 값 불일치 |
+
+### 사용처
+
+- Slack Events API 핸들러 → [`→ 08-services-business-logic.md`](08-services-business-logic.md)
+- block_actions(interactive components) 핸들러 → [`→ 08-services-business-logic.md`](08-services-business-logic.md)
+- Slash command 핸들러 → [`→ 05-channels.md`](05-channels.md)
+
+---
+
+## 9. 알려진 위협 및 완화
 
 ### CSRF
 
@@ -381,7 +439,7 @@ CREATE TABLE IF NOT EXISTS identity_merge_history (
 
 ---
 
-## 9. Cross-References + Deltas
+## 10. Cross-References + Deltas
 
 ### Cross-References
 
@@ -393,6 +451,8 @@ CREATE TABLE IF NOT EXISTS identity_merge_history (
 | `AuthMiddleware` 적용 라우트 목록 | [`→ 11-handlers-and-api.md`](11-handlers-and-api.md) |
 | Identity merge 자동화 로직 | [`→ 09-identity-and-dedup.md`](09-identity-and-dedup.md) |
 | WhaTap trace + HTTP out 패턴 | [`→ 03-backend-architecture.md`](03-backend-architecture.md) |
+| Slack HMAC 서명 검증 (`VerifySlackRequest`) | [`→ auth/slack_sign.go`](../../auth/slack_sign.go) |
+| Slack Events / interactive / slash command 핸들러 | [`→ 08-services-business-logic.md`](08-services-business-logic.md), [`→ 05-channels.md`](05-channels.md) |
 
 ### 구현 갭 (Deltas) — 알려진 미구현 항목
 
@@ -403,3 +463,4 @@ CREATE TABLE IF NOT EXISTS identity_merge_history (
 | Gmail 토큰 암호화 | DB에 평문 JSON 저장 | 중 (DB 유출 시 토큰 노출) |
 | Session revocation | 서버 사이드 세션 목록 없음, 쿠키 만료만 존재 | 낮음 |
 | Telegram app_hash 암호화 | DB에 평문 저장 | 중 |
+| Slack HMAC 서명 검증 | 없음 → `auth/slack_sign.go` 신규 (`VerifySlackRequest`) | — |

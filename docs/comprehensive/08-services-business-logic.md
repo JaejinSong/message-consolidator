@@ -46,6 +46,9 @@ Rules enforced:
 | `notion_export.go` | `NotionExporter` | Markdown → Notion Block API page creation |
 | `lock_service.go` | `RoomLockService` | Per-room mutex to prevent scanner race conditions |
 | `ai_parser.go` | Pure functions | AI response JSON extraction (fenced + brace fallback) |
+| `embedding_service.go` | `EmbeddingService` | Hybrid Archive Search — FTS5 BM25 + cosine via RRF fusion |
+| `slack_bot.go` | `SlackBot` | Slack DM bot command dispatch and Block Kit interaction handling |
+| `slack_bot_blocks.go` | Pure functions | Block Kit rendering — paginated task list, action buttons |
 
 ---
 
@@ -80,6 +83,25 @@ output.
 Envelope metadata is authoritative because platform adapters have ground truth
 (e.g., WhatsApp JID, Slack user profile). AI is allowed to fill in only when the
 adapter could not resolve the sender.
+
+**Self-DM external requester preservation (`feat(chat): preserve external requester`):**
+
+`aiRequesterOverrideForSelfDM` introduces a narrow exception: when the envelope
+sender is the logged-in user _and_ the AI extracted a distinct (non-self) requester,
+the AI value wins over the envelope. This handles the chat_system 1.9.0
+reported-speech rule — a user who forwards a colleague's request to their own
+self-DM chat as a memo retains the original external requester name in the
+`ConsolidatedMessage`, not the user's own name.
+
+```go
+// resolveRequester: self-DM exception path
+if ai := aiRequesterOverrideForSelfDM(ctx, p); ai != "" {
+    return ai  // external requester recorded in reported-speech memo
+}
+```
+
+Without this exception the envelope override would lose the colleague's identity,
+collapsing all self-DM memos to the same requester (the user themselves).
 
 **Assignee resolution chain:**
 
@@ -581,6 +603,10 @@ mu.Lock()
 defer mu.Unlock()
 ```
 
+**`feat(slack): include assignee information in task metadata`:** `buildTaskMeta`
+in `slack_bot_blocks.go` now appends `"to <Assignee>"` to the task row subtitle
+when `Assignee` is non-empty, so DM task lists surface assignment context inline.
+
 `sync.Map.LoadOrStore` ensures the same `*sync.Mutex` pointer is always
 returned for a given key — no lock-reference race conditions from temporary
 deletions. Mutex pointers are never deleted from the map (acceptable: the
@@ -593,7 +619,7 @@ prime-pool staggering, see `→ [10-locking-and-concurrency.md]`.
 
 ## 9. Regression Test Coverage
 
-All 13 service files have corresponding test files. The test suite uses
+All service files have corresponding test files. The test suite uses
 `testutil.SetupTestDB` (SQLite in-memory) for DB-backed tests and interface
 mocks for AI dependencies.
 
@@ -621,6 +647,7 @@ mocks for AI dependencies.
 | `notion_export_test.go` | `NotionExporter` | `richText` long-text segmentation, JSON → table |
 | `ai_parser_test.go` | `ExtractJSONBlock`, `ExtractSection` | Fenced JSON, brace fallback, section extraction |
 | `lock_service_test.go` | `RoomLockService` | `AcquireLock` idempotency, `GetRoomKey` format |
+| `slack_bot_test.go` | `SlackBot`, `BuildTaskListBlocks` | `ParseDMCommand`, Block Kit block count, `ParseSlackActionID` |
 
 For the full test infrastructure and regression matrix, see `→ [17-testing.md]`.
 
@@ -634,6 +661,157 @@ For the full test infrastructure and regression matrix, see `→ [17-testing.md]
 | `1be1772` | Enhanced `DailyDigestConfig` (RecipientEmails, PollInterval, PollTimeout, Language, Timezone defaults); lazy Slack ID bootstrap via `ensureSlackIDFor` | `daily_digest_service.go` |
 | `6a40fb3` | Initial `WeeklyReportService` with `computeWeekWindow` (Sat-to-Fri 7-day window), Notion export, Slack DM | `weekly_report_service.go`, `notion_export.go` |
 | `ceaf099` | Added `store.GetLatestThreadAssignee`; wired into `CompletionService.fallbackToNewExtraction` so orphan tasks created from resolved threads inherit the last non-shared assignee | `completion_service.go` |
+| *(feat(embed))* | Added `EmbeddingService` with `SearchHybrid` (BM25 + cosine RRF), `BackfillBatch`, `EnqueueForMessage`, and helper functions (`rrfFuse`, `vectorToJSON`, `Float32sToBytes`) | `embedding_service.go` |
+| *(feat(slack))* | Added `SlackBot` DM command dispatch, `BuildTaskListBlocks` Block Kit renderer, `ParseSlackActionID`; `HandleDoneAction`/`HandlePageAction` interactive handlers | `slack_bot.go`, `slack_bot_blocks.go` |
+| *(feat(chat))* | `aiRequesterOverrideForSelfDM` preserves external requester in self-DM reported-speech memos — AI value overrides envelope when sender == user | `task_builder.go` |
+| *(feat(slack))* | `buildTaskMeta` includes `"to <Assignee>"` in task row subtitle | `slack_bot_blocks.go` |
+
+---
+
+## 11. EmbeddingService & Hybrid Archive Search
+
+`EmbeddingService` (`embedding_service.go`) provides vector embedding generation,
+backfill, and a hybrid BM25 + cosine retrieval path over the archive.
+
+### 11.1 Structure
+
+```go
+type EmbeddingService struct {
+    client         Embedder
+    enqueueTimeout time.Duration
+    ftsCandidates  int   // default 100
+    semCandidates  int   // default 100
+    rrfK           int   // default 60
+}
+```
+
+`Embedder` is the consumer-defined interface (`EmbedDocument`, `EmbedQuery`,
+`Model`, `Dim`). The concrete implementation in `ai/` is injected at startup,
+keeping this package free of SDK imports.
+
+### 11.2 `SearchHybrid` Flow
+
+`SearchHybrid(ctx, email, query string, limit int) ([]store.ConsolidatedMessage, error)`
+fuses two independently ranked lists:
+
+```
+1. store.ArchiveFTSTopIDs(ctx, email, query, ftsCandidates)
+       → BM25 rank order from messages_fts virtual table
+2. Embedder.EmbedQuery(ctx, query) → queryVec
+   store.SemanticTopK(ctx, email, model, queryVecJSON, semCandidates)
+       → cosine rank order; distance computed inside libsql via vector_distance_cos
+3. rrfFuse(ftsIDs, semIDs, rrfK=60, limit) → fused ID slice
+4. store.GetMessagesByIDs → resolved ConsolidatedMessage rows (RRF order preserved)
+```
+
+Each side degrades gracefully: FTS failure → semantic-only; embed API failure →
+FTS-only. Both failure modes log a warning and continue rather than returning an
+error to the caller.
+
+**RRF (k=60) rationale:** Classic Reciprocal Rank Fusion
+(`score(id) = Σ 1/(k + rank_i)`) is parameter-light and outperforms naive score
+addition when the two rankers come from different score distributions. BM25
+captures exact name/IP/code token matches; cosine captures paraphrase and
+cross-language meaning. k=60 is the original Cormack et al. value and is kept
+as the default (`→ [04-data-layer.md]` for vector storage schema).
+
+### 11.3 Background Embedding — `EnqueueForMessage`
+
+`EnqueueForMessage(_, msgID)` detaches from the caller's context and spawns a
+goroutine (`safego.Recover` guarded) with a fresh 30-second timeout. It calls
+`embedAndStore`, which:
+
+1. Loads message text via `store.GetMessageByID`.
+2. Computes SHA-1 of `(task ∥ 0x1f ∥ original_text)` as a change-detection hash.
+3. Skips the Gemini call if the stored hash matches (text unchanged, same model).
+4. Upserts the BLOB via `store.UpsertEmbedding`.
+
+The hash check means repeated `MarkDone` signals on the same message do not burn
+Gemini quota re-embedding unchanged text.
+
+### 11.4 `BackfillBatch`
+
+`BackfillBatch(ctx, email string, batch int) (processed, skipped, failed int, err error)`
+
+Fetches up to `batch` rows from `store.ListMissingEmbeddings` (rows where
+`message_embeddings` has no entry or the model column does not match the current
+model) and embeds them synchronously. Bounded batch keeps quota predictable;
+callers (HTTP handler or cron job) drive a loop until `processed == 0`.
+
+Cross-references: `→ [04-data-layer.md]` (embeddings schema, `ListMissingEmbeddings`),
+`→ [11-handlers-and-api.md]` (search route, backfill trigger endpoint).
+
+---
+
+## 12. Slack DM Bot
+
+`SlackBot` (`slack_bot.go` + `slack_bot_blocks.go`) handles user-facing Slack DM
+interactions: command text, Block Kit button presses, and paginated task lists.
+
+### 12.1 Structure
+
+```go
+type SlackBot struct {
+    client SlackDMer
+    tasks  *TasksService
+}
+```
+
+`SlackDMer` is a three-method consumer interface (`SendDM`, `SendDMBlocks`,
+`UpdateDMBlocks`). Handlers in `handlers/` parse the raw Slack webhook payload
+and call `SlackBot` methods — the service layer never touches HTTP directly.
+
+### 12.2 Events API / Interactive Handler Flow
+
+```
+Slack Events API (POST /slack/events)
+    → auth/slack_sign.go HMAC-SHA256 verification (→ [12-auth.md])
+    → handler: parse event type
+        message / app_mention → SlackBot.HandleDMText
+        block_actions          → SlackBot.HandleDoneAction | HandlePageAction
+
+Slack Slash Commands (POST /slack/commands)
+    → auth/slack_sign.go HMAC verification
+    → handler: parse /tasks command
+        → SlackBot.HandleListTasks
+```
+
+### 12.3 DM Command Dispatch (`HandleDMText`)
+
+`ParseDMCommand(text)` extracts a `SlackDMCommand{Kind, Arg}`:
+
+| Input text | Kind | Arg |
+|---|---|---|
+| `help` | `"help"` | — |
+| `tasks` | `"tasks"` | — |
+| `done` / `done <id>` | `"done"` | optional task ID |
+| (unrecognized) | `""` | — |
+
+`HandleDMText` resolves the Slack user ID to a registered email via
+`store.GetUserBySlackID`, then routes to `HandleListTasks` or `completeTask`.
+Unknown users receive a guidance DM explaining the Google login linkage.
+
+### 12.4 Block Kit Rendering (`slack_bot_blocks.go`)
+
+`BuildTaskListBlocks(tasks, page, pageSize, total) ([]slack.Block, string)` is a
+pure function (no DB/SDK calls) that renders a paginated task list:
+
+- Header section with page indicator.
+- Per-task section block + actions block with a `完了` button
+  (`action_id = "task_done:<MessageID>"`).
+- Pagination footer button (`action_id = "task_page:<nextPage>"`) when more pages
+  exist.
+- Page size capped at `SlackBotPageSize = 24` to stay within Slack's 50-block limit.
+
+`ParseSlackActionID(actionID) (kind, arg, ok)` splits the encoded action ID on
+the first `:` separator so the interactive handler can dispatch without a
+switch-case on raw strings.
+
+### 12.5 HMAC Signature Verification
+
+Request authenticity is verified in `auth/slack_sign.go` before the service layer
+is reached. See `→ [12-auth.md]` for the HMAC-SHA256 signing key derivation and
+replay-window logic.
 
 ---
 
@@ -647,5 +825,7 @@ For the full test infrastructure and regression matrix, see `→ [17-testing.md]
 | Room locks, prime-pool scheduler, atomic CAS | `→ [10-locking-and-concurrency.md]` |
 | Handler → Service call sites, HTTP API contracts | `→ [11-handlers-and-api.md]` |
 | store.SaveMessage, task_translations schema | `→ [04-data-layer.md]` |
+| Embeddings schema, ListMissingEmbeddings, SemanticTopK, ArchiveFTSTopIDs | `→ [04-data-layer.md]` |
 | Overall backend dependency graph | `→ [03-backend-architecture.md]` |
 | Full regression test infrastructure | `→ [17-testing.md]` |
+| Slack HMAC-SHA256 request signing | `→ [12-auth.md]` |
