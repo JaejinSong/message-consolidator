@@ -7,8 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/generative-ai-go/genai"
-	"google.golang.org/api/option"
+	"google.golang.org/genai"
 
 	"message-consolidator/ai/core"
 )
@@ -52,12 +51,14 @@ func main() {
 	}
 
 	ctx := context.Background()
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey:  apiKey,
+		Backend: genai.BackendGeminiAPI,
+	})
 	if err != nil {
 		fmt.Println("ERR:", err)
 		os.Exit(1)
 	}
-	defer client.Close()
 
 	analyzer := &core.ChatAnalyzer{Source: "whatsapp"}
 
@@ -81,13 +82,14 @@ func runVariant(ctx context.Context, client *genai.Client, analyzer *core.ChatAn
 	sysPrompt := analyzer.GetSystemInstruction(extractionCtx) + sysAddendum
 	userPrompt := analyzer.GetUserPrompt(extractionCtx)
 
-	model := client.GenerativeModel("gemini-3-flash-preview")
-	model.SystemInstruction = &genai.Content{Parts: []genai.Part{genai.Text(sysPrompt)}}
-	model.SetTemperature(0.0)
-	model.ResponseMIMEType = "application/json"
+	cfg := &genai.GenerateContentConfig{
+		SystemInstruction: genai.NewContentFromText(sysPrompt, ""),
+		Temperature:       genai.Ptr[float32](0.0),
+		ResponseMIMEType:  "application/json",
+	}
 
 	for i := 0; i < n; i++ {
-		resp, err := model.GenerateContent(ctx, genai.Text(userPrompt))
+		resp, err := client.Models.GenerateContent(ctx, "gemini-3-flash-preview", genai.Text(userPrompt), cfg)
 		if err != nil {
 			fmt.Printf("[run %d] ERR: %v\n", i+1, err)
 			continue
@@ -98,9 +100,7 @@ func runVariant(ctx context.Context, client *genai.Client, analyzer *core.ChatAn
 				continue
 			}
 			for _, p := range c.Content.Parts {
-				if t, ok := p.(genai.Text); ok {
-					raw += string(t)
-				}
+				raw += p.Text
 			}
 		}
 		fmt.Printf("[run %d]\n%s\n\n", i+1, raw)

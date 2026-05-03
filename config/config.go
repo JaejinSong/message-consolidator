@@ -70,7 +70,7 @@ func LoadConfig() *Config {
 		TursoSyncInterval:      os.Getenv("TURSO_SYNC_INTERVAL"),
 		LogLevel:               envOr("LOG_LEVEL", "INFO"),
 		GeminiAnalysisModel:    envOr("GEMINI_ANALYSIS_MODEL", "gemini-3-flash-preview"),
-		GeminiTranslationModel: envOr("GEMINI_TRANSLATION_MODEL", "gemini-3.1-flash-lite"),
+		GeminiTranslationModel: envOr("GEMINI_TRANSLATION_MODEL", "gemini-3.1-flash-lite-preview"),
 		NotionToken:            os.Getenv("NOTION_TOKEN"),
 		NotionReportPageID:     os.Getenv("NOTION_REPORT_PAGE_ID"),
 		TelegramAppID:          envInt("TELEGRAM_APP_ID", 0),

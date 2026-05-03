@@ -15,9 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/generative-ai-go/genai"
 	"github.com/whatap/go-api/trace"
-	"google.golang.org/api/option"
+	"google.golang.org/genai"
 )
 
 var apiKeyPattern = regexp.MustCompile(`(key=)[^&"'\s]+`)
@@ -48,10 +47,10 @@ const (
 )
 
 var relaxedSafetySettings = []*genai.SafetySetting{
-	{Category: genai.HarmCategoryHarassment, Threshold: genai.HarmBlockNone},
-	{Category: genai.HarmCategoryHateSpeech, Threshold: genai.HarmBlockNone},
-	{Category: genai.HarmCategorySexuallyExplicit, Threshold: genai.HarmBlockNone},
-	{Category: genai.HarmCategoryDangerousContent, Threshold: genai.HarmBlockNone},
+	{Category: genai.HarmCategoryHarassment, Threshold: genai.HarmBlockThresholdBlockNone},
+	{Category: genai.HarmCategoryHateSpeech, Threshold: genai.HarmBlockThresholdBlockNone},
+	{Category: genai.HarmCategorySexuallyExplicit, Threshold: genai.HarmBlockThresholdBlockNone},
+	{Category: genai.HarmCategoryDangerousContent, Threshold: genai.HarmBlockThresholdBlockNone},
 }
 
 type GeminiClient struct {
@@ -60,7 +59,7 @@ type GeminiClient struct {
 	translationModel string
 }
 
-func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translationModel string, opts ...option.ClientOption) (*GeminiClient, error) {
+func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translationModel string, cfgOpts ...func(*genai.ClientConfig)) (*GeminiClient, error) {
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY is not set")
@@ -69,23 +68,18 @@ func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translat
 	logger.Infof("[GEMINI] Initializing client (Key length: %d, Prefix: %s..., Analysis: %s, Translation: %s)",
 		len(apiKey), apiKey[:4], analysisModel, translationModel)
 
-	// Why: genai.NewClient at v0.13.0 uses the REST transport (gl.NewGenerativeRESTClient).
-	// option.WithHTTPClient forces the SDK to dispatch requests through our WhaTap-wrapped
-	// client so each generateContent / streamGenerateContent / files / models call surfaces
-	// as a real HTTPC step on the parent TX. Without this the SDK builds its own client
-	// and only the trace.Step elapsed markers (Gemini-Analyze, Gemini-Translate, ...) show.
-	//
-	// Both options are required:
-	//   - WithAPIKey: genai SDK reads this into its internal client field for URL
-	//     construction and rejects NewClient if missing.
-	//   - WithHTTPClient(ClientWithAPIKey(...)): the option library skips its auth-header
-	//     transport when WithHTTPClient is set, so we layer x-goog-api-key injection
-	//     beneath the WhaTap RoundTripper to preserve HTTPC visibility AND auth.
-	allOpts := append([]option.ClientOption{
-		option.WithAPIKey(apiKey),
-		option.WithHTTPClient(whataphttpx.ClientWithAPIKey(apiKey)), //nolint:contextcheck // Builds HTTP client; per-request ctx passes through SDK calls.
-	}, opts...)
-	client, err := genai.NewClient(ctx, allOpts...)
+	// Why: ClientConfig.APIKey and HTTPClient are orthogonal in the new SDK —
+	// the SDK injects the key via its own auth layer, so only a plain
+	// WhaTap-wrapped client is needed (no apiKeyTransport shim required).
+	cfg := &genai.ClientConfig{
+		APIKey:     apiKey,
+		Backend:    genai.BackendGeminiAPI,
+		HTTPClient: whataphttpx.Client(),
+	}
+	for _, opt := range cfgOpts {
+		opt(cfg)
+	}
+	client, err := genai.NewClient(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -111,13 +105,13 @@ type TranslationResult struct {
 }
 
 // Why: Safely retries AI API calls with exponential backoff to handle transient errors and rate limits gracefully, ensuring reliability under high load.
-func generateWithRetry(ctx context.Context, model *genai.GenerativeModel, prompt genai.Part, timeout time.Duration, maxRetries int) (*genai.GenerateContentResponse, error) {
+func generateWithRetry(ctx context.Context, client *genai.Client, modelName string, contents []*genai.Content, cfg *genai.GenerateContentConfig, timeout time.Duration, maxRetries int) (*genai.GenerateContentResponse, error) {
 	var resp *genai.GenerateContentResponse
 	var err error
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		apiCtx, cancel := context.WithTimeout(ctx, timeout)
-		resp, err = model.GenerateContent(apiCtx, prompt)
+		resp, err = client.Models.GenerateContent(apiCtx, modelName, contents, cfg)
 		cancel()
 
 		if err == nil {
@@ -162,9 +156,7 @@ func extractResponseText(resp *genai.GenerateContentResponse) (string, error) {
 	}
 	var text string
 	for _, part := range resp.Candidates[0].Content.Parts {
-		if t, ok := part.(genai.Text); ok {
-			text += string(t)
-		}
+		text += part.Text
 	}
 	return text, nil
 }
@@ -188,10 +180,10 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 	}
 
 	modelName := g.getEffectiveModel(parsed, g.analysisModel)
-	model := g.initModel(modelName, 0.1, ReportMaxTokens, "", rendered)
+	cfg := g.buildConfig(0.1, ReportMaxTokens, "", rendered)
 
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, model, genai.Text(""), 180*time.Second, 2)
+	resp, err := generateWithRetry(ctx, g.client, modelName, genai.Text(""), cfg, 180*time.Second, 2)
 	if err != nil {
 		// P1: Surface burned-but-unattributed retry-exhausted calls so the cost dashboard
 		// can flag invisible spend. Gemini does not return UsageMetadata on timeout/cancel.
@@ -237,9 +229,9 @@ func (g *GeminiClient) EvaluateTaskTransition(ctx context.Context, email, parent
 	}
 
 	modelName := g.getEffectiveModel(parsed, g.analysisModel)
-	model := g.initModel(modelName, 0.1, 1024, "application/json", rendered)
+	cfg := g.buildConfig(0.1, 1024, "application/json", rendered)
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, model, genai.Text(""), 30*time.Second, 2)
+	resp, err := generateWithRetry(ctx, g.client, modelName, genai.Text(""), cfg, 30*time.Second, 2)
 	if err != nil {
 		return TaskTransition{}, err
 	}
@@ -298,12 +290,12 @@ func (g *GeminiClient) GenerateVisualizationData(ctx context.Context, email stri
 		Required: []string{"nodes", "links"},
 	}
 
-	model := g.initModel(g.analysisModel, 0.0, 4096, "application/json", "Generate a JSON graph of task relations.")
-	model.ResponseSchema = schema
+	cfg := g.buildConfig(0.0, 4096, "application/json", "Generate a JSON graph of task relations.")
+	cfg.ResponseSchema = schema
 
 	prompt := fmt.Sprintf("Extract task network graph (Nodes=People, Links=Handover/Mention) from these logs:\n%s", tasks)
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 60*time.Second, 2)
+	resp, err := generateWithRetry(ctx, g.client, g.analysisModel, genai.Text(prompt), cfg, 60*time.Second, 2)
 	if err != nil {
 		return "", err
 	}
@@ -334,10 +326,10 @@ func (g *GeminiClient) GenerateMergedTaskTitle(ctx context.Context, email string
 
 	// Why: [Performance] gemini-3-flash-preview is used for high-speed, high-quality short-form summary.
 	modelName := g.getEffectiveModel(parsed, "gemini-3-flash-preview")
-	model := g.initModel(modelName, 0.1, 100, "", rendered)
+	cfg := g.buildConfig(0.1, 100, "", rendered)
 
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, model, genai.Text(""), 10*time.Second, 1)
+	resp, err := generateWithRetry(ctx, g.client, modelName, genai.Text(""), cfg, 10*time.Second, 1)
 	if err != nil {
 		return "", err
 	}
@@ -365,11 +357,11 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email string, msg
 	data := g.prepareAnalysisData(ctx, email, msg, language, source, room, tasks)
 	analyzer := core.GetAnalyzer(source)
 	modelName := g.getAnalyzeModelName(analyzer)
-	model := g.initModel(modelName, 0.0, DefaultMaxTokens, "application/json", g.getAnalyzeSysInst(analyzer, data))
+	cfg := g.buildConfig(0.0, DefaultMaxTokens, "application/json", g.getAnalyzeSysInst(analyzer, data))
 	prompt := g.getAnalyzeUserPrompt(analyzer, data)
 
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 45*time.Second, 2)
+	resp, err := generateWithRetry(ctx, g.client, modelName, genai.Text(prompt), cfg, 45*time.Second, 2)
 	if err != nil {
 		return nil, err
 	}
@@ -463,9 +455,9 @@ func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []stor
 		return nil, fmt.Errorf("invalid translate request")
 	}
 
-	model, modelName, prompt := g.prepareTranslateResources(language, tasks)
+	cfg, modelName, prompt := g.prepareTranslateResources(language, tasks)
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 30*time.Second, 2)
+	resp, err := generateWithRetry(ctx, g.client, modelName, genai.Text(prompt), cfg, 30*time.Second, 2)
 	if err != nil {
 		return nil, err
 	}
@@ -475,16 +467,16 @@ func (g *GeminiClient) Translate(ctx context.Context, email string, tasks []stor
 	return g.parseTranslateResults(resp)
 }
 
-func (g *GeminiClient) prepareTranslateResources(lang string, requests []store.TranslateRequest) (*genai.GenerativeModel, string, string) {
+func (g *GeminiClient) prepareTranslateResources(lang string, requests []store.TranslateRequest) (*genai.GenerateContentConfig, string, string) {
 	parsed := core.LoadPrompt(core.PromptTranslationSystem)
 	sysInst, _ := parsed.Render(core.ExtractionContext{
 		Locale:      g.getValidLang(lang),
 		CurrentTime: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 	})
 	modelName := g.getEffectiveModel(parsed, g.translationModel)
-	model := g.initModel(modelName, 0.0, 4096, "application/json", sysInst)
+	cfg := g.buildConfig(0.0, 4096, "application/json", sysInst)
 	tasksJSON, _ := json.Marshal(requests)
-	return model, modelName, string(tasksJSON)
+	return cfg, modelName, string(tasksJSON)
 }
 
 func (g *GeminiClient) parseTranslateResults(resp *genai.GenerateContentResponse) ([]store.TranslateRequest, error) {
@@ -509,11 +501,11 @@ func (g *GeminiClient) TranslateReport(ctx context.Context, email string, report
 	}
 	sysInst, _ := parsed.Render(data)
 	modelName := g.getEffectiveModel(parsed, g.translationModel)
-	model := g.initModel(modelName, 0.2, ReportMaxTokens, "", sysInst)
+	cfg := g.buildConfig(0.2, ReportMaxTokens, "", sysInst)
 
 	logger.Debugf("[GEMINI] Translating Markdown report for %s to %s...", email, targetLanguage)
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, model, genai.Text(reportInEnglish), 45*time.Second, 2)
+	resp, err := generateWithRetry(ctx, g.client, modelName, genai.Text(reportInEnglish), cfg, 45*time.Second, 2)
 	if err != nil {
 		logger.Errorf("[GEMINI] Report translation failed (%s): %v", targetLanguage, err)
 		return "", err
@@ -538,11 +530,11 @@ func (g *GeminiClient) TranslateTaskMessage(ctx context.Context, email string, t
 	}
 	sysInst, _ := parsed.Render(data)
 	modelName := g.getEffectiveModel(parsed, g.translationModel)
-	model := g.initModel(modelName, 0.1, 0, "", sysInst)
+	cfg := g.buildConfig(0.1, 0, "", sysInst)
 
 	logger.Debugf("[GEMINI] Translating Task for %s to %s...", email, targetLanguage)
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, model, genai.Text(text), 30*time.Second, 2)
+	resp, err := generateWithRetry(ctx, g.client, modelName, genai.Text(text), cfg, 30*time.Second, 2)
 	if err != nil {
 		logger.Errorf("[GEMINI] Task translation failed (%s): %v", targetLanguage, err)
 		return "", err
@@ -571,10 +563,10 @@ func (g *GeminiClient) TranslateTasksBatch(ctx context.Context, email string, ta
 	}
 	sysInst, _ := parsed.Render(data)
 	modelName := g.getEffectiveModel(parsed, g.translationModel)
-	model := g.initModel(modelName, 0.1, DefaultMaxTokens, "application/json", sysInst)
+	cfg := g.buildConfig(0.1, DefaultMaxTokens, "application/json", sysInst)
 
 	tasksJSON, _ := json.Marshal(tasks)
-	resp, err := generateWithRetry(ctx, model, genai.Text(string(tasksJSON)), 45*time.Second, 3)
+	resp, err := generateWithRetry(ctx, g.client, modelName, genai.Text(string(tasksJSON)), cfg, 45*time.Second, 3)
 	if err != nil {
 		// Why: Mirror ReportSummary failure attribution — surface burned-but-unattributed
 		// retry-exhausted calls so the cost dashboard can flag invisible spend.
@@ -617,20 +609,23 @@ func (g *GeminiClient) translateInChunks(ctx context.Context, email string, task
 
 // --- Internal Helpers ---
 
-func (g *GeminiClient) initModel(modelName string, temp float64, tokens int32, mime string, sys string) *genai.GenerativeModel {
-	model := g.client.GenerativeModel(modelName)
-	model.SafetySettings = relaxedSafetySettings
-	model.SetTemperature(float32(temp))
+func (g *GeminiClient) buildConfig(temp float64, tokens int32, mime string, sys string) *genai.GenerateContentConfig {
+	cfg := &genai.GenerateContentConfig{
+		SafetySettings: relaxedSafetySettings,
+	}
+	if temp != 0 {
+		cfg.Temperature = genai.Ptr(float32(temp))
+	}
 	if tokens > 0 {
-		model.SetMaxOutputTokens(tokens)
+		cfg.MaxOutputTokens = tokens
 	}
 	if mime != "" {
-		model.ResponseMIMEType = mime
+		cfg.ResponseMIMEType = mime
 	}
 	if sys != "" {
-		model.SystemInstruction = &genai.Content{Parts: []genai.Part{genai.Text(sys)}}
+		cfg.SystemInstruction = genai.NewContentFromText(sys, "")
 	}
-	return model
+	return cfg
 }
 
 func (g *GeminiClient) getEffectiveModel(p *core.ParsedPrompt, def string) string {
@@ -707,12 +702,13 @@ func (g *GeminiClient) CallGenericAPI(ctx context.Context, email, step, source, 
 		return "", fmt.Errorf("Gemini client is not initialized")
 	}
 
-	model := g.client.GenerativeModel(modelName)
-	model.SafetySettings = relaxedSafetySettings
-	model.SetTemperature(0.1)
+	cfg := &genai.GenerateContentConfig{
+		SafetySettings: relaxedSafetySettings,
+		Temperature:    genai.Ptr[float32](0.1),
+	}
 
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, model, genai.Text(prompt), 30*time.Second, 2)
+	resp, err := generateWithRetry(ctx, g.client, modelName, genai.Text(prompt), cfg, 30*time.Second, 2)
 	if err != nil {
 		return "", err
 	}

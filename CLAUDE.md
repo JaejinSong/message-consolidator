@@ -56,9 +56,7 @@
 - `StartWithContext` 사용 금지 — 기존 trace ctx 없으면 silent skip. background는 `trace.Start`
 - 우회 금지: `http.DefaultClient` / `http.Get` / `sql.Open` 직접 사용 시 trace 누락
 
-**SDK auth transport** — `google.golang.org/api/option.WithHTTPClient` 지정 시 라이브러리는 `WithAPIKey`/`WithCredentials`/`WithTokenSource`를 **모두 무시**. base transport `nil`인 `whataphttpx.Client()`로 감싸면 403 발생. 다음 두 패턴만:
-- OAuth2/토큰 SDK: `whataphttpx.WrapClient(<인증된 클라이언트>)` (Gmail 등)
-- API key SDK: `whataphttpx.ClientWithAPIKey(apiKey)` (Gemini 등)
+**Outbound HTTP wrapping** — OAuth2 (Gmail 등): `whataphttpx.WrapClient(<oauth2.NewClient(...)>)`. 그 외 (Slack/Gemini 등): `whataphttpx.Client()`. Gemini는 `&genai.ClientConfig{APIKey, HTTPClient: whataphttpx.Client()}`로 주입.
 
 ## TypeScript / CSS
 

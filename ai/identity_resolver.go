@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/generative-ai-go/genai"
 	"github.com/whatap/go-api/trace"
+	"google.golang.org/genai"
 )
 
 // IdentityResolver uses Gemini to propose groups of contacts that are likely the same person.
@@ -71,9 +71,9 @@ func (r *IdentityResolver) proposeChunk(ctx context.Context, email string, conta
 	}
 
 	modelName := r.client.getEffectiveModel(parsed, r.client.analysisModel)
-	model := r.client.initModel(modelName, 0.1, 0, "", "")
+	cfg := r.client.buildConfig(0.1, 0, "", "")
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, model, genai.Text(rendered), 300*time.Second, 2)
+	resp, err := generateWithRetry(ctx, r.client.client, modelName, genai.Text(rendered), cfg, 300*time.Second, 2)
 	elapsedMs := time.Since(start).Milliseconds()
 	logger.Infof("[RESOLUTION] identity resolve: %dms model=%s contacts=%d err=%v", elapsedMs, modelName, len(contacts), err)
 	if err != nil {
@@ -86,12 +86,7 @@ func (r *IdentityResolver) proposeChunk(ctx context.Context, email string, conta
 		return nil, nil
 	}
 
-	text, ok := resp.Candidates[0].Content.Parts[0].(genai.Text)
-	if !ok {
-		return nil, fmt.Errorf("unexpected AI response type")
-	}
-
-	clean := strings.TrimSpace(string(text))
+	clean := strings.TrimSpace(resp.Candidates[0].Content.Parts[0].Text)
 	clean = strings.TrimPrefix(clean, "```json")
 	clean = strings.TrimPrefix(clean, "```")
 	clean = strings.TrimSuffix(clean, "```")

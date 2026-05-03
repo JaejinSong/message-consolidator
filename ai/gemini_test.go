@@ -5,7 +5,7 @@ import (
 	"message-consolidator/ai/core"
 	"testing"
 
-	"github.com/google/generative-ai-go/genai"
+	"google.golang.org/genai"
 )
 
 func TestExtractResponseText(t *testing.T) {
@@ -33,9 +33,9 @@ func TestExtractResponseText(t *testing.T) {
 		Candidates: []*genai.Candidate{
 			{
 				Content: &genai.Content{
-					Parts: []genai.Part{
-						genai.Text("Hello "),
-						genai.Text("World!"),
+					Parts: []*genai.Part{
+						{Text: "Hello "},
+						{Text: "World!"},
 					},
 				},
 			},

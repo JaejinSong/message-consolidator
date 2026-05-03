@@ -15,7 +15,7 @@ import (
 	"message-consolidator/store"
 	"message-consolidator/types"
 
-	"google.golang.org/api/option"
+	"google.golang.org/genai"
 )
 
 // Why: [Regression Test] Verifies that the Gmail extraction logic correctly separates multiple deliverables
@@ -41,7 +41,9 @@ func TestGmailExtraction_Mock(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	client, err := ai.NewGeminiClient(ctx, "mock-api-key", "gemini-3-flash-preview", "", option.WithEndpoint(server.URL))
+	client, err := ai.NewGeminiClient(ctx, "mock-api-key", "gemini-3-flash-preview", "", func(c *genai.ClientConfig) {
+		c.HTTPOptions.BaseURL = server.URL
+	})
 	if err != nil {
 		t.Fatalf("Failed to initialize Gemini client: %v", err)
 	}

@@ -2,16 +2,13 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"os"
 	"strings"
 
-	"github.com/google/generative-ai-go/genai"
 	"github.com/joho/godotenv"
-	"google.golang.org/api/iterator"
-	"google.golang.org/api/option"
+	"google.golang.org/genai"
 )
 
 func main() {
@@ -22,19 +19,16 @@ func main() {
 	}
 
 	ctx := context.Background()
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey:  apiKey,
+		Backend: genai.BackendGeminiAPI,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer client.Close()
 
-	iter := client.ListModels(ctx)
 	fmt.Println("Available Models:")
-	for {
-		m, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			break
-		}
+	for m, err := range client.Models.All(ctx) {
 		if err != nil {
 			log.Fatal(err)
 		}

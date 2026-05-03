@@ -49,7 +49,7 @@ var Registry = []SettingDef{
 	// --- AI ---
 	{Key: "GEMINI_API_KEY", Label: "Gemini API Key", Category: "ai", Type: TypeString, Secret: true, RestartRequired: true},
 	{Key: "GEMINI_ANALYSIS_MODEL", Label: "Gemini Analysis Model", Category: "ai", Type: TypeString, DefaultValue: "gemini-3-flash-preview"},
-	{Key: "GEMINI_TRANSLATION_MODEL", Label: "Gemini Translation Model", Category: "ai", Type: TypeString, DefaultValue: "gemini-3.1-flash-lite"},
+	{Key: "GEMINI_TRANSLATION_MODEL", Label: "Gemini Translation Model", Category: "ai", Type: TypeString, DefaultValue: "gemini-3.1-flash-lite-preview"},
 
 	// --- channels ---
 	{Key: "SLACK_TOKEN", Label: "Slack Bot Token", Category: "channels", Type: TypeString, Secret: true, RestartRequired: true},

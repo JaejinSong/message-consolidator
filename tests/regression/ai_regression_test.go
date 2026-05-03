@@ -22,7 +22,7 @@ import (
 	"message-consolidator/types"
 
 	"github.com/joho/godotenv"
-	"google.golang.org/api/option"
+	"google.golang.org/genai"
 )
 
 // To run this test, set GEMINI_API_KEY_FOR_TEST in your environment or .env file.
@@ -145,7 +145,9 @@ func setupGeminiClientForTest(testName string) (*ai.GeminiClient, error) {
 	}
 	httpClient := &http.Client{Transport: transport}
 
-	return ai.NewGeminiClient(context.Background(), apiKey, "", "", option.WithHTTPClient(httpClient))
+	return ai.NewGeminiClient(context.Background(), apiKey, "", "", func(c *genai.ClientConfig) {
+		c.HTTPClient = httpClient
+	})
 }
 
 func runSingleRegression(t *testing.T, path, testName string) {

@@ -15,8 +15,7 @@ import (
 	"message-consolidator/config"
 	"message-consolidator/logger"
 
-	"github.com/google/generative-ai-go/genai"
-	"google.golang.org/api/option"
+	"google.golang.org/genai"
 )
 
 type ReleaseNotesJSON struct {
@@ -98,16 +97,16 @@ func getCommitsSinceTime(lastTime string) string {
 
 func fetchReleaseNotes(cfg *config.Config, commits, version string) ReleaseNotesJSON {
 	ctx := context.Background()
-	client, _ := genai.NewClient(ctx, option.WithAPIKey(cfg.GeminiAPIKey))
-	defer client.Close()
-
-	model := client.GenerativeModel("gemini-3-flash-preview")
-	model.ResponseMIMEType = "application/json"
+	client, _ := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey:  cfg.GeminiAPIKey,
+		Backend: genai.BackendGeminiAPI,
+	})
 
 	prompt := loadPrompt(commits, version)
 	logger.Infof("[AI] Payload size: %d bytes", len(prompt))
 
-	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
+	resp, err := client.Models.GenerateContent(ctx, "gemini-3-flash-preview", genai.Text(prompt),
+		&genai.GenerateContentConfig{ResponseMIMEType: "application/json"})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -133,10 +132,8 @@ func parseAIResponse(resp *genai.GenerateContentResponse) ReleaseNotesJSON {
 	if len(resp.Candidates) == 0 {
 		return result
 	}
-	part := resp.Candidates[0].Content.Parts[0]
-	if txt, ok := part.(genai.Text); ok {
-		_ = json.Unmarshal([]byte(txt), &result)
-	}
+	txt := resp.Candidates[0].Content.Parts[0].Text
+	_ = json.Unmarshal([]byte(txt), &result)
 	return result
 }
 
