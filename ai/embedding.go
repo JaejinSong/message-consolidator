@@ -15,19 +15,22 @@ import (
 )
 
 // DefaultEmbeddingModel is the production embedding model for archive semantic search.
-// Why: text-embedding-004 (768-dim) is 4× cheaper to store/transfer than the 3072-dim
-// gemini-embedding-001 we used while pinned to the legacy v1beta SDK. With the
-// google.golang.org/genai migration we can route v1 stable, so this is the default.
-// Switching this constant requires wiping the archive's existing vectors (different
-// dim AND different model field), which the backfill loop handles via UPSERT.
+// Why: text-embedding-004 isn't enabled on this API key — only gemini-embedding-001
+// (Matryoshka, 3072d default). We request OutputDimensionality=768 so the wire format
+// matches the slimmer 768d storage layout, getting the 4× transfer/store savings
+// without paying for a model the project's API key cannot reach.
 const (
-	DefaultEmbeddingModel = "text-embedding-004"
+	DefaultEmbeddingModel = "gemini-embedding-001"
 	DefaultEmbeddingDim   = 768
 	embedRequestTimeout   = 20 * time.Second
 
 	taskTypeRetrievalDocument = "RETRIEVAL_DOCUMENT"
 	taskTypeRetrievalQuery    = "RETRIEVAL_QUERY"
 )
+
+// outputDim is the int32 form of DefaultEmbeddingDim that the SDK config takes by
+// pointer. Stored once so EmbedContentConfig can borrow it without per-call alloc.
+var outputDim = func() *int32 { v := int32(DefaultEmbeddingDim); return &v }()
 
 // EmbeddingClient owns a Gemini SDK handle scoped to embedding requests.
 // Why: A separate type from GeminiClient lets us isolate embedding telemetry and
@@ -96,7 +99,7 @@ func (c *EmbeddingClient) embed(ctx context.Context, text, taskType, stepName st
 	start := time.Now()
 	resp, err := c.client.Models.EmbedContent(apiCtx, c.model,
 		[]*genai.Content{genai.NewContentFromText(text, genai.RoleUser)},
-		&genai.EmbedContentConfig{TaskType: taskType},
+		&genai.EmbedContentConfig{TaskType: taskType, OutputDimensionality: outputDim},
 	)
 	elapsed := int(time.Since(start).Milliseconds())
 	_ = trace.Step(ctx, stepName, "", elapsed, len(text))
@@ -136,7 +139,7 @@ func (c *EmbeddingClient) EmbedDocumentBatch(ctx context.Context, texts []string
 
 	start := time.Now()
 	resp, err := c.client.Models.EmbedContent(apiCtx, c.model, contents,
-		&genai.EmbedContentConfig{TaskType: taskTypeRetrievalDocument},
+		&genai.EmbedContentConfig{TaskType: taskTypeRetrievalDocument, OutputDimensionality: outputDim},
 	)
 	_ = trace.Step(ctx, "Gemini-Embed-Batch", "", int(time.Since(start).Milliseconds()), len(indexMap))
 	if err != nil {
