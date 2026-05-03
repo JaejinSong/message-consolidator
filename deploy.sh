@@ -181,7 +181,9 @@ if $BUILD_BE; then
     (
         push_dual_tag "BE: Push" "${IMAGE_BE_TAG}" "${REGISTRY}/backend:latest"
         say_blue "==> Deploying Backend Container..."
-        run_step "BE: Deploy" ${SSH_CMD} "cd ${VPS_PATH} && sudo docker compose up -d --force-recreate backend"
+        # Why: Pre-remove handles orphan containers created outside compose context;
+        # --force-recreate alone fails when the container wasn't tracked by this compose project.
+        run_step "BE: Deploy" ${SSH_CMD} "cd ${VPS_PATH} && sudo docker rm -f message-consolidator-backend 2>/dev/null || true && sudo docker compose up -d --force-recreate backend"
         # Why: Poll readiness inline so chain_fe (still running) absorbs the wait, and
         # the time becomes a visible PASS line instead of invisible post-deploy delay.
         # Why: sleep 0.5 (vs 2) lifts polling round-up cost by 4x — same 60s budget,
@@ -200,7 +202,7 @@ if $BUILD_FE; then
     (
         push_dual_tag "FE: Push" "${IMAGE_FE_TAG}" "${REGISTRY}/frontend:latest"
         say_blue "==> Deploying Frontend Container..."
-        run_step "FE: Deploy" ${SSH_CMD} "cd ${VPS_PATH} && sudo docker compose up -d --force-recreate frontend"
+        run_step "FE: Deploy" ${SSH_CMD} "cd ${VPS_PATH} && sudo docker rm -f message-consolidator-frontend 2>/dev/null || true && sudo docker compose up -d --force-recreate frontend"
     ) & p_fe=$!
 fi
 p_caddy=""
