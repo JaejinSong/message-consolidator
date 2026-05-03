@@ -6,11 +6,11 @@
 
 ## 한국어
 
-이 디렉토리는 `message-consolidator` 프로젝트의 **단일 사실 출처**입니다. 코드 위치, 도메인 모델, 데이터 계층, AI 파이프라인, 채널 어댑터, 운영 절차, 사용자 매뉴얼까지 모든 정보를 23개 챕터에 집대성했습니다. 이전 문서들(`CLAUDE.md`, `TECH.md`, `deploy.md`, `docs/USER_MANUAL.md`, `knowledge/BACKEND_ARCHITECTURE.md`, `knowledge/FRONTEND_ARCHITECTURE.md`, `RELEASE_NOTES_*` 4종)은 이 SSOT의 직전 스냅샷입니다.
+이 디렉토리는 `message-consolidator` 프로젝트의 **단일 사실 출처**입니다. 코드 위치, 도메인 모델, 데이터 계층, AI 파이프라인, 채널 어댑터, 운영 절차, 사용자 매뉴얼까지 모든 정보를 23개 챕터에 집대성했습니다. 이전 문서들(`CLAUDE.md`, `TECH.md`, `deploy.md`, `RELEASE_NOTES_*` 4종)은 이 SSOT의 직전 스냅샷입니다. `docs/USER_MANUAL.md`·`knowledge/BACKEND_ARCHITECTURE.md`·`knowledge/FRONTEND_ARCHITECTURE.md`는 삭제(deleted)되었습니다. 앱 내 인터랙티브 가이드는 [`docs/user-guide/`](../../docs/user-guide/)에 위치합니다.
 
 ## English
 
-This directory is the **single source of truth** for the `message-consolidator` project. Code locations, domain model, data layer, AI pipelines, channel adapters, operations procedures, and user manual are consolidated into 23 chapters. Legacy docs (`CLAUDE.md`, `TECH.md`, `deploy.md`, `docs/USER_MANUAL.md`, `knowledge/*.md`, `RELEASE_NOTES_*`) are prior snapshots of this SSOT.
+This directory is the **single source of truth** for the `message-consolidator` project. Code locations, domain model, data layer, AI pipelines, channel adapters, operations procedures, and user manual are consolidated into 23 chapters. Legacy docs (`CLAUDE.md`, `TECH.md`, `deploy.md`, `RELEASE_NOTES_*`) are prior snapshots of this SSOT. `docs/USER_MANUAL.md` and `knowledge/*.md` have been deleted. The interactive in-app guide lives at [`docs/user-guide/`](../../docs/user-guide/).
 
 ---
 
@@ -54,6 +54,7 @@ This directory is the **single source of truth** for the `message-consolidator` 
 | 운영 / SRE / Ops | 18 → 20 → 15 → 10 |
 | 보안 / Security | 12 → 04 (token storage) → 15 |
 | 사용자 / End user | 19 |
+| 사용자 (인터랙티브) / End user (interactive) | [docs/user-guide/](../../docs/user-guide/) — getting-started · channels · tasks · reports · faq |
 | 신원/매핑 작업 / Identity work | 09 → 02 → 07 |
 
 ---
@@ -79,6 +80,7 @@ This directory is the **single source of truth** for the `message-consolidator` 
 Same structure — see chapter cross-references inside each file.
 
 - **Hybrid Archive Search**: 04 (F32_BLOB/vector_distance_cos schema), 08 (EmbeddingService/RRF), 11 (routes), 13 (Smart toggle)
+- **Interactive user guide**: [`docs/user-guide/`](../../docs/user-guide/) (getting-started, channels, tasks, reports, faq) — rendered in-app via `src/guide.ts` + `src/guide-content.ts`
 
 ---
 

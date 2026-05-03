@@ -4,6 +4,8 @@
 > 인프라 셋업·환경변수 구성은 운영자 영역이므로 다루지 않습니다.  
 > Cross-ref: → [05-channels.md](05-channels.md) (채널 어댑터 내부 구조) | → [12-auth-and-security.md](12-auth-and-security.md) (OAuth 흐름 상세)
 
+> **인터랙티브 가이드**: 앱 내 사이드바에서 제공되는 간편 버전은 [`docs/user-guide/`](../../docs/user-guide/)에 있습니다 — [getting-started](../../docs/user-guide/getting-started.md) · [channels](../../docs/user-guide/channels.md) · [tasks](../../docs/user-guide/tasks.md) · [reports](../../docs/user-guide/reports.md) · [faq](../../docs/user-guide/faq.md)
+
 ---
 
 ## 목차
