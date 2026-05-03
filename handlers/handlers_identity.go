@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/whatap/go-api/trace"
 )
 
 type proposalJob struct {
@@ -57,12 +58,16 @@ func (a *API) HandleGenerateProposals(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) runProposalJob(email string) *proposalJob {
 	ctx := context.Background()
+	ctx, _ = trace.Start(ctx, "/proposal-job")
+	var txErr error
+	defer func() { trace.End(ctx, txErr) }()
 	jobStart := time.Now()
 
 	t := time.Now()
 	autoMerged, err := store.AutoMergeByCanonicalID(ctx, email)
 	logger.Infof("[RESOLUTION] AutoMerge: %dms (merged=%d)", time.Since(t).Milliseconds(), autoMerged)
 	if err != nil {
+		txErr = err
 		return proposalJobError(err)
 	}
 
@@ -70,6 +75,7 @@ func (a *API) runProposalJob(email string) *proposalJob {
 	contacts, err := store.GetCandidateContacts(ctx, email)
 	logger.Infof("[RESOLUTION] GetCandidates: %dms (n=%d)", time.Since(t).Milliseconds(), len(contacts))
 	if err != nil {
+		txErr = err
 		return proposalJobError(err)
 	}
 
@@ -77,6 +83,7 @@ func (a *API) runProposalJob(email string) *proposalJob {
 	handledPairs, err := store.LoadHandledPairs(ctx, email)
 	logger.Infof("[RESOLUTION] LoadHandled: %dms (pairs=%d)", time.Since(t).Milliseconds(), len(handledPairs))
 	if err != nil {
+		txErr = err
 		return proposalJobError(err)
 	}
 
@@ -84,6 +91,7 @@ func (a *API) runProposalJob(email string) *proposalJob {
 	aiInserted, err := a.insertAIProposalGroups(ctx, email, contacts, handledPairs)
 	logger.Infof("[RESOLUTION] AIPropose: %dms (inserted=%d)", time.Since(t).Milliseconds(), aiInserted)
 	if err != nil {
+		txErr = err
 		return proposalJobError(err)
 	}
 
@@ -91,6 +99,7 @@ func (a *API) runProposalJob(email string) *proposalJob {
 	tokenInserted, err := insertTokenSortedProposals(ctx, email, handledPairs)
 	logger.Infof("[RESOLUTION] TokenSort: %dms (inserted=%d)", time.Since(t).Milliseconds(), tokenInserted)
 	if err != nil {
+		txErr = err
 		return proposalJobError(err)
 	}
 
