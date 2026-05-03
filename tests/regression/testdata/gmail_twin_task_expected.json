@@ -1,13 +1,11 @@
 [
   {
-    "task": "Prepare the AI feature technical deck | Finalize the official service scope",
-    "requester": "Hady",
+    "task": "AI feature technical deck preparation and service scope finalization for Thailand public market initiative",
+    "requester": "",
     "assignee": "Jaejin Song",
     "assigned_at": "",
     "source_ts": "",
-    "deadline": "Friday",
-    "category": "TASK",
-    "affinity_score": 90,
-    "affinity_group_id": "thailand-trip"
+    "deadline": "",
+    "category": "TASK"
   }
 ]
