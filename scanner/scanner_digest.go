@@ -33,7 +33,7 @@ func runDailyDigest(ctx context.Context, _ *sync.WaitGroup) {
 	if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
 		return
 	}
-	if now.Hour() != cfg.DailyDigestHour || now.Minute() >= 5 {
+	if now.Hour() != cfg.DailyDigestHour {
 		return
 	}
 	today := now.Format("2006-01-02")

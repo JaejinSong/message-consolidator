@@ -69,15 +69,15 @@ func TestRunWeeklyReport_Friday18_Dispatches(t *testing.T) {
 	}
 }
 
-func TestRunWeeklyReport_Friday18_05_NoDispatch(t *testing.T) {
-	d := &fakeWeeklyDispatcher{}
-	cleanup := setupWeeklyTest(t, d, func() time.Time { return fridayKST(18, 5) })
-	defer cleanup()
-
-	runWeeklyReport(context.Background(), nil)
-
-	if d.count() != 0 {
-		t.Errorf("want 0 dispatch, got %d", d.count())
+func TestRunWeeklyReport_Friday18_AnyMinute_Dispatches(t *testing.T) {
+	for _, min := range []int{0, 5, 7, 35, 59} {
+		d := &fakeWeeklyDispatcher{}
+		cleanup := setupWeeklyTest(t, d, func() time.Time { return fridayKST(18, min) })
+		runWeeklyReport(context.Background(), nil)
+		cleanup()
+		if d.count() != 1 {
+			t.Errorf("min=%d: want 1 dispatch, got %d", min, d.count())
+		}
 	}
 }
 

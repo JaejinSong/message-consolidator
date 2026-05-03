@@ -32,7 +32,7 @@ func runWeeklyReport(ctx context.Context, _ *sync.WaitGroup) {
 	if now.Weekday() != time.Friday {
 		return
 	}
-	if now.Hour() != cfg.WeeklyReportHour || now.Minute() >= 5 {
+	if now.Hour() != cfg.WeeklyReportHour {
 		return
 	}
 	today := now.Format("2006-01-02")

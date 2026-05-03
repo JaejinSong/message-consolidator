@@ -87,14 +87,15 @@ func TestRunDailyDigest_BeforeHour_NoDispatch(t *testing.T) {
 	}
 }
 
-func TestRunDailyDigest_PastMinute5_NoDispatch(t *testing.T) {
-	mock := &mockDigestDispatcher{}
-	setupDigestTest(mock, true, 18)
-
-	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 18, 5, 0) }
-	runDailyDigest(context.Background(), nil)
-	if mock.Count() != 0 {
-		t.Errorf("expected 0 dispatches, got %d", mock.Count())
+func TestRunDailyDigest_AnyMinuteAtConfiguredHour_Dispatches(t *testing.T) {
+	for _, min := range []int{0, 5, 7, 35, 59} {
+		mock := &mockDigestDispatcher{}
+		setupDigestTest(mock, true, 18)
+		digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 18, min, 0) }
+		runDailyDigest(context.Background(), nil)
+		if mock.Count() != 1 {
+			t.Errorf("min=%d: expected 1 dispatch, got %d", min, mock.Count())
+		}
 	}
 }
 

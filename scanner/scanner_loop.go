@@ -34,6 +34,15 @@ type primeLoop struct {
 	traceName string
 	runFn     func(ctx context.Context, wg *sync.WaitGroup)
 	running   atomic.Bool
+	pool []time.Duration // nil → global primePool
+}
+
+func (l *primeLoop) pickNext() time.Duration {
+	if len(l.pool) == 0 {
+		return pickPrime()
+	}
+	// #nosec G404 -- jitter only.
+	return l.pool[rand.IntN(len(l.pool))]
 }
 
 func (l *primeLoop) tick(ctx context.Context, wg *sync.WaitGroup) {
@@ -63,7 +72,7 @@ func (l *primeLoop) start(ctx context.Context, wg *sync.WaitGroup, first time.Du
 			return
 		case <-timer.C:
 			l.tick(ctx, wg)
-			timer.Reset(pickPrime())
+			timer.Reset(l.pickNext())
 		}
 	}
 }

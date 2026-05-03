@@ -54,9 +54,9 @@ func resolveSlackMentionNames(ctx context.Context, sc slackUserResolver, userIDs
 	return out
 }
 
-// Why: Tier 3 conversations.replies caps at ~50/min (=1.2s); 1.0s = 60/min is within burst tolerance,
-// and `withSlackRetry` honors `Retry-After` if Slack pushes back. Saves ~200ms per thread iteration.
-const SlackThrottlingInterval = 1000 * time.Millisecond
+// Why: Tier 3 ~50/min limit; actual usage ~10/min leaves 5x headroom. 500ms = 120/min theoretical max
+// but sweep fires only ~10 calls per cycle, well within burst tolerance. `withSlackRetry` handles 429.
+const SlackThrottlingInterval = 500 * time.Millisecond
 
 var slackLimiter = rate.NewLimiter(rate.Every(SlackThrottlingInterval), 1)
 

@@ -21,6 +21,15 @@ import (
 
 var inFlightMessages sync.Map
 
+// Why: Prime-second pool near 3600s for loops that do not require sub-minute cadence.
+var hourPrimePool = []time.Duration{
+	3557 * time.Second,
+	3571 * time.Second,
+	3593 * time.Second,
+	3607 * time.Second,
+	3613 * time.Second,
+}
+
 var (
 	cfg           *config.Config
 	gClient       *ai.GeminiClient
@@ -53,7 +62,7 @@ func Init(c *config.Config) {
 }
 
 func StartBackgroundScanner(ctx context.Context) {
-	logger.Infof("[SCAN] background scanner started (per-loop random prime cadence from %v)", primePool)
+	logger.Infof("[SCAN] background scanner started (second-cadence=%v hour-cadence=%v)", primePool, hourPrimePool)
 
 	var wg sync.WaitGroup
 
@@ -62,16 +71,16 @@ func StartBackgroundScanner(ctx context.Context) {
 		{name: "whatsapp", traceName: "/Background-WhatsApp-Scan", runFn: runWhatsAppForAllUsers},
 		{name: "telegram", traceName: "/Background-Telegram-Scan", runFn: runTelegramForAllUsers},
 		{name: "slack", traceName: "/Background-Slack-Scan", runFn: runSlackForAllUsers},
-		{name: "archive-old-tasks", traceName: "/Background-Tasks-Archive", runFn: runArchiveOldTasks},
-		{name: "flush-token-usage", traceName: "/Background-Infra-FlushTokenUsage", runFn: runFlushTokenUsage},
-		{name: "log-db-stats", traceName: "/Background-Infra-LogDBStats", runFn: runLogDBStats},
-		{name: "sweep-slack-threads", traceName: "/Background-Slack-SweepThreads", runFn: runSlackSweep},
+		{name: "archive-old-tasks", traceName: "/Background-Tasks-Archive", runFn: runArchiveOldTasks, pool: hourPrimePool},
+		{name: "flush-token-usage", traceName: "/Background-Infra-FlushTokenUsage", runFn: runFlushTokenUsage, pool: hourPrimePool},
+		{name: "log-db-stats", traceName: "/Background-Infra-LogDBStats", runFn: runLogDBStats, pool: hourPrimePool},
+		{name: "sweep-slack-threads", traceName: "/Background-Slack-SweepThreads", runFn: runSlackSweep, pool: hourPrimePool},
 		{name: "deadline-reminder", traceName: "/Background-Tasks-DeadlineReminder", runFn: runDeadlineReminder},
-		{name: "daily-digest", traceName: "/Background-Reports-DailyDigest", runFn: runDailyDigest},
-		{name: "weekly-report", traceName: "/Background-Reports-WeeklyReport", runFn: runWeeklyReport},
+		{name: "daily-digest", traceName: "/Background-Reports-DailyDigest", runFn: runDailyDigest, pool: hourPrimePool},
+		{name: "weekly-report", traceName: "/Background-Reports-WeeklyReport", runFn: runWeeklyReport, pool: hourPrimePool},
 	}
 	for _, l := range loops {
-		first := pickPrime()
+		first := l.pickNext()
 		logger.Infof("[SCAN] %s loop start interval=%s", l.name, first)
 		wg.Add(1)
 		go l.start(ctx, &wg, first)

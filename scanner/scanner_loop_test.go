@@ -136,3 +136,46 @@ func TestPrimeLoop_StartHonorsContextCancellation(t *testing.T) {
 		t.Errorf("expected exactly 1 tick (the immediate startup run), got %d", ticks.Load())
 	}
 }
+
+func TestHourPrimePool_OnlyContainsExpectedPrimes(t *testing.T) {
+	expected := map[time.Duration]struct{}{
+		3557 * time.Second: {},
+		3571 * time.Second: {},
+		3593 * time.Second: {},
+		3607 * time.Second: {},
+		3613 * time.Second: {},
+	}
+	if len(hourPrimePool) != len(expected) {
+		t.Fatalf("hourPrimePool size=%d want=%d", len(hourPrimePool), len(expected))
+	}
+	for _, p := range hourPrimePool {
+		if _, ok := expected[p]; !ok {
+			t.Errorf("unexpected value %s in hourPrimePool", p)
+		}
+	}
+}
+
+func TestPrimeLoop_PickNext_UsesOwnPool(t *testing.T) {
+	onlyVal := 37 * time.Minute
+	loop := &primeLoop{pool: []time.Duration{onlyVal}}
+	for i := 0; i < 50; i++ {
+		if got := loop.pickNext(); got != onlyVal {
+			t.Fatalf("pickNext returned %s, want %s", got, onlyVal)
+		}
+	}
+}
+
+func TestPrimeLoop_PickNext_FallsBackToGlobal(t *testing.T) {
+	loop := &primeLoop{} // pool == nil
+	got := loop.pickNext()
+	found := false
+	for _, p := range primePool {
+		if got == p {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("pickNext returned %s which is not in primePool", got)
+	}
+}
