@@ -235,3 +235,79 @@ func TestSaveMessage_SemanticDup(t *testing.T) {
 		t.Errorf("expected 1 message row after semantic dup, got %d", count)
 	}
 }
+
+// TestSaveMessage_CrossThreadGuard verifies that semantic-dup detection respects thread boundaries.
+func TestSaveMessage_CrossThreadGuard(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	similarTask := "Resolve Carabao issue by updating K8s agent to latest version"
+	dissimilarTask := "Completely unrelated grocery shopping reminder"
+
+	cases := []struct {
+		name           string
+		existingThread string
+		newThread      string
+		newTask        string
+		wantDup        bool
+	}{
+		{"same thread similar task", "T1", "T1", similarTask, true},
+		{"different thread similar task", "T1", "T2", similarTask, false},
+		{"both empty thread top-level", "", "", similarTask, true},
+		{"different thread dissimilar task", "T1", "T2", dissimilarTask, false},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			email := testutil.RandomEmail("xthread")
+			room := "biz-test-cross"
+
+			existing := ConsolidatedMessage{
+				UserEmail:    email,
+				Source:       "slack",
+				Room:         room,
+				Task:         similarTask,
+				OriginalText: "original text",
+				SourceTS:     testutil.RandomTS("existing"),
+				ThreadID:     tc.existingThread,
+			}
+			_, existingID, err := SaveMessage(ctx, GetDB(), existing)
+			if err != nil || existingID == 0 {
+				t.Fatalf("seed: %v", err)
+			}
+			InvalidateCacheActive(email)
+
+			candidate := ConsolidatedMessage{
+				UserEmail:    email,
+				Source:       "slack",
+				Room:         room,
+				Task:         tc.newTask,
+				OriginalText: "new thread text",
+				SourceTS:     testutil.RandomTS("new"),
+				ThreadID:     tc.newThread,
+			}
+			saved, matchID, err := SaveMessage(ctx, GetDB(), candidate)
+			if err != nil {
+				t.Fatalf("SaveMessage: %v", err)
+			}
+
+			if tc.wantDup {
+				if saved {
+					t.Errorf("%s: expected saved=false (dup), got true", tc.name)
+				}
+				if matchID != existingID {
+					t.Errorf("%s: expected matchID=%d, got %d", tc.name, existingID, matchID)
+				}
+			} else {
+				if !saved {
+					t.Errorf("%s: expected saved=true (new row), got false (incorrectly merged)", tc.name)
+				}
+			}
+		})
+	}
+}

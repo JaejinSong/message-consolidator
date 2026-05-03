@@ -156,6 +156,7 @@ type TodoItem struct {
 	AssignedTo         string          `json:"assigned_to,omitempty"`
 	AssignedAt         string          `json:"assigned_at"`
 	SourceTS           string          `json:"source_ts"`
+	ThreadID           string          `json:"thread_id,omitempty"`
 	Category           string          `json:"category"`
 	Deadline           string          `json:"deadline"`
 	AssigneeReason     string          `json:"assignee_reason,omitempty"`

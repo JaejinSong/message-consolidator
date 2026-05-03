@@ -142,6 +142,13 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 		return nil
 	}
 
+	// Why: inject thread context so findMatch can guard against cross-thread merges.
+	for i := range candidates {
+		if raw, ok := msgMap[candidates[i].SourceTS]; ok {
+			candidates[i].ThreadID = raw.ThreadID
+		}
+	}
+
 	items := tasksSvc.ResolveProposals(ctx, user.Email, groupName, candidates, tasks)
 	return processChannelItems(ctx, user, aliases, items, msgMap, groupName, adapter.Is1To1(roomKey), wg, source)
 }

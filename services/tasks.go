@@ -770,6 +770,10 @@ func (s *TasksService) findMatch(room string, item store.TodoItem, active []stor
 		if m.Room != room || m.Category != item.Category {
 			continue
 		}
+		// Why: prevent cross-thread merges in proposal resolution (mirrors isSemanticDup guard).
+		if item.ThreadID != "" && m.ThreadID != "" && item.ThreadID != m.ThreadID {
+			continue
+		}
 
 		sim := store.CalculateSimilarity(item.Task, m.Task)
 		if sim >= 0.85 {

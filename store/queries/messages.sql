@@ -148,7 +148,9 @@ SELECT id, COALESCE(task, '') as task, COALESCE(original_text, '') as original_t
 
 
 -- name: GetActiveTasksForContext :many
-SELECT id, task, original_text, requester, assignee, source, room, assigned_at, done, completed_at, category
+SELECT id, task, original_text, requester, assignee, source, room,
+       COALESCE(thread_id, '') as thread_id,
+       assigned_at, done, completed_at, category
 FROM v_messages
 WHERE user_email = ? AND source = ? AND room = ? AND is_deleted = 0
 AND IFNULL(task, '') != ''

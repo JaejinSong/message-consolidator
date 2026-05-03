@@ -133,7 +133,9 @@ func (q *Queries) DeleteMessages(ctx context.Context, arg DeleteMessagesParams) 
 }
 
 const getActiveTasksForContext = `-- name: GetActiveTasksForContext :many
-SELECT id, task, original_text, requester, assignee, source, room, assigned_at, done, completed_at, category
+SELECT id, task, original_text, requester, assignee, source, room,
+       COALESCE(thread_id, '') as thread_id,
+       assigned_at, done, completed_at, category
 FROM v_messages
 WHERE user_email = ? AND source = ? AND room = ? AND is_deleted = 0
 AND IFNULL(task, '') != ''
@@ -156,6 +158,7 @@ type GetActiveTasksForContextRow struct {
 	Assignee     string       `json:"assignee"`
 	Source       string       `json:"source"`
 	Room         string       `json:"room"`
+	ThreadID     string       `json:"thread_id"`
 	AssignedAt   sql.NullTime `json:"assigned_at"`
 	Done         bool         `json:"done"`
 	CompletedAt  sql.NullTime `json:"completed_at"`
@@ -179,6 +182,7 @@ func (q *Queries) GetActiveTasksForContext(ctx context.Context, arg GetActiveTas
 			&i.Assignee,
 			&i.Source,
 			&i.Room,
+			&i.ThreadID,
 			&i.AssignedAt,
 			&i.Done,
 			&i.CompletedAt,

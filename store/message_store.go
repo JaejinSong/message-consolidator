@@ -284,6 +284,10 @@ func isSemanticDup(ctx context.Context, q Querier, msg ConsolidatedMessage) (boo
 	}
 
 	for _, e := range existing {
+		// Why: different threads in the same channel must never merge.
+		if msg.ThreadID != "" && e.ThreadID != "" && msg.ThreadID != e.ThreadID {
+			continue
+		}
 		if CalculateSimilarity(msg.Task, e.Task) >= 0.85 {
 			return true, e.ID
 		}
@@ -848,6 +852,7 @@ func toConsolidatedFromContext(row db.GetActiveTasksForContextRow) ConsolidatedM
 		Assignee:     row.Assignee,
 		Source:       row.Source,
 		Room:         row.Room,
+		ThreadID:     row.ThreadID,
 		Done:         row.Done,
 		Category:     row.Category,
 		Subtasks:     []Subtask{},

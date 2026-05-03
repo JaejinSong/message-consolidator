@@ -661,6 +661,13 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 		return
 	}
 
+	// Why: inject thread context so findMatch can guard against cross-thread merges.
+	for i := range proposals {
+		if raw, ok := msgMap[proposals[i].SourceTS]; ok {
+			proposals[i].ThreadID = raw.ThreadID
+		}
+	}
+
 	// Why: [Service-Oriented Resolve] Ensures SLACK proposals are resolved using the same backend-driven similarity engine.
 	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, "slack", channelName)
 	items := tasksSvc.ResolveProposals(ctx, user.Email, channelName, proposals, tasks)
