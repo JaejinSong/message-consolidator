@@ -181,13 +181,6 @@ func TestIsThreadTimedOut(t *testing.T) {
 
 //Why: [Throttling & Intake] Ensures that API rate limit protections and thread link construction logic are correctly implemented.
 
-func TestSlackThrottlingInterval(t *testing.T) {
-	//Why: 500ms = 120/min theoretical max but actual usage ~10/min gives 5x headroom; 429 fallback handled by withSlackRetry.
-	expected := 500 * time.Millisecond
-	if SlackThrottlingInterval != expected {
-		t.Errorf("SlackThrottlingInterval should be %v, got %v", expected, SlackThrottlingInterval)
-	}
-}
 
 func TestThreadIntakeLogicLink(t *testing.T) {
 	//Why: Verifies that thread_ts is correctly appended to Slack message links to ensure the user is directed to the specific response in context.

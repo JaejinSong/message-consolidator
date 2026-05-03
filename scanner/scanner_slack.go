@@ -17,7 +17,6 @@ import (
 
 	"github.com/slack-go/slack"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/time/rate"
 )
 
 var slackMentionRegex = regexp.MustCompile(`<@([A-Z0-9]+)>`)
@@ -54,11 +53,6 @@ func resolveSlackMentionNames(ctx context.Context, sc slackUserResolver, userIDs
 	return out
 }
 
-// Why: Tier 3 ~50/min limit; actual usage ~10/min leaves 5x headroom. 500ms = 120/min theoretical max
-// but sweep fires only ~10 calls per cycle, well within burst tolerance. `withSlackRetry` handles 429.
-const SlackThrottlingInterval = 500 * time.Millisecond
-
-var slackLimiter = rate.NewLimiter(rate.Every(SlackThrottlingInterval), 1)
 
 // Why: SlackClient + botID + users.list 결과는 토큰 단위로 불변. 매 sweep마다 NewSlackClient/FetchUsers/AuthTest를
 // 다시 부르면 sweep당 ~250ms (users.list ×2 + auth.test) 낭비. 토큰 키 캐시로 한 번만 초기화한다.
@@ -352,9 +346,6 @@ func sweepSlackThreads(ctx context.Context, wg *sync.WaitGroup) {
 		if shouldSkipThreadFetch(t, activity) {
 			continue
 		}
-		if err := slackLimiter.Wait(ctx); err != nil {
-			return
-		}
 		processSingleSlackThread(ctx, sc, t, botID, aliasCache, wg)
 	}
 }
@@ -369,9 +360,6 @@ func scanChannelHistoryActivity(ctx context.Context, sc *channels.SlackClient, t
 	byChannel := groupThreadsByChannel(threads)
 	out := make(map[string]channelActivity, len(byChannel))
 	for chID, chThreads := range byChannel {
-		if err := slackLimiter.Wait(ctx); err != nil {
-			return out
-		}
 		out[chID] = fetchChannelHistoryActivity(sc, chID, chThreads)
 	}
 	return out

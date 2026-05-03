@@ -96,9 +96,9 @@ func (s *SlackClient) UpdateDMBlocks(ctx context.Context, channel, ts string, bl
 }
 
 func (s *SlackClient) LookupChannels() ([]slack.Channel, string, error) {
-	//Why: Uses GetConversationsForUser to accurately retrieve only the subset of channels and DM lists where the bot is explicitly invited.
+	//Why: DMs (im/mpim) are handled by the Events API webhook; exclude them here to avoid redundant history scans.
 	return s.api.GetConversationsForUser(&slack.GetConversationsForUserParameters{
-		Types:           []string{"public_channel", "private_channel", "im", "mpim"},
+		Types:           []string{"public_channel", "private_channel"},
 		ExcludeArchived: true,
 		Limit:           1000,
 	})

@@ -74,7 +74,7 @@ func StartBackgroundScanner(ctx context.Context) {
 		{name: "archive-old-tasks", traceName: "/Background-Tasks-Archive", runFn: runArchiveOldTasks, pool: hourPrimePool},
 		{name: "flush-token-usage", traceName: "/Background-Infra-FlushTokenUsage", runFn: runFlushTokenUsage, pool: hourPrimePool},
 		{name: "log-db-stats", traceName: "/Background-Infra-LogDBStats", runFn: runLogDBStats, pool: hourPrimePool},
-		{name: "sweep-slack-threads", traceName: "/Background-Slack-SweepThreads", runFn: runSlackSweep, pool: hourPrimePool},
+		{name: "sweep-slack-threads", traceName: "/Background-Slack-SweepThreads", runFn: runSlackSweep},
 		{name: "deadline-reminder", traceName: "/Background-Tasks-DeadlineReminder", runFn: runDeadlineReminder},
 		{name: "daily-digest", traceName: "/Background-Reports-DailyDigest", runFn: runDailyDigest, pool: hourPrimePool},
 		{name: "weekly-report", traceName: "/Background-Reports-WeeklyReport", runFn: runWeeklyReport, pool: hourPrimePool},
