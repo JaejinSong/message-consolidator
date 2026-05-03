@@ -12,7 +12,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 2
+const schemaVersion = 3
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -138,6 +138,9 @@ func createIndexes(ctx context.Context, q db.DBTX) {
 		"CREATE INDEX IF NOT EXISTS idx_slack_threads_status ON slack_threads(status)",
 		// archive: is_archived narrows to the full set, done/is_deleted cover status filtering
 		"CREATE INDEX IF NOT EXISTS idx_messages_archive_filter ON messages(user_email, is_archived, done, is_deleted)",
+		// message_embeddings: cosineTopK pages by (model, message_id), so a covering
+		// composite avoids the table scan that BLOB transfer over Turso's WAN amplifies.
+		"CREATE INDEX IF NOT EXISTS idx_msg_emb_model_id ON message_embeddings(model, message_id)",
 	}
 	for _, ddl := range indexes {
 		_, _ = q.ExecContext(ctx, ddl)

@@ -10,25 +10,28 @@ import (
 	"message-consolidator/internal/whataphttpx"
 	"message-consolidator/logger"
 
-	"github.com/google/generative-ai-go/genai"
 	"github.com/whatap/go-api/trace"
-	"google.golang.org/api/option"
+	"google.golang.org/genai"
 )
 
 // DefaultEmbeddingModel is the production embedding model for archive semantic search.
-// Why: gemini-embedding-001 is the v1beta-compatible stable model for this API key
-// (3072-dim). text-embedding-004 / embedding-001 are v1-only and return 404 on the
-// genai Go SDK v0.13.0 which routes all requests through v1beta.
+// Why: text-embedding-004 (768-dim) is 4× cheaper to store/transfer than the 3072-dim
+// gemini-embedding-001 we used while pinned to the legacy v1beta SDK. With the
+// google.golang.org/genai migration we can route v1 stable, so this is the default.
+// Switching this constant requires wiping the archive's existing vectors (different
+// dim AND different model field), which the backfill loop handles via UPSERT.
 const (
-	DefaultEmbeddingModel = "gemini-embedding-001"
-	DefaultEmbeddingDim   = 3072
+	DefaultEmbeddingModel = "text-embedding-004"
+	DefaultEmbeddingDim   = 768
 	embedRequestTimeout   = 20 * time.Second
+
+	taskTypeRetrievalDocument = "RETRIEVAL_DOCUMENT"
+	taskTypeRetrievalQuery    = "RETRIEVAL_QUERY"
 )
 
 // EmbeddingClient owns a Gemini SDK handle scoped to embedding requests.
-// Why: GenerativeModel and EmbeddingModel are factory products of *genai.Client and
-// share the same WhaTap-wrapped transport — keeping a separate type lets us isolate
-// embedding telemetry and rate limits without touching GeminiClient.
+// Why: A separate type from GeminiClient lets us isolate embedding telemetry and
+// rate limits without coupling them to the analysis/translation client.
 type EmbeddingClient struct {
 	client *genai.Client
 	model  string
@@ -38,7 +41,7 @@ type EmbeddingClient struct {
 // NewEmbeddingClient constructs a Gemini-backed embedding client.
 // model defaults to DefaultEmbeddingModel when empty so callers can leave the value
 // unset for production usage.
-func NewEmbeddingClient(ctx context.Context, apiKey, model string, opts ...option.ClientOption) (*EmbeddingClient, error) {
+func NewEmbeddingClient(ctx context.Context, apiKey, model string) (*EmbeddingClient, error) {
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" {
 		return nil, errors.New("GEMINI_API_KEY is not set")
@@ -46,11 +49,14 @@ func NewEmbeddingClient(ctx context.Context, apiKey, model string, opts ...optio
 	if model == "" {
 		model = DefaultEmbeddingModel
 	}
-	allOpts := append([]option.ClientOption{
-		option.WithAPIKey(apiKey),
-		option.WithHTTPClient(whataphttpx.ClientWithAPIKey(apiKey)), //nolint:contextcheck // Per-request ctx passes through SDK calls.
-	}, opts...)
-	client, err := genai.NewClient(ctx, allOpts...)
+	// Why: ClientConfig.APIKey and HTTPClient are orthogonal in the new SDK —
+	// the SDK injects the key via its own auth layer, so only a plain
+	// WhaTap-wrapped client is needed (no apiKeyTransport shim required).
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey:     apiKey,
+		Backend:    genai.BackendGeminiAPI,
+		HTTPClient: whataphttpx.Client(),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("genai client for embedding: %w", err)
 	}
@@ -58,7 +64,7 @@ func NewEmbeddingClient(ctx context.Context, apiKey, model string, opts ...optio
 	return &EmbeddingClient{client: client, model: model, dim: DefaultEmbeddingDim}, nil
 }
 
-// Model returns the embedding model name in use, e.g. "text-embedding-004".
+// Model returns the embedding model name in use, e.g. "gemini-embedding-001".
 func (c *EmbeddingClient) Model() string { return c.model }
 
 // Dim returns the dimensionality of vectors produced by Model().
@@ -67,19 +73,19 @@ func (c *EmbeddingClient) Dim() int { return c.dim }
 // EmbedDocument produces a vector tuned for indexing the given text.
 // Empty/whitespace-only text returns ErrEmptyText so the caller can skip the row.
 func (c *EmbeddingClient) EmbedDocument(ctx context.Context, text string) ([]float32, error) {
-	return c.embed(ctx, text, genai.TaskTypeRetrievalDocument, "Gemini-Embed-Doc")
+	return c.embed(ctx, text, taskTypeRetrievalDocument, "Gemini-Embed-Doc")
 }
 
 // EmbedQuery produces a vector tuned for retrieval queries against documents
 // embedded with EmbedDocument. Mixing the two task types degrades relevance.
 func (c *EmbeddingClient) EmbedQuery(ctx context.Context, text string) ([]float32, error) {
-	return c.embed(ctx, text, genai.TaskTypeRetrievalQuery, "Gemini-Embed-Query")
+	return c.embed(ctx, text, taskTypeRetrievalQuery, "Gemini-Embed-Query")
 }
 
 // ErrEmptyText is returned when the input text contains no embeddable content.
 var ErrEmptyText = errors.New("embedding input is empty")
 
-func (c *EmbeddingClient) embed(ctx context.Context, text string, tt genai.TaskType, stepName string) ([]float32, error) {
+func (c *EmbeddingClient) embed(ctx context.Context, text, taskType, stepName string) ([]float32, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return nil, ErrEmptyText
@@ -87,19 +93,20 @@ func (c *EmbeddingClient) embed(ctx context.Context, text string, tt genai.TaskT
 	apiCtx, cancel := context.WithTimeout(ctx, embedRequestTimeout)
 	defer cancel()
 
-	em := c.client.EmbeddingModel(c.model)
-	em.TaskType = tt
 	start := time.Now()
-	resp, err := em.EmbedContent(apiCtx, genai.Text(text))
+	resp, err := c.client.Models.EmbedContent(apiCtx, c.model,
+		[]*genai.Content{genai.NewContentFromText(text, genai.RoleUser)},
+		&genai.EmbedContentConfig{TaskType: taskType},
+	)
 	elapsed := int(time.Since(start).Milliseconds())
 	_ = trace.Step(ctx, stepName, "", elapsed, len(text))
 	if err != nil {
 		return nil, fmt.Errorf("embed content: %s", maskAPIKey(err))
 	}
-	if resp == nil || resp.Embedding == nil || len(resp.Embedding.Values) == 0 {
+	if resp == nil || len(resp.Embeddings) == 0 || len(resp.Embeddings[0].Values) == 0 {
 		return nil, errors.New("embed content: empty response")
 	}
-	return resp.Embedding.Values, nil
+	return resp.Embeddings[0].Values, nil
 }
 
 // EmbedDocumentBatch sends up to len(texts) document-typed embed requests in one
@@ -113,16 +120,14 @@ func (c *EmbeddingClient) EmbedDocumentBatch(ctx context.Context, texts []string
 	apiCtx, cancel := context.WithTimeout(ctx, embedRequestTimeout*2)
 	defer cancel()
 
-	em := c.client.EmbeddingModel(c.model)
-	em.TaskType = genai.TaskTypeRetrievalDocument
-	batch := em.NewBatch()
+	contents := make([]*genai.Content, 0, len(texts))
 	indexMap := make([]int, 0, len(texts))
 	for i, t := range texts {
 		t = strings.TrimSpace(t)
 		if t == "" {
 			continue
 		}
-		batch.AddContent(genai.Text(t))
+		contents = append(contents, genai.NewContentFromText(t, genai.RoleUser))
 		indexMap = append(indexMap, i)
 	}
 	if len(indexMap) == 0 {
@@ -130,7 +135,9 @@ func (c *EmbeddingClient) EmbedDocumentBatch(ctx context.Context, texts []string
 	}
 
 	start := time.Now()
-	resp, err := em.BatchEmbedContents(apiCtx, batch)
+	resp, err := c.client.Models.EmbedContent(apiCtx, c.model, contents,
+		&genai.EmbedContentConfig{TaskType: taskTypeRetrievalDocument},
+	)
 	_ = trace.Step(ctx, "Gemini-Embed-Batch", "", int(time.Since(start).Milliseconds()), len(indexMap))
 	if err != nil {
 		return nil, fmt.Errorf("batch embed: %s", maskAPIKey(err))
