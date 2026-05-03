@@ -36,12 +36,3 @@ WHERE m.lifecycle != 'active'
   AND IFNULL(m.task, '') != ''
   AND (e.message_id IS NULL OR e.model != ?2);
 
--- name: ListArchiveEmbeddingsPage :many
-SELECT e.message_id, e.vec
-FROM message_embeddings e
-JOIN messages m ON m.id = e.message_id
-WHERE m.lifecycle != 'active'
-  AND m.user_email = ?1
-  AND e.model = ?2
-ORDER BY e.message_id
-LIMIT ?3 OFFSET ?4;

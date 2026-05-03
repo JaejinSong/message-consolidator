@@ -135,7 +135,6 @@ type Querier interface {
 	IsSourceTSProcessed(ctx context.Context, arg IsSourceTSProcessedParams) (int64, error)
 	ListAdminUsers(ctx context.Context) ([]User, error)
 	ListAppSettings(ctx context.Context) ([]AppSetting, error)
-	ListArchiveEmbeddingsPage(ctx context.Context, arg ListArchiveEmbeddingsPageParams) ([]ListArchiveEmbeddingsPageRow, error)
 	ListMissingEmbeddingsForUser(ctx context.Context, arg ListMissingEmbeddingsForUserParams) ([]ListMissingEmbeddingsForUserRow, error)
 	ListPendingMe(ctx context.Context, arg ListPendingMeParams) ([]ListPendingMeRow, error)
 	ListPendingOthers(ctx context.Context, arg ListPendingOthersParams) ([]ListPendingOthersRow, error)

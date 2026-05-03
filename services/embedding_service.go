@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"message-consolidator/internal/safego"
@@ -18,12 +20,6 @@ import (
 	"github.com/whatap/go-api/method"
 	"github.com/whatap/go-api/trace"
 )
-
-// scoredID pairs a message ID with its cosine similarity, used by cosineTopK.
-type scoredID struct {
-	id    store.MessageID
-	score float32
-}
 
 // Embedder is the consumer-defined interface this service depends on.
 // Why: keeps services package independent of the ai package's concrete client and
@@ -39,9 +35,6 @@ type Embedder interface {
 type EmbeddingService struct {
 	client Embedder
 
-	// pageSize bounds RAM during cosine top-K — see RAMBudgetBytes below for math.
-	pageSize int
-
 	// per-message embed timeout for fire-and-forget enqueues
 	enqueueTimeout time.Duration
 
@@ -51,26 +44,18 @@ type EmbeddingService struct {
 	rrfK          int
 }
 
-// Tunables for the hybrid ranker. Why: keep them named so the verification harness
-// or future ablation tests can override them, and so the math reads in the code.
+// Tunables for the hybrid ranker.
 const (
-	defaultPageSize       = 2000
 	defaultFTSCandidates  = 100
 	defaultSemCandidates  = 100
 	defaultRRFK           = 60
 	defaultEnqueueTimeout = 30 * time.Second
-
-	// RAMBudgetBytes documents the steady-state cap for one search. Why: 2000 rows
-	// × (768 floats × 4 bytes + ~16 bytes overhead) ≈ 6 MB; checked here so future
-	// tuning of pageSize stays within the e2-micro budget.
-	RAMBudgetBytes = defaultPageSize * (768*4 + 16)
 )
 
 // NewEmbeddingService builds an EmbeddingService with production defaults.
 func NewEmbeddingService(client Embedder) *EmbeddingService {
 	return &EmbeddingService{
 		client:         client,
-		pageSize:       defaultPageSize,
 		enqueueTimeout: defaultEnqueueTimeout,
 		ftsCandidates:  defaultFTSCandidates,
 		semCandidates:  defaultSemCandidates,
@@ -194,10 +179,15 @@ func (s *EmbeddingService) SearchHybrid(ctx context.Context, email, query string
 		// Why: embed transient failure → degrade to FTS-only instead of failing the user.
 		logger.Warnf("[EMBED] query embed failed: %v", qerr)
 	} else {
-		semIDs, _, err = s.cosineTopK(ctx, email, qvec, s.semCandidates)
-		if err != nil {
-			logger.Warnf("[EMBED] cosine topK failed: %v", err)
-			semIDs = nil
+		qvJSON := vectorToJSON(qvec)
+		scored, semErr := store.SemanticTopK(ctx, email, s.client.Model(), qvJSON, s.semCandidates)
+		if semErr != nil {
+			logger.Warnf("[EMBED] semantic top-k failed: %v", semErr)
+		} else {
+			semIDs = make([]store.MessageID, len(scored))
+			for i, sc := range scored {
+				semIDs[i] = sc.ID
+			}
 		}
 	}
 
@@ -216,74 +206,20 @@ func (s *EmbeddingService) SearchHybrid(ctx context.Context, email, query string
 	return reorderByIDs(msgs, fused), nil
 }
 
-// cosineTopK pages through the user's stored embeddings and keeps the top-k by
-// cosine similarity using a min-heap-like bounded scan. RAM stays at pageSize ×
-// row size regardless of total archive size.
-func (s *EmbeddingService) cosineTopK(ctx context.Context, email string, qv []float32, k int) ([]store.MessageID, []float32, error) {
-	if k <= 0 || len(qv) == 0 {
-		return nil, nil, nil
-	}
-	qNorm := norm(qv)
-	if qNorm == 0 {
-		return nil, nil, nil
-	}
-	top := make([]scoredID, 0, k)
-	worstIdx := -1
-	worstScore := float32(math.Inf(1))
-
-	offset := 0
-	for {
-		page, err := store.ListArchiveEmbeddingsPage(ctx, email, s.client.Model(), s.pageSize, offset)
-		if err != nil {
-			return nil, nil, err
+// vectorToJSON encodes a float32 slice as a JSON array string — the format
+// libsql's vector32() accepts as a bind parameter for DB-side cosine computation.
+func vectorToJSON(v []float32) string {
+	var sb strings.Builder
+	sb.Grow(8 * len(v))
+	sb.WriteByte('[')
+	for i, f := range v {
+		if i > 0 {
+			sb.WriteByte(',')
 		}
-		if len(page) == 0 {
-			break
-		}
-		for _, row := range page {
-			vec := BytesToFloat32s(row.Vec)
-			if len(vec) != len(qv) {
-				continue
-			}
-			sc := cosineNormalized(qv, qNorm, vec)
-			if len(top) < k {
-				top = append(top, scoredID{id: row.MessageID, score: sc})
-				if len(top) == k {
-					worstIdx, worstScore = findWorst(top)
-				}
-				continue
-			}
-			if sc > worstScore {
-				top[worstIdx] = scoredID{id: row.MessageID, score: sc}
-				worstIdx, worstScore = findWorst(top)
-			}
-		}
-		if len(page) < s.pageSize {
-			break
-		}
-		offset += s.pageSize
+		sb.WriteString(strconv.FormatFloat(float64(f), 'f', -1, 32))
 	}
-
-	sort.Slice(top, func(i, j int) bool { return top[i].score > top[j].score })
-	ids := make([]store.MessageID, len(top))
-	scores := make([]float32, len(top))
-	for i, t := range top {
-		ids[i] = t.id
-		scores[i] = t.score
-	}
-	return ids, scores, nil
-}
-
-func findWorst(s []scoredID) (int, float32) {
-	wi := 0
-	ws := s[0].score
-	for i := 1; i < len(s); i++ {
-		if s[i].score < ws {
-			ws = s[i].score
-			wi = i
-		}
-	}
-	return wi, ws
+	sb.WriteByte(']')
+	return sb.String()
 }
 
 // rrfFuse implements Reciprocal Rank Fusion over two ranked ID lists.
@@ -385,25 +321,4 @@ func BytesToFloat32s(b []byte) []float32 {
 	return out
 }
 
-// cosineNormalized expects qNorm to be precomputed; saves O(n) per row.
-func cosineNormalized(q []float32, qNorm float32, v []float32) float32 {
-	var dot, vNorm float32
-	for i := range q {
-		dot += q[i] * v[i]
-		vNorm += v[i] * v[i]
-	}
-	denom := qNorm * float32(math.Sqrt(float64(vNorm)))
-	if denom == 0 {
-		return 0
-	}
-	return dot / denom
-}
-
-func norm(v []float32) float32 {
-	var s float32
-	for _, x := range v {
-		s += x * x
-	}
-	return float32(math.Sqrt(float64(s)))
-}
 

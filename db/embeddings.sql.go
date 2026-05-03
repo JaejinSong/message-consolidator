@@ -61,57 +61,6 @@ func (q *Queries) GetMessageEmbedding(ctx context.Context, messageID int64) (Mes
 	return i, err
 }
 
-const listArchiveEmbeddingsPage = `-- name: ListArchiveEmbeddingsPage :many
-SELECT e.message_id, e.vec
-FROM message_embeddings e
-JOIN messages m ON m.id = e.message_id
-WHERE m.lifecycle != 'active'
-  AND m.user_email = ?1
-  AND e.model = ?2
-ORDER BY e.message_id
-LIMIT ?3 OFFSET ?4
-`
-
-type ListArchiveEmbeddingsPageParams struct {
-	UserEmail sql.NullString `json:"user_email"`
-	Model     string         `json:"model"`
-	Limit     int64          `json:"limit"`
-	Offset    int64          `json:"offset"`
-}
-
-type ListArchiveEmbeddingsPageRow struct {
-	MessageID int64  `json:"message_id"`
-	Vec       []byte `json:"vec"`
-}
-
-func (q *Queries) ListArchiveEmbeddingsPage(ctx context.Context, arg ListArchiveEmbeddingsPageParams) ([]ListArchiveEmbeddingsPageRow, error) {
-	rows, err := q.db.QueryContext(ctx, listArchiveEmbeddingsPage,
-		arg.UserEmail,
-		arg.Model,
-		arg.Limit,
-		arg.Offset,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListArchiveEmbeddingsPageRow
-	for rows.Next() {
-		var i ListArchiveEmbeddingsPageRow
-		if err := rows.Scan(&i.MessageID, &i.Vec); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listMissingEmbeddingsForUser = `-- name: ListMissingEmbeddingsForUser :many
 SELECT m.id, COALESCE(m.task, '') AS task, COALESCE(m.original_text, '') AS original_text
 FROM messages m
@@ -171,11 +120,11 @@ ON CONFLICT(message_id) DO UPDATE SET
 `
 
 type UpsertMessageEmbeddingParams struct {
-	MessageID int64  `json:"message_id"`
-	Model     string `json:"model"`
-	Dim       int64  `json:"dim"`
-	Vec       []byte `json:"vec"`
-	TextHash  string `json:"text_hash"`
+	MessageID int64       `json:"message_id"`
+	Model     string      `json:"model"`
+	Dim       int64       `json:"dim"`
+	Vec       interface{} `json:"vec"`
+	TextHash  string      `json:"text_hash"`
 }
 
 func (q *Queries) UpsertMessageEmbedding(ctx context.Context, arg UpsertMessageEmbeddingParams) error {

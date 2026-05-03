@@ -103,7 +103,7 @@ type MessageEmbedding struct {
 	MessageID int64        `json:"message_id"`
 	Model     string       `json:"model"`
 	Dim       int64        `json:"dim"`
-	Vec       []byte       `json:"vec"`
+	Vec       interface{}  `json:"vec"`
 	TextHash  string       `json:"text_hash"`
 	CreatedAt sql.NullTime `json:"created_at"`
 }

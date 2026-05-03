@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS message_embeddings (
     message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
     model      TEXT NOT NULL,
     dim        INTEGER NOT NULL,
-    vec        BLOB NOT NULL,
+    vec        F32_BLOB(768) NOT NULL,
     text_hash  TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )

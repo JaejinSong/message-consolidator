@@ -65,8 +65,8 @@ func TestFloat32sBytesRoundTrip(t *testing.T) {
 }
 
 func TestBytesToFloat32sBadLength(t *testing.T) {
-	// Why: corrupt rows (length not divisible by 4) must return nil so cosineTopK
-	// can skip them rather than panic on slice indexing.
+	// Why: length not divisible by 4 means a corrupt BLOB — return nil so callers
+	// can skip the row rather than panic on slice indexing.
 	if got := BytesToFloat32s([]byte{1, 2, 3}); got != nil {
 		t.Errorf("expected nil for corrupt blob, got %v", got)
 	}
@@ -91,23 +91,20 @@ func TestEmbeddingTextHashChangesWithText(t *testing.T) {
 	}
 }
 
-func TestCosineNormalizedKnownVectors(t *testing.T) {
+func TestVectorToJSON(t *testing.T) {
 	cases := []struct {
-		name string
-		a, b []float32
-		want float32
+		in   []float32
+		want string
 	}{
-		{"identical", []float32{1, 0, 0}, []float32{1, 0, 0}, 1},
-		{"orthogonal", []float32{1, 0, 0}, []float32{0, 1, 0}, 0},
-		{"opposite", []float32{1, 0, 0}, []float32{-1, 0, 0}, -1},
+		{[]float32{1.0, -0.5, 0.0}, "[1,-0.5,0]"},
+		{[]float32{}, "[]"},
+		{[]float32{0.123456789}, "[0.12345679]"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := cosineNormalized(tc.a, norm(tc.a), tc.b)
-			if math.Abs(float64(got-tc.want)) > 1e-5 {
-				t.Errorf("got %v want %v", got, tc.want)
-			}
-		})
+		got := vectorToJSON(tc.in)
+		if got != tc.want {
+			t.Errorf("vectorToJSON(%v) = %q, want %q", tc.in, got, tc.want)
+		}
 	}
 }
 
@@ -167,15 +164,11 @@ func TestReorderByIDsSkipsMissing(t *testing.T) {
 
 func TestNewEmbeddingServiceDefaults(t *testing.T) {
 	svc := NewEmbeddingService(&stubEmbedder{dim: 3})
-	if svc.pageSize != defaultPageSize {
-		t.Errorf("pageSize default wrong: %d", svc.pageSize)
-	}
 	if svc.rrfK != defaultRRFK {
 		t.Errorf("rrfK default wrong: %d", svc.rrfK)
 	}
-	// RAMBudgetBytes should stay under e2-micro's safety margin (~10 MB).
-	if RAMBudgetBytes > 10*1024*1024 {
-		t.Errorf("RAM budget %d exceeds 10MB ceiling", RAMBudgetBytes)
+	if svc.semCandidates != defaultSemCandidates {
+		t.Errorf("semCandidates default wrong: %d", svc.semCandidates)
 	}
 }
 

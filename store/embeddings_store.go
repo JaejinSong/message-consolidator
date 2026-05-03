@@ -9,12 +9,12 @@ import (
 	"message-consolidator/db"
 )
 
-// MessageEmbeddingRow mirrors the (message_id, vec) projection used by the
-// hybrid ranker. Why: sqlc's row type lives in the db package; re-exporting
-// here lets services consume a flat shape without a db import.
-type MessageEmbeddingRow struct {
-	MessageID MessageID
-	Vec       []byte
+// ScoredID pairs a message ID with its cosine similarity.
+// Score is negated cosine distance (higher = more similar) so callers
+// can compare with a single greater-than without knowing the metric direction.
+type ScoredID struct {
+	ID    MessageID
+	Score float32
 }
 
 // MissingEmbeddingRow describes an archive message that needs embedding work.
@@ -48,7 +48,13 @@ func GetEmbedding(ctx context.Context, msgID MessageID) ([]byte, string, int, bo
 		}
 		return nil, "", 0, false, fmt.Errorf("get embedding: %w", err)
 	}
-	return row.Vec, row.TextHash, int(row.Dim), true, nil
+	// Why: F32_BLOB(768) is a libsql extension type that sqlc maps to interface{};
+	// assert back to []byte which is what the driver actually delivers.
+	vecBytes, ok := row.Vec.([]byte)
+	if !ok {
+		return nil, "", 0, false, fmt.Errorf("get embedding: unexpected Vec type %T", row.Vec)
+	}
+	return vecBytes, row.TextHash, int(row.Dim), true, nil
 }
 
 // ListMissingEmbeddings returns up to `limit` archive rows (oldest-completed-first
@@ -89,26 +95,40 @@ func CountMissingEmbeddings(ctx context.Context, email, model string) (int, erro
 	return int(n), nil
 }
 
-// ListArchiveEmbeddingsPage streams a single page of (id, vec) for cosine top-K.
-// Why: caller pages through with offset to keep RAM bounded around 6 MB regardless
-// of total archive size — see services/embedding_service.go cosineTopK loop.
-func ListArchiveEmbeddingsPage(ctx context.Context, email, model string, limit, offset int) ([]MessageEmbeddingRow, error) {
-	q := db.New(GetDB())
-	rows, err := q.ListArchiveEmbeddingsPage(ctx, db.ListArchiveEmbeddingsPageParams{
-		UserEmail: sql.NullString{String: email, Valid: true},
-		Model:     model,
-		Limit:     int64(limit),
-		Offset:    int64(offset),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("list archive embeddings: %w", err)
+// SemanticTopK returns the top-k archive messages for email ranked by cosine
+// similarity to queryVecJSON (a JSON-encoded float32 array, e.g. "[0.1,0.2,...]").
+// Computation is pushed to libsql via vector_distance_cos so only (id, dist) pairs
+// cross the WAN, replacing the prior page-streaming BLOB transfer approach.
+func SemanticTopK(ctx context.Context, email, model, queryVecJSON string, k int) ([]ScoredID, error) {
+	if k <= 0 || queryVecJSON == "" {
+		return nil, nil
 	}
-	out := make([]MessageEmbeddingRow, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, MessageEmbeddingRow{
-			MessageID: MessageID(r.MessageID),
-			Vec:       r.Vec,
-		})
+	const sqlText = `
+		SELECT m.id, vector_distance_cos(e.vec, vector32(?1)) AS dist
+		FROM message_embeddings e
+		JOIN messages m ON m.id = e.message_id
+		WHERE m.lifecycle != 'active'
+		  AND m.user_email = ?2
+		  AND e.model = ?3
+		ORDER BY dist ASC
+		LIMIT ?4`
+	rows, err := GetDB().QueryContext(ctx, sqlText, queryVecJSON, email, model, int64(k))
+	if err != nil {
+		return nil, fmt.Errorf("semantic top-k: %w", err)
+	}
+	defer rows.Close()
+	out := make([]ScoredID, 0, k)
+	for rows.Next() {
+		var id int64
+		var dist float64
+		if err := rows.Scan(&id, &dist); err != nil {
+			return nil, fmt.Errorf("semantic top-k scan: %w", err)
+		}
+		// Why: negate distance so higher score = more similar, matching RRF's assumption.
+		out = append(out, ScoredID{ID: MessageID(id), Score: float32(-dist)})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("semantic top-k: %w", err)
 	}
 	return out, nil
 }

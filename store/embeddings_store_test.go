@@ -7,8 +7,8 @@ import (
 	"message-consolidator/internal/testutil"
 )
 
-// TestEmbeddingsStoreLifecycle exercises Upsert → Get → ListMissing → ListPage →
-// FTS top IDs against the real in-memory schema so we catch sqlc/migration drift
+// TestEmbeddingsStoreLifecycle exercises Upsert → Get → ListMissing → FTS top IDs
+// against the real in-memory schema so we catch sqlc/migration drift
 // the next time a query gets renamed.
 func TestEmbeddingsStoreLifecycle(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
@@ -74,14 +74,6 @@ func TestEmbeddingsStoreLifecycle(t *testing.T) {
 	count, _ = CountMissingEmbeddings(ctx, email, model)
 	if count != 1 {
 		t.Errorf("after one upsert: want 1 missing, got %d", count)
-	}
-
-	page, err := ListArchiveEmbeddingsPage(ctx, email, model, 10, 0)
-	if err != nil {
-		t.Fatalf("ListArchiveEmbeddingsPage: %v", err)
-	}
-	if len(page) != 1 || page[0].MessageID != id1 {
-		t.Errorf("page rows: %+v", page)
 	}
 
 	// FTS lookup hits messages_fts triggers; verify rowid comes back.

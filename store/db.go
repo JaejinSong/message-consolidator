@@ -168,6 +168,10 @@ func runFullDDL(ctx context.Context, dbConn *sql.DB) error {
 	}
 	logger.Infof("[DB] init: core tables created/verified")
 
+	if err := migrateEmbeddingsToF32(ctx, tx); err != nil {
+		return fmt.Errorf("embedding f32 migration failed: %w", err)
+	}
+
 	// Why: Rebuild views AFTER tables and columns exist to ensure they reference current schema.
 	logger.Infof("[DB] init: rebuilding views")
 	if err := rebuildViews(ctx, tx); err != nil {
