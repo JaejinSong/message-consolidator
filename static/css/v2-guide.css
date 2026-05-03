@@ -1,0 +1,134 @@
+/* Guide Page Layout */
+
+.c-guide {
+  display: flex;
+  gap: 0;
+  height: 100%;
+}
+
+.c-guide__sidebar {
+  width: 200px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  overflow-y: auto;
+  padding: 1rem 0;
+  flex-shrink: 0;
+}
+
+.c-guide__sidebar-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.6rem 1.25rem;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.c-guide__sidebar-btn:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.c-guide__sidebar-btn--active {
+  color: var(--color-primary);
+  background: rgba(0, 242, 255, 0.08);
+  border-left: 2px solid var(--color-primary);
+  padding-left: calc(1.25rem - 2px);
+}
+
+.c-guide__panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem 2rem;
+}
+
+.c-guide__content {
+  max-width: 720px;
+  color: var(--text-main);
+  line-height: 1.7;
+}
+
+.c-guide__content h1 {
+  color: var(--text-main);
+  font-size: 1.5rem;
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.c-guide__content h2 {
+  color: var(--text-main);
+  font-size: 1.125rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.4rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.c-guide__content h3 {
+  color: var(--text-main);
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.c-guide__content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.c-guide__content th,
+.c-guide__content td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: left;
+}
+
+.c-guide__content th {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.c-guide__content code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+
+.c-guide__content pre {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.c-guide__content pre code {
+  background: none;
+  padding: 0;
+}
+
+.c-guide__content a {
+  color: var(--color-primary);
+}
+
+.c-guide__content blockquote {
+  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  margin: 0;
+  padding: 0.5rem 1rem;
+  color: var(--text-dim);
+}
+
+.c-guide__content ul,
+.c-guide__content ol {
+  padding-left: 1.5rem;
+}
+
+.c-guide__content hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 1.5rem 0;
+}

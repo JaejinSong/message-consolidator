@@ -25,6 +25,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Message Consolidator Premium</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/css/v2-guide.css">
     <!-- Essential Layout & Variable Styles (Vite will hash these) -->
     <!-- Essential Layout & Variable Styles (Vite will hash these) -->
 </head>
@@ -154,6 +155,10 @@
                     <span class="nav-icon">💡</span>
                     <span class="nav-text" data-i18n="insightsTitle">Insights</span>
                 </button>
+                <button type="button" id="guideViewBtn" class="c-main-nav__item" data-view="guide">
+                    <span class="nav-icon">📖</span>
+                    <span class="nav-text">Help</span>
+                </button>
             </nav>
             
             <!-- Merge Selection Bar (Appears between Nav and Content when multiple tasks selected) -->
@@ -215,6 +220,22 @@
                     <div id="allTasksList" class="task-list"></div>
                 </div>
             </div>
+
+            <!-- Guide Section -->
+            <section id="guideSection" class="hidden">
+                <div class="c-guide">
+                    <aside class="c-guide__sidebar">
+                        <button type="button" class="c-guide__sidebar-btn c-guide__sidebar-btn--active" data-section="getting-started">🚀 Getting Started</button>
+                        <button type="button" class="c-guide__sidebar-btn" data-section="channels">🔗 Connecting Channels</button>
+                        <button type="button" class="c-guide__sidebar-btn" data-section="tasks">✅ Managing Tasks</button>
+                        <button type="button" class="c-guide__sidebar-btn" data-section="reports">📊 Reports & Insights</button>
+                        <button type="button" class="c-guide__sidebar-btn" data-section="faq">❓ FAQ & Privacy</button>
+                    </aside>
+                    <div class="c-guide__panel">
+                        <div id="guideContent" class="c-guide__content"></div>
+                    </div>
+                </div>
+            </section>
 
             <!-- Insights Section -->
             <section id="insightsSection" class="hidden">

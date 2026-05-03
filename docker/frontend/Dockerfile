@@ -13,6 +13,7 @@ COPY tsconfig.json vite.config.ts ./
 COPY index.html ./
 COPY static/ ./static/
 COPY src/ ./src/
+COPY docs/user-guide/ ./docs/user-guide/
 
 # Why: Pass VITE_API_BASE_URL to Vite build process for correct API endpoint resolution.
 ARG VITE_API_BASE_URL=/api

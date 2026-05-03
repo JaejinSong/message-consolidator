@@ -35,6 +35,7 @@ import { I18nDictionary, ServiceHandlers, UserProfile, CategorizedMessages } fro
 import { archive } from './archive';
 import { modals } from './modals';
 import { insights } from './insights';
+import { guide } from './guide';
 import { events, EVENTS } from './events';
 import { safeAsync, hasSessionHint, setupTabs, escapeHTML, getErrorMessage, isStatusConnected } from './utils';
 import { POLLING_INTERVALS } from './constants';
@@ -384,9 +385,10 @@ const initNavigation = () => {
         const dashboardHeader = document.querySelector('.dashboard-header');
         const archiveSection = document.getElementById('archiveSection');
         const insightsSection = document.getElementById('insightsSection');
+        const guideSection = document.getElementById('guideSection');
         const navTabs = document.querySelectorAll('.c-main-nav__item');
 
-        [dashboardContent, dashboardHeader, archiveSection, insightsSection].forEach(el => {
+        [dashboardContent, dashboardHeader, archiveSection, insightsSection, guideSection].forEach(el => {
             el?.classList.add('hidden');
         });
 
@@ -399,6 +401,9 @@ const initNavigation = () => {
             requestAnimationFrame(() => {
                 insights.onShow();
             });
+        } else if (view === 'guide') {
+            guideSection?.classList.remove('hidden');
+            guide.onShow();
         } else {
             dashboardContent?.classList.remove('hidden');
             dashboardHeader?.classList.remove('hidden');
@@ -710,6 +715,7 @@ const initApp = () => {
     archive.init(fetchMessages);
     modals.init(fetchMessages);
     insights.init?.();
+    guide.init();
     setupConnectionsTab();
 
     fetchUserProfile();
