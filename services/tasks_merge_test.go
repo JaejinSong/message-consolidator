@@ -24,7 +24,7 @@ func TestResolveProposals(t *testing.T) {
 
 	rawItems := []store.TodoItem{
 		{
-			Task:     "Please share meeting invite", // Similar
+			Task:     "Share the meeting invite link", // sim≥0.85 vs existing
 			Category: "TASK",
 			State:    "new", // AI thinks it's new
 		},

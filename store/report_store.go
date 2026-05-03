@@ -241,6 +241,6 @@ func toConsolidatedFromByMessages(row db.VMessage) ConsolidatedMessage {
 		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
 		row.RequesterType, row.AssigneeType, row.Subtasks,
-		row.AssignedAt, row.CompletedAt,
+		row.AssignedAt, row.CompletedAt, row.UpdatedAt,
 	)
 }

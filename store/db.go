@@ -168,6 +168,10 @@ func runFullDDL(ctx context.Context, dbConn *sql.DB) error {
 	}
 	logger.Infof("[DB] init: core tables created/verified")
 
+	if err := addMessagesUpdatedAtColumn(ctx, tx); err != nil {
+		return fmt.Errorf("updated_at column migration failed: %w", err)
+	}
+
 	if err := migrateEmbeddingsToF32(ctx, tx); err != nil {
 		return fmt.Errorf("embedding f32 migration failed: %w", err)
 	}

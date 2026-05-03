@@ -33,8 +33,23 @@ func SaveMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool,
 	msg.Requester = NormalizeName(ctx, msg.UserEmail, msg.Requester)
 	msg.Assignee = NormalizeName(ctx, msg.UserEmail, msg.Assignee)
 
-	if isSemanticDup(ctx, q, msg) {
-		return false, 0, nil
+	// Why: knownTS is cleared by InvalidateCacheActive; fall back to DB to prevent
+	// re-appending the same message when source_ts already exists.
+	if msg.SourceTS != "" {
+		count, _ := db.New(q).IsMessageProcessed(ctx, db.IsMessageProcessedParams{
+			UserEmail: nullString(msg.UserEmail),
+			SourceTs:  nullString(msg.SourceTS),
+		})
+		if count > 0 {
+			return false, 0, nil
+		}
+	}
+
+	if dup, matchedID := isSemanticDup(ctx, q, msg); dup {
+		if err := AppendOriginalText(ctx, q, msg.UserEmail, msg.Room, matchedID, msg.OriginalText); err != nil {
+			return false, matchedID, fmt.Errorf("append on dup: %w", err)
+		}
+		return false, matchedID, nil
 	}
 
 	// Why: libsql/Turso has no app-side busy_timeout (PRAGMA only applies to file: DSN),
@@ -262,18 +277,18 @@ func updateSubtaskStatusInternal(ctx context.Context, q Querier, email string, i
 	return nil
 }
 
-func isSemanticDup(ctx context.Context, q Querier, msg ConsolidatedMessage) bool {
+func isSemanticDup(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool, MessageID) {
 	existing, err := GetActiveContextTasks(ctx, q, msg.UserEmail, msg.Source, msg.Room)
 	if err != nil || len(existing) == 0 {
-		return false
+		return false, 0
 	}
 
 	for _, e := range existing {
 		if CalculateSimilarity(msg.Task, e.Task) >= 0.85 {
-			return true
+			return true, e.ID
 		}
 	}
-	return false
+	return false, 0
 }
 
 // DeduplicateTasks removes semantic duplicates from a list of TodoItems.
@@ -744,7 +759,7 @@ func toConsolidatedFromByID(row db.GetMessageByIDRow) ConsolidatedMessage {
 		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
 		row.RequesterType, row.AssigneeType, row.Subtasks,
-		row.AssignedAt, row.CompletedAt,
+		row.AssignedAt, row.CompletedAt, row.UpdatedAt,
 	)
 }
 
@@ -758,7 +773,7 @@ func toConsolidatedFromByIDs(row db.GetMessagesByIDsRow) ConsolidatedMessage {
 		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
 		row.RequesterType, row.AssigneeType, row.Subtasks,
-		row.AssignedAt, row.CompletedAt,
+		row.AssignedAt, row.CompletedAt, row.UpdatedAt,
 	)
 }
 
@@ -772,7 +787,7 @@ func toConsolidatedFromIncomplete(row db.GetIncompleteByThreadIDRow) Consolidate
 		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
 		row.RequesterType, row.AssigneeType, row.Subtasks,
-		row.AssignedAt, row.CompletedAt,
+		row.AssignedAt, row.CompletedAt, row.UpdatedAt,
 	)
 }
 
@@ -792,7 +807,7 @@ func MapVMessageToConsolidated(
 	category, deadline, threadID, reqCanonical, asgCanonical, asgReason,
 	repliedToID string, isContextQuery int, constraintsStr, contextStr,
 	metadataStr, channelsStr, reqType, asgType, subtasksStr string,
-	assignedAt, completedAt sql.NullTime,
+	assignedAt, completedAt, updatedAt sql.NullTime,
 ) ConsolidatedMessage {
 	constraints, channels, context, subtasks := UnmarshalMessageComponents(constraintsStr, channelsStr, contextStr, subtasksStr)
 
@@ -817,6 +832,9 @@ func MapVMessageToConsolidated(
 	}
 	if completedAt.Valid {
 		msg.CompletedAt = &completedAt.Time
+	}
+	if updatedAt.Valid && updatedAt.Time.After(createdAt.Time) {
+		msg.UpdatedAt = &updatedAt.Time
 	}
 	return msg
 }

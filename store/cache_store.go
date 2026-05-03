@@ -128,7 +128,7 @@ func buildMessages(rows []db.RefreshCacheActiveRow, resolver map[string]Resolved
 			r.RepliedToID, int(r.IsContextQuery.Int64), r.Constraints,
 			r.ConsolidatedContext, r.Metadata, r.SourceChannels,
 			reqType, asgType, r.Subtasks,
-			r.AssignedAt, r.CompletedAt,
+			r.AssignedAt, r.CompletedAt, r.UpdatedAt,
 		)
 		msgs = append(msgs, m)
 		knownTS[m.SourceTS] = true
@@ -150,7 +150,7 @@ func buildArchiveMessages(rows []db.RefreshCacheArchiveRow, resolver map[string]
 			r.RepliedToID, int(r.IsContextQuery.Int64), r.Constraints,
 			r.ConsolidatedContext, r.Metadata, r.SourceChannels,
 			reqType, asgType, r.Subtasks,
-			r.AssignedAt, r.CompletedAt,
+			r.AssignedAt, r.CompletedAt, r.UpdatedAt,
 		))
 	}
 	return msgs

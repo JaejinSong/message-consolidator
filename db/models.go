@@ -83,6 +83,7 @@ type Message struct {
 	Done                sql.NullBool   `json:"done"`
 	IsDeleted           sql.NullBool   `json:"is_deleted"`
 	CreatedAt           sql.NullTime   `json:"created_at"`
+	UpdatedAt           sql.NullTime   `json:"updated_at"`
 	CompletedAt         sql.NullTime   `json:"completed_at"`
 	Category            sql.NullString `json:"category"`
 	Deadline            sql.NullString `json:"deadline"`
@@ -232,6 +233,7 @@ type VMessage struct {
 	Done                bool         `json:"done"`
 	IsDeleted           bool         `json:"is_deleted"`
 	CreatedAt           sql.NullTime `json:"created_at"`
+	UpdatedAt           sql.NullTime `json:"updated_at"`
 	CompletedAt         sql.NullTime `json:"completed_at"`
 	Category            string       `json:"category"`
 	Deadline            string       `json:"deadline"`

@@ -19,6 +19,7 @@ export interface Message {
     source: string;
     timestamp?: string;
     created_at?: string;
+    updated_at?: string;
     done: boolean;
     completed_at?: string;
     assignee?: string;

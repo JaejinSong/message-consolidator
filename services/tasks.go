@@ -772,7 +772,7 @@ func (s *TasksService) findMatch(room string, item store.TodoItem, active []stor
 		}
 
 		sim := store.CalculateSimilarity(item.Task, m.Task)
-		if sim >= 0.80 {
+		if sim >= 0.85 {
 			return m
 		}
 

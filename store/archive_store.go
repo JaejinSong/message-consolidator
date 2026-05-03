@@ -139,7 +139,7 @@ func mapRowSliceToMessage(rows []db.SearchArchivedMessagesRow) []ConsolidatedMes
 			r.RepliedToID, int(r.IsContextQuery), r.Constraints,
 			r.ConsolidatedContext, r.Metadata, r.SourceChannels,
 			r.RequesterType, r.AssigneeType, r.Subtasks,
-			r.AssignedAt, r.CompletedAt,
+			r.AssignedAt, r.CompletedAt, r.UpdatedAt,
 		)
 	}
 	return msgs

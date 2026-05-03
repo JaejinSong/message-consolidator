@@ -159,3 +159,79 @@ func TestUpdateSubtasks_NoRows(t *testing.T) {
 		t.Logf("UpdateSubtasks unknown id: %v (acceptable)", err)
 	}
 }
+
+// TestSaveMessage_SemanticDup verifies that when SaveMessage detects a semantic duplicate
+// it does NOT insert a new row, appends the new text to the existing task's original_text,
+// and returns (saved=false, matchedID, nil).
+func TestSaveMessage_SemanticDup(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	email := testutil.RandomEmail("semdup")
+	room := "biz-test"
+
+	// Insert existing open task that will be the dup target.
+	existingTask := "Resolve Carabao issue by updating K8s agent to latest version"
+	existingOriginal := "original reply text"
+	existing := ConsolidatedMessage{
+		UserEmail:    email,
+		Source:       "slack",
+		Room:         room,
+		Task:         existingTask,
+		OriginalText: existingOriginal,
+		SourceTS:     testutil.RandomTS("existing"),
+	}
+	saved, existingID, err := SaveMessage(ctx, GetDB(), existing)
+	if err != nil || !saved || existingID == 0 {
+		t.Fatalf("seed SaveMessage: saved=%v id=%d err=%v", saved, existingID, err)
+	}
+
+	// Invalidate cache so GetActiveContextTasks picks up the newly inserted row.
+	InvalidateCacheActive(email)
+
+	// New candidate with same task title (sim == 1.0 ≥ 0.85) but different source_ts.
+	newText := "agent bug, update agent latest or try preview"
+	candidate := ConsolidatedMessage{
+		UserEmail:    email,
+		Source:       "slack",
+		Room:         room,
+		Task:         existingTask,
+		OriginalText: newText,
+		SourceTS:     testutil.RandomTS("dup"),
+	}
+	dupSaved, dupID, dupErr := SaveMessage(ctx, GetDB(), candidate)
+
+	if dupErr != nil {
+		t.Fatalf("SaveMessage on dup: unexpected error %v", dupErr)
+	}
+	if dupSaved {
+		t.Error("SaveMessage on dup: expected saved=false, got true")
+	}
+	if dupID != existingID {
+		t.Errorf("SaveMessage on dup: expected matchedID=%d, got %d", existingID, dupID)
+	}
+
+	// Verify original_text was prepended: NEW || '\n\n' || OLD.
+	var gotOriginal string
+	row := GetDB().QueryRowContext(ctx, `SELECT original_text FROM messages WHERE id = ?`, int64(existingID))
+	if err := row.Scan(&gotOriginal); err != nil {
+		t.Fatalf("read original_text: %v", err)
+	}
+	wantPrefix := newText + "\n\n" + existingOriginal
+	if gotOriginal != wantPrefix {
+		t.Errorf("original_text mismatch:\n  got  %q\n  want %q", gotOriginal, wantPrefix)
+	}
+
+	// Verify no new row was inserted (still only 1 message row for this email).
+	var count int
+	if err := GetDB().QueryRowContext(ctx, `SELECT count(*) FROM messages WHERE user_email = ?`, email).Scan(&count); err != nil {
+		t.Fatalf("count messages: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 message row after semantic dup, got %d", count)
+	}
+}

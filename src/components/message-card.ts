@@ -36,7 +36,7 @@ function parseMetadata(metadata: unknown): Record<string, unknown> | null {
  * Decouples rendering logic from the main application state to allow for independent testing.
  */
 export function MessageCard(props: MessageCardProps): string {
-    const { id, source, source_channels, room, is_translating, requester, assignee, timestamp, created_at, done, category, metadata: rawMetadata, lang, translation_error, has_original, assigned_to, subtasks, isSelected, currentUserNames, deadline, staleThresholdWorkingDays } = props;
+    const { id, source, source_channels, room, is_translating, requester, assignee, timestamp, created_at, updated_at, done, category, metadata: rawMetadata, lang, translation_error, has_original, assigned_to, subtasks, isSelected, currentUserNames, deadline, staleThresholdWorkingDays } = props;
 
     const isSelf = (name: string | undefined): boolean =>
         !!name && !!currentUserNames?.length &&
@@ -52,6 +52,10 @@ export function MessageCard(props: MessageCardProps): string {
     const rawTime = String(timestamp || created_at || "");
     const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
     const displayTime = TimeService.formatDisplayTime(rawTime, lang);
+    const updatedRaw = String(updated_at || "");
+    const updatedDisplay = updatedRaw && updatedRaw !== rawTime
+        ? TimeService.formatDisplayTime(updatedRaw, lang)
+        : "";
     const deadlineBadge = getDeadlineBadge(deadline, done, lang);
     const contextSnippets = parseTaskContext(props.consolidated_context);
 
@@ -206,6 +210,7 @@ export function MessageCard(props: MessageCardProps): string {
                 
                 <div class="c-message-card__time-group">
                     <div class="c-message-card__timestamp">${displayTime}</div>
+                    ${updatedDisplay ? `<div class="c-message-card__updated" title="Last update">↻ ${updatedDisplay}</div>` : ''}
                     ${deadlineBadge ? `<div class="c-message-card__deadline">${deadlineBadge}</div>` : ''}
                 </div>
             </div>

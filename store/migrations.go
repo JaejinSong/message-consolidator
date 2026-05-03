@@ -13,7 +13,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 4
+const schemaVersion = 5
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -145,6 +145,32 @@ func createIndexes(ctx context.Context, q db.DBTX) {
 	for _, ddl := range indexes {
 		_, _ = q.ExecContext(ctx, ddl)
 	}
+}
+
+// addMessagesUpdatedAtColumn adds updated_at to messages on existing DBs.
+// Why: SQLite does not support IF NOT EXISTS for ALTER TABLE, so we check pragma_table_info first.
+// Safe to re-run — idempotent via the column existence check.
+func addMessagesUpdatedAtColumn(ctx context.Context, q db.DBTX) error {
+	var has int
+	_ = q.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pragma_table_info('messages') WHERE name='updated_at'`,
+	).Scan(&has)
+	if has > 0 {
+		return nil
+	}
+	if _, err := q.ExecContext(ctx,
+		`ALTER TABLE messages ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`,
+	); err != nil {
+		return fmt.Errorf("add updated_at column: %w", err)
+	}
+	// Why: ALTER TABLE DEFAULT fills existing rows with the ALTER execution time, not
+	// created_at. Backfill so "no update" rows show their registration date correctly.
+	if _, err := q.ExecContext(ctx,
+		`UPDATE messages SET updated_at = created_at WHERE updated_at IS NULL OR updated_at >= datetime('now', '-1 minute')`,
+	); err != nil {
+		return fmt.Errorf("backfill updated_at: %w", err)
+	}
+	return nil
 }
 
 // migrateEmbeddingsToF32 atomically recreates message_embeddings with vec typed
