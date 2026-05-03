@@ -159,14 +159,14 @@ func addMessagesUpdatedAtColumn(ctx context.Context, q db.DBTX) error {
 		return nil
 	}
 	if _, err := q.ExecContext(ctx,
-		`ALTER TABLE messages ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`,
+		`ALTER TABLE messages ADD COLUMN updated_at DATETIME NOT NULL DEFAULT '1970-01-01T00:00:00Z'`,
 	); err != nil {
 		return fmt.Errorf("add updated_at column: %w", err)
 	}
 	// Why: ALTER TABLE DEFAULT fills existing rows with the ALTER execution time, not
 	// created_at. Backfill so "no update" rows show their registration date correctly.
 	if _, err := q.ExecContext(ctx,
-		`UPDATE messages SET updated_at = created_at WHERE updated_at IS NULL OR updated_at >= datetime('now', '-1 minute')`,
+		`UPDATE messages SET updated_at = created_at WHERE updated_at <= '1970-01-02' OR updated_at >= datetime('now', '-1 minute')`,
 	); err != nil {
 		return fmt.Errorf("backfill updated_at: %w", err)
 	}
