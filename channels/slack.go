@@ -39,6 +39,10 @@ func (s *SlackClient) GetAPI() *slack.Client {
 // drop UI refreshes.
 const slackBotMaxRetries = 3
 
+// Why: Slack Tier-3 limit is ~50 req/min; 1.2 s gap keeps sustained throughput well below
+// the ceiling and reduces 429s during bulk channel scans.
+const slackCallInterval = 1200 * time.Millisecond
+
 // SendDM posts a direct message to slackUserID. Slack's chat.postMessage
 // auto-opens an IM channel when the bot has chat:write (and im:write for first-time DMs).
 func (s *SlackClient) SendDM(ctx context.Context, slackUserID, text string) error {
@@ -140,6 +144,7 @@ func (s *SlackClient) GetUserName(ctx context.Context, id string) string {
 	// Why: users.list misses restricted/external/post-FetchUsers members; on-demand
 	// GetUserInfo + cache prevents permanent raw-ID exposure (e.g. "U07EBSTP5C5").
 	u, err := s.api.GetUserInfoContext(ctx, id)
+	time.Sleep(slackCallInterval)
 	if err != nil || u == nil {
 		// Why: API miss → raw `U...` ID가 prompt로 흘러 AI가 mention을 못 읽고 shared 폴백 발생.
 		//      log로 가시성 확보 — 빈도 측정 후 negative cache / retry 정책 결정.
@@ -160,6 +165,7 @@ func (s *SlackClient) GetChannelName(id string) string {
 	channel, err := s.api.GetConversationInfo(&slack.GetConversationInfoInput{
 		ChannelID: id,
 	})
+	time.Sleep(slackCallInterval)
 	if err != nil {
 		return id
 	}
@@ -196,6 +202,7 @@ func withSlackRetry(maxRetries int, contextMsg string, attemptFunc func() error)
 	for i := 0; i <= maxRetries; i++ {
 		err = attemptFunc()
 		if err == nil {
+			time.Sleep(slackCallInterval)
 			return nil
 		}
 		var rateLimitedError *slack.RateLimitedError
