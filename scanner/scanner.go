@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"message-consolidator/channels"
 	"message-consolidator/config"
+	"message-consolidator/internal/primes"
 	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"message-consolidator/services"
@@ -62,7 +63,7 @@ func Init(c *config.Config) {
 }
 
 func StartBackgroundScanner(ctx context.Context) {
-	logger.Infof("[SCAN] background scanner started (second-cadence=%v hour-cadence=%v)", primePool, hourPrimePool)
+	logger.Infof("[SCAN] background scanner started (second-cadence=%v hour-cadence=%v)", primes.Seconds, hourPrimePool)
 
 	var wg sync.WaitGroup
 

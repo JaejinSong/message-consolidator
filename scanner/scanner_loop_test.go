@@ -2,67 +2,12 @@ package scanner
 
 import (
 	"context"
+	"message-consolidator/internal/primes"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 )
-
-func TestPrimePool_OnlyContainsExpectedPrimes(t *testing.T) {
-	expected := map[time.Duration]struct{}{
-		59 * time.Second: {},
-		61 * time.Second: {},
-		67 * time.Second: {},
-		71 * time.Second: {},
-		73 * time.Second: {},
-	}
-	if len(primePool) != len(expected) {
-		t.Fatalf("primePool size=%d want=%d", len(primePool), len(expected))
-	}
-	for _, p := range primePool {
-		if _, ok := expected[p]; !ok {
-			t.Errorf("unexpected prime %s in primePool", p)
-		}
-	}
-}
-
-func TestPickPrime_CoversWholePool(t *testing.T) {
-	seen := make(map[time.Duration]int)
-	for i := 0; i < 1000; i++ {
-		p := pickPrime()
-		seen[p]++
-	}
-	if len(seen) != len(primePool) {
-		t.Fatalf("pickPrime hit %d distinct values in 1000 calls; want %d (1/4^1000 chance of false fail)", len(seen), len(primePool))
-	}
-	for _, p := range primePool {
-		if seen[p] == 0 {
-			t.Errorf("prime %s never selected", p)
-		}
-	}
-}
-
-// Why: Guards extensibility — adding new primes (e.g. 79s, 83s) should propagate through pickPrime without code changes.
-func TestPickPrime_PoolExtensionPropagates(t *testing.T) {
-	original := primePool
-	t.Cleanup(func() { primePool = original })
-
-	primePool = append([]time.Duration{}, original...)
-	primePool = append(primePool, 79*time.Second, 83*time.Second)
-
-	hit79, hit83 := false, false
-	for i := 0; i < 2000 && !(hit79 && hit83); i++ {
-		switch pickPrime() {
-		case 79 * time.Second:
-			hit79 = true
-		case 83 * time.Second:
-			hit83 = true
-		}
-	}
-	if !hit79 || !hit83 {
-		t.Fatalf("extended pool not reflected: 79s=%v 83s=%v", hit79, hit83)
-	}
-}
 
 func TestPrimeLoop_TickSkipsWhenAlreadyRunning(t *testing.T) {
 	var inflight atomic.Int32
@@ -166,16 +111,16 @@ func TestPrimeLoop_PickNext_UsesOwnPool(t *testing.T) {
 }
 
 func TestPrimeLoop_PickNext_FallsBackToGlobal(t *testing.T) {
-	loop := &primeLoop{} // pool == nil
+	loop := &primeLoop{} // pool == nil → falls back to primes.Seconds
 	got := loop.pickNext()
 	found := false
-	for _, p := range primePool {
+	for _, p := range primes.Seconds {
 		if got == p {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("pickNext returned %s which is not in primePool", got)
+		t.Errorf("pickNext returned %s which is not in primes.Seconds", got)
 	}
 }

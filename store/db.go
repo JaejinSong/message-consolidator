@@ -42,6 +42,11 @@ var (
 )
 
 func InitDB(ctx context.Context, cfg *config.Config) error {
+	// Why: Embedded replica path bypasses the string-based driver open; sync lifecycle is owned by sync.go.
+	if cfg.TursoLocalDBPath != "" {
+		return initEmbeddedReplica(ctx, cfg)
+	}
+
 	var err error
 	driverName, finalURL := GetDBDriverAndDSN(cfg)
 
@@ -71,15 +76,29 @@ func InitDB(ctx context.Context, cfg *config.Config) error {
 	setupConnectionPool(cfg, finalURL)
 	applySQLitePragmas(conn, finalURL)
 
-	if strings.HasPrefix(finalURL, "libsql://") {
-		// Why: Start background reachability heartbeat. Note: with maxIdle=0 this does NOT
-		// keep a warm pool conn — every user request opens its own fresh stream — but the
-		// periodic ping surfaces Turso connectivity loss in logs/WhaTap before users hit it.
-		logger.Infof("[DB] keepalive: starting heartbeat (interval=%v)", cfg.DBKeepAliveInterval)
-		go startKeepAlive(ctx, conn, cfg.DBKeepAliveInterval)
+	return EnsureSchemaAndSeeds(ctx, conn)
+}
+
+// initEmbeddedReplica boots the tursogo embedded replica: Pull → connect → pragma → pool → schema → sync loop.
+func initEmbeddedReplica(ctx context.Context, cfg *config.Config) error {
+	sqlDB, err := InitSyncDB(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("embedded replica: %w", err)
 	}
 
-	return EnsureSchemaAndSeeds(ctx, conn)
+	dsn = cfg.TursoLocalDBPath
+	conn = sqlDB
+
+	applySQLitePragmas(conn, cfg.TursoLocalDBPath)
+	setupConnectionPool(cfg, cfg.TursoLocalDBPath)
+
+	if err := EnsureSchemaAndSeeds(ctx, conn); err != nil {
+		return err
+	}
+
+	logger.Infof("[DB] embedded replica ready, starting sync loop (interval=%q)", cfg.TursoSyncInterval)
+	StartSyncLoop(ctx, cfg.TursoSyncInterval)
+	return nil
 }
 
 // GetDBDriverAndDSN constructs the appropriate driver name and DSN based on configuration.
@@ -104,9 +123,17 @@ func GetDBDriverAndDSN(cfg *config.Config) (string, string) {
 	return driverName, dbURL
 }
 
+// isLocalSQLiteFile returns true for local file paths: file: URIs, absolute paths, and relative paths.
+// Why: tursogo uses absolute paths like /data/local.db which don't have the file: prefix.
+func isLocalSQLiteFile(dsn string) bool {
+	return strings.HasPrefix(dsn, "file:") ||
+		strings.HasPrefix(dsn, "/") ||
+		strings.HasPrefix(dsn, "./")
+}
+
 // applySQLitePragmas enforces WAL mode, synchronous settings, and busy timeout for local file-based databases.
 func applySQLitePragmas(db *sql.DB, dbURL string) {
-	if !strings.HasPrefix(dbURL, "file:") {
+	if !isLocalSQLiteFile(dbURL) {
 		return
 	}
 	// Why: Belt-and-suspenders for busy_timeout. The _pragma DSN param sets it at open,
@@ -203,7 +230,7 @@ func setupConnectionPool(cfg *config.Config, dbURL string) {
 	maxLifetime := 5 * time.Minute
 
 	// Why: Auto-tuning for SQLite if not explicitly overridden via environment.
-	if strings.HasPrefix(dbURL, "file:") && maxOpen == 25 {
+	if isLocalSQLiteFile(dbURL) && maxOpen == 25 {
 		maxOpen = 100
 	}
 
@@ -233,40 +260,6 @@ func setupConnectionPool(cfg *config.Config, dbURL string) {
 	conn.SetConnMaxLifetime(maxLifetime)
 	if maxIdle > 0 {
 		conn.SetConnMaxIdleTime(30 * time.Second)
-	}
-}
-
-// startKeepAlive periodically pings the database to prevent the server or proxy from closing idle connections.
-// Why: [Reliability] Maintains an active connection stream for remote Turso/libsql databases.
-func startKeepAlive(ctx context.Context, db *sql.DB, interval time.Duration) {
-	defer safego.Recover("db-keepalive")
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Infof("[DB] keepalive: stopping background keep-alive")
-			return
-		case <-ticker.C:
-			handleKeepAliveTick(ctx, db)
-		}
-	}
-}
-
-// handleKeepAliveTick encapsulates the ping logic to maintain a maximum nesting depth of 2 in the worker loop.
-// Why: Each tick is wrapped as its own bounded WhaTap transaction (per CLAUDE.md WhaTap policy — `/`
-// prefix so urlutil.NewURL parses it as Path, not Host).
-func handleKeepAliveTick(ctx context.Context, db *sql.DB) {
-	if db == nil {
-		return
-	}
-	traceCtx, _ := trace.Start(ctx, "/Background-Infra-DBKeepAlive")
-	var v int
-	err := db.QueryRowContext(traceCtx, "SELECT 1").Scan(&v)
-	_ = trace.End(traceCtx, err)
-	if err != nil {
-		logger.Warnf("[DB] keepalive: periodic SELECT 1 failed: %v", err)
 	}
 }
 

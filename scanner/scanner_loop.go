@@ -3,6 +3,7 @@ package scanner
 import (
 	"context"
 	"math/rand/v2"
+	"message-consolidator/internal/primes"
 	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"sync"
@@ -12,34 +13,19 @@ import (
 	"github.com/whatap/go-api/trace"
 )
 
-// Why: Prime-second pool diversifies background loop cadence vs 1-minute upstream cron/poller.
-// Extending (e.g. 79s) requires only editing this slice; pickPrime/primeLoop pick up automatically.
-var primePool = []time.Duration{
-	59 * time.Second,
-	61 * time.Second,
-	67 * time.Second,
-	71 * time.Second,
-	73 * time.Second,
-}
-
-func pickPrime() time.Duration {
-	// #nosec G404 -- Scheduling jitter, not security: math/rand/v2 is the right choice.
-	return primePool[rand.IntN(len(primePool))]
-}
-
-// primeLoop drives a single periodic worker. Every tick re-rolls its next interval from primePool;
+// primeLoop drives a single periodic worker. Every tick re-rolls its next interval from the pool;
 // running guard skips overlapping ticks (long scan still in flight).
 type primeLoop struct {
 	name      string
 	traceName string
 	runFn     func(ctx context.Context, wg *sync.WaitGroup)
 	running   atomic.Bool
-	pool []time.Duration // nil → global primePool
+	pool []time.Duration // nil → primes.Seconds
 }
 
 func (l *primeLoop) pickNext() time.Duration {
 	if len(l.pool) == 0 {
-		return pickPrime()
+		return primes.Pick(primes.Seconds)
 	}
 	// #nosec G404 -- jitter only.
 	return l.pool[rand.IntN(len(l.pool))]

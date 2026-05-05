@@ -83,7 +83,6 @@ var overlaySetters = map[string]fieldSetter{
 	"MESSAGE_BATCH_WINDOW":         func(c *Config, r string) { setDurationIfValid(&c.MessageBatchWindow, r) },
 	"DB_MAX_IDLE_CONNS":            func(c *Config, r string) { setIntIfValid(&c.DBMaxIdleConns, r) },
 	"DB_MAX_OPEN_CONNS":            func(c *Config, r string) { setIntIfValid(&c.DBMaxOpenConns, r) },
-	"DB_KEEP_ALIVE_INTERVAL":       func(c *Config, r string) { setKeepAlive(&c.DBKeepAliveInterval, r) },
 	"REMINDER_ENABLED":             func(c *Config, r string) { c.ReminderEnabled = parseBool(r) },
 	"REMINDER_WINDOWS_HOURS":       func(c *Config, r string) { c.ReminderWindowsHours = parseIntCSV(r, []int{24, 1}) },
 	"STALE_THRESHOLD_WORKING_DAYS": func(c *Config, r string) { setIntIfValid(&c.StaleThresholdWorkingDays, r) },
@@ -103,17 +102,6 @@ func setIntIfValid(target *int, raw string) {
 func setDurationIfValid(target *time.Duration, raw string) {
 	if d, err := time.ParseDuration(raw); err == nil {
 		*target = d
-	}
-}
-
-// Why: bare integer means seconds (legacy compatibility); duration string takes precedence.
-func setKeepAlive(target *time.Duration, raw string) {
-	if d, err := time.ParseDuration(raw); err == nil {
-		*target = d
-		return
-	}
-	if n, err := strconv.Atoi(raw); err == nil {
-		*target = time.Duration(n) * time.Second
 	}
 }
 

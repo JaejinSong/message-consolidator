@@ -207,8 +207,9 @@ func gracefulShutdown(srv *http.Server) {
 		logger.Errorf("[SHUTDOWN] server shutdown error: %v", err)
 	}
 
+	logger.Infof("[SHUTDOWN] 4/4 Closing database connections...")
+	store.FlushAndClose(context.Background())
 	if db := store.GetDB(); db != nil {
-		logger.Infof("[SHUTDOWN] 4/4 Closing database connections...")
 		db.Close()
 	}
 
