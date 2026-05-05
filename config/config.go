@@ -23,7 +23,6 @@ type Config struct {
 	TursoToken                  string
 	TursoSyncURL                string
 	TursoSyncInterval           string
-	TursoLocalDBPath            string
 	GeminiAnalysisModel         string
 	GeminiTranslationModel      string
 	LogLevel                    string
@@ -38,6 +37,7 @@ type Config struct {
 	MessageBatchWindow          time.Duration
 	DBMaxIdleConns              int
 	DBMaxOpenConns              int
+	DBKeepAliveInterval         time.Duration
 	ReminderEnabled             bool
 	ReminderWindowsHours        []int
 	DailyDigestEnabled          bool
@@ -80,9 +80,10 @@ func LoadConfig() *Config {
 		AutoArchiveDays:        envIntFirst([]string{"AUTO_ARCHIVE_DAYS", "ARCHIVE_DAYS"}, 7),
 		InternalScanSecret:     os.Getenv("INTERNAL_SCAN_SECRET"),
 		MessageBatchWindow:     envDuration("MESSAGE_BATCH_WINDOW", 5*time.Minute),
-		TursoLocalDBPath:       os.Getenv("TURSO_LOCAL_DB_PATH"),
 		DBMaxIdleConns:         envInt("DB_MAX_IDLE_CONNS", 1),
 		DBMaxOpenConns:         envInt("DB_MAX_OPEN_CONNS", 25),
+		// Why: Turso server-side closes idle libsql streams after 10s; 7s leaves 3s margin for jitter/GC.
+		DBKeepAliveInterval:         envDurationOrSeconds("DB_KEEP_ALIVE_INTERVAL", 7*time.Second),
 		ReminderEnabled:             parseBoolEnv("REMINDER_ENABLED", false),
 		ReminderWindowsHours:        parseIntCSV(os.Getenv("REMINDER_WINDOWS_HOURS"), []int{24, 1}),
 		DailyDigestEnabled:          parseBoolEnv("DAILY_DIGEST_ENABLED", false),
@@ -150,6 +151,21 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 	}
 	if d, err := time.ParseDuration(v); err == nil {
 		return d
+	}
+	return fallback
+}
+
+// Why: DB_KEEP_ALIVE_INTERVAL accepts either Go duration ("8s") or bare seconds ("8") for ops convenience.
+func envDurationOrSeconds(key string, fallback time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	if d, err := time.ParseDuration(v); err == nil {
+		return d
+	}
+	if sec, err := strconv.Atoi(v); err == nil {
+		return time.Duration(sec) * time.Second
 	}
 	return fallback
 }

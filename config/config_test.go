@@ -92,6 +92,29 @@ func TestEnvDuration(t *testing.T) {
 	}
 }
 
+func TestEnvDurationOrSeconds(t *testing.T) {
+	tests := []struct {
+		name, key, val string
+		fallback, want time.Duration
+	}{
+		{"not set returns fallback", "TEST_EDOS_A", "", 7 * time.Second, 7 * time.Second},
+		{"go duration string", "TEST_EDOS_B", "15s", 0, 15 * time.Second},
+		{"bare integer (seconds)", "TEST_EDOS_C", "10", 0, 10 * time.Second},
+		{"invalid falls back", "TEST_EDOS_D", "xyz", 3 * time.Second, 3 * time.Second},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.val != "" {
+				t.Setenv(tt.key, tt.val)
+			}
+			if got := envDurationOrSeconds(tt.key, tt.fallback); got != tt.want {
+				t.Errorf("envDurationOrSeconds(%q) = %v, want %v", tt.key, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSplitCSV(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -248,6 +271,31 @@ func TestSetDurationIfValid(t *testing.T) {
 	})
 }
 
+func TestSetKeepAlive(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, raw string
+		want      time.Duration
+	}{
+		{"go duration string", "15s", 15 * time.Second},
+		{"bare integer seconds", "10", 10 * time.Second},
+		{"invalid leaves unchanged", "bad", time.Second},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			d := time.Second
+			if tt.raw != "bad" {
+				d = 0
+			}
+			setKeepAlive(&d, tt.raw)
+			if d != tt.want {
+				t.Errorf("setKeepAlive(%q) = %v, want %v", tt.raw, d, tt.want)
+			}
+		})
+	}
+}
 
 func TestApplyOverlay(t *testing.T) {
 	t.Parallel()
