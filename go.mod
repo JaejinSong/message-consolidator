@@ -21,7 +21,6 @@ require (
 	google.golang.org/genai v1.55.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	modernc.org/sqlite v1.50.0
-	turso.tech/database/tursogo v0.5.3
 )
 
 require (
@@ -38,7 +37,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/elliotchance/orderedmap/v3 v3.1.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -78,7 +76,6 @@ require (
 	github.com/tiendc/go-deepcopy v1.7.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.11 // indirect
 	github.com/tklauser/numcpus v0.6.0 // indirect
-	github.com/tursodatabase/turso-go-platform-libs v0.6.0-pre.27 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.33 // indirect
 	github.com/whatap/golib v0.0.38 // indirect
 	github.com/xuri/efp v0.0.1 // indirect

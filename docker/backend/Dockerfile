@@ -31,7 +31,7 @@ RUN mkdir -p /stage/app && mv message-consolidator /stage/app/
 
 # Final stage
 FROM alpine:3.21
-RUN apk --no-cache add ca-certificates tzdata libc6-compat libgcc
+RUN apk --no-cache add ca-certificates tzdata libc6-compat
 
 # Explicitly copy application binary and WhaTap agent to the final stage
 COPY --from=builder /stage/app/ /app/

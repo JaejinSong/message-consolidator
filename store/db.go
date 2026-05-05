@@ -71,14 +71,6 @@ func InitDB(ctx context.Context, cfg *config.Config) error {
 	setupConnectionPool(cfg, finalURL)
 	applySQLitePragmas(conn, finalURL)
 
-	if strings.HasPrefix(finalURL, "libsql://") {
-		// Why: Start background reachability heartbeat. Note: with maxIdle=0 this does NOT
-		// keep a warm pool conn — every user request opens its own fresh stream — but the
-		// periodic ping surfaces Turso connectivity loss in logs/WhaTap before users hit it.
-		logger.Infof("[DB] keepalive: starting heartbeat (interval=%v)", cfg.DBKeepAliveInterval)
-		go startKeepAlive(ctx, conn, cfg.DBKeepAliveInterval)
-	}
-
 	return EnsureSchemaAndSeeds(ctx, conn)
 }
 
@@ -233,40 +225,6 @@ func setupConnectionPool(cfg *config.Config, dbURL string) {
 	conn.SetConnMaxLifetime(maxLifetime)
 	if maxIdle > 0 {
 		conn.SetConnMaxIdleTime(30 * time.Second)
-	}
-}
-
-// startKeepAlive periodically pings the database to prevent the server or proxy from closing idle connections.
-// Why: [Reliability] Maintains an active connection stream for remote Turso/libsql databases.
-func startKeepAlive(ctx context.Context, db *sql.DB, interval time.Duration) {
-	defer safego.Recover("db-keepalive")
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Infof("[DB] keepalive: stopping background keep-alive")
-			return
-		case <-ticker.C:
-			handleKeepAliveTick(ctx, db)
-		}
-	}
-}
-
-// handleKeepAliveTick encapsulates the ping logic to maintain a maximum nesting depth of 2 in the worker loop.
-// Why: Each tick is wrapped as its own bounded WhaTap transaction (per CLAUDE.md WhaTap policy — `/`
-// prefix so urlutil.NewURL parses it as Path, not Host).
-func handleKeepAliveTick(ctx context.Context, db *sql.DB) {
-	if db == nil {
-		return
-	}
-	traceCtx, _ := trace.Start(ctx, "/Background-Infra-DBKeepAlive")
-	var v int
-	err := db.QueryRowContext(traceCtx, "SELECT 1").Scan(&v)
-	_ = trace.End(traceCtx, err)
-	if err != nil {
-		logger.Warnf("[DB] keepalive: periodic SELECT 1 failed: %v", err)
 	}
 }
 

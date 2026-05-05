@@ -40,7 +40,6 @@ services:
       - .env
     environment:
       - DISABLE_STATIC_SERVING=true
-      - TURSO_LOCAL_DB_PATH=/data/local.db
     volumes:
       - ./db_data:/data
     restart: always
