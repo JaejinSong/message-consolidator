@@ -21,7 +21,7 @@ require (
 	google.golang.org/genai v1.55.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	modernc.org/sqlite v1.50.0
-	turso.tech/database/tursogo v0.6.0-pre.27
+	turso.tech/database/tursogo v0.5.3
 )
 
 require (

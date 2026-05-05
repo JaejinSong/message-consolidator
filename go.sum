@@ -151,8 +151,6 @@ github.com/tklauser/numcpus v0.6.0 h1:kebhY2Qt+3U6RNK7UqpYNA+tJ23IBEGKkB7JQBfDYm
 github.com/tklauser/numcpus v0.6.0/go.mod h1:FEZLMke0lhOUG6w2JadTzp0a+Nl8PF/GFkQ5UVIcaL4=
 github.com/tursodatabase/libsql-client-go v0.0.0-20251219100830-236aa1ff8acc h1:lzi/5fg2EfinRlh3v//YyIhnc4tY7BTqazQGwb1ar+0=
 github.com/tursodatabase/libsql-client-go v0.0.0-20251219100830-236aa1ff8acc/go.mod h1:08inkKyguB6CGGssc/JzhmQWwBgFQBgjlYFjxjRh7nU=
-github.com/tursodatabase/turso-go-platform-libs v0.5.3 h1:JvlE+vC2IbyVrxlAVuPoBKvDCQF9hX4c17amhthNqSg=
-github.com/tursodatabase/turso-go-platform-libs v0.5.3/go.mod h1:bo+Lpv5OYOX1gRV9L5DLKMsYxmDs56SkZwnCOLEFcxU=
 github.com/tursodatabase/turso-go-platform-libs v0.6.0-pre.27 h1:yeiLO6XeovXwEH9j2OC/DtCDmtdwUfOMvk3e1DnKFvE=
 github.com/tursodatabase/turso-go-platform-libs v0.6.0-pre.27/go.mod h1:bo+Lpv5OYOX1gRV9L5DLKMsYxmDs56SkZwnCOLEFcxU=
 github.com/vektah/gqlparser/v2 v2.5.33 h1:lRp8aIeNUNbimf/axZd7ETg24q06hBtPaas+TcvI/7E=
@@ -279,5 +277,3 @@ rsc.io/qr v0.2.0 h1:6vBLea5/NRMVTz8V66gipeLycZMl/+UlFmk8DvqQ6WY=
 rsc.io/qr v0.2.0/go.mod h1:IF+uZjkb9fqyeF/4tlBoynqmQxUoPfWEKh921coOuXs=
 turso.tech/database/tursogo v0.5.3 h1:ICh0AtACo8aVxPj/wsqCnT8Erl/WkNYuhy59/L5RDTI=
 turso.tech/database/tursogo v0.5.3/go.mod h1:JjsqX4S3fT1arHjqKuiuGxhJQE+VlYboU5YVqHOjy6s=
-turso.tech/database/tursogo v0.6.0-pre.27 h1:iONYLQlaI4SsLyJkM6lQmwXg5pUQmmZnPx6U+giCON0=
-turso.tech/database/tursogo v0.6.0-pre.27/go.mod h1:JyXVedPECcIEhUHHkcg7jLvn0DoehsEmGCYPM7zQ6YE=
