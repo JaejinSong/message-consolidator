@@ -1,7 +1,7 @@
 -- name: GetActiveSlackThreadsNew :many
 SELECT channel_id, thread_ts, last_reply_ts, last_activity_ts, user_email
 FROM slack_threads
-WHERE status = 'active';
+WHERE status = 'active' AND thread_ts IS NOT NULL AND thread_ts <> '';
 
 -- name: UpsertSlackThread :exec
 INSERT INTO slack_threads (channel_id, thread_ts, last_reply_ts, last_activity_ts, status, user_email)

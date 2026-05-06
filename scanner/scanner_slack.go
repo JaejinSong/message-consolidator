@@ -511,6 +511,11 @@ func processSingleSlackThread(ctx context.Context, sc *channels.SlackClient, t s
 }
 
 func handleThreadTimeout(ctx context.Context, sc *channels.SlackClient, t store.SlackThreadMeta) {
+	if t.ThreadTS == "" {
+		logger.Warnf("[SLACK] handleThreadTimeout: empty ThreadTS channel=%s user=%s, closing without posting", t.ChannelID, t.UserEmail)
+		_ = store.CloseTargetedThread(ctx, t.ChannelID, t.ThreadTS, t.UserEmail)
+		return
+	}
 	msg := "Due to inactivity, this issue has been marked as resolved and monitoring is closed."
 	_, _, _ = sc.GetAPI().PostMessage(t.ChannelID, slack.MsgOptionText(msg, false), slack.MsgOptionTS(t.ThreadTS))
 	_ = store.CloseTargetedThread(ctx, t.ChannelID, t.ThreadTS, t.UserEmail)
@@ -558,8 +563,12 @@ func dispatchThreadCompletionIfMine(ctx context.Context, sc *channels.SlackClien
 
 func updateThreadStatus(ctx context.Context, sc *channels.SlackClient, t store.SlackThreadMeta, res threadScanResult) {
 	if res.isResolved {
-		msg := "This issue has been marked as resolved and monitoring is closed."
-		_, _, _ = sc.GetAPI().PostMessage(t.ChannelID, slack.MsgOptionText(msg, false), slack.MsgOptionTS(t.ThreadTS))
+		if t.ThreadTS == "" {
+			logger.Warnf("[SLACK] updateThreadStatus: empty ThreadTS channel=%s user=%s, skipping PostMessage", t.ChannelID, t.UserEmail)
+		} else {
+			msg := "This issue has been marked as resolved and monitoring is closed."
+			_, _, _ = sc.GetAPI().PostMessage(t.ChannelID, slack.MsgOptionText(msg, false), slack.MsgOptionTS(t.ThreadTS))
+		}
 		_ = store.CloseTargetedThread(ctx, t.ChannelID, t.ThreadTS, t.UserEmail)
 		return
 	}

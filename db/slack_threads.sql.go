@@ -30,7 +30,7 @@ func (q *Queries) CloseSlackThread(ctx context.Context, arg CloseSlackThreadPara
 const getActiveSlackThreadsNew = `-- name: GetActiveSlackThreadsNew :many
 SELECT channel_id, thread_ts, last_reply_ts, last_activity_ts, user_email
 FROM slack_threads
-WHERE status = 'active'
+WHERE status = 'active' AND thread_ts IS NOT NULL AND thread_ts <> ''
 `
 
 type GetActiveSlackThreadsNewRow struct {

@@ -216,6 +216,9 @@ type SlackThreadMeta struct {
 
 // Why: Provides support functions for the targeted Slack thread scanner worker.
 func RegisterTargetedSlackThread(ctx context.Context, channelID, threadTS, lastReplyTS, userEmail string) error {
+	if channelID == "" || threadTS == "" {
+		return fmt.Errorf("RegisterTargetedSlackThread: channelID and threadTS must be non-empty (channel=%s threadTS=%s)", channelID, threadTS)
+	}
 	queries := db.New(GetDB())
 	return queries.UpsertSlackThread(ctx, db.UpsertSlackThreadParams{
 		ChannelID:      nullString(channelID),
