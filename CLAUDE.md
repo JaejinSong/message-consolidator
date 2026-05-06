@@ -80,7 +80,7 @@
 
 글로벌 `delegation` 블록(`~/.claude/CLAUDE.md`) 기준. 프로젝트 고유 제약만 명시:
 
-- **에이전트 파일**: [.claude/agents/implementer.md](.claude/agents/implementer.md) · [.claude/agents/haiku-implementer.md](.claude/agents/haiku-implementer.md)
+- **에이전트 파일**: [~/.claude/agents/implementer.md](~/.claude/agents/implementer.md) · [~/.claude/agents/haiku-implementer.md](~/.claude/agents/haiku-implementer.md) (전역)
 - **simple-implementer 추가 gate**: `db/*.sql.go` · `store/queries/*.sql` 접근 시 즉시 stop (sqlc 생성물)
 - **architecture review 트리거**: Handler→Service→Store 위반·의존 방향 역전 → Opus
 
