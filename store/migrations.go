@@ -13,7 +13,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 5
+const schemaVersion = 6
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -59,6 +59,7 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 		{"telegram_credentials", queries.CreateTelegramCredentialsTable},
 		{"app_settings", queries.CreateAppSettingsTable},
 		{"message_embeddings", queries.CreateMessageEmbeddingsTable},
+		{"task_grants", queries.CreateTaskGrantsTable},
 	} {
 		if err := step.fn(ctx); err != nil {
 			return fmt.Errorf("failed to create %s table: %w", step.name, err)
@@ -141,6 +142,8 @@ func createIndexes(ctx context.Context, q db.DBTX) {
 		"CREATE INDEX IF NOT EXISTS idx_messages_archive_filter ON messages(user_email, is_archived, done, is_deleted)",
 		// message_embeddings: SemanticTopK JOINs by model then message_id.
 		"CREATE INDEX IF NOT EXISTS idx_msg_emb_model_id ON message_embeddings(model, message_id)",
+		"CREATE INDEX IF NOT EXISTS idx_task_grants_grantor ON task_grants(grantor_user_id)",
+		"CREATE INDEX IF NOT EXISTS idx_task_grants_grantee ON task_grants(grantee_user_id)",
 	}
 	for _, ddl := range indexes {
 		_, _ = q.ExecContext(ctx, ddl)

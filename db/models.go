@@ -145,6 +145,13 @@ type SlackThread struct {
 	UserEmail      sql.NullString `json:"user_email"`
 }
 
+type TaskGrant struct {
+	ID            int64        `json:"id"`
+	GrantorUserID int64        `json:"grantor_user_id"`
+	GranteeUserID int64        `json:"grantee_user_id"`
+	CreatedAt     sql.NullTime `json:"created_at"`
+}
+
 type TaskTranslation struct {
 	MessageID          sql.NullInt64  `json:"message_id"`
 	LanguageCode       string         `json:"language_code"`

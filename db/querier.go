@@ -22,6 +22,7 @@ type Querier interface {
 	CreateContactsResolvedView(ctx context.Context) error
 	CreateContactsTable(ctx context.Context) error
 	CreateGmailTokensTable(ctx context.Context) error
+	CreateGrant(ctx context.Context, arg CreateGrantParams) error
 	CreateIdentityMergeCandidatesTable(ctx context.Context) error
 	CreateIdentityMergeHistoryTable(ctx context.Context) error
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (int64, error)
@@ -32,6 +33,7 @@ type Querier interface {
 	CreateReportsTable(ctx context.Context) error
 	CreateScanMetadataTable(ctx context.Context) error
 	CreateSlackThreadsTable(ctx context.Context) error
+	CreateTaskGrantsTable(ctx context.Context) error
 	CreateTaskTranslationsTable(ctx context.Context) error
 	CreateTelegramCredentialsTable(ctx context.Context) error
 	CreateTelegramSessionsTable(ctx context.Context) error
@@ -46,6 +48,7 @@ type Querier interface {
 	DeleteContactMapping(ctx context.Context, arg DeleteContactMappingParams) error
 	DeleteEmbeddingsByModel(ctx context.Context, model string) error
 	DeleteGmailToken(ctx context.Context, userEmail string) error
+	DeleteGrant(ctx context.Context, arg DeleteGrantParams) error
 	DeleteMessages(ctx context.Context, arg DeleteMessagesParams) error
 	DeleteOldReports(ctx context.Context) error
 	DeleteReport(ctx context.Context, arg DeleteReportParams) error
@@ -77,6 +80,7 @@ type Querier interface {
 	GetEarlyBirdCompleted(ctx context.Context, dollar_1 string) (int64, error)
 	GetEmergencyCompleted(ctx context.Context, userEmail sql.NullString) (int64, error)
 	GetGmailToken(ctx context.Context, userEmail string) (string, error)
+	GetGrant(ctx context.Context, arg GetGrantParams) (TaskGrant, error)
 	GetHourlyActivity(ctx context.Context, arg GetHourlyActivityParams) ([]GetHourlyActivityRow, error)
 	GetIncompleteByThreadID(ctx context.Context, arg GetIncompleteByThreadIDParams) ([]GetIncompleteByThreadIDRow, error)
 	GetLatestThreadAssignee(ctx context.Context, arg GetLatestThreadAssigneeParams) (string, error)
@@ -135,6 +139,8 @@ type Querier interface {
 	IsSourceTSProcessed(ctx context.Context, arg IsSourceTSProcessedParams) (int64, error)
 	ListAdminUsers(ctx context.Context) ([]User, error)
 	ListAppSettings(ctx context.Context) ([]AppSetting, error)
+	ListGranteesOf(ctx context.Context, grantorUserID int64) ([]User, error)
+	ListGrantorsFor(ctx context.Context, granteeUserID int64) ([]User, error)
 	ListMissingEmbeddingsForUser(ctx context.Context, arg ListMissingEmbeddingsForUserParams) ([]ListMissingEmbeddingsForUserRow, error)
 	ListPendingMe(ctx context.Context, arg ListPendingMeParams) ([]ListPendingMeRow, error)
 	ListPendingOthers(ctx context.Context, arg ListPendingOthersParams) ([]ListPendingOthersRow, error)

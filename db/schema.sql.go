@@ -324,6 +324,21 @@ func (q *Queries) CreateSlackThreadsTable(ctx context.Context) error {
 	return err
 }
 
+const createTaskGrantsTable = `-- name: CreateTaskGrantsTable :exec
+CREATE TABLE IF NOT EXISTS task_grants (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    grantor_user_id INTEGER NOT NULL REFERENCES users(id),
+    grantee_user_id INTEGER NOT NULL REFERENCES users(id),
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(grantor_user_id, grantee_user_id)
+)
+`
+
+func (q *Queries) CreateTaskGrantsTable(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, createTaskGrantsTable)
+	return err
+}
+
 const createTaskTranslationsTable = `-- name: CreateTaskTranslationsTable :exec
 CREATE TABLE IF NOT EXISTS task_translations (
     message_id INTEGER REFERENCES messages(id) ON DELETE CASCADE,

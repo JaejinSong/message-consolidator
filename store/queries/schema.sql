@@ -297,3 +297,12 @@ SELECT
 FROM messages m
 LEFT JOIN v_contacts_resolved cr_req ON m.user_email = cr_req.tenant_email AND m.requester = cr_req.original_canonical_id
 LEFT JOIN v_contacts_resolved cr_asg ON m.user_email = cr_asg.tenant_email AND m.assignee = cr_asg.original_canonical_id;
+
+-- name: CreateTaskGrantsTable :exec
+CREATE TABLE IF NOT EXISTS task_grants (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    grantor_user_id INTEGER NOT NULL REFERENCES users(id),
+    grantee_user_id INTEGER NOT NULL REFERENCES users(id),
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(grantor_user_id, grantee_user_id)
+);

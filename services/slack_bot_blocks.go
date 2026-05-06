@@ -24,22 +24,32 @@ const (
 // BuildTaskListBlocks renders a paginated Block Kit list of active tasks for DM display.
 // Why: Pure function (no DB / no SDK calls) so snapshot tests can pin the JSON shape.
 // `total` is the unpaged count — needed to decide whether the footer page button shows.
-func BuildTaskListBlocks(tasks []store.ConsolidatedMessage, page, pageSize, total int) ([]slack.Block, string) {
+// `ownerName` non-empty signals a delegated view: header shows the owner and done buttons are hidden.
+func BuildTaskListBlocks(tasks []store.ConsolidatedMessage, page, pageSize, total int, ownerName string) ([]slack.Block, string) {
 	if pageSize <= 0 {
 		pageSize = SlackBotPageSize
 	}
 	blocks := make([]slack.Block, 0, len(tasks)*2+2)
 
 	if len(tasks) == 0 {
+		emptyText := ":white_check_mark: 활성 task가 없습니다."
+		if ownerName != "" {
+			emptyText = fmt.Sprintf(":white_check_mark: %s의 활성 task가 없습니다.", ownerName)
+		}
 		return []slack.Block{
 			slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, ":white_check_mark: 활성 task가 없습니다.", false, false),
+				slack.NewTextBlockObject(slack.MarkdownType, emptyText, false, false),
 				nil, nil,
 			),
-		}, "활성 task가 없습니다."
+		}, emptyText
 	}
 
-	header := fmt.Sprintf("*활성 task %d건* (page %d)", total, page+1)
+	var header string
+	if ownerName != "" {
+		header = fmt.Sprintf("*%s의 활성 task %d건* (page %d)", ownerName, total, page+1)
+	} else {
+		header = fmt.Sprintf("*활성 task %d건* (page %d)", total, page+1)
+	}
 	blocks = append(blocks,
 		slack.NewSectionBlock(
 			slack.NewTextBlockObject(slack.MarkdownType, header, false, false),
@@ -49,7 +59,11 @@ func BuildTaskListBlocks(tasks []store.ConsolidatedMessage, page, pageSize, tota
 	)
 
 	for _, t := range tasks {
-		blocks = append(blocks, taskRowBlock(t))
+		if ownerName != "" {
+			blocks = append(blocks, taskRowBlockReadOnly(t))
+		} else {
+			blocks = append(blocks, taskRowBlock(t))
+		}
 	}
 
 	if hasNextPage(page, pageSize, total) {
@@ -65,7 +79,12 @@ func BuildTaskListBlocks(tasks []store.ConsolidatedMessage, page, pageSize, tota
 		)
 	}
 
-	fallback := fmt.Sprintf("활성 task %d건", total)
+	var fallback string
+	if ownerName != "" {
+		fallback = fmt.Sprintf("%s의 활성 task %d건", ownerName, total)
+	} else {
+		fallback = fmt.Sprintf("활성 task %d건", total)
+	}
 	return blocks, fallback
 }
 
@@ -98,10 +117,30 @@ func taskRowBlock(t store.ConsolidatedMessage) slack.Block {
 	)
 }
 
+// taskRowBlockReadOnly renders a task row without the done button for delegated views.
+func taskRowBlockReadOnly(t store.ConsolidatedMessage) slack.Block {
+	title := strings.TrimSpace(t.Task)
+	if title == "" {
+		title = "(제목 없음)"
+	}
+	meta := buildTaskMeta(t)
+	body := "*" + slackEscape(title) + "*"
+	if meta != "" {
+		body += "\n" + meta
+	}
+	return slack.NewSectionBlock(
+		slack.NewTextBlockObject(slack.MarkdownType, body, false, false),
+		nil, nil,
+	)
+}
+
 func buildTaskMeta(t store.ConsolidatedMessage) string {
 	parts := make([]string, 0, 5)
 	if t.Source != "" {
 		parts = append(parts, t.Source)
+	}
+	if t.Room != "" {
+		parts = append(parts, "#"+t.Room)
 	}
 	if t.Category != "" {
 		parts = append(parts, t.Category)
