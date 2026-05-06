@@ -183,7 +183,8 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 	cfg := g.buildConfig(0.1, ReportMaxTokens, "", rendered)
 
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, g.client, modelName, genai.Text(""), cfg, 180*time.Second, 2)
+	// Why: empty string Part is rejected by the API as an uninitialized oneof field (INVALID_ARGUMENT).
+	resp, err := generateWithRetry(ctx, g.client, modelName, genai.Text("."), cfg, 180*time.Second, 2)
 	if err != nil {
 		// P1: Surface burned-but-unattributed retry-exhausted calls so the cost dashboard
 		// can flag invisible spend. Gemini does not return UsageMetadata on timeout/cancel.
@@ -231,7 +232,7 @@ func (g *GeminiClient) EvaluateTaskTransition(ctx context.Context, email, parent
 	modelName := g.getEffectiveModel(parsed, g.analysisModel)
 	cfg := g.buildConfig(0.1, 1024, "application/json", rendered)
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, g.client, modelName, genai.Text(""), cfg, 30*time.Second, 2)
+	resp, err := generateWithRetry(ctx, g.client, modelName, genai.Text("."), cfg, 30*time.Second, 2)
 	if err != nil {
 		return TaskTransition{}, err
 	}
@@ -329,7 +330,7 @@ func (g *GeminiClient) GenerateMergedTaskTitle(ctx context.Context, email string
 	cfg := g.buildConfig(0.1, 100, "", rendered)
 
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, g.client, modelName, genai.Text(""), cfg, 10*time.Second, 1)
+	resp, err := generateWithRetry(ctx, g.client, modelName, genai.Text("."), cfg, 10*time.Second, 1)
 	if err != nil {
 		return "", err
 	}
