@@ -163,7 +163,7 @@ func (b *SlackBot) handleGrantCmd(ctx context.Context, user *store.User, dmChann
 	if err := store.CreateGrant(ctx, user.ID, target.ID); err != nil {
 		return fmt.Errorf("create grant %s→%s: %w", user.Email, target.Email, err)
 	}
-	return b.client.SendDM(ctx, dmChannel, fmt.Sprintf("`%s`에게 내 task 조회 권한을 부여했습니다 :white_check_mark:", target.Name))
+	return b.client.SendDM(ctx, dmChannel, fmt.Sprintf("`%s`에게 내 task 조회 권한을 부여했습니다 :white_check_mark:", userDisplayName(target)))
 }
 
 // handleRevokeCmd revokes a previously granted task view permission.
@@ -184,7 +184,7 @@ func (b *SlackBot) handleRevokeCmd(ctx context.Context, user *store.User, dmChan
 	if err := store.RevokeGrant(ctx, user.ID, target.ID); err != nil {
 		return fmt.Errorf("revoke grant %s→%s: %w", user.Email, target.Email, err)
 	}
-	return b.client.SendDM(ctx, dmChannel, fmt.Sprintf("`%s`의 task 조회 권한을 회수했습니다", target.Name))
+	return b.client.SendDM(ctx, dmChannel, fmt.Sprintf("`%s`의 task 조회 권한을 회수했습니다", userDisplayName(target)))
 }
 
 // HandleListTasks fetches the user's active tasks and posts a fresh Block Kit list to channel.
@@ -283,15 +283,43 @@ func (b *SlackBot) resolveUser(ctx context.Context, slackUserID string) (*store.
 // resolveUserByName looks up a user by display name or alias (case-insensitive).
 // Returns (user, "", nil) on unique match, (nil, candidates, errUserAmbiguous) on multiple,
 // (nil, "", errUserNotFound) on no match.
+// stripSlackAutoLink unwraps Slack's auto-formatted links.
+// Why: Slack rich-text converts emails to <mailto:addr|addr> and URLs to <url|text>
+// before delivering the event payload, so raw string comparison fails without stripping.
+func userDisplayName(u *store.User) string {
+	if u.Name != "" {
+		return u.Name
+	}
+	return u.Email
+}
+
+func stripSlackAutoLink(s string) string {
+	if !strings.HasPrefix(s, "<") || !strings.HasSuffix(s, ">") {
+		return s
+	}
+	inner := s[1 : len(s)-1]
+	if strings.HasPrefix(inner, "mailto:") {
+		addr := strings.TrimPrefix(inner, "mailto:")
+		if i := strings.Index(addr, "|"); i >= 0 {
+			addr = addr[:i]
+		}
+		return addr
+	}
+	if i := strings.Index(inner, "|"); i >= 0 {
+		return inner[i+1:]
+	}
+	return inner
+}
+
 func (b *SlackBot) resolveUserByName(ctx context.Context, name string) (*store.User, string, error) {
 	all, err := store.GetAllUsers(ctx)
 	if err != nil {
 		return nil, "", fmt.Errorf("load users: %w", err)
 	}
-	lower := strings.ToLower(name)
+	lower := strings.ToLower(stripSlackAutoLink(name))
 	var matches []store.User
 	for _, u := range all {
-		if strings.ToLower(u.Name) == lower {
+		if strings.ToLower(u.Email) == lower || (u.Name != "" && strings.ToLower(u.Name) == lower) {
 			matches = append(matches, u)
 			continue
 		}
