@@ -462,13 +462,15 @@ export const reportsRenderer = {
     },
 
     renderStalledTasksComponent(data: StalledTaskRow[], i18n: I18nEntry): string {
+        const stripType = (s: string) => s.replace(/\s*[((](내부|외부|Internal|External)[))]$/i, '').trim();
         const rows = data.map(item => `
             <tr>
                 <td class="c-report-table__cell--source">${item.source || '-'}</td>
-                <td><span class="u-font-bold">${item.requester || '-'}</span></td>
-                <td><span class="c-report-badge c-report-badge--stalled">${item.status || 'Stalled'}</span></td>
+                <td><span class="u-font-bold">${stripType(item.requester || '-')}</span></td>
+                <td>${stripType(item.assignee || '-')}</td>
+                <td><span class="c-report-badge c-report-badge--stalled">${item.status || 'STALLED'}</span></td>
                 <td class="c-report-table__cell--days"><span class="c-report-delay-value">${item.days || 0}</span> ${i18n.days || '일'}</td>
-                <td>${item.reason || '-'}</td>
+                <td>${item.task || '-'}</td>
             </tr>
         `).join('');
 
@@ -479,9 +481,10 @@ export const reportsRenderer = {
                         <tr>
                             <th>${i18n.source || '소스'}</th>
                             <th>${i18n.requester || '요청자'}</th>
+                            <th>${i18n.assignee || '할당자'}</th>
                             <th>${i18n.status || '상태'}</th>
                             <th>${i18n.delay || '지연'}</th>
-                            <th>${i18n.rootCause || '원인'}</th>
+                            <th>${i18n.task || 'Task'}</th>
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>

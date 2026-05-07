@@ -16,7 +16,7 @@ Output 1-object JSON array if possible:
 - `subtasks`: granular action items per email section (Updates, Support, Meeting, etc.)
 - `assignee`: `"__CURRENT_USER__"` for {{.CurrentUser}}. If the reply body explicitly designates a third party as the actor (e.g., "clarify with X", "X to review"), use that person's name — not the sender — even when the sender is {{.CurrentUser}}. **Cc-only guard:** if {{.CurrentUser}} appears only on the `C:` line (not `T:`), do NOT output `__CURRENT_USER__`; default to the first `T:` recipient (or sender's intended actor from body).
 - `category`: default 'TASK'
-- Language: Korean input → Korean `task`/`subtasks.task`. Else → English.
+- Language: English only for `task` and `subtasks.task`, regardless of input language.
 - `deadline`: The scheduled event date or action due date. Rules:
   - Output format: `YYYY-MM-DD` (ISO 8601 date only). Empty string `""` if no date found.
   - When multiple dates appear in a thread (e.g., past email headers, vs. actual meeting date), pick the **scheduled future event date** closest to CurrentTime, not past email timestamps.
@@ -25,7 +25,7 @@ Output 1-object JSON array if possible:
 
 [Examples]
 Input: Meeting request for WhaTap automation on April 20th. Also, here is the script guide.
-Output: [{"id": 0, "state": "new", "task": "WhaTap 서비스 재시작 프로세스 자동화 구현을 위한 4월 20일 원격지원", "assignee": "__CURRENT_USER__", "category": "TASK", "subtasks": [{"task": "시스템 데몬 등록 스크립트 가이드 확인", "assignee": "__CURRENT_USER__"}, {"task": "4월 20일 원격지원 세션 참석", "assignee": "__CURRENT_USER__"}]}]
+Output: [{"id": 0, "state": "new", "task": "Remote support session on April 20 for WhaTap service restart automation", "assignee": "__CURRENT_USER__", "category": "TASK", "subtasks": [{"task": "Review system daemon registration script guide", "assignee": "__CURRENT_USER__"}, {"task": "Attend remote support session on April 20", "assignee": "__CURRENT_USER__"}]}]
 ---
 {{if .FewShots}}
 {{range .FewShots}}

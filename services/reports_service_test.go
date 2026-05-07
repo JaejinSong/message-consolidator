@@ -146,8 +146,8 @@ func TestFormatLogLine_CategoryAndEvidence(t *testing.T) {
 		}
 		if strings.Contains(line, "Long evidence task") {
 			if idx := strings.Index(line, "Evidence: "); idx != -1 {
-				if n := len([]rune(line[idx+len("Evidence: "):])); n > 200 {
-					t.Errorf("evidence must be truncated to 200 chars; got %d runes: %s", n, line)
+				if n := len([]rune(line[idx+len("Evidence: "):])); n > 180 {
+					t.Errorf("evidence must be truncated to 180 chars; got %d runes: %s", n, line)
 				}
 			}
 		}
@@ -548,8 +548,8 @@ func TestReportsService_GenerateReport_MultiLanguage(t *testing.T) {
 	_, _ = store.GetDB().Exec("INSERT INTO contacts (tenant_email, canonical_id, display_name, contact_type) VALUES (?, ?, ?, ?)",
 		tenantEmail, "jj", "JJ", "internal")
 
-	_, err = store.GetDB().Exec("INSERT INTO messages (user_email, source, task, created_at, requester, assignee) VALUES (?, ?, ?, ?, ?, ?)",
-		tenantEmail, "slack", "Task 1", fixedTime, "alice", "jj")
+	_, err = store.GetDB().Exec("INSERT INTO messages (user_email, source, task, created_at, updated_at, requester, assignee) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		tenantEmail, "slack", "Task 1", fixedTime, fixedTime, "alice", "jj")
 	if err != nil {
 		t.Fatalf("Failed to seed message: %v", err)
 	}
@@ -749,8 +749,8 @@ func TestReportsService_CacheHit(t *testing.T) {
 	_, _ = store.GetDB().Exec("INSERT INTO contacts (tenant_email, canonical_id, display_name, contact_type) VALUES (?, ?, ?, ?)",
 		email, "jj", "JJ", "internal")
 
-	_, _ = store.GetDB().Exec("INSERT INTO messages (user_email, source, task, created_at, requester, assignee) VALUES (?, ?, ?, ?, ?, ?)",
-		email, "slack", "Task 1", fixedTime, "alice", "jj")
+	_, _ = store.GetDB().Exec("INSERT INTO messages (user_email, source, task, created_at, updated_at, requester, assignee) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		email, "slack", "Task 1", fixedTime, fixedTime, "alice", "jj")
 
 	// 1. First Call: Should hit AI
 	ctx := context.Background()
@@ -797,8 +797,8 @@ func TestReportsService_GenerateReport_OnlyRequestedLanguage(t *testing.T) {
 	_, _ = store.GetDB().Exec("INSERT INTO contacts (tenant_email, canonical_id, display_name, contact_type) VALUES (?, ?, ?, ?)",
 		email, "jj", "JJ", "internal")
 
-	_, _ = store.GetDB().Exec("INSERT INTO messages (user_email, source, task, created_at, requester, assignee) VALUES (?, ?, ?, ?, ?, ?)",
-		email, "slack", "Task 1", fixedTime, "alice", "jj")
+	_, _ = store.GetDB().Exec("INSERT INTO messages (user_email, source, task, created_at, updated_at, requester, assignee) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		email, "slack", "Task 1", fixedTime, fixedTime, "alice", "jj")
 
 	ctx := context.Background()
 	report, err := svc.GenerateReport(ctx, email, start, start, "ko", nil, nil)

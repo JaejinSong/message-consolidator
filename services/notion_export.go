@@ -10,6 +10,7 @@ import (
 	"io"
 	"message-consolidator/internal/whataphttpx"
 	"net/http"
+	"sort"
 	"strings"
 )
 
@@ -193,6 +194,49 @@ func codeBlockToNotion(lang string, lines []string) []map[string]any {
 	}}
 }
 
+// knownSchemas maps a required key signature to its desired display order.
+// First matching schema wins; fallback is alphabetical sort.
+var knownSchemas = []struct {
+	signature []string
+	order     []string
+}{
+	{
+		signature: []string{"source", "task", "requester"},
+		order:     []string{"source", "requester", "assignee", "days", "task"},
+	},
+	{
+		signature: []string{"customer", "count", "summary"},
+		order:     []string{"customer", "count", "summary"},
+	},
+}
+
+func orderedKeys(row map[string]any) []string {
+	for _, schema := range knownSchemas {
+		match := true
+		for _, k := range schema.signature {
+			if _, ok := row[k]; !ok {
+				match = false
+				break
+			}
+		}
+		if match {
+			result := make([]string, 0, len(schema.order))
+			for _, k := range schema.order {
+				if _, ok := row[k]; ok {
+					result = append(result, k)
+				}
+			}
+			return result
+		}
+	}
+	keys := make([]string, 0, len(row))
+	for k := range row {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 // jsonArrayToTable converts a JSON array of flat objects into a Notion table block.
 func jsonArrayToTable(raw string) map[string]any {
 	var rows []map[string]any
@@ -200,11 +244,7 @@ func jsonArrayToTable(raw string) map[string]any {
 		return nil
 	}
 
-	// Collect ordered keys from first row.
-	keys := make([]string, 0)
-	for k := range rows[0] {
-		keys = append(keys, k)
-	}
+	keys := orderedKeys(rows[0])
 
 	tableRows := []map[string]any{tableRow(keys)} // header row
 	for _, row := range rows {

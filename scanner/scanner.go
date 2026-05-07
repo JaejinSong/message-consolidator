@@ -436,12 +436,14 @@ func WireDailyDigest(reportsSvc *services.ReportsService) {
 		logger.Warnf("[DIGEST] recipient emails not set")
 		return
 	}
-	digestSvc = services.NewDailyDigestService(slackClient, reportsSvc, services.DailyDigestConfig{
+	svc := services.NewDailyDigestService(slackClient, reportsSvc, services.DailyDigestConfig{
 		RecipientEmails: cfg.DailyDigestRecipientEmails,
 		Hour:            cfg.DailyDigestHour,
 		Timezone:        cfg.DailyDigestTimezone,
 		Language:        cfg.DailyDigestLanguage,
 	})
+	svc.Notion = services.NewNotionExporter(cfg.NotionToken, cfg.NotionReportPageID)
+	digestSvc = svc
 }
 
 // Why: WeeklyReportService needs reportsSvc which is built post-Init in main.go's initAIServices.

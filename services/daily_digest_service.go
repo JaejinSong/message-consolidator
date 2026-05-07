@@ -33,6 +33,7 @@ type DailyDigestService struct {
 	Slack   DailyDigestSlack
 	Reports *ReportsService
 	Config  DailyDigestConfig
+	Notion  *NotionExporter
 	nowFn   func() time.Time
 }
 
@@ -85,6 +86,13 @@ func (s *DailyDigestService) Dispatch(ctx context.Context) error {
 		}
 		if err := s.Slack.SendDMBlocks(ctx, slackID, blocks, fallback); err != nil {
 			logger.Warnf("[DIGEST] send dm to %s: %v", email, err)
+		}
+	}
+
+	if s.Notion != nil && s.Notion.Enabled() {
+		title := fmt.Sprintf("Daily Report %s", end)
+		if _, err := s.Notion.ExportReport(ctx, title, completed.ReportSummary); err != nil {
+			logger.Warnf("[DIGEST] notion export: %v", err)
 		}
 	}
 	return nil
@@ -176,31 +184,58 @@ func appendJSONArrayBlocks(blocks []slack.Block, raw string) []slack.Block {
 }
 
 func appendActivityTable(blocks []slack.Block, items []map[string]any) []slack.Block {
-	var sb strings.Builder
-	sb.WriteString("| Customer | Count | Summary |\n")
-	sb.WriteString("|----------|-------|----------|\n")
+	elems := make([]slack.RichTextElement, 0, len(items))
 	for _, item := range items {
 		customer := stringifyJSONValue(item["customer"])
 		count := stringifyJSONValue(item["count"])
 		summary := stringifyJSONValue(item["summary"])
-		sb.WriteString(fmt.Sprintf("| %s | %s | %s |\n", customer, count, summary))
+		line := slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement(customer, &slack.RichTextSectionTextStyle{Bold: true}),
+			slack.NewRichTextSectionTextElement("  "+count+"건  ", nil),
+			slack.NewRichTextSectionTextElement(summary, nil),
+		)
+		elems = append(elems, line)
 	}
-	return appendMrkdwnChunks(blocks, sb.String())
+	return append(blocks, slack.NewRichTextBlock("", slack.NewRichTextList(slack.RTEListBullet, 0, elems...)))
+}
+
+func stalledTaskCell(text string, bold bool) *slack.RichTextBlock {
+	style := (*slack.RichTextSectionTextStyle)(nil)
+	if bold {
+		style = &slack.RichTextSectionTextStyle{Bold: true}
+	}
+	return &slack.RichTextBlock{
+		Type: slack.MBTRichText,
+		Elements: []slack.RichTextElement{
+			slack.NewRichTextSection(slack.NewRichTextSectionTextElement(text, style)),
+		},
+	}
 }
 
 func appendStalledTasksTable(blocks []slack.Block, items []map[string]any) []slack.Block {
-	var sb strings.Builder
-	sb.WriteString("| Source | Task | Requester | Days | Reason |\n")
-	sb.WriteString("|--------|------|-----------|------|--------|\n")
+	headers := []string{"Source", "Requester", "Assignee", "Status", "Days", "Task"}
+	tbl := slack.NewTableBlock("")
+	headerRow := make([]*slack.RichTextBlock, len(headers))
+	for i, h := range headers {
+		headerRow[i] = stalledTaskCell(h, true)
+	}
+	tbl.Rows = append(tbl.Rows, headerRow)
 	for _, item := range items {
 		src := stringifyJSONValue(item["source"])
-		task := stringifyJSONValue(item["task"])
 		req := stringifyJSONValue(item["requester"])
-		days := stringifyJSONValue(item["days"])
-		reason := stringifyJSONValue(item["reason"])
-		sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s일 | %s |\n", src, task, req, days, reason))
+		asg := stringifyJSONValue(item["assignee"])
+		days := stringifyJSONValue(item["days"]) + "일"
+		task := stringifyJSONValue(item["task"])
+		tbl.AddRow(
+			stalledTaskCell(src, false),
+			stalledTaskCell(req, false),
+			stalledTaskCell(asg, false),
+			stalledTaskCell("STALLED", false),
+			stalledTaskCell(days, false),
+			stalledTaskCell(task, false),
+		)
 	}
-	return appendMrkdwnChunks(blocks, sb.String())
+	return append(blocks, tbl)
 }
 
 // Why: short scalars belong in the 2-column fields grid, but anything multi-line or

@@ -640,7 +640,7 @@
 
 .c-report-table-wrapper {
     width: 100%;
-    max-width: 52rem;
+    max-width: 90rem;
     margin: var(--spacing-sm) 0;
     overflow-x: auto;
     border-radius: var(--radius-lg);

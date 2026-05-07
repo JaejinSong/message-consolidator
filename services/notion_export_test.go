@@ -69,6 +69,35 @@ func TestJsonArrayToTable_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestOrderedKeys_StalledTasks(t *testing.T) {
+	// Go map iteration is random; orderedKeys must return deterministic order.
+	row := map[string]any{"task": "t", "source": "s", "requester": "r", "assignee": "a", "days": 5}
+	got := orderedKeys(row)
+	want := []string{"source", "requester", "assignee", "days", "task"}
+	if len(got) != len(want) {
+		t.Fatalf("len = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("keys[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestOrderedKeys_Activity(t *testing.T) {
+	row := map[string]any{"summary": "s", "customer": "c", "count": 3}
+	got := orderedKeys(row)
+	want := []string{"customer", "count", "summary"}
+	if len(got) != len(want) {
+		t.Fatalf("len = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("keys[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
 func TestNotionLang(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

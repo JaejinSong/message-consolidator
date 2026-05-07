@@ -222,9 +222,10 @@ export interface TranslateBatchResult {
 export interface StalledTaskRow {
     source?: string;
     requester?: string;
+    assignee?: string;
     status?: string;
     days?: number;
-    reason?: string;
+    task?: string;
 }
 
 export interface AccountItem {

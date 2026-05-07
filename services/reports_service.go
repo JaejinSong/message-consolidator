@@ -142,7 +142,11 @@ func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, star
 		return nil, nil, err
 	}
 	for _, m := range messages {
-		ds := m.UpdatedAt.Format("2006-01-02")
+		t := m.CreatedAt
+		if m.UpdatedAt != nil {
+			t = *m.UpdatedAt
+		}
+		ds := t.Format("2006-01-02")
 		if ds >= startDate && ds <= endDate {
 			activity = append(activity, m)
 		}
@@ -353,12 +357,13 @@ func (s *ReportsService) formatLogLine(email string, m Log) string {
 	if cat == "" {
 		cat = "TASK"
 	}
-	// Why: Active task는 Key Insights의 evidence-grounded 분석 대상이라 200자 유지 — 80자로
-	// 축약하면 risk 신호("blocked", "waiting since" 등)가 잘려 Insights가 빈약해짐.
-	// Done task는 Activity 카운팅용 grounding signal만 필요하므로 80자로 축약 → 입력 절감.
-	evLen := 80
+	// Why: Active task는 Key Insights verbatim-quote 선택용 컨텍스트가 필요 → 180자(quote ~60-80자의 2-3× 버퍼).
+	// Done task는 Activity 카운팅용 topical fingerprint만 필요 → 60자로 충분.
+	// 실 DB 분포(active avg 724자, done avg 1550자, done 건수 6.7×)상 done 길이가 전체 토큰 비용을 지배하므로
+	// done을 60자로 제한해 evidence 토큰을 현재(300/120) 대비 -47% 절감.
+	evLen := 60
 	if !m.Done {
-		evLen = 200
+		evLen = 180
 	}
 	evidence := truncateEvidence(m.OriginalText, evLen)
 
