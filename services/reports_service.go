@@ -154,8 +154,9 @@ func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, star
 	if done == nil || !*done {
 		doneFalse := false
 		threshold := store.GetStaleThresholdWorkingDays()
-		cutoff := store.GetWorkingDaysAgo(threshold, time.Now())
-		stalledMsgs, _ := store.GetMessagesForReport(ctx, email, cutoff, source, &doneFalse)
+		// Why: zero time = no lower bound so tasks older than the threshold are fetched;
+		// stale filter (WorkingDaysSince >= threshold) is applied in Go below.
+		stalledMsgs, _ := store.GetMessagesForReport(ctx, email, time.Time{}, source, &doneFalse)
 		for _, m := range stalledMsgs {
 			// Skip tasks already captured in the activity window.
 			if ds := m.CreatedAt.Format("2006-01-02"); ds >= startDate {
