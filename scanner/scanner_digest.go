@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"context"
+	"fmt"
 	"message-consolidator/logger"
 	"sync"
 	"sync/atomic"
@@ -18,6 +19,14 @@ var (
 // Why: scanner→services dependency inversion, mirroring reminderDispatcher in reminder_service.go.
 type digestDispatcher interface {
 	Dispatch(ctx context.Context) error
+}
+
+// TriggerDigest calls Dispatch immediately, bypassing the schedule check.
+func TriggerDigest(ctx context.Context) error {
+	if digestSvc == nil {
+		return fmt.Errorf("digest service not initialized")
+	}
+	return digestSvc.Dispatch(ctx)
 }
 
 func runDailyDigest(ctx context.Context, _ *sync.WaitGroup) {

@@ -42,20 +42,19 @@ SELECT
     m.assignee_reason, m.replied_to_id, m.is_context_query, m.constraints, m.metadata, m.source_channels, m.consolidated_context, m.subtasks, m.lifecycle, m.requester_canonical, m.assignee_canonical, m.requester_type, m.assignee_type
 FROM v_messages m
 WHERE m.user_email = ?
-  AND (m.created_at >= datetime(?) OR m.assigned_at >= datetime(?))
+  AND m.updated_at >= datetime(?)
   AND NOT (m.done = 0 AND m.is_deleted = 1)
   AND m.category != 'merged'
-  AND (?4 IS NULL OR m.source = ?4)
-  AND (?5 IS NULL OR m.done = ?5)
+  AND (?3 IS NULL OR m.source = ?3)
+  AND (?4 IS NULL OR m.done = ?4)
 ORDER BY m.created_at DESC
 `
 
 type GetMessagesForReportParams struct {
-	UserEmail  string      `json:"user_email"`
-	Datetime   interface{} `json:"datetime"`
-	Datetime_2 interface{} `json:"datetime_2"`
-	Source     interface{} `json:"source"`
-	Done       interface{} `json:"done"`
+	UserEmail string      `json:"user_email"`
+	Datetime  interface{} `json:"datetime"`
+	Source    interface{} `json:"source"`
+	Done      interface{} `json:"done"`
 }
 
 // Why: (done=0, is_deleted=1) is user-cancel; (done=1, is_deleted=1) is the 30-day
@@ -65,7 +64,6 @@ func (q *Queries) GetMessagesForReport(ctx context.Context, arg GetMessagesForRe
 	rows, err := q.db.QueryContext(ctx, getMessagesForReport,
 		arg.UserEmail,
 		arg.Datetime,
-		arg.Datetime_2,
 		arg.Source,
 		arg.Done,
 	)

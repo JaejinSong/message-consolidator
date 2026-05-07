@@ -204,18 +204,17 @@ func TestAppendJSONArrayBlocks(t *testing.T) {
 			t.Fatal("fallback should append at least one block")
 		}
 	})
-	t.Run("valid array produces section + divider per item", func(t *testing.T) {
+	t.Run("activity array renders as table section (no dividers)", func(t *testing.T) {
 		t.Parallel()
 		raw := `[{"customer":"BNI","count":16},{"customer":"Netciti","count":7}]`
 		got := appendJSONArrayBlocks(nil, raw)
-		var dividers int
+		if len(got) == 0 {
+			t.Fatal("expected at least one block")
+		}
 		for _, b := range got {
 			if _, ok := b.(*slack.DividerBlock); ok {
-				dividers++
+				t.Error("activity table must not contain divider blocks")
 			}
-		}
-		if dividers != 2 {
-			t.Errorf("expected 2 dividers (one per item), got %d", dividers)
 		}
 	})
 	t.Run("long values promoted to body sections", func(t *testing.T) {

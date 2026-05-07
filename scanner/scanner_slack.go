@@ -531,6 +531,9 @@ func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user
 		if res.isResolved && m.Timestamp > res.newLastTS {
 			continue
 		}
+		if m.BotID != "" || m.SubType == "bot_message" {
+			continue
+		}
 		dispatchThreadCompletionIfMine(ctx, sc, user, t, m)
 		// Architecture Separation: bot/empty pre-filters live in the channels layer.
 		cls := classifyMessage(c, user, effAl, types.RawMessage{Sender: m.User, Text: m.Text})

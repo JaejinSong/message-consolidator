@@ -21,6 +21,7 @@ type API struct {
 	Config           *config.Config
 	ScanFunc         func(email string, lang string)
 	FullScanFunc     func()
+	Digest           func(ctx context.Context) error
 	Reports          *services.ReportsService
 	Tasks            *services.TasksService
 	IdentityResolver *ai.IdentityResolver

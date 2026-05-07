@@ -87,6 +87,7 @@ func main() {
 		wg.Wait()
 	}, reportsSvc, tasksSvc, identityResolver, slackBot)
 	api.Embeddings = embeddingSvc
+	api.Digest = scanner.TriggerDigest
 
 	srv := setupApp(ctx, cfg, api)
 

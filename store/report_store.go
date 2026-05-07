@@ -208,9 +208,8 @@ func GetMessagesForReport(ctx context.Context, email string, since time.Time, so
 	// datetime() in SQL gives a deterministic, format-independent compare.
 	sinceStr := since.UTC().Format("2006-01-02 15:04:05")
 	arg := db.GetMessagesForReportParams{
-		UserEmail:  email,
-		Datetime:   sinceStr,
-		Datetime_2: sinceStr,
+		UserEmail: email,
+		Datetime:  sinceStr,
 	}
 	if source != nil {
 		arg.Source = *source

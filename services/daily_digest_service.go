@@ -160,12 +160,47 @@ func appendJSONArrayBlocks(blocks []slack.Block, raw string) []slack.Block {
 	if err := json.Unmarshal([]byte(raw), &items); err != nil || len(items) == 0 {
 		return appendMrkdwnChunks(blocks, "```\n"+strings.TrimSpace(raw)+"\n```")
 	}
+	// Why: stalled tasks carry "days", activity carries "customer" — both render as tables.
+	if _, ok := items[0]["days"]; ok {
+		return appendStalledTasksTable(blocks, items)
+	}
+	if _, ok := items[0]["customer"]; ok {
+		return appendActivityTable(blocks, items)
+	}
 	keyOrder := extractJSONKeyOrder(raw)
 	for _, item := range items {
 		blocks = appendJSONItemBlocks(blocks, item, keyOrder)
 		blocks = append(blocks, slack.NewDividerBlock())
 	}
 	return blocks
+}
+
+func appendActivityTable(blocks []slack.Block, items []map[string]any) []slack.Block {
+	var sb strings.Builder
+	sb.WriteString("| Customer | Count | Summary |\n")
+	sb.WriteString("|----------|-------|----------|\n")
+	for _, item := range items {
+		customer := stringifyJSONValue(item["customer"])
+		count := stringifyJSONValue(item["count"])
+		summary := stringifyJSONValue(item["summary"])
+		sb.WriteString(fmt.Sprintf("| %s | %s | %s |\n", customer, count, summary))
+	}
+	return appendMrkdwnChunks(blocks, sb.String())
+}
+
+func appendStalledTasksTable(blocks []slack.Block, items []map[string]any) []slack.Block {
+	var sb strings.Builder
+	sb.WriteString("| Source | Task | Requester | Days | Reason |\n")
+	sb.WriteString("|--------|------|-----------|------|--------|\n")
+	for _, item := range items {
+		src := stringifyJSONValue(item["source"])
+		task := stringifyJSONValue(item["task"])
+		req := stringifyJSONValue(item["requester"])
+		days := stringifyJSONValue(item["days"])
+		reason := stringifyJSONValue(item["reason"])
+		sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s일 | %s |\n", src, task, req, days, reason))
+	}
+	return appendMrkdwnChunks(blocks, sb.String())
 }
 
 // Why: short scalars belong in the 2-column fields grid, but anything multi-line or

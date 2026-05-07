@@ -142,7 +142,7 @@ func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, star
 		return nil, nil, err
 	}
 	for _, m := range messages {
-		ds := m.CreatedAt.Format("2006-01-02")
+		ds := m.UpdatedAt.Format("2006-01-02")
 		if ds >= startDate && ds <= endDate {
 			activity = append(activity, m)
 		}

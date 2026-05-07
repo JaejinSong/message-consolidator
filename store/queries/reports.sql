@@ -31,7 +31,7 @@ SELECT
     m.assignee_reason, m.replied_to_id, m.is_context_query, m.constraints, m.metadata, m.source_channels, m.consolidated_context, m.subtasks, m.lifecycle, m.requester_canonical, m.assignee_canonical, m.requester_type, m.assignee_type
 FROM v_messages m
 WHERE m.user_email = ?
-  AND (m.created_at >= datetime(?) OR m.assigned_at >= datetime(?))
+  AND m.updated_at >= datetime(?)
   AND NOT (m.done = 0 AND m.is_deleted = 1)
   AND m.category != 'merged'
   AND (sqlc.narg('source') IS NULL OR m.source = sqlc.narg('source'))

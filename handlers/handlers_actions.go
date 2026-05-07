@@ -388,3 +388,19 @@ func (a *API) HandleInvalidateCache(w http.ResponseWriter, r *http.Request) {
 	store.InvalidateCache(email)
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok", "email": email})
 }
+
+func (a *API) HandleInternalDigest(w http.ResponseWriter, r *http.Request) {
+	if !a.authorizeInternalScan(w, r) {
+		return
+	}
+	if a.Digest == nil {
+		respondError(w, http.StatusServiceUnavailable, "digest service not initialized")
+		return
+	}
+	if err := a.Digest(context.Background()); err != nil {
+		logger.Errorf("[DIGEST] internal trigger failed: %v", err)
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
