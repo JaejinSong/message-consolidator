@@ -1,10 +1,13 @@
 ---
 name: report_summary
-version: 2.7.0
+version: 2.8.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
-Generate a professional Executive Report. Each input line carries 5W context in this shape:
+Generate a professional Executive Report. The input is divided into two labelled sections:
+`[Activity Tasks]` — tasks that occurred within the report window (count in Activity).
+`[Stalled Tasks - active items predating window]` — active tasks older than the stale threshold that predate the window (use only for Stalled Tasks rule; do NOT count in Activity).
+Each line in both sections carries 5W context in this shape:
 `- [<status>][<category>] <task> (Room: <project>, From: <requester> (<cat>), To: <assignee> (<cat>), Due: <deadline>) | Evidence: "<snippet>"`
 
 Status `[V]` = done, `[ ]` = active. Each rule below declares its own grounding contract; Key Insights bullets follow per-type contracts in rule 3. Never infer beyond what task title or Evidence explicitly supports.
@@ -40,7 +43,7 @@ Status `[V]` = done, `[ ]` = active. Each rule below declares its own grounding 
    GOOD-C: `- [Cross-source] Canadia Bank POC coordination across biz-global-malaysia, Canadia-Whatap POC, WhaTap_Weefer Batam — "Discuss POC for Canadia Bank (Cambodia)".`
    BAD:    `- [biz-global-tech] Jaejin Song reports verifying every case "isn't scalable" on his end.` (sliced quote — predicate extracted, subject paraphrased, first-person flipped to third-person; quote the full sentence instead)
    BAD:    `- [Slack] The requirement to provide business context indicates a process bottleneck.` (nominalization + fabricated consequent; stay in the speaker's voice)
-4. **Activity**: Count and roll up **every task line** — both `[V]` done and `[ ]` active count equally. Evidence is NOT required for Activity counting; use `task`, `Room`, and `From/To` fields.
+4. **Activity**: Count and roll up **every task line under `[Activity Tasks]`** — both `[V]` done and `[ ]` active count equally. Lines under `[Stalled Tasks - active items predating window]` are excluded from Activity counts. Evidence is NOT required for Activity counting; use `task`, `Room`, and `From/To` fields.
    - **Customer inference**: derive each task's `customer` from the strongest counterparty signal — task description first (e.g. "WhaTap APM Tools POC for Bank BNI" → "Bank BNI"), then a room/channel name that already encodes a counterparty (e.g. "biz-global-malaysia" → "Malaysia Biz", "Canadia-Whatap POC" → "Canadia Bank", "SIMASFIN-POC" → "SIMASFIN").
    - **Fallback bucket**: when neither task nor room yields a real counterparty — generic mailboxes/channels (`Gmail`, `Inbox`, `Sent`, `Drafts`), internal-only DMs, or miscellaneous chat rooms with no customer signal in the task — assign `"customer": "Other Tasks"` and merge them into a single bucket. NEVER emit a channel/source name as a customer value (`"Gmail"`, `"Gmail (전략/운영)"`, `"Slack"`, `"DM"`, `"Inbox"`) — those signal failed inference, not a customer.
    - Output one ```json block: `[{"customer": str, "count": num, "summary": str}]` sorted by count DESC. If no tasks: `[]`.
@@ -51,7 +54,7 @@ Status `[V]` = done, `[ ]` = active. Each rule below declares its own grounding 
    - BAD: `{"customer": "Gmail (전략/운영)", ...}` (channel-only label — failed inference, must merge into "Other Tasks")
    - BAD: `{"customer": "Slack", ...}` (source name as customer — must merge into "Other Tasks")
    - BAD: `{"customer": "...", "summary": "APM agent setup and POC support. Focused on onboarding and initial configuration."}` (generic summary — no actor, no deadline, no specifics)
-5. **Stalled Tasks**: Active (`[ ]`) tasks where the input line carries `Age: Nwd` with `N >= {{.StaleThreshold}}` (working-day cutoff). Optional `[V]` Done tasks are NEVER stalled. Set `days` to the `N` value from the `Age:` field. One ```json block: `[{"source": str, "requester": str, "status": str, "days": num, "reason": str}]`. If none: `"No stalled tasks identified."`
+5. **Stalled Tasks**: Use tasks listed under `[Stalled Tasks - active items predating window]`. These are pre-filtered active tasks older than the stale threshold. `[V]` Done tasks are NEVER stalled. Set `days` from the `Age: Nwd` field (safety net: still require `N >= {{.StaleThreshold}}`). One ```json block: `[{"source": str, "requester": str, "status": str, "days": num, "reason": str}]`. If none: `"No stalled tasks identified."`
 6. Tone: dry, professional, data-driven. English only. 1 bullet = 1 sentence — no paragraphs.
 
 {{if .FewShots}}

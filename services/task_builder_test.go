@@ -314,6 +314,20 @@ func TestResolveAssignee_FirstMentionFallback(t *testing.T) {
 			mentions: []string{"Kamaludin"},
 			want:     "Charlie",
 		},
+		// Why: WA scenario — external partner mentioned first in group chat, current user is not first mention.
+		{
+			name:     "WA group — AI shared + external first mention → first mention wins",
+			aiAssign: "shared",
+			mentions: []string{"sunpho", "Stephen"},
+			want:     "sunpho",
+		},
+		// Why: WA scenario — current user consulted as expert but is first mention, maps to personal via preferredName.
+		{
+			name:     "WA group — AI shared + current user as first mention → personal (expert consulted)",
+			aiAssign: "shared",
+			mentions: []string{"Alice", "sunpho"},
+			want:     "Alice",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

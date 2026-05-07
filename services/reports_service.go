@@ -95,11 +95,16 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, 
 	}
 
 	// 2. Fetch and sanitize
-	filtered, err := s.fetchAndFilterMessages(ctx, email, start, end, source, done)
+	activity, stalled, err := s.fetchAndFilterMessages(ctx, email, start, end, source, done)
 	if err != nil {
 		return nil, err
 	}
-	filtered, _ = s.sanitizeMessages(ctx, email, filtered) // Ignore error, self-healing
+	// Why: Batch-resolve identities in one DB call by sanitizing combined slice, then split back by original lengths.
+	actLen := len(activity)
+	combined := append(append([]Log{}, activity...), stalled...)
+	combined, _ = s.sanitizeMessages(ctx, email, combined) // Ignore error, self-healing
+	activity = combined[:actLen]
+	stalled = combined[actLen:]
 
 	// 3. Create Placeholder
 	report := &store.Report{
@@ -114,7 +119,7 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, 
 
 	// 4. Background Job
 	if s.isTest {
-		s.processAsyncReport(email, start, end, lang, report.ID, filtered) //nolint:contextcheck // Identity resolution chain (Wave 2 I).
+		s.processAsyncReport(email, start, end, lang, report.ID, activity, stalled) //nolint:contextcheck // Identity resolution chain (Wave 2 I).
 		// 💡 Sync update for test: Re-fetch report to ensure all fields (Status, Summary, Translations) are refreshed
 		refreshed, err := store.GetReportByID(ctx, report.ID, email)
 		if err == nil {
@@ -123,33 +128,56 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, 
 	} else {
 		go func() { //nolint:contextcheck // Identity resolution chain (Wave 2 I).
 			defer safego.Recover("async-report")
-			s.processAsyncReport(email, start, end, lang, report.ID, filtered)
+			s.processAsyncReport(email, start, end, lang, report.ID, activity, stalled)
 		}()
 	}
 
 	return report, nil
 }
 
-func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, startDate, endDate string, source *string, done *bool) ([]Log, error) {
+func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, startDate, endDate string, source *string, done *bool) (activity []Log, stalled []Log, err error) {
 	start, _ := time.Parse("2006-01-02", startDate)
 	messages, err := store.GetMessagesForReport(ctx, email, start, source, done)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var filtered []Log
 	for _, m := range messages {
 		ds := m.CreatedAt.Format("2006-01-02")
 		if ds >= startDate && ds <= endDate {
-			filtered = append(filtered, m)
+			activity = append(activity, m)
 		}
 	}
-	if len(filtered) == 0 {
-		return nil, fmt.Errorf("no messages found for %s ~ %s (source: %v, done: %v)", startDate, endDate, source, done)
+
+	// Why: Fetch stalled tasks predating the window separately so they appear in their own
+	// section in the AI prompt — not counted in Activity, only used for Stalled Tasks rule.
+	// Skip when caller requested done-only view — done tasks cannot be stalled.
+	if done == nil || !*done {
+		doneFalse := false
+		threshold := store.GetStaleThresholdWorkingDays()
+		cutoff := store.GetWorkingDaysAgo(threshold, time.Now())
+		stalledMsgs, _ := store.GetMessagesForReport(ctx, email, cutoff, source, &doneFalse)
+		for _, m := range stalledMsgs {
+			// Skip tasks already captured in the activity window.
+			if ds := m.CreatedAt.Format("2006-01-02"); ds >= startDate {
+				continue
+			}
+			base := m.CreatedAt
+			if !m.AssignedAt.IsZero() && m.AssignedAt.After(base) {
+				base = m.AssignedAt
+			}
+			if store.WorkingDaysSince(base, time.Now()) >= threshold {
+				stalled = append(stalled, m)
+			}
+		}
 	}
-	return filtered, nil
+
+	if len(activity) == 0 && len(stalled) == 0 {
+		return nil, nil, fmt.Errorf("no messages found for %s ~ %s (source: %v, done: %v)", startDate, endDate, source, done)
+	}
+	return activity, stalled, nil
 }
 
-func (s *ReportsService) processAsyncReport(email, start, end, lang string, id store.ReportID, logs []Log) {
+func (s *ReportsService) processAsyncReport(email, start, end, lang string, id store.ReportID, activity, stalled []Log) {
 	// Why: trace.Start (not StartWithContext) creates a NEW trace context on a fresh
 	// background ctx — StartWithContext silently skips when no parent trace ctx exists.
 	// Name MUST start with `/` so urlutil.NewURL parses it as Path; without the slash
@@ -158,17 +186,17 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id s
 	var err error
 	defer func() { _ = trace.End(ctx, err) }()
 
-	taskLogs, isTruncated := s.PrepareLogsForAI(email, logs)
+	taskLogs, isTruncated := s.PrepareLogsForAI(email, activity, stalled)
 	if isTruncated {
 		logger.Warnf("[REPORTS] input logs truncated at cutoff (%d bytes): email=%s, total_logs=%d, report_id=%d",
-			s.config.CutoffSize, email, len(logs), id)
+			s.config.CutoffSize, email, len(activity)+len(stalled), id)
 	}
 	summary, err := s.summarizer.Generate(ctx, email, taskLogs, id)
 	if err != nil {
 		s.markFailed(ctx, email, id)
 		return
 	}
-	vizJSON := s.getVisualizationJSON(ctx, email, logs)
+	vizJSON := s.getVisualizationJSON(ctx, email, activity)
 	if err := store.SaveReportTranslation(ctx, id, "en", summary); err != nil {
 		logger.Warnf("[REPORTS] SaveReportTranslation failed for report %d: %v", id, err)
 	}
@@ -246,9 +274,11 @@ func (s *ReportsService) applyResolution(_ context.Context, m *Log, identifierFi
 	}
 }
 
-// PrepareLogsForAI formats logs for AI input, respecting the 8,000 character cutoff.
-func (s *ReportsService) PrepareLogsForAI(email string, rawLogs []Log) (string, bool) {
-	s.sortLogs(rawLogs)
+// PrepareLogsForAI formats activity and stalled logs into two labelled sections for AI input.
+// Activity fills the cutoff budget first; stalled is appended with remaining budget.
+func (s *ReportsService) PrepareLogsForAI(email string, activity, stalled []Log) (string, bool) {
+	s.sortLogs(activity)
+	s.sortLogs(stalled)
 	var sb strings.Builder
 	curr, truncated := 0, false
 	limit := s.config.CutoffSize
@@ -256,7 +286,11 @@ func (s *ReportsService) PrepareLogsForAI(email string, rawLogs []Log) (string, 
 		limit = DefaultReportCutoffSize
 	}
 
-	for _, m := range rawLogs {
+	activityHeader := "[Activity Tasks]\n"
+	sb.WriteString(activityHeader)
+	curr += len(activityHeader)
+
+	for _, m := range activity {
 		line := s.formatLogLine(email, m)
 		if curr+len(line) > limit {
 			truncated = true
@@ -265,6 +299,26 @@ func (s *ReportsService) PrepareLogsForAI(email string, rawLogs []Log) (string, 
 		sb.WriteString(line)
 		curr += len(line)
 	}
+
+	stalledHeader := "[Stalled Tasks - active items predating window]\n"
+	if !truncated {
+		if curr+len(stalledHeader) <= limit {
+			sb.WriteString(stalledHeader)
+			curr += len(stalledHeader)
+			for _, m := range stalled {
+				line := s.formatLogLine(email, m)
+				if curr+len(line) > limit {
+					truncated = true
+					break
+				}
+				sb.WriteString(line)
+				curr += len(line)
+			}
+		} else {
+			truncated = true
+		}
+	}
+
 	return sb.String(), truncated
 }
 

@@ -206,14 +206,16 @@ func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, m
 
 	sender := m.resolveSenderName(email, client, msg.Info)
 	msgText = m.resolveIncomingMentions(email, client, msgText, meta.MentionedIDs)
+	mentionedNames := m.resolveIncomingMentionNames(email, client, meta.MentionedIDs)
 
 	m.bufferMessage(email, msg.Info.Chat, types.RawMessage{
 		ID: msg.Info.ID, Sender: sender, Text: msgText,
 		Timestamp: msg.Info.Timestamp, ReplyToID: meta.ReplyToID,
 		RepliedToUser: meta.RepliedToUser, IsForwarded: meta.IsForwarded,
-		IsFromMe:     msg.Info.IsFromMe,
-		MentionedIDs: meta.MentionedIDs, HasAttachment: meta.HasAttachment,
+		IsFromMe:        msg.Info.IsFromMe,
+		MentionedIDs:    meta.MentionedIDs, HasAttachment: meta.HasAttachment,
 		AttachmentNames: meta.AttachmentNames,
+		MentionedNames:  mentionedNames,
 	})
 
 	logger.Debugf("[WA] event for %s: message from %s (chat: %s): %s", email, sender, msg.Info.Chat, msgText)
@@ -320,6 +322,22 @@ func (m *WAManager) resolveIncomingMentions(email string, client *whatsmeow.Clie
 		result = strings.ReplaceAll(result, placeholder, "@"+resolvedName)
 	}
 	return result
+}
+
+// Why: Collects display names for all mentioned JIDs so callers can store a human-readable list alongside the raw IDs.
+func (m *WAManager) resolveIncomingMentionNames(email string, client *whatsmeow.Client, jids []string) []string {
+	if len(jids) == 0 {
+		return nil
+	}
+	var names []string
+	for _, jidStr := range jids {
+		jid, _ := waTypes.ParseJID(jidStr)
+		name := m.resolveMentionName(email, client, jid, jid.User)
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 // Why: Falls back to whatsmeow contact metadata in priority order (full → push → business) and persists asynchronously so the next mention skips the API hop.

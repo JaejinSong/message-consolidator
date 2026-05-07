@@ -68,7 +68,7 @@ func TestReportsService_TruncatePayload(t *testing.T) {
 		})
 	}
 
-	summary, isTruncated := svc.PrepareLogsForAI("me@example.com", messages)
+	summary, isTruncated := svc.PrepareLogsForAI("me@example.com", messages, nil)
 	// Why: The internal cutoff is strictly 8,000 bytes.
 	if len([]byte(summary)) > DefaultReportCutoffSize {
 		t.Errorf("Summary too long: %d bytes (limit DefaultReportCutoffSize)", len([]byte(summary)))
@@ -105,7 +105,7 @@ func TestReportsService_TruncatePriority(t *testing.T) {
 	}
 
 	// Set limit to only allow about 2-3 lines
-	summary, _ := svc.PrepareLogsForAI("me@example.com", messages)
+	summary, _ := svc.PrepareLogsForAI("me@example.com", messages, nil)
 
 	if !strings.Contains(summary, "URGENT OLD TASK") {
 		t.Errorf("Critical incomplete old task was truncated, but it should have been prioritized")
@@ -129,7 +129,7 @@ func TestFormatLogLine_CategoryAndEvidence(t *testing.T) {
 		{Task: "No evidence task", Category: "TASK", Requester: "A", Assignee: "B"},
 		{Task: "Long evidence task", Requester: "A", Assignee: "B", OriginalText: strings.Repeat("x", 300)},
 	}
-	summary, _ := svc.PrepareLogsForAI("test@example.com", messages)
+	summary, _ := svc.PrepareLogsForAI("test@example.com", messages, nil)
 
 	if !strings.Contains(summary, "[QUERY] Support Bun.js runtime") {
 		t.Errorf("expected [QUERY] category marker; got: %s", summary)
@@ -836,4 +836,95 @@ func TestMarkFailed_NoReport(t *testing.T) {
 	svc := &ReportsService{}
 	// Non-existent report ID should not panic — logs warning and returns.
 	svc.markFailed(context.Background(), "u@example.com", store.ReportID(999999))
+}
+
+func TestReportsService_PrepareLogsForAI_SectionHeaders(t *testing.T) {
+	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}}
+	now := time.Now()
+
+	activity := []store.ConsolidatedMessage{
+		{Task: "Window Task", Done: false, CreatedAt: now},
+	}
+	stalled := []store.ConsolidatedMessage{
+		{Task: "Old Stalled Task", Done: false, CreatedAt: now.AddDate(0, 0, -14)},
+	}
+
+	out, truncated := svc.PrepareLogsForAI("me@example.com", activity, stalled)
+
+	if truncated {
+		t.Error("unexpected truncation")
+	}
+	if !strings.Contains(out, "[Activity Tasks]") {
+		t.Errorf("missing [Activity Tasks] header; got: %s", out)
+	}
+	if !strings.Contains(out, "[Stalled Tasks") {
+		t.Errorf("missing [Stalled Tasks] header; got: %s", out)
+	}
+	if !strings.Contains(out, "Window Task") {
+		t.Errorf("activity task missing; got: %s", out)
+	}
+	if !strings.Contains(out, "Old Stalled Task") {
+		t.Errorf("stalled task missing; got: %s", out)
+	}
+	actIdx := strings.Index(out, "[Activity Tasks]")
+	stkIdx := strings.Index(out, "[Stalled Tasks")
+	if actIdx >= stkIdx {
+		t.Errorf("[Activity Tasks] must precede [Stalled Tasks]; positions: act=%d stk=%d", actIdx, stkIdx)
+	}
+}
+
+func TestReportsService_PrepareLogsForAI_StalledNotInActivitySection(t *testing.T) {
+	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}}
+	now := time.Now()
+
+	activity := []store.ConsolidatedMessage{
+		{Task: "Today Task", Done: false, CreatedAt: now},
+	}
+	stalled := []store.ConsolidatedMessage{
+		{Task: "Stale Task From Long Ago", Done: false, CreatedAt: now.AddDate(0, 0, -10)},
+	}
+
+	out, _ := svc.PrepareLogsForAI("me@example.com", activity, stalled)
+
+	lines := strings.Split(out, "\n")
+	inActivity := false
+	for _, line := range lines {
+		if strings.HasPrefix(line, "[Activity Tasks]") {
+			inActivity = true
+			continue
+		}
+		if strings.HasPrefix(line, "[Stalled Tasks") {
+			inActivity = false
+			continue
+		}
+		if inActivity && strings.Contains(line, "Stale Task From Long Ago") {
+			t.Errorf("stalled task must not appear under [Activity Tasks] section")
+		}
+	}
+}
+
+func TestReportsService_PrepareLogsForAI_StalledCutoffPriority(t *testing.T) {
+	svc := &ReportsService{config: ReportConfig{CutoffSize: 300}}
+	now := time.Now()
+
+	var activity []store.ConsolidatedMessage
+	for i := 0; i < 10; i++ {
+		activity = append(activity, store.ConsolidatedMessage{
+			Task:      "Activity Task " + strings.Repeat("a", 50),
+			Done:      false,
+			CreatedAt: now,
+		})
+	}
+	stalled := []store.ConsolidatedMessage{
+		{Task: "STALLED MUST NOT APPEAR", Done: false, CreatedAt: now.AddDate(0, 0, -10)},
+	}
+
+	out, truncated := svc.PrepareLogsForAI("me@example.com", activity, stalled)
+
+	if !truncated {
+		t.Error("expected truncation with small cutoff")
+	}
+	if strings.Contains(out, "STALLED MUST NOT APPEAR") {
+		t.Error("stalled task appeared when activity already exhausted cutoff budget")
+	}
 }

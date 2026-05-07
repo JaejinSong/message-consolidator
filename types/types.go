@@ -39,6 +39,7 @@ type RawMessage struct {
 	IsImportant     bool     `json:"is_important"`
 	Reactions       []string `json:"reactions"`
 	MentionedIDs    []string `json:"mentioned_ids"`
+	MentionedNames  []string `json:"mentioned_names"` // Why: Pre-resolved display names from MentionedIDs; enables pickFirstMentionAssignee fallback without re-querying the channel API.
 }
 
 // EnrichedMessage represents a unified message model for task analysis.
