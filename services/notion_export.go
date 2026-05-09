@@ -1,5 +1,6 @@
-// any 사유 (파일 전역): Notion REST API DTO는 block 종류(heading/paragraph/code/table/...)별로
-// payload 키와 값 타입이 모두 다른 heterogeneous JSON. 구조체 분기 대신 map[string]any로 직접 빌드.
+// Why (file-wide `any` justification): Notion REST API DTOs are heterogeneous JSON
+// where each block kind (heading/paragraph/code/table/...) has different payload keys
+// and value types; building map[string]any directly is simpler than per-kind structs.
 package services
 
 import (
@@ -355,9 +356,3 @@ func richText(text string) []map[string]any {
 	return parts
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

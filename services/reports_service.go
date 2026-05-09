@@ -357,10 +357,10 @@ func (s *ReportsService) formatLogLine(email string, m Log) string {
 	if cat == "" {
 		cat = "TASK"
 	}
-	// Why: Active task는 Key Insights verbatim-quote 선택용 컨텍스트가 필요 → 180자(quote ~60-80자의 2-3× 버퍼).
-	// Done task는 Activity 카운팅용 topical fingerprint만 필요 → 60자로 충분.
-	// 실 DB 분포(active avg 724자, done avg 1550자, done 건수 6.7×)상 done 길이가 전체 토큰 비용을 지배하므로
-	// done을 60자로 제한해 evidence 토큰을 현재(300/120) 대비 -47% 절감.
+	// Why: active tasks need context for Key Insights verbatim-quote selection (180 chars = 2-3x buffer over a typical 60-80 char quote);
+	// done tasks only need a topical fingerprint for Activity counting, so 60 chars suffice.
+	// In production, done length dominates total token cost (active avg 724ch, done avg 1550ch, done count ~6.7x);
+	// capping done at 60ch reduces evidence tokens by ~47% vs the prior 300/120 split.
 	evLen := 60
 	if !m.Done {
 		evLen = 180

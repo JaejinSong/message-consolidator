@@ -378,7 +378,7 @@ func applyBackfillCandidates(ctx context.Context, email string, candidates []roo
 	return applied
 }
 
-// Why: 별도 함수로 분리 — 동일 룸에 대한 store 조회를 cache miss 분기 가독성 위해 추출.
+// Why: extracted so the cache-miss branch reads cleanly without inlining the store lookup.
 func lookupRoomActor(ctx context.Context, email, room string) (string, bool) {
 	return store.GetRoomDefaultActor(ctx, email, room)
 }
