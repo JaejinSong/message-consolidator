@@ -224,16 +224,12 @@
             <!-- Guide Section -->
             <section id="guideSection" class="hidden">
                 <div class="c-guide">
-                    <aside class="c-guide__sidebar">
-                        <button type="button" class="c-guide__sidebar-btn c-guide__sidebar-btn--active" data-section="getting-started">🚀 Getting Started</button>
-                        <button type="button" class="c-guide__sidebar-btn" data-section="channels">🔗 Connecting Channels</button>
-                        <button type="button" class="c-guide__sidebar-btn" data-section="tasks">✅ Managing Tasks</button>
-                        <button type="button" class="c-guide__sidebar-btn" data-section="reports">📊 Reports & Insights</button>
-                        <button type="button" class="c-guide__sidebar-btn" data-section="faq">❓ FAQ & Privacy</button>
-                    </aside>
+                    <aside class="c-guide__sidebar" data-guide-sidebar role="tablist" aria-orientation="vertical" aria-label="Help sections"></aside>
                     <div class="c-guide__panel">
-                        <div id="guideContent" class="c-guide__content"></div>
+                        <div class="c-guide__topbar" data-guide-search></div>
+                        <div id="guideContent" class="c-guide__content" role="tabpanel" aria-live="polite"></div>
                     </div>
+                    <aside class="c-guide__rail" data-guide-toc></aside>
                 </div>
             </section>
 

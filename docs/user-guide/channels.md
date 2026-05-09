@@ -47,7 +47,8 @@ To disconnect: Gmail card → **Disconnect**.
 4. Scan the QR code shown on screen.
 5. The card shows **Connected** with your device name when done.
 
-> **Note:** The QR code expires in ~1 minute. If it expires, click **Re-scan QR** for a new one.
+> [!NOTE]
+> The QR code expires in ~1 minute. If it expires, click **Re-scan QR** for a new one.
 
 **Monitored:** 1-on-1 chats ✅, Group chats ✅, Broadcast channels ❌
 
@@ -66,6 +67,7 @@ To disconnect: Gmail card → **Disconnect**.
 3. Click **Create application**.
 4. Save your **App ID** (a number) and **App Hash** (32-character string).
 
+> [!IMPORTANT]
 > Keep these credentials private — they are tied to your Telegram account.
 
 ### Step 2 — Connect in the app

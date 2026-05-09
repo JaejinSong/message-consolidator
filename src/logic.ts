@@ -2,6 +2,10 @@ import { I18N_DATA } from './locales';
 import { TimeService } from './utils';
 import { state } from './state';
 import { marked } from 'marked';
+import { calloutExtension } from './guide/callouts';
+
+marked.use({ breaks: true, gfm: true });
+marked.use(calloutExtension);
 
 /**
  * @file logic.ts
@@ -199,13 +203,6 @@ export function getDeadlineBadge(deadline: string | undefined, isDone: boolean, 
  */
 export function parseMarkdown(text: string): string {
     if (!text) return '';
-    
-    // Set options for consistent newline handling
-    marked.use({
-        breaks: true,
-        gfm: true
-    });
-
     return marked.parse(text) as string;
 }
 

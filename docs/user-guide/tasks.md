@@ -11,6 +11,7 @@
 
 Each task row shows: channel, room/thread, task description, requester, assignee, time, and status badges.
 
+> [!TIP]
 > **Stalled / Neglected** badges appear on tasks with no updates for 3+ business days — a signal to follow up.
 
 ---
@@ -29,6 +30,7 @@ Click the action buttons on any task row:
 | **View original** | See the raw source message in a popup |
 | **Open in [channel]** | Jump directly to the message in Slack, Telegram, etc. |
 
+> [!WARNING]
 > **AI errors are normal.** If the requester or assignee was extracted incorrectly, use **Edit** to fix it.
 
 ---

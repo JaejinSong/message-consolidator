@@ -12,6 +12,7 @@ Each message is classified as one of three states:
 | **UPDATE** | A reply or progress update for an existing task |
 | **RESOLVE** | The task is complete — moved to the archive automatically |
 
+> [!NOTE]
 > Your data is private. Every user's tasks and messages are isolated by email — you never see another user's work.
 
 ---

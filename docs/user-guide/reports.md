@@ -27,6 +27,7 @@ Generate an on-demand AI report for any date range:
 3. Click **Generate & Analyze**.
 4. The report is generated asynchronously — it will appear in the report list when ready.
 
+> [!NOTE]
 > If the selected period has a lot of data, some older messages may be skipped due to token limits. A notice will appear in the report if this happens.
 
 **Options inside a report:**
