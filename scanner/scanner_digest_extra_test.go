@@ -1,0 +1,151 @@
+package scanner
+
+import (
+	"context"
+	"errors"
+	"message-consolidator/config"
+	"sync/atomic"
+	"testing"
+	"time"
+)
+
+// fakeErrDispatcher is a dispatcher that always returns the configured error.
+type fakeErrDispatcher struct {
+	calls atomic.Int32
+	err   error
+}
+
+func (f *fakeErrDispatcher) Dispatch(_ context.Context) error {
+	f.calls.Add(1)
+	return f.err
+}
+
+func TestTriggerDigest_NilSvc_ReturnsError(t *testing.T) {
+	orig := digestSvc
+	t.Cleanup(func() { digestSvc = orig })
+
+	digestSvc = nil
+
+	if err := TriggerDigest(context.Background()); err == nil {
+		t.Error("expected error when digestSvc is nil, got nil")
+	}
+}
+
+func TestTriggerDigest_HappyPath_CallsDispatch(t *testing.T) {
+	orig := digestSvc
+	t.Cleanup(func() { digestSvc = orig })
+
+	fake := &fakeErrDispatcher{}
+	digestSvc = fake
+
+	if err := TriggerDigest(context.Background()); err != nil {
+		t.Errorf("TriggerDigest() unexpected error: %v", err)
+	}
+	if fake.calls.Load() != 1 {
+		t.Errorf("Dispatch call count = %d, want 1", fake.calls.Load())
+	}
+}
+
+func TestTriggerDigest_DispatchError_Propagates(t *testing.T) {
+	orig := digestSvc
+	t.Cleanup(func() { digestSvc = orig })
+
+	want := errors.New("dispatch failed")
+	fake := &fakeErrDispatcher{err: want}
+	digestSvc = fake
+
+	if err := TriggerDigest(context.Background()); !errors.Is(err, want) {
+		t.Errorf("TriggerDigest() error = %v, want %v", err, want)
+	}
+	if fake.calls.Load() != 1 {
+		t.Errorf("Dispatch call count = %d, want 1", fake.calls.Load())
+	}
+}
+
+func TestRunDailyDigest_NilSvc_NilCfg_NoDispatch(t *testing.T) {
+	origSvc := digestSvc
+	origCfg := cfg
+	t.Cleanup(func() {
+		digestSvc = origSvc
+		cfg = origCfg
+	})
+
+	digestSvc = nil
+	cfg = nil
+
+	// Should not panic.
+	runDailyDigest(context.Background(), nil)
+}
+
+func TestRunDailyDigest_Sunday_NoDispatch(t *testing.T) {
+	mock := &mockDigestDispatcher{}
+	setupDigestTest(mock, true, 18)
+
+	digestNowFn = func() time.Time {
+		loc, _ := time.LoadLocation("Asia/Seoul")
+		d := time.Date(2026, 5, 3, 18, 0, 0, 0, loc)
+		if d.Weekday() != time.Sunday {
+			panic("test date is not Sunday")
+		}
+		return d
+	}
+	runDailyDigest(context.Background(), nil)
+	if mock.Count() != 0 {
+		t.Errorf("expected 0 dispatches on Sunday, got %d", mock.Count())
+	}
+}
+
+func TestRunDailyDigest_InvalidTimezone_NoDispatch(t *testing.T) {
+	mock := &mockDigestDispatcher{}
+	digestLastSentDate = atomic.Value{}
+	origSvc := digestSvc
+	origCfg := cfg
+	t.Cleanup(func() {
+		digestSvc = origSvc
+		cfg = origCfg
+	})
+
+	digestSvc = mock
+	cfg = &config.Config{
+		DailyDigestEnabled:  true,
+		DailyDigestHour:     18,
+		DailyDigestTimezone: "Invalid/Zone",
+	}
+
+	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 18, 0, 0) }
+	runDailyDigest(context.Background(), nil)
+	if mock.Count() != 0 {
+		t.Errorf("expected 0 dispatches on invalid TZ, got %d", mock.Count())
+	}
+}
+
+func TestRunDailyDigest_DispatchError_NoStoreDateUpdate(t *testing.T) {
+	origSvc := digestSvc
+	origCfg := cfg
+	t.Cleanup(func() {
+		digestSvc = origSvc
+		cfg = origCfg
+		digestNowFn = func() time.Time { return time.Now() }
+	})
+
+	digestLastSentDate = atomic.Value{}
+	fake := &fakeErrDispatcher{err: errors.New("dispatch failed")}
+	digestSvc = fake
+	cfg = &config.Config{
+		DailyDigestEnabled:  true,
+		DailyDigestHour:     18,
+		DailyDigestTimezone: "Asia/Seoul",
+	}
+	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 18, 0, 0) }
+
+	runDailyDigest(context.Background(), nil)
+
+	// Dispatch was called once.
+	if fake.calls.Load() != 1 {
+		t.Errorf("Dispatch call count = %d, want 1", fake.calls.Load())
+	}
+	// On dispatch failure the last-sent date must NOT be updated.
+	if last, _ := digestLastSentDate.Load().(string); last != "" {
+		t.Errorf("digestLastSentDate stored %q on error, want empty", last)
+	}
+}
