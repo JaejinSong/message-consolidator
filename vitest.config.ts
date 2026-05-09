@@ -8,6 +8,21 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     setupFiles: ['./src/tests/setup.ts'],
+    coverage: {
+      provider: 'v8',
+      // Why: `include` glob picks up all matching src files (vitest v4 dropped `all` flag — globbed includes implies it).
+      include: ['src/**/*.ts'],
+      exclude: [
+        'src/**/*.test.ts',
+        'src/**/__tests__/**',
+        'src/tests/**',
+        'src/locales/**',
+        'src/types.ts',
+        'src/main.ts',
+        'src/app.ts',
+      ],
+      reporter: ['text-summary', 'json-summary', 'html'],
+    },
   },
   resolve: {
     alias: {

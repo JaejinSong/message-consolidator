@@ -37,6 +37,8 @@ branch.txt
 verify-fix.js
 notepad
 /scratch/
+coverage/
+.nyc_output/
 /channels/tmp/
 /ai/testdata/prompt_cache/*.txt
 # Why: VCR fixtures are SDK-version-specific and re-recordable via UPDATE_GOLDEN=1.
