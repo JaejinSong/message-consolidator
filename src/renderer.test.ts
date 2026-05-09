@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as renderer from './renderer.ts';
 import { I18N_DATA } from './locales';
+import { state } from './state';
+import type { Message } from './types';
 
 
 describe('renderer.js - Empty State Messages', () => {
@@ -169,5 +171,452 @@ describe('renderer.js - updateServiceStatusUI', () => {
             renderer.updateSlackStatus(true);
             renderer.updateWhatsAppStatus(true);
         }).not.toThrow();
+    });
+});
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function makeMsg(overrides: Partial<Message> & { id: number; task: string }): Message {
+    return {
+        requester: 'Alice',
+        source: 'slack',
+        done: false,
+        ...overrides,
+    } as Message;
+}
+
+const TASK_GRID_HTML = `
+    <div id="receivedTasksList"></div>
+    <div id="delegatedTasksList"></div>
+    <div id="referenceTasksList"></div>
+    <div id="allTasksList"></div>
+    <span id="receivedCount">0</span>
+    <span id="delegatedCount">0</span>
+    <span id="referenceCount">0</span>
+    <span id="allCount">0</span>
+    <input id="taskSearch" type="text" value="" />
+`;
+
+// ─── renderEmptyGrid ────────────────────────────────────────────────────────
+
+describe('renderer.js - renderEmptyGrid', () => {
+    beforeEach(() => {
+        document.body.innerHTML = TASK_GRID_HTML;
+    });
+
+    it('renders plain empty-state markup when isWitty=false', () => {
+        const grid = document.getElementById('receivedTasksList') as HTMLElement;
+        renderer.renderEmptyGrid(grid, false);
+        expect(grid.innerHTML).toContain('empty-state');
+        expect(grid.innerHTML).toContain('📭');
+    });
+
+    it('renders witty variant without crashing when isWitty=true', () => {
+        const grid = document.getElementById('receivedTasksList') as HTMLElement;
+        renderer.renderEmptyGrid(grid, true);
+        expect(grid.innerHTML).toContain('empty-state');
+    });
+
+    it('does not throw when grid is null', () => {
+        expect(() => renderer.renderEmptyGrid(null)).not.toThrow();
+    });
+
+    it('clears previous content before rendering', () => {
+        const grid = document.getElementById('receivedTasksList') as HTMLElement;
+        grid.innerHTML = '<div class="stale">old</div>';
+        renderer.renderEmptyGrid(grid, false);
+        expect(grid.innerHTML).not.toContain('stale');
+    });
+});
+
+// ─── renderMessages — count badges ──────────────────────────────────────────
+
+describe('renderer.js - renderMessages count badges', () => {
+    beforeEach(() => {
+        document.body.innerHTML = TASK_GRID_HTML;
+        state.deadlineFilter = 'all';
+    });
+
+    it('shows correct active counts per category', () => {
+        renderer.renderMessages({
+            inbox:     [makeMsg({ id: 1, task: 'a' }), makeMsg({ id: 2, task: 'b' })],
+            delegated: [makeMsg({ id: 3, task: 'c' })],
+            reference: [],
+        });
+        expect(document.getElementById('receivedCount')?.textContent).toBe('2');
+        expect(document.getElementById('delegatedCount')?.textContent).toBe('1');
+        expect(document.getElementById('referenceCount')?.textContent).toBe('0');
+        expect(document.getElementById('allCount')?.textContent).toBe('3');
+    });
+
+    it('excludes done tasks from active count', () => {
+        renderer.renderMessages({
+            inbox: [
+                makeMsg({ id: 1, task: 'active' }),
+                makeMsg({ id: 2, task: 'done', done: true }),
+            ],
+            delegated: [],
+            reference: [],
+        });
+        expect(document.getElementById('receivedCount')?.textContent).toBe('1');
+    });
+
+    it('shows zero counts when all categories are empty', () => {
+        renderer.renderMessages({ inbox: [], delegated: [], reference: [] });
+        expect(document.getElementById('receivedCount')?.textContent).toBe('0');
+        expect(document.getElementById('allCount')?.textContent).toBe('0');
+    });
+});
+
+// ─── renderMessages — tab content ────────────────────────────────────────────
+
+describe('renderer.js - renderMessages tab content', () => {
+    beforeEach(() => {
+        document.body.innerHTML = TASK_GRID_HTML;
+        state.deadlineFilter = 'all';
+    });
+
+    it('renders inbox into receivedTasksList', () => {
+        renderer.renderMessages({ inbox: [makeMsg({ id: 10, task: 'inbox task' })], delegated: [], reference: [] });
+        expect(document.getElementById('receivedTasksList')?.querySelector('.c-message-card[data-id="10"]')).not.toBeNull();
+    });
+
+    it('renders delegated into delegatedTasksList', () => {
+        renderer.renderMessages({ inbox: [], delegated: [makeMsg({ id: 20, task: 'del task' })], reference: [] });
+        expect(document.getElementById('delegatedTasksList')?.querySelector('.c-message-card[data-id="20"]')).not.toBeNull();
+    });
+
+    it('renders reference into referenceTasksList', () => {
+        renderer.renderMessages({ inbox: [], delegated: [], reference: [makeMsg({ id: 30, task: 'ref task' })] });
+        expect(document.getElementById('referenceTasksList')?.querySelector('.c-message-card[data-id="30"]')).not.toBeNull();
+    });
+
+    it('renders all combined in allTasksList', () => {
+        renderer.renderMessages({
+            inbox:     [makeMsg({ id: 1, task: 'i' })],
+            delegated: [makeMsg({ id: 2, task: 'd' })],
+            reference: [makeMsg({ id: 3, task: 'r' })],
+        });
+        const allGrid = document.getElementById('allTasksList') as HTMLElement;
+        expect(allGrid.querySelector('.c-message-card[data-id="1"]')).not.toBeNull();
+        expect(allGrid.querySelector('.c-message-card[data-id="2"]')).not.toBeNull();
+        expect(allGrid.querySelector('.c-message-card[data-id="3"]')).not.toBeNull();
+    });
+
+    it('shows empty state for tabs with no messages', () => {
+        renderer.renderMessages({ inbox: [makeMsg({ id: 1, task: 'x' })], delegated: [], reference: [] });
+        expect(document.getElementById('delegatedTasksList')?.innerHTML).toContain('empty-state');
+        expect(document.getElementById('referenceTasksList')?.innerHTML).toContain('empty-state');
+    });
+});
+
+// ─── renderMessages — empty state ────────────────────────────────────────────
+
+describe('renderer.js - renderMessages empty state', () => {
+    beforeEach(() => {
+        document.body.innerHTML = TASK_GRID_HTML;
+        state.deadlineFilter = 'all';
+    });
+
+    it('renders empty state for received tab when inbox is empty and no search term', () => {
+        (document.getElementById('taskSearch') as HTMLInputElement).value = '';
+        renderer.renderMessages({ inbox: [], delegated: [], reference: [] });
+        expect(document.getElementById('receivedTasksList')?.innerHTML).toContain('empty-state');
+    });
+});
+
+// ─── renderMessages — re-render idempotence ───────────────────────────────────
+
+describe('renderer.js - renderMessages idempotence', () => {
+    beforeEach(() => {
+        document.body.innerHTML = TASK_GRID_HTML;
+        state.deadlineFilter = 'all';
+    });
+
+    it('does not duplicate cards on second render with same data', () => {
+        const categorized = { inbox: [makeMsg({ id: 99, task: 'once' })], delegated: [], reference: [] };
+        renderer.renderMessages(categorized);
+        renderer.renderMessages(categorized);
+        // Use .c-message-card selector to avoid matching inner inputs that also carry data-id
+        const cards = document.getElementById('receivedTasksList')?.querySelectorAll('.c-message-card[data-id="99"]');
+        expect(cards?.length).toBe(1);
+    });
+});
+
+// ─── renderMessages — skipClientSearch ───────────────────────────────────────
+
+describe('renderer.js - renderMessages skipClientSearch', () => {
+    beforeEach(() => {
+        document.body.innerHTML = TASK_GRID_HTML;
+        state.deadlineFilter = 'all';
+    });
+
+    it('bypasses client-side search when skipClientSearch=true', () => {
+        (document.getElementById('taskSearch') as HTMLInputElement).value = 'xyz-no-match';
+        renderer.renderMessages(
+            { inbox: [makeMsg({ id: 5, task: 'completely different text' })], delegated: [], reference: [] },
+            { skipClientSearch: true },
+        );
+        expect(document.getElementById('receivedTasksList')?.querySelector('.c-message-card[data-id="5"]')).not.toBeNull();
+    });
+
+    it('applies client-side search filter when skipClientSearch not set', () => {
+        (document.getElementById('taskSearch') as HTMLInputElement).value = 'xyz-no-match';
+        renderer.renderMessages(
+            { inbox: [makeMsg({ id: 6, task: 'completely different text' })], delegated: [], reference: [] },
+        );
+        expect(document.getElementById('receivedTasksList')?.querySelector('.c-message-card[data-id="6"]')).toBeNull();
+    });
+});
+
+// ─── renderArchive ────────────────────────────────────────────────────────────
+
+describe('renderer.js - renderArchive', () => {
+    beforeEach(() => {
+        // Why: raw <tbody> as body-direct-child is normalized away by happy-dom; wrap in <table>.
+        document.body.innerHTML = '<table><tbody id="archiveBody"></tbody></table>';
+    });
+
+    it('renders one row per message', () => {
+        renderer.renderArchive([
+            makeMsg({ id: 1, task: 'Task A', source: 'slack' }),
+            makeMsg({ id: 2, task: 'Task B', source: 'gmail' }),
+        ]);
+        expect(document.getElementById('archiveBody')?.querySelectorAll('tr').length).toBe(2);
+    });
+
+    it('renders no-data row when list is empty', () => {
+        renderer.renderArchive([]);
+        expect(document.getElementById('archiveBody')?.innerHTML).toContain('No archived messages');
+    });
+
+    it('does not throw when archiveBody element is absent', () => {
+        document.body.innerHTML = '';
+        expect(() => renderer.renderArchive([makeMsg({ id: 1, task: 't' })])).not.toThrow();
+    });
+
+    it('marks deleted messages with archive-row-deleted class', () => {
+        renderer.renderArchive([makeMsg({ id: 1, task: 'gone', is_deleted: true })]);
+        expect(document.getElementById('archiveBody')?.innerHTML).toContain('archive-row-deleted');
+    });
+
+    it('escapes task text to prevent XSS', () => {
+        renderer.renderArchive([makeMsg({ id: 1, task: '<script>alert(1)</script>' })]);
+        // After DOM parsing, innerHTML may decode entities — verify no executable script element
+        const body = document.getElementById('archiveBody') as HTMLElement;
+        expect(body.querySelectorAll('script').length).toBe(0);
+        // textContent should carry the literal angle-bracket text without executing
+        expect(body.textContent).toContain('<script>');
+    });
+});
+
+// ─── removeTaskNode ───────────────────────────────────────────────────────────
+
+describe('renderer.js - removeTaskNode', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        document.body.innerHTML = `
+            <div id="receivedTasksList">
+                <div class="c-message-card" data-id="7">Task 7</div>
+                <div class="c-message-card" data-id="8">Task 8</div>
+            </div>
+            <span id="receivedCount">2</span>
+            <span id="delegatedCount">0</span>
+            <span id="referenceCount">0</span>
+            <span id="allCount">2</span>
+        `;
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('adds removing class immediately', () => {
+        renderer.removeTaskNode(7);
+        expect((document.querySelector('[data-id="7"]') as HTMLElement).classList.contains('c-message-card--removing')).toBe(true);
+    });
+
+    it('removes card from DOM after 300ms', () => {
+        renderer.removeTaskNode(7);
+        vi.advanceTimersByTime(300);
+        expect(document.querySelector('[data-id="7"]')).toBeNull();
+    });
+
+    it('does not throw when card id is not found', () => {
+        expect(() => renderer.removeTaskNode(999)).not.toThrow();
+    });
+
+    it('shows empty state when last card is removed', () => {
+        document.body.innerHTML = `
+            <div id="receivedTasksList">
+                <div class="c-message-card" data-id="7">Task 7</div>
+            </div>
+            <span id="receivedCount">1</span>
+            <span id="delegatedCount">0</span>
+            <span id="referenceCount">0</span>
+            <span id="allCount">1</span>
+        `;
+        renderer.removeTaskNode(7);
+        vi.advanceTimersByTime(300);
+        expect(document.getElementById('receivedTasksList')?.innerHTML).toContain('empty-state');
+    });
+});
+
+// ─── updateTaskNodeStatus ─────────────────────────────────────────────────────
+
+describe('renderer.js - updateTaskNodeStatus', () => {
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <div class="c-message-card" data-id="5">
+                <button class="toggle-done-btn">✅</button>
+            </div>
+            <span id="receivedCount">0</span>
+            <span id="delegatedCount">0</span>
+            <span id="referenceCount">0</span>
+            <span id="allCount">0</span>
+        `;
+    });
+
+    it('adds done class when done=true', () => {
+        renderer.updateTaskNodeStatus(5, true);
+        expect((document.querySelector('[data-id="5"]') as HTMLElement).classList.contains('c-message-card--done')).toBe(true);
+    });
+
+    it('removes done class when done=false', () => {
+        const card = document.querySelector('[data-id="5"]') as HTMLElement;
+        card.classList.add('c-message-card--done');
+        renderer.updateTaskNodeStatus(5, false);
+        expect(card.classList.contains('c-message-card--done')).toBe(false);
+    });
+
+    it('updates toggle button to ↩️ when done', () => {
+        renderer.updateTaskNodeStatus(5, true);
+        expect((document.querySelector('.toggle-done-btn') as HTMLElement).innerHTML).toBe('↩️');
+    });
+
+    it('updates toggle button to ✅ when not done', () => {
+        renderer.updateTaskNodeStatus(5, false);
+        expect((document.querySelector('.toggle-done-btn') as HTMLElement).innerHTML).toBe('✅');
+    });
+
+    it('does not throw when card not found', () => {
+        expect(() => renderer.updateTaskNodeStatus(9999, true)).not.toThrow();
+    });
+});
+
+// ─── updateSubtaskNodeStatus ──────────────────────────────────────────────────
+
+describe('renderer.js - updateSubtaskNodeStatus', () => {
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <div class="c-message-card" data-id="10">
+                <li class="c-message-card__subtask-item"><span class="c-message-card__subtask-check">•</span></li>
+                <li class="c-message-card__subtask-item"><span class="c-message-card__subtask-check">•</span></li>
+            </div>
+        `;
+    });
+
+    it('adds done class to targeted subtask only', () => {
+        renderer.updateSubtaskNodeStatus(10, 0, true);
+        const items = document.querySelectorAll('.c-message-card__subtask-item');
+        expect(items[0].classList.contains('c-message-card__subtask-item--done')).toBe(true);
+        expect(items[1].classList.contains('c-message-card__subtask-item--done')).toBe(false);
+    });
+
+    it('updates check to ✅ when done', () => {
+        renderer.updateSubtaskNodeStatus(10, 1, true);
+        const checks = document.querySelectorAll('.c-message-card__subtask-check');
+        expect(checks[1].textContent).toBe('✅');
+    });
+
+    it('updates check to • when not done', () => {
+        renderer.updateSubtaskNodeStatus(10, 0, false);
+        expect(document.querySelectorAll('.c-message-card__subtask-check')[0].textContent).toBe('•');
+    });
+
+    it('does not throw when task card is not found', () => {
+        expect(() => renderer.updateSubtaskNodeStatus(9999, 0, true)).not.toThrow();
+    });
+});
+
+// ─── initMessageGridEvents ────────────────────────────────────────────────────
+
+describe('renderer.js - initMessageGridEvents', () => {
+    it('does not throw when grid element does not exist', () => {
+        expect(() => renderer.initMessageGridEvents('nonexistent', {
+            onToggleDone: vi.fn(),
+            onDeleteTask: vi.fn(),
+            onShowOriginal: vi.fn(),
+        })).not.toThrow();
+    });
+
+    it('calls onToggleDone when toggle-done action button is clicked', async () => {
+        document.body.innerHTML = `
+            <div id="evtGrid">
+                <div class="c-message-card" data-id="1">
+                    <button data-action="toggle-done">✅</button>
+                </div>
+            </div>
+        `;
+        const onToggleDone = vi.fn().mockResolvedValue(undefined);
+        renderer.initMessageGridEvents('evtGrid', {
+            onToggleDone,
+            onDeleteTask: vi.fn().mockResolvedValue(undefined),
+            onShowOriginal: vi.fn().mockResolvedValue(undefined),
+        });
+        (document.querySelector('[data-action="toggle-done"]') as HTMLElement).click();
+        await Promise.resolve();
+        expect(onToggleDone).toHaveBeenCalledWith('1', true);
+    });
+
+    it('calls onDeleteTask when delete action button is clicked', async () => {
+        document.body.innerHTML = `
+            <div id="evtGrid2">
+                <div class="c-message-card" data-id="2">
+                    <button data-action="delete">🗑️</button>
+                </div>
+            </div>
+        `;
+        const onDeleteTask = vi.fn().mockResolvedValue(undefined);
+        renderer.initMessageGridEvents('evtGrid2', {
+            onToggleDone: vi.fn().mockResolvedValue(undefined),
+            onDeleteTask,
+            onShowOriginal: vi.fn().mockResolvedValue(undefined),
+        });
+        (document.querySelector('[data-action="delete"]') as HTMLElement).click();
+        await Promise.resolve();
+        expect(onDeleteTask).toHaveBeenCalledWith('2');
+    });
+});
+
+// ─── getVisibleUntranslatedIds ────────────────────────────────────────────────
+
+describe('renderer.js - getVisibleUntranslatedIds', () => {
+    it('returns empty array when no active tab panel exists', () => {
+        document.body.innerHTML = '<div>no panels</div>';
+        expect(renderer.getVisibleUntranslatedIds()).toEqual([]);
+    });
+
+    it('returns empty array when lang is English', () => {
+        state.currentLang = 'en';
+        document.body.innerHTML = `
+            <div class="c-tabs__panel active">
+                <div class="c-message-card" id="task-1"></div>
+            </div>
+        `;
+        expect(renderer.getVisibleUntranslatedIds()).toEqual([]);
+    });
+
+    it('returns id for card needing translation in non-English lang', () => {
+        state.currentLang = 'ko';
+        const msg = makeMsg({ id: 55, task: 'needs translation' });
+        state.messages = { inbox: [msg], delegated: [], reference: [] };
+        document.body.innerHTML = `
+            <div class="c-tabs__panel active">
+                <div class="c-message-card" id="task-55"></div>
+            </div>
+        `;
+        const ids = renderer.getVisibleUntranslatedIds();
+        expect(ids).toContain(55);
     });
 });
