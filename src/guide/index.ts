@@ -41,8 +41,8 @@ function renderRoute(route: GuideRoute): void {
         toc?.rebuild();
         sidebar?.setActive(route.section);
 
-        const panel = document.querySelector<HTMLElement>('.c-guide__panel');
-        if (panel) panel.scrollTop = 0;
+        // Why: page itself scrolls (no inner overflow on content); reset window position.
+        window.scrollTo({ top: 0, behavior: 'auto' });
     }
 
     if (route.heading) {

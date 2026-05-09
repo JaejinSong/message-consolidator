@@ -2,37 +2,40 @@
 
 /* ---------- Layout ---------- */
 
+/* Why: ancestor `.glass-container` has no fixed height, so the page itself scrolls.
+   Sidebar/rail/topbar use position:sticky to stay in view; content flows naturally. */
 .c-guide {
   display: grid;
   grid-template-columns: 12.5rem 1fr 14rem;
+  align-items: start;
   gap: 0;
-  height: 100%;
-  min-height: 0;
 }
 
 .c-guide__sidebar {
-  border-right: var(--border-thin) solid var(--glass-border);
+  position: sticky;
+  top: var(--spacing-lg);
+  align-self: start;
+  max-height: calc(100vh - var(--spacing-3xl));
   overflow-y: auto;
+  border-right: var(--border-thin) solid var(--glass-border);
   padding: var(--spacing-lg) 0;
   min-width: 0;
 }
 
 .c-guide__panel {
-  display: flex;
-  flex-direction: column;
   min-width: 0;
-  min-height: 0;
 }
 
 .c-guide__topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg-color);
   padding: var(--spacing-lg) var(--spacing-3xl) var(--spacing-sm);
   border-bottom: var(--border-thin) solid var(--glass-border);
-  flex-shrink: 0;
 }
 
 .c-guide__content {
-  flex: 1;
-  overflow-y: auto;
   padding: var(--spacing-2xl) var(--spacing-3xl);
   max-width: 48rem;
   width: 100%;
@@ -43,8 +46,12 @@
 }
 
 .c-guide__rail {
-  border-left: var(--border-thin) solid var(--glass-border);
+  position: sticky;
+  top: var(--spacing-lg);
+  align-self: start;
+  max-height: calc(100vh - var(--spacing-3xl));
   overflow-y: auto;
+  border-left: var(--border-thin) solid var(--glass-border);
   padding: var(--spacing-lg) 0;
   min-width: 0;
 }
@@ -233,7 +240,8 @@
 .c-guide__content h3 {
   position: relative;
   color: var(--text-main);
-  scroll-margin-top: var(--spacing-2xl);
+  /* Why: clears the sticky topbar (~3.25rem) when scrollIntoView lands here. */
+  scroll-margin-top: 4.5rem;
 }
 
 .c-guide__content h2 {
