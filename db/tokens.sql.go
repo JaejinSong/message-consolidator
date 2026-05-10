@@ -83,6 +83,7 @@ func (q *Queries) GetMonthlyTokenUsage(ctx context.Context, arg GetMonthlyTokenU
 const getReportTokenUsage = `-- name: GetReportTokenUsage :one
 SELECT COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
        COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+       COALESCE(SUM(thinking_tokens), 0)   AS thinking_tokens,
        COALESCE(SUM(call_count), 0)        AS call_count
 FROM token_usage
 WHERE report_id = ?
@@ -91,15 +92,21 @@ WHERE report_id = ?
 type GetReportTokenUsageRow struct {
 	PromptTokens     interface{} `json:"prompt_tokens"`
 	CompletionTokens interface{} `json:"completion_tokens"`
+	ThinkingTokens   interface{} `json:"thinking_tokens"`
 	CallCount        interface{} `json:"call_count"`
 }
 
-// Cost dashboard: prompt/completion/calls aggregated for a single report. Sums across the
+// Cost dashboard: prompt/completion/thinking/calls aggregated for a single report. Sums across the
 // 3 report-bound steps (ReportSummary/ReportVizData/TranslateReport) plus any future buckets.
 func (q *Queries) GetReportTokenUsage(ctx context.Context, reportID int64) (GetReportTokenUsageRow, error) {
 	row := q.db.QueryRowContext(ctx, getReportTokenUsage, reportID)
 	var i GetReportTokenUsageRow
-	err := row.Scan(&i.PromptTokens, &i.CompletionTokens, &i.CallCount)
+	err := row.Scan(
+		&i.PromptTokens,
+		&i.CompletionTokens,
+		&i.ThinkingTokens,
+		&i.CallCount,
+	)
 	return i, err
 }
 
@@ -107,6 +114,7 @@ const getTokenUsageByModel = `-- name: GetTokenUsageByModel :many
 SELECT model,
        COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
        COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+       COALESCE(SUM(thinking_tokens), 0)   AS thinking_tokens,
        COALESCE(SUM(call_count), 0)        AS call_count
 FROM token_usage
 WHERE user_email = ? AND date >= ? AND date < ?
@@ -124,6 +132,7 @@ type GetTokenUsageByModelRow struct {
 	Model            string      `json:"model"`
 	PromptTokens     interface{} `json:"prompt_tokens"`
 	CompletionTokens interface{} `json:"completion_tokens"`
+	ThinkingTokens   interface{} `json:"thinking_tokens"`
 	CallCount        interface{} `json:"call_count"`
 }
 
@@ -140,6 +149,7 @@ func (q *Queries) GetTokenUsageByModel(ctx context.Context, arg GetTokenUsageByM
 			&i.Model,
 			&i.PromptTokens,
 			&i.CompletionTokens,
+			&i.ThinkingTokens,
 			&i.CallCount,
 		); err != nil {
 			return nil, err
@@ -159,6 +169,7 @@ const getTokenUsageBySource = `-- name: GetTokenUsageBySource :many
 SELECT source,
        COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
        COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+       COALESCE(SUM(thinking_tokens), 0)   AS thinking_tokens,
        COALESCE(SUM(call_count), 0)        AS call_count
 FROM token_usage
 WHERE user_email = ? AND date >= ? AND date < ?
@@ -176,6 +187,7 @@ type GetTokenUsageBySourceRow struct {
 	Source           string      `json:"source"`
 	PromptTokens     interface{} `json:"prompt_tokens"`
 	CompletionTokens interface{} `json:"completion_tokens"`
+	ThinkingTokens   interface{} `json:"thinking_tokens"`
 	CallCount        interface{} `json:"call_count"`
 }
 
@@ -192,6 +204,7 @@ func (q *Queries) GetTokenUsageBySource(ctx context.Context, arg GetTokenUsageBy
 			&i.Source,
 			&i.PromptTokens,
 			&i.CompletionTokens,
+			&i.ThinkingTokens,
 			&i.CallCount,
 		); err != nil {
 			return nil, err
@@ -211,6 +224,7 @@ const getTokenUsageByStep = `-- name: GetTokenUsageByStep :many
 SELECT step,
        COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
        COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+       COALESCE(SUM(thinking_tokens), 0)   AS thinking_tokens,
        COALESCE(SUM(call_count), 0)        AS call_count
 FROM token_usage
 WHERE user_email = ? AND date >= ? AND date < ?
@@ -228,6 +242,7 @@ type GetTokenUsageByStepRow struct {
 	Step             string      `json:"step"`
 	PromptTokens     interface{} `json:"prompt_tokens"`
 	CompletionTokens interface{} `json:"completion_tokens"`
+	ThinkingTokens   interface{} `json:"thinking_tokens"`
 	CallCount        interface{} `json:"call_count"`
 }
 
@@ -245,6 +260,7 @@ func (q *Queries) GetTokenUsageByStep(ctx context.Context, arg GetTokenUsageBySt
 			&i.Step,
 			&i.PromptTokens,
 			&i.CompletionTokens,
+			&i.ThinkingTokens,
 			&i.CallCount,
 		); err != nil {
 			return nil, err
@@ -278,12 +294,13 @@ func (q *Queries) UpsertGmailToken(ctx context.Context, arg UpsertGmailTokenPara
 }
 
 const upsertTokenUsage = `-- name: UpsertTokenUsage :exec
-INSERT INTO token_usage (user_email, date, step, model, source, report_id, prompt_tokens, completion_tokens, total_tokens, call_count, filtered_count)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO token_usage (user_email, date, step, model, source, report_id, prompt_tokens, completion_tokens, thinking_tokens, total_tokens, call_count, filtered_count)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (user_email, date, step, model, source, report_id)
 DO UPDATE SET
     prompt_tokens = token_usage.prompt_tokens + EXCLUDED.prompt_tokens,
     completion_tokens = token_usage.completion_tokens + EXCLUDED.completion_tokens,
+    thinking_tokens = token_usage.thinking_tokens + EXCLUDED.thinking_tokens,
     total_tokens = token_usage.total_tokens + EXCLUDED.total_tokens,
     call_count = token_usage.call_count + EXCLUDED.call_count,
     filtered_count = token_usage.filtered_count + EXCLUDED.filtered_count
@@ -298,6 +315,7 @@ type UpsertTokenUsageParams struct {
 	ReportID         int64         `json:"report_id"`
 	PromptTokens     sql.NullInt64 `json:"prompt_tokens"`
 	CompletionTokens sql.NullInt64 `json:"completion_tokens"`
+	ThinkingTokens   sql.NullInt64 `json:"thinking_tokens"`
 	TotalTokens      sql.NullInt64 `json:"total_tokens"`
 	CallCount        sql.NullInt64 `json:"call_count"`
 	FilteredCount    sql.NullInt64 `json:"filtered_count"`
@@ -313,6 +331,7 @@ func (q *Queries) UpsertTokenUsage(ctx context.Context, arg UpsertTokenUsagePara
 		arg.ReportID,
 		arg.PromptTokens,
 		arg.CompletionTokens,
+		arg.ThinkingTokens,
 		arg.TotalTokens,
 		arg.CallCount,
 		arg.FilteredCount,

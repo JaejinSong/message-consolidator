@@ -235,6 +235,7 @@ CREATE TABLE IF NOT EXISTS token_usage (
     report_id INTEGER NOT NULL DEFAULT 0,
     prompt_tokens INT DEFAULT 0,
     completion_tokens INT DEFAULT 0,
+    thinking_tokens INT DEFAULT 0,
     total_tokens INT DEFAULT 0,
     call_count INT DEFAULT 0,
     filtered_count INT DEFAULT 0,

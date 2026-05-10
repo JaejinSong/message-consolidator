@@ -13,7 +13,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 6
+const schemaVersion = 7
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -148,6 +148,24 @@ func createIndexes(ctx context.Context, q db.DBTX) {
 	for _, ddl := range indexes {
 		_, _ = q.ExecContext(ctx, ddl)
 	}
+}
+
+// addThinkingTokensColumn adds thinking_tokens to token_usage on existing DBs.
+// Why: SQLite does not support IF NOT EXISTS for ALTER TABLE; column existence check makes it idempotent.
+func addThinkingTokensColumn(ctx context.Context, q db.DBTX) error {
+	var has int
+	_ = q.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pragma_table_info('token_usage') WHERE name='thinking_tokens'`,
+	).Scan(&has)
+	if has > 0 {
+		return nil
+	}
+	if _, err := q.ExecContext(ctx,
+		`ALTER TABLE token_usage ADD COLUMN thinking_tokens INT DEFAULT 0`,
+	); err != nil {
+		return fmt.Errorf("add thinking_tokens column: %w", err)
+	}
+	return nil
 }
 
 // addMessagesUpdatedAtColumn adds updated_at to messages on existing DBs.

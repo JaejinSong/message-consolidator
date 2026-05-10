@@ -24,6 +24,7 @@ type tokenBucket struct {
 type tokenData struct {
 	Prompt     int
 	Completion int
+	Thinking   int
 	Calls      int
 	Filtered   int //Why: Filtered count is a per-user counter, written only to the legacy bucket (step="", model="", source="").
 }
@@ -52,7 +53,7 @@ var (
 // AddTokenUsage records token consumption for a single AI call, attributed to a specific
 // (step, model, source, report_id) bucket. Use step="" for unattributed legacy calls and
 // reportID=0 for AI calls not bound to a specific report.
-func AddTokenUsage(email, step, model, source string, reportID ReportID, promptTokens, completionTokens int) error {
+func AddTokenUsage(email, step, model, source string, reportID ReportID, promptTokens, completionTokens, thinkingTokens int) error {
 	key := tokenBucket{Email: email, Step: step, Model: model, Source: source, ReportID: reportID}
 
 	tokenMu.Lock()
@@ -61,6 +62,7 @@ func AddTokenUsage(email, step, model, source string, reportID ReportID, promptT
 	}
 	tokenDirtyData[key].Prompt += promptTokens
 	tokenDirtyData[key].Completion += completionTokens
+	tokenDirtyData[key].Thinking += thinkingTokens
 	tokenDirtyData[key].Calls++
 	tokenMu.Unlock()
 
@@ -123,7 +125,7 @@ func FlushTokenUsage(ctx context.Context) error {
 		parsedDate, _ := time.Parse("2006-01-02", time.Now().Format("2006-01-02"))
 
 		for key, data := range tokenFlushingData {
-			totalTokens := data.Prompt + data.Completion
+			totalTokens := data.Prompt + data.Completion + data.Thinking
 			err := queries.UpsertTokenUsage(ctx, db.UpsertTokenUsageParams{
 				UserEmail:        key.Email,
 				Date:             parsedDate,
@@ -133,6 +135,7 @@ func FlushTokenUsage(ctx context.Context) error {
 				ReportID:         int64(key.ReportID),
 				PromptTokens:     sql.NullInt64{Int64: int64(data.Prompt), Valid: true},
 				CompletionTokens: sql.NullInt64{Int64: int64(data.Completion), Valid: true},
+				ThinkingTokens:   sql.NullInt64{Int64: int64(data.Thinking), Valid: true},
 				TotalTokens:      sql.NullInt64{Int64: int64(totalTokens), Valid: true},
 				CallCount:        sql.NullInt64{Int64: int64(data.Calls), Valid: true},
 				FilteredCount:    sql.NullInt64{Int64: int64(data.Filtered), Valid: true},
@@ -153,6 +156,7 @@ func FlushTokenUsage(ctx context.Context) error {
 			}
 			tokenDirtyData[key].Prompt += data.Prompt
 			tokenDirtyData[key].Completion += data.Completion
+			tokenDirtyData[key].Thinking += data.Thinking
 			tokenDirtyData[key].Calls += data.Calls
 			tokenDirtyData[key].Filtered += data.Filtered
 		}
@@ -191,7 +195,7 @@ func getInMemoryUsage(email string) (int, int, int) {
 				continue
 			}
 			p += data.Prompt
-			c += data.Completion
+			c += data.Completion + data.Thinking // Why: thinking counts toward billable total
 			f += data.Filtered
 		}
 	}
@@ -332,11 +336,12 @@ func GetMonthlyTokenUsage(ctx context.Context, email string) (int, int, int, err
 	return prompt, completion, filteredCount, nil
 }
 
-// ReportTokenCost is the per-report aggregate of prompt/completion tokens and call count
+// ReportTokenCost is the per-report aggregate of prompt/completion/thinking tokens and call count
 // across all report-bound steps (ReportSummary, ReportVizData, TranslateReport, ...).
 type ReportTokenCost struct {
 	PromptTokens     int
 	CompletionTokens int
+	ThinkingTokens   int
 	CallCount        int
 }
 
@@ -354,6 +359,7 @@ func GetReportTokenUsage(ctx context.Context, reportID ReportID) (ReportTokenCos
 	cost := ReportTokenCost{
 		PromptTokens:     coalesceInt(row.PromptTokens),
 		CompletionTokens: coalesceInt(row.CompletionTokens),
+		ThinkingTokens:   coalesceInt(row.ThinkingTokens),
 		CallCount:        coalesceInt(row.CallCount),
 	}
 
@@ -366,6 +372,7 @@ func GetReportTokenUsage(ctx context.Context, reportID ReportID) (ReportTokenCos
 			}
 			cost.PromptTokens += data.Prompt
 			cost.CompletionTokens += data.Completion
+			cost.ThinkingTokens += data.Thinking
 			cost.CallCount += data.Calls
 		}
 	}

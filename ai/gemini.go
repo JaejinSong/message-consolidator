@@ -143,10 +143,12 @@ func logTokenUsage(ctx context.Context, email, step, model, source string, repor
 
 	pTokens := int(resp.UsageMetadata.PromptTokenCount)
 	cTokens := int(resp.UsageMetadata.CandidatesTokenCount)
-	if err := store.AddTokenUsage(email, step, model, source, reportID, pTokens, cTokens); err != nil {
+	tTokens := int(resp.UsageMetadata.ThoughtsTokenCount)
+	if err := store.AddTokenUsage(email, step, model, source, reportID, pTokens, cTokens, tTokens); err != nil {
 		logger.Warnf("[TOKEN-USAGE] %s/%s: %v", email, step, err)
 	}
-	_ = trace.Step(ctx, fmt.Sprintf("TokenUsage-%s (Prompt: %d, Comp: %d)", step, pTokens, cTokens), "", 0, 0)
+	// Why: tTokens is passed as value so WhaTap MXQL can query thinking-token consumption numerically.
+	_ = trace.Step(ctx, fmt.Sprintf("TokenUsage-%s (Prompt: %d, Comp: %d, Think: %d)", step, pTokens, cTokens, tTokens), "", 0, tTokens)
 }
 
 // Why: Safely extracts the response text from the Gemini API candidates, handling empty or blocked responses gracefully.
@@ -188,7 +190,7 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 	if err != nil {
 		// P1: Surface burned-but-unattributed retry-exhausted calls so the cost dashboard
 		// can flag invisible spend. Gemini does not return UsageMetadata on timeout/cancel.
-		if uErr := store.AddTokenUsage(email, "ReportSummary", modelName, "failed", reportID, 0, 0); uErr != nil {
+		if uErr := store.AddTokenUsage(email, "ReportSummary", modelName, "failed", reportID, 0, 0, 0); uErr != nil {
 			logger.Warnf("[TOKEN-USAGE] ReportSummary failure attribution: %v", uErr)
 		}
 		return "", err
@@ -572,7 +574,7 @@ func (g *GeminiClient) TranslateTasksBatch(ctx context.Context, email string, ta
 		// Why: Mirror ReportSummary failure attribution — surface burned-but-unattributed
 		// retry-exhausted calls so the cost dashboard can flag invisible spend.
 		// Gemini does not return UsageMetadata on timeout/cancel.
-		if uErr := store.AddTokenUsage(email, "BatchTranslate", modelName, "failed", 0, 0, 0); uErr != nil {
+		if uErr := store.AddTokenUsage(email, "BatchTranslate", modelName, "failed", 0, 0, 0, 0); uErr != nil {
 			logger.Warnf("[TOKEN-USAGE] BatchTranslate failure attribution: %v", uErr)
 		}
 		return nil, err

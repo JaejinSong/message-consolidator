@@ -189,6 +189,7 @@ type TokenUsage struct {
 	ReportID         int64         `json:"report_id"`
 	PromptTokens     sql.NullInt64 `json:"prompt_tokens"`
 	CompletionTokens sql.NullInt64 `json:"completion_tokens"`
+	ThinkingTokens   sql.NullInt64 `json:"thinking_tokens"`
 	TotalTokens      sql.NullInt64 `json:"total_tokens"`
 	CallCount        sql.NullInt64 `json:"call_count"`
 	FilteredCount    sql.NullInt64 `json:"filtered_count"`
