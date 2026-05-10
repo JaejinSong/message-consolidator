@@ -46,9 +46,10 @@ describe('mountSidebar', () => {
         expect(first.tabIndex).toBe(0);
     });
 
-    it('all buttons start with aria-selected=false', () => {
+    it('first button starts with aria-selected=true, rest false', () => {
         const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>('button'));
-        buttons.forEach(btn => {
+        expect(buttons[0].getAttribute('aria-selected')).toBe('true');
+        buttons.slice(1).forEach(btn => {
             expect(btn.getAttribute('aria-selected')).toBe('false');
         });
     });

@@ -79,6 +79,9 @@ export function mountSidebar(
         container.appendChild(btn);
     });
 
+    // Why: WCAG requires exactly one tab selected; default to first so no frame has all tabs unselected.
+    activate(0);
+
     return {
         setActive(section: GuideSection): void {
             const idx = sections.findIndex(s => s.key === section);

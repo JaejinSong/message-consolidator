@@ -302,9 +302,6 @@ describe('insightsRenderer.ts - renderChannelDistribution', () => {
     });
 
     it('falls back to source_distribution when source_distribution_total is empty object', () => {
-        // Why: source_distribution_total = {} is truthy, so the renderer reads it and finds no entries.
-        // It then falls back to no-data message rather than reading source_distribution.
-        // This test documents the actual behavior (bug candidate, see skip below).
         const stats = makeStats({
             source_distribution_total: {},
             source_distribution: { telegram: 50 }
@@ -312,8 +309,7 @@ describe('insightsRenderer.ts - renderChannelDistribution', () => {
         insightsRenderer.renderChannelDistribution(stats, mockI18n);
 
         const container = document.getElementById('source-distribution-slot')!;
-        // The empty source_distribution_total causes "No data" to render
-        expect(container.innerHTML).toContain('No data');
+        expect(container.innerHTML).toContain('sourceDistributionChart');
     });
 });
 

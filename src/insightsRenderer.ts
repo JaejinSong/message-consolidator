@@ -134,7 +134,8 @@ export const insightsRenderer = {
     renderChannelDistribution(stats: UserStats, i18n: I18nEntry): void {
         const container = document.getElementById('source-distribution-slot');
         if (!container) return;
-        const dist = stats.source_distribution_total || stats.source_distribution || {};
+        const totalDist = stats.source_distribution_total;
+        const dist = Object.keys(totalDist).length > 0 ? totalDist : stats.source_distribution;
         const entries = Object.entries(dist).map(([name, value]) => ({ 
             name: name.charAt(0).toUpperCase() + name.slice(1), 
             value: Number(value)
