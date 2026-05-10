@@ -90,7 +90,15 @@ func TestHandleMarkDone_WithDBAndTasks(t *testing.T) {
 // TestHandleMergeTasks_NilTasks skipped — handler calls a.Tasks.MergeTasks without
 // a nil check, which panics when Tasks is nil. The existing guard tests cover 400.
 func TestHandleMergeTasks_NilTasks(t *testing.T) {
-	t.Skip("BUG: HandleMergeTasks does not guard against nil Tasks; panics on nil pointer dereference")
+	body := `{"target_ids":[1],"destination_id":2}`
+	req := httptest.NewRequest(http.MethodPut, "/api/tasks/merge", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	api := &API{Tasks: nil}
+	api.HandleMergeTasks(rr, req)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want 503", rr.Code)
+	}
 }
 
 // ---- HandleExportJSON with data ----

@@ -334,6 +334,11 @@ func (a *API) HandleMergeTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if a.Tasks == nil {
+		respondError(w, http.StatusServiceUnavailable, "task service not initialized")
+		return
+	}
+
 	// Why: [Logic Delegation] Delegates task logic to services to ensure AI summary and transaction integrity.
 	if err := a.Tasks.MergeTasks(r.Context(), email, req.TargetIDs, req.DestinationID); err != nil {
 		handleAPIError(w, r, err, "[TASKS]", "Failed to merge tasks")

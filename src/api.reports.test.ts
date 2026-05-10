@@ -63,11 +63,24 @@ describe('api — reports, contacts, identity, admin', () => {
     describe('getReport', () => {
         it('returns cached report without fetch when state has it', async () => {
             const cached = { id: 99, start_date: '2024-05-01', end_date: '2024-05-01' } as unknown as import('./types').IReportData;
-            state.reports['2024-05-01'] = cached;
+            state.reports['2024-05-01_2024-05-01'] = cached;
             const result = await api.getReport('2024-05-01');
             expect(fetch).not.toHaveBeenCalled();
             expect(result).toBe(cached);
-            delete state.reports['2024-05-01'];
+            delete state.reports['2024-05-01_2024-05-01'];
+        });
+
+        it('fetches, caches under composite key, and returns data on cache miss', async () => {
+            const key = '2024-06-01_2024-06-01';
+            delete state.reports[key];
+            (fetch as ReturnType<typeof vi.fn>).mockImplementation(() =>
+                mockResponse(200, { id: 42, start_date: '2024-06-01', end_date: '2024-06-01' })
+            );
+            const result = await api.getReport('2024-06-01');
+            expect(fetch).toHaveBeenCalled();
+            expect(result.start_date).toBe('2024-06-01');
+            expect(state.reports[key]).toBeDefined();
+            delete state.reports[key];
         });
     });
 

@@ -368,14 +368,15 @@ export const api = {
      * Enforces YYYY-MM-DD date matching.
      */
     async getReport(date: string): Promise<IReportData> {
-        if (state.reports && state.reports[date]) {
-            return state.reports[date];
+        const key = `${date}_${date}`;
+        if (state.reports && state.reports[key]) {
+            return state.reports[key];
         }
-        
+
         const rawReport = await this.generateReport(date, date);
         const normalized = normalizeReportData(rawReport);
         upsertReport(normalized);
-        return state.reports[date];
+        return normalized;
     },
 
     async fetchReportDetail(id: string | number): Promise<IReportData> {
