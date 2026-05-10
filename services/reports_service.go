@@ -26,7 +26,9 @@ type ReportConfig struct {
 	CutoffSize int
 }
 
-const DefaultReportCutoffSize = 32000
+// Why: ~16K tokens at 4 chars/token — well within Gemini 3 Flash's 1M context; covers 250+ task
+// heavy weeks after done-task evidence removal. Tunable via REPORT_CUTOFF_SIZE env var.
+const DefaultReportCutoffSize = 65000
 
 // Why: bound JIT translation latency so async report goroutines and slow Gemini calls
 // can't keep the request/parent context alive indefinitely. WithTimeout derives from
@@ -357,15 +359,17 @@ func (s *ReportsService) formatLogLine(email string, m Log) string {
 	if cat == "" {
 		cat = "TASK"
 	}
-	// Why: active tasks need context for Key Insights verbatim-quote selection (180 chars = 2-3x buffer over a typical 60-80 char quote);
-	// done tasks only need a topical fingerprint for Activity counting, so 60 chars suffice.
-	// In production, done length dominates total token cost (active avg 724ch, done avg 1550ch, done count ~6.7x);
-	// capping done at 60ch reduces evidence tokens by ~47% vs the prior 300/120 split.
-	evLen := 60
+	// Why: done tasks are excluded from all evidence-requiring output rules (Type A: active [ ] only;
+	// Type B/C: counts and titles; Activity Rule 4: evidence not required for counting).
+	// Omitting evidence entirely saves ~73 bytes per done task (~30% of input budget at 6.7x done:active ratio).
+	evLen := 0
 	if !m.Done {
 		evLen = 180
 	}
-	evidence := truncateEvidence(m.OriginalText, evLen)
+	evidence := ""
+	if evLen > 0 {
+		evidence = truncateEvidence(m.OriginalText, evLen)
+	}
 
 	deadlineStr := ""
 	if m.Deadline != "" {

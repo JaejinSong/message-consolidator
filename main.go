@@ -140,7 +140,7 @@ func initAIServices(ctx context.Context, cfg *config.Config) (*services.ReportsS
 	}
 	transSvc := services.NewTranslationService(gClient)
 	summarizer := services.NewFlashSingleSummarizer(gClient)
-	reportsCfg := services.ReportConfig{CutoffSize: services.DefaultReportCutoffSize}
+	reportsCfg := services.ReportConfig{CutoffSize: cfg.ReportCutoffSize}
 	reportsSvc := services.NewReportsService(summarizer, gClient, transSvc, reportsCfg)
 	tasksSvc := services.NewTasksService(transSvc, gClient)
 	identityResolver := ai.NewIdentityResolver(gClient)

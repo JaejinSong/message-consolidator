@@ -50,6 +50,7 @@ type Config struct {
 	WeeklyReportTimezone        string
 	WeeklyReportLang            string
 	StaleThresholdWorkingDays   int
+	ReportCutoffSize            int
 }
 
 func LoadConfig() *Config {
@@ -94,6 +95,7 @@ func LoadConfig() *Config {
 		WeeklyReportTimezone:        envOr("WEEKLY_REPORT_TIMEZONE", "Asia/Seoul"),
 		WeeklyReportLang:            envOr("WEEKLY_REPORT_LANG", "en"),
 		StaleThresholdWorkingDays:   envInt("STALE_THRESHOLD_WORKING_DAYS", 3),
+		ReportCutoffSize:            envInt("REPORT_CUTOFF_SIZE", 65000),
 	}
 }
 

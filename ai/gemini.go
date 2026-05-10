@@ -40,10 +40,10 @@ const (
 	// ReportMaxTokens caps total response (thinking + output) for long-form reports.
 	// Why: Gemini 3 Flash is a thinking model — `max_output_tokens` budgets both internal
 	// reasoning AND visible completion. 8192 starved the visible output to ~300 tokens
-	// (thinking ate ~7800), truncating activity tables. 32768 leaves ~24K for thinking
-	// plus ~8K headroom for ≤2K typical reports. Don't drop without auditing thinking-token
+	// (thinking ate ~7800), truncating activity tables. 40960 leaves ~24K for thinking
+	// plus ~16K headroom for larger inputs. Don't drop without auditing thinking-token
 	// consumption, otherwise activity/insight sections silently truncate.
-	ReportMaxTokens = 32768
+	ReportMaxTokens = 40960
 )
 
 var relaxedSafetySettings = []*genai.SafetySetting{
