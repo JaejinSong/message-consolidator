@@ -188,6 +188,17 @@ func resolveAssignee(ctx context.Context, p TaskBuildParams) string {
 	if p.IsCcOnly && (isSelfReference(raw, p) || matchesAlias(raw, p.Aliases) || resolvesToCurrentUser(ctx, raw, p)) {
 		return AssigneeShared
 	}
+	// Why: Group chat self-assignment bias guard — __CURRENT_USER__ is rejected when
+	// the user is not textually present in the message. Channel membership alone is
+	// not addressing (biz-global-thailand Srisawad incident).
+	if isGroupSource(p.Source) && (isSelfReference(raw, p) || matchesAlias(raw, p.Aliases)) {
+		if !currentUserMentionedInText(p) {
+			if picked := pickFirstMentionAssignee(p); picked != "" {
+				return picked
+			}
+			return AssigneeShared
+		}
+	}
 	if isSelfReference(raw, p) {
 		return preferredName(p.User)
 	}
@@ -324,4 +335,35 @@ func preferredName(u store.User) string {
 		return u.Name
 	}
 	return u.Email
+}
+
+// isGroupSource reports whether the source is a multi-participant chat platform
+// where messages are not inherently directed at the current user.
+func isGroupSource(source string) bool {
+	s := strings.ToLower(source)
+	return s == "slack" || s == "telegram" || s == "whatsapp"
+}
+
+// currentUserMentionedInText reports whether the current user is explicitly
+// referenced in the message body via name, email, alias, or resolved @mention.
+func currentUserMentionedInText(p TaskBuildParams) bool {
+	lower := strings.ToLower(p.OriginalText)
+	if p.User.Name != "" && strings.Contains(lower, strings.ToLower(p.User.Name)) {
+		return true
+	}
+	if p.User.Email != "" && strings.Contains(lower, strings.ToLower(p.User.Email)) {
+		return true
+	}
+	for _, a := range p.Aliases {
+		if a != "" && strings.Contains(lower, strings.ToLower(a)) {
+			return true
+		}
+	}
+	for _, m := range p.ExplicitMentions {
+		t := strings.TrimSpace(m)
+		if t != "" && (isSelfReference(t, p) || matchesAlias(t, p.Aliases)) {
+			return true
+		}
+	}
+	return false
 }

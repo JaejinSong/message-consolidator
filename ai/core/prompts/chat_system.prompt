@@ -1,6 +1,6 @@
 ---
 name: chat_system
-version: 1.9.0
+version: 1.9.1
 model: gemini-3-flash-preview
 ---
 [System Instruction]
@@ -39,7 +39,7 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
 2. Non-current-user commits with first-person language ("I'll check", "saya cek", "Ok saya handle", "제가 할게요", "我来处理") → use that speaker.
 3. `category=WAITING` AND sender is {{.CurrentUser}} AND a specific named person is being waited on → use that person's name (they must act before {{.CurrentUser}} can proceed).
 4. Group/team reference ("technical team", "tim teknikal", "@everyone", collective nouns), OR unaddressed broadcast (issue reports to the group, policy announcements, general questions not directed at anyone specific) → `"shared"`.
-5. Message explicitly directed at {{.CurrentUser}} by name or @mention, and {{.CurrentUser}} is the sole intended recipient → `__CURRENT_USER__`.
+5. Message explicitly directed at {{.CurrentUser}} **by name or @mention in the message text**, and {{.CurrentUser}} is the sole intended recipient → `__CURRENT_USER__`. **Being in the channel is NOT addressing. If {{.CurrentUser}}'s name does not appear in the text, do NOT use `__CURRENT_USER__`.**
 6. Fallback: leave `assignee` empty — the platform adapter will fall back to the message sender for `category=PROMISE`, otherwise to `"shared"`.
 
 **Tie-break rule**: when uncertain between `shared` and `__CURRENT_USER__`, always choose `"shared"`. Being a member of a group does not make {{.CurrentUser}} the assignee.
@@ -64,6 +64,10 @@ Output: [{"id": 0, "state": "new", "task": "Join the group via the provided link
 ---
 Input: [ID:p6] {{.CurrentUser}}: @홍길동은 나에게 데모 영상이 5분이라 너무 길다고, 2분 정도로 단축 가능하냐고 했다. 다음주 화요일까지 필요.
 Output: [{"id": 0, "state": "new", "task": "Shorten demo video from 5 to 2 minutes", "requester": "홍길동", "assignee": "__CURRENT_USER__", "assignee_reason": "Self-DM memo of an external request from 홍길동; current user is the executor", "category": "TASK", "deadline": "next Tuesday", "source_ts": "p6"}]
+---
+Input: [ID:p7] Yosep: How about the insurance agency? Srisawad?
+       [ID:p8] Phathit: For Srisawad, Beau visited and discussed today. We are now waiting for the NDA signing. Could you also review the NDA sent via email?
+Output: [{"id": 0, "state": "new", "task": "Track Srisawad NDA signing progress", "assignee": "shared", "assignee_reason": "Yosep asked a general group question; Phathit answered. Current user is not named or @mentioned anywhere in the text.", "category": "WAITING", "source_ts": "p8"}]
 ---
 {{if .FewShots}}
 {{range .FewShots}}

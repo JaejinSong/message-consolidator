@@ -489,3 +489,111 @@ func TestResolveAssignee_CcOnlyOverridesSelf(t *testing.T) {
 		})
 	}
 }
+
+// Why: Group-chat self-assignment guard must not route ambiguous messages to
+// the current user's Inbox when they are not textually addressed; uses
+// OriginalText / ExplicitMentions as evidence.
+func TestResolveAssignee_GroupChatGuard(t *testing.T) {
+	user := store.User{Email: "jjsong@whatap.io", Name: "Jaejin Song"}
+	tests := []struct {
+		name             string
+		source           string
+		aiAssign         string
+		aliases          []string
+		originalText     string
+		explicitMentions []string
+		want             string
+	}{
+		{
+			name:         "slack + __CURRENT_USER__ + no mention in text → shared",
+			source:       "slack",
+			aiAssign:     "__CURRENT_USER__",
+			originalText: "How about Srisawad?",
+			want:         AssigneeShared,
+		},
+		{
+			name:         "slack + user name as AI assignee + no mention in text → shared",
+			source:       "slack",
+			aiAssign:     "Jaejin Song",
+			originalText: "Deves Insurance update needed",
+			want:         AssigneeShared,
+		},
+		{
+			name:         "slack + alias as AI assignee + no mention in text → shared",
+			source:       "slack",
+			aiAssign:     "JJ",
+			aliases:      []string{"JJ"},
+			originalText: "General question",
+			want:         AssigneeShared,
+		},
+		{
+			name:         "slack + __CURRENT_USER__ + user name in text → preferredName (regression)",
+			source:       "slack",
+			aiAssign:     "__CURRENT_USER__",
+			originalText: "Hey Jaejin Song, can you check?",
+			want:         "Jaejin Song",
+		},
+		{
+			name:         "slack + __CURRENT_USER__ + email in text → preferredName (regression)",
+			source:       "slack",
+			aiAssign:     "__CURRENT_USER__",
+			originalText: "jjsong@whatap.io please review",
+			want:         "Jaejin Song",
+		},
+		{
+			name:         "slack + __CURRENT_USER__ + alias in text → preferredName (regression)",
+			source:       "slack",
+			aiAssign:     "__CURRENT_USER__",
+			aliases:      []string{"JJ"},
+			originalText: "Hi JJ, update?",
+			want:         "Jaejin Song",
+		},
+		{
+			name:             "slack + __CURRENT_USER__ + ExplicitMentions has user → preferredName (regression)",
+			source:           "slack",
+			aiAssign:         "__CURRENT_USER__",
+			explicitMentions: []string{"Jaejin Song"},
+			originalText:     "check this",
+			want:             "Jaejin Song",
+		},
+		{
+			name:         "telegram + __CURRENT_USER__ + no mention → shared",
+			source:       "telegram",
+			aiAssign:     "__CURRENT_USER__",
+			originalText: "status update?",
+			want:         AssigneeShared,
+		},
+		{
+			name:         "gmail + __CURRENT_USER__ + no mention → preferredName (gmail exempt)",
+			source:       "gmail",
+			aiAssign:     "__CURRENT_USER__",
+			originalText: "please review",
+			want:         "Jaejin Song",
+		},
+		{
+			name:             "slack + __CURRENT_USER__ + no mention + ExplicitMentions has third party → third party",
+			source:           "slack",
+			aiAssign:         "__CURRENT_USER__",
+			originalText:     "update needed",
+			explicitMentions: []string{"Phathit Chulothok"},
+			want:             "Phathit Chulothok",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := TaskBuildParams{
+				UserEmail:        user.Email,
+				User:             user,
+				Aliases:          tt.aliases,
+				Source:           tt.source,
+				OriginalText:     tt.originalText,
+				ExplicitMentions: tt.explicitMentions,
+				Item:             store.TodoItem{Assignee: tt.aiAssign, Category: "TASK"},
+			}
+			got := resolveAssignee(t.Context(), p)
+			if got != tt.want {
+				t.Errorf("resolveAssignee(source=%q, ai=%q) = %q; want %q", tt.source, tt.aiAssign, got, tt.want)
+			}
+		})
+	}
+}
