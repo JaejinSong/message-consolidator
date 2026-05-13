@@ -262,9 +262,17 @@ func UpdateTargetedThread(ctx context.Context, channelID, threadTS, lastReplyTS,
 
 func CloseTargetedThread(ctx context.Context, channelID, threadTS, userEmail string) error {
 	queries := db.New(GetDB())
-	return queries.CloseSlackThread(ctx, db.CloseSlackThreadParams{
+	if err := queries.CloseSlackThread(ctx, db.CloseSlackThreadParams{
 		ChannelID: nullString(channelID),
 		ThreadTs:  nullString(threadTS),
 		UserEmail: nullString(userEmail),
-	})
+	}); err != nil {
+		return err
+	}
+	if threadTS == "" {
+		return nil
+	}
+	const stmt = `UPDATE messages SET metadata = json_set(COALESCE(metadata, '{}'), '$.slack_thread_resolved', 1), updated_at = CURRENT_TIMESTAMP WHERE user_email = ? AND source_ts = ?`
+	_, err := GetDB().ExecContext(ctx, stmt, userEmail, threadTS)
+	return err
 }

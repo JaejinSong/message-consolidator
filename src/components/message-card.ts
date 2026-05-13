@@ -62,6 +62,7 @@ export function MessageCard(props: MessageCardProps): string {
     const metadata = parseMetadata(rawMetadata);
     const isContextQuery = !!metadata?.is_context_query;
     const constraints = Array.isArray(metadata?.constraints) ? metadata.constraints : [];
+    const isSlackThreadResolved = !!metadata?.slack_thread_resolved;
 
     const modifierClass = [
         done ? 'c-message-card--done' : '',
@@ -100,6 +101,7 @@ export function MessageCard(props: MessageCardProps): string {
     const translatingBadgeHtml = translating ? `<span class="c-message-card__translating-badge" title="Translating...">⏳</span>` : '';
 
     const delegatedHtml = assigned_to ? `<div class="c-message-card__badge c-message-card__badge--delegated" title="Delegated Task">🔄 ${lang === 'ko' ? `@${escapeHTML(assigned_to)}에게 위임됨` : `Delegated to @${escapeHTML(assigned_to)}`}</div>` : '';
+    const slackResolvedBadgeHtml = isSlackThreadResolved ? `<div class="c-message-card__badge c-message-card__badge--slack-resolved" title="${lang === 'ko' ? '비활성으로 인해 모니터링 종료' : 'Monitoring stopped due to inactivity'}">⏹️</div>` : '';
 
     const contextHtml = contextSnippets.length > 0 ? `
         <div class="task-context">
@@ -171,6 +173,7 @@ export function MessageCard(props: MessageCardProps): string {
                 ${delegatedHtml}
                 ${categoryBadgeHtml}
                 ${staleBadgeHtml}
+                ${slackResolvedBadgeHtml}
                 <div class="c-message-card__actions">
                     ${has_original ? `<button class="c-message-card__action-btn view-original-btn" data-action="show-original" title="${i18n.viewOriginal || 'View Original'}">${ICONS.viewOriginal}</button>` : ''}
                     <button class="c-message-card__action-btn delete-btn" data-action="delete" title="${i18n?.delete || 'Delete'}">${ICONS.delete}</button>

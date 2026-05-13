@@ -564,8 +564,6 @@ func handleThreadTimeout(ctx context.Context, sc *channels.SlackClient, t store.
 		_ = store.CloseTargetedThread(ctx, t.ChannelID, t.ThreadTS, t.UserEmail)
 		return
 	}
-	msg := "Due to inactivity, this issue has been marked as resolved and monitoring is closed."
-	_, _, _ = sc.GetAPI().PostMessage(t.ChannelID, slack.MsgOptionText(msg, false), slack.MsgOptionTS(t.ThreadTS))
 	_ = store.CloseTargetedThread(ctx, t.ChannelID, t.ThreadTS, t.UserEmail)
 }
 
@@ -578,8 +576,6 @@ func handleThreadTimeoutGroup(ctx context.Context, sc *channels.SlackClient, gro
 		}
 		return
 	}
-	msg := "Due to inactivity, this issue has been marked as resolved and monitoring is closed."
-	_, _, _ = sc.GetAPI().PostMessage(rep.ChannelID, slack.MsgOptionText(msg, false), slack.MsgOptionTS(rep.ThreadTS))
 	for _, s := range group {
 		_ = store.CloseTargetedThread(ctx, s.ChannelID, s.ThreadTS, s.UserEmail)
 	}
