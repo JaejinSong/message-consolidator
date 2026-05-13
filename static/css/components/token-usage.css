@@ -83,6 +83,18 @@
     text-transform: uppercase;
 }
 
+.c-token-usage__cost-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.c-token-usage__cost-breakdown {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    font-weight: 600;
+}
+
 /* Responsive adjustment */
 @media (max-width: 48rem) {
     .c-token-usage {

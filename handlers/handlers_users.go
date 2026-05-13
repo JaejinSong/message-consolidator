@@ -29,14 +29,17 @@ type tokenUsageResponse struct {
 	TodayThinking     int     `json:"todayThinking"`
 	TodayFiltered     int     `json:"todayFiltered"`
 	TodayTotal        int     `json:"todayTotal"`
-	TodayCost         float64 `json:"todayCost"`
-	MonthlyPrompt     int     `json:"monthlyPrompt"`
-	MonthlyCompletion int     `json:"monthlyCompletion"`
-	MonthlyThinking   int     `json:"monthlyThinking"`
-	MonthlyFiltered   int     `json:"monthlyFiltered"`
-	MonthlyTotal      int     `json:"monthlyTotal"`
-	MonthlyCost       float64 `json:"monthlyCost"`
-	Model             string  `json:"model"`
+	TodayCost            float64 `json:"todayCost"`
+	MonthlyPrompt        int     `json:"monthlyPrompt"`
+	MonthlyCompletion    int     `json:"monthlyCompletion"`
+	MonthlyThinking      int     `json:"monthlyThinking"`
+	MonthlyFiltered      int     `json:"monthlyFiltered"`
+	MonthlyTotal         int     `json:"monthlyTotal"`
+	MonthlyCost          float64 `json:"monthlyCost"`
+	MonthlyCostInput     float64 `json:"monthlyCostInput"`
+	MonthlyCostOutput    float64 `json:"monthlyCostOutput"`
+	MonthlyCostThinking  float64 `json:"monthlyCostThinking"`
+	Model                string  `json:"model"`
 }
 
 func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
@@ -211,8 +214,11 @@ func (a *API) gatherTokenUsageStats(ctx context.Context, email string) tokenUsag
 		MonthlyThinking:   monthThinking,
 		MonthlyFiltered:   monthFiltered,
 		MonthlyTotal:      monthPrompt + monthCompletion + monthThinking,
-		MonthlyCost:       calculateCost(monthPrompt, monthCompletion, monthThinking),
-		Model:             "Gemini 3 Flash",
+		MonthlyCost:         calculateCost(monthPrompt, monthCompletion, monthThinking),
+		MonthlyCostInput:    float64(monthPrompt) * RatePromptGemini3Flash / TokenUnitDenominator,
+		MonthlyCostOutput:   float64(monthCompletion) * RateCompletionGemini3Flash / TokenUnitDenominator,
+		MonthlyCostThinking: float64(monthThinking) * RateThinkingGemini3Flash / TokenUnitDenominator,
+		Model:               "Gemini 3 Flash",
 	}
 }
 

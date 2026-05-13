@@ -1,5 +1,4 @@
 import '../static/style.css';
-import '@fortawesome/fontawesome-free/css/all.min.css';
 import { state, updateLang, updateTheme, updateStats, updateMessages, setTaskSelection, clearTaskSelection, deleteTaskFromState, updateTaskStatusInState, updateSubtaskStateInState, getTaskById, upsertItem } from './state';
 import { renderUILanguage } from './renderers/i18n-renderer';
 import { I18N_DATA } from './locales';

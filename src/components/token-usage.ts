@@ -39,6 +39,9 @@ export class TokenUsageCard {
         const monthlyTotal = data.monthlyTotal;
         const monthlyThinking = data.monthlyThinking ?? 0;
         const monthlyCost = data.monthlyCost;
+        const monthlyCostInput = data.monthlyCostInput ?? 0;
+        const monthlyCostOutput = data.monthlyCostOutput ?? 0;
+        const monthlyCostThinking = data.monthlyCostThinking ?? 0;
         const modelName = data.model;
 
         const lang = state.currentLang || 'en';
@@ -52,8 +55,9 @@ export class TokenUsageCard {
         const todayThinkingPart = todayThinking > 0
             ? ` / ${this.numberFormatter.format(todayThinking)} ${labelThink}`
             : '';
-        const monthlyThinkingPart = monthlyThinking > 0
-            ? ` / ${this.numberFormatter.format(monthlyThinking)} ${labelThink}`
+        const hasMonthlyCostBreakdown = monthlyCostInput + monthlyCostOutput + monthlyCostThinking > 0;
+        const costBreakdownHtml = hasMonthlyCostBreakdown
+            ? `<span class="c-token-usage__cost-breakdown">입 ${this.currencyFormatter.format(monthlyCostInput)} / 출 ${this.currencyFormatter.format(monthlyCostOutput)} / 생각 ${this.currencyFormatter.format(monthlyCostThinking)}</span>`
             : '';
 
         this.container.innerHTML = `
@@ -72,7 +76,10 @@ export class TokenUsageCard {
                     <span class="c-token-usage__label">${labelMonthly}</span>
                     <div class="c-token-usage__value">${this.numberFormatter.format(monthlyTotal)}</div>
                     <div class="c-token-usage__footer">
-                        <span class="c-token-usage__subvalue">${labelEstCost}: ${this.currencyFormatter.format(monthlyCost)}${monthlyThinkingPart}</span>
+                        <div class="c-token-usage__cost-stack">
+                            <span class="c-token-usage__subvalue">${labelEstCost}: ${this.currencyFormatter.format(monthlyCost)}</span>
+                            ${costBreakdownHtml}
+                        </div>
                     </div>
                 </div>
             </div>

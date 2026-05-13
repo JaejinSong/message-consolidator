@@ -95,6 +95,9 @@ export interface TokenUsage {
     monthlyFiltered?: number;
     todayThinking?: number;
     monthlyThinking?: number;
+    monthlyCostInput?: number;
+    monthlyCostOutput?: number;
+    monthlyCostThinking?: number;
 }
 
 export interface TimeSeriesPoint {

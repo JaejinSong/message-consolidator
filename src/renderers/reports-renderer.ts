@@ -361,7 +361,7 @@ export const reportsRenderer = {
                     </div>
                 </div>
                 <button class="c-insights-report-item__delete" data-id="${item.id}" title="${i18n.delete || 'Delete'}">
-                    <i class="fas fa-trash-alt"></i>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3v1H4v2h1v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6h1V4h-5V3zm0 5h2v9H9zm4 0h2v9h-2z"/></svg>
                 </button>
             `;
             btn.onclick = () => {
