@@ -7,15 +7,26 @@ import (
 	"message-consolidator/internal/whataphttpx"
 	"message-consolidator/logger"
 	"message-consolidator/types"
+	"sync"
 	"time"
 
 	"github.com/slack-go/slack"
 )
 
+// Why: prime TTL keeps negatives invisible across one full hourly scan cycle
+// without blocking recovery when a user is un-deactivated mid-day.
+const slackNegCacheTTL = 23 * time.Minute
+
 type SlackClient struct {
-	api      *slack.Client
-	users    map[string]slack.User
-	channels map[string]string
+	api        *slack.Client
+	usersMu    sync.RWMutex
+	users      map[string]slack.User
+	userNeg    map[string]time.Time // negative cache: IDs that returned API errors
+	channelsMu sync.RWMutex
+	channels   map[string]string
+	channelNeg map[string]time.Time // negative cache: IDs that returned API errors
+	emailMu    sync.RWMutex
+	emailToID  map[string]string
 }
 
 func NewSlackClient(token string) *SlackClient {
@@ -24,9 +35,12 @@ func NewSlackClient(token string) *SlackClient {
 	// /Background-Scanner-RunAll). Without this slack-go falls back to http.DefaultClient
 	// and the outbound calls are invisible to WhaTap.
 	return &SlackClient{
-		api:      slack.New(token, slack.OptionHTTPClient(whataphttpx.Client())),
-		users:    make(map[string]slack.User),
-		channels: make(map[string]string),
+		api:        slack.New(token, slack.OptionHTTPClient(whataphttpx.Client())),
+		users:      make(map[string]slack.User),
+		userNeg:    make(map[string]time.Time),
+		channels:   make(map[string]string),
+		channelNeg: make(map[string]time.Time),
+		emailToID:  make(map[string]string),
 	}
 }
 
@@ -109,14 +123,47 @@ func (s *SlackClient) FetchUsers() error {
 	if err != nil {
 		return err
 	}
+	s.usersMu.Lock()
 	for _, u := range users {
 		s.users[u.ID] = u
 	}
+	s.usersMu.Unlock()
+	// Why: users.list already carries Profile.Email for non-restricted members;
+	// pre-loading emailToID here costs nothing extra and eliminates digest-path
+	// users.lookupByEmail calls for the common case.
+	s.emailMu.Lock()
+	for _, u := range users {
+		if u.Profile.Email != "" {
+			s.emailToID[u.Profile.Email] = u.ID
+		}
+	}
+	s.emailMu.Unlock()
 	return nil
 }
 
 func (s *SlackClient) LookupUserByEmail(email string) (*slack.User, error) {
-	return s.api.GetUserByEmail(email)
+	s.emailMu.RLock()
+	id, ok := s.emailToID[email]
+	s.emailMu.RUnlock()
+	if ok {
+		s.usersMu.RLock()
+		u, found := s.users[id]
+		s.usersMu.RUnlock()
+		if found {
+			return &u, nil
+		}
+	}
+	u, err := s.api.GetUserByEmail(email)
+	if err != nil || u == nil {
+		return u, err
+	}
+	s.emailMu.Lock()
+	s.emailToID[email] = u.ID
+	s.emailMu.Unlock()
+	s.usersMu.Lock()
+	s.users[u.ID] = *u
+	s.usersMu.Unlock()
+	return u, nil
 }
 
 func (s *SlackClient) LookupSlackIDByEmail(email string) (string, error) {
@@ -131,40 +178,62 @@ func (s *SlackClient) LookupSlackIDByEmail(email string) (string, error) {
 }
 
 func (s *SlackClient) GetUserName(ctx context.Context, id string) string {
-	if u, ok := s.users[id]; ok {
+	s.usersMu.RLock()
+	u, ok := s.users[id]
+	negAt, isNeg := s.userNeg[id]
+	s.usersMu.RUnlock()
+	if ok {
 		if u.RealName != "" {
 			return u.RealName
 		}
 		return u.Name
 	}
-	// Why: users.list misses restricted/external/post-FetchUsers members; on-demand
-	// GetUserInfo + cache prevents permanent raw-ID exposure (e.g. "U07EBSTP5C5").
-	u, err := s.api.GetUserInfoContext(ctx, id)
-	if err != nil || u == nil {
-		// Why: API miss → raw `U...` ID가 prompt로 흘러 AI가 mention을 못 읽고 shared 폴백 발생.
-		//      log로 가시성 확보 — 빈도 측정 후 negative cache / retry 정책 결정.
-		logger.Warnf("[SLACK] GetUserName resolve failed for id=%s: %v", id, err)
+	if isNeg && time.Since(negAt) < slackNegCacheTTL {
 		return id
 	}
-	s.users[id] = *u
-	if u.RealName != "" {
-		return u.RealName
+	// Why: users.list misses restricted/external/post-FetchUsers members; on-demand
+	// GetUserInfo + cache prevents permanent raw-ID exposure (e.g. "U07EBSTP5C5").
+	fetched, err := s.api.GetUserInfoContext(ctx, id)
+	if err != nil || fetched == nil {
+		logger.Warnf("[SLACK] GetUserName resolve failed for id=%s: %v", id, err)
+		s.usersMu.Lock()
+		s.userNeg[id] = time.Now()
+		s.usersMu.Unlock()
+		return id
 	}
-	return u.Name
+	s.usersMu.Lock()
+	s.users[id] = *fetched
+	s.usersMu.Unlock()
+	if fetched.RealName != "" {
+		return fetched.RealName
+	}
+	return fetched.Name
 }
 
 func (s *SlackClient) GetChannelName(id string) string {
-	if name, ok := s.channels[id]; ok {
+	s.channelsMu.RLock()
+	name, ok := s.channels[id]
+	negAt, isNeg := s.channelNeg[id]
+	s.channelsMu.RUnlock()
+	if ok {
 		return name
+	}
+	if isNeg && time.Since(negAt) < slackNegCacheTTL {
+		return id
 	}
 	channel, err := s.api.GetConversationInfo(&slack.GetConversationInfoInput{
 		ChannelID: id,
 	})
 	if err != nil {
+		s.channelsMu.Lock()
+		s.channelNeg[id] = time.Now()
+		s.channelsMu.Unlock()
 		return id
 	}
-	name := slackChannelDisplayName(channel, id)
+	name = slackChannelDisplayName(channel, id)
+	s.channelsMu.Lock()
 	s.channels[id] = name
+	s.channelsMu.Unlock()
 	return name
 }
 
@@ -272,10 +341,11 @@ func (s *SlackClient) processHistoryMessages(ctx context.Context, channelID stri
 			continue
 		}
 
+		senderName := s.GetUserName(ctx, m.User)
 		msgs = append(msgs, types.RawMessage{
 			ID:              m.Timestamp,
-			Sender:          s.GetUserName(ctx, m.User),
-			SenderName:      s.GetUserName(ctx, m.User),
+			Sender:          senderName,
+			SenderName:      senderName,
 			Text:            m.Text,
 			Timestamp:       ts,
 			HasAttachment:   len(m.Files) > 0,
@@ -348,10 +418,11 @@ func (s *SlackClient) processThreadReplies(ctx context.Context, threadTS string,
 			continue
 		}
 
+		senderName := s.GetUserName(ctx, m.User)
 		msgs = append(msgs, types.RawMessage{
 			ID:              m.Timestamp,
-			Sender:          s.GetUserName(ctx, m.User),
-			SenderName:      s.GetUserName(ctx, m.User),
+			Sender:          senderName,
+			SenderName:      senderName,
 			Text:            m.Text,
 			Timestamp:       ParseSlackTimestamp(m.Timestamp),
 			ReplyToID:       threadTS, //Why: Attaches thread metadata to extracted replies to maintain relational integrity and correctly group related tasks in the UI.

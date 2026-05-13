@@ -325,28 +325,24 @@ func sweepSlackThreads(ctx context.Context, wg *sync.WaitGroup) {
 	if cfg == nil || cfg.SlackToken == "" {
 		return
 	}
-
 	threads, err := store.GetTargetedActiveThreads(ctx)
 	if err != nil || len(threads) == 0 {
 		return
 	}
-
-	sc, botID := getOrInitSlackClient(cfg.SlackToken) //nolint:contextcheck // SlackClient constructor; per-request ctx flows through individual API calls.
-
-	// Why: alias 결정은 tenant(UserEmail) 단위로 동일하므로 thread 루프 밖에서 1회만 조회한다.
-	// 기존엔 thread당 GetUserAliases가 contact_resolution + contacts 2 SELECT를 돌려 N+1을 만들었음.
+	sc, botID := getOrInitSlackClient(cfg.SlackToken)
 	aliasCache := buildSlackAliasCache(ctx, threads)
-
-	// Why: 채널별 conversations.history 1회로 thread parent의 latest_reply/reply_count를 묶어
-	// 가져오면 변동 없는 thread에 대한 conversations.replies 호출을 스킵할 수 있다. Tier 3
-	// 호출 수가 N(thread)에서 K(channel) + 변동 thread 수로 줄어 sweep latency가 압축된다.
 	activity := scanChannelHistoryActivity(ctx, sc, threads)
 
-	for _, t := range threads {
-		if shouldSkipThreadFetch(t, activity) {
+	for _, group := range groupThreadsByKey(threads) {
+		rep := group[0]
+		if shouldSkipThreadFetch(rep, activity) {
 			continue
 		}
-		processSingleSlackThread(ctx, sc, t, botID, aliasCache, wg)
+		if isThreadTimedOut(rep.LastActivityTS, 7*24*time.Hour) {
+			handleThreadTimeoutGroup(ctx, sc, group)
+			continue
+		}
+		processSlackThreadGroup(ctx, sc, group, botID, aliasCache, wg)
 	}
 }
 
@@ -476,6 +472,22 @@ func buildSlackAliasCache(ctx context.Context, threads []store.SlackThreadMeta) 
 	return out
 }
 
+func groupThreadsByKey(threads []store.SlackThreadMeta) [][]store.SlackThreadMeta {
+	type key struct{ channelID, threadTS string }
+	indexMap := make(map[key]int, len(threads))
+	var groups [][]store.SlackThreadMeta
+	for _, t := range threads {
+		k := key{t.ChannelID, t.ThreadTS}
+		if i, ok := indexMap[k]; ok {
+			groups[i] = append(groups[i], t)
+		} else {
+			indexMap[k] = len(groups)
+			groups = append(groups, []store.SlackThreadMeta{t})
+		}
+	}
+	return groups
+}
+
 func processSingleSlackThread(ctx context.Context, sc *channels.SlackClient, t store.SlackThreadMeta, botID string, aliasCache map[string]slackThreadIdentity, wg *sync.WaitGroup) {
 	if isThreadTimedOut(t.LastActivityTS, 7*24*time.Hour) {
 		handleThreadTimeout(ctx, sc, t)
@@ -510,6 +522,42 @@ func processSingleSlackThread(ctx context.Context, sc *channels.SlackClient, t s
 	updateThreadStatus(ctx, sc, t, res)
 }
 
+func processSlackThreadGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta, botID string, aliasCache map[string]slackThreadIdentity, wg *sync.WaitGroup) {
+	rep := group[0]
+	minLastTS := rep.LastTS
+	for _, s := range group[1:] {
+		if s.LastTS != "" && (minLastTS == "" || s.LastTS < minLastTS) {
+			minLastTS = s.LastTS
+		}
+	}
+
+	params := &slack.GetConversationRepliesParameters{
+		ChannelID: rep.ChannelID, Timestamp: rep.ThreadTS, Oldest: minLastTS, Limit: 100,
+	}
+	var replies []slack.Message
+	err := channels.WithSlackRetry(3, fmt.Sprintf("thread %s/%s", rep.ChannelID, rep.ThreadTS), func() error {
+		var e error
+		replies, _, _, e = sc.GetAPI().GetConversationReplies(params)
+		return e
+	})
+	if err != nil {
+		return
+	}
+
+	res := scanThreadReplies(replies, minLastTS, rep.LastActivityTS, botID)
+	for _, sub := range group {
+		ident, ok := aliasCache[sub.UserEmail]
+		if !ok || ident.user == nil {
+			continue
+		}
+		candidates := collectThreadCandidates(ctx, sc, ident.user, sub, replies, res, ident.effAliases)
+		if len(candidates) > 0 {
+			analyzeAndSaveSlack(ctx, ident.user, sc, candidates, wg)
+		}
+	}
+	updateThreadStatusGroup(ctx, sc, group, res)
+}
+
 func handleThreadTimeout(ctx context.Context, sc *channels.SlackClient, t store.SlackThreadMeta) {
 	if t.ThreadTS == "" {
 		logger.Warnf("[SLACK] handleThreadTimeout: empty ThreadTS channel=%s user=%s, closing without posting", t.ChannelID, t.UserEmail)
@@ -519,6 +567,22 @@ func handleThreadTimeout(ctx context.Context, sc *channels.SlackClient, t store.
 	msg := "Due to inactivity, this issue has been marked as resolved and monitoring is closed."
 	_, _, _ = sc.GetAPI().PostMessage(t.ChannelID, slack.MsgOptionText(msg, false), slack.MsgOptionTS(t.ThreadTS))
 	_ = store.CloseTargetedThread(ctx, t.ChannelID, t.ThreadTS, t.UserEmail)
+}
+
+func handleThreadTimeoutGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta) {
+	rep := group[0]
+	if rep.ThreadTS == "" {
+		for _, s := range group {
+			logger.Warnf("[SLACK] handleThreadTimeout: empty ThreadTS channel=%s user=%s, closing without posting", s.ChannelID, s.UserEmail)
+			_ = store.CloseTargetedThread(ctx, s.ChannelID, s.ThreadTS, s.UserEmail)
+		}
+		return
+	}
+	msg := "Due to inactivity, this issue has been marked as resolved and monitoring is closed."
+	_, _, _ = sc.GetAPI().PostMessage(rep.ChannelID, slack.MsgOptionText(msg, false), slack.MsgOptionTS(rep.ThreadTS))
+	for _, s := range group {
+		_ = store.CloseTargetedThread(ctx, s.ChannelID, s.ThreadTS, s.UserEmail)
+	}
 }
 
 func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user *store.User, t store.SlackThreadMeta, replies []slack.Message, res threadScanResult, effAl []string) []types.RawMessage {
@@ -577,6 +641,25 @@ func updateThreadStatus(ctx context.Context, sc *channels.SlackClient, t store.S
 	}
 	if res.newLastTS != t.LastTS || res.newLastActivity != t.LastActivityTS {
 		_ = store.UpdateTargetedThread(ctx, t.ChannelID, t.ThreadTS, res.newLastTS, res.newLastActivity, t.UserEmail)
+	}
+}
+
+func updateThreadStatusGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta, res threadScanResult) {
+	if res.isResolved {
+		rep := group[0]
+		if rep.ThreadTS == "" {
+			logger.Warnf("[SLACK] updateThreadStatus: empty ThreadTS channel=%s, skipping PostMessage", rep.ChannelID)
+		} else {
+			msg := "This issue has been marked as resolved and monitoring is closed."
+			_, _, _ = sc.GetAPI().PostMessage(rep.ChannelID, slack.MsgOptionText(msg, false), slack.MsgOptionTS(rep.ThreadTS))
+		}
+		for _, s := range group {
+			_ = store.CloseTargetedThread(ctx, s.ChannelID, s.ThreadTS, s.UserEmail)
+		}
+		return
+	}
+	for _, s := range group {
+		updateThreadStatus(ctx, sc, s, res)
 	}
 }
 

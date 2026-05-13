@@ -72,6 +72,7 @@ func (r *IdentityResolver) proposeChunk(ctx context.Context, email string, conta
 
 	modelName := r.client.getEffectiveModel(parsed, r.client.analysisModel)
 	cfg := r.client.buildConfig(0.1, 0, "", "")
+	cfg.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: genai.Ptr(int32(1024))}
 	start := time.Now()
 	resp, err := generateWithRetry(ctx, r.client.client, modelName, genai.Text(rendered), cfg, 300*time.Second, 2)
 	elapsedMs := time.Since(start).Milliseconds()
