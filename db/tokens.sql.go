@@ -21,7 +21,7 @@ func (q *Queries) DeleteGmailToken(ctx context.Context, userEmail string) error 
 }
 
 const getDailyTokenUsage = `-- name: GetDailyTokenUsage :one
-SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(filtered_count), 0)
+SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(thinking_tokens), 0), COALESCE(SUM(filtered_count), 0)
 FROM token_usage
 WHERE user_email = ? AND date = ?
 `
@@ -35,12 +35,18 @@ type GetDailyTokenUsageRow struct {
 	Coalesce   interface{} `json:"coalesce"`
 	Coalesce_2 interface{} `json:"coalesce_2"`
 	Coalesce_3 interface{} `json:"coalesce_3"`
+	Coalesce_4 interface{} `json:"coalesce_4"`
 }
 
 func (q *Queries) GetDailyTokenUsage(ctx context.Context, arg GetDailyTokenUsageParams) (GetDailyTokenUsageRow, error) {
 	row := q.db.QueryRowContext(ctx, getDailyTokenUsage, arg.UserEmail, arg.Date)
 	var i GetDailyTokenUsageRow
-	err := row.Scan(&i.Coalesce, &i.Coalesce_2, &i.Coalesce_3)
+	err := row.Scan(
+		&i.Coalesce,
+		&i.Coalesce_2,
+		&i.Coalesce_3,
+		&i.Coalesce_4,
+	)
 	return i, err
 }
 
@@ -56,7 +62,7 @@ func (q *Queries) GetGmailToken(ctx context.Context, userEmail string) (string, 
 }
 
 const getMonthlyTokenUsage = `-- name: GetMonthlyTokenUsage :one
-SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(filtered_count), 0)
+SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(thinking_tokens), 0), COALESCE(SUM(filtered_count), 0)
 FROM token_usage
 WHERE user_email = ? AND date >= ? AND date < ?
 `
@@ -71,12 +77,18 @@ type GetMonthlyTokenUsageRow struct {
 	Coalesce   interface{} `json:"coalesce"`
 	Coalesce_2 interface{} `json:"coalesce_2"`
 	Coalesce_3 interface{} `json:"coalesce_3"`
+	Coalesce_4 interface{} `json:"coalesce_4"`
 }
 
 func (q *Queries) GetMonthlyTokenUsage(ctx context.Context, arg GetMonthlyTokenUsageParams) (GetMonthlyTokenUsageRow, error) {
 	row := q.db.QueryRowContext(ctx, getMonthlyTokenUsage, arg.UserEmail, arg.Date, arg.Date_2)
 	var i GetMonthlyTokenUsageRow
-	err := row.Scan(&i.Coalesce, &i.Coalesce_2, &i.Coalesce_3)
+	err := row.Scan(
+		&i.Coalesce,
+		&i.Coalesce_2,
+		&i.Coalesce_3,
+		&i.Coalesce_4,
+	)
 	return i, err
 }
 

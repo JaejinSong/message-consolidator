@@ -16,6 +16,9 @@ const (
 	RatePromptGemini3Flash = 0.50
 	// RateCompletionGemini3Flash is the cost per 1M output tokens for Gemini 3 Flash.
 	RateCompletionGemini3Flash = 3.00
+	// RateThinkingGemini3Flash is the cost per 1M thinking tokens for Gemini 3 Flash.
+	// Why: Google bills thinking tokens at the output rate for Gemini 3 Flash.
+	RateThinkingGemini3Flash = 3.00
 	// TokenUnitDenominator is the divisor to convert to million tokens.
 	TokenUnitDenominator = 1000000.0
 )
@@ -23,11 +26,13 @@ const (
 type tokenUsageResponse struct {
 	TodayPrompt       int     `json:"todayPrompt"`
 	TodayCompletion   int     `json:"todayCompletion"`
+	TodayThinking     int     `json:"todayThinking"`
 	TodayFiltered     int     `json:"todayFiltered"`
 	TodayTotal        int     `json:"todayTotal"`
 	TodayCost         float64 `json:"todayCost"`
 	MonthlyPrompt     int     `json:"monthlyPrompt"`
 	MonthlyCompletion int     `json:"monthlyCompletion"`
+	MonthlyThinking   int     `json:"monthlyThinking"`
 	MonthlyFiltered   int     `json:"monthlyFiltered"`
 	MonthlyTotal      int     `json:"monthlyTotal"`
 	MonthlyCost       float64 `json:"monthlyCost"`
@@ -187,24 +192,26 @@ func (a *API) HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 // Why: Includes daily and monthly AI token usage data in the user info response to provide transparency on service costs and resource consumption.
 // This refactoring centralizes all arithmetic logic in the backend, using Gemini 3 Flash pricing.
 func (a *API) gatherTokenUsageStats(ctx context.Context, email string) tokenUsageResponse {
-	todayPrompt, todayCompletion, todayFiltered, _ := store.GetDailyTokenUsage(ctx, email)
-	monthPrompt, monthCompletion, monthFiltered, _ := store.GetMonthlyTokenUsage(ctx, email)
+	todayPrompt, todayCompletion, todayThinking, todayFiltered, _ := store.GetDailyTokenUsage(ctx, email)
+	monthPrompt, monthCompletion, monthThinking, monthFiltered, _ := store.GetMonthlyTokenUsage(ctx, email)
 
-	calculateCost := func(p, c int) float64 {
-		return (float64(p)*RatePromptGemini3Flash + float64(c)*RateCompletionGemini3Flash) / TokenUnitDenominator
+	calculateCost := func(p, c, t int) float64 {
+		return (float64(p)*RatePromptGemini3Flash + float64(c)*RateCompletionGemini3Flash + float64(t)*RateThinkingGemini3Flash) / TokenUnitDenominator
 	}
 
 	return tokenUsageResponse{
 		TodayPrompt:       todayPrompt,
 		TodayCompletion:   todayCompletion,
+		TodayThinking:     todayThinking,
 		TodayFiltered:     todayFiltered,
-		TodayTotal:        todayPrompt + todayCompletion,
-		TodayCost:         calculateCost(todayPrompt, todayCompletion),
+		TodayTotal:        todayPrompt + todayCompletion + todayThinking,
+		TodayCost:         calculateCost(todayPrompt, todayCompletion, todayThinking),
 		MonthlyPrompt:     monthPrompt,
 		MonthlyCompletion: monthCompletion,
+		MonthlyThinking:   monthThinking,
 		MonthlyFiltered:   monthFiltered,
-		MonthlyTotal:      monthPrompt + monthCompletion,
-		MonthlyCost:       calculateCost(monthPrompt, monthCompletion),
+		MonthlyTotal:      monthPrompt + monthCompletion + monthThinking,
+		MonthlyCost:       calculateCost(monthPrompt, monthCompletion, monthThinking),
 		Model:             "Gemini 3 Flash",
 	}
 }

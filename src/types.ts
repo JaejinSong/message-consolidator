@@ -93,6 +93,8 @@ export interface TokenUsage {
     model: string;
     todayFiltered?: number;
     monthlyFiltered?: number;
+    todayThinking?: number;
+    monthlyThinking?: number;
 }
 
 export interface TimeSeriesPoint {

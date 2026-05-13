@@ -38,12 +38,12 @@ FROM token_usage
 WHERE report_id = ?;
 
 -- name: GetDailyTokenUsage :one
-SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(filtered_count), 0)
+SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(thinking_tokens), 0), COALESCE(SUM(filtered_count), 0)
 FROM token_usage
 WHERE user_email = ? AND date = ?;
 
 -- name: GetMonthlyTokenUsage :one
-SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(filtered_count), 0)
+SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(thinking_tokens), 0), COALESCE(SUM(filtered_count), 0)
 FROM token_usage
 WHERE user_email = ? AND date >= ? AND date < ?;
 

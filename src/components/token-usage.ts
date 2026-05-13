@@ -35,7 +35,9 @@ export class TokenUsageCard {
         const todayTotal = data.todayTotal;
         const todayPrompt = data.todayPrompt;
         const todayCompletion = data.todayCompletion;
+        const todayThinking = data.todayThinking ?? 0;
         const monthlyTotal = data.monthlyTotal;
+        const monthlyThinking = data.monthlyThinking ?? 0;
         const monthlyCost = data.monthlyCost;
         const modelName = data.model;
 
@@ -44,7 +46,15 @@ export class TokenUsageCard {
         const labelMonthly = t('tokenUsed', lang) || 'Monthly Total';
         const labelIn = 'IN';
         const labelOut = 'OUT';
+        const labelThink = lang === 'ko' ? '생각' : 'THINK';
         const labelEstCost = 'Est. Cost';
+
+        const todayThinkingPart = todayThinking > 0
+            ? ` / ${this.numberFormatter.format(todayThinking)} ${labelThink}`
+            : '';
+        const monthlyThinkingPart = monthlyThinking > 0
+            ? ` / ${this.numberFormatter.format(monthlyThinking)} ${labelThink}`
+            : '';
 
         this.container.innerHTML = `
             <div class="c-token-usage">
@@ -53,7 +63,7 @@ export class TokenUsageCard {
                     <div class="c-token-usage__value">${this.numberFormatter.format(todayTotal)}</div>
                     <div class="c-token-usage__footer">
                         <span class="c-token-usage__subvalue">
-                            ${this.numberFormatter.format(todayPrompt)} ${labelIn} / ${this.numberFormatter.format(todayCompletion)} ${labelOut}
+                            ${this.numberFormatter.format(todayPrompt)} ${labelIn} / ${this.numberFormatter.format(todayCompletion)} ${labelOut}${todayThinkingPart}
                         </span>
                         <span class="c-token-usage__model-badge">${modelName}</span>
                     </div>
@@ -62,7 +72,7 @@ export class TokenUsageCard {
                     <span class="c-token-usage__label">${labelMonthly}</span>
                     <div class="c-token-usage__value">${this.numberFormatter.format(monthlyTotal)}</div>
                     <div class="c-token-usage__footer">
-                        <span class="c-token-usage__subvalue">${labelEstCost}: ${this.currencyFormatter.format(monthlyCost)}</span>
+                        <span class="c-token-usage__subvalue">${labelEstCost}: ${this.currencyFormatter.format(monthlyCost)}${monthlyThinkingPart}</span>
                     </div>
                 </div>
             </div>
