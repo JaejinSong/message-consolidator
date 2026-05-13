@@ -663,6 +663,18 @@ func GetIncompleteByThreadID(ctx context.Context, q Querier, email, threadID str
 	return msgs, nil
 }
 
+func GetRecentIncompleteGmail(ctx context.Context, q Querier, email string) ([]ConsolidatedMessage, error) {
+	rows, err := db.New(q).GetRecentIncompleteGmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	msgs := make([]ConsolidatedMessage, len(rows))
+	for i, row := range rows {
+		msgs[i] = toConsolidatedFromRecentGmail(row)
+	}
+	return msgs, nil
+}
+
 // GetLatestThreadAssignee returns the most recent non-shared assignee in a thread (incl. done).
 // Why: completion fallback path may INSERT a new task when the thread has no incomplete parent;
 // surfacing the prior assignee preserves thread routing instead of dumping to "shared".
@@ -782,6 +794,20 @@ func toConsolidatedFromByIDs(row db.GetMessagesByIDsRow) ConsolidatedMessage {
 }
 
 func toConsolidatedFromIncomplete(row db.GetIncompleteByThreadIDRow) ConsolidatedMessage {
+	return MapVMessageToConsolidated(
+		MessageID(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
+		row.Requester, row.Assignee, row.Link, row.SourceTs,
+		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
+		row.Category, row.Deadline, row.ThreadID,
+		row.RequesterCanonical, row.AssigneeCanonical, row.AssigneeReason,
+		row.RepliedToID, int(row.IsContextQuery), row.Constraints,
+		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
+		row.RequesterType, row.AssigneeType, row.Subtasks,
+		row.AssignedAt, row.CompletedAt, row.UpdatedAt,
+	)
+}
+
+func toConsolidatedFromRecentGmail(row db.VMessage) ConsolidatedMessage {
 	return MapVMessageToConsolidated(
 		MessageID(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
 		row.Requester, row.Assignee, row.Link, row.SourceTs,

@@ -100,6 +100,7 @@ type Querier interface {
 	GetMonthlyTokenUsage(ctx context.Context, arg GetMonthlyTokenUsageParams) (GetMonthlyTokenUsageRow, error)
 	GetPendingMe(ctx context.Context, arg GetPendingMeParams) (int64, error)
 	GetPendingOthers(ctx context.Context, arg GetPendingOthersParams) (int64, error)
+	GetRecentIncompleteGmail(ctx context.Context, userEmail string) ([]VMessage, error)
 	GetReport(ctx context.Context, arg GetReportParams) (GetReportRow, error)
 	GetReportByDate(ctx context.Context, arg GetReportByDateParams) (GetReportByDateRow, error)
 	GetReportByID(ctx context.Context, arg GetReportByIDParams) (GetReportByIDRow, error)

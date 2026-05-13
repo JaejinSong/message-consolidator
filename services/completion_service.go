@@ -8,8 +8,26 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
+	"regexp"
 	"strings"
 )
+
+var (
+	subjectBracketRe = regexp.MustCompile(`(?i)^\s*(\[[^\]]*\]\s*)+`)
+	subjectReplyRe   = regexp.MustCompile(`(?i)^(re|fwd|fw):\s*`)
+)
+
+func extractSubjectFromText(originalText string) string {
+	for _, line := range strings.Split(originalText, "\n") {
+		if strings.HasPrefix(line, "S: ") {
+			s := strings.TrimPrefix(line, "S: ")
+			s = subjectBracketRe.ReplaceAllString(s, "")
+			s = subjectReplyRe.ReplaceAllString(s, "")
+			return strings.TrimSpace(s)
+		}
+	}
+	return ""
+}
 
 type AICompleter interface {
 	AnalyzeWithContext(ctx context.Context, email string, msg types.EnrichedMessage, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error)
@@ -19,6 +37,7 @@ type AICompleter interface {
 
 type TaskStore interface {
 	GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error)
+	GetRecentIncompleteGmail(ctx context.Context, q store.Querier, email string) ([]store.ConsolidatedMessage, error)
 	GetLatestThreadAssignee(ctx context.Context, q store.Querier, email, threadID string) (string, error)
 	UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id store.MessageID, category string) error
 	HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error)
@@ -42,6 +61,10 @@ func (d *DefaultTaskStore) HandleTaskState(ctx context.Context, q store.Querier,
 	return HandleTaskState(ctx, q, email, item, msg)
 }
 
+func (d *DefaultTaskStore) GetRecentIncompleteGmail(ctx context.Context, q store.Querier, email string) ([]store.ConsolidatedMessage, error) {
+	return store.GetRecentIncompleteGmail(ctx, q, email)
+}
+
 type CompletionService struct {
 	gemini   AICompleter
 	store    TaskStore
@@ -51,6 +74,34 @@ type CompletionService struct {
 
 func NewCompletionService(gemini AICompleter, taskStore TaskStore, tasksSvc *TasksService, db *sql.DB) *CompletionService {
 	return &CompletionService{gemini: gemini, store: taskStore, tasksSvc: tasksSvc, db: db}
+}
+
+func (s *CompletionService) findCrossThreadCandidates(ctx context.Context, msg store.ConsolidatedMessage) []store.ConsolidatedMessage {
+	if msg.Source != "gmail" {
+		return nil
+	}
+	incomingSubj := extractSubjectFromText(msg.OriginalText)
+	if incomingSubj == "" {
+		return nil
+	}
+	recent, err := s.store.GetRecentIncompleteGmail(ctx, s.db, msg.UserEmail)
+	if err != nil || len(recent) == 0 {
+		return nil
+	}
+	var candidates []store.ConsolidatedMessage
+	for _, t := range recent {
+		if t.ThreadID == msg.ThreadID {
+			continue
+		}
+		existingSubj := extractSubjectFromText(t.OriginalText)
+		if existingSubj == "" {
+			continue
+		}
+		if store.CalculateSimilarity(incomingSubj, existingSubj) >= 0.85 {
+			candidates = append(candidates, t)
+		}
+	}
+	return candidates
 }
 
 // ProcessPotentialCompletion checks if a message (reply) completes/updates tasks in the same thread.
@@ -66,6 +117,20 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 
 	tasks, _ := s.store.GetIncompleteByThreadID(ctx, s.db, msg.UserEmail, targetID)
 	if len(tasks) == 0 {
+		if candidates := s.findCrossThreadCandidates(ctx, msg); len(candidates) > 0 {
+			res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, candidates[0].Task, msg.OriginalText)
+			if err == nil && res.Status != "NEW" && res.Status != "NONE" && res.Status != "" {
+				handled := false
+				for _, task := range candidates {
+					if s.handleCompletionResult(ctx, res.Status, res.UpdatedText, msg, task) {
+						handled = true
+					}
+				}
+				if handled {
+					return true, nil
+				}
+			}
+		}
 		// Why: Fallback consumes its own AI Analyze + persists tasks. Returning true
 		// signals the caller to MarkAsProcessed so the next scan cycle skips this msg
 		// instead of paying for LiteFilter + Analyze + batch Analyze again.

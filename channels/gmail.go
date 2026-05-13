@@ -603,9 +603,13 @@ func handleThreadActivity(ctx context.Context, email string, m types.RawMessage,
 	if cls != CategorySent && cls != CategoryMine && cls != CategoryOthers {
 		return false
 	}
+	requester := m.SenderName
+	if requester == "" {
+		requester = m.Sender
+	}
 	cm := store.ConsolidatedMessage{
 		UserEmail: email, Source: "gmail", Room: "Gmail", ThreadID: m.ThreadID,
-		OriginalText: m.Text, SourceTS: m.ID, Requester: m.SenderName,
+		OriginalText: m.Text, SourceTS: m.ID, Requester: requester,
 	}
 	if cls == CategorySent {
 		// Signals ProcessPotentialCompletion that the user sent this reply, so the task is reclassified as delegated rather than resolved.

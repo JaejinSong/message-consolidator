@@ -46,6 +46,7 @@ type MockStore struct {
 	ReleasedCategories []string
 	NewItemTasks       []string
 	Tasks              []store.ConsolidatedMessage
+	RecentGmailTasks   []store.ConsolidatedMessage
 }
 
 func (m *MockStore) GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error) {
@@ -72,6 +73,10 @@ func (m *MockStore) HandleTaskState(ctx context.Context, q store.Querier, email 
 		m.NewItemTasks = append(m.NewItemTasks, item.Task)
 	}
 	return 0, nil
+}
+
+func (m *MockStore) GetRecentIncompleteGmail(ctx context.Context, q store.Querier, email string) ([]store.ConsolidatedMessage, error) {
+	return m.RecentGmailTasks, nil
 }
 
 func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
@@ -306,6 +311,100 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		}
 		if len(mockStore.NewItemTasks) != 0 {
 			t.Errorf("expected no HandleTaskState calls when items empty, got %v", mockStore.NewItemTasks)
+		}
+	})
+}
+
+func TestCrossThreadSubjectDedup(t *testing.T) {
+	ctx := context.Background()
+
+	existingTask := store.ConsolidatedMessage{
+		ID:           1,
+		Task:         "Exercise 2026 stock options for 2,000 shares by June 5",
+		ThreadID:     "threadA",
+		Source:       "gmail",
+		OriginalText: "T: jjsong@whatap.io\nC: \nS: [안내] 2026년 스톡옵션 행사 안내\nB:\n본문",
+	}
+
+	t.Run("cross-thread UPDATE routes to existing task", func(t *testing.T) {
+		mockStore := &MockStore{
+			Tasks:            []store.ConsolidatedMessage{},
+			RecentGmailTasks: []store.ConsolidatedMessage{existingTask},
+		}
+		mockAI := &MockAI{Results: []store.TodoItem{{State: "update", Task: "Updated stock option task"}}}
+
+		svc := NewCompletionService(mockAI, mockStore, nil, nil)
+		msg := store.ConsolidatedMessage{
+			UserEmail:    "jjsong@whatap.io",
+			ThreadID:     "threadB",
+			Source:       "gmail",
+			OriginalText: "T: jjsong@whatap.io\nC: \nS: [재안내] 2026년 스톡옵션 행사 안내\nB:\n재안내 본문",
+		}
+
+		handled, err := svc.ProcessPotentialCompletion(ctx, msg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !handled {
+			t.Error("expected handled=true for cross-thread UPDATE")
+		}
+		if len(mockStore.ReleasedIDs) == 0 {
+			t.Error("expected UpdateMessageCategory or HandleTaskState update call")
+		}
+	})
+
+	t.Run("cross-thread NEW falls back to new extraction", func(t *testing.T) {
+		mockStore := &MockStore{
+			Tasks:            []store.ConsolidatedMessage{},
+			RecentGmailTasks: []store.ConsolidatedMessage{existingTask},
+		}
+		mockAI := &MockAI{Results: []store.TodoItem{{State: "new", Task: "New task from re-notice"}}}
+
+		svc := NewCompletionService(mockAI, mockStore, nil, nil)
+		msg := store.ConsolidatedMessage{
+			UserEmail:    "jjsong@whatap.io",
+			ThreadID:     "threadB",
+			Source:       "gmail",
+			OriginalText: "T: jjsong@whatap.io\nC: \nS: [재안내] 2026년 스톡옵션 행사 안내\nB:\n재안내 본문",
+		}
+
+		handled, err := svc.ProcessPotentialCompletion(ctx, msg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !handled {
+			t.Error("expected handled=true (fallback new extraction also returns true)")
+		}
+		if len(mockStore.NewItemTasks) == 0 {
+			t.Error("expected fallback new extraction to create a task")
+		}
+	})
+
+	t.Run("no similar subject falls back without cross-thread check", func(t *testing.T) {
+		differentTask := store.ConsolidatedMessage{
+			ID:           2,
+			Task:         "Completely different task",
+			ThreadID:     "threadC",
+			Source:       "gmail",
+			OriginalText: "T: jjsong@whatap.io\nC: \nS: [안내] 완전히 다른 주제\nB:\n본문",
+		}
+		mockStore := &MockStore{
+			Tasks:            []store.ConsolidatedMessage{},
+			RecentGmailTasks: []store.ConsolidatedMessage{differentTask},
+		}
+		mockAI := &MockAI{Results: []store.TodoItem{{State: "new", Task: "New task"}}}
+
+		svc := NewCompletionService(mockAI, mockStore, nil, nil)
+		msg := store.ConsolidatedMessage{
+			UserEmail:    "jjsong@whatap.io",
+			ThreadID:     "threadB",
+			Source:       "gmail",
+			OriginalText: "T: jjsong@whatap.io\nC: \nS: [재안내] 2026년 스톡옵션 행사 안내\nB:\n재안내 본문",
+		}
+
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+		if !handled {
+			t.Error("expected fallback to handle the message")
 		}
 	})
 }

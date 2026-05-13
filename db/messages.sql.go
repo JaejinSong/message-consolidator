@@ -646,6 +646,96 @@ func (q *Queries) GetMessagesForMerge(ctx context.Context, arg GetMessagesForMer
 	return items, nil
 }
 
+const getRecentIncompleteGmail = `-- name: GetRecentIncompleteGmail :many
+SELECT id, COALESCE(user_email,'') as user_email, COALESCE(source,'') as source,
+       COALESCE(room,'') as room, COALESCE(task,'') as task,
+       COALESCE(requester,'') as requester, COALESCE(assignee,'') as assignee,
+       assigned_at, COALESCE(link,'') as link, COALESCE(source_ts,'') as source_ts,
+       COALESCE(pinned,0) as pinned, COALESCE(original_text,'') as original_text,
+       COALESCE(done,0) as done, COALESCE(is_deleted,0) as is_deleted,
+       created_at, updated_at, completed_at, COALESCE(category,'todo') as category,
+       COALESCE(deadline,'') as deadline, COALESCE(thread_id,'') as thread_id,
+       COALESCE(assignee_reason,'') as assignee_reason,
+       COALESCE(replied_to_id,'') as replied_to_id,
+       COALESCE(is_context_query,0) as is_context_query,
+       COALESCE(constraints,'[]') as constraints, COALESCE(metadata,'{}') as metadata,
+       COALESCE(source_channels,'[]') as source_channels,
+       COALESCE(consolidated_context,'[]') as consolidated_context,
+       COALESCE(subtasks,'[]') as subtasks,
+       COALESCE(lifecycle,'active') as lifecycle,
+       COALESCE(requester_canonical,'') as requester_canonical,
+       COALESCE(assignee_canonical,'') as assignee_canonical,
+       COALESCE(requester_type,'none') as requester_type,
+       COALESCE(assignee_type,'none') as assignee_type
+FROM v_messages
+WHERE user_email = ?
+  AND source = 'gmail'
+  AND done = 0
+  AND is_deleted = 0
+  AND category != 'merged'
+  AND created_at >= datetime('now', '-7 days')
+  AND IFNULL(task, '') != ''
+ORDER BY created_at DESC
+LIMIT 20
+`
+
+func (q *Queries) GetRecentIncompleteGmail(ctx context.Context, userEmail string) ([]VMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getRecentIncompleteGmail, userEmail)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []VMessage
+	for rows.Next() {
+		var i VMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserEmail,
+			&i.Source,
+			&i.Room,
+			&i.Task,
+			&i.Requester,
+			&i.Assignee,
+			&i.AssignedAt,
+			&i.Link,
+			&i.SourceTs,
+			&i.Pinned,
+			&i.OriginalText,
+			&i.Done,
+			&i.IsDeleted,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CompletedAt,
+			&i.Category,
+			&i.Deadline,
+			&i.ThreadID,
+			&i.AssigneeReason,
+			&i.RepliedToID,
+			&i.IsContextQuery,
+			&i.Constraints,
+			&i.Metadata,
+			&i.SourceChannels,
+			&i.ConsolidatedContext,
+			&i.Subtasks,
+			&i.Lifecycle,
+			&i.RequesterCanonical,
+			&i.AssigneeCanonical,
+			&i.RequesterType,
+			&i.AssigneeType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getRoomActorFrequency = `-- name: GetRoomActorFrequency :many
 SELECT COALESCE(assignee, '') AS assignee, COUNT(*) AS n
 FROM v_messages
