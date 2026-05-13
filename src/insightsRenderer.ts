@@ -29,25 +29,27 @@ export const insightsRenderer = {
         if (!slot) return;
         slot.innerHTML = '';
 
-        const { 
-            todayTotal = 0, todayPrompt = 0, todayCompletion = 0,
-            monthlyTotal = 0, monthlyPrompt = 0, monthlyCompletion = 0,
-            monthlyCost = 0, model = 'Gemini 3 Flash' 
+        const {
+            todayTotal = 0, todayPrompt = 0, todayCompletion = 0, todayThinking = 0,
+            monthlyTotal = 0, monthlyPrompt = 0, monthlyCompletion = 0, monthlyThinking = 0,
+            monthlyCost = 0, model = 'Gemini 3 Flash'
         } = usage || {};
-        
+
         const costStr = typeof monthlyCost === 'number' ? `$${monthlyCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00';
+        const todayThinkPart = todayThinking > 0 ? ` / 생각 ${todayThinking.toLocaleString()}` : '';
+        const monthlyThinkPart = monthlyThinking > 0 ? ` / 생각 ${monthlyThinking.toLocaleString()}` : '';
 
         slot.innerHTML = `
             <span class="stat-card__label">${i18n.tokenUsageTitle || '토큰 사용량'}</span>
             <div class="c-ai-usage">
                 <div class="c-ai-usage__item">
                     <span class="c-ai-usage__value">${todayTotal.toLocaleString()}</span>
-                    <span class="c-ai-usage__detail">입 ${todayPrompt.toLocaleString()} / 출 ${todayCompletion.toLocaleString()}</span>
+                    <span class="c-ai-usage__detail">입 ${todayPrompt.toLocaleString()} / 출 ${todayCompletion.toLocaleString()}${todayThinkPart}</span>
                     <span class="c-ai-usage__info">${i18n.todayAIUsage || '오늘 AI 사용'}</span>
                 </div>
                 <div class="c-ai-usage__item">
                     <span class="c-ai-usage__value">${monthlyTotal.toLocaleString()}</span>
-                    <span class="c-ai-usage__detail">입 ${monthlyPrompt.toLocaleString()} / 출 ${monthlyCompletion.toLocaleString()}</span>
+                    <span class="c-ai-usage__detail">입 ${monthlyPrompt.toLocaleString()} / 출 ${monthlyCompletion.toLocaleString()}${monthlyThinkPart}</span>
                     <span class="c-ai-usage__info">${i18n.monthlyAIUsage || '이번 달 AI 사용'}</span>
                 </div>
                 <div class="c-ai-usage__item">
