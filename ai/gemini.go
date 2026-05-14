@@ -395,7 +395,7 @@ func (g *GeminiClient) prepareAnalysisData(ctx context.Context, email string, ms
 		CurrentTime:         time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 		Locale:              g.getValidLang(language),
 		ExistingTasksJSON:   g.marshalTasksForAI(tasks),
-		EnrichedMessageJSON: g.marshalEnrichedMessage(msg),
+
 		CurrentUser:         userName,
 		CurrentUserEmail:    user.Email,
 		CurrentUserID:       user.ID,
@@ -416,10 +416,6 @@ func (g *GeminiClient) logInferenceAsync(source, input, output string) {
 	}()
 }
 
-func (g *GeminiClient) marshalEnrichedMessage(msg types.EnrichedMessage) string {
-	b, _ := json.Marshal(msg)
-	return string(b)
-}
 
 func (g *GeminiClient) marshalTasksForAI(tasks []store.ConsolidatedMessage) string {
 	if len(tasks) == 0 {

@@ -63,7 +63,7 @@ func verifyTemplateExecution(t *testing.T, tmpl *template.Template) {
 		Locale:              "ko-KR",
 		FewShots:            []FewShot{{Input: "<<IN>>", Expected: "<<EX>>"}},
 		ExistingTasksJSON:   "<<TASKS>>",
-		EnrichedMessageJSON: "<<ENRICHED>>",
+
 		CurrentUser:         "<<USER>>",
 		CurrentUserEmail:    "<<EMAIL>>",
 		CurrentUserID:       0,
@@ -101,7 +101,7 @@ func renderPromptWithSentinels(t *testing.T, path string) string {
 		Locale:              "<<LOC>>",
 		FewShots:            []FewShot{{Input: "<<IN>>", Expected: "<<EX>>"}},
 		ExistingTasksJSON:   "<<TASKS>>",
-		EnrichedMessageJSON: "<<ENRICHED>>",
+
 		CurrentUser:         "<<USER>>",
 		CurrentUserEmail:    "<<EMAIL>>",
 		CurrentUserID:       0,

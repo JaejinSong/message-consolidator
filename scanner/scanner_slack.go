@@ -733,6 +733,11 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 		senderName = lastMsg.Sender
 	}
 	enriched, _ := EnrichSlackMessage(lastMsg.Sender, senderName, lastMsg.ChannelID, lastMsg.ReplyToID, payload, lastMsg.Timestamp)
+	if strings.HasPrefix(candidates[0].ChannelID, "D") {
+		enriched.ChatType = "1to1"
+	} else {
+		enriched.ChatType = "group"
+	}
 
 	proposals, err := gClient.Analyze(ctx, user.Email, *enriched, "Korean", "slack", channelName)
 	if err != nil {

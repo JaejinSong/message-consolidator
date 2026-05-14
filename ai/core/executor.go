@@ -11,7 +11,7 @@ type ExtractionContext struct {
 	Locale              string
 	FewShots            []FewShot
 	ExistingTasksJSON   string
-	EnrichedMessageJSON string
+
 	CurrentUser         string       //Why: Explicitly identifies the host user to help AI distinguish between requester and assignee.
 	CurrentUserEmail    string       //Why: Provides the primary email of the user for strict identity mapping.
 	CurrentUserID       store.UserID //Why: Securely identifies the user for internal DB assignee mapping logic.
