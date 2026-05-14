@@ -47,7 +47,8 @@ type RawMessage struct {
 type EnrichedMessage struct {
 	RawContent      string     `json:"raw_content"`
 	SourceChannel   string     `json:"source_channel"` // "whatsapp", "slack", "email"
-	SenderID        ids.UserID `json:"sender_id"`      // Why: Explicit phantom type for DB identity security.
+	ChatType        string     `json:"chat_type"`       // Why: "1to1" or "group"; empty for non-chat sources (email). Lets AI apply correct assignee/policy rules without re-inferring from sender count.
+	SenderID        ids.UserID `json:"sender_id"`       // Why: Explicit phantom type for DB identity security.
 	SenderName      string     `json:"sender_name"`
 	VirtualThreadID string     `json:"virtual_thread_id"`
 	Timestamp       time.Time  `json:"timestamp"`

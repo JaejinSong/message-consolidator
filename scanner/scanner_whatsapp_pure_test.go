@@ -80,14 +80,14 @@ func TestBuildWAPayloadPure(t *testing.T) {
 			name:          "IsFromMe overrides to user.Name",
 			user:          store.User{Name: "Owner"},
 			msgs:          []types.RawMessage{{ID: "m2", Sender: "+15551234", IsFromMe: true, Text: "self", Timestamp: ts}},
-			wantContain:   []string{"[ID:m2] Owner: self"},
+			wantContain:   []string{"[ID:m2]", "Owner: self"},
 			wantMsgMapLen: 1,
 		},
 		{
 			name:          "forwarded tag in metadata",
 			user:          store.User{Name: "Me"},
 			msgs:          []types.RawMessage{{ID: "m3", Sender: "+15551234", IsForwarded: true, Text: "fwd", Timestamp: ts}},
-			wantContain:   []string{"[ID:m3] [Tags: Forwarded] +15551234: fwd"},
+			wantContain:   []string{"[ID:m3]", "[Tags: Forwarded]", "+15551234: fwd"},
 			wantMsgMapLen: 1,
 		},
 		{

@@ -399,6 +399,8 @@ func (g *GeminiClient) prepareAnalysisData(ctx context.Context, email string, ms
 		CurrentUser:         userName,
 		CurrentUserEmail:    user.Email,
 		CurrentUserID:       user.ID,
+		ChatType:            msg.ChatType,
+		RoomName:            room,
 	}
 	if analyzer := core.GetAnalyzer(source); analyzer != nil {
 		data.MessagePayload = analyzer.PreProcess(data.MessagePayload)
@@ -423,20 +425,35 @@ func (g *GeminiClient) marshalTasksForAI(tasks []store.ConsolidatedMessage) stri
 	if len(tasks) == 0 {
 		return "[]"
 	}
-	// Why: source/room are invariant within a single Analyze call (query filters by both);
-	// thread_id is not referenced by any prompt. Only id/task/original_text are consumed by the AI.
-	// original_text is truncated to preserve topical matching signal without shipping full history.
+	// Why: source/room are invariant (query filters by both). original_text truncated to 120 runes to
+	// preserve topical matching without shipping full history. requester/assignee/category/assigned_at/done
+	// added so AI can resolve state (update/resolve/new) directly — eliminates the main source of
+	// excessive thinking-token consumption.
 	type contextTask struct {
-		ID       store.MessageID `json:"id"`
-		Task     string          `json:"task"`
-		Original string          `json:"original_text,omitempty"`
+		ID         store.MessageID `json:"id"`
+		Task       string          `json:"task"`
+		Original   string          `json:"original_text,omitempty"`
+		Requester  string          `json:"requester,omitempty"`
+		Assignee   string          `json:"assignee,omitempty"`
+		Category   string          `json:"category,omitempty"`
+		AssignedAt string          `json:"assigned_at,omitempty"`
+		Done       bool            `json:"done"`
 	}
 	ctxTasks := make([]contextTask, 0, len(tasks))
 	for _, t := range tasks {
+		var assignedAt string
+		if !t.AssignedAt.IsZero() {
+			assignedAt = t.AssignedAt.UTC().Format(time.RFC3339)
+		}
 		ctxTasks = append(ctxTasks, contextTask{
-			ID:       t.ID,
-			Task:     t.Task,
-			Original: truncateRunes(t.OriginalText, 120),
+			ID:         t.ID,
+			Task:       t.Task,
+			Original:   truncateRunes(t.OriginalText, 120),
+			Requester:  t.Requester,
+			Assignee:   t.Assignee,
+			Category:   t.Category,
+			AssignedAt: assignedAt,
+			Done:       t.Done,
 		})
 	}
 	b, _ := json.Marshal(ctxTasks)

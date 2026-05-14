@@ -143,7 +143,7 @@ func TestBuildTGPayload(t *testing.T) {
 			msgs: []types.RawMessage{
 				{ID: "m2", SenderName: "", Sender: "bob_handle", Text: "yo", Timestamp: ts},
 			},
-			wantContain:   []string{"[ID:m2] bob_handle: yo"},
+			wantContain:   []string{"[ID:m2]", "bob_handle: yo"},
 			wantMsgMapLen: 1,
 			wantMsgMap:    map[string]string{"m2": "yo"},
 		},
@@ -154,7 +154,7 @@ func TestBuildTGPayload(t *testing.T) {
 				{ID: "m3", SenderName: "AnyName", Sender: "any", IsFromMe: true, Text: "self", Timestamp: ts},
 			},
 			// Why: IsFromMe must replace SenderName entirely, not just fall back.
-			wantContain:   []string{"[ID:m3] Owner: self"},
+			wantContain:   []string{"[ID:m3]", "Owner: self"},
 			wantMsgMapLen: 1,
 			wantMsgMap:    map[string]string{"m3": "self"},
 		},
@@ -175,7 +175,7 @@ func TestBuildTGPayload(t *testing.T) {
 			msgs: []types.RawMessage{
 				{ID: "m4", SenderName: "Sender", IsForwarded: true, Text: "fwd", Timestamp: ts},
 			},
-			wantContain:   []string{"[ID:m4] [Tags: Forwarded] Sender:"},
+			wantContain:   []string{"[ID:m4]", "[Tags: Forwarded]", "Sender:"},
 			wantMsgMapLen: 1,
 			wantMsgMap:    map[string]string{"m4": "fwd"},
 		},

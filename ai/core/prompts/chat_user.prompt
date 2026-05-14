@@ -4,8 +4,12 @@ version: 1.0.0
 model: gemini-3-flash-preview
 ---
 [Context]
-Existing Tasks:
+Existing Tasks (fields: id, task, original_text, requester, assignee, category, assigned_at [RFC3339, omit if unset], done):
 {{.ExistingTasksJSON}}
 
-[Input]
+{{if or .ChatType .RoomName}}[Envelope]
+{{if .ChatType}}Chat-Type: {{.ChatType}}
+{{end}}{{if .RoomName}}Room: {{.RoomName}}
+{{end}}
+{{end}}[Input]
 {{.MessagePayload}}

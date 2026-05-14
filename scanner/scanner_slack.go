@@ -782,7 +782,11 @@ func buildSlackAnalysisPayload(ctx context.Context, candidates []types.RawMessag
 		if senderLabel == "" {
 			senderLabel = m.Sender
 		}
-		sb.WriteString(fmt.Sprintf("[ID:%s]%s %s: %s\n", m.ID, metaStr, senderLabel, resolvedText))
+		var tsTag string
+		if !m.Timestamp.IsZero() {
+			tsTag = fmt.Sprintf("[ts:%s]", m.Timestamp.UTC().Format("2006-01-02T15:04"))
+		}
+		sb.WriteString(fmt.Sprintf("[ID:%s]%s%s %s: %s\n", m.ID, tsTag, metaStr, senderLabel, resolvedText))
 	}
 	return sb.String(), msgMap
 }

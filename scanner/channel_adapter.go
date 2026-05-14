@@ -132,6 +132,11 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 		logger.Errorf("[SCAN] %s: enrichment failed: %v", prefix, err)
 		return nil
 	}
+	if adapter.Is1To1(roomKey) {
+		enriched.ChatType = "1to1"
+	} else {
+		enriched.ChatType = "group"
+	}
 
 	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, source, groupName)
 	logger.Debugf("[SCAN] %s: found %d active tasks for room %s", prefix, len(tasks), groupName)
