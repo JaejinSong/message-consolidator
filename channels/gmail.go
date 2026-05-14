@@ -110,9 +110,9 @@ func SendGmailEmail(ctx context.Context, from, to, subject, body string) error {
 }
 
 func buildRawMessage(from, to, subject, body string) string {
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
+	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
 		from, to, subject, body)
-	return base64.URLEncoding.EncodeToString([]byte(msg))
+	return base64.RawURLEncoding.EncodeToString([]byte(msg))
 }
 
 func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
