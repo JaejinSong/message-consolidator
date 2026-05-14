@@ -361,7 +361,7 @@ func (g *GeminiClient) AnalyzeWithContext(ctx context.Context, email string, msg
 	analyzer := core.GetAnalyzer(source)
 	modelName := g.getAnalyzeModelName(analyzer)
 	cfg := g.buildConfig(0.0, DefaultMaxTokens, "application/json", g.getAnalyzeSysInst(analyzer, data))
-	cfg.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: genai.Ptr(int32(1024))}
+	cfg.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: genai.Ptr(int32(3072))}
 	prompt := g.getAnalyzeUserPrompt(analyzer, data)
 
 	start := time.Now()

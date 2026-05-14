@@ -49,6 +49,7 @@ type Config struct {
 	WeeklyReportHour            int
 	WeeklyReportTimezone        string
 	WeeklyReportLang            string
+	WeeklyReportTestRecipient   string
 	StaleThresholdWorkingDays   int
 	ReportCutoffSize            int
 }
@@ -94,6 +95,7 @@ func LoadConfig() *Config {
 		WeeklyReportHour:            envInt("WEEKLY_REPORT_HOUR", 18),
 		WeeklyReportTimezone:        envOr("WEEKLY_REPORT_TIMEZONE", "Asia/Seoul"),
 		WeeklyReportLang:            envOr("WEEKLY_REPORT_LANG", "en"),
+		WeeklyReportTestRecipient:   os.Getenv("WEEKLY_REPORT_TEST_RECIPIENT"),
 		StaleThresholdWorkingDays:   envInt("STALE_THRESHOLD_WORKING_DAYS", 3),
 		ReportCutoffSize:            envInt("REPORT_CUTOFF_SIZE", 65000),
 	}

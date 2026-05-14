@@ -15,6 +15,12 @@ import (
 	"github.com/whatap/go-api/trace"
 )
 
+type gmailMailer struct{}
+
+func (g gmailMailer) SendEmail(ctx context.Context, from, to, subject, body string) error {
+	return channels.SendGmailEmail(ctx, from, to, subject, body)
+}
+
 func main() {
 	logger.InitLogging()
 	cfg := config.LoadConfig()
@@ -27,9 +33,11 @@ func main() {
 		log.Fatalf("DB init: %v", err)
 	}
 
-	if cfg.GeminiAPIKey == "" || cfg.SlackToken == "" || cfg.NotionToken == "" {
-		log.Fatalf("missing required env: GEMINI_API_KEY/SLACK_TOKEN/NOTION_TOKEN")
+	if cfg.GeminiAPIKey == "" || cfg.NotionToken == "" {
+		log.Fatalf("missing required env: GEMINI_API_KEY/NOTION_TOKEN")
 	}
+	channels.SetupGmailOAuth(cfg)
+
 	recipients := cfg.WeeklyReportRecipientEmails
 	if v := os.Getenv("SIM_WEEKLY_RECIPIENT"); v != "" {
 		recipients = splitCSV(v)
@@ -46,13 +54,12 @@ func main() {
 	summarizer := services.NewFlashSingleSummarizer(gClient)
 	reportsSvc := services.NewReportsService(summarizer, gClient, transSvc, services.ReportConfig{CutoffSize: services.DefaultReportCutoffSize})
 
-	slack := channels.NewSlackClient(cfg.SlackToken)
 	notion := services.NewNotionExporter(cfg.NotionToken, cfg.NotionReportPageID)
 	if !notion.Enabled() {
 		log.Fatalf("notion not configured")
 	}
 
-	svc := services.NewWeeklyReportService(slack, reportsSvc, notion, services.WeeklyReportConfig{
+	svc := services.NewWeeklyReportService(gmailMailer{}, reportsSvc, notion, services.WeeklyReportConfig{
 		RecipientEmails: recipients,
 		Hour:            cfg.WeeklyReportHour,
 		Timezone:        cfg.WeeklyReportTimezone,
@@ -63,7 +70,7 @@ func main() {
 	if err := svc.Dispatch(ctx); err != nil {
 		log.Fatalf("dispatch: %v", err)
 	}
-	log.Printf("[SIM-WEEKLY] done — check Slack DM")
+	log.Printf("[SIM-WEEKLY] done — check email inbox")
 }
 
 func splitCSV(s string) []string {

@@ -22,6 +22,7 @@ type API struct {
 	ScanFunc         func(email string, lang string)
 	FullScanFunc     func()
 	Digest           func(ctx context.Context) error
+	WeeklyDispatch   func(ctx context.Context, recipient string) error
 	Reports          *services.ReportsService
 	Tasks            *services.TasksService
 	IdentityResolver *ai.IdentityResolver

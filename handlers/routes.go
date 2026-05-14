@@ -182,6 +182,7 @@ func (a *API) registerReportRoutes(r *mux.Router) {
 	r.Handle("/api/reports/{id:[0-9]+}", a.protected(a.HandleDeleteReport)).Methods("DELETE")
 	r.Handle("/api/reports/{id:[0-9]+}/translate", a.protected(a.HandleTranslateReport)).Methods("POST")
 	r.Handle("/api/reports/{id:[0-9]+}/export/notion", a.protected(a.HandleExportReportToNotion)).Methods("POST")
+	r.Handle("/api/reports/weekly/test", a.protected(a.HandleWeeklyReportTest)).Methods("POST")
 }
 
 func (a *API) registerGmailRoutes(r *mux.Router) {

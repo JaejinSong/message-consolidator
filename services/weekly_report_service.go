@@ -9,9 +9,8 @@ import (
 	"time"
 )
 
-type WeeklyReportSlack interface {
-	SendDM(ctx context.Context, slackUserID, text string) error
-	LookupSlackIDByEmail(email string) (string, error)
+type WeeklyReportMailer interface {
+	SendEmail(ctx context.Context, from, to, subject, body string) error
 }
 
 type WeeklyReportConfig struct {
@@ -24,14 +23,14 @@ type WeeklyReportConfig struct {
 }
 
 type WeeklyReportService struct {
-	Slack   WeeklyReportSlack
+	Mailer  WeeklyReportMailer
 	Reports *ReportsService
 	Notion  *NotionExporter
 	Config  WeeklyReportConfig
 	nowFn   func() time.Time
 }
 
-func NewWeeklyReportService(slack WeeklyReportSlack, reports *ReportsService, notion *NotionExporter, cfg WeeklyReportConfig) *WeeklyReportService {
+func NewWeeklyReportService(mailer WeeklyReportMailer, reports *ReportsService, notion *NotionExporter, cfg WeeklyReportConfig) *WeeklyReportService {
 	if cfg.PollInterval == 0 {
 		cfg.PollInterval = 7 * time.Second
 	}
@@ -45,15 +44,26 @@ func NewWeeklyReportService(slack WeeklyReportSlack, reports *ReportsService, no
 		cfg.Timezone = "Asia/Seoul"
 	}
 	return &WeeklyReportService{
-		Slack: slack, Reports: reports, Notion: notion, Config: cfg,
+		Mailer: mailer, Reports: reports, Notion: notion, Config: cfg,
 		nowFn: func() time.Time { return time.Now() },
 	}
 }
 
 func (s *WeeklyReportService) Dispatch(ctx context.Context) error {
-	if s == nil || s.Slack == nil || s.Reports == nil || s.Notion == nil || len(s.Config.RecipientEmails) == 0 {
+	if s == nil || s.Mailer == nil || s.Reports == nil || s.Notion == nil || len(s.Config.RecipientEmails) == 0 {
 		return nil
 	}
+	return s.deliver(ctx, s.Config.RecipientEmails)
+}
+
+func (s *WeeklyReportService) DispatchTo(ctx context.Context, recipient string) error {
+	if s == nil || s.Mailer == nil || s.Reports == nil || s.Notion == nil || len(s.Config.RecipientEmails) == 0 {
+		return fmt.Errorf("weekly: service not configured")
+	}
+	return s.deliver(ctx, []string{recipient})
+}
+
+func (s *WeeklyReportService) deliver(ctx context.Context, recipients []string) error {
 	loc, err := time.LoadLocation(s.Config.Timezone)
 	if err != nil {
 		loc = time.UTC
@@ -75,37 +85,14 @@ func (s *WeeklyReportService) Dispatch(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("weekly: notion: %w", err)
 	}
-	text := formatWeeklyDMText(start, end, url)
-	for _, email := range s.Config.RecipientEmails {
-		slackID, err := s.ensureSlackIDFor(ctx, email)
-		if err != nil {
-			logger.Warnf("[WEEKLY] slack id for %s: %v", email, err)
-			continue
-		}
-		if err := s.Slack.SendDM(ctx, slackID, text); err != nil {
-			logger.Warnf("[WEEKLY] send dm to %s: %v", email, err)
+	subject := formatWeeklyEmailSubject(start, end)
+	body := formatWeeklyEmailBody(start, end, url, completed.ReportSummary)
+	for _, email := range recipients {
+		if err := s.Mailer.SendEmail(ctx, primary, email, subject, body); err != nil {
+			logger.Warnf("[WEEKLY] send email to %s: %v", email, err)
 		}
 	}
 	return nil
-}
-
-// Why: Slack DM silently no-ops when user.slack_id is blank — bootstrap via lookupByEmail on first send.
-func (s *WeeklyReportService) ensureSlackIDFor(ctx context.Context, email string) (string, error) {
-	user, err := store.GetOrCreateUser(ctx, email, "", "")
-	if err != nil || user == nil {
-		return "", fmt.Errorf("get user %s: %w", email, err)
-	}
-	if id := strings.TrimSpace(user.SlackID); id != "" {
-		return id, nil
-	}
-	id, err := s.Slack.LookupSlackIDByEmail(email)
-	if err != nil {
-		return "", fmt.Errorf("lookup slack id: %w", err)
-	}
-	if err := store.UpdateUserSlackID(ctx, email, id); err != nil {
-		logger.Warnf("[WEEKLY] persist slack id failed: %v", err)
-	}
-	return id, nil
 }
 
 func (s *WeeklyReportService) waitForCompletion(ctx context.Context, id store.ReportID, email string) (*store.Report, error) {
@@ -147,6 +134,10 @@ func computeWeekWindow(now time.Time) (string, string) {
 	return start.Format(layout), end.Format(layout)
 }
 
-func formatWeeklyDMText(start, end, url string) string {
-	return fmt.Sprintf(":bar_chart: *Weekly Report* (%s ~ %s)\n%s", start, end, url)
+func formatWeeklyEmailSubject(start, end string) string {
+	return fmt.Sprintf("[WR] %s~%s Weekly report", start, end)
+}
+
+func formatWeeklyEmailBody(start, end, url, summary string) string {
+	return fmt.Sprintf("Weekly Report: %s ~ %s\n\n%s\n\n---\nFull report: %s", start, end, summary, url)
 }

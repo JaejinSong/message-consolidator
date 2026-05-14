@@ -446,9 +446,23 @@ func WireDailyDigest(reportsSvc *services.ReportsService) {
 	digestSvc = svc
 }
 
+type gmailMailer struct{}
+
+func (g gmailMailer) SendEmail(ctx context.Context, from, to, subject, body string) error {
+	return channels.SendGmailEmail(ctx, from, to, subject, body)
+}
+
+// TriggerWeeklyReport dispatches a one-off weekly report to the given recipient, bypassing day/hour checks.
+func TriggerWeeklyReport(ctx context.Context, recipient string) error {
+	if weeklyReportSvc == nil {
+		return fmt.Errorf("weekly report service not initialized")
+	}
+	return weeklyReportSvc.DispatchTo(ctx, recipient)
+}
+
 // Why: WeeklyReportService needs reportsSvc which is built post-Init in main.go's initAIServices.
 func WireWeeklyReport(reportsSvc *services.ReportsService) {
-	if cfg == nil || !cfg.WeeklyReportEnabled || reportsSvc == nil || slackClient == nil {
+	if cfg == nil || !cfg.WeeklyReportEnabled || reportsSvc == nil {
 		return
 	}
 	if len(cfg.WeeklyReportRecipientEmails) == 0 {
@@ -460,10 +474,20 @@ func WireWeeklyReport(reportsSvc *services.ReportsService) {
 		logger.Warnf("[WEEKLY] notion not configured")
 		return
 	}
-	weeklyReportSvc = services.NewWeeklyReportService(slackClient, reportsSvc, notion, services.WeeklyReportConfig{
+	weeklyReportSvc = services.NewWeeklyReportService(gmailMailer{}, reportsSvc, notion, services.WeeklyReportConfig{
 		RecipientEmails: cfg.WeeklyReportRecipientEmails,
 		Hour:            cfg.WeeklyReportHour,
 		Timezone:        cfg.WeeklyReportTimezone,
 		Language:        cfg.WeeklyReportLang,
 	})
+	if r := cfg.WeeklyReportTestRecipient; r != "" {
+		go func() {
+			logger.Infof("[WEEKLY-TEST] dispatching to %s ...", r)
+			if err := weeklyReportSvc.DispatchTo(context.Background(), r); err != nil {
+				logger.Warnf("[WEEKLY-TEST] failed: %v", err)
+				return
+			}
+			logger.Infof("[WEEKLY-TEST] done")
+		}()
+	}
 }

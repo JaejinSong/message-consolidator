@@ -88,6 +88,7 @@ func main() {
 	}, reportsSvc, tasksSvc, identityResolver, slackBot)
 	api.Embeddings = embeddingSvc
 	api.Digest = scanner.TriggerDigest
+	api.WeeklyDispatch = scanner.TriggerWeeklyReport
 
 	srv := setupApp(ctx, cfg, api)
 

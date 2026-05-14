@@ -126,6 +126,10 @@ func (f *fakeWeeklyErrDispatcher) Dispatch(_ context.Context) error {
 	return f.err
 }
 
+func (f *fakeWeeklyErrDispatcher) DispatchTo(_ context.Context, _ string) error {
+	return f.err
+}
+
 // TestFinalizeScanCycle_NoPanic verifies finalizeScanCycle runs without panic on an in-memory DB.
 func TestFinalizeScanCycle_NoPanic(t *testing.T) {
 	initGuardsDB(t)

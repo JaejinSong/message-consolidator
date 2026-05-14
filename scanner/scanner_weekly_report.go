@@ -17,6 +17,7 @@ var (
 
 type weeklyReportDispatcher interface {
 	Dispatch(ctx context.Context) error
+	DispatchTo(ctx context.Context, recipient string) error
 }
 
 func runWeeklyReport(ctx context.Context, _ *sync.WaitGroup) {

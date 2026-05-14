@@ -21,6 +21,10 @@ func (f *fakeWeeklyDispatcher) Dispatch(_ context.Context) error {
 	return nil
 }
 
+func (f *fakeWeeklyDispatcher) DispatchTo(_ context.Context, _ string) error {
+	return nil
+}
+
 func (f *fakeWeeklyDispatcher) count() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()

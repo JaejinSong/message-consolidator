@@ -51,15 +51,26 @@ func TestComputeWeekWindow(t *testing.T) {
 	}
 }
 
-func TestFormatWeeklyDMText(t *testing.T) {
+func TestFormatWeeklyEmailSubject(t *testing.T) {
+	start := "2026-04-25"
+	end := "2026-05-01"
+	got := formatWeeklyEmailSubject(start, end)
+	for _, want := range []string{"[WR]", start, end, "Weekly report"} {
+		if !containsString(got, want) {
+			t.Errorf("subject %q does not contain %q", got, want)
+		}
+	}
+}
+
+func TestFormatWeeklyEmailBody(t *testing.T) {
 	start := "2026-04-25"
 	end := "2026-05-01"
 	url := "https://notion.so/page-abc"
-
-	got := formatWeeklyDMText(start, end, url)
-	for _, want := range []string{start, end, url} {
+	summary := "All tasks resolved."
+	got := formatWeeklyEmailBody(start, end, url, summary)
+	for _, want := range []string{start, end, url, summary} {
 		if !containsString(got, want) {
-			t.Errorf("result %q does not contain %q", got, want)
+			t.Errorf("body %q does not contain %q", got, want)
 		}
 	}
 }

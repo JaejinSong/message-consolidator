@@ -3,6 +3,7 @@ package channels
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"message-consolidator/ai"
@@ -44,6 +45,7 @@ func SetupGmailOAuth(cfg *config.Config) {
 		ClientSecret: cfg.GoogleClientSecret,
 		Scopes: []string{
 			"https://www.googleapis.com/auth/gmail.readonly",
+			"https://www.googleapis.com/auth/gmail.send",
 		},
 		Endpoint: google.Endpoint,
 	}
@@ -92,6 +94,25 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 		return nil, fmt.Errorf("failed to create gmail service: %w", err)
 	}
 	return svc, nil
+}
+
+// SendGmailEmail sends a plain-text email via the Gmail API using the stored OAuth token for `from`.
+func SendGmailEmail(ctx context.Context, from, to, subject, body string) error {
+	svc, err := GetGmailService(ctx, from)
+	if err != nil {
+		return fmt.Errorf("gmail send: get service: %w", err)
+	}
+	raw := buildRawMessage(from, to, subject, body)
+	if _, err := svc.Users.Messages.Send(from, &gmail.Message{Raw: raw}).Context(ctx).Do(); err != nil {
+		return fmt.Errorf("gmail send: %w", err)
+	}
+	return nil
+}
+
+func buildRawMessage(from, to, subject, body string) string {
+	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
+		from, to, subject, body)
+	return base64.URLEncoding.EncodeToString([]byte(msg))
 }
 
 func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
