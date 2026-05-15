@@ -109,10 +109,35 @@ func SendGmailEmail(ctx context.Context, from, to, subject, body string) error {
 	return nil
 }
 
+// SendGmailEmailWithOrigin sends a weekly-report email tagged with X-WhatAp-Origin
+// so the scanner's isSystemOriginEmail filter can skip re-ingestion on the next cycle.
+func SendGmailEmailWithOrigin(ctx context.Context, from, to, subject, body string) (string, error) {
+	svc, err := GetGmailService(ctx, from)
+	if err != nil {
+		return "", fmt.Errorf("gmail send: get service: %w", err)
+	}
+	raw := buildRawMessageWithHeaders(from, to, subject, body, map[string]string{"X-WhatAp-Origin": "weekly-report"})
+	sent, err := svc.Users.Messages.Send(from, &gmail.Message{Raw: raw}).Context(ctx).Do()
+	if err != nil {
+		return "", fmt.Errorf("gmail send: %w", err)
+	}
+	return sent.Id, nil
+}
+
 func buildRawMessage(from, to, subject, body string) string {
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		from, to, subject, body)
-	return base64.RawURLEncoding.EncodeToString([]byte(msg))
+	return buildRawMessageWithHeaders(from, to, subject, body, nil)
+}
+
+func buildRawMessageWithHeaders(from, to, subject, body string, extraHeaders map[string]string) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/html; charset=UTF-8\r\n",
+		from, to, subject))
+	for k, v := range extraHeaders {
+		sb.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
+	}
+	sb.WriteString("\r\n")
+	sb.WriteString(body)
+	return base64.RawURLEncoding.EncodeToString([]byte(sb.String()))
 }
 
 func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
@@ -232,6 +257,12 @@ func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m
 	}
 	if isSelfAddressedBulk(fromHeader, toHeader, email) {
 		logger.Debugf("[GMAIL] ignoring self-addressed bulk from: %s", fromHeader)
+		store.IncrementFilteredCount(email)
+		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
+		return nil, "", "", ts, nil
+	}
+	if isSystemOriginEmail(fullMsg.Payload.Headers, subject) {
+		logger.Debugf("[GMAIL] ignoring system-origin email: %s", subject)
 		store.IncrementFilteredCount(email)
 		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
 		return nil, "", "", ts, nil
@@ -404,6 +435,20 @@ func isSelfAddressedBulk(fromHeader, toHeader, userEmail string) bool {
 	return fromAddr == toAddr
 }
 
+// isSystemOriginEmail detects emails sent by this system (e.g. weekly reports)
+// so the scanner can skip re-ingestion without burning AI quota or creating ghost tasks.
+func isSystemOriginEmail(headers []*gmail.MessagePartHeader, subject string) bool {
+	if strings.HasPrefix(subject, "[WR]") {
+		return true
+	}
+	for _, h := range headers {
+		if h.Name == "X-WhatAp-Origin" {
+			return true
+		}
+	}
+	return false
+}
+
 // isInternalSender reports whether the From header's email domain belongs to an
 // internal domain (exact match or subdomain). Used to scope the internal-List-ID
 // marketing exemption to in-house senders only — external advertisers routing
@@ -519,6 +564,46 @@ func classifyGmail(isFromMe, isTo bool) string {
 	return CategoryOthers
 }
 
+func bodyPrefix(text string, n int) string {
+	idx := strings.Index(text, "B:\n")
+	if idx < 0 {
+		return ""
+	}
+	body := strings.ToLower(reWhitespace.ReplaceAllString(text[idx+3:], " "))
+	if len(body) > n {
+		return body[:n]
+	}
+	return body
+}
+
+func envelopeKey(m types.RawMessage) string {
+	prefix := bodyPrefix(m.Text, 150)
+	if prefix == "" {
+		return ""
+	}
+	return m.Sender + "#" + m.Timestamp.UTC().Format("2006-01-02") + "#" + prefix
+}
+
+// Why: Gmail can deliver the same logical email as N message objects; collapse by sender+day+body-prefix before AI sees them.
+func deduplicateEnvelopes(ctx context.Context, email string, rawMsgs []types.RawMessage) []types.RawMessage {
+	seen := make(map[string]int)
+	var result []types.RawMessage
+	for _, m := range rawMsgs {
+		key := envelopeKey(m)
+		if key == "" {
+			result = append(result, m)
+			continue
+		}
+		if _, exists := seen[key]; !exists {
+			seen[key] = len(result)
+			result = append(result, m)
+		} else {
+			_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.ID)
+		}
+	}
+	return result
+}
+
 func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
 	if gc == nil || filterSvc == nil {
 		logger.Errorf("[GMAIL] gc/filterSvc missing; scanner.Init may have failed")
@@ -527,6 +612,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 
 	user, _ := store.GetOrCreateUser(ctx, email, "", "")
 	aliases, _ := store.GetUserAliases(ctx, user.ID)
+	rawMsgs = deduplicateEnvelopes(ctx, email, rawMsgs)
 
 	var totalNewIDs []store.MessageID
 	batchSize := 10

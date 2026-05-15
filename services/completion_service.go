@@ -117,6 +117,12 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 
 	tasks, _ := s.store.GetIncompleteByThreadID(ctx, s.db, msg.UserEmail, targetID)
 	if len(tasks) == 0 {
+		// Why: self-origin mail (weekly report etc.) with no existing thread must not
+		// create tasks — its content is a summary of past work, not new requests.
+		// Return true so handleThreadActivity marks as processed and skips batch analyze.
+		if strings.EqualFold(msg.RequesterCanonical, msg.UserEmail) {
+			return true, nil
+		}
 		if candidates := s.findCrossThreadCandidates(ctx, msg); len(candidates) > 0 {
 			res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, candidates[0].Task, msg.OriginalText)
 			if err == nil && res.Status != "NEW" && res.Status != "NONE" && res.Status != "" {

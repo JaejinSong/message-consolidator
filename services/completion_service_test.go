@@ -313,6 +313,40 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 			t.Errorf("expected no HandleTaskState calls when items empty, got %v", mockStore.NewItemTasks)
 		}
 	})
+
+	t.Run("Current User Reply with No Existing Tasks - Should NOT Analyze and Return handled=true", func(t *testing.T) {
+		// Why: When RequesterCanonical == UserEmail and Tasks is empty, shortcut should
+		// reclassify and return handled=true WITHOUT calling Analyze, preventing unnecessary
+		// token consumption for new task extraction.
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "new", Task: "Hypothetical new task"}}}
+		mockStore := &MockStore{
+			Tasks: []store.ConsolidatedMessage{}, // No existing tasks
+		}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:          "jjsong@whatap.io",
+			ThreadID:           "thread_no_tasks",
+			OriginalText:       "문제 해결되었습니다.",
+			RequesterCanonical: "jjsong@whatap.io",
+		}
+
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+
+		if !handled {
+			t.Fatal("expected handled=true to skip batch analyze")
+		}
+		// Verify Analyze was NOT called by checking that no store handlers were invoked
+		if len(mockStore.NewItemTasks) != 0 {
+			t.Errorf("expected no new tasks created, got %v", mockStore.NewItemTasks)
+		}
+		if len(mockStore.CapturedIDs) != 0 {
+			t.Errorf("expected no tasks marked done, got %v", mockStore.CapturedIDs)
+		}
+		if len(mockStore.ReleasedIDs) != 0 {
+			t.Errorf("expected no task state changes, got %v", mockStore.ReleasedIDs)
+		}
+	})
 }
 
 func TestCrossThreadSubjectDedup(t *testing.T) {

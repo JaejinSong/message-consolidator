@@ -448,8 +448,8 @@ func WireDailyDigest(reportsSvc *services.ReportsService) {
 
 type gmailMailer struct{}
 
-func (g gmailMailer) SendEmail(ctx context.Context, from, to, subject, body string) error {
-	return channels.SendGmailEmail(ctx, from, to, subject, body)
+func (g gmailMailer) SendWeeklyEmail(ctx context.Context, from, to, subject, body string) (string, error) {
+	return channels.SendGmailEmailWithOrigin(ctx, from, to, subject, body)
 }
 
 // TriggerWeeklyReport dispatches a one-off weekly report to the given recipient, bypassing day/hour checks.
@@ -480,14 +480,4 @@ func WireWeeklyReport(reportsSvc *services.ReportsService) {
 		Timezone:        cfg.WeeklyReportTimezone,
 		Language:        cfg.WeeklyReportLang,
 	})
-	if r := cfg.WeeklyReportTestRecipient; r != "" {
-		go func() {
-			logger.Infof("[WEEKLY-TEST] dispatching to %s ...", r)
-			if err := weeklyReportSvc.DispatchTo(context.Background(), r); err != nil {
-				logger.Warnf("[WEEKLY-TEST] failed: %v", err)
-				return
-			}
-			logger.Infof("[WEEKLY-TEST] done")
-		}()
-	}
 }

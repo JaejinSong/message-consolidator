@@ -603,6 +603,66 @@ func TestIsSelfAddressedBulk(t *testing.T) {
 	}
 }
 
+func TestIsSystemOriginEmail(t *testing.T) {
+	tests := []struct {
+		name     string
+		headers  []*gmail.MessagePartHeader
+		subject  string
+		expected bool
+	}{
+		{
+			name: "X-WhatAp-Origin header present",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "X-WhatAp-Origin", Value: "system"},
+				{Name: "Subject", Value: "Regular subject"},
+			},
+			subject:  "Regular subject",
+			expected: true,
+		},
+		{
+			name:     "[WR] subject prefix",
+			headers:  []*gmail.MessagePartHeader{{Name: "Subject", Value: "[WR] Weekly Report"}},
+			subject:  "[WR] Weekly Report",
+			expected: true,
+		},
+		{
+			name: "Both header and [WR] prefix",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "X-WhatAp-Origin", Value: "system"},
+				{Name: "Subject", Value: "[WR] Weekly Report"},
+			},
+			subject:  "[WR] Weekly Report",
+			expected: true,
+		},
+		{
+			name:     "No header, no [WR] prefix — normal email",
+			headers:  []*gmail.MessagePartHeader{{Name: "Subject", Value: "Regular email"}},
+			subject:  "Regular email",
+			expected: false,
+		},
+		{
+			name:     "No header, different subject prefix",
+			headers:  []*gmail.MessagePartHeader{{Name: "Subject", Value: "[URGENT] Important"}},
+			subject:  "[URGENT] Important",
+			expected: false,
+		},
+		{
+			name:     "X-WhatAp-Origin header absent, empty subject",
+			headers:  []*gmail.MessagePartHeader{{Name: "Other-Header", Value: "value"}},
+			subject:  "",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isSystemOriginEmail(tt.headers, tt.subject); got != tt.expected {
+				t.Errorf("isSystemOriginEmail() = %v; want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
 type stubNoiseFilter struct {
 	noise bool
 	calls int

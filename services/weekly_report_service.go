@@ -12,7 +12,7 @@ import (
 )
 
 type WeeklyReportMailer interface {
-	SendEmail(ctx context.Context, from, to, subject, body string) error
+	SendWeeklyEmail(ctx context.Context, from, to, subject, body string) (msgID string, err error)
 }
 
 type WeeklyReportConfig struct {
@@ -90,8 +90,13 @@ func (s *WeeklyReportService) deliver(ctx context.Context, recipients []string) 
 	subject := formatWeeklyEmailSubject(start, end)
 	body := formatWeeklyEmailBody(start, end, url, completed.ReportSummary)
 	for _, email := range recipients {
-		if err := s.Mailer.SendEmail(ctx, primary, email, subject, body); err != nil {
+		msgID, err := s.Mailer.SendWeeklyEmail(ctx, primary, email, subject, body)
+		if err != nil {
 			logger.Warnf("[WEEKLY] send email to %s: %v", email, err)
+			continue
+		}
+		if msgID != "" {
+			_ = store.MarkAsProcessed(ctx, store.GetDB(), primary, msgID)
 		}
 	}
 	return nil
