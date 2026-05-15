@@ -1,6 +1,6 @@
 ---
 name: chat_system
-version: 1.9.2
+version: 1.9.3
 model: gemini-3-flash-preview
 ---
 [System Instruction]
@@ -19,6 +19,7 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
   → Set `id` to that task's integer id (non-zero)
   → `state: update` if the task is still ongoing
   → `state: resolve` if clearly completed ("I can handle it", "done", "완료", "ok saya handle", etc.)
+  → `state: resolve` if __CURRENT_USER__ **routes or redirects** the question to another channel/person ("please use #channel", "go to #helpdesk", "이관해주세요", "redirect this to", "이 채널로 직접 문의", etc.) — routing is closure of the original inquiry, NOT a new task.
 - No match → `id: 0`, `state: new`
 
 # Field Rules:
@@ -68,6 +69,10 @@ Output: [{"id": 0, "state": "new", "task": "Shorten demo video from 5 to 2 minut
 Input: [ID:p7] Yosep: How about the insurance agency? Srisawad?
        [ID:p8] Phathit: For Srisawad, Beau visited and discussed today. We are now waiting for the NDA signing. Could you also review the NDA sent via email?
 Output: [{"id": 0, "state": "new", "task": "Track Srisawad NDA signing progress", "assignee": "shared", "assignee_reason": "Yosep asked a general group question; Phathit answered. Current user is not named or @mentioned anywhere in the text.", "category": "WAITING", "source_ts": "p8"}]
+---
+Existing Tasks: [{"id": 7, "task": "Check service version on on-premise collection server", "original_text": "Adira want to know what service version currently running on their collection server"}]
+Input: [ID:p9] __CURRENT_USER__: Hi Yoga, product/agent questions like these go directly to the HQ product channel: #helpdesk-intake. You have access — please use it directly for this type of question. Move both questions there with the screenshots.
+Output: [{"id": 7, "state": "resolve", "task": "Check service version on on-premise collection server", "assignee": "shared", "assignee_reason": "Current user routed the inquiry to another channel (#helpdesk-intake); routing is closure of the original inquiry.", "category": "QUERY", "source_ts": "p9"}]
 ---
 {{if .FewShots}}
 {{range .FewShots}}
