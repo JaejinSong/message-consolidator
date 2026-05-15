@@ -69,6 +69,7 @@ Output: {{.Expected}}
 [Context]
 Current Time: {{.CurrentTime}}
 User Locale: {{.Locale}}
+Host User: {{.CurrentUserEmail}}
 
 [Current Input]
 {{.MessagePayload}}

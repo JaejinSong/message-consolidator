@@ -293,6 +293,10 @@ func (s *ReportsService) PrepareLogsForAI(email string, activity, stalled []Log)
 		limit = DefaultReportCutoffSize
 	}
 
+	statsHeader := buildActivityStatsHeader(activity)
+	sb.WriteString(statsHeader)
+	curr += len(statsHeader)
+
 	activityHeader := "[Activity Tasks]\n"
 	sb.WriteString(activityHeader)
 	curr += len(activityHeader)
@@ -327,6 +331,47 @@ func (s *ReportsService) PrepareLogsForAI(email string, activity, stalled []Log)
 	}
 
 	return sb.String(), truncated
+}
+
+// buildActivityStatsHeader pre-aggregates task counts and top open-task assignees so the model
+// can skip that counting work during thinking.
+func buildActivityStatsHeader(activity []Log) string {
+	done, active := 0, 0
+	openCounts := make(map[string]int, len(activity))
+	for _, m := range activity {
+		if m.Done {
+			done++
+			continue
+		}
+		active++
+		key := m.AssigneeCanonical
+		if key == "" {
+			key = m.Assignee
+		}
+		openCounts[key]++
+	}
+	type pair struct {
+		name string
+		n    int
+	}
+	top := make([]pair, 0, len(openCounts))
+	for k, v := range openCounts {
+		top = append(top, pair{k, v})
+	}
+	sort.Slice(top, func(i, j int) bool { return top[i].n > top[j].n })
+	if len(top) > 3 {
+		top = top[:3]
+	}
+	parts := make([]string, len(top))
+	for i, p := range top {
+		parts[i] = fmt.Sprintf("%s×%d", p.name, p.n)
+	}
+	owners := strings.Join(parts, ", ")
+	if owners == "" {
+		owners = "none"
+	}
+	return fmt.Sprintf("# Stats: %d tasks (%d active, %d done) | Top open assignees: %s\n",
+		done+active, active, done, owners)
 }
 
 func (s *ReportsService) sortLogs(logs []Log) {

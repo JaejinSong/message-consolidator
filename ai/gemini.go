@@ -171,10 +171,11 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 
 	parsed := core.LoadPrompt(core.PromptReportSummary)
 	data := core.ExtractionContext{
-		MessagePayload: tasks,
-		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
-		Locale:         "English",
-		StaleThreshold: store.GetStaleThresholdWorkingDays(),
+		MessagePayload:   tasks,
+		CurrentTime:      time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
+		Locale:           "English",
+		StaleThreshold:   store.GetStaleThresholdWorkingDays(),
+		CurrentUserEmail: email,
 	}
 	rendered, err := parsed.Render(data)
 	if err != nil {
@@ -183,6 +184,9 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 
 	modelName := g.getEffectiveModel(parsed, g.analysisModel)
 	cfg := g.buildConfig(0.1, ReportMaxTokens, "", rendered)
+	// Why: thinking budget cap reserves ~20K tokens for visible completion; without it thinking
+	// consumes ~39K of the 40K max leaving only ~1.6K for output.
+	cfg.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: genai.Ptr(int32(20000))}
 
 	start := time.Now()
 	// Why: empty string Part is rejected by the API as an uninitialized oneof field (INVALID_ARGUMENT).
