@@ -273,8 +273,27 @@ func updateSubtaskStatusInternal(ctx context.Context, q Querier, email string, i
 		return fmt.Errorf("failed to update subtasks in DB: %w", err)
 	}
 
+	// Why: Reverse propagation — auto-close parent when last subtask is checked off.
+	if done && allSubtasksDone(subtasks) {
+		if err := MarkMessageDone(ctx, q, email, id, true); err != nil {
+			logger.Warnf("[STORE] subtask auto-close parent %d: %v", id, err)
+		}
+	}
+
 	InvalidateCacheActive(email)
 	return nil
+}
+
+func allSubtasksDone(subtasks []Subtask) bool {
+	if len(subtasks) == 0 {
+		return false // no subtasks → never auto-close
+	}
+	for _, s := range subtasks {
+		if !s.Done {
+			return false
+		}
+	}
+	return true
 }
 
 func isSemanticDup(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool, MessageID) {

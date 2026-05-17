@@ -30,8 +30,15 @@ func maskAPIKey(err error) string {
 
 // TaskTransition represents the AI's decision on how a reply impacts a parent task.
 type TaskTransition struct {
-	Status      string `json:"status"`       // NEW, UPDATE, RESOLVE, NONE
-	UpdatedText string `json:"updated_text"` // New English summary for UPDATE status
+	Status         string          `json:"status"`                    // NEW, UPDATE, RESOLVE, NONE
+	UpdatedText    string          `json:"updated_text"`              // New English summary for UPDATE status
+	SubtaskUpdates []SubtaskUpdate `json:"subtask_updates,omitempty"` // Partial subtask state changes for UPDATE/NONE
+}
+
+// SubtaskUpdate represents a single subtask state change returned by AI.
+type SubtaskUpdate struct {
+	Index int  `json:"index"`
+	Done  bool `json:"done"`
 }
 
 const (
@@ -217,17 +224,28 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 // EvaluateTaskTransition determines if a reply completes or updates a specific parent task.
 // Why: [Thread-Aware Intelligence] Uses a specialized prompt to analyze the conversational relationship
 // between a parent message and its reply, enabling deterministic state transitions (RESOLVE/UPDATE).
-func (g *GeminiClient) EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string) (TaskTransition, error) {
+func (g *GeminiClient) EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string, subtasks []store.Subtask) (TaskTransition, error) {
 	if g == nil || g.client == nil {
 		return TaskTransition{}, fmt.Errorf("Gemini client not initialized")
 	}
 
 	parsed := core.LoadPrompt(core.PromptCompletionCheck)
+	var subtasksCtx string
+	if len(subtasks) > 0 && len(subtasks) <= 5 {
+		for i, s := range subtasks {
+			mark := "[ ]"
+			if s.Done {
+				mark = "[x]"
+			}
+			subtasksCtx += fmt.Sprintf("%d. %s %s\n", i, mark, s.Task)
+		}
+	}
 	data := core.ExtractionContext{
-		ParentTask:     parentTask,
-		MessagePayload: replyText,
-		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
-		Locale:         "Korean",
+		ParentTask:      parentTask,
+		MessagePayload:  replyText,
+		SubtasksContext: subtasksCtx,
+		CurrentTime:     time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
+		Locale:          "Korean",
 	}
 
 	rendered, err := parsed.Render(data)

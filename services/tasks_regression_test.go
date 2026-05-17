@@ -25,7 +25,7 @@ func (m *RegressionMockAI) AnalyzeWithContext(ctx context.Context, email string,
 	return res, nil
 }
 
-func (m *RegressionMockAI) EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string) (ai.TaskTransition, error) {
+func (m *RegressionMockAI) EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string, subtasks []store.Subtask) (ai.TaskTransition, error) {
 	res, ok := m.Results[m.CurrentTurn]
 	if !ok || len(res) == 0 {
 		return ai.TaskTransition{Status: "NONE"}, nil

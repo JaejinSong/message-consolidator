@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"message-consolidator/ai"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
@@ -11,15 +12,25 @@ import (
 
 // MockAI simulates the AI response for testing
 type MockAI struct {
-	Results []store.TodoItem
-	Err     error
+	Results  []store.TodoItem
+	Sequence []ai.TaskTransition // popped per EvaluateTaskTransition call; falls back to Results if empty
+	Err      error
+	CallCount int
 }
 
 func (m *MockAI) AnalyzeWithContext(ctx context.Context, email string, msg types.EnrichedMessage, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error) {
 	return m.Results, m.Err
 }
 
-func (m *MockAI) EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string) (ai.TaskTransition, error) {
+func (m *MockAI) EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string, subtasks []store.Subtask) (ai.TaskTransition, error) {
+	m.CallCount++
+	// Why: Sequence-mode allows tests to return different statuses per call for
+	// per-task evaluation verification. Falls back to Results for single-status cases.
+	if len(m.Sequence) > 0 {
+		next := m.Sequence[0]
+		m.Sequence = m.Sequence[1:]
+		return next, m.Err
+	}
 	if len(m.Results) > 0 {
 		// Normalizing to uppercase to match handleCompletionResult switch cases
 		status := "NONE"
@@ -47,6 +58,7 @@ type MockStore struct {
 	NewItemTasks       []string
 	Tasks              []store.ConsolidatedMessage
 	RecentGmailTasks   []store.ConsolidatedMessage
+	UpdatedSubtasks    map[store.MessageID][]store.Subtask
 }
 
 func (m *MockStore) GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error) {
@@ -79,6 +91,14 @@ func (m *MockStore) GetRecentIncompleteGmail(ctx context.Context, q store.Querie
 	return m.RecentGmailTasks, nil
 }
 
+func (m *MockStore) UpdateSubtasks(ctx context.Context, q store.Querier, email string, id store.MessageID, subtasks []store.Subtask) error {
+	if m.UpdatedSubtasks == nil {
+		m.UpdatedSubtasks = make(map[store.MessageID][]store.Subtask)
+	}
+	m.UpdatedSubtasks[id] = subtasks
+	return nil
+}
+
 func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 	ctx := context.Background()
 
@@ -105,7 +125,7 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		}
 	})
 
-	t.Run("Current User Reply (UPDATE) - Should Reclassify as Delegated", func(t *testing.T) {
+	t.Run("Current User Reply (UPDATE) - Substantive - AI Called - Task Updated", func(t *testing.T) {
 		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "update", Task: "IFC 말레이시아 미팅 참여 범위 확정"}}}
 		mockStore := &MockStore{
 			Tasks: []store.ConsolidatedMessage{{ID: 202, Task: "IFC 말레이시아 미팅 참여 범위 확정"}},
@@ -124,19 +144,23 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		if !handled {
 			t.Fatal("expected handled=true for current-user reply")
 		}
+		// Substantive text reaches AI; UPDATE response calls HandleTaskState("update") → ReleasedIDs
+		if mockAI.CallCount == 0 {
+			t.Error("expected AI to be called for substantive fromMe reply")
+		}
 		if len(mockStore.CapturedIDs) != 0 {
 			t.Errorf("expected task NOT marked done, got CapturedIDs=%v", mockStore.CapturedIDs)
 		}
-		if len(mockStore.ReleasedCategories) != 1 || mockStore.ReleasedCategories[0] != CategoryRequested {
-			t.Errorf("expected category=%q, got %v", CategoryRequested, mockStore.ReleasedCategories)
+		if len(mockStore.ReleasedIDs) != 1 {
+			t.Errorf("expected task update via HandleTaskState, got ReleasedIDs=%v", mockStore.ReleasedIDs)
 		}
 	})
 
-	t.Run("Current User Reply (UPDATE+updatedText) - Should update category AND task text", func(t *testing.T) {
+	t.Run("Current User Reply (UPDATE+updatedText) - AI Called - Task Text Updated", func(t *testing.T) {
 		newScope := "JVM Crash/ZFS 블로그 검색 최적화 및 가독성 개선"
 		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "update", Task: newScope}}}
 		mockStore := &MockStore{
-			Tasks: []store.ConsolidatedMessage{{ID: 204, Task: "JVM Crash/ZFS 블로그 최신화 및 검수"}},
+			Tasks: []store.ConsolidatedMessage{{ID: 205, Task: "JVM Crash/ZFS 블로그 최신화 및 검수"}},
 		}
 		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
 
@@ -152,16 +176,16 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		if !handled {
 			t.Fatal("expected handled=true")
 		}
-		if len(mockStore.ReleasedCategories) != 1 || mockStore.ReleasedCategories[0] != CategoryRequested {
-			t.Errorf("expected category=%q, got %v", CategoryRequested, mockStore.ReleasedCategories)
+		// Substantive text: AI is called, UPDATE fires HandleTaskState → ReleasedIDs
+		if mockAI.CallCount == 0 {
+			t.Error("expected AI to be called for substantive fromMe reply")
 		}
-		// Why: shortcut bypasses AI+HandleTaskState("update"); only UpdateMessageCategory fires.
 		if len(mockStore.ReleasedIDs) != 1 {
-			t.Errorf("expected only category update (no text update via shortcut), got %v", mockStore.ReleasedIDs)
+			t.Errorf("expected task update via HandleTaskState, got ReleasedIDs=%v", mockStore.ReleasedIDs)
 		}
 	})
 
-	t.Run("Current User Reply (RESOLVE-shaped) - Still Reclassifies, Never Auto-Closes", func(t *testing.T) {
+	t.Run("Current User ACK-only Reply - Reclassifies, Never Auto-Closes", func(t *testing.T) {
 		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "resolve", Task: "IFC 말레이시아 미팅 참여 범위 확정"}}}
 		mockStore := &MockStore{
 			Tasks: []store.ConsolidatedMessage{{ID: 203, Task: "IFC 말레이시아 미팅 참여 범위 확정"}},
@@ -170,7 +194,38 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 
 		msg := store.ConsolidatedMessage{
 			UserEmail:          "jjsong@whatap.io",
-			ThreadID:           "thread_ifc_done",
+			ThreadID:           "thread_ifc_ack",
+			OriginalText:       "네, 감사합니다.",
+			RequesterCanonical: "jjsong@whatap.io",
+		}
+
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+
+		if !handled {
+			t.Fatal("expected handled=true")
+		}
+		// AI should NOT have been called (ack-only shortcut fires first)
+		if mockAI.CallCount != 0 {
+			t.Errorf("expected AI not called for ack-only reply, got CallCount=%d", mockAI.CallCount)
+		}
+		if len(mockStore.CapturedIDs) != 0 {
+			t.Errorf("expected NOT auto-closed, got %v", mockStore.CapturedIDs)
+		}
+		if len(mockStore.ReleasedCategories) != 1 || mockStore.ReleasedCategories[0] != CategoryRequested {
+			t.Errorf("expected category=%q, got %v", CategoryRequested, mockStore.ReleasedCategories)
+		}
+	})
+
+	t.Run("Current User Substantive Reply (RESOLVE-shaped) - AI Decides Close", func(t *testing.T) {
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "resolve", Task: "IFC 말레이시아 미팅 참여 범위 확정"}}}
+		mockStore := &MockStore{
+			Tasks: []store.ConsolidatedMessage{{ID: 204, Task: "IFC 말레이시아 미팅 참여 범위 확정"}},
+		}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:          "jjsong@whatap.io",
+			ThreadID:           "thread_ifc_substantive",
 			OriginalText:       "네, 5월 5-6일 참석 확정입니다.",
 			RequesterCanonical: "jjsong@whatap.io",
 		}
@@ -180,16 +235,16 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		if !handled {
 			t.Fatal("expected handled=true")
 		}
-		if len(mockStore.CapturedIDs) != 0 {
-			t.Errorf("expected NOT auto-closed (fromMe shortcut bypasses AI RESOLVE), got %v", mockStore.CapturedIDs)
+		// Substantive reply must reach AI and AI RESOLVE must close the task
+		if mockAI.CallCount == 0 {
+			t.Error("expected AI to be called for substantive fromMe reply")
 		}
-		if len(mockStore.ReleasedCategories) != 1 || mockStore.ReleasedCategories[0] != CategoryRequested {
-			t.Errorf("expected category=%q, got %v", CategoryRequested, mockStore.ReleasedCategories)
+		if len(mockStore.CapturedIDs) != 1 || mockStore.CapturedIDs[0] != 204 {
+			t.Errorf("expected task 204 closed by AI RESOLVE, got CapturedIDs=%v", mockStore.CapturedIDs)
 		}
 	})
 
-	t.Run("Current User Reply - Bypasses AI And Reclassifies As Delegated", func(t *testing.T) {
-		// AI는 호출되어선 안 됨 — Results를 의도적으로 RESOLVE로 두고도 NOT closed 확인.
+	t.Run("Current User Substantive Reply - AI Called - RESOLVE Applied", func(t *testing.T) {
 		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "resolve", Task: "X"}}}
 		mockStore := &MockStore{
 			Tasks: []store.ConsolidatedMessage{{ID: 301, Task: "Provide WhaTap agent error capture documentation"}},
@@ -207,11 +262,101 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		if !handled {
 			t.Fatal("expected handled=true")
 		}
-		if len(mockStore.CapturedIDs) != 0 {
-			t.Errorf("expected NOT closed (AI bypassed), got CapturedIDs=%v", mockStore.CapturedIDs)
+		// Substantive content: AI must be called and RESOLVE must close the task
+		if mockAI.CallCount == 0 {
+			t.Error("expected AI to be called for substantive fromMe reply")
 		}
-		if len(mockStore.ReleasedCategories) != 1 || mockStore.ReleasedCategories[0] != CategoryRequested {
-			t.Errorf("expected category=%q, got %v", CategoryRequested, mockStore.ReleasedCategories)
+		if len(mockStore.CapturedIDs) != 1 || mockStore.CapturedIDs[0] != 301 {
+			t.Errorf("expected task 301 closed, got CapturedIDs=%v", mockStore.CapturedIDs)
+		}
+	})
+
+	t.Run("Current User Reply Redirect-to-Channel - Auto-Resolves", func(t *testing.T) {
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "resolve", Task: "Analyze API error"}}}
+		mockStore := &MockStore{
+			Tasks: []store.ConsolidatedMessage{{ID: 305, Task: "Analyze API error message for authentication issues"}},
+		}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:          "jjsong@whatap.io",
+			ThreadID:           "thread_dm_redirect",
+			OriginalText:       "에러메시지 분석은 인증정보가 포함되어서 DM 으로 안내 드렸습니다.",
+			RequesterCanonical: "jjsong@whatap.io",
+		}
+
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+		if !handled {
+			t.Fatal("expected handled=true")
+		}
+		if mockAI.CallCount == 0 {
+			t.Error("expected AI to be called for redirect reply")
+		}
+		if len(mockStore.CapturedIDs) != 1 || mockStore.CapturedIDs[0] != 305 {
+			t.Errorf("expected task 305 closed by AI RESOLVE, got CapturedIDs=%v", mockStore.CapturedIDs)
+		}
+	})
+
+	t.Run("Current User Reply Substitute-Attendance - Auto-Resolves", func(t *testing.T) {
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "resolve", Task: "Attend weekly report"}}}
+		mockStore := &MockStore{
+			Tasks: []store.ConsolidatedMessage{{ID: 306, Task: "Attend weekly report meeting as substitute"}},
+		}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:          "jjsong@whatap.io",
+			ThreadID:           "thread_substitute",
+			OriginalText:       "주간보고 대타 참석 하겠습니다.",
+			RequesterCanonical: "jjsong@whatap.io",
+		}
+
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+		if !handled {
+			t.Fatal("expected handled=true")
+		}
+		if mockAI.CallCount == 0 {
+			t.Error("expected AI to be called for delegation acceptance reply")
+		}
+		if len(mockStore.CapturedIDs) != 1 || mockStore.CapturedIDs[0] != 306 {
+			t.Errorf("expected task 306 closed by AI RESOLVE, got CapturedIDs=%v", mockStore.CapturedIDs)
+		}
+	})
+
+	t.Run("Current User Multi-Task Substantive Reply - Per-Task AI Evaluation", func(t *testing.T) {
+		// Why: Per-task evaluation must resolve task A and leave task B open when AI
+		// returns different statuses for each (Sequence pops one per call).
+		mockAI := &MockAI{
+			Sequence: []ai.TaskTransition{
+				{Status: "RESOLVE", UpdatedText: ""},
+				{Status: "NONE", UpdatedText: ""},
+			},
+		}
+		mockStore := &MockStore{
+			Tasks: []store.ConsolidatedMessage{
+				{ID: 401, Task: "Attend weekly report as substitute"},
+				{ID: 402, Task: "Analyze API authentication error"},
+			},
+		}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:          "jjsong@whatap.io",
+			ThreadID:           "thread_multi",
+			OriginalText:       "네, 5월 5-6일 참석 확정입니다.",
+			RequesterCanonical: "jjsong@whatap.io",
+		}
+
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+		if !handled {
+			t.Fatal("expected handled=true")
+		}
+		if mockAI.CallCount != 2 {
+			t.Errorf("expected 2 AI calls for 2 tasks, got %d", mockAI.CallCount)
+		}
+		// Only task 401 resolved; task 402 got NONE
+		if len(mockStore.CapturedIDs) != 1 || mockStore.CapturedIDs[0] != 401 {
+			t.Errorf("expected only task 401 closed, got CapturedIDs=%v", mockStore.CapturedIDs)
 		}
 	})
 
@@ -345,6 +490,134 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		}
 		if len(mockStore.ReleasedIDs) != 0 {
 			t.Errorf("expected no task state changes, got %v", mockStore.ReleasedIDs)
+		}
+	})
+
+	t.Run("RESOLVE with subtasks - cascade all done", func(t *testing.T) {
+		subtasks := []store.Subtask{
+			{Task: "Write welcome email", Done: false},
+			{Task: "Set up dev environment", Done: false},
+		}
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "resolve"}}}
+		mockStore := &MockStore{
+			Tasks: []store.ConsolidatedMessage{{ID: 601, Task: "Prepare onboarding", Subtasks: subtasks}},
+		}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:    "jjsong@whatap.io",
+			ThreadID:     "thread_subtask_cascade",
+			OriginalText: "All done!",
+		}
+
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+		if !handled {
+			t.Fatal("expected handled=true")
+		}
+		updated, ok := mockStore.UpdatedSubtasks[601]
+		if !ok {
+			t.Fatal("expected UpdateSubtasks called for parent 601")
+		}
+		for i, s := range updated {
+			if !s.Done {
+				t.Errorf("subtask[%d] expected done=true after RESOLVE cascade, got false", i)
+			}
+		}
+		if len(mockStore.CapturedIDs) != 1 || mockStore.CapturedIDs[0] != 601 {
+			t.Errorf("expected parent 601 resolved, got CapturedIDs=%v", mockStore.CapturedIDs)
+		}
+	})
+
+	t.Run("RESOLVE no subtasks - no UpdateSubtasks call", func(t *testing.T) {
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "resolve"}}}
+		mockStore := &MockStore{
+			Tasks: []store.ConsolidatedMessage{{ID: 602, Task: "Simple task"}},
+		}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:    "jjsong@whatap.io",
+			ThreadID:     "thread_no_subtasks",
+			OriginalText: "Done.",
+		}
+
+		svc.ProcessPotentialCompletion(ctx, msg)
+		if len(mockStore.UpdatedSubtasks) != 0 {
+			t.Errorf("expected no UpdateSubtasks call for task with no subtasks, got %v", mockStore.UpdatedSubtasks)
+		}
+	})
+
+	t.Run("UPDATE with subtask_updates - partial subtask update", func(t *testing.T) {
+		subtasks := []store.Subtask{
+			{Task: "Write welcome email", Done: false},
+			{Task: "Set up dev environment", Done: false},
+		}
+		mockAI := &MockAI{
+			Sequence: []ai.TaskTransition{
+				{Status: "UPDATE", UpdatedText: "Prepare onboarding materials", SubtaskUpdates: []ai.SubtaskUpdate{{Index: 0, Done: true}}},
+			},
+		}
+		mockStore := &MockStore{
+			Tasks: []store.ConsolidatedMessage{{ID: 603, Task: "Prepare onboarding", Subtasks: subtasks}},
+		}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:    "jjsong@whatap.io",
+			ThreadID:     "thread_partial_subtask",
+			OriginalText: "Welcome email is done. Dev guide still in progress.",
+		}
+
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+		if !handled {
+			t.Fatal("expected handled=true for UPDATE")
+		}
+		updated, ok := mockStore.UpdatedSubtasks[603]
+		if !ok {
+			t.Fatal("expected UpdateSubtasks called for parent 603")
+		}
+		if !updated[0].Done {
+			t.Error("subtask[0] expected done=true after subtask_updates")
+		}
+		if updated[1].Done {
+			t.Error("subtask[1] expected done=false (not mentioned in subtask_updates)")
+		}
+		if len(mockStore.CapturedIDs) != 0 {
+			t.Errorf("expected parent NOT resolved for UPDATE, got CapturedIDs=%v", mockStore.CapturedIDs)
+		}
+	})
+
+	t.Run("RESOLVE with 6 subtasks - cascade still applied", func(t *testing.T) {
+		// >5 subtasks: AI doesn't receive subtask context, subtask_updates empty,
+		// but Path 1 cascade must still mark all done.
+		subtasks := make([]store.Subtask, 6)
+		for i := range subtasks {
+			subtasks[i] = store.Subtask{Task: fmt.Sprintf("Step %d", i+1), Done: false}
+		}
+		mockAI := &MockAI{Results: []store.TodoItem{{ID: ptr(store.MessageID(0)), State: "resolve"}}}
+		mockStore := &MockStore{
+			Tasks: []store.ConsolidatedMessage{{ID: 604, Task: "Big onboarding task", Subtasks: subtasks}},
+		}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:    "jjsong@whatap.io",
+			ThreadID:     "thread_6subtasks",
+			OriginalText: "All tasks completed!",
+		}
+
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+		if !handled {
+			t.Fatal("expected handled=true")
+		}
+		updated, ok := mockStore.UpdatedSubtasks[604]
+		if !ok {
+			t.Fatal("expected UpdateSubtasks called for parent 604 even with 6 subtasks")
+		}
+		for i, s := range updated {
+			if !s.Done {
+				t.Errorf("subtask[%d] expected done=true after cascade, got false", i)
+			}
 		}
 	})
 }

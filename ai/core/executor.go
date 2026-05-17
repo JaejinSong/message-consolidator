@@ -16,6 +16,7 @@ type ExtractionContext struct {
 	CurrentUserEmail    string       //Why: Provides the primary email of the user for strict identity mapping.
 	CurrentUserID       store.UserID //Why: Securely identifies the user for internal DB assignee mapping logic.
 	ParentTask          string       //Why: Context for completion/update evaluation threads.
+	SubtasksContext     string       //Why: Formatted subtask checklist injected into completion_check prompt when ≤5 subtasks; empty string omits the section.
 	StaleThreshold      int          //Why: Working-day cutoff for the report_summary Stalled Tasks rule; 0 omits the deterministic clause.
 	ChatType            string       //Why: "1to1" or "group"; empty for non-chat sources. Enables AI to apply correct assignee/policy rules without re-inferring from sender count.
 	RoomName            string       //Why: Human-readable room/group name for AI grounding; empty for 1:1 DMs or non-chat sources.

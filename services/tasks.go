@@ -103,12 +103,24 @@ func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string
 }
 
 // assignCategory implements the server-side categorization priority logic.
-// Priority: 1. personal, 2. shared, 3. requested, 4. others.
+// Priority: 0. stored requested (when requester is not me), 1. personal, 2. shared, 3. requested, 4. others.
 // Why: Decision is derived only from structural identity fields (Assignee/AssigneeCanonical/
 // RequesterCanonical), never from Task body text. This keeps classification stable across
 // languages and translation state, and avoids second-guessing AI's assignee extraction.
 // Broadcast detection is the AI's responsibility at extraction time (Assignee == AssigneeShared).
+// Exception: when completion service explicitly persists category=requested on a task where
+// the requester is not the current user (delegation/redirect transition), that stored value
+// is honored over the Assignee-based derivation so the row stays in "맡긴 업무" instead
+// of snapping back to "받은 업무".
 func (s *TasksService) assignCategory(user *store.User, identities []string, msg *store.ConsolidatedMessage) {
+	// Why: Honor explicitly stored category=requested when the requester is someone else.
+	// This preserves delegation/redirect transitions written by completion service without
+	// being overridden by the Assignee-based personal derivation on the next fetch.
+	if msg.Category == CategoryRequested &&
+		!strings.EqualFold(msg.RequesterCanonical, user.Email) &&
+		msg.Requester != user.Email {
+		return
+	}
 	if s.IsAssigneeMarkedAsMine(msg.Assignee, identities) || strings.EqualFold(msg.AssigneeCanonical, user.Email) {
 		msg.Category = CategoryPersonal
 		return

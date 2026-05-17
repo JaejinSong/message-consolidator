@@ -1,15 +1,17 @@
 ---
 name: completion_check
-version: 2.2.0
+version: 2.4.0
 model: gemini-3.1-flash-lite-preview
 ---
 [System Instruction]
 Classify how a reply message affects an existing task. Apply rules in order — stop at first match.
 
 # Rules:
-1. RESOLVE — task is done or requester accepts the answer:
+1. RESOLVE — task is done, requester accepts the answer, speaker redirects the inquiry, or speaker commits to handling it:
    - Explicit: "Done", "Fixed", "Resolved", ✅, ✔️
    - Positive acknowledgment: "Ok", "👍", "Got it", "Sure", "Understood", "Noted", "Thanks"
+   - Redirect/routing to another channel or person: "please use #channel", "go to #helpdesk", "이 채널로 직접 문의", "DM 으로 안내 드렸습니다", "이관해주세요", "redirect this to" — routing is closure of the original inquiry.
+   - Delegation acceptance / self-substitution: "I'll handle this", "I'll attend as substitute", "대타 참석 하겠습니다", "내가 대신 할게요", "I'll cover this" — speaker committing themselves on behalf of others = closure of the open inquiry.
    - Default for any short positive response — when uncertain between RESOLVE and NONE, choose RESOLVE.
 
 2. UPDATE — reply contains new information that genuinely changes the task:
@@ -22,10 +24,35 @@ Classify how a reply message affects an existing task. Apply rules in order — 
 4. NONE — pure chatter with zero task impact:
    - "Any update?", "Following up", "Ping"
 
+# Subtask Rules (only when Subtasks are listed in Context):
+- `subtask_updates` lists subtasks addressed in this reply: `[{"index": 0, "done": true}]`
+- Populate only for UPDATE or NONE status; for RESOLVE all subtasks are cascaded automatically — leave `subtask_updates` empty.
+- If a subtask is not mentioned in the reply, omit it from `subtask_updates`.
+
 # Response Schema:
 Output ONLY the JSON object below. No markdown, no prose, no code fences.
-{"status": "RESOLVE" | "UPDATE" | "NEW" | "NONE", "updated_text": "<updated complete task title reflecting all changes, will replace the current title — only for UPDATE, else empty string>"}
+{"status": "RESOLVE" | "UPDATE" | "NEW" | "NONE", "updated_text": "<updated complete task title reflecting all changes, will replace the current title — only for UPDATE, else empty string>", "subtask_updates": [{"index": 0, "done": true}]}
+
+[Examples]
+Parent Task: Attend weekly report meeting as substitute
+Reply: 주간보고 대타 참석 하겠습니다.
+Output: {"status": "RESOLVE", "updated_text": "", "subtask_updates": []}
+
+Parent Task: Analyze API error message for authentication issues
+Reply: 에러메시지 분석은 인증정보가 포함되어서 DM 으로 안내 드렸습니다.
+Output: {"status": "RESOLVE", "updated_text": "", "subtask_updates": []}
+
+Parent Task: Prepare onboarding materials
+Subtasks:
+0. [ ] Write welcome email
+1. [ ] Set up dev environment guide
+Reply: Welcome email is done. Dev guide is still in progress.
+Output: {"status": "UPDATE", "updated_text": "Prepare onboarding materials", "subtask_updates": [{"index": 0, "done": true}]}
 
 [Context]
 Parent Task: {{.ParentTask}}
+{{- if .SubtasksContext}}
+Subtasks:
+{{.SubtasksContext}}
+{{- end}}
 Reply Message: {{.MessagePayload}}

@@ -111,4 +111,25 @@ func TestTaskClassificationByAliases(t *testing.T) {
 			}
 		})
 	}
+
+	// Why: Verifies ε precedence — when completion service writes category=requested
+	// on a task where the requester is someone else (delegation/redirect transition),
+	// assignCategory must honor the stored value instead of re-deriving personal.
+	t.Run("stored_requested_with_other_requester_honored", func(t *testing.T) {
+		msg := &store.ConsolidatedMessage{
+			Assignee:           "Jaejin Song (JJ)",
+			Requester:          "Yosep Park",
+			RequesterCanonical: "yspark@whatap.io",
+			Category:           CategoryRequested,
+			Task:               "some task",
+		}
+		// applyAssigneeRules must NOT normalize RequesterCanonical to user.Email here
+		// (requester is yspark, not jj), so assignCategory sees the stored requested.
+		service.applyAssigneeRules(user, identities, msg)
+		service.assignCategory(user, identities, msg)
+
+		if msg.Category != CategoryRequested {
+			t.Errorf("expected stored category=%q to be preserved, got %q", CategoryRequested, msg.Category)
+		}
+	})
 }

@@ -94,3 +94,95 @@ func TestUpdateSubtaskStatus(t *testing.T) {
 		}
 	})
 }
+
+func TestUpdateSubtaskStatus_ReversePropagation(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	email := "test@example.com"
+	db := GetDB()
+
+	t.Run("all subtasks done - parent auto-closes", func(t *testing.T) {
+		subtasks := []Subtask{
+			{Task: "Step 1", Done: false},
+			{Task: "Step 2", Done: false},
+		}
+		subtasksJSON, _ := json.Marshal(subtasks)
+		res, err := db.Exec(`INSERT INTO messages (user_email, task, source, subtasks, done) VALUES (?, ?, ?, ?, ?)`,
+			email, "Parent Task", "gmail", string(subtasksJSON), 0)
+		if err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+		id, _ := res.LastInsertId()
+
+		// Mark first subtask done — parent should stay open
+		if err := UpdateSubtaskStatus(ctx, db, email, MessageID(id), 0, true); err != nil {
+			t.Fatalf("toggle subtask 0: %v", err)
+		}
+		var done int
+		_ = db.QueryRow("SELECT done FROM messages WHERE id=?", id).Scan(&done)
+		if done != 0 {
+			t.Error("parent should still be open after only one subtask done")
+		}
+
+		// Mark second subtask done — should trigger auto-close
+		if err := UpdateSubtaskStatus(ctx, db, email, MessageID(id), 1, true); err != nil {
+			t.Fatalf("toggle subtask 1: %v", err)
+		}
+		_ = db.QueryRow("SELECT done FROM messages WHERE id=?", id).Scan(&done)
+		if done != 1 {
+			t.Error("expected parent to be auto-closed when all subtasks are done")
+		}
+	})
+
+	t.Run("partial subtasks done - parent stays open", func(t *testing.T) {
+		subtasks := []Subtask{
+			{Task: "Step A", Done: false},
+			{Task: "Step B", Done: false},
+		}
+		subtasksJSON, _ := json.Marshal(subtasks)
+		res, err := db.Exec(`INSERT INTO messages (user_email, task, source, subtasks, done) VALUES (?, ?, ?, ?, ?)`,
+			email, "Partial Parent", "gmail", string(subtasksJSON), 0)
+		if err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+		id, _ := res.LastInsertId()
+
+		if err := UpdateSubtaskStatus(ctx, db, email, MessageID(id), 0, true); err != nil {
+			t.Fatalf("toggle subtask 0: %v", err)
+		}
+		var done int
+		_ = db.QueryRow("SELECT done FROM messages WHERE id=?", id).Scan(&done)
+		if done != 0 {
+			t.Error("parent should remain open when only partial subtasks are done")
+		}
+	})
+
+	t.Run("toggle subtask off - no auto-close", func(t *testing.T) {
+		subtasks := []Subtask{
+			{Task: "Step X", Done: true},
+			{Task: "Step Y", Done: false},
+		}
+		subtasksJSON, _ := json.Marshal(subtasks)
+		res, err := db.Exec(`INSERT INTO messages (user_email, task, source, subtasks, done) VALUES (?, ?, ?, ?, ?)`,
+			email, "Toggle-off Parent", "gmail", string(subtasksJSON), 0)
+		if err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+		id, _ := res.LastInsertId()
+
+		// Toggling subtask 1 OFF (done=false) must not panic or auto-close
+		if err := UpdateSubtaskStatus(ctx, db, email, MessageID(id), 1, false); err != nil {
+			t.Fatalf("toggle subtask 1 off: %v", err)
+		}
+		var done int
+		_ = db.QueryRow("SELECT done FROM messages WHERE id=?", id).Scan(&done)
+		if done != 0 {
+			t.Error("parent should stay open when toggling subtask off")
+		}
+	})
+}
