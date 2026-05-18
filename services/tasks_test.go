@@ -345,10 +345,12 @@ func TestApplyAssigneeRules_RequesterCanonical(t *testing.T) {
 			wantCanonical: email,
 		},
 		{
-			name:              "stale wrong canonical gets overwritten",
+			// Why: ε-guard — alias-based promotion only fires when canonical is empty;
+			// a pre-existing canonical (even a stale/wrong one) is not overwritten.
+			name:              "stale canonical not overwritten by alias match alone",
 			requester:         "Jaejin Song",
 			existingCanonical: "wrong@example.com",
-			wantCanonical:     email,
+			wantCanonical:     "wrong@example.com",
 		},
 		{
 			name:          "different person → canonical unchanged",

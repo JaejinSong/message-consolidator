@@ -211,7 +211,7 @@ func dispatchOutgoingCompletionIfMine(_ context.Context, sc *channels.SlackClien
 	if completionSvc == nil || m.ReplyToID == "" {
 		return
 	}
-	if !strings.EqualFold(m.Sender, u.Name) && !strings.EqualFold(m.Sender, u.Email) {
+	if !isFromUser(&u, m) {
 		return
 	}
 	// Why: completion-fallback may INSERT a new task when the thread has no

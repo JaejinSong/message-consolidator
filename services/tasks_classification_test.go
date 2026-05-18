@@ -132,4 +132,26 @@ func TestTaskClassificationByAliases(t *testing.T) {
 			t.Errorf("expected stored category=%q to be preserved, got %q", CategoryRequested, msg.Category)
 		}
 	})
+
+	// Why: alias-based RequesterCanonical promotion is only allowed when canonical is empty;
+	// a non-self canonical (e.g. written by completion service) must not be clobbered
+	// just because Requester matches a user alias.
+	t.Run("alias_match_does_not_clobber_non_self_requester_canonical", func(t *testing.T) {
+		msg := &store.ConsolidatedMessage{
+			Assignee:           "Jaejin Song (JJ)",
+			Requester:          "jj",                // alias of jj@whatap.io
+			RequesterCanonical: "yspark@whatap.io",  // set by BuildTask / completion service
+			Category:           CategoryRequested,
+			Task:               "some task",
+		}
+		service.applyAssigneeRules(user, identities, msg)
+		service.assignCategory(user, identities, msg)
+
+		if msg.RequesterCanonical != "yspark@whatap.io" {
+			t.Errorf("expected RequesterCanonical to remain %q, got %q", "yspark@whatap.io", msg.RequesterCanonical)
+		}
+		if msg.Category != CategoryRequested {
+			t.Errorf("expected category=%q to be preserved, got %q", CategoryRequested, msg.Category)
+		}
+	})
 }

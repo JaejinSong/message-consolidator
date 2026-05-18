@@ -176,7 +176,13 @@ func (s *TasksService) applyAssigneeRules(user *store.User, identities []string,
 		msg.Assignee = user.PreferredName()
 	}
 
-	if strings.EqualFold(strings.TrimSpace(msg.Requester), user.Email) || s.IsAssigneeMarkedAsMine(msg.Requester, identities) || strings.EqualFold(msg.RequesterCanonical, user.Email) {
+	if strings.EqualFold(strings.TrimSpace(msg.Requester), user.Email) ||
+		strings.EqualFold(msg.RequesterCanonical, user.Email) {
+		msg.RequesterCanonical = user.Email
+		msg.Requester = user.PreferredName()
+	} else if msg.RequesterCanonical == "" && s.IsAssigneeMarkedAsMine(msg.Requester, identities) {
+		// Why: alias-based promotion only when no canonical is set; prevents clobbering
+		// a non-self RequesterCanonical written by completion service or BuildTask.
 		msg.RequesterCanonical = user.Email
 		msg.Requester = user.PreferredName()
 	}
