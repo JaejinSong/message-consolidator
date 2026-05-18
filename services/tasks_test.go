@@ -292,6 +292,10 @@ func TestAssignCategory(t *testing.T) {
 		{"named assignee + team noun in body → others", "Other Person", "someone", "", "ask the dev team", CategoryOthers},
 		{"requested: me to someone", "someone", email, "", "do this", CategoryRequested},
 		{"requested: my canonical email to someone", "someone", "Jaejin Song", email, "do this", CategoryRequested},
+		// Why: Priority 3 (맡긴) must use IsAssigneeMarkedAsMine like Priority 1 (받은)
+		// so that self-origin tasks with display-name-only requester get categorized
+		// as delegated instead of falling through to reference.
+		{"requested: display-name-only requester in identities", "someone", "me@example.com (JJ)", "me@example.com (JJ)", "do this", CategoryRequested},
 		{"others: default", "someone", "someone", "", "just fyi", CategoryOthers},
 	}
 

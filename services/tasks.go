@@ -129,7 +129,8 @@ func (s *TasksService) assignCategory(user *store.User, identities []string, msg
 		msg.Category = CategoryShared
 		return
 	}
-	if strings.EqualFold(msg.RequesterCanonical, user.Email) || msg.Requester == user.Email {
+	if s.IsAssigneeMarkedAsMine(msg.Requester, identities) ||
+		strings.EqualFold(msg.RequesterCanonical, user.Email) || msg.Requester == user.Email {
 		msg.Category = CategoryRequested
 		return
 	}
