@@ -59,10 +59,15 @@ type MockStore struct {
 	Tasks              []store.ConsolidatedMessage
 	RecentGmailTasks   []store.ConsolidatedMessage
 	UpdatedSubtasks    map[store.MessageID][]store.Subtask
+	HasAnyTask         bool // controls HasAnyTaskInThread; default false preserves prior guard behavior
 }
 
 func (m *MockStore) GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error) {
 	return m.Tasks, nil
+}
+
+func (m *MockStore) HasAnyTaskInThread(ctx context.Context, q store.Querier, email, threadID string) (bool, error) {
+	return m.HasAnyTask, nil
 }
 
 func (m *MockStore) GetLatestThreadAssignee(ctx context.Context, q store.Querier, email, threadID string) (string, error) {
@@ -490,6 +495,41 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 		}
 		if len(mockStore.ReleasedIDs) != 0 {
 			t.Errorf("expected no task state changes, got %v", mockStore.ReleasedIDs)
+		}
+	})
+
+	t.Run("Self-Origin Follow-Up On Closed-Task Thread - Should NOT Skip Guard", func(t *testing.T) {
+		// Why: previously guard short-circuited any self-origin mail when no INCOMPLETE
+		// task existed, blocking legitimate follow-ups on threads where prior tasks
+		// were all closed. Now thread-level any-task check must allow these through.
+		mockAI := &MockAI{Results: []store.TodoItem{
+			{ID: ptr(store.MessageID(0)), State: "new", Task: "Lock two follow-ups before kickoff"},
+		}}
+		mockStore := &MockStore{
+			Tasks:      []store.ConsolidatedMessage{}, // no INCOMPLETE tasks
+			HasAnyTask: true,                          // but thread has done tasks
+		}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		msg := store.ConsolidatedMessage{
+			UserEmail:          "jjsong@whatap.io",
+			ThreadID:           "thread_closed_only",
+			Source:             "gmail",
+			Room:               "Gmail",
+			OriginalText:       "Two follow-ups to lock before kickoff: confirm venue and send agenda.",
+			RequesterCanonical: "jjsong@whatap.io",
+		}
+
+		// Guard must NOT short-circuit: fallbackToNewExtraction is exercised instead.
+		handled, _ := svc.ProcessPotentialCompletion(ctx, msg)
+
+		// handled=true because fallbackToNewExtraction succeeds (AI returned an item).
+		if !handled {
+			t.Fatal("expected handled=true: fallback extraction should run when thread has prior done tasks")
+		}
+		// AI must have been called, confirming the self-origin guard did not fire.
+		if mockAI.CallCount == 0 && len(mockStore.NewItemTasks) == 0 {
+			t.Error("expected fallback extraction to be reached (AI called or new item saved)")
 		}
 	})
 

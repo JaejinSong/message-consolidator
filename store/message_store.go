@@ -682,6 +682,23 @@ func GetIncompleteByThreadID(ctx context.Context, q Querier, email, threadID str
 	return msgs, nil
 }
 
+// HasAnyTaskInThread reports whether the thread has ever had a task (including done tasks).
+// Why: count includes done tasks so self-origin follow-up on a closed thread
+// is recognized as a reopen signal, not a fresh weekly-report-style summary.
+func HasAnyTaskInThread(ctx context.Context, q Querier, email, threadID string) (bool, error) {
+	if threadID == "" {
+		return false, nil
+	}
+	res, err := db.New(q).HasAnyTaskInThread(ctx, db.HasAnyTaskInThreadParams{
+		UserEmail: nullString(email),
+		ThreadID:  nullString(threadID),
+	})
+	if err != nil {
+		return false, fmt.Errorf("HasAnyTaskInThread: %w", err)
+	}
+	return res != 0, nil
+}
+
 func GetRecentIncompleteGmail(ctx context.Context, q Querier, email string) ([]ConsolidatedMessage, error) {
 	rows, err := db.New(q).GetRecentIncompleteGmail(ctx, email)
 	if err != nil {

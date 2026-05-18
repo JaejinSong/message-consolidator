@@ -132,6 +132,7 @@ type Querier interface {
 	GetUserByID(ctx context.Context, dollar_1 int64) (User, error)
 	GetUserBySlackID(ctx context.Context, slackID sql.NullString) (User, error)
 	HardDeleteMessages(ctx context.Context, arg HardDeleteMessagesParams) error
+	HasAnyTaskInThread(ctx context.Context, arg HasAnyTaskInThreadParams) (int64, error)
 	InsertAIInferenceLog(ctx context.Context, arg InsertAIInferenceLogParams) error
 	InsertMergeHistory(ctx context.Context, arg InsertMergeHistoryParams) error
 	InsertReport(ctx context.Context, arg InsertReportParams) (int64, error)

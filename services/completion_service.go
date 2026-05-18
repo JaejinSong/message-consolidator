@@ -121,6 +121,7 @@ type AICompleter interface {
 
 type TaskStore interface {
 	GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error)
+	HasAnyTaskInThread(ctx context.Context, q store.Querier, email, threadID string) (bool, error)
 	GetRecentIncompleteGmail(ctx context.Context, q store.Querier, email string) ([]store.ConsolidatedMessage, error)
 	GetLatestThreadAssignee(ctx context.Context, q store.Querier, email, threadID string) (string, error)
 	UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id store.MessageID, category string) error
@@ -132,6 +133,10 @@ type DefaultTaskStore struct{}
 
 func (d *DefaultTaskStore) GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error) {
 	return store.GetIncompleteByThreadID(ctx, q, email, threadID)
+}
+
+func (d *DefaultTaskStore) HasAnyTaskInThread(ctx context.Context, q store.Querier, email, threadID string) (bool, error) {
+	return store.HasAnyTaskInThread(ctx, q, email, threadID)
 }
 
 func (d *DefaultTaskStore) GetLatestThreadAssignee(ctx context.Context, q store.Querier, email, threadID string) (string, error) {
@@ -206,11 +211,14 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 
 	tasks, _ := s.store.GetIncompleteByThreadID(ctx, s.db, msg.UserEmail, targetID)
 	if len(tasks) == 0 {
-		// Why: self-origin mail (weekly report etc.) with no existing thread must not
-		// create tasks — its content is a summary of past work, not new requests.
-		// Return true so handleThreadActivity marks as processed and skips batch analyze.
 		if strings.EqualFold(msg.RequesterCanonical, msg.UserEmail) {
-			return true, nil
+			// Why: skip only when this thread has NEVER had a task (truly a self-summary
+			// like a weekly report). If any prior task exists (incl. done), the user's
+			// follow-up is a reopen signal — let normal extraction run.
+			hasAny, _ := s.store.HasAnyTaskInThread(ctx, s.db, msg.UserEmail, targetID)
+			if !hasAny {
+				return true, nil
+			}
 		}
 		if candidates := s.findCrossThreadCandidates(ctx, msg); len(candidates) > 0 {
 			res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, candidates[0].Task, msg.OriginalText, candidates[0].Subtasks)

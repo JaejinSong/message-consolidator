@@ -806,6 +806,26 @@ func (q *Queries) HardDeleteMessages(ctx context.Context, arg HardDeleteMessages
 	return err
 }
 
+const hasAnyTaskInThread = `-- name: HasAnyTaskInThread :one
+SELECT EXISTS(
+    SELECT 1 FROM messages
+    WHERE user_email = ? AND thread_id = ?
+      AND IFNULL(task, '') != '' AND is_deleted = 0
+) AS has_task
+`
+
+type HasAnyTaskInThreadParams struct {
+	UserEmail sql.NullString `json:"user_email"`
+	ThreadID  sql.NullString `json:"thread_id"`
+}
+
+func (q *Queries) HasAnyTaskInThread(ctx context.Context, arg HasAnyTaskInThreadParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, hasAnyTaskInThread, arg.UserEmail, arg.ThreadID)
+	var has_task int64
+	err := row.Scan(&has_task)
+	return has_task, err
+}
+
 const isMessageProcessed = `-- name: IsMessageProcessed :one
 SELECT EXISTS(SELECT 1 FROM messages WHERE user_email = ?1 AND source_ts = ?2)
 `
