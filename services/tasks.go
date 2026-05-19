@@ -99,15 +99,16 @@ func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string
 // is honored over the Assignee-based derivation so the row stays in "맡긴 업무" instead
 // of snapping back to "받은 업무".
 func (s *TasksService) assignCategory(user *store.User, identities []string, msg *store.ConsolidatedMessage) {
+	isAssigneeMe := s.IsAssigneeMarkedAsMine(msg.Assignee, identities) || strings.EqualFold(msg.AssigneeCanonical, user.Email)
+	isRequesterMe := s.IsAssigneeMarkedAsMine(msg.Requester, identities) || strings.EqualFold(msg.RequesterCanonical, user.Email) || msg.Requester == user.Email
+
 	// Why: Honor explicitly stored category=requested when the requester is someone else.
 	// This preserves delegation/redirect transitions written by completion service without
 	// being overridden by the Assignee-based personal derivation on the next fetch.
-	if msg.Category == CategoryRequested &&
-		!strings.EqualFold(msg.RequesterCanonical, user.Email) &&
-		msg.Requester != user.Email {
+	if msg.Category == CategoryRequested && !strings.EqualFold(msg.RequesterCanonical, user.Email) && msg.Requester != user.Email {
 		return
 	}
-	if s.IsAssigneeMarkedAsMine(msg.Assignee, identities) || strings.EqualFold(msg.AssigneeCanonical, user.Email) {
+	if isAssigneeMe {
 		msg.Category = CategoryPersonal
 		return
 	}
@@ -115,8 +116,7 @@ func (s *TasksService) assignCategory(user *store.User, identities []string, msg
 		msg.Category = CategoryShared
 		return
 	}
-	if s.IsAssigneeMarkedAsMine(msg.Requester, identities) ||
-		strings.EqualFold(msg.RequesterCanonical, user.Email) || msg.Requester == user.Email {
+	if isRequesterMe {
 		msg.Category = CategoryRequested
 		return
 	}
