@@ -91,37 +91,26 @@ export function updateTelegramStatus(status: string): void {
     }
 }
 
-export function showWaModal(): void {
-    const modal = document.getElementById('waModal');
+function showModal(id: string): void {
+    const modal = document.getElementById(id);
     if (modal) {
         modal.classList.remove('hidden');
         modal.style.display = 'flex';
     }
 }
 
-export function showGmailModal(): void {
-    const modal = document.getElementById('gmailModal');
-    if (modal) {
-        modal.classList.remove('hidden');
-        modal.style.display = 'flex';
-    }
-}
-
-export function showTelegramModal(): void {
-    const modal = document.getElementById('telegramModal');
-    if (modal) {
-        modal.classList.remove('hidden');
-        modal.style.display = 'flex';
-    }
-}
-
-export function hideTelegramModal(): void {
-    const modal = document.getElementById('telegramModal');
+function hideModal(id: string): void {
+    const modal = document.getElementById(id);
     if (modal) {
         modal.classList.add('hidden');
         modal.style.display = 'none';
     }
 }
+
+export function showWaModal(): void { showModal('waModal'); }
+export function showGmailModal(): void { showModal('gmailModal'); }
+export function showTelegramModal(): void { showModal('telegramModal'); }
+export function hideTelegramModal(): void { hideModal('telegramModal'); }
 
 export function bindGetQRBtn(onClick: (ev: MouseEvent) => void): void {
     document.getElementById('getQRBtn')?.addEventListener('click', onClick);
@@ -150,13 +139,7 @@ export function updateWhatsAppQR(status: 'generating' | 'show' | 'success' | 'er
         document.getElementById('qrTimerContainer')?.classList.add('hidden');
         placeholder.textContent = '✅ Connected!';
         placeholder.classList.remove('hidden');
-        setTimeout(() => {
-            const modal = document.getElementById('waModal');
-            if (modal) {
-                modal.classList.add('hidden');
-                modal.style.display = 'none';
-            }
-        }, 2000);
+        setTimeout(() => hideModal('waModal'), 2000);
         showToast(i18n.waConnected || 'WhatsApp connected!', 'success');
     } else if (status === 'error') {
         document.getElementById('qrTimerContainer')?.classList.add('hidden');
