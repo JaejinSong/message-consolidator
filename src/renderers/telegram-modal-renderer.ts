@@ -48,6 +48,22 @@ function setBusy(btnId: string, busy: boolean): void {
     if (btn) btn.disabled = busy;
 }
 
+function readTrimmedInput(id: string): string {
+    return (document.getElementById(id) as HTMLInputElement | null)?.value.trim() ?? '';
+}
+
+async function runStep(btnId: string, fallback: string, action: () => Promise<void>): Promise<void> {
+    setBusy(btnId, true);
+    clearError();
+    try {
+        await action();
+    } catch (e: unknown) {
+        setError(getErrorMessage(e) || fallback);
+    } finally {
+        setBusy(btnId, false);
+    }
+}
+
 /**
  * Why: Reflect the server-side status string onto the visible step when the modal opens.
  * When the user has no stored App ID/Hash yet, show the credentials step first so the
@@ -72,10 +88,8 @@ export function syncTelegramModalToStatus(status: string, hasCredentials: boolea
 }
 
 async function handleCredentialsSubmit(): Promise<void> {
-    const idInput = document.getElementById('telegramAppIdInput') as HTMLInputElement | null;
-    const hashInput = document.getElementById('telegramAppHashInput') as HTMLInputElement | null;
-    const appId = parseInt((idInput?.value || '').trim(), 10);
-    const appHash = (hashInput?.value || '').trim();
+    const appId = parseInt(readTrimmedInput('telegramAppIdInput'), 10);
+    const appHash = readTrimmedInput('telegramAppHashInput');
     if (!Number.isInteger(appId) || appId <= 0) {
         setError('App ID must be a positive integer');
         return;
@@ -84,49 +98,33 @@ async function handleCredentialsSubmit(): Promise<void> {
         setError('App Hash is required');
         return;
     }
-    setBusy('telegramSaveCredsBtn', true);
-    clearError();
-    try {
+    await runStep('telegramSaveCredsBtn', 'Failed to save credentials', async () => {
         await api.saveTelegramCredentials(appId, appHash);
         showToast('Telegram credentials saved', 'success');
         showStep('phone');
-    } catch (e: unknown) {
-        setError(getErrorMessage(e) || 'Failed to save credentials');
-    } finally {
-        setBusy('telegramSaveCredsBtn', false);
-    }
+    });
 }
 
 async function handlePhoneSubmit(onConnected: () => void): Promise<void> {
-    const input = document.getElementById('telegramPhoneInput') as HTMLInputElement | null;
-    const phone = (input?.value || '').trim();
+    const phone = readTrimmedInput('telegramPhoneInput');
     if (!phone) {
         setError('Phone number is required');
         return;
     }
-    setBusy('telegramSendCodeBtn', true);
-    clearError();
-    try {
+    await runStep('telegramSendCodeBtn', 'Failed to send code', async () => {
         await api.startTelegramAuth(phone);
         showStep('code');
-    } catch (e: unknown) {
-        setError(getErrorMessage(e) || 'Failed to send code');
-    } finally {
-        setBusy('telegramSendCodeBtn', false);
-        void onConnected;
-    }
+    });
+    void onConnected;
 }
 
 async function handleCodeSubmit(onConnected: () => void): Promise<void> {
-    const input = document.getElementById('telegramCodeInput') as HTMLInputElement | null;
-    const code = (input?.value || '').trim();
+    const code = readTrimmedInput('telegramCodeInput');
     if (!code) {
         setError('Code is required');
         return;
     }
-    setBusy('telegramConfirmCodeBtn', true);
-    clearError();
-    try {
+    await runStep('telegramConfirmCodeBtn', 'Invalid code', async () => {
         const res = await api.confirmTelegramCode(code);
         if (res.status === TELEGRAM_STATUS.PENDING_PASSWORD) {
             showStep('password');
@@ -135,32 +133,21 @@ async function handleCodeSubmit(onConnected: () => void): Promise<void> {
         updateTelegramStatus(TELEGRAM_STATUS.CONNECTED);
         showToast('Telegram connected', 'success');
         onConnected();
-    } catch (e: unknown) {
-        setError(getErrorMessage(e) || 'Invalid code');
-    } finally {
-        setBusy('telegramConfirmCodeBtn', false);
-    }
+    });
 }
 
 async function handlePasswordSubmit(onConnected: () => void): Promise<void> {
-    const input = document.getElementById('telegramPasswordInput') as HTMLInputElement | null;
-    const password = input?.value || '';
+    const password = (document.getElementById('telegramPasswordInput') as HTMLInputElement | null)?.value || '';
     if (!password) {
         setError('Password is required');
         return;
     }
-    setBusy('telegramConfirmPasswordBtn', true);
-    clearError();
-    try {
+    await runStep('telegramConfirmPasswordBtn', 'Invalid password', async () => {
         await api.confirmTelegramPassword(password);
         updateTelegramStatus(TELEGRAM_STATUS.CONNECTED);
         showToast('Telegram connected', 'success');
         onConnected();
-    } catch (e: unknown) {
-        setError(getErrorMessage(e) || 'Invalid password');
-    } finally {
-        setBusy('telegramConfirmPasswordBtn', false);
-    }
+    });
 }
 
 async function handleLogout(onLoggedOut: () => void): Promise<void> {
