@@ -181,9 +181,9 @@ func (s *TasksService) applyAssigneeRules(user *store.User, identities []string,
 		strings.EqualFold(msg.RequesterCanonical, user.Email) {
 		msg.RequesterCanonical = user.Email
 		msg.Requester = user.PreferredName()
-	} else if msg.RequesterCanonical == "" && s.IsAssigneeMarkedAsMine(msg.Requester, identities) {
-		// Why: alias-based promotion only when no canonical is set; prevents clobbering
-		// a non-self RequesterCanonical written by completion service or BuildTask.
+	} else if (msg.RequesterCanonical == "" || strings.EqualFold(msg.RequesterCanonical, msg.Requester)) &&
+		s.IsAssigneeMarkedAsMine(msg.Requester, identities) {
+		// Why: canonical == raw requester signals a view-fallback (contacts JOIN miss); treat as unresolved.
 		msg.RequesterCanonical = user.Email
 		msg.Requester = user.PreferredName()
 	}

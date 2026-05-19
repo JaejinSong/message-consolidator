@@ -349,6 +349,14 @@ func TestApplyAssigneeRules_RequesterCanonical(t *testing.T) {
 			wantCanonical: email,
 		},
 		{
+			// Why: view fallback — RequesterCanonical == raw Requester signals contacts JOIN miss.
+			// Self-promotion must still fire in this case.
+			name:              "self-promotion: canonical fallback to raw display name",
+			requester:         "Jaejin Song (JJ)",
+			existingCanonical: "Jaejin Song (JJ)",
+			wantCanonical:     email,
+		},
+		{
 			// Why: ε-guard — alias-based promotion only fires when canonical is empty;
 			// a pre-existing canonical (even a stale/wrong one) is not overwritten.
 			name:              "stale canonical not overwritten by alias match alone",
