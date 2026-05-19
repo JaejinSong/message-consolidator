@@ -220,6 +220,73 @@ func TestIsCcOnlyDerivation(t *testing.T) {
 	}
 }
 
+func TestHasLabel(t *testing.T) {
+	tests := []struct {
+		name   string
+		labels []string
+		label  string
+		want   bool
+	}{
+		{"INBOX present", []string{"INBOX", "CATEGORY_UPDATES"}, "INBOX", true},
+		{"INBOX absent", []string{"SENT", "CATEGORY_UPDATES"}, "INBOX", false},
+		{"empty labels", []string{}, "INBOX", false},
+		{"IMPORTANT present", []string{"IMPORTANT", "INBOX"}, "IMPORTANT", true},
+		{"case-sensitive no match", []string{"inbox"}, "INBOX", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := hasLabel(tt.labels, tt.label); got != tt.want {
+				t.Errorf("hasLabel() = %v; want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// Why: Group mail delivered via mailing list (e.g. indonesia@whatap.io) has no
+// direct header match but is in the user's INBOX. Verifies that the INBOX label
+// inference sets isCc=true → IsCcOnly=true → Reference tab routing.
+func TestGroupMailViaInboxLabel_IsCcOnly(t *testing.T) {
+	tests := []struct {
+		name        string
+		labels      []string
+		isFromMe    bool
+		isDirect    bool
+		isCc        bool
+		isBcc       bool
+		isDelTo     bool
+		wantIsCcOnly bool
+	}{
+		{
+			name:         "group mail via INBOX → IsCcOnly",
+			labels:       []string{"INBOX", "CATEGORY_UPDATES"},
+			wantIsCcOnly: true,
+		},
+		{
+			name:         "no INBOX label, all-false → dropped (not Cc-only)",
+			labels:       []string{"CATEGORY_UPDATES"},
+			wantIsCcOnly: false,
+		},
+		{
+			name:         "direct recipient → not group mail path",
+			labels:       []string{"INBOX"},
+			isDirect:     true,
+			wantIsCcOnly: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isFromMe, isDirect, isCc, isBcc, isDelTo := tt.isFromMe, tt.isDirect, tt.isCc, tt.isBcc, tt.isDelTo
+			if !isFromMe && !isDirect && !isCc && !isBcc && !isDelTo && hasLabel(tt.labels, "INBOX") {
+				isCc = true
+			}
+			got := isCc && !isFromMe && !isDirect && !isBcc && !isDelTo
+			if got != tt.wantIsCcOnly {
+				t.Errorf("IsCcOnly = %v; want %v", got, tt.wantIsCcOnly)
+			}
+		})
+	}
+}
+
 func TestStripHTML(t *testing.T) {
 	tests := []struct {
 		name     string

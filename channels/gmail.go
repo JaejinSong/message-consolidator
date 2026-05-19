@@ -274,8 +274,13 @@ func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m
 
 	isFromMe, isDirect, isCc, isBcc, isDelTo := checkRecipientStatus(email, fromHeader, toHeader, ccHeader, bccHeader, deliveredTo)
 	if !isFromMe && !isDirect && !isCc && !isBcc && !isDelTo {
-		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
-		return nil, "", "", ts, nil
+		if !hasLabel(fullMsg.LabelIds, "INBOX") {
+			_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
+			return nil, "", "", ts, nil
+		}
+		// Why: User not in any header but message is in inbox — delivered via mailing list
+		// (e.g. indonesia@whatap.io group). Treat as implicit Cc so it routes to Reference tab.
+		isCc = true
 	}
 
 	// Why: Automatically registers all participants (sender and recipients) in the contacts database to improve future identity resolution.
@@ -316,13 +321,17 @@ func assembleGmailRawMessage(fullMsg *gmail.Message, msgID string, ts int64, sen
 	}
 }
 
-func hasImportantLabel(labels []string) bool {
-	for _, lbl := range labels {
-		if lbl == "IMPORTANT" || lbl == "STARRED" {
+func hasLabel(labels []string, label string) bool {
+	for _, l := range labels {
+		if l == label {
 			return true
 		}
 	}
 	return false
+}
+
+func hasImportantLabel(labels []string) bool {
+	return hasLabel(labels, "IMPORTANT") || hasLabel(labels, "STARRED")
 }
 
 // upsertAddresses parses a comma-separated list of email addresses and registers each one in the contacts store.
