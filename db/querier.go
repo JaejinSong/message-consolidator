@@ -58,6 +58,7 @@ type Querier interface {
 	DeleteTelegramSession(ctx context.Context, email string) error
 	DeleteTenantAlias(ctx context.Context, arg DeleteTenantAliasParams) error
 	DeleteUserAlias(ctx context.Context, arg DeleteUserAliasParams) error
+	FindMasterContactByDisplayName(ctx context.Context, arg FindMasterContactByDisplayNameParams) ([]FindMasterContactByDisplayNameRow, error)
 	FlattenContactChildren(ctx context.Context, arg FlattenContactChildrenParams) error
 	GetAbandonedTasks(ctx context.Context, arg GetAbandonedTasksParams) (int64, error)
 	GetActiveSlackThreadsNew(ctx context.Context) ([]GetActiveSlackThreadsNewRow, error)
@@ -175,6 +176,7 @@ type Querier interface {
 	UpdateTaskFullAppend(ctx context.Context, arg UpdateTaskFullAppendParams) error
 	UpdateTaskMergeComplete(ctx context.Context, arg UpdateTaskMergeCompleteParams) error
 	UpdateUserDetails(ctx context.Context, arg UpdateUserDetailsParams) error
+	UpsertAliasContact(ctx context.Context, arg UpsertAliasContactParams) (int64, error)
 	UpsertAppSetting(ctx context.Context, arg UpsertAppSettingParams) error
 	UpsertContactMapping(ctx context.Context, arg UpsertContactMappingParams) (int64, error)
 	UpsertContactResolution(ctx context.Context, arg UpsertContactResolutionParams) error

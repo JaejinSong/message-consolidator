@@ -94,3 +94,17 @@ UPDATE contacts SET display_name = ?1 WHERE id = ?2 AND tenant_email = ?3 AND (d
 
 -- name: GetTenantEmailByContactID :one
 SELECT tenant_email FROM contacts WHERE id = ?;
+
+-- name: FindMasterContactByDisplayName :many
+SELECT id, canonical_id, display_name
+FROM contacts
+WHERE tenant_email = ?
+  AND master_contact_id IS NULL
+  AND LOWER(display_name) = LOWER(?)
+LIMIT 2;
+
+-- name: UpsertAliasContact :one
+INSERT INTO contacts (tenant_email, canonical_id, display_name, source, master_contact_id)
+VALUES (?, ?, ?, 'auto', ?)
+ON CONFLICT(tenant_email, canonical_id) DO NOTHING
+RETURNING id;

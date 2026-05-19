@@ -922,3 +922,63 @@ func resolveContact(resolver map[string]ResolvedContact, raw string) (display, c
 	}
 	return raw, raw, "none"
 }
+
+func EnsureContactAlias(ctx context.Context, tenantEmail, rawValue string) error {
+	rawValue = strings.TrimSpace(rawValue)
+	if rawValue == "" || strings.Contains(rawValue, "@") {
+		return nil
+	}
+
+	norm := NormalizeIdentifier(rawValue)
+	if norm == "" {
+		return nil
+	}
+
+	q := db.New(GetDB())
+
+	rows, err := q.GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{
+		TenantEmail: tenantEmail,
+		Identifiers: []string{norm},
+	})
+	if err != nil {
+		return fmt.Errorf("EnsureContactAlias: %w", err)
+	}
+	if len(rows) > 0 {
+		return nil
+	}
+
+	masters, err := q.FindMasterContactByDisplayName(ctx, db.FindMasterContactByDisplayNameParams{
+		TenantEmail: tenantEmail,
+		LOWER:       rawValue,
+	})
+	if err != nil {
+		return fmt.Errorf("EnsureContactAlias: %w", err)
+	}
+	if len(masters) != 1 {
+		return nil
+	}
+
+	master := masters[0]
+	if strings.EqualFold(master.CanonicalID, rawValue) {
+		return nil
+	}
+
+	aliasID, err := q.UpsertAliasContact(ctx, db.UpsertAliasContactParams{
+		TenantEmail:     tenantEmail,
+		CanonicalID:     rawValue,
+		DisplayName:     master.DisplayName,
+		MasterContactID: nullInt64(master.ID),
+	})
+	// Why: ON CONFLICT DO NOTHING returns sql.ErrNoRows — alias already exists, not an error.
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("EnsureContactAlias: %w", err)
+	}
+
+	rootID := GlobalContactDSU.Find(master.ID)
+	GlobalContactDSU.Union(master.ID, aliasID)
+	upsertResolutionForContact(ctx, tenantEmail, rootID, rawValue, rawValue, nil)
+	return nil
+}

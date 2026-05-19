@@ -42,6 +42,49 @@ func (q *Queries) DeleteContactMapping(ctx context.Context, arg DeleteContactMap
 	return err
 }
 
+const findMasterContactByDisplayName = `-- name: FindMasterContactByDisplayName :many
+SELECT id, canonical_id, display_name
+FROM contacts
+WHERE tenant_email = ?
+  AND master_contact_id IS NULL
+  AND LOWER(display_name) = LOWER(?)
+LIMIT 2
+`
+
+type FindMasterContactByDisplayNameParams struct {
+	TenantEmail string `json:"tenant_email"`
+	LOWER       string `json:"LOWER"`
+}
+
+type FindMasterContactByDisplayNameRow struct {
+	ID          int64  `json:"id"`
+	CanonicalID string `json:"canonical_id"`
+	DisplayName string `json:"display_name"`
+}
+
+func (q *Queries) FindMasterContactByDisplayName(ctx context.Context, arg FindMasterContactByDisplayNameParams) ([]FindMasterContactByDisplayNameRow, error) {
+	rows, err := q.db.QueryContext(ctx, findMasterContactByDisplayName, arg.TenantEmail, arg.LOWER)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FindMasterContactByDisplayNameRow
+	for rows.Next() {
+		var i FindMasterContactByDisplayNameRow
+		if err := rows.Scan(&i.ID, &i.CanonicalID, &i.DisplayName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const flattenContactChildren = `-- name: FlattenContactChildren :exec
 UPDATE contacts SET master_contact_id = ?1 WHERE master_contact_id = ?2 AND tenant_email = ?3
 `
@@ -599,6 +642,32 @@ type UpdateResolutionContactIDParams struct {
 func (q *Queries) UpdateResolutionContactID(ctx context.Context, arg UpdateResolutionContactIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateResolutionContactID, arg.ContactID, arg.TenantEmail, arg.ContactID_2)
 	return err
+}
+
+const upsertAliasContact = `-- name: UpsertAliasContact :one
+INSERT INTO contacts (tenant_email, canonical_id, display_name, source, master_contact_id)
+VALUES (?, ?, ?, 'auto', ?)
+ON CONFLICT(tenant_email, canonical_id) DO NOTHING
+RETURNING id
+`
+
+type UpsertAliasContactParams struct {
+	TenantEmail     string        `json:"tenant_email"`
+	CanonicalID     string        `json:"canonical_id"`
+	DisplayName     string        `json:"display_name"`
+	MasterContactID sql.NullInt64 `json:"master_contact_id"`
+}
+
+func (q *Queries) UpsertAliasContact(ctx context.Context, arg UpsertAliasContactParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, upsertAliasContact,
+		arg.TenantEmail,
+		arg.CanonicalID,
+		arg.DisplayName,
+		arg.MasterContactID,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const upsertContactMapping = `-- name: UpsertContactMapping :one

@@ -131,6 +131,16 @@ func createTaskFromItem(ctx context.Context, q store.Querier, item store.TodoIte
 	if item.AssigneeReason != "" {
 		msg.AssigneeReason = item.AssigneeReason
 	}
+	if msg.Requester != "" {
+		if err := store.EnsureContactAlias(ctx, msg.UserEmail, msg.Requester); err != nil {
+			logger.Warnf("[ROUTER] EnsureContactAlias requester: %v", err)
+		}
+	}
+	if msg.Assignee != "" {
+		if err := store.EnsureContactAlias(ctx, msg.UserEmail, msg.Assignee); err != nil {
+			logger.Warnf("[ROUTER] EnsureContactAlias assignee: %v", err)
+		}
+	}
 	_, id, err := store.SaveMessage(ctx, q, msg)
 	return id, err
 }
