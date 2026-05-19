@@ -75,7 +75,7 @@ func (s *TasksService) ProcessBatchTranslation(ctx context.Context, email string
 	}
 
 	cached, _ := store.GetTaskTranslationsBatch(ctx, taskIDs, lang)
-	missingIDs := s.getMissingIDs(taskIDs, cached)
+	missingIDs := FilterMissingIDs(taskIDs, cached)
 
 	newTrans := make(map[store.MessageID]string)
 	if len(missingIDs) > 0 {
@@ -89,7 +89,8 @@ func (s *TasksService) ProcessBatchTranslation(ctx context.Context, email string
 	return s.mergeBatchResults(taskIDs, cached, newTrans), nil
 }
 
-func (s *TasksService) getMissingIDs(all []store.MessageID, cached map[store.MessageID]string) []store.MessageID {
+// FilterMissingIDs returns IDs not present in cached.
+func FilterMissingIDs(all []store.MessageID, cached map[store.MessageID]string) []store.MessageID {
 	var missing []store.MessageID
 	for _, id := range all {
 		if _, ok := cached[id]; !ok {
@@ -97,6 +98,11 @@ func (s *TasksService) getMissingIDs(all []store.MessageID, cached map[store.Mes
 		}
 	}
 	return missing
+}
+
+// PrepareTranslateRequests loads message text for each id and builds TranslateRequests.
+func (s *TasksService) PrepareTranslateRequests(ctx context.Context, email string, ids []store.MessageID) []store.TranslateRequest {
+	return s.prepareTranslateRequests(ctx, email, ids)
 }
 
 func (s *TasksService) executeBatchTranslation(ctx context.Context, email string, ids []store.MessageID, lang string) (map[store.MessageID]string, error) {

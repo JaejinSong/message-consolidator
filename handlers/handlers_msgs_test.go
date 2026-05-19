@@ -545,18 +545,17 @@ func TestHandleTranslateBatchTasks_BadJSON(t *testing.T) {
 }
 
 func TestGetMissingIDs(t *testing.T) {
-	api := &API{}
 	all := []store.MessageID{1, 2, 3, 4}
 	cached := map[store.MessageID]string{1: "a", 3: "c"}
-	got := api.getMissingIDs(all, cached)
+	got := services.FilterMissingIDs(all, cached)
 	if len(got) != 2 || got[0] != 2 || got[1] != 4 {
 		t.Errorf("got %v, want [2 4]", got)
 	}
 
-	if g := api.getMissingIDs(nil, cached); len(g) != 0 {
+	if g := services.FilterMissingIDs(nil, cached); len(g) != 0 {
 		t.Errorf("nil input → %v, want empty", g)
 	}
-	if g := api.getMissingIDs(all, map[store.MessageID]string{1: "a", 2: "b", 3: "c", 4: "d"}); len(g) != 0 {
+	if g := services.FilterMissingIDs(all, map[store.MessageID]string{1: "a", 2: "b", 3: "c", 4: "d"}); len(g) != 0 {
 		t.Errorf("all cached → %v, want empty", g)
 	}
 }
@@ -627,9 +626,9 @@ func TestPrepareMissingRequests_NoMessages(t *testing.T) {
 	}
 	defer cleanup()
 
-	api := &API{}
+	svc := services.NewTasksService(nil, nil)
 	ids := []store.MessageID{store.MessageID(999998), store.MessageID(999999)}
-	reqs := api.prepareMissingRequests(context.Background(), "u@example.com", ids)
+	reqs := svc.PrepareTranslateRequests(context.Background(), "u@example.com", ids)
 	// Non-existent IDs should result in empty slice (errors are swallowed).
 	if len(reqs) != 0 {
 		t.Errorf("expected 0 requests for unknown IDs, got %d", len(reqs))
@@ -638,8 +637,8 @@ func TestPrepareMissingRequests_NoMessages(t *testing.T) {
 
 func TestPrepareMissingRequests_EmptyIDs(t *testing.T) {
 	t.Parallel()
-	api := &API{}
-	reqs := api.prepareMissingRequests(context.Background(), "u@example.com", nil)
+	svc := services.NewTasksService(nil, nil)
+	reqs := svc.PrepareTranslateRequests(context.Background(), "u@example.com", nil)
 	if reqs != nil {
 		t.Errorf("expected nil for empty IDs, got %v", reqs)
 	}

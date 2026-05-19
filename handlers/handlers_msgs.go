@@ -350,6 +350,8 @@ func (a *API) HandleMergeTasks(w http.ResponseWriter, r *http.Request) {
 
 // HandleTranslateBatchTasks handles JIT translation requests for a batch of tasks.
 // Why: Implements a cost-efficient cache-first pattern to minimize redundant AI calls.
+// HandleTranslateBatchTasks handles JIT translation requests for a batch of tasks.
+// Why: Implements a cost-efficient cache-first pattern to minimize redundant AI calls.
 func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
@@ -363,7 +365,7 @@ func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) 
 
 	// 1. [Pre-filter] Get existing translations from DB/Cache
 	cached, _ := store.GetTaskTranslationsBatch(r.Context(), req.TaskIDs, req.Lang)
-	missingIDs := a.getMissingIDs(req.TaskIDs, cached)
+	missingIDs := services.FilterMissingIDs(req.TaskIDs, cached)
 
 	// [Guard Clause] If all tasks are already translated, return immediately.
 	if len(missingIDs) == 0 {
@@ -372,7 +374,7 @@ func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// 2. [Batch AI] Translate only missing tasks
-	missingReqs := a.prepareMissingRequests(r.Context(), email, missingIDs)
+	missingReqs := a.Tasks.PrepareTranslateRequests(r.Context(), email, missingIDs)
 	newTrans, err := a.Tasks.GetTranslationService().TranslateBatch(r.Context(), email, missingReqs, req.Lang)
 	if err != nil {
 		handleAPIError(w, r, err, "[TRANSLATE]", "Translation service failed")
@@ -397,26 +399,6 @@ func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) 
 	a.respondWithResults(w, req.TaskIDs, cached, successMap, errorMap)
 }
 
-func (a *API) getMissingIDs(all []store.MessageID, cached map[store.MessageID]string) []store.MessageID {
-	var missing []store.MessageID
-	for _, id := range all {
-		if _, ok := cached[id]; !ok {
-			missing = append(missing, id)
-		}
-	}
-	return missing
-}
-
-func (a *API) prepareMissingRequests(ctx context.Context, email string, ids []store.MessageID) []store.TranslateRequest {
-	var reqs []store.TranslateRequest
-	for _, id := range ids {
-		msg, err := store.GetMessageByID(ctx, store.GetDB(), email, id)
-		if err == nil {
-			reqs = append(reqs, services.BuildTranslateRequest(id, msg.Task, msg.Subtasks))
-		}
-	}
-	return reqs
-}
 
 func (a *API) respondWithResults(w http.ResponseWriter, ids []store.MessageID, cached, newlyTrans, errors map[store.MessageID]string) {
 	results := make([]services.BatchTranslateResult, len(ids))

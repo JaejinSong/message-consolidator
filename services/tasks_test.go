@@ -593,10 +593,9 @@ func TestHasAffinityMatch(t *testing.T) {
 
 func TestTasksService_GetMissingIDs(t *testing.T) {
 	t.Parallel()
-	s := &TasksService{}
 	all := []store.MessageID{1, 2, 3, 4}
 	cached := map[store.MessageID]string{1: "x", 3: "y"}
-	got := s.getMissingIDs(all, cached)
+	got := FilterMissingIDs(all, cached)
 	want := []store.MessageID{2, 4}
 	if len(got) != len(want) {
 		t.Fatalf("missing IDs = %v, want %v", got, want)
