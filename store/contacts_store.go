@@ -178,7 +178,7 @@ func SaveWhatsAppContact(ctx context.Context, email, number, name string) error 
 	norm := NormalizeIdentifier(number)
 	rows, _ := queries.GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{TenantEmail: email, Identifiers: []string{norm}})
 	if len(rows) > 0 {
-		return handleExistingWAContact(ctx, email, rows[0].ContactID, number, name)
+		return handleExistingChannelContact(ctx, email, rows[0].ContactID, number, name, ContactTypeWhatsApp)
 	}
 	nameNorm := NormalizeIdentifier(name)
 	nameRows, _ := queries.GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{TenantEmail: email, Identifiers: []string{nameNorm}})
@@ -189,18 +189,18 @@ func SaveWhatsAppContact(ctx context.Context, email, number, name string) error 
 	return err
 }
 
-func handleExistingWAContact(ctx context.Context, email string, cid int64, number, name string) error {
+func handleExistingChannelContact(ctx context.Context, email string, cid int64, externalID, name string, ct string) error {
 	byID := fetchContactsByIDs(ctx, []int64{cid})
 	contact, ok := byID[cid]
 	if !ok {
-		_, err := UpsertContact(ctx, email, number, name, "", ContactTypeWhatsApp)
+		_, err := UpsertContact(ctx, email, externalID, name, "", ct)
 		return err
 	}
-	if contact.CanonicalID != number {
+	if contact.CanonicalID != externalID {
 		return nil
 	}
-	if contact.DisplayName == number || contact.DisplayName == "" || strings.Contains(name, " ") {
-		_, err := UpsertContact(ctx, email, number, name, "", ContactTypeWhatsApp)
+	if contact.DisplayName == externalID || contact.DisplayName == "" || strings.Contains(name, " ") {
+		_, err := UpsertContact(ctx, email, externalID, name, "", ct)
 		return err
 	}
 	return nil
@@ -235,16 +235,20 @@ func appendSecondaryID(ctx context.Context, tenantEmail string, contactID int64,
 	return nil
 }
 
-func GetNameByWhatsAppNumber(email, number string) string {
-	id, err := ResolveAlias(context.Background(), ContactTypeWhatsApp, number)
+func getNameByExternalID(ctx context.Context, ct string, externalID string) string {
+	id, err := ResolveAlias(ctx, ct, externalID)
 	if err != nil {
 		return ""
 	}
-	byID := fetchContactsByIDs(context.Background(), []int64{id})
+	byID := fetchContactsByIDs(ctx, []int64{id})
 	if c, ok := byID[id]; ok {
 		return c.DisplayName
 	}
 	return ""
+}
+
+func GetNameByWhatsAppNumber(email, number string) string {
+	return getNameByExternalID(context.Background(), ContactTypeWhatsApp, number)
 }
 
 // SaveTelegramContact upserts a Telegram user mapping (canonical_id=numeric user ID).
@@ -257,39 +261,15 @@ func SaveTelegramContact(ctx context.Context, email, userID, name string) error 
 	norm := NormalizeIdentifier(userID)
 	rows, _ := queries.GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{TenantEmail: email, Identifiers: []string{norm}})
 	if len(rows) > 0 {
-		return handleExistingTelegramContact(ctx, email, rows[0].ContactID, userID, name)
+		return handleExistingChannelContact(ctx, email, rows[0].ContactID, userID, name, ContactTypeTelegram)
 	}
 	_, err := UpsertContact(ctx, email, userID, name, "", ContactTypeTelegram)
 	return err
 }
 
-func handleExistingTelegramContact(ctx context.Context, email string, cid int64, userID, name string) error {
-	byID := fetchContactsByIDs(ctx, []int64{cid})
-	contact, ok := byID[cid]
-	if !ok {
-		_, err := UpsertContact(ctx, email, userID, name, "", ContactTypeTelegram)
-		return err
-	}
-	if contact.CanonicalID != userID {
-		return nil
-	}
-	if contact.DisplayName == userID || contact.DisplayName == "" || strings.Contains(name, " ") {
-		_, err := UpsertContact(ctx, email, userID, name, "", ContactTypeTelegram)
-		return err
-	}
-	return nil
-}
 
 func GetNameByTelegramID(ctx context.Context, email, userID string) string {
-	id, err := ResolveAlias(ctx, ContactTypeTelegram, userID)
-	if err != nil {
-		return ""
-	}
-	byID := fetchContactsByIDs(ctx, []int64{id})
-	if c, ok := byID[id]; ok {
-		return c.DisplayName
-	}
-	return ""
+	return getNameByExternalID(ctx, ContactTypeTelegram, userID)
 }
 
 func NormalizeContactName(ctx context.Context, email, rawName string) string {
