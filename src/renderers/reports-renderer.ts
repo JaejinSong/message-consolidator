@@ -8,6 +8,8 @@ import { escapeHTML } from '../utils';
  */
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const RE_JSON_FENCE = /```json\s*(\[[\s\S]*?\])\s*```/g;
+const RE_HTML_JSON_BLOCK = /<pre><code class="language-json">[\s\S]*?<\/code><\/pre>/;
 
 /**
  * Creates an SVG element with attributes.
@@ -382,7 +384,7 @@ export const reportsRenderer = {
 
         if (summaryArea) {
             const html = parseMarkdown(summaryText);
-            const jsonBlocks = [...summaryText.matchAll(/```json\s*(\[[\s\S]*?\])\s*```/g)];
+            const jsonBlocks = [...summaryText.matchAll(RE_JSON_FENCE)];
             let renderedHTML = html;
 
             for (const match of jsonBlocks) {
@@ -390,14 +392,14 @@ export const reportsRenderer = {
                     const data = JSON.parse(match[1]);
                     if (!Array.isArray(data)) continue;
                     if (data.length === 0) {
-                        renderedHTML = renderedHTML.replace(/<pre><code class="language-json">[\s\S]*?<\/code><\/pre>/, '');
+                        renderedHTML = renderedHTML.replace(RE_HTML_JSON_BLOCK, '');
                         continue;
                     }
                     const isActivity = typeof data[0] === 'object' && data[0] !== null && ('customer' in data[0] || 'count' in data[0]);
                     const component = isActivity
                         ? this.renderActivityComponent(data, i18n)
                         : this.renderStalledTasksComponent(data, i18n);
-                    renderedHTML = renderedHTML.replace(/<pre><code class="language-json">[\s\S]*?<\/code><\/pre>/, component);
+                    renderedHTML = renderedHTML.replace(RE_HTML_JSON_BLOCK, component);
                 } catch (e) {
                     console.error("[ReportsRenderer] JSON parse failed:", e);
                 }
