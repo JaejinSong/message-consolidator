@@ -236,6 +236,15 @@ func parseNewEmails(ctx context.Context, svc *gmail.Service, email string, messa
 }
 
 // Why: Extracts the processing of a single email to reduce cognitive load and simplify the main parsing loop.
+func markFilteredEmail(ctx context.Context, email, msgID string) {
+	store.IncrementFilteredCount(email)
+	_ = store.MarkAsProcessed(ctx, store.GetDB(), email, msgID)
+}
+
+func markProcessedEmail(ctx context.Context, email, msgID string) {
+	_ = store.MarkAsProcessed(ctx, store.GetDB(), email, msgID)
+}
+
 func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m *gmail.Message, skips []string, internalDomains []string) (*types.RawMessage, string, string, int64, error) {
 	fullMsg, err := svc.Users.Messages.Get("me", m.Id).Format("full").Do()
 	if err != nil {
@@ -251,31 +260,28 @@ func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m
 	// re-fetches these messages every cycle and burns Google API quota for nothing.
 	if isMarketingHeader(fullMsg.Payload.Headers, fromHeader, internalDomains) {
 		logger.Debugf("[GMAIL] ignoring marketing email from: %s", fromHeader)
-		store.IncrementFilteredCount(email)
-		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
+		markFilteredEmail(ctx, email, m.Id)
 		return nil, "", "", ts, nil
 	}
 	if isSelfAddressedBulk(fromHeader, toHeader, email) {
 		logger.Debugf("[GMAIL] ignoring self-addressed bulk from: %s", fromHeader)
-		store.IncrementFilteredCount(email)
-		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
+		markFilteredEmail(ctx, email, m.Id)
 		return nil, "", "", ts, nil
 	}
 	if isSystemOriginEmail(fullMsg.Payload.Headers, subject) {
 		logger.Debugf("[GMAIL] ignoring system-origin email: %s", subject)
-		store.IncrementFilteredCount(email)
-		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
+		markFilteredEmail(ctx, email, m.Id)
 		return nil, "", "", ts, nil
 	}
 	if isSkipSender(fromHeader, skips) {
-		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
+		markProcessedEmail(ctx, email, m.Id)
 		return nil, "", "", ts, nil
 	}
 
 	isFromMe, isDirect, isCc, isBcc, isDelTo := checkRecipientStatus(email, fromHeader, toHeader, ccHeader, bccHeader, deliveredTo)
 	if !isFromMe && !isDirect && !isCc && !isBcc && !isDelTo {
 		if !hasLabel(fullMsg.LabelIds, "INBOX") {
-			_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
+			markProcessedEmail(ctx, email, m.Id)
 			return nil, "", "", ts, nil
 		}
 		// Why: User not in any header but message is in inbox — delivered via mailing list
@@ -291,7 +297,7 @@ func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m
 	classification := classifyGmail(isFromMe, isDirect)
 	cleanBody := cleanEmailBody(extractBody(fullMsg.Payload))
 	if cleanBody == "" {
-		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.Id)
+		markProcessedEmail(ctx, email, m.Id)
 		return nil, "", "", ts, nil
 	}
 
