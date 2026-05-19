@@ -68,10 +68,10 @@ func (s *tgAuthState) getStatus() string {
 // Callbacks (FetchUserTgSession / OnSessionUpdated / OnConnected / OnLoggedOut) implement
 // the same IoC pattern used by WAManager — they decouple this package from store/.
 type TelegramManager struct {
-	states        map[string]*tgAuthState
-	messageBuffer map[string]map[string][]types.RawMessage
-	clients       map[string]*telegram.Client
-	mu            sync.RWMutex
+	states  map[string]*tgAuthState
+	chatBuf *ChatBuffer
+	clients map[string]*telegram.Client
+	mu      sync.RWMutex
 
 	// groupCache: chatKey ("tg_user_X" / "tg_chat_X" / "tg_channel_X") → display title.
 	// Populated from tg.Entities on every ingest and from MessagesGetDialogs at connect.
@@ -98,7 +98,7 @@ var DefaultTelegramManager = NewTelegramManager()
 func NewTelegramManager() *TelegramManager {
 	return &TelegramManager{
 		states:             make(map[string]*tgAuthState),
-		messageBuffer:      make(map[string]map[string][]types.RawMessage),
+		chatBuf:            newChatBuffer(),
 		clients:            make(map[string]*telegram.Client),
 		FetchUserTgSession: func(email string) ([]byte, error) { return nil, nil },
 		FetchUserTgCreds:   func(email string) (int, string, bool) { return 0, "", false },
@@ -669,42 +669,16 @@ func userName(e tg.Entities, id int64) string {
 
 // bufferMessage appends raw into email→chatKey circular buffer (cap 200).
 func (m *TelegramManager) bufferMessage(email, chatKey string, raw types.RawMessage) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if _, ok := m.messageBuffer[email]; !ok {
-		m.messageBuffer[email] = make(map[string][]types.RawMessage)
-	}
-	buf := append(m.messageBuffer[email][chatKey], raw)
-	if len(buf) > 200 {
-		buf = buf[len(buf)-200:]
-	}
-	m.messageBuffer[email][chatKey] = buf
+	m.chatBuf.buffer(email, chatKey, raw)
 }
 
 // PopMessages atomically drains every chat buffer for the given user.
 func (m *TelegramManager) PopMessages(email string) map[string][]types.RawMessage {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	userBuf, ok := m.messageBuffer[email]
-	if !ok || len(userBuf) == 0 {
-		return nil
-	}
-
-	out := make(map[string][]types.RawMessage, len(userBuf))
-	for k, msgs := range userBuf {
-		if len(msgs) > 0 {
-			out[k] = msgs
-		}
-	}
-	m.messageBuffer[email] = make(map[string][]types.RawMessage)
-	return out
+	return m.chatBuf.pop(email)
 }
 
 func (m *TelegramManager) dropBuffer(email string) {
-	m.mu.Lock()
-	delete(m.messageBuffer, email)
-	m.mu.Unlock()
+	m.chatBuf.drop(email)
 }
 
 // GetGroupName returns a human-friendly label for a chatKey. Resolution order:

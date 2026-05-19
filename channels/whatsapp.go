@@ -25,10 +25,10 @@ import (
 )
 
 type WAManager struct {
-	clients       map[string]*whatsmeow.Client
-	messageBuffer map[string]map[waTypes.JID][]types.RawMessage
-	latestQR      map[string]string
-	mu            sync.RWMutex
+	clients  map[string]*whatsmeow.Client
+	chatBuf  *ChatBuffer
+	latestQR map[string]string
+	mu       sync.RWMutex
 	container     *sqlstore.Container
 	containerOnce sync.Once
 
@@ -41,7 +41,7 @@ type WAManager struct {
 func NewWAManager() *WAManager {
 	return &WAManager{
 		clients:        make(map[string]*whatsmeow.Client),
-		messageBuffer:  make(map[string]map[waTypes.JID][]types.RawMessage),
+		chatBuf:        newChatBuffer(),
 		latestQR:       make(map[string]string),
 		FetchUserWAJID: func(email string) (string, error) { return "", nil },
 		OnConnected:    func(email, wajid string) {},
@@ -121,9 +121,6 @@ func (m *WAManager) InitWhatsApp(email string, cfg *config.Config) {
 
 	m.mu.Lock()
 	m.clients[email] = client
-	if _, ok := m.messageBuffer[email]; !ok {
-		m.messageBuffer[email] = make(map[waTypes.JID][]types.RawMessage)
-	}
 	m.mu.Unlock()
 
 	// any 사유: whatsmeow.Client.AddEventHandler 콜백 시그니처(`func(any)`) — 내부 type switch로 디스패치.
@@ -166,9 +163,9 @@ func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt any)
 		m.OnLoggedOut(email)
 		m.mu.Lock()
 		delete(m.clients, email)
-		delete(m.messageBuffer, email)
 		delete(m.latestQR, email)
 		m.mu.Unlock()
+		m.chatBuf.drop(email)
 	default:
 	}
 }
@@ -287,19 +284,7 @@ func (m *WAManager) resolveRepliedUser(email string, client *whatsmeow.Client, c
 }
 
 func (m *WAManager) bufferMessage(email string, chat waTypes.JID, raw types.RawMessage) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if _, ok := m.messageBuffer[email]; !ok {
-		m.messageBuffer[email] = make(map[waTypes.JID][]types.RawMessage)
-	}
-
-	buffer := m.messageBuffer[email][chat]
-	buffer = append(buffer, raw)
-	if len(buffer) > 200 {
-		buffer = buffer[len(buffer)-200:]
-	}
-	m.messageBuffer[email][chat] = buffer
+	m.chatBuf.buffer(email, chat.String(), raw)
 }
 
 // Why: Resolves numeric WhatsApp mentions into human-readable contact names using explicit MentionedJID metadata instead of fragile regex parsing.
@@ -479,9 +464,9 @@ func (m *WAManager) LogoutWhatsApp(ctx context.Context, email string) error {
 
 	m.mu.Lock()
 	delete(m.clients, email)
-	delete(m.messageBuffer, email)
 	delete(m.latestQR, email)
 	m.mu.Unlock()
+	m.chatBuf.drop(email)
 
 	logger.Infof("[WA] logout cleanup for %s complete", email)
 	return nil
@@ -525,21 +510,7 @@ func ResolveWAMentions(email, text string, jids []string) string {
 }
 
 func (m *WAManager) PopMessages(email string) map[string][]types.RawMessage {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	userBuffer, ok := m.messageBuffer[email]
-	if !ok || len(userBuffer) == 0 {
-		return nil
-	}
-
-	bufferCopy := make(map[string][]types.RawMessage)
-	for jid, msgs := range userBuffer {
-		if len(msgs) > 0 {
-			bufferCopy[jid.String()] = msgs
-		}
-	}
-	m.messageBuffer[email] = make(map[waTypes.JID][]types.RawMessage)
-	return bufferCopy
+	return m.chatBuf.pop(email)
 }
 
 // GetDeviceName returns the linked WhatsApp device's PushName (or Platform as fallback).
