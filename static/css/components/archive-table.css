@@ -76,3 +76,15 @@
     opacity: 0.8;
 }
 
+@media (max-width: 48rem) {
+    .c-archive-table th,
+    .c-archive-table td {
+        padding: 0.75rem 0.5rem;
+        font-size: 0.8rem;
+    }
+}
+
+.table-container {
+    -webkit-overflow-scrolling: touch;
+}
+

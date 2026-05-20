@@ -569,11 +569,13 @@
 @media (max-width: 64rem) {
     .c-insights-report-layout {
         grid-template-columns: 1fr;
+        height: auto;
+        min-height: auto;
     }
     .c-insights-report-sidebar {
         border-right: none;
         border-bottom: var(--border-thin) solid var(--glass-border);
-        max-height: 12.5rem;
+        max-height: 18rem;
     }
     .insights-report-header > .u-flex {
         flex-wrap: wrap;
@@ -946,4 +948,44 @@ body.light-theme .report-content th {
     color: var(--accent-light);
     opacity: 0.6;
     margin-top: 0.05rem;
+}
+
+@media (max-width: 30rem) {
+    /* Hover doesn't exist on touch — always show delete button */
+    .c-insights-report-item__delete {
+        opacity: 1;
+    }
+
+    .c-insights-report-main {
+        padding: var(--spacing-md);
+    }
+}
+
+@media (max-width: 48rem) {
+    .c-report-table,
+    .c-report-summary__content table,
+    .report-content table {
+        font-size: 0.75rem;
+    }
+
+    .c-report-table th,
+    .c-report-table td,
+    .report-content td {
+        padding: var(--spacing-xs) var(--spacing-sm);
+    }
+
+    #reportStartDate,
+    #reportEndDate {
+        width: 100% !important;
+    }
+
+    .c-report-controls .u-flex {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-sm);
+    }
+
+    #btnGenerateReport {
+        width: 100%;
+    }
 }

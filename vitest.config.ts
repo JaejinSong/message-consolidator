@@ -8,6 +8,7 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     setupFiles: ['./src/tests/setup.ts'],
+    exclude: ['.claude/**', 'node_modules/**'],
     coverage: {
       provider: 'v8',
       // Why: `include` glob picks up all matching src files (vitest v4 dropped `all` flag — globbed includes implies it).

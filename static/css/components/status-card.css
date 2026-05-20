@@ -68,7 +68,7 @@
 }
 
 /* Mobile Responsive */
-@media (max-width: 480px) {
+@media (max-width: 48rem) {
     .c-status-group {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -89,7 +89,15 @@
     }
 
     .c-status-card__label {
-        font-size: 0.65rem;
+        font-size: 0.7rem;
         margin-top: 0.2rem;
+        word-break: keep-all;
+    }
+}
+
+@media (max-width: 30rem) {
+    /* 4-col gives each card ~70px at 320px — too narrow for labels; use 2-col */
+    .c-status-group {
+        grid-template-columns: repeat(2, 1fr);
     }
 }

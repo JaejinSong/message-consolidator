@@ -64,33 +64,26 @@
     display: block;
 }
 
-/* Mobile Responsive - 2x2 Grid */
-@media (max-width: 480px) {
+/* Mobile Responsive - horizontal scroll (handles variable tab counts) */
+@media (max-width: 30rem) {
     .c-tabs {
-        display: grid !important;
-        grid-template-columns: repeat(2, 1fr) !important;
+        display: flex !important;
+        grid-template-columns: unset !important;
+        flex-wrap: nowrap !important;
         width: 100% !important;
-        gap: var(--spacing-xs) !important;
-        background: rgba(var(--surface-rgb), 0.05) !important;
+        overflow-x: auto !important;
+        scroll-snap-type: x mandatory;
         padding: var(--spacing-xs) !important;
+        gap: var(--spacing-xs) !important;
     }
 
     .c-tabs__btn {
-        width: 100% !important;
-        justify-content: center !important;
-        padding: 0.8rem 0.4rem !important;
-        flex-direction: column !important;
-        gap: var(--spacing-xs) !important;
-        font-size: 0.75rem !important;
-        text-align: center;
-        height: 100% !important;
-        border-radius: var(--radius-md) !important;
-    }
-
-    .c-tabs__btn span[data-i18n] {
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-        width: 100%;
+        flex: 0 0 auto !important;
+        scroll-snap-align: start;
+        min-height: var(--touch-target-min) !important;
+        padding: 0.6rem 1rem !important;
+        font-size: 0.85rem !important;
+        flex-direction: row !important;
+        text-align: left;
     }
 }

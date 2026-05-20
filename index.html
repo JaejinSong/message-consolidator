@@ -226,9 +226,12 @@
             <!-- Guide Section -->
             <section id="guideSection" class="hidden">
                 <div class="c-guide">
+                    <div class="c-guide__overlay" id="guideOverlay" aria-hidden="true"></div>
                     <aside class="c-guide__sidebar" data-guide-sidebar role="tablist" aria-orientation="vertical" aria-label="Help sections"></aside>
                     <div class="c-guide__panel">
-                        <div class="c-guide__topbar" data-guide-search></div>
+                        <div class="c-guide__topbar" data-guide-search>
+                            <button type="button" class="c-guide__menu-toggle" id="guideMenuToggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="guideSidebar">&#9776;</button>
+                        </div>
                         <div id="guideContent" class="c-guide__content" role="tabpanel" aria-live="polite"></div>
                     </div>
                     <aside class="c-guide__rail" data-guide-toc></aside>

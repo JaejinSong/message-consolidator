@@ -196,3 +196,16 @@ body.light-theme .c-utility__btn:hover {
     background: rgba(0, 0, 0, 0.08);
     border-color: rgba(0, 0, 0, 0.15);
 }
+
+@media (max-width: 48rem) {
+    .c-utility__btn {
+        min-width: var(--touch-target-min);
+        min-height: var(--touch-target-min);
+    }
+}
+
+@media (max-width: 30rem) {
+    .stat-label {
+        font-size: 0.7rem;
+    }
+}

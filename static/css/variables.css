@@ -90,6 +90,8 @@
     --task-card-min-width: 25rem;
     --btn-size: 2.5rem;
     --btn-size-sm: 2rem;
+    --btn-size-md: 2.25rem;
+    --touch-target-min: 2.75rem;
     --border-thick: 6px;
     --archive-task-min-width: 18.75rem;
     --insights-card-min-width: 21.875rem;

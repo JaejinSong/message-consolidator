@@ -117,6 +117,18 @@ header {
         padding: 1.25rem 0.75rem;
         border-radius: var(--radius-lg);
     }
+}
+
+@media (max-width: 30rem) {
+    .glass-container {
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        padding: var(--spacing-md) var(--spacing-sm);
+    }
+}
+
+@media (max-width: 48rem) {
 
     .dashboard-header {
         gap: var(--spacing-md);

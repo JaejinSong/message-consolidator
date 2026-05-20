@@ -6,12 +6,12 @@ describe('Mobile Layout Regression Tests', () => {
     const baseCssPath = path.resolve(process.cwd(), 'static/css/base.css');
     const layoutCssPath = path.resolve(process.cwd(), 'static/css/layout.css');
 
-    it('base.css should have reduced body padding for mobile (480px)', () => {
+    it('base.css should remove body padding at 30rem to prevent double-padding with glass-container', () => {
         const content = fs.readFileSync(baseCssPath, 'utf8');
-        // CSS custom properties are not supported as length values inside @media queries
-        // in any major browser as of 2026 — must use a literal value (30rem == --bp-mobile).
-        const hasMobilePadding = /@media\s*\(max-width:\s*30rem\)\s*{\s*body\s*{\s*padding:\s*0\.5rem;/.test(content);
-        expect(hasMobilePadding).toBe(true);
+        // MOBILE-7: body padding: 0 at 30rem so glass-container fills edge-to-edge,
+        // eliminating the ~2.5rem combined padding that crushed content on 320px viewports.
+        const hasZeroPadding = /@media\s*\(max-width:\s*30rem\)[^}]*{\s*[^}]*body\s*{[^}]*padding:\s*0;/.test(content);
+        expect(hasZeroPadding).toBe(true);
     });
 
     it('base.css must not use CSS custom properties as @media length values', () => {
@@ -37,6 +37,90 @@ describe('Mobile Layout Regression Tests', () => {
 
         expect(hasOptimizedPadding).toBe(true);
         expect(hasOptimizedRadius).toBe(true);
+    });
+
+    it('base.css should set input font-size to 1rem on mobile to prevent iOS Safari zoom', () => {
+        const content = fs.readFileSync(baseCssPath, 'utf8');
+        // iOS Safari auto-zooms when focused input font-size < 16px (1rem).
+        const hasInputFontFix = /@media\s*\(max-width:\s*48rem\)[\s\S]*?\.c-input[\s\S]*?font-size:\s*1rem/.test(content);
+        expect(hasInputFontFix).toBe(true);
+    });
+
+    it('variables.css should define --touch-target-min and --btn-size-md tokens', () => {
+        const varsCssPath = path.resolve(process.cwd(), 'static/css/variables.css');
+        const content = fs.readFileSync(varsCssPath, 'utf8');
+        expect(content).toMatch(/--touch-target-min:\s*2\.75rem/);
+        expect(content).toMatch(/--btn-size-md:\s*2\.25rem/);
+    });
+
+    it('v2-insights.css should increase sidebar max-height at 64rem for better list visibility', () => {
+        const insightsCssPath = path.resolve(process.cwd(), 'static/css/v2-insights.css');
+        const content = fs.readFileSync(insightsCssPath, 'utf8');
+        // Regression: 12.5rem (~200px) showed only 3-4 items at 1rem padding each.
+        const hasBetterHeight = /@media\s*\(max-width:\s*64rem\)[\s\S]*?\.c-insights-report-sidebar[\s\S]*?max-height:\s*18rem/.test(content);
+        expect(hasBetterHeight).toBe(true);
+    });
+
+    it('message-card.css should stack footer to column on narrow mobile to prevent overflow', () => {
+        const cardCssPath = path.resolve(process.cwd(), 'static/css/components/message-card.css');
+        const content = fs.readFileSync(cardCssPath, 'utf8');
+        const hasColumnFooter = /@media\s*\(max-width:\s*30rem\)[\s\S]*?\.c-message-card__footer[\s\S]*?flex-direction:\s*column/.test(content);
+        expect(hasColumnFooter).toBe(true);
+    });
+
+    it('layout.css should remove glass-container side borders and radius at 30rem to fill edge-to-edge', () => {
+        const content = fs.readFileSync(layoutCssPath, 'utf8');
+        const hasEdgeToEdge = /@media\s*\(max-width:\s*30rem\)[\s\S]*?\.glass-container[\s\S]*?border-radius:\s*0/.test(content);
+        expect(hasEdgeToEdge).toBe(true);
+    });
+
+    it('tabs.css should use horizontal-scroll pattern (not grid) on mobile', () => {
+        const tabsCssPath = path.resolve(process.cwd(), 'static/css/components/tabs.css');
+        const content = fs.readFileSync(tabsCssPath, 'utf8');
+        // Regression: grid 2-col forced awkward layout with odd tab counts.
+        const usesGrid = /@media\s*\(max-width:\s*(?:480px|30rem)\)[\s\S]*?display:\s*grid/.test(content);
+        const hasHScroll = /@media\s*\(max-width:\s*30rem\)[\s\S]*?overflow-x:\s*auto/.test(content);
+        expect(usesGrid).toBe(false);
+        expect(hasHScroll).toBe(true);
+    });
+
+    it('v2-insights.css should reduce report table font-size and stack controls on mobile', () => {
+        const insightsCssPath = path.resolve(process.cwd(), 'static/css/v2-insights.css');
+        const content = fs.readFileSync(insightsCssPath, 'utf8');
+        const hasTableFontReduce = /@media\s*\(max-width:\s*48rem\)[\s\S]*?\.c-report-table[\s\S]*?font-size:\s*0\.75rem/.test(content);
+        const hasDateFullWidth = /@media\s*\(max-width:\s*48rem\)[\s\S]*?#reportStartDate[\s\S]*?width:\s*100%\s*!important/.test(content);
+        expect(hasTableFontReduce).toBe(true);
+        expect(hasDateFullWidth).toBe(true);
+    });
+
+    it('v2-modals.css should use bottom-sheet pattern with 100dvh on small mobile', () => {
+        const modalsCssPath = path.resolve(process.cwd(), 'static/css/v2-modals.css');
+        const content = fs.readFileSync(modalsCssPath, 'utf8');
+        const hasBottomSheet = /@media\s*\(max-width:\s*30rem\)[\s\S]*?align-items:\s*flex-end/.test(content);
+        const hasDvh = /@media\s*\(max-width:\s*30rem\)[\s\S]*?max-height:\s*100dvh/.test(content);
+        expect(hasBottomSheet).toBe(true);
+        expect(hasDvh).toBe(true);
+    });
+
+    it('v2-modals.css should enforce touch target min-size for .c-modal__close on mobile', () => {
+        const modalsCssPath = path.resolve(process.cwd(), 'static/css/v2-modals.css');
+        const content = fs.readFileSync(modalsCssPath, 'utf8');
+        const hasTouchTarget = /@media\s*\(max-width:\s*48rem\)[\s\S]*?\.c-modal__close[\s\S]*?min-width:\s*var\(--touch-target-min\)/.test(content);
+        expect(hasTouchTarget).toBe(true);
+    });
+
+    it('message-card.css should enforce touch target for action buttons on mobile', () => {
+        const cardCssPath = path.resolve(process.cwd(), 'static/css/components/message-card.css');
+        const content = fs.readFileSync(cardCssPath, 'utf8');
+        const hasTouchTarget = /@media\s*\(max-width:\s*48rem\)[\s\S]*?\.c-message-card__action-btn[\s\S]*?min-width:\s*var\(--touch-target-min\)/.test(content);
+        expect(hasTouchTarget).toBe(true);
+    });
+
+    it('archive-table.css should reduce cell padding on mobile (48rem)', () => {
+        const archiveCssPath = path.resolve(process.cwd(), 'static/css/components/archive-table.css');
+        const content = fs.readFileSync(archiveCssPath, 'utf8');
+        const hasMobilePadding = /@media\s*\(max-width:\s*48rem\)[\s\S]*?\.c-archive-table\s+th[\s\S]*?padding:\s*0\.75rem\s*0\.5rem/.test(content);
+        expect(hasMobilePadding).toBe(true);
     });
 
     it('no hardcoded pixel values should exist in layout.css', () => {

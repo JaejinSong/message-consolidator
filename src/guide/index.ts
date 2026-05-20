@@ -70,8 +70,29 @@ export const guide: GuideAPI = {
         if (sidebarContainer) {
             sidebar = mountSidebar(sidebarContainer, GUIDE_SECTIONS, (section) => {
                 guide.navigateTo(section);
+                // Close drawer on mobile after navigation
+                sidebarContainer.classList.remove('c-guide__sidebar--open');
+                overlay?.classList.remove('c-guide__overlay--visible');
+                toggleBtn?.setAttribute('aria-expanded', 'false');
             });
         }
+
+        const toggleBtn = document.getElementById('guideMenuToggle') as HTMLButtonElement | null;
+        const overlay = document.getElementById('guideOverlay');
+
+        function closeSidebar(): void {
+            sidebarContainer?.classList.remove('c-guide__sidebar--open');
+            overlay?.classList.remove('c-guide__overlay--visible');
+            toggleBtn?.setAttribute('aria-expanded', 'false');
+        }
+
+        toggleBtn?.addEventListener('click', () => {
+            const isOpen = sidebarContainer?.classList.toggle('c-guide__sidebar--open');
+            overlay?.classList.toggle('c-guide__overlay--visible', isOpen);
+            toggleBtn.setAttribute('aria-expanded', String(isOpen));
+        });
+
+        overlay?.addEventListener('click', closeSidebar);
 
         if (searchContainer) {
             controllers.search = mountSearch(

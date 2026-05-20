@@ -138,3 +138,25 @@
 .c-admin-toast--error {
     background: var(--color-error);
 }
+
+@media (max-width: 48rem) {
+    .c-admin-settings__row {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-xs);
+    }
+
+    .c-admin-settings__control {
+        width: 100%;
+    }
+
+    .c-admin-admins__row {
+        flex-wrap: wrap;
+    }
+
+    .c-admin-toast {
+        left: var(--spacing-md);
+        right: var(--spacing-md);
+        max-width: none;
+        bottom: var(--spacing-md);
+    }
+}

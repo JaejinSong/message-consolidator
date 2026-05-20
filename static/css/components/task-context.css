@@ -30,7 +30,7 @@
     bottom: 100%;
     left: 50%;
     transform: translateX(-50%) translateY(-0.5rem);
-    width: 18rem;
+    width: min(18rem, calc(100vw - 2rem));
     padding: var(--spacing-md);
     background: var(--bg-floater);
     backdrop-filter: blur(var(--blur-md));
@@ -76,6 +76,29 @@
 
 .task-context__snippet + .task-context__snippet {
     margin-top: var(--spacing-sm);
+}
+
+@media (max-width: 48rem) {
+    .task-context__tooltip {
+        position: fixed;
+        left: var(--spacing-md);
+        right: var(--spacing-md);
+        width: auto;
+        transform: none;
+        bottom: var(--spacing-md);
+        top: auto;
+    }
+
+    .task-context:hover .task-context__tooltip {
+        transform: none;
+    }
+
+    /* Touch devices: :focus/:active triggers instead of :hover */
+    .task-context:focus .task-context__tooltip,
+    .task-context:active .task-context__tooltip {
+        opacity: 1;
+        visibility: visible;
+    }
 }
 
 /* Light theme adjustments */

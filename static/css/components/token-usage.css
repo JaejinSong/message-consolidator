@@ -106,4 +106,17 @@
     .c-token-usage {
         grid-template-columns: 1fr;
     }
+
+    .c-token-usage__card {
+        padding: var(--spacing-md);
+    }
+
+    .c-token-usage__value {
+        font-size: 1.5rem;
+    }
+
+    .c-token-usage__card::after {
+        width: 2.5rem;
+        height: 2.5rem;
+    }
 }
