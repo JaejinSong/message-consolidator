@@ -7,6 +7,7 @@ import (
 	"message-consolidator/ai/core"
 	"message-consolidator/logger"
 	"message-consolidator/store"
+	"strings"
 	"time"
 
 	"github.com/whatap/go-api/trace"
@@ -34,9 +35,6 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 
 	modelName := g.getEffectiveModel(parsed, g.analysisModel)
 	cfg := g.buildConfig(0.1, ReportMaxTokens, "", rendered)
-	// Why: thinking budget cap reserves ~20K tokens for visible completion; without it thinking
-	// consumes ~39K of the 40K max leaving only ~1.6K for output.
-	cfg.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: genai.Ptr(int32(20000))}
 
 	start := time.Now()
 	// Why: empty string Part is rejected by the API as an uninitialized oneof field (INVALID_ARGUMENT).
@@ -58,10 +56,39 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 	if fr := resp.Candidates[0].FinishReason; fr == genai.FinishReasonMaxTokens {
 		logger.Warnf("[GEMINI] ReportSummary output truncated: FinishReason=MAX_TOKENS, completion=%d/%d tokens, prompt=%d, email=%s",
 			resp.UsageMetadata.CandidatesTokenCount, ReportMaxTokens, resp.UsageMetadata.PromptTokenCount, email)
+		text = repairTruncatedOutput(text)
 	}
 
 	_ = trace.Step(ctx, "Gemini-ReportSummary", "", int(time.Since(start).Milliseconds()), 0)
 	return text, nil
+}
+
+// repairTruncatedOutput closes any open JSON code fence and strips the last incomplete
+// JSON object so the partial list can still render as a Slack table block.
+func repairTruncatedOutput(text string) string {
+	const notice = "\n\n> ⚠️ 보고서가 출력 토큰 한도에 도달해 일부 내용이 잘렸습니다."
+	if strings.Count(text, "```")%2 == 0 {
+		return text + notice
+	}
+	lastFence := strings.LastIndex(text, "```")
+	beforeFence := text[:lastFence]
+	fenceContent := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(text[lastFence+3:]), "json"))
+	if strings.HasPrefix(fenceContent, "[") {
+		// Strip last incomplete object: find the rightmost complete item boundary.
+		idx := strings.LastIndex(fenceContent, "},")
+		if idx < 0 {
+			idx = strings.LastIndex(fenceContent, "}")
+		}
+		if idx >= 0 {
+			fenceContent = fenceContent[:idx+1] + "\n]"
+		} else {
+			fenceContent = "[]"
+		}
+		text = beforeFence + "```json\n" + fenceContent + "\n```"
+	} else {
+		text = text + "\n```"
+	}
+	return text + notice
 }
 
 // EvaluateTaskTransition determines if a reply completes or updates a specific parent task.

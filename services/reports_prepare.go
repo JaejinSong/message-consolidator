@@ -62,7 +62,7 @@ func (s *ReportsService) applyResolution(_ context.Context, m *Log, identifierFi
 // Activity fills the cutoff budget first; stalled is appended with remaining budget.
 func (s *ReportsService) PrepareLogsForAI(email string, activity, stalled []Log) (string, bool) {
 	s.sortLogs(activity)
-	s.sortLogs(stalled)
+	sortStalledByAge(stalled)
 	var sb strings.Builder
 	curr, truncated := 0, false
 	limit := s.config.CutoffSize
@@ -70,7 +70,7 @@ func (s *ReportsService) PrepareLogsForAI(email string, activity, stalled []Log)
 		limit = DefaultReportCutoffSize
 	}
 
-	statsHeader := buildActivityStatsHeader(activity)
+	statsHeader := buildActivityStatsHeader(activity, stalled)
 	sb.WriteString(statsHeader)
 	curr += len(statsHeader)
 
@@ -110,10 +110,10 @@ func (s *ReportsService) PrepareLogsForAI(email string, activity, stalled []Log)
 	return sb.String(), truncated
 }
 
-// buildActivityStatsHeader pre-aggregates task counts and top open-task assignees so the model
-// can skip that counting work during thinking.
-func buildActivityStatsHeader(activity []Log) string {
-	done, active := 0, 0
+// buildActivityStatsHeader pre-aggregates task counts, ownership concentration, room→customer
+// mapping, and cross-source signals so the model can skip that counting work during thinking.
+func buildActivityStatsHeader(activity, stalled []Log) string {
+	done, active, totalOpen := 0, 0, 0
 	openCounts := make(map[string]int, len(activity))
 	for _, m := range activity {
 		if m.Done {
@@ -121,6 +121,7 @@ func buildActivityStatsHeader(activity []Log) string {
 			continue
 		}
 		active++
+		totalOpen++
 		key := m.AssigneeCanonical
 		if key == "" {
 			key = m.Assignee
@@ -140,15 +141,34 @@ func buildActivityStatsHeader(activity []Log) string {
 		top = top[:3]
 	}
 	parts := make([]string, len(top))
+	var typeBTrigger string
 	for i, p := range top {
-		parts[i] = fmt.Sprintf("%s×%d", p.name, p.n)
+		pct := 0
+		if totalOpen > 0 {
+			pct = p.n * 100 / totalOpen
+		}
+		parts[i] = fmt.Sprintf("%s×%d(%d%%)", p.name, p.n, pct)
+		if pct > 40 && typeBTrigger == "" {
+			typeBTrigger = p.name
+		}
 	}
 	owners := strings.Join(parts, ", ")
 	if owners == "" {
 		owners = "none"
 	}
-	return fmt.Sprintf("# Stats: %d tasks (%d active, %d done) | Top open assignees: %s\n",
-		done+active, active, done, owners)
+	assigneeLine := "# Top open assignees: " + owners
+	if typeBTrigger != "" {
+		assigneeLine += " | Type B trigger: " + typeBTrigger
+	}
+
+	roomCustomer := buildRoomCustomerMap(activity)
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "# Stats: %d activity (%d active, %d done) | %d stalled\n",
+		done+active, active, done, len(stalled))
+	sb.WriteString(assigneeLine + "\n")
+	sb.WriteString(buildRoomCustomerLine(roomCustomer))
+	sb.WriteString(buildCrossSourceLine(activity, roomCustomer))
+	return sb.String()
 }
 
 func (s *ReportsService) sortLogs(logs []Log) {
@@ -191,6 +211,9 @@ func (s *ReportsService) formatLogLine(email string, m Log) string {
 	evidence := ""
 	if evLen > 0 {
 		evidence = truncateEvidence(m.OriginalText, evLen)
+		if evidence != "" && hasRiskKeyword(m.OriginalText) {
+			evidence += " [RISK-CAND]"
+		}
 	}
 
 	deadlineStr := ""
@@ -244,4 +267,156 @@ func truncateEvidence(text string, max int) string {
 
 func (s *ReportsService) resolveCategory(tenantEmail, canonicalID, contactType string) string {
 	return store.MapContactType(contactType, strings.ToLower(canonicalID), tenantEmail)
+}
+
+// sortStalledByAge sorts stalled tasks by working-day age descending (oldest first).
+func sortStalledByAge(logs []Log) {
+	now := time.Now()
+	sort.Slice(logs, func(i, j int) bool {
+		return stalledAge(logs[i], now) > stalledAge(logs[j], now)
+	})
+}
+
+func stalledAge(m Log, now time.Time) int {
+	base := m.CreatedAt
+	if !m.AssignedAt.IsZero() && m.AssignedAt.After(base) {
+		base = m.AssignedAt
+	}
+	return store.WorkingDaysSince(base, now)
+}
+
+var riskKeywords = []string{
+	"scalab", "blocker", "block", "delay", "concern", "urgent", "risk",
+	"can't", "cannot", "isn't", "unable", "stuck", "slow", "waiting", "issue",
+}
+
+func hasRiskKeyword(text string) bool {
+	lower := strings.ToLower(text)
+	for _, kw := range riskKeywords {
+		if strings.Contains(lower, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+// inferCustomer derives the counterparty from task description then room name.
+func inferCustomer(task, room string) string {
+	if c := inferCustomerFromTask(task); c != "" {
+		return c
+	}
+	return inferCustomerFromRoom(room)
+}
+
+// inferCustomerFromTask extracts a counterparty using "for X" pattern.
+func inferCustomerFromTask(task string) string {
+	lower := strings.ToLower(task)
+	idx := strings.Index(lower, " for ")
+	if idx == -1 {
+		return ""
+	}
+	rest := strings.TrimSpace(task[idx+5:])
+	for i, r := range rest {
+		if r == ',' || r == '.' || r == '(' || r == '\n' {
+			rest = strings.TrimSpace(rest[:i])
+			break
+		}
+	}
+	return rest
+}
+
+var genericRoomPrefixes = []string{"gmail", "inbox", "sent", "drafts", "slack", "dm"}
+
+func inferCustomerFromRoom(room string) string {
+	lower := strings.ToLower(room)
+	for _, g := range genericRoomPrefixes {
+		if lower == g || strings.HasPrefix(lower, g+"-") || strings.HasPrefix(lower, g+" ") {
+			return "Other Tasks"
+		}
+	}
+	const bizGlobalPfx = "biz-global-"
+	if strings.HasPrefix(lower, bizGlobalPfx) {
+		country := room[len(bizGlobalPfx):]
+		if country != "" {
+			return titleFirst(country) + " Biz"
+		}
+	}
+	r := room
+	for _, sfx := range []string{"-Whatap", "_Whatap", " POC", "-POC"} {
+		r = strings.TrimSuffix(r, sfx)
+	}
+	r = strings.TrimSpace(r)
+	if r == "" {
+		return "Other Tasks"
+	}
+	return r
+}
+
+func titleFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + strings.ToLower(s[1:])
+}
+
+func buildRoomCustomerMap(activity []Log) map[string]string {
+	result := make(map[string]string)
+	for _, m := range activity {
+		if m.Room == "" {
+			continue
+		}
+		if _, ok := result[m.Room]; !ok {
+			result[m.Room] = inferCustomer(m.Task, m.Room)
+		}
+	}
+	return result
+}
+
+func buildCrossSourceLine(activity []Log, roomCustomer map[string]string) string {
+	type roomSet = map[string]struct{}
+	customerRooms := make(map[string]roomSet)
+	for _, m := range activity {
+		c := roomCustomer[m.Room]
+		if c == "" || c == "Other Tasks" {
+			continue
+		}
+		if customerRooms[c] == nil {
+			customerRooms[c] = make(roomSet)
+		}
+		customerRooms[c][m.Room] = struct{}{}
+	}
+	best, bestRooms := "", []string(nil)
+	for c, rooms := range customerRooms {
+		if len(rooms) < 3 {
+			continue
+		}
+		if best == "" || c < best {
+			list := make([]string, 0, len(rooms))
+			for r := range rooms {
+				list = append(list, r)
+			}
+			sort.Strings(list)
+			best, bestRooms = c, list
+		}
+	}
+	if best == "" {
+		return ""
+	}
+	return fmt.Sprintf("# Cross-source: \"%s\" in [%s]\n", best, strings.Join(bestRooms, ", "))
+}
+
+func buildRoomCustomerLine(roomCustomer map[string]string) string {
+	if len(roomCustomer) == 0 {
+		return ""
+	}
+	rooms := make([]string, 0, len(roomCustomer))
+	for r := range roomCustomer {
+		rooms = append(rooms, r)
+	}
+	sort.Strings(rooms)
+	parts := make([]string, len(rooms))
+	for i, r := range rooms {
+		parts[i] = r + "→" + roomCustomer[r]
+	}
+	return "# Room→Customer: " + strings.Join(parts, ", ") + "\n"
 }
