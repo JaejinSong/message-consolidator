@@ -1,8 +1,8 @@
 # 종합 문서 / Comprehensive Documentation
 
-**최종 갱신 / Last Updated:** 2026-05-03
+**최종 갱신 / Last Updated:** 2026-05-21
 **상태 / Status:** SSOT (Single Source of Truth)
-**총 분량 / Total:** 23 챕터 + INDEX, 11,938줄
+**총 분량 / Total:** 23 챕터 + INDEX, ~12,200줄 (2026-05-21 갱신)
 
 ## 한국어
 
@@ -22,11 +22,11 @@ This directory is the **single source of truth** for the `message-consolidator` 
 | 01 | [getting-started.md](01-getting-started.md) | 268 | 로컬 개발·빌드·테스트 | Local dev, build, test | [Makefile](../../Makefile), [unit-test.sh](../../unit-test.sh) |
 | 02 | [domain-model.md](02-domain-model.md) | 508 | 메시지·태스크·컨택트·리포트 모델 | Message/Task/Contact/Report model | [internal/ids/](../../internal/ids/), [db/models.go](../../db/models.go) |
 | 03 | [backend-architecture.md](03-backend-architecture.md) | 665 | DI·패키지·요청 플로우 | DI, packages, request flow | [main.go](../../main.go), [handlers/routes.go](../../handlers/routes.go) |
-| 04 | [data-layer.md](04-data-layer.md) | 719 | sqlc·Turso·19 entity·migrations | sqlc, Turso, 19 entities, migrations | [store/](../../store/), [db/](../../db/), [store/queries/](../../store/queries/) |
-| 05 | [channels.md](05-channels.md) | 463 | 4 채널 어댑터 (Slack/Gmail/Telegram/WhatsApp) | 4 channel adapters | [channels/](../../channels/) |
-| 06 | [scanner-pipeline.md](06-scanner-pipeline.md) | 388 | 스캔 루프·enricher·prime-pool | Scan loop, enricher, prime-pool | [scanner/](../../scanner/) |
+| 04 | [data-layer.md](04-data-layer.md) | 720 | sqlc·Turso·19 entity·migrations | sqlc, Turso, 19 entities, migrations | [store/](../../store/), [db/](../../db/), [store/queries/](../../store/queries/) |
+| 05 | [channels.md](05-channels.md) | 470 | 4 채널 어댑터 (Slack/Gmail/Telegram/WhatsApp) | 4 channel adapters | [channels/](../../channels/) |
+| 06 | [scanner-pipeline.md](06-scanner-pipeline.md) | 391 | 스캔 루프·enricher·prime-pool | Scan loop, enricher, prime-pool | [scanner/](../../scanner/) |
 | 07 | [ai-filter-pipeline.md](07-ai-filter-pipeline.md) | 690 | Parser→Flash-Lite→Flash→Pro·RAG | 4-stage filter + RAG | [ai/](../../ai/) |
-| 08 | [services-business-logic.md](08-services-business-logic.md) | 831 | 13 서비스 (tasks·consolidate·reports) | 13 service modules | [services/](../../services/) |
+| 08 | [services-business-logic.md](08-services-business-logic.md) | 840 | 13 서비스 (tasks·consolidate·reports) | 13 service modules | [services/](../../services/) |
 | 09 | [identity-and-dedup.md](09-identity-and-dedup.md) | 403 | DSU·alias·신원 매핑·중복 제거 | DSU, alias, identity, dedup | [ai/identity_resolver.go](../../ai/identity_resolver.go), [store/dsu.go](../../store/dsu.go) |
 | 10 | [locking-and-concurrency.md](10-locking-and-concurrency.md) | 489 | 분산 락·safego·graceful shutdown | Lock, safego, shutdown | [services/lock_service.go](../../services/lock_service.go), [internal/safego/](../../internal/safego/) |
 | 11 | [handlers-and-api.md](11-handlers-and-api.md) | 916 | 12 handler·68 라우트·미들웨어 | 12 handlers, 68 routes, middleware | [handlers/](../../handlers/) |
@@ -34,12 +34,12 @@ This directory is the **single source of truth** for the `message-consolidator` 
 | 13 | [frontend-architecture.md](13-frontend-architecture.md) | 751 | 모듈·이벤트·state·renderer | Modules, events, state, renderer | [src/app.ts](../../src/app.ts), [src/state.ts](../../src/state.ts) |
 | 14 | [frontend-ui-system.md](14-frontend-ui-system.md) | 519 | CSS 토큰·BEM·components·i18n | CSS tokens, BEM, components, i18n | [static/css/](../../static/css/), [src/components/](../../src/components/) |
 | 15 | [observability.md](15-observability.md) | 441 | WhaTap·logger 3종·ai_logger | WhaTap, 3 loggers, ai_logger | [logger/](../../logger/), [internal/whataphttpx/](../../internal/whataphttpx/) |
-| 16 | [cli-and-tools.md](16-cli-and-tools.md) | 498 | 15 CLI 단위 (sim·verify·check·util) | 15 CLI tools | [cmd/](../../cmd/) |
+| 16 | [cli-and-tools.md](16-cli-and-tools.md) | 524 | 16 CLI 단위 (sim·verify·check·util·thinking-exp) | 16 CLI tools | [cmd/](../../cmd/) |
 | 17 | [testing-strategy.md](17-testing-strategy.md) | 386 | 88 Go 테스트·21 vitest·AI 회귀 | 88 Go, 21 vitest, AI regression | [tests/](../../tests/), [unit-test.sh](../../unit-test.sh) |
 | 18 | [build-and-deploy.md](18-build-and-deploy.md) | 639 | Makefile 19 target·Docker·Caddy·VPS | 19 targets, Docker, Caddy, VPS | [Makefile](../../Makefile), [docker-compose.yml](../../docker-compose.yml), [Caddyfile](../../Caddyfile) |
 | 19 | [user-manual.md](19-user-manual.md) | 575 | 최종 사용자 가이드 (채널 연동·FAQ) | End-user guide | (UI labels in [src/locales/](../../src/locales/)) |
 | 20 | [operations-runbook.md](20-operations-runbook.md) | 507 | 트러블슈팅 10건·사고 대응 | 10 troubleshooting scenarios | — |
-| 21 | [release-history.md](21-release-history.md) | 346 | v2.4.1~v2.4.6 통합·최근 50 commit | Releases consolidated | [RELEASE_NOTES_*](../../) |
+| 21 | [release-history.md](21-release-history.md) | 464 | v2.4.1~v2.4.7 통합·최근 커밋 + 2026-05-03 이후 변경 | Releases consolidated | [RELEASE_NOTES_*](../../) |
 | 99 | [glossary.md](99-glossary.md) | 313 | 40+ 용어 사전 (한/영) | 40+ term glossary (KO/EN) | — |
 
 ---
@@ -109,7 +109,7 @@ Same structure — see chapter cross-references inside each file.
 ## 검증 명령 / Verification
 
 ```bash
-cd /home/jinro/.gemini/message-consolidator/docs/comprehensive
+cd /home/jinro/message-consolidator/docs/comprehensive
 
 # (a) 코드 경로 링크 존재 확인 / repo-relative link existence
 grep -hoE '\]\(\.\./[^)#]+' *.md | sed 's|](||' | sort -u | \
@@ -171,11 +171,17 @@ done
 | (코드) | safego API | 가설 `safego.Go(ctx,fn)` | 실제 `safego.Recover(name)` 단일 | 10 |
 | (코드) | handlers_misc.go | 11 handler로 알려짐 | 12번째 파일 존재 | 11 |
 | (코드) | release_notes 자동화 | 미문서화 | mc-util release_notes.go 존재 | 16 |
+| (2026-05-21) | gemini.go 단일 파일 | — | `gemini_report.go` + `gemini_translate.go` 분리 완료 | 07 |
+| (2026-05-21) | scanner_slack.go 단일 파일 | — | `scanner_slack_classify.go` + `scanner_slack_threads.go` 분리 완료 | 06 |
+| (2026-05-21) | contacts_store.go 단일 파일 | — | `contacts_channel.go` + `contacts_link.go` + `contacts_resolve.go` 분리 완료 | 04 |
+| (2026-05-21) | telegram.go / whatsapp.go 단일 파일 | — | telegram: `_ingest.go` + `_groups.go`, whatsapp: `_ingest.go`, 공유 `msgbuffer.go` 분리 완료 | 05 |
+| (2026-05-21) | tasks.go / reports_service.go 단일 파일 | — | tasks: `_alias.go` + `_merge.go` + `_translate.go`, reports: `_prepare.go` + `_viz.go` 분리 완료 | 08 |
+| (2026-05-21) | thinking-exp CLI 도구 | 미문서화 | `cmd/thinking-exp/` — Gemini thinking 토큰 스케일링 실험 도구 | 16 |
 
 ---
 
 ## 라이선스 / 책임자 / License & Owner
 
-- **저장소 / Repo**: `/home/jinro/.gemini/message-consolidator`
+- **저장소 / Repo**: `/home/jinro/message-consolidator`
 - **책임자 / Owner**: Jaejin Song (jjsong@whatap.io)
 - **이슈 / Issues**: 코드 변경과 함께 챕터 갱신 의무. 누락 발견 시 INDEX 하단에 추가 기록.

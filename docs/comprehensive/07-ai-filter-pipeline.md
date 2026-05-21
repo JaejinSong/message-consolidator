@@ -70,7 +70,7 @@ Stage 3가 Pro가 아닌 Flash를 쓰는 것처럼 보이는 이유는 Flash thi
 
 | 패키지 | 포함 파일 | 역할 |
 |---|---|---|
-| `ai/` | `gemini.go`, `embedding.go`, `filter_service.go`, `identity_resolver.go` | Gemini SDK(`google.golang.org/genai`) 결합 — 네트워크 I/O, 인증, 재시도 |
+| `ai/` | `gemini.go` (클라이언트 초기화·분석 메서드), `gemini_report.go` (리포트 생성·시각화), `gemini_translate.go` (번역), `embedding.go`, `filter_service.go`, `identity_resolver.go` | Gemini SDK(`google.golang.org/genai`) 결합 — 네트워크 I/O, 인증, 재시도 |
 | `ai/core/` | `analyzers.go`, `executor.go`, `parser.go`, `rag.go`, `few_shots.go`, `utils.go`, `prompts.go`, `prompts/*.prompt` | 순수 로직 — 프롬프트 렌더링, 파서, 스코어링. SDK import 없음 |
 
 분리 이유: `ai/core/` 는 `google.golang.org/genai` 를 import하지 않아 단독 단위 테스트가 가능하다. Gemini SDK 버전을 교체하거나 다른 AI 공급자로 전환할 때 `ai/core/` 는 수정 불필요.
@@ -327,7 +327,7 @@ Fire-and-forget goroutine으로 `logger.LogAIInferenceToFile`과 `store.LogAIInf
 
 ## 7. Stage 3: Pro Report Generation
 
-**파일**: `ai/gemini.go` (GenerateReportSummary, GenerateVisualizationData, EvaluateTaskTransition)  
+**파일**: `ai/gemini_report.go` (GenerateReportSummary, GenerateVisualizationData, EvaluateTaskTransition)  
 **프롬프트**: `ai/prompts/report_summary.prompt` (model: `gemini-3-flash-preview`, v2.7.0)  
 **호출자**: `services/` 보고서 서비스 (→ [08-services-business-logic.md])
 

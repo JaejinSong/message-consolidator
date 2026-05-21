@@ -553,8 +553,8 @@ After=network.target
 [Service]
 Type=simple
 User=jinro
-WorkingDirectory=/home/jinro/.gemini/message-consolidator
-ExecStart=/home/jinro/.gemini/message-consolidator/message-consolidator
+WorkingDirectory=/home/jinro/message-consolidator
+ExecStart=/home/jinro/message-consolidator/message-consolidator
 Restart=always
 RestartSec=5
 StandardOutput=append:.../server.log

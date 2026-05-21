@@ -1,6 +1,6 @@
 BINARY_NAME=message-consolidator
 SERVICE_NAME=message-consolidator.service
-INSTALL_DIR=/home/jinro/.gemini/message-consolidator
+INSTALL_DIR=/home/jinro/message-consolidator
 
 .PHONY: build run install-service uninstall-service status logs test-ui test-go test-ai test-all build-frontend build-backend build-mc-util build-all
 

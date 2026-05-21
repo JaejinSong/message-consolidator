@@ -66,7 +66,7 @@
 
 ## Serena
 
-매 대화 시작 시 가장 먼저 `mcp__serena__activate_project` 호출 (`project_path: /home/jinro/.gemini/message-consolidator`).
+매 대화 시작 시 가장 먼저 `mcp__serena__activate_project` 호출 (`project_path: /home/jinro/message-consolidator`).
 
 ## Development Process
 

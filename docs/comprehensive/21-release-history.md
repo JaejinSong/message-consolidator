@@ -250,6 +250,76 @@
 
 > 기준: `git log --oneline -50` (2026-05-03 기준 상위 50커밋). 릴리즈 태그가 없는 커밋은 주제별로 그룹핑하여 정리한다.
 
+### v2.4.8 이후 (2026-05-03 이후) / Post-v2.4.7 Commits
+
+> 아직 릴리즈 태그 없음. 코드 정제·기능 확장 위주.
+
+**Feature (신규 기능):**
+
+| SHA | 제목 |
+|---|---|
+| `2bb796b` | reports: 리스크 키워드 감지 + 고객사 인퍼런스 강화 + activity stats 정렬 + thinking 토큰 실험 도구 |
+| `68cdc47` | mobile: 14가지 모바일 UI 개선 (탭·카드·버튼·폰트·스크롤 등) |
+| `422a331` | contacts: 채널 수신 시 alias contact 자동 upsert (display-name 해석 강화) |
+| `6e15765` | tasks: alias 기반 `RequesterCanonical` 승격 규칙 + 테스트 |
+| `e3a035b` | subtasks: 3경로 서브태스크 자동 해결 (option δ) |
+| `223b553` | ai: 리포트 thinking 예산 cap + 사전 집계 컨텍스트 주입 |
+| `69be071` | ai: 채팅 컨텍스트 메타데이터 풍부화 → AI thinking 토큰 절감 |
+| `e9eb59d` | weekly-report: HTML 이메일 포맷 + Markdown 지원 |
+| `5668b04` | weekly-report: 주간 리포트 이메일 발송 구현 + 테스트 엔드포인트 |
+| `150c380` | slack: 비활동 스레드 자동 resolved 처리 로직 업데이트 |
+| `25bed2e` | token-usage: 월별 상세 비용 분석 + UI 컴포넌트 추가 |
+| `7b16636` | insights: thinking 토큰 표시 강화 |
+| `15a7b83` | token-usage: thinking 토큰 추적 + 관련 쿼리 추가 |
+| `e4e3b8b` | gmail: `GetRecentIncompleteGmail` 쿼리 + completion service 연동 |
+| `39f83b5` | slack: 사용자·채널 네거티브 캐시 + 스레드 처리 최적화 |
+| `6360f01` | config: 리포트 cutoff 크기 증가·설정 가능화 |
+
+**Fix (버그 수정):**
+
+| SHA | 제목 |
+|---|---|
+| `a7d6315` | gmail: 그룹 메일(메일링 리스트) → Reference 탭 라우팅 |
+| `2b26083` | ui: 리포트 콘텐츠 영역 스크롤 잘림 수정 |
+| `5891d59` | tasks: view-fallback canonical까지 self-promotion 가드 확장 |
+| `f8672e0` | tasks: Priority 3 분류에 identity 매칭 미러링 |
+| `0fa295a` | completion: self-origin 가드를 thread-level 체크로 축소 |
+| `6ffe6b5` | ai: redirect-to-channel을 task matching에서 resolve로 처리 |
+| `3f8cd74` | ai: Slack `ChatType` 설정 + 미사용 `EnrichedMessageJSON` 제거 |
+| `210a9a9` | task-builder: 그룹 채팅 자기 담당 지정 거부 (본문 미언급 시) |
+| `e1f7cb6` | api: merge의 nil tasks 처리 + 리포트 캐싱 로직 수정 |
+| `baa6bfb` | sidebar: 첫 버튼 `aria-selected=true` + 테스트 업데이트 |
+
+**Refactor (파일 분리·구조 정제):**
+
+| SHA | 제목 |
+|---|---|
+| `082da69` | services: `reports_service.go` → `reports_prepare.go` + `reports_viz.go` 분리 |
+| `647e9d9` | channels: `whatsapp.go` → `whatsapp.go` + `whatsapp_ingest.go` 분리 |
+| `3b2aeea` | services: `tasks.go` → `tasks.go` + `tasks_alias.go` + `tasks_merge.go` 분리 |
+| `975bb98` | channels: `telegram.go` → `telegram.go` + `telegram_ingest.go` + `telegram_groups.go` 분리 |
+| `9fa6cfd` | ai: `gemini.go` → `gemini.go` + `gemini_report.go` + `gemini_translate.go` 분리 |
+| `44b4957` | scanner: `scanner_slack.go` → `scanner_slack.go` + `scanner_slack_classify.go` + `scanner_slack_threads.go` 분리 |
+| `0c02a85` | channels: `ChatBuffer` → 공유 `msgbuffer.go` 추출 (Telegram·WhatsApp 공용) |
+| `3da832e` | store: `contacts_store.go` → `contacts_store.go` + `contacts_channel.go` + `contacts_link.go` + `contacts_resolve.go` 분리 |
+| `18617e3` | channels: `gmail.go` → 5개 파일 분리 (body/filters/headers/oauth/scan) |
+| `3c3cc51` | services/handlers: 번역 배치 헬퍼 중복 제거 |
+| `7cf5233` | services: `assignCategory`의 `isAssigneeMe`/`isRequesterMe` 술어 추출 |
+| `3ad491b` | services: 번역 클러스터를 `tasks.go` → `tasks_translate.go` 분리 |
+
+**Test (테스트 추가):**
+
+| SHA | 제목 |
+|---|---|
+| `3dd8943` | coverage: waves 3–4 — insights + Go scanner + Go handlers (+278 테스트) |
+| `7c3c836` | coverage: wave 2 — `renderer.ts` + `reports-renderer.ts` (+122 테스트) |
+| `c986fcb` | coverage: wave 1 — guide modules + `api.ts` (+119 테스트) |
+| `490dd7a` | slack: `groupThreadsByKey` + 스레드 상태 업데이트 종합 테스트 |
+| `c71d620` | system origin 이메일 감지 + 이메일 발송 로직 테스트 |
+| `9f203bb` | ai: 버전 가드 1.9.3으로 bump |
+
+---
+
 ### Feature (신규 기능)
 
 | SHA | 제목 |

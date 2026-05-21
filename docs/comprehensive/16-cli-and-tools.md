@@ -14,6 +14,7 @@
 | **검증 (verify/*)** | `cmd/verify/*` | 4 | 스토어·AI 로직의 회귀 검증 (in-memory DB 격리) |
 | **점검 (check-*)** | `cmd/check-*`, `cmd/reset-*` | 3 | 외부 서비스(Gemini, Slack, Gmail) 토큰·체크포인트 상태 확인 |
 | **운영 (mc-util)** | `cmd/mc-util` | 1 binary / 4 subcmd | DB 진단, 태스크 정규화, WhatsApp 페어링, 릴리즈 노트 생성 |
+| **실험 (thinking-exp)** | `cmd/thinking-exp` | 1 | Gemini thinking 토큰이 입력 크기·프롬프트 복잡도에 따라 어떻게 스케일하는지 측정 |
 
 ### 왜 별도 바이너리인가? (Why separate binaries?)
 
@@ -430,7 +431,31 @@ key := strings.TrimSpace(sectionContent(p))
 
 ---
 
-## 16.6 빌드 및 실행 (Build & Execution)
+## 16.6 실험 도구 (Experiment — thinking-exp)
+
+**파일**: [`cmd/thinking-exp/main.go`](../../cmd/thinking-exp/main.go)
+
+**목적:** Gemini thinking 토큰이 입력 크기(태스크 수)와 프롬프트 복잡도에 따라 어떻게 달라지는지를 측정하는 단독 실험 도구입니다. `ai/core` 의 실제 프롬프트와 동일한 페이로드를 사용하여 3가지 입력 규모(minimal ~3건, medium ~25건, full ~50건)에서 thinking 토큰 수와 응답 시간을 측정합니다.
+
+```bash
+# 실행
+go run ./cmd/thinking-exp/
+```
+
+**측정 항목:**
+
+| 필드 | 설명 |
+|---|---|
+| `inputTokens` | 입력 프롬프트 토큰 수 |
+| `outputTokens` | 생성 텍스트 토큰 수 |
+| `thinkingTokens` | 내부 thinking 토큰 수 (별도 과금) |
+| `elapsed` | Gemini API 응답 시간 |
+
+**주의:** 이 도구는 실제 Gemini API를 호출하므로 `GEMINI_API_KEY` 환경 변수가 필요하고 API 비용이 발생합니다. 프로덕션 코드와 무관한 연구 목적 도구이며, 별도 Makefile 타겟은 없습니다 (`go run` 으로만 실행).
+
+---
+
+## 16.7 빌드 및 실행 (Build & Execution)
 
 ### Makefile 타겟
 
@@ -480,7 +505,7 @@ go run ./cmd/reset-gmail-checkpoint/
 
 ---
 
-## 16.7 Cross-References & Deltas
+## 16.8 Cross-References & Deltas
 
 | 도구 | 관련 챕터 |
 |---|---|
@@ -490,6 +515,7 @@ go run ./cmd/reset-gmail-checkpoint/
 | verify/* | → [17-testing-strategy.md](17-testing-strategy.md) (검증 도구와 유닛 테스트의 경계) |
 | reset-gmail-checkpoint | → [06-scanner-pipeline.md](06-scanner-pipeline.md) (scan_metadata 체크포인트) |
 | mc-util wa-pair | → [05-channels.md](05-channels.md) (WhatsApp 채널 초기화) |
+| thinking-exp | → [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md) (Gemini thinking 토큰·비용 패턴) |
 
 **알려진 미흡 사항**:
 

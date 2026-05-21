@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const BASE_DIR = '/home/jinro/.gemini/message-consolidator/static';
+const BASE_DIR = '/home/jinro/message-consolidator/static';
 
 function checkFile(filePath, requiredStrings) {
     console.log(`Checking ${filePath}...`);

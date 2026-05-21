@@ -34,11 +34,16 @@ Rules enforced:
 | File | Type | Primary Responsibility |
 |---|---|---|
 | `task_builder.go` | Pure functions | `ConsolidatedMessage` construction from multi-channel envelope data |
-| `tasks.go` | `TasksService` | Formatting, assignee rules, batch translation, task merge |
+| `tasks.go` | `TasksService` | Formatting, assignee rules, category assignment |
+| `tasks_alias.go` | Package-level functions | `GetEffectiveAliases` — primary name / email / prefix / registered aliases |
+| `tasks_merge.go` | `TasksService` | `MergeTasks` — AI-generated summary title, multi-task merge |
+| `tasks_translate.go` | `TasksService` | Batch translation trigger, JIT translation goroutine |
 | `task_routing.go` | Package-level functions | State-machine routing: new / update / resolve / cancel |
 | `completion_service.go` | `CompletionService` | Thread-aware completion detection and fallback extraction |
 | `consolidate.go` | Pure functions | Affinity-group deduplication before DB write |
-| `reports_service.go` | `ReportsService` | AI report generation, visualization, on-demand translation |
+| `reports_service.go` | `ReportsService` | Core infrastructure (Log type, `GetRecentMessages`, on-demand translation) |
+| `reports_prepare.go` | `ReportsService` | Message preparation, identity resolution, risk keyword detection, activity stats |
+| `reports_viz.go` | `ReportsService` | `GraphData` / `Node` / `Edge` types, visualization data construction |
 | `daily_digest_service.go` | `DailyDigestService` | Daily Slack DM digest (Block Kit) |
 | `weekly_report_service.go` | `WeeklyReportService` | Weekly report → Notion export → Slack DM |
 | `reminder_service.go` | `ReminderService` | Deadline reminder DMs via configurable time windows |
@@ -121,9 +126,9 @@ levels:
 2. First 60 runes of `OriginalText`
 3. `[<room>]` or `[Unidentified message]`
 
-### 2.2 `tasks.go` — TasksService
+### 2.2 `tasks.go` / `tasks_alias.go` / `tasks_merge.go` / `tasks_translate.go` — TasksService
 
-`TasksService` handles all post-persistence, presentation-layer concerns.
+`TasksService` handles all post-persistence, presentation-layer concerns. Responsibilities are split into four focused files: core formatting (`tasks.go`), alias resolution (`tasks_alias.go`), merge logic (`tasks_merge.go`), and translation pipeline (`tasks_translate.go`).
 
 **`FormatMessagesForClient`**
 
@@ -321,7 +326,9 @@ duplication (`→ [04-data-layer.md]`).
 
 ## 4. Reports — Daily, Weekly, Reminder
 
-### 4.1 `reports_service.go` — Core Infrastructure
+### 4.1 `reports_service.go` / `reports_prepare.go` / `reports_viz.go` — ReportsService
+
+`ReportsService` responsibilities are split into three files: core infrastructure (`reports_service.go`), message preparation & identity resolution (`reports_prepare.go`), and visualization data construction (`reports_viz.go`).
 
 `ReportsService` is the shared engine for all report variants. It depends on
 three injected components:
@@ -345,7 +352,7 @@ three injected components:
 Step 5 is synchronous in test mode (`isTest=true`) so tests can assert the
 final state without polling.
 
-**`PrepareLogsForAI`** formats messages into a structured line format:
+**`PrepareLogsForAI`** (`reports_prepare.go`) formats messages into a structured line format:
 
 ```
 - [V][TASK] Update WhaTap config (Room: #ops, From: Alice (Internal), To: Bob (Internal), Due: 2026-05-01, Age: 3wd) | Evidence: ...
@@ -356,6 +363,8 @@ The `Age:` field uses `store.WorkingDaysSince` — business days since
 Activity counting in the AI. Evidence snippets use 80 chars for done tasks
 and 200 chars for active tasks: the longer window preserves risk signals
 ("blocked", "waiting since") that the AI uses for Key Insights.
+
+**Risk keyword detection (`hasRiskKeyword` — `reports_prepare.go`):** Before appending an evidence snippet, `PrepareLogsForAI` tests the original message text against a keyword set (`["scalab", "blocker", "block", "delay", "concern", "urgent", "risk", ...]`). Matching tasks get longer evidence snippets (200 chars) even if they are done tasks, ensuring the AI prompt preserves risk context.
 
 **Commit a3a1e01 — 3-working-day stale rule:** The `ageStr` field was
 standardized to use `store.WorkingDaysSince` consistently so the AI prompt

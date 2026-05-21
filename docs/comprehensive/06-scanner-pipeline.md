@@ -19,7 +19,9 @@ The scanner is the ingestion frontier: it periodically polls external channels, 
 | [`scanner/scanner.go`](../../scanner/scanner.go) | 전역 상태 초기화(`Init`), 루프 등록(`StartBackgroundScanner`), 공통 헬퍼(`isAliasMatched`, `triggerAsyncTranslation`) |
 | [`scanner/scanner_loop.go`](../../scanner/scanner_loop.go) | `primePool`, `primeLoop` 구조체 — 스케줄러 코어 |
 | [`scanner/channel_adapter.go`](../../scanner/channel_adapter.go) | `ChannelAdapter` 인터페이스 + 공유 드라이버(`scanChannel`, `processChannelRoom`, `processChannelGroup`) |
-| [`scanner/scanner_slack.go`](../../scanner/scanner_slack.go) | Slack 채널·스레드 스캔, 분류, rate limiter, sweep |
+| [`scanner/scanner_slack.go`](../../scanner/scanner_slack.go) | `scanSlack` 진입점, 채널 목록 조회, rate limiter 초기화 |
+| [`scanner/scanner_slack_classify.go`](../../scanner/scanner_slack_classify.go) | `classifyMessage` — Task/Query 분류 |
+| [`scanner/scanner_slack_threads.go`](../../scanner/scanner_slack_threads.go) | `sweepSlackThreads`, 스레드 활동 감지, `conversations.replies` 호출 |
 | [`scanner/scanner_telegram.go`](../../scanner/scanner_telegram.go) | `telegramAdapter` 구현, `scanTelegram` 진입 |
 | [`scanner/scanner_whatsapp.go`](../../scanner/scanner_whatsapp.go) | `whatsAppAdapter` 구현, `scanWhatsApp` 진입 |
 | [`scanner/scanner_digest.go`](../../scanner/scanner_digest.go) | 일일 요약 디스패치 — 평일·시간·dedup 가드 |
@@ -157,16 +159,17 @@ slack  ▮─── 71s ───▮─── 67s ───▮─── 73s ─�
 
 → 채널 구현 세부: [05-channels.md]
 
-### 4.1 Slack (`scanner_slack.go`)
+### 4.1 Slack (`scanner_slack.go` + `scanner_slack_classify.go` + `scanner_slack_threads.go`)
 
 **한국어:**
-Slack은 WhatsApp/Telegram과 달리 push-buffer 방식이 아니라 직접 API poll 방식입니다. `conversations.history` + `conversations.replies` 두 단계로 동작합니다.
+Slack은 WhatsApp/Telegram과 달리 push-buffer 방식이 아니라 직접 API poll 방식입니다. `conversations.history` + `conversations.replies` 두 단계로 동작합니다. 파일이 3개로 분리되어 있습니다: `scanner_slack.go`(진입점·rate limiter), `scanner_slack_classify.go`(분류), `scanner_slack_threads.go`(스레드 sweep).
 
 **English:**
-Slack uses direct API polling rather than a local push buffer. It operates in two tiers: channel-level history scan, then per-thread reply sweep.
+Slack uses direct API polling rather than a local push buffer. It operates in two tiers: channel-level history scan, then per-thread reply sweep. Split across three focused files: entry point, classifier, and thread sweeper.
 
-- **채널 스캔 (`scanSlack`)**: `LookupChannels` → 채널별 `GetMessages(since=24h back, minTS)` → `classifyMessage`로 분류(Task/Query)
-- **스레드 sweep (`sweepSlackThreads`)**: `GetTargetedActiveThreads` → 채널별 `conversations.history` 1회로 activity 사전 확인 → 변동 없는 스레드 skip → `conversations.replies` 호출 절감
+- **채널 스캔 (`scanSlack` — scanner_slack.go)**: `LookupChannels` → 채널별 `GetMessages(since=24h back, minTS)` → `classifyMessage`로 분류(Task/Query)
+- **분류 (`classifyMessage` — scanner_slack_classify.go)**: Task/Query/noise 판별 로직
+- **스레드 sweep (`sweepSlackThreads` — scanner_slack_threads.go)**: `GetTargetedActiveThreads` → 채널별 `conversations.history` 1회로 activity 사전 확인 → 변동 없는 스레드 skip → `conversations.replies` 호출 절감
 - **Tier 3 rate limit**: `rate.NewLimiter(1/1000ms)` — Slack Tier 3 conversations.replies 50/min 제한 내 유지
 - **클라이언트 캐시**: `getOrInitSlackClient` — 토큰 단위로 `users.list + auth.test`를 1회만 호출, sweep마다 재초기화 방지
 - **스레드 타임아웃**: 7일 비활성 → 봇이 스레드에 "resolved" 메시지 게시 후 `CloseTargetedThread`

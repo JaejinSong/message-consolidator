@@ -257,7 +257,10 @@ getGmailScanTime(email)
 
 ### 4.2 진입점 & 구조 / Entry Points & Structure
 
-- **진입점:** [`channels/telegram.go`](../../channels/telegram.go)
+- **파일 구성:**
+  - [`channels/telegram.go`](../../channels/telegram.go) — `TelegramManager` 타입 정의, 세션 관리, auth flow, `PopMessages`
+  - [`channels/telegram_ingest.go`](../../channels/telegram_ingest.go) — `newDispatcher` (UpdateDispatcher 빌드), `handleNewMessage` / `handleNewChannelMessage`, 메시지 정규화
+  - [`channels/telegram_groups.go`](../../channels/telegram_groups.go) — `GetGroupName` (chatKey → 사람 이름), 그룹·채널 제목 해석
 - **핵심 타입:** `TelegramManager` (싱글톤 `DefaultTelegramManager`)
 - **세션 영속:** `telegram_sessions` (MTProto 바이너리 blob), `telegram_credentials` (App ID / Hash)
 
@@ -314,11 +317,13 @@ go channels.DefaultTelegramManager.InitTelegram(u.Email, cfg)
 
 ### 4.5 메시지 버퍼링 / Message Buffering
 
-**한국어:** Telegram은 polling이 아닌 **push 방식**입니다. `gotd/td`의 `UpdateDispatcher`가 `OnNewMessage`/`OnNewChannelMessage` 이벤트를 수신하면 `ingestMessage`가 `types.RawMessage`로 정규화하여 `messageBuffer[email][chatKey]`에 누적합니다(cap 200). 스캐너는 주기적으로 `PopMessages`를 호출하여 버퍼를 원자적으로 드레인합니다.
+**한국어:** Telegram은 polling이 아닌 **push 방식**입니다. `gotd/td`의 `UpdateDispatcher`가 `OnNewMessage`/`OnNewChannelMessage` 이벤트를 수신하면 `ingestMessage`가 `types.RawMessage`로 정규화하여 공유 `ChatBuffer`에 누적합니다(cap 200). 스캐너는 주기적으로 `PopMessages`를 호출하여 버퍼를 원자적으로 드레인합니다.
 
-**chatKey 형식:** `tg_user_<id>` (DM) / `tg_chat_<id>` (그룹) / `tg_channel_<id>` (채널). 이 접두사 구분이 나중에 GetGroupName의 분기 로직과 스캐너의 chat type 판별에 사용됩니다.
+**공유 버퍼 구현:** [`channels/msgbuffer.go`](../../channels/msgbuffer.go)의 `ChatBuffer`는 `email → chatKey → []RawMessage` 구조의 순환 버퍼입니다. Telegram과 WhatsApp이 동일한 `ChatBuffer` 타입을 사용하며, pop 시 해당 email의 전체 버퍼를 원자적으로 교체합니다.
 
-**English:** Telegram uses push (gotd UpdateDispatcher) rather than polling. The buffer cap of 200 per chat prevents unbounded memory growth when the scanner lags behind a busy channel.
+**chatKey 형식:** `tg_user_<id>` (DM) / `tg_chat_<id>` (그룹) / `tg_channel_<id>` (채널). 이 접두사 구분이 나중에 `telegram_groups.go`의 `GetGroupName` 분기 로직과 스캐너의 chat type 판별에 사용됩니다.
+
+**English:** Telegram uses push (gotd UpdateDispatcher) rather than polling. The shared `ChatBuffer` in `msgbuffer.go` (cap 200 per chat) is also used by WhatsApp, preventing unbounded memory growth when the scanner lags behind a busy channel.
 
 ---
 
@@ -332,7 +337,9 @@ go channels.DefaultTelegramManager.InitTelegram(u.Email, cfg)
 
 ### 5.2 진입점 & 구조 / Entry Points & Structure
 
-- **진입점:** [`channels/whatsapp.go`](../../channels/whatsapp.go)
+- **파일 구성:**
+  - [`channels/whatsapp.go`](../../channels/whatsapp.go) — `WAManager` 타입 정의, QR 페어링, 세션 관리, `PopMessages`, `GetClient`
+  - [`channels/whatsapp_ingest.go`](../../channels/whatsapp_ingest.go) — `handleEvent` (이벤트 디스패치), 메시지 정규화, `ChatBuffer` 적재
 - **핵심 타입:** `WAManager` (싱글톤 `DefaultWAManager`)
 - **세션 영속:** whatsmeow `sqlstore`가 `store.GetDB()` 위의 `whatsmeow_*` 테이블을 자체 관리
 

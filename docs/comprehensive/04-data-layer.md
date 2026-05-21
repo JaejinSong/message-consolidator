@@ -707,6 +707,7 @@ _, err, _ := sfGroup.Do(sfKey, func() (any, error) {
 | **`v_messages` 뷰 빌드 시점** | "SQL VIEW 활용" 만 언급 | `schemaIsCurrent` 실패 시에만 `rebuildViews` 재실행 |
 | **캐시 refresh 타이밍** | "인메모리 캐시 동기화" 언급 | background goroutine으로 분리 — startup_complete 즉시 발화 |
 | **sqlc 버전** | 언급 없음 | `db/models.go` 헤더: `sqlc v1.30.0` |
+| **contacts_store.go 분리** | 단일 `contacts_store.go` | 4개로 분리: `contacts_store.go` (공개 API 진입점), `contacts_channel.go` (채널별 upsert 헬퍼), `contacts_link.go` (DSU merge, alias 연결), `contacts_resolve.go` (식별자 → `ContactRecord` 해석) |
 
 **English:** The most significant structural delta since the last SSOT update: the per-function migration chain has been replaced by `schemaVersion`-gated `runFullDDL`, the `message_embeddings` table was added and migrated to `F32_BLOB(768)` for libsql-side `vector_distance_cos` execution, and the legacy `store/migrations/*.sql` files were removed.
 
