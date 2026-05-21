@@ -35,6 +35,10 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 
 	modelName := g.getEffectiveModel(parsed, g.analysisModel)
 	cfg := g.buildConfig(0.1, ReportMaxTokens, "", rendered)
+	// Why: Without a thinking budget cap, gemini-3-flash-preview can consume the entire
+	// MaxOutputTokens budget on internal reasoning (observed 39,321/40,960 on report_id=81),
+	// leaving zero tokens for visible output and causing extractResponseText to fail.
+	cfg.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: genai.Ptr(int32(16384))}
 
 	start := time.Now()
 	// Why: empty string Part is rejected by the API as an uninitialized oneof field (INVALID_ARGUMENT).
@@ -49,13 +53,18 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 	}
 
 	logTokenUsage(ctx, email, "ReportSummary", modelName, "", reportID, resp)
+	if len(resp.Candidates) > 0 {
+		if fr := resp.Candidates[0].FinishReason; fr == genai.FinishReasonMaxTokens {
+			logger.Warnf("[GEMINI] ReportSummary hit MAX_TOKENS: thinking=%d completion=%d prompt=%d budget=%d email=%s",
+				resp.UsageMetadata.ThoughtsTokenCount, resp.UsageMetadata.CandidatesTokenCount,
+				resp.UsageMetadata.PromptTokenCount, ReportMaxTokens, email)
+		}
+	}
 	text, err := extractResponseText(resp)
 	if err != nil {
 		return "", err
 	}
-	if fr := resp.Candidates[0].FinishReason; fr == genai.FinishReasonMaxTokens {
-		logger.Warnf("[GEMINI] ReportSummary output truncated: FinishReason=MAX_TOKENS, completion=%d/%d tokens, prompt=%d, email=%s",
-			resp.UsageMetadata.CandidatesTokenCount, ReportMaxTokens, resp.UsageMetadata.PromptTokenCount, email)
+	if len(resp.Candidates) > 0 && resp.Candidates[0].FinishReason == genai.FinishReasonMaxTokens {
 		text = repairTruncatedOutput(text)
 	}
 
