@@ -35,10 +35,10 @@ func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, 
 
 	modelName := g.getEffectiveModel(parsed, g.analysisModel)
 	cfg := g.buildConfig(0.1, ReportMaxTokens, "", rendered)
-	// Why: Without a thinking budget cap, gemini-3-flash-preview can consume the entire
-	// MaxOutputTokens budget on internal reasoning (observed 39,321/40,960 on report_id=81),
-	// leaving zero tokens for visible output and causing extractResponseText to fail.
-	cfg.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: genai.Ptr(int32(16384))}
+	// Why: ThinkingBudget does not cap thinking in practice — gemini-3-flash-preview used
+	// 39,317 tokens thinking even with budget=16384 set (report_id=82). The real guard is the
+	// enlarged MaxOutputTokens (65536) which absorbs ~39K thinking and leaves ~26K for completion.
+	cfg.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: genai.Ptr(int32(0))}
 
 	start := time.Now()
 	// Why: empty string Part is rejected by the API as an uninitialized oneof field (INVALID_ARGUMENT).

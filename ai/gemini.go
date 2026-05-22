@@ -50,7 +50,7 @@ const (
 	// (thinking ate ~7800), truncating activity tables. 40960 leaves ~24K for thinking
 	// plus ~16K headroom for larger inputs. Don't drop without auditing thinking-token
 	// consumption, otherwise activity/insight sections silently truncate.
-	ReportMaxTokens = 40960
+	ReportMaxTokens = 65536
 )
 
 var relaxedSafetySettings = []*genai.SafetySetting{
