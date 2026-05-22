@@ -89,7 +89,7 @@ func run(ctx context.Context, client *genai.Client, label, sysPrompt, tasks stri
 	defer cancel()
 
 	start := time.Now()
-	resp, err := client.Models.GenerateContent(apiCtx, "gemini-3-flash-preview", genai.Text("."), cfg)
+	resp, err := client.Models.GenerateContent(apiCtx, "gemini-3.5-flash", genai.Text("."), cfg)
 	elapsed := time.Since(start).Round(time.Millisecond)
 	if err != nil {
 		fmt.Printf("[%s] ERROR: %v\n", label, err)

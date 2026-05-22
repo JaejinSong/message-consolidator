@@ -31,6 +31,7 @@ type Config struct {
 	AutoArchiveDays             int
 	NotionToken                 string
 	NotionReportPageID          string
+	NotionWALogPageID           string
 	TelegramAppID               int
 	TelegramAppHash             string
 	InternalScanSecret          string
@@ -70,10 +71,11 @@ func LoadConfig() *Config {
 		TursoSyncURL:           os.Getenv("TURSO_SYNC_URL"),
 		TursoSyncInterval:      os.Getenv("TURSO_SYNC_INTERVAL"),
 		LogLevel:               envOr("LOG_LEVEL", "INFO"),
-		GeminiAnalysisModel:    envOr("GEMINI_ANALYSIS_MODEL", "gemini-3-flash-preview"),
-		GeminiTranslationModel: envOr("GEMINI_TRANSLATION_MODEL", "gemini-3.1-flash-lite-preview"),
+		GeminiAnalysisModel:    envOr("GEMINI_ANALYSIS_MODEL", "gemini-3.5-flash"),
+		GeminiTranslationModel: envOr("GEMINI_TRANSLATION_MODEL", "gemini-3.1-flash-lite"),
 		NotionToken:            os.Getenv("NOTION_TOKEN"),
 		NotionReportPageID:     os.Getenv("NOTION_REPORT_PAGE_ID"),
+		NotionWALogPageID:      os.Getenv("NOTION_WA_LOG_PAGE_ID"),
 		TelegramAppID:          envInt("TELEGRAM_APP_ID", 0),
 		TelegramAppHash:        os.Getenv("TELEGRAM_APP_HASH"),
 		GmailSkipSenders:       os.Getenv("GMAIL_SKIP_SENDERS"),
