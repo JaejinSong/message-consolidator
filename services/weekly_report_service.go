@@ -53,7 +53,7 @@ func NewWeeklyReportService(mailer WeeklyReportMailer, reports *ReportsService, 
 
 func (s *WeeklyReportService) Dispatch(ctx context.Context) error {
 	if s == nil || s.Mailer == nil || s.Reports == nil || s.Notion == nil || len(s.Config.RecipientEmails) == 0 {
-		return nil
+		return fmt.Errorf("weekly: service not configured")
 	}
 	return s.deliver(ctx, s.Config.RecipientEmails)
 }
@@ -73,13 +73,9 @@ func (s *WeeklyReportService) deliver(ctx context.Context, recipients []string) 
 	start, end := computeWeekWindow(s.nowFn().In(loc))
 
 	primary := s.Config.RecipientEmails[0]
-	placeholder, err := s.Reports.GenerateReport(ctx, primary, start, end, s.Config.Language, nil, nil)
+	completed, err := s.resolveReport(ctx, primary, start, end)
 	if err != nil {
-		return fmt.Errorf("weekly: generate: %w", err)
-	}
-	completed, err := s.waitForCompletion(ctx, placeholder.ID, primary)
-	if err != nil {
-		return fmt.Errorf("weekly: wait: %w", err)
+		return err
 	}
 
 	title := fmt.Sprintf("Weekly_%s_%s", start, end)
@@ -100,6 +96,19 @@ func (s *WeeklyReportService) deliver(ctx context.Context, recipients []string) 
 		}
 	}
 	return nil
+}
+
+// resolveReport reuses an existing completed report for the window to avoid re-running AI on downstream retries.
+func (s *WeeklyReportService) resolveReport(ctx context.Context, email, start, end string) (*store.Report, error) {
+	if existing, err := store.GetReportByDateRange(ctx, email, start, end); err == nil && existing.Status == store.ReportStatusCompleted {
+		logger.Infof("[WEEKLY] reusing completed report %d (%s~%s)", existing.ID, start, end)
+		return existing, nil
+	}
+	placeholder, err := s.Reports.GenerateReport(ctx, email, start, end, s.Config.Language, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("weekly: generate: %w", err)
+	}
+	return s.waitForCompletion(ctx, placeholder.ID, email)
 }
 
 func (s *WeeklyReportService) waitForCompletion(ctx context.Context, id store.ReportID, email string) (*store.Report, error) {
@@ -142,7 +151,7 @@ func computeWeekWindow(now time.Time) (string, string) {
 }
 
 func formatWeeklyEmailSubject(start, end string) string {
-	return fmt.Sprintf("[WR] %s~%s Weekly report", start, end)
+	return fmt.Sprintf("[Activity Report] %s~%s", start, end)
 }
 
 func formatWeeklyEmailBody(start, end, url, summary string) string {

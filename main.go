@@ -219,7 +219,10 @@ func gracefulShutdown(srv *http.Server) {
 
 // Why: Encapsulates the wiring of external services, background workers, and HTTP routes to provide a testable, fully configured server instance.
 func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.Server {
-	wireWhatsAppHooks(ctx)
+	waLogger := services.NewWANotionLogger(cfg.NotionToken, cfg.NotionWALogPageID)
+	waLogger.ChatNameResolver = channels.DefaultWAManager.GetGroupName
+	wireWhatsAppHooks(ctx, waLogger)
+	go waLogger.Start(ctx)
 	wireTelegramHooks(ctx)
 	bootChannelClients(ctx, cfg)
 
@@ -255,7 +258,7 @@ func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.
 }
 
 // Why: WhatsApp IoC hooks injected before client boot — UpdateUserWAJID writes back via Background ctx because OnConnected/OnLoggedOut fire from manager goroutines outlasting the boot ctx.
-func wireWhatsAppHooks(ctx context.Context) {
+func wireWhatsAppHooks(ctx context.Context, notionLogger *services.WANotionLogger) {
 	channels.DefaultWAManager.FetchUserWAJID = func(email string) (string, error) {
 		u, err := store.GetOrCreateUser(ctx, email, "", "")
 		if err != nil {
@@ -273,6 +276,7 @@ func wireWhatsAppHooks(ctx context.Context) {
 			logger.Warnf("[WA] UpdateUserWAJID(logout) failed for %s: %v", email, err)
 		}
 	}
+	channels.DefaultWAManager.OnMessage = notionLogger.Receive
 }
 
 // Why: Telegram IoC mirrors WhatsApp; FetchUserTgSession/OnSessionUpdated bind telegram_sessions, OnConnected/OnLoggedOut persist tg_user_id.

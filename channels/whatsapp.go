@@ -35,6 +35,7 @@ type WAManager struct {
 	FetchUserWAJID func(email string) (string, error)
 	OnConnected    func(email, wajid string)
 	OnLoggedOut    func(email string)
+	OnMessage      func(email, chatJID string, msg types.RawMessage)
 }
 
 func NewWAManager() *WAManager {

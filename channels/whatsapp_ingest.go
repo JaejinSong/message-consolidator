@@ -76,7 +76,7 @@ func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, m
 	msgText = m.resolveIncomingMentions(email, client, msgText, meta.MentionedIDs)
 	mentionedNames := m.resolveIncomingMentionNames(email, client, meta.MentionedIDs)
 
-	m.bufferMessage(email, msg.Info.Chat, types.RawMessage{
+	raw := types.RawMessage{
 		ID: msg.Info.ID, Sender: sender, Text: msgText,
 		Timestamp: msg.Info.Timestamp, ReplyToID: meta.ReplyToID,
 		RepliedToUser: meta.RepliedToUser, IsForwarded: meta.IsForwarded,
@@ -84,7 +84,11 @@ func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, m
 		MentionedIDs:    meta.MentionedIDs, HasAttachment: meta.HasAttachment,
 		AttachmentNames: meta.AttachmentNames,
 		MentionedNames:  mentionedNames,
-	})
+	}
+	m.bufferMessage(email, msg.Info.Chat, raw)
+	if m.OnMessage != nil {
+		m.OnMessage(email, msg.Info.Chat.String(), raw)
+	}
 
 	logger.Debugf("[WA] event for %s: message from %s (chat: %s): %s", email, sender, msg.Info.Chat, msgText)
 }

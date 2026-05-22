@@ -55,7 +55,7 @@ func TestFormatWeeklyEmailSubject(t *testing.T) {
 	start := "2026-04-25"
 	end := "2026-05-01"
 	got := formatWeeklyEmailSubject(start, end)
-	for _, want := range []string{"[WR]", start, end, "Weekly report"} {
+	for _, want := range []string{"[Activity Report]", start, end} {
 		if !containsString(got, want) {
 			t.Errorf("subject %q does not contain %q", got, want)
 		}
