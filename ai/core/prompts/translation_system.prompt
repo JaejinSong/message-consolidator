@@ -1,7 +1,7 @@
 ---
 name: translation_system
 version: 1.1.0
-model: gemini-3.1-flash-lite-preview
+model: gemini-3.1-flash-lite
 ---
 [System Instruction]
 Translate task text to {{.Locale}}. Map @id to names.

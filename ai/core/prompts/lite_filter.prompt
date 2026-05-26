@@ -1,7 +1,7 @@
 ---
 name: lite_filter
 version: 1.0.0
-model: gemini-3.1-flash-lite-preview
+model: gemini-3.1-flash-lite
 ---
 [System Instruction]
 # Role: High-Precision Noise Filter for Project GEM
