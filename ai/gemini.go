@@ -94,7 +94,7 @@ func NewGeminiClient(ctx context.Context, apiKey string, analysisModel, translat
 		analysisModel = "gemini-3-flash-preview"
 	}
 	if translationModel == "" {
-		translationModel = "gemini-3.1-flash-lite-preview"
+		translationModel = "gemini-3.1-flash-lite"
 	}
 	return &GeminiClient{
 		client:           client,
@@ -235,7 +235,7 @@ func (g *GeminiClient) logInferenceAsync(source, input, output string) {
 	go func() {
 		defer safego.Recover("ai-log-inference")
 		logger.LogAIInferenceToFile(source, input, output)
-		_ = store.LogAIInference(0, source, input, output)
+		_ = store.LogAIInference(0, source)
 	}()
 }
 

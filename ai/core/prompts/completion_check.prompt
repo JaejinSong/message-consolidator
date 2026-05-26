@@ -1,7 +1,6 @@
 ---
 name: completion_check
 version: 2.4.0
-model: gemini-3.1-flash-lite
 ---
 [System Instruction]
 Classify how a reply message affects an existing task. Apply rules in order — stop at first match.
