@@ -11,23 +11,16 @@ import (
 )
 
 const insertAIInferenceLog = `-- name: InsertAIInferenceLog :exec
-INSERT INTO ai_inference_logs (message_id, source, original_text, raw_response)
-VALUES (?, ?, ?, ?)
+INSERT INTO ai_inference_logs (message_id, source)
+VALUES (?, ?)
 `
 
 type InsertAIInferenceLogParams struct {
-	MessageID    sql.NullInt64  `json:"message_id"`
-	Source       sql.NullString `json:"source"`
-	OriginalText sql.NullString `json:"original_text"`
-	RawResponse  sql.NullString `json:"raw_response"`
+	MessageID sql.NullInt64  `json:"message_id"`
+	Source    sql.NullString `json:"source"`
 }
 
 func (q *Queries) InsertAIInferenceLog(ctx context.Context, arg InsertAIInferenceLogParams) error {
-	_, err := q.db.ExecContext(ctx, insertAIInferenceLog,
-		arg.MessageID,
-		arg.Source,
-		arg.OriginalText,
-		arg.RawResponse,
-	)
+	_, err := q.db.ExecContext(ctx, insertAIInferenceLog, arg.MessageID, arg.Source)
 	return err
 }

@@ -8,5 +8,5 @@ CREATE TABLE IF NOT EXISTS ai_inference_logs (
 );
 
 -- name: InsertAIInferenceLog :exec
-INSERT INTO ai_inference_logs (message_id, source, original_text, raw_response)
-VALUES (?, ?, ?, ?);
+INSERT INTO ai_inference_logs (message_id, source)
+VALUES (?, ?);

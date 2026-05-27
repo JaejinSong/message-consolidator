@@ -13,7 +13,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 7
+const schemaVersion = 9
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -60,6 +60,7 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 		{"app_settings", queries.CreateAppSettingsTable},
 		{"message_embeddings", queries.CreateMessageEmbeddingsTable},
 		{"task_grants", queries.CreateTaskGrantsTable},
+		{"wa_messages", queries.CreateWAMessagesTable},
 	} {
 		if err := step.fn(ctx); err != nil {
 			return fmt.Errorf("failed to create %s table: %w", step.name, err)
@@ -144,8 +145,26 @@ func createIndexes(ctx context.Context, q db.DBTX) {
 		"CREATE INDEX IF NOT EXISTS idx_msg_emb_model_id ON message_embeddings(model, message_id)",
 		"CREATE INDEX IF NOT EXISTS idx_task_grants_grantor ON task_grants(grantor_user_id)",
 		"CREATE INDEX IF NOT EXISTS idx_task_grants_grantee ON task_grants(grantee_user_id)",
+		// wa_messages
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_messages_message_id ON wa_messages(message_id)",
+		"CREATE INDEX IF NOT EXISTS idx_wa_messages_ts ON wa_messages(ts)",
+		"CREATE INDEX IF NOT EXISTS idx_wa_messages_chat_jid_ts ON wa_messages(chat_jid, ts)",
 	}
 	for _, ddl := range indexes {
+		_, _ = q.ExecContext(ctx, ddl)
+	}
+}
+
+// reindexWAMessages drops the initial over-broad indexes created in v8 and replaces them
+// with query-aligned ones. Why: the original (email, ts) composite cannot satisfy ts-only
+// date queries, and the (chat_jid) single-column index misses the sort column.
+// DROP IF EXISTS makes this idempotent — no-op when indexes never existed.
+func reindexWAMessages(ctx context.Context, q db.DBTX) {
+	drops := []string{
+		"DROP INDEX IF EXISTS idx_wa_messages_email_ts",
+		"DROP INDEX IF EXISTS idx_wa_messages_chat_jid",
+	}
+	for _, ddl := range drops {
 		_, _ = q.ExecContext(ctx, ddl)
 	}
 }
@@ -190,6 +209,29 @@ func addMessagesUpdatedAtColumn(ctx context.Context, q db.DBTX) error {
 		`UPDATE messages SET updated_at = created_at WHERE updated_at <= '1970-01-02' OR updated_at >= datetime('now', '-1 minute')`,
 	); err != nil {
 		return fmt.Errorf("backfill updated_at: %w", err)
+	}
+	return nil
+}
+
+// dropAIInferencePayloadColumns removes original_text and raw_response from ai_inference_logs.
+// Why: payload is redundant — logger/ai_logger.go already writes it to /app/logs/ai_inference.log
+// which WhaTap logsink collects. Removing from DB eliminates the largest per-call Bytes Synced chunk.
+// SQLite 3.35+ supports ALTER TABLE DROP COLUMN for columns without indexes or FK references.
+// Idempotent: skipped when columns are already absent.
+func dropAIInferencePayloadColumns(ctx context.Context, q db.DBTX) error {
+	for _, col := range []string{"original_text", "raw_response"} {
+		var has int
+		_ = q.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM pragma_table_info('ai_inference_logs') WHERE name=?`, col,
+		).Scan(&has)
+		if has == 0 {
+			continue
+		}
+		if _, err := q.ExecContext(ctx,
+			`ALTER TABLE ai_inference_logs DROP COLUMN `+col,
+		); err != nil {
+			return fmt.Errorf("drop ai_inference_logs.%s: %w", col, err)
+		}
 	}
 	return nil
 }

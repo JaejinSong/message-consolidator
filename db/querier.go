@@ -44,6 +44,7 @@ type Querier interface {
 	// Consolidated Schema for sqlc (SQLite)
 	// NOTE: CREATE INDEX statements are stripped by sqlc and must be defined in createIndexes() in migrations.go.
 	CreateUsersTable(ctx context.Context) error
+	CreateWAMessagesTable(ctx context.Context) error
 	DeleteAppSetting(ctx context.Context, key string) error
 	DeleteContactMapping(ctx context.Context, arg DeleteContactMappingParams) error
 	DeleteEmbeddingsByModel(ctx context.Context, model string) error
@@ -138,6 +139,7 @@ type Querier interface {
 	InsertMergeHistory(ctx context.Context, arg InsertMergeHistoryParams) error
 	InsertReport(ctx context.Context, arg InsertReportParams) (int64, error)
 	InsertReportTranslation(ctx context.Context, arg InsertReportTranslationParams) error
+	InsertWAMessage(ctx context.Context, arg InsertWAMessageParams) error
 	IsMessageProcessed(ctx context.Context, arg IsMessageProcessedParams) (int64, error)
 	IsSourceTSProcessed(ctx context.Context, arg IsSourceTSProcessedParams) (int64, error)
 	ListAdminUsers(ctx context.Context) ([]User, error)
@@ -148,6 +150,7 @@ type Querier interface {
 	ListPendingMe(ctx context.Context, arg ListPendingMeParams) ([]ListPendingMeRow, error)
 	ListPendingOthers(ctx context.Context, arg ListPendingOthersParams) ([]ListPendingOthersRow, error)
 	ListReports(ctx context.Context, userEmail string) ([]ListReportsRow, error)
+	ListWAMessages(ctx context.Context, arg ListWAMessagesParams) ([]WaMessage, error)
 	LoadContactsAll(ctx context.Context) ([]LoadContactsAllRow, error)
 	LoadGmailTokensAll(ctx context.Context) ([]LoadGmailTokensAllRow, error)
 	LoadScanMetadataAll(ctx context.Context) ([]LoadScanMetadataAllRow, error)

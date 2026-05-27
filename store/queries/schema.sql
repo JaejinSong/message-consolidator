@@ -186,8 +186,6 @@ CREATE TABLE IF NOT EXISTS ai_inference_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     message_id INTEGER REFERENCES messages(id),
     source TEXT,
-    original_text TEXT,
-    raw_response TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -306,4 +304,22 @@ CREATE TABLE IF NOT EXISTS task_grants (
     grantee_user_id INTEGER NOT NULL REFERENCES users(id),
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(grantor_user_id, grantee_user_id)
+);
+
+-- name: CreateWAMessagesTable :exec
+CREATE TABLE IF NOT EXISTS wa_messages (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id     TEXT    NOT NULL,
+    email          TEXT    NOT NULL DEFAULT '',
+    chat_jid       TEXT    NOT NULL DEFAULT '',
+    chat_name      TEXT    NOT NULL DEFAULT '',
+    sender         TEXT    NOT NULL DEFAULT '',
+    direction      TEXT    NOT NULL DEFAULT 'incoming',
+    body           TEXT    NOT NULL DEFAULT '',
+    reply_to       TEXT    NOT NULL DEFAULT '',
+    has_attachment INTEGER NOT NULL DEFAULT 0,
+    is_forwarded   INTEGER NOT NULL DEFAULT 0,
+    mentions       TEXT    NOT NULL DEFAULT '[]',
+    ts             INTEGER NOT NULL DEFAULT 0,
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
 );

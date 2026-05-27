@@ -7,21 +7,19 @@ import (
 	"message-consolidator/logger"
 )
 
-// LogAIInference records the raw AI input and output for long-term prompt performance analysis.
-// Why: Enables Data Flywheel by building a dataset of real-world AI inferences for future fine-tuning and evaluation.
-func LogAIInference(messageID MessageID, source, originalText, rawResponse string) error {
+// LogAIInference records AI call metadata (message_id, source) for volume tracking.
+// Why: payload (original_text, raw_response) is written to /app/logs/ai_inference.log by
+// logger.LogAIInferenceToFile before this call — storing it again in DB was pure Bytes Synced waste.
+func LogAIInference(messageID MessageID, source string) error {
 	conn := GetDB()
 	if conn == nil {
 		return sql.ErrConnDone
 	}
 
 	queries := db.New(conn)
-	// Why: Parameters are handled via sql.Null wrappers because the underlying table columns are nullable.
 	err := queries.InsertAIInferenceLog(context.Background(), db.InsertAIInferenceLogParams{
-		MessageID:    nullInt64(int64(messageID)),
-		Source:       nullString(source),
-		OriginalText: nullString(originalText),
-		RawResponse:  nullString(rawResponse),
+		MessageID: nullInt64(int64(messageID)),
+		Source:    nullString(source),
 	})
 
 	if err != nil {

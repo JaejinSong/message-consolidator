@@ -42,6 +42,7 @@ services:
       - DISABLE_STATIC_SERVING=true
     volumes:
       - ./db_data:/data
+      - ./logs:/app/logs
     restart: always
     stop_grace_period: 1m
     networks:

@@ -10,12 +10,10 @@ import (
 )
 
 type AiInferenceLog struct {
-	ID           int64          `json:"id"`
-	MessageID    sql.NullInt64  `json:"message_id"`
-	Source       sql.NullString `json:"source"`
-	OriginalText sql.NullString `json:"original_text"`
-	RawResponse  sql.NullString `json:"raw_response"`
-	CreatedAt    sql.NullTime   `json:"created_at"`
+	ID        int64          `json:"id"`
+	MessageID sql.NullInt64  `json:"message_id"`
+	Source    sql.NullString `json:"source"`
+	CreatedAt sql.NullTime   `json:"created_at"`
 }
 
 type AppSetting struct {
@@ -259,4 +257,21 @@ type VMessage struct {
 	AssigneeCanonical   string       `json:"assignee_canonical"`
 	RequesterType       string       `json:"requester_type"`
 	AssigneeType        string       `json:"assignee_type"`
+}
+
+type WaMessage struct {
+	ID            int64  `json:"id"`
+	MessageID     string `json:"message_id"`
+	Email         string `json:"email"`
+	ChatJid       string `json:"chat_jid"`
+	ChatName      string `json:"chat_name"`
+	Sender        string `json:"sender"`
+	Direction     string `json:"direction"`
+	Body          string `json:"body"`
+	ReplyTo       string `json:"reply_to"`
+	HasAttachment int64  `json:"has_attachment"`
+	IsForwarded   int64  `json:"is_forwarded"`
+	Mentions      string `json:"mentions"`
+	Ts            int64  `json:"ts"`
+	CreatedAt     string `json:"created_at"`
 }

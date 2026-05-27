@@ -27,6 +27,7 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 	a.registerReportRoutes(r)
 	a.registerGmailRoutes(r)
 	a.registerSlackBotRoutes(r)
+	a.registerWAQueryRoutes(r)
 	r.HandleFunc("/health", a.HandleHealth).Methods("GET")
 }
 
@@ -183,6 +184,15 @@ func (a *API) registerReportRoutes(r *mux.Router) {
 	r.Handle("/api/reports/{id:[0-9]+}/translate", a.protected(a.HandleTranslateReport)).Methods("POST")
 	r.Handle("/api/reports/{id:[0-9]+}/export/notion", a.protected(a.HandleExportReportToNotion)).Methods("POST")
 	r.Handle("/api/reports/weekly/test", a.protected(a.HandleWeeklyReportTest)).Methods("POST")
+}
+
+func (a *API) registerWAQueryRoutes(r *mux.Router) {
+	r.Handle("/api/wa/spec", waQueryAuth(a.Config.WAQueryToken)(
+		http.HandlerFunc(a.HandleWASpec),
+	)).Methods("GET")
+	r.Handle("/api/wa/messages", waQueryAuth(a.Config.WAQueryToken)(
+		http.HandlerFunc(a.HandleListWAMessages),
+	)).Methods("GET")
 }
 
 func (a *API) registerGmailRoutes(r *mux.Router) {
