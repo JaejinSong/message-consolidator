@@ -779,6 +779,8 @@ func toCreateMessageParams(msg ConsolidatedMessage) db.CreateMessageParams {
 		OriginalText:        nullString(msg.OriginalText),
 		Category:            nullString(categoryOrDefault(msg.Category)),
 		Deadline:            nullString(msg.Deadline),
+		DeadlineDate:        parseNullDate(msg.DeadlineDate),
+		DeadlineInferred:    boolToNullInt64(msg.DeadlineInferred),
 		ThreadID:            nullString(msg.ThreadID),
 		AssigneeReason:      nullString(msg.AssigneeReason),
 		RepliedToID:         nullString(msg.RepliedToID),
@@ -812,6 +814,7 @@ func toConsolidatedFromByID(row db.GetMessageByIDRow) ConsolidatedMessage {
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
 		row.RequesterType, row.AssigneeType, row.Subtasks,
 		row.AssignedAt, row.CompletedAt, row.UpdatedAt,
+		sql.NullTime{}, 0,
 	)
 }
 
@@ -826,6 +829,7 @@ func toConsolidatedFromByIDs(row db.GetMessagesByIDsRow) ConsolidatedMessage {
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
 		row.RequesterType, row.AssigneeType, row.Subtasks,
 		row.AssignedAt, row.CompletedAt, row.UpdatedAt,
+		sql.NullTime{}, 0,
 	)
 }
 
@@ -840,6 +844,7 @@ func toConsolidatedFromIncomplete(row db.GetIncompleteByThreadIDRow) Consolidate
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
 		row.RequesterType, row.AssigneeType, row.Subtasks,
 		row.AssignedAt, row.CompletedAt, row.UpdatedAt,
+		sql.NullTime{}, 0,
 	)
 }
 
@@ -854,6 +859,7 @@ func toConsolidatedFromRecentGmail(row db.VMessage) ConsolidatedMessage {
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
 		row.RequesterType, row.AssigneeType, row.Subtasks,
 		row.AssignedAt, row.CompletedAt, row.UpdatedAt,
+		row.DeadlineDate, row.DeadlineInferred,
 	)
 }
 
@@ -874,6 +880,7 @@ func MapVMessageToConsolidated(
 	repliedToID string, isContextQuery int, constraintsStr, contextStr,
 	metadataStr, channelsStr, reqType, asgType, subtasksStr string,
 	assignedAt, completedAt, updatedAt sql.NullTime,
+	deadlineDate sql.NullTime, deadlineInferred int64,
 ) ConsolidatedMessage {
 	constraints, channels, context, subtasks := UnmarshalMessageComponents(constraintsStr, channelsStr, contextStr, subtasksStr)
 
@@ -882,11 +889,17 @@ func MapVMessageToConsolidated(
 		metadata = json.RawMessage("{}")
 	}
 
+	ddStr := ""
+	if deadlineDate.Valid {
+		ddStr = deadlineDate.Time.Format("2006-01-02")
+	}
+
 	msg := ConsolidatedMessage{
 		ID: id, UserEmail: userEmail, Source: source, Room: room, Task: task,
 		Requester: requester, Assignee: assignee, Link: link, SourceTS: sourceTs,
 		OriginalText: originalText, Done: done, IsDeleted: isDeleted, CreatedAt: createdAt.Time,
-		Category: category, Deadline: deadline, ThreadID: threadID,
+		Category: category, Deadline: deadline, DeadlineDate: ddStr, DeadlineInferred: deadlineInferred > 0,
+		ThreadID: threadID,
 		RequesterCanonical: reqCanonical, AssigneeCanonical: asgCanonical, AssigneeReason: asgReason,
 		RepliedToID: repliedToID, IsContextQuery: isContextQuery > 0, Constraints: constraints,
 		ConsolidatedContext: context, Metadata: metadata,

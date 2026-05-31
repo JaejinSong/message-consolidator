@@ -1,14 +1,14 @@
 -- name: CreateMessage :one
-INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, consolidated_context, subtasks) 
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, deadline_date, deadline_inferred, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, consolidated_context, subtasks)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(user_email, source_ts) DO NOTHING
 RETURNING id;
 
 -- name: SaveMessagesBase :many
--- Note: Batching with VALUES %s is not supported by sqlc directly. 
+-- Note: Batching with VALUES %s is not supported by sqlc directly.
 -- Using a single insert that can be called in a transaction.
-INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, consolidated_context, subtasks) 
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, deadline_date, deadline_inferred, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, consolidated_context, subtasks)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(user_email, source_ts) DO NOTHING
 RETURNING id, source_ts, user_email;
 
@@ -200,7 +200,9 @@ SELECT id, COALESCE(user_email,'') as user_email, COALESCE(source,'') as source,
        COALESCE(requester_canonical,'') as requester_canonical,
        COALESCE(assignee_canonical,'') as assignee_canonical,
        COALESCE(requester_type,'none') as requester_type,
-       COALESCE(assignee_type,'none') as assignee_type
+       COALESCE(assignee_type,'none') as assignee_type,
+       deadline_date,
+       COALESCE(deadline_inferred,0) as deadline_inferred
 FROM v_messages
 WHERE user_email = ?
   AND source = 'gmail'
@@ -222,3 +224,68 @@ WHERE user_email = ? AND room = ? AND is_deleted = 0
 GROUP BY assignee
 ORDER BY n DESC
 LIMIT 5;
+
+-- name: SelectUndatedCommitments :many
+-- Why: Surfaces PROMISE/WAITING items with no deadline for aging nudge dispatch.
+SELECT id, COALESCE(user_email,'') as user_email, COALESCE(task,'') as task,
+       COALESCE(requester,'') as requester, COALESCE(assignee,'') as assignee,
+       COALESCE(requester_canonical,'') as requester_canonical,
+       COALESCE(assignee_canonical,'') as assignee_canonical,
+       COALESCE(category,'') as category, COALESCE(metadata,'{}') as metadata,
+       COALESCE(room,'') as room, COALESCE(source,'') as source, COALESCE(link,'') as link,
+       created_at
+FROM v_messages
+WHERE category IN ('PROMISE','WAITING')
+  AND (deadline_date IS NULL)
+  AND (deadline IS NULL OR deadline = '')
+  AND done = 0
+  AND is_deleted = 0
+  AND IFNULL(task,'') != ''
+ORDER BY user_email, created_at;
+
+-- name: SelectCommitments :many
+-- Why: Feeds /api/commitments. Returns PROMISE/WAITING rows for the authed user.
+-- View-type filtering (mine vs waiting) done in Go after the query.
+SELECT id, COALESCE(user_email,'') as user_email, COALESCE(task,'') as task,
+       COALESCE(requester,'') as requester, COALESCE(assignee,'') as assignee,
+       COALESCE(requester_canonical,'') as requester_canonical,
+       COALESCE(assignee_canonical,'') as assignee_canonical,
+       COALESCE(category,'') as category,
+       COALESCE(deadline,'') as deadline,
+       deadline_date,
+       COALESCE(deadline_inferred,0) as deadline_inferred,
+       COALESCE(metadata,'{}') as metadata,
+       COALESCE(room,'') as room, COALESCE(source,'') as source, COALESCE(link,'') as link,
+       created_at, updated_at
+FROM v_messages
+WHERE user_email = ?
+  AND done = 0
+  AND is_deleted = 0
+  AND category IN ('PROMISE','WAITING')
+  AND IFNULL(task,'') != ''
+  AND (assignee_canonical = ? OR requester_canonical = ?)
+ORDER BY created_at DESC;
+
+-- name: SelectStalledRequests :many
+-- Why: Detects TASK rows with no recent update for stalled-request surfacing.
+-- Caller passes cutoff as RFC3339 string (e.g. datetime('now','-3 days')).
+-- updated_at '1970-01-01T00:00:00Z' sentinel is treated as no-update; falls back to created_at.
+SELECT id, COALESCE(user_email,'') as user_email, COALESCE(task,'') as task,
+       COALESCE(requester,'') as requester, COALESCE(assignee,'') as assignee,
+       COALESCE(requester_canonical,'') as requester_canonical,
+       COALESCE(assignee_canonical,'') as assignee_canonical,
+       COALESCE(room,'') as room, COALESCE(source,'') as source, COALESCE(link,'') as link,
+       created_at, updated_at,
+       CAST(julianday('now') - julianday(
+           CASE WHEN updated_at IS NULL OR updated_at = '' OR updated_at = '1970-01-01T00:00:00Z'
+                THEN created_at ELSE updated_at END
+       ) AS INTEGER) as days_stalled
+FROM v_messages
+WHERE user_email = ?
+  AND category = 'TASK'
+  AND done = 0
+  AND is_deleted = 0
+  AND IFNULL(task,'') != ''
+  AND CASE WHEN updated_at IS NULL OR updated_at = '' OR updated_at = '1970-01-01T00:00:00Z'
+           THEN created_at ELSE updated_at END <= ?
+ORDER BY days_stalled DESC;

@@ -305,5 +305,15 @@ export const ko: I18nEntry = {
         connSlackReadOnlyNotice: "Slack은 워크스페이스 단위로 운영자가 관리합니다.",
         connNoMappingNotice: "자동 매핑이 아직 완료되지 않았습니다.",
         connEmptyValue: "—",
-        searchTasksPlaceholder: "업무 검색..."
+        searchTasksPlaceholder: "업무 검색...",
+        commitmentsTab: "약속",
+        commitmentsViewMine: "내 약속",
+        commitmentsViewWaiting: "기다리는 것",
+        commitmentsOverdue: "기한 초과",
+        commitmentsUndated: "기한 없음",
+        commitmentsActive: "진행 중",
+        commitmentsMyPromise: "내 약속 (기한 없음)",
+        commitmentsWaiting: "기다리는 것 (기한 없음)",
+        commitmentsEmpty: "약속 항목이 없습니다.",
+        deadlineInferred: "AI 추론 날짜"
 };

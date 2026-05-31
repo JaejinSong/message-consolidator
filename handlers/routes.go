@@ -104,6 +104,7 @@ func (a *API) registerMessageRoutes(r *mux.Router) {
 	r.Handle("/api/tasks/translate-batch", a.protected(a.HandleTranslateBatchTasks)).Methods("POST")
 	r.Handle("/api/tasks/merge", a.protected(a.HandleMergeTasks)).Methods("PUT")
 	r.Handle("/api/subtasks/toggle", a.protected(a.HandleToggleSubtask)).Methods("POST")
+	r.Handle("/api/commitments", a.protected(a.HandleGetCommitments)).Methods("GET")
 }
 
 // Channel status string convention: every /api/<channel>/status handler MUST emit

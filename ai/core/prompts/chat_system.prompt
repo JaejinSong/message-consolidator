@@ -30,7 +30,7 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
   - Layered TASK + PROMISE: when one message contains both a TASK request AND a PROMISE about executing it, the title reflects the TASK's purpose; the PROMISE is captured by `assignee` + `deadline`, NEVER repeated in the title.
   - PROMISE-only (no TASK layer): title = the deliverable as purpose (e.g. "Deliver quarterly report"), not the commitment verb ("Send report").
 - `task` on `state=update`: preserve the existing task's purpose-phrase and only enrich with new scope/participants/timeline. EXCEPTION — rewrite purpose-first if the existing title is demonstrably vague (< 3 content words, or omits the purpose entirely).
-- `deadline`: most specific date/time mentioned (e.g. "Friday" > "this week").
+- `deadline`: ISO `YYYY-MM-DD` only. Resolve relative dates against the message timestamp. If no date is stated or cannot be determined, output `""`. Do NOT output natural language like "Friday" or "next week".
 - `source_ts`: exact literal value from `[ID:...]` tag — treat as opaque string.
 - `affinity_group_id`: same value for contextually related tasks.
 - `assignee_reason`: English only.

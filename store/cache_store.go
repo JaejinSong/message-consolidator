@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"message-consolidator/db"
 	"message-consolidator/logger"
@@ -129,6 +130,7 @@ func buildMessages(rows []db.RefreshCacheActiveRow, resolver map[string]Resolved
 			r.ConsolidatedContext, r.Metadata, r.SourceChannels,
 			reqType, asgType, r.Subtasks,
 			r.AssignedAt, r.CompletedAt, r.UpdatedAt,
+			sql.NullTime{}, 0,
 		)
 		msgs = append(msgs, m)
 		knownTS[m.SourceTS] = true
@@ -151,6 +153,7 @@ func buildArchiveMessages(rows []db.RefreshCacheArchiveRow, resolver map[string]
 			r.ConsolidatedContext, r.Metadata, r.SourceChannels,
 			reqType, asgType, r.Subtasks,
 			r.AssignedAt, r.CompletedAt, r.UpdatedAt,
+			sql.NullTime{}, 0,
 		))
 	}
 	return msgs

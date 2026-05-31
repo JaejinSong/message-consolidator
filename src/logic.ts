@@ -171,10 +171,12 @@ export function processTimeSeriesData(history: { date: string; counts: Record<st
  * Gets the deadline badge HTML based on a scheduled event date (YYYY-MM-DD).
  * Shows urgency relative to today: today / tomorrow / D-N (2-7 days) / past.
  */
-export function getDeadlineBadge(deadline: string | undefined, isDone: boolean, lang: string = 'ko'): string {
+export function getDeadlineBadge(deadline: string | undefined, isDone: boolean, lang: string = 'ko', inferred = false): string {
     if (isDone || !deadline) return '';
 
     const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['ko'];
+    const inferredAttr = inferred ? ` title="${i18n.deadlineInferred ?? 'AI-inferred date'}"` : '';
+    const inferredClass = inferred ? ' c-badge--inferred' : '';
     const todayStr = new Date().toISOString().slice(0, 10);
     const today = new Date(todayStr);
     const target = new Date(deadline.slice(0, 10));
@@ -183,16 +185,16 @@ export function getDeadlineBadge(deadline: string | undefined, isDone: boolean, 
     const diffDays = Math.round((target.getTime() - today.getTime()) / 86400000);
 
     if (diffDays === 0) {
-        return `<span class="c-badge c-badge--deadline-today">${i18n.deadlineToday ?? '오늘'}</span>`;
+        return `<span class="c-badge c-badge--deadline-today${inferredClass}"${inferredAttr}>${i18n.deadlineToday ?? '오늘'}</span>`;
     }
     if (diffDays === 1) {
-        return `<span class="c-badge c-badge--deadline-tomorrow">${i18n.deadlineTomorrow ?? '내일'}</span>`;
+        return `<span class="c-badge c-badge--deadline-tomorrow${inferredClass}"${inferredAttr}>${i18n.deadlineTomorrow ?? '내일'}</span>`;
     }
     if (diffDays >= 2 && diffDays <= 7) {
-        return `<span class="c-badge c-badge--deadline-soon">${i18n.deadlineSoon ?? 'D-'}${diffDays}</span>`;
+        return `<span class="c-badge c-badge--deadline-soon${inferredClass}"${inferredAttr}>${i18n.deadlineSoon ?? 'D-'}${diffDays}</span>`;
     }
     if (diffDays < 0 && diffDays >= -7) {
-        return `<span class="c-badge c-badge--deadline-past">${i18n.deadlinePast ?? '지남'}</span>`;
+        return `<span class="c-badge c-badge--deadline-past${inferredClass}"${inferredAttr}>${i18n.deadlinePast ?? '지남'}</span>`;
     }
     return '';
 }

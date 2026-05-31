@@ -2,7 +2,7 @@ import { apiFetch } from './utils/http';
 import { state, upsertReport } from './state';
 import { normalizeReportData } from './logic';
 import { isStatusConnected } from './utils';
-import { Message, UserProfile, UserStats, TokenUsage, IReportData, AccountItem, CategorizedMessages, TranslateBatchResult, AdminSetting, AdminUser, AdminSettingUpdateResult } from './types';
+import { Message, UserProfile, UserStats, TokenUsage, IReportData, AccountItem, CategorizedMessages, TranslateBatchResult, AdminSetting, AdminUser, AdminSettingUpdateResult, CommitmentsResponse } from './types';
 import type { ProposalGroup } from './renderers/settings-renderer';
 
 // Why: shared shape for mutation endpoints that the backend answers with `{ status: "ok" }` or
@@ -487,6 +487,13 @@ export const api = {
         return apiFetch(`/admin/admins/${encodeURIComponent(email)}`, {
             method: 'DELETE',
             errorMessage: 'Revoke admin failed'
+        });
+    },
+
+    async fetchCommitments(view: 'mine' | 'waiting' = 'mine'): Promise<CommitmentsResponse> {
+        return apiFetch('/commitments', {
+            params: { view },
+            errorMessage: 'Fetch commitments failed'
         });
     }
 };

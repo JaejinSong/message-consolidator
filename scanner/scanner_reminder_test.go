@@ -10,12 +10,18 @@ import (
 )
 
 type fakeReminderDispatcher struct {
-	called int
-	err    error
+	called        int
+	undatedCalled int
+	err           error
 }
 
 func (f *fakeReminderDispatcher) DispatchDueSoon(_ context.Context) error {
 	f.called++
+	return f.err
+}
+
+func (f *fakeReminderDispatcher) DispatchUndated(_ context.Context) error {
+	f.undatedCalled++
 	return f.err
 }
 

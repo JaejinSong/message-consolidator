@@ -13,7 +13,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 9
+const schemaVersion = 10
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -209,6 +209,56 @@ func addMessagesUpdatedAtColumn(ctx context.Context, q db.DBTX) error {
 		`UPDATE messages SET updated_at = created_at WHERE updated_at <= '1970-01-02' OR updated_at >= datetime('now', '-1 minute')`,
 	); err != nil {
 		return fmt.Errorf("backfill updated_at: %w", err)
+	}
+	return nil
+}
+
+// addDeadlineColumns adds deadline_date and deadline_inferred to messages on existing DBs.
+// Why: ISO-normalized deadline enables reliable date comparisons; inferred flag distinguishes AI-derived dates.
+// Idempotent via pragma_table_info existence check (SQLite does not support IF NOT EXISTS on ALTER TABLE).
+func addDeadlineColumns(ctx context.Context, q db.DBTX) error {
+	for _, col := range []struct {
+		name string
+		ddl  string
+	}{
+		{"deadline_date", "ALTER TABLE messages ADD COLUMN deadline_date DATE"},
+		{"deadline_inferred", "ALTER TABLE messages ADD COLUMN deadline_inferred INTEGER DEFAULT 0"},
+	} {
+		var has int
+		_ = q.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM pragma_table_info('messages') WHERE name=?`, col.name,
+		).Scan(&has)
+		if has > 0 {
+			continue
+		}
+		if _, err := q.ExecContext(ctx, col.ddl); err != nil {
+			return fmt.Errorf("add messages.%s: %w", col.name, err)
+		}
+	}
+	return nil
+}
+
+// suppressOldUndatedNudges marks pre-existing undated PROMISE/WAITING items older than 14 days
+// as already-nudged so the first deploy does not spam users with backlog notifications.
+// Items created within the last 14 days enter the normal aging flow and receive nudges naturally.
+// Idempotent: skips rows that already have reminded_at_undated_d3 set.
+func suppressOldUndatedNudges(ctx context.Context, q db.DBTX) error {
+	const suppressSQL = `
+UPDATE messages
+SET metadata = json_set(
+    COALESCE(metadata, '{}'),
+    '$.reminded_at_undated_d3',  'suppressed',
+    '$.reminded_at_undated_d7',  'suppressed',
+    '$.reminded_at_undated_d14', 'suppressed'
+)
+WHERE category IN ('PROMISE', 'WAITING')
+  AND done = 0
+  AND is_deleted = 0
+  AND (deadline IS NULL OR deadline = '')
+  AND json_extract(COALESCE(metadata, '{}'), '$.reminded_at_undated_d3') IS NULL
+  AND created_at < datetime('now', '-14 days')`
+	if _, err := q.ExecContext(ctx, suppressSQL); err != nil {
+		return fmt.Errorf("suppress old undated nudges: %w", err)
 	}
 	return nil
 }

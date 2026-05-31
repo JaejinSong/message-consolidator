@@ -91,3 +91,56 @@ func formatReminderText(m store.DueSoonMessage, hours int) string {
 	return fmt.Sprintf(":alarm_clock: 마감 %d시간 전 알림\n• 작업: %s\n• 마감: %s\n• 채널: %s/%s",
 		hours, m.Task, m.Deadline, m.Source, m.Room)
 }
+
+// undatedWindowDays are the aging thresholds for commitments with no deadline.
+var undatedWindowDays = []int{3, 7, 14}
+
+// DispatchUndated sends Slack DMs for PROMISE/WAITING items that have no deadline
+// and have aged past D+3, D+7, or D+14 since creation. Each window fires once per item.
+func (r *ReminderService) DispatchUndated(ctx context.Context) error {
+	if r == nil || r.Slack == nil {
+		return nil
+	}
+	rows, err := store.SelectUndated(ctx)
+	if err != nil {
+		return fmt.Errorf("select undated: %w", err)
+	}
+	now := time.Now().UTC()
+	for _, m := range rows {
+		ageDays := int(now.Sub(m.CreatedAt).Hours() / 24)
+		for _, threshold := range undatedWindowDays {
+			if ageDays < threshold {
+				continue
+			}
+			key := fmt.Sprintf("undated_d%d", threshold)
+			if store.HasReminded(m.Metadata, key) {
+				continue
+			}
+			user, err := store.GetOrCreateUser(ctx, m.UserEmail, "", "")
+			if err != nil || user == nil || strings.TrimSpace(user.SlackID) == "" {
+				break // no Slack ID — skip all windows for this user/item
+			}
+			text := formatUndatedNudgeText(m, ageDays)
+			if err := r.Slack.SendDM(ctx, user.SlackID, text); err != nil {
+				logger.Warnf("[REMINDER] undated SendDM failed user=%s msg=%d: %v", m.UserEmail, m.ID, err)
+				break // don't mark; retry next tick
+			}
+			if err := store.MarkReminded(ctx, m.UserEmail, m.ID, m.Metadata, key, now); err != nil {
+				logger.Warnf("[REMINDER] undated MarkReminded failed msg=%d: %v", m.ID, err)
+			}
+			break // one window per tick per item
+		}
+	}
+	return nil
+}
+
+func formatUndatedNudgeText(m store.UndatedCommitment, ageDays int) string {
+	emoji := ":hourglass_flowing_sand:"
+	label := "약속"
+	if m.Category == "WAITING" {
+		emoji = ":eyes:"
+		label = "대기 중인 항목"
+	}
+	return fmt.Sprintf("%s 기한 없는 %s (D+%d일)\n• 작업: %s\n• 채널: %s/%s",
+		emoji, label, ageDays, m.Task, m.Source, m.Room)
+}

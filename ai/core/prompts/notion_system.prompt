@@ -17,7 +17,7 @@ Output ONLY the JSON array below. No markdown, no prose, no code fences.
 - `id`: always 0 (backend resolves via similarity)
 - `task`/`assignee_reason`: EN only. Core ACTION intent. If reply, use reply content.
 - `assignee`: 1. @mention → name. 2. PROMISE → sender. 3. general/owner → `"__CURRENT_USER__"`. Never null.
-- `deadline`: translate day names to EN; preserve relative dates verbatim (e.g., "this Friday"). No ISO dates.
+- `deadline`: ISO `YYYY-MM-DD` ONLY. Resolve relative dates (e.g. "this Friday") to an absolute date. Output `""` if no date stated. Do NOT output natural language.
 - `source_ts`: exact literal from [ID:xxx] tag — no truncation. Fill only if in text.
 - `affinity_group_id`: topic slug; shared across related tasks.
 

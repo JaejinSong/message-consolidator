@@ -12,11 +12,12 @@ import (
 )
 
 const (
-	AssigneeShared    = "shared"
-	CategoryPersonal  = "personal"
-	CategoryShared    = "shared"
-	CategoryRequested = "requested"
-	CategoryOthers    = "others"
+	AssigneeShared     = "shared"
+	CategoryPersonal   = "personal"
+	CategoryShared     = "shared"
+	CategoryRequested  = "requested"
+	CategoryOthers     = "reference" // Why: renamed from "others"; third-party observed X->Y tasks
+	CategoryReference  = "reference" // canonical alias — prefer this in new code
 )
 
 var (

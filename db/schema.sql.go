@@ -176,6 +176,8 @@ CREATE TABLE IF NOT EXISTS messages (
     completed_at DATETIME,
     category TEXT DEFAULT 'todo',
     deadline TEXT,
+    deadline_date DATE,
+    deadline_inferred INTEGER DEFAULT 0,
     thread_id TEXT,
     assignee_reason TEXT,
     replied_to_id TEXT,
@@ -244,7 +246,9 @@ SELECT
     COALESCE(cr_req.effective_canonical_id, m.requester, '') as requester_canonical,
     COALESCE(cr_asg.effective_canonical_id, m.assignee, '') as assignee_canonical,
     COALESCE(cr_req.contact_type, 'none') as requester_type,
-    COALESCE(cr_asg.contact_type, 'none') as assignee_type
+    COALESCE(cr_asg.contact_type, 'none') as assignee_type,
+    m.deadline_date,
+    COALESCE(m.deadline_inferred, 0) as deadline_inferred
 FROM messages m
 LEFT JOIN v_contacts_resolved cr_req ON m.user_email = cr_req.tenant_email AND m.requester = cr_req.original_canonical_id
 LEFT JOIN v_contacts_resolved cr_asg ON m.user_email = cr_asg.tenant_email AND m.assignee = cr_asg.original_canonical_id

@@ -200,3 +200,130 @@ func TestReminderService_SendDMErrorSkipsMarkReminded(t *testing.T) {
 		t.Error("expected metadata NOT to have reminded_at_24h after SendDM error")
 	}
 }
+
+// seedUndatedCommitment inserts a PROMISE/WAITING row with no deadline, aged by daysAgo.
+func seedUndatedCommitment(t *testing.T, email, task, category string, daysAgo int) int64 {
+	t.Helper()
+	src := testutil.RandomTS("und")
+	createdAt := time.Now().UTC().AddDate(0, 0, -daysAgo).Format(time.RFC3339)
+	res, err := store.GetDB().Exec(
+		`INSERT INTO messages (user_email, task, category, source, room, source_ts, done, is_deleted, metadata, created_at, assignee, requester)
+		 VALUES (?, ?, ?, 'slack', 'general', ?, 0, 0, '{}', ?, 'alice', 'bob')`,
+		email, task, category, src, createdAt,
+	)
+	if err != nil {
+		t.Fatalf("seedUndatedCommitment: %v", err)
+	}
+	id, _ := res.LastInsertId()
+	return id
+}
+
+func TestDispatchUndated_D3SendsOnce(t *testing.T) {
+	cleanup := setupReminderTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	email := testutil.RandomEmail("und")
+	seedUserWithSlack(t, email, "UUND1")
+	seedUndatedCommitment(t, email, "Write report", "PROMISE", 3)
+
+	fs := &fakeSlack{}
+	svc := NewReminderService(fs, nil)
+
+	if err := svc.DispatchUndated(ctx); err != nil {
+		t.Fatalf("DispatchUndated: %v", err)
+	}
+	if len(fs.sent) != 1 {
+		t.Fatalf("expected 1 DM sent, got %d", len(fs.sent))
+	}
+}
+
+func TestDispatchUndated_D2NoSend(t *testing.T) {
+	cleanup := setupReminderTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	email := testutil.RandomEmail("und2")
+	seedUserWithSlack(t, email, "UUND2")
+	seedUndatedCommitment(t, email, "Too early", "PROMISE", 2)
+
+	fs := &fakeSlack{}
+	svc := NewReminderService(fs, nil)
+
+	if err := svc.DispatchUndated(ctx); err != nil {
+		t.Fatalf("DispatchUndated: %v", err)
+	}
+	if len(fs.sent) != 0 {
+		t.Errorf("expected 0 DMs sent, got %d", len(fs.sent))
+	}
+}
+
+func TestDispatchUndated_AlreadyMarkedSkips(t *testing.T) {
+	cleanup := setupReminderTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	email := testutil.RandomEmail("undm")
+	seedUserWithSlack(t, email, "UUNDM")
+
+	// Pre-mark d3 so it should be skipped
+	meta := `{"reminded_at_undated_d3":"2026-01-01T00:00:00Z"}`
+	seedUndatedCommitment_withMeta(t, email, "Already done", "PROMISE", 5, meta)
+
+	fs := &fakeSlack{}
+	svc := NewReminderService(fs, nil)
+
+	if err := svc.DispatchUndated(ctx); err != nil {
+		t.Fatalf("DispatchUndated: %v", err)
+	}
+	if len(fs.sent) != 0 {
+		t.Errorf("expected 0 DMs (already marked), got %d", len(fs.sent))
+	}
+}
+
+func seedUndatedCommitment_withMeta(t *testing.T, email, task, category string, daysAgo int, meta string) int64 {
+	t.Helper()
+	src := testutil.RandomTS("undm")
+	createdAt := time.Now().UTC().AddDate(0, 0, -daysAgo).Format(time.RFC3339)
+	res, err := store.GetDB().Exec(
+		`INSERT INTO messages (user_email, task, category, source, room, source_ts, done, is_deleted, metadata, created_at, assignee, requester)
+		 VALUES (?, ?, ?, 'slack', 'general', ?, 0, 0, ?, ?, 'alice', 'bob')`,
+		email, task, category, src, meta, createdAt,
+	)
+	if err != nil {
+		t.Fatalf("seedUndatedCommitment_withMeta: %v", err)
+	}
+	id, _ := res.LastInsertId()
+	return id
+}
+
+func TestDispatchUndated_SendDMErrorNoMark(t *testing.T) {
+	cleanup := setupReminderTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	email := testutil.RandomEmail("underr")
+	seedUserWithSlack(t, email, "UUNDERR")
+	seedUndatedCommitment(t, email, "Fail task", "PROMISE", 4)
+
+	fs := &fakeSlack{err: fmt.Errorf("slack down")}
+	svc := NewReminderService(fs, nil)
+
+	if err := svc.DispatchUndated(ctx); err != nil {
+		t.Fatalf("DispatchUndated: %v", err)
+	}
+
+	rows, err := store.SelectUndated(ctx)
+	if err != nil {
+		t.Fatalf("SelectUndated: %v", err)
+	}
+	for _, r := range rows {
+		if r.UserEmail == email {
+			var m map[string]json.RawMessage
+			_ = json.Unmarshal([]byte(r.Metadata), &m)
+			if _, found := m["reminded_at_undated_d3"]; found {
+				t.Error("metadata should NOT have undated_d3 after SendDM failure")
+			}
+		}
+	}
+}

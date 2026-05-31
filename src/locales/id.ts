@@ -224,5 +224,15 @@ export const id: I18nEntry = {
         connSlackReadOnlyNotice: "Slack dikelola di tingkat workspace oleh administrator.",
         connNoMappingNotice: "Pemetaan otomatis belum selesai.",
         connEmptyValue: "—",
-        searchTasksPlaceholder: "Cari tugas..."
+        searchTasksPlaceholder: "Cari tugas...",
+        commitmentsTab: "Komitmen",
+        commitmentsViewMine: "Komitmen Saya",
+        commitmentsViewWaiting: "Menunggu",
+        commitmentsOverdue: "Terlambat",
+        commitmentsUndated: "Tanpa Tenggat",
+        commitmentsActive: "Aktif",
+        commitmentsMyPromise: "Janji Saya (tanpa tenggat)",
+        commitmentsWaiting: "Menunggu (tanpa tenggat)",
+        commitmentsEmpty: "Tidak ada komitmen.",
+        deadlineInferred: "Tanggal perkiraan AI"
 };

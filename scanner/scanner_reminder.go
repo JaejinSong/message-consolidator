@@ -13,6 +13,7 @@ var reminderSvc reminderDispatcher
 // reminderDispatcher decouples scanner from services package for test injection.
 type reminderDispatcher interface {
 	DispatchDueSoon(ctx context.Context) error
+	DispatchUndated(ctx context.Context) error
 }
 
 func runDeadlineReminder(ctx context.Context, _ *sync.WaitGroup) {
@@ -23,6 +24,9 @@ func runDeadlineReminder(ctx context.Context, _ *sync.WaitGroup) {
 		return
 	}
 	if err := reminderSvc.DispatchDueSoon(ctx); err != nil {
-		logger.Warnf("[REMINDER] dispatch failed: %v", err)
+		logger.Warnf("[REMINDER] DispatchDueSoon failed: %v", err)
+	}
+	if err := reminderSvc.DispatchUndated(ctx); err != nil {
+		logger.Warnf("[REMINDER] DispatchUndated failed: %v", err)
 	}
 }

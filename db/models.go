@@ -85,6 +85,8 @@ type Message struct {
 	CompletedAt         sql.NullTime   `json:"completed_at"`
 	Category            sql.NullString `json:"category"`
 	Deadline            sql.NullString `json:"deadline"`
+	DeadlineDate        sql.NullTime   `json:"deadline_date"`
+	DeadlineInferred    sql.NullInt64  `json:"deadline_inferred"`
 	ThreadID            sql.NullString `json:"thread_id"`
 	AssigneeReason      sql.NullString `json:"assignee_reason"`
 	RepliedToID         sql.NullString `json:"replied_to_id"`
@@ -257,6 +259,8 @@ type VMessage struct {
 	AssigneeCanonical   string       `json:"assignee_canonical"`
 	RequesterType       string       `json:"requester_type"`
 	AssigneeType        string       `json:"assignee_type"`
+	DeadlineDate        sql.NullTime `json:"deadline_date"`
+	DeadlineInferred    int64        `json:"deadline_inferred"`
 }
 
 type WaMessage struct {

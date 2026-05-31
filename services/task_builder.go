@@ -60,6 +60,7 @@ func BuildTask(ctx context.Context, p TaskBuildParams) store.ConsolidatedMessage
 	requester := resolveRequester(ctx, p)
 	assignee := resolveAssignee(ctx, p)
 	category := resolveCategory(p.Item.Category, p.GmailClassification)
+	deadlineDate, deadlineInferred := ParseDeadline(p.Item.Deadline, p.Timestamp)
 
 	return store.ConsolidatedMessage{
 		UserEmail:           p.UserEmail,
@@ -74,6 +75,8 @@ func BuildTask(ctx context.Context, p TaskBuildParams) store.ConsolidatedMessage
 		SourceTS:            p.SourceTS,
 		OriginalText:        p.OriginalText,
 		Deadline:            p.Item.Deadline,
+		DeadlineDate:        deadlineDate,
+		DeadlineInferred:    deadlineInferred,
 		Category:            category,
 		ThreadID:            p.ThreadID,
 		RepliedToID:         p.RepliedToID,

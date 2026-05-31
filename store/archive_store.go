@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"message-consolidator/db"
 	"strings"
@@ -140,6 +141,7 @@ func mapRowSliceToMessage(rows []db.SearchArchivedMessagesRow) []ConsolidatedMes
 			r.ConsolidatedContext, r.Metadata, r.SourceChannels,
 			r.RequesterType, r.AssigneeType, r.Subtasks,
 			r.AssignedAt, r.CompletedAt, r.UpdatedAt,
+			sql.NullTime{}, 0,
 		)
 	}
 	return msgs

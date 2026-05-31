@@ -39,6 +39,46 @@ export interface Message {
     consolidated_context?: string[];
     subtasks?: Subtask[];
     deadline?: string;
+    deadline_date?: string;
+    deadline_inferred?: boolean;
+}
+
+export interface CommitmentItem {
+    id: number;
+    task: string;
+    requester: string;
+    assignee: string;
+    category: string;
+    deadline?: string;
+    deadline_date?: string;
+    deadline_inferred?: boolean;
+    room: string;
+    source: string;
+    link?: string;
+    days_open: number;
+}
+
+export interface StalledItem {
+    id: number;
+    task: string;
+    requester: string;
+    assignee: string;
+    room: string;
+    source: string;
+    link?: string;
+    days_stalled: number;
+}
+
+export interface StalledBucketsResponse {
+    mine: StalledItem[];
+    observed: StalledItem[];
+}
+
+export interface CommitmentsResponse {
+    overdue: CommitmentItem[];
+    undated: CommitmentItem[];
+    active: CommitmentItem[];
+    stalled: StalledBucketsResponse;
 }
 
 export interface UserProfile {

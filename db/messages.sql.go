@@ -48,8 +48,8 @@ func (q *Queries) ArchiveOldTasks(ctx context.Context, datetime interface{}) (in
 }
 
 const createMessage = `-- name: CreateMessage :one
-INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, consolidated_context, subtasks) 
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, deadline_date, deadline_inferred, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, consolidated_context, subtasks)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(user_email, source_ts) DO NOTHING
 RETURNING id
 `
@@ -67,6 +67,8 @@ type CreateMessageParams struct {
 	OriginalText        sql.NullString `json:"original_text"`
 	Category            sql.NullString `json:"category"`
 	Deadline            sql.NullString `json:"deadline"`
+	DeadlineDate        sql.NullTime   `json:"deadline_date"`
+	DeadlineInferred    sql.NullInt64  `json:"deadline_inferred"`
 	ThreadID            sql.NullString `json:"thread_id"`
 	AssigneeReason      sql.NullString `json:"assignee_reason"`
 	RepliedToID         sql.NullString `json:"replied_to_id"`
@@ -92,6 +94,8 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (i
 		arg.OriginalText,
 		arg.Category,
 		arg.Deadline,
+		arg.DeadlineDate,
+		arg.DeadlineInferred,
 		arg.ThreadID,
 		arg.AssigneeReason,
 		arg.RepliedToID,
@@ -666,7 +670,9 @@ SELECT id, COALESCE(user_email,'') as user_email, COALESCE(source,'') as source,
        COALESCE(requester_canonical,'') as requester_canonical,
        COALESCE(assignee_canonical,'') as assignee_canonical,
        COALESCE(requester_type,'none') as requester_type,
-       COALESCE(assignee_type,'none') as assignee_type
+       COALESCE(assignee_type,'none') as assignee_type,
+       deadline_date,
+       COALESCE(deadline_inferred,0) as deadline_inferred
 FROM v_messages
 WHERE user_email = ?
   AND source = 'gmail'
@@ -722,6 +728,8 @@ func (q *Queries) GetRecentIncompleteGmail(ctx context.Context, userEmail string
 			&i.AssigneeCanonical,
 			&i.RequesterType,
 			&i.AssigneeType,
+			&i.DeadlineDate,
+			&i.DeadlineInferred,
 		); err != nil {
 			return nil, err
 		}
@@ -1048,8 +1056,8 @@ func (q *Queries) RestoreMessages(ctx context.Context, arg RestoreMessagesParams
 }
 
 const saveMessagesBase = `-- name: SaveMessagesBase :many
-INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, consolidated_context, subtasks) 
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, deadline_date, deadline_inferred, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, consolidated_context, subtasks)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(user_email, source_ts) DO NOTHING
 RETURNING id, source_ts, user_email
 `
@@ -1067,6 +1075,8 @@ type SaveMessagesBaseParams struct {
 	OriginalText        sql.NullString `json:"original_text"`
 	Category            sql.NullString `json:"category"`
 	Deadline            sql.NullString `json:"deadline"`
+	DeadlineDate        sql.NullTime   `json:"deadline_date"`
+	DeadlineInferred    sql.NullInt64  `json:"deadline_inferred"`
 	ThreadID            sql.NullString `json:"thread_id"`
 	AssigneeReason      sql.NullString `json:"assignee_reason"`
 	RepliedToID         sql.NullString `json:"replied_to_id"`
@@ -1100,6 +1110,8 @@ func (q *Queries) SaveMessagesBase(ctx context.Context, arg SaveMessagesBasePara
 		arg.OriginalText,
 		arg.Category,
 		arg.Deadline,
+		arg.DeadlineDate,
+		arg.DeadlineInferred,
 		arg.ThreadID,
 		arg.AssigneeReason,
 		arg.RepliedToID,
@@ -1280,6 +1292,97 @@ func (q *Queries) SearchArchivedMessagesCount(ctx context.Context, arg SearchArc
 	return count, err
 }
 
+const selectCommitments = `-- name: SelectCommitments :many
+SELECT id, COALESCE(user_email,'') as user_email, COALESCE(task,'') as task,
+       COALESCE(requester,'') as requester, COALESCE(assignee,'') as assignee,
+       COALESCE(requester_canonical,'') as requester_canonical,
+       COALESCE(assignee_canonical,'') as assignee_canonical,
+       COALESCE(category,'') as category,
+       COALESCE(deadline,'') as deadline,
+       deadline_date,
+       COALESCE(deadline_inferred,0) as deadline_inferred,
+       COALESCE(metadata,'{}') as metadata,
+       COALESCE(room,'') as room, COALESCE(source,'') as source, COALESCE(link,'') as link,
+       created_at, updated_at
+FROM v_messages
+WHERE user_email = ?
+  AND done = 0
+  AND is_deleted = 0
+  AND category IN ('PROMISE','WAITING')
+  AND IFNULL(task,'') != ''
+  AND (assignee_canonical = ? OR requester_canonical = ?)
+ORDER BY created_at DESC
+`
+
+type SelectCommitmentsParams struct {
+	UserEmail          string `json:"user_email"`
+	AssigneeCanonical  string `json:"assignee_canonical"`
+	RequesterCanonical string `json:"requester_canonical"`
+}
+
+type SelectCommitmentsRow struct {
+	ID                 int64        `json:"id"`
+	UserEmail          string       `json:"user_email"`
+	Task               string       `json:"task"`
+	Requester          string       `json:"requester"`
+	Assignee           string       `json:"assignee"`
+	RequesterCanonical string       `json:"requester_canonical"`
+	AssigneeCanonical  string       `json:"assignee_canonical"`
+	Category           string       `json:"category"`
+	Deadline           string       `json:"deadline"`
+	DeadlineDate       sql.NullTime `json:"deadline_date"`
+	DeadlineInferred   int64        `json:"deadline_inferred"`
+	Metadata           string       `json:"metadata"`
+	Room               string       `json:"room"`
+	Source             string       `json:"source"`
+	Link               string       `json:"link"`
+	CreatedAt          sql.NullTime `json:"created_at"`
+	UpdatedAt          sql.NullTime `json:"updated_at"`
+}
+
+// Why: Feeds /api/commitments. Returns PROMISE/WAITING rows for the authed user.
+// View-type filtering (mine vs waiting) done in Go after the query.
+func (q *Queries) SelectCommitments(ctx context.Context, arg SelectCommitmentsParams) ([]SelectCommitmentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, selectCommitments, arg.UserEmail, arg.AssigneeCanonical, arg.RequesterCanonical)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SelectCommitmentsRow
+	for rows.Next() {
+		var i SelectCommitmentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserEmail,
+			&i.Task,
+			&i.Requester,
+			&i.Assignee,
+			&i.RequesterCanonical,
+			&i.AssigneeCanonical,
+			&i.Category,
+			&i.Deadline,
+			&i.DeadlineDate,
+			&i.DeadlineInferred,
+			&i.Metadata,
+			&i.Room,
+			&i.Source,
+			&i.Link,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectDueSoonMessages = `-- name: SelectDueSoonMessages :many
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(task, '') as task, COALESCE(deadline, '') as deadline, COALESCE(metadata, '') as metadata, COALESCE(room, '') as room, COALESCE(source, '') as source
 FROM messages
@@ -1322,6 +1425,161 @@ func (q *Queries) SelectDueSoonMessages(ctx context.Context, arg SelectDueSoonMe
 			&i.Metadata,
 			&i.Room,
 			&i.Source,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const selectStalledRequests = `-- name: SelectStalledRequests :many
+SELECT id, COALESCE(user_email,'') as user_email, COALESCE(task,'') as task,
+       COALESCE(requester,'') as requester, COALESCE(assignee,'') as assignee,
+       COALESCE(requester_canonical,'') as requester_canonical,
+       COALESCE(assignee_canonical,'') as assignee_canonical,
+       COALESCE(room,'') as room, COALESCE(source,'') as source, COALESCE(link,'') as link,
+       created_at, updated_at,
+       CAST(julianday('now') - julianday(
+           CASE WHEN updated_at IS NULL OR updated_at = '' OR updated_at = '1970-01-01T00:00:00Z'
+                THEN created_at ELSE updated_at END
+       ) AS INTEGER) as days_stalled
+FROM v_messages
+WHERE user_email = ?
+  AND category = 'TASK'
+  AND done = 0
+  AND is_deleted = 0
+  AND IFNULL(task,'') != ''
+  AND CASE WHEN updated_at IS NULL OR updated_at = '' OR updated_at = '1970-01-01T00:00:00Z'
+           THEN created_at ELSE updated_at END <= ?
+ORDER BY days_stalled DESC
+`
+
+type SelectStalledRequestsParams struct {
+	UserEmail string       `json:"user_email"`
+	UpdatedAt sql.NullTime `json:"updated_at"`
+}
+
+type SelectStalledRequestsRow struct {
+	ID                 int64        `json:"id"`
+	UserEmail          string       `json:"user_email"`
+	Task               string       `json:"task"`
+	Requester          string       `json:"requester"`
+	Assignee           string       `json:"assignee"`
+	RequesterCanonical string       `json:"requester_canonical"`
+	AssigneeCanonical  string       `json:"assignee_canonical"`
+	Room               string       `json:"room"`
+	Source             string       `json:"source"`
+	Link               string       `json:"link"`
+	CreatedAt          sql.NullTime `json:"created_at"`
+	UpdatedAt          sql.NullTime `json:"updated_at"`
+	DaysStalled        int64        `json:"days_stalled"`
+}
+
+// Why: Detects TASK rows with no recent update for stalled-request surfacing.
+// Caller passes cutoff as RFC3339 string (e.g. datetime('now','-3 days')).
+// updated_at '1970-01-01T00:00:00Z' sentinel is treated as no-update; falls back to created_at.
+func (q *Queries) SelectStalledRequests(ctx context.Context, arg SelectStalledRequestsParams) ([]SelectStalledRequestsRow, error) {
+	rows, err := q.db.QueryContext(ctx, selectStalledRequests, arg.UserEmail, arg.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SelectStalledRequestsRow
+	for rows.Next() {
+		var i SelectStalledRequestsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserEmail,
+			&i.Task,
+			&i.Requester,
+			&i.Assignee,
+			&i.RequesterCanonical,
+			&i.AssigneeCanonical,
+			&i.Room,
+			&i.Source,
+			&i.Link,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DaysStalled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const selectUndatedCommitments = `-- name: SelectUndatedCommitments :many
+SELECT id, COALESCE(user_email,'') as user_email, COALESCE(task,'') as task,
+       COALESCE(requester,'') as requester, COALESCE(assignee,'') as assignee,
+       COALESCE(requester_canonical,'') as requester_canonical,
+       COALESCE(assignee_canonical,'') as assignee_canonical,
+       COALESCE(category,'') as category, COALESCE(metadata,'{}') as metadata,
+       COALESCE(room,'') as room, COALESCE(source,'') as source, COALESCE(link,'') as link,
+       created_at
+FROM v_messages
+WHERE category IN ('PROMISE','WAITING')
+  AND (deadline_date IS NULL)
+  AND (deadline IS NULL OR deadline = '')
+  AND done = 0
+  AND is_deleted = 0
+  AND IFNULL(task,'') != ''
+ORDER BY user_email, created_at
+`
+
+type SelectUndatedCommitmentsRow struct {
+	ID                 int64        `json:"id"`
+	UserEmail          string       `json:"user_email"`
+	Task               string       `json:"task"`
+	Requester          string       `json:"requester"`
+	Assignee           string       `json:"assignee"`
+	RequesterCanonical string       `json:"requester_canonical"`
+	AssigneeCanonical  string       `json:"assignee_canonical"`
+	Category           string       `json:"category"`
+	Metadata           string       `json:"metadata"`
+	Room               string       `json:"room"`
+	Source             string       `json:"source"`
+	Link               string       `json:"link"`
+	CreatedAt          sql.NullTime `json:"created_at"`
+}
+
+// Why: Surfaces PROMISE/WAITING items with no deadline for aging nudge dispatch.
+func (q *Queries) SelectUndatedCommitments(ctx context.Context) ([]SelectUndatedCommitmentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, selectUndatedCommitments)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SelectUndatedCommitmentsRow
+	for rows.Next() {
+		var i SelectUndatedCommitmentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserEmail,
+			&i.Task,
+			&i.Requester,
+			&i.Assignee,
+			&i.RequesterCanonical,
+			&i.AssigneeCanonical,
+			&i.Category,
+			&i.Metadata,
+			&i.Room,
+			&i.Source,
+			&i.Link,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

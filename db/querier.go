@@ -165,7 +165,16 @@ type Querier interface {
 	SearchArchivedMessages(ctx context.Context, arg SearchArchivedMessagesParams) ([]SearchArchivedMessagesRow, error)
 	SearchArchivedMessagesCount(ctx context.Context, arg SearchArchivedMessagesCountParams) (int64, error)
 	SearchContacts(ctx context.Context, arg SearchContactsParams) ([]SearchContactsRow, error)
+	// Why: Feeds /api/commitments. Returns PROMISE/WAITING rows for the authed user.
+	// View-type filtering (mine vs waiting) done in Go after the query.
+	SelectCommitments(ctx context.Context, arg SelectCommitmentsParams) ([]SelectCommitmentsRow, error)
 	SelectDueSoonMessages(ctx context.Context, arg SelectDueSoonMessagesParams) ([]SelectDueSoonMessagesRow, error)
+	// Why: Detects TASK rows with no recent update for stalled-request surfacing.
+	// Caller passes cutoff as RFC3339 string (e.g. datetime('now','-3 days')).
+	// updated_at '1970-01-01T00:00:00Z' sentinel is treated as no-update; falls back to created_at.
+	SelectStalledRequests(ctx context.Context, arg SelectStalledRequestsParams) ([]SelectStalledRequestsRow, error)
+	// Why: Surfaces PROMISE/WAITING items with no deadline for aging nudge dispatch.
+	SelectUndatedCommitments(ctx context.Context) ([]SelectUndatedCommitmentsRow, error)
 	SetUserAdmin(ctx context.Context, arg SetUserAdminParams) error
 	UpdateCategoryMerged(ctx context.Context, arg UpdateCategoryMergedParams) error
 	UpdateContactDetails(ctx context.Context, arg UpdateContactDetailsParams) error

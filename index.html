@@ -197,6 +197,8 @@
                     <button type="button" class="tab-btn c-tabs__btn" data-tab="allTasksTab">
                         <span data-i18n="allTasks">전체</span>
                         <span class="c-badge c-badge--count" id="allCount">0</span></button>
+                    <button type="button" class="tab-btn c-tabs__btn" data-tab="commitmentsTab">
+                        <span data-i18n="commitmentsTab">약속</span></button>
                 </div>
 
 
@@ -220,6 +222,32 @@
                 </div>
                 <div id="allTasksTab" class="c-tabs__panel">
                     <div id="allTasksList" class="task-list"></div>
+                </div>
+                <div id="commitmentsTab" class="c-tabs__panel">
+                    <div class="c-commitments-view">
+                        <div class="c-commitments-view__toggle">
+                            <button type="button" class="c-tabs__btn active" id="cmtViewMine" data-i18n="commitmentsViewMine">내 약속</button>
+                            <button type="button" class="c-tabs__btn" id="cmtViewWaiting" data-i18n="commitmentsViewWaiting">기다리는 것</button>
+                        </div>
+                        <div id="commitmentsOverdue" class="c-commitments-view__section">
+                            <h3 class="c-commitments-view__heading c-commitments-view__heading--overdue" data-i18n="commitmentsOverdue">기한 초과</h3>
+                            <div id="commitmentsOverdueList"></div>
+                        </div>
+                        <div id="commitmentsUndated" class="c-commitments-view__section">
+                            <h3 class="c-commitments-view__heading c-commitments-view__heading--undated" data-i18n="commitmentsUndated">기한 없음</h3>
+                            <div id="commitmentsUndatedList"></div>
+                        </div>
+                        <div id="commitmentsActive" class="c-commitments-view__section">
+                            <h3 class="c-commitments-view__heading" data-i18n="commitmentsActive">진행 중</h3>
+                            <div id="commitmentsActiveList"></div>
+                        </div>
+                        <p id="commitmentsEmpty" class="c-commitments-view__empty hidden" data-i18n="commitmentsEmpty">약속 항목이 없습니다.</p>
+                        <div id="stalledSection" class="c-commitments-view__section hidden">
+                            <h3 class="c-commitments-view__heading">⏱ 진행 지연</h3>
+                            <div id="stalledMineList"></div>
+                            <div id="stalledObservedList"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
 

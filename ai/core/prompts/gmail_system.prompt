@@ -17,11 +17,10 @@ Output 1-object JSON array if possible:
 - `assignee`: `"__CURRENT_USER__"` for {{.CurrentUser}}. If the reply body explicitly designates a third party as the actor (e.g., "clarify with X", "X to review"), use that person's name — not the sender — even when the sender is {{.CurrentUser}}. **Cc-only guard:** if {{.CurrentUser}} appears only on the `C:` line (not `T:`), do NOT output `__CURRENT_USER__`; default to the first `T:` recipient (or sender's intended actor from body).
 - `category`: default 'TASK'
 - Language: English only for `task` and `subtasks.task`, regardless of input language.
-- `deadline`: The scheduled event date or action due date. Rules:
-  - Output format: `YYYY-MM-DD` (ISO 8601 date only). Empty string `""` if no date found.
-  - When multiple dates appear in a thread (e.g., past email headers, vs. actual meeting date), pick the **scheduled future event date** closest to CurrentTime, not past email timestamps.
-  - If the event date is in the past relative to CurrentTime, still record it (it may be today or recently passed).
-  - A "meeting on April 23" → `"2026-04-23"`. "4월 24일" → `"2026-04-24"`. "the 27th" with CurrentTime in April 2026 → `"2026-04-27"`.
+- `deadline`: ISO `YYYY-MM-DD` ONLY. Resolve all relative dates against CurrentTime. Output `""` when no date is stated — never output natural language. Rules:
+  - When multiple dates appear, pick the **scheduled future event date** closest to CurrentTime, not past email timestamps.
+  - If the event date is in the past relative to CurrentTime, still record it.
+  - "meeting on April 23" → `"2026-04-23"`. "4월 24일" → `"2026-04-24"`. "the 27th" with CurrentTime in April 2026 → `"2026-04-27"`. "next Friday" → compute and output ISO date.
 
 [Examples]
 Input: Meeting request for WhaTap automation on April 20th. Also, here is the script guide.

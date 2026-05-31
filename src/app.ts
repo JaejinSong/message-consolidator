@@ -1,4 +1,5 @@
 import '../static/style.css';
+import * as cmtLogic from './logic/commitments';
 import { state, updateLang, updateTheme, updateStats, updateMessages, setTaskSelection, clearTaskSelection, deleteTaskFromState, updateTaskStatusInState, updateSubtaskStateInState, getTaskById, upsertItem } from './state';
 import { renderUILanguage } from './renderers/i18n-renderer';
 import { I18N_DATA } from './locales';
@@ -655,8 +656,12 @@ const initApp = () => {
     initTheme();
     initLanguageSelector();
 
-    setupTabs('#dashboardContent .tab-btn', '#dashboardContent .c-tabs__panel', 'data-tab', 'active', async () => {
-        await fetchMessages(true);
+    setupTabs('#dashboardContent .tab-btn', '#dashboardContent .c-tabs__panel', 'data-tab', 'active', async (tabId?: string) => {
+        if (tabId === 'commitmentsTab') {
+            await loadCommitmentsTab('mine');
+        } else {
+            await fetchMessages(true);
+        }
     });
 
     document.getElementById('deadlineFilterBar')?.addEventListener('click', (e) => {
@@ -703,6 +708,17 @@ const initApp = () => {
     });
     setTimeout(() => (document.querySelector('[data-tab="receivedTasksTab"]') as HTMLElement)?.click(), 500);
 
+    document.getElementById('cmtViewMine')?.addEventListener('click', () => {
+        document.getElementById('cmtViewMine')?.classList.add('active');
+        document.getElementById('cmtViewWaiting')?.classList.remove('active');
+        void loadCommitmentsTab('mine');
+    });
+    document.getElementById('cmtViewWaiting')?.addEventListener('click', () => {
+        document.getElementById('cmtViewWaiting')?.classList.add('active');
+        document.getElementById('cmtViewMine')?.classList.remove('active');
+        void loadCommitmentsTab('waiting');
+    });
+
     initNavigation();
     initActionButtons();
     
@@ -723,5 +739,69 @@ const initApp = () => {
     initPolling();
     initVisibilityListener();
 };
+
+async function loadCommitmentsTab(view: 'mine' | 'waiting'): Promise<void> {
+    try {
+        const resp = await api.fetchCommitments(view);
+        renderCommitmentsView(resp);
+    } catch {
+        showToast('Failed to load commitments', 'error');
+    }
+}
+
+function renderCommitmentsView(resp: import('./types').CommitmentsResponse): void {
+    const { sortCommitments, formatDeadlineDisplay } = cmtLogic;
+    const sorted = sortCommitments(resp);
+    const total = sorted.overdue.length + sorted.undated.length + sorted.active.length;
+
+    const emptyEl = document.getElementById('commitmentsEmpty');
+    if (emptyEl) emptyEl.classList.toggle('hidden', total > 0);
+
+    const renderList = (listId: string, sectionId: string, items: import('./types').CommitmentItem[]) => {
+        const section = document.getElementById(sectionId);
+        if (section) section.classList.toggle('hidden', items.length === 0);
+        const el = document.getElementById(listId);
+        if (!el) return;
+        el.innerHTML = items.map(item => {
+            const dl = formatDeadlineDisplay(item);
+            const dlAttr = item.deadline_inferred ? ` title="${I18N_DATA[state.currentLang]?.deadlineInferred ?? 'AI-inferred date'}"` : '';
+            return `<div class="c-task-card c-task-card--commitment">
+                <span class="c-task-card__task">${item.task}</span>
+                ${dl ? `<span class="c-task-card__deadline"${dlAttr}>${dl}</span>` : ''}
+                <span class="c-task-card__meta">${item.source}/${item.room}</span>
+                <span class="c-task-card__days">D+${item.days_open}</span>
+            </div>`;
+        }).join('');
+    };
+
+    renderList('commitmentsOverdueList', 'commitmentsOverdue', sorted.overdue);
+    renderList('commitmentsUndatedList', 'commitmentsUndated', sorted.undated);
+    renderList('commitmentsActiveList', 'commitmentsActive', sorted.active);
+
+    const stalled = resp.stalled;
+    const stalledSection = document.getElementById('stalledSection');
+    const hasStalled = stalled && (stalled.mine.length > 0 || stalled.observed.length > 0);
+    if (stalledSection) stalledSection.classList.toggle('hidden', !hasStalled);
+
+    if (hasStalled) {
+        const mineEl = document.getElementById('stalledMineList');
+        if (mineEl) mineEl.innerHTML = stalled.mine.map(s =>
+            `<div class="c-task-card c-task-card--stalled c-task-card--stalled-mine">
+                <span class="c-task-card__badge">🔴</span>
+                <span class="c-task-card__task">${s.task}</span>
+                <span class="c-task-card__meta">${s.source}/${s.room}</span>
+                <span class="c-task-card__days">D+${s.days_stalled}</span>
+            </div>`).join('');
+
+        const obsEl = document.getElementById('stalledObservedList');
+        if (obsEl) obsEl.innerHTML = stalled.observed.map(s =>
+            `<div class="c-task-card c-task-card--stalled c-task-card--stalled-observed">
+                <span class="c-task-card__badge">👁</span>
+                <span class="c-task-card__assignee">${s.requester} → ${s.assignee}</span>
+                <span class="c-task-card__task">${s.task}</span>
+                <span class="c-task-card__days">D+${s.days_stalled}</span>
+            </div>`).join('');
+    }
+}
 
 document.addEventListener('DOMContentLoaded', initApp);

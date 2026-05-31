@@ -218,5 +218,15 @@ export const th: I18nEntry = {
         connSlackReadOnlyNotice: "Slack ได้รับการจัดการในระดับเวิร์กสเปซโดยผู้ดูแลระบบ",
         connNoMappingNotice: "การจับคู่อัตโนมัติยังไม่เสร็จสมบูรณ์",
         connEmptyValue: "—",
-        searchTasksPlaceholder: "ค้นหางาน..."
+        searchTasksPlaceholder: "ค้นหางาน...",
+        commitmentsTab: "ข้อผูกพัน",
+        commitmentsViewMine: "ข้อผูกพันของฉัน",
+        commitmentsViewWaiting: "รอจากผู้อื่น",
+        commitmentsOverdue: "เกินกำหนด",
+        commitmentsUndated: "ไม่มีกำหนด",
+        commitmentsActive: "กำลังดำเนินการ",
+        commitmentsMyPromise: "คำสัญญาของฉัน (ไม่มีกำหนด)",
+        commitmentsWaiting: "รอจากผู้อื่น (ไม่มีกำหนด)",
+        commitmentsEmpty: "ไม่พบข้อผูกพัน",
+        deadlineInferred: "วันที่ประมาณโดย AI"
 };

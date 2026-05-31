@@ -50,6 +50,8 @@ type ConsolidatedMessage struct {
 	CompletedAt          *time.Time      `json:"completed_at"`
 	Category             string          `json:"category"`
 	Deadline             string          `json:"deadline,omitempty"`
+	DeadlineDate         string          `json:"deadline_date,omitempty"`
+	DeadlineInferred     bool            `json:"deadline_inferred,omitempty"`
 	ThreadID             string          `json:"thread_id,omitempty"`
 	RequesterCanonical   string          `json:"requester_canonical,omitempty"`
 	AssigneeCanonical    string          `json:"assignee_canonical,omitempty"`
@@ -159,6 +161,8 @@ type TodoItem struct {
 	ThreadID           string          `json:"thread_id,omitempty"`
 	Category           string          `json:"category"`
 	Deadline           string          `json:"deadline"`
+	DeadlineDate       string          `json:"deadline_date,omitempty"`
+	DeadlineInferred   bool            `json:"deadline_inferred,omitempty"`
 	AssigneeReason     string          `json:"assignee_reason,omitempty"`
 	IsContextQuery     bool            `json:"is_context_query"`
 	Constraints        []string        `json:"constraints"`

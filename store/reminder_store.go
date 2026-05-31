@@ -44,6 +44,54 @@ func SelectDueSoon(ctx context.Context, windowStart, windowEnd string) ([]DueSoo
 	return out, nil
 }
 
+// UndatedCommitment is a PROMISE or WAITING row with no deadline, consumed by DispatchUndated.
+type UndatedCommitment struct {
+	ID                 MessageID
+	UserEmail          string
+	Task               string
+	Requester          string
+	Assignee           string
+	RequesterCanonical string
+	AssigneeCanonical  string
+	Category           string
+	Metadata           string
+	Room               string
+	Source             string
+	Link               string
+	CreatedAt          time.Time
+}
+
+// SelectUndated returns all open PROMISE/WAITING rows with no deadline across all users.
+func SelectUndated(ctx context.Context) ([]UndatedCommitment, error) {
+	rows, err := db.New(GetDB()).SelectUndatedCommitments(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("select undated commitments: %w", err)
+	}
+	out := make([]UndatedCommitment, 0, len(rows))
+	for _, r := range rows {
+		var t time.Time
+		if r.CreatedAt.Valid {
+			t = r.CreatedAt.Time
+		}
+		out = append(out, UndatedCommitment{
+			ID:                 MessageID(r.ID),
+			UserEmail:          r.UserEmail,
+			Task:               r.Task,
+			Requester:          r.Requester,
+			Assignee:           r.Assignee,
+			RequesterCanonical: r.RequesterCanonical,
+			AssigneeCanonical:  r.AssigneeCanonical,
+			Category:           r.Category,
+			Metadata:           r.Metadata,
+			Room:               r.Room,
+			Source:             r.Source,
+			Link:               r.Link,
+			CreatedAt:          t,
+		})
+	}
+	return out, nil
+}
+
 // HasReminded checks if metadata JSON has a non-empty key reminded_at_<window>.
 // window is "24h" or "1h".
 func HasReminded(metadata, window string) bool {

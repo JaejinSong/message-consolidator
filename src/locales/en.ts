@@ -304,5 +304,15 @@ export const en: I18nEntry = {
         connSlackReadOnlyNotice: "Slack is managed at the workspace level by your administrator.",
         connNoMappingNotice: "Automatic mapping has not completed yet.",
         connEmptyValue: "—",
-        searchTasksPlaceholder: "Search tasks..."
+        searchTasksPlaceholder: "Search tasks...",
+        commitmentsTab: "Commitments",
+        commitmentsViewMine: "My Commitments",
+        commitmentsViewWaiting: "Waiting On",
+        commitmentsOverdue: "Overdue",
+        commitmentsUndated: "No Deadline",
+        commitmentsActive: "Active",
+        commitmentsMyPromise: "My Promises (no deadline)",
+        commitmentsWaiting: "Waiting On (no deadline)",
+        commitmentsEmpty: "No commitments found.",
+        deadlineInferred: "AI-inferred date"
 };

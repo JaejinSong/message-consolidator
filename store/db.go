@@ -176,6 +176,14 @@ func runFullDDL(ctx context.Context, dbConn *sql.DB) error {
 		return fmt.Errorf("ai_inference_logs payload column drop failed: %w", err)
 	}
 
+	if err := addDeadlineColumns(ctx, tx); err != nil {
+		return fmt.Errorf("deadline columns migration failed: %w", err)
+	}
+
+	if err := suppressOldUndatedNudges(ctx, tx); err != nil {
+		return fmt.Errorf("suppress old undated nudges failed: %w", err)
+	}
+
 	// Why: Rebuild views AFTER tables and columns exist to ensure they reference current schema.
 	logger.Infof("[DB] init: rebuilding views")
 	if err := rebuildViews(ctx, tx); err != nil {

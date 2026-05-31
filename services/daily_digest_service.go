@@ -76,14 +76,25 @@ func (s *DailyDigestService) Dispatch(ctx context.Context) error {
 		return fmt.Errorf("daily: wait: %w", err)
 	}
 
-	blocks := formatDailyDMBlocks(start, end, completed.ReportSummary)
+	baseBlocks := formatDailyDMBlocks(start, end, completed.ReportSummary)
 	fallback := formatDailyDMText(start, end, completed.ReportSummary)
+
+	undated, err := store.SelectUndated(ctx)
+	if err != nil {
+		logger.Warnf("[DIGEST] load undated: %v", err)
+	}
+
 	for _, email := range s.Config.RecipientEmails {
 		slackID, err := s.ensureSlackIDFor(ctx, email)
 		if err != nil {
 			logger.Warnf("[DIGEST] slack id for %s: %v", email, err)
 			continue
 		}
+		stalledBuckets, _ := store.SelectStalled(ctx, email, 3)
+		blocks := append(baseBlocks,
+			buildUndatedBlocks(email, undated)...,
+		)
+		blocks = append(blocks, buildStalledBlocks(stalledBuckets)...)
 		if err := s.Slack.SendDMBlocks(ctx, slackID, blocks, fallback); err != nil {
 			logger.Warnf("[DIGEST] send dm to %s: %v", email, err)
 		}
@@ -399,4 +410,105 @@ func chunkByParagraph(text string, limit int) []string {
 		chunks = append(chunks, strings.TrimSpace(buf.String()))
 	}
 	return chunks
+}
+
+const stalledDigestMax = 5
+
+// buildStalledBlocks returns Slack blocks for stalled TASK items, capped at stalledDigestMax per bucket.
+func buildStalledBlocks(b store.StalledBuckets) []slack.Block {
+	if len(b.Mine) == 0 && len(b.Observed) == 0 {
+		return nil
+	}
+	var blocks []slack.Block
+	blocks = append(blocks, slack.NewDividerBlock())
+
+	if len(b.Mine) > 0 {
+		blocks = append(blocks, slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType, "*📌 진행 지연 요청 (내가 위임)*", false, false),
+			nil, nil,
+		))
+		cap := b.Mine
+		if len(cap) > stalledDigestMax {
+			cap = cap[:stalledDigestMax]
+		}
+		for _, s := range cap {
+			line := fmt.Sprintf("• %s  ←_%s_  D+%d  _%s/%s_", s.Task, s.Assignee, s.DaysStalled, s.Source, s.Room)
+			blocks = append(blocks, slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, line, false, false),
+				nil, nil,
+			))
+		}
+	}
+
+	if len(b.Observed) > 0 {
+		blocks = append(blocks, slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType, "*👁 진행 지연 요청 (관찰 중)*", false, false),
+			nil, nil,
+		))
+		cap := b.Observed
+		if len(cap) > stalledDigestMax {
+			cap = cap[:stalledDigestMax]
+		}
+		for _, s := range cap {
+			line := fmt.Sprintf("• _%s_ → _%s_: %s  D+%d  _%s/%s_", s.Requester, s.Assignee, s.Task, s.DaysStalled, s.Source, s.Room)
+			blocks = append(blocks, slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, line, false, false),
+				nil, nil,
+			))
+		}
+	}
+	return blocks
+}
+
+// buildUndatedBlocks returns Slack blocks for undated PROMISE/WAITING items owned by email.
+// Sections are omitted when the relevant bucket is empty.
+func buildUndatedBlocks(email string, rows []store.UndatedCommitment) []slack.Block {
+	var promises, waitings []store.UndatedCommitment
+	for _, r := range rows {
+		if r.UserEmail != email {
+			continue
+		}
+		switch r.Category {
+		case "PROMISE":
+			promises = append(promises, r)
+		case "WAITING":
+			waitings = append(waitings, r)
+		}
+	}
+	if len(promises) == 0 && len(waitings) == 0 {
+		return nil
+	}
+
+	var blocks []slack.Block
+	blocks = append(blocks, slack.NewDividerBlock())
+
+	if len(promises) > 0 {
+		blocks = append(blocks, slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType, "*⏳ 내 약속 (기한 없음)*", false, false),
+			nil, nil,
+		))
+		for _, r := range promises {
+			line := fmt.Sprintf("• %s  _%s/%s_", r.Task, r.Source, r.Room)
+			blocks = append(blocks, slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, line, false, false),
+				nil, nil,
+			))
+		}
+	}
+
+	if len(waitings) > 0 {
+		blocks = append(blocks, slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType, "*👀 기다리는 것 (기한 없음)*", false, false),
+			nil, nil,
+		))
+		for _, r := range waitings {
+			line := fmt.Sprintf("• %s  ←_%s_  _%s/%s_", r.Task, r.Requester, r.Source, r.Room)
+			blocks = append(blocks, slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, line, false, false),
+				nil, nil,
+			))
+		}
+	}
+
+	return blocks
 }

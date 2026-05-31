@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/slack-go/slack"
+	"message-consolidator/store"
 )
 
 func TestComputeDailyWindow(t *testing.T) {
@@ -244,3 +245,81 @@ func TestFormatDailyDMBlocks(t *testing.T) {
 		t.Errorf("header missing range dates: %q", hb.Text.Text)
 	}
 }
+
+func TestBuildUndatedBlocks_Empty(t *testing.T) {
+	t.Parallel()
+	blocks := buildUndatedBlocks("alice@test.com", nil)
+	if len(blocks) != 0 {
+		t.Errorf("expected no blocks for empty rows, got %d", len(blocks))
+	}
+}
+
+func TestBuildUndatedBlocks_OtherUserFiltered(t *testing.T) {
+	t.Parallel()
+	rows := []store.UndatedCommitment{
+		{UserEmail: "bob@test.com", Task: "Bob's task", Category: "PROMISE"},
+	}
+	blocks := buildUndatedBlocks("alice@test.com", rows)
+	if len(blocks) != 0 {
+		t.Errorf("expected no blocks for other user's rows, got %d", len(blocks))
+	}
+}
+
+func TestBuildUndatedBlocks_PromiseBucket(t *testing.T) {
+	t.Parallel()
+	rows := []store.UndatedCommitment{
+		{UserEmail: "alice@test.com", Task: "Send report", Category: "PROMISE", Source: "slack", Room: "general"},
+	}
+	blocks := buildUndatedBlocks("alice@test.com", rows)
+	// divider + header + task item
+	if len(blocks) < 3 {
+		t.Fatalf("expected ≥3 blocks, got %d", len(blocks))
+	}
+	var found bool
+	for _, b := range blocks {
+		if sb, ok := b.(*slack.SectionBlock); ok {
+			if strings.Contains(sb.Text.Text, "내 약속") {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("expected '내 약속' section header")
+	}
+}
+
+func TestBuildUndatedBlocks_WaitingBucket(t *testing.T) {
+	t.Parallel()
+	rows := []store.UndatedCommitment{
+		{UserEmail: "alice@test.com", Task: "Get design file", Category: "WAITING",
+			Requester: "carol", Source: "gmail", Room: "inbox"},
+	}
+	blocks := buildUndatedBlocks("alice@test.com", rows)
+	var found bool
+	for _, b := range blocks {
+		if sb, ok := b.(*slack.SectionBlock); ok {
+			if strings.Contains(sb.Text.Text, "기다리는 것") {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("expected '기다리는 것' section header")
+	}
+}
+
+func TestBuildUndatedBlocks_BothBuckets(t *testing.T) {
+	t.Parallel()
+	rows := []store.UndatedCommitment{
+		{UserEmail: "alice@test.com", Task: "Promise task", Category: "PROMISE", Source: "slack", Room: "a"},
+		{UserEmail: "alice@test.com", Task: "Waiting task", Category: "WAITING", Requester: "bob", Source: "slack", Room: "b"},
+	}
+	blocks := buildUndatedBlocks("alice@test.com", rows)
+	// divider + PROMISE header + task + WAITING header + task = 5
+	if len(blocks) < 5 {
+		t.Errorf("expected ≥5 blocks for both buckets, got %d", len(blocks))
+	}
+}
+
+// Suppress unused import for time (used in other tests above).
+var _ = time.Now
