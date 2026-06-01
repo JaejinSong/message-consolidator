@@ -7,7 +7,6 @@ import (
 
 	"message-consolidator/internal/whataphttpx"
 	"message-consolidator/logger"
-	"message-consolidator/types"
 
 	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
 )
@@ -25,15 +24,14 @@ type profileEntry struct {
 // LineManager manages a shared LINE Messaging API client and a sender-name cache.
 // Unlike Telegram/WhatsApp, LINE is a single-bot (no per-user connection) so no
 // per-email client map is needed.
+// LineManager manages a shared LINE Messaging API client and a sender-name cache.
+// Why: LINE webhook handler calls store.InsertLineInbox directly (push model),
+// so no OnMessage callback chain is needed unlike WhatsApp/Telegram session models.
 type LineManager struct {
 	mu         sync.RWMutex
 	bot        *messaging_api.MessagingApiAPI
 	profileMu  sync.RWMutex
 	profileMap map[string]profileEntry
-
-	// OnMessage is called by the webhook handler after parsing each TEXT message.
-	// Signature matches WADBLogger.Receive for pipeline consistency.
-	OnMessage func(email, chatID string, msg types.RawMessage)
 }
 
 // DefaultLineManager is the process-wide singleton used by the handler and scanner.

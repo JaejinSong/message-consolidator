@@ -53,6 +53,11 @@ func runLineForAllUsers(ctx context.Context, wg *sync.WaitGroup) {
 		})
 	}
 	_ = eg.Wait()
+
+	// Why: flush scan metadata after all chats processed, mirroring WhatsApp/Telegram pattern.
+	for _, b := range bundles {
+		store.PersistAllScanMetadata(ctx, b.user.Email)
+	}
 }
 
 // groupByChatID partitions unprocessed rows by chat_id so each chat is analyzed as a group.
@@ -72,14 +77,14 @@ func markAllProcessed(ctx context.Context, rows []db.LineInbox) {
 	}
 }
 
-// scanLineChat fan-outs a chat's messages across all users: classify → noise gate → Gemini → save.
+// scanLineChat fan-outs a chat's messages to all users: classify → per-user analyze.
 func scanLineChat(ctx context.Context, chatID string, rows []db.LineInbox, bundles []userBundle, wg *sync.WaitGroup) {
 	chatType := ""
 	if len(rows) > 0 {
 		chatType = rows[0].ChatType
 	}
 
-	// Build per-user candidate lists.
+	// Build per-user candidate lists (fan-out, same as Slack pattern).
 	candidates := make(map[string][]db.LineInbox)
 	for _, row := range rows {
 		for _, b := range bundles {
@@ -95,8 +100,30 @@ func scanLineChat(ctx context.Context, chatID string, rows []db.LineInbox, bundl
 		if b == nil {
 			continue
 		}
-		analyzeAndSaveLine(ctx, b.user, b.aliases, chatID, chatType, msgs, wg)
+		// Why: roomName derived here so analyze, tasks query, and save all use the same key.
+		roomName := resolveLINERoom(chatID, chatType, msgs)
+		analyzeAndSaveLine(ctx, b.user, b.aliases, chatID, chatType, roomName, msgs, wg)
 	}
+}
+
+// resolveLINERoom converts a raw chatID to the human-readable room name stored in messages.Room.
+// Must be called early and reused for GetActiveContextTasks, Analyze, ResolveProposals, and BuildTask
+// so all DB reads/writes key on the same value.
+func resolveLINERoom(chatID, chatType string, rows []db.LineInbox) string {
+	if chatType != "user" {
+		return chatID
+	}
+	// For 1:1 DMs, use "LINE DM: <senderName>" — resolve from first available row.
+	for _, r := range rows {
+		if r.SenderName != "" {
+			return "LINE DM: " + r.SenderName
+		}
+		if r.SenderID != "" {
+			name := channels.DefaultLineManager.ResolveSenderName(r.SenderID)
+			return "LINE DM: " + name
+		}
+	}
+	return "LINE DM: " + chatID
 }
 
 func findBundle(bundles []userBundle, email string) *userBundle {
@@ -108,19 +135,26 @@ func findBundle(bundles []userBundle, email string) *userBundle {
 	return nil
 }
 
-func analyzeAndSaveLine(ctx context.Context, user store.User, aliases []string, chatID, chatType string, rows []db.LineInbox, wg *sync.WaitGroup) {
+func analyzeAndSaveLine(ctx context.Context, user store.User, aliases []string, chatID, chatType, roomName string, rows []db.LineInbox, wg *sync.WaitGroup) {
 	if len(rows) == 0 || gClient == nil {
 		return
 	}
 
-	lockKey := roomLockSvc.GetRoomKey(user.Email, "line", chatID)
+	// Why: use roomName (not chatID) as lock key so DM tasks and group tasks key consistently
+	// with what is stored in messages.room.
+	lockKey := roomLockSvc.GetRoomKey(user.Email, "line", roomName)
 	lock := roomLockSvc.AcquireLock(lockKey)
 	lock.Lock()
 	defer lock.Unlock()
 
 	payload, rawMsgs := buildLinePayload(rows)
-	lastRow := rows[len(rows)-1]
 
+	// Why: noise filter runs before the expensive Gemini extraction call, same as channel_adapter.
+	if isIgnorableChannelNoise(ctx, user.Email, "line", payload, "[LINE]") {
+		return
+	}
+
+	lastRow := rows[len(rows)-1]
 	enriched := &types.EnrichedMessage{
 		RawContent:      payload,
 		SourceChannel:   "line",
@@ -134,14 +168,23 @@ func analyzeAndSaveLine(ctx context.Context, user store.User, aliases []string, 
 		enriched.ChatType = "1to1"
 	}
 
-	proposals, err := gClient.Analyze(ctx, user.Email, *enriched, "Korean", "line", chatID)
+	// Why: load tasks first and pass directly to AnalyzeWithContext so Gemini has active-task
+	// context and we avoid the double-query inside gClient.Analyze.
+	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, "line", roomName)
+	proposals, err := gClient.AnalyzeWithContext(ctx, user.Email, *enriched, "Korean", "line", roomName, tasks)
 	if err != nil {
 		logger.Errorf("[LINE] Gemini analyze error for %s: %v", user.Email, err)
 		return
 	}
 
-	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, "line", chatID)
-	items := tasksSvc.ResolveProposals(ctx, user.Email, chatID, proposals, tasks)
+	// Why: inject ThreadID from raw row into proposals so future reply-chain support works correctly.
+	for i := range proposals {
+		if raw, ok := rawMsgs[proposals[i].SourceTS]; ok {
+			proposals[i].ThreadID = raw.ReplyToID
+		}
+	}
+
+	items := tasksSvc.ResolveProposals(ctx, user.Email, roomName, proposals, tasks)
 
 	var newIDs []store.MessageID
 	for _, item := range items {
@@ -149,7 +192,7 @@ func analyzeAndSaveLine(ctx context.Context, user store.User, aliases []string, 
 		if !ok {
 			continue
 		}
-		msg := buildLineConsolidatedMsg(ctx, item, raw, user, aliases, chatID, chatType)
+		msg := buildLineConsolidatedMsg(ctx, item, raw, user, aliases, roomName)
 		id, err := services.HandleTaskState(ctx, nil, user.Email, item, msg)
 		if err == nil && id > 0 {
 			newIDs = append(newIDs, id)
@@ -158,6 +201,8 @@ func analyzeAndSaveLine(ctx context.Context, user store.User, aliases []string, 
 	triggerAsyncTranslation(ctx, user.Email, newIDs, wg)
 }
 
+// buildLinePayload formats rows as a Gemini-readable payload with [ID:...] tags so
+// Gemini can return a matching SourceTS per proposal.
 func buildLinePayload(rows []db.LineInbox) (string, map[string]db.LineInbox) {
 	var sb strings.Builder
 	rawMsgs := make(map[string]db.LineInbox)
@@ -170,46 +215,53 @@ func buildLinePayload(rows []db.LineInbox) (string, map[string]db.LineInbox) {
 		if sender == "" {
 			sender = "unknown"
 		}
-		sb.WriteString(fmt.Sprintf("[%s] %s: %s\n", time.Unix(r.Ts, 0).Format("15:04"), sender, r.Text))
+		sb.WriteString(fmt.Sprintf("[ID:%s][%s] %s: %s\n",
+			r.LineMessageID,
+			time.Unix(r.Ts, 0).Format("15:04"),
+			sender,
+			r.Text,
+		))
 	}
 	return sb.String(), rawMsgs
 }
 
-func buildLineConsolidatedMsg(ctx context.Context, item store.TodoItem, row db.LineInbox, user store.User, aliases []string, chatID, chatType string) store.ConsolidatedMessage {
+func buildLineConsolidatedMsg(ctx context.Context, item store.TodoItem, row db.LineInbox, user store.User, aliases []string, roomName string) store.ConsolidatedMessage {
 	sender := row.SenderName
 	if sender == "" {
 		sender = channels.DefaultLineManager.ResolveSenderName(row.SenderID)
 	}
-	roomName := chatID
-	if chatType == "user" {
-		roomName = "LINE DM: " + sender
-	}
 
 	return services.BuildTask(ctx, services.TaskBuildParams{
-		UserEmail:      user.Email,
-		User:           user,
-		Aliases:        aliases,
-		Item:           item,
-		SenderRaw:      sender,
-		Source:         store.SourceLine,
-		Room:           roomName,
-		ThreadID:       row.LineMessageID,
-		SourceTS:       row.LineMessageID,
-		Timestamp:      time.Unix(row.Ts, 0),
-		OriginalText:   row.Text,
-		SourceChannels: []string{"line"},
-		ExplicitMentions: parseMentionedNames(row.MentionedIds),
+		UserEmail:        user.Email,
+		User:             user,
+		Aliases:          aliases,
+		Item:             item,
+		SenderRaw:        sender,
+		Source:           store.SourceLine,
+		Room:             roomName,
+		ThreadID:         row.LineMessageID,
+		SourceTS:         row.LineMessageID,
+		RepliedToID:      row.ReplyToID,
+		Timestamp:        time.Unix(row.Ts, 0),
+		OriginalText:     row.Text,
+		SourceChannels:   []string{"line"},
+		ExplicitMentions: resolveLINEMentionNames(row.MentionedIds),
 	})
 }
 
-// parseMentionedNames extracts IDs from the JSON mentioned_ids array.
-// These are LINE user IDs, not display names, but serve as a fallback mention list.
-func parseMentionedNames(json string) []string {
+// resolveLINEMentionNames converts JSON-encoded LINE user IDs to display names.
+// Why: ExplicitMentions is used for assignee inference by display name; raw user IDs never match.
+func resolveLINEMentionNames(mentionedIdsJSON string) []string {
 	var ids []string
-	_ = unmarshalStringSlice(json, &ids)
-	return ids
-}
-
-func unmarshalStringSlice(s string, out *[]string) error {
-	return json.Unmarshal([]byte(s), out)
+	if err := json.Unmarshal([]byte(mentionedIdsJSON), &ids); err != nil || len(ids) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(ids))
+	for _, id := range ids {
+		name := channels.DefaultLineManager.ResolveSenderName(id)
+		if name != "" && name != id {
+			names = append(names, name)
+		}
+	}
+	return names
 }
