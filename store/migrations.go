@@ -247,7 +247,7 @@ func suppressOldUndatedNudges(ctx context.Context, q db.DBTX) error {
 	const suppressSQL = `
 UPDATE messages
 SET metadata = json_set(
-    COALESCE(metadata, '{}'),
+    COALESCE(NULLIF(metadata, ''), '{}'),
     '$.reminded_at_undated_d3',  'suppressed',
     '$.reminded_at_undated_d7',  'suppressed',
     '$.reminded_at_undated_d14', 'suppressed'
@@ -256,7 +256,7 @@ WHERE category IN ('PROMISE', 'WAITING')
   AND done = 0
   AND is_deleted = 0
   AND (deadline IS NULL OR deadline = '')
-  AND json_extract(COALESCE(metadata, '{}'), '$.reminded_at_undated_d3') IS NULL
+  AND json_extract(COALESCE(NULLIF(metadata, ''), '{}'), '$.reminded_at_undated_d3') IS NULL
   AND created_at < datetime('now', '-14 days')`
 	if _, err := q.ExecContext(ctx, suppressSQL); err != nil {
 		return fmt.Errorf("suppress old undated nudges: %w", err)
