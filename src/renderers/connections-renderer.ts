@@ -19,15 +19,17 @@ export interface ConnectionsState {
     whatsapp: { connected: boolean; deviceName?: string };
     telegram: { status: string; hasCredentials?: boolean; phoneMasked?: string; appIdMasked?: string };
     slack: { connected: boolean; slackId?: string };
+    line: { connected: boolean };
 }
 
-type ChannelKey = 'gmail' | 'whatsapp' | 'telegram' | 'slack';
+type ChannelKey = 'gmail' | 'whatsapp' | 'telegram' | 'slack' | 'line';
 
 const CARD_IDS: Record<ChannelKey, string> = {
     gmail: 'connCard-gmail',
     whatsapp: 'connCard-whatsapp',
     telegram: 'connCard-telegram',
     slack: 'connCard-slack',
+    line: 'connCard-line',
 };
 
 let cachedState: ConnectionsState | null = null;
@@ -38,7 +40,7 @@ export function setupConnectionsTab(): void {
     const root = document.getElementById('connectionsList');
     if (!root) return;
 
-    root.innerHTML = (['gmail', 'whatsapp', 'telegram', 'slack'] as ChannelKey[])
+    root.innerHTML = (['gmail', 'whatsapp', 'telegram', 'slack', 'line'] as ChannelKey[])
         .map(channel => buildCardSkeleton(channel))
         .join('');
 
@@ -63,6 +65,7 @@ export function renderConnections(snapshot: ConnectionsState): void {
     renderWhatsApp(snapshot.whatsapp, lang);
     renderTelegram(snapshot.telegram, lang);
     renderSlack(snapshot.slack, lang);
+    renderLINE(snapshot.line, lang);
 }
 
 /** Re-renders cards using the most recent snapshot — call after the UI language changes. */
@@ -91,6 +94,7 @@ function channelName(channel: ChannelKey): string {
         case 'whatsapp': return 'WhatsApp';
         case 'telegram': return 'Telegram';
         case 'slack': return 'Slack';
+        case 'line': return 'LINE';
     }
 }
 
@@ -105,6 +109,8 @@ function channelIcon(channel: ChannelKey): string {
             return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>';
         case 'slack':
             return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="15" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="15" width="6" height="6" rx="1.5"/><rect x="15" y="15" width="6" height="6" rx="1.5"/></svg>';
+        case 'line':
+            return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10c0-4.4-4.5-8-10-8S2 5.6 2 10c0 4 3.5 7.3 8.3 8l.7.1c.6.1 1 .5 1 1v1s0 .5.5.5.8-.3 1.9-1c2.4-1.7 5.6-4.1 5.6-9.1v0z"/></svg>';
     }
 }
 
@@ -235,6 +241,22 @@ function renderSlack(s: ConnectionsState['slack'], lang: string): void {
     } else {
         setMeta(card, []);
         setNotice(card, s.connected ? t('connNoMappingNotice', lang) : t('connSlackReadOnlyNotice', lang));
+    }
+    setActions(card, [], lang);
+}
+
+function renderLINE(s: ConnectionsState['line'], lang: string): void {
+    const card = document.getElementById(CARD_IDS.line);
+    if (!card) return;
+    setBadge(card, s.connected, lang);
+    setCardModifier(card, s.connected);
+
+    if (s.connected) {
+        setMeta(card, [{ key: t('connStatusLabel', lang), value: t('connStatusConnected', lang) }]);
+        setNotice(card, t('lineWebhookNotice', lang));
+    } else {
+        setMeta(card, []);
+        setNotice(card, t('lineSetupNotice', lang));
     }
     setActions(card, [], lang);
 }

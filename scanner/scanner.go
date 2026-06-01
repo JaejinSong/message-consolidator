@@ -72,6 +72,7 @@ func StartBackgroundScanner(ctx context.Context) {
 		{name: "whatsapp", traceName: "/Background-WhatsApp-Scan", runFn: runWhatsAppForAllUsers},
 		{name: "telegram", traceName: "/Background-Telegram-Scan", runFn: runTelegramForAllUsers},
 		{name: "slack", traceName: "/Background-Slack-Scan", runFn: runSlackForAllUsers},
+		{name: "line", traceName: "/Background-LINE-Scan", runFn: runLineForAllUsers},
 		{name: "archive-old-tasks", traceName: "/Background-Tasks-Archive", runFn: runArchiveOldTasks, pool: hourPrimePool},
 		{name: "flush-token-usage", traceName: "/Background-Infra-FlushTokenUsage", runFn: runFlushTokenUsage, pool: hourPrimePool},
 		{name: "log-db-stats", traceName: "/Background-Infra-LogDBStats", runFn: runLogDBStats, pool: hourPrimePool},

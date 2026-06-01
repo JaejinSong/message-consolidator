@@ -10,6 +10,7 @@ import {
     updateWhatsAppStatus,
     updateGmailStatus,
     updateTelegramStatus,
+    updateLINEStatus,
     initMessageGridEvents,
     showToast,
     updateWhatsAppQR,
@@ -253,6 +254,7 @@ const checkAllStatus = safeAsync(async (bypassVisibility: boolean = false) => {
         whatsapp: { connected: false },
         telegram: { status: 'disconnected' },
         slack: { connected: false },
+        line: { connected: false },
     };
     try {
         await Promise.allSettled([
@@ -282,7 +284,12 @@ const checkAllStatus = safeAsync(async (bypassVisibility: boolean = false) => {
                     phoneMasked: d.phone_masked,
                     appIdMasked: d.app_id_masked,
                 };
-            }).catch(() => updateTelegramStatus('disconnected'))
+            }).catch(() => updateTelegramStatus('disconnected')),
+            api.fetchLINEStatus().then(d => {
+                const connected = d?.status === 'connected';
+                updateLINEStatus(d?.status ?? 'disconnected');
+                snapshot.line = { connected };
+            }).catch(() => updateLINEStatus('disconnected'))
         ]);
         renderConnections(snapshot);
     } finally {

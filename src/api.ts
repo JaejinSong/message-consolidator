@@ -248,6 +248,10 @@ export const api = {
         return apiFetch('/telegram/status', { errorMessage: 'Telegram status check failed' });
     },
 
+    async fetchLINEStatus(): Promise<{ status: string }> {
+        return apiFetch('/line/status', { errorMessage: 'LINE status check failed' });
+    },
+
     async saveTelegramCredentials(appId: number, appHash: string): Promise<{ status: string }> {
         return apiFetch('/telegram/credentials', {
             method: 'POST',

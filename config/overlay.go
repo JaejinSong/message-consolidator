@@ -77,6 +77,8 @@ var overlaySetters = map[string]fieldSetter{
 	"NOTION_REPORT_PAGE_ID":        func(c *Config, r string) { c.NotionReportPageID = r },
 	"TELEGRAM_APP_ID":              func(c *Config, r string) { setIntIfValid(&c.TelegramAppID, r) },
 	"TELEGRAM_APP_HASH":            func(c *Config, r string) { c.TelegramAppHash = r },
+	"LINE_CHANNEL_SECRET":          func(c *Config, r string) { c.LineChannelSecret = r },
+	"LINE_CHANNEL_TOKEN":           func(c *Config, r string) { c.LineChannelToken = r },
 	"INTERNAL_SCAN_SECRET":         func(c *Config, r string) { c.InternalScanSecret = r },
 	"MESSAGE_BATCH_WINDOW":         func(c *Config, r string) { setDurationIfValid(&c.MessageBatchWindow, r) },
 	"DB_MAX_IDLE_CONNS":            func(c *Config, r string) { setIntIfValid(&c.DBMaxIdleConns, r) },

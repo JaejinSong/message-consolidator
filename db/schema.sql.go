@@ -139,6 +139,28 @@ func (q *Queries) CreateIdentityMergeHistoryTable(ctx context.Context) error {
 	return err
 }
 
+const createLineInboxTable = `-- name: CreateLineInboxTable :exec
+CREATE TABLE IF NOT EXISTS line_inbox (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    line_message_id TEXT    NOT NULL UNIQUE,
+    chat_type       TEXT    NOT NULL DEFAULT 'user',
+    chat_id         TEXT    NOT NULL DEFAULT '',
+    sender_id       TEXT    NOT NULL DEFAULT '',
+    sender_name     TEXT    NOT NULL DEFAULT '',
+    text            TEXT    NOT NULL DEFAULT '',
+    reply_to_id     TEXT    NOT NULL DEFAULT '',
+    mentioned_ids   TEXT    NOT NULL DEFAULT '[]',
+    ts              INTEGER NOT NULL DEFAULT 0,
+    processed       INTEGER NOT NULL DEFAULT 0,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+`
+
+func (q *Queries) CreateLineInboxTable(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, createLineInboxTable)
+	return err
+}
+
 const createMessageEmbeddingsTable = `-- name: CreateMessageEmbeddingsTable :exec
 CREATE TABLE IF NOT EXISTS message_embeddings (
     message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,

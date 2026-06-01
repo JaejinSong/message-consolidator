@@ -25,6 +25,7 @@ type Querier interface {
 	CreateGrant(ctx context.Context, arg CreateGrantParams) error
 	CreateIdentityMergeCandidatesTable(ctx context.Context) error
 	CreateIdentityMergeHistoryTable(ctx context.Context) error
+	CreateLineInboxTable(ctx context.Context) error
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (int64, error)
 	CreateMessageEmbeddingsTable(ctx context.Context) error
 	CreateMessagesTable(ctx context.Context) error
@@ -127,6 +128,7 @@ type Querier interface {
 	// Dashboard: per-step breakdown over a date range (inclusive start, exclusive end).
 	GetTokenUsageByStep(ctx context.Context, arg GetTokenUsageByStepParams) ([]GetTokenUsageByStepRow, error)
 	GetTotalCompleted(ctx context.Context, dollar_1 string) (int64, error)
+	GetUnprocessedLineMessages(ctx context.Context) ([]LineInbox, error)
 	GetUserAliases(ctx context.Context, userID int64) ([]string, error)
 	GetUserAliasesByEmail(ctx context.Context, email sql.NullString) ([]string, error)
 	GetUserByEmail(ctx context.Context, email sql.NullString) (User, error)
@@ -136,6 +138,7 @@ type Querier interface {
 	HardDeleteMessages(ctx context.Context, arg HardDeleteMessagesParams) error
 	HasAnyTaskInThread(ctx context.Context, arg HasAnyTaskInThreadParams) (int64, error)
 	InsertAIInferenceLog(ctx context.Context, arg InsertAIInferenceLogParams) error
+	InsertLineInbox(ctx context.Context, arg InsertLineInboxParams) error
 	InsertMergeHistory(ctx context.Context, arg InsertMergeHistoryParams) error
 	InsertReport(ctx context.Context, arg InsertReportParams) (int64, error)
 	InsertReportTranslation(ctx context.Context, arg InsertReportTranslationParams) error
@@ -155,6 +158,7 @@ type Querier interface {
 	LoadGmailTokensAll(ctx context.Context) ([]LoadGmailTokensAllRow, error)
 	LoadScanMetadataAll(ctx context.Context) ([]LoadScanMetadataAllRow, error)
 	LoadUsersAll(ctx context.Context) ([]LoadUsersAllRow, error)
+	MarkLineInboxProcessed(ctx context.Context, id int64) error
 	MarkSourceTSProcessed(ctx context.Context, arg MarkSourceTSProcessedParams) error
 	RefreshCacheActive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheActiveRow, error)
 	RefreshCacheArchive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheArchiveRow, error)

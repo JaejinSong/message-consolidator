@@ -13,6 +13,7 @@ export {
     updateWhatsAppStatus,
     updateGmailStatus,
     updateTelegramStatus,
+    updateLINEStatus,
     showWaModal,
     showGmailModal,
     showTelegramModal,

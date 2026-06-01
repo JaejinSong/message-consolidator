@@ -81,6 +81,10 @@ export function updateGmailStatus(connected: boolean, email: string | undefined)
  * `syncTelegramModalToStatus` (telegram-modal-renderer) — this function only owns the dashboard card
  * and the connected/disconnected toggle of the modal's final panel.
  */
+export function updateLINEStatus(status: string): void {
+    updateServiceStatusUI('line', status === 'connected');
+}
+
 export function updateTelegramStatus(status: string): void {
     const isConnected = status === TELEGRAM_STATUS.CONNECTED;
     updateServiceStatusUI('telegram', isConnected);

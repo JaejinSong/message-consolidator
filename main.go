@@ -223,6 +223,7 @@ func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.
 	waDBLogger.ChatNameResolver = channels.DefaultWAManager.GetGroupName
 	wireWhatsAppHooks(ctx, waDBLogger)
 	wireTelegramHooks(ctx)
+	channels.InitLINE(ctx, cfg.LineChannelToken)
 	bootChannelClients(ctx, cfg)
 
 	//Why: Initializes OAuth configurations for third-party integrations (Google/Gmail) and system-wide authentication.

@@ -61,6 +61,8 @@ var Registry = []SettingDef{
 	{Key: "NOTION_REPORT_PAGE_ID", Label: "Notion Report Parent Page ID", Category: "channels", Type: TypeString, RestartRequired: true},
 	{Key: "TELEGRAM_APP_ID", Label: "Telegram App ID", Category: "channels", Type: TypeInt, RestartRequired: true, Validate: intValidator},
 	{Key: "TELEGRAM_APP_HASH", Label: "Telegram App Hash", Category: "channels", Type: TypeString, Secret: true, RestartRequired: true},
+	{Key: "LINE_CHANNEL_SECRET", Label: "LINE Channel Secret", Category: "channels", Type: TypeString, Secret: true, RestartRequired: true},
+	{Key: "LINE_CHANNEL_TOKEN", Label: "LINE Channel Access Token", Category: "channels", Type: TypeString, Secret: true, RestartRequired: true},
 	{Key: "GMAIL_SKIP_SENDERS", Label: "Gmail Skip Senders (CSV)", Category: "channels", Type: TypeCSV},
 	{Key: "COMPANY_DOMAINS", Label: "Company Domains (CSV)", Category: "channels", Type: TypeCSV},
 

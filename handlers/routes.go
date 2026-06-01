@@ -27,8 +27,21 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 	a.registerReportRoutes(r)
 	a.registerGmailRoutes(r)
 	a.registerSlackBotRoutes(r)
+	a.registerLineRoutes(r)
 	a.registerWAQueryRoutes(r)
 	r.HandleFunc("/health", a.HandleHealth).Methods("GET")
+}
+
+// registerLineRoutes wires the LINE Messaging API webhook and status endpoints.
+// The webhook is public (LINE Platform POSTs without credentials); signature
+// verification is performed inside HandleLINEWebhook using the channel secret.
+// Skipped when the channel secret is unset.
+func (a *API) registerLineRoutes(r *mux.Router) {
+	if a.Config.LineChannelSecret == "" {
+		return
+	}
+	r.HandleFunc("/api/line/webhook", a.HandleLINEWebhook).Methods("POST")
+	r.Handle("/api/line/status", a.protected(a.HandleLINEStatus)).Methods("GET")
 }
 
 // registerSlackBotRoutes wires the Slack DM bot webhooks. Skipped when the signing secret

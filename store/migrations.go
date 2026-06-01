@@ -13,7 +13,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 10
+const schemaVersion = 11
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -61,6 +61,7 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 		{"message_embeddings", queries.CreateMessageEmbeddingsTable},
 		{"task_grants", queries.CreateTaskGrantsTable},
 		{"wa_messages", queries.CreateWAMessagesTable},
+		{"line_inbox", queries.CreateLineInboxTable},
 	} {
 		if err := step.fn(ctx); err != nil {
 			return fmt.Errorf("failed to create %s table: %w", step.name, err)

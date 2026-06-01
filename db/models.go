@@ -65,6 +65,21 @@ type IdentityMergeHistory struct {
 	MergedAt        sql.NullTime `json:"merged_at"`
 }
 
+type LineInbox struct {
+	ID            int64        `json:"id"`
+	LineMessageID string       `json:"line_message_id"`
+	ChatType      string       `json:"chat_type"`
+	ChatID        string       `json:"chat_id"`
+	SenderID      string       `json:"sender_id"`
+	SenderName    string       `json:"sender_name"`
+	Text          string       `json:"text"`
+	ReplyToID     string       `json:"reply_to_id"`
+	MentionedIds  string       `json:"mentioned_ids"`
+	Ts            int64        `json:"ts"`
+	Processed     int64        `json:"processed"`
+	CreatedAt     sql.NullTime `json:"created_at"`
+}
+
 type Message struct {
 	ID                  int64          `json:"id"`
 	UserEmail           sql.NullString `json:"user_email"`

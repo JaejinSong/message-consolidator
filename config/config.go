@@ -52,6 +52,8 @@ type Config struct {
 	WeeklyReportTestRecipient   string
 	StaleThresholdWorkingDays   int
 	ReportCutoffSize            int
+	LineChannelSecret           string
+	LineChannelToken            string
 }
 
 func LoadConfig() *Config {
@@ -98,6 +100,8 @@ func LoadConfig() *Config {
 		WeeklyReportTestRecipient:   os.Getenv("WEEKLY_REPORT_TEST_RECIPIENT"),
 		StaleThresholdWorkingDays:   envInt("STALE_THRESHOLD_WORKING_DAYS", 3),
 		ReportCutoffSize:            envInt("REPORT_CUTOFF_SIZE", 65000),
+		LineChannelSecret:           os.Getenv("LINE_CHANNEL_SECRET"),
+		LineChannelToken:            os.Getenv("LINE_CHANNEL_TOKEN"),
 	}
 }
 

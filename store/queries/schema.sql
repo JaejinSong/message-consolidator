@@ -310,6 +310,22 @@ CREATE TABLE IF NOT EXISTS task_grants (
     UNIQUE(grantor_user_id, grantee_user_id)
 );
 
+-- name: CreateLineInboxTable :exec
+CREATE TABLE IF NOT EXISTS line_inbox (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    line_message_id TEXT    NOT NULL UNIQUE,
+    chat_type       TEXT    NOT NULL DEFAULT 'user',
+    chat_id         TEXT    NOT NULL DEFAULT '',
+    sender_id       TEXT    NOT NULL DEFAULT '',
+    sender_name     TEXT    NOT NULL DEFAULT '',
+    text            TEXT    NOT NULL DEFAULT '',
+    reply_to_id     TEXT    NOT NULL DEFAULT '',
+    mentioned_ids   TEXT    NOT NULL DEFAULT '[]',
+    ts              INTEGER NOT NULL DEFAULT 0,
+    processed       INTEGER NOT NULL DEFAULT 0,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- name: CreateWAMessagesTable :exec
 CREATE TABLE IF NOT EXISTS wa_messages (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,

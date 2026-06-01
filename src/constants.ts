@@ -7,7 +7,8 @@ export const SERVICE_IDS = {
     SLACK: 'slack',
     WHATSAPP: 'wa',
     GMAIL: 'gmail',
-    TELEGRAM: 'telegram'
+    TELEGRAM: 'telegram',
+    LINE: 'line'
 } as const;
 
 export type ServiceId = typeof SERVICE_IDS[keyof typeof SERVICE_IDS];
@@ -51,6 +52,7 @@ export const POLLING_INTERVALS = {
     SLACK: 10000,
     GMAIL: 30000,
     TELEGRAM: 10000,
+    LINE: 30000,
     TOKEN_USAGE: 60000
 } as const;
 

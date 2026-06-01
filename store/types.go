@@ -136,6 +136,7 @@ const (
 	SourceWhatsApp = "whatsapp"
 	SourceGmail    = "gmail"
 	SourceTelegram = "telegram"
+	SourceLine     = "line"
 	SourceManual   = "manual"
 	SourceAll      = "all"
 )
