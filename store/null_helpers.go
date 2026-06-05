@@ -20,6 +20,28 @@ func parseNullDate(iso string) sql.NullTime {
 	return sql.NullTime{Time: t, Valid: true}
 }
 
+// nullTimeFromInterface converts the interface{} produced by sqlc STRFTIME
+// expressions back to sql.NullTime. SQLite returns []byte or string for text.
+func NullTimeFromInterface(v interface{}) sql.NullTime {
+	if v == nil {
+		return sql.NullTime{}
+	}
+	var s string
+	switch val := v.(type) {
+	case string:
+		s = val
+	case []byte:
+		s = string(val)
+	default:
+		return sql.NullTime{}
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return sql.NullTime{}
+	}
+	return sql.NullTime{Time: t, Valid: true}
+}
+
 func boolToNullInt64(b bool) sql.NullInt64 {
 	v := int64(0)
 	if b {

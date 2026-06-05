@@ -40,7 +40,7 @@ SELECT
     m.task,
     m.requester, m.assignee, m.assigned_at, m.link, m.source_ts, m.pinned, m.original_text, m.done, m.is_deleted, m.created_at, m.updated_at, m.completed_at, m.category, m.deadline, m.thread_id,
     m.assignee_reason, m.replied_to_id, m.is_context_query, m.constraints, m.metadata, m.source_channels, m.consolidated_context, m.subtasks, m.lifecycle, m.requester_canonical, m.assignee_canonical, m.requester_type, m.assignee_type,
-    m.deadline_date, COALESCE(m.deadline_inferred,0) as deadline_inferred
+    STRFTIME('%Y-%m-%dT00:00:00Z', m.deadline_date) AS deadline_date, COALESCE(m.deadline_inferred,0) as deadline_inferred
 FROM v_messages m
 WHERE m.user_email = ?
   AND m.updated_at >= datetime(?)
@@ -58,10 +58,48 @@ type GetMessagesForReportParams struct {
 	Done      interface{} `json:"done"`
 }
 
+type GetMessagesForReportRow struct {
+	ID                  int64        `json:"id"`
+	UserEmail           string       `json:"user_email"`
+	Source              string       `json:"source"`
+	Room                string       `json:"room"`
+	Task                string       `json:"task"`
+	Requester           string       `json:"requester"`
+	Assignee            string       `json:"assignee"`
+	AssignedAt          sql.NullTime `json:"assigned_at"`
+	Link                string       `json:"link"`
+	SourceTs            string       `json:"source_ts"`
+	Pinned              bool         `json:"pinned"`
+	OriginalText        string       `json:"original_text"`
+	Done                bool         `json:"done"`
+	IsDeleted           bool         `json:"is_deleted"`
+	CreatedAt           sql.NullTime `json:"created_at"`
+	UpdatedAt           sql.NullTime `json:"updated_at"`
+	CompletedAt         sql.NullTime `json:"completed_at"`
+	Category            string       `json:"category"`
+	Deadline            string       `json:"deadline"`
+	ThreadID            string       `json:"thread_id"`
+	AssigneeReason      string       `json:"assignee_reason"`
+	RepliedToID         string       `json:"replied_to_id"`
+	IsContextQuery      int64        `json:"is_context_query"`
+	Constraints         string       `json:"constraints"`
+	Metadata            string       `json:"metadata"`
+	SourceChannels      string       `json:"source_channels"`
+	ConsolidatedContext string       `json:"consolidated_context"`
+	Subtasks            string       `json:"subtasks"`
+	Lifecycle           string       `json:"lifecycle"`
+	RequesterCanonical  string       `json:"requester_canonical"`
+	AssigneeCanonical   string       `json:"assignee_canonical"`
+	RequesterType       string       `json:"requester_type"`
+	AssigneeType        string       `json:"assignee_type"`
+	DeadlineDate        interface{}  `json:"deadline_date"`
+	DeadlineInferred    int64        `json:"deadline_inferred"`
+}
+
 // Why: (done=0, is_deleted=1) is user-cancel; (done=1, is_deleted=1) is the 30-day
 // auto-sweep of completed tasks (still valid evidence). category=merged rows were
 // absorbed into another task; counting them inflates activity and edge weights.
-func (q *Queries) GetMessagesForReport(ctx context.Context, arg GetMessagesForReportParams) ([]VMessage, error) {
+func (q *Queries) GetMessagesForReport(ctx context.Context, arg GetMessagesForReportParams) ([]GetMessagesForReportRow, error) {
 	rows, err := q.db.QueryContext(ctx, getMessagesForReport,
 		arg.UserEmail,
 		arg.Datetime,
@@ -72,9 +110,9 @@ func (q *Queries) GetMessagesForReport(ctx context.Context, arg GetMessagesForRe
 		return nil, err
 	}
 	defer rows.Close()
-	var items []VMessage
+	var items []GetMessagesForReportRow
 	for rows.Next() {
-		var i VMessage
+		var i GetMessagesForReportRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserEmail,

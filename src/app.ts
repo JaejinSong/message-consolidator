@@ -759,7 +759,8 @@ async function loadCommitmentsTab(view: 'mine' | 'waiting'): Promise<void> {
 function renderCommitmentsView(resp: import('./types').CommitmentsResponse): void {
     const { sortCommitments, formatDeadlineDisplay } = cmtLogic;
     const sorted = sortCommitments(resp);
-    const total = sorted.overdue.length + sorted.undated.length + sorted.active.length;
+    const stalledTotal = (resp.stalled?.mine?.length ?? 0) + (resp.stalled?.observed?.length ?? 0);
+    const total = sorted.overdue.length + sorted.undated.length + sorted.active.length + stalledTotal;
 
     const emptyEl = document.getElementById('commitmentsEmpty');
     if (emptyEl) emptyEl.classList.toggle('hidden', total > 0);

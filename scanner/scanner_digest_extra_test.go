@@ -119,6 +119,72 @@ func TestRunDailyDigest_InvalidTimezone_NoDispatch(t *testing.T) {
 	}
 }
 
+func TestRunDailyDigest_RetryInWindow_Dispatches(t *testing.T) {
+	origNow := digestNowFn
+	t.Cleanup(func() { digestNowFn = origNow })
+
+	fake := &fakeErrDispatcher{err: errors.New("transient")}
+	setupDigestTest(&mockDigestDispatcher{}, true, 18)
+	digestSvc = fake
+
+	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 18, 5, 0) }
+	runDailyDigest(context.Background(), nil)
+	if fake.calls.Load() != 1 {
+		t.Fatalf("expected dispatch at 18:xx, got %d", fake.calls.Load())
+	}
+
+	// Simulate next tick one hour later (19:xx) — still within retry window, date not stored.
+	successMock := &mockDigestDispatcher{}
+	digestSvc = successMock
+	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 19, 7, 0) }
+	runDailyDigest(context.Background(), nil)
+	if successMock.Count() != 1 {
+		t.Errorf("expected retry dispatch at 19:xx, got %d", successMock.Count())
+	}
+}
+
+func TestRunDailyDigest_OutsideRetryWindow_NoDispatch(t *testing.T) {
+	origNow := digestNowFn
+	t.Cleanup(func() { digestNowFn = origNow })
+
+	fake := &fakeErrDispatcher{err: errors.New("transient")}
+	setupDigestTest(&mockDigestDispatcher{}, true, 18)
+	digestSvc = fake
+
+	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 18, 5, 0) }
+	runDailyDigest(context.Background(), nil)
+
+	noopMock := &mockDigestDispatcher{}
+	digestSvc = noopMock
+	// 20:xx is outside the [18, 20) window.
+	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 20, 3, 0) }
+	runDailyDigest(context.Background(), nil)
+	if noopMock.Count() != 0 {
+		t.Errorf("expected no dispatch at 20:xx (outside window), got %d", noopMock.Count())
+	}
+}
+
+func TestRunDailyDigest_AfterSuccessInWindow_NoRetry(t *testing.T) {
+	origNow := digestNowFn
+	t.Cleanup(func() { digestNowFn = origNow })
+
+	mock := &mockDigestDispatcher{}
+	setupDigestTest(mock, true, 18)
+
+	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 18, 5, 0) }
+	runDailyDigest(context.Background(), nil)
+	if mock.Count() != 1 {
+		t.Fatalf("expected 1 dispatch at 18:xx, got %d", mock.Count())
+	}
+
+	// 19:xx — still in window but already sent today.
+	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 19, 7, 0) }
+	runDailyDigest(context.Background(), nil)
+	if mock.Count() != 1 {
+		t.Errorf("expected no re-dispatch at 19:xx after success, got %d", mock.Count())
+	}
+}
+
 func TestRunDailyDigest_DispatchError_NoStoreDateUpdate(t *testing.T) {
 	origSvc := digestSvc
 	origCfg := cfg

@@ -98,7 +98,7 @@ type Querier interface {
 	// Why: (done=0, is_deleted=1) is user-cancel; (done=1, is_deleted=1) is the 30-day
 	// auto-sweep of completed tasks (still valid evidence). category=merged rows were
 	// absorbed into another task; counting them inflates activity and edge weights.
-	GetMessagesForReport(ctx context.Context, arg GetMessagesForReportParams) ([]VMessage, error)
+	GetMessagesForReport(ctx context.Context, arg GetMessagesForReportParams) ([]GetMessagesForReportRow, error)
 	GetMonthlyFilteredCount(ctx context.Context, arg GetMonthlyFilteredCountParams) (interface{}, error)
 	GetMonthlyTokenUsage(ctx context.Context, arg GetMonthlyTokenUsageParams) (GetMonthlyTokenUsageRow, error)
 	GetPendingMe(ctx context.Context, arg GetPendingMeParams) (int64, error)

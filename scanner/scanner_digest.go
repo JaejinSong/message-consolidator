@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const digestRetryWindowHours = 2 // Why: allows one retry tick (~60 min later) if the first dispatch fails.
+
 var (
 	digestSvc          digestDispatcher
 	digestLastSentDate atomic.Value // Why: KST YYYY-MM-DD dedup key blocks repeat sends within the same day.
@@ -42,7 +44,8 @@ func runDailyDigest(ctx context.Context, _ *sync.WaitGroup) {
 	if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
 		return
 	}
-	if now.Hour() != cfg.DailyDigestHour {
+	h := now.Hour()
+	if h < cfg.DailyDigestHour || h >= cfg.DailyDigestHour+digestRetryWindowHours {
 		return
 	}
 	today := now.Format("2006-01-02")
@@ -50,7 +53,7 @@ func runDailyDigest(ctx context.Context, _ *sync.WaitGroup) {
 		return
 	}
 	if err := digestSvc.Dispatch(ctx); err != nil {
-		logger.Warnf("[DIGEST] dispatch failed: %v", err)
+		logger.Warnf("[DIGEST] dispatch failed (will retry): %v", err)
 		return
 	}
 	digestLastSentDate.Store(today)

@@ -230,7 +230,7 @@ func GetMessagesForReport(ctx context.Context, email string, since time.Time, so
 	return msgs, nil
 }
 
-func toConsolidatedFromByMessages(row db.VMessage) ConsolidatedMessage {
+func toConsolidatedFromByMessages(row db.GetMessagesForReportRow) ConsolidatedMessage {
 	return MapVMessageToConsolidated(
 		MessageID(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
 		row.Requester, row.Assignee, row.Link, row.SourceTs,
@@ -241,6 +241,6 @@ func toConsolidatedFromByMessages(row db.VMessage) ConsolidatedMessage {
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
 		row.RequesterType, row.AssigneeType, row.Subtasks,
 		row.AssignedAt, row.CompletedAt, row.UpdatedAt,
-		row.DeadlineDate, row.DeadlineInferred,
+		NullTimeFromInterface(row.DeadlineDate), row.DeadlineInferred,
 	)
 }

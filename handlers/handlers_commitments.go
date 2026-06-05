@@ -122,19 +122,21 @@ func matchesView(view string, row db.SelectCommitmentsRow) bool {
 }
 
 func commitmentBucket(row db.SelectCommitmentsRow, today time.Time) string {
-	if !row.DeadlineDate.Valid {
+	dd := store.NullTimeFromInterface(row.DeadlineDate)
+	if !dd.Valid {
 		return "undated"
 	}
-	if row.DeadlineDate.Time.Before(today) {
+	if dd.Time.Before(today) {
 		return "overdue"
 	}
 	return "active"
 }
 
 func toCommitmentItem(row db.SelectCommitmentsRow, today time.Time) CommitmentItem {
+	dd := store.NullTimeFromInterface(row.DeadlineDate)
 	ddStr := ""
-	if row.DeadlineDate.Valid {
-		ddStr = row.DeadlineDate.Time.Format("2006-01-02")
+	if dd.Valid {
+		ddStr = dd.Time.Format("2006-01-02")
 	}
 	daysOpen := 0
 	if row.CreatedAt.Valid {

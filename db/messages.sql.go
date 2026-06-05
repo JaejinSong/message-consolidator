@@ -1299,7 +1299,7 @@ SELECT id, COALESCE(user_email,'') as user_email, COALESCE(task,'') as task,
        COALESCE(assignee_canonical,'') as assignee_canonical,
        COALESCE(category,'') as category,
        COALESCE(deadline,'') as deadline,
-       deadline_date,
+       STRFTIME('%Y-%m-%dT00:00:00Z', deadline_date) AS deadline_date,
        COALESCE(deadline_inferred,0) as deadline_inferred,
        COALESCE(metadata,'{}') as metadata,
        COALESCE(room,'') as room, COALESCE(source,'') as source, COALESCE(link,'') as link,
@@ -1330,7 +1330,7 @@ type SelectCommitmentsRow struct {
 	AssigneeCanonical  string       `json:"assignee_canonical"`
 	Category           string       `json:"category"`
 	Deadline           string       `json:"deadline"`
-	DeadlineDate       sql.NullTime `json:"deadline_date"`
+	DeadlineDate       interface{}  `json:"deadline_date"`
 	DeadlineInferred   int64        `json:"deadline_inferred"`
 	Metadata           string       `json:"metadata"`
 	Room               string       `json:"room"`
