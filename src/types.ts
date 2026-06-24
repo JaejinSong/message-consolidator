@@ -121,6 +121,18 @@ export interface AdminSettingUpdateResult {
     restart_required: boolean;
 }
 
+export interface ProviderCost {
+    provider: string;
+    prompt: number;
+    completion: number;
+    thinking: number;
+    cached: number;
+    cost: number;
+    costInput: number;
+    costOutput: number;
+    costThinking: number;
+}
+
 export interface TokenUsage {
     todayTotal: number;
     todayPrompt: number;
@@ -138,6 +150,7 @@ export interface TokenUsage {
     monthlyCostInput?: number;
     monthlyCostOutput?: number;
     monthlyCostThinking?: number;
+    monthlyByProvider?: ProviderCost[];
 }
 
 export interface TimeSeriesPoint {

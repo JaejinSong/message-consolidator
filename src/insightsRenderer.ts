@@ -32,10 +32,15 @@ export const insightsRenderer = {
         const {
             todayTotal = 0, todayPrompt = 0, todayCompletion = 0, todayThinking = 0,
             monthlyTotal = 0, monthlyPrompt = 0, monthlyCompletion = 0, monthlyThinking = 0,
-            monthlyCost = 0, model = 'Gemini 3 Flash'
+            monthlyCost = 0, model = 'Gemini 3 Flash', monthlyByProvider = []
         } = usage || {};
 
         const costStr = typeof monthlyCost === 'number' ? `$${monthlyCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00';
+        // Why: when history spans both providers, show the Gemini/DeepSeek split (each priced
+        // at its own rate) instead of the single active-provider label.
+        const costDetail = monthlyByProvider.length > 0
+            ? monthlyByProvider.map(p => `${p.provider} $${p.cost.toFixed(2)}`).join(' · ')
+            : model;
         const todayThinkPart = todayThinking > 0 ? ` / 생각 ${todayThinking.toLocaleString()}` : '';
         const monthlyThinkPart = monthlyThinking > 0 ? ` / 생각 ${monthlyThinking.toLocaleString()}` : '';
 
@@ -55,7 +60,7 @@ export const insightsRenderer = {
                 <div class="c-ai-usage__item">
                     <span class="c-ai-usage__value">${costStr}</span>
                     <span class="c-ai-usage__info">${i18n.estimatedCost || '추정 비용'}</span>
-                    <span class="c-ai-usage__detail">${model}</span>
+                    <span class="c-ai-usage__detail">${costDetail}</span>
                 </div>
             </div>
         `;

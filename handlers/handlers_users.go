@@ -78,25 +78,76 @@ func costByModel(models []store.ModelTokenUsage) (input, output, thinking float6
 	return input / TokenUnitDenominator, output / TokenUnitDenominator, thinking / TokenUnitDenominator
 }
 
+// providerOf groups a model id under its billing provider for the cost breakdown.
+func providerOf(model string) string {
+	if strings.HasPrefix(model, "deepseek") {
+		return "DeepSeek"
+	}
+	return "Gemini"
+}
+
+// providerCost is one row of the per-provider monthly cost breakdown, so the dashboard
+// can show Gemini vs DeepSeek separately even across a mixed-history month.
+type providerCost struct {
+	Provider     string  `json:"provider"`
+	Prompt       int     `json:"prompt"`
+	Completion   int     `json:"completion"`
+	Thinking     int     `json:"thinking"`
+	Cached       int     `json:"cached"`
+	Cost         float64 `json:"cost"`
+	CostInput    float64 `json:"costInput"`
+	CostOutput   float64 `json:"costOutput"`
+	CostThinking float64 `json:"costThinking"`
+}
+
+// costsByProvider groups per-model usage under its provider and prices each group with the
+// same per-model rates as costByModel. Fixed order (DeepSeek, Gemini); providers with no
+// usage are omitted so the UI only renders rows that have data.
+func costsByProvider(models []store.ModelTokenUsage) []providerCost {
+	groups := map[string][]store.ModelTokenUsage{}
+	for _, m := range models {
+		p := providerOf(m.Model)
+		groups[p] = append(groups[p], m)
+	}
+	out := make([]providerCost, 0, len(groups))
+	for _, p := range []string{"DeepSeek", "Gemini"} {
+		ms, ok := groups[p]
+		if !ok {
+			continue
+		}
+		in, outc, think := costByModel(ms)
+		pc := providerCost{Provider: p, CostInput: in, CostOutput: outc, CostThinking: think, Cost: in + outc + think}
+		for _, m := range ms {
+			pc.Prompt += m.Prompt
+			pc.Completion += m.Completion
+			pc.Thinking += m.Thinking
+			pc.Cached += m.Cached
+		}
+		out = append(out, pc)
+	}
+	return out
+}
+
 type tokenUsageResponse struct {
-	TodayPrompt       int     `json:"todayPrompt"`
-	TodayCompletion   int     `json:"todayCompletion"`
-	TodayThinking     int     `json:"todayThinking"`
-	TodayFiltered     int     `json:"todayFiltered"`
-	TodayTotal        int     `json:"todayTotal"`
-	TodayCost            float64 `json:"todayCost"`
-	MonthlyPrompt        int     `json:"monthlyPrompt"`
-	MonthlyCompletion    int     `json:"monthlyCompletion"`
-	MonthlyThinking      int     `json:"monthlyThinking"`
-	MonthlyFiltered      int     `json:"monthlyFiltered"`
-	MonthlyTotal         int     `json:"monthlyTotal"`
-	MonthlyCached        int     `json:"monthlyCached"`
-	MonthlyCacheHitRate  float64 `json:"monthlyCacheHitRate"` // cached / prompt input tokens (0..1)
-	MonthlyCost          float64 `json:"monthlyCost"`
-	MonthlyCostInput     float64 `json:"monthlyCostInput"`
-	MonthlyCostOutput    float64 `json:"monthlyCostOutput"`
-	MonthlyCostThinking  float64 `json:"monthlyCostThinking"`
-	Model                string  `json:"model"`
+	TodayPrompt         int            `json:"todayPrompt"`
+	TodayCompletion     int            `json:"todayCompletion"`
+	TodayThinking       int            `json:"todayThinking"`
+	TodayFiltered       int            `json:"todayFiltered"`
+	TodayTotal          int            `json:"todayTotal"`
+	TodayCost           float64        `json:"todayCost"`
+	MonthlyPrompt       int            `json:"monthlyPrompt"`
+	MonthlyCompletion   int            `json:"monthlyCompletion"`
+	MonthlyThinking     int            `json:"monthlyThinking"`
+	MonthlyFiltered     int            `json:"monthlyFiltered"`
+	MonthlyTotal        int            `json:"monthlyTotal"`
+	MonthlyCached       int            `json:"monthlyCached"`
+	MonthlyCacheHitRate float64        `json:"monthlyCacheHitRate"` // cached / prompt input tokens (0..1)
+	MonthlyCost         float64        `json:"monthlyCost"`
+	MonthlyCostInput    float64        `json:"monthlyCostInput"`
+	MonthlyCostOutput   float64        `json:"monthlyCostOutput"`
+	MonthlyCostThinking float64        `json:"monthlyCostThinking"`
+	MonthlyByProvider   []providerCost `json:"monthlyByProvider"`
+	Model               string         `json:"model"`
 }
 
 func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
@@ -274,23 +325,24 @@ func (a *API) gatherTokenUsageStats(ctx context.Context, email string) tokenUsag
 	}
 
 	return tokenUsageResponse{
-		TodayPrompt:       todayPrompt,
-		TodayCompletion:   todayCompletion,
-		TodayThinking:     todayThinking,
-		TodayFiltered:     todayFiltered,
-		TodayTotal:        todayPrompt + todayCompletion + todayThinking,
-		TodayCost:         dayCostIn + dayCostOut + dayCostThink,
-		MonthlyPrompt:     monthPrompt,
-		MonthlyCompletion: monthCompletion,
-		MonthlyThinking:   monthThinking,
-		MonthlyFiltered:   monthFiltered,
-		MonthlyTotal:      monthPrompt + monthCompletion + monthThinking,
+		TodayPrompt:         todayPrompt,
+		TodayCompletion:     todayCompletion,
+		TodayThinking:       todayThinking,
+		TodayFiltered:       todayFiltered,
+		TodayTotal:          todayPrompt + todayCompletion + todayThinking,
+		TodayCost:           dayCostIn + dayCostOut + dayCostThink,
+		MonthlyPrompt:       monthPrompt,
+		MonthlyCompletion:   monthCompletion,
+		MonthlyThinking:     monthThinking,
+		MonthlyFiltered:     monthFiltered,
+		MonthlyTotal:        monthPrompt + monthCompletion + monthThinking,
 		MonthlyCached:       monthCached,
 		MonthlyCacheHitRate: monthCacheHitRate,
 		MonthlyCost:         monthCostIn + monthCostOut + monthCostThink,
 		MonthlyCostInput:    monthCostIn,
 		MonthlyCostOutput:   monthCostOut,
 		MonthlyCostThinking: monthCostThink,
+		MonthlyByProvider:   costsByProvider(monthlyModels),
 		Model:               providerDisplayName(a.Config.AIProvider),
 	}
 }

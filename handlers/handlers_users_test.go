@@ -122,6 +122,101 @@ func TestGatherTokenUsageStats(t *testing.T) {
 	}
 }
 
+func TestCostsByProvider(t *testing.T) {
+	near := func(a, b float64) bool {
+		d := a - b
+		if d < 0 {
+			d = -d
+		}
+		return d < 1e-9
+	}
+	// 1M-token rows so cost == rate (cost = tokens / 1e6 * rate).
+	models := []store.ModelTokenUsage{
+		{Model: "deepseek-chat", Prompt: 1_000_000, Completion: 1_000_000},          // 0.14 in + 0.28 out
+		{Model: "deepseek-v4-pro", Completion: 1_000_000},                           // 0.87 out
+		{Model: "gemini-3-flash-preview", Prompt: 1_000_000, Completion: 1_000_000}, // 0.50 in + 3.00 out
+	}
+	got := costsByProvider(models)
+
+	if len(got) != 2 {
+		t.Fatalf("expected 2 providers, got %d: %+v", len(got), got)
+	}
+	if got[0].Provider != "DeepSeek" || got[1].Provider != "Gemini" {
+		t.Fatalf("expected fixed order [DeepSeek, Gemini], got [%s, %s]", got[0].Provider, got[1].Provider)
+	}
+
+	ds := got[0]
+	if ds.Prompt != 1_000_000 || ds.Completion != 2_000_000 {
+		t.Errorf("DeepSeek tokens: prompt=%d completion=%d, want 1000000/2000000", ds.Prompt, ds.Completion)
+	}
+	if wantDS := 0.14 + 0.28 + 0.87; !near(ds.Cost, wantDS) {
+		t.Errorf("DeepSeek cost = %f, want %f", ds.Cost, wantDS)
+	}
+
+	gm := got[1]
+	if wantGM := 0.50 + 3.00; !near(gm.Cost, wantGM) {
+		t.Errorf("Gemini cost = %f, want %f", gm.Cost, wantGM)
+	}
+}
+
+func TestCostsByProviderEmpty(t *testing.T) {
+	if got := costsByProvider(nil); len(got) != 0 {
+		t.Errorf("expected no rows for empty usage, got %+v", got)
+	}
+}
+
+// TestGatherTokenUsageStatsByProvider verifies the end-to-end path: a mixed
+// Gemini+DeepSeek month seeded in token_usage flows through GetMonthlyTokenUsageByModel
+// and costsByProvider into the response's MonthlyByProvider split, and the per-provider
+// costs sum to the aggregate MonthlyCost.
+func TestGatherTokenUsageStatsByProvider(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup DB: %v", err)
+	}
+	defer cleanup()
+
+	near := func(a, b float64) bool {
+		d := a - b
+		if d < 0 {
+			d = -d
+		}
+		return d < 1e-9
+	}
+
+	email := "byprovider@example.com"
+	if _, err := store.GetOrCreateUser(context.Background(), email, "", ""); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	// 1M-token rows so each cost component equals its rate.
+	if err := store.AddTokenUsage(email, "Analyze", "deepseek-chat", "slack", 0, 1_000_000, 1_000_000, 0, 0); err != nil {
+		t.Fatalf("seed deepseek: %v", err)
+	}
+	if err := store.AddTokenUsage(email, "Analyze", "gemini-3-flash-preview", "slack", 0, 1_000_000, 1_000_000, 0, 0); err != nil {
+		t.Fatalf("seed gemini: %v", err)
+	}
+
+	api := &API{Config: &config.Config{}}
+	got := api.gatherTokenUsageStats(context.Background(), email)
+
+	if len(got.MonthlyByProvider) != 2 {
+		t.Fatalf("expected 2 providers, got %d: %+v", len(got.MonthlyByProvider), got.MonthlyByProvider)
+	}
+	ds, gm := got.MonthlyByProvider[0], got.MonthlyByProvider[1]
+	if ds.Provider != "DeepSeek" || gm.Provider != "Gemini" {
+		t.Fatalf("expected order [DeepSeek, Gemini], got [%s, %s]", ds.Provider, gm.Provider)
+	}
+	if !near(ds.Cost, 0.14+0.28) {
+		t.Errorf("DeepSeek cost = %f, want %f", ds.Cost, 0.14+0.28)
+	}
+	if !near(gm.Cost, 0.50+3.00) {
+		t.Errorf("Gemini cost = %f, want %f", gm.Cost, 0.50+3.00)
+	}
+	if !near(got.MonthlyCost, ds.Cost+gm.Cost) {
+		t.Errorf("MonthlyCost %f != sum of per-provider %f", got.MonthlyCost, ds.Cost+gm.Cost)
+	}
+}
+
 func TestHandleGetTokenUsage(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
