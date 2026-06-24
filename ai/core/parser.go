@@ -10,11 +10,32 @@ import (
 // ErrInvalidFrontmatter는 프롬프트 메타데이터 형식이 잘못되었을 때 반환됩니다.
 var ErrInvalidFrontmatter = errors.New("invalid prompt format: must start with ---")
 
-// PromptMeta는 프롬프트의 버전 및 모델 라우팅 정보를 담습니다.
+// PromptMeta는 프롬프트의 버전 및 프로바이더별 모델/thinking 라우팅 정보를 담습니다.
+// Why: model/thinking은 프로바이더마다 달라서 프롬프트가 실행 방식을 자기기술하도록
+// per-provider로 명시한다. 미설정(빈 문자열)이면 호출부가 코드 modelSpec으로 폴백.
 type PromptMeta struct {
-	Name    string
-	Version string
-	Model   string
+	Name             string
+	Version          string
+	GeminiModel      string
+	GeminiThinking   string // "on" | "off" | "default" | "" (unset → code fallback)
+	DeepSeekModel    string
+	DeepSeekThinking string // "on" | "off" | "default" | ""
+}
+
+// ModelFor는 활성 프로바이더의 frontmatter 모델을 반환합니다(미설정 시 "").
+func (m PromptMeta) ModelFor(provider string) string {
+	if strings.EqualFold(provider, "deepseek") {
+		return m.DeepSeekModel
+	}
+	return m.GeminiModel
+}
+
+// ThinkingFor는 활성 프로바이더의 frontmatter thinking 토큰을 반환합니다(미설정 시 "").
+func (m PromptMeta) ThinkingFor(provider string) string {
+	if strings.EqualFold(provider, "deepseek") {
+		return m.DeepSeekThinking
+	}
+	return m.GeminiThinking
 }
 
 // ParsedPrompt는 런타임에 템플릿 엔진에 전달될 최종 객체입니다.
@@ -77,15 +98,20 @@ func parseMetadata(raw string) PromptMeta {
 	return meta
 }
 
-// assignField는 30라인 제약을 위해 분리된 헬퍼 함수로, 필드 값을 할당합니다.
+// assignField는 frontmatter 키를 PromptMeta 필드에 매핑합니다. key는 소문자로 정규화되어 전달됩니다.
 func assignField(key, val string, meta *PromptMeta) {
-	if key == "name" {
+	switch key {
+	case "name":
 		meta.Name = val
-	}
-	if key == "version" {
+	case "version":
 		meta.Version = val
-	}
-	if key == "model" {
-		meta.Model = val
+	case "geminimodel":
+		meta.GeminiModel = val
+	case "geminithinking":
+		meta.GeminiThinking = val
+	case "deepseekmodel":
+		meta.DeepSeekModel = val
+	case "deepseekthinking":
+		meta.DeepSeekThinking = val
 	}
 }

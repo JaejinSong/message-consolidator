@@ -11,7 +11,7 @@ import (
 type SourceAnalyzer interface {
 	GetSystemInstruction(data ExtractionContext) string
 	GetUserPrompt(data ExtractionContext) string
-	GetModelName(defaultModel string) string
+	SystemPrompt() PromptName // system prompt carrying this source's per-provider model/thinking frontmatter
 	PreProcess(text string) string
 }
 
@@ -28,12 +28,7 @@ func (g *GmailAnalyzer) GetUserPrompt(data ExtractionContext) string {
 	return res
 }
 
-func (g *GmailAnalyzer) GetModelName(defaultModel string) string {
-	if p := LoadPrompt(PromptGmailSystem); p.Meta.Model != "" {
-		return p.Meta.Model
-	}
-	return defaultModel
-}
+func (g *GmailAnalyzer) SystemPrompt() PromptName { return PromptGmailSystem }
 
 func (g *GmailAnalyzer) PreProcess(text string) string {
 	const maxChars = 15000 //Why: Limits Gmail input to 15,000 characters to stay within reasonable token limits while preserving sufficient thread context.
@@ -65,12 +60,7 @@ func (c *ChatAnalyzer) GetUserPrompt(data ExtractionContext) string {
 	return res
 }
 
-func (c *ChatAnalyzer) GetModelName(defaultModel string) string {
-	if p := LoadPrompt(PromptChatSystem); p.Meta.Model != "" {
-		return p.Meta.Model
-	}
-	return defaultModel
-}
+func (c *ChatAnalyzer) SystemPrompt() PromptName { return PromptChatSystem }
 
 func (c *ChatAnalyzer) PreProcess(text string) string {
 	const maxChars = 30000 //Why: Truncates chat history to the last 30,000 characters to ensure the most recent context is sent to Gemini without exceeding token limits.
@@ -94,12 +84,7 @@ func (n *NotionAnalyzer) GetUserPrompt(data ExtractionContext) string {
 	return res
 }
 
-func (n *NotionAnalyzer) GetModelName(defaultModel string) string {
-	if p := LoadPrompt(PromptNotionSystem); p.Meta.Model != "" {
-		return p.Meta.Model
-	}
-	return defaultModel
-}
+func (n *NotionAnalyzer) SystemPrompt() PromptName { return PromptNotionSystem }
 
 func (n *NotionAnalyzer) PreProcess(text string) string {
 	//Why: [TODO] Add logic to remove markdown or filter specific Notion blocks to refine task extraction context.

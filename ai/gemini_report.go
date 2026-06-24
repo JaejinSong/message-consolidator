@@ -38,7 +38,7 @@ func (g *AIClient) GenerateReportSummary(ctx context.Context, email string, task
 		System:      rendered,
 		Temperature: 0.1,
 		MaxTokens:   ReportMaxTokens,
-		Thinking:    g.report.thinking,
+		Thinking:    g.resolveThinking(parsed, g.report),
 	}
 
 	start := time.Now()
@@ -133,7 +133,7 @@ func (g *AIClient) EvaluateTaskTransition(ctx context.Context, email, parentTask
 		Temperature: 0.1,
 		MaxTokens:   1024,
 		JSONMode:    true,
-		Thinking:    g.transition.thinking,
+		Thinking:    g.resolveThinking(parsed, g.transition),
 	}
 	start := time.Now()
 	resp, err := g.transport.Generate(ctx, req, 30*time.Second, 2)
@@ -215,7 +215,7 @@ func (g *AIClient) GenerateMergedTaskTitle(ctx context.Context, email string, ta
 		System:      rendered,
 		Temperature: 0.1,
 		MaxTokens:   100,
-		Thinking:    g.merge.thinking,
+		Thinking:    g.resolveThinking(parsed, g.merge),
 	}
 
 	start := time.Now()

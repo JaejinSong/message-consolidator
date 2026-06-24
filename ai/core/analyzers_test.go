@@ -34,11 +34,10 @@ func TestAnalyzersPromptHooks(t *testing.T) {
 				t.Errorf("%s user prompt is empty", tc.name)
 			}
 		})
-		t.Run(tc.name+"_GetModelName_FallbackUsesDefault", func(t *testing.T) {
+		t.Run(tc.name+"_SystemPrompt", func(t *testing.T) {
 			t.Parallel()
-			got := tc.analyzer.GetModelName("default-model")
-			if got == "" {
-				t.Errorf("%s model name is empty", tc.name)
+			if got := tc.analyzer.SystemPrompt(); got == "" {
+				t.Errorf("%s system prompt name is empty", tc.name)
 			}
 		})
 	}

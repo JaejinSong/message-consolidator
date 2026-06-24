@@ -1,6 +1,10 @@
 ---
 name: task_translator
-version: 1.0.0
+version: 1.1.0
+geminiModel: gemini-3.1-flash-lite
+geminiThinking: default
+deepseekModel: deepseek-chat
+deepseekThinking: off
 ---
 [System Instruction]
 # Role: Professional Multilingual Translator

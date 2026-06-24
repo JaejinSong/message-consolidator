@@ -32,7 +32,7 @@ func (g *AIClient) Translate(ctx context.Context, email string, tasks []store.Tr
 		Temperature: 0.0,
 		MaxTokens:   4096,
 		JSONMode:    true,
-		Thinking:    g.translate.thinking,
+		Thinking:    g.resolveThinking(parsed, g.translate),
 	}
 	start := time.Now()
 	resp, err := g.transport.Generate(ctx, req, 30*time.Second, 2)
@@ -64,7 +64,7 @@ func (g *AIClient) TranslateReport(ctx context.Context, email string, reportInEn
 		User:        reportInEnglish,
 		Temperature: 0.2,
 		MaxTokens:   ReportMaxTokens,
-		Thinking:    g.translate.thinking,
+		Thinking:    g.resolveThinking(parsed, g.translate),
 	}
 
 	logger.Debugf("[AI] Translating Markdown report for %s to %s...", email, targetLanguage)
@@ -98,7 +98,7 @@ func (g *AIClient) TranslateTaskMessage(ctx context.Context, email string, text 
 		System:      sysInst,
 		User:        text,
 		Temperature: 0.1,
-		Thinking:    g.translate.thinking,
+		Thinking:    g.resolveThinking(parsed, g.translate),
 	}
 
 	logger.Debugf("[AI] Translating Task for %s to %s...", email, targetLanguage)
@@ -140,7 +140,7 @@ func (g *AIClient) TranslateTasksBatch(ctx context.Context, email string, tasks 
 		Temperature: 0.1,
 		MaxTokens:   DefaultMaxTokens,
 		JSONMode:    true,
-		Thinking:    g.translate.thinking,
+		Thinking:    g.resolveThinking(parsed, g.translate),
 	}
 	resp, err := g.transport.Generate(ctx, req, 45*time.Second, 3)
 	if err != nil {

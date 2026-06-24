@@ -1,7 +1,6 @@
 ---
 name: gmail_user
-version: 1.2.0
-model: gemini-3-flash-preview
+version: 1.3.0
 ---
 {{if .FewShots}}[Examples]
 {{range .FewShots}}Input: {{.Input}}

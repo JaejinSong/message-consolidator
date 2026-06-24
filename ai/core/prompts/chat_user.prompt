@@ -1,7 +1,6 @@
 ---
 name: chat_user
-version: 1.1.0
-model: gemini-3-flash-preview
+version: 1.2.0
 ---
 [Context]
 User Locale: {{.Locale}}

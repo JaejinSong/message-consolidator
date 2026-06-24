@@ -182,7 +182,7 @@ func TestChatSystemSelfDMReportedSpeechRule(t *testing.T) {
 	body := string(content)
 	required := []string{
 		"Self-DM reported-speech exception",
-		"version: 1.10.0",
+		"version: 1.11.0",
 	}
 	for _, token := range required {
 		if !strings.Contains(body, token) {

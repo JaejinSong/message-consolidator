@@ -1,7 +1,6 @@
 ---
 name: release_notes_combined
-version: 2.1.0
-model: gemini-3-flash-preview
+version: 2.2.0
 ---
 [System Instruction]
 You are an expert release note writer for "Message Consolidator".

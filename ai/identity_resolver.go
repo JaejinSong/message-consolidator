@@ -74,7 +74,7 @@ func (r *IdentityResolver) proposeChunk(ctx context.Context, email string, conta
 		Model:       modelName,
 		User:        rendered,
 		Temperature: 0.1,
-		Thinking:    r.client.identity.thinking,
+		Thinking:    r.client.resolveThinking(parsed, r.client.identity),
 	}
 	start := time.Now()
 	resp, err := r.client.transport.Generate(ctx, req, 300*time.Second, 2)

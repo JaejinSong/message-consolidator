@@ -1,7 +1,6 @@
 ---
 name: new_extraction
-version: 2.1.0
-model: gemini-3-flash-preview
+version: 2.2.0
 ---
 [System Instruction]
 Extract a task from the message in 5W1H form. Emit exactly one JSON object.

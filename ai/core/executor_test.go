@@ -9,7 +9,7 @@ func TestExecutePromptRendering(t *testing.T) {
 	t.Parallel()
 	// 1. 테스트용 파싱된 프롬프트 설정 (Frontmatter 기파싱 상태 가정)
 	prompt := &ParsedPrompt{
-		Meta: PromptMeta{Name: "test", Version: "1.0", Model: "gemini-pro"},
+		Meta: PromptMeta{Name: "test", Version: "1.0", GeminiModel: "gemini-pro"},
 		Body: "Hello {{.MessagePayload}} in {{.Locale}}!",
 	}
 

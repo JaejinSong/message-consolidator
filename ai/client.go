@@ -187,24 +187,41 @@ func orDefault(v, def string) string {
 	return v
 }
 
-// resolveModel returns the effective model id for a stage. Gemini honors per-prompt
-// frontmatter `model:` routing; DeepSeek ignores it (those ids are Gemini-specific)
-// and uses the provider-resolved spec.
+// resolveModel returns the effective model id for a stage: the prompt's per-provider
+// frontmatter model (geminiModel/deepseekModel) if declared, else the code modelSpec
+// (which carries env overrides + hardcoded defaults as a fallback).
 func (g *AIClient) resolveModel(p *core.ParsedPrompt, spec modelSpec) string {
-	if g.provider == providerGemini && p != nil && p.Meta.Model != "" {
-		return p.Meta.Model
+	if p != nil {
+		if m := p.Meta.ModelFor(g.provider); m != "" {
+			return m
+		}
 	}
 	return spec.model
 }
 
-func (g *AIClient) resolveAnalyzeModel(analyzer core.SourceAnalyzer) string {
-	if g.provider == providerDeepSeek {
-		return g.analyze.model
+// resolveThinking returns the effective thinking mode for a stage: the prompt's
+// per-provider frontmatter thinking (geminiThinking/deepseekThinking) if declared,
+// else the code modelSpec default.
+func (g *AIClient) resolveThinking(p *core.ParsedPrompt, spec modelSpec) ThinkingMode {
+	if p != nil {
+		if t := p.Meta.ThinkingFor(g.provider); t != "" {
+			return parseThinkingMode(t, spec.thinking)
+		}
 	}
-	if analyzer != nil {
-		return analyzer.GetModelName(g.analyze.model)
+	return spec.thinking
+}
+
+func parseThinkingMode(s string, fallback ThinkingMode) ThinkingMode {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "on":
+		return ThinkOn
+	case "off":
+		return ThinkOff
+	case "default":
+		return ThinkDefault
+	default:
+		return fallback
 	}
-	return g.analyze.model
 }
 
 func (g *AIClient) Analyze(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string) ([]store.TodoItem, error) {
@@ -219,7 +236,11 @@ func (g *AIClient) AnalyzeWithContext(ctx context.Context, email string, msg typ
 
 	data := g.prepareAnalysisData(ctx, email, msg, language, source, room, tasks)
 	analyzer := core.GetAnalyzer(source)
-	modelName := g.resolveAnalyzeModel(analyzer)
+	var sysPrompt *core.ParsedPrompt
+	if analyzer != nil {
+		sysPrompt = core.LoadPrompt(analyzer.SystemPrompt())
+	}
+	modelName := g.resolveModel(sysPrompt, g.analyze)
 	req := LLMRequest{
 		Model:       modelName,
 		System:      g.getAnalyzeSysInst(analyzer, data),
@@ -227,7 +248,7 @@ func (g *AIClient) AnalyzeWithContext(ctx context.Context, email string, msg typ
 		Temperature: 0.0,
 		MaxTokens:   DefaultMaxTokens,
 		JSONMode:    true,
-		Thinking:    g.analyze.thinking,
+		Thinking:    g.resolveThinking(sysPrompt, g.analyze),
 	}
 
 	start := time.Now()
@@ -380,7 +401,7 @@ func (g *AIClient) parseAnalyzeResults(raw string, currentUserID store.UserID, u
 // CallGenericAPI runs a one-shot generation against the given model and records token usage
 // under the caller-provided (step, source) bucket. Used by lightweight pipelines (e.g. the
 // lite noise filter) that don't go through the Analyze/Translate helpers.
-func (g *AIClient) CallGenericAPI(ctx context.Context, email, step, source, modelName, system, prompt string) (string, error) {
+func (g *AIClient) CallGenericAPI(ctx context.Context, email, step, source, modelName, system, prompt string, thinking ThinkingMode) (string, error) {
 	if g == nil || g.transport == nil {
 		return "", fmt.Errorf("AI client is not initialized")
 	}
@@ -390,7 +411,7 @@ func (g *AIClient) CallGenericAPI(ctx context.Context, email, step, source, mode
 		System:      system,
 		User:        prompt,
 		Temperature: 0.1,
-		Thinking:    g.filter.thinking,
+		Thinking:    thinking,
 	}
 
 	start := time.Now()

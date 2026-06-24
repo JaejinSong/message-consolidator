@@ -1,7 +1,10 @@
 ---
 name: chat_system
-version: 1.10.0
-model: gemini-3-flash-preview
+version: 1.11.0
+geminiModel: gemini-3-flash-preview
+geminiThinking: on
+deepseekModel: deepseek-chat
+deepseekThinking: off
 ---
 [System Instruction]
 Extract tasks from chat messages.

@@ -77,14 +77,16 @@ func TestParsePrompt(t *testing.T) {
 			content: `---
 Name: test-prompt
 Version: v1.0
-Model: gemini-3-flash
+geminiModel: gemini-3-flash
+deepseekModel: deepseek-chat
 ---
 Hello, World!`,
 			wantErr: nil,
 			wantMeta: PromptMeta{
-				Name:    "test-prompt",
-				Version: "v1.0",
-				Model:   "gemini-3-flash",
+				Name:          "test-prompt",
+				Version:       "v1.0",
+				GeminiModel:   "gemini-3-flash",
+				DeepSeekModel: "deepseek-chat",
 			},
 			wantBody: "Hello, World!",
 		},

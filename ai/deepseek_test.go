@@ -152,19 +152,31 @@ func TestNewAIClientDeepSeekStages(t *testing.T) {
 
 func TestResolveModelProviderRouting(t *testing.T) {
 	t.Parallel()
-	p := &core.ParsedPrompt{Meta: core.PromptMeta{Model: "gemini-3-flash-preview"}}
+	p := &core.ParsedPrompt{Meta: core.PromptMeta{
+		GeminiModel: "gemini-3-flash-preview", GeminiThinking: "off",
+		DeepSeekModel: deepSeekProModel, DeepSeekThinking: "on",
+	}}
 
-	gem := &AIClient{provider: providerGemini, report: modelSpec{model: "gemini-default", thinking: ThinkOff}}
+	gem := &AIClient{provider: providerGemini, report: modelSpec{model: "gemini-default", thinking: ThinkDefault}}
 	if got := gem.resolveModel(p, gem.report); got != "gemini-3-flash-preview" {
-		t.Errorf("Gemini must honor prompt-meta model, got %q", got)
+		t.Errorf("Gemini must use geminiModel, got %q", got)
+	}
+	if got := gem.resolveThinking(p, gem.report); got != ThinkOff {
+		t.Errorf("Gemini must use geminiThinking=off, got %v", got)
 	}
 	if got := gem.resolveModel(nil, gem.report); got != "gemini-default" {
-		t.Errorf("Gemini must fall back to spec model, got %q", got)
+		t.Errorf("nil prompt must fall back to spec model, got %q", got)
 	}
 
-	ds := &AIClient{provider: providerDeepSeek, report: modelSpec{model: deepSeekProModel, thinking: ThinkOn}}
+	ds := &AIClient{provider: providerDeepSeek, report: modelSpec{model: "ds-default", thinking: ThinkOff}}
 	if got := ds.resolveModel(p, ds.report); got != deepSeekProModel {
-		t.Errorf("DeepSeek must ignore Gemini prompt-meta model, got %q", got)
+		t.Errorf("DeepSeek must use deepseekModel, got %q", got)
+	}
+	if got := ds.resolveThinking(p, ds.report); got != ThinkOn {
+		t.Errorf("DeepSeek must use deepseekThinking=on, got %v", got)
+	}
+	if got := ds.resolveModel(&core.ParsedPrompt{}, ds.report); got != "ds-default" {
+		t.Errorf("omitted deepseekModel must fall back to spec, got %q", got)
 	}
 }
 

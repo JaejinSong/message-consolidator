@@ -41,7 +41,8 @@ func (f *GeminiLiteFilter) IsNoise(ctx context.Context, email, source, text stri
 	}
 
 	modelName := f.client.resolveModel(systemPrompt, f.client.filter)
-	result, err := f.client.CallGenericAPI(ctx, email, "LiteFilter", source, modelName, system, user)
+	thinking := f.client.resolveThinking(systemPrompt, f.client.filter)
+	result, err := f.client.CallGenericAPI(ctx, email, "LiteFilter", source, modelName, system, user, thinking)
 	if err != nil {
 		return false, fmt.Errorf("filter execution error: %w", err)
 	}

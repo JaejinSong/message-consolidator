@@ -1,6 +1,10 @@
 ---
 name: completion_check
-version: 2.4.0
+version: 2.5.0
+geminiModel: gemini-3-flash-preview
+geminiThinking: default
+deepseekModel: deepseek-reasoner
+deepseekThinking: on
 ---
 [System Instruction]
 Classify how a reply message affects an existing task. Apply rules in order — stop at first match.
