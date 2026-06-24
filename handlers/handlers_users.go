@@ -11,17 +11,65 @@ import (
 	"strings"
 )
 
-const (
-	// RatePromptGemini3Flash is the cost per 1M input tokens for Gemini 3 Flash.
-	RatePromptGemini3Flash = 0.50
-	// RateCompletionGemini3Flash is the cost per 1M output tokens for Gemini 3 Flash.
-	RateCompletionGemini3Flash = 3.00
-	// RateThinkingGemini3Flash is the cost per 1M thinking tokens for Gemini 3 Flash.
-	// Why: Google bills thinking tokens at the output rate for Gemini 3 Flash.
-	RateThinkingGemini3Flash = 3.00
-	// TokenUnitDenominator is the divisor to convert to million tokens.
-	TokenUnitDenominator = 1000000.0
-)
+// TokenUnitDenominator converts raw token counts to per-million pricing.
+const TokenUnitDenominator = 1000000.0
+
+// ModelRate is the per-1M-token price for a model. CachedInputPerM is the discounted
+// rate for prompt-cache hits (DeepSeek); not yet applied — cached-token accounting is a
+// tracked follow-up, so input is currently priced entirely at the cache-miss rate.
+type ModelRate struct {
+	InputPerM       float64
+	CachedInputPerM float64
+	OutputPerM      float64
+	ThinkingPerM    float64
+}
+
+// aiRates prices each model at its own published rate so model-mixed history (Gemini +
+// DeepSeek rows) is billed correctly. Keys are mutually non-prefixing; unknown/legacy ids
+// fall back to the Gemini 3 Flash rate (conservative upper bound) via rateFor.
+var aiRates = map[string]ModelRate{
+	"deepseek-chat":          {InputPerM: 0.14, CachedInputPerM: 0.0028, OutputPerM: 0.28, ThinkingPerM: 0.28},
+	"deepseek-reasoner":      {InputPerM: 0.14, CachedInputPerM: 0.0028, OutputPerM: 0.28, ThinkingPerM: 0.28},
+	"deepseek-v4-flash":      {InputPerM: 0.14, CachedInputPerM: 0.0028, OutputPerM: 0.28, ThinkingPerM: 0.28},
+	"deepseek-v4-pro":        {InputPerM: 0.435, CachedInputPerM: 0.003625, OutputPerM: 0.87, ThinkingPerM: 0.87},
+	"gemini-3-flash-preview": {InputPerM: 0.50, OutputPerM: 3.00, ThinkingPerM: 3.00},
+}
+
+// rateFor resolves a model id to its rate: exact match, then prefix match (versioned ids),
+// then a conservative Gemini-3-Flash fallback. gemini-3.1-flash-lite intentionally uses the
+// fallback pending authoritative lite pricing (the prior dashboard also priced it at Flash).
+func rateFor(model string) ModelRate {
+	if r, ok := aiRates[model]; ok {
+		return r
+	}
+	for prefix, r := range aiRates {
+		if strings.HasPrefix(model, prefix) {
+			return r
+		}
+	}
+	return aiRates["gemini-3-flash-preview"]
+}
+
+// providerDisplayName labels the cost dashboard by the active provider. The displayed
+// label is approximate when history spans both providers; per-model rows drive the cost.
+func providerDisplayName(provider string) string {
+	if strings.EqualFold(provider, "deepseek") {
+		return "DeepSeek"
+	}
+	return "Gemini 3 Flash"
+}
+
+// costByModel prices each model's tokens at its own rate and returns the input/output/thinking
+// USD components summed across models (already divided by the per-million denominator).
+func costByModel(models []store.ModelTokenUsage) (input, output, thinking float64) {
+	for _, m := range models {
+		r := rateFor(m.Model)
+		input += float64(m.Prompt) * r.InputPerM
+		output += float64(m.Completion) * r.OutputPerM
+		thinking += float64(m.Thinking) * r.ThinkingPerM
+	}
+	return input / TokenUnitDenominator, output / TokenUnitDenominator, thinking / TokenUnitDenominator
+}
 
 type tokenUsageResponse struct {
 	TodayPrompt       int     `json:"todayPrompt"`
@@ -192,15 +240,18 @@ func (a *API) HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, tokenUsage)
 }
 
-// Why: Includes daily and monthly AI token usage data in the user info response to provide transparency on service costs and resource consumption.
-// This refactoring centralizes all arithmetic logic in the backend, using Gemini 3 Flash pricing.
+// Why: Includes daily and monthly AI token usage in the user info response for cost transparency.
+// Token counts come from the aggregate daily/monthly queries; cost is priced per-model (aiRates)
+// so a Gemini→DeepSeek mixed history is billed at each row's own rate.
 func (a *API) gatherTokenUsageStats(ctx context.Context, email string) tokenUsageResponse {
 	todayPrompt, todayCompletion, todayThinking, todayFiltered, _ := store.GetDailyTokenUsage(ctx, email)
 	monthPrompt, monthCompletion, monthThinking, monthFiltered, _ := store.GetMonthlyTokenUsage(ctx, email)
 
-	calculateCost := func(p, c, t int) float64 {
-		return (float64(p)*RatePromptGemini3Flash + float64(c)*RateCompletionGemini3Flash + float64(t)*RateThinkingGemini3Flash) / TokenUnitDenominator
-	}
+	dailyModels, _ := store.GetDailyTokenUsageByModel(ctx, email)
+	monthlyModels, _ := store.GetMonthlyTokenUsageByModel(ctx, email)
+
+	dayCostIn, dayCostOut, dayCostThink := costByModel(dailyModels)
+	monthCostIn, monthCostOut, monthCostThink := costByModel(monthlyModels)
 
 	return tokenUsageResponse{
 		TodayPrompt:       todayPrompt,
@@ -208,17 +259,17 @@ func (a *API) gatherTokenUsageStats(ctx context.Context, email string) tokenUsag
 		TodayThinking:     todayThinking,
 		TodayFiltered:     todayFiltered,
 		TodayTotal:        todayPrompt + todayCompletion + todayThinking,
-		TodayCost:         calculateCost(todayPrompt, todayCompletion, todayThinking),
+		TodayCost:         dayCostIn + dayCostOut + dayCostThink,
 		MonthlyPrompt:     monthPrompt,
 		MonthlyCompletion: monthCompletion,
 		MonthlyThinking:   monthThinking,
 		MonthlyFiltered:   monthFiltered,
 		MonthlyTotal:      monthPrompt + monthCompletion + monthThinking,
-		MonthlyCost:         calculateCost(monthPrompt, monthCompletion, monthThinking),
-		MonthlyCostInput:    float64(monthPrompt) * RatePromptGemini3Flash / TokenUnitDenominator,
-		MonthlyCostOutput:   float64(monthCompletion) * RateCompletionGemini3Flash / TokenUnitDenominator,
-		MonthlyCostThinking: float64(monthThinking) * RateThinkingGemini3Flash / TokenUnitDenominator,
-		Model:               "Gemini 3 Flash",
+		MonthlyCost:         monthCostIn + monthCostOut + monthCostThink,
+		MonthlyCostInput:    monthCostIn,
+		MonthlyCostOutput:   monthCostOut,
+		MonthlyCostThinking: monthCostThink,
+		Model:               providerDisplayName(a.Config.AIProvider),
 	}
 }
 

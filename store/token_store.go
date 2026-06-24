@@ -359,6 +359,93 @@ func GetMonthlyTokenUsage(ctx context.Context, email string) (int, int, int, int
 	return prompt, completion, thinking, filteredCount, nil
 }
 
+// ModelTokenUsage is per-model token totals over a time window, used by the cost
+// dashboard to price each model at its own rate. Why: provider migration mixes Gemini
+// and DeepSeek rows in token_usage; a single blended rate would mis-bill the mix.
+type ModelTokenUsage struct {
+	Model      string
+	Prompt     int
+	Completion int
+	Thinking   int
+}
+
+// GetDailyTokenUsageByModel returns today's token usage grouped by model, merged with
+// un-flushed in-memory buckets (current period only).
+func GetDailyTokenUsageByModel(ctx context.Context, email string) ([]ModelTokenUsage, error) {
+	today := time.Now().Format("2006-01-02")
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	return tokenUsageByModel(ctx, email, today, tomorrow)
+}
+
+// GetMonthlyTokenUsageByModel returns the current month's token usage grouped by model,
+// merged with un-flushed in-memory buckets (current period only).
+func GetMonthlyTokenUsageByModel(ctx context.Context, email string) ([]ModelTokenUsage, error) {
+	now := time.Now()
+	firstDay := now.Format("2006-01") + "-01"
+	firstOfThisMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	nextMonthFirstDay := firstOfThisMonth.AddDate(0, 1, 0).Format("2006-01-02")
+	return tokenUsageByModel(ctx, email, firstDay, nextMonthFirstDay)
+}
+
+// tokenUsageByModel aggregates GROUP BY model over [startDate, endDate) and folds in the
+// pending in-memory buckets so the dashboard reflects un-flushed usage.
+func tokenUsageByModel(ctx context.Context, email, startDate, endDate string) ([]ModelTokenUsage, error) {
+	conn := GetDB()
+	queries := db.New(conn)
+	start, _ := time.Parse("2006-01-02", startDate)
+	end, _ := time.Parse("2006-01-02", endDate)
+	rows, err := queries.GetTokenUsageByModel(ctx, db.GetTokenUsageByModelParams{
+		UserEmail: email,
+		Date:      start,
+		Date_2:    end,
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+
+	byModel := make(map[string]*ModelTokenUsage)
+	for _, r := range rows {
+		m := modelEntry(byModel, r.Model)
+		m.Prompt += coalesceInt(r.PromptTokens)
+		m.Completion += coalesceInt(r.CompletionTokens)
+		m.Thinking += coalesceInt(r.ThinkingTokens)
+	}
+	mergeInMemoryByModel(email, byModel)
+
+	out := make([]ModelTokenUsage, 0, len(byModel))
+	for _, m := range byModel {
+		out = append(out, *m)
+	}
+	return out, nil
+}
+
+func modelEntry(byModel map[string]*ModelTokenUsage, model string) *ModelTokenUsage {
+	if m, ok := byModel[model]; ok {
+		return m
+	}
+	m := &ModelTokenUsage{Model: model}
+	byModel[model] = m
+	return m
+}
+
+func mergeInMemoryByModel(email string, byModel map[string]*ModelTokenUsage) {
+	tokenMu.Lock()
+	defer tokenMu.Unlock()
+	add := func(buf map[tokenBucket]*tokenData) {
+		for key, data := range buf {
+			if key.Email != email {
+				continue
+			}
+			m := modelEntry(byModel, key.Model)
+			m.Prompt += data.Prompt
+			m.Completion += data.Completion
+			m.Thinking += data.Thinking
+		}
+	}
+	add(tokenDirtyData)
+	add(tokenFlushingData)
+}
+
 // ReportTokenCost is the per-report aggregate of prompt/completion/thinking tokens and call count
 // across all report-bound steps (ReportSummary, ReportVizData, TranslateReport, ...).
 type ReportTokenCost struct {

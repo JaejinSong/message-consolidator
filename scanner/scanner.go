@@ -44,10 +44,22 @@ var (
 func Init(c *config.Config) {
 	cfg = c
 	roomLockSvc = services.NewRoomLockService()
-	if cfg.GeminiAPIKey != "" {
-		gc, err := ai.NewGeminiClient(context.Background(), cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+	pc := ai.ProviderConfig{
+		Provider:                 cfg.AIProvider,
+		GeminiAPIKey:             cfg.GeminiAPIKey,
+		GeminiAnalysisModel:      cfg.GeminiAnalysisModel,
+		GeminiTranslationModel:   cfg.GeminiTranslationModel,
+		DeepSeekAPIKey:           cfg.DeepSeekAPIKey,
+		DeepSeekBaseURL:          cfg.DeepSeekBaseURL,
+		DeepSeekFilterModel:      cfg.DeepSeekFilterModel,
+		DeepSeekAnalysisModel:    cfg.DeepSeekAnalysisModel,
+		DeepSeekTranslationModel: cfg.DeepSeekTranslationModel,
+		DeepSeekReportModel:      cfg.DeepSeekReportModel,
+	}
+	if pc.Enabled() {
+		gc, err := ai.NewAIClient(context.Background(), pc)
 		if err != nil {
-			logger.Errorf("[SCAN] failed to init GeminiClient: %v", err)
+			logger.Errorf("[SCAN] failed to init AI client (%s): %v", cfg.AIProvider, err)
 			return
 		}
 		gClient = gc

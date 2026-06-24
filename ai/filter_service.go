@@ -8,19 +8,19 @@ import (
 	"strings"
 )
 
-// GeminiLiteFilter handles high-speed noise filtering using Gemini 3.1 Flash Lite.
+// GeminiLiteFilter handles high-speed noise filtering using the configured filter model.
 // This service offloads simple noise (greetings, system alerts) from the main extraction pipeline.
 type GeminiLiteFilter struct {
-	client *GeminiClient
+	client *AIClient
 }
 
-func NewGeminiLiteFilter(client *GeminiClient) *GeminiLiteFilter {
+func NewGeminiLiteFilter(client *AIClient) *GeminiLiteFilter {
 	return &GeminiLiteFilter{client: client}
 }
 
 // IsNoise determines if a message is irrelevant/noise and should be skipped for extraction.
 // Returns true if the message is noise, false if it contains actionable context.
-// Why: [Performance] Filter logic is non-blocking and uses a cheaper model (Flash Lite) to save costs.
+// Why: [Performance] Filter logic is non-blocking and uses a cheaper model to save costs.
 // `source` (slack|whatsapp|telegram|gmail|...) attributes the token cost to the right bucket.
 func (f *GeminiLiteFilter) IsNoise(ctx context.Context, email, source, text string) (bool, error) {
 	prompt := core.LoadPrompt(core.PromptLiteFilter)
@@ -34,8 +34,8 @@ func (f *GeminiLiteFilter) IsNoise(ctx context.Context, email, source, text stri
 		return false, fmt.Errorf("filter prompt render error: %w", err)
 	}
 
-	// Use binary filter model (Flash Lite)
-	result, err := f.client.CallGenericAPI(ctx, email, "LiteFilter", source, prompt.Meta.Model, rendered)
+	modelName := f.client.resolveModel(prompt, f.client.filter)
+	result, err := f.client.CallGenericAPI(ctx, email, "LiteFilter", source, modelName, rendered)
 	if err != nil {
 		return false, fmt.Errorf("filter execution error: %w", err)
 	}

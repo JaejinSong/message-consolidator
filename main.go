@@ -126,14 +126,32 @@ func initSlackBot(cfg *config.Config, tasks *services.TasksService) *services.Sl
 	return services.NewSlackBot(channels.NewSlackClient(cfg.SlackToken), tasks)
 }
 
-// Why: Boots Gemini-backed services lazily; falls back to AI-less TasksService when no API key is configured.
+// aiProviderConfig maps the application Config onto the provider-neutral
+// ai.ProviderConfig used to construct the text-generation client.
+func aiProviderConfig(cfg *config.Config) ai.ProviderConfig {
+	return ai.ProviderConfig{
+		Provider:                 cfg.AIProvider,
+		GeminiAPIKey:             cfg.GeminiAPIKey,
+		GeminiAnalysisModel:      cfg.GeminiAnalysisModel,
+		GeminiTranslationModel:   cfg.GeminiTranslationModel,
+		DeepSeekAPIKey:           cfg.DeepSeekAPIKey,
+		DeepSeekBaseURL:          cfg.DeepSeekBaseURL,
+		DeepSeekFilterModel:      cfg.DeepSeekFilterModel,
+		DeepSeekAnalysisModel:    cfg.DeepSeekAnalysisModel,
+		DeepSeekTranslationModel: cfg.DeepSeekTranslationModel,
+		DeepSeekReportModel:      cfg.DeepSeekReportModel,
+	}
+}
+
+// Why: Boots AI-backed services lazily; falls back to AI-less TasksService when the
+// active provider has no API key configured (embeddings stay Gemini-only — see initEmbeddingService).
 func initAIServices(ctx context.Context, cfg *config.Config) (*services.ReportsService, *services.TasksService, *ai.IdentityResolver) {
 	var gClient *ai.GeminiClient
-	if cfg.GeminiAPIKey != "" {
+	if pc := aiProviderConfig(cfg); pc.Enabled() {
 		var err error
-		gClient, err = ai.NewGeminiClient(ctx, cfg.GeminiAPIKey, cfg.GeminiAnalysisModel, cfg.GeminiTranslationModel)
+		gClient, err = ai.NewAIClient(ctx, pc)
 		if err != nil {
-			logger.Errorf("[INIT] failed to initialize GeminiClient: %v", err)
+			logger.Errorf("[INIT] failed to initialize AI client (%s): %v", cfg.AIProvider, err)
 		}
 	}
 	if gClient == nil {

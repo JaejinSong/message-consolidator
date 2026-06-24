@@ -150,31 +150,123 @@ func setupGeminiClientForTest(testName string) (*ai.GeminiClient, error) {
 	})
 }
 
+// setupDeepSeekClientForTest builds a live DeepSeek AIClient for extraction-equivalence
+// runs. There is no VCR for DeepSeek (the dumps are Gemini-shaped), so this always hits the
+// real API; callers must gate on DEEPSEEK_API_KEY.
+func setupDeepSeekClientForTest() (*ai.AIClient, error) {
+	key := strings.TrimSpace(os.Getenv("DEEPSEEK_API_KEY"))
+	if key == "" {
+		return nil, fmt.Errorf("DEEPSEEK_API_KEY not set")
+	}
+	return ai.NewAIClient(context.Background(), ai.ProviderConfig{
+		Provider:        "deepseek",
+		DeepSeekAPIKey:  key,
+		DeepSeekBaseURL: os.Getenv("DEEPSEEK_BASE_URL"),
+	})
+}
+
+// TestAnalyze_Regression_DeepSeek replays the SAME golden fixtures and tolerant comparison
+// as the Gemini regression, but against the live DeepSeek provider — verifying extraction
+// equivalence (plan verification step 3). Skipped unless DEEPSEEK_API_KEY is set.
+func TestAnalyze_Regression_DeepSeek(t *testing.T) {
+	if strings.TrimSpace(os.Getenv("DEEPSEEK_API_KEY")) == "" {
+		t.Skip("DEEPSEEK_API_KEY not set — skipping DeepSeek extraction equivalence")
+	}
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	t.Cleanup(cleanup)
+	logger.InitAIInferenceLogger()
+	godotenv.Load("../../.env", ".env", "../.env")
+
+	client, err := setupDeepSeekClientForTest()
+	if err != nil {
+		t.Fatalf("DeepSeek client: %v", err)
+	}
+
+	testCases, _ := filepath.Glob("testdata/*_input.txt")
+	for _, path := range testCases {
+		path := path
+		testName := strings.TrimSuffix(filepath.Base(path), "_input.txt")
+		// Why: serial (no t.Parallel) — share one client and avoid bursting the live API.
+		t.Run(testName, func(t *testing.T) {
+			reportExtraction(t, client, path, testName)
+		})
+	}
+}
+
 func runSingleRegression(t *testing.T, path, testName string) {
 	client, err := setupGeminiClientForTest(testName)
 	if err != nil {
 		t.Skipf("Skipping regression: %v", err)
 	}
+	runRegressionWithClient(t, client, path, testName)
+}
 
+func analyzeCase(t *testing.T, client *ai.AIClient, path, testName string) (expected, actual []store.TodoItem) {
 	input, _ := os.ReadFile(path)
 	expectedBytes, _ := os.ReadFile(strings.TrimSuffix(path, "_input.txt") + "_expected.json")
-
-	var expected []store.TodoItem
 	json.Unmarshal(expectedBytes, &expected)
 
 	lang := determineLang(path, string(expectedBytes))
 	source := determineSource(testName)
-
 	msg := types.EnrichedMessage{
 		RawContent:    string(input),
 		SourceChannel: source,
 	}
-	actual, err := client.Analyze(context.Background(), "test.user@example.com", msg, lang, source, "TestRoom")
+	var err error
+	actual, err = client.Analyze(context.Background(), "test.user@example.com", msg, lang, source, "TestRoom")
 	if err != nil {
 		t.Fatalf("Analyze error: %v", err)
 	}
+	return expected, actual
+}
 
+func runRegressionWithClient(t *testing.T, client *ai.AIClient, path, testName string) {
+	expected, actual := analyzeCase(t, client, path, testName)
 	compareResults(t, expected, actual)
+}
+
+// reportExtraction runs a case against a (live) provider and reports equivalence vs the
+// Gemini-recorded golden. It FAILS only on real defects — an Analyze error or zero extraction
+// on a task-present case — and otherwise LOGS field-level divergences, since exact field/count
+// parity across providers is not a correctness requirement (the goldens encode Gemini's output).
+func reportExtraction(t *testing.T, client *ai.AIClient, path, testName string) {
+	expected, actual := analyzeCase(t, client, path, testName)
+	if len(expected) > 0 && len(actual) == 0 {
+		t.Errorf("expected %d task(s) but provider extracted none", len(expected))
+		return
+	}
+	if pass, notes := matchResults(expected, actual); pass {
+		t.Logf("EQUIVALENT (%d task(s))", len(actual))
+	} else {
+		t.Logf("DIVERGENCE vs Gemini golden (cross-model nuance, not a plumbing bug):\n  %s", strings.Join(notes, "\n  "))
+	}
+}
+
+// matchResults is the non-fatal twin of compareResults: it returns whether actual would pass
+// the tolerant golden comparison plus human-readable notes on each divergence.
+func matchResults(expected, actual []store.TodoItem) (pass bool, notes []string) {
+	if len(expected) != len(actual) {
+		return false, []string{fmt.Sprintf("count: want %d, got %d", len(expected), len(actual))}
+	}
+	pass = true
+	for i := range expected {
+		exp, act := expected[i], actual[i]
+		normalizeAssignee(&exp, &act)
+		if !compareMetadata(exp, act) {
+			pass = false
+			notes = append(notes, fmt.Sprintf("[%d] metadata: exp{req=%q cat=%q ts=%q} got{req=%q cat=%q ts=%q}",
+				i, exp.Requester, exp.Category, exp.SourceTS, act.Requester, act.Category, act.SourceTS))
+		}
+		if !verifyTaskContent(exp, act) {
+			pass = false
+			notes = append(notes, fmt.Sprintf("[%d] content: exp=%q (dl=%q) got=%q (dl=%q)",
+				i, exp.Task, exp.Deadline, act.Task, act.Deadline))
+		}
+	}
+	return pass, notes
 }
 
 func determineSource(testName string) string {

@@ -47,9 +47,16 @@ var Registry = []SettingDef{
 	{Key: "ENV", Label: "Environment Marker", Category: "ops", Type: TypeString, RestartRequired: true},
 
 	// --- AI ---
+	{Key: "AI_PROVIDER", Label: "AI Provider (text generation)", Category: "ai", Type: TypeEnum, EnumValues: []string{"gemini", "deepseek"}, DefaultValue: "gemini", RestartRequired: true, Validate: enumValidator("gemini", "deepseek")},
 	{Key: "GEMINI_API_KEY", Label: "Gemini API Key", Category: "ai", Type: TypeString, Secret: true, RestartRequired: true},
 	{Key: "GEMINI_ANALYSIS_MODEL", Label: "Gemini Analysis Model", Category: "ai", Type: TypeString, DefaultValue: "gemini-3-flash-preview"},
 	{Key: "GEMINI_TRANSLATION_MODEL", Label: "Gemini Translation Model", Category: "ai", Type: TypeString, DefaultValue: "gemini-3.1-flash-lite"},
+	{Key: "DEEPSEEK_API_KEY", Label: "DeepSeek API Key", Category: "ai", Type: TypeString, Secret: true, RestartRequired: true},
+	{Key: "DEEPSEEK_BASE_URL", Label: "DeepSeek Base URL", Category: "ai", Type: TypeString, DefaultValue: "https://api.deepseek.com/v1", RestartRequired: true},
+	{Key: "DEEPSEEK_FILTER_MODEL", Label: "DeepSeek Filter Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-chat"},
+	{Key: "DEEPSEEK_ANALYSIS_MODEL", Label: "DeepSeek Analysis Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-chat"},
+	{Key: "DEEPSEEK_TRANSLATION_MODEL", Label: "DeepSeek Translation Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-chat"},
+	{Key: "DEEPSEEK_REPORT_MODEL", Label: "DeepSeek Report Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-v4-pro"},
 
 	// --- channels ---
 	{Key: "SLACK_TOKEN", Label: "Slack Bot Token", Category: "channels", Type: TypeString, Secret: true, RestartRequired: true},

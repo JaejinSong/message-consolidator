@@ -11,15 +11,14 @@ import (
 	"time"
 
 	"github.com/whatap/go-api/trace"
-	"google.golang.org/genai"
 )
 
-// IdentityResolver uses Gemini to propose groups of contacts that are likely the same person.
+// IdentityResolver uses the configured AI provider to propose groups of contacts that are likely the same person.
 type IdentityResolver struct {
-	client *GeminiClient
+	client *AIClient
 }
 
-func NewIdentityResolver(client *GeminiClient) *IdentityResolver {
+func NewIdentityResolver(client *AIClient) *IdentityResolver {
 	return &IdentityResolver{client: client}
 }
 
@@ -70,24 +69,24 @@ func (r *IdentityResolver) proposeChunk(ctx context.Context, email string, conta
 		return nil, fmt.Errorf("failed to render identity prompt: %w", err)
 	}
 
-	modelName := r.client.getEffectiveModel(parsed, r.client.analysisModel)
-	cfg := r.client.buildConfig(0.1, 0, "", "")
-	cfg.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: genai.Ptr(int32(1024))}
+	modelName := r.client.resolveModel(parsed, r.client.identity)
+	req := LLMRequest{
+		Model:       modelName,
+		User:        rendered,
+		Temperature: 0.1,
+		Thinking:    r.client.identity.thinking,
+	}
 	start := time.Now()
-	resp, err := generateWithRetry(ctx, r.client.client, modelName, genai.Text(rendered), cfg, 300*time.Second, 2)
+	resp, err := r.client.transport.Generate(ctx, req, 300*time.Second, 2)
 	elapsedMs := time.Since(start).Milliseconds()
 	logger.Infof("[RESOLUTION] identity resolve: %dms model=%s contacts=%d err=%v", elapsedMs, modelName, len(contacts), err)
 	if err != nil {
 		return nil, err
 	}
-	logTokenUsage(ctx, email, "IdentityResolve", modelName, "", 0, resp)
-	_ = trace.Step(ctx, "Gemini-IdentityResolve", "", int(elapsedMs), len(contacts))
+	logTokenUsage(ctx, email, "IdentityResolve", modelName, "", 0, resp.Usage)
+	_ = trace.Step(ctx, r.client.tracePrefix+"-IdentityResolve", "", int(elapsedMs), len(contacts))
 
-	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return nil, nil
-	}
-
-	clean := strings.TrimSpace(resp.Candidates[0].Content.Parts[0].Text)
+	clean := strings.TrimSpace(resp.Text)
 	clean = strings.TrimPrefix(clean, "```json")
 	clean = strings.TrimPrefix(clean, "```")
 	clean = strings.TrimSuffix(clean, "```")

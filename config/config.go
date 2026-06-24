@@ -23,6 +23,13 @@ type Config struct {
 	TursoToken                  string
 	GeminiAnalysisModel         string
 	GeminiTranslationModel      string
+	AIProvider                  string
+	DeepSeekAPIKey              string
+	DeepSeekBaseURL             string
+	DeepSeekFilterModel         string
+	DeepSeekAnalysisModel       string
+	DeepSeekTranslationModel    string
+	DeepSeekReportModel         string
 	LogLevel                    string
 	GmailSkipSenders            string
 	CompanyDomains              []string
@@ -72,6 +79,13 @@ func LoadConfig() *Config {
 		LogLevel:               envOr("LOG_LEVEL", "INFO"),
 		GeminiAnalysisModel:    envOr("GEMINI_ANALYSIS_MODEL", "gemini-3-flash-preview"),
 		GeminiTranslationModel: envOr("GEMINI_TRANSLATION_MODEL", "gemini-3.1-flash-lite"),
+		AIProvider:               envOr("AI_PROVIDER", "gemini"),
+		DeepSeekAPIKey:           os.Getenv("DEEPSEEK_API_KEY"),
+		DeepSeekBaseURL:          envOr("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+		DeepSeekFilterModel:      envOr("DEEPSEEK_FILTER_MODEL", "deepseek-chat"),
+		DeepSeekAnalysisModel:    envOr("DEEPSEEK_ANALYSIS_MODEL", "deepseek-chat"),
+		DeepSeekTranslationModel: envOr("DEEPSEEK_TRANSLATION_MODEL", "deepseek-chat"),
+		DeepSeekReportModel:      envOr("DEEPSEEK_REPORT_MODEL", "deepseek-v4-pro"),
 		NotionToken:            os.Getenv("NOTION_TOKEN"),
 		NotionReportPageID:     os.Getenv("NOTION_REPORT_PAGE_ID"),
 		NotionWALogPageID:      os.Getenv("NOTION_WA_LOG_PAGE_ID"),
