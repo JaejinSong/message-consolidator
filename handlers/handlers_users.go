@@ -91,6 +91,7 @@ type tokenUsageResponse struct {
 	MonthlyFiltered      int     `json:"monthlyFiltered"`
 	MonthlyTotal         int     `json:"monthlyTotal"`
 	MonthlyCached        int     `json:"monthlyCached"`
+	MonthlyCacheHitRate  float64 `json:"monthlyCacheHitRate"` // cached / prompt input tokens (0..1)
 	MonthlyCost          float64 `json:"monthlyCost"`
 	MonthlyCostInput     float64 `json:"monthlyCostInput"`
 	MonthlyCostOutput    float64 `json:"monthlyCostOutput"`
@@ -265,6 +266,12 @@ func (a *API) gatherTokenUsageStats(ctx context.Context, email string) tokenUsag
 	for _, m := range monthlyModels {
 		monthCached += m.Cached
 	}
+	// Why: hit rate = cached input / total input. Gemini rows report 0 cached, so a
+	// mixed history dilutes the rate toward the DeepSeek-only share (intended).
+	monthCacheHitRate := 0.0
+	if monthPrompt > 0 {
+		monthCacheHitRate = float64(monthCached) / float64(monthPrompt)
+	}
 
 	return tokenUsageResponse{
 		TodayPrompt:       todayPrompt,
@@ -279,6 +286,7 @@ func (a *API) gatherTokenUsageStats(ctx context.Context, email string) tokenUsag
 		MonthlyFiltered:   monthFiltered,
 		MonthlyTotal:      monthPrompt + monthCompletion + monthThinking,
 		MonthlyCached:       monthCached,
+		MonthlyCacheHitRate: monthCacheHitRate,
 		MonthlyCost:         monthCostIn + monthCostOut + monthCostThink,
 		MonthlyCostInput:    monthCostIn,
 		MonthlyCostOutput:   monthCostOut,
