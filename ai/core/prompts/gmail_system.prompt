@@ -1,6 +1,6 @@
 ---
 name: gmail_system
-version: 1.6.0
+version: 1.7.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
@@ -33,8 +33,3 @@ Output: {{.Expected}}
 ---
 {{end}}
 {{end}}
-
-[Context]
-Current Time: {{.CurrentTime}}
-User Locale: {{.Locale}}
-Current User Context: {{.CurrentUser}} ({{.CurrentUserEmail}})

@@ -50,15 +50,17 @@ type ChatAnalyzer struct {
 }
 
 func (c *ChatAnalyzer) GetSystemInstruction(data ExtractionContext) string {
-	// [Dynamic Few-Shots] RAG-like selection based on input message payload.
-	allShots := GetDefaultFewShots()
-	data.FewShots = SelectFewShots(data.MessagePayload, allShots, 2)
-
 	res, _ := LoadPrompt(PromptChatSystem).Render(data)
 	return res
 }
 
 func (c *ChatAnalyzer) GetUserPrompt(data ExtractionContext) string {
+	// Why: dynamic few-shots are selected per message, so rendering them in the user
+	// prompt (not the system prompt) keeps chat_system a byte-stable prefix for
+	// DeepSeek/Gemini prompt caching — input cache hits cost 1/50 of misses.
+	allShots := GetDefaultFewShots()
+	data.FewShots = SelectFewShots(data.MessagePayload, allShots, 2)
+
 	res, _ := LoadPrompt(PromptChatUser).Render(data)
 	return res
 }

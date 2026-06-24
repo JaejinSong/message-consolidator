@@ -33,6 +33,7 @@ const (
 	PromptGmailUser            PromptName = "gmail_user.prompt"
 	PromptIdentityGroupMerge   PromptName = "identity_group_merge.prompt"
 	PromptLiteFilter           PromptName = "lite_filter.prompt"
+	PromptLiteFilterUser       PromptName = "lite_filter_user.prompt"
 	PromptNotionSystem         PromptName = "notion_system.prompt"
 	PromptNotionUser           PromptName = "notion_user.prompt"
 	PromptReleaseNotesCombined PromptName = "release_notes_combined.prompt"

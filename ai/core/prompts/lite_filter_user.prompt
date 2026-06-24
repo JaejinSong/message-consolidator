@@ -1,0 +1,9 @@
+---
+name: lite_filter_user
+version: 1.0.0
+---
+[Context]
+Current User: {{.CurrentUser}}
+
+[Current Input]
+{{.MessagePayload}}

@@ -9,6 +9,7 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
+	"sort"
 	"strings"
 	"time"
 
@@ -310,6 +311,9 @@ func (g *AIClient) marshalTasksForAI(tasks []store.ConsolidatedMessage) string {
 			Done:       t.Done,
 		})
 	}
+	// Why: stable id ordering keeps the serialized task block byte-identical across
+	// re-scans of the same room, so the user-prompt prefix stays prompt-cache eligible.
+	sort.Slice(ctxTasks, func(i, j int) bool { return ctxTasks[i].ID < ctxTasks[j].ID })
 	b, _ := json.Marshal(ctxTasks)
 	return string(b)
 }
@@ -376,13 +380,14 @@ func (g *AIClient) parseAnalyzeResults(raw string, currentUserID store.UserID, u
 // CallGenericAPI runs a one-shot generation against the given model and records token usage
 // under the caller-provided (step, source) bucket. Used by lightweight pipelines (e.g. the
 // lite noise filter) that don't go through the Analyze/Translate helpers.
-func (g *AIClient) CallGenericAPI(ctx context.Context, email, step, source, modelName, prompt string) (string, error) {
+func (g *AIClient) CallGenericAPI(ctx context.Context, email, step, source, modelName, system, prompt string) (string, error) {
 	if g == nil || g.transport == nil {
 		return "", fmt.Errorf("AI client is not initialized")
 	}
 
 	req := LLMRequest{
 		Model:       modelName,
+		System:      system,
 		User:        prompt,
 		Temperature: 0.1,
 		Thinking:    g.filter.thinking,

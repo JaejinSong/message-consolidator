@@ -1,9 +1,11 @@
 ---
 name: chat_user
-version: 1.0.0
+version: 1.1.0
 model: gemini-3-flash-preview
 ---
 [Context]
+User Locale: {{.Locale}}
+Current User (= __CURRENT_USER__ throughout): {{.CurrentUser}} ({{.CurrentUserEmail}})
 Existing Tasks (fields: id, task, original_text, requester, assignee, category, assigned_at [RFC3339, omit if unset], done):
 {{.ExistingTasksJSON}}
 
@@ -11,5 +13,11 @@ Existing Tasks (fields: id, task, original_text, requester, assignee, category, 
 {{if .ChatType}}Chat-Type: {{.ChatType}}
 {{end}}{{if .RoomName}}Room: {{.RoomName}}
 {{end}}
-{{end}}[Input]
+{{end}}{{if .FewShots}}[Examples]
+{{range .FewShots}}Input: {{.Input}}
+Output: {{.Expected}}
+---
+{{end}}{{end}}Current Time: {{.CurrentTime}}
+
+[Input]
 {{.MessagePayload}}

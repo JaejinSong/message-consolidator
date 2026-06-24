@@ -23,19 +23,25 @@ func NewGeminiLiteFilter(client *AIClient) *GeminiLiteFilter {
 // Why: [Performance] Filter logic is non-blocking and uses a cheaper model to save costs.
 // `source` (slack|whatsapp|telegram|gmail|...) attributes the token cost to the right bucket.
 func (f *GeminiLiteFilter) IsNoise(ctx context.Context, email, source, text string) (bool, error) {
-	prompt := core.LoadPrompt(core.PromptLiteFilter)
 	data := core.ExtractionContext{
 		MessagePayload: text,
 		CurrentUser:    email,
 	}
 
-	rendered, err := prompt.Render(data)
+	// Why: the static filter instruction lives in the system role and the per-message
+	// context in the user role so the system prefix stays cacheable across calls.
+	systemPrompt := core.LoadPrompt(core.PromptLiteFilter)
+	system, err := systemPrompt.Render(data)
 	if err != nil {
-		return false, fmt.Errorf("filter prompt render error: %w", err)
+		return false, fmt.Errorf("filter system prompt render error: %w", err)
+	}
+	user, err := core.LoadPrompt(core.PromptLiteFilterUser).Render(data)
+	if err != nil {
+		return false, fmt.Errorf("filter user prompt render error: %w", err)
 	}
 
-	modelName := f.client.resolveModel(prompt, f.client.filter)
-	result, err := f.client.CallGenericAPI(ctx, email, "LiteFilter", source, modelName, rendered)
+	modelName := f.client.resolveModel(systemPrompt, f.client.filter)
+	result, err := f.client.CallGenericAPI(ctx, email, "LiteFilter", source, modelName, system, user)
 	if err != nil {
 		return false, fmt.Errorf("filter execution error: %w", err)
 	}

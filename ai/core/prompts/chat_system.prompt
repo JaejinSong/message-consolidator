@@ -1,6 +1,6 @@
 ---
 name: chat_system
-version: 1.9.3
+version: 1.10.0
 model: gemini-3-flash-preview
 ---
 [System Instruction]
@@ -74,15 +74,3 @@ Existing Tasks: [{"id": 7, "task": "Check service version on on-premise collecti
 Input: [ID:p9] __CURRENT_USER__: Hi Yoga, product/agent questions like these go directly to the HQ product channel: #helpdesk-intake. You have access — please use it directly for this type of question. Move both questions there with the screenshots.
 Output: [{"id": 7, "state": "resolve", "task": "Check service version on on-premise collection server", "assignee": "shared", "assignee_reason": "Current user routed the inquiry to another channel (#helpdesk-intake); routing is closure of the original inquiry.", "category": "QUERY", "source_ts": "p9"}]
 ---
-{{if .FewShots}}
-{{range .FewShots}}
-Input: {{.Input}}
-Output: {{.Expected}}
----
-{{end}}
-{{end}}
-
-[Context]
-Current Time: {{.CurrentTime}}
-User Locale: {{.Locale}}
-Current User (= __CURRENT_USER__ throughout): {{.CurrentUser}} ({{.CurrentUserEmail}})
