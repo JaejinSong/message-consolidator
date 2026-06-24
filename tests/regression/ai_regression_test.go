@@ -107,7 +107,7 @@ func shouldRecord(mockPath string) bool {
 		return true // File does not exist
 	}
 
-	prompts, _ := filepath.Glob("../../ai/*.prompt")
+	prompts, _ := filepath.Glob("../../ai/core/prompts/*.prompt")
 	for _, p := range prompts {
 		pInfo, err := os.Stat(p)
 		if err == nil && pInfo.ModTime().After(mockInfo.ModTime()) {
