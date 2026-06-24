@@ -168,6 +168,10 @@ func runFullDDL(ctx context.Context, dbConn *sql.DB) error {
 		return fmt.Errorf("thinking_tokens column migration failed: %w", err)
 	}
 
+	if err := addCachedTokensColumn(ctx, tx); err != nil {
+		return fmt.Errorf("cached_tokens column migration failed: %w", err)
+	}
+
 	if err := migrateEmbeddingsToF32(ctx, tx); err != nil {
 		return fmt.Errorf("embedding f32 migration failed: %w", err)
 	}

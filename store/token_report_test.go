@@ -19,13 +19,13 @@ func TestAddTokenUsage_ReportIDPartitionsBuckets(t *testing.T) {
 	email := testutil.RandomEmail("rpttoken")
 	const step, model = "ReportSummary", "gemini-3-flash"
 
-	if err := AddTokenUsage(email, step, model, "", ReportID(101), 1000, 200, 0); err != nil {
+	if err := AddTokenUsage(email, step, model, "", ReportID(101), 1000, 200, 0, 0); err != nil {
 		t.Fatalf("add report 101: %v", err)
 	}
-	if err := AddTokenUsage(email, step, model, "", ReportID(102), 500, 100, 0); err != nil {
+	if err := AddTokenUsage(email, step, model, "", ReportID(102), 500, 100, 0, 0); err != nil {
 		t.Fatalf("add report 102: %v", err)
 	}
-	if err := AddTokenUsage(email, step, model, "", 0, 50, 10, 0); err != nil {
+	if err := AddTokenUsage(email, step, model, "", 0, 50, 10, 0, 0); err != nil {
 		t.Fatalf("add unattributed: %v", err)
 	}
 
@@ -75,7 +75,7 @@ func TestGetReportTokenUsage_AggregatesAcrossSteps(t *testing.T) {
 		{"TranslateReport", "gemini-3-flash-lite", 6000, 800},
 	}
 	for _, c := range cases {
-		if err := AddTokenUsage(email, c.step, c.model, "", rid, c.prompt, c.comp, 0); err != nil {
+		if err := AddTokenUsage(email, c.step, c.model, "", rid, c.prompt, c.comp, 0, 0); err != nil {
 			t.Fatalf("add %s: %v", c.step, err)
 		}
 	}
@@ -102,13 +102,13 @@ func TestGetReportTokenUsage_IncludesInMemoryBuffers(t *testing.T) {
 	email := testutil.RandomEmail("rptmem")
 	rid := ReportID(8888)
 
-	if err := AddTokenUsage(email, "ReportSummary", "gemini-3-flash", "", rid, 100, 20, 0); err != nil {
+	if err := AddTokenUsage(email, "ReportSummary", "gemini-3-flash", "", rid, 100, 20, 0, 0); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	if err := FlushTokenUsage(context.Background()); err != nil {
 		t.Fatalf("flush: %v", err)
 	}
-	if err := AddTokenUsage(email, "ReportSummary", "gemini-3-flash", "", rid, 50, 10, 0); err != nil {
+	if err := AddTokenUsage(email, "ReportSummary", "gemini-3-flash", "", rid, 50, 10, 0, 0); err != nil {
 		t.Fatalf("add un-flushed: %v", err)
 	}
 

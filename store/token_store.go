@@ -25,6 +25,7 @@ type tokenData struct {
 	Prompt     int
 	Completion int
 	Thinking   int
+	Cached     int //Why: prompt-cache-hit subset of Prompt (DeepSeek); billed at the discounted input rate.
 	Calls      int
 	Filtered   int //Why: Filtered count is a per-user counter, written only to the legacy bucket (step="", model="", source="").
 }
@@ -55,7 +56,7 @@ var (
 // AddTokenUsage records token consumption for a single AI call, attributed to a specific
 // (step, model, source, report_id) bucket. Use step="" for unattributed legacy calls and
 // reportID=0 for AI calls not bound to a specific report.
-func AddTokenUsage(email, step, model, source string, reportID ReportID, promptTokens, completionTokens, thinkingTokens int) error {
+func AddTokenUsage(email, step, model, source string, reportID ReportID, promptTokens, completionTokens, thinkingTokens, cachedTokens int) error {
 	key := tokenBucket{Email: email, Step: step, Model: model, Source: source, ReportID: reportID}
 
 	tokenMu.Lock()
@@ -65,6 +66,7 @@ func AddTokenUsage(email, step, model, source string, reportID ReportID, promptT
 	tokenDirtyData[key].Prompt += promptTokens
 	tokenDirtyData[key].Completion += completionTokens
 	tokenDirtyData[key].Thinking += thinkingTokens
+	tokenDirtyData[key].Cached += cachedTokens
 	tokenDirtyData[key].Calls++
 	tokenMu.Unlock()
 
@@ -140,6 +142,7 @@ func FlushTokenUsage(ctx context.Context) error {
 				PromptTokens:     sql.NullInt64{Int64: int64(data.Prompt), Valid: true},
 				CompletionTokens: sql.NullInt64{Int64: int64(data.Completion), Valid: true},
 				ThinkingTokens:   sql.NullInt64{Int64: int64(data.Thinking), Valid: true},
+				CachedTokens:     sql.NullInt64{Int64: int64(data.Cached), Valid: true},
 				TotalTokens:      sql.NullInt64{Int64: int64(totalTokens), Valid: true},
 				CallCount:        sql.NullInt64{Int64: int64(data.Calls), Valid: true},
 				FilteredCount:    sql.NullInt64{Int64: int64(data.Filtered), Valid: true},
@@ -161,6 +164,7 @@ func FlushTokenUsage(ctx context.Context) error {
 			tokenDirtyData[key].Prompt += data.Prompt
 			tokenDirtyData[key].Completion += data.Completion
 			tokenDirtyData[key].Thinking += data.Thinking
+			tokenDirtyData[key].Cached += data.Cached
 			tokenDirtyData[key].Calls += data.Calls
 			tokenDirtyData[key].Filtered += data.Filtered
 		}
@@ -367,6 +371,7 @@ type ModelTokenUsage struct {
 	Prompt     int
 	Completion int
 	Thinking   int
+	Cached     int // prompt-cache-hit subset of Prompt (DeepSeek)
 }
 
 // GetDailyTokenUsageByModel returns today's token usage grouped by model, merged with
@@ -409,6 +414,7 @@ func tokenUsageByModel(ctx context.Context, email, startDate, endDate string) ([
 		m.Prompt += coalesceInt(r.PromptTokens)
 		m.Completion += coalesceInt(r.CompletionTokens)
 		m.Thinking += coalesceInt(r.ThinkingTokens)
+		m.Cached += coalesceInt(r.CachedTokens)
 	}
 	mergeInMemoryByModel(email, byModel)
 
@@ -440,6 +446,7 @@ func mergeInMemoryByModel(email string, byModel map[string]*ModelTokenUsage) {
 			m.Prompt += data.Prompt
 			m.Completion += data.Completion
 			m.Thinking += data.Thinking
+			m.Cached += data.Cached
 		}
 	}
 	add(tokenDirtyData)

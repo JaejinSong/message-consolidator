@@ -17,12 +17,13 @@ func TestGetMonthlyTokenUsageByModel(t *testing.T) {
 	email := "bymodel-monthly@example.com" // unique: in-memory token buffers are not reset between tests
 
 	// Two flushed rows for two models + one in-memory delta for the first model.
-	_ = AddTokenUsage(email, "Analyze", "deepseek-chat", "slack", 0, 1000, 200, 50)
-	_ = AddTokenUsage(email, "ReportSummary", "deepseek-v4-pro", "", 0, 2000, 500, 300)
+	// Trailing arg is cached_tokens (DeepSeek prompt-cache-hit subset of prompt).
+	_ = AddTokenUsage(email, "Analyze", "deepseek-chat", "slack", 0, 1000, 200, 50, 300)
+	_ = AddTokenUsage(email, "ReportSummary", "deepseek-v4-pro", "", 0, 2000, 500, 300, 0)
 	if err := FlushTokenUsage(ctx); err != nil {
 		t.Fatalf("FlushTokenUsage: %v", err)
 	}
-	_ = AddTokenUsage(email, "Analyze", "deepseek-chat", "slack", 0, 100, 20, 5) // in-memory only
+	_ = AddTokenUsage(email, "Analyze", "deepseek-chat", "slack", 0, 100, 20, 5, 10) // in-memory only
 
 	rows, err := GetMonthlyTokenUsageByModel(ctx, email)
 	if err != nil {
@@ -38,9 +39,9 @@ func TestGetMonthlyTokenUsageByModel(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing deepseek-chat row in %+v", rows)
 	}
-	// DB (1000/200/50) + in-memory (100/20/5)
-	if chat.Prompt != 1100 || chat.Completion != 220 || chat.Thinking != 55 {
-		t.Errorf("deepseek-chat = %+v, want prompt 1100 completion 220 thinking 55", chat)
+	// DB (1000/200/50, cached 300) + in-memory (100/20/5, cached 10)
+	if chat.Prompt != 1100 || chat.Completion != 220 || chat.Thinking != 55 || chat.Cached != 310 {
+		t.Errorf("deepseek-chat = %+v, want prompt 1100 completion 220 thinking 55 cached 310", chat)
 	}
 
 	pro, ok := byModel["deepseek-v4-pro"]

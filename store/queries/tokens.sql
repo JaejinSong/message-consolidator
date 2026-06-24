@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS token_usage (
     prompt_tokens INT DEFAULT 0,
     completion_tokens INT DEFAULT 0,
     thinking_tokens INT DEFAULT 0,
+    cached_tokens INT DEFAULT 0,
     total_tokens INT DEFAULT 0,
     call_count INT DEFAULT 0,
     filtered_count INT DEFAULT 0,
@@ -16,13 +17,14 @@ CREATE TABLE IF NOT EXISTS token_usage (
 );
 
 -- name: UpsertTokenUsage :exec
-INSERT INTO token_usage (user_email, date, step, model, source, report_id, prompt_tokens, completion_tokens, thinking_tokens, total_tokens, call_count, filtered_count)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO token_usage (user_email, date, step, model, source, report_id, prompt_tokens, completion_tokens, thinking_tokens, cached_tokens, total_tokens, call_count, filtered_count)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (user_email, date, step, model, source, report_id)
 DO UPDATE SET
     prompt_tokens = token_usage.prompt_tokens + EXCLUDED.prompt_tokens,
     completion_tokens = token_usage.completion_tokens + EXCLUDED.completion_tokens,
     thinking_tokens = token_usage.thinking_tokens + EXCLUDED.thinking_tokens,
+    cached_tokens = token_usage.cached_tokens + EXCLUDED.cached_tokens,
     total_tokens = token_usage.total_tokens + EXCLUDED.total_tokens,
     call_count = token_usage.call_count + EXCLUDED.call_count,
     filtered_count = token_usage.filtered_count + EXCLUDED.filtered_count;
@@ -64,6 +66,7 @@ SELECT model,
        COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
        COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
        COALESCE(SUM(thinking_tokens), 0)   AS thinking_tokens,
+       COALESCE(SUM(cached_tokens), 0)     AS cached_tokens,
        COALESCE(SUM(call_count), 0)        AS call_count
 FROM token_usage
 WHERE user_email = ? AND date >= ? AND date < ?

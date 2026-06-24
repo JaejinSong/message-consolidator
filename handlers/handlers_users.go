@@ -61,10 +61,17 @@ func providerDisplayName(provider string) string {
 
 // costByModel prices each model's tokens at its own rate and returns the input/output/thinking
 // USD components summed across models (already divided by the per-million denominator).
+// Cached tokens are a subset of prompt tokens (DeepSeek prompt-cache hits) billed at the
+// discounted CachedInputPerM rate; the remainder is billed at the full InputPerM rate.
 func costByModel(models []store.ModelTokenUsage) (input, output, thinking float64) {
 	for _, m := range models {
 		r := rateFor(m.Model)
-		input += float64(m.Prompt) * r.InputPerM
+		cached := m.Cached
+		if cached > m.Prompt {
+			cached = m.Prompt // guard: cached is a subset of prompt; never over-discount
+		}
+		uncached := m.Prompt - cached
+		input += float64(uncached)*r.InputPerM + float64(cached)*r.CachedInputPerM
 		output += float64(m.Completion) * r.OutputPerM
 		thinking += float64(m.Thinking) * r.ThinkingPerM
 	}
@@ -83,6 +90,7 @@ type tokenUsageResponse struct {
 	MonthlyThinking      int     `json:"monthlyThinking"`
 	MonthlyFiltered      int     `json:"monthlyFiltered"`
 	MonthlyTotal         int     `json:"monthlyTotal"`
+	MonthlyCached        int     `json:"monthlyCached"`
 	MonthlyCost          float64 `json:"monthlyCost"`
 	MonthlyCostInput     float64 `json:"monthlyCostInput"`
 	MonthlyCostOutput    float64 `json:"monthlyCostOutput"`
@@ -253,6 +261,11 @@ func (a *API) gatherTokenUsageStats(ctx context.Context, email string) tokenUsag
 	dayCostIn, dayCostOut, dayCostThink := costByModel(dailyModels)
 	monthCostIn, monthCostOut, monthCostThink := costByModel(monthlyModels)
 
+	monthCached := 0
+	for _, m := range monthlyModels {
+		monthCached += m.Cached
+	}
+
 	return tokenUsageResponse{
 		TodayPrompt:       todayPrompt,
 		TodayCompletion:   todayCompletion,
@@ -265,6 +278,7 @@ func (a *API) gatherTokenUsageStats(ctx context.Context, email string) tokenUsag
 		MonthlyThinking:   monthThinking,
 		MonthlyFiltered:   monthFiltered,
 		MonthlyTotal:      monthPrompt + monthCompletion + monthThinking,
+		MonthlyCached:       monthCached,
 		MonthlyCost:         monthCostIn + monthCostOut + monthCostThink,
 		MonthlyCostInput:    monthCostIn,
 		MonthlyCostOutput:   monthCostOut,

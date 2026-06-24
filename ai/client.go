@@ -405,7 +405,7 @@ func (g *AIClient) CallGenericAPI(ctx context.Context, email, step, source, mode
 // CachedTokens is surfaced in the APM step but not yet persisted (token_usage cached_tokens
 // column is a tracked follow-up).
 func logTokenUsage(ctx context.Context, email, step, model, source string, reportID store.ReportID, usage LLMUsage) {
-	if err := store.AddTokenUsage(email, step, model, source, reportID, usage.PromptTokens, usage.CompletionTokens, usage.ReasoningTokens); err != nil {
+	if err := store.AddTokenUsage(email, step, model, source, reportID, usage.PromptTokens, usage.CompletionTokens, usage.ReasoningTokens, usage.CachedTokens); err != nil {
 		logger.Warnf("[TOKEN-USAGE] %s/%s: %v", email, step, err)
 	}
 	// Why: reasoning tokens passed as value so WhaTap MXQL can query thinking-token consumption numerically.

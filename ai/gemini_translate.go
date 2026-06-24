@@ -146,7 +146,7 @@ func (g *AIClient) TranslateTasksBatch(ctx context.Context, email string, tasks 
 	if err != nil {
 		// Why: Mirror ReportSummary failure attribution — surface burned-but-unattributed
 		// retry-exhausted calls so the cost dashboard can flag invisible spend.
-		if uErr := store.AddTokenUsage(email, "BatchTranslate", modelName, "failed", 0, 0, 0, 0); uErr != nil {
+		if uErr := store.AddTokenUsage(email, "BatchTranslate", modelName, "failed", 0, 0, 0, 0, 0); uErr != nil {
 			logger.Warnf("[TOKEN-USAGE] BatchTranslate failure attribution: %v", uErr)
 		}
 		return nil, err

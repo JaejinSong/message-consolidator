@@ -127,6 +127,7 @@ SELECT model,
        COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
        COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
        COALESCE(SUM(thinking_tokens), 0)   AS thinking_tokens,
+       COALESCE(SUM(cached_tokens), 0)     AS cached_tokens,
        COALESCE(SUM(call_count), 0)        AS call_count
 FROM token_usage
 WHERE user_email = ? AND date >= ? AND date < ?
@@ -145,6 +146,7 @@ type GetTokenUsageByModelRow struct {
 	PromptTokens     interface{} `json:"prompt_tokens"`
 	CompletionTokens interface{} `json:"completion_tokens"`
 	ThinkingTokens   interface{} `json:"thinking_tokens"`
+	CachedTokens     interface{} `json:"cached_tokens"`
 	CallCount        interface{} `json:"call_count"`
 }
 
@@ -162,6 +164,7 @@ func (q *Queries) GetTokenUsageByModel(ctx context.Context, arg GetTokenUsageByM
 			&i.PromptTokens,
 			&i.CompletionTokens,
 			&i.ThinkingTokens,
+			&i.CachedTokens,
 			&i.CallCount,
 		); err != nil {
 			return nil, err
@@ -306,13 +309,14 @@ func (q *Queries) UpsertGmailToken(ctx context.Context, arg UpsertGmailTokenPara
 }
 
 const upsertTokenUsage = `-- name: UpsertTokenUsage :exec
-INSERT INTO token_usage (user_email, date, step, model, source, report_id, prompt_tokens, completion_tokens, thinking_tokens, total_tokens, call_count, filtered_count)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO token_usage (user_email, date, step, model, source, report_id, prompt_tokens, completion_tokens, thinking_tokens, cached_tokens, total_tokens, call_count, filtered_count)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (user_email, date, step, model, source, report_id)
 DO UPDATE SET
     prompt_tokens = token_usage.prompt_tokens + EXCLUDED.prompt_tokens,
     completion_tokens = token_usage.completion_tokens + EXCLUDED.completion_tokens,
     thinking_tokens = token_usage.thinking_tokens + EXCLUDED.thinking_tokens,
+    cached_tokens = token_usage.cached_tokens + EXCLUDED.cached_tokens,
     total_tokens = token_usage.total_tokens + EXCLUDED.total_tokens,
     call_count = token_usage.call_count + EXCLUDED.call_count,
     filtered_count = token_usage.filtered_count + EXCLUDED.filtered_count
@@ -328,6 +332,7 @@ type UpsertTokenUsageParams struct {
 	PromptTokens     sql.NullInt64 `json:"prompt_tokens"`
 	CompletionTokens sql.NullInt64 `json:"completion_tokens"`
 	ThinkingTokens   sql.NullInt64 `json:"thinking_tokens"`
+	CachedTokens     sql.NullInt64 `json:"cached_tokens"`
 	TotalTokens      sql.NullInt64 `json:"total_tokens"`
 	CallCount        sql.NullInt64 `json:"call_count"`
 	FilteredCount    sql.NullInt64 `json:"filtered_count"`
@@ -344,6 +349,7 @@ func (q *Queries) UpsertTokenUsage(ctx context.Context, arg UpsertTokenUsagePara
 		arg.PromptTokens,
 		arg.CompletionTokens,
 		arg.ThinkingTokens,
+		arg.CachedTokens,
 		arg.TotalTokens,
 		arg.CallCount,
 		arg.FilteredCount,

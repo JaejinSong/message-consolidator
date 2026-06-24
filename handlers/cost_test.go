@@ -43,6 +43,23 @@ func TestCostByModel(t *testing.T) {
 	assertFloat(t, "thinking", think, 0.28)
 }
 
+func TestCostByModel_CachedDiscount(t *testing.T) {
+	t.Parallel()
+	// 1M deepseek-chat prompt tokens, half served from cache: cached 500k @ 0.0028,
+	// uncached 500k @ 0.14. Cache lever is the whole point of the cached_tokens column.
+	models := []store.ModelTokenUsage{
+		{Model: "deepseek-chat", Prompt: 1_000_000, Cached: 500_000},
+	}
+	in, _, _ := costByModel(models)
+	want := (500_000*0.14 + 500_000*0.0028) / 1_000_000
+	assertFloat(t, "cached-split input", in, want)
+
+	// Guard: cached > prompt must clamp (never over-discount below the cached rate).
+	clamped := []store.ModelTokenUsage{{Model: "deepseek-chat", Prompt: 100, Cached: 999}}
+	cin, _, _ := costByModel(clamped)
+	assertFloat(t, "clamped input", cin, 100*0.0028/1_000_000)
+}
+
 func TestProviderDisplayName(t *testing.T) {
 	t.Parallel()
 	if got := providerDisplayName("deepseek"); got != "DeepSeek" {

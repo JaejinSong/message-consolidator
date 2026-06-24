@@ -13,7 +13,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 11
+const schemaVersion = 12
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -184,6 +184,26 @@ func addThinkingTokensColumn(ctx context.Context, q db.DBTX) error {
 		`ALTER TABLE token_usage ADD COLUMN thinking_tokens INT DEFAULT 0`,
 	); err != nil {
 		return fmt.Errorf("add thinking_tokens column: %w", err)
+	}
+	return nil
+}
+
+// addCachedTokensColumn adds cached_tokens to token_usage on existing DBs.
+// Why: DeepSeek prompt-cache hits are billed at ~1/50 the input rate; storing the hit
+// count lets the cost dashboard price them separately. SQLite lacks IF NOT EXISTS for
+// ALTER TABLE, so the pragma check makes this idempotent.
+func addCachedTokensColumn(ctx context.Context, q db.DBTX) error {
+	var has int
+	_ = q.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pragma_table_info('token_usage') WHERE name='cached_tokens'`,
+	).Scan(&has)
+	if has > 0 {
+		return nil
+	}
+	if _, err := q.ExecContext(ctx,
+		`ALTER TABLE token_usage ADD COLUMN cached_tokens INT DEFAULT 0`,
+	); err != nil {
+		return fmt.Errorf("add cached_tokens column: %w", err)
 	}
 	return nil
 }
