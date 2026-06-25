@@ -61,6 +61,19 @@ describe('Mobile Layout Regression Tests', () => {
         expect(hasBetterHeight).toBe(true);
     });
 
+    it('v2-insights.css report layout must use minmax(0,1fr) rows so main scrolls instead of blowing out', () => {
+        const insightsCssPath = path.resolve(process.cwd(), 'static/css/v2-insights.css');
+        const content = fs.readFileSync(insightsCssPath, 'utf8');
+        // Regression: bare `grid-template-rows: 1fr` (=minmax(auto,1fr)) let the tall
+        // sidebar report list expand the row past the fixed-height container, so
+        // .c-insights-report-main overflowed `overflow:hidden` and its scrollbar was
+        // unreachable. minmax(0,1fr) clamps the row to the container height.
+        const usesMinmaxRows = /\.c-insights-report-layout\s*{[\s\S]*?grid-template-rows:\s*minmax\(\s*0\s*,\s*1fr\s*\)/.test(content);
+        const usesBareFrRows = /grid-template-rows:\s*1fr\s*;/.test(content);
+        expect(usesMinmaxRows).toBe(true);
+        expect(usesBareFrRows).toBe(false);
+    });
+
     it('message-card.css should stack footer to column on narrow mobile to prevent overflow', () => {
         const cardCssPath = path.resolve(process.cwd(), 'static/css/components/message-card.css');
         const content = fs.readFileSync(cardCssPath, 'utf8');

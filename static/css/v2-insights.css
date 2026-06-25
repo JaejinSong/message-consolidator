@@ -370,7 +370,8 @@
 .c-insights-report-layout {
     display: none;
     grid-template-columns: 17.5rem 1fr;
-    grid-template-rows: 1fr;
+    /* Why: minmax(0,1fr) clamps row to container height; bare 1fr (=minmax(auto,1fr)) lets the tall sidebar list blow out the row, breaking main's overflow scroll */
+    grid-template-rows: minmax(0, 1fr);
     gap: 0;
     min-height: 40rem;
     height: calc(100vh - 20rem);
