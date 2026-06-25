@@ -155,6 +155,7 @@ export const en: I18nEntry = {
         todayAIUsage: "Today AI Usage",
         monthlyAIUsage: "Monthly AI Usage",
         estimatedCost: "Estimated Cost",
+        cacheHitRate: "Cache Hit",
         tabTokenUsage: "Token Usage",
         summaryDaily: "Daily Glance",
         glanceTotalCompleted: [

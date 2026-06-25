@@ -32,7 +32,8 @@ export const insightsRenderer = {
         const {
             todayTotal = 0, todayPrompt = 0, todayCompletion = 0, todayThinking = 0,
             monthlyTotal = 0, monthlyPrompt = 0, monthlyCompletion = 0, monthlyThinking = 0,
-            monthlyCost = 0, model = 'Gemini 3 Flash', monthlyByProvider = []
+            monthlyCost = 0, model = 'Gemini 3 Flash', monthlyByProvider = [],
+            monthlyCacheHitRate = 0, monthlyCached = 0
         } = usage || {};
 
         const costStr = typeof monthlyCost === 'number' ? `$${monthlyCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00';
@@ -61,6 +62,7 @@ export const insightsRenderer = {
                     <span class="c-ai-usage__value">${costStr}</span>
                     <span class="c-ai-usage__info">${i18n.estimatedCost || '추정 비용'}</span>
                     <span class="c-ai-usage__detail">${costDetail}</span>
+                    ${monthlyCacheHitRate > 0 ? `<span class="c-ai-usage__detail">${i18n.cacheHitRate || '캐시 적중'} ${(monthlyCacheHitRate * 100).toFixed(0)}% (${monthlyCached.toLocaleString()} tok)</span>` : ''}
                 </div>
             </div>
         `;

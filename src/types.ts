@@ -151,6 +151,8 @@ export interface TokenUsage {
     monthlyCostOutput?: number;
     monthlyCostThinking?: number;
     monthlyByProvider?: ProviderCost[];
+    monthlyCacheHitRate?: number;
+    monthlyCached?: number;
 }
 
 export interface TimeSeriesPoint {

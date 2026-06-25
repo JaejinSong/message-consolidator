@@ -82,3 +82,64 @@ func assertFloat(t *testing.T, label string, got, want float64) {
 		t.Errorf("%s cost = %.9f, want %.9f", label, got, want)
 	}
 }
+
+func TestCacheHitRate(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name         string
+		models       []store.ModelTokenUsage
+		wantRate     float64
+		wantCached   int
+		wantEligible int
+	}{
+		{
+			name: "deepseek only — rate equals cached/prompt",
+			models: []store.ModelTokenUsage{
+				{Model: "deepseek-chat", Prompt: 100_000, Cached: 80_000},
+			},
+			wantRate:     0.8,
+			wantCached:   80_000,
+			wantEligible: 100_000,
+		},
+		{
+			name: "gemini dilution suppressed — denominator excludes gemini prompt",
+			models: []store.ModelTokenUsage{
+				{Model: "gemini-3-flash-preview", Prompt: 1_000_000, Cached: 0},
+				{Model: "deepseek-chat", Prompt: 100_000, Cached: 80_000},
+			},
+			// rate must equal deepseek-only ratio 80k/100k = 0.8, NOT 80k/1100k ≈ 0.07
+			wantRate:     0.8,
+			wantCached:   80_000,
+			wantEligible: 100_000,
+		},
+		{
+			name:         "no models — zero rate",
+			models:       []store.ModelTokenUsage{},
+			wantRate:     0.0,
+			wantCached:   0,
+			wantEligible: 0,
+		},
+		{
+			name: "gemini only — no eligible prompt, rate stays zero",
+			models: []store.ModelTokenUsage{
+				{Model: "gemini-3-flash-preview", Prompt: 500_000, Cached: 0},
+			},
+			wantRate:     0.0,
+			wantCached:   0,
+			wantEligible: 0,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			rate, cached, eligible := cacheHitRate(tc.models)
+			assertFloat(t, "rate", rate, tc.wantRate)
+			if cached != tc.wantCached {
+				t.Errorf("cached = %d, want %d", cached, tc.wantCached)
+			}
+			if eligible != tc.wantEligible {
+				t.Errorf("eligible = %d, want %d", eligible, tc.wantEligible)
+			}
+		})
+	}
+}

@@ -15,8 +15,8 @@ import (
 const TokenUnitDenominator = 1000000.0
 
 // ModelRate is the per-1M-token price for a model. CachedInputPerM is the discounted
-// rate for prompt-cache hits (DeepSeek); not yet applied — cached-token accounting is a
-// tracked follow-up, so input is currently priced entirely at the cache-miss rate.
+// prompt-cache-hit rate applied in costByModel; a zero value means the model does not
+// participate in prompt caching (e.g. Gemini).
 type ModelRate struct {
 	InputPerM       float64
 	CachedInputPerM float64
@@ -300,6 +300,23 @@ func (a *API) HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, tokenUsage)
 }
 
+// cacheHitRate computes cached/cacheEligiblePrompt over the supplied model rows.
+// Only models whose rate has CachedInputPerM > 0 contribute to the denominator so that
+// Gemini rows (CachedInputPerM == 0) do not dilute DeepSeek's real hit rate.
+// Returns (hitRate, totalCached, cacheEligiblePromptTokens).
+func cacheHitRate(models []store.ModelTokenUsage) (rate float64, totalCached, eligiblePrompt int) {
+	for _, m := range models {
+		totalCached += m.Cached
+		if rateFor(m.Model).CachedInputPerM > 0 {
+			eligiblePrompt += m.Prompt
+		}
+	}
+	if eligiblePrompt > 0 {
+		rate = float64(totalCached) / float64(eligiblePrompt)
+	}
+	return rate, totalCached, eligiblePrompt
+}
+
 // Why: Includes daily and monthly AI token usage in the user info response for cost transparency.
 // Token counts come from the aggregate daily/monthly queries; cost is priced per-model (aiRates)
 // so a Gemini→DeepSeek mixed history is billed at each row's own rate.
@@ -313,16 +330,7 @@ func (a *API) gatherTokenUsageStats(ctx context.Context, email string) tokenUsag
 	dayCostIn, dayCostOut, dayCostThink := costByModel(dailyModels)
 	monthCostIn, monthCostOut, monthCostThink := costByModel(monthlyModels)
 
-	monthCached := 0
-	for _, m := range monthlyModels {
-		monthCached += m.Cached
-	}
-	// Why: hit rate = cached input / total input. Gemini rows report 0 cached, so a
-	// mixed history dilutes the rate toward the DeepSeek-only share (intended).
-	monthCacheHitRate := 0.0
-	if monthPrompt > 0 {
-		monthCacheHitRate = float64(monthCached) / float64(monthPrompt)
-	}
+	monthCacheHitRate, monthCached, _ := cacheHitRate(monthlyModels)
 
 	return tokenUsageResponse{
 		TodayPrompt:         todayPrompt,

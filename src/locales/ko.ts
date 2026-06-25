@@ -156,6 +156,7 @@ export const ko: I18nEntry = {
         todayAIUsage: "오늘 AI 사용",
         monthlyAIUsage: "이번 달 AI 사용",
         estimatedCost: "추정 비용",
+        cacheHitRate: "캐시 적중",
         tabTokenUsage: "토큰 사용량",
         summaryDaily: "오늘의 한 줄 요약",
         glanceTotalCompleted: [
