@@ -103,12 +103,13 @@ func LoadConfig() *Config {
 		ReminderWindowsHours:        parseIntCSV(os.Getenv("REMINDER_WINDOWS_HOURS"), []int{24, 1}),
 		DailyDigestEnabled:          parseBoolEnv("DAILY_DIGEST_ENABLED", false),
 		DailyDigestRecipientEmails:  splitCSV(os.Getenv("DAILY_DIGEST_RECIPIENT_EMAIL")),
-		DailyDigestHour:             envInt("DAILY_DIGEST_HOUR", 18),
+		DailyDigestHour:             envInt("DAILY_DIGEST_HOUR", 19), // Why: 19:00 KST = 10:00 UTC, just past DeepSeek peak-pricing window
+
 		DailyDigestTimezone:         envOr("DAILY_DIGEST_TIMEZONE", "Asia/Seoul"),
 		DailyDigestLanguage:         envOr("DAILY_DIGEST_LANGUAGE", "en"),
 		WeeklyReportEnabled:         parseBoolEnv("WEEKLY_REPORT_ENABLED", false),
 		WeeklyReportRecipientEmails: splitCSV(os.Getenv("WEEKLY_REPORT_RECIPIENT_EMAIL")),
-		WeeklyReportHour:            envInt("WEEKLY_REPORT_HOUR", 18),
+		WeeklyReportHour:            envInt("WEEKLY_REPORT_HOUR", 19), // Why: see DailyDigestHour — avoid DeepSeek peak hours
 		WeeklyReportTimezone:        envOr("WEEKLY_REPORT_TIMEZONE", "Asia/Seoul"),
 		WeeklyReportLang:            envOr("WEEKLY_REPORT_LANG", "en"),
 		WeeklyReportTestRecipient:   os.Getenv("WEEKLY_REPORT_TEST_RECIPIENT"),
