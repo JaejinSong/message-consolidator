@@ -60,6 +60,7 @@ type MockStore struct {
 	RecentGmailTasks   []store.ConsolidatedMessage
 	UpdatedSubtasks    map[store.MessageID][]store.Subtask
 	HasAnyTask         bool // controls HasAnyTaskInThread; default false preserves prior guard behavior
+	Candidates         map[store.MessageID]store.CompletionCandidate
 }
 
 func (m *MockStore) GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error) {
@@ -94,6 +95,14 @@ func (m *MockStore) HandleTaskState(ctx context.Context, q store.Querier, email 
 
 func (m *MockStore) GetRecentIncompleteGmail(ctx context.Context, q store.Querier, email string) ([]store.ConsolidatedMessage, error) {
 	return m.RecentGmailTasks, nil
+}
+
+func (m *MockStore) AddCompletionCandidate(ctx context.Context, q store.Querier, email string, id store.MessageID, cand store.CompletionCandidate) error {
+	if m.Candidates == nil {
+		m.Candidates = make(map[store.MessageID]store.CompletionCandidate)
+	}
+	m.Candidates[id] = cand
+	return nil
 }
 
 func (m *MockStore) UpdateSubtasks(ctx context.Context, q store.Querier, email string, id store.MessageID, subtasks []store.Subtask) error {
@@ -767,5 +776,95 @@ func TestDefaultTaskStore_UpdateMessageCategory(t *testing.T) {
 	// Message ID 999 does not exist; UpdateMessageCategory uses RunInTx internally which should succeed silently.
 	if err := d.UpdateMessageCategory(context.Background(), nil, "u@example.com", store.MessageID(999999), "merged"); err != nil {
 		t.Logf("UpdateMessageCategory returned (expected): %v", err)
+	}
+}
+
+// stubOpenTaskFinder returns preset semantic candidates for CompletionService tests
+// without a live embedding client.
+type stubOpenTaskFinder struct {
+	candidates []OpenTaskCandidate
+	err        error
+}
+
+func (s *stubOpenTaskFinder) CandidateOpenTasks(ctx context.Context, email, queryText string, k int) ([]OpenTaskCandidate, error) {
+	return s.candidates, s.err
+}
+
+func TestHasCompletionSignal(t *testing.T) {
+	cases := []struct {
+		text string
+		want bool
+	}{
+		{"보고서 작성 완료했습니다", true},
+		{"Done with the deployment", true},
+		{"이거 언제까지 될까요?", false},
+		{"Any update on this?", false},
+		{"방금 배포했어요", true},
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := hasCompletionSignal(c.text); got != c.want {
+			t.Errorf("hasCompletionSignal(%q) = %v, want %v", c.text, got, c.want)
+		}
+	}
+}
+
+// Why: cross-channel completion must be confirm-first — a semantic match to an open task
+// in another thread records a pending candidate and must NOT auto-close the task.
+func TestCrossChannelSemanticConfirmFirst(t *testing.T) {
+	ctx := context.Background()
+
+	openTask := store.ConsolidatedMessage{ID: 42, Task: "Deploy the billing service", ThreadID: "threadX"}
+	mockStore := &MockStore{Tasks: []store.ConsolidatedMessage{}} // thread has no open tasks → cross-thread path
+	mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "RESOLVE"}}}
+	svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+	svc.SetEmbedder(&stubOpenTaskFinder{candidates: []OpenTaskCandidate{{Task: openTask, Score: -0.1}}})
+
+	msg := store.ConsolidatedMessage{
+		UserEmail:    "jjsong@whatap.io",
+		ThreadID:     "threadY", // different thread than the open task
+		Source:       "slack",
+		OriginalText: "billing service 배포 완료했습니다",
+	}
+
+	handled, err := svc.ProcessPotentialCompletion(ctx, msg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !handled {
+		t.Error("expected handled=true for cross-channel completion candidate")
+	}
+	if _, ok := mockStore.Candidates[42]; !ok {
+		t.Error("expected a completion candidate recorded on task 42")
+	}
+	if len(mockStore.CapturedIDs) != 0 {
+		t.Errorf("confirm-first: task must NOT be auto-resolved, got resolved IDs %v", mockStore.CapturedIDs)
+	}
+	if c := mockStore.Candidates[42]; c.Status != "pending" {
+		t.Errorf("candidate status = %q, want pending", c.Status)
+	}
+}
+
+// Why: without a completion signal, the semantic path must not fire (bounds embedding cost).
+func TestCrossChannelNoSignalSkipsSemantic(t *testing.T) {
+	ctx := context.Background()
+
+	openTask := store.ConsolidatedMessage{ID: 7, Task: "Deploy the billing service", ThreadID: "threadX"}
+	mockStore := &MockStore{Tasks: []store.ConsolidatedMessage{}}
+	mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "RESOLVE"}}}
+	finder := &stubOpenTaskFinder{candidates: []OpenTaskCandidate{{Task: openTask, Score: -0.1}}}
+	svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+	svc.SetEmbedder(finder)
+
+	msg := store.ConsolidatedMessage{
+		UserEmail:    "jjsong@whatap.io",
+		ThreadID:     "threadY",
+		Source:       "slack",
+		OriginalText: "혹시 billing service 진행 상황 공유 가능할까요?", // question, no completion signal
+	}
+
+	svc.ProcessPotentialCompletion(ctx, msg)
+	if _, ok := mockStore.Candidates[7]; ok {
+		t.Error("no completion signal: must not record a candidate")
 	}
 }

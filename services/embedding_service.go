@@ -206,6 +206,52 @@ func (s *EmbeddingService) SearchHybrid(ctx context.Context, email, query string
 	return reorderByIDs(msgs, fused), nil
 }
 
+// OpenTaskCandidate pairs an open task with its cosine similarity to the query.
+type OpenTaskCandidate struct {
+	Task  store.ConsolidatedMessage
+	Score float32
+}
+
+// CandidateOpenTasks embeds queryText and returns the top-k OPEN tasks ranked by
+// cosine similarity. Why: cross-channel completion matching needs the still-open task
+// that a "done" message resolves — SearchHybrid targets the archive, so this uses the
+// open-task variant (SemanticTopKOpen) and resolves IDs preserving rank order.
+func (s *EmbeddingService) CandidateOpenTasks(ctx context.Context, email, queryText string, k int) ([]OpenTaskCandidate, error) {
+	if s == nil || s.client == nil {
+		return nil, errors.New("embedding service not ready")
+	}
+	if strings.TrimSpace(queryText) == "" || k <= 0 {
+		return nil, nil
+	}
+	vec, err := s.client.EmbedQuery(ctx, queryText)
+	if err != nil {
+		return nil, fmt.Errorf("embed query: %w", err)
+	}
+	scored, err := store.SemanticTopKOpen(ctx, email, s.client.Model(), vectorToJSON(vec), k)
+	if err != nil {
+		return nil, err
+	}
+	if len(scored) == 0 {
+		return nil, nil
+	}
+	ids := make([]store.MessageID, len(scored))
+	scoreByID := make(map[store.MessageID]float32, len(scored))
+	for i, sc := range scored {
+		ids[i] = sc.ID
+		scoreByID[sc.ID] = sc.Score
+	}
+	msgs, err := store.GetMessagesByIDs(ctx, store.GetDB(), email, ids)
+	if err != nil {
+		return nil, fmt.Errorf("resolve open candidate ids: %w", err)
+	}
+	ordered := reorderByIDs(msgs, ids)
+	out := make([]OpenTaskCandidate, 0, len(ordered))
+	for _, m := range ordered {
+		out = append(out, OpenTaskCandidate{Task: m, Score: scoreByID[m.ID]})
+	}
+	return out, nil
+}
+
 // vectorToJSON encodes a float32 slice as a JSON array string — the format
 // libsql's vector32() accepts as a bind parameter for DB-side cosine computation.
 func vectorToJSON(v []float32) string {

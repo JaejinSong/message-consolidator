@@ -133,6 +133,42 @@ func SemanticTopK(ctx context.Context, email, model, queryVecJSON string, k int)
 	return out, nil
 }
 
+// SemanticTopKOpen mirrors SemanticTopK but ranks OPEN tasks (lifecycle='active')
+// instead of the archive. Why: cross-channel completion matching must find the still-open
+// task that an incoming "done" message resolves — the archive filter would never surface it.
+func SemanticTopKOpen(ctx context.Context, email, model, queryVecJSON string, k int) ([]ScoredID, error) {
+	if k <= 0 || queryVecJSON == "" {
+		return nil, nil
+	}
+	const sqlText = `
+		SELECT m.id, vector_distance_cos(e.vec, vector32(?1)) AS dist
+		FROM message_embeddings e
+		JOIN messages m ON m.id = e.message_id
+		WHERE m.lifecycle = 'active'
+		  AND m.user_email = ?2
+		  AND e.model = ?3
+		ORDER BY dist ASC
+		LIMIT ?4`
+	rows, err := GetDB().QueryContext(ctx, sqlText, queryVecJSON, email, model, int64(k))
+	if err != nil {
+		return nil, fmt.Errorf("semantic top-k open: %w", err)
+	}
+	defer rows.Close()
+	out := make([]ScoredID, 0, k)
+	for rows.Next() {
+		var id int64
+		var dist float64
+		if err := rows.Scan(&id, &dist); err != nil {
+			return nil, fmt.Errorf("semantic top-k open scan: %w", err)
+		}
+		out = append(out, ScoredID{ID: MessageID(id), Score: float32(-dist)})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("semantic top-k open: %w", err)
+	}
+	return out, nil
+}
+
 // ArchiveFTSTopIDs returns archive message IDs in BM25 rank order for the user.
 // Why: messages_fts is a virtual table created in migrations.go and is invisible
 // to sqlc analysis, so this query lives in raw SQL alongside ftsSearchArchivedMessages.

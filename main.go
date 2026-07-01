@@ -74,6 +74,7 @@ func main() {
 	embeddingSvc := initEmbeddingService(ctx, cfg, tasksSvc)
 	slackBot := initSlackBot(cfg, tasksSvc)
 
+	scanner.WireEmbedder(embeddingSvc)
 	scanner.WireWeeklyReport(reportsSvc)
 	scanner.WireDailyDigest(reportsSvc)
 

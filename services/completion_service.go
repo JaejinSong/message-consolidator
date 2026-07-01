@@ -10,6 +10,7 @@ import (
 	"message-consolidator/types"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var (
@@ -101,6 +102,28 @@ func matchesAckTokens(text string) bool {
 	return len(words) > 0
 }
 
+// completionSignalTokens are substrings that suggest a message reports the completion
+// or resolution of some task. Used as a cheap gate before the expensive embedding +
+// LLM cross-channel match, so unrelated chatter never pays for a candidate search.
+var completionSignalTokens = []string{
+	"완료", "처리했", "처리 했", "끝냈", "끝났", "마쳤", "마무리", "해결", "반영", "배포",
+	"제출", "전달드", "전달했", "보냈", "보내드", "송부", "회신", "업로드", "공유드", "완납",
+	"done", "finished", "completed", "resolved", "fixed", "deployed", "submitted",
+	"sent", "shipped", "uploaded", "closed", "handled", "delivered", "wrapped up",
+}
+
+// hasCompletionSignal reports whether text plausibly announces a completion. Case-insensitive
+// substring match — deliberately high-recall; the LLM transition check is the precision gate.
+func hasCompletionSignal(text string) bool {
+	lower := strings.ToLower(text)
+	for _, tok := range completionSignalTokens {
+		if strings.Contains(lower, tok) {
+			return true
+		}
+	}
+	return false
+}
+
 func extractSubjectFromText(originalText string) string {
 	for _, line := range strings.Split(originalText, "\n") {
 		if strings.HasPrefix(line, "S: ") {
@@ -127,6 +150,15 @@ type TaskStore interface {
 	UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id store.MessageID, category string) error
 	HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error)
 	UpdateSubtasks(ctx context.Context, q store.Querier, email string, id store.MessageID, subtasks []store.Subtask) error
+	AddCompletionCandidate(ctx context.Context, q store.Querier, email string, id store.MessageID, cand store.CompletionCandidate) error
+}
+
+// OpenTaskFinder sources open-task completion candidates by semantic similarity.
+// Why: consumer-defined so tests can stub it without a live embedding client, and
+// the seam is optional — when nil, cross-thread matching falls back to gmail subject
+// similarity.
+type OpenTaskFinder interface {
+	CandidateOpenTasks(ctx context.Context, email, queryText string, k int) ([]OpenTaskCandidate, error)
 }
 
 type DefaultTaskStore struct{}
@@ -159,18 +191,72 @@ func (d *DefaultTaskStore) UpdateSubtasks(ctx context.Context, q store.Querier, 
 	return store.UpdateSubtasks(ctx, q, email, id, subtasks)
 }
 
+func (d *DefaultTaskStore) AddCompletionCandidate(ctx context.Context, q store.Querier, email string, id store.MessageID, cand store.CompletionCandidate) error {
+	return store.AddCompletionCandidate(ctx, q, email, id, cand)
+}
+
 type CompletionService struct {
 	gemini   AICompleter
 	store    TaskStore
 	tasksSvc *TasksService
 	db       *sql.DB
+	embedder OpenTaskFinder
 }
 
 func NewCompletionService(gemini AICompleter, taskStore TaskStore, tasksSvc *TasksService, db *sql.DB) *CompletionService {
 	return &CompletionService{gemini: gemini, store: taskStore, tasksSvc: tasksSvc, db: db}
 }
 
+// SetEmbedder wires the semantic open-task finder used for cross-channel completion
+// matching. Optional — when unset, cross-thread matching stays gmail-subject only.
+func (s *CompletionService) SetEmbedder(e OpenTaskFinder) { s.embedder = e }
+
+const (
+	// crossThreadTopK bounds how many open tasks the semantic search returns for LLM review.
+	crossThreadTopK = 5
+	// crossThreadMinScore filters weak cosine matches before the LLM gate. Score is
+	// negated cosine distance (higher = closer); -0.55 ≈ distance < 0.55. Lenient by
+	// design — EvaluateTaskTransition is the precision filter.
+	crossThreadMinScore float32 = -0.55
+)
+
+// findCrossThreadCandidates returns open tasks a cross-channel message might complete.
+// Prefers semantic (embedding) matching across all sources; falls back to gmail subject
+// similarity when no embedder is wired.
 func (s *CompletionService) findCrossThreadCandidates(ctx context.Context, msg store.ConsolidatedMessage) []store.ConsolidatedMessage {
+	// Why: the semantic path costs an embedding call, so gate it on a cheap completion
+	// signal — it targets cross-channel *completions*. The gmail subject fallback stays
+	// ungated (pure string match) so cross-thread UPDATE re-notices keep routing.
+	if s.embedder != nil && hasCompletionSignal(msg.OriginalText) {
+		if cands := s.semanticCrossThreadCandidates(ctx, msg); len(cands) > 0 {
+			return cands
+		}
+	}
+	return s.gmailSubjectCandidates(ctx, msg)
+}
+
+// semanticCrossThreadCandidates ranks open tasks by embedding similarity to the incoming
+// message, excluding the message's own thread and sub-threshold matches.
+func (s *CompletionService) semanticCrossThreadCandidates(ctx context.Context, msg store.ConsolidatedMessage) []store.ConsolidatedMessage {
+	cands, err := s.embedder.CandidateOpenTasks(ctx, msg.UserEmail, msg.OriginalText, crossThreadTopK)
+	if err != nil {
+		logger.Warnf("[COMPLETION] semantic candidate search failed: %v", err)
+		return nil
+	}
+	var out []store.ConsolidatedMessage
+	for _, c := range cands {
+		if msg.ThreadID != "" && c.Task.ThreadID == msg.ThreadID {
+			continue
+		}
+		if c.Score < crossThreadMinScore {
+			continue
+		}
+		out = append(out, c.Task)
+	}
+	return out
+}
+
+func (s *CompletionService) gmailSubjectCandidates(ctx context.Context, msg store.ConsolidatedMessage) []store.ConsolidatedMessage {
 	if msg.Source != "gmail" {
 		return nil
 	}
@@ -198,6 +284,61 @@ func (s *CompletionService) findCrossThreadCandidates(ctx context.Context, msg s
 	return candidates
 }
 
+// candidateEvidenceMax caps how much of the source message is stored as evidence.
+const candidateEvidenceMax = 280
+
+// handleCrossThreadCandidates evaluates whether msg affects an open task in another
+// thread/channel and applies the confirm-first policy: RESOLVE (a close) is recorded as
+// a pending candidate for one-tap user confirmation and never auto-closed, while UPDATE
+// (a scope refinement, not a close) auto-applies as before. Returns true when handled.
+func (s *CompletionService) handleCrossThreadCandidates(ctx context.Context, msg store.ConsolidatedMessage, candidates []store.ConsolidatedMessage) bool {
+	top := candidates[0]
+	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, top.Task, msg.OriginalText, top.Subtasks)
+	if err != nil {
+		return false
+	}
+	switch res.Status {
+	case "RESOLVE":
+		return s.recordCompletionCandidate(ctx, msg, top)
+	case "UPDATE":
+		handled := false
+		for _, task := range candidates {
+			if s.handleCompletionResult(ctx, res, msg, task) {
+				handled = true
+			}
+		}
+		return handled
+	}
+	return false
+}
+
+// recordCompletionCandidate writes a confirm-first completion candidate onto the task's
+// metadata instead of closing it. Returns true on success so the caller suppresses
+// re-extraction (the message is about this existing task, not a new one).
+func (s *CompletionService) recordCompletionCandidate(ctx context.Context, msg, task store.ConsolidatedMessage) bool {
+	cand := store.CompletionCandidate{
+		SourceLink: msg.Link,
+		SourceText: truncateRunes(msg.OriginalText, candidateEvidenceMax),
+		Evidence:   "cross-channel completion match",
+		DetectedAt: time.Now().UTC().Format(time.RFC3339),
+		Status:     "pending",
+	}
+	if err := s.store.AddCompletionCandidate(ctx, s.db, msg.UserEmail, task.ID, cand); err != nil {
+		logger.Warnf("[COMPLETION] record candidate failed for task %d: %v", task.ID, err)
+		return false
+	}
+	logger.Infof("[COMPLETION] recorded confirm-first candidate for task %d from %s", task.ID, msg.Source)
+	return true
+}
+
+func truncateRunes(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max])
+}
+
 // ProcessPotentialCompletion checks if a message (reply) completes/updates tasks in the same thread.
 // Why: [Early Return] Returns true if the message was handled as a task completion/update, signaling the scanner to skip extraction.
 func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg store.ConsolidatedMessage) (bool, error) {
@@ -221,17 +362,8 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 			}
 		}
 		if candidates := s.findCrossThreadCandidates(ctx, msg); len(candidates) > 0 {
-			res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, candidates[0].Task, msg.OriginalText, candidates[0].Subtasks)
-			if err == nil && res.Status != "NEW" && res.Status != "NONE" && res.Status != "" {
-				handled := false
-				for _, task := range candidates {
-					if s.handleCompletionResult(ctx, res, msg, task) {
-						handled = true
-					}
-				}
-				if handled {
-					return true, nil
-				}
+			if s.handleCrossThreadCandidates(ctx, msg, candidates) {
+				return true, nil
 			}
 		}
 		// Why: Fallback consumes its own AI Analyze + persists tasks. Returning true

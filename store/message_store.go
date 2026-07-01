@@ -169,6 +169,38 @@ func executeUpdateMessageDetails(ctx context.Context, q Querier, email string, i
 	})
 }
 
+// CompletionCandidate is a confirm-first signal that an incoming cross-channel
+// message likely completes this task. It is stored under metadata.completion_candidate
+// and surfaced in the UI for one-tap confirmation — it never auto-closes the task.
+type CompletionCandidate struct {
+	SourceLink string  `json:"source_link,omitempty"`
+	SourceText string  `json:"source_text,omitempty"`
+	Confidence float64 `json:"confidence"`
+	Evidence   string  `json:"evidence,omitempty"`
+	DetectedAt string  `json:"detected_at"`
+	Status     string  `json:"status"` // "pending"
+}
+
+// AddCompletionCandidate records a pending completion candidate on a task's metadata.
+// Why: raw json_set is the cleanest expression — it merges into existing metadata
+// without a read-modify-write race, and sqlc cannot represent JSON path updates.
+func AddCompletionCandidate(ctx context.Context, q Querier, email string, id MessageID, cand CompletionCandidate) error {
+	payload, err := json.Marshal(cand)
+	if err != nil {
+		return fmt.Errorf("marshal completion candidate: %w", err)
+	}
+	return withTx(ctx, q, func(qw Querier) error {
+		const stmt = `UPDATE messages
+			SET metadata = json_set(COALESCE(NULLIF(metadata, ''), '{}'), '$.completion_candidate', json(?))
+			WHERE id = ? AND user_email = ?`
+		if _, err := qw.ExecContext(ctx, stmt, string(payload), int64(id), email); err != nil {
+			return err
+		}
+		InvalidateCache(email)
+		return nil
+	})
+}
+
 func MarkMessageDone(ctx context.Context, q Querier, email string, id MessageID, done bool) error {
 	if !done {
 		return unmarkMessageDone(ctx, q, email, id)
