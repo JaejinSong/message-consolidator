@@ -161,6 +161,58 @@ func TestLegacyColumnRemoval(t *testing.T) {
 	}
 }
 
+// TestBackfillZeroTimeAssignedAt verifies the v13 repair sets assigned_at=created_at for
+// rows whose assigned_at is NULL or Go zero time, while leaving healthy rows untouched.
+func TestBackfillZeroTimeAssignedAt(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	conn := GetDB()
+	email := testutil.RandomEmail("backfill")
+
+	// null assigned_at + Go zero-time assigned_at (both broken) and one healthy row.
+	seed := []struct {
+		ts, assigned, created string
+	}{
+		{testutil.RandomTS("bf_null"), "NULL", "2026-06-20 09:30:00+00:00"},
+		{testutil.RandomTS("bf_zero"), "'0001-01-01 00:00:00+00:00'", "2026-06-21 10:00:00+00:00"},
+		{testutil.RandomTS("bf_ok"), "'2026-06-22 11:00:00+00:00'", "2026-06-22 11:00:00+00:00"},
+	}
+	for _, s := range seed {
+		q := fmt.Sprintf("INSERT INTO messages (user_email, task, source, source_ts, assigned_at, created_at) VALUES (?, 'T', 'gmail', ?, %s, ?)", s.assigned)
+		if _, err := conn.Exec(q, email, s.ts, s.created); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+
+	if err := backfillZeroTimeAssignedAt(ctx, conn); err != nil {
+		t.Fatalf("backfill: %v", err)
+	}
+
+	var brokenRemaining int
+	_ = conn.QueryRow(
+		"SELECT COUNT(*) FROM messages WHERE user_email=? AND (assigned_at IS NULL OR assigned_at < '1970-01-01')",
+		email,
+	).Scan(&brokenRemaining)
+	if brokenRemaining != 0 {
+		t.Errorf("expected 0 broken assigned_at after backfill, got %d", brokenRemaining)
+	}
+
+	// Repaired rows must adopt created_at; healthy row unchanged.
+	var mismatched int
+	_ = conn.QueryRow(
+		"SELECT COUNT(*) FROM messages WHERE user_email=? AND assigned_at != created_at",
+		email,
+	).Scan(&mismatched)
+	if mismatched != 0 {
+		t.Errorf("expected all rows assigned_at=created_at, got %d mismatched", mismatched)
+	}
+}
+
 func TestIdentityXTransitiveLink(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
 	if err != nil {

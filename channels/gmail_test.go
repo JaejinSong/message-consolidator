@@ -9,6 +9,7 @@ import (
 	"message-consolidator/types"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestProcessGeminiItems_SourceTSAlignment(t *testing.T) {
@@ -811,5 +812,40 @@ func TestFilterGmailBatch_CleanMessageReachesThreadRouting(t *testing.T) {
 	}
 	if threadCalls != 1 {
 		t.Errorf("thread routing must run exactly once for clean message, got %d", threadCalls)
+	}
+}
+
+// Why: regression for the Gmail assigned_at=zero-time bug. handleThreadActivity feeds
+// ProcessPotentialCompletion → fallbackToNewExtraction, which persists a new task from
+// this ConsolidatedMessage. When AssignedAt is left zero, every completion-routed Gmail
+// task lands with assigned_at=NULL, silently disabling aging/deadline/stalled automation
+// (100% of recent Gmail tasks were affected). The envelope timestamp must flow through.
+func TestFilterGmailBatch_ThreadRoutingCarriesAssignedAt(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	email := "user@example.com"
+	ts := time.Date(2026, 6, 20, 9, 30, 0, 0, time.UTC)
+	batch := []types.RawMessage{{ID: "msg-ts-1", ThreadID: "thr-ts", Text: "금요일까지 처리하겠습니다", Timestamp: ts}}
+	classMap := map[string]string{"msg-ts-1": CategoryMine}
+
+	filter := &stubNoiseFilter{noise: false}
+	var captured store.ConsolidatedMessage
+	onThread := func(cm store.ConsolidatedMessage) bool {
+		captured = cm
+		return true
+	}
+
+	filterGmailBatch(ctx, email, batch, filter, classMap, onThread)
+
+	if captured.AssignedAt.IsZero() {
+		t.Fatalf("AssignedAt must carry the envelope timestamp, got zero time")
+	}
+	if !captured.AssignedAt.Equal(ts) {
+		t.Errorf("AssignedAt = %v, want %v", captured.AssignedAt, ts)
 	}
 }

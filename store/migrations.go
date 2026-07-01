@@ -13,7 +13,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 12
+const schemaVersion = 13
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -303,6 +303,24 @@ func dropAIInferencePayloadColumns(ctx context.Context, q db.DBTX) error {
 		); err != nil {
 			return fmt.Errorf("drop ai_inference_logs.%s: %w", col, err)
 		}
+	}
+	return nil
+}
+
+// backfillZeroTimeAssignedAt repairs task rows whose assigned_at is missing (NULL) or
+// Go zero time ('0001-01-01…'), setting it to created_at. Why: the Gmail completion path
+// (handleThreadActivity) persisted new tasks without an envelope timestamp, landing 353
+// rows with assigned_at=NULL — which silently disabled aging/deadline/stalled automation
+// that keys off assigned_at. created_at is the best available proxy for the assignment
+// time. Idempotent: repaired rows no longer match the WHERE clause on re-run.
+func backfillZeroTimeAssignedAt(ctx context.Context, q db.DBTX) error {
+	const backfillSQL = `
+UPDATE messages
+SET assigned_at = created_at
+WHERE task IS NOT NULL AND task != ''
+  AND (assigned_at IS NULL OR assigned_at < '1970-01-01')`
+	if _, err := q.ExecContext(ctx, backfillSQL); err != nil {
+		return fmt.Errorf("backfill zero-time assigned_at: %w", err)
 	}
 	return nil
 }

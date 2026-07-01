@@ -188,6 +188,10 @@ func runFullDDL(ctx context.Context, dbConn *sql.DB) error {
 		return fmt.Errorf("suppress old undated nudges failed: %w", err)
 	}
 
+	if err := backfillZeroTimeAssignedAt(ctx, tx); err != nil {
+		return fmt.Errorf("backfill zero-time assigned_at failed: %w", err)
+	}
+
 	// Why: Rebuild views AFTER tables and columns exist to ensure they reference current schema.
 	logger.Infof("[DB] init: rebuilding views")
 	if err := rebuildViews(ctx, tx); err != nil {

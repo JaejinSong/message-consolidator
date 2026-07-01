@@ -384,6 +384,10 @@ func handleThreadActivity(ctx context.Context, email string, m types.RawMessage,
 	cm := store.ConsolidatedMessage{
 		UserEmail: email, Source: "gmail", Room: "Gmail", ThreadID: m.ThreadID,
 		OriginalText: m.Text, SourceTS: m.ID, Requester: requester,
+		// Why: fallbackToNewExtraction persists a new task from this cm — a zero
+		// AssignedAt lands as assigned_at=NULL, disabling aging/deadline/stalled.
+		// CreatedAt feeds relative-deadline resolution in the fallback Analyze.
+		AssignedAt: m.Timestamp, CreatedAt: m.Timestamp,
 	}
 	if cls == CategorySent {
 		// Signals ProcessPotentialCompletion that the user sent this reply, so the task is reclassified as delegated rather than resolved.
