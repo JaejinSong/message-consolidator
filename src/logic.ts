@@ -226,6 +226,20 @@ export function getDisplayTask(m: Message, lang?: string): string {
     return m.task_en || m.task || "";
 }
 
+/**
+ * Why: Mirror of backend parseTranslatedText — a stored translation is either plain text
+ * or a {t, s} JSON payload carrying the main task plus per-subtask translations.
+ */
+export function parseTranslatedText(raw: string): { task: string; subtasks: string[] } {
+    if (!raw || raw[0] !== '{') return { task: raw, subtasks: [] };
+    try {
+        const p = JSON.parse(raw) as { t?: string; s?: string[] };
+        return { task: p.t ?? raw, subtasks: p.s ?? [] };
+    } catch {
+        return { task: raw, subtasks: [] };
+    }
+}
+
 export interface RawReportInput {
     id?: number | string;
     user_email?: string;

@@ -27,7 +27,8 @@ import {
     removeTaskNode,
     updateTaskNodeStatus,
     updateSubtaskNodeStatus,
-    getVisibleUntranslatedIds
+    getVisibleUntranslatedIds,
+    updateMessageCard
 } from './renderer';
 import { bindTelegramModal } from './renderers/telegram-modal-renderer';
 import { setupConnectionsTab, renderConnections, rerenderConnections, ConnectionsState } from './renderers/connections-renderer';
@@ -39,6 +40,7 @@ import { insights } from './insights';
 import { guide } from './guide';
 import { events, EVENTS } from './events';
 import { safeAsync, hasSessionHint, setupTabs, escapeHTML, getErrorMessage, isStatusConnected } from './utils';
+import { parseTranslatedText } from './logic';
 import { POLLING_INTERVALS } from './constants';
 import { authService } from './services/authService';
 
@@ -221,25 +223,51 @@ const fetchMessages = safeAsync(async (bypassVisibility: boolean = false) => {
  * Why: Triggers translation for visible untranslated items in a single batch.
  * Consistent with User Requirement: Execute during lang change and transitions.
  */
-async function triggerBatchTranslation(): Promise<void> {
+function triggerBatchTranslation(): void {
     const ids = getVisibleUntranslatedIds();
     if (ids.length === 0) return;
 
     const targetLang = state.currentLang || 'en';
     if (targetLang === 'en') return;
 
-    // Mark as translating in state immediately to prevent duplicate triggers
     const all = [...state.messages.inbox, ...state.messages.delegated, ...state.messages.reference];
+    const findMsg = (id: number) => all.find(item => item.id === id);
+
+    // Mark translating + show spinner immediately (also prevents duplicate triggers)
     ids.forEach(id => {
-        const m = all.find(item => item.id === id);
-        if (m) m.is_translating = true;
+        const m = findMsg(id);
+        if (m) { m.is_translating = true; updateMessageCard(m); }
     });
 
-    try {
-        await Promise.all(ids.map(id => api.requestTranslation(id, targetLang)));
-    } catch (e) {
-        console.error('[I18N] Batch translation failed', e);
-    }
+    // Merge each translation into state and repaint that card as it arrives (progressive).
+    ids.forEach(id => {
+        api.requestTranslation(id, targetLang)
+            .then(raw => {
+                const m = findMsg(id);
+                if (!m) return;
+                if (raw) {
+                    // Mirror backend ApplyTranslations: overwrite task (+ subtasks) with the
+                    // parsed translation. task_ko is set as the "translated" sentinel so the
+                    // next poll's getVisibleUntranslatedIds does not re-trigger this card.
+                    const { task, subtasks } = parseTranslatedText(raw);
+                    m.task = task;
+                    m.task_ko = task;
+                    if (subtasks.length && m.subtasks && m.subtasks.length === subtasks.length) {
+                        subtasks.forEach((st, j) => { m.subtasks![j].task = st; });
+                    }
+                }
+                m.is_translating = false;
+                updateMessageCard(m);
+            })
+            .catch(err => {
+                const m = findMsg(id);
+                if (!m) return;
+                m.is_translating = false;
+                m.translation_error = getErrorMessage(err);
+                updateMessageCard(m);
+                console.error('[I18N] translation failed', id, err);
+            });
+    });
 }
 
 /**

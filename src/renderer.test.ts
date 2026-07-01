@@ -539,6 +539,57 @@ describe('renderer.js - updateSubtaskNodeStatus', () => {
     });
 });
 
+// ─── updateMessageCard ────────────────────────────────────────────────────────
+
+describe('renderer.js - updateMessageCard', () => {
+    beforeEach(() => {
+        state.currentLang = 'ko';
+        document.body.innerHTML = `
+            <div id="receivedTasksList">
+                <div class="c-message-card" data-id="42" id="task-42">stale</div>
+            </div>
+            <div id="allTasksList">
+                <div class="c-message-card" data-id="42" id="task-42">stale</div>
+            </div>
+        `;
+    });
+
+    it('repaints every copy of the card across grids (duplicate data-id)', () => {
+        // Display path renders m.task (backend overwrites task with the translation).
+        const msg = makeMsg({ id: 42, task: '번역된 작업' });
+        renderer.updateMessageCard(msg);
+        const cards = document.querySelectorAll('.c-message-card[data-id="42"]');
+        expect(cards.length).toBe(2);
+        cards.forEach(card => {
+            expect(card.textContent).not.toContain('stale');
+            expect(card.textContent).toContain('번역된 작업');
+        });
+    });
+
+    it('renders the merged translation text in place of the stale card', () => {
+        const msg = makeMsg({ id: 42, task: '한국어 번역' });
+        renderer.updateMessageCard(msg);
+        const card = document.querySelector('.c-message-card[data-id="42"]') as HTMLElement;
+        expect(card.textContent).toContain('한국어 번역');
+        expect(card.textContent).not.toContain('stale');
+    });
+
+    it('clears the translating spinner once translation is merged', () => {
+        // Card starts in translating state (spinner present)
+        renderer.updateMessageCard(makeMsg({ id: 42, task: 'orig', is_translating: true }));
+        expect(document.querySelector('.c-message-card[data-id="42"]')?.innerHTML).toContain('translating-badge');
+        // Translation arrives → spinner gone
+        renderer.updateMessageCard(makeMsg({ id: 42, task: 'orig', task_ko: 'done', is_translating: false }));
+        document.querySelectorAll('.c-message-card[data-id="42"]').forEach(card => {
+            expect(card.innerHTML).not.toContain('translating-badge');
+        });
+    });
+
+    it('does not throw when card is not in the DOM', () => {
+        expect(() => renderer.updateMessageCard(makeMsg({ id: 9999, task: 'ghost' }))).not.toThrow();
+    });
+});
+
 // ─── initMessageGridEvents ────────────────────────────────────────────────────
 
 describe('renderer.js - initMessageGridEvents', () => {

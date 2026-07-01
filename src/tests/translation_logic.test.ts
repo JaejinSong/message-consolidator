@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getDisplayTask } from '../logic';
+import { getDisplayTask, parseTranslatedText } from '../logic';
 import { Message } from '../types';
 
 const mockMessages: Partial<Message>[] = [
@@ -33,5 +33,28 @@ describe('Translation Logic (English-First Fallback)', () => {
     it('should use the default language (en) when no language is specified', () => {
         const result = getDisplayTask(mockMessages[3] as Message);
         expect(result).toBe("Source Task");
+    });
+});
+
+describe('parseTranslatedText (mirror of backend)', () => {
+    it('returns plain text as the main task with no subtasks', () => {
+        expect(parseTranslatedText('번역된 작업')).toEqual({ task: '번역된 작업', subtasks: [] });
+    });
+
+    it('parses a {t, s} JSON payload into main task and subtasks', () => {
+        const raw = JSON.stringify({ t: '메인 작업', s: ['하위1', '하위2'] });
+        expect(parseTranslatedText(raw)).toEqual({ task: '메인 작업', subtasks: ['하위1', '하위2'] });
+    });
+
+    it('parses a {t} payload without subtasks', () => {
+        expect(parseTranslatedText(JSON.stringify({ t: '메인만' }))).toEqual({ task: '메인만', subtasks: [] });
+    });
+
+    it('falls back to raw string when JSON is malformed', () => {
+        expect(parseTranslatedText('{not json')).toEqual({ task: '{not json', subtasks: [] });
+    });
+
+    it('handles empty input', () => {
+        expect(parseTranslatedText('')).toEqual({ task: '', subtasks: [] });
     });
 });

@@ -174,6 +174,16 @@ export function createCardElement(m: Message): string {
     return MessageCard(props);
 }
 
+/**
+ * Why: Replaces just this message's card(s) in-place — avoids full-grid innerHTML rebuild.
+ * Same message may appear in its category grid AND the "all" grid, so replace every match.
+ */
+export function updateMessageCard(m: Message): void {
+    const html = createCardElement(m);
+    // querySelectorAll returns a static NodeList — safe to swap outerHTML while iterating.
+    document.querySelectorAll(`.c-message-card[data-id="${m.id}"]`).forEach(el => { el.outerHTML = html; });
+}
+
 import { filterByDeadline, TaskTab } from './taskFilter';
 
 /**
