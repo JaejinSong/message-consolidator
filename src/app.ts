@@ -869,23 +869,25 @@ function renderCommitmentsView(resp: import('./types').CommitmentsResponse): voi
 
     if (hasStalled) {
         const mineEl = document.getElementById('stalledMineList');
-        if (mineEl) mineEl.innerHTML = stalled.mine.map(s =>
-            `<div class="c-task-card c-task-card--stalled c-task-card--stalled-mine">
-                <span class="c-task-card__badge">🔴</span>
-                <span class="c-task-card__task">${s.task}</span>
-                <span class="c-task-card__meta">${s.source}/${s.room}</span>
-                <span class="c-task-card__days">D+${s.days_stalled}</span>
-            </div>`).join('');
+        if (mineEl) mineEl.innerHTML = stalled.mine.map(s => stalledCardHTML(s, 'mine')).join('');
 
         const obsEl = document.getElementById('stalledObservedList');
-        if (obsEl) obsEl.innerHTML = stalled.observed.map(s =>
-            `<div class="c-task-card c-task-card--stalled c-task-card--stalled-observed">
-                <span class="c-task-card__badge">👁</span>
-                <span class="c-task-card__assignee">${s.requester} → ${s.assignee}</span>
+        if (obsEl) obsEl.innerHTML = stalled.observed.map(s => stalledCardHTML(s, 'observed')).join('');
+    }
+}
+
+// Why: mine/observed differ only by left-bar color; requester→assignee is the primary
+// info, so parties are emphasized and the emoji badge is dropped as visual noise.
+function stalledCardHTML(s: import('./types').StalledItem, kind: 'mine' | 'observed'): string {
+    return `<div class="c-task-card c-task-card--stalled c-task-card--stalled-${kind}">
+                <span class="c-task-card__parties">
+                    <span class="c-task-card__party">${s.requester}</span>
+                    <span class="c-task-card__arrow">→</span>
+                    <span class="c-task-card__party c-task-card__party--assignee">${s.assignee}</span>
+                </span>
                 <span class="c-task-card__task">${s.task}</span>
                 <span class="c-task-card__days">D+${s.days_stalled}</span>
-            </div>`).join('');
-    }
+            </div>`;
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
