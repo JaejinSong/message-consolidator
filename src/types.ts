@@ -225,6 +225,8 @@ export interface MessageHandlers {
     onShowOriginal: (id: string) => Promise<void>;
     onMapAlias?: (name: string, source: string) => void;
     onSelectTask?: (id: number, selected: boolean) => void;
+    onConfirmCandidate?: (id: string) => Promise<void>;
+    onDismissCandidate?: (id: string) => Promise<void>;
 }
 
 export interface ServiceHandlers extends MessageHandlers {

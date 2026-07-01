@@ -120,6 +120,41 @@ const handlers: ServiceHandlers = {
             detail: { name }
         }));
     },
+    // Why: confirm-first completion candidate — confirming marks the task done via the
+    // existing endpoint; the banner disappears because it renders only for open tasks.
+    onConfirmCandidate: safeAsync(async (idStr: string) => {
+        const id = Number(idStr);
+        if (!getTaskById(id)) return;
+        updateTaskStatusInState(id, true);
+        updateTaskNodeStatus(id, true);
+        try {
+            const result = await api.toggleDone(idStr, true);
+            if (result && result.user) updateStats(result.user);
+            events.emit(EVENTS.TASK_COMPLETED, { id: idStr, result });
+        } catch {
+            showToast(state.currentLang === 'ko' ? '상태 업데이트 실패' : 'Failed to update status', 'error');
+            updateTaskStatusInState(id, false);
+            updateTaskNodeStatus(id, false);
+        }
+    }, { triggerAuthOverlay: true }),
+    onDismissCandidate: safeAsync(async (idStr: string) => {
+        const id = Number(idStr);
+        const task = getTaskById(id);
+        if (!task) return;
+        try {
+            await api.dismissCompletionCandidate(idStr);
+            // Why: drop the candidate from in-state metadata so the banner clears without a refetch.
+            const raw = task.metadata;
+            const meta: Record<string, unknown> = typeof raw === 'string'
+                ? (JSON.parse(raw || '{}') as Record<string, unknown>)
+                : { ...(raw as Record<string, unknown> || {}) };
+            delete meta.completion_candidate;
+            task.metadata = meta;
+            renderMessages(state.messages);
+        } catch {
+            showToast(state.currentLang === 'ko' ? '처리 실패' : 'Failed to dismiss', 'error');
+        }
+    }, { triggerAuthOverlay: true }),
     onWhatsAppLogout: safeAsync(async () => {
         const lang = state.currentLang || 'en';
         const i18n = (I18N_DATA as I18nDictionary)[lang] ?? (I18N_DATA as I18nDictionary)['en'];

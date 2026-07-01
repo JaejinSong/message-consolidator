@@ -103,6 +103,20 @@ export function MessageCard(props: MessageCardProps): string {
     const delegatedHtml = assigned_to ? `<div class="c-message-card__badge c-message-card__badge--delegated" title="Delegated Task">🔄 ${lang === 'ko' ? `@${escapeHTML(assigned_to)}에게 위임됨` : `Delegated to @${escapeHTML(assigned_to)}`}</div>` : '';
     const slackResolvedBadgeHtml = isSlackThreadResolved ? `<div class="c-message-card__badge c-message-card__badge--slack-resolved" title="${lang === 'ko' ? '비활성으로 인해 모니터링 종료' : 'Monitoring stopped due to inactivity'}">⏹️</div>` : '';
 
+    // Why: confirm-first completion candidate — a cross-channel message was detected as
+    // likely completing this task. Surface a one-tap confirm/dismiss banner; never auto-close.
+    const candidate = metadata?.completion_candidate as { status?: string } | undefined;
+    const hasPendingCandidate = !done && candidate?.status === 'pending';
+    const completionCandidateHtml = hasPendingCandidate ? `
+        <div class="c-message-card__completion-candidate" role="status">
+            <span class="c-message-card__completion-candidate-label">${lang === 'ko' ? '✅ 다른 채널에서 완료된 것으로 보입니다 — 맞나요?' : '✅ Looks completed elsewhere — confirm?'}</span>
+            <div class="c-message-card__completion-candidate-actions">
+                <button class="c-message-card__cc-btn c-message-card__cc-btn--confirm" data-action="confirm-candidate">${lang === 'ko' ? '완료 확정' : 'Confirm done'}</button>
+                <button class="c-message-card__cc-btn c-message-card__cc-btn--dismiss" data-action="dismiss-candidate">${lang === 'ko' ? '아니요' : 'Dismiss'}</button>
+            </div>
+        </div>
+    ` : '';
+
     const contextHtml = contextSnippets.length > 0 ? `
         <div class="task-context">
             ${ICONS.info}
@@ -182,6 +196,7 @@ export function MessageCard(props: MessageCardProps): string {
                     </button>
                 </div>
             </div>
+            ${completionCandidateHtml}
 
             <div class="c-message-card__body">
                 <div class="c-message-card__title">

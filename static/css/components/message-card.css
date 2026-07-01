@@ -645,3 +645,48 @@ details[open] .c-message-card__subtasks-toggle::before {
     }
 }
 
+
+/* Completion candidate banner: confirm-first cross-channel completion suggestion */
+.c-message-card__completion-candidate {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    border: var(--border-thin) solid rgba(var(--color-success-rgb), 0.4);
+    background: rgba(var(--color-success-rgb), 0.08);
+}
+
+.c-message-card__completion-candidate-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-success);
+}
+
+.c-message-card__completion-candidate-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.c-message-card__cc-btn {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: var(--spacing-xxs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    border: var(--border-thin) solid transparent;
+    cursor: pointer;
+}
+
+.c-message-card__cc-btn--confirm {
+    background: var(--color-success);
+    color: var(--white);
+}
+
+.c-message-card__cc-btn--dismiss {
+    background: transparent;
+    color: var(--text-muted);
+    border-color: var(--border-light);
+}

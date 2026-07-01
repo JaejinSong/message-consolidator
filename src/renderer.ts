@@ -106,6 +106,16 @@ export function initMessageGridEvents(gridId: string, handlers: MessageHandlers)
                     await handlers.onToggleSubtask(id, index, !isSubtaskDone);
                 }
                 break;
+            case 'confirm-candidate':
+                if (handlers.onConfirmCandidate) {
+                    await handlers.onConfirmCandidate(id);
+                }
+                break;
+            case 'dismiss-candidate':
+                if (handlers.onDismissCandidate) {
+                    await handlers.onDismissCandidate(id);
+                }
+                break;
             case 'delete':
                 await handlers.onDeleteTask(id);
                 break;

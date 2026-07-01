@@ -115,6 +115,15 @@ export const api = {
         });
     },
 
+    async dismissCompletionCandidate(id: string | number): Promise<void> {
+        const validatedId = ensureInt(id);
+        return apiFetch('/messages/completion-candidate/dismiss', {
+            method: 'POST',
+            body: JSON.stringify({ id: validatedId }),
+            errorMessage: 'Dismiss completion candidate failed'
+        });
+    },
+
     async toggleSubtask(id: string | number, subtaskIndex: number, done: boolean): Promise<{ user?: UserProfile }> {
         const validatedId = ensureInt(id);
         return apiFetch('/subtasks/toggle', {

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"message-consolidator/internal/testutil"
+	"strings"
 	"testing"
 )
 
@@ -148,4 +149,49 @@ func TestMetadataIntegrity(t *testing.T) {
 			t.Errorf("Expected still 3 channels after duplicate merge, got %d: %v", len(final.SourceChannels), final.SourceChannels)
 		}
 	})
+}
+
+// TestCompletionCandidateRoundTrip verifies add then dismiss of a confirm-first
+// completion candidate on a task's metadata.
+func TestCompletionCandidateRoundTrip(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	email := testutil.RandomEmail("cand")
+	res, err := GetDB().Exec(
+		`INSERT INTO messages (user_email, source, task, source_ts, done, is_deleted) VALUES (?, 'slack', 'Ship the release', ?, 0, 0)`,
+		email, testutil.RandomTS("cand"))
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	rawID, _ := res.LastInsertId()
+	id := MessageID(rawID)
+
+	cand := CompletionCandidate{SourceLink: "http://x", SourceText: "released", DetectedAt: "2026-07-01T00:00:00Z", Status: "pending"}
+	if err := AddCompletionCandidate(ctx, GetDB(), email, id, cand); err != nil {
+		t.Fatalf("add candidate: %v", err)
+	}
+
+	msg, err := GetMessageByID(ctx, GetDB(), email, id)
+	if err != nil {
+		t.Fatalf("get after add: %v", err)
+	}
+	if !strings.Contains(string(msg.Metadata), "completion_candidate") {
+		t.Fatalf("expected completion_candidate in metadata, got %s", string(msg.Metadata))
+	}
+
+	if err := DismissCompletionCandidate(ctx, GetDB(), email, id); err != nil {
+		t.Fatalf("dismiss: %v", err)
+	}
+	msg2, err := GetMessageByID(ctx, GetDB(), email, id)
+	if err != nil {
+		t.Fatalf("get after dismiss: %v", err)
+	}
+	if strings.Contains(string(msg2.Metadata), "completion_candidate") {
+		t.Errorf("expected completion_candidate removed, got %s", string(msg2.Metadata))
+	}
 }

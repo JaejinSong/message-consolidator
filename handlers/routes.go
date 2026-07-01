@@ -116,6 +116,7 @@ func (a *API) registerMessageRoutes(r *mux.Router) {
 	r.Handle("/api/messages/{id:[0-9]+}/original", a.protected(a.HandleGetOriginal)).Methods("GET")
 	r.Handle("/api/tasks/translate-batch", a.protected(a.HandleTranslateBatchTasks)).Methods("POST")
 	r.Handle("/api/tasks/merge", a.protected(a.HandleMergeTasks)).Methods("PUT")
+	r.Handle("/api/messages/completion-candidate/dismiss", a.protected(a.HandleDismissCompletionCandidate)).Methods("POST")
 	r.Handle("/api/subtasks/toggle", a.protected(a.HandleToggleSubtask)).Methods("POST")
 	r.Handle("/api/commitments", a.protected(a.HandleGetCommitments)).Methods("GET")
 }

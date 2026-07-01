@@ -125,6 +125,27 @@ func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 	a.respondWithUpdatedUser(w, r, email)
 }
 
+// HandleDismissCompletionCandidate clears a confirm-first completion candidate the user
+// rejected. The task stays open; only the metadata suggestion is removed.
+func (a *API) HandleDismissCompletionCandidate(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	var req struct {
+		ID store.MessageID `json:"id"`
+	}
+	if !bindJSON(w, r, &req) {
+		return
+	}
+	if req.ID <= 0 {
+		respondError(w, http.StatusBadRequest, "Invalid Task ID")
+		return
+	}
+	if err := store.DismissCompletionCandidate(r.Context(), store.GetDB(), email, req.ID); err != nil {
+		handleAPIError(w, r, err, "[TASKS] dismiss candidate for "+email, "Failed to dismiss candidate")
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 func (a *API) HandleToggleSubtask(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {

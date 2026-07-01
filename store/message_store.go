@@ -201,6 +201,22 @@ func AddCompletionCandidate(ctx context.Context, q Querier, email string, id Mes
 	})
 }
 
+// DismissCompletionCandidate removes a pending completion candidate from a task's
+// metadata. Why: the user rejected the confirm-first suggestion — the task stays open
+// and should not keep surfacing the candidate.
+func DismissCompletionCandidate(ctx context.Context, q Querier, email string, id MessageID) error {
+	return withTx(ctx, q, func(qw Querier) error {
+		const stmt = `UPDATE messages
+			SET metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.completion_candidate')
+			WHERE id = ? AND user_email = ?`
+		if _, err := qw.ExecContext(ctx, stmt, int64(id), email); err != nil {
+			return err
+		}
+		InvalidateCache(email)
+		return nil
+	})
+}
+
 func MarkMessageDone(ctx context.Context, q Querier, email string, id MessageID, done bool) error {
 	if !done {
 		return unmarkMessageDone(ctx, q, email, id)
