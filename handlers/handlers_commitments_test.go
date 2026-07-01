@@ -135,6 +135,60 @@ func TestHandleGetCommitments_OverdueBucket(t *testing.T) {
 	}
 }
 
+func TestHandleGetCommitments_ExcludesDeleted(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	email := "erin@test.com"
+	seedCommitment(t, email, "Soft deleted promise", "PROMISE", email, "bob")
+	if _, err := store.GetDB().Exec(
+		`UPDATE messages SET is_deleted = 1 WHERE user_email = ?`, email,
+	); err != nil {
+		t.Fatalf("soft-delete: %v", err)
+	}
+
+	api := &API{}
+	req := NewMockRequest("GET", "/api/commitments", email)
+	rr := httptest.NewRecorder()
+
+	api.HandleGetCommitments(rr, req)
+
+	var resp CommitmentsResponse
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+
+	total := len(resp.Overdue) + len(resp.Undated) + len(resp.Active)
+	if total != 0 {
+		t.Errorf("expected soft-deleted commitment to be excluded, got %d items", total)
+	}
+}
+
+func TestCommitmentMessageIDs_Dedup(t *testing.T) {
+	resp := &CommitmentsResponse{
+		Overdue: []CommitmentItem{{ID: 1}, {ID: 2}},
+		Undated: []CommitmentItem{{ID: 2}}, // dup across buckets
+		Active:  []CommitmentItem{{ID: 0}}, // zero id skipped
+		Stalled: StalledBucketsResponse{
+			Mine:     []StalledItem{{ID: 3}},
+			Observed: []StalledItem{{ID: 1}}, // dup with overdue
+		},
+	}
+
+	ids := commitmentMessageIDs(resp)
+
+	if len(ids) != 3 {
+		t.Fatalf("expected 3 unique non-zero ids, got %d: %v", len(ids), ids)
+	}
+	want := map[store.MessageID]bool{1: true, 2: true, 3: true}
+	for _, id := range ids {
+		if !want[id] {
+			t.Errorf("unexpected id %d", id)
+		}
+	}
+}
+
 func TestHandleGetCommitments_Unauthorized(t *testing.T) {
 	api := &API{}
 	req, _ := http.NewRequest("GET", "/api/commitments", nil)

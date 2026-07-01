@@ -503,9 +503,9 @@ export const api = {
         });
     },
 
-    async fetchCommitments(view: 'mine' | 'waiting' = 'mine'): Promise<CommitmentsResponse> {
+    async fetchCommitments(view: 'mine' | 'waiting' = 'mine', lang = 'en'): Promise<CommitmentsResponse> {
         return apiFetch('/commitments', {
-            params: { view },
+            params: { view, lang },
             errorMessage: 'Fetch commitments failed'
         });
     }

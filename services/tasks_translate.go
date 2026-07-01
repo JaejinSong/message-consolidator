@@ -173,6 +173,24 @@ func BuildTranslateRequest(id store.MessageID, task string, subtasks []store.Sub
 	return store.TranslateRequest{ID: id, Text: string(b)}
 }
 
+// TranslateTaskTexts ensures translations exist for ids (translating cache misses
+// inline) and returns id -> translated main task text. Subtasks are dropped since
+// callers here (e.g. commitments view) render task text only.
+func (s *TasksService) TranslateTaskTexts(ctx context.Context, email string, ids []store.MessageID, lang string) map[store.MessageID]string {
+	out := make(map[store.MessageID]string)
+	if lang == "" || strings.EqualFold(lang, "en") || len(ids) == 0 {
+		return out
+	}
+	results, _ := s.ProcessBatchTranslation(ctx, email, ids, lang)
+	for _, r := range results {
+		if r.Success && r.TranslatedText != "" {
+			main, _ := parseTranslatedText(r.TranslatedText)
+			out[r.ID] = main
+		}
+	}
+	return out
+}
+
 // parseTranslatedText parses a stored translated_text value (plain or JSON).
 // Returns (mainTask, subtaskTexts).
 func parseTranslatedText(raw string) (string, []string) {

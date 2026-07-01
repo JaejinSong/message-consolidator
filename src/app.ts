@@ -437,6 +437,7 @@ const initLanguageSelector = () => {
                 if (archive.isVisible()) {
                     archive.fetch();
                 }
+                reloadCommitmentsIfActive();
             } catch (e) {
                 console.error('[I18n] Language switch refresh failed', e);
             }
@@ -810,12 +811,24 @@ const initApp = () => {
     initVisibilityListener();
 };
 
+// Why: Remember the active commitment view so a language switch can re-fetch it.
+let currentCommitmentView: 'mine' | 'waiting' = 'mine';
+
 async function loadCommitmentsTab(view: 'mine' | 'waiting'): Promise<void> {
+    currentCommitmentView = view;
     try {
-        const resp = await api.fetchCommitments(view);
+        const resp = await api.fetchCommitments(view, state.currentLang || 'en');
         renderCommitmentsView(resp);
     } catch {
         showToast('Failed to load commitments', 'error');
+    }
+}
+
+// Why: Commitment task text is translated server-side per request, so a language
+// switch must re-fetch the active commitments tab (fetchMessages alone won't cover it).
+function reloadCommitmentsIfActive(): void {
+    if (document.getElementById('commitmentsTab')?.classList.contains('active')) {
+        void loadCommitmentsTab(currentCommitmentView);
     }
 }
 
