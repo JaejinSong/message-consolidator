@@ -226,7 +226,7 @@ func processSingleSlackThread(ctx context.Context, sc *channels.SlackClient, t s
 	candidates := collectThreadCandidates(ctx, sc, user, t, replies, res, ident.effAliases)
 
 	if len(candidates) > 0 {
-		analyzeAndSaveSlack(ctx, user, sc, candidates, wg)
+		analyzeSlackBatch(ctx, user, sc, t.ChannelID, candidates, wg)
 	}
 	updateThreadStatus(ctx, sc, t, res)
 }
@@ -261,7 +261,7 @@ func processSlackThreadGroup(ctx context.Context, sc *channels.SlackClient, grou
 		}
 		candidates := collectThreadCandidates(ctx, sc, ident.user, sub, replies, res, ident.effAliases)
 		if len(candidates) > 0 {
-			analyzeAndSaveSlack(ctx, ident.user, sc, candidates, wg)
+			analyzeSlackBatch(ctx, ident.user, sc, sub.ChannelID, candidates, wg)
 		}
 	}
 	updateThreadStatusGroup(ctx, sc, group, res)

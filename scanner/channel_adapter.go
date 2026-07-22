@@ -44,10 +44,16 @@ type ChannelAdapter interface {
 type driverCompletionOptOut interface{ ownsCompletionDispatch() }
 
 // saveThreadAnchor — optional: channels that anchor reply threads on the saved
-// message's own ID (LINE) provide the thread_id persisted with the task;
-// WhatsApp/Telegram leave it empty.
+// message's own ID (LINE) or parent thread ts (Slack) provide the thread_id
+// persisted with the task; WhatsApp/Telegram leave it empty.
 type saveThreadAnchor interface {
 	SaveThreadID(m types.RawMessage) string
+}
+
+// saveLinker — optional: channels with permalinks (Slack) build the task's Link;
+// Slack additionally registers the thread for sweep tracking inside this call.
+type saveLinker interface {
+	SaveLink(ctx context.Context, m types.RawMessage, email string) string
 }
 
 func scanChannel(ctx context.Context, user store.User, aliases []string, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []store.MessageID {
@@ -262,13 +268,13 @@ func saveChannelItem(ctx context.Context, user store.User, aliases []string, ite
 	if adapter.IsFromMe(m, user) && !is1to1 {
 		item.Category = string(types.CategoryTask)
 	}
-	msg := services.BuildTask(ctx, buildChannelTaskParams(user, aliases, item, m, group, adapter))
+	msg := services.BuildTask(ctx, buildChannelTaskParams(ctx, user, aliases, item, m, group, adapter))
 
 	id, _ := services.HandleTaskState(ctx, nil, user.Email, item, msg)
 	return id
 }
 
-func buildChannelTaskParams(user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, adapter ChannelAdapter) services.TaskBuildParams {
+func buildChannelTaskParams(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, adapter ChannelAdapter) services.TaskBuildParams {
 	source := adapter.Source()
 
 	// Why: Telegram의 m.Sender는 숫자 ID(예 "123456789"), m.SenderName이 표시명.
@@ -296,6 +302,9 @@ func buildChannelTaskParams(user store.User, aliases []string, item store.TodoIt
 	}
 	if anchor, ok := adapter.(saveThreadAnchor); ok {
 		params.ThreadID = anchor.SaveThreadID(m)
+	}
+	if linker, ok := adapter.(saveLinker); ok {
+		params.Link = linker.SaveLink(ctx, m, user.Email)
 	}
 	return params
 }

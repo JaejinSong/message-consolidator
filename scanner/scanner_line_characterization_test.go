@@ -65,7 +65,7 @@ func TestLineConsolidatedMsgCharacterization(t *testing.T) {
 
 	item := store.TodoItem{Task: "보고서 제출", SourceTS: "lm-100", Category: "TASK"}
 	adapter := newLineAdapter("C-grp-1", "group", roomName, rows)
-	msg := services.BuildTask(ctx, buildChannelTaskParams(*user, nil, item, lineRowToRaw(rows[0]), roomName, adapter))
+	msg := services.BuildTask(ctx, buildChannelTaskParams(ctx, *user, nil, item, lineRowToRaw(rows[0]), roomName, adapter))
 
 	checks := []struct {
 		name, got, want string

@@ -289,11 +289,98 @@ func processSlackCandidates(ctx context.Context, users []store.User, sc *channel
 		if err != nil || user == nil {
 			continue
 		}
-		for channelID, msgs := range byChannel {
-			logger.Debugf("[SLACK] user %s channel %s: %d candidates queued for AI analysis", email, channelID, len(msgs))
-			analyzeAndSaveSlack(ctx, user, sc, msgs, wg)
-		}
+		aliases, _ := store.GetUserAliases(ctx, user.ID)
+		logger.Debugf("[SLACK] user %s: %d channels queued for AI analysis", email, len(byChannel))
+		scanChannel(ctx, *user, aliases, "Korean", wg, newSlackAdapter(ctx, sc, byChannel))
 	}
+}
+
+// analyzeSlackBatch runs one channel's classified candidates through the shared
+// driver — the thread sweeper's entry point into the same pipeline.
+func analyzeSlackBatch(ctx context.Context, user *store.User, sc *channels.SlackClient, channelID string, candidates []types.RawMessage, wg *sync.WaitGroup) {
+	if len(candidates) == 0 {
+		return
+	}
+	aliases, _ := store.GetUserAliases(ctx, user.ID)
+	byChannel := map[string][]types.RawMessage{channelID: candidates}
+	scanChannel(ctx, *user, aliases, "Korean", wg, newSlackAdapter(ctx, sc, byChannel))
+}
+
+// slackAdapter feeds one user's per-channel candidate batches (already
+// classified in the drain phase) through the shared channel driver.
+type slackAdapter struct {
+	// ctx is the scan-scoped context; BuildPayload/Mentions resolve user names
+	// through the Slack API and the ChannelAdapter interface carries no ctx.
+	ctx      context.Context
+	sc       *channels.SlackClient
+	buf      map[string][]types.RawMessage // channelName → msgs
+	rooms    map[string]string             // channelName → channelID
+	consumed bool
+}
+
+func newSlackAdapter(ctx context.Context, sc *channels.SlackClient, byChannel map[string][]types.RawMessage) *slackAdapter {
+	buf := make(map[string][]types.RawMessage, len(byChannel))
+	rooms := make(map[string]string, len(byChannel))
+	for channelID, msgs := range byChannel {
+		name := sc.GetChannelName(channelID)
+		buf[name] = append(buf[name], msgs...)
+		rooms[name] = channelID
+	}
+	return &slackAdapter{ctx: ctx, sc: sc, buf: buf, rooms: rooms}
+}
+
+func (a *slackAdapter) Source() string    { return store.SourceSlack }
+func (a *slackAdapter) LogPrefix() string { return "SLACK" }
+
+func (a *slackAdapter) PopMessages(string) map[string][]types.RawMessage {
+	if a.consumed {
+		return nil
+	}
+	a.consumed = true
+	return a.buf
+}
+
+func (a *slackAdapter) GetGroupName(_, roomKey string) string { return roomKey }
+
+// Is1To1 — Slack DM channel IDs carry the "D" prefix.
+func (a *slackAdapter) Is1To1(roomKey string) bool {
+	return strings.HasPrefix(a.rooms[roomKey], "D")
+}
+
+func (a *slackAdapter) BuildPayload(_ store.User, _ []string, msgs []types.RawMessage) (string, map[string]types.RawMessage) {
+	return buildSlackAnalysisPayload(a.ctx, msgs, a.sc)
+}
+
+func (a *slackAdapter) Enrich(roomKey, payload string, ts time.Time) (*types.EnrichedMessage, error) {
+	var last types.RawMessage
+	if msgs := a.buf[roomKey]; len(msgs) > 0 {
+		last = msgs[len(msgs)-1]
+	}
+	senderName := last.SenderName
+	if senderName == "" {
+		senderName = last.Sender
+	}
+	return EnrichSlackMessage(last.Sender, senderName, last.ChannelID, last.ReplyToID, payload, ts)
+}
+
+// IsFromMe — always false toward the driver: Slack owns its fromMe behaviors in
+// the drain phase (completion dispatch in classifyAndCollect) and historically
+// never applied the driver's fromMe-in-group category override.
+func (a *slackAdapter) IsFromMe(types.RawMessage, store.User) bool { return false }
+
+func (a *slackAdapter) Mentions(m types.RawMessage) []string {
+	return resolveSlackMentionNames(a.ctx, a.sc, extractSlackMentionUserIDs(m.Text))
+}
+
+// ownsCompletionDispatch — dispatchOutgoingCompletionIfMine already covers ALL
+// raw rows pre-classification; the driver must not re-dispatch the classified subset.
+func (a *slackAdapter) ownsCompletionDispatch() {}
+
+// SaveThreadID — replies anchor on the parent thread ts, root messages on their own ID.
+func (a *slackAdapter) SaveThreadID(m types.RawMessage) string { return slackThreadTS(m) }
+
+func (a *slackAdapter) SaveLink(ctx context.Context, m types.RawMessage, email string) string {
+	return buildSlackLinkAndRegisterThread(ctx, m, email)
 }
 
 func updateSlackCursors(newTS map[string]map[string]string) {
@@ -304,71 +391,6 @@ func updateSlackCursors(newTS map[string]map[string]string) {
 			}
 		}
 	}
-}
-
-func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.SlackClient, candidates []types.RawMessage, wg *sync.WaitGroup) {
-	if len(candidates) == 0 {
-		return
-	}
-	if deps.gClient == nil {
-		logger.Errorf("[SCAN] slack: deps.gClient not initialized; scanner.Init may have failed")
-		return
-	}
-
-	channelName := sc.GetChannelName(candidates[0].ChannelID)
-	lockKey := deps.roomLockSvc.GetRoomKey(user.Email, store.SourceSlack, channelName)
-	lock := deps.roomLockSvc.AcquireLock(lockKey)
-	lock.Lock()
-	defer lock.Unlock()
-
-	payload, msgMap := buildSlackAnalysisPayload(ctx, candidates, sc)
-	lastMsg := candidates[len(candidates)-1]
-	senderName := lastMsg.SenderName
-	if senderName == "" {
-		senderName = lastMsg.Sender
-	}
-	enriched, _ := EnrichSlackMessage(lastMsg.Sender, senderName, lastMsg.ChannelID, lastMsg.ReplyToID, payload, lastMsg.Timestamp)
-	if strings.HasPrefix(candidates[0].ChannelID, "D") {
-		enriched.ChatType = "1to1"
-	} else {
-		enriched.ChatType = "group"
-	}
-
-	proposals, err := deps.gClient.Analyze(ctx, user.Email, *enriched, "Korean", store.SourceSlack, channelName)
-	if err != nil {
-		logger.Errorf("[SCAN] slack: Gemini analyze error for %s: %v", user.Email, err)
-		return
-	}
-
-	// Why: inject thread context so findMatch can guard against cross-thread merges.
-	for i := range proposals {
-		if raw, ok := msgMap[proposals[i].SourceTS]; ok {
-			proposals[i].ThreadID = raw.ThreadID
-		}
-	}
-
-	// Why: [Service-Oriented Resolve] Ensures SLACK proposals are resolved using the same backend-driven similarity engine.
-	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, store.SourceSlack, channelName)
-	items := deps.tasksSvc.ResolveProposals(ctx, user.Email, channelName, proposals, tasks)
-	processSlackItems(ctx, user, items, msgMap, sc, wg)
-}
-
-func processSlackItems(ctx context.Context, user *store.User, items []store.TodoItem, msgMap map[string]types.RawMessage, sc *channels.SlackClient, wg *sync.WaitGroup) {
-	aliases, _ := store.GetUserAliases(ctx, user.ID)
-	var newIDs []store.MessageID
-	for _, item := range items {
-		m, ok := msgMap[item.SourceTS]
-		if !ok {
-			continue
-		}
-		msg := mapSlackItemToMessage(ctx, item, m, user, aliases, sc)
-
-		id, err := services.HandleTaskState(ctx, nil, user.Email, item, msg)
-		if err == nil && id > 0 {
-			newIDs = append(newIDs, id)
-		}
-	}
-	triggerAsyncTranslation(ctx, user.Email, newIDs, wg)
 }
 
 func buildSlackAnalysisPayload(ctx context.Context, candidates []types.RawMessage, sc slackUserResolver) (string, map[string]types.RawMessage) {
@@ -413,35 +435,6 @@ func buildSlackMetadataString(m types.RawMessage) string {
 		sb.WriteString(fmt.Sprintf(" [Files: %s]", strings.Join(m.AttachmentNames, ", ")))
 	}
 	return sb.String()
-}
-
-func mapSlackItemToMessage(ctx context.Context, item store.TodoItem, m types.RawMessage, user *store.User, aliases []string, sc *channels.SlackClient) store.ConsolidatedMessage {
-	threadID := m.ReplyToID
-	if threadID == "" {
-		threadID = m.ID
-	}
-	link := buildSlackLinkAndRegisterThread(ctx, m, user.Email)
-	mentionIDs := extractSlackMentionUserIDs(m.Text)
-	explicitMentions := resolveSlackMentionNames(ctx, sc, mentionIDs)
-
-	params := services.TaskBuildParams{
-		UserEmail:        user.Email,
-		User:             *user,
-		Aliases:          aliases,
-		Item:             item,
-		SenderRaw:        m.Sender, // Resolved Slack display name — primary identity fallback
-		Source:           store.SourceSlack,
-		Room:             sc.GetChannelName(m.ChannelID),
-		Link:             link,
-		SourceTS:         m.ID,
-		Timestamp:        m.Timestamp,
-		OriginalText:     m.Text,
-		ThreadID:         threadID,
-		RepliedToID:      m.ReplyToID,
-		SourceChannels:   []string{store.SourceSlack},
-		ExplicitMentions: explicitMentions,
-	}
-	return services.BuildTask(ctx, params)
 }
 
 func buildSlackLink(m types.RawMessage) string {

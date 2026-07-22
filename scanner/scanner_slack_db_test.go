@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"message-consolidator/config"
+	"message-consolidator/services"
 	"message-consolidator/store"
 	"message-consolidator/types"
 )
@@ -73,23 +74,31 @@ func TestSweepSlackThreads_EmptyThreads(t *testing.T) {
 	wg.Wait()
 }
 
-// TestProcessSlackCandidates_NonEmptyNilGClient exercises the loop when deps.gClient==nil
-// (analyzeAndSaveSlack returns early without panic).
-func TestProcessSlackCandidates_NonEmptyNilGClient(t *testing.T) {
+// TestSlackDriverScan_NilGClient exercises the shared driver when deps.gClient==nil
+// (processChannelRoom returns early without panic). Uses a struct-literal adapter
+// so no Slack API name resolution happens in the test.
+func TestSlackDriverScan_NilGClient(t *testing.T) {
 	initTestDB(t)
 	saveScannerGlobals(t)
 	deps.gClient = nil
-	// Reinitialise deps.roomLockSvc so analyzeAndSaveSlack doesn't panic on nil.
-	// analyzeAndSaveSlack checks deps.gClient==nil before using deps.roomLockSvc, so this is safe.
+	// Why: the driver acquires the room lock before the gClient guard.
+	deps.roomLockSvc = services.NewRoomLockService()
 
 	ctx := context.Background()
 	email := "cand-test@example.com"
-	_, _ = store.GetOrCreateUser(ctx, email, "Cand User", "")
+	user, _ := store.GetOrCreateUser(ctx, email, "Cand User", "")
+	if user == nil {
+		t.Fatal("GetOrCreateUser returned nil")
+	}
 
-	candidates := map[string]map[string][]types.RawMessage{
-		email: {"C1": {{ID: "m1", Text: "hello", ChannelID: "C1"}}},
+	adapter := &slackAdapter{
+		ctx: ctx,
+		buf: map[string][]types.RawMessage{
+			"general": {{ID: "m1", Text: "hello", ChannelID: "C1"}},
+		},
+		rooms: map[string]string{"general": "C1"},
 	}
 	wg := &sync.WaitGroup{}
-	processSlackCandidates(ctx, nil, nil, candidates, wg)
+	scanChannel(ctx, *user, nil, "Korean", wg, adapter)
 	wg.Wait()
 }
