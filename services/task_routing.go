@@ -69,6 +69,8 @@ func routeTaskState(ctx context.Context, q store.Querier, email string, item sto
 		return handleUpdate(ctx, q, email, item, msg)
 	case "resolve":
 		return handleResolve(ctx, q, email, item, msg)
+	case "resolve_candidate":
+		return handleResolveCandidate(ctx, q, email, item, msg)
 	case "cancel":
 		return handleCancel(ctx, q, email, item)
 	default:
@@ -250,6 +252,43 @@ func handleResolve(ctx context.Context, q store.Querier, email string, item stor
 	// MarkDone covers the typical archive transition; AI-resolved tasks get vectors
 	// from the admin backfill endpoint, which sweeps any rows missing for the
 	// configured model.
+	return id, nil
+}
+
+// handleResolveCandidate records a confirm-first completion candidate instead of closing
+// the task. Why: a resolve proposal without a trusted anchor (own reply / same thread)
+// is a strong hint, not proof — the task stays open until the user taps confirm.
+func handleResolveCandidate(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
+	if item.ID == nil {
+		return 0, fmt.Errorf("resolve candidate requested but ID is nil")
+	}
+	id := *item.ID
+	existing, err := validateTargetTask(ctx, q, email, id, msg.Room)
+	if err != nil || existing == nil {
+		return 0, err
+	}
+	// Why: chat sources have no permalink — the message's own ID keys dismissal
+	// suppression so a rejected suggestion cannot resurface from the same message.
+	sourceKey := msg.Link
+	if sourceKey == "" {
+		sourceKey = msg.SourceTS
+	}
+	if store.WasCandidateDismissed(string(existing.Metadata), sourceKey) {
+		compStats.dismissSuppressed.Add(1)
+		return 0, nil
+	}
+	cand := store.CompletionCandidate{
+		SourceLink: sourceKey,
+		SourceText: truncateRunes(msg.OriginalText, candidateEvidenceMax),
+		Evidence:   "in-room conversational resolution",
+		DetectedAt: time.Now().UTC().Format(time.RFC3339),
+		Status:     "pending",
+	}
+	if err := store.AddCompletionCandidate(ctx, q, email, id, cand); err != nil {
+		return 0, fmt.Errorf("record resolve candidate for task %d: %w", id, err)
+	}
+	compStats.candidateRecorded.Add(1)
+	logger.Infof("[ROUTER] confirm-first resolve candidate recorded for task %d (room: %s)", id, msg.Room)
 	return id, nil
 }
 

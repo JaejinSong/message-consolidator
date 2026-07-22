@@ -182,11 +182,33 @@ func TestChatSystemSelfDMReportedSpeechRule(t *testing.T) {
 	body := string(content)
 	required := []string{
 		"Self-DM reported-speech exception",
-		"version: 1.11.0",
+		"version: 1.12.0",
 	}
 	for _, token := range required {
 		if !strings.Contains(body, token) {
 			t.Errorf("chat_system.prompt missing v1.9.0 token: %q", token)
+		}
+	}
+}
+
+// TestChatSystemNegotiatedOutcomeRule guards the v1.12.0 negotiated-outcome resolve rule.
+// Why: prevents regression where scheduling/coordination tasks stayed open forever because
+// the thread's agreement ("Jam 10 saja" → "Okkay jam 10") carries no explicit completion
+// keyword (task 12761/12750 miss, 2026-07-22).
+func TestChatSystemNegotiatedOutcomeRule(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/chat_system.prompt")
+	if err != nil {
+		t.Fatalf("read chat_system: %v", err)
+	}
+	body := string(content)
+	required := []string{
+		"negotiated outcome that fulfills the task itself",
+		"Schedule SAMCO discussion this week",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Errorf("chat_system.prompt missing v1.12.0 token: %q", token)
 		}
 	}
 }

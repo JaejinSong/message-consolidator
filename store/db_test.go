@@ -213,6 +213,58 @@ func TestBackfillZeroTimeAssignedAt(t *testing.T) {
 	}
 }
 
+// TestBackfillWhatsAppThreadIDs verifies the v16 repair anchors legacy WhatsApp rows on
+// source_ts (including done rows), skips rows that already carry a thread_id, never
+// touches other sources, and is idempotent.
+func TestBackfillWhatsAppThreadIDs(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	conn := GetDB()
+	email := testutil.RandomEmail("wathread")
+
+	seed := []struct {
+		source, ts, thread string
+		done               int
+	}{
+		{"whatsapp", "WA-OPEN", "''", 0},
+		{"whatsapp", "WA-DONE", "NULL", 1},
+		{"whatsapp", "WA-KEEP", "'EXISTING-THREAD'", 0},
+		{"slack", "SL-1", "''", 0},
+	}
+	for _, s := range seed {
+		q := fmt.Sprintf("INSERT INTO messages (user_email, task, source, source_ts, thread_id, done) VALUES (?, 'T', ?, ?, %s, %d)", s.thread, s.done)
+		if _, err := conn.Exec(q, email, s.source, s.ts); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+
+	for pass := 1; pass <= 2; pass++ { // second pass proves idempotency
+		if err := backfillWhatsAppThreadIDs(ctx, conn); err != nil {
+			t.Fatalf("backfill pass %d: %v", pass, err)
+		}
+	}
+
+	assertThread := func(ts, want string) {
+		t.Helper()
+		var got string
+		if err := conn.QueryRow("SELECT COALESCE(thread_id,'') FROM messages WHERE user_email=? AND source_ts=?", email, ts).Scan(&got); err != nil {
+			t.Fatalf("read %s: %v", ts, err)
+		}
+		if got != want {
+			t.Errorf("thread_id for %s = %q, want %q", ts, got, want)
+		}
+	}
+	assertThread("WA-OPEN", "WA-OPEN")
+	assertThread("WA-DONE", "WA-DONE")
+	assertThread("WA-KEEP", "EXISTING-THREAD")
+	assertThread("SL-1", "")
+}
+
 func TestIdentityXTransitiveLink(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
 	if err != nil {

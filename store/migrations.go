@@ -13,7 +13,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 15
+const schemaVersion = 16
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -324,6 +324,25 @@ WHERE task IS NOT NULL AND task != ''
   AND (assigned_at IS NULL OR assigned_at < '1970-01-01')`
 	if _, err := q.ExecContext(ctx, backfillSQL); err != nil {
 		return fmt.Errorf("backfill zero-time assigned_at: %w", err)
+	}
+	return nil
+}
+
+// backfillWhatsAppThreadIDs (v16) anchors legacy WhatsApp tasks on their source message ID.
+// Why: WA tasks were saved with thread_id=” (no saveThreadAnchor), so quote-reply
+// completion lookups (GetIncompleteByThreadID) and the findMatch cross-thread merge guard
+// never matched. source_ts holds the originating WA message ID — the same anchor
+// SaveThreadID now writes. Done rows are included so HasAnyTaskInThread stays consistent.
+// Idempotent: repaired rows no longer match the WHERE clause on re-run.
+func backfillWhatsAppThreadIDs(ctx context.Context, q db.DBTX) error {
+	const backfillSQL = `
+UPDATE messages
+SET thread_id = source_ts
+WHERE source = 'whatsapp'
+  AND COALESCE(thread_id, '') = ''
+  AND COALESCE(source_ts, '') != ''`
+	if _, err := q.ExecContext(ctx, backfillSQL); err != nil {
+		return fmt.Errorf("backfill whatsapp thread_id: %w", err)
 	}
 	return nil
 }

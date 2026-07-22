@@ -180,3 +180,32 @@ func TestWhatsAppAdapter_Enrich_Fallback(t *testing.T) {
 		t.Errorf("VirtualThreadID = %q, want prefix %q", enriched.VirtualThreadID, wantPrefix)
 	}
 }
+
+// Why: WA tasks were saved with thread_id=” (no saveThreadAnchor), so quote-reply
+// completion lookups never matched. Quote replies anchor on the quoted stanza ID,
+// root messages on their own ID — mirroring the Slack parent-thread convention.
+func TestWhatsAppAdapter_SaveThreadID(t *testing.T) {
+	t.Parallel()
+	a := whatsAppAdapter{}
+	reply := types.RawMessage{ID: "3EB0REPLY", ReplyToID: "3EB0ORIGIN"}
+	if got := a.SaveThreadID(reply); got != "3EB0ORIGIN" {
+		t.Errorf("SaveThreadID(reply) = %q, want quoted stanza ID %q", got, "3EB0ORIGIN")
+	}
+	root := types.RawMessage{ID: "3EB0ROOT"}
+	if got := a.SaveThreadID(root); got != "3EB0ROOT" {
+		t.Errorf("SaveThreadID(root) = %q, want own ID %q", got, "3EB0ROOT")
+	}
+}
+
+// Why: buildChannelTaskParams must persist the WA thread anchor — a task saved with
+// thread_id=” can never be completed by a later quote reply.
+func TestBuildChannelTaskParams_WhatsAppThreadAnchor(t *testing.T) {
+	initTestDB(t)
+	user := store.User{Email: "wa-thread@example.com", Name: "WA User"}
+	m := types.RawMessage{ID: "3EB0ROOT", Sender: "Counterparty", Text: "please handle this", Timestamp: time.Unix(1700000000, 0)}
+
+	params := buildChannelTaskParams(context.Background(), user, nil, store.TodoItem{Task: "Handle this"}, m, "Room-X", whatsAppAdapter{})
+	if params.ThreadID != "3EB0ROOT" {
+		t.Errorf("params.ThreadID = %q, want %q", params.ThreadID, "3EB0ROOT")
+	}
+}

@@ -84,6 +84,9 @@ func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, m
 		MentionedIDs: meta.MentionedIDs, HasAttachment: meta.HasAttachment,
 		AttachmentNames: meta.AttachmentNames,
 		MentionedNames:  mentionedNames,
+		// Why: driver injects ThreadID into AI proposals from this field; WA keys
+		// reply-chain context on the quoted stanza ID (save-side anchor is SaveThreadID).
+		ThreadID: meta.ReplyToID,
 	}
 	m.bufferMessage(email, msg.Info.Chat, raw)
 	if m.OnMessage != nil {

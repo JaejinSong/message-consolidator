@@ -161,6 +161,7 @@ type TodoItem struct {
 	AssignedAt         string          `json:"assigned_at"`
 	SourceTS           string          `json:"source_ts"`
 	ThreadID           string          `json:"thread_id,omitempty"`
+	IsFromMe           bool            `json:"-"` // Injected by the scan driver, never AI-supplied: gates auto-resolve vs confirm-first.
 	Category           string          `json:"category"`
 	Deadline           string          `json:"deadline"`
 	DeadlineDate       string          `json:"deadline_date,omitempty"`

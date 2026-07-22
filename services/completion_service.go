@@ -252,8 +252,9 @@ func ftsCandidateTokens(text string, max int) []string {
 }
 
 // ftsCrossThreadCandidates ranks open tasks by BM25 relevance to the incoming message's
-// keyword tokens, excluding the message's own thread. Precision relies on the completion-
-// signal gate upstream and the LLM transition check downstream, not on a score threshold.
+// keyword tokens, excluding the message's own thread and any hit that shares no topical
+// tokens with the message. Why: BM25 is room-blind and unscored — without the topical
+// floor a generic completion phrase fans into unrelated open tasks (Indofood-PO bug).
 func (s *CompletionService) ftsCrossThreadCandidates(ctx context.Context, msg store.ConsolidatedMessage) []store.ConsolidatedMessage {
 	tokens := ftsCandidateTokens(msg.OriginalText, maxCrossThreadFTSTokens)
 	if len(tokens) == 0 {
@@ -269,11 +270,20 @@ func (s *CompletionService) ftsCrossThreadCandidates(ctx context.Context, msg st
 		compStats.ftsEmpty.Add(1)
 	}
 	var out []store.ConsolidatedMessage
+	skipped := 0
 	for _, c := range cands {
 		if msg.ThreadID != "" && c.ThreadID == msg.ThreadID {
 			continue
 		}
+		if topicalOverlap(tokens, c) < minTopicalOverlap {
+			skipped++
+			continue
+		}
 		out = append(out, c)
+	}
+	if skipped > 0 && len(out) == 0 {
+		compStats.topicalMiss.Add(1)
+		logger.Debugf("[COMPLETION] all %d FTS hits off-topic for message in %s", skipped, msg.Room)
 	}
 	return out
 }
@@ -309,10 +319,17 @@ func (s *CompletionService) gmailSubjectCandidates(ctx context.Context, msg stor
 // candidateEvidenceMax caps how much of the source message is stored as evidence.
 const candidateEvidenceMax = 280
 
+// minTopicalOverlap is the number of distinct message tokens that must appear in a
+// task's title/subtasks before an LLM transition check may bind them. Why: BM25 is
+// room-blind and unscored, so a generic completion phrase would otherwise fan into
+// whatever open tasks share one incidental word (Indofood-PO regression).
+const minTopicalOverlap = 2
+
 // handleCrossThreadCandidates evaluates whether msg affects an open task in another
 // thread/channel and applies the confirm-first policy: RESOLVE (a close) is recorded as
 // a pending candidate for one-tap user confirmation and never auto-closed, while UPDATE
-// (a scope refinement, not a close) auto-applies as before. Returns true when handled.
+// (a scope refinement, not a close) auto-applies to the evaluated task only. Returns
+// true when handled.
 func (s *CompletionService) handleCrossThreadCandidates(ctx context.Context, msg store.ConsolidatedMessage, candidates []store.ConsolidatedMessage) bool {
 	top := candidates[0]
 	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, top.Task, msg.OriginalText, top.Subtasks)
@@ -326,16 +343,32 @@ func (s *CompletionService) handleCrossThreadCandidates(ctx context.Context, msg
 		return s.recordCompletionCandidate(ctx, msg, top)
 	case "UPDATE":
 		compStats.llmUpdate.Add(1)
-		handled := false
-		for _, task := range candidates {
-			if s.handleCompletionResult(ctx, res, msg, task) {
-				handled = true
-			}
-		}
-		return handled
+		// Why: the verdict was computed against top only — applying it to every FTS
+		// hit appended unrelated conversations to unrelated tasks (Indofood-PO bug).
+		return s.handleCompletionResult(ctx, res, msg, top)
 	}
 	compStats.llmNone.Add(1)
 	return false
+}
+
+// topicalOverlap counts distinct message tokens found in the task title or subtask
+// titles. Deliberately excludes original_text: appended conversation history makes it
+// an ever-growing haystack where stopword-level tokens match by accident.
+func topicalOverlap(tokens []string, task store.ConsolidatedMessage) int {
+	var sb strings.Builder
+	sb.WriteString(task.Task)
+	for _, st := range task.Subtasks {
+		sb.WriteString(" ")
+		sb.WriteString(st.Task)
+	}
+	haystack := strings.ToLower(sb.String())
+	overlap := 0
+	for _, t := range tokens {
+		if strings.Contains(haystack, strings.ToLower(t)) {
+			overlap++
+		}
+	}
+	return overlap
 }
 
 // recordCompletionCandidate writes a confirm-first completion candidate onto the task's

@@ -226,10 +226,13 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 		return nil
 	}
 
-	// Why: inject thread context so findMatch can guard against cross-thread merges.
+	// Why: inject thread context so findMatch can guard against cross-thread merges,
+	// and sender identity so resolve routing can distinguish auto-close (own reply)
+	// from confirm-first (counterparty message).
 	for i := range candidates {
 		if raw, ok := msgMap[candidates[i].SourceTS]; ok {
 			candidates[i].ThreadID = raw.ThreadID
+			candidates[i].IsFromMe = adapter.IsFromMe(raw, user)
 		}
 	}
 

@@ -99,6 +99,11 @@ func (s *TasksService) resolveProposalItem(room string, item store.TodoItem, act
 		if item.State == "new" {
 			item.State = "update"
 		}
+		// Why: counterparty chatter outside the task's reply chain must not hard-close
+		// a task (false auto-resolve regression); it lands as a confirm-first candidate.
+		if item.State == "resolve" && !isTrustedResolve(item, match) {
+			item.State = "resolve_candidate"
+		}
 		return item
 	}
 	// Logic: If no match found, states requiring an ID must be downgraded.
@@ -115,11 +120,10 @@ func (s *TasksService) resolveProposalItem(room string, item store.TodoItem, act
 
 func (s *TasksService) findMatch(room string, item store.TodoItem, active []store.ConsolidatedMessage) *store.ConsolidatedMessage {
 	// ID-first: AI explicitly identified the target task from existing context.
+	// A rejected ID falls through to the fuzzy path instead of being trusted blindly.
 	if item.ID != nil && *item.ID != 0 {
-		for i := range active {
-			if active[i].ID == *item.ID {
-				return &active[i]
-			}
+		if m := verifiedIDMatch(room, item, active); m != nil {
+			return m
 		}
 	}
 
@@ -133,29 +137,69 @@ func (s *TasksService) findMatch(room string, item store.TodoItem, active []stor
 			continue
 		}
 
-		sim := store.CalculateSimilarity(item.Task, m.Task)
-		if sim >= 0.85 {
-			return m
-		}
-
-		// Affinity Group Bonus: If AI group matches, we are more lenient (threshold 0.5)
-		if hasAffinityMatch(m, item, sim) {
+		if store.CalculateSimilarity(item.Task, m.Task) >= 0.85 {
 			return m
 		}
 	}
 	return nil
 }
 
-// Why: Affinity-group lookup is a structural match path; isolate it so findMatch's main loop avoids deep nesting.
-func hasAffinityMatch(m *store.ConsolidatedMessage, item store.TodoItem, sim float64) bool {
-	if item.AffinityGroupID == "" || len(m.Metadata) == 0 || sim < 0.50 {
+// isTrustedResolve — only the user's own statement or an in-thread reply may hard-close
+// a task; anything else becomes a confirm-first candidate (resolve_candidate).
+func isTrustedResolve(item store.TodoItem, match *store.ConsolidatedMessage) bool {
+	if item.IsFromMe {
+		return true
+	}
+	return item.ThreadID != "" && match.ThreadID != "" && item.ThreadID == match.ThreadID
+}
+
+// verifiedIDMatch trusts an AI-supplied task ID only when the proposal is anchored to the
+// same reply thread or lexically tied to the matched title. Why: the model occasionally
+// binds an unrelated message to whichever open task sits in context (Indofood-PO merge);
+// an unverified ID appends that message's history onto — or resolves — the wrong task.
+func verifiedIDMatch(room string, item store.TodoItem, active []store.ConsolidatedMessage) *store.ConsolidatedMessage {
+	for i := range active {
+		m := &active[i]
+		if m.ID != *item.ID {
+			continue
+		}
+		if isTrustedIDMatch(room, item, m) {
+			return m
+		}
+		logger.LogDecision(logger.DecisionLog{
+			Room: room, State: item.State, TaskID: (*int64)(item.ID), Task: item.Task,
+			Reasoning: fmt.Sprintf("ai id rejected: no thread/topic tie to %q", m.Task),
+		})
+		return nil
+	}
+	return nil
+}
+
+func isTrustedIDMatch(room string, item store.TodoItem, m *store.ConsolidatedMessage) bool {
+	if m.Room != room {
 		return false
 	}
-	var meta struct {
-		AffinityGroupID string `json:"affinity_group_id"`
+	if item.ThreadID != "" && m.ThreadID != "" && item.ThreadID == m.ThreadID {
+		return true
 	}
-	if err := json.Unmarshal(m.Metadata, &meta); err != nil {
-		return false
+	// Why: nothing to verify lexically — a bare resolve/cancel carries no title.
+	if strings.TrimSpace(item.Task) == "" {
+		return true
 	}
-	return meta.AffinityGroupID != "" && meta.AffinityGroupID == item.AffinityGroupID
+	// Why: token overlap only — Jaro-Winkler scores unrelated sentences 0.55+
+	// (measured: Indofood-PO vs SAMCO title = 0.57), so a similarity floor
+	// cannot separate a rephrased title from a different topic.
+	return titleTokenOverlap(item.Task, m.Task) >= minTopicalOverlap
+}
+
+// titleTokenOverlap counts distinct ≥3-rune tokens of a shared between the two titles.
+func titleTokenOverlap(a, b string) int {
+	haystack := strings.ToLower(b)
+	overlap := 0
+	for _, t := range ftsCandidateTokens(a, maxCrossThreadFTSTokens) {
+		if strings.Contains(haystack, strings.ToLower(t)) {
+			overlap++
+		}
+	}
+	return overlap
 }

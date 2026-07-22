@@ -196,6 +196,10 @@ func runFullDDL(ctx context.Context, dbConn *sql.DB) error {
 		return fmt.Errorf("lifecycle excluded migration failed: %w", err)
 	}
 
+	if err := backfillWhatsAppThreadIDs(ctx, tx); err != nil {
+		return fmt.Errorf("backfill whatsapp thread_id failed: %w", err)
+	}
+
 	// Why: Rebuild views AFTER tables and columns exist to ensure they reference current schema.
 	logger.Infof("[DB] init: rebuilding views")
 	if err := rebuildViews(ctx, tx); err != nil {

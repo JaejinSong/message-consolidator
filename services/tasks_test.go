@@ -558,39 +558,6 @@ func TestParseTranslatedText(t *testing.T) {
 	}
 }
 
-func TestHasAffinityMatch(t *testing.T) {
-	t.Parallel()
-	withMeta := func(groupID string) *store.ConsolidatedMessage {
-		raw, _ := json.Marshal(map[string]string{"affinity_group_id": groupID})
-		return &store.ConsolidatedMessage{Metadata: raw}
-	}
-
-	tests := []struct {
-		name string
-		msg  *store.ConsolidatedMessage
-		item store.TodoItem
-		sim  float64
-		want bool
-	}{
-		{"no item group → false", withMeta("g1"), store.TodoItem{AffinityGroupID: ""}, 0.9, false},
-		{"sim below 0.50 → false", withMeta("g1"), store.TodoItem{AffinityGroupID: "g1"}, 0.49, false},
-		{"empty msg metadata → false", &store.ConsolidatedMessage{}, store.TodoItem{AffinityGroupID: "g1"}, 0.9, false},
-		{"meta unmarshal error → false", &store.ConsolidatedMessage{Metadata: []byte("not json")}, store.TodoItem{AffinityGroupID: "g1"}, 0.9, false},
-		{"groups mismatch → false", withMeta("g2"), store.TodoItem{AffinityGroupID: "g1"}, 0.9, false},
-		{"groups match → true", withMeta("g1"), store.TodoItem{AffinityGroupID: "g1"}, 0.55, true},
-		{"meta has empty group → false", withMeta(""), store.TodoItem{AffinityGroupID: "g1"}, 0.9, false},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := hasAffinityMatch(tt.msg, tt.item, tt.sim); got != tt.want {
-				t.Errorf("hasAffinityMatch = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestTasksService_GetMissingIDs(t *testing.T) {
 	t.Parallel()
 	all := []store.MessageID{1, 2, 3, 4}

@@ -39,6 +39,14 @@ func (whatsAppAdapter) Enrich(roomKey, payload string, ts time.Time) (*types.Enr
 
 func (whatsAppAdapter) IsFromMe(m types.RawMessage, user store.User) bool { return isFromMe(m, user) }
 
+// SaveThreadID — quote replies anchor on the quoted stanza ID, root messages on their own ID.
+func (whatsAppAdapter) SaveThreadID(m types.RawMessage) string {
+	if m.ReplyToID != "" {
+		return m.ReplyToID
+	}
+	return m.ID
+}
+
 // Mentions — WA pre-resolved display names power pickFirstMentionAssignee.
 func (whatsAppAdapter) Mentions(m types.RawMessage) []string { return m.MentionedNames }
 
