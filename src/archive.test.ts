@@ -81,6 +81,7 @@ describe('archive', () => {
                 <button class="tab-btn" data-tab="archiveAllTab" id="archiveAllTab"></button>
                 <button class="tab-btn" data-tab="archiveDoneTab" id="archiveDoneTab"></button>
                 <button class="tab-btn" data-tab="archiveCanceledTab" id="archiveCanceledTab"></button>
+                <button class="tab-btn" data-tab="archiveExcludedTab" id="archiveExcludedTab"></button>
             </div>
         `;
         archive.setupEventListeners();
@@ -93,6 +94,12 @@ describe('archive', () => {
         const canceledTab = document.getElementById('archiveCanceledTab') as HTMLElement;
         canceledTab.click();
         expect(state.archiveStatus).toBe('canceled');
+
+        const excludedTab = document.getElementById('archiveExcludedTab') as HTMLElement;
+        state.archivePage = 3;
+        excludedTab.click();
+        expect(state.archiveStatus).toBe('excluded');
+        expect(state.archivePage).toBe(1);
 
         const allTab = document.getElementById('archiveAllTab') as HTMLElement;
         allTab.click();

@@ -161,6 +161,10 @@ func (a *API) HandleConfirmExclusion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := store.ConfirmExclusion(r.Context(), store.GetDB(), email, req.ID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondError(w, http.StatusNotFound, "Task not found or already closed")
+			return
+		}
 		handleAPIError(w, r, err, "[TASKS] confirm exclusion for "+email, "Failed to exclude task")
 		return
 	}
@@ -203,6 +207,10 @@ func (a *API) HandleRestoreExcluded(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := store.RestoreExcluded(r.Context(), store.GetDB(), email, req.ID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondError(w, http.StatusNotFound, "Task not found or not excluded")
+			return
+		}
 		handleAPIError(w, r, err, "[TASKS] restore excluded for "+email, "Failed to restore task")
 		return
 	}
@@ -482,7 +490,6 @@ func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) 
 
 	a.respondWithResults(w, req.TaskIDs, cached, successMap, errorMap)
 }
-
 
 func (a *API) respondWithResults(w http.ResponseWriter, ids []store.MessageID, cached, newlyTrans, errors map[store.MessageID]string) {
 	results := make([]services.BatchTranslateResult, len(ids))
