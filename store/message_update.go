@@ -48,7 +48,7 @@ func AddCompletionCandidate(ctx context.Context, q Querier, email string, id Mes
 	}
 	return withTx(ctx, q, func(qw Querier) error {
 		const stmt = `UPDATE messages
-			SET metadata = json_set(COALESCE(NULLIF(metadata, ''), '{}'), '$.completion_candidate', json(?))
+			SET metadata = json_set(COALESCE(NULLIF(metadata, ''), '{}'), '$.` + metaKeyCompletionCandidate + `', json(?))
 			WHERE id = ? AND user_email = ?`
 		if _, err := qw.ExecContext(ctx, stmt, string(payload), int64(id), email); err != nil {
 			return err
@@ -66,9 +66,9 @@ func AddCompletionCandidate(ctx context.Context, q Querier, email string, id Mes
 func DismissCompletionCandidate(ctx context.Context, q Querier, email string, id MessageID) error {
 	return withTx(ctx, q, func(qw Querier) error {
 		const stmt = `UPDATE messages SET metadata = json_set(
-				json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.completion_candidate'),
-				'$.completion_dismissed_source', json_extract(COALESCE(NULLIF(metadata, ''), '{}'), '$.completion_candidate.source_link'),
-				'$.completion_dismissed_at', ?
+				json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.` + metaKeyCompletionCandidate + `'),
+				'$.` + metaKeyCompletionDismissedSource + `', json_extract(COALESCE(NULLIF(metadata, ''), '{}'), '$.` + metaKeyCompletionCandidate + `.source_link'),
+				'$.` + metaKeyCompletionDismissedAt + `', ?
 			)
 			WHERE id = ? AND user_email = ?`
 		dismissedAt := time.Now().UTC().Format(time.RFC3339)
@@ -84,19 +84,10 @@ func DismissCompletionCandidate(ctx context.Context, q Querier, email string, id
 // completion candidate for this task, so recordCompletionCandidate does not
 // resurrect a suggestion the user explicitly rejected.
 func WasCandidateDismissed(metadata, sourceLink string) bool {
-	if metadata == "" || sourceLink == "" {
+	if sourceLink == "" {
 		return false
 	}
-	var m map[string]any // any 사유: JSON 값 타입이 불특정 — 키 조회 후 string으로 단언
-	if err := json.Unmarshal([]byte(metadata), &m); err != nil {
-		return false
-	}
-	v, ok := m["completion_dismissed_source"]
-	if !ok {
-		return false
-	}
-	s, _ := v.(string)
-	return s != "" && s == sourceLink
+	return ParseMetadata(metadata).String(metaKeyCompletionDismissedSource) == sourceLink
 }
 
 func MarkMessageDone(ctx context.Context, q Querier, email string, id MessageID, done bool) error {
@@ -114,7 +105,7 @@ func markMessageDoneTrue(ctx context.Context, q Querier, email string, id Messag
 	return withTx(ctx, q, func(qw Querier) error {
 		const stmt = `UPDATE messages
 			SET done = 1, completed_at = ?,
-			    metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.completion_candidate'),
+			    metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.` + metaKeyCompletionCandidate + `'),
 			    updated_at = CURRENT_TIMESTAMP
 			WHERE id = ? AND user_email = ?`
 		if _, err := qw.ExecContext(ctx, stmt, time.Now(), int64(id), email); err != nil {
@@ -135,7 +126,7 @@ func unmarkMessageDone(ctx context.Context, q Querier, email string, id MessageI
 	return withTx(ctx, q, func(qw Querier) error {
 		const stmt = `UPDATE messages
 			SET done = 0, completed_at = NULL,
-			    metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.completion_candidate')
+			    metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.` + metaKeyCompletionCandidate + `')
 			WHERE id = ? AND user_email = ?`
 		if _, err := qw.ExecContext(ctx, stmt, int64(id), email); err != nil {
 			return err

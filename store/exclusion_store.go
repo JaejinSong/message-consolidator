@@ -75,7 +75,7 @@ func ProposeExclusionCandidate(ctx context.Context, q Querier, email string, id 
 	}
 	return withTx(ctx, q, func(qw Querier) error {
 		const stmt = `UPDATE messages
-			SET metadata = json_set(COALESCE(NULLIF(metadata, ''), '{}'), '$.exclusion_candidate', json(?))
+			SET metadata = json_set(COALESCE(NULLIF(metadata, ''), '{}'), '$.` + metaKeyExclusionCandidate + `', json(?))
 			WHERE id = ? AND user_email = ?`
 		if _, err := qw.ExecContext(ctx, stmt, string(payload), int64(id), email); err != nil {
 			return fmt.Errorf("propose exclusion candidate: %w", err)
@@ -90,8 +90,8 @@ func ProposeExclusionCandidate(ctx context.Context, q Querier, email string, id 
 func DismissExclusionCandidate(ctx context.Context, q Querier, email string, id MessageID) error {
 	return withTx(ctx, q, func(qw Querier) error {
 		const stmt = `UPDATE messages SET metadata = json_set(
-				json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.exclusion_candidate'),
-				'$.exclusion_candidate_dismissed_at', ?
+				json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.` + metaKeyExclusionCandidate + `'),
+				'$.` + metaKeyExclusionDismissedAt + `', ?
 			)
 			WHERE id = ? AND user_email = ?`
 		dismissedAt := time.Now().UTC().Format(time.RFC3339)
@@ -118,7 +118,7 @@ func ConfirmExclusion(ctx context.Context, q Querier, email string, id MessageID
 			return sql.ErrNoRows
 		}
 		const stmt = `UPDATE messages
-			SET metadata = json_set(COALESCE(NULLIF(metadata, ''), '{}'), '$.exclusion_candidate.status', 'confirmed')
+			SET metadata = json_set(COALESCE(NULLIF(metadata, ''), '{}'), '$.` + metaKeyExclusionCandidate + `.status', 'confirmed')
 			WHERE id = ? AND user_email = ?`
 		if _, err := qw.ExecContext(ctx, stmt, int64(id), email); err != nil {
 			return fmt.Errorf("mark exclusion confirmed: %w", err)
@@ -144,9 +144,9 @@ func RestoreExcluded(ctx context.Context, q Querier, email string, id MessageID)
 		}
 		const stmt = `UPDATE messages SET metadata = json_remove(
 				COALESCE(NULLIF(metadata, ''), '{}'),
-				'$.exclusion_candidate',
-				'$.exclusion_candidate_dismissed_at',
-				'$.reminded_at_excluded_digest'
+				'$.` + metaKeyExclusionCandidate + `',
+				'$.` + metaKeyExclusionDismissedAt + `',
+				'$.` + metaKeyRemindedPrefix + `excluded_digest'
 			)
 			WHERE id = ? AND user_email = ?`
 		if _, err := qw.ExecContext(ctx, stmt, int64(id), email); err != nil {
@@ -166,10 +166,10 @@ func AutoRestoreIfExcluded(ctx context.Context, q Querier, email string, id Mess
 		SET excluded_at = NULL,
 		    metadata = json_set(
 		        json_remove(COALESCE(NULLIF(metadata, ''), '{}'),
-		            '$.exclusion_candidate',
-		            '$.exclusion_candidate_dismissed_at',
-		            '$.reminded_at_excluded_digest'),
-		        '$.excluded_auto_restored_at', ?)
+		            '$.` + metaKeyExclusionCandidate + `',
+		            '$.` + metaKeyExclusionDismissedAt + `',
+		            '$.` + metaKeyRemindedPrefix + `excluded_digest'),
+		        '$.` + metaKeyExcludedAutoRestoredAt + `', ?)
 		WHERE id = ? AND user_email = ? AND excluded_at IS NOT NULL`
 	res, err := q.ExecContext(ctx, stmt, time.Now().UTC().Format(time.RFC3339), int64(id), email)
 	if err != nil {
@@ -213,59 +213,27 @@ func SelectExcludedDigestItems(ctx context.Context) ([]ExcludedItem, error) {
 
 // HasExclusionCandidate reports whether metadata already carries an exclusion candidate.
 func HasExclusionCandidate(metadata string) bool {
-	_, ok := metadataKey(metadata, "exclusion_candidate")
-	return ok
+	return ParseMetadata(metadata).Has(metaKeyExclusionCandidate)
 }
 
 // HasPendingCompletionCandidate reports whether a confirm-first completion suggestion
 // is pending — completion evidence outranks abandonment, so the exclusion scan skips.
 func HasPendingCompletionCandidate(metadata string) bool {
-	v, ok := metadataKey(metadata, "completion_candidate")
-	if !ok {
+	var cand CompletionCandidate
+	if !ParseMetadata(metadata).Decode(metaKeyCompletionCandidate, &cand) {
 		return false
 	}
-	m, _ := v.(map[string]any) // any 사유: JSON 값 타입이 불특정 — 키 조회 후 단언
-	s, _ := m["status"].(string)
-	return s == "pending"
+	return cand.Status == "pending"
 }
 
 // ExclusionDismissedAt returns the dismissal timestamp, if any.
 func ExclusionDismissedAt(metadata string) (time.Time, bool) {
-	v, ok := metadataKey(metadata, "exclusion_candidate_dismissed_at")
-	if !ok {
-		return time.Time{}, false
-	}
-	s, _ := v.(string)
-	t, err := time.Parse(time.RFC3339, s)
-	if err != nil {
-		return time.Time{}, false
-	}
-	return t, true
+	return ParseMetadata(metadata).Time(metaKeyExclusionDismissedAt)
 }
 
 // RemindedWithin reports whether reminded_at_<window> was stamped within d of now.
 // Why: periodic digests overwrite the same key; recency (not existence) gates re-sends.
 func RemindedWithin(metadata, window string, d time.Duration) bool {
-	v, ok := metadataKey(metadata, "reminded_at_"+window)
-	if !ok {
-		return false
-	}
-	s, _ := v.(string)
-	t, err := time.Parse(time.RFC3339, s)
-	if err != nil {
-		return false
-	}
-	return time.Since(t) < d
-}
-
-func metadataKey(metadata, key string) (any, bool) {
-	if metadata == "" {
-		return nil, false
-	}
-	var m map[string]any // any 사유: JSON 값 타입이 불특정 — 호출부에서 단언
-	if err := json.Unmarshal([]byte(metadata), &m); err != nil {
-		return nil, false
-	}
-	v, ok := m[key]
-	return v, ok
+	t, ok := ParseMetadata(metadata).Time(metaKeyReminded(window))
+	return ok && time.Since(t) < d
 }

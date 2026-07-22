@@ -105,10 +105,10 @@ func TestExclusionCandidateRoundTrip(t *testing.T) {
 	if !excludedAt.Valid {
 		t.Errorf("expected excluded_at set")
 	}
-	if v, _ := metadataKey(meta, "exclusion_candidate"); v != nil {
-		m, _ := v.(map[string]any)
-		if s, _ := m["status"].(string); s != "confirmed" {
-			t.Errorf("expected candidate status confirmed, got %v", s)
+	var confirmed ExclusionCandidate
+	if ParseMetadata(meta).Decode(metaKeyExclusionCandidate, &confirmed) {
+		if confirmed.Status != "confirmed" {
+			t.Errorf("expected candidate status confirmed, got %v", confirmed.Status)
 		}
 	} else {
 		t.Errorf("expected candidate kept with confirmed status")
@@ -283,7 +283,7 @@ func TestAutoRestoreIfExcluded(t *testing.T) {
 	if lifecycle != "active" {
 		t.Errorf("expected active after auto-restore, got %s", lifecycle)
 	}
-	if v, _ := metadataKey(meta, "excluded_auto_restored_at"); v == nil {
+	if !ParseMetadata(meta).Has(metaKeyExcludedAutoRestoredAt) {
 		t.Errorf("expected excluded_auto_restored_at stamped, got %s", meta)
 	}
 

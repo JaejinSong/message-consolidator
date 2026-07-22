@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"message-consolidator/db"
 	"time"
@@ -95,37 +94,22 @@ func SelectUndated(ctx context.Context) ([]UndatedCommitment, error) {
 // HasReminded checks if metadata JSON has a non-empty key reminded_at_<window>.
 // window is "24h" or "1h".
 func HasReminded(metadata, window string) bool {
-	if metadata == "" {
-		return false
-	}
-	var m map[string]any // any 사유: JSON 값 타입이 불특정 — 키 조회 후 string으로 단언
-	if err := json.Unmarshal([]byte(metadata), &m); err != nil {
-		return false
-	}
-	v, ok := m["reminded_at_"+window]
-	if !ok {
-		return false
-	}
-	s, _ := v.(string)
-	return s != ""
+	return ParseMetadata(metadata).String(metaKeyReminded(window)) != ""
 }
 
 // MarkReminded merges reminded_at_<window>=sentAt.RFC3339 into currentMetadata and persists.
 // Why: caller (ReminderService) already holds the metadata string, so a re-query is unnecessary.
 func MarkReminded(ctx context.Context, email string, id MessageID, currentMetadata, window string, sentAt time.Time) error {
-	var m map[string]any // any 사유: 기존 JSON 필드 타입 보존을 위해 map[string]any 사용
-	if currentMetadata == "" {
-		m = map[string]any{}
-	} else if err := json.Unmarshal([]byte(currentMetadata), &m); err != nil {
-		m = map[string]any{}
+	md := ParseMetadata(currentMetadata)
+	if err := md.Set(metaKeyReminded(window), sentAt.UTC().Format(time.RFC3339)); err != nil {
+		return fmt.Errorf("marshal metadata: %w", err)
 	}
-	m["reminded_at_"+window] = sentAt.UTC().Format(time.RFC3339)
-	b, err := json.Marshal(m)
+	b, err := md.Marshal()
 	if err != nil {
 		return fmt.Errorf("marshal metadata: %w", err)
 	}
 	if err := db.New(GetDB()).UpdateMessageMetadataByID(ctx, db.UpdateMessageMetadataByIDParams{
-		Metadata:  nullString(string(b)),
+		Metadata:  nullString(b),
 		ID:        int64(id),
 		UserEmail: nullString(email),
 	}); err != nil {
