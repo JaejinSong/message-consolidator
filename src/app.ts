@@ -285,7 +285,7 @@ const fetchMessages = safeAsync(async (bypassVisibility: boolean = false) => {
     } finally {
         state.isFetchingMessages = false;
     }
-});
+}, { triggerAuthOverlay: true });
 
 /**
  * Why: Triggers translation for visible untranslated items in a single batch.
@@ -391,7 +391,9 @@ const checkAllStatus = safeAsync(async (bypassVisibility: boolean = false) => {
     } finally {
         state.isFetchingStatus = false;
     }
-});
+    // Why: status polling is the first caller to see a dead session on an idle
+    // dashboard — without the overlay trigger the page silently renders empty.
+}, { triggerAuthOverlay: true });
 
 /**
  * Opens the Settings modal pre-focused on the Connections tab.

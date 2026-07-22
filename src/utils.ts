@@ -47,13 +47,13 @@ export const safeAsync = <T extends unknown[], R>(
         } catch (e: unknown) {
             console.error('[Async Error]', e);
             if (isApiError(e) && e.isAuthError && triggerAuthOverlay) {
-                if (!hasSessionHint()) {
-                    console.warn('[safeAsync] AuthError and no session hint. Triggering login overlay.');
-                    const overlay = document.getElementById('loginOverlay');
-                    if (overlay) {
-                        overlay.classList.remove('hidden');
-                        overlay.style.display = 'flex';
-                    }
+                // Why: a 401 from the API is authoritative under server-side sessions —
+                // a stale session_active hint must not suppress the login overlay.
+                console.warn('[safeAsync] AuthError. Triggering login overlay.');
+                const overlay = document.getElementById('loginOverlay');
+                if (overlay) {
+                    overlay.classList.remove('hidden');
+                    overlay.style.display = 'flex';
                 }
             }
             if (onError) onError(e);

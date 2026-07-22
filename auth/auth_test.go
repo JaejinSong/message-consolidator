@@ -41,6 +41,33 @@ func TestAuthMiddleware_Unauthorized(t *testing.T) {
 	}
 }
 
+// TestAuthMiddleware_UnauthorizedClearsSessionHint verifies a 401 expires the
+// public session_active hint so a stale hint cannot suppress the login overlay.
+func TestAuthMiddleware_UnauthorizedClearsSessionHint(t *testing.T) {
+	AuthDisabled = false
+	handler := AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Next handler should not be called")
+	}))
+
+	req := httptest.NewRequest("GET", "/api/messages", nil)
+	req.AddCookie(&http.Cookie{Name: "session_active", Value: "true"})
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %v", rr.Code)
+	}
+	cleared := false
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == "session_active" && c.Value == "" && c.Expires.Before(time.Now()) {
+			cleared = true
+		}
+	}
+	if !cleared {
+		t.Error("401 response must expire the session_active hint cookie")
+	}
+}
+
 func TestGetUserEmail_AuthDisabled(t *testing.T) {
 	AuthDisabled = true
 	t.Setenv("DEFAULT_USER_EMAIL", "dev@example.com")

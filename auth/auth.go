@@ -37,7 +37,23 @@ func newSessionToken() (string, error) {
 	return hex.EncodeToString(b[:]), nil
 }
 
+// clearSessionHint expires the public session_active hint cookie.
+// Why: the hint predates server-side sessions and can outlive them — a stale
+// "logged in" hint suppresses the frontend login overlay after a real 401.
+func clearSessionHint(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_active",
+		Value:    "",
+		Expires:  time.Unix(0, 0),
+		HttpOnly: false,
+		Secure:   isProdEnv(),
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
 func writeUnauthorized(w http.ResponseWriter) {
+	clearSessionHint(w)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUnauthorized)
 	_ = json.NewEncoder(w).Encode(unauthorizedResponse)

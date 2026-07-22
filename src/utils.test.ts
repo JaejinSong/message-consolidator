@@ -68,6 +68,26 @@ describe('utils.js - safeAsync (DOM Interaction)', () => {
         expect(overlay.classList.contains('hidden')).toBe(true);
     });
 
+    it('should show login overlay even when a stale session_active hint cookie exists', async () => {
+        document.body.innerHTML = '<div id="loginOverlay" class="hidden"></div>';
+        // Why: server-side sessions can die while the public hint cookie survives;
+        // the 401 must win over the hint.
+        document.cookie = 'session_active=true';
+
+        const mockFn = vi.fn().mockRejectedValue(new ApiError('unauthorized', 401, true));
+        const safeFn = safeAsync(mockFn, { triggerAuthOverlay: true });
+
+        try {
+            await safeFn();
+        } catch (_e) {
+            // expected throw
+        }
+
+        const overlay = document.getElementById('loginOverlay') as HTMLElement;
+        expect(overlay.classList.contains('hidden')).toBe(false);
+        document.cookie = 'session_active=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    });
+
     it('should show login overlay when AuthError occurs and triggerAuthOverlay is true', async () => {
         // Setup Happy DOM environment
         document.body.innerHTML = '<div id="loginOverlay" class="hidden"></div>';
