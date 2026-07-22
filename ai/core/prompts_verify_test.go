@@ -57,18 +57,18 @@ func verifyPromptFile(t *testing.T, path string) {
 // variable lands in its intended position.
 func verifyTemplateExecution(t *testing.T, tmpl *template.Template) {
 	dummy := ExtractionContext{
-		MessagePayload:      "<<MSG>>",
-		CurrentTime:         "2026-04-03 12:00:00",
-		Version:             "1.0.0",
-		Locale:              "ko-KR",
-		FewShots:            []FewShot{{Input: "<<IN>>", Expected: "<<EX>>"}},
-		ExistingTasksJSON:   "<<TASKS>>",
+		MessagePayload:    "<<MSG>>",
+		CurrentTime:       "2026-04-03 12:00:00",
+		Version:           "1.0.0",
+		Locale:            "ko-KR",
+		FewShots:          []FewShot{{Input: "<<IN>>", Expected: "<<EX>>"}},
+		ExistingTasksJSON: "<<TASKS>>",
 
-		CurrentUser:         "<<USER>>",
-		CurrentUserEmail:    "<<EMAIL>>",
-		CurrentUserID:       0,
-		ParentTask:          "<<PARENT>>",
-		StaleThreshold:      0,
+		CurrentUser:      "<<USER>>",
+		CurrentUserEmail: "<<EMAIL>>",
+		CurrentUserID:    0,
+		ParentTask:       "<<PARENT>>",
+		StaleThreshold:   0,
 	}
 
 	if err := tmpl.Execute(io.Discard, dummy); err != nil {
@@ -95,18 +95,18 @@ func renderPromptWithSentinels(t *testing.T, path string) string {
 		t.Fatalf("template parse %s: %v", path, err)
 	}
 	dummy := ExtractionContext{
-		MessagePayload:      "<<MSG>>",
-		CurrentTime:         "2026-04-03 12:00:00",
-		Version:             "1.0.0",
-		Locale:              "<<LOC>>",
-		FewShots:            []FewShot{{Input: "<<IN>>", Expected: "<<EX>>"}},
-		ExistingTasksJSON:   "<<TASKS>>",
+		MessagePayload:    "<<MSG>>",
+		CurrentTime:       "2026-04-03 12:00:00",
+		Version:           "1.0.0",
+		Locale:            "<<LOC>>",
+		FewShots:          []FewShot{{Input: "<<IN>>", Expected: "<<EX>>"}},
+		ExistingTasksJSON: "<<TASKS>>",
 
-		CurrentUser:         "<<USER>>",
-		CurrentUserEmail:    "<<EMAIL>>",
-		CurrentUserID:       0,
-		ParentTask:          "<<PARENT>>",
-		StaleThreshold:      0,
+		CurrentUser:      "<<USER>>",
+		CurrentUserEmail: "<<EMAIL>>",
+		CurrentUserID:    0,
+		ParentTask:       "<<PARENT>>",
+		StaleThreshold:   0,
 	}
 	var buf strings.Builder
 	if err := tmpl.Execute(&buf, dummy); err != nil {

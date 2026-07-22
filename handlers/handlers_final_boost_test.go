@@ -179,4 +179,3 @@ func TestProcessReportTranslation_NilReports(t *testing.T) {
 		t.Errorf("status = %d, want 503", rr.Code)
 	}
 }
-

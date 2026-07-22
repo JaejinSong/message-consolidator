@@ -143,9 +143,9 @@ func NewGeminiClient(ctx context.Context, apiKey, analysisModel, translationMode
 		transport:   t,
 		provider:    providerGemini,
 		tracePrefix: "Gemini",
-		analyze:     modelSpec{analysisModel, ThinkOn},     // was ThinkingBudget 3072
+		analyze:     modelSpec{analysisModel, ThinkOn}, // was ThinkingBudget 3072
 		translate:   modelSpec{translationModel, ThinkDefault},
-		report:      modelSpec{analysisModel, ThinkOff},    // was ThinkingBudget 0
+		report:      modelSpec{analysisModel, ThinkOff}, // was ThinkingBudget 0
 		transition:  modelSpec{analysisModel, ThinkDefault},
 		viz:         modelSpec{analysisModel, ThinkDefault},
 		merge:       modelSpec{analysisModel, ThinkDefault}, // prompt-meta overrides to gemini-3-flash-preview

@@ -524,4 +524,3 @@ func LogoutTelegram(email string) error { return DefaultTelegramManager.LogoutTe
 func HasTelegramCredentials(email string, cfg *config.Config) bool {
 	return DefaultTelegramManager.HasCredentials(email, cfg)
 }
-

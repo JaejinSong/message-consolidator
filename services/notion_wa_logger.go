@@ -28,9 +28,11 @@ const (
 	notionWATitleMaxLen   = 80
 )
 
-func notionWAMonthKey(ts time.Time) string          { return ts.Format("2006-01") }
-func notionWASettingKeyForMonth(month string) string { return "notion_wa_database_id_" + strings.ReplaceAll(month, "-", "_") }
-func notionWADBTitleForMonth(month string) string    { return "WhatsApp Messages — " + month }
+func notionWAMonthKey(ts time.Time) string { return ts.Format("2006-01") }
+func notionWASettingKeyForMonth(month string) string {
+	return "notion_wa_database_id_" + strings.ReplaceAll(month, "-", "_")
+}
+func notionWADBTitleForMonth(month string) string { return "WhatsApp Messages — " + month }
 
 type waLogEntry struct {
 	email   string

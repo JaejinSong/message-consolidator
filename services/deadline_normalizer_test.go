@@ -10,10 +10,10 @@ func TestParseDeadline(t *testing.T) {
 	ref := time.Date(2026, 6, 3, 9, 0, 0, 0, time.UTC)
 
 	cases := []struct {
-		name     string
-		raw      string
-		wantISO  string
-		wantInf  bool
+		name    string
+		raw     string
+		wantISO string
+		wantInf bool
 	}{
 		// empty / garbage
 		{"empty", "", "", false},
@@ -41,9 +41,9 @@ func TestParseDeadline(t *testing.T) {
 		{"이번주", "이번주", "2026-06-05", true},
 
 		// weekday — next occurrence from ref (Wed 2026-06-03)
-		{"friday bare", "friday", "2026-06-05", true},    // Fri = 2 days away
+		{"friday bare", "friday", "2026-06-05", true},     // Fri = 2 days away
 		{"thursday bare", "thursday", "2026-06-04", true}, // Thu = 1 day away
-		{"monday bare", "monday", "2026-06-08", true},    // Mon = 5 days away
+		{"monday bare", "monday", "2026-06-08", true},     // Mon = 5 days away
 		{"금요일", "금요일", "2026-06-05", true},
 
 		// "by" prefix — same as bare

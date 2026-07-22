@@ -147,19 +147,19 @@ func (a *API) applyHotReload(def *config.SettingDef, value string) bool {
 type hotReloader func(a *API, value string) bool
 
 var hotReloaders = map[string]hotReloader{
-	"LOG_LEVEL":                reloadLogLevel,
-	"ARCHIVE_DAYS":             reloadArchiveDays,
-	"AUTH_DISABLED":            reloadAuthDisabled,
-	"DEFAULT_USER_EMAIL":       reloadDefaultUserEmail,
-	"GEMINI_ANALYSIS_MODEL":    reloadGeminiAnalysisModel,
-	"GEMINI_TRANSLATION_MODEL": reloadGeminiTranslationModel,
+	"LOG_LEVEL":                  reloadLogLevel,
+	"ARCHIVE_DAYS":               reloadArchiveDays,
+	"AUTH_DISABLED":              reloadAuthDisabled,
+	"DEFAULT_USER_EMAIL":         reloadDefaultUserEmail,
+	"GEMINI_ANALYSIS_MODEL":      reloadGeminiAnalysisModel,
+	"GEMINI_TRANSLATION_MODEL":   reloadGeminiTranslationModel,
 	"DEEPSEEK_FILTER_MODEL":      func(a *API, v string) bool { a.Config.DeepSeekFilterModel = v; return true },
 	"DEEPSEEK_ANALYSIS_MODEL":    func(a *API, v string) bool { a.Config.DeepSeekAnalysisModel = v; return true },
 	"DEEPSEEK_TRANSLATION_MODEL": func(a *API, v string) bool { a.Config.DeepSeekTranslationModel = v; return true },
 	"DEEPSEEK_REPORT_MODEL":      func(a *API, v string) bool { a.Config.DeepSeekReportModel = v; return true },
-	"COMPANY_DOMAINS":          reloadCompanyDomains,
-	"GMAIL_SKIP_SENDERS":       reloadGmailSkipSenders,
-	"MESSAGE_BATCH_WINDOW":     reloadMessageBatchWindow,
+	"COMPANY_DOMAINS":            reloadCompanyDomains,
+	"GMAIL_SKIP_SENDERS":         reloadGmailSkipSenders,
+	"MESSAGE_BATCH_WINDOW":       reloadMessageBatchWindow,
 	// Why: ticker keeps its old interval; persist for restart but report not-yet-applied.
 	"DB_KEEP_ALIVE_INTERVAL": func(*API, string) bool { return false },
 }

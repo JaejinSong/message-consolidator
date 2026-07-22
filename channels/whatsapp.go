@@ -24,10 +24,10 @@ import (
 )
 
 type WAManager struct {
-	clients  map[string]*whatsmeow.Client
-	chatBuf  *ChatBuffer
-	latestQR map[string]string
-	mu       sync.RWMutex
+	clients       map[string]*whatsmeow.Client
+	chatBuf       *ChatBuffer
+	latestQR      map[string]string
+	mu            sync.RWMutex
 	container     *sqlstore.Container
 	containerOnce sync.Once
 

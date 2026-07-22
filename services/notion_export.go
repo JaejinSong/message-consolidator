@@ -355,4 +355,3 @@ func richText(text string) []map[string]any {
 	}
 	return parts
 }
-

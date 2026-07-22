@@ -12,18 +12,18 @@ import (
 
 // CommitmentItem is the client-facing shape for a single commitment row.
 type CommitmentItem struct {
-	ID                 int64  `json:"id"`
-	Task               string `json:"task"`
-	Requester          string `json:"requester"`
-	Assignee           string `json:"assignee"`
-	Category           string `json:"category"`
-	Deadline           string `json:"deadline,omitempty"`
-	DeadlineDate       string `json:"deadline_date,omitempty"`
-	DeadlineInferred   bool   `json:"deadline_inferred,omitempty"`
-	Room               string `json:"room"`
-	Source             string `json:"source"`
-	Link               string `json:"link,omitempty"`
-	DaysOpen           int    `json:"days_open"`
+	ID               int64  `json:"id"`
+	Task             string `json:"task"`
+	Requester        string `json:"requester"`
+	Assignee         string `json:"assignee"`
+	Category         string `json:"category"`
+	Deadline         string `json:"deadline,omitempty"`
+	DeadlineDate     string `json:"deadline_date,omitempty"`
+	DeadlineInferred bool   `json:"deadline_inferred,omitempty"`
+	Room             string `json:"room"`
+	Source           string `json:"source"`
+	Link             string `json:"link,omitempty"`
+	DaysOpen         int    `json:"days_open"`
 }
 
 // StalledItem is the client-facing shape for a stalled TASK row.

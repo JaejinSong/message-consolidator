@@ -168,7 +168,10 @@ func TestBuildRowProperties(t *testing.T) {
 // --- Enabled / Receive ---
 
 func TestWANotionLoggerEnabled(t *testing.T) {
-	cases := []struct{ tok, pid string; want bool }{
+	cases := []struct {
+		tok, pid string
+		want     bool
+	}{
 		{"", "", false}, {"tok", "", false}, {"", "pid", false}, {"tok", "pid", true},
 	}
 	for _, tc := range cases {

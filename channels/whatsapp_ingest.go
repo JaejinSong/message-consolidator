@@ -80,8 +80,8 @@ func (m *WAManager) handleMessageEvent(email string, client *whatsmeow.Client, m
 		ID: msg.Info.ID, Sender: sender, Text: msgText,
 		Timestamp: msg.Info.Timestamp, ReplyToID: meta.ReplyToID,
 		RepliedToUser: meta.RepliedToUser, IsForwarded: meta.IsForwarded,
-		IsFromMe:        msg.Info.IsFromMe,
-		MentionedIDs:    meta.MentionedIDs, HasAttachment: meta.HasAttachment,
+		IsFromMe:     msg.Info.IsFromMe,
+		MentionedIDs: meta.MentionedIDs, HasAttachment: meta.HasAttachment,
 		AttachmentNames: meta.AttachmentNames,
 		MentionedNames:  mentionedNames,
 	}

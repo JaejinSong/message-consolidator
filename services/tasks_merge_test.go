@@ -126,9 +126,9 @@ func TestResolveProposals_CrossThreadGuard(t *testing.T) {
 	}
 
 	cases := []struct {
-		name       string
-		threadID   string
-		wantMatch  bool
+		name      string
+		threadID  string
+		wantMatch bool
 	}{
 		{"same thread high sim", "T1", true},
 		{"different thread high sim", "T2", false},

@@ -161,4 +161,3 @@ func blockHasAccessory(blocks []slack.Block) bool {
 	}
 	return false
 }
-

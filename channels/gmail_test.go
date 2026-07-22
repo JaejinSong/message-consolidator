@@ -248,13 +248,13 @@ func TestHasLabel(t *testing.T) {
 // inference sets isCc=true → IsCcOnly=true → Reference tab routing.
 func TestGroupMailViaInboxLabel_IsCcOnly(t *testing.T) {
 	tests := []struct {
-		name        string
-		labels      []string
-		isFromMe    bool
-		isDirect    bool
-		isCc        bool
-		isBcc       bool
-		isDelTo     bool
+		name         string
+		labels       []string
+		isFromMe     bool
+		isDirect     bool
+		isCc         bool
+		isBcc        bool
+		isDelTo      bool
 		wantIsCcOnly bool
 	}{
 		{

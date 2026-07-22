@@ -21,7 +21,7 @@ func TestIsAlpha(t *testing.T) {
 		{"abc", true},
 		{"ABC", true},
 		{"AbCdEf", true},
-		{"한글", true},  // unicode letters
+		{"한글", true},   // unicode letters
 		{"a1b", false}, // digit
 		{"ab!", false}, // punctuation
 		{" ab", false}, // space

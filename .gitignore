@@ -3,6 +3,7 @@
 /app_*
 /message-consolidator*
 /mc-util
+/rehearse-v15
 /mc_test
 /tmp_build
 /test_bin

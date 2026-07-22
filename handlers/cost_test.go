@@ -9,8 +9,8 @@ import (
 func TestRateFor(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		model         string
-		wantInputPerM float64
+		model          string
+		wantInputPerM  float64
 		wantOutputPerM float64
 	}{
 		{"deepseek-chat", 0.14, 0.28},
@@ -18,8 +18,8 @@ func TestRateFor(t *testing.T) {
 		{"deepseek-v4-pro", 0.435, 0.87},
 		{"deepseek-chat-20260101", 0.14, 0.28}, // versioned suffix → prefix match
 		{"gemini-3-flash-preview", 0.50, 3.00},
-		{"gemini-3.1-flash-lite", 0.50, 3.00},  // no exact/prefix row → conservative Flash fallback
-		{"totally-unknown-model", 0.50, 3.00},  // fallback
+		{"gemini-3.1-flash-lite", 0.50, 3.00}, // no exact/prefix row → conservative Flash fallback
+		{"totally-unknown-model", 0.50, 3.00}, // fallback
 	}
 	for _, tc := range cases {
 		r := rateFor(tc.model)

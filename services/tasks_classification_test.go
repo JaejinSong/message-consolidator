@@ -139,8 +139,8 @@ func TestTaskClassificationByAliases(t *testing.T) {
 	t.Run("alias_match_does_not_clobber_non_self_requester_canonical", func(t *testing.T) {
 		msg := &store.ConsolidatedMessage{
 			Assignee:           "Jaejin Song (JJ)",
-			Requester:          "jj",                // alias of jj@whatap.io
-			RequesterCanonical: "yspark@whatap.io",  // set by BuildTask / completion service
+			Requester:          "jj",               // alias of jj@whatap.io
+			RequesterCanonical: "yspark@whatap.io", // set by BuildTask / completion service
 			Category:           CategoryRequested,
 			Task:               "some task",
 		}
