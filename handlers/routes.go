@@ -180,7 +180,8 @@ func (a *API) registerIdentityRoutes(r *mux.Router) {
 func (a *API) registerAdminRoutes(r *mux.Router) {
 	// Why: previously these were only `protected` (any authenticated user). Tightened to admin-only
 	// alongside the new admin surface — operational endpoints should never be reachable by tenants.
-	r.Handle("/api/admin/reclassify", a.adminProtected(a.HandleReclassifyOldData)).Methods("GET")
+	// Why: reclassification mutates rows — POST prevents prefetch/cache-triggered runs.
+	r.Handle("/api/admin/reclassify", a.adminProtected(a.HandleReclassifyOldData)).Methods("POST")
 	r.Handle("/api/admin/invalidate-cache", a.adminProtected(a.HandleInvalidateCache)).Methods("POST")
 	r.Handle("/api/admin/embeddings/backfill", a.adminProtected(a.HandleBackfillEmbeddings)).Methods("POST")
 	r.Handle("/api/admin/restore-gmail-cc", a.adminProtected(a.HandleRestoreGmailCC)).Methods("GET")
