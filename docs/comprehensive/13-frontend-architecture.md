@@ -284,7 +284,6 @@ AppState {
   waConnected / gmailConnected    // 채널 연결 상태
   messages: CategorizedMessages   // inbox / delegated / reference
   archivePage/Limit/Search/Sort   // 보관함 페이지네이션 상태
-  archiveSemantic: boolean        // Smart 토글 상태 (기본값 false)
   selectedTaskIds: Set<number>    // 병합 선택 집합
   reports: Record<string, IReportData>  // O(1) date-keyed 캐시
   reportHistory: IReportData[]    // 보고서 목록 메타데이터
@@ -491,21 +490,7 @@ CSS·컴포넌트 상세 → [14-frontend-ui-system.md](14-frontend-ui-system.md
 
 ### 7.2 archive.ts — 페이지네이션·검색
 
-state의 `archivePage`, `archiveLimit`, `archiveSearch`, `archiveSort`, `archiveOrder`, `archiveStatus`를 파라미터로 `api.fetchArchive()` 호출. 검색 debounce: 500ms. 정렬 토글: 동일 필드 재클릭 시 ASC↔DESC 전환.
-
-**Smart 토글 (의미 검색)**: `#archiveSemanticToggle` 버튼이 `state.archiveSemantic`을 플립하고 즉시 `fetch()`를 재실행합니다. 검색어 길이 ≥ 3이고 `archiveSemantic === true`일 때 `api.fetchArchiveSemantic()` → `POST /api/messages/archive/semantic`을 호출하며, 그 외에는 기존 FTS 페이지 경로를 유지합니다. semantic 모드에서는 RRF 랭커가 전체 아카이브를 대상으로 결과를 반환하므로 status·정렬 필터를 건너뜁니다.
-
-```ts
-// archive.ts — fetch() 분기 핵심
-const useSemantic = state.archiveSemantic && state.archiveSearch.trim().length >= 3;
-if (useSemantic) {
-    const data = await api.fetchArchiveSemantic(state.archiveSearch, state.currentLang, state.archiveLimit);
-    // ... renderArchive, pagination UI 갱신
-    return;
-}
-```
-
-i18n: `archiveSemanticToggle` / `archiveSemanticToggleHint` 키 — en("Smart"), ko("스마트"), id("Cerdas"), th("อัจฉริยะ") 4개 언어 지원.
+state의 `archivePage`, `archiveLimit`, `archiveSearch`, `archiveSort`, `archiveOrder`, `archiveStatus`를 파라미터로 `api.fetchArchive()` 호출. 검색 debounce: 500ms. 정렬 토글: 동일 필드 재클릭 시 ASC↔DESC 전환. 검색은 FTS5 BM25 기반이며(≥3 runes), 2026-07-22 임베딩 파이프라인 제거 이후 "Smart"(의미 검색) 토글은 제거됐다 — `fetchArchiveSemantic`, `state.archiveSemantic`, `#archiveSemanticToggle`, i18n 키(`archiveSemanticToggle`/`archiveSemanticToggleHint`) 모두 삭제됨.
 
 내보내기 3종: `/api/messages/export` (CSV), `/api/messages/export/excel` (XLSX), `/api/messages/export/json`. 브라우저 native `<a download>` 방식으로 파일 저장.
 
@@ -735,7 +720,7 @@ renderMessages(filtered, { skipClientSearch: true });
 5. **Insights Tab Isolation**: 기존 문서에 언급 없음.
 6. **Clean Architecture 레이어 명시**: 기존 문서는 파일별 역할표였으나, 레이어 의존 방향을 mermaid로 시각화.
 7. **Build 상세**: `optimize:css` 파이프라인, `tsconfigPaths` 이유 추가.
-8. **Smart 토글**: 없음 → 아카이브 검색에 의미 검색 토글 추가 (`archiveSemantic` 상태, `POST /api/messages/archive/semantic` 분기, 4개 언어 i18n).
+8. **Smart 토글**: 없음 → 아카이브 검색에 의미 검색 토글 추가 (`archiveSemantic` 상태, `POST /api/messages/archive/semantic` 분기, 4개 언어 i18n) → 2026-07-22 임베딩 파이프라인 제거로 다시 삭제됨 (→ [21-release-history.md](21-release-history.md)).
 
 ### 11.2 Cross-Reference 맵
 

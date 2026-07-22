@@ -194,7 +194,6 @@ export interface AppState {
     archiveThresholdDays: number;
     staleThresholdWorkingDays: number;
     archiveStatus: string;
-    archiveSemantic: boolean;
     messages: CategorizedMessages;
     userStats: UserStats | null;
     selectedTaskIds: Set<number>;

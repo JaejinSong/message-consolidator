@@ -1,6 +1,6 @@
 # 21. 릴리즈 히스토리 / Release History
 
-> 최종 갱신: 2026-05-03
+> 최종 갱신: 2026-07-22
 >
 > Cross-references:
 > - AI 필터 파이프라인 → [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md)
@@ -48,6 +48,33 @@
 ---
 
 ## 2. 타임라인 (최신순) / Release Timeline
+
+### Unreleased — 2026-07-22 — Embedding Pipeline 제거 (FTS5-only 마이그레이션)
+
+#### 사용자 관점 (KO)
+- **검색 방식 통합**: 아카이브의 "Smart"(의미 검색) 토글을 제거하고, 검색을 기존 키워드(FTS5) 방식 하나로 통합했다. 검색 동작·속도 자체는 그대로다.
+
+#### User Perspective (EN)
+- **Search unification**: The archive's "Smart" (semantic search) toggle was removed; search now runs on the existing keyword (FTS5) path only. Search behavior and speed are unchanged for users.
+
+#### 기술 상세
+
+**Removed**
+- `[REFACTOR]` Gemini embedding pipeline 전체 제거: `ai/embedding.go` (`EmbeddingClient`, `gemini-embedding-001`, 768d), `services/embedding_service.go` (`EmbeddingService`, `SearchHybrid` FTS∪cosine RRF, `EnqueueForMessage`, `BackfillBatch`, `CandidateOpenTasks`), `store/embeddings_store.go` (`SemanticTopK`/`SemanticTopKOpen`/`UpsertEmbedding`/`ArchiveFTSTopIDs`), `handlers/handlers_embeddings.go`, `store/queries/embeddings.sql`, `db/embeddings.sql.go` 삭제 (→ [04-data-layer.md](04-data-layer.md), [08-services-business-logic.md](08-services-business-logic.md), [11-handlers-and-api.md](11-handlers-and-api.md))
+- `[REFACTOR]` 엔드포인트 삭제 (전부 404): `GET /api/messages/archive/semantic`, `POST /api/internal/embeddings/backfill`, `POST /api/admin/embeddings/backfill` (→ [11-handlers-and-api.md](11-handlers-and-api.md))
+- `[REFACTOR]` seam 제거: `TasksService.SetEmbedder`/`TaskEmbedder` (`MarkDone`이 더 이상 임베딩을 enqueue하지 않음), `CompletionService.SetEmbedder`/`OpenTaskFinder`, `scanner.WireEmbedder`, `API.Embeddings` 필드, `main.go`의 `initEmbeddingService`
+- `[UI]` 프론트엔드 "Smart" 토글 제거: `fetchArchiveSemantic`, `state.archiveSemantic`, `#archiveSemanticToggle`, i18n 키 `archiveSemanticToggle`/`archiveSemanticToggleHint` (en/ko/id/th) 전체 삭제 (→ [13-frontend-architecture.md](13-frontend-architecture.md))
+
+**Replaced**
+- `[FEAT]` 크로스채널 완료 후보 매칭을 cosine 유사도에서 FTS5 BM25로 교체: `store.SearchOpenTasksFTS(ctx, email, tokens []string, limit)` (`store/active_search_store.go`), `TaskStore` 인터페이스 경유로 `CompletionService.ftsCrossThreadCandidates`에서 호출. 토큰은 `ftsCandidateTokens`가 추출(≥3-rune, 대소문자 무시 중복제거, 최대 13개), `hasCompletionSignal`로 게이팅, `crossThreadTopK=5`, 자기 스레드 제외. 확인 후 처리(confirm-first) `EvaluateTaskTransition` LLM 파이프라인은 그대로 유지 (→ [08-services-business-logic.md](08-services-business-logic.md))
+- `[SYS]` 텔레메트리 카운터 `embedderNil`/`belowMinScore`/`embeddingEmpty` → `ftsEmpty` 단일 카운터로 교체
+
+**Kept (unchanged)**
+- `message_embeddings` 테이블 및 `idx_msg_emb_model_id` 인덱스, 관련 마이그레이션 단계는 schema v15 그대로 보존 (데이터는 stale, drop 여부는 향후 운영 결정 사항) (→ [04-data-layer.md](04-data-layer.md))
+- `GEMINI_API_KEY` 설정 필드는 텍스트 생성(text-gen) 프로바이더용으로 계속 존재 — 임베딩 용도로는 더 이상 읽히지 않음
+- 일반 아카이브 검색 (`GET /api/messages/archive?q=...`)은 변경 없음 — 이미 FTS5 BM25 기반(≥3 runes)이었음
+
+---
 
 ### v2.4.7 — 2026-05-03
 **Commit 범위**: `6a40fb3`..`8b3e616` (2026-04-30 ~ 2026-05-03, ~50 커밋)

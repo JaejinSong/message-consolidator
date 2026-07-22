@@ -163,26 +163,6 @@ describe('api', () => {
         });
     });
 
-    describe('fetchArchiveSemantic', () => {
-        it('encodes q, lang, limit in URL', async () => {
-            (fetch as ReturnType<typeof vi.fn>).mockImplementation(() => mockResponse(200, { total: 1, messages: [] }));
-            await api.fetchArchiveSemantic('keyword', 'en', 25);
-            const url = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-            expect(url).toContain('/api/messages/archive/semantic');
-            expect(url).toContain('q=keyword');
-            expect(url).toContain('lang=en');
-            expect(url).toContain('limit=25');
-        });
-
-        it('uses default lang=ko and limit=50', async () => {
-            (fetch as ReturnType<typeof vi.fn>).mockImplementation(() => mockResponse(200, { total: 0, messages: [] }));
-            await api.fetchArchiveSemantic('kw');
-            const url = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-            expect(url).toContain('lang=ko');
-            expect(url).toContain('limit=50');
-        });
-    });
-
     describe('fetchArchiveCount', () => {
         it('includes q and status when provided', async () => {
             (fetch as ReturnType<typeof vi.fn>).mockImplementation(() => mockResponse(200, { count: 5 }));

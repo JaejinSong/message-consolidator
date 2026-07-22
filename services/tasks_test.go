@@ -527,10 +527,10 @@ func TestBuildTranslateRequest(t *testing.T) {
 func TestParseTranslatedText(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name      string
-		raw       string
-		wantMain  string
-		wantSubs  []string
+		name     string
+		raw      string
+		wantMain string
+		wantSubs []string
 	}{
 		{"empty", "", "", nil},
 		{"plain string passthrough", "hello world", "hello world", nil},
@@ -657,10 +657,4 @@ func TestNewTasksService(t *testing.T) {
 	if got := svc.GetTranslationService(); got != nil {
 		t.Errorf("GetTranslationService = %v, want nil when none set", got)
 	}
-}
-
-func TestSetEmbedder(t *testing.T) {
-	t.Parallel()
-	svc := NewTasksService(nil, nil)
-	svc.SetEmbedder(nil) // nil embedder is a valid no-op
 }

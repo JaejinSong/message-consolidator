@@ -26,6 +26,31 @@ func TestRegisterRoutes_NoRouteLeaks(t *testing.T) {
 	}
 }
 
+// TestRegisterRoutes_EmbeddingRoutesRemoved guards the FTS5-only migration: the
+// semantic search and embedding backfill endpoints must no longer be registered.
+func TestRegisterRoutes_EmbeddingRoutesRemoved(t *testing.T) {
+	t.Parallel()
+	api := &API{Config: &config.Config{}}
+	r := mux.NewRouter()
+	api.RegisterRoutes(r)
+
+	cases := []struct {
+		method, path string
+	}{
+		{"GET", "/api/messages/archive/semantic"},
+		{"POST", "/api/internal/embeddings/backfill"},
+		{"POST", "/api/admin/embeddings/backfill"},
+	}
+	for _, c := range cases {
+		req := httptest.NewRequest(c.method, c.path, nil)
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+		if rr.Code != http.StatusNotFound {
+			t.Errorf("%s %s: status = %d, want 404 (route must be gone)", c.method, c.path, rr.Code)
+		}
+	}
+}
+
 // TestRegisterSlackBotRoutes_SkippedWhenNoSecret verifies that Slack bot endpoints
 // are NOT registered when the signing secret is empty.
 func TestRegisterSlackBotRoutes_SkippedWhenNoSecret(t *testing.T) {

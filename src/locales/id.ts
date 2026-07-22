@@ -58,8 +58,6 @@ export const id: I18nEntry = {
         archiveMerged: "Tugas yang Digabungkan",
         confirmDelete: "Apakah Anda yakin ingin menghapus tugas ini? Tugas akan dipindahkan ke arsip.",
         archiveSearchPlaceholder: "Cari arsip...",
-        archiveSemanticToggle: "Cerdas",
-        archiveSemanticToggleHint: "Pencarian gabungan: kata kunci + makna",
         exportSummaryTitle: "Ringkasan Ekspor",
         exportSummaryText: "tugas siap untuk diekspor.",
         exportExcelBtn: "Unduh sebagai Excel (.xlsx)",

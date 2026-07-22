@@ -7,14 +7,12 @@ import (
 )
 
 // completionStats aggregates per-cycle counters for the completion decision
-// funnel (thread-path vs cross-channel, embedder gates, LLM outcomes, confirm-first
+// funnel (thread-path vs cross-channel, FTS gate, LLM outcomes, confirm-first
 // candidate lifecycle) so drop-off can be diagnosed from logs without re-instrumenting.
 type completionStats struct {
 	entryThreadPath    atomic.Int64
 	crossSignalMiss    atomic.Int64
-	embedderNil        atomic.Int64
-	embeddingEmpty     atomic.Int64
-	belowMinScore      atomic.Int64
+	ftsEmpty           atomic.Int64
 	llmError           atomic.Int64
 	llmResolve         atomic.Int64
 	llmUpdate          atomic.Int64
@@ -29,12 +27,10 @@ var compStats completionStats
 // LogCompletionStats emits one summary line for the completion pipeline funnel,
 // then resets all counters so the next window starts clean.
 func LogCompletionStats() {
-	logger.Infof("[COMPLETION] stats: entryThreadPath=%d crossSignalMiss=%d embedderNil=%d embeddingEmpty=%d belowMinScore=%d llmError=%d llmResolve=%d llmUpdate=%d llmNone=%d candidateRecorded=%d dismissSuppressed=%d fallbackExtraction=%d",
+	logger.Infof("[COMPLETION] stats: entryThreadPath=%d crossSignalMiss=%d ftsEmpty=%d llmError=%d llmResolve=%d llmUpdate=%d llmNone=%d candidateRecorded=%d dismissSuppressed=%d fallbackExtraction=%d",
 		compStats.entryThreadPath.Swap(0),
 		compStats.crossSignalMiss.Swap(0),
-		compStats.embedderNil.Swap(0),
-		compStats.embeddingEmpty.Swap(0),
-		compStats.belowMinScore.Swap(0),
+		compStats.ftsEmpty.Swap(0),
 		compStats.llmError.Swap(0),
 		compStats.llmResolve.Swap(0),
 		compStats.llmUpdate.Swap(0),

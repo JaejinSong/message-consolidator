@@ -12,12 +12,12 @@ import (
 )
 
 const (
-	AssigneeShared     = "shared"
-	CategoryPersonal   = "personal"
-	CategoryShared     = "shared"
-	CategoryRequested  = "requested"
-	CategoryOthers     = "reference" // Why: renamed from "others"; third-party observed X->Y tasks
-	CategoryReference  = "reference" // canonical alias — prefer this in new code
+	AssigneeShared    = "shared"
+	CategoryPersonal  = "personal"
+	CategoryShared    = "shared"
+	CategoryRequested = "requested"
+	CategoryOthers    = "reference" // Why: renamed from "others"; third-party observed X->Y tasks
+	CategoryReference = "reference" // canonical alias — prefer this in new code
 )
 
 var (
@@ -31,16 +31,9 @@ type TaskAI interface {
 	GenerateMergedTaskTitle(ctx context.Context, email string, tasksJSON string) (string, error)
 }
 
-// TaskEmbedder is satisfied by *EmbeddingService and is the seam tasks use to
-// enqueue archive embeddings after MarkDone. nil-safe via the optional setter.
-type TaskEmbedder interface {
-	EnqueueForMessage(ctx context.Context, msgID store.MessageID)
-}
-
 type TasksService struct {
 	translationSvc *TranslationService
 	geminiClient   TaskAI
-	embedder       TaskEmbedder
 }
 
 func NewTasksService(trans *TranslationService, gemini TaskAI) *TasksService {
@@ -49,11 +42,6 @@ func NewTasksService(trans *TranslationService, gemini TaskAI) *TasksService {
 		geminiClient:   gemini,
 	}
 }
-
-// SetEmbedder wires a background embedding hook for archive transitions.
-// Why: separated from the constructor so main.go can build it after Gemini
-// init without reshuffling existing callers/tests that pass two args.
-func (s *TasksService) SetEmbedder(e TaskEmbedder) { s.embedder = e }
 
 // StripOriginalText removes the original text to reduce payload size.
 func (s *TasksService) StripOriginalText(msgs []store.ConsolidatedMessage) {
@@ -176,7 +164,6 @@ func (s *TasksService) applyAssigneeRules(user *store.User, identities []string,
 // ApplyTranslations fetches cached translations and triggers JIT for missing ones.
 // Why: Returns English immediately for missing translations to prevent UI blocking.
 
-
 // PrepareMessagesForClient unifies translations, stripping, and formatting.
 // Why: Category must be derived from the untranslated Task so that hasGroupMention's
 // English-only keyword list yields the same classification regardless of display lang.
@@ -196,16 +183,7 @@ func (s *TasksService) HandleTaskCompletion(ctx context.Context, email string, t
 		return nil
 	}
 
-	if err := store.MarkMessageDone(ctx, store.GetDB(), email, taskID, done); err != nil {
-		return err
-	}
-	// Why: archive transition (done=true) is the only point we want to spend an
-	// embedding API call. Background-detached so the user's MarkDone response
-	// returns immediately even if Gemini is slow.
-	if done && s.embedder != nil {
-		s.embedder.EnqueueForMessage(ctx, taskID)
-	}
-	return nil
+	return store.MarkMessageDone(ctx, store.GetDB(), email, taskID, done)
 }
 
 // ReclassifyUserTasks re-evaluates assignees for a user's tasks based on identities and content.
@@ -297,4 +275,3 @@ func (s *TasksService) checkRestoreGmailCC(ctx context.Context, email string, us
 
 	return m.ID, actualAssignee, true
 }
-

@@ -67,3 +67,62 @@ func SearchActiveMessages(ctx context.Context, email, query string) ([]Consolida
 	}
 	return mapRowSliceToMessage(rows), nil
 }
+
+// SearchOpenTasksFTS returns up to limit OPEN tasks (lifecycle='active') for email,
+// ranked by BM25 relevance to any of the given tokens. Each token is quoted as an
+// FTS5 phrase and OR-joined; callers must pass tokens >= 3 runes (trigram tokenizer).
+func SearchOpenTasksFTS(ctx context.Context, email string, tokens []string, limit int) ([]ConsolidatedMessage, error) {
+	if len(tokens) == 0 || limit <= 0 {
+		return nil, nil
+	}
+	quoted := make([]string, 0, len(tokens))
+	for _, t := range tokens {
+		quoted = append(quoted, `"`+strings.ReplaceAll(t, `"`, `""`)+`"`)
+	}
+	match := strings.Join(quoted, " OR ")
+
+	const idSQL = `
+		SELECT m.id
+		FROM messages_fts
+		JOIN messages m ON m.id = messages_fts.rowid
+		WHERE messages_fts MATCH ?1
+		  AND (m.user_email = ?2 OR (m.user_email IS NULL AND ?2 = ''))
+		  AND m.lifecycle = 'active'
+		ORDER BY bm25(messages_fts)
+		LIMIT ?3`
+	rows, err := GetDB().QueryContext(ctx, idSQL, match, email, int64(limit))
+	if err != nil {
+		return nil, fmt.Errorf("fts open-task search: %w", err)
+	}
+	defer rows.Close()
+	ids := make([]MessageID, 0, limit)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("fts open-task scan: %w", err)
+		}
+		ids = append(ids, MessageID(id))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("fts open-task rows: %w", err)
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	msgs, err := GetMessagesByIDs(ctx, GetDB(), email, ids)
+	if err != nil {
+		return nil, fmt.Errorf("fts open-task resolve: %w", err)
+	}
+	// Why: GetMessagesByIDs returns rows in arbitrary order; restore BM25 rank.
+	byID := make(map[MessageID]ConsolidatedMessage, len(msgs))
+	for _, m := range msgs {
+		byID[m.ID] = m
+	}
+	out := make([]ConsolidatedMessage, 0, len(ids))
+	for _, id := range ids {
+		if m, ok := byID[id]; ok {
+			out = append(out, m)
+		}
+	}
+	return out, nil
+}

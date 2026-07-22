@@ -51,7 +51,6 @@ Rules enforced:
 | `notion_export.go` | `NotionExporter` | Markdown → Notion Block API page creation |
 | `lock_service.go` | `RoomLockService` | Per-room mutex to prevent scanner race conditions |
 | `ai_parser.go` | Pure functions | AI response JSON extraction (fenced + brace fallback) |
-| `embedding_service.go` | `EmbeddingService` | Hybrid Archive Search — FTS5 BM25 + cosine via RRF fusion |
 | `slack_bot.go` | `SlackBot` | Slack DM bot command dispatch and Block Kit interaction handling |
 | `slack_bot_blocks.go` | Pure functions | Block Kit rendering — paginated task list, action buttons |
 
@@ -670,85 +669,48 @@ For the full test infrastructure and regression matrix, see `→ [17-testing.md]
 | `1be1772` | Enhanced `DailyDigestConfig` (RecipientEmails, PollInterval, PollTimeout, Language, Timezone defaults); lazy Slack ID bootstrap via `ensureSlackIDFor` | `daily_digest_service.go` |
 | `6a40fb3` | Initial `WeeklyReportService` with `computeWeekWindow` (Sat-to-Fri 7-day window), Notion export, Slack DM | `weekly_report_service.go`, `notion_export.go` |
 | `ceaf099` | Added `store.GetLatestThreadAssignee`; wired into `CompletionService.fallbackToNewExtraction` so orphan tasks created from resolved threads inherit the last non-shared assignee | `completion_service.go` |
-| *(feat(embed))* | Added `EmbeddingService` with `SearchHybrid` (BM25 + cosine RRF), `BackfillBatch`, `EnqueueForMessage`, and helper functions (`rrfFuse`, `vectorToJSON`, `Float32sToBytes`) | `embedding_service.go` |
+| *(feat(embed))* | Added `EmbeddingService` with `SearchHybrid` (BM25 + cosine RRF), `BackfillBatch`, `EnqueueForMessage`, and helper functions (`rrfFuse`, `vectorToJSON`, `Float32sToBytes`) — removed entirely 2026-07-22, see §11 | `embedding_service.go` (deleted) |
 | *(feat(slack))* | Added `SlackBot` DM command dispatch, `BuildTaskListBlocks` Block Kit renderer, `ParseSlackActionID`; `HandleDoneAction`/`HandlePageAction` interactive handlers | `slack_bot.go`, `slack_bot_blocks.go` |
 | *(feat(chat))* | `aiRequesterOverrideForSelfDM` preserves external requester in self-DM reported-speech memos — AI value overrides envelope when sender == user | `task_builder.go` |
 | *(feat(slack))* | `buildTaskMeta` includes `"to <Assignee>"` in task row subtitle | `slack_bot_blocks.go` |
 
 ---
 
-## 11. EmbeddingService & Hybrid Archive Search
+## 11. FTS5-only Search & Cross-Channel Completion Matching (2026-07-22)
 
-`EmbeddingService` (`embedding_service.go`) provides vector embedding generation,
-backfill, and a hybrid BM25 + cosine retrieval path over the archive.
+The Gemini embedding pipeline was removed entirely on 2026-07-22 —
+`EmbeddingService`, `ai/embedding.go`, `store/embeddings_store.go`, and
+`handlers/handlers_embeddings.go` are all deleted. Archive search and
+completion-candidate matching now run on FTS5 alone; the `message_embeddings`
+table is retained but dormant (`→ [04-data-layer.md]`).
 
-### 11.1 Structure
+### 11.1 Archive Search
 
-```go
-type EmbeddingService struct {
-    client         Embedder
-    enqueueTimeout time.Duration
-    ftsCandidates  int   // default 100
-    semCandidates  int   // default 100
-    rrfK           int   // default 60
-}
-```
+Regular archive search (`GET /api/messages/archive?q=...`) is unchanged — it
+was already FTS5 BM25 for queries ≥3 runes and required no migration. The
+former hybrid (FTS ∪ cosine, RRF-fused) path and its dedicated endpoint
+(`GET /api/messages/archive/semantic`) are gone (`→ [11-handlers-and-api.md]`).
 
-`Embedder` is the consumer-defined interface (`EmbedDocument`, `EmbedQuery`,
-`Model`, `Dim`). The concrete implementation in `ai/` is injected at startup,
-keeping this package free of SDK imports.
+### 11.2 `CompletionService.ftsCrossThreadCandidates`
 
-### 11.2 `SearchHybrid` Flow
+Cross-channel completion candidate matching — previously driven by
+`CandidateOpenTasks` cosine similarity — is now FTS5 BM25 over open tasks via
+`store.SearchOpenTasksFTS(ctx, email, tokens []string, limit)`, consumed
+through the `TaskStore` interface.
 
-`SearchHybrid(ctx, email, query string, limit int) ([]store.ConsolidatedMessage, error)`
-fuses two independently ranked lists:
+Flow:
 
-```
-1. store.ArchiveFTSTopIDs(ctx, email, query, ftsCandidates)
-       → BM25 rank order from messages_fts virtual table
-2. Embedder.EmbedQuery(ctx, query) → queryVec
-   store.SemanticTopK(ctx, email, model, queryVecJSON, semCandidates)
-       → cosine rank order; distance computed inside libsql via vector_distance_cos
-3. rrfFuse(ftsIDs, semIDs, rrfK=60, limit) → fused ID slice
-4. store.GetMessagesByIDs → resolved ConsolidatedMessage rows (RRF order preserved)
-```
+1. `hasCompletionSignal` gates the call — only messages carrying a completion
+   signal (e.g. "done", "완료") trigger cross-thread candidate search.
+2. `ftsCandidateTokens` extracts search tokens from the message text: ≥3-rune
+   words, case-insensitive dedupe, capped at 13 tokens.
+3. `SearchOpenTasksFTS` returns up to `crossThreadTopK = 5` candidates,
+   excluding the message's own thread.
+4. Each candidate is passed through the existing confirm-first
+   `EvaluateTaskTransition` LLM pipeline (unchanged) before any task is closed.
 
-Each side degrades gracefully: FTS failure → semantic-only; embed API failure →
-FTS-only. Both failure modes log a warning and continue rather than returning an
-error to the caller.
-
-**RRF (k=60) rationale:** Classic Reciprocal Rank Fusion
-(`score(id) = Σ 1/(k + rank_i)`) is parameter-light and outperforms naive score
-addition when the two rankers come from different score distributions. BM25
-captures exact name/IP/code token matches; cosine captures paraphrase and
-cross-language meaning. k=60 is the original Cormack et al. value and is kept
-as the default (`→ [04-data-layer.md]` for vector storage schema).
-
-### 11.3 Background Embedding — `EnqueueForMessage`
-
-`EnqueueForMessage(_, msgID)` detaches from the caller's context and spawns a
-goroutine (`safego.Recover` guarded) with a fresh 30-second timeout. It calls
-`embedAndStore`, which:
-
-1. Loads message text via `store.GetMessageByID`.
-2. Computes SHA-1 of `(task ∥ 0x1f ∥ original_text)` as a change-detection hash.
-3. Skips the Gemini call if the stored hash matches (text unchanged, same model).
-4. Upserts the BLOB via `store.UpsertEmbedding`.
-
-The hash check means repeated `MarkDone` signals on the same message do not burn
-Gemini quota re-embedding unchanged text.
-
-### 11.4 `BackfillBatch`
-
-`BackfillBatch(ctx, email string, batch int) (processed, skipped, failed int, err error)`
-
-Fetches up to `batch` rows from `store.ListMissingEmbeddings` (rows where
-`message_embeddings` has no entry or the model column does not match the current
-model) and embeds them synchronously. Bounded batch keeps quota predictable;
-callers (HTTP handler or cron job) drive a loop until `processed == 0`.
-
-Cross-references: `→ [04-data-layer.md]` (embeddings schema, `ListMissingEmbeddings`),
-`→ [11-handlers-and-api.md]` (search route, backfill trigger endpoint).
+**Telemetry:** the former `embedderNil` / `belowMinScore` / `embeddingEmpty`
+counters are replaced by a single `ftsEmpty` counter (no FTS candidates found).
 
 ---
 
@@ -834,7 +796,7 @@ replay-window logic.
 | Room locks, prime-pool scheduler, atomic CAS | `→ [10-locking-and-concurrency.md]` |
 | Handler → Service call sites, HTTP API contracts | `→ [11-handlers-and-api.md]` |
 | store.SaveMessage, task_translations schema | `→ [04-data-layer.md]` |
-| Embeddings schema, ListMissingEmbeddings, SemanticTopK, ArchiveFTSTopIDs | `→ [04-data-layer.md]` |
+| FTS5-only search, `message_embeddings` (dormant), `SearchOpenTasksFTS` | `→ [04-data-layer.md]` |
 | Overall backend dependency graph | `→ [03-backend-architecture.md]` |
 | Full regression test infrastructure | `→ [17-testing.md]` |
 | Slack HMAC-SHA256 request signing | `→ [12-auth.md]` |

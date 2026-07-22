@@ -228,13 +228,6 @@ export const api = {
         });
     },
 
-    async fetchArchiveSemantic(q: string, lang = 'ko', limit = 50): Promise<{ total: number; messages: Message[] }> {
-        return apiFetch('/messages/archive/semantic', {
-            params: { q, lang, limit },
-            errorMessage: 'Semantic search failed'
-        });
-    },
-
     async fetchArchiveCount(q = '', status = 'all'): Promise<{ count: number }> {
         const params: Record<string, string | undefined> = {};
         if (q) params.q = q;

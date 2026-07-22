@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 )
 
 var (
@@ -103,8 +104,8 @@ func matchesAckTokens(text string) bool {
 }
 
 // completionSignalTokens are substrings that suggest a message reports the completion
-// or resolution of some task. Used as a cheap gate before the expensive embedding +
-// LLM cross-channel match, so unrelated chatter never pays for a candidate search.
+// or resolution of some task. Used as a cheap gate before the FTS + LLM cross-channel
+// match, so unrelated chatter never pays for a candidate search.
 var completionSignalTokens = []string{
 	"완료", "처리했", "처리 했", "끝냈", "끝났", "마쳤", "마무리", "해결", "반영", "배포",
 	"제출", "전달드", "전달했", "보냈", "보내드", "송부", "회신", "업로드", "공유드", "완납",
@@ -151,14 +152,7 @@ type TaskStore interface {
 	HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error)
 	UpdateSubtasks(ctx context.Context, q store.Querier, email string, id store.MessageID, subtasks []store.Subtask) error
 	AddCompletionCandidate(ctx context.Context, q store.Querier, email string, id store.MessageID, cand store.CompletionCandidate) error
-}
-
-// OpenTaskFinder sources open-task completion candidates by semantic similarity.
-// Why: consumer-defined so tests can stub it without a live embedding client, and
-// the seam is optional — when nil, cross-thread matching falls back to gmail subject
-// similarity.
-type OpenTaskFinder interface {
-	CandidateOpenTasks(ctx context.Context, email, queryText string, k int) ([]OpenTaskCandidate, error)
+	SearchOpenTasksFTS(ctx context.Context, email string, tokens []string, limit int) ([]store.ConsolidatedMessage, error)
 }
 
 type DefaultTaskStore struct{}
@@ -195,71 +189,91 @@ func (d *DefaultTaskStore) AddCompletionCandidate(ctx context.Context, q store.Q
 	return store.AddCompletionCandidate(ctx, q, email, id, cand)
 }
 
+func (d *DefaultTaskStore) SearchOpenTasksFTS(ctx context.Context, email string, tokens []string, limit int) ([]store.ConsolidatedMessage, error) {
+	return store.SearchOpenTasksFTS(ctx, email, tokens, limit)
+}
+
 type CompletionService struct {
 	gemini   AICompleter
 	store    TaskStore
 	tasksSvc *TasksService
 	db       *sql.DB
-	embedder OpenTaskFinder
 }
 
 func NewCompletionService(gemini AICompleter, taskStore TaskStore, tasksSvc *TasksService, db *sql.DB) *CompletionService {
 	return &CompletionService{gemini: gemini, store: taskStore, tasksSvc: tasksSvc, db: db}
 }
 
-// SetEmbedder wires the semantic open-task finder used for cross-channel completion
-// matching. Optional — when unset, cross-thread matching stays gmail-subject only.
-func (s *CompletionService) SetEmbedder(e OpenTaskFinder) { s.embedder = e }
-
 const (
-	// crossThreadTopK bounds how many open tasks the semantic search returns for LLM review.
+	// crossThreadTopK bounds how many open tasks the FTS search returns for LLM review.
 	crossThreadTopK = 5
-	// crossThreadMinScore filters weak cosine matches before the LLM gate. Score is
-	// negated cosine distance (higher = closer); -0.55 ≈ distance < 0.55. Lenient by
-	// design — EvaluateTaskTransition is the precision filter.
-	crossThreadMinScore float32 = -0.55
+	// maxCrossThreadFTSTokens caps the OR-query width; BM25 already favors multi-token
+	// hits, so extra tokens past this add recall noise, not precision.
+	maxCrossThreadFTSTokens = 13
 )
 
 // findCrossThreadCandidates returns open tasks a cross-channel message might complete.
-// Prefers semantic (embedding) matching across all sources; falls back to gmail subject
-// similarity when no embedder is wired.
+// Prefers FTS BM25 matching across all sources; falls back to gmail subject similarity.
 func (s *CompletionService) findCrossThreadCandidates(ctx context.Context, msg store.ConsolidatedMessage) []store.ConsolidatedMessage {
-	// Why: the semantic path costs an embedding call, so gate it on a cheap completion
-	// signal — it targets cross-channel *completions*. The gmail subject fallback stays
-	// ungated (pure string match) so cross-thread UPDATE re-notices keep routing.
-	if s.embedder == nil {
-		compStats.embedderNil.Add(1)
-	}
-	if s.embedder != nil && hasCompletionSignal(msg.OriginalText) {
-		if cands := s.semanticCrossThreadCandidates(ctx, msg); len(cands) > 0 {
+	// Why: the FTS path targets cross-channel *completions*, so gate it on a cheap
+	// completion signal. The gmail subject fallback stays ungated (pure string match)
+	// so cross-thread UPDATE re-notices keep routing.
+	if hasCompletionSignal(msg.OriginalText) {
+		if cands := s.ftsCrossThreadCandidates(ctx, msg); len(cands) > 0 {
 			return cands
 		}
 	}
 	return s.gmailSubjectCandidates(ctx, msg)
 }
 
-// semanticCrossThreadCandidates ranks open tasks by embedding similarity to the incoming
-// message, excluding the message's own thread and sub-threshold matches.
-func (s *CompletionService) semanticCrossThreadCandidates(ctx context.Context, msg store.ConsolidatedMessage) []store.ConsolidatedMessage {
-	cands, err := s.embedder.CandidateOpenTasks(ctx, msg.UserEmail, msg.OriginalText, crossThreadTopK)
+// ftsCandidateTokens splits text on non-letter/digit runes, keeps tokens >= 3 runes
+// (trigram tokenizer minimum), dedupes case-insensitively, and caps at max.
+func ftsCandidateTokens(text string, max int) []string {
+	fields := strings.FieldsFunc(text, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	seen := make(map[string]bool, len(fields))
+	out := make([]string, 0, max)
+	for _, f := range fields {
+		if len([]rune(f)) < 3 {
+			continue
+		}
+		key := strings.ToLower(f)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, f)
+		if len(out) == max {
+			break
+		}
+	}
+	return out
+}
+
+// ftsCrossThreadCandidates ranks open tasks by BM25 relevance to the incoming message's
+// keyword tokens, excluding the message's own thread. Precision relies on the completion-
+// signal gate upstream and the LLM transition check downstream, not on a score threshold.
+func (s *CompletionService) ftsCrossThreadCandidates(ctx context.Context, msg store.ConsolidatedMessage) []store.ConsolidatedMessage {
+	tokens := ftsCandidateTokens(msg.OriginalText, maxCrossThreadFTSTokens)
+	if len(tokens) == 0 {
+		return nil
+	}
+	cands, err := s.store.SearchOpenTasksFTS(ctx, msg.UserEmail, tokens, crossThreadTopK)
 	if err != nil {
-		logger.Warnf("[COMPLETION] semantic candidate search failed: %v", err)
-		compStats.embeddingEmpty.Add(1)
+		logger.Warnf("[COMPLETION] fts candidate search failed: %v", err)
+		compStats.ftsEmpty.Add(1)
 		return nil
 	}
 	if len(cands) == 0 {
-		compStats.embeddingEmpty.Add(1)
+		compStats.ftsEmpty.Add(1)
 	}
 	var out []store.ConsolidatedMessage
 	for _, c := range cands {
-		if msg.ThreadID != "" && c.Task.ThreadID == msg.ThreadID {
+		if msg.ThreadID != "" && c.ThreadID == msg.ThreadID {
 			continue
 		}
-		if c.Score < crossThreadMinScore {
-			compStats.belowMinScore.Add(1)
-			continue
-		}
-		out = append(out, c.Task)
+		out = append(out, c)
 	}
 	return out
 }

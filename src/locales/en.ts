@@ -67,8 +67,6 @@ export const en: I18nEntry = {
         archiveMerged: "Merged Tasks",
         confirmDelete: "Are you sure you want to delete this task? It will be moved to the archive.",
         archiveSearchPlaceholder: "Search archive...",
-        archiveSemanticToggle: "Smart",
-        archiveSemanticToggleHint: "Hybrid search: keyword + meaning",
         exportSummaryTitle: "Export Summary",
         exportSummaryText: "tasks are ready to be exported.",
         exportExcelBtn: "Download as Excel (.xlsx)",

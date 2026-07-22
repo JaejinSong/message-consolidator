@@ -65,6 +65,9 @@ type MockStore struct {
 	UpdatedSubtasks    map[store.MessageID][]store.Subtask
 	HasAnyTask         bool // controls HasAnyTaskInThread; default false preserves prior guard behavior
 	Candidates         map[store.MessageID]store.CompletionCandidate
+	OpenFTSResults     []store.ConsolidatedMessage
+	OpenFTSErr         error
+	OpenFTSCalls       int
 }
 
 func (m *MockStore) GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error) {
@@ -115,6 +118,11 @@ func (m *MockStore) UpdateSubtasks(ctx context.Context, q store.Querier, email s
 	}
 	m.UpdatedSubtasks[id] = subtasks
 	return nil
+}
+
+func (m *MockStore) SearchOpenTasksFTS(ctx context.Context, email string, tokens []string, limit int) ([]store.ConsolidatedMessage, error) {
+	m.OpenFTSCalls++
+	return m.OpenFTSResults, m.OpenFTSErr
 }
 
 func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
@@ -783,19 +791,6 @@ func TestDefaultTaskStore_UpdateMessageCategory(t *testing.T) {
 	}
 }
 
-// stubOpenTaskFinder returns preset semantic candidates for CompletionService tests
-// without a live embedding client.
-type stubOpenTaskFinder struct {
-	candidates []OpenTaskCandidate
-	err        error
-	callCount  int
-}
-
-func (s *stubOpenTaskFinder) CandidateOpenTasks(ctx context.Context, email, queryText string, k int) ([]OpenTaskCandidate, error) {
-	s.callCount++
-	return s.candidates, s.err
-}
-
 func TestHasCompletionSignal(t *testing.T) {
 	cases := []struct {
 		text string
@@ -815,16 +810,16 @@ func TestHasCompletionSignal(t *testing.T) {
 	}
 }
 
-// Why: cross-channel completion must be confirm-first — a semantic match to an open task
+// Why: cross-channel completion must be confirm-first — an FTS match to an open task
 // in another thread records a pending candidate and must NOT auto-close the task.
-func TestCrossChannelSemanticConfirmFirst(t *testing.T) {
+func TestCrossChannelFTSConfirmFirst(t *testing.T) {
 	ctx := context.Background()
 
 	openTask := store.ConsolidatedMessage{ID: 42, Task: "Deploy the billing service", ThreadID: "threadX"}
-	mockStore := &MockStore{Tasks: []store.ConsolidatedMessage{}} // thread has no open tasks → cross-thread path
+	// thread has no open tasks → cross-thread path
+	mockStore := &MockStore{Tasks: []store.ConsolidatedMessage{}, OpenFTSResults: []store.ConsolidatedMessage{openTask}}
 	mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "RESOLVE"}}}
 	svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
-	svc.SetEmbedder(&stubOpenTaskFinder{candidates: []OpenTaskCandidate{{Task: openTask, Score: -0.1}}})
 
 	msg := store.ConsolidatedMessage{
 		UserEmail:    "jjsong@whatap.io",
@@ -851,16 +846,14 @@ func TestCrossChannelSemanticConfirmFirst(t *testing.T) {
 	}
 }
 
-// Why: without a completion signal, the semantic path must not fire (bounds embedding cost).
-func TestCrossChannelNoSignalSkipsSemantic(t *testing.T) {
+// Why: without a completion signal, the FTS path must not fire (bounds candidate-search cost).
+func TestCrossChannelNoSignalSkipsFTS(t *testing.T) {
 	ctx := context.Background()
 
 	openTask := store.ConsolidatedMessage{ID: 7, Task: "Deploy the billing service", ThreadID: "threadX"}
-	mockStore := &MockStore{Tasks: []store.ConsolidatedMessage{}}
+	mockStore := &MockStore{Tasks: []store.ConsolidatedMessage{}, OpenFTSResults: []store.ConsolidatedMessage{openTask}}
 	mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "RESOLVE"}}}
-	finder := &stubOpenTaskFinder{candidates: []OpenTaskCandidate{{Task: openTask, Score: -0.1}}}
 	svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
-	svc.SetEmbedder(finder)
 
 	msg := store.ConsolidatedMessage{
 		UserEmail:    "jjsong@whatap.io",
@@ -873,19 +866,76 @@ func TestCrossChannelNoSignalSkipsSemantic(t *testing.T) {
 	if _, ok := mockStore.Candidates[7]; ok {
 		t.Error("no completion signal: must not record a candidate")
 	}
+	if mockStore.OpenFTSCalls != 0 {
+		t.Errorf("FTS search must not run without a completion signal, got %d calls", mockStore.OpenFTSCalls)
+	}
+}
+
+// Why: a candidate from the message's own thread is not "cross-thread" — it must be
+// excluded, leaving the gmail fallback (nil for slack) and no recorded candidate.
+func TestCrossChannelFTSExcludesOwnThread(t *testing.T) {
+	ctx := context.Background()
+
+	sameThreadTask := store.ConsolidatedMessage{ID: 9, Task: "Deploy the billing service", ThreadID: "threadY"}
+	mockStore := &MockStore{Tasks: []store.ConsolidatedMessage{}, OpenFTSResults: []store.ConsolidatedMessage{sameThreadTask}}
+	mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "RESOLVE"}}}
+	svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+	msg := store.ConsolidatedMessage{
+		UserEmail:    "jjsong@whatap.io",
+		ThreadID:     "threadY", // same thread as the FTS hit
+		Source:       "slack",
+		OriginalText: "billing service 배포 완료했습니다",
+	}
+
+	svc.ProcessPotentialCompletion(ctx, msg)
+	if _, ok := mockStore.Candidates[9]; ok {
+		t.Error("own-thread FTS hit must not become a cross-thread candidate")
+	}
+	if mockStore.OpenFTSCalls == 0 {
+		t.Error("expected FTS search to run for a completion-signal message")
+	}
+}
+
+func Test_ftsCandidateTokens(t *testing.T) {
+	cases := []struct {
+		name string
+		text string
+		max  int
+		want []string
+	}{
+		{"korean+english mixed", "billing service 배포 완료했습니다", 13, []string{"billing", "service", "완료했습니다"}},
+		{"short tokens dropped", "ok it is done now", 13, []string{"done", "now"}},
+		{"case-insensitive dedupe", "Deploy deploy DEPLOY finished", 13, []string{"Deploy", "finished"}},
+		{"cap respected", "alpha bravo charlie delta", 2, []string{"alpha", "bravo"}},
+		{"punctuation split", "fixed! (rollback/redeploy)", 13, []string{"fixed", "rollback", "redeploy"}},
+		{"empty", "", 13, nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := ftsCandidateTokens(c.text, c.max)
+			if len(got) != len(c.want) {
+				t.Fatalf("got %v, want %v", got, c.want)
+			}
+			for i := range got {
+				if got[i] != c.want[i] {
+					t.Errorf("token[%d] = %q, want %q", i, got[i], c.want[i])
+				}
+			}
+		})
+	}
 }
 
 // Why: ProcessCrossChannelSignal is the plain-chat-message entry point (no
-// ThreadID/RepliedToID) — it must record a confirm-first candidate on a semantic
+// ThreadID/RepliedToID) — it must record a confirm-first candidate on an FTS
 // match and must never fall back to AI extraction.
 func TestProcessCrossChannelSignal_RecordsCandidate(t *testing.T) {
 	ctx := context.Background()
 
 	openTask := store.ConsolidatedMessage{ID: 55, Task: "Deploy the billing service", ThreadID: "threadX"}
-	mockStore := &MockStore{}
+	mockStore := &MockStore{OpenFTSResults: []store.ConsolidatedMessage{openTask}}
 	mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "RESOLVE"}}}
 	svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
-	svc.SetEmbedder(&stubOpenTaskFinder{candidates: []OpenTaskCandidate{{Task: openTask, Score: -0.1}}})
 
 	msg := store.ConsolidatedMessage{
 		UserEmail:    "jjsong@whatap.io",
@@ -911,16 +961,14 @@ func TestProcessCrossChannelSignal_RecordsCandidate(t *testing.T) {
 	}
 }
 
-// Why: the embedding call is the expensive step — without a completion signal it
-// must never run, regardless of how many candidates the stub would return.
-func TestProcessCrossChannelSignal_NoSignalSkipsEmbedder(t *testing.T) {
+// Why: the FTS search is gated on a completion signal — without one it must never
+// run, regardless of how many candidates the mock would return.
+func TestProcessCrossChannelSignal_NoSignalSkipsFTS(t *testing.T) {
 	ctx := context.Background()
 
-	mockStore := &MockStore{}
+	mockStore := &MockStore{OpenFTSResults: []store.ConsolidatedMessage{{ID: 3, Task: "anything", ThreadID: "threadX"}}}
 	mockAI := &MockAI{}
-	finder := &stubOpenTaskFinder{}
 	svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
-	svc.SetEmbedder(finder)
 
 	msg := store.ConsolidatedMessage{UserEmail: "jjsong@whatap.io", Source: "whatsapp", OriginalText: "오늘 날씨 어때요?"}
 
@@ -931,8 +979,8 @@ func TestProcessCrossChannelSignal_NoSignalSkipsEmbedder(t *testing.T) {
 	if handled {
 		t.Error("expected handled=false without a completion signal")
 	}
-	if finder.callCount != 0 {
-		t.Errorf("embedder must not be called without a completion signal, got %d calls", finder.callCount)
+	if mockStore.OpenFTSCalls != 0 {
+		t.Errorf("FTS search must not run without a completion signal, got %d calls", mockStore.OpenFTSCalls)
 	}
 }
 
@@ -943,10 +991,9 @@ func TestProcessPotentialCompletion_FromMeSelfSummaryStillChecksCrossThread(t *t
 	ctx := context.Background()
 
 	openTask := store.ConsolidatedMessage{ID: 77, Task: "Deploy the billing service", ThreadID: "threadX"}
-	mockStore := &MockStore{Tasks: []store.ConsolidatedMessage{}, HasAnyTask: false}
+	mockStore := &MockStore{Tasks: []store.ConsolidatedMessage{}, HasAnyTask: false, OpenFTSResults: []store.ConsolidatedMessage{openTask}}
 	mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "RESOLVE"}}}
 	svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
-	svc.SetEmbedder(&stubOpenTaskFinder{candidates: []OpenTaskCandidate{{Task: openTask, Score: -0.1}}})
 
 	msg := store.ConsolidatedMessage{
 		UserEmail:          "jjsong@whatap.io",

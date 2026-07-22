@@ -486,16 +486,6 @@ func WireDailyDigest(reportsSvc *services.ReportsService) {
 	deps.digestSvc = svc
 }
 
-// WireEmbedder injects the semantic open-task finder into the completion service so
-// cross-channel completion matching can run. Why: EmbeddingService is built post-Init
-// in main.go; deps.completionSvc is created in Init, so the seam is wired afterward.
-func WireEmbedder(embeddingSvc *services.EmbeddingService) {
-	if deps.completionSvc == nil || embeddingSvc == nil {
-		return
-	}
-	deps.completionSvc.SetEmbedder(embeddingSvc)
-}
-
 type gmailMailer struct{}
 
 func (g gmailMailer) SendWeeklyEmail(ctx context.Context, from, to, subject, body string) (string, error) {

@@ -108,7 +108,6 @@ func (a *API) registerMessageRoutes(r *mux.Router) {
 	r.Handle("/api/messages/restore", a.protected(a.HandleRestore)).Methods("POST")
 	r.Handle("/api/messages/archive", a.protected(a.HandleGetArchived)).Methods("GET")
 	r.Handle("/api/messages/archive/count", a.protected(a.HandleGetArchivedCount)).Methods("GET")
-	r.Handle("/api/messages/archive/semantic", a.protected(a.HandleSemanticArchiveSearch)).Methods("GET")
 	r.Handle("/api/messages/export", a.protected(a.HandleExportArchive)).Methods("GET")
 	r.Handle("/api/messages/export/excel", a.protected(a.HandleExportExcel)).Methods("GET")
 	r.Handle("/api/messages/export/json", a.protected(a.HandleExportJSON)).Methods("GET")
@@ -142,7 +141,6 @@ func (a *API) registerChannelRoutes(r *mux.Router) {
 	r.Handle("/api/scan", a.protected(a.HandleManualScan)).Methods("GET")
 	r.HandleFunc("/api/internal/scan", a.HandleInternalScan).Methods("GET")
 	r.HandleFunc("/api/internal/digest", a.HandleInternalDigest).Methods("POST")
-	r.HandleFunc("/api/internal/embeddings/backfill", a.HandleInternalBackfillEmbeddings).Methods("POST")
 	r.Handle("/api/translate", a.protected(a.HandleTranslate)).Methods("POST")
 }
 
@@ -183,7 +181,6 @@ func (a *API) registerAdminRoutes(r *mux.Router) {
 	// Why: reclassification mutates rows — POST prevents prefetch/cache-triggered runs.
 	r.Handle("/api/admin/reclassify", a.adminProtected(a.HandleReclassifyOldData)).Methods("POST")
 	r.Handle("/api/admin/invalidate-cache", a.adminProtected(a.HandleInvalidateCache)).Methods("POST")
-	r.Handle("/api/admin/embeddings/backfill", a.adminProtected(a.HandleBackfillEmbeddings)).Methods("POST")
 	r.Handle("/api/admin/restore-gmail-cc", a.adminProtected(a.HandleRestoreGmailCC)).Methods("GET")
 	r.Handle("/api/admin/backfill-room-actor", a.adminProtected(a.HandleBackfillRoomActor)).Methods("GET")
 

@@ -116,7 +116,6 @@ All routes are registered in `RegisterRoutes`. gorilla/mux is used. `r.Use(Whata
 | | `/api/messages/restore` | POST | auth |
 | | `/api/messages/archive` | GET | auth |
 | | `/api/messages/archive/count` | GET | auth |
-| | `/api/messages/archive/semantic` | GET | auth |
 | | `/api/messages/export` | GET | auth |
 | | `/api/messages/export/excel` | GET | auth |
 | | `/api/messages/export/json` | GET | auth |
@@ -137,7 +136,6 @@ All routes are registered in `RegisterRoutes`. gorilla/mux is used. `r.Use(Whata
 | | `/api/telegram/credentials` | POST | auth |
 | | `/api/scan` | GET | auth |
 | | `/api/internal/scan` | GET | **public + secret header** |
-| | `/api/internal/embeddings/backfill` | POST | **public + secret header** |
 | | `/api/translate` | POST | auth |
 | **Users** | `/api/user/info` | GET | auth |
 | | `/api/user/aliases` | GET | auth |
@@ -161,8 +159,7 @@ All routes are registered in `RegisterRoutes`. gorilla/mux is used. `r.Use(Whata
 | | `/api/identity/proposals` | GET | auth |
 | | `/api/identity/proposals/{id}/accept` | POST | auth |
 | | `/api/identity/proposals/{id}/reject` | POST | auth |
-| **Admin** | `/api/admin/embeddings/backfill` | POST | admin |
-| | `/api/admin/backfill-room-actor` | GET | admin |
+| **Admin** | `/api/admin/backfill-room-actor` | GET | admin |
 | | `/api/admin/reclassify` | GET | admin |
 | | `/api/admin/invalidate-cache` | POST | admin |
 | | `/api/admin/restore-gmail-cc` | GET | admin |
@@ -319,7 +316,6 @@ Owns the active message feed, FTS search, archive, done-marking, batch delete/re
 | POST | `/api/messages/restore` | 아카이브 → 활성 복원 |
 | GET | `/api/messages/archive` | 아카이브 목록 (offset 페이지네이션) |
 | GET | `/api/messages/archive/count` | 아카이브 카운트 |
-| GET | `/api/messages/archive/semantic` | 하이브리드 시맨틱 검색 (→ handlers_embeddings.go) |
 | POST | `/api/messages/update` | 태스크 텍스트 수정 |
 | GET | `/api/messages/{id}/original` | 원문 조회 (cross-user 차단) |
 | PUT | `/api/tasks/merge` | 태스크 병합 |
@@ -580,34 +576,6 @@ Exports archive data as CSV, Excel (xlsx), or JSON. All formats share `loadArchi
 **공통 컬럼:** ID, Source, Room, Task, Requester, Assignee, Assigned At, Created At, Completed At, Original Message
 
 **의존:** `store.GetArchivedMessagesFiltered`, `github.com/xuri/excelize`
-
----
-
-### 4.9-b handlers_embeddings.go — 하이브리드 시맨틱 검색 / 임베딩 백필
-
-**파일:** [`handlers/handlers_embeddings.go`](../../handlers/handlers_embeddings.go)
-
-**한국어:**
-
-아카이브 메시지의 벡터 임베딩을 활용한 하이브리드 검색(FTS5 ∪ cosine similarity)과 임베딩 백필 트리거 3개를 담당한다.
-
-**English:**
-
-Owns hybrid archive search (FTS5 ∪ cosine similarity over stored embeddings) and three embedding backfill trigger endpoints.
-
-| 메서드 | 경로 | 보호 | 설명 |
-|---|---|---|---|
-| GET | `/api/messages/archive/semantic` | auth | FTS5 + 코사인 유사도 하이브리드 검색 |
-| POST | `/api/admin/embeddings/backfill` | admin | 배치 임베딩 백필 (bounded batch) |
-| POST | `/api/internal/embeddings/backfill` | **public + secret header** | cron용 임베딩 백필 (same logic, header auth) |
-
-**하이브리드 검색 동작:** FTS5 키워드 결과와 `vector_distance_cos` 기반 코사인 검색 결과를 union한다. `?q=` 파라미터가 3자 미만이면 400 반환.
-
-**Hybrid search:** Unions FTS5 keyword matches with cosine-similarity results via `vector_distance_cos` (computed in libsql). Returns 400 when `?q=` is shorter than 3 characters.
-
-**`HandleInternalBackfillEmbeddings`:** `HandleBackfillEmbeddings`와 동일 로직이지만 `adminProtected` 대신 `X-Internal-Secret` 헤더로 인가된다 (`HandleInternalScan` 패턴 동일).
-
-**의존:** `services.TasksService` (EmbeddingService 포함), `store.GetArchivedMessagesFiltered`
 
 ---
 
@@ -905,11 +873,11 @@ Each test starts with an isolated DB. `ResetForTest` truncates tables, preventin
 
 | 항목 | 이전 | 현재 |
 |---|---|---|
-| 신규 라우트 | — | `/api/messages/archive/semantic`, `/api/admin/embeddings/backfill`, `/api/internal/embeddings/backfill` |
+| 신규 라우트 | — | `/api/messages/archive/semantic`, `/api/admin/embeddings/backfill`, `/api/internal/embeddings/backfill` (2026-07-22 임베딩 파이프라인 제거로 폐기, → [21-release-history.md](21-release-history.md)) |
 | `handleAPIError` | 미표준화 (일부 직접 호출) | 39 site 표준화 완료 (`[TAG]` prefix + 499 일관화) |
 | `applyHotReload` | `switch` 문 | `map[string]hotReloader` dispatch table 리팩터 |
 | `HandleBackfillRoomActor` | 단일 함수 | `buildBackfillCandidates` + `applyBackfillCandidates` build/apply 분리 |
-| `handlers_embeddings.go` | 미존재 | 신규 파일 — 시맨틱 검색 및 임베딩 백필 핸들러 3개 |
+| `handlers_embeddings.go` | 미존재 | 신규 파일 — 시맨틱 검색 및 임베딩 백필 핸들러 3개 (2026-07-22 삭제, FTS5-only로 대체) |
 
 ---
 
