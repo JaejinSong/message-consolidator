@@ -29,7 +29,7 @@ func TestTriggerOutgoingCompletions_NilCompletionSvc(t *testing.T) {
 	msgs := []types.RawMessage{
 		{ID: "m1", IsFromMe: true, ReplyToID: "parent"},
 	}
-	triggerOutgoingCompletions(context.Background(), msgs, store.User{Email: "u@x", Name: "Me"}, "telegram", "group")
+	triggerOutgoingCompletions(context.Background(), msgs, store.User{Email: "u@x", Name: "Me"}, telegramAdapter{}, "group")
 }
 
 func TestCompletionDispatchKind(t *testing.T) {
@@ -47,7 +47,7 @@ func TestCompletionDispatchKind(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := completionDispatchKind(c.msg, user); got != c.want {
+			if got := completionDispatchKind(c.msg, user, telegramAdapter{}); got != c.want {
 				t.Errorf("completionDispatchKind() = %v, want %v", got, c.want)
 			}
 		})
@@ -64,5 +64,5 @@ func TestTriggerOutgoingCompletions_NoOutgoingMessages(t *testing.T) {
 		{ID: "m2", IsFromMe: false, ReplyToID: ""},
 		{ID: "m3", IsFromMe: false, ReplyToID: ""},
 	}
-	triggerOutgoingCompletions(context.Background(), msgs, store.User{Email: "u@x", Name: "Me"}, "telegram", "group")
+	triggerOutgoingCompletions(context.Background(), msgs, store.User{Email: "u@x", Name: "Me"}, telegramAdapter{}, "group")
 }

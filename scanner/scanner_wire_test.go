@@ -117,11 +117,11 @@ func TestTriggerOutgoingCompletions_WithNonMatchingMsgs(t *testing.T) {
 	msgs1 := []types.RawMessage{
 		{ID: "m1", IsFromMe: false, ReplyToID: "parent", Sender: "OtherUser"},
 	}
-	triggerOutgoingCompletions(context.Background(), msgs1, user, "whatsapp", "group")
+	triggerOutgoingCompletions(context.Background(), msgs1, user, whatsAppAdapter{}, "group")
 
 	// Case 2: from me but no ReplyToID → loop continues
 	msgs2 := []types.RawMessage{
 		{ID: "m2", IsFromMe: true, ReplyToID: ""},
 	}
-	triggerOutgoingCompletions(context.Background(), msgs2, user, "whatsapp", "group")
+	triggerOutgoingCompletions(context.Background(), msgs2, user, whatsAppAdapter{}, "group")
 }

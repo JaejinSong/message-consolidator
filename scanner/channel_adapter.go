@@ -23,7 +23,7 @@ import (
 )
 
 // ChannelAdapter — 단일 channel 단위(WhatsApp/Telegram/Slack)로 작용하는 polymorphism 계약.
-// 메서드 7개 사유: 공유 드라이버(scanChannel/processChannelRoom/processChannelGroup) 3단계가 각 단계마다
+// 메서드 9개 사유: 공유 드라이버(scanChannel/processChannelRoom/processChannelGroup) 3단계가 각 단계마다
 // 채널별 식별/조회/payload 빌드 메서드를 혼용해서 호출하므로 reader/writer 등으로 분할하면 모든 구현체가
 // 결국 합쳐진 슈퍼셋을 구현하게 되어 분할이 실효 없음.
 type ChannelAdapter interface {
@@ -34,6 +34,8 @@ type ChannelAdapter interface {
 	Is1To1(roomKey string) bool
 	BuildPayload(user store.User, aliases []string, msgs []types.RawMessage) (string, map[string]types.RawMessage)
 	Enrich(roomKey, payload string, ts time.Time) (*types.EnrichedMessage, error)
+	IsFromMe(m types.RawMessage, user store.User) bool
+	Mentions(m types.RawMessage) []string
 }
 
 func scanChannel(ctx context.Context, user store.User, aliases []string, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []store.MessageID {
@@ -76,7 +78,7 @@ func processChannelRoom(ctx context.Context, user store.User, aliases []string, 
 		return nil
 	}
 
-	triggerOutgoingCompletions(ctx, msgs, user, adapter.Source(), groupName)
+	triggerOutgoingCompletions(ctx, msgs, user, adapter, groupName)
 
 	var allIDs []store.MessageID
 	for _, group := range msgGroups {
@@ -103,8 +105,8 @@ const (
 // completionDispatchKind classifies a raw message for the outgoing-completion pipeline:
 // a fromMe quoted reply is threaded (ProcessPotentialCompletion); any message carrying
 // a completion signal is cross-channel (ProcessCrossChannelSignal, confirm-first only).
-func completionDispatchKind(m types.RawMessage, user store.User) dispatchKind {
-	if isFromMe(m, user) && m.ReplyToID != "" {
+func completionDispatchKind(m types.RawMessage, user store.User, adapter ChannelAdapter) dispatchKind {
+	if adapter.IsFromMe(m, user) && m.ReplyToID != "" {
 		return dispatchThreaded
 	}
 	if services.HasCompletionSignal(m.Text) {
@@ -118,22 +120,22 @@ func completionDispatchKind(m types.RawMessage, user store.User) dispatchKind {
 // for cross-channel candidate matching — mirrors the pre-refactor per-channel loop.
 // Why: WithoutCancel preserves the WhaTap trace context (carried as a value) while
 // detaching cancellation so the goroutines outlive the parent scan timeout.
-func triggerOutgoingCompletions(ctx context.Context, msgs []types.RawMessage, user store.User, source, groupName string) {
+func triggerOutgoingCompletions(ctx context.Context, msgs []types.RawMessage, user store.User, adapter ChannelAdapter, groupName string) {
 	if completionSvc == nil {
 		return
 	}
 	asyncCtx := context.WithoutCancel(ctx)
 	var crossChannel []types.RawMessage
 	for _, m := range msgs {
-		switch completionDispatchKind(m, user) {
+		switch completionDispatchKind(m, user, adapter) {
 		case dispatchThreaded:
-			dispatchThreadedCompletion(asyncCtx, m, user.Email, source, groupName)
+			dispatchThreadedCompletion(asyncCtx, m, user.Email, adapter.Source(), groupName)
 		case dispatchCrossChannel:
 			crossChannel = append(crossChannel, m)
 		}
 	}
 	if len(crossChannel) > 0 {
-		dispatchCrossChannelCompletions(asyncCtx, crossChannel, user, source, groupName)
+		dispatchCrossChannelCompletions(asyncCtx, crossChannel, user, adapter, groupName)
 	}
 }
 
@@ -153,7 +155,7 @@ func dispatchThreadedCompletion(asyncCtx context.Context, m types.RawMessage, em
 // dispatchCrossChannelCompletions feeds signal-bearing non-reply messages to the
 // confirm-first cross-channel pipeline in one goroutine per room (not per message),
 // bounding goroutine fan-out when a room batch has many candidate messages.
-func dispatchCrossChannelCompletions(asyncCtx context.Context, msgs []types.RawMessage, user store.User, source, groupName string) {
+func dispatchCrossChannelCompletions(asyncCtx context.Context, msgs []types.RawMessage, user store.User, adapter ChannelAdapter, groupName string) {
 	go func(em, src, room string, batch []types.RawMessage) {
 		defer safego.Recover("crosschannel-completion-" + src)
 		for _, r := range batch {
@@ -161,14 +163,14 @@ func dispatchCrossChannelCompletions(asyncCtx context.Context, msgs []types.RawM
 				UserEmail: em, Source: src, Room: room, ThreadID: r.ReplyToID,
 				OriginalText: r.Text, SourceTS: r.ID, CreatedAt: r.Timestamp,
 			}
-			if isFromMe(r, user) {
+			if adapter.IsFromMe(r, user) {
 				env.RequesterCanonical = em
 			}
 			if _, err := completionSvc.ProcessCrossChannelSignal(asyncCtx, env); err != nil {
 				logger.Warnf("[SCAN] %s: cross-channel completion failed for %s: %v", src, room, err)
 			}
 		}
-	}(user.Email, source, groupName, msgs)
+	}(user.Email, adapter.Source(), groupName, msgs)
 }
 
 func processChannelGroup(ctx context.Context, user store.User, aliases []string, roomKey, groupName string, group []types.RawMessage, gc *ai.GeminiClient, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []store.MessageID {
@@ -211,7 +213,7 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 	}
 
 	items := tasksSvc.ResolveProposals(ctx, user.Email, groupName, candidates, tasks)
-	return processChannelItems(ctx, user, aliases, items, msgMap, groupName, adapter.Is1To1(roomKey), wg, source)
+	return processChannelItems(ctx, user, aliases, items, msgMap, groupName, adapter.Is1To1(roomKey), wg, adapter)
 }
 
 func isIgnorableChannelNoise(ctx context.Context, email, source, payload, prefix string) bool {
@@ -226,14 +228,14 @@ func isIgnorableChannelNoise(ctx context.Context, email, source, payload, prefix
 	return isNoise
 }
 
-func processChannelItems(ctx context.Context, user store.User, aliases []string, items []store.TodoItem, msgMap map[string]types.RawMessage, group string, is1to1 bool, wg *sync.WaitGroup, source string) []store.MessageID {
+func processChannelItems(ctx context.Context, user store.User, aliases []string, items []store.TodoItem, msgMap map[string]types.RawMessage, group string, is1to1 bool, wg *sync.WaitGroup, adapter ChannelAdapter) []store.MessageID {
 	var newIDs []store.MessageID
 	for _, item := range items {
 		m, ok := msgMap[item.SourceTS]
 		if !ok {
 			continue
 		}
-		if id := saveChannelItem(ctx, user, aliases, item, m, group, is1to1, source); id > 0 {
+		if id := saveChannelItem(ctx, user, aliases, item, m, group, is1to1, adapter); id > 0 {
 			newIDs = append(newIDs, id)
 		}
 	}
@@ -241,8 +243,9 @@ func processChannelItems(ctx context.Context, user store.User, aliases []string,
 	return newIDs
 }
 
-func saveChannelItem(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool, source string) store.MessageID {
-	if isFromMe(m, user) && !is1to1 {
+func saveChannelItem(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool, adapter ChannelAdapter) store.MessageID {
+	source := adapter.Source()
+	if adapter.IsFromMe(m, user) && !is1to1 {
 		item.Category = string(types.CategoryTask)
 	}
 
@@ -267,20 +270,12 @@ func saveChannelItem(ctx context.Context, user store.User, aliases []string, ite
 		OriginalText:     m.Text,
 		RepliedToID:      m.ReplyToID,
 		SourceChannels:   []string{source},
-		ExplicitMentions: resolveAdapterMentions(source, m),
+		ExplicitMentions: adapter.Mentions(m),
 	}
 	msg := services.BuildTask(ctx, params)
 
 	id, _ := services.HandleTaskState(ctx, nil, user.Email, item, msg)
 	return id
-}
-
-// Why: WA pre-resolved display names power pickFirstMentionAssignee; Telegram has no mention metadata so nil.
-func resolveAdapterMentions(source string, m types.RawMessage) []string {
-	if source == "whatsapp" {
-		return m.MentionedNames
-	}
-	return nil
 }
 
 // isFromMe is shared by the WhatsApp and Telegram adapters (Slack has its own

@@ -35,6 +35,11 @@ func (telegramAdapter) Enrich(roomKey, payload string, ts time.Time) (*types.Enr
 	return EnrichTelegramMessage(roomKey, payload, ts)
 }
 
+func (telegramAdapter) IsFromMe(m types.RawMessage, user store.User) bool { return isFromMe(m, user) }
+
+// Mentions — Telegram has no mention metadata.
+func (telegramAdapter) Mentions(types.RawMessage) []string { return nil }
+
 func buildTGPayload(user store.User, msgs []types.RawMessage) (string, map[string]types.RawMessage) {
 	var sb strings.Builder
 	msgMap := make(map[string]types.RawMessage)

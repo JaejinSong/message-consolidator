@@ -37,6 +37,11 @@ func (whatsAppAdapter) Enrich(roomKey, payload string, ts time.Time) (*types.Enr
 	return EnrichWhatsAppMessage(roomKey, payload, ts)
 }
 
+func (whatsAppAdapter) IsFromMe(m types.RawMessage, user store.User) bool { return isFromMe(m, user) }
+
+// Mentions — WA pre-resolved display names power pickFirstMentionAssignee.
+func (whatsAppAdapter) Mentions(m types.RawMessage) []string { return m.MentionedNames }
+
 func buildWAPayload(user store.User, aliases []string, msgs []types.RawMessage) (string, map[string]types.RawMessage) {
 	_ = aliases
 	var sb strings.Builder
