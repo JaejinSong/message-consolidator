@@ -73,9 +73,9 @@ func TestLive_DeepSeek_CacheHit(t *testing.T) {
 		return resp.Usage
 	}
 
-	_ = gen(sysA, userA)            // warm the static system prefix
-	time.Sleep(5 * time.Second)     // let the partial-prefix cache node commit
-	usage := gen(sysB, userB)       // different same-room message
+	_ = gen(sysA, userA)        // warm the static system prefix
+	time.Sleep(5 * time.Second) // let the partial-prefix cache node commit
+	usage := gen(sysB, userB)   // different same-room message
 
 	hit := 0.0
 	if usage.PromptTokens > 0 {
