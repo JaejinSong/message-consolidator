@@ -57,6 +57,8 @@ func main() {
 	if err := store.InitDB(ctx, cfg); err != nil {
 		log.Fatalf("DB Init failed: %v", err)
 	}
+	// Why: load the AES key for at-rest OAuth/session token encryption before any token I/O.
+	store.InitTokenEncryption()
 	// Why: applies admin-managed app_settings on top of .env so DB-stored overrides win at boot.
 	// Failure is non-fatal — operator config issues should not block startup.
 	if err := config.OverlayFromDB(ctx, cfg, store.LoadAllSettings); err != nil {

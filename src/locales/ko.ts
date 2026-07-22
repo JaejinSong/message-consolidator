@@ -63,6 +63,7 @@ export const ko: I18nEntry = {
         archiveAll: "전체",
         archiveDone: "완료된 업무",
         archiveCanceled: "취소한 업무",
+        archiveExcluded: "추적제외",
         archiveMerged: "병합한 업무",
         confirmDelete: "정말 이 업무를 삭제하시겠습니까? 취소하거나 완료한 업무는 보관함으로 이동합니다.",
         archiveSearchPlaceholder: "아카이브 검색...",

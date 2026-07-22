@@ -155,6 +155,39 @@ const handlers: ServiceHandlers = {
             showToast(state.currentLang === 'ko' ? '처리 실패' : 'Failed to dismiss', 'error');
         }
     }, { triggerAuthOverlay: true }),
+    // Why: confirm-first tracking exclusion — confirming parks the task out of active
+    // tracking (archive "Excluded" tab); the card leaves the active list immediately.
+    onConfirmExclusion: safeAsync(async (idStr: string) => {
+        const id = Number(idStr);
+        if (!getTaskById(id)) return;
+        try {
+            const result = await api.confirmExclusion(idStr);
+            if (result && result.user) updateStats(result.user);
+            deleteTaskFromState(id);
+            renderMessages(state.messages);
+            showToast(state.currentLang === 'ko' ? '추적에서 제외되었습니다' : 'Excluded from tracking', 'success');
+        } catch {
+            showToast(state.currentLang === 'ko' ? '처리 실패' : 'Failed to exclude', 'error');
+        }
+    }, { triggerAuthOverlay: true }),
+    onDismissExclusion: safeAsync(async (idStr: string) => {
+        const id = Number(idStr);
+        const task = getTaskById(id);
+        if (!task) return;
+        try {
+            await api.dismissExclusionCandidate(idStr);
+            // Why: drop the candidate from in-state metadata so the banner clears without a refetch.
+            const raw = task.metadata;
+            const meta: Record<string, unknown> = typeof raw === 'string'
+                ? (JSON.parse(raw || '{}') as Record<string, unknown>)
+                : { ...(raw as Record<string, unknown> || {}) };
+            delete meta.exclusion_candidate;
+            task.metadata = meta;
+            renderMessages(state.messages);
+        } catch {
+            showToast(state.currentLang === 'ko' ? '처리 실패' : 'Failed to dismiss', 'error');
+        }
+    }, { triggerAuthOverlay: true }),
     onWhatsAppLogout: safeAsync(async () => {
         const lang = state.currentLang || 'en';
         const i18n = (I18N_DATA as I18nDictionary)[lang] ?? (I18N_DATA as I18nDictionary)['en'];

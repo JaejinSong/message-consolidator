@@ -72,6 +72,13 @@ func Init(c *config.Config) {
 		slackClient = channels.NewSlackClient(cfg.SlackToken)
 		reminderSvc = services.NewReminderService(slackClient, cfg.ReminderWindowsHours)
 	}
+	// Why: candidate proposal is chip-only and must work without Slack; digest is nil-Slack-safe.
+	// Typed-nil guard: wrapping a nil *SlackClient in the interface would defeat the nil check.
+	var exclusionSlack services.SlackPoster
+	if slackClient != nil {
+		exclusionSlack = slackClient
+	}
+	exclusionSvc = services.NewExclusionService(exclusionSlack)
 }
 
 func StartBackgroundScanner(ctx context.Context) {
@@ -88,8 +95,12 @@ func StartBackgroundScanner(ctx context.Context) {
 		{name: "archive-old-tasks", traceName: "/Background-Tasks-Archive", runFn: runArchiveOldTasks, pool: hourPrimePool},
 		{name: "flush-token-usage", traceName: "/Background-Infra-FlushTokenUsage", runFn: runFlushTokenUsage, pool: hourPrimePool},
 		{name: "log-db-stats", traceName: "/Background-Infra-LogDBStats", runFn: runLogDBStats, pool: hourPrimePool},
+		{name: "session-cleanup", traceName: "/Background-Infra-SessionCleanup", runFn: runSessionCleanup, pool: hourPrimePool},
 		{name: "sweep-slack-threads", traceName: "/Background-Slack-SweepThreads", runFn: runSlackSweep},
 		{name: "deadline-reminder", traceName: "/Background-Tasks-DeadlineReminder", runFn: runDeadlineReminder},
+		{name: "stalled-reconfirm", traceName: "/Background-Tasks-StalledReconfirm", runFn: runStalledReconfirm, pool: hourPrimePool},
+		{name: "exclusion-candidate", traceName: "/Background-Tasks-ExclusionCandidate", runFn: runExclusionCandidate, pool: hourPrimePool},
+		{name: "excluded-digest", traceName: "/Background-Tasks-ExcludedDigest", runFn: runExcludedDigest, pool: hourPrimePool},
 		{name: "daily-digest", traceName: "/Background-Reports-DailyDigest", runFn: runDailyDigest, pool: hourPrimePool},
 		{name: "weekly-report", traceName: "/Background-Reports-WeeklyReport", runFn: runWeeklyReport, pool: hourPrimePool},
 	}
@@ -288,6 +299,12 @@ func runFlushTokenUsage(ctx context.Context, _ *sync.WaitGroup) {
 
 func runLogDBStats(_ context.Context, _ *sync.WaitGroup) {
 	store.LogDBStats()
+}
+
+func runSessionCleanup(ctx context.Context, _ *sync.WaitGroup) {
+	if err := store.DeleteExpiredSessions(ctx); err != nil {
+		logger.Warnf("[SCAN] session cleanup failed: %v", err)
+	}
 }
 
 func runSlackSweep(ctx context.Context, wg *sync.WaitGroup) {

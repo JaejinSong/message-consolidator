@@ -146,6 +146,69 @@ func (a *API) HandleDismissCompletionCandidate(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusOK)
 }
 
+// HandleConfirmExclusion parks a long-term-unprocessed task out of tracking
+// (lifecycle -> excluded). Confirm-first: only fired from the candidate banner.
+func (a *API) HandleConfirmExclusion(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	var req struct {
+		ID store.MessageID `json:"id"`
+	}
+	if !bindJSON(w, r, &req) {
+		return
+	}
+	if req.ID <= 0 {
+		respondError(w, http.StatusBadRequest, "Invalid Task ID")
+		return
+	}
+	if err := store.ConfirmExclusion(r.Context(), store.GetDB(), email, req.ID); err != nil {
+		handleAPIError(w, r, err, "[TASKS] confirm exclusion for "+email, "Failed to exclude task")
+		return
+	}
+	a.respondWithUpdatedUser(w, r, email)
+}
+
+// HandleDismissExclusionCandidate rejects the exclusion suggestion; the task stays
+// active and is not re-proposed until new activity or the repropose window elapses.
+func (a *API) HandleDismissExclusionCandidate(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	var req struct {
+		ID store.MessageID `json:"id"`
+	}
+	if !bindJSON(w, r, &req) {
+		return
+	}
+	if req.ID <= 0 {
+		respondError(w, http.StatusBadRequest, "Invalid Task ID")
+		return
+	}
+	if err := store.DismissExclusionCandidate(r.Context(), store.GetDB(), email, req.ID); err != nil {
+		handleAPIError(w, r, err, "[TASKS] dismiss exclusion for "+email, "Failed to dismiss exclusion candidate")
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// HandleRestoreExcluded moves a parked task back to active tracking with a fresh
+// long-term-unprocessed runway (updated_at reset, exclusion markers cleared).
+func (a *API) HandleRestoreExcluded(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	var req struct {
+		ID store.MessageID `json:"id"`
+	}
+	if !bindJSON(w, r, &req) {
+		return
+	}
+	if req.ID <= 0 {
+		respondError(w, http.StatusBadRequest, "Invalid Task ID")
+		return
+	}
+	if err := store.RestoreExcluded(r.Context(), store.GetDB(), email, req.ID); err != nil {
+		handleAPIError(w, r, err, "[TASKS] restore excluded for "+email, "Failed to restore task")
+		return
+	}
+	a.respondWithUpdatedUser(w, r, email)
+}
+
 func (a *API) HandleToggleSubtask(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {

@@ -117,6 +117,21 @@ export function MessageCard(props: MessageCardProps): string {
         </div>
     ` : '';
 
+    // Why: confirm-first tracking exclusion — the task has been unprocessed for 31+ days.
+    // Completion candidate takes priority so the two banners never stack.
+    const exclusionCand = metadata?.exclusion_candidate as { status?: string; days_stalled?: number } | undefined;
+    const hasPendingExclusion = !done && !hasPendingCandidate && exclusionCand?.status === 'pending';
+    const exclusionDays = exclusionCand?.days_stalled ?? 31;
+    const exclusionCandidateHtml = hasPendingExclusion ? `
+        <div class="c-message-card__completion-candidate c-message-card__completion-candidate--exclusion" role="status">
+            <span class="c-message-card__completion-candidate-label">${lang === 'ko' ? `⏸️ ${exclusionDays}일 이상 멈춰있는 업무입니다 — 추적을 제외할까요?` : `⏸️ Idle for ${exclusionDays}+ days — exclude from tracking?`}</span>
+            <div class="c-message-card__completion-candidate-actions">
+                <button class="c-message-card__cc-btn c-message-card__cc-btn--confirm" data-action="confirm-exclusion">${lang === 'ko' ? '추적 제외' : 'Exclude'}</button>
+                <button class="c-message-card__cc-btn c-message-card__cc-btn--dismiss" data-action="dismiss-exclusion">${lang === 'ko' ? '계속 추적' : 'Keep tracking'}</button>
+            </div>
+        </div>
+    ` : '';
+
     const contextHtml = contextSnippets.length > 0 ? `
         <div class="task-context">
             ${ICONS.info}
@@ -197,6 +212,7 @@ export function MessageCard(props: MessageCardProps): string {
                 </div>
             </div>
             ${completionCandidateHtml}
+            ${exclusionCandidateHtml}
 
             <div class="c-message-card__body">
                 <div class="c-message-card__title">

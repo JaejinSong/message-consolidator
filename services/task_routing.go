@@ -81,6 +81,19 @@ func handleNone() (store.MessageID, error) {
 	return 0, nil
 }
 
+// autoRestoreExcluded un-parks a tracking-excluded task before applying inbound updates.
+// Why: best-effort — a restore failure must not block the content update itself.
+func autoRestoreExcluded(ctx context.Context, q store.Querier, email string, id store.MessageID) {
+	restored, err := store.AutoRestoreIfExcluded(ctx, q, email, id)
+	if err != nil {
+		logger.Warnf("[ROUTER] auto-restore excluded failed msg=%d: %v", id, err)
+		return
+	}
+	if restored {
+		logger.Infof("[ROUTER] excluded task auto-restored by new activity msg=%d", id)
+	}
+}
+
 func handleNew(ctx context.Context, q store.Querier, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
 	if item.Task == "" {
 		item.Task = msg.Task
@@ -99,6 +112,7 @@ func handleNew(ctx context.Context, q store.Querier, item store.TodoItem, msg st
 
 // Why: Whichever path lands on an existing task ID applies the same text+subtask update; consolidate so handleNew has one branch instead of two.
 func updateExistingTask(ctx context.Context, q store.Querier, email string, id store.MessageID, task string, subtasks []store.Subtask) (store.MessageID, error) {
+	autoRestoreExcluded(ctx, q, email, id)
 	err := store.UpdateTaskText(ctx, q, email, id, task)
 	if err == nil && len(subtasks) > 0 {
 		_ = store.UpdateSubtasks(ctx, q, email, id, subtasks)
@@ -179,6 +193,7 @@ func handleUpdate(ctx context.Context, q store.Querier, email string, item store
 }
 
 func applyTaskUpdates(ctx context.Context, q store.Querier, email string, id store.MessageID, item store.TodoItem, msg store.ConsolidatedMessage, existing *store.ConsolidatedMessage, normalizedAssignee string) error {
+	autoRestoreExcluded(ctx, q, email, id)
 	if len(item.Subtasks) > 0 {
 		if err := store.UpdateSubtasks(ctx, q, email, id, mapTodoSubtasksToStore(item.Subtasks)); err != nil {
 			return err

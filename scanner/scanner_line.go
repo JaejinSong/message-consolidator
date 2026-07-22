@@ -95,6 +95,8 @@ func scanLineChat(ctx context.Context, chatID string, rows []db.LineInbox, bundl
 		}
 	}
 
+	dispatchLineCrossChannelCompletions(ctx, chatID, rows, bundles)
+
 	for email, msgs := range candidates {
 		b := findBundle(bundles, email)
 		if b == nil {
@@ -124,6 +126,41 @@ func resolveLINERoom(chatID, chatType string, rows []db.LineInbox) string {
 		}
 	}
 	return "LINE DM: " + chatID
+}
+
+// dispatchLineCrossChannelCompletions feeds signal-bearing LINE messages to the
+// confirm-first cross-channel pipeline, one goroutine per chat (mirrors the
+// channel_adapter/Slack dispatch pattern). LINE has no reliable fromMe signal, so
+// every dispatched message is treated as a counterparty candidate (RequesterCanonical unset).
+func dispatchLineCrossChannelCompletions(ctx context.Context, chatID string, rows []db.LineInbox, bundles []userBundle) {
+	if completionSvc == nil || len(rows) == 0 {
+		return
+	}
+	var signalRows []db.LineInbox
+	for _, r := range rows {
+		if services.HasCompletionSignal(r.Text) {
+			signalRows = append(signalRows, r)
+		}
+	}
+	if len(signalRows) == 0 {
+		return
+	}
+	asyncCtx := context.WithoutCancel(ctx)
+	go func(bgCtx context.Context, chat string, sigRows []db.LineInbox, users []userBundle) {
+		defer safego.Recover("line-crosschannel-completion-" + chat)
+		for _, b := range users {
+			for _, r := range sigRows {
+				env := store.ConsolidatedMessage{
+					UserEmail: b.user.Email, Source: store.SourceLine,
+					ThreadID: r.ReplyToID, OriginalText: r.Text, SourceTS: r.LineMessageID,
+					CreatedAt: time.Unix(r.Ts, 0),
+				}
+				if _, err := completionSvc.ProcessCrossChannelSignal(bgCtx, env); err != nil {
+					logger.Warnf("[LINE] cross-channel completion failed for %s: %v", b.user.Email, err)
+				}
+			}
+		}
+	}(asyncCtx, chatID, signalRows, bundles)
 }
 
 func findBundle(bundles []userBundle, email string) *userBundle {

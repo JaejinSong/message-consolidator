@@ -91,7 +91,7 @@ func getFromArchiveCache(f ArchiveFilter) ([]ConsolidatedMessage, int, bool) {
 
 func normalizeArchiveStatus(status string) string {
 	switch status {
-	case "done", "canceled", "merged", "all", "":
+	case "done", "canceled", "merged", "excluded", "all", "":
 		return status
 	default:
 		return ""
@@ -143,6 +143,9 @@ func mapRowSliceToMessage(rows []db.SearchArchivedMessagesRow) []ConsolidatedMes
 			r.AssignedAt, r.CompletedAt, r.UpdatedAt,
 			sql.NullTime{}, 0,
 		)
+		if r.ExcludedAt.Valid {
+			msgs[i].ExcludedAt = &r.ExcludedAt.Time
+		}
 	}
 	return msgs
 }
@@ -165,6 +168,8 @@ func statusMatch(m ConsolidatedMessage, status string) bool {
 		return !m.Done && m.IsDeleted
 	case "merged":
 		return m.Category == "merged"
+	case "excluded":
+		return m.ExcludedAt != nil
 	default:
 		return true
 	}
@@ -184,7 +189,8 @@ func ftsSearchArchivedMessages(ctx context.Context, filter ArchiveFilter) ([]Con
 		    (?3 = '' OR ?3 = 'all') OR
 		    (?3 = 'done' AND m.lifecycle IN ('done','swept')) OR
 		    (?3 = 'canceled' AND m.lifecycle = 'canceled') OR
-		    (?3 = 'merged' AND m.lifecycle = 'merged')
+		    (?3 = 'merged' AND m.lifecycle = 'merged') OR
+		    (?3 = 'excluded' AND m.lifecycle = 'excluded')
 		  )`
 
 	var total int
@@ -209,7 +215,8 @@ func ftsSearchArchivedMessages(ctx context.Context, filter ArchiveFilter) ([]Con
 		       COALESCE(vm.requester_canonical, '') as requester_canonical,
 		       COALESCE(vm.assignee_canonical, '') as assignee_canonical,
 		       COALESCE(vm.requester_type, '') as requester_type,
-		       COALESCE(vm.assignee_type, '') as assignee_type
+		       COALESCE(vm.assignee_type, '') as assignee_type,
+		       vm.excluded_at
 		FROM v_messages vm
 		WHERE vm.id IN (
 		  SELECT m.id FROM messages m
@@ -220,7 +227,8 @@ func ftsSearchArchivedMessages(ctx context.Context, filter ArchiveFilter) ([]Con
 		      (?3 = '' OR ?3 = 'all') OR
 		      (?3 = 'done' AND m.lifecycle IN ('done','swept')) OR
 		      (?3 = 'canceled' AND m.lifecycle = 'canceled') OR
-		      (?3 = 'merged' AND m.lifecycle = 'merged')
+		      (?3 = 'merged' AND m.lifecycle = 'merged') OR
+		      (?3 = 'excluded' AND m.lifecycle = 'excluded')
 		    )
 		  ORDER BY CASE WHEN m.is_deleted = 1 THEN m.created_at ELSE m.completed_at END DESC
 		  LIMIT ?4 OFFSET ?5
@@ -243,7 +251,7 @@ func ftsSearchArchivedMessages(ctx context.Context, filter ArchiveFilter) ([]Con
 			&r.Category, &r.Deadline, &r.ThreadID, &r.AssigneeReason, &r.RepliedToID,
 			&r.IsContextQuery, &r.Constraints, &r.Metadata, &r.SourceChannels,
 			&r.ConsolidatedContext, &r.Subtasks, &r.RequesterCanonical, &r.AssigneeCanonical,
-			&r.RequesterType, &r.AssigneeType,
+			&r.RequesterType, &r.AssigneeType, &r.ExcludedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("fts archive search failed: %w", err)
 		}

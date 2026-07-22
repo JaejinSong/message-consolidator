@@ -12,8 +12,8 @@ import (
 )
 
 const getAbandonedTasks = `-- name: GetAbandonedTasks :one
-SELECT COUNT(*) FROM v_messages 
-WHERE user_email = ? AND done = 0 AND is_deleted = 0 
+SELECT COUNT(*) FROM v_messages
+WHERE user_email = ? AND lifecycle = 'active'
 AND created_at < ? AND (assignee != ? AND assignee != 'me')
 AND IFNULL(task, '') != ''
 `
@@ -231,9 +231,9 @@ func (q *Queries) GetMonthlyFilteredCount(ctx context.Context, arg GetMonthlyFil
 }
 
 const getPendingMe = `-- name: GetPendingMe :one
-SELECT COUNT(*) FROM v_messages 
-WHERE user_email = CAST(?1 AS TEXT) AND done = 0 AND is_deleted = 0 
-AND (assignee = CAST(?2 AS TEXT) OR assignee = 'me') 
+SELECT COUNT(*) FROM v_messages
+WHERE user_email = CAST(?1 AS TEXT) AND lifecycle = 'active'
+AND (assignee = CAST(?2 AS TEXT) OR assignee = 'me')
 AND IFNULL(task, '') != ''
 `
 
@@ -250,9 +250,9 @@ func (q *Queries) GetPendingMe(ctx context.Context, arg GetPendingMeParams) (int
 }
 
 const getPendingOthers = `-- name: GetPendingOthers :one
-SELECT COUNT(*) FROM v_messages 
-WHERE user_email = ? AND done = 0 AND is_deleted = 0 
-AND (assignee != ? AND assignee != 'me') 
+SELECT COUNT(*) FROM v_messages
+WHERE user_email = ? AND lifecycle = 'active'
+AND (assignee != ? AND assignee != 'me')
 AND IFNULL(task, '') != ''
 `
 
@@ -385,7 +385,7 @@ func (q *Queries) GetTotalCompleted(ctx context.Context, dollar_1 string) (int64
 const listPendingMe = `-- name: ListPendingMe :many
 SELECT id, task, source, room, created_at, deadline, requester
 FROM v_messages
-WHERE user_email = CAST(?1 AS TEXT) AND done = 0 AND is_deleted = 0
+WHERE user_email = CAST(?1 AS TEXT) AND lifecycle = 'active'
   AND (assignee = CAST(?2 AS TEXT) OR assignee = 'me')
   AND IFNULL(task, '') != '' AND IFNULL(category, '') != 'merged'
 ORDER BY COALESCE(deadline, created_at) ASC
@@ -442,7 +442,7 @@ func (q *Queries) ListPendingMe(ctx context.Context, arg ListPendingMeParams) ([
 const listPendingOthers = `-- name: ListPendingOthers :many
 SELECT id, task, source, room, created_at, deadline, assignee
 FROM v_messages
-WHERE user_email = ? AND done = 0 AND is_deleted = 0
+WHERE user_email = ? AND lifecycle = 'active'
   AND (assignee != ? AND assignee != 'me')
   AND IFNULL(task, '') != '' AND IFNULL(category, '') != 'merged'
 ORDER BY COALESCE(deadline, created_at) ASC

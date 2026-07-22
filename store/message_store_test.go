@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"message-consolidator/internal/testutil"
+	"strings"
 	"testing"
 )
 
@@ -309,5 +311,96 @@ func TestSaveMessage_CrossThreadGuard(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// readMetadata fetches the raw metadata column for assertions on completion-candidate state.
+func readMetadata(ctx context.Context, t *testing.T, id MessageID) string {
+	t.Helper()
+	var meta sql.NullString
+	row := GetDB().QueryRowContext(ctx, `SELECT metadata FROM messages WHERE id = ?`, int64(id))
+	if err := row.Scan(&meta); err != nil {
+		t.Fatalf("read metadata: %v", err)
+	}
+	return meta.String
+}
+
+// TestMarkMessageDone_ClearsCompletionCandidate verifies both the done=true and
+// done=false (unmark) raw-SQL paths clear a pending completion_candidate so a
+// task explicitly closed/reopened by the user never resurfaces a stale suggestion.
+func TestMarkMessageDone_ClearsCompletionCandidate(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	email := testutil.RandomEmail("markdone")
+	msg := ConsolidatedMessage{UserEmail: email, Source: "slack", Room: "biz-md", Task: "t", SourceTS: testutil.RandomTS("md")}
+	_, id, err := SaveMessage(ctx, GetDB(), msg)
+	if err != nil || id == 0 {
+		t.Fatalf("seed SaveMessage: id=%d err=%v", id, err)
+	}
+
+	cand := CompletionCandidate{SourceLink: "link1", Status: "pending", DetectedAt: "2024-01-01T00:00:00Z"}
+	if err := AddCompletionCandidate(ctx, GetDB(), email, id, cand); err != nil {
+		t.Fatalf("AddCompletionCandidate: %v", err)
+	}
+
+	if err := MarkMessageDone(ctx, GetDB(), email, id, true); err != nil {
+		t.Fatalf("MarkMessageDone(true): %v", err)
+	}
+	if meta := readMetadata(ctx, t, id); strings.Contains(meta, "completion_candidate") {
+		t.Errorf("expected completion_candidate cleared after MarkMessageDone(true), got %q", meta)
+	}
+
+	if err := AddCompletionCandidate(ctx, GetDB(), email, id, cand); err != nil {
+		t.Fatalf("AddCompletionCandidate (re-add): %v", err)
+	}
+	if err := MarkMessageDone(ctx, GetDB(), email, id, false); err != nil {
+		t.Fatalf("MarkMessageDone(false): %v", err)
+	}
+	if meta := readMetadata(ctx, t, id); strings.Contains(meta, "completion_candidate") {
+		t.Errorf("expected completion_candidate cleared after unmark, got %q", meta)
+	}
+}
+
+// TestDismissCompletionCandidate_RecordsMarkerAndClears verifies dismissal clears
+// the pending candidate and records a source-scoped marker that WasCandidateDismissed
+// can later match, preventing the exact same source from re-suggesting completion.
+func TestDismissCompletionCandidate_RecordsMarkerAndClears(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	email := testutil.RandomEmail("dismiss")
+	msg := ConsolidatedMessage{UserEmail: email, Source: "slack", Room: "biz-ds", Task: "t", SourceTS: testutil.RandomTS("ds")}
+	_, id, err := SaveMessage(ctx, GetDB(), msg)
+	if err != nil || id == 0 {
+		t.Fatalf("seed SaveMessage: id=%d err=%v", id, err)
+	}
+
+	cand := CompletionCandidate{SourceLink: "https://slack.com/archives/C/p1", Status: "pending", DetectedAt: "2024-01-01T00:00:00Z"}
+	if err := AddCompletionCandidate(ctx, GetDB(), email, id, cand); err != nil {
+		t.Fatalf("AddCompletionCandidate: %v", err)
+	}
+
+	if err := DismissCompletionCandidate(ctx, GetDB(), email, id); err != nil {
+		t.Fatalf("DismissCompletionCandidate: %v", err)
+	}
+
+	meta := readMetadata(ctx, t, id)
+	if strings.Contains(meta, `"completion_candidate"`) {
+		t.Errorf("expected completion_candidate cleared after dismiss, got %q", meta)
+	}
+	if !WasCandidateDismissed(meta, cand.SourceLink) {
+		t.Errorf("expected WasCandidateDismissed=true for the dismissed source_link, metadata=%q", meta)
+	}
+	if WasCandidateDismissed(meta, "https://slack.com/archives/other") {
+		t.Error("expected WasCandidateDismissed=false for a different source link")
 	}
 }

@@ -111,6 +111,16 @@ export function initMessageGridEvents(gridId: string, handlers: MessageHandlers)
                     await handlers.onConfirmCandidate(id);
                 }
                 break;
+            case 'confirm-exclusion':
+                if (handlers.onConfirmExclusion) {
+                    await handlers.onConfirmExclusion(id);
+                }
+                break;
+            case 'dismiss-exclusion':
+                if (handlers.onDismissExclusion) {
+                    await handlers.onDismissExclusion(id);
+                }
+                break;
             case 'dismiss-candidate':
                 if (handlers.onDismissCandidate) {
                     await handlers.onDismissCandidate(id);

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"message-consolidator/config"
@@ -18,6 +19,29 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
+
+// sessionMaxAge bounds both the cookie lifetime and the server-side session row.
+const sessionMaxAge = 24 * time.Hour
+
+// isProdEnv reports whether cookies should carry the Secure attribute.
+func isProdEnv() bool {
+	return os.Getenv("ENV") == "production" || strings.HasPrefix(appBaseURL, "https://")
+}
+
+// newSessionToken returns a 256-bit opaque, unguessable session identifier.
+func newSessionToken() (string, error) {
+	var b [32]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b[:]), nil
+}
+
+func writeUnauthorized(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(unauthorizedResponse)
+}
 
 type authError struct {
 	Error string `json:"error"`
@@ -88,15 +112,25 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 
 	token, err := GoogleOAuthConfig.Exchange(r.Context(), r.FormValue("code"))
 	if err != nil {
-		fmt.Fprintf(w, "Code exchange failed: %s", err.Error())
+		logger.Errorf("[AUTH] code exchange failed: %v", err)
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
 
-	// Why: whataphttp.HttpGet wraps the call as a WhaTap HTTPC step on the active transaction
-	// and propagates trace context (x-whatap-mtid headers) for distributed tracing.
-	response, err := whataphttp.HttpGet(r.Context(), "https://www.googleapis.com/oauth2/v2/userinfo?access_token="+token.AccessToken)
+	// Why: Bearer header keeps the access token out of URL/logs/proxies/Referer.
+	// NewRoundTrip preserves the WhaTap HTTPC step and x-whatap-mtid trace propagation.
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, "https://www.googleapis.com/oauth2/v2/userinfo", nil)
 	if err != nil {
-		fmt.Fprintf(w, "Failed getting user info: %s", err.Error())
+		logger.Errorf("[AUTH] failed building userinfo request: %v", err)
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+	httpClient := &http.Client{Transport: whataphttp.NewRoundTrip(r.Context(), nil)}
+	response, err := httpClient.Do(req)
+	if err != nil {
+		logger.Errorf("[AUTH] failed getting user info: %v", err)
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
 	defer response.Body.Close()
@@ -107,7 +141,8 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 		Picture string `json:"picture"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&userInfo); err != nil {
-		fmt.Fprintf(w, "Failed decoding user info: %s", err.Error())
+		logger.Errorf("[AUTH] failed decoding user info: %v", err)
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -119,7 +154,11 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 		autoLinkSlack(r.Context(), user, lookupUserByEmail)
 	}
 
-	SetSessionCookie(w, userInfo.Email)
+	if err := SetSessionCookie(r.Context(), w, userInfo.Email); err != nil {
+		logger.Errorf("[AUTH] failed to create session for %s: %v", userInfo.Email, err)
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
+		return
+	}
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 
@@ -139,7 +178,14 @@ func autoLinkSlack(ctx context.Context, user *store.User, lookup func(string) (s
 }
 
 func HandleLogout(w http.ResponseWriter, r *http.Request) {
-	isProd := os.Getenv("ENV") == "production" || strings.HasPrefix(appBaseURL, "https://")
+	// Why: Invalidate the server-side session so a captured cookie is useless after logout.
+	if cookie, err := r.Cookie("session_token"); err == nil && cookie.Value != "" {
+		if err := store.DeleteSession(r.Context(), cookie.Value); err != nil {
+			logger.Warnf("[AUTH] failed to delete session on logout: %v", err)
+		}
+	}
+
+	isProd := isProdEnv()
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session_token",
@@ -172,7 +218,7 @@ func generateStateCookie(w http.ResponseWriter) string {
 		logger.Errorf("[AUTH] crypto/rand.Read failed: %v", err)
 	}
 	state := base64.RawURLEncoding.EncodeToString(b[:])
-	isProd := os.Getenv("ENV") == "production" || strings.HasPrefix(appBaseURL, "https://")
+	isProd := isProdEnv()
 	http.SetCookie(w, &http.Cookie{
 		Name:     "oauthstate",
 		Value:    state,
@@ -185,15 +231,24 @@ func generateStateCookie(w http.ResponseWriter) string {
 	return state
 }
 
-func SetSessionCookie(w http.ResponseWriter, email string) {
-	isProd := os.Getenv("ENV") == "production" || strings.HasPrefix(appBaseURL, "https://")
-	maxAge := 24 * time.Hour
+// SetSessionCookie mints an opaque server-side session for email and sets it as an
+// HttpOnly cookie. The cookie carries only the random token; the email is resolved
+// from the sessions table on each request, so the cookie cannot be forged.
+func SetSessionCookie(ctx context.Context, w http.ResponseWriter, email string) error {
+	token, err := newSessionToken()
+	if err != nil {
+		return fmt.Errorf("generate session token: %w", err)
+	}
+	expiresAt := time.Now().Add(sessionMaxAge)
+	if err := store.CreateSession(ctx, token, email, expiresAt); err != nil {
+		return fmt.Errorf("persist session: %w", err)
+	}
 
-	//Why: Establishes a server-side session using an HttpOnly cookie. Lax mode is used for better balance between security and cross-site functionality in proxied environments.
+	isProd := isProdEnv()
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session_token",
-		Value:    base64.RawURLEncoding.EncodeToString([]byte(email)),
-		Expires:  time.Now().Add(maxAge),
+		Value:    token,
+		Expires:  expiresAt,
 		HttpOnly: true,
 		Secure:   isProd,
 		Path:     "/",
@@ -204,12 +259,13 @@ func SetSessionCookie(w http.ResponseWriter, email string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session_active",
 		Value:    "true",
-		Expires:  time.Now().Add(maxAge),
+		Expires:  expiresAt,
 		HttpOnly: false,
 		Secure:   isProd,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
 	})
+	return nil
 }
 
 // AdminMiddleware enforces administrator privilege for the wrapped handler. Wraps AuthMiddleware
@@ -252,24 +308,16 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		cookie, err := r.Cookie("session_token")
 		if err != nil {
 			logger.Warnf("[AUTH] Session cookie missing for path: %s", r.URL.Path)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			_ = json.NewEncoder(w).Encode(unauthorizedResponse)
+			writeUnauthorized(w)
 			return
 		}
 
-		decodedEmailBytes, err := base64.RawURLEncoding.DecodeString(cookie.Value)
+		email, err := store.GetSessionEmail(r.Context(), cookie.Value)
 		if err != nil {
-			decodedEmailBytes, err = base64.URLEncoding.DecodeString(cookie.Value)
-		}
-		if err != nil {
-			logger.Errorf("[AUTH] Error decoding session cookie for %s: %v", r.URL.Path, err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			_ = json.NewEncoder(w).Encode(unauthorizedResponse)
+			logger.Warnf("[AUTH] Invalid or expired session for path %s: %v", r.URL.Path, err)
+			writeUnauthorized(w)
 			return
 		}
-		email := string(decodedEmailBytes)
 		logger.Debugf("[AUTH] Valid session for %s: %s", r.URL.Path, email)
 
 		ctx := context.WithValue(r.Context(), UserEmailKey, email)

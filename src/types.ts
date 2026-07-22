@@ -227,6 +227,8 @@ export interface MessageHandlers {
     onSelectTask?: (id: number, selected: boolean) => void;
     onConfirmCandidate?: (id: string) => Promise<void>;
     onDismissCandidate?: (id: string) => Promise<void>;
+    onConfirmExclusion?: (id: string) => Promise<void>;
+    onDismissExclusion?: (id: string) => Promise<void>;
 }
 
 export interface ServiceHandlers extends MessageHandlers {

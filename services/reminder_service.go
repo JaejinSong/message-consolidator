@@ -144,3 +144,124 @@ func formatUndatedNudgeText(m store.UndatedCommitment, ageDays int) string {
 	return fmt.Sprintf("%s 기한 없는 %s (D+%d일)\n• 작업: %s\n• 채널: %s/%s",
 		emoji, label, ageDays, m.Task, m.Source, m.Room)
 }
+
+// stalledReconfirmDays are the D+ thresholds (days since last update) at which a
+// still-open TASK gets re-confirmed via a single Slack digest DM. Primes, ascending.
+var stalledReconfirmDays = []int{13, 29}
+
+// stalledReconfirmDigestCap bounds items per digest DM to keep messages readable.
+const stalledReconfirmDigestCap = 7
+
+// stalledReconfirmEntry pairs a stalled request with the reminder key to mark on send success.
+type stalledReconfirmEntry struct {
+	item store.StalledRequest
+	key  string
+}
+
+// DispatchStalledReconfirm sends one Slack digest DM per user listing stalled TASK
+// rows that just crossed a re-confirmation threshold (D+13, D+29).
+func (r *ReminderService) DispatchStalledReconfirm(ctx context.Context) error {
+	if r == nil || r.Slack == nil {
+		return nil
+	}
+	users, err := store.GetAllUsers(ctx)
+	if err != nil {
+		return fmt.Errorf("get all users for stalled reconfirm: %w", err)
+	}
+	for _, u := range users {
+		if strings.TrimSpace(u.SlackID) == "" {
+			continue
+		}
+		if err := r.dispatchStalledReconfirmForUser(ctx, u); err != nil {
+			logger.Warnf("[REMINDER] stalled reconfirm failed user=%s: %v", u.Email, err)
+		}
+	}
+	return nil
+}
+
+func (r *ReminderService) dispatchStalledReconfirmForUser(ctx context.Context, u store.User) error {
+	buckets, err := store.SelectStalled(ctx, u.Email, stalledReconfirmDays[0])
+	if err != nil {
+		return fmt.Errorf("select stalled: %w", err)
+	}
+	items := make([]store.StalledRequest, 0, len(buckets.Mine)+len(buckets.Observed))
+	items = append(items, buckets.Mine...)
+	items = append(items, buckets.Observed...)
+
+	entries := collectStalledReconfirm(items)
+	if len(entries) == 0 {
+		return nil
+	}
+	if len(entries) > stalledReconfirmDigestCap {
+		logger.Warnf("[REMINDER] stalled reconfirm digest capped user=%s skipped=%d",
+			u.Email, len(entries)-stalledReconfirmDigestCap)
+		entries = entries[:stalledReconfirmDigestCap]
+	}
+
+	if err := r.Slack.SendDM(ctx, u.SlackID, formatStalledDigest(entries)); err != nil {
+		return fmt.Errorf("send dm: %w", err) // don't mark — retry next tick
+	}
+
+	now := time.Now().UTC()
+	for _, e := range entries {
+		if err := store.MarkReminded(ctx, u.Email, e.item.ID, e.item.Metadata, e.key, now); err != nil {
+			logger.Warnf("[REMINDER] stalled reconfirm MarkReminded failed msg=%d: %v", e.item.ID, err)
+		}
+	}
+	return nil
+}
+
+// collectStalledReconfirm picks, per item, the highest crossed threshold not yet
+// reminded. Items with no crossed threshold, or whose highest crossed threshold was
+// already reminded, are excluded (no fallback to a lower, unreminded threshold).
+func collectStalledReconfirm(items []store.StalledRequest) []stalledReconfirmEntry {
+	entries := make([]stalledReconfirmEntry, 0, len(items))
+	for _, item := range items {
+		key, ok := highestUnremindedStalledKey(item)
+		if !ok {
+			continue
+		}
+		entries = append(entries, stalledReconfirmEntry{item: item, key: key})
+	}
+	return entries
+}
+
+func highestUnremindedStalledKey(item store.StalledRequest) (string, bool) {
+	threshold, ok := highestCrossedThreshold(item.DaysStalled, stalledReconfirmDays)
+	if !ok {
+		return "", false
+	}
+	key := fmt.Sprintf("stalled_reconfirm_d%d", threshold)
+	if store.HasReminded(item.Metadata, key) {
+		return "", false
+	}
+	return key, true
+}
+
+// highestCrossedThreshold returns the largest threshold <= days, if any.
+func highestCrossedThreshold(days int, thresholds []int) (int, bool) {
+	best, found := 0, false
+	for _, t := range thresholds {
+		if days >= t {
+			best, found = t, true
+		}
+	}
+	return best, found
+}
+
+func formatStalledDigest(entries []stalledReconfirmEntry) string {
+	var b strings.Builder
+	b.WriteString(":bell: 아직 진행 중인가요? 오래 멈춰있는 태스크입니다.\n")
+	for _, e := range entries {
+		b.WriteString(formatStalledDigestLine(e.item))
+	}
+	return b.String()
+}
+
+func formatStalledDigestLine(item store.StalledRequest) string {
+	line := fmt.Sprintf("• %s (%s/%s, D+%d일)", item.Task, item.Source, item.Room, item.DaysStalled)
+	if item.Link != "" {
+		line += " " + item.Link
+	}
+	return line + "\n"
+}

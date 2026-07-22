@@ -13,7 +13,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 13
+const schemaVersion = 15
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -42,6 +42,7 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 		{"users", queries.CreateUsersTable},
 		{"user_aliases", queries.CreateUserAliasesTable},
 		{"gmail_tokens", queries.CreateGmailTokensTable},
+		{"sessions", queries.CreateSessionsTable},
 		{"messages", queries.CreateMessagesTable},
 		{"task_translations", queries.CreateTaskTranslationsTable},
 		{"tenant_aliases", queries.CreateTenantAliasesTable},
@@ -142,6 +143,8 @@ func createIndexes(ctx context.Context, q db.DBTX) {
 		"CREATE INDEX IF NOT EXISTS idx_slack_threads_status ON slack_threads(status)",
 		// archive: is_archived narrows to the full set, done/is_deleted cover status filtering
 		"CREATE INDEX IF NOT EXISTS idx_messages_archive_filter ON messages(user_email, is_archived, done, is_deleted)",
+		// excluded: partial index keeps the excluded list/digest scans off the main table scan
+		"CREATE INDEX IF NOT EXISTS idx_messages_excluded ON messages(user_email, excluded_at) WHERE excluded_at IS NOT NULL",
 		// message_embeddings: SemanticTopK JOINs by model then message_id.
 		"CREATE INDEX IF NOT EXISTS idx_msg_emb_model_id ON message_embeddings(model, message_id)",
 		"CREATE INDEX IF NOT EXISTS idx_task_grants_grantor ON task_grants(grantor_user_id)",
@@ -321,6 +324,55 @@ WHERE task IS NOT NULL AND task != ''
   AND (assigned_at IS NULL OR assigned_at < '1970-01-01')`
 	if _, err := q.ExecContext(ctx, backfillSQL); err != nil {
 		return fmt.Errorf("backfill zero-time assigned_at: %w", err)
+	}
+	return nil
+}
+
+// migrateLifecycleExcluded (v15) adds excluded_at and rebuilds the lifecycle generated
+// column with an 'excluded' branch (long-term-unprocessed tasks parked out of tracking).
+// Why: SQLite cannot ALTER a generated column's expression; the only path is DROP + re-ADD
+// (both supported for VIRTUAL columns on SQLite 3.35+/libSQL). v_messages references
+// lifecycle so it is dropped first; rebuildViews recreates it later in the same tx.
+// Idempotent: skipped when the messages DDL already contains the 'excluded' branch.
+func migrateLifecycleExcluded(ctx context.Context, q db.DBTX) error {
+	var ddl string
+	_ = q.QueryRowContext(ctx,
+		`SELECT sql FROM sqlite_master WHERE type='table' AND name='messages'`,
+	).Scan(&ddl)
+	if strings.Contains(ddl, "'excluded'") {
+		return nil
+	}
+
+	var has int
+	_ = q.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pragma_table_info('messages') WHERE name='excluded_at'`,
+	).Scan(&has)
+	if has == 0 {
+		if _, err := q.ExecContext(ctx,
+			`ALTER TABLE messages ADD COLUMN excluded_at DATETIME`,
+		); err != nil {
+			return fmt.Errorf("add excluded_at column: %w", err)
+		}
+	}
+
+	stmts := []string{
+		`DROP VIEW IF EXISTS v_messages`,
+		`ALTER TABLE messages DROP COLUMN lifecycle`,
+		`ALTER TABLE messages ADD COLUMN lifecycle TEXT GENERATED ALWAYS AS (
+			CASE
+				WHEN category = 'merged'             THEN 'merged'
+				WHEN done = 0 AND is_deleted = 1     THEN 'canceled'
+				WHEN done = 1 AND is_deleted = 1     THEN 'swept'
+				WHEN done = 1                        THEN 'done'
+				WHEN excluded_at IS NOT NULL         THEN 'excluded'
+				ELSE 'active'
+			END
+		) VIRTUAL`,
+	}
+	for _, s := range stmts {
+		if _, err := q.ExecContext(ctx, s); err != nil {
+			return fmt.Errorf("rebuild lifecycle with excluded branch: %w", err)
+		}
 	}
 	return nil
 }

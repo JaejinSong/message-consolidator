@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"message-consolidator/auth"
 	"message-consolidator/channels"
@@ -93,7 +94,8 @@ func (a *API) authorizeInternalScan(w http.ResponseWriter, r *http.Request) bool
 		return false
 	}
 	secret := r.Header.Get("X-Internal-Secret")
-	if secret != a.Config.InternalScanSecret {
+	// Why: constant-time compare prevents leaking the secret through response timing.
+	if subtle.ConstantTimeCompare([]byte(secret), []byte(a.Config.InternalScanSecret)) != 1 {
 		logger.Warnf("[SCAN] Unauthorized access attempt from %s", r.RemoteAddr)
 		respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return false

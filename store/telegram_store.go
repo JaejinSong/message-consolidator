@@ -17,14 +17,14 @@ func GetTelegramSession(ctx context.Context, email string) ([]byte, error) {
 		}
 		return nil, err
 	}
-	return data, nil
+	return decryptBytes(data), nil
 }
 
 // UpsertTelegramSession persists the session payload produced by gotd's SessionStorage.
 func UpsertTelegramSession(ctx context.Context, email string, data []byte) error {
 	return db.New(GetDB()).UpsertTelegramSession(ctx, db.UpsertTelegramSessionParams{
 		Email:       email,
-		SessionData: data,
+		SessionData: encryptBytes(data),
 	})
 }
 

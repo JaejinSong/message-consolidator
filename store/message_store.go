@@ -202,14 +202,20 @@ func AddCompletionCandidate(ctx context.Context, q Querier, email string, id Mes
 }
 
 // DismissCompletionCandidate removes a pending completion candidate from a task's
-// metadata. Why: the user rejected the confirm-first suggestion — the task stays open
-// and should not keep surfacing the candidate.
+// metadata and records the dismissal marker (source link + timestamp). Why: the
+// user rejected the confirm-first suggestion — the task stays open, must not keep
+// surfacing the candidate, and must not resurface the same source_link later
+// (see WasCandidateDismissed).
 func DismissCompletionCandidate(ctx context.Context, q Querier, email string, id MessageID) error {
 	return withTx(ctx, q, func(qw Querier) error {
-		const stmt = `UPDATE messages
-			SET metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.completion_candidate')
+		const stmt = `UPDATE messages SET metadata = json_set(
+				json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.completion_candidate'),
+				'$.completion_dismissed_source', json_extract(COALESCE(NULLIF(metadata, ''), '{}'), '$.completion_candidate.source_link'),
+				'$.completion_dismissed_at', ?
+			)
 			WHERE id = ? AND user_email = ?`
-		if _, err := qw.ExecContext(ctx, stmt, int64(id), email); err != nil {
+		dismissedAt := time.Now().UTC().Format(time.RFC3339)
+		if _, err := qw.ExecContext(ctx, stmt, dismissedAt, int64(id), email); err != nil {
 			return err
 		}
 		InvalidateCache(email)
@@ -217,24 +223,63 @@ func DismissCompletionCandidate(ctx context.Context, q Querier, email string, id
 	})
 }
 
+// WasCandidateDismissed reports whether sourceLink was already dismissed as a
+// completion candidate for this task, so recordCompletionCandidate does not
+// resurrect a suggestion the user explicitly rejected.
+func WasCandidateDismissed(metadata, sourceLink string) bool {
+	if metadata == "" || sourceLink == "" {
+		return false
+	}
+	var m map[string]any // any 사유: JSON 값 타입이 불특정 — 키 조회 후 string으로 단언
+	if err := json.Unmarshal([]byte(metadata), &m); err != nil {
+		return false
+	}
+	v, ok := m["completion_dismissed_source"]
+	if !ok {
+		return false
+	}
+	s, _ := v.(string)
+	return s != "" && s == sourceLink
+}
+
 func MarkMessageDone(ctx context.Context, q Querier, email string, id MessageID, done bool) error {
 	if !done {
 		return unmarkMessageDone(ctx, q, email, id)
 	}
-	return executeUpdateMessageDetails(ctx, q, email, id, func(p *db.UpdateMessageDetailsParams) {
-		p.Done = nullBool(done)
-		p.CompletedAt = sql.NullTime{Time: time.Now(), Valid: true}
+	return markMessageDoneTrue(ctx, q, email, id)
+}
+
+// markMessageDoneTrue sets done+completed_at and clears any pending completion
+// candidate in one statement — Why: raw SQL (precedent: unmarkMessageDone) since
+// UpdateMessageDetails cannot express the json_remove; a task explicitly marked
+// done should not keep surfacing a stale confirm-first suggestion.
+func markMessageDoneTrue(ctx context.Context, q Querier, email string, id MessageID) error {
+	return withTx(ctx, q, func(qw Querier) error {
+		const stmt = `UPDATE messages
+			SET done = 1, completed_at = ?,
+			    metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.completion_candidate'),
+			    updated_at = CURRENT_TIMESTAMP
+			WHERE id = ? AND user_email = ?`
+		if _, err := qw.ExecContext(ctx, stmt, time.Now(), int64(id), email); err != nil {
+			return err
+		}
+		InvalidateCache(email)
+		return nil
 	})
 }
 
-// unmarkMessageDone clears both done and completed_at in one statement.
-// Why: UpdateMessageDetails wraps completed_at in COALESCE(?, completed_at), so
-// passing sql.NullTime{Valid:false} preserves the prior value instead of clearing
-// it — leaving the invariant `done=0 ⇔ completed_at IS NULL` violated. Raw SQL
-// is the cleanest expression here since sqlc cannot represent "set NULL".
+// unmarkMessageDone clears done, completed_at, and any pending completion candidate
+// in one statement. Why: UpdateMessageDetails wraps completed_at in COALESCE(?,
+// completed_at), so passing sql.NullTime{Valid:false} preserves the prior value
+// instead of clearing it — leaving the invariant `done=0 ⇔ completed_at IS NULL`
+// violated. Raw SQL is the cleanest expression here since sqlc cannot represent
+// "set NULL".
 func unmarkMessageDone(ctx context.Context, q Querier, email string, id MessageID) error {
 	return withTx(ctx, q, func(qw Querier) error {
-		const stmt = `UPDATE messages SET done = 0, completed_at = NULL WHERE id = ? AND user_email = ?`
+		const stmt = `UPDATE messages
+			SET done = 0, completed_at = NULL,
+			    metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.completion_candidate')
+			WHERE id = ? AND user_email = ?`
 		if _, err := qw.ExecContext(ctx, stmt, int64(id), email); err != nil {
 			return err
 		}

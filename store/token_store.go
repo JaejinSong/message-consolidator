@@ -519,7 +519,7 @@ func SaveGmailToken(ctx context.Context, email, tokenJSON string) error {
 	queries := db.New(conn)
 	err := queries.UpsertGmailToken(ctx, db.UpsertGmailTokenParams{
 		UserEmail: email,
-		TokenJson: tokenJSON,
+		TokenJson: encryptString(tokenJSON),
 	})
 	return err
 }
@@ -534,10 +534,11 @@ func GetGmailToken(ctx context.Context, email string) (string, error) {
 
 	conn := GetDB()
 	queries := db.New(conn)
-	tokenJSON, err := queries.GetGmailToken(ctx, email)
+	stored, err := queries.GetGmailToken(ctx, email)
 	if err != nil {
 		return "", err
 	}
+	tokenJSON := decryptString(stored)
 
 	metadataMu.Lock()
 	tokenCache[email] = tokenJSON

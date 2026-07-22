@@ -111,6 +111,7 @@ type Message struct {
 	SourceChannels      sql.NullString `json:"source_channels"`
 	ConsolidatedContext sql.NullString `json:"consolidated_context"`
 	Subtasks            sql.NullString `json:"subtasks"`
+	ExcludedAt          sql.NullTime   `json:"excluded_at"`
 	IsArchived          sql.NullInt64  `json:"is_archived"`
 	Lifecycle           sql.NullString `json:"lifecycle"`
 }
@@ -149,6 +150,13 @@ type ScanMetadatum struct {
 	Source    string         `json:"source"`
 	TargetID  string         `json:"target_id"`
 	LastTs    sql.NullString `json:"last_ts"`
+}
+
+type Session struct {
+	Token     string       `json:"token"`
+	Email     string       `json:"email"`
+	ExpiresAt time.Time    `json:"expires_at"`
+	CreatedAt sql.NullTime `json:"created_at"`
 }
 
 type SlackThread struct {
@@ -270,6 +278,7 @@ type VMessage struct {
 	SourceChannels      string       `json:"source_channels"`
 	ConsolidatedContext string       `json:"consolidated_context"`
 	Subtasks            string       `json:"subtasks"`
+	ExcludedAt          sql.NullTime `json:"excluded_at"`
 	Lifecycle           string       `json:"lifecycle"`
 	RequesterCanonical  string       `json:"requester_canonical"`
 	AssigneeCanonical   string       `json:"assignee_canonical"`

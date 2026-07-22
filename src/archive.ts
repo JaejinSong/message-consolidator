@@ -211,6 +211,8 @@ export const archive: ArchiveModule = {
                     state.archiveStatus = 'canceled';
                 } else if (target === 'archiveMergedTab') {
                     state.archiveStatus = 'merged';
+                } else if (target === 'archiveExcludedTab') {
+                    state.archiveStatus = 'excluded';
                 } else {
                     state.archiveStatus = 'all';
                 }

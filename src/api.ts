@@ -124,6 +124,33 @@ export const api = {
         });
     },
 
+    async confirmExclusion(id: string | number): Promise<{ user?: UserProfile }> {
+        const validatedId = ensureInt(id);
+        return apiFetch('/messages/exclusion-candidate/confirm', {
+            method: 'POST',
+            body: JSON.stringify({ id: validatedId }),
+            errorMessage: 'Confirm exclusion failed'
+        });
+    },
+
+    async dismissExclusionCandidate(id: string | number): Promise<void> {
+        const validatedId = ensureInt(id);
+        return apiFetch('/messages/exclusion-candidate/dismiss', {
+            method: 'POST',
+            body: JSON.stringify({ id: validatedId }),
+            errorMessage: 'Dismiss exclusion candidate failed'
+        });
+    },
+
+    async restoreExcluded(id: string | number): Promise<{ user?: UserProfile }> {
+        const validatedId = ensureInt(id);
+        return apiFetch('/messages/excluded/restore', {
+            method: 'POST',
+            body: JSON.stringify({ id: validatedId }),
+            errorMessage: 'Restore excluded task failed'
+        });
+    },
+
     async toggleSubtask(id: string | number, subtaskIndex: number, done: boolean): Promise<{ user?: UserProfile }> {
         const validatedId = ensureInt(id);
         return apiFetch('/subtasks/toggle', {

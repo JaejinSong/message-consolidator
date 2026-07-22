@@ -62,6 +62,14 @@ CREATE TABLE IF NOT EXISTS gmail_tokens (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- name: CreateSessionsTable :exec
+CREATE TABLE IF NOT EXISTS sessions (
+    token      TEXT PRIMARY KEY,
+    email      TEXT NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- name: CreateMessagesTable :exec
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,18 +102,20 @@ CREATE TABLE IF NOT EXISTS messages (
     source_channels TEXT DEFAULT '[]',
     consolidated_context TEXT DEFAULT '[]',
     subtasks TEXT DEFAULT '[]',
+    excluded_at DATETIME,
     is_archived INTEGER GENERATED ALWAYS AS (
         CASE WHEN is_deleted = 1 OR category = 'merged' OR done = 1 THEN 1 ELSE 0 END
     ) VIRTUAL,
-    -- Why: collapses (done, is_deleted, category) into one explicit lifecycle label so
-    -- callers filter by intent (active/done/canceled/swept/merged) instead of re-deriving
-    -- the boolean combo. Order matters: merged > canceled > swept > done > active.
+    -- Why: collapses (done, is_deleted, category, excluded_at) into one explicit lifecycle
+    -- label so callers filter by intent instead of re-deriving the boolean combo.
+    -- Order matters: merged > canceled > swept > done > excluded > active.
     lifecycle TEXT GENERATED ALWAYS AS (
         CASE
             WHEN category = 'merged'             THEN 'merged'
             WHEN done = 0 AND is_deleted = 1     THEN 'canceled'
             WHEN done = 1 AND is_deleted = 1     THEN 'swept'
             WHEN done = 1                        THEN 'done'
+            WHEN excluded_at IS NOT NULL         THEN 'excluded'
             ELSE 'active'
         END
     ) VIRTUAL,
@@ -291,6 +301,7 @@ SELECT
     COALESCE(m.source_channels, '[]') as source_channels,
     COALESCE(m.consolidated_context, '[]') as consolidated_context,
     COALESCE(m.subtasks, '[]') as subtasks,
+    m.excluded_at,
     COALESCE(m.lifecycle, 'active') as lifecycle,
     COALESCE(cr_req.effective_canonical_id, m.requester, '') as requester_canonical,
     COALESCE(cr_asg.effective_canonical_id, m.assignee, '') as assignee_canonical,

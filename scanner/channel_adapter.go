@@ -88,31 +88,87 @@ func processChannelRoom(ctx context.Context, user store.User, aliases []string, 
 	return allIDs
 }
 
+// dispatchKind classifies how a message feeds the completion pipeline.
+type dispatchKind int
+
+const (
+	dispatchNone dispatchKind = iota
+	// dispatchThreaded is a fromMe quoted reply — same-thread completion/update signal.
+	dispatchThreaded
+	// dispatchCrossChannel is any message (fromMe or counterparty) carrying a plain
+	// completion signal outside a reply chain — confirm-first candidate matching only.
+	dispatchCrossChannel
+)
+
+// completionDispatchKind classifies a raw message for the outgoing-completion pipeline:
+// a fromMe quoted reply is threaded (ProcessPotentialCompletion); any message carrying
+// a completion signal is cross-channel (ProcessCrossChannelSignal, confirm-first only).
+func completionDispatchKind(m types.RawMessage, user store.User) dispatchKind {
+	if isFromMe(m, user) && m.ReplyToID != "" {
+		return dispatchThreaded
+	}
+	if services.HasCompletionSignal(m.Text) {
+		return dispatchCrossChannel
+	}
+	return dispatchNone
+}
+
 // triggerOutgoingCompletions feeds the async completion pipeline when the user
-// themselves reply/quote in the given room — mirrors the pre-refactor per-channel loop.
+// themselves reply/quote in the given room, plus any signal-bearing plain message
+// for cross-channel candidate matching — mirrors the pre-refactor per-channel loop.
 // Why: WithoutCancel preserves the WhaTap trace context (carried as a value) while
-// detaching cancellation so the goroutine outlives the parent scan timeout.
+// detaching cancellation so the goroutines outlive the parent scan timeout.
 func triggerOutgoingCompletions(ctx context.Context, msgs []types.RawMessage, user store.User, source, groupName string) {
 	if completionSvc == nil {
 		return
 	}
 	asyncCtx := context.WithoutCancel(ctx)
+	var crossChannel []types.RawMessage
 	for _, m := range msgs {
-		if !isFromMe(m, user) || m.ReplyToID == "" {
-			continue
+		switch completionDispatchKind(m, user) {
+		case dispatchThreaded:
+			dispatchThreadedCompletion(asyncCtx, m, user.Email, source, groupName)
+		case dispatchCrossChannel:
+			crossChannel = append(crossChannel, m)
 		}
-		raw := m
-		go func(em, src, room string, r types.RawMessage) {
-			defer safego.Recover("outgoing-completion-" + src)
-			if _, err := completionSvc.ProcessPotentialCompletion(asyncCtx, store.ConsolidatedMessage{
+	}
+	if len(crossChannel) > 0 {
+		dispatchCrossChannelCompletions(asyncCtx, crossChannel, user, source, groupName)
+	}
+}
+
+func dispatchThreadedCompletion(asyncCtx context.Context, m types.RawMessage, email, source, groupName string) {
+	go func(em, src, room string, r types.RawMessage) {
+		defer safego.Recover("outgoing-completion-" + src)
+		if _, err := completionSvc.ProcessPotentialCompletion(asyncCtx, store.ConsolidatedMessage{
+			UserEmail: em, Source: src, Room: room, ThreadID: r.ReplyToID,
+			OriginalText: r.Text, SourceTS: r.ID, CreatedAt: r.Timestamp,
+			RequesterCanonical: em,
+		}); err != nil {
+			logger.Warnf("[SCAN] %s: outgoing completion failed for %s: %v", src, room, err)
+		}
+	}(email, source, groupName, m)
+}
+
+// dispatchCrossChannelCompletions feeds signal-bearing non-reply messages to the
+// confirm-first cross-channel pipeline in one goroutine per room (not per message),
+// bounding goroutine fan-out when a room batch has many candidate messages.
+func dispatchCrossChannelCompletions(asyncCtx context.Context, msgs []types.RawMessage, user store.User, source, groupName string) {
+	go func(em, src, room string, batch []types.RawMessage) {
+		defer safego.Recover("crosschannel-completion-" + src)
+		for _, r := range batch {
+			env := store.ConsolidatedMessage{
 				UserEmail: em, Source: src, Room: room, ThreadID: r.ReplyToID,
 				OriginalText: r.Text, SourceTS: r.ID, CreatedAt: r.Timestamp,
-				RequesterCanonical: em,
-			}); err != nil {
-				logger.Warnf("[SCAN] %s: outgoing completion failed for %s: %v", src, room, err)
 			}
-		}(user.Email, source, groupName, raw)
-	}
+			if isFromMe(r, user) {
+				env.RequesterCanonical = em
+			}
+			if _, err := completionSvc.ProcessCrossChannelSignal(asyncCtx, env); err != nil {
+				logger.Warnf("[SCAN] %s: cross-channel completion failed for %s: %v", src, room, err)
+			}
+		}
+	}(user.Email, source, groupName, msgs)
 }
 
 func processChannelGroup(ctx context.Context, user store.User, aliases []string, roomKey, groupName string, group []types.RawMessage, gc *ai.GeminiClient, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []store.MessageID {

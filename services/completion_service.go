@@ -227,6 +227,9 @@ func (s *CompletionService) findCrossThreadCandidates(ctx context.Context, msg s
 	// Why: the semantic path costs an embedding call, so gate it on a cheap completion
 	// signal — it targets cross-channel *completions*. The gmail subject fallback stays
 	// ungated (pure string match) so cross-thread UPDATE re-notices keep routing.
+	if s.embedder == nil {
+		compStats.embedderNil.Add(1)
+	}
 	if s.embedder != nil && hasCompletionSignal(msg.OriginalText) {
 		if cands := s.semanticCrossThreadCandidates(ctx, msg); len(cands) > 0 {
 			return cands
@@ -241,7 +244,11 @@ func (s *CompletionService) semanticCrossThreadCandidates(ctx context.Context, m
 	cands, err := s.embedder.CandidateOpenTasks(ctx, msg.UserEmail, msg.OriginalText, crossThreadTopK)
 	if err != nil {
 		logger.Warnf("[COMPLETION] semantic candidate search failed: %v", err)
+		compStats.embeddingEmpty.Add(1)
 		return nil
+	}
+	if len(cands) == 0 {
+		compStats.embeddingEmpty.Add(1)
 	}
 	var out []store.ConsolidatedMessage
 	for _, c := range cands {
@@ -249,6 +256,7 @@ func (s *CompletionService) semanticCrossThreadCandidates(ctx context.Context, m
 			continue
 		}
 		if c.Score < crossThreadMinScore {
+			compStats.belowMinScore.Add(1)
 			continue
 		}
 		out = append(out, c.Task)
@@ -295,12 +303,15 @@ func (s *CompletionService) handleCrossThreadCandidates(ctx context.Context, msg
 	top := candidates[0]
 	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, top.Task, msg.OriginalText, top.Subtasks)
 	if err != nil {
+		compStats.llmError.Add(1)
 		return false
 	}
 	switch res.Status {
 	case "RESOLVE":
+		compStats.llmResolve.Add(1)
 		return s.recordCompletionCandidate(ctx, msg, top)
 	case "UPDATE":
+		compStats.llmUpdate.Add(1)
 		handled := false
 		for _, task := range candidates {
 			if s.handleCompletionResult(ctx, res, msg, task) {
@@ -309,6 +320,7 @@ func (s *CompletionService) handleCrossThreadCandidates(ctx context.Context, msg
 		}
 		return handled
 	}
+	compStats.llmNone.Add(1)
 	return false
 }
 
@@ -316,6 +328,13 @@ func (s *CompletionService) handleCrossThreadCandidates(ctx context.Context, msg
 // metadata instead of closing it. Returns true on success so the caller suppresses
 // re-extraction (the message is about this existing task, not a new one).
 func (s *CompletionService) recordCompletionCandidate(ctx context.Context, msg, task store.ConsolidatedMessage) bool {
+	// Why: the user already dismissed this exact source once — re-recording it would
+	// resurrect a suggestion they explicitly rejected.
+	if store.WasCandidateDismissed(string(task.Metadata), msg.Link) {
+		compStats.dismissSuppressed.Add(1)
+		logger.Debugf("[COMPLETION] candidate suppressed (previously dismissed) for task %d from %s", task.ID, msg.Link)
+		return false
+	}
 	cand := store.CompletionCandidate{
 		SourceLink: msg.Link,
 		SourceText: truncateRunes(msg.OriginalText, candidateEvidenceMax),
@@ -327,6 +346,7 @@ func (s *CompletionService) recordCompletionCandidate(ctx context.Context, msg, 
 		logger.Warnf("[COMPLETION] record candidate failed for task %d: %v", task.ID, err)
 		return false
 	}
+	compStats.candidateRecorded.Add(1)
 	logger.Infof("[COMPLETION] recorded confirm-first candidate for task %d from %s", task.ID, msg.Source)
 	return true
 }
@@ -338,6 +358,25 @@ func truncateRunes(s string, max int) string {
 	}
 	return string(r[:max])
 }
+
+// ProcessCrossChannelSignal evaluates a plain chat message against open tasks in
+// other threads/channels. Confirm-first only: records pending candidates, never
+// auto-closes, never falls back to extraction.
+func (s *CompletionService) ProcessCrossChannelSignal(ctx context.Context, msg store.ConsolidatedMessage) (bool, error) {
+	if !hasCompletionSignal(msg.OriginalText) {
+		compStats.crossSignalMiss.Add(1)
+		return false, nil
+	}
+	candidates := s.findCrossThreadCandidates(ctx, msg)
+	if len(candidates) == 0 {
+		return false, nil
+	}
+	return s.handleCrossThreadCandidates(ctx, msg, candidates), nil
+}
+
+// HasCompletionSignal exposes hasCompletionSignal to scanner adapters so they can
+// gate cross-channel dispatch without duplicating the keyword list.
+func HasCompletionSignal(text string) bool { return hasCompletionSignal(text) }
 
 // ProcessPotentialCompletion checks if a message (reply) completes/updates tasks in the same thread.
 // Why: [Early Return] Returns true if the message was handled as a task completion/update, signaling the scanner to skip extraction.
@@ -352,6 +391,14 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 
 	tasks, _ := s.store.GetIncompleteByThreadID(ctx, s.db, msg.UserEmail, targetID)
 	if len(tasks) == 0 {
+		// Why: cross-thread candidate check runs before the fromMe self-summary skip
+		// below — previously that skip returned early and a fromMe self-summary could
+		// never surface a confirm-first match against an open task in another thread.
+		if candidates := s.findCrossThreadCandidates(ctx, msg); len(candidates) > 0 {
+			if s.handleCrossThreadCandidates(ctx, msg, candidates) {
+				return true, nil
+			}
+		}
 		if strings.EqualFold(msg.RequesterCanonical, msg.UserEmail) {
 			// Why: skip only when this thread has NEVER had a task (truly a self-summary
 			// like a weekly report). If any prior task exists (incl. done), the user's
@@ -361,17 +408,13 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 				return true, nil
 			}
 		}
-		if candidates := s.findCrossThreadCandidates(ctx, msg); len(candidates) > 0 {
-			if s.handleCrossThreadCandidates(ctx, msg, candidates) {
-				return true, nil
-			}
-		}
 		// Why: Fallback consumes its own AI Analyze + persists tasks. Returning true
 		// signals the caller to MarkAsProcessed so the next scan cycle skips this msg
 		// instead of paying for LiteFilter + Analyze + batch Analyze again.
 		return s.fallbackToNewExtraction(ctx, msg), nil
 	}
 
+	compStats.entryThreadPath.Add(1)
 	fromMe := strings.EqualFold(msg.RequesterCanonical, msg.UserEmail)
 	if fromMe {
 		// Why: Ack-only fromMe replies ("ok", "감사합니다", etc.) must not reach AI
@@ -506,5 +549,6 @@ func (s *CompletionService) fallbackToNewExtraction(ctx context.Context, msg sto
 			logger.Warnf("[COMPLETION] fallback: HandleTaskState dropped item after retries: %v", err)
 		}
 	}
+	compStats.fallbackExtraction.Add(1)
 	return true
 }

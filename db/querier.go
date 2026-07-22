@@ -14,6 +14,9 @@ type Querier interface {
 	AppendSecondaryID(ctx context.Context, arg AppendSecondaryIDParams) error
 	ArchiveOldTasks(ctx context.Context, datetime interface{}) (int64, error)
 	CloseSlackThread(ctx context.Context, arg CloseSlackThreadParams) error
+	// Why: parks a long-term-unprocessed task out of tracking; done/is_deleted guard keeps
+	// terminal states untouched, so lifecycle flips active -> excluded only.
+	ConfirmExclusion(ctx context.Context, arg ConfirmExclusionParams) (int64, error)
 	CountMissingEmbeddingsForUser(ctx context.Context, arg CountMissingEmbeddingsForUserParams) (int64, error)
 	CreateAIInferenceLogsTable(ctx context.Context) error
 	CreateAppSettingsTable(ctx context.Context) error
@@ -33,6 +36,8 @@ type Querier interface {
 	CreateReportTranslationsTable(ctx context.Context) error
 	CreateReportsTable(ctx context.Context) error
 	CreateScanMetadataTable(ctx context.Context) error
+	CreateSession(ctx context.Context, arg CreateSessionParams) error
+	CreateSessionsTable(ctx context.Context) error
 	CreateSlackThreadsTable(ctx context.Context) error
 	CreateTaskGrantsTable(ctx context.Context) error
 	CreateTaskTranslationsTable(ctx context.Context) error
@@ -49,12 +54,14 @@ type Querier interface {
 	DeleteAppSetting(ctx context.Context, key string) error
 	DeleteContactMapping(ctx context.Context, arg DeleteContactMappingParams) error
 	DeleteEmbeddingsByModel(ctx context.Context, model string) error
+	DeleteExpiredSessions(ctx context.Context) error
 	DeleteGmailToken(ctx context.Context, userEmail string) error
 	DeleteGrant(ctx context.Context, arg DeleteGrantParams) error
 	DeleteMessages(ctx context.Context, arg DeleteMessagesParams) error
 	DeleteOldReports(ctx context.Context) error
 	DeleteReport(ctx context.Context, arg DeleteReportParams) error
 	DeleteScanMetadataSlackThread(ctx context.Context, arg DeleteScanMetadataSlackThreadParams) error
+	DeleteSession(ctx context.Context, token string) error
 	DeleteTaskTranslations(ctx context.Context, messageID sql.NullInt64) error
 	DeleteTelegramCredentials(ctx context.Context, email string) error
 	DeleteTelegramSession(ctx context.Context, email string) error
@@ -115,6 +122,7 @@ type Querier interface {
 	GetReportTranslationsByIDs(ctx context.Context, reportIds []int64) ([]GetReportTranslationsByIDsRow, error)
 	GetResolutionsByIdentifiers(ctx context.Context, arg GetResolutionsByIdentifiersParams) ([]GetResolutionsByIdentifiersRow, error)
 	GetRoomActorFrequency(ctx context.Context, arg GetRoomActorFrequencyParams) ([]GetRoomActorFrequencyRow, error)
+	GetSession(ctx context.Context, token string) (Session, error)
 	GetSourceDistributionActive(ctx context.Context, dollar_1 string) ([]GetSourceDistributionActiveRow, error)
 	GetSourceDistributionTotal(ctx context.Context, dollar_1 string) ([]GetSourceDistributionTotalRow, error)
 	GetTaskCountByContactType(ctx context.Context, userEmail string) ([]GetTaskCountByContactTypeRow, error)
@@ -162,6 +170,9 @@ type Querier interface {
 	MarkSourceTSProcessed(ctx context.Context, arg MarkSourceTSProcessedParams) error
 	RefreshCacheActive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheActiveRow, error)
 	RefreshCacheArchive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheArchiveRow, error)
+	RestoreExcluded(ctx context.Context, arg RestoreExcludedParams) (int64, error)
+	// Why: restore is user activity. Reset updated_at for a fresh long-term-unprocessed
+	// runway and clear exclusion markers so the scan can re-evaluate from scratch.
 	RestoreMessages(ctx context.Context, arg RestoreMessagesParams) error
 	// Note: Batching with VALUES %s is not supported by sqlc directly.
 	// Using a single insert that can be called in a transaction.
@@ -173,6 +184,11 @@ type Querier interface {
 	// View-type filtering (mine vs waiting) done in Go after the query.
 	SelectCommitments(ctx context.Context, arg SelectCommitmentsParams) ([]SelectCommitmentsRow, error)
 	SelectDueSoonMessages(ctx context.Context, arg SelectDueSoonMessagesParams) ([]SelectDueSoonMessagesRow, error)
+	// Why: Feeds the periodic "still parked" digest across all users.
+	SelectExcludedForDigest(ctx context.Context) ([]SelectExcludedForDigestRow, error)
+	// Why: Global scan feeding exclusion-candidate proposals. Mirrors the COALESCE cutoff
+	// of SelectStalledRequests but crosses all users like SelectUndatedCommitments.
+	SelectExclusionCandidateScan(ctx context.Context, updatedAt sql.NullTime) ([]SelectExclusionCandidateScanRow, error)
 	// Why: Detects TASK rows with no recent update for stalled-request surfacing.
 	// Caller passes cutoff as RFC3339 string (e.g. datetime('now','-3 days')).
 	// updated_at '1970-01-01T00:00:00Z' sentinel is treated as no-update; falls back to created_at.

@@ -54,6 +54,7 @@ export const th: I18nEntry = {
         archiveAll: "ทั้งหมด",
         archiveDone: "เสร็จสิ้น",
         archiveCanceled: "ยกเลิกแล้ว",
+        archiveExcluded: "ยกเว้นการติดตาม",
         archiveMerged: "งานที่รวมเข้าด้วยกัน",
         confirmDelete: "คุณแน่ใจหรือไม่ว่าต้องการลบงานนี้? งานจะถูกย้ายไปยังคลังข้อมูล",
         archiveSearchPlaceholder: "ค้นหาคลังข้อมูล...",

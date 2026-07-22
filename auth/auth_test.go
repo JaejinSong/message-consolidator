@@ -89,10 +89,19 @@ func TestHandleLogout_ClearsSessionCookies(t *testing.T) {
 }
 
 func TestAuthMiddleware_ValidCookie(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
 	AuthDisabled = false
-	encoded := base64.RawURLEncoding.EncodeToString([]byte("user@example.com"))
+	token := "valid-token-abc"
+	if err := store.CreateSession(context.Background(), token, "user@example.com", time.Now().Add(time.Hour)); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
 	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: "session_token", Value: encoded})
+	req.AddCookie(&http.Cookie{Name: "session_token", Value: token})
 	rr := httptest.NewRecorder()
 	var gotEmail string
 	handler := AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -108,13 +117,67 @@ func TestAuthMiddleware_ValidCookie(t *testing.T) {
 	}
 }
 
-func TestAuthMiddleware_InvalidCookie(t *testing.T) {
+func TestAuthMiddleware_UnknownToken(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
 	AuthDisabled = false
 	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: "session_token", Value: "!!!not-base64!!!"})
+	req.AddCookie(&http.Cookie{Name: "session_token", Value: "no-such-token"})
 	rr := httptest.NewRecorder()
 	handler := AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("handler should not be reached")
+	}))
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rr.Code)
+	}
+}
+
+// TestAuthMiddleware_ForgedBase64EmailRejected locks in the CRITICAL fix: a cookie
+// that is merely base64(email) — the old, forgeable token format — must NOT authenticate,
+// even for the super admin address.
+func TestAuthMiddleware_ForgedBase64EmailRejected(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	AuthDisabled = false
+	forged := base64.RawURLEncoding.EncodeToString([]byte(store.SuperAdminEmail))
+	req := httptest.NewRequest("GET", "/api/admin/x", nil)
+	req.AddCookie(&http.Cookie{Name: "session_token", Value: forged})
+	rr := httptest.NewRecorder()
+	handler := AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("forged base64 email cookie must not authenticate")
+	}))
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rr.Code)
+	}
+}
+
+func TestAuthMiddleware_ExpiredSessionRejected(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	AuthDisabled = false
+	token := "expired-token"
+	if err := store.CreateSession(context.Background(), token, "user@example.com", time.Now().Add(-time.Hour)); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: "session_token", Value: token})
+	rr := httptest.NewRecorder()
+	handler := AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("expired session must not authenticate")
 	}))
 	handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusUnauthorized {
@@ -173,6 +236,12 @@ func TestSetupOAuth_RedirectURL(t *testing.T) {
 }
 
 func TestSetSessionCookie_Attributes(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
 	tests := []struct {
 		name       string
 		appBaseURL string
@@ -188,7 +257,9 @@ func TestSetSessionCookie_Attributes(t *testing.T) {
 			appBaseURL = tt.appBaseURL
 			t.Setenv("ENV", tt.env)
 			rr := httptest.NewRecorder()
-			SetSessionCookie(rr, "test@example.com")
+			if err := SetSessionCookie(context.Background(), rr, "test@example.com"); err != nil {
+				t.Fatalf("SetSessionCookie: %v", err)
+			}
 
 			var sessionCookie *http.Cookie
 			for _, c := range rr.Result().Cookies() {
@@ -209,7 +280,40 @@ func TestSetSessionCookie_Attributes(t *testing.T) {
 			if !sessionCookie.HttpOnly {
 				t.Error("expected HttpOnly=true")
 			}
+			// Cookie value must be an opaque token, never the email or its base64.
+			if sessionCookie.Value == "test@example.com" ||
+				sessionCookie.Value == base64.RawURLEncoding.EncodeToString([]byte("test@example.com")) {
+				t.Error("cookie value leaks the email; must be an opaque token")
+			}
+			// The token must resolve back to the email via the server-side store.
+			email, err := store.GetSessionEmail(context.Background(), sessionCookie.Value)
+			if err != nil || email != "test@example.com" {
+				t.Errorf("GetSessionEmail = (%q, %v), want test@example.com", email, err)
+			}
 		})
+	}
+}
+
+// TestHandleLogout_InvalidatesSession verifies logout deletes the server-side row so a
+// captured cookie cannot be replayed.
+func TestHandleLogout_InvalidatesSession(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	appBaseURL = "http://localhost"
+	token := "logout-token"
+	if err := store.CreateSession(context.Background(), token, "user@example.com", time.Now().Add(time.Hour)); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	req := httptest.NewRequest("GET", "/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "session_token", Value: token})
+	HandleLogout(httptest.NewRecorder(), req)
+
+	if _, err := store.GetSessionEmail(context.Background(), token); err == nil {
+		t.Error("session should be invalid after logout")
 	}
 }
 
@@ -255,11 +359,12 @@ func TestAdminMiddleware_NonAdmin(t *testing.T) {
 	defer cleanup()
 
 	AuthDisabled = false
-	encoded := base64.RawURLEncoding.EncodeToString([]byte("regular@example.com"))
+	token := "admin-test-token"
+	if err := store.CreateSession(context.Background(), token, "regular@example.com", time.Now().Add(time.Hour)); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
 	req := httptest.NewRequest("GET", "/admin", nil)
-	req.AddCookie(&http.Cookie{Name: "session_token", Value: encoded})
-	ctx := context.WithValue(req.Context(), UserEmailKey, "regular@example.com")
-	req = req.WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "session_token", Value: token})
 
 	rr := httptest.NewRecorder()
 	handler := AdminMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

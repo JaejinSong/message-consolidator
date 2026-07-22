@@ -47,6 +47,27 @@ func (q *Queries) ArchiveOldTasks(ctx context.Context, datetime interface{}) (in
 	return result.RowsAffected()
 }
 
+const confirmExclusion = `-- name: ConfirmExclusion :execrows
+UPDATE messages
+SET excluded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND user_email = ? AND done = 0 AND is_deleted = 0
+`
+
+type ConfirmExclusionParams struct {
+	ID        int64          `json:"id"`
+	UserEmail sql.NullString `json:"user_email"`
+}
+
+// Why: parks a long-term-unprocessed task out of tracking; done/is_deleted guard keeps
+// terminal states untouched, so lifecycle flips active -> excluded only.
+func (q *Queries) ConfirmExclusion(ctx context.Context, arg ConfirmExclusionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, confirmExclusion, arg.ID, arg.UserEmail)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const createMessage = `-- name: CreateMessage :one
 INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, deadline_date, deadline_inferred, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, consolidated_context, subtasks)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -666,6 +687,7 @@ SELECT id, COALESCE(user_email,'') as user_email, COALESCE(source,'') as source,
        COALESCE(source_channels,'[]') as source_channels,
        COALESCE(consolidated_context,'[]') as consolidated_context,
        COALESCE(subtasks,'[]') as subtasks,
+       excluded_at,
        COALESCE(lifecycle,'active') as lifecycle,
        COALESCE(requester_canonical,'') as requester_canonical,
        COALESCE(assignee_canonical,'') as assignee_canonical,
@@ -723,6 +745,7 @@ func (q *Queries) GetRecentIncompleteGmail(ctx context.Context, userEmail string
 			&i.SourceChannels,
 			&i.ConsolidatedContext,
 			&i.Subtasks,
+			&i.ExcludedAt,
 			&i.Lifecycle,
 			&i.RequesterCanonical,
 			&i.AssigneeCanonical,
@@ -941,7 +964,7 @@ func (q *Queries) RefreshCacheActive(ctx context.Context, userEmail sql.NullStri
 }
 
 const refreshCacheArchive = `-- name: RefreshCacheArchive :many
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, updated_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, updated_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, excluded_at
 FROM messages
 WHERE user_email = ?1 AND lifecycle != 'active'
 AND IFNULL(task, '') != ''
@@ -977,6 +1000,7 @@ type RefreshCacheArchiveRow struct {
 	SourceChannels      string        `json:"source_channels"`
 	ConsolidatedContext string        `json:"consolidated_context"`
 	Subtasks            string        `json:"subtasks"`
+	ExcludedAt          sql.NullTime  `json:"excluded_at"`
 }
 
 func (q *Queries) RefreshCacheArchive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheArchiveRow, error) {
@@ -1016,6 +1040,7 @@ func (q *Queries) RefreshCacheArchive(ctx context.Context, userEmail sql.NullStr
 			&i.SourceChannels,
 			&i.ConsolidatedContext,
 			&i.Subtasks,
+			&i.ExcludedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1030,8 +1055,34 @@ func (q *Queries) RefreshCacheArchive(ctx context.Context, userEmail sql.NullStr
 	return items, nil
 }
 
+const restoreExcluded = `-- name: RestoreExcluded :execrows
+UPDATE messages
+SET excluded_at = NULL, updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND user_email = ? AND excluded_at IS NOT NULL
+`
+
+type RestoreExcludedParams struct {
+	ID        int64          `json:"id"`
+	UserEmail sql.NullString `json:"user_email"`
+}
+
+func (q *Queries) RestoreExcluded(ctx context.Context, arg RestoreExcludedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, restoreExcluded, arg.ID, arg.UserEmail)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const restoreMessages = `-- name: RestoreMessages :exec
-UPDATE messages SET is_deleted = 0, done = 0, completed_at = NULL WHERE user_email = ? AND id IN (/*SLICE:ids*/?)
+UPDATE messages
+SET is_deleted = 0, done = 0, completed_at = NULL, excluded_at = NULL,
+    updated_at = CURRENT_TIMESTAMP,
+    metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'),
+        '$.exclusion_candidate',
+        '$.exclusion_candidate_dismissed_at',
+        '$.reminded_at_excluded_digest')
+WHERE user_email = ? AND id IN (/*SLICE:ids*/?)
 `
 
 type RestoreMessagesParams struct {
@@ -1039,6 +1090,8 @@ type RestoreMessagesParams struct {
 	Ids       []int64        `json:"ids"`
 }
 
+// Why: restore is user activity. Reset updated_at for a fresh long-term-unprocessed
+// runway and clear exclusion markers so the scan can re-evaluate from scratch.
 func (q *Queries) RestoreMessages(ctx context.Context, arg RestoreMessagesParams) error {
 	query := restoreMessages
 	var queryParams []interface{}
@@ -1144,7 +1197,7 @@ func (q *Queries) SaveMessagesBase(ctx context.Context, arg SaveMessagesBasePara
 }
 
 const searchArchivedMessages = `-- name: SearchArchivedMessages :many
-SELECT vm.id, COALESCE(vm.user_email, '') as user_email, COALESCE(vm.source, '') as source, COALESCE(vm.room, '') as room, COALESCE(vm.task, '') as task, COALESCE(vm.requester, '') as requester, COALESCE(vm.assignee, '') as assignee, vm.assigned_at, COALESCE(vm.link, '') as link, COALESCE(vm.source_ts, '') as source_ts, COALESCE(vm.original_text, '') as original_text, vm.done, vm.is_deleted, vm.created_at, vm.updated_at, vm.completed_at, COALESCE(vm.category, '') as category, COALESCE(vm.deadline, '') as deadline, COALESCE(vm.thread_id, '') as thread_id, COALESCE(vm.assignee_reason, '') as assignee_reason, COALESCE(vm.replied_to_id, '') as replied_to_id, vm.is_context_query, COALESCE(vm.constraints, '') as constraints, COALESCE(vm.metadata, '') as metadata, COALESCE(vm.source_channels, '') as source_channels, COALESCE(vm.consolidated_context, '') as consolidated_context, COALESCE(vm.subtasks, '[]') as subtasks, COALESCE(vm.requester_canonical, '') as requester_canonical, COALESCE(vm.assignee_canonical, '') as assignee_canonical, COALESCE(vm.requester_type, '') as requester_type, COALESCE(vm.assignee_type, '') as assignee_type
+SELECT vm.id, COALESCE(vm.user_email, '') as user_email, COALESCE(vm.source, '') as source, COALESCE(vm.room, '') as room, COALESCE(vm.task, '') as task, COALESCE(vm.requester, '') as requester, COALESCE(vm.assignee, '') as assignee, vm.assigned_at, COALESCE(vm.link, '') as link, COALESCE(vm.source_ts, '') as source_ts, COALESCE(vm.original_text, '') as original_text, vm.done, vm.is_deleted, vm.created_at, vm.updated_at, vm.completed_at, COALESCE(vm.category, '') as category, COALESCE(vm.deadline, '') as deadline, COALESCE(vm.thread_id, '') as thread_id, COALESCE(vm.assignee_reason, '') as assignee_reason, COALESCE(vm.replied_to_id, '') as replied_to_id, vm.is_context_query, COALESCE(vm.constraints, '') as constraints, COALESCE(vm.metadata, '') as metadata, COALESCE(vm.source_channels, '') as source_channels, COALESCE(vm.consolidated_context, '') as consolidated_context, COALESCE(vm.subtasks, '[]') as subtasks, COALESCE(vm.requester_canonical, '') as requester_canonical, COALESCE(vm.assignee_canonical, '') as assignee_canonical, COALESCE(vm.requester_type, '') as requester_type, COALESCE(vm.assignee_type, '') as assignee_type, vm.excluded_at
 FROM v_messages vm
 WHERE vm.id IN (
   SELECT m2.id FROM messages m2
@@ -1156,7 +1209,8 @@ WHERE vm.id IN (
       (?3 = '' OR ?3 = 'all') OR
       (?3 = 'done' AND m2.lifecycle IN ('done','swept')) OR
       (?3 = 'canceled' AND m2.lifecycle = 'canceled') OR
-      (?3 = 'merged' AND m2.lifecycle = 'merged')
+      (?3 = 'merged' AND m2.lifecycle = 'merged') OR
+      (?3 = 'excluded' AND m2.lifecycle = 'excluded')
     )
   ORDER BY CASE WHEN m2.is_deleted = 1 THEN m2.created_at ELSE m2.completed_at END DESC
   LIMIT ?4 OFFSET ?5
@@ -1204,6 +1258,7 @@ type SearchArchivedMessagesRow struct {
 	AssigneeCanonical   string       `json:"assignee_canonical"`
 	RequesterType       string       `json:"requester_type"`
 	AssigneeType        string       `json:"assignee_type"`
+	ExcludedAt          sql.NullTime `json:"excluded_at"`
 }
 
 func (q *Queries) SearchArchivedMessages(ctx context.Context, arg SearchArchivedMessagesParams) ([]SearchArchivedMessagesRow, error) {
@@ -1253,6 +1308,7 @@ func (q *Queries) SearchArchivedMessages(ctx context.Context, arg SearchArchived
 			&i.AssigneeCanonical,
 			&i.RequesterType,
 			&i.AssigneeType,
+			&i.ExcludedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1275,7 +1331,8 @@ AND (
     (?3 = '' OR ?3 = 'all') OR
     (?3 = 'done' AND lifecycle IN ('done','swept')) OR
     (?3 = 'canceled' AND lifecycle = 'canceled') OR
-    (?3 = 'merged' AND lifecycle = 'merged')
+    (?3 = 'merged' AND lifecycle = 'merged') OR
+    (?3 = 'excluded' AND lifecycle = 'excluded')
 )
 `
 
@@ -1387,6 +1444,7 @@ const selectDueSoonMessages = `-- name: SelectDueSoonMessages :many
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(task, '') as task, COALESCE(deadline, '') as deadline, COALESCE(metadata, '') as metadata, COALESCE(room, '') as room, COALESCE(source, '') as source
 FROM messages
 WHERE done = 0 AND is_deleted = 0
+  AND excluded_at IS NULL
   AND deadline IS NOT NULL AND deadline != ''
   AND deadline >= ?
   AND deadline <= ?
@@ -1439,12 +1497,128 @@ func (q *Queries) SelectDueSoonMessages(ctx context.Context, arg SelectDueSoonMe
 	return items, nil
 }
 
+const selectExcludedForDigest = `-- name: SelectExcludedForDigest :many
+SELECT id, COALESCE(user_email,'') as user_email, COALESCE(task,'') as task,
+       COALESCE(room,'') as room, COALESCE(source,'') as source, COALESCE(link,'') as link,
+       COALESCE(metadata,'{}') as metadata,
+       excluded_at
+FROM messages
+WHERE lifecycle = 'excluded'
+  AND IFNULL(task,'') != ''
+ORDER BY user_email, excluded_at
+`
+
+type SelectExcludedForDigestRow struct {
+	ID         int64        `json:"id"`
+	UserEmail  string       `json:"user_email"`
+	Task       string       `json:"task"`
+	Room       string       `json:"room"`
+	Source     string       `json:"source"`
+	Link       string       `json:"link"`
+	Metadata   string       `json:"metadata"`
+	ExcludedAt sql.NullTime `json:"excluded_at"`
+}
+
+// Why: Feeds the periodic "still parked" digest across all users.
+func (q *Queries) SelectExcludedForDigest(ctx context.Context) ([]SelectExcludedForDigestRow, error) {
+	rows, err := q.db.QueryContext(ctx, selectExcludedForDigest)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SelectExcludedForDigestRow
+	for rows.Next() {
+		var i SelectExcludedForDigestRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserEmail,
+			&i.Task,
+			&i.Room,
+			&i.Source,
+			&i.Link,
+			&i.Metadata,
+			&i.ExcludedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const selectExclusionCandidateScan = `-- name: SelectExclusionCandidateScan :many
+SELECT id, COALESCE(user_email,'') as user_email, COALESCE(task,'') as task,
+       COALESCE(metadata,'{}') as metadata,
+       created_at, updated_at,
+       CAST(julianday('now') - julianday(
+           CASE WHEN updated_at IS NULL OR updated_at = '' OR updated_at = '1970-01-01T00:00:00Z'
+                THEN created_at ELSE updated_at END
+       ) AS INTEGER) as days_stalled
+FROM messages
+WHERE category = 'TASK'
+  AND lifecycle = 'active'
+  AND IFNULL(task,'') != ''
+  AND CASE WHEN updated_at IS NULL OR updated_at = '' OR updated_at = '1970-01-01T00:00:00Z'
+           THEN created_at ELSE updated_at END <= ?
+ORDER BY user_email, days_stalled DESC
+`
+
+type SelectExclusionCandidateScanRow struct {
+	ID          int64        `json:"id"`
+	UserEmail   string       `json:"user_email"`
+	Task        string       `json:"task"`
+	Metadata    string       `json:"metadata"`
+	CreatedAt   sql.NullTime `json:"created_at"`
+	UpdatedAt   sql.NullTime `json:"updated_at"`
+	DaysStalled int64        `json:"days_stalled"`
+}
+
+// Why: Global scan feeding exclusion-candidate proposals. Mirrors the COALESCE cutoff
+// of SelectStalledRequests but crosses all users like SelectUndatedCommitments.
+func (q *Queries) SelectExclusionCandidateScan(ctx context.Context, updatedAt sql.NullTime) ([]SelectExclusionCandidateScanRow, error) {
+	rows, err := q.db.QueryContext(ctx, selectExclusionCandidateScan, updatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SelectExclusionCandidateScanRow
+	for rows.Next() {
+		var i SelectExclusionCandidateScanRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserEmail,
+			&i.Task,
+			&i.Metadata,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DaysStalled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectStalledRequests = `-- name: SelectStalledRequests :many
 SELECT id, COALESCE(user_email,'') as user_email, COALESCE(task,'') as task,
        COALESCE(requester,'') as requester, COALESCE(assignee,'') as assignee,
        COALESCE(requester_canonical,'') as requester_canonical,
        COALESCE(assignee_canonical,'') as assignee_canonical,
        COALESCE(room,'') as room, COALESCE(source,'') as source, COALESCE(link,'') as link,
+       COALESCE(metadata,'{}') as metadata,
        created_at, updated_at,
        CAST(julianday('now') - julianday(
            CASE WHEN updated_at IS NULL OR updated_at = '' OR updated_at = '1970-01-01T00:00:00Z'
@@ -1453,8 +1627,7 @@ SELECT id, COALESCE(user_email,'') as user_email, COALESCE(task,'') as task,
 FROM v_messages
 WHERE user_email = ?
   AND category = 'TASK'
-  AND done = 0
-  AND is_deleted = 0
+  AND lifecycle = 'active'
   AND IFNULL(task,'') != ''
   AND CASE WHEN updated_at IS NULL OR updated_at = '' OR updated_at = '1970-01-01T00:00:00Z'
            THEN created_at ELSE updated_at END <= ?
@@ -1477,6 +1650,7 @@ type SelectStalledRequestsRow struct {
 	Room               string       `json:"room"`
 	Source             string       `json:"source"`
 	Link               string       `json:"link"`
+	Metadata           string       `json:"metadata"`
 	CreatedAt          sql.NullTime `json:"created_at"`
 	UpdatedAt          sql.NullTime `json:"updated_at"`
 	DaysStalled        int64        `json:"days_stalled"`
@@ -1505,6 +1679,7 @@ func (q *Queries) SelectStalledRequests(ctx context.Context, arg SelectStalledRe
 			&i.Room,
 			&i.Source,
 			&i.Link,
+			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DaysStalled,

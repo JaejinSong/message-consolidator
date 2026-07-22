@@ -12,10 +12,13 @@ import (
 
 // MockAI simulates the AI response for testing
 type MockAI struct {
-	Results  []store.TodoItem
-	Sequence []ai.TaskTransition // popped per EvaluateTaskTransition call; falls back to Results if empty
-	Err      error
+	Results   []store.TodoItem
+	Sequence  []ai.TaskTransition // popped per EvaluateTaskTransition call; falls back to Results if empty
+	Err       error
 	CallCount int
+	// AnalyzeCallCount tracks Analyze invocations so tests can assert the
+	// fallback-extraction path never fires (confirm-first must not extract).
+	AnalyzeCallCount int
 }
 
 func (m *MockAI) AnalyzeWithContext(ctx context.Context, email string, msg types.EnrichedMessage, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error) {
@@ -47,6 +50,7 @@ func (m *MockAI) EvaluateTaskTransition(ctx context.Context, email, parentTask, 
 }
 
 func (m *MockAI) Analyze(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string) ([]store.TodoItem, error) {
+	m.AnalyzeCallCount++
 	return m.Results, m.Err
 }
 
@@ -784,9 +788,11 @@ func TestDefaultTaskStore_UpdateMessageCategory(t *testing.T) {
 type stubOpenTaskFinder struct {
 	candidates []OpenTaskCandidate
 	err        error
+	callCount  int
 }
 
 func (s *stubOpenTaskFinder) CandidateOpenTasks(ctx context.Context, email, queryText string, k int) ([]OpenTaskCandidate, error) {
+	s.callCount++
 	return s.candidates, s.err
 }
 
@@ -866,5 +872,134 @@ func TestCrossChannelNoSignalSkipsSemantic(t *testing.T) {
 	svc.ProcessPotentialCompletion(ctx, msg)
 	if _, ok := mockStore.Candidates[7]; ok {
 		t.Error("no completion signal: must not record a candidate")
+	}
+}
+
+// Why: ProcessCrossChannelSignal is the plain-chat-message entry point (no
+// ThreadID/RepliedToID) — it must record a confirm-first candidate on a semantic
+// match and must never fall back to AI extraction.
+func TestProcessCrossChannelSignal_RecordsCandidate(t *testing.T) {
+	ctx := context.Background()
+
+	openTask := store.ConsolidatedMessage{ID: 55, Task: "Deploy the billing service", ThreadID: "threadX"}
+	mockStore := &MockStore{}
+	mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "RESOLVE"}}}
+	svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+	svc.SetEmbedder(&stubOpenTaskFinder{candidates: []OpenTaskCandidate{{Task: openTask, Score: -0.1}}})
+
+	msg := store.ConsolidatedMessage{
+		UserEmail:    "jjsong@whatap.io",
+		Source:       "whatsapp",
+		OriginalText: "billing service 배포 완료했습니다",
+	}
+
+	handled, err := svc.ProcessCrossChannelSignal(ctx, msg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !handled {
+		t.Error("expected handled=true for cross-channel signal candidate")
+	}
+	if _, ok := mockStore.Candidates[55]; !ok {
+		t.Error("expected a completion candidate recorded on task 55")
+	}
+	if len(mockStore.CapturedIDs) != 0 {
+		t.Errorf("confirm-first: must NOT auto-resolve, got resolved IDs %v", mockStore.CapturedIDs)
+	}
+	if mockAI.AnalyzeCallCount != 0 {
+		t.Errorf("fallback extraction must never fire, Analyze called %d times", mockAI.AnalyzeCallCount)
+	}
+}
+
+// Why: the embedding call is the expensive step — without a completion signal it
+// must never run, regardless of how many candidates the stub would return.
+func TestProcessCrossChannelSignal_NoSignalSkipsEmbedder(t *testing.T) {
+	ctx := context.Background()
+
+	mockStore := &MockStore{}
+	mockAI := &MockAI{}
+	finder := &stubOpenTaskFinder{}
+	svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+	svc.SetEmbedder(finder)
+
+	msg := store.ConsolidatedMessage{UserEmail: "jjsong@whatap.io", Source: "whatsapp", OriginalText: "오늘 날씨 어때요?"}
+
+	handled, err := svc.ProcessCrossChannelSignal(ctx, msg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if handled {
+		t.Error("expected handled=false without a completion signal")
+	}
+	if finder.callCount != 0 {
+		t.Errorf("embedder must not be called without a completion signal, got %d calls", finder.callCount)
+	}
+}
+
+// Why: regression for the A2 reorder — previously a fromMe self-summary in a
+// thread that NEVER had a task returned early before the cross-thread candidate
+// check ran, silently dropping a legitimate cross-channel completion match.
+func TestProcessPotentialCompletion_FromMeSelfSummaryStillChecksCrossThread(t *testing.T) {
+	ctx := context.Background()
+
+	openTask := store.ConsolidatedMessage{ID: 77, Task: "Deploy the billing service", ThreadID: "threadX"}
+	mockStore := &MockStore{Tasks: []store.ConsolidatedMessage{}, HasAnyTask: false}
+	mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "RESOLVE"}}}
+	svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+	svc.SetEmbedder(&stubOpenTaskFinder{candidates: []OpenTaskCandidate{{Task: openTask, Score: -0.1}}})
+
+	msg := store.ConsolidatedMessage{
+		UserEmail:          "jjsong@whatap.io",
+		RequesterCanonical: "jjsong@whatap.io", // fromMe
+		ThreadID:           "threadY",
+		Source:             "slack",
+		OriginalText:       "billing service 배포 완료했습니다",
+	}
+
+	handled, err := svc.ProcessPotentialCompletion(ctx, msg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !handled {
+		t.Error("expected handled=true")
+	}
+	if _, ok := mockStore.Candidates[77]; !ok {
+		t.Error("expected cross-thread candidate recorded for fromMe self-summary — reorder regression")
+	}
+}
+
+// Why: recordCompletionCandidate must not resurrect a suggestion the user already
+// dismissed for the exact source link, but a different source link is unaffected.
+// Also asserts the E1 funnel counters increment at the corresponding gates.
+func TestRecordCompletionCandidate_SuppressesDismissedSource(t *testing.T) {
+	ctx := context.Background()
+	mockStore := &MockStore{}
+	svc := NewCompletionService(&MockAI{}, mockStore, &TasksService{}, nil)
+
+	dismissedMeta := []byte(`{"completion_dismissed_source":"https://slack.com/archives/C1/p123"}`)
+	task := store.ConsolidatedMessage{ID: 88, Metadata: dismissedMeta}
+	msg := store.ConsolidatedMessage{Link: "https://slack.com/archives/C1/p123", OriginalText: "done"}
+
+	beforeSuppressed := compStats.dismissSuppressed.Load()
+	if got := svc.recordCompletionCandidate(ctx, msg, task); got {
+		t.Error("expected recordCompletionCandidate to return false for a previously dismissed source")
+	}
+	if _, ok := mockStore.Candidates[88]; ok {
+		t.Error("must not record candidate for a dismissed source")
+	}
+	if compStats.dismissSuppressed.Load() != beforeSuppressed+1 {
+		t.Error("expected dismissSuppressed counter to increment")
+	}
+
+	beforeRecorded := compStats.candidateRecorded.Load()
+	msg2 := store.ConsolidatedMessage{Link: "https://slack.com/archives/C1/p999", OriginalText: "done"}
+	if got := svc.recordCompletionCandidate(ctx, msg2, task); !got {
+		t.Error("expected recordCompletionCandidate to succeed for a different source link")
+	}
+	if _, ok := mockStore.Candidates[88]; !ok {
+		t.Error("expected candidate recorded for a different source link")
+	}
+	if compStats.candidateRecorded.Load() != beforeRecorded+1 {
+		t.Error("expected candidateRecorded counter to increment")
 	}
 }

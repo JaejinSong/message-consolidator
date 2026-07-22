@@ -322,14 +322,23 @@ func dispatchThreadCompletionIfMine(ctx context.Context, sc *channels.SlackClien
 	if completionSvc == nil || m.ThreadTimestamp == "" {
 		return
 	}
-	if !strings.EqualFold(m.User, user.SlackID) && sc.GetUserName(ctx, m.User) != user.Name {
+	if strings.EqualFold(m.User, user.SlackID) || sc.GetUserName(ctx, m.User) == user.Name {
+		if _, err := completionSvc.ProcessPotentialCompletion(ctx, store.ConsolidatedMessage{
+			UserEmail: user.Email, Source: "slack", ThreadID: t.ThreadTS, OriginalText: m.Text, SourceTS: m.Timestamp,
+			RequesterCanonical: user.Email,
+		}); err != nil {
+			logger.Warnf("[SLACK] thread completion failed for %s: %v", user.Email, err)
+		}
 		return
 	}
-	if _, err := completionSvc.ProcessPotentialCompletion(ctx, store.ConsolidatedMessage{
-		UserEmail: user.Email, Source: "slack", ThreadID: t.ThreadTS, OriginalText: m.Text, SourceTS: m.Timestamp,
-		RequesterCanonical: user.Email,
-	}); err != nil {
-		logger.Warnf("[SLACK] thread completion failed for %s: %v", user.Email, err)
+	// Why: counterparty reply in a tracked thread — semanticCrossThreadCandidates
+	// already excludes same-thread tasks, so this only surfaces matches elsewhere.
+	if services.HasCompletionSignal(m.Text) {
+		if _, err := completionSvc.ProcessCrossChannelSignal(ctx, store.ConsolidatedMessage{
+			UserEmail: user.Email, Source: "slack", ThreadID: t.ThreadTS, OriginalText: m.Text, SourceTS: m.Timestamp,
+		}); err != nil {
+			logger.Warnf("[SLACK] thread cross-channel completion failed for %s: %v", user.Email, err)
+		}
 	}
 }
 

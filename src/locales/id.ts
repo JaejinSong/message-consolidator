@@ -54,6 +54,7 @@ export const id: I18nEntry = {
         archiveAll: "Semua",
         archiveDone: "Selesai",
         archiveCanceled: "Dibatalkan",
+        archiveExcluded: "Dikecualikan",
         archiveMerged: "Tugas yang Digabungkan",
         confirmDelete: "Apakah Anda yakin ingin menghapus tugas ini? Tugas akan dipindahkan ke arsip.",
         archiveSearchPlaceholder: "Cari arsip...",

@@ -48,6 +48,7 @@ type ConsolidatedMessage struct {
 	CreatedAt            time.Time       `json:"created_at"`
 	UpdatedAt            *time.Time      `json:"updated_at,omitempty"`
 	CompletedAt          *time.Time      `json:"completed_at"`
+	ExcludedAt           *time.Time      `json:"excluded_at,omitempty"` //Why: parked-out-of-tracking marker; nil means the task is not excluded.
 	Category             string          `json:"category"`
 	Deadline             string          `json:"deadline,omitempty"`
 	DeadlineDate         string          `json:"deadline_date,omitempty"`

@@ -63,6 +63,7 @@ export const en: I18nEntry = {
         archiveAll: "All",
         archiveDone: "Done",
         archiveCanceled: "Canceled",
+        archiveExcluded: "Excluded",
         archiveMerged: "Merged Tasks",
         confirmDelete: "Are you sure you want to delete this task? It will be moved to the archive.",
         archiveSearchPlaceholder: "Search archive...",

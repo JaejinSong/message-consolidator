@@ -14,6 +14,7 @@ var reminderSvc reminderDispatcher
 type reminderDispatcher interface {
 	DispatchDueSoon(ctx context.Context) error
 	DispatchUndated(ctx context.Context) error
+	DispatchStalledReconfirm(ctx context.Context) error
 }
 
 func runDeadlineReminder(ctx context.Context, _ *sync.WaitGroup) {
@@ -28,5 +29,17 @@ func runDeadlineReminder(ctx context.Context, _ *sync.WaitGroup) {
 	}
 	if err := reminderSvc.DispatchUndated(ctx); err != nil {
 		logger.Warnf("[REMINDER] DispatchUndated failed: %v", err)
+	}
+}
+
+func runStalledReconfirm(ctx context.Context, _ *sync.WaitGroup) {
+	if reminderSvc == nil {
+		return
+	}
+	if !cfg.ReminderEnabled {
+		return
+	}
+	if err := reminderSvc.DispatchStalledReconfirm(ctx); err != nil {
+		logger.Warnf("[REMINDER] DispatchStalledReconfirm failed: %v", err)
 	}
 }

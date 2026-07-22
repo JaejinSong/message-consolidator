@@ -201,15 +201,26 @@ func classifyAndCollect(ctx context.Context, c slack.Channel, sc *channels.Slack
 // Why: When the user replies in their own thread we evaluate state (RESOLVE/UPDATE) on a Background ctx so Gemini latency doesn't block the scan loop.
 // _ ctx is accepted for trace propagation parity with the rest of classifyAndCollect; the goroutine itself uses Background.
 func dispatchOutgoingCompletionIfMine(_ context.Context, sc *channels.SlackClient, u store.User, m types.RawMessage) {
-	if completionSvc == nil || m.ReplyToID == "" {
+	if completionSvc == nil {
 		return
 	}
-	if !isFromUser(&u, m) {
+	if m.ReplyToID != "" && isFromUser(&u, m) {
+		dispatchSlackThreadedCompletion(sc, u, m)
 		return
 	}
-	// Why: completion-fallback may INSERT a new task when the thread has no
-	// open parent. Propagate envelope (Requester/Room/Link/AssignedAt/SourceChannels)
-	// so the resulting row matches the normal scanner path instead of empty fields.
+	// Why: sibling path for plain (non-reply) messages carrying a completion signal —
+	// confirm-first cross-channel candidate matching, never auto-closes.
+	if services.HasCompletionSignal(m.Text) {
+		dispatchSlackCrossChannelCompletion(sc, u, m)
+	}
+}
+
+// dispatchSlackThreadedCompletion handles a fromMe quoted reply — same-thread
+// completion/update signal. Why: completion-fallback may INSERT a new task when
+// the thread has no open parent. Propagate envelope (Requester/Room/Link/
+// AssignedAt/SourceChannels) so the resulting row matches the normal scanner path
+// instead of empty fields.
+func dispatchSlackThreadedCompletion(sc *channels.SlackClient, u store.User, m types.RawMessage) {
 	room := sc.GetChannelName(m.ChannelID)
 	link := buildSlackLink(m)
 	go func(bgCtx context.Context, email string, raw types.RawMessage, room, link string) { //nolint:contextcheck // Goroutine outlives the parent scan ctx by design.
@@ -226,6 +237,35 @@ func dispatchOutgoingCompletionIfMine(_ context.Context, sc *channels.SlackClien
 			logger.Warnf("[SLACK] outgoing completion failed for %s: %v", email, err)
 		}
 	}(context.Background(), u.Email, m, room, link)
+}
+
+// dispatchSlackCrossChannelCompletion feeds a signal-bearing non-reply message
+// (from the user or a counterparty) to the confirm-first cross-channel pipeline.
+func dispatchSlackCrossChannelCompletion(sc *channels.SlackClient, u store.User, m types.RawMessage) {
+	room := sc.GetChannelName(m.ChannelID)
+	link := buildSlackLink(m)
+	fromMe := isFromUser(&u, m)
+	go func(bgCtx context.Context, email string, raw types.RawMessage, room, link string, fromMe bool) { //nolint:contextcheck // Goroutine outlives the parent scan ctx by design.
+		defer safego.Recover("slack-crosschannel-completion")
+		env := store.ConsolidatedMessage{
+			UserEmail: email, Source: "slack",
+			Room: room, Link: link,
+			Requester:      raw.Sender,
+			AssignedAt:     raw.Timestamp,
+			CreatedAt:      raw.Timestamp,
+			ThreadID:       raw.ReplyToID,
+			RepliedToID:    raw.ReplyToID,
+			OriginalText:   raw.Text,
+			SourceTS:       raw.ID,
+			SourceChannels: []string{"slack"},
+		}
+		if fromMe {
+			env.RequesterCanonical = email
+		}
+		if _, err := completionSvc.ProcessCrossChannelSignal(bgCtx, env); err != nil {
+			logger.Warnf("[SLACK] cross-channel completion failed for %s: %v", email, err)
+		}
+	}(context.Background(), u.Email, m, room, link, fromMe)
 }
 
 func updateChannelCursor(newTS map[string]map[string]string, email, channelID, msgID string) {

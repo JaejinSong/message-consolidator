@@ -155,6 +155,9 @@ func buildArchiveMessages(rows []db.RefreshCacheArchiveRow, resolver map[string]
 			r.AssignedAt, r.CompletedAt, r.UpdatedAt,
 			sql.NullTime{}, 0,
 		))
+		if r.ExcludedAt.Valid {
+			msgs[len(msgs)-1].ExcludedAt = &r.ExcludedAt.Time
+		}
 	}
 	return msgs
 }

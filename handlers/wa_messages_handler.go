@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,12 +11,20 @@ import (
 	"message-consolidator/store"
 )
 
+const (
+	waDefaultLimit = 100
+	waMaxLimit     = 500
+)
+
 // waQueryAuth returns a middleware that validates a static Bearer token.
 // Why: no OAuth needed — this is a private read-only endpoint for personal tooling.
 func waQueryAuth(token string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if token == "" || r.Header.Get("Authorization") != "Bearer "+token {
+			// Why: constant-time compare avoids leaking the secret via response timing;
+			// empty configured token always rejects.
+			expected := "Bearer " + token
+			if token == "" || subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte(expected)) != 1 {
 				respondError(w, http.StatusUnauthorized, "unauthorized")
 				return
 			}
@@ -122,7 +131,15 @@ func (a *API) HandleListWAMessages(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
 	limit, _ := strconv.ParseInt(q.Get("limit"), 10, 64)
+	if limit <= 0 {
+		limit = waDefaultLimit
+	} else if limit > waMaxLimit {
+		limit = waMaxLimit
+	}
 	offset, _ := strconv.ParseInt(q.Get("offset"), 10, 64)
+	if offset < 0 {
+		offset = 0
+	}
 
 	var fromTs, toTs int64
 	if d := q.Get("date"); d != "" {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
+	"strings"
 	"testing"
 	"time"
 )
@@ -295,6 +296,104 @@ func seedUndatedCommitment_withMeta(t *testing.T, email, task, category string, 
 	}
 	id, _ := res.LastInsertId()
 	return id
+}
+
+// seedStalledTask inserts an open TASK row whose created_at/updated_at are both
+// backdated by daysAgo, simulating a task with no activity since creation.
+func seedStalledTask(t *testing.T, email, task string, daysAgo int, metadata string) int64 {
+	t.Helper()
+	src := testutil.RandomTS("stalled")
+	ts := time.Now().UTC().AddDate(0, 0, -daysAgo).Format(time.RFC3339)
+	res, err := store.GetDB().Exec(
+		`INSERT INTO messages (user_email, task, category, source, room, source_ts, done, is_deleted, metadata, created_at, updated_at, assignee, requester)
+		 VALUES (?, ?, 'TASK', 'slack', 'general', ?, 0, 0, ?, ?, ?, 'bob', ?)`,
+		email, task, src, metadata, ts, ts, email,
+	)
+	if err != nil {
+		t.Fatalf("seedStalledTask: %v", err)
+	}
+	id, _ := res.LastInsertId()
+	return id
+}
+
+// TestDispatchStalledReconfirm_DigestBothThresholds verifies a D+14 and a D+30 task
+// are combined into a single digest DM (one per user), each marked at its own
+// crossed threshold, a D+12 task is excluded, and a second dispatch sends nothing.
+func TestDispatchStalledReconfirm_DigestBothThresholds(t *testing.T) {
+	cleanup := setupReminderTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	email := testutil.RandomEmail("stalled")
+	seedUserWithSlack(t, email, "USTALLED")
+
+	seedStalledTask(t, email, "D14 task", 14, "{}")
+	seedStalledTask(t, email, "D30 task", 30, "{}")
+	seedStalledTask(t, email, "D12 task", 12, "{}")
+
+	fs := &fakeSlack{}
+	svc := NewReminderService(fs, nil)
+
+	if err := svc.DispatchStalledReconfirm(ctx); err != nil {
+		t.Fatalf("DispatchStalledReconfirm: %v", err)
+	}
+	if len(fs.sent) != 1 {
+		t.Fatalf("expected 1 digest DM sent, got %d: %v", len(fs.sent), fs.sent)
+	}
+	digest := fs.sent[0]
+	if !strings.Contains(digest, "D14 task") || !strings.Contains(digest, "D30 task") {
+		t.Errorf("digest missing expected tasks: %s", digest)
+	}
+	if strings.Contains(digest, "D12 task") {
+		t.Errorf("digest should exclude D+12 task: %s", digest)
+	}
+
+	buckets, err := store.SelectStalled(ctx, email, 1)
+	if err != nil {
+		t.Fatalf("SelectStalled: %v", err)
+	}
+	for _, item := range buckets.Mine {
+		switch item.Task {
+		case "D14 task":
+			if !store.HasReminded(item.Metadata, "stalled_reconfirm_d13") {
+				t.Error("D14 task should be marked stalled_reconfirm_d13")
+			}
+		case "D30 task":
+			if !store.HasReminded(item.Metadata, "stalled_reconfirm_d29") {
+				t.Error("D30 task should be marked stalled_reconfirm_d29")
+			}
+		}
+	}
+
+	// Second dispatch: everything already reminded (or below threshold) — no new DM.
+	if err := svc.DispatchStalledReconfirm(ctx); err != nil {
+		t.Fatalf("DispatchStalledReconfirm (2nd): %v", err)
+	}
+	if len(fs.sent) != 1 {
+		t.Errorf("expected no additional DM on 2nd dispatch, got %d total: %v", len(fs.sent), fs.sent)
+	}
+}
+
+func TestDispatchStalledReconfirm_SkipNoSlackID(t *testing.T) {
+	cleanup := setupReminderTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	email := testutil.RandomEmail("stalledns")
+	if _, err := store.GetOrCreateUser(ctx, email, "No Slack User", ""); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	seedStalledTask(t, email, "D14 task", 14, "{}")
+
+	fs := &fakeSlack{}
+	svc := NewReminderService(fs, nil)
+
+	if err := svc.DispatchStalledReconfirm(ctx); err != nil {
+		t.Fatalf("DispatchStalledReconfirm: %v", err)
+	}
+	if len(fs.sent) != 0 {
+		t.Errorf("expected 0 DMs (no slack_id), got %d", len(fs.sent))
+	}
 }
 
 func TestDispatchUndated_SendDMErrorNoMark(t *testing.T) {

@@ -22,6 +22,7 @@ type StalledRequest struct {
 	Room               string
 	Source             string
 	Link               string
+	Metadata           string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	DaysStalled        int
@@ -63,6 +64,7 @@ func SelectStalled(ctx context.Context, userEmail string, thresholdDays int) (St
 			Room:               r.Room,
 			Source:             r.Source,
 			Link:               r.Link,
+			Metadata:           r.Metadata,
 			DaysStalled:        int(r.DaysStalled),
 		}
 		if r.CreatedAt.Valid {

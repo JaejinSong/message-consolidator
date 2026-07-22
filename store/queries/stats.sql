@@ -2,9 +2,9 @@
 SELECT COUNT(*) FROM messages WHERE user_email = CAST(?1 AS TEXT) AND done = 1;
 
 -- name: GetPendingMe :one
-SELECT COUNT(*) FROM v_messages 
-WHERE user_email = CAST(?1 AS TEXT) AND done = 0 AND is_deleted = 0 
-AND (assignee = CAST(?2 AS TEXT) OR assignee = 'me') 
+SELECT COUNT(*) FROM v_messages
+WHERE user_email = CAST(?1 AS TEXT) AND lifecycle = 'active'
+AND (assignee = CAST(?2 AS TEXT) OR assignee = 'me')
 AND IFNULL(task, '') != '';
 
 
@@ -23,8 +23,8 @@ WHERE user_email = ? AND done = 1 AND completed_at IS NOT NULL
 GROUP BY 1 ORDER BY 1;
 
 -- name: GetAbandonedTasks :one
-SELECT COUNT(*) FROM v_messages 
-WHERE user_email = ? AND done = 0 AND is_deleted = 0 
+SELECT COUNT(*) FROM v_messages
+WHERE user_email = ? AND lifecycle = 'active'
 AND created_at < ? AND (assignee != ? AND assignee != 'me')
 AND IFNULL(task, '') != '';
 
@@ -63,9 +63,9 @@ WHERE user_email = ? AND done = 1
 AND category = 'emergency';
 
 -- name: GetPendingOthers :one
-SELECT COUNT(*) FROM v_messages 
-WHERE user_email = ? AND done = 0 AND is_deleted = 0 
-AND (assignee != ? AND assignee != 'me') 
+SELECT COUNT(*) FROM v_messages
+WHERE user_email = ? AND lifecycle = 'active'
+AND (assignee != ? AND assignee != 'me')
 AND IFNULL(task, '') != '';
 
 -- name: GetTaskCountByContactType :many
@@ -83,7 +83,7 @@ SELECT COALESCE(SUM(filtered_count), 0) FROM token_usage WHERE user_email = ? AN
 -- name: ListPendingMe :many
 SELECT id, task, source, room, created_at, deadline, requester
 FROM v_messages
-WHERE user_email = CAST(?1 AS TEXT) AND done = 0 AND is_deleted = 0
+WHERE user_email = CAST(?1 AS TEXT) AND lifecycle = 'active'
   AND (assignee = CAST(?2 AS TEXT) OR assignee = 'me')
   AND IFNULL(task, '') != '' AND IFNULL(category, '') != 'merged'
 ORDER BY COALESCE(deadline, created_at) ASC
@@ -92,7 +92,7 @@ LIMIT CAST(?3 AS INTEGER);
 -- name: ListPendingOthers :many
 SELECT id, task, source, room, created_at, deadline, assignee
 FROM v_messages
-WHERE user_email = ? AND done = 0 AND is_deleted = 0
+WHERE user_email = ? AND lifecycle = 'active'
   AND (assignee != ? AND assignee != 'me')
   AND IFNULL(task, '') != '' AND IFNULL(category, '') != 'merged'
 ORDER BY COALESCE(deadline, created_at) ASC
