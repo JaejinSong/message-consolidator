@@ -61,7 +61,7 @@ func TestCollectThreadCandidates_AllFiltered(t *testing.T) {
 	}
 
 	replies := []slack.Message{
-		{Msg: slack.Msg{Timestamp: "1700000100.000000", User: "UOTHER", Text: "old"}}, // <= lastTS
+		{Msg: slack.Msg{Timestamp: "1700000100.000000", User: "UOTHER", Text: "old"}},   // <= lastTS
 		{Msg: slack.Msg{Timestamp: "1700000050.000000", User: "UOTHER", Text: "older"}}, // <= lastTS
 	}
 	res := threadScanResult{isResolved: false, newLastTS: "1700000200.000000"}

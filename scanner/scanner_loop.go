@@ -20,7 +20,7 @@ type primeLoop struct {
 	traceName string
 	runFn     func(ctx context.Context, wg *sync.WaitGroup)
 	running   atomic.Bool
-	pool []time.Duration // nil → primes.Seconds
+	pool      []time.Duration // nil → primes.Seconds
 }
 
 func (l *primeLoop) pickNext() time.Duration {

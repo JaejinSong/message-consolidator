@@ -181,7 +181,6 @@ func TestIsThreadTimedOut(t *testing.T) {
 
 //Why: [Throttling & Intake] Ensures that API rate limit protections and thread link construction logic are correctly implemented.
 
-
 func TestThreadIntakeLogicLink(t *testing.T) {
 	//Why: Verifies that thread_ts is correctly appended to Slack message links to ensure the user is directed to the specific response in context.
 	channelID := "C123"
