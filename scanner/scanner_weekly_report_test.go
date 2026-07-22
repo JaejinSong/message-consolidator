@@ -35,7 +35,7 @@ func (f *fakeWeeklyDispatcher) count() int {
 func setupWeeklyTest(t *testing.T, dispatcher weeklyReportDispatcher, nowFn func() time.Time) func() {
 	t.Helper()
 	origCfg := cfg
-	origSvc := weeklyReportSvc
+	origSvc := deps.weeklyReportSvc
 	origNowFn := weeklyReportNowFn
 	weeklyReportLastSentDate.Store("")
 
@@ -44,12 +44,12 @@ func setupWeeklyTest(t *testing.T, dispatcher weeklyReportDispatcher, nowFn func
 		WeeklyReportHour:     18,
 		WeeklyReportTimezone: "Asia/Seoul",
 	}
-	weeklyReportSvc = dispatcher
+	deps.weeklyReportSvc = dispatcher
 	weeklyReportNowFn = nowFn
 
 	return func() {
 		cfg = origCfg
-		weeklyReportSvc = origSvc
+		deps.weeklyReportSvc = origSvc
 		weeklyReportNowFn = origNowFn
 		weeklyReportLastSentDate.Store("")
 	}

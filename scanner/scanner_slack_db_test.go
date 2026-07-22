@@ -73,14 +73,14 @@ func TestSweepSlackThreads_EmptyThreads(t *testing.T) {
 	wg.Wait()
 }
 
-// TestProcessSlackCandidates_NonEmptyNilGClient exercises the loop when gClient==nil
+// TestProcessSlackCandidates_NonEmptyNilGClient exercises the loop when deps.gClient==nil
 // (analyzeAndSaveSlack returns early without panic).
 func TestProcessSlackCandidates_NonEmptyNilGClient(t *testing.T) {
 	initTestDB(t)
 	saveScannerGlobals(t)
-	gClient = nil
-	// Reinitialise roomLockSvc so analyzeAndSaveSlack doesn't panic on nil.
-	// analyzeAndSaveSlack checks gClient==nil before using roomLockSvc, so this is safe.
+	deps.gClient = nil
+	// Reinitialise deps.roomLockSvc so analyzeAndSaveSlack doesn't panic on nil.
+	// analyzeAndSaveSlack checks deps.gClient==nil before using deps.roomLockSvc, so this is safe.
 
 	ctx := context.Background()
 	email := "cand-test@example.com"

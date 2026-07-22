@@ -29,7 +29,7 @@ func (m *mockDigestDispatcher) Count() int {
 
 func setupDigestTest(mock *mockDigestDispatcher, enabled bool, hour int) {
 	digestLastSentDate = atomic.Value{}
-	digestSvc = mock
+	deps.digestSvc = mock
 	cfg = &config.Config{
 		DailyDigestEnabled:  enabled,
 		DailyDigestHour:     hour,

@@ -50,9 +50,9 @@ func TestUpdateThreadStatus_Update(t *testing.T) {
 // TestCollectThreadCandidates_AllFiltered verifies no candidates returned when all replies
 // are filtered by LastTS (≤ lastTS) without triggering sc.GetUserName.
 func TestCollectThreadCandidates_AllFiltered(t *testing.T) {
-	orig := completionSvc
-	t.Cleanup(func() { completionSvc = orig })
-	completionSvc = nil // dispatchThreadCompletionIfMine returns immediately
+	orig := deps.completionSvc
+	t.Cleanup(func() { deps.completionSvc = orig })
+	deps.completionSvc = nil // dispatchThreadCompletionIfMine returns immediately
 
 	sc := channels.NewSlackClient("fake-token")
 	user := &store.User{Email: "filter@example.com", Name: "Filter User", SlackID: "UFILTER"}
@@ -74,9 +74,9 @@ func TestCollectThreadCandidates_AllFiltered(t *testing.T) {
 
 // TestCollectThreadCandidates_BotFiltered verifies bot messages are skipped.
 func TestCollectThreadCandidates_BotFiltered(t *testing.T) {
-	orig := completionSvc
-	t.Cleanup(func() { completionSvc = orig })
-	completionSvc = nil
+	orig := deps.completionSvc
+	t.Cleanup(func() { deps.completionSvc = orig })
+	deps.completionSvc = nil
 
 	sc := channels.NewSlackClient("fake-token")
 	user := &store.User{Email: "botfilter@example.com", Name: "Bot Filter", SlackID: "UBOTFILTER"}

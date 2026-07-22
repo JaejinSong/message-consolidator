@@ -21,22 +21,22 @@ func (f *fakeErrDispatcher) Dispatch(_ context.Context) error {
 }
 
 func TestTriggerDigest_NilSvc_ReturnsError(t *testing.T) {
-	orig := digestSvc
-	t.Cleanup(func() { digestSvc = orig })
+	orig := deps.digestSvc
+	t.Cleanup(func() { deps.digestSvc = orig })
 
-	digestSvc = nil
+	deps.digestSvc = nil
 
 	if err := TriggerDigest(context.Background()); err == nil {
-		t.Error("expected error when digestSvc is nil, got nil")
+		t.Error("expected error when deps.digestSvc is nil, got nil")
 	}
 }
 
 func TestTriggerDigest_HappyPath_CallsDispatch(t *testing.T) {
-	orig := digestSvc
-	t.Cleanup(func() { digestSvc = orig })
+	orig := deps.digestSvc
+	t.Cleanup(func() { deps.digestSvc = orig })
 
 	fake := &fakeErrDispatcher{}
-	digestSvc = fake
+	deps.digestSvc = fake
 
 	if err := TriggerDigest(context.Background()); err != nil {
 		t.Errorf("TriggerDigest() unexpected error: %v", err)
@@ -47,12 +47,12 @@ func TestTriggerDigest_HappyPath_CallsDispatch(t *testing.T) {
 }
 
 func TestTriggerDigest_DispatchError_Propagates(t *testing.T) {
-	orig := digestSvc
-	t.Cleanup(func() { digestSvc = orig })
+	orig := deps.digestSvc
+	t.Cleanup(func() { deps.digestSvc = orig })
 
 	want := errors.New("dispatch failed")
 	fake := &fakeErrDispatcher{err: want}
-	digestSvc = fake
+	deps.digestSvc = fake
 
 	if err := TriggerDigest(context.Background()); !errors.Is(err, want) {
 		t.Errorf("TriggerDigest() error = %v, want %v", err, want)
@@ -63,14 +63,14 @@ func TestTriggerDigest_DispatchError_Propagates(t *testing.T) {
 }
 
 func TestRunDailyDigest_NilSvc_NilCfg_NoDispatch(t *testing.T) {
-	origSvc := digestSvc
+	origSvc := deps.digestSvc
 	origCfg := cfg
 	t.Cleanup(func() {
-		digestSvc = origSvc
+		deps.digestSvc = origSvc
 		cfg = origCfg
 	})
 
-	digestSvc = nil
+	deps.digestSvc = nil
 	cfg = nil
 
 	// Should not panic.
@@ -98,14 +98,14 @@ func TestRunDailyDigest_Sunday_NoDispatch(t *testing.T) {
 func TestRunDailyDigest_InvalidTimezone_NoDispatch(t *testing.T) {
 	mock := &mockDigestDispatcher{}
 	digestLastSentDate = atomic.Value{}
-	origSvc := digestSvc
+	origSvc := deps.digestSvc
 	origCfg := cfg
 	t.Cleanup(func() {
-		digestSvc = origSvc
+		deps.digestSvc = origSvc
 		cfg = origCfg
 	})
 
-	digestSvc = mock
+	deps.digestSvc = mock
 	cfg = &config.Config{
 		DailyDigestEnabled:  true,
 		DailyDigestHour:     18,
@@ -125,7 +125,7 @@ func TestRunDailyDigest_RetryInWindow_Dispatches(t *testing.T) {
 
 	fake := &fakeErrDispatcher{err: errors.New("transient")}
 	setupDigestTest(&mockDigestDispatcher{}, true, 18)
-	digestSvc = fake
+	deps.digestSvc = fake
 
 	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 18, 5, 0) }
 	runDailyDigest(context.Background(), nil)
@@ -135,7 +135,7 @@ func TestRunDailyDigest_RetryInWindow_Dispatches(t *testing.T) {
 
 	// Simulate next tick one hour later (19:xx) — still within retry window, date not stored.
 	successMock := &mockDigestDispatcher{}
-	digestSvc = successMock
+	deps.digestSvc = successMock
 	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 19, 7, 0) }
 	runDailyDigest(context.Background(), nil)
 	if successMock.Count() != 1 {
@@ -149,13 +149,13 @@ func TestRunDailyDigest_OutsideRetryWindow_NoDispatch(t *testing.T) {
 
 	fake := &fakeErrDispatcher{err: errors.New("transient")}
 	setupDigestTest(&mockDigestDispatcher{}, true, 18)
-	digestSvc = fake
+	deps.digestSvc = fake
 
 	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 18, 5, 0) }
 	runDailyDigest(context.Background(), nil)
 
 	noopMock := &mockDigestDispatcher{}
-	digestSvc = noopMock
+	deps.digestSvc = noopMock
 	// 20:xx is outside the [18, 20) window.
 	digestNowFn = func() time.Time { return kstTime(2026, 4, 28, 20, 3, 0) }
 	runDailyDigest(context.Background(), nil)
@@ -186,17 +186,17 @@ func TestRunDailyDigest_AfterSuccessInWindow_NoRetry(t *testing.T) {
 }
 
 func TestRunDailyDigest_DispatchError_NoStoreDateUpdate(t *testing.T) {
-	origSvc := digestSvc
+	origSvc := deps.digestSvc
 	origCfg := cfg
 	t.Cleanup(func() {
-		digestSvc = origSvc
+		deps.digestSvc = origSvc
 		cfg = origCfg
 		digestNowFn = func() time.Time { return time.Now() }
 	})
 
 	digestLastSentDate = atomic.Value{}
 	fake := &fakeErrDispatcher{err: errors.New("dispatch failed")}
-	digestSvc = fake
+	deps.digestSvc = fake
 	cfg = &config.Config{
 		DailyDigestEnabled:  true,
 		DailyDigestHour:     18,

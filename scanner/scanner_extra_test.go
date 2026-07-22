@@ -19,10 +19,10 @@ func TestWireDailyDigest_EmptyRecipients(t *testing.T) {
 		DailyDigestEnabled:         true,
 		DailyDigestRecipientEmails: []string{},
 	}
-	slackClient = channels.NewSlackClient("fake-token")
-	digestSvc = nil
+	deps.slackClient = channels.NewSlackClient("fake-token")
+	deps.digestSvc = nil
 
-	// reportsSvc is non-nil; slackClient is non-nil; but recipients empty → warn + return.
+	// reportsSvc is non-nil; deps.slackClient is non-nil; but recipients empty → warn + return.
 	// We pass a non-nil reportsSvc pointer to bypass the nil guard.
 	// services.ReportsService{} is unexported; pass nil will hit the guard — use a non-nil workaround.
 	// Why: We cannot instantiate *services.ReportsService with an empty struct here because
@@ -31,45 +31,45 @@ func TestWireDailyDigest_EmptyRecipients(t *testing.T) {
 	// (even zero-value) pointer — not possible without exporting a constructor.
 	// Coverage of the empty-recipients branch is achieved by the test below instead.
 	WireDailyDigest(nil) // hits: cfg==nil || !Enabled || reportsSvc==nil guard
-	if digestSvc != nil {
-		t.Error("digestSvc must remain nil when reportsSvc=nil")
+	if deps.digestSvc != nil {
+		t.Error("deps.digestSvc must remain nil when reportsSvc=nil")
 	}
 }
 
 // TestWireWeeklyReport_EmptyRecipients covers the empty-recipients warning branch.
-// Why: We set slackClient to non-nil and pass nil reportsSvc to verify the early return guard.
+// Why: We set deps.slackClient to non-nil and pass nil reportsSvc to verify the early return guard.
 func TestWireWeeklyReport_AlreadyNilCoveredPaths(t *testing.T) {
 	saveScannerGlobals(t)
 
 	// cfg nil → immediate return
 	cfg = nil
 	WireWeeklyReport(nil)
-	if weeklyReportSvc != nil {
-		t.Error("weeklyReportSvc must be nil when cfg=nil")
+	if deps.weeklyReportSvc != nil {
+		t.Error("deps.weeklyReportSvc must be nil when cfg=nil")
 	}
 
 	// cfg set but disabled → immediate return
 	cfg = &config.Config{WeeklyReportEnabled: false}
 	WireWeeklyReport(nil)
-	if weeklyReportSvc != nil {
-		t.Error("weeklyReportSvc must be nil when WeeklyReportEnabled=false")
+	if deps.weeklyReportSvc != nil {
+		t.Error("deps.weeklyReportSvc must be nil when WeeklyReportEnabled=false")
 	}
 }
 
 // TestRunWeeklyReport_InvalidTimezone covers the TZ load-fail warning branch (line 28).
 func TestRunWeeklyReport_InvalidTimezone(t *testing.T) {
-	origSvc := weeklyReportSvc
+	origSvc := deps.weeklyReportSvc
 	origCfg := cfg
 	origNow := weeklyReportNowFn
 	t.Cleanup(func() {
-		weeklyReportSvc = origSvc
+		deps.weeklyReportSvc = origSvc
 		cfg = origCfg
 		weeklyReportNowFn = origNow
 		weeklyReportLastSentDate.Store("")
 	})
 
 	weeklyReportLastSentDate.Store("")
-	weeklyReportSvc = &fakeWeeklyDispatcher{}
+	deps.weeklyReportSvc = &fakeWeeklyDispatcher{}
 	cfg = &config.Config{
 		WeeklyReportEnabled:  true,
 		WeeklyReportHour:     18,
@@ -81,18 +81,18 @@ func TestRunWeeklyReport_InvalidTimezone(t *testing.T) {
 
 	runWeeklyReport(context.Background(), nil)
 
-	if weeklyReportSvc.(*fakeWeeklyDispatcher).count() != 0 {
+	if deps.weeklyReportSvc.(*fakeWeeklyDispatcher).count() != 0 {
 		t.Error("expected 0 dispatches on invalid timezone")
 	}
 }
 
 // TestRunWeeklyReport_DispatchError_NoDateStore covers the dispatch-error branch.
 func TestRunWeeklyReport_DispatchError_NoDateStore(t *testing.T) {
-	origSvc := weeklyReportSvc
+	origSvc := deps.weeklyReportSvc
 	origCfg := cfg
 	origNow := weeklyReportNowFn
 	t.Cleanup(func() {
-		weeklyReportSvc = origSvc
+		deps.weeklyReportSvc = origSvc
 		cfg = origCfg
 		weeklyReportNowFn = origNow
 		weeklyReportLastSentDate.Store("")
@@ -100,7 +100,7 @@ func TestRunWeeklyReport_DispatchError_NoDateStore(t *testing.T) {
 
 	weeklyReportLastSentDate.Store("")
 	errSvc := &fakeWeeklyErrDispatcher{err: errors.New("dispatch fail")}
-	weeklyReportSvc = errSvc
+	deps.weeklyReportSvc = errSvc
 	cfg = &config.Config{
 		WeeklyReportEnabled:  true,
 		WeeklyReportHour:     18,
@@ -168,12 +168,12 @@ func TestRunTelegramForAllUsers_WithDB(t *testing.T) {
 	wg.Wait()
 }
 
-// TestScanAllSources_NilGClient_NoPanic exercises scanAllSources when gClient is nil.
+// TestScanAllSources_NilGClient_NoPanic exercises scanAllSources when deps.gClient is nil.
 // Why: scanChannel calls adapter.PopMessages which returns empty — no actual scan occurs.
 func TestScanAllSources_NilGClient_NoPanic(t *testing.T) {
 	initGuardsDB(t)
 	saveScannerGlobals(t)
-	gClient = nil
+	deps.gClient = nil
 
 	user := store.User{Email: "scan-all@example.com", Name: "SA"}
 	wg := &sync.WaitGroup{}

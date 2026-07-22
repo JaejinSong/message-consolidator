@@ -65,16 +65,16 @@ func scanChannel(ctx context.Context, user store.User, aliases []string, languag
 }
 
 func processChannelRoom(ctx context.Context, user store.User, aliases []string, roomKey string, msgs []types.RawMessage, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []store.MessageID {
-	lockKey := roomLockSvc.GetRoomKey(user.Email, adapter.Source(), roomKey)
-	lock := roomLockSvc.AcquireLock(lockKey)
+	lockKey := deps.roomLockSvc.GetRoomKey(user.Email, adapter.Source(), roomKey)
+	lock := deps.roomLockSvc.AcquireLock(lockKey)
 	lock.Lock()
 	defer lock.Unlock()
 
 	groupName := adapter.GetGroupName(user.Email, roomKey)
 	msgGroups := core.GroupMessagesByTime(msgs, cfg.MessageBatchWindow)
 
-	if gClient == nil {
-		logger.Errorf("[SCAN] %s: gClient not initialized; scanner.Init may have failed", adapter.LogPrefix())
+	if deps.gClient == nil {
+		logger.Errorf("[SCAN] %s: deps.gClient not initialized; scanner.Init may have failed", adapter.LogPrefix())
 		return nil
 	}
 
@@ -82,7 +82,7 @@ func processChannelRoom(ctx context.Context, user store.User, aliases []string, 
 
 	var allIDs []store.MessageID
 	for _, group := range msgGroups {
-		ids := processChannelGroup(ctx, user, aliases, roomKey, groupName, group, gClient, language, wg, adapter)
+		ids := processChannelGroup(ctx, user, aliases, roomKey, groupName, group, deps.gClient, language, wg, adapter)
 		if len(ids) > 0 {
 			allIDs = append(allIDs, ids...)
 		}
@@ -121,7 +121,7 @@ func completionDispatchKind(m types.RawMessage, user store.User, adapter Channel
 // Why: WithoutCancel preserves the WhaTap trace context (carried as a value) while
 // detaching cancellation so the goroutines outlive the parent scan timeout.
 func triggerOutgoingCompletions(ctx context.Context, msgs []types.RawMessage, user store.User, adapter ChannelAdapter, groupName string) {
-	if completionSvc == nil {
+	if deps.completionSvc == nil {
 		return
 	}
 	asyncCtx := context.WithoutCancel(ctx)
@@ -142,7 +142,7 @@ func triggerOutgoingCompletions(ctx context.Context, msgs []types.RawMessage, us
 func dispatchThreadedCompletion(asyncCtx context.Context, m types.RawMessage, email, source, groupName string) {
 	go func(em, src, room string, r types.RawMessage) {
 		defer safego.Recover("outgoing-completion-" + src)
-		if _, err := completionSvc.ProcessPotentialCompletion(asyncCtx, store.ConsolidatedMessage{
+		if _, err := deps.completionSvc.ProcessPotentialCompletion(asyncCtx, store.ConsolidatedMessage{
 			UserEmail: em, Source: src, Room: room, ThreadID: r.ReplyToID,
 			OriginalText: r.Text, SourceTS: r.ID, CreatedAt: r.Timestamp,
 			RequesterCanonical: em,
@@ -166,7 +166,7 @@ func dispatchCrossChannelCompletions(asyncCtx context.Context, msgs []types.RawM
 			if adapter.IsFromMe(r, user) {
 				env.RequesterCanonical = em
 			}
-			if _, err := completionSvc.ProcessCrossChannelSignal(asyncCtx, env); err != nil {
+			if _, err := deps.completionSvc.ProcessCrossChannelSignal(asyncCtx, env); err != nil {
 				logger.Warnf("[SCAN] %s: cross-channel completion failed for %s: %v", src, room, err)
 			}
 		}
@@ -212,15 +212,15 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 		}
 	}
 
-	items := tasksSvc.ResolveProposals(ctx, user.Email, groupName, candidates, tasks)
+	items := deps.tasksSvc.ResolveProposals(ctx, user.Email, groupName, candidates, tasks)
 	return processChannelItems(ctx, user, aliases, items, msgMap, groupName, adapter.Is1To1(roomKey), wg, adapter)
 }
 
 func isIgnorableChannelNoise(ctx context.Context, email, source, payload, prefix string) bool {
-	if filterSvc == nil {
+	if deps.filterSvc == nil {
 		return false
 	}
-	isNoise, err := filterSvc.IsNoise(ctx, email, source, payload)
+	isNoise, err := deps.filterSvc.IsNoise(ctx, email, source, payload)
 	if err != nil {
 		logger.Warnf("[SCAN] %s: filter failed for %s: %v", prefix, email, err)
 		return false

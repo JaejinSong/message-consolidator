@@ -32,11 +32,11 @@ func (f *fakeReminderDispatcher) DispatchStalledReconfirm(_ context.Context) err
 }
 
 func TestRunDeadlineReminder_NilSvc(t *testing.T) {
-	origSvc := reminderSvc
+	origSvc := deps.reminderSvc
 	origCfg := cfg
-	t.Cleanup(func() { reminderSvc = origSvc; cfg = origCfg })
+	t.Cleanup(func() { deps.reminderSvc = origSvc; cfg = origCfg })
 
-	reminderSvc = nil
+	deps.reminderSvc = nil
 	// Why: cfg is not set to avoid nil deref — the nil-svc guard returns before cfg is accessed.
 	cfg = nil
 
@@ -44,12 +44,12 @@ func TestRunDeadlineReminder_NilSvc(t *testing.T) {
 }
 
 func TestRunDeadlineReminder_Disabled(t *testing.T) {
-	origSvc := reminderSvc
+	origSvc := deps.reminderSvc
 	origCfg := cfg
-	t.Cleanup(func() { reminderSvc = origSvc; cfg = origCfg })
+	t.Cleanup(func() { deps.reminderSvc = origSvc; cfg = origCfg })
 
 	fake := &fakeReminderDispatcher{}
-	reminderSvc = fake
+	deps.reminderSvc = fake
 	cfg = &config.Config{ReminderEnabled: false}
 
 	runDeadlineReminder(context.Background(), &sync.WaitGroup{})
@@ -60,12 +60,12 @@ func TestRunDeadlineReminder_Disabled(t *testing.T) {
 }
 
 func TestRunDeadlineReminder_Dispatched(t *testing.T) {
-	origSvc := reminderSvc
+	origSvc := deps.reminderSvc
 	origCfg := cfg
-	t.Cleanup(func() { reminderSvc = origSvc; cfg = origCfg })
+	t.Cleanup(func() { deps.reminderSvc = origSvc; cfg = origCfg })
 
 	fake := &fakeReminderDispatcher{}
-	reminderSvc = fake
+	deps.reminderSvc = fake
 	cfg = &config.Config{ReminderEnabled: true}
 
 	runDeadlineReminder(context.Background(), &sync.WaitGroup{})
@@ -76,12 +76,12 @@ func TestRunDeadlineReminder_Dispatched(t *testing.T) {
 }
 
 func TestRunDeadlineReminder_DispatchError(t *testing.T) {
-	origSvc := reminderSvc
+	origSvc := deps.reminderSvc
 	origCfg := cfg
-	t.Cleanup(func() { reminderSvc = origSvc; cfg = origCfg })
+	t.Cleanup(func() { deps.reminderSvc = origSvc; cfg = origCfg })
 
 	fake := &fakeReminderDispatcher{err: errors.New("boom")}
-	reminderSvc = fake
+	deps.reminderSvc = fake
 	cfg = &config.Config{ReminderEnabled: true}
 
 	runDeadlineReminder(context.Background(), &sync.WaitGroup{})
@@ -92,11 +92,11 @@ func TestRunDeadlineReminder_DispatchError(t *testing.T) {
 }
 
 func TestRunStalledReconfirm_NilSvc(t *testing.T) {
-	origSvc := reminderSvc
+	origSvc := deps.reminderSvc
 	origCfg := cfg
-	t.Cleanup(func() { reminderSvc = origSvc; cfg = origCfg })
+	t.Cleanup(func() { deps.reminderSvc = origSvc; cfg = origCfg })
 
-	reminderSvc = nil
+	deps.reminderSvc = nil
 	// Why: cfg is not set to avoid nil deref — the nil-svc guard returns before cfg is accessed.
 	cfg = nil
 
@@ -104,12 +104,12 @@ func TestRunStalledReconfirm_NilSvc(t *testing.T) {
 }
 
 func TestRunStalledReconfirm_Disabled(t *testing.T) {
-	origSvc := reminderSvc
+	origSvc := deps.reminderSvc
 	origCfg := cfg
-	t.Cleanup(func() { reminderSvc = origSvc; cfg = origCfg })
+	t.Cleanup(func() { deps.reminderSvc = origSvc; cfg = origCfg })
 
 	fake := &fakeReminderDispatcher{}
-	reminderSvc = fake
+	deps.reminderSvc = fake
 	cfg = &config.Config{ReminderEnabled: false}
 
 	runStalledReconfirm(context.Background(), &sync.WaitGroup{})
@@ -120,12 +120,12 @@ func TestRunStalledReconfirm_Disabled(t *testing.T) {
 }
 
 func TestRunStalledReconfirm_Dispatched(t *testing.T) {
-	origSvc := reminderSvc
+	origSvc := deps.reminderSvc
 	origCfg := cfg
-	t.Cleanup(func() { reminderSvc = origSvc; cfg = origCfg })
+	t.Cleanup(func() { deps.reminderSvc = origSvc; cfg = origCfg })
 
 	fake := &fakeReminderDispatcher{}
-	reminderSvc = fake
+	deps.reminderSvc = fake
 	cfg = &config.Config{ReminderEnabled: true}
 
 	runStalledReconfirm(context.Background(), &sync.WaitGroup{})
@@ -136,12 +136,12 @@ func TestRunStalledReconfirm_Dispatched(t *testing.T) {
 }
 
 func TestRunStalledReconfirm_DispatchError(t *testing.T) {
-	origSvc := reminderSvc
+	origSvc := deps.reminderSvc
 	origCfg := cfg
-	t.Cleanup(func() { reminderSvc = origSvc; cfg = origCfg })
+	t.Cleanup(func() { deps.reminderSvc = origSvc; cfg = origCfg })
 
 	fake := &fakeReminderDispatcher{err: errors.New("boom")}
-	reminderSvc = fake
+	deps.reminderSvc = fake
 	cfg = &config.Config{ReminderEnabled: true}
 
 	runStalledReconfirm(context.Background(), &sync.WaitGroup{})

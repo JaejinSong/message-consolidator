@@ -30,14 +30,14 @@ func TestWireDailyDigest_EmptyRecipients_Branch(t *testing.T) {
 		DailyDigestEnabled:         true,
 		DailyDigestRecipientEmails: []string{},
 	}
-	slackClient = channels.NewSlackClient("fake-token")
-	digestSvc = nil
+	deps.slackClient = channels.NewSlackClient("fake-token")
+	deps.digestSvc = nil
 
 	WireDailyDigest(newTestReportsService())
 
-	// Empty recipients → warn + return before setting digestSvc.
-	if digestSvc != nil {
-		t.Error("digestSvc must remain nil when recipients empty")
+	// Empty recipients → warn + return before setting deps.digestSvc.
+	if deps.digestSvc != nil {
+		t.Error("deps.digestSvc must remain nil when recipients empty")
 	}
 }
 
@@ -53,14 +53,14 @@ func TestWireDailyDigest_RecipientSet_NotionDisabled(t *testing.T) {
 		DailyDigestLanguage:        "en",
 		// NotionToken and NotionReportPageID intentionally empty
 	}
-	slackClient = channels.NewSlackClient("fake-token")
-	digestSvc = nil
+	deps.slackClient = channels.NewSlackClient("fake-token")
+	deps.digestSvc = nil
 
 	WireDailyDigest(newTestReportsService())
 
 	// Even with empty notion token, DailyDigest wires successfully.
-	if digestSvc == nil {
-		t.Error("digestSvc must be set when config is valid")
+	if deps.digestSvc == nil {
+		t.Error("deps.digestSvc must be set when config is valid")
 	}
 }
 
@@ -71,13 +71,13 @@ func TestWireWeeklyReport_EmptyRecipients_Branch(t *testing.T) {
 		WeeklyReportEnabled:         true,
 		WeeklyReportRecipientEmails: []string{},
 	}
-	slackClient = channels.NewSlackClient("fake-token")
-	weeklyReportSvc = nil
+	deps.slackClient = channels.NewSlackClient("fake-token")
+	deps.weeklyReportSvc = nil
 
 	WireWeeklyReport(newTestReportsService())
 
-	if weeklyReportSvc != nil {
-		t.Error("weeklyReportSvc must remain nil when recipients empty")
+	if deps.weeklyReportSvc != nil {
+		t.Error("deps.weeklyReportSvc must remain nil when recipients empty")
 	}
 }
 
@@ -89,27 +89,27 @@ func TestWireWeeklyReport_NotionDisabled(t *testing.T) {
 		WeeklyReportRecipientEmails: []string{"weekly@example.com"},
 		// NotionToken + NotionReportPageID empty → Enabled() == false
 	}
-	slackClient = channels.NewSlackClient("fake-token")
-	weeklyReportSvc = nil
+	deps.slackClient = channels.NewSlackClient("fake-token")
+	deps.weeklyReportSvc = nil
 
 	WireWeeklyReport(newTestReportsService())
 
-	if weeklyReportSvc != nil {
-		t.Error("weeklyReportSvc must remain nil when notion is not configured")
+	if deps.weeklyReportSvc != nil {
+		t.Error("deps.weeklyReportSvc must remain nil when notion is not configured")
 	}
 }
 
 // TestTriggerOutgoingCompletions_WithNonMatchingMsgs exercises the inner loop
-// when completionSvc is non-nil but messages don't match (not from me or no ReplyToID).
+// when deps.completionSvc is non-nil but messages don't match (not from me or no ReplyToID).
 func TestTriggerOutgoingCompletions_WithNonMatchingMsgs(t *testing.T) {
-	orig := completionSvc
-	t.Cleanup(func() { completionSvc = orig })
+	orig := deps.completionSvc
+	t.Cleanup(func() { deps.completionSvc = orig })
 
-	// Set a non-nil completionSvc so the nil guard doesn't fire.
+	// Set a non-nil deps.completionSvc so the nil guard doesn't fire.
 	// We use the existing fakeErrDispatcher type just to satisfy a non-nil pointer requirement.
-	// completionSvc is *services.CompletionService — we cannot mock it without an interface.
-	// Instead, keep completionSvc nil and add a test that exercises the inner continue branches.
-	completionSvc = nil // ensures no goroutine is launched
+	// deps.completionSvc is *services.CompletionService — we cannot mock it without an interface.
+	// Instead, keep deps.completionSvc nil and add a test that exercises the inner continue branches.
+	deps.completionSvc = nil // ensures no goroutine is launched
 
 	user := store.User{Email: "u@x", Name: "Me"}
 

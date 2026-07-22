@@ -12,24 +12,24 @@ import (
 func saveScannerGlobals(t *testing.T) {
 	t.Helper()
 	origCfg := cfg
-	origGClient := gClient
-	origCompletion := completionSvc
-	origTasks := tasksSvc
-	origFilter := filterSvc
-	origLock := roomLockSvc
-	origSlack := slackClient
-	origDigest := digestSvc
-	origWeekly := weeklyReportSvc
+	origGClient := deps.gClient
+	origCompletion := deps.completionSvc
+	origTasks := deps.tasksSvc
+	origFilter := deps.filterSvc
+	origLock := deps.roomLockSvc
+	origSlack := deps.slackClient
+	origDigest := deps.digestSvc
+	origWeekly := deps.weeklyReportSvc
 	t.Cleanup(func() {
 		cfg = origCfg
-		gClient = origGClient
-		completionSvc = origCompletion
-		tasksSvc = origTasks
-		filterSvc = origFilter
-		roomLockSvc = origLock
-		slackClient = origSlack
-		digestSvc = origDigest
-		weeklyReportSvc = origWeekly
+		deps.gClient = origGClient
+		deps.completionSvc = origCompletion
+		deps.tasksSvc = origTasks
+		deps.filterSvc = origFilter
+		deps.roomLockSvc = origLock
+		deps.slackClient = origSlack
+		deps.digestSvc = origDigest
+		deps.weeklyReportSvc = origWeekly
 	})
 }
 
@@ -45,7 +45,7 @@ func initGuardsDB(t *testing.T) {
 
 func TestInit_EmptyCfg(t *testing.T) {
 	saveScannerGlobals(t)
-	cfg, gClient, completionSvc, tasksSvc, filterSvc, roomLockSvc, slackClient = nil, nil, nil, nil, nil, nil, nil
+	cfg, deps.gClient, deps.completionSvc, deps.tasksSvc, deps.filterSvc, deps.roomLockSvc, deps.slackClient = nil, nil, nil, nil, nil, nil, nil
 
 	Init(&config.Config{})
 
@@ -55,23 +55,23 @@ func TestInit_EmptyCfg(t *testing.T) {
 	if cfg.GeminiAPIKey != "" {
 		t.Errorf("GeminiAPIKey = %q, want empty", cfg.GeminiAPIKey)
 	}
-	if roomLockSvc == nil {
-		t.Error("roomLockSvc must be created unconditionally")
+	if deps.roomLockSvc == nil {
+		t.Error("deps.roomLockSvc must be created unconditionally")
 	}
-	if gClient != nil {
-		t.Error("gClient must remain nil when GeminiAPIKey is empty")
+	if deps.gClient != nil {
+		t.Error("deps.gClient must remain nil when GeminiAPIKey is empty")
 	}
-	if completionSvc != nil {
-		t.Error("completionSvc must remain nil when GeminiAPIKey is empty")
+	if deps.completionSvc != nil {
+		t.Error("deps.completionSvc must remain nil when GeminiAPIKey is empty")
 	}
-	if tasksSvc != nil {
-		t.Error("tasksSvc must remain nil when GeminiAPIKey is empty")
+	if deps.tasksSvc != nil {
+		t.Error("deps.tasksSvc must remain nil when GeminiAPIKey is empty")
 	}
-	if filterSvc != nil {
-		t.Error("filterSvc must remain nil when GeminiAPIKey is empty")
+	if deps.filterSvc != nil {
+		t.Error("deps.filterSvc must remain nil when GeminiAPIKey is empty")
 	}
-	if slackClient != nil {
-		t.Error("slackClient must remain nil when SlackToken is empty")
+	if deps.slackClient != nil {
+		t.Error("deps.slackClient must remain nil when SlackToken is empty")
 	}
 }
 
@@ -124,76 +124,76 @@ func TestRunSlackSweep_EmptyToken(t *testing.T) {
 func TestWireDailyDigest_NilCfg(t *testing.T) {
 	saveScannerGlobals(t)
 	cfg = nil
-	digestSvc = nil
+	deps.digestSvc = nil
 
 	WireDailyDigest(nil)
 
-	if digestSvc != nil {
-		t.Error("digestSvc must remain nil when cfg is nil")
+	if deps.digestSvc != nil {
+		t.Error("deps.digestSvc must remain nil when cfg is nil")
 	}
 }
 
 func TestWireDailyDigest_Disabled(t *testing.T) {
 	saveScannerGlobals(t)
 	cfg = &config.Config{DailyDigestEnabled: false}
-	digestSvc = nil
+	deps.digestSvc = nil
 
 	WireDailyDigest(nil)
 
-	if digestSvc != nil {
-		t.Error("digestSvc must remain nil when DailyDigestEnabled is false")
+	if deps.digestSvc != nil {
+		t.Error("deps.digestSvc must remain nil when DailyDigestEnabled is false")
 	}
 }
 
 func TestWireDailyDigest_NilSlackClient(t *testing.T) {
 	saveScannerGlobals(t)
 	cfg = &config.Config{DailyDigestEnabled: true}
-	slackClient = nil
-	digestSvc = nil
+	deps.slackClient = nil
+	deps.digestSvc = nil
 
-	// Why: reportsSvc=nil triggers the guard before slackClient check, covering both nil paths.
+	// Why: reportsSvc=nil triggers the guard before deps.slackClient check, covering both nil paths.
 	WireDailyDigest(nil)
 
-	if digestSvc != nil {
-		t.Error("digestSvc must remain nil when slackClient is nil")
+	if deps.digestSvc != nil {
+		t.Error("deps.digestSvc must remain nil when deps.slackClient is nil")
 	}
 }
 
 func TestWireWeeklyReport_NilCfg(t *testing.T) {
 	saveScannerGlobals(t)
 	cfg = nil
-	weeklyReportSvc = nil
+	deps.weeklyReportSvc = nil
 
 	WireWeeklyReport(nil)
 
-	if weeklyReportSvc != nil {
-		t.Error("weeklyReportSvc must remain nil when cfg is nil")
+	if deps.weeklyReportSvc != nil {
+		t.Error("deps.weeklyReportSvc must remain nil when cfg is nil")
 	}
 }
 
 func TestWireWeeklyReport_Disabled(t *testing.T) {
 	saveScannerGlobals(t)
 	cfg = &config.Config{WeeklyReportEnabled: false}
-	weeklyReportSvc = nil
+	deps.weeklyReportSvc = nil
 
 	WireWeeklyReport(nil)
 
-	if weeklyReportSvc != nil {
-		t.Error("weeklyReportSvc must remain nil when WeeklyReportEnabled is false")
+	if deps.weeklyReportSvc != nil {
+		t.Error("deps.weeklyReportSvc must remain nil when WeeklyReportEnabled is false")
 	}
 }
 
 func TestWireWeeklyReport_NilSlackClient(t *testing.T) {
 	saveScannerGlobals(t)
 	cfg = &config.Config{WeeklyReportEnabled: true}
-	slackClient = nil
-	weeklyReportSvc = nil
+	deps.slackClient = nil
+	deps.weeklyReportSvc = nil
 
-	// Why: reportsSvc=nil triggers guard before slackClient is reached; both nil paths are covered.
+	// Why: reportsSvc=nil triggers guard before deps.slackClient is reached; both nil paths are covered.
 	WireWeeklyReport(nil)
 
-	if weeklyReportSvc != nil {
-		t.Error("weeklyReportSvc must remain nil when slackClient is nil")
+	if deps.weeklyReportSvc != nil {
+		t.Error("deps.weeklyReportSvc must remain nil when deps.slackClient is nil")
 	}
 }
 
@@ -211,7 +211,7 @@ func TestReleaseInFlight(t *testing.T) {
 
 func TestTriggerAsyncTranslation_NilTasksSvc(t *testing.T) {
 	saveScannerGlobals(t)
-	tasksSvc = nil
+	deps.tasksSvc = nil
 
 	wg := &sync.WaitGroup{}
 	triggerAsyncTranslation(context.Background(), "u@x", []store.MessageID{1, 2, 3}, wg)
@@ -220,7 +220,7 @@ func TestTriggerAsyncTranslation_NilTasksSvc(t *testing.T) {
 
 func TestTriggerAsyncTranslation_EmptyIDs(t *testing.T) {
 	saveScannerGlobals(t)
-	tasksSvc = nil
+	deps.tasksSvc = nil
 
 	wg := &sync.WaitGroup{}
 	triggerAsyncTranslation(context.Background(), "u@x", []store.MessageID{}, wg)

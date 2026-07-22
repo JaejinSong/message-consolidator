@@ -31,19 +31,29 @@ var hourPrimePool = []time.Duration{
 	3613 * time.Second,
 }
 
-var (
-	cfg           *config.Config
-	gClient       *ai.GeminiClient
-	completionSvc *services.CompletionService
-	tasksSvc      *services.TasksService
-	filterSvc     *ai.GeminiLiteFilter
-	roomLockSvc   *services.RoomLockService
-	slackClient   *channels.SlackClient
-)
+var cfg *config.Config
+
+// scanDeps groups every service/client the scanner loops depend on.
+// Why: one injection point (set once in Init, before StartBackgroundScanner)
+// instead of scattered package globals, so tests swap deps fields in isolation.
+type scanDeps struct {
+	gClient         *ai.GeminiClient
+	completionSvc   *services.CompletionService
+	tasksSvc        *services.TasksService
+	filterSvc       *ai.GeminiLiteFilter
+	roomLockSvc     *services.RoomLockService
+	slackClient     *channels.SlackClient
+	reminderSvc     reminderDispatcher
+	exclusionSvc    exclusionDispatcher
+	digestSvc       digestDispatcher
+	weeklyReportSvc weeklyReportDispatcher
+}
+
+var deps scanDeps
 
 func Init(c *config.Config) {
 	cfg = c
-	roomLockSvc = services.NewRoomLockService()
+	deps.roomLockSvc = services.NewRoomLockService()
 	pc := ai.ProviderConfig{
 		Provider:                 cfg.AIProvider,
 		GeminiAPIKey:             cfg.GeminiAPIKey,
@@ -62,23 +72,23 @@ func Init(c *config.Config) {
 			logger.Errorf("[SCAN] failed to init AI client (%s): %v", cfg.AIProvider, err)
 			return
 		}
-		gClient = gc
-		transSvc := services.NewTranslationService(gClient)
-		tasksSvc = services.NewTasksService(transSvc, gClient)
-		completionSvc = services.NewCompletionService(gClient, &services.DefaultTaskStore{}, tasksSvc, store.GetDB())
-		filterSvc = ai.NewGeminiLiteFilter(gClient)
+		deps.gClient = gc
+		transSvc := services.NewTranslationService(deps.gClient)
+		deps.tasksSvc = services.NewTasksService(transSvc, deps.gClient)
+		deps.completionSvc = services.NewCompletionService(deps.gClient, &services.DefaultTaskStore{}, deps.tasksSvc, store.GetDB())
+		deps.filterSvc = ai.NewGeminiLiteFilter(deps.gClient)
 	}
 	if cfg.SlackToken != "" {
-		slackClient = channels.NewSlackClient(cfg.SlackToken)
-		reminderSvc = services.NewReminderService(slackClient, cfg.ReminderWindowsHours)
+		deps.slackClient = channels.NewSlackClient(cfg.SlackToken)
+		deps.reminderSvc = services.NewReminderService(deps.slackClient, cfg.ReminderWindowsHours)
 	}
 	// Why: candidate proposal is chip-only and must work without Slack; digest is nil-Slack-safe.
 	// Typed-nil guard: wrapping a nil *SlackClient in the interface would defeat the nil check.
 	var exclusionSlack services.SlackPoster
-	if slackClient != nil {
-		exclusionSlack = slackClient
+	if deps.slackClient != nil {
+		exclusionSlack = deps.slackClient
 	}
-	exclusionSvc = services.NewExclusionService(exclusionSlack)
+	deps.exclusionSvc = services.NewExclusionService(exclusionSlack)
 }
 
 func StartBackgroundScanner(ctx context.Context) {
@@ -347,9 +357,9 @@ func scanUserChannels(ctx context.Context, email string, effAl []string, wg *syn
 
 func performGmailScan(ctx context.Context, email string, wg *sync.WaitGroup) error {
 	onThreadActivity := func(msg store.ConsolidatedMessage) bool {
-		if completionSvc != nil {
+		if deps.completionSvc != nil {
 			idStr := fmt.Sprintf("gmail-%s-%s", msg.UserEmail, msg.SourceTS)
-			handled, _ := completionSvc.ProcessPotentialCompletion(ctx, msg)
+			handled, _ := deps.completionSvc.ProcessPotentialCompletion(ctx, msg)
 			if handled {
 				ReleaseInFlight(idStr)
 			}
@@ -357,7 +367,7 @@ func performGmailScan(ctx context.Context, email string, wg *sync.WaitGroup) err
 		}
 		return false
 	}
-	ids := channels.ScanGmail(ctx, email, "Korean", cfg, gClient, filterSvc, onThreadActivity)
+	ids := channels.ScanGmail(ctx, email, "Korean", cfg, deps.gClient, deps.filterSvc, onThreadActivity)
 
 	var filteredIDs []store.MessageID
 	for _, id := range ids {
@@ -443,7 +453,7 @@ func isAliasMatched(text, sender, alias string) bool {
 }
 
 func triggerAsyncTranslation(ctx context.Context, email string, ids []store.MessageID, wg *sync.WaitGroup) {
-	if tasksSvc == nil || len(ids) == 0 {
+	if deps.tasksSvc == nil || len(ids) == 0 {
 		return
 	}
 	// Why: Asynchronously triggers pre-calculated translation, tracked via WaitGroup to ensure completion during graceful shutdown.
@@ -453,37 +463,37 @@ func triggerAsyncTranslation(ctx context.Context, email string, ids []store.Mess
 		defer safego.Recover("trigger-async-translation")
 		tCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		defer cancel()
-		_, _ = tasksSvc.ProcessBatchTranslation(tCtx, email, ids, "ko")
+		_, _ = deps.tasksSvc.ProcessBatchTranslation(tCtx, email, ids, "ko")
 	}()
 }
 
 // Why: DailyDigestService needs reportsSvc, built post-Init in main.initAIServices.
 func WireDailyDigest(reportsSvc *services.ReportsService) {
-	if cfg == nil || !cfg.DailyDigestEnabled || reportsSvc == nil || slackClient == nil {
+	if cfg == nil || !cfg.DailyDigestEnabled || reportsSvc == nil || deps.slackClient == nil {
 		return
 	}
 	if len(cfg.DailyDigestRecipientEmails) == 0 {
 		logger.Warnf("[DIGEST] recipient emails not set")
 		return
 	}
-	svc := services.NewDailyDigestService(slackClient, reportsSvc, services.DailyDigestConfig{
+	svc := services.NewDailyDigestService(deps.slackClient, reportsSvc, services.DailyDigestConfig{
 		RecipientEmails: cfg.DailyDigestRecipientEmails,
 		Hour:            cfg.DailyDigestHour,
 		Timezone:        cfg.DailyDigestTimezone,
 		Language:        cfg.DailyDigestLanguage,
 	})
 	svc.Notion = services.NewNotionExporter(cfg.NotionToken, cfg.NotionReportPageID)
-	digestSvc = svc
+	deps.digestSvc = svc
 }
 
 // WireEmbedder injects the semantic open-task finder into the completion service so
 // cross-channel completion matching can run. Why: EmbeddingService is built post-Init
-// in main.go; completionSvc is created in Init, so the seam is wired afterward.
+// in main.go; deps.completionSvc is created in Init, so the seam is wired afterward.
 func WireEmbedder(embeddingSvc *services.EmbeddingService) {
-	if completionSvc == nil || embeddingSvc == nil {
+	if deps.completionSvc == nil || embeddingSvc == nil {
 		return
 	}
-	completionSvc.SetEmbedder(embeddingSvc)
+	deps.completionSvc.SetEmbedder(embeddingSvc)
 }
 
 type gmailMailer struct{}
@@ -494,10 +504,10 @@ func (g gmailMailer) SendWeeklyEmail(ctx context.Context, from, to, subject, bod
 
 // TriggerWeeklyReport dispatches a one-off weekly report to the given recipient, bypassing day/hour checks.
 func TriggerWeeklyReport(ctx context.Context, recipient string) error {
-	if weeklyReportSvc == nil {
+	if deps.weeklyReportSvc == nil {
 		return fmt.Errorf("weekly report service not initialized")
 	}
-	return weeklyReportSvc.DispatchTo(ctx, recipient)
+	return deps.weeklyReportSvc.DispatchTo(ctx, recipient)
 }
 
 // Why: WeeklyReportService needs reportsSvc which is built post-Init in main.go's initAIServices.
@@ -514,7 +524,7 @@ func WireWeeklyReport(reportsSvc *services.ReportsService) {
 		logger.Warnf("[WEEKLY] notion not configured")
 		return
 	}
-	weeklyReportSvc = services.NewWeeklyReportService(gmailMailer{}, reportsSvc, notion, services.WeeklyReportConfig{
+	deps.weeklyReportSvc = services.NewWeeklyReportService(gmailMailer{}, reportsSvc, notion, services.WeeklyReportConfig{
 		RecipientEmails: cfg.WeeklyReportRecipientEmails,
 		Hour:            cfg.WeeklyReportHour,
 		Timezone:        cfg.WeeklyReportTimezone,

@@ -9,7 +9,6 @@ import (
 )
 
 var (
-	weeklyReportSvc          weeklyReportDispatcher
 	weeklyReportLastSentDate atomic.Value
 	// Why: indirection for clock injection in tests; direct time.Now() blocks mocking.
 	weeklyReportNowFn = func() time.Time { return time.Now() }
@@ -21,7 +20,7 @@ type weeklyReportDispatcher interface {
 }
 
 func runWeeklyReport(ctx context.Context, _ *sync.WaitGroup) {
-	if weeklyReportSvc == nil || cfg == nil || !cfg.WeeklyReportEnabled {
+	if deps.weeklyReportSvc == nil || cfg == nil || !cfg.WeeklyReportEnabled {
 		return
 	}
 	loc, err := time.LoadLocation(cfg.WeeklyReportTimezone)
@@ -40,7 +39,7 @@ func runWeeklyReport(ctx context.Context, _ *sync.WaitGroup) {
 	if last, _ := weeklyReportLastSentDate.Load().(string); last == today {
 		return
 	}
-	if err := weeklyReportSvc.Dispatch(ctx); err != nil {
+	if err := deps.weeklyReportSvc.Dispatch(ctx); err != nil {
 		logger.Warnf("[WEEKLY] dispatch failed: %v", err)
 		return
 	}

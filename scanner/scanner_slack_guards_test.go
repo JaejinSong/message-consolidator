@@ -10,11 +10,11 @@ import (
 	"message-consolidator/types"
 )
 
-// TestDispatchOutgoingCompletionIfMine_NilSvc covers the completionSvc==nil guard.
+// TestDispatchOutgoingCompletionIfMine_NilSvc covers the deps.completionSvc==nil guard.
 func TestDispatchOutgoingCompletionIfMine_NilSvcGuard(t *testing.T) {
-	orig := completionSvc
-	t.Cleanup(func() { completionSvc = orig })
-	completionSvc = nil
+	orig := deps.completionSvc
+	t.Cleanup(func() { deps.completionSvc = orig })
+	deps.completionSvc = nil
 
 	sc := channels.NewSlackClient("fake-token")
 	u := store.User{Email: "u@x", Name: "Me"}
@@ -25,9 +25,9 @@ func TestDispatchOutgoingCompletionIfMine_NilSvcGuard(t *testing.T) {
 
 // TestDispatchOutgoingCompletionIfMine_NoReplyToID covers the empty-ReplyToID guard.
 func TestDispatchOutgoingCompletionIfMine_NoReplyToIDGuard(t *testing.T) {
-	orig := completionSvc
-	t.Cleanup(func() { completionSvc = orig })
-	completionSvc = nil
+	orig := deps.completionSvc
+	t.Cleanup(func() { deps.completionSvc = orig })
+	deps.completionSvc = nil
 
 	sc := channels.NewSlackClient("fake-token")
 	u := store.User{Email: "u@x", Name: "Me"}
@@ -37,9 +37,9 @@ func TestDispatchOutgoingCompletionIfMine_NoReplyToIDGuard(t *testing.T) {
 
 // TestDispatchOutgoingCompletionIfMine_SenderMismatch covers the sender-not-me guard.
 func TestDispatchOutgoingCompletionIfMine_SenderMismatch(t *testing.T) {
-	orig := completionSvc
-	t.Cleanup(func() { completionSvc = orig })
-	completionSvc = nil // ensures we don't need a real CompletionService
+	orig := deps.completionSvc
+	t.Cleanup(func() { deps.completionSvc = orig })
+	deps.completionSvc = nil // ensures we don't need a real CompletionService
 
 	sc := channels.NewSlackClient("fake-token")
 	u := store.User{Email: "u@x", Name: "Me"}
@@ -47,11 +47,11 @@ func TestDispatchOutgoingCompletionIfMine_SenderMismatch(t *testing.T) {
 	dispatchOutgoingCompletionIfMine(context.Background(), sc, u, m)
 }
 
-// TestDispatchThreadCompletionIfMine_NilSvc covers the completionSvc==nil guard.
+// TestDispatchThreadCompletionIfMine_NilSvc covers the deps.completionSvc==nil guard.
 func TestDispatchThreadCompletionIfMine_NilSvc(t *testing.T) {
-	orig := completionSvc
-	t.Cleanup(func() { completionSvc = orig })
-	completionSvc = nil
+	orig := deps.completionSvc
+	t.Cleanup(func() { deps.completionSvc = orig })
+	deps.completionSvc = nil
 
 	sc := channels.NewSlackClient("fake-token")
 	user := &store.User{Email: "u@x", Name: "Me", SlackID: "USLACK"}
@@ -62,9 +62,9 @@ func TestDispatchThreadCompletionIfMine_NilSvc(t *testing.T) {
 
 // TestDispatchThreadCompletionIfMine_EmptyThreadTS covers the ThreadTimestamp==empty guard.
 func TestDispatchThreadCompletionIfMine_EmptyThreadTS(t *testing.T) {
-	orig := completionSvc
-	t.Cleanup(func() { completionSvc = orig })
-	completionSvc = nil
+	orig := deps.completionSvc
+	t.Cleanup(func() { deps.completionSvc = orig })
+	deps.completionSvc = nil
 
 	sc := channels.NewSlackClient("fake-token")
 	user := &store.User{Email: "u@x", Name: "Me"}
@@ -75,9 +75,9 @@ func TestDispatchThreadCompletionIfMine_EmptyThreadTS(t *testing.T) {
 
 // TestClassifyAndCollect_OlderThanLastTS verifies messages older than lastTS are skipped.
 func TestClassifyAndCollect_OlderThanLastTS(t *testing.T) {
-	orig := completionSvc
-	t.Cleanup(func() { completionSvc = orig })
-	completionSvc = nil
+	orig := deps.completionSvc
+	t.Cleanup(func() { deps.completionSvc = orig })
+	deps.completionSvc = nil
 
 	sc := channels.NewSlackClient("fake-token")
 	users := []store.User{{Email: "cat-test@example.com", Name: "Cat User"}}
@@ -99,9 +99,9 @@ func TestClassifyAndCollect_OlderThanLastTS(t *testing.T) {
 
 // TestClassifyAndCollect_NewMessage verifies a new message is classified and collected.
 func TestClassifyAndCollect_NewMessage(t *testing.T) {
-	orig := completionSvc
-	t.Cleanup(func() { completionSvc = orig })
-	completionSvc = nil
+	orig := deps.completionSvc
+	t.Cleanup(func() { deps.completionSvc = orig })
+	deps.completionSvc = nil
 
 	sc := channels.NewSlackClient("fake-token")
 	users := []store.User{{Email: "newmsg@example.com", Name: "New User", SlackID: "UNEW"}}

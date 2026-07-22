@@ -9,22 +9,22 @@ import (
 )
 
 func TestIsIgnorableChannelNoise_NilFilter(t *testing.T) {
-	origFilter := filterSvc
-	t.Cleanup(func() { filterSvc = origFilter })
+	origFilter := deps.filterSvc
+	t.Cleanup(func() { deps.filterSvc = origFilter })
 
-	filterSvc = nil
+	deps.filterSvc = nil
 
 	got := isIgnorableChannelNoise(context.Background(), "u@x", "telegram", "payload", "TG")
 	if got != false {
-		t.Errorf("isIgnorableChannelNoise() = %v, want false with nil filterSvc", got)
+		t.Errorf("isIgnorableChannelNoise() = %v, want false with nil deps.filterSvc", got)
 	}
 }
 
 func TestTriggerOutgoingCompletions_NilCompletionSvc(t *testing.T) {
-	origCompletion := completionSvc
-	t.Cleanup(func() { completionSvc = origCompletion })
+	origCompletion := deps.completionSvc
+	t.Cleanup(func() { deps.completionSvc = origCompletion })
 
-	completionSvc = nil
+	deps.completionSvc = nil
 
 	msgs := []types.RawMessage{
 		{ID: "m1", IsFromMe: true, ReplyToID: "parent"},
@@ -55,10 +55,10 @@ func TestCompletionDispatchKind(t *testing.T) {
 }
 
 func TestTriggerOutgoingCompletions_NoOutgoingMessages(t *testing.T) {
-	origCompletion := completionSvc
-	t.Cleanup(func() { completionSvc = origCompletion })
+	origCompletion := deps.completionSvc
+	t.Cleanup(func() { deps.completionSvc = origCompletion })
 
-	completionSvc = nil
+	deps.completionSvc = nil
 
 	msgs := []types.RawMessage{
 		{ID: "m2", IsFromMe: false, ReplyToID: ""},

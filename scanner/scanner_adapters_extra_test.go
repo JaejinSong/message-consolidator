@@ -73,7 +73,7 @@ func TestPrepareSlackUserAliases_Empty(t *testing.T) {
 func TestProcessSlackCandidates_EmptyMap(t *testing.T) {
 	initTestDB(t)
 	saveScannerGlobals(t)
-	gClient = nil
+	deps.gClient = nil
 
 	wg := &sync.WaitGroup{}
 	processSlackCandidates(context.Background(), nil, nil, map[string][]types.RawMessage{}, wg)

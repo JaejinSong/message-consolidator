@@ -201,7 +201,7 @@ func classifyAndCollect(ctx context.Context, c slack.Channel, sc *channels.Slack
 // Why: When the user replies in their own thread we evaluate state (RESOLVE/UPDATE) on a Background ctx so Gemini latency doesn't block the scan loop.
 // _ ctx is accepted for trace propagation parity with the rest of classifyAndCollect; the goroutine itself uses Background.
 func dispatchOutgoingCompletionIfMine(_ context.Context, sc *channels.SlackClient, u store.User, m types.RawMessage) {
-	if completionSvc == nil {
+	if deps.completionSvc == nil {
 		return
 	}
 	if m.ReplyToID != "" && isFromUser(&u, m) {
@@ -225,7 +225,7 @@ func dispatchSlackThreadedCompletion(sc *channels.SlackClient, u store.User, m t
 	link := buildSlackLink(m)
 	go func(bgCtx context.Context, email string, raw types.RawMessage, room, link string) { //nolint:contextcheck // Goroutine outlives the parent scan ctx by design.
 		defer safego.Recover("slack-outgoing-completion")
-		if _, err := completionSvc.ProcessPotentialCompletion(bgCtx, store.ConsolidatedMessage{
+		if _, err := deps.completionSvc.ProcessPotentialCompletion(bgCtx, store.ConsolidatedMessage{
 			UserEmail: email, Source: store.SourceSlack,
 			Room: room, Link: link,
 			Requester: raw.Sender, RequesterCanonical: email,
@@ -262,7 +262,7 @@ func dispatchSlackCrossChannelCompletion(sc *channels.SlackClient, u store.User,
 		if fromMe {
 			env.RequesterCanonical = email
 		}
-		if _, err := completionSvc.ProcessCrossChannelSignal(bgCtx, env); err != nil {
+		if _, err := deps.completionSvc.ProcessCrossChannelSignal(bgCtx, env); err != nil {
 			logger.Warnf("[SLACK] cross-channel completion failed for %s: %v", email, err)
 		}
 	}(context.Background(), u.Email, m, room, link, fromMe)
@@ -302,14 +302,14 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 	if len(candidates) == 0 {
 		return
 	}
-	if gClient == nil {
-		logger.Errorf("[SCAN] slack: gClient not initialized; scanner.Init may have failed")
+	if deps.gClient == nil {
+		logger.Errorf("[SCAN] slack: deps.gClient not initialized; scanner.Init may have failed")
 		return
 	}
 
 	channelName := sc.GetChannelName(candidates[0].ChannelID)
-	lockKey := roomLockSvc.GetRoomKey(user.Email, store.SourceSlack, channelName)
-	lock := roomLockSvc.AcquireLock(lockKey)
+	lockKey := deps.roomLockSvc.GetRoomKey(user.Email, store.SourceSlack, channelName)
+	lock := deps.roomLockSvc.AcquireLock(lockKey)
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -326,7 +326,7 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 		enriched.ChatType = "group"
 	}
 
-	proposals, err := gClient.Analyze(ctx, user.Email, *enriched, "Korean", store.SourceSlack, channelName)
+	proposals, err := deps.gClient.Analyze(ctx, user.Email, *enriched, "Korean", store.SourceSlack, channelName)
 	if err != nil {
 		logger.Errorf("[SCAN] slack: Gemini analyze error for %s: %v", user.Email, err)
 		return
@@ -341,7 +341,7 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 
 	// Why: [Service-Oriented Resolve] Ensures SLACK proposals are resolved using the same backend-driven similarity engine.
 	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, store.SourceSlack, channelName)
-	items := tasksSvc.ResolveProposals(ctx, user.Email, channelName, proposals, tasks)
+	items := deps.tasksSvc.ResolveProposals(ctx, user.Email, channelName, proposals, tasks)
 	processSlackItems(ctx, user, items, msgMap, sc, wg)
 }
 

@@ -133,7 +133,7 @@ func resolveLINERoom(chatID, chatType string, rows []db.LineInbox) string {
 // channel_adapter/Slack dispatch pattern). LINE has no reliable fromMe signal, so
 // every dispatched message is treated as a counterparty candidate (RequesterCanonical unset).
 func dispatchLineCrossChannelCompletions(ctx context.Context, chatID string, rows []db.LineInbox, bundles []userBundle) {
-	if completionSvc == nil || len(rows) == 0 {
+	if deps.completionSvc == nil || len(rows) == 0 {
 		return
 	}
 	var signalRows []db.LineInbox
@@ -155,7 +155,7 @@ func dispatchLineCrossChannelCompletions(ctx context.Context, chatID string, row
 					ThreadID: r.ReplyToID, OriginalText: r.Text, SourceTS: r.LineMessageID,
 					CreatedAt: time.Unix(r.Ts, 0),
 				}
-				if _, err := completionSvc.ProcessCrossChannelSignal(bgCtx, env); err != nil {
+				if _, err := deps.completionSvc.ProcessCrossChannelSignal(bgCtx, env); err != nil {
 					logger.Warnf("[LINE] cross-channel completion failed for %s: %v", b.user.Email, err)
 				}
 			}
@@ -173,14 +173,14 @@ func findBundle(bundles []userBundle, email string) *userBundle {
 }
 
 func analyzeAndSaveLine(ctx context.Context, user store.User, aliases []string, chatID, chatType, roomName string, rows []db.LineInbox, wg *sync.WaitGroup) {
-	if len(rows) == 0 || gClient == nil {
+	if len(rows) == 0 || deps.gClient == nil {
 		return
 	}
 
 	// Why: use roomName (not chatID) as lock key so DM tasks and group tasks key consistently
 	// with what is stored in messages.room.
-	lockKey := roomLockSvc.GetRoomKey(user.Email, "line", roomName)
-	lock := roomLockSvc.AcquireLock(lockKey)
+	lockKey := deps.roomLockSvc.GetRoomKey(user.Email, "line", roomName)
+	lock := deps.roomLockSvc.AcquireLock(lockKey)
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -206,9 +206,9 @@ func analyzeAndSaveLine(ctx context.Context, user store.User, aliases []string, 
 	}
 
 	// Why: load tasks first and pass directly to AnalyzeWithContext so Gemini has active-task
-	// context and we avoid the double-query inside gClient.Analyze.
+	// context and we avoid the double-query inside deps.gClient.Analyze.
 	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, "line", roomName)
-	proposals, err := gClient.AnalyzeWithContext(ctx, user.Email, *enriched, "Korean", "line", roomName, tasks)
+	proposals, err := deps.gClient.AnalyzeWithContext(ctx, user.Email, *enriched, "Korean", "line", roomName, tasks)
 	if err != nil {
 		logger.Errorf("[LINE] Gemini analyze error for %s: %v", user.Email, err)
 		return
@@ -221,7 +221,7 @@ func analyzeAndSaveLine(ctx context.Context, user store.User, aliases []string, 
 		}
 	}
 
-	items := tasksSvc.ResolveProposals(ctx, user.Email, roomName, proposals, tasks)
+	items := deps.tasksSvc.ResolveProposals(ctx, user.Email, roomName, proposals, tasks)
 
 	var newIDs []store.MessageID
 	for _, item := range items {

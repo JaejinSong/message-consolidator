@@ -6,10 +6,6 @@ import (
 	"sync"
 )
 
-// reminderSvc is initialized in scanner.Init when SLACK_TOKEN is present.
-// Nil-safe: runDeadlineReminder is a no-op if not configured.
-var reminderSvc reminderDispatcher
-
 // reminderDispatcher decouples scanner from services package for test injection.
 type reminderDispatcher interface {
 	DispatchDueSoon(ctx context.Context) error
@@ -18,28 +14,28 @@ type reminderDispatcher interface {
 }
 
 func runDeadlineReminder(ctx context.Context, _ *sync.WaitGroup) {
-	if reminderSvc == nil {
+	if deps.reminderSvc == nil {
 		return
 	}
 	if !cfg.ReminderEnabled {
 		return
 	}
-	if err := reminderSvc.DispatchDueSoon(ctx); err != nil {
+	if err := deps.reminderSvc.DispatchDueSoon(ctx); err != nil {
 		logger.Warnf("[REMINDER] DispatchDueSoon failed: %v", err)
 	}
-	if err := reminderSvc.DispatchUndated(ctx); err != nil {
+	if err := deps.reminderSvc.DispatchUndated(ctx); err != nil {
 		logger.Warnf("[REMINDER] DispatchUndated failed: %v", err)
 	}
 }
 
 func runStalledReconfirm(ctx context.Context, _ *sync.WaitGroup) {
-	if reminderSvc == nil {
+	if deps.reminderSvc == nil {
 		return
 	}
 	if !cfg.ReminderEnabled {
 		return
 	}
-	if err := reminderSvc.DispatchStalledReconfirm(ctx); err != nil {
+	if err := deps.reminderSvc.DispatchStalledReconfirm(ctx); err != nil {
 		logger.Warnf("[REMINDER] DispatchStalledReconfirm failed: %v", err)
 	}
 }
