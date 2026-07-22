@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"message-consolidator/db"
+	"message-consolidator/services"
 	"message-consolidator/store"
 )
 
@@ -30,7 +31,9 @@ func lineFixtureRows() []db.LineInbox {
 
 func TestLinePayloadCharacterization(t *testing.T) {
 	rows := lineFixtureRows()
-	payload, rawMsgs := buildLinePayload(rows)
+	adapter := newLineAdapter("C-grp-1", "group", "C-grp-1", rows)
+	raws := adapter.PopMessages("any")["C-grp-1"]
+	payload, rawMsgs := adapter.BuildPayload(store.User{}, nil, raws)
 
 	// Sender chain: SenderName → SenderID → "unknown"; time rendered as local 15:04.
 	want := "[ID:lm-100][" + time.Unix(1752800000, 0).Format("15:04") + "] Alice: 보고서 내일까지 부탁해요\n" +
@@ -61,7 +64,8 @@ func TestLineConsolidatedMsgCharacterization(t *testing.T) {
 	}
 
 	item := store.TodoItem{Task: "보고서 제출", SourceTS: "lm-100", Category: "TASK"}
-	msg := buildLineConsolidatedMsg(ctx, item, rows[0], *user, nil, roomName)
+	adapter := newLineAdapter("C-grp-1", "group", roomName, rows)
+	msg := services.BuildTask(ctx, buildChannelTaskParams(*user, nil, item, lineRowToRaw(rows[0]), roomName, adapter))
 
 	checks := []struct {
 		name, got, want string

@@ -104,7 +104,115 @@ func scanLineChat(ctx context.Context, chatID string, rows []db.LineInbox, bundl
 		}
 		// Why: roomName derived here so analyze, tasks query, and save all use the same key.
 		roomName := resolveLINERoom(chatID, chatType, msgs)
-		analyzeAndSaveLine(ctx, b.user, b.aliases, chatID, chatType, roomName, msgs, wg)
+		scanChannel(ctx, b.user, b.aliases, "Korean", wg, newLineAdapter(chatID, chatType, roomName, msgs))
+	}
+}
+
+// lineAdapter feeds one chat's classified rows for one user through the shared
+// channel driver. Unlike WhatsApp/Telegram it is built per (chat, user) in the
+// drain phase because LINE rows arrive via the line_inbox table, not a live
+// per-user buffer.
+type lineAdapter struct {
+	chatID   string
+	chatType string
+	roomName string
+	rows     []db.LineInbox
+	rowByID  map[string]db.LineInbox
+	consumed bool
+}
+
+func newLineAdapter(chatID, chatType, roomName string, rows []db.LineInbox) *lineAdapter {
+	byID := make(map[string]db.LineInbox, len(rows))
+	for _, r := range rows {
+		byID[r.LineMessageID] = r
+	}
+	return &lineAdapter{chatID: chatID, chatType: chatType, roomName: roomName, rows: rows, rowByID: byID}
+}
+
+func (a *lineAdapter) Source() string    { return store.SourceLine }
+func (a *lineAdapter) LogPrefix() string { return "LINE" }
+
+func (a *lineAdapter) PopMessages(string) map[string][]types.RawMessage {
+	if a.consumed {
+		return nil
+	}
+	a.consumed = true
+	raws := make([]types.RawMessage, 0, len(a.rows))
+	for _, r := range a.rows {
+		raws = append(raws, lineRowToRaw(r))
+	}
+	return map[string][]types.RawMessage{a.roomName: raws}
+}
+
+func (a *lineAdapter) GetGroupName(string, string) string { return a.roomName }
+
+func (a *lineAdapter) Is1To1(string) bool { return a.chatType != "group" && a.chatType != "room" }
+
+// BuildPayload formats rows as an AI-readable payload with [ID:...] tags so the
+// model can return a matching SourceTS per proposal.
+func (a *lineAdapter) BuildPayload(_ store.User, _ []string, msgs []types.RawMessage) (string, map[string]types.RawMessage) {
+	var sb strings.Builder
+	msgMap := make(map[string]types.RawMessage, len(msgs))
+	for _, m := range msgs {
+		msgMap[m.ID] = m
+		r := a.rowByID[m.ID]
+		sender := r.SenderName
+		if sender == "" {
+			sender = r.SenderID
+		}
+		if sender == "" {
+			sender = "unknown"
+		}
+		sb.WriteString(fmt.Sprintf("[ID:%s][%s] %s: %s\n",
+			r.LineMessageID, time.Unix(r.Ts, 0).Format("15:04"), sender, r.Text))
+	}
+	return sb.String(), msgMap
+}
+
+func (a *lineAdapter) Enrich(_, payload string, ts time.Time) (*types.EnrichedMessage, error) {
+	senderName := ""
+	if len(a.rows) > 0 {
+		senderName = a.rows[len(a.rows)-1].SenderName
+	}
+	return &types.EnrichedMessage{
+		RawContent:      payload,
+		SourceChannel:   store.SourceLine,
+		SenderName:      senderName,
+		VirtualThreadID: fmt.Sprintf("line_chat_%s", a.chatID),
+		Timestamp:       ts,
+	}, nil
+}
+
+// IsFromMe — LINE has no reliable fromMe signal; every row is a counterparty message.
+func (a *lineAdapter) IsFromMe(types.RawMessage, store.User) bool { return false }
+
+func (a *lineAdapter) Mentions(m types.RawMessage) []string {
+	return resolveLINEMentionNames(a.rowByID[m.ID].MentionedIds)
+}
+
+// ownsCompletionDispatch — dispatchLineCrossChannelCompletions already covers ALL
+// raw rows pre-classification; the driver must not re-dispatch the classified subset.
+func (a *lineAdapter) ownsCompletionDispatch() {}
+
+// SaveThreadID — LINE anchors reply threads on the message's own ID so a later
+// reply (ReplyToID = this ID) matches the stored task's thread.
+func (a *lineAdapter) SaveThreadID(m types.RawMessage) string { return m.ID }
+
+func lineRowToRaw(r db.LineInbox) types.RawMessage {
+	senderName := r.SenderName
+	if senderName == "" {
+		senderName = channels.DefaultLineManager.ResolveSenderName(r.SenderID)
+	}
+	return types.RawMessage{
+		ID:         r.LineMessageID,
+		Sender:     r.SenderID,
+		SenderName: senderName,
+		Text:       r.Text,
+		Timestamp:  time.Unix(r.Ts, 0),
+		ReplyToID:  r.ReplyToID,
+		// Why: driver injects ThreadID into AI proposals from this field; LINE keys
+		// reply-chain context on ReplyToID (the save-side anchor is SaveThreadID).
+		ThreadID: r.ReplyToID,
 	}
 }
 
@@ -170,120 +278,6 @@ func findBundle(bundles []userBundle, email string) *userBundle {
 		}
 	}
 	return nil
-}
-
-func analyzeAndSaveLine(ctx context.Context, user store.User, aliases []string, chatID, chatType, roomName string, rows []db.LineInbox, wg *sync.WaitGroup) {
-	if len(rows) == 0 || deps.gClient == nil {
-		return
-	}
-
-	// Why: use roomName (not chatID) as lock key so DM tasks and group tasks key consistently
-	// with what is stored in messages.room.
-	lockKey := deps.roomLockSvc.GetRoomKey(user.Email, "line", roomName)
-	lock := deps.roomLockSvc.AcquireLock(lockKey)
-	lock.Lock()
-	defer lock.Unlock()
-
-	payload, rawMsgs := buildLinePayload(rows)
-
-	// Why: noise filter runs before the expensive Gemini extraction call, same as channel_adapter.
-	if isIgnorableChannelNoise(ctx, user.Email, "line", payload, "[LINE]") {
-		return
-	}
-
-	lastRow := rows[len(rows)-1]
-	enriched := &types.EnrichedMessage{
-		RawContent:      payload,
-		SourceChannel:   "line",
-		SenderName:      lastRow.SenderName,
-		VirtualThreadID: fmt.Sprintf("line_chat_%s", chatID),
-		Timestamp:       time.Unix(lastRow.Ts, 0),
-	}
-	if chatType == "group" || chatType == "room" {
-		enriched.ChatType = "group"
-	} else {
-		enriched.ChatType = "1to1"
-	}
-
-	// Why: load tasks first and pass directly to AnalyzeWithContext so Gemini has active-task
-	// context and we avoid the double-query inside deps.gClient.Analyze.
-	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, "line", roomName)
-	proposals, err := deps.gClient.AnalyzeWithContext(ctx, user.Email, *enriched, "Korean", "line", roomName, tasks)
-	if err != nil {
-		logger.Errorf("[LINE] Gemini analyze error for %s: %v", user.Email, err)
-		return
-	}
-
-	// Why: inject ThreadID from raw row into proposals so future reply-chain support works correctly.
-	for i := range proposals {
-		if raw, ok := rawMsgs[proposals[i].SourceTS]; ok {
-			proposals[i].ThreadID = raw.ReplyToID
-		}
-	}
-
-	items := deps.tasksSvc.ResolveProposals(ctx, user.Email, roomName, proposals, tasks)
-
-	var newIDs []store.MessageID
-	for _, item := range items {
-		raw, ok := rawMsgs[item.SourceTS]
-		if !ok {
-			continue
-		}
-		msg := buildLineConsolidatedMsg(ctx, item, raw, user, aliases, roomName)
-		id, err := services.HandleTaskState(ctx, nil, user.Email, item, msg)
-		if err == nil && id > 0 {
-			newIDs = append(newIDs, id)
-		}
-	}
-	triggerAsyncTranslation(ctx, user.Email, newIDs, wg)
-}
-
-// buildLinePayload formats rows as a Gemini-readable payload with [ID:...] tags so
-// Gemini can return a matching SourceTS per proposal.
-func buildLinePayload(rows []db.LineInbox) (string, map[string]db.LineInbox) {
-	var sb strings.Builder
-	rawMsgs := make(map[string]db.LineInbox)
-	for _, r := range rows {
-		rawMsgs[r.LineMessageID] = r
-		sender := r.SenderName
-		if sender == "" {
-			sender = r.SenderID
-		}
-		if sender == "" {
-			sender = "unknown"
-		}
-		sb.WriteString(fmt.Sprintf("[ID:%s][%s] %s: %s\n",
-			r.LineMessageID,
-			time.Unix(r.Ts, 0).Format("15:04"),
-			sender,
-			r.Text,
-		))
-	}
-	return sb.String(), rawMsgs
-}
-
-func buildLineConsolidatedMsg(ctx context.Context, item store.TodoItem, row db.LineInbox, user store.User, aliases []string, roomName string) store.ConsolidatedMessage {
-	sender := row.SenderName
-	if sender == "" {
-		sender = channels.DefaultLineManager.ResolveSenderName(row.SenderID)
-	}
-
-	return services.BuildTask(ctx, services.TaskBuildParams{
-		UserEmail:        user.Email,
-		User:             user,
-		Aliases:          aliases,
-		Item:             item,
-		SenderRaw:        sender,
-		Source:           store.SourceLine,
-		Room:             roomName,
-		ThreadID:         row.LineMessageID,
-		SourceTS:         row.LineMessageID,
-		RepliedToID:      row.ReplyToID,
-		Timestamp:        time.Unix(row.Ts, 0),
-		OriginalText:     row.Text,
-		SourceChannels:   []string{"line"},
-		ExplicitMentions: resolveLINEMentionNames(row.MentionedIds),
-	})
 }
 
 // resolveLINEMentionNames converts JSON-encoded LINE user IDs to display names.

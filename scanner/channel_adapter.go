@@ -38,6 +38,18 @@ type ChannelAdapter interface {
 	Mentions(m types.RawMessage) []string
 }
 
+// driverCompletionOptOut — optional: an adapter whose drain phase already feeds
+// the completion pipeline over ALL raw rows (pre-classification) implements this
+// so the driver does not double-dispatch the classified subset (LINE).
+type driverCompletionOptOut interface{ ownsCompletionDispatch() }
+
+// saveThreadAnchor — optional: channels that anchor reply threads on the saved
+// message's own ID (LINE) provide the thread_id persisted with the task;
+// WhatsApp/Telegram leave it empty.
+type saveThreadAnchor interface {
+	SaveThreadID(m types.RawMessage) string
+}
+
 func scanChannel(ctx context.Context, user store.User, aliases []string, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []store.MessageID {
 	buffer := adapter.PopMessages(user.Email)
 	if len(buffer) == 0 {
@@ -122,6 +134,9 @@ func completionDispatchKind(m types.RawMessage, user store.User, adapter Channel
 // detaching cancellation so the goroutines outlive the parent scan timeout.
 func triggerOutgoingCompletions(ctx context.Context, msgs []types.RawMessage, user store.User, adapter ChannelAdapter, groupName string) {
 	if deps.completionSvc == nil {
+		return
+	}
+	if _, ok := adapter.(driverCompletionOptOut); ok {
 		return
 	}
 	asyncCtx := context.WithoutCancel(ctx)
@@ -244,10 +259,17 @@ func processChannelItems(ctx context.Context, user store.User, aliases []string,
 }
 
 func saveChannelItem(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool, adapter ChannelAdapter) store.MessageID {
-	source := adapter.Source()
 	if adapter.IsFromMe(m, user) && !is1to1 {
 		item.Category = string(types.CategoryTask)
 	}
+	msg := services.BuildTask(ctx, buildChannelTaskParams(user, aliases, item, m, group, adapter))
+
+	id, _ := services.HandleTaskState(ctx, nil, user.Email, item, msg)
+	return id
+}
+
+func buildChannelTaskParams(user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, adapter ChannelAdapter) services.TaskBuildParams {
+	source := adapter.Source()
 
 	// Why: Telegram의 m.Sender는 숫자 ID(예 "123456789"), m.SenderName이 표시명.
 	// WhatsApp은 m.Sender에 PushName/JID, m.SenderName 빈 칸.
@@ -272,10 +294,10 @@ func saveChannelItem(ctx context.Context, user store.User, aliases []string, ite
 		SourceChannels:   []string{source},
 		ExplicitMentions: adapter.Mentions(m),
 	}
-	msg := services.BuildTask(ctx, params)
-
-	id, _ := services.HandleTaskState(ctx, nil, user.Email, item, msg)
-	return id
+	if anchor, ok := adapter.(saveThreadAnchor); ok {
+		params.ThreadID = anchor.SaveThreadID(m)
+	}
+	return params
 }
 
 // isFromMe is shared by the WhatsApp and Telegram adapters (Slack has its own
