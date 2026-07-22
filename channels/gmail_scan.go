@@ -37,7 +37,7 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 	}
 
 	if maxTS > 0 {
-		if err := store.UpdateLastScan(email, "gmail", "inbox", fmt.Sprintf("%d", maxTS)); err != nil {
+		if err := store.UpdateLastScan(email, store.SourceGmail, "inbox", fmt.Sprintf("%d", maxTS)); err != nil {
 			logger.Warnf("[GMAIL] UpdateLastScan failed for %s: %v", email, err)
 		}
 	}
@@ -45,7 +45,7 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 }
 
 func getGmailScanTime(email string) time.Time {
-	lastTS := store.GetLastScan(email, "gmail", "inbox")
+	lastTS := store.GetLastScan(email, store.SourceGmail, "inbox")
 	if lastTS != "" {
 		sec, _ := strconv.ParseInt(lastTS, 10, 64)
 		return time.Unix(sec, 0)
@@ -166,9 +166,9 @@ func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m
 	}
 
 	// Why: Automatically registers all participants (sender and recipients) in the contacts database to improve future identity resolution.
-	senderEmail, senderName := upsertAddresses(ctx, email, fromHeader, "gmail")
-	upsertAddresses(ctx, email, toHeader, "gmail")
-	upsertAddresses(ctx, email, ccHeader, "gmail")
+	senderEmail, senderName := upsertAddresses(ctx, email, fromHeader, store.SourceGmail)
+	upsertAddresses(ctx, email, toHeader, store.SourceGmail)
+	upsertAddresses(ctx, email, ccHeader, store.SourceGmail)
 
 	classification := classifyGmail(isFromMe, isDirect)
 	cleanBody := cleanEmailBody(extractBody(fullMsg.Payload))
@@ -304,12 +304,12 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.Gemini
 	payload, msgMap := buildGmailBatchPayload(email, filteredMsgs, classificationMap)
 	enriched := types.EnrichedMessage{
 		RawContent:    payload,
-		SourceChannel: "gmail",
+		SourceChannel: store.SourceGmail,
 		SenderID:      0,
 		SenderName:    "Gmail System",
 		Timestamp:     time.Now(),
 	}
-	items, err := gc.Analyze(ctx, email, enriched, language, "gmail", "Inbox")
+	items, err := gc.Analyze(ctx, email, enriched, language, store.SourceGmail, "Inbox")
 	if err != nil {
 		logger.Errorf("[GMAIL] batch analyze error for %s: %v", email, err)
 		return nil
@@ -356,7 +356,7 @@ type noiseFilter interface {
 func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessage, filterSvc noiseFilter, classificationMap map[string]string, onThreadActivity func(store.ConsolidatedMessage) bool) []types.RawMessage {
 	var result []types.RawMessage
 	for _, m := range batch {
-		if isNoise, err := filterSvc.IsNoise(ctx, email, "gmail", m.Text); err == nil && isNoise {
+		if isNoise, err := filterSvc.IsNoise(ctx, email, store.SourceGmail, m.Text); err == nil && isNoise {
 			_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.ID)
 			continue
 		}
@@ -382,7 +382,7 @@ func handleThreadActivity(ctx context.Context, email string, m types.RawMessage,
 		requester = m.Sender
 	}
 	cm := store.ConsolidatedMessage{
-		UserEmail: email, Source: "gmail", Room: "Gmail", ThreadID: m.ThreadID,
+		UserEmail: email, Source: store.SourceGmail, Room: "Gmail", ThreadID: m.ThreadID,
 		OriginalText: m.Text, SourceTS: m.ID, Requester: requester,
 		// Why: fallbackToNewExtraction persists a new task from this cm — a zero
 		// AssignedAt lands as assigned_at=NULL, disabling aging/deadline/stalled.
@@ -450,7 +450,7 @@ func processGeminiItems(ctx context.Context, email string, user *store.User, ali
 			Item:                item,
 			SenderRaw:           m.Sender,
 			ToHeader:            toMap[item.SourceTS],
-			Source:              "gmail",
+			Source:              store.SourceGmail,
 			Room:                "Gmail",
 			Link:                fmt.Sprintf("https://mail.google.com/mail/u/0/#inbox/%s", item.SourceTS),
 			SourceTS:            fmt.Sprintf("gmail-%s", item.SourceTS),
@@ -458,7 +458,7 @@ func processGeminiItems(ctx context.Context, email string, user *store.User, ali
 			OriginalText:        m.Text,
 			ThreadID:            m.ThreadID,
 			RepliedToID:         m.ReplyToID,
-			SourceChannels:      []string{"gmail"},
+			SourceChannels:      []string{store.SourceGmail},
 			GmailClassification: classificationMap[item.SourceTS],
 			IsCcOnly:            m.IsCcOnly,
 		}

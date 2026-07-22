@@ -17,7 +17,7 @@ import (
 // whatsAppAdapter adapts WAManager to the shared channel scanner driver.
 type whatsAppAdapter struct{}
 
-func (whatsAppAdapter) Source() string    { return "whatsapp" }
+func (whatsAppAdapter) Source() string    { return store.SourceWhatsApp }
 func (whatsAppAdapter) LogPrefix() string { return "WA" }
 func (whatsAppAdapter) PopMessages(email string) map[string][]types.RawMessage {
 	return channels.DefaultWAManager.PopMessages(email)

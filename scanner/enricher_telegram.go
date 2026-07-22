@@ -12,7 +12,7 @@ import (
 // EnrichTelegramMessage normalizes Telegram raw data into the unified EnrichedMessage model.
 // chatKey is the scanner-facing identifier produced by channels.peerKey (e.g. "tg_channel_123").
 func EnrichTelegramMessage(chatKey string, msg string, timestamp time.Time) (*types.EnrichedMessage, error) {
-	return enrichChannelMessage("telegram", "tg", chatKey, msg, timestamp, telegramSenderShim), nil
+	return enrichChannelMessage(store.SourceTelegram, "tg", chatKey, msg, timestamp, telegramSenderShim), nil
 }
 
 // resolveTelegramSender maps the chat key (for DMs) to a known user. Group/channel

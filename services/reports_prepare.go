@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"message-consolidator/store"
+	"message-consolidator/types"
 	"sort"
 	"strings"
 	"time"
@@ -199,7 +200,7 @@ func (s *ReportsService) formatLogLine(email string, m Log) string {
 
 	cat := m.Category
 	if cat == "" {
-		cat = "TASK"
+		cat = string(types.CategoryTask)
 	}
 	// Why: done tasks are excluded from all evidence-requiring output rules (Type A: active [ ] only;
 	// Type B/C: counts and titles; Activity Rule 4: evidence not required for counting).

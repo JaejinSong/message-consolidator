@@ -171,7 +171,7 @@ func scanSingleSlackChannel(ctx context.Context, users []store.User, c slack.Cha
 func getMinLastTS(users []store.User, channelID string) string {
 	min := ""
 	for _, u := range users {
-		ts := store.GetLastScan(u.Email, "slack", channelID)
+		ts := store.GetLastScan(u.Email, store.SourceSlack, channelID)
 		if ts == "" {
 			return ""
 		}
@@ -185,7 +185,7 @@ func getMinLastTS(users []store.User, channelID string) string {
 func classifyAndCollect(ctx context.Context, c slack.Channel, sc *channels.SlackClient, m types.RawMessage, users []store.User, userAl map[string][]string, candidates map[string][]types.RawMessage, newTS map[string]map[string]string) {
 	m.ChannelID = c.ID
 	for _, u := range users {
-		lts := store.GetLastScan(u.Email, "slack", c.ID)
+		lts := store.GetLastScan(u.Email, store.SourceSlack, c.ID)
 		if lts != "" && m.ID <= lts {
 			continue
 		}
@@ -226,13 +226,13 @@ func dispatchSlackThreadedCompletion(sc *channels.SlackClient, u store.User, m t
 	go func(bgCtx context.Context, email string, raw types.RawMessage, room, link string) { //nolint:contextcheck // Goroutine outlives the parent scan ctx by design.
 		defer safego.Recover("slack-outgoing-completion")
 		if _, err := completionSvc.ProcessPotentialCompletion(bgCtx, store.ConsolidatedMessage{
-			UserEmail: email, Source: "slack",
+			UserEmail: email, Source: store.SourceSlack,
 			Room: room, Link: link,
 			Requester: raw.Sender, RequesterCanonical: email,
 			AssignedAt: raw.Timestamp, CreatedAt: raw.Timestamp,
 			ThreadID: raw.ReplyToID, RepliedToID: raw.ReplyToID,
 			OriginalText: raw.Text, SourceTS: raw.ID,
-			SourceChannels: []string{"slack"},
+			SourceChannels: []string{store.SourceSlack},
 		}); err != nil {
 			logger.Warnf("[SLACK] outgoing completion failed for %s: %v", email, err)
 		}
@@ -248,7 +248,7 @@ func dispatchSlackCrossChannelCompletion(sc *channels.SlackClient, u store.User,
 	go func(bgCtx context.Context, email string, raw types.RawMessage, room, link string, fromMe bool) { //nolint:contextcheck // Goroutine outlives the parent scan ctx by design.
 		defer safego.Recover("slack-crosschannel-completion")
 		env := store.ConsolidatedMessage{
-			UserEmail: email, Source: "slack",
+			UserEmail: email, Source: store.SourceSlack,
 			Room: room, Link: link,
 			Requester:      raw.Sender,
 			AssignedAt:     raw.Timestamp,
@@ -257,7 +257,7 @@ func dispatchSlackCrossChannelCompletion(sc *channels.SlackClient, u store.User,
 			RepliedToID:    raw.ReplyToID,
 			OriginalText:   raw.Text,
 			SourceTS:       raw.ID,
-			SourceChannels: []string{"slack"},
+			SourceChannels: []string{store.SourceSlack},
 		}
 		if fromMe {
 			env.RequesterCanonical = email
@@ -291,7 +291,7 @@ func processSlackCandidates(ctx context.Context, users []store.User, sc *channel
 func updateSlackCursors(newTS map[string]map[string]string) {
 	for email, channelMap := range newTS {
 		for chanID, ts := range channelMap {
-			if err := store.UpdateLastScan(email, "slack", chanID, ts); err != nil {
+			if err := store.UpdateLastScan(email, store.SourceSlack, chanID, ts); err != nil {
 				logger.Warnf("[SCAN] slack: UpdateLastScan failed for %s/%s: %v", email, chanID, err)
 			}
 		}
@@ -308,7 +308,7 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 	}
 
 	channelName := sc.GetChannelName(candidates[0].ChannelID)
-	lockKey := roomLockSvc.GetRoomKey(user.Email, "slack", channelName)
+	lockKey := roomLockSvc.GetRoomKey(user.Email, store.SourceSlack, channelName)
 	lock := roomLockSvc.AcquireLock(lockKey)
 	lock.Lock()
 	defer lock.Unlock()
@@ -326,7 +326,7 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 		enriched.ChatType = "group"
 	}
 
-	proposals, err := gClient.Analyze(ctx, user.Email, *enriched, "Korean", "slack", channelName)
+	proposals, err := gClient.Analyze(ctx, user.Email, *enriched, "Korean", store.SourceSlack, channelName)
 	if err != nil {
 		logger.Errorf("[SCAN] slack: Gemini analyze error for %s: %v", user.Email, err)
 		return
@@ -340,7 +340,7 @@ func analyzeAndSaveSlack(ctx context.Context, user *store.User, sc *channels.Sla
 	}
 
 	// Why: [Service-Oriented Resolve] Ensures SLACK proposals are resolved using the same backend-driven similarity engine.
-	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, "slack", channelName)
+	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, store.SourceSlack, channelName)
 	items := tasksSvc.ResolveProposals(ctx, user.Email, channelName, proposals, tasks)
 	processSlackItems(ctx, user, items, msgMap, sc, wg)
 }
@@ -422,7 +422,7 @@ func mapSlackItemToMessage(ctx context.Context, item store.TodoItem, m types.Raw
 		Aliases:          aliases,
 		Item:             item,
 		SenderRaw:        m.Sender, // Resolved Slack display name — primary identity fallback
-		Source:           "slack",
+		Source:           store.SourceSlack,
 		Room:             sc.GetChannelName(m.ChannelID),
 		Link:             link,
 		SourceTS:         m.ID,
@@ -430,7 +430,7 @@ func mapSlackItemToMessage(ctx context.Context, item store.TodoItem, m types.Raw
 		OriginalText:     m.Text,
 		ThreadID:         threadID,
 		RepliedToID:      m.ReplyToID,
-		SourceChannels:   []string{"slack"},
+		SourceChannels:   []string{store.SourceSlack},
 		ExplicitMentions: explicitMentions,
 	}
 	return services.BuildTask(ctx, params)

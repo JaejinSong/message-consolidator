@@ -11,7 +11,7 @@ import (
 
 // EnrichWhatsAppMessage normalizes WhatsApp raw data into a unified EnrichedMessage model.
 func EnrichWhatsAppMessage(rawJID string, msg string, timestamp time.Time) (*types.EnrichedMessage, error) {
-	return enrichChannelMessage("whatsapp", "wa", rawJID, msg, timestamp, whatsAppSenderShim), nil
+	return enrichChannelMessage(store.SourceWhatsApp, "wa", rawJID, msg, timestamp, whatsAppSenderShim), nil
 }
 
 // resolveWhatsAppSender maps a WhatsApp JID to a system user, falling back to raw JID if unmapped.

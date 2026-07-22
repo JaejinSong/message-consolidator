@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"fmt"
+	"message-consolidator/store"
 	"message-consolidator/types"
 	"time"
 )
@@ -18,7 +19,7 @@ func EnrichSlackMessage(userID, userName, channelID, threadTS string, msg string
 
 	enriched := &types.EnrichedMessage{
 		RawContent:      msg,
-		SourceChannel:   "slack",
+		SourceChannel:   store.SourceSlack,
 		SenderID:        0, // ID would require a DB lookup if needed, using 0 as default.
 		SenderName:      userName,
 		VirtualThreadID: fmt.Sprintf("slack_thread_%s", threadID),

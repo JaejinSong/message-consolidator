@@ -15,7 +15,7 @@ import (
 // telegramAdapter adapts TelegramManager to the shared channel scanner driver.
 type telegramAdapter struct{}
 
-func (telegramAdapter) Source() string    { return "telegram" }
+func (telegramAdapter) Source() string    { return store.SourceTelegram }
 func (telegramAdapter) LogPrefix() string { return "TG" }
 func (telegramAdapter) PopMessages(email string) map[string][]types.RawMessage {
 	return channels.DefaultTelegramManager.PopMessages(email)
