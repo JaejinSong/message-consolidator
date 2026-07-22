@@ -76,7 +76,7 @@ func TestProcessSlackCandidates_EmptyMap(t *testing.T) {
 	deps.gClient = nil
 
 	wg := &sync.WaitGroup{}
-	processSlackCandidates(context.Background(), nil, nil, map[string][]types.RawMessage{}, wg)
+	processSlackCandidates(context.Background(), nil, nil, map[string]map[string][]types.RawMessage{}, wg)
 	wg.Wait()
 }
 

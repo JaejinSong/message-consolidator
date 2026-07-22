@@ -126,8 +126,11 @@ func prepareSlackUserAliases(ctx context.Context, users []store.User) map[string
 	return ua
 }
 
-func collectSlackHistory(ctx context.Context, users []store.User, chans []slack.Channel, sc *channels.SlackClient, userAl map[string][]string) (map[string][]types.RawMessage, map[string]map[string]string) {
-	candidates := make(map[string][]types.RawMessage)
+// collectSlackHistory returns candidates keyed email → channelID → messages so
+// each channel is analyzed as its own room (mixing channels into one batch keyed
+// by the first message's channel produced wrong Room values).
+func collectSlackHistory(ctx context.Context, users []store.User, chans []slack.Channel, sc *channels.SlackClient, userAl map[string][]string) (map[string]map[string][]types.RawMessage, map[string]map[string]string) {
+	candidates := make(map[string]map[string][]types.RawMessage)
 	newTS := make(map[string]map[string]string)
 	var mu sync.Mutex
 
@@ -143,7 +146,7 @@ func collectSlackHistory(ctx context.Context, users []store.User, chans []slack.
 	return candidates, newTS
 }
 
-func scanSingleSlackChannel(ctx context.Context, users []store.User, c slack.Channel, sc *channels.SlackClient, userAl map[string][]string, mu *sync.Mutex, candidates map[string][]types.RawMessage, newTS map[string]map[string]string) error {
+func scanSingleSlackChannel(ctx context.Context, users []store.User, c slack.Channel, sc *channels.SlackClient, userAl map[string][]string, mu *sync.Mutex, candidates map[string]map[string][]types.RawMessage, newTS map[string]map[string]string) error {
 	minTS := getMinLastTS(users, c.ID)
 	logger.Debugf("[SLACK] channel %s: minTS=%s", c.ID, minTS)
 	//Why: Uses a dual-strategy scan window. It scans up to 24 hours back by default,
@@ -182,7 +185,7 @@ func getMinLastTS(users []store.User, channelID string) string {
 	return min
 }
 
-func classifyAndCollect(ctx context.Context, c slack.Channel, sc *channels.SlackClient, m types.RawMessage, users []store.User, userAl map[string][]string, candidates map[string][]types.RawMessage, newTS map[string]map[string]string) {
+func classifyAndCollect(ctx context.Context, c slack.Channel, sc *channels.SlackClient, m types.RawMessage, users []store.User, userAl map[string][]string, candidates map[string]map[string][]types.RawMessage, newTS map[string]map[string]string) {
 	m.ChannelID = c.ID
 	for _, u := range users {
 		lts := store.GetLastScan(u.Email, store.SourceSlack, c.ID)
@@ -192,7 +195,10 @@ func classifyAndCollect(ctx context.Context, c slack.Channel, sc *channels.Slack
 		dispatchOutgoingCompletionIfMine(ctx, sc, u, m)
 		cls := classifyMessage(c, &u, userAl[u.Email], m)
 		if cls == types.CategoryTask || cls == types.CategoryQuery {
-			candidates[u.Email] = append(candidates[u.Email], m)
+			if candidates[u.Email] == nil {
+				candidates[u.Email] = make(map[string][]types.RawMessage)
+			}
+			candidates[u.Email][c.ID] = append(candidates[u.Email][c.ID], m)
 		}
 		updateChannelCursor(newTS, u.Email, c.ID, m.ID)
 	}
@@ -277,14 +283,16 @@ func updateChannelCursor(newTS map[string]map[string]string, email, channelID, m
 	}
 }
 
-func processSlackCandidates(ctx context.Context, users []store.User, sc *channels.SlackClient, candidates map[string][]types.RawMessage, wg *sync.WaitGroup) {
-	for email, msgs := range candidates {
+func processSlackCandidates(ctx context.Context, users []store.User, sc *channels.SlackClient, candidates map[string]map[string][]types.RawMessage, wg *sync.WaitGroup) {
+	for email, byChannel := range candidates {
 		user, err := store.GetOrCreateUser(ctx, email, "", "")
 		if err != nil || user == nil {
 			continue
 		}
-		logger.Debugf("[SLACK] user %s: %d candidates queued for AI analysis", email, len(msgs))
-		analyzeAndSaveSlack(ctx, user, sc, msgs, wg)
+		for channelID, msgs := range byChannel {
+			logger.Debugf("[SLACK] user %s channel %s: %d candidates queued for AI analysis", email, channelID, len(msgs))
+			analyzeAndSaveSlack(ctx, user, sc, msgs, wg)
+		}
 	}
 }
 
@@ -363,7 +371,7 @@ func processSlackItems(ctx context.Context, user *store.User, items []store.Todo
 	triggerAsyncTranslation(ctx, user.Email, newIDs, wg)
 }
 
-func buildSlackAnalysisPayload(ctx context.Context, candidates []types.RawMessage, sc *channels.SlackClient) (string, map[string]types.RawMessage) {
+func buildSlackAnalysisPayload(ctx context.Context, candidates []types.RawMessage, sc slackUserResolver) (string, map[string]types.RawMessage) {
 	var sb strings.Builder
 	msgMap := make(map[string]types.RawMessage)
 	for _, m := range candidates {

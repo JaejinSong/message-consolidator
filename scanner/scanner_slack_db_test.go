@@ -86,8 +86,8 @@ func TestProcessSlackCandidates_NonEmptyNilGClient(t *testing.T) {
 	email := "cand-test@example.com"
 	_, _ = store.GetOrCreateUser(ctx, email, "Cand User", "")
 
-	candidates := map[string][]types.RawMessage{
-		email: {{ID: "m1", Text: "hello", ChannelID: "C1"}},
+	candidates := map[string]map[string][]types.RawMessage{
+		email: {"C1": {{ID: "m1", Text: "hello", ChannelID: "C1"}}},
 	}
 	wg := &sync.WaitGroup{}
 	processSlackCandidates(ctx, nil, nil, candidates, wg)

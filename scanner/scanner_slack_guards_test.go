@@ -87,7 +87,7 @@ func TestClassifyAndCollect_OlderThanLastTS(t *testing.T) {
 	// Set lastTS = same as m.ID → msg <= lastTS → skipped for all users.
 	_ = store.UpdateLastScan("cat-test@example.com", "slack", "C1", "1700000200.000000")
 
-	candidates := map[string][]types.RawMessage{}
+	candidates := map[string]map[string][]types.RawMessage{}
 	newTS := map[string]map[string]string{}
 	ua := map[string][]string{"cat-test@example.com": {"alias"}}
 	classifyAndCollect(context.Background(), c, sc, m, users, ua, candidates, newTS)
@@ -112,13 +112,13 @@ func TestClassifyAndCollect_NewMessage(t *testing.T) {
 	// No lastTS set → any message is new.
 	_ = store.UpdateLastScan("newmsg@example.com", "slack", "DIMCHAN", "")
 
-	candidates := map[string][]types.RawMessage{}
+	candidates := map[string]map[string][]types.RawMessage{}
 	newTS := map[string]map[string]string{}
 	ua := map[string][]string{"newmsg@example.com": {}}
 	classifyAndCollect(context.Background(), c, sc, m, users, ua, candidates, newTS)
 
-	if len(candidates["newmsg@example.com"]) != 1 {
-		t.Errorf("expected 1 candidate, got %d", len(candidates["newmsg@example.com"]))
+	if len(candidates["newmsg@example.com"]["DIMCHAN"]) != 1 {
+		t.Errorf("expected 1 candidate, got %d", len(candidates["newmsg@example.com"]["DIMCHAN"]))
 	}
 }
 
