@@ -234,7 +234,9 @@ func runGmailForAllUsers(ctx context.Context, wg *sync.WaitGroup) {
 			scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 			defer cancel()
 			defer safego.Recover("scan-gmail")
-			_ = performGmailScan(scanCtx, b.user.Email, wg)
+			if err := performGmailScan(scanCtx, b.user.Email, wg); err != nil {
+				logger.Warnf("[SCAN] gmail: scan failed for %s: %v", b.user.Email, err)
+			}
 			store.PersistAllScanMetadata(scanCtx, b.user.Email)
 			return nil
 		})

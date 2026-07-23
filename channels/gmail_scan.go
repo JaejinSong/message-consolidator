@@ -19,7 +19,9 @@ import (
 func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
 	svc, err := GetGmailService(ctx, email)
 	if err != nil {
-		logger.Debugf("[GMAIL] skipping %s: %v", email, err)
+		// Why: Warn, not Debug — production suppresses Debug, and a dead token
+		// silently disabled Gmail scanning for 15 days (2026-07-08 incident).
+		logger.Warnf("[GMAIL] scan skipped for %s: %v", email, err)
 		return nil
 	}
 

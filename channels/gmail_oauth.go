@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"message-consolidator/config"
 	"message-consolidator/internal/whataphttpx"
+	"message-consolidator/logger"
 	"message-consolidator/store"
 	"strings"
 
@@ -61,6 +63,15 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 	//Why: Automatically refreshes the OAuth2 token if it has expired and persists the new token to the database to ensure uninterrupted Gmail access.
 	newToken, err := tokenSource.Token()
 	if err != nil {
+		if isInvalidGrant(err) {
+			// Why: invalid_grant is Google's definitive dead-token verdict (revoked/expired).
+			// Clearing the stored token flips HasGmailToken//gmail/status to disconnected so
+			// the UI surfaces the re-auth path instead of a phantom "connected" badge.
+			logger.Warnf("[GMAIL] refresh token rejected (invalid_grant) for %s; clearing stored token, re-auth required", email)
+			if delErr := store.DeleteGmailToken(ctx, email); delErr != nil {
+				logger.Errorf("[GMAIL] failed to clear invalid token for %s: %v", email, delErr)
+			}
+		}
 		return nil, fmt.Errorf("failed to refresh gmail token for %s: %w", email, err)
 	}
 	if newToken.AccessToken != token.AccessToken {
@@ -80,6 +91,13 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 		return nil, fmt.Errorf("failed to create gmail service: %w", err)
 	}
 	return svc, nil
+}
+
+// Why: Only a definitive OAuth server verdict may tear down the stored token —
+// transient network/5xx refresh failures must leave it intact.
+func isInvalidGrant(err error) bool {
+	var rErr *oauth2.RetrieveError
+	return errors.As(err, &rErr) && rErr.ErrorCode == "invalid_grant"
 }
 
 // SendGmailEmail sends a plain-text email via the Gmail API using the stored OAuth token for `from`.
