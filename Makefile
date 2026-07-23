@@ -60,7 +60,7 @@ test-go:
 	go test ./...
 
 # AI_SOURCES: 변경 시 regression 테스트를 트리거할 파일 패턴
-AI_SOURCES := ai/prompts ai/prompts.go ai/gemini.go ai/executor.go ai/analyzers.go ai/rag.go
+AI_SOURCES := ai/core tests/regression/testdata
 
 test-ai:
 	@BASE=$$(git merge-base HEAD origin/main 2>/dev/null || echo "HEAD^"); \

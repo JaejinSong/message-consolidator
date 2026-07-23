@@ -56,8 +56,11 @@ func TestProcessGeminiItems_NoDuplicateOnSkip(t *testing.T) {
 	t.Parallel()
 
 	user := store.User{Email: "test@example.com", Name: "Test User"}
+	// Why: two messages keep the batch ambiguous so the mismatch drop path (not
+	// the single-message recovery) is exercised.
 	msgMap := map[string]types.RawMessage{
 		"ts-1": {ID: "ts-1", Sender: "a@example.com", Text: "Only item"},
+		"ts-2": {ID: "ts-2", Sender: "b@example.com", Text: "Other item"},
 	}
 
 	// Two items but only one has a valid SourceTS
@@ -73,6 +76,35 @@ func TestProcessGeminiItems_NoDuplicateOnSkip(t *testing.T) {
 	}
 	if _, ok := result["ts-1"]; !ok {
 		t.Error("ts-1 should be in result")
+	}
+}
+
+// Why: regression for the gmail source_ts contract violation — the model returned ISO
+// timestamps or empty strings instead of the [ID:...] literal, silently dropping 7/22
+// backlog items. A single-message batch is unambiguous, so the item must be recovered.
+func TestProcessGeminiItems_SingleMessageBatchRecoversSourceTS(t *testing.T) {
+	t.Parallel()
+
+	user := store.User{Email: "test@example.com", Name: "Test User"}
+	msgMap := map[string]types.RawMessage{
+		"196f3a2b8c4d5e01": {ID: "196f3a2b8c4d5e01", Sender: "sender@example.com", Text: "Prepare deck"},
+	}
+
+	for _, badTS := range []string{"2026-07-23T02:31:13Z", ""} {
+		items := []store.TodoItem{{Task: "Prepare deck", SourceTS: badTS, Category: "TASK"}}
+
+		result := processGeminiItems(t.Context(), user.Email, &user, nil, items, map[string]string{}, map[string]string{}, msgMap)
+
+		msg, ok := result["196f3a2b8c4d5e01"]
+		if !ok {
+			t.Fatalf("SourceTS %q: item must be recovered onto the single batch message ID", badTS)
+		}
+		if msg.SourceTS != "gmail-196f3a2b8c4d5e01" {
+			t.Errorf("SourceTS %q: msg.SourceTS = %q, want %q", badTS, msg.SourceTS, "gmail-196f3a2b8c4d5e01")
+		}
+		if !strings.Contains(msg.Link, "196f3a2b8c4d5e01") {
+			t.Errorf("SourceTS %q: Link must anchor to the real message ID, got %q", badTS, msg.Link)
+		}
 	}
 }
 

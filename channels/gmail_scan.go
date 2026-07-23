@@ -458,7 +458,10 @@ func processGeminiItems(ctx context.Context, email string, user *store.User, ali
 	for _, item := range items {
 		m, ok := msgMap[item.SourceTS]
 		if !ok {
-			logger.Warnf("[GMAIL] mismatch SourceTS: %s", item.SourceTS)
+			item.SourceTS, m, ok = recoverSourceTS(item, msgMap)
+		}
+		if !ok {
+			logger.Warnf("[GMAIL] mismatch SourceTS: %q dropped (task: %.80s)", item.SourceTS, item.Task)
 			continue
 		}
 		params := services.TaskBuildParams{
@@ -483,4 +486,18 @@ func processGeminiItems(ctx context.Context, email string, user *store.User, ali
 		result[item.SourceTS] = services.BuildTask(ctx, params)
 	}
 	return result
+}
+
+// recoverSourceTS re-anchors an item whose source_ts matches no batch message.
+// Why: the model occasionally rewrites the [ID:...] tag (ISO timestamp, empty string);
+// a single-message batch is still unambiguous, so recover instead of dropping the task.
+func recoverSourceTS(item store.TodoItem, msgMap map[string]types.RawMessage) (string, types.RawMessage, bool) {
+	if len(msgMap) != 1 {
+		return item.SourceTS, types.RawMessage{}, false
+	}
+	for id, m := range msgMap {
+		logger.Warnf("[GMAIL] recovered SourceTS %q -> %s (single-message batch)", item.SourceTS, id)
+		return id, m, true
+	}
+	return item.SourceTS, types.RawMessage{}, false
 }
