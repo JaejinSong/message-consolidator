@@ -218,6 +218,12 @@ func loadUsersForScan(ctx context.Context) []userBundle {
 	return out
 }
 
+// Why: Gmail backlog recovery needs headroom — after a cursor hold (fetch/analyze
+// failure) a cycle re-walks unmarked messages (per-message Get + LiteFilter + batch
+// Analyze). 45s could be consumed by Gets alone, marking nothing and livelocking the
+// backlog. Normal cycles finish in seconds, so the longer ceiling is dormant. Prime.
+const gmailScanTimeout = 293 * time.Second
+
 func runGmailForAllUsers(ctx context.Context, wg *sync.WaitGroup) {
 	bundles := loadUsersForScan(ctx)
 	if len(bundles) == 0 {
@@ -231,7 +237,7 @@ func runGmailForAllUsers(ctx context.Context, wg *sync.WaitGroup) {
 			continue
 		}
 		eg.Go(func() error {
-			scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+			scanCtx, cancel := context.WithTimeout(ctx, gmailScanTimeout)
 			defer cancel()
 			defer safego.Recover("scan-gmail")
 			if err := performGmailScan(scanCtx, b.user.Email, wg); err != nil {
