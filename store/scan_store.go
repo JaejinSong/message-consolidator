@@ -91,7 +91,10 @@ func LoadMetadata() error {
 	}
 
 	for _, row := range tokenRows {
-		tokenCache[row.UserEmail] = row.TokenJson
+		// Why: DB rows are encrypted (encv1:) while the cache must hold plaintext JSON —
+		// SaveGmailToken caches plaintext, so a restart without decrypt poisoned the cache
+		// and broke every Gmail scan until the next re-auth (2026-07-23 incident).
+		tokenCache[row.UserEmail] = decryptString(row.TokenJson)
 	}
 
 	logger.Infof("[CACHE] Loaded %d users, %d scan entries, %d tokens.", len(userCache), len(scanCache), len(tokenCache))
