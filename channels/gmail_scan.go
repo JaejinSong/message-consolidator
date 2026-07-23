@@ -32,12 +32,20 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 		return nil
 	}
 
-	rawMsgs, clsMap, toMap, maxTS := parseNewEmails(ctx, svc, email, allMsgs, cfg)
+	rawMsgs, clsMap, toMap, maxTS, parseOK := parseNewEmails(ctx, svc, email, allMsgs, cfg)
 	var newIDs []store.MessageID
+	analyzeOK := true
 	if len(rawMsgs) > 0 {
-		newIDs = analyzeAndSaveEmails(ctx, email, language, rawMsgs, clsMap, toMap, gc, filterSvc, onThreadActivity)
+		newIDs, analyzeOK = analyzeAndSaveEmails(ctx, email, language, rawMsgs, clsMap, toMap, gc, filterSvc, onThreadActivity)
 	}
 
+	// Why: A failed Get/Analyze leaves messages unmarked; advancing the cursor past them
+	// skips them forever (2026-07-23 backlog loss after a 45s scan timeout). Hold the
+	// cursor so the next cycle retries — IsProcessed keeps already-handled IDs cheap.
+	if !parseOK || !analyzeOK {
+		logger.Warnf("[GMAIL] cursor held for %s (parseOK=%v analyzeOK=%v); unprocessed messages retry next cycle", email, parseOK, analyzeOK)
+		return newIDs
+	}
 	if maxTS > 0 {
 		if err := store.UpdateLastScan(email, store.SourceGmail, "inbox", fmt.Sprintf("%d", maxTS)); err != nil {
 			logger.Warnf("[GMAIL] UpdateLastScan failed for %s: %v", email, err)
@@ -78,11 +86,12 @@ func fetchRecentEmails(svc *gmail.Service, email, query string) []*gmail.Message
 	return allMsgs
 }
 
-func parseNewEmails(ctx context.Context, svc *gmail.Service, email string, messages []*gmail.Message, cfg *config.Config) ([]types.RawMessage, map[string]string, map[string]string, int64) {
+func parseNewEmails(ctx context.Context, svc *gmail.Service, email string, messages []*gmail.Message, cfg *config.Config) ([]types.RawMessage, map[string]string, map[string]string, int64, bool) {
 	var rawMsgs []types.RawMessage
 	classificationMap := make(map[string]string)
 	toMap := make(map[string]string)
 	var maxTS int64
+	ok := true
 
 	skips := getGmailSkips(cfg)
 	internalDomains := cfg.CompanyDomains
@@ -98,6 +107,8 @@ func parseNewEmails(ctx context.Context, svc *gmail.Service, email string, messa
 		rawMsg, cls, to, ts, err := processSingleEmail(ctx, svc, email, m, skips, internalDomains)
 		if err != nil {
 			logger.Errorf("[GMAIL] get error for %s: %v", m.Id, err)
+			// Why: This message is neither marked processed nor analyzed — the cursor must not advance past it.
+			ok = false
 			continue
 		}
 		if ts > maxTS {
@@ -110,7 +121,7 @@ func parseNewEmails(ctx context.Context, svc *gmail.Service, email string, messa
 		}
 	}
 
-	return rawMsgs, classificationMap, toMap, maxTS
+	return rawMsgs, classificationMap, toMap, maxTS, ok
 }
 
 // Why: Extracts the processing of a single email to reduce cognitive load and simplify the main parsing loop.
@@ -273,10 +284,10 @@ func deduplicateEnvelopes(ctx context.Context, email string, rawMsgs []types.Raw
 	return result
 }
 
-func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
+func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, onThreadActivity func(store.ConsolidatedMessage) bool) ([]store.MessageID, bool) {
 	if gc == nil || filterSvc == nil {
 		logger.Errorf("[GMAIL] gc/filterSvc missing; scanner.Init may have failed")
-		return nil
+		return nil, false
 	}
 
 	user, _ := store.GetOrCreateUser(ctx, email, "", "")
@@ -284,23 +295,27 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 	rawMsgs = deduplicateEnvelopes(ctx, email, rawMsgs)
 
 	var totalNewIDs []store.MessageID
+	ok := true
 	batchSize := 10
 	for i := 0; i < len(rawMsgs); i += batchSize {
 		end := i + batchSize
 		if end > len(rawMsgs) {
 			end = len(rawMsgs)
 		}
-		ids := processBatch(ctx, gc, filterSvc, email, language, rawMsgs[i:end], classificationMap, toMap, user, aliases, onThreadActivity)
+		ids, batchOK := processBatch(ctx, gc, filterSvc, email, language, rawMsgs[i:end], classificationMap, toMap, user, aliases, onThreadActivity)
+		if !batchOK {
+			ok = false
+		}
 		totalNewIDs = append(totalNewIDs, ids...)
 	}
-	return totalNewIDs
+	return totalNewIDs, ok
 }
 
 // processBatch handles the analysis and persistence of a single batch of emails.
-func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
+func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage) bool) ([]store.MessageID, bool) {
 	filteredMsgs := filterGmailBatch(ctx, email, batchMsgs, filterSvc, classificationMap, onThreadActivity)
 	if len(filteredMsgs) == 0 {
-		return nil
+		return nil, true
 	}
 
 	payload, msgMap := buildGmailBatchPayload(email, filteredMsgs, classificationMap)
@@ -314,7 +329,8 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.Gemini
 	items, err := gc.Analyze(ctx, email, enriched, language, store.SourceGmail, "Inbox")
 	if err != nil {
 		logger.Errorf("[GMAIL] batch analyze error for %s: %v", email, err)
-		return nil
+		// Why: Batch members are unmarked at this point — signal the caller to hold the scan cursor.
+		return nil, false
 	}
 
 	// Why: AI cost is sunk once Analyze returns, so mark every batch member processed
@@ -337,7 +353,7 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.Gemini
 			newIDs = append(newIDs, id)
 		}
 	}
-	return newIDs
+	return newIDs, true
 }
 
 // noiseFilter is the consumer-side contract for the AI noise gate.
