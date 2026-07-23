@@ -27,8 +27,11 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 
 	since := getGmailScanTime(email)
 	query := fmt.Sprintf("(in:inbox OR from:me) after:%d", since.Unix())
-	allMsgs := fetchRecentEmails(svc, email, query)
+	allMsgs, fetchOK := fetchRecentEmails(svc, email, query)
 	if len(allMsgs) == 0 {
+		if fetchOK {
+			markGmailScanSuccess(email)
+		}
 		return nil
 	}
 
@@ -42,8 +45,8 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 	// Why: A failed Get/Analyze leaves messages unmarked; advancing the cursor past them
 	// skips them forever (2026-07-23 backlog loss after a 45s scan timeout). Hold the
 	// cursor so the next cycle retries — IsProcessed keeps already-handled IDs cheap.
-	if !parseOK || !analyzeOK {
-		logger.Warnf("[GMAIL] cursor held for %s (parseOK=%v analyzeOK=%v); unprocessed messages retry next cycle", email, parseOK, analyzeOK)
+	if !fetchOK || !parseOK || !analyzeOK {
+		logger.Warnf("[GMAIL] cursor held for %s (fetchOK=%v parseOK=%v analyzeOK=%v); unprocessed messages retry next cycle", email, fetchOK, parseOK, analyzeOK)
 		return newIDs
 	}
 	if maxTS > 0 {
@@ -51,7 +54,18 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 			logger.Warnf("[GMAIL] UpdateLastScan failed for %s: %v", email, err)
 		}
 	}
+	markGmailScanSuccess(email)
 	return newIDs
+}
+
+// markGmailScanSuccess stamps the wall-clock time of the last clean scan pass.
+// Why: /gmail/status checks token presence only; every silent failure mode (dead token,
+// held cursor, fetch error) must surface as staleness in the UI instead of "connected".
+func markGmailScanSuccess(email string) {
+	ts := fmt.Sprintf("%d", time.Now().Unix())
+	if err := store.UpdateLastScan(email, store.SourceGmail, store.ScanTargetLastSuccess, ts); err != nil {
+		logger.Warnf("[GMAIL] record last_success failed for %s: %v", email, err)
+	}
 }
 
 func getGmailScanTime(email string) time.Time {
@@ -63,15 +77,17 @@ func getGmailScanTime(email string) time.Time {
 	return time.Now().Add(-7 * 24 * time.Hour)
 }
 
-// Why: Isolates the pagination and fetching logic to keep the main scanning workflow concise.
-func fetchRecentEmails(svc *gmail.Service, email, query string) []*gmail.Message {
+// fetchRecentEmails lists message IDs matching query. ok=false signals a truncated
+// list (API error mid-pagination) so callers can distinguish "no new mail" from
+// "fetch failed" — an empty-but-failed fetch must not count as a successful scan.
+func fetchRecentEmails(svc *gmail.Service, email, query string) ([]*gmail.Message, bool) {
 	var allMsgs []*gmail.Message
 	pageToken := ""
 	for {
 		res, err := svc.Users.Messages.List("me").Q(query).PageToken(pageToken).MaxResults(100).Do()
 		if err != nil {
 			logger.Errorf("[GMAIL] list error for %s: %v", email, err)
-			return allMsgs
+			return allMsgs, false
 		}
 		allMsgs = append(allMsgs, res.Messages...)
 		if res.NextPageToken == "" {
@@ -83,7 +99,7 @@ func fetchRecentEmails(svc *gmail.Service, email, query string) []*gmail.Message
 			break
 		}
 	}
-	return allMsgs
+	return allMsgs, true
 }
 
 func parseNewEmails(ctx context.Context, svc *gmail.Service, email string, messages []*gmail.Message, cfg *config.Config) ([]types.RawMessage, map[string]string, map[string]string, int64, bool) {

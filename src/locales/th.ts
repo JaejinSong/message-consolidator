@@ -203,6 +203,8 @@ export const th: I18nEntry = {
         connectionsSubtitle: "จัดการสถานะการเชื่อมต่อและข้อมูลการยืนยันตัวตนของแต่ละช่องทางในที่เดียว",
         connStatusConnected: "เชื่อมต่อแล้ว",
         connStatusDisconnected: "ยังไม่ได้เชื่อมต่อ",
+        gmailScanStale: "การสแกนล่าช้า",
+        gmailLastScanAt: "สแกนสำเร็จล่าสุด",
         connConnectBtn: "เชื่อมต่อ",
         connReauthBtn: "ยืนยันตัวตนใหม่",
         connDisconnectBtn: "ยกเลิกการเชื่อมต่อ",

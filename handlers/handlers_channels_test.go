@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"message-consolidator/config"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
@@ -10,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // ---- WhatsApp ----
@@ -44,12 +46,94 @@ func TestHandleGmailStatus_NotConnected(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", rr.Code)
 	}
-	var body map[string]bool
+	var body gmailStatusResponse
 	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
 		t.Fatalf("body not JSON: %v", err)
 	}
-	if body["connected"] {
+	if body.Connected {
 		t.Error("expected connected=false for user with no token")
+	}
+	if body.Stale {
+		t.Error("expected stale=false for user with no token")
+	}
+}
+
+// Why: table for the server-side staleness rule — stale requires BOTH a live token and
+// a last_success older than the 31m threshold; absence of last_success is never stale.
+func TestBuildGmailStatus(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 7, 23, 12, 0, 0, 0, time.UTC)
+	fresh := fmt.Sprintf("%d", now.Add(-5*time.Minute).Unix())
+	old := fmt.Sprintf("%d", now.Add(-32*time.Minute).Unix())
+
+	tests := []struct {
+		name       string
+		connected  bool
+		lastTS     string
+		wantStale  bool
+		wantLastAt bool
+	}{
+		{"connected, never scanned (first connect)", true, "", false, false},
+		{"connected, fresh scan", true, fresh, false, true},
+		{"connected, scan older than threshold", true, old, true, true},
+		{"disconnected, old scan", false, old, false, true},
+		{"connected, malformed timestamp", true, "not-a-unix-ts", false, false},
+		{"connected, zero timestamp", true, "0", false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildGmailStatus(tt.connected, tt.lastTS, now)
+			if got.Connected != tt.connected {
+				t.Errorf("connected = %v, want %v", got.Connected, tt.connected)
+			}
+			if got.Stale != tt.wantStale {
+				t.Errorf("stale = %v, want %v", got.Stale, tt.wantStale)
+			}
+			if (got.LastScanAt > 0) != tt.wantLastAt {
+				t.Errorf("last_scan_at = %d, want set=%v", got.LastScanAt, tt.wantLastAt)
+			}
+		})
+	}
+}
+
+// Why: end-to-end pin of the /gmail/status contract — a connected account whose last
+// clean scan exceeded the threshold must answer {connected:true, stale:true}.
+func TestHandleGmailStatus_StaleAfterThreshold(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	email := "gmail-stale@example.com"
+	if err := store.SaveGmailToken(context.Background(), email, `{"access_token":"x"}`); err != nil {
+		t.Fatalf("save token: %v", err)
+	}
+	oldTS := fmt.Sprintf("%d", time.Now().Add(-32*time.Minute).Unix())
+	if err := store.UpdateLastScan(email, store.SourceGmail, store.ScanTargetLastSuccess, oldTS); err != nil {
+		t.Fatalf("seed last_success: %v", err)
+	}
+
+	api := &API{}
+	req := NewMockRequest("GET", "/api/channels/gmail/status", email)
+	rr := httptest.NewRecorder()
+	api.HandleGmailStatus(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rr.Code)
+	}
+	var body gmailStatusResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("body not JSON: %v", err)
+	}
+	if !body.Connected {
+		t.Error("expected connected=true")
+	}
+	if !body.Stale {
+		t.Error("expected stale=true for scan older than threshold")
+	}
+	if body.LastScanAt <= 0 {
+		t.Errorf("last_scan_at = %d, want > 0", body.LastScanAt)
 	}
 }
 

@@ -10,7 +10,7 @@ export const authService = {
      * Checks if Gmail is currently connected for the authenticated user.
      * @returns {Promise<{connected: boolean, email?: string}>}
      */
-    async checkGmailStatus(): Promise<{ connected: boolean; email?: string }> {
+    async checkGmailStatus(): Promise<{ connected: boolean; email?: string; last_scan_at?: number; stale?: boolean }> {
         try {
             return await apiFetch('/gmail/status');
         } catch (error) {

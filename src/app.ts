@@ -368,8 +368,8 @@ const checkAllStatus = safeAsync(async (bypassVisibility: boolean = false) => {
             }),
             authService.checkGmailStatus().then(d => {
                 state.gmailConnected = d.connected;
-                updateGmailStatus(d.connected, d.email);
-                snapshot.gmail = { connected: d.connected, email: d.email };
+                updateGmailStatus(d.connected, d.email, { stale: d.stale === true, lastScanAt: d.last_scan_at });
+                snapshot.gmail = { connected: d.connected, email: d.email, stale: d.stale === true, lastScanAt: d.last_scan_at };
             }),
             api.fetchTelegramStatus().then(d => {
                 if (!d) return;

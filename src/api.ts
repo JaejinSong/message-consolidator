@@ -262,7 +262,7 @@ export const api = {
         });
     },
 
-    async fetchGmailStatus(): Promise<{ connected: boolean }> {
+    async fetchGmailStatus(): Promise<{ connected: boolean; last_scan_at?: number; stale?: boolean }> {
         return apiFetch('/gmail/status', { errorMessage: 'Gmail status check failed' });
     },
 

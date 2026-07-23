@@ -206,6 +206,13 @@ describe('api', () => {
             expect(fetch).toHaveBeenCalledWith('/api/gmail/status', expect.any(Object));
             expect(result.connected).toBe(true);
         });
+
+        it('passes through scan freshness fields', async () => {
+            (fetch as ReturnType<typeof vi.fn>).mockImplementation(() => mockResponse(200, { connected: true, last_scan_at: 1753200000, stale: true }));
+            const result = await api.fetchGmailStatus();
+            expect(result.stale).toBe(true);
+            expect(result.last_scan_at).toBe(1753200000);
+        });
     });
 
     describe('fetchTelegramStatus', () => {

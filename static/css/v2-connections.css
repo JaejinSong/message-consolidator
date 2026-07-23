@@ -66,6 +66,13 @@
     color: var(--text-dim);
 }
 
+/* Connected but the last clean scan exceeded the staleness threshold */
+.c-connection-card__badge--stale {
+    color: var(--color-warning);
+    border-color: rgba(var(--color-warning-rgb), 0.4);
+    background: rgba(var(--color-warning-rgb), 0.1);
+}
+
 .c-connection-card__meta {
     display: grid;
     grid-template-columns: minmax(6rem, max-content) 1fr;

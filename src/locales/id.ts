@@ -209,6 +209,8 @@ export const id: I18nEntry = {
         connectionsSubtitle: "Kelola status koneksi dan informasi autentikasi setiap saluran di satu tempat.",
         connStatusConnected: "Terhubung",
         connStatusDisconnected: "Tidak terhubung",
+        gmailScanStale: "Pemindaian tertunda",
+        gmailLastScanAt: "Pemindaian sukses terakhir",
         connConnectBtn: "Hubungkan",
         connReauthBtn: "Autentikasi ulang",
         connDisconnectBtn: "Putuskan",

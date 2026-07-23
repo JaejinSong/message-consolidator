@@ -7,8 +7,33 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 )
+
+// gmailStaleThreshold marks the scan as stale when the last clean pass is older than
+// this. Why: prime interval (31m) > the scan cycle so one slow cycle cannot flap the badge.
+const gmailStaleThreshold = 31 * time.Minute
+
+type gmailStatusResponse struct {
+	Connected  bool  `json:"connected"`
+	LastScanAt int64 `json:"last_scan_at"`
+	Stale      bool  `json:"stale"`
+}
+
+// buildGmailStatus derives the status payload from token presence and the last_success
+// scan stamp. lastSuccessTS="" (never scanned, e.g. right after first connect) is not stale.
+func buildGmailStatus(connected bool, lastSuccessTS string, now time.Time) gmailStatusResponse {
+	resp := gmailStatusResponse{Connected: connected}
+	ts, err := strconv.ParseInt(lastSuccessTS, 10, 64)
+	if err != nil || ts <= 0 {
+		return resp
+	}
+	resp.LastScanAt = ts
+	resp.Stale = connected && now.Sub(time.Unix(ts, 0)) > gmailStaleThreshold
+	return resp
+}
 
 func (a *API) HandleGmailConnect(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
@@ -55,9 +80,11 @@ func (a *API) HandleGmailCallback(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleGmailStatus(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	connected := store.HasGmailToken(email)
-	logger.Debugf("[GMAIL] status for %s: connected=%v", email, connected)
+	lastSuccess := store.GetLastScan(email, store.SourceGmail, store.ScanTargetLastSuccess)
+	resp := buildGmailStatus(connected, lastSuccess, time.Now())
+	logger.Debugf("[GMAIL] status for %s: connected=%v stale=%v last_scan_at=%d", email, connected, resp.Stale, resp.LastScanAt)
 	w.Header().Set("Content-Type", "application/json")
-	respondJSON(w, http.StatusOK, map[string]bool{"connected": connected})
+	respondJSON(w, http.StatusOK, resp)
 }
 
 func (a *API) HandleGmailDisconnect(w http.ResponseWriter, r *http.Request) {

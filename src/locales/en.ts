@@ -290,6 +290,8 @@ export const en: I18nEntry = {
         connectionsSubtitle: "Manage each channel's link status and authentication in one place.",
         connStatusConnected: "Connected",
         connStatusDisconnected: "Not connected",
+        gmailScanStale: "Scan delayed",
+        gmailLastScanAt: "Last successful scan",
         connConnectBtn: "Connect",
         connReauthBtn: "Re-authenticate",
         connDisconnectBtn: "Disconnect",

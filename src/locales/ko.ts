@@ -291,6 +291,8 @@ export const ko: I18nEntry = {
         connectionsSubtitle: "각 채널의 연동 상태와 인증 정보를 한 곳에서 관리합니다.",
         connStatusConnected: "연결됨",
         connStatusDisconnected: "연결 안됨",
+        gmailScanStale: "스캔 지연",
+        gmailLastScanAt: "마지막 성공 스캔",
         connConnectBtn: "연결하기",
         connReauthBtn: "재인증",
         connDisconnectBtn: "연동 해제",

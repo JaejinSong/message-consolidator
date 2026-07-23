@@ -101,6 +101,10 @@ func LoadMetadata() error {
 	return nil
 }
 
+// ScanTargetLastSuccess is the scan_metadata target_id recording the unix time of the
+// last clean scan pass. Why: token presence alone cannot surface silent scan failures.
+const ScanTargetLastSuccess = "last_success"
+
 func GetLastScan(userEmail, source, targetID string) string {
 	metadataMu.RLock()
 	defer metadataMu.RUnlock()

@@ -11,11 +11,11 @@ import { state } from '../state';
 import { t } from '../i18n';
 import { escapeHTML } from '../utils';
 import { showToast } from './ui-effects';
-import { showWaModal, showTelegramModal } from './status-renderer';
+import { showWaModal, showTelegramModal, gmailStaleTooltip } from './status-renderer';
 import { showTelegramCredentialsStep, syncTelegramModalToStatus } from './telegram-modal-renderer';
 
 export interface ConnectionsState {
-    gmail: { connected: boolean; email?: string };
+    gmail: { connected: boolean; email?: string; stale?: boolean; lastScanAt?: number };
     whatsapp: { connected: boolean; deviceName?: string };
     telegram: { status: string; hasCredentials?: boolean; phoneMasked?: string; appIdMasked?: string };
     slack: { connected: boolean; slackId?: string };
@@ -165,6 +165,21 @@ function renderGmail(s: ConnectionsState['gmail'], lang: string): void {
     setBadge(card, s.connected, lang);
     setCardModifier(card, s.connected);
     setNotice(card, null);
+
+    // Why: token presence alone hides dead scans — surface staleness as a warning badge.
+    const isStale = s.connected && s.stale === true;
+    const badge = card.querySelector<HTMLElement>('[data-role=badge]');
+    if (badge) {
+        badge.classList.toggle('c-connection-card__badge--stale', isStale);
+        if (isStale) {
+            badge.classList.remove('c-connection-card__badge--connected');
+            badge.textContent = t('gmailScanStale', lang);
+        }
+        badge.title = isStale ? gmailStaleTooltip(s.lastScanAt, lang) : '';
+    }
+    if (isStale && s.lastScanAt) {
+        setNotice(card, `${t('gmailLastScanAt', lang)}: ${new Date(s.lastScanAt * 1000).toLocaleString()}`);
+    }
 
     if (s.connected) {
         setMeta(card, [{ key: t('connEmailLabel', lang), value: s.email || t('connEmptyValue', lang) }]);

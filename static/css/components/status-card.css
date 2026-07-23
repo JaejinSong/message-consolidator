@@ -67,6 +67,16 @@
     border-style: dashed;
 }
 
+/* Connected but scanning has silently stalled — warn instead of green */
+.c-status-card--stale {
+    border-color: rgba(var(--color-warning-rgb), 0.6);
+}
+
+.c-status-card--stale svg {
+    color: var(--color-warning);
+    filter: drop-shadow(0 0 var(--spacing-sm) currentColor);
+}
+
 /* Mobile Responsive */
 @media (max-width: 48rem) {
     .c-status-group {

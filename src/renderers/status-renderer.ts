@@ -1,6 +1,8 @@
 import { I18N_DATA } from '../locales';
 import { DOM_IDS, STATUS_STATES, UI_TEXT, TELEGRAM_STATUS } from '../constants';
 import { showToast } from './ui-effects';
+import { t } from '../i18n';
+import { state } from '../state';
 
 /**
  * @file status-renderer.ts
@@ -66,12 +68,34 @@ export function updateWhatsAppStatus(statusStr: ServiceStatus): void {
     updateServiceStatusUI('wa', statusStr);
 }
 
-export function updateGmailStatus(connected: boolean, email: string | undefined): void {
+export interface GmailScanHealth {
+    stale: boolean;
+    /** Unix seconds of the last clean scan pass; absent right after first connect. */
+    lastScanAt?: number;
+}
+
+/**
+ * Why: token presence alone kept the card green through 15 days of dead scans
+ * (2026-07 Gmail incident). A stale last_success must be visible on the dashboard card.
+ */
+export function gmailStaleTooltip(lastScanAt: number | undefined, lang: string): string {
+    if (!lastScanAt) return t('gmailScanStale', lang);
+    return `${t('gmailScanStale', lang)} — ${t('gmailLastScanAt', lang)}: ${new Date(lastScanAt * 1000).toLocaleString()}`;
+}
+
+export function updateGmailStatus(connected: boolean, email: string | undefined, health?: GmailScanHealth): void {
     updateServiceStatusUI('gmail', connected);
     const emailEl = document.getElementById('gmailEmail');
     if (emailEl) {
         emailEl.textContent = email || '';
         emailEl.classList.toggle('hidden', !connected);
+    }
+
+    const card = document.getElementById(DOM_IDS.STATUS_LARGE('gmail'));
+    if (card) {
+        const isStale = connected && health?.stale === true;
+        card.classList.toggle('c-status-card--stale', isStale);
+        card.title = isStale ? gmailStaleTooltip(health?.lastScanAt, state.currentLang || 'en') : '';
     }
 }
 
