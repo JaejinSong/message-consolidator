@@ -1050,3 +1050,30 @@ func TestRecordCompletionCandidate_SuppressesDismissedSource(t *testing.T) {
 		t.Error("expected candidateRecorded counter to increment")
 	}
 }
+
+// Why: chat sources carry no Link — dismissal suppression must key on SourceTS, and the
+// recorded candidate must store that key so a later dismissal suppresses the same message.
+func TestRecordCompletionCandidate_LinklessUsesSourceTS(t *testing.T) {
+	ctx := context.Background()
+	mockStore := &MockStore{}
+	svc := NewCompletionService(&MockAI{}, mockStore, &TasksService{}, nil)
+
+	dismissedMeta := []byte(`{"completion_dismissed_source":"3EB0WAMSG1"}`)
+	task := store.ConsolidatedMessage{ID: 91, Metadata: dismissedMeta}
+
+	dismissed := store.ConsolidatedMessage{SourceTS: "3EB0WAMSG1", OriginalText: "done"}
+	if got := svc.recordCompletionCandidate(ctx, dismissed, task); got {
+		t.Error("dismissed SourceTS must be suppressed for link-less chat messages")
+	}
+	if _, ok := mockStore.Candidates[91]; ok {
+		t.Error("must not record candidate for a dismissed SourceTS")
+	}
+
+	fresh := store.ConsolidatedMessage{SourceTS: "3EB0WAMSG2", OriginalText: "done"}
+	if got := svc.recordCompletionCandidate(ctx, fresh, task); !got {
+		t.Error("expected candidate recorded for a fresh SourceTS")
+	}
+	if c := mockStore.Candidates[91]; c.SourceLink != "3EB0WAMSG2" {
+		t.Errorf("candidate SourceLink = %q, want SourceTS fallback %q", c.SourceLink, "3EB0WAMSG2")
+	}
+}

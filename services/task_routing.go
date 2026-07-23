@@ -131,8 +131,28 @@ func updateThreadParentIfPresent(ctx context.Context, q store.Querier, msg store
 	if len(existing) == 0 {
 		return 0, false, nil
 	}
+	// Why: updateExistingTask OVERWRITES the parent's title. On quote-anchored sources
+	// a "thread" is just a reply chain — quoting an old message with an unrelated new
+	// request would rename that task (Indofood-PO class corruption); an off-topic
+	// proposal creates its own task instead. Container threads (gmail/slack) stay
+	// trusted: same thread there reliably means same topic, and CJK titles often
+	// cannot clear the token-overlap floor.
+	if quoteAnchoredThreadSources[msg.Source] && titleTokenOverlap(task, existing[0].Task) < minTopicalOverlap {
+		logger.LogDecision(logger.DecisionLog{
+			UserEmail: msg.UserEmail, Source: msg.Source, Room: msg.Room, State: "new", Task: task,
+			Reasoning: fmt.Sprintf("thread-parent update rejected: no topic tie to %q", existing[0].Task),
+		})
+		return 0, false, nil
+	}
 	id, err := updateExistingTask(ctx, q, msg.UserEmail, existing[0].ID, task, msg.Subtasks)
 	return id, true, err
+}
+
+// quoteAnchoredThreadSources marks channels whose thread_id is a quote/reply-chain
+// anchor rather than a real thread container.
+var quoteAnchoredThreadSources = map[string]bool{
+	store.SourceWhatsApp: true,
+	store.SourceLine:     true,
 }
 
 // Why: Folds the SaveMessage path so handleNew's body stays linear. AI-supplied requester/assignee/reason override the envelope when present.
@@ -285,6 +305,9 @@ func handleResolveCandidate(ctx context.Context, q store.Querier, email string, 
 		Status:     "pending",
 	}
 	if err := store.AddCompletionCandidate(ctx, q, email, id, cand); err != nil {
+		// Why: every call site discards HandleTaskState's error — without this line a
+		// failed candidate write (lock contention, disk) disappears with no trace.
+		logger.Warnf("[ROUTER] record resolve candidate failed for task %d: %v", id, err)
 		return 0, fmt.Errorf("record resolve candidate for task %d: %w", id, err)
 	}
 	compStats.candidateRecorded.Add(1)

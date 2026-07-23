@@ -375,15 +375,21 @@ func topicalOverlap(tokens []string, task store.ConsolidatedMessage) int {
 // metadata instead of closing it. Returns true on success so the caller suppresses
 // re-extraction (the message is about this existing task, not a new one).
 func (s *CompletionService) recordCompletionCandidate(ctx context.Context, msg, task store.ConsolidatedMessage) bool {
+	// Why: chat sources have no permalink — the message's own ID keys dismissal
+	// suppression; with an empty key WasCandidateDismissed can never suppress.
+	sourceKey := msg.Link
+	if sourceKey == "" {
+		sourceKey = msg.SourceTS
+	}
 	// Why: the user already dismissed this exact source once — re-recording it would
 	// resurrect a suggestion they explicitly rejected.
-	if store.WasCandidateDismissed(string(task.Metadata), msg.Link) {
+	if store.WasCandidateDismissed(string(task.Metadata), sourceKey) {
 		compStats.dismissSuppressed.Add(1)
-		logger.Debugf("[COMPLETION] candidate suppressed (previously dismissed) for task %d from %s", task.ID, msg.Link)
+		logger.Debugf("[COMPLETION] candidate suppressed (previously dismissed) for task %d from %s", task.ID, sourceKey)
 		return false
 	}
 	cand := store.CompletionCandidate{
-		SourceLink: msg.Link,
+		SourceLink: sourceKey,
 		SourceText: truncateRunes(msg.OriginalText, candidateEvidenceMax),
 		Evidence:   "cross-channel completion match",
 		DetectedAt: time.Now().UTC().Format(time.RFC3339),
