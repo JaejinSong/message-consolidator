@@ -18,6 +18,7 @@ type ExtractionContext struct {
 	ParentTask       string       //Why: Context for completion/update evaluation threads.
 	SubtasksContext  string       //Why: Formatted subtask checklist injected into completion_check prompt when ≤5 subtasks; empty string omits the section.
 	StaleThreshold   int          //Why: Working-day cutoff for the report_summary Stalled Tasks rule; 0 omits the deterministic clause.
+	ReportWindow     string       //Why: "<start> ~ <end>" date range so report_summary grounds WHEN framing (daily vs weekly) instead of guessing from CurrentTime.
 	ChatType         string       //Why: "1to1" or "group"; empty for non-chat sources. Enables AI to apply correct assignee/policy rules without re-inferring from sender count.
 	RoomName         string       //Why: Human-readable room/group name for AI grounding; empty for 1:1 DMs or non-chat sources.
 }

@@ -719,7 +719,7 @@ type mockSummarizer struct {
 	generateFunc func(ctx context.Context, email, logs string, reportID store.ReportID) (string, error)
 }
 
-func (m *mockSummarizer) Generate(ctx context.Context, email, logs string, reportID store.ReportID) (string, error) {
+func (m *mockSummarizer) Generate(ctx context.Context, email, logs, _ string, reportID store.ReportID) (string, error) {
 	return m.generateFunc(ctx, email, logs, reportID)
 }
 

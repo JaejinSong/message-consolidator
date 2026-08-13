@@ -15,7 +15,7 @@ import (
 // ReportSummarizer defines the strategy for generating report summaries from logs.
 // reportID enables per-report token cost attribution.
 type ReportSummarizer interface {
-	Generate(ctx context.Context, email, logs string, reportID store.ReportID) (string, error)
+	Generate(ctx context.Context, email, logs, window string, reportID store.ReportID) (string, error)
 }
 
 // ReportConfig encapsulates configuration parameters for the report service.
@@ -45,8 +45,8 @@ func NewFlashSingleSummarizer(gemini *ai.GeminiClient) *FlashSingleSummarizer {
 }
 
 // Generate implements the ReportSummarizer interface by calling the Gemini API for a single-pass summary.
-func (s *FlashSingleSummarizer) Generate(ctx context.Context, email, logs string, reportID store.ReportID) (string, error) {
-	return s.gemini.GenerateReportSummary(ctx, email, logs, reportID)
+func (s *FlashSingleSummarizer) Generate(ctx context.Context, email, logs, window string, reportID store.ReportID) (string, error) {
+	return s.gemini.GenerateReportSummary(ctx, email, logs, window, reportID)
 }
 
 type ReportsService struct {
@@ -195,7 +195,7 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id s
 		logger.Warnf("[REPORTS] input logs truncated at cutoff (%d bytes): email=%s, total_logs=%d, report_id=%d",
 			s.config.CutoffSize, email, len(activity)+len(stalled), id)
 	}
-	summary, err := s.summarizer.Generate(ctx, email, taskLogs, id)
+	summary, err := s.summarizer.Generate(ctx, email, taskLogs, start+" ~ "+end, id)
 	if err != nil {
 		s.markFailed(ctx, email, id)
 		return

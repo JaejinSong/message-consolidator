@@ -1,6 +1,6 @@
 ---
 name: report_summary
-version: 3.0.0
+version: 3.1.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: off
 deepseekModel: deepseek-v4-pro
@@ -14,12 +14,12 @@ Each line in both sections carries 5W context in this shape:
 `- [<status>][<category>] <task> (Room: <project>, From: <requester> (<cat>), To: <assignee> (<cat>), Due: <deadline>) | Evidence: "<snippet>"`
 
 Status `[V]` = done, `[ ]` = active. Each rule below declares its own grounding contract; Key Insights bullets follow per-type contracts in rule 3. Never infer beyond what task title or Evidence explicitly supports.
+Frame all WHEN references against the `Report Window` in [Context]: a single-day window is a daily report ("today"), a multi-day window is a weekly report ("this week"). State dates explicitly (e.g. `due 08-14`) rather than relative phrases when `Due:` is present.
 
 # Rules
-1. Headers (all 4 required, in order): `## [Operations & Strategy Overview]`, `## [Key Insights]`, `## [Activity]`, `## [Stalled Tasks]`
-2. **Operations & Strategy Overview**: BLUF format — bottom line first, then telegraphic bullets. NO narrative paragraphs.
-   - First line: `BLUF: <single most decision-relevant item — who must do what by when>` (<=25 words). Pick the most time-sensitive or highest-impact item, judged by `Due:` fields and Evidence urgency signals.
-   - Then 3-5 bullets, one topic each, <=20 words, telegraphic style — lead with the actor or customer, drop filler verbs.
+1. Output opens with ONE line — `BLUF: <single most decision-relevant item — who must do what by when>` (<=25 words) — BEFORE any header. Pick the most time-sensitive or highest-impact item, judged by `Due:` fields and Evidence urgency signals. Then headers (all 4 required, in order): `## [Operations & Strategy Overview]`, `## [Key Insights]`, `## [Activity]`, `## [Stalled Tasks]`
+2. **Operations & Strategy Overview**: telegraphic bullets only. NO narrative paragraphs.
+   - 3-5 bullets, one topic each, <=20 words, telegraphic style — lead with the actor or customer, drop filler verbs. Do NOT restate the BLUF item.
    - Each bullet makes the 5W1H explicit where the input provides it: WHO (`From:`/`To:`), WHAT (task), WHEN (`Due:` or report window), WHERE (`Room:`/customer), WHY (Evidence signal). Omit elements absent from input — never invent.
    - Identify "Choice and Concentration" conflicts ONLY when two or more tasks in Activity share genuinely conflicting resource/timing constraints visible in Evidence — do NOT invent strategic tensions.
 3. **Key Insights**: Surface non-obvious patterns, risks, and anomalies — NOT a task list. Bullets fall into three TYPES with **distinct grounding contracts**. Emit each type independently — they do NOT compete for a single quota.
@@ -76,6 +76,8 @@ Output: {{.Expected}}
 
 [Context]
 Current Time: {{.CurrentTime}}
+{{if .ReportWindow}}Report Window: {{.ReportWindow}}
+{{end}}
 User Locale: {{.Locale}}
 Host User: {{.CurrentUserEmail}}
 

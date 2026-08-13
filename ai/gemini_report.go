@@ -14,7 +14,7 @@ import (
 )
 
 // Why: Summarizes a list of tasks into a structured Markdown business report.
-func (g *AIClient) GenerateReportSummary(ctx context.Context, email string, tasks string, reportID store.ReportID) (string, error) {
+func (g *AIClient) GenerateReportSummary(ctx context.Context, email string, tasks string, window string, reportID store.ReportID) (string, error) {
 	if g == nil || g.transport == nil {
 		return "", fmt.Errorf("AI client is not initialized")
 	}
@@ -26,6 +26,7 @@ func (g *AIClient) GenerateReportSummary(ctx context.Context, email string, task
 		Locale:           "English",
 		StaleThreshold:   store.GetStaleThresholdWorkingDays(),
 		CurrentUserEmail: email,
+		ReportWindow:     window,
 	}
 	rendered, err := parsed.Render(data)
 	if err != nil {

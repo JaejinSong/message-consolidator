@@ -14,7 +14,7 @@ import (
 // nilReportSummarizer satisfies services.ReportSummarizer with a no-op.
 type nilReportSummarizer struct{}
 
-func (nilReportSummarizer) Generate(_ context.Context, _, _ string, _ store.ReportID) (string, error) {
+func (nilReportSummarizer) Generate(_ context.Context, _, _, _ string, _ store.ReportID) (string, error) {
 	return "", nil
 }
 

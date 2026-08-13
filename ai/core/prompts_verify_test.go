@@ -346,6 +346,42 @@ func TestReportSummaryBulletTypes(t *testing.T) {
 	}
 }
 
+// TestReportSummaryBLUFStructure guards the v3.1.0 BLUF + telegraphic-bullet restructure.
+// Why: team feedback (2026-08-12) — the 4-5 sentence narrative Overview went unread.
+// v3.0.0 replaced it with telegraphic 5W1H bullets; v3.1.0 promoted the BLUF line above
+// all headers and grounded WHEN framing in the injected Report Window. Dropping any of
+// these tokens silently reverts the report to narrative form.
+func TestReportSummaryBLUFStructure(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/report_summary.prompt")
+	if err != nil {
+		t.Fatalf("read report_summary: %v", err)
+	}
+	body := string(content)
+	required := []string{
+		"BLUF:",
+		"BEFORE any header",
+		"telegraphic bullets only",
+		"WHO (`From:`/`To:`)",
+		"Report Window",
+		"{{.ReportWindow}}",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Errorf("report_summary.prompt missing v3.1.0 rule phrase: %q", token)
+		}
+	}
+	forbidden := []string{
+		"strategic narrative",
+		"own paragraph separated by a blank line",
+	}
+	for _, token := range forbidden {
+		if strings.Contains(body, token) {
+			t.Errorf("report_summary.prompt must not contain deprecated narrative phrase: %q", token)
+		}
+	}
+}
+
 // TestNewExtractionNeutralUmbrella guards the neutral-umbrella + paragraph-split rule
 // preserved across v1.2.0 → v2.0.0.
 // Why: Prevents regression to v1.1.0 where LLM joined independent paragraphs with causal
