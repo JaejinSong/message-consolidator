@@ -28,6 +28,9 @@ export CLOUDSDK_ACTIVE_CONFIG_NAME="default"
 ACTIVE_ACCOUNT=$(gcloud config get-value account 2>/dev/null || true)
 [ "$ACTIVE_ACCOUNT" = "$EXPECTED_ACCOUNT" ] || fatal "gcloud account mismatch (got '${ACTIVE_ACCOUNT}', expected '${EXPECTED_ACCOUNT}'). Check 'gcloud config configurations describe default'."
 [ "$(gcloud config get-value project 2>/dev/null)" = "$PROJECT_ID" ] || fatal "gcloud project mismatch under config 'default'. Run: gcloud config set project ${PROJECT_ID} --configuration=default"
+# Why: configure-docker only writes credHelper config — it PASSes on a dead token and the
+# failure surfaces minutes later at push time (2026-08-13 incident). Fail fast here instead.
+gcloud auth print-access-token > /dev/null 2>&1 || fatal "gcloud token expired/revoked. Run: gcloud auth login"
 
 # --- SSH ---
 SSH_OPTS="-o ControlMaster=auto -o ControlPath=~/.ssh/control-%C -o ControlPersist=10m -q"
@@ -76,9 +79,11 @@ run_step() {
 # slow vs docker push); the cost is buildx orchestration, not compression algo.
 push_dual_tag() {
     local name="$1" t1="$2" t2="$3"
+    # Why: -q drops layer-progress noise but keeps errors in the step log — full
+    # silencing left the 2026-08-13 auth failure invisible in the FAIL output.
     run_step "$name" bash -c "
-        docker push ${t1} > /dev/null 2>&1 & p1=\$!
-        docker push ${t2} > /dev/null 2>&1 & p2=\$!
+        docker push -q ${t1} & p1=\$!
+        docker push -q ${t2} & p2=\$!
         wait \$p1 && wait \$p2
     "
 }
@@ -174,6 +179,10 @@ UPLOAD_FILES=(.env.vps docker-compose.yml)
 if $CADDY_CHANGED; then UPLOAD_FILES+=(Caddyfile); fi
 run_step "Upload Configs" upload_via_tar "${UPLOAD_FILES[@]}"
 ${SSH_CMD} "cd ${VPS_PATH} && mv .env.vps .env"
+
+# Why: VM compute SA is disabled (security hardening) so the VPS cannot mint its own
+# registry token; pipe a 1h user token into root docker login before compose pulls.
+run_step "VPS: Registry Login" bash -c "gcloud auth print-access-token | ${SSH_CMD} 'sudo docker login -u oauth2accesstoken --password-stdin ${REGION}-docker.pkg.dev'"
 
 # 2.1 Start chains (push + deploy inlined per service)
 p_be=""; p_fe=""
