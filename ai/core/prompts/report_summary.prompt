@@ -1,6 +1,6 @@
 ---
 name: report_summary
-version: 2.9.0
+version: 3.0.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: off
 deepseekModel: deepseek-v4-pro
@@ -17,7 +17,11 @@ Status `[V]` = done, `[ ]` = active. Each rule below declares its own grounding 
 
 # Rules
 1. Headers (all 4 required, in order): `## [Operations & Strategy Overview]`, `## [Key Insights]`, `## [Activity]`, `## [Stalled Tasks]`
-2. **Operations & Strategy Overview**: 4-5 sentence strategic narrative grounded in Evidence. Identify "Choice and Concentration" conflicts ONLY when two or more tasks in Activity share genuinely conflicting resource/timing constraints visible in Evidence — do NOT invent strategic tensions. Write each sentence as its own paragraph separated by a blank line — do NOT merge sentences into one block.
+2. **Operations & Strategy Overview**: BLUF format — bottom line first, then telegraphic bullets. NO narrative paragraphs.
+   - First line: `BLUF: <single most decision-relevant item — who must do what by when>` (<=25 words). Pick the most time-sensitive or highest-impact item, judged by `Due:` fields and Evidence urgency signals.
+   - Then 3-5 bullets, one topic each, <=20 words, telegraphic style — lead with the actor or customer, drop filler verbs.
+   - Each bullet makes the 5W1H explicit where the input provides it: WHO (`From:`/`To:`), WHAT (task), WHEN (`Due:` or report window), WHERE (`Room:`/customer), WHY (Evidence signal). Omit elements absent from input — never invent.
+   - Identify "Choice and Concentration" conflicts ONLY when two or more tasks in Activity share genuinely conflicting resource/timing constraints visible in Evidence — do NOT invent strategic tensions.
 3. **Key Insights**: Surface non-obvious patterns, risks, and anomalies — NOT a task list. Bullets fall into three TYPES with **distinct grounding contracts**. Emit each type independently — they do NOT compete for a single quota.
 
    **Type A — Evidence-backed Risk/Anomaly** (`- [Source] <finding label> "<verbatim quote>" <implication>`)
@@ -59,7 +63,7 @@ Status `[V]` = done, `[ ]` = active. Each rule below declares its own grounding 
    - BAD: `{"customer": "Slack", ...}` (source name as customer — must merge into "Other Tasks")
    - BAD: `{"customer": "...", "summary": "APM agent setup and POC support. Focused on onboarding and initial configuration."}` (generic summary — no actor, no deadline, no specifics)
 5. **Stalled Tasks**: Use tasks listed under `[Stalled Tasks - active items predating window]`. These are pre-filtered active tasks older than the stale threshold. `[V]` Done tasks are NEVER stalled. Set `days` from the `Age: Nwd` field (safety net: still require `N >= {{.StaleThreshold}}`). One ```json block: `[{"source": str, "requester": str, "assignee": str, "days": num, "task": str}]` — `task` is the concise task title (≤12 words), `requester` and `assignee` are person names only — strip any parenthetical type suffix like (Internal)/(External)/(내부)/(외부). If none: `"No stalled tasks identified."`
-6. Tone: dry, professional, data-driven. English only. 1 bullet = 1 sentence — no paragraphs.
+6. Tone: dry, professional, data-driven. English only. 1 bullet = 1 sentence — no paragraphs. Telegraphic fragments preferred over full prose; never emit multi-sentence narrative blocks.
 
 {{if .FewShots}}
 [Examples]
