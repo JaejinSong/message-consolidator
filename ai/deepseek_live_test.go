@@ -102,7 +102,10 @@ func TestLive_DeepSeek_JSONMode(t *testing.T) {
 	t.Logf("json=%v usage=%+v", got, resp.Usage)
 }
 
-// TestLive_DeepSeek_ReasonerThinking verifies ThinkOn (reasoning_effort) emits reasoning tokens.
+// TestLive_DeepSeek_ReasonerThinking verifies ThinkOn (reasoning_effort) yields a
+// correct reasoned answer. NOTE: Ollama returns the reasoning text in message.reasoning
+// (not reasoning_content) and omits completion_tokens_details, so ReasoningTokens is
+// always 0 here — reasoning tokens are folded into completion_tokens (same billing rate).
 func TestLive_DeepSeek_ReasonerThinking(t *testing.T) {
 	tr := liveTransport(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
@@ -117,10 +120,10 @@ func TestLive_DeepSeek_ReasonerThinking(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate(reasoner): %v", err)
 	}
-	if resp.Usage.ReasoningTokens <= 0 {
-		t.Errorf("expected reasoner to emit reasoning tokens, got %d", resp.Usage.ReasoningTokens)
+	if !strings.Contains(resp.Text, "0.05") {
+		t.Errorf("expected reasoned answer $0.05, got %q", resp.Text)
 	}
-	t.Logf("text=%q reasoning_tokens=%d usage=%+v", resp.Text, resp.Usage.ReasoningTokens, resp.Usage)
+	t.Logf("text=%q usage=%+v", resp.Text, resp.Usage)
 }
 
 // TestLive_DeepSeek_EvaluateTransition exercises the production transition path
