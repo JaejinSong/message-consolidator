@@ -52,10 +52,10 @@ var Registry = []SettingDef{
 	{Key: "GEMINI_ANALYSIS_MODEL", Label: "Gemini Analysis Model", Category: "ai", Type: TypeString, DefaultValue: "gemini-3-flash-preview"},
 	{Key: "GEMINI_TRANSLATION_MODEL", Label: "Gemini Translation Model", Category: "ai", Type: TypeString, DefaultValue: "gemini-3.1-flash-lite"},
 	{Key: "DEEPSEEK_API_KEY", Label: "DeepSeek API Key", Category: "ai", Type: TypeString, Secret: true, RestartRequired: true},
-	{Key: "DEEPSEEK_BASE_URL", Label: "DeepSeek Base URL", Category: "ai", Type: TypeString, DefaultValue: "https://api.deepseek.com/v1", RestartRequired: true},
-	{Key: "DEEPSEEK_FILTER_MODEL", Label: "DeepSeek Filter Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-chat"},
-	{Key: "DEEPSEEK_ANALYSIS_MODEL", Label: "DeepSeek Analysis Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-chat"},
-	{Key: "DEEPSEEK_TRANSLATION_MODEL", Label: "DeepSeek Translation Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-chat"},
+	{Key: "DEEPSEEK_BASE_URL", Label: "DeepSeek Base URL", Category: "ai", Type: TypeString, DefaultValue: "https://ollama.com/v1", RestartRequired: true},
+	{Key: "DEEPSEEK_FILTER_MODEL", Label: "DeepSeek Filter Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-v4-flash:0731"},
+	{Key: "DEEPSEEK_ANALYSIS_MODEL", Label: "DeepSeek Analysis Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-v4-flash:0731"},
+	{Key: "DEEPSEEK_TRANSLATION_MODEL", Label: "DeepSeek Translation Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-v4-flash:0731"},
 	{Key: "DEEPSEEK_REPORT_MODEL", Label: "DeepSeek Report Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-v4-pro"},
 
 	// --- channels ---

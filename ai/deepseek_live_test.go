@@ -127,7 +127,7 @@ func TestLive_DeepSeek_ReasonerThinking(t *testing.T) {
 }
 
 // TestLive_DeepSeek_EvaluateTransition exercises the production transition path
-// (deepseek-reasoner + JSON mode) end-to-end through AIClient.
+// (ThinkOn + JSON mode) end-to-end through AIClient.
 func TestLive_DeepSeek_EvaluateTransition(t *testing.T) {
 	c := liveClient(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
