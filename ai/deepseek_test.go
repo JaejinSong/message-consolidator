@@ -49,7 +49,7 @@ func TestDeepSeekTransportGenerate(t *testing.T) {
 	}
 	tr, got := newMockDeepSeek(t, mockResp)
 
-	req := LLMRequest{Model: "deepseek-chat", System: "sys", User: "usr", Temperature: 0.2, MaxTokens: 256, JSONMode: true, Thinking: ThinkOff}
+	req := LLMRequest{Model: "deepseek-v4-flash:0731", System: "sys", User: "usr", Temperature: 0.2, MaxTokens: 256, JSONMode: true, Thinking: ThinkOff}
 	resp, err := tr.Generate(context.Background(), req, 5*time.Second, 0)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -73,8 +73,11 @@ func TestDeepSeekTransportGenerate(t *testing.T) {
 	}
 
 	// Request mapping.
-	if got.Model != "deepseek-chat" {
+	if got.Model != "deepseek-v4-flash:0731" {
 		t.Errorf("model = %q", got.Model)
+	}
+	if got.ReasoningEffort != "none" {
+		t.Errorf("reasoning_effort = %q, want none for ThinkOff", got.ReasoningEffort)
 	}
 	if len(got.Messages) != 2 {
 		t.Fatalf("messages = %d, want 2", len(got.Messages))
@@ -118,6 +121,26 @@ func TestDeepSeekTransportNonJSONAndEmptyUser(t *testing.T) {
 	if len(got.Messages) != 2 || got.Messages[1].Content != "." {
 		t.Errorf("empty user must be placeholdered with '.', got messages=%+v", got.Messages)
 	}
+	if got.ReasoningEffort != "" {
+		t.Errorf("reasoning_effort = %q, want omitted for ThinkDefault", got.ReasoningEffort)
+	}
+}
+
+func TestReasoningEffortMapping(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		mode ThinkingMode
+		want string
+	}{
+		{ThinkOn, "medium"},
+		{ThinkOff, "none"},
+		{ThinkDefault, ""},
+	}
+	for _, tc := range cases {
+		if got := reasoningEffort(tc.mode); got != tc.want {
+			t.Errorf("reasoningEffort(%v) = %q, want %q", tc.mode, got, tc.want)
+		}
+	}
 }
 
 func TestDeepSeekTransportMissingKey(t *testing.T) {
@@ -136,16 +159,16 @@ func TestNewAIClientDeepSeekStages(t *testing.T) {
 	if c.provider != providerDeepSeek || c.tracePrefix != "DeepSeek" {
 		t.Errorf("provider/prefix = %q/%q", c.provider, c.tracePrefix)
 	}
-	if c.analyze.model != deepSeekChatModel || c.analyze.thinking != ThinkOff {
+	if c.analyze.model != deepSeekFlashModel || c.analyze.thinking != ThinkOff {
 		t.Errorf("analyze spec = %+v", c.analyze)
 	}
 	if c.report.model != deepSeekProModel || c.report.thinking != ThinkOn {
 		t.Errorf("report spec = %+v", c.report)
 	}
-	if c.transition.model != deepSeekReasonerModel || c.transition.thinking != ThinkOn {
+	if c.transition.model != deepSeekFlashModel || c.transition.thinking != ThinkOn {
 		t.Errorf("transition spec = %+v", c.transition)
 	}
-	if c.identity.model != deepSeekReasonerModel {
+	if c.identity.model != deepSeekFlashModel {
 		t.Errorf("identity model = %q", c.identity.model)
 	}
 }

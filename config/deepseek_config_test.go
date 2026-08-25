@@ -15,10 +15,10 @@ func TestLoadConfigDeepSeekDefaults(t *testing.T) {
 	if cfg.AIProvider != "gemini" {
 		t.Errorf("AIProvider default = %q, want gemini", cfg.AIProvider)
 	}
-	if cfg.DeepSeekBaseURL != "https://api.deepseek.com/v1" {
+	if cfg.DeepSeekBaseURL != "https://ollama.com/v1" {
 		t.Errorf("DeepSeekBaseURL default = %q", cfg.DeepSeekBaseURL)
 	}
-	if cfg.DeepSeekFilterModel != "deepseek-chat" || cfg.DeepSeekAnalysisModel != "deepseek-chat" || cfg.DeepSeekTranslationModel != "deepseek-chat" {
+	if cfg.DeepSeekFilterModel != "deepseek-v4-flash:0731" || cfg.DeepSeekAnalysisModel != "deepseek-v4-flash:0731" || cfg.DeepSeekTranslationModel != "deepseek-v4-flash:0731" {
 		t.Errorf("DeepSeek flash-tier model defaults = %q/%q/%q", cfg.DeepSeekFilterModel, cfg.DeepSeekAnalysisModel, cfg.DeepSeekTranslationModel)
 	}
 	if cfg.DeepSeekReportModel != "deepseek-v4-pro" {

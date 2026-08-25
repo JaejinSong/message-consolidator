@@ -3,7 +3,7 @@ name: translation_system
 version: 1.2.0
 geminiModel: gemini-3.1-flash-lite
 geminiThinking: default
-deepseekModel: deepseek-chat
+deepseekModel: deepseek-v4-flash:0731
 deepseekThinking: off
 ---
 [System Instruction]

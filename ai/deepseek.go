@@ -12,17 +12,14 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
-// DeepSeek model ids and tiers.
+// DeepSeek model ids and tiers, served via the Ollama cloud OpenAI-compatible API.
 //
-// NOTE: `deepseek-chat` (non-thinking) and `deepseek-reasoner` (thinking) are
-// aliases scheduled for deprecation on 2026-07-24 in favor of `deepseek-v4-flash`
-// plus a request-level thinking parameter. Migrating to the parameter form is a
-// tracked follow-up; until then the model id is the thinking control surface.
+// NOTE: the legacy `deepseek-chat`/`deepseek-reasoner` aliases are gone; thinking
+// is a request-level parameter (reasoning_effort) instead of a model id split.
 const (
-	deepSeekDefaultBaseURL = "https://api.deepseek.com/v1"
-	deepSeekChatModel      = "deepseek-chat"     // v4-flash tier, thinking off
-	deepSeekReasonerModel  = "deepseek-reasoner" // v4-flash tier, thinking on
-	deepSeekProModel       = "deepseek-v4-pro"   // pro tier, thinking on
+	deepSeekDefaultBaseURL = "https://ollama.com/v1"
+	deepSeekFlashModel     = "deepseek-v4-flash:0731" // flash tier; thinking via reasoning_effort
+	deepSeekProModel       = "deepseek-v4-pro"        // pro tier, report stage
 )
 
 // deepseekTransport implements LLMTransport over the OpenAI-compatible DeepSeek API.
@@ -50,8 +47,7 @@ func newDeepSeekTransport(apiKey, baseURL string) (*deepseekTransport, error) {
 }
 
 // Generate maps the neutral LLMRequest onto an OpenAI-compatible chat completion.
-// Thinking is controlled by the model id (chat vs reasoner), so req.Thinking is
-// advisory here and intentionally unused.
+// Thinking maps onto the Ollama reasoning_effort parameter via reasoningEffort.
 func (t *deepseekTransport) Generate(ctx context.Context, req LLMRequest, timeout time.Duration, maxRetries int) (LLMResponse, error) {
 	messages := make([]openai.ChatCompletionMessage, 0, 2)
 	if req.System != "" {
@@ -66,9 +62,10 @@ func (t *deepseekTransport) Generate(ctx context.Context, req LLMRequest, timeou
 	messages = append(messages, openai.ChatCompletionMessage{Role: openai.ChatMessageRoleUser, Content: user})
 
 	apiReq := openai.ChatCompletionRequest{
-		Model:       req.Model,
-		Messages:    messages,
-		Temperature: float32(req.Temperature),
+		Model:           req.Model,
+		Messages:        messages,
+		Temperature:     float32(req.Temperature),
+		ReasoningEffort: reasoningEffort(req.Thinking),
 	}
 	if req.MaxTokens > 0 {
 		apiReq.MaxTokens = req.MaxTokens
@@ -118,6 +115,19 @@ func (t *deepseekTransport) createWithRetry(ctx context.Context, req openai.Chat
 		}
 	}
 	return openai.ChatCompletionResponse{}, fmt.Errorf("all %d attempts failed, last error: %w", maxRetries+1, err)
+}
+
+// Why: Ollama's OpenAI-compatible API controls thinking via reasoning_effort,
+// not model id aliases; ThinkDefault omits the field so the model default applies.
+func reasoningEffort(m ThinkingMode) string {
+	switch m {
+	case ThinkOn:
+		return "medium"
+	case ThinkOff:
+		return "none"
+	default:
+		return ""
+	}
 }
 
 func deepSeekUsage(u openai.Usage) LLMUsage {

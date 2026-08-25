@@ -159,9 +159,9 @@ func newDeepSeekClient(pc ProviderConfig) (*AIClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	filterModel := orDefault(pc.DeepSeekFilterModel, deepSeekChatModel)
-	analysisModel := orDefault(pc.DeepSeekAnalysisModel, deepSeekChatModel)
-	translationModel := orDefault(pc.DeepSeekTranslationModel, deepSeekChatModel)
+	filterModel := orDefault(pc.DeepSeekFilterModel, deepSeekFlashModel)
+	analysisModel := orDefault(pc.DeepSeekAnalysisModel, deepSeekFlashModel)
+	translationModel := orDefault(pc.DeepSeekTranslationModel, deepSeekFlashModel)
 	reportModel := orDefault(pc.DeepSeekReportModel, deepSeekProModel)
 	logger.Infof("[DEEPSEEK] client ready (Filter: %s, Analysis: %s, Translation: %s, Report: %s)",
 		filterModel, analysisModel, translationModel, reportModel)
@@ -172,11 +172,11 @@ func newDeepSeekClient(pc ProviderConfig) (*AIClient, error) {
 		analyze:     modelSpec{analysisModel, ThinkOff},
 		translate:   modelSpec{translationModel, ThinkOff},
 		report:      modelSpec{reportModel, ThinkOn},
-		transition:  modelSpec{deepSeekReasonerModel, ThinkOn},
-		viz:         modelSpec{deepSeekChatModel, ThinkOff},
-		merge:       modelSpec{deepSeekChatModel, ThinkOff},
+		transition:  modelSpec{analysisModel, ThinkOn},
+		viz:         modelSpec{analysisModel, ThinkOff},
+		merge:       modelSpec{analysisModel, ThinkOff},
 		filter:      modelSpec{filterModel, ThinkOff},
-		identity:    modelSpec{deepSeekReasonerModel, ThinkOn},
+		identity:    modelSpec{analysisModel, ThinkOn},
 	}, nil
 }
 

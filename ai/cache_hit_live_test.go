@@ -64,7 +64,7 @@ func TestLive_DeepSeek_CacheHit(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 		resp, err := tr.Generate(ctx, LLMRequest{
-			Model: deepSeekChatModel, System: system, User: user,
+			Model: deepSeekFlashModel, System: system, User: user,
 			Temperature: 0.0, MaxTokens: DefaultMaxTokens, JSONMode: true,
 		}, 45*time.Second, 1)
 		if err != nil {

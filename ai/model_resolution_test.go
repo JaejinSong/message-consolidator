@@ -22,19 +22,19 @@ func TestResolveModelThinking(t *testing.T) {
 		gemini want
 		deep   want
 	}{
-		{"chat_system", core.PromptChatSystem, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-chat", ThinkOff}},
-		{"gmail_system", core.PromptGmailSystem, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-chat", ThinkOff}},
-		{"notion_system", core.PromptNotionSystem, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-chat", ThinkOff}},
+		{"chat_system", core.PromptChatSystem, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-v4-flash:0731", ThinkOff}},
+		{"gmail_system", core.PromptGmailSystem, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-v4-flash:0731", ThinkOff}},
+		{"notion_system", core.PromptNotionSystem, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-v4-flash:0731", ThinkOff}},
 		{"report_summary", core.PromptReportSummary, modelSpec{}, want{"gemini-3-flash-preview", ThinkOff}, want{"deepseek-v4-pro", ThinkOn}},
-		{"completion_check", core.PromptCompletionCheck, modelSpec{}, want{"gemini-3-flash-preview", ThinkDefault}, want{"deepseek-reasoner", ThinkOn}},
-		{"task_merge_summary", core.PromptTaskMergeSummary, modelSpec{}, want{"gemini-3-flash-preview", ThinkDefault}, want{"deepseek-chat", ThinkOff}},
-		{"translation_system", core.PromptTranslationSystem, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-chat", ThinkOff}},
-		{"report_translator", core.PromptReportTranslator, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-chat", ThinkOff}},
-		{"task_translator", core.PromptTaskTranslator, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-chat", ThinkOff}},
-		{"batch_translator", core.PromptBatchTranslator, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-chat", ThinkOff}},
-		{"identity_group_merge", core.PromptIdentityGroupMerge, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-reasoner", ThinkOn}},
+		{"completion_check", core.PromptCompletionCheck, modelSpec{}, want{"gemini-3-flash-preview", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOn}},
+		{"task_merge_summary", core.PromptTaskMergeSummary, modelSpec{}, want{"gemini-3-flash-preview", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOff}},
+		{"translation_system", core.PromptTranslationSystem, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOff}},
+		{"report_translator", core.PromptReportTranslator, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOff}},
+		{"task_translator", core.PromptTaskTranslator, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOff}},
+		{"batch_translator", core.PromptBatchTranslator, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOff}},
+		{"identity_group_merge", core.PromptIdentityGroupMerge, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-v4-flash:0731", ThinkOn}},
 		// gemini fields omitted -> spec fallback (filter is a Gemini no-op: empty model, ThinkDefault).
-		{"lite_filter", core.PromptLiteFilter, modelSpec{model: "", thinking: ThinkDefault}, want{"", ThinkDefault}, want{"deepseek-chat", ThinkOff}},
+		{"lite_filter", core.PromptLiteFilter, modelSpec{model: "", thinking: ThinkDefault}, want{"", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOff}},
 	}
 
 	gem := &AIClient{provider: providerGemini}

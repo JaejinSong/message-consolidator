@@ -10,7 +10,7 @@ import (
 // disabled (budget 0), and enabled (budget > 0). Collapsing "unset" into
 // "disabled" changes extraction behavior on the Gemini fallback path, so
 // ThinkDefault preserves the "leave ThinkingConfig nil" semantics. DeepSeek
-// encodes thinking in the model id (chat vs reasoner) and ignores this field.
+// (via Ollama) maps this onto reasoning_effort — see reasoningEffort.
 type ThinkingMode int
 
 const (

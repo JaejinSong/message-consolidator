@@ -53,7 +53,7 @@ func TestLive_DeepSeek_BasicGeneration(t *testing.T) {
 	defer cancel()
 
 	resp, err := tr.Generate(ctx, LLMRequest{
-		Model:       deepSeekChatModel,
+		Model:       deepSeekFlashModel,
 		System:      "You are a terse assistant.",
 		User:        "Reply with the single word: pong",
 		Temperature: 0.0,
@@ -78,7 +78,7 @@ func TestLive_DeepSeek_JSONMode(t *testing.T) {
 	defer cancel()
 
 	resp, err := tr.Generate(ctx, LLMRequest{
-		Model:       deepSeekChatModel,
+		Model:       deepSeekFlashModel,
 		System:      "Output only a JSON object.",
 		User:        `Return a JSON object with keys "a" (integer 7) and "b" (string "hello").`,
 		Temperature: 0.0,
@@ -102,14 +102,15 @@ func TestLive_DeepSeek_JSONMode(t *testing.T) {
 	t.Logf("json=%v usage=%+v", got, resp.Usage)
 }
 
-// TestLive_DeepSeek_ReasonerThinking verifies deepseek-reasoner emits reasoning tokens.
+// TestLive_DeepSeek_ReasonerThinking verifies ThinkOn (reasoning_effort) emits reasoning tokens.
 func TestLive_DeepSeek_ReasonerThinking(t *testing.T) {
 	tr := liveTransport(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	resp, err := tr.Generate(ctx, LLMRequest{
-		Model:     deepSeekReasonerModel,
+		Model:     deepSeekFlashModel,
+		Thinking:  ThinkOn,
 		User:      "A bat and ball cost $1.10. The bat costs $1.00 more than the ball. How much is the ball? Answer with just the amount.",
 		MaxTokens: 1024,
 	}, 90*time.Second, 1)

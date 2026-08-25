@@ -3,7 +3,7 @@ name: completion_check
 version: 2.5.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: default
-deepseekModel: deepseek-reasoner
+deepseekModel: deepseek-v4-flash:0731
 deepseekThinking: on
 ---
 [System Instruction]
