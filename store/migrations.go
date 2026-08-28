@@ -13,7 +13,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 16
+const schemaVersion = 17
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -207,6 +207,57 @@ func addCachedTokensColumn(ctx context.Context, q db.DBTX) error {
 		`ALTER TABLE token_usage ADD COLUMN cached_tokens INT DEFAULT 0`,
 	); err != nil {
 		return fmt.Errorf("add cached_tokens column: %w", err)
+	}
+	return nil
+}
+
+// migrateTokenUsagePeak (v17) rebuilds token_usage with a peak column folded into the
+// UNIQUE key. Why: DeepSeek bills its peak window (UTC 01-04 and 06-10, Mon-Fri) at 2x the
+// off-peak rate, and token_usage aggregates per day, so the window has to be recorded at
+// write time. SQLite cannot add a column to an existing UNIQUE constraint, so the only
+// path is CREATE/INSERT/DROP/RENAME.
+// Existing rows carry peak=0: their window is unrecoverable from date alone, and off-peak
+// is the rate they were already being shown at, so nothing is retroactively repriced.
+// Idempotent: skipped once the peak column exists.
+func migrateTokenUsagePeak(ctx context.Context, q db.DBTX) error {
+	var has int
+	_ = q.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pragma_table_info('token_usage') WHERE name='peak'`,
+	).Scan(&has)
+	if has > 0 {
+		return nil
+	}
+	stmts := []string{
+		`CREATE TABLE token_usage_new (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_email VARCHAR(255) NOT NULL,
+			date DATE NOT NULL DEFAULT (date('now')),
+			step TEXT NOT NULL DEFAULT '',
+			model TEXT NOT NULL DEFAULT '',
+			source TEXT NOT NULL DEFAULT '',
+			report_id INTEGER NOT NULL DEFAULT 0,
+			peak INTEGER NOT NULL DEFAULT 0,
+			prompt_tokens INT DEFAULT 0,
+			completion_tokens INT DEFAULT 0,
+			thinking_tokens INT DEFAULT 0,
+			cached_tokens INT DEFAULT 0,
+			total_tokens INT DEFAULT 0,
+			call_count INT DEFAULT 0,
+			filtered_count INT DEFAULT 0,
+			UNIQUE(user_email, date, step, model, source, report_id, peak)
+		)`,
+		`INSERT INTO token_usage_new (id, user_email, date, step, model, source, report_id, peak,
+			prompt_tokens, completion_tokens, thinking_tokens, cached_tokens, total_tokens, call_count, filtered_count)
+			SELECT id, user_email, date, step, model, source, report_id, 0,
+			       prompt_tokens, completion_tokens, thinking_tokens, cached_tokens, total_tokens, call_count, filtered_count
+			FROM token_usage`,
+		`DROP TABLE token_usage`,
+		`ALTER TABLE token_usage_new RENAME TO token_usage`,
+	}
+	for _, stmt := range stmts {
+		if _, err := q.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("migrate token_usage peak: %w", err)
+		}
 	}
 	return nil
 }

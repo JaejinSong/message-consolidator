@@ -14,24 +14,49 @@ import (
 // TokenUnitDenominator converts raw token counts to per-million pricing.
 const TokenUnitDenominator = 1000000.0
 
-// ModelRate is the per-1M-token price for a model. CachedInputPerM is the discounted
-// prompt-cache-hit rate applied in costByModel; a zero value means the model does not
-// participate in prompt caching (e.g. Gemini).
+// ModelRate is the per-1M-token off-peak price for a model. CachedInputPerM is the
+// discounted prompt-cache-hit rate applied in costByModel; a zero value means the model does
+// not participate in prompt caching (e.g. Gemini). PeakMultiplier scales every component
+// during the provider's peak-rate window; zero means the model bills at one flat rate.
 type ModelRate struct {
 	InputPerM       float64
 	CachedInputPerM float64
 	OutputPerM      float64
 	ThinkingPerM    float64
+	PeakMultiplier  float64
+}
+
+// deepSeekPeakMultiplier is DeepSeek's peak-window surcharge: every component bills at twice
+// the off-peak rate inside the windows store.isPeakWindow marks on each usage row.
+const deepSeekPeakMultiplier = 2.0
+
+// inWindow returns the rate the tokens actually billed at: the base off-peak rate, or every
+// component scaled by PeakMultiplier when they were consumed in the provider's peak window.
+func (r ModelRate) inWindow(peak bool) ModelRate {
+	if !peak || r.PeakMultiplier == 0 {
+		return r
+	}
+	return ModelRate{
+		InputPerM:       r.InputPerM * r.PeakMultiplier,
+		CachedInputPerM: r.CachedInputPerM * r.PeakMultiplier,
+		OutputPerM:      r.OutputPerM * r.PeakMultiplier,
+		ThinkingPerM:    r.ThinkingPerM * r.PeakMultiplier,
+		PeakMultiplier:  r.PeakMultiplier,
+	}
 }
 
 // aiRates prices each model at its own published rate so model-mixed history (Gemini +
 // DeepSeek rows) is billed correctly. Keys are mutually non-prefixing; unknown/legacy ids
 // fall back to the Gemini 3 Flash rate (conservative upper bound) via rateFor.
+// DeepSeek V4 rows carry the off-peak base rate published 2026-08-16 and a 2x peak
+// multiplier, applied per row by inWindow. The v3 ids keep their pre-migration flat rates
+// so historical token_usage rows (all peak=0 after the v17 backfill) stay billed at what
+// they actually cost.
 var aiRates = map[string]ModelRate{
 	"deepseek-chat":          {InputPerM: 0.14, CachedInputPerM: 0.0028, OutputPerM: 0.28, ThinkingPerM: 0.28},
 	"deepseek-reasoner":      {InputPerM: 0.14, CachedInputPerM: 0.0028, OutputPerM: 0.28, ThinkingPerM: 0.28},
-	"deepseek-v4-flash":      {InputPerM: 0.14, CachedInputPerM: 0.0028, OutputPerM: 0.28, ThinkingPerM: 0.28},
-	"deepseek-v4-pro":        {InputPerM: 0.435, CachedInputPerM: 0.003625, OutputPerM: 0.87, ThinkingPerM: 0.87},
+	"deepseek-v4-flash":      {InputPerM: 0.22, CachedInputPerM: 0.007, OutputPerM: 0.66, ThinkingPerM: 0.66, PeakMultiplier: deepSeekPeakMultiplier},
+	"deepseek-v4-pro":        {InputPerM: 0.66, CachedInputPerM: 0.022, OutputPerM: 1.98, ThinkingPerM: 1.98, PeakMultiplier: deepSeekPeakMultiplier},
 	"gemini-3-flash-preview": {InputPerM: 0.50, OutputPerM: 3.00, ThinkingPerM: 3.00},
 }
 
@@ -59,13 +84,14 @@ func providerDisplayName(provider string) string {
 	return "Gemini 3 Flash"
 }
 
-// costByModel prices each model's tokens at its own rate and returns the input/output/thinking
-// USD components summed across models (already divided by the per-million denominator).
+// costByModel prices each row's tokens at its own rate and returns the input/output/thinking
+// USD components summed across rows (already divided by the per-million denominator).
+// Rows are per (model, peak window), so peak-window tokens pick up the model's multiplier.
 // Cached tokens are a subset of prompt tokens (DeepSeek prompt-cache hits) billed at the
 // discounted CachedInputPerM rate; the remainder is billed at the full InputPerM rate.
 func costByModel(models []store.ModelTokenUsage) (input, output, thinking float64) {
 	for _, m := range models {
-		r := rateFor(m.Model)
+		r := rateFor(m.Model).inWindow(m.Peak)
 		cached := m.Cached
 		if cached > m.Prompt {
 			cached = m.Prompt // guard: cached is a subset of prompt; never over-discount

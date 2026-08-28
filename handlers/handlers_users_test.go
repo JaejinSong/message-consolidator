@@ -133,7 +133,8 @@ func TestCostsByProvider(t *testing.T) {
 	// 1M-token rows so cost == rate (cost = tokens / 1e6 * rate).
 	models := []store.ModelTokenUsage{
 		{Model: "deepseek-chat", Prompt: 1_000_000, Completion: 1_000_000},          // 0.14 in + 0.28 out
-		{Model: "deepseek-v4-pro", Completion: 1_000_000},                           // 0.87 out
+		{Model: "deepseek-v4-pro", Completion: 1_000_000},                           // 1.98 out (off-peak)
+		{Model: "deepseek-v4-flash", Peak: true, Completion: 1_000_000},             // 0.66 x 2 = 1.32 out
 		{Model: "gemini-3-flash-preview", Prompt: 1_000_000, Completion: 1_000_000}, // 0.50 in + 3.00 out
 	}
 	got := costsByProvider(models)
@@ -146,10 +147,10 @@ func TestCostsByProvider(t *testing.T) {
 	}
 
 	ds := got[0]
-	if ds.Prompt != 1_000_000 || ds.Completion != 2_000_000 {
-		t.Errorf("DeepSeek tokens: prompt=%d completion=%d, want 1000000/2000000", ds.Prompt, ds.Completion)
+	if ds.Prompt != 1_000_000 || ds.Completion != 3_000_000 {
+		t.Errorf("DeepSeek tokens: prompt=%d completion=%d, want 1000000/3000000", ds.Prompt, ds.Completion)
 	}
-	if wantDS := 0.14 + 0.28 + 0.87; !near(ds.Cost, wantDS) {
+	if wantDS := 0.14 + 0.28 + 1.98 + 1.32; !near(ds.Cost, wantDS) {
 		t.Errorf("DeepSeek cost = %f, want %f", ds.Cost, wantDS)
 	}
 

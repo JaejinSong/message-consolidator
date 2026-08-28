@@ -124,6 +124,7 @@ func (q *Queries) GetReportTokenUsage(ctx context.Context, reportID int64) (GetR
 
 const getTokenUsageByModel = `-- name: GetTokenUsageByModel :many
 SELECT model,
+       peak,
        COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
        COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
        COALESCE(SUM(thinking_tokens), 0)   AS thinking_tokens,
@@ -131,7 +132,7 @@ SELECT model,
        COALESCE(SUM(call_count), 0)        AS call_count
 FROM token_usage
 WHERE user_email = ? AND date >= ? AND date < ?
-GROUP BY model
+GROUP BY model, peak
 ORDER BY prompt_tokens DESC
 `
 
@@ -143,6 +144,7 @@ type GetTokenUsageByModelParams struct {
 
 type GetTokenUsageByModelRow struct {
 	Model            string      `json:"model"`
+	Peak             int64       `json:"peak"`
 	PromptTokens     interface{} `json:"prompt_tokens"`
 	CompletionTokens interface{} `json:"completion_tokens"`
 	ThinkingTokens   interface{} `json:"thinking_tokens"`
@@ -150,6 +152,8 @@ type GetTokenUsageByModelRow struct {
 	CallCount        interface{} `json:"call_count"`
 }
 
+// Grouped by (model, peak) so the cost dashboard can price peak-window tokens at the
+// higher rate; a model used in both windows returns two rows.
 func (q *Queries) GetTokenUsageByModel(ctx context.Context, arg GetTokenUsageByModelParams) ([]GetTokenUsageByModelRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTokenUsageByModel, arg.UserEmail, arg.Date, arg.Date_2)
 	if err != nil {
@@ -161,6 +165,7 @@ func (q *Queries) GetTokenUsageByModel(ctx context.Context, arg GetTokenUsageByM
 		var i GetTokenUsageByModelRow
 		if err := rows.Scan(
 			&i.Model,
+			&i.Peak,
 			&i.PromptTokens,
 			&i.CompletionTokens,
 			&i.ThinkingTokens,
@@ -309,9 +314,9 @@ func (q *Queries) UpsertGmailToken(ctx context.Context, arg UpsertGmailTokenPara
 }
 
 const upsertTokenUsage = `-- name: UpsertTokenUsage :exec
-INSERT INTO token_usage (user_email, date, step, model, source, report_id, prompt_tokens, completion_tokens, thinking_tokens, cached_tokens, total_tokens, call_count, filtered_count)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (user_email, date, step, model, source, report_id)
+INSERT INTO token_usage (user_email, date, step, model, source, report_id, peak, prompt_tokens, completion_tokens, thinking_tokens, cached_tokens, total_tokens, call_count, filtered_count)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (user_email, date, step, model, source, report_id, peak)
 DO UPDATE SET
     prompt_tokens = token_usage.prompt_tokens + EXCLUDED.prompt_tokens,
     completion_tokens = token_usage.completion_tokens + EXCLUDED.completion_tokens,
@@ -329,6 +334,7 @@ type UpsertTokenUsageParams struct {
 	Model            string        `json:"model"`
 	Source           string        `json:"source"`
 	ReportID         int64         `json:"report_id"`
+	Peak             int64         `json:"peak"`
 	PromptTokens     sql.NullInt64 `json:"prompt_tokens"`
 	CompletionTokens sql.NullInt64 `json:"completion_tokens"`
 	ThinkingTokens   sql.NullInt64 `json:"thinking_tokens"`
@@ -338,6 +344,8 @@ type UpsertTokenUsageParams struct {
 	FilteredCount    sql.NullInt64 `json:"filtered_count"`
 }
 
+// peak marks the DeepSeek peak-rate window (UTC 01-04 and 06-10, Mon-Fri) the call landed
+// in, decided at record time; date alone cannot recover it.
 func (q *Queries) UpsertTokenUsage(ctx context.Context, arg UpsertTokenUsageParams) error {
 	_, err := q.db.ExecContext(ctx, upsertTokenUsage,
 		arg.UserEmail,
@@ -346,6 +354,7 @@ func (q *Queries) UpsertTokenUsage(ctx context.Context, arg UpsertTokenUsagePara
 		arg.Model,
 		arg.Source,
 		arg.ReportID,
+		arg.Peak,
 		arg.PromptTokens,
 		arg.CompletionTokens,
 		arg.ThinkingTokens,

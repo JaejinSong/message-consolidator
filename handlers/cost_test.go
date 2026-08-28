@@ -15,7 +15,9 @@ func TestRateFor(t *testing.T) {
 	}{
 		{"deepseek-chat", 0.14, 0.28},
 		{"deepseek-reasoner", 0.14, 0.28},
-		{"deepseek-v4-pro", 0.435, 0.87},
+		{"deepseek-v4-pro", 0.66, 1.98},
+		{"deepseek-v4-flash", 0.22, 0.66},
+		{"deepseek-v4-flash:0731", 0.22, 0.66}, // Ollama tag suffix -> prefix match
 		{"deepseek-chat-20260101", 0.14, 0.28}, // versioned suffix → prefix match
 		{"gemini-3-flash-preview", 0.50, 3.00},
 		{"gemini-3.1-flash-lite", 0.50, 3.00}, // no exact/prefix row → conservative Flash fallback
@@ -58,6 +60,59 @@ func TestCostByModel_CachedDiscount(t *testing.T) {
 	clamped := []store.ModelTokenUsage{{Model: "deepseek-chat", Prompt: 100, Cached: 999}}
 	cin, _, _ := costByModel(clamped)
 	assertFloat(t, "clamped input", cin, 100*0.0028/1_000_000)
+}
+
+func TestCostByModel_PeakWindowDoublesRate(t *testing.T) {
+	t.Parallel()
+	// Same token counts in each window: the peak row must bill at exactly 2x the off-peak row.
+	offPeak := []store.ModelTokenUsage{
+		{Model: "deepseek-v4-flash", Prompt: 1_000_000, Completion: 1_000_000, Thinking: 1_000_000},
+	}
+	peak := []store.ModelTokenUsage{
+		{Model: "deepseek-v4-flash", Peak: true, Prompt: 1_000_000, Completion: 1_000_000, Thinking: 1_000_000},
+	}
+	offIn, offOut, offThink := costByModel(offPeak)
+	peakIn, peakOut, peakThink := costByModel(peak)
+
+	assertFloat(t, "off-peak input", offIn, 0.22)
+	assertFloat(t, "peak input", peakIn, 0.44)
+	assertFloat(t, "off-peak output", offOut, 0.66)
+	assertFloat(t, "peak output", peakOut, 1.32)
+	assertFloat(t, "off-peak thinking", offThink, 0.66)
+	assertFloat(t, "peak thinking", peakThink, 1.32)
+}
+
+func TestCostByModel_PeakCachedRateAlsoDoubles(t *testing.T) {
+	t.Parallel()
+	// The cache-hit rate is multiplied too, so a cached-heavy peak row is not under-billed.
+	models := []store.ModelTokenUsage{
+		{Model: "deepseek-v4-pro", Peak: true, Prompt: 1_000_000, Cached: 500_000},
+	}
+	in, _, _ := costByModel(models)
+	want := (500_000*0.66*2 + 500_000*0.022*2) / 1_000_000
+	assertFloat(t, "peak cached-split input", in, want)
+}
+
+func TestCostByModel_PeakFlagIgnoredWithoutMultiplier(t *testing.T) {
+	t.Parallel()
+	// Gemini has no peak pricing: a peak-flagged row must cost the same as an off-peak one.
+	peak := []store.ModelTokenUsage{{Model: "gemini-3-flash-preview", Peak: true, Prompt: 1_000_000}}
+	off := []store.ModelTokenUsage{{Model: "gemini-3-flash-preview", Prompt: 1_000_000}}
+	peakIn, _, _ := costByModel(peak)
+	offIn, _, _ := costByModel(off)
+	assertFloat(t, "gemini peak input", peakIn, offIn)
+	assertFloat(t, "gemini peak input", peakIn, 0.50)
+}
+
+func TestCostByModel_SplitWindowsSumPerRow(t *testing.T) {
+	t.Parallel()
+	// One model spanning both windows arrives as two rows; each must price at its own rate.
+	models := []store.ModelTokenUsage{
+		{Model: "deepseek-v4-flash", Prompt: 1_000_000},
+		{Model: "deepseek-v4-flash", Peak: true, Prompt: 1_000_000},
+	}
+	in, _, _ := costByModel(models)
+	assertFloat(t, "split-window input", in, 0.22+0.44)
 }
 
 func TestProviderDisplayName(t *testing.T) {

@@ -128,6 +128,8 @@ type Querier interface {
 	GetTelegramCredentials(ctx context.Context, email string) (GetTelegramCredentialsRow, error)
 	GetTelegramSession(ctx context.Context, email string) ([]byte, error)
 	GetTenantEmailByContactID(ctx context.Context, id int64) (string, error)
+	// Grouped by (model, peak) so the cost dashboard can price peak-window tokens at the
+	// higher rate; a model used in both windows returns two rows.
 	GetTokenUsageByModel(ctx context.Context, arg GetTokenUsageByModelParams) ([]GetTokenUsageByModelRow, error)
 	GetTokenUsageBySource(ctx context.Context, arg GetTokenUsageBySourceParams) ([]GetTokenUsageBySourceRow, error)
 	// Dashboard: per-step breakdown over a date range (inclusive start, exclusive end).
@@ -215,6 +217,8 @@ type Querier interface {
 	UpsertTelegramCredentials(ctx context.Context, arg UpsertTelegramCredentialsParams) error
 	UpsertTelegramSession(ctx context.Context, arg UpsertTelegramSessionParams) error
 	UpsertTenantAlias(ctx context.Context, arg UpsertTenantAliasParams) error
+	// peak marks the DeepSeek peak-rate window (UTC 01-04 and 06-10, Mon-Fri) the call landed
+	// in, decided at record time; date alone cannot recover it.
 	UpsertTokenUsage(ctx context.Context, arg UpsertTokenUsageParams) error
 	UpsertUser(ctx context.Context, arg UpsertUserParams) (User, error)
 }

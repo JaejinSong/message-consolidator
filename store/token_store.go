@@ -11,14 +11,15 @@ import (
 )
 
 // tokenBucket keys in-memory token data by the same dimensions used in the DB UNIQUE
-// constraint, so per-(step, model, source, report_id) breakdown survives buffering and
-// flushing. ReportID=0 = un-attributed (default for non-report calls).
+// constraint, so per-(step, model, source, report_id, peak) breakdown survives buffering
+// and flushing. ReportID=0 = un-attributed (default for non-report calls).
 type tokenBucket struct {
 	Email    string
 	Step     string
 	Model    string
 	Source   string
 	ReportID ReportID
+	Peak     bool //Why: DeepSeek peak-window rate is 2x off-peak; the window is only knowable at record time.
 }
 
 type tokenData struct {
@@ -53,11 +54,35 @@ var (
 	usageCacheMu sync.RWMutex
 )
 
+// DeepSeek peak-rate windows in UTC: [01:00, 04:00) and [06:00, 10:00), weekdays only.
+// Published at https://api-docs.deepseek.com/quick_start/pricing (2026-08-16 repricing).
+const (
+	peakWindowAStartHourUTC = 1
+	peakWindowAEndHourUTC   = 4
+	peakWindowBStartHourUTC = 6
+	peakWindowBEndHourUTC   = 10
+)
+
+// isPeakWindow reports whether t falls in a DeepSeek peak-rate window. Recorded per call so
+// the cost dashboard can price peak tokens at 2x; daily aggregation cannot recover the hour.
+// Non-DeepSeek models carry the flag harmlessly - their rate has no peak multiplier.
+func isPeakWindow(t time.Time) bool {
+	utc := t.UTC()
+	switch utc.Weekday() {
+	case time.Saturday, time.Sunday:
+		return false
+	}
+	h := utc.Hour()
+	inA := h >= peakWindowAStartHourUTC && h < peakWindowAEndHourUTC
+	inB := h >= peakWindowBStartHourUTC && h < peakWindowBEndHourUTC
+	return inA || inB
+}
+
 // AddTokenUsage records token consumption for a single AI call, attributed to a specific
 // (step, model, source, report_id) bucket. Use step="" for unattributed legacy calls and
 // reportID=0 for AI calls not bound to a specific report.
 func AddTokenUsage(email, step, model, source string, reportID ReportID, promptTokens, completionTokens, thinkingTokens, cachedTokens int) error {
-	key := tokenBucket{Email: email, Step: step, Model: model, Source: source, ReportID: reportID}
+	key := tokenBucket{Email: email, Step: step, Model: model, Source: source, ReportID: reportID, Peak: isPeakWindow(time.Now())}
 
 	tokenMu.Lock()
 	if _, ok := tokenDirtyData[key]; !ok {
@@ -139,6 +164,7 @@ func FlushTokenUsage(ctx context.Context) error {
 				Model:            key.Model,
 				Source:           key.Source,
 				ReportID:         int64(key.ReportID),
+				Peak:             boolToInt64(key.Peak),
 				PromptTokens:     sql.NullInt64{Int64: int64(data.Prompt), Valid: true},
 				CompletionTokens: sql.NullInt64{Int64: int64(data.Completion), Valid: true},
 				ThinkingTokens:   sql.NullInt64{Int64: int64(data.Thinking), Valid: true},
@@ -363,15 +389,31 @@ func GetMonthlyTokenUsage(ctx context.Context, email string) (int, int, int, int
 	return prompt, completion, thinking, filteredCount, nil
 }
 
-// ModelTokenUsage is per-model token totals over a time window, used by the cost
-// dashboard to price each model at its own rate. Why: provider migration mixes Gemini
-// and DeepSeek rows in token_usage; a single blended rate would mis-bill the mix.
+// ModelTokenUsage is per-(model, peak-window) token totals over a time window, used by the
+// cost dashboard to price each model at its own rate. Why: provider migration mixes Gemini
+// and DeepSeek rows in token_usage; a single blended rate would mis-bill the mix. A model
+// used in both rate windows yields two entries, so peak tokens can carry the 2x multiplier.
 type ModelTokenUsage struct {
 	Model      string
+	Peak       bool
 	Prompt     int
 	Completion int
 	Thinking   int
 	Cached     int // prompt-cache-hit subset of Prompt (DeepSeek)
+}
+
+// modelPeakKey groups usage by the two dimensions that select a billing rate.
+type modelPeakKey struct {
+	Model string
+	Peak  bool
+}
+
+// boolToInt64 encodes the peak flag for the INTEGER column sqlc generates.
+func boolToInt64(b bool) int64 {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // GetDailyTokenUsageByModel returns today's token usage grouped by model, merged with
@@ -408,9 +450,9 @@ func tokenUsageByModel(ctx context.Context, email, startDate, endDate string) ([
 		return nil, err
 	}
 
-	byModel := make(map[string]*ModelTokenUsage)
+	byModel := make(map[modelPeakKey]*ModelTokenUsage)
 	for _, r := range rows {
-		m := modelEntry(byModel, r.Model)
+		m := modelEntry(byModel, r.Model, r.Peak != 0)
 		m.Prompt += coalesceInt(r.PromptTokens)
 		m.Completion += coalesceInt(r.CompletionTokens)
 		m.Thinking += coalesceInt(r.ThinkingTokens)
@@ -425,16 +467,17 @@ func tokenUsageByModel(ctx context.Context, email, startDate, endDate string) ([
 	return out, nil
 }
 
-func modelEntry(byModel map[string]*ModelTokenUsage, model string) *ModelTokenUsage {
-	if m, ok := byModel[model]; ok {
+func modelEntry(byModel map[modelPeakKey]*ModelTokenUsage, model string, peak bool) *ModelTokenUsage {
+	key := modelPeakKey{Model: model, Peak: peak}
+	if m, ok := byModel[key]; ok {
 		return m
 	}
-	m := &ModelTokenUsage{Model: model}
-	byModel[model] = m
+	m := &ModelTokenUsage{Model: model, Peak: peak}
+	byModel[key] = m
 	return m
 }
 
-func mergeInMemoryByModel(email string, byModel map[string]*ModelTokenUsage) {
+func mergeInMemoryByModel(email string, byModel map[modelPeakKey]*ModelTokenUsage) {
 	tokenMu.Lock()
 	defer tokenMu.Unlock()
 	add := func(buf map[tokenBucket]*tokenData) {
@@ -442,7 +485,7 @@ func mergeInMemoryByModel(email string, byModel map[string]*ModelTokenUsage) {
 			if key.Email != email {
 				continue
 			}
-			m := modelEntry(byModel, key.Model)
+			m := modelEntry(byModel, key.Model, key.Peak)
 			m.Prompt += data.Prompt
 			m.Completion += data.Completion
 			m.Thinking += data.Thinking

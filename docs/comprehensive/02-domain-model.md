@@ -222,11 +222,11 @@ Source: [`store/types.go`](../../store/types.go#L241)
 
 **한국어:**
 
-`token_usage`는 AI 호출 비용을 (user, date, step, model, source, report_id) 복합 키로 집계합니다. 매 LLM 호출마다 행을 생성하는 대신 **증분 누적(UPSERT)**으로 같은 조합을 하나의 행에 더합니다. 이 설계는 고빈도 스캐너가 분당 수십 회 LLM을 호출할 때 행 폭증 없이 일별 비용 조회를 O(1)로 유지합니다.
+`token_usage`는 AI 호출 비용을 (user, date, step, model, source, report_id, peak) 복합 키로 집계합니다. `peak`는 호출 시점이 DeepSeek peak 요금 구간(UTC 01-04, 06-10, 월-금)에 속했는지를 기록하며, 일 단위 집계로는 시각을 복원할 수 없어 기록 시점에 판정합니다. 매 LLM 호출마다 행을 생성하는 대신 **증분 누적(UPSERT)**으로 같은 조합을 하나의 행에 더합니다. 이 설계는 고빈도 스캐너가 분당 수십 회 LLM을 호출할 때 행 폭증 없이 일별 비용 조회를 O(1)로 유지합니다.
 
 **English:**
 
-`token_usage` aggregates AI call costs by the composite key `(user_email, date, step, model, source, report_id)`. Rather than inserting a new row per LLM call, incremental accumulation via UPSERT adds to the same row. This keeps daily cost queries O(1) without row explosion when the high-frequency scanner calls the LLM dozens of times per minute.
+`token_usage` aggregates AI call costs by the composite key `(user_email, date, step, model, source, report_id, peak)`. `peak` records whether the call landed in DeepSeek's peak-rate window (UTC 01-04 and 06-10, Mon-Fri), decided at write time because daily aggregation cannot recover the hour. Rather than inserting a new row per LLM call, incremental accumulation via UPSERT adds to the same row. This keeps daily cost queries O(1) without row explosion when the high-frequency scanner calls the LLM dozens of times per minute.
 
 ---
 
@@ -357,6 +357,7 @@ erDiagram
         text step
         text model
         int report_id
+        int peak
     }
     ai_inference_logs {
         int id PK
@@ -490,7 +491,7 @@ The constraints below are enforced at code or DB level. Violating them breaks da
 | I-4 | `user_aliases.UNIQUE(user_id, alias_name)` — 동일 사용자에 중복 별칭 불가 | DB UNIQUE 제약 |
 | I-5 | `contacts.UNIQUE(tenant_email, canonical_id)` — 테넌트 내 canonical_id는 유일 | DB UNIQUE 제약 |
 | I-6 | `identity_merge_candidates.UNIQUE(contact_id_a, contact_id_b)` — 동일 쌍 중복 후보 불가 | DB UNIQUE 제약 |
-| I-7 | `token_usage.UNIQUE(user_email, date, step, model, source, report_id)` — 동일 차원 중복 행 불가. 비용 집계는 UPSERT로만 | DB UNIQUE 제약 |
+| I-7 | `token_usage.UNIQUE(user_email, date, step, model, source, report_id, peak)` — 동일 차원 중복 행 불가. 비용 집계는 UPSERT로만 | DB UNIQUE 제약 |
 | I-8 | `done=0 ⇔ completed_at IS NULL` — `unmarkMessageDone`이 raw SQL로 함께 초기화. sqlc COALESCE 우회 사유 | `store/message_store.go#L172` |
 | I-9 | `is_archived`는 수정 불가 가상 컬럼 — `done`/`is_deleted`/`category`만 변경 가능 | DB GENERATED ALWAYS AS |
 | I-10 | `messages.requester` / `messages.assignee`는 `contacts.canonical_id` 텍스트 참조 — DB FK 없음. 정합성은 `AutoUpsertContact` + `contact_resolution` UPSERT 체인이 보장 | `store/contacts_store.go` |

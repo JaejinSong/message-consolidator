@@ -210,6 +210,7 @@ type TokenUsage struct {
 	Model            string        `json:"model"`
 	Source           string        `json:"source"`
 	ReportID         int64         `json:"report_id"`
+	Peak             int64         `json:"peak"`
 	PromptTokens     sql.NullInt64 `json:"prompt_tokens"`
 	CompletionTokens sql.NullInt64 `json:"completion_tokens"`
 	ThinkingTokens   sql.NullInt64 `json:"thinking_tokens"`

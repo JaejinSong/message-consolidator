@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS token_usage (
     model TEXT NOT NULL DEFAULT '',
     source TEXT NOT NULL DEFAULT '',
     report_id INTEGER NOT NULL DEFAULT 0,
+    peak INTEGER NOT NULL DEFAULT 0,
     prompt_tokens INT DEFAULT 0,
     completion_tokens INT DEFAULT 0,
     thinking_tokens INT DEFAULT 0,
@@ -13,13 +14,15 @@ CREATE TABLE IF NOT EXISTS token_usage (
     total_tokens INT DEFAULT 0,
     call_count INT DEFAULT 0,
     filtered_count INT DEFAULT 0,
-    UNIQUE(user_email, date, step, model, source, report_id)
+    UNIQUE(user_email, date, step, model, source, report_id, peak)
 );
 
 -- name: UpsertTokenUsage :exec
-INSERT INTO token_usage (user_email, date, step, model, source, report_id, prompt_tokens, completion_tokens, thinking_tokens, cached_tokens, total_tokens, call_count, filtered_count)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (user_email, date, step, model, source, report_id)
+-- peak marks the DeepSeek peak-rate window (UTC 01-04 and 06-10, Mon-Fri) the call landed
+-- in, decided at record time; date alone cannot recover it.
+INSERT INTO token_usage (user_email, date, step, model, source, report_id, peak, prompt_tokens, completion_tokens, thinking_tokens, cached_tokens, total_tokens, call_count, filtered_count)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (user_email, date, step, model, source, report_id, peak)
 DO UPDATE SET
     prompt_tokens = token_usage.prompt_tokens + EXCLUDED.prompt_tokens,
     completion_tokens = token_usage.completion_tokens + EXCLUDED.completion_tokens,
@@ -62,7 +65,10 @@ GROUP BY step
 ORDER BY prompt_tokens DESC;
 
 -- name: GetTokenUsageByModel :many
+-- Grouped by (model, peak) so the cost dashboard can price peak-window tokens at the
+-- higher rate; a model used in both windows returns two rows.
 SELECT model,
+       peak,
        COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
        COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
        COALESCE(SUM(thinking_tokens), 0)   AS thinking_tokens,
@@ -70,7 +76,7 @@ SELECT model,
        COALESCE(SUM(call_count), 0)        AS call_count
 FROM token_usage
 WHERE user_email = ? AND date >= ? AND date < ?
-GROUP BY model
+GROUP BY model, peak
 ORDER BY prompt_tokens DESC;
 
 -- name: GetTokenUsageBySource :many

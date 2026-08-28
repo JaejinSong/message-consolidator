@@ -243,6 +243,7 @@ CREATE TABLE IF NOT EXISTS token_usage (
     model TEXT NOT NULL DEFAULT '',
     source TEXT NOT NULL DEFAULT '',
     report_id INTEGER NOT NULL DEFAULT 0,
+    peak INTEGER NOT NULL DEFAULT 0,
     prompt_tokens INT DEFAULT 0,
     completion_tokens INT DEFAULT 0,
     thinking_tokens INT DEFAULT 0,
@@ -250,7 +251,7 @@ CREATE TABLE IF NOT EXISTS token_usage (
     total_tokens INT DEFAULT 0,
     call_count INT DEFAULT 0,
     filtered_count INT DEFAULT 0,
-    UNIQUE(user_email, date, step, model, source, report_id)
+    UNIQUE(user_email, date, step, model, source, report_id, peak)
 );
 
 

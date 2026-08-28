@@ -276,6 +276,7 @@ erDiagram
         text model
         text source
         int report_id
+        int peak
     }
 
     users ||--o{ user_aliases : "has"
@@ -406,9 +407,9 @@ erDiagram
 - **주요 컬럼**: `key TEXT PK`, `value TEXT`, `updated_by TEXT`, `updated_at`
 
 #### `token_usage`
-- **책임**: AI API 호출 비용 추적. (user, date, step, model, source, report_id) 6-dimensional 집계 키로 세분화된 비용 분석 제공.
-- **주요 컬럼**: `(user_email, date, step, model, source, report_id) UNIQUE`, `prompt_tokens`, `completion_tokens`, `call_count`, `filtered_count`
-- **마이그레이션 이력**: 원래 단순 (user, date) 집계였다가 `step/model/source` 추가 (`migrateTokenUsageBreakdown`), 이후 `report_id` 추가 (`migrateTokenUsageReportID`) — SQLite UNIQUE 수정 불가로 두 번 table rebuild 수행
+- **책임**: AI API 호출 비용 추적. (user, date, step, model, source, report_id, peak) 7-dimensional 집계 키로 세분화된 비용 분석 제공.
+- **주요 컬럼**: `(user_email, date, step, model, source, report_id, peak) UNIQUE`, `prompt_tokens`, `completion_tokens`, `cached_tokens`, `call_count`, `filtered_count`
+- **마이그레이션 이력**: 원래 단순 (user, date) 집계였다가 `step/model/source` 추가 (`migrateTokenUsageBreakdown`), 이후 `report_id` 추가 (`migrateTokenUsageReportID`), schema v17에서 `peak` 추가 (`migrateTokenUsagePeak`) — SQLite UNIQUE 수정 불가로 세 번 table rebuild 수행. 기존 행은 peak=0(off-peak)으로 이전해 소급 재과금을 피함
 
 #### `ai_inference_logs`
 - **책임**: AI 추론 감사 로그. 원본 텍스트와 raw AI 응답을 보존하여 재현 및 디버깅 가능.
