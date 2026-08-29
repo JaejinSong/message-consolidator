@@ -77,22 +77,23 @@ func repairTruncatedOutput(text string) string {
 	lastFence := strings.LastIndex(text, "```")
 	beforeFence := text[:lastFence]
 	fenceContent := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(text[lastFence+3:]), "json"))
-	if strings.HasPrefix(fenceContent, "[") {
-		// Strip last incomplete object: find the rightmost complete item boundary.
-		idx := strings.LastIndex(fenceContent, "},")
-		if idx < 0 {
-			idx = strings.LastIndex(fenceContent, "}")
-		}
-		if idx >= 0 {
-			fenceContent = fenceContent[:idx+1] + "\n]"
-		} else {
-			fenceContent = "[]"
-		}
-		text = beforeFence + "```json\n" + fenceContent + "\n```"
-	} else {
-		text = text + "\n```"
+	if !strings.HasPrefix(fenceContent, "[") {
+		return text + "\n```" + notice
 	}
-	return text + notice
+	return beforeFence + "```json\n" + closeJSONArray(fenceContent) + "\n```" + notice
+}
+
+// closeJSONArray trims a partially written JSON array back to its last complete item and
+// closes it, yielding "[]" when not even one item finished.
+func closeJSONArray(fenceContent string) string {
+	idx := strings.LastIndex(fenceContent, "},")
+	if idx < 0 {
+		idx = strings.LastIndex(fenceContent, "}")
+	}
+	if idx < 0 {
+		return "[]"
+	}
+	return fenceContent[:idx+1] + "\n]"
 }
 
 // EvaluateTaskTransition determines if a reply completes or updates a specific parent task.

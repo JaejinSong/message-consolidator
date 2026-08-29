@@ -134,45 +134,59 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, 
 	return report, nil
 }
 
+// withinWindow keeps messages whose effective date (updated_at when present, else
+// created_at) falls inside the inclusive report window.
+func withinWindow(messages []Log, startDate, endDate string) []Log {
+	var out []Log
+	for _, m := range messages {
+		t := m.CreatedAt
+		if m.UpdatedAt != nil {
+			t = *m.UpdatedAt
+		}
+		if ds := t.Format("2006-01-02"); ds >= startDate && ds <= endDate {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// fetchStalled collects still-open tasks that predate the window and have gone stale.
+// Why: they get their own section in the AI prompt -- not counted in Activity, only used
+// for the Stalled Tasks rule.
+func (s *ReportsService) fetchStalled(ctx context.Context, email, startDate string, source *string) []Log {
+	doneFalse := false
+	threshold := store.GetStaleThresholdWorkingDays()
+	// Why: zero time = no lower bound so tasks older than the threshold are fetched;
+	// stale filter (WorkingDaysSince >= threshold) is applied in Go below.
+	stalledMsgs, _ := store.GetMessagesForReport(ctx, email, time.Time{}, source, &doneFalse)
+	var out []Log
+	for _, m := range stalledMsgs {
+		// Skip tasks already captured in the activity window.
+		if ds := m.CreatedAt.Format("2006-01-02"); ds >= startDate {
+			continue
+		}
+		base := m.CreatedAt
+		if !m.AssignedAt.IsZero() && m.AssignedAt.After(base) {
+			base = m.AssignedAt
+		}
+		if store.WorkingDaysSince(base, time.Now()) >= threshold {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
 func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, startDate, endDate string, source *string, done *bool) (activity []Log, stalled []Log, err error) {
 	start, _ := time.Parse("2006-01-02", startDate)
 	messages, err := store.GetMessagesForReport(ctx, email, start, source, done)
 	if err != nil {
 		return nil, nil, err
 	}
-	for _, m := range messages {
-		t := m.CreatedAt
-		if m.UpdatedAt != nil {
-			t = *m.UpdatedAt
-		}
-		ds := t.Format("2006-01-02")
-		if ds >= startDate && ds <= endDate {
-			activity = append(activity, m)
-		}
-	}
+	activity = withinWindow(messages, startDate, endDate)
 
-	// Why: Fetch stalled tasks predating the window separately so they appear in their own
-	// section in the AI prompt — not counted in Activity, only used for Stalled Tasks rule.
-	// Skip when caller requested done-only view — done tasks cannot be stalled.
+	// Why: skip when the caller requested a done-only view -- done tasks cannot be stalled.
 	if done == nil || !*done {
-		doneFalse := false
-		threshold := store.GetStaleThresholdWorkingDays()
-		// Why: zero time = no lower bound so tasks older than the threshold are fetched;
-		// stale filter (WorkingDaysSince >= threshold) is applied in Go below.
-		stalledMsgs, _ := store.GetMessagesForReport(ctx, email, time.Time{}, source, &doneFalse)
-		for _, m := range stalledMsgs {
-			// Skip tasks already captured in the activity window.
-			if ds := m.CreatedAt.Format("2006-01-02"); ds >= startDate {
-				continue
-			}
-			base := m.CreatedAt
-			if !m.AssignedAt.IsZero() && m.AssignedAt.After(base) {
-				base = m.AssignedAt
-			}
-			if store.WorkingDaysSince(base, time.Now()) >= threshold {
-				stalled = append(stalled, m)
-			}
-		}
+		stalled = s.fetchStalled(ctx, email, startDate, source)
 	}
 
 	if len(activity) == 0 && len(stalled) == 0 {

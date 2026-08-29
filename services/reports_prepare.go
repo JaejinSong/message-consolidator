@@ -89,26 +89,33 @@ func (s *ReportsService) PrepareLogsForAI(email string, activity, stalled []Log)
 		curr += len(line)
 	}
 
-	stalledHeader := "[Stalled Tasks - active items predating window]\n"
+	// Why: the stalled section is appended only if the activity section left room; not
+	// even fitting its header counts as truncation, same as running out mid-section.
 	if !truncated {
-		if curr+len(stalledHeader) <= limit {
-			sb.WriteString(stalledHeader)
-			curr += len(stalledHeader)
-			for _, m := range stalled {
-				line := s.formatLogLine(email, m)
-				if curr+len(line) > limit {
-					truncated = true
-					break
-				}
-				sb.WriteString(line)
-				curr += len(line)
-			}
-		} else {
-			truncated = true
-		}
+		truncated = s.appendStalledSection(&sb, email, stalled, curr, limit)
 	}
 
 	return sb.String(), truncated
+}
+
+// appendStalledSection writes the stalled-task block into sb, stopping at the byte limit.
+// Reports whether anything had to be dropped.
+func (s *ReportsService) appendStalledSection(sb *strings.Builder, email string, stalled []Log, curr, limit int) bool {
+	const stalledHeader = "[Stalled Tasks - active items predating window]\n"
+	if curr+len(stalledHeader) > limit {
+		return true
+	}
+	sb.WriteString(stalledHeader)
+	curr += len(stalledHeader)
+	for _, m := range stalled {
+		line := s.formatLogLine(email, m)
+		if curr+len(line) > limit {
+			return true
+		}
+		sb.WriteString(line)
+		curr += len(line)
+	}
+	return false
 }
 
 // buildActivityStatsHeader pre-aggregates task counts, ownership concentration, room→customer
