@@ -211,23 +211,31 @@ var knownSchemas = []struct {
 	},
 }
 
+// rowMatchesSchema reports whether row carries every key in a schema's signature.
+func rowMatchesSchema(row map[string]any, signature []string) bool {
+	for _, k := range signature {
+		if _, ok := row[k]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// keysInSchemaOrder returns the schema's declared column order, dropping keys the row lacks.
+func keysInSchemaOrder(row map[string]any, order []string) []string {
+	result := make([]string, 0, len(order))
+	for _, k := range order {
+		if _, ok := row[k]; ok {
+			result = append(result, k)
+		}
+	}
+	return result
+}
+
 func orderedKeys(row map[string]any) []string {
 	for _, schema := range knownSchemas {
-		match := true
-		for _, k := range schema.signature {
-			if _, ok := row[k]; !ok {
-				match = false
-				break
-			}
-		}
-		if match {
-			result := make([]string, 0, len(schema.order))
-			for _, k := range schema.order {
-				if _, ok := row[k]; ok {
-					result = append(result, k)
-				}
-			}
-			return result
+		if rowMatchesSchema(row, schema.signature) {
+			return keysInSchemaOrder(row, schema.order)
 		}
 	}
 	keys := make([]string, 0, len(row))

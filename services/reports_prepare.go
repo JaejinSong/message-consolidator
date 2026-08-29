@@ -373,33 +373,51 @@ func buildRoomCustomerMap(activity []Log) map[string]string {
 	return result
 }
 
-func buildCrossSourceLine(activity []Log, roomCustomer map[string]string) string {
-	type roomSet = map[string]struct{}
-	customerRooms := make(map[string]roomSet)
+// crossSourceMinRooms is how many distinct rooms one customer must appear in before the
+// cross-source hint is worth showing.
+const crossSourceMinRooms = 3
+
+// roomsByCustomer groups the activity's rooms under their customer, skipping rooms with no
+// customer mapping and the catch-all bucket.
+func roomsByCustomer(activity []Log, roomCustomer map[string]string) map[string]map[string]struct{} {
+	out := make(map[string]map[string]struct{})
 	for _, m := range activity {
 		c := roomCustomer[m.Room]
 		if c == "" || c == "Other Tasks" {
 			continue
 		}
-		if customerRooms[c] == nil {
-			customerRooms[c] = make(roomSet)
+		if out[c] == nil {
+			out[c] = make(map[string]struct{})
 		}
-		customerRooms[c][m.Room] = struct{}{}
+		out[c][m.Room] = struct{}{}
 	}
+	return out
+}
+
+// firstMultiRoomCustomer picks the alphabetically first customer spanning enough rooms,
+// with its rooms sorted. Why: map iteration order is random, so the tie-break keeps the
+// rendered line stable across runs.
+func firstMultiRoomCustomer(customerRooms map[string]map[string]struct{}) (string, []string) {
 	best, bestRooms := "", []string(nil)
 	for c, rooms := range customerRooms {
-		if len(rooms) < 3 {
+		if len(rooms) < crossSourceMinRooms {
 			continue
 		}
-		if best == "" || c < best {
-			list := make([]string, 0, len(rooms))
-			for r := range rooms {
-				list = append(list, r)
-			}
-			sort.Strings(list)
-			best, bestRooms = c, list
+		if best != "" && c >= best {
+			continue
 		}
+		list := make([]string, 0, len(rooms))
+		for r := range rooms {
+			list = append(list, r)
+		}
+		sort.Strings(list)
+		best, bestRooms = c, list
 	}
+	return best, bestRooms
+}
+
+func buildCrossSourceLine(activity []Log, roomCustomer map[string]string) string {
+	best, bestRooms := firstMultiRoomCustomer(roomsByCustomer(activity, roomCustomer))
 	if best == "" {
 		return ""
 	}

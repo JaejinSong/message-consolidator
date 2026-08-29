@@ -172,73 +172,87 @@ func formatWeeklyEmailBody(start, end, url, summary string) string {
 </html>`, start, end, mdToEmailHTML(summary), url)
 }
 
+// mdEmailRenderer is the line-driven state machine behind mdToEmailHTML. It holds the
+// two pieces of cross-line state the weekly-report markdown subset needs: whether a
+// bullet list is open, and whether a fenced block is collecting lines.
+type mdEmailRenderer struct {
+	buf       strings.Builder
+	inCode    bool
+	inList    bool
+	codeLines []string
+}
+
+func (r *mdEmailRenderer) closeList() {
+	if r.inList {
+		r.buf.WriteString("</ul>\n")
+		r.inList = false
+	}
+}
+
+// toggleFence opens a fenced block, or closes one by flushing its body -- as a table when
+// the body parses as JSON rows, otherwise as an escaped <pre>.
+func (r *mdEmailRenderer) toggleFence() {
+	if !r.inCode {
+		r.closeList()
+		r.inCode = true
+		return
+	}
+	content := strings.Join(r.codeLines, "\n")
+	if table := jsonToTable(content); table != "" {
+		r.buf.WriteString(table + "\n")
+	} else {
+		r.buf.WriteString(`<pre style="background:#f5f5f5;padding:12px;border-radius:4px;overflow-x:auto;font-size:12px;line-height:1.5">`)
+		r.buf.WriteString(html.EscapeString(content))
+		r.buf.WriteString("</pre>\n")
+	}
+	r.codeLines = nil
+	r.inCode = false
+}
+
+// writeBlock renders one non-fenced line. Every branch except the bullet case closes an
+// open list first, so a list ends at the next block of any other kind.
+func (r *mdEmailRenderer) writeBlock(line string) {
+	switch {
+	case strings.HasPrefix(line, "## "):
+		r.closeList()
+		fmt.Fprintf(&r.buf, `<h2 style="color:#1a73e8;margin-top:28px;font-size:16px">%s</h2>`+"\n",
+			html.EscapeString(strings.TrimPrefix(line, "## ")))
+	case strings.HasPrefix(line, "- "):
+		if !r.inList {
+			r.buf.WriteString(`<ul style="padding-left:20px">` + "\n")
+			r.inList = true
+		}
+		fmt.Fprintf(&r.buf, "<li style=\"margin:4px 0\">%s</li>\n", inlineMD(strings.TrimPrefix(line, "- ")))
+	case line == "---":
+		r.closeList()
+		r.buf.WriteString(`<hr style="border:none;border-top:1px solid #ddd;margin:16px 0">` + "\n")
+	case strings.TrimSpace(line) == "":
+		r.closeList()
+	default:
+		r.closeList()
+		fmt.Fprintf(&r.buf, "<p style=\"margin:8px 0;line-height:1.6\">%s</p>\n", inlineMD(line))
+	}
+}
+
 func mdToEmailHTML(md string) string {
-	var buf strings.Builder
-	lines := strings.Split(md, "\n")
-	inCode, inList := false, false
-	var codeLines []string
-
-	closeList := func() {
-		if inList {
-			buf.WriteString("</ul>\n")
-			inList = false
+	var r mdEmailRenderer
+	for _, line := range strings.Split(md, "\n") {
+		switch {
+		case strings.HasPrefix(line, "```"):
+			r.toggleFence()
+		case r.inCode:
+			r.codeLines = append(r.codeLines, line)
+		default:
+			r.writeBlock(line)
 		}
 	}
-
-	for _, line := range lines {
-		if strings.HasPrefix(line, "```") {
-			if inCode {
-				content := strings.Join(codeLines, "\n")
-				if table := jsonToTable(content); table != "" {
-					buf.WriteString(table + "\n")
-				} else {
-					buf.WriteString(`<pre style="background:#f5f5f5;padding:12px;border-radius:4px;overflow-x:auto;font-size:12px;line-height:1.5">`)
-					buf.WriteString(html.EscapeString(content))
-					buf.WriteString("</pre>\n")
-				}
-				codeLines = nil
-				inCode = false
-			} else {
-				closeList()
-				inCode = true
-			}
-			continue
-		}
-		if inCode {
-			codeLines = append(codeLines, line)
-			continue
-		}
-		if strings.HasPrefix(line, "## ") {
-			closeList()
-			fmt.Fprintf(&buf, `<h2 style="color:#1a73e8;margin-top:28px;font-size:16px">%s</h2>`+"\n",
-				html.EscapeString(strings.TrimPrefix(line, "## ")))
-			continue
-		}
-		if strings.HasPrefix(line, "- ") {
-			if !inList {
-				buf.WriteString(`<ul style="padding-left:20px">` + "\n")
-				inList = true
-			}
-			fmt.Fprintf(&buf, "<li style=\"margin:4px 0\">%s</li>\n", inlineMD(strings.TrimPrefix(line, "- ")))
-			continue
-		}
-		if line == "---" {
-			closeList()
-			buf.WriteString(`<hr style="border:none;border-top:1px solid #ddd;margin:16px 0">` + "\n")
-			continue
-		}
-		if strings.TrimSpace(line) == "" {
-			closeList()
-			continue
-		}
-		closeList()
-		fmt.Fprintf(&buf, "<p style=\"margin:8px 0;line-height:1.6\">%s</p>\n", inlineMD(line))
+	r.closeList()
+	if r.inCode {
+		// Why: an unterminated fence emits only the closing tag and drops its body, which
+		// is pre-existing behavior pinned by TestMdToEmailHTML_UnterminatedFence.
+		r.buf.WriteString("</pre>\n")
 	}
-	closeList()
-	if inCode {
-		buf.WriteString("</pre>\n")
-	}
-	return buf.String()
+	return r.buf.String()
 }
 
 // titleWords uppercases the first letter of every word, reproducing the strings.Title
