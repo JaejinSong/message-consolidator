@@ -5,103 +5,119 @@
 #   ctx 전파 → contextcheck
 #   panic 금지 / WhaTap 우회 금지 → forbidigo
 #   명명 일관 → revive
+#
+# v2 스키마 (golangci-lint 2.x). v1 `linters-settings`/`issues.exclude-*` 는
+# 각각 `linters.settings`/`linters.exclusions` 로 이동했습니다.
+# v1 의 `run.timeout` 은 v2 에서 무시되므로 제거했습니다 (기본값=무제한).
+version: "2"
 run:
-  timeout: 5m
   go: "1.25"
   tests: true
-
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - contextcheck
+    - errcheck
+    - errorlint
+    - forbidigo
+    - gocognit
+    - gocyclo
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - nestif
+    - nolintlint
+    - revive
+    - staticcheck
+    - unused
+  settings:
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+    forbidigo:
+      forbid:
+        - pattern: ^http\.DefaultClient$
+          msg: WhaTap trace 누락 — whataphttpx.Client 사용 (CLAUDE.md WhaTap 섹션)
+        - pattern: ^http\.(Get|Post|PostForm|Head|Do)$
+          msg: WhaTap trace 누락 — whataphttp.HttpGet 등 사용
+        - pattern: ^sql\.Open$
+          msg: WhaTap trace 누락 — whatapsql.OpenContext 사용 (store/db.go)
+        - pattern: ^panic$
+          msg: 런타임 경로 panic 금지 — error 반환으로 전환 (CLAUDE.md 에러 섹션)
+      analyze-types: true
+    gocognit:
+      min-complexity: 15
+    gocyclo:
+      min-complexity: 15
+    gosec:
+      excludes:
+        - G104   # errcheck 와 중복
+        - G304   # 파일 경로는 store 레이어에서 검증
+    nestif:
+      # 중첩 3단계까지 허용 → 4 부터 경고
+      min-complexity: 4
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+    revive:
+      severity: warning
+      rules:
+        - name: var-naming
+        - name: error-return
+        - name: error-naming
+        - name: error-strings
+        - name: errorf
+        - name: indent-error-flow
+        - name: increment-decrement
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # 테스트 파일은 복잡도/보안 완화
+      - linters:
+          - bodyclose
+          - errcheck
+          - forbidigo
+          - gocognit
+          - gocyclo
+          - gosec
+          - nestif
+        path: _test\.go
+      # CLI 보조 도구는 panic/print 허용
+      - linters:
+          - forbidigo
+          - gosec
+        path: cmd/
+    paths:
+      - db                  # sqlc 자동 생성 (수동 편집 금지)
+      - node_modules
+      - dist
+      - src
+      - third_party$
+      - builtin$
+      - examples$
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-dirs:
-    - db                  # sqlc 자동 생성 (수동 편집 금지)
-    - node_modules
-    - dist
-    - src
-  exclude-rules:
-    # 테스트 파일은 복잡도/보안 완화
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - gocognit
-        - nestif
-        - errcheck
-        - gosec
-        - forbidigo
-        - bodyclose
-    # CLI 보조 도구는 panic/print 허용
-    - path: cmd/
-      linters:
-        - forbidigo
-        - gosec
-
-linters:
-  disable-all: true
-  enable:
-    # default set
-    - errcheck
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    # CLAUDE.md 강제 규칙
-    - gocyclo
-    - gocognit
-    - nestif
-    - errorlint
-    - contextcheck
-    - bodyclose
-    - forbidigo
-    - revive
-    - misspell
-    - nolintlint
-    - gosec
-
-linters-settings:
-  gocyclo:
-    min-complexity: 15
-  gocognit:
-    min-complexity: 15
-  nestif:
-    # 중첩 3단계까지 허용 → 4 부터 경고
-    min-complexity: 4
-  errorlint:
-    errorf: true
-    asserts: true
-    comparison: true
-  forbidigo:
-    analyze-types: true
-    forbid:
-      - p: ^http\.DefaultClient$
-        msg: "WhaTap trace 누락 — whataphttpx.Client 사용 (CLAUDE.md WhaTap 섹션)"
-      - p: ^http\.(Get|Post|PostForm|Head|Do)$
-        msg: "WhaTap trace 누락 — whataphttp.HttpGet 등 사용"
-      - p: ^sql\.Open$
-        msg: "WhaTap trace 누락 — whatapsql.OpenContext 사용 (store/db.go)"
-      - p: ^panic$
-        msg: "런타임 경로 panic 금지 — error 반환으로 전환 (CLAUDE.md 에러 섹션)"
-  revive:
-    severity: warning
-    rules:
-      - name: var-naming
-      - name: error-return
-      - name: error-naming
-      - name: error-strings
-      - name: errorf
-      - name: indent-error-flow
-      - name: increment-decrement
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-  gosec:
-    excludes:
-      - G104   # errcheck 와 중복
-      - G304   # 파일 경로는 store 레이어에서 검증
-  nolintlint:
-    require-explanation: true
-    require-specific: true
-    allow-unused: false
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

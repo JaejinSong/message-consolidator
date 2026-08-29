@@ -493,7 +493,7 @@ flowchart TD
 
 ### 5.3 `createCoreTables()` 패턴
 
-**한국어:** `createCoreTables` 는 `db.New(q)` 로 sqlc 쿼리 객체를 만들고, 19개 테이블을 순서대로 호출합니다. 각 DDL은 `CREATE TABLE IF NOT EXISTS` 이므로 멱등합니다. 순서가 중요합니다 — 외래키 참조 대상 테이블이 먼저 생성되어야 합니다 (예: `contacts` 전에 `identity_merge_history` 불가).
+**한국어:** `createCoreTables` 는 `db.New(q)` 로 sqlc 쿼리 객체를 만들고, 24개 테이블을 순서대로 호출합니다. 각 DDL은 `CREATE TABLE IF NOT EXISTS` 이므로 멱등합니다. 순서가 중요합니다 — 외래키 참조 대상 테이블이 먼저 생성되어야 합니다 (예: `contacts` 전에 `identity_merge_history` 불가).
 
 **English:** Table creation order in `createCoreTables` respects foreign key dependencies. SQLite enforces FK constraints at DML time (not DDL), but maintaining declaration order documents intent.
 
@@ -501,17 +501,29 @@ flowchart TD
 
 **한국어:** `schemaIsCurrent` 가 `false` 일 때 실행되는 `runFullDDL` 의 단계:
 
+전 단계가 하나의 트랜잭션 안에서 실행되며, 마지막 `stampSchemaVersion` 까지 성공해야 커밋됩니다.
+
 | 단계 | 함수 | 목적 |
 |---|---|---|
-| 1 | `createCoreTables` | 21개 테이블 `CREATE TABLE IF NOT EXISTS` (message_embeddings 포함) + FTS5 트리거 |
-| 2 | `migrateEmbeddingsToF32` | `message_embeddings.vec` BLOB → F32_BLOB(768) 원자적 재구성 (멱등, §5.8 참고) |
-| 3 | `rebuildViews` | `v_contacts_resolved`, `v_messages` DROP+CREATE |
-| 4 | `createIndexes` | 전체 인덱스 `CREATE INDEX IF NOT EXISTS` (idx_msg_emb_model_id 포함) |
-| 5 | `stampSchemaVersion` | `app_settings["schema_version"] = "4"` — 다음 재시작 시 DDL 건너뜀 |
+| 1 | `createCoreTables` | 24개 테이블 `CREATE TABLE IF NOT EXISTS` (message_embeddings 포함) + `createMessagesFTS` (FTS5 가상 테이블 + 동기화 트리거 3종) |
+| 2 | `addMessagesUpdatedAtColumn` | `messages.updated_at` 컬럼 추가 + created_at 기준 백필 |
+| 3 | `addThinkingTokensColumn` | `token_usage.thinking_tokens` 컬럼 추가 |
+| 4 | `addCachedTokensColumn` | `token_usage.cached_tokens` 컬럼 추가 (프롬프트 캐시 히트 과금) |
+| 5 | `migrateTokenUsagePeak` | `token_usage.peak` 컬럼 + UNIQUE 확장 — 테이블 재구성 (v17, §5.8 참고) |
+| 6 | `migrateEmbeddingsToF32` | `message_embeddings.vec` BLOB → F32_BLOB(768) 원자적 재구성 (멱등, §5.8 참고) |
+| 7 | `dropAIInferencePayloadColumns` | `ai_inference_logs` payload 컬럼 DROP (로그 파일 이전 후) |
+| 8 | `addDeadlineColumns` | `messages.deadline_date`, `deadline_inferred` 추가 |
+| 9 | `suppressOldUndatedNudges` | 기한 없는 과거 nudge 억제 |
+| 10 | `backfillZeroTimeAssignedAt` | `assigned_at` NULL/제로값 복구 |
+| 11 | `migrateLifecycleExcluded` | `lifecycle` 생성 컬럼 재정의 + `excluded_at` 추가 |
+| 12 | `backfillWhatsAppThreadIDs` | 레거시 WhatsApp 태스크를 source_ts 기준으로 thread 고정 (v16) |
+| 13 | `rebuildViews` | `v_contacts_resolved`, `v_messages` DROP+CREATE — 컬럼 추가 이후에 실행해야 현재 스키마를 참조 |
+| 14 | `reindexWAMessages` + `createIndexes` | 전체 인덱스 `CREATE INDEX IF NOT EXISTS` |
+| 15 | `stampSchemaVersion` | `app_settings["schema_version"] = "17"` — 다음 재시작 시 DDL 건너뜀 |
 
-**한국어:** 과거 프로덕션 DB에서 개별 idempotent 마이그레이션 함수(`migrateTokenUsageBreakdown` 등)로 처리하던 스키마 변경은 schema v4로 전환하면서 `createCoreTables` 의 `IF NOT EXISTS` DDL로 흡수됐습니다. `runFullDDL` 은 전체 DDL을 한 번에 재실행하며, `schemaVersion` 상수(현재 4)가 게이팅합니다.
+**한국어:** 게이팅은 `schemaVersion` 상수(현재 17)가 담당합니다. `schemaIsCurrent` 가 `false` 면 위 체인 전체를 재실행합니다. 초기 설계 의도는 개별 마이그레이션 함수를 `createCoreTables` 의 `IF NOT EXISTS` DDL로 흡수하는 것이었고 일부(`migrateTokenUsageBreakdown` 등)는 실제로 제거됐지만, `ALTER TABLE` / 테이블 재구성 / 데이터 백필은 `CREATE TABLE IF NOT EXISTS` 로 표현할 수 없어 단계 2-12의 함수 체인이 남아 있습니다. **새 컬럼을 추가할 때는 `schema.sql` 의 CREATE 문(신규 DB용)과 마이그레이션 함수(기존 DB용) 양쪽을 모두 수정해야 합니다.**
 
-**English:** The former `runMigrations` chain (per-function idempotency guards) was replaced by schema-version gating. `runFullDDL` re-runs all DDL atomically when `schemaVersion` advances, relying on `IF NOT EXISTS` clauses and `migrateEmbeddingsToF32`'s DDL probe for idempotency.
+**English:** Gating is driven by the `schemaVersion` constant (currently 17); when `schemaIsCurrent` returns false the whole chain re-runs inside one transaction. Steps 2-12 are per-function idempotency guards that survive because `ALTER TABLE`, table rebuilds, and data backfills cannot be expressed as `CREATE TABLE IF NOT EXISTS`. Adding a column therefore requires editing both the `schema.sql` CREATE statement (for fresh DBs) and a migration function (for existing ones).
 
 ### 5.5 SQLite UNIQUE 재구성 패턴
 
