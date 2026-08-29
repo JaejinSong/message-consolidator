@@ -41,7 +41,7 @@ func newSessionToken() (string, error) {
 // Why: the hint predates server-side sessions and can outlive them — a stale
 // "logged in" hint suppresses the frontend login overlay after a real 401.
 func clearSessionHint(w http.ResponseWriter) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-gated via isProdEnv for local http dev; HttpOnly is false only on session_active, which carries no secret
 		Name:     "session_active",
 		Value:    "",
 		Expires:  time.Unix(0, 0),
@@ -203,7 +203,7 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 
 	isProd := isProdEnv()
 
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-gated via isProdEnv for local http dev; HttpOnly is false only on session_active, which carries no secret
 		Name:     "session_token",
 		Value:    "",
 		Expires:  time.Unix(0, 0),
@@ -213,7 +213,7 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-gated via isProdEnv for local http dev; HttpOnly is false only on session_active, which carries no secret
 		Name:     "session_active",
 		Value:    "",
 		Expires:  time.Unix(0, 0),
@@ -235,7 +235,7 @@ func generateStateCookie(w http.ResponseWriter) string {
 	}
 	state := base64.RawURLEncoding.EncodeToString(b[:])
 	isProd := isProdEnv()
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-gated via isProdEnv for local http dev; HttpOnly is false only on session_active, which carries no secret
 		Name:     "oauthstate",
 		Value:    state,
 		Expires:  time.Now().Add(20 * time.Minute),
@@ -261,7 +261,7 @@ func SetSessionCookie(ctx context.Context, w http.ResponseWriter, email string) 
 	}
 
 	isProd := isProdEnv()
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-gated via isProdEnv for local http dev; HttpOnly is false only on session_active, which carries no secret
 		Name:     "session_token",
 		Value:    token,
 		Expires:  expiresAt,
@@ -272,7 +272,7 @@ func SetSessionCookie(ctx context.Context, w http.ResponseWriter, email string) 
 	})
 
 	//Why: Provides a public "session active" hint for frontend logic without exposing the actual token.
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-gated via isProdEnv for local http dev; HttpOnly is false only on session_active, which carries no secret
 		Name:     "session_active",
 		Value:    "true",
 		Expires:  expiresAt,

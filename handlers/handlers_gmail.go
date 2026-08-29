@@ -39,7 +39,7 @@ func (a *API) HandleGmailConnect(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	state := "gmail:" + email
 	url := channels.GetGmailAuthURL(state)
-	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect) //nolint:gosec // G710: host comes from the oauth2 config's fixed Google endpoint; only state is caller-derived
 }
 
 func (a *API) HandleGmailCallback(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +61,7 @@ func (a *API) HandleGmailCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenJSON, err := json.Marshal(token)
+	tokenJSON, err := json.Marshal(token) //nolint:gosec // G117: token JSON is persisted server-side, never sent to a client
 	if err != nil {
 		handleAPIError(w, r, err, "[GMAIL]", "Failed to marshal token")
 		return

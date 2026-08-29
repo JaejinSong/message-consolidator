@@ -346,11 +346,11 @@ func pendingPairContactIDs(group []tokenContact, handledPairs map[[2]int64]bool)
 	var ids []int64
 	for i := 0; i < len(group); i++ {
 		for j := i + 1; j < len(group); j++ {
-			a, b := orderedPair(group[i].id, group[j].id)
+			a, b := orderedPair(group[i].id, group[j].id) //nolint:gosec // G602: bounded by i < len(group) and j < len(group)
 			if handledPairs[[2]int64{a, b}] {
 				continue
 			}
-			for _, id := range []int64{group[i].id, group[j].id} {
+			for _, id := range []int64{group[i].id, group[j].id} { //nolint:gosec // G602: bounded by i < len(group) and j < len(group)
 				if !seen[id] {
 					seen[id] = true
 					ids = append(ids, id)

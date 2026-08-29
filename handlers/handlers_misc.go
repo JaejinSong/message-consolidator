@@ -48,12 +48,12 @@ func (a *API) HandleGetReleaseNotes(w http.ResponseWriter, r *http.Request) {
 
 	fileName := fmt.Sprintf("./RELEASE_NOTES_%s_%s.md", noteType, lang)
 
-	data, err := os.ReadFile(fileName)
+	data, err := os.ReadFile(fileName) //nolint:gosec // G703: noteType is allowlisted and lang is isAlpha-validated, so no traversal sequence is representable
 	if os.IsNotExist(err) {
 		// Fallback to English if the requested language is not found
 		logger.Warnf("[RELEASE] lang '%s' not found, falling back to EN.", lang)
 		fallbackFileName := fmt.Sprintf("./RELEASE_NOTES_%s_EN.md", noteType)
-		data, err = os.ReadFile(fallbackFileName)
+		data, err = os.ReadFile(fallbackFileName) //nolint:gosec // G703: fallback path interpolates only the allowlisted noteType
 	}
 
 	if err != nil {

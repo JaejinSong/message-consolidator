@@ -210,7 +210,7 @@ func (a *API) HandleRejectProposal(w http.ResponseWriter, r *http.Request) {
 func allPairsHandled(ids []int64, handled map[[2]int64]bool) bool {
 	for i := 0; i < len(ids); i++ {
 		for j := i + 1; j < len(ids); j++ {
-			a, b := ids[i], ids[j]
+			a, b := ids[i], ids[j] //nolint:gosec // G602: bounded by i < len(ids) and j < len(ids)
 			if a > b {
 				a, b = b, a
 			}

@@ -75,7 +75,7 @@ func GetGmailService(ctx context.Context, email string) (*gmail.Service, error) 
 		return nil, fmt.Errorf("failed to refresh gmail token for %s: %w", email, err)
 	}
 	if newToken.AccessToken != token.AccessToken {
-		newTokenJSON, _ := json.Marshal(newToken)
+		newTokenJSON, _ := json.Marshal(newToken) //nolint:gosec // G117: token JSON is persisted server-side, never sent to a client
 		_ = store.SaveGmailToken(ctx, email, string(newTokenJSON))
 	}
 
