@@ -145,7 +145,7 @@ func (s *ExclusionService) dispatchExcludedDigestForUser(ctx context.Context, em
 
 func formatExcludedDigest(items []store.ExcludedItem) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf(":package: 추적제외된 업무 %d건 — 아직 보류 중입니다.\n", len(items)))
+	fmt.Fprintf(&b, ":package: 추적제외된 업무 %d건 — 아직 보류 중입니다.\n", len(items))
 	now := time.Now().UTC()
 	for _, it := range items {
 		days := int(now.Sub(it.ExcludedAt).Hours() / 24)

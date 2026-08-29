@@ -197,40 +197,6 @@ func groupThreadsByKey(threads []store.SlackThreadMeta) [][]store.SlackThreadMet
 	return groups
 }
 
-func processSingleSlackThread(ctx context.Context, sc *channels.SlackClient, t store.SlackThreadMeta, botID string, aliasCache map[string]slackThreadIdentity, wg *sync.WaitGroup) {
-	if isThreadTimedOut(t.LastActivityTS, 7*24*time.Hour) {
-		handleThreadTimeout(ctx, sc, t)
-		return
-	}
-
-	ident, ok := aliasCache[t.UserEmail]
-	if !ok || ident.user == nil {
-		return
-	}
-	user := ident.user
-
-	params := &slack.GetConversationRepliesParameters{
-		ChannelID: t.ChannelID, Timestamp: t.ThreadTS, Oldest: t.LastTS, Limit: 100,
-	}
-	var replies []slack.Message
-	err := channels.WithSlackRetry(3, fmt.Sprintf("thread %s/%s", t.ChannelID, t.ThreadTS), func() error {
-		var e error
-		replies, _, _, e = sc.GetAPI().GetConversationReplies(params)
-		return e
-	})
-	if err != nil {
-		return
-	}
-
-	res := scanThreadReplies(replies, t.LastTS, t.LastActivityTS, botID)
-	candidates := collectThreadCandidates(ctx, sc, user, t, replies, res, ident.effAliases)
-
-	if len(candidates) > 0 {
-		analyzeSlackBatch(ctx, user, sc, t.ChannelID, candidates, wg)
-	}
-	updateThreadStatus(ctx, sc, t, res)
-}
-
 func processSlackThreadGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta, botID string, aliasCache map[string]slackThreadIdentity, wg *sync.WaitGroup) {
 	rep := group[0]
 	minLastTS := rep.LastTS

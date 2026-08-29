@@ -78,9 +78,9 @@ func splitMergeTasks(msgs []ConsolidatedMessage, destID MessageID) (*Consolidate
 
 func buildMergeHistory(oldTitle string, sources []ConsolidatedMessage) string {
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("\n\n--- [Merge History] ---\nPrev Title: %s\n", oldTitle))
+	fmt.Fprintf(&builder, "\n\n--- [Merge History] ---\nPrev Title: %s\n", oldTitle)
 	for _, s := range sources {
-		builder.WriteString(fmt.Sprintf("\n--- [Source: %d] ---\nTitle: %s\nText: %s\n", s.ID, s.Task, s.OriginalText))
+		fmt.Fprintf(&builder, "\n--- [Source: %d] ---\nTitle: %s\nText: %s\n", s.ID, s.Task, s.OriginalText)
 	}
 	return builder.String()
 }

@@ -134,10 +134,10 @@ func buildRawMessage(from, to, subject, body string) string {
 
 func buildRawMessageWithHeaders(from, to, subject, body string, extraHeaders map[string]string) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/html; charset=UTF-8\r\n",
-		from, to, subject))
+	fmt.Fprintf(&sb, "From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/html; charset=UTF-8\r\n",
+		from, to, subject)
 	for k, v := range extraHeaders {
-		sb.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
+		fmt.Fprintf(&sb, "%s: %s\r\n", k, v)
 	}
 	sb.WriteString("\r\n")
 	sb.WriteString(body)

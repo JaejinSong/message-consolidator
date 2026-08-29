@@ -240,7 +240,7 @@ func TestHandleTelegramAuthPassword_BadJSON(t *testing.T) {
 func TestHandleSlackEvent_NoBotOrSecret(t *testing.T) {
 	tests := []struct {
 		name   string
-		bot    *services_stub
+		bot    *servicesStub
 		secret string
 	}{
 		{"nil bot and no secret", nil, ""},
@@ -259,9 +259,9 @@ func TestHandleSlackEvent_NoBotOrSecret(t *testing.T) {
 	}
 }
 
-// services_stub is a placeholder type used to document why we don't instantiate
+// servicesStub is a placeholder type used to document why we don't instantiate
 // *services.SlackBot (requires external Slack API credentials).
-type services_stub struct{}
+type servicesStub struct{}
 
 func TestHandleSlackInteractive_NoBotOrSecret(t *testing.T) {
 	t.Parallel()

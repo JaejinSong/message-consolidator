@@ -60,7 +60,7 @@ func (a *API) runProposalJob(email string) *proposalJob {
 	ctx := context.Background()
 	ctx, _ = trace.Start(ctx, "/proposal-job")
 	var txErr error
-	defer func() { trace.End(ctx, txErr) }()
+	defer func() { _ = trace.End(ctx, txErr) }()
 	jobStart := time.Now()
 
 	t := time.Now()

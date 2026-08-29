@@ -140,13 +140,13 @@ func copyTable(ctx context.Context, prod, local *sql.DB, table string) {
 	colList := strings.Join(cols, ", ")
 	placeholders := strings.TrimRight(strings.Repeat("?,", len(cols)), ",")
 
-	rows, err := prod.QueryContext(ctx, "SELECT "+colList+" FROM "+table) //nolint:gosec // table names are compile-time constants
+	rows, err := prod.QueryContext(ctx, "SELECT "+colList+" FROM "+table) // Why: table/column names are compile-time constants, not user input
 	must(err, "select "+table)
 	defer rows.Close()
 
 	tx, err := local.Begin()
 	must(err, "begin")
-	stmt, err := tx.Prepare("INSERT INTO " + table + " (" + colList + ") VALUES (" + placeholders + ")") //nolint:gosec
+	stmt, err := tx.Prepare("INSERT INTO " + table + " (" + colList + ") VALUES (" + placeholders + ")") // Why: identifiers are compile-time constants; values stay parameterized
 	must(err, "prepare insert")
 
 	vals := make([]any, len(cols))
@@ -168,7 +168,7 @@ func copyTable(ctx context.Context, prod, local *sql.DB, table string) {
 }
 
 func insertableColumns(db *sql.DB, table string) []string {
-	rows, err := db.Query("PRAGMA table_xinfo(" + table + ")") //nolint:gosec
+	rows, err := db.Query("PRAGMA table_xinfo(" + table + ")") // Why: PRAGMA takes no bind parameters; table is a compile-time constant
 	must(err, "table_xinfo "+table)
 	defer rows.Close()
 	var cols []string

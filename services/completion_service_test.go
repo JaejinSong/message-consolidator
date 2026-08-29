@@ -37,11 +37,12 @@ func (m *MockAI) EvaluateTaskTransition(ctx context.Context, email, parentTask, 
 	if len(m.Results) > 0 {
 		// Normalizing to uppercase to match handleCompletionResult switch cases
 		status := "NONE"
-		if m.Results[0].State == "resolve" {
+		switch m.Results[0].State {
+		case "resolve":
 			status = "RESOLVE"
-		} else if m.Results[0].State == "update" {
+		case "update":
 			status = "UPDATE"
-		} else if m.Results[0].State == "new" {
+		case "new":
 			status = "NEW"
 		}
 		return ai.TaskTransition{Status: status, UpdatedText: m.Results[0].Task}, m.Err

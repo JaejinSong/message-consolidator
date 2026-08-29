@@ -59,7 +59,7 @@ func buildTGPayload(user store.User, msgs []types.RawMessage) (string, map[strin
 		if !m.Timestamp.IsZero() {
 			tsTag = fmt.Sprintf("[ts:%s]", m.Timestamp.UTC().Format("2006-01-02T15:04"))
 		}
-		sb.WriteString(fmt.Sprintf("[ID:%s]%s%s %s: %s\n", m.ID, tsTag, meta, senderName, m.Text))
+		fmt.Fprintf(&sb, "[ID:%s]%s%s %s: %s\n", m.ID, tsTag, meta, senderName, m.Text)
 	}
 	return sb.String(), msgMap
 }
@@ -75,7 +75,7 @@ func buildTGMetadataString(m types.RawMessage) string {
 
 	var sb strings.Builder
 	if len(tags) > 0 {
-		sb.WriteString(fmt.Sprintf(" [Tags: %s]", strings.Join(tags, ", ")))
+		fmt.Fprintf(&sb, " [Tags: %s]", strings.Join(tags, ", "))
 	}
 	if m.HasAttachment {
 		sb.WriteString(" [HasAttachment: true]")

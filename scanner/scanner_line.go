@@ -163,8 +163,8 @@ func (a *lineAdapter) BuildPayload(_ store.User, _ []string, msgs []types.RawMes
 		if sender == "" {
 			sender = "unknown"
 		}
-		sb.WriteString(fmt.Sprintf("[ID:%s][%s] %s: %s\n",
-			r.LineMessageID, time.Unix(r.Ts, 0).Format("15:04"), sender, r.Text))
+		fmt.Fprintf(&sb, "[ID:%s][%s] %s: %s\n",
+			r.LineMessageID, time.Unix(r.Ts, 0).Format("15:04"), sender, r.Text)
 	}
 	return sb.String(), msgMap
 }
@@ -282,9 +282,9 @@ func findBundle(bundles []userBundle, email string) *userBundle {
 
 // resolveLINEMentionNames converts JSON-encoded LINE user IDs to display names.
 // Why: ExplicitMentions is used for assignee inference by display name; raw user IDs never match.
-func resolveLINEMentionNames(mentionedIdsJSON string) []string {
+func resolveLINEMentionNames(mentionedIDsJSON string) []string {
 	var ids []string
-	if err := json.Unmarshal([]byte(mentionedIdsJSON), &ids); err != nil || len(ids) == 0 {
+	if err := json.Unmarshal([]byte(mentionedIDsJSON), &ids); err != nil || len(ids) == 0 {
 		return nil
 	}
 	names := make([]string, 0, len(ids))

@@ -9,6 +9,7 @@ import (
 	"message-consolidator/store"
 	"strings"
 	"time"
+	"unicode"
 )
 
 type WeeklyReportMailer interface {
@@ -209,8 +210,8 @@ func mdToEmailHTML(md string) string {
 		}
 		if strings.HasPrefix(line, "## ") {
 			closeList()
-			buf.WriteString(fmt.Sprintf(`<h2 style="color:#1a73e8;margin-top:28px;font-size:16px">%s</h2>`+"\n",
-				html.EscapeString(strings.TrimPrefix(line, "## "))))
+			fmt.Fprintf(&buf, `<h2 style="color:#1a73e8;margin-top:28px;font-size:16px">%s</h2>`+"\n",
+				html.EscapeString(strings.TrimPrefix(line, "## ")))
 			continue
 		}
 		if strings.HasPrefix(line, "- ") {
@@ -218,7 +219,7 @@ func mdToEmailHTML(md string) string {
 				buf.WriteString(`<ul style="padding-left:20px">` + "\n")
 				inList = true
 			}
-			buf.WriteString(fmt.Sprintf("<li style=\"margin:4px 0\">%s</li>\n", inlineMD(strings.TrimPrefix(line, "- "))))
+			fmt.Fprintf(&buf, "<li style=\"margin:4px 0\">%s</li>\n", inlineMD(strings.TrimPrefix(line, "- ")))
 			continue
 		}
 		if line == "---" {
@@ -231,13 +232,29 @@ func mdToEmailHTML(md string) string {
 			continue
 		}
 		closeList()
-		buf.WriteString(fmt.Sprintf("<p style=\"margin:8px 0;line-height:1.6\">%s</p>\n", inlineMD(line)))
+		fmt.Fprintf(&buf, "<p style=\"margin:8px 0;line-height:1.6\">%s</p>\n", inlineMD(line))
 	}
 	closeList()
 	if inCode {
 		buf.WriteString("</pre>\n")
 	}
 	return buf.String()
+}
+
+// titleWords uppercases the first letter of every word, reproducing the strings.Title
+// behavior these table headers were built against. Why: strings.Title is deprecated, but
+// x/text's cases.Title also lowercases the rest of each word, which would rewrite an
+// all-caps header like "ID" to "Id".
+func titleWords(s string) string {
+	prev := ' '
+	return strings.Map(func(r rune) rune {
+		out := r
+		if !unicode.IsLetter(prev) {
+			out = unicode.ToTitle(r)
+		}
+		prev = r
+		return out
+	}, s)
 }
 
 func jsonToTable(s string) string {
@@ -253,8 +270,8 @@ func jsonToTable(s string) string {
 	b.WriteString(`<table style="width:100%;border-collapse:collapse;font-size:13px;margin:8px 0">`)
 	b.WriteString("<tr>")
 	for _, c := range cols {
-		b.WriteString(fmt.Sprintf(`<th style="background:#1a73e8;color:#fff;padding:8px 10px;text-align:left;white-space:nowrap">%s</th>`,
-			html.EscapeString(strings.Title(c))))
+		fmt.Fprintf(&b, `<th style="background:#1a73e8;color:#fff;padding:8px 10px;text-align:left;white-space:nowrap">%s</th>`,
+			html.EscapeString(titleWords(c)))
 	}
 	b.WriteString("</tr>")
 	for i, row := range rows {
@@ -262,11 +279,11 @@ func jsonToTable(s string) string {
 		if i%2 == 1 {
 			bg = "#f8f9fa"
 		}
-		b.WriteString(fmt.Sprintf(`<tr style="background:%s">`, bg))
+		fmt.Fprintf(&b, `<tr style="background:%s">`, bg)
 		for _, c := range cols {
 			val := fmt.Sprintf("%v", row[c])
-			b.WriteString(fmt.Sprintf(`<td style="padding:7px 10px;border-bottom:1px solid #eee;vertical-align:top">%s</td>`,
-				html.EscapeString(val)))
+			fmt.Fprintf(&b, `<td style="padding:7px 10px;border-bottom:1px solid #eee;vertical-align:top">%s</td>`,
+				html.EscapeString(val))
 		}
 		b.WriteString("</tr>")
 	}

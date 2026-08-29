@@ -103,7 +103,7 @@ func (r *IdentityResolver) proposeChunk(ctx context.Context, email string, conta
 func formatContactsForPrompt(contacts []store.ContactRecord) string {
 	var sb strings.Builder
 	for _, c := range contacts {
-		sb.WriteString(fmt.Sprintf("- id: %d, name: %q, canonical_id: %q\n", c.ID, c.DisplayName, c.CanonicalID))
+		fmt.Fprintf(&sb, "- id: %d, name: %q, canonical_id: %q\n", c.ID, c.DisplayName, c.CanonicalID)
 	}
 	return sb.String()
 }

@@ -68,8 +68,8 @@ func TestHandleProposalJobStatus_Running(t *testing.T) {
 
 func TestProposalJobError(t *testing.T) {
 	t.Parallel()
-	import_err := httpError("boom")
-	job := proposalJobError(import_err)
+	importErr := httpError("boom")
+	job := proposalJobError(importErr)
 	if job.Status != "error" {
 		t.Errorf("Status = %q, want error", job.Status)
 	}

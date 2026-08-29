@@ -229,7 +229,7 @@ func dispatchOutgoingCompletionIfMine(_ context.Context, sc *channels.SlackClien
 func dispatchSlackThreadedCompletion(sc *channels.SlackClient, u store.User, m types.RawMessage) {
 	room := sc.GetChannelName(m.ChannelID)
 	link := buildSlackLink(m)
-	go func(bgCtx context.Context, email string, raw types.RawMessage, room, link string) { //nolint:contextcheck // Goroutine outlives the parent scan ctx by design.
+	go func(bgCtx context.Context, email string, raw types.RawMessage, room, link string) { // Why: goroutine outlives the parent scan ctx by design; bgCtx is passed in explicitly.
 		defer safego.Recover("slack-outgoing-completion")
 		if _, err := deps.completionSvc.ProcessPotentialCompletion(bgCtx, store.ConsolidatedMessage{
 			UserEmail: email, Source: store.SourceSlack,
@@ -251,7 +251,7 @@ func dispatchSlackCrossChannelCompletion(sc *channels.SlackClient, u store.User,
 	room := sc.GetChannelName(m.ChannelID)
 	link := buildSlackLink(m)
 	fromMe := isFromUser(&u, m)
-	go func(bgCtx context.Context, email string, raw types.RawMessage, room, link string, fromMe bool) { //nolint:contextcheck // Goroutine outlives the parent scan ctx by design.
+	go func(bgCtx context.Context, email string, raw types.RawMessage, room, link string, fromMe bool) { // Why: goroutine outlives the parent scan ctx by design; bgCtx is passed in explicitly.
 		defer safego.Recover("slack-crosschannel-completion")
 		env := store.ConsolidatedMessage{
 			UserEmail: email, Source: store.SourceSlack,
@@ -408,7 +408,7 @@ func buildSlackAnalysisPayload(ctx context.Context, candidates []types.RawMessag
 		if !m.Timestamp.IsZero() {
 			tsTag = fmt.Sprintf("[ts:%s]", m.Timestamp.UTC().Format("2006-01-02T15:04"))
 		}
-		sb.WriteString(fmt.Sprintf("[ID:%s]%s%s %s: %s\n", m.ID, tsTag, metaStr, senderLabel, resolvedText))
+		fmt.Fprintf(&sb, "[ID:%s]%s%s %s: %s\n", m.ID, tsTag, metaStr, senderLabel, resolvedText)
 	}
 	return sb.String(), msgMap
 }
@@ -426,13 +426,13 @@ func buildSlackMetadataString(m types.RawMessage) string {
 	}
 	var sb strings.Builder
 	if len(tags) > 0 {
-		sb.WriteString(fmt.Sprintf(" [Tags: %s]", strings.Join(tags, ", ")))
+		fmt.Fprintf(&sb, " [Tags: %s]", strings.Join(tags, ", "))
 	}
 	if len(m.Reactions) > 0 {
-		sb.WriteString(fmt.Sprintf(" [Reactions: %s]", strings.Join(m.Reactions, ", ")))
+		fmt.Fprintf(&sb, " [Reactions: %s]", strings.Join(m.Reactions, ", "))
 	}
 	if len(m.AttachmentNames) > 0 {
-		sb.WriteString(fmt.Sprintf(" [Files: %s]", strings.Join(m.AttachmentNames, ", ")))
+		fmt.Fprintf(&sb, " [Files: %s]", strings.Join(m.AttachmentNames, ", "))
 	}
 	return sb.String()
 }

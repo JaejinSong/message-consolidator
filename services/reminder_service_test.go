@@ -269,7 +269,7 @@ func TestDispatchUndated_AlreadyMarkedSkips(t *testing.T) {
 
 	// Pre-mark d3 so it should be skipped
 	meta := `{"reminded_at_undated_d3":"2026-01-01T00:00:00Z"}`
-	seedUndatedCommitment_withMeta(t, email, "Already done", "PROMISE", 5, meta)
+	seedUndatedCommitmentWithMeta(t, email, "Already done", "PROMISE", 5, meta)
 
 	fs := &fakeSlack{}
 	svc := NewReminderService(fs, nil)
@@ -282,7 +282,7 @@ func TestDispatchUndated_AlreadyMarkedSkips(t *testing.T) {
 	}
 }
 
-func seedUndatedCommitment_withMeta(t *testing.T, email, task, category string, daysAgo int, meta string) int64 {
+func seedUndatedCommitmentWithMeta(t *testing.T, email, task, category string, daysAgo int, meta string) int64 {
 	t.Helper()
 	src := testutil.RandomTS("undm")
 	createdAt := time.Now().UTC().AddDate(0, 0, -daysAgo).Format(time.RFC3339)
@@ -292,7 +292,7 @@ func seedUndatedCommitment_withMeta(t *testing.T, email, task, category string, 
 		email, task, category, src, meta, createdAt,
 	)
 	if err != nil {
-		t.Fatalf("seedUndatedCommitment_withMeta: %v", err)
+		t.Fatalf("seedUndatedCommitmentWithMeta: %v", err)
 	}
 	id, _ := res.LastInsertId()
 	return id

@@ -11,7 +11,7 @@ import (
 // deleteDisplayNameResolution removes the contact_resolution row for a display name so that
 // EnsureContactAlias can run without the pre-existing resolution short-circuiting it.
 // This simulates contacts that were saved without display-name resolution (e.g. via raw SQL import).
-func deleteDisplayNameResolution(t *testing.T, ctx context.Context, tenant, displayName string) {
+func deleteDisplayNameResolution(ctx context.Context, t *testing.T, tenant, displayName string) {
 	t.Helper()
 	norm := NormalizeIdentifier(displayName)
 	_, err := GetDB().ExecContext(ctx,
@@ -39,7 +39,7 @@ func TestEnsureContactAlias(t *testing.T) {
 		}
 		// Why: UpsertContact auto-registers the display-name resolution; remove it so
 		// EnsureContactAlias does not exit early at the GetResolutionsByIdentifiers check.
-		deleteDisplayNameResolution(t, ctx, tenant, "Alice Smith")
+		deleteDisplayNameResolution(ctx, t, tenant, "Alice Smith")
 
 		if err := EnsureContactAlias(ctx, tenant, "Alice Smith"); err != nil {
 			t.Fatalf("EnsureContactAlias: %v", err)
@@ -87,7 +87,7 @@ func TestEnsureContactAlias(t *testing.T) {
 		if err != nil {
 			t.Fatalf("UpsertContact alice2: %v", err)
 		}
-		deleteDisplayNameResolution(t, ctx, tenant, "Alice Smith")
+		deleteDisplayNameResolution(ctx, t, tenant, "Alice Smith")
 
 		if err := EnsureContactAlias(ctx, tenant, "Alice Smith"); err != nil {
 			t.Fatalf("EnsureContactAlias: %v", err)
@@ -109,7 +109,7 @@ func TestEnsureContactAlias(t *testing.T) {
 		if err != nil {
 			t.Fatalf("UpsertContact bob: %v", err)
 		}
-		deleteDisplayNameResolution(t, ctx, tenant, "Bob Jones")
+		deleteDisplayNameResolution(ctx, t, tenant, "Bob Jones")
 
 		if err := EnsureContactAlias(ctx, tenant, "Bob Jones"); err != nil {
 			t.Fatalf("first EnsureContactAlias: %v", err)

@@ -3,7 +3,6 @@ package channels
 import (
 	waProto "go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
-	waTypes "go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"testing"
 )
@@ -72,7 +71,7 @@ func TestIsSystemMessage(t *testing.T) {
 				},
 				Info: types.MessageInfo{
 					MessageSource: types.MessageSource{
-						Sender: waTypes.JID{User: "status", Server: "broadcast"},
+						Sender: types.JID{User: "status", Server: "broadcast"},
 					},
 				},
 			},

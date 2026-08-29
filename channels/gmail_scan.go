@@ -445,7 +445,7 @@ func buildGmailBatchPayload(email string, batchMsgs []types.RawMessage, classifi
 		if m.SenderName != "" {
 			senderField = fmt.Sprintf("%s <%s>", m.SenderName, m.Sender)
 		}
-		sb.WriteString(fmt.Sprintf("[ID:%s]%s F: %s\n%s\n---\n", m.ID, metaStr, senderField, m.Text))
+		fmt.Fprintf(&sb, "[ID:%s]%s F: %s\n%s\n---\n", m.ID, metaStr, senderField, m.Text)
 	}
 	return sb.String(), msgMap
 }
@@ -461,10 +461,10 @@ func buildGmailMetadataString(m types.RawMessage) string {
 
 	var sb strings.Builder
 	if len(tags) > 0 {
-		sb.WriteString(fmt.Sprintf(" [Tags: %s]", strings.Join(tags, ", ")))
+		fmt.Fprintf(&sb, " [Tags: %s]", strings.Join(tags, ", "))
 	}
 	if len(m.AttachmentNames) > 0 {
-		sb.WriteString(fmt.Sprintf(" [Files: %s]", strings.Join(m.AttachmentNames, ", ")))
+		fmt.Fprintf(&sb, " [Files: %s]", strings.Join(m.AttachmentNames, ", "))
 	}
 	return sb.String()
 }

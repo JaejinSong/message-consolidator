@@ -70,7 +70,7 @@ func buildWAPayload(user store.User, aliases []string, msgs []types.RawMessage) 
 		if !m.Timestamp.IsZero() {
 			tsTag = fmt.Sprintf("[ts:%s]", m.Timestamp.UTC().Format("2006-01-02T15:04"))
 		}
-		sb.WriteString(fmt.Sprintf("[ID:%s]%s%s %s: %s\n", m.ID, tsTag, metaStr, senderName, resolvedText))
+		fmt.Fprintf(&sb, "[ID:%s]%s%s %s: %s\n", m.ID, tsTag, metaStr, senderName, resolvedText)
 	}
 	return sb.String(), msgMap
 }
@@ -92,10 +92,10 @@ func buildWAMetadataString(email string, m types.RawMessage) string {
 
 	var sb strings.Builder
 	if len(tags) > 0 {
-		sb.WriteString(fmt.Sprintf(" [Tags: %s]", strings.Join(tags, ", ")))
+		fmt.Fprintf(&sb, " [Tags: %s]", strings.Join(tags, ", "))
 	}
 	if len(m.AttachmentNames) > 0 {
-		sb.WriteString(fmt.Sprintf(" [Files: %s]", strings.Join(m.AttachmentNames, ", ")))
+		fmt.Fprintf(&sb, " [Files: %s]", strings.Join(m.AttachmentNames, ", "))
 	}
 	return sb.String()
 }
