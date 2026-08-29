@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"crypto/subtle"
+	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -127,46 +129,65 @@ var seoulLoc = func() *time.Location {
 // Query params (all optional): chat_jid, direction, date (YYYY-MM-DD, Asia/Seoul),
 // from (RFC3339), to (RFC3339), email, limit, offset.
 // date takes precedence over from/to when both are present.
-func (a *API) HandleListWAMessages(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-
-	limit, _ := strconv.ParseInt(q.Get("limit"), 10, 64)
-	if limit <= 0 {
+// parseWAPaging clamps ?limit= into [1, waMaxLimit] and floors ?offset= at zero, falling
+// back to the defaults when either is absent or unparseable.
+func parseWAPaging(q url.Values) (limit, offset int64) {
+	limit, _ = strconv.ParseInt(q.Get("limit"), 10, 64)
+	switch {
+	case limit <= 0:
 		limit = waDefaultLimit
-	} else if limit > waMaxLimit {
+	case limit > waMaxLimit:
 		limit = waMaxLimit
 	}
-	offset, _ := strconv.ParseInt(q.Get("offset"), 10, 64)
+	offset, _ = strconv.ParseInt(q.Get("offset"), 10, 64)
 	if offset < 0 {
 		offset = 0
 	}
+	return limit, offset
+}
 
-	var fromTs, toTs int64
+// parseWATimeRange resolves either the ?date= shorthand (one whole day in Seoul local
+// time) or the ?from=/?to= RFC3339 pair. Why: a malformed date is rejected because it is
+// the caller's whole filter, whereas a malformed from/to is ignored as an open bound.
+func parseWATimeRange(q url.Values) (fromTs, toTs int64, err error) {
 	if d := q.Get("date"); d != "" {
-		if t, err := time.ParseInLocation("2006-01-02", d, seoulLoc); err == nil {
+		t, perr := time.ParseInLocation("2006-01-02", d, seoulLoc)
+		if perr != nil {
+			return 0, 0, errors.New("date must be YYYY-MM-DD")
+		}
+		return t.Unix(), t.Add(24*time.Hour - time.Second).Unix(), nil
+	}
+	if v := q.Get("from"); v != "" {
+		if t, perr := time.Parse(time.RFC3339, v); perr == nil {
 			fromTs = t.Unix()
-			toTs = t.Add(24*time.Hour - time.Second).Unix()
-		} else {
-			respondError(w, http.StatusBadRequest, "date must be YYYY-MM-DD")
-			return
-		}
-	} else {
-		if s := q.Get("from"); s != "" {
-			if t, err := time.Parse(time.RFC3339, s); err == nil {
-				fromTs = t.Unix()
-			}
-		}
-		if s := q.Get("to"); s != "" {
-			if t, err := time.Parse(time.RFC3339, s); err == nil {
-				toTs = t.Unix()
-			}
 		}
 	}
+	if v := q.Get("to"); v != "" {
+		if t, perr := time.Parse(time.RFC3339, v); perr == nil {
+			toTs = t.Unix()
+		}
+	}
+	return fromTs, toTs, nil
+}
 
+// parseWADirection keeps only the two supported values; anything else means no filter.
+func parseWADirection(q url.Values) string {
 	direction := strings.ToLower(q.Get("direction"))
 	if direction != "incoming" && direction != "outgoing" {
-		direction = ""
+		return ""
 	}
+	return direction
+}
+
+func (a *API) HandleListWAMessages(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit, offset := parseWAPaging(q)
+	fromTs, toTs, err := parseWATimeRange(q)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	direction := parseWADirection(q)
 
 	msgs, err := store.ListWAMessages(r.Context(), store.ListWAMessagesParams{
 		Email:     q.Get("email"),
