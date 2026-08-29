@@ -180,42 +180,62 @@ func senderIsCurrentUser(ctx context.Context, p TaskBuildParams) bool {
 	return false
 }
 
+// namesCurrentUserLocally reports whether raw addresses the user by self-reference or a
+// known alias, i.e. without a directory lookup.
+func namesCurrentUserLocally(raw string, p TaskBuildParams) bool {
+	return isSelfReference(raw, p) || matchesAlias(raw, p.Aliases)
+}
+
+// pointsAtCurrentUser adds the directory-backed resolution to the local checks.
+func pointsAtCurrentUser(ctx context.Context, raw string, p TaskBuildParams) bool {
+	return namesCurrentUserLocally(raw, p) || resolvesToCurrentUser(ctx, raw, p)
+}
+
+// resolveGroupSelfAssignment applies the group-chat self-assignment bias guard and reports
+// whether it fired. Why: __CURRENT_USER__ is rejected when the user is not textually
+// present in the message -- channel membership alone is not addressing
+// (biz-global-thailand Srisawad incident).
+func resolveGroupSelfAssignment(raw string, p TaskBuildParams) (string, bool) {
+	if !isGroupSource(p.Source) || !namesCurrentUserLocally(raw, p) {
+		return "", false
+	}
+	if currentUserMentionedInText(p) {
+		return "", false
+	}
+	if picked := pickFirstMentionAssignee(p); picked != "" {
+		return picked, true
+	}
+	return AssigneeShared, true
+}
+
+// resolveSharedFallback names a concrete actor when the AI fell back to "shared",
+// preferring an explicit mention over the room's default actor.
+func resolveSharedFallback(ctx context.Context, p TaskBuildParams) string {
+	if picked := pickFirstMentionAssignee(p); picked != "" {
+		return picked
+	}
+	return pickRoomDefaultActor(ctx, p)
+}
+
 func resolveAssignee(ctx context.Context, p TaskBuildParams) string {
 	raw := normalizeAIAssignee(p)
 	if raw == "" {
 		raw = AssigneeShared
 	}
-	// Why: User is only on Cc — informational copy. AI's self-assignment bias must not
+	// Why: User is only on Cc -- informational copy. AI's self-assignment bias must not
 	// pull the task into the user's Inbox. Falls through to AssigneeShared so assignCategory
-	// resolves to CategoryShared → handler default → Reference tab.
-	if p.IsCcOnly && (isSelfReference(raw, p) || matchesAlias(raw, p.Aliases) || resolvesToCurrentUser(ctx, raw, p)) {
+	// resolves to CategoryShared -> handler default -> Reference tab.
+	if p.IsCcOnly && pointsAtCurrentUser(ctx, raw, p) {
 		return AssigneeShared
 	}
-	// Why: Group chat self-assignment bias guard — __CURRENT_USER__ is rejected when
-	// the user is not textually present in the message. Channel membership alone is
-	// not addressing (biz-global-thailand Srisawad incident).
-	if isGroupSource(p.Source) && (isSelfReference(raw, p) || matchesAlias(raw, p.Aliases)) {
-		if !currentUserMentionedInText(p) {
-			if picked := pickFirstMentionAssignee(p); picked != "" {
-				return picked
-			}
-			return AssigneeShared
-		}
+	if picked, fired := resolveGroupSelfAssignment(raw, p); fired {
+		return picked
 	}
-	if isSelfReference(raw, p) {
-		return preferredName(p.User)
-	}
-	if matchesAlias(raw, p.Aliases) {
-		return preferredName(p.User)
-	}
-	if resolvesToCurrentUser(ctx, raw, p) {
+	if pointsAtCurrentUser(ctx, raw, p) {
 		return preferredName(p.User)
 	}
 	if raw == AssigneeShared {
-		if picked := pickFirstMentionAssignee(p); picked != "" {
-			return picked
-		}
-		if picked := pickRoomDefaultActor(ctx, p); picked != "" {
+		if picked := resolveSharedFallback(ctx, p); picked != "" {
 			return picked
 		}
 	}

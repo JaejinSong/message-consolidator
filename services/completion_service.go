@@ -433,6 +433,55 @@ func HasCompletionSignal(text string) bool { return hasCompletionSignal(text) }
 
 // ProcessPotentialCompletion checks if a message (reply) completes/updates tasks in the same thread.
 // Why: [Early Return] Returns true if the message was handled as a task completion/update, signaling the scanner to skip extraction.
+// processThreadWithoutTasks handles a reply landing on a thread that has no open task:
+// look for a confirm-first match in another thread, then choose between skipping a pure
+// self-summary and paying for a fresh extraction.
+func (s *CompletionService) processThreadWithoutTasks(ctx context.Context, msg store.ConsolidatedMessage, targetID string) bool {
+	// Why: cross-thread candidate check runs before the fromMe self-summary skip
+	// below — previously that skip returned early and a fromMe self-summary could
+	// never surface a confirm-first match against an open task in another thread.
+	if candidates := s.findCrossThreadCandidates(ctx, msg); len(candidates) > 0 {
+		if s.handleCrossThreadCandidates(ctx, msg, candidates) {
+			return true
+		}
+	}
+	if strings.EqualFold(msg.RequesterCanonical, msg.UserEmail) {
+		// Why: skip only when this thread has NEVER had a task (truly a self-summary
+		// like a weekly report). If any prior task exists (incl. done), the user's
+		// follow-up is a reopen signal — let normal extraction run.
+		hasAny, _ := s.store.HasAnyTaskInThread(ctx, s.db, msg.UserEmail, targetID)
+		if !hasAny {
+			return true
+		}
+	}
+	// Why: Fallback consumes its own AI Analyze + persists tasks. Returning true
+	// signals the caller to MarkAsProcessed so the next scan cycle skips this msg
+	// instead of paying for LiteFilter + Analyze + batch Analyze again.
+	return s.fallbackToNewExtraction(ctx, msg)
+}
+
+// markTasksRequested files every open task in the thread back under Requested without
+// calling AI. Why: Ack-only fromMe replies ("ok", "감사합니다", etc.) must not reach AI
+// because a RESOLVE response would incorrectly close the sender's own task. The explicit
+// ✅ dashboard button is the correct close path for these.
+func (s *CompletionService) markTasksRequested(ctx context.Context, msg store.ConsolidatedMessage, tasks []store.ConsolidatedMessage) {
+	for _, task := range tasks {
+		_ = s.store.UpdateMessageCategory(ctx, s.db, msg.UserEmail, task.ID, CategoryRequested)
+	}
+}
+
+// applyTransition fans one transition verdict out over every open task in the thread.
+// Why: a single reply affects every open item from that conversation.
+func (s *CompletionService) applyTransition(ctx context.Context, res ai.TaskTransition, msg store.ConsolidatedMessage, tasks []store.ConsolidatedMessage) bool {
+	handled := false
+	for _, task := range tasks {
+		if s.handleCompletionResult(ctx, res, msg, task) {
+			handled = true
+		}
+	}
+	return handled
+}
+
 func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg store.ConsolidatedMessage) (bool, error) {
 	if msg.ThreadID == "" && msg.RepliedToID == "" {
 		return false, nil
@@ -444,39 +493,13 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 
 	tasks, _ := s.store.GetIncompleteByThreadID(ctx, s.db, msg.UserEmail, targetID)
 	if len(tasks) == 0 {
-		// Why: cross-thread candidate check runs before the fromMe self-summary skip
-		// below — previously that skip returned early and a fromMe self-summary could
-		// never surface a confirm-first match against an open task in another thread.
-		if candidates := s.findCrossThreadCandidates(ctx, msg); len(candidates) > 0 {
-			if s.handleCrossThreadCandidates(ctx, msg, candidates) {
-				return true, nil
-			}
-		}
-		if strings.EqualFold(msg.RequesterCanonical, msg.UserEmail) {
-			// Why: skip only when this thread has NEVER had a task (truly a self-summary
-			// like a weekly report). If any prior task exists (incl. done), the user's
-			// follow-up is a reopen signal — let normal extraction run.
-			hasAny, _ := s.store.HasAnyTaskInThread(ctx, s.db, msg.UserEmail, targetID)
-			if !hasAny {
-				return true, nil
-			}
-		}
-		// Why: Fallback consumes its own AI Analyze + persists tasks. Returning true
-		// signals the caller to MarkAsProcessed so the next scan cycle skips this msg
-		// instead of paying for LiteFilter + Analyze + batch Analyze again.
-		return s.fallbackToNewExtraction(ctx, msg), nil
+		return s.processThreadWithoutTasks(ctx, msg, targetID), nil
 	}
 
 	compStats.entryThreadPath.Add(1)
-	fromMe := strings.EqualFold(msg.RequesterCanonical, msg.UserEmail)
-	if fromMe {
-		// Why: Ack-only fromMe replies ("ok", "감사합니다", etc.) must not reach AI
-		// because a RESOLVE response would incorrectly close the sender's own task.
-		// The explicit ✅ dashboard button is the correct close path for these.
+	if strings.EqualFold(msg.RequesterCanonical, msg.UserEmail) {
 		if isAckOnlyReply(msg.OriginalText) {
-			for _, task := range tasks {
-				_ = s.store.UpdateMessageCategory(ctx, s.db, msg.UserEmail, task.ID, CategoryRequested)
-			}
+			s.markTasksRequested(ctx, msg, tasks)
 			return true, nil
 		}
 		// Why: Substantive fromMe replies (redirect/delegation/resolution) need AI
@@ -492,16 +515,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 	if err != nil {
 		return false, fmt.Errorf("transition analysis failed: %w", err)
 	}
-
-	// Why: Apply the same transition to all incomplete tasks in the thread —
-	// a single reply affects every open item from that conversation.
-	handled := false
-	for _, task := range tasks {
-		if s.handleCompletionResult(ctx, res, msg, task) {
-			handled = true
-		}
-	}
-	return handled, nil
+	return s.applyTransition(ctx, res, msg, tasks), nil
 }
 
 // evaluatePerTask calls EvaluateTaskTransition individually for each task so that
@@ -520,20 +534,42 @@ func (s *CompletionService) evaluatePerTask(ctx context.Context, msg store.Conso
 	return handled, nil
 }
 
+// resolveSubtasks marks every subtask done. Why: cascade subtasks before the parent is
+// resolved so reverse-propagation (all subtasks done -> parent auto-close) sees a
+// consistent terminal state.
+func (s *CompletionService) resolveSubtasks(ctx context.Context, email string, parent store.ConsolidatedMessage) {
+	if len(parent.Subtasks) == 0 {
+		return
+	}
+	allDone := make([]store.Subtask, len(parent.Subtasks))
+	copy(allDone, parent.Subtasks)
+	for i := range allDone {
+		allDone[i].Done = true
+	}
+	_ = s.store.UpdateSubtasks(ctx, s.db, email, parent.ID, allDone)
+}
+
+// applySubtaskUpdates writes the AI's per-subtask done flags, ignoring out-of-range
+// indices so a malformed response cannot panic or corrupt neighbouring subtasks.
+func (s *CompletionService) applySubtaskUpdates(ctx context.Context, email string, parent store.ConsolidatedMessage, updates []ai.SubtaskUpdate) {
+	if len(updates) == 0 || len(parent.Subtasks) == 0 {
+		return
+	}
+	updated := make([]store.Subtask, len(parent.Subtasks))
+	copy(updated, parent.Subtasks)
+	for _, su := range updates {
+		if su.Index >= 0 && su.Index < len(updated) {
+			updated[su.Index].Done = su.Done
+		}
+	}
+	_ = s.store.UpdateSubtasks(ctx, s.db, email, parent.ID, updated)
+}
+
 func (s *CompletionService) handleCompletionResult(ctx context.Context, res ai.TaskTransition, msg, parent store.ConsolidatedMessage) bool {
 	parentID := parent.ID
 	switch res.Status {
 	case "RESOLVE":
-		// Why: cascade subtasks to done before marking parent resolved so reverse-propagation
-		// (all subtasks done → parent auto-close) sees a consistent terminal state.
-		if len(parent.Subtasks) > 0 {
-			allDone := make([]store.Subtask, len(parent.Subtasks))
-			copy(allDone, parent.Subtasks)
-			for i := range allDone {
-				allDone[i].Done = true
-			}
-			_ = s.store.UpdateSubtasks(ctx, s.db, msg.UserEmail, parentID, allDone)
-		}
+		s.resolveSubtasks(ctx, msg.UserEmail, parent)
 		item := store.TodoItem{State: "resolve", ID: &parentID}
 		_, _ = s.store.HandleTaskState(ctx, s.db, msg.UserEmail, item, msg)
 		return true
@@ -541,16 +577,7 @@ func (s *CompletionService) handleCompletionResult(ctx context.Context, res ai.T
 		if res.UpdatedText == "" {
 			return false
 		}
-		if len(res.SubtaskUpdates) > 0 && len(parent.Subtasks) > 0 {
-			updated := make([]store.Subtask, len(parent.Subtasks))
-			copy(updated, parent.Subtasks)
-			for _, su := range res.SubtaskUpdates {
-				if su.Index >= 0 && su.Index < len(updated) {
-					updated[su.Index].Done = su.Done
-				}
-			}
-			_ = s.store.UpdateSubtasks(ctx, s.db, msg.UserEmail, parentID, updated)
-		}
+		s.applySubtaskUpdates(ctx, msg.UserEmail, parent, res.SubtaskUpdates)
 		item := store.TodoItem{State: "update", ID: &parentID, Task: res.UpdatedText}
 		_, _ = s.store.HandleTaskState(ctx, s.db, msg.UserEmail, item, msg)
 		return true
