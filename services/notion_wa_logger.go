@@ -102,7 +102,9 @@ func (w *WANotionLogger) Start(ctx context.Context) {
 			w.flush(ctx)
 			timer.Reset(primes.Pick(primes.Seconds))
 		case <-ctx.Done():
-			w.flush(context.Background())
+			// Why: ctx is already cancelled here; WithoutCancel lets the final flush run
+			// while keeping the trace context.
+			w.flush(context.WithoutCancel(ctx))
 			return
 		}
 	}

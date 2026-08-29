@@ -399,7 +399,9 @@ func (a *API) HandleInternalDigest(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusServiceUnavailable, "digest service not initialized")
 		return
 	}
-	if err := a.Digest(context.Background()); err != nil {
+	// Why: the digest must outlive a client disconnect, but WithoutCancel keeps the
+	// request's WhaTap trace context, which context.Background() would discard.
+	if err := a.Digest(context.WithoutCancel(r.Context())); err != nil {
 		logger.Errorf("[DIGEST] internal trigger failed: %v", err)
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

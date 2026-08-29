@@ -124,7 +124,7 @@ func InitLINE(ctx context.Context, channelToken string) {
 	if channelToken == "" {
 		return
 	}
-	if err := DefaultLineManager.Init(channelToken); err != nil {
+	if err := DefaultLineManager.Init(channelToken); err != nil { //nolint:contextcheck // whataphttpx.Client takes no ctx by design; trace rides on http.Request.Context (see package doc)
 		logger.Errorf("[LINE] failed to init bot client: %v", err)
 		return
 	}

@@ -211,13 +211,13 @@ func dispatchOutgoingCompletionIfMine(_ context.Context, sc *channels.SlackClien
 		return
 	}
 	if m.ReplyToID != "" && isFromUser(&u, m) {
-		dispatchSlackThreadedCompletion(sc, u, m)
+		dispatchSlackThreadedCompletion(sc, u, m) //nolint:contextcheck // dispatch spawns a goroutine that outlives the scan ctx by design
 		return
 	}
 	// Why: sibling path for plain (non-reply) messages carrying a completion signal —
 	// confirm-first cross-channel candidate matching, never auto-closes.
 	if services.HasCompletionSignal(m.Text) {
-		dispatchSlackCrossChannelCompletion(sc, u, m)
+		dispatchSlackCrossChannelCompletion(sc, u, m) //nolint:contextcheck // dispatch spawns a goroutine that outlives the scan ctx by design
 	}
 }
 

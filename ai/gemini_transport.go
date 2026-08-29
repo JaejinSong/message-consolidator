@@ -54,7 +54,7 @@ func newGeminiTransport(ctx context.Context, apiKey string, cfgOpts ...func(*gen
 	cfg := &genai.ClientConfig{
 		APIKey:     apiKey,
 		Backend:    genai.BackendGeminiAPI,
-		HTTPClient: whataphttpx.Client(),
+		HTTPClient: whataphttpx.Client(), //nolint:contextcheck // whataphttpx.Client takes no ctx by design; trace rides on http.Request.Context (see package doc)
 	}
 	for _, opt := range cfgOpts {
 		opt(cfg)

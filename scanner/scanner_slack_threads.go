@@ -44,7 +44,7 @@ func sweepSlackThreads(ctx context.Context, wg *sync.WaitGroup) {
 	if err != nil || len(threads) == 0 {
 		return
 	}
-	sc, botID := getOrInitSlackClient(cfg.SlackToken)
+	sc, botID := getOrInitSlackClient(cfg.SlackToken) //nolint:contextcheck // whataphttpx.Client takes no ctx by design; trace rides on http.Request.Context (see package doc)
 	aliasCache := buildSlackAliasCache(ctx, threads)
 	activity := scanChannelHistoryActivity(ctx, sc, threads)
 
