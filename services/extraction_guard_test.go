@@ -291,6 +291,15 @@ func TestGuardDeadline(t *testing.T) {
 			wantDeadline: "by 5",
 			wantDemotion: false,
 		},
+		{
+			// Why: live calls showed the model normalizes "this Friday" to a date;
+			// ISO-shaped deadlines are exempt from text grounding (silent-drop guard).
+			name:         "model-normalized ISO date exempt from grounding",
+			deadline:     "2026-03-27",
+			originalText: "@Bob please update the API documentation by this Friday.",
+			wantDeadline: "2026-03-27",
+			wantDemotion: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -392,6 +401,20 @@ func TestGuardTaskOverlap(t *testing.T) {
 			task:         "Completely unrelated sentence",
 			originalText: "오늘 회의 자료를 준비해 주세요",
 			want:         true,
+		},
+		{
+			// Why: translated summary shares zero word tokens with Indonesian source;
+			// the "13.30" vs "13:30" numeric match must keep it (live-call regression).
+			name:         "translated task grounded via numeric token",
+			task:         "Schedule meeting on Tuesday at 13:30",
+			originalText: "kalau selasa memungkinkan? 13.30 di selasa bisa pak Ryanda",
+			want:         true,
+		},
+		{
+			name:         "translated task with no numeric anchor still dropped",
+			task:         "Prepare quarterly report",
+			originalText: "kalau selasa memungkinkan kita bisa Mas?",
+			want:         false,
 		},
 	}
 	for _, tt := range tests {

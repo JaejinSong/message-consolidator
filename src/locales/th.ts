@@ -237,6 +237,7 @@ export const th: I18nEntry = {
         learningExamplesTitle: "ตัวอย่างที่เรียนรู้",
         learningObservationsEmpty: "ไม่มีข้อสังเกตที่รอดำเนินการ",
         learningExamplesEmpty: "ยังไม่มีตัวอย่างที่เรียนรู้",
+        learningDeleteConfirm: "ลบตัวอย่างที่เรียนรู้นี้หรือไม่? ไม่สามารถย้อนกลับได้",
         addTaskBtn: "+ เพิ่มงาน",
         addTaskTaskPlaceholder: "ชื่องาน...",
         addTaskAssigneePlaceholder: "ผู้รับผิดชอบ (ไม่บังคับ)",

@@ -328,6 +328,7 @@ export const en: I18nEntry = {
         learningExamplesTitle: "Learned Examples",
         learningObservationsEmpty: "No pending observations.",
         learningExamplesEmpty: "No learned examples yet.",
+        learningDeleteConfirm: "Delete this learned example? This cannot be undone.",
         addTaskBtn: "+ Add Task",
         addTaskTaskPlaceholder: "Task title...",
         addTaskAssigneePlaceholder: "Assignee (optional)",

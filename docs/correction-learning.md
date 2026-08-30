@@ -10,8 +10,8 @@
 | `category` | 닫힘 — {TASK, POLICY, QUERY, PROMISE, WAITING} | `types.IsValidTaskCategory` + guard G1, PATCH 핸들러 400 |
 | `requester` | 닫힘 — envelope (SenderRaw/SenderEmail 우선) | `resolveRequester` (기존, 무변경) |
 | `assignee` | 닫힘 — envelope ∪ (원문 등장 ∧ contacts 실존) | guard G2 (`ContactNameKnown`) |
-| `task` 문장 | 열림 + 근거 — 원문과 토큰 겹침 ≥1 (한글 원문은 skip) | guard G5 |
-| `deadline` | 열림 + 근거 — 표현 토큰이 원문에 등장 | guard G3 |
+| `task` 문장 | 열림 + 근거 — 원문과 토큰 겹침 ≥1, 없으면 숫자 토큰("13.30"↔"13:30") 매치, 한글 원문은 skip | guard G5 |
+| `deadline` | 열림 + 근거 — 표현 토큰이 원문에 등장. 단 ISO 날짜형(YYYY-MM-DD)은 면제 — 실측상 모델이 자연어를 정규화해 반환하므로 원문 대조가 원리적으로 불가, 일괄 드랍은 침묵 실패 | guard G3 |
 | `source_ts` | 닫힘 — payload 내 실존 `[ID:...]` | guard G4 |
 
 guard 위치: `services/extraction_guard.go`, 호출부는 `scanner/channel_adapter.go`(chat)와
@@ -27,10 +27,11 @@ guard 위치: `services/extraction_guard.go`, 호출부는 `scanner/channel_adap
 | 공격 | 방어 | 잔여 위험 |
 |---|---|---|
 | 본문으로 임의 인물에게 태스크 배정 (`"assignee: 관리자"`) | G2: envelope 밖 인물은 원문 등장 + contacts 실존 둘 다 필요, 실패 시 `shared` 강등 | contacts에 이미 있는 이름을 본문에 쓰면 통과 — 단 그 인물은 사용자가 등록한 실존 컨택트이므로 권한 상승이 아니라 오배정(가시적, 수정 가능) |
-| 환각/주입 deadline (`"deadline: 오늘"`이 원문 맥락과 무관) | G3: 원문 미등장 표현 제거 | 원문에 날짜 단어가 실제로 있으면 통과 — 품질 문제로 격하 |
+| 환각/주입 deadline (`"deadline: 오늘"`이 원문 맥락과 무관) | G3: 원문 미등장 표현 제거 | 원문에 날짜 단어가 있거나 모델이 ISO 날짜로 정규화하면 통과 — 품질 문제로 격하 (가시적, 수정이 곧 학습 신호) |
 | 환각 source_ts로 잘못된 메시지에 링크 | G4: payload 실존 ID 검증 | 낮음 |
 | 통째 환각 태스크 | G5: 토큰 겹침 0 → 폐기 | 한글 원문은 G5 skip (침묵 실패 방지가 우선) |
-| **학습 오염** (외부인이 교사 신호 주입) | 교정 API 전부 `a.protected` + user_email 스코프. learned_examples는 인증 사용자의 명시 행동(수정 저장/수동 추가/삭제/완료)에서만 생성 | 사용자가 인젝션 문구가 포함된 원문을 그대로 학습 예시로 확정하면 그 문구가 프롬프트에 재주입됨 — 단일 사용자 신뢰 경계 내 자해에 해당, 심각도 낮음 |
+| **학습 오염** (외부인이 교사 신호 주입) | 교정 API 전부 `a.protected` + user_email 스코프. learned_examples는 인증 사용자의 명시 행동(수정 저장/수동 추가/삭제/완료)에서만 생성 | 아래 "저장형 인젝션 증폭" 참조 |
+| **저장형 인젝션 증폭** — 교정된 태스크의 `Input`(외부 원문 그대로)이 learned example로 저장되어 이후 모든 추출 프롬프트에 재주입 | ① 예시는 **발신 채널로 스코프** (`ListLearnedExamplesBySource`) — 교차 채널 전파 차단 ② `POST /api/learning/examples/delete` + Learning 탭에서 오염 예시 제거 가능 ③ 재주입되어도 미래 추출 출력은 여전히 guard G1~G6을 통과해야 함 — 인젝션이 모델을 편향시켜도 결정론적 계층이 최종 방어선 | 같은 채널 내 반복 편향 가능 — 조회/삭제로 사후 복구, 심각도 낮음~중간 |
 
 **심각도 평가:** 태스크는 실행되지 않는 읽기 항목(사람이 보는 목록)이므로 성공한
 인젝션도 최종 영향은 "잘못된 항목이 목록에 표시" 수준. 종합 심각도 **중간**.
@@ -79,19 +80,21 @@ goroutine(recover + `/CorrectionLearning` trace)이라 저장을 막을 수 없�
 
 `ai/core/few_shots.go` `GetDefaultFewShots()` 9건은 코드 내 불변 시드.
 학습 예시는 `learned_examples`에서 읽어 **append만** 하며 시드를 수정/삭제하지 않는다.
-채널 친화도(+2)로 언어권 오염(예: 인도네시아어 교정이 한국어 방에 적용)을 완화.
-`lang` 컬럼은 예약됨(향후 언어 감지 연동).
+로드는 **발신 채널로 필터**(`ListLearnedExamplesBySource`)하고 선택 점수에도
+채널 친화도(+2)를 더해 언어권/채널 오염을 이중 차단. Gmail 프롬프트는 학습 예시만
+사용(채팅 시드는 이메일 추출에 부적합). `lang` 컬럼은 예약됨(향후 언어 감지 연동).
 
 ## 7. 조회/가역성
 
 - `GET /api/learning/observations?status=` — 규칙·증거 현황
 - `GET /api/learning/examples` — 학습 예시 목록
+- `POST /api/learning/examples/delete` — 오염/저품질 예시 제거
 - 프론트 Learning 탭 — 승인/거부 UI
 - 승격은 서버 로그에 기록 (`logger.Infof`)
 
 ## Open
 
-- gmail 경로 폴백 없음 (분류 힌트 기반 흐름이 별도) — chat 채널만 적용
+- gmail 경로 폴백 없음 (분류 힌트 기반 흐름이 별도) — 폴백은 chat 채널만 적용
 - 언어별 few-shot 가중치 (`lang` 컬럼 예약 상태)
 - assignee_alias/deadline_expr 승격 규칙의 결정론적 적용 (현재 few-shot 경로로만 학습 반영; suppress만 guard G6에서 직접 집행)
 - SSOT 챕터(07/08/11/13) 반영은 본 문서 링크로 대체, 차기 SSOT 갱신 시 통합

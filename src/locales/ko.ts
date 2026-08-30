@@ -329,6 +329,7 @@ export const ko: I18nEntry = {
         learningExamplesTitle: "학습된 예시",
         learningObservationsEmpty: "검토할 항목이 없습니다.",
         learningExamplesEmpty: "아직 학습된 예시가 없습니다.",
+        learningDeleteConfirm: "이 학습 예시를 삭제하시겠습니까? 되돌릴 수 없습니다.",
         addTaskBtn: "+ 업무 추가",
         addTaskTaskPlaceholder: "업무 제목...",
         addTaskAssigneePlaceholder: "담당자 (선택)",

@@ -243,6 +243,7 @@ export const id: I18nEntry = {
         learningExamplesTitle: "Contoh yang Dipelajari",
         learningObservationsEmpty: "Tidak ada observasi yang menunggu.",
         learningExamplesEmpty: "Belum ada contoh yang dipelajari.",
+        learningDeleteConfirm: "Hapus contoh yang dipelajari ini? Tindakan ini tidak dapat dibatalkan.",
         addTaskBtn: "+ Tambah Tugas",
         addTaskTaskPlaceholder: "Judul tugas...",
         addTaskAssigneePlaceholder: "Penanggung jawab (opsional)",

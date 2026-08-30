@@ -149,6 +149,13 @@ func guardDeadline(p *TaskBuildParams, result *GuardResult) {
 // "by 5"), it falls back to requiring an exact numeric-token match instead of skipping
 // grounding entirely -- substring matching previously let "by" match inside "hobby".
 func deadlineGroundedInText(deadline, text string) bool {
+	// Why: live calls showed the model returns normalized dates ("2026-03-27") for
+	// natural-language deadlines, so text grounding is impossible by construction;
+	// dropping them all is a silent failure while a wrong date stays visible and
+	// correctable (and the correction feeds learning).
+	if isoDateLike(deadline) {
+		return true
+	}
 	textTokenSet := textTokens(text)
 	deadlineTokenSet := textTokens(deadline)
 	hasLongToken := false
@@ -244,7 +251,66 @@ func guardTaskOverlap(p TaskBuildParams) bool {
 	if containsHangul(p.OriginalText) {
 		return true
 	}
-	return titleTokenOverlap(p.Item.Task, p.OriginalText) >= 1
+	if titleTokenOverlap(p.Item.Task, p.OriginalText) >= 1 {
+		return true
+	}
+	// Why: translated summaries (e.g. Indonesian source, English task) can share zero
+	// word tokens with the original; a time/number match ("13.30" vs "13:30") still
+	// grounds the task. Silently dropping legitimate tasks is worse than letting a
+	// rare fully-hallucinated one through (visible, deletable, feeds suppression).
+	return numericOverlap(p.Item.Task, p.OriginalText)
+}
+
+// isoDateLike reports whether s starts with a YYYY-MM-DD shape.
+func isoDateLike(s string) bool {
+	s = strings.TrimSpace(s)
+	if len(s) < 10 {
+		return false
+	}
+	for i, r := range s[:10] {
+		if i == 4 || i == 7 {
+			if r != '-' {
+				return false
+			}
+			continue
+		}
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// digitTokens returns digit-only forms (len >= 2) of tokens containing digits,
+// so "13:30" and "13.30" both normalize to "1330".
+func digitTokens(s string) map[string]bool {
+	out := make(map[string]bool)
+	for token := range textTokens(s) {
+		var b strings.Builder
+		for _, r := range token {
+			if r >= '0' && r <= '9' {
+				b.WriteRune(r)
+			}
+		}
+		if d := b.String(); len(d) >= 2 {
+			out[d] = true
+		}
+	}
+	return out
+}
+
+func numericOverlap(task, text string) bool {
+	taskDigits := digitTokens(task)
+	if len(taskDigits) == 0 {
+		return false
+	}
+	textDigits := digitTokens(text)
+	for d := range taskDigits {
+		if textDigits[d] {
+			return true
+		}
+	}
+	return false
 }
 
 func containsHangul(text string) bool {

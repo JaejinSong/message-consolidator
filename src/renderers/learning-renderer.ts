@@ -6,7 +6,8 @@
  */
 import { api } from '../api';
 import { state } from '../state';
-import { CorrectionObservation, LearnedExample } from '../types';
+import { I18N_DATA } from '../locales';
+import { CorrectionObservation, I18nDictionary, LearnedExample } from '../types';
 import { escapeHTML, getErrorMessage, TimeService } from '../utils';
 import { showToast } from './ui-effects';
 
@@ -27,6 +28,36 @@ function bindOnce(): void {
 
     document.getElementById('learningStatusFilter')?.addEventListener('change', () => void loadObservations());
     document.getElementById('learningObservationsList')?.addEventListener('click', (e) => void onObservationsClick(e));
+    document.getElementById('learningExamplesList')?.addEventListener('click', (e) => void onExamplesClick(e));
+}
+
+// Why: reversibility -- a poisoned or low-quality learned example must be removable
+// (see api.deleteLearnedExample / handlers.HandleDeleteLearnedExample).
+async function onExamplesClick(e: Event): Promise<void> {
+    const target = e.target as HTMLElement;
+    const btn = target.closest<HTMLButtonElement>('[data-action="delete-example"]');
+    // Why: btn.disabled guards against a duplicate concurrent delete call from a
+    // double-click while the previous delete is still in flight.
+    if (!btn || btn.disabled) return;
+    const id = Number(btn.dataset.id);
+    if (!id) return;
+    const lang = state.currentLang || 'en';
+    const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['en'];
+
+    const confirmMsg = i18n.learningDeleteConfirm || (lang === 'ko'
+        ? '이 학습 예시를 삭제하시겠습니까? 되돌릴 수 없습니다.'
+        : 'Delete this learned example? This cannot be undone.');
+    if (!confirm(confirmMsg)) return;
+
+    btn.disabled = true;
+    try {
+        await api.deleteLearnedExample(id);
+        await loadExamples();
+    } catch (err: unknown) {
+        showToast(getErrorMessage(err) || (lang === 'ko' ? '삭제 실패' : 'Failed to delete'), 'error');
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 async function onObservationsClick(e: Event): Promise<void> {
@@ -133,14 +164,18 @@ function renderObservationRow(o: CorrectionObservation): string {
 
 function renderExampleRow(ex: LearnedExample): string {
     const lang = state.currentLang || 'en';
+    const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['en'];
     return `
-        <div class="c-learning-view__row">
+        <div class="c-learning-view__row" data-id="${ex.id}">
             <div class="c-learning-view__row-main">
                 <span class="c-badge c-badge--dim">${escapeHTML(ex.origin)}</span>
                 <span class="c-learning-view__excerpt">${escapeHTML(excerpt(ex.input))}</span>
             </div>
             <div class="c-learning-view__row-meta">
                 <span>${formatNullableDate(ex.created_at, lang)}</span>
+            </div>
+            <div class="c-learning-view__row-actions">
+                <button type="button" class="c-btn c-btn--outline c-btn--sm" data-action="delete-example" data-id="${ex.id}">${i18n.delete || 'Delete'}</button>
             </div>
         </div>
     `;

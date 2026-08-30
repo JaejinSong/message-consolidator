@@ -589,5 +589,16 @@ export const api = {
 
     async listLearnedExamples(): Promise<LearnedExample[]> {
         return apiFetch('/learning/examples', { errorMessage: 'Fetch learned examples failed' });
+    },
+
+    // Why: reversibility -- a poisoned or low-quality learned example must be
+    // removable without direct DB access (see handlers.HandleDeleteLearnedExample).
+    async deleteLearnedExample(id: number): Promise<void> {
+        const validatedId = ensureInt(id);
+        return apiFetch('/learning/examples/delete', {
+            method: 'POST',
+            body: JSON.stringify({ id: validatedId }),
+            errorMessage: 'Delete learned example failed'
+        });
     }
 };
