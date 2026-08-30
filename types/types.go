@@ -3,16 +3,34 @@ package types
 import (
 	"encoding/json"
 	"message-consolidator/internal/ids"
+	"strings"
 	"time"
 )
 
 type MessageCategory string
 
 const (
-	CategoryTask   MessageCategory = "TASK"
-	CategoryPolicy MessageCategory = "POLICY"
-	CategoryQuery  MessageCategory = "QUERY"
+	CategoryTask    MessageCategory = "TASK"
+	CategoryPolicy  MessageCategory = "POLICY"
+	CategoryQuery   MessageCategory = "QUERY"
+	CategoryPromise MessageCategory = "PROMISE"
+	CategoryWaiting MessageCategory = "WAITING"
 )
+
+// validTaskCategories is the closed set of AI extraction categories.
+var validTaskCategories = map[MessageCategory]struct{}{
+	CategoryTask:    {},
+	CategoryPolicy:  {},
+	CategoryQuery:   {},
+	CategoryPromise: {},
+	CategoryWaiting: {},
+}
+
+// IsValidTaskCategory reports whether s is one of the closed AI extraction categories.
+func IsValidTaskCategory(s string) bool {
+	_, ok := validTaskCategories[MessageCategory(strings.ToUpper(s))]
+	return ok
+}
 
 // RawMessage represents a generic text message extracted from any source (Slack, WhatsApp, etc.)
 type RawMessage struct {

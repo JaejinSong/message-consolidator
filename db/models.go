@@ -41,6 +41,20 @@ type ContactResolution struct {
 	ContactID     int64  `json:"contact_id"`
 }
 
+type CorrectionObservation struct {
+	ID             int64        `json:"id"`
+	UserEmail      string       `json:"user_email"`
+	Kind           string       `json:"kind"`
+	FromValue      string       `json:"from_value"`
+	ToValue        string       `json:"to_value"`
+	Scope          string       `json:"scope"`
+	EvidenceCount  int64        `json:"evidence_count"`
+	SeenMessageIds string       `json:"seen_message_ids"`
+	Status         string       `json:"status"`
+	CreatedAt      sql.NullTime `json:"created_at"`
+	UpdatedAt      sql.NullTime `json:"updated_at"`
+}
+
 type GmailToken struct {
 	UserEmail string       `json:"user_email"`
 	TokenJson string       `json:"token_json"`
@@ -63,6 +77,18 @@ type IdentityMergeHistory struct {
 	TargetContactID int64        `json:"target_contact_id"`
 	Reason          string       `json:"reason"`
 	MergedAt        sql.NullTime `json:"merged_at"`
+}
+
+type LearnedExample struct {
+	ID        int64         `json:"id"`
+	UserEmail string        `json:"user_email"`
+	Source    string        `json:"source"`
+	Lang      string        `json:"lang"`
+	Input     string        `json:"input"`
+	Expected  string        `json:"expected"`
+	Origin    string        `json:"origin"`
+	MessageID sql.NullInt64 `json:"message_id"`
+	CreatedAt sql.NullTime  `json:"created_at"`
 }
 
 type LineInbox struct {

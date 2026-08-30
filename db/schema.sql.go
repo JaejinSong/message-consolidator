@@ -93,6 +93,29 @@ func (q *Queries) CreateContactsTable(ctx context.Context) error {
 	return err
 }
 
+const createCorrectionObservationsTable = `-- name: CreateCorrectionObservationsTable :exec
+CREATE TABLE IF NOT EXISTS correction_observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    from_value TEXT NOT NULL,
+    to_value TEXT NOT NULL DEFAULT '',
+    scope TEXT NOT NULL DEFAULT '',
+    evidence_count INTEGER NOT NULL DEFAULT 1,
+    seen_message_ids TEXT NOT NULL DEFAULT '[]',
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_email, kind, from_value, to_value, scope)
+)
+`
+
+// Correction observations: evidence accumulation before rule promotion.
+func (q *Queries) CreateCorrectionObservationsTable(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, createCorrectionObservationsTable)
+	return err
+}
+
 const createGmailTokensTable = `-- name: CreateGmailTokensTable :exec
 CREATE TABLE IF NOT EXISTS gmail_tokens (
     user_email TEXT PRIMARY KEY,
@@ -136,6 +159,28 @@ CREATE TABLE IF NOT EXISTS identity_merge_history (
 
 func (q *Queries) CreateIdentityMergeHistoryTable(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, createIdentityMergeHistoryTable)
+	return err
+}
+
+const createLearnedExamplesTable = `-- name: CreateLearnedExamplesTable :exec
+CREATE TABLE IF NOT EXISTS learned_examples (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email TEXT NOT NULL,
+    source TEXT NOT NULL,
+    lang TEXT NOT NULL DEFAULT '',
+    input TEXT NOT NULL,
+    expected TEXT NOT NULL,
+    origin TEXT NOT NULL,
+    message_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_email, message_id, origin)
+)
+`
+
+// Learned few-shot examples confirmed by the user (correction learning).
+// expected = '[]' encodes a negative example (this input is NOT a task).
+func (q *Queries) CreateLearnedExamplesTable(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, createLearnedExamplesTable)
 	return err
 }
 

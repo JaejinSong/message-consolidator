@@ -17,16 +17,22 @@ type Querier interface {
 	// Why: parks a long-term-unprocessed task out of tracking; done/is_deleted guard keeps
 	// terminal states untouched, so lifecycle flips active -> excluded only.
 	ConfirmExclusion(ctx context.Context, arg ConfirmExclusionParams) (int64, error)
+	CountLearnedExamplesByOrigin(ctx context.Context, arg CountLearnedExamplesByOriginParams) (int64, error)
 	CreateAIInferenceLogsTable(ctx context.Context) error
 	CreateAppSettingsTable(ctx context.Context) error
 	CreateContactResolutionTable(ctx context.Context) error
 	// Views
 	CreateContactsResolvedView(ctx context.Context) error
 	CreateContactsTable(ctx context.Context) error
+	// Correction observations: evidence accumulation before rule promotion.
+	CreateCorrectionObservationsTable(ctx context.Context) error
 	CreateGmailTokensTable(ctx context.Context) error
 	CreateGrant(ctx context.Context, arg CreateGrantParams) error
 	CreateIdentityMergeCandidatesTable(ctx context.Context) error
 	CreateIdentityMergeHistoryTable(ctx context.Context) error
+	// Learned few-shot examples confirmed by the user (correction learning).
+	// expected = '[]' encodes a negative example (this input is NOT a task).
+	CreateLearnedExamplesTable(ctx context.Context) error
 	CreateLineInboxTable(ctx context.Context) error
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (int64, error)
 	CreateMessageEmbeddingsTable(ctx context.Context) error
@@ -55,6 +61,7 @@ type Querier interface {
 	DeleteExpiredSessions(ctx context.Context) error
 	DeleteGmailToken(ctx context.Context, userEmail string) error
 	DeleteGrant(ctx context.Context, arg DeleteGrantParams) error
+	DeleteLearnedExample(ctx context.Context, arg DeleteLearnedExampleParams) error
 	DeleteMessages(ctx context.Context, arg DeleteMessagesParams) error
 	DeleteOldReports(ctx context.Context) error
 	DeleteReport(ctx context.Context, arg DeleteReportParams) error
@@ -81,6 +88,7 @@ type Querier interface {
 	GetContactsByTenant(ctx context.Context, tenantEmail string) ([]GetContactsByTenantRow, error)
 	GetContactsByValues(ctx context.Context) ([]GetContactsByValuesRow, error)
 	GetContactsWithMaster(ctx context.Context) ([]GetContactsWithMasterRow, error)
+	GetCorrectionObservation(ctx context.Context, arg GetCorrectionObservationParams) (CorrectionObservation, error)
 	GetDailyCompletions(ctx context.Context, arg GetDailyCompletionsParams) ([]GetDailyCompletionsRow, error)
 	GetDailyFilteredCount(ctx context.Context, arg GetDailyFilteredCountParams) (interface{}, error)
 	GetDailyTokenUsage(ctx context.Context, arg GetDailyTokenUsageParams) (GetDailyTokenUsageRow, error)
@@ -145,6 +153,8 @@ type Querier interface {
 	HardDeleteMessages(ctx context.Context, arg HardDeleteMessagesParams) error
 	HasAnyTaskInThread(ctx context.Context, arg HasAnyTaskInThreadParams) (int64, error)
 	InsertAIInferenceLog(ctx context.Context, arg InsertAIInferenceLogParams) error
+	InsertCorrectionObservation(ctx context.Context, arg InsertCorrectionObservationParams) error
+	InsertLearnedExample(ctx context.Context, arg InsertLearnedExampleParams) error
 	InsertLineInbox(ctx context.Context, arg InsertLineInboxParams) error
 	InsertMergeHistory(ctx context.Context, arg InsertMergeHistoryParams) error
 	InsertReport(ctx context.Context, arg InsertReportParams) (int64, error)
@@ -152,10 +162,13 @@ type Querier interface {
 	InsertWAMessage(ctx context.Context, arg InsertWAMessageParams) error
 	IsMessageProcessed(ctx context.Context, arg IsMessageProcessedParams) (int64, error)
 	IsSourceTSProcessed(ctx context.Context, arg IsSourceTSProcessedParams) (int64, error)
+	ListActiveSuppressRules(ctx context.Context, userEmail string) ([]CorrectionObservation, error)
 	ListAdminUsers(ctx context.Context) ([]User, error)
 	ListAppSettings(ctx context.Context) ([]AppSetting, error)
+	ListCorrectionObservationsByStatus(ctx context.Context, arg ListCorrectionObservationsByStatusParams) ([]CorrectionObservation, error)
 	ListGranteesOf(ctx context.Context, grantorUserID int64) ([]User, error)
 	ListGrantorsFor(ctx context.Context, granteeUserID int64) ([]User, error)
+	ListLearnedExamples(ctx context.Context, arg ListLearnedExamplesParams) ([]LearnedExample, error)
 	ListPendingMe(ctx context.Context, arg ListPendingMeParams) ([]ListPendingMeRow, error)
 	ListPendingOthers(ctx context.Context, arg ListPendingOthersParams) ([]ListPendingOthersRow, error)
 	ListReports(ctx context.Context, userEmail string) ([]ListReportsRow, error)
@@ -196,6 +209,8 @@ type Querier interface {
 	SetUserAdmin(ctx context.Context, arg SetUserAdminParams) error
 	UpdateCategoryMerged(ctx context.Context, arg UpdateCategoryMergedParams) error
 	UpdateContactDetails(ctx context.Context, arg UpdateContactDetailsParams) error
+	UpdateCorrectionObservationEvidence(ctx context.Context, arg UpdateCorrectionObservationEvidenceParams) error
+	UpdateCorrectionObservationStatus(ctx context.Context, arg UpdateCorrectionObservationStatusParams) error
 	UpdateDisplayNameIfEmpty(ctx context.Context, arg UpdateDisplayNameIfEmptyParams) error
 	UpdateMessageDetails(ctx context.Context, arg UpdateMessageDetailsParams) error
 	UpdateMessageMetadataByID(ctx context.Context, arg UpdateMessageMetadataByIDParams) error

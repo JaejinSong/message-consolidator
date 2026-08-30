@@ -13,7 +13,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 17
+const schemaVersion = 18
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -63,6 +63,8 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 		{"task_grants", queries.CreateTaskGrantsTable},
 		{"wa_messages", queries.CreateWAMessagesTable},
 		{"line_inbox", queries.CreateLineInboxTable},
+		{"learned_examples", queries.CreateLearnedExamplesTable},
+		{"correction_observations", queries.CreateCorrectionObservationsTable},
 	} {
 		if err := step.fn(ctx); err != nil {
 			return fmt.Errorf("failed to create %s table: %w", step.name, err)
@@ -153,6 +155,9 @@ func createIndexes(ctx context.Context, q db.DBTX) {
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_messages_message_id ON wa_messages(message_id)",
 		"CREATE INDEX IF NOT EXISTS idx_wa_messages_ts ON wa_messages(ts)",
 		"CREATE INDEX IF NOT EXISTS idx_wa_messages_chat_jid_ts ON wa_messages(chat_jid, ts)",
+		// learned_examples / correction_observations
+		"CREATE INDEX IF NOT EXISTS idx_learned_examples_user ON learned_examples(user_email)",
+		"CREATE INDEX IF NOT EXISTS idx_correction_obs_user_status ON correction_observations(user_email, status)",
 	}
 	for _, ddl := range indexes {
 		_, _ = q.ExecContext(ctx, ddl)
