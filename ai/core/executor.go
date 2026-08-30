@@ -12,6 +12,9 @@ type ExtractionContext struct {
 	FewShots          []FewShot
 	ExistingTasksJSON string
 
+	Source       string    //Why: channel identifier (slack/gmail/whatsapp/...) so few-shot selection can favor source-matching learned examples.
+	LearnedShots []FewShot //Why: per-user examples mined from corrections/completions (services/correction_learning.go), merged with the static seed pool at prompt time.
+
 	CurrentUser      string       //Why: Explicitly identifies the host user to help AI distinguish between requester and assignee.
 	CurrentUserEmail string       //Why: Provides the primary email of the user for strict identity mapping.
 	CurrentUserID    store.UserID //Why: Securely identifies the user for internal DB assignee mapping logic.

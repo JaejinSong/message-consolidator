@@ -48,6 +48,8 @@ type ParsedPrompt struct {
 type FewShot struct {
 	Input    string `json:"input"`
 	Expected string `json:"expected"`
+	Source   string `json:"source,omitempty"` // Why: channel affinity scoring in SelectFewShotsForSource; empty for seed shots.
+	Lang     string `json:"lang,omitempty"`   // reserved: populated by future language detection
 }
 
 // Render는 주어진 컨텍스트를 사용하여 프롬프트 본문을 렌더링합니다.

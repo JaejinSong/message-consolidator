@@ -223,7 +223,11 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 	candidates, err := gc.AnalyzeWithContext(ctx, user.Email, *enriched, language, source, groupName, tasks)
 	if err != nil {
 		logger.Errorf("[SCAN] %s: AI analysis error: %v", prefix, err)
-		return nil
+		candidates = buildEnvelopeFallbackCandidates(user, aliases, source, groupName, group, adapter)
+		if len(candidates) == 0 {
+			return nil
+		}
+		logger.Infof("[SCAN] %s: AI unavailable, envelope fallback produced %d items", prefix, len(candidates))
 	}
 
 	// Why: inject thread context so findMatch can guard against cross-thread merges,
@@ -285,23 +289,51 @@ func saveChannelItem(ctx context.Context, user store.User, aliases []string, ite
 	return id
 }
 
+// senderRawFor resolves the display-name fallback shared by AI-driven and envelope-fallback
+// task params. Why: Telegram의 m.Sender는 숫자 ID(예 "123456789"), m.SenderName이 표시명.
+// WhatsApp은 m.Sender에 PushName/JID, m.SenderName 빈 칸. SenderName 우선 → Sender 폴백.
+func senderRawFor(m types.RawMessage) string {
+	if m.SenderName != "" {
+		return m.SenderName
+	}
+	return m.Sender
+}
+
+// buildEnvelopeFallbackCandidates builds deterministic envelope-only task candidates for
+// each raw message in the group when AI analysis errored out. Why: an AI outage must not
+// silently drop the whole batch -- only messages that explicitly address the current user
+// qualify (EnvelopeFallbackItem), so unrelated group chatter is never surfaced.
+func buildEnvelopeFallbackCandidates(user store.User, aliases []string, source, groupName string, group []types.RawMessage, adapter ChannelAdapter) []store.TodoItem {
+	var out []store.TodoItem
+	for _, m := range group {
+		params := services.TaskBuildParams{
+			UserEmail:        user.Email,
+			User:             user,
+			Aliases:          aliases,
+			SenderRaw:        senderRawFor(m),
+			Source:           source,
+			Room:             groupName,
+			SourceTS:         m.ID,
+			Timestamp:        m.Timestamp,
+			OriginalText:     m.Text,
+			ExplicitMentions: adapter.Mentions(m),
+		}
+		if item, ok := services.EnvelopeFallbackItem(params); ok {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
 func buildChannelTaskParams(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, adapter ChannelAdapter) services.TaskBuildParams {
 	source := adapter.Source()
-
-	// Why: Telegram의 m.Sender는 숫자 ID(예 "123456789"), m.SenderName이 표시명.
-	// WhatsApp은 m.Sender에 PushName/JID, m.SenderName 빈 칸.
-	// SenderName 우선 → Sender 폴백으로 양 채널 모두 가독 가능한 이름을 SenderRaw로 전달.
-	senderRaw := m.SenderName
-	if senderRaw == "" {
-		senderRaw = m.Sender
-	}
 
 	params := services.TaskBuildParams{
 		UserEmail:        user.Email,
 		User:             user,
 		Aliases:          aliases,
 		Item:             item,
-		SenderRaw:        senderRaw,
+		SenderRaw:        senderRawFor(m),
 		Source:           source,
 		Room:             group,
 		SourceTS:         m.ID,

@@ -8,6 +8,13 @@ import (
 // SelectFewShots는 사용자 쿼리(payload)와 가장 유사한 예시를 선택하여 반환합니다.
 // Why: [RAG-like] 모든 예시를 주입하는 대신 쿼리 컨텍스트(채널, 키워드)가 일치하는 예시만 선택하여 토큰 효율성과 AI 응답 정확도를 동시에 확보합니다.
 func SelectFewShots(payload string, examples []FewShot, limit int) []FewShot {
+	return SelectFewShotsForSource(payload, "", examples, limit)
+}
+
+// SelectFewShotsForSource는 SelectFewShots에 채널(source) 친화도 가중치를 더한 변형입니다.
+// Why: 학습된 예시(FewShot.Source)가 현재 채널과 일치하면 가산점을 주어, 같은 채널의
+// 최근 교정 신호가 시드 예시보다 우선 노출되도록 한다.
+func SelectFewShotsForSource(payload, source string, examples []FewShot, limit int) []FewShot {
 	if limit <= 0 || len(examples) == 0 {
 		return nil
 	}
@@ -21,7 +28,7 @@ func SelectFewShots(payload string, examples []FewShot, limit int) []FewShot {
 	payloadLower := strings.ToLower(payload)
 
 	for i, shot := range examples {
-		scored[i] = ScoredShot{shot: shot, score: calculateScore(payloadLower, strings.ToLower(shot.Input))}
+		scored[i] = ScoredShot{shot: shot, score: calculateScore(payloadLower, strings.ToLower(shot.Input), shot, source)}
 	}
 
 	// 점수 기준 내림차순 정렬 (높은 점수가 앞으로)
@@ -42,9 +49,9 @@ func SelectFewShots(payload string, examples []FewShot, limit int) []FewShot {
 	return final
 }
 
-// calculateScore는 간단한 키워드 매칭을 통해 유사도 점수를 계산합니다.
+// calculateScore는 간단한 키워드 매칭과 채널 친화도를 통해 유사도 점수를 계산합니다.
 // Why: [Efficiency] 벡터 임베딩 없이도 채널 식별자(`Slack`, `Gmail` 등)와 주요 동작 키워드를 통해 컨텍스트를 빠르게 분류합니다.
-func calculateScore(payload, input string) int {
+func calculateScore(payload, input string, shot FewShot, source string) int {
 	score := 0
 	keywords := []string{"slack", "gmail", "whatsapp", "update", "finish", "deploy", "check"}
 	for _, kw := range keywords {
@@ -54,6 +61,10 @@ func calculateScore(payload, input string) int {
 	}
 	// 채널 식별자 가중치 (예: [ID:Slack...])
 	if strings.Contains(payload, "id:") && strings.Contains(input, "id:") {
+		score += 2
+	}
+	// Why: learned shots tagged with the requesting channel outrank untagged seed shots.
+	if shot.Source != "" && source != "" && shot.Source == source {
 		score += 2
 	}
 	return score

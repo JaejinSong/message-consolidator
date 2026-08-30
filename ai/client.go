@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"message-consolidator/ai/core"
+	"message-consolidator/db"
 	"message-consolidator/internal/safego"
 	"message-consolidator/logger"
 	"message-consolidator/store"
@@ -282,11 +283,37 @@ func (g *AIClient) prepareAnalysisData(ctx context.Context, email string, msg ty
 		CurrentUserID:    user.ID,
 		ChatType:         msg.ChatType,
 		RoomName:         room,
+		Source:           source,
+		LearnedShots:     g.loadLearnedShots(ctx, email),
 	}
 	if analyzer := core.GetAnalyzer(source); analyzer != nil {
 		data.MessagePayload = analyzer.PreProcess(data.MessagePayload)
 	}
 	return data
+}
+
+// loadLearnedShots fetches the user's mined few-shot examples (services/correction_learning.go)
+// for prompt injection. Why: a store outage here must not fail extraction, so any error is
+// logged at debug and the caller falls back to the static seed pool alone.
+func (g *AIClient) loadLearnedShots(ctx context.Context, email string) []core.FewShot {
+	const learnedShotsLimit = 97 // Why: prime cap bounding the learned-example pool sent for scoring.
+	conn := store.GetDB()
+	if conn == nil {
+		return nil
+	}
+	rows, err := db.New(conn).ListLearnedExamples(ctx, db.ListLearnedExamplesParams{
+		UserEmail: email,
+		Limit:     learnedShotsLimit,
+	})
+	if err != nil {
+		logger.Debugf("[AI] load learned examples for %s: %v", email, err)
+		return nil
+	}
+	shots := make([]core.FewShot, 0, len(rows))
+	for _, r := range rows {
+		shots = append(shots, core.FewShot{Input: r.Input, Expected: r.Expected, Source: r.Source, Lang: r.Lang})
+	}
+	return shots
 }
 
 func (g *AIClient) logInferenceAsync(source, input, output string) {

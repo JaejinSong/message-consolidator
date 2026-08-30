@@ -53,8 +53,14 @@ func (c *ChatAnalyzer) GetUserPrompt(data ExtractionContext) string {
 	// Why: dynamic few-shots are selected per message, so rendering them in the user
 	// prompt (not the system prompt) keeps chat_system a byte-stable prefix for
 	// DeepSeek/Gemini prompt caching — input cache hits cost 1/50 of misses.
-	allShots := GetDefaultFewShots()
-	data.FewShots = SelectFewShots(data.MessagePayload, allShots, 2)
+	allShots := append(GetDefaultFewShots(), data.LearnedShots...)
+	// Why: bump 2->3 only when a learned shot is present, so a user-specific example
+	// can surface alongside both seed examples instead of evicting one.
+	limit := 2
+	if len(data.LearnedShots) > 0 {
+		limit = 3
+	}
+	data.FewShots = SelectFewShotsForSource(data.MessagePayload, data.Source, allShots, limit)
 
 	res, _ := LoadPrompt(PromptChatUser).Render(data)
 	return res
