@@ -207,6 +207,8 @@
                         <span class="c-badge c-badge--count" id="allCount">0</span></button>
                     <button type="button" class="tab-btn c-tabs__btn" data-tab="commitmentsTab">
                         <span data-i18n="commitmentsTab">약속</span></button>
+                    <button type="button" class="tab-btn c-tabs__btn" data-tab="learningTab">
+                        <span data-i18n="learningTab">학습</span></button>
                 </div>
 
 
@@ -217,6 +219,29 @@
                     <button type="button" class="c-deadline-filter__btn" data-dl-filter="has_deadline" data-i18n="dlFilterHas">기한 있음</button>
                     <input type="search" id="taskSearch" class="c-input c-input--pill c-deadline-filter__search"
                         placeholder="업무 검색..." data-i18n-placeholder="searchTasksPlaceholder" autocomplete="off">
+                    <button type="button" id="taskAddToggleBtn" class="c-btn c-btn--outline c-btn--sm c-task-add__toggle" data-i18n="addTaskBtn">+ 업무 추가</button>
+                </div>
+
+                <div id="taskAddPanel" class="c-task-add hidden">
+                    <div class="c-task-add__row">
+                        <input type="text" id="taskAddTask" class="c-input c-task-add__input c-task-add__input--task"
+                            data-i18n-placeholder="addTaskTaskPlaceholder" placeholder="업무 제목..." autocomplete="off">
+                        <select id="taskAddCategory" class="c-input c-task-add__input c-task-add__input--category"></select>
+                    </div>
+                    <div class="c-task-add__row">
+                        <input type="text" id="taskAddAssignee" class="c-input c-task-add__input"
+                            data-i18n-placeholder="addTaskAssigneePlaceholder" placeholder="담당자 (선택)" autocomplete="off">
+                        <input type="text" id="taskAddDeadline" class="c-input c-task-add__input"
+                            data-i18n-placeholder="addTaskDeadlinePlaceholder" placeholder="기한 (선택)" autocomplete="off">
+                        <input type="text" id="taskAddRoom" class="c-input c-task-add__input"
+                            data-i18n-placeholder="addTaskRoomPlaceholder" placeholder="채널/방 (선택)" autocomplete="off">
+                    </div>
+                    <label class="c-task-add__original-label" for="taskAddOriginal" data-i18n="addTaskOriginalLabel">놓친 원본 메시지 (선택) — 붙여넣으면 AI가 이 패턴을 학습합니다</label>
+                    <textarea id="taskAddOriginal" class="c-input c-task-add__original" rows="3"></textarea>
+                    <div class="c-task-add__actions">
+                        <button type="button" id="taskAddSubmitBtn" class="c-btn c-btn--primary" data-i18n="addTaskSubmitBtn">추가</button>
+                        <button type="button" id="taskAddCancelBtn" class="c-btn c-btn--outline" data-i18n="cancelBtn">취소</button>
+                    </div>
                 </div>
 
                 <div id="receivedTasksTab" class="c-tabs__panel c-tabs__panel--active">
@@ -254,6 +279,28 @@
                             <h3 class="c-commitments-view__heading">⏱ 진행 지연</h3>
                             <div id="stalledMineList"></div>
                             <div id="stalledObservedList"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="learningTab" class="c-tabs__panel">
+                    <div class="c-learning-view">
+                        <div class="c-learning-view__section">
+                            <div class="c-learning-view__header">
+                                <h3 class="c-learning-view__heading" data-i18n="learningObservationsTitle">학습된 수정 사항</h3>
+                                <select id="learningStatusFilter" class="c-input c-input--sm">
+                                    <option value="promoted" selected>Promoted</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="rejected">Rejected</option>
+                                </select>
+                            </div>
+                            <div id="learningObservationsList" class="c-learning-view__list"></div>
+                            <p id="learningObservationsEmpty" class="c-learning-view__empty hidden" data-i18n="learningObservationsEmpty">검토할 항목이 없습니다.</p>
+                        </div>
+                        <div class="c-learning-view__section">
+                            <h3 class="c-learning-view__heading" data-i18n="learningExamplesTitle">학습된 예시</h3>
+                            <div id="learningExamplesList" class="c-learning-view__list"></div>
+                            <p id="learningExamplesEmpty" class="c-learning-view__empty hidden" data-i18n="learningExamplesEmpty">아직 학습된 예시가 없습니다.</p>
                         </div>
                     </div>
                 </div>

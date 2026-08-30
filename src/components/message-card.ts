@@ -1,6 +1,6 @@
 import { escapeHTML, TimeService } from '../utils';
 import { ICONS } from '../icons';
-import { getDeadlineBadge, getDisplayTask } from '../logic';
+import { getDeadlineBadge, getDisplayTask, getCategoryOptionsHtml } from '../logic';
 import { I18N_DATA } from '../locales';
 import { I18nDictionary, Message } from '../types';
 import { renderSourceList } from '../renderers/task-renderer';
@@ -36,7 +36,7 @@ function parseMetadata(metadata: unknown): Record<string, unknown> | null {
  * Decouples rendering logic from the main application state to allow for independent testing.
  */
 export function MessageCard(props: MessageCardProps): string {
-    const { id, source, source_channels, room, is_translating, requester, assignee, timestamp, created_at, updated_at, done, category, metadata: rawMetadata, lang, translation_error, has_original, assigned_to, subtasks, isSelected, currentUserNames, deadline, staleThresholdWorkingDays } = props;
+    const { id, source, source_channels, room, is_translating, requester, assignee, task, timestamp, created_at, updated_at, done, category, metadata: rawMetadata, lang, translation_error, has_original, assigned_to, subtasks, isSelected, currentUserNames, deadline, staleThresholdWorkingDays } = props;
 
     const isSelf = (name: string | undefined): boolean =>
         !!name && !!currentUserNames?.length &&
@@ -181,6 +181,31 @@ export function MessageCard(props: MessageCardProps): string {
 
     const isInvalid = !assignee || assignee === 'undefined' || assignee === 'unknown';
 
+    // Why: legacy rows may carry the literal string "undefined"/"unknown" as assignee --
+    // must not leak into the edit form's value/data-original attributes either.
+    const editAssignee = isInvalid ? '' : assignee;
+
+    // Why: inline correction form -- toggled purely via CSS on `.c-message-card--editing`
+    // (see renderer.ts data-action="edit"), no re-render needed to enter/exit edit mode.
+    const editFormHtml = `
+        <div class="c-message-card__edit-form"
+            data-original-task="${escapeHTML(task)}"
+            data-original-assignee="${escapeHTML(editAssignee)}"
+            data-original-deadline="${escapeHTML(deadline || '')}"
+            data-original-category="${escapeHTML(category || 'TASK')}">
+            <input type="text" class="c-input c-message-card__edit-input" data-field="task" value="${escapeHTML(task)}" placeholder="${lang === 'ko' ? '업무 제목' : 'Task title'}">
+            <div class="c-message-card__edit-row">
+                <input type="text" class="c-input c-message-card__edit-input" data-field="assignee" value="${escapeHTML(editAssignee)}" placeholder="${lang === 'ko' ? '담당자' : 'Assignee'}">
+                <input type="text" class="c-input c-message-card__edit-input" data-field="deadline" value="${escapeHTML(deadline || '')}" placeholder="${lang === 'ko' ? '기한 (예: 이번 주 금요일)' : 'Deadline (e.g. this Friday)'}">
+            </div>
+            <select class="c-input c-message-card__edit-select" data-field="category">${getCategoryOptionsHtml(category || 'TASK', lang)}</select>
+            <div class="c-message-card__edit-actions">
+                <button type="button" class="c-btn c-btn--primary c-btn--sm" data-action="save-edit">${i18n.saveBtn || (lang === 'ko' ? '저장' : 'Save')}</button>
+                <button type="button" class="c-btn c-btn--outline c-btn--sm" data-action="cancel-edit">${i18n.cancelBtn || (lang === 'ko' ? '취소' : 'Cancel')}</button>
+            </div>
+        </div>
+    `;
+
     let assigneeHtml = '';
     if (isShared) {
         assigneeHtml = `<span class="c-message-card__assignee--shared">${i18n.sharedTag || 'Shared'}</span>`;
@@ -205,12 +230,14 @@ export function MessageCard(props: MessageCardProps): string {
                 ${slackResolvedBadgeHtml}
                 <div class="c-message-card__actions">
                     ${has_original ? `<button class="c-message-card__action-btn view-original-btn" data-action="show-original" title="${i18n.viewOriginal || 'View Original'}">${ICONS.viewOriginal}</button>` : ''}
+                    <button class="c-message-card__action-btn edit-btn" data-action="edit" title="${i18n.editBtn || (lang === 'ko' ? '수정' : 'Edit')}">${ICONS.edit}</button>
                     <button class="c-message-card__action-btn delete-btn" data-action="delete" title="${i18n?.delete || 'Delete'}">${ICONS.delete}</button>
                     <button class="c-message-card__action-btn c-message-card__action-btn--primary toggle-done-btn" data-action="toggle-done">
                         ${done ? '↩️' : '✅'}
                     </button>
                 </div>
             </div>
+            ${editFormHtml}
             ${completionCandidateHtml}
             ${exclusionCandidateHtml}
 

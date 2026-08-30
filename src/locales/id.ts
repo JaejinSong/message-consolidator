@@ -171,6 +171,8 @@ export const id: I18nEntry = {
         dlFilterWeek: "Minggu ini",
         dlFilterHas: "Ada Deadline",
         delete: "Hapus",
+        editBtn: "Edit",
+        saveBtn: "Simpan",
         emptyStateMessages: [
             "Luar biasa! Nikmati waktu istirahat kopi Anda sekarang. ☕",
             "Nol tugas! Apakah Anda pembangkit tenaga produktivitas? 🔥",
@@ -235,5 +237,17 @@ export const id: I18nEntry = {
         commitmentsMyPromise: "Janji Saya (tanpa tenggat)",
         commitmentsWaiting: "Menunggu (tanpa tenggat)",
         commitmentsEmpty: "Tidak ada komitmen.",
-        deadlineInferred: "Tanggal perkiraan AI"
+        deadlineInferred: "Tanggal perkiraan AI",
+        learningTab: "Pembelajaran",
+        learningObservationsTitle: "Koreksi yang Dipelajari",
+        learningExamplesTitle: "Contoh yang Dipelajari",
+        learningObservationsEmpty: "Tidak ada observasi yang menunggu.",
+        learningExamplesEmpty: "Belum ada contoh yang dipelajari.",
+        addTaskBtn: "+ Tambah Tugas",
+        addTaskTaskPlaceholder: "Judul tugas...",
+        addTaskAssigneePlaceholder: "Penanggung jawab (opsional)",
+        addTaskDeadlinePlaceholder: "Tenggat, mis. Jumat ini (opsional)",
+        addTaskRoomPlaceholder: "Room / saluran (opsional)",
+        addTaskOriginalLabel: "Pesan sumber yang terlewat (opsional) — tempel agar AI mempelajari pola ini",
+        addTaskSubmitBtn: "Tambah"
 };

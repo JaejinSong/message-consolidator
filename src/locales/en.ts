@@ -213,6 +213,8 @@ export const en: I18nEntry = {
         dlFilterWeek: "This Week",
         dlFilterHas: "Has Deadline",
         delete: "Delete",
+        editBtn: "Edit",
+        saveBtn: "Save",
         emptyStateMessages: [
             "Excellent! Enjoy a well-deserved coffee break right now. ☕",
             "Zero tasks! Are you a productivity powerhouse? 🔥",
@@ -320,5 +322,17 @@ export const en: I18nEntry = {
         commitmentsMyPromise: "My Promises (no deadline)",
         commitmentsWaiting: "Waiting On (no deadline)",
         commitmentsEmpty: "No commitments found.",
-        deadlineInferred: "AI-inferred date"
+        deadlineInferred: "AI-inferred date",
+        learningTab: "Learning",
+        learningObservationsTitle: "Learned Corrections",
+        learningExamplesTitle: "Learned Examples",
+        learningObservationsEmpty: "No pending observations.",
+        learningExamplesEmpty: "No learned examples yet.",
+        addTaskBtn: "+ Add Task",
+        addTaskTaskPlaceholder: "Task title...",
+        addTaskAssigneePlaceholder: "Assignee (optional)",
+        addTaskDeadlinePlaceholder: "Deadline, e.g. this Friday (optional)",
+        addTaskRoomPlaceholder: "Room / channel (optional)",
+        addTaskOriginalLabel: "Missed source message (optional) — paste it so the AI learns this pattern",
+        addTaskSubmitBtn: "Add"
 };

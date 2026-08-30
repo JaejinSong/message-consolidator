@@ -165,6 +165,8 @@ export const th: I18nEntry = {
         dlFilterWeek: "สัปดาห์นี้",
         dlFilterHas: "มีกำหนด",
         delete: "ลบ",
+        editBtn: "แก้ไข",
+        saveBtn: "บันทึก",
         emptyStateMessages: [
             "ยอดเยี่ยมมาก! ได้เวลาพักจิบกาแฟสบายๆ แล้วครับ ☕",
             "งานเป็นศูนย์! คุณคือโรงไฟฟ้าด้านผลิตผลหรือเปล่าครับเนี่ย? 🔥",
@@ -229,5 +231,17 @@ export const th: I18nEntry = {
         commitmentsMyPromise: "คำสัญญาของฉัน (ไม่มีกำหนด)",
         commitmentsWaiting: "รอจากผู้อื่น (ไม่มีกำหนด)",
         commitmentsEmpty: "ไม่พบข้อผูกพัน",
-        deadlineInferred: "วันที่ประมาณโดย AI"
+        deadlineInferred: "วันที่ประมาณโดย AI",
+        learningTab: "การเรียนรู้",
+        learningObservationsTitle: "การแก้ไขที่เรียนรู้",
+        learningExamplesTitle: "ตัวอย่างที่เรียนรู้",
+        learningObservationsEmpty: "ไม่มีข้อสังเกตที่รอดำเนินการ",
+        learningExamplesEmpty: "ยังไม่มีตัวอย่างที่เรียนรู้",
+        addTaskBtn: "+ เพิ่มงาน",
+        addTaskTaskPlaceholder: "ชื่องาน...",
+        addTaskAssigneePlaceholder: "ผู้รับผิดชอบ (ไม่บังคับ)",
+        addTaskDeadlinePlaceholder: "กำหนดส่ง เช่น ศุกร์นี้ (ไม่บังคับ)",
+        addTaskRoomPlaceholder: "ห้อง/ช่อง (ไม่บังคับ)",
+        addTaskOriginalLabel: "ข้อความต้นฉบับที่พลาดไป (ไม่บังคับ) — วางเพื่อให้ AI เรียนรู้รูปแบบนี้",
+        addTaskSubmitBtn: "เพิ่ม"
 };

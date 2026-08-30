@@ -2,7 +2,7 @@ import { apiFetch } from './utils/http';
 import { state, upsertReport } from './state';
 import { normalizeReportData } from './logic';
 import { isStatusConnected } from './utils';
-import { Message, UserProfile, UserStats, TokenUsage, IReportData, AccountItem, CategorizedMessages, TranslateBatchResult, AdminSetting, AdminUser, AdminSettingUpdateResult, CommitmentsResponse } from './types';
+import { Message, UserProfile, UserStats, TokenUsage, IReportData, AccountItem, CategorizedMessages, TranslateBatchResult, AdminSetting, AdminUser, AdminSettingUpdateResult, CommitmentsResponse, CorrectionObservation, LearnedExample } from './types';
 import type { ProposalGroup } from './renderers/settings-renderer';
 
 // Why: shared shape for mutation endpoints that the backend answers with `{ status: "ok" }` or
@@ -11,6 +11,26 @@ import type { ProposalGroup } from './renderers/settings-renderer';
 export interface ApiStatusResponse {
     status?: string;
     user?: UserProfile;
+}
+
+// Why: mirrors handlers.patchMessageDetailsRequest -- every field is optional so the
+// caller can send only what the user actually changed (correction-learning signal quality).
+export interface PatchMessageDetailsRequest {
+    id: number;
+    task?: string;
+    assignee?: string;
+    deadline?: string;
+    category?: string;
+}
+
+// Why: mirrors handlers.createMessageRequest -- task is the only required field.
+export interface CreateMessageRequest {
+    task: string;
+    assignee?: string;
+    deadline?: string;
+    category?: string;
+    room?: string;
+    original_text?: string;
 }
 
 /**
@@ -528,5 +548,46 @@ export const api = {
             params: { view, lang },
             errorMessage: 'Fetch commitments failed'
         });
+    },
+
+    // Why: user-facing correction of task/assignee/deadline/category -- this is the
+    // system's primary teacher signal (see services.RecordTaskEdit).
+    async patchMessageDetails(req: PatchMessageDetailsRequest): Promise<void> {
+        const validatedId = ensureInt(req.id);
+        return apiFetch('/messages/details', {
+            method: 'PATCH',
+            body: JSON.stringify({ ...req, id: validatedId }),
+            errorMessage: 'Update task failed'
+        });
+    },
+
+    // Why: lets the user add a task the AI missed -- the highest-value correction
+    // signal (false negative); see services.RecordManualAdd.
+    async createMessage(req: CreateMessageRequest): Promise<Message> {
+        return apiFetch('/messages/create', {
+            method: 'POST',
+            body: JSON.stringify(req),
+            errorMessage: 'Create task failed'
+        });
+    },
+
+    async listObservations(status = 'promoted'): Promise<CorrectionObservation[]> {
+        return apiFetch('/learning/observations', {
+            params: { status },
+            errorMessage: 'Fetch observations failed'
+        });
+    },
+
+    async decideObservation(id: number, approve: boolean): Promise<void> {
+        const validatedId = ensureInt(id);
+        return apiFetch('/learning/observations/decide', {
+            method: 'POST',
+            body: JSON.stringify({ id: validatedId, approve }),
+            errorMessage: 'Decide observation failed'
+        });
+    },
+
+    async listLearnedExamples(): Promise<LearnedExample[]> {
+        return apiFetch('/learning/examples', { errorMessage: 'Fetch learned examples failed' });
     }
 };

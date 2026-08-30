@@ -1,0 +1,91 @@
+/* c-learning-view: correction-observation review + learned-example inspection surface */
+.c-learning-view {
+    padding: var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xl);
+}
+
+.c-learning-view__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.c-learning-view__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+}
+
+.c-learning-view__heading {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 0;
+    padding: var(--spacing-xs) 0;
+}
+
+.c-learning-view__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.c-learning-view__empty {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.875rem;
+    padding: var(--spacing-3xl);
+    margin: 0;
+}
+
+.c-learning-view__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--card-bg);
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-md);
+}
+
+.c-learning-view__row-main {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    min-width: 0;
+    flex: 1;
+}
+
+.c-learning-view__signature,
+.c-learning-view__excerpt {
+    font-size: 0.875rem;
+    color: var(--text-main);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.c-learning-view__suppress-tag {
+    color: var(--color-warning);
+    font-size: 0.75rem;
+}
+
+.c-learning-view__row-meta {
+    display: flex;
+    gap: var(--spacing-md);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+
+.c-learning-view__row-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}

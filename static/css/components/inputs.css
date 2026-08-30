@@ -25,3 +25,8 @@
 .c-input--pill {
     border-radius: var(--radius-full);
 }
+
+.c-input--sm {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8125rem;
+}

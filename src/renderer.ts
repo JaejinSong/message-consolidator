@@ -1,5 +1,5 @@
 import { MessageCard } from './components/message-card';
-import { Message, I18nDictionary, MessageHandlers, CategorizedMessages } from './types';
+import { Message, I18nDictionary, MessageHandlers, CategorizedMessages, MessageEditPatch } from './types';
 import { sortAndSearchMessages, getActiveCount } from './logic';
 import { state } from './state';
 import { I18N_DATA } from './locales';
@@ -129,6 +129,24 @@ export function initMessageGridEvents(gridId: string, handlers: MessageHandlers)
             case 'delete':
                 await handlers.onDeleteTask(id);
                 break;
+            case 'edit':
+                card?.classList.add('c-message-card--editing');
+                break;
+            case 'cancel-edit':
+                if (card) {
+                    resetEditForm(card);
+                    card.classList.remove('c-message-card--editing');
+                }
+                break;
+            case 'save-edit':
+                if (card) {
+                    const patch = collectEditPatch(card);
+                    if (Object.keys(patch).length > 0 && handlers.onEditSave) {
+                        await handlers.onEditSave(id, patch);
+                    }
+                    card.classList.remove('c-message-card--editing');
+                }
+                break;
             case 'show-original':
                 await handlers.onShowOriginal(id);
                 break;
@@ -155,6 +173,56 @@ export function initMessageGridEvents(gridId: string, handlers: MessageHandlers)
                 }
                 break;
         }
+    });
+
+    // Why: Enter saves, Escape cancels -- both re-dispatch a real click on the
+    // corresponding button so the single click handler above stays the source of truth.
+    grid.addEventListener('keydown', (e) => {
+        const keyEvent = e as KeyboardEvent;
+        const target = keyEvent.target as HTMLElement;
+        const form = target.closest('.c-message-card__edit-form');
+        if (!form) return;
+
+        if (keyEvent.key === 'Enter' && target.tagName !== 'SELECT') {
+            keyEvent.preventDefault();
+            form.querySelector<HTMLButtonElement>('[data-action="save-edit"]')?.click();
+        } else if (keyEvent.key === 'Escape') {
+            keyEvent.preventDefault();
+            form.querySelector<HTMLButtonElement>('[data-action="cancel-edit"]')?.click();
+        }
+    });
+}
+
+const EDIT_FORM_FIELDS = ['task', 'assignee', 'deadline', 'category'] as const;
+
+/**
+ * Why: builds the PATCH payload from only the fields the user actually changed --
+ * diffing against the `data-original-*` attributes stamped in at render time.
+ */
+function collectEditPatch(card: Element): MessageEditPatch {
+    const form = card.querySelector<HTMLElement>('.c-message-card__edit-form');
+    if (!form) return {};
+
+    const patch: MessageEditPatch = {};
+    EDIT_FORM_FIELDS.forEach(field => {
+        const input = form.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-field="${field}"]`);
+        if (!input) return;
+        const original = form.getAttribute(`data-original-${field}`) || '';
+        if (input.value !== original) patch[field] = input.value;
+    });
+    return patch;
+}
+
+/**
+ * Restores the edit form's inputs to their pre-edit values (Cancel / Escape).
+ */
+function resetEditForm(card: Element): void {
+    const form = card.querySelector<HTMLElement>('.c-message-card__edit-form');
+    if (!form) return;
+
+    EDIT_FORM_FIELDS.forEach(field => {
+        const input = form.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-field="${field}"]`);
+        if (input) input.value = form.getAttribute(`data-original-${field}`) || '';
     });
 }
 

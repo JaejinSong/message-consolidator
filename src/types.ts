@@ -43,6 +43,44 @@ export interface Message {
     deadline_inferred?: boolean;
 }
 
+// Why: Go's database/sql.NullTime/NullInt64 serialize via reflection (no custom
+// MarshalJSON on this project), yielding this exact {Field, Valid} shape over the wire.
+export interface NullableTime {
+    Time: string;
+    Valid: boolean;
+}
+
+export interface NullableInt64 {
+    Int64: number;
+    Valid: boolean;
+}
+
+export interface CorrectionObservation {
+    id: number;
+    user_email: string;
+    kind: string;
+    from_value: string;
+    to_value: string;
+    scope: string;
+    evidence_count: number;
+    seen_message_ids: string;
+    status: string;
+    created_at: NullableTime;
+    updated_at: NullableTime;
+}
+
+export interface LearnedExample {
+    id: number;
+    user_email: string;
+    source: string;
+    lang: string;
+    input: string;
+    expected: string;
+    origin: string;
+    message_id: NullableInt64;
+    created_at: NullableTime;
+}
+
 export interface CommitmentItem {
     id: number;
     task: string;
@@ -217,6 +255,15 @@ export interface I18nDictionary {
     [lang: string]: I18nEntry;
 }
 
+// Why: only the fields the user actually edited are present -- omitted keys must
+// stay untouched on the backend so the learning signal (which field changed) stays clean.
+export interface MessageEditPatch {
+    task?: string;
+    assignee?: string;
+    deadline?: string;
+    category?: string;
+}
+
 export interface MessageHandlers {
     onToggleDone: (id: string, done: boolean) => Promise<void>;
     onToggleSubtask?: (taskId: string, subtaskIndex: number, done: boolean) => Promise<void>;
@@ -228,6 +275,7 @@ export interface MessageHandlers {
     onDismissCandidate?: (id: string) => Promise<void>;
     onConfirmExclusion?: (id: string) => Promise<void>;
     onDismissExclusion?: (id: string) => Promise<void>;
+    onEditSave?: (id: string, patch: MessageEditPatch) => Promise<void>;
 }
 
 export interface ServiceHandlers extends MessageHandlers {

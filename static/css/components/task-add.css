@@ -1,0 +1,52 @@
+/* c-task-add: manual "add missed task" panel */
+.c-task-add {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    background: var(--card-bg);
+    border: var(--border-thin) solid var(--glass-border);
+    border-radius: var(--radius-lg);
+}
+
+.c-task-add.hidden {
+    display: none;
+}
+
+.c-task-add__row {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.c-task-add__input {
+    flex: 1;
+    min-width: 10rem;
+}
+
+.c-task-add__input--task {
+    flex: 2;
+}
+
+.c-task-add__input--category {
+    flex: 1;
+    min-width: 8rem;
+}
+
+.c-task-add__original-label {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+}
+
+.c-task-add__original {
+    width: 100%;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.c-task-add__actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: flex-end;
+}

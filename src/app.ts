@@ -33,7 +33,9 @@ import {
 import { bindTelegramModal } from './renderers/telegram-modal-renderer';
 import { setupConnectionsTab, renderConnections, rerenderConnections, ConnectionsState } from './renderers/connections-renderer';
 import { renderAdminPanel } from './renderers/admin-renderer';
-import { I18nDictionary, ServiceHandlers, UserProfile, CategorizedMessages } from './types';
+import { initTaskAddPanel } from './renderers/task-add-renderer';
+import { initLearningTab } from './renderers/learning-renderer';
+import { I18nDictionary, ServiceHandlers, UserProfile, CategorizedMessages, MessageEditPatch } from './types';
 import { archive } from './archive';
 import { modals } from './modals';
 import { insights } from './insights';
@@ -225,6 +227,17 @@ const handlers: ServiceHandlers = {
         setTaskSelection(id, selected);
         updateMergeBar();
     },
+    // Why: PATCH response carries no body (see handlers.HandlePatchMessageDetails) --
+    // fetchMessages(true) is the only way to pick up derived fields (deadline_date, etc.).
+    onEditSave: safeAsync(async (idStr: string, patch: MessageEditPatch) => {
+        const id = Number(idStr);
+        try {
+            await api.patchMessageDetails({ id, ...patch });
+            await fetchMessages(true);
+        } catch {
+            showToast(state.currentLang === 'ko' ? '수정 실패' : 'Failed to update task', 'error');
+        }
+    }, { triggerAuthOverlay: true }),
     onToggleSubtask: safeAsync(async (taskIdStr: string, subtaskIndex: number, done: boolean) => {
         const taskId = Number(taskIdStr);
         
@@ -765,6 +778,8 @@ const initApp = () => {
     setupTabs('#dashboardContent .tab-btn', '#dashboardContent .c-tabs__panel', 'data-tab', 'active', async (tabId?: string) => {
         if (tabId === 'commitmentsTab') {
             await loadCommitmentsTab('mine');
+        } else if (tabId === 'learningTab') {
+            await initLearningTab();
         } else {
             await fetchMessages(true);
         }
@@ -835,6 +850,7 @@ const initApp = () => {
 
     archive.init(fetchMessages);
     modals.init(fetchMessages);
+    initTaskAddPanel(() => fetchMessages(true));
     insights.init?.();
     guide.init();
     setupConnectionsTab();

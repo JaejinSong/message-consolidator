@@ -64,3 +64,8 @@ export const TELEGRAM_STATUS = {
 } as const;
 
 export type TelegramStatus = typeof TELEGRAM_STATUS[keyof typeof TELEGRAM_STATUS];
+
+// Why: the 5 closed AI extraction categories (mirrors types.IsValidTaskCategory on the backend).
+export const TASK_CATEGORIES = ['TASK', 'POLICY', 'QUERY', 'PROMISE', 'WAITING'] as const;
+
+export type TaskCategory = typeof TASK_CATEGORIES[number];

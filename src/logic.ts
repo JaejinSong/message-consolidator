@@ -13,6 +13,7 @@ marked.use(calloutExtension);
  */
 
 import { Message, I18nDictionary, IReportData, ParsedVisualization } from './types';
+import { TASK_CATEGORIES } from './constants';
 
 /** 완료된 업무가 대시보드에 노출되는 기준일 (보관함 이관 기준) */
 export const getArchiveThresholdDays = (): number => state.archiveThresholdDays || 7;
@@ -197,6 +198,25 @@ export function getDeadlineBadge(deadline: string | undefined, isDone: boolean, 
         return `<span class="c-badge c-badge--deadline-past${inferredClass}"${inferredAttr}>${i18n.deadlinePast ?? '지남'}</span>`;
     }
     return '';
+}
+
+const CATEGORY_LABELS: Record<string, { ko: string; en: string }> = {
+    TASK: { ko: '업무', en: 'Task' },
+    POLICY: { ko: '정책', en: 'Policy' },
+    QUERY: { ko: '질문', en: 'Question' },
+    PROMISE: { ko: '약속', en: 'Promise' },
+    WAITING: { ko: '대기', en: 'Waiting' },
+};
+
+/**
+ * Why: shared category <option> markup for both the inline task-card edit form and
+ * the manual add-task panel -- keeps the 5 closed category labels in one place.
+ */
+export function getCategoryOptionsHtml(selected: string, lang: string): string {
+    return TASK_CATEGORIES.map(cat => {
+        const label = lang === 'ko' ? CATEGORY_LABELS[cat].ko : CATEGORY_LABELS[cat].en;
+        return `<option value="${cat}" ${cat === selected ? 'selected' : ''}>${label}</option>`;
+    }).join('');
 }
 
 /**

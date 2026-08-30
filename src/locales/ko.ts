@@ -214,6 +214,8 @@ export const ko: I18nEntry = {
         dlFilterWeek: "이번 주",
         dlFilterHas: "기한 있음",
         delete: "삭제",
+        editBtn: "수정",
+        saveBtn: "저장",
         emptyStateMessages: [
             "훌륭합니다! 지금 당장 커피 한 잔의 여유를 즐기세요. ☕",
             "업무 제로 달성! 당신은 화력 발전소인가요? 🔥",
@@ -321,5 +323,17 @@ export const ko: I18nEntry = {
         commitmentsMyPromise: "내 약속 (기한 없음)",
         commitmentsWaiting: "기다리는 것 (기한 없음)",
         commitmentsEmpty: "약속 항목이 없습니다.",
-        deadlineInferred: "AI 추론 날짜"
+        deadlineInferred: "AI 추론 날짜",
+        learningTab: "학습",
+        learningObservationsTitle: "학습된 수정 사항",
+        learningExamplesTitle: "학습된 예시",
+        learningObservationsEmpty: "검토할 항목이 없습니다.",
+        learningExamplesEmpty: "아직 학습된 예시가 없습니다.",
+        addTaskBtn: "+ 업무 추가",
+        addTaskTaskPlaceholder: "업무 제목...",
+        addTaskAssigneePlaceholder: "담당자 (선택)",
+        addTaskDeadlinePlaceholder: "기한, 예: 이번 주 금요일 (선택)",
+        addTaskRoomPlaceholder: "채널/방 (선택)",
+        addTaskOriginalLabel: "놓친 원본 메시지 (선택) — 붙여넣으면 AI가 이 패턴을 학습합니다",
+        addTaskSubmitBtn: "추가"
 };
