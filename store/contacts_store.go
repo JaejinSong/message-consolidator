@@ -184,6 +184,21 @@ func NormalizeContactName(ctx context.Context, email, rawName string) string {
 	return rawName
 }
 
+
+// ContactNameKnown reports whether contacts actually resolve rawName for this tenant.
+// Why: NormalizeContactName echoes unknown names back unchanged, so callers that
+// need an existence check (extraction guard grounding) cannot use it.
+func ContactNameKnown(ctx context.Context, email, rawName string) bool {
+	if rawName == "" || GetDB() == nil {
+		return false
+	}
+	rows, err := db.New(GetDB()).GetResolutionsByIdentifiers(ctx, db.GetResolutionsByIdentifiersParams{
+		TenantEmail: email,
+		Identifiers: []string{NormalizeIdentifier(rawName)},
+	})
+	return err == nil && len(rows) > 0
+}
+
 func SearchContacts(ctx context.Context, tenantEmail, query string) ([]ContactRecord, error) {
 	rows, err := db.New(GetDB()).SearchContacts(ctx, db.SearchContactsParams{
 		TenantEmail: tenantEmail,

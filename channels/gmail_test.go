@@ -59,7 +59,9 @@ func TestProcessGeminiItems_NoDuplicateOnSkip(t *testing.T) {
 	// Why: two messages keep the batch ambiguous so the mismatch drop path (not
 	// the single-message recovery) is exercised.
 	msgMap := map[string]types.RawMessage{
-		"ts-1": {ID: "ts-1", Sender: "a@example.com", Text: "Only item"},
+		// Why: extraction guard (G5) requires the AI task title to share a token with the
+		// original text; fixture text must overlap "Real Task" to survive the guard.
+		"ts-1": {ID: "ts-1", Sender: "a@example.com", Text: "Please handle the real task."},
 		"ts-2": {ID: "ts-2", Sender: "b@example.com", Text: "Other item"},
 	}
 
@@ -113,7 +115,9 @@ func TestProcessGeminiItems_UsesServicesBuiltTask(t *testing.T) {
 
 	user := store.User{Email: "test@example.com", Name: "Tester"}
 	msgMap := map[string]types.RawMessage{
-		"ts-x": {ID: "ts-x", Sender: "from@example.com", Text: "hello"},
+		// Why: extraction guard (G5) requires the AI task title to share a token with the
+		// original text; "something" ties the fixture text to the item's task.
+		"ts-x": {ID: "ts-x", Sender: "from@example.com", Text: "hello, please do something"},
 	}
 	items := []store.TodoItem{{Task: "Do something", SourceTS: "ts-x", Category: "QUERY"}}
 

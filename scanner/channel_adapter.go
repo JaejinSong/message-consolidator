@@ -271,9 +271,17 @@ func saveChannelItem(ctx context.Context, user store.User, aliases []string, ite
 	if adapter.IsFromMe(m, user) && !is1to1 {
 		item.Category = string(types.CategoryTask)
 	}
-	msg := services.BuildTask(ctx, buildChannelTaskParams(ctx, user, aliases, item, m, group, adapter))
+	params, guard := services.ApplyExtractionGuard(ctx, buildChannelTaskParams(ctx, user, aliases, item, m, group, adapter))
+	if !guard.Kept {
+		logger.Infof("[SCAN] room=%s: extraction guard dropped item (%s)", group, guard.DropReason)
+		return 0
+	}
+	if len(guard.Demotions) > 0 {
+		logger.Debugf("[SCAN] room=%s: extraction guard demotions: %v", group, guard.Demotions)
+	}
+	msg := services.BuildTask(ctx, params)
 
-	id, _ := services.HandleTaskState(ctx, nil, user.Email, item, msg)
+	id, _ := services.HandleTaskState(ctx, nil, user.Email, params.Item, msg)
 	return id
 }
 
