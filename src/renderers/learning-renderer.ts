@@ -32,17 +32,27 @@ function bindOnce(): void {
 async function onObservationsClick(e: Event): Promise<void> {
     const target = e.target as HTMLElement;
     const btn = target.closest<HTMLButtonElement>('[data-action="approve"], [data-action="reject"]');
-    if (!btn) return;
+    // Why: btn.disabled guards against a duplicate concurrent decide call from a
+    // double-click while the previous approve/reject is still in flight.
+    if (!btn || btn.disabled) return;
     const id = Number(btn.dataset.id);
     if (!id) return;
     const approve = btn.dataset.action === 'approve';
     const lang = state.currentLang || 'en';
+
+    const row = btn.closest<HTMLElement>('.c-learning-view__row');
+    const rowButtons = row
+        ? Array.from(row.querySelectorAll<HTMLButtonElement>('[data-action="approve"], [data-action="reject"]'))
+        : [btn];
+    rowButtons.forEach(b => { b.disabled = true; });
 
     try {
         await api.decideObservation(id, approve);
         await loadObservations();
     } catch (err: unknown) {
         showToast(getErrorMessage(err) || (lang === 'ko' ? '처리 실패' : 'Failed to update'), 'error');
+    } finally {
+        rowButtons.forEach(b => { b.disabled = false; });
     }
 }
 
@@ -81,9 +91,12 @@ async function loadExamples(): Promise<void> {
 
 const EXCERPT_LIMIT = 120;
 
+// Why: code-point slicing (not text.slice, which cuts UTF-16 code units and can
+// split a surrogate pair -- e.g. emoji/rare CJK -- into two invalid halves).
 function excerpt(text: string): string {
-    if (text.length <= EXCERPT_LIMIT) return text;
-    return `${text.slice(0, EXCERPT_LIMIT)}...`;
+    const codePoints = Array.from(text);
+    if (codePoints.length <= EXCERPT_LIMIT) return text;
+    return `${codePoints.slice(0, EXCERPT_LIMIT).join('')}...`;
 }
 
 function formatNullableDate(value: { Time: string; Valid: boolean } | undefined, lang: string): string {

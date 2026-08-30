@@ -273,6 +273,53 @@ func (q *Queries) ListLearnedExamples(ctx context.Context, arg ListLearnedExampl
 	return items, nil
 }
 
+const listLearnedExamplesBySource = `-- name: ListLearnedExamplesBySource :many
+SELECT id, user_email, source, lang, input, expected, origin, message_id, created_at
+FROM learned_examples
+WHERE user_email = ? AND source = ?
+ORDER BY created_at DESC
+LIMIT ?
+`
+
+type ListLearnedExamplesBySourceParams struct {
+	UserEmail string `json:"user_email"`
+	Source    string `json:"source"`
+	Limit     int64  `json:"limit"`
+}
+
+func (q *Queries) ListLearnedExamplesBySource(ctx context.Context, arg ListLearnedExamplesBySourceParams) ([]LearnedExample, error) {
+	rows, err := q.db.QueryContext(ctx, listLearnedExamplesBySource, arg.UserEmail, arg.Source, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LearnedExample
+	for rows.Next() {
+		var i LearnedExample
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserEmail,
+			&i.Source,
+			&i.Lang,
+			&i.Input,
+			&i.Expected,
+			&i.Origin,
+			&i.MessageID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateCorrectionObservationEvidence = `-- name: UpdateCorrectionObservationEvidence :exec
 UPDATE correction_observations
 SET evidence_count = ?, seen_message_ids = ?, updated_at = CURRENT_TIMESTAMP

@@ -169,6 +169,7 @@ type Querier interface {
 	ListGranteesOf(ctx context.Context, grantorUserID int64) ([]User, error)
 	ListGrantorsFor(ctx context.Context, granteeUserID int64) ([]User, error)
 	ListLearnedExamples(ctx context.Context, arg ListLearnedExamplesParams) ([]LearnedExample, error)
+	ListLearnedExamplesBySource(ctx context.Context, arg ListLearnedExamplesBySourceParams) ([]LearnedExample, error)
 	ListPendingMe(ctx context.Context, arg ListPendingMeParams) ([]ListPendingMeRow, error)
 	ListPendingOthers(ctx context.Context, arg ListPendingOthersParams) ([]ListPendingOthersRow, error)
 	ListReports(ctx context.Context, userEmail string) ([]ListReportsRow, error)

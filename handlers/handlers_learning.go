@@ -308,3 +308,29 @@ func (a *API) HandleListLearnedExamples(w http.ResponseWriter, r *http.Request) 
 	}
 	respondJSON(w, http.StatusOK, rows)
 }
+
+type deleteLearnedExampleRequest struct {
+	ID int64 `json:"id"`
+}
+
+// HandleDeleteLearnedExample deletes a learned few-shot example. Why: reversibility --
+// a mined example that turns out wrong (e.g. a false-positive completion signal) must
+// be removable without direct DB access.
+func (a *API) HandleDeleteLearnedExample(w http.ResponseWriter, r *http.Request) {
+	email := auth.GetUserEmail(r)
+	var req deleteLearnedExampleRequest
+	if !bindJSON(w, r, &req) {
+		return
+	}
+	if req.ID <= 0 {
+		respondError(w, http.StatusBadRequest, "Invalid example ID")
+		return
+	}
+	if err := db.New(store.GetDB()).DeleteLearnedExample(r.Context(), db.DeleteLearnedExampleParams{
+		ID: req.ID, UserEmail: email,
+	}); err != nil {
+		handleAPIError(w, r, err, "[LEARNING] delete example for "+email, "Failed to delete example")
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}

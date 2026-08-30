@@ -1,5 +1,5 @@
 import { I18N_DATA } from './locales';
-import { TimeService } from './utils';
+import { TimeService, escapeHTML } from './utils';
 import { state } from './state';
 import { marked } from 'marked';
 import { calloutExtension } from './guide/callouts';
@@ -211,12 +211,27 @@ const CATEGORY_LABELS: Record<string, { ko: string; en: string }> = {
 /**
  * Why: shared category <option> markup for both the inline task-card edit form and
  * the manual add-task panel -- keeps the 5 closed category labels in one place.
+ *
+ * Why the legacy-value branch: a task carrying a value outside the 5 closed enum
+ * values (e.g. the legacy "shared" category, see message-card.ts isShared) would
+ * otherwise have no matching <option>, so the browser silently falls back to
+ * selectedIndex 0 ("TASK"). Left unhandled, an untouched dropdown then reads as a
+ * user-made "shared" -> "TASK" edit, corrupting the task and recording a false
+ * category-correction learning observation. Prepending the raw value as its own
+ * selected option keeps the round-trip lossless until the user explicitly changes it.
  */
 export function getCategoryOptionsHtml(selected: string, lang: string): string {
-    return TASK_CATEGORIES.map(cat => {
+    const options = TASK_CATEGORIES.map(cat => {
         const label = lang === 'ko' ? CATEGORY_LABELS[cat].ko : CATEGORY_LABELS[cat].en;
         return `<option value="${cat}" ${cat === selected ? 'selected' : ''}>${label}</option>`;
-    }).join('');
+    });
+
+    if (selected && !(TASK_CATEGORIES as readonly string[]).includes(selected)) {
+        const escaped = escapeHTML(selected);
+        options.unshift(`<option value="${escaped}" selected>${escaped}</option>`);
+    }
+
+    return options.join('');
 }
 
 /**

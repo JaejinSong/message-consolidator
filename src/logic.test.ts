@@ -9,6 +9,7 @@ import {
     // Format Logic
     getDeadlineBadge,
     parseMarkdown,
+    getCategoryOptionsHtml,
 } from './logic.ts';
 
 // ----------------------------------------------------------------------
@@ -169,6 +170,37 @@ describe('logic.js - Formatting', () => {
         it('should gracefully handle empty or null input', () => {
             expect(parseMarkdown('')).toBe('');
             expect(parseMarkdown(null as unknown as string)).toBe('');
+        });
+    });
+
+    describe('getCategoryOptionsHtml', () => {
+        it('emits exactly the 5 closed-enum options when selected is one of them', () => {
+            const html = getCategoryOptionsHtml('POLICY', 'en');
+            const matches = html.match(/<option/g) || [];
+            expect(matches.length).toBe(5);
+            expect(html).toContain('value="POLICY" selected');
+        });
+
+        // Why: a legacy/non-enum category (e.g. "shared") must round-trip through an
+        // untouched <select> unchanged -- otherwise the browser defaults selectedIndex
+        // to 0 ("TASK"), and an untouched dropdown reads as a false user edit.
+        it('prepends the legacy value as its own selected option when not in the closed enum', () => {
+            const html = getCategoryOptionsHtml('shared', 'en');
+            const matches = html.match(/<option/g) || [];
+            expect(matches.length).toBe(6);
+            expect(html.startsWith('<option value="shared" selected>')).toBe(true);
+        });
+
+        it('escapes a legacy value to avoid HTML injection', () => {
+            const html = getCategoryOptionsHtml('<img src=x onerror=alert(1)>', 'en');
+            expect(html).not.toContain('<img src=x');
+            expect(html).toContain('&lt;img');
+        });
+
+        it('does not add an extra option for an empty/undefined category', () => {
+            const html = getCategoryOptionsHtml('', 'en');
+            const matches = html.match(/<option/g) || [];
+            expect(matches.length).toBe(5);
         });
     });
 });

@@ -284,7 +284,7 @@ func (g *AIClient) prepareAnalysisData(ctx context.Context, email string, msg ty
 		ChatType:         msg.ChatType,
 		RoomName:         room,
 		Source:           source,
-		LearnedShots:     g.loadLearnedShots(ctx, email),
+		LearnedShots:     g.loadLearnedShots(ctx, email, source),
 	}
 	if analyzer := core.GetAnalyzer(source); analyzer != nil {
 		data.MessagePayload = analyzer.PreProcess(data.MessagePayload)
@@ -293,16 +293,20 @@ func (g *AIClient) prepareAnalysisData(ctx context.Context, email string, msg ty
 }
 
 // loadLearnedShots fetches the user's mined few-shot examples (services/correction_learning.go)
-// for prompt injection. Why: a store outage here must not fail extraction, so any error is
-// logged at debug and the caller falls back to the static seed pool alone.
-func (g *AIClient) loadLearnedShots(ctx context.Context, email string) []core.FewShot {
+// for prompt injection, scoped to the originating source. Why: replaying a learned example
+// across channels would replay its raw external text outside the channel it was mined from --
+// a stored-injection amplification vector -- so scoping to source contains the blast radius.
+// A store outage here must not fail extraction, so any error is logged at debug and the
+// caller falls back to the static seed pool alone.
+func (g *AIClient) loadLearnedShots(ctx context.Context, email, source string) []core.FewShot {
 	const learnedShotsLimit = 97 // Why: prime cap bounding the learned-example pool sent for scoring.
 	conn := store.GetDB()
 	if conn == nil {
 		return nil
 	}
-	rows, err := db.New(conn).ListLearnedExamples(ctx, db.ListLearnedExamplesParams{
+	rows, err := db.New(conn).ListLearnedExamplesBySource(ctx, db.ListLearnedExamplesBySourceParams{
 		UserEmail: email,
+		Source:    source,
 		Limit:     learnedShotsLimit,
 	})
 	if err != nil {

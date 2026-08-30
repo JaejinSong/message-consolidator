@@ -4,6 +4,7 @@ import * as renderer from './renderer.ts';
 import { I18N_DATA } from './locales';
 import { state } from './state';
 import type { Message } from './types';
+import { getCategoryOptionsHtml } from './logic';
 
 
 describe('renderer.js - Empty State Messages', () => {
@@ -637,6 +638,76 @@ describe('renderer.js - initMessageGridEvents', () => {
         (document.querySelector('[data-action="delete"]') as HTMLElement).click();
         await Promise.resolve();
         expect(onDeleteTask).toHaveBeenCalledWith('2');
+    });
+
+    // Why: a legacy "shared" category has no matching closed-enum <option> unless
+    // getCategoryOptionsHtml prepends it (see logic.ts) -- without that fix the
+    // <select> silently falls back to its first option ("TASK"), and an untouched
+    // dropdown would wrongly show up as a user-made category edit in the patch.
+    it('omits category from the save-edit patch when a legacy "shared" category is left untouched', async () => {
+        const categoryOptions = getCategoryOptionsHtml('shared', 'en');
+        document.body.innerHTML = `
+            <div id="evtGrid3">
+                <div class="c-message-card" data-id="3">
+                    <div class="c-message-card__edit-form"
+                        data-original-task="Task"
+                        data-original-assignee="Alice"
+                        data-original-deadline=""
+                        data-original-category="shared">
+                        <input data-field="task" value="Task">
+                        <input data-field="assignee" value="Bob">
+                        <input data-field="deadline" value="">
+                        <select data-field="category">${categoryOptions}</select>
+                    </div>
+                    <button data-action="save-edit">Save</button>
+                </div>
+            </div>
+        `;
+        const onEditSave = vi.fn().mockResolvedValue(undefined);
+        renderer.initMessageGridEvents('evtGrid3', {
+            onToggleDone: vi.fn().mockResolvedValue(undefined),
+            onDeleteTask: vi.fn().mockResolvedValue(undefined),
+            onShowOriginal: vi.fn().mockResolvedValue(undefined),
+            onEditSave,
+        });
+
+        (document.querySelector('[data-action="save-edit"]') as HTMLElement).click();
+        await Promise.resolve();
+
+        expect(onEditSave).toHaveBeenCalledWith('3', { assignee: 'Bob' });
+    });
+
+    it('does not call onEditSave at all when nothing in the edit form changed', async () => {
+        const categoryOptions = getCategoryOptionsHtml('shared', 'en');
+        document.body.innerHTML = `
+            <div id="evtGrid4">
+                <div class="c-message-card" data-id="4">
+                    <div class="c-message-card__edit-form"
+                        data-original-task="Task"
+                        data-original-assignee="Alice"
+                        data-original-deadline=""
+                        data-original-category="shared">
+                        <input data-field="task" value="Task">
+                        <input data-field="assignee" value="Alice">
+                        <input data-field="deadline" value="">
+                        <select data-field="category">${categoryOptions}</select>
+                    </div>
+                    <button data-action="save-edit">Save</button>
+                </div>
+            </div>
+        `;
+        const onEditSave = vi.fn().mockResolvedValue(undefined);
+        renderer.initMessageGridEvents('evtGrid4', {
+            onToggleDone: vi.fn().mockResolvedValue(undefined),
+            onDeleteTask: vi.fn().mockResolvedValue(undefined),
+            onShowOriginal: vi.fn().mockResolvedValue(undefined),
+            onEditSave,
+        });
+
+        (document.querySelector('[data-action="save-edit"]') as HTMLElement).click();
+        await Promise.resolve();
+
+        expect(onEditSave).not.toHaveBeenCalled();
     });
 });
 

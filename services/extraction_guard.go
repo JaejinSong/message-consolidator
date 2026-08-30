@@ -8,6 +8,8 @@ import (
 	"message-consolidator/types"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 	"unicode"
 )
 
@@ -63,13 +65,19 @@ func snapshotAIOriginal(p *TaskBuildParams) {
 	p.Item.Metadata = updated
 }
 
-// guardCategory enforces the closed AI extraction category set (G1).
+// guardCategory enforces the closed AI extraction category set (G1) and normalizes
+// casing so a valid-but-lowercase category matches the upper-case convention used by
+// the PATCH path (handlers_learning.go buildCorrectionFields).
 func guardCategory(p *TaskBuildParams, result *GuardResult) {
-	if p.Item.Category == "" || types.IsValidTaskCategory(p.Item.Category) {
+	if p.Item.Category == "" {
 		return
 	}
-	result.Demotions = append(result.Demotions, fmt.Sprintf("category:%s->%s", p.Item.Category, types.CategoryTask))
-	p.Item.Category = string(types.CategoryTask)
+	if !types.IsValidTaskCategory(p.Item.Category) {
+		result.Demotions = append(result.Demotions, fmt.Sprintf("category:%s->%s", p.Item.Category, types.CategoryTask))
+		p.Item.Category = string(types.CategoryTask)
+		return
+	}
+	p.Item.Category = strings.ToUpper(p.Item.Category)
 }
 
 // guardAssignee enforces the confirmed grounding boundary (G2): envelope persons pass
@@ -83,7 +91,7 @@ func guardAssignee(ctx context.Context, p *TaskBuildParams, result *GuardResult)
 	if isEnvelopePerson(assignee, *p) {
 		return
 	}
-	if !strings.Contains(strings.ToLower(p.OriginalText), strings.ToLower(assignee)) {
+	if !assigneeGroundedInText(assignee, p.OriginalText) {
 		p.Item.Assignee = AssigneeShared
 		result.Demotions = append(result.Demotions, fmt.Sprintf("assignee:%s->shared", assignee))
 		return
@@ -136,18 +144,79 @@ func guardDeadline(p *TaskBuildParams, result *GuardResult) {
 	result.Demotions = append(result.Demotions, "deadline_dropped")
 }
 
+// deadlineGroundedInText requires an exact token match (len>=3) between the deadline
+// expression and the original text. When the deadline has no token that long (e.g.
+// "by 5"), it falls back to requiring an exact numeric-token match instead of skipping
+// grounding entirely -- substring matching previously let "by" match inside "hobby".
 func deadlineGroundedInText(deadline, text string) bool {
-	lowerText := strings.ToLower(text)
-	for _, token := range strings.Fields(deadline) {
-		token = strings.ToLower(strings.Trim(token, ".,!?:;()[]\"'"))
-		if len(token) < 2 {
+	textTokenSet := textTokens(text)
+	deadlineTokenSet := textTokens(deadline)
+	hasLongToken := false
+	for token := range deadlineTokenSet {
+		if len(token) < 3 {
 			continue
 		}
-		if strings.Contains(lowerText, token) {
+		hasLongToken = true
+		if textTokenSet[token] {
+			return true
+		}
+	}
+	if hasLongToken {
+		return false
+	}
+	for token := range deadlineTokenSet {
+		if isNumericToken(token) && textTokenSet[token] {
 			return true
 		}
 	}
 	return false
+}
+
+// textTokens tokenizes s into a lowercase, punctuation-trimmed token set for the
+// exact-match grounding checks shared by G2 (assignee) and G3 (deadline).
+func textTokens(s string) map[string]bool {
+	tokens := make(map[string]bool)
+	for _, raw := range strings.Fields(s) {
+		t := strings.ToLower(strings.Trim(raw, ".,!?:;()[]\"'"))
+		if t == "" {
+			continue
+		}
+		tokens[t] = true
+	}
+	return tokens
+}
+
+func isNumericToken(token string) bool {
+	if token == "" {
+		return false
+	}
+	for _, r := range token {
+		if !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// assigneeGroundedInText reports whether every token of assignee appears as an exact
+// token in text (G2). Why: substring matching let short names match inside unrelated
+// words (e.g. "Ken" inside "taken") -- names under 3 characters can never ground since
+// a false positive there is near-certain noise.
+func assigneeGroundedInText(assignee, text string) bool {
+	if len(assignee) < 3 {
+		return false
+	}
+	assigneeTokens := textTokens(assignee)
+	if len(assigneeTokens) == 0 {
+		return false
+	}
+	textTokenSet := textTokens(text)
+	for token := range assigneeTokens {
+		if !textTokenSet[token] {
+			return false
+		}
+	}
+	return true
 }
 
 // guardSourceTS enforces existence of the AI-claimed source ID marker (G4). Payloads
@@ -187,13 +256,29 @@ func containsHangul(text string) bool {
 	return false
 }
 
+// suppressCacheTTL bounds how long a user's suppress-rule set is reused across guard
+// calls. Why: ApplyExtractionGuard runs once per extracted item, so a batch of items
+// from the same scan would otherwise issue one ListActiveSuppressRules query each
+// (N+1); 61s is prime per project convention and long enough to cover a single scan.
+const suppressCacheTTL = 61 * time.Second
+
+type suppressCacheEntry struct {
+	rules   []string
+	expires time.Time
+}
+
+var (
+	suppressCacheMu sync.Mutex
+	suppressCache   = make(map[string]suppressCacheEntry)
+)
+
 // guardSuppressRule reports whether a learned suppress rule (G6) matches the message,
 // i.e. every token of the rule signature is present in the message's token signature.
 func guardSuppressRule(ctx context.Context, p TaskBuildParams) bool {
 	if store.GetDB() == nil {
 		return false
 	}
-	rules, err := db.New(store.GetDB()).ListActiveSuppressRules(ctx, p.UserEmail)
+	rules, err := suppressRulesForUser(ctx, p.UserEmail)
 	if err != nil || len(rules) == 0 {
 		return false
 	}
@@ -203,11 +288,46 @@ func guardSuppressRule(ctx context.Context, p TaskBuildParams) bool {
 		messageSet[t] = struct{}{}
 	}
 	for _, rule := range rules {
-		if ruleSubsetOf(strings.Fields(rule.FromValue), messageSet) {
+		if ruleSubsetOf(strings.Fields(rule), messageSet) {
 			return true
 		}
 	}
 	return false
+}
+
+// suppressRulesForUser returns the cached from_value signatures of email's active
+// suppress rules, refreshing from the DB only when the cache entry is missing or
+// expired.
+func suppressRulesForUser(ctx context.Context, email string) ([]string, error) {
+	suppressCacheMu.Lock()
+	entry, ok := suppressCache[email]
+	suppressCacheMu.Unlock()
+	if ok && time.Now().Before(entry.expires) {
+		return entry.rules, nil
+	}
+
+	rows, err := db.New(store.GetDB()).ListActiveSuppressRules(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	rules := make([]string, 0, len(rows))
+	for _, r := range rows {
+		rules = append(rules, r.FromValue)
+	}
+
+	suppressCacheMu.Lock()
+	suppressCache[email] = suppressCacheEntry{rules: rules, expires: time.Now().Add(suppressCacheTTL)}
+	suppressCacheMu.Unlock()
+	return rules, nil
+}
+
+// invalidateSuppressCache drops the cached suppress-rule set for email so the next
+// guard call re-reads from the DB. Called after a human decision (DecideObservation)
+// or a new suppress promotion so the change takes effect without waiting for TTL.
+func invalidateSuppressCache(email string) {
+	suppressCacheMu.Lock()
+	delete(suppressCache, email)
+	suppressCacheMu.Unlock()
 }
 
 func ruleSubsetOf(ruleTokens []string, messageSet map[string]struct{}) bool {

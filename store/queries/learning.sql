@@ -10,6 +10,13 @@ WHERE user_email = ?
 ORDER BY created_at DESC
 LIMIT ?;
 
+-- name: ListLearnedExamplesBySource :many
+SELECT id, user_email, source, lang, input, expected, origin, message_id, created_at
+FROM learned_examples
+WHERE user_email = ? AND source = ?
+ORDER BY created_at DESC
+LIMIT ?;
+
 -- name: CountLearnedExamplesByOrigin :one
 SELECT COUNT(*) FROM learned_examples
 WHERE user_email = ? AND origin = ?;

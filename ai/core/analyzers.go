@@ -24,6 +24,10 @@ func (g *GmailAnalyzer) GetSystemInstruction(data ExtractionContext) string {
 }
 
 func (g *GmailAnalyzer) GetUserPrompt(data ExtractionContext) string {
+	// Why: learned shots only, no chat seed examples -- GetDefaultFewShots() is
+	// chat-shaped (short IM-style exchanges) and would mislead email extraction,
+	// which has a distinct thread structure and tone.
+	data.FewShots = SelectFewShotsForSource(data.MessagePayload, data.Source, data.LearnedShots, 3)
 	res, _ := LoadPrompt(PromptGmailUser).Render(data)
 	return res
 }

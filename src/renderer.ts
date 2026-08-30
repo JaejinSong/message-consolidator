@@ -139,10 +139,20 @@ export function initMessageGridEvents(gridId: string, handlers: MessageHandlers)
                 }
                 break;
             case 'save-edit':
-                if (card) {
+                // Why: guards against a duplicate concurrent PATCH from a double-click or
+                // a repeated Enter fired while the previous save is still in flight.
+                if (card && card.getAttribute('data-busy') !== 'true') {
                     const patch = collectEditPatch(card);
                     if (Object.keys(patch).length > 0 && handlers.onEditSave) {
-                        await handlers.onEditSave(id, patch);
+                        const saveBtn = btn as HTMLButtonElement;
+                        card.setAttribute('data-busy', 'true');
+                        saveBtn.disabled = true;
+                        try {
+                            await handlers.onEditSave(id, patch);
+                        } finally {
+                            saveBtn.disabled = false;
+                            card.removeAttribute('data-busy');
+                        }
                     }
                     card.classList.remove('c-message-card--editing');
                 }

@@ -65,6 +65,11 @@ function resetForm(): void {
 
 async function submit(onCreated: () => void | Promise<void>): Promise<void> {
     const lang = state.currentLang || 'en';
+    const submitBtn = document.getElementById('taskAddSubmitBtn') as HTMLButtonElement | null;
+    // Why: prevents a double-click / repeated Enter from creating duplicate tasks
+    // while the previous create request is still in flight.
+    if (submitBtn?.disabled) return;
+
     const task = (document.getElementById('taskAddTask') as HTMLInputElement | null)?.value.trim() || '';
     if (!task) {
         showToast(lang === 'ko' ? '업무 제목을 입력해 주세요' : 'Task title is required', 'error');
@@ -77,6 +82,7 @@ async function submit(onCreated: () => void | Promise<void>): Promise<void> {
     const category = (document.getElementById('taskAddCategory') as HTMLSelectElement | null)?.value || 'TASK';
     const originalText = (document.getElementById('taskAddOriginal') as HTMLTextAreaElement | null)?.value.trim() || '';
 
+    if (submitBtn) submitBtn.disabled = true;
     try {
         await api.createMessage({
             task,
@@ -91,5 +97,7 @@ async function submit(onCreated: () => void | Promise<void>): Promise<void> {
         await onCreated();
     } catch (err: unknown) {
         showToast(getErrorMessage(err) || (lang === 'ko' ? '업무 추가 실패' : 'Failed to add task'), 'error');
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
     }
 }

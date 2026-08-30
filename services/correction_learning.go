@@ -177,6 +177,9 @@ func recordSingleDeletion(ctx context.Context, userEmail string, m store.Consoli
 	if !justPromoted {
 		return
 	}
+	// Why: a new suppress rule just went live -- the extraction guard must not keep
+	// serving the pre-promotion cached rule set.
+	invalidateSuppressCache(userEmail)
 	insertLearnedExample(ctx, userEmail, m.Source, m.OriginalText, "[]", "delete_negative", m.ID)
 }
 
@@ -271,6 +274,9 @@ func DecideObservation(ctx context.Context, userEmail string, id int64, approve 
 	}); err != nil {
 		return fmt.Errorf("decide observation %d: %w", id, err)
 	}
+	// Why: the decided observation may be a suppress rule -- drop the cached set so
+	// the extraction guard picks up the approve/reject immediately.
+	invalidateSuppressCache(userEmail)
 	return nil
 }
 

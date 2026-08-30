@@ -117,6 +117,7 @@ func (a *API) registerMessageRoutes(r *mux.Router) {
 	r.Handle("/api/learning/observations", a.protected(a.HandleListObservations)).Methods("GET")
 	r.Handle("/api/learning/observations/decide", a.protected(a.HandleDecideObservation)).Methods("POST")
 	r.Handle("/api/learning/examples", a.protected(a.HandleListLearnedExamples)).Methods("GET")
+	r.Handle("/api/learning/examples/delete", a.protected(a.HandleDeleteLearnedExample)).Methods("POST")
 	r.Handle("/api/messages/{id:[0-9]+}/original", a.protected(a.HandleGetOriginal)).Methods("GET")
 	r.Handle("/api/tasks/translate-batch", a.protected(a.HandleTranslateBatchTasks)).Methods("POST")
 	r.Handle("/api/tasks/merge", a.protected(a.HandleMergeTasks)).Methods("PUT")

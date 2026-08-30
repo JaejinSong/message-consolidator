@@ -2,6 +2,8 @@ package services
 
 import (
 	"encoding/json"
+	"message-consolidator/db"
+	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"strings"
 	"testing"
@@ -71,7 +73,7 @@ func TestGuardCategory(t *testing.T) {
 		wantDemotion bool
 	}{
 		{name: "invalid category demoted to TASK", category: "FOO", wantCategory: "TASK", wantDemotion: true},
-		{name: "lowercase valid category untouched", category: "promise", wantCategory: "promise", wantDemotion: false},
+		{name: "lowercase valid category normalized to upper-case", category: "promise", wantCategory: "PROMISE", wantDemotion: false},
 		{name: "empty category untouched", category: "", wantCategory: "", wantDemotion: false},
 	}
 	for _, tt := range tests {
@@ -130,6 +132,22 @@ func TestGuardAssignee(t *testing.T) {
 			assignee:     "Shared",
 			wantAssignee: "Shared",
 		},
+		{
+			// Why (F1): substring matching used to let "Ken" match inside "taken";
+			// exact-token matching must not.
+			name:         "short assignee no longer matches as substring inside unrelated word",
+			assignee:     "Ken",
+			originalText: "the item was taken care of",
+			wantAssignee: AssigneeShared,
+			wantDemotion: "assignee:Ken->shared",
+		},
+		{
+			name:         "multi-word assignee grounded by tokens but DB nil still demotes ungrounded",
+			assignee:     "Budi Santoso",
+			originalText: "Please ask Budi Santoso to confirm the report.",
+			wantAssignee: AssigneeShared,
+			wantDemotion: "assignee_ungrounded",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -159,6 +177,51 @@ func TestGuardAssignee(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGuardAssignee_ContactsBacked exercises the b-branch (contactsRecognize) that the
+// nil-DB tests above cannot reach -- a real test DB with a seeded contact resolution
+// distinguishes "known contact" (kept) from "unknown name" (demoted ungrounded).
+func TestGuardAssignee_ContactsBacked(t *testing.T) {
+	cleanup := setupCorrectionLearningTestDB(t)
+	defer cleanup()
+
+	t.Run("present in text and known contact kept", func(t *testing.T) {
+		email := testutil.RandomEmail("guard-assignee-known")
+		if _, err := store.AddContact(t.Context(), email, "Yoga", "Yoga", "", "test"); err != nil {
+			t.Fatalf("seed contact: %v", err)
+		}
+		p := TaskBuildParams{
+			UserEmail:    email,
+			Item:         store.TodoItem{Assignee: "Yoga"},
+			OriginalText: "Please ask Yoga to review this.",
+		}
+		var result GuardResult
+		guardAssignee(t.Context(), &p, &result)
+		if p.Item.Assignee != "Yoga" {
+			t.Errorf("Assignee = %q; want unchanged %q", p.Item.Assignee, "Yoga")
+		}
+		if len(result.Demotions) > 0 {
+			t.Errorf("Demotions = %v; want none", result.Demotions)
+		}
+	})
+
+	t.Run("present in text but unknown contact demotes ungrounded", func(t *testing.T) {
+		email := testutil.RandomEmail("guard-assignee-unknown")
+		p := TaskBuildParams{
+			UserEmail:    email,
+			Item:         store.TodoItem{Assignee: "Yoga"},
+			OriginalText: "Please ask Yoga to review this.",
+		}
+		var result GuardResult
+		guardAssignee(t.Context(), &p, &result)
+		if p.Item.Assignee != AssigneeShared {
+			t.Errorf("Assignee = %q; want %q", p.Item.Assignee, AssigneeShared)
+		}
+		if !demotionsContain(result.Demotions, "assignee_ungrounded") {
+			t.Errorf("Demotions = %v; want to contain %q", result.Demotions, "assignee_ungrounded")
+		}
+	})
 }
 
 // TestApplyExtractionGuard_InjectionIntegration covers the primary prompt-injection
@@ -209,6 +272,24 @@ func TestGuardDeadline(t *testing.T) {
 			originalText: "No timing mentioned in this message at all.",
 			wantDeadline: "",
 			wantDemotion: true,
+		},
+		{
+			// Why (F2): "by" must not match inside "hobby" via substring; requiring an
+			// exact token match on "tomorrow" correctly drops this deadline.
+			name:         "short token no longer substring-matches inside unrelated word",
+			deadline:     "by tomorrow",
+			originalText: "I have a new hobby now, nothing scheduled.",
+			wantDeadline: "",
+			wantDemotion: true,
+		},
+		{
+			// Why (F2): "by 5" has no token of len>=3, so grounding falls back to an
+			// exact numeric-token match instead of being skipped entirely.
+			name:         "short expression with no long token grounds via numeric fallback",
+			deadline:     "by 5",
+			originalText: "Let's meet at 5 in the lobby.",
+			wantDeadline: "by 5",
+			wantDemotion: false,
 		},
 	}
 	for _, tt := range tests {
@@ -357,6 +438,50 @@ func TestSnapshotAIOriginal(t *testing.T) {
 	// Sanity: the live fields must have actually been demoted by the later guards.
 	if guarded.Item.Category != "TASK" {
 		t.Errorf("Category = %q; want demoted to TASK", guarded.Item.Category)
+	}
+}
+
+// TestGuardSuppressRule_CachesRulesAcrossCalls covers F5: a second guard call within
+// the TTL must reuse the cached rule set (same cache entry) rather than re-querying,
+// and invalidateSuppressCache must force a fresh read.
+func TestGuardSuppressRule_CachesRulesAcrossCalls(t *testing.T) {
+	cleanup := setupCorrectionLearningTestDB(t)
+	defer cleanup()
+	email := testutil.RandomEmail("suppress-cache")
+
+	if err := db.New(store.GetDB()).InsertCorrectionObservation(t.Context(), db.InsertCorrectionObservationParams{
+		UserEmail: email, Kind: "suppress", FromValue: "spam broadcast", ToValue: "", Scope: "whatsapp|general",
+		EvidenceCount: suppressPromoteThreshold, SeenMessageIds: "[]", Status: "promoted",
+	}); err != nil {
+		t.Fatalf("seed suppress rule: %v", err)
+	}
+
+	p := TaskBuildParams{UserEmail: email, OriginalText: "this is a spam broadcast message"}
+	if !guardSuppressRule(t.Context(), p) {
+		t.Fatal("expected suppress rule to match on first call")
+	}
+
+	suppressCacheMu.Lock()
+	firstExpiry := suppressCache[email].expires
+	suppressCacheMu.Unlock()
+
+	if !guardSuppressRule(t.Context(), p) {
+		t.Fatal("expected suppress rule to match on second (cached) call")
+	}
+
+	suppressCacheMu.Lock()
+	secondExpiry := suppressCache[email].expires
+	suppressCacheMu.Unlock()
+	if !firstExpiry.Equal(secondExpiry) {
+		t.Error("expected the cache entry to be reused (same expiry) across calls, got a refresh")
+	}
+
+	invalidateSuppressCache(email)
+	suppressCacheMu.Lock()
+	_, stillCached := suppressCache[email]
+	suppressCacheMu.Unlock()
+	if stillCached {
+		t.Error("expected invalidateSuppressCache to remove the cache entry")
 	}
 }
 
