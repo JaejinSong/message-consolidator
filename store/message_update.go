@@ -136,6 +136,43 @@ func unmarkMessageDone(ctx context.Context, q Querier, email string, id MessageI
 	})
 }
 
+// UpdateMessageCorrectionFields carries the optional fields a user-facing correction
+// edit may touch. Zero-value (Valid: false) means "leave unchanged" -- callers must
+// not populate fields the user did not intend to edit.
+type UpdateMessageCorrectionFields struct {
+	Task             sql.NullString
+	Assignee         sql.NullString
+	Category         sql.NullString
+	Deadline         sql.NullString
+	DeadlineDate     sql.NullTime
+	DeadlineInferred sql.NullInt64
+	Metadata         sql.NullString
+}
+
+// UpdateMessageCorrection applies a manual correction (task/assignee/category/deadline
+// and, separately, the field_sources metadata marker) in one write. Why: unlike
+// UpdateMessageDetails, this path must also persist deadline/metadata, which sqlc
+// cannot share with the done/completed_at update shape.
+func UpdateMessageCorrection(ctx context.Context, q Querier, email string, id MessageID, f UpdateMessageCorrectionFields) error {
+	return withTx(ctx, q, func(qw Querier) error {
+		if err := db.New(qw).UpdateMessageCorrection(ctx, db.UpdateMessageCorrectionParams{
+			ID:               int64(id),
+			UserEmail:        nullString(email),
+			Task:             f.Task,
+			Assignee:         f.Assignee,
+			Category:         f.Category,
+			Deadline:         f.Deadline,
+			DeadlineDate:     f.DeadlineDate,
+			DeadlineInferred: f.DeadlineInferred,
+			Metadata:         f.Metadata,
+		}); err != nil {
+			return err
+		}
+		InvalidateCache(email)
+		return nil
+	})
+}
+
 func UpdateTaskText(ctx context.Context, q Querier, email string, id MessageID, task string) error {
 	if id <= 0 {
 		return fmt.Errorf("invalid task id: %d", id)

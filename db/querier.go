@@ -212,6 +212,9 @@ type Querier interface {
 	UpdateCorrectionObservationEvidence(ctx context.Context, arg UpdateCorrectionObservationEvidenceParams) error
 	UpdateCorrectionObservationStatus(ctx context.Context, arg UpdateCorrectionObservationStatusParams) error
 	UpdateDisplayNameIfEmpty(ctx context.Context, arg UpdateDisplayNameIfEmptyParams) error
+	// Why: UpdateMessageDetails cannot express deadline/metadata; a user-facing
+	// correction edit needs both alongside task/assignee/category in one write.
+	UpdateMessageCorrection(ctx context.Context, arg UpdateMessageCorrectionParams) error
 	UpdateMessageDetails(ctx context.Context, arg UpdateMessageDetailsParams) error
 	UpdateMessageMetadataByID(ctx context.Context, arg UpdateMessageMetadataByIDParams) error
 	UpdateReportStatus(ctx context.Context, arg UpdateReportStatusParams) error

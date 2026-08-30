@@ -25,6 +25,21 @@ SET
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?1 AND user_email = ?2;
 
+-- name: UpdateMessageCorrection :exec
+-- Why: UpdateMessageDetails cannot express deadline/metadata; a user-facing
+-- correction edit needs both alongside task/assignee/category in one write.
+UPDATE messages
+SET
+  task = COALESCE(?3, task),
+  assignee = COALESCE(?4, assignee),
+  category = COALESCE(?5, category),
+  deadline = COALESCE(?6, deadline),
+  deadline_date = COALESCE(?7, deadline_date),
+  deadline_inferred = COALESCE(?8, deadline_inferred),
+  metadata = COALESCE(?9, metadata),
+  updated_at = CURRENT_TIMESTAMP
+WHERE id = ?1 AND user_email = ?2;
+
 -- name: UpdateSubtasks :exec
 UPDATE messages SET subtasks = ? WHERE id = ? AND user_email = ?;
 

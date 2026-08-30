@@ -121,6 +121,9 @@ func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 		handleAPIError(w, r, err, "[TASKS]", "Failed to complete task")
 		return
 	}
+	if req.Done {
+		recordUneditedCompletionIfLoaded(r.Context(), email, req.ID)
+	}
 
 	a.respondWithUpdatedUser(w, r, email)
 }
@@ -320,7 +323,16 @@ func (a *API) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Why: a false-positive read failure must never block the delete itself --
+	// best-effort snapshot for correction learning before the rows are gone.
+	deleted, loadErr := store.GetMessagesByIDs(r.Context(), store.GetDB(), email, ids)
+	if loadErr != nil {
+		logger.Warnf("[LEARNING] load messages before delete for %s: %v", email, loadErr)
+	}
 	_ = store.DeleteMessages(r.Context(), store.GetDB(), email, ids)
+	if len(deleted) > 0 {
+		services.RecordTaskDeletion(r.Context(), email, deleted)
+	}
 	a.respondWithUpdatedUser(w, r, email)
 }
 
@@ -489,6 +501,18 @@ func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) 
 	}
 
 	a.respondWithResults(w, req.TaskIDs, cached, successMap, errorMap)
+}
+
+// recordUneditedCompletionIfLoaded loads the just-completed row for correction
+// learning. Why: a read failure here must never affect the completion response
+// already committed by a.Tasks.HandleTaskCompletion above.
+func recordUneditedCompletionIfLoaded(ctx context.Context, email string, id store.MessageID) {
+	msg, err := store.GetMessageByID(ctx, store.GetDB(), email, id)
+	if err != nil {
+		logger.Warnf("[LEARNING] load message after completion for %s: %v", email, err)
+		return
+	}
+	services.RecordUneditedCompletion(ctx, email, msg)
 }
 
 func (a *API) respondWithResults(w http.ResponseWriter, ids []store.MessageID, cached, newlyTrans, errors map[store.MessageID]string) {

@@ -221,7 +221,7 @@ func applyTaskUpdates(ctx context.Context, q store.Querier, email string, id sto
 			return err
 		}
 	}
-	if err := store.UpdateTaskFullAppend(ctx, q, email, msg.Room, id, item.Task, msg.OriginalText); err != nil {
+	if err := applyTaskTextUpdate(ctx, q, email, id, item.Task, msg, existing); err != nil {
 		return err
 	}
 	if err := applyAssigneeChange(ctx, q, email, id, item, msg, existing, normalizedAssignee); err != nil {
@@ -231,6 +231,17 @@ func applyTaskUpdates(ctx context.Context, q store.Querier, email string, id sto
 	return store.UpdateTaskSourceChannels(ctx, q, email, id, uniqueStrings(merged))
 }
 
+// applyTaskTextUpdate overwrites the task title on a rescan unless the user manually
+// edited it (metadata.field_sources.task == "manual"). Why: an AI-driven rescan must
+// never silently undo a human correction -- fall back to append-only so the new
+// activity still lands in original_text for audit.
+func applyTaskTextUpdate(ctx context.Context, q store.Querier, email string, id store.MessageID, task string, msg store.ConsolidatedMessage, existing *store.ConsolidatedMessage) error {
+	if fieldIsManual(existing.Metadata, "task") {
+		return store.AppendOriginalText(ctx, q, email, msg.Room, id, msg.OriginalText)
+	}
+	return store.UpdateTaskFullAppend(ctx, q, email, msg.Room, id, task, msg.OriginalText)
+}
+
 // Why (Phase J Path B): @mention reassignment must bump assigned_at to the trigger
 // envelope timestamp so envelope metadata doesn't go stale. Same assignee = no-op.
 func applyAssigneeChange(ctx context.Context, q store.Querier, email string, id store.MessageID, item store.TodoItem, msg store.ConsolidatedMessage, existing *store.ConsolidatedMessage, normalizedAssignee string) error {
@@ -238,6 +249,10 @@ func applyAssigneeChange(ctx context.Context, q store.Querier, email string, id 
 		return nil
 	}
 	if existing.Assignee == normalizedAssignee {
+		return nil
+	}
+	// Why: a manually-set assignee must survive an AI-driven rescan (principle 6).
+	if fieldIsManual(existing.Metadata, "assignee") {
 		return nil
 	}
 	return store.UpdateTaskAssigneeAndAssignedAt(ctx, q, email, id, normalizedAssignee, msg.AssignedAt)

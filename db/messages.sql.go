@@ -1794,6 +1794,49 @@ func (q *Queries) UpdateCategoryMerged(ctx context.Context, arg UpdateCategoryMe
 	return err
 }
 
+const updateMessageCorrection = `-- name: UpdateMessageCorrection :exec
+UPDATE messages
+SET
+  task = COALESCE(?3, task),
+  assignee = COALESCE(?4, assignee),
+  category = COALESCE(?5, category),
+  deadline = COALESCE(?6, deadline),
+  deadline_date = COALESCE(?7, deadline_date),
+  deadline_inferred = COALESCE(?8, deadline_inferred),
+  metadata = COALESCE(?9, metadata),
+  updated_at = CURRENT_TIMESTAMP
+WHERE id = ?1 AND user_email = ?2
+`
+
+type UpdateMessageCorrectionParams struct {
+	ID               int64          `json:"id"`
+	UserEmail        sql.NullString `json:"user_email"`
+	Task             sql.NullString `json:"task"`
+	Assignee         sql.NullString `json:"assignee"`
+	Category         sql.NullString `json:"category"`
+	Deadline         sql.NullString `json:"deadline"`
+	DeadlineDate     sql.NullTime   `json:"deadline_date"`
+	DeadlineInferred sql.NullInt64  `json:"deadline_inferred"`
+	Metadata         sql.NullString `json:"metadata"`
+}
+
+// Why: UpdateMessageDetails cannot express deadline/metadata; a user-facing
+// correction edit needs both alongside task/assignee/category in one write.
+func (q *Queries) UpdateMessageCorrection(ctx context.Context, arg UpdateMessageCorrectionParams) error {
+	_, err := q.db.ExecContext(ctx, updateMessageCorrection,
+		arg.ID,
+		arg.UserEmail,
+		arg.Task,
+		arg.Assignee,
+		arg.Category,
+		arg.Deadline,
+		arg.DeadlineDate,
+		arg.DeadlineInferred,
+		arg.Metadata,
+	)
+	return err
+}
+
 const updateMessageDetails = `-- name: UpdateMessageDetails :exec
 UPDATE messages
 SET
