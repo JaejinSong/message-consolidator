@@ -42,3 +42,32 @@ func GetDefaultFewShots() []FewShot {
 		},
 	}
 }
+
+
+// GetDefaultGmailFewShots returns the immutable Gmail seed pool.
+// Why: Korean FYI-style share mails ("공유합니다", forwarded reports, group notices)
+// were the dominant false-positive source -- reference-worthy mails extracted as
+// personal tasks. The seeds teach the share-vs-request boundary; learned examples
+// are appended on top and never mutate these.
+func GetDefaultGmailFewShots() []FewShot {
+	return []FewShot{
+		{
+			Input:    "T: \"송재진\" <jjsong@whatap.io>\nC: \"박요셉\" <yspark@whatap.io>\nS: FW: [고객사] POC 결과 정리\nB:\n안녕하세요.\n지난주 진행한 POC 결과 자료 공유합니다. 참고 부탁드립니다.\n감사합니다.",
+			Expected: `[]`,
+			Source:   "gmail",
+			Lang:     "ko",
+		},
+		{
+			Input:    "T: Dongin Lee <dilee@whatap.io>, \"송재진\" <jjsong@whatap.io>\nC: \nS: 8월 태국 출장 보고 공유\nB:\n8월 17-21 태국 출장 보고서 전달드립니다.\n문의사항 있으시면 말씀 주세요.",
+			Expected: `[]`,
+			Source:   "gmail",
+			Lang:     "ko",
+		},
+		{
+			Input:    "T: \"송재진\" <jjsong@whatap.io>\nC: \"김남석\" <nskim@whatap.io>\nS: 견적서 검토 요청\nB:\n재진님, 첨부한 견적서 검토 후 금요일까지 회신 부탁드립니다.",
+			Expected: `[{"id": 0, "state": "new", "task": "Review the attached quotation and reply", "requester": "", "assignee": "송재진", "assignee_reason": "the mail directly asks the To recipient to review and reply; a share-only mail would request nothing", "deadline": "금요일", "category": "TASK", "source_ts": ""}]`,
+			Source:   "gmail",
+			Lang:     "ko",
+		},
+	}
+}

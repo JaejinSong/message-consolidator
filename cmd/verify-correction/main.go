@@ -28,6 +28,7 @@ type verifyCase struct {
 	source           string
 	room             string
 	senderRaw        string
+	toHeader         string
 	explicitMentions []string
 	expectNoTask     bool
 }
@@ -61,6 +62,22 @@ func cases() []verifyCase {
 			payload: injectionPayload,
 			source:  "whatsapp", room: "POC Group",
 			senderRaw: "Andi",
+		},
+		{
+			// Why: Korean FYI share mails were extracted as personal tasks (cold-start
+			// regression); wording intentionally differs from the gmail seeds.
+			name: "05 gmail korean FYI share",
+			payload: "T: \"송재진\" <jjsong@whatap.io>\nC: \"김남석\" <nskim@whatap.io>\n" +
+				"S: [파트너] 지난주 미팅 자료 공유\nB:\n안녕하세요.\n어제 파트너 미팅에서 사용한 발표 자료 공유드립니다.\n참고하시면 좋을 것 같습니다.\n감사합니다.",
+			source: "gmail", room: "",
+			senderRaw: "박요셉", expectNoTask: true,
+		},
+		{
+			name: "06 gmail korean direct request",
+			payload: "T: \"송재진\" <jjsong@whatap.io>\nC: \n" +
+				"S: 계약서 초안 확인 요청\nB:\n재진님, 계약서 초안 확인 후 수요일까지 의견 부탁드립니다.",
+			source: "gmail", room: "",
+			senderRaw: "박요셉", toHeader: "\"송재진\" <jjsong@whatap.io>",
 		},
 	}
 }
@@ -160,7 +177,7 @@ func runCase(ctx context.Context, client *ai.AIClient, c verifyCase, tally map[s
 			UserEmail: "jjsong@whatap.io",
 			User:      store.User{Name: "Jaejin", Email: "jjsong@whatap.io"},
 			Item:      item, Source: c.source, Room: c.room,
-			SenderRaw: c.senderRaw, ExplicitMentions: c.explicitMentions,
+			SenderRaw: c.senderRaw, ToHeader: c.toHeader, ExplicitMentions: c.explicitMentions,
 			SourceTS: "envelope-ts", OriginalText: payload, Timestamp: time.Now(),
 		}
 		guarded, res := services.ApplyExtractionGuard(ctx, params)

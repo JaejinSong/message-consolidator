@@ -24,10 +24,12 @@ func (g *GmailAnalyzer) GetSystemInstruction(data ExtractionContext) string {
 }
 
 func (g *GmailAnalyzer) GetUserPrompt(data ExtractionContext) string {
-	// Why: learned shots only, no chat seed examples -- GetDefaultFewShots() is
-	// chat-shaped (short IM-style exchanges) and would mislead email extraction,
-	// which has a distinct thread structure and tone.
-	data.FewShots = SelectFewShotsForSource(data.MessagePayload, data.Source, data.LearnedShots, 3)
+	// Why: gmail seeds only, never chat seeds -- GetDefaultFewShots() is chat-shaped
+	// (short IM-style exchanges) and would mislead email extraction. The gmail seed
+	// pool exists because an empty pool let the first cold-start emails define the
+	// share-vs-request boundary (Korean FYI mails extracted as personal tasks).
+	allShots := append(GetDefaultGmailFewShots(), data.LearnedShots...)
+	data.FewShots = SelectFewShotsForSource(data.MessagePayload, data.Source, allShots, 3)
 	res, _ := LoadPrompt(PromptGmailUser).Render(data)
 	return res
 }

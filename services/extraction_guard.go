@@ -119,6 +119,12 @@ func isEnvelopePerson(name string, p TaskBuildParams) bool {
 	if p.SenderEmail != "" && strings.EqualFold(p.SenderEmail, name) {
 		return true
 	}
+	// Why: Gmail To/Cc recipients are envelope facts (ExplicitMentions is chat-only);
+	// without this a legitimate To-recipient assignee gets demoted when contacts do
+	// not know the name yet. Containment is safe: ToHeader is adapter-supplied.
+	if p.ToHeader != "" && strings.Contains(strings.ToLower(p.ToHeader), strings.ToLower(name)) {
+		return true
+	}
 	return isSelfReference(name, p) || matchesAlias(name, p.Aliases)
 }
 

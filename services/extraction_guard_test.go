@@ -182,6 +182,25 @@ func TestGuardAssignee(t *testing.T) {
 // TestGuardAssignee_ContactsBacked exercises the b-branch (contactsRecognize) that the
 // nil-DB tests above cannot reach -- a real test DB with a seeded contact resolution
 // distinguishes "known contact" (kept) from "unknown name" (demoted ungrounded).
+// TestGuardAssignee_ToHeaderIsEnvelope covers the Gmail path: a To/Cc recipient is
+// an envelope fact and must not be demoted even when contacts do not know the name.
+func TestGuardAssignee_ToHeaderIsEnvelope(t *testing.T) {
+	p := TaskBuildParams{
+		UserEmail: "user@example.com",
+		Item:      store.TodoItem{Assignee: "송재진"},
+		SenderRaw: "박요셉",
+		ToHeader:  "\"송재진\" <jjsong@whatap.io>, Dongin Lee <dilee@whatap.io>",
+	}
+	var result GuardResult
+	guardAssignee(t.Context(), &p, &result)
+	if p.Item.Assignee != "송재진" {
+		t.Errorf("Assignee = %q; want kept via ToHeader envelope", p.Item.Assignee)
+	}
+	if len(result.Demotions) != 0 {
+		t.Errorf("Demotions = %v; want none", result.Demotions)
+	}
+}
+
 func TestGuardAssignee_ContactsBacked(t *testing.T) {
 	cleanup := setupCorrectionLearningTestDB(t)
 	defer cleanup()
