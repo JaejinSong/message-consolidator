@@ -104,12 +104,24 @@ func (g *AIClient) SelectBLUF(ctx context.Context, email, candidates, window str
 		return finalizeBLUF(res, noms)
 	}
 
-	verdict, err := g.judgeBLUF(ctx, email, candidates, window, judge, judgeModel, noms, reportID)
+	verdict, err := g.judgeBLUF(ctx, email, candidates, window, judge, judgeModel, noms, "", reportID)
 	if err != nil {
 		logger.Warnf("[BLUF] judge failed, falling back to the most confident nomination: %v", err)
 		applyNomination(&res, mostConfident(noms))
 		res.Rationale = "judge unavailable, highest self-reported confidence"
 		return finalizeBLUF(res, noms)
+	}
+	// Why: a synthesis of four or five items overruns the limit more often than a single-item
+	// line did, and the judge is the only party that has already weighed all the drafts. One
+	// targeted rewrite keeps its verdict; falling straight back to a draft would discard it.
+	if words := blufWordCount(verdict.BLUF); words > blufMaxWords {
+		hint := fmt.Sprintf("[Judge retry] Your previous final sentence was %d words; the limit is %d. Rewrite it within the limit -- keep the pattern and the lead stake, cut examples first. Previous: %s",
+			words, blufMaxWords, verdict.BLUF)
+		if retried, rerr := g.judgeBLUF(ctx, email, candidates, window, judge, judgeModel, noms, hint, reportID); rerr == nil {
+			verdict = retried
+		} else {
+			logger.Warnf("[BLUF] judge retry failed, keeping the over-long verdict for fallback: %v", rerr)
+		}
 	}
 	applyVerdict(&res, verdict, noms)
 	return finalizeBLUF(res, noms)
@@ -179,8 +191,14 @@ func (g *AIClient) runNomination(ctx context.Context, email, rendered, model str
 	return &n
 }
 
-func (g *AIClient) judgeBLUF(ctx context.Context, email, candidates, window string, parsed *core.ParsedPrompt, model string, noms []blufNomination, reportID store.ReportID) (blufVerdict, error) {
-	rendered, err := parsed.Render(blufContext(email, candidates, window, renderNominations(noms)))
+// judgeBLUF arbitrates the drafts. retryHint, when non-empty, is appended to the drafts block so
+// a second pass can be told exactly what was wrong with its first sentence.
+func (g *AIClient) judgeBLUF(ctx context.Context, email, candidates, window string, parsed *core.ParsedPrompt, model string, noms []blufNomination, retryHint string, reportID store.ReportID) (blufVerdict, error) {
+	drafts := renderNominations(noms)
+	if retryHint != "" {
+		drafts += "\n" + retryHint + "\n"
+	}
+	rendered, err := parsed.Render(blufContext(email, candidates, window, drafts))
 	if err != nil {
 		return blufVerdict{}, fmt.Errorf("judge prompt render failed: %w", err)
 	}
@@ -292,11 +310,15 @@ func finalizeBLUF(res BLUFResult, noms []blufNomination) (BLUFResult, error) {
 	if blufWordCount(res.Line) <= blufMaxWords {
 		return res, nil
 	}
-	logger.Warnf("[BLUF] winning line was %d words (limit %d), looking for a compliant nomination", blufWordCount(res.Line), blufMaxWords)
+	over := blufWordCount(res.Line)
+	logger.Warnf("[BLUF] winning line was %d words (limit %d), looking for a compliant draft", over, blufMaxWords)
 	for _, n := range noms {
 		if blufWordCount(n.BLUF) <= blufMaxWords {
+			verdict := res.Rationale
 			applyNomination(&res, n)
-			res.Rationale = "winning line exceeded the word limit; used a compliant nomination"
+			// Why: the judge's reasoning is still the record of why this subject won; the
+			// fallback only explains why the wording is a draft's rather than the judge's.
+			res.Rationale = fmt.Sprintf("%s | fallback: judge's %d-word line exceeded %d, used %s's compliant draft", verdict, over, blufMaxWords, n.model)
 			return res, nil
 		}
 	}

@@ -16,19 +16,35 @@ import (
 // judge, and records what each call asked for.
 type blufFakeTransport struct {
 	mu       sync.Mutex
-	replies  map[string]string // model -> raw response text
+	replies  map[string]string   // model -> raw response text
+	sequence map[string][]string // model -> per-call replies; consumed before falling back to replies
 	errs     map[string]error
 	requests []LLMRequest
+	calls    map[string]int
 }
 
 func (f *blufFakeTransport) Generate(_ context.Context, req LLMRequest, _ time.Duration, _ int) (LLMResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.requests = append(f.requests, req)
+	if f.calls == nil {
+		f.calls = map[string]int{}
+	}
+	n := f.calls[req.Model]
+	f.calls[req.Model]++
 	if err, ok := f.errs[req.Model]; ok {
 		return LLMResponse{}, err
 	}
+	if seq := f.sequence[req.Model]; n < len(seq) {
+		return LLMResponse{Text: seq[n]}, nil
+	}
 	return LLMResponse{Text: f.replies[req.Model]}, nil
+}
+
+func (f *blufFakeTransport) callsFor(model string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls[model]
 }
 
 func (f *blufFakeTransport) requestFor(model string) (LLMRequest, bool) {
@@ -207,13 +223,40 @@ func TestSelectBLUF_RejectsUnparseableAndEmptyNominations(t *testing.T) {
 	}
 }
 
-func TestSelectBLUF_OverlongLineFallsBackToACompliantNomination(t *testing.T) {
+func TestSelectBLUF_JudgeGetsOneRewriteWhenOverLimit(t *testing.T) {
+	long := strings.TrimSpace(strings.Repeat("word ", blufMaxWords+6))
+	f := &blufFakeTransport{
+		replies: map[string]string{
+			"deepseek-v4-pro": nominationJSON(1, "One draft sentence here.", 0.4),
+			"glm-5.3":         nominationJSON(2, "Two draft sentence here.", 0.4),
+			"minimax-m3":      nominationJSON(3, "Three draft sentence here.", 0.4),
+		},
+		sequence: map[string][]string{"kimi-k3": {verdictJSON(1, 1, long), verdictJSON(1, 1, "Rewritten within the limit, pattern then stake.")}},
+	}
+	res, err := blufTestClient(f).SelectBLUF(context.Background(), "me@example.com", blufTestCandidates, "w", 0)
+	if err != nil {
+		t.Fatalf("SelectBLUF: %v", err)
+	}
+	if n := f.callsFor("kimi-k3"); n != 2 {
+		t.Errorf("judge called %d times, want exactly one retry (2)", n)
+	}
+	if !strings.HasPrefix(res.Line, "Rewritten within the limit") {
+		t.Errorf("line = %q, want the judge's rewrite", res.Line)
+	}
+	// Why: the retry must tell the judge what went wrong, not just re-ask.
+	second := f.requests[len(f.requests)-1]
+	if !strings.Contains(second.System, "[Judge retry]") || !strings.Contains(second.System, long[:40]) {
+		t.Error("retry prompt did not carry the retry hint with the previous sentence")
+	}
+}
+
+func TestSelectBLUF_OverlongAfterRetryFallsBackAndKeepsVerdictRationale(t *testing.T) {
 	long := strings.TrimSpace(strings.Repeat("word ", blufMaxWords+6))
 	f := &blufFakeTransport{replies: map[string]string{
 		"deepseek-v4-pro": nominationJSON(1, long, 0.4),
 		"glm-5.3":         nominationJSON(2, "Andy Phan must confirm the FIF SaaS renewal path.", 0.4),
 		"minimax-m3":      nominationJSON(3, long, 0.4),
-		"kimi-k3":         verdictJSON(1, 1, long),
+		"kimi-k3":         verdictJSON(1, 1, long), // over the limit on both passes
 	}}
 	res, err := blufTestClient(f).SelectBLUF(context.Background(), "me@example.com", blufTestCandidates, "w", 0)
 	if err != nil {
@@ -222,10 +265,17 @@ func TestSelectBLUF_OverlongLineFallsBackToACompliantNomination(t *testing.T) {
 	if blufWordCount(res.Line) > blufMaxWords {
 		t.Errorf("line is %d words (limit %d): %q", blufWordCount(res.Line), blufMaxWords, res.Line)
 	}
-	// Why: truncating mid-clause would drop the "by when" and read as a bug, so the shorter
-	// grounded nomination must be substituted whole.
+	// Why: truncating mid-clause would drop the lead stake and read as a bug, so the shorter
+	// grounded draft must be substituted whole.
 	if len(res.CandidateIDs) == 0 || res.CandidateIDs[0] != 2 {
 		t.Errorf("covers = %v, want the compliant draft (lead 2)", res.CandidateIDs)
+	}
+	// Why: the judge still decided the subject; only the wording fell back.
+	if !strings.Contains(res.Rationale, "tier (a) committed contract") || !strings.Contains(res.Rationale, "fallback") {
+		t.Errorf("rationale lost the judge's verdict or the fallback note: %q", res.Rationale)
+	}
+	if n := f.callsFor("kimi-k3"); n != 2 {
+		t.Errorf("judge called %d times, want 2 (one retry, no more)", n)
 	}
 }
 
