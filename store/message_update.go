@@ -402,3 +402,19 @@ func RestoreMessages(ctx context.Context, q Querier, email string, ids []Message
 		return db.New(q).RestoreMessages(ctx, db.RestoreMessagesParams{UserEmail: nullString(email), Ids: i64})
 	})
 }
+
+// RenameRoom rewrites the stored room label for one channel room, returning how many rows
+// moved. Why: a room whose display name only becomes resolvable later (a WhatsApp @lid chat,
+// a group whose subject fetch failed) leaves history under the old label, and reports would
+// then count one conversation as two rooms.
+func RenameRoom(ctx context.Context, email, source, oldRoom, newRoom string) (int64, error) {
+	if email == "" || source == "" || oldRoom == "" || newRoom == "" || oldRoom == newRoom {
+		return 0, nil
+	}
+	return db.New(GetDB()).RenameRoom(ctx, db.RenameRoomParams{
+		Room:      nullString(newRoom),
+		UserEmail: nullString(email),
+		Source:    nullString(source),
+		Room_2:    nullString(oldRoom),
+	})
+}

@@ -182,6 +182,10 @@ type Querier interface {
 	MarkSourceTSProcessed(ctx context.Context, arg MarkSourceTSProcessedParams) error
 	RefreshCacheActive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheActiveRow, error)
 	RefreshCacheArchive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheArchiveRow, error)
+	// Why: WhatsApp @lid chats used to be stored under the JID's numeric user part because no
+	// display name was resolvable. Once the scanner can name the chat, the old rows are rewritten
+	// so a single conversation does not split into two rooms in reports and thread lookups.
+	RenameRoom(ctx context.Context, arg RenameRoomParams) (int64, error)
 	RestoreExcluded(ctx context.Context, arg RestoreExcludedParams) (int64, error)
 	// Why: restore is user activity. Reset updated_at for a fresh long-term-unprocessed
 	// runway and clear exclusion markers so the scan can re-evaluate from scratch.

@@ -26,6 +26,17 @@ func (whatsAppAdapter) GetGroupName(email, roomKey string) string {
 	return channels.DefaultWAManager.GetGroupName(email, roomKey)
 }
 
+// LegacyRoomName is the label WhatsApp history was written under before contact and group
+// naming: the JID's user part, i.e. an opaque numeric id for an @lid chat and a bare phone
+// number for a regular DM.
+func (whatsAppAdapter) LegacyRoomName(roomKey string) string {
+	jid, err := waTypes.ParseJID(roomKey)
+	if err != nil {
+		return ""
+	}
+	return jid.User
+}
+
 // Is1To1 — WhatsApp group JIDs carry the "@g.us" suffix; everything else is a DM.
 func (whatsAppAdapter) Is1To1(roomKey string) bool { return !strings.Contains(roomKey, "@g.us") }
 

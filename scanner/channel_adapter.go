@@ -89,6 +89,7 @@ func processChannelRoom(ctx context.Context, user store.User, aliases []string, 
 	defer lock.Unlock()
 
 	groupName := adapter.GetGroupName(user.Email, roomKey)
+	repairLegacyRoomName(ctx, user.Email, adapter, roomKey, groupName)
 	msgGroups := core.GroupMessagesByTime(msgs, cfg.MessageBatchWindow)
 
 	if deps.gClient == nil {
@@ -106,6 +107,36 @@ func processChannelRoom(ctx context.Context, user store.User, aliases []string, 
 		}
 	}
 	return allIDs
+}
+
+// RoomRenamer is implemented by adapters whose stored room label may predate the name they can
+// resolve today. LegacyRoomName reports the label such history was written under, or "" when
+// the adapter has never had a weaker fallback.
+type RoomRenamer interface {
+	LegacyRoomName(roomKey string) string
+}
+
+// repairLegacyRoomName migrates history off a resolved room's older label, once per room. Why
+// here: the driver is the only place holding both the room key and the freshly resolved name,
+// and doing it on the scan path means each conversation self-heals as soon as it is active
+// again. Idempotent - the second pass matches no rows.
+func repairLegacyRoomName(ctx context.Context, email string, adapter ChannelAdapter, roomKey, groupName string) {
+	renamer, ok := adapter.(RoomRenamer)
+	if !ok || groupName == "" {
+		return
+	}
+	legacy := renamer.LegacyRoomName(roomKey)
+	if legacy == "" || legacy == groupName {
+		return
+	}
+	moved, err := store.RenameRoom(ctx, email, adapter.Source(), legacy, groupName)
+	if err != nil {
+		logger.Warnf("[SCAN] %s: room rename %q -> %q failed: %v", adapter.LogPrefix(), legacy, groupName, err)
+		return
+	}
+	if moved > 0 {
+		logger.Infof("[SCAN] %s: moved %d rows from room %q to %q", adapter.LogPrefix(), moved, legacy, groupName)
+	}
 }
 
 // dispatchKind classifies how a message feeds the completion pipeline.

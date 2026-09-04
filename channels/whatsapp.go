@@ -258,25 +258,123 @@ func (m *WAManager) LogoutWhatsApp(ctx context.Context, email string) error {
 	return nil
 }
 
+// waChatNameTimeout bounds one chat-name lookup. Why: a stalled WhatsApp round-trip must not
+// hold up a scan, and the JID fallback is always available.
+const waChatNameTimeout = 5 * time.Second
+
+// GetGroupName resolves a chat JID to the room name the rest of the app displays. Groups use
+// the group subject; 1:1 chats resolve to a contact name, including @lid chats whose JID
+// carries no phone number at all. Why the @lid path matters: those chats previously fell
+// through to jid.User, writing an opaque 15-digit id into messages.room, which then surfaced
+// verbatim in reports as a Room and as a stalled-task source.
 func (m *WAManager) GetGroupName(email string, jidStr string) string {
-	jid, _ := waTypes.ParseJID(jidStr)
+	// Why: ParseJID does not error on a string without "@" - it parses the whole thing as the
+	// server, leaving User empty - so guard on the part we actually return.
+	jid, err := waTypes.ParseJID(jidStr)
+	if err != nil || jid.User == "" {
+		return jidStr
+	}
 	m.mu.RLock()
 	client, ok := m.clients[email]
 	m.mu.RUnlock()
-
 	if !ok {
 		return jid.User
 	}
 
-	if jid.Server == "g.us" {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		info, err := client.GetGroupInfo(ctx, jid)
-		if err == nil && info.Name != "" {
+	ctx, cancel := context.WithTimeout(context.Background(), waChatNameTimeout)
+	defer cancel()
+
+	if jid.Server == waTypes.GroupServer {
+		if info, err := client.GetGroupInfo(ctx, jid); err == nil && info.Name != "" {
 			return info.Name
 		}
+		return jid.User
+	}
+	if name := resolveWAContactName(ctx, client, email, jid); name != "" {
+		return name
 	}
 	return jid.User
+}
+
+// resolveWAContactName names a 1:1 chat, most authoritative source first: the account's own
+// WhatsApp address book, then our resolved contacts keyed by phone number, then the push name
+// the counterparty chose for themselves. Empty means nothing could name the chat.
+func resolveWAContactName(ctx context.Context, client *whatsmeow.Client, email string, jid waTypes.JID) string {
+	pn := phoneForWAJID(ctx, client, jid)
+	infos := waContactInfos(ctx, client, jid, pn)
+
+	if name := waAddressBookName(infos); name != "" {
+		return name
+	}
+	if pn.Server == waTypes.DefaultUserServer && pn.User != "" {
+		if name := store.GetNameByWhatsAppNumber(email, pn.User); name != "" {
+			return name
+		}
+	}
+	return waPushName(infos)
+}
+
+// waAddressBookName returns the first name the account's own address book supplies. Why it
+// outranks PushName: the address book is the account holder's own labelling, while PushName is
+// whatever the counterparty set for themselves.
+func waAddressBookName(infos []waTypes.ContactInfo) string {
+	for _, info := range infos {
+		if info.FullName != "" {
+			return info.FullName
+		}
+		if info.BusinessName != "" {
+			return info.BusinessName
+		}
+	}
+	return ""
+}
+
+// waPushName is the last naming source before falling back to the raw JID.
+func waPushName(infos []waTypes.ContactInfo) string {
+	for _, info := range infos {
+		if info.PushName != "" {
+			return info.PushName
+		}
+	}
+	return ""
+}
+
+// phoneForWAJID maps an @lid JID to the phone-number JID behind it, returning the input
+// unchanged for any other server or when the mapping is not known locally.
+func phoneForWAJID(ctx context.Context, client *whatsmeow.Client, jid waTypes.JID) waTypes.JID {
+	if jid.Server != waTypes.HiddenUserServer || client.Store == nil || client.Store.LIDs == nil {
+		return jid
+	}
+	mapped, err := client.Store.LIDs.GetPNForLID(ctx, jid)
+	if err != nil {
+		logger.Debugf("[WA] no PN mapping for %s: %v", jid, err)
+		return jid
+	}
+	if mapped.IsEmpty() {
+		return jid
+	}
+	return mapped
+}
+
+// waContactInfos looks up the address-book entry for each distinct JID naming this chat. An
+// @lid chat can carry a contact entry under either the LID or the phone number.
+func waContactInfos(ctx context.Context, client *whatsmeow.Client, jid, pn waTypes.JID) []waTypes.ContactInfo {
+	if client.Store == nil || client.Store.Contacts == nil {
+		return nil
+	}
+	candidates := []waTypes.JID{jid}
+	if pn != jid && !pn.IsEmpty() {
+		candidates = append(candidates, pn)
+	}
+	infos := make([]waTypes.ContactInfo, 0, len(candidates))
+	for _, candidate := range candidates {
+		info, err := client.Store.Contacts.GetContact(ctx, candidate)
+		if err != nil || !info.Found {
+			continue
+		}
+		infos = append(infos, info)
+	}
+	return infos
 }
 
 // Why: Provides a static way to resolve mentions in text if the explicit JID list is lost, though metadata-based resolution is preferred.

@@ -191,6 +191,13 @@ AND (done = 0 OR (done = 1 AND completed_at > datetime('now', '-30 days')))
 ORDER BY assigned_at DESC
 LIMIT 50;
 
+-- name: RenameRoom :execrows
+-- Why: WhatsApp @lid chats used to be stored under the JID's numeric user part because no
+-- display name was resolvable. Once the scanner can name the chat, the old rows are rewritten
+-- so a single conversation does not split into two rooms in reports and thread lookups.
+UPDATE messages SET room = ?
+WHERE user_email = ? AND source = ? AND room = ?;
+
 -- name: IsMessageProcessed :one
 SELECT EXISTS(SELECT 1 FROM messages WHERE user_email = ?1 AND source_ts = ?2);
 

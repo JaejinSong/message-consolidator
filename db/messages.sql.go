@@ -1055,6 +1055,34 @@ func (q *Queries) RefreshCacheArchive(ctx context.Context, userEmail sql.NullStr
 	return items, nil
 }
 
+const renameRoom = `-- name: RenameRoom :execrows
+UPDATE messages SET room = ?
+WHERE user_email = ? AND source = ? AND room = ?
+`
+
+type RenameRoomParams struct {
+	Room      sql.NullString `json:"room"`
+	UserEmail sql.NullString `json:"user_email"`
+	Source    sql.NullString `json:"source"`
+	Room_2    sql.NullString `json:"room_2"`
+}
+
+// Why: WhatsApp @lid chats used to be stored under the JID's numeric user part because no
+// display name was resolvable. Once the scanner can name the chat, the old rows are rewritten
+// so a single conversation does not split into two rooms in reports and thread lookups.
+func (q *Queries) RenameRoom(ctx context.Context, arg RenameRoomParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, renameRoom,
+		arg.Room,
+		arg.UserEmail,
+		arg.Source,
+		arg.Room_2,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const restoreExcluded = `-- name: RestoreExcluded :execrows
 UPDATE messages
 SET excluded_at = NULL, updated_at = CURRENT_TIMESTAMP
