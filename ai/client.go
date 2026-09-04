@@ -221,6 +221,8 @@ func (g *AIClient) resolveThinking(p *core.ParsedPrompt, spec modelSpec) Thinkin
 
 func parseThinkingMode(s string, fallback ThinkingMode) ThinkingMode {
 	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "high", "max":
+		return ThinkHigh
 	case "on":
 		return ThinkOn
 	case "off":

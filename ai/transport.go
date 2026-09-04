@@ -17,6 +17,7 @@ const (
 	ThinkDefault ThinkingMode = iota // provider default (Gemini: no ThinkingConfig)
 	ThinkOff                         // explicitly disable (Gemini: ThinkingBudget 0)
 	ThinkOn                          // enable (Gemini: ThinkingBudget = geminiThinkingBudget)
+	ThinkHigh                        // maximum reasoning (Ollama: reasoning_effort "high")
 )
 
 // LLMRequest is the provider-neutral generation request shared by every AI step.
@@ -30,6 +31,11 @@ type LLMRequest struct {
 	MaxTokens   int
 	JSONMode    bool
 	Thinking    ThinkingMode
+	// Seed pins sampling where the provider supports it (Ollama's OpenAI-compatible API
+	// does; Gemini does not). Zero means unset. Why: the BLUF stage samples the same
+	// prompt several times, so its regression harness needs one knob to make a run
+	// repeatable without collapsing the deliberate temperature spread.
+	Seed int
 }
 
 // LLMUsage normalizes token accounting across providers. ReasoningTokens maps

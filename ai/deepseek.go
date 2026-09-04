@@ -73,6 +73,9 @@ func (t *deepseekTransport) Generate(ctx context.Context, req LLMRequest, timeou
 	if req.MaxTokens > 0 {
 		apiReq.MaxTokens = req.MaxTokens
 	}
+	if req.Seed > 0 {
+		apiReq.Seed = &req.Seed
+	}
 	if req.JSONMode {
 		// Why: DeepSeek supports response_format json_object only (no json_schema).
 		apiReq.ResponseFormat = &openai.ChatCompletionResponseFormat{Type: openai.ChatCompletionResponseFormatTypeJSONObject}
@@ -124,6 +127,8 @@ func (t *deepseekTransport) createWithRetry(ctx context.Context, req openai.Chat
 // not model id aliases; ThinkDefault omits the field so the model default applies.
 func reasoningEffort(m ThinkingMode) string {
 	switch m {
+	case ThinkHigh:
+		return "high"
 	case ThinkOn:
 		return "medium"
 	case ThinkOff:

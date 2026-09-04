@@ -18,7 +18,7 @@ func TestBuildActivityStatsHeader_StalledCount(t *testing.T) {
 		{Task: "old2", Done: false},
 	}
 
-	out := buildActivityStatsHeader(activity, stalled)
+	out := buildActivityStatsHeader("me@example.com", activity, stalled, time.Now())
 
 	if !strings.Contains(out, "3 activity") {
 		t.Errorf("expected '3 activity'; got: %s", out)
@@ -42,7 +42,7 @@ func TestBuildActivityStatsHeader_TypeBTrigger(t *testing.T) {
 	}
 	activity[9] = Log{Assignee: "Bob", AssigneeCanonical: "bob", Done: false}
 
-	out := buildActivityStatsHeader(activity, nil)
+	out := buildActivityStatsHeader("me@example.com", activity, nil, time.Now())
 
 	if !strings.Contains(out, "Type B trigger: alice") {
 		t.Errorf("expected Type B trigger for alice; got: %s", out)
@@ -64,7 +64,7 @@ func TestBuildActivityStatsHeader_NoTypeBTrigger(t *testing.T) {
 		{AssigneeCanonical: "c", Done: false},
 	}
 
-	out := buildActivityStatsHeader(activity, nil)
+	out := buildActivityStatsHeader("me@example.com", activity, nil, time.Now())
 
 	if strings.Contains(out, "Type B trigger") {
 		t.Errorf("should not emit Type B trigger for balanced load; got: %s", out)
@@ -79,7 +79,7 @@ func TestBuildActivityStatsHeader_CrossSource(t *testing.T) {
 		{Task: "Monitoring for SIMASFIN", Room: "SIMASFIN-support", Done: false},
 	}
 
-	out := buildActivityStatsHeader(activity, nil)
+	out := buildActivityStatsHeader("me@example.com", activity, nil, time.Now())
 
 	if !strings.Contains(out, "# Cross-source:") {
 		t.Errorf("expected Cross-source line for SIMASFIN across 3 rooms; got: %s", out)
@@ -96,7 +96,7 @@ func TestBuildActivityStatsHeader_CrossSourceBelowThreshold(t *testing.T) {
 		{Task: "License for BankX", Room: "BankX-sales", Done: false},
 	}
 
-	out := buildActivityStatsHeader(activity, nil)
+	out := buildActivityStatsHeader("me@example.com", activity, nil, time.Now())
 
 	if strings.Contains(out, "# Cross-source:") {
 		t.Errorf("should not emit Cross-source for only 2 rooms; got: %s", out)
@@ -113,7 +113,7 @@ func TestBuildActivityStatsHeader_RoomCustomerLine(t *testing.T) {
 		{Task: "Strategy sync", Room: "biz-global-malaysia", Done: false},
 	}
 
-	out := buildActivityStatsHeader(activity, nil)
+	out := buildActivityStatsHeader("me@example.com", activity, nil, time.Now())
 
 	if !strings.Contains(out, "# Room→Customer:") {
 		t.Errorf("expected Room→Customer line; got: %s", out)
@@ -143,7 +143,7 @@ func TestBuildActivityStatsHeader_RoomCustomerLineOmitsUnresolved(t *testing.T) 
 		{Task: "Issue V1 product license for PDRM Malaysia next-generation system PoC", Room: "Gmail"},
 	}
 
-	out := buildActivityStatsHeader(activity, nil)
+	out := buildActivityStatsHeader("me@example.com", activity, nil, time.Now())
 
 	forbidden := []string{
 		"Internal Puspakom WhaTap IFC→Internal Puspakom WhaTap IFC",

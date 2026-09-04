@@ -26,6 +26,8 @@ type PromptName string
 
 const (
 	PromptBatchTranslator      PromptName = "batch_translator.prompt"
+	PromptBLUFJudge            PromptName = "bluf_judge.prompt"
+	PromptBLUFNominate         PromptName = "bluf_nominate.prompt"
 	PromptChatSystem           PromptName = "chat_system.prompt"
 	PromptChatUser             PromptName = "chat_user.prompt"
 	PromptCompletionCheck      PromptName = "completion_check.prompt"

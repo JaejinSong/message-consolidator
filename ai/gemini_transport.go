@@ -35,6 +35,11 @@ var relaxedSafetySettings = []*genai.SafetySetting{
 // models; it mirrors the prior AnalyzeWithContext budget for continuity.
 const geminiThinkingBudget = 3072
 
+// geminiHighThinkingBudget backs ThinkHigh. Why: the BLUF stage weighs a dozen candidates
+// against each other, which needs materially more thinking room than the per-message
+// extraction ThinkOn was tuned for.
+const geminiHighThinkingBudget = 24576
+
 // geminiTransport implements LLMTransport over the genai SDK.
 type geminiTransport struct {
 	client *genai.Client
@@ -87,6 +92,8 @@ func (t *geminiTransport) Generate(ctx context.Context, req LLMRequest, timeout 
 		cfg.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: genai.Ptr(int32(0))}
 	case ThinkOn:
 		cfg.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: genai.Ptr(int32(geminiThinkingBudget))}
+	case ThinkHigh:
+		cfg.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: genai.Ptr(int32(geminiHighThinkingBudget))}
 	case ThinkDefault:
 		// Why: leave ThinkingConfig nil so the model applies its own default.
 	}

@@ -21,6 +21,10 @@ LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = '
 WHERE r.user_email = ? AND r.start_date = ? AND r.end_date = ?;
 
 -- name: GetMessagesForReport :many
+-- Why: updated_at is NULL for any task never re-touched after creation, and a NULL
+-- comparison is false, so those rows were dropped from every report window including
+-- the unbounded stalled fetch. COALESCE to created_at keeps never-updated tasks -- the
+-- longest-neglected ones -- inside the window.
 -- Why: (done=0, is_deleted=1) is user-cancel; (done=1, is_deleted=1) is the 30-day
 -- auto-sweep of completed tasks (still valid evidence). category=merged rows were
 -- absorbed into another task; counting them inflates activity and edge weights.
@@ -32,7 +36,7 @@ SELECT
     STRFTIME('%Y-%m-%dT00:00:00Z', m.deadline_date) AS deadline_date, COALESCE(m.deadline_inferred,0) as deadline_inferred
 FROM v_messages m
 WHERE m.user_email = ?
-  AND m.updated_at >= datetime(?)
+  AND COALESCE(m.updated_at, m.created_at) >= datetime(?)
   AND NOT (m.done = 0 AND m.is_deleted = 1)
   AND m.category != 'merged'
   AND (sqlc.narg('source') IS NULL OR m.source = sqlc.narg('source'))

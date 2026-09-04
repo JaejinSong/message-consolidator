@@ -209,6 +209,7 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id s
 		logger.Warnf("[REPORTS] input logs truncated at cutoff (%d bytes): email=%s, total_logs=%d, report_id=%d",
 			s.config.CutoffSize, email, len(activity)+len(stalled), id)
 	}
+	taskLogs = s.withDecidedBLUF(ctx, email, start+" ~ "+end, id, activity, stalled, taskLogs)
 	summary, err := s.summarizer.Generate(ctx, email, taskLogs, start+" ~ "+end, id)
 	if err != nil {
 		s.markFailed(ctx, email, id)
@@ -226,6 +227,34 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id s
 			logger.Warnf("[REPORTS] ProcessOnDemandTranslation(%s) failed for report %d: %v", lang, id, err)
 		}
 	}
+}
+
+// withDecidedBLUF runs the dedicated BLUF stage and prepends its verdict to the report payload
+// as a `# DECIDED BLUF:` directive. Why prepend rather than widen ReportSummarizer: the
+// leading directive block already carries pre-computed instructions the report model must
+// honor (the Type B ownership trigger, the cross-source hint, the ranked BLUF shortlist), so a
+// decided BLUF belongs in the same channel.
+//
+// Every failure path returns the payload untouched. The report prompt then applies its own
+// BLUF rule against the ranked shortlist that buildBLUFCandidateLine already put in the Stats
+// block, so a BLUF-stage outage degrades the line's quality but never blocks the report.
+func (s *ReportsService) withDecidedBLUF(ctx context.Context, email, window string, id store.ReportID, activity, stalled []Log, payload string) string {
+	if s.geminiClient == nil {
+		return payload
+	}
+	dossiers := buildBLUFDossiers(activity, stalled, email, time.Now())
+	rendered := renderBLUFDossiers(dossiers, email)
+	if rendered == "" {
+		return payload
+	}
+	res, err := s.geminiClient.SelectBLUF(ctx, email, rendered, window, id)
+	if err != nil {
+		logger.Warnf("[REPORTS] BLUF stage unavailable for report %d, falling back to the in-prompt rule: %v", id, err)
+		return payload
+	}
+	logger.Infof("[REPORTS] BLUF decided for report %d: candidate=%d panel=%v nominations=%d rationale=%q why_missed=%q",
+		id, res.CandidateID, res.Panel, res.Nominations, res.Rationale, res.WhyMissed)
+	return "# DECIDED BLUF: " + res.Line + "\n" + payload
 }
 
 func (s *ReportsService) markFailed(ctx context.Context, email string, id store.ReportID) {

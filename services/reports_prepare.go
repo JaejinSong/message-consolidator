@@ -72,7 +72,7 @@ func (s *ReportsService) PrepareLogsForAI(email string, activity, stalled []Log)
 		limit = DefaultReportCutoffSize
 	}
 
-	statsHeader := buildActivityStatsHeader(activity, stalled)
+	statsHeader := buildActivityStatsHeader(email, activity, stalled, time.Now())
 	sb.WriteString(statsHeader)
 	curr += len(statsHeader)
 
@@ -119,9 +119,10 @@ func (s *ReportsService) appendStalledSection(sb *strings.Builder, email string,
 	return false
 }
 
-// buildActivityStatsHeader pre-aggregates task counts, ownership concentration, room→customer
-// mapping, and cross-source signals so the model can skip that counting work during thinking.
-func buildActivityStatsHeader(activity, stalled []Log) string {
+// buildActivityStatsHeader pre-aggregates task counts, ownership concentration, room->customer
+// mapping, cross-source signals, and the ranked BLUF shortlist so the model can skip that
+// counting work during thinking.
+func buildActivityStatsHeader(email string, activity, stalled []Log, now time.Time) string {
 	done, active, totalOpen := 0, 0, 0
 	openCounts := make(map[string]int, len(activity))
 	for _, m := range activity {
@@ -174,6 +175,7 @@ func buildActivityStatsHeader(activity, stalled []Log) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "# Stats: %d activity (%d active, %d done) | %d stalled\n",
 		done+active, active, done, len(stalled))
+	sb.WriteString(buildBLUFCandidateLine(activity, stalled, email, now))
 	sb.WriteString(assigneeLine + "\n")
 	sb.WriteString(buildRoomCustomerLine(roomCustomer))
 	sb.WriteString(buildCrossSourceLine(activity, roomCustomer))
