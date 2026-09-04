@@ -147,21 +147,19 @@ func (a *API) applyHotReload(def *config.SettingDef, value string) bool {
 type hotReloader func(a *API, value string) bool
 
 var hotReloaders = map[string]hotReloader{
-	"LOG_LEVEL":                  reloadLogLevel,
-	"ARCHIVE_DAYS":               reloadArchiveDays,
-	"AUTH_DISABLED":              reloadAuthDisabled,
-	"DEFAULT_USER_EMAIL":         reloadDefaultUserEmail,
-	"GEMINI_ANALYSIS_MODEL":      reloadGeminiAnalysisModel,
-	"GEMINI_TRANSLATION_MODEL":   reloadGeminiTranslationModel,
-	"DEEPSEEK_FILTER_MODEL":      func(a *API, v string) bool { a.Config.DeepSeekFilterModel = v; return true },
-	"DEEPSEEK_ANALYSIS_MODEL":    func(a *API, v string) bool { a.Config.DeepSeekAnalysisModel = v; return true },
-	"DEEPSEEK_TRANSLATION_MODEL": func(a *API, v string) bool { a.Config.DeepSeekTranslationModel = v; return true },
-	"DEEPSEEK_REPORT_MODEL":      func(a *API, v string) bool { a.Config.DeepSeekReportModel = v; return true },
-	"COMPANY_DOMAINS":            reloadCompanyDomains,
-	"GMAIL_SKIP_SENDERS":         reloadGmailSkipSenders,
-	"MESSAGE_BATCH_WINDOW":       reloadMessageBatchWindow,
+	"LOG_LEVEL":            reloadLogLevel,
+	"ARCHIVE_DAYS":         reloadArchiveDays,
+	"AUTH_DISABLED":        reloadAuthDisabled,
+	"DEFAULT_USER_EMAIL":   reloadDefaultUserEmail,
+	"COMPANY_DOMAINS":      reloadCompanyDomains,
+	"GMAIL_SKIP_SENDERS":   reloadGmailSkipSenders,
+	"MESSAGE_BATCH_WINDOW": reloadMessageBatchWindow,
 	// Why: ticker keeps its old interval; persist for restart but report not-yet-applied.
 	"DB_KEEP_ALIVE_INTERVAL": func(*API, string) bool { return false },
+	// Why: per-stage *_MODEL keys are deliberately absent. Mutating Config cannot reach the
+	// live ai.AIClient (it copied each stage's model at construction) and the prompt's own
+	// frontmatter outranks the config value anyway, so reporting applied=true was a lie.
+	// They are RestartRequired in the registry and the UI badges them accordingly.
 }
 
 func reloadLogLevel(a *API, value string) bool {
@@ -193,16 +191,6 @@ func reloadAuthDisabled(a *API, value string) bool {
 
 // Why: live read happens in auth.GetUserEmail via os.Getenv; nothing to mutate here.
 func reloadDefaultUserEmail(*API, string) bool { return true }
-
-func reloadGeminiAnalysisModel(a *API, value string) bool {
-	a.Config.GeminiAnalysisModel = value
-	return true
-}
-
-func reloadGeminiTranslationModel(a *API, value string) bool {
-	a.Config.GeminiTranslationModel = value
-	return true
-}
 
 func reloadCompanyDomains(a *API, value string) bool {
 	a.Config.CompanyDomains = splitCSVForReload(value)

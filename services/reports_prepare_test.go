@@ -150,7 +150,6 @@ func TestBuildActivityStatsHeader_RoomCustomerLineOmitsUnresolved(t *testing.T) 
 		"Digital Transformation→Digital Transformation",
 		"→FIF telemetry data gap",
 		"→cleanup/archive guidance",
-		"279516505182402→",
 		"Gmail→PDRM Malaysia next-generation system PoC",
 	}
 	for _, f := range forbidden {
@@ -163,6 +162,7 @@ func TestBuildActivityStatsHeader_RoomCustomerLineOmitsUnresolved(t *testing.T) 
 		"Internal Puspakom WhaTap IFC→Puspakom",
 		"Project WhaTap x Netciti→Netciti",
 		"Gmail→Other Tasks",
+		"279516505182402→Other Tasks",
 	}
 	for _, e := range expected {
 		if !strings.Contains(out, e) {
@@ -245,8 +245,11 @@ func TestInferCustomerFromRoom(t *testing.T) {
 		// Unresolved: nothing to strip (empty means "keep it out of the map"), or the room
 		// is a bare channel id.
 		{"Digital Transformation", ""},
-		{"279516505182402", ""},
 		{"WhaTap Internal", ""},
+		// WhatsApp @lid chats arrive as a bare numeric id with no display name in our data,
+		// so they bucket explicitly rather than inviting inference from the digits.
+		{"279516505182402", "Other Tasks"},
+		{"60122362207", "Other Tasks"},
 	}
 	for _, c := range cases {
 		got := inferCustomerFromRoom(c.room)

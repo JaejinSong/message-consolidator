@@ -43,7 +43,7 @@ func (g *AIClient) GenerateReportSummary(ctx context.Context, email string, task
 	}
 
 	start := time.Now()
-	resp, err := g.transport.Generate(ctx, req, 180*time.Second, 2)
+	resp, err := g.transport.Generate(ctx, req, reportGenerateTimeout, 2)
 	if err != nil {
 		// P1: Surface burned-but-unattributed retry-exhausted calls so the cost dashboard
 		// can flag invisible spend. Providers do not return usage on timeout/cancel.

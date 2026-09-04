@@ -103,17 +103,6 @@ func TestApplyHotReload(t *testing.T) {
 		}
 	})
 
-	t.Run("GEMINI_ANALYSIS_MODEL", func(t *testing.T) {
-		api := &API{Config: &config.Config{}}
-		def := &config.SettingDef{Key: "GEMINI_ANALYSIS_MODEL"}
-		if !api.applyHotReload(def, "gemini-x") {
-			t.Error("expected true")
-		}
-		if api.Config.GeminiAnalysisModel != "gemini-x" {
-			t.Errorf("GeminiAnalysisModel = %q", api.Config.GeminiAnalysisModel)
-		}
-	})
-
 	t.Run("COMPANY_DOMAINS", func(t *testing.T) {
 		api := &API{Config: &config.Config{}}
 		def := &config.SettingDef{Key: "COMPANY_DOMAINS"}
@@ -472,12 +461,29 @@ func TestHandleRemoveAdmin(t *testing.T) {
 	})
 }
 
-func TestReloadGeminiTranslationModel(t *testing.T) {
+// TestModelSettingsAreRestartOnly pins that per-stage model keys never claim a hot reload.
+// Why: they used to mutate Config and report applied=true, but ai.AIClient copies each stage's
+// model at construction and resolveModel prefers the prompt's own frontmatter over the config
+// value, so the admin UI was telling operators a model change had taken effect when nothing
+// had changed.
+func TestModelSettingsAreRestartOnly(t *testing.T) {
 	api := &API{Config: &config.Config{}}
-	if !reloadGeminiTranslationModel(api, "gemini-1.5-pro") {
-		t.Error("reloadGeminiTranslationModel should return true")
+	keys := []string{
+		"GEMINI_ANALYSIS_MODEL", "GEMINI_TRANSLATION_MODEL",
+		"DEEPSEEK_FILTER_MODEL", "DEEPSEEK_ANALYSIS_MODEL",
+		"DEEPSEEK_TRANSLATION_MODEL", "DEEPSEEK_REPORT_MODEL",
 	}
-	if api.Config.GeminiTranslationModel != "gemini-1.5-pro" {
-		t.Errorf("GeminiTranslationModel = %q, want gemini-1.5-pro", api.Config.GeminiTranslationModel)
+	for _, key := range keys {
+		def := config.FindDef(key)
+		if def == nil {
+			t.Errorf("%s missing from the settings registry", key)
+			continue
+		}
+		if !def.RestartRequired {
+			t.Errorf("%s must be RestartRequired: a live model swap is not possible", key)
+		}
+		if applied := api.applyHotReload(def, "some-model"); applied {
+			t.Errorf("%s reported a hot reload that cannot happen", key)
+		}
 	}
 }

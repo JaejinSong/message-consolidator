@@ -23,6 +23,9 @@ type PromptMeta struct {
 }
 
 // ModelFor는 활성 프로바이더의 frontmatter 모델을 반환합니다(미설정 시 "").
+// Why: the key names a provider, not a model family - `deepseekModel` means "the model to
+// call when AI_PROVIDER=deepseek", i.e. whatever runs on the OpenAI-compatible Ollama Cloud
+// endpoint. report_summary.prompt legitimately sets it to glm-5.3-flash.
 func (m PromptMeta) ModelFor(provider string) string {
 	if strings.EqualFold(provider, "deepseek") {
 		return m.DeepSeekModel

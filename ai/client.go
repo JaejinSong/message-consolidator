@@ -36,6 +36,13 @@ const (
 	ReportMaxTokens = 65536
 )
 
+// reportGenerateTimeout bounds one report-stage call. Why: glm-5.3-flash returned the same
+// weekly report in 107-118s where deepseek-v4-pro took 66-87s, so the previous 180s left
+// under 1.6x headroom on a stage that retries twice - a slow provider moment would burn
+// three full attempts and fail the report. Prime seconds keep this from lining up with the
+// scanner's own periods.
+const reportGenerateTimeout = 271 * time.Second
+
 // TaskTransition represents the AI's decision on how a reply impacts a parent task.
 type TaskTransition struct {
 	Status         string          `json:"status"`                    // NEW, UPDATE, RESOLVE, NONE

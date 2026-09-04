@@ -36,6 +36,12 @@ type SettingDef struct {
 }
 
 // Registry is the canonical list of admin-exposable env settings.
+//
+// Per-stage *_MODEL keys are RestartRequired and labelled as boot fallbacks. Why: ai.AIClient
+// copies each stage's model into a modelSpec at construction, so mutating Config never reaches
+// a live client; and resolveModel prefers the prompt's own geminiModel/deepseekModel
+// frontmatter over that spec, so a prompt that declares one ignores this value entirely. The
+// prompt file is the source of truth for which model runs a stage.
 // Categories: auth | ai | channels | db | ops
 // Why: defining `RestartRequired` here is the source of truth — handlers consult it to decide
 // whether to also call applyHotReload, and the UI badges accordingly.
@@ -49,14 +55,14 @@ var Registry = []SettingDef{
 	// --- AI ---
 	{Key: "AI_PROVIDER", Label: "AI Provider (text generation)", Category: "ai", Type: TypeEnum, EnumValues: []string{"gemini", "deepseek"}, DefaultValue: "gemini", RestartRequired: true, Validate: enumValidator("gemini", "deepseek")},
 	{Key: "GEMINI_API_KEY", Label: "Gemini API Key", Category: "ai", Type: TypeString, Secret: true, RestartRequired: true},
-	{Key: "GEMINI_ANALYSIS_MODEL", Label: "Gemini Analysis Model", Category: "ai", Type: TypeString, DefaultValue: "gemini-3-flash-preview"},
-	{Key: "GEMINI_TRANSLATION_MODEL", Label: "Gemini Translation Model", Category: "ai", Type: TypeString, DefaultValue: "gemini-3.1-flash-lite"},
+	{Key: "GEMINI_ANALYSIS_MODEL", Label: "Gemini Analysis Model (boot fallback; prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "gemini-3-flash-preview"},
+	{Key: "GEMINI_TRANSLATION_MODEL", Label: "Gemini Translation Model (boot fallback; prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "gemini-3.1-flash-lite"},
 	{Key: "DEEPSEEK_API_KEY", Label: "DeepSeek API Key", Category: "ai", Type: TypeString, Secret: true, RestartRequired: true},
 	{Key: "DEEPSEEK_BASE_URL", Label: "DeepSeek Base URL", Category: "ai", Type: TypeString, DefaultValue: "https://ollama.com/v1", RestartRequired: true},
-	{Key: "DEEPSEEK_FILTER_MODEL", Label: "DeepSeek Filter Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-v4-flash:0731"},
-	{Key: "DEEPSEEK_ANALYSIS_MODEL", Label: "DeepSeek Analysis Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-v4-flash:0731"},
-	{Key: "DEEPSEEK_TRANSLATION_MODEL", Label: "DeepSeek Translation Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-v4-flash:0731"},
-	{Key: "DEEPSEEK_REPORT_MODEL", Label: "Report Model", Category: "ai", Type: TypeString, DefaultValue: "glm-5.3-flash"},
+	{Key: "DEEPSEEK_FILTER_MODEL", Label: "Filter Model (boot fallback; prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "deepseek-v4-flash:0731"},
+	{Key: "DEEPSEEK_ANALYSIS_MODEL", Label: "Analysis Model (boot fallback; prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "deepseek-v4-flash:0731"},
+	{Key: "DEEPSEEK_TRANSLATION_MODEL", Label: "Translation Model (boot fallback; prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "deepseek-v4-flash:0731"},
+	{Key: "DEEPSEEK_REPORT_MODEL", Label: "Report Model (boot fallback; report_summary.prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "glm-5.3-flash"},
 
 	// --- channels ---
 	{Key: "SLACK_TOKEN", Label: "Slack Bot Token", Category: "channels", Type: TypeString, Secret: true, RestartRequired: true},

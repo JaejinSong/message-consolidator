@@ -388,7 +388,11 @@ var roomNoiseTokens = map[string]bool{
 }
 
 func inferCustomerFromRoom(room string) string {
-	if strings.TrimSpace(room) == "" || isGenericRoom(room) {
+	trimmed := strings.TrimSpace(room)
+	// Why: WhatsApp @lid chats land here as a bare numeric id with no display name anywhere in
+	// our data (wa_messages.chat_name falls back to the same id). The id carries no customer
+	// signal, so bucket it explicitly rather than leaving the model to read meaning into it.
+	if trimmed == "" || isGenericRoom(room) || isAllDigits(trimmed) {
 		return "Other Tasks"
 	}
 	const bizGlobalPfx = "biz-global-"
