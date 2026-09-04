@@ -83,10 +83,13 @@ func TestLive_BLUF_EndToEnd(t *testing.T) {
 	}
 	t.Logf("elapsed=%s panel=%v nominations=%d", time.Since(start).Round(time.Second), res.Panel, res.Nominations)
 	t.Logf("BLUF (%d words): %s", blufWordCount(res.Line), res.Line)
-	t.Logf("candidate=%d rationale=%q", res.CandidateID, res.Rationale)
-	t.Logf("why_missed=%q consequence=%q", res.WhyMissed, res.Consequence)
-	if res.CandidateID == 13190 {
-		t.Errorf("stage picked the newest single-mention task (C5) -- the exact defect this stage exists to remove")
+	t.Logf("covers=%v rationale=%q", res.CandidateIDs, res.Rationale)
+	t.Logf("pattern=%q lead=%q", res.Pattern, res.LeadStake)
+	if len(res.CandidateIDs) > 0 && res.CandidateIDs[0] == 13190 {
+		t.Errorf("stage led with the newest single-mention task (C5) -- the exact defect this stage exists to remove")
+	}
+	if len(res.CandidateIDs) < 2 {
+		t.Errorf("synthesis covers %d candidates, want at least 2", len(res.CandidateIDs))
 	}
 	if blufWordCount(res.Line) > blufMaxWords {
 		t.Errorf("line exceeds %d words", blufMaxWords)

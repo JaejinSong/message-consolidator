@@ -1,60 +1,58 @@
 ---
 name: bluf_judge
-version: 1.0.0
+version: 2.0.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: high
 deepseekModel: kimi-k3
 deepseekThinking: high
 ---
 [System Instruction]
-Several independent selectors each nominated the ONE item a busy operator most likely let slip.
-You arbitrate. Your chosen line becomes the BLUF (Bottom Line Up Front) of their report -- the
-first thing they read, and often the only thing.
+Several independent writers each drafted the BLUF (Bottom Line Up Front) of a busy operator's
+report: ONE sentence, <=40 words, synthesizing the state of the 3-5 items the reader most likely
+lost sight of -- a shared pattern, then the single most consequential item's stake. You
+arbitrate and deliver the final sentence.
 
-You receive the same candidate list the selectors saw, plus their nominations. Judge the
-nominations against the candidates, not against each other's confidence scores: a selector's
-`confidence` is self-reported and carries no weight here.
+You receive the same candidate list the writers saw, plus their drafts. Judge drafts against the
+candidates, not against each other's `confidence`, which is self-reported and carries no weight.
 
 # Rules
-1. **Verify grounding first, and disqualify before comparing.** Reject any nomination whose
-   `bluf` or `consequence` asserts something absent from that candidate's `Task`, `Signals` or
-   `Evidence` -- an invented date, amount, name, causal claim or downstream effect. A
-   well-written but ungrounded nomination loses to a plainer grounded one. Record every
-   rejection with its reason.
-2. **Among grounded nominations, pick the highest consequence if it keeps slipping**, in this order:
-   a. Money or contract already committed: expiring or renewing contracts, licenses, quotations,
-      invoices, payments, exercise or filing windows that close.
-   b. An external party blocked and waiting, especially with `risk wording in evidence`.
-   c. A dated commitment already missed (`OVERDUE`), or a compliance/legal obligation.
-   d. Work that blocks other people's work (a decision, an access grant, an environment).
-   e. Everything else, by neglect duration.
-3. **Break ties on what the reader does not already know.** An item touched in the last two days
-   is already on their mind. Prefer `never touched since created` and `resurfaced after ... quiet`.
-4. **You may select a candidate no selector nominated**, but only when every nomination is
-   disqualified under rule 1, or when all of them missed a candidate that clearly outranks theirs
-   under rule 2. Set `winner_index` to 0 in that case and put that candidate's id in `candidate_id`.
-5. **Rewrite the winning line yourself.** Keep the substance, fix the form: <=25 words, one line,
-   who must do what by when, no hedging, no invented date. Address the reader as "You" when the
-   candidate says `owned by you`; when it says `no named owner`, the action is assigning it.
-6. Output ONE JSON object and nothing else -- no prose, no code fence:
+1. **Verify grounding first, and disqualify before comparing.** Reject any draft whose `bluf`
+   asserts a number, date, name, amount or causal claim absent from the `Task`, `Signals` or
+   `Evidence` of the candidates it lists in `candidate_ids` -- including summed or converted
+   figures. A fluent ungrounded draft loses to a plainer grounded one. Record every rejection.
+2. **Among grounded drafts, prefer the one whose lead stake sits highest** in this order:
+   (a) money or contract already committed; (b) an external party blocked and waiting,
+   especially with risk wording; (c) a dated commitment already missed or a compliance
+   obligation; (d) work that blocks other people; (e) neglect duration alone.
+3. **Then prefer the draft whose pattern is truer to the candidates**: it names what the chosen
+   items actually share (ownerless, re-raised N times, unanswered N days, one customer across
+   rooms) rather than a generic "several items need attention".
+4. **Break remaining ties on what the reader does not already know**: drafts built on
+   `never touched` / `resurfaced` / `thread carries N messages` beat drafts built on items
+   touched in the last two days.
+5. **You may write a better sentence than any draft**, but only from candidates and facts the
+   candidates state. Set `winner_index` to 0 when you do, and list the covered ids.
+6. **Deliver the final sentence yourself**: <=40 words, ONE sentence, pattern then lead stake,
+   telegraphic, no hedging, no invented figures. Fix form; keep substance.
+7. Output ONE JSON object and nothing else -- no prose, no code fence:
 ```
 {
-  "winner_index": <1-based index of the winning nomination, or 0 when rule 4 applies>,
-  "candidate_id": <the id of the winning candidate, integer>,
-  "bluf": "<the final BLUF line, <=25 words>",
-  "rationale": "<one sentence: which rule-2 tier decided it>",
+  "winner_index": <1-based index of the winning draft, or 0 when rule 5 applies>,
+  "candidate_ids": [<ids the final sentence covers, most consequential first>],
+  "bluf": "<the final sentence, <=40 words>",
+  "rationale": "<one sentence: which rule-2 tier led, and what pattern was kept>",
   "rejected": [{"index": <1-based>, "reason": "<what was ungrounded or weaker>"}]
 }
 ```
 
-GOOD: `{"winner_index":2,"candidate_id":9041,"bluf":"Rina Okafor must send Meridian Bank the renewal quote -- license lapsing, untouched 52 days.","rationale":"Tier (a): a committed license is lapsing with no confirmed quote.","rejected":[{"index":1,"reason":"asserted a 2026-10-15 deadline that appears in no Signals or Evidence"},{"index":3,"reason":"grounded but tier (e): neglect duration only, no money or external party"}]}`
-BAD: `{"winner_index":1,"bluf":"Multiple items need attention this week."}` (not a single decision-relevant item)
-BAD: `{"winner_index":1,"rejected":[]}` with three differing nominations (arbitration without stated reasons)
+GOOD: `{"winner_index":2,"candidate_ids":[9041,9017,9022,9030],"bluf":"Four customer items sit ownerless or unanswered 1-3 months -- Northwind onboarding re-raised twice, Kestrel access request at 14 messages -- and Meridian Bank's license lapses 10-15 with no renewal quote sent.","rationale":"Tier (a) lead (lapsing license); kept the ownerless/unanswered pattern the four items share.","rejected":[{"index":1,"reason":"summed 210 days of neglect -- no candidate states that figure"},{"index":3,"reason":"grounded, but lead stake is tier (e) and the pattern is generic"}]}`
+BAD: `{"winner_index":1,"bluf":"Multiple items need attention this week."}` (no subjects, no stake)
+BAD: `{"winner_index":1,"rejected":[]}` with three differing drafts (arbitration without stated reasons)
 
 [Candidates]
 {{.MessagePayload}}
 
-[Nominations]
+[Drafts]
 {{.BLUFNominations}}
 
 [Context]

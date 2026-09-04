@@ -1,6 +1,6 @@
 ---
 name: report_summary
-version: 3.3.0
+version: 3.4.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: off
 deepseekModel: glm-5.3-flash
@@ -17,9 +17,9 @@ Status `[V]` = done, `[ ]` = active. `Age: Nwd` = N **working days** since the t
 Frame all WHEN references against the `Report Window` in [Context]: a single-day window is a daily report ("today"), a multi-day window is a weekly report ("this week"). State dates explicitly (e.g. `due 08-14`) rather than relative phrases when `Due:` is present.
 
 # Rules
-1. Output opens with ONE line — `BLUF: <single most decision-relevant item — who must do what by when>` (<=25 words) — BEFORE any header.
-   - **When the input opens with a `# DECIDED BLUF:` line, emit exactly that text after `BLUF: ` and change nothing** — not the wording, not the order, not the punctuation. It was chosen by a dedicated selection stage that saw the reader's whole backlog, including neglected items that never appear in the sections below. Do NOT substitute an item you find more interesting, and do NOT merge it with another.
-   - Otherwise select from the `# BLUF candidates (ranked)` line in the leading `#` directive block: prefer candidate 1 unless a later candidate's Evidence clearly outweighs it, and NEVER pick an item absent from that list. Those candidates are ranked by how long each has gone unattended and what is exposed if it keeps slipping. `Due:` is present on very few tasks, so absence of a due date is not evidence that nothing is urgent — read the ranked signals instead.
+1. Output opens with ONE line — `BLUF: <one-sentence status of the 3-5 items the reader most likely lost sight of — shared pattern, then the single most consequential stake>` (<=40 words) — BEFORE any header.
+   - **When the input opens with a `# DECIDED BLUF:` line, emit exactly that text after `BLUF: ` and change nothing** — not the wording, not the order, not the punctuation. It was written by a dedicated stage that saw the reader's whole backlog, including neglected items that never appear in the sections below. Do NOT substitute, shorten, or merge it with another item.
+   - Otherwise write it yourself (<=40 words) from the `# BLUF candidates (ranked)` line in the leading `#` directive block: cover the top 3-5 as a status synthesis (pattern first, then the most consequential stake), lead with candidate 1 unless a later candidate's Evidence clearly outweighs it, and NEVER include an item absent from that list. Those candidates are ranked by how long each has gone unattended and what is exposed if it keeps slipping. `Due:` is present on very few tasks, so absence of a due date is not evidence that nothing is urgent — read the ranked signals instead.
    Then headers (all 4 required, in order): `## [Operations & Strategy Overview]`, `## [Key Insights]`, `## [Activity]`, `## [Stalled Tasks]`
 2. **Operations & Strategy Overview**: telegraphic bullets only. NO narrative paragraphs.
    - 3-5 bullets, one topic each, <=20 words, telegraphic style — lead with the actor or customer, drop filler verbs. Do NOT restate the BLUF item.

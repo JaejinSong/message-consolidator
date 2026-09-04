@@ -50,12 +50,11 @@ func (f *blufFakeTransport) callCount() int {
 
 func nominationJSON(id int64, line string, confidence float64) string {
 	n := blufNomination{
-		CandidateID: id,
-		WhyMissed:   "never touched since created 65 calendar days ago",
-		Consequence: "renewal path unconfirmed",
-		Surprise:    "high",
-		BLUF:        line,
-		Confidence:  confidence,
+		CandidateIDs: []int64{id, id + 1000},
+		Pattern:      "ownerless items re-raised after weeks quiet",
+		LeadStake:    "renewal path unconfirmed",
+		BLUF:         line,
+		Confidence:   confidence,
 	}
 	b, err := json.Marshal(n)
 	if err != nil {
@@ -65,7 +64,7 @@ func nominationJSON(id int64, line string, confidence float64) string {
 }
 
 func verdictJSON(winner int, id int64, line string) string {
-	v := blufVerdict{WinnerIndex: winner, CandidateID: id, BLUF: line, Rationale: "tier (a) committed contract"}
+	v := blufVerdict{WinnerIndex: winner, CandidateIDs: []int64{id, id + 1000}, BLUF: line, Rationale: "tier (a) committed contract"}
 	b, err := json.Marshal(v)
 	if err != nil {
 		panic(err)
@@ -95,15 +94,15 @@ func TestSelectBLUF_JudgeVerdictWins(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SelectBLUF: %v", err)
 	}
-	if res.CandidateID != 12611 {
-		t.Errorf("candidate = %d, want the judge's pick 12611", res.CandidateID)
+	if len(res.CandidateIDs) == 0 || res.CandidateIDs[0] != 12611 {
+		t.Errorf("covers = %v, want the judge's lead 12611", res.CandidateIDs)
 	}
 	if !strings.HasPrefix(res.Line, "Andy Phan must confirm") {
 		t.Errorf("line = %q, want the judge's rewritten line", res.Line)
 	}
-	// Why: the judge's pick must carry the winning nomination's reasoning, not the first one's.
-	if res.Consequence != "renewal path unconfirmed" {
-		t.Errorf("consequence = %q, want it carried from the winning nomination", res.Consequence)
+	// Why: the judge's pick must carry the winning draft's reasoning, not the first one's.
+	if res.LeadStake != "renewal path unconfirmed" {
+		t.Errorf("lead stake = %q, want it carried from the winning draft", res.LeadStake)
 	}
 }
 
@@ -176,8 +175,8 @@ func TestSelectBLUF_FallsBackWhenJudgeFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SelectBLUF should degrade when the judge fails: %v", err)
 	}
-	if res.CandidateID != 2 {
-		t.Errorf("candidate = %d, want the most confident nomination (2)", res.CandidateID)
+	if len(res.CandidateIDs) == 0 || res.CandidateIDs[0] != 2 {
+		t.Errorf("covers = %v, want the most confident draft (lead 2)", res.CandidateIDs)
 	}
 }
 
@@ -196,8 +195,8 @@ func TestSelectBLUF_ErrorsWhenWholePanelFails(t *testing.T) {
 func TestSelectBLUF_RejectsUnparseableAndEmptyNominations(t *testing.T) {
 	f := &blufFakeTransport{replies: map[string]string{
 		"deepseek-v4-pro": "not json at all",
-		"glm-5.3":         `{"candidate_id": 5, "bluf": "   "}`,
-		"minimax-m3":      `{"bluf": "no candidate id at all"}`,
+		"glm-5.3":         `{"candidate_ids": [5], "bluf": "   "}`,
+		"minimax-m3":      `{"bluf": "no candidate ids at all"}`,
 		"kimi-k3":         verdictJSON(1, 5, "Should never be reached."),
 	}}
 	if _, err := blufTestClient(f).SelectBLUF(context.Background(), "me@example.com", blufTestCandidates, "w", 0); err == nil {
@@ -225,8 +224,8 @@ func TestSelectBLUF_OverlongLineFallsBackToACompliantNomination(t *testing.T) {
 	}
 	// Why: truncating mid-clause would drop the "by when" and read as a bug, so the shorter
 	// grounded nomination must be substituted whole.
-	if res.CandidateID != 2 {
-		t.Errorf("candidate = %d, want the compliant nomination (2)", res.CandidateID)
+	if len(res.CandidateIDs) == 0 || res.CandidateIDs[0] != 2 {
+		t.Errorf("covers = %v, want the compliant draft (lead 2)", res.CandidateIDs)
 	}
 }
 
@@ -277,7 +276,7 @@ func TestBLUFPrompts_LoadRenderAndDeclareHighReasoning(t *testing.T) {
 		name   core.PromptName
 		needle string
 	}{
-		{core.PromptBLUFNominate, "candidate_id"},
+		{core.PromptBLUFNominate, "candidate_ids"},
 		{core.PromptBLUFJudge, "winner_index"},
 	}
 	for _, tc := range cases {

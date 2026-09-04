@@ -316,8 +316,8 @@ func checkBLUF(text string) string {
 			return fmt.Sprintf("FAIL - first line is %q", truncateForLog(line, 60))
 		}
 		words := len(strings.Fields(strings.TrimPrefix(line, "BLUF:")))
-		if words > 25 {
-			return fmt.Sprintf("FAIL - %d words (limit 25)", words)
+		if words > 40 {
+			return fmt.Sprintf("FAIL - %d words (limit 40)", words)
 		}
 		return fmt.Sprintf("PASS - %d words", words)
 	}

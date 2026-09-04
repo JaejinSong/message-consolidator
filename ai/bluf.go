@@ -30,42 +30,40 @@ var blufPanelTemps = []float64{0.15, 0.45, 0.75}
 
 const (
 	blufCallTimeout = 181 * time.Second
-	blufMaxWords    = 25
+	blufMaxWords    = 40
 	blufMaxRetries  = 1
 )
 
-// BLUFResult is the decided BLUF line plus the trail that produced it, so the caller can log
-// why this item won without re-running the panel.
+// BLUFResult is the decided BLUF sentence plus the trail that produced it, so the caller can
+// log what it covers and why without re-running the panel.
 type BLUFResult struct {
-	Line        string
-	CandidateID int64
-	Rationale   string
-	WhyMissed   string
-	Consequence string
-	Nominations int
-	Panel       []string
+	Line         string
+	CandidateIDs []int64
+	Rationale    string
+	Pattern      string
+	LeadStake    string
+	Nominations  int
+	Panel        []string
 }
 
-// blufNomination is one panel member's pick. Field names mirror bluf_nominate.prompt's schema.
+// blufNomination is one panel member's draft. Field names mirror bluf_nominate.prompt's schema.
 type blufNomination struct {
-	CandidateID int64   `json:"candidate_id"`
-	WhyMissed   string  `json:"why_missed"`
-	Consequence string  `json:"consequence"`
-	Surprise    string  `json:"surprise"`
-	BLUF        string  `json:"bluf"`
-	Confidence  float64 `json:"confidence"`
-	RunnerUpID  int64   `json:"runner_up_id"`
+	CandidateIDs []int64 `json:"candidate_ids"`
+	Pattern      string  `json:"pattern"`
+	LeadStake    string  `json:"lead_stake"`
+	BLUF         string  `json:"bluf"`
+	Confidence   float64 `json:"confidence"`
 
 	model string // set by the caller, never by the model
 }
 
 // blufVerdict is the judge's arbitration. Field names mirror bluf_judge.prompt's schema.
 type blufVerdict struct {
-	WinnerIndex int    `json:"winner_index"`
-	CandidateID int64  `json:"candidate_id"`
-	BLUF        string `json:"bluf"`
-	Rationale   string `json:"rationale"`
-	Rejected    []struct {
+	WinnerIndex  int     `json:"winner_index"`
+	CandidateIDs []int64 `json:"candidate_ids"`
+	BLUF         string  `json:"bluf"`
+	Rationale    string  `json:"rationale"`
+	Rejected     []struct {
 		Index  int    `json:"index"`
 		Reason string `json:"reason"`
 	} `json:"rejected"`
@@ -173,8 +171,8 @@ func (g *AIClient) runNomination(ctx context.Context, email, rendered, model str
 		logger.Warnf("[BLUF] nomination from %s was not parseable JSON: %v", model, err)
 		return nil
 	}
-	if strings.TrimSpace(n.BLUF) == "" || n.CandidateID == 0 {
-		logger.Warnf("[BLUF] nomination from %s lacked a bluf line or candidate id", model)
+	if strings.TrimSpace(n.BLUF) == "" || len(n.CandidateIDs) == 0 {
+		logger.Warnf("[BLUF] draft from %s lacked a bluf sentence or candidate ids", model)
 		return nil
 	}
 	n.model = model
@@ -263,23 +261,23 @@ func renderNominations(noms []blufNomination) string {
 
 func applyNomination(res *BLUFResult, n blufNomination) {
 	res.Line = strings.TrimSpace(n.BLUF)
-	res.CandidateID = n.CandidateID
-	res.WhyMissed = n.WhyMissed
-	res.Consequence = n.Consequence
+	res.CandidateIDs = n.CandidateIDs
+	res.Pattern = n.Pattern
+	res.LeadStake = n.LeadStake
 }
 
-// applyVerdict takes the judge's line, and pulls why_missed/consequence from the nomination it
-// picked so the log still records the reasoning behind the winner.
+// applyVerdict takes the judge's sentence, and pulls pattern/lead stake from the draft it picked
+// so the log still records the reasoning behind the winner.
 func applyVerdict(res *BLUFResult, v blufVerdict, noms []blufNomination) {
 	res.Line = strings.TrimSpace(v.BLUF)
-	res.CandidateID = v.CandidateID
+	res.CandidateIDs = v.CandidateIDs
 	res.Rationale = v.Rationale
 	if v.WinnerIndex >= 1 && v.WinnerIndex <= len(noms) {
 		won := noms[v.WinnerIndex-1]
-		res.WhyMissed = won.WhyMissed
-		res.Consequence = won.Consequence
-		if res.CandidateID == 0 {
-			res.CandidateID = won.CandidateID
+		res.Pattern = won.Pattern
+		res.LeadStake = won.LeadStake
+		if len(res.CandidateIDs) == 0 {
+			res.CandidateIDs = won.CandidateIDs
 		}
 	}
 	for _, r := range v.Rejected {
@@ -288,8 +286,8 @@ func applyVerdict(res *BLUFResult, v blufVerdict, noms []blufNomination) {
 }
 
 // finalizeBLUF enforces the one hard format rule the downstream report contract depends on.
-// Why: an over-long line is not truncated -- cutting a BLUF mid-clause loses the "by when" and
-// reads as a bug; a shorter grounded nomination is the better answer.
+// Why: an over-long sentence is not truncated -- cutting it mid-clause drops the lead stake and
+// reads as a bug; a shorter grounded draft is the better answer.
 func finalizeBLUF(res BLUFResult, noms []blufNomination) (BLUFResult, error) {
 	if blufWordCount(res.Line) <= blufMaxWords {
 		return res, nil

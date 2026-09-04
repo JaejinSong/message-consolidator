@@ -256,8 +256,8 @@ func (s *ReportsService) withDecidedBLUF(ctx context.Context, email, window stri
 		logger.Warnf("[REPORTS] BLUF stage unavailable for report %d, falling back to the in-prompt rule: %v", id, err)
 		return payload
 	}
-	logger.Infof("[REPORTS] BLUF decided for report %d: candidate=%d panel=%v nominations=%d rationale=%q why_missed=%q",
-		id, res.CandidateID, res.Panel, res.Nominations, res.Rationale, res.WhyMissed)
+	logger.Infof("[REPORTS] BLUF decided for report %d: covers=%v panel=%v drafts=%d rationale=%q pattern=%q lead=%q",
+		id, res.CandidateIDs, res.Panel, res.Nominations, res.Rationale, res.Pattern, res.LeadStake)
 	return "# DECIDED BLUF: " + res.Line + "\n" + payload
 }
 
