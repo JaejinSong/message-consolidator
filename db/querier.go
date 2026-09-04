@@ -109,8 +109,9 @@ type Querier interface {
 	GetMessagesForMerge(ctx context.Context, arg GetMessagesForMergeParams) ([]GetMessagesForMergeRow, error)
 	// Why: updated_at is NULL for any task never re-touched after creation, and a NULL
 	// comparison is false, so those rows were dropped from every report window including
-	// the unbounded stalled fetch. COALESCE to created_at keeps never-updated tasks -- the
-	// longest-neglected ones -- inside the window.
+	// the unbounded stalled fetch. Falling back to created_at keeps never-updated tasks -- the
+	// longest-neglected ones -- inside the window. The '' and 1970 sentinel forms mirror
+	// SelectStalledRequests: migration 282 introduced the column with that default.
 	// Why: (done=0, is_deleted=1) is user-cancel; (done=1, is_deleted=1) is the 30-day
 	// auto-sweep of completed tasks (still valid evidence). category=merged rows were
 	// absorbed into another task; counting them inflates activity and edge weights.

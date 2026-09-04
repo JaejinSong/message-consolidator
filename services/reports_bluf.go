@@ -25,6 +25,7 @@ const (
 	blufWeightCrossRoom   = 11
 	blufWeightExternalReq = 11
 	blufWeightRisk        = 11
+	blufWeightRepeatAsk   = 7 // per additional message block in the thread
 	blufWeightAgePerDay   = 2
 	blufWeightGapPerDay   = 1
 )
@@ -36,6 +37,7 @@ const (
 	blufSilentMinDays  = 7
 	blufResurfaceMinD  = 7
 	blufDueSoonDays    = 3
+	blufRepeatAskCap   = 6
 	blufCrossRoomMin   = 2
 	blufMinTokenLen    = 3
 	blufDossierCount   = 12
@@ -179,6 +181,14 @@ func blufTopicScore(mentions, rooms int) (int, []string) {
 // because someone else had to bring it back.
 func blufNeglectScore(m Log, now time.Time) (int, []string) {
 	pts, labels := 0, []string{}
+	if n := messageBlocks(m.OriginalText); n > 1 {
+		extra := n - 1
+		if extra > blufRepeatAskCap {
+			extra = blufRepeatAskCap
+		}
+		pts += extra * blufWeightRepeatAsk
+		labels = append(labels, fmt.Sprintf("thread carries %d messages", n))
+	}
 	age := stalledAge(m, now)
 	if age > 0 {
 		capped := age
@@ -206,6 +216,18 @@ func blufNeglectScore(m Log, now time.Time) (int, []string) {
 	return pts, labels
 }
 
+// messageBlocks counts the messages folded into one task's original_text. Why: every append
+// path (AppendOriginalText, UpdateTaskFullAppend, UpdateTaskMergeComplete) joins the new
+// message with a blank line, so block count is the most direct measure of how many times the
+// same ask arrived -- and it survives even when updated_at was never written.
+func messageBlocks(text string) int {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return 0
+	}
+	return strings.Count(text, "\n\n") + 1
+}
+
 // blufStakesScore rates what is at risk if the task keeps slipping.
 func blufStakesScore(m Log, hostEmail string, now time.Time) (int, []string) {
 	pts, labels := 0, []string{}
@@ -225,7 +247,7 @@ func blufStakesScore(m Log, hostEmail string, now time.Time) (int, []string) {
 		pts += blufWeightSelfOwned
 		labels = append(labels, "owned by you")
 	}
-	if strings.EqualFold(m.RequesterType, "external") {
+	if isExternalParty(m.RequesterType, m.RequesterCanonical, m.Requester, hostEmail) {
 		pts += blufWeightExternalReq
 		labels = append(labels, "external requester waiting")
 	}
@@ -234,6 +256,22 @@ func blufStakesScore(m Log, hostEmail string, now time.Time) (int, []string) {
 		labels = append(labels, "risk wording in evidence")
 	}
 	return pts, labels
+}
+
+// isExternalParty reports whether the party resolves outside the company: Partner, Customer,
+// or the unresolved-non-company "External" fallback. Why: the stored contact type is "none" on
+// nearly every row, so MapContactType's domain-based fallback is what actually decides -- the
+// same resolution the rendered dossier shows the model.
+func isExternalParty(contactType, canonical, raw, hostEmail string) bool {
+	id := canonical
+	if id == "" {
+		id = stripParenSuffix(raw)
+	}
+	switch store.MapContactType(contactType, strings.ToLower(id), hostEmail) {
+	case "Partner", "Customer", "External":
+		return true
+	}
+	return false
 }
 
 // blufDeadlineScore rates a due date's pull. An unparseable value still counts as a stated
@@ -313,7 +351,7 @@ func buildBLUFDossiers(activity, stalled []Log, hostEmail string, now time.Time)
 	idx := blufTopicIndex(all)
 	out := make([]blufDossier, 0, len(all))
 	for _, m := range all {
-		if m.Done || m.ExcludedAt != nil {
+		if !isBLUFCandidate(m) {
 			continue
 		}
 		out = append(out, scoreBLUFDossier(m, idx, hostEmail, now))
@@ -323,6 +361,14 @@ func buildBLUFDossiers(activity, stalled []Log, hostEmail string, now time.Time)
 		out = out[:blufDossierCount]
 	}
 	return out
+}
+
+// isBLUFCandidate gates which open tasks may carry the BLUF. Merged rows are re-checked here
+// even though the report query drops them: they keep done=0 after their content moved to the
+// surviving task, so any caller that skips that filter would resurface completed work as
+// neglect.
+func isBLUFCandidate(m Log) bool {
+	return !m.Done && m.ExcludedAt == nil && !strings.EqualFold(m.Category, "merged")
 }
 
 // dedupLogsByID concatenates the two sections, keeping the first occurrence of each task.

@@ -74,10 +74,10 @@ Signal glossary -- these are measured facts, not opinions:
 }
 ```
 
-GOOD: `{"candidate_id":12611,"why_missed":"never touched since created 65 calendar days ago","consequence":"FIF SaaS contract expiration has no confirmed renewal path and the external requester is still waiting","surprise":"high","bluf":"Andy Phan must confirm the FIF SaaS renewal path -- contract expiring, untouched 65 days.","confidence":0.82,"runner_up_id":12440}`
+GOOD: `{"candidate_id":9041,"why_missed":"never touched since created 52 calendar days ago","consequence":"Meridian Bank's on-prem license renewal has no confirmed quote and the customer requester is still waiting","surprise":"high","bluf":"Rina Okafor must send Meridian Bank the renewal quote -- license lapsing, untouched 52 days.","confidence":0.84,"runner_up_id":9017}`
 BAD: `{"bluf":"Consider following up on some older items this week."}` (no owner, no subject, hedged)
-BAD: `{"bluf":"Andy Phan must renew FIF SaaS by 2026-09-30."}` (invented date -- no Signals or Evidence states it)
-BAD: `{"candidate_id":11867,"consequence":"This will damage the customer relationship."}` (invented consequence; the evidence is about an internal payment window)
+BAD: `{"bluf":"Rina Okafor must renew the Meridian license by 2026-10-15."}` (invented date -- no Signals or Evidence states it)
+BAD: `{"candidate_id":9017,"consequence":"This will damage the customer relationship."}` (invented consequence when the evidence only describes an internal filing window)
 
 [Context]
 Current Time: {{.CurrentTime}}

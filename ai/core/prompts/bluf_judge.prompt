@@ -47,7 +47,7 @@ nominations against the candidates, not against each other's confidence scores: 
 }
 ```
 
-GOOD: `{"winner_index":2,"candidate_id":12611,"bluf":"Andy Phan must confirm the FIF SaaS renewal path -- contract expiring, untouched 65 days.","rationale":"Tier (a): a committed contract is expiring with no confirmed renewal path.","rejected":[{"index":1,"reason":"asserted a 2026-09-30 deadline that appears in no Signals or Evidence"},{"index":3,"reason":"grounded but tier (e): neglect duration only, no money or external party"}]}`
+GOOD: `{"winner_index":2,"candidate_id":9041,"bluf":"Rina Okafor must send Meridian Bank the renewal quote -- license lapsing, untouched 52 days.","rationale":"Tier (a): a committed license is lapsing with no confirmed quote.","rejected":[{"index":1,"reason":"asserted a 2026-10-15 deadline that appears in no Signals or Evidence"},{"index":3,"reason":"grounded but tier (e): neglect duration only, no money or external party"}]}`
 BAD: `{"winner_index":1,"bluf":"Multiple items need attention this week."}` (not a single decision-relevant item)
 BAD: `{"winner_index":1,"rejected":[]}` with three differing nominations (arbitration without stated reasons)
 

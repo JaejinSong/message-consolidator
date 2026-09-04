@@ -259,3 +259,69 @@ func TestBuildBLUFCandidateLine_ListsRankedShortlistWithSignals(t *testing.T) {
 		t.Errorf("want %d ranked entries, got line: %s", blufHintCount, line)
 	}
 }
+
+func TestIsBLUFCandidate_SkipsMergedRowsThatStillReadOpen(t *testing.T) {
+	// Why: a merged row keeps done=0 after its content moved to the surviving task -- reading it
+	// as neglect is exactly how a completed stock-option item was misreported as 115 days idle.
+	merged := blufFixture{id: 1, task: "Manage stock option exercise", createdAt: "2026-05-12"}.toLog()
+	merged.Category = "merged"
+	if isBLUFCandidate(merged) {
+		t.Error("merged row must not be a BLUF candidate")
+	}
+	open := blufFixture{id: 2, task: "Manage stock option exercise", createdAt: "2026-05-12"}.toLog()
+	open.Category = "TASK"
+	if !isBLUFCandidate(open) {
+		t.Error("open TASK row must be a candidate")
+	}
+}
+
+func TestMessageBlocks_CountsAppendedMessages(t *testing.T) {
+	cases := map[string]int{
+		"":                            0,
+		"single message":              1,
+		"newest\n\nolder":             2,
+		"a\n\nb\n\nc\n\nd":            4,
+		"  padded\n\nblocks  \n\n x ": 3,
+	}
+	for in, want := range cases {
+		if got := messageBlocks(in); got != want {
+			t.Errorf("messageBlocks(%q) = %d, want %d", in, got, want)
+		}
+	}
+}
+
+func TestBuildBLUFDossiers_RepeatedAskOutranksSingleMessageAtSameAge(t *testing.T) {
+	seven := strings.Join([]string{"Any update on the renewal?", "Following up again.", "Still waiting.", "Ping.", "Hello?", "Renewal?", "First ask."}, "\n\n")
+	base := []blufFixture{
+		{id: 1, task: "Confirm Meridian renewal quote", room: "Gmail", assignee: "Rina", createdAt: "2026-07-01", evidence: "First ask."},
+		{id: 2, task: "Confirm Meridian license terms", room: "Gmail", assignee: "Rina", createdAt: "2026-07-01", evidence: seven},
+	}
+	dossiers := buildBLUFDossiers(toLogs(base), nil, "hostuser@whatap.io", blufNow)
+	if int64(dossiers[0].log.ID) != 2 {
+		t.Errorf("seven-message thread should outrank a single message at equal age%s", summarize(dossiers))
+	}
+	if !strings.Contains(strings.Join(dossiers[0].signals, ";"), "thread carries 7 messages") {
+		t.Errorf("repeat-ask signal missing from labels: %v", dossiers[0].signals)
+	}
+}
+
+func TestIsExternalParty_ResolvesByDomainWhenContactTypeIsNone(t *testing.T) {
+	host := "hostuser@whatap.io"
+	cases := []struct {
+		contactType, canonical, raw string
+		want                        bool
+	}{
+		{"none", "billing@fif.co.id", "", true},       // unresolved non-company domain -> External
+		{"none", "", "Diana", true},                   // bare display name, no company signal -> External
+		{"none", "yspark@whatap.io", "", false},       // company domain -> Internal
+		{"customer", "", "Whoever", true},             // stored type wins
+		{"partner", "", "Whoever", true},              //
+		{"internal", "someone@gmail.com", "", false},  // stored type wins over domain
+		{"none", "", "Jaejin Song (Ambiguous)", true}, // ambiguity suffix stripped before mapping
+	}
+	for _, tc := range cases {
+		if got := isExternalParty(tc.contactType, tc.canonical, tc.raw, host); got != tc.want {
+			t.Errorf("isExternalParty(%q,%q,%q) = %v, want %v", tc.contactType, tc.canonical, tc.raw, got, tc.want)
+		}
+	}
+}

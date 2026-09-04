@@ -23,8 +23,9 @@ WHERE r.user_email = ? AND r.start_date = ? AND r.end_date = ?;
 -- name: GetMessagesForReport :many
 -- Why: updated_at is NULL for any task never re-touched after creation, and a NULL
 -- comparison is false, so those rows were dropped from every report window including
--- the unbounded stalled fetch. COALESCE to created_at keeps never-updated tasks -- the
--- longest-neglected ones -- inside the window.
+-- the unbounded stalled fetch. Falling back to created_at keeps never-updated tasks -- the
+-- longest-neglected ones -- inside the window. The '' and 1970 sentinel forms mirror
+-- SelectStalledRequests: migration 282 introduced the column with that default.
 -- Why: (done=0, is_deleted=1) is user-cancel; (done=1, is_deleted=1) is the 30-day
 -- auto-sweep of completed tasks (still valid evidence). category=merged rows were
 -- absorbed into another task; counting them inflates activity and edge weights.
@@ -36,7 +37,8 @@ SELECT
     STRFTIME('%Y-%m-%dT00:00:00Z', m.deadline_date) AS deadline_date, COALESCE(m.deadline_inferred,0) as deadline_inferred
 FROM v_messages m
 WHERE m.user_email = ?
-  AND COALESCE(m.updated_at, m.created_at) >= datetime(?)
+  AND CASE WHEN m.updated_at IS NULL OR m.updated_at = '' OR m.updated_at = '1970-01-01T00:00:00Z'
+           THEN m.created_at ELSE m.updated_at END >= datetime(?)
   AND NOT (m.done = 0 AND m.is_deleted = 1)
   AND m.category != 'merged'
   AND (sqlc.narg('source') IS NULL OR m.source = sqlc.narg('source'))

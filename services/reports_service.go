@@ -94,16 +94,17 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, 
 	}
 
 	// 2. Fetch and sanitize
-	activity, stalled, err := s.fetchAndFilterMessages(ctx, email, start, end, source, done)
+	activity, stalled, backlog, err := s.fetchAndFilterMessages(ctx, email, start, end, source, done)
 	if err != nil {
 		return nil, err
 	}
 	// Why: Batch-resolve identities in one DB call by sanitizing combined slice, then split back by original lengths.
-	actLen := len(activity)
-	combined := append(append([]Log{}, activity...), stalled...)
+	actLen, stalledLen := len(activity), len(stalled)
+	combined := append(append(append([]Log{}, activity...), stalled...), backlog...)
 	combined, _ = s.sanitizeMessages(ctx, email, combined) // Ignore error, self-healing
 	activity = combined[:actLen]
-	stalled = combined[actLen:]
+	stalled = combined[actLen : actLen+stalledLen]
+	backlog = combined[actLen+stalledLen:]
 
 	// 3. Create Placeholder
 	report := &store.Report{
@@ -118,7 +119,7 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, 
 
 	// 4. Background Job
 	if s.isTest {
-		s.processAsyncReport(email, start, end, lang, report.ID, activity, stalled) //nolint:contextcheck // Identity resolution chain (Wave 2 I).
+		s.processAsyncReport(email, start, end, lang, report.ID, activity, stalled, backlog) //nolint:contextcheck // Identity resolution chain (Wave 2 I).
 		// 💡 Sync update for test: Re-fetch report to ensure all fields (Status, Summary, Translations) are refreshed
 		refreshed, err := store.GetReportByID(ctx, report.ID, email)
 		if err == nil {
@@ -127,7 +128,7 @@ func (s *ReportsService) GenerateReport(ctx context.Context, email, start, end, 
 	} else {
 		go func() { //nolint:contextcheck // Identity resolution chain (Wave 2 I).
 			defer safego.Recover("async-report")
-			s.processAsyncReport(email, start, end, lang, report.ID, activity, stalled)
+			s.processAsyncReport(email, start, end, lang, report.ID, activity, stalled, backlog)
 		}()
 	}
 
@@ -150,52 +151,55 @@ func withinWindow(messages []Log, startDate, endDate string) []Log {
 	return out
 }
 
-// fetchStalled collects still-open tasks that predate the window and have gone stale.
-// Why: they get their own section in the AI prompt -- not counted in Activity, only used
-// for the Stalled Tasks rule.
-func (s *ReportsService) fetchStalled(ctx context.Context, email, startDate string, source *string) []Log {
+// fetchStalled collects still-open tasks that predate the window. It returns two views of the
+// same fetch: `stalled` is the stale-threshold subset that gets its own section in the AI
+// prompt (not counted in Activity), and `backlog` is every pre-window open task regardless of
+// age. Why both: the BLUF stage must see the whole backlog -- a task created two working days
+// before the window and never touched is in neither Activity nor Stalled, yet is exactly the
+// kind of item the reader has lost sight of.
+func (s *ReportsService) fetchStalled(ctx context.Context, email, startDate string, source *string) (stalled, backlog []Log) {
 	doneFalse := false
 	threshold := store.GetStaleThresholdWorkingDays()
 	// Why: zero time = no lower bound so tasks older than the threshold are fetched;
 	// stale filter (WorkingDaysSince >= threshold) is applied in Go below.
 	stalledMsgs, _ := store.GetMessagesForReport(ctx, email, time.Time{}, source, &doneFalse)
-	var out []Log
 	for _, m := range stalledMsgs {
 		// Skip tasks already captured in the activity window.
 		if ds := m.CreatedAt.Format("2006-01-02"); ds >= startDate {
 			continue
 		}
+		backlog = append(backlog, m)
 		base := m.CreatedAt
 		if !m.AssignedAt.IsZero() && m.AssignedAt.After(base) {
 			base = m.AssignedAt
 		}
 		if store.WorkingDaysSince(base, time.Now()) >= threshold {
-			out = append(out, m)
+			stalled = append(stalled, m)
 		}
 	}
-	return out
+	return stalled, backlog
 }
 
-func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, startDate, endDate string, source *string, done *bool) (activity []Log, stalled []Log, err error) {
+func (s *ReportsService) fetchAndFilterMessages(ctx context.Context, email, startDate, endDate string, source *string, done *bool) (activity, stalled, backlog []Log, err error) {
 	start, _ := time.Parse("2006-01-02", startDate)
 	messages, err := store.GetMessagesForReport(ctx, email, start, source, done)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	activity = withinWindow(messages, startDate, endDate)
 
 	// Why: skip when the caller requested a done-only view -- done tasks cannot be stalled.
 	if done == nil || !*done {
-		stalled = s.fetchStalled(ctx, email, startDate, source)
+		stalled, backlog = s.fetchStalled(ctx, email, startDate, source)
 	}
 
 	if len(activity) == 0 && len(stalled) == 0 {
-		return nil, nil, fmt.Errorf("no messages found for %s ~ %s (source: %v, done: %v)", startDate, endDate, source, done)
+		return nil, nil, nil, fmt.Errorf("no messages found for %s ~ %s (source: %v, done: %v)", startDate, endDate, source, done)
 	}
-	return activity, stalled, nil
+	return activity, stalled, backlog, nil
 }
 
-func (s *ReportsService) processAsyncReport(email, start, end, lang string, id store.ReportID, activity, stalled []Log) {
+func (s *ReportsService) processAsyncReport(email, start, end, lang string, id store.ReportID, activity, stalled, backlog []Log) {
 	// Why: trace.Start (not StartWithContext) creates a NEW trace context on a fresh
 	// background ctx — StartWithContext silently skips when no parent trace ctx exists.
 	// Name MUST start with `/` so urlutil.NewURL parses it as Path; without the slash
@@ -209,7 +213,7 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id s
 		logger.Warnf("[REPORTS] input logs truncated at cutoff (%d bytes): email=%s, total_logs=%d, report_id=%d",
 			s.config.CutoffSize, email, len(activity)+len(stalled), id)
 	}
-	taskLogs = s.withDecidedBLUF(ctx, email, start+" ~ "+end, id, activity, stalled, taskLogs)
+	taskLogs = s.withDecidedBLUF(ctx, email, start+" ~ "+end, id, activity, backlog, taskLogs)
 	summary, err := s.summarizer.Generate(ctx, email, taskLogs, start+" ~ "+end, id)
 	if err != nil {
 		s.markFailed(ctx, email, id)
@@ -238,11 +242,11 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id s
 // Every failure path returns the payload untouched. The report prompt then applies its own
 // BLUF rule against the ranked shortlist that buildBLUFCandidateLine already put in the Stats
 // block, so a BLUF-stage outage degrades the line's quality but never blocks the report.
-func (s *ReportsService) withDecidedBLUF(ctx context.Context, email, window string, id store.ReportID, activity, stalled []Log, payload string) string {
+func (s *ReportsService) withDecidedBLUF(ctx context.Context, email, window string, id store.ReportID, activity, backlog []Log, payload string) string {
 	if s.geminiClient == nil {
 		return payload
 	}
-	dossiers := buildBLUFDossiers(activity, stalled, email, time.Now())
+	dossiers := buildBLUFDossiers(activity, backlog, email, time.Now())
 	rendered := renderBLUFDossiers(dossiers, email)
 	if rendered == "" {
 		return payload

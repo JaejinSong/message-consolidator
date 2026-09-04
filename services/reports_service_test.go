@@ -79,7 +79,9 @@ func TestReportsService_TruncatePayload(t *testing.T) {
 }
 
 func TestReportsService_TruncatePriority(t *testing.T) {
-	svc := &ReportsService{config: ReportConfig{CutoffSize: 300}, isTest: true}
+	// Why: 450, not 300 -- the Stats block now carries the ranked BLUF shortlist (~120B), and
+	// the intent here is "room for 2-3 task lines after the header", not a fixed byte count.
+	svc := &ReportsService{config: ReportConfig{CutoffSize: 450}, isTest: true}
 	now := time.Now()
 
 	// 1 old, incomplete task
