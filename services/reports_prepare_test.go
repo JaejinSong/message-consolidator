@@ -130,6 +130,47 @@ func TestBuildActivityStatsHeader_RoomCustomerLine(t *testing.T) {
 	}
 }
 
+// TestBuildActivityStatsHeader_RoomCustomerLineOmitsUnresolved pins the two ways the map
+// used to mislead the report model: an identity room→room entry, and a descriptive "for X"
+// tail promoted to a customer label. Both must be absent, leaving the model to apply rule 4.
+func TestBuildActivityStatsHeader_RoomCustomerLineOmitsUnresolved(t *testing.T) {
+	activity := []Log{
+		{Task: "Provide Excel file matching yesterday's request", Room: "Internal Puspakom WhaTap IFC"},
+		{Task: "Confirm agent Inactive handling condition for FIF telemetry data gap", Room: "biz-global-tech"},
+		{Task: "Share config files for cleanup/archive guidance", Room: "Project WhaTap x Netciti"},
+		{Task: "Align AI/ML architecture for Hepsiburada meeting", Room: "279516505182402"},
+		{Task: "Next quarter roadmap meeting", Room: "Digital Transformation"},
+		{Task: "Issue V1 product license for PDRM Malaysia next-generation system PoC", Room: "Gmail"},
+	}
+
+	out := buildActivityStatsHeader(activity, nil)
+
+	forbidden := []string{
+		"Internal Puspakom WhaTap IFC→Internal Puspakom WhaTap IFC",
+		"Digital Transformation→Digital Transformation",
+		"→FIF telemetry data gap",
+		"→cleanup/archive guidance",
+		"279516505182402→",
+		"Gmail→PDRM Malaysia next-generation system PoC",
+	}
+	for _, f := range forbidden {
+		if strings.Contains(out, f) {
+			t.Errorf("Room→Customer must not contain %q; got: %s", f, out)
+		}
+	}
+
+	expected := []string{
+		"Internal Puspakom WhaTap IFC→Puspakom",
+		"Project WhaTap x Netciti→Netciti",
+		"Gmail→Other Tasks",
+	}
+	for _, e := range expected {
+		if !strings.Contains(out, e) {
+			t.Errorf("expected Room→Customer to contain %q; got: %s", e, out)
+		}
+	}
+}
+
 // --- hasRiskKeyword ---
 
 func TestHasRiskKeyword(t *testing.T) {
@@ -165,6 +206,12 @@ func TestInferCustomerFromTask(t *testing.T) {
 		{"Monitoring for SIMASFIN", "SIMASFIN"},
 		{"Internal planning meeting", ""},
 		{"", ""},
+		// Descriptive tails must not become customers: these three shipped into the
+		// Room->Customer map as customer labels and the report model trusted them.
+		{"Confirm agent Inactive handling condition for FIF telemetry data gap", ""},
+		{"Share yard.conf, keeper.conf and project.conf for cleanup/archive guidance", ""},
+		{"Issue V1 product license for PDRM Malaysia next-generation system PoC", ""},
+		{"Prepare quotation for the renewal", ""},
 	}
 	for _, c := range cases {
 		got := inferCustomerFromTask(c.task)
@@ -188,6 +235,18 @@ func TestInferCustomerFromRoom(t *testing.T) {
 		{"slack", "Other Tasks"},
 		{"Inbox", "Other Tasks"},
 		{"", "Other Tasks"},
+		// Vendor scaffolding stripped so the counterparty surfaces.
+		{"Adira - Whatap Tech", "Adira"},
+		{"PDRM POC - MSB | IFC | WhaTap", "PDRM"},
+		{"Internal Puspakom WhaTap IFC", "Puspakom"},
+		{"Project WhaTap x Netciti", "Netciti"},
+		{"WiiTech / WhaTap", "WiiTech"},
+		{"Whatap - Canadia POC", "Canadia"},
+		// Unresolved: nothing to strip (empty means "keep it out of the map"), or the room
+		// is a bare channel id.
+		{"Digital Transformation", ""},
+		{"279516505182402", ""},
+		{"WhaTap Internal", ""},
 	}
 	for _, c := range cases {
 		got := inferCustomerFromRoom(c.room)

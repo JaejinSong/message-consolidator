@@ -85,7 +85,7 @@ func LoadConfig() *Config {
 		DeepSeekFilterModel:        envOr("DEEPSEEK_FILTER_MODEL", "deepseek-v4-flash:0731"),
 		DeepSeekAnalysisModel:      envOr("DEEPSEEK_ANALYSIS_MODEL", "deepseek-v4-flash:0731"),
 		DeepSeekTranslationModel:   envOr("DEEPSEEK_TRANSLATION_MODEL", "deepseek-v4-flash:0731"),
-		DeepSeekReportModel:        envOr("DEEPSEEK_REPORT_MODEL", "deepseek-v4-pro"),
+		DeepSeekReportModel:        envOr("DEEPSEEK_REPORT_MODEL", "glm-5.3-flash"),
 		NotionToken:                os.Getenv("NOTION_TOKEN"),
 		NotionReportPageID:         os.Getenv("NOTION_REPORT_PAGE_ID"),
 		NotionWALogPageID:          os.Getenv("NOTION_WA_LOG_PAGE_ID"),

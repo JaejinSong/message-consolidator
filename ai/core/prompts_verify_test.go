@@ -317,6 +317,35 @@ func TestReportSummaryQuoteContiguity(t *testing.T) {
 	}
 }
 
+// TestReportSummaryV320Grounding guards the two v3.2.0 rules added when the report stage
+// moved to glm-5.3-flash. Why: on the A/B run against a real weekly payload the new model
+// read `Age: 3wd` as "3 weeks" (the prompt only ever referenced Nwd inside rule 5, never
+// defining wd), and it treated the `# Room→Customer` map as authoritative, emitting raw room
+// names as customers where our own map had handed it identity mappings.
+func TestReportSummaryV320Grounding(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/report_summary.prompt")
+	if err != nil {
+		t.Fatalf("read report_summary: %v", err)
+	}
+	body := string(content)
+	required := []string{
+		"`Age: Nwd` = N **working days**",
+		"NEVER restate it as weeks, months or calendar days",
+		"room-level fallback, not an override",
+		"never emit a map value that is just the room name back",
+		"A room missing from the map is NOT unresolvable",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Errorf("report_summary.prompt missing v3.2.0 rule phrase: %q", token)
+		}
+	}
+	if strings.Contains(body, "when available to skip inference") {
+		t.Error("report_summary.prompt still carries the pre-v3.2.0 override wording for the Room→Customer map")
+	}
+}
+
 // TestReportSummaryBulletTypes guards the v2.5.2 bullet-type decoupling rule.
 // Why: v2.5.1 collapsed Key Insights to 1 bullet because the verbatim-quote mandate
 // at L19 conflicted with the structural >40% / cross-source rules at L29-30. v2.5.2

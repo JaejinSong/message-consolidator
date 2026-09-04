@@ -21,8 +21,8 @@ func TestLoadConfigDeepSeekDefaults(t *testing.T) {
 	if cfg.DeepSeekFilterModel != "deepseek-v4-flash:0731" || cfg.DeepSeekAnalysisModel != "deepseek-v4-flash:0731" || cfg.DeepSeekTranslationModel != "deepseek-v4-flash:0731" {
 		t.Errorf("DeepSeek flash-tier model defaults = %q/%q/%q", cfg.DeepSeekFilterModel, cfg.DeepSeekAnalysisModel, cfg.DeepSeekTranslationModel)
 	}
-	if cfg.DeepSeekReportModel != "deepseek-v4-pro" {
-		t.Errorf("DeepSeekReportModel default = %q, want deepseek-v4-pro", cfg.DeepSeekReportModel)
+	if cfg.DeepSeekReportModel != "glm-5.3-flash" {
+		t.Errorf("DeepSeekReportModel default = %q, want glm-5.3-flash", cfg.DeepSeekReportModel)
 	}
 }
 

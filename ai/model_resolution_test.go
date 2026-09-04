@@ -25,7 +25,9 @@ func TestResolveModelThinking(t *testing.T) {
 		{"chat_system", core.PromptChatSystem, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-v4-flash:0731", ThinkOff}},
 		{"gmail_system", core.PromptGmailSystem, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-v4-flash:0731", ThinkOff}},
 		{"notion_system", core.PromptNotionSystem, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-v4-flash:0731", ThinkOff}},
-		{"report_summary", core.PromptReportSummary, modelSpec{}, want{"gemini-3-flash-preview", ThinkOff}, want{"deepseek-v4-pro", ThinkOn}},
+		// Why: the report stage runs glm-5.3-flash on the same Ollama-cloud endpoint; the
+		// deepseekModel key selects the model for provider=deepseek, not a DeepSeek-family id.
+		{"report_summary", core.PromptReportSummary, modelSpec{}, want{"gemini-3-flash-preview", ThinkOff}, want{"glm-5.3-flash", ThinkOn}},
 		{"completion_check", core.PromptCompletionCheck, modelSpec{}, want{"gemini-3-flash-preview", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOn}},
 		{"task_merge_summary", core.PromptTaskMergeSummary, modelSpec{}, want{"gemini-3-flash-preview", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOff}},
 		{"translation_system", core.PromptTranslationSystem, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOff}},

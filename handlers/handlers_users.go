@@ -51,13 +51,16 @@ func (r ModelRate) inWindow(peak bool) ModelRate {
 // DeepSeek V4 rows carry the off-peak base rate published 2026-08-16 and a 2x peak
 // multiplier, applied per row by inWindow. The v3 ids keep their pre-migration flat rates
 // so historical token_usage rows (all peak=0 after the v17 backfill) stay billed at what
-// they actually cost.
+// they actually cost. glm-5.3-flash (report stage) carries Z.ai's published list rate and no
+// peak multiplier - it bills one flat rate, so a launch-promotion window would show as
+// overstated spend rather than a missing charge.
 var aiRates = map[string]ModelRate{
 	"deepseek-chat":          {InputPerM: 0.14, CachedInputPerM: 0.0028, OutputPerM: 0.28, ThinkingPerM: 0.28},
 	"deepseek-reasoner":      {InputPerM: 0.14, CachedInputPerM: 0.0028, OutputPerM: 0.28, ThinkingPerM: 0.28},
 	"deepseek-v4-flash":      {InputPerM: 0.22, CachedInputPerM: 0.007, OutputPerM: 0.66, ThinkingPerM: 0.66, PeakMultiplier: deepSeekPeakMultiplier},
 	"deepseek-v4-pro":        {InputPerM: 0.66, CachedInputPerM: 0.022, OutputPerM: 1.98, ThinkingPerM: 1.98, PeakMultiplier: deepSeekPeakMultiplier},
 	"gemini-3-flash-preview": {InputPerM: 0.50, OutputPerM: 3.00, ThinkingPerM: 3.00},
+	"glm-5.3-flash":          {InputPerM: 0.15, CachedInputPerM: 0.03, OutputPerM: 0.50, ThinkingPerM: 0.50},
 }
 
 // rateFor resolves a model id to its rate: exact match, then prefix match (versioned ids),

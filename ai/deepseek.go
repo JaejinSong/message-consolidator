@@ -19,7 +19,10 @@ import (
 const (
 	deepSeekDefaultBaseURL = "https://ollama.com/v1"
 	deepSeekFlashModel     = "deepseek-v4-flash:0731" // flash tier; thinking via reasoning_effort
-	deepSeekProModel       = "deepseek-v4-pro"        // pro tier, report stage
+	// deepSeekProModel is only the last-resort fallback for a ProviderConfig with no report
+	// model set. The report stage itself runs glm-5.3-flash, selected by report_summary.prompt
+	// frontmatter (which resolveModel prefers) and by the DEEPSEEK_REPORT_MODEL default.
+	deepSeekProModel = "deepseek-v4-pro"
 )
 
 // deepseekTransport implements LLMTransport over the OpenAI-compatible DeepSeek API.

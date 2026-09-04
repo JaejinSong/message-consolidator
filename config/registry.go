@@ -56,7 +56,7 @@ var Registry = []SettingDef{
 	{Key: "DEEPSEEK_FILTER_MODEL", Label: "DeepSeek Filter Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-v4-flash:0731"},
 	{Key: "DEEPSEEK_ANALYSIS_MODEL", Label: "DeepSeek Analysis Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-v4-flash:0731"},
 	{Key: "DEEPSEEK_TRANSLATION_MODEL", Label: "DeepSeek Translation Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-v4-flash:0731"},
-	{Key: "DEEPSEEK_REPORT_MODEL", Label: "DeepSeek Report Model", Category: "ai", Type: TypeString, DefaultValue: "deepseek-v4-pro"},
+	{Key: "DEEPSEEK_REPORT_MODEL", Label: "Report Model", Category: "ai", Type: TypeString, DefaultValue: "glm-5.3-flash"},
 
 	// --- channels ---
 	{Key: "SLACK_TOKEN", Label: "Slack Bot Token", Category: "channels", Type: TypeString, Secret: true, RestartRequired: true},

@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // sanitizeMessages performs batch identity resolution to eliminate N+1 overhead.
@@ -308,15 +309,26 @@ func hasRiskKeyword(text string) bool {
 	return false
 }
 
-// inferCustomer derives the counterparty from task description then room name.
+// inferCustomer derives a room's counterparty. Generic multi-customer channels bucket first
+// so one task's counterparty can never label the whole channel, then a named entity in the
+// task, then the room name. An empty result means the room stays unresolved.
 func inferCustomer(task, room string) string {
+	if isGenericRoom(room) {
+		return "Other Tasks"
+	}
 	if c := inferCustomerFromTask(task); c != "" {
 		return c
 	}
 	return inferCustomerFromRoom(room)
 }
 
-// inferCustomerFromTask extracts a counterparty using "for X" pattern.
+// entityNameMaxWords caps how long a "for X" tail may run before it reads as prose.
+const entityNameMaxWords = 3
+
+// inferCustomerFromTask extracts a counterparty using the "for X" pattern, accepting only
+// candidates shaped like a proper name. Why: descriptive tails ("for cleanup/archive
+// guidance", "for FIF telemetry data gap") otherwise became customer labels, and once they
+// reached the Room->Customer map the report model treated them as authoritative.
 func inferCustomerFromTask(task string) string {
 	lower := strings.ToLower(task)
 	idx := strings.Index(lower, " for ")
@@ -330,34 +342,96 @@ func inferCustomerFromTask(task string) string {
 			break
 		}
 	}
+	if !isEntityName(rest) {
+		return ""
+	}
 	return rest
+}
+
+// isEntityName reports whether s reads as a proper name: a few words, each starting with an
+// uppercase letter or a digit (acronyms, "Bank BNI", "V4").
+func isEntityName(s string) bool {
+	words := strings.Fields(s)
+	if len(words) == 0 || len(words) > entityNameMaxWords {
+		return false
+	}
+	for _, w := range words {
+		first := []rune(w)[0]
+		if !unicode.IsUpper(first) && !unicode.IsDigit(first) {
+			return false
+		}
+	}
+	return true
 }
 
 var genericRoomPrefixes = []string{"gmail", "inbox", "sent", "drafts", "slack", "dm"}
 
-func inferCustomerFromRoom(room string) string {
+// isGenericRoom reports whether the room is a mailbox or chat surface shared across many
+// counterparties, so no single customer can be attributed to it.
+func isGenericRoom(room string) bool {
 	lower := strings.ToLower(room)
 	for _, g := range genericRoomPrefixes {
 		if lower == g || strings.HasPrefix(lower, g+"-") || strings.HasPrefix(lower, g+" ") {
-			return "Other Tasks"
+			return true
 		}
 	}
+	return false
+}
+
+// roomNoiseTokens are the vendor, project and channel-scaffolding words shared room names
+// carry alongside the actual counterparty ("Adira - Whatap Tech", "PDRM POC - MSB | IFC |
+// WhaTap"). Dropping them leaves the counterparty behind.
+var roomNoiseTokens = map[string]bool{
+	"whatap": true, "poc": true, "project": true, "internal": true, "tech": true,
+	"ifc": true, "msb": true, "team": true, "group": true, "chat": true, "room": true,
+	"x": true, "and": true, "the": true,
+}
+
+func inferCustomerFromRoom(room string) string {
+	if strings.TrimSpace(room) == "" || isGenericRoom(room) {
+		return "Other Tasks"
+	}
 	const bizGlobalPfx = "biz-global-"
-	if strings.HasPrefix(lower, bizGlobalPfx) {
-		country := room[len(bizGlobalPfx):]
-		if country != "" {
+	if lower := strings.ToLower(room); strings.HasPrefix(lower, bizGlobalPfx) {
+		if country := room[len(bizGlobalPfx):]; country != "" {
 			return titleFirst(country) + " Biz"
 		}
 	}
-	r := room
-	for _, sfx := range []string{"-Whatap", "_Whatap", " POC", "-POC"} {
-		r = strings.TrimSuffix(r, sfx)
+	// Why: an unchanged room name is not an inference. Emitting room->room would hand the
+	// report model a channel name to use as a customer, which rule 4 forbids; empty keeps the
+	// room out of the map so the model applies its own inference instead.
+	if c := stripRoomNoise(room); c != "" && c != strings.TrimSpace(room) {
+		return c
 	}
-	r = strings.TrimSpace(r)
-	if r == "" {
-		return "Other Tasks"
+	return ""
+}
+
+// stripRoomNoise splits a room name on its separators and drops vendor scaffolding and
+// numeric channel ids, returning what is left of the counterparty.
+func stripRoomNoise(room string) string {
+	fields := strings.FieldsFunc(room, func(r rune) bool {
+		return r == '-' || r == '|' || r == '/' || r == '_' || unicode.IsSpace(r)
+	})
+	kept := make([]string, 0, len(fields))
+	for _, f := range fields {
+		if roomNoiseTokens[strings.ToLower(f)] || isAllDigits(f) {
+			continue
+		}
+		kept = append(kept, f)
 	}
-	return r
+	return strings.Join(kept, " ")
+}
+
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
 }
 
 func titleFirst(s string) string {
@@ -373,8 +447,13 @@ func buildRoomCustomerMap(activity []Log) map[string]string {
 		if m.Room == "" {
 			continue
 		}
-		if _, ok := result[m.Room]; !ok {
-			result[m.Room] = inferCustomer(m.Task, m.Room)
+		if _, ok := result[m.Room]; ok {
+			continue
+		}
+		// Why: an unresolved room is left out of the map entirely, so the model applies rule
+		// 4's own inference rather than trusting a mapping we could not actually derive.
+		if c := inferCustomer(m.Task, m.Room); c != "" {
+			result[m.Room] = c
 		}
 	}
 	return result
