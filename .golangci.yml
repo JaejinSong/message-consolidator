@@ -98,6 +98,13 @@ linters:
           - gosec
           - nestif
         path: _test\.go
+      # SA5011 은 testing.T.Fatal 이 runtime.Goexit 으로 종료되는 것을 추론하지 못해
+      # `if x == nil { t.Fatal(...) }` 뒤의 정상적인 역참조를 전부 nil deref 로 신고합니다
+      # (2026-09-10 기준 16건 전량 오탐). staticcheck 나머지 검사는 테스트에서도 유지.
+      - linters:
+          - staticcheck
+        text: SA5011
+        path: _test\.go
       # CLI 보조 도구는 panic/print 허용
       - linters:
           - forbidigo

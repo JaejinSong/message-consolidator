@@ -43,7 +43,6 @@ func GetDefaultFewShots() []FewShot {
 	}
 }
 
-
 // GetDefaultGmailFewShots returns the immutable Gmail seed pool.
 // Why: Korean FYI-style share mails ("공유합니다", forwarded reports, group notices)
 // were the dominant false-positive source -- reference-worthy mails extracted as
