@@ -182,11 +182,11 @@ func TestChatSystemSelfDMReportedSpeechRule(t *testing.T) {
 	body := string(content)
 	required := []string{
 		"Self-DM reported-speech exception",
-		"version: 1.14.0",
+		"version: 1.15.0",
 	}
 	for _, token := range required {
 		if !strings.Contains(body, token) {
-			t.Errorf("chat_system.prompt missing v1.14.0 token: %q", token)
+			t.Errorf("chat_system.prompt missing v1.15.0 token: %q", token)
 		}
 	}
 }
@@ -230,6 +230,55 @@ func TestGmailSystemDeclineState(t *testing.T) {
 	for _, token := range []string{"reports work already done", "use `resolve` so the open task closes"} {
 		if !strings.Contains(body, token) {
 			t.Errorf("gmail_system.prompt missing v1.11.0 token: %q", token)
+		}
+	}
+}
+
+// TestSharedAssigneeIsLastResort guards the v1.15.0 narrowing of `shared`. Why: measured
+// over 1838 production tasks, shared-assignee tasks were cancelled at 66% (WhatsApp) and
+// 32% (Slack) against 39% and 19% for named assignees, and completed at half the rate --
+// while gmail, whose prompt never emits shared, matched the named-assignee outcome. An
+// unaddressed broadcast has no owner, so it is `state: none`, not an unowned task
+// (2026-09-10).
+func TestSharedAssigneeIsLastResort(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/chat_system.prompt")
+	if err != nil {
+		t.Fatalf("read chat_system: %v", err)
+	}
+	body := string(content)
+	if strings.Contains(body, "OR unaddressed broadcast (issue reports to the group") {
+		t.Error("chat_system.prompt still routes unaddressed broadcasts to shared")
+	}
+	for _, token := range []string{
+		"An unaddressed broadcast is NOT a shared task",
+		"`shared` is a last resort, not a safe default",
+		"Exception — `category=WAITING`:",
+	} {
+		if !strings.Contains(body, token) {
+			t.Errorf("chat_system.prompt missing v1.15.0 token: %q", token)
+		}
+	}
+}
+
+// TestLiteFilterRecurringDigestRule guards the v1.3.0 digest criterion. Why: the filter's
+// newsletter criterion is written around marketing signals (unsubscribe links, coupon
+// codes), so an internal Korean daily business briefing read as work-related and passed --
+// producing 18 tasks the user cancelled every one of (2026-09-10).
+func TestLiteFilterRecurringDigestRule(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/lite_filter.prompt")
+	if err != nil {
+		t.Fatalf("read lite_filter: %v", err)
+	}
+	body := string(content)
+	for _, token := range []string{
+		"Recurring Informational Digests",
+		"marketing signals in the note below do NOT apply",
+		"version: 1.3.0",
+	} {
+		if !strings.Contains(body, token) {
+			t.Errorf("lite_filter.prompt missing v1.3.0 token: %q", token)
 		}
 	}
 }

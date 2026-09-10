@@ -1,6 +1,6 @@
 ---
 name: lite_filter
-version: 1.2.0
+version: 1.3.0
 deepseekModel: deepseek-v4-flash:0731
 deepseekThinking: off
 ---
@@ -18,6 +18,7 @@ Decide whether a message should be processed for task extraction or ignored as n
   4. **Marketing & Social**: Newsletters, promotional offers, and informational social media pings (e.g., "Liked your post", "New follower").
   5. **Casual Acknowledgments**: "Ok", "Thanks", "Got it" - UNLESS they clearly indicate task resolution.
   6. **Policy Notices**: Standing instructions or informational announcements with no immediate action (e.g., "Contact Hady for license requests", "Use this format for licenses").
+  7. **Recurring Informational Digests**: periodic briefings, roundups and status digests that report on the world rather than ask the recipient for anything -- a dated or numbered subject (`[Daily Global Brief] 06/25`, `Weekly Market Roundup`, `Vol. 12`) delivered on a schedule to a distribution list, whose body is sections of news, metrics or commentary. These are work-related, so the marketing signals in the note below do NOT apply and must not be required. IGNORE them even when the body suggests implications or opportunities ("시사점", "action items for consideration") -- an implication addressed to nobody is not a task. PASS only when the message asks THIS recipient for a specific action or decision (e.g. "review section 3 and send comments by Friday").
 
 Note: Marketing/Newsletters are ALWAYS noise, even if they contain calls-to-action (CTAs) like "Buy" or "Enroll", appear as 1:1 outreach, or wrap promotion in informational/educational content. Body-level signals (explicit unsubscribe text, discount/coupon codes, limited-quantity offers like "先着 N社限定" / "쿠폰 코드 : ...", "이 메일이 잘 안보이시나요") confirm marketing intent regardless of tone.
 

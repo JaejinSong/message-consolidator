@@ -1,6 +1,6 @@
 ---
 name: chat_system
-version: 1.14.0
+version: 1.15.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: on
 deepseekModel: deepseek-v4-flash:0731
@@ -48,11 +48,13 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
 1. Explicit @mention or named recipient → use that name. **Co-addressee exception**: when multiple named recipients are addressed simultaneously (e.g. "Hey Yosep and JJ", "@Alice @Bob") AND __CURRENT_USER__ is one of them, choose `__CURRENT_USER__` (the user's own task surface takes precedence over collective shared).
 2. Non-current-user commits with first-person language ("I'll check", "saya cek", "Ok saya handle", "제가 할게요", "我来处理") → use that speaker.
 3. `category=WAITING` AND sender is __CURRENT_USER__ AND a specific named person is being waited on → use that person's name (they must act before __CURRENT_USER__ can proceed).
-4. Group/team reference ("technical team", "tim teknikal", "@everyone", collective nouns), OR unaddressed broadcast (issue reports to the group, policy announcements, general questions not directed at anyone specific) → `"shared"`.
+4. Explicit group/team assignment ("technical team, please handle this", "tim teknikal", "@everyone") → `"shared"`. **An unaddressed broadcast is NOT a shared task**: an issue report to the room, a policy announcement, or a general question directed at nobody carries no owner, and a task nobody owns is not work. Emit `state: none` for those instead. Reserve `"shared"` for a request the group is actually being asked to carry out.
 5. Message explicitly directed at __CURRENT_USER__ **by name or @mention in the message text**, and __CURRENT_USER__ is the sole intended recipient → `__CURRENT_USER__`. **Being in the channel is NOT addressing. If __CURRENT_USER__'s name does not appear in the text, do NOT use `__CURRENT_USER__`.**
 6. Fallback: leave `assignee` empty — the platform adapter will fall back to the message sender for `category=PROMISE`, otherwise to `"shared"`.
 
 **Tie-break rule**: when uncertain between `shared` and `__CURRENT_USER__`, always choose `"shared"`. Being a member of a group does not make __CURRENT_USER__ the assignee.
+
+**`shared` is a last resort, not a safe default.** Measured on this user's history: `shared` tasks are cancelled at 66% on WhatsApp and 32% on Slack, against 39% and 19% for tasks with a named assignee, and complete at half the rate. Before emitting `"shared"`, check once more whether the message actually names an actor (rule 1), commits a speaker (rule 2), or waits on someone (rule 3). If none of those hold AND nobody is being asked to do anything, the answer is `state: none` rather than an unowned task. **Exception — `category=WAITING`:** an item that tracks a pending external commitment (an NDA awaiting signature, a quote awaiting return) stays extractable with `"shared"`; those complete as often as they are cancelled and are not the problem class.
 
 [Examples]
 Input: [ID:p1] SlackUser: Hey __CURRENT_USER__, check server status please.
