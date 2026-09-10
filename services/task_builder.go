@@ -133,12 +133,15 @@ func resolveTaskTitle(aiTitle, room, original string) string {
 // original external requester recorded inside the memo body.
 func resolveRequester(ctx context.Context, p TaskBuildParams) string {
 	normalize := func(raw string) string {
+		// Why: NormalizeContactName echoes unknown names back unchanged, so the display
+		// marker has to be stripped here too -- requester carried it on 20 rows.
+		raw = stripAmbiguityMarker(raw)
 		// Why: NormalizeContactName hits the DB; skip if no connection (e.g. unit-test without DB).
 		if store.GetDB() == nil || raw == "" {
 			return raw
 		}
 		if n := store.NormalizeContactName(ctx, p.UserEmail, raw); n != "" {
-			return n
+			return stripAmbiguityMarker(n)
 		}
 		return raw
 	}
@@ -294,8 +297,26 @@ func pickRoomDefaultActor(ctx context.Context, p TaskBuildParams) string {
 	return actor
 }
 
+// ambiguityMarker is the report-time display suffix applied by applyResolution when a
+// name resolves to several contacts. Why: it was persisted into messages.assignee for
+// months, marshalTasksForAI feeds existing assignees back to the model as context, and by
+// 2026-09-04 the model had learned to emit "Andy Phan (Ambiguous)" itself. Stripping it
+// here closes the loop whichever end it comes from. Only this exact marker is removed --
+// a legitimate suffix like "Jaejin Song (JJ)" must survive.
+const ambiguityMarker = "(Ambiguous)"
+
+// stripAmbiguityMarker removes the report-time display suffix, however many times it was
+// appended. Only this exact marker goes -- a legitimate suffix like "(JJ)" must survive.
+func stripAmbiguityMarker(raw string) string {
+	out := strings.TrimSpace(raw)
+	for strings.HasSuffix(out, ambiguityMarker) {
+		out = strings.TrimSpace(strings.TrimSuffix(out, ambiguityMarker))
+	}
+	return out
+}
+
 func normalizeAIAssignee(p TaskBuildParams) string {
-	raw := strings.TrimSpace(p.Item.Assignee)
+	raw := stripAmbiguityMarker(p.Item.Assignee)
 	lower := strings.ToLower(raw)
 	// Explicitly bad values returned by AI → treat as empty.
 	if lower == "undefined" || lower == "unknown" {

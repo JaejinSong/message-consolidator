@@ -14,7 +14,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 19
+const schemaVersion = 20
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -400,6 +400,27 @@ WHERE source = 'whatsapp'
   AND COALESCE(source_ts, '') != ''`
 	if _, err := q.ExecContext(ctx, backfillSQL); err != nil {
 		return fmt.Errorf("backfill whatsapp thread_id: %w", err)
+	}
+	return nil
+}
+
+// stripAmbiguityMarkers (v20) removes the report-time " (Ambiguous)" display suffix from
+// requester and assignee. Why: applyResolution appends it for rendering, it reached the
+// column on 20 requester and 8 assignee rows, and marshalTasksForAI feeds existing
+// assignees back to the model -- by 2026-09-04 the model was emitting the marker itself.
+// The persist boundary now strips it (services/task_builder.go); this clears the history
+// so the model stops seeing it in context. Idempotent: the WHERE matches nothing after.
+func stripAmbiguityMarkers(ctx context.Context, q db.DBTX) error {
+	const stmt = `UPDATE messages SET
+			requester = TRIM(REPLACE(requester, ' (Ambiguous)', '')),
+			assignee  = TRIM(REPLACE(assignee,  ' (Ambiguous)', ''))
+		WHERE requester LIKE '%(Ambiguous)%' OR assignee LIKE '%(Ambiguous)%'`
+	res, err := q.ExecContext(ctx, stmt)
+	if err != nil {
+		return fmt.Errorf("strip ambiguity markers: %w", err)
+	}
+	if n, rErr := res.RowsAffected(); rErr == nil && n > 0 {
+		logger.Infof("[DB] stripAmbiguityMarkers: cleaned %d message rows", n)
 	}
 	return nil
 }

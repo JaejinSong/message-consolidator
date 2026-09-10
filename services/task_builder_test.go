@@ -634,3 +634,32 @@ func TestResolveAssignee_GroupChatGuard(t *testing.T) {
 		})
 	}
 }
+
+// TestNormalizeAIAssignee_StripsAmbiguityMarker guards the boundary against a display
+// artifact re-entering the data. Why: applyResolution appends " (Ambiguous)" for report
+// rendering; it reached messages.assignee on 7 rows between 2026-03-27 and 2026-07-17
+// with ai_original.assignee null (code-persisted), and on 2026-09-04 a row arrived with
+// ai_original.assignee = "Andy Phan (Ambiguous)" -- the model had learned it from the
+// existing-task context it is fed.
+func TestNormalizeAIAssignee_StripsAmbiguityMarker(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"single marker", "Andy Phan (Ambiguous)", "Andy Phan"},
+		{"uppercase name", "YOSEP PARK (Ambiguous)", "YOSEP PARK"},
+		{"doubled marker", "Hon (Ambiguous) (Ambiguous)", "Hon"},
+		{"legitimate paren suffix survives", "Jaejin Song (JJ)", "Jaejin Song (JJ)"},
+		{"plain name untouched", "Hady Tandibali", "Hady Tandibali"},
+		{"marker only collapses to empty", " (Ambiguous)", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := normalizeAIAssignee(TaskBuildParams{Item: store.TodoItem{Assignee: tc.in}})
+			if got != tc.want {
+				t.Errorf("normalizeAIAssignee(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
