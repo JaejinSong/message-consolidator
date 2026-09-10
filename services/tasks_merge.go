@@ -7,7 +7,6 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"strings"
-	"unicode"
 )
 
 // MergeTasks consolidates multiple tasks into one using AI summarization for the title.
@@ -130,7 +129,7 @@ func (s *TasksService) findMatch(room string, item store.TodoItem, active []stor
 
 	for i := range active {
 		m := &active[i]
-		if m.Room != room {
+		if m.Room != room || m.Category != item.Category {
 			continue
 		}
 		// Why: prevent cross-thread merges in proposal resolution (mirrors isSemanticDup guard).
@@ -138,72 +137,11 @@ func (s *TasksService) findMatch(room string, item store.TodoItem, active []stor
 			continue
 		}
 
-		if m.Category == item.Category && store.CalculateSimilarity(item.Task, m.Task) >= 0.85 {
-			return m
-		}
-		// Why: the model labels the same request TASK on one pass and QUERY on the next,
-		// so the category equality above lets a reworded duplicate through as a new task
-		// (the TGIA CIO Forum decision landed four times). Jaro-Winkler cannot arbitrate
-		// that -- see isTrustedIDMatch -- but content-token overlap can.
-		if duplicateTopicOverlap(item.Task, m.Task) >= minDuplicateOverlap {
+		if store.CalculateSimilarity(item.Task, m.Task) >= 0.85 {
 			return m
 		}
 	}
 	return nil
-}
-
-// minDuplicateOverlap is how many distinct content tokens two titles must share before
-// findMatch treats them as the same task despite disagreeing categories. Why: measured
-// on production titles, real duplicates share 5-8 tokens while unrelated tasks in the
-// same room share 0-2 (2026-09-10), so 4 sits in the gap with margin on both sides.
-const minDuplicateOverlap = 4
-
-// duplicateStopwords are function words long enough to clear the 3-rune token floor
-// while carrying no topic. Why: the shared FTS tokenizer keeps them, which would inflate
-// the overlap count for any two generically worded English titles.
-var duplicateStopwords = map[string]bool{
-	"the": true, "and": true, "for": true, "via": true, "with": true, "from": true,
-	"into": true, "onto": true, "out": true, "all": true, "any": true, "are": true,
-	"was": true, "has": true, "have": true, "been": true, "will": true, "can": true,
-	"not": true, "its": true, "our": true, "their": true, "this": true, "that": true,
-	"these": true, "those": true, "than": true, "then": true, "when": true, "while": true,
-	"about": true, "after": true, "before": true, "during": true, "over": true,
-	"under": true, "per": true, "upon": true, "his": true, "her": true, "you": true,
-	"your": true,
-}
-
-// duplicateTopicOverlap counts distinct content tokens present in both titles. Uses an
-// exact token intersection rather than titleTokenOverlap's substring containment, so
-// "art" cannot ground itself inside "start".
-func duplicateTopicOverlap(a, b string) int {
-	bTokens := contentTokenSet(b)
-	if len(bTokens) == 0 {
-		return 0
-	}
-	overlap := 0
-	for token := range contentTokenSet(a) {
-		if bTokens[token] {
-			overlap++
-		}
-	}
-	return overlap
-}
-
-func contentTokenSet(s string) map[string]bool {
-	out := make(map[string]bool)
-	for _, f := range strings.FieldsFunc(s, func(r rune) bool {
-		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
-	}) {
-		if len([]rune(f)) < 3 {
-			continue
-		}
-		key := strings.ToLower(f)
-		if duplicateStopwords[key] {
-			continue
-		}
-		out[key] = true
-	}
-	return out
 }
 
 // isTrustedResolve — only the user's own statement or an in-thread reply may hard-close
