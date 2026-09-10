@@ -182,11 +182,33 @@ func TestChatSystemSelfDMReportedSpeechRule(t *testing.T) {
 	body := string(content)
 	required := []string{
 		"Self-DM reported-speech exception",
-		"version: 1.13.1",
+		"version: 1.14.0",
 	}
 	for _, token := range required {
 		if !strings.Contains(body, token) {
-			t.Errorf("chat_system.prompt missing v1.13.1 token: %q", token)
+			t.Errorf("chat_system.prompt missing v1.14.0 token: %q", token)
+		}
+	}
+}
+
+// TestChatSystemFinishableTitleRule guards the v1.14.0 title rule. Why: the previous
+// "Preferred shape: <Outcome> via/through <mechanism>" wording produced abstract
+// non-actionable titles -- 27 of 214 production rows carried the "X via Y" template and
+// 9 led with a stative verb ("Note Thailand public holidays", "Acknowledge Nexus
+// achievement"), neither of which names work anyone can finish (2026-09-10).
+func TestChatSystemFinishableTitleRule(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/chat_system.prompt")
+	if err != nil {
+		t.Fatalf("read chat_system: %v", err)
+	}
+	body := string(content)
+	if strings.Contains(body, "Preferred shape: `<Outcome> via/through <mechanism>`") {
+		t.Error("chat_system.prompt still prefers the abstract outcome-via-mechanism shape")
+	}
+	for _, token := range []string{"one finishable thing", "stative or attitudinal verb", "`state: none`"} {
+		if !strings.Contains(body, token) {
+			t.Errorf("chat_system.prompt missing v1.14.0 token: %q", token)
 		}
 	}
 }
