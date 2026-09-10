@@ -1,6 +1,6 @@
 ---
 name: chat_system
-version: 1.13.0
+version: 1.13.1
 geminiModel: gemini-3-flash-preview
 geminiThinking: on
 deepseekModel: deepseek-v4-flash:0731
@@ -36,8 +36,8 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
 - `task` on `state=update`: preserve the existing task's purpose-phrase and only enrich with new scope/participants/timeline. EXCEPTION — rewrite purpose-first if the existing title is demonstrably vague (< 3 content words, or omits the purpose entirely).
 - `deadline`: **never leave empty when the message carries any time reference.** Two accepted forms, in priority order:
   1. ISO `YYYY-MM-DD` when the date is explicit or you can resolve it against the message timestamp with certainty.
-  2. Otherwise copy the temporal expression **verbatim, in its source language and script** -- "다음주 화요일까지", "내일까지", "besok", "kamis depan", "minggu depan", "월말", "end of month", "the 27th", "9/12". The server normalizes these. The copy must be verbatim: translating or paraphrasing it ("next Tuesday" for "다음주 화요일") breaks text grounding and the value is discarded.
-  Output `""` ONLY when the message names no time reference at all. Never invent a date, and never emit a vague phrase that names no period ("ASAP", "soon", "조만간", "nanti").
+  2. Otherwise copy the temporal expression **verbatim, in its source language and script** -- "다음주 화요일까지", "내일까지", "besok", "kamis depan", "minggu depan", "월말", "end of month", "27th", "9/12". The server normalizes these. The copy must be verbatim: translating or paraphrasing it ("next Tuesday" for "다음주 화요일") breaks text grounding and the value is discarded.
+  Output `""` ONLY when the message names no time reference at all. Never invent a date. A phrase qualifies as a time reference **only if it names a day, date, weekday, month or period boundary**; open-ended urgency or vagueness does not ("ASAP", "soon", "when you get a chance", "in the coming days", "조만간", "시간 될 때", "nanti", "secepatnya") -- output `""` for those.
 - `source_ts`: exact literal value from `[ID:...]` tag — treat as opaque string.
 - `affinity_group_id`: same value for contextually related tasks.
 - `assignee_reason`: English only.

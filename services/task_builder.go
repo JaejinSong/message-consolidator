@@ -61,6 +61,13 @@ func BuildTask(ctx context.Context, p TaskBuildParams) store.ConsolidatedMessage
 	assignee := resolveAssignee(ctx, p)
 	category := resolveCategory(p.Item.Category, p.GmailClassification)
 	deadlineDate, deadlineInferred := ParseDeadline(p.Item.Deadline, p.Timestamp)
+	// Why: the prompt now accepts a verbatim temporal phrase, so an unresolvable one
+	// ("in the coming days") would otherwise be persisted as the deadline itself and
+	// feed neglect scoring as if it named a date.
+	rawDeadline := p.Item.Deadline
+	if deadlineDate == "" {
+		rawDeadline = ""
+	}
 
 	return store.ConsolidatedMessage{
 		UserEmail:           p.UserEmail,
@@ -74,7 +81,7 @@ func BuildTask(ctx context.Context, p TaskBuildParams) store.ConsolidatedMessage
 		Link:                p.Link,
 		SourceTS:            p.SourceTS,
 		OriginalText:        p.OriginalText,
-		Deadline:            p.Item.Deadline,
+		Deadline:            rawDeadline,
 		DeadlineDate:        deadlineDate,
 		DeadlineInferred:    deadlineInferred,
 		Category:            category,

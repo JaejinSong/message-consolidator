@@ -1,6 +1,6 @@
 ---
 name: gmail_system
-version: 1.10.0
+version: 1.10.1
 geminiModel: gemini-3-flash-preview
 geminiThinking: on
 deepseekModel: deepseek-v4-flash:0731
@@ -21,7 +21,7 @@ Output 1-object JSON array if possible:
 - `category`: default 'TASK'
 - `source_ts`: exact literal value from `[ID:...]` tag — treat as opaque string.
 - Language: English only for `task` and `subtasks.task`, regardless of input language.
-- `deadline`: **never leave empty when the mail carries any time reference.** Prefer ISO `YYYY-MM-DD`, resolved against CurrentTime. When you cannot resolve it with certainty, copy the temporal expression **verbatim in its source language** ("월말까지", "the 27th", "next Friday", "9/12") -- the server normalizes it, but only if the copy is verbatim; a translation or paraphrase is discarded. Output `""` ONLY when no time reference exists, and never emit a vague phrase that names no period ("ASAP", "조만간"). Rules:
+- `deadline`: **never leave empty when the mail carries any time reference.** Prefer ISO `YYYY-MM-DD`, resolved against CurrentTime. When you cannot resolve it with certainty, copy the temporal expression **verbatim in its source language** ("월말까지", "27th", "next Friday", "9/12") -- the server normalizes it, but only if the copy is verbatim; a translation or paraphrase is discarded. Output `""` ONLY when no time reference exists. A phrase counts as a time reference only if it names a day, date, weekday, month or period boundary; open-ended urgency does not ("ASAP", "soon", "at your earliest convenience", "조만간") -- output `""` for those. Rules:
   - When multiple dates appear, pick the **scheduled future event date** closest to CurrentTime, not past email timestamps.
   - If the event date is in the past relative to CurrentTime, still record it.
   - "meeting on April 23" → `"2026-04-23"`. "4월 24일" → `"2026-04-24"`. "the 27th" with CurrentTime in April 2026 → `"2026-04-27"`. "next Friday" → compute and output ISO date.

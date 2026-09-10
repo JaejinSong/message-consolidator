@@ -209,6 +209,13 @@ var monthPrefixes = []string{
 	"jul", "aug", "sep", "oct", "nov", "dec",
 }
 
+// idMonthPrefixes covers the Indonesian month names that do not share an English
+// prefix; the rest (januari, februari, maret, april, juni, juli, september,
+// november) already match via monthPrefixes.
+var idMonthPrefixes = map[string]int{
+	"mei": 5, "agustus": 8, "oktober": 10, "desember": 12,
+}
+
 // parseAbsoluteDate resolves stated calendar dates that omit some component,
 // filling year (and month for day-only forms) from ref.
 func parseAbsoluteDate(s string, ref time.Time) (time.Time, bool) {
@@ -219,7 +226,12 @@ func parseAbsoluteDate(s string, ref time.Time) (time.Time, bool) {
 		return buildDate(ref.Year(), atoi(m[1]), atoi(m[2]), ref)
 	}
 	if m := monthDayRe.FindStringSubmatch(s); m != nil {
-		return buildDate(ref.Year(), atoi(m[1]), atoi(m[2]), ref)
+		if d, ok := buildDate(ref.Year(), atoi(m[1]), atoi(m[2]), ref); ok {
+			return d, true
+		}
+		// Why: a leading component above 12 can only be a day, so "13/5" is
+		// unambiguously day/month rather than an invalid date.
+		return buildDate(ref.Year(), atoi(m[2]), atoi(m[1]), ref)
 	}
 	if m := dayOnlyRe.FindStringSubmatch(s); m != nil {
 		return buildDayOnly(atoi(m[1]), ref)
@@ -242,6 +254,11 @@ func monthOfName(name string) (int, bool) {
 	for i, prefix := range monthPrefixes {
 		if strings.HasPrefix(name, prefix) {
 			return i + 1, true
+		}
+	}
+	for prefix, month := range idMonthPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return month, true
 		}
 	}
 	return 0, false

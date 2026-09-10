@@ -370,6 +370,43 @@ func TestBuildTask_EnvelopeFields(t *testing.T) {
 			},
 		},
 		{
+			// Why (review 2026-09-10): the prompt now accepts a verbatim temporal
+			// phrase, so an unresolvable one must not be persisted as the deadline.
+			name: "unresolvable deadline phrase is cleared, not persisted",
+			params: TaskBuildParams{
+				UserEmail: "u@test.com",
+				User:      store.User{Email: "u@test.com", Name: "U"},
+				Item:      store.TodoItem{Task: "do something", Category: "TASK", Deadline: "in the coming days"},
+				SenderRaw: "Kenny",
+				Timestamp: fixedTS,
+			},
+			checkFn: func(t *testing.T, msg store.ConsolidatedMessage) {
+				t.Helper()
+				if msg.Deadline != "" || msg.DeadlineDate != "" {
+					t.Errorf("Deadline/DeadlineDate = %q / %q, want both empty", msg.Deadline, msg.DeadlineDate)
+				}
+			},
+		},
+		{
+			name: "resolvable verbatim phrase keeps raw text and gains a normalized date",
+			params: TaskBuildParams{
+				UserEmail: "u@test.com",
+				User:      store.User{Email: "u@test.com", Name: "U"},
+				Item:      store.TodoItem{Task: "do something", Category: "TASK", Deadline: "내일까지"},
+				SenderRaw: "Kenny",
+				Timestamp: fixedTS,
+			},
+			checkFn: func(t *testing.T, msg store.ConsolidatedMessage) {
+				t.Helper()
+				if msg.Deadline != "내일까지" {
+					t.Errorf("Deadline = %q, want %q", msg.Deadline, "내일까지")
+				}
+				if msg.DeadlineDate != "2026-04-28" || !msg.DeadlineInferred {
+					t.Errorf("DeadlineDate/Inferred = %q / %v, want 2026-04-28 / true", msg.DeadlineDate, msg.DeadlineInferred)
+				}
+			},
+		},
+		{
 			name: "Telegram SenderName preferred over numeric Sender",
 			params: TaskBuildParams{
 				UserEmail: "u@test.com",

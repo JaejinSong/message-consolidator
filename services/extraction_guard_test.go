@@ -311,6 +311,54 @@ func TestGuardDeadline(t *testing.T) {
 			wantDemotion: false,
 		},
 		{
+			// Why (review 2026-09-10): "the" is 3 chars and appears in nearly every
+			// English message, so a stopword-only expression must not ground -- the
+			// check would otherwise degenerate to "does the text contain 'the'".
+			name:         "stopword-only expression does not ground",
+			deadline:     "the",
+			originalText: "Please take a look at the dashboard when you can.",
+			wantDeadline: "",
+			wantDemotion: true,
+		},
+		{
+			name:         "ordinal grounds while its article is ignored",
+			deadline:     "the 27th",
+			originalText: "Let's target the 27th for the walkthrough.",
+			wantDeadline: "the 27th",
+			wantDemotion: false,
+		},
+		{
+			name:         "article does not rescue an ungrounded ordinal",
+			deadline:     "the 27th",
+			originalText: "Nothing scheduled, the team is still deciding.",
+			wantDeadline: "",
+			wantDemotion: true,
+		},
+		{
+			// Why (review 2026-09-10): Korean glues the temporal phrase to the next
+			// word, so whitespace tokenization can never see it standalone -- the same
+			// false drop that made G5 skip Hangul text entirely.
+			name:         "hangul deadline grounds inside an agglutinated word",
+			deadline:     "내일까지",
+			originalText: "이거 내일까지제출해주세요",
+			wantDeadline: "내일까지",
+			wantDemotion: false,
+		},
+		{
+			name:         "hangul deadline with spaced phrase grounds",
+			deadline:     "다음주 화요일까지",
+			originalText: "데모 영상 2분으로 단축해주세요. 다음주 화요일까지 필요합니다.",
+			wantDeadline: "다음주 화요일까지",
+			wantDemotion: false,
+		},
+		{
+			name:         "hangul deadline absent from text still drops",
+			deadline:     "월말까지",
+			originalText: "일정은 아직 정해지지 않았습니다.",
+			wantDeadline: "",
+			wantDemotion: true,
+		},
+		{
 			// Why: live calls showed the model normalizes "this Friday" to a date;
 			// ISO-shaped deadlines are exempt from text grounding (silent-drop guard).
 			name:         "model-normalized ISO date exempt from grounding",

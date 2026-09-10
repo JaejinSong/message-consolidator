@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 	"unicode"
+	"unicode/utf8"
 )
 
 // GuardResult reports what the deterministic layer changed, for logging and learning.
@@ -150,6 +151,15 @@ func guardDeadline(p *TaskBuildParams, result *GuardResult) {
 	result.Demotions = append(result.Demotions, "deadline_dropped")
 }
 
+// groundingStopwords are function words that reach the len>=3 bar without carrying any
+// date information. Why: "the" appears in nearly every English message, so accepting it
+// as the grounding token turned G3 into a no-op for expressions like "the 27th".
+var groundingStopwords = map[string]bool{
+	"the": true, "and": true, "for": true, "due": true, "before": true,
+	"until": true, "this": true, "that": true, "next": true, "later": true,
+	"than": true, "not": true, "any": true, "all": true, "end": true, "off": true,
+}
+
 // deadlineGroundedInText requires an exact token match (len>=3) between the deadline
 // expression and the original text. When the deadline has no token that long (e.g.
 // "by 5"), it falls back to requiring an exact numeric-token match instead of skipping
@@ -162,27 +172,55 @@ func deadlineGroundedInText(deadline, text string) bool {
 	if isoDateLike(deadline) {
 		return true
 	}
-	textTokenSet := textTokens(text)
 	deadlineTokenSet := textTokens(deadline)
-	hasLongToken := false
-	for token := range deadlineTokenSet {
-		if len(token) < 3 {
-			continue
-		}
-		hasLongToken = true
-		if textTokenSet[token] {
-			return true
-		}
+	grounded, hasMeaningfulToken := groundDeadlineTokens(deadlineTokenSet, text)
+	if grounded {
+		return true
 	}
-	if hasLongToken {
+	if hasMeaningfulToken {
 		return false
 	}
+	textTokenSet := textTokens(text)
 	for token := range deadlineTokenSet {
 		if isNumericToken(token) && textTokenSet[token] {
 			return true
 		}
 	}
 	return false
+}
+
+// groundDeadlineTokens reports whether any date-bearing token of the deadline appears
+// in text, and whether the expression carried such a token at all.
+func groundDeadlineTokens(tokens map[string]bool, text string) (bool, bool) {
+	textTokenSet := textTokens(text)
+	lowerText := strings.ToLower(text)
+	hasMeaningfulToken := false
+	for token := range tokens {
+		if groundingStopwords[token] {
+			continue
+		}
+		if containsHangul(token) {
+			// Why: Korean glues the temporal phrase to the following word
+			// ("내일까지제출해주세요"), so it can never appear as a standalone
+			// whitespace token -- the same false drop that made G5 skip Hangul.
+			if utf8.RuneCountInString(token) < 2 {
+				continue
+			}
+			hasMeaningfulToken = true
+			if strings.Contains(lowerText, token) {
+				return true, true
+			}
+			continue
+		}
+		if len(token) < 3 {
+			continue
+		}
+		hasMeaningfulToken = true
+		if textTokenSet[token] {
+			return true, true
+		}
+	}
+	return false, hasMeaningfulToken
 }
 
 // textTokens tokenizes s into a lowercase, punctuation-trimmed token set for the

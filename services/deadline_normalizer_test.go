@@ -140,6 +140,17 @@ func TestParseDeadlineExtendedVocabulary(t *testing.T) {
 		{"day then month short", "6 sep", refWed, "2026-09-06", true},
 		{"day then month ordinal", "04 aug", refWed, "2026-08-04", true},
 		{"day then month with dot", "7 sep.", refWed, "2026-09-07", true},
+		// day/month convention -- unambiguous because a month can never exceed 12
+		{"day over twelve retries as day month", "13/5", refWed, "2026-05-13", true},
+		{"day over twelve dotted", "25.12", refWed, "2026-12-25", true},
+		{"both components over twelve rejected", "13.30", refWed, "", false},
+		{"impossible day rejected", "2/30", refWed, "", false},
+
+		// Indonesian month names that do not share the English prefix
+		{"mei", "5 mei", refWed, "2026-05-05", true},
+		{"agustus", "4 agustus", refWed, "2026-08-04", true},
+		{"oktober", "oktober 12", refWed, "2026-10-12", true},
+		{"desember", "25 desember", refWed, "2026-12-25", true},
 		{"day only ordinal", "the 27th", refWed, "2026-06-27", true},
 		{"day only korean", "12일", refWed, "2026-06-12", true},
 		{"day only rolls to next month when past", "1일", refWed, "2026-07-01", true},
