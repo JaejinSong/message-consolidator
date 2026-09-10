@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"message-consolidator/store"
+	"message-consolidator/types"
 	"testing"
 )
 
@@ -156,4 +157,45 @@ func TestResolveProposals_CrossThreadGuard(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestFindMatch_SkipsMergedCandidates guards the archival sentinel. Why: merging only
+// flips category to 'merged' and never sets done/is_deleted, while
+// GetActiveTasksForContext (store/queries/messages.sql) filters on done/is_deleted
+// alone -- so an archived task stays in the candidate list and an AI-supplied ID could
+// bind a proposal to a row the UI permanently hides, discarding the content silently.
+func TestFindMatch_SkipsMergedCandidates(t *testing.T) {
+	s := &TasksService{}
+	const room = "biz-global-thailand"
+	merged := store.ConsolidatedMessage{
+		ID:       9001,
+		Room:     room,
+		Category: string(types.CategoryMerged),
+		Task:     "Prepare for LPPSA tender opening",
+		ThreadID: "T1",
+	}
+
+	t.Run("ai supplied id cannot bind to a merged task", func(t *testing.T) {
+		id := store.MessageID(9001)
+		item := store.TodoItem{
+			ID:       &id,
+			Category: "TASK",
+			Task:     "Prepare for LPPSA tender opening",
+			ThreadID: "T1",
+		}
+		if match := s.findMatch(room, item, []store.ConsolidatedMessage{merged}); match != nil {
+			t.Errorf("bound to merged task %d (%q)", match.ID, match.Task)
+		}
+	})
+
+	t.Run("fuzzy path cannot bind to a merged task", func(t *testing.T) {
+		item := store.TodoItem{
+			Category: string(types.CategoryMerged),
+			Task:     "Prepare for LPPSA tender opening",
+			ThreadID: "T1",
+		}
+		if match := s.findMatch(room, item, []store.ConsolidatedMessage{merged}); match != nil {
+			t.Errorf("bound to merged task %d (%q)", match.ID, match.Task)
+		}
+	})
 }

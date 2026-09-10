@@ -15,6 +15,11 @@ const (
 	CategoryQuery   MessageCategory = "QUERY"
 	CategoryPromise MessageCategory = "PROMISE"
 	CategoryWaiting MessageCategory = "WAITING"
+
+	// CategoryMerged is the archival sentinel written when tasks are merged away. It is
+	// deliberately absent from validTaskCategories: the AI never emits it, and a row
+	// carrying it is hidden from the UI rather than being an extraction result.
+	CategoryMerged MessageCategory = "merged"
 )
 
 // validTaskCategories is the closed set of AI extraction categories.

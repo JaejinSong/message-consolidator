@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"message-consolidator/logger"
 	"message-consolidator/store"
+	"message-consolidator/types"
 	"strings"
 )
 
@@ -132,6 +133,9 @@ func (s *TasksService) findMatch(room string, item store.TodoItem, active []stor
 		if m.Room != room || m.Category != item.Category {
 			continue
 		}
+		if isArchivedCandidate(m) {
+			continue
+		}
 		// Why: prevent cross-thread merges in proposal resolution (mirrors isSemanticDup guard).
 		if item.ThreadID != "" && m.ThreadID != "" && item.ThreadID != m.ThreadID {
 			continue
@@ -142,6 +146,14 @@ func (s *TasksService) findMatch(room string, item store.TodoItem, active []stor
 		}
 	}
 	return nil
+}
+
+// isArchivedCandidate reports whether a task has been merged away. Why: merging only
+// flips category to 'merged' (store/message_merge.go) and never sets done or is_deleted,
+// so GetActiveTasksForContext still returns those rows -- an AI-supplied ID can bind a
+// proposal to a task the UI permanently hides, discarding the new content silently.
+func isArchivedCandidate(m *store.ConsolidatedMessage) bool {
+	return m.Category == string(types.CategoryMerged)
 }
 
 // isTrustedResolve — only the user's own statement or an in-thread reply may hard-close
@@ -176,7 +188,7 @@ func verifiedIDMatch(room string, item store.TodoItem, active []store.Consolidat
 }
 
 func isTrustedIDMatch(room string, item store.TodoItem, m *store.ConsolidatedMessage) bool {
-	if m.Room != room {
+	if m.Room != room || isArchivedCandidate(m) {
 		return false
 	}
 	if item.ThreadID != "" && m.ThreadID != "" && item.ThreadID == m.ThreadID {
