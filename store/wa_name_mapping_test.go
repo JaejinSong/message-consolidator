@@ -23,7 +23,7 @@ func TestWhatsAppNameMapping(t *testing.T) {
 			t.Fatalf("SaveWhatsAppContact failed: %v", err)
 		}
 
-		resolvedName := GetNameByWhatsAppNumber(tenantEmail, waNumber)
+		resolvedName := GetNameByWhatsAppNumber(context.Background(), tenantEmail, waNumber)
 		if resolvedName != waPushName {
 			t.Errorf("Expected name %s, got %s", waPushName, resolvedName)
 		}
@@ -37,7 +37,7 @@ func TestWhatsAppNameMapping(t *testing.T) {
 		}
 
 		// It should still return the previously saved PushName
-		resolvedName := GetNameByWhatsAppNumber(tenantEmail, waNumber)
+		resolvedName := GetNameByWhatsAppNumber(context.Background(), tenantEmail, waNumber)
 		if resolvedName != waPushName {
 			t.Errorf("Expected name %s (preserved), but it was overwritten by %s", waPushName, resolvedName)
 		}
@@ -50,7 +50,7 @@ func TestWhatsAppNameMapping(t *testing.T) {
 			t.Fatalf("SaveWhatsAppContact failed: %v", err)
 		}
 
-		resolvedName := GetNameByWhatsAppNumber(tenantEmail, waNumber)
+		resolvedName := GetNameByWhatsAppNumber(context.Background(), tenantEmail, waNumber)
 		if resolvedName != newPushName {
 			t.Errorf("Expected updated name %s, got %s", newPushName, resolvedName)
 		}

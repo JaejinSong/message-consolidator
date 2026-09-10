@@ -71,20 +71,29 @@ func appendSecondaryID(ctx context.Context, tenantEmail string, contactID int64,
 	return nil
 }
 
-func getNameByExternalID(ctx context.Context, ct string, externalID string) string {
+// getNameByExternalID resolves a channel-external id to its contact display name,
+// scoped to tenantEmail. Why: buildAliasQuery carries no tenant_email predicate, so the
+// resolved row is re-fetched tenant-scoped -- the same fail-closed pattern
+// resolveContactIdentity uses. Without that second check, a number labelled only by
+// another tenant returned THAT tenant's private contact name, which then landed in this
+// tenant's message text, participant names and extracted requester/assignee fields.
+func getNameByExternalID(ctx context.Context, tenantEmail, ct, externalID string) string {
 	id, err := ResolveAlias(ctx, ct, externalID)
 	if err != nil {
 		return ""
 	}
-	byID := fetchContactsByIDs(ctx, []int64{id})
-	if c, ok := byID[id]; ok {
-		return c.DisplayName
+	row, err := db.New(GetDB()).GetContactByID(ctx, db.GetContactByIDParams{
+		TenantEmail: tenantEmail,
+		ID:          id,
+	})
+	if err != nil {
+		return ""
 	}
-	return ""
+	return row.DisplayName
 }
 
-func GetNameByWhatsAppNumber(email, number string) string {
-	return getNameByExternalID(context.Background(), ContactTypeWhatsApp, number)
+func GetNameByWhatsAppNumber(ctx context.Context, email, number string) string {
+	return getNameByExternalID(ctx, email, ContactTypeWhatsApp, number)
 }
 
 // SaveTelegramContact upserts a Telegram user mapping (canonical_id=numeric user ID).
@@ -104,5 +113,5 @@ func SaveTelegramContact(ctx context.Context, email, userID, name string) error 
 }
 
 func GetNameByTelegramID(ctx context.Context, email, userID string) string {
-	return getNameByExternalID(ctx, ContactTypeTelegram, userID)
+	return getNameByExternalID(ctx, email, ContactTypeTelegram, userID)
 }

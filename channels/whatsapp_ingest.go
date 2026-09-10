@@ -144,12 +144,15 @@ func (m *WAManager) resolveSenderName(email string, client *whatsmeow.Client, in
 	return info.Sender.String()
 }
 
+// Why: no request ctx reaches this layer -- ChannelAdapter.BuildPayload and the
+// whatsmeow event handlers take no context.Context, so trace plumbing is a separate
+// change; the tenant argument below is what closes the cross-tenant contact leak.
 func (m *WAManager) resolveRepliedUser(email string, client *whatsmeow.Client, ctx *waProto.ContextInfo) string {
 	if ctx == nil || ctx.Participant == nil {
 		return ""
 	}
 	repliedJID, _ := waTypes.ParseJID(*ctx.Participant)
-	if name := store.GetNameByWhatsAppNumber(email, repliedJID.User); name != "" {
+	if name := store.GetNameByWhatsAppNumber(context.Background(), email, repliedJID.User); name != "" {
 		return name
 	}
 	if contact, err := client.Store.Contacts.GetContact(context.Background(), repliedJID); err == nil {
@@ -205,7 +208,7 @@ func (m *WAManager) resolveIncomingMentionNames(email string, client *whatsmeow.
 
 // Why: Falls back to whatsmeow contact metadata in priority order (full → push → business) and persists asynchronously so the next mention skips the API hop.
 func (m *WAManager) resolveMentionName(email string, client *whatsmeow.Client, jid waTypes.JID, number string) string {
-	if name := store.GetNameByWhatsAppNumber(email, number); name != "" {
+	if name := store.GetNameByWhatsAppNumber(context.Background(), email, number); name != "" {
 		return name
 	}
 	contact, err := client.Store.Contacts.GetContact(context.Background(), jid)

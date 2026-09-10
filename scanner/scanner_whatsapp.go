@@ -61,6 +61,9 @@ func (whatsAppAdapter) SaveThreadID(m types.RawMessage) string {
 // Mentions — WA pre-resolved display names power pickFirstMentionAssignee.
 func (whatsAppAdapter) Mentions(m types.RawMessage) []string { return m.MentionedNames }
 
+// Why: no request ctx reaches this layer -- ChannelAdapter.BuildPayload and the
+// whatsmeow event handlers take no context.Context, so trace plumbing is a separate
+// change; the tenant argument below is what closes the cross-tenant contact leak.
 func buildWAPayload(user store.User, aliases []string, msgs []types.RawMessage) (string, map[string]types.RawMessage) {
 	_ = aliases
 	var sb strings.Builder
@@ -73,7 +76,7 @@ func buildWAPayload(user store.User, aliases []string, msgs []types.RawMessage) 
 		senderName := m.Sender
 		if m.IsFromMe {
 			senderName = user.Name
-		} else if name := store.GetNameByWhatsAppNumber(user.Email, m.Sender); name != "" {
+		} else if name := store.GetNameByWhatsAppNumber(context.Background(), user.Email, m.Sender); name != "" {
 			senderName = name
 		}
 
@@ -119,7 +122,7 @@ func formatWAMentionTag(email string, mentionedIDs []string) string {
 		if id.User == "" {
 			continue
 		}
-		if name := store.GetNameByWhatsAppNumber(email, id.User); name != "" {
+		if name := store.GetNameByWhatsAppNumber(context.Background(), email, id.User); name != "" {
 			names = append(names, name)
 		}
 	}
