@@ -89,6 +89,7 @@ func BuildTask(ctx context.Context, p TaskBuildParams) store.ConsolidatedMessage
 		RepliedToID:         p.RepliedToID,
 		SourceChannels:      p.SourceChannels,
 		ConsolidatedContext: p.Item.ContextSnippets,
+		Constraints:         p.Item.Constraints,
 		// Why: carries the guard's ai_original snapshot into the persisted row so
 		// correction learning can diff user edits against the raw AI output.
 		Metadata: p.Item.Metadata,

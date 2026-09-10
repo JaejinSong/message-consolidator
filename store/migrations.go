@@ -8,12 +8,13 @@ import (
 	"strings"
 
 	"message-consolidator/db"
+	"message-consolidator/logger"
 )
 
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 18
+const schemaVersion = 19
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -399,6 +400,35 @@ WHERE source = 'whatsapp'
   AND COALESCE(source_ts, '') != ''`
 	if _, err := q.ExecContext(ctx, backfillSQL); err != nil {
 		return fmt.Errorf("backfill whatsapp thread_id: %w", err)
+	}
+	return nil
+}
+
+// normalizeJSONDefaults (v19) repairs JSON-text columns that were persisted as "null"
+// or "" instead of the schema's "[]" / "{}" defaults. Why: json.Marshal on a nil slice
+// yields "null" and string() on a nil json.RawMessage yields "", so every task inserted
+// before the encoder fix carried values that SQLite's json_extract rejects as malformed
+// (constraints was "null" on all rows, metadata was "" on a third of them).
+// One statement rather than five so the messages_au FTS trigger fires once per row.
+// Idempotent: the WHERE clause matches nothing on a repaired table.
+func normalizeJSONDefaults(ctx context.Context, q db.DBTX) error {
+	const stmt = `UPDATE messages SET
+			constraints          = CASE WHEN constraints IS NULL OR constraints IN ('', 'null') THEN '[]' ELSE constraints END,
+			source_channels      = CASE WHEN source_channels IS NULL OR source_channels IN ('', 'null') THEN '[]' ELSE source_channels END,
+			consolidated_context = CASE WHEN consolidated_context IS NULL OR consolidated_context IN ('', 'null') THEN '[]' ELSE consolidated_context END,
+			subtasks             = CASE WHEN subtasks IS NULL OR subtasks IN ('', 'null') THEN '[]' ELSE subtasks END,
+			metadata             = CASE WHEN metadata IS NULL OR metadata IN ('', 'null') THEN '{}' ELSE metadata END
+		WHERE constraints IS NULL OR constraints IN ('', 'null')
+			OR source_channels IS NULL OR source_channels IN ('', 'null')
+			OR consolidated_context IS NULL OR consolidated_context IN ('', 'null')
+			OR subtasks IS NULL OR subtasks IN ('', 'null')
+			OR metadata IS NULL OR metadata IN ('', 'null')`
+	res, err := q.ExecContext(ctx, stmt)
+	if err != nil {
+		return fmt.Errorf("normalize json defaults: %w", err)
+	}
+	if n, rErr := res.RowsAffected(); rErr == nil && n > 0 {
+		logger.Infof("[DB] normalizeJSONDefaults: repaired %d message rows", n)
 	}
 	return nil
 }

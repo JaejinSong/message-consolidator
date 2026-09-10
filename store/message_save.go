@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+
 	"message-consolidator/db"
 	"message-consolidator/types"
 )
@@ -189,9 +191,6 @@ func categoryOrDefault(c string) string {
 }
 
 func toCreateMessageParams(msg ConsolidatedMessage) db.CreateMessageParams {
-	constraintsJSON, _ := json.Marshal(msg.Constraints)
-	channelsJSON, _ := json.Marshal(msg.SourceChannels)
-	contextJSON, _ := json.Marshal(msg.ConsolidatedContext)
 	isCtx := 0
 	if msg.IsContextQuery {
 		isCtx = 1
@@ -216,20 +215,36 @@ func toCreateMessageParams(msg ConsolidatedMessage) db.CreateMessageParams {
 		AssigneeReason:      nullString(msg.AssigneeReason),
 		RepliedToID:         nullString(msg.RepliedToID),
 		IsContextQuery:      nullInt64(int64(isCtx)),
-		Constraints:         nullString(string(constraintsJSON)),
-		Metadata:            nullString(string(msg.Metadata)),
-		SourceChannels:      nullString(string(channelsJSON)),
-		ConsolidatedContext: nullString(string(contextJSON)),
-		Subtasks:            nullString(encodeSubtasks(msg.Subtasks)),
+		Constraints:         nullString(encodeJSONArray(msg.Constraints)),
+		Metadata:            nullString(encodeJSONObject(msg.Metadata)),
+		SourceChannels:      nullString(encodeJSONArray(msg.SourceChannels)),
+		ConsolidatedContext: nullString(encodeJSONArray(msg.ConsolidatedContext)),
+		Subtasks:            nullString(encodeJSONArray(msg.Subtasks)),
 	}
 
 	return params
 }
 
-func encodeSubtasks(subtasks []Subtask) string {
-	if len(subtasks) == 0 {
+// encodeJSONArray marshals a slice for a JSON-text column, emitting the schema's "[]"
+// default for an empty one. Why: json.Marshal on a nil slice yields "null", which is
+// not a JSON array -- it broke json_extract and every consumer expecting the default.
+func encodeJSONArray[T any](items []T) string {
+	if len(items) == 0 {
 		return "[]"
 	}
-	data, _ := json.Marshal(subtasks)
+	data, err := json.Marshal(items)
+	if err != nil {
+		return "[]"
+	}
 	return string(data)
+}
+
+// encodeJSONObject falls back to the schema's "{}" default. Why: string() on a nil
+// json.RawMessage yields "", which SQLite's json_extract rejects as malformed.
+func encodeJSONObject(raw json.RawMessage) string {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return "{}"
+	}
+	return trimmed
 }
