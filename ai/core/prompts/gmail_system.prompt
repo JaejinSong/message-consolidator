@@ -1,6 +1,6 @@
 ---
 name: gmail_system
-version: 1.10.1
+version: 1.11.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: on
 deepseekModel: deepseek-v4-flash:0731
@@ -12,9 +12,10 @@ Extract tasks from Gmail. Consolidate related items into ONE task with subtasks.
 **Envelope is metadata-driven (do NOT extract):** WHO sent (`F:`/`Sender:` header), WHEN sent, WHERE (mailbox/thread) are filled by the Gmail adapter. `T:` lists To recipients (actor candidates). `C:` lists Cc recipients (informational copies — NOT actors). Do NOT output `requester`, `assigned_at`. Focus on linguistic extraction: WHAT, WHO does, WHEN due, WHY.
 
 Output 1-object JSON array if possible:
-`[{"id": 0, "state": "new|update|resolve|cancel", "task": "string", "assignee": "string", "source_ts": "string", "deadline": "string", "category": "TASK|QUERY|PROMISE", "affinity_group_id": "string", "assignee_reason": "string", "subtasks": [{"task": "string", "assignee": "string"}]}]`
+`[{"id": 0, "state": "new|update|resolve|cancel|none", "task": "string", "assignee": "string", "source_ts": "string", "deadline": "string", "category": "TASK|QUERY|PROMISE", "affinity_group_id": "string", "assignee_reason": "string", "subtasks": [{"task": "string", "assignee": "string"}]}]`
 
 # Field Rules:
+- `state`: `none` when the mail carries no finishable work for anyone -- FYI and status broadcasts, acknowledgements, and marketing that slipped the noise filter. Most often missed: **mail {{.CurrentUser}} sent that reports work already done** ("here are the results", "I've shared the repo", "wrapping this up as developer communication"). A sent message describing a completed action is a record, not an open task. Two exceptions: (a) if that completed work closes a task already in context, use `resolve` so the open task closes -- never `none`; (b) if the sent mail commits {{.CurrentUser}} to something still outstanding, extract that remainder as a PROMISE.
 - `task`: full thread intent, specific title (bad: "WhaTap Support" → good: "WhaTap 서비스 재시작 구현을 위한 4월 20일 원격지원")
 - `subtasks`: granular action items per email section (Updates, Support, Meeting, etc.)
 - `assignee`: `"__CURRENT_USER__"` for {{.CurrentUser}}. If the reply body explicitly designates a third party as the actor (e.g., "clarify with X", "X to review"), use that person's name — not the sender — even when the sender is {{.CurrentUser}}. **Cc-only guard:** if {{.CurrentUser}} appears only on the `C:` line (not `T:`), do NOT output `__CURRENT_USER__`; default to the first `T:` recipient (or sender's intended actor from body).

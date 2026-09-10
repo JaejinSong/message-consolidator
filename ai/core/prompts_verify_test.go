@@ -213,6 +213,27 @@ func TestChatSystemFinishableTitleRule(t *testing.T) {
 	}
 }
 
+// TestGmailSystemDeclineState guards the v1.11.0 gmail decline path. Why: the state
+// enum was new|update|resolve|cancel with no way to say "not a task", so every mail that
+// cleared the noise filter had to yield one -- the user's own sent mail reporting finished
+// work became open self-assigned tasks (rows 13192, 13193, 13212 on 2026-09-10).
+func TestGmailSystemDeclineState(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/gmail_system.prompt")
+	if err != nil {
+		t.Fatalf("read gmail_system: %v", err)
+	}
+	body := string(content)
+	if !strings.Contains(body, `"state": "new|update|resolve|cancel|none"`) {
+		t.Error("gmail_system.prompt state enum is missing the none option")
+	}
+	for _, token := range []string{"reports work already done", "use `resolve` so the open task closes"} {
+		if !strings.Contains(body, token) {
+			t.Errorf("gmail_system.prompt missing v1.11.0 token: %q", token)
+		}
+	}
+}
+
 // TestDeadlineVerbatimFallbackRule guards the v1.13.0 deadline rule across every
 // extraction prompt. Why: the previous "ISO only, never natural language" wording made
 // ParseDeadline unreachable -- 37 of 40 date-cued messages landed with no deadline and
