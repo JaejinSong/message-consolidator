@@ -107,17 +107,6 @@ func (s *TasksService) resolveProposalItem(room string, item store.TodoItem, act
 		}
 		return item
 	}
-	// Why: findMatch requires an identical category, but the model labels the same request
-	// TASK on one pass and QUERY on the next, so a reworded duplicate lands as a new row
-	// (the TGIA CIO Forum decision was captured four times). Only reached once the strict
-	// paths have failed, and it may only link -- see linkDuplicate.
-	switch item.State {
-	case "new", "update", "resolve", "cancel":
-		if dup := s.findDuplicate(room, item, active); dup != nil {
-			return linkDuplicate(item, dup)
-		}
-	}
-
 	// Logic: If no match found, states requiring an ID must be downgraded.
 	if item.State != "update" && item.State != "resolve" && item.State != "cancel" {
 		return item
@@ -126,23 +115,6 @@ func (s *TasksService) resolveProposalItem(room string, item store.TodoItem, act
 		item.State = "new" // Only 'update' can safely downgrade to 'new'
 	} else {
 		item.State = "none" // resolve/cancel with no match is dropped
-	}
-	return item
-}
-
-// linkDuplicate attaches item to the task it restates. Why: findDuplicate is fuzzier
-// than findMatch, so it is allowed to link and nothing more -- a resolve becomes a
-// confirm-first candidate and a cancel is dropped, because a false hard-close on this
-// path would silently close a task the user still owns.
-func linkDuplicate(item store.TodoItem, dup *store.ConsolidatedMessage) store.TodoItem {
-	item.ID = &dup.ID
-	switch item.State {
-	case "resolve":
-		item.State = "resolve_candidate"
-	case "cancel":
-		item.State = "none" // Why: same outcome an unmatched cancel already gets.
-	default:
-		item.State = "update"
 	}
 	return item
 }
