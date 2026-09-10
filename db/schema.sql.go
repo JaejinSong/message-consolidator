@@ -116,6 +116,32 @@ func (q *Queries) CreateCorrectionObservationsTable(ctx context.Context) error {
 	return err
 }
 
+const createExtractionDecisionsTable = `-- name: CreateExtractionDecisionsTable :exec
+CREATE TABLE IF NOT EXISTS extraction_decisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email TEXT NOT NULL,
+    stage TEXT NOT NULL,
+    verdict TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT '',
+    room TEXT NOT NULL DEFAULT '',
+    source_ts TEXT NOT NULL DEFAULT '',
+    category TEXT NOT NULL DEFAULT '',
+    text_head TEXT NOT NULL DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+`
+
+// Extraction decisions: the messages that were dropped, which nothing else records.
+// Why: every other signal in this system describes tasks that survived. When the noise
+// filter rejects a message, or the extractor answers state=none, the message leaves no
+// trace at all, so over-suppression is invisible by construction -- the exact failure
+// mode of the precision rules added on 2026-09-10. Volume is ~40 rows/day (~4MB/year),
+// so it needs no retention policy.
+func (q *Queries) CreateExtractionDecisionsTable(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, createExtractionDecisionsTable)
+	return err
+}
+
 const createGmailTokensTable = `-- name: CreateGmailTokensTable :exec
 CREATE TABLE IF NOT EXISTS gmail_tokens (
     user_email TEXT PRIMARY KEY,

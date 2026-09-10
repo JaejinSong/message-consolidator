@@ -355,6 +355,26 @@ CREATE TABLE IF NOT EXISTS learned_examples (
     UNIQUE(user_email, message_id, origin)
 );
 
+-- name: CreateExtractionDecisionsTable :exec
+-- Extraction decisions: the messages that were dropped, which nothing else records.
+-- Why: every other signal in this system describes tasks that survived. When the noise
+-- filter rejects a message, or the extractor answers state=none, the message leaves no
+-- trace at all, so over-suppression is invisible by construction -- the exact failure
+-- mode of the precision rules added on 2026-09-10. Volume is ~40 rows/day (~4MB/year),
+-- so it needs no retention policy.
+CREATE TABLE IF NOT EXISTS extraction_decisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email TEXT NOT NULL,
+    stage TEXT NOT NULL,
+    verdict TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT '',
+    room TEXT NOT NULL DEFAULT '',
+    source_ts TEXT NOT NULL DEFAULT '',
+    category TEXT NOT NULL DEFAULT '',
+    text_head TEXT NOT NULL DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- name: CreateCorrectionObservationsTable :exec
 -- Correction observations: evidence accumulation before rule promotion.
 CREATE TABLE IF NOT EXISTS correction_observations (

@@ -62,7 +62,7 @@ func HandleTaskState(ctx context.Context, q store.Querier, email string, item st
 func routeTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
 	switch item.State {
 	case "none":
-		return handleNone()
+		return handleNone(ctx, email, item, msg)
 	case "new":
 		return handleNew(ctx, q, item, msg)
 	case "update":
@@ -79,7 +79,21 @@ func routeTaskState(ctx context.Context, q store.Querier, email string, item sto
 	}
 }
 
-func handleNone() (store.MessageID, error) {
+// handleNone drops the item, and records that it did. Why: a decline leaves no row, so
+// the chat prompt's `state: none` path -- widened on 2026-09-10 to cover unaddressed
+// broadcasts and already-completed work -- could silently swallow real tasks with nothing
+// to measure. The excerpt makes over-suppression detectable.
+func handleNone(ctx context.Context, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
+	store.RecordExtractionDecision(ctx, store.ExtractionDecisionInput{
+		UserEmail: email,
+		Stage:     store.DecisionStageExtract,
+		Verdict:   store.DecisionVerdictNone,
+		Source:    msg.Source,
+		Room:      msg.Room,
+		SourceTS:  msg.SourceTS,
+		Category:  item.Category,
+		Text:      msg.OriginalText,
+	})
 	return 0, nil
 }
 

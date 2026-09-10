@@ -51,6 +51,15 @@ func (f *GeminiLiteFilter) IsNoise(ctx context.Context, email, source, text stri
 	isNoise := strings.TrimSpace(strings.ToUpper(result)) == "FALSE"
 	if isNoise {
 		store.IncrementFilteredCount(email)
+		// Why: the counter alone cannot tell an over-tightened filter from a quiet inbox.
+		// Keep an excerpt of what was dropped so the rejection can be judged later.
+		store.RecordExtractionDecision(ctx, store.ExtractionDecisionInput{
+			UserEmail: email,
+			Stage:     store.DecisionStageFilter,
+			Verdict:   store.DecisionVerdictNoise,
+			Source:    source,
+			Text:      text,
+		})
 	}
 
 	return isNoise, nil

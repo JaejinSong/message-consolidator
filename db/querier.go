@@ -17,6 +17,8 @@ type Querier interface {
 	// Why: parks a long-term-unprocessed task out of tracking; done/is_deleted guard keeps
 	// terminal states untouched, so lifecycle flips active -> excluded only.
 	ConfirmExclusion(ctx context.Context, arg ConfirmExclusionParams) (int64, error)
+	// Drop counts per stage/verdict/source, to compare against task creation over the same window.
+	CountExtractionDecisions(ctx context.Context, arg CountExtractionDecisionsParams) ([]CountExtractionDecisionsRow, error)
 	CountLearnedExamplesByOrigin(ctx context.Context, arg CountLearnedExamplesByOriginParams) (int64, error)
 	CreateAIInferenceLogsTable(ctx context.Context) error
 	CreateAppSettingsTable(ctx context.Context) error
@@ -26,6 +28,13 @@ type Querier interface {
 	CreateContactsTable(ctx context.Context) error
 	// Correction observations: evidence accumulation before rule promotion.
 	CreateCorrectionObservationsTable(ctx context.Context) error
+	// Extraction decisions: the messages that were dropped, which nothing else records.
+	// Why: every other signal in this system describes tasks that survived. When the noise
+	// filter rejects a message, or the extractor answers state=none, the message leaves no
+	// trace at all, so over-suppression is invisible by construction -- the exact failure
+	// mode of the precision rules added on 2026-09-10. Volume is ~40 rows/day (~4MB/year),
+	// so it needs no retention policy.
+	CreateExtractionDecisionsTable(ctx context.Context) error
 	CreateGmailTokensTable(ctx context.Context) error
 	CreateGrant(ctx context.Context, arg CreateGrantParams) error
 	CreateIdentityMergeCandidatesTable(ctx context.Context) error
@@ -171,6 +180,8 @@ type Querier interface {
 	ListAdminUsers(ctx context.Context) ([]User, error)
 	ListAppSettings(ctx context.Context) ([]AppSetting, error)
 	ListCorrectionObservationsByStatus(ctx context.Context, arg ListCorrectionObservationsByStatusParams) ([]CorrectionObservation, error)
+	// Newest first, for sampling what the pipeline threw away.
+	ListExtractionDecisions(ctx context.Context, arg ListExtractionDecisionsParams) ([]ExtractionDecision, error)
 	ListGranteesOf(ctx context.Context, grantorUserID int64) ([]User, error)
 	ListGrantorsFor(ctx context.Context, granteeUserID int64) ([]User, error)
 	ListLearnedExamples(ctx context.Context, arg ListLearnedExamplesParams) ([]LearnedExample, error)
@@ -185,6 +196,7 @@ type Querier interface {
 	LoadUsersAll(ctx context.Context) ([]LoadUsersAllRow, error)
 	MarkLineInboxProcessed(ctx context.Context, id int64) error
 	MarkSourceTSProcessed(ctx context.Context, arg MarkSourceTSProcessedParams) error
+	RecordExtractionDecision(ctx context.Context, arg RecordExtractionDecisionParams) error
 	RefreshCacheActive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheActiveRow, error)
 	RefreshCacheArchive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheArchiveRow, error)
 	// Why: WhatsApp @lid chats used to be stored under the JID's numeric user part because no

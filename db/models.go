@@ -55,6 +55,19 @@ type CorrectionObservation struct {
 	UpdatedAt      sql.NullTime `json:"updated_at"`
 }
 
+type ExtractionDecision struct {
+	ID        int64        `json:"id"`
+	UserEmail string       `json:"user_email"`
+	Stage     string       `json:"stage"`
+	Verdict   string       `json:"verdict"`
+	Source    string       `json:"source"`
+	Room      string       `json:"room"`
+	SourceTs  string       `json:"source_ts"`
+	Category  string       `json:"category"`
+	TextHead  string       `json:"text_head"`
+	CreatedAt sql.NullTime `json:"created_at"`
+}
+
 type GmailToken struct {
 	UserEmail string       `json:"user_email"`
 	TokenJson string       `json:"token_json"`
