@@ -116,7 +116,27 @@ func GetAnalyzer(source string) SourceAnalyzer {
 	}
 }
 
-// GroupMessagesByTime slices a list of messages into batches based on sender and time proximity.
+// maxGroupMessages caps a single extraction payload. Why: the gap rule alone lets one
+// continuously busy room become an unbounded group; 29 messages is a conversation-sized
+// chunk and leaves the 30k-char truncation as a backstop rather than the primary limit.
+const maxGroupMessages = 29
+
+// GroupMessagesByTime slices messages into batches by time proximity alone.
+//
+// It deliberately does NOT break on a change of speaker. Why: it used to, and that made
+// the extractor blind to its own input format. A question and the answer that follows it
+// seconds later landed in different passes, so the answer could never resolve the
+// question -- measured on production WhatsApp, 1250 of 3042 consecutive message pairs
+// inside the batch window (41%) were split by the speaker condition alone, and a real
+// 2m17s exchange ("manager U/I up and running?" ... "8080") became five payloads and two
+// orphan tasks the user then cancelled. The rest of the pipeline is already built for
+// multi-speaker groups: buildWAPayload writes a sender per line, processChannelItems
+// resolves each task's SenderRaw through msgMap[item.SourceTS], and the chat prompt's
+// own few-shots (p7, p10-p13) are multi-speaker exchanges whose negotiated-outcome
+// resolve rule was unreachable while this function split them apart.
+//
+// A burst from one speaker still coalesces, since consecutive messages fall inside the
+// same window either way.
 // Why: [Time-Topic Hybrid] Bundles rapid-fire messages from the same sender to provide better context to AI.
 func GroupMessagesByTime(msgs []types.RawMessage, interval time.Duration) [][]types.RawMessage {
 	if len(msgs) == 0 {
@@ -126,7 +146,11 @@ func GroupMessagesByTime(msgs []types.RawMessage, interval time.Duration) [][]ty
 	var current []types.RawMessage
 
 	for i, msg := range msgs {
-		if i == 0 || (msg.Sender == msgs[i-1].Sender && msg.Timestamp.Sub(msgs[i-1].Timestamp) <= interval) {
+		if i == 0 {
+			current = append(current, msg)
+			continue
+		}
+		if msg.Timestamp.Sub(msgs[i-1].Timestamp) <= interval && len(current) < maxGroupMessages {
 			current = append(current, msg)
 			continue
 		}

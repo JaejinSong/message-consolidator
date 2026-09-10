@@ -66,10 +66,48 @@ func TestGroupMessagesByTime(t *testing.T) {
 			groups:   1,
 		},
 		{
-			name: "Sender Switch Splits Groups",
+			// Why: this used to split into 3. A change of speaker must NOT break the
+			// group, or a question and its answer reach the extractor in separate passes
+			// and the answer can never resolve the question. Production WhatsApp: 41% of
+			// in-window adjacencies were split by the speaker condition alone.
+			name: "Speaker Switch Stays In One Group",
 			input: []types.RawMessage{
 				mk("alice", 0), mk("bob", 5), mk("alice", 10),
 			},
+			interval: time.Minute,
+			groups:   1,
+		},
+		{
+			// The real exchange this change exists for: "manager U/I up and running?"
+			// through "ok thanks" spanned 2m17s across two speakers and became five
+			// payloads, two of them orphan tasks the user cancelled.
+			name: "Question And Answer Land Together",
+			input: []types.RawMessage{
+				mk("faizal", 0), mk("faisal", 98), mk("faizal", 114),
+				mk("faisal", 125), mk("faizal", 137),
+			},
+			interval: 5 * time.Minute,
+			groups:   1,
+		},
+		{
+			name: "Idle Gap Still Splits Across Speakers",
+			input: []types.RawMessage{
+				mk("alice", 0), mk("bob", 400),
+			},
+			interval: 5 * time.Minute,
+			groups:   2,
+		},
+		{
+			// Why: with the speaker condition gone, a continuously busy room would form
+			// one unbounded group; the count cap keeps a payload conversation-sized.
+			name: "Group Size Cap Splits A Long Burst",
+			input: func() []types.RawMessage {
+				var out []types.RawMessage
+				for i := 0; i < 60; i++ {
+					out = append(out, mk("alice", i))
+				}
+				return out
+			}(),
 			interval: time.Minute,
 			groups:   3,
 		},
