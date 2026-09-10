@@ -1,6 +1,6 @@
 ---
 name: chat_system
-version: 1.12.0
+version: 1.13.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: on
 deepseekModel: deepseek-v4-flash:0731
@@ -34,7 +34,10 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
   - Layered TASK + PROMISE: when one message contains both a TASK request AND a PROMISE about executing it, the title reflects the TASK's purpose; the PROMISE is captured by `assignee` + `deadline`, NEVER repeated in the title.
   - PROMISE-only (no TASK layer): title = the deliverable as purpose (e.g. "Deliver quarterly report"), not the commitment verb ("Send report").
 - `task` on `state=update`: preserve the existing task's purpose-phrase and only enrich with new scope/participants/timeline. EXCEPTION — rewrite purpose-first if the existing title is demonstrably vague (< 3 content words, or omits the purpose entirely).
-- `deadline`: ISO `YYYY-MM-DD` only. Resolve relative dates against the message timestamp. If no date is stated or cannot be determined, output `""`. Do NOT output natural language like "Friday" or "next week".
+- `deadline`: **never leave empty when the message carries any time reference.** Two accepted forms, in priority order:
+  1. ISO `YYYY-MM-DD` when the date is explicit or you can resolve it against the message timestamp with certainty.
+  2. Otherwise copy the temporal expression **verbatim, in its source language and script** -- "다음주 화요일까지", "내일까지", "besok", "kamis depan", "minggu depan", "월말", "end of month", "the 27th", "9/12". The server normalizes these. The copy must be verbatim: translating or paraphrasing it ("next Tuesday" for "다음주 화요일") breaks text grounding and the value is discarded.
+  Output `""` ONLY when the message names no time reference at all. Never invent a date, and never emit a vague phrase that names no period ("ASAP", "soon", "조만간", "nanti").
 - `source_ts`: exact literal value from `[ID:...]` tag — treat as opaque string.
 - `affinity_group_id`: same value for contextually related tasks.
 - `assignee_reason`: English only.
@@ -58,7 +61,7 @@ Output: [{"id": 0, "state": "new", "task": "Review the deployment plan", "assign
 ---
 Existing Tasks: [{"id": 5, "task": "Attend Carabao online meeting", "original_text": "I'm available to join the meeting online, please let me know if you need me."}]
 Input: [ID:p3] Phathit: Hi JJ, no worries, today's meeting is just for preparation for next week when you and Yosep will join. I can handle it. Thanks a lot!
-Output: [{"id": 5, "state": "update", "task": "Attend Carabao meeting with Yosep next week", "assignee": "Phathit", "category": "TASK", "source_ts": "p3"}]
+Output: [{"id": 5, "state": "update", "task": "Attend Carabao meeting with Yosep next week", "assignee": "Phathit", "category": "TASK", "deadline": "next week", "source_ts": "p3"}]
 ---
 Existing Tasks: [{"id": 12, "task": "Schedule POC kickoff call", "original_text": "let's set up a call for the POC"}]
 Input: [ID:p4] Vy: @__CURRENT_USER__ we would like to arrange an online session to run through the POC to align scope, expectations and timeline. Is next Thursday 10am (KH time) or with Canadia side? Let me check and confirm you by Monday next week.
@@ -68,7 +71,7 @@ Input: [ID:p5] Andy: Can both of you, @Yosep and __CURRENT_USER__, join this gro
 Output: [{"id": 0, "state": "new", "task": "Join the group via the provided link", "assignee": "__CURRENT_USER__", "assignee_reason": "Co-addressed with Yosep; current-user inclusion triggers self-assignment over shared", "category": "TASK", "source_ts": "p5"}]
 ---
 Input: [ID:p6] __CURRENT_USER__: @홍길동은 나에게 데모 영상이 5분이라 너무 길다고, 2분 정도로 단축 가능하냐고 했다. 다음주 화요일까지 필요.
-Output: [{"id": 0, "state": "new", "task": "Shorten demo video from 5 to 2 minutes", "requester": "홍길동", "assignee": "__CURRENT_USER__", "assignee_reason": "Self-DM memo of an external request from 홍길동; current user is the executor", "category": "TASK", "deadline": "next Tuesday", "source_ts": "p6"}]
+Output: [{"id": 0, "state": "new", "task": "Shorten demo video from 5 to 2 minutes", "requester": "홍길동", "assignee": "__CURRENT_USER__", "assignee_reason": "Self-DM memo of an external request from 홍길동; current user is the executor", "category": "TASK", "deadline": "다음주 화요일까지", "source_ts": "p6"}]
 ---
 Input: [ID:p7] Yosep: How about the insurance agency? Srisawad?
        [ID:p8] Phathit: For Srisawad, Beau visited and discussed today. We are now waiting for the NDA signing. Could you also review the NDA sent via email?
@@ -79,7 +82,7 @@ Input: [ID:p10] Jhonatan: Mau rabu ?
        [ID:p11] Yoga: boleh, bisa jam berapa rabu?
        [ID:p12] Nur: kamis bagaimana jam berapa? Jam 10 saja
        [ID:p13] Jhonatan: Okkay jam 10
-Output: [{"id": 21, "state": "resolve", "task": "Schedule SAMCO discussion this week", "assignee": "shared", "assignee_reason": "Participants converged on Thursday 10am; the scheduling task's outcome is reached.", "category": "TASK", "source_ts": "p13"}]
+Output: [{"id": 21, "state": "resolve", "task": "Schedule SAMCO discussion this week", "assignee": "shared", "assignee_reason": "Participants converged on Thursday 10am; the scheduling task's outcome is reached.", "category": "TASK", "deadline": "kamis", "source_ts": "p13"}]
 ---
 Existing Tasks: [{"id": 7, "task": "Check service version on on-premise collection server", "original_text": "Adira want to know what service version currently running on their collection server"}]
 Input: [ID:p9] __CURRENT_USER__: Hi Yoga, product/agent questions like these go directly to the HQ product channel: #helpdesk-intake. You have access — please use it directly for this type of question. Move both questions there with the screenshots.

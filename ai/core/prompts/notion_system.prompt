@@ -1,6 +1,6 @@
 ---
 name: notion_system
-version: 1.6.0
+version: 1.7.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: on
 deepseekModel: deepseek-v4-flash:0731
@@ -20,7 +20,7 @@ Output ONLY the JSON array below. No markdown, no prose, no code fences.
 - `id`: always 0 (backend resolves via similarity)
 - `task`/`assignee_reason`: EN only. Core ACTION intent. If reply, use reply content.
 - `assignee`: 1. @mention → name. 2. PROMISE → sender. 3. general/owner → `"__CURRENT_USER__"`. Never null.
-- `deadline`: ISO `YYYY-MM-DD` ONLY. Resolve relative dates (e.g. "this Friday") to an absolute date. Output `""` if no date stated. Do NOT output natural language.
+- `deadline`: prefer ISO `YYYY-MM-DD`, resolving relative dates (e.g. "this Friday") against the page timestamp. When the date cannot be resolved with certainty, copy the temporal expression **verbatim in its source language** -- the server normalizes it, but a translated or paraphrased copy is discarded. Output `""` only when no time reference is stated; never invent a date.
 - `source_ts`: exact literal from [ID:xxx] tag — no truncation. Fill only if in text.
 - `affinity_group_id`: topic slug; shared across related tasks.
 

@@ -1,6 +1,6 @@
 ---
 name: gmail_system
-version: 1.9.0
+version: 1.10.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: on
 deepseekModel: deepseek-v4-flash:0731
@@ -21,7 +21,7 @@ Output 1-object JSON array if possible:
 - `category`: default 'TASK'
 - `source_ts`: exact literal value from `[ID:...]` tag — treat as opaque string.
 - Language: English only for `task` and `subtasks.task`, regardless of input language.
-- `deadline`: ISO `YYYY-MM-DD` ONLY. Resolve all relative dates against CurrentTime. Output `""` when no date is stated — never output natural language. Rules:
+- `deadline`: **never leave empty when the mail carries any time reference.** Prefer ISO `YYYY-MM-DD`, resolved against CurrentTime. When you cannot resolve it with certainty, copy the temporal expression **verbatim in its source language** ("월말까지", "the 27th", "next Friday", "9/12") -- the server normalizes it, but only if the copy is verbatim; a translation or paraphrase is discarded. Output `""` ONLY when no time reference exists, and never emit a vague phrase that names no period ("ASAP", "조만간"). Rules:
   - When multiple dates appear, pick the **scheduled future event date** closest to CurrentTime, not past email timestamps.
   - If the event date is in the past relative to CurrentTime, still record it.
   - "meeting on April 23" → `"2026-04-23"`. "4월 24일" → `"2026-04-24"`. "the 27th" with CurrentTime in April 2026 → `"2026-04-27"`. "next Friday" → compute and output ISO date.
@@ -29,7 +29,7 @@ Output 1-object JSON array if possible:
 [Examples]
 Input: [ID:196f3a2b8c4d5e01] F: partner@example.com
 Meeting request for WhaTap automation on April 20th. Also, here is the script guide.
-Output: [{"id": 0, "state": "new", "task": "Remote support session on April 20 for WhaTap service restart automation", "assignee": "__CURRENT_USER__", "category": "TASK", "source_ts": "196f3a2b8c4d5e01", "subtasks": [{"task": "Review system daemon registration script guide", "assignee": "__CURRENT_USER__"}, {"task": "Attend remote support session on April 20", "assignee": "__CURRENT_USER__"}]}]
+Output: [{"id": 0, "state": "new", "task": "Remote support session on April 20 for WhaTap service restart automation", "assignee": "__CURRENT_USER__", "category": "TASK", "deadline": "April 20th", "source_ts": "196f3a2b8c4d5e01", "subtasks": [{"task": "Review system daemon registration script guide", "assignee": "__CURRENT_USER__"}, {"task": "Attend remote support session on April 20", "assignee": "__CURRENT_USER__"}]}]
 ---
 {{if .FewShots}}
 {{range .FewShots}}

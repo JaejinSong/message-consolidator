@@ -182,11 +182,32 @@ func TestChatSystemSelfDMReportedSpeechRule(t *testing.T) {
 	body := string(content)
 	required := []string{
 		"Self-DM reported-speech exception",
-		"version: 1.12.0",
+		"version: 1.13.0",
 	}
 	for _, token := range required {
 		if !strings.Contains(body, token) {
-			t.Errorf("chat_system.prompt missing v1.9.0 token: %q", token)
+			t.Errorf("chat_system.prompt missing v1.13.0 token: %q", token)
+		}
+	}
+}
+
+// TestDeadlineVerbatimFallbackRule guards the v1.13.0 deadline rule across every
+// extraction prompt. Why: the previous "ISO only, never natural language" wording made
+// ParseDeadline unreachable -- 37 of 40 date-cued messages landed with no deadline and
+// deadline_inferred was 0 for every row in production (2026-09-10).
+func TestDeadlineVerbatimFallbackRule(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"chat_system", "gmail_system", "notion_system"} {
+		content, err := os.ReadFile("prompts/" + name + ".prompt")
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		body := string(content)
+		if strings.Contains(body, "Do NOT output natural language") || strings.Contains(body, "never output natural language") {
+			t.Errorf("%s.prompt still bans natural-language deadlines", name)
+		}
+		if !strings.Contains(body, "verbatim") {
+			t.Errorf("%s.prompt missing the verbatim-copy deadline fallback", name)
 		}
 	}
 }
