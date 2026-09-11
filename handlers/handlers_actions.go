@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"google.golang.org/api/gmail/v1"
 )
@@ -128,7 +129,9 @@ func (a *API) HandleTranslate(w http.ResponseWriter, r *http.Request) {
 	logger.Infof("[TRANSLATE] Found %d messages needing translation to %s for %s", len(toTranslateIDs), lang, email)
 
 	if len(toTranslateIDs) > 0 {
-		a.processTranslationBatches(r.Context(), email, toTranslateIDs, lang)
+		ctx, cancel := translationContext(r.Context())
+		defer cancel()
+		a.processTranslationBatches(ctx, email, toTranslateIDs, lang)
 	}
 
 	respondJSON(w, http.StatusOK, map[string]string{
@@ -183,6 +186,23 @@ func (a *API) filterUntranslatedIDs(ctx context.Context, msgs []store.Consolidat
 		}
 	}
 	return toTranslateIDs, nil
+}
+
+// translateBatchBudget bounds the detached translation loop so a client that walks away can
+// never leave a goroutine running forever. Sized for a large backlog: chunks of 30 tasks, each
+// an LLM call of up to 45s x 3 retries.
+const translateBatchBudget = 601 * time.Second
+
+// translationContext derives the translation loop's lifetime from the request without
+// inheriting its cancellation.
+//
+// Why: the loop burns LLM tokens per chunk, and r.Context() dies the moment the browser gives
+// up -- which cancelled roughly half of every BatchTranslate call after the tokens were already
+// spent, and aborted the remaining chunks with it. WithoutCancel keeps the WhaTap trace and
+// request values so the work still reports as one transaction; only the client's cancellation
+// is dropped, so the translations reach the cache even when nobody is left to read the reply.
+func translationContext(parent context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(parent), translateBatchBudget)
 }
 
 // Why: Chunks large translation requests into manageable batches to stay within token limits and handle partial failures gracefully.
