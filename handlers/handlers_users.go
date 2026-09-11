@@ -55,9 +55,12 @@ func (r ModelRate) inWindow(peak bool) ModelRate {
 // peak multiplier - it bills one flat rate, so a launch-promotion window would show as
 // overstated spend rather than a missing charge.
 var aiRates = map[string]ModelRate{
-	"deepseek-chat":          {InputPerM: 0.14, CachedInputPerM: 0.0028, OutputPerM: 0.28, ThinkingPerM: 0.28},
-	"deepseek-reasoner":      {InputPerM: 0.14, CachedInputPerM: 0.0028, OutputPerM: 0.28, ThinkingPerM: 0.28},
-	"deepseek-v4-flash":      {InputPerM: 0.22, CachedInputPerM: 0.007, OutputPerM: 0.66, ThinkingPerM: 0.66, PeakMultiplier: deepSeekPeakMultiplier},
+	"deepseek-chat":     {InputPerM: 0.14, CachedInputPerM: 0.0028, OutputPerM: 0.28, ThinkingPerM: 0.28},
+	"deepseek-reasoner": {InputPerM: 0.14, CachedInputPerM: 0.0028, OutputPerM: 0.28, ThinkingPerM: 0.28},
+	"deepseek-v4-flash": {InputPerM: 0.22, CachedInputPerM: 0.007, OutputPerM: 0.66, ThinkingPerM: 0.66, PeakMultiplier: deepSeekPeakMultiplier},
+	// Why: "deepseek-v4.1-flash" is not a prefix of "deepseek-v4-flash", so without its own
+	// key rateFor would silently fall through to the Gemini rate (4.5x the real output cost).
+	"deepseek-v4.1-flash":    {InputPerM: 0.15, CachedInputPerM: 0.003, OutputPerM: 0.60, ThinkingPerM: 0.60, PeakMultiplier: deepSeekPeakMultiplier},
 	"deepseek-v4-pro":        {InputPerM: 0.66, CachedInputPerM: 0.022, OutputPerM: 1.98, ThinkingPerM: 1.98, PeakMultiplier: deepSeekPeakMultiplier},
 	"gemini-3-flash-preview": {InputPerM: 0.50, OutputPerM: 3.00, ThinkingPerM: 3.00},
 	"glm-5.3-flash":          {InputPerM: 0.15, CachedInputPerM: 0.03, OutputPerM: 0.50, ThinkingPerM: 0.50},

@@ -18,6 +18,7 @@ func TestRateFor(t *testing.T) {
 		{"deepseek-v4-pro", 0.66, 1.98},
 		{"deepseek-v4-flash", 0.22, 0.66},
 		{"deepseek-v4-flash:0731", 0.22, 0.66}, // Ollama tag suffix -> prefix match
+		{"deepseek-v4.1-flash", 0.15, 0.60},    // own row: the dot breaks the v4-flash prefix match
 		{"deepseek-chat-20260101", 0.14, 0.28}, // versioned suffix → prefix match
 		{"gemini-3-flash-preview", 0.50, 3.00},
 		{"gemini-3.1-flash-lite", 0.50, 3.00}, // no exact/prefix row → conservative Flash fallback
