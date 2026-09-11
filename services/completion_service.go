@@ -334,7 +334,11 @@ func (s *CompletionService) handleCrossThreadCandidates(ctx context.Context, msg
 	top := candidates[0]
 	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, top.Task, msg.OriginalText, top.Subtasks)
 	if err != nil {
+		// Why: this path only bumped a counter, so an output-budget truncation dropped the
+		// completion detection with nothing in the log to attribute it to. The sibling paths
+		// return the error upward; this one cannot, so it has to say why it gave up.
 		compStats.llmError.Add(1)
+		logger.Warnf("[COMPLETION] cross-thread transition failed for msg %d (%s): %v", msg.ID, msg.Source, err)
 		return false
 	}
 	switch res.Status {

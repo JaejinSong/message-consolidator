@@ -133,9 +133,15 @@ func (g *AIClient) EvaluateTaskTransition(ctx context.Context, email, parentTask
 		Model:       modelName,
 		System:      rendered,
 		Temperature: 0.1,
-		MaxTokens:   1024,
-		JSONMode:    true,
-		Thinking:    g.resolveThinking(parsed, g.transition),
+		// Why: this stage runs with thinking on, and reasoning tokens are billed against the
+		// same output budget (Ollama folds them into completion_tokens). The verdict itself is
+		// ~60 tokens, but measured reasoning on a multi-subtask mixed-language reply spans
+		// 915-1404 -- so the old 1024 cap truncated 3/3 runs to an empty body on both
+		// deepseek-v4-flash:0731 and v4.1-flash. Unused output tokens are not billed, so the
+		// shared short-form budget buys ~6x headroom for free.
+		MaxTokens: DefaultMaxTokens,
+		JSONMode:  true,
+		Thinking:  g.resolveThinking(parsed, g.transition),
 	}
 	start := time.Now()
 	resp, err := g.transport.Generate(ctx, req, 30*time.Second, 2)
@@ -145,6 +151,16 @@ func (g *AIClient) EvaluateTaskTransition(ctx context.Context, email, parentTask
 
 	_ = trace.Step(ctx, g.tracePrefix+"-EvaluateTransition", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "EvaluateTransition", modelName, "", 0, resp.Usage)
+
+	// Why: a truncated body is unparseable, so without this branch it surfaced as
+	// "failed to parse AI transition response: unexpected end of JSON input (raw: )",
+	// pointing the reader at the prompt instead of at the token budget. Repairing it is not
+	// an option here -- a half-written verdict can invert the status - so name the cause.
+	if resp.FinishReason == "length" {
+		logger.Warnf("[AI] EvaluateTransition hit output limit: think=%d completion=%d prompt=%d budget=%d email=%s",
+			resp.Usage.ReasoningTokens, resp.Usage.CompletionTokens, resp.Usage.PromptTokens, DefaultMaxTokens, email)
+		return TaskTransition{}, fmt.Errorf("transition response truncated at the %d-token output budget (completion=%d)", DefaultMaxTokens, resp.Usage.CompletionTokens)
+	}
 
 	var result TaskTransition
 	if err := json.Unmarshal([]byte(core.SanitizeJSON(resp.Text)), &result); err != nil {
