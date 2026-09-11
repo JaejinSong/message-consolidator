@@ -182,11 +182,11 @@ func TestChatSystemSelfDMReportedSpeechRule(t *testing.T) {
 	body := string(content)
 	required := []string{
 		"Self-DM reported-speech exception",
-		"version: 1.15.0",
+		"version: 1.16.0",
 	}
 	for _, token := range required {
 		if !strings.Contains(body, token) {
-			t.Errorf("chat_system.prompt missing v1.15.0 token: %q", token)
+			t.Errorf("chat_system.prompt missing v1.16.0 token: %q", token)
 		}
 	}
 }
@@ -230,6 +230,32 @@ func TestGmailSystemDeclineState(t *testing.T) {
 	for _, token := range []string{"reports work already done", "use `resolve` so the open task closes"} {
 		if !strings.Contains(body, token) {
 			t.Errorf("gmail_system.prompt missing v1.11.0 token: %q", token)
+		}
+	}
+}
+
+// TestExtractionPromptsUseReasoning guards reasoning on the two prompts that carry the
+// system's hardest judgments -- is this an unaddressed broadcast or a real group request,
+// was this question answered later in the same payload, is this already-completed work.
+// Why: both ran with deepseekThinking off while the narrower completion_check ran with it
+// on. Measured live on deepseek-v4-flash:0731 via Ollama Cloud, 3 samples per mode:
+// none=5.0 completion tokens, medium=34.7, high=81.3, omitted=95.3 -- so the switch does
+// engage on this model and Ollama issue #18121 (reasoning_effort disabling thinking on
+// some :cloud flash models) does not apply here. A silent revert to off would cost
+// precision invisibly.
+func TestExtractionPromptsUseReasoning(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"chat_system", "gmail_system"} {
+		content, err := os.ReadFile("prompts/" + name + ".prompt")
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		body := string(content)
+		if strings.Contains(body, "deepseekThinking: off") {
+			t.Errorf("%s.prompt runs extraction with reasoning disabled", name)
+		}
+		if !strings.Contains(body, "deepseekThinking: on") {
+			t.Errorf("%s.prompt does not declare deepseekThinking: on", name)
 		}
 	}
 }
