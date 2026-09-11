@@ -192,6 +192,11 @@ func abReasoningEffort(mode string) string {
 		return "medium"
 	case "off":
 		return "none"
+	case "high":
+		// Why: the BLUF stage runs at ThinkHigh, so a harness that cannot express it cannot
+		// replay that stage. Without this the arm fell through to "" -- which omits the
+		// parameter entirely and is the most expensive mode of all, not the default one.
+		return "high"
 	default:
 		return ""
 	}
@@ -209,7 +214,7 @@ func parseABModels(t *testing.T, spec string) []abModel {
 		// Why: split on the LAST colon so tag-bearing ids like deepseek-v4-flash:0731
 		// keep their tag and only the trailing thinking flag is peeled off.
 		if i := strings.LastIndex(part, ":"); i > 0 {
-			if suffix := part[i+1:]; suffix == "on" || suffix == "off" || suffix == "default" {
+			if suffix := part[i+1:]; suffix == "on" || suffix == "off" || suffix == "high" || suffix == "default" {
 				id, thinking = part[:i], suffix
 			}
 		}
