@@ -23,6 +23,7 @@ func main() {
 		fmt.Println("  wa-pair       : WhatsApp CLI pairing tool")
 		fmt.Println("  release-notes : Generate synchronized release notes")
 		fmt.Println("  dedup-tasks   : Remove duplicate [Update:] sections from task fields")
+		fmt.Println("  extraction-quality : Precision report from the user's own triage (--since, --email)")
 		os.Exit(1)
 	}
 
@@ -38,6 +39,8 @@ func main() {
 		runReleaseNotes(cfg)
 	case "dedup-tasks":
 		runDedupTasks(cfg)
+	case "extraction-quality":
+		runExtractionQuality(cfg)
 	default:
 		log.Fatalf("Unknown command: %s", cmd)
 	}
