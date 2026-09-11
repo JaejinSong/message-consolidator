@@ -20,6 +20,11 @@ type Querier interface {
 	// Drop counts per stage/verdict/source, to compare against task creation over the same window.
 	CountExtractionDecisions(ctx context.Context, arg CountExtractionDecisionsParams) ([]CountExtractionDecisionsRow, error)
 	CountLearnedExamplesByOrigin(ctx context.Context, arg CountLearnedExamplesByOriginParams) (int64, error)
+	// Splits the single cancel rate into the two signals it was conflating. Why: a task
+	// deleted without the user ever engaging is an extraction error; one deleted after being
+	// marked done or edited was a real task that stopped mattering. Only the first is a
+	// quality defect the extractor can act on.
+	CountTriageOutcomes(ctx context.Context, arg CountTriageOutcomesParams) ([]CountTriageOutcomesRow, error)
 	CreateAIInferenceLogsTable(ctx context.Context) error
 	CreateAppSettingsTable(ctx context.Context) error
 	CreateContactResolutionTable(ctx context.Context) error

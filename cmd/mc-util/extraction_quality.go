@@ -57,6 +57,7 @@ func runExtractionQuality(cfg *config.Config) {
 	}
 
 	fmt.Printf("=== extraction quality: %s (created_at >= %s) ===\n\n", tenant, floor)
+	reportTriageSplit(db, tenant, floor)
 	reportOutcomeBySource(db, tenant, floor)
 	reportOutcomeByOwner(db, tenant, floor)
 	reportOutcomeByCategory(db, tenant, floor)
@@ -205,4 +206,49 @@ func reportLearningHealth(db *sql.DB, tenant string) {
 		}
 		fmt.Printf("%-34s %7d\n", fmt.Sprintf("  %s (%s)", origin, source), n)
 	}
+}
+
+// reportTriageSplit separates the two signals the single cancel rate was conflating.
+// Why: 39.5% of extracted tasks were cancelled, but that number could not be acted on
+// because it mixed extraction errors with work that simply stopped mattering. Only
+// dismissed_unconfirmed -- deleted with no prior engagement -- is a defect the extractor
+// can do something about.
+func reportTriageSplit(db *sql.DB, tenant, floor string) {
+	rows, err := db.Query(`SELECT
+			CASE
+			  WHEN done = 0 AND is_deleted = 1 AND confirmed_at IS NULL THEN '1 dismissed unconfirmed (extraction error)'
+			  WHEN done = 0 AND is_deleted = 1                          THEN '2 abandoned after engaging'
+			  WHEN done = 1                                             THEN '3 completed'
+			  WHEN confirmed_at IS NULL                                 THEN '4 inbox, still open'
+			  ELSE '5 active, engaged'
+			END AS outcome,
+			COUNT(*)
+		FROM messages
+		WHERE user_email = ? AND IFNULL(task,'') <> '' AND created_at >= ?
+		GROUP BY outcome ORDER BY outcome`, tenant, floor)
+	if err != nil {
+		fmt.Printf("triage split: %v (confirmed_at may predate this build)\n\n", err)
+		return
+	}
+	defer rows.Close()
+	type row struct {
+		label string
+		n     int
+	}
+	var all []row
+	total := 0
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.label, &r.n); err != nil {
+			fmt.Printf("  scan error: %v\n", err)
+			break
+		}
+		all = append(all, r)
+		total += r.n
+	}
+	fmt.Printf("%-46s %7s %8s\n", "triage split", "count", "share")
+	for _, r := range all {
+		fmt.Printf("%-46s %7d %7.1f%%\n", "  "+r.label, r.n, pct(r.n, total))
+	}
+	fmt.Println()
 }

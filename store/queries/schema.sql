@@ -103,6 +103,11 @@ CREATE TABLE IF NOT EXISTS messages (
     consolidated_context TEXT DEFAULT '[]',
     subtasks TEXT DEFAULT '[]',
     excluded_at DATETIME,
+    -- confirmed_at marks the moment the user engaged with an extracted task rather than
+    -- the moment it was created. Why: today a cancellation mixes "should never have been
+    -- extracted" with "was real but became irrelevant", which makes the 39.5% cancel rate
+    -- uninterpretable. NULL means the task is still unconfirmed (inbox).
+    confirmed_at DATETIME,
     is_archived INTEGER GENERATED ALWAYS AS (
         CASE WHEN is_deleted = 1 OR category = 'merged' OR done = 1 THEN 1 ELSE 0 END
     ) VIRTUAL,

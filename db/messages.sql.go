@@ -68,6 +68,59 @@ func (q *Queries) ConfirmExclusion(ctx context.Context, arg ConfirmExclusionPara
 	return result.RowsAffected()
 }
 
+const countTriageOutcomes = `-- name: CountTriageOutcomes :many
+SELECT COALESCE(source, '') AS source,
+       CASE
+         WHEN done = 0 AND is_deleted = 1 AND confirmed_at IS NULL THEN 'dismissed_unconfirmed'
+         WHEN done = 0 AND is_deleted = 1                          THEN 'abandoned_after_engaging'
+         WHEN done = 1                                             THEN 'completed'
+         WHEN confirmed_at IS NULL                                 THEN 'inbox_open'
+         ELSE 'active_confirmed'
+       END AS outcome,
+       COUNT(*) AS total
+FROM messages
+WHERE user_email = ? AND IFNULL(task, '') <> '' AND created_at >= ?
+GROUP BY source, outcome
+`
+
+type CountTriageOutcomesParams struct {
+	UserEmail sql.NullString `json:"user_email"`
+	CreatedAt sql.NullTime   `json:"created_at"`
+}
+
+type CountTriageOutcomesRow struct {
+	Source  string `json:"source"`
+	Outcome string `json:"outcome"`
+	Total   int64  `json:"total"`
+}
+
+// Splits the single cancel rate into the two signals it was conflating. Why: a task
+// deleted without the user ever engaging is an extraction error; one deleted after being
+// marked done or edited was a real task that stopped mattering. Only the first is a
+// quality defect the extractor can act on.
+func (q *Queries) CountTriageOutcomes(ctx context.Context, arg CountTriageOutcomesParams) ([]CountTriageOutcomesRow, error) {
+	rows, err := q.db.QueryContext(ctx, countTriageOutcomes, arg.UserEmail, arg.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountTriageOutcomesRow
+	for rows.Next() {
+		var i CountTriageOutcomesRow
+		if err := rows.Scan(&i.Source, &i.Outcome, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createMessage = `-- name: CreateMessage :one
 INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, deadline_date, deadline_inferred, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, consolidated_context, subtasks)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1832,6 +1885,9 @@ SET
   deadline_date = COALESCE(?7, deadline_date),
   deadline_inferred = COALESCE(?8, deadline_inferred),
   metadata = COALESCE(?9, metadata),
+  -- Why: editing a task is explicit engagement, so it confirms an inbox item. COALESCE
+  -- keeps the first confirmation rather than moving it on every later edit.
+  confirmed_at = COALESCE(confirmed_at, CURRENT_TIMESTAMP),
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?1 AND user_email = ?2
 `

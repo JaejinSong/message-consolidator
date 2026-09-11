@@ -106,6 +106,7 @@ func markMessageDoneTrue(ctx context.Context, q Querier, email string, id Messag
 		const stmt = `UPDATE messages
 			SET done = 1, completed_at = ?,
 			    metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.` + metaKeyCompletionCandidate + `'),
+			    confirmed_at = COALESCE(confirmed_at, CURRENT_TIMESTAMP),
 			    updated_at = CURRENT_TIMESTAMP
 			WHERE id = ? AND user_email = ?`
 		if _, err := qw.ExecContext(ctx, stmt, time.Now(), int64(id), email); err != nil {
@@ -126,7 +127,8 @@ func unmarkMessageDone(ctx context.Context, q Querier, email string, id MessageI
 	return withTx(ctx, q, func(qw Querier) error {
 		const stmt = `UPDATE messages
 			SET done = 0, completed_at = NULL,
-			    metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.` + metaKeyCompletionCandidate + `')
+			    metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.` + metaKeyCompletionCandidate + `'),
+			    confirmed_at = COALESCE(confirmed_at, CURRENT_TIMESTAMP)
 			WHERE id = ? AND user_email = ?`
 		if _, err := qw.ExecContext(ctx, stmt, int64(id), email); err != nil {
 			return err

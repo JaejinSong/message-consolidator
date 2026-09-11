@@ -151,6 +151,7 @@ type Message struct {
 	ConsolidatedContext sql.NullString `json:"consolidated_context"`
 	Subtasks            sql.NullString `json:"subtasks"`
 	ExcludedAt          sql.NullTime   `json:"excluded_at"`
+	ConfirmedAt         sql.NullTime   `json:"confirmed_at"`
 	IsArchived          sql.NullInt64  `json:"is_archived"`
 	Lifecycle           sql.NullString `json:"lifecycle"`
 }

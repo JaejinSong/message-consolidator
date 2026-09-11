@@ -14,7 +14,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 21
+const schemaVersion = 22
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -422,6 +422,38 @@ func stripAmbiguityMarkers(ctx context.Context, q db.DBTX) error {
 	}
 	if n, rErr := res.RowsAffected(); rErr == nil && n > 0 {
 		logger.Infof("[DB] stripAmbiguityMarkers: cleaned %d message rows", n)
+	}
+	return nil
+}
+
+// addConfirmedAtColumn (v22) separates capture from clarify. Why: a cancellation today
+// mixes "should never have been extracted" with "was real but stopped mattering", which
+// is why the 39.5% cancel rate could not be acted on. confirmed_at records the first time
+// the user engaged with a task (marked it done, or edited it), so a deletion with no prior
+// engagement reads as an extraction error and one after engagement does not.
+//
+// The backfill runs only on the call that adds the column. Why: new tasks are meant to
+// arrive with confirmed_at NULL, so an unconditional "UPDATE ... WHERE confirmed_at IS
+// NULL" would silently confirm every fresh row on the next startup.
+func addConfirmedAtColumn(ctx context.Context, q db.DBTX) error {
+	var has int
+	_ = q.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pragma_table_info('messages') WHERE name='confirmed_at'`,
+	).Scan(&has)
+	if has > 0 {
+		return nil
+	}
+	if _, err := q.ExecContext(ctx, `ALTER TABLE messages ADD COLUMN confirmed_at DATETIME`); err != nil {
+		return fmt.Errorf("add confirmed_at column: %w", err)
+	}
+	// Why: everything that already exists is in the user's list and has effectively been
+	// accepted, so the inbox starts empty and fills only from new extractions.
+	res, err := q.ExecContext(ctx, `UPDATE messages SET confirmed_at = created_at`)
+	if err != nil {
+		return fmt.Errorf("backfill confirmed_at: %w", err)
+	}
+	if n, rErr := res.RowsAffected(); rErr == nil {
+		logger.Infof("[DB] addConfirmedAtColumn: confirmed %d pre-existing rows", n)
 	}
 	return nil
 }
