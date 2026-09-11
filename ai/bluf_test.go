@@ -101,10 +101,10 @@ const blufTestCandidates = "[BLUF Candidates]\n[C1] score=175 id=12440\n  Task: 
 
 func TestSelectBLUF_JudgeVerdictWins(t *testing.T) {
 	f := &blufFakeTransport{replies: map[string]string{
-		"deepseek-v4-pro": nominationJSON(12440, "Assign an owner for the Puspakom whitelisting domain -- 67 days quiet.", 0.9),
-		"glm-5.3":         nominationJSON(12611, "Andy Phan must confirm the FIF SaaS renewal path.", 0.5),
-		"minimax-m3":      nominationJSON(12440, "Assign an owner for the whitelisting domain.", 0.4),
-		"kimi-k3":         verdictJSON(2, 12611, "Andy Phan must confirm the FIF SaaS renewal path -- contract expiring, untouched 65 days."),
+		"deepseek-v4.1-flash": nominationJSON(12440, "Assign an owner for the Puspakom whitelisting domain -- 67 days quiet.", 0.9),
+		"glm-5.3":             nominationJSON(12611, "Andy Phan must confirm the FIF SaaS renewal path.", 0.5),
+		"minimax-m3":          nominationJSON(12440, "Assign an owner for the whitelisting domain.", 0.4),
+		"kimi-k3":             verdictJSON(2, 12611, "Andy Phan must confirm the FIF SaaS renewal path -- contract expiring, untouched 65 days."),
 	}}
 	res, err := blufTestClient(f).SelectBLUF(context.Background(), "me@example.com", blufTestCandidates, "2026-08-29 ~ 2026-09-04", 0)
 	if err != nil {
@@ -124,10 +124,10 @@ func TestSelectBLUF_JudgeVerdictWins(t *testing.T) {
 
 func TestSelectBLUF_PanelRunsEveryModelAtHighReasoning(t *testing.T) {
 	f := &blufFakeTransport{replies: map[string]string{
-		"deepseek-v4-pro": nominationJSON(1, "One must act now.", 0.5),
-		"glm-5.3":         nominationJSON(2, "Two must act now.", 0.5),
-		"minimax-m3":      nominationJSON(3, "Three must act now.", 0.5),
-		"kimi-k3":         verdictJSON(1, 1, "One must act now."),
+		"deepseek-v4.1-flash": nominationJSON(1, "One must act now.", 0.5),
+		"glm-5.3":             nominationJSON(2, "Two must act now.", 0.5),
+		"minimax-m3":          nominationJSON(3, "Three must act now.", 0.5),
+		"kimi-k3":             verdictJSON(1, 1, "One must act now."),
 	}}
 	if _, err := blufTestClient(f).SelectBLUF(context.Background(), "me@example.com", blufTestCandidates, "w", 0); err != nil {
 		t.Fatalf("SelectBLUF: %v", err)
@@ -163,7 +163,7 @@ func TestSelectBLUF_SurvivesPartialPanelFailure(t *testing.T) {
 			"glm-5.3": nominationJSON(12611, "Andy Phan must confirm the FIF SaaS renewal path.", 0.7),
 			"kimi-k3": verdictJSON(1, 12611, "Andy Phan must confirm the FIF SaaS renewal path."),
 		},
-		errs: map[string]error{"deepseek-v4-pro": fmt.Errorf("upstream 503"), "minimax-m3": fmt.Errorf("upstream 503")},
+		errs: map[string]error{"deepseek-v4.1-flash": fmt.Errorf("upstream 503"), "minimax-m3": fmt.Errorf("upstream 503")},
 	}
 	res, err := blufTestClient(f).SelectBLUF(context.Background(), "me@example.com", blufTestCandidates, "w", 0)
 	if err != nil {
@@ -181,9 +181,9 @@ func TestSelectBLUF_SurvivesPartialPanelFailure(t *testing.T) {
 func TestSelectBLUF_FallsBackWhenJudgeFails(t *testing.T) {
 	f := &blufFakeTransport{
 		replies: map[string]string{
-			"deepseek-v4-pro": nominationJSON(1, "Low confidence line here.", 0.2),
-			"glm-5.3":         nominationJSON(2, "High confidence line here.", 0.95),
-			"minimax-m3":      nominationJSON(3, "Middling confidence line here.", 0.6),
+			"deepseek-v4.1-flash": nominationJSON(1, "Low confidence line here.", 0.2),
+			"glm-5.3":             nominationJSON(2, "High confidence line here.", 0.95),
+			"minimax-m3":          nominationJSON(3, "Middling confidence line here.", 0.6),
 		},
 		errs: map[string]error{"kimi-k3": fmt.Errorf("judge timeout")},
 	}
@@ -198,7 +198,7 @@ func TestSelectBLUF_FallsBackWhenJudgeFails(t *testing.T) {
 
 func TestSelectBLUF_ErrorsWhenWholePanelFails(t *testing.T) {
 	f := &blufFakeTransport{errs: map[string]error{
-		"deepseek-v4-pro": fmt.Errorf("boom"), "glm-5.3": fmt.Errorf("boom"),
+		"deepseek-v4.1-flash": fmt.Errorf("boom"), "glm-5.3": fmt.Errorf("boom"),
 		"minimax-m3": fmt.Errorf("boom"), "kimi-k3": fmt.Errorf("boom"),
 	}}
 	// Why: the caller degrades to the in-prompt BLUF rule, so this stage must report failure
@@ -210,10 +210,10 @@ func TestSelectBLUF_ErrorsWhenWholePanelFails(t *testing.T) {
 
 func TestSelectBLUF_RejectsUnparseableAndEmptyNominations(t *testing.T) {
 	f := &blufFakeTransport{replies: map[string]string{
-		"deepseek-v4-pro": "not json at all",
-		"glm-5.3":         `{"candidate_ids": [5], "bluf": "   "}`,
-		"minimax-m3":      `{"bluf": "no candidate ids at all"}`,
-		"kimi-k3":         verdictJSON(1, 5, "Should never be reached."),
+		"deepseek-v4.1-flash": "not json at all",
+		"glm-5.3":             `{"candidate_ids": [5], "bluf": "   "}`,
+		"minimax-m3":          `{"bluf": "no candidate ids at all"}`,
+		"kimi-k3":             verdictJSON(1, 5, "Should never be reached."),
 	}}
 	if _, err := blufTestClient(f).SelectBLUF(context.Background(), "me@example.com", blufTestCandidates, "w", 0); err == nil {
 		t.Fatal("want an error when no nomination is both parseable and non-empty")
@@ -227,9 +227,9 @@ func TestSelectBLUF_JudgeGetsOneRewriteWhenOverLimit(t *testing.T) {
 	long := strings.TrimSpace(strings.Repeat("word ", blufMaxWords+6))
 	f := &blufFakeTransport{
 		replies: map[string]string{
-			"deepseek-v4-pro": nominationJSON(1, "One draft sentence here.", 0.4),
-			"glm-5.3":         nominationJSON(2, "Two draft sentence here.", 0.4),
-			"minimax-m3":      nominationJSON(3, "Three draft sentence here.", 0.4),
+			"deepseek-v4.1-flash": nominationJSON(1, "One draft sentence here.", 0.4),
+			"glm-5.3":             nominationJSON(2, "Two draft sentence here.", 0.4),
+			"minimax-m3":          nominationJSON(3, "Three draft sentence here.", 0.4),
 		},
 		sequence: map[string][]string{"kimi-k3": {verdictJSON(1, 1, long), verdictJSON(1, 1, "Rewritten within the limit, pattern then stake.")}},
 	}
@@ -253,10 +253,10 @@ func TestSelectBLUF_JudgeGetsOneRewriteWhenOverLimit(t *testing.T) {
 func TestSelectBLUF_OverlongAfterRetryFallsBackAndKeepsVerdictRationale(t *testing.T) {
 	long := strings.TrimSpace(strings.Repeat("word ", blufMaxWords+6))
 	f := &blufFakeTransport{replies: map[string]string{
-		"deepseek-v4-pro": nominationJSON(1, long, 0.4),
-		"glm-5.3":         nominationJSON(2, "Andy Phan must confirm the FIF SaaS renewal path.", 0.4),
-		"minimax-m3":      nominationJSON(3, long, 0.4),
-		"kimi-k3":         verdictJSON(1, 1, long), // over the limit on both passes
+		"deepseek-v4.1-flash": nominationJSON(1, long, 0.4),
+		"glm-5.3":             nominationJSON(2, "Andy Phan must confirm the FIF SaaS renewal path.", 0.4),
+		"minimax-m3":          nominationJSON(3, long, 0.4),
+		"kimi-k3":             verdictJSON(1, 1, long), // over the limit on both passes
 	}}
 	res, err := blufTestClient(f).SelectBLUF(context.Background(), "me@example.com", blufTestCandidates, "w", 0)
 	if err != nil {

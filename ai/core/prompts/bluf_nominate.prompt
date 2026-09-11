@@ -3,7 +3,7 @@ name: bluf_nominate
 version: 2.0.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: high
-deepseekModel: deepseek-v4-pro
+deepseekModel: deepseek-v4.1-flash
 deepseekThinking: high
 ---
 [System Instruction]

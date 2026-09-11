@@ -17,12 +17,18 @@ import (
 )
 
 // blufPanelModels is the nomination panel. Why: Ollama's OpenAI-compatible API does not
-// support `n`, so best-of-N has to be client-side regardless -- and three frontier models from
-// three different labs disagree in more informative ways than one model sampled three times,
+// support `n`, so best-of-N has to be client-side regardless -- and models from three
+// different labs disagree in more informative ways than one model sampled three times,
 // because their disagreement is about judgment rather than sampling noise. The judge model
 // (bluf_judge.prompt frontmatter) is deliberately a fourth lab and must not appear here; see
 // blufPanel, which enforces that at runtime.
-var blufPanelModels = []string{"deepseek-v4-pro", "glm-5.3", "minimax-m3"}
+//
+// The DeepSeek slot is the flash tier, not the frontier tier its siblings sit at: v4-pro is
+// retired 2026-09-14 and no replacement was picked on evidence, because nothing here is
+// measured yet -- the panel has run 4 times total and its output is logged, never stored.
+// Treat this slot as provisional until the offline replay harness can compare candidates on
+// self-consistency and panel agreement.
+var blufPanelModels = []string{"deepseek-v4.1-flash", "glm-5.3", "minimax-m3"}
 
 // blufPanelTemps spreads sampling across panel slots. It is what produces divergence on the
 // Gemini path, where the panel collapses onto the single frontmatter model.
