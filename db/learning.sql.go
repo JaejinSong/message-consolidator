@@ -320,6 +320,179 @@ func (q *Queries) ListLearnedExamplesBySource(ctx context.Context, arg ListLearn
 	return items, nil
 }
 
+const listPrecisionObservations = `-- name: ListPrecisionObservations :many
+SELECT id, from_value, scope, evidence_count, seen_message_ids, status, updated_at
+FROM correction_observations
+WHERE user_email = ? AND kind = 'precision'
+ORDER BY evidence_count DESC, updated_at DESC
+`
+
+type ListPrecisionObservationsRow struct {
+	ID             int64        `json:"id"`
+	FromValue      string       `json:"from_value"`
+	Scope          string       `json:"scope"`
+	EvidenceCount  int64        `json:"evidence_count"`
+	SeenMessageIds string       `json:"seen_message_ids"`
+	Status         string       `json:"status"`
+	UpdatedAt      sql.NullTime `json:"updated_at"`
+}
+
+// Why: kind='precision' is deliberately outside ListActiveSuppressRules' filter, so these
+// can never be applied by guardSuppressRule -- they exist to be read and approved.
+func (q *Queries) ListPrecisionObservations(ctx context.Context, userEmail string) ([]ListPrecisionObservationsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPrecisionObservations, userEmail)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPrecisionObservationsRow
+	for rows.Next() {
+		var i ListPrecisionObservationsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FromValue,
+			&i.Scope,
+			&i.EvidenceCount,
+			&i.SeenMessageIds,
+			&i.Status,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const precisionBucketsByOwner = `-- name: PrecisionBucketsByOwner :many
+SELECT COALESCE(source, '') AS source,
+       COALESCE(room, '') AS room,
+       CASE WHEN assignee = 'shared' THEN 'shared' ELSE 'named' END AS owner_class,
+       COUNT(*) AS resolved,
+       SUM(CASE WHEN done = 0 AND is_deleted = 1 THEN 1 ELSE 0 END) AS canceled,
+       COALESCE(group_concat(CASE WHEN done = 0 AND is_deleted = 1 THEN id END), '') AS canceled_ids
+FROM messages
+WHERE user_email = ?
+  AND IFNULL(task, '') <> ''
+  AND created_at >= ?
+  AND (done = 1 OR is_deleted = 1)
+GROUP BY source, room, owner_class
+`
+
+type PrecisionBucketsByOwnerParams struct {
+	UserEmail sql.NullString `json:"user_email"`
+	CreatedAt sql.NullTime   `json:"created_at"`
+}
+
+type PrecisionBucketsByOwnerRow struct {
+	Source      string          `json:"source"`
+	Room        string          `json:"room"`
+	OwnerClass  string          `json:"owner_class"`
+	Resolved    int64           `json:"resolved"`
+	Canceled    sql.NullFloat64 `json:"canceled"`
+	CanceledIds interface{}     `json:"canceled_ids"`
+}
+
+// Cancel rate per (source, room, owner-class) over resolved tasks. Why: the user's own
+// triage is the only ground truth, and ownership is the strongest signal measured --
+// every head verb cancels 7-46 points worse when the task is unowned (2026-09-10).
+// Active tasks are excluded: they carry no decision yet.
+func (q *Queries) PrecisionBucketsByOwner(ctx context.Context, arg PrecisionBucketsByOwnerParams) ([]PrecisionBucketsByOwnerRow, error) {
+	rows, err := q.db.QueryContext(ctx, precisionBucketsByOwner, arg.UserEmail, arg.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PrecisionBucketsByOwnerRow
+	for rows.Next() {
+		var i PrecisionBucketsByOwnerRow
+		if err := rows.Scan(
+			&i.Source,
+			&i.Room,
+			&i.OwnerClass,
+			&i.Resolved,
+			&i.Canceled,
+			&i.CanceledIds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const precisionBucketsByVerb = `-- name: PrecisionBucketsByVerb :many
+SELECT COALESCE(source, '') AS source,
+       lower(substr(task, 1, instr(task || ' ', ' ') - 1)) AS verb,
+       COUNT(*) AS resolved,
+       SUM(CASE WHEN done = 0 AND is_deleted = 1 THEN 1 ELSE 0 END) AS canceled,
+       COALESCE(group_concat(CASE WHEN done = 0 AND is_deleted = 1 THEN id END), '') AS canceled_ids
+FROM messages
+WHERE user_email = ?
+  AND IFNULL(task, '') <> ''
+  AND created_at >= ?
+  AND (done = 1 OR is_deleted = 1)
+GROUP BY source, verb
+`
+
+type PrecisionBucketsByVerbParams struct {
+	UserEmail sql.NullString `json:"user_email"`
+	CreatedAt sql.NullTime   `json:"created_at"`
+}
+
+type PrecisionBucketsByVerbRow struct {
+	Source      string          `json:"source"`
+	Verb        string          `json:"verb"`
+	Resolved    int64           `json:"resolved"`
+	Canceled    sql.NullFloat64 `json:"canceled"`
+	CanceledIds interface{}     `json:"canceled_ids"`
+}
+
+// Same, keyed on the title's leading verb. Why: it spans 15.8% to 83.3% cancel, so it
+// carries real signal -- generic verbs the extractor falls back to when the message named
+// no specific action (review, update, check) sit at the bad end. Grouped by source only:
+// per-room verb buckets are too thin to clear the volume floor.
+func (q *Queries) PrecisionBucketsByVerb(ctx context.Context, arg PrecisionBucketsByVerbParams) ([]PrecisionBucketsByVerbRow, error) {
+	rows, err := q.db.QueryContext(ctx, precisionBucketsByVerb, arg.UserEmail, arg.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PrecisionBucketsByVerbRow
+	for rows.Next() {
+		var i PrecisionBucketsByVerbRow
+		if err := rows.Scan(
+			&i.Source,
+			&i.Verb,
+			&i.Resolved,
+			&i.Canceled,
+			&i.CanceledIds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateCorrectionObservationEvidence = `-- name: UpdateCorrectionObservationEvidence :exec
 UPDATE correction_observations
 SET evidence_count = ?, seen_message_ids = ?, updated_at = CURRENT_TIMESTAMP
@@ -351,5 +524,38 @@ type UpdateCorrectionObservationStatusParams struct {
 
 func (q *Queries) UpdateCorrectionObservationStatus(ctx context.Context, arg UpdateCorrectionObservationStatusParams) error {
 	_, err := q.db.ExecContext(ctx, updateCorrectionObservationStatus, arg.Status, arg.ID, arg.UserEmail)
+	return err
+}
+
+const upsertPrecisionObservation = `-- name: UpsertPrecisionObservation :exec
+INSERT INTO correction_observations
+    (user_email, kind, from_value, to_value, scope, evidence_count, seen_message_ids, status)
+VALUES (?, 'precision', ?, '', ?, ?, ?, 'pending')
+ON CONFLICT(user_email, kind, from_value, to_value, scope) DO UPDATE SET
+    evidence_count = excluded.evidence_count,
+    seen_message_ids = excluded.seen_message_ids,
+    updated_at = CURRENT_TIMESTAMP
+WHERE correction_observations.status <> 'rejected'
+`
+
+type UpsertPrecisionObservationParams struct {
+	UserEmail      string `json:"user_email"`
+	FromValue      string `json:"from_value"`
+	Scope          string `json:"scope"`
+	EvidenceCount  int64  `json:"evidence_count"`
+	SeenMessageIds string `json:"seen_message_ids"`
+}
+
+// Idempotent per bucket: from_value/to_value/scope are stable so the UNIQUE key holds
+// across runs, and only the measured counts and the sample ids move. to_value stays empty
+// on purpose -- putting the changing statistic there would make every measurement a new row.
+func (q *Queries) UpsertPrecisionObservation(ctx context.Context, arg UpsertPrecisionObservationParams) error {
+	_, err := q.db.ExecContext(ctx, upsertPrecisionObservation,
+		arg.UserEmail,
+		arg.FromValue,
+		arg.Scope,
+		arg.EvidenceCount,
+		arg.SeenMessageIds,
+	)
 	return err
 }

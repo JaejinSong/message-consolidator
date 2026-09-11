@@ -188,6 +188,9 @@ type Querier interface {
 	ListLearnedExamplesBySource(ctx context.Context, arg ListLearnedExamplesBySourceParams) ([]LearnedExample, error)
 	ListPendingMe(ctx context.Context, arg ListPendingMeParams) ([]ListPendingMeRow, error)
 	ListPendingOthers(ctx context.Context, arg ListPendingOthersParams) ([]ListPendingOthersRow, error)
+	// Why: kind='precision' is deliberately outside ListActiveSuppressRules' filter, so these
+	// can never be applied by guardSuppressRule -- they exist to be read and approved.
+	ListPrecisionObservations(ctx context.Context, userEmail string) ([]ListPrecisionObservationsRow, error)
 	ListReports(ctx context.Context, userEmail string) ([]ListReportsRow, error)
 	ListWAMessages(ctx context.Context, arg ListWAMessagesParams) ([]WaMessage, error)
 	LoadContactsAll(ctx context.Context) ([]LoadContactsAllRow, error)
@@ -196,6 +199,16 @@ type Querier interface {
 	LoadUsersAll(ctx context.Context) ([]LoadUsersAllRow, error)
 	MarkLineInboxProcessed(ctx context.Context, id int64) error
 	MarkSourceTSProcessed(ctx context.Context, arg MarkSourceTSProcessedParams) error
+	// Cancel rate per (source, room, owner-class) over resolved tasks. Why: the user's own
+	// triage is the only ground truth, and ownership is the strongest signal measured --
+	// every head verb cancels 7-46 points worse when the task is unowned (2026-09-10).
+	// Active tasks are excluded: they carry no decision yet.
+	PrecisionBucketsByOwner(ctx context.Context, arg PrecisionBucketsByOwnerParams) ([]PrecisionBucketsByOwnerRow, error)
+	// Same, keyed on the title's leading verb. Why: it spans 15.8% to 83.3% cancel, so it
+	// carries real signal -- generic verbs the extractor falls back to when the message named
+	// no specific action (review, update, check) sit at the bad end. Grouped by source only:
+	// per-room verb buckets are too thin to clear the volume floor.
+	PrecisionBucketsByVerb(ctx context.Context, arg PrecisionBucketsByVerbParams) ([]PrecisionBucketsByVerbRow, error)
 	RecordExtractionDecision(ctx context.Context, arg RecordExtractionDecisionParams) error
 	RefreshCacheActive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheActiveRow, error)
 	RefreshCacheArchive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheArchiveRow, error)
@@ -251,6 +264,10 @@ type Querier interface {
 	UpsertContactMapping(ctx context.Context, arg UpsertContactMappingParams) (int64, error)
 	UpsertContactResolution(ctx context.Context, arg UpsertContactResolutionParams) error
 	UpsertGmailToken(ctx context.Context, arg UpsertGmailTokenParams) error
+	// Idempotent per bucket: from_value/to_value/scope are stable so the UNIQUE key holds
+	// across runs, and only the measured counts and the sample ids move. to_value stays empty
+	// on purpose -- putting the changing statistic there would make every measurement a new row.
+	UpsertPrecisionObservation(ctx context.Context, arg UpsertPrecisionObservationParams) error
 	UpsertScanMetadata(ctx context.Context, arg UpsertScanMetadataParams) error
 	UpsertSlackThread(ctx context.Context, arg UpsertSlackThreadParams) error
 	UpsertTaskTranslation(ctx context.Context, arg UpsertTaskTranslationParams) error

@@ -110,6 +110,7 @@ func StartBackgroundScanner(ctx context.Context) {
 		{name: "deadline-reminder", traceName: "/Background-Tasks-DeadlineReminder", runFn: runDeadlineReminder},
 		{name: "stalled-reconfirm", traceName: "/Background-Tasks-StalledReconfirm", runFn: runStalledReconfirm, pool: hourPrimePool},
 		{name: "exclusion-candidate", traceName: "/Background-Tasks-ExclusionCandidate", runFn: runExclusionCandidate, pool: hourPrimePool},
+		{name: "precision-observer", traceName: "/Background-Tasks-PrecisionObserver", runFn: runPrecisionObserver, pool: hourPrimePool},
 		{name: "excluded-digest", traceName: "/Background-Tasks-ExcludedDigest", runFn: runExcludedDigest, pool: hourPrimePool},
 		{name: "daily-digest", traceName: "/Background-Reports-DailyDigest", runFn: runDailyDigest, pool: hourPrimePool},
 		{name: "weekly-report", traceName: "/Background-Reports-WeeklyReport", runFn: runWeeklyReport, pool: hourPrimePool},
