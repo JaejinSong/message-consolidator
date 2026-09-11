@@ -22,21 +22,21 @@ func TestResolveModelThinking(t *testing.T) {
 		gemini want
 		deep   want
 	}{
-		{"chat_system", core.PromptChatSystem, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-v4-flash:0731", ThinkOn}},
-		{"gmail_system", core.PromptGmailSystem, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-v4-flash:0731", ThinkOn}},
-		{"notion_system", core.PromptNotionSystem, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-v4-flash:0731", ThinkOff}},
+		{"chat_system", core.PromptChatSystem, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-v4.1-flash", ThinkOn}},
+		{"gmail_system", core.PromptGmailSystem, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-v4.1-flash", ThinkOn}},
+		{"notion_system", core.PromptNotionSystem, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-v4.1-flash", ThinkOff}},
 		// Why: the report stage runs glm-5.3-flash on the same Ollama-cloud endpoint; the
 		// deepseekModel key selects the model for provider=deepseek, not a DeepSeek-family id.
 		{"report_summary", core.PromptReportSummary, modelSpec{}, want{"gemini-3-flash-preview", ThinkOff}, want{"glm-5.3-flash", ThinkOn}},
-		{"completion_check", core.PromptCompletionCheck, modelSpec{}, want{"gemini-3-flash-preview", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOn}},
-		{"task_merge_summary", core.PromptTaskMergeSummary, modelSpec{}, want{"gemini-3-flash-preview", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOff}},
-		{"translation_system", core.PromptTranslationSystem, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOff}},
-		{"report_translator", core.PromptReportTranslator, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOff}},
-		{"task_translator", core.PromptTaskTranslator, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOff}},
-		{"batch_translator", core.PromptBatchTranslator, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOff}},
-		{"identity_group_merge", core.PromptIdentityGroupMerge, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-v4-flash:0731", ThinkOn}},
+		{"completion_check", core.PromptCompletionCheck, modelSpec{}, want{"gemini-3-flash-preview", ThinkDefault}, want{"deepseek-v4.1-flash", ThinkOn}},
+		{"task_merge_summary", core.PromptTaskMergeSummary, modelSpec{}, want{"gemini-3-flash-preview", ThinkDefault}, want{"deepseek-v4.1-flash", ThinkOff}},
+		{"translation_system", core.PromptTranslationSystem, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-v4.1-flash", ThinkOff}},
+		{"report_translator", core.PromptReportTranslator, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-v4.1-flash", ThinkOff}},
+		{"task_translator", core.PromptTaskTranslator, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-v4.1-flash", ThinkOff}},
+		{"batch_translator", core.PromptBatchTranslator, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-v4.1-flash", ThinkOff}},
+		{"identity_group_merge", core.PromptIdentityGroupMerge, modelSpec{}, want{"gemini-3-flash-preview", ThinkOn}, want{"deepseek-v4.1-flash", ThinkOn}},
 		// gemini fields omitted -> spec fallback (filter is a Gemini no-op: empty model, ThinkDefault).
-		{"lite_filter", core.PromptLiteFilter, modelSpec{model: "", thinking: ThinkDefault}, want{"", ThinkDefault}, want{"deepseek-v4-flash:0731", ThinkOff}},
+		{"lite_filter", core.PromptLiteFilter, modelSpec{model: "", thinking: ThinkDefault}, want{"", ThinkDefault}, want{"deepseek-v4.1-flash", ThinkOff}},
 	}
 
 	gem := &AIClient{provider: providerGemini}

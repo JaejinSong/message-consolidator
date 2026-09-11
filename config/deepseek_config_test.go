@@ -18,7 +18,7 @@ func TestLoadConfigDeepSeekDefaults(t *testing.T) {
 	if cfg.DeepSeekBaseURL != "https://ollama.com/v1" {
 		t.Errorf("DeepSeekBaseURL default = %q", cfg.DeepSeekBaseURL)
 	}
-	if cfg.DeepSeekFilterModel != "deepseek-v4-flash:0731" || cfg.DeepSeekAnalysisModel != "deepseek-v4-flash:0731" || cfg.DeepSeekTranslationModel != "deepseek-v4-flash:0731" {
+	if cfg.DeepSeekFilterModel != "deepseek-v4.1-flash" || cfg.DeepSeekAnalysisModel != "deepseek-v4.1-flash" || cfg.DeepSeekTranslationModel != "deepseek-v4.1-flash" {
 		t.Errorf("DeepSeek flash-tier model defaults = %q/%q/%q", cfg.DeepSeekFilterModel, cfg.DeepSeekAnalysisModel, cfg.DeepSeekTranslationModel)
 	}
 	if cfg.DeepSeekReportModel != "glm-5.3-flash" {

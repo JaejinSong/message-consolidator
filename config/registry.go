@@ -59,9 +59,9 @@ var Registry = []SettingDef{
 	{Key: "GEMINI_TRANSLATION_MODEL", Label: "Gemini Translation Model (boot fallback; prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "gemini-3.1-flash-lite"},
 	{Key: "DEEPSEEK_API_KEY", Label: "DeepSeek API Key", Category: "ai", Type: TypeString, Secret: true, RestartRequired: true},
 	{Key: "DEEPSEEK_BASE_URL", Label: "DeepSeek Base URL", Category: "ai", Type: TypeString, DefaultValue: "https://ollama.com/v1", RestartRequired: true},
-	{Key: "DEEPSEEK_FILTER_MODEL", Label: "Filter Model (boot fallback; prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "deepseek-v4-flash:0731"},
-	{Key: "DEEPSEEK_ANALYSIS_MODEL", Label: "Analysis Model (boot fallback; prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "deepseek-v4-flash:0731"},
-	{Key: "DEEPSEEK_TRANSLATION_MODEL", Label: "Translation Model (boot fallback; prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "deepseek-v4-flash:0731"},
+	{Key: "DEEPSEEK_FILTER_MODEL", Label: "Filter Model (boot fallback; prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "deepseek-v4.1-flash"},
+	{Key: "DEEPSEEK_ANALYSIS_MODEL", Label: "Analysis Model (boot fallback; prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "deepseek-v4.1-flash"},
+	{Key: "DEEPSEEK_TRANSLATION_MODEL", Label: "Translation Model (boot fallback; prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "deepseek-v4.1-flash"},
 	{Key: "DEEPSEEK_REPORT_MODEL", Label: "Report Model (boot fallback; report_summary.prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "glm-5.3-flash"},
 
 	// --- channels ---

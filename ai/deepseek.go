@@ -18,7 +18,7 @@ import (
 // is a request-level parameter (reasoning_effort) instead of a model id split.
 const (
 	deepSeekDefaultBaseURL = "https://ollama.com/v1"
-	deepSeekFlashModel     = "deepseek-v4-flash:0731" // flash tier; thinking via reasoning_effort
+	deepSeekFlashModel     = "deepseek-v4.1-flash" // flash tier; thinking via reasoning_effort
 	// deepSeekProModel is only the last-resort fallback for a ProviderConfig with no report
 	// model set. The report stage itself runs glm-5.3-flash, selected by report_summary.prompt
 	// frontmatter (which resolveModel prefers) and by the DEEPSEEK_REPORT_MODEL default.

@@ -240,9 +240,10 @@ func TestGmailSystemDeclineState(t *testing.T) {
 // Why: both ran with deepseekThinking off while the narrower completion_check ran with it
 // on. Measured live on deepseek-v4-flash:0731 via Ollama Cloud, 3 samples per mode:
 // none=5.0 completion tokens, medium=34.7, high=81.3, omitted=95.3 -- so the switch does
-// engage on this model and Ollama issue #18121 (reasoning_effort disabling thinking on
-// some :cloud flash models) does not apply here. A silent revert to off would cost
-// precision invisibly.
+// engage and Ollama issue #18121 (reasoning_effort disabling thinking on some :cloud flash
+// models) does not apply. Re-confirmed on the deepseek-v4.1-flash successor: reasoning
+// engages at none/medium/high there too, at roughly 5x the medium token count.
+// A silent revert to off would cost precision invisibly.
 func TestExtractionPromptsUseReasoning(t *testing.T) {
 	t.Parallel()
 	for _, name := range []string{"chat_system", "gmail_system"} {

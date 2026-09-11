@@ -49,7 +49,7 @@ func TestDeepSeekTransportGenerate(t *testing.T) {
 	}
 	tr, got := newMockDeepSeek(t, mockResp)
 
-	req := LLMRequest{Model: "deepseek-v4-flash:0731", System: "sys", User: "usr", Temperature: 0.2, MaxTokens: 256, JSONMode: true, Thinking: ThinkOff}
+	req := LLMRequest{Model: "deepseek-v4.1-flash", System: "sys", User: "usr", Temperature: 0.2, MaxTokens: 256, JSONMode: true, Thinking: ThinkOff}
 	resp, err := tr.Generate(context.Background(), req, 5*time.Second, 0)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -73,7 +73,7 @@ func TestDeepSeekTransportGenerate(t *testing.T) {
 	}
 
 	// Request mapping.
-	if got.Model != "deepseek-v4-flash:0731" {
+	if got.Model != "deepseek-v4.1-flash" {
 		t.Errorf("model = %q", got.Model)
 	}
 	if got.ReasoningEffort != "none" {
