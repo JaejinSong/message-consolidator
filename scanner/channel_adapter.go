@@ -292,6 +292,10 @@ func processChannelItems(ctx context.Context, user store.User, aliases []string,
 	for _, item := range items {
 		m, ok := msgMap[item.SourceTS]
 		if !ok {
+			// Why: the AI echoes source_ts back; an unmatched one drops the item before
+			// it ever reaches routing, so it leaves no [DECISION] line to account for it.
+			logger.Warnf("[SCAN] %s: item dropped, source_ts %q not in batch (task=%q)",
+				adapter.LogPrefix(), item.SourceTS, item.Task)
 			continue
 		}
 		if id := saveChannelItem(ctx, user, aliases, item, m, group, is1to1, adapter); id > 0 {

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"message-consolidator/db"
+	"message-consolidator/logger"
 	"message-consolidator/types"
 )
 
@@ -24,8 +25,21 @@ func withTx(ctx context.Context, q Querier, fn func(q Querier) error) error {
 // SaveMessage persists a single message and updates the local cache.
 // Why: Enforces 30-line limit by delegating duplication checks, DB insertion, and cache synchronization to specific helpers.
 // SaveMessage persists a single message and updates the local cache. Supports transactions.
+// Why: every early return in SaveMessage used to be silent, so multi-task extraction
+// losses stayed invisible for months. One line per drop, carrying the source_ts that
+// ties the row back to its AI inference log entry.
+func formatSaveDrop(msg ConsolidatedMessage, reason string) string {
+	return fmt.Sprintf("[STORE] save dropped (%s): user=%s source=%s room=%s source_ts=%s task=%q",
+		reason, msg.UserEmail, msg.Source, msg.Room, msg.SourceTS, truncateRunes(msg.Task, 80))
+}
+
+func logSaveDrop(msg ConsolidatedMessage, reason string) {
+	logger.Warnf("%s", formatSaveDrop(msg, reason))
+}
+
 func SaveMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool, MessageID, error) {
 	if isDuplicate(msg.UserEmail, msg.SourceTS) {
+		logSaveDrop(msg, "source_ts in dup cache")
 		return false, 0, nil
 	}
 
@@ -40,6 +54,7 @@ func SaveMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool,
 			SourceTs:  nullString(msg.SourceTS),
 		})
 		if count > 0 {
+			logSaveDrop(msg, "source_ts already has a row")
 			return false, 0, nil
 		}
 	}
@@ -48,6 +63,7 @@ func SaveMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool,
 		if err := AppendOriginalText(ctx, q, msg.UserEmail, msg.Room, matchedID, msg.OriginalText); err != nil {
 			return false, matchedID, fmt.Errorf("append on dup: %w", err)
 		}
+		logSaveDrop(msg, fmt.Sprintf("semantic dup of task %d (text appended)", matchedID))
 		return false, matchedID, nil
 	}
 
@@ -62,11 +78,13 @@ func SaveMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			logSaveDrop(msg, "insert hit ON CONFLICT DO NOTHING")
 			return false, 0, nil
 		}
 		return false, MessageID(lastID), err
 	}
 	if lastID == 0 {
+		logSaveDrop(msg, "insert returned no id")
 		return false, 0, nil
 	}
 

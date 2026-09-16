@@ -40,23 +40,45 @@ func HandleTaskState(ctx context.Context, q store.Querier, email string, item st
 	}
 
 	resID, err := routeTaskState(ctx, q, email, item, msg)
+	logger.LogDecision(decisionEnvelope(email, item, msg, resID, err))
 
+	return resID, err
+}
+
+// decisionEnvelope reports what the routing actually did, not what the AI asked for.
+// Why: task_id echoed the AI's own item.ID, so a "new" decision logged task_id:0
+// whether it created a row or was dropped — five runbook tasks vanished under a log
+// line that looked identical to a successful one.
+func decisionEnvelope(email string, item store.TodoItem, msg store.ConsolidatedMessage, resID store.MessageID, err error) logger.DecisionLog {
 	var taskIDPtr *int64
-	if item.ID != nil {
+	switch {
+	case resID != 0:
+		raw := int64(resID)
+		taskIDPtr = &raw
+	case item.ID != nil:
 		raw := int64(*item.ID)
 		taskIDPtr = &raw
 	}
-	logger.LogDecision(logger.DecisionLog{
+
+	reasoning := item.Reasoning
+	// Why: err already surfaces on its own path; an empty result with no error is the
+	// silent case worth marking, plus the source_ts needed to find it in ai_inference.log.
+	if taskIDPtr == nil && err == nil {
+		if reasoning != "" {
+			reasoning += " | "
+		}
+		reasoning += fmt.Sprintf("persisted=none source_ts=%s", msg.SourceTS)
+	}
+
+	return logger.DecisionLog{
 		UserEmail: email,
 		Source:    msg.Source,
 		Room:      msg.Room,
 		State:     item.State,
 		TaskID:    taskIDPtr,
 		Task:      item.Task,
-		Reasoning: item.Reasoning,
-	})
-
-	return resID, err
+		Reasoning: reasoning,
+	}
 }
 
 func routeTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
