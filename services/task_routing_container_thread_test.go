@@ -71,7 +71,15 @@ func TestUpdateThreadParent_SlackReplyKeepsParentTitle(t *testing.T) {
 	const parentTitle = "Check what additional transaction information can be captured"
 	parentID := seedSlackThreadParent(t, email, room, "1789461410.169779", parentTitle)
 
-	item := store.TodoItem{State: "new", Task: "Decide whether to keep the AXWay agent on the Node Manager"}
+	// Why: the scanner folds the other asks from the same message into item.Subtasks
+	// (foldSameMessageNewItems), so the routing must carry them through to the parent.
+	item := store.TodoItem{
+		State: "new",
+		Task:  "Decide whether to keep the AXWay agent on the Node Manager",
+		Subtasks: []store.TodoSubtask{
+			{Task: "Fill in the missing URL names", AssigneeName: "Yoga Wiranda"},
+		},
+	}
 	msg := store.ConsolidatedMessage{
 		UserEmail: email, Source: store.SourceSlack, Room: room,
 		SourceTS: "1789546445.856419", ThreadID: "1789461410.169779",
@@ -94,8 +102,8 @@ func TestUpdateThreadParent_SlackReplyKeepsParentTitle(t *testing.T) {
 	if task != parentTitle {
 		t.Errorf("parent task = %q, want unchanged %q", task, parentTitle)
 	}
-	if !containsAll(subtasks, "Decide whether to keep the AXWay agent") {
-		t.Errorf("parent subtasks = %s, want the new ask attached", subtasks)
+	if !containsAll(subtasks, "Decide whether to keep the AXWay agent", "Fill in the missing URL names") {
+		t.Errorf("parent subtasks = %s, want the ask and the folded subtask attached", subtasks)
 	}
 }
 
