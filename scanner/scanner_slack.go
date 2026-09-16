@@ -149,10 +149,7 @@ func collectSlackHistory(ctx context.Context, users []store.User, chans []slack.
 func scanSingleSlackChannel(ctx context.Context, users []store.User, c slack.Channel, sc *channels.SlackClient, userAl map[string][]string, mu *sync.Mutex, candidates map[string]map[string][]types.RawMessage, newTS map[string]map[string]string) error {
 	minTS := getMinLastTS(users, c.ID)
 	logger.Debugf("[SLACK] channel %s: minTS=%s", c.ID, minTS)
-	//Why: Uses a dual-strategy scan window. It scans up to 24 hours back by default,
-	// but respects minTS as a lower bound only if it provides a safer (older) starting point,
-	// preventing "islands" of unproccessed messages between scan intervals.
-	since := time.Now().Add(-24 * time.Hour)
+	since := slackScanWindow(minTS, time.Now())
 	msgs, err := sc.GetMessages(ctx, c.ID, since, minTS)
 	if err != nil {
 		logger.Errorf("[SCAN] slack: GetMessages failed for channel %s: %v", c.ID, err)
@@ -169,6 +166,33 @@ func scanSingleSlackChannel(ctx context.Context, users []store.User, c slack.Cha
 		classifyAndCollect(ctx, c, sc, m, users, userAl, candidates, newTS)
 	}
 	return nil
+}
+
+const (
+	slackDefaultLookback = 24 * time.Hour
+	// slackCatchUpCap bounds a resumed scan. Why: after a long outage an uncapped
+	// window would re-analyze weeks of history inside the 60s scan timeout.
+	slackCatchUpCap = 7 * 24 * time.Hour
+)
+
+// slackScanWindow reports the oldest message a scan should process. Why: `since` used
+// to be a flat now-24h while the comment claimed minTS widened it, so any gap longer
+// than a day was skipped outright — processHistoryMessages drops anything older and
+// stops paginating, and the cursor then advances past the island. The cursor now widens
+// the window, capped, and never narrows it below the default lookback.
+func slackScanWindow(minTS string, now time.Time) time.Time {
+	def := now.Add(-slackDefaultLookback)
+	if minTS == "" {
+		return def
+	}
+	cursor := channels.ParseSlackTimestamp(minTS)
+	if cursor.IsZero() || cursor.Unix() <= 0 || cursor.After(def) {
+		return def
+	}
+	if floor := now.Add(-slackCatchUpCap); cursor.Before(floor) {
+		return floor
+	}
+	return cursor
 }
 
 func getMinLastTS(users []store.User, channelID string) string {
