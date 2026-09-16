@@ -170,18 +170,77 @@ func updateThreadParentIfPresent(ctx context.Context, q store.Querier, msg store
 	// Why: updateExistingTask OVERWRITES the parent's title. On quote-anchored sources
 	// a "thread" is just a reply chain — quoting an old message with an unrelated new
 	// request would rename that task (Indofood-PO class corruption); an off-topic
-	// proposal creates its own task instead. Container threads (gmail/slack) stay
-	// trusted: same thread there reliably means same topic, and CJK titles often
-	// cannot clear the token-overlap floor.
-	if quoteAnchoredThreadSources[msg.Source] && titleTokenOverlap(task, existing[0].Task) < minTopicalOverlap {
-		logger.LogDecision(logger.DecisionLog{
-			UserEmail: msg.UserEmail, Source: msg.Source, Room: msg.Room, State: "new", Task: task,
-			Reasoning: fmt.Sprintf("thread-parent update rejected: no topic tie to %q", existing[0].Task),
-		})
-		return 0, false, nil
+	// proposal creates its own task instead.
+	if quoteAnchoredThreadSources[msg.Source] {
+		if titleTokenOverlap(task, existing[0].Task) < minTopicalOverlap {
+			logger.LogDecision(logger.DecisionLog{
+				UserEmail: msg.UserEmail, Source: msg.Source, Room: msg.Room, State: "new", Task: task,
+				Reasoning: fmt.Sprintf("thread-parent update rejected: no topic tie to %q", existing[0].Task),
+			})
+			return 0, false, nil
+		}
+		id, err := updateExistingTask(ctx, q, msg.UserEmail, existing[0].ID, task, msg.Subtasks)
+		return id, true, err
+	}
+	if chatContainerThreadSources[msg.Source] {
+		// Why: chat_system.prompt emits one item per independent ask, so the rename ran
+		// once per ask — a runbook message with four of them renamed task 13277 four
+		// times and left no row for the rest. Same thread still means same task, so
+		// attach the ask instead of overwriting the identity the user tracks it by.
+		// Gmail keeps the rename: its prompt already folds a message into one umbrella
+		// task, making the new title a refinement rather than a competing ask.
+		id, err := attachThreadParentSubtask(ctx, q, msg, existing[0], task)
+		return id, true, err
 	}
 	id, err := updateExistingTask(ctx, q, msg.UserEmail, existing[0].ID, task, msg.Subtasks)
 	return id, true, err
+}
+
+// chatContainerThreadSources are real thread containers served by the chat analyzer,
+// which emits independent items per message rather than one umbrella task.
+var chatContainerThreadSources = map[string]bool{
+	store.SourceSlack:    true,
+	store.SourceTelegram: true,
+}
+
+func attachThreadParentSubtask(ctx context.Context, q store.Querier, msg store.ConsolidatedMessage, parent store.ConsolidatedMessage, task string) (store.MessageID, error) {
+	autoRestoreExcluded(ctx, q, msg.UserEmail, parent.ID)
+	merged := mergeThreadSubtasks(parent, msg.Subtasks, task, msg.Assignee)
+	if len(merged) == len(parent.Subtasks) {
+		return parent.ID, nil
+	}
+	return parent.ID, store.UpdateSubtasks(ctx, q, msg.UserEmail, parent.ID, merged)
+}
+
+// mergeThreadSubtasks folds a follow-up ask into the parent's subtask list, skipping
+// anything the parent title or an existing subtask already says. Why: the sweeper
+// re-reads every tracked thread hourly, so an unchanged reply must be a no-op.
+func mergeThreadSubtasks(parent store.ConsolidatedMessage, incoming []store.Subtask, task, assignee string) []store.Subtask {
+	merged := make([]store.Subtask, len(parent.Subtasks))
+	copy(merged, parent.Subtasks)
+
+	seen := map[string]bool{normalizeSubtaskKey(parent.Task): true}
+	for _, s := range merged {
+		seen[normalizeSubtaskKey(s.Task)] = true
+	}
+
+	add := func(s store.Subtask) {
+		key := normalizeSubtaskKey(s.Task)
+		if key == "" || seen[key] {
+			return
+		}
+		seen[key] = true
+		merged = append(merged, s)
+	}
+	for _, s := range incoming {
+		add(s)
+	}
+	add(store.Subtask{Task: task, Assignee: assignee})
+	return merged
+}
+
+func normalizeSubtaskKey(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
 }
 
 // quoteAnchoredThreadSources marks channels whose thread_id is a quote/reply-chain
