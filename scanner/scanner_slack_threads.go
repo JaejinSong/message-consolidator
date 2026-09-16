@@ -284,15 +284,39 @@ func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user
 	return candidates
 }
 
+// Why: the live-scan sibling (dispatchSlackThreadedCompletion) propagates the full
+// envelope; the sweeper left Room empty and validateTargetTask rejects a blank Room
+// as a cross-room operation, so every sweeper-side completion was dropped.
+func buildThreadCompletionEnvelope(user *store.User, t store.SlackThreadMeta, m slack.Message, room, senderName string, fromMe bool) store.ConsolidatedMessage {
+	ts := channels.ParseSlackTimestamp(m.Timestamp)
+	env := store.ConsolidatedMessage{
+		UserEmail: user.Email, Source: store.SourceSlack,
+		Room:           room,
+		Link:           buildSlackLink(types.RawMessage{ID: m.Timestamp, ChannelID: t.ChannelID, ReplyToID: t.ThreadTS}),
+		Requester:      senderName,
+		AssignedAt:     ts,
+		CreatedAt:      ts,
+		ThreadID:       t.ThreadTS,
+		RepliedToID:    t.ThreadTS,
+		OriginalText:   m.Text,
+		SourceTS:       m.Timestamp,
+		SourceChannels: []string{store.SourceSlack},
+	}
+	if fromMe {
+		env.RequesterCanonical = user.Email
+	}
+	return env
+}
+
 func dispatchThreadCompletionIfMine(ctx context.Context, sc *channels.SlackClient, user *store.User, t store.SlackThreadMeta, m slack.Message) {
 	if deps.completionSvc == nil || m.ThreadTimestamp == "" {
 		return
 	}
-	if strings.EqualFold(m.User, user.SlackID) || sc.GetUserName(ctx, m.User) == user.Name {
-		if _, err := deps.completionSvc.ProcessPotentialCompletion(ctx, store.ConsolidatedMessage{
-			UserEmail: user.Email, Source: "slack", ThreadID: t.ThreadTS, OriginalText: m.Text, SourceTS: m.Timestamp,
-			RequesterCanonical: user.Email,
-		}); err != nil {
+	senderName := sc.GetUserName(ctx, m.User)
+	room := sc.GetChannelName(t.ChannelID)
+	if strings.EqualFold(m.User, user.SlackID) || senderName == user.Name {
+		env := buildThreadCompletionEnvelope(user, t, m, room, senderName, true)
+		if _, err := deps.completionSvc.ProcessPotentialCompletion(ctx, env); err != nil {
 			logger.Warnf("[SLACK] thread completion failed for %s: %v", user.Email, err)
 		}
 		return
@@ -300,9 +324,8 @@ func dispatchThreadCompletionIfMine(ctx context.Context, sc *channels.SlackClien
 	// Why: counterparty reply in a tracked thread — semanticCrossThreadCandidates
 	// already excludes same-thread tasks, so this only surfaces matches elsewhere.
 	if services.HasCompletionSignal(m.Text) {
-		if _, err := deps.completionSvc.ProcessCrossChannelSignal(ctx, store.ConsolidatedMessage{
-			UserEmail: user.Email, Source: "slack", ThreadID: t.ThreadTS, OriginalText: m.Text, SourceTS: m.Timestamp,
-		}); err != nil {
+		env := buildThreadCompletionEnvelope(user, t, m, room, senderName, false)
+		if _, err := deps.completionSvc.ProcessCrossChannelSignal(ctx, env); err != nil {
 			logger.Warnf("[SLACK] thread cross-channel completion failed for %s: %v", user.Email, err)
 		}
 	}
