@@ -287,9 +287,55 @@ func isIgnorableChannelNoise(ctx context.Context, email, source, payload, prefix
 	return isNoise
 }
 
+// foldSameMessageNewItems collapses the new tasks the AI extracted from one message
+// into a single item carrying the rest as subtasks. Why: a message owns one source_ts
+// and UNIQUE(user_email, source_ts) lets it own one row, so the 2nd..Nth new item were
+// discarded by ON CONFLICT DO NOTHING without an error — 32 Slack tasks lost this way
+// between May and September. States other than "new" address an existing row by ID and
+// are left untouched.
+func foldSameMessageNewItems(items []store.TodoItem) []store.TodoItem {
+	firstIdx := make(map[string]int, len(items))
+	seen := make(map[string]map[string]bool, len(items))
+	out := make([]store.TodoItem, 0, len(items))
+
+	for _, item := range items {
+		if item.State != "new" || item.SourceTS == "" {
+			out = append(out, item)
+			continue
+		}
+		idx, ok := firstIdx[item.SourceTS]
+		if !ok {
+			firstIdx[item.SourceTS] = len(out)
+			seen[item.SourceTS] = subtaskKeySet(item)
+			out = append(out, item)
+			continue
+		}
+		if key := normalizeTaskKey(item.Task); key != "" && !seen[item.SourceTS][key] {
+			seen[item.SourceTS][key] = true
+			out[idx].Subtasks = append(out[idx].Subtasks, store.TodoSubtask{
+				Task:         item.Task,
+				AssigneeName: item.Assignee,
+			})
+		}
+	}
+	return out
+}
+
+func subtaskKeySet(item store.TodoItem) map[string]bool {
+	keys := map[string]bool{normalizeTaskKey(item.Task): true}
+	for _, s := range item.Subtasks {
+		keys[normalizeTaskKey(s.Task)] = true
+	}
+	return keys
+}
+
+func normalizeTaskKey(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
+}
+
 func processChannelItems(ctx context.Context, user store.User, aliases []string, items []store.TodoItem, msgMap map[string]types.RawMessage, group string, is1to1 bool, wg *sync.WaitGroup, adapter ChannelAdapter) []store.MessageID {
 	var newIDs []store.MessageID
-	for _, item := range items {
+	for _, item := range foldSameMessageNewItems(items) {
 		m, ok := msgMap[item.SourceTS]
 		if !ok {
 			// Why: the AI echoes source_ts back; an unmatched one drops the item before
