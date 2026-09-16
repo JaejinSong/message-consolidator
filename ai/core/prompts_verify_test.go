@@ -182,11 +182,34 @@ func TestChatSystemSelfDMReportedSpeechRule(t *testing.T) {
 	body := string(content)
 	required := []string{
 		"Self-DM reported-speech exception",
-		"version: 1.16.0",
+		"version: 1.17.0",
 	}
 	for _, token := range required {
 		if !strings.Contains(body, token) {
 			t.Errorf("chat_system.prompt missing v1.16.0 token: %q", token)
+		}
+	}
+}
+
+// TestChatSystemOneEntryPerMessageRule guards the v1.17.0 subtasks rule. Why: the chat
+// schema had no subtasks field, so a message carrying several asks produced several
+// entries sharing one source_ts -- UNIQUE(user_email, source_ts) kept the first and
+// ON CONFLICT DO NOTHING discarded the rest (32 Slack tasks lost, May-Sep 2026).
+func TestChatSystemOneEntryPerMessageRule(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/chat_system.prompt")
+	if err != nil {
+		t.Fatalf("read chat_system: %v", err)
+	}
+	body := string(content)
+	for _, token := range []string{
+		`"subtasks":[{"task":"string", "assignee":"string"}]`,
+		"One message yields ONE entry, and that entry must carry every ask",
+		"demote, never omit",
+		"several independent asks",
+	} {
+		if !strings.Contains(body, token) {
+			t.Errorf("chat_system.prompt missing v1.17.0 token: %q", token)
 		}
 	}
 }

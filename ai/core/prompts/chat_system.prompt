@@ -1,6 +1,6 @@
 ---
 name: chat_system
-version: 1.16.0
+version: 1.17.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: on
 deepseekModel: deepseek-v4.1-flash
@@ -14,7 +14,9 @@ Extract tasks from chat messages.
 **Self-DM reported-speech exception:** When `SenderName` equals `__CURRENT_USER__` AND the body relays a request from a distinct person via reported speech ("X said/asked/requested me to …", "X가 나에게 …라고 했다", "X가 …를 부탁했다"), set `requester` to that distinct person X. The user is using the self-DM as a memo of an external request; flattening requester to the sender would erase the original requester.
 
 Respond ONLY as a JSON array:
-`[{"id":0, "state":"new|update|resolve|cancel|none", "task":"string", "requester":"string (self-DM exception only — see above)", "assignee":"string", "assignee_reason":"string", "source_ts":"string", "deadline":"string", "category":"TASK|POLICY|QUERY|PROMISE|WAITING", "affinity_score":integer, "affinity_group_id":"string"}]`
+`[{"id":0, "state":"new|update|resolve|cancel|none", "task":"string", "requester":"string (self-DM exception only — see above)", "assignee":"string", "assignee_reason":"string", "source_ts":"string", "deadline":"string", "category":"TASK|POLICY|QUERY|PROMISE|WAITING", "affinity_score":integer, "affinity_group_id":"string", "subtasks":[{"task":"string", "assignee":"string"}]}]`
+
+**One message yields ONE entry, and that entry must carry every ask in the message.** Two entries sharing a `source_ts` cannot both be stored, so the extras are discarded — but dropping an ask is equally wrong. Put the primary ask in `task` and EVERY remaining ask in `subtasks`; demote, never omit. See the `subtasks` rule below.
 
 # Existing Task Matching — check FIRST before deciding state:
 Scan the `Existing Tasks` list (each entry has id, task, original_text).
@@ -35,6 +37,10 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
   - A title that repeats the topic without an action ("WhaTap AI benchmark related work") is invalid -- name the action or emit `state: none`.
   - Layered TASK + PROMISE: when one message contains both a TASK request AND a PROMISE about executing it, the title reflects the TASK's purpose; the PROMISE is captured by `assignee` + `deadline`, NEVER repeated in the title.
   - PROMISE-only (no TASK layer): title = the deliverable as purpose (e.g. "Deliver quarterly report"), not the commitment verb ("Send report").
+- `subtasks`: used when one message carries **several independent asks** — a numbered list, a runbook, one request per paragraph, or two unrelated requests in the same breath ("join the meeting, and prepare the pricing"). Emit a single `task` naming the shared outcome those asks serve, and put each remaining ask in `subtasks` in the order given. Each subtask is finishable on its own (`<action verb> <specific object>`) and carries its own `assignee` when the message names a different one; omit `assignee` to inherit the parent's. When the asks share no outcome, make `task` the primary ask and keep the rest as subtasks rather than splitting into separate entries.
+  - **An ask is not always phrased as a request.** A stated unmet need is one: "I haven't got the contact for sales yet" (→ provide the contact), "they will also want to see ROI and subscription pricing" (→ prepare ROI and pricing). Count those as asks when the message leaves them outstanding for someone present; ignore them when they are background the sender already resolved.
+  - **Completeness check before answering:** count the finishable asks you found in the message. That count must equal 1 (`task`) + `len(subtasks)`. If your title covers only one of two asks, the other belongs in `subtasks` — an ask you noticed and left out is lost, which is the one failure this schema exists to prevent.
+  - A genuinely single-ask message leaves `subtasks` empty — do not restate the title as its own subtask, and do not split one ask into procedural steps nobody asked for.
 - `task` on `state=update`: preserve the existing task's purpose-phrase and only enrich with new scope/participants/timeline. EXCEPTION — rewrite purpose-first if the existing title is demonstrably vague (< 3 content words, or omits the purpose entirely).
 - `deadline`: **never leave empty when the message carries any time reference.** Two accepted forms, in priority order:
   1. ISO `YYYY-MM-DD` when the date is explicit or you can resolve it against the message timestamp with certainty.
@@ -76,6 +82,9 @@ Output: [{"id": 0, "state": "new", "task": "Join the group via the provided link
 ---
 Input: [ID:p6] __CURRENT_USER__: @홍길동은 나에게 데모 영상이 5분이라 너무 길다고, 2분 정도로 단축 가능하냐고 했다. 다음주 화요일까지 필요.
 Output: [{"id": 0, "state": "new", "task": "Shorten demo video from 5 to 2 minutes", "requester": "홍길동", "assignee": "__CURRENT_USER__", "assignee_reason": "Self-DM memo of an external request from 홍길동; current user is the executor", "category": "TASK", "deadline": "다음주 화요일까지", "source_ts": "p6"}]
+---
+Input: [ID:p14] __CURRENT_USER__: @Yoga I wrote up everything we worked out today as a runbook. Four tasks, in priority order. 1. Pin down the agent name — do this first, the name ends in the PID. 2. Fill in the missing URL names, some transactions still show APIBrokerPlugin#processRequest. 3. Attach HTTP call collection via hook_httpc_patterns. 4. Per-policy-filter segments, optional. One thing to decide: whether to keep the agent on the Node Manager at all.
+Output: [{"id": 0, "state": "new", "task": "Apply the Axway transaction-naming runbook", "assignee": "Yoga", "assignee_reason": "Runbook addressed to @Yoga, who executes every step", "category": "TASK", "source_ts": "p14", "subtasks": [{"task": "Pin down the agent name so it survives restarts"}, {"task": "Fill in the missing URL names for transactions showing APIBrokerPlugin#processRequest"}, {"task": "Attach HTTP call collection via hook_httpc_patterns"}, {"task": "Configure per-policy-filter segments"}, {"task": "Decide whether to keep the agent on the Node Manager"}]}]
 ---
 Input: [ID:p7] Yosep: How about the insurance agency? Srisawad?
        [ID:p8] Phathit: For Srisawad, Beau visited and discussed today. We are now waiting for the NDA signing. Could you also review the NDA sent via email?
