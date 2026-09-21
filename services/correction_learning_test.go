@@ -3,7 +3,9 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"message-consolidator/db"
 	"message-consolidator/internal/testutil"
@@ -308,5 +310,72 @@ func TestFieldIsManual(t *testing.T) {
 	}
 	if fieldIsManual(nil, "assignee") {
 		t.Error("nil metadata must report false")
+	}
+}
+
+// Why: a learned shot is re-billed on every extraction for its source, so one oversized
+// mail body must not enter the pool -- and must not enter it clipped when the expected
+// tasks were mined from the text that got clipped away.
+func TestBoundLearnedInput(t *testing.T) {
+	short := strings.Repeat("a", learnedShotInputLimit)
+	long := strings.Repeat("b", learnedShotInputLimit+1)
+	positive := `[{"task":"ship the report"}]`
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+		wantOK   bool
+		wantLen  int
+	}{
+		{"keeps a positive example at the limit", short, positive, true, learnedShotInputLimit},
+		{"drops an oversized positive example", long, positive, false, 0},
+		{"clips an oversized negative example", long, "[]", true, learnedShotInputLimit},
+		{"clips an oversized example with no expectation", long, "  ", true, learnedShotInputLimit},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := boundLearnedInput(tc.input, tc.expected)
+			if ok != tc.wantOK {
+				t.Fatalf("ok = %v, want %v", ok, tc.wantOK)
+			}
+			if len([]rune(got)) != tc.wantLen {
+				t.Fatalf("len = %d, want %d", len([]rune(got)), tc.wantLen)
+			}
+		})
+	}
+}
+
+// Why: runes, not bytes -- a byte-wise cut would split a multi-byte glyph into halves
+// that render as replacement characters inside the prompt.
+func TestBoundLearnedInputNeverSplitsMultibyte(t *testing.T) {
+	input := strings.Repeat("한", learnedShotInputLimit+13)
+	got, ok := boundLearnedInput(input, "[]")
+	if !ok {
+		t.Fatal("negative example must be clipped, not dropped")
+	}
+	if !utf8.ValidString(got) {
+		t.Fatal("clipped input is not valid UTF-8")
+	}
+	if len([]rune(got)) != learnedShotInputLimit {
+		t.Fatalf("len = %d runes, want %d", len([]rune(got)), learnedShotInputLimit)
+	}
+}
+
+func TestInsertLearnedExampleSkipsOversizedPositive(t *testing.T) {
+	cleanup := setupCorrectionLearningTestDB(t)
+	defer cleanup()
+	email := testutil.RandomEmail("oversized-shot")
+	msgID := seedTaskRow(t, email, "ship the report", false)
+
+	insertLearnedExample(context.Background(), email, "gmail",
+		strings.Repeat("c", learnedShotInputLimit+1), `[{"task":"ship the report"}]`, "edit_confirm", msgID)
+
+	examples, err := db.New(store.GetDB()).ListLearnedExamples(context.Background(), db.ListLearnedExamplesParams{UserEmail: email, Limit: 10})
+	if err != nil {
+		t.Fatalf("list examples: %v", err)
+	}
+	if len(examples) != 0 {
+		t.Fatalf("expected the oversized example to be skipped, got %+v", examples)
 	}
 }

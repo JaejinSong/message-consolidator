@@ -347,9 +347,42 @@ func containsInt64(list []int64, v int64) bool {
 	return false
 }
 
+// learnedShotInputLimit bounds one example's input in runes. Why: a learned shot is
+// rendered verbatim into every user prompt for its source (ai/core/prompts/chat_user.prompt),
+// outside the cached system-prompt prefix, so one long mail body would be re-billed on
+// every extraction for that channel. Prime cap; runes, not bytes, to never split CJK.
+const learnedShotInputLimit = 1201
+
+// boundLearnedInput enforces learnedShotInputLimit. Why the split on expected: a negative
+// example teaches "extract nothing", a lesson the tail of the text cannot carry, so it is
+// safe to clip. A positive example's expected tasks were derived from the full text --
+// clipping it would leave tasks with no visible evidence, which teaches invention. Such an
+// example is dropped rather than stored in a self-contradicting form.
+func boundLearnedInput(input, expected string) (string, bool) {
+	runes := []rune(input)
+	if len(runes) <= learnedShotInputLimit {
+		return input, true
+	}
+	if isNegativeExpectation(expected) {
+		return string(runes[:learnedShotInputLimit]), true
+	}
+	return "", false
+}
+
+func isNegativeExpectation(expected string) bool {
+	trimmed := strings.TrimSpace(expected)
+	return trimmed == "" || trimmed == "[]"
+}
+
 func insertLearnedExample(ctx context.Context, userEmail, source, input, expected, origin string, messageID store.MessageID) {
+	bounded, ok := boundLearnedInput(input, expected)
+	if !ok {
+		logger.Infof("[LEARNING] skip oversized learned example origin=%s msg=%d runes=%d limit=%d",
+			origin, messageID, len([]rune(input)), learnedShotInputLimit)
+		return
+	}
 	err := db.New(store.GetDB()).InsertLearnedExample(ctx, db.InsertLearnedExampleParams{
-		UserEmail: userEmail, Source: source, Lang: "", Input: input, Expected: expected, Origin: origin,
+		UserEmail: userEmail, Source: source, Lang: "", Input: bounded, Expected: expected, Origin: origin,
 		MessageID: sql.NullInt64{Int64: int64(messageID), Valid: messageID != 0},
 	})
 	if err != nil {
