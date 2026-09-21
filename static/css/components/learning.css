@@ -77,6 +77,13 @@
     font-size: 0.75rem;
 }
 
+/* Why: a diagnostic observation enforces nothing, so it must not read as a warning */
+.c-learning-view__signal-tag {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    cursor: help;
+}
+
 .c-learning-view__row-meta {
     display: flex;
     gap: var(--spacing-md);

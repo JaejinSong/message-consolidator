@@ -135,12 +135,45 @@ function formatNullableDate(value: { Time: string; Valid: boolean } | undefined,
     return TimeService.formatDisplayTime(value.Time, lang);
 }
 
+// Why: kind = 'precision' can never reach guardSuppressRule -- ListActiveSuppressRules
+// filters kind = 'suppress' (services/precision_observer.go). Approving one is triage,
+// not enforcement, so it must not borrow the suppress wording.
+const DIAGNOSTIC_KINDS = new Set(['precision']);
+
+function observationTag(o: CorrectionObservation, lang: string): string {
+    if (o.to_value) return '';
+    if (DIAGNOSTIC_KINDS.has(o.kind)) {
+        const label = lang === 'ko' ? '진단' : 'diagnostic';
+        const hint = lang === 'ko'
+            ? '취소 패턴 신호입니다. 승인해도 업무 추출을 차단하지 않습니다.'
+            : 'A cancellation-pattern signal. Approving it does not filter any extraction.';
+        return ` <span class="c-learning-view__signal-tag" title="${escapeHTML(hint)}">(${label})</span>`;
+    }
+    // Why: only 'suppress' observations actually drop future extractions.
+    if (o.kind !== 'suppress') return '';
+    return ` <span class="c-learning-view__suppress-tag">(${lang === 'ko' ? '제외' : 'suppress'})</span>`;
+}
+
+function observationActions(o: CorrectionObservation, lang: string): { approve: string; reject: string } {
+    if (DIAGNOSTIC_KINDS.has(o.kind)) {
+        return {
+            approve: lang === 'ko' ? '확인' : 'Acknowledge',
+            reject: lang === 'ko' ? '무시' : 'Dismiss',
+        };
+    }
+    return {
+        approve: lang === 'ko' ? '승인' : 'Approve',
+        reject: lang === 'ko' ? '거부' : 'Reject',
+    };
+}
+
 // Why: "suppress" observations carry no to_value (a deletion signal, not a replacement).
-function renderObservationRow(o: CorrectionObservation): string {
+export function renderObservationRow(o: CorrectionObservation): string {
     const lang = state.currentLang || 'en';
     const signature = o.to_value
         ? `${escapeHTML(o.from_value)} &rarr; ${escapeHTML(o.to_value)}`
-        : `${escapeHTML(o.from_value)} <span class="c-learning-view__suppress-tag">(${lang === 'ko' ? '제외' : 'suppress'})</span>`;
+        : `${escapeHTML(o.from_value)}${observationTag(o, lang)}`;
+    const actions = observationActions(o, lang);
 
     return `
         <div class="c-learning-view__row" data-id="${o.id}">
@@ -155,8 +188,8 @@ function renderObservationRow(o: CorrectionObservation): string {
                 <span>${formatNullableDate(o.updated_at, lang)}</span>
             </div>
             <div class="c-learning-view__row-actions">
-                <button type="button" class="c-btn c-btn--success c-btn--sm" data-action="approve" data-id="${o.id}">${lang === 'ko' ? '승인' : 'Approve'}</button>
-                <button type="button" class="c-btn c-btn--outline c-btn--sm" data-action="reject" data-id="${o.id}">${lang === 'ko' ? '거부' : 'Reject'}</button>
+                <button type="button" class="c-btn c-btn--success c-btn--sm" data-action="approve" data-id="${o.id}">${actions.approve}</button>
+                <button type="button" class="c-btn c-btn--outline c-btn--sm" data-action="reject" data-id="${o.id}">${actions.reject}</button>
             </div>
         </div>
     `;
