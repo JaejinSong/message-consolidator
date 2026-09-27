@@ -7,6 +7,7 @@ package scanner
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"time"
@@ -38,6 +39,10 @@ type ChannelAdapter interface {
 	Mentions(m types.RawMessage) []string
 }
 
+// errGClientUnavailable marks the room-level bail when deps.gClient never got initialized;
+// every message in the room is unprocessed and must stay eligible for replay.
+var errGClientUnavailable = errors.New("scanner: AI client unavailable")
+
 // driverCompletionOptOut — optional: an adapter whose drain phase already feeds
 // the completion pipeline over ALL raw rows (pre-classification) implements this
 // so the driver does not double-dispatch the classified subset (LINE).
@@ -54,6 +59,49 @@ type saveThreadAnchor interface {
 // Slack additionally registers the thread for sweep tracking inside this call.
 type saveLinker interface {
 	SaveLink(ctx context.Context, m types.RawMessage, email string) string
+}
+
+// scanAcker — optional: channels backed by a durable, replayable message log
+// (WhatsApp) acknowledge each scanned group so a scan that errors out before
+// finishing leaves its messages eligible for replay instead of silently
+// advancing past them. ok=true means the group was handled to a terminal
+// state (noise-filtered, AI success, or usable fallback); ok=false means the
+// group should be retried on a future scan.
+type scanAcker interface {
+	AckScanned(ctx context.Context, email string, ids []string, ok bool)
+}
+
+// groupOutcome maps a scanned group's terminal state to the ack decision: ok=true is
+// safe to mark processed (never replayed again), ok=false should stay eligible for
+// replay. isNoise short-circuits true (filtered groups are a valid terminal state);
+// otherwise an enrichment error is always ok=false, and an AI error is ok=true only
+// when the envelope fallback produced at least one usable candidate.
+func groupOutcome(isNoise bool, enrichErr error, aiErr error, fallbackCount int) bool {
+	if isNoise {
+		return true
+	}
+	if enrichErr != nil {
+		return false
+	}
+	if aiErr != nil {
+		return fallbackCount > 0
+	}
+	return true
+}
+
+// ackGroup reports a group's scan outcome to adapters that implement scanAcker.
+// Why: Telegram/other adapters have no durable log to reconcile against, so the
+// type assertion keeps them unaffected.
+func ackGroup(ctx context.Context, adapter ChannelAdapter, email string, msgs []types.RawMessage, ok bool) {
+	acker, isAcker := adapter.(scanAcker)
+	if !isAcker {
+		return
+	}
+	ids := make([]string, len(msgs))
+	for i, m := range msgs {
+		ids[i] = m.ID
+	}
+	acker.AckScanned(ctx, email, ids, ok)
 }
 
 func scanChannel(ctx context.Context, user store.User, aliases []string, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []store.MessageID {
@@ -94,6 +142,7 @@ func processChannelRoom(ctx context.Context, user store.User, aliases []string, 
 
 	if deps.gClient == nil {
 		logger.Errorf("[SCAN] %s: deps.gClient not initialized; scanner.Init may have failed", adapter.LogPrefix())
+		ackGroup(ctx, adapter, user.Email, msgs, groupOutcome(false, errGClientUnavailable, nil, 0))
 		return nil
 	}
 
@@ -244,12 +293,14 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 	if bypassNoise {
 		logger.Debugf("[SCAN] %s: noise filter bypassed (open-task signal) room=%s", prefix, groupName)
 	} else if isIgnorableChannelNoise(ctx, user.Email, source, payload, prefix) {
+		ackGroup(ctx, adapter, user.Email, group, groupOutcome(true, nil, nil, 0))
 		return nil
 	}
 
 	enriched, err := adapter.Enrich(roomKey, payload, group[len(group)-1].Timestamp)
 	if err != nil {
 		logger.Errorf("[SCAN] %s: enrichment failed: %v", prefix, err)
+		ackGroup(ctx, adapter, user.Email, group, groupOutcome(false, err, nil, 0))
 		return nil
 	}
 	if adapter.Is1To1(roomKey) {
@@ -263,10 +314,12 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 		logger.Errorf("[SCAN] %s: AI analysis error: %v", prefix, err)
 		candidates = buildEnvelopeFallbackCandidates(user, aliases, source, groupName, group, adapter)
 		if len(candidates) == 0 {
+			ackGroup(ctx, adapter, user.Email, group, groupOutcome(false, nil, err, 0))
 			return nil
 		}
 		logger.Infof("[SCAN] %s: AI unavailable, envelope fallback produced %d items", prefix, len(candidates))
 	}
+	ackGroup(ctx, adapter, user.Email, group, groupOutcome(false, nil, err, len(candidates)))
 
 	// Why: inject thread context so findMatch can guard against cross-thread merges,
 	// and sender identity so resolve routing can distinguish auto-close (own reply)

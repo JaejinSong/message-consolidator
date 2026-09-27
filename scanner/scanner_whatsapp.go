@@ -10,6 +10,7 @@ import (
 
 	"context"
 	"message-consolidator/channels"
+	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
 )
@@ -20,7 +21,37 @@ type whatsAppAdapter struct{}
 func (whatsAppAdapter) Source() string    { return store.SourceWhatsApp }
 func (whatsAppAdapter) LogPrefix() string { return "WA" }
 func (whatsAppAdapter) PopMessages(email string) map[string][]types.RawMessage {
-	return channels.DefaultWAManager.PopMessages(email)
+	buffer := channels.DefaultWAManager.PopMessages(email)
+	if len(buffer) == 0 {
+		return buffer
+	}
+	var ids []string
+	for _, msgs := range buffer {
+		for _, m := range msgs {
+			ids = append(ids, m.ID)
+		}
+	}
+	// Why: ChannelAdapter.PopMessages has no ctx param (shared WhatsApp/Telegram
+	// interface); marking popped is a best-effort replay guard, not request work.
+	if err := store.MarkWAMessagesPopped(context.Background(), email, ids); err != nil {
+		logger.Warnf("[SCAN] WA: mark popped failed: %v", err)
+	}
+	return buffer
+}
+
+// AckScanned reconciles a scanned group's durable wa_messages rows: ok marks them
+// processed so they never replay; !ok increments the retry counter so they stay
+// eligible for the next replay pass, up to the retry cap.
+func (whatsAppAdapter) AckScanned(ctx context.Context, email string, ids []string, ok bool) {
+	var err error
+	if ok {
+		err = store.MarkWAMessagesProcessed(ctx, email, ids)
+	} else {
+		err = store.MarkWAMessagesFailed(ctx, email, ids)
+	}
+	if err != nil {
+		logger.Warnf("[SCAN] WA: ack scanned (ok=%v) failed: %v", ok, err)
+	}
 }
 func (whatsAppAdapter) GetGroupName(email, roomKey string) string {
 	return channels.DefaultWAManager.GetGroupName(email, roomKey)
