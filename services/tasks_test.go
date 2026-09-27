@@ -7,6 +7,7 @@ import (
 	"message-consolidator/store"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestStripOriginalText(t *testing.T) {
@@ -531,10 +532,17 @@ func TestTasksService_TruncateTitle(t *testing.T) {
 		{"short", 10, "short"},
 		{"exactly10x", 10, "exactly10x"},
 		{"this is too long for limit", 10, "this is..."},
+		// Why: Korean runes are multi-byte in UTF-8; truncation must cut on rune
+		// boundaries or the result becomes invalid UTF-8.
+		{"안녕하세요", 10, "안녕하세요"},
+		{"안녕하세요반갑습니다다시만나요", 10, "안녕하세요반갑..."},
 	}
 	for _, tt := range tests {
 		if got := s.truncateTitle(tt.in, tt.max); got != tt.want {
 			t.Errorf("truncateTitle(%q, %d) = %q, want %q", tt.in, tt.max, got, tt.want)
+		}
+		if !utf8.ValidString(s.truncateTitle(tt.in, tt.max)) {
+			t.Errorf("truncateTitle(%q, %d) produced invalid UTF-8", tt.in, tt.max)
 		}
 	}
 }

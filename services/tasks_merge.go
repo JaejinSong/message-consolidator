@@ -74,11 +74,13 @@ func (s *TasksService) generateSummaryTitle(ctx context.Context, email string, d
 	return s.truncateTitle(strings.Join(titles, " | "), 250)
 }
 
+// Why: truncates on rune boundaries so multi-byte titles (e.g. Korean) never split mid-character.
 func (s *TasksService) truncateTitle(t string, max int) string {
-	if len(t) <= max {
+	r := []rune(t)
+	if len(r) <= max {
 		return t
 	}
-	return t[:max-3] + "..."
+	return string(r[:max-3]) + "..."
 }
 
 // ResolveProposals resolves extraction results against current active tasks.

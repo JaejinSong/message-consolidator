@@ -36,6 +36,15 @@ func TestStatusMatch(t *testing.T) {
 		{ConsolidatedMessage{Category: "other"}, "merged", false},
 		{ConsolidatedMessage{Done: true}, "all", true},
 		{ConsolidatedMessage{Done: false}, "", true},
+		// Why: lifecycle CASE checks category='merged' first, so a merged row that is
+		// also done/deleted must still land under "merged", never "done"/"canceled".
+		{ConsolidatedMessage{Category: "merged", Done: true}, "merged", true},
+		{ConsolidatedMessage{Category: "merged", Done: true}, "done", false},
+		{ConsolidatedMessage{Category: "merged", IsDeleted: true}, "merged", true},
+		{ConsolidatedMessage{Category: "merged", IsDeleted: true}, "canceled", false},
+		// swept (done + deleted) is grouped under the "done" tab, matching the FTS mapping.
+		{ConsolidatedMessage{Done: true, IsDeleted: true}, "done", true},
+		{ConsolidatedMessage{Done: true, IsDeleted: true}, "canceled", false},
 	}
 	for _, tt := range tests {
 		if got := statusMatch(tt.m, tt.stat); got != tt.want {

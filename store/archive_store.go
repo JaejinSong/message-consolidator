@@ -138,16 +138,35 @@ func filterByStatus(msgs []ConsolidatedMessage, status string) []ConsolidatedMes
 	return filtered
 }
 
+// Why: mirrors the lifecycle generated column precedence in migrations.go
+func messageLifecycle(m ConsolidatedMessage) string {
+	switch {
+	case m.Category == "merged":
+		return "merged"
+	case !m.Done && m.IsDeleted:
+		return "canceled"
+	case m.Done && m.IsDeleted:
+		return "swept"
+	case m.Done:
+		return "done"
+	case m.ExcludedAt != nil:
+		return "excluded"
+	default:
+		return "active"
+	}
+}
+
 func statusMatch(m ConsolidatedMessage, status string) bool {
+	lifecycle := messageLifecycle(m)
 	switch status {
 	case "done":
-		return m.Done
+		return lifecycle == "done" || lifecycle == "swept"
 	case "canceled":
-		return !m.Done && m.IsDeleted
+		return lifecycle == "canceled"
 	case "merged":
-		return m.Category == "merged"
+		return lifecycle == "merged"
 	case "excluded":
-		return m.ExcludedAt != nil
+		return lifecycle == "excluded"
 	default:
 		return true
 	}
