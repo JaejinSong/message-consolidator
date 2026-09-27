@@ -233,12 +233,5 @@ func isTrustedIDMatch(room string, item store.TodoItem, m *store.ConsolidatedMes
 
 // titleTokenOverlap counts distinct ≥3-rune tokens of a shared between the two titles.
 func titleTokenOverlap(a, b string) int {
-	haystack := strings.ToLower(b)
-	overlap := 0
-	for _, t := range ftsCandidateTokens(a, maxCrossThreadFTSTokens) {
-		if strings.Contains(haystack, strings.ToLower(t)) {
-			overlap++
-		}
-	}
-	return overlap
+	return countTokenHits(ftsCandidateTokens(a, maxCrossThreadFTSTokens), b)
 }
