@@ -222,7 +222,10 @@ func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.
 	waNotionLogger.ChatNameResolver = channels.DefaultWAManager.GetGroupName
 	if waNotionLogger.Enabled() {
 		logger.Infof("[notion-wa] enabled (page=%s)", cfg.NotionWALogPageID)
-		go waNotionLogger.Start(ctx)
+		go func() {
+			defer safego.Recover("notion-wa-logger")
+			waNotionLogger.Start(ctx)
+		}()
 	} else {
 		logger.Infof("[notion-wa] disabled: NOTION_TOKEN or NOTION_WA_LOG_PAGE_ID not set")
 	}
