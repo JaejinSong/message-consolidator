@@ -14,11 +14,11 @@ import (
 func resetInaccessibleChannels(t *testing.T) {
 	t.Helper()
 	inaccessibleMu.Lock()
-	inaccessibleChannels = map[string]inaccessibleChannelInfo{}
+	inaccessibleChannels = map[inaccessibleChannelKey]inaccessibleChannelInfo{}
 	inaccessibleMu.Unlock()
 	t.Cleanup(func() {
 		inaccessibleMu.Lock()
-		inaccessibleChannels = map[string]inaccessibleChannelInfo{}
+		inaccessibleChannels = map[inaccessibleChannelKey]inaccessibleChannelInfo{}
 		inaccessibleMu.Unlock()
 	})
 }
@@ -68,7 +68,7 @@ func TestFetchChannelHistoryActivity_Backoff(t *testing.T) {
 	if calls != 1 {
 		t.Fatalf("calls after first failure = %d, want 1", calls)
 	}
-	if !isChannelInaccessible("C1") {
+	if !isChannelInaccessible(slackClientKindBot, "C1") {
 		t.Fatal("expected channel to be marked inaccessible after channel_not_found")
 	}
 
@@ -79,7 +79,7 @@ func TestFetchChannelHistoryActivity_Backoff(t *testing.T) {
 
 	// Force the backoff window to have elapsed.
 	inaccessibleMu.Lock()
-	inaccessibleChannels["C1"] = inaccessibleChannelInfo{reason: "channel_not_found", until: time.Now().Add(-time.Second)}
+	inaccessibleChannels[inaccessibleChannelKey{kind: slackClientKindBot, channelID: "C1"}] = inaccessibleChannelInfo{reason: "channel_not_found", until: time.Now().Add(-time.Second)}
 	inaccessibleMu.Unlock()
 
 	fetchChannelHistoryActivity(sc, "C1", threads)
@@ -93,16 +93,16 @@ func TestFetchChannelHistoryActivity_Backoff(t *testing.T) {
 func TestInaccessibleSlackChannels_OmitsExpired(t *testing.T) {
 	resetInaccessibleChannels(t)
 
-	recordChannelInaccessible("C_LIVE", "channel_not_found")
+	recordChannelInaccessible(slackClientKindBot, "C_LIVE", "channel_not_found")
 	inaccessibleMu.Lock()
-	inaccessibleChannels["C_EXPIRED"] = inaccessibleChannelInfo{reason: "not_in_channel", until: time.Now().Add(-time.Second)}
+	inaccessibleChannels[inaccessibleChannelKey{kind: slackClientKindBot, channelID: "C_EXPIRED"}] = inaccessibleChannelInfo{reason: "not_in_channel", until: time.Now().Add(-time.Second)}
 	inaccessibleMu.Unlock()
 
 	got := InaccessibleSlackChannels()
-	if got["C_LIVE"] != "channel_not_found" {
-		t.Errorf("InaccessibleSlackChannels()[C_LIVE] = %q, want %q", got["C_LIVE"], "channel_not_found")
+	if got["bot:C_LIVE"] != "channel_not_found" {
+		t.Errorf("InaccessibleSlackChannels()[bot:C_LIVE] = %q, want %q", got["bot:C_LIVE"], "channel_not_found")
 	}
-	if _, ok := got["C_EXPIRED"]; ok {
+	if _, ok := got["bot:C_EXPIRED"]; ok {
 		t.Error("expired backoff entry should not be reported")
 	}
 }
@@ -120,11 +120,11 @@ func TestSweepColdReconciliationThreads_SkipsInaccessibleChannel(t *testing.T) {
 		calls++
 		return nil, nil
 	}
-	recordChannelInaccessible("C_BLOCKED", "channel_not_found")
+	recordChannelInaccessible(slackClientKindBot, "C_BLOCKED", "channel_not_found")
 
 	sc := channels.NewSlackClient("fake-token")
 	group := []store.SlackThreadMeta{{ChannelID: "C_BLOCKED", ThreadTS: "1.0", UserEmail: "blocked@example.com"}}
-	if isChannelInaccessible(group[0].ChannelID) {
+	if isChannelInaccessible(slackClientKindForEmail(group[0].UserEmail), group[0].ChannelID) {
 		// expected path: sweepColdReconciliationThreads would skip this group before
 		// ever calling processColdReconciliationGroup.
 	} else {

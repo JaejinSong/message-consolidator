@@ -33,7 +33,7 @@ func TestMarkSlackScanSuccess_StampsAllUsers(t *testing.T) {
 func TestCollectSlackHistory_EmptyChannelsIsFetchOK(t *testing.T) {
 	t.Parallel()
 	sc := channels.NewSlackClient("fake-token")
-	_, _, fetchOK := collectSlackHistory(context.Background(), nil, nil, sc, nil)
+	_, _, fetchOK, _ := collectSlackHistory(context.Background(), nil, nil, sc, nil)
 	if !fetchOK {
 		t.Error("expected fetchOK=true when there are no channels to scan")
 	}

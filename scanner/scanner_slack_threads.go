@@ -82,7 +82,7 @@ func sweepHotSlackThreads(ctx context.Context, sc *channels.SlackClient, botID s
 
 	for _, group := range groupThreadsByKey(threads) {
 		rep := group[0]
-		if isChannelInaccessible(rep.ChannelID) {
+		if isChannelInaccessible(slackClientKindForEmail(rep.UserEmail), rep.ChannelID) {
 			continue
 		}
 		if shouldSkipThreadFetch(rep, activity) {
@@ -109,7 +109,7 @@ func sweepColdReconciliationThreads(ctx context.Context, sc *channels.SlackClien
 	aliasCache := buildSlackAliasCache(ctx, threads)
 	for _, group := range groupThreadsByKey(threads) {
 		rep := group[0]
-		if isChannelInaccessible(rep.ChannelID) {
+		if isChannelInaccessible(slackClientKindForEmail(rep.UserEmail), rep.ChannelID) {
 			continue
 		}
 		processColdReconciliationGroup(ctx, sc, group, botID, aliasCache, wg, budget)
@@ -137,7 +137,9 @@ func fetchChannelHistoryActivity(sc *channels.SlackClient, chID string, threads 
 	// Why: skip the call entirely while the channel is in its access-failure backoff
 	// window; retrying every sweep tick against a channel the bot cannot read just
 	// re-triggers the same error and (without this guard) re-logs it every cycle.
-	if isChannelInaccessible(chID) {
+	// This history optimization always runs against the bot client (see
+	// scanChannelHistoryActivity), so the backoff it records is bot-kind only.
+	if isChannelInaccessible(slackClientKindBot, chID) {
 		return channelActivity{}
 	}
 	// Why: oldest=min(thread_ts), inclusive=true → 가장 오래된 추적 thread parent까지 한 호출로
@@ -152,7 +154,7 @@ func fetchChannelHistoryActivity(sc *channels.SlackClient, chID string, threads 
 	hist, err := getConversationHistory(sc, params)
 	if err != nil || hist == nil {
 		if reason, ok := classifyAccessError(err); ok {
-			recordChannelInaccessible(chID, reason)
+			recordChannelInaccessible(slackClientKindBot, chID, reason)
 		} else {
 			logger.Warnf("[SLACK] sweep: history fetch failed for channel %s: %v", chID, err)
 		}
@@ -188,21 +190,30 @@ type inaccessibleChannelInfo struct {
 	until  time.Time
 }
 
+// inaccessibleChannelKey scopes the backoff to which client kind saw the failure, so a
+// bot 'not_in_channel' never blocks a user-token fetch on the same channel (and vice
+// versa).
+type inaccessibleChannelKey struct {
+	kind      string
+	channelID string
+}
+
 var (
 	inaccessibleMu       sync.Mutex
-	inaccessibleChannels = map[string]inaccessibleChannelInfo{}
+	inaccessibleChannels = map[inaccessibleChannelKey]inaccessibleChannelInfo{}
 )
 
-// recordChannelInaccessible remembers chID as unreachable for channelBackoffWindow and
-// logs exactly one Error line per channel per window (no per-thread spam).
-func recordChannelInaccessible(chID, reason string) {
+// recordChannelInaccessible remembers (kind, chID) as unreachable for channelBackoffWindow
+// and logs exactly one Error line per channel per window (no per-thread spam).
+func recordChannelInaccessible(kind, chID, reason string) {
 	inaccessibleMu.Lock()
 	defer inaccessibleMu.Unlock()
-	if info, ok := inaccessibleChannels[chID]; ok && time.Now().Before(info.until) {
+	key := inaccessibleChannelKey{kind: kind, channelID: chID}
+	if info, ok := inaccessibleChannels[key]; ok && time.Now().Before(info.until) {
 		return
 	}
-	inaccessibleChannels[chID] = inaccessibleChannelInfo{reason: reason, until: time.Now().Add(channelBackoffWindow)}
-	logger.Errorf("[SLACK] channel %s inaccessible (%s): bot not a member or channel gone - invite the bot to resume", chID, reason)
+	inaccessibleChannels[key] = inaccessibleChannelInfo{reason: reason, until: time.Now().Add(channelBackoffWindow)}
+	logger.Errorf("[SLACK] channel %s inaccessible for %s client (%s): not a member or channel gone", chID, kind, reason)
 }
 
 // maxThreadReplyEvalsPerSweep bounds how many LLM transition calls one sweepSlackThreads
@@ -235,23 +246,23 @@ func (b *threadReplyBudget) take() bool {
 	return true
 }
 
-func isChannelInaccessible(chID string) bool {
+func isChannelInaccessible(kind, chID string) bool {
 	inaccessibleMu.Lock()
 	defer inaccessibleMu.Unlock()
-	info, ok := inaccessibleChannels[chID]
+	info, ok := inaccessibleChannels[inaccessibleChannelKey{kind: kind, channelID: chID}]
 	return ok && time.Now().Before(info.until)
 }
 
-// InaccessibleSlackChannels exposes the current channel→reason backoff set for a
-// future status endpoint. Entries past their backoff window are omitted.
+// InaccessibleSlackChannels exposes the current "kind:channelID"→reason backoff set for
+// a future status endpoint. Entries past their backoff window are omitted.
 func InaccessibleSlackChannels() map[string]string {
 	inaccessibleMu.Lock()
 	defer inaccessibleMu.Unlock()
 	now := time.Now()
 	out := make(map[string]string, len(inaccessibleChannels))
-	for chID, info := range inaccessibleChannels {
+	for key, info := range inaccessibleChannels {
 		if now.Before(info.until) {
-			out[chID] = info.reason
+			out[key.kind+":"+key.channelID] = info.reason
 		}
 	}
 	return out
@@ -394,10 +405,13 @@ func fetchAndDispatchThreadGroup(ctx context.Context, sc *channels.SlackClient, 
 		}
 	}
 
+	// Why: fetch with the group's own user's Slack token when one is on file, else the
+	// bot client — same choice the live scanner makes in scanSlackForTokenUser.
+	fetchClient := clientForSlackUser(ctx, rep.UserEmail, sc)
 	params := &slack.GetConversationRepliesParameters{
 		ChannelID: rep.ChannelID, Timestamp: rep.ThreadTS, Oldest: minLastTS, Limit: 100,
 	}
-	replies, err := getConversationReplies(sc, params)
+	replies, err := getConversationReplies(fetchClient, params)
 	if err != nil {
 		return threadScanResult{}, false
 	}
@@ -408,9 +422,9 @@ func fetchAndDispatchThreadGroup(ctx context.Context, sc *channels.SlackClient, 
 		if !ok || ident.user == nil {
 			continue
 		}
-		candidates := collectThreadCandidates(ctx, sc, ident.user, sub, replies, res, ident.effAliases, budget)
+		candidates := collectThreadCandidates(ctx, fetchClient, ident.user, sub, replies, res, ident.effAliases, budget)
 		if len(candidates) > 0 {
-			analyzeSlackBatch(ctx, ident.user, sc, sub.ChannelID, candidates, wg)
+			analyzeSlackBatch(ctx, ident.user, fetchClient, sub.ChannelID, candidates, wg)
 		}
 	}
 	return res, true

@@ -56,7 +56,8 @@ func main() {
 		log.Fatalf("AI client init failed: %v", err)
 	}
 
-	sc := channels.NewSlackClient(cfg.SlackToken)
+	sc, clientKind := slackClientForEmail(ctx, cfg, *email)
+	fmt.Printf("using %s Slack client for %s\n", clientKind, *email)
 	bs := &backlogStore{inner: &services.DefaultTaskStore{}, db: store.GetDB(), apply: *apply}
 	completionSvc := services.NewCompletionService(aiClient, bs, &services.TasksService{}, store.GetDB())
 
@@ -76,6 +77,16 @@ func main() {
 	} else {
 		fmt.Println("\ndry run: no writes (pass -apply to record confirm-first candidates)")
 	}
+}
+
+// slackClientForEmail prefers email's own Slack OAuth grant over the bot token, mirroring
+// the scanner's user-token-first scan order. Why: reassessment against the user's own
+// channel membership sees threads the bot may no longer be a member of.
+func slackClientForEmail(ctx context.Context, cfg *config.Config, email string) (*channels.SlackClient, string) {
+	if tok, ok, err := store.GetSlackUserToken(ctx, email); err == nil && ok {
+		return channels.NewSlackClient(tok.Token), "user token" //nolint:contextcheck // SlackClient constructor; per-request ctx flows through individual API calls.
+	}
+	return channels.NewSlackClient(cfg.SlackToken), "bot token" //nolint:contextcheck // SlackClient constructor; per-request ctx flows through individual API calls.
 }
 
 func providerConfig(cfg *config.Config) ai.ProviderConfig {
