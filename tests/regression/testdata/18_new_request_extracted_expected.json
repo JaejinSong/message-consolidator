@@ -1,0 +1,13 @@
+[
+  {
+    "id": 0,
+    "state": "new",
+    "task": "Review the Q3 budget draft",
+    "requester": "",
+    "assignee": "JJ",
+    "assigned_at": "",
+    "source_ts": "p1",
+    "deadline": "Friday",
+    "category": "TASK"
+  }
+]

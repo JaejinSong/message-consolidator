@@ -204,6 +204,22 @@ func runSingleRegression(t *testing.T, path, testName string) {
 	runRegressionWithClient(t, client, path, testName)
 }
 
+// loadExistingTasks reads the optional "<case>_tasks.json" sidecar, which seeds the
+// "Existing Tasks" context normally fetched from the DB — needed to exercise
+// update/resolve state transitions against a matched open task without a live store.
+func loadExistingTasks(path string) []store.ConsolidatedMessage {
+	tasksPath := strings.TrimSuffix(path, "_input.txt") + "_tasks.json"
+	b, err := os.ReadFile(tasksPath)
+	if err != nil {
+		return nil
+	}
+	var tasks []store.ConsolidatedMessage
+	if err := json.Unmarshal(b, &tasks); err != nil {
+		return nil
+	}
+	return tasks
+}
+
 func analyzeCase(t *testing.T, client *ai.AIClient, path, testName string) (expected, actual []store.TodoItem) {
 	input, _ := os.ReadFile(path)
 	expectedBytes, _ := os.ReadFile(strings.TrimSuffix(path, "_input.txt") + "_expected.json")
@@ -216,7 +232,11 @@ func analyzeCase(t *testing.T, client *ai.AIClient, path, testName string) (expe
 		SourceChannel: source,
 	}
 	var err error
-	actual, err = client.Analyze(context.Background(), "test.user@example.com", msg, lang, source, "TestRoom")
+	if tasks := loadExistingTasks(path); tasks != nil {
+		actual, err = client.AnalyzeWithContext(context.Background(), "test.user@example.com", msg, lang, source, "TestRoom", tasks)
+	} else {
+		actual, err = client.Analyze(context.Background(), "test.user@example.com", msg, lang, source, "TestRoom")
+	}
 	if err != nil {
 		t.Fatalf("Analyze error: %v", err)
 	}
@@ -347,7 +367,11 @@ func compareMetadata(exp, act store.TodoItem) bool {
 		tsMatch = false
 	}
 
-	return reqMatch && catMatch && tsMatch
+	// Why: state is opt-in — most goldens predate the state/update/resolve schema fields, so
+	// an empty exp.State must not force a comparison against them.
+	stateMatch := exp.State == "" || strings.EqualFold(exp.State, act.State)
+
+	return reqMatch && catMatch && tsMatch && stateMatch
 }
 
 func verifyTaskContent(exp, act store.TodoItem) bool {

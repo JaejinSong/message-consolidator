@@ -1,0 +1,13 @@
+[
+  {
+    "id": 42,
+    "state": "resolve",
+    "task": "Share the updated pricing sheet with the customer",
+    "requester": "",
+    "assignee": "Yosep",
+    "assigned_at": "",
+    "source_ts": "p1",
+    "deadline": "",
+    "category": "TASK"
+  }
+]

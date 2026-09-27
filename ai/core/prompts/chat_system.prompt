@@ -1,6 +1,6 @@
 ---
 name: chat_system
-version: 1.17.0
+version: 1.18.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: on
 deepseekModel: deepseek-v4.1-flash
@@ -26,11 +26,15 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
   → `state: resolve` if clearly completed ("I can handle it", "done", "완료", "ok saya handle", etc.)
   → `state: resolve` if __CURRENT_USER__ **routes or redirects** the question to another channel/person ("please use #channel", "go to #helpdesk", "이관해주세요", "redirect this to", "이 채널로 직접 문의", etc.) — routing is closure of the original inquiry, NOT a new task.
   → `state: resolve` when the thread reaches a **negotiated outcome that fulfills the task itself** — e.g. a scheduling/coordination task where participants converge on a concrete slot or decision ("Thursday 10am then", "Jam 10 saja" → "Okay jam 10"). The agreement IS the completion; do not wait for an explicit "done".
-- No match → `id: 0`, `state: new`
+  → **Announced decision or done-ack, not a request:** a message that only reports an already-made decision or an already-completed action ("must be cancelled", "reschedule to next week", "done", "sent", "already turned on", "sudah selesai") is never a new task. If it concerns a matched open task, close it: `state: resolve` for a completion or cancellation ("Got it, let me share with customer", "Turn on 2-step verification already, thanks" — an assignee's past-tense/perfective ack resolves the task), or `state: update` when a reschedule names a new time (carry the new `deadline`). This applies whether the speaker is the requester (announcing the cancellation) or the assignee (claiming the work is done) — **future-tense commitments ("will update", "we'll try", "akan coba", "sudah, nanti saya update") are NOT completion and must not resolve the task.**
+- No match:
+  → If the message only reports an already-made decision or completed action with no open task in context (see done-ack rule above), `state: none` — do not manufacture a task from an announcement.
+  → Otherwise `id: 0`, `state: new`
 
 # Field Rules:
 - `id`: 0 if new; existing task's id if matched above.
 - `state`: intent of the message (new task, update/resolve existing, etc.). Use `none` when the message carries no finishable work: FYI and status broadcasts, holiday or policy announcements, acknowledgements, opinions, and descriptions of work the sender has already completed. Do not manufacture a task by rephrasing an observation as an imperative.
+  - **Multilingual completion markers**: past-tense/perfective completion is not English-only — recognize "already"/"done"/"sent" (English), "sudah"/"udah" (Indonesian/Malay), "sudah siap" (Malay), and Thai completion particles ("แล้ว" = already-done) as closing signals for the done-ack rule above, not as new work.
 - `task`: English, naming **one finishable thing** -- a reader must be able to say whether it is done. Lead with the **WHY (outcome/purpose)**, not the last-sentence verb, but express that purpose as a concrete action on a specific object: `<action verb> <specific object>` (e.g. "Attend Carabao meeting", "Approve the Unipost quotation"). Append `via <mechanism>` only when the mechanism is part of what gets delivered ("Align POC scope via online session", "Notify the team of the Coronation Day holiday via email").
   - **Reject abstract restatements of intent.** If the title would describe a standing goal or a way of working rather than one finishable item, it is not a task. NOT "Convert opportunities to outcomes via pipeline development", NOT "Maintain scheduling visibility via consistent calendar usage", NOT "Secure partner ownership via technical guidance" -- none of these name a deliverable. Extract the concrete next step instead, or emit `state: none`.
   - **Never lead with a stative or attitudinal verb** (Note, Acknowledge, Maintain, Focus, Prioritize, Ensure, Continue, Keep, Be aware of). Those signal awareness, not work.
@@ -100,4 +104,19 @@ Output: [{"id": 21, "state": "resolve", "task": "Schedule SAMCO discussion this 
 Existing Tasks: [{"id": 7, "task": "Check service version on on-premise collection server", "original_text": "Adira want to know what service version currently running on their collection server"}]
 Input: [ID:p9] __CURRENT_USER__: Hi Yoga, product/agent questions like these go directly to the HQ product channel: #helpdesk-intake. You have access — please use it directly for this type of question. Move both questions there with the screenshots.
 Output: [{"id": 7, "state": "resolve", "task": "Check service version on on-premise collection server", "assignee": "shared", "assignee_reason": "Current user routed the inquiry to another channel (#helpdesk-intake); routing is closure of the original inquiry.", "category": "QUERY", "source_ts": "p9"}]
+---
+Existing Tasks: [{"id": 30, "task": "Enable 2-step verification on the account", "original_text": "Please turn on 2-step verification when you get a chance."}]
+Input: [ID:p15] JJ: Turn on 2-step verification already. Thanks JJ.
+Output: [{"id": 30, "state": "resolve", "task": "Enable 2-step verification on the account", "assignee": "shared", "assignee_reason": "Assignee's past-tense done-ack ('already') closes the matched task; not a new request.", "category": "TASK", "source_ts": "p15"}]
+---
+Existing Tasks: [{"id": 21, "task": "Schedule SAMCO discussion this week", "original_text": "Mau lanjut bahas SAMCO? Besok bisa?"}]
+Input: [ID:p16] Jhonatan: Meetings and dinner on 8th must be cancelled.
+Output: [{"id": 21, "state": "resolve", "task": "Schedule SAMCO discussion this week", "assignee": "shared", "assignee_reason": "Requester announced the meeting is cancelled — an already-made decision, not a request; closes the matched task.", "category": "TASK", "source_ts": "p16"}]
+---
+Existing Tasks: [{"id": 21, "task": "Schedule SAMCO discussion this week", "original_text": "Mau lanjut bahas SAMCO? Besok bisa?"}]
+Input: [ID:p17] Jhonatan: Reschedule to next week, face to face meeting.
+Output: [{"id": 21, "state": "update", "task": "Schedule SAMCO discussion next week (face to face)", "assignee": "shared", "assignee_reason": "Reschedule names a new time for the matched task; update rather than resolve.", "category": "TASK", "deadline": "next week", "source_ts": "p17"}]
+---
+Input: [ID:p18] Jhonatan: Meetings and dinner on 8th must be cancelled.
+Output: []
 ---
