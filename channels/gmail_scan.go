@@ -515,15 +515,15 @@ func processGeminiItems(ctx context.Context, email string, user *store.User, ali
 			GmailClassification: classificationMap[item.SourceTS],
 			IsCcOnly:            m.IsCcOnly,
 		}
-		guardedParams, guard := services.ApplyExtractionGuard(ctx, params)
-		if !guard.Kept {
+		guardedItem, msg, guard, ok := services.GuardAndBuild(ctx, params)
+		if !ok {
 			logger.Infof("[GMAIL] extraction guard dropped item %q (%s)", item.SourceTS, guard.DropReason)
 			continue
 		}
 		if len(guard.Demotions) > 0 {
 			logger.Debugf("[GMAIL] extraction guard demotions for %q: %v", item.SourceTS, guard.Demotions)
 		}
-		result = append(result, routedGeminiItem{Item: guardedParams.Item, Msg: services.BuildTask(ctx, guardedParams)})
+		result = append(result, routedGeminiItem{Item: guardedItem, Msg: msg})
 	}
 	return result
 }
