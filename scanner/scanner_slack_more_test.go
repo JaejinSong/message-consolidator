@@ -10,19 +10,6 @@ import (
 	"message-consolidator/store"
 )
 
-// TestHandleThreadTimeout_NonEmptyThreadTS covers the PostMessage + CloseTargetedThread path.
-// Why: PostMessage errors are discarded (_,_,_ =), so the fake token fails silently.
-func TestHandleThreadTimeout_NonEmptyThreadTS(t *testing.T) {
-	initTestDB(t)
-	sc := channels.NewSlackClient("fake-token")
-	thread := store.SlackThreadMeta{
-		ChannelID: "C1", ThreadTS: "1700000100.000000",
-		UserEmail: "timeout-real@example.com",
-	}
-	// PostMessage will fail (fake token) but error is ignored; CloseTargetedThread uses DB.
-	handleThreadTimeout(context.Background(), sc, thread)
-}
-
 // TestUpdateThreadStatus_Resolved_EmptyThreadTS covers the resolved + empty-ThreadTS branch.
 func TestUpdateThreadStatus_Resolved_EmptyThreadTS(t *testing.T) {
 	initTestDB(t)

@@ -233,15 +233,6 @@ func processSlackThreadGroup(ctx context.Context, sc *channels.SlackClient, grou
 	updateThreadStatusGroup(ctx, sc, group, res)
 }
 
-func handleThreadTimeout(ctx context.Context, sc *channels.SlackClient, t store.SlackThreadMeta) {
-	if t.ThreadTS == "" {
-		logger.Warnf("[SLACK] handleThreadTimeout: empty ThreadTS channel=%s user=%s, closing without posting", t.ChannelID, t.UserEmail)
-		_ = store.CloseTargetedThread(ctx, t.ChannelID, t.ThreadTS, t.UserEmail)
-		return
-	}
-	_ = store.CloseTargetedThread(ctx, t.ChannelID, t.ThreadTS, t.UserEmail)
-}
-
 func handleThreadTimeoutGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta) {
 	rep := group[0]
 	if rep.ThreadTS == "" {

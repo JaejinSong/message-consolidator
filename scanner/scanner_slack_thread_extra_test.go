@@ -96,18 +96,6 @@ func TestCollectThreadCandidates_BotFiltered(t *testing.T) {
 	}
 }
 
-// TestHandleThreadTimeout_EmptyThreadTS covers the empty ThreadTS early-return branch.
-func TestHandleThreadTimeout_EmptyThreadTS(t *testing.T) {
-	initTestDB(t)
-	sc := channels.NewSlackClient("fake-token")
-	thread := store.SlackThreadMeta{
-		ChannelID: "C1", ThreadTS: "", // empty → log + close without PostMessage
-		UserEmail: "timeout@example.com",
-	}
-	// Should not panic or make real API calls.
-	handleThreadTimeout(context.Background(), sc, thread)
-}
-
 // TestSweepSlackThreads_CfgNilOrEmptyToken covers the guard paths directly.
 func TestSweepSlackThreads_GuardPaths(t *testing.T) {
 	saveScannerGlobals(t)
