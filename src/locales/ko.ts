@@ -295,6 +295,8 @@ export const ko: I18nEntry = {
         connStatusDisconnected: "연결 안됨",
         gmailScanStale: "스캔 지연",
         gmailLastScanAt: "마지막 성공 스캔",
+        slackScanStale: "스캔 지연 — 봇이 채널에서 제외되었을 수 있습니다",
+        slackLastScanAt: "마지막 성공 스캔",
         connConnectBtn: "연결하기",
         connReauthBtn: "재인증",
         connDisconnectBtn: "연동 해제",

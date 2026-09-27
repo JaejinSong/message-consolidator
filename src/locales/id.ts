@@ -213,6 +213,8 @@ export const id: I18nEntry = {
         connStatusDisconnected: "Tidak terhubung",
         gmailScanStale: "Pemindaian tertunda",
         gmailLastScanAt: "Pemindaian sukses terakhir",
+        slackScanStale: "Pemindaian tertunda — bot mungkin telah dikeluarkan dari sebuah channel",
+        slackLastScanAt: "Pemindaian sukses terakhir",
         connConnectBtn: "Hubungkan",
         connReauthBtn: "Autentikasi ulang",
         connDisconnectBtn: "Putuskan",

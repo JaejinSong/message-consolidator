@@ -294,6 +294,8 @@ export const en: I18nEntry = {
         connStatusDisconnected: "Not connected",
         gmailScanStale: "Scan delayed",
         gmailLastScanAt: "Last successful scan",
+        slackScanStale: "Scan delayed — bot may have been removed from a channel",
+        slackLastScanAt: "Last successful scan",
         connConnectBtn: "Connect",
         connReauthBtn: "Re-authenticate",
         connDisconnectBtn: "Disconnect",

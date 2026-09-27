@@ -60,8 +60,41 @@ export function updateServiceStatusUI(service: string, status: ServiceStatus): v
     }
 }
 
-export function updateSlackStatus(status: ServiceStatus): void {
+export interface SlackScanHealth {
+    stale: boolean;
+    /** Unix seconds of the last clean scan pass; absent right after first connect. */
+    lastScanAt?: number;
+}
+
+/**
+ * Why: token presence alone kept the card green through the 2026-09-17 incident where
+ * the bot was removed from every channel — a stale last_success must be visible, and
+ * the tooltip must hint at the actual failure mode (channel removal) so it is actionable.
+ */
+export function slackStaleTooltip(lastScanAt: number | undefined, lang: string): string {
+    if (!lastScanAt) return t('slackScanStale', lang);
+    return `${t('slackScanStale', lang)} — ${t('slackLastScanAt', lang)}: ${new Date(lastScanAt * 1000).toLocaleString()}`;
+}
+
+export function updateSlackStatus(status: ServiceStatus, health?: SlackScanHealth): void {
     updateServiceStatusUI('slack', status);
+
+    const card = document.getElementById(DOM_IDS.STATUS_LARGE('slack'));
+    if (card) {
+        const isConnected = updateServiceStatusUIIsConnected(status);
+        const isStale = isConnected && health?.stale === true;
+        card.classList.toggle('c-status-card--stale', isStale);
+        card.title = isStale ? slackStaleTooltip(health?.lastScanAt, state.currentLang || 'en') : '';
+    }
+}
+
+// Why: updateServiceStatusUI's connected-normalization logic is not exported; mirror it
+// here so updateSlackStatus can gate staleness on the same "connected" definition.
+function updateServiceStatusUIIsConnected(status: ServiceStatus): boolean {
+    if (typeof status === 'boolean') return status;
+    const normalized = status.toLowerCase();
+    return normalized === STATUS_STATES.CONNECTED.toLowerCase() ||
+        normalized === STATUS_STATES.AUTHENTICATED.toLowerCase();
 }
 
 export function updateWhatsAppStatus(statusStr: ServiceStatus): void {

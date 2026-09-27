@@ -207,6 +207,8 @@ export const th: I18nEntry = {
         connStatusDisconnected: "ยังไม่ได้เชื่อมต่อ",
         gmailScanStale: "การสแกนล่าช้า",
         gmailLastScanAt: "สแกนสำเร็จล่าสุด",
+        slackScanStale: "การสแกนล่าช้า — บอทอาจถูกนำออกจากช่องทาง",
+        slackLastScanAt: "สแกนสำเร็จล่าสุด",
         connConnectBtn: "เชื่อมต่อ",
         connReauthBtn: "ยืนยันตัวตนใหม่",
         connDisconnectBtn: "ยกเลิกการเชื่อมต่อ",

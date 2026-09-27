@@ -98,23 +98,72 @@ func scanSlack(ctx context.Context, users []store.User, wg *sync.WaitGroup) {
 	if cfg == nil || cfg.SlackToken == "" || len(users) == 0 {
 		return
 	}
-	sc, _ := getOrInitSlackClient(cfg.SlackToken) //nolint:contextcheck // SlackClient constructor; per-request ctx flows through individual API calls.
+	sc, botID := getOrInitSlackClient(cfg.SlackToken) //nolint:contextcheck // SlackClient constructor; per-request ctx flows through individual API calls.
 
 	chans, _, err := sc.LookupChannels()
 	if err != nil {
 		logger.Errorf("[SCAN] slack: failed to fetch channels: %v", err)
 		return
 	}
+	if len(chans) == 0 {
+		warnSlackNoChannels(ctx, sc, botID)
+		return
+	}
 
 	userAl := prepareSlackUserAliases(ctx, users)
-	candidates, newTS := collectSlackHistory(ctx, users, chans, sc, userAl)
+	candidates, newTS, fetchOK := collectSlackHistory(ctx, users, chans, sc, userAl)
 	processSlackCandidates(ctx, users, sc, candidates, wg)
 	updateSlackCursors(newTS)
+
+	// Why: a clean pass (no channel-level fetch errors) is the same signal Gmail uses
+	// to distinguish "no new messages" from "scan silently failed" — 2026-09-17 the bot
+	// was removed from every channel for 10 days while /slack/status stayed green.
+	if fetchOK {
+		markSlackScanSuccess(users)
+	}
 
 	//Why: Forces immediate persistence of scan cursors after each cycle to prevent data loss or scan gaps in case of process termination.
 	for _, u := range users {
 		store.PersistAllScanMetadata(ctx, u.Email)
 	}
+}
+
+// markSlackScanSuccess stamps the wall-clock time of the last clean scan pass, mirroring
+// channels.markGmailScanSuccess. Why: /slack/status must be able to tell a live scan loop
+// from a silently dead one (bot removed from channels, channel_not_found, etc).
+func markSlackScanSuccess(users []store.User) {
+	ts := fmt.Sprintf("%d", time.Now().Unix())
+	for _, u := range users {
+		if err := store.UpdateLastScan(u.Email, store.SourceSlack, store.ScanTargetLastSuccess, ts); err != nil {
+			logger.Warnf("[SLACK] record last_success failed for %s: %v", u.Email, err)
+		}
+	}
+}
+
+// Why: prime interval (59m) rate-limits the "bot removed from every channel" error to
+// once per hour so a stuck bot doesn't flood the log across every scan cycle.
+const slackNoChannelsLogInterval = 59 * time.Minute
+
+var (
+	slackNoChannelsLogMu    sync.Mutex
+	slackNoChannelsLoggedAt time.Time
+)
+
+// warnSlackNoChannels logs the zero-membership condition at most once per interval.
+// Why: users.conversations returning [] (not an error) is exactly the 2026-09-17
+// incident shape — the bot was kicked from every channel and scanning stopped silently.
+func warnSlackNoChannels(ctx context.Context, sc *channels.SlackClient, botID string) {
+	slackNoChannelsLogMu.Lock()
+	defer slackNoChannelsLogMu.Unlock()
+	if time.Since(slackNoChannelsLoggedAt) < slackNoChannelsLogInterval {
+		return
+	}
+	slackNoChannelsLoggedAt = time.Now()
+	botName := sc.GetUserName(ctx, botID)
+	if botName == "" {
+		botName = botID
+	}
+	logger.Errorf("[SLACK] bot is not a member of any channel — invite @%s to resume scanning", botName)
 }
 
 func prepareSlackUserAliases(ctx context.Context, users []store.User) map[string][]string {
@@ -128,8 +177,10 @@ func prepareSlackUserAliases(ctx context.Context, users []store.User) map[string
 
 // collectSlackHistory returns candidates keyed email → channelID → messages so
 // each channel is analyzed as its own room (mixing channels into one batch keyed
-// by the first message's channel produced wrong Room values).
-func collectSlackHistory(ctx context.Context, users []store.User, chans []slack.Channel, sc *channels.SlackClient, userAl map[string][]string) (map[string]map[string][]types.RawMessage, map[string]map[string]string) {
+// by the first message's channel produced wrong Room values). The bool return is
+// fetchOK — false when any channel's GetMessages failed, so callers can withhold
+// the last_success stamp instead of masking a partial fetch as a clean pass.
+func collectSlackHistory(ctx context.Context, users []store.User, chans []slack.Channel, sc *channels.SlackClient, userAl map[string][]string) (map[string]map[string][]types.RawMessage, map[string]map[string]string, bool) {
 	candidates := make(map[string]map[string][]types.RawMessage)
 	newTS := make(map[string]map[string]string)
 	var mu sync.Mutex
@@ -142,8 +193,8 @@ func collectSlackHistory(ctx context.Context, users []store.User, chans []slack.
 			return scanSingleSlackChannel(ctx, users, c, sc, userAl, &mu, candidates, newTS)
 		})
 	}
-	_ = eg.Wait()
-	return candidates, newTS
+	fetchOK := eg.Wait() == nil
+	return candidates, newTS, fetchOK
 }
 
 func scanSingleSlackChannel(ctx context.Context, users []store.User, c slack.Channel, sc *channels.SlackClient, userAl map[string][]string, mu *sync.Mutex, candidates map[string]map[string][]types.RawMessage, newTS map[string]map[string]string) error {

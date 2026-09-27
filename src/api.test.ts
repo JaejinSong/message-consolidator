@@ -197,6 +197,13 @@ describe('api', () => {
             await api.fetchSlackStatus();
             expect(fetch).toHaveBeenCalledWith('/api/slack/status', expect.any(Object));
         });
+
+        it('passes through scan freshness fields', async () => {
+            (fetch as ReturnType<typeof vi.fn>).mockImplementation(() => mockResponse(200, { status: 'connected', last_scan_at: 1758067200, stale: true }));
+            const result = await api.fetchSlackStatus();
+            expect(result.stale).toBe(true);
+            expect(result.last_scan_at).toBe(1758067200);
+        });
     });
 
     describe('fetchGmailStatus', () => {

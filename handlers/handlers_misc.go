@@ -7,7 +7,9 @@ import (
 	"message-consolidator/store"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -65,30 +67,59 @@ func (a *API) HandleGetReleaseNotes(w http.ResponseWriter, r *http.Request) {
 }
 
 type slackStatusResponse struct {
-	Status  string `json:"status"`
-	SlackID string `json:"slack_id,omitempty"`
+	Status     string `json:"status"`
+	SlackID    string `json:"slack_id,omitempty"`
+	LastScanAt int64  `json:"last_scan_at"`
+	Stale      bool   `json:"stale"`
+}
+
+// slackStaleThreshold marks the scan as stale when the last clean pass is older than
+// this. Why: mirrors gmailStaleThreshold — prime interval (31m) > the scan cycle so one
+// slow cycle cannot flap the badge.
+const slackStaleThreshold = 31 * time.Minute
+
+// buildSlackStatus derives the status payload from token presence and the last_success
+// scan stamp, mirroring buildGmailStatus. lastSuccessTS="" (never scanned, e.g. right
+// after first connect) is not stale.
+func buildSlackStatus(connected bool, slackID, lastSuccessTS string, now time.Time) slackStatusResponse {
+	resp := slackStatusResponse{SlackID: slackID}
+	if connected {
+		resp.Status = "connected"
+	} else {
+		resp.Status = "disconnected"
+	}
+	ts, err := strconv.ParseInt(lastSuccessTS, 10, 64)
+	if err != nil || ts <= 0 {
+		return resp
+	}
+	resp.LastScanAt = ts
+	resp.Stale = connected && now.Sub(time.Unix(ts, 0)) > slackStaleThreshold
+	return resp
 }
 
 // Why: Checks the presence of the Slack API token to determine the current connection status of the Slack integration.
 // Also returns the caller's mapped slack_id so the Connections UI can show what account
-// the workspace bot has linked to this user.
+// the workspace bot has linked to this user, plus scan freshness (last_scan_at/stale) —
+// token presence alone stayed "connected" through the 2026-09-17 incident where the bot
+// was removed from every channel and scanning silently stopped for 10 days.
 //
 // Status string convention: lowercase — "connected" / "disconnected".
 // All channel status handlers (whatsapp, telegram, slack) emit lowercase so the frontend
 // can compare via a single helper (isStatusConnected) without per-channel casing exceptions.
 func (a *API) HandleSlackStatus(w http.ResponseWriter, r *http.Request) {
-	resp := slackStatusResponse{Status: "disconnected"}
-	if a.Config.SlackToken != "" {
-		resp.Status = "connected"
-	}
+	connected := a.Config.SlackToken != ""
 
 	email := auth.GetUserEmail(r)
+	slackID := ""
 	if email != "" {
 		if user, err := store.GetOrCreateUser(r.Context(), email, "", ""); err == nil && user != nil {
-			resp.SlackID = user.SlackID
+			slackID = user.SlackID
 		}
 	}
 
-	logger.Debugf("[SLACK] status for %s: %s (slackID=%q)", email, resp.Status, resp.SlackID)
+	lastSuccess := store.GetLastScan(email, store.SourceSlack, store.ScanTargetLastSuccess)
+	resp := buildSlackStatus(connected, slackID, lastSuccess, time.Now())
+
+	logger.Debugf("[SLACK] status for %s: %s (slackID=%q stale=%v last_scan_at=%d)", email, resp.Status, resp.SlackID, resp.Stale, resp.LastScanAt)
 	respondJSON(w, http.StatusOK, resp)
 }

@@ -213,7 +213,7 @@ export const api = {
         return apiFetch('/whatsapp/status', { errorMessage: 'WA status check failed' });
     },
 
-    async fetchSlackStatus(): Promise<{ status: string; slack_id?: string }> {
+    async fetchSlackStatus(): Promise<{ status: string; slack_id?: string; last_scan_at?: number; stale?: boolean }> {
         return apiFetch('/slack/status', { errorMessage: 'Slack status check failed' });
     },
 

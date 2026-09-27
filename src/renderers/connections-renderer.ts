@@ -11,14 +11,14 @@ import { state } from '../state';
 import { t } from '../i18n';
 import { escapeHTML } from '../utils';
 import { showToast } from './ui-effects';
-import { showWaModal, showTelegramModal, gmailStaleTooltip } from './status-renderer';
+import { showWaModal, showTelegramModal, gmailStaleTooltip, slackStaleTooltip } from './status-renderer';
 import { showTelegramCredentialsStep, syncTelegramModalToStatus } from './telegram-modal-renderer';
 
 export interface ConnectionsState {
     gmail: { connected: boolean; email?: string; stale?: boolean; lastScanAt?: number };
     whatsapp: { connected: boolean; deviceName?: string };
     telegram: { status: string; hasCredentials?: boolean; phoneMasked?: string; appIdMasked?: string };
-    slack: { connected: boolean; slackId?: string };
+    slack: { connected: boolean; slackId?: string; stale?: boolean; lastScanAt?: number };
     line: { connected: boolean };
 }
 
@@ -250,12 +250,30 @@ function renderSlack(s: ConnectionsState['slack'], lang: string): void {
     setBadge(card, s.connected, lang);
     setCardModifier(card, s.connected);
 
+    // Why: token presence alone hides a dead scan loop — surface staleness as a warning
+    // badge, mirroring Gmail's 2026-07 fix. The 2026-09-17 incident (bot removed from
+    // every channel) kept this card green for 10 days of silent scan failure.
+    const isStale = s.connected && s.stale === true;
+    const badge = card.querySelector<HTMLElement>('[data-role=badge]');
+    if (badge) {
+        badge.classList.toggle('c-connection-card__badge--stale', isStale);
+        if (isStale) {
+            badge.classList.remove('c-connection-card__badge--connected');
+            badge.textContent = t('slackScanStale', lang);
+        }
+        badge.title = isStale ? slackStaleTooltip(s.lastScanAt, lang) : '';
+    }
+
+    const staleNotice = isStale && s.lastScanAt
+        ? `${t('slackLastScanAt', lang)}: ${new Date(s.lastScanAt * 1000).toLocaleString()}`
+        : null;
+
     if (s.slackId) {
         setMeta(card, [{ key: t('connSlackIdLabel', lang), value: s.slackId }]);
-        setNotice(card, t('connSlackReadOnlyNotice', lang));
+        setNotice(card, staleNotice || t('connSlackReadOnlyNotice', lang));
     } else {
         setMeta(card, []);
-        setNotice(card, s.connected ? t('connNoMappingNotice', lang) : t('connSlackReadOnlyNotice', lang));
+        setNotice(card, staleNotice || (s.connected ? t('connNoMappingNotice', lang) : t('connSlackReadOnlyNotice', lang)));
     }
     setActions(card, [], lang);
 }
