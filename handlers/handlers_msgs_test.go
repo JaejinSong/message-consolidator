@@ -397,17 +397,17 @@ func TestHandleGetOriginal(t *testing.T) {
 	t.Run("Not found", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		api.HandleGetOriginal(rr, newReq("99999", owner))
-		if rr.Code != http.StatusInternalServerError {
-			t.Errorf("expected 500 (not-found path), got %d", rr.Code)
+		if rr.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", rr.Code)
 		}
 	})
 
 	t.Run("Cross-user access denied", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		api.HandleGetOriginal(rr, newReq("42", other))
-		if rr.Code != http.StatusUnauthorized && rr.Code != http.StatusInternalServerError {
-			// Why: store may filter by user_email and return ErrNoRows (500), which is also acceptable isolation.
-			t.Errorf("expected 401 or 500, got %d", rr.Code)
+		if rr.Code != http.StatusUnauthorized && rr.Code != http.StatusNotFound {
+			// Why: store may filter by user_email and return ErrNoRows (404), which is also acceptable isolation.
+			t.Errorf("expected 401 or 404, got %d", rr.Code)
 		}
 	})
 

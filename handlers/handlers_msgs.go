@@ -344,7 +344,11 @@ func (a *API) HandleGetOriginal(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := store.GetMessageByID(r.Context(), store.GetDB(), email, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, context.Canceled) {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondError(w, http.StatusNotFound, "Message not found")
+			return
+		}
+		if errors.Is(err, context.Canceled) {
 			handleAPIError(w, r, err, "[MESSAGES] Error for "+email, "Message not found")
 			return
 		}
