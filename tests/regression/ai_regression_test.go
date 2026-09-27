@@ -230,6 +230,7 @@ func analyzeCase(t *testing.T, client *ai.AIClient, path, testName string) (expe
 	msg := types.EnrichedMessage{
 		RawContent:    string(input),
 		SourceChannel: source,
+		ChatType:      loadChatType(path),
 	}
 	var err error
 	if tasks := loadExistingTasks(path); tasks != nil {
@@ -248,11 +249,31 @@ func runRegressionWithClient(t *testing.T, client *ai.AIClient, path, testName s
 	compareResults(t, expected, actual)
 }
 
-// reportExtraction runs a case against a (live) provider and reports equivalence vs the
-// Gemini-recorded golden. It FAILS only on real defects — an Analyze error or zero extraction
-// on a task-present case — and otherwise LOGS field-level divergences, since exact field/count
-// parity across providers is not a correctness requirement (the goldens encode Gemini's output).
+// reportExtraction runs a case against a (live) provider and enforces majority-vote strictness:
+// each case is analyzed up to 3 times and FAILS when the majority (2+) of runs diverge from the
+// Gemini-recorded golden on the same field — a single-run outlier no longer masks a real prompt
+// regression, but normal model non-determinism (one odd run out of three) still passes. An
+// Analyze error or zero extraction on a task-present case always fails, in every run, regardless
+// of mode.
+//
+// Set AI_REGRESSION_LENIENT=1 to restore the old log-only behavior (no field-level failures) for
+// local debugging without tripping the deploy gate; this is documented, not silent — the chosen
+// mode is always printed via t.Log.
 func reportExtraction(t *testing.T, client *ai.AIClient, path, testName string) {
+	if strings.TrimSpace(os.Getenv("AI_REGRESSION_LENIENT")) == "1" {
+		t.Log("mode: lenient (AI_REGRESSION_LENIENT=1) — field divergences are logged, not failed")
+		reportExtractionLenient(t, client, path, testName)
+		return
+	}
+	t.Log("mode: strict majority-vote (2 of up to 3 runs decide pass/fail per field)")
+	reportExtractionMajority(t, client, path, testName)
+}
+
+// reportExtractionLenient is the pre-majority-vote behavior: LOGS field-level divergences instead
+// of failing, since exact field/count parity across providers is not by itself a correctness
+// requirement (the goldens encode Gemini's output). Kept for local debugging via
+// AI_REGRESSION_LENIENT=1.
+func reportExtractionLenient(t *testing.T, client *ai.AIClient, path, testName string) {
 	expected, actual := analyzeCase(t, client, path, testName)
 	if len(expected) > 0 && len(actual) == 0 {
 		t.Errorf("expected %d task(s) but provider extracted none", len(expected))
@@ -263,6 +284,146 @@ func reportExtraction(t *testing.T, client *ai.AIClient, path, testName string) 
 	} else {
 		t.Logf("DIVERGENCE vs Gemini golden (cross-model nuance, not a plumbing bug):\n  %s", strings.Join(notes, "\n  "))
 	}
+}
+
+// maxMajorityRuns bounds the vote: at most 3 live Analyze calls per case.
+const maxMajorityRuns = 3
+
+// runResult is one Analyze attempt's outcome against the golden, for majority-vote comparison.
+type runResult struct {
+	run   int
+	pass  bool
+	diffs []fieldDivergence
+}
+
+// reportExtractionMajority runs analyzeCase up to maxMajorityRuns times, stopping early when
+// the first 2 runs already decide the outcome (both match the golden, or both diverge on the
+// same field), and otherwise taking a 3-run majority vote.
+func reportExtractionMajority(t *testing.T, client *ai.AIClient, path, testName string) {
+	var results []runResult
+	for i := 0; i < maxMajorityRuns; i++ {
+		expected, actual := analyzeCase(t, client, path, testName)
+		if len(expected) > 0 && len(actual) == 0 {
+			t.Errorf("run %d: expected %d task(s) but provider extracted none", i+1, len(expected))
+			return
+		}
+		pass, diffs := diffRun(expected, actual)
+		results = append(results, runResult{run: i + 1, pass: pass, diffs: diffs})
+
+		if len(results) != 2 {
+			continue
+		}
+		if results[0].pass && results[1].pass {
+			t.Logf("MAJORITY PASS (2/2 runs matched the golden, early stop)")
+			return
+		}
+		if !results[0].pass && !results[1].pass && sameDivergenceShape(results[0].diffs, results[1].diffs) {
+			failMajority(t, testName, results)
+			return
+		}
+	}
+
+	passVotes := 0
+	for _, r := range results {
+		if r.pass {
+			passVotes++
+		}
+	}
+	if passVotes >= 2 {
+		t.Logf("MAJORITY PASS (%d/%d runs matched the golden)", passVotes, len(results))
+		return
+	}
+	failMajority(t, testName, results)
+}
+
+// failMajority reports a majority-vote failure with a per-field diff.
+func failMajority(t *testing.T, testName string, results []runResult) {
+	t.Errorf("MAJORITY DIVERGENCE vs golden (%d/%d runs failed):\n  %s",
+		countFailing(results), len(results), strings.Join(allNotes(results), "\n  "))
+}
+
+func countFailing(results []runResult) int {
+	n := 0
+	for _, r := range results {
+		if !r.pass {
+			n++
+		}
+	}
+	return n
+}
+
+// allNotes collects labeled per-field diff notes from every failing run.
+func allNotes(results []runResult) []string {
+	var notes []string
+	for _, r := range results {
+		if r.pass {
+			continue
+		}
+		for _, d := range r.diffs {
+			notes = append(notes, fmt.Sprintf("run%d %s", r.run, d.note))
+		}
+	}
+	return notes
+}
+
+// fieldDivergence records, per task index, which comparison categories diverged between a
+// golden-expected and an actual TodoItem, plus a human-readable diff note.
+type fieldDivergence struct {
+	index   int
+	fields  metadataFields
+	content bool
+	note    string
+}
+
+// diffRun is the majority-vote counterpart to matchResults: same tolerant comparison semantics
+// (compareMetadata / verifyTaskContent), but returns per-field divergence detail instead of
+// human notes only, so callers can compare failure *shape* (not exact values) across runs.
+func diffRun(expected, actual []store.TodoItem) (pass bool, diffs []fieldDivergence) {
+	if len(expected) != len(actual) {
+		return false, []fieldDivergence{{
+			index: -1,
+			note:  fmt.Sprintf("count: want %d, got %d", len(expected), len(actual)),
+		}}
+	}
+	pass = true
+	for i := range expected {
+		exp, act := expected[i], actual[i]
+		normalizeAssignee(&exp, &act)
+		fields := mismatchedMetadataFields(exp, act)
+		// Why: title wording and deadline phrasing legitimately vary run to run ("Friday" vs
+		// "금요일까지"), so content is reported but only metadata fields can fail the gate.
+		contentMismatch := !verifyTaskContent(exp, act)
+		if !fields.any() && !contentMismatch {
+			continue
+		}
+		if fields.any() {
+			pass = false
+		}
+		diffs = append(diffs, fieldDivergence{
+			index:   i,
+			fields:  fields,
+			content: contentMismatch,
+			note: fmt.Sprintf("[%d] req(exp=%q got=%q) cat(exp=%q got=%q) ts(exp=%q got=%q) state(exp=%q got=%q) assignee(exp=%q got=%q) task(exp=%q got=%q dl_exp=%q dl_got=%q)",
+				i, exp.Requester, act.Requester, exp.Category, act.Category, exp.SourceTS, act.SourceTS,
+				exp.State, act.State, exp.Assignee, act.Assignee, exp.Task, act.Task, exp.Deadline, act.Deadline),
+		})
+	}
+	return pass, diffs
+}
+
+// sameDivergenceShape compares two runs' divergences by *category* (which fields diverged, at
+// which indices) rather than by exact value — cross-run field-name agreement is what "2 runs
+// diverge on the same field" means, not identical model output.
+func sameDivergenceShape(a, b []fieldDivergence) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].index != b[i].index || a[i].fields != b[i].fields || a[i].content != b[i].content {
+			return false
+		}
+	}
+	return true
 }
 
 // matchResults is the non-fatal twin of compareResults: it returns whether actual would pass
@@ -347,8 +508,28 @@ func normalizeAssignee(exp, act *store.TodoItem) {
 	}
 }
 
-func compareMetadata(exp, act store.TodoItem) bool {
-	reqMatch := strings.EqualFold(exp.Requester, act.Requester)
+// metadataFields marks which compareMetadata categories diverged between an expected and an
+// actual TodoItem. true means mismatch.
+type metadataFields struct {
+	requester bool
+	category  bool
+	ts        bool
+	state     bool
+	assignee  bool
+}
+
+func (f metadataFields) any() bool {
+	return f.requester || f.category || f.ts || f.state || f.assignee
+}
+
+// mismatchedMetadataFields holds the same tolerant-comparison rules as compareMetadata but
+// reports per-field results, so majority-vote diffing can compare failure *shape* across runs.
+func mismatchedMetadataFields(exp, act store.TodoItem) metadataFields {
+	// Why: requester is opt-in, like state/assignee below — every golden in testdata/ sets
+	// requester to "", so without this guard majority-vote strictness would fail 100% of cases
+	// on a field no fixture has ever actually asserted (pre-existing gap, only surfaced now that
+	// mismatches are fatal instead of log-only).
+	reqMatch := exp.Requester == "" || strings.EqualFold(exp.Requester, act.Requester)
 	if !reqMatch && (strings.ToLower(exp.Requester) == "manager" && act.Requester == "매니저") {
 		reqMatch = true
 	}
@@ -375,8 +556,22 @@ func compareMetadata(exp, act store.TodoItem) bool {
 	// current-user aliases collapsed), so goldens without an assignee stay unaffected while
 	// named-assignee cases (e.g. directed asks vs. FYI mentions) now get asserted.
 	assigneeMatch := exp.Assignee == "" || strings.EqualFold(exp.Assignee, act.Assignee)
+	// Why: a resolve/cancel closes the task, so who "owns" it in that reply carries no signal.
+	if st := strings.ToLower(exp.State); st == "resolve" || st == "cancel" {
+		assigneeMatch = true
+	}
 
-	return reqMatch && catMatch && tsMatch && stateMatch && assigneeMatch
+	return metadataFields{
+		requester: !reqMatch,
+		category:  !catMatch,
+		ts:        !tsMatch,
+		state:     !stateMatch,
+		assignee:  !assigneeMatch,
+	}
+}
+
+func compareMetadata(exp, act store.TodoItem) bool {
+	return !mismatchedMetadataFields(exp, act).any()
 }
 
 func verifyTaskContent(exp, act store.TodoItem) bool {
@@ -433,4 +628,15 @@ func containsKorean(s string) bool {
 		}
 	}
 	return false
+}
+
+// loadChatType reads an optional `<case>_chattype.txt` sidecar ("1to1" or "group"). Why:
+// production passes ChatType to the model, and assignee rules for unaddressed asks depend on
+// it; without it the regression model had to guess and flipped between runs.
+func loadChatType(inputPath string) string {
+	b, err := os.ReadFile(strings.TrimSuffix(inputPath, "_input.txt") + "_chattype.txt")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
 }

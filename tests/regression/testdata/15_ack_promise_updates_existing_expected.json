@@ -1,7 +1,7 @@
 [
   {
     "id": 42,
-    "state": "resolve",
+    "state": "update",
     "task": "Share the updated pricing sheet with the customer",
     "requester": "",
     "assignee": "Yosep",
