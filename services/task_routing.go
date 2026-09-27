@@ -316,7 +316,7 @@ func applyTaskUpdates(ctx context.Context, q store.Querier, email string, id sto
 			return err
 		}
 	}
-	if err := applyTaskTextUpdate(ctx, q, email, id, item.Task, msg, existing); err != nil {
+	if err := applyTaskTextUpdate(ctx, q, email, id, item.Task, msg, existing, item.FuzzyMatched); err != nil {
 		return err
 	}
 	if err := applyAssigneeChange(ctx, q, email, id, item, msg, existing, normalizedAssignee); err != nil {
@@ -327,11 +327,13 @@ func applyTaskUpdates(ctx context.Context, q store.Querier, email string, id sto
 }
 
 // applyTaskTextUpdate overwrites the task title on a rescan unless the user manually
-// edited it (metadata.field_sources.task == "manual"). Why: an AI-driven rescan must
-// never silently undo a human correction -- fall back to append-only so the new
+// edited it (metadata.field_sources.task == "manual") or the match was fuzzy (title-
+// similarity-only, no ID/thread anchor). Why: an AI-driven rescan must never silently
+// undo a human correction, and a fuzzy match must never rename a possibly-unrelated
+// task (Slack wrong-task rename incident) -- both fall back to append-only so the new
 // activity still lands in original_text for audit.
-func applyTaskTextUpdate(ctx context.Context, q store.Querier, email string, id store.MessageID, task string, msg store.ConsolidatedMessage, existing *store.ConsolidatedMessage) error {
-	if fieldIsManual(existing.Metadata, "task") {
+func applyTaskTextUpdate(ctx context.Context, q store.Querier, email string, id store.MessageID, task string, msg store.ConsolidatedMessage, existing *store.ConsolidatedMessage, fuzzyMatched bool) error {
+	if fieldIsManual(existing.Metadata, "task") || fuzzyMatched {
 		return store.AppendOriginalText(ctx, q, email, msg.Room, id, msg.OriginalText)
 	}
 	return store.UpdateTaskFullAppend(ctx, q, email, msg.Room, id, task, msg.OriginalText)

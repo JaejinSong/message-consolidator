@@ -57,8 +57,14 @@ func TestResolveProposals(t *testing.T) {
 	if results[1].State != "new" {
 		t.Errorf("expected state 'new' for unmatched task, got %s", results[1].State)
 	}
-	if results[0].IDVerified != true {
-		t.Errorf("expected IDVerified=true for matched task, got %v", results[0].IDVerified)
+	// Why: this match has no AI-supplied ID or thread anchor -- it's a fuzzy
+	// (title-similarity-only) match, so IDVerified stays false and FuzzyMatched is set
+	// (wrong-task rename fix: G5 resolve-trust and append-only rename guard both key off this).
+	if results[0].IDVerified != false {
+		t.Errorf("expected IDVerified=false for fuzzy-matched task, got %v", results[0].IDVerified)
+	}
+	if !results[0].FuzzyMatched {
+		t.Errorf("expected FuzzyMatched=true for fuzzy-matched task")
 	}
 	if results[1].IDVerified != false {
 		t.Errorf("expected IDVerified=false for unmatched task, got %v", results[1].IDVerified)
@@ -108,11 +114,9 @@ func TestResolveProposals_AffinityBonus(t *testing.T) {
 		},
 	}
 
-	// Why: findMatch has no code path that reads AffinityGroupID (store/types.go)
-	// -- this fixture previously matched only via the pre-fix prefix-bonus bug
-	// inflating "Report: finish draft" vs "Report review" past 0.85. Kept the
-	// affinity metadata for documentation intent but the task text now clears
-	// the textbook Jaro-Winkler threshold on its own merits.
+	// Why: findMatch never reads AffinityGroupID -- this fixture used to match only via
+	// the pre-fix prefix-bonus bug. The text now clears textbook Jaro-Winkler and the
+	// >=2 shared-token gate on its own ("report", "review").
 	rawItems := []store.TodoItem{
 		{
 			Task:            "Report review draft",
@@ -196,7 +200,7 @@ func TestFindMatch_SkipsMergedCandidates(t *testing.T) {
 			Task:     "Prepare for LPPSA tender opening",
 			ThreadID: "T1",
 		}
-		if match := s.findMatch(room, item, []store.ConsolidatedMessage{merged}); match != nil {
+		if match, _ := s.findMatch(room, item, []store.ConsolidatedMessage{merged}); match != nil {
 			t.Errorf("bound to merged task %d (%q)", match.ID, match.Task)
 		}
 	})
@@ -207,7 +211,7 @@ func TestFindMatch_SkipsMergedCandidates(t *testing.T) {
 			Task:     "Prepare for LPPSA tender opening",
 			ThreadID: "T1",
 		}
-		if match := s.findMatch(room, item, []store.ConsolidatedMessage{merged}); match != nil {
+		if match, _ := s.findMatch(room, item, []store.ConsolidatedMessage{merged}); match != nil {
 			t.Errorf("bound to merged task %d (%q)", match.ID, match.Task)
 		}
 	})

@@ -95,9 +95,13 @@ func (s *TasksService) ResolveProposals(ctx context.Context, email, room string,
 
 // Why: Pulls the per-item match/state decision out of ResolveProposals so the loop body stays flat (≤3 nested levels).
 func (s *TasksService) resolveProposalItem(room string, item store.TodoItem, active []store.ConsolidatedMessage) store.TodoItem {
-	if match := s.findMatch(room, item, active); match != nil {
+	if match, fuzzy := s.findMatch(room, item, active); match != nil {
 		item.ID = &match.ID
-		item.IDVerified = true
+		// Why: a fuzzy (title-similarity-only) match has no ID/thread anchor -- keep
+		// IDVerified false so G5 resolve-trust still applies, and flag FuzzyMatched so
+		// handleUpdate appends instead of renaming (wrong-task rename incident).
+		item.IDVerified = !fuzzy
+		item.FuzzyMatched = fuzzy
 		// Upgrade 'new' to 'update' if we found an existing task.
 		// Keep 'resolve', 'cancel', 'update' as AI intended.
 		if item.State == "new" {
@@ -122,13 +126,19 @@ func (s *TasksService) resolveProposalItem(room string, item store.TodoItem, act
 	return item
 }
 
-func (s *TasksService) findMatch(room string, item store.TodoItem, active []store.ConsolidatedMessage) *store.ConsolidatedMessage {
+// findMatch returns the matched task and whether the match was fuzzy (title-similarity-only,
+// no ID/thread anchor). Why: a fuzzy match must never rename the target task (see FuzzyMatched).
+func (s *TasksService) findMatch(room string, item store.TodoItem, active []store.ConsolidatedMessage) (*store.ConsolidatedMessage, bool) {
 	// ID-first: AI explicitly identified the target task from existing context.
-	// A rejected ID falls through to the fuzzy path instead of being trusted blindly.
+	// Why: a rejected AI-supplied ID must not fall through to the fuzzy loop -- the model
+	// already anchored this proposal to a specific (wrong) task, and fuzzy title similarity
+	// alone (e.g. "Arrange dinner..." vs "Arrange lunch" = 0.966 Jaro-Winkler) previously
+	// re-matched it anyway, renaming an unrelated task (Slack production incident).
 	if item.ID != nil && *item.ID != 0 {
 		if m := verifiedIDMatch(room, item, active); m != nil {
-			return m
+			return m, false
 		}
+		return nil, false
 	}
 
 	for i := range active {
@@ -144,11 +154,13 @@ func (s *TasksService) findMatch(room string, item store.TodoItem, active []stor
 			continue
 		}
 
-		if store.CalculateSimilarity(item.Task, m.Task) >= 0.85 {
-			return m
+		// Why: similarity alone scores unrelated-but-prefix-sharing titles too high
+		// (see incident above) -- require topical token overlap too.
+		if store.CalculateSimilarity(item.Task, m.Task) >= 0.85 && titleTokenOverlap(item.Task, m.Task) >= minTopicalOverlap {
+			return m, true
 		}
 	}
-	return nil
+	return nil, false
 }
 
 // isArchivedCandidate reports whether a task has been merged away. Why: merging only

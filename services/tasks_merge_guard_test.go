@@ -33,8 +33,8 @@ func TestFindMatch_RejectsOffTopicAIID(t *testing.T) {
 		Category: "TASK",
 	}
 
-	if got := svc.findMatch(skyworxRoom, item, active); got != nil {
-		t.Errorf("off-topic AI-supplied ID must be rejected, matched task %d", got.ID)
+	if got, fuzzy := svc.findMatch(skyworxRoom, item, active); got != nil || fuzzy {
+		t.Errorf("off-topic AI-supplied ID must be rejected, matched task %v (fuzzy=%v)", got, fuzzy)
 	}
 }
 
@@ -52,9 +52,12 @@ func TestFindMatch_AcceptsRephrasedTitleID(t *testing.T) {
 		Category: "TASK",
 	}
 
-	got := svc.findMatch(skyworxRoom, item, active)
+	got, fuzzy := svc.findMatch(skyworxRoom, item, active)
 	if got == nil || got.ID != 12719 {
 		t.Fatalf("rephrased-title update must keep its AI-supplied ID match, got %v", got)
+	}
+	if fuzzy {
+		t.Errorf("AI-ID-verified match must not be flagged fuzzy")
 	}
 }
 
@@ -73,9 +76,12 @@ func TestFindMatch_AcceptsThreadAnchoredID(t *testing.T) {
 		ThreadID: "3CF634CD4FE7E7B34330",
 	}
 
-	got := svc.findMatch(skyworxRoom, item, active)
+	got, fuzzy := svc.findMatch(skyworxRoom, item, active)
 	if got == nil || got.ID != 12719 {
 		t.Fatalf("thread-anchored ID must be trusted, got %v", got)
+	}
+	if fuzzy {
+		t.Errorf("AI-ID-verified match must not be flagged fuzzy")
 	}
 }
 
@@ -88,9 +94,12 @@ func TestFindMatch_AcceptsBareResolveID(t *testing.T) {
 	id := store.MessageID(12719)
 	item := store.TodoItem{ID: &id, State: "resolve", Category: "TASK"}
 
-	got := svc.findMatch(skyworxRoom, item, active)
+	got, fuzzy := svc.findMatch(skyworxRoom, item, active)
 	if got == nil || got.ID != 12719 {
 		t.Fatalf("bare resolve with AI-supplied ID must match, got %v", got)
+	}
+	if fuzzy {
+		t.Errorf("AI-ID-verified match must not be flagged fuzzy")
 	}
 }
 
@@ -205,6 +214,93 @@ func TestResolveProposalItem_AssigneeOwnReport(t *testing.T) {
 				t.Errorf("state = %q, want %q", got.State, tc.wantState)
 			}
 		})
+	}
+}
+
+// Why: a rejected AI-supplied ID must return no match at all -- previously it fell
+// through to the fuzzy loop and could still bind to an unrelated task purely on
+// similarity (the Slack "Arrange dinner" vs "Arrange lunch" incident).
+func TestFindMatch_RejectedAIID_DoesNotFallThroughToFuzzy(t *testing.T) {
+	t.Parallel()
+	svc := &TasksService{}
+	// Two active tasks in the same room: the one the AI (wrongly) points its ID at, and
+	// a second, topically-unrelated task whose title happens to be near-identical
+	// (>=0.85 similarity, >=2 shared tokens) to the proposal's title -- exactly the shape
+	// of the production incident, where the fuzzy loop re-matched onto the wrong task
+	// after the ID was rejected.
+	lunchTask := store.ConsolidatedMessage{
+		ID:       800,
+		Room:     skyworxRoom,
+		Task:     "Arrange lunch",
+		Category: "TASK",
+	}
+	active := []store.ConsolidatedMessage{samcoTask(12719), lunchTask}
+	id := store.MessageID(12719)
+	item := store.TodoItem{
+		// AI points at the SAMCO task (12719), but the proposal title is topically
+		// unrelated to it (no shared tokens) -- verifiedIDMatch rejects the ID. The
+		// title is instead near-identical to the unrelated lunchTask.
+		ID:       &id,
+		State:    "update",
+		Task:     "Arrange dinner with the whole team tonight",
+		Category: "TASK",
+	}
+
+	got, fuzzy := svc.findMatch(skyworxRoom, item, active)
+	if got != nil {
+		t.Errorf("rejected AI-supplied ID must not fuzzy-fall-through, got match %d (%q)", got.ID, got.Task)
+	}
+	if fuzzy {
+		t.Errorf("no match found, fuzzy must be false")
+	}
+}
+
+// Why: prefix-shared-but-topically-different titles score high on Jaro-Winkler alone
+// (measured: "Arrange dinner with the team" vs "Arrange lunch" = 0.966) -- the fuzzy
+// loop must also require topical token overlap so it can't bind to the wrong task.
+func TestFindMatch_FuzzyLoop_RequiresTopicalOverlap(t *testing.T) {
+	t.Parallel()
+	svc := &TasksService{}
+	active := []store.ConsolidatedMessage{{
+		ID:       555,
+		Room:     skyworxRoom,
+		Task:     "Arrange lunch",
+		Category: "TASK",
+	}}
+	item := store.TodoItem{
+		State:    "new",
+		Task:     "Arrange dinner with the whole team tonight",
+		Category: "TASK",
+	}
+
+	if got, _ := svc.findMatch(skyworxRoom, item, active); got != nil {
+		t.Errorf("prefix-only similar title with <2 shared tokens must not match, got %d", got.ID)
+	}
+}
+
+// Why: the fuzzy loop's match must be flagged FuzzyMatched (and never IDVerified) so
+// downstream update handling appends instead of renaming.
+func TestFindMatch_FuzzyLoop_FlagsFuzzyMatch(t *testing.T) {
+	t.Parallel()
+	svc := &TasksService{}
+	active := []store.ConsolidatedMessage{{
+		ID:       556,
+		Room:     skyworxRoom,
+		Task:     "Implement APM in SAMCO environment via help from Skyworx team",
+		Category: "TASK",
+	}}
+	item := store.TodoItem{
+		State:    "new",
+		Task:     "Implement APM in remaining SAMCO microservices",
+		Category: "TASK",
+	}
+
+	got, fuzzy := svc.findMatch(skyworxRoom, item, active)
+	if got == nil || got.ID != 556 {
+		t.Fatalf("expected topically-overlapping high-similarity title to match, got %v", got)
+	}
+	if !fuzzy {
+		t.Errorf("expected fuzzy=true for a match with no AI-supplied ID")
 	}
 }
 
