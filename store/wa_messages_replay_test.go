@@ -87,6 +87,8 @@ func TestMarkWAMessages_PoppedProcessedFailed(t *testing.T) {
 	old := now.Add(-waCreatedGrace - time.Minute).Format(sqliteDatetimeFormat)
 	insertRawWAMessage(t, email, "msg-1", `{"id":"msg-1"}`, now.Unix(), old, nil, nil, 0)
 
+	// Why: every pop must count as an attempt so a crash/panic between pop and ack
+	// still ages the row out, instead of relying on an ack that may never come.
 	if err := MarkWAMessagesPopped(context.Background(), email, []string{"msg-1"}); err != nil {
 		t.Fatalf("MarkWAMessagesPopped: %v", err)
 	}
@@ -97,16 +99,22 @@ func TestMarkWAMessages_PoppedProcessedFailed(t *testing.T) {
 	if poppedAt == nil {
 		t.Fatal("expected popped_at to be set after MarkWAMessagesPopped")
 	}
-
-	if err := MarkWAMessagesFailed(context.Background(), email, []string{"msg-1"}); err != nil {
-		t.Fatalf("MarkWAMessagesFailed: %v", err)
-	}
 	var attempts int64
 	if err := GetDB().QueryRow(`SELECT scan_attempts FROM wa_messages WHERE message_id = 'msg-1'`).Scan(&attempts); err != nil {
 		t.Fatalf("scan scan_attempts: %v", err)
 	}
 	if attempts != 1 {
-		t.Errorf("expected scan_attempts = 1 after MarkWAMessagesFailed, got %d", attempts)
+		t.Errorf("expected scan_attempts = 1 after MarkWAMessagesPopped, got %d", attempts)
+	}
+
+	if err := MarkWAMessagesFailed(context.Background(), email, []string{"msg-1"}); err != nil {
+		t.Fatalf("MarkWAMessagesFailed: %v", err)
+	}
+	if err := GetDB().QueryRow(`SELECT scan_attempts FROM wa_messages WHERE message_id = 'msg-1'`).Scan(&attempts); err != nil {
+		t.Fatalf("scan scan_attempts: %v", err)
+	}
+	if attempts != 2 {
+		t.Errorf("expected scan_attempts = 2 after MarkWAMessagesFailed, got %d", attempts)
 	}
 
 	if err := MarkWAMessagesProcessed(context.Background(), email, []string{"msg-1"}); err != nil {
@@ -128,8 +136,51 @@ func TestMarkWAMessages_PoppedProcessedFailed(t *testing.T) {
 	if err := GetDB().QueryRow(`SELECT scan_attempts FROM wa_messages WHERE message_id = 'msg-1'`).Scan(&attempts); err != nil {
 		t.Fatalf("scan scan_attempts: %v", err)
 	}
-	if attempts != 1 {
-		t.Errorf("expected scan_attempts to stay at 1 after processed-row retry, got %d", attempts)
+	if attempts != 2 {
+		t.Errorf("expected scan_attempts to stay at 2 after processed-row retry, got %d", attempts)
+	}
+}
+
+// TestMarkWAMessagesPopped_UnackedRowAgesOutViaAttemptCap covers the bug this test
+// guards against: a pop that never gets acked (panic, early return) must still burn
+// down the retry cap via popped_at's own scan_attempts bump, not loop forever.
+func TestMarkWAMessagesPopped_UnackedRowAgesOutViaAttemptCap(t *testing.T) {
+	email, cleanup := setupWAReplayTest(t)
+	defer cleanup()
+
+	now := time.Now().UTC()
+	old := now.Add(-waCreatedGrace - time.Minute).Format(sqliteDatetimeFormat)
+	stalePop := now.Add(-waPoppedStale - time.Minute).Format(sqliteDatetimeFormat)
+	insertRawWAMessage(t, email, "never-acked", `{"id":"never-acked"}`, now.Unix(), old, nil, nil, 0)
+
+	for i := 0; i < waMaxScanAttempts; i++ {
+		if err := MarkWAMessagesPopped(context.Background(), email, []string{"never-acked"}); err != nil {
+			t.Fatalf("MarkWAMessagesPopped iteration %d: %v", i, err)
+		}
+		// Why: simulate the pop lock going stale (crashed worker) between attempts so
+		// ListReplayableWAMessages would otherwise consider the row eligible again.
+		if _, err := GetDB().ExecContext(context.Background(),
+			`UPDATE wa_messages SET popped_at = ? WHERE message_id = 'never-acked'`, stalePop); err != nil {
+			t.Fatalf("force stale pop iteration %d: %v", i, err)
+		}
+	}
+
+	var attempts int64
+	if err := GetDB().QueryRow(`SELECT scan_attempts FROM wa_messages WHERE message_id = 'never-acked'`).Scan(&attempts); err != nil {
+		t.Fatalf("scan scan_attempts: %v", err)
+	}
+	if attempts != waMaxScanAttempts {
+		t.Fatalf("expected scan_attempts = %d after %d unacked pops, got %d", waMaxScanAttempts, waMaxScanAttempts, attempts)
+	}
+
+	got, err := ListReplayableWAMessages(context.Background(), email, now)
+	if err != nil {
+		t.Fatalf("ListReplayableWAMessages: %v", err)
+	}
+	for _, r := range got {
+		if r.MessageID == "never-acked" {
+			t.Fatalf("expected never-acked to be excluded once scan_attempts reaches the cap, got: %+v", got)
+		}
 	}
 }
 

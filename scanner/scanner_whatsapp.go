@@ -40,16 +40,15 @@ func (whatsAppAdapter) PopMessages(email string) map[string][]types.RawMessage {
 }
 
 // AckScanned reconciles a scanned group's durable wa_messages rows: ok marks them
-// processed so they never replay; !ok increments the retry counter so they stay
-// eligible for the next replay pass, up to the retry cap.
+// processed so they never replay. !ok is a no-op here -- PopMessages already bumped
+// scan_attempts for these ids, so leaving them alone (rather than double-counting) lets
+// them stay eligible for the next replay pass, up to the retry cap.
 func (whatsAppAdapter) AckScanned(ctx context.Context, email string, ids []string, ok bool) {
-	var err error
-	if ok {
-		err = store.MarkWAMessagesProcessed(ctx, email, ids)
-	} else {
-		err = store.MarkWAMessagesFailed(ctx, email, ids)
+	if !ok {
+		logger.Debugf("[SCAN] WA: scan failed for %d ids, leaving for replay", len(ids))
+		return
 	}
-	if err != nil {
+	if err := store.MarkWAMessagesProcessed(ctx, email, ids); err != nil {
 		logger.Warnf("[SCAN] WA: ack scanned (ok=%v) failed: %v", ok, err)
 	}
 }

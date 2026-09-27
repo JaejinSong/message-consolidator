@@ -76,10 +76,11 @@ func ListReplayableWAMessages(ctx context.Context, email string, now time.Time) 
 
 // MarkWAMessagesPopped claims ids for an in-flight scan attempt. Why: popped_at lets a
 // concurrent replay skip rows another worker already picked up, without blocking on a
-// DB-level lock.
+// DB-level lock; scan_attempts is bumped here too so a pop that is never acked (panic,
+// early return) still counts toward the retry cap instead of replaying forever.
 func MarkWAMessagesPopped(ctx context.Context, email string, ids []string) error {
 	return updateWAMessagesByID(ctx, email, ids,
-		"UPDATE wa_messages SET popped_at = CURRENT_TIMESTAMP WHERE email = ? AND processed_at IS NULL AND message_id IN (%s)")
+		"UPDATE wa_messages SET popped_at = CURRENT_TIMESTAMP, scan_attempts = scan_attempts + 1 WHERE email = ? AND processed_at IS NULL AND message_id IN (%s)")
 }
 
 // MarkWAMessagesProcessed marks ids as durably consumed so they never replay again.

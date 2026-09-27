@@ -110,8 +110,9 @@ func TestAckGroup_EmptyMessagesStillNotifiesWithEmptyIDs(t *testing.T) {
 // TestWhatsAppAdapter_AckScanned_RoutesToStore documents the store call whatsAppAdapter
 // makes for each ok value; it exercises the nil-DB guard path inside the store package
 // (no real DB configured in this test binary) so it only asserts AckScanned does not panic
-// and returns without a usable connection -- the routing itself (Processed vs Failed) is
-// covered indirectly by store's own MarkWAMessagesProcessed/Failed tests.
+// and returns without a usable connection -- ok=true's routing to MarkWAMessagesProcessed
+// is covered indirectly by store's own tests; ok=false is a no-op (scan_attempts was
+// already bumped by MarkWAMessagesPopped).
 func TestWhatsAppAdapter_AckScanned_DoesNotPanicWithoutDB(t *testing.T) {
 	t.Parallel()
 	adapter := whatsAppAdapter{}
