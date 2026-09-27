@@ -9,15 +9,6 @@ import (
 	"context"
 )
 
-const deleteTelegramCredentials = `-- name: DeleteTelegramCredentials :exec
-DELETE FROM telegram_credentials WHERE email = ?1
-`
-
-func (q *Queries) DeleteTelegramCredentials(ctx context.Context, email string) error {
-	_, err := q.db.ExecContext(ctx, deleteTelegramCredentials, email)
-	return err
-}
-
 const deleteTelegramSession = `-- name: DeleteTelegramSession :exec
 DELETE FROM telegram_sessions WHERE email = ?1
 `

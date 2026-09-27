@@ -16,6 +16,3 @@ SELECT app_id, app_hash FROM telegram_credentials WHERE email = ?1;
 INSERT INTO telegram_credentials (email, app_id, app_hash, updated_at)
 VALUES (?1, ?2, ?3, CURRENT_TIMESTAMP)
 ON CONFLICT(email) DO UPDATE SET app_id = ?2, app_hash = ?3, updated_at = CURRENT_TIMESTAMP;
-
--- name: DeleteTelegramCredentials :exec
-DELETE FROM telegram_credentials WHERE email = ?1;

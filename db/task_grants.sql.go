@@ -61,46 +61,6 @@ func (q *Queries) GetGrant(ctx context.Context, arg GetGrantParams) (TaskGrant, 
 	return i, err
 }
 
-const listGranteesOf = `-- name: ListGranteesOf :many
-SELECT u.id, u.email, u.name, u.slack_id, u.wa_jid, u.tg_user_id, u.picture, u.is_admin, u.created_at
-FROM users u
-JOIN task_grants tg ON u.id = tg.grantee_user_id
-WHERE tg.grantor_user_id = ?1
-`
-
-func (q *Queries) ListGranteesOf(ctx context.Context, grantorUserID int64) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, listGranteesOf, grantorUserID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []User
-	for rows.Next() {
-		var i User
-		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.Name,
-			&i.SlackID,
-			&i.WaJid,
-			&i.TgUserID,
-			&i.Picture,
-			&i.IsAdmin,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listGrantorsFor = `-- name: ListGrantorsFor :many
 SELECT u.id, u.email, u.name, u.slack_id, u.wa_jid, u.tg_user_id, u.picture, u.is_admin, u.created_at
 FROM users u

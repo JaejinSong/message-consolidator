@@ -32,16 +32,6 @@ DO UPDATE SET
     call_count = token_usage.call_count + EXCLUDED.call_count,
     filtered_count = token_usage.filtered_count + EXCLUDED.filtered_count;
 
--- name: GetReportTokenUsage :one
--- Cost dashboard: prompt/completion/thinking/calls aggregated for a single report. Sums across the
--- 3 report-bound steps (ReportSummary/ReportVizData/TranslateReport) plus any future buckets.
-SELECT COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
-       COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
-       COALESCE(SUM(thinking_tokens), 0)   AS thinking_tokens,
-       COALESCE(SUM(call_count), 0)        AS call_count
-FROM token_usage
-WHERE report_id = ?;
-
 -- name: GetDailyTokenUsage :one
 SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(thinking_tokens), 0), COALESCE(SUM(filtered_count), 0)
 FROM token_usage

@@ -82,7 +82,6 @@ type Querier interface {
 	DeleteScanMetadataSlackThread(ctx context.Context, arg DeleteScanMetadataSlackThreadParams) error
 	DeleteSession(ctx context.Context, token string) error
 	DeleteTaskTranslations(ctx context.Context, messageID sql.NullInt64) error
-	DeleteTelegramCredentials(ctx context.Context, email string) error
 	DeleteTelegramSession(ctx context.Context, email string) error
 	DeleteTenantAlias(ctx context.Context, arg DeleteTenantAliasParams) error
 	DeleteUserAlias(ctx context.Context, arg DeleteUserAliasParams) error
@@ -139,9 +138,6 @@ type Querier interface {
 	GetReportByDate(ctx context.Context, arg GetReportByDateParams) (GetReportByDateRow, error)
 	GetReportByID(ctx context.Context, arg GetReportByIDParams) (GetReportByIDRow, error)
 	GetReportList(ctx context.Context, userEmail string) ([]GetReportListRow, error)
-	// Cost dashboard: prompt/completion/thinking/calls aggregated for a single report. Sums across the
-	// 3 report-bound steps (ReportSummary/ReportVizData/TranslateReport) plus any future buckets.
-	GetReportTokenUsage(ctx context.Context, reportID int64) (GetReportTokenUsageRow, error)
 	GetReportTranslations(ctx context.Context, reportID int64) ([]GetReportTranslationsRow, error)
 	GetReportTranslationsByIDs(ctx context.Context, reportIds []int64) ([]GetReportTranslationsByIDsRow, error)
 	GetResolutionsByIdentifiers(ctx context.Context, arg GetResolutionsByIdentifiersParams) ([]GetResolutionsByIdentifiersRow, error)
@@ -187,7 +183,6 @@ type Querier interface {
 	ListCorrectionObservationsByStatus(ctx context.Context, arg ListCorrectionObservationsByStatusParams) ([]CorrectionObservation, error)
 	// Newest first, for sampling what the pipeline threw away.
 	ListExtractionDecisions(ctx context.Context, arg ListExtractionDecisionsParams) ([]ExtractionDecision, error)
-	ListGranteesOf(ctx context.Context, grantorUserID int64) ([]User, error)
 	ListGrantorsFor(ctx context.Context, granteeUserID int64) ([]User, error)
 	ListLearnedExamples(ctx context.Context, arg ListLearnedExamplesParams) ([]LearnedExample, error)
 	ListLearnedExamplesBySource(ctx context.Context, arg ListLearnedExamplesBySourceParams) ([]LearnedExample, error)
@@ -197,8 +192,6 @@ type Querier interface {
 	// from erroring on malformed metadata rows -- an invalid row is treated as having
 	// no existing candidate, so it stays eligible.
 	ListPastEventCandidates(ctx context.Context, arg ListPastEventCandidatesParams) ([]ListPastEventCandidatesRow, error)
-	ListPendingMe(ctx context.Context, arg ListPendingMeParams) ([]ListPendingMeRow, error)
-	ListPendingOthers(ctx context.Context, arg ListPendingOthersParams) ([]ListPendingOthersRow, error)
 	// Why: kind='precision' is deliberately outside ListActiveSuppressRules' filter, so these
 	// can never be applied by guardSuppressRule -- they exist to be read and approved.
 	ListPrecisionObservations(ctx context.Context, userEmail string) ([]ListPrecisionObservationsRow, error)

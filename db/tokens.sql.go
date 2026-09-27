@@ -92,36 +92,6 @@ func (q *Queries) GetMonthlyTokenUsage(ctx context.Context, arg GetMonthlyTokenU
 	return i, err
 }
 
-const getReportTokenUsage = `-- name: GetReportTokenUsage :one
-SELECT COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
-       COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
-       COALESCE(SUM(thinking_tokens), 0)   AS thinking_tokens,
-       COALESCE(SUM(call_count), 0)        AS call_count
-FROM token_usage
-WHERE report_id = ?
-`
-
-type GetReportTokenUsageRow struct {
-	PromptTokens     interface{} `json:"prompt_tokens"`
-	CompletionTokens interface{} `json:"completion_tokens"`
-	ThinkingTokens   interface{} `json:"thinking_tokens"`
-	CallCount        interface{} `json:"call_count"`
-}
-
-// Cost dashboard: prompt/completion/thinking/calls aggregated for a single report. Sums across the
-// 3 report-bound steps (ReportSummary/ReportVizData/TranslateReport) plus any future buckets.
-func (q *Queries) GetReportTokenUsage(ctx context.Context, reportID int64) (GetReportTokenUsageRow, error) {
-	row := q.db.QueryRowContext(ctx, getReportTokenUsage, reportID)
-	var i GetReportTokenUsageRow
-	err := row.Scan(
-		&i.PromptTokens,
-		&i.CompletionTokens,
-		&i.ThinkingTokens,
-		&i.CallCount,
-	)
-	return i, err
-}
-
 const getTokenUsageByModel = `-- name: GetTokenUsageByModel :many
 SELECT model,
        peak,
