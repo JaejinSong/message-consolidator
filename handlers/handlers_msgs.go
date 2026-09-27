@@ -305,7 +305,10 @@ func (a *API) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	if loadErr != nil {
 		logger.Warnf("[LEARNING] load messages before delete for %s: %v", email, loadErr)
 	}
-	_ = store.DeleteMessages(r.Context(), store.GetDB(), email, ids)
+	if err := store.DeleteMessages(r.Context(), store.GetDB(), email, ids); err != nil {
+		handleAPIError(w, r, err, "[MESSAGES] delete error for "+email, "Failed to delete messages")
+		return
+	}
 	if len(deleted) > 0 {
 		services.RecordTaskDeletion(r.Context(), email, deleted)
 	}
@@ -365,7 +368,10 @@ func (a *API) HandleHardDelete(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	_ = store.HardDeleteMessages(r.Context(), store.GetDB(), email, ids)
+	if err := store.HardDeleteMessages(r.Context(), store.GetDB(), email, ids); err != nil {
+		handleAPIError(w, r, err, "[MESSAGES] hard delete error for "+email, "Failed to permanently delete messages")
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -375,7 +381,10 @@ func (a *API) HandleRestore(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	_ = store.RestoreMessages(r.Context(), store.GetDB(), email, ids)
+	if err := store.RestoreMessages(r.Context(), store.GetDB(), email, ids); err != nil {
+		handleAPIError(w, r, err, "[MESSAGES] restore error for "+email, "Failed to restore messages")
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }
 

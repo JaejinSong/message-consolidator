@@ -98,6 +98,42 @@ func TestHandleDelete(t *testing.T) {
 	}
 }
 
+// TestHandleDelete_StoreError verifies a store failure is reported to the caller
+// instead of silently returning 200, and that the row is left untouched.
+func TestHandleDelete_StoreError(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	email := "delete-err@example.com"
+	_, _ = store.GetOrCreateUser(context.Background(), email, "Test User", "")
+	_, _ = store.GetDB().Exec("INSERT INTO messages (id, user_email, task, source, source_ts, is_deleted) VALUES (?, ?, ?, ?, ?, ?)",
+		2, email, "Task to delete", "slack", "ts2", 0)
+	_ = store.RefreshCache(context.Background(), email)
+
+	body, _ := json.Marshal(map[string]interface{}{"ids": []int{2}})
+	req, _ := http.NewRequest("POST", "/api/messages/delete", bytes.NewBuffer(body))
+	ctx, cancel := context.WithCancel(WithMockUser(req.Context(), email))
+	cancel()
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	api := &API{}
+	api.HandleDelete(rr, req)
+
+	if rr.Code == http.StatusOK {
+		t.Errorf("expected a non-200 response on store failure, got %d", rr.Code)
+	}
+
+	var isDeleted bool
+	_ = store.GetDB().QueryRow("SELECT is_deleted FROM messages WHERE id = 2").Scan(&isDeleted)
+	if isDeleted {
+		t.Error("message must not be marked deleted when the store operation fails")
+	}
+}
+
 // TestHandleGetArchived_PaginationGuards verifies the Wave 3 guards in
 // HandleGetArchived: limit<=0 falls back to default, limit>max is capped,
 // and offset<0 is clamped. Inserts a small fixture and asserts behavior is
@@ -423,6 +459,25 @@ func TestHandleHardDelete(t *testing.T) {
 			t.Errorf("expected 200, got %d", rr.Code)
 		}
 	})
+
+	t.Run("Store error is reported", func(t *testing.T) {
+		_, _ = store.GetDB().Exec("INSERT INTO messages (id, user_email, task, source, source_ts) VALUES (?, ?, ?, ?, ?)", 9, email, "T", "slack", "ts9")
+		body, _ := json.Marshal(map[string]any{"ids": []int{9}})
+		r, _ := http.NewRequest("POST", "/api/messages/hard-delete", bytes.NewBuffer(body))
+		ctx, cancel := context.WithCancel(WithMockUser(r.Context(), email))
+		cancel()
+		r = r.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		api.HandleHardDelete(rr, r)
+		if rr.Code == http.StatusOK {
+			t.Errorf("expected a non-200 response on store failure, got %d", rr.Code)
+		}
+		var count int
+		_ = store.GetDB().QueryRow("SELECT COUNT(*) FROM messages WHERE id = 9").Scan(&count)
+		if count == 0 {
+			t.Error("message must not be hard-deleted when the store operation fails")
+		}
+	})
 }
 
 func TestHandleRestore(t *testing.T) {
@@ -457,6 +512,25 @@ func TestHandleRestore(t *testing.T) {
 		api.HandleRestore(rr, r)
 		if rr.Code != http.StatusOK {
 			t.Errorf("expected 200, got %d", rr.Code)
+		}
+	})
+
+	t.Run("Store error is reported", func(t *testing.T) {
+		_, _ = store.GetDB().Exec("INSERT INTO messages (id, user_email, task, source, source_ts, is_deleted) VALUES (?, ?, ?, ?, ?, ?)", 10, email, "T", "slack", "ts10", 1)
+		body, _ := json.Marshal(map[string]any{"ids": []int{10}})
+		r, _ := http.NewRequest("POST", "/api/messages/restore", bytes.NewBuffer(body))
+		ctx, cancel := context.WithCancel(WithMockUser(r.Context(), email))
+		cancel()
+		r = r.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		api.HandleRestore(rr, r)
+		if rr.Code == http.StatusOK {
+			t.Errorf("expected a non-200 response on store failure, got %d", rr.Code)
+		}
+		var isDeleted bool
+		_ = store.GetDB().QueryRow("SELECT is_deleted FROM messages WHERE id = 10").Scan(&isDeleted)
+		if !isDeleted {
+			t.Error("message must remain deleted when the store operation fails")
 		}
 	})
 }

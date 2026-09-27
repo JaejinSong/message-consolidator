@@ -283,8 +283,12 @@ func (a *API) processActiveRestore(ctx context.Context, email string, user *stor
 	}
 
 	updates, count := a.Tasks.RestoreGmailCCAssignment(ctx, email, user, aliases, activeMsgs, svc)
-	if count > 0 {
-		_ = store.UpdateTaskAssigneesBatch(ctx, email, updates)
+	if count == 0 {
+		return 0
+	}
+	if err := store.UpdateTaskAssigneesBatch(ctx, email, updates); err != nil {
+		logger.Errorf("[GMAIL] update assignees batch for %s: %v", email, err)
+		return 0
 	}
 	return count
 }
@@ -307,10 +311,14 @@ func (a *API) processArchiveRestore(ctx context.Context, email string, user *sto
 		}
 
 		updates, count := a.Tasks.RestoreGmailCCAssignment(ctx, email, user, aliases, msgs, svc)
-		if count > 0 {
-			_ = store.UpdateTaskAssigneesBatch(ctx, email, updates)
-			totalFixed += count
+		if count == 0 {
+			continue
 		}
+		if err := store.UpdateTaskAssigneesBatch(ctx, email, updates); err != nil {
+			logger.Errorf("[GMAIL] update assignees batch for %s: %v", email, err)
+			continue
+		}
+		totalFixed += count
 	}
 	return totalFixed
 }

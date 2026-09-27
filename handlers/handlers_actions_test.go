@@ -214,6 +214,50 @@ func TestApplyBackfillCandidates_Empty(t *testing.T) {
 	}
 }
 
+// TestProcessActiveRestore_BatchUpdateError verifies that a failed
+// UpdateTaskAssigneesBatch call is excluded from the reported fixed count instead
+// of being silently reported as a success.
+func TestProcessActiveRestore_BatchUpdateError(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	email := "gmailcc@example.com"
+	user, err := store.GetOrCreateUser(context.Background(), email, "U", "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	_, err = store.GetDB().Exec(
+		`INSERT INTO messages (id, user_email, task, source, source_ts, assignee, original_text) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		1, email, "T", "gmail", "gmail-1", "me", "T: other@x.com\nC: \nS: subj\nB:\nbody",
+	)
+	if err != nil {
+		t.Fatalf("insert message: %v", err)
+	}
+	if err := store.RefreshCache(context.Background(), email); err != nil {
+		t.Fatalf("refresh cache: %v", err)
+	}
+
+	api := &API{Tasks: &services.TasksService{}}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	count := api.processActiveRestore(ctx, email, user, nil, nil)
+	if count != 0 {
+		t.Errorf("expected 0 fixed on batch update failure, got %d", count)
+	}
+
+	var assignee string
+	_ = store.GetDB().QueryRow("SELECT assignee FROM messages WHERE id = 1").Scan(&assignee)
+	if assignee != "me" {
+		t.Errorf("assignee must be unchanged when batch update fails, got %q", assignee)
+	}
+}
+
 func TestLookupRoomActor_Unknown(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
