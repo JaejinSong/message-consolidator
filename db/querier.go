@@ -191,6 +191,12 @@ type Querier interface {
 	ListGrantorsFor(ctx context.Context, granteeUserID int64) ([]User, error)
 	ListLearnedExamples(ctx context.Context, arg ListLearnedExamplesParams) ([]LearnedExample, error)
 	ListLearnedExamplesBySource(ctx context.Context, arg ListLearnedExamplesBySourceParams) ([]LearnedExample, error)
+	// Why: Event-style TASK rows (meetings, calls, sessions) whose scheduled date has
+	// passed stay open until manually closed; feeds a confirm-first "close it?" nudge
+	// (never auto-close, since events get rescheduled). json_valid guards json_extract
+	// from erroring on malformed metadata rows -- an invalid row is treated as having
+	// no existing candidate, so it stays eligible.
+	ListPastEventCandidates(ctx context.Context, arg ListPastEventCandidatesParams) ([]ListPastEventCandidatesRow, error)
 	ListPendingMe(ctx context.Context, arg ListPendingMeParams) ([]ListPendingMeRow, error)
 	ListPendingOthers(ctx context.Context, arg ListPendingOthersParams) ([]ListPendingOthersRow, error)
 	// Why: kind='precision' is deliberately outside ListActiveSuppressRules' filter, so these

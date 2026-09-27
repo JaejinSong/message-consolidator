@@ -926,6 +926,75 @@ func (q *Queries) IsMessageProcessed(ctx context.Context, arg IsMessageProcessed
 	return column_1, err
 }
 
+const listPastEventCandidates = `-- name: ListPastEventCandidates :many
+SELECT id, COALESCE(task, '') AS task, deadline_date, COALESCE(metadata, '') AS metadata
+FROM messages
+WHERE user_email = ?1
+  AND lifecycle = 'active'
+  AND deadline_date IS NOT NULL
+  AND date(deadline_date) < date(?2)
+  AND date(deadline_date) >= date(?3)
+  AND (
+    metadata IS NULL
+    OR NOT json_valid(metadata)
+    OR json_extract(metadata, '$.completion_candidate') IS NULL
+  )
+ORDER BY deadline_date
+LIMIT ?4
+`
+
+type ListPastEventCandidatesParams struct {
+	UserEmail sql.NullString `json:"user_email"`
+	Date      interface{}    `json:"date"`
+	Date_2    interface{}    `json:"date_2"`
+	Limit     int64          `json:"limit"`
+}
+
+type ListPastEventCandidatesRow struct {
+	ID           int64        `json:"id"`
+	Task         string       `json:"task"`
+	DeadlineDate sql.NullTime `json:"deadline_date"`
+	Metadata     string       `json:"metadata"`
+}
+
+// Why: Event-style TASK rows (meetings, calls, sessions) whose scheduled date has
+// passed stay open until manually closed; feeds a confirm-first "close it?" nudge
+// (never auto-close, since events get rescheduled). json_valid guards json_extract
+// from erroring on malformed metadata rows -- an invalid row is treated as having
+// no existing candidate, so it stays eligible.
+func (q *Queries) ListPastEventCandidates(ctx context.Context, arg ListPastEventCandidatesParams) ([]ListPastEventCandidatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPastEventCandidates,
+		arg.UserEmail,
+		arg.Date,
+		arg.Date_2,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPastEventCandidatesRow
+	for rows.Next() {
+		var i ListPastEventCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Task,
+			&i.DeadlineDate,
+			&i.Metadata,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const refreshCacheActive = `-- name: RefreshCacheActive :many
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, updated_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks
 FROM messages

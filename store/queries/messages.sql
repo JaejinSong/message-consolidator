@@ -386,3 +386,24 @@ SELECT COALESCE(source, '') AS source,
 FROM messages
 WHERE user_email = ? AND IFNULL(task, '') <> '' AND created_at >= ?
 GROUP BY source, outcome;
+
+-- name: ListPastEventCandidates :many
+-- Why: Event-style TASK rows (meetings, calls, sessions) whose scheduled date has
+-- passed stay open until manually closed; feeds a confirm-first "close it?" nudge
+-- (never auto-close, since events get rescheduled). json_valid guards json_extract
+-- from erroring on malformed metadata rows -- an invalid row is treated as having
+-- no existing candidate, so it stays eligible.
+SELECT id, COALESCE(task, '') AS task, deadline_date, COALESCE(metadata, '') AS metadata
+FROM messages
+WHERE user_email = ?1
+  AND lifecycle = 'active'
+  AND deadline_date IS NOT NULL
+  AND date(deadline_date) < date(?2)
+  AND date(deadline_date) >= date(?3)
+  AND (
+    metadata IS NULL
+    OR NOT json_valid(metadata)
+    OR json_extract(metadata, '$.completion_candidate') IS NULL
+  )
+ORDER BY deadline_date
+LIMIT ?4;
