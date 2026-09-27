@@ -358,18 +358,25 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.Gemini
 		_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.ID)
 	}
 
-	msgByTS := processGeminiItems(ctx, email, user, aliases, items, classificationMap, toMap, msgMap)
+	routed := processGeminiItems(ctx, email, user, aliases, items, classificationMap, toMap, msgMap)
+	return routeGeminiItems(ctx, email, routed, services.HandleTaskState), true
+}
+
+// taskStateRouter matches services.HandleTaskState's signature. Why: extracted so
+// tests can inject a fake router and assert processBatch dispatches the guarded
+// (post-ApplyExtractionGuard) item rather than the raw AI item, without depending
+// on services' DB-backed HandleTaskState.
+type taskStateRouter func(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error)
+
+// routeGeminiItems dispatches each guarded item/message pair to route in order.
+func routeGeminiItems(ctx context.Context, email string, routed []routedGeminiItem, route taskStateRouter) []store.MessageID {
 	var newIDs []store.MessageID
-	for _, item := range items {
-		msg, ok := msgByTS[item.SourceTS]
-		if !ok {
-			continue
-		}
-		if id, _ := services.HandleTaskState(ctx, store.GetDB(), email, item, msg); id > 0 {
+	for _, entry := range routed {
+		if id, _ := route(ctx, store.GetDB(), email, entry.Item, entry.Msg); id > 0 {
 			newIDs = append(newIDs, id)
 		}
 	}
-	return newIDs, true
+	return newIDs
 }
 
 // noiseFilter is the consumer-side contract for the AI noise gate.
@@ -469,8 +476,17 @@ func buildGmailMetadataString(m types.RawMessage) string {
 	return sb.String()
 }
 
-func processGeminiItems(ctx context.Context, email string, user *store.User, aliases []string, items []store.TodoItem, classificationMap, toMap map[string]string, msgMap map[string]types.RawMessage) map[string]store.ConsolidatedMessage {
-	result := make(map[string]store.ConsolidatedMessage, len(items))
+// routedGeminiItem pairs a guarded TodoItem (post-ApplyExtractionGuard, with a
+// recovered SourceTS if needed) with the ConsolidatedMessage built from it.
+// Why: processBatch must route the guarded item, not the raw AI item — otherwise
+// createTaskFromItem overwrites msg.Assignee/Requester/Task with pre-guard values.
+type routedGeminiItem struct {
+	Item store.TodoItem
+	Msg  store.ConsolidatedMessage
+}
+
+func processGeminiItems(ctx context.Context, email string, user *store.User, aliases []string, items []store.TodoItem, classificationMap, toMap map[string]string, msgMap map[string]types.RawMessage) []routedGeminiItem {
+	result := make([]routedGeminiItem, 0, len(items))
 	for _, item := range items {
 		m, ok := msgMap[item.SourceTS]
 		if !ok {
@@ -507,7 +523,7 @@ func processGeminiItems(ctx context.Context, email string, user *store.User, ali
 		if len(guard.Demotions) > 0 {
 			logger.Debugf("[GMAIL] extraction guard demotions for %q: %v", item.SourceTS, guard.Demotions)
 		}
-		result[item.SourceTS] = services.BuildTask(ctx, guardedParams)
+		result = append(result, routedGeminiItem{Item: guardedParams.Item, Msg: services.BuildTask(ctx, guardedParams)})
 	}
 	return result
 }
