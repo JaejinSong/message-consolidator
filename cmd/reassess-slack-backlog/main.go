@@ -22,6 +22,7 @@ import (
 	"message-consolidator/ai"
 	"message-consolidator/channels"
 	"message-consolidator/config"
+	"message-consolidator/scanner"
 	"message-consolidator/services"
 	"message-consolidator/store"
 
@@ -229,24 +230,26 @@ func reassessThread(ctx context.Context, sc *channels.SlackClient, completionSvc
 	}
 }
 
+// buildToolEnvelope builds the reply envelope EvaluateThreadReply judges, delegating to
+// scanner.BuildThreadCompletionEnvelope -- the SAME builder the sweep uses -- so the tool
+// and the sweep can never silently diverge on how Requester/Room/Link get populated.
+func buildToolEnvelope(group slackTaskGroup, task store.ConsolidatedMessage, m slack.Message, room, senderName string) store.ConsolidatedMessage {
+	meta := store.SlackThreadMeta{UserEmail: task.UserEmail, ChannelID: group.channelID, ThreadTS: group.threadTS}
+	user := &store.User{Email: task.UserEmail}
+	// Why: fromMe=false mirrors the tool's existing scope -- it always evaluates
+	// every non-bot reply as a counterparty reply via EvaluateThreadReply, never
+	// routing self-replies through ProcessPotentialCompletion like the sweep does.
+	return scanner.BuildThreadCompletionEnvelope(user, meta, m, room, senderName, false)
+}
+
 // evaluateReplyAgainstTask runs the SAME evaluator as the sweep (EvaluateThreadReply)
-// for one (task, reply) pair. bs.currentTask is set first so the backlogStore's write
-// interception can check the task's own dismissal metadata.
+// for one (task, reply) pair. bs.currentTask/currentSender are set first so the
+// backlogStore's write interception can check the task's own dismissal metadata and
+// record the actual reply speaker for the audit table.
 func evaluateReplyAgainstTask(ctx context.Context, completionSvc *services.CompletionService, bs *backlogStore, group slackTaskGroup, m slack.Message, task store.ConsolidatedMessage, room, senderName string) {
-	env := store.ConsolidatedMessage{
-		UserEmail:    task.UserEmail,
-		Source:       store.SourceSlack,
-		Room:         room,
-		Link:         fmt.Sprintf("https://slack.com/archives/%s/p%s?thread_ts=%s", group.channelID, strings.ReplaceAll(m.Timestamp, ".", ""), group.threadTS),
-		Requester:    senderName,
-		AssignedAt:   channels.ParseSlackTimestamp(m.Timestamp),
-		CreatedAt:    channels.ParseSlackTimestamp(m.Timestamp),
-		ThreadID:     group.threadTS,
-		RepliedToID:  group.threadTS,
-		OriginalText: m.Text,
-		SourceTS:     m.Timestamp,
-	}
+	env := buildToolEnvelope(group, task, m, room, senderName)
 	bs.currentTask = task
+	bs.currentSender = senderName
 	if _, err := completionSvc.EvaluateThreadReply(ctx, env, []store.ConsolidatedMessage{task}); err != nil {
 		fmt.Printf("evaluate task %d reply %s: %v\n", task.ID, m.Timestamp, err)
 	}
@@ -278,10 +281,11 @@ type backlogStore struct {
 	db    *sql.DB
 	apply bool
 
-	mu          sync.Mutex
-	rows        []resultRow
-	written     int
-	currentTask store.ConsolidatedMessage
+	mu            sync.Mutex
+	rows          []resultRow
+	written       int
+	currentTask   store.ConsolidatedMessage
+	currentSender string
 }
 
 func (b *backlogStore) GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error) {
@@ -353,9 +357,12 @@ func (b *backlogStore) HandleTaskState(ctx context.Context, q store.Querier, ema
 
 // AddCompletionCandidate is EvaluateThreadReply's own confirm-first path (RESOLVE from
 // someone other than the assignee) -- the dismissal check already ran in the caller, so
-// this only needs to gate the real write on -apply.
+// this only needs to gate the real write on -apply. speaker comes from currentSender:
+// the store.TaskStore interface's AddCompletionCandidate does not carry the reply's
+// sender, so it cannot be read off cand -- that omission left the audit row's speaker
+// column hardcoded blank for every RESOLVE-from-counterparty verdict.
 func (b *backlogStore) AddCompletionCandidate(ctx context.Context, q store.Querier, email string, id store.MessageID, cand store.CompletionCandidate) error {
-	b.record(id, b.currentTask.Room, "RESOLVE (candidate)", "", cand.SourceText)
+	b.record(id, b.currentTask.Room, "RESOLVE (candidate)", b.currentSender, cand.SourceText)
 	if !b.apply {
 		return nil
 	}

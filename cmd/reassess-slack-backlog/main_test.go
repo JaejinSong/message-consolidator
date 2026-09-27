@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/slack-go/slack"
 	"message-consolidator/ai"
 	"message-consolidator/config"
+	"message-consolidator/scanner"
 	"message-consolidator/services"
 	"message-consolidator/store"
 	"message-consolidator/types"
@@ -183,6 +185,9 @@ func TestEvaluateReplyAgainstTask_CounterpartyRESOLVE_recordsCandidate_dryRun(t 
 	if bs.written != 0 {
 		t.Errorf("dry run must not write, got written=%d", bs.written)
 	}
+	if bs.rows[0].speaker != "Counterparty" {
+		t.Errorf("speaker = %q, want %q (empty speaker silently disables senderIsAssignee)", bs.rows[0].speaker, "Counterparty")
+	}
 	var done int
 	row := store.GetDB().QueryRowContext(ctx, `SELECT done FROM messages WHERE id = ?`, int64(id))
 	if err := row.Scan(&done); err != nil {
@@ -251,6 +256,59 @@ func TestBacklogStore_ApplyRespectsDismissal(t *testing.T) {
 	}
 	if bs.written != 0 {
 		t.Errorf("expected the dismissed source to stay suppressed, got written=%d", bs.written)
+	}
+}
+
+// TestBuildToolEnvelope_MatchesSweepEnvelopeBuilder verifies the tool's envelope
+// construction is not a second, divergent implementation: it must delegate to the exact
+// same scanner.BuildThreadCompletionEnvelope call the sweep's counterparty-reply path
+// (dispatchCounterpartyThreadReply) uses.
+func TestBuildToolEnvelope_MatchesSweepEnvelopeBuilder(t *testing.T) {
+	task := store.ConsolidatedMessage{UserEmail: "u@x"}
+	group := slackTaskGroup{channelID: "C1", threadTS: "100.000000"}
+	m := slack.Message{Msg: slack.Msg{Timestamp: "150.000000", User: "UOTHER", Text: "already resolved, no keyword here"}}
+
+	got := buildToolEnvelope(group, task, m, "room", "Counterparty")
+
+	meta := store.SlackThreadMeta{UserEmail: task.UserEmail, ChannelID: group.channelID, ThreadTS: group.threadTS}
+	want := scanner.BuildThreadCompletionEnvelope(&store.User{Email: task.UserEmail}, meta, m, "room", "Counterparty", false)
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("tool envelope diverged from the shared sweep builder:\n got  %+v\n want %+v", got, want)
+	}
+}
+
+// TestEvaluateReplyAgainstTask_UnresolvedSenderFallsBackToSlackID_stillRecorded verifies
+// that when Slack name resolution fails, channels.SlackClient.GetUserName falls back to
+// the raw Slack user ID rather than an empty string -- and the tool records that non-empty
+// fallback as the audit row's speaker instead of going blank.
+func TestEvaluateReplyAgainstTask_UnresolvedSenderFallsBackToSlackID_stillRecorded(t *testing.T) {
+	initTestDB(t)
+	ctx := context.Background()
+	id := insertOpenSlackTask(ctx, t, "u@x", "C1", "100.000000", "Someone Else", time.Now().Add(-time.Hour))
+
+	fa := &fakeAI{transition: ai.TaskTransition{Status: "RESOLVE"}}
+	bs := &backlogStore{inner: &services.DefaultTaskStore{}, db: store.GetDB(), apply: false}
+	svc := services.NewCompletionService(fa, bs, &services.TasksService{}, store.GetDB())
+
+	task := store.ConsolidatedMessage{ID: id, Task: "still open task", Assignee: "Someone Else"}
+	group := slackTaskGroup{channelID: "C1", threadTS: "100.000000"}
+	m := slack.Message{Msg: slack.Msg{Timestamp: "150.000000", User: "U0UNRESOLVED", Text: "Hmm.. Ok. I'll check and update you."}}
+	// Why: mirrors channels.SlackClient.GetUserName's own fallback when users.info
+	// fails ("GetUserName resolve failed for id=...") -- it returns the raw Slack
+	// user ID, never an empty string.
+	fallbackSpeaker := m.User
+
+	evaluateReplyAgainstTask(ctx, svc, bs, group, m, task, "room", fallbackSpeaker)
+
+	if len(bs.rows) != 1 {
+		t.Fatalf("expected 1 recorded row, got %d", len(bs.rows))
+	}
+	if bs.rows[0].speaker == "" {
+		t.Fatal("speaker must never be empty, even when name resolution fell back to the raw Slack ID")
+	}
+	if bs.rows[0].speaker != fallbackSpeaker {
+		t.Errorf("speaker = %q, want the resolved fallback %q", bs.rows[0].speaker, fallbackSpeaker)
 	}
 }
 

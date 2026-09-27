@@ -503,10 +503,14 @@ func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user
 	return candidates
 }
 
+// BuildThreadCompletionEnvelope builds the ConsolidatedMessage envelope EvaluateThreadReply
+// evaluates for one Slack thread reply. Exported so cmd/reassess-slack-backlog reuses the
+// exact same builder the sweep uses instead of maintaining a second, divergent one.
+//
 // Why: the live-scan sibling (dispatchSlackThreadedCompletion) propagates the full
 // envelope; the sweeper left Room empty and validateTargetTask rejects a blank Room
 // as a cross-room operation, so every sweeper-side completion was dropped.
-func buildThreadCompletionEnvelope(user *store.User, t store.SlackThreadMeta, m slack.Message, room, senderName string, fromMe bool) store.ConsolidatedMessage {
+func BuildThreadCompletionEnvelope(user *store.User, t store.SlackThreadMeta, m slack.Message, room, senderName string, fromMe bool) store.ConsolidatedMessage {
 	ts := channels.ParseSlackTimestamp(m.Timestamp)
 	env := store.ConsolidatedMessage{
 		UserEmail: user.Email, Source: store.SourceSlack,
@@ -534,7 +538,7 @@ func dispatchThreadCompletionIfMine(ctx context.Context, sc *channels.SlackClien
 	senderName := sc.GetUserName(ctx, m.User)
 	room := sc.GetChannelName(t.ChannelID)
 	if strings.EqualFold(m.User, user.SlackID) || senderName == user.Name {
-		env := buildThreadCompletionEnvelope(user, t, m, room, senderName, true)
+		env := BuildThreadCompletionEnvelope(user, t, m, room, senderName, true)
 		if _, err := deps.completionSvc.ProcessPotentialCompletion(ctx, env); err != nil {
 			logger.Warnf("[SLACK] thread completion failed for %s: %v", user.Email, err)
 		}
@@ -550,7 +554,7 @@ func dispatchThreadCompletionIfMine(ctx context.Context, sc *channels.SlackClien
 // task of its own, EvaluateThreadReply judges the reply directly, without the gate; the
 // keyword-gated cross-channel path stays as the fallback for threads with no open task.
 func dispatchCounterpartyThreadReply(ctx context.Context, user *store.User, t store.SlackThreadMeta, m slack.Message, room, senderName string, budget *threadReplyBudget) {
-	env := buildThreadCompletionEnvelope(user, t, m, room, senderName, false)
+	env := BuildThreadCompletionEnvelope(user, t, m, room, senderName, false)
 	tasks, err := store.GetIncompleteByThreadID(ctx, store.GetDB(), user.Email, t.ThreadTS)
 	if err != nil {
 		logger.Warnf("[SLACK] thread reply task lookup failed for %s: %v", user.Email, err)

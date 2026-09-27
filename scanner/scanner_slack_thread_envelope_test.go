@@ -26,7 +26,7 @@ func testThreadReply() slack.Message {
 func TestBuildThreadCompletionEnvelope_CarriesRoom(t *testing.T) {
 	user := &store.User{Email: "u@x", Name: "Me", SlackID: "USLACK"}
 
-	env := buildThreadCompletionEnvelope(user, testThreadMeta(), testThreadReply(), "biz-global-tech", "Me", true)
+	env := BuildThreadCompletionEnvelope(user, testThreadMeta(), testThreadReply(), "biz-global-tech", "Me", true)
 
 	if env.Room != "biz-global-tech" {
 		t.Fatalf("Room = %q, want %q", env.Room, "biz-global-tech")
@@ -44,7 +44,7 @@ func TestBuildThreadCompletionEnvelope_CarriesThreadAndLink(t *testing.T) {
 	meta := testThreadMeta()
 	m := testThreadReply()
 
-	env := buildThreadCompletionEnvelope(user, meta, m, "biz-global-tech", "Me", true)
+	env := BuildThreadCompletionEnvelope(user, meta, m, "biz-global-tech", "Me", true)
 
 	if env.ThreadID != meta.ThreadTS {
 		t.Errorf("ThreadID = %q, want %q", env.ThreadID, meta.ThreadTS)
@@ -75,7 +75,7 @@ func TestBuildThreadCompletionEnvelope_CarriesThreadAndLink(t *testing.T) {
 func TestBuildThreadCompletionEnvelope_RequesterCanonicalOnlyWhenFromMe(t *testing.T) {
 	user := &store.User{Email: "u@x", Name: "Me", SlackID: "USLACK"}
 
-	mine := buildThreadCompletionEnvelope(user, testThreadMeta(), testThreadReply(), "biz-global-tech", "Me", true)
+	mine := BuildThreadCompletionEnvelope(user, testThreadMeta(), testThreadReply(), "biz-global-tech", "Me", true)
 	if mine.RequesterCanonical != "u@x" {
 		t.Errorf("fromMe RequesterCanonical = %q, want %q", mine.RequesterCanonical, "u@x")
 	}
@@ -83,7 +83,7 @@ func TestBuildThreadCompletionEnvelope_RequesterCanonicalOnlyWhenFromMe(t *testi
 		t.Errorf("fromMe Requester = %q, want %q", mine.Requester, "Me")
 	}
 
-	theirs := buildThreadCompletionEnvelope(user, testThreadMeta(), testThreadReply(), "biz-global-tech", "Yoga Wiranda", false)
+	theirs := BuildThreadCompletionEnvelope(user, testThreadMeta(), testThreadReply(), "biz-global-tech", "Yoga Wiranda", false)
 	if theirs.RequesterCanonical != "" {
 		t.Errorf("counterparty RequesterCanonical = %q, want empty", theirs.RequesterCanonical)
 	}
