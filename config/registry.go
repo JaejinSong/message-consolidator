@@ -72,6 +72,7 @@ var Registry = []SettingDef{
 	{Key: "APP_BASE_URL", Label: "Application Base URL (OAuth redirect root)", Category: "channels", Type: TypeString, RestartRequired: true},
 	{Key: "NOTION_TOKEN", Label: "Notion Integration Token", Category: "channels", Type: TypeString, Secret: true, RestartRequired: true},
 	{Key: "NOTION_REPORT_PAGE_ID", Label: "Notion Report Parent Page ID", Category: "channels", Type: TypeString, RestartRequired: true},
+	{Key: "NOTION_WA_LOG_PAGE_ID", Label: "Notion WhatsApp Log Parent Page ID", Category: "channels", Type: TypeString, RestartRequired: true},
 	{Key: "TELEGRAM_APP_ID", Label: "Telegram App ID", Category: "channels", Type: TypeInt, RestartRequired: true, Validate: intValidator},
 	{Key: "TELEGRAM_APP_HASH", Label: "Telegram App Hash", Category: "channels", Type: TypeString, Secret: true, RestartRequired: true},
 	{Key: "LINE_CHANNEL_SECRET", Label: "LINE Channel Secret", Category: "channels", Type: TypeString, Secret: true, RestartRequired: true},

@@ -82,6 +82,7 @@ var overlaySetters = map[string]fieldSetter{
 	"ARCHIVE_DAYS":                 func(c *Config, r string) { setIntIfValid(&c.AutoArchiveDays, r) },
 	"NOTION_TOKEN":                 func(c *Config, r string) { c.NotionToken = r },
 	"NOTION_REPORT_PAGE_ID":        func(c *Config, r string) { c.NotionReportPageID = r },
+	"NOTION_WA_LOG_PAGE_ID":        func(c *Config, r string) { c.NotionWALogPageID = r },
 	"TELEGRAM_APP_ID":              func(c *Config, r string) { setIntIfValid(&c.TelegramAppID, r) },
 	"TELEGRAM_APP_HASH":            func(c *Config, r string) { c.TelegramAppHash = r },
 	"LINE_CHANNEL_SECRET":          func(c *Config, r string) { c.LineChannelSecret = r },

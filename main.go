@@ -218,7 +218,15 @@ func gracefulShutdown(srv *http.Server) {
 func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.Server {
 	waDBLogger := services.NewWADBLogger()
 	waDBLogger.ChatNameResolver = channels.DefaultWAManager.GetGroupName
-	wireWhatsAppHooks(ctx, waDBLogger)
+	waNotionLogger := services.NewWANotionLogger(cfg.NotionToken, cfg.NotionWALogPageID)
+	waNotionLogger.ChatNameResolver = channels.DefaultWAManager.GetGroupName
+	if waNotionLogger.Enabled() {
+		logger.Infof("[notion-wa] enabled (page=%s)", cfg.NotionWALogPageID)
+		go waNotionLogger.Start(ctx)
+	} else {
+		logger.Infof("[notion-wa] disabled: NOTION_TOKEN or NOTION_WA_LOG_PAGE_ID not set")
+	}
+	wireWhatsAppHooks(ctx, waDBLogger, waNotionLogger)
 	wireTelegramHooks(ctx)
 	channels.InitLINE(ctx, cfg.LineChannelToken)
 	bootChannelClients(ctx, cfg)
@@ -255,7 +263,7 @@ func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.
 }
 
 // Why: WhatsApp IoC hooks injected before client boot — UpdateUserWAJID writes back via Background ctx because OnConnected/OnLoggedOut fire from manager goroutines outlasting the boot ctx.
-func wireWhatsAppHooks(ctx context.Context, dbLogger *services.WADBLogger) {
+func wireWhatsAppHooks(ctx context.Context, dbLogger *services.WADBLogger, notionLogger *services.WANotionLogger) {
 	channels.DefaultWAManager.FetchUserWAJID = func(email string) (string, error) {
 		u, err := store.GetOrCreateUser(ctx, email, "", "")
 		if err != nil {
@@ -273,7 +281,9 @@ func wireWhatsAppHooks(ctx context.Context, dbLogger *services.WADBLogger) {
 			logger.Warnf("[WA] UpdateUserWAJID(logout) failed for %s: %v", email, err)
 		}
 	}
-	channels.DefaultWAManager.OnMessage = dbLogger.Receive
+	// Why: DB log stays first and synchronous — the durable replay queue depends on
+	// the wa_messages insert; the Notion mirror only enqueues, so it never blocks it.
+	channels.DefaultWAManager.OnMessage = services.FanOutWAReceivers(dbLogger.Receive, notionLogger.Receive)
 }
 
 // Why: Telegram IoC mirrors WhatsApp; FetchUserTgSession/OnSessionUpdated bind telegram_sessions, OnConnected/OnLoggedOut persist tg_user_id.
