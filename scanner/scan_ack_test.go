@@ -119,4 +119,3 @@ func TestWhatsAppAdapter_AckScanned_DoesNotPanicWithoutDB(t *testing.T) {
 	adapter.AckScanned(context.Background(), "u@test.com", []string{"m1"}, true)
 	adapter.AckScanned(context.Background(), "u@test.com", []string{"m1"}, false)
 }
-

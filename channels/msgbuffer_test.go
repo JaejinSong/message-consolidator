@@ -48,7 +48,7 @@ func TestChatBuffer_Replay(t *testing.T) {
 		b := newChatBuffer()
 		b.buffer("u@x.com", "chat1", rawMsg("live1", base.Add(time.Hour)))
 
-		added := b.replay("u@x.com", "chat1", []types.RawMessage{rawMsg("live1", base), rawMsg("m2", base.Add(30 * time.Minute))})
+		added := b.replay("u@x.com", "chat1", []types.RawMessage{rawMsg("live1", base), rawMsg("m2", base.Add(30*time.Minute))})
 
 		if added != 1 {
 			t.Fatalf("added = %d, want 1", added)
