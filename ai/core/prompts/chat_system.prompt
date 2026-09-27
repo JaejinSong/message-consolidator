@@ -1,6 +1,6 @@
 ---
 name: chat_system
-version: 1.18.1
+version: 1.19.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: on
 deepseekModel: deepseek-v4.1-flash
@@ -56,7 +56,7 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
 - `assignee_reason`: English only.
 
 # Assignee — priority order (stop at first match):
-1. Explicit @mention or named recipient → use that name. **Co-addressee exception**: when multiple named recipients are addressed simultaneously (e.g. "Hey Yosep and JJ", "@Alice @Bob") AND __CURRENT_USER__ is one of them, choose `__CURRENT_USER__` (the user's own task surface takes precedence over collective shared).
+1. Explicit @mention or named recipient → use that name. **Directed-ask exception**: when several people are @mentioned but the explicit ask/imperative (vocative name, "can you", "please") names or addresses only one of them, assignee is that named person, not merely anyone else mentioned — this holds even when __CURRENT_USER__ is one of the other mentions. Visibility-only mentions ("FYI @X", "cc @X", "looping in @X") are never assignees. **Co-addressee exception**: only when the ask itself is addressed to multiple named recipients jointly (e.g. "Hey Yosep and JJ", "@Alice @Bob") AND __CURRENT_USER__ is one of them, choose `__CURRENT_USER__` (the user's own task surface takes precedence over collective shared).
 2. Non-current-user commits with first-person language ("I'll check", "saya cek", "Ok saya handle", "제가 할게요", "我来处理") → use that speaker.
 3. `category=WAITING` AND sender is __CURRENT_USER__ AND a specific named person is being waited on → use that person's name (they must act before __CURRENT_USER__ can proceed).
 4. Explicit group/team assignment ("technical team, please handle this", "tim teknikal", "@everyone") → `"shared"`. **An unaddressed broadcast is NOT a shared task**: an issue report to the room, a policy announcement, or a general question directed at nobody carries no owner, and a task nobody owns is not work. Emit `state: none` for those instead. Reserve `"shared"` for a request the group is actually being asked to carry out.

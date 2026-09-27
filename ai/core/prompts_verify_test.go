@@ -182,11 +182,33 @@ func TestChatSystemSelfDMReportedSpeechRule(t *testing.T) {
 	body := string(content)
 	required := []string{
 		"Self-DM reported-speech exception",
-		"version: 1.18.1",
+		"version: 1.19.0",
 	}
 	for _, token := range required {
 		if !strings.Contains(body, token) {
 			t.Errorf("chat_system.prompt missing v1.16.0 token: %q", token)
+		}
+	}
+}
+
+// TestChatSystemDirectedAskRule guards the v1.19.0 rule. Why: on Yosep's account a Slack
+// message @mentioning both Yosep and JJ, with the ask actually addressed to JJ ("JJ, can
+// you check ..."), was assigned __CURRENT_USER__ (Yosep) solely because Yosep was mentioned
+// (Slack task 12732). The Co-addressee exception must only fire when the ask itself is
+// addressed to the group, not whenever __CURRENT_USER__ merely appears among the mentions.
+func TestChatSystemDirectedAskRule(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/chat_system.prompt")
+	if err != nil {
+		t.Fatalf("read chat_system: %v", err)
+	}
+	body := string(content)
+	for _, token := range []string{
+		"Directed-ask exception",
+		"Visibility-only mentions",
+	} {
+		if !strings.Contains(body, token) {
+			t.Errorf("chat_system.prompt missing v1.19.0 token: %q", token)
 		}
 	}
 }

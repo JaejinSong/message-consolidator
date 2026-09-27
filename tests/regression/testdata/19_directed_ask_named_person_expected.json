@@ -1,0 +1,13 @@
+[
+  {
+    "id": 0,
+    "state": "new",
+    "task": "Check the MEA customer's IP whitelist request",
+    "requester": "",
+    "assignee": "Yosep",
+    "assigned_at": "",
+    "source_ts": "p1",
+    "deadline": "end of day",
+    "category": "TASK"
+  }
+]

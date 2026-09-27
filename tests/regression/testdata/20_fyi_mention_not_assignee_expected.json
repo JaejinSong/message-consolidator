@@ -1,0 +1,13 @@
+[
+  {
+    "id": 0,
+    "state": "new",
+    "task": "Redeploy the staging config",
+    "requester": "",
+    "assignee": "Marco",
+    "assigned_at": "",
+    "source_ts": "p1",
+    "deadline": "Friday",
+    "category": "TASK"
+  }
+]

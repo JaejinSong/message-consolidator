@@ -1,0 +1,1 @@
+[ID:p1] Phathit: @Yosep @test.user@example.com Yosep, can you check the MEA customer's IP whitelist request before end of day?
