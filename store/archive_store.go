@@ -142,18 +142,23 @@ func filterByStatus(msgs []ConsolidatedMessage, status string) []ConsolidatedMes
 func messageLifecycle(m ConsolidatedMessage) string {
 	switch {
 	case m.Category == "merged":
-		return "merged"
+		return LifecycleMerged
 	case !m.Done && m.IsDeleted:
-		return "canceled"
+		return LifecycleCanceled
 	case m.Done && m.IsDeleted:
-		return "swept"
+		return LifecycleSwept
 	case m.Done:
-		return "done"
+		return LifecycleDone
 	case m.ExcludedAt != nil:
-		return "excluded"
+		return LifecycleExcluded
 	default:
-		return "active"
+		return LifecycleActive
 	}
+}
+
+// IsActive reports whether m is an open, non-merged, non-excluded task.
+func (m ConsolidatedMessage) IsActive() bool {
+	return messageLifecycle(m) == LifecycleActive
 }
 
 func statusMatch(m ConsolidatedMessage, status string) bool {

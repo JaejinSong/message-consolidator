@@ -368,7 +368,7 @@ func buildBLUFDossiers(activity, stalled []Log, hostEmail string, now time.Time)
 // surviving task, so any caller that skips that filter would resurface completed work as
 // neglect.
 func isBLUFCandidate(m Log) bool {
-	return !m.Done && m.ExcludedAt == nil && !strings.EqualFold(m.Category, "merged")
+	return m.IsActive()
 }
 
 // dedupLogsByID concatenates the two sections, keeping the first occurrence of each task.
