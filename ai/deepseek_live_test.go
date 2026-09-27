@@ -162,6 +162,18 @@ func TestLive_DeepSeek_CompletionCheckRegression(t *testing.T) {
 		want       string
 	}{
 		{
+			name:       "volunteer_substitute_resolves",
+			parentTask: "Attend weekly report meeting as substitute",
+			reply:      "주간보고 대타 참석 하겠습니다.",
+			want:       "RESOLVE",
+		},
+		{
+			name:       "volunteer_cover_resolves",
+			parentTask: "Find someone to cover the Friday customer demo",
+			reply:      "I'll cover this.",
+			want:       "RESOLVE",
+		},
+		{
 			name:       "receipt_ack_not_completion",
 			parentTask: "Fill in the security form",
 			reply:      "ok, noted",

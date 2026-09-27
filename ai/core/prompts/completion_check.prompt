@@ -1,6 +1,6 @@
 ---
 name: completion_check
-version: 2.6.0
+version: 2.6.1
 geminiModel: gemini-3-flash-preview
 geminiThinking: default
 deepseekModel: deepseek-v4.1-flash
@@ -28,6 +28,7 @@ Classify how a reply message affects an existing task. Apply rules in order — 
    - "Any update?", "Following up", "Ping"
    - Bare receipt acknowledgment right after the request: "Ok", "Noted", "Ok noted", "Siap", "Baik" — confirms the ask was seen, not that it is finished.
    - Future-tense/intent statement carrying no new information: "I'll check", "I'll check and update you", "will update", "let me check", "akan saya cek", "nanti saya update" — a promise to act is not the act done.
+     Exception: when the open item asks WHO will take, cover or attend something and the speaker volunteers ("I'll cover this", "대타 참석 하겠습니다"), the question is answered — that is Delegation acceptance → RESOLVE. The promise rule applies when the person already asked only says they will look into it.
    - When uncertain between RESOLVE and NONE, choose NONE — do not resolve on ambiguity.
 
 # Subtask Rules (only when Subtasks are listed in Context):
