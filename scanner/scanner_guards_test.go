@@ -198,17 +198,7 @@ func TestWireWeeklyReport_NilSlackClient(t *testing.T) {
 	}
 }
 
-// Group D: ReleaseInFlight + triggerAsyncTranslation guards
-
-func TestReleaseInFlight(t *testing.T) {
-	inFlightMessages.Store("test-id-1", true)
-	ReleaseInFlight("test-id-1")
-
-	_, ok := inFlightMessages.Load("test-id-1")
-	if ok {
-		t.Error("test-id-1 must be deleted after ReleaseInFlight")
-	}
-}
+// Group D: triggerAsyncTranslation guards
 
 func TestTriggerAsyncTranslation_NilTasksSvc(t *testing.T) {
 	saveScannerGlobals(t)

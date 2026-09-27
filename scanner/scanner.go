@@ -295,10 +295,6 @@ func claimInFlight(email string, ids []store.MessageID) (claimed []store.Message
 	return claimed, release
 }
 
-func ReleaseInFlight(id string) {
-	inFlightMessages.Delete(id)
-}
-
 func Scan(email string, lang string, wg *sync.WaitGroup) {
 	traceCtx, _ := trace.Start(context.Background(), "/Scanner-Manual")
 	defer func() { _ = trace.End(traceCtx, nil) }()
