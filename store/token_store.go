@@ -496,51 +496,6 @@ func mergeInMemoryByModel(email string, byModel map[modelPeakKey]*ModelTokenUsag
 	add(tokenFlushingData)
 }
 
-// ReportTokenCost is the per-report aggregate of prompt/completion/thinking tokens and call count
-// across all report-bound steps (ReportSummary, ReportVizData, TranslateReport, ...).
-type ReportTokenCost struct {
-	PromptTokens     int
-	CompletionTokens int
-	ThinkingTokens   int
-	CallCount        int
-}
-
-// GetReportTokenUsage returns DB-flushed + in-memory token totals for a single report.
-// Mirrors the DB+buffer sum pattern used by GetDailyTokenUsage so callers see real-time cost
-// even before the hourly flush.
-func GetReportTokenUsage(ctx context.Context, reportID ReportID) (ReportTokenCost, error) {
-	conn := GetDB()
-	queries := db.New(conn)
-	row, err := queries.GetReportTokenUsage(ctx, int64(reportID))
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return ReportTokenCost{}, err
-	}
-
-	cost := ReportTokenCost{
-		PromptTokens:     coalesceInt(row.PromptTokens),
-		CompletionTokens: coalesceInt(row.CompletionTokens),
-		ThinkingTokens:   coalesceInt(row.ThinkingTokens),
-		CallCount:        coalesceInt(row.CallCount),
-	}
-
-	tokenMu.Lock()
-	defer tokenMu.Unlock()
-	addBuf := func(buf map[tokenBucket]*tokenData) {
-		for key, data := range buf {
-			if key.ReportID != reportID {
-				continue
-			}
-			cost.PromptTokens += data.Prompt
-			cost.CompletionTokens += data.Completion
-			cost.ThinkingTokens += data.Thinking
-			cost.CallCount += data.Calls
-		}
-	}
-	addBuf(tokenDirtyData)
-	addBuf(tokenFlushingData)
-	return cost, nil
-}
-
 // coalesceInt normalizes sqlc COALESCE(SUM(...)) results — driver returns int64 or float64.
 // any 사유: sqlc COALESCE(SUM(...))는 driver별로 float64 또는 int64로 반환.
 func coalesceInt(v any) int {

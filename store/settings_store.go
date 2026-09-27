@@ -18,17 +18,6 @@ var (
 	settingsCachedAt time.Time
 )
 
-// GetSetting returns the DB-stored value for the given key, or fallback if absent or empty.
-// Reads are served from an in-process cache (TTL settingsCacheTTL) that is invalidated on every
-// UpsertSetting/DeleteSetting in this process.
-func GetSetting(ctx context.Context, key, fallback string) string {
-	v, ok := lookupCachedSetting(ctx, key)
-	if !ok || v == "" {
-		return fallback
-	}
-	return v
-}
-
 // GetSettingRaw returns the raw stored value (or empty string) without any fallback substitution.
 // Useful for "is this key set?" checks where the absence of a row is meaningful.
 func GetSettingRaw(ctx context.Context, key string) (string, bool) {

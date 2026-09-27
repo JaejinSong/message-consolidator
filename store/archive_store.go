@@ -8,28 +8,6 @@ import (
 	"strings"
 )
 
-func GetArchivedMessages(ctx context.Context, email string) ([]ConsolidatedMessage, error) {
-	if err := EnsureArchiveCacheInitialized(ctx, email); err != nil {
-		return nil, err
-	}
-	cacheMu.RLock()
-	msgs, ok := archiveCache[email]
-	cacheMu.RUnlock()
-	if ok {
-		return msgs, nil
-	}
-	// Cache was invalidated between EnsureArchiveCacheInitialized and the read (TOCTOU race).
-	if err := RefreshArchiveCache(ctx, email); err != nil {
-		return nil, err
-	}
-	cacheMu.RLock()
-	defer cacheMu.RUnlock()
-	if msgs, ok := archiveCache[email]; ok {
-		return msgs, nil
-	}
-	return []ConsolidatedMessage{}, nil
-}
-
 var autoArchiveDays int = 7
 
 func SetAutoArchiveDays(days int) {

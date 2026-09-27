@@ -48,16 +48,3 @@ func IsGrantedToView(ctx context.Context, granteeID, grantorID UserID) (bool, er
 	}
 	return true, nil
 }
-
-// ListGranteesOf returns all users that grantorID has granted view access to.
-func ListGranteesOf(ctx context.Context, grantorID UserID) ([]User, error) {
-	rows, err := db.New(GetDB()).ListGranteesOf(ctx, int64(grantorID))
-	if err != nil {
-		return nil, fmt.Errorf("list grantees of %d: %w", grantorID, err)
-	}
-	users := make([]User, 0, len(rows))
-	for _, row := range rows {
-		users = append(users, fromDBUser(row))
-	}
-	return users, nil
-}

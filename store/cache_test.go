@@ -76,9 +76,9 @@ func TestCacheInvalidationAndReadThrough(t *testing.T) {
 	}
 
 	// 5. Verify it's in the Archive
-	archived, err := GetArchivedMessages(context.Background(), email)
+	archived, _, err := GetArchivedMessagesFiltered(context.Background(), ArchiveFilter{Email: email, Limit: 50})
 	if err != nil {
-		t.Fatalf("GetArchivedMessages failed: %v", err)
+		t.Fatalf("GetArchivedMessagesFiltered failed: %v", err)
 	}
 	if len(archived) != 1 || !archived[0].Done {
 		t.Errorf("Message should be in archive: %+v", archived)

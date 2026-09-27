@@ -54,9 +54,3 @@ func UpsertTelegramCreds(ctx context.Context, email string, appID int, appHash s
 		AppHash: appHash,
 	})
 }
-
-// DeleteTelegramCreds wipes credentials — not invoked on plain logout to keep the user from
-// re-entering them; reserved for an explicit reset flow.
-func DeleteTelegramCreds(ctx context.Context, email string) error {
-	return db.New(GetDB()).DeleteTelegramCredentials(ctx, email)
-}
