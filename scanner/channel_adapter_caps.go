@@ -87,4 +87,5 @@ var (
 	_ saveLinker             = (*slackAdapter)(nil)
 	_ resolveTrustSource     = (*slackAdapter)(nil)
 	_ proposalThreadAnchor   = (*slackAdapter)(nil)
+	_ scanAcker              = (*slackAdapter)(nil)
 )

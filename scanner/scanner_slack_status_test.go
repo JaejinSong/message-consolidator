@@ -18,7 +18,7 @@ func TestMarkSlackScanSuccess_StampsAllUsers(t *testing.T) {
 		{Email: "stamp-a@example.com"},
 		{Email: "stamp-b@example.com"},
 	}
-	markSlackScanSuccess(users)
+	markSlackScanSuccess(users, nil)
 
 	for _, u := range users {
 		ts := store.GetLastScan(u.Email, store.SourceSlack, store.ScanTargetLastSuccess)

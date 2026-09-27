@@ -217,14 +217,15 @@ func scanSlackWithBot(ctx context.Context, users []store.User, wg *sync.WaitGrou
 
 	userAl := prepareSlackUserAliases(ctx, users)
 	candidates, newTS, fetchOK, _ := collectSlackHistory(ctx, users, chans, sc, userAl)
-	processSlackCandidates(ctx, users, sc, candidates, wg)
-	updateSlackCursors(newTS)
+	tracker := newSlackHeldTracker()
+	processSlackCandidates(ctx, users, sc, candidates, wg, tracker)
+	applySlackScanResults(ctx, newTS, tracker)
 
 	// Why: a clean pass (no channel-level fetch errors) is the same signal Gmail uses
 	// to distinguish "no new messages" from "scan silently failed" — 2026-09-17 the bot
 	// was removed from every channel for 10 days while /slack/status stayed green.
-	if fetchOK {
-		markSlackScanSuccess(users)
+	if fetchOK && ctx.Err() == nil {
+		markSlackScanSuccess(users, tracker)
 	}
 }
 
@@ -254,10 +255,11 @@ func scanSlackForTokenUser(ctx context.Context, u store.User, wg *sync.WaitGroup
 	users := []store.User{u}
 	userAl := prepareSlackUserAliases(ctx, users)
 	candidates, newTS, fetchOK, fetchErr := collectSlackHistory(ctx, users, chans, sc, userAl)
-	processSlackCandidates(ctx, users, sc, candidates, wg)
-	updateSlackCursors(newTS)
-	if fetchOK {
-		markSlackScanSuccess(users)
+	tracker := newSlackHeldTracker()
+	processSlackCandidates(ctx, users, sc, candidates, wg, tracker)
+	applySlackScanResults(ctx, newTS, tracker)
+	if fetchOK && ctx.Err() == nil {
+		markSlackScanSuccess(users, tracker)
 		return
 	}
 	handleSlackTokenFailure(ctx, u.Email, fetchErr)
@@ -278,14 +280,83 @@ func handleSlackTokenFailure(ctx context.Context, email string, err error) bool 
 
 // markSlackScanSuccess stamps the wall-clock time of the last clean scan pass, mirroring
 // channels.markGmailScanSuccess. Why: /slack/status must be able to tell a live scan loop
-// from a silently dead one (bot removed from channels, channel_not_found, etc).
-func markSlackScanSuccess(users []store.User) {
+// from a silently dead one (bot removed from channels, channel_not_found, etc). A user
+// with any held cursor (tracker) is skipped -- their scan was not actually clean even
+// though the channel fetch itself succeeded.
+func markSlackScanSuccess(users []store.User, tracker *slackHeldTracker) {
 	ts := fmt.Sprintf("%d", time.Now().Unix())
 	for _, u := range users {
+		if tracker.hasHeld(u.Email) {
+			logger.Warnf("[SLACK] withholding last_success stamp for %s: cursor(s) held", u.Email)
+			continue
+		}
 		if err := store.UpdateLastScan(u.Email, store.SourceSlack, store.ScanTargetLastSuccess, ts); err != nil {
 			logger.Warnf("[SLACK] record last_success failed for %s: %v", u.Email, err)
 		}
 	}
+}
+
+// slackHeldTracker collects the (email, channelID) pairs whose AI analysis did not
+// finish this scan pass (AckScanned ok=false), so applySlackScanResults can withhold
+// their cursor advance instead of skipping past the unanalyzed backlog.
+type slackHeldTracker struct {
+	mu   sync.Mutex
+	held map[string]map[string]bool // email -> channelID -> held
+}
+
+func newSlackHeldTracker() *slackHeldTracker {
+	return &slackHeldTracker{held: make(map[string]map[string]bool)}
+}
+
+func (t *slackHeldTracker) hold(email, channelID string) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.held[email] == nil {
+		t.held[email] = make(map[string]bool)
+	}
+	t.held[email][channelID] = true
+}
+
+func (t *slackHeldTracker) isHeld(email, channelID string) bool {
+	if t == nil {
+		return false
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.held[email][channelID]
+}
+
+// hasHeld reports whether email has any held channel this pass.
+func (t *slackHeldTracker) hasHeld(email string) bool {
+	if t == nil {
+		return false
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return len(t.held[email]) > 0
+}
+
+// applySlackScanResults commits newTS to store.UpdateLastScan, withholding any
+// (email, channelID) tracker marked held and -- per the incident fix -- the entire
+// pass when ctx is already done: a scan that timed out mid-analysis must not advance
+// past whatever channels happened to fetch before the deadline hit.
+func applySlackScanResults(ctx context.Context, newTS map[string]map[string]string, tracker *slackHeldTracker) {
+	if err := ctx.Err(); err != nil {
+		logger.Warnf("[SLACK] ctx done (%v); holding all cursors this pass", err)
+		return
+	}
+	for email, channelMap := range newTS {
+		for chanID := range channelMap {
+			if tracker.isHeld(email, chanID) {
+				logger.Warnf("[SLACK] holding cursor for %s/%s: analysis incomplete", email, chanID)
+				delete(channelMap, chanID)
+			}
+		}
+	}
+	updateSlackCursors(newTS)
 }
 
 // Why: prime interval (59m) rate-limits the "bot removed from every channel" error to
@@ -509,7 +580,7 @@ func updateChannelCursor(newTS map[string]map[string]string, email, channelID, m
 	}
 }
 
-func processSlackCandidates(ctx context.Context, users []store.User, sc *channels.SlackClient, candidates map[string]map[string][]types.RawMessage, wg *sync.WaitGroup) {
+func processSlackCandidates(ctx context.Context, users []store.User, sc *channels.SlackClient, candidates map[string]map[string][]types.RawMessage, wg *sync.WaitGroup, tracker *slackHeldTracker) {
 	for email, byChannel := range candidates {
 		user, err := store.GetOrCreateUser(ctx, email, "", "")
 		if err != nil || user == nil {
@@ -517,19 +588,21 @@ func processSlackCandidates(ctx context.Context, users []store.User, sc *channel
 		}
 		aliases, _ := store.GetUserAliases(ctx, user.ID)
 		logger.Debugf("[SLACK] user %s: %d channels queued for AI analysis", email, len(byChannel))
-		scanChannel(ctx, *user, aliases, "Korean", wg, newSlackAdapter(ctx, sc, byChannel))
+		scanChannel(ctx, *user, aliases, "Korean", wg, newSlackAdapter(ctx, sc, byChannel, tracker))
 	}
 }
 
 // analyzeSlackBatch runs one channel's classified candidates through the shared
-// driver — the thread sweeper's entry point into the same pipeline.
+// driver — the thread sweeper's entry point into the same pipeline. Why nil tracker:
+// the sweeper does not own scanSlack's per-pass cursor bookkeeping, so there is
+// nothing to withhold on an AckScanned failure here.
 func analyzeSlackBatch(ctx context.Context, user *store.User, sc *channels.SlackClient, channelID string, candidates []types.RawMessage, wg *sync.WaitGroup) {
 	if len(candidates) == 0 {
 		return
 	}
 	aliases, _ := store.GetUserAliases(ctx, user.ID)
 	byChannel := map[string][]types.RawMessage{channelID: candidates}
-	scanChannel(ctx, *user, aliases, "Korean", wg, newSlackAdapter(ctx, sc, byChannel))
+	scanChannel(ctx, *user, aliases, "Korean", wg, newSlackAdapter(ctx, sc, byChannel, nil))
 }
 
 // slackAdapter feeds one user's per-channel candidate batches (already
@@ -541,18 +614,39 @@ type slackAdapter struct {
 	sc       *channels.SlackClient
 	buf      map[string][]types.RawMessage // channelName → msgs
 	rooms    map[string]string             // channelName → channelID
+	chanOf   map[string]string             // messageID → channelID, for AckScanned
+	tracker  *slackHeldTracker
 	consumed bool
 }
 
-func newSlackAdapter(ctx context.Context, sc *channels.SlackClient, byChannel map[string][]types.RawMessage) *slackAdapter {
+func newSlackAdapter(ctx context.Context, sc *channels.SlackClient, byChannel map[string][]types.RawMessage, tracker *slackHeldTracker) *slackAdapter {
 	buf := make(map[string][]types.RawMessage, len(byChannel))
 	rooms := make(map[string]string, len(byChannel))
+	chanOf := make(map[string]string, len(byChannel))
 	for channelID, msgs := range byChannel {
 		name := sc.GetChannelName(channelID)
 		buf[name] = append(buf[name], msgs...)
 		rooms[name] = channelID
+		for _, m := range msgs {
+			chanOf[m.ID] = channelID
+		}
 	}
-	return &slackAdapter{ctx: ctx, sc: sc, buf: buf, rooms: rooms}
+	return &slackAdapter{ctx: ctx, sc: sc, buf: buf, rooms: rooms, chanOf: chanOf, tracker: tracker}
+}
+
+// AckScanned records which channelID a failed group's messages belong to, via
+// slackHeldTracker, so scanSlack can withhold that channel's cursor advance instead
+// of masking unanalyzed history as processed. ok=true is a no-op: the drain-phase
+// cursor advance in classifyAndCollect already covers this case.
+func (a *slackAdapter) AckScanned(_ context.Context, email string, ids []string, ok bool) {
+	if ok || a.tracker == nil {
+		return
+	}
+	for _, id := range ids {
+		if chanID, found := a.chanOf[id]; found {
+			a.tracker.hold(email, chanID)
+		}
+	}
 }
 
 func (a *slackAdapter) Source() string    { return store.SourceSlack }

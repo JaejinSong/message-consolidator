@@ -43,6 +43,13 @@ const gmailScanTimeout = 293 * time.Second
 // behavior change, not a refactor.
 const perUserScanTimeout = 45 * time.Second
 
+// Why: 2026-09-27 a 10-day Slack outage meant the catch-up scan (29-day window,
+// slackCatchUpCap) had far more groups to run through AI analysis than a normal
+// cycle. The old 60s literal expired mid-analysis on most groups, and cursors still
+// advanced past everything fetched -- 10 days of messages were never analyzed.
+// Mirrors gmailScanTimeout's fix for the identical July Gmail incident. Prime.
+const slackScanTimeout = 293 * time.Second
+
 // forEachUserBundle runs fn for every user that passes gate, bounded by an errgroup
 // limit of 5 and a per-user timeout, then persists scan metadata for that user.
 // Why: gmail/whatsapp/telegram "for all users" loops shared this exact shape

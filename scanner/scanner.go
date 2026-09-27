@@ -142,7 +142,7 @@ func performSlackScan(ctx context.Context, users []store.User, wg *sync.WaitGrou
 	if cfg == nil || cfg.SlackToken == "" {
 		return
 	}
-	sCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	sCtx, cancel := context.WithTimeout(ctx, slackScanTimeout)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -171,7 +171,7 @@ func runSlackForAllUsers(ctx context.Context, wg *sync.WaitGroup) {
 		logger.Errorf("[SCAN] failed to get users for slack scan: %v", err)
 		return
 	}
-	scanCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	scanCtx, cancel := context.WithTimeout(ctx, slackScanTimeout)
 	defer cancel()
 	defer safego.Recover("scan-slack")
 	scanSlack(scanCtx, users, wg)
