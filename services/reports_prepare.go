@@ -244,14 +244,10 @@ func formatAge(m Log) string {
 	if m.Done {
 		return ""
 	}
-	base := m.CreatedAt
-	if !m.AssignedAt.IsZero() && m.AssignedAt.After(base) {
-		base = m.AssignedAt
-	}
-	if base.IsZero() {
+	if taskAgeBase(m).IsZero() {
 		return ""
 	}
-	days := store.WorkingDaysSince(base, time.Now())
+	days := stalledAge(m, time.Now())
 	if days <= 0 {
 		return ""
 	}
@@ -288,12 +284,18 @@ func sortStalledByAge(logs []Log) {
 	})
 }
 
-func stalledAge(m Log, now time.Time) int {
+// taskAgeBase is the later of CreatedAt and AssignedAt -- the single source of truth
+// for task age used by the stalled threshold, the "Age: Nwd" label, and neglect scoring.
+func taskAgeBase(m Log) time.Time {
 	base := m.CreatedAt
 	if !m.AssignedAt.IsZero() && m.AssignedAt.After(base) {
 		base = m.AssignedAt
 	}
-	return store.WorkingDaysSince(base, now)
+	return base
+}
+
+func stalledAge(m Log, now time.Time) int {
+	return store.WorkingDaysSince(taskAgeBase(m), now)
 }
 
 var riskKeywords = []string{

@@ -160,8 +160,9 @@ func withinWindow(messages []Log, startDate, endDate string) []Log {
 func (s *ReportsService) fetchStalled(ctx context.Context, email, startDate string, source *string) (stalled, backlog []Log) {
 	doneFalse := false
 	threshold := store.GetStaleThresholdWorkingDays()
+	now := time.Now()
 	// Why: zero time = no lower bound so tasks older than the threshold are fetched;
-	// stale filter (WorkingDaysSince >= threshold) is applied in Go below.
+	// stale filter (stalledAge >= threshold) is applied in Go below.
 	stalledMsgs, _ := store.GetMessagesForReport(ctx, email, time.Time{}, source, &doneFalse)
 	for _, m := range stalledMsgs {
 		// Skip tasks already captured in the activity window.
@@ -169,11 +170,7 @@ func (s *ReportsService) fetchStalled(ctx context.Context, email, startDate stri
 			continue
 		}
 		backlog = append(backlog, m)
-		base := m.CreatedAt
-		if !m.AssignedAt.IsZero() && m.AssignedAt.After(base) {
-			base = m.AssignedAt
-		}
-		if store.WorkingDaysSince(base, time.Now()) >= threshold {
+		if stalledAge(m, now) >= threshold {
 			stalled = append(stalled, m)
 		}
 	}
