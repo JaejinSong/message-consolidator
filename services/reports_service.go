@@ -163,7 +163,13 @@ func (s *ReportsService) fetchStalled(ctx context.Context, email, startDate stri
 	now := time.Now()
 	// Why: zero time = no lower bound so tasks older than the threshold are fetched;
 	// stale filter (stalledAge >= threshold) is applied in Go below.
-	stalledMsgs, _ := store.GetMessagesForReport(ctx, email, time.Time{}, source, &doneFalse)
+	stalledMsgs, err := store.GetMessagesForReport(ctx, email, time.Time{}, source, &doneFalse)
+	if err != nil {
+		// Why: report generation must not fail because the stalled/backlog section
+		// couldn't be fetched -- log and continue with an empty section instead.
+		logger.Warnf("[REPORTS] stalled-task lookup failed for %s: %v", email, err)
+		return nil, nil
+	}
 	for _, m := range stalledMsgs {
 		// Skip tasks already captured in the activity window.
 		if ds := m.CreatedAt.Format("2006-01-02"); ds >= startDate {
