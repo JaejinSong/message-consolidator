@@ -572,7 +572,7 @@ func (q *Queries) GetMessagesByEmail(ctx context.Context, userEmail string) ([]G
 }
 
 const getMessagesByIDs = `-- name: GetMessagesByIDs :many
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, updated_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, updated_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type, excluded_at
 FROM v_messages WHERE id IN (/*SLICE:ids*/?)
 `
 
@@ -608,6 +608,7 @@ type GetMessagesByIDsRow struct {
 	AssigneeCanonical   string       `json:"assignee_canonical"`
 	RequesterType       string       `json:"requester_type"`
 	AssigneeType        string       `json:"assignee_type"`
+	ExcludedAt          sql.NullTime `json:"excluded_at"`
 }
 
 func (q *Queries) GetMessagesByIDs(ctx context.Context, ids []int64) ([]GetMessagesByIDsRow, error) {
@@ -661,6 +662,7 @@ func (q *Queries) GetMessagesByIDs(ctx context.Context, ids []int64) ([]GetMessa
 			&i.AssigneeCanonical,
 			&i.RequesterType,
 			&i.AssigneeType,
+			&i.ExcludedAt,
 		); err != nil {
 			return nil, err
 		}

@@ -234,9 +234,9 @@ func TestConsolidatedMessage_IsActiveMatchesLifecycleColumn(t *testing.T) {
 
 // loadConsolidatedForLifecycle builds the minimal ConsolidatedMessage fields messageLifecycle
 // reads (category, done, is_deleted, excluded_at), straight off the messages table.
-// Why not a store query: every existing read path projects a fixed column set for its own
-// call site (e.g. GetMessagesByIDs never selects excluded_at), so routing this table test
-// through any single one of them would test that query's projection, not IsActive() itself.
+// Why not a store query: every existing read path projects its own fixed column set,
+// so routing this table test through any single one of them would test that query's
+// projection, not IsActive() itself.
 func loadConsolidatedForLifecycle(t *testing.T, id MessageID) ConsolidatedMessage {
 	t.Helper()
 	var (
@@ -261,4 +261,52 @@ func loadConsolidatedForLifecycle(t *testing.T, id MessageID) ConsolidatedMessag
 		m.ExcludedAt = &ts
 	}
 	return m
+}
+
+// TestGetMessagesByIDs_CarriesExcludedAt guards against a regression where GetMessagesByIDs
+// (and its toConsolidatedFromByIDs mapper) dropped excluded_at, leaving ConsolidatedMessage.IsActive()
+// misclassifying an excluded row as active for every caller that loads by ID.
+func TestGetMessagesByIDs_CarriesExcludedAt(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	email := testutil.RandomEmail("getbyids-excluded")
+	room := "general"
+	threadID := "thread-getbyids-excluded"
+	ids := seedAllLifecycleStates(t, email, room, threadID)
+
+	msgs, err := GetMessagesByIDs(ctx, GetDB(), email, []MessageID{ids["active"], ids["excluded"]})
+	if err != nil {
+		t.Fatalf("GetMessagesByIDs: %v", err)
+	}
+	byID := make(map[MessageID]ConsolidatedMessage, len(msgs))
+	for _, m := range msgs {
+		byID[m.ID] = m
+	}
+
+	excluded, ok := byID[ids["excluded"]]
+	if !ok {
+		t.Fatalf("GetMessagesByIDs: excluded row missing from result")
+	}
+	if excluded.ExcludedAt == nil {
+		t.Errorf("GetMessagesByIDs(excluded): ExcludedAt = nil, want non-nil")
+	}
+	if excluded.IsActive() {
+		t.Errorf("GetMessagesByIDs(excluded): IsActive() = true, want false")
+	}
+
+	active, ok := byID[ids["active"]]
+	if !ok {
+		t.Fatalf("GetMessagesByIDs: active row missing from result")
+	}
+	if active.ExcludedAt != nil {
+		t.Errorf("GetMessagesByIDs(active): ExcludedAt = %v, want nil", active.ExcludedAt)
+	}
+	if !active.IsActive() {
+		t.Errorf("GetMessagesByIDs(active): IsActive() = false, want true")
+	}
 }

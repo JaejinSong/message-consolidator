@@ -213,7 +213,7 @@ func toConsolidatedFromByID(row db.GetMessageByIDRow) ConsolidatedMessage {
 }
 
 func toConsolidatedFromByIDs(row db.GetMessagesByIDsRow) ConsolidatedMessage {
-	return MapVMessageToConsolidated(
+	msg := MapVMessageToConsolidated(
 		MessageID(row.ID), row.UserEmail, row.Source, row.Room, row.Task,
 		row.Requester, row.Assignee, row.Link, row.SourceTs,
 		row.OriginalText, row.Done, row.IsDeleted, row.CreatedAt,
@@ -225,6 +225,10 @@ func toConsolidatedFromByIDs(row db.GetMessagesByIDsRow) ConsolidatedMessage {
 		row.AssignedAt, row.CompletedAt, row.UpdatedAt,
 		sql.NullTime{}, 0,
 	)
+	if row.ExcludedAt.Valid {
+		msg.ExcludedAt = &row.ExcludedAt.Time
+	}
+	return msg
 }
 
 func toConsolidatedFromIncomplete(row db.GetIncompleteByThreadIDRow) ConsolidatedMessage {
