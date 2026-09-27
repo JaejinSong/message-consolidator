@@ -290,6 +290,12 @@ func guardTaskOverlap(p TaskBuildParams) bool {
 	if p.OriginalText == "" {
 		return true
 	}
+	// Why: an ID-bound transition (update/resolve/cancel) is grounded upstream by
+	// tasks_merge.go's ID match, not by wording -- the new message (often a different
+	// language) legitimately shares zero tokens with the existing task's title.
+	if p.Item.ID != nil && *p.Item.ID != 0 && !strings.EqualFold(strings.TrimSpace(p.Item.State), "new") {
+		return true
+	}
 	// Why: whitespace token overlap is unreliable for agglutinative Korean; a false
 	// drop here is a silent failure, the worst kind -- skip G5 entirely for Hangul text.
 	if containsHangul(p.OriginalText) {

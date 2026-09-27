@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"message-consolidator/db"
+	"message-consolidator/internal/ids"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"strings"
@@ -445,10 +446,13 @@ func TestGuardSourceTS(t *testing.T) {
 }
 
 func TestGuardTaskOverlap(t *testing.T) {
+	existingID := ids.MessageID(42)
 	tests := []struct {
 		name         string
 		task         string
 		originalText string
+		id           *ids.MessageID
+		state        string
 		want         bool
 	}{
 		{
@@ -483,10 +487,53 @@ func TestGuardTaskOverlap(t *testing.T) {
 			originalText: "kalau selasa memungkinkan kita bisa Mas?",
 			want:         false,
 		},
+		{
+			// Why: live-call regression -- an Indonesian resolve for an English-titled
+			// existing task must not be dropped for wording mismatch (ID grounds it).
+			name:         "resolve with ID and zero overlap is kept",
+			task:         "Restore the Whatap files accidentally deleted by the script",
+			originalText: "Saat ini sudah bisa dimonitoring kembali mas, tadi saya juga hapus untuk license yang sudah expire",
+			id:           &existingID,
+			state:        "resolve",
+			want:         true,
+		},
+		{
+			name:         "cancel with ID and zero overlap is kept",
+			task:         "Meet at 2-3 PM to follow up on the Adira dashboard issue",
+			originalText: "batal aja mas rapatnya",
+			id:           &existingID,
+			state:        "cancel",
+			want:         true,
+		},
+		{
+			name:         "update with ID and zero overlap is kept",
+			task:         "Prepare quarterly report",
+			originalText: "kalau selasa memungkinkan kita bisa Mas?",
+			id:           &existingID,
+			state:        "update",
+			want:         true,
+		},
+		{
+			name:         "state new with nil ID and zero overlap still dropped",
+			task:         "Prepare quarterly report",
+			originalText: "kalau selasa memungkinkan kita bisa Mas?",
+			state:        "new",
+			want:         false,
+		},
+		{
+			name:         "resolve state but nil ID and zero overlap still dropped",
+			task:         "Prepare quarterly report",
+			originalText: "kalau selasa memungkinkan kita bisa Mas?",
+			state:        "resolve",
+			want:         false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := TaskBuildParams{Item: store.TodoItem{Task: tt.task}, OriginalText: tt.originalText}
+			p := TaskBuildParams{
+				Item:         store.TodoItem{Task: tt.task, ID: tt.id, State: tt.state},
+				OriginalText: tt.originalText,
+			}
 			if got := guardTaskOverlap(p); got != tt.want {
 				t.Errorf("guardTaskOverlap() = %v; want %v", got, tt.want)
 			}
