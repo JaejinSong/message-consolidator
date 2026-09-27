@@ -64,18 +64,19 @@ func sweepSlackThreads(ctx context.Context, wg *sync.WaitGroup) {
 		return
 	}
 	sc, botID := getOrInitSlackClient(cfg.SlackToken) //nolint:contextcheck // whataphttpx.Client takes no ctx by design; trace rides on http.Request.Context (see package doc)
+	budget := newThreadReplyBudget()
 
 	threads, err := store.GetTargetedActiveThreads(ctx)
 	if err == nil && len(threads) > 0 {
-		sweepHotSlackThreads(ctx, sc, botID, threads, wg)
+		sweepHotSlackThreads(ctx, sc, botID, threads, wg, budget)
 	}
 
 	if shouldRunColdTier(time.Now()) {
-		sweepColdReconciliationThreads(ctx, sc, botID, wg)
+		sweepColdReconciliationThreads(ctx, sc, botID, wg, budget)
 	}
 }
 
-func sweepHotSlackThreads(ctx context.Context, sc *channels.SlackClient, botID string, threads []store.SlackThreadMeta, wg *sync.WaitGroup) {
+func sweepHotSlackThreads(ctx context.Context, sc *channels.SlackClient, botID string, threads []store.SlackThreadMeta, wg *sync.WaitGroup, budget *threadReplyBudget) {
 	aliasCache := buildSlackAliasCache(ctx, threads)
 	activity := scanChannelHistoryActivity(ctx, sc, threads)
 
@@ -91,7 +92,7 @@ func sweepHotSlackThreads(ctx context.Context, sc *channels.SlackClient, botID s
 			handleThreadTimeoutGroup(ctx, sc, group)
 			continue
 		}
-		processSlackThreadGroup(ctx, sc, group, botID, aliasCache, wg)
+		processSlackThreadGroup(ctx, sc, group, botID, aliasCache, wg, budget)
 	}
 }
 
@@ -100,7 +101,7 @@ func sweepHotSlackThreads(ctx context.Context, sc *channels.SlackClient, botID s
 // hot sweep's fetch+dispatch path (fetchAndDispatchThreadGroup) so completion detection
 // stays in one place; it never reactivates slack_threads status and never applies the
 // 7-day timeout that the hot loop uses.
-func sweepColdReconciliationThreads(ctx context.Context, sc *channels.SlackClient, botID string, wg *sync.WaitGroup) {
+func sweepColdReconciliationThreads(ctx context.Context, sc *channels.SlackClient, botID string, wg *sync.WaitGroup, budget *threadReplyBudget) {
 	threads, err := store.GetColdReconciliationThreads(ctx)
 	if err != nil || len(threads) == 0 {
 		return
@@ -111,7 +112,7 @@ func sweepColdReconciliationThreads(ctx context.Context, sc *channels.SlackClien
 		if isChannelInaccessible(rep.ChannelID) {
 			continue
 		}
-		processColdReconciliationGroup(ctx, sc, group, botID, aliasCache, wg)
+		processColdReconciliationGroup(ctx, sc, group, botID, aliasCache, wg, budget)
 	}
 }
 
@@ -202,6 +203,36 @@ func recordChannelInaccessible(chID, reason string) {
 	}
 	inaccessibleChannels[chID] = inaccessibleChannelInfo{reason: reason, until: time.Now().Add(channelBackoffWindow)}
 	logger.Errorf("[SLACK] channel %s inaccessible (%s): bot not a member or channel gone - invite the bot to resume", chID, reason)
+}
+
+// maxThreadReplyEvalsPerSweep bounds how many LLM transition calls one sweepSlackThreads
+// invocation may spend evaluating plain (non-keyword) counterparty thread replies.
+// Why: production evidence showed every real completion was a same-thread reply, so
+// dropping the keyword gate now sends every counterparty reply in a tracked thread to
+// EvaluateThreadReply -- this caps the blast radius of one sweep tick.
+const maxThreadReplyEvalsPerSweep = 29
+
+// threadReplyBudget shares an LLM-call counter across one sweepSlackThreads run (hot
+// and cold tiers alike) so the cap applies per sweep, not per thread group.
+type threadReplyBudget struct {
+	mu   sync.Mutex
+	used int
+}
+
+func newThreadReplyBudget() *threadReplyBudget { return &threadReplyBudget{} }
+
+// take claims one slot from the budget, returning false once the cap is reached.
+func (b *threadReplyBudget) take() bool {
+	if b == nil {
+		return true
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.used >= maxThreadReplyEvalsPerSweep {
+		return false
+	}
+	b.used++
+	return true
 }
 
 func isChannelInaccessible(chID string) bool {
@@ -354,7 +385,7 @@ func defaultGetConversationReplies(sc *channels.SlackClient, params *slack.GetCo
 // collection + dispatch logic. Both the hot sweep (processSlackThreadGroup) and the
 // cold reconciliation tier (processColdReconciliationGroup) call this so completion
 // detection lives in exactly one place; only the post-fetch status bookkeeping differs.
-func fetchAndDispatchThreadGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta, botID string, aliasCache map[string]slackThreadIdentity, wg *sync.WaitGroup) (threadScanResult, bool) {
+func fetchAndDispatchThreadGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta, botID string, aliasCache map[string]slackThreadIdentity, wg *sync.WaitGroup, budget *threadReplyBudget) (threadScanResult, bool) {
 	rep := group[0]
 	minLastTS := rep.LastTS
 	for _, s := range group[1:] {
@@ -377,7 +408,7 @@ func fetchAndDispatchThreadGroup(ctx context.Context, sc *channels.SlackClient, 
 		if !ok || ident.user == nil {
 			continue
 		}
-		candidates := collectThreadCandidates(ctx, sc, ident.user, sub, replies, res, ident.effAliases)
+		candidates := collectThreadCandidates(ctx, sc, ident.user, sub, replies, res, ident.effAliases, budget)
 		if len(candidates) > 0 {
 			analyzeSlackBatch(ctx, ident.user, sc, sub.ChannelID, candidates, wg)
 		}
@@ -385,8 +416,8 @@ func fetchAndDispatchThreadGroup(ctx context.Context, sc *channels.SlackClient, 
 	return res, true
 }
 
-func processSlackThreadGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta, botID string, aliasCache map[string]slackThreadIdentity, wg *sync.WaitGroup) {
-	res, ok := fetchAndDispatchThreadGroup(ctx, sc, group, botID, aliasCache, wg)
+func processSlackThreadGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta, botID string, aliasCache map[string]slackThreadIdentity, wg *sync.WaitGroup, budget *threadReplyBudget) {
+	res, ok := fetchAndDispatchThreadGroup(ctx, sc, group, botID, aliasCache, wg, budget)
 	if !ok {
 		return
 	}
@@ -397,8 +428,8 @@ func processSlackThreadGroup(ctx context.Context, sc *channels.SlackClient, grou
 // slack_threads status or apply the 7-day timeout: a newly-resolved thread still gets
 // closed (idempotent, status was already non-active) but an unresolved one only advances
 // its reply cursor via TouchSlackThreadTimestamps, leaving status untouched.
-func processColdReconciliationGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta, botID string, aliasCache map[string]slackThreadIdentity, wg *sync.WaitGroup) {
-	res, ok := fetchAndDispatchThreadGroup(ctx, sc, group, botID, aliasCache, wg)
+func processColdReconciliationGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta, botID string, aliasCache map[string]slackThreadIdentity, wg *sync.WaitGroup, budget *threadReplyBudget) {
+	res, ok := fetchAndDispatchThreadGroup(ctx, sc, group, botID, aliasCache, wg, budget)
 	if !ok {
 		return
 	}
@@ -430,7 +461,7 @@ func handleThreadTimeoutGroup(ctx context.Context, sc *channels.SlackClient, gro
 	}
 }
 
-func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user *store.User, t store.SlackThreadMeta, replies []slack.Message, res threadScanResult, effAl []string) []types.RawMessage {
+func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user *store.User, t store.SlackThreadMeta, replies []slack.Message, res threadScanResult, effAl []string, budget *threadReplyBudget) []types.RawMessage {
 	var candidates []types.RawMessage
 	c := slack.Channel{GroupConversation: slack.GroupConversation{Conversation: slack.Conversation{ID: t.ChannelID}}}
 	for _, m := range replies {
@@ -443,7 +474,7 @@ func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user
 		if m.BotID != "" || m.SubType == "bot_message" {
 			continue
 		}
-		dispatchThreadCompletionIfMine(ctx, sc, user, t, m)
+		dispatchThreadCompletionIfMine(ctx, sc, user, t, m, budget)
 		// Architecture Separation: bot/empty pre-filters live in the channels layer.
 		cls := classifyMessage(c, user, effAl, types.RawMessage{Sender: m.User, Text: m.Text})
 		if cls != types.CategoryTask && cls != types.CategoryQuery {
@@ -482,7 +513,7 @@ func buildThreadCompletionEnvelope(user *store.User, t store.SlackThreadMeta, m 
 	return env
 }
 
-func dispatchThreadCompletionIfMine(ctx context.Context, sc *channels.SlackClient, user *store.User, t store.SlackThreadMeta, m slack.Message) {
+func dispatchThreadCompletionIfMine(ctx context.Context, sc *channels.SlackClient, user *store.User, t store.SlackThreadMeta, m slack.Message, budget *threadReplyBudget) {
 	if deps.completionSvc == nil || m.ThreadTimestamp == "" {
 		return
 	}
@@ -495,13 +526,36 @@ func dispatchThreadCompletionIfMine(ctx context.Context, sc *channels.SlackClien
 		}
 		return
 	}
-	// Why: counterparty reply in a tracked thread — semanticCrossThreadCandidates
-	// already excludes same-thread tasks, so this only surfaces matches elsewhere.
-	if services.HasCompletionSignal(m.Text) {
-		env := buildThreadCompletionEnvelope(user, t, m, room, senderName, false)
-		if _, err := deps.completionSvc.ProcessCrossChannelSignal(ctx, env); err != nil {
-			logger.Warnf("[SLACK] thread cross-channel completion failed for %s: %v", user.Email, err)
+	dispatchCounterpartyThreadReply(ctx, user, t, m, room, senderName, budget)
+}
+
+// dispatchCounterpartyThreadReply handles a reply from someone other than the tracked
+// user. Why: production evidence showed every real completion was a plain same-thread
+// reply (an ack or an answer) that never used explicit completion wording, so the
+// keyword gate below only ever saw the minority of cases. When the thread has an open
+// task of its own, EvaluateThreadReply judges the reply directly, without the gate; the
+// keyword-gated cross-channel path stays as the fallback for threads with no open task.
+func dispatchCounterpartyThreadReply(ctx context.Context, user *store.User, t store.SlackThreadMeta, m slack.Message, room, senderName string, budget *threadReplyBudget) {
+	env := buildThreadCompletionEnvelope(user, t, m, room, senderName, false)
+	tasks, err := store.GetIncompleteByThreadID(ctx, store.GetDB(), user.Email, t.ThreadTS)
+	if err != nil {
+		logger.Warnf("[SLACK] thread reply task lookup failed for %s: %v", user.Email, err)
+		return
+	}
+	if len(tasks) == 0 {
+		if services.HasCompletionSignal(m.Text) {
+			if _, err := deps.completionSvc.ProcessCrossChannelSignal(ctx, env); err != nil {
+				logger.Warnf("[SLACK] thread cross-channel completion failed for %s: %v", user.Email, err)
+			}
 		}
+		return
+	}
+	if !budget.take() {
+		logger.Warnf("[SLACK] thread reply evaluation capped at %d for this sweep; skipping thread=%s", maxThreadReplyEvalsPerSweep, t.ThreadTS)
+		return
+	}
+	if _, err := deps.completionSvc.EvaluateThreadReply(ctx, env, tasks); err != nil {
+		logger.Warnf("[SLACK] thread reply evaluation failed for %s: %v", user.Email, err)
 	}
 }
 

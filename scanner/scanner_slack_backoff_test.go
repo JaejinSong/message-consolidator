@@ -127,7 +127,7 @@ func TestSweepColdReconciliationThreads_SkipsInaccessibleChannel(t *testing.T) {
 		// expected path: sweepColdReconciliationThreads would skip this group before
 		// ever calling processColdReconciliationGroup.
 	} else {
-		processColdReconciliationGroup(nil, sc, group, "BOT", map[string]slackThreadIdentity{}, nil)
+		processColdReconciliationGroup(nil, sc, group, "BOT", map[string]slackThreadIdentity{}, nil, nil)
 	}
 	if calls != 0 {
 		t.Fatalf("calls = %d, want 0 (inaccessible channel must be skipped)", calls)

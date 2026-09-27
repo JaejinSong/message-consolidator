@@ -57,7 +57,7 @@ func TestDispatchThreadCompletionIfMine_NilSvc(t *testing.T) {
 	user := &store.User{Email: "u@x", Name: "Me", SlackID: "USLACK"}
 	thread := store.SlackThreadMeta{ChannelID: "C1", ThreadTS: "1700000100.000000"}
 	m := slack.Message{Msg: slack.Msg{Timestamp: "1700000200.000000", ThreadTimestamp: "1700000100.000000", User: "USLACK"}}
-	dispatchThreadCompletionIfMine(context.Background(), sc, user, thread, m)
+	dispatchThreadCompletionIfMine(context.Background(), sc, user, thread, m, nil)
 }
 
 // TestDispatchThreadCompletionIfMine_EmptyThreadTS covers the ThreadTimestamp==empty guard.
@@ -70,7 +70,7 @@ func TestDispatchThreadCompletionIfMine_EmptyThreadTS(t *testing.T) {
 	user := &store.User{Email: "u@x", Name: "Me"}
 	thread := store.SlackThreadMeta{ChannelID: "C1", ThreadTS: "1700000100.000000"}
 	m := slack.Message{Msg: slack.Msg{Timestamp: "1700000200.000000", ThreadTimestamp: "", User: "USLACK"}}
-	dispatchThreadCompletionIfMine(context.Background(), sc, user, thread, m)
+	dispatchThreadCompletionIfMine(context.Background(), sc, user, thread, m, nil)
 }
 
 // TestClassifyAndCollect_OlderThanLastTS verifies messages older than lastTS are skipped.

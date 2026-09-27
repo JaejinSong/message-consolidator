@@ -66,7 +66,7 @@ func TestCollectThreadCandidates_AllFiltered(t *testing.T) {
 	}
 	res := threadScanResult{isResolved: false, newLastTS: "1700000200.000000"}
 
-	got := collectThreadCandidates(context.Background(), sc, user, thread, replies, res, nil)
+	got := collectThreadCandidates(context.Background(), sc, user, thread, replies, res, nil, nil)
 	if len(got) != 0 {
 		t.Errorf("expected 0 candidates (all filtered), got %d", len(got))
 	}
@@ -90,7 +90,7 @@ func TestCollectThreadCandidates_BotFiltered(t *testing.T) {
 	}
 	res := threadScanResult{isResolved: false, newLastTS: "1700000300.000000"}
 
-	got := collectThreadCandidates(context.Background(), sc, user, thread, replies, res, nil)
+	got := collectThreadCandidates(context.Background(), sc, user, thread, replies, res, nil, nil)
 	if len(got) != 0 {
 		t.Errorf("expected 0 candidates (all bots), got %d", len(got))
 	}

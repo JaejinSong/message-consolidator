@@ -778,6 +778,120 @@ func TestCrossThreadSubjectDedup(t *testing.T) {
 	})
 }
 
+// Why: production evidence showed same-thread counterparty acks/answers never reached
+// AI because ProcessCrossChannelSignal gates on a completion-signal keyword. These
+// cases cover the un-gated EvaluateThreadReply path directly.
+func TestCompletionService_EvaluateThreadReply(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("RESOLVE from the assignee hard-closes", func(t *testing.T) {
+		mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "RESOLVE"}}}
+		mockStore := &MockStore{}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		task := store.ConsolidatedMessage{ID: 11, Task: "Share the customer report", Assignee: "Yoga Wiranda"}
+		msg := store.ConsolidatedMessage{UserEmail: "u@x", Requester: "Yoga Wiranda", OriginalText: "Got it. Let me share with customer."}
+
+		handled, err := svc.EvaluateThreadReply(ctx, msg, []store.ConsolidatedMessage{task})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !handled {
+			t.Fatal("expected handled=true")
+		}
+		if len(mockStore.CapturedIDs) != 1 || mockStore.CapturedIDs[0] != 11 {
+			t.Errorf("expected task 11 hard-closed, got CapturedIDs=%v", mockStore.CapturedIDs)
+		}
+		if len(mockStore.Candidates) != 0 {
+			t.Errorf("expected no confirm-first candidate for the assignee's own RESOLVE, got %v", mockStore.Candidates)
+		}
+	})
+
+	t.Run("RESOLVE from someone other than the assignee is confirm-first only", func(t *testing.T) {
+		mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "RESOLVE"}}}
+		mockStore := &MockStore{}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		task := store.ConsolidatedMessage{ID: 12, Task: "Investigate the Dynatrace RCA", Assignee: "Jaejin"}
+		msg := store.ConsolidatedMessage{UserEmail: "u@x", Requester: "Counterparty", OriginalText: "Correct. But this is old dynatrace RCA", Link: "slack:C1:1"}
+
+		handled, err := svc.EvaluateThreadReply(ctx, msg, []store.ConsolidatedMessage{task})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !handled {
+			t.Fatal("expected handled=true for a recorded candidate")
+		}
+		if len(mockStore.CapturedIDs) != 0 {
+			t.Errorf("expected NOT hard-closed by a non-assignee, got CapturedIDs=%v", mockStore.CapturedIDs)
+		}
+		if _, ok := mockStore.Candidates[12]; !ok {
+			t.Error("expected a confirm-first candidate recorded on task 12")
+		}
+	})
+
+	t.Run("UPDATE applies directly", func(t *testing.T) {
+		mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "UPDATE", UpdatedText: "Give us 1 day ahead"}}}
+		mockStore := &MockStore{}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		task := store.ConsolidatedMessage{ID: 13, Task: "Turn on 2-step verification"}
+		msg := store.ConsolidatedMessage{UserEmail: "u@x", Requester: "Counterparty", OriginalText: "I have asked to...give us 1 day ahead"}
+
+		handled, err := svc.EvaluateThreadReply(ctx, msg, []store.ConsolidatedMessage{task})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !handled {
+			t.Fatal("expected handled=true")
+		}
+		if len(mockStore.ReleasedIDs) != 1 || mockStore.ReleasedIDs[0] != 13 {
+			t.Errorf("expected task 13 updated via HandleTaskState, got ReleasedIDs=%v", mockStore.ReleasedIDs)
+		}
+	})
+
+	t.Run("NONE is a no-op", func(t *testing.T) {
+		mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "NONE"}}}
+		mockStore := &MockStore{}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		task := store.ConsolidatedMessage{ID: 14, Task: "Some unrelated task"}
+		msg := store.ConsolidatedMessage{UserEmail: "u@x", Requester: "Counterparty", OriginalText: "sure, no problem"}
+
+		handled, err := svc.EvaluateThreadReply(ctx, msg, []store.ConsolidatedMessage{task})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if handled {
+			t.Error("expected handled=false for NONE")
+		}
+		if len(mockStore.CapturedIDs) != 0 || len(mockStore.ReleasedIDs) != 0 || len(mockStore.Candidates) != 0 {
+			t.Error("expected no store mutation for NONE")
+		}
+	})
+
+	t.Run("dismissed candidate source is not re-recorded", func(t *testing.T) {
+		mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "RESOLVE"}}}
+		mockStore := &MockStore{}
+		svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+		dismissedMeta := []byte(`{"completion_dismissed_source":"slack:C1:1"}`)
+		task := store.ConsolidatedMessage{ID: 15, Task: "Deploy the billing service", Assignee: "Other", Metadata: dismissedMeta}
+		msg := store.ConsolidatedMessage{UserEmail: "u@x", Requester: "Counterparty", OriginalText: "already done", Link: "slack:C1:1"}
+
+		handled, err := svc.EvaluateThreadReply(ctx, msg, []store.ConsolidatedMessage{task})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if handled {
+			t.Error("expected handled=false: dismissed candidate must not be re-recorded")
+		}
+		if _, ok := mockStore.Candidates[15]; ok {
+			t.Error("expected no candidate recorded for a dismissed source")
+		}
+	})
+}
+
 func TestDefaultTaskStore_UpdateMessageCategory(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {

@@ -65,7 +65,7 @@ func TestProcessColdReconciliationGroup_UnresolvedTouchesCursorOnly(t *testing.T
 
 	sc := channels.NewSlackClient("fake-token")
 	group := []store.SlackThreadMeta{{ChannelID: "C1", ThreadTS: "100.000000", UserEmail: "cold@example.com"}}
-	processColdReconciliationGroup(ctx, sc, group, "BOT", map[string]slackThreadIdentity{}, &sync.WaitGroup{})
+	processColdReconciliationGroup(ctx, sc, group, "BOT", map[string]slackThreadIdentity{}, &sync.WaitGroup{}, nil)
 
 	var status, lastReplyTS string
 	row := store.GetDB().QueryRowContext(ctx, `SELECT status, last_reply_ts FROM slack_threads WHERE channel_id = ? AND thread_ts = ?`, "C1", "100.000000")
@@ -100,7 +100,7 @@ func TestProcessColdReconciliationGroup_ResolvedClosesThread(t *testing.T) {
 
 	sc := channels.NewSlackClient("fake-token")
 	group := []store.SlackThreadMeta{{ChannelID: "C2", ThreadTS: "300.000000", UserEmail: "cold2@example.com"}}
-	processColdReconciliationGroup(ctx, sc, group, "BOT", map[string]slackThreadIdentity{}, &sync.WaitGroup{})
+	processColdReconciliationGroup(ctx, sc, group, "BOT", map[string]slackThreadIdentity{}, &sync.WaitGroup{}, nil)
 
 	var status string
 	row := store.GetDB().QueryRowContext(ctx, `SELECT status FROM slack_threads WHERE channel_id = ? AND thread_ts = ?`, "C2", "300.000000")

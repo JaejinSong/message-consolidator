@@ -180,6 +180,41 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 	return s.applyTransition(ctx, res, msg, tasks), nil
 }
 
+// EvaluateThreadReply evaluates a same-thread reply from someone other than the task's
+// own user against every open task in that thread, without the ProcessCrossChannelSignal
+// keyword gate. Why: production evidence showed real completions are almost always a
+// plain ack or answer inside the task's own thread ("Got it.", "Correct."), which never
+// reached AI because the keyword gate only lets explicit completion wording through.
+// RESOLVE from the task's own assignee hard-closes (same trust as a fromMe reply);
+// RESOLVE from anyone else is recorded as a confirm-first candidate. UPDATE applies
+// directly to the evaluated task; NONE is a no-op.
+func (s *CompletionService) EvaluateThreadReply(ctx context.Context, msg store.ConsolidatedMessage, tasks []store.ConsolidatedMessage) (bool, error) {
+	handled := false
+	for _, task := range tasks {
+		res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, task.Task, msg.OriginalText, task.Subtasks)
+		if err != nil {
+			return handled, fmt.Errorf("thread reply transition failed: %w", err)
+		}
+		switch res.Status {
+		case "RESOLVE":
+			if senderIsAssignee(msg.Requester, task.Assignee) {
+				if s.handleCompletionResult(ctx, res, msg, task) {
+					handled = true
+				}
+				continue
+			}
+			if s.recordCompletionCandidate(ctx, msg, task) {
+				handled = true
+			}
+		case "UPDATE":
+			if s.handleCompletionResult(ctx, res, msg, task) {
+				handled = true
+			}
+		}
+	}
+	return handled, nil
+}
+
 // evaluatePerTask calls EvaluateTaskTransition individually for each task so that
 // substantive fromMe multi-task replies can resolve some tasks while leaving others open.
 func (s *CompletionService) evaluatePerTask(ctx context.Context, msg store.ConsolidatedMessage, tasks []store.ConsolidatedMessage) (bool, error) {
