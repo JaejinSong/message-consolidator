@@ -277,8 +277,8 @@ func matchResults(expected, actual []store.TodoItem) (pass bool, notes []string)
 		normalizeAssignee(&exp, &act)
 		if !compareMetadata(exp, act) {
 			pass = false
-			notes = append(notes, fmt.Sprintf("[%d] metadata: exp{req=%q cat=%q ts=%q} got{req=%q cat=%q ts=%q}",
-				i, exp.Requester, exp.Category, exp.SourceTS, act.Requester, act.Category, act.SourceTS))
+			notes = append(notes, fmt.Sprintf("[%d] metadata: exp{req=%q cat=%q ts=%q asn=%q} got{req=%q cat=%q ts=%q asn=%q}",
+				i, exp.Requester, exp.Category, exp.SourceTS, exp.Assignee, act.Requester, act.Category, act.SourceTS, act.Assignee))
 		}
 		if !verifyTaskContent(exp, act) {
 			pass = false
@@ -371,7 +371,12 @@ func compareMetadata(exp, act store.TodoItem) bool {
 	// an empty exp.State must not force a comparison against them.
 	stateMatch := exp.State == "" || strings.EqualFold(exp.State, act.State)
 
-	return reqMatch && catMatch && tsMatch && stateMatch
+	// Why: assignee is opt-in — normalizeAssignee already ran on both sides (case-insensitive,
+	// current-user aliases collapsed), so goldens without an assignee stay unaffected while
+	// named-assignee cases (e.g. directed asks vs. FYI mentions) now get asserted.
+	assigneeMatch := exp.Assignee == "" || strings.EqualFold(exp.Assignee, act.Assignee)
+
+	return reqMatch && catMatch && tsMatch && stateMatch && assigneeMatch
 }
 
 func verifyTaskContent(exp, act store.TodoItem) bool {
