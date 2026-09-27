@@ -31,7 +31,7 @@ import {
     updateMessageCard
 } from './renderer';
 import { bindTelegramModal } from './renderers/telegram-modal-renderer';
-import { setupConnectionsTab, renderConnections, rerenderConnections, ConnectionsState } from './renderers/connections-renderer';
+import { setupConnectionsTab, renderConnections, rerenderConnections, handleSlackAuthRedirect, ConnectionsState } from './renderers/connections-renderer';
 import { renderAdminPanel } from './renderers/admin-renderer';
 import { initTaskAddPanel } from './renderers/task-add-renderer';
 import { initLearningTab } from './renderers/learning-renderer';
@@ -370,7 +370,14 @@ const checkAllStatus = safeAsync(async (bypassVisibility: boolean = false) => {
             api.fetchSlackStatus().then(d => {
                 const connected = isStatusConnected(d.status);
                 updateSlackStatus(connected, { stale: d.stale === true, lastScanAt: d.last_scan_at });
-                snapshot.slack = { connected, slackId: d.slack_id, stale: d.stale === true, lastScanAt: d.last_scan_at };
+                snapshot.slack = {
+                    connected,
+                    slackId: d.slack_id,
+                    stale: d.stale === true,
+                    lastScanAt: d.last_scan_at,
+                    userToken: d.user_token,
+                    userTokenSlackId: d.user_token_slack_id,
+                };
             }),
             api.fetchWhatsAppStatus().then(d => {
                 if (!d) return;
@@ -772,6 +779,7 @@ const initApp = () => {
     }
 
     renderUILanguage(state.currentLang);
+    handleSlackAuthRedirect();
     initTheme();
     initLanguageSelector();
 

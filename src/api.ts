@@ -1,4 +1,4 @@
-import { apiFetch } from './utils/http';
+import { apiFetch, BASE_URL } from './utils/http';
 import { state, upsertReport } from './state';
 import { normalizeReportData } from './logic';
 import { isStatusConnected } from './utils';
@@ -213,8 +213,43 @@ export const api = {
         return apiFetch('/whatsapp/status', { errorMessage: 'WA status check failed' });
     },
 
-    async fetchSlackStatus(): Promise<{ status: string; slack_id?: string; last_scan_at?: number; stale?: boolean }> {
-        return apiFetch('/slack/status', { errorMessage: 'Slack status check failed' });
+    async fetchSlackStatus(): Promise<{
+        status: string;
+        slack_id?: string;
+        last_scan_at?: number;
+        stale?: boolean;
+        user_token: boolean;
+        user_token_slack_id: string;
+    }> {
+        const raw = await apiFetch<{
+            status: string;
+            slack_id?: string;
+            last_scan_at?: number;
+            stale?: boolean;
+            user_token?: unknown;
+            user_token_slack_id?: unknown;
+        }>('/slack/status', { errorMessage: 'Slack status check failed' });
+        return {
+            ...raw,
+            user_token: typeof raw.user_token === 'boolean' ? raw.user_token : false,
+            user_token_slack_id: typeof raw.user_token_slack_id === 'string' ? raw.user_token_slack_id : '',
+        };
+    },
+
+    async disconnectSlack(): Promise<ApiStatusResponse> {
+        return apiFetch('/slack/disconnect', {
+            method: 'POST',
+            errorMessage: 'Slack disconnect failed'
+        });
+    },
+
+    /**
+     * Initiates the Slack user OAuth flow by redirecting the browser.
+     * Fetch API must NOT be used here — mirrors authService.connectGmail.
+     */
+    connectSlack(): void {
+        const url = BASE_URL.startsWith('http') ? new URL(BASE_URL) : { origin: window.location.origin };
+        window.location.href = `${url.origin}/auth/slack/connect`;
     },
 
     async triggerScan(lang: string): Promise<ApiStatusResponse> {

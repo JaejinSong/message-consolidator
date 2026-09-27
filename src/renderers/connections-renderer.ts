@@ -18,7 +18,7 @@ export interface ConnectionsState {
     gmail: { connected: boolean; email?: string; stale?: boolean; lastScanAt?: number };
     whatsapp: { connected: boolean; deviceName?: string };
     telegram: { status: string; hasCredentials?: boolean; phoneMasked?: string; appIdMasked?: string };
-    slack: { connected: boolean; slackId?: string; stale?: boolean; lastScanAt?: number };
+    slack: { connected: boolean; slackId?: string; stale?: boolean; lastScanAt?: number; userToken?: boolean; userTokenSlackId?: string };
     line: { connected: boolean };
 }
 
@@ -268,14 +268,21 @@ function renderSlack(s: ConnectionsState['slack'], lang: string): void {
         ? `${t('slackLastScanAt', lang)}: ${new Date(s.lastScanAt * 1000).toLocaleString()}`
         : null;
 
-    if (s.slackId) {
-        setMeta(card, [{ key: t('connSlackIdLabel', lang), value: s.slackId }]);
-        setNotice(card, staleNotice || t('connSlackReadOnlyNotice', lang));
-    } else {
-        setMeta(card, []);
-        setNotice(card, staleNotice || (s.connected ? t('connNoMappingNotice', lang) : t('connSlackReadOnlyNotice', lang)));
+    if (s.userToken) {
+        setMeta(card, [{ key: t('connSlackAccountLabel', lang), value: s.userTokenSlackId || t('connEmptyValue', lang) }]);
+        setNotice(card, staleNotice);
+        setActions(card, [
+            { id: 'slack-reauth', labelKey: 'connReauthBtn', variant: 'ghost' },
+            { id: 'slack-disconnect', labelKey: 'connDisconnectBtn', variant: 'ghost' },
+        ], lang);
+        return;
     }
-    setActions(card, [], lang);
+
+    setMeta(card, []);
+    setNotice(card, staleNotice || t('connSlackConnectNotice', lang));
+    setActions(card, [
+        { id: 'slack-connect', labelKey: 'connSlackConnectBtn', variant: 'primary' },
+    ], lang);
 }
 
 function renderLINE(s: ConnectionsState['line'], lang: string): void {
@@ -346,5 +353,48 @@ async function handleAction(action: string): Promise<void> {
             try { await api.logoutTelegram(); } catch (e) { showToast(String(e), 'error'); }
             return;
         }
+        case 'slack-connect':
+        case 'slack-reauth':
+            api.connectSlack();
+            return;
+        case 'slack-disconnect': {
+            try {
+                await api.disconnectSlack();
+                showToast(t('connSlackDisconnectedToast', state.currentLang || 'en'), 'success');
+            } catch (e) {
+                showToast(String(e), 'error');
+            }
+            return;
+        }
     }
+}
+
+/**
+ * Handles the `?slack=connected|denied|mismatch` redirect from the Slack OAuth callback:
+ * shows a toast and strips the param so a refresh doesn't re-fire it.
+ */
+export function handleSlackAuthRedirect(): void {
+    const params = new URLSearchParams(window.location.search);
+    const slackParam = params.get('slack');
+    if (!slackParam) return;
+
+    const lang = state.currentLang || 'en';
+    switch (slackParam) {
+        case 'connected':
+            showToast(t('slackOAuthConnectedToast', lang), 'success');
+            break;
+        case 'denied':
+            showToast(t('slackOAuthDeniedToast', lang), 'info');
+            break;
+        case 'mismatch':
+            showToast(t('slackOAuthMismatchToast', lang), 'error');
+            break;
+        default:
+            return;
+    }
+
+    params.delete('slack');
+    const query = params.toString();
+    const newUrl = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, '', newUrl);
 }

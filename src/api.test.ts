@@ -204,6 +204,36 @@ describe('api', () => {
             expect(result.stale).toBe(true);
             expect(result.last_scan_at).toBe(1758067200);
         });
+
+        it('parses user_token fields when present', async () => {
+            (fetch as ReturnType<typeof vi.fn>).mockImplementation(() => mockResponse(200, { status: 'connected', user_token: true, user_token_slack_id: 'U123' }));
+            const result = await api.fetchSlackStatus();
+            expect(result.user_token).toBe(true);
+            expect(result.user_token_slack_id).toBe('U123');
+        });
+
+        it('defaults user_token fields to false/empty string when missing or malformed', async () => {
+            (fetch as ReturnType<typeof vi.fn>).mockImplementation(() => mockResponse(200, { status: 'disconnected' }));
+            const result = await api.fetchSlackStatus();
+            expect(result.user_token).toBe(false);
+            expect(result.user_token_slack_id).toBe('');
+        });
+
+        it('defaults user_token fields when the backend sends the wrong type', async () => {
+            (fetch as ReturnType<typeof vi.fn>).mockImplementation(() => mockResponse(200, { status: 'connected', user_token: 'yes', user_token_slack_id: 42 }));
+            const result = await api.fetchSlackStatus();
+            expect(result.user_token).toBe(false);
+            expect(result.user_token_slack_id).toBe('');
+        });
+    });
+
+    describe('disconnectSlack', () => {
+        it('posts to /slack/disconnect', async () => {
+            (fetch as ReturnType<typeof vi.fn>).mockImplementation(() => mockResponse(200, { status: 'disconnected' }));
+            const result = await api.disconnectSlack();
+            expect(fetch).toHaveBeenCalledWith('/api/slack/disconnect', expect.objectContaining({ method: 'POST' }));
+            expect(result.status).toBe('disconnected');
+        });
     });
 
     describe('fetchGmailStatus', () => {
