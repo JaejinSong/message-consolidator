@@ -255,7 +255,10 @@ func TestGatherTokenUsageStats(t *testing.T) {
 
 	email := "tokentest@example.com"
 
-	got := GatherTokenUsageStats(context.Background(), email, "")
+	got, err := GatherTokenUsageStats(context.Background(), email, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got.TodayPrompt != 0 || got.TodayCompletion != 0 || got.TodayFiltered != 0 ||
 		got.TodayTotal != 0 || got.MonthlyPrompt != 0 || got.MonthlyCompletion != 0 ||
 		got.MonthlyFiltered != 0 || got.MonthlyTotal != 0 {
@@ -300,7 +303,10 @@ func TestGatherTokenUsageStatsByProvider(t *testing.T) {
 		t.Fatalf("seed gemini: %v", err)
 	}
 
-	got := GatherTokenUsageStats(context.Background(), email, "")
+	got, err := GatherTokenUsageStats(context.Background(), email, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if len(got.MonthlyByProvider) != 2 {
 		t.Fatalf("expected 2 providers, got %d: %+v", len(got.MonthlyByProvider), got.MonthlyByProvider)

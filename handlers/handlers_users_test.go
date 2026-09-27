@@ -125,6 +125,32 @@ func TestHandleGetTokenUsage(t *testing.T) {
 	}
 }
 
+// TestHandleGetTokenUsage_LookupFailureReturns500 covers the fix for the swallowed-error bug:
+// the dedicated cost dashboard endpoint must surface a token-usage lookup failure as a 500,
+// not silently render a 200 with zero-value costs.
+func TestHandleGetTokenUsage_LookupFailureReturns500(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	email := "tokenusagefail@example.com"
+	_, _ = store.GetOrCreateUser(context.Background(), email, "", "")
+
+	// Why: closing the DB connection forces every token-usage lookup to fail deterministically.
+	_ = store.GetDB().Close()
+
+	api := &API{Config: &config.Config{SlackToken: ""}}
+	req := NewMockRequest("GET", "/api/token-usage", email)
+	rr := httptest.NewRecorder()
+	api.HandleGetTokenUsage(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rr.Code)
+	}
+}
+
 func TestHandleGetUserAliases(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {

@@ -27,7 +27,14 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	user.StaleThresholdWorkingDays = store.GetStaleThresholdWorkingDays()
 
 	a.autoPopulateSlackAliases(r.Context(), user)
-	tokenUsage := services.GatherTokenUsageStats(r.Context(), email, a.Config.AIProvider)
+	// Why: token usage is supplementary to the primary profile payload here (unlike the
+	// dedicated /token-usage dashboard endpoint below), consistent with autoPopulateSlackAliases
+	// above also degrading gracefully on failure — log and fall back to a best-effort response
+	// instead of failing the whole /api/user request over a cost-dashboard lookup.
+	tokenUsage, tokenUsageErr := services.GatherTokenUsageStats(r.Context(), email, a.Config.AIProvider)
+	if tokenUsageErr != nil {
+		logger.Errorf("[USER] token usage lookup failed for %s: %v", email, tokenUsageErr)
+	}
 
 	// Why: super admin is hardcoded so it stays admin even if its DB row predates the is_admin column.
 	isSuper := store.IsSuperAdmin(email)
@@ -156,9 +163,16 @@ func (a *API) HandleDeleteTenantAlias(w http.ResponseWriter, r *http.Request) {
 	a.HandleDeleteMapping(w, r)
 }
 
+// HandleGetTokenUsage is the dedicated cost dashboard endpoint, so a lookup failure here must
+// not render as a silent zero: surface it as a 500 via the same handleAPIError pattern every
+// other handler in this file uses.
 func (a *API) HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	tokenUsage := services.GatherTokenUsageStats(r.Context(), email, a.Config.AIProvider)
+	tokenUsage, err := services.GatherTokenUsageStats(r.Context(), email, a.Config.AIProvider)
+	if err != nil {
+		handleAPIError(w, r, err, "[USER]", "Failed to fetch token usage")
+		return
+	}
 	respondJSON(w, http.StatusOK, tokenUsage)
 }
 

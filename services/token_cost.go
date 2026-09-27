@@ -2,6 +2,9 @@ package services
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"message-consolidator/logger"
 	"message-consolidator/store"
 	"strings"
 )
@@ -199,19 +202,33 @@ func CacheHitRate(models []store.ModelTokenUsage) (rate float64, totalCached, el
 // GatherTokenUsageStats includes daily and monthly AI token usage for cost transparency.
 // Token counts come from the aggregate daily/monthly queries; cost is priced per-model (aiRates)
 // so a Gemini->DeepSeek mixed history is billed at each row's own rate.
-func GatherTokenUsageStats(ctx context.Context, email, aiProvider string) TokenUsageResponse {
-	todayPrompt, todayCompletion, todayThinking, todayFiltered, _ := store.GetDailyTokenUsage(ctx, email)
-	monthPrompt, monthCompletion, monthThinking, monthFiltered, _ := store.GetMonthlyTokenUsage(ctx, email)
-
-	dailyModels, _ := store.GetDailyTokenUsageByModel(ctx, email)
-	monthlyModels, _ := store.GetMonthlyTokenUsageByModel(ctx, email)
+// Why: each of the four underlying lookups is logged individually with the failing email so a
+// dashboard showing zero can be traced back to the specific query that failed, instead of
+// silently looking like a user with no usage. Every failure is joined into the returned error
+// so the caller decides whether to fail the request or fall back to the (partial) response.
+func GatherTokenUsageStats(ctx context.Context, email, aiProvider string) (TokenUsageResponse, error) {
+	todayPrompt, todayCompletion, todayThinking, todayFiltered, todayErr := store.GetDailyTokenUsage(ctx, email)
+	if todayErr != nil {
+		logger.Errorf("[TOKEN_COST] daily token usage lookup failed for %s: %v", email, todayErr)
+	}
+	monthPrompt, monthCompletion, monthThinking, monthFiltered, monthErr := store.GetMonthlyTokenUsage(ctx, email)
+	if monthErr != nil {
+		logger.Errorf("[TOKEN_COST] monthly token usage lookup failed for %s: %v", email, monthErr)
+	}
+	dailyModels, dailyModelsErr := store.GetDailyTokenUsageByModel(ctx, email)
+	if dailyModelsErr != nil {
+		logger.Errorf("[TOKEN_COST] daily token usage by model lookup failed for %s: %v", email, dailyModelsErr)
+	}
+	monthlyModels, monthlyModelsErr := store.GetMonthlyTokenUsageByModel(ctx, email)
+	if monthlyModelsErr != nil {
+		logger.Errorf("[TOKEN_COST] monthly token usage by model lookup failed for %s: %v", email, monthlyModelsErr)
+	}
 
 	dayCostIn, dayCostOut, dayCostThink := CostByModel(dailyModels)
 	monthCostIn, monthCostOut, monthCostThink := CostByModel(monthlyModels)
-
 	monthCacheHitRate, monthCached, _ := CacheHitRate(monthlyModels)
 
-	return TokenUsageResponse{
+	resp := TokenUsageResponse{
 		TodayPrompt:         todayPrompt,
 		TodayCompletion:     todayCompletion,
 		TodayThinking:       todayThinking,
@@ -232,4 +249,9 @@ func GatherTokenUsageStats(ctx context.Context, email, aiProvider string) TokenU
 		MonthlyByProvider:   CostsByProvider(monthlyModels),
 		Model:               ProviderDisplayName(aiProvider),
 	}
+
+	if err := errors.Join(todayErr, monthErr, dailyModelsErr, monthlyModelsErr); err != nil {
+		return resp, fmt.Errorf("gather token usage stats for %s: %w", email, err)
+	}
+	return resp, nil
 }
