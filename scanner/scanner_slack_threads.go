@@ -528,15 +528,51 @@ func updateThreadStatusGroup(ctx context.Context, sc *channels.SlackClient, grou
 			logger.Warnf("[SLACK] updateThreadStatus: empty ThreadTS channel=%s, skipping PostMessage", rep.ChannelID)
 		} else {
 			msg := "This issue has been marked as resolved and monitoring is closed."
-			_, _, _ = sc.GetAPI().PostMessage(rep.ChannelID, slack.MsgOptionText(msg, false), slack.MsgOptionTS(rep.ThreadTS))
+			if _, _, err := sc.GetAPI().PostMessage(rep.ChannelID, slack.MsgOptionText(msg, false), slack.MsgOptionTS(rep.ThreadTS)); err != nil {
+				logger.Warnf("[SLACK] updateThreadStatus: PostMessage failed channel=%s thread=%s: %v", rep.ChannelID, rep.ThreadTS, err)
+			}
 		}
 		for _, s := range group {
+			proposeThreadCheckCompletion(ctx, s)
 			_ = store.CloseTargetedThread(ctx, s.ChannelID, s.ThreadTS, s.UserEmail)
 		}
 		return
 	}
 	for _, s := range group {
 		updateThreadStatus(ctx, sc, s, res)
+	}
+}
+
+// proposeThreadCheckCompletion records a confirm-first completion candidate for every
+// still-open task in this thread when the thread's ✅ reaction closes tracking. Why: the
+// channel gets told "resolved and monitoring is closed" but the task list does not move
+// on its own — this surfaces a one-tap confirmation instead of the task silently going
+// stale while the thread is no longer watched.
+func proposeThreadCheckCompletion(ctx context.Context, t store.SlackThreadMeta) {
+	if t.ThreadTS == "" {
+		return
+	}
+	conn := store.GetDB()
+	tasks, err := store.GetIncompleteByThreadID(ctx, conn, t.UserEmail, t.ThreadTS)
+	if err != nil {
+		logger.Warnf("[SLACK] proposeThreadCheckCompletion: lookup failed thread=%s user=%s: %v", t.ThreadTS, t.UserEmail, err)
+		return
+	}
+	sourceKey := fmt.Sprintf("slack-check:%s:%s", t.ChannelID, t.ThreadTS)
+	for _, task := range tasks {
+		if store.WasCandidateDismissed(string(task.Metadata), sourceKey) {
+			continue
+		}
+		cand := store.CompletionCandidate{
+			SourceLink: sourceKey,
+			SourceText: "✅",
+			Evidence:   "✅ reaction on the thread",
+			DetectedAt: time.Now().UTC().Format(time.RFC3339),
+			Status:     "pending",
+		}
+		if err := store.AddCompletionCandidate(ctx, conn, t.UserEmail, task.ID, cand); err != nil {
+			logger.Warnf("[SLACK] proposeThreadCheckCompletion: record candidate failed task=%d: %v", task.ID, err)
+		}
 	}
 }
 
