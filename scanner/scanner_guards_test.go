@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -216,6 +217,84 @@ func TestTriggerAsyncTranslation_NilTasksSvc(t *testing.T) {
 	wg := &sync.WaitGroup{}
 	triggerAsyncTranslation(context.Background(), "u@x", []store.MessageID{1, 2, 3}, wg)
 	wg.Wait()
+}
+
+// Group E: resolveScanUser + claimInFlight guards (B5/B4 regression coverage)
+
+func TestResolveScanUser_ErrorSkipsWithoutPanic(t *testing.T) {
+	lookup := func(_ context.Context, _, _, _ string) (*store.User, error) {
+		return nil, fmt.Errorf("lookup failed")
+	}
+
+	user, ok := resolveScanUser(context.Background(), "broken@example.com", lookup)
+	if ok || user != nil {
+		t.Fatal("resolveScanUser must return (nil, false) when lookup errors")
+	}
+}
+
+func TestResolveScanUser_NilUserSkipsWithoutPanic(t *testing.T) {
+	lookup := func(_ context.Context, _, _, _ string) (*store.User, error) {
+		return nil, nil
+	}
+
+	user, ok := resolveScanUser(context.Background(), "nil-user@example.com", lookup)
+	if ok || user != nil {
+		t.Fatal("resolveScanUser must return (nil, false) when lookup returns a nil user")
+	}
+}
+
+func TestResolveScanUser_SuccessReturnsUser(t *testing.T) {
+	want := &store.User{Email: "ok@example.com"}
+	lookup := func(_ context.Context, _, _, _ string) (*store.User, error) {
+		return want, nil
+	}
+
+	user, ok := resolveScanUser(context.Background(), "ok@example.com", lookup)
+	if !ok || user != want {
+		t.Fatal("resolveScanUser must return the resolved user on success")
+	}
+}
+
+func TestClaimInFlight_ReleaseLeavesNoLeftoverKeys(t *testing.T) {
+	email := "claim-test@example.com"
+	ids := []store.MessageID{101, 102}
+
+	claimed, release := claimInFlight(email, ids)
+	if len(claimed) != len(ids) {
+		t.Fatalf("expected all %d ids claimed, got %d", len(ids), len(claimed))
+	}
+	release()
+
+	for _, id := range ids {
+		key := fmt.Sprintf("gmail-%s-%d", email, id)
+		if _, ok := inFlightMessages.Load(key); ok {
+			t.Errorf("key %s must be released, leaked in inFlightMessages", key)
+		}
+	}
+}
+
+func TestClaimInFlight_SameIDDispatchableAgainAfterRelease(t *testing.T) {
+	email := "claim-repeat@example.com"
+	ids := []store.MessageID{201}
+
+	claimed1, release1 := claimInFlight(email, ids)
+	if len(claimed1) != 1 {
+		t.Fatalf("first dispatch should claim id, got %d claimed", len(claimed1))
+	}
+
+	// Why: a concurrent overlapping scan for the same id must be skipped while claimed.
+	claimedConcurrent, releaseConcurrent := claimInFlight(email, ids)
+	if len(claimedConcurrent) != 0 {
+		t.Fatalf("concurrent dispatch of an already-claimed id must be skipped, got %d claimed", len(claimedConcurrent))
+	}
+	releaseConcurrent()
+	release1()
+
+	claimed2, release2 := claimInFlight(email, ids)
+	if len(claimed2) != 1 {
+		t.Fatalf("id must be dispatchable again after release, got %d claimed", len(claimed2))
+	}
+	release2()
 }
 
 func TestTriggerAsyncTranslation_EmptyIDs(t *testing.T) {

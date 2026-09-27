@@ -219,46 +219,80 @@ func scanUserChannels(ctx context.Context, email string, effAl []string, wg *syn
 		})
 	}
 
+	// Why: resolve once for both goroutines below — a failed lookup must not deref
+	// a nil *User inside an errgroup goroutine (no safego.Recover crosses goroutines).
+	user, ok := resolveScanUser(ctx, email, store.GetOrCreateUser)
+	if !ok {
+		logger.Warnf("[SCAN] skipping WhatsApp/Telegram for %s: user lookup failed", email)
+		return eg.Wait()
+	}
+
 	eg.Go(func() error {
-		user, _ := store.GetOrCreateUser(ctx, email, "", "")
 		scanWhatsApp(ctx, *user, effAl, "Korean", wg)
 		return nil
 	})
 
 	eg.Go(func() error {
-		user, _ := store.GetOrCreateUser(ctx, email, "", "")
 		scanTelegram(ctx, *user, effAl, "Korean", wg)
 		return nil
 	})
 	return eg.Wait()
 }
 
+// resolveScanUser resolves the scanning user via lookup, guarding against a nil
+// result or error so callers can skip per-user work instead of dereferencing nil.
+func resolveScanUser(ctx context.Context, email string, lookup func(context.Context, string, string, string) (*store.User, error)) (*store.User, bool) {
+	user, err := lookup(ctx, email, "", "")
+	if err != nil || user == nil {
+		logger.Warnf("[SCAN] failed to resolve user %s: %v", email, err)
+		return nil, false
+	}
+	return user, true
+}
+
 func performGmailScan(ctx context.Context, email string, wg *sync.WaitGroup) error {
+	// Why: onThreadActivity used to call ReleaseInFlight with a "gmail-%s-%s"
+	// SourceTS key, but the dedupe map below is keyed "gmail-%s-%d" by MessageID —
+	// the two never matched, so this call had no effect. Removed rather than fixed
+	// because dedupe lifetime is now scoped to this call (see claimInFlight below).
 	onThreadActivity := func(msg store.ConsolidatedMessage) bool {
-		if deps.completionSvc != nil {
-			idStr := fmt.Sprintf("gmail-%s-%s", msg.UserEmail, msg.SourceTS)
-			handled, _ := deps.completionSvc.ProcessPotentialCompletion(ctx, msg)
-			if handled {
-				ReleaseInFlight(idStr)
-			}
-			return handled
+		if deps.completionSvc == nil {
+			return false
 		}
-		return false
+		handled, _ := deps.completionSvc.ProcessPotentialCompletion(ctx, msg)
+		return handled
 	}
 	ids := channels.ScanGmail(ctx, email, "Korean", cfg, deps.gClient, deps.filterSvc, onThreadActivity)
 
-	var filteredIDs []store.MessageID
+	// Why: previously these keys were never released (mismatched ReleaseInFlight key
+	// format), leaking unbounded map entries and permanently skipping any repeated
+	// MessageID. Scope the claim to this dispatch only, releasing right after
+	// triggerAsyncTranslation is invoked so overlapping scans still dedupe.
+	filteredIDs, release := claimInFlight(email, ids)
+	defer release()
+
+	triggerAsyncTranslation(ctx, email, filteredIDs, wg)
+	return nil
+}
+
+// claimInFlight atomically reserves the given gmail message IDs for this dispatch,
+// skipping any already claimed by a concurrent scan. The returned release func
+// must be called once the caller is done dispatching, to avoid leaking entries.
+func claimInFlight(email string, ids []store.MessageID) (claimed []store.MessageID, release func()) {
 	for _, id := range ids {
 		idStr := fmt.Sprintf("gmail-%s-%d", email, id)
 		if _, loaded := inFlightMessages.LoadOrStore(idStr, true); loaded {
 			logger.Debugf("[SCAN] gmail: message %s already in-flight, skipping.", idStr)
 			continue
 		}
-		filteredIDs = append(filteredIDs, id)
+		claimed = append(claimed, id)
 	}
-
-	triggerAsyncTranslation(ctx, email, filteredIDs, wg)
-	return nil
+	release = func() {
+		for _, id := range claimed {
+			inFlightMessages.Delete(fmt.Sprintf("gmail-%s-%d", email, id))
+		}
+	}
+	return claimed, release
 }
 
 func ReleaseInFlight(id string) {
