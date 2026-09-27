@@ -239,154 +239,121 @@ func getInMemoryUsage(email string) (int, int, int, int) {
 	return p, c, t, f
 }
 
-func GetDailyTokenUsage(ctx context.Context, email string) (int, int, int, int, error) {
-	today := time.Now().Format("2006-01-02")
+// currentMonthBoundary returns [firstDay, nextMonthFirstDay) for the current month, computed
+// via time.Date/AddDate to avoid day-count overflow issues (e.g. the 31st).
+func currentMonthBoundary() (firstDay, nextMonthFirstDay string) {
+	now := time.Now()
+	firstOfThisMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	return firstOfThisMonth.Format("2006-01-02"), firstOfThisMonth.AddDate(0, 1, 0).Format("2006-01-02")
+}
 
+// periodTokenUsage answers a period aggregate (daily or monthly) from the hot cache when it
+// already matches periodValue, otherwise runs fetchDB, folds in un-flushed in-memory buckets,
+// and refreshes the cache via getCache/setCache — the accessors keep the daily and monthly
+// cache fields on tokenUsageCacheData separate.
+func periodTokenUsage(
+	ctx context.Context,
+	email, periodValue string,
+	getCache func(c *tokenUsageCacheData) (period string, prompt, completion, thinking, filtered int),
+	setCache func(c *tokenUsageCacheData, period string, prompt, completion, thinking, filtered int),
+	fetchDB func(ctx context.Context) (prompt, completion, thinking, filtered int, err error),
+) (int, int, int, int, error) {
 	usageCacheMu.RLock()
-	if cache, exists := usageCache[email]; exists && cache.Date == today {
-		dp, dc, dt, df := cache.DailyPrompt, cache.DailyCompletion, cache.DailyThinking, cache.DailyFiltered
-		usageCacheMu.RUnlock()
-		return dp, dc, dt, df, nil
+	if cache, exists := usageCache[email]; exists {
+		if period, p, c, t, f := getCache(cache); period == periodValue {
+			usageCacheMu.RUnlock()
+			return p, c, t, f, nil
+		}
 	}
 	usageCacheMu.RUnlock()
 
-	conn := GetDB()
-	queries := db.New(conn)
-	parsedDate, _ := time.Parse("2006-01-02", today)
-	row, err := queries.GetDailyTokenUsage(ctx, db.GetDailyTokenUsageParams{
-		UserEmail: email,
-		Date:      parsedDate,
-	})
-
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	prompt, completion, thinking, filtered, err := fetchDB(ctx)
+	if err != nil {
 		return 0, 0, 0, 0, err
-	}
-
-	// any 사유: sqlc COALESCE(SUM(...))는 driver별로 float64 또는 int64로 반환 — 양쪽 모두 normalize.
-	prompt := 0
-	if val, ok := row.Coalesce.(int64); ok {
-		prompt = int(val)
-	} else if val, ok := row.Coalesce.(float64); ok {
-		prompt = int(val)
-	}
-
-	completion := 0
-	if val, ok := row.Coalesce_2.(int64); ok {
-		completion = int(val)
-	} else if val, ok := row.Coalesce_2.(float64); ok {
-		completion = int(val)
-	}
-
-	thinking := 0
-	if val, ok := row.Coalesce_3.(int64); ok {
-		thinking = int(val)
-	} else if val, ok := row.Coalesce_3.(float64); ok {
-		thinking = int(val)
-	}
-
-	filteredCount := 0
-	if val, ok := row.Coalesce_4.(int64); ok {
-		filteredCount = int(val)
-	} else if val, ok := row.Coalesce_4.(float64); ok {
-		filteredCount = int(val)
 	}
 
 	ip, ic, it, ifl := getInMemoryUsage(email)
 	prompt += ip
 	completion += ic
 	thinking += it
-	filteredCount += ifl
+	filtered += ifl
 
 	usageCacheMu.Lock()
 	if usageCache[email] == nil {
 		usageCache[email] = &tokenUsageCacheData{}
 	}
-	usageCache[email].Date = today
-	usageCache[email].DailyPrompt = prompt
-	usageCache[email].DailyCompletion = completion
-	usageCache[email].DailyThinking = thinking
-	usageCache[email].DailyFiltered = filteredCount
+	setCache(usageCache[email], periodValue, prompt, completion, thinking, filtered)
 	usageCacheMu.Unlock()
 
-	return prompt, completion, thinking, filteredCount, nil
+	return prompt, completion, thinking, filtered, nil
+}
+
+func GetDailyTokenUsage(ctx context.Context, email string) (int, int, int, int, error) {
+	today := time.Now().Format("2006-01-02")
+
+	fetchDB := func(ctx context.Context) (int, int, int, int, error) {
+		conn := GetDB()
+		queries := db.New(conn)
+		parsedDate, _ := time.Parse("2006-01-02", today)
+		row, err := queries.GetDailyTokenUsage(ctx, db.GetDailyTokenUsageParams{
+			UserEmail: email,
+			Date:      parsedDate,
+		})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return 0, 0, 0, 0, err
+		}
+		// any 사유: sqlc COALESCE(SUM(...))는 driver별로 float64 또는 int64로 반환 — coalesceInt가 양쪽 모두 normalize.
+		return coalesceInt(row.Coalesce), coalesceInt(row.Coalesce_2), coalesceInt(row.Coalesce_3), coalesceInt(row.Coalesce_4), nil
+	}
+
+	return periodTokenUsage(ctx, email, today,
+		func(c *tokenUsageCacheData) (string, int, int, int, int) {
+			return c.Date, c.DailyPrompt, c.DailyCompletion, c.DailyThinking, c.DailyFiltered
+		},
+		func(c *tokenUsageCacheData, period string, prompt, completion, thinking, filtered int) {
+			c.Date = period
+			c.DailyPrompt = prompt
+			c.DailyCompletion = completion
+			c.DailyThinking = thinking
+			c.DailyFiltered = filtered
+		},
+		fetchDB,
+	)
 }
 
 func GetMonthlyTokenUsage(ctx context.Context, email string) (int, int, int, int, error) {
 	currentMonth := time.Now().Format("2006-01")
 
-	usageCacheMu.RLock()
-	if cache, exists := usageCache[email]; exists && cache.Month == currentMonth {
-		mp, mc, mt, mf := cache.MonthlyPrompt, cache.MonthlyCompletion, cache.MonthlyThinking, cache.MonthlyFiltered
-		usageCacheMu.RUnlock()
-		return mp, mc, mt, mf, nil
-	}
-	usageCacheMu.RUnlock()
-	firstDay := currentMonth + "-01"
-	//Why: Safely calculates the boundary for the next month to avoid date overflow issues that occur on the 31st of certain months.
-	now := time.Now()
-	firstOfThisMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	nextMonthFirstDay := firstOfThisMonth.AddDate(0, 1, 0).Format("2006-01-02")
-
-	conn := GetDB()
-	queries := db.New(conn)
-	pFirstDay, _ := time.Parse("2006-01-02", firstDay)
-	pNextMonth, _ := time.Parse("2006-01-02", nextMonthFirstDay)
-	row, err := queries.GetMonthlyTokenUsage(ctx, db.GetMonthlyTokenUsageParams{
-		UserEmail: email,
-		Date:      pFirstDay,
-		Date_2:    pNextMonth,
-	})
-
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return 0, 0, 0, 0, err
+	fetchDB := func(ctx context.Context) (int, int, int, int, error) {
+		firstDay, nextMonthFirstDay := currentMonthBoundary()
+		conn := GetDB()
+		queries := db.New(conn)
+		pFirstDay, _ := time.Parse("2006-01-02", firstDay)
+		pNextMonth, _ := time.Parse("2006-01-02", nextMonthFirstDay)
+		row, err := queries.GetMonthlyTokenUsage(ctx, db.GetMonthlyTokenUsageParams{
+			UserEmail: email,
+			Date:      pFirstDay,
+			Date_2:    pNextMonth,
+		})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return 0, 0, 0, 0, err
+		}
+		return coalesceInt(row.Coalesce), coalesceInt(row.Coalesce_2), coalesceInt(row.Coalesce_3), coalesceInt(row.Coalesce_4), nil
 	}
 
-	prompt := 0
-	if val, ok := row.Coalesce.(int64); ok {
-		prompt = int(val)
-	} else if val, ok := row.Coalesce.(float64); ok {
-		prompt = int(val)
-	}
-
-	completion := 0
-	if val, ok := row.Coalesce_2.(int64); ok {
-		completion = int(val)
-	} else if val, ok := row.Coalesce_2.(float64); ok {
-		completion = int(val)
-	}
-
-	thinking := 0
-	if val, ok := row.Coalesce_3.(int64); ok {
-		thinking = int(val)
-	} else if val, ok := row.Coalesce_3.(float64); ok {
-		thinking = int(val)
-	}
-
-	filteredCount := 0
-	if val, ok := row.Coalesce_4.(int64); ok {
-		filteredCount = int(val)
-	} else if val, ok := row.Coalesce_4.(float64); ok {
-		filteredCount = int(val)
-	}
-
-	ip, ic, it, ifl := getInMemoryUsage(email)
-	prompt += ip
-	completion += ic
-	thinking += it
-	filteredCount += ifl
-
-	usageCacheMu.Lock()
-	if usageCache[email] == nil {
-		usageCache[email] = &tokenUsageCacheData{}
-	}
-	usageCache[email].Month = currentMonth
-	usageCache[email].MonthlyPrompt = prompt
-	usageCache[email].MonthlyCompletion = completion
-	usageCache[email].MonthlyThinking = thinking
-	usageCache[email].MonthlyFiltered = filteredCount
-	usageCacheMu.Unlock()
-
-	return prompt, completion, thinking, filteredCount, nil
+	return periodTokenUsage(ctx, email, currentMonth,
+		func(c *tokenUsageCacheData) (string, int, int, int, int) {
+			return c.Month, c.MonthlyPrompt, c.MonthlyCompletion, c.MonthlyThinking, c.MonthlyFiltered
+		},
+		func(c *tokenUsageCacheData, period string, prompt, completion, thinking, filtered int) {
+			c.Month = period
+			c.MonthlyPrompt = prompt
+			c.MonthlyCompletion = completion
+			c.MonthlyThinking = thinking
+			c.MonthlyFiltered = filtered
+		},
+		fetchDB,
+	)
 }
 
 // ModelTokenUsage is per-(model, peak-window) token totals over a time window, used by the
@@ -427,10 +394,7 @@ func GetDailyTokenUsageByModel(ctx context.Context, email string) ([]ModelTokenU
 // GetMonthlyTokenUsageByModel returns the current month's token usage grouped by model,
 // merged with un-flushed in-memory buckets (current period only).
 func GetMonthlyTokenUsageByModel(ctx context.Context, email string) ([]ModelTokenUsage, error) {
-	now := time.Now()
-	firstDay := now.Format("2006-01") + "-01"
-	firstOfThisMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	nextMonthFirstDay := firstOfThisMonth.AddDate(0, 1, 0).Format("2006-01-02")
+	firstDay, nextMonthFirstDay := currentMonthBoundary()
 	return tokenUsageByModel(ctx, email, firstDay, nextMonthFirstDay)
 }
 
