@@ -142,25 +142,25 @@ func (s *TasksService) findMatch(room string, item store.TodoItem, active []stor
 	}
 
 	for i := range active {
-		m := &active[i]
-		if m.Room != room || m.Category != item.Category {
-			continue
-		}
-		if isArchivedCandidate(m) {
-			continue
-		}
-		// Why: prevent cross-thread merges in proposal resolution (mirrors isSemanticDup guard).
-		if item.ThreadID != "" && m.ThreadID != "" && item.ThreadID != m.ThreadID {
-			continue
-		}
-
-		// Why: similarity alone scores unrelated-but-prefix-sharing titles too high
-		// (see incident above) -- require topical token overlap too.
-		if store.CalculateSimilarity(item.Task, m.Task) >= 0.85 && titleTokenOverlap(item.Task, m.Task) >= minTopicalOverlap {
-			return m, true
+		if isFuzzyMatch(room, item, &active[i]) {
+			return &active[i], true
 		}
 	}
 	return nil, false
+}
+
+// isFuzzyMatch reports whether an un-anchored proposal matches an open task by title.
+func isFuzzyMatch(room string, item store.TodoItem, m *store.ConsolidatedMessage) bool {
+	if m.Room != room || m.Category != item.Category || isArchivedCandidate(m) {
+		return false
+	}
+	// Why: prevent cross-thread merges in proposal resolution (mirrors isSemanticDup guard).
+	if item.ThreadID != "" && m.ThreadID != "" && item.ThreadID != m.ThreadID {
+		return false
+	}
+	// Why: similarity alone scores unrelated-but-prefix-sharing titles too high
+	// (see findMatch) -- require topical token overlap too.
+	return store.CalculateSimilarity(item.Task, m.Task) >= 0.85 && titleTokenOverlap(item.Task, m.Task) >= minTopicalOverlap
 }
 
 // isArchivedCandidate reports whether a task has been merged away. Why: merging only
