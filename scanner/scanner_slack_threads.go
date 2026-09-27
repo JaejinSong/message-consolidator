@@ -81,6 +81,9 @@ func sweepHotSlackThreads(ctx context.Context, sc *channels.SlackClient, botID s
 
 	for _, group := range groupThreadsByKey(threads) {
 		rep := group[0]
+		if isChannelInaccessible(rep.ChannelID) {
+			continue
+		}
 		if shouldSkipThreadFetch(rep, activity) {
 			continue
 		}
@@ -104,6 +107,10 @@ func sweepColdReconciliationThreads(ctx context.Context, sc *channels.SlackClien
 	}
 	aliasCache := buildSlackAliasCache(ctx, threads)
 	for _, group := range groupThreadsByKey(threads) {
+		rep := group[0]
+		if isChannelInaccessible(rep.ChannelID) {
+			continue
+		}
 		processColdReconciliationGroup(ctx, sc, group, botID, aliasCache, wg)
 	}
 }
@@ -126,6 +133,12 @@ func groupThreadsByChannel(threads []store.SlackThreadMeta) map[string][]store.S
 }
 
 func fetchChannelHistoryActivity(sc *channels.SlackClient, chID string, threads []store.SlackThreadMeta) channelActivity {
+	// Why: skip the call entirely while the channel is in its access-failure backoff
+	// window; retrying every sweep tick against a channel the bot cannot read just
+	// re-triggers the same error and (without this guard) re-logs it every cycle.
+	if isChannelInaccessible(chID) {
+		return channelActivity{}
+	}
 	// Why: oldest=min(thread_ts), inclusive=true → 가장 오래된 추적 thread parent까지 한 호출로
 	// 포착. 7일 timeout이 thread 수명을 제한하므로 페이지네이션 없이 limit=200으로 충분한 케이스가
 	// 대부분이며, 누락된 parent는 호출자가 fallback으로 직접 fetch한다.
@@ -135,17 +148,82 @@ func fetchChannelHistoryActivity(sc *channels.SlackClient, chID string, threads 
 		Inclusive: true,
 		Limit:     200,
 	}
-	var hist *slack.GetConversationHistoryResponse
-	err := channels.WithSlackRetry(3, fmt.Sprintf("history %s", chID), func() error {
-		var e error
-		hist, e = sc.GetAPI().GetConversationHistory(params)
-		return e
-	})
+	hist, err := getConversationHistory(sc, params)
 	if err != nil || hist == nil {
-		logger.Warnf("[SLACK] sweep: history fetch failed for channel %s: %v", chID, err)
+		if reason, ok := classifyAccessError(err); ok {
+			recordChannelInaccessible(chID, reason)
+		} else {
+			logger.Warnf("[SLACK] sweep: history fetch failed for channel %s: %v", chID, err)
+		}
 		return channelActivity{}
 	}
 	return buildChannelActivity(hist.Messages, trackedThreadSet(threads))
+}
+
+// channelBackoffWindow bounds how long a channel identified as inaccessible (bot
+// removed, channel archived/deleted, missing scope) is skipped before retry.
+const channelBackoffWindow = 59 * time.Minute
+
+// slackAccessFailureReasons are the slack-go error strings that indicate the bot can
+// no longer read a channel, as opposed to a transient/unknown failure worth retrying
+// every cycle with a Warn log.
+var slackAccessFailureReasons = []string{"channel_not_found", "not_in_channel", "is_archived", "missing_scope"}
+
+func classifyAccessError(err error) (string, bool) {
+	if err == nil {
+		return "", false
+	}
+	msg := err.Error()
+	for _, reason := range slackAccessFailureReasons {
+		if strings.Contains(msg, reason) {
+			return reason, true
+		}
+	}
+	return "", false
+}
+
+type inaccessibleChannelInfo struct {
+	reason string
+	until  time.Time
+}
+
+var (
+	inaccessibleMu       sync.Mutex
+	inaccessibleChannels = map[string]inaccessibleChannelInfo{}
+)
+
+// recordChannelInaccessible remembers chID as unreachable for channelBackoffWindow and
+// logs exactly one Error line per channel per window (no per-thread spam).
+func recordChannelInaccessible(chID, reason string) {
+	inaccessibleMu.Lock()
+	defer inaccessibleMu.Unlock()
+	if info, ok := inaccessibleChannels[chID]; ok && time.Now().Before(info.until) {
+		return
+	}
+	inaccessibleChannels[chID] = inaccessibleChannelInfo{reason: reason, until: time.Now().Add(channelBackoffWindow)}
+	logger.Errorf("[SLACK] channel %s inaccessible (%s): bot not a member or channel gone - invite the bot to resume", chID, reason)
+}
+
+func isChannelInaccessible(chID string) bool {
+	inaccessibleMu.Lock()
+	defer inaccessibleMu.Unlock()
+	info, ok := inaccessibleChannels[chID]
+	return ok && time.Now().Before(info.until)
+}
+
+// InaccessibleSlackChannels exposes the current channel→reason backoff set for a
+// future status endpoint. Entries past their backoff window are omitted.
+func InaccessibleSlackChannels() map[string]string {
+	inaccessibleMu.Lock()
+	defer inaccessibleMu.Unlock()
+	now := time.Now()
+	out := make(map[string]string, len(inaccessibleChannels))
+	for chID, info := range inaccessibleChannels {
+		if now.Before(info.until) {
+			out[chID] = info.reason
+		}
+	}
+	return out
 }
 
 func trackedThreadSet(threads []store.SlackThreadMeta) map[string]struct{} {
@@ -242,6 +320,20 @@ func groupThreadsByKey(threads []store.SlackThreadMeta) [][]store.SlackThreadMet
 		}
 	}
 	return groups
+}
+
+// getConversationHistory is a seam over the real Slack call so tests can inject fake
+// channel-history responses (and failures) without a network round trip.
+var getConversationHistory = defaultGetConversationHistory
+
+func defaultGetConversationHistory(sc *channels.SlackClient, params *slack.GetConversationHistoryParameters) (*slack.GetConversationHistoryResponse, error) {
+	var hist *slack.GetConversationHistoryResponse
+	err := channels.WithSlackRetry(3, fmt.Sprintf("history %s", params.ChannelID), func() error {
+		var e error
+		hist, e = sc.GetAPI().GetConversationHistory(params)
+		return e
+	})
+	return hist, err
 }
 
 // getConversationReplies is a seam over the real Slack call so tests can inject fake
