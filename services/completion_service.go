@@ -195,24 +195,28 @@ func (s *CompletionService) EvaluateThreadReply(ctx context.Context, msg store.C
 		if err != nil {
 			return handled, fmt.Errorf("thread reply transition failed: %w", err)
 		}
-		switch res.Status {
-		case "RESOLVE":
-			if senderIsAssignee(msg.Requester, task.Assignee) {
-				if s.handleCompletionResult(ctx, res, msg, task) {
-					handled = true
-				}
-				continue
-			}
-			if s.recordCompletionCandidate(ctx, msg, task) {
-				handled = true
-			}
-		case "UPDATE":
-			if s.handleCompletionResult(ctx, res, msg, task) {
-				handled = true
-			}
+		if s.applyThreadReplyOutcome(ctx, res, msg, task) {
+			handled = true
 		}
 	}
 	return handled, nil
+}
+
+// applyThreadReplyOutcome dispatches a single task's transition result within
+// EvaluateThreadReply: RESOLVE from the task's own assignee hard-closes, RESOLVE
+// from anyone else is recorded as a confirm-first candidate, UPDATE applies
+// directly, and any other status is a no-op.
+func (s *CompletionService) applyThreadReplyOutcome(ctx context.Context, res ai.TaskTransition, msg, task store.ConsolidatedMessage) bool {
+	switch res.Status {
+	case "RESOLVE":
+		if senderIsAssignee(msg.Requester, task.Assignee) {
+			return s.handleCompletionResult(ctx, res, msg, task)
+		}
+		return s.recordCompletionCandidate(ctx, msg, task)
+	case "UPDATE":
+		return s.handleCompletionResult(ctx, res, msg, task)
+	}
+	return false
 }
 
 // evaluatePerTask calls EvaluateTaskTransition individually for each task so that

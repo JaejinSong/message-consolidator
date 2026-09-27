@@ -577,23 +577,30 @@ func updateThreadStatus(ctx context.Context, sc *channels.SlackClient, t store.S
 
 func updateThreadStatusGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta, res threadScanResult) {
 	if res.isResolved {
-		rep := group[0]
-		if rep.ThreadTS == "" {
-			logger.Warnf("[SLACK] updateThreadStatus: empty ThreadTS channel=%s, skipping PostMessage", rep.ChannelID)
-		} else {
-			msg := "This issue has been marked as resolved and monitoring is closed."
-			if _, _, err := sc.GetAPI().PostMessage(rep.ChannelID, slack.MsgOptionText(msg, false), slack.MsgOptionTS(rep.ThreadTS)); err != nil {
-				logger.Warnf("[SLACK] updateThreadStatus: PostMessage failed channel=%s thread=%s: %v", rep.ChannelID, rep.ThreadTS, err)
-			}
-		}
-		for _, s := range group {
-			proposeThreadCheckCompletion(ctx, s)
-			_ = store.CloseTargetedThread(ctx, s.ChannelID, s.ThreadTS, s.UserEmail)
-		}
+		closeResolvedThreadGroup(ctx, sc, group)
 		return
 	}
 	for _, s := range group {
 		updateThreadStatus(ctx, sc, s, res)
+	}
+}
+
+// closeResolvedThreadGroup posts the resolution notice once for the group's
+// representative thread, then proposes a completion candidate and closes
+// tracking for every thread in the group.
+func closeResolvedThreadGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta) {
+	rep := group[0]
+	if rep.ThreadTS == "" {
+		logger.Warnf("[SLACK] updateThreadStatus: empty ThreadTS channel=%s, skipping PostMessage", rep.ChannelID)
+	} else {
+		msg := "This issue has been marked as resolved and monitoring is closed."
+		if _, _, err := sc.GetAPI().PostMessage(rep.ChannelID, slack.MsgOptionText(msg, false), slack.MsgOptionTS(rep.ThreadTS)); err != nil {
+			logger.Warnf("[SLACK] updateThreadStatus: PostMessage failed channel=%s thread=%s: %v", rep.ChannelID, rep.ThreadTS, err)
+		}
+	}
+	for _, s := range group {
+		proposeThreadCheckCompletion(ctx, s)
+		_ = store.CloseTargetedThread(ctx, s.ChannelID, s.ThreadTS, s.UserEmail)
 	}
 }
 

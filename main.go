@@ -218,7 +218,7 @@ func gracefulShutdown(srv *http.Server) {
 func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.Server {
 	waDBLogger := services.NewWADBLogger()
 	waDBLogger.ChatNameResolver = channels.DefaultWAManager.GetGroupName
-	waNotionLogger := services.NewWANotionLogger(cfg.NotionToken, cfg.NotionWALogPageID)
+	waNotionLogger := services.NewWANotionLogger(cfg.NotionToken, cfg.NotionWALogPageID) //nolint:contextcheck // whataphttpx.Client takes no ctx by design; trace rides on http.Request.Context (see package doc)
 	waNotionLogger.ChatNameResolver = channels.DefaultWAManager.GetGroupName
 	if waNotionLogger.Enabled() {
 		logger.Infof("[notion-wa] enabled (page=%s)", cfg.NotionWALogPageID)
