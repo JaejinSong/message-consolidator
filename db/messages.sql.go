@@ -927,7 +927,7 @@ func (q *Queries) IsMessageProcessed(ctx context.Context, arg IsMessageProcessed
 }
 
 const listPastEventCandidates = `-- name: ListPastEventCandidates :many
-SELECT id, COALESCE(task, '') AS task, deadline_date, COALESCE(metadata, '') AS metadata
+SELECT id, COALESCE(task, '') AS task, CAST(COALESCE(strftime('%Y-%m-%d', deadline_date), '') AS TEXT) AS deadline_day, COALESCE(metadata, '') AS metadata
 FROM messages
 WHERE user_email = ?1
   AND lifecycle = 'active'
@@ -951,10 +951,10 @@ type ListPastEventCandidatesParams struct {
 }
 
 type ListPastEventCandidatesRow struct {
-	ID           int64        `json:"id"`
-	Task         string       `json:"task"`
-	DeadlineDate sql.NullTime `json:"deadline_date"`
-	Metadata     string       `json:"metadata"`
+	ID          int64  `json:"id"`
+	Task        string `json:"task"`
+	DeadlineDay string `json:"deadline_day"`
+	Metadata    string `json:"metadata"`
 }
 
 // Why: Event-style TASK rows (meetings, calls, sessions) whose scheduled date has
@@ -979,7 +979,7 @@ func (q *Queries) ListPastEventCandidates(ctx context.Context, arg ListPastEvent
 		if err := rows.Scan(
 			&i.ID,
 			&i.Task,
-			&i.DeadlineDate,
+			&i.DeadlineDay,
 			&i.Metadata,
 		); err != nil {
 			return nil, err

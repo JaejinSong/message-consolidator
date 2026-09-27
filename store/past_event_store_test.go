@@ -40,12 +40,12 @@ func TestListPastEventCandidates(t *testing.T) {
 	lookbackFloor := cutoff.AddDate(0, 0, -29)
 
 	inRange := seedPastEventTask(t, email, "Join Mesiniaga session", "2026-09-25", "{}", 0, 0)
-	seedPastEventTask(t, email, "Too recent", "2026-09-26", "{}", 0, 0)         // == cutoff, excluded
-	seedPastEventTask(t, email, "Too old", "2026-08-20", "{}", 0, 0)            // before lookback floor
+	seedPastEventTask(t, email, "Too recent", "2026-09-26", "{}", 0, 0) // == cutoff, excluded
+	seedPastEventTask(t, email, "Too old", "2026-08-20", "{}", 0, 0)    // before lookback floor
 	seedPastEventTask(t, email, "Already candidate", "2026-09-20",
 		`{"completion_candidate":{"status":"pending"}}`, 0, 0)
 	invalidJSON := seedPastEventTask(t, email, "Malformed metadata", "2026-09-21", "{not json", 0, 0)
-	seedPastEventTask(t, email, "Done task", "2026-09-22", "{}", 1, 0)     // done, excluded
+	seedPastEventTask(t, email, "Done task", "2026-09-22", "{}", 1, 0)    // done, excluded
 	seedPastEventTask(t, email, "Deleted task", "2026-09-23", "{}", 0, 1) // canceled, excluded
 
 	rows, err := ListPastEventCandidates(ctx, email, cutoff, lookbackFloor, 97)
@@ -55,6 +55,9 @@ func TestListPastEventCandidates(t *testing.T) {
 	got := make(map[MessageID]bool)
 	for _, r := range rows {
 		got[r.ID] = true
+		if r.ID == inRange && r.DeadlineDay != "2026-09-25" {
+			t.Errorf("DeadlineDay = %q, want 2026-09-25", r.DeadlineDay)
+		}
 	}
 	if !got[inRange] {
 		t.Errorf("expected in-range candidate %d in results", inRange)

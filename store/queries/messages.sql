@@ -393,7 +393,7 @@ GROUP BY source, outcome;
 -- (never auto-close, since events get rescheduled). json_valid guards json_extract
 -- from erroring on malformed metadata rows -- an invalid row is treated as having
 -- no existing candidate, so it stays eligible.
-SELECT id, COALESCE(task, '') AS task, deadline_date, COALESCE(metadata, '') AS metadata
+SELECT id, COALESCE(task, '') AS task, CAST(COALESCE(strftime('%Y-%m-%d', deadline_date), '') AS TEXT) AS deadline_day, COALESCE(metadata, '') AS metadata
 FROM messages
 WHERE user_email = ?1
   AND lifecycle = 'active'

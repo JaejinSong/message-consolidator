@@ -60,7 +60,7 @@ func (s *PastEventService) ProposePastEventCandidates(ctx context.Context, email
 		if !isEventTask(r.Task) {
 			continue
 		}
-		sourceKey := "past-event:" + r.DeadlineDate.Format("2006-01-02")
+		sourceKey := "past-event:" + r.DeadlineDay
 		if store.WasCandidateDismissed(r.Metadata, sourceKey) {
 			continue
 		}
