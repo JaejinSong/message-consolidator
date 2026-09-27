@@ -10,6 +10,15 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+// Why: match app.log retention (see logger.go) so the AI inference trail
+// survives at least as long as the app logs used to diagnose the same
+// 2026-09-27 incident.
+const (
+	aiLogMaxSizeMB  = 100
+	aiLogMaxBackups = 61
+	aiLogMaxAgeDays = 61
+)
+
 var aiInferenceLogger *log.Logger
 
 // InitAIInferenceLogger initializes the standard AI logger pointing to a dedicated file.
@@ -22,9 +31,9 @@ func InitAIInferenceLogger() {
 	// Why: Initialize standard AI logger pointing to a dedicated file for ease of analysis and isolation from general application logs.
 	lumberjackLogger := &lumberjack.Logger{
 		Filename:   fmt.Sprintf("%s/ai_inference.log", dir),
-		MaxSize:    100, // 100MB
-		MaxBackups: 30,
-		MaxAge:     30, // 30 days
+		MaxSize:    aiLogMaxSizeMB,
+		MaxBackups: aiLogMaxBackups,
+		MaxAge:     aiLogMaxAgeDays,
 		Compress:   true,
 		LocalTime:  true,
 	}

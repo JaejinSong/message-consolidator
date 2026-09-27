@@ -26,6 +26,16 @@ var levelMap = map[string]int{
 	"ERROR": LevelError,
 }
 
+// Why: the 2026-09-27 incident could not be traced before 09-20 because only
+// ~7 days of daily app logs survived on the VPS. Extend retention to 61 days
+// (prime) and raise MaxBackups to match, so MaxAge remains the binding limit
+// instead of MaxBackups pruning backups before they age out.
+const (
+	appLogMaxSizeMB  = 100
+	appLogMaxBackups = 61
+	appLogMaxAgeDays = 61
+)
+
 var currentLevel = LevelInfo
 
 func SetLevel(levelStr string) {
@@ -72,9 +82,9 @@ func InitLogging() *lumberjack.Logger {
 
 	lumberjackLogger := &lumberjack.Logger{
 		Filename:   fmt.Sprintf("%s/app.log", getLogDir()),
-		MaxSize:    100, //Why: Caps individual log files at 100MB to prevent uncontrollable disk usage on the host system.
-		MaxBackups: 30,
-		MaxAge:     7, //Why: Retains log files for up to 7 days to balance diagnostic depth with storage efficiency.
+		MaxSize:    appLogMaxSizeMB, //Why: Caps individual log files at 100MB to prevent uncontrollable disk usage on the host system.
+		MaxBackups: appLogMaxBackups,
+		MaxAge:     appLogMaxAgeDays,
 		Compress:   true,
 		LocalTime:  true,
 	}
