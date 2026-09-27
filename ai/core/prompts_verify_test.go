@@ -714,6 +714,41 @@ func TestNewExtractionBlankPolicy(t *testing.T) {
 	}
 }
 
+// TestCompletionCheckPromiseAndReceiptRules guards the v2.6.0 rule split. Why: dry-run
+// production data (2026-09-27) showed the completion_check prompt biased to RESOLVE --
+// future-tense promises ("I'll check and update you") and bare receipt acks ("ok, noted")
+// from the person asked both closed tasks that were not actually done. The old "uncertain
+// -> RESOLVE" default and the blanket "Thanks"/"Noted" bucket under rule 1 are the load-
+// bearing bugs; dropping the replacement tokens silently reverts to over-eager closure.
+func TestCompletionCheckPromiseAndReceiptRules(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/completion_check.prompt")
+	if err != nil {
+		t.Fatalf("read completion_check: %v", err)
+	}
+	body := string(content)
+	required := []string{
+		"a promise to act is not the act done",
+		"confirms the ask was seen, not that it is finished",
+		"When uncertain between RESOLVE and NONE, choose NONE",
+		"gratitude/closure wording responding to a result, not a bare receipt of a request",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Errorf("completion_check.prompt missing v2.6.0 rule phrase: %q", token)
+		}
+	}
+	forbidden := []string{
+		"Default for any short positive response",
+		"when uncertain between RESOLVE and NONE, choose RESOLVE",
+	}
+	for _, token := range forbidden {
+		if strings.Contains(body, token) {
+			t.Errorf("completion_check.prompt still carries the pre-v2.6.0 resolve-on-uncertainty default: %q", token)
+		}
+	}
+}
+
 // TestChatSystemAnnouncedDecisionRule guards the v1.18 rule. Why: announced cancellations
 // and done-acks were extracted as new open tasks that never closed (Slack audit 2026-09-27),
 // and the rule must stay scoped so an agreed future meeting is still extracted.
