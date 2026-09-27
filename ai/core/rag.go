@@ -5,12 +5,6 @@ import (
 	"strings"
 )
 
-// SelectFewShots는 사용자 쿼리(payload)와 가장 유사한 예시를 선택하여 반환합니다.
-// Why: [RAG-like] 모든 예시를 주입하는 대신 쿼리 컨텍스트(채널, 키워드)가 일치하는 예시만 선택하여 토큰 효율성과 AI 응답 정확도를 동시에 확보합니다.
-func SelectFewShots(payload string, examples []FewShot, limit int) []FewShot {
-	return SelectFewShotsForSource(payload, "", examples, limit)
-}
-
 // SelectFewShotsForSource는 SelectFewShots에 채널(source) 친화도 가중치를 더한 변형입니다.
 // Why: 학습된 예시(FewShot.Source)가 현재 채널과 일치하면 가산점을 주어, 같은 채널의
 // 최근 교정 신호가 시드 예시보다 우선 노출되도록 한다.
