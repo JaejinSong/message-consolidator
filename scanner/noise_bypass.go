@@ -10,7 +10,7 @@ import (
 // or updates one of the room's open tasks — either by replying to the task's
 // originating message, or by carrying completion wording. Why: the group-level
 // noise filter judges the whole batch as one unit, so a short reply that alone
-// looks like noise ("Now okay", "Berikut capture nya") can silently drop a
+// looks like noise ("Now okay 👍") can silently drop a
 // task's only resolution signal; this lets that signal skip the filter.
 func groupMayTransitionTask(group []types.RawMessage, tasks []store.ConsolidatedMessage) bool {
 	for _, msg := range group {
