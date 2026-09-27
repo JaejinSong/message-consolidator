@@ -70,6 +70,90 @@ func (q *Queries) GetActiveSlackThreadsNew(ctx context.Context) ([]GetActiveSlac
 	return items, nil
 }
 
+const getColdReconciliationThreads = `-- name: GetColdReconciliationThreads :many
+SELECT DISTINCT st.channel_id, st.thread_ts, st.last_reply_ts, st.last_activity_ts, st.user_email
+FROM slack_threads st
+JOIN messages m ON m.thread_id = st.thread_ts AND m.user_email = st.user_email
+WHERE m.source = 'slack'
+  AND m.lifecycle = 'active'
+  AND m.thread_id IS NOT NULL AND m.thread_id <> ''
+  AND st.status <> 'active'
+  AND st.channel_id IS NOT NULL AND st.channel_id <> ''
+  AND m.assigned_at >= datetime('now', '-61 days')
+ORDER BY m.assigned_at DESC
+LIMIT 97
+`
+
+type GetColdReconciliationThreadsRow struct {
+	ChannelID      sql.NullString `json:"channel_id"`
+	ThreadTs       sql.NullString `json:"thread_ts"`
+	LastReplyTs    sql.NullString `json:"last_reply_ts"`
+	LastActivityTs sql.NullString `json:"last_activity_ts"`
+	UserEmail      sql.NullString `json:"user_email"`
+}
+
+// Why: the hot sweep only revisits slack_threads rows with status='active'; once the
+// 7-day timeout flips a row to 'resolved' it is never fetched again even though the
+// linked task can still be open. This selects those stale-but-still-open threads so a
+// slower cold tier can recheck them. slack_threads is joined back in (regardless of its
+// status) purely to recover channel_id, which messages does not store directly.
+func (q *Queries) GetColdReconciliationThreads(ctx context.Context) ([]GetColdReconciliationThreadsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getColdReconciliationThreads)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetColdReconciliationThreadsRow
+	for rows.Next() {
+		var i GetColdReconciliationThreadsRow
+		if err := rows.Scan(
+			&i.ChannelID,
+			&i.ThreadTs,
+			&i.LastReplyTs,
+			&i.LastActivityTs,
+			&i.UserEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const touchSlackThreadTimestamps = `-- name: TouchSlackThreadTimestamps :exec
+UPDATE slack_threads
+SET last_reply_ts = ?, last_activity_ts = ?
+WHERE channel_id = ? AND thread_ts = ? AND user_email = ?
+`
+
+type TouchSlackThreadTimestampsParams struct {
+	LastReplyTs    sql.NullString `json:"last_reply_ts"`
+	LastActivityTs sql.NullString `json:"last_activity_ts"`
+	ChannelID      sql.NullString `json:"channel_id"`
+	ThreadTs       sql.NullString `json:"thread_ts"`
+	UserEmail      sql.NullString `json:"user_email"`
+}
+
+// Why: the cold reconciliation tier must not reactivate hot-sweep tracking (status stays
+// whatever it already was, e.g. 'resolved'); this only advances the reply cursor so the
+// next cold pass does not reprocess the same replies.
+func (q *Queries) TouchSlackThreadTimestamps(ctx context.Context, arg TouchSlackThreadTimestampsParams) error {
+	_, err := q.db.ExecContext(ctx, touchSlackThreadTimestamps,
+		arg.LastReplyTs,
+		arg.LastActivityTs,
+		arg.ChannelID,
+		arg.ThreadTs,
+		arg.UserEmail,
+	)
+	return err
+}
+
 const upsertSlackThread = `-- name: UpsertSlackThread :exec
 INSERT INTO slack_threads (channel_id, thread_ts, last_reply_ts, last_activity_ts, status, user_email)
 VALUES (?, ?, ?, ?, 'active', ?)

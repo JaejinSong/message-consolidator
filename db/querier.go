@@ -94,6 +94,12 @@ type Querier interface {
 	GetAllUserAliases(ctx context.Context) ([]GetAllUserAliasesRow, error)
 	GetAllUsers(ctx context.Context) ([]User, error)
 	GetAppSetting(ctx context.Context, key string) (AppSetting, error)
+	// Why: the hot sweep only revisits slack_threads rows with status='active'; once the
+	// 7-day timeout flips a row to 'resolved' it is never fetched again even though the
+	// linked task can still be open. This selects those stale-but-still-open threads so a
+	// slower cold tier can recheck them. slack_threads is joined back in (regardless of its
+	// status) purely to recover channel_id, which messages does not store directly.
+	GetColdReconciliationThreads(ctx context.Context) ([]GetColdReconciliationThreadsRow, error)
 	GetCompletionHistory(ctx context.Context, arg GetCompletionHistoryParams) ([]GetCompletionHistoryRow, error)
 	GetContactByID(ctx context.Context, arg GetContactByIDParams) (GetContactByIDRow, error)
 	GetContactTypeByID(ctx context.Context, arg GetContactTypeByIDParams) (sql.NullString, error)
@@ -251,6 +257,10 @@ type Querier interface {
 	// Why: Surfaces PROMISE/WAITING items with no deadline for aging nudge dispatch.
 	SelectUndatedCommitments(ctx context.Context) ([]SelectUndatedCommitmentsRow, error)
 	SetUserAdmin(ctx context.Context, arg SetUserAdminParams) error
+	// Why: the cold reconciliation tier must not reactivate hot-sweep tracking (status stays
+	// whatever it already was, e.g. 'resolved'); this only advances the reply cursor so the
+	// next cold pass does not reprocess the same replies.
+	TouchSlackThreadTimestamps(ctx context.Context, arg TouchSlackThreadTimestampsParams) error
 	UpdateCategoryMerged(ctx context.Context, arg UpdateCategoryMergedParams) error
 	UpdateContactDetails(ctx context.Context, arg UpdateContactDetailsParams) error
 	UpdateCorrectionObservationEvidence(ctx context.Context, arg UpdateCorrectionObservationEvidenceParams) error

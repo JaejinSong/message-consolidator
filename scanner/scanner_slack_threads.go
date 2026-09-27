@@ -34,17 +34,48 @@ type threadScanResult struct {
 	newLastActivity string
 }
 
+// coldTierInterval bounds how often the cold reconciliation tier (below) may run.
+// Why: it re-scans every user's stale-but-still-open threads and is far more expensive
+// than the hot sweep, so it rides a slower, independent cadence gated in-memory.
+const coldTierInterval = 173 * time.Minute
+
+var (
+	coldTierMu      sync.Mutex
+	lastColdTierRun time.Time
+)
+
+// shouldRunColdTier reports whether coldTierInterval has elapsed since the last cold
+// tier pass, and if so claims the slot immediately (guarded by coldTierMu) so concurrent
+// sweep ticks cannot both start a pass.
+func shouldRunColdTier(now time.Time) bool {
+	coldTierMu.Lock()
+	defer coldTierMu.Unlock()
+	if now.Sub(lastColdTierRun) < coldTierInterval {
+		return false
+	}
+	lastColdTierRun = now
+	return true
+}
+
 // sweepSlackThreads is invoked by the prime-loop scheduler (see runSlackSweep in scanner.go);
 // the loop owns the trace span, so this function does not start its own.
 func sweepSlackThreads(ctx context.Context, wg *sync.WaitGroup) {
 	if cfg == nil || cfg.SlackToken == "" {
 		return
 	}
-	threads, err := store.GetTargetedActiveThreads(ctx)
-	if err != nil || len(threads) == 0 {
-		return
-	}
 	sc, botID := getOrInitSlackClient(cfg.SlackToken) //nolint:contextcheck // whataphttpx.Client takes no ctx by design; trace rides on http.Request.Context (see package doc)
+
+	threads, err := store.GetTargetedActiveThreads(ctx)
+	if err == nil && len(threads) > 0 {
+		sweepHotSlackThreads(ctx, sc, botID, threads, wg)
+	}
+
+	if shouldRunColdTier(time.Now()) {
+		sweepColdReconciliationThreads(ctx, sc, botID, wg)
+	}
+}
+
+func sweepHotSlackThreads(ctx context.Context, sc *channels.SlackClient, botID string, threads []store.SlackThreadMeta, wg *sync.WaitGroup) {
 	aliasCache := buildSlackAliasCache(ctx, threads)
 	activity := scanChannelHistoryActivity(ctx, sc, threads)
 
@@ -58,6 +89,22 @@ func sweepSlackThreads(ctx context.Context, wg *sync.WaitGroup) {
 			continue
 		}
 		processSlackThreadGroup(ctx, sc, group, botID, aliasCache, wg)
+	}
+}
+
+// sweepColdReconciliationThreads re-checks threads whose slack_threads row already
+// timed out (status != 'active') but whose linked task is still open. It reuses the
+// hot sweep's fetch+dispatch path (fetchAndDispatchThreadGroup) so completion detection
+// stays in one place; it never reactivates slack_threads status and never applies the
+// 7-day timeout that the hot loop uses.
+func sweepColdReconciliationThreads(ctx context.Context, sc *channels.SlackClient, botID string, wg *sync.WaitGroup) {
+	threads, err := store.GetColdReconciliationThreads(ctx)
+	if err != nil || len(threads) == 0 {
+		return
+	}
+	aliasCache := buildSlackAliasCache(ctx, threads)
+	for _, group := range groupThreadsByKey(threads) {
+		processColdReconciliationGroup(ctx, sc, group, botID, aliasCache, wg)
 	}
 }
 
@@ -197,7 +244,25 @@ func groupThreadsByKey(threads []store.SlackThreadMeta) [][]store.SlackThreadMet
 	return groups
 }
 
-func processSlackThreadGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta, botID string, aliasCache map[string]slackThreadIdentity, wg *sync.WaitGroup) {
+// getConversationReplies is a seam over the real Slack call so tests can inject fake
+// replies without a network round trip; production code always uses defaultGetConversationReplies.
+var getConversationReplies = defaultGetConversationReplies
+
+func defaultGetConversationReplies(sc *channels.SlackClient, params *slack.GetConversationRepliesParameters) ([]slack.Message, error) {
+	var replies []slack.Message
+	err := channels.WithSlackRetry(3, fmt.Sprintf("thread %s/%s", params.ChannelID, params.Timestamp), func() error {
+		var e error
+		replies, _, _, e = sc.GetAPI().GetConversationReplies(params)
+		return e
+	})
+	return replies, err
+}
+
+// fetchAndDispatchThreadGroup fetches thread replies and runs the shared candidate
+// collection + dispatch logic. Both the hot sweep (processSlackThreadGroup) and the
+// cold reconciliation tier (processColdReconciliationGroup) call this so completion
+// detection lives in exactly one place; only the post-fetch status bookkeeping differs.
+func fetchAndDispatchThreadGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta, botID string, aliasCache map[string]slackThreadIdentity, wg *sync.WaitGroup) (threadScanResult, bool) {
 	rep := group[0]
 	minLastTS := rep.LastTS
 	for _, s := range group[1:] {
@@ -209,14 +274,9 @@ func processSlackThreadGroup(ctx context.Context, sc *channels.SlackClient, grou
 	params := &slack.GetConversationRepliesParameters{
 		ChannelID: rep.ChannelID, Timestamp: rep.ThreadTS, Oldest: minLastTS, Limit: 100,
 	}
-	var replies []slack.Message
-	err := channels.WithSlackRetry(3, fmt.Sprintf("thread %s/%s", rep.ChannelID, rep.ThreadTS), func() error {
-		var e error
-		replies, _, _, e = sc.GetAPI().GetConversationReplies(params)
-		return e
-	})
+	replies, err := getConversationReplies(sc, params)
 	if err != nil {
-		return
+		return threadScanResult{}, false
 	}
 
 	res := scanThreadReplies(replies, minLastTS, rep.LastActivityTS, botID)
@@ -230,7 +290,38 @@ func processSlackThreadGroup(ctx context.Context, sc *channels.SlackClient, grou
 			analyzeSlackBatch(ctx, ident.user, sc, sub.ChannelID, candidates, wg)
 		}
 	}
+	return res, true
+}
+
+func processSlackThreadGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta, botID string, aliasCache map[string]slackThreadIdentity, wg *sync.WaitGroup) {
+	res, ok := fetchAndDispatchThreadGroup(ctx, sc, group, botID, aliasCache, wg)
+	if !ok {
+		return
+	}
 	updateThreadStatusGroup(ctx, sc, group, res)
+}
+
+// processColdReconciliationGroup mirrors processSlackThreadGroup but must not reactivate
+// slack_threads status or apply the 7-day timeout: a newly-resolved thread still gets
+// closed (idempotent, status was already non-active) but an unresolved one only advances
+// its reply cursor via TouchSlackThreadTimestamps, leaving status untouched.
+func processColdReconciliationGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta, botID string, aliasCache map[string]slackThreadIdentity, wg *sync.WaitGroup) {
+	res, ok := fetchAndDispatchThreadGroup(ctx, sc, group, botID, aliasCache, wg)
+	if !ok {
+		return
+	}
+	if res.isResolved {
+		updateThreadStatusGroup(ctx, sc, group, res)
+		return
+	}
+	for _, s := range group {
+		if res.newLastTS == s.LastTS && res.newLastActivity == s.LastActivityTS {
+			continue
+		}
+		if err := store.TouchSlackThreadTimestamps(ctx, s.ChannelID, s.ThreadTS, res.newLastTS, res.newLastActivity, s.UserEmail); err != nil {
+			logger.Warnf("[SLACK] cold tier: failed to advance cursor for %s/%s: %v", s.ChannelID, s.ThreadTS, err)
+		}
+	}
 }
 
 func handleThreadTimeoutGroup(ctx context.Context, sc *channels.SlackClient, group []store.SlackThreadMeta) {

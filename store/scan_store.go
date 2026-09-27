@@ -256,6 +256,44 @@ func GetTargetedActiveThreads(ctx context.Context) ([]SlackThreadMeta, error) {
 	return threads, nil
 }
 
+// GetColdReconciliationThreads returns threads whose linked task is still active but
+// whose slack_threads row is no longer status='active' (the hot sweep already gave up
+// on them). channel_id is recovered from slack_threads, not from messages.
+func GetColdReconciliationThreads(ctx context.Context) ([]SlackThreadMeta, error) {
+	queries := db.New(GetDB())
+	rows, err := queries.GetColdReconciliationThreads(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("GetColdReconciliationThreads: %w", err)
+	}
+
+	var threads []SlackThreadMeta
+	for _, r := range rows {
+		threads = append(threads, SlackThreadMeta{
+			ChannelID:      r.ChannelID.String,
+			ThreadTS:       r.ThreadTs.String,
+			LastTS:         r.LastReplyTs.String,
+			LastActivityTS: r.LastActivityTs.String,
+			UserEmail:      r.UserEmail.String,
+		})
+	}
+	return threads, nil
+}
+
+// TouchSlackThreadTimestamps advances the reply cursor for a slack_threads row without
+// touching its status column. Why: UpdateTargetedThread (UpsertSlackThread) always writes
+// status='active', which would reactivate hot-sweep tracking for a thread the cold tier
+// deliberately left resolved/closed.
+func TouchSlackThreadTimestamps(ctx context.Context, channelID, threadTS, lastReplyTS, lastActivityTS, userEmail string) error {
+	queries := db.New(GetDB())
+	return queries.TouchSlackThreadTimestamps(ctx, db.TouchSlackThreadTimestampsParams{
+		LastReplyTs:    nullString(lastReplyTS),
+		LastActivityTs: nullString(lastActivityTS),
+		ChannelID:      nullString(channelID),
+		ThreadTs:       nullString(threadTS),
+		UserEmail:      nullString(userEmail),
+	})
+}
+
 func UpdateTargetedThread(ctx context.Context, channelID, threadTS, lastReplyTS, lastActivityTS, userEmail string) error {
 	queries := db.New(GetDB())
 	return queries.UpsertSlackThread(ctx, db.UpsertSlackThreadParams{
