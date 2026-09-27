@@ -25,6 +25,19 @@ func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	return row.Value == strconv.Itoa(schemaVersion)
 }
 
+// columnExists reports whether col is present on table. Why: table is always a
+// trusted literal supplied by call sites in this file, never user input, so
+// embedding it via Sprintf is safe -- pragma_table_info cannot take it as a
+// bound parameter. A failed Scan (e.g. driver quirk) counts as absent.
+func columnExists(ctx context.Context, q db.DBTX, table, col string) bool {
+	var has int
+	_ = q.QueryRowContext(ctx,
+		fmt.Sprintf(`SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name=?`, table),
+		col,
+	).Scan(&has)
+	return has > 0
+}
+
 func stampSchemaVersion(ctx context.Context, q db.DBTX) error {
 	queries := db.New(q)
 	return queries.UpsertAppSetting(ctx, db.UpsertAppSettingParams{
@@ -184,11 +197,7 @@ func reindexWAMessages(ctx context.Context, q db.DBTX) {
 // addThinkingTokensColumn adds thinking_tokens to token_usage on existing DBs.
 // Why: SQLite does not support IF NOT EXISTS for ALTER TABLE; column existence check makes it idempotent.
 func addThinkingTokensColumn(ctx context.Context, q db.DBTX) error {
-	var has int
-	_ = q.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM pragma_table_info('token_usage') WHERE name='thinking_tokens'`,
-	).Scan(&has)
-	if has > 0 {
+	if columnExists(ctx, q, "token_usage", "thinking_tokens") {
 		return nil
 	}
 	if _, err := q.ExecContext(ctx,
@@ -204,11 +213,7 @@ func addThinkingTokensColumn(ctx context.Context, q db.DBTX) error {
 // count lets the cost dashboard price them separately. SQLite lacks IF NOT EXISTS for
 // ALTER TABLE, so the pragma check makes this idempotent.
 func addCachedTokensColumn(ctx context.Context, q db.DBTX) error {
-	var has int
-	_ = q.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM pragma_table_info('token_usage') WHERE name='cached_tokens'`,
-	).Scan(&has)
-	if has > 0 {
+	if columnExists(ctx, q, "token_usage", "cached_tokens") {
 		return nil
 	}
 	if _, err := q.ExecContext(ctx,
@@ -228,11 +233,7 @@ func addCachedTokensColumn(ctx context.Context, q db.DBTX) error {
 // is the rate they were already being shown at, so nothing is retroactively repriced.
 // Idempotent: skipped once the peak column exists.
 func migrateTokenUsagePeak(ctx context.Context, q db.DBTX) error {
-	var has int
-	_ = q.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM pragma_table_info('token_usage') WHERE name='peak'`,
-	).Scan(&has)
-	if has > 0 {
+	if columnExists(ctx, q, "token_usage", "peak") {
 		return nil
 	}
 	stmts := []string{
@@ -274,11 +275,7 @@ func migrateTokenUsagePeak(ctx context.Context, q db.DBTX) error {
 // Why: SQLite does not support IF NOT EXISTS for ALTER TABLE, so we check pragma_table_info first.
 // Safe to re-run — idempotent via the column existence check.
 func addMessagesUpdatedAtColumn(ctx context.Context, q db.DBTX) error {
-	var has int
-	_ = q.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM pragma_table_info('messages') WHERE name='updated_at'`,
-	).Scan(&has)
-	if has > 0 {
+	if columnExists(ctx, q, "messages", "updated_at") {
 		return nil
 	}
 	if _, err := q.ExecContext(ctx,
@@ -307,11 +304,7 @@ func addDeadlineColumns(ctx context.Context, q db.DBTX) error {
 		{"deadline_date", "ALTER TABLE messages ADD COLUMN deadline_date DATE"},
 		{"deadline_inferred", "ALTER TABLE messages ADD COLUMN deadline_inferred INTEGER DEFAULT 0"},
 	} {
-		var has int
-		_ = q.QueryRowContext(ctx,
-			`SELECT COUNT(*) FROM pragma_table_info('messages') WHERE name=?`, col.name,
-		).Scan(&has)
-		if has > 0 {
+		if columnExists(ctx, q, "messages", col.name) {
 			continue
 		}
 		if _, err := q.ExecContext(ctx, col.ddl); err != nil {
@@ -353,11 +346,7 @@ WHERE category IN ('PROMISE', 'WAITING')
 // Idempotent: skipped when columns are already absent.
 func dropAIInferencePayloadColumns(ctx context.Context, q db.DBTX) error {
 	for _, col := range []string{"original_text", "raw_response"} {
-		var has int
-		_ = q.QueryRowContext(ctx,
-			`SELECT COUNT(*) FROM pragma_table_info('ai_inference_logs') WHERE name=?`, col,
-		).Scan(&has)
-		if has == 0 {
+		if !columnExists(ctx, q, "ai_inference_logs", col) {
 			continue
 		}
 		if _, err := q.ExecContext(ctx,
@@ -437,11 +426,7 @@ func stripAmbiguityMarkers(ctx context.Context, q db.DBTX) error {
 // arrive with confirmed_at NULL, so an unconditional "UPDATE ... WHERE confirmed_at IS
 // NULL" would silently confirm every fresh row on the next startup.
 func addConfirmedAtColumn(ctx context.Context, q db.DBTX) error {
-	var has int
-	_ = q.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM pragma_table_info('messages') WHERE name='confirmed_at'`,
-	).Scan(&has)
-	if has > 0 {
+	if columnExists(ctx, q, "messages", "confirmed_at") {
 		return nil
 	}
 	if _, err := q.ExecContext(ctx, `ALTER TABLE messages ADD COLUMN confirmed_at DATETIME`); err != nil {
@@ -503,11 +488,7 @@ func migrateLifecycleExcluded(ctx context.Context, q db.DBTX) error {
 		return nil
 	}
 
-	var has int
-	_ = q.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM pragma_table_info('messages') WHERE name='excluded_at'`,
-	).Scan(&has)
-	if has == 0 {
+	if !columnExists(ctx, q, "messages", "excluded_at") {
 		if _, err := q.ExecContext(ctx,
 			`ALTER TABLE messages ADD COLUMN excluded_at DATETIME`,
 		); err != nil {
@@ -552,11 +533,7 @@ func addWAMessagesReplayColumns(ctx context.Context, q db.DBTX) error {
 		{"processed_at", "ALTER TABLE wa_messages ADD COLUMN processed_at DATETIME"},
 		{"scan_attempts", "ALTER TABLE wa_messages ADD COLUMN scan_attempts INTEGER NOT NULL DEFAULT 0"},
 	} {
-		var has int
-		_ = q.QueryRowContext(ctx,
-			`SELECT COUNT(*) FROM pragma_table_info('wa_messages') WHERE name=?`, col.name,
-		).Scan(&has)
-		if has > 0 {
+		if columnExists(ctx, q, "wa_messages", col.name) {
 			continue
 		}
 		if _, err := q.ExecContext(ctx, col.ddl); err != nil {

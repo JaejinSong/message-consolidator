@@ -265,6 +265,26 @@ func TestBackfillWhatsAppThreadIDs(t *testing.T) {
 	assertThread("SL-1", "")
 }
 
+// TestColumnExists verifies columnExists reports true for a real column and
+// false for one that does not exist on the table.
+func TestColumnExists(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	conn := GetDB()
+
+	if !columnExists(ctx, conn, "messages", "task") {
+		t.Error("expected columnExists(messages, task) to be true")
+	}
+	if columnExists(ctx, conn, "messages", "no_such_column") {
+		t.Error("expected columnExists(messages, no_such_column) to be false")
+	}
+}
+
 func TestIdentityXTransitiveLink(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
 	if err != nil {
