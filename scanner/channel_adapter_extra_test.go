@@ -126,3 +126,34 @@ func TestResolveCandidateIsFromMe(t *testing.T) {
 		}
 	})
 }
+
+// TestResolveCandidateThreadID covers the fix for the renamed-Slack-task incident:
+// Slack RawMessages never populate ThreadID (channels/slack.go sets only ReplyToID),
+// so without proposalThreadAnchor the cross-thread guards in services/tasks_merge.go
+// never fired. Slack must now anchor on slackThreadTS; other channels are unchanged.
+func TestResolveCandidateThreadID(t *testing.T) {
+	t.Parallel()
+	slackAd := &slackAdapter{}
+
+	tests := []struct {
+		name    string
+		adapter ChannelAdapter
+		m       types.RawMessage
+		want    string
+	}{
+		{"slack root message anchors on its own ts", slackAd, types.RawMessage{ID: "100.000000"}, "100.000000"},
+		{"slack reply anchors on the parent thread ts", slackAd, types.RawMessage{ID: "100.000001", ReplyToID: "100.000000"}, "100.000000"},
+		{"whatsapp (no proposalThreadAnchor) keeps raw.ThreadID unchanged", whatsAppAdapter{}, types.RawMessage{ThreadID: "wa-thread"}, "wa-thread"},
+		{"whatsapp with empty ThreadID stays empty", whatsAppAdapter{}, types.RawMessage{}, ""},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := resolveCandidateThreadID(tt.adapter, tt.m); got != tt.want {
+				t.Errorf("resolveCandidateThreadID() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

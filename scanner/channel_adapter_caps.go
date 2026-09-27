@@ -56,6 +56,16 @@ type RoomRenamer interface {
 	LegacyRoomName(roomKey string) string
 }
 
+// proposalThreadAnchor — optional: an adapter whose raw messages never populate
+// ThreadID (Slack sets only ReplyToID on replies, leaving root messages with no
+// anchor at all) provides the thread anchor the injection loop should use for
+// candidates.ThreadID instead of raw.ThreadID. Why: 33 open Slack tasks were
+// fuzzy-renamed by unrelated replies in other threads of the same channel
+// because findMatch's cross-thread guard never fired with an empty ThreadID.
+type proposalThreadAnchor interface {
+	ProposalThreadID(m types.RawMessage) string
+}
+
 // Compile-time checks: every adapter must satisfy ChannelAdapter, and each optional
 // capability assertion below must match the adapter's actual method set -- a rename
 // or removal here now fails the build instead of silently dropping the capability.
@@ -76,4 +86,5 @@ var (
 	_ saveThreadAnchor       = (*slackAdapter)(nil)
 	_ saveLinker             = (*slackAdapter)(nil)
 	_ resolveTrustSource     = (*slackAdapter)(nil)
+	_ proposalThreadAnchor   = (*slackAdapter)(nil)
 )

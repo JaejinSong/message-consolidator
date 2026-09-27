@@ -296,7 +296,7 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 	// from confirm-first (counterparty message).
 	for i := range candidates {
 		if raw, ok := msgMap[candidates[i].SourceTS]; ok {
-			candidates[i].ThreadID = raw.ThreadID
+			candidates[i].ThreadID = resolveCandidateThreadID(adapter, raw)
 			candidates[i].IsFromMe = resolveCandidateIsFromMe(adapter, raw, user)
 			candidates[i].SenderName = senderRawFor(raw)
 		}
@@ -397,6 +397,16 @@ func resolveCandidateIsFromMe(adapter ChannelAdapter, raw types.RawMessage, user
 		return trustSource.IsOwnMessage(raw, user)
 	}
 	return adapter.IsFromMe(raw, user)
+}
+
+// resolveCandidateThreadID prefers the adapter's proposalThreadAnchor when available
+// (Slack) since raw.ThreadID is never populated for that channel; other channels
+// (WhatsApp/Telegram/LINE) keep using raw.ThreadID unchanged.
+func resolveCandidateThreadID(adapter ChannelAdapter, raw types.RawMessage) string {
+	if anchor, ok := adapter.(proposalThreadAnchor); ok {
+		return anchor.ProposalThreadID(raw)
+	}
+	return raw.ThreadID
 }
 
 func saveChannelItem(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool, adapter ChannelAdapter) store.MessageID {

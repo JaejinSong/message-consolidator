@@ -462,6 +462,12 @@ func (a *slackAdapter) ownsCompletionDispatch() {}
 // SaveThreadID — replies anchor on the parent thread ts, root messages on their own ID.
 func (a *slackAdapter) SaveThreadID(m types.RawMessage) string { return slackThreadTS(m) }
 
+// ProposalThreadID — Slack RawMessages never populate ThreadID (only ReplyToID on
+// replies), so the candidate-injection loop needs this to guard against
+// cross-thread fuzzy matches. Uses the same anchor as SaveThreadID so a proposal's
+// thread lines up with the thread_id already persisted on the task it may match.
+func (a *slackAdapter) ProposalThreadID(m types.RawMessage) string { return slackThreadTS(m) }
+
 func (a *slackAdapter) SaveLink(ctx context.Context, m types.RawMessage, email string) string {
 	return buildSlackLinkAndRegisterThread(ctx, m, email)
 }
