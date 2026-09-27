@@ -37,7 +37,6 @@ export class TokenUsageCard {
         const todayCompletion = data.todayCompletion;
         const todayThinking = data.todayThinking ?? 0;
         const monthlyTotal = data.monthlyTotal;
-        const monthlyThinking = data.monthlyThinking ?? 0;
         const monthlyCost = data.monthlyCost;
         const monthlyCostInput = data.monthlyCostInput ?? 0;
         const monthlyCostOutput = data.monthlyCostOutput ?? 0;
