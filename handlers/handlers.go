@@ -139,6 +139,23 @@ func parseBatchIDs(w http.ResponseWriter, r *http.Request) ([]store.MessageID, b
 	return req.GetIDs(), true
 }
 
+// bindTaskID decodes a single-ID JSON request body ({"id": ...}) and validates it as a
+// strictly positive task ID, writing the standard 400 response on failure.
+// Why: [DRY] Several single-task endpoints repeated this bindJSON+ID<=0 guard verbatim.
+func bindTaskID(w http.ResponseWriter, r *http.Request) (store.MessageID, bool) {
+	var req struct {
+		ID store.MessageID `json:"id"`
+	}
+	if !bindJSON(w, r, &req) {
+		return 0, false
+	}
+	if req.ID <= 0 {
+		respondError(w, http.StatusBadRequest, "Invalid Task ID")
+		return 0, false
+	}
+	return req.ID, true
+}
+
 // decodeJSON is a common helper that parses JSON from an HTTP request and safely closes the Body to prevent memory leaks.
 // Why: [DRY] Centralizes JSON decoding logic used across multiple handler files.
 // any 사유: v는 호출자별 임의 DTO 포인터 — encoding/json Decode 시그니처와 동일.

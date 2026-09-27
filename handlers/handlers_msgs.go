@@ -132,17 +132,11 @@ func (a *API) HandleMarkDone(w http.ResponseWriter, r *http.Request) {
 // rejected. The task stays open; only the metadata suggestion is removed.
 func (a *API) HandleDismissCompletionCandidate(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	var req struct {
-		ID store.MessageID `json:"id"`
-	}
-	if !bindJSON(w, r, &req) {
+	id, ok := bindTaskID(w, r)
+	if !ok {
 		return
 	}
-	if req.ID <= 0 {
-		respondError(w, http.StatusBadRequest, "Invalid Task ID")
-		return
-	}
-	if err := store.DismissCompletionCandidate(r.Context(), store.GetDB(), email, req.ID); err != nil {
+	if err := store.DismissCompletionCandidate(r.Context(), store.GetDB(), email, id); err != nil {
 		handleAPIError(w, r, err, "[TASKS] dismiss candidate for "+email, "Failed to dismiss candidate")
 		return
 	}
@@ -153,17 +147,11 @@ func (a *API) HandleDismissCompletionCandidate(w http.ResponseWriter, r *http.Re
 // (lifecycle -> excluded). Confirm-first: only fired from the candidate banner.
 func (a *API) HandleConfirmExclusion(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	var req struct {
-		ID store.MessageID `json:"id"`
-	}
-	if !bindJSON(w, r, &req) {
+	id, ok := bindTaskID(w, r)
+	if !ok {
 		return
 	}
-	if req.ID <= 0 {
-		respondError(w, http.StatusBadRequest, "Invalid Task ID")
-		return
-	}
-	if err := store.ConfirmExclusion(r.Context(), store.GetDB(), email, req.ID); err != nil {
+	if err := store.ConfirmExclusion(r.Context(), store.GetDB(), email, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "Task not found or already closed")
 			return
@@ -178,17 +166,11 @@ func (a *API) HandleConfirmExclusion(w http.ResponseWriter, r *http.Request) {
 // active and is not re-proposed until new activity or the repropose window elapses.
 func (a *API) HandleDismissExclusionCandidate(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	var req struct {
-		ID store.MessageID `json:"id"`
-	}
-	if !bindJSON(w, r, &req) {
+	id, ok := bindTaskID(w, r)
+	if !ok {
 		return
 	}
-	if req.ID <= 0 {
-		respondError(w, http.StatusBadRequest, "Invalid Task ID")
-		return
-	}
-	if err := store.DismissExclusionCandidate(r.Context(), store.GetDB(), email, req.ID); err != nil {
+	if err := store.DismissExclusionCandidate(r.Context(), store.GetDB(), email, id); err != nil {
 		handleAPIError(w, r, err, "[TASKS] dismiss exclusion for "+email, "Failed to dismiss exclusion candidate")
 		return
 	}
@@ -199,17 +181,11 @@ func (a *API) HandleDismissExclusionCandidate(w http.ResponseWriter, r *http.Req
 // long-term-unprocessed runway (updated_at reset, exclusion markers cleared).
 func (a *API) HandleRestoreExcluded(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	var req struct {
-		ID store.MessageID `json:"id"`
-	}
-	if !bindJSON(w, r, &req) {
+	id, ok := bindTaskID(w, r)
+	if !ok {
 		return
 	}
-	if req.ID <= 0 {
-		respondError(w, http.StatusBadRequest, "Invalid Task ID")
-		return
-	}
-	if err := store.RestoreExcluded(r.Context(), store.GetDB(), email, req.ID); err != nil {
+	if err := store.RestoreExcluded(r.Context(), store.GetDB(), email, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "Task not found or not excluded")
 			return
