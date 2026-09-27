@@ -52,47 +52,6 @@ type scanDeps struct {
 
 var deps scanDeps
 
-func Init(c *config.Config) {
-	cfg = c
-	deps.roomLockSvc = services.NewRoomLockService()
-	pc := ai.ProviderConfig{
-		Provider:                 cfg.AIProvider,
-		GeminiAPIKey:             cfg.GeminiAPIKey,
-		GeminiAnalysisModel:      cfg.GeminiAnalysisModel,
-		GeminiTranslationModel:   cfg.GeminiTranslationModel,
-		DeepSeekAPIKey:           cfg.DeepSeekAPIKey,
-		DeepSeekBaseURL:          cfg.DeepSeekBaseURL,
-		DeepSeekFilterModel:      cfg.DeepSeekFilterModel,
-		DeepSeekAnalysisModel:    cfg.DeepSeekAnalysisModel,
-		DeepSeekTranslationModel: cfg.DeepSeekTranslationModel,
-		DeepSeekReportModel:      cfg.DeepSeekReportModel,
-	}
-	if pc.Enabled() {
-		gc, err := ai.NewAIClient(context.Background(), pc)
-		if err != nil {
-			logger.Errorf("[SCAN] failed to init AI client (%s): %v", cfg.AIProvider, err)
-			return
-		}
-		deps.gClient = gc
-		transSvc := services.NewTranslationService(deps.gClient)
-		deps.tasksSvc = services.NewTasksService(transSvc, deps.gClient)
-		deps.completionSvc = services.NewCompletionService(deps.gClient, &services.DefaultTaskStore{}, deps.tasksSvc, store.GetDB())
-		deps.filterSvc = ai.NewGeminiLiteFilter(deps.gClient)
-	}
-	if cfg.SlackToken != "" {
-		deps.slackClient = channels.NewSlackClient(cfg.SlackToken)
-		deps.reminderSvc = services.NewReminderService(deps.slackClient, cfg.ReminderWindowsHours)
-	}
-	// Why: candidate proposal is chip-only and must work without Slack; digest is nil-Slack-safe.
-	// Typed-nil guard: wrapping a nil *SlackClient in the interface would defeat the nil check.
-	var exclusionSlack services.SlackPoster
-	if deps.slackClient != nil {
-		exclusionSlack = deps.slackClient
-	}
-	deps.exclusionSvc = services.NewExclusionService(exclusionSlack)
-	deps.pastEventSvc = services.NewPastEventService()
-}
-
 func StartBackgroundScanner(ctx context.Context) {
 	logger.Infof("[SCAN] background scanner started (second-cadence=%v hour-cadence=%v)", primes.Seconds, hourPrimePool)
 
@@ -201,100 +160,6 @@ func finalizeScanCycle(ctx context.Context, users []store.User) {
 	_ = store.ArchiveOldTasks(ctx)
 	store.FlushTokenUsageIfNeeded(ctx)
 	store.LogDBStats()
-}
-
-// userBundle pairs a user with their effective alias set, computed once per scan cycle.
-type userBundle struct {
-	user    store.User
-	aliases []string
-}
-
-func loadUsersForScan(ctx context.Context) []userBundle {
-	users, err := store.GetAllUsers(ctx)
-	if err != nil {
-		logger.Errorf("[SCAN] failed to get users: %v", err)
-		return nil
-	}
-	out := make([]userBundle, 0, len(users))
-	for _, u := range users {
-		al, _ := store.GetUserAliases(ctx, u.ID)
-		out = append(out, userBundle{user: u, aliases: services.GetEffectiveAliases(u, al)})
-	}
-	return out
-}
-
-// Why: Gmail backlog recovery needs headroom — after a cursor hold (fetch/analyze
-// failure) a cycle re-walks unmarked messages (per-message Get + LiteFilter + batch
-// Analyze). 45s could be consumed by Gets alone, marking nothing and livelocking the
-// backlog. Normal cycles finish in seconds, so the longer ceiling is dormant. Prime.
-const gmailScanTimeout = 293 * time.Second
-
-func runGmailForAllUsers(ctx context.Context, wg *sync.WaitGroup) {
-	bundles := loadUsersForScan(ctx)
-	if len(bundles) == 0 {
-		return
-	}
-	var eg errgroup.Group
-	eg.SetLimit(5)
-	for _, b := range bundles {
-		b := b
-		if !store.HasGmailToken(b.user.Email) {
-			continue
-		}
-		eg.Go(func() error {
-			scanCtx, cancel := context.WithTimeout(ctx, gmailScanTimeout)
-			defer cancel()
-			defer safego.Recover("scan-gmail")
-			if err := performGmailScan(scanCtx, b.user.Email, wg); err != nil {
-				logger.Warnf("[SCAN] gmail: scan failed for %s: %v", b.user.Email, err)
-			}
-			store.PersistAllScanMetadata(scanCtx, b.user.Email)
-			return nil
-		})
-	}
-	_ = eg.Wait()
-}
-
-func runWhatsAppForAllUsers(ctx context.Context, wg *sync.WaitGroup) {
-	bundles := loadUsersForScan(ctx)
-	if len(bundles) == 0 {
-		return
-	}
-	var eg errgroup.Group
-	eg.SetLimit(5)
-	for _, b := range bundles {
-		b := b
-		eg.Go(func() error {
-			scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
-			defer cancel()
-			defer safego.Recover("scan-whatsapp")
-			scanWhatsApp(scanCtx, b.user, b.aliases, "Korean", wg)
-			store.PersistAllScanMetadata(scanCtx, b.user.Email)
-			return nil
-		})
-	}
-	_ = eg.Wait()
-}
-
-func runTelegramForAllUsers(ctx context.Context, wg *sync.WaitGroup) {
-	bundles := loadUsersForScan(ctx)
-	if len(bundles) == 0 {
-		return
-	}
-	var eg errgroup.Group
-	eg.SetLimit(5)
-	for _, b := range bundles {
-		b := b
-		eg.Go(func() error {
-			scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
-			defer cancel()
-			defer safego.Recover("scan-telegram")
-			scanTelegram(scanCtx, b.user, b.aliases, "Korean", wg)
-			store.PersistAllScanMetadata(scanCtx, b.user.Email)
-			return nil
-		})
-	}
-	_ = eg.Wait()
 }
 
 func runSlackForAllUsers(ctx context.Context, wg *sync.WaitGroup) {
@@ -480,57 +345,10 @@ func triggerAsyncTranslation(ctx context.Context, email string, ids []store.Mess
 	}()
 }
 
-// Why: DailyDigestService needs reportsSvc, built post-Init in main.initAIServices.
-func WireDailyDigest(reportsSvc *services.ReportsService) {
-	if cfg == nil || !cfg.DailyDigestEnabled || reportsSvc == nil || deps.slackClient == nil {
-		return
-	}
-	if len(cfg.DailyDigestRecipientEmails) == 0 {
-		logger.Warnf("[DIGEST] recipient emails not set")
-		return
-	}
-	svc := services.NewDailyDigestService(deps.slackClient, reportsSvc, services.DailyDigestConfig{
-		RecipientEmails: cfg.DailyDigestRecipientEmails,
-		Hour:            cfg.DailyDigestHour,
-		Timezone:        cfg.DailyDigestTimezone,
-		Language:        cfg.DailyDigestLanguage,
-	})
-	svc.Notion = services.NewNotionExporter(cfg.NotionToken, cfg.NotionReportPageID)
-	deps.digestSvc = svc
-}
-
-type gmailMailer struct{}
-
-func (g gmailMailer) SendWeeklyEmail(ctx context.Context, from, to, subject, body string) (string, error) {
-	return channels.SendGmailEmailWithOrigin(ctx, from, to, subject, body)
-}
-
 // TriggerWeeklyReport dispatches a one-off weekly report to the given recipient, bypassing day/hour checks.
 func TriggerWeeklyReport(ctx context.Context, recipient string) error {
 	if deps.weeklyReportSvc == nil {
 		return fmt.Errorf("weekly report service not initialized")
 	}
 	return deps.weeklyReportSvc.DispatchTo(ctx, recipient)
-}
-
-// Why: WeeklyReportService needs reportsSvc which is built post-Init in main.go's initAIServices.
-func WireWeeklyReport(reportsSvc *services.ReportsService) {
-	if cfg == nil || !cfg.WeeklyReportEnabled || reportsSvc == nil {
-		return
-	}
-	if len(cfg.WeeklyReportRecipientEmails) == 0 {
-		logger.Warnf("[WEEKLY] recipient email not set")
-		return
-	}
-	notion := services.NewNotionExporter(cfg.NotionToken, cfg.NotionReportPageID)
-	if !notion.Enabled() {
-		logger.Warnf("[WEEKLY] notion not configured")
-		return
-	}
-	deps.weeklyReportSvc = services.NewWeeklyReportService(gmailMailer{}, reportsSvc, notion, services.WeeklyReportConfig{
-		RecipientEmails: cfg.WeeklyReportRecipientEmails,
-		Hour:            cfg.WeeklyReportHour,
-		Timezone:        cfg.WeeklyReportTimezone,
-		Language:        cfg.WeeklyReportLang,
-	})
 }
