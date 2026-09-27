@@ -43,6 +43,8 @@ func main() {
 	if cfg.SlackToken == "" {
 		log.Fatal("SLACK_TOKEN not configured")
 	}
+	// Why: without the key the stored Slack user token is read back as ciphertext (invalid_auth).
+	store.InitTokenEncryption()
 	if err := store.InitDB(ctx, cfg); err != nil {
 		log.Fatalf("DB init failed: %v", err)
 	}
