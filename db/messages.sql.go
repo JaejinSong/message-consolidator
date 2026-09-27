@@ -50,7 +50,7 @@ func (q *Queries) ArchiveOldTasks(ctx context.Context, datetime interface{}) (in
 const confirmExclusion = `-- name: ConfirmExclusion :execrows
 UPDATE messages
 SET excluded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-WHERE id = ? AND user_email = ? AND done = 0 AND is_deleted = 0
+WHERE id = ? AND user_email = ? AND done = 0 AND is_deleted = 0 AND lifecycle = 'active'
 `
 
 type ConfirmExclusionParams struct {
@@ -217,7 +217,7 @@ SELECT id, task, original_text, requester, assignee, source, room,
 FROM v_messages
 WHERE user_email = ? AND source = ? AND room = ? AND is_deleted = 0
 AND IFNULL(task, '') != ''
-AND (done = 0 OR (done = 1 AND completed_at > datetime('now', '-30 days')))
+AND (lifecycle IN ('active','excluded') OR (lifecycle = 'done' AND completed_at > datetime('now', '-30 days')))
 ORDER BY assigned_at DESC
 LIMIT 50
 `
@@ -281,7 +281,7 @@ func (q *Queries) GetActiveTasksForContext(ctx context.Context, arg GetActiveTas
 
 const getIncompleteByThreadID = `-- name: GetIncompleteByThreadID :many
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, updated_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
-FROM v_messages WHERE user_email = ? AND thread_id = ? AND done = 0 AND is_deleted = 0 AND IFNULL(task, '') != ''
+FROM v_messages WHERE user_email = ? AND thread_id = ? AND done = 0 AND is_deleted = 0 AND lifecycle IN ('active','excluded') AND IFNULL(task, '') != ''
 `
 
 type GetIncompleteByThreadIDParams struct {
@@ -753,7 +753,7 @@ WHERE user_email = ?
   AND source = 'gmail'
   AND done = 0
   AND is_deleted = 0
-  AND category != 'merged'
+  AND lifecycle IN ('active','excluded')
   AND created_at >= datetime('now', '-7 days')
   AND IFNULL(task, '') != ''
 ORDER BY created_at DESC
@@ -1515,6 +1515,7 @@ FROM v_messages
 WHERE user_email = ?
   AND done = 0
   AND is_deleted = 0
+  AND lifecycle = 'active'
   AND category IN ('PROMISE','WAITING')
   AND IFNULL(task,'') != ''
   AND (assignee_canonical = ? OR requester_canonical = ?)
@@ -1594,7 +1595,7 @@ const selectDueSoonMessages = `-- name: SelectDueSoonMessages :many
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(task, '') as task, COALESCE(deadline, '') as deadline, COALESCE(metadata, '') as metadata, COALESCE(room, '') as room, COALESCE(source, '') as source
 FROM messages
 WHERE done = 0 AND is_deleted = 0
-  AND excluded_at IS NULL
+  AND lifecycle = 'active'
   AND deadline IS NOT NULL AND deadline != ''
   AND deadline >= ?
   AND deadline <= ?
@@ -1861,6 +1862,7 @@ WHERE category IN ('PROMISE','WAITING')
   AND (deadline IS NULL OR deadline = '')
   AND done = 0
   AND is_deleted = 0
+  AND lifecycle = 'active'
   AND IFNULL(task,'') != ''
 ORDER BY user_email, created_at
 `
