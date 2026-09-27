@@ -48,6 +48,13 @@ func (w *WADBLogger) Receive(email, chatJID string, msg types.RawMessage) {
 		isForwarded = 1
 	}
 
+	rawJSON := ""
+	if b, err := json.Marshal(msg); err != nil {
+		logger.Warnf("[wa-db] failed to marshal raw message %s: %v", msg.ID, err)
+	} else {
+		rawJSON = string(b)
+	}
+
 	if err := store.InsertWAMessage(context.Background(), db.InsertWAMessageParams{
 		MessageID:     msg.ID,
 		Email:         email,
@@ -61,6 +68,7 @@ func (w *WADBLogger) Receive(email, chatJID string, msg types.RawMessage) {
 		IsForwarded:   isForwarded,
 		Mentions:      mentionsJSON,
 		Ts:            msg.Timestamp.Unix(),
+		RawJson:       rawJSON,
 	}); err != nil {
 		logger.Errorf("[wa-db] failed to insert message %s: %v", msg.ID, err)
 	}

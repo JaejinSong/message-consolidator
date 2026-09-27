@@ -196,8 +196,13 @@ type Querier interface {
 	// Why: kind='precision' is deliberately outside ListActiveSuppressRules' filter, so these
 	// can never be applied by guardSuppressRule -- they exist to be read and approved.
 	ListPrecisionObservations(ctx context.Context, userEmail string) ([]ListPrecisionObservationsRow, error)
+	// Why: replay reads only messages not yet consumed (processed_at IS NULL), with a
+	// captured payload (raw_json != ''), under the retry cap, past the write-settle grace
+	// period, not currently held by another in-flight pop (or that hold gone stale), and
+	// within the lookback window -- so a crashed scan does not resurrect ancient history.
+	ListReplayableWAMessages(ctx context.Context, arg ListReplayableWAMessagesParams) ([]ListReplayableWAMessagesRow, error)
 	ListReports(ctx context.Context, userEmail string) ([]ListReportsRow, error)
-	ListWAMessages(ctx context.Context, arg ListWAMessagesParams) ([]WaMessage, error)
+	ListWAMessages(ctx context.Context, arg ListWAMessagesParams) ([]ListWAMessagesRow, error)
 	LoadContactsAll(ctx context.Context) ([]LoadContactsAllRow, error)
 	LoadGmailTokensAll(ctx context.Context) ([]LoadGmailTokensAllRow, error)
 	LoadScanMetadataAll(ctx context.Context) ([]LoadScanMetadataAllRow, error)

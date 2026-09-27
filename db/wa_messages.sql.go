@@ -7,17 +7,18 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const insertWAMessage = `-- name: InsertWAMessage :exec
 INSERT OR IGNORE INTO wa_messages (
     message_id, email, chat_jid, chat_name, sender,
     direction, body, reply_to, has_attachment, is_forwarded,
-    mentions, ts
+    mentions, ts, raw_json
 ) VALUES (
     ?1, ?2, ?3, ?4, ?5,
     ?6, ?7, ?8, ?9, ?10,
-    ?11, ?12
+    ?11, ?12, ?13
 )
 `
 
@@ -34,6 +35,7 @@ type InsertWAMessageParams struct {
 	IsForwarded   int64  `json:"is_forwarded"`
 	Mentions      string `json:"mentions"`
 	Ts            int64  `json:"ts"`
+	RawJson       string `json:"raw_json"`
 }
 
 func (q *Queries) InsertWAMessage(ctx context.Context, arg InsertWAMessageParams) error {
@@ -50,8 +52,78 @@ func (q *Queries) InsertWAMessage(ctx context.Context, arg InsertWAMessageParams
 		arg.IsForwarded,
 		arg.Mentions,
 		arg.Ts,
+		arg.RawJson,
 	)
 	return err
+}
+
+const listReplayableWAMessages = `-- name: ListReplayableWAMessages :many
+SELECT message_id, chat_jid, raw_json, scan_attempts
+FROM wa_messages
+WHERE email = ?1
+  AND processed_at IS NULL
+  AND raw_json != ''
+  AND scan_attempts < ?2
+  AND created_at <= ?3
+  AND (popped_at IS NULL OR popped_at <= ?4)
+  AND ts >= ?5
+ORDER BY ts
+LIMIT ?6
+`
+
+type ListReplayableWAMessagesParams struct {
+	Email        string       `json:"email"`
+	ScanAttempts int64        `json:"scan_attempts"`
+	CreatedAt    string       `json:"created_at"`
+	PoppedAt     sql.NullTime `json:"popped_at"`
+	Ts           int64        `json:"ts"`
+	Limit        int64        `json:"limit"`
+}
+
+type ListReplayableWAMessagesRow struct {
+	MessageID    string `json:"message_id"`
+	ChatJid      string `json:"chat_jid"`
+	RawJson      string `json:"raw_json"`
+	ScanAttempts int64  `json:"scan_attempts"`
+}
+
+// Why: replay reads only messages not yet consumed (processed_at IS NULL), with a
+// captured payload (raw_json != ”), under the retry cap, past the write-settle grace
+// period, not currently held by another in-flight pop (or that hold gone stale), and
+// within the lookback window -- so a crashed scan does not resurrect ancient history.
+func (q *Queries) ListReplayableWAMessages(ctx context.Context, arg ListReplayableWAMessagesParams) ([]ListReplayableWAMessagesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listReplayableWAMessages,
+		arg.Email,
+		arg.ScanAttempts,
+		arg.CreatedAt,
+		arg.PoppedAt,
+		arg.Ts,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListReplayableWAMessagesRow
+	for rows.Next() {
+		var i ListReplayableWAMessagesRow
+		if err := rows.Scan(
+			&i.MessageID,
+			&i.ChatJid,
+			&i.RawJson,
+			&i.ScanAttempts,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listWAMessages = `-- name: ListWAMessages :many
@@ -78,7 +150,24 @@ type ListWAMessagesParams struct {
 	Offset  int64       `json:"offset"`
 }
 
-func (q *Queries) ListWAMessages(ctx context.Context, arg ListWAMessagesParams) ([]WaMessage, error) {
+type ListWAMessagesRow struct {
+	ID            int64  `json:"id"`
+	MessageID     string `json:"message_id"`
+	Email         string `json:"email"`
+	ChatJid       string `json:"chat_jid"`
+	ChatName      string `json:"chat_name"`
+	Sender        string `json:"sender"`
+	Direction     string `json:"direction"`
+	Body          string `json:"body"`
+	ReplyTo       string `json:"reply_to"`
+	HasAttachment int64  `json:"has_attachment"`
+	IsForwarded   int64  `json:"is_forwarded"`
+	Mentions      string `json:"mentions"`
+	Ts            int64  `json:"ts"`
+	CreatedAt     string `json:"created_at"`
+}
+
+func (q *Queries) ListWAMessages(ctx context.Context, arg ListWAMessagesParams) ([]ListWAMessagesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listWAMessages,
 		arg.Column1,
 		arg.Column2,
@@ -92,9 +181,9 @@ func (q *Queries) ListWAMessages(ctx context.Context, arg ListWAMessagesParams) 
 		return nil, err
 	}
 	defer rows.Close()
-	var items []WaMessage
+	var items []ListWAMessagesRow
 	for rows.Next() {
-		var i WaMessage
+		var i ListWAMessagesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.MessageID,

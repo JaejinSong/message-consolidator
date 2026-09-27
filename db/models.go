@@ -330,18 +330,22 @@ type VMessage struct {
 }
 
 type WaMessage struct {
-	ID            int64  `json:"id"`
-	MessageID     string `json:"message_id"`
-	Email         string `json:"email"`
-	ChatJid       string `json:"chat_jid"`
-	ChatName      string `json:"chat_name"`
-	Sender        string `json:"sender"`
-	Direction     string `json:"direction"`
-	Body          string `json:"body"`
-	ReplyTo       string `json:"reply_to"`
-	HasAttachment int64  `json:"has_attachment"`
-	IsForwarded   int64  `json:"is_forwarded"`
-	Mentions      string `json:"mentions"`
-	Ts            int64  `json:"ts"`
-	CreatedAt     string `json:"created_at"`
+	ID            int64        `json:"id"`
+	MessageID     string       `json:"message_id"`
+	Email         string       `json:"email"`
+	ChatJid       string       `json:"chat_jid"`
+	ChatName      string       `json:"chat_name"`
+	Sender        string       `json:"sender"`
+	Direction     string       `json:"direction"`
+	Body          string       `json:"body"`
+	ReplyTo       string       `json:"reply_to"`
+	HasAttachment int64        `json:"has_attachment"`
+	IsForwarded   int64        `json:"is_forwarded"`
+	Mentions      string       `json:"mentions"`
+	Ts            int64        `json:"ts"`
+	CreatedAt     string       `json:"created_at"`
+	RawJson       string       `json:"raw_json"`
+	PoppedAt      sql.NullTime `json:"popped_at"`
+	ProcessedAt   sql.NullTime `json:"processed_at"`
+	ScanAttempts  int64        `json:"scan_attempts"`
 }

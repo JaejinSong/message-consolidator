@@ -590,7 +590,11 @@ CREATE TABLE IF NOT EXISTS wa_messages (
     is_forwarded   INTEGER NOT NULL DEFAULT 0,
     mentions       TEXT    NOT NULL DEFAULT '[]',
     ts             INTEGER NOT NULL DEFAULT 0,
-    created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+    raw_json       TEXT    NOT NULL DEFAULT '',
+    popped_at      DATETIME,
+    processed_at   DATETIME,
+    scan_attempts  INTEGER NOT NULL DEFAULT 0
 )
 `
 

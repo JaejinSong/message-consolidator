@@ -14,7 +14,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 22
+const schemaVersion = 23
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -157,6 +157,7 @@ func createIndexes(ctx context.Context, q db.DBTX) {
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_messages_message_id ON wa_messages(message_id)",
 		"CREATE INDEX IF NOT EXISTS idx_wa_messages_ts ON wa_messages(ts)",
 		"CREATE INDEX IF NOT EXISTS idx_wa_messages_chat_jid_ts ON wa_messages(chat_jid, ts)",
+		"CREATE INDEX IF NOT EXISTS idx_wa_messages_replay ON wa_messages(email, processed_at, created_at)",
 		// learned_examples / correction_observations
 		"CREATE INDEX IF NOT EXISTS idx_learned_examples_user ON learned_examples(user_email)",
 		"CREATE INDEX IF NOT EXISTS idx_correction_obs_user_status ON correction_observations(user_email, status)",
@@ -531,6 +532,35 @@ func migrateLifecycleExcluded(ctx context.Context, q db.DBTX) error {
 	for _, s := range stmts {
 		if _, err := q.ExecContext(ctx, s); err != nil {
 			return fmt.Errorf("rebuild lifecycle with excluded branch: %w", err)
+		}
+	}
+	return nil
+}
+
+// addWAMessagesReplayColumns (v23) adds durable replay state to wa_messages. Why: the scan
+// pipeline buffers scanned messages in memory only, so a process restart or AI failure loses
+// them silently. raw_json preserves the original payload for replay; popped_at/processed_at/
+// scan_attempts track a message's progress through a durable at-least-once queue.
+// Idempotent via pragma_table_info existence checks (SQLite lacks IF NOT EXISTS for ALTER TABLE).
+func addWAMessagesReplayColumns(ctx context.Context, q db.DBTX) error {
+	for _, col := range []struct {
+		name string
+		ddl  string
+	}{
+		{"raw_json", "ALTER TABLE wa_messages ADD COLUMN raw_json TEXT NOT NULL DEFAULT ''"},
+		{"popped_at", "ALTER TABLE wa_messages ADD COLUMN popped_at DATETIME"},
+		{"processed_at", "ALTER TABLE wa_messages ADD COLUMN processed_at DATETIME"},
+		{"scan_attempts", "ALTER TABLE wa_messages ADD COLUMN scan_attempts INTEGER NOT NULL DEFAULT 0"},
+	} {
+		var has int
+		_ = q.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM pragma_table_info('wa_messages') WHERE name=?`, col.name,
+		).Scan(&has)
+		if has > 0 {
+			continue
+		}
+		if _, err := q.ExecContext(ctx, col.ddl); err != nil {
+			return fmt.Errorf("add wa_messages.%s: %w", col.name, err)
 		}
 	}
 	return nil

@@ -203,7 +203,7 @@ func (a *API) HandleListWAMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if msgs == nil {
-		msgs = []db.WaMessage{}
+		msgs = []db.ListWAMessagesRow{}
 	}
 
 	respondJSON(w, http.StatusOK, map[string]any{
