@@ -26,6 +26,7 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 	a.registerAdminRoutes(r)
 	a.registerReportRoutes(r)
 	a.registerGmailRoutes(r)
+	a.registerSlackOAuthRoutes(r)
 	a.registerSlackBotRoutes(r)
 	a.registerLineRoutes(r)
 	a.registerWAQueryRoutes(r)
@@ -42,6 +43,16 @@ func (a *API) registerLineRoutes(r *mux.Router) {
 	}
 	r.HandleFunc("/api/line/webhook", a.HandleLINEWebhook).Methods("POST")
 	r.Handle("/api/line/status", a.protected(a.HandleLINEStatus)).Methods("GET")
+}
+
+// registerSlackOAuthRoutes wires the per-user Slack OAuth connect flow. The callback is
+// unprotected, mirroring registerGmailRoutes, since Slack redirects here without the app's
+// session cookie.
+func (a *API) registerSlackOAuthRoutes(r *mux.Router) {
+	channels.SetupSlackUserOAuth(a.Config)
+	r.Handle("/auth/slack/connect", a.protected(a.HandleSlackConnect)).Methods("GET")
+	r.HandleFunc("/auth/slack/callback", a.HandleSlackCallback).Methods("GET")
+	r.Handle("/api/slack/disconnect", a.protected(a.HandleSlackUserDisconnect)).Methods("POST")
 }
 
 // registerSlackBotRoutes wires the Slack DM bot webhooks. Skipped when the signing secret

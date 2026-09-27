@@ -72,7 +72,7 @@ func TestBuildSlackStatus(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildSlackStatus(tt.connected, "U1", tt.lastTS, now)
+			got := buildSlackStatus(tt.connected, "U1", tt.lastTS, now, false, "")
 			if got.Stale != tt.wantStale {
 				t.Errorf("stale = %v, want %v", got.Stale, tt.wantStale)
 			}

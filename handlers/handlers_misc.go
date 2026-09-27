@@ -67,10 +67,12 @@ func (a *API) HandleGetReleaseNotes(w http.ResponseWriter, r *http.Request) {
 }
 
 type slackStatusResponse struct {
-	Status     string `json:"status"`
-	SlackID    string `json:"slack_id,omitempty"`
-	LastScanAt int64  `json:"last_scan_at"`
-	Stale      bool   `json:"stale"`
+	Status           string `json:"status"`
+	SlackID          string `json:"slack_id,omitempty"`
+	LastScanAt       int64  `json:"last_scan_at"`
+	Stale            bool   `json:"stale"`
+	UserToken        bool   `json:"user_token"`
+	UserTokenSlackID string `json:"user_token_slack_id,omitempty"`
 }
 
 // slackStaleThreshold marks the scan as stale when the last clean pass is older than
@@ -80,9 +82,10 @@ const slackStaleThreshold = 31 * time.Minute
 
 // buildSlackStatus derives the status payload from token presence and the last_success
 // scan stamp, mirroring buildGmailStatus. lastSuccessTS="" (never scanned, e.g. right
-// after first connect) is not stale.
-func buildSlackStatus(connected bool, slackID, lastSuccessTS string, now time.Time) slackStatusResponse {
-	resp := slackStatusResponse{SlackID: slackID}
+// after first connect) is not stale. hasUserToken/userTokenSlackID report the caller's own
+// per-user Slack OAuth link, independent of the workspace bot token.
+func buildSlackStatus(connected bool, slackID, lastSuccessTS string, now time.Time, hasUserToken bool, userTokenSlackID string) slackStatusResponse {
+	resp := slackStatusResponse{SlackID: slackID, UserToken: hasUserToken, UserTokenSlackID: userTokenSlackID}
 	if connected {
 		resp.Status = "connected"
 	} else {
@@ -118,7 +121,16 @@ func (a *API) HandleSlackStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	lastSuccess := store.GetLastScan(email, store.SourceSlack, store.ScanTargetLastSuccess)
-	resp := buildSlackStatus(connected, slackID, lastSuccess, time.Now())
+	// Why: HasSlackUserToken is cache-only; gating the GetSlackUserToken call behind it
+	// avoids a DB round trip (and touching the DB at all) when nothing is cached.
+	hasUserToken := store.HasSlackUserToken(email)
+	userTokenSlackID := ""
+	if hasUserToken {
+		if userToken, ok, err := store.GetSlackUserToken(r.Context(), email); err == nil && ok {
+			userTokenSlackID = userToken.SlackUserID
+		}
+	}
+	resp := buildSlackStatus(connected, slackID, lastSuccess, time.Now(), hasUserToken, userTokenSlackID)
 
 	logger.Debugf("[SLACK] status for %s: %s (slackID=%q stale=%v last_scan_at=%d)", email, resp.Status, resp.SlackID, resp.Stale, resp.LastScanAt)
 	respondJSON(w, http.StatusOK, resp)
