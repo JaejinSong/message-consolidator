@@ -95,6 +95,7 @@ func (s *TasksService) ResolveProposals(ctx context.Context, email, room string,
 func (s *TasksService) resolveProposalItem(room string, item store.TodoItem, active []store.ConsolidatedMessage) store.TodoItem {
 	if match := s.findMatch(room, item, active); match != nil {
 		item.ID = &match.ID
+		item.IDVerified = true
 		// Upgrade 'new' to 'update' if we found an existing task.
 		// Keep 'resolve', 'cancel', 'update' as AI intended.
 		if item.State == "new" {

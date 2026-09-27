@@ -453,6 +453,7 @@ func TestGuardTaskOverlap(t *testing.T) {
 		originalText string
 		id           *ids.MessageID
 		state        string
+		idVerified   bool
 		want         bool
 	}{
 		{
@@ -490,28 +491,43 @@ func TestGuardTaskOverlap(t *testing.T) {
 		{
 			// Why: live-call regression -- an Indonesian resolve for an English-titled
 			// existing task must not be dropped for wording mismatch (ID grounds it).
-			name:         "resolve with ID and zero overlap is kept",
+			name:         "resolve with verified ID and zero overlap is kept",
 			task:         "Restore the Whatap files accidentally deleted by the script",
 			originalText: "Saat ini sudah bisa dimonitoring kembali mas, tadi saya juga hapus untuk license yang sudah expire",
 			id:           &existingID,
 			state:        "resolve",
+			idVerified:   true,
 			want:         true,
 		},
 		{
-			name:         "cancel with ID and zero overlap is kept",
+			name:         "cancel with verified ID and zero overlap is kept",
 			task:         "Meet at 2-3 PM to follow up on the Adira dashboard issue",
 			originalText: "batal aja mas rapatnya",
 			id:           &existingID,
 			state:        "cancel",
+			idVerified:   true,
 			want:         true,
 		},
 		{
-			name:         "update with ID and zero overlap is kept",
+			name:         "update with verified ID and zero overlap is kept",
 			task:         "Prepare quarterly report",
 			originalText: "kalau selasa memungkinkan kita bisa Mas?",
 			id:           &existingID,
 			state:        "update",
+			idVerified:   true,
 			want:         true,
+		},
+		{
+			// Why: Gmail path calls ApplyExtractionGuard on raw AI items with no ID
+			// verification -- an unverified ID must not bypass G5 (a hallucinated ID
+			// must not cancel/resolve an unrelated task on wording alone).
+			name:         "resolve with unverified ID and zero overlap is dropped",
+			task:         "Restore the Whatap files accidentally deleted by the script",
+			originalText: "Saat ini sudah bisa dimonitoring kembali mas, tadi saya juga hapus untuk license yang sudah expire",
+			id:           &existingID,
+			state:        "resolve",
+			idVerified:   false,
+			want:         false,
 		},
 		{
 			name:         "state new with nil ID and zero overlap still dropped",
@@ -531,7 +547,7 @@ func TestGuardTaskOverlap(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := TaskBuildParams{
-				Item:         store.TodoItem{Task: tt.task, ID: tt.id, State: tt.state},
+				Item:         store.TodoItem{Task: tt.task, ID: tt.id, State: tt.state, IDVerified: tt.idVerified},
 				OriginalText: tt.originalText,
 			}
 			if got := guardTaskOverlap(p); got != tt.want {

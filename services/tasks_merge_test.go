@@ -57,6 +57,12 @@ func TestResolveProposals(t *testing.T) {
 	if results[1].State != "new" {
 		t.Errorf("expected state 'new' for unmatched task, got %s", results[1].State)
 	}
+	if results[0].IDVerified != true {
+		t.Errorf("expected IDVerified=true for matched task, got %v", results[0].IDVerified)
+	}
+	if results[1].IDVerified != false {
+		t.Errorf("expected IDVerified=false for unmatched task, got %v", results[1].IDVerified)
+	}
 }
 
 func TestResolveProposals_IDMatch(t *testing.T) {
@@ -81,6 +87,9 @@ func TestResolveProposals_IDMatch(t *testing.T) {
 	}
 	if results[0].State != "update" {
 		t.Errorf("expected state 'update', got %q", results[0].State)
+	}
+	if !results[0].IDVerified {
+		t.Errorf("expected IDVerified=true after ResolveProposals matched an ID, got false")
 	}
 }
 

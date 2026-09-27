@@ -163,6 +163,7 @@ type TodoItem struct {
 	ThreadID           string          `json:"thread_id,omitempty"`
 	IsFromMe           bool            `json:"-"` // Injected by the scan driver, never AI-supplied: gates auto-resolve vs confirm-first.
 	SenderName         string          `json:"-"` // Injected by the scan driver, never AI-supplied: raw sender display name for assignee-match resolve trust.
+	IDVerified         bool            `json:"-"` // Set by ResolveProposals when the ID was matched to an open task in the same room; never AI-supplied.
 	Category           string          `json:"category"`
 	Deadline           string          `json:"deadline"`
 	DeadlineDate       string          `json:"deadline_date,omitempty"`

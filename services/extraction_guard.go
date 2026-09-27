@@ -290,10 +290,11 @@ func guardTaskOverlap(p TaskBuildParams) bool {
 	if p.OriginalText == "" {
 		return true
 	}
-	// Why: an ID-bound transition (update/resolve/cancel) is grounded upstream by
-	// tasks_merge.go's ID match, not by wording -- the new message (often a different
-	// language) legitimately shares zero tokens with the existing task's title.
-	if p.Item.ID != nil && *p.Item.ID != 0 && !strings.EqualFold(strings.TrimSpace(p.Item.State), "new") {
+	// Why: an ID-bound transition (update/resolve/cancel) is grounded upstream only when
+	// ResolveProposals verified the ID against an open task in the same room (chat path);
+	// the Gmail path calls ApplyExtractionGuard on raw, unverified AI items, so an
+	// unverified ID must still clear G5 like any other item.
+	if p.Item.IDVerified && p.Item.ID != nil && *p.Item.ID != 0 && !strings.EqualFold(strings.TrimSpace(p.Item.State), "new") {
 		return true
 	}
 	// Why: whitespace token overlap is unreliable for agglutinative Korean; a false
