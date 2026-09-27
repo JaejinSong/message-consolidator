@@ -115,15 +115,6 @@ func FindDef(key string) *SettingDef {
 	return nil
 }
 
-// IsRuntimeReloadable reports whether changes to `key` apply without a process restart.
-func IsRuntimeReloadable(key string) bool {
-	def := FindDef(key)
-	if def == nil {
-		return false
-	}
-	return !def.RestartRequired
-}
-
 // ValidateSetting checks `value` against the registered validator (if any) plus type-level rules.
 // Empty string is always accepted (interpreted as "delete row → fall back to .env").
 func ValidateSetting(def *SettingDef, value string) error {

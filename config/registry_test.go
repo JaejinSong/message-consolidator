@@ -47,15 +47,3 @@ func TestValidateSetting(t *testing.T) {
 		})
 	}
 }
-
-func TestIsRuntimeReloadable(t *testing.T) {
-	if IsRuntimeReloadable("UNKNOWN_KEY_xyz") {
-		t.Errorf("unknown key must not be reloadable")
-	}
-	if !IsRuntimeReloadable("LOG_LEVEL") {
-		t.Errorf("LOG_LEVEL should be runtime-reloadable")
-	}
-	if IsRuntimeReloadable("TURSO_DATABASE_URL") {
-		t.Errorf("TURSO_DATABASE_URL should require restart")
-	}
-}

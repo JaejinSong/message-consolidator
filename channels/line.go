@@ -107,13 +107,6 @@ func (m *LineManager) ResolveSenderName(userID string) string {
 	return name
 }
 
-// Reset removes the current bot client (called on credential deletion).
-func (m *LineManager) Reset() {
-	m.mu.Lock()
-	m.bot = nil
-	m.mu.Unlock()
-}
-
 // GetLINEStatus returns the connection status for the singleton manager.
 func GetLINEStatus() string {
 	return DefaultLineManager.GetStatus()
