@@ -43,34 +43,6 @@ type ChannelAdapter interface {
 // every message in the room is unprocessed and must stay eligible for replay.
 var errGClientUnavailable = errors.New("scanner: AI client unavailable")
 
-// driverCompletionOptOut — optional: an adapter whose drain phase already feeds
-// the completion pipeline over ALL raw rows (pre-classification) implements this
-// so the driver does not double-dispatch the classified subset (LINE).
-type driverCompletionOptOut interface{ ownsCompletionDispatch() }
-
-// saveThreadAnchor — optional: channels that anchor reply threads on the saved
-// message's own ID (LINE) or parent thread ts (Slack) provide the thread_id
-// persisted with the task; WhatsApp/Telegram leave it empty.
-type saveThreadAnchor interface {
-	SaveThreadID(m types.RawMessage) string
-}
-
-// saveLinker — optional: channels with permalinks (Slack) build the task's Link;
-// Slack additionally registers the thread for sweep tracking inside this call.
-type saveLinker interface {
-	SaveLink(ctx context.Context, m types.RawMessage, email string) string
-}
-
-// scanAcker — optional: channels backed by a durable, replayable message log
-// (WhatsApp) acknowledge each scanned group so a scan that errors out before
-// finishing leaves its messages eligible for replay instead of silently
-// advancing past them. ok=true means the group was handled to a terminal
-// state (noise-filtered, AI success, or usable fallback); ok=false means the
-// group should be retried on a future scan.
-type scanAcker interface {
-	AckScanned(ctx context.Context, email string, ids []string, ok bool)
-}
-
 // groupOutcome maps a scanned group's terminal state to the ack decision: ok=true is
 // safe to mark processed (never replayed again), ok=false should stay eligible for
 // replay. isNoise short-circuits true (filtered groups are a valid terminal state);
@@ -156,13 +128,6 @@ func processChannelRoom(ctx context.Context, user store.User, aliases []string, 
 		}
 	}
 	return allIDs
-}
-
-// RoomRenamer is implemented by adapters whose stored room label may predate the name they can
-// resolve today. LegacyRoomName reports the label such history was written under, or "" when
-// the adapter has never had a weaker fallback.
-type RoomRenamer interface {
-	LegacyRoomName(roomKey string) string
 }
 
 // repairLegacyRoomName migrates history off a resolved room's older label, once per room. Why
