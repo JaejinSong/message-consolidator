@@ -158,6 +158,56 @@ func TestResolveProposalItem_TrustedResolveStaysResolve(t *testing.T) {
 	}
 }
 
+// Why: task 13304/13269 regression — a WhatsApp group's assignee rarely quote-replies,
+// so the sender-is-assignee check is the only path that can hard-close their own report
+// of completion instead of demoting it to resolve_candidate.
+func TestResolveProposalItem_AssigneeOwnReport(t *testing.T) {
+	t.Parallel()
+	svc := &TasksService{}
+	id := store.MessageID(1)
+
+	cases := []struct {
+		name      string
+		assignee  string
+		sender    string
+		threadID  string
+		wantState string
+	}{
+		{"ambiguous marker matches plain name", "Andy Phan", "Andy Phan (Ambiguous)", "", "resolve"},
+		{"case-insensitive match", "Ardi", "ardi", "", "resolve"},
+		{"different sender stays candidate", "Ardi", "Faisal", "", "resolve_candidate"},
+		{"shared assignee never trusted", "shared", "shared", "", "resolve_candidate"},
+		{"empty sender never trusted", "Ardi", "", "", "resolve_candidate"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			active := []store.ConsolidatedMessage{{
+				ID:       1,
+				Room:     skyworxRoom,
+				Task:     "Clarify per-core license CPU/vCPU counting scope",
+				Category: "TASK",
+				Assignee: tc.assignee,
+				ThreadID: "THREAD-DIFFERENT",
+			}}
+			item := store.TodoItem{
+				ID:         &id,
+				State:      "resolve",
+				Task:       "Clarify per-core license CPU/vCPU counting scope",
+				Category:   "TASK",
+				SenderName: tc.sender,
+				ThreadID:   tc.threadID,
+			}
+
+			got := svc.resolveProposalItem(skyworxRoom, item, active)
+			if got.State != tc.wantState {
+				t.Errorf("state = %q, want %q", got.State, tc.wantState)
+			}
+		})
+	}
+}
+
 func TestTitleTokenOverlap(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

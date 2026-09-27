@@ -156,13 +156,39 @@ func isArchivedCandidate(m *store.ConsolidatedMessage) bool {
 	return m.Category == string(types.CategoryMerged)
 }
 
-// isTrustedResolve — only the user's own statement or an in-thread reply may hard-close
-// a task; anything else becomes a confirm-first candidate (resolve_candidate).
+// isTrustedResolve — only the user's own statement, an in-thread reply, or the
+// assignee's own completion report may hard-close a task; anything else becomes a
+// confirm-first candidate (resolve_candidate).
 func isTrustedResolve(item store.TodoItem, match *store.ConsolidatedMessage) bool {
 	if item.IsFromMe {
 		return true
 	}
-	return item.ThreadID != "" && match.ThreadID != "" && item.ThreadID == match.ThreadID
+	if item.ThreadID != "" && match.ThreadID != "" && item.ThreadID == match.ThreadID {
+		return true
+	}
+	return senderIsAssignee(item.SenderName, match.Assignee)
+}
+
+// senderIsAssignee reports whether the raw message sender is the task's assignee.
+// Why: the assignee's own report of completion is first-party evidence, same trust as
+// own reply -- WhatsApp groups rarely quote-reply, so this is the only signal available.
+func senderIsAssignee(sender, assignee string) bool {
+	assignee = normalizeSenderIdentity(assignee)
+	if assignee == "" || assignee == AssigneeShared {
+		return false
+	}
+	sender = normalizeSenderIdentity(sender)
+	if sender == "" {
+		return false
+	}
+	return sender == assignee
+}
+
+// normalizeSenderIdentity collapses display-name noise (case, the "(Ambiguous)" report-time
+// suffix, and whitespace) so a sender name and an assignee name can be compared exactly.
+func normalizeSenderIdentity(raw string) string {
+	name := strings.ToLower(stripAmbiguityMarker(raw))
+	return strings.Join(strings.Fields(name), " ")
 }
 
 // verifiedIDMatch trusts an AI-supplied task ID only when the proposal is anchored to the

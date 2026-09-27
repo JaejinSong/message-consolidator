@@ -268,6 +268,7 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 		if raw, ok := msgMap[candidates[i].SourceTS]; ok {
 			candidates[i].ThreadID = raw.ThreadID
 			candidates[i].IsFromMe = adapter.IsFromMe(raw, user)
+			candidates[i].SenderName = senderRawFor(raw)
 		}
 	}
 
