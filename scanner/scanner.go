@@ -99,6 +99,7 @@ func StartBackgroundScanner(ctx context.Context) {
 	loops := []*primeLoop{
 		{name: "gmail", traceName: "/Background-Gmail-Scan", runFn: runGmailForAllUsers},
 		{name: "whatsapp", traceName: "/Background-WhatsApp-Scan", runFn: runWhatsAppForAllUsers},
+		{name: "whatsapp-replay", traceName: "/Background-WhatsApp-Replay", runFn: runWhatsAppReplay, pool: waReplayPool},
 		{name: "telegram", traceName: "/Background-Telegram-Scan", runFn: runTelegramForAllUsers},
 		{name: "slack", traceName: "/Background-Slack-Scan", runFn: runSlackForAllUsers},
 		{name: "line", traceName: "/Background-LINE-Scan", runFn: runLineForAllUsers},
