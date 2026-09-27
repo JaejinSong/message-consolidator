@@ -43,7 +43,20 @@ func TestSlackScanWindow(t *testing.T) {
 			// Why: an unbounded catch-up would blow the 60s scan timeout and re-analyze
 			// weeks of history at once.
 			name:  "very old cursor is capped at the catch-up limit",
-			minTS: ts(30 * 24 * time.Hour),
+			minTS: ts(45 * 24 * time.Hour),
+			want:  now.Add(-slackCatchUpCap),
+		},
+		{
+			// Why: regression for the 2026-09-17 bot-removal outage — cursor 10 days
+			// old must widen to the cursor itself, not the old 7-day cap.
+			name:  "cursor 10 days old widens to the cursor",
+			minTS: ts(10 * 24 * time.Hour),
+			want:  now.Add(-10 * 24 * time.Hour),
+		},
+		{
+			// Why: cursor older than the new 29-day cap floors at now-29d.
+			name:  "cursor 40 days old floors at the 29-day cap",
+			minTS: ts(40 * 24 * time.Hour),
 			want:  now.Add(-slackCatchUpCap),
 		},
 		{

@@ -170,9 +170,10 @@ func scanSingleSlackChannel(ctx context.Context, users []store.User, c slack.Cha
 
 const (
 	slackDefaultLookback = 24 * time.Hour
-	// slackCatchUpCap bounds a resumed scan. Why: after a long outage an uncapped
-	// window would re-analyze weeks of history inside the 60s scan timeout.
-	slackCatchUpCap = 7 * 24 * time.Hour
+	// slackCatchUpCap bounds a resumed scan. Why: a bot-removal outage can outlast
+	// a week (2026-09-17, 10 days) and these channels carry low history volume, so
+	// 29 days (prime) catches up without risking the 60s scan timeout.
+	slackCatchUpCap = 29 * 24 * time.Hour
 )
 
 // slackScanWindow reports the oldest message a scan should process. Why: `since` used
