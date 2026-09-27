@@ -444,6 +444,13 @@ func (a *slackAdapter) Enrich(roomKey, payload string, ts time.Time) (*types.Enr
 // never applied the driver's fromMe-in-group category override.
 func (a *slackAdapter) IsFromMe(types.RawMessage, store.User) bool { return false }
 
+// IsOwnMessage — the real sender-identity check, kept separate from IsFromMe so
+// the category-override path (saveChannelItem) stays false while the
+// resolve-trust path (candidate injection) still sees the user's own messages.
+func (a *slackAdapter) IsOwnMessage(m types.RawMessage, user store.User) bool {
+	return isFromUser(&user, m)
+}
+
 func (a *slackAdapter) Mentions(m types.RawMessage) []string {
 	return resolveSlackMentionNames(a.ctx, a.sc, extractSlackMentionUserIDs(m.Text))
 }

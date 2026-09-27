@@ -87,3 +87,42 @@ func TestAdapterIsFromMe(t *testing.T) {
 		})
 	}
 }
+
+// TestResolveCandidateIsFromMe covers the split between adapter.IsFromMe (used
+// by saveChannelItem's category override) and the injection loop's resolved
+// value (used by isTrustedResolve). Slack's own message must resolve true here
+// while adapter.IsFromMe itself stays pinned false.
+func TestResolveCandidateIsFromMe(t *testing.T) {
+	t.Parallel()
+	user := store.User{Name: "Jae", Email: "jae@example.com", SlackID: "U123"}
+	slackAd := &slackAdapter{}
+
+	tests := []struct {
+		name    string
+		adapter ChannelAdapter
+		m       types.RawMessage
+		want    bool
+	}{
+		{"slack own message resolves true via resolveTrustSource", slackAd, types.RawMessage{Sender: "U123"}, true},
+		{"slack counterparty message resolves false", slackAd, types.RawMessage{Sender: "U999"}, false},
+		{"whatsapp (no resolveTrustSource) falls back to adapter.IsFromMe", whatsAppAdapter{}, types.RawMessage{IsFromMe: true}, true},
+		{"whatsapp counterparty falls back to adapter.IsFromMe", whatsAppAdapter{}, types.RawMessage{Sender: "someone"}, false},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := resolveCandidateIsFromMe(tt.adapter, tt.m, user); got != tt.want {
+				t.Errorf("resolveCandidateIsFromMe() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+	t.Run("slack adapter.IsFromMe itself stays pinned false for category override", func(t *testing.T) {
+		t.Parallel()
+		if got := slackAd.IsFromMe(types.RawMessage{Sender: "U123"}, user); got != false {
+			t.Errorf("slackAdapter.IsFromMe() = %v, want false (category-override behavior unchanged)", got)
+		}
+	})
+}

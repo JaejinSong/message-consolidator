@@ -297,7 +297,7 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 	for i := range candidates {
 		if raw, ok := msgMap[candidates[i].SourceTS]; ok {
 			candidates[i].ThreadID = raw.ThreadID
-			candidates[i].IsFromMe = adapter.IsFromMe(raw, user)
+			candidates[i].IsFromMe = resolveCandidateIsFromMe(adapter, raw, user)
 			candidates[i].SenderName = senderRawFor(raw)
 		}
 	}
@@ -386,6 +386,17 @@ func processChannelItems(ctx context.Context, user store.User, aliases []string,
 	}
 	triggerAsyncTranslation(ctx, user.Email, newIDs, wg)
 	return newIDs
+}
+
+// resolveCandidateIsFromMe — Why: Slack pins adapter.IsFromMe false to preserve
+// its category-override behavior in saveChannelItem, so resolve-trust routing
+// (isTrustedResolve) reads the real sender-identity check off resolveTrustSource
+// when the adapter implements it, falling back to adapter.IsFromMe otherwise.
+func resolveCandidateIsFromMe(adapter ChannelAdapter, raw types.RawMessage, user store.User) bool {
+	if trustSource, ok := adapter.(resolveTrustSource); ok {
+		return trustSource.IsOwnMessage(raw, user)
+	}
+	return adapter.IsFromMe(raw, user)
 }
 
 func saveChannelItem(ctx context.Context, user store.User, aliases []string, item store.TodoItem, m types.RawMessage, group string, is1to1 bool, adapter ChannelAdapter) store.MessageID {

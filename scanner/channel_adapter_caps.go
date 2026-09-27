@@ -9,6 +9,7 @@ package scanner
 import (
 	"context"
 
+	"message-consolidator/store"
 	"message-consolidator/types"
 )
 
@@ -40,6 +41,14 @@ type scanAcker interface {
 	AckScanned(ctx context.Context, email string, ids []string, ok bool)
 }
 
+// resolveTrustSource — optional: an adapter whose adapter.IsFromMe is pinned false
+// for the category-override path (Slack) but still has real sender identity
+// available provides this so the injection loop can feed isTrustedResolve an
+// accurate IsFromMe without touching the category-override behavior.
+type resolveTrustSource interface {
+	IsOwnMessage(m types.RawMessage, user store.User) bool
+}
+
 // RoomRenamer is implemented by adapters whose stored room label may predate the name they can
 // resolve today. LegacyRoomName reports the label such history was written under, or "" when
 // the adapter has never had a weaker fallback.
@@ -66,4 +75,5 @@ var (
 	_ driverCompletionOptOut = (*slackAdapter)(nil)
 	_ saveThreadAnchor       = (*slackAdapter)(nil)
 	_ saveLinker             = (*slackAdapter)(nil)
+	_ resolveTrustSource     = (*slackAdapter)(nil)
 )
