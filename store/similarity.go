@@ -69,11 +69,19 @@ func jaroWinkler(s1, s2 string) float64 {
 	m := float64(matches)
 	jaro := (m/float64(l1) + m/float64(l2) + (m-float64(transpositions/2))/m) / 3.0
 	prefix := 0
-	for i := 0; i < min(6, min(l1, l2)); i++ {
+	// Why: textbook Jaro-Winkler caps the prefix bonus at 4 chars with scaling factor 0.1;
+	// a 6-char/0.15 bonus let unrelated titles sharing a common opening word
+	// (e.g. "Arrange"/"Clarify") score >= 0.9, above the 0.85 dedup threshold.
+	for i := 0; i < min(jaroWinklerMaxPrefix, min(l1, l2)); i++ {
 		if s1[i] != s2[i] {
 			break
 		}
 		prefix++
 	}
-	return jaro + (float64(prefix) * 0.15 * (1.0 - jaro))
+	return jaro + (float64(prefix) * jaroWinklerScalingFactor * (1.0 - jaro))
 }
+
+const (
+	jaroWinklerMaxPrefix     = 4
+	jaroWinklerScalingFactor = 0.1
+)

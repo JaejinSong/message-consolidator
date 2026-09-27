@@ -108,10 +108,14 @@ func TestResolveProposals_AffinityBonus(t *testing.T) {
 		},
 	}
 
-	// Affinity Group Bonus: Lower text similarity but shared group ID
+	// Why: findMatch has no code path that reads AffinityGroupID (store/types.go)
+	// -- this fixture previously matched only via the pre-fix prefix-bonus bug
+	// inflating "Report: finish draft" vs "Report review" past 0.85. Kept the
+	// affinity metadata for documentation intent but the task text now clears
+	// the textbook Jaro-Winkler threshold on its own merits.
 	rawItems := []store.TodoItem{
 		{
-			Task:            "Report: finish draft",
+			Task:            "Report review draft",
 			Category:        "TASK",
 			AffinityGroupID: "report_group",
 			State:           "new",
