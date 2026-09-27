@@ -182,7 +182,7 @@ func TestChatSystemSelfDMReportedSpeechRule(t *testing.T) {
 	body := string(content)
 	required := []string{
 		"Self-DM reported-speech exception",
-		"version: 1.17.0",
+		"version: 1.18.1",
 	}
 	for _, token := range required {
 		if !strings.Contains(body, token) {
@@ -688,6 +688,27 @@ func TestNewExtractionBlankPolicy(t *testing.T) {
 	for _, token := range required {
 		if !strings.Contains(body, token) {
 			t.Errorf("new_extraction.prompt missing v2.0.0 rule phrase: %q", token)
+		}
+	}
+}
+
+// TestChatSystemAnnouncedDecisionRule guards the v1.18 rule. Why: announced cancellations
+// and done-acks were extracted as new open tasks that never closed (Slack audit 2026-09-27),
+// and the rule must stay scoped so an agreed future meeting is still extracted.
+func TestChatSystemAnnouncedDecisionRule(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/chat_system.prompt")
+	if err != nil {
+		t.Fatalf("read chat_system: %v", err)
+	}
+	body := string(content)
+	for _, token := range []string{
+		"Announced decision or done-ack, not a request",
+		"Scope of that rule",
+		"future-tense commitments",
+	} {
+		if !strings.Contains(body, token) {
+			t.Errorf("chat_system.prompt missing announced-decision token: %q", token)
 		}
 	}
 }
