@@ -94,7 +94,7 @@ func routeTaskState(ctx context.Context, q store.Querier, email string, item sto
 	case "resolve_candidate":
 		return handleResolveCandidate(ctx, q, email, item, msg)
 	case "cancel":
-		return handleCancel(ctx, q, email, item)
+		return handleCancel(ctx, q, email, item, msg)
 	default:
 		logger.Warnf("[ROUTER] Unknown task state: %s", item.State)
 		return 0, nil
@@ -425,13 +425,25 @@ func handleResolveCandidate(ctx context.Context, q store.Querier, email string, 
 	return id, nil
 }
 
-func handleCancel(ctx context.Context, q store.Querier, email string, item store.TodoItem) (store.MessageID, error) {
+func handleCancel(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
 	if item.ID == nil {
 		return 0, fmt.Errorf("cancel requested but ID is nil")
 	}
 	id := *item.ID
-	err := store.DeleteMessages(ctx, q, email, []store.MessageID{id})
-	return 0, err
+	var dropped bool
+
+	err := runTaskTx(ctx, q, func(q store.Querier) error {
+		existing, err := validateTargetTask(ctx, q, email, id, msg.Room)
+		if err != nil || existing == nil {
+			dropped = true
+			return err
+		}
+		return store.DeleteMessages(ctx, q, email, []store.MessageID{id})
+	})
+	if err != nil || dropped {
+		return 0, err
+	}
+	return 0, nil
 }
 
 func mapTodoSubtasksToStore(todo []store.TodoSubtask) []store.Subtask {
