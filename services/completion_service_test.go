@@ -803,6 +803,11 @@ func TestHasCompletionSignal(t *testing.T) {
 		{"Any update on this?", false},
 		{"방금 배포했어요", true},
 		{"", false},
+		{"Saat ini sudah bisa dimonitoring kembali", true},
+		{"Now okay 👍😀", true},
+		{"udah bisa dipakai lagi", true},
+		{"sudah makan?", false},
+		{"ok", false},
 	}
 	for _, c := range cases {
 		if got := hasCompletionSignal(c.text); got != c.want {

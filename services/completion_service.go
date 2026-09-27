@@ -106,11 +106,16 @@ func matchesAckTokens(text string) bool {
 // completionSignalTokens are substrings that suggest a message reports the completion
 // or resolution of some task. Used as a cheap gate before the FTS + LLM cross-channel
 // match, so unrelated chatter never pays for a candidate search.
+// Why: most of this user's counterparty chats are Indonesian/Malay, not Korean/English —
+// add those completion phrases. Bare "sudah"/"ok" are deliberately excluded (too broad).
 var completionSignalTokens = []string{
 	"완료", "처리했", "처리 했", "끝냈", "끝났", "마쳤", "마무리", "해결", "반영", "배포",
 	"제출", "전달드", "전달했", "보냈", "보내드", "송부", "회신", "업로드", "공유드", "완납",
 	"done", "finished", "completed", "resolved", "fixed", "deployed", "submitted",
 	"sent", "shipped", "uploaded", "closed", "handled", "delivered", "wrapped up",
+	"selesai", "sudah bisa", "sudah ok", "sudah aman", "sudah normal", "sudah jalan",
+	"sudah up", "berhasil", "beres", "udah bisa", "dah siap", "dah ok",
+	"now okay", "works now", "working now", "already up", "is up now", "no problem now",
 }
 
 // hasCompletionSignal reports whether text plausibly announces a completion. Case-insensitive

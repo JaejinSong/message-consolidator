@@ -233,7 +233,17 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 	source := adapter.Source()
 
 	payload, msgMap := adapter.BuildPayload(user, aliases, group)
-	if isIgnorableChannelNoise(ctx, user.Email, source, payload, prefix) {
+
+	// Why: load open tasks before the noise filter so a short counterparty reply
+	// that transitions one of them (reply-to link or completion wording) is never
+	// dropped as group-level noise before extraction ever sees it.
+	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, source, groupName)
+	logger.Debugf("[SCAN] %s: found %d active tasks for room %s", prefix, len(tasks), groupName)
+
+	bypassNoise := len(tasks) > 0 && groupMayTransitionTask(group, tasks)
+	if bypassNoise {
+		logger.Debugf("[SCAN] %s: noise filter bypassed (open-task signal) room=%s", prefix, groupName)
+	} else if isIgnorableChannelNoise(ctx, user.Email, source, payload, prefix) {
 		return nil
 	}
 
@@ -247,9 +257,6 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 	} else {
 		enriched.ChatType = "group"
 	}
-
-	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, source, groupName)
-	logger.Debugf("[SCAN] %s: found %d active tasks for room %s", prefix, len(tasks), groupName)
 
 	candidates, err := gc.AnalyzeWithContext(ctx, user.Email, *enriched, language, source, groupName, tasks)
 	if err != nil {
