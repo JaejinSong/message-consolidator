@@ -182,7 +182,7 @@ func TestChatSystemSelfDMReportedSpeechRule(t *testing.T) {
 	body := string(content)
 	required := []string{
 		"Self-DM reported-speech exception",
-		"version: 1.20.0",
+		"version: 1.20.1",
 	}
 	for _, token := range required {
 		if !strings.Contains(body, token) {
@@ -763,7 +763,7 @@ func TestChatSystemEventTimeDeadlineRule(t *testing.T) {
 	body := string(content)
 	for _, token := range []string{
 		"states when the task/event happens or is due via a clock time",
-		"version: 1.20.0",
+		"version: 1.20.1",
 	} {
 		if !strings.Contains(body, token) {
 			t.Errorf("chat_system.prompt missing v1.20.0 event-time deadline token: %q", token)

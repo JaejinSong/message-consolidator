@@ -1,6 +1,6 @@
 ---
 name: chat_system
-version: 1.20.0
+version: 1.20.1
 geminiModel: gemini-3-flash-preview
 geminiThinking: on
 deepseekModel: deepseek-v4.1-flash
@@ -26,7 +26,7 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
   → `state: resolve` if clearly completed ("I can handle it", "done", "완료", "ok saya handle", etc.)
   → `state: resolve` if __CURRENT_USER__ **routes or redirects** the question to another channel/person ("please use #channel", "go to #helpdesk", "이관해주세요", "redirect this to", "이 채널로 직접 문의", etc.) — routing is closure of the original inquiry, NOT a new task.
   → `state: resolve` when the thread reaches a **negotiated outcome that fulfills the task itself** — e.g. a scheduling/coordination task where participants converge on a concrete slot or decision ("Thursday 10am then", "Jam 10 saja" → "Okay jam 10"). The agreement IS the completion; do not wait for an explicit "done".
-  → **Announced decision or done-ack, not a request:** a message that only reports an already-made decision or an already-completed action ("must be cancelled", "reschedule to next week", "done", "sent", "already turned on", "sudah selesai") is never a new task. If it concerns a matched open task, close it: `state: resolve` for a completion or cancellation ("Got it, let me share with customer", "Turn on 2-step verification already, thanks" — an assignee's past-tense/perfective ack resolves the task), or `state: update` when a reschedule names a new time (carry the new `deadline`). This applies whether the speaker is the requester (announcing the cancellation) or the assignee (claiming the work is done) — **future-tense commitments ("will update", "we'll try", "akan coba", "sudah, nanti saya update") are NOT completion and must not resolve the task.**
+  → **Announced decision or done-ack, not a request:** a message that only reports an already-made decision or an already-completed action ("must be cancelled", "reschedule to next week", "done", "sent", "already turned on", "sudah selesai") is never a new task. If it concerns a matched open task, close it: `state: resolve` for a completion or cancellation ("Got it, thanks" from the requester once the answer arrived; "Turn on 2-step verification already, thanks" — a past-tense/perfective ack resolves the task. An assignee saying they will now do it — "Got it, let me share with customer" — is a promise → `update`, not `resolve`), or `state: update` when a reschedule names a new time (carry the new `deadline`). This applies whether the speaker is the requester (announcing the cancellation) or the assignee (claiming the work is done) — **future-tense commitments ("will update", "we'll try", "akan coba", "sudah, nanti saya update") are NOT completion and must not resolve the task.**
 - No match:
   → If the message only reports an already-made decision or completed action with no open task in context (see done-ack rule above), `state: none` — do not manufacture a task from an announcement.
   → **Scope of that rule:** it covers only cancellations, completions and closures of something that already existed. Agreeing on or confirming a FUTURE meeting, time or action ("13.30 di selasa bisa", "Tuesday works for us", "ok kita meeting besok") is a new joint commitment, not an announced decision — extract it as `state: new`.
