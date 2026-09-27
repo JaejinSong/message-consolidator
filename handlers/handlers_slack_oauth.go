@@ -18,6 +18,7 @@ import (
 var (
 	exchangeSlackUserCodeFunc = channels.ExchangeSlackUserCode
 	verifySlackUserEmailFunc  = channels.VerifySlackUserEmail
+	revokeSlackUserTokenFunc  = channels.RevokeSlackUserToken
 )
 
 // slackOAuthNonceTTL bounds how long an issued CSRF nonce stays redeemable.
@@ -153,6 +154,12 @@ var saveSlackUserTokenFunc = store.SaveSlackUserToken
 // HandleSlackUserDisconnect removes the caller's own per-user Slack token.
 func (a *API) HandleSlackUserDisconnect(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
+	// Why: best-effort — a failed revoke must not keep the user connected locally.
+	if tok, ok, err := store.GetSlackUserToken(r.Context(), email); err == nil && ok {
+		if revokeErr := revokeSlackUserTokenFunc(r.Context(), tok.Token); revokeErr != nil {
+			logger.Warnf("[SLACK-OAUTH] revoke failed for %s: %v", email, revokeErr)
+		}
+	}
 	if err := store.DeleteSlackUserToken(r.Context(), email); err != nil {
 		handleAPIError(w, r, err, "[SLACK-OAUTH]", "Failed to disconnect Slack")
 		return

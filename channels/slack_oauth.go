@@ -79,3 +79,13 @@ func VerifySlackUserEmail(ctx context.Context, userToken, slackUserID string) (s
 	}
 	return user.Profile.Email, nil
 }
+
+// RevokeSlackUserToken invalidates the user token at Slack. Why: deleting the local row
+// alone leaves the xoxp grant live at Slack, so "disconnect" would not be authoritative.
+func RevokeSlackUserToken(ctx context.Context, userToken string) error {
+	api := slack.New(userToken, slack.OptionHTTPClient(whataphttpx.Client())) //nolint:contextcheck // whataphttpx.Client takes no ctx by design; trace rides on http.Request.Context
+	if _, err := api.SendAuthRevokeContext(ctx, userToken); err != nil {
+		return fmt.Errorf("slack auth.revoke: %w", err)
+	}
+	return nil
+}

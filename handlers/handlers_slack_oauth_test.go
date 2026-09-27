@@ -309,30 +309,49 @@ func TestConsumeSlackOAuthNonce_Expired(t *testing.T) {
 }
 
 func TestHandleSlackUserDisconnect(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
-	if err != nil {
-		t.Fatalf("setup db: %v", err)
-	}
-	defer cleanup()
+	for _, tc := range []struct {
+		name      string
+		revokeErr error
+	}{
+		{"revoke succeeds", nil},
+		{"revoke fails but local token is still removed", errors.New("slack down")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+			if err != nil {
+				t.Fatalf("setup db: %v", err)
+			}
+			defer cleanup()
 
-	email := "disconnect-me@example.com"
-	if err := store.SaveSlackUserToken(context.Background(), email, store.SlackUserToken{
-		Token: "xoxp-del", SlackUserID: "U9",
-	}); err != nil {
-		t.Fatalf("SaveSlackUserToken: %v", err)
-	}
+			var revoked string
+			orig := revokeSlackUserTokenFunc
+			revokeSlackUserTokenFunc = func(_ context.Context, token string) error {
+				revoked = token
+				return tc.revokeErr
+			}
+			defer func() { revokeSlackUserTokenFunc = orig }()
 
-	api := &API{Config: &config.Config{}}
-	req := NewMockRequest("POST", "/api/slack/disconnect", email)
-	rr := httptest.NewRecorder()
+			email := "disconnect-me@example.com"
+			if err := store.SaveSlackUserToken(context.Background(), email, store.SlackUserToken{
+				Token: "xoxp-del", SlackUserID: "U9",
+			}); err != nil {
+				t.Fatalf("SaveSlackUserToken: %v", err)
+			}
 
-	api.HandleSlackUserDisconnect(rr, req)
+			api := &API{Config: &config.Config{}}
+			rr := httptest.NewRecorder()
+			api.HandleSlackUserDisconnect(rr, NewMockRequest("POST", "/api/slack/disconnect", email))
 
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-	}
-	if store.HasSlackUserToken(email) {
-		t.Error("expected token to be deleted")
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+			}
+			if revoked != "xoxp-del" {
+				t.Errorf("revoked token = %q, want xoxp-del", revoked)
+			}
+			if store.HasSlackUserToken(email) {
+				t.Error("expected token to be deleted")
+			}
+		})
 	}
 }
 
