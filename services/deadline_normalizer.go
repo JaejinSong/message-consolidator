@@ -20,10 +20,39 @@ func ParseDeadline(raw string, ref time.Time) (string, bool) {
 	if isoDateRe.MatchString(s) {
 		return s, false
 	}
-	if d, ok := parseNatural(normalizeDeadlineText(s), ref); ok {
+	norm := normalizeDeadlineText(s)
+	if d, ok := parseNatural(norm, ref); ok {
 		return d.Format("2006-01-02"), true
 	}
+	// Why: extraction now keeps event times verbatim ("today 4pm", "besok jam 10"); the
+	// time of day carries no date, so drop it and retry -- only after the plain parse failed,
+	// so a date like "9.30" is never mistaken for a clock time.
+	if stripped := stripTimeOfDay(norm); stripped != "" && stripped != norm {
+		if d, ok := parseNatural(normalizeDeadlineText(stripped), ref); ok {
+			return d.Format("2006-01-02"), true
+		}
+	}
 	return "", false
+}
+
+// timeOfDayRes match clock times in English, Indonesian and Korean. Each form needs an
+// explicit clock marker (am/pm, a leading "at/jam/pukul", minutes, or 시) so a bare day
+// number is never removed.
+var timeOfDayRes = []*regexp.Regexp{
+	regexp.MustCompile(`(^|\s)(at\s+)?\d{1,2}([:.]\d{2})?\s*(am|pm)(\s|$)`),
+	regexp.MustCompile(`(^|\s)(at|jam|pukul)\s+\d{1,2}([:.]\d{2})?(\s|$)`),
+	regexp.MustCompile(`(^|\s)\d{1,2}[:.]\d{2}(\s|$)`),
+	regexp.MustCompile(`(오전|오후)?\s*\d{1,2}시(\s*\d{1,2}분)?`),
+}
+
+// stripTimeOfDay removes clock-time tokens and a dangling "at" from a normalized phrase.
+func stripTimeOfDay(s string) string {
+	out := s
+	for _, re := range timeOfDayRes {
+		out = re.ReplaceAllString(out, " ")
+	}
+	out = strings.TrimSuffix(strings.TrimSpace(out), " at")
+	return strings.Join(strings.Fields(out), " ")
 }
 
 // deadlinePrefixes are leading markers that carry no date information.
@@ -184,6 +213,7 @@ var weekdayNames = []struct {
 func weekdayOf(s string) (time.Weekday, bool) {
 	// strip "next " prefix before matching
 	bare := strings.TrimPrefix(s, "next ")
+	bare = strings.TrimPrefix(bare, "this ")
 	bare = strings.TrimPrefix(bare, "다음 ")
 	for _, entry := range weekdayNames {
 		for _, key := range entry.keys {

@@ -174,3 +174,44 @@ func TestParseDeadlineExtendedVocabulary(t *testing.T) {
 		})
 	}
 }
+
+// TestParseDeadlineTimeOfDay pins event-time phrasing the extraction prompt now emits
+// verbatim ("today 4pm", "besok jam 10"). Why: these parsed to "" so deadline_date stayed
+// NULL and reminders / past-event nudges never fired for meeting tasks.
+func TestParseDeadlineTimeOfDay(t *testing.T) {
+	refWed := time.Date(2026, 6, 3, 9, 0, 0, 0, time.UTC)
+	cases := []struct {
+		raw     string
+		wantISO string
+	}{
+		{"today 4pm", "2026-06-03"},
+		{"4pm today", "2026-06-03"},
+		{"today at 4 pm", "2026-06-03"},
+		{"tomorrow 10:30", "2026-06-04"},
+		{"besok jam 10", "2026-06-04"},
+		{"hari ini jam 2", "2026-06-03"},
+		{"hari ini pukul 14.00", "2026-06-03"},
+		{"오늘 오후 4시", "2026-06-03"},
+		{"내일 10시 30분", "2026-06-04"},
+		{"this friday", "2026-06-05"},
+		{"this friday 3pm", "2026-06-05"},
+		{"friday at 11am", "2026-06-05"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.raw, func(t *testing.T) {
+			got, inferred := ParseDeadline(tc.raw, refWed)
+			if got != tc.wantISO || !inferred {
+				t.Errorf("ParseDeadline(%q) = (%q, %v), want (%q, true)", tc.raw, got, inferred, tc.wantISO)
+			}
+		})
+	}
+	// Why: a bare time with no day must not invent a date, and plain dates keep working.
+	for _, raw := range []string{"4pm", "jam 10", "10:30"} {
+		if got, _ := ParseDeadline(raw, refWed); got != "" {
+			t.Errorf("ParseDeadline(%q) = %q, want \"\" (no day named)", raw, got)
+		}
+	}
+	if got, _ := ParseDeadline("9/30", refWed); got != "2026-09-30" {
+		t.Errorf("ParseDeadline(9/30) = %q, want 2026-09-30", got)
+	}
+}
