@@ -121,6 +121,12 @@ func (a *API) HandleSlackStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	lastSuccess := store.GetLastScan(email, store.SourceSlack, store.ScanTargetLastSuccess)
+	if lastSuccess == "" {
+		// Why: no success stamp yet must not read as healthy — fall back to the newest channel cursor.
+		if latest := store.LatestScanCursor(email, store.SourceSlack); latest > 0 {
+			lastSuccess = strconv.FormatInt(latest, 10)
+		}
+	}
 	// Why: HasSlackUserToken is cache-only; gating the GetSlackUserToken call behind it
 	// avoids a DB round trip (and touching the DB at all) when nothing is cached.
 	hasUserToken := store.HasSlackUserToken(email)

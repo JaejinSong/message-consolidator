@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"message-consolidator/db"
 	"message-consolidator/logger"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -121,6 +122,27 @@ func LoadMetadata() error {
 // ScanTargetLastSuccess is the scan_metadata target_id recording the unix time of the
 // last clean scan pass. Why: token presence alone cannot surface silent scan failures.
 const ScanTargetLastSuccess = "last_success"
+
+// LatestScanCursor returns the newest per-target cursor (unix seconds) for a user's source,
+// ignoring the last_success stamp. Why: a source that has never stamped last_success (e.g.
+// Slack right after the stamp shipped, while the bot had already been removed) must still
+// read as stale instead of silently "connected".
+func LatestScanCursor(userEmail, source string) int64 {
+	prefix := userEmail + ":" + source + ":"
+	metadataMu.RLock()
+	defer metadataMu.RUnlock()
+	var latest int64
+	for key, ts := range scanCache {
+		if !strings.HasPrefix(key, prefix) || strings.HasSuffix(key, ":"+ScanTargetLastSuccess) {
+			continue
+		}
+		f, err := strconv.ParseFloat(ts, 64)
+		if err == nil && int64(f) > latest {
+			latest = int64(f)
+		}
+	}
+	return latest
+}
 
 func GetLastScan(userEmail, source, targetID string) string {
 	metadataMu.RLock()
