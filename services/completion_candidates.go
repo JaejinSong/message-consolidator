@@ -126,6 +126,15 @@ func (s *CompletionService) handleCrossThreadCandidates(ctx context.Context, msg
 		return s.recordCompletionCandidate(ctx, msg, top)
 	case "UPDATE":
 		compStats.llmUpdate.Add(1)
+		// Why: HandleTaskState applies with the incoming message's room; validateTargetTask
+		// then rejects any task whose own room differs, logging a security error and never
+		// applying. Cross-room UPDATE always fails routing, so skip the call and let the
+		// task's own room keep owning its title (same-room stays on the auto-apply path).
+		if top.Room != msg.Room {
+			compStats.crossRoomUpdateSkipped.Add(1)
+			logger.Debugf("[COMPLETION] cross-room update skipped task=%d from room=%s", top.ID, top.Room)
+			return false
+		}
 		// Why: the verdict was computed against top only — applying it to every FTS
 		// hit appended unrelated conversations to unrelated tasks (Indofood-PO bug).
 		return s.handleCompletionResult(ctx, res, msg, top)

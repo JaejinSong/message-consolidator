@@ -1197,3 +1197,98 @@ func TestRecordCompletionCandidate_LinklessUsesSourceTS(t *testing.T) {
 		t.Errorf("candidate SourceLink = %q, want SourceTS fallback %q", c.SourceLink, "3EB0WAMSG2")
 	}
 }
+
+// Why: HandleTaskState applies with the incoming message's room, and validateTargetTask
+// rejects any task whose own room differs — so a cross-room UPDATE always failed routing
+// while still paying for the LLM call and logging a security error. It must be skipped
+// before HandleTaskState instead of applied and rejected downstream.
+func TestCrossThreadCandidates_CrossRoomUpdateSkipped(t *testing.T) {
+	ctx := context.Background()
+
+	openTask := store.ConsolidatedMessage{ID: 13299, Task: "Deploy the billing service", ThreadID: "threadX", Room: "Internal Puspakom WhaTap IFC"}
+	mockStore := &MockStore{Tasks: []store.ConsolidatedMessage{}, OpenFTSResults: []store.ConsolidatedMessage{openTask}}
+	mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "UPDATE", UpdatedText: "Updated scope"}}}
+	svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+	msg := store.ConsolidatedMessage{
+		UserEmail:    "jjsong@whatap.io",
+		ThreadID:     "threadY",
+		Source:       "slack",
+		Room:         "biz-global-tech",
+		OriginalText: "billing service 배포 완료했습니다",
+	}
+
+	handled, err := svc.ProcessPotentialCompletion(ctx, msg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if handled {
+		t.Error("expected handled=false for a cross-room UPDATE, routing always rejects it")
+	}
+	if len(mockStore.ReleasedIDs) != 0 {
+		t.Errorf("expected no HandleTaskState update call, got ReleasedIDs=%v", mockStore.ReleasedIDs)
+	}
+	if _, ok := mockStore.Candidates[13299]; ok {
+		t.Error("cross-room UPDATE must not record a completion candidate")
+	}
+}
+
+// Why: same-room cross-thread UPDATE is unaffected by the routing rejection and must
+// keep auto-applying, as it did before this fix.
+func TestCrossThreadCandidates_SameRoomUpdateApplies(t *testing.T) {
+	ctx := context.Background()
+
+	openTask := store.ConsolidatedMessage{ID: 42, Task: "Deploy the billing service", ThreadID: "threadX", Room: "biz-global-tech"}
+	mockStore := &MockStore{Tasks: []store.ConsolidatedMessage{}, OpenFTSResults: []store.ConsolidatedMessage{openTask}}
+	mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "UPDATE", UpdatedText: "Updated scope"}}}
+	svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+	msg := store.ConsolidatedMessage{
+		UserEmail:    "jjsong@whatap.io",
+		ThreadID:     "threadY",
+		Source:       "slack",
+		Room:         "biz-global-tech",
+		OriginalText: "billing service 배포 완료했습니다",
+	}
+
+	handled, err := svc.ProcessPotentialCompletion(ctx, msg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !handled {
+		t.Error("expected handled=true for a same-room UPDATE")
+	}
+	if len(mockStore.ReleasedIDs) == 0 {
+		t.Error("expected HandleTaskState update call for a same-room UPDATE")
+	}
+}
+
+// Why: RESOLVE verdicts are confirm-first and room-agnostic; the cross-room UPDATE fix
+// must not change this path.
+func TestCrossThreadCandidates_CrossRoomResolveStillRecordsCandidate(t *testing.T) {
+	ctx := context.Background()
+
+	openTask := store.ConsolidatedMessage{ID: 42, Task: "Deploy the billing service", ThreadID: "threadX", Room: "Internal Puspakom WhaTap IFC"}
+	mockStore := &MockStore{Tasks: []store.ConsolidatedMessage{}, OpenFTSResults: []store.ConsolidatedMessage{openTask}}
+	mockAI := &MockAI{Sequence: []ai.TaskTransition{{Status: "RESOLVE"}}}
+	svc := NewCompletionService(mockAI, mockStore, &TasksService{}, nil)
+
+	msg := store.ConsolidatedMessage{
+		UserEmail:    "jjsong@whatap.io",
+		ThreadID:     "threadY",
+		Source:       "slack",
+		Room:         "biz-global-tech",
+		OriginalText: "billing service 배포 완료했습니다",
+	}
+
+	handled, err := svc.ProcessPotentialCompletion(ctx, msg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !handled {
+		t.Error("expected handled=true for a cross-room RESOLVE (confirm-first candidate)")
+	}
+	if _, ok := mockStore.Candidates[42]; !ok {
+		t.Error("expected a completion candidate recorded on task 42")
+	}
+}
