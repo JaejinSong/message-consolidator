@@ -182,7 +182,7 @@ func TestChatSystemSelfDMReportedSpeechRule(t *testing.T) {
 	body := string(content)
 	required := []string{
 		"Self-DM reported-speech exception",
-		"version: 1.19.0",
+		"version: 1.20.0",
 	}
 	for _, token := range required {
 		if !strings.Contains(body, token) {
@@ -745,6 +745,51 @@ func TestCompletionCheckPromiseAndReceiptRules(t *testing.T) {
 	for _, token := range forbidden {
 		if strings.Contains(body, token) {
 			t.Errorf("completion_check.prompt still carries the pre-v2.6.0 resolve-on-uncertainty default: %q", token)
+		}
+	}
+}
+
+// TestChatSystemEventTimeDeadlineRule guards the v1.20.0 deadline rule. Why: messages
+// stating a clock time / time-of-day for when the task or event happens ("4pm today",
+// "besok jam 10") landed with deadline "" because the qualifying-phrase list only named
+// day/date/weekday/month/period-boundary words, never clock time -- breaking past-event
+// nudges and reminders that depend on deadline being set (2026-09-27).
+func TestChatSystemEventTimeDeadlineRule(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/chat_system.prompt")
+	if err != nil {
+		t.Fatalf("read chat_system: %v", err)
+	}
+	body := string(content)
+	for _, token := range []string{
+		"states when the task/event happens or is due via a clock time",
+		"version: 1.20.0",
+	} {
+		if !strings.Contains(body, token) {
+			t.Errorf("chat_system.prompt missing v1.20.0 event-time deadline token: %q", token)
+		}
+	}
+}
+
+// TestChatSystemOneOnOneUnaddressedRequestRule guards the v1.20.0 assignee exception.
+// Why: an unaddressed polite request in a 1:1 chat ("확인 부탁드립니다") has no possible
+// addressee but __CURRENT_USER__, yet rule 5 required the name/@mention to literally
+// appear in the text -- DeepSeek reasoned "addressed to the room" and left assignee empty
+// (regression case 05_id_formats, 2026-09-27). The exception must stay scoped to 1:1/
+// continuation context so unaddressed group broadcasts still fall through to shared/none.
+func TestChatSystemOneOnOneUnaddressedRequestRule(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/chat_system.prompt")
+	if err != nil {
+		t.Fatalf("read chat_system: %v", err)
+	}
+	body := string(content)
+	for _, token := range []string{
+		"1:1 unaddressed-request exception",
+		"This exception never applies in a group",
+	} {
+		if !strings.Contains(body, token) {
+			t.Errorf("chat_system.prompt missing v1.20.0 1:1 addressee token: %q", token)
 		}
 	}
 }

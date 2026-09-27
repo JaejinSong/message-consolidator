@@ -1,6 +1,6 @@
 ---
 name: chat_system
-version: 1.19.0
+version: 1.20.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: on
 deepseekModel: deepseek-v4.1-flash
@@ -50,7 +50,7 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
 - `deadline`: **never leave empty when the message carries any time reference.** Two accepted forms, in priority order:
   1. ISO `YYYY-MM-DD` when the date is explicit or you can resolve it against the message timestamp with certainty.
   2. Otherwise copy the temporal expression **verbatim, in its source language and script** -- "다음주 화요일까지", "내일까지", "besok", "kamis depan", "minggu depan", "월말", "end of month", "27th", "9/12". The server normalizes these. The copy must be verbatim: translating or paraphrasing it ("next Tuesday" for "다음주 화요일") breaks text grounding and the value is discarded.
-  Output `""` ONLY when the message names no time reference at all. Never invent a date. A phrase qualifies as a time reference **only if it names a day, date, weekday, month or period boundary**; open-ended urgency or vagueness does not ("ASAP", "soon", "when you get a chance", "in the coming days", "조만간", "시간 될 때", "nanti", "secepatnya") -- output `""` for those.
+  Output `""` ONLY when the message names no time reference at all. Never invent a date. A phrase qualifies as a time reference if it names a day, date, weekday, month or period boundary, **or states when the task/event happens or is due via a clock time / time-of-day** ("today 4pm", "besok jam 10", "2-3 PM" for a meeting being scheduled) -- copy the day word verbatim ("today", "besok") when one is present; if only the clock time is given for an event clearly happening the same day, copy the clock time itself rather than leaving `deadline` empty. Open-ended urgency or vagueness does not qualify ("ASAP", "soon", "when you get a chance", "in the coming days", "조만간", "시간 될 때", "nanti", "secepatnya") -- output `""` for those.
 - `source_ts`: exact literal value from `[ID:...]` tag — treat as opaque string.
 - `affinity_group_id`: same value for contextually related tasks.
 - `assignee_reason`: English only.
@@ -60,7 +60,7 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
 2. Non-current-user commits with first-person language ("I'll check", "saya cek", "Ok saya handle", "제가 할게요", "我来处理") → use that speaker.
 3. `category=WAITING` AND sender is __CURRENT_USER__ AND a specific named person is being waited on → use that person's name (they must act before __CURRENT_USER__ can proceed).
 4. Explicit group/team assignment ("technical team, please handle this", "tim teknikal", "@everyone") → `"shared"`. **An unaddressed broadcast is NOT a shared task**: an issue report to the room, a policy announcement, or a general question directed at nobody carries no owner, and a task nobody owns is not work. Emit `state: none` for those instead. Reserve `"shared"` for a request the group is actually being asked to carry out.
-5. Message explicitly directed at __CURRENT_USER__ **by name or @mention in the message text**, and __CURRENT_USER__ is the sole intended recipient → `__CURRENT_USER__`. **Being in the channel is NOT addressing. If __CURRENT_USER__'s name does not appear in the text, do NOT use `__CURRENT_USER__`.**
+5. Message explicitly directed at __CURRENT_USER__ **by name or @mention in the message text**, and __CURRENT_USER__ is the sole intended recipient → `__CURRENT_USER__`. **Being in the channel is NOT addressing. If __CURRENT_USER__'s name does not appear in the text, do NOT use `__CURRENT_USER__`** -- UNLESS the **1:1 unaddressed-request exception** applies: in a direct one-on-one conversation (no other participant named, mentioned, or in view) or a message replying to/continuing a conversation with __CURRENT_USER__, an unaddressed imperative or polite request ("please check", "확인 부탁드립니다") has no possible addressee but __CURRENT_USER__ -- assign `__CURRENT_USER__`. This exception never applies in a group (multiple participants named, mentioned, or replying) with no addressee named; there, fall through to rule 4 (`shared`) or `state: none`.
 6. Fallback: leave `assignee` empty — the platform adapter will fall back to the message sender for `category=PROMISE`, otherwise to `"shared"`.
 
 **Tie-break rule**: when uncertain between `shared` and `__CURRENT_USER__`, always choose `"shared"`. Being a member of a group does not make __CURRENT_USER__ the assignee.
@@ -120,4 +120,10 @@ Output: [{"id": 21, "state": "update", "task": "Schedule SAMCO discussion next w
 ---
 Input: [ID:p18] Jhonatan: Meetings and dinner on 8th must be cancelled.
 Output: []
+---
+Input: [ID:p19] Rina: Please check the PUSPAKOM meeting time — it's called for 4pm today.
+Output: [{"id": 0, "state": "new", "task": "Check the PUSPAKOM meeting time", "assignee": "__CURRENT_USER__", "assignee_reason": "1:1 message with an unaddressed polite request; current user is the only possible recipient.", "category": "TASK", "deadline": "today 4pm", "source_ts": "p19"}]
+---
+Input: [ID:p20] Nur: Ayo besok jam 10 kita lanjut bahas ini.
+Output: [{"id": 0, "state": "new", "task": "Continue the discussion", "assignee": "shared", "assignee_reason": "Group invite with no named addressee; kept shared per tie-break.", "category": "TASK", "deadline": "besok jam 10", "source_ts": "p20"}]
 ---

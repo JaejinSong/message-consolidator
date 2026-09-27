@@ -1,0 +1,13 @@
+[
+  {
+    "id": 0,
+    "state": "new",
+    "task": "Meet to discuss the plan",
+    "requester": "",
+    "assignee": "shared",
+    "assigned_at": "",
+    "source_ts": "p1",
+    "deadline": "besok",
+    "category": "TASK"
+  }
+]

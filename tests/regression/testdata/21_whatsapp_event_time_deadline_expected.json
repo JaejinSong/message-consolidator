@@ -1,0 +1,13 @@
+[
+  {
+    "id": 0,
+    "state": "new",
+    "task": "Host the PUSPAKOM meeting online",
+    "requester": "",
+    "assignee": "__CURRENT_USER__",
+    "assigned_at": "",
+    "source_ts": "WA_20260927_0001",
+    "deadline": "2026-09-27",
+    "category": "TASK"
+  }
+]
