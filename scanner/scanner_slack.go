@@ -428,11 +428,8 @@ func buildSlackAnalysisPayload(ctx context.Context, candidates []types.RawMessag
 		if senderLabel == "" {
 			senderLabel = m.Sender
 		}
-		var tsTag string
-		if !m.Timestamp.IsZero() {
-			tsTag = fmt.Sprintf("[ts:%s]", m.Timestamp.UTC().Format("2006-01-02T15:04"))
-		}
-		fmt.Fprintf(&sb, "[ID:%s]%s%s %s: %s\n", m.ID, tsTag, metaStr, senderLabel, resolvedText)
+		tsTag := formatTSTag(m.Timestamp)
+		writePayloadLine(&sb, m.ID, tsTag, metaStr, senderLabel, resolvedText)
 	}
 	return sb.String(), msgMap
 }
@@ -448,17 +445,9 @@ func buildSlackMetadataString(m types.RawMessage) string {
 	if m.IsForwarded {
 		tags = append(tags, "Forwarded")
 	}
-	var sb strings.Builder
-	if len(tags) > 0 {
-		fmt.Fprintf(&sb, " [Tags: %s]", strings.Join(tags, ", "))
-	}
-	if len(m.Reactions) > 0 {
-		fmt.Fprintf(&sb, " [Reactions: %s]", strings.Join(m.Reactions, ", "))
-	}
-	if len(m.AttachmentNames) > 0 {
-		fmt.Fprintf(&sb, " [Files: %s]", strings.Join(m.AttachmentNames, ", "))
-	}
-	return sb.String()
+	return formatTagBlock(tags) +
+		formatListBlock("Reactions", m.Reactions) +
+		formatListBlock("Files", m.AttachmentNames)
 }
 
 func buildSlackLink(m types.RawMessage) string {

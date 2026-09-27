@@ -55,11 +55,8 @@ func buildTGPayload(user store.User, msgs []types.RawMessage) (string, map[strin
 			senderName = user.Name
 		}
 
-		var tsTag string
-		if !m.Timestamp.IsZero() {
-			tsTag = fmt.Sprintf("[ts:%s]", m.Timestamp.UTC().Format("2006-01-02T15:04"))
-		}
-		fmt.Fprintf(&sb, "[ID:%s]%s%s %s: %s\n", m.ID, tsTag, meta, senderName, m.Text)
+		tsTag := formatTSTag(m.Timestamp)
+		writePayloadLine(&sb, m.ID, tsTag, meta, senderName, m.Text)
 	}
 	return sb.String(), msgMap
 }
@@ -73,14 +70,11 @@ func buildTGMetadataString(m types.RawMessage) string {
 		tags = append(tags, fmt.Sprintf("Reply-To: %s", m.RepliedToUser))
 	}
 
-	var sb strings.Builder
-	if len(tags) > 0 {
-		fmt.Fprintf(&sb, " [Tags: %s]", strings.Join(tags, ", "))
-	}
+	metaStr := formatTagBlock(tags)
 	if m.HasAttachment {
-		sb.WriteString(" [HasAttachment: true]")
+		metaStr += " [HasAttachment: true]"
 	}
-	return sb.String()
+	return metaStr
 }
 
 func scanTelegram(ctx context.Context, user store.User, aliases []string, language string, wg *sync.WaitGroup) []store.MessageID {

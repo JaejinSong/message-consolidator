@@ -110,11 +110,8 @@ func buildWAPayload(user store.User, aliases []string, msgs []types.RawMessage) 
 			senderName = name
 		}
 
-		var tsTag string
-		if !m.Timestamp.IsZero() {
-			tsTag = fmt.Sprintf("[ts:%s]", m.Timestamp.UTC().Format("2006-01-02T15:04"))
-		}
-		fmt.Fprintf(&sb, "[ID:%s]%s%s %s: %s\n", m.ID, tsTag, metaStr, senderName, resolvedText)
+		tsTag := formatTSTag(m.Timestamp)
+		writePayloadLine(&sb, m.ID, tsTag, metaStr, senderName, resolvedText)
 	}
 	return sb.String(), msgMap
 }
@@ -134,14 +131,7 @@ func buildWAMetadataString(email string, m types.RawMessage) string {
 		tags = append(tags, formatWAMentionTag(email, m.MentionedIDs))
 	}
 
-	var sb strings.Builder
-	if len(tags) > 0 {
-		fmt.Fprintf(&sb, " [Tags: %s]", strings.Join(tags, ", "))
-	}
-	if len(m.AttachmentNames) > 0 {
-		fmt.Fprintf(&sb, " [Files: %s]", strings.Join(m.AttachmentNames, ", "))
-	}
-	return sb.String()
+	return formatTagBlock(tags) + formatListBlock("Files", m.AttachmentNames)
 }
 
 // Why: Splits the mention-tag formatting out of buildWAMetadataString so the parent function avoids deep nesting and stays in nestif budget.
