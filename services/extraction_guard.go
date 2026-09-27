@@ -59,7 +59,7 @@ func snapshotAIOriginal(p *TaskBuildParams) {
 		"deadline": item.Deadline,
 		"category": item.Category,
 	}
-	updated, err := MetadataSet(p.Item.Metadata, "ai_original", snapshot)
+	updated, err := MetadataSet(p.Item.Metadata, store.MetaKeyAIOriginal, snapshot)
 	if err != nil {
 		return
 	}

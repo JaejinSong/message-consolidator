@@ -51,11 +51,11 @@ func MarkFieldSources(meta json.RawMessage, edited []string) (json.RawMessage, e
 	}
 	existing := map[string]string{}
 	// Why: malformed/missing existing sources must not block marking new ones.
-	_, _ = MetadataGet(meta, "field_sources", &existing)
+	_, _ = MetadataGet(meta, store.MetaKeyFieldSources, &existing)
 	for _, f := range edited {
 		existing[f] = "manual"
 	}
-	return MetadataSet(meta, "field_sources", existing)
+	return MetadataSet(meta, store.MetaKeyFieldSources, existing)
 }
 
 // fieldIsManual reports whether field was marked as a human edit via MarkFieldSources.
@@ -63,7 +63,7 @@ func MarkFieldSources(meta json.RawMessage, edited []string) (json.RawMessage, e
 // overwrite a value the user explicitly set (principle 6).
 func fieldIsManual(meta json.RawMessage, field string) bool {
 	sources := map[string]string{}
-	if _, err := MetadataGet(meta, "field_sources", &sources); err != nil {
+	if _, err := MetadataGet(meta, store.MetaKeyFieldSources, &sources); err != nil {
 		return false
 	}
 	return sources[field] == "manual"
@@ -83,7 +83,7 @@ func RecordTaskEdit(ctx context.Context, userEmail string, before store.Consolid
 
 func recordTaskEditWork(ctx context.Context, userEmail string, before store.ConsolidatedMessage, after EditFields) {
 	var original map[string]string
-	hasOriginal, err := MetadataGet(before.Metadata, "ai_original", &original)
+	hasOriginal, err := MetadataGet(before.Metadata, store.MetaKeyAIOriginal, &original)
 	if err != nil {
 		logger.Warnf("[LEARNING] read ai_original for msg %d: %v", before.ID, err)
 	}
@@ -231,11 +231,11 @@ func recordUneditedCompletionWork(ctx context.Context, userEmail string, msg sto
 		return
 	}
 	var sources map[string]string
-	if hasSources, _ := MetadataGet(msg.Metadata, "field_sources", &sources); hasSources && len(sources) > 0 {
+	if hasSources, _ := MetadataGet(msg.Metadata, store.MetaKeyFieldSources, &sources); hasSources && len(sources) > 0 {
 		return // Why: user already edited this task -- the edit path already recorded it.
 	}
 	var original map[string]string
-	if hasOriginal, _ := MetadataGet(msg.Metadata, "ai_original", &original); !hasOriginal {
+	if hasOriginal, _ := MetadataGet(msg.Metadata, store.MetaKeyAIOriginal, &original); !hasOriginal {
 		return
 	}
 	count, err := db.New(store.GetDB()).CountLearnedExamplesByOrigin(ctx, db.CountLearnedExamplesByOriginParams{

@@ -16,6 +16,13 @@ const (
 	metaKeyExclusionDismissedAt      = "exclusion_candidate_dismissed_at"
 	metaKeyExcludedAutoRestoredAt    = "excluded_auto_restored_at"
 	metaKeyRemindedPrefix            = "reminded_at_"
+
+	// MetaKeyFieldSources marks which task fields a human edit set, so a later
+	// AI rescan never silently overwrites a user's explicit choice.
+	MetaKeyFieldSources = "field_sources"
+	// MetaKeyAIOriginal snapshots the untouched AI extraction fields, used as
+	// the diff baseline for correction learning.
+	MetaKeyAIOriginal = "ai_original"
 )
 
 // metaKeyReminded builds the reminder-stamp key for a window ("24h", "1h",
