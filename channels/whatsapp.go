@@ -400,6 +400,12 @@ func (m *WAManager) PopMessages(email string) map[string][]types.RawMessage {
 	return m.chatBuf.pop(email)
 }
 
+// ReplayMessages reinjects DB-reconstructed messages that were never processed,
+// deduped against the chat's current live buffer. chatKey is the chat JID string.
+func (m *WAManager) ReplayMessages(email, chatKey string, raws []types.RawMessage) int {
+	return m.chatBuf.replay(email, chatKey, raws)
+}
+
 // GetDeviceName returns the linked WhatsApp device's PushName (or Platform as fallback).
 // Empty when no client exists or pairing has not completed — caller decides whether to surface that.
 func (m *WAManager) GetDeviceName(email string) string {
