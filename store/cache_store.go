@@ -34,6 +34,9 @@ var (
 	// tokenCache holds OAuth refresh tokens for background service authentications.
 	tokenCache = make(map[string]string)
 
+	// slackUserTokenCache holds decrypted per-user Slack OAuth (xoxp) tokens.
+	slackUserTokenCache = make(map[string]SlackUserToken)
+
 	// lastArchiveTime tracks the last successful auto-archive execution to ensure throttled processing.
 	lastArchiveTime time.Time
 
@@ -80,6 +83,7 @@ func ResetForTest() {
 	scanCache = make(map[string]string)
 	dirtyScanKeys = make(map[string]bool)
 	tokenCache = make(map[string]string)
+	slackUserTokenCache = make(map[string]SlackUserToken)
 	GlobalContactDSU.Reset()
 
 	archiveMu.Lock()

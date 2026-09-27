@@ -97,7 +97,24 @@ func LoadMetadata() error {
 		tokenCache[row.UserEmail] = decryptString(row.TokenJson)
 	}
 
-	logger.Infof("[CACHE] Loaded %d users, %d scan entries, %d tokens.", len(userCache), len(scanCache), len(tokenCache))
+	//Why: Restores per-user Slack OAuth (xoxp) tokens into memory; rows are encrypted
+	// (encv1:) so, like gmail_tokens, this must decrypt before caching.
+	logger.Infof("[STORE] scan: loading existing slack user tokens into memory")
+	slackTokenRows, err := queries.LoadSlackUserTokensAll(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to load slack user tokens: %w", err)
+	}
+
+	for _, row := range slackTokenRows {
+		slackUserTokenCache[row.UserEmail] = SlackUserToken{
+			Token:       decryptString(row.TokenEnc),
+			SlackUserID: row.SlackUserID,
+			Scopes:      row.Scopes,
+		}
+	}
+
+	logger.Infof("[CACHE] Loaded %d users, %d scan entries, %d tokens, %d slack user tokens.",
+		len(userCache), len(scanCache), len(tokenCache), len(slackUserTokenCache))
 	return nil
 }
 

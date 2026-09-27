@@ -16,6 +16,8 @@ type Config struct {
 	GeminiAPIKey                string
 	GoogleClientID              string
 	GoogleClientSecret          string
+	SlackClientID               string
+	SlackClientSecret           string
 	AuthSecret                  string
 	AuthDisabled                bool
 	AppBaseURL                  string
@@ -71,6 +73,8 @@ func LoadConfig() *Config {
 		GeminiAPIKey:               os.Getenv("GEMINI_API_KEY"),
 		GoogleClientID:             os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret:         os.Getenv("GOOGLE_CLIENT_SECRET"),
+		SlackClientID:              os.Getenv("SLACK_CLIENT_ID"),
+		SlackClientSecret:          os.Getenv("SLACK_CLIENT_SECRET"),
 		AuthSecret:                 os.Getenv("AUTH_SECRET"),
 		AuthDisabled:               os.Getenv("AUTH_DISABLED") == "true",
 		AppBaseURL:                 os.Getenv("APP_BASE_URL"),

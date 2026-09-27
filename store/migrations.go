@@ -14,7 +14,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 23
+const schemaVersion = 24
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -56,6 +56,7 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 		{"users", queries.CreateUsersTable},
 		{"user_aliases", queries.CreateUserAliasesTable},
 		{"gmail_tokens", queries.CreateGmailTokensTable},
+		{"slack_user_tokens", queries.CreateSlackUserTokensTable},
 		{"sessions", queries.CreateSessionsTable},
 		{"messages", queries.CreateMessagesTable},
 		{"task_translations", queries.CreateTaskTranslationsTable},

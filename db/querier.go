@@ -58,6 +58,7 @@ type Querier interface {
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	CreateSessionsTable(ctx context.Context) error
 	CreateSlackThreadsTable(ctx context.Context) error
+	CreateSlackUserTokensTable(ctx context.Context) error
 	CreateTaskGrantsTable(ctx context.Context) error
 	CreateTaskTranslationsTable(ctx context.Context) error
 	CreateTelegramCredentialsTable(ctx context.Context) error
@@ -81,6 +82,7 @@ type Querier interface {
 	DeleteReport(ctx context.Context, arg DeleteReportParams) error
 	DeleteScanMetadataSlackThread(ctx context.Context, arg DeleteScanMetadataSlackThreadParams) error
 	DeleteSession(ctx context.Context, token string) error
+	DeleteSlackUserToken(ctx context.Context, userEmail string) error
 	DeleteTaskTranslations(ctx context.Context, messageID sql.NullInt64) error
 	DeleteTelegramSession(ctx context.Context, email string) error
 	DeleteTenantAlias(ctx context.Context, arg DeleteTenantAliasParams) error
@@ -149,6 +151,7 @@ type Querier interface {
 	GetResolutionsByIdentifiers(ctx context.Context, arg GetResolutionsByIdentifiersParams) ([]GetResolutionsByIdentifiersRow, error)
 	GetRoomActorFrequency(ctx context.Context, arg GetRoomActorFrequencyParams) ([]GetRoomActorFrequencyRow, error)
 	GetSession(ctx context.Context, token string) (Session, error)
+	GetSlackUserToken(ctx context.Context, userEmail string) (GetSlackUserTokenRow, error)
 	GetSourceDistributionActive(ctx context.Context, dollar_1 string) ([]GetSourceDistributionActiveRow, error)
 	GetSourceDistributionTotal(ctx context.Context, dollar_1 string) ([]GetSourceDistributionTotalRow, error)
 	GetTaskCountByContactType(ctx context.Context, userEmail string) ([]GetTaskCountByContactTypeRow, error)
@@ -211,6 +214,7 @@ type Querier interface {
 	LoadContactsAll(ctx context.Context) ([]LoadContactsAllRow, error)
 	LoadGmailTokensAll(ctx context.Context) ([]LoadGmailTokensAllRow, error)
 	LoadScanMetadataAll(ctx context.Context) ([]LoadScanMetadataAllRow, error)
+	LoadSlackUserTokensAll(ctx context.Context) ([]LoadSlackUserTokensAllRow, error)
 	LoadUsersAll(ctx context.Context) ([]LoadUsersAllRow, error)
 	MarkLineInboxProcessed(ctx context.Context, id int64) error
 	MarkSourceTSProcessed(ctx context.Context, arg MarkSourceTSProcessedParams) error
@@ -289,6 +293,7 @@ type Querier interface {
 	UpsertPrecisionObservation(ctx context.Context, arg UpsertPrecisionObservationParams) error
 	UpsertScanMetadata(ctx context.Context, arg UpsertScanMetadataParams) error
 	UpsertSlackThread(ctx context.Context, arg UpsertSlackThreadParams) error
+	UpsertSlackUserToken(ctx context.Context, arg UpsertSlackUserTokenParams) error
 	UpsertTaskTranslation(ctx context.Context, arg UpsertTaskTranslationParams) error
 	UpsertTelegramCredentials(ctx context.Context, arg UpsertTelegramCredentialsParams) error
 	UpsertTelegramSession(ctx context.Context, arg UpsertTelegramSessionParams) error

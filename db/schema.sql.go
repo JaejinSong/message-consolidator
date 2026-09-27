@@ -441,6 +441,22 @@ func (q *Queries) CreateSlackThreadsTable(ctx context.Context) error {
 	return err
 }
 
+const createSlackUserTokensTable = `-- name: CreateSlackUserTokensTable :exec
+CREATE TABLE IF NOT EXISTS slack_user_tokens (
+    user_email    TEXT PRIMARY KEY,
+    token_enc     TEXT NOT NULL,
+    slack_user_id TEXT NOT NULL DEFAULT '',
+    scopes        TEXT NOT NULL DEFAULT '',
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+`
+
+func (q *Queries) CreateSlackUserTokensTable(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, createSlackUserTokensTable)
+	return err
+}
+
 const createTaskGrantsTable = `-- name: CreateTaskGrantsTable :exec
 CREATE TABLE IF NOT EXISTS task_grants (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,

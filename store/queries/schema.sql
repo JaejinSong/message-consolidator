@@ -62,6 +62,16 @@ CREATE TABLE IF NOT EXISTS gmail_tokens (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- name: CreateSlackUserTokensTable :exec
+CREATE TABLE IF NOT EXISTS slack_user_tokens (
+    user_email    TEXT PRIMARY KEY,
+    token_enc     TEXT NOT NULL,
+    slack_user_id TEXT NOT NULL DEFAULT '',
+    scopes        TEXT NOT NULL DEFAULT '',
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- name: CreateSessionsTable :exec
 CREATE TABLE IF NOT EXISTS sessions (
     token      TEXT PRIMARY KEY,
