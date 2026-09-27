@@ -204,6 +204,12 @@ const (
 // a fromMe quoted reply is threaded (ProcessPotentialCompletion); any message carrying
 // a completion signal is cross-channel (ProcessCrossChannelSignal, confirm-first only).
 func completionDispatchKind(m types.RawMessage, user store.User, adapter ChannelAdapter) dispatchKind {
+	// Why: the first live pass already dispatched completion for this message; re-dispatch
+	// on replay can run fallback extraction on a thread its own first pass closed and
+	// create a duplicate task — extraction on replay still emits resolve/update for open tasks.
+	if m.IsReplay {
+		return dispatchNone
+	}
 	if adapter.IsFromMe(m, user) && m.ReplyToID != "" {
 		return dispatchThreaded
 	}
@@ -319,7 +325,6 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 		}
 		logger.Infof("[SCAN] %s: AI unavailable, envelope fallback produced %d items", prefix, len(candidates))
 	}
-	ackGroup(ctx, adapter, user.Email, group, groupOutcome(false, nil, err, len(candidates)))
 
 	// Why: inject thread context so findMatch can guard against cross-thread merges,
 	// and sender identity so resolve routing can distinguish auto-close (own reply)
@@ -333,7 +338,12 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 	}
 
 	items := deps.tasksSvc.ResolveProposals(ctx, user.Email, groupName, candidates, tasks)
-	return processChannelItems(ctx, user, aliases, items, msgMap, groupName, adapter.Is1To1(roomKey), wg, adapter)
+	// Why: ack only after tasks are persisted -- acking before processChannelItems
+	// returns would mark the group processed even if a crash/panic loses the tasks
+	// mid-persist, since ackGroup's ok=true is a terminal "never replay again" signal.
+	ids := processChannelItems(ctx, user, aliases, items, msgMap, groupName, adapter.Is1To1(roomKey), wg, adapter)
+	ackGroup(ctx, adapter, user.Email, group, groupOutcome(false, nil, err, len(candidates)))
+	return ids
 }
 
 func isIgnorableChannelNoise(ctx context.Context, email, source, payload, prefix string) bool {

@@ -43,7 +43,7 @@ func replayWhatsAppUser(ctx context.Context, email string) {
 		return
 	}
 
-	byChat, malformed := groupReplayableByChat(rows)
+	byChat, malformed, deferred := groupReplayableByChat(rows)
 	if len(malformed) > 0 {
 		if err := store.MarkWAMessagesFailed(ctx, email, malformed); err != nil {
 			logger.Warnf("[WA-REPLAY] %s: mark malformed failed failed: %v", email, err)
@@ -55,17 +55,25 @@ func replayWhatsAppUser(ctx context.Context, email string) {
 		requeued += channels.DefaultWAManager.ReplayMessages(email, chatJID, raws)
 	}
 	if requeued > 0 {
-		logger.Infof("[WA-REPLAY] %s: requeued %d message(s) across %d chat(s) (malformed=%d)",
-			email, requeued, len(byChat), len(malformed))
+		logger.Infof("[WA-REPLAY] %s: requeued %d message(s) across %d chat(s) (malformed=%d, deferred=%d)",
+			email, requeued, len(byChat), len(malformed), deferred)
 	}
 }
 
+// waReplayPerChatMax caps how many rows of one chat are replayed per cycle. Why prime:
+// stays under the 200-row ChatBuffer cap (chatBufCap) with room for live traffic; the
+// remainder stays unprocessed and is picked up next cycle oldest-first.
+const waReplayPerChatMax = 149
+
 // groupReplayableByChat unmarshals each row's raw_json into types.RawMessage and groups
-// them by chat JID. Rows whose raw_json fails to parse are returned separately (by
-// message ID) so the caller can mark them failed and let the retry cap age them out.
-func groupReplayableByChat(rows []store.ReplayableWAMessage) (map[string][]types.RawMessage, []string) {
+// them by chat JID, capped at waReplayPerChatMax per chat (rows arrive ts-ascending, so
+// the oldest are kept and the rest deferred to the next cycle). Rows whose raw_json fails
+// to parse are returned separately (by message ID) so the caller can mark them failed and
+// let the retry cap age them out. Returns the total deferred (over-cap) row count.
+func groupReplayableByChat(rows []store.ReplayableWAMessage) (map[string][]types.RawMessage, []string, int) {
 	byChat := make(map[string][]types.RawMessage)
 	var malformed []string
+	deferred := 0
 	for _, row := range rows {
 		var raw types.RawMessage
 		if err := json.Unmarshal([]byte(row.RawJSON), &raw); err != nil {
@@ -73,7 +81,12 @@ func groupReplayableByChat(rows []store.ReplayableWAMessage) (map[string][]types
 			malformed = append(malformed, row.MessageID)
 			continue
 		}
+		if len(byChat[row.ChatJID]) >= waReplayPerChatMax {
+			deferred++
+			continue
+		}
+		raw.IsReplay = true
 		byChat[row.ChatJID] = append(byChat[row.ChatJID], raw)
 	}
-	return byChat, malformed
+	return byChat, malformed, deferred
 }

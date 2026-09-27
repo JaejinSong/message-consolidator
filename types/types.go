@@ -63,6 +63,8 @@ type RawMessage struct {
 	Reactions       []string `json:"reactions"`
 	MentionedIDs    []string `json:"mentioned_ids"`
 	MentionedNames  []string `json:"mentioned_names"` // Why: Pre-resolved display names from MentionedIDs; enables pickFirstMentionAssignee fallback without re-querying the channel API.
+
+	IsReplay bool `json:"-"` // Set only by the replay job; never persisted.
 }
 
 // EnrichedMessage represents a unified message model for task analysis.

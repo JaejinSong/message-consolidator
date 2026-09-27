@@ -44,6 +44,8 @@ func TestCompletionDispatchKind(t *testing.T) {
 		{"counterparty with signal is crossChannel", types.RawMessage{IsFromMe: false, Text: "done with this"}, dispatchCrossChannel},
 		{"counterparty without signal is none", types.RawMessage{IsFromMe: false, Text: "any update?"}, dispatchNone},
 		{"fromMe plain without signal is none", types.RawMessage{IsFromMe: true, Text: "hello there"}, dispatchNone},
+		{"replayed fromMe quoted reply is none", types.RawMessage{IsFromMe: true, ReplyToID: "parent", Text: "hi", IsReplay: true}, dispatchNone},
+		{"replayed counterparty with signal is none", types.RawMessage{IsFromMe: false, Text: "done with this", IsReplay: true}, dispatchNone},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
