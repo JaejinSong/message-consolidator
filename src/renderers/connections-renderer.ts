@@ -18,7 +18,7 @@ export interface ConnectionsState {
     gmail: { connected: boolean; email?: string; stale?: boolean; lastScanAt?: number };
     whatsapp: { connected: boolean; deviceName?: string };
     telegram: { status: string; hasCredentials?: boolean; phoneMasked?: string; appIdMasked?: string };
-    slack: { connected: boolean; slackId?: string; stale?: boolean; lastScanAt?: number; userToken?: boolean; userTokenSlackId?: string };
+    slack: { connected: boolean; stale?: boolean; lastScanAt?: number; userToken?: boolean; userTokenSlackId?: string };
     line: { connected: boolean };
 }
 

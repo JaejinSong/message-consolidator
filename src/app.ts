@@ -372,7 +372,6 @@ const checkAllStatus = safeAsync(async (bypassVisibility: boolean = false) => {
                 updateSlackStatus(connected, { stale: d.stale === true, lastScanAt: d.last_scan_at });
                 snapshot.slack = {
                     connected,
-                    slackId: d.slack_id,
                     stale: d.stale === true,
                     lastScanAt: d.last_scan_at,
                     userToken: d.user_token,
