@@ -218,8 +218,8 @@ p_caddy=""
 if $CADDY_CHANGED; then
     (
         say_blue "==> Deploying Caddy Configuration..."
-        # Why: Reloading Caddy in-place for zero-downtime config updates.
-        run_step "Caddy: Reload" ${SSH_CMD} "cd ${VPS_PATH} && sudo docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile" || \
+        # Why: the upload replaces Caddyfile with a new inode, and a single-file bind mount keeps
+        # the old one, so an in-place reload silently re-reads the stale config (2026-09-27).
         run_step "Caddy: Restart" ${SSH_CMD} "cd ${VPS_PATH} && sudo docker compose restart caddy"
     ) & p_caddy=$!
 else
