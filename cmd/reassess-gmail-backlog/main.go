@@ -34,6 +34,7 @@ func main() {
 	email := flag.String("email", "", "user email whose open Gmail tasks should be reassessed")
 	apply := flag.Bool("apply", false, "write confirm-first candidates (default: dry run, no writes)")
 	limit := flag.Int("limit", 97, "max number of open Gmail tasks to reassess")
+	flag.Int64Var(&dumpTaskID, "dump-task", 0, "print the full cleaned body of every candidate reply for this task ID (audit aid)")
 	flag.Parse()
 
 	if *email == "" {
@@ -128,6 +129,9 @@ func groupByGmailThread(tasks []store.ConsolidatedMessage) []gmailTaskGroup {
 
 // fetchGmailThread is a seam over the real Gmail API call so tests can inject fake
 // thread histories without a network round trip.
+// dumpTaskID is set by -dump-task; package-level so the evaluator can print without threading a flag through every call.
+var dumpTaskID int64
+
 var fetchGmailThread = defaultFetchGmailThread
 
 func defaultFetchGmailThread(ctx context.Context, svc *gmail.Service, threadID string) (*gmail.Thread, error) {
@@ -215,6 +219,9 @@ func evaluateGmailReplyAgainstTask(ctx context.Context, completionSvc *services.
 		return
 	}
 	sender := gmailSenderDisplayName(m.Payload)
+	if dumpTaskID != 0 && int64(task.ID) == dumpTaskID {
+		fmt.Printf("---- task %d reply %s from %s ----\n%s\n", task.ID, m.Id, sender, body)
+	}
 
 	env := store.ConsolidatedMessage{
 		UserEmail:    task.UserEmail,
