@@ -45,9 +45,12 @@ func (a *API) HandleGenerateProposals(w http.ResponseWriter, r *http.Request) {
 	proposalJobs[email] = &proposalJob{Status: "running"}
 	proposalJobsMu.Unlock()
 
-	go func() { //nolint:contextcheck // Async job uses Background ctx by design; lifecycle outlives request.
+	// Why: WithoutCancel preserves the request's WhaTap trace context (carried as a
+	// value) while detaching cancellation so the job outlives the request that started it.
+	jobCtx := context.WithoutCancel(r.Context())
+	go func() {
 		defer safego.Recover("proposal-job")
-		result := a.runProposalJob(email)
+		result := a.runProposalJob(jobCtx, email)
 		proposalJobsMu.Lock()
 		proposalJobs[email] = result
 		proposalJobsMu.Unlock()
@@ -56,8 +59,7 @@ func (a *API) HandleGenerateProposals(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusAccepted, map[string]string{"status": "running"})
 }
 
-func (a *API) runProposalJob(email string) *proposalJob {
-	ctx := context.Background()
+func (a *API) runProposalJob(ctx context.Context, email string) *proposalJob {
 	ctx, _ = trace.Start(ctx, "/proposal-job")
 	var txErr error
 	defer func() { _ = trace.End(ctx, txErr) }()

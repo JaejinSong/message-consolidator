@@ -58,7 +58,7 @@ func (a *slackAdapter) AckScanned(_ context.Context, email string, ids []string,
 func (a *slackAdapter) Source() string    { return store.SourceSlack }
 func (a *slackAdapter) LogPrefix() string { return "SLACK" }
 
-func (a *slackAdapter) PopMessages(string) map[string][]types.RawMessage {
+func (a *slackAdapter) PopMessages(context.Context, string) map[string][]types.RawMessage {
 	if a.consumed {
 		return nil
 	}

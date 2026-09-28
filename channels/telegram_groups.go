@@ -36,7 +36,9 @@ func (m *TelegramManager) GetGroupName(email string, chatKey string) string {
 	if cached := m.cachedGroupName(chatKey); cached != "" {
 		return cached
 	}
-	if name := m.resolveDMName(email, chatKey); name != "" {
+	// Why: GetGroupName (ChannelAdapter interface method) carries no ctx; resolveDMName
+	// still takes one so its store call is never silently detached from a future caller.
+	if name := m.resolveDMName(context.Background(), email, chatKey); name != "" {
 		m.groupCache.Store(chatKey, name)
 		return name
 	}
@@ -59,12 +61,12 @@ func (m *TelegramManager) cachedGroupName(chatKey string) string {
 	return s
 }
 
-func (m *TelegramManager) resolveDMName(email, chatKey string) string {
+func (m *TelegramManager) resolveDMName(ctx context.Context, email, chatKey string) string {
 	if !strings.HasPrefix(chatKey, "tg_user_") {
 		return ""
 	}
 	uid := strings.TrimPrefix(chatKey, "tg_user_")
-	return store.GetNameByTelegramID(context.Background(), email, uid)
+	return store.GetNameByTelegramID(ctx, email, uid)
 }
 
 func (m *TelegramManager) resolveBasicChatTitle(email, chatKey string) string {

@@ -30,7 +30,7 @@ import (
 type ChannelAdapter interface {
 	Source() string
 	LogPrefix() string
-	PopMessages(email string) map[string][]types.RawMessage
+	PopMessages(ctx context.Context, email string) map[string][]types.RawMessage
 	GetGroupName(email, roomKey string) string
 	Is1To1(roomKey string) bool
 	BuildPayload(user store.User, aliases []string, msgs []types.RawMessage) (string, map[string]types.RawMessage)
@@ -77,7 +77,7 @@ func ackGroup(ctx context.Context, adapter ChannelAdapter, email string, msgs []
 }
 
 func scanChannel(ctx context.Context, user store.User, aliases []string, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []store.MessageID {
-	buffer := adapter.PopMessages(user.Email)
+	buffer := adapter.PopMessages(ctx, user.Email)
 	if len(buffer) == 0 {
 		return nil
 	}

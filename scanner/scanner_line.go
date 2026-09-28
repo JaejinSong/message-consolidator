@@ -132,7 +132,7 @@ func newLineAdapter(chatID, chatType, roomName string, rows []db.LineInbox) *lin
 func (a *lineAdapter) Source() string    { return store.SourceLine }
 func (a *lineAdapter) LogPrefix() string { return "LINE" }
 
-func (a *lineAdapter) PopMessages(string) map[string][]types.RawMessage {
+func (a *lineAdapter) PopMessages(context.Context, string) map[string][]types.RawMessage {
 	if a.consumed {
 		return nil
 	}

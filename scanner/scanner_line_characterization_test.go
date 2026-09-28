@@ -32,7 +32,7 @@ func lineFixtureRows() []db.LineInbox {
 func TestLinePayloadCharacterization(t *testing.T) {
 	rows := lineFixtureRows()
 	adapter := newLineAdapter("C-grp-1", "group", "C-grp-1", rows)
-	raws := adapter.PopMessages("any")["C-grp-1"]
+	raws := adapter.PopMessages(context.Background(), "any")["C-grp-1"]
 	payload, rawMsgs := adapter.BuildPayload(store.User{}, nil, raws)
 
 	// Sender chain: SenderName → SenderID → "unknown"; time rendered as local 15:04.

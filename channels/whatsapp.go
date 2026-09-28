@@ -378,17 +378,14 @@ func waContactInfos(ctx context.Context, client *whatsmeow.Client, jid, pn waTyp
 }
 
 // Why: Provides a static way to resolve mentions in text if the explicit JID list is lost, though metadata-based resolution is preferred.
-// Why: no request ctx reaches this layer -- ChannelAdapter.BuildPayload and the
-// whatsmeow event handlers take no context.Context, so trace plumbing is a separate
-// change; the tenant argument below is what closes the cross-tenant contact leak.
-func ResolveWAMentions(email, text string, jids []string) string {
+func ResolveWAMentions(ctx context.Context, email, text string, jids []string) string {
 	if len(jids) == 0 {
 		return text
 	}
 	result := text
 	for _, jidStr := range jids {
 		jid, _ := waTypes.ParseJID(jidStr)
-		name := store.GetNameByWhatsAppNumber(context.Background(), email, jid.User)
+		name := store.GetNameByWhatsAppNumber(ctx, email, jid.User)
 		if name != "" {
 			result = strings.ReplaceAll(result, "@"+jid.User, "@"+name)
 		}

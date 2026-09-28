@@ -65,7 +65,7 @@ func TestBuildWAPayload_Golden(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			payload, _ := buildWAPayload(user, nil, tc.msgs)
+			payload, _ := buildWAPayload(context.Background(), user, nil, tc.msgs)
 			if payload != tc.want {
 				t.Errorf("payload = %q, want %q", payload, tc.want)
 			}

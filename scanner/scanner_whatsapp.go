@@ -16,11 +16,16 @@ import (
 )
 
 // whatsAppAdapter adapts WAManager to the shared channel scanner driver.
-type whatsAppAdapter struct{}
+type whatsAppAdapter struct {
+	// ctx is the scan-scoped context; BuildPayload resolves contact names through
+	// store.GetNameByWhatsAppNumber and the ChannelAdapter interface carries no ctx
+	// (mirrors slackAdapter's ctx field for the same reason).
+	ctx context.Context
+}
 
 func (whatsAppAdapter) Source() string    { return store.SourceWhatsApp }
 func (whatsAppAdapter) LogPrefix() string { return "WA" }
-func (whatsAppAdapter) PopMessages(email string) map[string][]types.RawMessage {
+func (whatsAppAdapter) PopMessages(ctx context.Context, email string) map[string][]types.RawMessage {
 	buffer := channels.DefaultWAManager.PopMessages(email)
 	if len(buffer) == 0 {
 		return buffer
@@ -31,9 +36,7 @@ func (whatsAppAdapter) PopMessages(email string) map[string][]types.RawMessage {
 			ids = append(ids, m.ID)
 		}
 	}
-	// Why: ChannelAdapter.PopMessages has no ctx param (shared WhatsApp/Telegram
-	// interface); marking popped is a best-effort replay guard, not request work.
-	if err := store.MarkWAMessagesPopped(context.Background(), email, ids); err != nil {
+	if err := store.MarkWAMessagesPopped(ctx, email, ids); err != nil {
 		logger.Warnf("[SCAN] WA: mark popped failed: %v", err)
 	}
 	return buffer
@@ -70,8 +73,8 @@ func (whatsAppAdapter) LegacyRoomName(roomKey string) string {
 // Is1To1 — WhatsApp group JIDs carry the "@g.us" suffix; everything else is a DM.
 func (whatsAppAdapter) Is1To1(roomKey string) bool { return !strings.Contains(roomKey, "@g.us") }
 
-func (whatsAppAdapter) BuildPayload(user store.User, aliases []string, msgs []types.RawMessage) (string, map[string]types.RawMessage) {
-	return buildWAPayload(user, aliases, msgs)
+func (a whatsAppAdapter) BuildPayload(user store.User, aliases []string, msgs []types.RawMessage) (string, map[string]types.RawMessage) {
+	return buildWAPayload(a.ctx, user, aliases, msgs)
 }
 
 func (whatsAppAdapter) Enrich(roomKey, payload string, ts time.Time) (*types.EnrichedMessage, error) {
@@ -91,22 +94,19 @@ func (whatsAppAdapter) SaveThreadID(m types.RawMessage) string {
 // Mentions — WA pre-resolved display names power pickFirstMentionAssignee.
 func (whatsAppAdapter) Mentions(m types.RawMessage) []string { return m.MentionedNames }
 
-// Why: no request ctx reaches this layer -- ChannelAdapter.BuildPayload and the
-// whatsmeow event handlers take no context.Context, so trace plumbing is a separate
-// change; the tenant argument below is what closes the cross-tenant contact leak.
-func buildWAPayload(user store.User, aliases []string, msgs []types.RawMessage) (string, map[string]types.RawMessage) {
+func buildWAPayload(ctx context.Context, user store.User, aliases []string, msgs []types.RawMessage) (string, map[string]types.RawMessage) {
 	_ = aliases
 	var sb strings.Builder
 	msgMap := make(map[string]types.RawMessage)
 	for _, m := range msgs {
 		msgMap[m.ID] = m
-		resolvedText := channels.ResolveWAMentions(user.Email, m.Text, m.MentionedIDs)
-		metaStr := buildWAMetadataString(user.Email, m)
+		resolvedText := channels.ResolveWAMentions(ctx, user.Email, m.Text, m.MentionedIDs)
+		metaStr := buildWAMetadataString(ctx, user.Email, m)
 
 		senderName := m.Sender
 		if m.IsFromMe {
 			senderName = user.Name
-		} else if name := store.GetNameByWhatsAppNumber(context.Background(), user.Email, m.Sender); name != "" {
+		} else if name := store.GetNameByWhatsAppNumber(ctx, user.Email, m.Sender); name != "" {
 			senderName = name
 		}
 
@@ -116,7 +116,7 @@ func buildWAPayload(user store.User, aliases []string, msgs []types.RawMessage) 
 	return sb.String(), msgMap
 }
 
-func buildWAMetadataString(email string, m types.RawMessage) string {
+func buildWAMetadataString(ctx context.Context, email string, m types.RawMessage) string {
 	var tags []string
 	if m.IsForwarded {
 		tags = append(tags, "Forwarded")
@@ -128,21 +128,21 @@ func buildWAMetadataString(email string, m types.RawMessage) string {
 	// Why: Lists explicitly mentioned names in metadata to give the AI a 100% accurate
 	// source for 'Assignee' identification; falls back to a bare count when unresolved.
 	if len(m.MentionedIDs) > 0 {
-		tags = append(tags, formatWAMentionTag(email, m.MentionedIDs))
+		tags = append(tags, formatWAMentionTag(ctx, email, m.MentionedIDs))
 	}
 
 	return formatTagBlock(tags) + formatListBlock("Files", m.AttachmentNames)
 }
 
 // Why: Splits the mention-tag formatting out of buildWAMetadataString so the parent function avoids deep nesting and stays in nestif budget.
-func formatWAMentionTag(email string, mentionedIDs []string) string {
+func formatWAMentionTag(ctx context.Context, email string, mentionedIDs []string) string {
 	var names []string
 	for _, jid := range mentionedIDs {
 		id, _ := waTypes.ParseJID(jid)
 		if id.User == "" {
 			continue
 		}
-		if name := store.GetNameByWhatsAppNumber(context.Background(), email, id.User); name != "" {
+		if name := store.GetNameByWhatsAppNumber(ctx, email, id.User); name != "" {
 			names = append(names, name)
 		}
 	}
@@ -153,5 +153,5 @@ func formatWAMentionTag(email string, mentionedIDs []string) string {
 }
 
 func scanWhatsApp(ctx context.Context, user store.User, aliases []string, language string, wg *sync.WaitGroup) []store.MessageID {
-	return scanChannel(ctx, user, aliases, language, wg, whatsAppAdapter{})
+	return scanChannel(ctx, user, aliases, language, wg, whatsAppAdapter{ctx: ctx})
 }

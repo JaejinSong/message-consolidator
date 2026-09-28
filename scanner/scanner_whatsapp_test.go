@@ -102,7 +102,7 @@ func TestBuildWAMetadataString(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := buildWAMetadataString("test@example.com", tt.msg)
+			got := buildWAMetadataString(context.Background(), "test@example.com", tt.msg)
 			if tt.wantContain != "" && !strings.Contains(got, tt.wantContain) {
 				t.Errorf("buildWAMetadataString() = %q, want to contain %q", got, tt.wantContain)
 			}

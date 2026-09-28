@@ -104,7 +104,7 @@ func TestBuildWAPayloadPure(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			payload, msgMap := buildWAPayload(tt.user, nil, tt.msgs)
+			payload, msgMap := buildWAPayload(context.Background(), tt.user, nil, tt.msgs)
 			for _, sub := range tt.wantContain {
 				if !strings.Contains(payload, sub) {
 					t.Errorf("payload does not contain %q\npayload: %q", sub, payload)
@@ -133,7 +133,7 @@ func TestFormatWAMentionTagPure(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatWAMentionTag(email, tt.mentionedIDs)
+			got := formatWAMentionTag(context.Background(), email, tt.mentionedIDs)
 			if !strings.Contains(got, tt.wantContain) {
 				t.Errorf("formatWAMentionTag() = %q, want to contain %q", got, tt.wantContain)
 			}
@@ -147,8 +147,8 @@ func TestWhatsAppAdapter_BuildPayload(t *testing.T) {
 	user := store.User{Name: "Alice", Email: "alice@x"}
 	msgs := []types.RawMessage{{ID: "x1", Sender: "+9999", Text: "hello", Timestamp: ts}}
 
-	adapterPayload, adapterMap := (whatsAppAdapter{}).BuildPayload(user, nil, msgs)
-	directPayload, directMap := buildWAPayload(user, nil, msgs)
+	adapterPayload, adapterMap := (whatsAppAdapter{ctx: context.Background()}).BuildPayload(user, nil, msgs)
+	directPayload, directMap := buildWAPayload(context.Background(), user, nil, msgs)
 
 	if adapterPayload != directPayload {
 		t.Errorf("BuildPayload payload mismatch:\nadapter: %q\ndirect:  %q", adapterPayload, directPayload)
