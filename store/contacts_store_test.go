@@ -369,3 +369,32 @@ func TestDeleteContactMapping_Unknown(t *testing.T) {
 		t.Logf("DeleteContactMapping unknown: %v (may be acceptable)", err)
 	}
 }
+
+func TestAutoUpsertContact_SelfAddressKeepsRegisteredName(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	ctx := t.Context()
+	tenant := testutil.RandomEmail("self-tenant")
+	if _, err := GetOrCreateUser(ctx, tenant, "Jaejin Song (JJ)", ""); err != nil {
+		t.Fatalf("GetOrCreateUser: %v", err)
+	}
+
+	if err := AutoUpsertContact(ctx, tenant, tenant, "Jjsong", "gmail"); err != nil {
+		t.Fatalf("AutoUpsertContact: %v", err)
+	}
+	if got := NormalizeContactName(ctx, tenant, tenant); got != "Jaejin Song (JJ)" {
+		t.Errorf("self contact name = %q, want registered user name", got)
+	}
+
+	other := testutil.RandomEmail("other")
+	if err := AutoUpsertContact(ctx, tenant, other, "Header Name", "gmail"); err != nil {
+		t.Fatalf("AutoUpsertContact other: %v", err)
+	}
+	if got := NormalizeContactName(ctx, tenant, other); got != "Header Name" {
+		t.Errorf("non-self contact name = %q, want header name", got)
+	}
+}

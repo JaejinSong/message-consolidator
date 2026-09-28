@@ -118,6 +118,19 @@ func UpsertContact(ctx context.Context, tenantEmail, canonicalID, displayName, a
 	return id, nil
 }
 
+// registeredSelfName returns the tenant's registered user name when canonicalID is the tenant's own address.
+func registeredSelfName(tenantEmail, canonicalID string) string {
+	if canonicalID != strings.ToLower(strings.TrimSpace(tenantEmail)) {
+		return ""
+	}
+	metadataMu.RLock()
+	defer metadataMu.RUnlock()
+	if u, ok := userCache[canonicalID]; ok {
+		return strings.TrimSpace(u.Name)
+	}
+	return ""
+}
+
 // AutoUpsertContact provides a safe, automatic way to register new email contacts found during ingestion.
 func AutoUpsertContact(ctx context.Context, tenantEmail, email, name, source string) error {
 	canonicalID := strings.ToLower(strings.TrimSpace(email))
@@ -126,6 +139,10 @@ func AutoUpsertContact(ctx context.Context, tenantEmail, email, name, source str
 	}
 
 	newName := strings.TrimSpace(name)
+	// Why: header display names for the tenant's own address vary per sender client ("Jjsong"); the registered user name is the one the tenant chose.
+	if self := registeredSelfName(tenantEmail, canonicalID); self != "" {
+		newName = self
+	}
 	isValidName := newName != "" && !strings.Contains(newName, "@") && strings.ToLower(newName) != canonicalID
 
 	displayName := canonicalID
