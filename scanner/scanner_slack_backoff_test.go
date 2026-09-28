@@ -88,25 +88,6 @@ func TestFetchChannelHistoryActivity_Backoff(t *testing.T) {
 	}
 }
 
-// TestInaccessibleSlackChannels_OmitsExpired verifies the read accessor only reports
-// channels still inside their backoff window.
-func TestInaccessibleSlackChannels_OmitsExpired(t *testing.T) {
-	resetInaccessibleChannels(t)
-
-	recordChannelInaccessible(slackClientKindBot, "C_LIVE", "channel_not_found")
-	inaccessibleMu.Lock()
-	inaccessibleChannels[inaccessibleChannelKey{kind: slackClientKindBot, channelID: "C_EXPIRED"}] = inaccessibleChannelInfo{reason: "not_in_channel", until: time.Now().Add(-time.Second)}
-	inaccessibleMu.Unlock()
-
-	got := InaccessibleSlackChannels()
-	if got["bot:C_LIVE"] != "channel_not_found" {
-		t.Errorf("InaccessibleSlackChannels()[bot:C_LIVE] = %q, want %q", got["bot:C_LIVE"], "channel_not_found")
-	}
-	if _, ok := got["bot:C_EXPIRED"]; ok {
-		t.Error("expired backoff entry should not be reported")
-	}
-}
-
 // TestSweepColdReconciliationThreads_SkipsInaccessibleChannel verifies the cold tier
 // respects the same channel backoff as the hot sweep, without calling the Slack API.
 func TestSweepColdReconciliationThreads_SkipsInaccessibleChannel(t *testing.T) {

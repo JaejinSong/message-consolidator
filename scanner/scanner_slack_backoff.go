@@ -66,18 +66,3 @@ func isChannelInaccessible(kind, chID string) bool {
 	info, ok := inaccessibleChannels[inaccessibleChannelKey{kind: kind, channelID: chID}]
 	return ok && time.Now().Before(info.until)
 }
-
-// InaccessibleSlackChannels exposes the current "kind:channelID"→reason backoff set for
-// a future status endpoint. Entries past their backoff window are omitted.
-func InaccessibleSlackChannels() map[string]string {
-	inaccessibleMu.Lock()
-	defer inaccessibleMu.Unlock()
-	now := time.Now()
-	out := make(map[string]string, len(inaccessibleChannels))
-	for key, info := range inaccessibleChannels {
-		if now.Before(info.until) {
-			out[key.kind+":"+key.channelID] = info.reason
-		}
-	}
-	return out
-}
