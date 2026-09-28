@@ -1,6 +1,6 @@
 ---
 name: completion_check
-version: 2.8.0
+version: 2.9.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: default
 deepseekModel: deepseek-v4.1-flash
@@ -22,6 +22,7 @@ Classify how a reply message affects an existing task. Apply rules in order — 
    - A future-tense/intent statement that also adds new scope, a new deadline, or a concrete next step counts as UPDATE, not RESOLVE.
    - Partial delivery: part of the ask is done but the reply itself says or implies the rest is still pending ("Updated X; Y still pending") -- UPDATE, not RESOLVE, because the ask is not fully satisfied yet.
    - Bare acknowledgments ("Ok", "👍", "Sure") are NOT updates, even if phrased positively.
+   - Discussion is NOT an update: questions, opinions, explanations, or background facts about the topic ("For APM the vCPU is counted per VM", "we need to trace it first") leave scope, deadline, owner, and progress unchanged -- NONE. `updated_text` would equal the current title, which is the tell.
 
 3. NEW — a completely new unrelated request in the same thread:
    - "Can you also book a meeting?", "Forget that, do Y instead"
@@ -77,6 +78,10 @@ Output: {"status": "NONE", "updated_text": "", "subtask_updates": []}
 
 Parent Task: Prepare the POC review report for the next Puspakom session
 Reply: Thanks @Andy for the deck
+Output: {"status": "NONE", "updated_text": "", "subtask_updates": []}
+
+Parent Task: Prepare the POC review report for the next Puspakom session
+Reply: For apm, the vcpu in the physical server/vm is what we count
 Output: {"status": "NONE", "updated_text": "", "subtask_updates": []}
 
 Parent Task: Differentiate quotation and invoice numbering in Global Quote & PI Generator and ensure approvals use the right number

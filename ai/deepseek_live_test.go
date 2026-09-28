@@ -252,6 +252,24 @@ func TestLive_DeepSeek_CompletionCheckRegression(t *testing.T) {
 			want:       "RESOLVE",
 		},
 		{
+			name:       "technical_discussion_not_update",
+			parentTask: "Investigate the intermittent 502 errors on the Weefer Batam gateway",
+			reply:      "saran saya perlu ditracing dulu karena errornya terjadi sebelum masuk ke agent",
+			want:       "NONE",
+		},
+		{
+			name:       "meeting_logistics_chatter_not_update",
+			parentTask: "Clarify data statistics with Handi via a meeting with the WhaTap team",
+			reply:      "pak, sudah ada kabar dari tim Handi?",
+			want:       "NONE",
+		},
+		{
+			name:       "deadline_change_is_update",
+			parentTask: "Send the Puspakom POC review report",
+			reply:      "The client asked to move the review to 3 October, please send the report by 2 October instead",
+			want:       "UPDATE",
+		},
+		{
 			name:       "partial_progress_update_not_resolve",
 			parentTask: "Differentiate quotation and invoice numbering in Global Quote & PI Generator and ensure approvals use the right number",
 			reply:      "Updated the numbering for quotations; invoices still pending.",
