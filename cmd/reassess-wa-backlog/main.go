@@ -157,18 +157,8 @@ func selectCandidateReplies(task store.ConsolidatedMessage, replies []store.WACh
 	titleTokens := topicalTokens(task.Task)
 	var tiers [4][]store.WAChatMessage
 	for _, r := range replies {
-		if r.MessageID == task.SourceTS || strings.TrimSpace(r.Body) == "" {
-			continue
-		}
-		switch {
-		case repliesToTask(r, task):
-			tiers[0] = append(tiers[0], r)
-		case isAssigneeOrRequester(r.Sender, task):
-			tiers[1] = append(tiers[1], r)
-		case services.HasCompletionSignal(r.Body):
-			tiers[2] = append(tiers[2], r)
-		case sharesTopicalTokens(titleTokens, r.Body):
-			tiers[3] = append(tiers[3], r)
+		if tier := replyTier(task, titleTokens, r); tier >= 0 {
+			tiers[tier] = append(tiers[tier], r)
 		}
 	}
 
@@ -182,6 +172,27 @@ func selectCandidateReplies(task store.ConsolidatedMessage, replies []store.WACh
 		}
 	}
 	return out
+}
+
+// replyTier returns r's priority tier (0 = highest) or -1 when r is not a candidate.
+func replyTier(task store.ConsolidatedMessage, titleTokens map[string]bool, r store.WAChatMessage) int {
+	if r.MessageID == task.SourceTS || strings.TrimSpace(r.Body) == "" {
+		return -1
+	}
+	if repliesToTask(r, task) {
+		return 0
+	}
+	// Why: a group-chat line without a quote anchor is judged against the title alone, so a bare "thanks" or unrelated file from the requester read as delivery (2026-09-28 dry-run: 4/5 false RESOLVE).
+	if !sharesTopicalTokens(titleTokens, r.Body) {
+		return -1
+	}
+	switch {
+	case isAssigneeOrRequester(r.Sender, task):
+		return 1
+	case services.HasCompletionSignal(r.Body):
+		return 2
+	}
+	return 3
 }
 
 // repliesToTask reports whether r's raw_json ReplyToID anchors it to the task's

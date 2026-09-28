@@ -99,15 +99,17 @@ func TestSelectCandidateReplies_PriorityOrderAndCap(t *testing.T) {
 	}
 	replies := []store.WAChatMessage{
 		{MessageID: "r1", Sender: "Random", Body: "just chatting, unrelated", TS: 1},
-		{MessageID: "r2", Sender: "Budi", Body: "will do", TS: 2},                                    // tier 2: assignee
-		{MessageID: "r3", Sender: "Random", Body: "already done, all set", TS: 3},                    // tier 3: completion signal
+		{MessageID: "r2", Sender: "Budi", Body: "lease agreement, will do", TS: 2},                   // tier 2: assignee
+		{MessageID: "r3", Sender: "Random", Body: "lease agreement already done", TS: 3},             // tier 3: completion signal
 		{MessageID: "r4", Sender: "Random", Body: "about the lease agreement", TS: 4},                // tier 4: topical overlap
 		{MessageID: "r5", Sender: "Random", Body: `{"a":1}`, TS: 5, RawJSON: `{"ReplyToID":"src1"}`}, // tier 1: reply anchor
+		{MessageID: "r6", Sender: "Siti", Body: "ok thanks, much appreciated", TS: 6},                // unanchored, off-topic -> excluded
+		{MessageID: "r7", Sender: "Random", Body: "done, sent the file", TS: 7},                      // unanchored, off-topic -> excluded
 	}
 
 	got := selectCandidateReplies(task, replies)
 	if len(got) != 4 {
-		t.Fatalf("expected 4 selected candidates (r1 has no signal), got %d: %+v", len(got), got)
+		t.Fatalf("expected 4 selected candidates (r1/r6/r7 off-topic and unanchored), got %d: %+v", len(got), got)
 	}
 	if got[0].MessageID != "r5" {
 		t.Errorf("tier 1 (reply anchor) must be first, got %q", got[0].MessageID)
@@ -144,7 +146,7 @@ func TestSelectCandidateReplies_CapAtReplyCandidateCap(t *testing.T) {
 	task := store.ConsolidatedMessage{Task: "renew the lease", Assignee: "Budi"}
 	var replies []store.WAChatMessage
 	for i := 0; i < replyCandidateCap+5; i++ {
-		replies = append(replies, store.WAChatMessage{MessageID: "r", Sender: "Budi", Body: "will do"})
+		replies = append(replies, store.WAChatMessage{MessageID: "r", Sender: "Budi", Body: "renew the lease, will do"})
 	}
 
 	got := selectCandidateReplies(task, replies)
