@@ -7,6 +7,7 @@ import (
 	"message-consolidator/store"
 	"message-consolidator/types"
 	"strings"
+	"unicode"
 
 	"go.mau.fi/whatsmeow"
 	waProto "go.mau.fi/whatsmeow/proto/waE2E"
@@ -132,7 +133,7 @@ func (m *WAManager) resolveSenderName(email string, client *whatsmeow.Client, in
 	if info.IsFromMe {
 		return email
 	}
-	if info.PushName != "" {
+	if isUsablePushName(info.PushName) {
 		go func(em, num, name string) {
 			defer safego.Recover("wa-save-contact")
 			if err := store.SaveWhatsAppContact(context.Background(), em, num, name); err != nil {
@@ -141,7 +142,21 @@ func (m *WAManager) resolveSenderName(email string, client *whatsmeow.Client, in
 		}(email, info.Sender.User, info.PushName)
 		return info.PushName
 	}
+	// Why: a punctuation-only PushName (prod: ".") rendered as a blank requester; the address book or saved contact still knows who this is.
+	if name := m.resolveMentionName(email, client, info.Sender, info.Sender.User); name != "" {
+		return name
+	}
 	return info.Sender.String()
+}
+
+// isUsablePushName rejects empty or punctuation-only display names that identify nobody.
+func isUsablePushName(name string) bool {
+	for _, r := range name {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return true
+		}
+	}
+	return false
 }
 
 // Why: no request ctx reaches this layer -- ChannelAdapter.BuildPayload and the
@@ -232,7 +247,7 @@ func pickContactName(c waTypes.ContactInfo) string {
 	if c.FullName != "" {
 		return c.FullName
 	}
-	if c.PushName != "" {
+	if isUsablePushName(c.PushName) {
 		return c.PushName
 	}
 	return c.BusinessName
