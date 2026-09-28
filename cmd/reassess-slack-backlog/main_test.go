@@ -8,6 +8,7 @@ import (
 
 	"github.com/slack-go/slack"
 	"message-consolidator/ai"
+	"message-consolidator/cmd/internal/backlog"
 	"message-consolidator/config"
 	"message-consolidator/scanner"
 	"message-consolidator/services"
@@ -167,26 +168,27 @@ func TestEvaluateReplyAgainstTask_CounterpartyRESOLVE_recordsCandidate_dryRun(t 
 	id := insertOpenSlackTask(ctx, t, "u@x", "C1", "100.000000", "Someone Else", time.Now().Add(-time.Hour))
 
 	fa := &fakeAI{transition: ai.TaskTransition{Status: "RESOLVE"}}
-	bs := &backlogStore{inner: &services.DefaultTaskStore{}, db: store.GetDB(), apply: false}
+	bs := backlog.NewStore(&services.DefaultTaskStore{}, store.GetDB(), false, "slack")
 	svc := services.NewCompletionService(fa, bs, &services.TasksService{}, store.GetDB())
 
 	task := store.ConsolidatedMessage{ID: id, Task: "still open task", Assignee: "Someone Else"}
 	group := slackTaskGroup{channelID: "C1", threadTS: "100.000000"}
 	m := slack.Message{Msg: slack.Msg{Timestamp: "150.000000", User: "UOTHER", Text: "already resolved, no keyword here"}}
 
-	evaluateReplyAgainstTask(ctx, svc, bs, group, m, task, "room", "Counterparty")
+	evaluateReplyAgainstTask(ctx, svc, bs, group, m, task, "room", "Counterparty", time.Now())
 
 	if fa.callCount == 0 {
 		t.Fatal("expected EvaluateTaskTransition to be called without a completion-signal keyword")
 	}
-	if len(bs.rows) != 1 {
-		t.Fatalf("expected 1 recorded row, got %d", len(bs.rows))
+	rows := bs.Rows()
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 recorded row, got %d", len(rows))
 	}
-	if bs.written != 0 {
-		t.Errorf("dry run must not write, got written=%d", bs.written)
+	if bs.Written() != 0 {
+		t.Errorf("dry run must not write, got written=%d", bs.Written())
 	}
-	if bs.rows[0].speaker != "Counterparty" {
-		t.Errorf("speaker = %q, want %q (empty speaker silently disables senderIsAssignee)", bs.rows[0].speaker, "Counterparty")
+	if rows[0].Speaker != "Counterparty" {
+		t.Errorf("speaker = %q, want %q (empty speaker silently disables senderIsAssignee)", rows[0].Speaker, "Counterparty")
 	}
 	var done int
 	row := store.GetDB().QueryRowContext(ctx, `SELECT done FROM messages WHERE id = ?`, int64(id))
@@ -195,67 +197,6 @@ func TestEvaluateReplyAgainstTask_CounterpartyRESOLVE_recordsCandidate_dryRun(t 
 	}
 	if done != 0 {
 		t.Error("dry run must never modify the task")
-	}
-}
-
-// TestBacklogStore_ApplyDowngradesAssigneeResolveToCandidate verifies -apply never
-// hard-closes even a RESOLVE from the task's own assignee: it writes a confirm-first
-// candidate instead and leaves done=0.
-func TestBacklogStore_ApplyDowngradesAssigneeResolveToCandidate(t *testing.T) {
-	initTestDB(t)
-	ctx := context.Background()
-	id := insertOpenSlackTask(ctx, t, "u@x", "C2", "200.000000", "Me", time.Now().Add(-time.Hour))
-
-	bs := &backlogStore{inner: &services.DefaultTaskStore{}, db: store.GetDB(), apply: true}
-	bs.currentTask = store.ConsolidatedMessage{ID: id, Assignee: "Me"}
-
-	item := store.TodoItem{State: "resolve", ID: &id}
-	msg := store.ConsolidatedMessage{UserEmail: "u@x", Room: "room", Requester: "Me", OriginalText: "done", SourceTS: "150.000000"}
-
-	if _, err := bs.HandleTaskState(ctx, store.GetDB(), "u@x", item, msg); err != nil {
-		t.Fatalf("HandleTaskState: %v", err)
-	}
-
-	if bs.written != 1 {
-		t.Errorf("expected 1 candidate written under -apply, got %d", bs.written)
-	}
-	var done int
-	var metadata string
-	row := store.GetDB().QueryRowContext(ctx, `SELECT done, COALESCE(metadata, '') FROM messages WHERE id = ?`, int64(id))
-	if err := row.Scan(&done, &metadata); err != nil {
-		t.Fatalf("scan: %v", err)
-	}
-	if done != 0 {
-		t.Error("expected done=0: the tool must never hard-close, even for the assignee's own RESOLVE")
-	}
-	if metadata == "" {
-		t.Error("expected a confirm-first candidate recorded in metadata")
-	}
-}
-
-// TestBacklogStore_ApplyRespectsDismissal verifies a previously dismissed source is not
-// re-recorded even under -apply.
-func TestBacklogStore_ApplyRespectsDismissal(t *testing.T) {
-	initTestDB(t)
-	ctx := context.Background()
-	id := insertOpenSlackTask(ctx, t, "u@x", "C3", "300.000000", "Me", time.Now().Add(-time.Hour))
-	if _, err := store.GetDB().ExecContext(ctx,
-		`UPDATE messages SET metadata = json_set(COALESCE(NULLIF(metadata, ''), '{}'), '$.completion_dismissed_source', '150.000000') WHERE id = ?`,
-		int64(id)); err != nil {
-		t.Fatalf("seed dismissed marker: %v", err)
-	}
-
-	bs := &backlogStore{inner: &services.DefaultTaskStore{}, db: store.GetDB(), apply: true}
-	bs.currentTask = store.ConsolidatedMessage{ID: id, Assignee: "Me", Metadata: []byte(`{"completion_dismissed_source":"150.000000"}`)}
-
-	item := store.TodoItem{State: "resolve", ID: &id}
-	msg := store.ConsolidatedMessage{UserEmail: "u@x", Room: "room", Requester: "Me", OriginalText: "done", SourceTS: "150.000000"}
-
-	if _, err := bs.HandleTaskState(ctx, store.GetDB(), "u@x", item, msg); err != nil {
-		t.Fatalf("HandleTaskState: %v", err)
-	}
-	if bs.written != 0 {
-		t.Errorf("expected the dismissed source to stay suppressed, got written=%d", bs.written)
 	}
 }
 
@@ -288,7 +229,7 @@ func TestEvaluateReplyAgainstTask_UnresolvedSenderFallsBackToSlackID_stillRecord
 	id := insertOpenSlackTask(ctx, t, "u@x", "C1", "100.000000", "Someone Else", time.Now().Add(-time.Hour))
 
 	fa := &fakeAI{transition: ai.TaskTransition{Status: "RESOLVE"}}
-	bs := &backlogStore{inner: &services.DefaultTaskStore{}, db: store.GetDB(), apply: false}
+	bs := backlog.NewStore(&services.DefaultTaskStore{}, store.GetDB(), false, "slack")
 	svc := services.NewCompletionService(fa, bs, &services.TasksService{}, store.GetDB())
 
 	task := store.ConsolidatedMessage{ID: id, Task: "still open task", Assignee: "Someone Else"}
@@ -299,20 +240,16 @@ func TestEvaluateReplyAgainstTask_UnresolvedSenderFallsBackToSlackID_stillRecord
 	// user ID, never an empty string.
 	fallbackSpeaker := m.User
 
-	evaluateReplyAgainstTask(ctx, svc, bs, group, m, task, "room", fallbackSpeaker)
+	evaluateReplyAgainstTask(ctx, svc, bs, group, m, task, "room", fallbackSpeaker, time.Now())
 
-	if len(bs.rows) != 1 {
-		t.Fatalf("expected 1 recorded row, got %d", len(bs.rows))
+	rows := bs.Rows()
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 recorded row, got %d", len(rows))
 	}
-	if bs.rows[0].speaker == "" {
+	if rows[0].Speaker == "" {
 		t.Fatal("speaker must never be empty, even when name resolution fell back to the raw Slack ID")
 	}
-	if bs.rows[0].speaker != fallbackSpeaker {
-		t.Errorf("speaker = %q, want the resolved fallback %q", bs.rows[0].speaker, fallbackSpeaker)
+	if rows[0].Speaker != fallbackSpeaker {
+		t.Errorf("speaker = %q, want the resolved fallback %q", rows[0].Speaker, fallbackSpeaker)
 	}
-}
-
-func TestPrintResults_EmptyIsHandled(t *testing.T) {
-	bs := &backlogStore{}
-	bs.printResults() // must not panic on an empty result set
 }

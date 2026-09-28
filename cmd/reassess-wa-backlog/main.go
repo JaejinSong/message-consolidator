@@ -10,18 +10,15 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
-	"sort"
 	"strings"
-	"sync"
-	"time"
 	"unicode"
 
 	"message-consolidator/ai"
+	"message-consolidator/cmd/internal/backlog"
 	"message-consolidator/config"
 	"message-consolidator/services"
 	"message-consolidator/store"
@@ -49,7 +46,7 @@ func main() {
 		log.Fatalf("DB init failed: %v", err)
 	}
 
-	pc := providerConfig(cfg)
+	pc := backlog.ProviderConfig(cfg)
 	if !pc.Enabled() {
 		log.Fatal("no AI provider configured (GEMINI_API_KEY / DEEPSEEK_API_KEY)")
 	}
@@ -58,7 +55,7 @@ func main() {
 		log.Fatalf("AI client init failed: %v", err)
 	}
 
-	bs := &backlogStore{inner: &services.DefaultTaskStore{}, db: store.GetDB(), apply: *apply}
+	bs := backlog.NewStore(&services.DefaultTaskStore{}, store.GetDB(), *apply, "whatsapp")
 	completionSvc := services.NewCompletionService(aiClient, bs, &services.TasksService{}, store.GetDB())
 
 	tasks, err := openWATasks(ctx, *email, *limit)
@@ -71,26 +68,11 @@ func main() {
 		reassessTask(ctx, *email, completionSvc, bs, task)
 	}
 
-	bs.printResults()
+	bs.PrintResults()
 	if *apply {
-		fmt.Printf("\nwrote %d confirm-first candidate(s)\n", bs.written)
+		fmt.Printf("\nwrote %d confirm-first candidate(s)\n", bs.Written())
 	} else {
 		fmt.Println("\ndry run: no writes (pass -apply to record confirm-first candidates)")
-	}
-}
-
-func providerConfig(cfg *config.Config) ai.ProviderConfig {
-	return ai.ProviderConfig{
-		Provider:                 cfg.AIProvider,
-		GeminiAPIKey:             cfg.GeminiAPIKey,
-		GeminiAnalysisModel:      cfg.GeminiAnalysisModel,
-		GeminiTranslationModel:   cfg.GeminiTranslationModel,
-		DeepSeekAPIKey:           cfg.DeepSeekAPIKey,
-		DeepSeekBaseURL:          cfg.DeepSeekBaseURL,
-		DeepSeekFilterModel:      cfg.DeepSeekFilterModel,
-		DeepSeekAnalysisModel:    cfg.DeepSeekAnalysisModel,
-		DeepSeekTranslationModel: cfg.DeepSeekTranslationModel,
-		DeepSeekReportModel:      cfg.DeepSeekReportModel,
 	}
 }
 
@@ -131,7 +113,7 @@ var candidateReplyFetcher = store.ListWAMessagesForChatSince
 // reassessTask fetches the task's chat history after AssignedAt, selects up to
 // replyCandidateCap candidate replies by priority, and evaluates each against the
 // task with the same evaluator the live sweep uses, stopping at the first RESOLVE.
-func reassessTask(ctx context.Context, email string, completionSvc *services.CompletionService, bs *backlogStore, task store.ConsolidatedMessage) {
+func reassessTask(ctx context.Context, email string, completionSvc *services.CompletionService, bs *backlog.Store, task store.ConsolidatedMessage) {
 	replies, err := candidateReplyFetcher(ctx, email, task.Room, task.AssignedAt.Unix())
 	if err != nil {
 		fmt.Printf("skip task %d: fetch chat history failed: %v\n", task.ID, err)
@@ -141,7 +123,7 @@ func reassessTask(ctx context.Context, email string, completionSvc *services.Com
 	candidates := selectCandidateReplies(task, replies)
 	for _, reply := range candidates {
 		evaluateReplyAgainstTask(ctx, completionSvc, bs, task, reply)
-		if bs.isResolved(task.ID) {
+		if bs.IsResolved(task.ID) {
 			break
 		}
 	}
@@ -212,20 +194,11 @@ func repliesToTask(r store.WAChatMessage, task store.ConsolidatedMessage) bool {
 // task's assignee or requester, tolerating case, whitespace, and the "(Ambiguous)"
 // report-time suffix.
 func isAssigneeOrRequester(sender string, task store.ConsolidatedMessage) bool {
-	s := normalizeIdentity(sender)
+	s := services.NormalizeSenderIdentity(sender)
 	if s == "" {
 		return false
 	}
-	return s == normalizeIdentity(task.Assignee) || s == normalizeIdentity(task.Requester)
-}
-
-// normalizeIdentity mirrors services.normalizeSenderIdentity (unexported): lowercases,
-// strips the "(Ambiguous)" report-time suffix, and collapses whitespace so two display
-// names can be compared exactly.
-func normalizeIdentity(raw string) string {
-	name := strings.TrimSuffix(strings.TrimSpace(raw), "(Ambiguous)")
-	name = strings.ToLower(strings.TrimSpace(name))
-	return strings.Join(strings.Fields(name), " ")
+	return s == services.NormalizeSenderIdentity(task.Assignee) || s == services.NormalizeSenderIdentity(task.Requester)
 }
 
 // topicalTokens mirrors services.ftsCandidateTokens (unexported): lowercase tokens of
@@ -265,10 +238,10 @@ func sharesTopicalTokens(titleTokens map[string]bool, body string) bool {
 }
 
 // evaluateReplyAgainstTask runs the SAME evaluator as the sweep (EvaluateThreadReply)
-// for one (task, reply) pair. bs.currentTask/currentSender are set first so the
-// backlogStore's write interception can check the task's own dismissal metadata and
-// record the actual reply speaker for the audit table.
-func evaluateReplyAgainstTask(ctx context.Context, completionSvc *services.CompletionService, bs *backlogStore, task store.ConsolidatedMessage, reply store.WAChatMessage) {
+// for one (task, reply) pair. bs.CurrentTask/CurrentSender/CurrentReplyTS are set first
+// so the backlog.Store's write interception can check the task's own dismissal metadata
+// and record the actual reply speaker and timestamp for the audit table.
+func evaluateReplyAgainstTask(ctx context.Context, completionSvc *services.CompletionService, bs *backlog.Store, task store.ConsolidatedMessage, reply store.WAChatMessage) {
 	env := store.ConsolidatedMessage{
 		UserEmail:    task.UserEmail,
 		Source:       store.SourceWhatsApp,
@@ -277,173 +250,10 @@ func evaluateReplyAgainstTask(ctx context.Context, completionSvc *services.Compl
 		OriginalText: reply.Body,
 		SourceTS:     reply.MessageID,
 	}
-	bs.currentTask = task
-	bs.currentSender = reply.Sender
-	bs.currentReplyTS = reply.TS
+	bs.CurrentTask = task
+	bs.CurrentSender = reply.Sender
+	bs.CurrentReplyTS = reply.TS
 	if _, err := completionSvc.EvaluateThreadReply(ctx, env, []store.ConsolidatedMessage{task}); err != nil {
 		fmt.Printf("evaluate task %d reply %s: %v\n", task.ID, reply.MessageID, err)
-	}
-}
-
-func truncateForDisplay(s string, max int) string {
-	r := []rune(strings.ReplaceAll(s, "\n", " "))
-	if len(r) <= max {
-		return string(r)
-	}
-	return string(r[:max])
-}
-
-// resultRow is one printed audit line: one (task, reply) pair the evaluator judged.
-type resultRow struct {
-	taskID  store.MessageID
-	room    string
-	verdict string
-	speaker string
-	when    time.Time
-	quote   string
-}
-
-// backlogStore wraps the real DefaultTaskStore so EvaluateThreadReply's writes never
-// hard-close or auto-update a task from this tool: every actionable verdict is
-// recorded for the audit table and, only under -apply, persisted as a confirm-first
-// candidate (never the real resolve/update).
-type backlogStore struct {
-	inner services.TaskStore
-	db    *sql.DB
-	apply bool
-
-	mu             sync.Mutex
-	rows           []resultRow
-	resolved       map[store.MessageID]bool
-	written        int
-	currentTask    store.ConsolidatedMessage
-	currentSender  string
-	currentReplyTS int64
-}
-
-func (b *backlogStore) GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error) {
-	return b.inner.GetIncompleteByThreadID(ctx, q, email, threadID)
-}
-
-func (b *backlogStore) HasAnyTaskInThread(ctx context.Context, q store.Querier, email, threadID string) (bool, error) {
-	return b.inner.HasAnyTaskInThread(ctx, q, email, threadID)
-}
-
-func (b *backlogStore) GetLatestThreadAssignee(ctx context.Context, q store.Querier, email, threadID string) (string, error) {
-	return b.inner.GetLatestThreadAssignee(ctx, q, email, threadID)
-}
-
-func (b *backlogStore) UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id store.MessageID, category string) error {
-	return b.inner.UpdateMessageCategory(ctx, q, email, id, category)
-}
-
-// UpdateSubtasks is a no-op: this tool never applies subtask cascades, only records
-// confirm-first candidates.
-func (b *backlogStore) UpdateSubtasks(ctx context.Context, q store.Querier, email string, id store.MessageID, subtasks []store.Subtask) error {
-	return nil
-}
-
-func (b *backlogStore) GetRecentIncompleteGmail(ctx context.Context, q store.Querier, email string) ([]store.ConsolidatedMessage, error) {
-	return b.inner.GetRecentIncompleteGmail(ctx, q, email)
-}
-
-func (b *backlogStore) SearchOpenTasksFTS(ctx context.Context, email string, tokens []string, limit int) ([]store.ConsolidatedMessage, error) {
-	return b.inner.SearchOpenTasksFTS(ctx, email, tokens, limit)
-}
-
-// HandleTaskState intercepts every RESOLVE (from the task's own assignee) and UPDATE
-// verdict EvaluateThreadReply would otherwise apply directly. It never performs the
-// real resolve/update; under -apply it downgrades the verdict to a confirm-first
-// candidate instead, respecting any prior dismissal of the same source.
-func (b *backlogStore) HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
-	verdict := strings.ToUpper(item.State)
-	var id store.MessageID
-	if item.ID != nil {
-		id = *item.ID
-	}
-	b.record(id, msg.Room, verdict+" (downgraded to candidate)", b.currentSender, msg.OriginalText)
-	if !b.apply || item.ID == nil {
-		return 0, nil
-	}
-	sourceKey := msg.Link
-	if sourceKey == "" {
-		sourceKey = msg.SourceTS
-	}
-	if store.WasCandidateDismissed(string(b.currentTask.Metadata), sourceKey) {
-		return 0, nil
-	}
-	cand := store.CompletionCandidate{
-		SourceLink: sourceKey,
-		SourceText: truncateForDisplay(msg.OriginalText, 280),
-		Evidence:   fmt.Sprintf("whatsapp backlog reassessment (%s)", verdict),
-		DetectedAt: time.Now().UTC().Format(time.RFC3339),
-		Status:     "pending",
-	}
-	if err := store.AddCompletionCandidate(ctx, b.db, email, *item.ID, cand); err != nil {
-		return 0, err
-	}
-	b.mu.Lock()
-	b.written++
-	b.mu.Unlock()
-	return *item.ID, nil
-}
-
-// AddCompletionCandidate is EvaluateThreadReply's own confirm-first path (RESOLVE from
-// someone other than the assignee) -- the dismissal check already ran in the caller, so
-// this only needs to gate the real write on -apply. speaker comes from currentSender:
-// the store.TaskStore interface's AddCompletionCandidate does not carry the reply's
-// sender, so it cannot be read off cand.
-func (b *backlogStore) AddCompletionCandidate(ctx context.Context, q store.Querier, email string, id store.MessageID, cand store.CompletionCandidate) error {
-	b.record(id, b.currentTask.Room, "RESOLVE (candidate)", b.currentSender, cand.SourceText)
-	if !b.apply {
-		return nil
-	}
-	if err := b.inner.AddCompletionCandidate(ctx, q, email, id, cand); err != nil {
-		return err
-	}
-	b.mu.Lock()
-	b.written++
-	b.mu.Unlock()
-	return nil
-}
-
-// isResolved reports whether any recorded row for id carries a RESOLVE verdict --
-// used to stop evaluating further candidate replies for a task once one resolves it.
-func (b *backlogStore) isResolved(id store.MessageID) bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.resolved[id]
-}
-
-func (b *backlogStore) record(id store.MessageID, room, verdict, speaker, quote string) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	when := time.Now().UTC()
-	if b.currentReplyTS > 0 {
-		when = time.Unix(b.currentReplyTS, 0).UTC()
-	}
-	b.rows = append(b.rows, resultRow{
-		taskID: id, room: room, verdict: verdict, speaker: speaker,
-		when: when, quote: truncateForDisplay(quote, 80),
-	})
-	if strings.HasPrefix(verdict, "RESOLVE") {
-		if b.resolved == nil {
-			b.resolved = map[store.MessageID]bool{}
-		}
-		b.resolved[id] = true
-	}
-}
-
-func (b *backlogStore) printResults() {
-	b.mu.Lock()
-	rows := append([]resultRow(nil), b.rows...)
-	b.mu.Unlock()
-	sort.Slice(rows, func(i, j int) bool { return rows[i].taskID < rows[j].taskID })
-	fmt.Printf("\n%-8s %-20s %-32s %-20s %-12s %s\n", "id", "room", "verdict", "speaker", "when", "quote")
-	for _, r := range rows {
-		fmt.Printf("%-8d %-20s %-32s %-20s %-12s %s\n", r.taskID, r.room, r.verdict, r.speaker, r.when.Format("2006-01-02"), r.quote)
-	}
-	if len(rows) == 0 {
-		fmt.Println("(no actionable verdicts found)")
 	}
 }

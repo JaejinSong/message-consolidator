@@ -188,20 +188,20 @@ func isTrustedResolve(item store.TodoItem, match *store.ConsolidatedMessage) boo
 // Why: the assignee's own report of completion is first-party evidence, same trust as
 // own reply -- WhatsApp groups rarely quote-reply, so this is the only signal available.
 func senderIsAssignee(sender, assignee string) bool {
-	assignee = normalizeSenderIdentity(assignee)
+	assignee = NormalizeSenderIdentity(assignee)
 	if assignee == "" || assignee == AssigneeShared {
 		return false
 	}
-	sender = normalizeSenderIdentity(sender)
+	sender = NormalizeSenderIdentity(sender)
 	if sender == "" {
 		return false
 	}
 	return sender == assignee
 }
 
-// normalizeSenderIdentity collapses display-name noise (case, the "(Ambiguous)" report-time
+// NormalizeSenderIdentity collapses display-name noise (case, the "(Ambiguous)" report-time
 // suffix, and whitespace) so a sender name and an assignee name can be compared exactly.
-func normalizeSenderIdentity(raw string) string {
+func NormalizeSenderIdentity(raw string) string {
 	name := strings.ToLower(stripAmbiguityMarker(raw))
 	return strings.Join(strings.Fields(name), " ")
 }

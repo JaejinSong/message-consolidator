@@ -10,17 +10,15 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"flag"
 	"fmt"
 	"log"
-	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"message-consolidator/ai"
 	"message-consolidator/channels"
+	"message-consolidator/cmd/internal/backlog"
 	"message-consolidator/config"
 	"message-consolidator/scanner"
 	"message-consolidator/services"
@@ -50,7 +48,7 @@ func main() {
 		log.Fatalf("DB init failed: %v", err)
 	}
 
-	pc := providerConfig(cfg)
+	pc := backlog.ProviderConfig(cfg)
 	if !pc.Enabled() {
 		log.Fatal("no AI provider configured (GEMINI_API_KEY / DEEPSEEK_API_KEY)")
 	}
@@ -61,7 +59,7 @@ func main() {
 
 	sc, clientKind := slackClientForEmail(ctx, cfg, *email)
 	fmt.Printf("using %s Slack client for %s\n", clientKind, *email)
-	bs := &backlogStore{inner: &services.DefaultTaskStore{}, db: store.GetDB(), apply: *apply}
+	bs := backlog.NewStore(&services.DefaultTaskStore{}, store.GetDB(), *apply, "slack")
 	completionSvc := services.NewCompletionService(aiClient, bs, &services.TasksService{}, store.GetDB())
 
 	tasks, err := openSlackTasks(ctx, *email, *limit)
@@ -74,9 +72,9 @@ func main() {
 		reassessThread(ctx, sc, completionSvc, bs, group)
 	}
 
-	bs.printResults()
+	bs.PrintResults()
 	if *apply {
-		fmt.Printf("\nwrote %d confirm-first candidate(s)\n", bs.written)
+		fmt.Printf("\nwrote %d confirm-first candidate(s)\n", bs.Written())
 	} else {
 		fmt.Println("\ndry run: no writes (pass -apply to record confirm-first candidates)")
 	}
@@ -90,21 +88,6 @@ func slackClientForEmail(ctx context.Context, cfg *config.Config, email string) 
 		return channels.NewSlackClient(tok.Token), "user token" //nolint:contextcheck // SlackClient constructor; per-request ctx flows through individual API calls.
 	}
 	return channels.NewSlackClient(cfg.SlackToken), "bot token" //nolint:contextcheck // SlackClient constructor; per-request ctx flows through individual API calls.
-}
-
-func providerConfig(cfg *config.Config) ai.ProviderConfig {
-	return ai.ProviderConfig{
-		Provider:                 cfg.AIProvider,
-		GeminiAPIKey:             cfg.GeminiAPIKey,
-		GeminiAnalysisModel:      cfg.GeminiAnalysisModel,
-		GeminiTranslationModel:   cfg.GeminiTranslationModel,
-		DeepSeekAPIKey:           cfg.DeepSeekAPIKey,
-		DeepSeekBaseURL:          cfg.DeepSeekBaseURL,
-		DeepSeekFilterModel:      cfg.DeepSeekFilterModel,
-		DeepSeekAnalysisModel:    cfg.DeepSeekAnalysisModel,
-		DeepSeekTranslationModel: cfg.DeepSeekTranslationModel,
-		DeepSeekReportModel:      cfg.DeepSeekReportModel,
-	}
 }
 
 // slackTaskGroup is every still-open Slack task sharing one channel+thread.
@@ -203,7 +186,7 @@ func defaultFetchThreadReplies(sc *channels.SlackClient, channelID, threadTS str
 
 // reassessThread fetches one thread's full reply history and evaluates every non-bot
 // reply against every task in the group whose AssignedAt is before that reply.
-func reassessThread(ctx context.Context, sc *channels.SlackClient, completionSvc *services.CompletionService, bs *backlogStore, group slackTaskGroup) {
+func reassessThread(ctx context.Context, sc *channels.SlackClient, completionSvc *services.CompletionService, bs *backlog.Store, group slackTaskGroup) {
 	replies, err := fetchThreadReplies(sc, group.channelID, group.threadTS)
 	if err != nil {
 		if isAccessError(err) {
@@ -225,7 +208,7 @@ func reassessThread(ctx context.Context, sc *channels.SlackClient, completionSvc
 			if !replyTime.After(task.AssignedAt) {
 				continue
 			}
-			evaluateReplyAgainstTask(ctx, completionSvc, bs, group, m, task, room, senderName)
+			evaluateReplyAgainstTask(ctx, completionSvc, bs, group, m, task, room, senderName, replyTime)
 		}
 	}
 }
@@ -243,154 +226,15 @@ func buildToolEnvelope(group slackTaskGroup, task store.ConsolidatedMessage, m s
 }
 
 // evaluateReplyAgainstTask runs the SAME evaluator as the sweep (EvaluateThreadReply)
-// for one (task, reply) pair. bs.currentTask/currentSender are set first so the
-// backlogStore's write interception can check the task's own dismissal metadata and
-// record the actual reply speaker for the audit table.
-func evaluateReplyAgainstTask(ctx context.Context, completionSvc *services.CompletionService, bs *backlogStore, group slackTaskGroup, m slack.Message, task store.ConsolidatedMessage, room, senderName string) {
+// for one (task, reply) pair. bs.CurrentTask/CurrentSender/CurrentReplyTS are set first
+// so the backlog.Store's write interception can check the task's own dismissal metadata
+// and record the actual reply speaker and timestamp for the audit table.
+func evaluateReplyAgainstTask(ctx context.Context, completionSvc *services.CompletionService, bs *backlog.Store, group slackTaskGroup, m slack.Message, task store.ConsolidatedMessage, room, senderName string, replyTime time.Time) {
 	env := buildToolEnvelope(group, task, m, room, senderName)
-	bs.currentTask = task
-	bs.currentSender = senderName
+	bs.CurrentTask = task
+	bs.CurrentSender = senderName
+	bs.CurrentReplyTS = replyTime.Unix()
 	if _, err := completionSvc.EvaluateThreadReply(ctx, env, []store.ConsolidatedMessage{task}); err != nil {
 		fmt.Printf("evaluate task %d reply %s: %v\n", task.ID, m.Timestamp, err)
-	}
-}
-
-func truncateForDisplay(s string, max int) string {
-	r := []rune(strings.ReplaceAll(s, "\n", " "))
-	if len(r) <= max {
-		return string(r)
-	}
-	return string(r[:max])
-}
-
-// resultRow is one printed audit line: one (task, reply) pair the evaluator judged.
-type resultRow struct {
-	taskID  store.MessageID
-	room    string
-	verdict string
-	speaker string
-	quote   string
-}
-
-// backlogStore wraps the real DefaultTaskStore so EvaluateThreadReply's writes never
-// hard-close or auto-update a task from this tool: every actionable verdict is
-// recorded for the audit table and, only under -apply, persisted as a confirm-first
-// candidate (never the real resolve/update).
-type backlogStore struct {
-	inner services.TaskStore
-	db    *sql.DB
-	apply bool
-
-	mu            sync.Mutex
-	rows          []resultRow
-	written       int
-	currentTask   store.ConsolidatedMessage
-	currentSender string
-}
-
-func (b *backlogStore) GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error) {
-	return b.inner.GetIncompleteByThreadID(ctx, q, email, threadID)
-}
-
-func (b *backlogStore) HasAnyTaskInThread(ctx context.Context, q store.Querier, email, threadID string) (bool, error) {
-	return b.inner.HasAnyTaskInThread(ctx, q, email, threadID)
-}
-
-func (b *backlogStore) GetLatestThreadAssignee(ctx context.Context, q store.Querier, email, threadID string) (string, error) {
-	return b.inner.GetLatestThreadAssignee(ctx, q, email, threadID)
-}
-
-func (b *backlogStore) UpdateMessageCategory(ctx context.Context, q store.Querier, email string, id store.MessageID, category string) error {
-	return b.inner.UpdateMessageCategory(ctx, q, email, id, category)
-}
-
-// UpdateSubtasks is a no-op: this tool never applies subtask cascades, only records
-// confirm-first candidates.
-func (b *backlogStore) UpdateSubtasks(ctx context.Context, q store.Querier, email string, id store.MessageID, subtasks []store.Subtask) error {
-	return nil
-}
-
-func (b *backlogStore) GetRecentIncompleteGmail(ctx context.Context, q store.Querier, email string) ([]store.ConsolidatedMessage, error) {
-	return b.inner.GetRecentIncompleteGmail(ctx, q, email)
-}
-
-func (b *backlogStore) SearchOpenTasksFTS(ctx context.Context, email string, tokens []string, limit int) ([]store.ConsolidatedMessage, error) {
-	return b.inner.SearchOpenTasksFTS(ctx, email, tokens, limit)
-}
-
-// HandleTaskState intercepts every RESOLVE (from the task's own assignee) and UPDATE
-// verdict EvaluateThreadReply would otherwise apply directly. It never performs the
-// real resolve/update; under -apply it downgrades the verdict to a confirm-first
-// candidate instead, respecting any prior dismissal of the same source.
-func (b *backlogStore) HandleTaskState(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
-	verdict := strings.ToUpper(item.State)
-	var id store.MessageID
-	if item.ID != nil {
-		id = *item.ID
-	}
-	b.record(id, msg.Room, verdict+" (downgraded to candidate)", msg.Requester, msg.OriginalText)
-	if !b.apply || item.ID == nil {
-		return 0, nil
-	}
-	sourceKey := msg.Link
-	if sourceKey == "" {
-		sourceKey = msg.SourceTS
-	}
-	if store.WasCandidateDismissed(string(b.currentTask.Metadata), sourceKey) {
-		return 0, nil
-	}
-	cand := store.CompletionCandidate{
-		SourceLink: sourceKey,
-		SourceText: truncateForDisplay(msg.OriginalText, 280),
-		Evidence:   fmt.Sprintf("slack backlog reassessment (%s)", verdict),
-		DetectedAt: time.Now().UTC().Format(time.RFC3339),
-		Status:     "pending",
-	}
-	if err := store.AddCompletionCandidate(ctx, b.db, email, *item.ID, cand); err != nil {
-		return 0, err
-	}
-	b.mu.Lock()
-	b.written++
-	b.mu.Unlock()
-	return *item.ID, nil
-}
-
-// AddCompletionCandidate is EvaluateThreadReply's own confirm-first path (RESOLVE from
-// someone other than the assignee) -- the dismissal check already ran in the caller, so
-// this only needs to gate the real write on -apply. speaker comes from currentSender:
-// the store.TaskStore interface's AddCompletionCandidate does not carry the reply's
-// sender, so it cannot be read off cand -- that omission left the audit row's speaker
-// column hardcoded blank for every RESOLVE-from-counterparty verdict.
-func (b *backlogStore) AddCompletionCandidate(ctx context.Context, q store.Querier, email string, id store.MessageID, cand store.CompletionCandidate) error {
-	b.record(id, b.currentTask.Room, "RESOLVE (candidate)", b.currentSender, cand.SourceText)
-	if !b.apply {
-		return nil
-	}
-	if err := b.inner.AddCompletionCandidate(ctx, q, email, id, cand); err != nil {
-		return err
-	}
-	b.mu.Lock()
-	b.written++
-	b.mu.Unlock()
-	return nil
-}
-
-func (b *backlogStore) record(id store.MessageID, room, verdict, speaker, quote string) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.rows = append(b.rows, resultRow{taskID: id, room: room, verdict: verdict, speaker: speaker, quote: truncateForDisplay(quote, 80)})
-}
-
-func (b *backlogStore) printResults() {
-	b.mu.Lock()
-	rows := append([]resultRow(nil), b.rows...)
-	b.mu.Unlock()
-	sort.Slice(rows, func(i, j int) bool { return rows[i].taskID < rows[j].taskID })
-	fmt.Printf("\n%-8s %-20s %-32s %-20s %s\n", "id", "room", "verdict", "speaker", "quote")
-	for _, r := range rows {
-		fmt.Printf("%-8d %-20s %-32s %-20s %s\n", r.taskID, r.room, r.verdict, r.speaker, r.quote)
-	}
-	if len(rows) == 0 {
-		fmt.Println("(no actionable verdicts found)")
 	}
 }
