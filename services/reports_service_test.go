@@ -326,7 +326,7 @@ func TestReportsService_GenerateVisualizationData_WithAliases(t *testing.T) {
 	}
 
 	// 3. Manually refresh caches to load the new aliases from DB
-	if err := store.LoadMetadata(); err != nil {
+	if err := store.LoadMetadata(context.Background()); err != nil {
 		t.Fatalf("Failed to load metadata into cache: %v", err)
 	}
 
@@ -412,7 +412,7 @@ func TestReportsService_GenerateVisualizationData_AliasCollision(t *testing.T) {
 	}
 
 	// 2. Manually refresh caches.
-	if err := store.LoadMetadata(); err != nil {
+	if err := store.LoadMetadata(context.Background()); err != nil {
 		t.Fatalf("Failed to load metadata into cache: %v", err)
 	}
 
@@ -484,7 +484,7 @@ func TestReportsService_GenerateVisualizationData_TenantIsolation(t *testing.T) 
 	}
 
 	// 2. Manually refresh caches.
-	if err := store.LoadMetadata(); err != nil {
+	if err := store.LoadMetadata(context.Background()); err != nil {
 		t.Fatalf("Failed to load metadata into cache: %v", err)
 	}
 

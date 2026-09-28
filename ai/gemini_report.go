@@ -114,6 +114,50 @@ func completionCheckLogInput(parentTask, replyText, subtasksCtx string) string {
 	return fmt.Sprintf("PARENT: %s\nREPLY: %s\nSUBTASKS:\n%s", parentTask, replyText, subtasksCtx)
 }
 
+// formatSubtasksContext renders a numbered checklist of subtasks for the completion-check
+// prompt. Why: beyond 5 subtasks the checklist adds more prompt noise than disambiguation
+// value, so larger sets are omitted entirely rather than truncated.
+func formatSubtasksContext(subtasks []store.Subtask) string {
+	if len(subtasks) == 0 || len(subtasks) > 5 {
+		return ""
+	}
+	var subtasksCtx string
+	for i, s := range subtasks {
+		mark := "[ ]"
+		if s.Done {
+			mark = "[x]"
+		}
+		subtasksCtx += fmt.Sprintf("%d. %s %s\n", i, mark, s.Task)
+	}
+	return subtasksCtx
+}
+
+// parseTransitionResponse validates and decodes the completion-check model response, auditing
+// every outcome (truncation, parse failure, success) via completionCheckLogger.
+func (g *AIClient) parseTransitionResponse(resp LLMResponse, email, logInput string) (TaskTransition, error) {
+	// Why: a truncated body is unparseable, so without this branch it surfaced as
+	// "failed to parse AI transition response: unexpected end of JSON input (raw: )",
+	// pointing the reader at the prompt instead of at the token budget. Repairing it is not
+	// an option here -- a half-written verdict can invert the status - so name the cause.
+	if resp.FinishReason == "length" {
+		logger.Warnf("[AI] EvaluateTransition hit output limit: think=%d completion=%d prompt=%d budget=%d email=%s",
+			resp.Usage.ReasoningTokens, resp.Usage.CompletionTokens, resp.Usage.PromptTokens, DefaultMaxTokens, email)
+		truncErr := fmt.Errorf("transition response truncated at the %d-token output budget (completion=%d)", DefaultMaxTokens, resp.Usage.CompletionTokens)
+		completionCheckLogger(g, "completion_check", logInput, "ERROR: "+truncErr.Error())
+		return TaskTransition{}, truncErr
+	}
+
+	var result TaskTransition
+	if err := json.Unmarshal([]byte(core.SanitizeJSON(resp.Text)), &result); err != nil {
+		parseErr := fmt.Errorf("failed to parse AI transition response: %w (raw: %s)", err, resp.Text)
+		completionCheckLogger(g, "completion_check", logInput, "ERROR: "+parseErr.Error())
+		return TaskTransition{}, parseErr
+	}
+
+	completionCheckLogger(g, "completion_check", logInput, resp.Text)
+	return result, nil
+}
+
 // EvaluateTaskTransition determines if a reply completes or updates a specific parent task.
 // Why: [Thread-Aware Intelligence] Uses a specialized prompt to analyze the conversational relationship
 // between a parent message and its reply, enabling deterministic state transitions (RESOLVE/UPDATE).
@@ -123,16 +167,7 @@ func (g *AIClient) EvaluateTaskTransition(ctx context.Context, email, parentTask
 	}
 
 	parsed := core.LoadPrompt(core.PromptCompletionCheck)
-	var subtasksCtx string
-	if len(subtasks) > 0 && len(subtasks) <= 5 {
-		for i, s := range subtasks {
-			mark := "[ ]"
-			if s.Done {
-				mark = "[x]"
-			}
-			subtasksCtx += fmt.Sprintf("%d. %s %s\n", i, mark, s.Task)
-		}
-	}
+	subtasksCtx := formatSubtasksContext(subtasks)
 	data := core.ExtractionContext{
 		ParentTask:      parentTask,
 		MessagePayload:  replyText,
@@ -173,27 +208,7 @@ func (g *AIClient) EvaluateTaskTransition(ctx context.Context, email, parentTask
 	_ = trace.Step(ctx, g.tracePrefix+"-EvaluateTransition", "", int(time.Since(start).Milliseconds()), 0)
 	logTokenUsage(ctx, email, "EvaluateTransition", modelName, "", 0, resp.Usage)
 
-	// Why: a truncated body is unparseable, so without this branch it surfaced as
-	// "failed to parse AI transition response: unexpected end of JSON input (raw: )",
-	// pointing the reader at the prompt instead of at the token budget. Repairing it is not
-	// an option here -- a half-written verdict can invert the status - so name the cause.
-	if resp.FinishReason == "length" {
-		logger.Warnf("[AI] EvaluateTransition hit output limit: think=%d completion=%d prompt=%d budget=%d email=%s",
-			resp.Usage.ReasoningTokens, resp.Usage.CompletionTokens, resp.Usage.PromptTokens, DefaultMaxTokens, email)
-		truncErr := fmt.Errorf("transition response truncated at the %d-token output budget (completion=%d)", DefaultMaxTokens, resp.Usage.CompletionTokens)
-		completionCheckLogger(g, "completion_check", logInput, "ERROR: "+truncErr.Error())
-		return TaskTransition{}, truncErr
-	}
-
-	var result TaskTransition
-	if err := json.Unmarshal([]byte(core.SanitizeJSON(resp.Text)), &result); err != nil {
-		parseErr := fmt.Errorf("failed to parse AI transition response: %w (raw: %s)", err, resp.Text)
-		completionCheckLogger(g, "completion_check", logInput, "ERROR: "+parseErr.Error())
-		return TaskTransition{}, parseErr
-	}
-
-	completionCheckLogger(g, "completion_check", logInput, resp.Text)
-	return result, nil
+	return g.parseTransitionResponse(resp, email, logInput)
 }
 
 // GenerateVisualizationData extracts graph structural data as JSON.

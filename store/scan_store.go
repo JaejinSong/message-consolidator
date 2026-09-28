@@ -43,16 +43,35 @@ func WithDBRetry(operationName string, fn func() error) error {
 	return err
 }
 
-func LoadMetadata() error {
+func LoadMetadata(ctx context.Context) error {
 	metadataMu.Lock()
 	defer metadataMu.Unlock()
 
 	logger.Infof("[CACHE] Initializing metadata cache from DB...")
 
-	//Why: Loads user definitions from the database, ensuring names are trimmed for consistent mapping.
-	conn := GetDB()
-	queries := db.New(conn)
-	userRows, err := queries.LoadUsersAll(context.Background())
+	queries := db.New(GetDB())
+	if err := loadUsersCache(ctx, queries); err != nil {
+		return err
+	}
+	if err := loadScanMetadataCache(ctx, queries); err != nil {
+		return err
+	}
+	if err := loadGmailTokensCache(ctx, queries); err != nil {
+		return err
+	}
+	if err := loadSlackUserTokensCache(ctx, queries); err != nil {
+		return err
+	}
+
+	logger.Infof("[CACHE] Loaded %d users, %d scan entries, %d tokens, %d slack user tokens.",
+		len(userCache), len(scanCache), len(tokenCache), len(slackUserTokenCache))
+	return nil
+}
+
+// Why: Loads user definitions from the database, ensuring names are trimmed for consistent mapping.
+// Must be called with metadataMu already held.
+func loadUsersCache(ctx context.Context, queries *db.Queries) error {
+	userRows, err := queries.LoadUsersAll(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load users: %w", err)
 	}
@@ -70,10 +89,14 @@ func LoadMetadata() error {
 		}
 		userCache[u.Email] = &u
 	}
+	return nil
+}
 
-	//Why: Restores the last scan timestamps for each source to memory for efficient duplicate detection.
+// Why: Restores the last scan timestamps for each source to memory for efficient duplicate detection.
+// Must be called with metadataMu already held.
+func loadScanMetadataCache(ctx context.Context, queries *db.Queries) error {
 	logger.Infof("[STORE] scan: loading existing scan metadata into memory")
-	scanRows, err := queries.LoadScanMetadataAll(context.Background())
+	scanRows, err := queries.LoadScanMetadataAll(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load scan metadata: %w", err)
 	}
@@ -83,10 +106,14 @@ func LoadMetadata() error {
 		scanCache[key] = row.LastTs.String
 	}
 	logger.Infof("[STORE] scan: loaded %d scan metadata entries", len(scanCache))
+	return nil
+}
 
-	//Why: Loads OAuth refresh tokens into the cache to support background Gmail synchronization.
+// Why: Loads OAuth refresh tokens into the cache to support background Gmail synchronization.
+// Must be called with metadataMu already held.
+func loadGmailTokensCache(ctx context.Context, queries *db.Queries) error {
 	logger.Infof("[STORE] scan: loading existing gmail tokens into memory")
-	tokenRows, err := queries.LoadGmailTokensAll(context.Background())
+	tokenRows, err := queries.LoadGmailTokensAll(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load gmail tokens: %w", err)
 	}
@@ -97,11 +124,15 @@ func LoadMetadata() error {
 		// and broke every Gmail scan until the next re-auth (2026-07-23 incident).
 		tokenCache[row.UserEmail] = decryptString(row.TokenJson)
 	}
+	return nil
+}
 
-	//Why: Restores per-user Slack OAuth (xoxp) tokens into memory; rows are encrypted
-	// (encv1:) so, like gmail_tokens, this must decrypt before caching.
+// Why: Restores per-user Slack OAuth (xoxp) tokens into memory; rows are encrypted
+// (encv1:) so, like gmail_tokens, this must decrypt before caching.
+// Must be called with metadataMu already held.
+func loadSlackUserTokensCache(ctx context.Context, queries *db.Queries) error {
 	logger.Infof("[STORE] scan: loading existing slack user tokens into memory")
-	slackTokenRows, err := queries.LoadSlackUserTokensAll(context.Background())
+	slackTokenRows, err := queries.LoadSlackUserTokensAll(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load slack user tokens: %w", err)
 	}
@@ -113,9 +144,6 @@ func LoadMetadata() error {
 			Scopes:      row.Scopes,
 		}
 	}
-
-	logger.Infof("[CACHE] Loaded %d users, %d scan entries, %d tokens, %d slack user tokens.",
-		len(userCache), len(scanCache), len(tokenCache), len(slackUserTokenCache))
 	return nil
 }
 

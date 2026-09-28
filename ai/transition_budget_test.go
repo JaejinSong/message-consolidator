@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"message-consolidator/store"
 )
 
 // transitionFakeTransport records the request and replays one scripted response, so a test
@@ -168,5 +170,42 @@ func TestEvaluateTransitionLogsErrorOnTruncation(t *testing.T) {
 
 	if !strings.HasPrefix(gotOutput, "ERROR: ") {
 		t.Errorf("output = %q, want it prefixed with ERROR:", gotOutput)
+	}
+}
+
+func TestFormatSubtasksContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		subtasks []store.Subtask
+		want     string
+	}{
+		{
+			name:     "no subtasks",
+			subtasks: nil,
+			want:     "",
+		},
+		{
+			name: "two subtasks",
+			subtasks: []store.Subtask{
+				{Task: "draft doc", Done: false},
+				{Task: "send email", Done: true},
+			},
+			want: "0. [ ] draft doc\n1. [x] send email\n",
+		},
+		{
+			name: "six subtasks omitted",
+			subtasks: []store.Subtask{
+				{Task: "a"}, {Task: "b"}, {Task: "c"}, {Task: "d"}, {Task: "e"}, {Task: "f"},
+			},
+			want: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := formatSubtasksContext(tc.subtasks); got != tc.want {
+				t.Errorf("formatSubtasksContext(%d subtasks) = %q, want %q", len(tc.subtasks), got, tc.want)
+			}
+		})
 	}
 }

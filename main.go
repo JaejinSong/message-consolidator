@@ -67,7 +67,7 @@ func main() {
 	logger.SetLevel(cfg.LogLevel)
 	store.SetAutoArchiveDays(cfg.AutoArchiveDays)
 	store.SetStaleThresholdWorkingDays(cfg.StaleThresholdWorkingDays)
-	if err := store.LoadMetadata(); err != nil {
+	if err := store.LoadMetadata(ctx); err != nil {
 		logger.Warnf("[INIT] failed to load metadata cache: %v", err)
 	}
 	scanner.Init(cfg)

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -39,7 +40,7 @@ func TestLoadMetadataDecryptsGmailTokens(t *testing.T) {
 	metadataMu.Lock()
 	tokenCache = make(map[string]string)
 	metadataMu.Unlock()
-	if err := LoadMetadata(); err != nil {
+	if err := LoadMetadata(context.Background()); err != nil {
 		t.Fatalf("LoadMetadata failed: %v", err)
 	}
 

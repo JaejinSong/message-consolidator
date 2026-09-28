@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -146,7 +147,7 @@ func TestLoadMetadataDecryptsSlackUserTokens(t *testing.T) {
 	metadataMu.Lock()
 	slackUserTokenCache = make(map[string]SlackUserToken)
 	metadataMu.Unlock()
-	if err := LoadMetadata(); err != nil {
+	if err := LoadMetadata(context.Background()); err != nil {
 		t.Fatalf("LoadMetadata failed: %v", err)
 	}
 
