@@ -1,8 +1,9 @@
 // Package backlog holds the shared plumbing behind the reassess-*-backlog tools
-// (cmd/reassess-slack-backlog, cmd/reassess-wa-backlog): a services.TaskStore wrapper
-// that intercepts every write EvaluateThreadReply would otherwise apply directly so the
-// tools can dry-run or downgrade every verdict to a confirm-first candidate, plus the
-// small display/config helpers both tools share.
+// (cmd/reassess-slack-backlog, cmd/reassess-wa-backlog, cmd/reassess-gmail-backlog): a
+// services.TaskStore wrapper that intercepts every write EvaluateThreadReply would
+// otherwise apply directly so the tools can dry-run or downgrade every verdict to a
+// confirm-first candidate, the Bootstrap init sequence and Finish footer every tool
+// shares, plus the small display/config helpers all three tools share.
 package backlog
 
 import (

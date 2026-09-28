@@ -17,10 +17,8 @@ import (
 	"sort"
 	"strings"
 
-	"message-consolidator/ai"
 	"message-consolidator/channels"
 	"message-consolidator/cmd/internal/backlog"
-	"message-consolidator/config"
 	"message-consolidator/services"
 	"message-consolidator/store"
 
@@ -42,31 +40,16 @@ func main() {
 	}
 
 	ctx := context.Background()
-	cfg := config.LoadConfig()
-
-	// Why: without the key, the stored Gmail OAuth token is read back as ciphertext.
-	store.InitTokenEncryption()
-	if err := store.InitDB(ctx, cfg); err != nil {
-		log.Fatalf("DB init failed: %v", err)
-	}
-
-	pc := backlog.ProviderConfig(cfg)
-	if !pc.Enabled() {
-		log.Fatal("no AI provider configured (GEMINI_API_KEY / DEEPSEEK_API_KEY)")
-	}
-	aiClient, err := ai.NewAIClient(ctx, pc)
+	env, err := backlog.Bootstrap(ctx, "gmail", *apply)
 	if err != nil {
-		log.Fatalf("AI client init failed: %v", err)
+		log.Fatalf("bootstrap failed: %v", err)
 	}
 
-	channels.SetupGmailOAuth(cfg)
+	channels.SetupGmailOAuth(env.Cfg)
 	svc, err := channels.GetGmailService(ctx, *email)
 	if err != nil {
 		log.Fatalf("Gmail client init failed for %s: %v", *email, err)
 	}
-
-	bs := backlog.NewStore(&services.DefaultTaskStore{}, store.GetDB(), *apply, "gmail")
-	completionSvc := services.NewCompletionService(aiClient, bs, &services.TasksService{}, store.GetDB())
 
 	tasks, err := openGmailTasks(ctx, *email, *limit)
 	if err != nil {
@@ -75,15 +58,10 @@ func main() {
 	fmt.Printf("found %d open Gmail task(s) for %s\n", len(tasks), *email)
 
 	for _, group := range groupByGmailThread(tasks) {
-		reassessGmailThread(ctx, svc, completionSvc, bs, group)
+		reassessGmailThread(ctx, svc, env.CompletionSvc, env.Store, group)
 	}
 
-	bs.PrintResults()
-	if *apply {
-		fmt.Printf("\nwrote %d confirm-first candidate(s)\n", bs.Written())
-	} else {
-		fmt.Println("\ndry run: no writes (pass -apply to record confirm-first candidates)")
-	}
+	env.Store.Finish(*apply)
 }
 
 // openGmailTasks returns the user's open (lifecycle active) Gmail tasks that carry a

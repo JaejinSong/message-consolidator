@@ -17,9 +17,7 @@ import (
 	"strings"
 	"unicode"
 
-	"message-consolidator/ai"
 	"message-consolidator/cmd/internal/backlog"
-	"message-consolidator/config"
 	"message-consolidator/services"
 	"message-consolidator/store"
 )
@@ -38,25 +36,10 @@ func main() {
 	}
 
 	ctx := context.Background()
-	cfg := config.LoadConfig()
-
-	// Why: without the key, any encrypted token column is read back as ciphertext.
-	store.InitTokenEncryption()
-	if err := store.InitDB(ctx, cfg); err != nil {
-		log.Fatalf("DB init failed: %v", err)
-	}
-
-	pc := backlog.ProviderConfig(cfg)
-	if !pc.Enabled() {
-		log.Fatal("no AI provider configured (GEMINI_API_KEY / DEEPSEEK_API_KEY)")
-	}
-	aiClient, err := ai.NewAIClient(ctx, pc)
+	env, err := backlog.Bootstrap(ctx, "whatsapp", *apply)
 	if err != nil {
-		log.Fatalf("AI client init failed: %v", err)
+		log.Fatalf("bootstrap failed: %v", err)
 	}
-
-	bs := backlog.NewStore(&services.DefaultTaskStore{}, store.GetDB(), *apply, "whatsapp")
-	completionSvc := services.NewCompletionService(aiClient, bs, &services.TasksService{}, store.GetDB())
 
 	tasks, err := openWATasks(ctx, *email, *limit)
 	if err != nil {
@@ -65,15 +48,10 @@ func main() {
 	fmt.Printf("found %d open WhatsApp task(s) for %s\n", len(tasks), *email)
 
 	for _, task := range tasks {
-		reassessTask(ctx, *email, completionSvc, bs, task)
+		reassessTask(ctx, *email, env.CompletionSvc, env.Store, task)
 	}
 
-	bs.PrintResults()
-	if *apply {
-		fmt.Printf("\nwrote %d confirm-first candidate(s)\n", bs.Written())
-	} else {
-		fmt.Println("\ndry run: no writes (pass -apply to record confirm-first candidates)")
-	}
+	env.Store.Finish(*apply)
 }
 
 // statusChatName is WhatsApp's own status-broadcast pseudo-chat -- never a real

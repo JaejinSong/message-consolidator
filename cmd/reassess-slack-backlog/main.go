@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"message-consolidator/ai"
 	"message-consolidator/channels"
 	"message-consolidator/cmd/internal/backlog"
 	"message-consolidator/config"
@@ -42,25 +41,14 @@ func main() {
 	if cfg.SlackToken == "" {
 		log.Fatal("SLACK_TOKEN not configured")
 	}
-	// Why: without the key the stored Slack user token is read back as ciphertext (invalid_auth).
-	store.InitTokenEncryption()
-	if err := store.InitDB(ctx, cfg); err != nil {
-		log.Fatalf("DB init failed: %v", err)
-	}
 
-	pc := backlog.ProviderConfig(cfg)
-	if !pc.Enabled() {
-		log.Fatal("no AI provider configured (GEMINI_API_KEY / DEEPSEEK_API_KEY)")
-	}
-	aiClient, err := ai.NewAIClient(ctx, pc)
+	env, err := backlog.Bootstrap(ctx, "slack", *apply)
 	if err != nil {
-		log.Fatalf("AI client init failed: %v", err)
+		log.Fatalf("bootstrap failed: %v", err)
 	}
 
-	sc, clientKind := slackClientForEmail(ctx, cfg, *email)
+	sc, clientKind := slackClientForEmail(ctx, env.Cfg, *email)
 	fmt.Printf("using %s Slack client for %s\n", clientKind, *email)
-	bs := backlog.NewStore(&services.DefaultTaskStore{}, store.GetDB(), *apply, "slack")
-	completionSvc := services.NewCompletionService(aiClient, bs, &services.TasksService{}, store.GetDB())
 
 	tasks, err := openSlackTasks(ctx, *email, *limit)
 	if err != nil {
@@ -69,15 +57,10 @@ func main() {
 	fmt.Printf("found %d open Slack task(s) with a thread for %s\n", len(tasks), *email)
 
 	for _, group := range groupByThread(tasks) {
-		reassessThread(ctx, sc, completionSvc, bs, group)
+		reassessThread(ctx, sc, env.CompletionSvc, env.Store, group)
 	}
 
-	bs.PrintResults()
-	if *apply {
-		fmt.Printf("\nwrote %d confirm-first candidate(s)\n", bs.Written())
-	} else {
-		fmt.Println("\ndry run: no writes (pass -apply to record confirm-first candidates)")
-	}
+	env.Store.Finish(*apply)
 }
 
 // slackClientForEmail prefers email's own Slack OAuth grant over the bot token, mirroring
