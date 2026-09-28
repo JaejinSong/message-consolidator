@@ -108,3 +108,65 @@ func TestEvaluateTransitionParsesNormalResponse(t *testing.T) {
 		t.Errorf("UpdatedText = %q, want the parsed body", res.UpdatedText)
 	}
 }
+
+// TestEvaluateTransitionLogsToInferenceLog pins the observability gap fix: every call must
+// reach the same audit-log seam extraction already uses (ai/client.go logInferenceAsync),
+// tagged "completion_check" and carrying the reply text, so production UPDATE-vs-RESOLVE
+// verdicts can be audited after the fact.
+func TestEvaluateTransitionLogsToInferenceLog(t *testing.T) {
+	origLogger := completionCheckLogger
+	defer func() { completionCheckLogger = origLogger }()
+
+	var gotSource, gotInput, gotOutput string
+	var calls int
+	completionCheckLogger = func(_ *AIClient, source, input, output string) {
+		calls++
+		gotSource, gotInput, gotOutput = source, input, output
+	}
+
+	f := &transitionFakeTransport{reply: LLMResponse{Text: `{"status":"RESOLVE"}`}}
+	replyText := "already up on 8080"
+	if _, err := transitionTestClient(f).EvaluateTaskTransition(
+		context.Background(), "me@example.com", "parent task", replyText, nil); err != nil {
+		t.Fatalf("EvaluateTaskTransition: %v", err)
+	}
+
+	if calls != 1 {
+		t.Fatalf("logger calls = %d, want 1", calls)
+	}
+	if gotSource != "completion_check" {
+		t.Errorf("source = %q, want completion_check", gotSource)
+	}
+	if !strings.Contains(gotInput, replyText) {
+		t.Errorf("input = %q, want it to contain the reply text %q", gotInput, replyText)
+	}
+	if gotOutput != `{"status":"RESOLVE"}` {
+		t.Errorf("output = %q, want the raw model response", gotOutput)
+	}
+}
+
+// TestEvaluateTransitionLogsErrorOnTruncation ensures a failing call is still logged, tagged
+// with the error, so silent truncations remain visible in the audit trail.
+func TestEvaluateTransitionLogsErrorOnTruncation(t *testing.T) {
+	origLogger := completionCheckLogger
+	defer func() { completionCheckLogger = origLogger }()
+
+	var gotOutput string
+	completionCheckLogger = func(_ *AIClient, _, _, output string) {
+		gotOutput = output
+	}
+
+	f := &transitionFakeTransport{reply: LLMResponse{
+		Text:         "",
+		FinishReason: "length",
+		Usage:        LLMUsage{PromptTokens: 871, CompletionTokens: DefaultMaxTokens},
+	}}
+	if _, err := transitionTestClient(f).EvaluateTaskTransition(
+		context.Background(), "me@example.com", "parent task", "long reply", nil); err == nil {
+		t.Fatal("err = nil, want a truncation error")
+	}
+
+	if !strings.HasPrefix(gotOutput, "ERROR: ") {
+		t.Errorf("output = %q, want it prefixed with ERROR:", gotOutput)
+	}
+}

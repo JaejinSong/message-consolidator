@@ -96,6 +96,24 @@ func closeJSONArray(fenceContent string) string {
 	return fenceContent[:idx+1] + "\n]"
 }
 
+// completionCheckLogger is a seam so tests can observe the fire-and-forget audit log call
+// without depending on the real async file logger's goroutine dispatch.
+// Why: EvaluateTaskTransition reuses the same logInferenceAsync mechanism extraction already
+// writes to logs/ai_inference.log with (ai/client.go AnalyzeWithContext), so production
+// UPDATE-vs-RESOLVE verdicts are auditable too.
+var completionCheckLogger = func(g *AIClient, source, input, output string) {
+	g.logInferenceAsync(source, input, output)
+}
+
+// completionCheckLogInput builds a compact audit record of what was sent to the model,
+// reusing the same parentTask/replyText/subtasksCtx already assembled for the prompt.
+func completionCheckLogInput(parentTask, replyText, subtasksCtx string) string {
+	if subtasksCtx == "" {
+		return fmt.Sprintf("PARENT: %s\nREPLY: %s", parentTask, replyText)
+	}
+	return fmt.Sprintf("PARENT: %s\nREPLY: %s\nSUBTASKS:\n%s", parentTask, replyText, subtasksCtx)
+}
+
 // EvaluateTaskTransition determines if a reply completes or updates a specific parent task.
 // Why: [Thread-Aware Intelligence] Uses a specialized prompt to analyze the conversational relationship
 // between a parent message and its reply, enabling deterministic state transitions (RESOLVE/UPDATE).
@@ -143,9 +161,12 @@ func (g *AIClient) EvaluateTaskTransition(ctx context.Context, email, parentTask
 		JSONMode:  true,
 		Thinking:  g.resolveThinking(parsed, g.transition),
 	}
+	logInput := completionCheckLogInput(parentTask, replyText, subtasksCtx)
+
 	start := time.Now()
 	resp, err := g.transport.Generate(ctx, req, 30*time.Second, 2)
 	if err != nil {
+		completionCheckLogger(g, "completion_check", logInput, "ERROR: "+err.Error())
 		return TaskTransition{}, err
 	}
 
@@ -159,14 +180,19 @@ func (g *AIClient) EvaluateTaskTransition(ctx context.Context, email, parentTask
 	if resp.FinishReason == "length" {
 		logger.Warnf("[AI] EvaluateTransition hit output limit: think=%d completion=%d prompt=%d budget=%d email=%s",
 			resp.Usage.ReasoningTokens, resp.Usage.CompletionTokens, resp.Usage.PromptTokens, DefaultMaxTokens, email)
-		return TaskTransition{}, fmt.Errorf("transition response truncated at the %d-token output budget (completion=%d)", DefaultMaxTokens, resp.Usage.CompletionTokens)
+		truncErr := fmt.Errorf("transition response truncated at the %d-token output budget (completion=%d)", DefaultMaxTokens, resp.Usage.CompletionTokens)
+		completionCheckLogger(g, "completion_check", logInput, "ERROR: "+truncErr.Error())
+		return TaskTransition{}, truncErr
 	}
 
 	var result TaskTransition
 	if err := json.Unmarshal([]byte(core.SanitizeJSON(resp.Text)), &result); err != nil {
-		return TaskTransition{}, fmt.Errorf("failed to parse AI transition response: %w (raw: %s)", err, resp.Text)
+		parseErr := fmt.Errorf("failed to parse AI transition response: %w (raw: %s)", err, resp.Text)
+		completionCheckLogger(g, "completion_check", logInput, "ERROR: "+parseErr.Error())
+		return TaskTransition{}, parseErr
 	}
 
+	completionCheckLogger(g, "completion_check", logInput, resp.Text)
 	return result, nil
 }
 
