@@ -456,3 +456,39 @@ func TestMigrateLifecycleExcluded_Legacy(t *testing.T) {
 		t.Errorf("re-run must be idempotent, got %v", err)
 	}
 }
+
+type lockOnceQuerier struct {
+	Querier
+	calls int
+}
+
+func (l *lockOnceQuerier) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	l.calls++
+	if l.calls == 1 {
+		return nil, errors.New("failed to execute SQL: SQLite error: database is locked")
+	}
+	return l.Querier.ExecContext(ctx, query, args...)
+}
+
+func TestAutoRestoreIfExcluded_RetriesOnDatabaseLocked(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	defer cleanup()
+	ctx := context.Background()
+	email := testutil.RandomEmail("lock")
+	id := seedExclusionTask(t, email, "Locked restore task", 35, "{}")
+	if err := ConfirmExclusion(ctx, GetDB(), email, id); err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+
+	q := &lockOnceQuerier{Querier: GetDB()}
+	restored, err := AutoRestoreIfExcluded(ctx, q, email, id)
+	if err != nil {
+		t.Fatalf("expected retry to succeed, got %v", err)
+	}
+	if !restored || q.calls != 2 {
+		t.Fatalf("restored=%v calls=%d, want true after 2 calls", restored, q.calls)
+	}
+}

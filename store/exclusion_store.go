@@ -171,7 +171,13 @@ func AutoRestoreIfExcluded(ctx context.Context, q Querier, email string, id Mess
 		            '$.` + metaKeyRemindedPrefix + `excluded_digest'),
 		        '$.` + metaKeyExcludedAutoRestoredAt + `', ?)
 		WHERE id = ? AND user_email = ? AND excluded_at IS NOT NULL`
-	res, err := q.ExecContext(ctx, stmt, time.Now().UTC().Format(time.RFC3339), int64(id), email)
+	// Why: this is usually the first write in the routing tx, so it is the statement that meets a concurrent scan's write lock (prod 2026-09-28: "database is locked").
+	var res sql.Result
+	err := WithDBRetry("AutoRestoreIfExcluded", func() error {
+		var e error
+		res, e = q.ExecContext(ctx, stmt, time.Now().UTC().Format(time.RFC3339), int64(id), email)
+		return e
+	})
 	if err != nil {
 		return false, fmt.Errorf("auto-restore excluded: %w", err)
 	}
