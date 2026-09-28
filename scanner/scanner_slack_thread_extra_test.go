@@ -47,52 +47,66 @@ func TestUpdateThreadStatus_Update(t *testing.T) {
 	updateThreadStatus(context.Background(), sc, thread, res)
 }
 
-// TestCollectThreadCandidates_AllFiltered verifies no candidates returned when all replies
-// are filtered by LastTS (≤ lastTS) without triggering sc.GetUserName.
-func TestCollectThreadCandidates_AllFiltered(t *testing.T) {
-	orig := deps.completionSvc
-	t.Cleanup(func() { deps.completionSvc = orig })
-	deps.completionSvc = nil // dispatchThreadCompletionIfMine returns immediately
-
-	sc := channels.NewSlackClient("fake-token")
-	user := &store.User{Email: "filter@example.com", Name: "Filter User", SlackID: "UFILTER"}
-	thread := store.SlackThreadMeta{
-		ChannelID: "C1", ThreadTS: "1700000100.000000", LastTS: "1700000200.000000",
+// TestCollectThreadCandidates_Filtering verifies no candidates are returned either when all
+// replies are filtered by LastTS (<= lastTS) without triggering sc.GetUserName ("AllFiltered"),
+// or when all replies are bot messages ("BotFiltered").
+func TestCollectThreadCandidates_Filtering(t *testing.T) {
+	cases := []struct {
+		name       string
+		email      string
+		userName   string
+		slackID    string
+		lastTS     string
+		replies    []slack.Message
+		newLastTS  string
+		filterKind string
+	}{
+		{
+			name:     "AllFiltered",
+			email:    "filter@example.com",
+			userName: "Filter User",
+			slackID:  "UFILTER",
+			lastTS:   "1700000200.000000",
+			replies: []slack.Message{
+				{Msg: slack.Msg{Timestamp: "1700000100.000000", User: "UOTHER", Text: "old"}},   // <= lastTS
+				{Msg: slack.Msg{Timestamp: "1700000050.000000", User: "UOTHER", Text: "older"}}, // <= lastTS
+			},
+			newLastTS:  "1700000200.000000",
+			filterKind: "all filtered",
+		},
+		{
+			name:     "BotFiltered",
+			email:    "botfilter@example.com",
+			userName: "Bot Filter",
+			slackID:  "UBOTFILTER",
+			lastTS:   "",
+			replies: []slack.Message{
+				{Msg: slack.Msg{Timestamp: "1700000200.000000", BotID: "B_BOT", Text: "bot msg"}},
+				{Msg: slack.Msg{Timestamp: "1700000300.000000", SubType: "bot_message", Text: "bot2"}},
+			},
+			newLastTS:  "1700000300.000000",
+			filterKind: "all bots",
+		},
 	}
 
-	replies := []slack.Message{
-		{Msg: slack.Msg{Timestamp: "1700000100.000000", User: "UOTHER", Text: "old"}},   // <= lastTS
-		{Msg: slack.Msg{Timestamp: "1700000050.000000", User: "UOTHER", Text: "older"}}, // <= lastTS
-	}
-	res := threadScanResult{isResolved: false, newLastTS: "1700000200.000000"}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			orig := deps.completionSvc
+			t.Cleanup(func() { deps.completionSvc = orig })
+			deps.completionSvc = nil // dispatchThreadCompletionIfMine returns immediately
 
-	got := collectThreadCandidates(context.Background(), sc, user, thread, replies, res, nil, nil)
-	if len(got) != 0 {
-		t.Errorf("expected 0 candidates (all filtered), got %d", len(got))
-	}
-}
+			sc := channels.NewSlackClient("fake-token")
+			user := &store.User{Email: tc.email, Name: tc.userName, SlackID: tc.slackID}
+			thread := store.SlackThreadMeta{
+				ChannelID: "C1", ThreadTS: "1700000100.000000", LastTS: tc.lastTS,
+			}
+			res := threadScanResult{isResolved: false, newLastTS: tc.newLastTS}
 
-// TestCollectThreadCandidates_BotFiltered verifies bot messages are skipped.
-func TestCollectThreadCandidates_BotFiltered(t *testing.T) {
-	orig := deps.completionSvc
-	t.Cleanup(func() { deps.completionSvc = orig })
-	deps.completionSvc = nil
-
-	sc := channels.NewSlackClient("fake-token")
-	user := &store.User{Email: "botfilter@example.com", Name: "Bot Filter", SlackID: "UBOTFILTER"}
-	thread := store.SlackThreadMeta{
-		ChannelID: "C1", ThreadTS: "1700000100.000000", LastTS: "",
-	}
-
-	replies := []slack.Message{
-		{Msg: slack.Msg{Timestamp: "1700000200.000000", BotID: "B_BOT", Text: "bot msg"}},
-		{Msg: slack.Msg{Timestamp: "1700000300.000000", SubType: "bot_message", Text: "bot2"}},
-	}
-	res := threadScanResult{isResolved: false, newLastTS: "1700000300.000000"}
-
-	got := collectThreadCandidates(context.Background(), sc, user, thread, replies, res, nil, nil)
-	if len(got) != 0 {
-		t.Errorf("expected 0 candidates (all bots), got %d", len(got))
+			got := collectThreadCandidates(context.Background(), sc, user, thread, tc.replies, res, nil, nil)
+			if len(got) != 0 {
+				t.Errorf("expected 0 candidates (%s), got %d", tc.filterKind, len(got))
+			}
+		})
 	}
 }
 

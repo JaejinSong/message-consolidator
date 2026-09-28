@@ -176,6 +176,32 @@ func TestHandleGetUserAliases(t *testing.T) {
 	}
 }
 
+// testAliasMutationHandler exercises the shared invalid-JSON/success shape of the alias
+// add/delete handlers with matching subtest names, so both callers assert the same contract.
+func testAliasMutationHandler(t *testing.T, email string, handler func(http.ResponseWriter, *http.Request), endpoint string, invalidBody, validBody []byte) {
+	t.Helper()
+
+	t.Run("Invalid JSON", func(t *testing.T) {
+		r, _ := http.NewRequest("POST", endpoint, bytes.NewBuffer(invalidBody))
+		r = r.WithContext(context.WithValue(r.Context(), auth.UserEmailKey, email))
+		rr := httptest.NewRecorder()
+		handler(rr, r)
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", rr.Code)
+		}
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		r, _ := http.NewRequest("POST", endpoint, bytes.NewBuffer(validBody))
+		r = r.WithContext(context.WithValue(r.Context(), auth.UserEmailKey, email))
+		rr := httptest.NewRecorder()
+		handler(rr, r)
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", rr.Code)
+		}
+	})
+}
+
 func TestHandleAddAlias(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
@@ -187,26 +213,8 @@ func TestHandleAddAlias(t *testing.T) {
 	_, _ = store.GetOrCreateUser(context.Background(), email, "", "")
 	api := &API{Config: &config.Config{SlackToken: ""}}
 
-	t.Run("Invalid JSON", func(t *testing.T) {
-		r, _ := http.NewRequest("POST", "/api/user/aliases/add", bytes.NewBuffer([]byte("{not-json")))
-		r = r.WithContext(context.WithValue(r.Context(), auth.UserEmailKey, email))
-		rr := httptest.NewRecorder()
-		api.HandleAddAlias(rr, r)
-		if rr.Code != http.StatusBadRequest {
-			t.Errorf("expected 400, got %d", rr.Code)
-		}
-	})
-
-	t.Run("Success", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]string{"alias": "newalias"})
-		r, _ := http.NewRequest("POST", "/api/user/aliases/add", bytes.NewBuffer(body))
-		r = r.WithContext(context.WithValue(r.Context(), auth.UserEmailKey, email))
-		rr := httptest.NewRecorder()
-		api.HandleAddAlias(rr, r)
-		if rr.Code != http.StatusOK {
-			t.Errorf("expected 200, got %d", rr.Code)
-		}
-	})
+	validBody, _ := json.Marshal(map[string]string{"alias": "newalias"})
+	testAliasMutationHandler(t, email, api.HandleAddAlias, "/api/user/aliases/add", []byte("{not-json"), validBody)
 }
 
 func TestHandleDeleteAlias(t *testing.T) {
@@ -220,26 +228,8 @@ func TestHandleDeleteAlias(t *testing.T) {
 	_, _ = store.GetOrCreateUser(context.Background(), email, "", "")
 	api := &API{Config: &config.Config{SlackToken: ""}}
 
-	t.Run("Invalid JSON", func(t *testing.T) {
-		r, _ := http.NewRequest("POST", "/api/user/aliases/delete", bytes.NewBuffer([]byte("{bad")))
-		r = r.WithContext(context.WithValue(r.Context(), auth.UserEmailKey, email))
-		rr := httptest.NewRecorder()
-		api.HandleDeleteAlias(rr, r)
-		if rr.Code != http.StatusBadRequest {
-			t.Errorf("expected 400, got %d", rr.Code)
-		}
-	})
-
-	t.Run("Success", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]string{"alias": "x"})
-		r, _ := http.NewRequest("POST", "/api/user/aliases/delete", bytes.NewBuffer(body))
-		r = r.WithContext(context.WithValue(r.Context(), auth.UserEmailKey, email))
-		rr := httptest.NewRecorder()
-		api.HandleDeleteAlias(rr, r)
-		if rr.Code != http.StatusOK {
-			t.Errorf("expected 200, got %d", rr.Code)
-		}
-	})
+	validBody, _ := json.Marshal(map[string]string{"alias": "x"})
+	testAliasMutationHandler(t, email, api.HandleDeleteAlias, "/api/user/aliases/delete", []byte("{bad"), validBody)
 }
 
 func TestHandleGetTenantAliases(t *testing.T) {

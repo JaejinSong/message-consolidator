@@ -580,61 +580,58 @@ func TestReportsService_GenerateReport_MultiLanguage(t *testing.T) {
 	}
 }
 
-// TestReportsService_NodeUnification_ParenSuffix verifies that names with parenthetical
-// suffixes like "(JJ)" are treated as the same node as the base name.
-func TestReportsService_NodeUnification_ParenSuffix(t *testing.T) {
-	store.ResetForTest()
-	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}}
-
-	messages := []store.ConsolidatedMessage{
-		// "Jaejin Song (JJ)" and "Jaejin Song" are the same person — both unresolved (no canonical set).
-		{Requester: "Jaejin Song (JJ)", Assignee: "Alice", RequesterCanonical: "", AssigneeCanonical: "alice@company.com", RequesterType: "none", AssigneeType: "internal"},
-		{Requester: "Jaejin Song", Assignee: "Alice", RequesterCanonical: "", AssigneeCanonical: "alice@company.com", RequesterType: "none", AssigneeType: "internal"},
-		{Requester: "Jaejin Song (Work)", Assignee: "Alice", RequesterCanonical: "", AssigneeCanonical: "alice@company.com", RequesterType: "none", AssigneeType: "internal"},
+// TestReportsService_NodeUnification covers name-variant merging: "ParenSuffix" verifies that
+// names with parenthetical suffixes like "(JJ)" are treated as the same node as the base name;
+// "CaseInsensitive" verifies that variants differing only in case (e.g. "YOSEP PARK" vs
+// "Yosep Park") are unified into a single node.
+func TestReportsService_NodeUnification(t *testing.T) {
+	cases := []struct {
+		name     string
+		messages []store.ConsolidatedMessage
+		nodeID   string
+	}{
+		{
+			name: "ParenSuffix",
+			messages: []store.ConsolidatedMessage{
+				// "Jaejin Song (JJ)" and "Jaejin Song" are the same person — both unresolved (no canonical set).
+				{Requester: "Jaejin Song (JJ)", Assignee: "Alice", RequesterCanonical: "", AssigneeCanonical: "alice@company.com", RequesterType: "none", AssigneeType: "internal"},
+				{Requester: "Jaejin Song", Assignee: "Alice", RequesterCanonical: "", AssigneeCanonical: "alice@company.com", RequesterType: "none", AssigneeType: "internal"},
+				{Requester: "Jaejin Song (Work)", Assignee: "Alice", RequesterCanonical: "", AssigneeCanonical: "alice@company.com", RequesterType: "none", AssigneeType: "internal"},
+			},
+			nodeID: "jaejin song",
+		},
+		{
+			name: "CaseInsensitive",
+			messages: []store.ConsolidatedMessage{
+				{Requester: "YOSEP PARK", Assignee: "Bob", RequesterCanonical: "", AssigneeCanonical: "bob@company.com", RequesterType: "none", AssigneeType: "internal"},
+				{Requester: "Yosep Park", Assignee: "Bob", RequesterCanonical: "", AssigneeCanonical: "bob@company.com", RequesterType: "none", AssigneeType: "internal"},
+				{Requester: "yosep park", Assignee: "Bob", RequesterCanonical: "", AssigneeCanonical: "bob@company.com", RequesterType: "none", AssigneeType: "internal"},
+			},
+			nodeID: "yosep park",
+		},
 	}
 
-	graphData := svc.generateVisualizationData(t.Context(), "admin@company.com", messages)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store.ResetForTest()
+			svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}}
 
-	// All three variants must collapse into a single "jaejin song" node.
-	jaejinCount := 0
-	for _, n := range graphData.Nodes {
-		if n.ID == "jaejin song" {
-			jaejinCount++
-			if n.Value != 3 {
-				t.Errorf("Expected merged node value 3, got %f", n.Value)
+			graphData := svc.generateVisualizationData(t.Context(), "admin@company.com", tc.messages)
+
+			// All variants must collapse into a single node.
+			count := 0
+			for _, n := range graphData.Nodes {
+				if n.ID == tc.nodeID {
+					count++
+					if n.Value != 3 {
+						t.Errorf("Expected merged node value 3, got %f", n.Value)
+					}
+				}
 			}
-		}
-	}
-	if jaejinCount != 1 {
-		t.Errorf("Expected exactly 1 merged node for 'jaejin song', got %d. Nodes: %+v", jaejinCount, graphData.Nodes)
-	}
-}
-
-// TestReportsService_NodeUnification_CaseInsensitive verifies that name variants differing
-// only in case (e.g. "YOSEP PARK" vs "Yosep Park") are unified into a single node.
-func TestReportsService_NodeUnification_CaseInsensitive(t *testing.T) {
-	store.ResetForTest()
-	svc := &ReportsService{config: ReportConfig{CutoffSize: DefaultReportCutoffSize}}
-
-	messages := []store.ConsolidatedMessage{
-		{Requester: "YOSEP PARK", Assignee: "Bob", RequesterCanonical: "", AssigneeCanonical: "bob@company.com", RequesterType: "none", AssigneeType: "internal"},
-		{Requester: "Yosep Park", Assignee: "Bob", RequesterCanonical: "", AssigneeCanonical: "bob@company.com", RequesterType: "none", AssigneeType: "internal"},
-		{Requester: "yosep park", Assignee: "Bob", RequesterCanonical: "", AssigneeCanonical: "bob@company.com", RequesterType: "none", AssigneeType: "internal"},
-	}
-
-	graphData := svc.generateVisualizationData(t.Context(), "admin@company.com", messages)
-
-	yosepCount := 0
-	for _, n := range graphData.Nodes {
-		if n.ID == "yosep park" {
-			yosepCount++
-			if n.Value != 3 {
-				t.Errorf("Expected merged node value 3, got %f", n.Value)
+			if count != 1 {
+				t.Errorf("Expected exactly 1 merged node for %q, got %d. Nodes: %+v", tc.nodeID, count, graphData.Nodes)
 			}
-		}
-	}
-	if yosepCount != 1 {
-		t.Errorf("Expected exactly 1 merged node for 'yosep park', got %d. Nodes: %+v", yosepCount, graphData.Nodes)
+		})
 	}
 }
 

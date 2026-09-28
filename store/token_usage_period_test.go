@@ -7,37 +7,51 @@ import (
 	"time"
 )
 
-// TestGetDailyTokenUsage_DBAndInMemoryMerge pins the DB-plus-buffered-delta merge path:
-// one flushed row plus one un-flushed AddTokenUsage call must sum together.
-func TestGetDailyTokenUsage_DBAndInMemoryMerge(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
-	if err != nil {
-		t.Fatalf("failed to setup test DB: %v", err)
-	}
-	defer cleanup()
-
-	ctx := context.Background()
-	email := "daily-merge@example.com" // unique: in-memory token buffers are not reset between tests
-
-	_ = AddTokenUsage(email, "Analyze", "deepseek-chat", "slack", 0, 1000, 200, 50, 0)
-	if err := FlushTokenUsage(ctx); err != nil {
-		t.Fatalf("FlushTokenUsage: %v", err)
-	}
-	IncrementFilteredCount(email)
-	_ = AddTokenUsage(email, "Analyze", "deepseek-chat", "slack", 0, 100, 20, 5, 0) // in-memory only
-
-	prompt, completion, thinking, filtered, err := GetDailyTokenUsage(ctx, email)
-	if err != nil {
-		t.Fatalf("GetDailyTokenUsage: %v", err)
-	}
-	if prompt != 1100 || completion != 220 || thinking != 55 || filtered != 1 {
-		t.Errorf("got prompt=%d completion=%d thinking=%d filtered=%d, want 1100 220 55 1", prompt, completion, thinking, filtered)
+// TestGetTokenUsage_DBAndInMemoryMerge pins the DB-plus-buffered-delta merge path for both
+// the daily and monthly aggregates: one flushed row plus one un-flushed AddTokenUsage call
+// must sum together.
+func TestGetTokenUsage_DBAndInMemoryMerge(t *testing.T) {
+	cases := []struct {
+		name     string
+		email    string
+		getUsage func(ctx context.Context, email string) (int, int, int, int, error)
+	}{
+		{name: "Daily", email: "daily-merge@example.com", getUsage: GetDailyTokenUsage},
+		{name: "Monthly", email: "monthly-merge@example.com", getUsage: GetMonthlyTokenUsage},
 	}
 
-	// Why: in-memory token buffers are package globals not cleared by ResetForTest; drain the
-	// un-flushed delta so it can't leak into subsequent tests.
-	if err := FlushTokenUsage(ctx); err != nil {
-		t.Fatalf("final FlushTokenUsage: %v", err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+			if err != nil {
+				t.Fatalf("failed to setup test DB: %v", err)
+			}
+			defer cleanup()
+
+			ctx := context.Background()
+			email := tc.email // unique: in-memory token buffers are not reset between tests
+
+			_ = AddTokenUsage(email, "Analyze", "deepseek-chat", "slack", 0, 1000, 200, 50, 0)
+			if err := FlushTokenUsage(ctx); err != nil {
+				t.Fatalf("FlushTokenUsage: %v", err)
+			}
+			IncrementFilteredCount(email)
+			_ = AddTokenUsage(email, "Analyze", "deepseek-chat", "slack", 0, 100, 20, 5, 0) // in-memory only
+
+			prompt, completion, thinking, filtered, err := tc.getUsage(ctx, email)
+			if err != nil {
+				t.Fatalf("GetTokenUsage: %v", err)
+			}
+			if prompt != 1100 || completion != 220 || thinking != 55 || filtered != 1 {
+				t.Errorf("got prompt=%d completion=%d thinking=%d filtered=%d, want 1100 220 55 1", prompt, completion, thinking, filtered)
+			}
+
+			// Why: in-memory token buffers are package globals not cleared by ResetForTest; drain the
+			// un-flushed delta so it can't leak into subsequent tests.
+			if err := FlushTokenUsage(ctx); err != nil {
+				t.Fatalf("final FlushTokenUsage: %v", err)
+			}
+		})
 	}
 }
 
@@ -71,40 +85,6 @@ func TestGetDailyTokenUsage_FreshCache(t *testing.T) {
 	}
 	if prompt != 42 || completion != 7 || thinking != 3 || filtered != 1 {
 		t.Errorf("got prompt=%d completion=%d thinking=%d filtered=%d, want 42 7 3 1", prompt, completion, thinking, filtered)
-	}
-}
-
-// TestGetMonthlyTokenUsage_DBAndInMemoryMerge pins the DB-plus-buffered-delta merge path
-// for the monthly aggregate.
-func TestGetMonthlyTokenUsage_DBAndInMemoryMerge(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
-	if err != nil {
-		t.Fatalf("failed to setup test DB: %v", err)
-	}
-	defer cleanup()
-
-	ctx := context.Background()
-	email := "monthly-merge@example.com" // unique: in-memory token buffers are not reset between tests
-
-	_ = AddTokenUsage(email, "Analyze", "deepseek-chat", "slack", 0, 1000, 200, 50, 0)
-	if err := FlushTokenUsage(ctx); err != nil {
-		t.Fatalf("FlushTokenUsage: %v", err)
-	}
-	IncrementFilteredCount(email)
-	_ = AddTokenUsage(email, "Analyze", "deepseek-chat", "slack", 0, 100, 20, 5, 0) // in-memory only
-
-	prompt, completion, thinking, filtered, err := GetMonthlyTokenUsage(ctx, email)
-	if err != nil {
-		t.Fatalf("GetMonthlyTokenUsage: %v", err)
-	}
-	if prompt != 1100 || completion != 220 || thinking != 55 || filtered != 1 {
-		t.Errorf("got prompt=%d completion=%d thinking=%d filtered=%d, want 1100 220 55 1", prompt, completion, thinking, filtered)
-	}
-
-	// Why: in-memory token buffers are package globals not cleared by ResetForTest; drain the
-	// un-flushed delta so it can't leak into subsequent tests.
-	if err := FlushTokenUsage(ctx); err != nil {
-		t.Fatalf("final FlushTokenUsage: %v", err)
 	}
 }
 
