@@ -1,6 +1,6 @@
 ---
 name: completion_check
-version: 2.7.0
+version: 2.8.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: default
 deepseekModel: deepseek-v4.1-flash
@@ -31,6 +31,7 @@ Classify how a reply message affects an existing task. Apply rules in order — 
    - Bare receipt acknowledgment right after the request: "Ok", "Noted", "Ok noted", "Siap", "Baik" — confirms the ask was seen, not that it is finished.
    - Future-tense/intent statement carrying no new information: "I'll check", "I'll check and update you", "will update", "let me check", "akan saya cek", "nanti saya update" — a promise to act is not the act done.
      Exception: when the open item asks WHO will take, cover or attend something and the speaker volunteers ("I'll cover this", "대타 참석 하겠습니다"), the question is answered — that is Delegation acceptance → RESOLVE. The promise rule applies when the person already asked only says they will look into it.
+   - Mismatched deliverable: the reply names what it hands over or thanks for, and that item is not what the task asks for ("Thanks for the deck" on a report task; a timeline sheet posted on a task to review a different document). Sharing a file closes only a send/share/provide task, never a review/approve/fix task.
    - When uncertain between RESOLVE and NONE, choose NONE — do not resolve on ambiguity.
 
 # Subtask Rules (only when Subtasks are listed in Context):
@@ -69,6 +70,14 @@ Output: {"status": "NONE", "updated_text": "", "subtask_updates": []}
 Parent Task: Obtain the Notion Internal Integration token
 Reply: thanks JJ
 Output: {"status": "RESOLVE", "updated_text": "", "subtask_updates": []}
+
+Parent Task: Review PDRM POC document PDRM-Promox.docx
+Reply: [Document: WHATAP PDRM POC HIGH LEVEL TIMELINE & SERVER LIST.xlsx]
+Output: {"status": "NONE", "updated_text": "", "subtask_updates": []}
+
+Parent Task: Prepare the POC review report for the next Puspakom session
+Reply: Thanks @Andy for the deck
+Output: {"status": "NONE", "updated_text": "", "subtask_updates": []}
 
 Parent Task: Differentiate quotation and invoice numbering in Global Quote & PI Generator and ensure approvals use the right number
 Reply: I have updated the system to differentiate document numbering — quotations now use the QT prefix and invoices the IN prefix.

@@ -234,6 +234,24 @@ func TestLive_DeepSeek_CompletionCheckRegression(t *testing.T) {
 			want:       "NONE",
 		},
 		{
+			name:       "shared_other_file_on_review_task_not_completion",
+			parentTask: "Review the PDRM POC proposal document and send comments to Faisal",
+			reply:      "[Document: PDRM POC server inventory and schedule.xlsx]",
+			want:       "NONE",
+		},
+		{
+			name:       "thanks_for_other_item_not_completion",
+			parentTask: "Prepare the data collection summary report for the Puspakom steering meeting",
+			reply:      "Thanks Andy for the slides",
+			want:       "NONE",
+		},
+		{
+			name:       "shared_requested_file_resolves",
+			parentTask: "Send the signed NDA to Puspakom",
+			reply:      "[Document: Puspakom NDA signed.pdf] here you go",
+			want:       "RESOLVE",
+		},
+		{
 			name:       "partial_progress_update_not_resolve",
 			parentTask: "Differentiate quotation and invoice numbering in Global Quote & PI Generator and ensure approvals use the right number",
 			reply:      "Updated the numbering for quotations; invoices still pending.",

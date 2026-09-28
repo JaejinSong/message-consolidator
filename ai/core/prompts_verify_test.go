@@ -763,7 +763,7 @@ func TestCompletionCheckDeliversTheAskRule(t *testing.T) {
 	}
 	body := string(content)
 	required := []string{
-		"version: 2.7.0",
+		"version: 2.8.0",
 		"Delivers the ask",
 		"even if long or detailed",
 		"reports partial progress that leaves the original ask open",
