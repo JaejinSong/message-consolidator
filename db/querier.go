@@ -211,6 +211,9 @@ type Querier interface {
 	ListReplayableWAMessages(ctx context.Context, arg ListReplayableWAMessagesParams) ([]ListReplayableWAMessagesRow, error)
 	ListReports(ctx context.Context, userEmail string) ([]ListReportsRow, error)
 	ListWAMessages(ctx context.Context, arg ListWAMessagesParams) ([]ListWAMessagesRow, error)
+	// Why: reassess-wa-backlog needs raw_json (for ReplyToID matching) and a chat_name
+	// filter that ListWAMessages does not expose (it filters chat_jid only).
+	ListWAMessagesForChatSince(ctx context.Context, arg ListWAMessagesForChatSinceParams) ([]ListWAMessagesForChatSinceRow, error)
 	LoadContactsAll(ctx context.Context) ([]LoadContactsAllRow, error)
 	LoadGmailTokensAll(ctx context.Context) ([]LoadGmailTokensAllRow, error)
 	LoadScanMetadataAll(ctx context.Context) ([]LoadScanMetadataAllRow, error)

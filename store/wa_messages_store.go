@@ -139,6 +139,41 @@ type ListWAMessagesParams struct {
 	Offset    int64
 }
 
+// WAChatMessage is one wa_messages row returned for chat-scoped reassessment: enough
+// to select and evaluate a candidate reply (sender, body, timestamp, raw_json for
+// ReplyToID matching) without pulling the full ListWAMessages projection.
+type WAChatMessage struct {
+	MessageID     string
+	Sender        string
+	Body          string
+	HasAttachment bool
+	TS            int64
+	RawJSON       string
+}
+
+// ListWAMessagesForChatSince returns email's wa_messages rows in chatName sent after
+// afterTS (unix seconds), oldest first.
+func ListWAMessagesForChatSince(ctx context.Context, email, chatName string, afterTS int64) ([]WAChatMessage, error) {
+	conn := GetDB()
+	if conn == nil {
+		return nil, fmt.Errorf("wa_messages: db not initialised")
+	}
+	rows, err := db.New(conn).ListWAMessagesForChatSince(ctx, db.ListWAMessagesForChatSinceParams{
+		Email: email, ChatName: chatName, Ts: afterTS,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list wa_messages for chat: %w", err)
+	}
+	out := make([]WAChatMessage, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, WAChatMessage{
+			MessageID: r.MessageID, Sender: r.Sender, Body: r.Body,
+			HasAttachment: r.HasAttachment != 0, TS: r.Ts, RawJSON: r.RawJson,
+		})
+	}
+	return out, nil
+}
+
 func ListWAMessages(ctx context.Context, p ListWAMessagesParams) ([]db.ListWAMessagesRow, error) {
 	conn := GetDB()
 	if conn == nil {

@@ -26,6 +26,16 @@ WHERE email = ?1
 ORDER BY ts
 LIMIT ?6;
 
+-- name: ListWAMessagesForChatSince :many
+-- Why: reassess-wa-backlog needs raw_json (for ReplyToID matching) and a chat_name
+-- filter that ListWAMessages does not expose (it filters chat_jid only).
+SELECT message_id, sender, body, has_attachment, ts, raw_json
+FROM wa_messages
+WHERE email = ?1
+  AND chat_name = ?2
+  AND ts > ?3
+ORDER BY ts;
+
 -- name: ListWAMessages :many
 SELECT id, message_id, email, chat_jid, chat_name, sender,
        direction, body, reply_to, has_attachment, is_forwarded,

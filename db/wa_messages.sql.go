@@ -212,3 +212,59 @@ func (q *Queries) ListWAMessages(ctx context.Context, arg ListWAMessagesParams) 
 	}
 	return items, nil
 }
+
+const listWAMessagesForChatSince = `-- name: ListWAMessagesForChatSince :many
+SELECT message_id, sender, body, has_attachment, ts, raw_json
+FROM wa_messages
+WHERE email = ?1
+  AND chat_name = ?2
+  AND ts > ?3
+ORDER BY ts
+`
+
+type ListWAMessagesForChatSinceParams struct {
+	Email    string `json:"email"`
+	ChatName string `json:"chat_name"`
+	Ts       int64  `json:"ts"`
+}
+
+type ListWAMessagesForChatSinceRow struct {
+	MessageID     string `json:"message_id"`
+	Sender        string `json:"sender"`
+	Body          string `json:"body"`
+	HasAttachment int64  `json:"has_attachment"`
+	Ts            int64  `json:"ts"`
+	RawJson       string `json:"raw_json"`
+}
+
+// Why: reassess-wa-backlog needs raw_json (for ReplyToID matching) and a chat_name
+// filter that ListWAMessages does not expose (it filters chat_jid only).
+func (q *Queries) ListWAMessagesForChatSince(ctx context.Context, arg ListWAMessagesForChatSinceParams) ([]ListWAMessagesForChatSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, listWAMessagesForChatSince, arg.Email, arg.ChatName, arg.Ts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListWAMessagesForChatSinceRow
+	for rows.Next() {
+		var i ListWAMessagesForChatSinceRow
+		if err := rows.Scan(
+			&i.MessageID,
+			&i.Sender,
+			&i.Body,
+			&i.HasAttachment,
+			&i.Ts,
+			&i.RawJson,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
