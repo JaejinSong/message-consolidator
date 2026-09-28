@@ -153,7 +153,9 @@ func updateExistingTask(ctx context.Context, q store.Querier, email string, id s
 	autoRestoreExcluded(ctx, q, email, id)
 	err := store.UpdateTaskText(ctx, q, email, id, task)
 	if err == nil && len(subtasks) > 0 {
-		_ = store.UpdateSubtasks(ctx, q, email, id, subtasks)
+		if subErr := store.UpdateSubtasks(ctx, q, email, id, subtasks); subErr != nil {
+			logger.Warnf("[ROUTER] updateExistingTask: UpdateSubtasks failed taskID=%d email=%s: %v", id, email, subErr)
+		}
 	}
 	return id, err
 }

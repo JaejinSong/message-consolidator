@@ -122,7 +122,9 @@ func (s *TasksService) executeBatchTranslation(ctx context.Context, email string
 		}
 	}
 
-	_ = store.SaveTaskTranslationsBulk(ctx, lang, batchMap)
+	if saveErr := store.SaveTaskTranslationsBulk(ctx, lang, batchMap); saveErr != nil {
+		logger.Warnf("[TASKS] SaveTaskTranslationsBulk failed lang=%s: %v", lang, saveErr)
+	}
 	return batchMap, err
 }
 

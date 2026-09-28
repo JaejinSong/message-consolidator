@@ -251,12 +251,16 @@ func handleThreadTimeoutGroup(ctx context.Context, sc *channels.SlackClient, gro
 	if rep.ThreadTS == "" {
 		for _, s := range group {
 			logger.Warnf("[SLACK] handleThreadTimeout: empty ThreadTS channel=%s user=%s, closing without posting", s.ChannelID, s.UserEmail)
-			_ = store.CloseTargetedThread(ctx, s.ChannelID, s.ThreadTS, s.UserEmail)
+			if err := store.CloseTargetedThread(ctx, s.ChannelID, s.ThreadTS, s.UserEmail); err != nil {
+				logger.Warnf("[SLACK] handleThreadTimeout: CloseTargetedThread failed channel=%s thread=%s user=%s: %v", s.ChannelID, s.ThreadTS, s.UserEmail, err)
+			}
 		}
 		return
 	}
 	for _, s := range group {
-		_ = store.CloseTargetedThread(ctx, s.ChannelID, s.ThreadTS, s.UserEmail)
+		if err := store.CloseTargetedThread(ctx, s.ChannelID, s.ThreadTS, s.UserEmail); err != nil {
+			logger.Warnf("[SLACK] handleThreadTimeout: CloseTargetedThread failed channel=%s thread=%s user=%s: %v", s.ChannelID, s.ThreadTS, s.UserEmail, err)
+		}
 	}
 }
 
@@ -296,11 +300,15 @@ func updateThreadStatus(ctx context.Context, sc *channels.SlackClient, t store.S
 			msg := "This issue has been marked as resolved and monitoring is closed."
 			_, _, _ = sc.GetAPI().PostMessage(t.ChannelID, slack.MsgOptionText(msg, false), slack.MsgOptionTS(t.ThreadTS))
 		}
-		_ = store.CloseTargetedThread(ctx, t.ChannelID, t.ThreadTS, t.UserEmail)
+		if err := store.CloseTargetedThread(ctx, t.ChannelID, t.ThreadTS, t.UserEmail); err != nil {
+			logger.Warnf("[SLACK] updateThreadStatus: CloseTargetedThread failed channel=%s thread=%s user=%s: %v", t.ChannelID, t.ThreadTS, t.UserEmail, err)
+		}
 		return
 	}
 	if res.newLastTS != t.LastTS || res.newLastActivity != t.LastActivityTS {
-		_ = store.UpdateTargetedThread(ctx, t.ChannelID, t.ThreadTS, res.newLastTS, res.newLastActivity, t.UserEmail)
+		if err := store.UpdateTargetedThread(ctx, t.ChannelID, t.ThreadTS, res.newLastTS, res.newLastActivity, t.UserEmail); err != nil {
+			logger.Warnf("[SLACK] updateThreadStatus: UpdateTargetedThread failed channel=%s thread=%s user=%s: %v", t.ChannelID, t.ThreadTS, t.UserEmail, err)
+		}
 	}
 }
 
@@ -329,7 +337,9 @@ func closeResolvedThreadGroup(ctx context.Context, sc *channels.SlackClient, gro
 	}
 	for _, s := range group {
 		proposeThreadCheckCompletion(ctx, s)
-		_ = store.CloseTargetedThread(ctx, s.ChannelID, s.ThreadTS, s.UserEmail)
+		if err := store.CloseTargetedThread(ctx, s.ChannelID, s.ThreadTS, s.UserEmail); err != nil {
+			logger.Warnf("[SLACK] closeResolvedThreadGroup: CloseTargetedThread failed channel=%s thread=%s user=%s: %v", s.ChannelID, s.ThreadTS, s.UserEmail, err)
+		}
 	}
 }
 

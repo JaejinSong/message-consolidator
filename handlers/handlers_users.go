@@ -68,7 +68,9 @@ func (a *API) autoPopulateSlackAliases(ctx context.Context, user *store.User) {
 
 	slackIDUnchanged := user.SlackID == slackUser.ID
 	if !slackIDUnchanged {
-		_ = store.UpdateUserSlackID(ctx, user.Email, slackUser.ID)
+		if err := store.UpdateUserSlackID(ctx, user.Email, slackUser.ID); err != nil {
+			logger.Warnf("[USER] autoPopulateSlackAliases: UpdateUserSlackID failed for %s: %v", user.Email, err)
+		}
 	}
 
 	// SlackID가 같고 이미 alias가 있으면 alias 동기화 불필요
@@ -78,7 +80,9 @@ func (a *API) autoPopulateSlackAliases(ctx context.Context, user *store.User) {
 
 	newAliases := buildSlackAliases(slackUser.RealName, slackUser.Profile.DisplayName)
 	if len(newAliases) > 0 {
-		_ = store.AddContactMapping(ctx, user.Email, user.Email, user.Name, strings.Join(newAliases, ","), "slack")
+		if err := store.AddContactMapping(ctx, user.Email, user.Email, user.Name, strings.Join(newAliases, ","), "slack"); err != nil {
+			logger.Warnf("[USER] autoPopulateSlackAliases: AddContactMapping failed for %s: %v", user.Email, err)
+		}
 		a.refreshUserAliases(ctx, user)
 	}
 }

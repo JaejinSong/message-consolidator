@@ -128,7 +128,9 @@ func (s *CompletionService) processThreadWithoutTasks(ctx context.Context, msg s
 // ✅ dashboard button is the correct close path for these.
 func (s *CompletionService) markTasksRequested(ctx context.Context, msg store.ConsolidatedMessage, tasks []store.ConsolidatedMessage) {
 	for _, task := range tasks {
-		_ = s.store.UpdateMessageCategory(ctx, s.db, msg.UserEmail, task.ID, CategoryRequested)
+		if err := s.store.UpdateMessageCategory(ctx, s.db, msg.UserEmail, task.ID, CategoryRequested); err != nil {
+			logger.Warnf("[COMPLETION] markTasksRequested: UpdateMessageCategory failed taskID=%d email=%s: %v", task.ID, msg.UserEmail, err)
+		}
 	}
 }
 
@@ -247,7 +249,9 @@ func (s *CompletionService) resolveSubtasks(ctx context.Context, email string, p
 	for i := range allDone {
 		allDone[i].Done = true
 	}
-	_ = s.store.UpdateSubtasks(ctx, s.db, email, parent.ID, allDone)
+	if err := s.store.UpdateSubtasks(ctx, s.db, email, parent.ID, allDone); err != nil {
+		logger.Warnf("[COMPLETION] resolveSubtasks: UpdateSubtasks failed taskID=%d email=%s: %v", parent.ID, email, err)
+	}
 }
 
 // applySubtaskUpdates writes the AI's per-subtask done flags, ignoring out-of-range
@@ -263,7 +267,9 @@ func (s *CompletionService) applySubtaskUpdates(ctx context.Context, email strin
 			updated[su.Index].Done = su.Done
 		}
 	}
-	_ = s.store.UpdateSubtasks(ctx, s.db, email, parent.ID, updated)
+	if err := s.store.UpdateSubtasks(ctx, s.db, email, parent.ID, updated); err != nil {
+		logger.Warnf("[COMPLETION] applySubtaskUpdates: UpdateSubtasks failed taskID=%d email=%s: %v", parent.ID, email, err)
+	}
 }
 
 func (s *CompletionService) handleCompletionResult(ctx context.Context, res ai.TaskTransition, msg, parent store.ConsolidatedMessage) bool {
@@ -272,7 +278,10 @@ func (s *CompletionService) handleCompletionResult(ctx context.Context, res ai.T
 	case "RESOLVE":
 		s.resolveSubtasks(ctx, msg.UserEmail, parent)
 		item := store.TodoItem{State: "resolve", ID: &parentID}
-		_, _ = s.store.HandleTaskState(ctx, s.db, msg.UserEmail, item, msg)
+		if _, err := s.store.HandleTaskState(ctx, s.db, msg.UserEmail, item, msg); err != nil {
+			logger.Errorf("[COMPLETION] handleCompletionResult: RESOLVE HandleTaskState failed taskID=%d email=%s: %v", parentID, msg.UserEmail, err)
+			return false
+		}
 		return true
 	case "UPDATE":
 		if res.UpdatedText == "" {
@@ -280,7 +289,10 @@ func (s *CompletionService) handleCompletionResult(ctx context.Context, res ai.T
 		}
 		s.applySubtaskUpdates(ctx, msg.UserEmail, parent, res.SubtaskUpdates)
 		item := store.TodoItem{State: "update", ID: &parentID, Task: res.UpdatedText}
-		_, _ = s.store.HandleTaskState(ctx, s.db, msg.UserEmail, item, msg)
+		if _, err := s.store.HandleTaskState(ctx, s.db, msg.UserEmail, item, msg); err != nil {
+			logger.Errorf("[COMPLETION] handleCompletionResult: UPDATE HandleTaskState failed taskID=%d email=%s: %v", parentID, msg.UserEmail, err)
+			return false
+		}
 		return true
 	case "NEW":
 		return s.fallbackToNewExtraction(ctx, msg)

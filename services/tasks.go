@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"message-consolidator/logger"
 	"message-consolidator/store"
 	"strings"
 	"sync"
@@ -202,7 +203,9 @@ func (s *TasksService) ReclassifyUserTasks(ctx context.Context, email string, us
 func (s *TasksService) reclassifySingleTask(ctx context.Context, email string, user *store.User, allMyIdentities []string, m store.ConsolidatedMessage) bool {
 	// Guard: Clear generic "other" assignees for manual re-assignment.
 	if shouldClearAssignee(m.Assignee) {
-		_ = store.UpdateTaskAssignee(ctx, nil, email, m.ID, "")
+		if err := store.UpdateTaskAssignee(ctx, nil, email, m.ID, ""); err != nil {
+			logger.Warnf("[TASKS] reclassifySingleTask: UpdateTaskAssignee clear failed taskID=%d email=%s: %v", m.ID, email, err)
+		}
 		return true
 	}
 
@@ -215,14 +218,18 @@ func (s *TasksService) reclassifySingleTask(ctx context.Context, email string, u
 
 	// Guard: Automatically un-assign Gmail tasks wrongly assigned to "me" if only CC/BCC.
 	if m.Source == "gmail" && !isDirectGmail && isAssigneeGeneric(m.Assignee) {
-		_ = store.UpdateTaskAssignee(ctx, nil, email, m.ID, "")
+		if err := store.UpdateTaskAssignee(ctx, nil, email, m.ID, ""); err != nil {
+			logger.Warnf("[TASKS] reclassifySingleTask: UpdateTaskAssignee CC-unassign failed taskID=%d email=%s: %v", m.ID, email, err)
+		}
 		return true
 	}
 
 	matchedByAlias := IsTaskMatchedByAlias(m, allMyIdentities, isDirectGmail)
 	newAssignee, changed := s.resolveNewAssignee(user, m.Assignee, matchedByAlias)
 	if changed {
-		_ = store.UpdateTaskAssignee(ctx, nil, email, m.ID, newAssignee)
+		if err := store.UpdateTaskAssignee(ctx, nil, email, m.ID, newAssignee); err != nil {
+			logger.Warnf("[TASKS] reclassifySingleTask: UpdateTaskAssignee failed taskID=%d email=%s: %v", m.ID, email, err)
+		}
 		return true
 	}
 

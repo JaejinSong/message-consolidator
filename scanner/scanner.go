@@ -157,7 +157,9 @@ func finalizeScanCycle(ctx context.Context, users []store.User) {
 		store.PersistAllScanMetadata(ctx, u.Email)
 	}
 
-	_ = store.ArchiveOldTasks(ctx)
+	if err := store.ArchiveOldTasks(ctx); err != nil {
+		logger.Warnf("[SCAN] ArchiveOldTasks failed: %v", err)
+	}
 	store.FlushTokenUsageIfNeeded(ctx)
 	store.LogDBStats()
 }
@@ -178,7 +180,9 @@ func runSlackForAllUsers(ctx context.Context, wg *sync.WaitGroup) {
 }
 
 func runArchiveOldTasks(ctx context.Context, _ *sync.WaitGroup) {
-	_ = store.ArchiveOldTasks(ctx)
+	if err := store.ArchiveOldTasks(ctx); err != nil {
+		logger.Warnf("[SCAN] ArchiveOldTasks failed: %v", err)
+	}
 }
 
 func runFlushTokenUsage(ctx context.Context, _ *sync.WaitGroup) {

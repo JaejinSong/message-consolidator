@@ -143,11 +143,15 @@ func parseNewEmails(ctx context.Context, svc *gmail.Service, email string, messa
 // Why: Extracts the processing of a single email to reduce cognitive load and simplify the main parsing loop.
 func markFilteredEmail(ctx context.Context, email, msgID string) {
 	store.IncrementFilteredCount(email)
-	_ = store.MarkAsProcessed(ctx, store.GetDB(), email, msgID)
+	if err := store.MarkAsProcessed(ctx, store.GetDB(), email, msgID); err != nil {
+		logger.Warnf("[GMAIL] markFilteredEmail: MarkAsProcessed failed for %s msgID=%s: %v", email, msgID, err)
+	}
 }
 
 func markProcessedEmail(ctx context.Context, email, msgID string) {
-	_ = store.MarkAsProcessed(ctx, store.GetDB(), email, msgID)
+	if err := store.MarkAsProcessed(ctx, store.GetDB(), email, msgID); err != nil {
+		logger.Warnf("[GMAIL] markProcessedEmail: MarkAsProcessed failed for %s msgID=%s: %v", email, msgID, err)
+	}
 }
 
 func processSingleEmail(ctx context.Context, svc *gmail.Service, email string, m *gmail.Message, skips []string, internalDomains []string) (*types.RawMessage, string, string, int64, error) {
@@ -294,7 +298,9 @@ func deduplicateEnvelopes(ctx context.Context, email string, rawMsgs []types.Raw
 			seen[key] = len(result)
 			result = append(result, m)
 		} else {
-			_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.ID)
+			if err := store.MarkAsProcessed(ctx, store.GetDB(), email, m.ID); err != nil {
+				logger.Warnf("[GMAIL] deduplicateEnvelopes: MarkAsProcessed failed for %s msgID=%s: %v", email, m.ID, err)
+			}
 		}
 	}
 	return result

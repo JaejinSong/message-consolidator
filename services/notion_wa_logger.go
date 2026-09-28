@@ -213,7 +213,9 @@ func (w *WANotionLogger) createRow(ctx context.Context, dbID string, entry waLog
 			w.mu.Lock()
 			delete(w.dbIDs, month)
 			w.mu.Unlock()
-			_ = w.upsertSettingFn(ctx, notionWASettingKeyForMonth(month), "", "notion-wa-logger")
+			if setErr := w.upsertSettingFn(ctx, notionWASettingKeyForMonth(month), "", "notion-wa-logger"); setErr != nil {
+				logger.Warnf("[notion-wa] failed to clear cached database id for %s: %v", month, setErr)
+			}
 		}
 		return fmt.Errorf("notion-wa: create row: %w", err)
 	}

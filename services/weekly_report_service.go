@@ -93,7 +93,9 @@ func (s *WeeklyReportService) deliver(ctx context.Context, recipients []string) 
 			continue
 		}
 		if msgID != "" {
-			_ = store.MarkAsProcessed(ctx, store.GetDB(), primary, msgID)
+			if markErr := store.MarkAsProcessed(ctx, store.GetDB(), primary, msgID); markErr != nil {
+				logger.Warnf("[WEEKLY] MarkAsProcessed failed msgID=%s email=%s: %v", msgID, primary, markErr)
+			}
 		}
 	}
 	return nil

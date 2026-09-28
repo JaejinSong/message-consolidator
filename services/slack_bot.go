@@ -274,7 +274,9 @@ func (b *SlackBot) sendHelp(ctx context.Context, channel string) error {
 func (b *SlackBot) resolveUser(ctx context.Context, slackUserID string) (*store.User, error) {
 	user, err := store.GetUserBySlackID(ctx, slackUserID)
 	if err != nil || user == nil {
-		_ = b.client.SendDM(ctx, slackUserID, "이 Slack 계정이 message-consolidator 사용자와 연결되어 있지 않습니다.\nGoogle 로그인 시 같은 회사 이메일로 접속하면 자동 연결됩니다.")
+		if dmErr := b.client.SendDM(ctx, slackUserID, "이 Slack 계정이 message-consolidator 사용자와 연결되어 있지 않습니다.\nGoogle 로그인 시 같은 회사 이메일로 접속하면 자동 연결됩니다."); dmErr != nil {
+			logger.Warnf("[SLACKBOT] resolveUser: guidance SendDM failed slackUserID=%s: %v", slackUserID, dmErr)
+		}
 		return nil, fmt.Errorf("slack id %s not mapped to user: %w", slackUserID, err)
 	}
 	return user, nil
