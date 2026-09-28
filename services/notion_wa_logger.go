@@ -3,11 +3,8 @@
 package services
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"message-consolidator/internal/primes"
 	"message-consolidator/internal/whataphttpx"
 	"message-consolidator/logger"
@@ -224,33 +221,7 @@ func (w *WANotionLogger) createRow(ctx context.Context, dbID string, entry waLog
 }
 
 func (w *WANotionLogger) call(ctx context.Context, method, path string, body any) (map[string]any, error) {
-	data, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequestWithContext(ctx, method, notionAPIBase+path, bytes.NewReader(data))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+w.token)
-	req.Header.Set("Notion-Version", notionAPIVersion)
-	req.Header.Set("Content-Type", "application/json")
-
-	res, err := w.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	raw, _ := io.ReadAll(res.Body)
-	if res.StatusCode >= 300 {
-		return nil, fmt.Errorf("notion API error %d: %s", res.StatusCode, string(raw))
-	}
-	var result map[string]any
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, fmt.Errorf("notion-wa: decode response: %w", err)
-	}
-	return result, nil
+	return notionCall(ctx, w.client, w.token, method, path, body)
 }
 
 // notionWADBSchema returns the Notion database property definitions.

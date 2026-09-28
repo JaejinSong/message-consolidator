@@ -100,30 +100,35 @@ func (n *NotionExporter) appendBlocks(ctx context.Context, pageID string, blocks
 }
 
 func (n *NotionExporter) call(ctx context.Context, method, path string, body any) (map[string]any, error) {
+	return notionCall(ctx, n.client, n.token, method, path, body)
+}
+
+func notionCall(ctx context.Context, client *http.Client, token, method, path string, body any) (map[string]any, error) {
 	data, err := json.Marshal(body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notion: encode request: %w", err)
 	}
-
 	req, err := http.NewRequestWithContext(ctx, method, notionAPIBase+path, bytes.NewReader(data))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notion: build request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+n.token)
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Notion-Version", notionAPIVersion)
 	req.Header.Set("Content-Type", "application/json")
 
-	res, err := n.client.Do(req)
+	res, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notion: %s %s: %w", method, path, err)
 	}
 	defer res.Body.Close()
 
-	raw, _ := io.ReadAll(res.Body)
+	raw, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("notion: read response: %w", err)
+	}
 	if res.StatusCode >= 300 {
 		return nil, fmt.Errorf("notion API error %d: %s", res.StatusCode, string(raw))
 	}
-
 	var result map[string]any
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, fmt.Errorf("notion: decode response: %w", err)
