@@ -749,6 +749,33 @@ func TestCompletionCheckPromiseAndReceiptRules(t *testing.T) {
 	}
 }
 
+// TestCompletionCheckDeliversTheAskRule guards the v2.7.0 rule split. Why: production
+// misses (2026-09-28) showed a detailed, past-tense delivery of exactly what the task
+// asked for -- e.g. "I have updated the system to differentiate document numbering --
+// quotations now use the QT prefix and invoices the IN prefix" -- got misread as UPDATE
+// ("adds information") instead of RESOLVE. Dropping the replacement tokens silently
+// reverts to under-resolving thorough replies while over-resolving partial ones.
+func TestCompletionCheckDeliversTheAskRule(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/completion_check.prompt")
+	if err != nil {
+		t.Fatalf("read completion_check: %v", err)
+	}
+	body := string(content)
+	required := []string{
+		"version: 2.7.0",
+		"Delivers the ask",
+		"even if long or detailed",
+		"reports partial progress that leaves the original ask open",
+		"the reply itself says or implies the rest is still pending",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Errorf("completion_check.prompt missing v2.7.0 rule phrase: %q", token)
+		}
+	}
+}
+
 // TestChatSystemEventTimeDeadlineRule guards the v1.20.0 deadline rule. Why: messages
 // stating a clock time / time-of-day for when the task or event happens ("4pm today",
 // "besok jam 10") landed with deadline "" because the qualifying-phrase list only named

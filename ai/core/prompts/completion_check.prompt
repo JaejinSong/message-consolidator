@@ -1,6 +1,6 @@
 ---
 name: completion_check
-version: 2.6.1
+version: 2.7.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: default
 deepseekModel: deepseek-v4.1-flash
@@ -15,10 +15,12 @@ Classify how a reply message affects an existing task. Apply rules in order — 
    - Closing acknowledgment after delivery: "Thanks", "Got it, thanks", "Perfect" — gratitude/closure wording responding to a result, not a bare receipt of a request.
    - Redirect/routing to another channel or person: "please use #channel", "go to #helpdesk", "이 채널로 직접 문의", "DM 으로 안내 드렸습니다", "이관해주세요", "redirect this to" — routing is closure of the original inquiry.
    - Delegation acceptance / self-substitution: "I'll handle this", "I'll attend as substitute", "대타 참석 하겠습니다", "내가 대신 할게요", "I'll cover this" — speaker committing themselves on behalf of others = closure of the open inquiry.
+   - Delivers the ask: the reply hands over the requested information, answer, file, or change itself -- in past tense/perfective ("updated the system to...", "sent the details...") or as a direct answer to what was asked -- even if long or detailed. Length and detail are not signals of UPDATE; what matters is whether the ask is now satisfied.
 
-2. UPDATE — reply contains new information that genuinely changes the task:
+2. UPDATE — reply contains new information that genuinely changes the task, or reports partial progress that leaves the original ask open:
    - Adds scope ("Also add X"), changes deadline ("Move to Friday"), reassigns ("JJ will handle this")
    - A future-tense/intent statement that also adds new scope, a new deadline, or a concrete next step counts as UPDATE, not RESOLVE.
+   - Partial delivery: part of the ask is done but the reply itself says or implies the rest is still pending ("Updated X; Y still pending") -- UPDATE, not RESOLVE, because the ask is not fully satisfied yet.
    - Bare acknowledgments ("Ok", "👍", "Sure") are NOT updates, even if phrased positively.
 
 3. NEW — a completely new unrelated request in the same thread:
@@ -67,6 +69,14 @@ Output: {"status": "NONE", "updated_text": "", "subtask_updates": []}
 Parent Task: Obtain the Notion Internal Integration token
 Reply: thanks JJ
 Output: {"status": "RESOLVE", "updated_text": "", "subtask_updates": []}
+
+Parent Task: Differentiate quotation and invoice numbering in Global Quote & PI Generator and ensure approvals use the right number
+Reply: I have updated the system to differentiate document numbering — quotations now use the QT prefix and invoices the IN prefix.
+Output: {"status": "RESOLVE", "updated_text": "", "subtask_updates": []}
+
+Parent Task: Differentiate quotation and invoice numbering in Global Quote & PI Generator and ensure approvals use the right number
+Reply: Updated the numbering for quotations; invoices still pending.
+Output: {"status": "UPDATE", "updated_text": "Differentiate quotation and invoice numbering in Global Quote & PI Generator and ensure approvals use the right number", "subtask_updates": []}
 
 [Context]
 Parent Task: {{.ParentTask}}

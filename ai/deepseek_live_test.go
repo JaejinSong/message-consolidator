@@ -215,6 +215,30 @@ func TestLive_DeepSeek_CompletionCheckRegression(t *testing.T) {
 			reply:      "Baik, akan saya cek nanti saya update.",
 			want:       "NONE",
 		},
+		{
+			name:       "detailed_delivery_resolves_numbering",
+			parentTask: "Differentiate quotation and invoice numbering in Global Quote & PI Generator and ensure approvals use the right number",
+			reply:      "I have updated the system to differentiate document numbering — quotations now use the QT prefix and invoices the IN prefix.",
+			want:       "RESOLVE",
+		},
+		{
+			name:       "detailed_delivery_resolves_sponsor_info",
+			parentTask: "Provide WhaTap with the additional Tier 1 sponsor information requested for the Thailand Insurance CIO Forum",
+			reply:      "Tier 1 benefits: booth, 15-min speaking slot, logo placement; cost THB 150,000.",
+			want:       "RESOLVE",
+		},
+		{
+			name:       "promise_to_share_not_completion",
+			parentTask: "Share MOP for WhaTap agent upgrade actions and report risk impact",
+			reply:      "Kami akan menyiapkan MOP untuk upgrade agent dan akan menginformasikan dampaknya.",
+			want:       "NONE",
+		},
+		{
+			name:       "partial_progress_update_not_resolve",
+			parentTask: "Differentiate quotation and invoice numbering in Global Quote & PI Generator and ensure approvals use the right number",
+			reply:      "Updated the numbering for quotations; invoices still pending.",
+			want:       "UPDATE",
+		},
 	}
 
 	const runsPerCase = 3
