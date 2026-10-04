@@ -90,7 +90,7 @@ func TestClassifyAndCollect_OlderThanLastTS(t *testing.T) {
 	candidates := map[string]map[string][]types.RawMessage{}
 	newTS := map[string]map[string]string{}
 	ua := map[string][]string{"cat-test@example.com": {"alias"}}
-	classifyAndCollect(context.Background(), c, sc, m, users, ua, candidates, newTS)
+	classifyAndCollect(context.Background(), c, sc, m, users, ua, nil, candidates, newTS)
 
 	if len(candidates) != 0 {
 		t.Errorf("expected 0 candidates (older than lastTS), got %d", len(candidates))
@@ -115,7 +115,7 @@ func TestClassifyAndCollect_NewMessage(t *testing.T) {
 	candidates := map[string]map[string][]types.RawMessage{}
 	newTS := map[string]map[string]string{}
 	ua := map[string][]string{"newmsg@example.com": {}}
-	classifyAndCollect(context.Background(), c, sc, m, users, ua, candidates, newTS)
+	classifyAndCollect(context.Background(), c, sc, m, users, ua, nil, candidates, newTS)
 
 	if len(candidates["newmsg@example.com"]["DIMCHAN"]) != 1 {
 		t.Errorf("expected 1 candidate, got %d", len(candidates["newmsg@example.com"]["DIMCHAN"]))

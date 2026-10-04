@@ -217,10 +217,18 @@ func scanSingleSlackChannel(ctx context.Context, users []store.User, c slack.Cha
 		return nil
 	}
 
+	var involved map[string]map[string]bool
+	if isGatedChannel(c) {
+		involved = make(map[string]map[string]bool, len(users))
+		for _, u := range users {
+			involved[u.Email] = involvedThreads(&u, userAl[u.Email], msgs)
+		}
+	}
+
 	mu.Lock()
 	defer mu.Unlock()
 	for _, m := range msgs {
-		classifyAndCollect(ctx, c, sc, m, users, userAl, candidates, newTS)
+		classifyAndCollect(ctx, c, sc, m, users, userAl, involved, candidates, newTS)
 	}
 	return nil
 }
@@ -267,7 +275,7 @@ func getMinLastTS(users []store.User, channelID string) string {
 	return min
 }
 
-func classifyAndCollect(ctx context.Context, c slack.Channel, sc *channels.SlackClient, m types.RawMessage, users []store.User, userAl map[string][]string, candidates map[string]map[string][]types.RawMessage, newTS map[string]map[string]string) {
+func classifyAndCollect(ctx context.Context, c slack.Channel, sc *channels.SlackClient, m types.RawMessage, users []store.User, userAl map[string][]string, involved map[string]map[string]bool, candidates map[string]map[string][]types.RawMessage, newTS map[string]map[string]string) {
 	m.ChannelID = c.ID
 	for _, u := range users {
 		lts := store.GetLastScan(u.Email, store.SourceSlack, c.ID)
@@ -276,14 +284,19 @@ func classifyAndCollect(ctx context.Context, c slack.Channel, sc *channels.Slack
 		}
 		dispatchOutgoingCompletionIfMine(ctx, sc, u, m)
 		cls := classifyMessage(c, &u, userAl[u.Email], m)
-		if cls == types.CategoryTask || cls == types.CategoryQuery {
-			if candidates[u.Email] == nil {
-				candidates[u.Email] = make(map[string][]types.RawMessage)
-			}
-			candidates[u.Email][c.ID] = append(candidates[u.Email][c.ID], m)
+		isCandidate := cls == types.CategoryTask || cls == types.CategoryQuery
+		if isCandidate && (involved == nil || involved[u.Email][slackThreadTS(m)]) {
+			appendSlackCandidate(candidates, u.Email, c.ID, m)
 		}
 		updateChannelCursor(newTS, u.Email, c.ID, m.ID)
 	}
+}
+
+func appendSlackCandidate(candidates map[string]map[string][]types.RawMessage, email, channelID string, m types.RawMessage) {
+	if candidates[email] == nil {
+		candidates[email] = make(map[string][]types.RawMessage)
+	}
+	candidates[email][channelID] = append(candidates[email][channelID], m)
 }
 
 // slackCompletionDispatchTimeout bounds a detached completion-dispatch goroutine so it
