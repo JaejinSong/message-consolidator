@@ -70,6 +70,7 @@ var Registry = []SettingDef{
 	{Key: "GOOGLE_CLIENT_SECRET", Label: "Google OAuth Client Secret", Category: "channels", Type: TypeString, Secret: true, RestartRequired: true},
 	{Key: "SLACK_CLIENT_ID", Label: "Slack App Client ID", Category: "channels", Type: TypeString, RestartRequired: true},
 	{Key: "SLACK_CLIENT_SECRET", Label: "Slack App Client Secret", Category: "channels", Type: TypeString, Secret: true, RestartRequired: true},
+	{Key: "SLACK_EXCLUDED_CHANNELS", Label: "Slack Excluded Channels (comma-separated names)", Category: "channels", Type: TypeString, RestartRequired: true},
 	{Key: "AUTH_SECRET", Label: "Session Auth Secret", Category: "auth", Type: TypeString, Secret: true, RestartRequired: true},
 	{Key: "APP_BASE_URL", Label: "Application Base URL (OAuth redirect root)", Category: "channels", Type: TypeString, RestartRequired: true},
 	{Key: "NOTION_TOKEN", Label: "Notion Integration Token", Category: "channels", Type: TypeString, Secret: true, RestartRequired: true},

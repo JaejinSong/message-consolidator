@@ -398,3 +398,12 @@ func TestOverlayFromDB_AppliesRows(t *testing.T) {
 		t.Errorf("AutoArchiveDays = %d, want 30", cfg.AutoArchiveDays)
 	}
 }
+
+func TestLoadConfig_SlackExcludedChannels(t *testing.T) {
+	t.Setenv("SLACK_EXCLUDED_CHANNELS", " MyHermes, random ,,")
+	got := LoadConfig().SlackExcludedChannels
+	want := []string{"myhermes", "random"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("SlackExcludedChannels = %v, want %v", got, want)
+	}
+}

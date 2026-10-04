@@ -342,12 +342,19 @@ func (s *SlackClient) processHistoryMessages(ctx context.Context, channelID stri
 		}
 
 		senderName := s.GetUserName(ctx, m.User)
+		replyTo := ""
+		//Why: thread_broadcast replies arrive in channel history; key them to their thread root.
+		if m.ThreadTimestamp != "" && m.ThreadTimestamp != m.Timestamp {
+			replyTo = m.ThreadTimestamp
+		}
 		msgs = append(msgs, types.RawMessage{
 			ID:              m.Timestamp,
 			Sender:          senderName,
+			SenderID:        m.User,
 			SenderName:      senderName,
 			Text:            m.Text,
 			Timestamp:       ts,
+			ReplyToID:       replyTo,
 			HasAttachment:   len(m.Files) > 0,
 			AttachmentNames: s.ExtractFileNames(m.Files),
 			Reactions:       s.ExtractReactions(m.Reactions),
@@ -422,6 +429,7 @@ func (s *SlackClient) processThreadReplies(ctx context.Context, threadTS string,
 		msgs = append(msgs, types.RawMessage{
 			ID:              m.Timestamp,
 			Sender:          senderName,
+			SenderID:        m.User,
 			SenderName:      senderName,
 			Text:            m.Text,
 			Timestamp:       ParseSlackTimestamp(m.Timestamp),

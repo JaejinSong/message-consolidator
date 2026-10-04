@@ -64,6 +64,7 @@ var overlaySetters = map[string]fieldSetter{
 	"GOOGLE_CLIENT_SECRET":         func(c *Config, r string) { c.GoogleClientSecret = r },
 	"SLACK_CLIENT_ID":              func(c *Config, r string) { c.SlackClientID = r },
 	"SLACK_CLIENT_SECRET":          func(c *Config, r string) { c.SlackClientSecret = r },
+	"SLACK_EXCLUDED_CHANNELS":      func(c *Config, r string) { c.SlackExcludedChannels = splitCSV(r) },
 	"AUTH_SECRET":                  func(c *Config, r string) { c.AuthSecret = r },
 	"AUTH_DISABLED":                func(c *Config, r string) { c.AuthDisabled = parseBool(r) },
 	"APP_BASE_URL":                 func(c *Config, r string) { c.AppBaseURL = r },

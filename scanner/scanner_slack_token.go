@@ -114,8 +114,14 @@ func scanSlackForTokenUser(ctx context.Context, u store.User, wg *sync.WaitGroup
 	if len(chans) == 0 {
 		return
 	}
-
 	users := []store.User{u}
+	chans = applySlackChannelExclusions(chans)
+	if len(chans) == 0 {
+		logger.Debugf("[SLACK] all channels excluded for %s via SLACK_EXCLUDED_CHANNELS", u.Email)
+		markSlackScanSuccess(users, newSlackHeldTracker())
+		return
+	}
+
 	userAl := prepareSlackUserAliases(ctx, users)
 	candidates, newTS, fetchOK, fetchErr := collectSlackHistory(ctx, users, chans, sc, userAl)
 	tracker := newSlackHeldTracker()

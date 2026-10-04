@@ -18,6 +18,7 @@ type Config struct {
 	GoogleClientSecret          string
 	SlackClientID               string
 	SlackClientSecret           string
+	SlackExcludedChannels       []string
 	AuthSecret                  string
 	AuthDisabled                bool
 	AppBaseURL                  string
@@ -75,6 +76,7 @@ func LoadConfig() *Config {
 		GoogleClientSecret:         os.Getenv("GOOGLE_CLIENT_SECRET"),
 		SlackClientID:              os.Getenv("SLACK_CLIENT_ID"),
 		SlackClientSecret:          os.Getenv("SLACK_CLIENT_SECRET"),
+		SlackExcludedChannels:      splitCSV(os.Getenv("SLACK_EXCLUDED_CHANNELS")),
 		AuthSecret:                 os.Getenv("AUTH_SECRET"),
 		AuthDisabled:               os.Getenv("AUTH_DISABLED") == "true",
 		AppBaseURL:                 os.Getenv("APP_BASE_URL"),

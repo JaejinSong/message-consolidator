@@ -41,6 +41,7 @@ func IsValidTaskCategory(s string) bool {
 type RawMessage struct {
 	ID               string
 	Sender           string
+	SenderID         string //Why: Raw platform user ID, lets identity checks avoid display-name drift.
 	SenderName       string // Display name from the From header, for AI prompt enrichment
 	Text             string
 	Timestamp        time.Time

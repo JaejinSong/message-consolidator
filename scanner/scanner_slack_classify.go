@@ -3,6 +3,7 @@ package scanner
 import (
 	"strings"
 
+	"message-consolidator/logger"
 	"message-consolidator/store"
 	"message-consolidator/types"
 
@@ -31,7 +32,7 @@ func isUserInvolved(user *store.User, aliases []string, m types.RawMessage) bool
 	return isFromUser(user, m) || isDirectlyAddressed(user, m, aliases)
 }
 
-// Why: evaluated over all fetched msgs (ignoring the cursor) so a thread the user spoke in earlier still admits later replies.
+// Why: covers all msgs fetched in the scan window (incl. full replies of in-window roots), not only post-cursor ones.
 func involvedThreads(user *store.User, aliases []string, msgs []types.RawMessage) map[string]bool {
 	out := make(map[string]bool)
 	for _, m := range msgs {
@@ -43,6 +44,9 @@ func involvedThreads(user *store.User, aliases []string, msgs []types.RawMessage
 }
 
 func isFromUser(user *store.User, m types.RawMessage) bool {
+	if user.SlackID != "" && m.SenderID == user.SlackID {
+		return true
+	}
 	return strings.EqualFold(m.Sender, user.Name) ||
 		strings.EqualFold(m.Sender, user.Email) ||
 		(user.SlackID != "" && m.Sender == user.SlackID)
@@ -81,4 +85,38 @@ func hasAliasMatch(m types.RawMessage, aliases []string) bool {
 		}
 	}
 	return false
+}
+
+// Why: Lets operators drop noisy channels (e.g. bot-only rooms) from the history scan without leaving them.
+func filterExcludedSlackChannels(chans []slack.Channel, excluded []string) []slack.Channel {
+	if len(excluded) == 0 {
+		return chans
+	}
+	skip := make(map[string]struct{}, len(excluded))
+	for _, name := range excluded {
+		key := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(name), "#"))
+		if key == "" {
+			continue
+		}
+		skip[key] = struct{}{}
+	}
+	out := make([]slack.Channel, 0, len(chans))
+	for _, ch := range chans {
+		if _, ok := skip[strings.ToLower(ch.Name)]; ok {
+			continue
+		}
+		out = append(out, ch)
+	}
+	return out
+}
+
+func applySlackChannelExclusions(chans []slack.Channel) []slack.Channel {
+	if cfg == nil || len(cfg.SlackExcludedChannels) == 0 {
+		return chans
+	}
+	kept := filterExcludedSlackChannels(chans, cfg.SlackExcludedChannels)
+	if n := len(chans) - len(kept); n > 0 {
+		logger.Debugf("[SCAN] slack: excluded %d channel(s) via SLACK_EXCLUDED_CHANNELS", n)
+	}
+	return kept
 }

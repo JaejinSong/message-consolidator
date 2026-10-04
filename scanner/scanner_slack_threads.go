@@ -279,7 +279,7 @@ func collectThreadCandidates(ctx context.Context, sc *channels.SlackClient, user
 		}
 		dispatchThreadCompletionIfMine(ctx, sc, user, t, m, budget)
 		// Architecture Separation: bot/empty pre-filters live in the channels layer.
-		cls := classifyMessage(c, user, effAl, types.RawMessage{Sender: m.User, Text: m.Text})
+		cls := classifyMessage(c, user, effAl, types.RawMessage{Sender: m.User, SenderID: m.User, Text: m.Text})
 		if cls != types.CategoryTask && cls != types.CategoryQuery {
 			continue
 		}

@@ -129,6 +129,12 @@ func scanSlackWithBot(ctx context.Context, users []store.User, wg *sync.WaitGrou
 		warnSlackNoChannels(ctx, sc, botID)
 		return
 	}
+	chans = applySlackChannelExclusions(chans)
+	if len(chans) == 0 {
+		logger.Debugf("[SCAN] slack: all channels excluded via SLACK_EXCLUDED_CHANNELS")
+		markSlackScanSuccess(users, newSlackHeldTracker())
+		return
+	}
 
 	userAl := prepareSlackUserAliases(ctx, users)
 	candidates, newTS, fetchOK, _ := collectSlackHistory(ctx, users, chans, sc, userAl)
