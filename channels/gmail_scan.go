@@ -312,7 +312,11 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 		return nil, false
 	}
 
-	user, _ := store.GetOrCreateUser(ctx, email, "", "")
+	user, err := store.GetOrCreateUser(ctx, email, "", "")
+	if err != nil {
+		logger.Errorf("[GMAIL] user lookup failed for %q: %v", email, err)
+		return nil, false
+	}
 	aliases, _ := store.GetUserAliases(ctx, user.ID)
 	rawMsgs = deduplicateEnvelopes(ctx, email, rawMsgs)
 

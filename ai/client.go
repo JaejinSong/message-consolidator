@@ -276,7 +276,11 @@ func (g *AIClient) AnalyzeWithContext(ctx context.Context, email string, msg typ
 }
 
 func (g *AIClient) prepareAnalysisData(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string, tasks []store.ConsolidatedMessage) core.ExtractionContext {
-	user, _ := store.GetOrCreateUser(ctx, email, "", "")
+	user, err := store.GetOrCreateUser(ctx, email, "", "")
+	if err != nil {
+		logger.Errorf("[AI] user lookup failed for %q: %v", email, err)
+		user = &store.User{Email: email}
+	}
 	userName := user.Name
 	if userName == "" {
 		userName = email

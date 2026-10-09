@@ -6,7 +6,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"message-consolidator/config"
 	"message-consolidator/logger"
 	"message-consolidator/store"
@@ -19,6 +21,12 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
+
+// googleUserInfoURL is a var so tests can point the callback at a stub server.
+var googleUserInfoURL = "https://www.googleapis.com/oauth2/v2/userinfo"
+
+// userInfoErrBodyLimit bounds how much of an upstream error body is logged.
+const userInfoErrBodyLimit = 200
 
 // sessionMaxAge bounds both the cookie lifetime and the server-side session row.
 const sessionMaxAge = 24 * time.Hour
@@ -135,7 +143,7 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 
 	// Why: Bearer header keeps the access token out of URL/logs/proxies/Referer.
 	// NewRoundTrip preserves the WhaTap HTTPC step and x-whatap-mtid trace propagation.
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, "https://www.googleapis.com/oauth2/v2/userinfo", nil)
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, googleUserInfoURL, nil)
 	if err != nil {
 		logger.Errorf("[AUTH] failed building userinfo request: %v", err)
 		http.Error(w, "authentication failed", http.StatusInternalServerError)
@@ -151,6 +159,14 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 	}
 	defer response.Body.Close()
 
+	// Why: a non-200 error body still decodes into userInfo with an empty email, which previously created a blank-email user and session.
+	if response.StatusCode != http.StatusOK {
+		snippet, _ := io.ReadAll(io.LimitReader(response.Body, userInfoErrBodyLimit))
+		logger.Errorf("[AUTH] userinfo returned status %d: %s", response.StatusCode, snippet)
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
+		return
+	}
+
 	var userInfo struct {
 		Email   string `json:"email"`
 		Name    string `json:"name"`
@@ -158,6 +174,12 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request, slackToken str
 	}
 	if err := json.NewDecoder(response.Body).Decode(&userInfo); err != nil {
 		logger.Errorf("[AUTH] failed decoding user info: %v", err)
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
+		return
+	}
+
+	if strings.TrimSpace(userInfo.Email) == "" {
+		logger.Errorf("[AUTH] userinfo returned empty email")
 		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
@@ -247,10 +269,16 @@ func generateStateCookie(w http.ResponseWriter) string {
 	return state
 }
 
+// ErrEmptySessionEmail is returned when a session is requested without an identity.
+var ErrEmptySessionEmail = errors.New("empty email for session")
+
 // SetSessionCookie mints an opaque server-side session for email and sets it as an
 // HttpOnly cookie. The cookie carries only the random token; the email is resolved
 // from the sessions table on each request, so the cookie cannot be forged.
 func SetSessionCookie(ctx context.Context, w http.ResponseWriter, email string) error {
+	if strings.TrimSpace(email) == "" {
+		return ErrEmptySessionEmail
+	}
 	token, err := newSessionToken()
 	if err != nil {
 		return fmt.Errorf("generate session token: %w", err)

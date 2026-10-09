@@ -3,7 +3,9 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"message-consolidator/db"
+	"strings"
 	"time"
 )
 
@@ -86,9 +88,15 @@ func mapAliasesToUsers(users []User, aliasRows []db.GetAllUserAliasesRow) {
 	}
 }
 
+// ErrEmptyEmail is returned when a user lookup/upsert is attempted without an email.
+var ErrEmptyEmail = errors.New("empty email")
+
 // GetOrCreateUser fetches a user from the cache or database by email.
 // If the user doesn't exist, it creates a new record. It also updates the user's name and picture if new values are provided.
 func GetOrCreateUser(ctx context.Context, email, name, picture string) (*User, error) {
+	if strings.TrimSpace(email) == "" {
+		return nil, ErrEmptyEmail
+	}
 	metadataMu.Lock()
 	if u, ok := userCache[email]; ok {
 		//Why: Trigger a database update if a new name or picture is provided and differs from the cached data.

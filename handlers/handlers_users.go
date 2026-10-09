@@ -116,7 +116,11 @@ func (a *API) HandleAddAlias(w http.ResponseWriter, r *http.Request) {
 	if !bindJSON(w, r, &req) {
 		return
 	}
-	user, _ := store.GetOrCreateUser(r.Context(), email, "", "")
+	user, err := store.GetOrCreateUser(r.Context(), email, "", "")
+	if err != nil {
+		handleAPIError(w, r, err, "[USER]", "Failed to fetch user")
+		return
+	}
 	existing, _ := store.GetUserAliasesByEmailFromCache(r.Context(), email)
 	newAliases := strings.Join(append(existing, req.Alias), ",")
 	if err := store.AddContactMapping(r.Context(), email, email, user.Name, newAliases, "user"); err != nil {
@@ -134,7 +138,11 @@ func (a *API) HandleDeleteAlias(w http.ResponseWriter, r *http.Request) {
 	if !bindJSON(w, r, &req) {
 		return
 	}
-	user, _ := store.GetOrCreateUser(r.Context(), email, "", "")
+	user, err := store.GetOrCreateUser(r.Context(), email, "", "")
+	if err != nil {
+		handleAPIError(w, r, err, "[USER]", "Failed to fetch user")
+		return
+	}
 	existing, _ := store.GetUserAliasesByEmailFromCache(r.Context(), email)
 	var kept []string
 	for _, a := range existing {

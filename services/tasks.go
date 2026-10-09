@@ -53,7 +53,11 @@ func (s *TasksService) StripOriginalText(msgs []store.ConsolidatedMessage) {
 }
 
 func (s *TasksService) FormatMessagesForClient(ctx context.Context, email string, msgs []store.ConsolidatedMessage) {
-	user, _ := store.GetOrCreateUser(ctx, email, "", "")
+	user, err := store.GetOrCreateUser(ctx, email, "", "")
+	if err != nil {
+		logger.Errorf("[TASKS] FormatMessagesForClient: user lookup failed for %q: %v", email, err)
+		return
+	}
 
 	// Pre-aggregation Phase: Extract all unique identifiers from message batch.
 	// Why: Eliminates N+1 DB queries by resolving identities in a single bulk operation.

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"message-consolidator/internal/testutil"
 	"testing"
 	"time"
@@ -259,5 +260,17 @@ func TestGetUserAliasesByEmail(t *testing.T) {
 	}
 	if len(aliases) != 0 {
 		t.Errorf("expected 0 aliases for unknown user, got %d", len(aliases))
+	}
+}
+
+func TestGetOrCreateUser_EmptyEmail(t *testing.T) {
+	for _, email := range []string{"", "  \t"} {
+		u, err := GetOrCreateUser(context.Background(), email, "n", "p")
+		if !errors.Is(err, ErrEmptyEmail) {
+			t.Errorf("email %q: err = %v, want ErrEmptyEmail", email, err)
+		}
+		if u != nil {
+			t.Errorf("email %q: user = %v, want nil", email, u)
+		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"message-consolidator/config"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
@@ -11,6 +12,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"golang.org/x/oauth2"
 )
 
 func TestAuthMiddleware_Unauthorized(t *testing.T) {
@@ -408,5 +411,98 @@ func TestAdminMiddleware_NonAdmin(t *testing.T) {
 	}
 	if body["error"] != "admin only" {
 		t.Errorf("error = %v, want admin only", body["error"])
+	}
+}
+
+func TestSetSessionCookie_RejectsEmptyEmail(t *testing.T) {
+	for _, email := range []string{"", "   "} {
+		rr := httptest.NewRecorder()
+		err := SetSessionCookie(context.Background(), rr, email)
+		if !errors.Is(err, ErrEmptySessionEmail) {
+			t.Errorf("email %q: err = %v, want ErrEmptySessionEmail", email, err)
+		}
+		if len(rr.Result().Cookies()) != 0 {
+			t.Errorf("email %q: cookies set despite error", email)
+		}
+	}
+}
+
+func countUsers(t *testing.T) int {
+	t.Helper()
+	var n int
+	if err := store.GetDB().QueryRow("SELECT COUNT(*) FROM users").Scan(&n); err != nil {
+		t.Fatalf("count users: %v", err)
+	}
+	return n
+}
+
+func TestHandleGoogleCallback_UserInfo(t *testing.T) {
+	tests := []struct {
+		name        string
+		status      int
+		body        string
+		wantCode    int
+		wantSession bool
+		wantUsers   int
+	}{
+		{"userinfo 401 error body", http.StatusUnauthorized, `{"error":{"code":401,"message":"Invalid Credentials"}}`, http.StatusInternalServerError, false, 0},
+		{"userinfo 200 empty email", http.StatusOK, `{"email":"","name":"x"}`, http.StatusInternalServerError, false, 0},
+		{"userinfo 200 whitespace email", http.StatusOK, `{"email":"  ","name":"x"}`, http.StatusInternalServerError, false, 0},
+		{"userinfo 200 valid email", http.StatusOK, `{"email":"ok@example.com","name":"Ok"}`, http.StatusTemporaryRedirect, true, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+			if err != nil {
+				t.Fatalf("setup db: %v", err)
+			}
+			defer cleanup()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/token":
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{"access_token":"tok","token_type":"Bearer"}`))
+				case "/userinfo":
+					w.WriteHeader(tt.status)
+					_, _ = w.Write([]byte(tt.body))
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer srv.Close()
+
+			origCfg, origURL := GoogleOAuthConfig, googleUserInfoURL
+			defer func() { GoogleOAuthConfig, googleUserInfoURL = origCfg, origURL }()
+			GoogleOAuthConfig = &oauth2.Config{
+				ClientID:     "id",
+				ClientSecret: "secret",
+				Endpoint:     oauth2.Endpoint{TokenURL: srv.URL + "/token"},
+			}
+			googleUserInfoURL = srv.URL + "/userinfo"
+			appBaseURL = "http://localhost:8080"
+
+			req := httptest.NewRequest("GET", "/auth/callback?state=s&code=c", nil)
+			req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "s"})
+			rr := httptest.NewRecorder()
+			lookup := func(string) (string, string, error) { return "", "", nil }
+			HandleGoogleCallback(rr, req, "", lookup)
+
+			if rr.Code != tt.wantCode {
+				t.Errorf("status = %d, want %d", rr.Code, tt.wantCode)
+			}
+			hasSession := false
+			for _, c := range rr.Result().Cookies() {
+				if c.Name == "session_token" && c.Value != "" {
+					hasSession = true
+				}
+			}
+			if hasSession != tt.wantSession {
+				t.Errorf("session cookie set = %v, want %v", hasSession, tt.wantSession)
+			}
+			if got := countUsers(t); got != tt.wantUsers {
+				t.Errorf("users = %d, want %d", got, tt.wantUsers)
+			}
+		})
 	}
 }

@@ -263,7 +263,11 @@ func (a *API) HandleRestoreGmailCC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, _ := store.GetOrCreateUser(r.Context(), email, "", "")
+	user, err := store.GetOrCreateUser(r.Context(), email, "", "")
+	if err != nil {
+		handleAPIError(w, r, err, "[GMAIL]", "Failed to fetch user")
+		return
+	}
 	aliases, _ := store.GetUserAliases(r.Context(), user.ID)
 	if a.Tasks == nil {
 		respondError(w, http.StatusServiceUnavailable, "Task service not available")
