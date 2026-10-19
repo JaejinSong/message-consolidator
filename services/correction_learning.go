@@ -159,7 +159,11 @@ func RecordTaskDeletion(ctx context.Context, userEmail string, msgs []store.Cons
 func recordSingleDeletion(ctx context.Context, userEmail string, m store.ConsolidatedMessage) {
 	// Why: an informal completion (marked done) is not a false positive -- only an
 	// undone deletion signals "the AI should not have surfaced this."
-	if m.Done || m.OriginalText == "" {
+	if m.Done {
+		return
+	}
+	linkDeletedTaskToFilterScore(ctx, userEmail, m)
+	if m.OriginalText == "" {
 		return
 	}
 	fromValue := strings.Join(suppressSignature(m.OriginalText), " ")
@@ -200,6 +204,7 @@ func RecordManualAdd(ctx context.Context, userEmail string, msg store.Consolidat
 }
 
 func recordManualAddWork(ctx context.Context, userEmail string, msg store.ConsolidatedMessage, originalText string) {
+	matchManualAddToFilterDrop(ctx, userEmail, msg.Task, originalText)
 	item := learnedExpectedItem{
 		Task: msg.Task, Requester: msg.Requester, Assignee: msg.Assignee,
 		Deadline: msg.Deadline, Category: msg.Category, SourceTS: msg.SourceTS,
