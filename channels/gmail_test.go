@@ -1022,3 +1022,39 @@ func TestFilterGmailBatch_PassesMessageMeta(t *testing.T) {
 		t.Errorf("filter input = %+v, want %+v", filter.last, want)
 	}
 }
+
+func TestLinkGmailFilterOutcomes(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	defer cleanup()
+	ctx := t.Context()
+	email := testutil.RandomEmail("gmailoutcome")
+
+	ids := map[string]int64{}
+	for _, mid := range []string{"m1", "m2"} {
+		id, err := store.InsertFilterScore(ctx, store.FilterScoreInput{
+			UserEmail: email, Source: store.SourceGmail, SourceTS: "gmail-" + mid, MessageRef: mid,
+			Provider: "clef", PActionable: 0.7, Threshold: 0.3, Verdict: store.FilterVerdictPass, Text: "t",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids[mid] = id
+	}
+
+	msgs := []types.RawMessage{{ID: "m1"}, {ID: "m2"}}
+	linkGmailFilterOutcomes(ctx, email, msgs, map[string]bool{"gmail-m1": true})
+
+	want := map[string]string{"m1": store.FilterOutcomeTask, "m2": store.FilterOutcomeNone}
+	for mid, outcome := range want {
+		row, err := store.GetFilterScore(ctx, email, ids[mid])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if row.Outcome != outcome {
+			t.Errorf("%s outcome = %q, want %q", mid, row.Outcome, outcome)
+		}
+	}
+}

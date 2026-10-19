@@ -488,3 +488,18 @@ func validateTargetTask(ctx context.Context, q store.Querier, email string, id s
 	}
 	return &existing, nil
 }
+
+// LinkFilterOutcome records whether extraction of a passed payload produced a task.
+// Why: 'none' on a passed payload is the automatic false-pass signal for threshold calibration.
+func LinkFilterOutcome(ctx context.Context, email, source, room, sourceTS string, created bool) {
+	if sourceTS == "" {
+		return
+	}
+	outcome := store.FilterOutcomeNone
+	if created {
+		outcome = store.FilterOutcomeTask
+	}
+	if err := store.LinkFilterOutcomeBySourceTS(ctx, email, source, room, sourceTS, outcome); err != nil {
+		logger.Warnf("[FILTER] outcome link failed for %s %s/%s: %v", email, source, room, err)
+	}
+}

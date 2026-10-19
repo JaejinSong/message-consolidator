@@ -260,10 +260,11 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 	tasks, _ := store.GetActiveContextTasks(ctx, store.GetDB(), user.Email, source, groupName)
 	logger.Debugf("[SCAN] %s: found %d active tasks for room %s", prefix, len(tasks), groupName)
 
+	filterIn := newGroupFilterInput(user.Email, source, groupName, payload, group)
 	bypassNoise := len(tasks) > 0 && groupMayTransitionTask(group, tasks)
 	if bypassNoise {
 		logger.Debugf("[SCAN] %s: noise filter bypassed (open-task signal) room=%s", prefix, groupName)
-	} else if isIgnorableChannelNoise(ctx, newGroupFilterInput(user.Email, source, groupName, payload, group), prefix) {
+	} else if isIgnorableChannelNoise(ctx, filterIn, prefix) {
 		ackGroup(ctx, adapter, user.Email, group, groupOutcome(true, nil, nil, 0))
 		return nil
 	}
@@ -307,6 +308,7 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 	// returns would mark the group processed even if a crash/panic loses the tasks
 	// mid-persist, since ackGroup's ok=true is a terminal "never replay again" signal.
 	ids := processChannelItems(ctx, user, aliases, items, msgMap, groupName, adapter.Is1To1(roomKey), wg, adapter)
+	services.LinkFilterOutcome(ctx, user.Email, source, groupName, filterIn.SourceTS, len(ids) > 0)
 	ackGroup(ctx, adapter, user.Email, group, groupOutcome(false, nil, err, len(candidates)))
 	return ids
 }
