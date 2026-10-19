@@ -3,7 +3,9 @@ package scanner
 import (
 	"context"
 	"testing"
+	"time"
 
+	"message-consolidator/ai"
 	"message-consolidator/store"
 	"message-consolidator/types"
 )
@@ -14,7 +16,7 @@ func TestIsIgnorableChannelNoise_NilFilter(t *testing.T) {
 
 	deps.filterSvc = nil
 
-	got := isIgnorableChannelNoise(context.Background(), "u@x", "telegram", "payload", "TG")
+	got := isIgnorableChannelNoise(context.Background(), ai.FilterInput{Email: "u@x", Source: "telegram", Text: "payload"}, "TG")
 	if got != false {
 		t.Errorf("isIgnorableChannelNoise() = %v, want false with nil deps.filterSvc", got)
 	}
@@ -67,4 +69,20 @@ func TestTriggerOutgoingCompletions_NoOutgoingMessages(t *testing.T) {
 		{ID: "m3", IsFromMe: false, ReplyToID: ""},
 	}
 	triggerOutgoingCompletions(context.Background(), msgs, store.User{Email: "u@x", Name: "Me"}, telegramAdapter{}, "group")
+}
+
+func TestNewGroupFilterInput(t *testing.T) {
+	base := time.Date(2026, 10, 19, 9, 0, 0, 0, time.UTC)
+	group := []types.RawMessage{
+		{ID: "m2", Timestamp: base.Add(time.Minute)},
+		{ID: "m3", Timestamp: base.Add(2 * time.Minute)},
+		{ID: "m1", Timestamp: base},
+	}
+
+	got := newGroupFilterInput("u@x", "slack", "room-a", "payload", group)
+
+	want := ai.FilterInput{Email: "u@x", Source: "slack", Room: "room-a", SourceTS: "m3", MessageRef: "m2,m3,m1", Text: "payload"}
+	if got != want {
+		t.Errorf("newGroupFilterInput() = %+v, want %+v", got, want)
+	}
 }

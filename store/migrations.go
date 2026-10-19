@@ -14,7 +14,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 24
+const schemaVersion = 25
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -81,6 +81,7 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 		{"learned_examples", queries.CreateLearnedExamplesTable},
 		{"correction_observations", queries.CreateCorrectionObservationsTable},
 		{"extraction_decisions", queries.CreateExtractionDecisionsTable},
+		{"filter_scores", queries.CreateFilterScoresTable},
 	} {
 		if err := step.fn(ctx); err != nil {
 			return fmt.Errorf("failed to create %s table: %w", step.name, err)
@@ -175,6 +176,10 @@ func createIndexes(ctx context.Context, q db.DBTX) {
 		// learned_examples / correction_observations
 		"CREATE INDEX IF NOT EXISTS idx_learned_examples_user ON learned_examples(user_email)",
 		"CREATE INDEX IF NOT EXISTS idx_correction_obs_user_status ON correction_observations(user_email, status)",
+		// filter_scores
+		"CREATE INDEX IF NOT EXISTS idx_filter_scores_user_created ON filter_scores(user_email, created_at)",
+		"CREATE INDEX IF NOT EXISTS idx_filter_scores_user_room_ts ON filter_scores(user_email, source, room, source_ts)",
+		"CREATE INDEX IF NOT EXISTS idx_filter_scores_user_verdict_outcome ON filter_scores(user_email, verdict, outcome)",
 	}
 	for _, ddl := range indexes {
 		_, _ = q.ExecContext(ctx, ddl)

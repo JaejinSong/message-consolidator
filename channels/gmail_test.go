@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"google.golang.org/api/gmail/v1"
+	"message-consolidator/ai"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/services"
 	"message-consolidator/store"
@@ -864,10 +865,12 @@ type stubNoiseFilter struct {
 	noise bool
 	err   error
 	calls int
+	last  ai.FilterInput
 }
 
-func (s *stubNoiseFilter) IsNoise(_ context.Context, _, _, _ string) (bool, error) {
+func (s *stubNoiseFilter) IsNoise(_ context.Context, in ai.FilterInput) (bool, error) {
 	s.calls++
+	s.last = in
 	return s.noise, s.err
 }
 
@@ -1000,5 +1003,22 @@ func TestFilterGmailBatch_ThreadRoutingCarriesAssignedAt(t *testing.T) {
 	}
 	if !captured.AssignedAt.Equal(ts) {
 		t.Errorf("AssignedAt = %v, want %v", captured.AssignedAt, ts)
+	}
+}
+
+func TestFilterGmailBatch_PassesMessageMeta(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	filter := &stubNoiseFilter{}
+	batch := []types.RawMessage{{ID: "msg-meta-1", Text: "body"}}
+	filterGmailBatch(context.Background(), "user@example.com", batch, filter, map[string]string{}, nil)
+
+	want := ai.FilterInput{Email: "user@example.com", Source: store.SourceGmail, SourceTS: "gmail-msg-meta-1", MessageRef: "msg-meta-1", Text: "body"}
+	if filter.last != want {
+		t.Errorf("filter input = %+v, want %+v", filter.last, want)
 	}
 }

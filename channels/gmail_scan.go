@@ -393,7 +393,7 @@ func routeGeminiItems(ctx context.Context, email string, routed []routedGeminiIt
 // Why: defined here (channels) instead of accepting a concrete filter so unit tests
 // can inject a fake and the LLM and Clef filters stay swappable.
 type noiseFilter interface {
-	IsNoise(ctx context.Context, email, source, text string) (bool, error)
+	IsNoise(ctx context.Context, in ai.FilterInput) (bool, error)
 }
 
 // filterGmailBatch checks each message for AI-detected noise or thread completion status.
@@ -407,7 +407,13 @@ type noiseFilter interface {
 func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessage, filterSvc noiseFilter, classificationMap map[string]string, onThreadActivity func(store.ConsolidatedMessage) bool) []types.RawMessage {
 	var result []types.RawMessage
 	for _, m := range batch {
-		isNoise, err := filterSvc.IsNoise(ctx, email, store.SourceGmail, m.Text)
+		isNoise, err := filterSvc.IsNoise(ctx, ai.FilterInput{
+			Email:      email,
+			Source:     store.SourceGmail,
+			SourceTS:   "gmail-" + m.ID,
+			MessageRef: m.ID,
+			Text:       m.Text,
+		})
 		if err != nil {
 			// Why: fail open keeps the message, but a silent error hid filter outages (e.g. Clef 429/5xx).
 			logger.Warnf("[GMAIL] noise filter failed for %s (msg %s), keeping message: %v", email, m.ID, err)

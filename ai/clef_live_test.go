@@ -41,7 +41,7 @@ func TestLive_Clef_IsNoise(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
-			got, err := f.IsNoise(ctx, "live-test@example.com", "slack", tc.text)
+			got, err := f.IsNoise(ctx, FilterInput{Email: "live-test@example.com", Source: "slack", Text: tc.text})
 			if err != nil {
 				t.Fatalf("IsNoise: %v", err)
 			}

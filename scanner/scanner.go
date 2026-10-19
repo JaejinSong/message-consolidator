@@ -34,7 +34,7 @@ var hourPrimePool = []time.Duration{
 var cfg *config.Config
 
 type noiseFilter interface {
-	IsNoise(ctx context.Context, email, source, text string) (bool, error)
+	IsNoise(ctx context.Context, in ai.FilterInput) (bool, error)
 }
 
 // scanDeps groups every service/client the scanner loops depend on.

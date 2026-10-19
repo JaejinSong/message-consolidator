@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"message-consolidator/internal/whataphttpx"
+	"message-consolidator/logger"
 	"message-consolidator/store"
 )
 
@@ -22,6 +23,7 @@ const (
 	clefMaxErrorRunes  = 200
 	clefQuestionKey    = "verdict"
 	clefActionable     = "actionable"
+	clefProvider       = "clef"
 )
 
 const clefInstructions = "This is a message received at work (Korean/English/Indonesian/Thai). Decide whether it should be processed for task extraction or ignored as noise."
@@ -84,7 +86,8 @@ func NewClefFilter(apiKey, baseURL, model string, threshold float64) (*ClefFilte
 }
 
 // Why: errors are returned (not swallowed) so callers fail open and keep the message.
-func (f *ClefFilter) IsNoise(ctx context.Context, email, source, text string) (bool, error) {
+func (f *ClefFilter) IsNoise(ctx context.Context, in FilterInput) (bool, error) {
+	email, source, text := in.Email, in.Source, in.Text
 	resp, err := f.call(ctx, truncateRunes(text, clefMaxStateRunes))
 	if err != nil {
 		return false, err
@@ -99,7 +102,9 @@ func (f *ClefFilter) IsNoise(ctx context.Context, email, source, text string) (b
 	}
 
 	logTokenUsage(ctx, email, "LiteFilter", f.model, source, 0, LLMUsage{PromptTokens: resp.Usage.InputTokens})
-	if actionable >= f.threshold {
+	isNoise := actionable < f.threshold
+	f.recordScore(ctx, in, actionable, isNoise, topNonActionable(answer.Probabilities))
+	if !isNoise {
 		return false, nil
 	}
 
@@ -113,6 +118,30 @@ func (f *ClefFilter) IsNoise(ctx context.Context, email, source, text string) (b
 		Text:      text,
 	})
 	return true, nil
+}
+
+// Why: a failed insert must never change the verdict, so it is only logged.
+func (f *ClefFilter) recordScore(ctx context.Context, in FilterInput, p float64, isNoise bool, category string) {
+	verdict := store.FilterVerdictPass
+	if isNoise {
+		verdict = store.FilterVerdictNoise
+	}
+	_, err := store.InsertFilterScore(ctx, store.FilterScoreInput{
+		UserEmail:   in.Email,
+		Source:      in.Source,
+		Room:        in.Room,
+		SourceTS:    in.SourceTS,
+		MessageRef:  in.MessageRef,
+		Provider:    clefProvider,
+		PActionable: p,
+		Threshold:   f.threshold,
+		Verdict:     verdict,
+		Category:    category,
+		Text:        in.Text,
+	})
+	if err != nil {
+		logger.Warnf("[FILTER] record score failed for %s: %v", in.Email, err)
+	}
 }
 
 func (f *ClefFilter) call(ctx context.Context, state string) (*clefResponse, error) {

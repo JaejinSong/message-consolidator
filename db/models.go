@@ -68,6 +68,24 @@ type ExtractionDecision struct {
 	CreatedAt sql.NullTime `json:"created_at"`
 }
 
+type FilterScore struct {
+	ID          int64        `json:"id"`
+	UserEmail   string       `json:"user_email"`
+	Source      string       `json:"source"`
+	Room        string       `json:"room"`
+	SourceTs    string       `json:"source_ts"`
+	MessageRef  string       `json:"message_ref"`
+	Provider    string       `json:"provider"`
+	PActionable float64      `json:"p_actionable"`
+	Threshold   float64      `json:"threshold"`
+	Verdict     string       `json:"verdict"`
+	Category    string       `json:"category"`
+	Text        string       `json:"text"`
+	Outcome     string       `json:"outcome"`
+	OutcomeAt   sql.NullTime `json:"outcome_at"`
+	CreatedAt   sql.NullTime `json:"created_at"`
+}
+
 type GmailToken struct {
 	UserEmail string       `json:"user_email"`
 	TokenJson string       `json:"token_json"`

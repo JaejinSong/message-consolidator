@@ -142,6 +142,33 @@ func (q *Queries) CreateExtractionDecisionsTable(ctx context.Context) error {
 	return err
 }
 
+const createFilterScoresTable = `-- name: CreateFilterScoresTable :exec
+CREATE TABLE IF NOT EXISTS filter_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email TEXT NOT NULL,
+    source TEXT NOT NULL,
+    room TEXT NOT NULL DEFAULT '',
+    source_ts TEXT NOT NULL DEFAULT '',
+    message_ref TEXT NOT NULL DEFAULT '',
+    provider TEXT NOT NULL,
+    p_actionable REAL NOT NULL,
+    threshold REAL NOT NULL,
+    verdict TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT '',
+    text TEXT NOT NULL DEFAULT '',
+    outcome TEXT NOT NULL DEFAULT '',
+    outcome_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+`
+
+// Per-call noise filter verdicts (pass and noise) with the Clef score, so the threshold can be
+// calibrated from outcomes. Pruned after 31 days by a daily job.
+func (q *Queries) CreateFilterScoresTable(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, createFilterScoresTable)
+	return err
+}
+
 const createGmailTokensTable = `-- name: CreateGmailTokensTable :exec
 CREATE TABLE IF NOT EXISTS gmail_tokens (
     user_email TEXT PRIMARY KEY,

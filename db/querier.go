@@ -40,6 +40,9 @@ type Querier interface {
 	// mode of the precision rules added on 2026-09-10. Volume is ~40 rows/day (~4MB/year),
 	// so it needs no retention policy.
 	CreateExtractionDecisionsTable(ctx context.Context) error
+	// Per-call noise filter verdicts (pass and noise) with the Clef score, so the threshold can be
+	// calibrated from outcomes. Pruned after 31 days by a daily job.
+	CreateFilterScoresTable(ctx context.Context) error
 	CreateGmailTokensTable(ctx context.Context) error
 	CreateGrant(ctx context.Context, arg CreateGrantParams) error
 	CreateIdentityMergeCandidatesTable(ctx context.Context) error
@@ -74,6 +77,7 @@ type Querier interface {
 	DeleteAppSetting(ctx context.Context, key string) error
 	DeleteContactMapping(ctx context.Context, arg DeleteContactMappingParams) error
 	DeleteExpiredSessions(ctx context.Context) error
+	DeleteFilterScoresBefore(ctx context.Context, createdAt sql.NullTime) error
 	DeleteGmailToken(ctx context.Context, userEmail string) error
 	DeleteGrant(ctx context.Context, arg DeleteGrantParams) error
 	DeleteLearnedExample(ctx context.Context, arg DeleteLearnedExampleParams) error
@@ -116,6 +120,7 @@ type Querier interface {
 	GetDisplayNameByID(ctx context.Context, id int64) (string, error)
 	GetEarlyBirdCompleted(ctx context.Context, dollar_1 string) (int64, error)
 	GetEmergencyCompleted(ctx context.Context, userEmail sql.NullString) (int64, error)
+	GetFilterScore(ctx context.Context, arg GetFilterScoreParams) (FilterScore, error)
 	GetGmailToken(ctx context.Context, userEmail string) (string, error)
 	GetGrant(ctx context.Context, arg GetGrantParams) (TaskGrant, error)
 	GetHourlyActivity(ctx context.Context, arg GetHourlyActivityParams) ([]GetHourlyActivityRow, error)
@@ -178,6 +183,7 @@ type Querier interface {
 	HasAnyTaskInThread(ctx context.Context, arg HasAnyTaskInThreadParams) (int64, error)
 	InsertAIInferenceLog(ctx context.Context, arg InsertAIInferenceLogParams) error
 	InsertCorrectionObservation(ctx context.Context, arg InsertCorrectionObservationParams) error
+	InsertFilterScore(ctx context.Context, arg InsertFilterScoreParams) (int64, error)
 	InsertLearnedExample(ctx context.Context, arg InsertLearnedExampleParams) error
 	InsertLineInbox(ctx context.Context, arg InsertLineInboxParams) error
 	InsertMergeHistory(ctx context.Context, arg InsertMergeHistoryParams) error
@@ -186,12 +192,20 @@ type Querier interface {
 	InsertWAMessage(ctx context.Context, arg InsertWAMessageParams) error
 	IsMessageProcessed(ctx context.Context, arg IsMessageProcessedParams) (int64, error)
 	IsSourceTSProcessed(ctx context.Context, arg IsSourceTSProcessedParams) (int64, error)
+	// Only unlabeled pass rows are linked, so a later link never overwrites an earlier label.
+	LinkFilterOutcomeBySourceTS(ctx context.Context, arg LinkFilterOutcomeBySourceTSParams) error
 	ListActiveSuppressRules(ctx context.Context, userEmail string) ([]CorrectionObservation, error)
 	ListAdminUsers(ctx context.Context) ([]User, error)
 	ListAppSettings(ctx context.Context) ([]AppSetting, error)
+	// Unlabeled noise drops whose score sits in [lo, hi), closest to the threshold first.
+	ListBorderlineDrops(ctx context.Context, arg ListBorderlineDropsParams) ([]FilterScore, error)
 	ListCorrectionObservationsByStatus(ctx context.Context, arg ListCorrectionObservationsByStatusParams) ([]CorrectionObservation, error)
 	// Newest first, for sampling what the pipeline threw away.
 	ListExtractionDecisions(ctx context.Context, arg ListExtractionDecisionsParams) ([]ExtractionDecision, error)
+	// Newest first, noise verdicts only.
+	ListFilterDrops(ctx context.Context, arg ListFilterDropsParams) ([]FilterScore, error)
+	ListFilterScoresSince(ctx context.Context, arg ListFilterScoresSinceParams) ([]FilterScore, error)
+	ListFilterUsers(ctx context.Context, createdAt sql.NullTime) ([]string, error)
 	ListGrantorsFor(ctx context.Context, granteeUserID int64) ([]User, error)
 	ListLearnedExamples(ctx context.Context, arg ListLearnedExamplesParams) ([]LearnedExample, error)
 	ListLearnedExamplesBySource(ctx context.Context, arg ListLearnedExamplesBySourceParams) ([]LearnedExample, error)
@@ -263,6 +277,7 @@ type Querier interface {
 	SelectStalledRequests(ctx context.Context, arg SelectStalledRequestsParams) ([]SelectStalledRequestsRow, error)
 	// Why: Surfaces PROMISE/WAITING items with no deadline for aging nudge dispatch.
 	SelectUndatedCommitments(ctx context.Context) ([]SelectUndatedCommitmentsRow, error)
+	SetFilterOutcome(ctx context.Context, arg SetFilterOutcomeParams) error
 	SetUserAdmin(ctx context.Context, arg SetUserAdminParams) error
 	// Why: the cold reconciliation tier must not reactivate hot-sweep tracking (status stays
 	// whatever it already was, e.g. 'resolved'); this only advances the reply cursor so the

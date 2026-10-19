@@ -263,7 +263,7 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 	bypassNoise := len(tasks) > 0 && groupMayTransitionTask(group, tasks)
 	if bypassNoise {
 		logger.Debugf("[SCAN] %s: noise filter bypassed (open-task signal) room=%s", prefix, groupName)
-	} else if isIgnorableChannelNoise(ctx, user.Email, source, payload, prefix) {
+	} else if isIgnorableChannelNoise(ctx, newGroupFilterInput(user.Email, source, groupName, payload, group), prefix) {
 		ackGroup(ctx, adapter, user.Email, group, groupOutcome(true, nil, nil, 0))
 		return nil
 	}
@@ -311,13 +311,29 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 	return ids
 }
 
-func isIgnorableChannelNoise(ctx context.Context, email, source, payload, prefix string) bool {
+// Why: tasks extracted from a group carry the id of the message they came from, so the latest
+// id lets a later outcome link find this verdict; the full id list stays in MessageRef.
+func newGroupFilterInput(email, source, room, payload string, group []types.RawMessage) ai.FilterInput {
+	in := ai.FilterInput{Email: email, Source: source, Room: room, Text: payload}
+	ids := make([]string, 0, len(group))
+	var latest time.Time
+	for _, m := range group {
+		ids = append(ids, m.ID)
+		if in.SourceTS == "" || m.Timestamp.After(latest) {
+			in.SourceTS, latest = m.ID, m.Timestamp
+		}
+	}
+	in.MessageRef = strings.Join(ids, ",")
+	return in
+}
+
+func isIgnorableChannelNoise(ctx context.Context, in ai.FilterInput, prefix string) bool {
 	if deps.filterSvc == nil {
 		return false
 	}
-	isNoise, err := deps.filterSvc.IsNoise(ctx, email, source, payload)
+	isNoise, err := deps.filterSvc.IsNoise(ctx, in)
 	if err != nil {
-		logger.Warnf("[SCAN] %s: filter failed for %s: %v", prefix, email, err)
+		logger.Warnf("[SCAN] %s: filter failed for %s: %v", prefix, in.Email, err)
 		return false
 	}
 	return isNoise

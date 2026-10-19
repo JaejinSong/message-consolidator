@@ -7,7 +7,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
+
+	"message-consolidator/internal/testutil"
+	"message-consolidator/store"
 )
 
 func newTestClef(t *testing.T, srv *httptest.Server, threshold float64) *ClefFilter {
@@ -47,7 +51,7 @@ func TestClefFilter_RequestShape(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	noise, err := newTestClef(t, srv, 0.3).IsNoise(context.Background(), "u@example.com", "slack", "hello")
+	noise, err := newTestClef(t, srv, 0.3).IsNoise(context.Background(), FilterInput{Email: "u@example.com", Source: "slack", Text: "hello"})
 	if err != nil || noise {
 		t.Fatalf("IsNoise = %v, %v; want false, nil", noise, err)
 	}
@@ -81,7 +85,7 @@ func TestClefFilter_ThresholdBoundary(t *testing.T) {
 				_, _ = w.Write([]byte(clefReply(tt.actionable)))
 			}))
 			defer srv.Close()
-			got, err := newTestClef(t, srv, 0.3).IsNoise(context.Background(), "u@example.com", "slack", "x")
+			got, err := newTestClef(t, srv, 0.3).IsNoise(context.Background(), FilterInput{Email: "u@example.com", Source: "slack", Text: "x"})
 			if err != nil || got != tt.want {
 				t.Errorf("IsNoise = %v, %v; want %v", got, err, tt.want)
 			}
@@ -95,7 +99,7 @@ func TestClefFilter_Non2xxError(t *testing.T) {
 		_, _ = w.Write([]byte(`{"error":"bad criteria"}`))
 	}))
 	defer srv.Close()
-	_, err := newTestClef(t, srv, 0.3).IsNoise(context.Background(), "u@example.com", "slack", "x")
+	_, err := newTestClef(t, srv, 0.3).IsNoise(context.Background(), FilterInput{Email: "u@example.com", Source: "slack", Text: "x"})
 	if err == nil || !strings.Contains(err.Error(), "400") || !strings.Contains(err.Error(), "bad criteria") {
 		t.Fatalf("err = %v, want status and server message", err)
 	}
@@ -114,7 +118,7 @@ func TestClefFilter_MalformedAnswers(t *testing.T) {
 				_, _ = w.Write([]byte(body))
 			}))
 			defer srv.Close()
-			if _, err := newTestClef(t, srv, 0.3).IsNoise(context.Background(), "u@example.com", "slack", "x"); err == nil {
+			if _, err := newTestClef(t, srv, 0.3).IsNoise(context.Background(), FilterInput{Email: "u@example.com", Source: "slack", Text: "x"}); err == nil {
 				t.Fatal("expected error")
 			}
 		})
@@ -132,7 +136,7 @@ func TestClefFilter_RuneSafeTruncation(t *testing.T) {
 	defer srv.Close()
 
 	text := strings.Repeat("가", clefMaxStateRunes+50)
-	if _, err := newTestClef(t, srv, 0.3).IsNoise(context.Background(), "u@example.com", "slack", text); err != nil {
+	if _, err := newTestClef(t, srv, 0.3).IsNoise(context.Background(), FilterInput{Email: "u@example.com", Source: "slack", Text: text}); err != nil {
 		t.Fatal(err)
 	}
 	if n := utf8.RuneCountInString(state); n != clefMaxStateRunes || !utf8.ValidString(state) {
@@ -153,8 +157,97 @@ func TestClefFilter_ErrorMessageBounded(t *testing.T) {
 		_, _ = w.Write([]byte(strings.Repeat("e", 5000)))
 	}))
 	defer srv.Close()
-	_, err := newTestClef(t, srv, 0.3).IsNoise(context.Background(), "u@example.com", "slack", "x")
+	_, err := newTestClef(t, srv, 0.3).IsNoise(context.Background(), FilterInput{Email: "u@example.com", Source: "slack", Text: "x"})
 	if err == nil || len(err.Error()) > 300 {
 		t.Fatalf("err = %v, want bounded error", err)
+	}
+}
+
+func TestClefFilter_RecordsScoreRows(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	defer cleanup()
+
+	tests := []struct {
+		name        string
+		p           float64
+		wantNoise   bool
+		wantVerdict string
+	}{
+		{"pass", 0.9, false, store.FilterVerdictPass},
+		{"noise", 0.1, true, store.FilterVerdictNoise},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(clefReply(tt.p)))
+			}))
+			defer srv.Close()
+			email := testutil.RandomEmail(tt.name)
+
+			got, err := newTestClef(t, srv, 0.3).IsNoise(context.Background(), FilterInput{
+				Email: email, Source: "slack", Room: "room-a", SourceTS: "ts-9", MessageRef: "ts-8,ts-9", Text: "hello",
+			})
+			if err != nil || got != tt.wantNoise {
+				t.Fatalf("IsNoise = %v, %v; want %v, nil", got, err, tt.wantNoise)
+			}
+
+			rows, err := store.ListFilterScoresSince(context.Background(), email, time.Now().Add(-time.Hour))
+			if err != nil || len(rows) != 1 {
+				t.Fatalf("rows = %d, err = %v; want 1", len(rows), err)
+			}
+			r := rows[0]
+			if r.Verdict != tt.wantVerdict || r.PActionable != tt.p || r.Threshold != 0.3 || r.Provider != "clef" {
+				t.Errorf("row = %+v", r)
+			}
+			if r.Room != "room-a" || r.SourceTs != "ts-9" || r.MessageRef != "ts-8,ts-9" || r.Text != "hello" {
+				t.Errorf("meta not stored: %+v", r)
+			}
+			if tt.wantNoise && r.Category != "marketing" {
+				t.Errorf("category = %q, want marketing", r.Category)
+			}
+		})
+	}
+}
+
+func TestClefFilter_ScoreTextCappedAt8000Runes(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	defer cleanup()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(clefReply(0.9)))
+	}))
+	defer srv.Close()
+	email := testutil.RandomEmail("cap")
+
+	_, err = newTestClef(t, srv, 0.3).IsNoise(context.Background(), FilterInput{
+		Email: email, Source: "slack", Text: strings.Repeat("가", 9000),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := store.ListFilterScoresSince(context.Background(), email, time.Now().Add(-time.Hour))
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("rows = %d, err = %v", len(rows), err)
+	}
+	if n := utf8.RuneCountInString(rows[0].Text); n != 8000 {
+		t.Errorf("stored runes = %d, want 8000", n)
+	}
+}
+
+func TestClefFilter_InsertFailureKeepsVerdict(t *testing.T) {
+	// Why: no DB is initialised here, so the insert fails; the verdict must be unaffected.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(clefReply(0.1)))
+	}))
+	defer srv.Close()
+
+	got, err := newTestClef(t, srv, 0.3).IsNoise(context.Background(), FilterInput{Email: "u@example.com", Source: "slack", Text: "x"})
+	if err != nil || !got {
+		t.Fatalf("IsNoise = %v, %v; want true, nil", got, err)
 	}
 }
