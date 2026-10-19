@@ -16,7 +16,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 )
 
-func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
+func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, gc *ai.GeminiClient, filterSvc noiseFilter, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
 	svc, err := GetGmailService(ctx, email)
 	if err != nil {
 		// Why: Warn, not Debug — production suppresses Debug, and a dead token
@@ -306,7 +306,7 @@ func deduplicateEnvelopes(ctx context.Context, email string, rawMsgs []types.Raw
 	return result
 }
 
-func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, onThreadActivity func(store.ConsolidatedMessage) bool) ([]store.MessageID, bool) {
+func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, gc *ai.GeminiClient, filterSvc noiseFilter, onThreadActivity func(store.ConsolidatedMessage) bool) ([]store.MessageID, bool) {
 	if gc == nil || filterSvc == nil {
 		logger.Errorf("[GMAIL] gc/filterSvc missing; scanner.Init may have failed")
 		return nil, false
@@ -338,7 +338,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 }
 
 // processBatch handles the analysis and persistence of a single batch of emails.
-func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc *ai.GeminiLiteFilter, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage) bool) ([]store.MessageID, bool) {
+func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc noiseFilter, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage) bool) ([]store.MessageID, bool) {
 	filteredMsgs := filterGmailBatch(ctx, email, batchMsgs, filterSvc, classificationMap, onThreadActivity)
 	if len(filteredMsgs) == 0 {
 		return nil, true
@@ -390,8 +390,8 @@ func routeGeminiItems(ctx context.Context, email string, routed []routedGeminiIt
 }
 
 // noiseFilter is the consumer-side contract for the AI noise gate.
-// Why: defined here (channels) instead of accepting *ai.GeminiLiteFilter so unit tests
-// can inject a fake without spinning up a real Gemini client.
+// Why: defined here (channels) instead of accepting a concrete filter so unit tests
+// can inject a fake and the LLM and Clef filters stay swappable.
 type noiseFilter interface {
 	IsNoise(ctx context.Context, email, source, text string) (bool, error)
 }

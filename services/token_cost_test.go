@@ -24,6 +24,7 @@ func TestRateFor(t *testing.T) {
 		{"deepseek-chat-20260101", 0.14, 0.28}, // versioned suffix → prefix match
 		{"gemini-3-flash-preview", 0.50, 3.00},
 		{"gemini-3.1-flash-lite", 0.50, 3.00}, // no exact/prefix row → conservative Flash fallback
+		{"clef:cloud", 0.24, 0},               // prefix match on "clef"
 		{"totally-unknown-model", 0.50, 3.00}, // fallback
 	}
 	for _, tc := range cases {
@@ -323,5 +324,15 @@ func TestGatherTokenUsageStatsByProvider(t *testing.T) {
 	}
 	if !near(got.MonthlyCost, ds.Cost+gm.Cost) {
 		t.Errorf("MonthlyCost %f != sum of per-provider %f", got.MonthlyCost, ds.Cost+gm.Cost)
+	}
+}
+
+func TestCostsByProvider_ClefGroupedAndPriced(t *testing.T) {
+	got := CostsByProvider([]store.ModelTokenUsage{{Model: "clef:cloud", Prompt: 1_000_000}})
+	if len(got) != 1 || got[0].Provider != "Clef" {
+		t.Fatalf("got %+v, want single Clef row", got)
+	}
+	if d := got[0].Cost - 0.24; d < -1e-9 || d > 1e-9 {
+		t.Errorf("Clef cost = %f, want 0.24", got[0].Cost)
 	}
 }

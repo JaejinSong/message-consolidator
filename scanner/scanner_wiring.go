@@ -35,7 +35,7 @@ func Init(c *config.Config) {
 		transSvc := services.NewTranslationService(deps.gClient)
 		deps.tasksSvc = services.NewTasksService(transSvc, deps.gClient)
 		deps.completionSvc = services.NewCompletionService(deps.gClient, &services.DefaultTaskStore{}, deps.tasksSvc, store.GetDB())
-		deps.filterSvc = ai.NewGeminiLiteFilter(deps.gClient)
+		deps.filterSvc = newNoiseFilter(cfg, deps.gClient)
 	}
 	if cfg.SlackToken != "" {
 		deps.slackClient = channels.NewSlackClient(cfg.SlackToken)
@@ -49,6 +49,20 @@ func Init(c *config.Config) {
 	}
 	deps.exclusionSvc = services.NewExclusionService(exclusionSlack)
 	deps.pastEventSvc = services.NewPastEventService()
+}
+
+// Why: returns the interface directly so a failed Clef init never stores a nil pointer in it.
+func newNoiseFilter(c *config.Config, gc *ai.AIClient) noiseFilter {
+	if c.FilterProvider == "clef" {
+		f, err := ai.NewClefFilter(c.ClefAPIKey, c.ClefBaseURL, c.ClefModel, c.ClefThreshold)
+		if err == nil {
+			logger.Infof("[SCAN] noise filter: clef (%s, threshold %.2f)", c.ClefModel, c.ClefThreshold)
+			return f
+		}
+		logger.Errorf("[SCAN] clef filter init failed, falling back to LLM filter: %v", err)
+	}
+	logger.Infof("[SCAN] noise filter: llm")
+	return ai.NewGeminiLiteFilter(gc)
 }
 
 // Why: DailyDigestService needs reportsSvc, built post-Init in main.initAIServices.

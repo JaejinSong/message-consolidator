@@ -33,6 +33,10 @@ var hourPrimePool = []time.Duration{
 
 var cfg *config.Config
 
+type noiseFilter interface {
+	IsNoise(ctx context.Context, email, source, text string) (bool, error)
+}
+
 // scanDeps groups every service/client the scanner loops depend on.
 // Why: one injection point (set once in Init, before StartBackgroundScanner)
 // instead of scattered package globals, so tests swap deps fields in isolation.
@@ -40,7 +44,7 @@ type scanDeps struct {
 	gClient         *ai.GeminiClient
 	completionSvc   *services.CompletionService
 	tasksSvc        *services.TasksService
-	filterSvc       *ai.GeminiLiteFilter
+	filterSvc       noiseFilter
 	roomLockSvc     *services.RoomLockService
 	slackClient     *channels.SlackClient
 	reminderSvc     reminderDispatcher

@@ -61,7 +61,9 @@ var aiRates = map[string]ModelRate{
 	"deepseek-v4.1-flash":    {InputPerM: 0.15, CachedInputPerM: 0.003, OutputPerM: 0.60, ThinkingPerM: 0.60, PeakMultiplier: deepSeekPeakMultiplier},
 	"deepseek-v4-pro":        {InputPerM: 0.66, CachedInputPerM: 0.022, OutputPerM: 1.98, ThinkingPerM: 1.98, PeakMultiplier: deepSeekPeakMultiplier},
 	"gemini-3-flash-preview": {InputPerM: 0.50, OutputPerM: 3.00, ThinkingPerM: 3.00},
-	"glm-5.3-flash":          {InputPerM: 0.15, CachedInputPerM: 0.03, OutputPerM: 0.50, ThinkingPerM: 0.50},
+	// Why: Clef bills input tokens only (decision model emits no output/thinking tokens).
+	"clef":          {InputPerM: 0.24},
+	"glm-5.3-flash": {InputPerM: 0.15, CachedInputPerM: 0.03, OutputPerM: 0.50, ThinkingPerM: 0.50},
 }
 
 // RateFor resolves a model id to its rate: exact match, then prefix match (versioned ids),
@@ -113,6 +115,9 @@ func providerOf(model string) string {
 	if strings.HasPrefix(model, "deepseek") {
 		return "DeepSeek"
 	}
+	if strings.HasPrefix(model, "clef") {
+		return "Clef"
+	}
 	return "Gemini"
 }
 
@@ -131,7 +136,7 @@ type ProviderCost struct {
 }
 
 // CostsByProvider groups per-model usage under its provider and prices each group with the
-// same per-model rates as CostByModel. Fixed order (DeepSeek, Gemini); providers with no
+// same per-model rates as CostByModel. Fixed order (DeepSeek, Gemini, Clef); providers with no
 // usage are omitted so the UI only renders rows that have data.
 func CostsByProvider(models []store.ModelTokenUsage) []ProviderCost {
 	groups := map[string][]store.ModelTokenUsage{}
@@ -140,7 +145,7 @@ func CostsByProvider(models []store.ModelTokenUsage) []ProviderCost {
 		groups[p] = append(groups[p], m)
 	}
 	out := make([]ProviderCost, 0, len(groups))
-	for _, p := range []string{"DeepSeek", "Gemini"} {
+	for _, p := range []string{"DeepSeek", "Gemini", "Clef"} {
 		ms, ok := groups[p]
 		if !ok {
 			continue

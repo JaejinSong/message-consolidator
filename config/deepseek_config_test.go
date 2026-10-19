@@ -49,3 +49,33 @@ func TestRegistryDeepSeekAndProvider(t *testing.T) {
 		t.Error("ValidateSetting(AI_PROVIDER, openai) should reject unknown provider")
 	}
 }
+
+func TestLoadConfigClef(t *testing.T) {
+	for _, k := range []string{"FILTER_PROVIDER", "CLEF_API_KEY", "CLEF_BASE_URL", "CLEF_MODEL", "CLEF_THRESHOLD"} {
+		t.Setenv(k, "")
+	}
+	t.Setenv("DEEPSEEK_API_KEY", "ds-key")
+
+	cfg := LoadConfig()
+	if cfg.FilterProvider != "llm" || cfg.ClefBaseURL != "https://ollama.com/v1" || cfg.ClefModel != "clef:cloud" || cfg.ClefThreshold != 0.3 {
+		t.Errorf("defaults = %q/%q/%q/%v", cfg.FilterProvider, cfg.ClefBaseURL, cfg.ClefModel, cfg.ClefThreshold)
+	}
+	if cfg.ClefAPIKey != "ds-key" {
+		t.Errorf("ClefAPIKey fallback = %q, want DEEPSEEK_API_KEY value", cfg.ClefAPIKey)
+	}
+
+	t.Setenv("CLEF_API_KEY", "clef-key")
+	if got := LoadConfig().ClefAPIKey; got != "clef-key" {
+		t.Errorf("ClefAPIKey = %q, want clef-key", got)
+	}
+}
+
+func TestLoadConfigClefThresholdValidation(t *testing.T) {
+	cases := map[string]float64{"0.5": 0.5, "0": 0.3, "1": 0.3, "-0.2": 0.3, "abc": 0.3, "1.5": 0.3, "NaN": 0.3, "Inf": 0.3}
+	for in, want := range cases {
+		t.Setenv("CLEF_THRESHOLD", in)
+		if got := LoadConfig().ClefThreshold; got != want {
+			t.Errorf("CLEF_THRESHOLD=%q -> %v, want %v", in, got, want)
+		}
+	}
+}

@@ -27,6 +27,11 @@ type Config struct {
 	GeminiAnalysisModel         string
 	GeminiTranslationModel      string
 	AIProvider                  string
+	FilterProvider              string
+	ClefAPIKey                  string
+	ClefBaseURL                 string
+	ClefModel                   string
+	ClefThreshold               float64
 	DeepSeekAPIKey              string
 	DeepSeekBaseURL             string
 	DeepSeekFilterModel         string
@@ -87,6 +92,11 @@ func LoadConfig() *Config {
 		GeminiTranslationModel:     envOr("GEMINI_TRANSLATION_MODEL", "gemini-3.1-flash-lite"),
 		AIProvider:                 envOr("AI_PROVIDER", "gemini"),
 		DeepSeekAPIKey:             os.Getenv("DEEPSEEK_API_KEY"),
+		FilterProvider:             envOr("FILTER_PROVIDER", "llm"),
+		ClefAPIKey:                 envOr("CLEF_API_KEY", os.Getenv("DEEPSEEK_API_KEY")),
+		ClefBaseURL:                envOr("CLEF_BASE_URL", "https://ollama.com/v1"),
+		ClefModel:                  envOr("CLEF_MODEL", "clef:cloud"),
+		ClefThreshold:              envUnitFloat("CLEF_THRESHOLD", defaultClefThreshold),
 		DeepSeekBaseURL:            envOr("DEEPSEEK_BASE_URL", "https://ollama.com/v1"),
 		DeepSeekFilterModel:        envOr("DEEPSEEK_FILTER_MODEL", "deepseek-v4.1-flash"),
 		DeepSeekAnalysisModel:      envOr("DEEPSEEK_ANALYSIS_MODEL", "deepseek-v4.1-flash"),
@@ -144,6 +154,17 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+const defaultClefThreshold = 0.3
+
+// Why: a threshold outside (0,1) would make the Clef gate drop everything or nothing.
+func envUnitFloat(key string, fallback float64) float64 {
+	f, err := strconv.ParseFloat(os.Getenv(key), 64)
+	if err != nil || !(f > 0 && f < 1) {
+		return fallback
+	}
+	return f
 }
 
 func envInt(key string, fallback int) int {
