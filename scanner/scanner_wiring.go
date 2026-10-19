@@ -79,6 +79,8 @@ func WireDailyDigest(reportsSvc *services.ReportsService) {
 		Hour:            cfg.DailyDigestHour,
 		Timezone:        cfg.DailyDigestTimezone,
 		Language:        cfg.DailyDigestLanguage,
+		ClefThreshold:   cfg.ClefThreshold,
+		AppBaseURL:      cfg.AppBaseURL,
 	})
 	svc.Notion = services.NewNotionExporter(cfg.NotionToken, cfg.NotionReportPageID)
 	deps.digestSvc = svc

@@ -25,6 +25,8 @@ type DailyDigestConfig struct {
 	Hour            int
 	Timezone        string
 	Language        string
+	ClefThreshold   float64
+	AppBaseURL      string
 	PollInterval    time.Duration
 	PollTimeout     time.Duration
 }
@@ -95,6 +97,7 @@ func (s *DailyDigestService) Dispatch(ctx context.Context) error {
 			buildUndatedBlocks(email, undated)...,
 		)
 		blocks = append(blocks, buildStalledBlocks(stalledBuckets)...)
+		blocks = append(blocks, s.buildBorderlineBlocks(ctx, email)...)
 		if err := s.Slack.SendDMBlocks(ctx, slackID, blocks, fallback); err != nil {
 			logger.Warnf("[DIGEST] send dm to %s: %v", email, err)
 		}
