@@ -273,6 +273,9 @@ func DecideObservation(ctx context.Context, userEmail string, id int64, approve 
 	status := "rejected"
 	if approve {
 		status = "approved"
+		if err := applyApprovedFilterThreshold(ctx, userEmail, id); err != nil {
+			return fmt.Errorf("decide observation %d: %w", id, err)
+		}
 	}
 	if err := db.New(store.GetDB()).UpdateCorrectionObservationStatus(ctx, db.UpdateCorrectionObservationStatusParams{
 		Status: status, ID: id, UserEmail: userEmail,

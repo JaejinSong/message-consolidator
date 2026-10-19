@@ -78,6 +78,7 @@ func StartBackgroundScanner(ctx context.Context) {
 		{name: "exclusion-candidate", traceName: "/Background-Tasks-ExclusionCandidate", runFn: runExclusionCandidate, pool: hourPrimePool},
 		{name: "past-event-candidate", traceName: "/Background-Tasks-PastEventCandidate", runFn: runPastEventCandidate, pool: hourPrimePool},
 		{name: "precision-observer", traceName: "/Background-Tasks-PrecisionObserver", runFn: runPrecisionObserver, pool: hourPrimePool},
+		{name: "filter-calibrator", traceName: "/Background-Tasks-FilterCalibrator", runFn: runFilterCalibrator, pool: hourPrimePool},
 		{name: "excluded-digest", traceName: "/Background-Tasks-ExcludedDigest", runFn: runExcludedDigest, pool: hourPrimePool},
 		{name: "daily-digest", traceName: "/Background-Reports-DailyDigest", runFn: runDailyDigest, pool: hourPrimePool},
 		{name: "weekly-report", traceName: "/Background-Reports-WeeklyReport", runFn: runWeeklyReport, pool: hourPrimePool},
