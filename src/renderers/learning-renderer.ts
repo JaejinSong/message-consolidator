@@ -7,7 +7,7 @@
 import { api } from '../api';
 import { state } from '../state';
 import { I18N_DATA } from '../locales';
-import { CorrectionObservation, I18nDictionary, LearnedExample } from '../types';
+import { CorrectionObservation, FilterDrop, I18nDictionary, LearnedExample } from '../types';
 import { escapeHTML, getErrorMessage, TimeService } from '../utils';
 import { showToast } from './ui-effects';
 
@@ -19,7 +19,7 @@ let bound = false;
  */
 export async function initLearningTab(): Promise<void> {
     bindOnce();
-    await Promise.all([loadObservations(), loadExamples()]);
+    await Promise.all([loadObservations(), loadExamples(), loadFilterDrops()]);
 }
 
 function bindOnce(): void {
@@ -29,6 +29,7 @@ function bindOnce(): void {
     document.getElementById('learningStatusFilter')?.addEventListener('change', () => void loadObservations());
     document.getElementById('learningObservationsList')?.addEventListener('click', (e) => void onObservationsClick(e));
     document.getElementById('learningExamplesList')?.addEventListener('click', (e) => void onExamplesClick(e));
+    document.getElementById('learningFilterDropsList')?.addEventListener('click', (e) => void onFilterDropsClick(e));
 }
 
 // Why: reversibility -- a poisoned or low-quality learned example must be removable
@@ -84,6 +85,46 @@ async function onObservationsClick(e: Event): Promise<void> {
         showToast(getErrorMessage(err) || (lang === 'ko' ? '처리 실패' : 'Failed to update'), 'error');
     } finally {
         rowButtons.forEach(b => { b.disabled = false; });
+    }
+}
+
+// Why: "was a task" is the false-drop signal and re-extracts the dropped text, so it must
+// never fire twice -- the row buttons stay disabled until the call settles.
+async function onFilterDropsClick(e: Event): Promise<void> {
+    const target = e.target as HTMLElement;
+    const btn = target.closest<HTMLButtonElement>('[data-action="rescue-drop"], [data-action="confirm-drop"]');
+    if (!btn || btn.disabled) return;
+    const id = Number(btn.dataset.id);
+    if (!id) return;
+    const rescue = btn.dataset.action === 'rescue-drop';
+    const lang = state.currentLang || 'en';
+
+    const row = btn.closest<HTMLElement>('.c-learning-view__row');
+    const rowButtons = row ? Array.from(row.querySelectorAll<HTMLButtonElement>('button')) : [btn];
+    rowButtons.forEach(b => { b.disabled = true; });
+    try {
+        if (rescue) await api.rescueFilterDrop(id);
+        else await api.confirmFilterDrop(id);
+        await loadFilterDrops();
+    } catch (err: unknown) {
+        showToast(getErrorMessage(err) || (lang === 'ko' ? '처리 실패' : 'Failed to update'), 'error');
+        rowButtons.forEach(b => { b.disabled = false; });
+    }
+}
+
+async function loadFilterDrops(): Promise<void> {
+    const list = document.getElementById('learningFilterDropsList');
+    const empty = document.getElementById('learningFilterDropsEmpty');
+    if (!list) return;
+
+    try {
+        const rows = await api.listFilterDrops();
+        list.innerHTML = rows.map(renderFilterDropRow).join('');
+        empty?.classList.toggle('hidden', rows.length > 0);
+    } catch (err: unknown) {
+        list.innerHTML = '';
+        empty?.classList.remove('hidden');
+        console.error('[Learning] Failed to load filtered messages', err);
     }
 }
 
@@ -209,6 +250,45 @@ function renderExampleRow(ex: LearnedExample): string {
             </div>
             <div class="c-learning-view__row-actions">
                 <button type="button" class="c-btn c-btn--outline c-btn--sm" data-action="delete-example" data-id="${ex.id}">${i18n.delete || 'Delete'}</button>
+            </div>
+        </div>
+    `;
+}
+
+const OUTCOME_LABELS: Record<string, { ko: string; en: string }> = {
+    rescued: { ko: '복구됨', en: 'rescued' },
+    confirmed_noise: { ko: '노이즈 확정', en: 'confirmed noise' },
+    manual_match: { ko: '수동 추가됨', en: 'added manually' },
+};
+
+function outcomeLabel(outcome: string, lang: string): string {
+    const label = OUTCOME_LABELS[outcome];
+    if (!label) return outcome;
+    return lang === 'ko' ? label.ko : label.en;
+}
+
+// Why: rows that already carry an outcome are shown read-only so a decision is never silently repeated.
+export function renderFilterDropRow(d: FilterDrop): string {
+    const lang = state.currentLang || 'en';
+    const i18n = (I18N_DATA as I18nDictionary)[lang] || (I18N_DATA as I18nDictionary)['en'];
+    const room = d.room ? ` / ${escapeHTML(d.room)}` : '';
+    const actions = d.outcome
+        ? `<span class="c-badge c-badge--dim">${escapeHTML(outcomeLabel(d.outcome, lang))}</span>`
+        : `<button type="button" class="c-btn c-btn--success c-btn--sm" data-action="rescue-drop" data-id="${d.id}">${escapeHTML(i18n.learningFilterRescue || (lang === 'ko' ? '태스크였음' : 'Was a task'))}</button>
+                <button type="button" class="c-btn c-btn--outline c-btn--sm" data-action="confirm-drop" data-id="${d.id}">${escapeHTML(i18n.learningFilterConfirm || (lang === 'ko' ? '노이즈 맞음' : 'Correctly filtered'))}</button>`;
+
+    return `
+        <div class="c-learning-view__row c-learning-view__row--drop" data-id="${d.id}">
+            <div class="c-learning-view__row-main">
+                <span class="c-badge c-badge--dim">${escapeHTML(d.source)}${room}</span>
+                <span class="c-learning-view__drop-text">${escapeHTML(d.text)}</span>
+            </div>
+            <div class="c-learning-view__row-meta">
+                <span>p=${d.p_actionable.toFixed(2)}</span>
+                <span>${TimeService.formatDisplayTime(d.created_at, lang)}</span>
+            </div>
+            <div class="c-learning-view__row-actions">
+                ${actions}
             </div>
         </div>
     `;

@@ -2,7 +2,7 @@ import { apiFetch, BASE_URL } from './utils/http';
 import { state, upsertReport } from './state';
 import { normalizeReportData } from './logic';
 import { isStatusConnected } from './utils';
-import { Message, UserProfile, UserStats, TokenUsage, IReportData, AccountItem, CategorizedMessages, TranslateBatchResult, AdminSetting, AdminUser, AdminSettingUpdateResult, CommitmentsResponse, CorrectionObservation, LearnedExample } from './types';
+import { Message, UserProfile, UserStats, TokenUsage, IReportData, AccountItem, CategorizedMessages, TranslateBatchResult, AdminSetting, AdminUser, AdminSettingUpdateResult, CommitmentsResponse, CorrectionObservation, LearnedExample, FilterDrop, FilterRescueResult } from './types';
 import type { ProposalGroup } from './renderers/settings-renderer';
 
 // Why: shared shape for mutation endpoints that the backend answers with `{ status: "ok" }` or
@@ -634,6 +634,32 @@ export const api = {
             method: 'POST',
             body: JSON.stringify({ id: validatedId }),
             errorMessage: 'Delete learned example failed'
+        });
+    },
+
+    async listFilterDrops(days = 7): Promise<FilterDrop[]> {
+        return apiFetch('/filter/drops', {
+            params: { days: String(ensureInt(days)) },
+            errorMessage: 'Fetch filtered messages failed'
+        });
+    },
+
+    // Why: false-drop signal + recovery -- re-runs extraction on the dropped text (handlers.HandleRescueFilterDrop).
+    async rescueFilterDrop(id: number): Promise<FilterRescueResult> {
+        const validatedId = ensureInt(id);
+        return apiFetch('/filter/drops/rescue', {
+            method: 'POST',
+            body: JSON.stringify({ id: validatedId }),
+            errorMessage: 'Rescue filtered message failed'
+        });
+    },
+
+    async confirmFilterDrop(id: number): Promise<void> {
+        const validatedId = ensureInt(id);
+        return apiFetch('/filter/drops/confirm', {
+            method: 'POST',
+            body: JSON.stringify({ id: validatedId }),
+            errorMessage: 'Confirm filtered message failed'
         });
     }
 };
