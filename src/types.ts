@@ -69,6 +69,22 @@ export interface CorrectionObservation {
     updated_at: NullableTime;
 }
 
+export interface FilterDrop {
+    id: number;
+    source: string;
+    room: string;
+    p_actionable: number;
+    category: string;
+    text: string;
+    created_at: string;
+    outcome: string;
+}
+
+export interface FilterRescueResult {
+    already_rescued: boolean;
+    created: number;
+}
+
 export interface LearnedExample {
     id: number;
     user_email: string;

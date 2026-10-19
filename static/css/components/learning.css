@@ -96,3 +96,16 @@
     display: flex;
     gap: var(--spacing-sm);
 }
+
+/* Why: dropped text is a whole group payload; clamp it so a row stays scannable */
+.c-learning-view__drop-text {
+    font-size: 0.875rem;
+    color: var(--text-main);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: pre-wrap;
+    word-break: break-word;
+}

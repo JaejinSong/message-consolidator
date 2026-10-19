@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach } from 'vitest';
-import { renderObservationRow } from './learning-renderer';
+import { renderObservationRow, renderFilterDropRow } from './learning-renderer';
 import { state } from '../state';
-import { CorrectionObservation } from '../types';
+import { CorrectionObservation, FilterDrop } from '../types';
 
 function observation(over: Partial<CorrectionObservation> = {}): CorrectionObservation {
     return {
@@ -72,5 +72,44 @@ describe('observation row wording by kind', () => {
         const el = row(observation({ kind: 'assignee_alias', from_value: 'bob', to_value: 'robert' }));
         expect(el.querySelector('.c-learning-view__signature')?.textContent).toContain('bob → robert');
         expect(el.querySelector('.c-learning-view__suppress-tag')).toBeNull();
+    });
+});
+
+function drop(over: Partial<FilterDrop> = {}): FilterDrop {
+    return {
+        id: 7,
+        source: 'slack',
+        room: 'eng',
+        p_actionable: 0.2,
+        category: '',
+        text: 'please <b>ship</b> it',
+        created_at: '2026-10-19T00:00:00Z',
+        outcome: '',
+        ...over,
+    };
+}
+
+describe('filtered message row', () => {
+    beforeEach(() => {
+        state.currentLang = 'ko';
+    });
+
+    it('offers rescue and confirm actions for an undecided drop', () => {
+        document.body.innerHTML = renderFilterDropRow(drop());
+        expect(document.querySelector('[data-action="rescue-drop"]')?.textContent).toBe('태스크였음');
+        expect(document.querySelector('[data-action="confirm-drop"]')?.textContent).toBe('노이즈 맞음');
+        expect(document.querySelector('[data-action="rescue-drop"]')?.getAttribute('data-id')).toBe('7');
+    });
+
+    it('escapes the dropped text', () => {
+        document.body.innerHTML = renderFilterDropRow(drop());
+        expect(document.querySelector('.c-learning-view__drop-text b')).toBeNull();
+        expect(document.querySelector('.c-learning-view__drop-text')?.textContent).toBe('please <b>ship</b> it');
+    });
+
+    it('shows a decided drop read-only', () => {
+        document.body.innerHTML = renderFilterDropRow(drop({ outcome: 'rescued' }));
+        expect(document.querySelector('button')).toBeNull();
+        expect(document.querySelector('.c-badge--dim:last-child, .c-learning-view__row-actions .c-badge')?.textContent).toBe('복구됨');
     });
 });

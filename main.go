@@ -72,7 +72,7 @@ func main() {
 	}
 	scanner.Init(cfg)
 
-	reportsSvc, tasksSvc, identityResolver := initAIServices(ctx, cfg)
+	reportsSvc, tasksSvc, identityResolver, filterReview := initAIServices(ctx, cfg)
 	slackBot := initSlackBot(cfg, tasksSvc)
 
 	scanner.WireWeeklyReport(reportsSvc)
@@ -87,6 +87,7 @@ func main() {
 		scanner.RunAllScans(ctx, &wg)
 		wg.Wait()
 	}, reportsSvc, tasksSvc, identityResolver, slackBot)
+	api.FilterReview = filterReview
 	api.Digest = scanner.TriggerDigest
 	api.WeeklyDispatch = scanner.TriggerWeeklyReport
 
@@ -145,7 +146,7 @@ func aiProviderConfig(cfg *config.Config) ai.ProviderConfig {
 
 // Why: Boots AI-backed services lazily; falls back to AI-less TasksService when the
 // active provider has no API key configured.
-func initAIServices(ctx context.Context, cfg *config.Config) (*services.ReportsService, *services.TasksService, *ai.IdentityResolver) {
+func initAIServices(ctx context.Context, cfg *config.Config) (*services.ReportsService, *services.TasksService, *ai.IdentityResolver, *services.FilterReviewService) {
 	var gClient *ai.GeminiClient
 	if pc := aiProviderConfig(cfg); pc.Enabled() {
 		var err error
@@ -155,7 +156,7 @@ func initAIServices(ctx context.Context, cfg *config.Config) (*services.ReportsS
 		}
 	}
 	if gClient == nil {
-		return nil, services.NewTasksService(nil, nil), nil
+		return nil, services.NewTasksService(nil, nil), nil, services.NewFilterReviewService(nil)
 	}
 	transSvc := services.NewTranslationService(gClient)
 	summarizer := services.NewFlashSingleSummarizer(gClient)
@@ -163,7 +164,7 @@ func initAIServices(ctx context.Context, cfg *config.Config) (*services.ReportsS
 	reportsSvc := services.NewReportsService(summarizer, gClient, transSvc, reportsCfg)
 	tasksSvc := services.NewTasksService(transSvc, gClient)
 	identityResolver := ai.NewIdentityResolver(gClient)
-	return reportsSvc, tasksSvc, identityResolver
+	return reportsSvc, tasksSvc, identityResolver, services.NewFilterReviewService(gClient)
 }
 
 // Why: Blocks until SIGINT/SIGTERM so the orchestration loop can drive a controlled shutdown.
