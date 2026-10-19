@@ -369,7 +369,25 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc noiseFilte
 	}
 
 	routed := processGeminiItems(ctx, email, user, aliases, items, classificationMap, toMap, msgMap)
-	return routeGeminiItems(ctx, email, routed, services.HandleTaskState), true
+	created := map[string]bool{}
+	track := func(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
+		id, err := services.HandleTaskState(ctx, q, email, item, msg)
+		if id > 0 {
+			created[msg.SourceTS] = true
+		}
+		return id, err
+	}
+	ids := routeGeminiItems(ctx, email, routed, track)
+	linkGmailFilterOutcomes(ctx, email, filteredMsgs, created)
+	return ids, true
+}
+
+// linkGmailFilterOutcomes closes the filter feedback loop for every passed message of a batch.
+func linkGmailFilterOutcomes(ctx context.Context, email string, msgs []types.RawMessage, created map[string]bool) {
+	for _, m := range msgs {
+		ts := "gmail-" + m.ID
+		services.LinkFilterOutcome(ctx, email, store.SourceGmail, "", ts, created[ts])
+	}
 }
 
 // taskStateRouter matches services.HandleTaskState's signature. Why: extracted so
