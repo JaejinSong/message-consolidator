@@ -407,7 +407,12 @@ type noiseFilter interface {
 func filterGmailBatch(ctx context.Context, email string, batch []types.RawMessage, filterSvc noiseFilter, classificationMap map[string]string, onThreadActivity func(store.ConsolidatedMessage) bool) []types.RawMessage {
 	var result []types.RawMessage
 	for _, m := range batch {
-		if isNoise, err := filterSvc.IsNoise(ctx, email, store.SourceGmail, m.Text); err == nil && isNoise {
+		isNoise, err := filterSvc.IsNoise(ctx, email, store.SourceGmail, m.Text)
+		if err != nil {
+			// Why: fail open keeps the message, but a silent error hid filter outages (e.g. Clef 429/5xx).
+			logger.Warnf("[GMAIL] noise filter failed for %s (msg %s), keeping message: %v", email, m.ID, err)
+		}
+		if err == nil && isNoise {
 			_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.ID)
 			continue
 		}

@@ -2,6 +2,7 @@ package channels
 
 import (
 	"context"
+	"errors"
 	"google.golang.org/api/gmail/v1"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/services"
@@ -861,12 +862,36 @@ func TestIsSystemOriginEmail(t *testing.T) {
 
 type stubNoiseFilter struct {
 	noise bool
+	err   error
 	calls int
 }
 
 func (s *stubNoiseFilter) IsNoise(_ context.Context, _, _, _ string) (bool, error) {
 	s.calls++
-	return s.noise, nil
+	return s.noise, s.err
+}
+
+// Why: a filter outage must fail open — the message survives and is not marked processed.
+func TestFilterGmailBatch_FilterErrorKeepsMessage(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	email := "user@example.com"
+	batch := []types.RawMessage{{ID: "msg-err-1", Text: "견적서 금요일까지 보내주세요"}}
+	filter := &stubNoiseFilter{noise: true, err: errors.New("clef filter: status 429")}
+
+	got := filterGmailBatch(ctx, email, batch, filter, map[string]string{}, nil)
+
+	if len(got) != 1 {
+		t.Fatalf("message must survive a filter error, got %d", len(got))
+	}
+	if processed, _ := store.IsProcessed(ctx, store.GetDB(), email, "msg-err-1"); processed {
+		t.Errorf("message must not be marked processed when the filter errors")
+	}
 }
 
 // Why: regression for the LiteFilter bypass introduced when fallbackToNewExtraction
