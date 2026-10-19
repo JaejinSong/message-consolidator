@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"message-consolidator/internal/whataphttpx"
@@ -24,6 +25,7 @@ const (
 	clefQuestionKey    = "verdict"
 	clefActionable     = "actionable"
 	clefProvider       = "clef"
+	clefThresholdTTL   = 61 * time.Second
 )
 
 const clefInstructions = "This is a message received at work (Korean/English/Indonesian/Thai). Decide whether it should be processed for task extraction or ignored as noise."
@@ -45,6 +47,14 @@ type ClefFilter struct {
 	model     string
 	threshold float64
 	client    *http.Client
+
+	thresholdMu    sync.Mutex
+	thresholdCache map[string]cachedThreshold
+}
+
+type cachedThreshold struct {
+	value float64
+	at    time.Time
 }
 
 type clefQuestion struct {
@@ -102,8 +112,9 @@ func (f *ClefFilter) IsNoise(ctx context.Context, in FilterInput) (bool, error) 
 	}
 
 	logTokenUsage(ctx, email, "LiteFilter", f.model, source, 0, LLMUsage{PromptTokens: resp.Usage.InputTokens})
-	isNoise := actionable < f.threshold
-	f.recordScore(ctx, in, actionable, isNoise, topNonActionable(answer.Probabilities))
+	threshold := f.thresholdFor(ctx, email)
+	isNoise := actionable < threshold
+	f.recordScore(ctx, in, actionable, threshold, isNoise, topNonActionable(answer.Probabilities))
 	if !isNoise {
 		return false, nil
 	}
@@ -120,8 +131,29 @@ func (f *ClefFilter) IsNoise(ctx context.Context, in FilterInput) (bool, error) 
 	return true, nil
 }
 
+// Why: the per-user value is cached so a scan burst does not hit app_settings per message.
+func (f *ClefFilter) thresholdFor(ctx context.Context, email string) float64 {
+	if email == "" {
+		return f.threshold
+	}
+	f.thresholdMu.Lock()
+	defer f.thresholdMu.Unlock()
+	if c, ok := f.thresholdCache[email]; ok && time.Since(c.at) < clefThresholdTTL {
+		return c.value
+	}
+	value := f.threshold
+	if v, ok := store.GetUserClefThreshold(ctx, email); ok {
+		value = v
+	}
+	if f.thresholdCache == nil {
+		f.thresholdCache = make(map[string]cachedThreshold)
+	}
+	f.thresholdCache[email] = cachedThreshold{value: value, at: time.Now()}
+	return value
+}
+
 // Why: a failed insert must never change the verdict, so it is only logged.
-func (f *ClefFilter) recordScore(ctx context.Context, in FilterInput, p float64, isNoise bool, category string) {
+func (f *ClefFilter) recordScore(ctx context.Context, in FilterInput, p, threshold float64, isNoise bool, category string) {
 	verdict := store.FilterVerdictPass
 	if isNoise {
 		verdict = store.FilterVerdictNoise
@@ -134,7 +166,7 @@ func (f *ClefFilter) recordScore(ctx context.Context, in FilterInput, p float64,
 		MessageRef:  in.MessageRef,
 		Provider:    clefProvider,
 		PActionable: p,
-		Threshold:   f.threshold,
+		Threshold:   threshold,
 		Verdict:     verdict,
 		Category:    category,
 		Text:        in.Text,

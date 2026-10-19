@@ -251,3 +251,64 @@ func TestClefFilter_InsertFailureKeepsVerdict(t *testing.T) {
 		t.Fatalf("IsNoise = %v, %v; want true, nil", got, err)
 	}
 }
+
+func TestClefFilter_UsesPerUserThreshold(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	defer cleanup()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(clefReply(0.25)))
+	}))
+	defer srv.Close()
+	ctx := context.Background()
+	custom, other := testutil.RandomEmail("thr-custom"), testutil.RandomEmail("thr-other")
+	if err := store.UpsertSetting(ctx, store.ClefThresholdKey(custom), "0.2", "test"); err != nil {
+		t.Fatal(err)
+	}
+	f := newTestClef(t, srv, 0.3)
+
+	// Why: p=0.25 is noise at the 0.3 default but passes at the user's 0.2.
+	if noise, err := f.IsNoise(ctx, FilterInput{Email: custom, Source: "slack", Text: "x"}); err != nil || noise {
+		t.Errorf("custom user: noise=%v err=%v, want pass", noise, err)
+	}
+	if noise, err := f.IsNoise(ctx, FilterInput{Email: other, Source: "slack", Text: "x"}); err != nil || !noise {
+		t.Errorf("default user: noise=%v err=%v, want noise", noise, err)
+	}
+	rows, err := store.ListFilterScoresSince(ctx, custom, time.Now().Add(-time.Hour))
+	if err != nil || len(rows) != 1 || rows[0].Threshold != 0.2 {
+		t.Fatalf("recorded threshold wrong: rows=%v err=%v", rows, err)
+	}
+}
+
+func TestClefFilter_ThresholdCachedAndValidated(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	defer cleanup()
+	ctx := context.Background()
+	f, _ := NewClefFilter("k", "http://x", "m", 0.3)
+	email := testutil.RandomEmail("thr-cache")
+
+	if err := store.UpsertSetting(ctx, store.ClefThresholdKey(email), "0.15", "test"); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.thresholdFor(ctx, email); got != 0.15 {
+		t.Fatalf("threshold = %v, want 0.15", got)
+	}
+	if err := store.UpsertSetting(ctx, store.ClefThresholdKey(email), "0.4", "test"); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.thresholdFor(ctx, email); got != 0.15 {
+		t.Errorf("cached threshold = %v, want 0.15 within TTL", got)
+	}
+	bad := testutil.RandomEmail("thr-bad")
+	if err := store.UpsertSetting(ctx, store.ClefThresholdKey(bad), "0.9", "test"); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.thresholdFor(ctx, bad); got != 0.3 {
+		t.Errorf("out-of-range setting must fall back, got %v", got)
+	}
+}
